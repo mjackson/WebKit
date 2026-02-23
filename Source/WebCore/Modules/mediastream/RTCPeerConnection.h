@@ -170,7 +170,7 @@ public:
 
     // EventTarget
     enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::RTCPeerConnection; }
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
 
     // API used by PeerConnectionBackend and relatives
     void updateIceGatheringState(RTCIceGatheringState);
@@ -237,7 +237,7 @@ private:
     WEBCORE_EXPORT void stop() final;
     void suspend(ReasonForSuspension) final;
     void resume() final;
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
 
     bool updateIceConnectionStateFromIceTransports();
     RTCIceConnectionState computeIceConnectionStateFromIceTransports();
@@ -260,7 +260,7 @@ private:
 
     void setSignalingState(RTCSignalingState);
 
-    WEBCORE_EXPORT RefPtr<PeerConnectionBackend> protectedBackend() const;
+    WEBCORE_EXPORT RefPtr<PeerConnectionBackend> NODELETE protectedBackend() const;
 
     bool m_isStopped { false };
     RTCSignalingState m_signalingState { RTCSignalingState::Stable };

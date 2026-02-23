@@ -145,7 +145,7 @@ void ScrollbarThemeMac::didCreateScrollerImp(Scrollbar& scrollbar)
 #if PLATFORM(MAC)
     RetainPtr scrollerImp = scrollerImpForScrollbar(scrollbar);
     ASSERT(scrollerImp);
-    scrollerImp.get().userInterfaceLayoutDirection = scrollbar.checkedScrollableArea()->shouldPlaceVerticalScrollbarOnLeft() ? NSUserInterfaceLayoutDirectionRightToLeft : NSUserInterfaceLayoutDirectionLeftToRight;
+    scrollerImp.get().userInterfaceLayoutDirection = protect(scrollbar.scrollableArea())->shouldPlaceVerticalScrollbarOnLeft() ? NSUserInterfaceLayoutDirectionRightToLeft : NSUserInterfaceLayoutDirectionLeftToRight;
 #else
     UNUSED_PARAM(scrollbar);
 #endif
@@ -182,7 +182,7 @@ bool ScrollbarThemeMac::isLayoutDirectionRTL(Scrollbar& scrollbar)
     RetainPtr scrollerImp = scrollerImpForScrollbar(scrollbar);
     if (!scrollerImp) {
         if (!scrollbar.shouldRegisterScrollbar())
-            return scrollbar.checkedScrollableArea()->shouldPlaceVerticalScrollbarOnLeft() ? NSUserInterfaceLayoutDirectionRightToLeft : NSUserInterfaceLayoutDirectionLeftToRight;
+            return protect(scrollbar.scrollableArea())->shouldPlaceVerticalScrollbarOnLeft() ? NSUserInterfaceLayoutDirectionRightToLeft : NSUserInterfaceLayoutDirectionLeftToRight;
         return false;
     }
     return scrollerImp.get().userInterfaceLayoutDirection == NSUserInterfaceLayoutDirectionRightToLeft;

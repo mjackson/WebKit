@@ -164,7 +164,7 @@ public:
     void newDataChannel(UniqueRef<RTCDataChannelHandler>&&, String&&, RTCDataChannelInit&&);
 
     virtual void disableICECandidateFiltering();
-    void enableICECandidateFiltering();
+    void NODELETE enableICECandidateFiltering();
 
     virtual std::optional<bool> canTrickleIceCandidates() const = 0;
 
@@ -174,7 +174,7 @@ public:
     const Logger& logger() const final { return m_logger.get(); }
     uint64_t logIdentifier() const final { return m_logIdentifier; }
     ASCIILiteral logClassName() const override { return "PeerConnectionBackend"_s; }
-    WTFLogChannel& logChannel() const final;
+    WTFLogChannel& NODELETE logChannel() const final;
 #if PLATFORM(WPE) || PLATFORM(GTK)
     void handleLogMessage(const WTFLogChannel&, WTFLogLevel, Vector<JSONLogValue>&&) final;
 #endif
@@ -230,7 +230,7 @@ public:
     virtual void startGatheringStatLogs(Function<void(String&&)>&&) { }
     virtual void stopGatheringStatLogs() { }
 
-    WEBCORE_EXPORT void ref() const;
+    WEBCORE_EXPORT void NODELETE ref() const;
     WEBCORE_EXPORT void deref() const;
 
     virtual bool shouldEnableServiceClass() const { return true; }
@@ -250,7 +250,7 @@ protected:
     void setRemoteDescriptionSucceeded(std::optional<DescriptionStates>&&, std::optional<TransceiverStates>&&, std::unique_ptr<RTCSctpTransportBackend>&&, std::optional<double>);
     void setRemoteDescriptionFailed(Exception&&);
 
-    void validateSDP(const String&) const;
+    void NODELETE validateSDP(const String&) const;
 
 #if PLATFORM(WPE) || PLATFORM(GTK)
     bool isJSONLogStreamingEnabled() const { return !m_jsonFilePath.isEmpty(); }
@@ -264,7 +264,7 @@ protected:
 
     using LogEvent = Variant<MessageLogEvent, StatsLogEvent>;
     String generateJSONLogEvent(LogEvent&&, bool isForGatherLogs);
-    void emitJSONLogEvent(String&&);
+    void NODELETE emitJSONLogEvent(String&&);
 
 private:
     virtual void doCreateOffer(RTCOfferOptions&&) = 0;
@@ -275,7 +275,7 @@ private:
     virtual void doStop() = 0;
 
 protected:
-    Ref<RTCPeerConnection> protectedPeerConnection() const;
+    Ref<RTCPeerConnection> NODELETE protectedPeerConnection() const;
     WeakRef<RTCPeerConnection, WeakPtrImplWithEventTargetData> m_peerConnection;
 
 private:

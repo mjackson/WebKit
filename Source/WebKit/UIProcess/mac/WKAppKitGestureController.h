@@ -31,6 +31,15 @@
 
 #import <AppKit/NSGestureRecognizer.h>
 #import <wtf/Forward.h>
+#import <wtf/ObjectIdentifier.h>
+#import <wtf/Vector.h>
+
+namespace WebCore {
+class Color;
+class FloatQuad;
+class IntPoint;
+class IntSize;
+}
 
 namespace WebKit {
 class WebPageProxy;
@@ -39,10 +48,27 @@ class WebViewImpl;
 
 OBJC_CLASS NSPanGestureRecognizer;
 
+#if __has_include(<WebKitAdditions/WKAppKitGestureControllerAdditionsBefore.mm>)
+#import <WebKitAdditions/WKAppKitGestureControllerAdditionsBefore.mm>
+#endif
+
 @interface WKAppKitGestureController : NSObject <NSGestureRecognizerDelegate>
 
 - (instancetype)initWithPage:(std::reference_wrapper<WebKit::WebPageProxy>)page viewImpl:(std::reference_wrapper<WebKit::WebViewImpl>)viewImpl;
 - (void)enableGesturesIfNeeded;
+
+#if ENABLE(TWO_PHASE_CLICKS)
+
+@property (nonatomic, readonly, getter=isPotentialClickInProgress) BOOL potentialClickInProgress;
+
+- (void)didGetClickHighlightForRequest:(WebKit::ClickIdentifier)requestID color:(const WebCore::Color&)color quads:(const Vector<WebCore::FloatQuad>&)highlightedQuads topLeftRadius:(const WebCore::IntSize&)topLeftRadius topRightRadius:(const WebCore::IntSize&)topRightRadius bottomLeftRadius:(const WebCore::IntSize&)bottomLeftRadius bottomRightRadius:(const WebCore::IntSize&)bottomRightRadius nodeHasBuiltInClickHandling:(BOOL)nodeHasBuiltInClickHandling;
+- (void)disableDoubleClickGesturesDuringClickIfNecessary:(WebKit::ClickIdentifier)requestID;
+- (void)commitPotentialClickFailed;
+- (void)didCompleteSyntheticClick;
+- (void)didHandleClickAsHover;
+- (void)didNotHandleClickAsClick:(const WebCore::IntPoint&)point;
+
+#endif
 
 @end
 

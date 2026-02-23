@@ -89,7 +89,7 @@ static bool borderWidthChanged(const RenderStyle* oldStyle, const RenderStyle* n
 
 void RenderTableRow::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
 {
-    ASSERT(style().display() == DisplayType::TableRow);
+    ASSERT(style().display() == Style::DisplayType::TableRow);
 
     RenderBox::styleDidChange(diff, oldStyle);
     propagateStyleToAnonymousChildren(StylePropagationType::AllChildren);

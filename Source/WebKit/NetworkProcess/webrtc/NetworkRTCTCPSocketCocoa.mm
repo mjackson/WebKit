@@ -241,7 +241,7 @@ auto NetworkRTCTCPSocketCocoa::getInterfaceName(NetworkRTCProvider& rtcProvider,
     nw_connection_set_queue(nwConnection.get(), tcpSocketQueueSingleton());
     nw_connection_set_state_changed_handler(nwConnection.get(), makeBlockPtr([promiseProducer = WTF::move(promiseProducer), nwConnection](nw_connection_state_t state, _Nullable nw_error_t error) mutable {
         auto checkInterface = [&] {
-            if (!nwConnection)
+            if (promiseProducer.isSettled())
                 return;
 
             auto path = adoptNS(nw_connection_copy_current_path(nwConnection.get()));
@@ -267,10 +267,8 @@ auto NetworkRTCTCPSocketCocoa::getInterfaceName(NetworkRTCProvider& rtcProvider,
             nw_connection_cancel(std::exchange(nwConnection, { }).get());
             return;
         case nw_connection_state_cancelled:
-            if (!nwConnection)
-                return;
-
-            promiseProducer.reject();
+            if (!promiseProducer.isSettled())
+                promiseProducer.reject();
             nwConnection = { };
             return;
         }

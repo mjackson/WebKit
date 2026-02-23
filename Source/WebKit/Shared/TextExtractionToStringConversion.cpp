@@ -36,10 +36,38 @@
 #include <wtf/text/MakeString.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/text/StringToIntegerConversion.h>
+#include <wtf/unicode/CharacterNames.h>
 
 namespace WebKit {
 
 using namespace WebCore;
+
+static String removeZeroWidthCharacters(const String& string)
+{
+    if (string.is8Bit())
+        return string;
+
+    return string.removeCharacters([](char16_t character) {
+        switch (character) {
+        case zeroWidthSpace:
+        case zeroWidthNonJoiner:
+        case zeroWidthJoiner:
+        case zeroWidthNoBreakSpace:
+        case wordJoiner:
+        case functionApplication:
+        case invisibleTimes:
+        case invisibleSeparator:
+            return true;
+        default:
+            return false;
+        }
+    });
+}
+
+static bool isEmptyMarkdownListItem(StringView line)
+{
+    return line == "-"_s || line == "- "_s;
+}
 
 std::optional<FrameAndNodeIdentifiers> parseFrameAndNodeIdentifiers(StringView identifierString)
 {
@@ -209,6 +237,22 @@ public:
             return line.first.isEmpty();
         });
 
+        if (useMarkdownOutput()) {
+            m_lines.removeAllMatching([](auto& line) {
+                return isEmptyMarkdownListItem(line.first);
+            });
+        }
+
+        if (m_lines.size() > 1) {
+            Vector<std::pair<String, TextExtractionLine>> unduplicatedLines;
+            unduplicatedLines.reserveInitialCapacity(m_lines.size());
+            for (auto& line : m_lines) {
+                if (unduplicatedLines.isEmpty() || unduplicatedLines.last().first != line.first)
+                    unduplicatedLines.append(WTF::move(line));
+            }
+            m_lines = WTF::move(unduplicatedLines);
+        }
+
         if (useTextTreeOutput() || useHTMLOutput()) {
             return makeStringByJoining(m_lines.map([](auto& stringAndLine) {
                 return stringAndLine.first;
@@ -297,47 +341,47 @@ public:
         return index;
     }
 
-    bool useTagNameForTextFormControls() const
+    bool NODELETE useTagNameForTextFormControls() const
     {
         return m_versionBehaviors.contains(TextExtractionVersionBehavior::TagNameForTextFormControls);
     }
 
-    bool includeRects() const
+    bool NODELETE includeRects() const
     {
         return !onlyIncludeText() && m_options.flags.contains(TextExtractionOptionFlag::IncludeRects);
     }
 
-    bool includeURLs() const
+    bool NODELETE includeURLs() const
     {
         return !onlyIncludeText() && m_options.flags.contains(TextExtractionOptionFlag::IncludeURLs);
     }
 
-    bool shortenURLs() const
+    bool NODELETE shortenURLs() const
     {
         return m_options.flags.contains(TextExtractionOptionFlag::ShortenURLs);
     }
 
-    bool onlyIncludeText() const
+    bool NODELETE onlyIncludeText() const
     {
         return m_options.flags.contains(TextExtractionOptionFlag::OnlyIncludeText);
     }
 
-    bool useHTMLOutput() const
+    bool NODELETE useHTMLOutput() const
     {
         return m_options.outputFormat == TextExtractionOutputFormat::HTMLMarkup;
     }
 
-    bool useMarkdownOutput() const
+    bool NODELETE useMarkdownOutput() const
     {
         return m_options.outputFormat == TextExtractionOutputFormat::Markdown;
     }
 
-    bool useTextTreeOutput() const
+    bool NODELETE useTextTreeOutput() const
     {
         return m_options.outputFormat == TextExtractionOutputFormat::TextTree;
     }
 
-    bool useJSONOutput() const
+    bool NODELETE useJSONOutput() const
     {
         return m_options.outputFormat == TextExtractionOutputFormat::MinifiedJSON;
     }
@@ -377,7 +421,7 @@ public:
         m_urlStringStack.append(WTF::move(urlString));
     }
 
-    std::optional<String> currentURLString() const
+    std::optional<String> NODELETE currentURLString() const
     {
         if (m_urlStringStack.isEmpty())
             return std::nullopt;
@@ -385,7 +429,7 @@ public:
         return { m_urlStringStack.last() };
     }
 
-    void popURLString()
+    void NODELETE popURLString()
     {
         if (m_urlStringStack.isEmpty()) {
             ASSERT_NOT_REACHED();
@@ -395,9 +439,9 @@ public:
         m_urlStringStack.removeLast();
     }
 
-    void pushSuperscript() { m_superscriptLevel++; }
-    bool superscriptLevel() const { return m_superscriptLevel; }
-    void popSuperscript()
+    void NODELETE pushSuperscript() { m_superscriptLevel++; }
+    bool NODELETE superscriptLevel() const { return m_superscriptLevel; }
+    void NODELETE popSuperscript()
     {
         if (!m_superscriptLevel) {
             ASSERT_NOT_REACHED();
@@ -406,9 +450,9 @@ public:
         m_superscriptLevel--;
     }
 
-    void pushStrikethrough() { m_strikethroughLevel++; }
-    bool isInsideStrikethrough() const { return m_strikethroughLevel > 0; }
-    void popStrikethrough()
+    void NODELETE pushStrikethrough() { m_strikethroughLevel++; }
+    bool NODELETE isInsideStrikethrough() const { return m_strikethroughLevel > 0; }
+    void NODELETE popStrikethrough()
     {
         if (!m_strikethroughLevel) {
             ASSERT_NOT_REACHED();
@@ -427,7 +471,7 @@ public:
         return stringForURL(data.shortenedName, data.completedSource, ExtractedURLType::Image);
     }
 
-    Ref<JSON::Object> protectedRootJSONObject()
+    JSON::Object& rootJSONObject()
     {
         ASSERT(useJSONOutput());
         if (!m_rootJSONObject)
@@ -506,7 +550,7 @@ private:
             menuObject->setString("type"_s, "nativePopupMenu"_s);
             menuObject->setArray("items"_s, WTF::move(itemsArray));
 
-            if (RefPtr children = protectedRootJSONObject()->getArray("children"_s))
+            if (RefPtr children = protect(rootJSONObject())->getArray("children"_s))
                 children->pushObject(WTF::move(menuObject));
             return;
         }
@@ -523,10 +567,10 @@ private:
         if (!useJSONOutput())
             return;
 
-        protectedRootJSONObject()->setInteger("version"_s, version());
+        protect(rootJSONObject())->setInteger("version"_s, version());
     }
 
-    uint32_t version() const
+    uint32_t NODELETE version() const
     {
         return m_options.version.value_or(currentTextExtractionOutputVersion);
     }
@@ -686,7 +730,7 @@ static void addJSONTextContent(Ref<JSON::Object>&& jsonObject, const TextExtract
         if (filteredText.isEmpty())
             return;
 
-        auto content = filteredText.trim(isASCIIWhitespace).simplifyWhiteSpace(isASCIIWhitespace);
+        auto content = removeZeroWidthCharacters(filteredText.trim(isASCIIWhitespace).simplifyWhiteSpace(isASCIIWhitespace));
         aggregator->applyReplacements(content);
 
         if (content.isEmpty())
@@ -855,8 +899,12 @@ static Vector<String> partsForItem(const TextExtraction::Item& item, const TextE
         parts.append(makeString("title='"_s, escapeString(item.title), '\''));
 
     auto listeners = eventListenerTypesToStringArray(item.eventListeners);
-    if (!listeners.isEmpty() && !aggregator.useHTMLOutput())
-        parts.append(makeString("events=["_s, commaSeparatedString(listeners), ']'));
+    if (!listeners.isEmpty() && !aggregator.useHTMLOutput()) {
+        if (listeners.size() == 1)
+            parts.append(makeString("events="_s, listeners.first()));
+        else
+            parts.append(makeString("events=["_s, commaSeparatedString(listeners), ']'));
+    }
 
     for (auto& key : sortedKeys(item.ariaAttributes))
         parts.append(makeString(key, "='"_s, escapeString(item.ariaAttributes.get(key)), '\''));
@@ -887,7 +935,7 @@ static void addPartsForText(const TextExtraction::TextItemData& textItem, Vector
             aggregator->applyReplacements(filteredText);
 
             if (aggregator->onlyIncludeText()) {
-                aggregator->addResult(currentLine, { escapeString(filteredText.trim(isASCIIWhitespace).simplifyWhiteSpace(isASCIIWhitespace)) });
+                aggregator->addResult(currentLine, { escapeString(removeZeroWidthCharacters(filteredText.trim(isASCIIWhitespace).simplifyWhiteSpace(isASCIIWhitespace))) });
                 return;
             }
 
@@ -909,7 +957,7 @@ static void addPartsForText(const TextExtraction::TextItemData& textItem, Vector
                     }
                 }
 
-                auto trimmedContent = filteredText.substring(startIndex, endIndex - startIndex + 1);
+                auto trimmedContent = removeZeroWidthCharacters(filteredText.substring(startIndex, endIndex - startIndex + 1));
                 if (aggregator->useHTMLOutput()) {
                     if (!closingTag.isEmpty()) {
                         aggregator->appendToLine(currentLine.lineIndex, makeString(escapeStringForHTML(trimmedContent), closingTag));
@@ -1395,7 +1443,7 @@ void convertToText(TextExtraction::Item&& item, TextExtractionOptions&& options,
     Ref aggregator = TextExtractionAggregator::create(WTF::move(options), WTF::move(completion));
 
     if (aggregator->useJSONOutput()) {
-        populateJSONForItem(aggregator->protectedRootJSONObject(), item, { }, aggregator);
+        populateJSONForItem(protect(aggregator->rootJSONObject()), item, { }, aggregator);
         return;
     }
 

@@ -108,11 +108,6 @@ void WebSWServerToContextConnection::terminateIdleServiceWorkers()
         server->terminateIdleServiceWorkers(*this);
 }
 
-RefPtr<NetworkConnectionToWebProcess> WebSWServerToContextConnection::protectedConnection() const
-{
-    return m_connection.get();
-}
-
 NetworkProcess* WebSWServerToContextConnection::networkProcess()
 {
     return m_connection ? &m_connection->networkProcess() : nullptr;
@@ -199,7 +194,7 @@ void WebSWServerToContextConnection::fireNotificationEvent(ServiceWorkerIdentifi
         if (!--protectedThis->m_processingFunctionalEventCount)
             protectedThis->sendToParentProcess(Messages::NetworkProcessProxy::EndServiceWorkerBackgroundProcessing { protectedThis->webProcessIdentifier() });
 
-        CheckedPtr session = protectedThis->protectedConnection()->networkSession();
+        CheckedPtr session = protect(protectedThis->m_connection)->networkSession();
         if (RefPtr resourceLoadStatistics = session ? session->resourceLoadStatistics() : nullptr; resourceLoadStatistics && wasProcessed && eventType == NotificationEventType::Click) {
             return resourceLoadStatistics->setMostRecentWebPushInteractionTime(RegistrableDomain(protectedThis->registrableDomain()), [callback = WTF::move(callback), wasProcessed] () mutable {
                 callback(wasProcessed);
@@ -247,7 +242,7 @@ void WebSWServerToContextConnection::fireBackgroundFetchClickEvent(ServiceWorker
 void WebSWServerToContextConnection::terminateWorker(ServiceWorkerIdentifier serviceWorkerIdentifier)
 {
     if (!m_processingFunctionalEventCount++)
-        protect(protectedConnection()->networkProcess().parentProcessConnection())->send(Messages::NetworkProcessProxy::StartServiceWorkerBackgroundProcessing { webProcessIdentifier() }, 0);
+        protect(protect(m_connection)->networkProcess().parentProcessConnection())->send(Messages::NetworkProcessProxy::StartServiceWorkerBackgroundProcessing { webProcessIdentifier() }, 0);
 
     send(Messages::WebSWContextManagerConnection::TerminateWorker(serviceWorkerIdentifier));
 }
@@ -258,7 +253,7 @@ void WebSWServerToContextConnection::setAsInspected(ServiceWorkerIdentifier serv
 
 #if ENABLE(WEB_PUSH_NOTIFICATIONS)
     if (isInspected) {
-        CheckedPtr session = protectedConnection()->networkSession();
+        CheckedPtr session = protect(m_connection)->networkSession();
         RefPtr worker = SWServerWorker::existingWorkerForIdentifier(serviceWorkerIdentifier);
 
         if (session && worker) {
@@ -281,7 +276,7 @@ void WebSWServerToContextConnection::workerTerminated(ServiceWorkerIdentifier se
     SWServerToContextConnection::workerTerminated(serviceWorkerIdentifier);
 
     if (--m_processingFunctionalEventCount)
-        protect(protectedConnection()->networkProcess().parentProcessConnection())->send(Messages::NetworkProcessProxy::EndServiceWorkerBackgroundProcessing { webProcessIdentifier() }, 0);
+        protect(protect(m_connection)->networkProcess().parentProcessConnection())->send(Messages::NetworkProcessProxy::EndServiceWorkerBackgroundProcessing { webProcessIdentifier() }, 0);
 }
 
 void WebSWServerToContextConnection::didFinishActivation(WebCore::ServiceWorkerIdentifier serviceWorkerIdentifier)
@@ -332,7 +327,7 @@ void WebSWServerToContextConnection::didSaveScriptsToDisk(ServiceWorkerIdentifie
 
 void WebSWServerToContextConnection::terminateDueToUnresponsiveness()
 {
-    protectedConnection()->terminateSWContextConnectionDueToUnresponsiveness();
+    protect(m_connection)->terminateSWContextConnectionDueToUnresponsiveness();
 }
 
 void WebSWServerToContextConnection::openWindow(WebCore::ServiceWorkerIdentifier identifier, const URL& url, OpenWindowCallback&& callback)

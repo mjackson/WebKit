@@ -64,9 +64,9 @@ public:
     Ref<FrameState> navigatedFrameState() const;
     Ref<FrameState> mainFrameState() const;
 
-    const String& originalURL() const;
-    const String& url() const;
-    const String& title() const;
+    const String& NODELETE originalURL() const;
+    const String& NODELETE url() const;
+    const String& NODELETE title() const;
     bool wasCreatedByJSWithoutUserInteraction() const;
 
     const URL& resourceDirectoryURL() const { return m_resourceDirectoryURL; }
@@ -84,15 +84,17 @@ public:
 
     void wasRemovedFromBackForwardList();
 
-    WebBackForwardCacheEntry* backForwardCacheEntry() const SWIFT_RETURNS_INDEPENDENT_VALUE { return m_backForwardCacheEntry.get(); }
+    WebBackForwardCacheEntry* backForwardCacheEntry() const { return m_backForwardCacheEntry.get(); }
 
-    SuspendedPageProxy* suspendedPage() const SWIFT_RETURNS_INDEPENDENT_VALUE;
+    SuspendedPageProxy* NODELETE suspendedPage() const;
 
     std::optional<WebCore::FrameIdentifier> navigatedFrameID() const { return m_navigatedFrameID; }
 
-    WebBackForwardListFrameItem& navigatedFrameItem() const SWIFT_RETURNS_INDEPENDENT_VALUE;
+    WebBackForwardListFrameItem& navigatedFrameItem() const;
 
-    WebBackForwardListFrameItem& mainFrameItem() const SWIFT_RETURNS_INDEPENDENT_VALUE;
+    // rdar://168057355
+    WebBackForwardListFrameItem* WTF_NONNULL mainFrameItemPtrForSwift() const SWIFT_NAME(mainFrameItem()) { return &mainFrameItem(); }
+    WebBackForwardListFrameItem& NODELETE mainFrameItem() const SWIFT_NAME(__mainFrameItemUnsafe());
 
     void setWasRestoredFromSession();
 

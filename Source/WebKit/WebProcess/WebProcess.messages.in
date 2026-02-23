@@ -186,6 +186,7 @@ messages -> WebProcess : AuxiliaryProcess WantsAsyncDispatchMessage {
 
     UpdateDomainsWithStorageAccessQuirks(HashSet<WebCore::RegistrableDomain> domainsWithStorageAccessQuirks);
     UpdateScriptTrackingPrivacyFilter(struct WebKit::ScriptTrackingPrivacyRules rules)
+    UpdateConsistentPrivacyQuirkFilter(struct WebKit::ScriptTrackingPrivacyRules rules)
 
     GrantAccessToAssetServices(Vector<WebKit::SandboxExtensionHandle> assetServicesHandles)
     RevokeAccessToAssetServices()

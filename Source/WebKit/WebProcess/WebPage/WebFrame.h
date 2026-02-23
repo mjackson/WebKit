@@ -96,7 +96,7 @@ class InjectedBundleHitTestResult;
 class InjectedBundleNodeHandle;
 class InjectedBundleRangeHandle;
 class InjectedBundleScriptWorld;
-class WebFrameInspectorTarget;
+class FrameInspectorTarget;
 class WebKeyboardEvent;
 class WebImage;
 class WebMouseEvent;
@@ -131,9 +131,9 @@ public:
 
     static WebFrame* webFrame(std::optional<WebCore::FrameIdentifier>);
     static RefPtr<WebFrame> fromCoreFrame(const WebCore::Frame&);
-    WebCore::LocalFrame* coreLocalFrame() const;
-    WebCore::RemoteFrame* coreRemoteFrame() const;
-    WebCore::Frame* coreFrame() const;
+    WebCore::LocalFrame* NODELETE coreLocalFrame() const;
+    WebCore::RemoteFrame* NODELETE coreRemoteFrame() const;
+    WebCore::Frame* NODELETE coreFrame() const;
 
     void createProvisionalFrame(ProvisionalFrameCreationParameters&&);
     void commitProvisionalFrame();
@@ -236,7 +236,7 @@ public:
 
     RefPtr<WebImage> createSelectionSnapshot() const;
 
-#if PLATFORM(IOS_FAMILY)
+#if ENABLE(TWO_PHASE_CLICKS)
     std::optional<TransactionID> firstLayerTreeTransactionIDAfterDidCommitLoad() const { return m_firstLayerTreeTransactionIDAfterDidCommitLoad; }
     void setFirstLayerTreeTransactionIDAfterDidCommitLoad(TransactionID transactionID) { m_firstLayerTreeTransactionIDAfterDidCommitLoad = transactionID; }
 #endif
@@ -265,7 +265,7 @@ public:
     WebCore::HandleUserInputEventResult handleMouseEvent(const WebMouseEvent&);
     bool handleKeyEvent(const WebKeyboardEvent&);
 
-    bool isFocused() const;
+    bool NODELETE isFocused() const;
 
     String frameTextForTesting(bool);
 
@@ -310,8 +310,9 @@ private:
     RefPtr<WebCore::LocalFrame> localFrame();
 
     void findFocusableElementDescendingIntoRemoteFrame(WebCore::FocusDirection, const WebCore::FocusEventData&, WebCore::ShouldFocusElement, CompletionHandler<void(WebCore::FoundElementInRemoteFrame)>&&);
+    void findFocusableElementContinuingFromFrame(WebCore::FocusDirection, WebCore::FrameIdentifier, const WebCore::FocusEventData&, WebCore::ShouldFocusElement);
 
-    CheckedRef<WebFrameInspectorTarget> ensureInspectorTarget();
+    CheckedRef<FrameInspectorTarget> ensureInspectorTarget();
 
     WeakPtr<WebCore::Frame> m_coreFrame;
     WeakPtr<WebPage> m_page;
@@ -328,7 +329,7 @@ private:
     const WebCore::FrameIdentifier m_frameID;
     bool m_wasRemovedInAnotherProcess { false };
 
-#if PLATFORM(IOS_FAMILY)
+#if ENABLE(TWO_PHASE_CLICKS)
     std::optional<TransactionID> m_firstLayerTreeTransactionIDAfterDidCommitLoad;
 #endif
     std::optional<NavigatingToAppBoundDomain> m_isNavigatingToAppBoundDomain;
@@ -336,7 +337,7 @@ private:
     Markable<WebCore::LayerHostingContextIdentifier> m_layerHostingContextIdentifier;
     Markable<WebCore::FrameIdentifier> m_frameIDBeforeProvisionalNavigation;
 
-    std::unique_ptr<WebFrameInspectorTarget> m_inspectorTarget;
+    std::unique_ptr<FrameInspectorTarget> m_inspectorTarget;
 };
 
 } // namespace WebKit

@@ -33,6 +33,7 @@
 #include "RenderBoxInlines.h"
 #include "RenderElementStyleInlines.h"
 #include "SVGElement.h"
+#include "StyleZoomPrimitivesInlines.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -76,14 +77,14 @@ auto ResizeObservation::computeObservedSizes() const -> std::optional<BoxSizes>
         }
     }
 
-    auto* box = m_target->renderBox();
+    CheckedPtr box = m_target->renderBox();
     if (box) {
         if (box->isSkippedContent())
             return std::nullopt;
         return { {
-            adjustLayoutSizeForAbsoluteZoom(box->contentBoxSize(), *box),
-            adjustLayoutSizeForAbsoluteZoom(box->contentBoxLogicalSize(), *box),
-            adjustLayoutSizeForAbsoluteZoom(box->borderBoxLogicalSize(), *box)
+            Style::adjustLayoutSizeForAbsoluteZoom(box->contentBoxSize(), *box),
+            Style::adjustLayoutSizeForAbsoluteZoom(box->contentBoxLogicalSize(), *box),
+            Style::adjustLayoutSizeForAbsoluteZoom(box->borderBoxLogicalSize(), *box)
         } };
     }
 
@@ -96,7 +97,7 @@ LayoutPoint ResizeObservation::computeTargetLocation() const
         return { };
 
     if (!m_target->isSVGElement()) {
-        if (auto box = m_target->renderBox())
+        if (CheckedPtr box = m_target->renderBox())
             return LayoutPoint(box->paddingLeft(), box->paddingTop());
     }
 
@@ -121,11 +122,6 @@ FloatSize ResizeObservation::contentBoxSize() const
 FloatSize ResizeObservation::snappedContentBoxSize() const
 {
     return m_lastObservationSizes.contentBoxLogicalSize; // FIXME: Need to pixel snap.
-}
-
-RefPtr<Element> ResizeObservation::protectedTarget() const
-{
-    return m_target.get();
 }
 
 std::optional<ResizeObservation::BoxSizes> ResizeObservation::elementSizeChanged() const
@@ -168,7 +164,7 @@ TextStream& operator<<(TextStream& ts, const ResizeObservation& observation)
 {
     ts.dumpProperty("target"_s, ValueOrNull(observation.target()));
 
-    if (auto* box = observation.target()->renderBox())
+    if (CheckedPtr box = observation.target()->renderBox())
         ts.dumpProperty("target box"_s, box);
 
     ts.dumpProperty("border box"_s, observation.borderBoxSize());

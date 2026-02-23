@@ -557,7 +557,6 @@ bool CodeBlock::finishCreation(VM& vm, ScriptExecutable* ownerExecutable, Unlink
         LINK(OpIteratorNext, callLinkInfo)
         LINK(OpCallVarargs, callLinkInfo)
         LINK(OpTailCallVarargs, callLinkInfo)
-        LINK(OpTailCallForwardArguments, callLinkInfo)
         LINK(OpConstructVarargs, callLinkInfo)
         LINK(OpSuperConstructVarargs, callLinkInfo)
         LINK(OpCallIgnoreResult, callLinkInfo)
@@ -2286,6 +2285,11 @@ void CodeBlock::jettison(Profiler::JettisonReason reason, ReoptimizationMode mod
 
     m_isJettisoned = true;
 
+#if ENABLE(DFG_JIT)
+    if (jitType() == JITType::DFGJIT)
+        didDFGJettison(reason);
+#endif
+
     CodeBlock* codeBlock = this; // Placate GCC for use in CODEBLOCK_LOG_EVENT  (does not like this).
     CODEBLOCK_LOG_EVENT(codeBlock, "jettison", ("due to ", reason, ", counting = ", mode == CountReoptimization, ", detail = ", pointerDump(detail)));
 
@@ -2719,8 +2723,14 @@ void CodeBlock::optimizeAfterWarmUp()
 {
     dataLogLnIf(Options::verboseOSR(), *this, ": Optimizing after warm-up.");
 #if ENABLE(DFG_JIT)
-    if (auto* jitData = baselineJITData())
-        jitData->executeCounter().setNewThreshold(adjustedCounterValue(Options::thresholdForOptimizeAfterWarmUp()), this);
+    if (auto* jitData = baselineJITData()) {
+        int32_t threshold = Options::thresholdForOptimizeAfterWarmUp();
+        if (unlinkedCodeBlock()->isQuickDFGTierUp()) {
+            threshold = static_cast<int32_t>(Options::thresholdForOptimizeAfterWarmUp() * Options::quickDFGTierUpThresholdFactor());
+            dataLogLnIf(Options::verboseOSR(), *this, ": Quick DFG tier-up enabled and code is stable, bytecodeCost=", bytecodeCost(), ", codeType=", codeType(), ", adjustedThreshold=", threshold, ", finalThreshold=", adjustedCounterValue(threshold), " optimizationDelayCounter=", m_optimizationDelayCounter);
+        }
+        jitData->executeCounter().setNewThreshold(adjustedCounterValue(threshold), this);
+    }
 #endif
 }
 
@@ -2776,6 +2786,7 @@ void CodeBlock::setOptimizationThresholdBasedOnCompilationResult(CompilationResu
         return;
     case CompilationResult::CompilationFailed:
         dontOptimizeAnytimeSoon();
+        didFailDFGCompilation();
         return;
     case CompilationResult::CompilationDeferred:
         // We'd like to do dontOptimizeAnytimeSoon() but we cannot because
@@ -2832,6 +2843,27 @@ bool CodeBlock::shouldReoptimizeFromLoopNow()
 {
     return osrExitCounter() >= exitCountThresholdForReoptimizationFromLoop();
 }
+
+void CodeBlock::didInstallDFGCode()
+{
+    if (!unlinkedCodeBlock()->hasQuickDFGTierUpUpdated())
+        unlinkedCodeBlock()->setQuickDFGTierUp(TriState::True);
+}
+
+void CodeBlock::didDFGJettison(Profiler::JettisonReason reason)
+{
+    if (!Profiler::isSpeculationFailure(reason))
+        return;
+
+    ASSERT(unlinkedCodeBlock()->hasQuickDFGTierUpUpdated());
+    unlinkedCodeBlock()->setQuickDFGTierUp(TriState::False);
+}
+
+void CodeBlock::didFailDFGCompilation()
+{
+    unlinkedCodeBlock()->setQuickDFGTierUp(TriState::False);
+}
+
 #endif
 
 ArrayProfile* CodeBlock::getArrayProfile(const ConcurrentJSLocker&, BytecodeIndex bytecodeIndex)

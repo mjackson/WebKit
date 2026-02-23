@@ -62,10 +62,8 @@ std::optional<AuthenticationExtensionsClientInputs> AuthenticationExtensionsClie
             largeBlob.read = largeBlobIt->second.getBool();
 
         largeBlobIt = largeBlobMap.find(cbor::CBORValue("write"));
-        if (largeBlobIt != largeBlobMap.end() && largeBlobIt->second.isByteString()) {
-            RefPtr<ArrayBuffer> write = ArrayBuffer::create(largeBlobIt->second.getByteString());
-            largeBlob.write = BufferSource(write);
-        }
+        if (largeBlobIt != largeBlobMap.end() && largeBlobIt->second.isByteString())
+            largeBlob.write = BufferSource(ArrayBuffer::create(largeBlobIt->second.getByteString()));
 
         clientInputs.largeBlob = largeBlob;
     }

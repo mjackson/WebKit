@@ -40,7 +40,7 @@ public:
     LegacyRenderSVGRoot(SVGSVGElement&, RenderStyle&&);
     virtual ~LegacyRenderSVGRoot();
 
-    SVGSVGElement& svgSVGElement() const;
+    SVGSVGElement& NODELETE svgSVGElement() const;
 
     bool isEmbeddedThroughSVGImage() const;
     bool isEmbeddedThroughFrameContainingSVGDocument() const;
@@ -115,7 +115,7 @@ private:
     bool canBeSelectionLeaf() const override { return false; }
     bool canHaveChildren() const override { return true; }
 
-    bool shouldApplyViewportClip() const;
+    bool NODELETE shouldApplyViewportClip() const;
     void updateCachedBoundaries();
     void buildLocalToBorderBoxTransform();
 

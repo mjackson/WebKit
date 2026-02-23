@@ -1534,7 +1534,7 @@
 		9B4694391F97439E00CCB3F9 /* BooleanPrototype.h in Headers */ = {isa = PBXBuildFile; fileRef = BC7952350E15EB5600A898AB /* BooleanPrototype.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		9E72940B190F0514001A91B5 /* BundlePath.h in Headers */ = {isa = PBXBuildFile; fileRef = 9E72940A190F0514001A91B5 /* BundlePath.h */; };
 		9F63434577274FAFB9336C38 /* ModuleNamespaceAccessCase.h in Headers */ = {isa = PBXBuildFile; fileRef = 4CE978E385A8498199052153 /* ModuleNamespaceAccessCase.h */; };
-		A12BBFF21B044A8B00664B69 /* IntlObject.h in Headers */ = {isa = PBXBuildFile; fileRef = A12BBFF11B044A8B00664B69 /* IntlObject.h */; };
+		A12BBFF21B044A8B00664B69 /* IntlObject.h in Headers */ = {isa = PBXBuildFile; fileRef = A12BBFF11B044A8B00664B69 /* IntlObject.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		A1587D6E1B4DC14100D69849 /* IntlDateTimeFormat.h in Headers */ = {isa = PBXBuildFile; fileRef = A1587D681B4DC14100D69849 /* IntlDateTimeFormat.h */; };
 		A1587D701B4DC14100D69849 /* IntlDateTimeFormatConstructor.h in Headers */ = {isa = PBXBuildFile; fileRef = A1587D6A1B4DC14100D69849 /* IntlDateTimeFormatConstructor.h */; };
 		A1587D721B4DC14100D69849 /* IntlDateTimeFormatPrototype.h in Headers */ = {isa = PBXBuildFile; fileRef = A1587D6C1B4DC14100D69849 /* IntlDateTimeFormatPrototype.h */; };
@@ -2114,6 +2114,7 @@
 		E3A421431D6F58930007C617 /* PreciseJumpTargetsInlines.h in Headers */ = {isa = PBXBuildFile; fileRef = E3A421421D6F588F0007C617 /* PreciseJumpTargetsInlines.h */; };
 		E3AC277721FDB4940024452C /* RegExpCachedResult.h in Headers */ = {isa = PBXBuildFile; fileRef = 86F75EFC151C062F007C9BA3 /* RegExpCachedResult.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		E3AEF17D2E890C0C00D493ED /* JSPromiseReaction.h in Headers */ = {isa = PBXBuildFile; fileRef = E3AEF17A2E890C0C00D493ED /* JSPromiseReaction.h */; };
+		E3AEF1822E890C0C00D493ED /* JSMicrotaskDispatcher.h in Headers */ = {isa = PBXBuildFile; fileRef = E3AEF1802E890C0C00D493ED /* JSMicrotaskDispatcher.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		E3B2329D2DF7A0CC00ECC447 /* ConcatKeyAtomStringCache.h in Headers */ = {isa = PBXBuildFile; fileRef = E3B2329A2DF7A0BE00ECC447 /* ConcatKeyAtomStringCache.h */; };
 		E3B2329E2DF7A0D300ECC447 /* ConcatKeyAtomStringCacheInlines.h in Headers */ = {isa = PBXBuildFile; fileRef = E3B2329C2DF7A0BE00ECC447 /* ConcatKeyAtomStringCacheInlines.h */; };
 		E3B24859291224540029C08A /* BufferMemoryHandle.h in Headers */ = {isa = PBXBuildFile; fileRef = E3B24857291224530029C08A /* BufferMemoryHandle.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -6024,6 +6025,8 @@
 		E3A421421D6F588F0007C617 /* PreciseJumpTargetsInlines.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PreciseJumpTargetsInlines.h; sourceTree = "<group>"; };
 		E3AEF17A2E890C0C00D493ED /* JSPromiseReaction.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSPromiseReaction.h; sourceTree = "<group>"; };
 		E3AEF17B2E890C0C00D493ED /* JSPromiseReaction.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = JSPromiseReaction.cpp; sourceTree = "<group>"; };
+		E3AEF1802E890C0C00D493ED /* JSMicrotaskDispatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSMicrotaskDispatcher.h; sourceTree = "<group>"; };
+		E3AEF1812E890C0C00D493ED /* JSMicrotaskDispatcher.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = JSMicrotaskDispatcher.cpp; sourceTree = "<group>"; };
 		E3B2329A2DF7A0BE00ECC447 /* ConcatKeyAtomStringCache.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ConcatKeyAtomStringCache.h; sourceTree = "<group>"; };
 		E3B2329B2DF7A0BE00ECC447 /* ConcatKeyAtomStringCache.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ConcatKeyAtomStringCache.cpp; sourceTree = "<group>"; };
 		E3B2329C2DF7A0BE00ECC447 /* ConcatKeyAtomStringCacheInlines.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ConcatKeyAtomStringCacheInlines.h; sourceTree = "<group>"; };
@@ -8904,6 +8907,8 @@
 				276B39102A71D2B500252F4E /* JSMapIteratorInlines.h */,
 				7013CA891B491A9400CAE613 /* JSMicrotask.cpp */,
 				7013CA8A1B491A9400CAE613 /* JSMicrotask.h */,
+				E3AEF1812E890C0C00D493ED /* JSMicrotaskDispatcher.cpp */,
+				E3AEF1802E890C0C00D493ED /* JSMicrotaskDispatcher.h */,
 				E3D239C61B829C1C00BBEF67 /* JSModuleEnvironment.cpp */,
 				E3D239C71B829C1C00BBEF67 /* JSModuleEnvironment.h */,
 				276B38BC2A71D25B00252F4E /* JSModuleEnvironmentInlines.h */,
@@ -11877,6 +11882,7 @@
 				A74DEF96182D991400522C22 /* JSMapIterator.h in Headers */,
 				0F0B286D1EB8E6D5000EB5D2 /* JSMarkingConstraintPrivate.h in Headers */,
 				7013CA8C1B491A9400CAE613 /* JSMicrotask.h in Headers */,
+				E3AEF1822E890C0C00D493ED /* JSMicrotaskDispatcher.h in Headers */,
 				9959E92D1BD17FA4001AA413 /* jsmin.py in Headers */,
 				E3D239C91B829C1C00BBEF67 /* JSModuleEnvironment.h in Headers */,
 				276B38E12A71D26400252F4E /* JSModuleEnvironmentInlines.h in Headers */,

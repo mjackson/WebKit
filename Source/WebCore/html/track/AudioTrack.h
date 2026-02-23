@@ -64,7 +64,7 @@ public:
 
     size_t inbandTrackIndex() const;
 
-    Ref<AudioTrackPrivate> protectedPrivate() const;
+    Ref<AudioTrackPrivate> NODELETE protectedPrivate() const;
     const AudioTrackPrivate& privateTrack() const { return m_private; }
     void setPrivate(AudioTrackPrivate&);
 

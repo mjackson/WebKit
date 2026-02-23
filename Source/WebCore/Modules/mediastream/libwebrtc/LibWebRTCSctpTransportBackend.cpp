@@ -33,7 +33,7 @@
 
 namespace WebCore {
 
-static inline RTCSctpTransportState toRTCSctpTransportState(webrtc::SctpTransportState state)
+static inline RTCSctpTransportState NODELETE toRTCSctpTransportState(webrtc::SctpTransportState state)
 {
     switch (state) {
     case webrtc::SctpTransportState::kNew:

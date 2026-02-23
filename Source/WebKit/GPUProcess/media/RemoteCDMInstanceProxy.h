@@ -90,8 +90,6 @@ private:
     void setStorageDirectory(const String&);
     void createSession(uint64_t logIdentifier, CompletionHandler<void(std::optional<RemoteCDMInstanceSessionIdentifier>)>&&);
 
-    RefPtr<RemoteCDMProxy> protectedCdm() const;
-
     WeakPtr<RemoteCDMProxy> m_cdm;
     const Ref<WebCore::CDMInstance> m_instance;
     const UniqueRef<RemoteCDMInstanceConfiguration> m_configuration;

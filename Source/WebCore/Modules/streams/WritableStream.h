@@ -59,7 +59,7 @@ public:
     void errorIfPossible(Exception&&);
     void errorIfPossible(JSC::JSGlobalObject&, JSC::JSValue);
 
-    InternalWritableStream& internalWritableStream();
+    InternalWritableStream& NODELETE internalWritableStream();
     enum class Type : uint8_t {
         Default,
         FileSystem,

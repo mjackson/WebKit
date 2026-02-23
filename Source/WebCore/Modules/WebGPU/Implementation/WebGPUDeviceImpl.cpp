@@ -167,7 +167,7 @@ RefPtr<Sampler> DeviceImpl::createSampler(const SamplerDescriptor& descriptor)
     return SamplerImpl::create(adoptWebGPU(wgpuDeviceCreateSampler(m_backing.get(), &backingDescriptor)), convertToBackingContext);
 }
 
-static WGPUColorSpace convertToWGPUColorSpace(const PredefinedColorSpace& colorSpace)
+static WGPUColorSpace NODELETE convertToWGPUColorSpace(const PredefinedColorSpace& colorSpace)
 {
     switch (colorSpace) {
     case PredefinedColorSpace::SRGB:
@@ -343,7 +343,7 @@ static auto convertToBacking(const ComputePipelineDescriptor& descriptor, Conver
         .label = label.data(),
         .layout = descriptor.layout ? convertToBackingContext.convertToBacking(*descriptor.protectedLayout().get()) : nullptr,
         .compute = WGPUProgrammableStageDescriptor {
-            .module = convertToBackingContext.convertToBacking(protect(descriptor.compute.module.get()).get()),
+            .module = convertToBackingContext.convertToBacking(protect(descriptor.compute.module).get()),
             .entryPoint = entryPoint ? entryPoint->data() : nullptr,
             .constantCount = backingConstantEntries.size(),
             .constants = backingConstantEntries.size() ? backingConstantEntries.span().data() : nullptr,
@@ -496,7 +496,7 @@ static auto convertToBacking(const RenderPipelineDescriptor& descriptor, Convert
     }
 
     WGPUFragmentState fragmentState {
-        .module = descriptor.fragment ? convertToBackingContext.convertToBacking(protect(descriptor.fragment->module.get()).get()) : nullptr,
+        .module = descriptor.fragment ? convertToBackingContext.convertToBacking(protect(descriptor.fragment->module).get()) : nullptr,
         .entryPoint = fragmentEntryPoint ? fragmentEntryPoint->data() : nullptr,
         .constantCount = fragmentConstantEntries.size(),
         .constants = fragmentConstantEntries.size() ? fragmentConstantEntries.span().data() : nullptr,
@@ -508,7 +508,7 @@ static auto convertToBacking(const RenderPipelineDescriptor& descriptor, Convert
         .label = label.data(),
         .layout = descriptor.layout ? convertToBackingContext.convertToBacking(*descriptor.protectedLayout()) : nullptr,
         .vertex = {
-            .module = convertToBackingContext.convertToBacking(protect(descriptor.vertex.module.get()).get()),
+            .module = convertToBackingContext.convertToBacking(protect(descriptor.vertex.module).get()),
             .entryPoint = vertexEntryPoint ? vertexEntryPoint->data() : nullptr,
             .constantCount = vertexConstantEntries.size(),
             .constants = vertexConstantEntries.size() ? vertexConstantEntries.span().data() : nullptr,

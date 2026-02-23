@@ -109,7 +109,7 @@ public:
     ResourceRequest clientHandshakeRequest(const CookieGetter&) const final;
     const ResourceResponse& serverHandshakeResponse() const final;
 
-    Document* document();
+    Document* NODELETE document();
     
 private:
     WEBCORE_EXPORT WebSocketChannel(Document&, WebSocketChannelClient&, SocketProvider&);

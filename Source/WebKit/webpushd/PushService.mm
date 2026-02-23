@@ -217,8 +217,8 @@ public:
 
     virtual ASCIILiteral description() const = 0;
 
-    const PushSubscriptionSetIdentifier& subscriptionSetIdentifier() const { return m_identifier; }
-    const String& scope() const { return m_scope; };
+    const PushSubscriptionSetIdentifier& NODELETE subscriptionSetIdentifier() const { return m_identifier; }
+    const String& NODELETE scope() const { return m_scope; };
 
     virtual void start() = 0;
 
@@ -234,12 +234,9 @@ protected:
     {
     }
 
-    PushService& service() const { return m_service.get(); }
-    Ref<PushService> protectedService() const { return m_service.get(); }
-    PushServiceConnection& connection() const { return m_connection.get(); }
-    Ref<PushServiceConnection> protectedConnection() const { return m_connection.get(); }
-    PushDatabase& database() const { return m_database.get(); }
-    Ref<PushDatabase> protectedDatabase() const { return m_database.get(); }
+    PushService& NODELETE service() const { return m_service.get(); }
+    PushServiceConnection& NODELETE connection() const { return m_connection.get(); }
+    PushDatabase& NODELETE database() const { return m_database.get(); }
 
     virtual void finish() = 0;
 
@@ -325,7 +322,7 @@ private:
 
     ASCIILiteral description() const final { return "GetSubscriptionRequest"_s; }
     void startInternal() final;
-    void finish() final { protectedService()->didCompleteGetSubscriptionRequest(*this); }
+    void finish() final { protect(service())->didCompleteGetSubscriptionRequest(*this); }
 };
 
 GetSubscriptionRequest::GetSubscriptionRequest(PushService& service, const PushSubscriptionSetIdentifier& identifier, const String& scope, ResultHandler&& resultHandler)
@@ -336,7 +333,7 @@ GetSubscriptionRequest::GetSubscriptionRequest(PushService& service, const PushS
 // Implements the webpushd side of PushManager.getSubscription.
 void GetSubscriptionRequest::startInternal()
 {
-    protectedDatabase()->getRecordBySubscriptionSetAndScope(m_identifier, m_scope, [weakThis = WeakPtr { *this }](auto&& result) mutable {
+    protect(database())->getRecordBySubscriptionSetAndScope(m_identifier, m_scope, [weakThis = WeakPtr { *this }](auto&& result) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
@@ -368,7 +365,7 @@ private:
 
     ASCIILiteral description() const final { return "SubscribeRequest"_s; }
     void startInternal() final { startImpl(IsRetry::No); }
-    void finish() final { protectedService()->didCompleteSubscribeRequest(*this); }
+    void finish() final { protect(service())->didCompleteSubscribeRequest(*this); }
 
     enum class IsRetry : bool { No, Yes };
     void startImpl(IsRetry);
@@ -385,7 +382,7 @@ SubscribeRequest::SubscribeRequest(PushService& service, const PushSubscriptionS
 // Implements the webpushd side of PushManager.subscribe().
 void SubscribeRequest::startImpl(IsRetry isRetry)
 {
-    protectedDatabase()->getRecordBySubscriptionSetAndScope(m_identifier, m_scope, [weakThis = WeakPtr { *this }, isRetry](auto&& result) mutable {
+    protect(database())->getRecordBySubscriptionSetAndScope(m_identifier, m_scope, [weakThis = WeakPtr { *this }, isRetry](auto&& result) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
@@ -399,7 +396,7 @@ void SubscribeRequest::startImpl(IsRetry isRetry)
         }
 
         auto topic = makePushTopic(protectedThis->m_identifier, protectedThis->m_scope);
-        protectedThis->protectedConnection()->subscribe(topic, protectedThis->m_vapidPublicKey, [weakThis, isRetry, topic](NSString *endpoint, NSError *error) mutable {
+        protect(protectedThis->connection())->subscribe(topic, protectedThis->m_vapidPublicKey, [weakThis, isRetry, topic](NSString *endpoint, NSError *error) mutable {
             RefPtr protectedThis = weakThis.get();
             if (!protectedThis)
                 return;
@@ -435,7 +432,7 @@ void SubscribeRequest::startImpl(IsRetry isRetry)
             };
             IGNORE_CLANG_WARNINGS_END
 
-            protectedThis->protectedDatabase()->insertRecord(record, [weakThis](auto&& result) mutable {
+            protect(protectedThis->database())->insertRecord(record, [weakThis](auto&& result) mutable {
                 RefPtr protectedThis = weakThis.get();
                 if (!protectedThis)
                     return;
@@ -446,7 +443,7 @@ void SubscribeRequest::startImpl(IsRetry isRetry)
                     return;
                 }
 
-                protectedThis->protectedService()->updateTopicLists([weakThis, record = WTF::move(*result)]() mutable {
+                protect(protectedThis->service())->updateTopicLists([weakThis, record = WTF::move(*result)]() mutable {
                     if (RefPtr protectedThis = weakThis.get())
                         protectedThis->fulfill(makePushSubscriptionFromRecord(WTF::move(record)));
                 });
@@ -500,7 +497,7 @@ private:
 
     ASCIILiteral description() const final { return "UnsubscribeRequest"_s; }
     void startInternal() final;
-    void finish() final { protectedService()->didCompleteUnsubscribeRequest(*this); }
+    void finish() final { protect(service())->didCompleteUnsubscribeRequest(*this); }
 
     std::optional<PushSubscriptionIdentifier> m_subscriptionIdentifier;
 };
@@ -514,7 +511,7 @@ UnsubscribeRequest::UnsubscribeRequest(PushService& service, const PushSubscript
 // Implements the webpushd side of PushSubscription.unsubscribe.
 void UnsubscribeRequest::startInternal()
 {
-    protectedDatabase()->getRecordBySubscriptionSetAndScope(m_identifier, m_scope, [weakThis = WeakPtr { *this }](auto&& result) mutable {
+    protect(database())->getRecordBySubscriptionSetAndScope(m_identifier, m_scope, [weakThis = WeakPtr { *this }](auto&& result) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
@@ -524,7 +521,7 @@ void UnsubscribeRequest::startInternal()
             return;
         }
         
-        protectedThis->protectedDatabase()->removeRecordByIdentifier(*result->identifier, [weakThis = WTF::move(weakThis), serverVAPIDPublicKey = result->serverVAPIDPublicKey](bool removed) mutable {
+        protect(protectedThis->database())->removeRecordByIdentifier(*result->identifier, [weakThis = WTF::move(weakThis), serverVAPIDPublicKey = result->serverVAPIDPublicKey](bool removed) mutable {
             RefPtr protectedThis = weakThis.get();
             if (!protectedThis)
                 return;
@@ -535,13 +532,13 @@ void UnsubscribeRequest::startInternal()
             }
 
             // FIXME: support partial topic list updates.
-            protectedThis->protectedService()->updateTopicLists([weakThis]() mutable {
+            protect(protectedThis->service())->updateTopicLists([weakThis]() mutable {
                 if (RefPtr protectedThis = weakThis.get())
                     protectedThis->fulfill(true);
             });
 
             auto topic = makePushTopic(protectedThis->m_identifier, protectedThis->m_scope);
-            protectedThis->protectedConnection()->unsubscribe(topic, serverVAPIDPublicKey, [weakThis = WTF::move(weakThis)](bool unsubscribed, NSError *error) mutable {
+            protect(protectedThis->connection())->unsubscribe(topic, serverVAPIDPublicKey, [weakThis = WTF::move(weakThis)](bool unsubscribed, NSError *error) mutable {
                 RefPtr protectedThis = weakThis.get();
                 if (!protectedThis)
                     return;

@@ -18,6 +18,10 @@
         line-height: 100%; 
     }
 
+    input[type=checkbox]:not([switch]):checked::checkmark {
+        content: "\2713" / "";
+    }
+
     input[type="checkbox"]:disabled {
         border-color: color-mix(in srgb, currentColor 30%, transparent);
         background-color: color-mix(in srgb, currentColor 10%, transparent);

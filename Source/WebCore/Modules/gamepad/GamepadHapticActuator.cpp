@@ -40,7 +40,7 @@
 
 namespace WebCore {
 
-static bool areEffectParametersValid(GamepadHapticEffectType effectType, const GamepadEffectParameters& parameters)
+static bool NODELETE areEffectParametersValid(GamepadHapticEffectType effectType, const GamepadEffectParameters& parameters)
 {
     if (parameters.duration < 0 || parameters.startDelay < 0)
         return false;

@@ -88,7 +88,7 @@ private:
     void scheduleCallback(void (SQLTransaction::*)());
 
     // State Machine functions:
-    StateFunction stateFunctionFor(SQLTransactionState) override;
+    StateFunction NODELETE stateFunctionFor(SQLTransactionState) override;
     void computeNextStateAndCleanupIfNeeded();
 
     // State functions:
@@ -103,7 +103,7 @@ private:
     void deliverQuotaIncreaseCallback();
     void deliverSuccessCallback();
 
-    NO_RETURN_DUE_TO_ASSERT void unreachableState();
+    NO_RETURN_DUE_TO_ASSERT void NODELETE unreachableState();
 
     void callErrorCallbackDueToInterruption();
 

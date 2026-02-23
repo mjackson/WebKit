@@ -121,11 +121,6 @@ ExceptionOr<void> AudioParam::setAutomationRate(AutomationRate automationRate)
     return { };
 }
 
-float AudioParam::smoothedValue()
-{
-    return m_smoothedValue;
-}
-
 bool AudioParam::smooth()
 {
     if (!context())

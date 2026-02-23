@@ -632,18 +632,11 @@ imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-mode
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select-in-page/customizable-select-in-page-appearance.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select-in-page/customizable-select-in-page-sizing.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select-multiple-popup/select-multiple-popup-appearance.tentative.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/border-rendering.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/focus-ring-rendering.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-accessibility-minimum-target-size.html [ Skip ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-active.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-button-after-option.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-button-after-span.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-button-after-text.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-custom-button.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-dark-mode.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-default-button.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-disabled-option.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-disabled.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-fallback-bottom-left-scroller.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-fallback-bottom-left.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-fallback-bottom-right-scroller.html [ ImageOnlyFailure ]
@@ -652,37 +645,28 @@ imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customiz
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-fallback-top-left.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-fallback-top-right-scroller.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-fallback-top-right.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-font-inheriting.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-hover.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-optgroup-legend-and-label.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-optgroup-legend.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-optgroup-rendering.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/uses-label-dynamic.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-option-with-label.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-picker-select-border.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-sizing-in-flex.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-switching-invalidation.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-writing-mode-vertical-lr.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-writing-mode-vertical-rl.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-base-appearance-computed-style.html [ Skip ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-display-block.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-explicit-size.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-font-size.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-grid-before-after.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-icon-color.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-open-invalidation.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-option-images.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-picker-exit-animation.html [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-picker-starting-style.html [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-popover-exit-animation.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-second-child-button.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-text-only.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/selectedcontent-color.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/selectedcontent-restore.html [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/picker-and-slotted.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-synthetic-events.html [ Skip ]
+imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-mouse-behavior.html [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/select-many-options.tentative.html [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/select-multiple-size-1.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/select-popover-position-with-zoom.tentative.html [ Skip ]
+imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/customizable-select/min-size-empty-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/customizable-select/min-size-empty-002.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/select-empty.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/select-button-min-height-001.html [ ImageOnlyFailure ]
 
 # Flaky crashing test.
 media/modern-media-controls/tracks-support/no-tracks.html [ Crash Pass Failure ]
@@ -909,8 +893,6 @@ imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/the-page/bo
 imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/the-page/body-margin-2l.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/rendering/replaced-elements/embedded-content/change-src-while-not-displayed.html [ ImageOnlyFailure Pass ]
 imported/w3c/web-platform-tests/html/rendering/replaced-elements/images/input-image-content.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/select-empty.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/select-button-min-height-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/rendering/widgets/button-layout/anonymous-button-content-box.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/rendering/widgets/button-layout/display-none-or-contents.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/rendering/widgets/button-layout/input-type-button-clip.html [ ImageOnlyFailure ]
@@ -1491,6 +1473,11 @@ webkit.org/b/111612 animations/animation-delay-changed.html [ Pass Failure ]
 # media/video-seek-after-end.html is flaky
 webkit.org/b/116293 media/video-seek-after-end.html [ Pass Failure ]
 
+[ Debug ] media/remove-from-document.html [ Pass Failure ]
+
+# rdar://68364365 imported/w3c/web-platform-tests/media-source/mediasource-config-change-mp4-v-framerate.html is a flaky failure/timeout)
+imported/w3c/web-platform-tests/media-source/mediasource-config-change-mp4-v-framerate.html [ Pass Failure Timeout ]
+
 webkit.org/b/116473 editing/selection/user-drag-element-and-user-select-none.html [ Failure ]
 
 webkit.org/b/139862 editing/spelling/editing-multiple-words-with-markers.html [ Timeout Pass ]
@@ -1504,6 +1491,8 @@ webkit.org/b/139903 editing/spelling/grammar-paste.html [ Timeout Pass ]
 
 webkit.org/b/112521 [ Release ] webaudio/audioprocessingevent.html [ Pass Failure ]
 webkit.org/b/112521 [ Debug ] webaudio/audioprocessingevent.html [ Skip ]
+
+webkit.org/b/308024 webaudio/automatic-pull-node.html [ Pass Failure ]
 
 # The test frequently times out, and is just unsuccessful at detecting incorrect behavior when it passes.
 webkit.org/b/72698 media/audio-garbage-collect.html [ Skip ]
@@ -2085,7 +2074,6 @@ imported/w3c/web-platform-tests/mathml/relations/css-styling/padding-border-marg
 imported/w3c/web-platform-tests/mathml/relations/css-styling/padding-border-margin/padding-border-margin-006.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/mathml/relations/css-styling/table-width-3.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/mathml/relations/css-styling/width-height-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/mathml/presentation-markup/operators/mo-form-dynamic-002.html [ ImageOnlyFailure ]
 
 # This MathML test should be rewritten.
 webkit.org/b/201356 mathml/presentation/stretchy-depth-height-symmetric.html [ Skip ]
@@ -2346,7 +2334,6 @@ imported/w3c/web-platform-tests/svg/extensibility/foreignObject/will-change-in-f
 imported/w3c/web-platform-tests/svg/extensibility/foreignObject/isolation-with-html.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/extensibility/foreignObject/isolation-with-svg.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/painting/reftests/display-none-mask.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/svg/coordinate-systems/viewBox-baseVal-change-invalid.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/coordinate-systems/viewBox-synthesized-in-img-001.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/styling/image-sizing-min-content.tentative.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/styling/nested-svg-sizing-auto.tentative.svg [ ImageOnlyFailure ]
@@ -6358,7 +6345,6 @@ imported/w3c/web-platform-tests/css/css-scroll-anchoring/nested-overflow-subtree
 fast/repaint/absolute-position-changed.html [ Pass ImageOnlyFailure ]
 
 webkit.org/b/307272 fast/events/no-scroll-on-input-text-selection.html [ Failure ]
-webkit.org/b/307273 imported/w3c/web-platform-tests/scroll-animations/css/scroll-timeline-default-iframe.html [ ImageOnlyFailure ]
 webkit.org/b/307519 imported/w3c/web-platform-tests/css/css-anchor-position/position-area-scrolling-004.tentative.html [ ImageOnlyFailure ]
 
 # affected by scroll anchoring.
@@ -6863,7 +6849,6 @@ imported/w3c/web-platform-tests/css/css-tables/absolute-tables-007.html [ ImageO
 imported/w3c/web-platform-tests/css/css-tables/absolute-tables-011.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-tables/absolute-tables-015.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-tables/anonymous-table-ws-001.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-tables/box-shadow-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-tables/col-definite-min-size-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-tables/fixup-dynamic-anonymous-inline-table-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-tables/fixup-dynamic-anonymous-inline-table-002.html [ ImageOnlyFailure ]
@@ -7097,7 +7082,7 @@ imported/w3c/web-platform-tests/css/compositing/mix-blend-mode/mix-blend-mode-ro
 imported/w3c/web-platform-tests/css/compositing/mix-blend-mode/mix-blend-mode-stacking-context-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/compositing/mix-blend-mode/mix-blend-mode-mask.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/compositing/mix-blend-mode/mix-blend-mode-plus-lighter-svg.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/compositing/mix-blend-mode/mix-blend-mode-plus-lighter.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/compositing/mix-blend-mode/mix-blend-mode-plus-lighter.html [ ImageOnlyFailure Pass ]
 imported/w3c/web-platform-tests/css/compositing/root-element-background-transparency.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/compositing/root-element-opacity.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/compositing/svg/mix-blend-mode-in-svg-image.html [ ImageOnlyFailure ]
@@ -7179,7 +7164,6 @@ webkit.org/b/283702 imported/w3c/web-platform-tests/scroll-animations/scroll-tim
 webkit.org/b/283107 imported/w3c/web-platform-tests/scroll-animations/scroll-timelines/updating-the-finished-state.html [ Skip ]
 
 # webkit.org/b/263872 [scroll-animations] some WPT tests are ImageOnlyFailure
-imported/w3c/web-platform-tests/scroll-animations/scroll-timelines/layout-changes-on-percentage-based-timeline.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/scroll-animations/view-timelines/range-boundary.html [ ImageOnlyFailure ]
 
 # webkit.org/b/281482 [scroll-animations] some WPT reftests can't find their reference
@@ -8155,11 +8139,6 @@ imported/w3c/web-platform-tests/css/css-break/inline-skipping-fragmentainer-001.
 imported/w3c/web-platform-tests/css/css-break/table/repeated-section/text-in-nested-multicol.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-break/text-indent-and-wide-float.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-break/transform-025.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/customizable-select/min-size-empty-001.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/customizable-select/min-size-empty-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/select-1-block-size.html [ ImageOnlyFailure Pass ]
-imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/customizable-select/min-height-in-flex.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/customizable-select/min-width-in-flex.html [ ImageOnlyFailure ]
 
 imported/w3c/web-platform-tests/html/rendering/sections/headingoffset-and-headingreset.html [ ImageOnlyFailure ]
 
@@ -8195,7 +8174,6 @@ imported/w3c/web-platform-tests/css/CSS2/visudet/replaced-elements-min-width-80.
 
 imported/w3c/web-platform-tests/css/CSS2/abspos/remove-block-between-inline-and-abspos.html [ ImageOnlyFailure ]
 
-imported/w3c/web-platform-tests/css/CSS2/linebox/baseline-block-with-overflow-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/CSS2/linebox/inline-formatting-context-023.xht [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/CSS2/linebox/vertical-align-117a.xht [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/CSS2/linebox/vertical-align-118a.xht [ ImageOnlyFailure ]
@@ -8338,3 +8316,22 @@ imported/w3c/web-platform-tests/html/browsers/browsing-the-web/history-traversal
 webkit.org/b/307086 http/tests/geolocation/geolocation-watch-position-does-not-leak.https.html [ Pass Failure ]
 
 imported/w3c/web-platform-tests/xml/xslt/encoding-single-chunk.html [ ImageOnlyFailure ]
+
+webkit.org/b/307614 imported/w3c/web-platform-tests/css/css-highlight-api/painting/custom-highlight-painting-display-types.html [ ImageOnlyFailure ]
+
+webkit.org/b/307602 imported/w3c/web-platform-tests/svg/text/reftests/rtl-text-path.html [ ImageOnlyFailure ]
+webkit.org/b/307602 imported/w3c/web-platform-tests/svg/text/reftests/textpath-path-attr-precedence-over-href.svg [ ImageOnlyFailure ]
+webkit.org/b/307602 imported/w3c/web-platform-tests/svg/text/reftests/textpath-path-attr.svg [ ImageOnlyFailure ]
+
+# VNE testing is flaky.
+webkit.org/b/211221 http/tests/performance/paint-timing/performance-paint-timing-fcp-after-visually-non-empty-for-num-chars.html [ Pass Failure ]
+
+imported/w3c/web-platform-tests/html/semantics/scripting-1/the-script-element/module/dynamic-import/microtasks/worklet.https.html [ ImageOnlyFailure ]
+
+webkit.org/b/307972 imported/w3c/web-platform-tests/css/css-tables/crashtests/atomic-item-crash.html [ Skip ]
+
+imported/w3c/web-platform-tests/css/css-highlight-api/painting/custom-highlight-painting-019.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-highlight-api/painting/custom-highlight-painting-020.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-highlight-api/painting/custom-highlight-painting-021.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-highlight-api/painting/custom-highlight-painting-text-shadow-invalidation.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-highlight-api/painting/custom-highlight-painting-text-shadow.html [ ImageOnlyFailure ]

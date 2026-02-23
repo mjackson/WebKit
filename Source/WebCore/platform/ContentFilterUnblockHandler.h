@@ -73,7 +73,7 @@ public:
 
     WEBCORE_EXPORT bool needsUIProcess() const;
     WEBCORE_EXPORT bool canHandleRequest(const ResourceRequest&) const;
-    WEBCORE_EXPORT void requestUnblockAsync(DecisionHandlerFunction&&);
+    WEBCORE_EXPORT void requestUnblockAsync(DecisionHandlerFunction&&, std::optional<URL> requestURL = std::nullopt);
     void wrapWithDecisionHandler(const DecisionHandlerFunction&);
 #if HAVE(WEBCONTENTRESTRICTIONS)
     WEBCORE_EXPORT bool needsNetworkProcess() const;

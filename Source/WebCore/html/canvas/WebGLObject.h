@@ -82,11 +82,25 @@ private:
     RefPtr<T> m_object;
 };
 
+} // namespace WebCore
+
+namespace WTF {
+
+template<typename T, unsigned target>
+ALWAYS_INLINE RefPtr<T> protect(const WebCore::WebGLBindingPoint<T, target>& bindingPoint)
+{
+    return bindingPoint.get();
+}
+
+} // namespace WTF
+
+namespace WebCore {
+
 class WebGLObject : public RefCounted<WebGLObject> {
 public:
     virtual ~WebGLObject();
 
-    RefPtr<WebGLRenderingContextBase> context() const;
+    RefPtr<WebGLRenderingContextBase> NODELETE context() const;
     RefPtr<GraphicsContextGL> graphicsContextGL() const;
 
     PlatformGLObject object() const { return m_object; }
@@ -132,7 +146,7 @@ PlatformGLObject objectOrZero(const T& object)
     return object ? object->object() : 0;
 }
 
-WebCoreOpaqueRoot root(WebGLObject*);
+WebCoreOpaqueRoot NODELETE root(WebGLObject*);
 
 } // namespace WebCore
 

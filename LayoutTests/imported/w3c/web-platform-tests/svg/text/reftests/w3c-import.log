@@ -54,6 +54,9 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/opacity-expected.svg
 /LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/opacity-ref.svg
 /LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/opacity.svg
+/LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/rtl-text-path-expected.html
+/LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/rtl-text-path-ref.html
+/LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/rtl-text-path.html
 /LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/text-bidi-controls-anchors-1-expected.svg
 /LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/text-bidi-controls-anchors-1-ref.svg
 /LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/text-bidi-controls-anchors-1.svg
@@ -135,6 +138,13 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/textpath-letter-spacing-01-expected.svg
 /LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/textpath-letter-spacing-01-ref.svg
 /LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/textpath-letter-spacing-01.svg
+/LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/textpath-path-attr-expected.svg
+/LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/textpath-path-attr-invalid-path-fallback-expected.svg
+/LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/textpath-path-attr-invalid-path-fallback.svg
+/LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/textpath-path-attr-precedence-over-href-expected.svg
+/LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/textpath-path-attr-precedence-over-href.svg
+/LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/textpath-path-attr-ref.svg
+/LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/textpath-path-attr.svg
 /LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/textpath-shape-001-expected.svg
 /LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/textpath-shape-001-ref.svg
 /LayoutTests/imported/w3c/web-platform-tests/svg/text/reftests/textpath-shape-001.svg

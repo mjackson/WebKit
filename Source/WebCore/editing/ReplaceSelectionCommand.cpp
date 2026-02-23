@@ -125,8 +125,6 @@ private:
     
     void insertNodeBefore(Node&, Node& refNode);
 
-    RefPtr<DocumentFragment> protectedFragment() const { return m_fragment; }
-
     RefPtr<DocumentFragment> m_fragment;
     bool m_hasInterchangeNewlineAtStart;
     bool m_hasInterchangeNewlineAtEnd;
@@ -321,7 +319,7 @@ Ref<HTMLElement> ReplacementFragment::insertFragmentForTestRendering(Node* rootN
     Ref document = rootNode->document();
     auto holder = createDefaultParagraphElement(document.get());
 
-    holder->appendChild(protectedFragment().releaseNonNull());
+    holder->appendChild(protect(fragment()).releaseNonNull());
     rootNode->appendChild(holder);
     document->updateLayoutIgnorePendingStylesheets();
 
@@ -335,7 +333,7 @@ void ReplacementFragment::restoreAndRemoveTestRenderingNodesToFragment(StyledEle
     
     while (RefPtr<Node> node = holder->firstChild()) {
         holder->removeChild(*node);
-        protectedFragment()->appendChild(*node);
+        protect(fragment())->appendChild(*node);
     }
 
     removeNode(*holder);
@@ -757,7 +755,7 @@ void ReplaceSelectionCommand::removeRedundantStylesAndKeepStyleSpanInline(Insert
             // Mutate using the CSSOM wrapper so we get the same event behavior as a script.
             if (isBlock(*element))
                 element->cssomStyle().setPropertyInternal(CSSPropertyDisplay, "inline"_s, IsImportant::No);
-            if (element->renderer() && element->renderer()->style().isFloating())
+            if (element->renderer() && element->renderer()->style().floating() != Float::None)
                 element->cssomStyle().setPropertyInternal(CSSPropertyFloat, noneAtom(), IsImportant::No);
         }
     }
@@ -1442,8 +1440,8 @@ void ReplaceSelectionCommand::doApply()
         applyCommandToComposite(SimplifyMarkupCommand::create(document(), insertedNodes.firstNodeInserted(), insertedNodes.pastLastLeaf()));
 
     // Setup m_startOfInsertedContent and m_endOfInsertedContent. This should be the last two lines of code that access insertedNodes.
-    m_startOfInsertedContent = firstPositionInOrBeforeNode(insertedNodes.protectedFirstNodeInserted().get());
-    m_endOfInsertedContent = lastPositionInOrAfterNode(insertedNodes.protectedLastLeafInserted().get());
+    m_startOfInsertedContent = firstPositionInOrBeforeNode(protect(insertedNodes.firstNodeInserted()).get());
+    m_endOfInsertedContent = lastPositionInOrAfterNode(protect(insertedNodes.lastLeafInserted()).get());
 
     // Determine whether or not we should merge the end of inserted content with what's after it before we do
     // the start merge so that the start merge doesn't effect our decision.
@@ -1853,7 +1851,7 @@ void ReplaceSelectionCommand::updateNodesInserted(Node *node)
 ReplacementFragment* ReplaceSelectionCommand::ensureReplacementFragment()
 {
     if (!m_replacementFragment)
-        m_replacementFragment = makeUnique<ReplacementFragment>(protectedDocumentFragment(), endingSelection());
+        m_replacementFragment = makeUnique<ReplacementFragment>(protect(m_documentFragment), endingSelection());
     return m_replacementFragment.get();
 }
 

@@ -509,7 +509,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_BEGIN
 
     CheckedPtr videoPresentationInterfaceMac = _videoPresentationInterfaceMac;
     if (videoPresentationInterfaceMac && videoPresentationInterfaceMac->playbackSessionModel())
-        videoPresentationInterfaceMac->checkedPlaybackSessionModel()->play();
+        protect(videoPresentationInterfaceMac->playbackSessionModel())->play();
 }
 
 - (void)pipActionPause:(PIPViewController *)pip
@@ -518,7 +518,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_BEGIN
 
     CheckedPtr videoPresentationInterfaceMac = _videoPresentationInterfaceMac;
     if (videoPresentationInterfaceMac && videoPresentationInterfaceMac->playbackSessionModel())
-        videoPresentationInterfaceMac->checkedPlaybackSessionModel()->pause();
+        protect(videoPresentationInterfaceMac->playbackSessionModel())->pause();
 }
 
 - (void)pipActionStop:(PIPViewController *)pip
@@ -855,7 +855,7 @@ void VideoPresentationInterfaceMac::videoDimensionsChanged(const FloatSize& vide
         [m_webVideoPresentationInterfaceObjC setVideoDimensions:videoDimensions];
 }
 
-bool VideoPresentationInterfaceMac::isPlayingVideoInEnhancedFullscreen() const
+bool VideoPresentationInterfaceMac::isPlayingVideoInPictureInPicture() const
 {
     return hasMode(WebCore::HTMLMediaElementEnums::VideoFullscreenModePictureInPicture) && [m_webVideoPresentationInterfaceObjC isPlaying];
 }

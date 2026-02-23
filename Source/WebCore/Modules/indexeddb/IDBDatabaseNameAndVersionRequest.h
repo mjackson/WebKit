@@ -63,8 +63,8 @@ private:
     IDBDatabaseNameAndVersionRequest(ScriptExecutionContext&, IDBClient::IDBConnectionProxy&, InfoCallback&&);
 
     // ActiveDOMObject.
-    bool virtualHasPendingActivity() const final;
-    void stop() final;
+    bool NODELETE virtualHasPendingActivity() const final;
+    void NODELETE stop() final;
 
     const Ref<IDBClient::IDBConnectionProxy> m_connectionProxy;
     IDBResourceIdentifier m_resourceIdentifier;

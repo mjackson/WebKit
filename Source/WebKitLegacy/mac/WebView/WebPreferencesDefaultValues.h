@@ -55,6 +55,7 @@ bool defaultScrollAnimatorEnabled();
 bool defaultTreatsAnyTextCSSLinkAsStylesheet();
 bool defaultNeedsFrameNameFallbackToIdQuirk();
 bool defaultNeedsKeyboardEventDisambiguationQuirks();
+bool defaultHTMLEnhancedSelectParsingQuirkEnabled();
 #endif
 
 bool defaultMutationEventsEnabled();

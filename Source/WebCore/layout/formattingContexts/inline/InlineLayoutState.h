@@ -54,6 +54,7 @@ public:
     std::optional<size_t> legacyClampedLineIndex() const { return m_legacyClampedLineIndex; }
 
     void setLineCount(size_t lineCount) { m_lineCount = lineCount; }
+    void incrementLineCount() { ++m_lineCount; }
     size_t lineCount() const { return m_lineCount; }
 
     void setLineCountWithInlineContentIncludingNestedBlocks(size_t lineCount) { m_lineCountWithInlineContentIncludingNestedBlocks = lineCount; }

@@ -31,12 +31,6 @@
 #import "WebURLSchemeHandlerCocoa.h"
 #import <WebCore/WebCoreObjCExtras.h>
 
-
-static Ref<API::InspectorConfiguration> protectedConfiguration(_WKInspectorConfiguration* configuration)
-{
-    return *configuration->_configuration;
-}
-
 @implementation _WKInspectorConfiguration
 
 - (instancetype)init
@@ -64,18 +58,18 @@ static Ref<API::InspectorConfiguration> protectedConfiguration(_WKInspectorConfi
 
 - (void)setURLSchemeHandler:(id <WKURLSchemeHandler>)urlSchemeHandler forURLScheme:(NSString *)urlScheme
 {
-    protectedConfiguration(self)->addURLSchemeHandler(WebKit::WebURLSchemeHandlerCocoa::create(urlSchemeHandler), urlScheme);
+    protect(*_configuration)->addURLSchemeHandler(WebKit::WebURLSchemeHandlerCocoa::create(urlSchemeHandler), urlScheme);
 }
 
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 - (void)setProcessPool:(WKProcessPool *)processPool
 {
-    protectedConfiguration(self)->setProcessPool(RefPtr { processPool ? processPool->_processPool.get() : nullptr });
+    protect(*_configuration)->setProcessPool(RefPtr { processPool ? processPool->_processPool.get() : nullptr });
 }
 
 - (WKProcessPool *)processPool
 {
-    return wrapper(protectedConfiguration(self)->processPool());
+    return wrapper(protect(*_configuration)->processPool());
 }
 ALLOW_DEPRECATED_DECLARATIONS_END
 

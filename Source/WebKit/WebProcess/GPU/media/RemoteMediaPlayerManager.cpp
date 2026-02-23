@@ -119,7 +119,7 @@ RemoteMediaPlayerManager::RemoteMediaPlayerManager() = default;
 RemoteMediaPlayerManager::~RemoteMediaPlayerManager() = default;
 
 using RemotePlayerTypeCache = HashMap<MediaPlayerEnums::MediaEngineIdentifier, std::unique_ptr<RemoteMediaPlayerMIMETypeCache>, WTF::IntHash<MediaPlayerEnums::MediaEngineIdentifier>, WTF::StrongEnumHashTraits<MediaPlayerEnums::MediaEngineIdentifier>>;
-static RemotePlayerTypeCache& mimeCaches()
+static RemotePlayerTypeCache& NODELETE mimeCaches()
 {
     static NeverDestroyed<RemotePlayerTypeCache> caches;
     return caches;

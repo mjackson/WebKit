@@ -48,7 +48,7 @@ public:
     void remove(xpc_connection_t);
 
     void setConnectedNetworkProcessHasDebugModeEnabled(const Daemon::Connection&, bool);
-    bool debugModeEnabled() const;
+    bool NODELETE debugModeEnabled() const;
     void broadcastConsoleMessage(JSC::MessageLevel, const String&);
     
 private:

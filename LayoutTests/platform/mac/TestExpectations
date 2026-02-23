@@ -893,9 +893,6 @@ webkit.org/b/156634 inspector/formatting/formatting-javascript.html [ Pass Timeo
 webkit.org/b/158948 inspector/timeline [ Pass Timeout ]
 webkit.org/b/191539 http/tests/inspector/network/resource-security-connection.html [ Skip ]
 
-# VNE testing is flaky.
-webkit.org/b/210436 http/tests/performance/paint-timing/performance-paint-timing-fcp-after-visually-non-empty-for-num-chars.html [ Pass Failure ]
-
 # Touch events are not enabled on Mac
 webkit.org/b/149592 fast/shadow-dom/touch-event-ios.html [ Skip ]
 
@@ -1645,9 +1642,6 @@ webkit.org/b/191627 imported/w3c/web-platform-tests/css/css-grid/alignment/grid-
 
 webkit.org/b/215817 [ Release ] webgl/2.0.0/conformance2/textures/canvas_sub_rectangle/tex-2d-rgb32f-rgb-float.html [ Pass Failure ]
 
-# rdar://68364365 [ Big Sur ] imported/w3c/web-platform-tests/media-source/mediasource-config-change-mp4-v-framerate.html is a flaky failure/timeout)
-imported/w3c/web-platform-tests/media-source/mediasource-config-change-mp4-v-framerate.html [ Pass Failure Timeout ]
-
 webkit.org/b/216298 imported/w3c/web-platform-tests/IndexedDB/blob-valid-after-deletion.any.html [ Pass Failure ]
 
 webkit.org/b/186045 imported/w3c/web-platform-tests/html/rendering/replaced-elements/embedded-content/cross-domain-iframe.sub.html [ Skip ]
@@ -2055,7 +2049,6 @@ webkit.org/b/157589 fast/text-autosizing/ios/text-autosizing-after-back.html [ P
 
 # webkit.org/b/261304 Batch mark expectations for flaky media tests
 [ Debug ] media/modern-media-controls/airplay-support/airplay-support-disable-event-listeners-with-hidden-controls.html [ Pass Failure ]
-[ Debug ] media/remove-from-document.html [ Pass Failure ]
 [ Debug ] media/media-event-listeners.html [ Pass Failure ]
 [ x86_64 ] media/video-object-fit.html [ Pass ImageOnlyFailure ]
 [ Debug ] media/modern-media-controls/volume-support/volume-support-click.html [ Pass Timeout ]
@@ -2313,8 +2306,6 @@ webkit.org/b/288133 imported/w3c/web-platform-tests/scroll-to-text-fragment/find
 
 webkit.org/b/287990 [ Sonoma+ ] fast/canvas/webgl/drawingbuffer-test.html [ Pass Failure ]
 
-webkit.org/b/288507 [ Debug x86_64 ] media/media-source/remoteplayback-availability-callback-does-not-leak.html [ Timeout ]
-
 webkit.org/b/260320 imported/w3c/web-platform-tests/css/selectors/invalidation/nth-child-in-shadow-root.html [ ImageOnlyFailure ]
 
 webkit.org/b/289275 media/media-garbage-collection.html [ Pass Failure Timeout ]
@@ -2404,12 +2395,6 @@ webkit.org/b/297067 fast/forms/state-restore-form-associated-custom-elements.htm
 [ Release ] imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image-026.html [ Pass ImageOnlyFailure ]
 [ Release ] imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image-014.html [ Pass ImageOnlyFailure ]
 [ Release ] imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image-003.html [ Pass ImageOnlyFailure ]
-
-# webkit.org/b/297276 4x New Test(292044@main): [ macOS ] 4x imported/w3c/web-platform-tests/css/css-text-decor/ (layout-tests) tests are constant image failures
-imported/w3c/web-platform-tests/css/css-text-decor/text-emphasis-position-over-left-001.xht [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-text-decor/text-emphasis-position-over-right-001.xht [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-text-decor/text-emphasis-position-under-left-001.xht [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-text-decor/text-emphasis-position-under-right-001.xht [ ImageOnlyFailure ]
 
 [ Debug ] imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/interface.html [ Skip ]
 

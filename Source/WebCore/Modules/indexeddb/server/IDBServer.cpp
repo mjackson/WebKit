@@ -32,6 +32,7 @@
 #include "MemoryIDBBackingStore.h"
 #include "SQLiteFileSystem.h"
 #include "SQLiteIDBBackingStore.h"
+#include "SQLiteMemoryIDBBackingStore.h"
 #include "SecurityOrigin.h"
 #include <algorithm>
 #include <wtf/CompletionHandler.h>

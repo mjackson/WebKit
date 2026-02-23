@@ -212,7 +212,7 @@ TEST(FocusWebView, MultipleFrames)
     }, HTTPServer::Protocol::HttpsProxy);
 
     RetainPtr configuration = server.httpsProxyConfiguration();
-    // FIXME: Enable site isolation here and make the test behave the same.
+
     auto [webView, navigationDelegate, uiDelegate] = makeWebViewAndDelegates(WTF::move(configuration));
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
@@ -226,8 +226,10 @@ TEST(FocusWebView, MultipleFrames)
 
     EXPECT_WK_STREQ([uiDelegate waitForAlert], "main frame focused");
     [webView typeCharacter:'\t'];
+
     EXPECT_WK_STREQ([uiDelegate waitForAlert], "https://webkit.org focused");
     [webView typeCharacter:'\t'];
+
     EXPECT_WK_STREQ([uiDelegate waitForAlert], "https://apple.com focused");
 }
 

@@ -55,7 +55,7 @@ public:
     String href() const { return m_strHref; }
     StyleSheetContents* styleSheet() const { return m_styleSheet.get(); }
 
-    bool isLoading() const;
+    bool NODELETE isLoading() const;
     
     const MQ::MediaQueryList& mediaQueries() const { return m_mediaQueries; }
     void setMediaQueries(MQ::MediaQueryList&& queries) { m_mediaQueries = WTF::move(queries); }

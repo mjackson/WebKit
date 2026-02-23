@@ -74,7 +74,7 @@ public:
 
     void childFrames(CompletionHandler<void(Vector<Ref<FrameTreeNode>>&&)>&&) const;
 
-    bool isSameElement(const TargetedElementInfo&) const;
+    bool NODELETE isSameElement(const TargetedElementInfo&) const;
 
     WebCore::NodeIdentifier nodeIdentifier() const { return m_info.nodeIdentifier; }
     WebCore::ScriptExecutionContextIdentifier documentIdentifier() const { return m_info.documentIdentifier; }

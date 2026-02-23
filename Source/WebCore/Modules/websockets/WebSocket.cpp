@@ -85,7 +85,7 @@ Lock WebSocket::s_allActiveWebSocketsLock;
 
 const size_t maxReasonSizeInBytes = 123;
 
-static inline bool isValidProtocolCharacter(char16_t character)
+static inline bool NODELETE isValidProtocolCharacter(char16_t character)
 {
     // Hybi-10 says "(Subprotocol string must consist of) characters in the range U+0021 to U+007E not including
     // separator characters as defined in [RFC2616]."
@@ -134,7 +134,7 @@ static String joinStrings(const Vector<String>& strings, ASCIILiteral separator)
     return builder.toString();
 }
 
-static unsigned saturateAdd(unsigned a, unsigned b)
+static unsigned NODELETE saturateAdd(unsigned a, unsigned b)
 {
     if (std::numeric_limits<unsigned>::max() - a < b)
         return std::numeric_limits<unsigned>::max();

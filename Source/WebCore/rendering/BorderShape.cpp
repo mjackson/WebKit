@@ -59,7 +59,7 @@ BorderShape BorderShape::shapeForBorderRect(const RenderStyle& style, const Layo
         LayoutUnit(closedEdges.left() ? overrideBorderWidths.left() : 0_lu),
     };
 
-    if (style.hasBorderRadius()) {
+    if (style.border().hasBorderRadius()) {
         auto radii = Style::evaluate<LayoutRoundedRectRadii>(style.borderRadii(), borderRect.size(), Style::ZoomNeeded { });
         radii.scale(calcBorderRadiiConstraintScaleFor(borderRect, radii));
 
@@ -99,7 +99,7 @@ BorderShape BorderShape::shapeForOutsetRect(const RenderStyle& style, const Layo
         LayoutUnit(closedEdges.left() ? outlineWidths.left() : 0_lu),
     };
 
-    if (style.hasBorderRadius()) {
+    if (style.border().hasBorderRadius()) {
         auto radii = Style::evaluate<LayoutRoundedRectRadii>(style.borderRadii(), borderRect.size(), Style::ZoomNeeded { });
 
         auto leftOutset = std::max(borderRect.x() - outlineBoxRect.x(), 0_lu);
@@ -138,7 +138,7 @@ BorderShape BorderShape::shapeForOutsetRect(const RenderStyle& style, const Layo
 
 BorderShape BorderShape::shapeForInsetRect(const RenderStyle& style, const LayoutRect& borderRect, const LayoutRect& insetRect)
 {
-    if (style.hasBorderRadius()) {
+    if (style.border().hasBorderRadius()) {
         auto radii = Style::evaluate<LayoutRoundedRectRadii>(style.borderRadii(), borderRect.size(), Style::ZoomNeeded { });
 
         auto leftInset = std::max(insetRect.x() - borderRect.x(), 0_lu);
@@ -216,6 +216,40 @@ bool BorderShape::innerShapeContains(const LayoutRect& rect) const
 bool BorderShape::outerShapeContains(const LayoutRect& rect) const
 {
     return m_borderRect.contains(rect);
+}
+
+bool BorderShape::allCornersClippedOut(const LayoutRect& rect) const
+{
+    if (!isRounded())
+        return true;
+
+    auto borderRect = m_borderRect.rect();
+    if (rect.contains(borderRect))
+        return false;
+
+    auto radii = m_borderRect.radii();
+
+    LayoutRect topLeftRect(borderRect.location(), radii.topLeft());
+    if (rect.intersects(topLeftRect))
+        return false;
+
+    LayoutRect topRightRect(borderRect.location(), radii.topRight());
+    topRightRect.setX(borderRect.maxX() - topRightRect.width());
+    if (rect.intersects(topRightRect))
+        return false;
+
+    LayoutRect bottomLeftRect(borderRect.location(), radii.bottomLeft());
+    bottomLeftRect.setY(borderRect.maxY() - bottomLeftRect.height());
+    if (rect.intersects(bottomLeftRect))
+        return false;
+
+    LayoutRect bottomRightRect(borderRect.location(), radii.bottomRight());
+    bottomRightRect.setX(borderRect.maxX() - bottomRightRect.width());
+    bottomRightRect.setY(borderRect.maxY() - bottomRightRect.height());
+    if (rect.intersects(bottomRightRect))
+        return false;
+
+    return true;
 }
 
 bool BorderShape::outerShapeIsRectangular() const

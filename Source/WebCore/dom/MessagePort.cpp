@@ -50,13 +50,13 @@ namespace WebCore {
 WTF_MAKE_TZONE_ALLOCATED_IMPL(MessagePort);
 
 static Lock allMessagePortsLock;
-static HashMap<MessagePortIdentifier, ThreadSafeWeakPtr<MessagePort>>& allMessagePorts() WTF_REQUIRES_LOCK(allMessagePortsLock)
+static HashMap<MessagePortIdentifier, ThreadSafeWeakPtr<MessagePort>>& NODELETE allMessagePorts() WTF_REQUIRES_LOCK(allMessagePortsLock)
 {
     static NeverDestroyed<HashMap<MessagePortIdentifier, ThreadSafeWeakPtr<MessagePort>>> map;
     return map;
 }
 
-static HashMap<MessagePortIdentifier, ScriptExecutionContextIdentifier>& portToContextIdentifier() WTF_REQUIRES_LOCK(allMessagePortsLock)
+static HashMap<MessagePortIdentifier, ScriptExecutionContextIdentifier>& NODELETE portToContextIdentifier() WTF_REQUIRES_LOCK(allMessagePortsLock)
 {
     static NeverDestroyed<HashMap<MessagePortIdentifier, ScriptExecutionContextIdentifier>> map;
     return map;

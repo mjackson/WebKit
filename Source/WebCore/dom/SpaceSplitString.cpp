@@ -88,7 +88,7 @@ struct SpaceSplitStringTableKeyTraits : public HashTraits<AtomString>
 
 typedef HashMap<AtomString, SpaceSplitStringData*, AtomStringHash, SpaceSplitStringTableKeyTraits> SpaceSplitStringTable;
 
-static SpaceSplitStringTable& spaceSplitStringTable()
+static SpaceSplitStringTable& NODELETE spaceSplitStringTable()
 {
     static NeverDestroyed<SpaceSplitStringTable> table;
     return table;
@@ -122,7 +122,7 @@ public:
         return true;
     }
 
-    bool referenceStringWasFound() const { return m_referenceStringWasFound; }
+    bool NODELETE referenceStringWasFound() const { return m_referenceStringWasFound; }
 
 private:
     const ReferenceCharacterType* m_referenceCharacters;
@@ -159,7 +159,7 @@ public:
         return true;
     }
 
-    unsigned tokenCount() const { return m_tokenCount; }
+    unsigned NODELETE tokenCount() const { return m_tokenCount; }
 
 private:
     unsigned m_tokenCount;
@@ -183,7 +183,7 @@ public:
         return true;
     }
 
-    const AtomString* nextMemoryBucket() const { return m_memoryBucket.data(); }
+    const AtomString* NODELETE nextMemoryBucket() const { return m_memoryBucket.data(); }
 
 private:
     const AtomString& m_keyString;

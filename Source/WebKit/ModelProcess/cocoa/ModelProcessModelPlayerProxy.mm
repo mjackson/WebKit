@@ -37,6 +37,7 @@
 #import "WKModelProcessModelLayer.h"
 #import "WKRKEntity.h"
 #import "WKStageMode.h"
+#import "WKUSDStageConverter.h"
 #import <RealitySystemSupport/RealitySystemSupport.h>
 #import <SurfBoardServices/SurfBoardServices.h>
 #import <WebCore/Color.h>
@@ -96,6 +97,7 @@
 namespace WebKit {
 
 static const Seconds unloadModelDelay { 4_s };
+static constexpr auto usdzMIMEType = "model/vnd.usdz+zip"_s;
 
 class RKModelUSD final : public WebCore::REModel {
 public:
@@ -366,6 +368,24 @@ void ModelProcessModelPlayerProxy::createLayer()
 
 void ModelProcessModelPlayerProxy::loadModel(Ref<WebCore::Model>&& model, WebCore::LayoutSize layoutSize)
 {
+    if (model->mimeType() != usdzMIMEType) {
+        RetainPtr<NSData> modelData = model->data()->createNSData();
+        RetainPtr<NSData> usdzData = [WKUSDStageConverter convert:modelData.get()];
+
+        if (usdzData) {
+            auto convertedBuffer = WebCore::SharedBuffer::create(usdzData.get());
+
+            // Send converted data back to WebContent for drag-and-drop
+            send(Messages::ModelProcessModelPlayer::DidConvertModelData(convertedBuffer.copyRef(), usdzMIMEType));
+
+            auto convertedModel = WebCore::Model::create(WTF::move(convertedBuffer), usdzMIMEType, model->url());
+            load(convertedModel, layoutSize);
+            return;
+        }
+
+        RELEASE_LOG_ERROR(ModelElement, "%p - ModelProcessModelPlayerProxy::loadModel(): Model conversion failed, continuing with original data", this);
+    }
+
     // FIXME: Change the IPC message to land on load() directly
     load(model, layoutSize);
 }

@@ -126,7 +126,7 @@ enum {
     kWKContextMenuItemTagOpenLinkInThisWindow,
     kWKContextMenuItemTagToggleVideoFullscreen,
     kWKContextMenuItemTagShareMenu,
-    kWKContextMenuItemTagToggleVideoEnhancedFullscreen,
+    kWKContextMenuItemTagTogglePictureInPicture,
     kWKContextMenuItemTagToggleVideoViewer,
     kWKContextMenuItemTagAddHighlightToCurrentQuickNote,
     kWKContextMenuItemTagAddHighlightToNewQuickNote,

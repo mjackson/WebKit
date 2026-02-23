@@ -840,11 +840,6 @@ ExceptionOr<void> ApplePaySession::completePayment(unsigned short status)
     return completePayment(WTF::move(result));
 }
 
-unsigned ApplePaySession::version() const
-{
-    return m_version;
-}
-
 void ApplePaySession::validateMerchant(URL&& validationURL)
 {
     if (m_state == State::Aborted) {

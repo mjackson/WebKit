@@ -134,7 +134,7 @@ public:
 
     Cursor::Images cursorImages;
 
-#if ENABLE(TOUCH_EVENTS)
+#if ENABLE(CSS_TAP_HIGHLIGHT_COLOR)
     Color tapHighlightColor;
 #endif
 

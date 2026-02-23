@@ -39,7 +39,7 @@ class RenderMathMLRow : public RenderMathMLBlock {
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderMathMLRow);
 public:
     RenderMathMLRow(Type, MathMLRowElement&, RenderStyle&&);
-    MathMLRowElement& element() const;
+    MathMLRowElement& NODELETE element() const;
     virtual ~RenderMathMLRow();
 
 protected:

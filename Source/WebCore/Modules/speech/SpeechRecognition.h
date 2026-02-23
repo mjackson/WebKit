@@ -94,11 +94,11 @@ private:
     void stop() final;
 
     // EventTarget
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
     enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::SpeechRecognition; }
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
 
     String m_lang;
     bool m_continuous { false };

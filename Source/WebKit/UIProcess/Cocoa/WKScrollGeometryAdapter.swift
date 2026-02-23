@@ -37,6 +37,10 @@ public struct WKScrollGeometryAdapter {
     #if canImport(UIKit)
     // SPI for the cross-import overlay.
     // swift-format-ignore: AllPublicDeclarationsHaveDocumentation
+    #if compiler(>=6.2.3)
+    // Workaround for rdar://170308157
+    @_expose(!Cxx)
+    #endif
     public let contentInsets: UIEdgeInsets
     #else
     // SPI for the cross-import overlay.

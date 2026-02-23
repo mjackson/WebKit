@@ -90,17 +90,17 @@ auto InspectorCanvasArgumentProcessor<IDLArrayBufferView>::operator()(InspectorC
     return {{ JSON::Value::create(0), RecordingSwizzleType::TypedArray }};
 }
 
-auto InspectorCanvasArgumentProcessor<IDLFloat32Array>::operator()(InspectorCanvas&, const RefPtr<JSC::Float32Array>&) -> std::optional<InspectorCanvasProcessedArgument>
+auto InspectorCanvasArgumentProcessor<IDLFloat32Array>::operator()(InspectorCanvas&, const Ref<JSC::Float32Array>&) -> std::optional<InspectorCanvasProcessedArgument>
 {
     return {{ JSON::Value::create(0), RecordingSwizzleType::TypedArray }};
 }
 
-auto InspectorCanvasArgumentProcessor<IDLInt32Array>::operator()(InspectorCanvas&, const RefPtr<JSC::Int32Array>&) -> std::optional<InspectorCanvasProcessedArgument>
+auto InspectorCanvasArgumentProcessor<IDLInt32Array>::operator()(InspectorCanvas&, const Ref<JSC::Int32Array>&) -> std::optional<InspectorCanvasProcessedArgument>
 {
     return {{ JSON::Value::create(0), RecordingSwizzleType::TypedArray }};
 }
 
-auto InspectorCanvasArgumentProcessor<IDLUint32Array>::operator()(InspectorCanvas&, const RefPtr<JSC::Uint32Array>&) -> std::optional<InspectorCanvasProcessedArgument>
+auto InspectorCanvasArgumentProcessor<IDLUint32Array>::operator()(InspectorCanvas&, const Ref<JSC::Uint32Array>&) -> std::optional<InspectorCanvasProcessedArgument>
 {
     return {{ JSON::Value::create(0), RecordingSwizzleType::TypedArray }};
 }
@@ -301,15 +301,11 @@ auto InspectorCanvasArgumentProcessor<IDLTexImageSourceUnion>::operator()(Inspec
 auto InspectorCanvasArgumentProcessor<IDLBufferDataSourceUnion>::operator()(InspectorCanvas& context, const WebGLRenderingContextBase::BufferDataSource& argument) -> std::optional<InspectorCanvasProcessedArgument>
 {
     return WTF::switchOn(argument,
-        [&](const RefPtr<ArrayBuffer>& value) -> std::optional<InspectorCanvasProcessedArgument> {
-            if (!value)
-                return std::nullopt;
-            return InspectorCanvasArgumentProcessor<IDLArrayBuffer>{}(context, *value);
+        [&](const Ref<ArrayBuffer>& value) -> std::optional<InspectorCanvasProcessedArgument> {
+            return InspectorCanvasArgumentProcessor<IDLArrayBuffer>{}(context, value);
         },
-        [&](const RefPtr<ArrayBufferView>& value) -> std::optional<InspectorCanvasProcessedArgument> {
-            if (!value)
-                return std::nullopt;
-            return InspectorCanvasArgumentProcessor<IDLArrayBufferView>{}(context, *value);
+        [&](const Ref<ArrayBufferView>& value) -> std::optional<InspectorCanvasProcessedArgument> {
+            return InspectorCanvasArgumentProcessor<IDLArrayBufferView>{}(context, value);
         }
     );
 }
@@ -317,7 +313,7 @@ auto InspectorCanvasArgumentProcessor<IDLBufferDataSourceUnion>::operator()(Insp
 auto InspectorCanvasArgumentProcessor<IDLFloat32ListUnion>::operator()(InspectorCanvas& context, const WebGLRenderingContextBase::Float32List::VariantType& argument) -> std::optional<InspectorCanvasProcessedArgument>
 {
     return WTF::switchOn(argument,
-        [&](const RefPtr<Float32Array>& value) {
+        [&](const Ref<Float32Array>& value) {
             return InspectorCanvasArgumentProcessor<IDLAllowSharedAdaptor<IDLFloat32Array>>{}(context, value);
         },
         [&](const Vector<float>& value) {
@@ -329,7 +325,7 @@ auto InspectorCanvasArgumentProcessor<IDLFloat32ListUnion>::operator()(Inspector
 auto InspectorCanvasArgumentProcessor<IDLInt32ListUnion>::operator()(InspectorCanvas& context, const WebGLRenderingContextBase::Int32List::VariantType& argument) -> std::optional<InspectorCanvasProcessedArgument>
 {
     return WTF::switchOn(argument,
-        [&](const RefPtr<Int32Array>& value) {
+        [&](const Ref<Int32Array>& value) {
             return InspectorCanvasArgumentProcessor<IDLAllowSharedAdaptor<IDLInt32Array>>{}(context, value);
         },
         [&](const Vector<int>& value) {
@@ -341,7 +337,7 @@ auto InspectorCanvasArgumentProcessor<IDLInt32ListUnion>::operator()(InspectorCa
 auto InspectorCanvasArgumentProcessor<IDLUint32ListUnion>::operator()(InspectorCanvas& context, const WebGLRenderingContextBase::Uint32List::VariantType& argument) -> std::optional<InspectorCanvasProcessedArgument>
 {
     return WTF::switchOn(argument,
-        [&](const RefPtr<Uint32Array>& value) {
+        [&](const Ref<Uint32Array>& value) {
             return InspectorCanvasArgumentProcessor<IDLAllowSharedAdaptor<IDLUint32Array>>{}(context, value);
         },
         [&](const Vector<uint32_t>& value) {

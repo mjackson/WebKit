@@ -106,7 +106,7 @@ const MemoryCompactLookupOnlyRobinHoodHashSet<String>& WebProcessProxy::platform
     return platformPathsWithAssumedReadAccess;
 }
 
-static Vector<String>& mediaTypeCache()
+static Vector<String>& NODELETE mediaTypeCache()
 {
     ASSERT(RunLoop::isMain());
     static NeverDestroyed<Vector<String>> typeCache;

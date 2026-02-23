@@ -47,7 +47,7 @@ struct BorderImageSource {
     bool isImage() const { return !!m_image; }
 
     std::optional<ImageWrapper> tryImage() const { return m_image ? std::make_optional(ImageWrapper { *m_image }) : std::nullopt; }
-    RefPtr<StyleImage> tryStyleImage() const { return m_image; }
+    RefPtr<Image> tryStyleImage() const { return m_image; }
 
     template<typename... F> decltype(auto) switchOn(F&&... f) const
     {
@@ -64,7 +64,7 @@ struct BorderImageSource {
     }
 
 private:
-    RefPtr<StyleImage> m_image { };
+    RefPtr<Image> m_image { };
 };
 
 // MARK: - Conversion

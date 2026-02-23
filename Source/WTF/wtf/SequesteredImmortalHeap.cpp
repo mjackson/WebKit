@@ -98,6 +98,63 @@ bool SequesteredImmortalHeap::scavengeImpl(void* /*userdata*/)
     return false;
 }
 
+SequesteredStackAllocator::Result SequesteredStackAllocator::allocate(size_t stackSize, size_t guardSize)
+{
+    {
+        Locker lock(m_lock);
+        if (!m_freeList.isEmpty()) {
+            auto* handle = m_freeList.removeHead();
+            m_inUseList.append(handle);
+            return { handle };
+        }
+    }
+
+    auto& sih = SequesteredImmortalHeap::instance();
+
+    void* handleMemory = sih.immortalMalloc(sizeof(StackHandle));
+    auto* handle = new (handleMemory) StackHandle();
+
+    size_t totalSize = stackSize + guardSize;
+    void* stackMemory = sih.immortalAlignedMalloc(pageSize(), totalSize);
+
+    int result = mprotect(stackMemory, guardSize, PROT_NONE);
+    RELEASE_ASSERT(!result);
+
+    WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN;
+    handle->stack = std::span<std::byte>(
+        reinterpret_cast<std::byte*>(reinterpret_cast<uintptr_t>(stackMemory) + guardSize),
+        stackSize
+    );
+    WTF_ALLOW_UNSAFE_BUFFER_USAGE_END;
+
+    {
+        Locker lock(m_lock);
+        m_inUseList.append(handle);
+    }
+    return { handle };
+}
+
+void SequesteredStackAllocator::deallocate(StackHandle* handle)
+{
+    Locker lock(m_lock);
+
+#if ASSERT_ENABLED
+    {
+        bool found = false;
+        for (auto* h = m_inUseList.head(); h; h = h->next()) {
+            if (h == handle) {
+                found = true;
+                break;
+            }
+        }
+        RELEASE_ASSERT(found);
+    }
+#endif
+
+    m_inUseList.remove(handle);
+    m_freeList.push(handle);
+}
+
 GranuleHeader* SequesteredImmortalAllocator::addGranule(size_t minSize)
 {
     size_t granuleSize = std::max(minSize, minGranuleSize);

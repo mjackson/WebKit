@@ -220,8 +220,10 @@ std::optional<TextList> parseTextList(StringView input)
     });
 }
 
-Vector<std::pair<const QualifiedName&, AtomString>> nodeAttributesForSmartList(const StyledElement& element, const TextList& list)
+Vector<std::pair<const QualifiedName&, AtomString>> nodeAttributesForSmartList(const StyledElement& element, const TextList& list, const String& input)
 {
+    ASSERT(!input.isEmpty());
+
     Vector<std::pair<const QualifiedName&, AtomString>> result;
 
     if (auto start = startingOrdinalForList(element, list); !start.isNull())
@@ -232,6 +234,12 @@ Vector<std::pair<const QualifiedName&, AtomString>> nodeAttributesForSmartList(c
 
     if (auto className = classNameForSmartList(list); !className.isNull())
         result.append({ HTMLNames::classAttr, className });
+
+    // The conversion from plain-text list markers (like "*") to styled list markers may be lossy
+    // as there is not a 1:1 relationship. Therefore, this is needed so that the original
+    // plain-text list can be reconstituted if needed. See `CompositeEditCommand::breakOutOfEmptyListItem`
+    // for more details.
+    result.append({ HTMLNames::webkitsmartlistmarkerAttr, AtomString { input } });
 
     return result;
 }

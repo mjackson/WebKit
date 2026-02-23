@@ -38,7 +38,7 @@ public:
     void layout() override;
     void styleDidChange(Style::Difference, const RenderStyle* oldStyle) final;
 
-    static float computeTextPaintingScale(const RenderElement&);
+    static float NODELETE computeTextPaintingScale(const RenderElement&);
     static AffineTransform transformOnNonScalingStroke(RenderObject*, const AffineTransform& resourceTransform);
 
     void removeClientFromCacheAndMarkForInvalidation(RenderElement&, bool markForInvalidation = true) override;

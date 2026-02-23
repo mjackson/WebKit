@@ -58,7 +58,7 @@ public:
 
     bool requiresLayer() const override;
 
-    bool requiresLayerWithScrollableArea() const;
+    bool NODELETE requiresLayerWithScrollableArea() const;
     bool backgroundIsKnownToBeOpaqueInRect(const LayoutRect& localRect) const override;
 
     LayoutUnit x() const { return m_frameRect.x(); }
@@ -525,9 +525,9 @@ public:
     LayoutUnit offsetLeft() const override;
     LayoutUnit offsetTop() const override;
 
-    LayoutPoint flipForWritingModeForChild(const RenderBox& child, const LayoutPoint&) const;
+    LayoutPoint NODELETE flipForWritingModeForChild(const RenderBox& child, const LayoutPoint&) const;
     LayoutUnit flipForWritingMode(LayoutUnit position) const; // The offset is in the block direction (y for horizontal writing modes, x for vertical writing modes).
-    LayoutPoint flipForWritingMode(const LayoutPoint&) const;
+    LayoutPoint NODELETE flipForWritingMode(const LayoutPoint&) const;
     LayoutSize flipForWritingMode(const LayoutSize&) const;
     FloatPoint flipForWritingMode(const FloatPoint&) const;
 
@@ -545,7 +545,7 @@ public:
     LayoutRect logicalLayoutOverflowRectForPropagation(const WritingMode) const;
     LayoutRect layoutOverflowRectForPropagation(const WritingMode) const;
     LayoutRect applyPaintGeometryTransformToRect(LayoutRect) const;
-    LayoutRect convertRectToParentWritingMode(LayoutRect, const WritingMode parentWritingMode) const;
+    LayoutRect NODELETE convertRectToParentWritingMode(LayoutRect, const WritingMode parentWritingMode) const;
 
     bool hasRenderOverflow() const { return !!m_overflow; }
     bool hasVisualOverflow() const { return m_overflow && !borderBoxRect().contains(m_overflow->visualOverflowRect()); }
@@ -554,15 +554,15 @@ public:
 
     ScrollPosition scrollPosition() const;
     ScrollPosition constrainedScrollPosition() const;
-    LayoutSize cachedSizeForOverflowClip() const;
+    LayoutSize NODELETE cachedSizeForOverflowClip() const;
 
     // Returns false if the rect has no intersection with the applied clip rect. When the context specifies edge-inclusive
     // intersection, this return value allows distinguishing between no intersection and zero-area intersection.
     bool applyCachedClipAndScrollPosition(RepaintRects&, const RenderLayerModelObject* container, VisibleRectContext) const final;
 
-    virtual bool hasRelativeDimensions() const;
-    virtual bool hasRelativeLogicalHeight() const;
-    virtual bool hasRelativeLogicalWidth() const;
+    virtual bool NODELETE hasRelativeDimensions() const;
+    virtual bool NODELETE hasRelativeLogicalHeight() const;
+    virtual bool NODELETE hasRelativeLogicalWidth() const;
 
     bool hasHorizontalLayoutOverflow() const
     {
@@ -631,7 +631,7 @@ public:
     bool includeVerticalScrollbarSize() const;
     bool includeHorizontalScrollbarSize() const;
 
-    void invalidateAncestorBackgroundObscurationStatus();
+    void NODELETE invalidateAncestorBackgroundObscurationStatus();
 
     inline bool backgroundIsKnownToBeObscured(const LayoutPoint& paintOffset);
 
@@ -650,7 +650,7 @@ protected:
     inline bool shouldTrimChildMargin(Style::MarginTrimSide, const RenderBox&) const;
     virtual bool isChildEligibleForMarginTrim(Style::MarginTrimSide, const RenderBox&) const { return false; }
 
-    virtual bool shouldResetLogicalHeightBeforeLayout() const;
+    virtual bool NODELETE shouldResetLogicalHeightBeforeLayout() const;
     void resetLogicalHeightBeforeLayoutIfNeeded();
 
     // Returns false if it could not cheaply compute the extent (e.g. fixed background), in which case the returned rect may be incorrect.
@@ -679,12 +679,12 @@ protected:
     const RenderElement* pushMappingToContainer(const RenderLayerModelObject*, RenderGeometryMap&) const override;
     void mapAbsoluteToLocalPoint(OptionSet<MapCoordinatesMode>, TransformState&) const override;
 
-    bool skipContainingBlockForPercentHeightCalculation(const RenderBox& containingBlock, bool isPerpendicularWritingMode) const;
+    bool NODELETE skipContainingBlockForPercentHeightCalculation(const RenderBox& containingBlock, bool isPerpendicularWritingMode) const;
 
     void incrementVisuallyNonEmptyPixelCountIfNeeded(const IntSize&);
 
     std::optional<double> resolveAspectRatio() const;
-    bool shouldIgnoreAspectRatio() const;
+    bool NODELETE shouldIgnoreAspectRatio() const;
     bool isRenderReplacedWithIntrinsicRatio() const;
     bool shouldComputeLogicalWidthFromAspectRatio() const;
     LayoutUnit computeLogicalWidthFromAspectRatioInternal() const;

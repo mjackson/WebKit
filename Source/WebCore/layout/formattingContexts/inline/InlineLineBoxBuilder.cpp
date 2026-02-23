@@ -65,7 +65,7 @@ LineBox LineBoxBuilder::build(size_t lineIndex)
         constructBlockContent(lineBox);
     else {
         constructInlineLevelBoxes(lineBox);
-        if (lineBox.hasContent()) {
+        if (lineLayoutResult.hasContentfulInlineContent()) {
             adjustIdeographicBaselineIfApplicable(lineBox);
             adjustInlineBoxHeightsForLineBoxContainIfApplicable(lineBox);
         } else {
@@ -89,6 +89,20 @@ LineBox LineBoxBuilder::build(size_t lineIndex)
             expandAboveRootInlineBox(lineBox, *adjustment);
     }
 
+    return lineBox;
+}
+
+LineBox LineBoxBuilder::buildForRootInlineBoxOnly(size_t lineIndex)
+{
+    auto& lineLayoutResult = this->lineLayoutResult();
+    ASSERT(lineLayoutResult.hasContentfulInlineContent());
+
+    auto lineBox = LineBox { rootBox(), lineLayoutResult.contentGeometry.logicalLeft, lineLayoutResult.contentGeometry.logicalWidth - lineLayoutResult.hangingContent.logicalWidth, lineIndex, isFirstFormattedLine(), lineLayoutResult.nonSpanningInlineLevelBoxCount };
+    auto& rootInlineBox = lineBox.rootInlineBox();
+    setVerticalPropertiesForInlineLevelBox(lineBox, rootInlineBox);
+    rootInlineBox.setLogicalTop(rootInlineBox.layoutBounds().ascent - rootInlineBox.ascent());
+    auto lineBoxLogicalHeight = applyTextBoxTrimOnLineBoxIfNeeded(rootInlineBox.layoutBounds().height(), lineBox);
+    lineBox.setLogicalRect({ lineLayoutResult.lineGeometry.logicalTopLeft, lineLayoutResult.lineGeometry.logicalWidth, lineBoxLogicalHeight });
     return lineBox;
 }
 
@@ -419,13 +433,11 @@ void LineBoxBuilder::constructInlineLevelBoxes(LineBox& lineBox)
         return isFirstFormattedLine() ? layoutBox.firstLineStyle() : layoutBox.style();
     };
 
-    auto lineHasContent = false;
     auto& inlineContent = lineLayoutResult().runs;
     for (size_t index = 0; index < inlineContent.size(); ++index) {
         auto& run = inlineContent[index];
         auto& layoutBox = run.layoutBox();
         auto& style = styleToUse(layoutBox);
-        lineHasContent = lineHasContent || Line::Run::isContentfulOrHasDecoration(run, formattingContext);
         auto logicalLeft = rootInlineBox.logicalLeft() + run.logicalLeft();
 
         if (run.isText()) {
@@ -523,7 +535,6 @@ void LineBoxBuilder::constructInlineLevelBoxes(LineBox& lineBox)
         }
         ASSERT(run.isOpaque());
     }
-    lineBox.setHasContent(lineHasContent);
 }
 
 void LineBoxBuilder::constructBlockContent(LineBox& lineBox)
@@ -553,11 +564,9 @@ void LineBoxBuilder::constructBlockContent(LineBox& lineBox)
         ASSERT_NOT_REACHED();
     }
 
-    auto blockLineLogicalTopLeft = InlineLayoutPoint { lineLayoutResult.lineGeometry.initialLogicalLeft, lineLayoutResult.lineGeometry.logicalTopLeft.y() };
+    auto blockLineLogicalTopLeft = InlineLayoutPoint { lineLayoutResult.lineGeometry.initialLogicalTopLeft.x(), lineLayoutResult.lineGeometry.logicalTopLeft.y() };
     lineBox.setLogicalRect({ blockLineLogicalTopLeft, lineLayoutResult.lineGeometry.logicalWidth, blockGeometry.marginBoxHeight() });
     setVerticalPropertiesForInlineLevelBox(lineBox, lineBox.rootInlineBox());
-    // FIXME: Let's considered collapsed block boxes contentful for now (webkit.org/b/302804).
-    lineBox.setHasContent(true);
 }
 
 void LineBoxBuilder::adjustInlineBoxHeightsForLineBoxContainIfApplicable(LineBox& lineBox)
@@ -824,7 +833,7 @@ InlineLayoutUnit LineBoxBuilder::applyTextBoxTrimOnLineBoxIfNeeded(InlineLayoutU
 
 void LineBoxBuilder::computeLineBoxGeometry(LineBox& lineBox) const
 {
-    auto lineBoxLogicalHeight = applyTextBoxTrimOnLineBoxIfNeeded(LineBoxVerticalAligner { formattingContext() }.computeLogicalHeightAndAlign(lineBox), lineBox);
+    auto lineBoxLogicalHeight = applyTextBoxTrimOnLineBoxIfNeeded(LineBoxVerticalAligner { formattingContext() }.computeLogicalHeightAndAlign(lineBox, lineLayoutResult().hasContentfulInlineContent()), lineBox);
     if (formattingContext().quirks().shouldCollapseLineBoxHeight(lineLayoutResult().runs, m_outsideListMarkers.size()))
         lineBoxLogicalHeight = { };
     lineBox.setLogicalRect({ lineLayoutResult().lineGeometry.logicalTopLeft, lineLayoutResult().lineGeometry.logicalWidth, lineBoxLogicalHeight });
@@ -835,7 +844,7 @@ void LineBoxBuilder::adjustOutsideListMarkersPosition(LineBox& lineBox)
     auto lineBoxRect = lineBox.logicalRect();
     auto floatConstraints = formattingContext().floatingContext().constraints(LayoutUnit { lineBoxRect.top() }, LayoutUnit { lineBoxRect.bottom() }, FloatingContext::MayBeAboveLastFloat::No);
 
-    auto lineBoxOffset = lineBoxRect.left() - (lineLayoutResult().lineGeometry.initialLogicalLeft + lineLayoutResult().lineGeometry.intrusiveFloatsOffset);
+    auto lineBoxOffset = lineBoxRect.left() - (lineLayoutResult().lineGeometry.initialLogicalTopLeft.x() + lineLayoutResult().lineGeometry.intrusiveFloatsOffset);
     auto rootInlineBoxLogicalLeft = lineBox.logicalRectForRootInlineBox().left();
     auto rootInlineBoxOffsetFromContentBoxOrIntrusiveFloat = lineBoxOffset + rootInlineBoxLogicalLeft;
     for (auto listMarkerBoxIndex : m_outsideListMarkers) {

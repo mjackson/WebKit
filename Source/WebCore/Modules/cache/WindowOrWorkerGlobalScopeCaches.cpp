@@ -49,7 +49,7 @@ public:
 
 private:
     static ASCIILiteral supplementName() { return "DOMWindowCaches"_s; }
-    bool isDOMWindowCaches() const final { return true; }
+    bool NODELETE isDOMWindowCaches() const final { return true; }
 
     mutable RefPtr<DOMCacheStorage> m_caches;
 };
@@ -65,7 +65,7 @@ public:
 
 private:
     static ASCIILiteral supplementName() { return "WorkerGlobalScopeCaches"_s; }
-    bool isWorkerGlobalScopeCaches() const final { return true; }
+    bool NODELETE isWorkerGlobalScopeCaches() const final { return true; }
 
     WeakRef<WorkerGlobalScope, WeakPtrImplWithEventTargetData> m_scope;
     mutable RefPtr<DOMCacheStorage> m_caches;

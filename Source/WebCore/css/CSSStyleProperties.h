@@ -85,7 +85,7 @@ public:
     {
     }
 
-    void ref() const override;
+    void NODELETE ref() const override;
     void deref() const override;
 
     StyleSheetContents* contextStyleSheet() const;
@@ -144,7 +144,7 @@ public:
 private:
     StyleRuleCSSStyleProperties(MutableStyleProperties&, CSSRule&);
 
-    CSSStyleSheet* parentStyleSheet() const final;
+    CSSStyleSheet* NODELETE parentStyleSheet() const final;
 
     CSSRule* NODELETE parentRule() const final;
 

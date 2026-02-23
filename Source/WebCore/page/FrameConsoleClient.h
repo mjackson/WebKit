@@ -62,11 +62,11 @@ public:
     FrameConsoleClient(FrameConsoleClient&&) = delete;
     FrameConsoleClient& operator=(FrameConsoleClient&&) = delete;
 
-    static bool shouldPrintExceptions();
-    static void setShouldPrintExceptions(bool);
+    static bool NODELETE shouldPrintExceptions();
+    static void NODELETE setShouldPrintExceptions(bool);
 
-    static void mute();
-    static void unmute();
+    static void NODELETE mute();
+    static void NODELETE unmute();
 
     void addMessage(std::unique_ptr<Inspector::ConsoleMessage>&&);
 

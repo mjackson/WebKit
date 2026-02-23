@@ -82,7 +82,7 @@ ScreenOrientationManager* ScreenOrientation::manager() const
     return page ? page->screenOrientationManager() : nullptr;
 }
 
-static bool isSupportedLockType(ScreenOrientationLockType lockType)
+static bool NODELETE isSupportedLockType(ScreenOrientationLockType lockType)
 {
     switch (lockType) {
     case ScreenOrientationLockType::Any:

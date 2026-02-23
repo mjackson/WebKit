@@ -24,7 +24,7 @@
  */
 
 #include "config.h"
-#include "MainThreadDispatcher.h"
+#include <wtf/MainThreadDispatcher.h>
 
 #include <wtf/NeverDestroyed.h>
 #include <wtf/Ref.h>

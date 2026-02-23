@@ -335,7 +335,7 @@ void RenderReplaced::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
     }
 
     bool completelyClippedOut = false;
-    if (style().hasBorderRadius()) {
+    if (style().border().hasBorderRadius()) {
         completelyClippedOut = size().isEmpty();
         if (!completelyClippedOut) {
             // Push a clip if we have a border radius, since we want to round the foreground content that gets painted.
@@ -348,7 +348,7 @@ void RenderReplaced::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
         if (!isSkippedContentRoot(*this))
             paintReplaced(paintInfo, adjustedPaintOffset);
 
-        if (style().hasBorderRadius())
+        if (style().border().hasBorderRadius())
             paintInfo.context().restore();
     }
         
@@ -421,7 +421,7 @@ bool RenderReplaced::hasReplacedLogicalHeight() const
         return !hasAutoHeightOrContainingBlockWithAutoHeight();
 
     if (style().logicalHeight().isIntrinsic())
-        return !style().hasAspectRatio();
+        return !style().aspectRatio().hasRatio();
 
     return false;
 }
@@ -587,7 +587,7 @@ FloatSize RenderReplaced::preferredAspectRatio() const
     auto intrinsicSize = FloatSize(intrinsicLogicalWidth(), intrinsicLogicalHeight());
     FloatSize preferredAspectRatio;
 
-    if (style().hasAspectRatio()) {
+    if (style().aspectRatio().hasRatio()) {
         preferredAspectRatio = FloatSize::narrowPrecision(style().aspectRatioLogicalWidth().value, style().aspectRatioLogicalHeight().value);
         if (style().aspectRatio().isRatio() || isVideoWithDefaultObjectSize(this))
             return preferredAspectRatio;
@@ -646,14 +646,26 @@ void RenderReplaced::computeAspectRatioAdjustedIntrinsicLogicalWidths(LayoutUnit
     auto computedAspectRatio = computeIntrinsicAspectRatio();
     auto computedIntrinsicLogicalWidth = minLogicalWidth;
 
-    if (auto fixedLogicalHeight = style.logicalHeight().tryFixed())
-        computedIntrinsicLogicalWidth = fixedLogicalHeight->resolveZoom(style.usedZoomForLength()) * computedAspectRatio;
+    auto resolveHeightForAspectRatio = [&](auto& length, bool canResolvePercentage) -> std::optional<LayoutUnit> {
+        if (auto fixedHeight = length.tryFixed())
+            return LayoutUnit { fixedHeight->resolveZoom(style.usedZoomForLength()) };
 
-    if (auto fixedLogicalMaxHeight = style.logicalMaxHeight().tryFixed())
-        computedIntrinsicLogicalWidth = std::min(computedIntrinsicLogicalWidth, LayoutUnit { fixedLogicalMaxHeight->resolveZoom(style.usedZoomForLength()) * computedAspectRatio });
+        if (length.isPercentOrCalculated() && canResolvePercentage)
+            return computePercentageLogicalHeight(length, UpdatePercentageHeightDescendants::No);
+        return std::nullopt;
+    };
 
-    if (auto fixedLogicalMinHeight = style.logicalMinHeight().tryFixed())
-        computedIntrinsicLogicalWidth = std::max(computedIntrinsicLogicalWidth, LayoutUnit { fixedLogicalMinHeight->resolveZoom(style.usedZoomForLength()) * computedAspectRatio });
+    // Resolve height and apply aspect ratio if available
+    if (auto resolvedLogicalHeight = resolveHeightForAspectRatio(style.logicalHeight(), hasReplacedLogicalHeight()))
+        computedIntrinsicLogicalWidth = *resolvedLogicalHeight * computedAspectRatio;
+
+    // Apply max-height constraint
+    if (auto resolvedLogicalMaxHeight = resolveHeightForAspectRatio(style.logicalMaxHeight(), !replacedMaxLogicalHeightComputesAsNone()))
+        computedIntrinsicLogicalWidth = std::min(computedIntrinsicLogicalWidth, LayoutUnit { *resolvedLogicalMaxHeight * computedAspectRatio });
+
+    // Apply min-height constraint
+    if (auto resolvedLogicalMinHeight = resolveHeightForAspectRatio(style.logicalMinHeight(), !replacedMinLogicalHeightComputesAsNone()))
+        computedIntrinsicLogicalWidth = std::max(computedIntrinsicLogicalWidth, LayoutUnit { *resolvedLogicalMinHeight * computedAspectRatio });
 
     minLogicalWidth = computedIntrinsicLogicalWidth;
     maxLogicalWidth = minLogicalWidth;
@@ -722,7 +734,7 @@ LayoutUnit RenderReplaced::computeReplacedLogicalWidth(ShouldComputePreferred sh
                 }();
 
                 LayoutUnit logicalHeight = computeReplacedLogicalHeight(std::optional<LayoutUnit>(estimatedUsedWidth));
-                auto boxSizing = style.hasAspectRatio() ? style.boxSizingForAspectRatio() : BoxSizing::ContentBox;
+                auto boxSizing = style.aspectRatio().hasRatio() ? style.boxSizingForAspectRatio() : BoxSizing::ContentBox;
                 return computeReplacedLogicalWidthRespectingMinMaxWidth(resolveWidthForRatio(borderAndPaddingLogicalHeight(), borderAndPaddingLogicalWidth(), logicalHeight, intrinsicRatio.aspectRatioDouble(), boxSizing), shouldComputePreferred);
             }
 
@@ -801,7 +813,7 @@ LayoutUnit RenderReplaced::computeReplacedLogicalHeight(std::optional<LayoutUnit
     if (!intrinsicRatio.isEmpty()) {
         LayoutUnit usedWidth = estimatedUsedWidth ? estimatedUsedWidth.value() : contentBoxLogicalWidth();
         BoxSizing boxSizing = BoxSizing::ContentBox;
-        if (style().hasAspectRatio())
+        if (style().aspectRatio().hasRatio())
             boxSizing = style().boxSizingForAspectRatio();
         return computeReplacedLogicalHeightRespectingMinMaxHeight(resolveHeightForRatio(borderAndPaddingLogicalWidth(), borderAndPaddingLogicalHeight(), usedWidth, intrinsicRatio.transposedSize().aspectRatioDouble(), boxSizing));
     }

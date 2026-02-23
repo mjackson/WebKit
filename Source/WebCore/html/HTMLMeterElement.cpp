@@ -136,27 +136,27 @@ HTMLMeterElement::GaugeRegion HTMLMeterElement::gaugeRegion() const
     if (optimumValue < lowValue) {
         // The optimum range stays under low
         if (theValue <= lowValue)
-            return GaugeRegionOptimum;
+            return GaugeRegion::Optimum;
         if (theValue <= highValue)
-            return GaugeRegionSuboptimal;
-        return GaugeRegionEvenLessGood;
+            return GaugeRegion::Suboptimal;
+        return GaugeRegion::EvenLessGood;
     }
-    
+
     if (highValue < optimumValue) {
         // The optimum range stays over high
         if (highValue <= theValue)
-            return GaugeRegionOptimum;
+            return GaugeRegion::Optimum;
         if (lowValue <= theValue)
-            return GaugeRegionSuboptimal;
-        return GaugeRegionEvenLessGood;
+            return GaugeRegion::Suboptimal;
+        return GaugeRegion::EvenLessGood;
     }
 
     // The optimum range stays between high and low.
     // According to the standard, <meter> never show GaugeRegionEvenLessGood in this case
     // because the value is never less or greater than min or max.
     if (lowValue <= theValue && theValue <= highValue)
-        return GaugeRegionOptimum;
-    return GaugeRegionSuboptimal;
+        return GaugeRegion::Optimum;
+    return GaugeRegion::Suboptimal;
 }
 
 double HTMLMeterElement::valueRatio() const
@@ -173,21 +173,20 @@ double HTMLMeterElement::valueRatio() const
 static void setValueClass(HTMLElement& element, HTMLMeterElement::GaugeRegion gaugeRegion)
 {
     switch (gaugeRegion) {
-    case HTMLMeterElement::GaugeRegionOptimum:
+    case HTMLMeterElement::GaugeRegion::Optimum:
         element.setAttribute(HTMLNames::classAttr, "optimum"_s);
         element.setUserAgentPart(UserAgentParts::webkitMeterOptimumValue());
         return;
-    case HTMLMeterElement::GaugeRegionSuboptimal:
+    case HTMLMeterElement::GaugeRegion::Suboptimal:
         element.setAttribute(HTMLNames::classAttr, "suboptimum"_s);
         element.setUserAgentPart(UserAgentParts::webkitMeterSuboptimumValue());
         return;
-    case HTMLMeterElement::GaugeRegionEvenLessGood:
+    case HTMLMeterElement::GaugeRegion::EvenLessGood:
         element.setAttribute(HTMLNames::classAttr, "even-less-good"_s);
         element.setUserAgentPart(UserAgentParts::webkitMeterEvenLessGoodValue());
         return;
-    default:
-        ASSERT_NOT_REACHED();
     }
+    ASSERT_NOT_REACHED();
 }
 
 void HTMLMeterElement::didElementStateChange()

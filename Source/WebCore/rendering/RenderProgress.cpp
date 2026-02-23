@@ -114,7 +114,7 @@ void RenderProgress::updateAnimationState()
         m_animationTimer.stop();
 }
 
-HTMLProgressElement* RenderProgress::progressElement() const
+HTMLProgressElement* NODELETE RenderProgress::progressElement() const
 {
     if (!element())
         return nullptr;

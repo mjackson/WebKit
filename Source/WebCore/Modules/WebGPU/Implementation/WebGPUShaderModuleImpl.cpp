@@ -49,7 +49,7 @@ ShaderModuleImpl::ShaderModuleImpl(WebGPUPtr<WGPUShaderModule>&& shaderModule, C
 
 ShaderModuleImpl::~ShaderModuleImpl() = default;
 
-static CompilationMessageType convertFromBacking(WGPUCompilationMessageType type)
+static CompilationMessageType NODELETE convertFromBacking(WGPUCompilationMessageType type)
 {
     switch (type) {
     case WGPUCompilationMessageType_Error:

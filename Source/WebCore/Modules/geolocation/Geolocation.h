@@ -65,7 +65,7 @@ public:
     WEBCORE_EXPORT ~Geolocation();
 
     WEBCORE_EXPORT void resetAllGeolocationPermission();
-    Document* document() const;
+    Document* NODELETE document() const;
 
     void getCurrentPosition(Ref<PositionCallback>&&, RefPtr<PositionErrorCallback>&&, PositionOptions&&);
     int watchPosition(Ref<PositionCallback>&&, RefPtr<PositionErrorCallback>&&, PositionOptions&&);
@@ -109,9 +109,9 @@ private:
         GeoNotifier* find(int id);
         void remove(int id);
         void remove(GeoNotifier*);
-        bool contains(GeoNotifier*) const;
+        bool NODELETE contains(GeoNotifier*) const;
         void clear();
-        bool isEmpty() const;
+        bool NODELETE isEmpty() const;
         void getNotifiersVector(GeoNotifierVector&) const;
     private:
         typedef HashMap<int, Ref<GeoNotifier>> IdToNotifierMap;

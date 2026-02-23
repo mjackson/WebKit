@@ -34,6 +34,11 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(HTMLDivElement);
 
 using namespace HTMLNames;
 
+HTMLDivElement::HTMLDivElement(Document& document, OptionSet<TypeFlag> typeFlags)
+    : HTMLDivElement(divTag, document, typeFlags)
+{
+}
+
 HTMLDivElement::HTMLDivElement(const QualifiedName& tagName, Document& document, OptionSet<TypeFlag> typeFlags)
     : HTMLElement(tagName, document, typeFlags)
 {

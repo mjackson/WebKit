@@ -451,7 +451,7 @@ void RenderQuote::updateTextRenderer(RenderTreeBuilder& builder)
     if (m_text == text)
         return;
     m_text = text;
-    if (auto* renderText = dynamicDowncast<RenderTextFragment>(lastChild())) {
+    if (CheckedPtr renderText = dynamicDowncast<RenderTextFragment>(lastChild())) {
         renderText->setContentString(m_text);
         return;
     }

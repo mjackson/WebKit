@@ -36,11 +36,11 @@ public:
     RenderSVGTextPath(SVGTextPathElement&, RenderStyle&&);
     virtual ~RenderSVGTextPath();
 
-    SVGTextPathElement& textPathElement() const;
+    SVGTextPathElement& NODELETE textPathElement() const;
     SVGGeometryElement* targetElement() const;
 
     Path layoutPath() const;
-    const SVGLengthValue& startOffset() const;
+    const SVGLengthValue& NODELETE startOffset() const;
 
 private:
     void graphicsElement() const = delete;

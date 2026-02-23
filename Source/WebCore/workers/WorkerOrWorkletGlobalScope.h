@@ -67,6 +67,7 @@ public:
     // ScriptExecutionContext.
     EventLoopTaskGroup& eventLoop() final;
     bool isContextThread() const final;
+    bool isEventLoopGroupStoppedPermanently() const final;
     void postTask(Task&&) final; // Executes the task on context's thread asynchronously.
     std::optional<PAL::SessionID> sessionID() const final { return m_sessionID; }
 

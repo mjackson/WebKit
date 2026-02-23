@@ -109,7 +109,7 @@ bool defaultTextInputClientSelectionUpdatesEnabled();
 #endif
 
 #if ENABLE(MEDIA_STREAM)
-bool defaultCaptureAudioInGPUProcessEnabled();
+bool NODELETE defaultCaptureAudioInGPUProcessEnabled();
 bool defaultManageCaptureStatusBarInGPUProcessEnabled();
 double defaultInactiveMediaCaptureStreamRepromptWithoutUserGestureIntervalInMinutes();
 #endif
@@ -119,10 +119,10 @@ bool defaultMediaSourceEnabled();
 #endif
 
 #if ENABLE(MEDIA_SOURCE)
-bool defaultManagedMediaSourceEnabled();
-bool defaultMediaSourcePrefersDecompressionSession();
+bool NODELETE defaultManagedMediaSourceEnabled();
+bool NODELETE defaultMediaSourcePrefersDecompressionSession();
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
-bool defaultManagedMediaSourceNeedsAirPlay();
+bool NODELETE defaultManagedMediaSourceNeedsAirPlay();
 #endif
 #endif
 
@@ -137,7 +137,7 @@ bool defaultRemoveBackgroundEnabled();
 #endif
 
 #if ENABLE(GAMEPAD)
-bool defaultGamepadVibrationActuatorEnabled();
+bool NODELETE defaultGamepadVibrationActuatorEnabled();
 #endif
 
 #if ENABLE(WEB_AUTHN)
@@ -158,7 +158,7 @@ bool defaultRunningBoardThrottlingEnabled();
 bool defaultShouldDropNearSuspendedAssertionAfterDelay();
 bool defaultShouldTakeNearSuspendedAssertion();
 bool defaultShowModalDialogEnabled();
-bool defaultLinearMediaPlayerEnabled();
+bool NODELETE defaultLinearMediaPlayerEnabled();
 
 bool defaultShouldEnableScreenOrientationAPI();
 bool defaultPopoverAttributeEnabled();
@@ -167,10 +167,10 @@ bool defaultUseGPUProcessForDOMRenderingEnabled();
 #if USE(LIBWEBRTC)
 bool defaultPeerConnectionEnabledAvailable();
 #endif
-bool defaultWebRTCSocketsServiceClassEnabled();
+bool NODELETE defaultWebRTCSocketsServiceClassEnabled();
 
 #if ENABLE(WEB_PUSH_NOTIFICATIONS)
-bool defaultBuiltInNotificationsEnabled();
+bool NODELETE defaultBuiltInNotificationsEnabled();
 #endif
 
 #if ENABLE(DEVICE_ORIENTATION)
@@ -181,7 +181,7 @@ bool defaultDeviceOrientationPermissionAPIEnabled();
 bool defaultRequiresPageVisibilityForVideoToBeNowPlaying();
 #endif
 
-bool defaultCookieStoreAPIEnabled();
+bool NODELETE defaultCookieStoreAPIEnabled();
 
 bool defaultContentInsetBackgroundFillEnabled();
 bool defaultTopContentInsetBackgroundCanChangeAfterScrolling();
@@ -198,7 +198,7 @@ bool defaultIFrameResourceMonitoringEnabled();
 bool defaultPreferSpatialAudioExperience();
 #endif
 
-bool defaultRTCEncodedStreamsQuirkEnabled();
+bool NODELETE defaultRTCEncodedStreamsQuirkEnabled();
 
 bool defaultMutationEventsEnabled();
 
@@ -218,16 +218,16 @@ bool defaultIOSurfaceLosslessCompressionEnabled();
 bool defaultUnifiedPDFEnabled();
 #endif
 
-bool defaultScrollbarColorEnabled();
+bool NODELETE defaultScrollbarColorEnabled();
 
-bool defaultAllowMultipleCommitLayerTreePending();
+bool NODELETE defaultAllowMultipleCommitLayerTreePending();
 
 #if ENABLE(VIDEO)
 bool defaultCaptionDisplaySettingsEnabled();
 #endif
 
 #if ENABLE(MEDIA_STREAM)
-bool defaultShouldEnableScreenCapture();
+bool NODELETE defaultShouldEnableScreenCapture();
 #endif
 
 #if ENABLE(CONTENT_CHANGE_OBSERVER)

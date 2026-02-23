@@ -281,7 +281,7 @@ FloatRect LargestContentfulPaintData::computeViewportIntersectionRect(Element& e
     auto localTargetBounds = LayoutRect { localRect };
     auto absoluteRects = targetRenderer->computeVisibleRectsInContainer(
         { localTargetBounds },
-        &targetRenderer->checkedView().get(),
+        &protect(targetRenderer->view()).get(),
         {
             .hasPositionFixedDescendant = false,
             .dirtyRectIsFlipped = false,

@@ -69,11 +69,6 @@ WebSocketTask::~WebSocketTask()
     destructStream();
 }
 
-RefPtr<NetworkSocketChannel> WebSocketTask::protectedChannel() const
-{
-    return m_channel.get();
-}
-
 void WebSocketTask::sendString(std::span<const uint8_t> utf8, CompletionHandler<void()>&& callback)
 {
     if (m_state == State::Opened) {
@@ -117,7 +112,7 @@ void WebSocketTask::resume()
 
 NetworkSessionCurl* WebSocketTask::networkSession()
 {
-    return static_cast<NetworkSessionCurl*>(protectedChannel()->session());
+    return static_cast<NetworkSessionCurl*>(protect(m_channel)->session());
 }
 
 void WebSocketTask::didOpen(WebCore::CurlStreamID)
@@ -191,14 +186,14 @@ void WebSocketTask::didReceiveData(WebCore::CurlStreamID, const WebCore::SharedB
             {
                 String message = data.size() ? String::fromUTF8(data) : emptyString();
                 if (!message.isNull())
-                    protectedChannel()->didReceiveText(message);
+                    protect(m_channel)->didReceiveText(message);
                 else
                     didFail("Could not decode a text frame as UTF-8."_s);
             }
             break;
 
         case WebCore::WebSocketFrame::OpCodeBinary:
-            protectedChannel()->didReceiveBinaryData(data);
+            protect(m_channel)->didReceiveBinaryData(data);
             break;
 
         case WebCore::WebSocketFrame::OpCodeClose:
@@ -469,7 +464,7 @@ void WebSocketTask::didFail(String&& reason)
     m_hasContinuousFrame = false;
     m_continuousFrameData.clear();
 
-    protectedChannel()->didReceiveMessageError(WTF::move(reason));
+    protect(m_channel)->didReceiveMessageError(WTF::move(reason));
     didClose(WebCore::ThreadableWebSocketChannel::CloseEventCode::CloseEventCodeAbnormalClosure, { });
 }
 
@@ -484,7 +479,7 @@ void WebSocketTask::didClose(int32_t code, const String& reason)
 
     callOnMainRunLoop([weakThis = ThreadSafeWeakPtr { *this }, code, reason] {
         if (RefPtr protectedThis = weakThis.get())
-            protectedThis->protectedChannel()->didClose(code, reason);
+            protect(protectedThis->m_channel)->didClose(code, reason);
     });
 }
 

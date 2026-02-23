@@ -3114,7 +3114,7 @@ JSC_DEFINE_JIT_OPERATION(operationOptimize, UGPRPair, (VM* vmPointer, uint32_t b
             OPERATION_RETURN(scope, encodeResult(nullptr, nullptr));
         }
 
-        dataLogLnIf(Options::verboseOSR(), "Triggering optimized compilation of ", *codeBlock);
+        dataLogLnIf(Options::verboseOSR(), "Triggering optimized compilation of ", *codeBlock, " quickDFGTierUpState=", codeBlock->unlinkedCodeBlock()->quickDFGTierUp(), " counter=", codeBlock->baselineExecuteCounter(), ", optimizationDelayCounter=", codeBlock->optimizationDelayCounter(), " bytecodeCost=", codeBlock->bytecodeCost(), " codeType=", codeBlock->codeType());
 
         unsigned numVarsWithValues = 0;
         if (bytecodeIndex)

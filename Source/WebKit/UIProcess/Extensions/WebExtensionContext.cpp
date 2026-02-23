@@ -1223,7 +1223,7 @@ void WebExtensionContext::addInjectedContent(const InjectedContentVector& inject
         addInjectedContent(injectedContents, pattern);
 }
 
-static WebCore::UserScriptInjectionTime toImpl(WebExtension::InjectionTime injectionTime)
+static WebCore::UserScriptInjectionTime NODELETE toImpl(WebExtension::InjectionTime injectionTime)
 {
     switch (injectionTime) {
     case WebExtension::InjectionTime::DocumentStart:
@@ -1589,7 +1589,7 @@ void WebExtensionContext::addDeclarativeNetRequestRulesToPrivateUserContentContr
     });
 }
 
-static HashMap<WebExtensionContextIdentifier, WeakRef<WebExtensionContext>>& webExtensionContexts()
+static HashMap<WebExtensionContextIdentifier, WeakRef<WebExtensionContext>>& NODELETE webExtensionContexts()
 {
     static NeverDestroyed<HashMap<WebExtensionContextIdentifier, WeakRef<WebExtensionContext>>> contexts;
     return contexts;

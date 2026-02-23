@@ -111,7 +111,7 @@ struct OffsetRange {
     unsigned start { 0 };
     unsigned end { 0 };
 };
-OffsetRange characterDataOffsetRange(const SimpleRange&, const Node&);
+OffsetRange NODELETE characterDataOffsetRange(const SimpleRange&, const Node&);
 
 // FIXME: Start of functions that are deprecated since they silently default to ComposedTree.
 

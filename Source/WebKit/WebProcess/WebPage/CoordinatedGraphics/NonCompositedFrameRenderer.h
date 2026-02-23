@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Igalia S.L.
+ * Copyright (C) 2025, 2026 Igalia S.L.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,31 +27,22 @@
 
 #if USE(COORDINATED_GRAPHICS)
 #include "AcceleratedSurface.h"
-#include <WebCore/GLContext.h>
+#include "FrameRenderer.h"
+
+namespace WebCore {
+class GLContext;
+}
 
 namespace WebKit {
 class WebPage;
 
-class NonCompositedFrameRenderer {
+class NonCompositedFrameRenderer final : public FrameRenderer {
     WTF_MAKE_TZONE_ALLOCATED(NonCompositedFrameRenderer);
 public:
     static std::unique_ptr<NonCompositedFrameRenderer> create(WebPage&);
 
-    NonCompositedFrameRenderer(WebPage&);
+    explicit NonCompositedFrameRenderer(WebPage&);
     ~NonCompositedFrameRenderer();
-
-    uint64_t surfaceID() const { return m_surface->surfaceID(); }
-
-    void setNeedsDisplayInRect(const WebCore::IntRect&);
-
-    void display();
-    void updateRenderingWithForcedRepaint();
-    void updateRenderingWithForcedRepaintAsync(CompletionHandler<void()>&&);
-
-#if ENABLE(DAMAGE_TRACKING)
-    void resetDamageHistoryForTesting();
-    void foreachRegionInDamageHistoryForTesting(Function<void(const WebCore::Region&)>&&);
-#endif
 
 private:
     bool initialize();
@@ -60,12 +51,37 @@ private:
     void resetFrameDamage();
 #endif
 
-    WeakRef<WebPage> m_webPage;
+    void addDirtyRect(const WebCore::IntRect&);
+    void frameComplete();
+
+    // FrameRenderer
+    uint64_t surfaceID() const override { return m_surface->surfaceID(); }
+    void setNeedsDisplay() override;
+    void setNeedsDisplayInRect(const WebCore::IntRect&) override;
+    void updateRenderingWithForcedRepaint() override;
+    void scheduleRenderingUpdate() override;
+    bool canUpdateRendering() const override;
+    void updateRendering() override;
+    void sizeDidChange() override;
+    bool ensureDrawing() override;
+    void fillGLInformation(RenderProcessInfo&&, CompletionHandler<void(RenderProcessInfo&&)>&&) override;
+#if PLATFORM(WPE) && ENABLE(WPE_PLATFORM) && (USE(GBM) || OS(ANDROID))
+    void preferredBufferFormatsDidChange() override;
+#endif
+#if ENABLE(DAMAGE_TRACKING)
+    void resetDamageHistoryForTesting() override;
+    void foreachRegionInDamageHistoryForTesting(Function<void(const WebCore::Region&)>&&) const override;
+#endif
+#if PLATFORM(GTK)
+    void adjustTransientZoom(double, WebCore::FloatPoint, WebCore::FloatPoint) override;
+    void commitTransientZoom(double, WebCore::FloatPoint, WebCore::FloatPoint) override;
+#endif
+
+    const WeakRef<WebPage> m_webPage;
     Ref<AcceleratedSurface> m_surface;
     std::unique_ptr<WebCore::GLContext> m_context;
     bool m_canRenderNextFrame { true };
     bool m_shouldRenderFollowupFrame { false };
-    CompletionHandler<void()> m_forcedRepaintAsyncCallback;
 #if ENABLE(DAMAGE_TRACKING)
     std::optional<WebCore::Damage> m_frameDamage;
     std::optional<Vector<WebCore::Region>> m_frameDamageHistoryForTesting;

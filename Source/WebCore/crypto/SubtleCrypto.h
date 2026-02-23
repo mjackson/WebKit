@@ -62,7 +62,7 @@ public:
     using KeyFormat = CryptoKeyFormat;
 
     using AlgorithmIdentifier = Variant<JSC::Strong<JSC::JSObject>, String>;
-    using KeyDataVariant = Variant<RefPtr<JSC::ArrayBufferView>, RefPtr<JSC::ArrayBuffer>, JsonWebKey>;
+    using KeyDataVariant = Variant<Ref<JSC::ArrayBufferView>, Ref<JSC::ArrayBuffer>, JsonWebKey>;
 
     void encrypt(JSC::JSGlobalObject&, AlgorithmIdentifier&&, CryptoKey&, BufferSource&& data, Ref<DeferredPromise>&&);
     void decrypt(JSC::JSGlobalObject&, AlgorithmIdentifier&&, CryptoKey&, BufferSource&& data, Ref<DeferredPromise>&&);

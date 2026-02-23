@@ -171,7 +171,7 @@
 #include <unistd.h>
 #endif
 
-#if PLATFORM(COCOA)
+#if ENABLE(MEDIA_STREAM)
 #include "UserMediaCaptureManager.h"
 #endif
 
@@ -324,6 +324,23 @@ WebProcess& WebProcess::singleton()
     return process.get().get();
 }
 
+WebNotificationManager& WebProcess::notificationManager()
+{
+    return *supplement<WebNotificationManager>();
+}
+
+WebGeolocationManager& WebProcess::geolocationManager()
+{
+    return *supplement<WebGeolocationManager>();
+}
+
+#if ENABLE(MEDIA_STREAM)
+UserMediaCaptureManager& WebProcess::userMediaCaptureManager()
+{
+    return *supplement<UserMediaCaptureManager>();
+}
+#endif
+
 WebProcess::WebProcess()
     : m_eventDispatcher(*this)
 #if PLATFORM(IOS_FAMILY)
@@ -446,9 +463,9 @@ void WebProcess::initializeConnection(IPC::Connection* connection)
     Ref { m_viewUpdateDispatcher }->initializeConnection(*connection);
 #endif // PLATFORM(IOS_FAMILY)
 
-    protectedWebInspectorInterruptDispatcher()->initializeConnection(*connection);
+    protect(m_webInspectorInterruptDispatcher)->initializeConnection(*connection);
 #if ENABLE(WEBASSEMBLY_DEBUGGER) && ENABLE(REMOTE_INSPECTOR)
-    protectedWasmDebuggerDispatcher()->initializeConnection(*connection);
+    protect(m_wasmDebuggerDispatcher)->initializeConnection(*connection);
 #endif
 
     for (auto& supplement : m_supplements.values())
@@ -1307,7 +1324,7 @@ void WebProcess::setInjectedBundleParameters(std::span<const uint8_t> value)
     injectedBundle->setBundleParameters(value);
 }
 
-[[noreturn]] inline void failedToGetNetworkProcessConnection()
+[[noreturn]] inline void NODELETE failedToGetNetworkProcessConnection()
 {
 #if PLATFORM(GTK) || PLATFORM(WPE)
     // GTK and WPE ports don't exit on send sync message failure.
@@ -1366,7 +1383,7 @@ NetworkProcessConnection& WebProcess::ensureNetworkProcessConnection()
         m_networkProcessConnection->connection().send(Messages::NetworkConnectionToWebProcess::RegisterURLSchemesAsCORSEnabled(WebCore::LegacySchemeRegistry::allURLSchemesRegisteredAsCORSEnabled()), 0);
 
         if (!Document::allDocuments().isEmpty() || SharedWorkerThreadProxy::hasInstances())
-            protect(protectedNetworkProcessConnection()->serviceWorkerConnection())->registerServiceWorkerClients();
+            protect(protect(m_networkProcessConnection.get())->serviceWorkerConnection())->registerServiceWorkerClients();
 
 #if HAVE(LSDATABASECONTEXT)
         // On Mac, this needs to be called before NSApplication is being initialized.
@@ -1395,11 +1412,6 @@ Ref<NetworkProcessConnection> WebProcess::ensureProtectedNetworkProcessConnectio
     return ensureNetworkProcessConnection();
 }
 
-RefPtr<NetworkProcessConnection> WebProcess::protectedNetworkProcessConnection()
-{
-    return existingNetworkProcessConnection();
-}
-
 void WebProcess::logDiagnosticMessageForNetworkProcessCrash()
 {
     RefPtr<WebCore::Page> page;
@@ -1409,8 +1421,8 @@ void WebProcess::logDiagnosticMessageForNetworkProcessCrash()
 
     if (!page) {
         for (auto& webPage : m_pageMap.values()) {
-            if (auto* corePage = webPage->corePage()) {
-                page = corePage;
+            if (RefPtr corePage = webPage->corePage()) {
+                page = WTF::move(corePage);
                 break;
             }
         }
@@ -1689,7 +1701,7 @@ void WebProcess::deleteWebsiteDataForOrigin(OptionSet<WebsiteDataType> websiteDa
     if (websiteDataTypes.contains(WebsiteDataType::MemoryCache)) {
         MemoryCache::singleton().removeResourcesWithOrigin(origin);
         if (origin.topOrigin == origin.clientOrigin)
-            BackForwardCache::singleton().clearEntriesForOrigins({ RefPtr<SecurityOrigin> { origin.clientOrigin.securityOrigin() } });
+            BackForwardCache::singleton().clearEntriesForOrigins({ Ref { origin.clientOrigin.securityOrigin() } });
     }
     completionHandler();
 }
@@ -1706,7 +1718,7 @@ void WebProcess::reloadExecutionContextsForOrigin(const ClientOrigin& origin, st
 void WebProcess::deleteWebsiteDataForOrigins(OptionSet<WebsiteDataType> websiteDataTypes, const Vector<WebCore::SecurityOriginData>& originDatas, CompletionHandler<void()>&& completionHandler)
 {
     if (websiteDataTypes.contains(WebsiteDataType::MemoryCache)) {
-        HashSet<RefPtr<SecurityOrigin>> origins;
+        HashSet<Ref<SecurityOrigin>> origins;
         for (auto& originData : originDatas)
             origins.add(originData.securityOrigin());
 
@@ -2289,7 +2301,7 @@ void WebProcess::grantUserMediaDeviceSandboxExtensions(MediaDeviceSandboxExtensi
         machBootstrapExtension->consume();
 }
 
-static inline void checkDocumentsCaptureStateConsistency(const Vector<String>& extensionIDs)
+static inline void NODELETE checkDocumentsCaptureStateConsistency(const Vector<String>& extensionIDs)
 {
 #if ASSERT_ENABLED
     bool isCapturingAudio = std::ranges::any_of(Document::allDocumentsMap().values(), [](auto& document) {
@@ -2427,6 +2439,14 @@ void WebProcess::updateScriptTrackingPrivacyFilter(ScriptTrackingPrivacyRules&& 
         return;
 
     m_scriptTrackingPrivacyFilter = WTF::makeUnique<ScriptTrackingPrivacyFilter>(WTF::move(rules));
+}
+
+void WebProcess::updateConsistentPrivacyQuirkFilter(ScriptTrackingPrivacyRules&& rules)
+{
+    if (rules.isEmpty())
+        return;
+
+    m_consistentPrivacyQuirkFilter = WTF::makeUnique<ScriptTrackingPrivacyFilter>(WTF::move(rules));
 }
 
 void WebProcess::setChildProcessDebuggabilityEnabled(bool childProcessDebuggabilityEnabled)
@@ -2592,11 +2612,6 @@ RemoteMediaEngineConfigurationFactory& WebProcess::mediaEngineConfigurationFacto
 }
 #endif
 
-Ref<WebNotificationManager> WebProcess::protectedNotificationManager()
-{
-    return *supplement<WebNotificationManager>();
-}
-
 RefPtr<WebTransportSession> WebProcess::webTransportSession(WebTransportSessionIdentifier identifier)
 {
     Locker locker { m_webTransportSessionsLock };
@@ -2653,6 +2668,16 @@ bool WebProcess::requiresScriptTrackingPrivacyProtections(const URL& url, const 
 bool WebProcess::shouldAllowScriptAccess(const URL& url, const SecurityOrigin& topOrigin, ScriptTrackingPrivacyCategory category) const
 {
     return m_scriptTrackingPrivacyFilter && m_scriptTrackingPrivacyFilter->shouldAllowAccess(url, topOrigin, category);
+}
+
+bool WebProcess::requiresConsistentPrivacyQuirkForDomain(const URL& url) const
+{
+    return m_consistentPrivacyQuirkFilter && m_consistentPrivacyQuirkFilter->matches(url, SecurityOrigin::create(url));
+}
+
+bool WebProcess::shouldBlockRequest(const URL& url, const WebCore::SecurityOrigin& topOrigin)
+{
+    return m_scriptTrackingPrivacyFilter && m_scriptTrackingPrivacyFilter->shouldBlockRequest(url, topOrigin);
 }
 
 void WebProcess::enableMediaPlayback()

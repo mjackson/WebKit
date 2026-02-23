@@ -276,6 +276,10 @@ enum class WebCore::UserInterfaceLayoutDirection : bool;
     WebCore::ShouldRequireExplicitConsentForGamepadAccess gamepadAccessRequiresExplicitConsent;
 #endif
 
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    bool allowsImmersiveEnvironments;
+#endif
+
 #if HAVE(AUDIT_TOKEN)
     std::optional<WebKit::CoreIPCAuditToken> presentingApplicationAuditToken;
 #endif
@@ -293,6 +297,8 @@ enum class WebCore::UserInterfaceLayoutDirection : bool;
     std::optional<WebKit::TextManipulationParameters> textManipulationParameters;
 
     bool isPopup;
+
+    bool accessibilityEnabled;
 }
 
 [Nested] struct WebKit::RemotePageParameters {

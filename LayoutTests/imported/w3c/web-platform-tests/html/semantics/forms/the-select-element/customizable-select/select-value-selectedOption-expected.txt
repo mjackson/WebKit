@@ -1,7 +1,5 @@
-
-    two
-
-    two
+        two
+  two
 
 
 PASS Test that HTMLselect with no options has empty string for value and null for selectedOption

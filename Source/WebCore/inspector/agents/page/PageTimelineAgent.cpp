@@ -116,7 +116,7 @@ void PageTimelineAgent::internalStart(std::optional<int>&& maxCallStackDepth)
         CheckedPtr checkedThis = weakThis.get();
         if (!checkedThis)
             return;
-        if (!checkedThis->tracking() || checkedThis->checkedEnvironment()->debugger()->isPaused())
+        if (!checkedThis->tracking() || protect(checkedThis->environment())->debugger()->isPaused())
             return;
         if (!checkedThis->m_runLoopNestingLevel) {
             checkedThis->pushCurrentRecord(JSON::Object::create(), TimelineRecordType::RenderingFrame, false);
@@ -136,7 +136,7 @@ void PageTimelineAgent::internalStart(std::optional<int>&& maxCallStackDepth)
         CheckedPtr checkedThis = weakThis.get();
         if (!checkedThis)
             return;
-        if (!checkedThis->tracking() || checkedThis->checkedEnvironment()->debugger()->isPaused())
+        if (!checkedThis->tracking() || protect(checkedThis->environment())->debugger()->isPaused())
             return;
 
         switch (event) {
@@ -299,7 +299,7 @@ void PageTimelineAgent::mainFrameNavigated()
 void PageTimelineAgent::didCompleteRenderingFrame()
 {
 #if PLATFORM(COCOA)
-    if (!tracking() || checkedEnvironment()->debugger()->isPaused())
+    if (!tracking() || protect(environment())->debugger()->isPaused())
         return;
 
     ASSERT(m_runLoopNestingLevel > 0);

@@ -32,4 +32,5 @@
 
     [PrivateIdentifier] Uint8Array? decode(BufferSource chunk);
     [PrivateIdentifier] Uint8Array? flush();
+    [PrivateIdentifier] boolean didDetectExtraBytes();
 };

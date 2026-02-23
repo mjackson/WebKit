@@ -151,12 +151,12 @@ RefPtr<ImageBuffer> snapshotFrameRectWithClip(LocalFrame& frame, const IntRect& 
 
 RefPtr<ImageBuffer> snapshotSelection(LocalFrame& frame, SnapshotOptions&& options)
 {
-    auto& selection = frame.selection();
+    CheckedRef selection = frame.selection();
 
-    if (!selection.isRange())
+    if (!selection->isRange())
         return nullptr;
 
-    FloatRect selectionBounds = selection.selectionBounds();
+    FloatRect selectionBounds = selection->selectionBounds();
 
     // It is possible for the selection bounds to be empty; see https://bugs.webkit.org/show_bug.cgi?id=56645.
     if (selectionBounds.isEmpty())
@@ -182,12 +182,12 @@ RefPtr<ImageBuffer> snapshotNode(LocalFrame& frame, Node& node, SnapshotOptions&
 
 static bool styleContainsComplexBackground(const RenderStyle& style)
 {
-    return style.hasBlendMode()
-        || style.hasBackgroundImage()
+    return style.blendMode() != BlendMode::Normal
+        || Style::hasImageInAnyLayer(style.backgroundLayers())
 #if HAVE(CORE_MATERIAL)
-        || style.hasAppleVisualEffectRequiringBackdropFilter()
+        || appleVisualEffectNeedsBackdrop(style.appleVisualEffect())
 #endif
-        || style.hasBackdropFilter();
+        || !style.backdropFilter().isNone();
 }
 
 Color estimatedBackgroundColorForRange(const SimpleRange& range, const LocalFrame& frame)
@@ -211,16 +211,16 @@ Color estimatedBackgroundColorForRange(const SimpleRange& range, const LocalFram
     })));
 
     Vector<Color> parentRendererBackgroundColors;
-    for (auto& ancestor : lineageOfType<RenderElement>(*renderer)) {
-        auto absoluteBoundingBox = ancestor.absoluteBoundingBoxRect();
-        auto& style = ancestor.style();
-        if (!absoluteBoundingBox.contains(boundingRectForRange) || !style.hasBackground())
+    for (CheckedRef ancestor : lineageOfType<RenderElement>(*renderer)) {
+        auto absoluteBoundingBox = ancestor->absoluteBoundingBoxRect();
+        CheckedRef style = ancestor->style();
+        if (!absoluteBoundingBox.contains(boundingRectForRange) || !style->hasBackground())
             continue;
 
         if (styleContainsComplexBackground(style))
             return estimatedBackgroundColor;
 
-        auto visitedDependentBackgroundColor = style.visitedDependentBackgroundColor();
+        auto visitedDependentBackgroundColor = style->visitedDependentBackgroundColor();
         if (visitedDependentBackgroundColor != Color::transparentBlack)
             parentRendererBackgroundColors.append(visitedDependentBackgroundColor);
     }

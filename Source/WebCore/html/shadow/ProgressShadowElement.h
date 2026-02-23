@@ -42,7 +42,7 @@ class ProgressShadowElement : public HTMLDivElement {
     WTF_MAKE_TZONE_ALLOCATED(ProgressShadowElement);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(ProgressShadowElement);
 public:
-    HTMLProgressElement* progressElement() const;
+    HTMLProgressElement* NODELETE progressElement() const;
 
 protected:
     explicit ProgressShadowElement(Document&);

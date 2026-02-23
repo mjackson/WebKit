@@ -67,8 +67,8 @@ private:
 
     double tailTime() const final;
     double latencyTime() const final { return 0; }
-    bool requiresTailProcessing() const final;
-    bool propagatesSilence() const final;
+    bool NODELETE requiresTailProcessing() const final;
+    bool NODELETE propagatesSilence() const final;
 
     RealtimeAnalyser m_analyser;
 };

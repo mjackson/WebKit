@@ -33,6 +33,7 @@
 #include "SVGContainerLayout.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGSVGElement.h"
+#include "SVGViewSpec.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -96,8 +97,11 @@ bool RenderSVGViewportContainer::needsHasSVGTransformFlags() const
     if (useSVGSVGElement->hasTransformRelatedAttributes())
         return true;
 
-    if (isOutermostSVGViewportContainer())
+    if (isOutermostSVGViewportContainer()) {
+        if (useSVGSVGElement->useCurrentView())
+            return true;
         return !useSVGSVGElement->currentTranslateValue().isZero() || useSVGSVGElement->renderer()->style().usedZoom() != 1;
+    }
 
     return false;
 }
@@ -138,15 +142,20 @@ void RenderSVGViewportContainer::updateLayerTransform()
     } else if (!m_viewport.location().isZero())
         m_supplementalLayerTransform.translate(m_viewport.location());
 
-    if (useSVGSVGElement->hasAttribute(SVGNames::viewBoxAttr)) {
+    bool hasCurrentViewEmptyViewBox = true;
+    if (useSVGSVGElement->useCurrentView())
+        hasCurrentViewEmptyViewBox = useSVGSVGElement->currentView().hasEmptyViewBox();
+    if (useSVGSVGElement->hasAttribute(SVGNames::viewBoxAttr) || !hasCurrentViewEmptyViewBox) {
         // An empty viewBox disables the rendering -- dirty the visible descendant status!
-        if (useSVGSVGElement->hasEmptyViewBox())
+        if (useSVGSVGElement->hasEmptyViewBox() && hasCurrentViewEmptyViewBox)
             layer()->dirtyVisibleContentStatus();
-        else if (auto viewBoxTransform = viewBoxToViewTransform(useSVGSVGElement, viewportSize); !viewBoxTransform.isIdentity()) {
-            if (m_supplementalLayerTransform.isIdentity())
-                m_supplementalLayerTransform = viewBoxTransform;
-            else
-                m_supplementalLayerTransform.multiply(viewBoxTransform);
+        else if (!useSVGSVGElement->viewBox().isEmpty() || !hasCurrentViewEmptyViewBox) {
+            if (auto viewBoxTransform = viewBoxToViewTransform(useSVGSVGElement, viewportSize); !viewBoxTransform.isIdentity()) {
+                if (m_supplementalLayerTransform.isIdentity())
+                    m_supplementalLayerTransform = viewBoxTransform;
+                else
+                    m_supplementalLayerTransform.multiply(viewBoxTransform);
+            }
         }
     }
 
@@ -170,8 +179,10 @@ LayoutRect RenderSVGViewportContainer::overflowClipRect(const LayoutPoint& locat
         if (useSVGSVGElement->hasEmptyViewBox())
             return { };
 
-        if (auto viewBoxTransform = viewBoxToViewTransform(useSVGSVGElement, viewportSize()); !viewBoxTransform.isIdentity())
-            clipRect = enclosingLayoutRect(viewBoxTransform.inverse().value_or(AffineTransform { }).mapRect(viewport()));
+        if (!useSVGSVGElement->viewBox().isEmpty()) {
+            if (auto viewBoxTransform = viewBoxToViewTransform(useSVGSVGElement, viewportSize()); !viewBoxTransform.isIdentity())
+                clipRect = enclosingLayoutRect(viewBoxTransform.inverse().value_or(AffineTransform { }).mapRect(viewport()));
+        }
     }
 
     clipRect.moveBy(location);

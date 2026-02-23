@@ -96,6 +96,17 @@ RemotePageProxy::RemotePageProxy(WebPageProxy& page, WebProcessProxy& process, c
         m_messageReceiverRegistration.startReceivingMessages(m_process, m_webPageID, *this, page.backForwardListMessageReceiver());
 
     m_process->addRemotePageProxy(*this);
+
+    RefPtr protectedPage = m_page.get();
+    if (!protectedPage)
+        return;
+
+    protectedPage->takeActivitiesOnRemotePage(*this);
+
+#if PLATFORM(MAC) && USE(RUNNINGBOARD)
+    if (protectedPage->preferences().backgroundWebContentRunningBoardThrottlingEnabled())
+        m_process->setRunningBoardThrottlingEnabled();
+#endif
 }
 
 void RemotePageProxy::disconnect()
@@ -138,13 +149,6 @@ void RemotePageProxy::injectPageIntoNewProcess()
         ASSERT_NOT_REACHED();
         return;
     }
-
-#if PLATFORM(MAC) && USE(RUNNINGBOARD)
-    if (page->preferences().backgroundWebContentRunningBoardThrottlingEnabled())
-        m_process->setRunningBoardThrottlingEnabled();
-#endif
-
-    page->takeActivitiesOnRemotePage(*this);
 
     Ref drawingArea = *page->drawingArea();
     m_drawingArea = RemotePageDrawingAreaProxy::create(drawingArea.get(), m_process);
@@ -194,6 +198,13 @@ void RemotePageProxy::processDidTerminate(WebProcessProxy& process, ProcessTermi
 RemotePageProxy::~RemotePageProxy()
 {
     ASSERT(m_disconnected);
+
+    RefPtr page = m_page.get();
+    if (!page)
+        return;
+
+    if (RefPtr client = page->pageClient())
+        client->didStopUsingProcessForSiteIsolation(m_process);
 }
 
 void RemotePageProxy::didReceiveMessage(IPC::Connection& connection, IPC::Decoder& decoder)
@@ -206,13 +217,22 @@ void RemotePageProxy::didReceiveMessage(IPC::Connection& connection, IPC::Decode
         IPC::handleMessage<Messages::WebPageProxy::SetNetworkRequestsInProgress>(connection, decoder, this, &RemotePageProxy::setNetworkRequestsInProgress);
         return;
     }
-
-    if (RefPtr page = m_page.get()) {
-        if (decoder.messageReceiverName() == Messages::WebBackForwardList::messageReceiverName())
-            page->backForwardListMessageReceiver().didReceiveMessage(connection, decoder);
-        else
-            page->didReceiveMessage(connection, decoder);
+#if HAVE(VISIBILITY_PROPAGATION_VIEW)
+    if (decoder.messageName() == Messages::WebPageProxy::DidCreateContextInWebProcessForVisibilityPropagation::name()) {
+        IPC::handleMessage<Messages::WebPageProxy::DidCreateContextInWebProcessForVisibilityPropagation>(connection, decoder, this, &RemotePageProxy::didCreateContextInWebProcessForVisibilityPropagation);
+        return;
     }
+#endif // HAVE(VISIBILITY_PROPAGATION_VIEW)
+
+    RefPtr page = m_page.get();
+    if (!page)
+        return;
+
+    if (decoder.messageReceiverName() == Messages::WebBackForwardList::messageReceiverName()) {
+        page->backForwardListMessageReceiver().didReceiveMessage(connection, decoder);
+        return;
+    }
+    page->didReceiveMessage(connection, decoder);
 }
 
 void RemotePageProxy::didReceiveSyncMessage(IPC::Connection& connection, IPC::Decoder& decoder, UniqueRef<IPC::Encoder>& encoder)
@@ -305,5 +325,20 @@ void RemotePageProxy::setCurrentOrientation(WebCore::ScreenOrientationType orien
     if (RefPtr manager = page->screenOrientationManager())
         manager->setCurrentOrientation(orientation);
 }
+
+#if HAVE(VISIBILITY_PROPAGATION_VIEW)
+void RemotePageProxy::didCreateContextInWebProcessForVisibilityPropagation(LayerHostingContextID contextID)
+{
+    m_contextIDForVisibilityPropagationInWebProcess = contextID;
+
+    RefPtr page = m_page.get();
+    if (!page)
+        return;
+
+    if (RefPtr client = page->pageClient())
+        client->didStartUsingProcessForSiteIsolation(m_process, contextID);
+
+}
+#endif
 
 }

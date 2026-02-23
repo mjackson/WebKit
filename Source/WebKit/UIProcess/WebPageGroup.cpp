@@ -42,7 +42,7 @@ namespace WebKit {
 
 using WebPageGroupMap = HashMap<PageGroupIdentifier, WeakRef<WebPageGroup>>;
 
-static WebPageGroupMap& webPageGroupMap()
+static WebPageGroupMap& NODELETE webPageGroupMap()
 {
     static NeverDestroyed<WebPageGroupMap> map;
     return map;

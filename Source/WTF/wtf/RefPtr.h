@@ -18,8 +18,6 @@
  *
  */
 
-// RefPtr is documented at http://webkit.org/coding/RefPtr.html
-
 #pragma once
 
 #include <algorithm>
@@ -33,6 +31,55 @@ namespace WTF {
 template<typename T, typename PtrTraits, typename RefDerefTraits> class RefPtr;
 template<typename T, typename PtrTraits = RawPtrTraits<T>, typename RefDerefTraits = DefaultRefDerefTraits<T>> RefPtr<T, PtrTraits, RefDerefTraits> adoptRef(T*);
 
+/**
+ * @brief RefPtr is a nullable intrusive reference-counting smart pointer.
+ *
+ * It extends the lifetime of the referenced object by calling ref() on construction
+ * and deref() on destruction. When the reference count reaches zero, the object
+ * is automatically deleted.
+ *
+ * RefPtr can only be used with classes that implement ref() and deref() member
+ * functions, typically by inheriting from RefCounted, ThreadSafeRefCounted, or
+ * AbstractRefCounted. Another common pattern is to have an object forward its
+ * ref-counting to its owner. In such cases, you provide custom ref() and deref()
+ * functions on the ownee which internally call ref() / deref() on the owner.
+ * This is an alternative to subclassing RefCounted / ThreadSafeRefCounted.
+ * For types with non-standard ref/deref interfaces, you can provide custom
+ * RefDerefTraits as a template parameter (see DefaultRefDerefTraits in Ref.h).
+ *
+ * @note RefCounted uses non-atomic operations and is not thread-safe. If you
+ * need to share ownership across threads, use ThreadSafeRefCounted instead,
+ * which uses atomic reference counting.
+ *
+ * If you expect the pointer to never be null during its usage, consider using
+ * Ref instead, which provides clearer non-nullable semantics.
+ *
+ * To create a RefPtr, use one of the following:
+ * @code
+ * // Increments the ref count on assignment and decrements when when
+ * // going out of scope.
+ * RefPtr ptr = &object;
+ * // X::create() uses adoptRef() internally to take ownership without incrementing
+ * // the ref count since ref-counted objects get constructed with a ref count
+ * // of 1.
+ * RefPtr ptr = X::create();
+ * class X {
+ * public:
+ *     static RefPtr<X> create() { return adoptRef(new X); }
+ * private:
+ *     X() = default;
+ * };
+ * @endcode
+ *
+ * Use adoptRef() when you receive an object that you already own (i.e., it was
+ * created with a +1 ref count). This is typically used within a static create()
+ * factory function on the class, and the constructor should be private to ensure
+ * all instances are created through the factory. Using the regular RefPtr
+ * constructor instead of adoptRef() would add an extra ref, causing a leak when
+ * the RefPtr is destroyed. Use the regular constructor when you want to add a
+ * reference to an object you don't already own. Newly constructed RefCounted
+ * or ThreadSafeRefCounted objects start with a ref count of 1.
+ */
 template<typename T, typename _PtrTraits, typename _RefDerefTraits>
 class RefPtr {
     WTF_FORBID_HEAP_ALLOCATION_ALLOWING_PLACEMENT_NEW;

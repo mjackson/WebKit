@@ -204,7 +204,7 @@ void AudioWorkletNode::process(size_t framesToProcess)
 
     auto zeroOutput = [&] {
         for (unsigned i = 0; i < numberOfOutputs(); ++i)
-            checkedOutput(i)->bus().zero();
+            protect(output(i))->bus().zero();
     };
 
     if (!m_processLock.tryLock()) {
@@ -224,7 +224,7 @@ void AudioWorkletNode::process(size_t framesToProcess)
         m_inputs[i] = currentInput->isConnected() ? &currentInput->bus() : nullptr;
     }
     for (unsigned i = 0; i < numberOfOutputs(); ++i)
-        m_outputs[i] = checkedOutput(i)->bus();
+        m_outputs[i] = protect(output(i))->bus();
 
     if (noiseInjectionPolicies().contains(NoiseInjectionPolicy::Minimal)) {
         for (unsigned inputIndex = 0; inputIndex < numberOfInputs(); ++inputIndex) {
@@ -270,7 +270,7 @@ void AudioWorkletNode::updatePullStatus()
 
     bool hasConnectedOutput = false;
     for (unsigned i = 0; i < numberOfOutputs(); ++i) {
-        if (checkedOutput(i)->isConnected()) {
+        if (protect(output(i))->isConnected()) {
             hasConnectedOutput = true;
             break;
         }
@@ -295,7 +295,7 @@ void AudioWorkletNode::checkNumberOfChannelsForInput(AudioNodeInput* input)
         unsigned numberOfInputChannels = input->numberOfChannels();
         if (numberOfInputChannels != output(0)->numberOfChannels()) {
             // This will propagate the channel count to any nodes connected further downstream in the graph.
-            checkedOutput(0)->setNumberOfChannels(numberOfInputChannels);
+            protect(output(0))->setNumberOfChannels(numberOfInputChannels);
         }
     }
 

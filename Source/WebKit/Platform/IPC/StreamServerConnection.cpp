@@ -27,6 +27,7 @@
 #include "StreamServerConnection.h"
 
 #include "Connection.h"
+#include "MessageLog.h"
 #include "StreamConnectionWorkQueue.h"
 #include <mutex>
 #include <wtf/NeverDestroyed.h>
@@ -78,7 +79,7 @@ void StreamServerConnection::invalidate()
         connection->invalidate();
         return;
     }
-    protectedWorkQueue()->removeStreamConnection(*this);
+    protect(m_workQueue)->removeStreamConnection(*this);
     connection->invalidate();
     connection->removeMessageReceiveQueue({ });
     m_workQueue = nullptr;
@@ -110,7 +111,7 @@ void StreamServerConnection::enqueueMessage(Connection&, UniqueRef<Decoder>&& me
         m_outOfStreamMessages.append(WTF::move(message));
     }
     ASSERT(m_workQueue);
-    protectedWorkQueue()->wakeUp();
+    protect(m_workQueue)->wakeUp();
 }
 
 void StreamServerConnection::didReceiveMessage(Connection&, Decoder&)
@@ -269,6 +270,7 @@ bool StreamServerConnection::dispatchStreamMessage(Decoder& message, StreamMessa
 #if ASSERT_ENABLED
     m_isDispatchingMessage = true;
 #endif
+    IPC::messageLog().add(message.messageName());
     receiver.didReceiveStreamMessage(*this, message);
 #if ASSERT_ENABLED
     m_isDispatchingMessage = false;
@@ -307,11 +309,5 @@ void StreamServerConnection::markCurrentlyDispatchedMessageAsInvalid(ASCIILitera
     ASSERT(m_isDispatchingMessage);
     m_didReceiveInvalidMessage = true;
 }
-
-RefPtr<StreamConnectionWorkQueue> StreamServerConnection::protectedWorkQueue() const
-{
-    return m_workQueue;
-}
-
 
 }

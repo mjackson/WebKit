@@ -64,7 +64,6 @@
 #include "CSSValueList.h"
 #include "CSSValuePool.h"
 #include "CSSVariableData.h"
-#include "StyleImage.h"
 #include <wtf/SortedArrayMap.h>
 
 namespace WebCore {

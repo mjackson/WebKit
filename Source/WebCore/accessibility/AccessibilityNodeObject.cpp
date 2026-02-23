@@ -2665,7 +2665,7 @@ AccessibilityObject* AccessibilityNodeObject::parentTable() const
         // https://bugs.webkit.org/show_bug.cgi?id=42652
         RefPtr<AccessibilityObject> tableFromRenderTree;
         if (CheckedPtr renderTableCell = dynamicDowncast<RenderTableCell>(renderer()))
-            tableFromRenderTree = cache->get(renderTableCell->checkedTable().get());
+            tableFromRenderTree = cache->get(protect(renderTableCell->table()).get());
 
         if (!tableFromRenderTree || !tableFromRenderTree->isTable()) {
             if (node()) {
@@ -3444,7 +3444,7 @@ void AccessibilityNodeObject::alternativeText(Vector<AccessibilityText>& textOrd
 #endif
 
     if (CheckedPtr style = this->style()) {
-        String altText = style->altFromContent();
+        String altText = style->content().altText();
         if (!altText.isEmpty())
             textOrder.append(AccessibilityText(WTF::move(altText), AccessibilityTextSource::Alternative));
     }
@@ -3802,15 +3802,15 @@ static void appendNameToStringBuilder(StringBuilder& builder, String&& text, boo
 }
 
 
-static bool displayTypeNeedsSpace(DisplayType type)
+static bool displayNeedsSpace(Style::Display display)
 {
-    return type == DisplayType::Block
-        || type == DisplayType::InlineBlock
-        || type == DisplayType::InlineFlex
-        || type == DisplayType::InlineGrid
-        || type == DisplayType::InlineGridLanes
-        || type == DisplayType::InlineTable
-        || type == DisplayType::TableCell;
+    return display == Style::DisplayType::BlockFlow
+        || display == Style::DisplayType::InlineFlowRoot
+        || display == Style::DisplayType::InlineFlex
+        || display == Style::DisplayType::InlineGrid
+        || display == Style::DisplayType::InlineGridLanes
+        || display == Style::DisplayType::InlineTable
+        || display == Style::DisplayType::TableCell;
 }
 
 static bool needsSpaceFromDisplay(AccessibilityObject& axObject)
@@ -3823,7 +3823,7 @@ static bool needsSpaceFromDisplay(AccessibilityObject& axObject)
     }
 
     if (auto* style = renderer ? &downcast<RenderElement>(*renderer).style() : axObject.style())
-        return displayTypeNeedsSpace(style->display());
+        return displayNeedsSpace(style->display());
     return false;
 }
 
@@ -3862,7 +3862,7 @@ String AccessibilityNodeObject::textUnderElement(TextUnderElementMode mode) cons
             // agents MUST include all nodes in the subtree as part of the accessible name or accessible
             // description, when the node referenced by aria-labelledby or aria-describedby is hidden."
             mode.considerHiddenState = false;
-        } else if (style && style->display() == DisplayType::None) {
+        } else if (style && style->display() == Style::DisplayType::None) {
             // Unlike visibility:visible + visiblity:visible where the latter can override the former in a subtree,
             // display:none guarantees nothing within will be rendered, so we can exit early.
             return { };
@@ -4595,7 +4595,7 @@ AccessibilityRole AccessibilityNodeObject::determineAriaRoleAttribute() const
         else
             role = AccessibilityRole::Unknown;
     }
-    if (enumToUnderlyingType(role))
+    if (std::to_underlying(role))
         return role;
 
     return AccessibilityRole::Unknown;

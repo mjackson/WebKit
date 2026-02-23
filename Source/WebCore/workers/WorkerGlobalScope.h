@@ -96,7 +96,7 @@ public:
     String origin() const;
     const String& inspectorIdentifier() const { return m_inspectorIdentifier; }
 
-    IDBClient::IDBConnectionProxy* idbConnectionProxy() final;
+    IDBClient::IDBConnectionProxy* NODELETE idbConnectionProxy() final;
     void suspend() final;
     void resume() final;
     GraphicsClient* graphicsClient() final;
@@ -202,7 +202,7 @@ private:
 
     EventTarget* errorEventTarget() final;
     String resourceRequestIdentifier() const final { return m_inspectorIdentifier; }
-    SocketProvider* socketProvider() final;
+    SocketProvider* NODELETE socketProvider() final;
     RefPtr<RTCDataChannelRemoteHandlerConnection> createRTCDataChannelRemoteHandlerConnection() final;
 
     bool shouldBypassMainWorldContentSecurityPolicy() const final { return m_shouldBypassMainWorldContentSecurityPolicy; }

@@ -63,7 +63,7 @@ RenderSlider::RenderSlider(HTMLInputElement& element, RenderStyle&& style)
 
 RenderSlider::~RenderSlider() = default;
 
-HTMLInputElement& RenderSlider::element() const
+HTMLInputElement& NODELETE RenderSlider::element() const
 {
     return downcast<HTMLInputElement>(nodeForNonAnonymous());
 }

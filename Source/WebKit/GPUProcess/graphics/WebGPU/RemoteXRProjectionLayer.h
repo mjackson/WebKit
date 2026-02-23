@@ -95,16 +95,12 @@ private:
     RemoteXRProjectionLayer& operator=(const RemoteXRProjectionLayer&) = delete;
     RemoteXRProjectionLayer& operator=(RemoteXRProjectionLayer&&) = delete;
 
-    Ref<WebCore::WebGPU::XRProjectionLayer> protectedBacking();
-    Ref<IPC::StreamServerConnection> protectedStreamConnection();
-    Ref<RemoteGPU> protectedGPU() const;
-
     void didReceiveStreamMessage(IPC::StreamServerConnection&, IPC::Decoder&) final;
     void destruct();
 #if PLATFORM(COCOA)
     void startFrame(uint64_t frameIndex, MachSendRight&& colorBuffer, MachSendRight&& depthBuffer, MachSendRight&& completionSyncEvent, uint64_t reusableTextureIndex, PlatformXR::RateMapDescription&&);
 #endif
-    void endFrame();
+    void NODELETE endFrame();
 
     Ref<WebCore::WebGPU::XRProjectionLayer> m_backing;
     WeakRef<WebGPU::ObjectHeap> m_objectHeap;

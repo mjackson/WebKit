@@ -1091,12 +1091,11 @@ webkit.org/b/191584 fast/animation/css-animation-resuming-when-visible-with-styl
 
 imported/w3c/web-platform-tests/scroll-animations/scroll-timelines/layout-changes-on-percentage-based-timeline.html [ Pass ]
 
-imported/w3c/web-platform-tests/scroll-animations/scroll-timelines/animation-with-animatable-interface.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/scroll-animations/scroll-timelines/animation-with-display-none.html [ ImageOnlyFailure ]
-
 imported/w3c/web-platform-tests/scroll-animations/scroll-timelines/animation-with-transform.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/scroll-animations/scroll-timelines/two-animations-attach-to-same-scroll-timeline-cancel-one.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/scroll-animations/scroll-timelines/two-animations-attach-to-same-scroll-timeline.html [ ImageOnlyFailure ]
+
+imported/w3c/web-platform-tests/scroll-animations/css/scroll-timeline-paused-animations.html [ Skip ] # Timeout
 
 webkit.org/b/263870 imported/w3c/web-platform-tests/scroll-animations/css/animation-range-ignored.html [ Skip ]
 webkit.org/b/263870 imported/w3c/web-platform-tests/scroll-animations/scroll-timelines/scroll-timeline-range.html [ Skip ]
@@ -2065,6 +2064,7 @@ fast/images/pdf-as-image-with-annotations.html [ Skip ] # ImageOnlyFailure
 fast/images/pdf-in-canvas.html [ Skip ] # Timeout
 fast/images/pixel-crack-image-background-webkit-transform-scale.html [ Skip ] # Failure
 fast/images/sprite-sheet-image-draw.html [ Skip ] # Timeout
+fast/images/imagebitmap-memory.html [ Failure Pass ]
 
 fast/inline [ Skip ]
 fast/invalid [ Skip ]

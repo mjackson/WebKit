@@ -32,10 +32,10 @@
 namespace WebCore {
 
 class CSSVariableData;
-class StyleImage;
 
 namespace Style {
 class BuilderState;
+class Image;
 }
 
 class CSSPaintImageValue final : public CSSValue {
@@ -51,7 +51,7 @@ public:
     bool equals(const CSSPaintImageValue& other) const { return m_name == other.m_name; }
     String customCSSText(const CSS::SerializationContext&) const;
 
-    RefPtr<StyleImage> createStyleImage(const Style::BuilderState&) const;
+    RefPtr<Style::Image> createStyleImage(const Style::BuilderState&) const;
 
 private:
     explicit CSSPaintImageValue(String&&, Ref<CSSVariableData>&&);

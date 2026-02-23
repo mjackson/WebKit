@@ -54,6 +54,7 @@ class InspectorFrontendClient;
 class InspectorInstrumentation;
 class InstrumentingAgents;
 class LocalFrame;
+class PageInspectorController;
 class WebInjectedScriptManager;
 struct FrameAgentContext;
 
@@ -62,7 +63,7 @@ class FrameInspectorController final : public Inspector::InspectorEnvironment, p
     WTF_MAKE_TZONE_ALLOCATED(FrameInspectorController);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(FrameInspectorController);
 public:
-    FrameInspectorController(LocalFrame&);
+    FrameInspectorController(LocalFrame&, PageInspectorController&);
     ~FrameInspectorController() override;
 
     // AbstractCanMakeCheckedPtr overrides
@@ -79,6 +80,7 @@ public:
     WEBCORE_EXPORT void disconnectFrontend(Inspector::FrontendChannel&);
     WEBCORE_EXPORT void dispatchMessageFromFrontend(const String& message);
 
+    WEBCORE_EXPORT void siteIsolationFirstEnabled();
     void inspectedFrameDestroyed();
 
     InstrumentingAgents& instrumentingAgents() const { return m_instrumentingAgents.get(); }
@@ -97,6 +99,7 @@ private:
     friend class InspectorInstrumentation;
 
     FrameAgentContext frameAgentContext();
+    void createConsoleAgent();
     void createLazyAgents();
 
     WeakRef<LocalFrame> m_frame;
@@ -107,6 +110,7 @@ private:
     const Ref<WTF::Stopwatch> m_executionStopwatch;
     Inspector::AgentRegistry m_agents;
 
+    bool m_didCreateConsoleAgent { false };
     bool m_didCreateLazyAgents { false };
     WeakPtr<InspectorFrontendClient> m_inspectorFrontendClient;
 };

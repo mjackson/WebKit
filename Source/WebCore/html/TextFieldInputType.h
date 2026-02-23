@@ -68,7 +68,7 @@ protected:
     HTMLElement* NODELETE autoFillButtonElement() const final;
     HTMLElement* NODELETE dataListButtonElement() const final;
 
-    virtual bool needsContainer() const;
+    virtual bool NODELETE needsContainer() const;
     void createShadowSubtree() override;
     void removeShadowSubtree() override;
     void attributeChanged(const QualifiedName&) override;

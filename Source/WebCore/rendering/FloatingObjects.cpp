@@ -61,7 +61,7 @@ FloatingObject::FloatingObject(RenderBox& renderer)
         m_type = FloatLeft;
     else if (type == UsedFloat::Right)
         m_type = FloatRight;
-    if (auto* containingBlock = renderer.containingBlock())
+    if (CheckedPtr containingBlock = renderer.containingBlock())
         m_hasAncestorWithOverflowClip = containingBlock->effectiveOverflowX() == Overflow::Clip || containingBlock->effectiveOverflowY() == Overflow::Clip;
 }
 
@@ -165,11 +165,11 @@ public:
 
     virtual ~ComputeFloatOffsetAdapter() = default;
 
-    LayoutUnit lowValue() const { return m_lineTop; }
-    LayoutUnit highValue() const { return m_lineBottom; }
+    LayoutUnit NODELETE lowValue() const { return m_lineTop; }
+    LayoutUnit NODELETE highValue() const { return m_lineBottom; }
     void collectIfNeeded(const IntervalType&);
 
-    LayoutUnit offset() const { return m_offset; }
+    LayoutUnit NODELETE offset() const { return m_offset; }
 
 protected:
     virtual bool updateOffsetIfNeeded(const FloatingObject&) = 0;
@@ -221,12 +221,12 @@ public:
     {
     }
 
-    LayoutUnit lowValue() const { return m_belowLogicalHeight; }
-    LayoutUnit highValue() const { return LayoutUnit::max(); }
+    LayoutUnit NODELETE lowValue() const { return m_belowLogicalHeight; }
+    LayoutUnit NODELETE highValue() const { return LayoutUnit::max(); }
     void collectIfNeeded(const IntervalType&);
 
-    LayoutUnit nextLogicalBottom() const { return m_nextLogicalBottom.value_or(0); }
-    LayoutUnit nextShapeLogicalBottom() const { return m_nextShapeLogicalBottom.value_or(nextLogicalBottom()); }
+    LayoutUnit NODELETE nextLogicalBottom() const { return m_nextLogicalBottom.value_or(0); }
+    LayoutUnit NODELETE nextShapeLogicalBottom() const { return m_nextShapeLogicalBottom.value_or(nextLogicalBottom()); }
 
 private:
     SingleThreadWeakPtr<const RenderBlockFlow> m_renderer;

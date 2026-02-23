@@ -341,32 +341,32 @@ String NumberInputType::serialize(const Decimal& value) const
     return serializeForNumberType(value);
 }
 
-static bool isE(char16_t ch)
+static bool NODELETE isE(char16_t ch)
 {
     return ch == 'e' || ch == 'E';
 }
 
-static bool isPlusSign(char16_t ch)
+static bool NODELETE isPlusSign(char16_t ch)
 {
     return ch == '+';
 }
 
-static bool isSignPrefix(char16_t ch)
+static bool NODELETE isSignPrefix(char16_t ch)
 {
     return ch == '+' || ch == '-';
 }
 
-static bool isDigit(char16_t ch)
+static bool NODELETE isDigit(char16_t ch)
 {
     return ch >= '0' && ch <= '9';
 }
 
-static bool isDecimalSeparator(char16_t ch)
+static bool NODELETE isDecimalSeparator(char16_t ch)
 {
     return ch == '.';
 }
 
-static bool hasTwoSignChars(const String& string)
+static bool NODELETE hasTwoSignChars(const String& string)
 {
     unsigned count = 0;
     for (unsigned i = 0; i < string.length(); ++i) {
@@ -384,7 +384,7 @@ static bool hasDecimalSeparator(const String& string)
     return string.find('.') != notFound;
 }
 
-static bool hasSignNotAfterE(const String& string)
+static bool NODELETE hasSignNotAfterE(const String& string)
 {
     for (unsigned i = 0; i < string.length(); ++i) {
         if (isSignPrefix(string[i]))

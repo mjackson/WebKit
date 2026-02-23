@@ -26,11 +26,11 @@
 
 #include "config.h"
 #include "WebFakeXRDevice.h"
+#include "PlatformXR.h"
 
 #if ENABLE(WEBXR)
 
 #include "DOMPointReadOnly.h"
-#include "GraphicsContextGL.h"
 #include "JSDOMPromiseDeferred.h"
 #include "WebFakeXRInputController.h"
 #include <wtf/CompletionHandler.h>
@@ -315,10 +315,10 @@ void SimulatedXRDevice::deleteLayer(PlatformXR::LayerHandle handle)
 #if ENABLE(WEBXR_HIT_TEST)
 void SimulatedXRDevice::requestHitTestSource(const PlatformXR::HitTestOptions& options, CompletionHandler<void(WebCore::ExceptionOr<PlatformXR::HitTestSource>)>&& completionHandler)
 {
-    auto addResult = m_hitTestSources.add(m_nextHitTestSource, makeUniqueRef<PlatformXR::HitTestOptions>(options));
+    auto sourceId = PlatformXR::HitTestSource::generate();
+    auto addResult = m_hitTestSources.add(sourceId, makeUniqueRef<PlatformXR::HitTestOptions>(options));
     ASSERT_UNUSED(addResult.isNewEntry, addResult);
-    completionHandler(m_nextHitTestSource);
-    m_nextHitTestSource++;
+    completionHandler(WTF::move(sourceId));
 }
 
 void SimulatedXRDevice::deleteHitTestSource(PlatformXR::HitTestSource source)
@@ -329,10 +329,10 @@ void SimulatedXRDevice::deleteHitTestSource(PlatformXR::HitTestSource source)
 
 void SimulatedXRDevice::requestTransientInputHitTestSource(const PlatformXR::TransientInputHitTestOptions& options, CompletionHandler<void(WebCore::ExceptionOr<PlatformXR::TransientInputHitTestSource>)>&& completionHandler)
 {
-    auto addResult = m_transientInputHitTestSources.add(m_nextTransientInputHitTestSource, makeUniqueRef<PlatformXR::TransientInputHitTestOptions>(options));
+    auto sourceId = PlatformXR::TransientInputHitTestSource::generate();
+    auto addResult = m_transientInputHitTestSources.add(sourceId, makeUniqueRef<PlatformXR::TransientInputHitTestOptions>(options));
     ASSERT_UNUSED(addResult.isNewEntry, addResult);
-    completionHandler(m_nextTransientInputHitTestSource);
-    m_nextTransientInputHitTestSource++;
+    completionHandler(WTF::move(sourceId));
 }
 
 void SimulatedXRDevice::deleteTransientInputHitTestSource(PlatformXR::TransientInputHitTestSource source)

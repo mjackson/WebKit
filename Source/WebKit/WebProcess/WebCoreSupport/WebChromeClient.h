@@ -134,6 +134,7 @@ private:
     WebCore::IntPoint screenToRootView(const WebCore::IntPoint&) const final;
     WebCore::IntPoint rootViewToScreen(const WebCore::IntPoint&) const final;
     WebCore::IntRect rootViewToScreen(const WebCore::IntRect&) const final;
+    std::optional<WebCore::IntPoint> screenToRootViewUsingCachedPosition(const WebCore::IntPoint&, const WebCore::IntSize& viewSize) const final;
 
     WebCore::IntPoint accessibilityScreenToRootView(const WebCore::IntPoint&) const final;
     WebCore::IntRect rootViewToAccessibilityScreen(const WebCore::IntRect&) const final;
@@ -385,6 +386,7 @@ private:
     void allowImmersiveElement(CompletionHandler<void(bool)>&&) const final;
     void presentImmersiveElement(const WebCore::LayerHostingContextIdentifier, CompletionHandler<void(bool)>&&) const final;
     void dismissImmersiveElement(CompletionHandler<void()>&&) const final;
+    bool supportsImmersiveElement() const final;
 #endif
 
 #if ENABLE(APP_HIGHLIGHTS)
@@ -553,8 +555,11 @@ private:
     void clearAnimationsForActiveWritingToolsSession() final;
 #endif
 
+    WebCore::HTMLFrameOwnerElement* frameOwnerElementForFrameID(WebCore::FrameIdentifier) const final;
+
     bool requiresScriptTrackingPrivacyProtections(const URL&, const WebCore::SecurityOrigin& topOrigin) const final;
     bool shouldAllowScriptAccess(const URL&, const WebCore::SecurityOrigin& topOrigin, WebCore::ScriptTrackingPrivacyCategory) const final;
+    bool requiresConsistentPrivacyQuirkForDomain(const URL&) const final;
 
     void setIsInRedo(bool) final;
 

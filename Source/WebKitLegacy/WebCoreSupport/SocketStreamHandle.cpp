@@ -44,11 +44,6 @@ SocketStreamHandle::SocketStreamHandle(const URL& url, SocketStreamHandleClient&
     ASSERT(isMainThread());
 }
 
-SocketStreamHandle::SocketStreamState SocketStreamHandle::state() const
-{
-    return m_state;
-}
-
 void SocketStreamHandle::sendData(std::span<const uint8_t> data, Function<void(bool)> completionHandler)
 {
     if (m_state == Connecting || m_state == Closing)

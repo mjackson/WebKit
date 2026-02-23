@@ -124,7 +124,7 @@ MediaTime MediaPlayerPrivateRemote::TimeProgressEstimator::currentTimeWithLockHe
         return m_cachedMediaTime;
 
     auto calculatedCurrentTime = m_cachedMediaTime + MediaTime::createWithDouble(m_rate * (MonotonicTime::now() - m_cachedMediaTimeQueryTime).seconds());
-    calculatedCurrentTime = std::min(std::max(calculatedCurrentTime, MediaTime::zeroTime()), protectedParent()->duration());
+    calculatedCurrentTime = std::min(std::max(calculatedCurrentTime, MediaTime::zeroTime()), protect(m_parent)->duration());
     if (m_rate >= 0)
         calculatedCurrentTime = std::max(m_lastReturnedTime.value_or(calculatedCurrentTime), calculatedCurrentTime);
     else

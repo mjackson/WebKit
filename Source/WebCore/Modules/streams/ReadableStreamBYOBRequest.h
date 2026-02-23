@@ -47,7 +47,7 @@ public:
     ExceptionOr<void> respondWithNewView(JSDOMGlobalObject&, JSC::ArrayBufferView&);
 
     void setController(ReadableByteStreamController*);
-    void setView(JSC::ArrayBufferView*);
+    void NODELETE setView(JSC::ArrayBufferView*);
 
     template<typename Visitor> void visitAdditionalChildren(Visitor&);
 

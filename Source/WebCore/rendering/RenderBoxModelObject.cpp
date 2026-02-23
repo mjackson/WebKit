@@ -66,6 +66,7 @@
 #include "RenderView.h"
 #include "ScrollingConstraints.h"
 #include "Settings.h"
+#include "StyleImage.h"
 #include "Styleable.h"
 #include "TextBoxPainter.h"
 #include "TransformState.h"
@@ -210,7 +211,10 @@ void RenderBoxModelObject::willBeDestroyed()
 
 bool RenderBoxModelObject::hasVisibleBoxDecorationStyle() const
 {
-    return hasBackground() || style().hasVisibleBorderDecoration() || style().hasUsedAppearance() || style().hasBoxShadow();
+    return hasBackground()
+        || style().border().hasVisibleBorderDecoration()
+        || style().hasUsedAppearance()
+        || !style().boxShadow().isNone();
 }
 
 void RenderBoxModelObject::updateFromStyle()
@@ -221,7 +225,7 @@ void RenderBoxModelObject::updateFromStyle()
     // we only check for bits that could possibly be set to true.
     const auto& styleToUse = style();
     setHasVisibleBoxDecorations(hasVisibleBoxDecorationStyle());
-    setInline(styleToUse.isDisplayInlineType());
+    setInline(styleToUse.display().isInlineType());
     setPositionState(styleToUse.position());
     setHorizontalWritingMode(styleToUse.writingMode().isHorizontal());
     setPaintContainmentApplies(shouldApplyPaintContainment());
@@ -244,7 +248,7 @@ static LayoutSize accumulateInFlowPositionOffsets(const RenderBoxModelObject& ch
     return offset;
 }
     
-static inline bool isOutOfFlowPositionedWithImplicitHeight(const RenderBoxModelObject& child)
+static inline bool NODELETE isOutOfFlowPositionedWithImplicitHeight(const RenderBoxModelObject& child)
 {
     return child.isOutOfFlowPositioned() && !child.style().logicalTop().isAuto() && !child.style().logicalBottom().isAuto();
 }
@@ -737,17 +741,17 @@ void RenderBoxModelObject::paintMaskForTextFillBox(GraphicsContext& context, con
     paint(maskInfo, scrolledPaintRect.location() - localOffset);
 }
 
-static inline LayoutUnit resolveWidthForRatio(LayoutUnit height, const LayoutSize& intrinsicRatio)
+static inline LayoutUnit NODELETE resolveWidthForRatio(LayoutUnit height, const LayoutSize& intrinsicRatio)
 {
     return height * intrinsicRatio.width() / intrinsicRatio.height();
 }
 
-static inline LayoutUnit resolveHeightForRatio(LayoutUnit width, const LayoutSize& intrinsicRatio)
+static inline LayoutUnit NODELETE resolveHeightForRatio(LayoutUnit width, const LayoutSize& intrinsicRatio)
 {
     return width * intrinsicRatio.height() / intrinsicRatio.width();
 }
 
-static inline LayoutSize resolveAgainstIntrinsicWidthOrHeightAndRatio(const LayoutSize& size, const LayoutSize& intrinsicRatio, LayoutUnit useWidth, LayoutUnit useHeight)
+static inline LayoutSize NODELETE resolveAgainstIntrinsicWidthOrHeightAndRatio(const LayoutSize& size, const LayoutSize& intrinsicRatio, LayoutUnit useWidth, LayoutUnit useHeight)
 {
     if (intrinsicRatio.isEmpty()) {
         if (useWidth)
@@ -786,7 +790,7 @@ static inline LayoutSize resolveAgainstIntrinsicRatio(const LayoutSize& size, co
     return LayoutSize(size.width(), solutionHeight);
 }
 
-LayoutSize RenderBoxModelObject::calculateImageIntrinsicDimensions(StyleImage* image, const LayoutSize& positioningAreaSize, ScaleByUsedZoom scaleByUsedZoom) const
+LayoutSize RenderBoxModelObject::calculateImageIntrinsicDimensions(Style::Image* image, const LayoutSize& positioningAreaSize, ScaleByUsedZoom scaleByUsedZoom) const
 {
     // A generated image without a fixed size, will always return the container size as intrinsic size.
     if (!image->imageHasNaturalDimensions())
@@ -857,7 +861,7 @@ bool RenderBoxModelObject::borderObscuresBackgroundEdge(const FloatSize& context
 
 bool RenderBoxModelObject::borderObscuresBackground() const
 {
-    if (!style().hasBorder())
+    if (!style().border().hasBorder())
         return false;
 
     // Bail if we have any border-image for now. We could look at the image alpha to improve this.

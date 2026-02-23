@@ -417,6 +417,7 @@ public:
 
 #if ENABLE(EXTENSION_CAPABILITIES)
     RefPtr<MediaCapability> mediaCapability;
+    RefPtr<MediaCapability> displayCaptureCapability;
 #endif
 
 #if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
@@ -526,9 +527,6 @@ public:
     void playbackTargetPickerWasDismissed(WebCore::PlaybackTargetClientContextIdentifier) final;
     bool alwaysOnLoggingAllowed() const final { return protect(page)->isAlwaysOnLoggingAllowed(); }
     RetainPtr<CocoaView> platformView() const final;
-#endif
-
-#if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
 #endif
 
     std::optional<WebCore::SecurityOriginData> openerOrigin;

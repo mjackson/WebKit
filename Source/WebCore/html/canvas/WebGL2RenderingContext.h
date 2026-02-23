@@ -251,13 +251,13 @@ public:
     void readPixels(GCGLint x, GCGLint y, GCGLsizei width, GCGLsizei height, GCGLenum format, GCGLenum type, GCGLintptr offset);
     void readPixels(GCGLint x, GCGLint y, GCGLsizei width, GCGLsizei height, GCGLenum format, GCGLenum type, ArrayBufferView& dstData, GCGLuint dstOffset);
 
-    GCGLuint maxTransformFeedbackSeparateAttribs() const;
+    GCGLuint NODELETE maxTransformFeedbackSeparateAttribs() const;
 
     bool checkAndTranslateAttachments(ASCIILiteral functionName, GCGLenum, Vector<GCGLenum>&);
 
     void addMembersToOpaqueRoots(JSC::AbstractSlotVisitor&) override;
 
-    bool isTransformFeedbackActiveAndNotPaused();
+    bool NODELETE isTransformFeedbackActiveAndNotPaused();
 
 private:
     using WebGLRenderingContextBase::WebGLRenderingContextBase;
@@ -290,7 +290,7 @@ private:
 
     bool setIndexedBufferBinding(ASCIILiteral functionName, GCGLenum target, GCGLuint index, WebGLBuffer*);
 
-    IntRect getTextureSourceSubRectangle(GCGLsizei width, GCGLsizei height);
+    IntRect NODELETE getTextureSourceSubRectangle(GCGLsizei width, GCGLsizei height);
 
     RefPtr<WebGLTexture> validateTexImageBinding(TexImageFunctionID, GCGLenum) final;
 

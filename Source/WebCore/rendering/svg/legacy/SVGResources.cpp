@@ -169,7 +169,7 @@ static inline String targetReferenceFromResource(SVGElement& element)
     return SVGURIReference::fragmentIdentifierFromIRIString(target, protect(element.document()));
 }
 
-static inline bool isChainableResource(const SVGElement& element, const SVGElement& linkedResource)
+static inline bool NODELETE isChainableResource(const SVGElement& element, const SVGElement& linkedResource)
 {
     if (is<SVGPatternElement>(element))
         return is<SVGPatternElement>(linkedResource);
@@ -278,7 +278,7 @@ std::unique_ptr<SVGResources> SVGResources::buildCachedResources(const RenderEle
     }
 
     if (fillAndStrokeTags().contains(tagName)) {
-        if (style.hasFill()) {
+        if (!style.fill().isNone()) {
             bool hasPendingResource = false;
             AtomString id;
             if (CheckedPtr fill = paintingResourceFromSVGPaint(treeScope, style.fill(), id, hasPendingResource))
@@ -287,7 +287,7 @@ std::unique_ptr<SVGResources> SVGResources::buildCachedResources(const RenderEle
                 treeScope->addPendingSVGResource(id, element);
         }
 
-        if (style.hasStroke()) {
+        if (!style.stroke().isNone()) {
             bool hasPendingResource = false;
             AtomString id;
             if (CheckedPtr stroke = paintingResourceFromSVGPaint(treeScope, style.stroke(), id, hasPendingResource))

@@ -548,6 +548,15 @@ private:
     ScrollbarRevealBehavior m_oldBehavior;
 };
 
+class ScrollAnchoringSuppressionScope {
+public:
+    ScrollAnchoringSuppressionScope(ScrollableArea&);
+    ~ScrollAnchoringSuppressionScope();
+
+private:
+    WeakPtr<ScrollableArea> m_scrollableArea;
+};
+
 WEBCORE_EXPORT WTF::TextStream& operator<<(WTF::TextStream&, const ScrollableArea&);
 
 } // namespace WebCore

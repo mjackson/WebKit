@@ -196,7 +196,7 @@ void A64DOpcode::maybeAnnotateBuiltConstant()
         return;
 
     if (Integrity::isSanePointer(ptr)) {
-        bufferPrintf(" -> %p", ptr);
+        bufferPrintf(" -> %p", std::bit_cast<void*>(constant));
         if (const char* label = labelFor(ptr)) {
             bufferPrintf(" %s", label);
             return;
@@ -221,7 +221,7 @@ void A64DOpcode::maybeAnnotateBuiltConstant()
     if (constant < 0x10000)
         bufferPrintf(" -> %u", static_cast<unsigned>(constant));
     else
-        bufferPrintf(" -> %p", reinterpret_cast<void*>(constant));
+        bufferPrintf(" -> %p", std::bit_cast<void*>(constant));
 }
 
 bool A64DOpcode::handlePotentialDataPointer(void* ptr)

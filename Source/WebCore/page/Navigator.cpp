@@ -400,11 +400,6 @@ Page* Navigator::page()
     return frame ? frame->page() : nullptr;
 }
 
-RefPtr<Page> Navigator::protectedPage()
-{
-    return page();
-}
-
 const Document* Navigator::document() const
 {
     RefPtr frame = this->frame();
@@ -415,11 +410,6 @@ Document* Navigator::document()
 {
     RefPtr frame = this->frame();
     return frame ? frame->document() : nullptr;
-}
-
-RefPtr<Document> Navigator::protectedDocument()
-{
-    return document();
 }
 
 void Navigator::setAppBadge(std::optional<unsigned long long> badge, Ref<DeferredPromise>&& promise)

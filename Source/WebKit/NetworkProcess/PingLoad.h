@@ -69,7 +69,7 @@ private:
 
     void initialize(NetworkProcess&);
 
-    const URL& currentURL() const;
+    const URL& NODELETE currentURL() const;
 
     void willPerformHTTPRedirection(WebCore::ResourceResponse&&, WebCore::ResourceRequest&&, RedirectCompletionHandler&&) final;
     void didReceiveChallenge(WebCore::AuthenticationChallenge&&, NegotiatedLegacyTLS, ChallengeCompletionHandler&&) final;

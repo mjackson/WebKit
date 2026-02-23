@@ -1080,5 +1080,23 @@ ScrollbarRevealBehaviorScope::~ScrollbarRevealBehaviorScope()
     scrollableArea->setScrollbarRevealBehavior(m_oldBehavior);
 }
 
+// MARK: -
+
+ScrollAnchoringSuppressionScope::ScrollAnchoringSuppressionScope(ScrollableArea& scrollableArea)
+    : m_scrollableArea(scrollableArea)
+{
+    if (CheckedPtr controller = scrollableArea.scrollAnchoringController())
+        controller->startSuppressingScrollAnchoring();
+}
+
+ScrollAnchoringSuppressionScope::~ScrollAnchoringSuppressionScope()
+{
+    CheckedPtr scrollableArea = m_scrollableArea.get();
+    if (!scrollableArea)
+        return;
+
+    if (CheckedPtr controller = scrollableArea->scrollAnchoringController())
+        controller->stopSuppressingScrollAnchoring();
+}
 
 } // namespace WebCore

@@ -70,11 +70,19 @@ private:
     JITPlan::Tier m_tier;
 };
 
+#if USE(PROTECTED_JIT_STACKS)
+JITWorklistThread::JITWorklistThread(const AbstractLocker& locker, JITWorklist& worklist)
+    : SequesteredAutomaticThread(locker, worklist.m_lock, worklist.m_planEnqueued.copyRef())
+    , m_worklist(worklist)
+{
+}
+#else
 JITWorklistThread::JITWorklistThread(const AbstractLocker& locker, JITWorklist& worklist)
     : AutomaticThread(locker, worklist.m_lock, worklist.m_planEnqueued.copyRef(), ThreadType::Compiler)
     , m_worklist(worklist)
 {
 }
+#endif
 
 ASCIILiteral JITWorklistThread::name() const
 {

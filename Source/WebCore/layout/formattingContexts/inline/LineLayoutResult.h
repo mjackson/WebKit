@@ -58,7 +58,7 @@ struct LineLayoutResult {
     struct LineGeometry {
         InlineLayoutPoint logicalTopLeft;
         InlineLayoutUnit logicalWidth { 0.f };
-        InlineLayoutUnit initialLogicalLeft { 0.f };
+        InlineLayoutPoint initialLogicalTopLeft;
         InlineLayoutUnit intrusiveFloatsOffset { 0.f }; // Inherited floats from parent formatting context offseting line box.
         std::optional<InlineLayoutUnit> initialLetterClearGap { };
     };
@@ -91,12 +91,12 @@ struct LineLayoutResult {
 
     // Misc
     enum InlineContentEnding : uint8_t { Generic, Hyphen, LineBreak };
-    std::optional<InlineContentEnding> inlineContentEnding { }; // No value means line does not have any inline content (either float, out-of-flow or block inside inline)
+    std::optional<InlineContentEnding> contentfulInlineContentEnding { }; // No value means line either does not have any inline content (float, out-of-flow or block inside inline) or it's non-contentful inline e.g <span></span>
 
     enum class InflowContentType : uint8_t { Inline, Block };
     std::optional<InflowContentType> inflowContentType() const
     {
-        if (inlineContentEnding.has_value())
+        if (contentfulInlineContentEnding.has_value())
             return InflowContentType::Inline;
         if (!runs.isEmpty() && runs.last().isBlock())
             return InflowContentType::Block;
@@ -106,8 +106,8 @@ struct LineLayoutResult {
     bool hasContentfulInlineContent() const { return hasContentfulInFlowContent() && *inflowContentType() == InflowContentType::Inline; }
     bool isBlockContent() const { return hasContentfulInFlowContent() && *inflowContentType() == InflowContentType::Block; }
 
-    bool endsWithHyphen() const { return inlineContentEnding && *inlineContentEnding == InlineContentEnding::Hyphen; }
-    bool endsWithLineBreak() const { return inlineContentEnding && *inlineContentEnding == InlineContentEnding::LineBreak; }
+    bool endsWithHyphen() const { return contentfulInlineContentEnding && *contentfulInlineContentEnding == InlineContentEnding::Hyphen; }
+    bool endsWithLineBreak() const { return contentfulInlineContentEnding && *contentfulInlineContentEnding == InlineContentEnding::LineBreak; }
 
     size_t nonSpanningInlineLevelBoxCount { 0 };
     InlineLayoutUnit trimmedTrailingWhitespaceWidth { 0.f }; // only used for line-break: after-white-space currently

@@ -28,6 +28,7 @@
 
 #import "APIDataTask.h"
 #import "APIFormClient.h"
+#import "APIFormInfo.h"
 #import "APIFrameTreeNode.h"
 #import "APIPageConfiguration.h"
 #import "APISecurityOrigin.h"
@@ -85,11 +86,13 @@
 #import "WKErrorInternal.h"
 #import "WKFindConfiguration.h"
 #import "WKFindResultInternal.h"
+#import "WKFormInfoInternal.h"
 #import "WKFrameInfoInternal.h"
 #import "WKHistoryDelegatePrivate.h"
 #import "WKIntelligenceReplacementTextEffectCoordinator.h"
 #import "WKIntelligenceSmartReplyTextEffectCoordinator.h"
 #import "WKIntelligenceTextEffectCoordinator.h"
+#import "WKJSHandleInternal.h"
 #import "WKLayoutMode.h"
 #import "WKNSData.h"
 #import "WKNSURLExtras.h"
@@ -144,7 +147,6 @@
 #import "_WKImmersiveEnvironmentDelegate.h"
 #import "_WKInputDelegate.h"
 #import "_WKInspectorInternal.h"
-#import "_WKJSHandleInternal.h"
 #import "_WKPageLoadTimingInternal.h"
 #import "_WKRemoteObjectRegistryInternal.h"
 #import "_WKSessionStateInternal.h"
@@ -393,7 +395,7 @@ static bool shouldRestrictBaseURLSchemes()
     return shouldRestrictBaseURLSchemes;
 }
 
-static WebCore::RectEdges<bool> toRectEdges(_WKRectEdge edges)
+static WebCore::RectEdges<bool> NODELETE toRectEdges(_WKRectEdge edges)
 {
     return {
         static_cast<bool>(edges & _WKRectEdgeTop),
@@ -404,7 +406,7 @@ static WebCore::RectEdges<bool> toRectEdges(_WKRectEdge edges)
 }
 
 #if PLATFORM(MAC)
-static uint32_t convertUserInterfaceDirectionPolicy(WKUserInterfaceDirectionPolicy policy)
+static uint32_t NODELETE convertUserInterfaceDirectionPolicy(WKUserInterfaceDirectionPolicy policy)
 {
     switch (policy) {
     case WKUserInterfaceDirectionPolicyContent:
@@ -415,7 +417,7 @@ static uint32_t convertUserInterfaceDirectionPolicy(WKUserInterfaceDirectionPoli
     return static_cast<uint32_t>(WebCore::UserInterfaceDirectionPolicy::Content);
 }
 
-static uint32_t convertSystemLayoutDirection(NSUserInterfaceLayoutDirection direction)
+static uint32_t NODELETE convertSystemLayoutDirection(NSUserInterfaceLayoutDirection direction)
 {
     switch (direction) {
     case NSUserInterfaceLayoutDirectionLeftToRight:
@@ -969,7 +971,7 @@ static void addBrowsingContextControllerMethodStubsIfNeeded()
 #if PLATFORM(IOS_FAMILY)
     [_remoteObjectRegistry _invalidate];
     [[NSNotificationCenter defaultCenter] removeObserver:self];
-    [_scrollView setInternalDelegate:nil];
+    [_scrollView _invalidateInternalDelegate];
 #endif
 
 #if PLATFORM(MAC) && HAVE(NSWINDOW_SNAPSHOT_READINESS_HANDLER)
@@ -1376,7 +1378,7 @@ static bool validateArgument(id argument)
     _page->resumeAllMediaPlayback(makeBlockPtr(completionHandler));
 }
 
-static WKMediaPlaybackState toWKMediaPlaybackState(WebKit::MediaPlaybackState mediaPlaybackState)
+static WKMediaPlaybackState NODELETE toWKMediaPlaybackState(WebKit::MediaPlaybackState mediaPlaybackState)
 {
     switch (mediaPlaybackState) {
     case WebKit::MediaPlaybackState::NoMediaPlayback:
@@ -2190,21 +2192,21 @@ inline OptionSet<WebKit::FindOptions> toFindOptions(WKFindConfiguration *configu
 {
     RetainPtr uiDelegate = (id <WKUIDelegatePrivate>)self.UIDelegate;
     if ([uiDelegate respondsToSelector:@selector(_webView:didInsertAttachment:withSource:)])
-        [uiDelegate _webView:self didInsertAttachment:protectedWrapper(attachment).get() withSource:source];
+        [uiDelegate _webView:self didInsertAttachment:protect(wrapper(attachment)).get() withSource:source];
 }
 
 - (void)_didRemoveAttachment:(API::Attachment&)attachment
 {
     RetainPtr uiDelegate = (id <WKUIDelegatePrivate>)self.UIDelegate;
     if ([uiDelegate respondsToSelector:@selector(_webView:didRemoveAttachment:)])
-        [uiDelegate _webView:self didRemoveAttachment:protectedWrapper(attachment).get()];
+        [uiDelegate _webView:self didRemoveAttachment:protect(wrapper(attachment)).get()];
 }
 
 - (void)_didInvalidateDataForAttachment:(API::Attachment&)attachment
 {
     RetainPtr uiDelegate = (id <WKUIDelegatePrivate>)self.UIDelegate;
     if ([uiDelegate respondsToSelector:@selector(_webView:didInvalidateDataForAttachment:)])
-        [uiDelegate _webView:self didInvalidateDataForAttachment:protectedWrapper(attachment).get()];
+        [uiDelegate _webView:self didInvalidateDataForAttachment:protect(wrapper(attachment)).get()];
 }
 
 #endif // ENABLE(ATTACHMENT_ELEMENT)
@@ -2320,7 +2322,7 @@ inline OptionSet<WebKit::FindOptions> toFindOptions(WKFindConfiguration *configu
     THROW_IF_SUSPENDED;
     _page->getWebArchiveData([completionHandler = makeBlockPtr(completionHandler)](API::Data* data) {
         if (data)
-            completionHandler(protectedWrapper(data).get(), nil);
+            completionHandler(protect(wrapper(data)).get(), nil);
         else
             completionHandler(nil, unknownError().get());
     });
@@ -2342,7 +2344,7 @@ static RetainPtr<NSDictionary> dictionaryRepresentationForEditorState(const WebK
     };
 }
 
-static NSTextAlignment nsTextAlignment(WebKit::TextAlignment alignment)
+static NSTextAlignment NODELETE nsTextAlignment(WebKit::TextAlignment alignment)
 {
     switch (alignment) {
     case WebKit::TextAlignment::Natural:
@@ -2360,7 +2362,7 @@ static NSTextAlignment nsTextAlignment(WebKit::TextAlignment alignment)
     return NSTextAlignmentNatural;
 }
 
-static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& editorState, _WKSelectionAttributes previousAttributes)
+static _WKSelectionAttributes NODELETE selectionAttributes(const WebKit::EditorState& editorState, _WKSelectionAttributes previousAttributes)
 {
     _WKSelectionAttributes attributes = _WKSelectionAttributeNoSelection;
     if (editorState.selectionIsNone)
@@ -3187,6 +3189,13 @@ WebCore::CocoaColor *sampledFixedPositionContentColor(const WebCore::FixedContai
 #endif // ENABLE(SWIFTUI)
 }
 
+#if ENABLE(SCROLL_STRETCH_NOTIFICATIONS)
+- (void)_topScrollStretchDidChange:(NSUInteger)topScrollStretch
+{
+    _impl->topScrollStretchDidChange(topScrollStretch);
+}
+#endif
+
 - (void)_updateFixedContainerEdges:(const WebCore::FixedContainerEdges&)edges
 {
     if (_fixedContainerEdges == edges)
@@ -4012,7 +4021,7 @@ FOR_EACH_PRIVATE_WKCONTENTVIEW_ACTION(FORWARD_ACTION_TO_WKCONTENTVIEW)
 
 - (void)_frames:(void (^)(_WKFrameTreeNode *))completionHandler
 {
-    _page->getAllFrames([completionHandler = makeBlockPtr(completionHandler), page = protect(*_page.get())] (std::optional<WebKit::FrameTreeNodeData>&& data) {
+    _page->getAllFrames([completionHandler = makeBlockPtr(completionHandler), page = protect(*_page)] (std::optional<WebKit::FrameTreeNodeData>&& data) {
         if (!data)
             return completionHandler(nil);
         completionHandler(wrapper(API::FrameTreeNode::create(WTF::move(*data), page.get())).get());
@@ -4021,7 +4030,7 @@ FOR_EACH_PRIVATE_WKCONTENTVIEW_ACTION(FORWARD_ACTION_TO_WKCONTENTVIEW)
 
 - (void)_frameTrees:(void (^)(NSSet<_WKFrameTreeNode *> *))completionHandler
 {
-    _page->getAllFrameTrees([completionHandler = makeBlockPtr(completionHandler), page = protect(*_page.get())] (Vector<WebKit::FrameTreeNodeData>&& vector) {
+    _page->getAllFrameTrees([completionHandler = makeBlockPtr(completionHandler), page = protect(*_page)] (Vector<WebKit::FrameTreeNodeData>&& vector) {
         auto set = adoptNS([[NSMutableSet alloc] initWithCapacity:vector.size()]);
         for (auto& data : vector)
             [set addObject:wrapper(API::FrameTreeNode::create(WTF::move(data), page.get())).get()];
@@ -4321,7 +4330,7 @@ static RetainPtr<NSArray> wkTextManipulationErrors(NSArray<_WKTextManipulationIt
 - (void)_dataTaskWithRequest:(NSURLRequest *)request runAtForegroundPriority:(BOOL)runAtForegroundPriority completionHandler:(void(^)(_WKDataTask *))completionHandler
 {
     _page->dataTaskWithRequest(request, std::nullopt, !!runAtForegroundPriority, [completionHandler = makeBlockPtr(completionHandler)] (Ref<API::DataTask>&& task) {
-        completionHandler(protectedWrapper(task.get()).get());
+        completionHandler(protect(wrapper(task.get())).get());
     });
 }
 
@@ -5121,13 +5130,10 @@ static void convertAndAddHighlight(Vector<Ref<WebCore::SharedMemory>>& buffers, 
 - (void)_killWebContentProcessAndResetState
 {
     THROW_IF_SUSPENDED;
-    Ref<WebKit::WebProcessProxy> protectedProcessProxy(_page->legacyMainFrameProcess());
-    protectedProcessProxy->requestTermination(WebKit::ProcessTerminationReason::RequestedByClient);
+    protect(_page->legacyMainFrameProcess())->requestTermination(WebKit::ProcessTerminationReason::RequestedByClient);
 
-    if (RefPtr provisionalPageProxy = _page->provisionalPageProxy()) {
-        Ref<WebKit::WebProcessProxy> protectedProcessProxy(provisionalPageProxy->process());
-        protectedProcessProxy->requestTermination(WebKit::ProcessTerminationReason::RequestedByClient);
-    }
+    if (RefPtr provisionalPageProxy = _page->provisionalPageProxy())
+        protect(provisionalPageProxy->process())->requestTermination(WebKit::ProcessTerminationReason::RequestedByClient);
 }
 
 - (void)_takePDFSnapshotWithConfiguration:(WKSnapshotConfiguration *)snapshotConfiguration completionHandler:(void (^)(NSData *, NSError *))completionHandler
@@ -5570,7 +5576,7 @@ static inline OptionSet<WebCore::LayoutMilestone> layoutMilestones(_WKRenderingP
 {
     THROW_IF_SUSPENDED;
     _page->getMainResourceDataOfFrame(protect(_page->mainFrame()), [completionHandler = makeBlockPtr(completionHandler)](API::Data* data) {
-        completionHandler(protectedWrapper(data).get(), nil);
+        completionHandler(protect(wrapper(data)).get(), nil);
     });
 }
 
@@ -5603,7 +5609,7 @@ static inline OptionSet<WebCore::LayoutMilestone> layoutMilestones(_WKRenderingP
 
     _page->getWebArchiveDataWithFrame(*webFrame, [completionHandler = makeBlockPtr(completionHandler)](API::Data* data) {
         if (data)
-            completionHandler(protectedWrapper(data).get(), nil);
+            completionHandler(protect(wrapper(data)).get(), nil);
         else
             completionHandler(nil, unknownError().get());
     });
@@ -5645,7 +5651,7 @@ static inline OptionSet<WebCore::LayoutMilestone> layoutMilestones(_WKRenderingP
 
     _page->getWebArchiveDataWithSelectedFrames(*webRootFrame, targetFrameIDs, [completionHandler = makeBlockPtr(completionHandler)](API::Data* data) {
         if (data)
-            completionHandler(protectedWrapper(data).get(), nil);
+            completionHandler(protect(wrapper(data)).get(), nil);
         else
             completionHandler(nil, unknownError().get());
     });
@@ -5693,7 +5699,7 @@ static inline OptionSet<WebCore::LayoutMilestone> layoutMilestones(_WKRenderingP
         if (completionHandler) {
             if (manifest) {
                 Ref apiManifest = API::ApplicationManifest::create(*manifest);
-                completionHandler(protectedWrapper(apiManifest.get()).get());
+                completionHandler(protect(wrapper(apiManifest.get())).get());
             } else
                 completionHandler(nil);
         }
@@ -6010,17 +6016,20 @@ static inline OptionSet<WebKit::FindOptions> toFindOptions(_WKFindOptions wkFind
             if (!webView)
                 return completionHandler();
 
-            auto inputDelegate = webView->_inputDelegate.get();
+            SEL willSubmitFormSelector = @selector(webView:willSubmitForm:submissionHandler:);
+            auto navigationDelegate = webView->_navigationState->navigationDelegate();
+            bool navigationDelegateRespondsToWillSubmitForm = [navigationDelegate respondsToSelector:willSubmitFormSelector];
 
             SEL willSubmitFormValuesSelector = @selector(_webView:willSubmitFormValues:frameInfo:sourceFrameInfo:userObject:requestURL:method:submissionHandler:);
             SEL willSubmitFormValuesWithoutRequestURLSelector = @selector(_webView:willSubmitFormValues:frameInfo:sourceFrameInfo:userObject:submissionHandler:);
             SEL willSubmitFormValuesLegacySelector = @selector(_webView:willSubmitFormValues:userObject:submissionHandler:);
 
+            auto inputDelegate = webView->_inputDelegate.get();
             bool inputDelegateRespondsToWillSubmitFormValues = [inputDelegate respondsToSelector:willSubmitFormValuesSelector];
             bool inputDelegateRespondsToWillSubmitFormValuesWithoutRequestURL = [inputDelegate respondsToSelector:willSubmitFormValuesWithoutRequestURLSelector];
             bool inputDelegateRespondsToWillSubmitFormValuesLegacy = [inputDelegate respondsToSelector:willSubmitFormValuesLegacySelector];
 
-            if (!inputDelegateRespondsToWillSubmitFormValues && !inputDelegateRespondsToWillSubmitFormValuesWithoutRequestURL && !inputDelegateRespondsToWillSubmitFormValuesLegacy) {
+            if (!navigationDelegateRespondsToWillSubmitForm && !inputDelegateRespondsToWillSubmitFormValues && !inputDelegateRespondsToWillSubmitFormValuesLegacy && !inputDelegateRespondsToWillSubmitFormValuesWithoutRequestURL) {
                 completionHandler();
                 return;
             }
@@ -6029,42 +6038,47 @@ static inline OptionSet<WebKit::FindOptions> toFindOptions(_WKFindOptions wkFind
             for (const auto& pair : textFieldValues)
                 [valueMap setObject:pair.second.createNSString().get() forKey:pair.first.createNSString().get()];
 
-            auto userObject = userData ? userData->toNSObject() : RetainPtr<NSObject<NSSecureCoding>>();
+            auto checker = [&] {
+                if (navigationDelegateRespondsToWillSubmitForm)
+                    return WebKit::CompletionHandlerCallChecker::create(navigationDelegate.get(), willSubmitFormSelector);
+                if (inputDelegateRespondsToWillSubmitFormValuesLegacy)
+                    return WebKit::CompletionHandlerCallChecker::create(inputDelegate.get(), willSubmitFormValuesLegacySelector);
+                if (inputDelegateRespondsToWillSubmitFormValuesWithoutRequestURL)
+                    return WebKit::CompletionHandlerCallChecker::create(inputDelegate.get(), willSubmitFormValuesWithoutRequestURLSelector);
+                return WebKit::CompletionHandlerCallChecker::create(inputDelegate.get(), willSubmitFormValuesSelector);
+            }();
 
-            if (inputDelegateRespondsToWillSubmitFormValuesLegacy) {
-                auto checker = WebKit::CompletionHandlerCallChecker::create(inputDelegate.get(), willSubmitFormValuesLegacySelector);
-                [inputDelegate _webView:webView.get() willSubmitFormValues:valueMap.get() userObject:userObject.get() submissionHandler:makeBlockPtr([completionHandler = WTF::move(completionHandler), checker = WTF::move(checker)] () mutable {
-                    if (checker->completionHandlerHasBeenCalled())
-                        return;
-                    checker->didCallCompletionHandler();
-                    completionHandler();
-                }).get()];
-                return;
-            }
-
-            if (inputDelegateRespondsToWillSubmitFormValuesWithoutRequestURL) {
-                auto checker = WebKit::CompletionHandlerCallChecker::create(inputDelegate.get(), willSubmitFormValuesWithoutRequestURLSelector);
-                auto frameInfo = wrapper(API::FrameInfo::create(WTF::move(frameInfoData)));
-                auto sourceFrameInfo = wrapper(API::FrameInfo::create(WTF::move(sourceFrameInfoData)));
-                [inputDelegate _webView:webView.get() willSubmitFormValues:valueMap.get() frameInfo:frameInfo.get() sourceFrameInfo:sourceFrameInfo.get() userObject:userObject.get() submissionHandler:makeBlockPtr([completionHandler = WTF::move(completionHandler), checker = WTF::move(checker)] () mutable {
-                    if (checker->completionHandlerHasBeenCalled())
-                        return;
-                    checker->didCallCompletionHandler();
-                    completionHandler();
-                }).get()];
-                return;
-            }
-
-            auto checker = WebKit::CompletionHandlerCallChecker::create(inputDelegate.get(), willSubmitFormValuesSelector);
-            auto frameInfo = wrapper(API::FrameInfo::create(WTF::move(frameInfoData)));
-            auto sourceFrameInfo = wrapper(API::FrameInfo::create(WTF::move(sourceFrameInfoData)));
-            [inputDelegate _webView:webView.get() willSubmitFormValues:valueMap.get() frameInfo:frameInfo.get() sourceFrameInfo:sourceFrameInfo.get() userObject:userObject.get() requestURL:requestURL.createNSURL().get() method:method.createNSString().get() submissionHandler:makeBlockPtr([completionHandler = WTF::move(completionHandler), checker = WTF::move(checker)] () mutable {
+            auto submissionHandler = makeBlockPtr([completionHandler = WTF::move(completionHandler), checker = WTF::move(checker)] () mutable {
                 if (checker->completionHandlerHasBeenCalled())
                     return;
                 checker->didCallCompletionHandler();
                 completionHandler();
-            }).get()];
+            });
 
+            auto apiTargetFrameInfo = API::FrameInfo::create(WTF::move(frameInfoData));
+            auto apiSourceFrameInfo = API::FrameInfo::create(WTF::move(sourceFrameInfoData));
+            if (navigationDelegateRespondsToWillSubmitForm) {
+                auto apiFormInfo = API::FormInfo::create(apiTargetFrameInfo.get(), apiSourceFrameInfo.get(), requestURL, method, textFieldValues);
+                RetainPtr formInfo = wrapper(apiFormInfo);
+                [navigationDelegate webView:webView.get() willSubmitForm:formInfo.get() submissionHandler:submissionHandler.get()];
+                return;
+            }
+
+            auto userObject = userData ? userData->toNSObject() : RetainPtr<NSObject<NSSecureCoding>>();
+
+            if (inputDelegateRespondsToWillSubmitFormValuesLegacy) {
+                [inputDelegate _webView:webView.get() willSubmitFormValues:valueMap.get() userObject:userObject.get() submissionHandler:submissionHandler.get()];
+                return;
+            }
+
+            RetainPtr targetFrameInfo = wrapper(apiTargetFrameInfo);
+            RetainPtr sourceFrameInfo = wrapper(apiSourceFrameInfo);
+            if (inputDelegateRespondsToWillSubmitFormValuesWithoutRequestURL) {
+                [inputDelegate _webView:webView.get() willSubmitFormValues:valueMap.get() frameInfo:targetFrameInfo sourceFrameInfo:sourceFrameInfo userObject:userObject.get() submissionHandler:submissionHandler.get()];
+                return;
+            }
+
+            [inputDelegate _webView:webView.get() willSubmitFormValues:valueMap.get() frameInfo:targetFrameInfo sourceFrameInfo:sourceFrameInfo userObject:userObject.get() requestURL:requestURL.createNSURL().get() method:method.createNSString().get() submissionHandler:submissionHandler.get()];
         }
 
     private:
@@ -7079,8 +7093,8 @@ static RetainPtr<_WKTextExtractionResult> createEmptyTextExtractionResult()
             return WebCore::TextExtraction::Action::KeyPress;
         case _WKTextExtractionActionHighlightText:
             return WebCore::TextExtraction::Action::HighlightText;
-        case _WKTextExtractionActionScrollBy:
-            return WebCore::TextExtraction::Action::ScrollBy;
+        case _WKTextExtractionActionScroll:
+            return WebCore::TextExtraction::Action::Scroll;
         default:
             ASSERT_NOT_REACHED();
             return WebCore::TextExtraction::Action::Click;
@@ -7274,6 +7288,22 @@ static HashMap<String, HashMap<WebCore::JSHandleIdentifier, String>> extractClie
     return result;
 }
 
+static OptionSet<WebCore::TextExtraction::EventListenerCategory> coreEventListenerCategories(_WKTextExtractionEventListenerCategory categories)
+{
+    OptionSet<WebCore::TextExtraction::EventListenerCategory> coreCategories;
+    if (categories & _WKTextExtractionEventListenerCategoryClick)
+        coreCategories.add(WebCore::TextExtraction::EventListenerCategory::Click);
+    if (categories & _WKTextExtractionEventListenerCategoryHover)
+        coreCategories.add(WebCore::TextExtraction::EventListenerCategory::Hover);
+    if (categories & _WKTextExtractionEventListenerCategoryTouch)
+        coreCategories.add(WebCore::TextExtraction::EventListenerCategory::Touch);
+    if (categories & _WKTextExtractionEventListenerCategoryWheel)
+        coreCategories.add(WebCore::TextExtraction::EventListenerCategory::Wheel);
+    if (categories & _WKTextExtractionEventListenerCategoryKeyboard)
+        coreCategories.add(WebCore::TextExtraction::EventListenerCategory::Keyboard);
+    return coreCategories;
+}
+
 #if ENABLE(DATA_DETECTION)
 
 static OptionSet<WebCore::DataDetectorType> coreDataDetectorTypes(_WKTextExtractionDataDetectorTypes types)
@@ -7341,7 +7371,7 @@ static OptionSet<WebCore::DataDetectorType> coreDataDetectorTypes(_WKTextExtract
             .mergeParagraphs = mergeParagraphs,
             .skipNearlyTransparentContent = skipNearlyTransparentContent,
             .nodeIdentifierInclusion = nodeIdentifierInclusion,
-            .includeEventListeners = !!configuration.includeEventListeners,
+            .eventListenerCategories = coreEventListenerCategories(configuration.eventListenerCategories),
             .includeAccessibilityAttributes = !!configuration.includeAccessibilityAttributes,
             .includeTextInAutoFilledControls = !!configuration.includeTextInAutoFilledControls,
             .includeOffscreenPasswordFields = !!configuration.includeOffscreenPasswordFields,
@@ -7568,7 +7598,7 @@ static OptionSet<WebCore::DataDetectorType> coreDataDetectorTypes(_WKTextExtract
 
 - (CGFloat)_bannerViewOverlayHeight
 {
-    return 0;
+    return _impl->bannerViewHeight();
 }
 
 #endif

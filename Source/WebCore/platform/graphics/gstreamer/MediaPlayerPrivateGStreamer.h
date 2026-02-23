@@ -191,7 +191,7 @@ public:
     GstElement* pipeline() const { return m_pipeline.get(); }
 
 #if USE(COORDINATED_GRAPHICS)
-    PlatformLayer* platformLayer() const override;
+    PlatformLayer* NODELETE platformLayer() const override;
     bool supportsAcceleratedRendering() const override { return true; }
 #endif
 

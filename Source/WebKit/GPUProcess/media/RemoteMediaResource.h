@@ -56,7 +56,7 @@ public:
     void shutdown() final;
 
     // PlatformMediaResource, called on the main thread.
-    bool didPassAccessControlCheck() const final;
+    bool didPassAccessControlCheck() const final { return m_didPassAccessControlCheck; }
 
     // Called on MediaResourceLoader's WorkQueue.
     void responseReceived(const WebCore::ResourceResponse&, bool, CompletionHandler<void(WebCore::ShouldContinuePolicyCheck)>&&);

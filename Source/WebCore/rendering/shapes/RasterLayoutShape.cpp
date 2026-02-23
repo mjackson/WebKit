@@ -61,7 +61,7 @@ MarginIntervalGenerator::MarginIntervalGenerator(unsigned radius)
         m_xIntercepts[y] = sqrt(static_cast<double>(radiusSquared - y * y));
 }
 
-void MarginIntervalGenerator::set(int y, const IntShapeInterval& interval)
+void NODELETE MarginIntervalGenerator::set(int y, const IntShapeInterval& interval)
 {
     ASSERT(y >= 0 && interval.x1() >= 0);
     m_y = y;

@@ -55,7 +55,6 @@ public:
     void invalidate();
 
     Document* NODELETE document() const;
-    RefPtr<Document> protectedDocument() const;
 
     UndoManager* NODELETE undoManager() const;
     void setUndoManager(UndoManager*);

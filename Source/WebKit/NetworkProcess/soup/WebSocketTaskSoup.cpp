@@ -82,7 +82,7 @@ WebSocketTask::WebSocketTask(NetworkSocketChannel& channel, const WebCore::Resou
 
     g_signal_connect(msg, "request-certificate-password", G_CALLBACK(+[](SoupMessage* msg, GTlsPassword* tlsPassword, WebSocketTask* task) -> gboolean {
         auto protectionSpace = WebCore::AuthenticationChallenge::protectionSpaceForClientCertificatePassword(WebCore::soupURIToURL(soup_message_get_uri(msg)), tlsPassword);
-        auto password = protect(task->protectedChannel()->session()->networkStorageSession())->credentialStorage().get(task->m_request.cachePartition(), protectionSpace).password().utf8();
+        auto password = protect(protect(task->m_channel)->session()->networkStorageSession())->credentialStorage().get(task->m_request.cachePartition(), protectionSpace).password().utf8();
         g_tls_password_set_value(tlsPassword, reinterpret_cast<const unsigned char*>(password.data()), password.length());
         soup_message_tls_client_certificate_password_request_complete(msg);
         return TRUE;
@@ -108,7 +108,7 @@ WebSocketTask::WebSocketTask(NetworkSocketChannel& channel, const WebCore::Resou
 
     g_signal_connect(msg, "starting", G_CALLBACK(+[](SoupMessage* msg, WebSocketTask* task) {
         task->m_request.updateFromSoupMessageHeaders(soup_message_get_request_headers(msg));
-        task->protectedChannel()->didSendHandshakeRequest(WTF::move(task->m_request));
+        protect(task->m_channel)->didSendHandshakeRequest(WTF::move(task->m_request));
     }), this);
 }
 
@@ -118,11 +118,6 @@ WebSocketTask::~WebSocketTask()
         g_signal_handlers_disconnect_by_data(m_handshakeMessage.get(), this);
 
     cancel();
-}
-
-RefPtr<NetworkSocketChannel> WebSocketTask::protectedChannel() const
-{
-    return m_channel.get();
 }
 
 String WebSocketTask::acceptedExtensions() const
@@ -171,10 +166,10 @@ void WebSocketTask::didReceiveMessageCallback(WebSocketTask* task, SoupWebsocket
     std::span data = span(message);
     switch (dataType) {
     case SOUP_WEBSOCKET_DATA_TEXT:
-        task->protectedChannel()->didReceiveText(String::fromUTF8(data));
+        protect(task->m_channel)->didReceiveText(String::fromUTF8(data));
         break;
     case SOUP_WEBSOCKET_DATA_BINARY:
-        task->protectedChannel()->didReceiveBinaryData(data);
+        protect(task->m_channel)->didReceiveBinaryData(data);
         break;
     }
 }
@@ -228,7 +223,7 @@ void WebSocketTask::didClose(unsigned short code, const String& reason)
         return;
 
     m_receivedDidClose = true;
-    protectedChannel()->didClose(code, reason);
+    protect(m_channel)->didClose(code, reason);
 }
 
 void WebSocketTask::sendString(std::span<const uint8_t> utf8, CompletionHandler<void()>&& callback)

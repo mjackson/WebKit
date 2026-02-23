@@ -73,8 +73,8 @@ public:
 
     void adjustSliderThumbSize(RenderStyle&, const Element*) const final;
 
-    IntSize sliderTickSize() const final;
-    int sliderTickOffsetFromTrackCenter() const final;
+    IntSize NODELETE sliderTickSize() const final;
+    int NODELETE sliderTickOffsetFromTrackCenter() const final;
 
     Style::PaddingBox popupInternalPaddingBox(const RenderStyle&) const final;
     PopupMenuStyle::Size popupMenuSize(const RenderStyle&, IntRect&) const final;
@@ -84,12 +84,12 @@ public:
     Style::PreferredSizePair controlSize(StyleAppearance, const FontCascade&, const Style::PreferredSizePair&, float zoomFactor) const final;
     Style::MinimumSizePair minimumControlSize(StyleAppearance, const FontCascade&, const Style::MinimumSizePair&, float zoomFactor) const final;
     Style::LineWidthBox controlBorder(StyleAppearance, const FontCascade&, const Style::LineWidthBox&, float zoomFactor, const Element*) const final;
-    bool controlRequiresPreWhiteSpace(StyleAppearance) const final;
+    bool NODELETE controlRequiresPreWhiteSpace(StyleAppearance) const final;
 
     bool popsMenuByArrowKeys() const final { return true; }
 
     FloatSize meterSizeForBounds(const RenderMeter&, const FloatRect&) const final;
-    bool supportsMeter(StyleAppearance) const final;
+    bool NODELETE supportsMeter(StyleAppearance) const final;
 
     void createColorWellSwatchSubtree(HTMLElement&) final;
     void setColorWellSwatchBackground(HTMLElement&, Color) final;
@@ -105,9 +105,9 @@ public:
     bool hasSwitchHapticFeedback(SwitchTrigger trigger) const final { return trigger == SwitchTrigger::PointerTracking; }
 
     bool canPaint(const PaintInfo&, const Settings&, StyleAppearance) const final;
-    bool canCreateControlPartForRenderer(const RenderElement&) const final;
-    bool canCreateControlPartForBorderOnly(const RenderElement&) const final;
-    bool canCreateControlPartForDecorations(const RenderElement&) const final;
+    bool NODELETE canCreateControlPartForRenderer(const RenderElement&) const final;
+    bool NODELETE canCreateControlPartForBorderOnly(const RenderElement&) const final;
+    bool NODELETE canCreateControlPartForDecorations(const RenderElement&) const final;
 
     int baselinePosition(const RenderBox&) const final;
 
@@ -144,7 +144,7 @@ public:
 
     String fileListNameForWidth(const FileList*, const FontCascade&, int width, bool multipleFilesAllowed) const final;
 
-    bool searchFieldShouldAppearAsTextField(const RenderStyle&, const Settings&) const final;
+    bool NODELETE searchFieldShouldAppearAsTextField(const RenderStyle&, const Settings&) const final;
 
 #if ENABLE(SERVICE_CONTROLS)
     IntSize imageControlsButtonSize() const final;
@@ -154,10 +154,10 @@ public:
 private:
     RenderThemeMac();
 
-    std::span<const IntSize, 4> menuListSizes() const;
-    std::span<const IntSize, 4> searchFieldSizes() const;
-    std::span<const IntSize, 4> cancelButtonSizes() const;
-    std::span<const IntSize, 4> resultsButtonSizes() const;
+    std::span<const IntSize, 4> NODELETE menuListSizes() const;
+    std::span<const IntSize, 4> NODELETE searchFieldSizes() const;
+    std::span<const IntSize, 4> NODELETE cancelButtonSizes() const;
+    std::span<const IntSize, 4> NODELETE resultsButtonSizes() const;
     void setSearchFieldSize(RenderStyle&) const;
 
     mutable RetainPtr<NSPopUpButtonCell> m_popupButton;

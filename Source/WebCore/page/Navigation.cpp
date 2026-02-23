@@ -101,7 +101,7 @@ bool Navigation::canGoForward() const
 }
 
 // https://html.spec.whatwg.org/multipage/nav-history-apis.html#getting-the-navigation-api-entry-index
-static std::optional<size_t> getEntryIndexOfHistoryItem(const Vector<Ref<NavigationHistoryEntry>>& entries, const HistoryItem& item)
+static std::optional<size_t> NODELETE getEntryIndexOfHistoryItem(const Vector<Ref<NavigationHistoryEntry>>& entries, const HistoryItem& item)
 {
     // FIXME: We could have a more efficient solution than iterating through a list.
     for (size_t index = 0; index < entries.size(); index++) {
@@ -220,7 +220,7 @@ RefPtr<NavigationActivation> Navigation::createForPageswapEvent(HistoryItem* new
         return nullptr;
 
     // Skip cross-origin requests, or if any cross-origin redirects have been made.
-    bool isSameOrigin = SecurityOrigin::create(documentLoader->documentURL())->isSameOriginAs(protect(protect(protectedWindow()->document())->securityOrigin()));
+    bool isSameOrigin = SecurityOrigin::create(documentLoader->documentURL())->isSameOriginAs(protect(protect(protect(window())->document())->securityOrigin()));
     if (!isSameOrigin || (!documentLoader->request().isSameSite() && !fromBackForwardCache))
         return nullptr;
 
@@ -273,11 +273,6 @@ ScriptExecutionContext* Navigation::scriptExecutionContext() const
     return window ? window->document() : nullptr;
 }
 
-RefPtr<ScriptExecutionContext> Navigation::protectedScriptExecutionContext() const
-{
-    return scriptExecutionContext();
-}
-
 enum EventTargetInterfaceType Navigation::eventTargetInterface() const
 {
     return EventTargetInterfaceType::Navigation;
@@ -323,7 +318,7 @@ ExceptionOr<RefPtr<SerializedScriptValue>> Navigation::serializeState(JSC::JSVal
         return Exception(ExceptionCode::DataCloneError, "Cannot serialize state: Detached frame"_s);
 
     Vector<Ref<MessagePort>> dummyPorts;
-    auto serializeResult = SerializedScriptValue::create(*protectedScriptExecutionContext()->globalObject(), state, { }, dummyPorts, SerializationForStorage::Yes);
+    auto serializeResult = SerializedScriptValue::create(*protect(scriptExecutionContext())->globalObject(), state, { }, dummyPorts, SerializationForStorage::Yes);
     if (serializeResult.hasException())
         return serializeResult.releaseException();
 
@@ -407,7 +402,7 @@ Navigation::Result Navigation::navigate(const String& url, NavigateOptions&& opt
 {
     RefPtr window = this->window();
     auto newURL = protect(window->document())->completeURL(url, ScriptExecutionContext::ForceUTF8::Yes);
-    const URL& currentURL = protectedScriptExecutionContext()->url();
+    const URL& currentURL = protect(scriptExecutionContext())->url();
 
     if (!newURL.isValid())
         return createErrorResult(WTF::move(committed), WTF::move(finished), ExceptionCode::SyntaxError, "Invalid URL"_s);
@@ -546,7 +541,7 @@ ExceptionOr<void> Navigation::updateCurrentEntry(UpdateCurrentEntryOptions&& opt
     if (!current)
         return Exception { ExceptionCode::InvalidStateError };
 
-    auto serializedState = SerializedScriptValue::create(*protectedScriptExecutionContext()->globalObject(), options.state, SerializationForStorage::Yes, SerializationErrorMode::Throwing);
+    auto serializedState = SerializedScriptValue::create(*protect(scriptExecutionContext())->globalObject(), options.state, SerializationForStorage::Yes, SerializationErrorMode::Throwing);
     if (!serializedState)
         return { };
 
@@ -608,7 +603,7 @@ void Navigation::rejectFinishedPromise(NavigationAPIMethodTracker* apiMethodTrac
     if (!apiMethodTracker)
         return;
 
-    auto* globalObject = protectedScriptExecutionContext()->globalObject();
+    auto* globalObject = protect(scriptExecutionContext())->globalObject();
     if (!globalObject && apiMethodTracker)
         globalObject = apiMethodTracker->committedPromise->globalObject();
     if (!globalObject)
@@ -663,7 +658,7 @@ void Navigation::updateNavigationEntry(Ref<HistoryItem>&& item, ShouldCopyStateO
 
 void Navigation::disposeOfForwardEntriesInParents(BackForwardItemIdentifier itemID)
 {
-    RefPtr localMainFrame = protectedFrame()->localMainFrame();
+    RefPtr localMainFrame = protect(frame())->localMainFrame();
     if (!localMainFrame)
         return;
 
@@ -671,7 +666,7 @@ void Navigation::disposeOfForwardEntriesInParents(BackForwardItemIdentifier item
     if (!localMainFrameWindow)
         return;
 
-    localMainFrameWindow->protectedNavigation()->recursivelyDisposeOfForwardEntriesInParents(itemID, protectedFrame().get());
+    localMainFrameWindow->protectedNavigation()->recursivelyDisposeOfForwardEntriesInParents(itemID, protect(frame()).get());
 }
 
 void Navigation::recursivelyDisposeOfForwardEntriesInParents(BackForwardItemIdentifier itemID, LocalFrame* navigatedFrame)
@@ -753,7 +748,7 @@ void Navigation::updateForNavigation(Ref<HistoryItem>&& item, NavigationNavigati
         ongoingAPIMethodTracker = m_ongoingAPIMethodTracker;
     }
     if (ongoingAPIMethodTracker && shouldNotifyCommitted == ShouldNotifyCommitted::Yes)
-        notifyCommittedToEntry(ongoingAPIMethodTracker.get(), protectedCurrentEntry().get(), navigationType);
+        notifyCommittedToEntry(ongoingAPIMethodTracker.get(), protect(currentEntry()).get(), navigationType);
 
     auto currentEntryChangeEvent = NavigationCurrentEntryChangeEvent::create(eventNames().currententrychangeEvent, {
         { false, false, false },
@@ -1188,7 +1183,7 @@ Navigation::DispatchResult Navigation::innerDispatchNavigateEvent(NavigationNavi
         // For intercepted traverse navigations, notify committed after handlers have been invoked but before
         // they complete. This ensures the correct event ordering.
         if (navigationType == NavigationNavigationType::Traverse && event->wasIntercepted() && apiMethodTracker && !apiMethodTracker->committedToEntry)
-            notifyCommittedToEntry(apiMethodTracker.get(), protectedCurrentEntry().get(), navigationType);
+            notifyCommittedToEntry(apiMethodTracker.get(), protect(currentEntry()).get(), navigationType);
 
         // FIXME: this emulates the behavior of a Promise wrapped around waitForAll, but we may want the real
         // thing if the ordering-and-transition tests show timing related issues related to this.
@@ -1199,7 +1194,7 @@ Navigation::DispatchResult Navigation::innerDispatchNavigateEvent(NavigationNavi
                     return;
 
                 auto focusChanged = std::exchange(protectedThis->m_focusChangedDuringOngoingNavigation, FocusDidChange::No);
-                protectedThis->protectedOngoingNavigateEvent()->finish(*document, InterceptionHandlersDidFulfill::Yes, focusChanged);
+                protect(protectedThis->ongoingNavigateEvent())->finish(*document, InterceptionHandlersDidFulfill::Yes, focusChanged);
                 protectedThis->m_ongoingNavigateEvent = nullptr;
 
                 protectedThis->dispatchEvent(Event::create(eventNames().navigatesuccessEvent, { }));
@@ -1218,7 +1213,7 @@ Navigation::DispatchResult Navigation::innerDispatchNavigateEvent(NavigationNavi
                     return;
 
                 auto focusChanged = std::exchange(protectedThis->m_focusChangedDuringOngoingNavigation, FocusDidChange::No);
-                protectedThis->protectedOngoingNavigateEvent()->finish(*document, InterceptionHandlersDidFulfill::No, focusChanged);
+                protect(protectedThis->ongoingNavigateEvent())->finish(*document, InterceptionHandlersDidFulfill::No, focusChanged);
 
                 if (abortController)
                     abortController->signal().signalAbort(result);
@@ -1228,13 +1223,13 @@ Navigation::DispatchResult Navigation::innerDispatchNavigateEvent(NavigationNavi
                 ErrorInformation errorInformation;
                 String errorMessage;
                 if (auto* errorInstance = jsDynamicCast<JSC::ErrorInstance*>(result)) {
-                    if (auto result = extractErrorInformationFromErrorInstance(protectedThis->protectedScriptExecutionContext()->globalObject(), *errorInstance)) {
+                    if (auto result = extractErrorInformationFromErrorInstance(protect(protectedThis->scriptExecutionContext())->globalObject(), *errorInstance)) {
                         errorInformation = WTF::move(*result);
                         errorMessage = makeString("Uncaught "_s, errorInformation.errorTypeString, ": "_s, errorInformation.message);
                     }
                 }
 
-                protectedThis->dispatchEvent(ErrorEvent::create(eventNames().navigateerrorEvent, errorMessage, errorInformation.sourceURL, errorInformation.line, errorInformation.column, { protectedThis->protectedScriptExecutionContext()->globalObject()->vm(), result }));
+                protectedThis->dispatchEvent(ErrorEvent::create(eventNames().navigateerrorEvent, errorMessage, errorInformation.sourceURL, errorInformation.line, errorInformation.column, { protect(protectedThis->scriptExecutionContext())->globalObject()->vm(), result }));
 
                 if (apiMethodTracker)
                     Ref { apiMethodTracker->finishedPromise }->reject<IDLAny>(result, RejectAsHandled::Yes);

@@ -56,7 +56,7 @@ BackgroundLayer::BackgroundLayer(CSS::Keyword::None keyword)
 {
 }
 
-BackgroundLayer::BackgroundLayer(RefPtr<StyleImage>&& image)
+BackgroundLayer::BackgroundLayer(RefPtr<Image>&& image)
     : BackgroundLayer { ImageOrNone { WTF::move(image) } }
 {
 }

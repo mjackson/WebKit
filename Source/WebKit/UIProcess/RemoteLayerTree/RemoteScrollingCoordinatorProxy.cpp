@@ -111,6 +111,23 @@ std::optional<RequestedScrollData> RemoteScrollingCoordinatorProxy::commitScroll
     return std::exchange(m_requestedScroll, { });
 }
 
+void RemoteScrollingCoordinatorProxy::adjustMainFrameDelegatedScrollPosition(RequestedScrollData&& requestedScroll)
+{
+    auto currentScrollPosition = currentMainFrameScrollPosition();
+    if (auto previousData = std::exchange(requestedScroll.requestedDataBeforeAnimatedScroll, std::nullopt)) {
+        auto& [requestType, positionOrDeltaBeforeAnimatedScroll, scrollType, clamping] = *previousData;
+        if (requestType != ScrollRequestType::CancelAnimatedScroll)
+            currentScrollPosition = RequestedScrollData::computeDestinationPosition(currentScrollPosition, requestType, positionOrDeltaBeforeAnimatedScroll);
+    }
+
+    // FIXME: Maybe we should avoid interrupting animations in more cases?
+    auto interruptScrollAnimation = requestedScroll.requestType == ScrollRequestType::DeltaUpdate ? InterruptScrollAnimation::No : InterruptScrollAnimation::Yes;
+    auto targetScrollPosition = requestedScroll.destinationPosition(currentScrollPosition);
+    LOG_WITH_STREAM(Scrolling, stream << "RemoteScrollingCoordinatorProxy::adjustViewScrollPosition requesting scroll to " << targetScrollPosition);
+
+    protect(webPageProxy())->requestScroll(targetScrollPosition, scrollOrigin(), requestedScroll.animated, interruptScrollAnimation);
+}
+
 void RemoteScrollingCoordinatorProxy::stickyScrollingTreeNodeBeganSticking(ScrollingNodeID)
 {
     protect(webPageProxy())->stickyScrollingTreeNodeBeganSticking();
@@ -288,6 +305,29 @@ WebCore::FloatBoxExtent RemoteScrollingCoordinatorProxy::obscuredContentInsets()
 {
     return m_scrollingTree->mainFrameObscuredContentInsets();
 }
+
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+
+void RemoteScrollingCoordinatorProxy::setBannerViewHeight(float offset)
+{
+    auto previousOffset = m_scrollingTree->bannerViewHeight();
+    m_scrollingTree->setBannerViewHeight(offset);
+
+    if (offset < previousOffset)
+        m_scrollingTree->triggerMainFrameRubberBandSnapBack();
+}
+
+void RemoteScrollingCoordinatorProxy::setBannerViewMaximumHeight(float offset)
+{
+    m_scrollingTree->setBannerViewMaximumHeight(offset);
+}
+
+void RemoteScrollingCoordinatorProxy::setHasBannerViewOverlay(bool hasBannerView)
+{
+    m_scrollingTree->setHasBannerViewOverlay(hasBannerView);
+}
+
+#endif
 
 WebCore::FloatPoint RemoteScrollingCoordinatorProxy::currentMainFrameScrollPosition() const
 {

@@ -51,6 +51,8 @@ public:
     void scrollingTreeNodeScrollbarVisibilityDidChange(WebCore::ScrollingNodeID, WebCore::ScrollbarOrientation, bool) override;
     void scrollingTreeNodeScrollbarMinimumThumbLengthDidChange(WebCore::ScrollingNodeID, WebCore::ScrollbarOrientation, int) override;
 
+    void triggerMainFrameRubberBandSnapBack() override;
+
 private:
     void handleWheelEventPhase(WebCore::ScrollingNodeID, WebCore::PlatformWheelEventPhase) override;
     RefPtr<WebCore::ScrollingTreeNode> scrollingNodeForPoint(WebCore::FloatPoint) override;
@@ -97,6 +99,8 @@ private:
 
     void scrollingTreeNodeDidBeginScrollSnapping(WebCore::ScrollingNodeID) override;
     void scrollingTreeNodeDidEndScrollSnapping(WebCore::ScrollingNodeID) override;
+
+    void didAddPendingScrollUpdate() override;
 
     Ref<WebCore::ScrollingTreeNode> createScrollingTreeNode(WebCore::ScrollingNodeType, WebCore::ScrollingNodeID) override;
 

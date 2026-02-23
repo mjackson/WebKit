@@ -81,7 +81,7 @@ void PrintContext::computePageRects(const FloatRect& printRect, float headerHeig
         return;
     }
 
-    RenderView* view = frame->document()->renderView();
+    CheckedPtr view = frame->document()->renderView();
     const IntRect& documentRect = view->documentRect();
     FloatSize pageSize = frame->resizePageRectsKeepingRatio(FloatSize(printRect.width(), printRect.height()), FloatSize(documentRect.width(), documentRect.height()));
     float pageWidth = pageSize.width();
@@ -150,7 +150,7 @@ void PrintContext::computePageRectsWithPageSizeInternal(const FloatSize& pageSiz
     if (!frame->document() || !frame->view() || !frame->document()->renderView())
         return;
 
-    RenderView* view = frame->document()->renderView();
+    CheckedPtr view = frame->document()->renderView();
 
     IntRect docRect = view->documentRect();
 
@@ -310,7 +310,7 @@ void PrintContext::end()
     m_linkedDestinations = nullptr;
 }
 
-static inline RenderBoxModelObject* enclosingBoxModelObject(RenderElement* renderer)
+static inline RenderBoxModelObject* NODELETE enclosingBoxModelObject(RenderElement* renderer)
 {
     while (renderer && !is<RenderBoxModelObject>(*renderer))
         renderer = renderer->parent();
@@ -323,7 +323,7 @@ int PrintContext::pageNumberForElement(Element* element, const FloatSize& pageSi
     RefPtr<Element> elementRef(element);
     element->document().updateLayout();
 
-    auto* box = enclosingBoxModelObject(element->renderer());
+    CheckedPtr box = enclosingBoxModelObject(element->renderer());
     if (!box)
         return -1;
 
@@ -366,7 +366,7 @@ void PrintContext::outputLinkedDestinations(GraphicsContext& graphicsContext, Do
     }
 
     for (const auto& it : *m_linkedDestinations) {
-        RenderElement* renderer = it.value->renderer();
+        CheckedPtr renderer = it.value->renderer();
         if (!renderer)
             continue;
 

@@ -57,7 +57,7 @@ InstrumentingAgents::InstrumentingAgents(InspectorEnvironment& environment, Inst
 
 bool InstrumentingAgents::developerExtrasEnabled() const
 {
-    return checkedEnvironment()->developerExtrasEnabled();
+    return protect(m_environment)->developerExtrasEnabled();
 }
 
 void InstrumentingAgents::reset()

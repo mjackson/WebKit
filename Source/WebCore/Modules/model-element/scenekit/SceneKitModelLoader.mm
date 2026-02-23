@@ -51,7 +51,7 @@ public:
     virtual ~SceneKitModelLoaderFailure() = default;
     virtual void cancel() override { }
 
-    const ResourceError& error() const
+    const ResourceError& NODELETE error() const
     {
         return m_error;
     }

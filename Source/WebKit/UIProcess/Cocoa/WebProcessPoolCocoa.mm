@@ -237,14 +237,14 @@ static void registerUserDefaults()
     [[NSUserDefaults standardUserDefaults] registerDefaults:registrationDictionary.get()];
 }
 
-static std::optional<bool>& cachedLockdownModeEnabledGlobally()
+static std::optional<bool>& NODELETE cachedLockdownModeEnabledGlobally()
 {
     static std::optional<bool> cachedLockdownModeEnabledGlobally;
     return cachedLockdownModeEnabledGlobally;
 }
 
 #if PLATFORM(MAC)
-static NSApplication* NSAppSingleton()
+static NSApplication* NODELETE NSAppSingleton()
 {
     return NSApp;
 }
@@ -584,6 +584,9 @@ void WebProcessPool::platformInitializeNetworkProcess(NetworkProcessCreationPara
 
 #if ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
     parameters.storageAccessPromptQuirksData = StorageAccessPromptQuirkController::sharedSingleton().cachedListData();
+#endif
+#if HAVE(ENHANCED_SECURITY_LINKS)
+    parameters.enableEnhancedSecurityLinks = ![defaults objectForKey:WebPreferencesKey::enhancedSecurityLinksEnabledKey().createNSString().get()] || [defaults boolForKey:WebPreferencesKey::enhancedSecurityLinksEnabledKey().createNSString().get()];
 #endif
 }
 
@@ -1140,7 +1143,7 @@ static WeakHashSet<LockdownModeObserver>& lockdownModeObservers()
     return observers;
 }
 
-static std::optional<bool>& isLockdownModeEnabledGloballyForTesting()
+static std::optional<bool>& NODELETE isLockdownModeEnabledGloballyForTesting()
 {
     static NeverDestroyed<std::optional<bool>> enabledForTesting;
     return enabledForTesting;

@@ -101,6 +101,13 @@ std::unique_ptr<ThreadSafeImageBufferSetFlusher> RemoteLayerWithRemoteRenderingB
     return m_bufferSet->flushFrontBufferAsync(flushType);
 }
 
+void RemoteLayerWithRemoteRenderingBackingStore::submitDrawingCommands()
+{
+    if (!m_bufferSet)
+        return;
+    return m_bufferSet->submitDrawingCommands();
+}
+
 void RemoteLayerWithRemoteRenderingBackingStore::createContextAndPaintContents()
 {
     RefPtr bufferSet = m_bufferSet;

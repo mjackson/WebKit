@@ -28,7 +28,6 @@
 
 #include "Event.h"
 #include "EventNames.h"
-#include "HTMLNames.h"
 #include "MouseEvent.h"
 #include "TextFieldInputType.h"
 #include <wtf/TZoneMallocInlines.h>
@@ -37,15 +36,13 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(AutoFillButtonElement);
 
-using namespace HTMLNames;
-
 Ref<AutoFillButtonElement> AutoFillButtonElement::create(Document& document, AutoFillButtonOwner& owner)
 {
     return adoptRef(*new AutoFillButtonElement(document, owner));
 }
 
 AutoFillButtonElement::AutoFillButtonElement(Document& document, AutoFillButtonOwner& owner)
-    : HTMLDivElement(divTag, document)
+    : HTMLDivElement(document)
     , m_owner(owner)
 {
 }

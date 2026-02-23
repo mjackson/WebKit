@@ -159,7 +159,7 @@ private:
 
     using IdToInspectorStyleSheet = HashMap<Inspector::Protocol::CSS::StyleSheetId, Ref<InspectorStyleSheet>>;
     using CSSStyleSheetToInspectorStyleSheet = HashMap<CSSStyleSheet*, Ref<InspectorStyleSheet>>;
-    using DocumentToViaInspectorStyleSheet = HashMap<RefPtr<Document>, Vector<RefPtr<InspectorStyleSheet>>>; // "via inspector" stylesheets
+    using DocumentToViaInspectorStyleSheet = HashMap<Ref<Document>, Vector<Ref<InspectorStyleSheet>>>; // "via inspector" stylesheets
     using PseudoClassHashSet = HashSet<CSSSelector::PseudoClass, IntHash<CSSSelector::PseudoClass>, WTF::StrongEnumHashTraits<CSSSelector::PseudoClass>>;
 
     InspectorStyleSheetForInlineStyle& asInspectorStyleSheet(StyledElement&);
@@ -172,7 +172,7 @@ private:
     void setActiveStyleSheetsForDocument(Document&, Vector<CSSStyleSheet*>& activeStyleSheets);
 
     Inspector::Protocol::CSS::StyleSheetId unbindStyleSheet(InspectorStyleSheet*);
-    InspectorStyleSheet* bindStyleSheet(CSSStyleSheet*);
+    InspectorStyleSheet& bindStyleSheet(CSSStyleSheet*);
     InspectorStyleSheet* assertStyleSheetForId(Inspector::Protocol::ErrorString&, const Inspector::Protocol::CSS::StyleSheetId&);
     InspectorStyleSheet* createInspectorStyleSheetForDocument(Document&);
     Inspector::Protocol::CSS::StyleSheetOrigin detectOrigin(CSSStyleSheet* pageStyleSheet, Document* ownerDocument);

@@ -152,7 +152,7 @@ HitTestResult& HitTestResult::operator=(const HitTestResult& other)
     return *this;
 }
 
-static Node* moveOutOfUserAgentShadowTree(Node& node)
+static Node* NODELETE moveOutOfUserAgentShadowTree(Node& node)
 {
     if (node.isInShadowTree()) {
         if (ShadowRoot* root = node.containingShadowRoot()) {
@@ -928,7 +928,7 @@ String HitTestResult::linkSuggestedFilename() const
     return ResourceResponse::sanitizeSuggestedFilename(urlElement->attributeWithoutSynchronization(HTMLNames::downloadAttr));
 }
 
-bool HitTestResult::mediaSupportsEnhancedFullscreen() const
+bool HitTestResult::mediaSupportsPictureInPicture() const
 {
 #if PLATFORM(MAC) && ENABLE(VIDEO) && ENABLE(VIDEO_PRESENTATION_MODE)
     if (RefPtr mediaElt = mediaElement())
@@ -937,7 +937,7 @@ bool HitTestResult::mediaSupportsEnhancedFullscreen() const
     return false;
 }
 
-bool HitTestResult::mediaIsInEnhancedFullscreen() const
+bool HitTestResult::mediaIsInPictureInPicture() const
 {
 #if PLATFORM(MAC) && ENABLE(VIDEO) && ENABLE(VIDEO_PRESENTATION_MODE)
     if (RefPtr mediaElt = mediaElement())
@@ -946,7 +946,7 @@ bool HitTestResult::mediaIsInEnhancedFullscreen() const
     return false;
 }
 
-void HitTestResult::toggleEnhancedFullscreenForVideo() const
+void HitTestResult::togglePictureInPictureForVideo() const
 {
 #if PLATFORM(MAC) && ENABLE(VIDEO) && ENABLE(VIDEO_PRESENTATION_MODE)
     RefPtr mediaElement(this->mediaElement());

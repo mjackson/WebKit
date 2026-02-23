@@ -1194,7 +1194,7 @@ gboolean webkit_dom_document_exec_command(WebKitDOMDocument* self, const gchar* 
     WTF::String convertedCommand = WTF::String::fromUTF8(command);
     WTF::String convertedValue = WTF::String::fromUTF8(value);
     auto result = item->execCommand(convertedCommand, userInterface, convertedValue);
-    return result.hasException() ? false : result.returnValue();
+    return !result.hasException() && result.returnValue();
 }
 
 gboolean webkit_dom_document_query_command_enabled(WebKitDOMDocument* self, const gchar* command)
@@ -1205,7 +1205,7 @@ gboolean webkit_dom_document_query_command_enabled(WebKitDOMDocument* self, cons
     WebCore::Document* item = WebKit::core(self);
     WTF::String convertedCommand = WTF::String::fromUTF8(command);
     auto result = item->queryCommandEnabled(convertedCommand);
-    return result.hasException() ? false : result.returnValue();
+    return !result.hasException() && result.returnValue();
 }
 
 gboolean webkit_dom_document_query_command_indeterm(WebKitDOMDocument* self, const gchar* command)
@@ -1216,7 +1216,7 @@ gboolean webkit_dom_document_query_command_indeterm(WebKitDOMDocument* self, con
     WebCore::Document* item = WebKit::core(self);
     WTF::String convertedCommand = WTF::String::fromUTF8(command);
     auto result = item->queryCommandIndeterm(convertedCommand);
-    return result.hasException() ? false : result.returnValue();
+    return !result.hasException() && result.returnValue();
 }
 
 gboolean webkit_dom_document_query_command_state(WebKitDOMDocument* self, const gchar* command)
@@ -1227,7 +1227,7 @@ gboolean webkit_dom_document_query_command_state(WebKitDOMDocument* self, const 
     WebCore::Document* item = WebKit::core(self);
     WTF::String convertedCommand = WTF::String::fromUTF8(command);
     auto result = item->queryCommandState(convertedCommand);
-    return result.hasException() ? false : result.returnValue();
+    return !result.hasException() && result.returnValue();
 }
 
 gboolean webkit_dom_document_query_command_supported(WebKitDOMDocument* self, const gchar* command)
@@ -1238,7 +1238,7 @@ gboolean webkit_dom_document_query_command_supported(WebKitDOMDocument* self, co
     WebCore::Document* item = WebKit::core(self);
     WTF::String convertedCommand = WTF::String::fromUTF8(command);
     auto result = item->queryCommandSupported(convertedCommand);
-    return result.hasException() ? false : result.returnValue();
+    return !result.hasException() && result.returnValue();
 }
 
 gchar* webkit_dom_document_query_command_value(WebKitDOMDocument* self, const gchar* command)

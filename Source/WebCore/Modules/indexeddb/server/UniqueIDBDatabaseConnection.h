@@ -53,17 +53,16 @@ public:
 
     const IDBResourceIdentifier& openRequestIdentifier() { return m_openRequestIdentifier; }
     UniqueIDBDatabase* database() { return m_database.get(); }
-    CheckedPtr<UniqueIDBDatabase> checkedDatabase();
     UniqueIDBDatabaseManager* NODELETE manager();
     IDBConnectionToClient& connectionToClient() { return m_connectionToClient; }
-    Ref<IDBConnectionToClient> protectedConnectionToClient();
+    Ref<IDBConnectionToClient> NODELETE protectedConnectionToClient();
 
-    WEBCORE_EXPORT void connectionPendingCloseFromClient();
+    WEBCORE_EXPORT void NODELETE connectionPendingCloseFromClient();
     WEBCORE_EXPORT void connectionClosedFromClient();
 
     bool closePending() const { return m_closePending; }
 
-    bool hasNonFinishedTransactions() const;
+    bool NODELETE hasNonFinishedTransactions() const;
 
     void fireVersionChangeEvent(const IDBResourceIdentifier& requestIdentifier, uint64_t requestedVersion);
     Ref<UniqueIDBDatabaseTransaction> createVersionChangeTransaction(uint64_t newVersion);
@@ -83,7 +82,7 @@ public:
 
     void abortTransactionWithoutCallback(UniqueIDBDatabaseTransaction&);
 
-    bool connectionIsClosing() const;
+    bool NODELETE connectionIsClosing() const;
 
     void deleteTransaction(UniqueIDBDatabaseTransaction&);
 

@@ -202,7 +202,7 @@ public:
     void removePreviewForPage(PDFDocumentLayout::PageIndex);
     void invalidatePreviewsForPageCoverage(const PDFPageCoverage&);
 
-    void setShowDebugBorders(bool);
+    void NODELETE setShowDebugBorders(bool);
 
 private:
     AsyncPDFRenderer(PDFPresentationController&);

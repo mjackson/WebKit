@@ -149,7 +149,7 @@ size_t ResizeObserver::gatherObservations(size_t deeperThan)
                 m_activeObservations.append(observation.get());
                 {
                     Locker locker { m_observationTargetsLock };
-                    m_activeObservationTargets.append(*observation->protectedTarget());
+                    m_activeObservationTargets.append(*protect(observation->target()));
                 }
                 minObservedDepth = std::min(depth, minObservedDepth);
             } else
@@ -174,7 +174,7 @@ void ResizeObserver::deliverObservations()
 
     // Use GCReachableRef here to make sure the targets and their JS wrappers are kept alive while we deliver.
     // It is important since m_activeObservationTargets / m_targetsWaitingForFirstObservation will get cleared and
-    // thus JSResizeObserver::visitAdditionalChildren() won't be able to visit them on the GC thread.
+    // thus JSResizeObserver::visitAdditionalChildren() won't be able to visit them on a GC thread.
     Vector<GCReachableRef<Element>> activeObservationTargets;
     Vector<GCReachableRef<Element>> targetsWaitingForFirstObservation;
     {
@@ -250,7 +250,7 @@ bool ResizeObserver::removeTarget(Element& target)
 void ResizeObserver::removeAllTargets()
 {
     for (auto& observation : m_observations) {
-        bool removed = removeTarget(*observation->protectedTarget());
+        bool removed = removeTarget(*protect(observation->target()));
         ASSERT_UNUSED(removed, removed);
     }
     {

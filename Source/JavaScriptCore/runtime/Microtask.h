@@ -74,4 +74,10 @@ constexpr unsigned maxMicrotaskArguments = 4;
 constexpr unsigned maxMicrotaskArguments = 3;
 #endif
 
+enum class QueuedTaskResult : uint8_t {
+    Executed,
+    Discard,
+    Suspended,
+};
+
 } // namespace JSC

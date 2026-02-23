@@ -60,13 +60,17 @@ String CSSImageSetValue::customCSSText(const CSS::SerializationContext& context)
     return result.toString();
 }
 
-RefPtr<StyleImage> CSSImageSetValue::createStyleImage(const Style::BuilderState& state) const
+RefPtr<Style::Image> CSSImageSetValue::createStyleImage(const Style::BuilderState& state) const
 {
     size_t length = this->length();
 
-    Vector<ImageWithScale> images(length, [&](size_t i) {
+    Vector<Style::ImageWithScale> images(length, [&](size_t i) {
         RefPtr<const CSSImageSetOptionValue> option = downcast<CSSImageSetOptionValue>(item(i));
-        return ImageWithScale { state.createStyleImage(option->image()), protect(option->resolution())->resolveAsResolution<float>(state.cssToLengthConversionData()), option->type() };
+        return Style::ImageWithScale {
+            .image = state.createStyleImage(option->image()),
+            .scaleFactor = protect(option->resolution())->resolveAsResolution<float>(state.cssToLengthConversionData()),
+            .mimeType = option->type(),
+        };
     });
 
     // Sort the images so that they are stored in order from lowest resolution to highest.
@@ -78,7 +82,7 @@ RefPtr<StyleImage> CSSImageSetValue::createStyleImage(const Style::BuilderState&
         return images[lhs].scaleFactor < images[rhs].scaleFactor;
     });
 
-    return StyleImageSet::create(WTF::move(images), WTF::move(sortedIndices));
+    return Style::ImageSet::create(WTF::move(images), WTF::move(sortedIndices));
 }
 
 } // namespace WebCore

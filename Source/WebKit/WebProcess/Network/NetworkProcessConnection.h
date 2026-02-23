@@ -88,7 +88,7 @@ public:
 #endif
 
     WebCore::HTTPCookieAcceptPolicy cookieAcceptPolicy() const { return m_cookieAcceptPolicy; }
-    bool cookiesEnabled() const;
+    bool NODELETE cookiesEnabled() const;
 
 #if HAVE(COOKIE_CHANGE_LISTENER_API)
     void cookiesAdded(const String& host, Vector<WebCore::Cookie>&&);

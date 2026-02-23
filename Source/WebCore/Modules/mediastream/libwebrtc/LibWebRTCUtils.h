@@ -75,13 +75,13 @@ RTCRtpTransceiverDirection toRTCRtpTransceiverDirection(webrtc::RtpTransceiverDi
 webrtc::RtpTransceiverDirection fromRTCRtpTransceiverDirection(RTCRtpTransceiverDirection);
 webrtc::RtpTransceiverInit fromRtpTransceiverInit(const RTCRtpTransceiverInit&, webrtc::MediaType);
 
-ExceptionCode toExceptionCode(webrtc::RTCErrorType);
+ExceptionCode NODELETE toExceptionCode(webrtc::RTCErrorType);
 Exception toException(const webrtc::RTCError&);
 RefPtr<RTCError> toRTCError(const webrtc::RTCError&);
 
 RTCPriorityType toRTCPriorityType(webrtc::PriorityValue);
 RTCPriorityType toRTCPriorityType(webrtc::Priority);
-webrtc::Priority fromRTCPriorityType(RTCPriorityType);
+webrtc::Priority NODELETE fromRTCPriorityType(RTCPriorityType);
 
 inline String fromStdString(const std::string& value)
 {

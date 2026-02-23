@@ -78,7 +78,7 @@ void AutoscrollController::startAutoscrollForSelection(RenderObject* renderer)
     // We don't want to trigger the autoscroll or the panScroll if it's already active
     if (m_autoscrollTimer.isActive())
         return;
-    auto* scrollable = RenderBox::findAutoscrollable(renderer);
+    CheckedPtr scrollable = RenderBox::findAutoscrollable(renderer);
     if (!scrollable)
         scrollable = renderer->isRenderListBox() ? downcast<RenderListBox>(renderer) : nullptr;
     if (!scrollable)
@@ -130,7 +130,7 @@ void AutoscrollController::updateAutoscrollRenderer()
     if (!m_autoscrollRenderer)
         return;
 
-    RenderObject* renderer = m_autoscrollRenderer.get();
+    CheckedPtr<RenderObject> renderer = m_autoscrollRenderer.get();
 
 #if ENABLE(PAN_SCROLLING)
     constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::AllowChildFrameContent };

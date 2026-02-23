@@ -307,7 +307,7 @@ void WebResourceLoadStatisticsStore::statisticsDatabaseHasAllTables(CompletionHa
             return;
         }
         auto missingTables = statisticsStore->checkForMissingTablesInSchema();
-        postTaskReply([hasAllTables = missingTables ? false : true, completionHandler = WTF::move(completionHandler)] () mutable {
+        postTaskReply([hasAllTables = !missingTables, completionHandler = WTF::move(completionHandler)] () mutable {
             completionHandler(hasAllTables);
         });
     });

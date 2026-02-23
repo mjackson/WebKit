@@ -69,8 +69,8 @@ public:
     void unlockStorage(IPC::Connection::UniqueID);
 
     void connectionClosed(IPC::Connection::UniqueID);
-    bool hasDataInMemory();
-    bool isActive();
+    bool NODELETE hasDataInMemory();
+    bool NODELETE isActive();
     String representationString();
     FileSystem::Salt salt() const { return m_salt; }
     void requestSpace(uint64_t size, CompletionHandler<void(bool)>&&);

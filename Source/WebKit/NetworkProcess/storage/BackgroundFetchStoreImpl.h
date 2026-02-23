@@ -76,8 +76,6 @@ private:
     void fetchInformationFromFilename(const String&, CompletionHandler<void(const WebCore::ServiceWorkerRegistrationKey&, const String&)>&&);
     void initializeFetches(const WebCore::ClientOrigin&, CompletionHandler<void()>&&);
 
-    RefPtr<WebCore::SWServer> protectedServer();
-
     ThreadSafeWeakPtr<NetworkStorageManager> m_manager;
 
     using FetchIdentifier = std::pair<String, String>; // < service worker registration scope, background fetch identifier >

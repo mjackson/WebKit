@@ -74,7 +74,6 @@ private:
     RemoteSampler& operator=(RemoteSampler&&) = delete;
 
     WebCore::WebGPU::Sampler& backing() { return m_backing; }
-    Ref<IPC::StreamServerConnection> protectedStreamConnection() const;
 
     void didReceiveStreamMessage(IPC::StreamServerConnection&, IPC::Decoder&) final;
 

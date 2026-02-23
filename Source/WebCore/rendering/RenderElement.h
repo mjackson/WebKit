@@ -40,7 +40,6 @@ class ReferencedSVGResources;
 class RenderBlock;
 class RenderStyle;
 class RenderTreeBuilder;
-class StyleImage;
 struct ImageOrientation;
 
 struct MarginRect {
@@ -53,6 +52,7 @@ class ElementBox;
 }
 
 namespace Style {
+class Image;
 struct Content;
 }
 
@@ -74,8 +74,6 @@ public:
     bool hasInitializedStyle() const { return m_hasInitializedStyle; }
 
     const RenderStyle& style() const { return m_style; }
-    // FIXME: Remove checkedStyle once https://github.com/llvm/llvm-project/pull/142485 lands. This is a false positive.
-    const CheckedRef<const RenderStyle> checkedStyle() const { return m_style; }
     const RenderStyle* parentStyle() const { return !m_parent ? nullptr : &m_parent->style(); }
     const RenderStyle& firstLineStyle() const;
 
@@ -105,7 +103,7 @@ public:
     RenderObject* firstInFlowChild() const;
     RenderObject* lastInFlowChild() const;
 
-    Layout::ElementBox* layoutBox();
+    Layout::ElementBox* NODELETE layoutBox();
     const Layout::ElementBox* layoutBox() const;
 
     // Note that even if these 2 "canContain" functions return true for a particular renderer, it does not necessarily mean the renderer is the containing block (see containingBlockForAbsolute(Fixed)Position).
@@ -113,12 +111,12 @@ public:
     inline bool canContainAbsolutelyPositionedObjects(const RenderStyle* styleToUse = nullptr) const; // Defined in RenderElementStyleInlines.h.
     bool canEstablishContainingBlockWithTransform() const;
 
-    inline bool shouldApplyLayoutContainment(const RenderStyle* styleToUse = nullptr) const; // Defined in RenderElementStyleInlines.h
+    inline bool shouldApplyLayoutContainment() const; // Defined in RenderElementStyleInlines.h
     inline bool shouldApplySizeContainment() const; // Defined in RenderElementStyleInlines.h
     inline bool shouldApplyInlineSizeContainment() const; // Defined in RenderElementStyleInlines.h.
     inline bool shouldApplySizeOrInlineSizeContainment() const; // Defined in RenderElementStyleInlines.h
     inline bool shouldApplyStyleContainment() const; // Defined in RenderElementStyleInlines.h.
-    inline bool shouldApplyPaintContainment(const RenderStyle* styleToUse = nullptr) const; // Defined in RenderElementStyleInlines.h.
+    inline bool shouldApplyPaintContainment() const; // Defined in RenderElementStyleInlines.h.
     inline bool shouldApplyAnyContainment() const; // Defined in RenderElementStyleInlines.h.
 
     bool hasEligibleContainmentForSizeQuery() const;
@@ -148,8 +146,8 @@ public:
     virtual void dirtyLineFromChangedChild() { }
 
     void setChildNeedsLayout(MarkingBehavior = MarkContainingBlockChain);
-    void setOutOfFlowChildNeedsStaticPositionLayout();
-    void clearChildNeedsLayout();
+    void NODELETE setOutOfFlowChildNeedsStaticPositionLayout();
+    void NODELETE clearChildNeedsLayout();
     void setNeedsOutOfFlowMovementLayout(const RenderStyle* oldStyle);
     void setNeedsLayoutForStyleDifference(Style::Difference, const RenderStyle* oldStyle);
     void setNeedsLayoutForOverflowChange();
@@ -200,14 +198,14 @@ public:
     inline bool hasClipOrNonVisibleOverflow() const; // Defined in RenderElementStyleInlines.h.
     inline bool hasClipPath() const; // Defined in RenderElementStyleInlines.h.
     inline bool hasHiddenBackface() const; // Defined in RenderElementStyleInlines.h.
-    bool hasViewTransitionName() const;
-    bool isViewTransitionRoot() const;
-    bool requiresRenderingConsolidationForViewTransition() const;
+    bool NODELETE hasViewTransitionName() const;
+    bool NODELETE isViewTransitionRoot() const;
+    bool NODELETE requiresRenderingConsolidationForViewTransition() const;
     bool hasOutlineAnnotation() const;
     inline bool hasOutline() const; // Defined in RenderElementStyleInlines.h.
-    bool hasSelfPaintingLayer() const;
+    bool NODELETE hasSelfPaintingLayer() const;
 
-    bool checkForRepaintDuringLayout() const;
+    bool NODELETE checkForRepaintDuringLayout() const;
 
     // absoluteAnchorRect() is conceptually similar to absoluteBoundingBoxRect(), but is intended for scrolling to an
     // anchor. For inline renderers, this gets the logical top left of the first leaf child and the logical bottom
@@ -297,8 +295,8 @@ public:
 
     ReferencedSVGResources& ensureReferencedSVGResources();
 
-    Overflow effectiveOverflowX() const;
-    Overflow effectiveOverflowY() const;
+    Overflow NODELETE effectiveOverflowX() const;
+    Overflow NODELETE effectiveOverflowY() const;
     inline Overflow effectiveOverflowInlineDirection() const;
     inline Overflow effectiveOverflowBlockDirection() const;
     virtual bool overflowChangesMayAffectLayout() const { return false; }
@@ -338,9 +336,9 @@ public:
 
     inline bool hasPotentiallyScrollableOverflow() const;
 
-    inline bool isBeforeContent() const;
-    inline bool isAfterContent() const;
-    inline bool isBeforeOrAfterContent() const;
+    inline bool NODELETE isBeforeContent() const;
+    inline bool NODELETE isAfterContent() const;
+    inline bool NODELETE isBeforeOrAfterContent() const;
     static bool isBeforeContent(const RenderElement*);
     static bool isAfterContent(const RenderElement*);
     static bool isBeforeOrAfterContent(const RenderElement*);
@@ -351,7 +349,7 @@ protected:
     RenderElement(Type, Element&, RenderStyle&&, OptionSet<TypeFlag>, TypeSpecificFlags);
     RenderElement(Type, Document&, RenderStyle&&, OptionSet<TypeFlag>, TypeSpecificFlags);
 
-    bool layerCreationAllowedForSubtree() const;
+    bool NODELETE layerCreationAllowedForSubtree() const;
 
     enum class StylePropagationType {
         AllChildren,
@@ -418,7 +416,7 @@ private:
     bool shouldRepaintForStyleDifference(Style::Difference) const;
 
     template<typename FillLayerType> void updateFillImages(const FillLayerType*, const FillLayerType*);
-    void updateImage(StyleImage*, StyleImage*);
+    void updateImage(Style::Image*, Style::Image*);
     void updateShapeImage(const Style::ShapeOutside*, const Style::ShapeOutside*);
 
     Style::Difference adjustStyleDifference(Style::Difference) const;
@@ -478,10 +476,6 @@ private:
     RenderStyle m_style;
 };
 
-inline int adjustForAbsoluteZoom(int, const RenderElement&); // Defined in RenderElementStyleInlines.h.
-inline LayoutUnit adjustLayoutUnitForAbsoluteZoom(LayoutUnit, const RenderElement&); // Defined in RenderElementStyleInlines.h.
-inline LayoutSize adjustLayoutSizeForAbsoluteZoom(LayoutSize, const RenderElement&); // Defined in RenderElementStyleInlines.h.
-
 inline void RenderElement::setChildNeedsLayout(MarkingBehavior markParents)
 {
     ASSERT(!isSetNeedsLayoutForbidden());
@@ -499,9 +493,9 @@ inline bool RenderElement::canEstablishContainingBlockWithTransform() const
 
 inline RenderObject* RenderElement::firstInFlowChild() const
 {
-    if (auto* firstChild = this->firstChild()) {
+    if (CheckedPtr firstChild = this->firstChild()) {
         if (firstChild->isInFlow())
-            return firstChild;
+            return firstChild.unsafeGet();
         return firstChild->nextInFlowSibling();
     }
     return nullptr;
@@ -509,20 +503,15 @@ inline RenderObject* RenderElement::firstInFlowChild() const
 
 inline RenderObject* RenderElement::lastInFlowChild() const
 {
-    if (auto* lastChild = this->lastChild()) {
+    if (CheckedPtr lastChild = this->lastChild()) {
         if (lastChild->isInFlow())
-            return lastChild;
+            return lastChild.unsafeGet();
         return lastChild->previousInFlowSibling();
     }
     return nullptr;
 }
 
 inline RenderElement* RenderObject::parent() const
-{
-    return m_parent.get();
-}
-
-inline CheckedPtr<RenderElement> RenderObject::checkedParent() const
 {
     return m_parent.get();
 }

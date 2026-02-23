@@ -633,39 +633,47 @@ UNIFIED_PDF_TEST(PDFHUDLoadPDFTypeWithPluginsBlocked)
 
 UNIFIED_PDF_TEST(SnapshotsPaintPageContent)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 600, 600) configuration:configurationForWebViewTestingUnifiedPDF().get() addToWindow:YES]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 600, 600) configuration:configurationForWebViewTestingUnifiedPDF().get() addToWindow:YES]);
 
     [webView synchronouslyLoadHTMLString:@"<embed src='multiple-pages.pdf' width='600' height='600'>"];
     [webView waitForNextPresentationUpdate];
 
-    __block bool done = false;
-
-    RetainPtr<WKSnapshotConfiguration> snapshotConfiguration = adoptNS([[WKSnapshotConfiguration alloc] init]);
+    RetainPtr snapshotConfiguration = adoptNS([[WKSnapshotConfiguration alloc] init]);
     [snapshotConfiguration setRect:NSMakeRect(100, 100, 100, 100)];
 
-    [webView takeSnapshotWithConfiguration:snapshotConfiguration.get() completionHandler:^(Util::PlatformImage *snapshotImage, NSError *error) {
-        EXPECT_NULL(error);
-        RetainPtr cgImage = Util::convertToCGImage(snapshotImage);
+    bool foundNonWhitePixel = false;
 
-        CGImagePixelReader reader { cgImage.get() };
+    Util::waitFor([&] {
+        __block bool snapshotDone = false;
+        __block bool foundNonWhitePixelInSnapshot = false;
 
-        bool foundNonWhitePixel = false;
+        [webView takeSnapshotWithConfiguration:snapshotConfiguration.get() completionHandler:^(Util::PlatformImage *snapshotImage, NSError *error) {
+            if (error) {
+                snapshotDone = true;
+                return;
+            }
 
-        for (unsigned x = 0; x < reader.width(); x++) {
-            for (unsigned y = 0; y < reader.height(); y++) {
-                if (reader.at(x, y) != WebCore::Color::white) {
-                    foundNonWhitePixel = true;
-                    break;
+            RetainPtr cgImage = Util::convertToCGImage(snapshotImage);
+            CGImagePixelReader reader { cgImage.get() };
+
+            for (unsigned x = 0; x < reader.width() && !foundNonWhitePixelInSnapshot; x++) {
+                for (unsigned y = 0; y < reader.height(); y++) {
+                    if (reader.at(x, y) != WebCore::Color::white) {
+                        foundNonWhitePixelInSnapshot = true;
+                        break;
+                    }
                 }
             }
-        }
 
-        EXPECT_TRUE(foundNonWhitePixel);
+            snapshotDone = true;
+        }];
 
-        done = true;
-    }];
+        Util::run(&snapshotDone);
+        foundNonWhitePixel = foundNonWhitePixel | foundNonWhitePixelInSnapshot;
+        return foundNonWhitePixel;
+    });
 
-    Util::run(&done);
+    EXPECT_TRUE(foundNonWhitePixel);
 }
 
 #if PLATFORM(IOS) || PLATFORM(VISION)

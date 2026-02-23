@@ -115,8 +115,8 @@ bool PlacedFloats::Item::isInFormattingContextOf(const ElementBox& formattingCon
 {
     ASSERT(formattingContextRoot.establishesFormattingContext());
     ASSERT(!is<InitialContainingBlock>(m_layoutBox));
-    for (auto& containingBlock : containingBlockChain(*m_layoutBox)) {
-        if (&containingBlock == &formattingContextRoot)
+    for (CheckedRef containingBlock : containingBlockChain(*m_layoutBox)) {
+        if (containingBlock.ptr() == &formattingContextRoot)
             return true;
     }
     ASSERT_NOT_REACHED();

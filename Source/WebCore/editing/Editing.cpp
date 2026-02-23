@@ -350,7 +350,7 @@ TextDirection directionOfEnclosingBlock(const Position& position)
     auto block = enclosingBlock(protect(position.containerNode()));
     if (!block)
         return TextDirection::LTR;
-    auto renderer = block->renderer();
+    CheckedPtr renderer = block->renderer();
     if (!renderer)
         return TextDirection::LTR;
     return renderer->writingMode().bidiDirection();
@@ -431,7 +431,7 @@ RefPtr<Element> isFirstPositionAfterTable(const VisiblePosition& position)
     RefPtr node = upstream.deprecatedNode();
     if (!node)
         return nullptr;
-    auto* renderer = node->renderer();
+    CheckedPtr renderer = node->renderer();
     if (!renderer || !renderer->isRenderTable() || !upstream.atLastEditingPositionForNode())
         return nullptr;
     return downcast<Element>(node.releaseNonNull());
@@ -443,7 +443,7 @@ RefPtr<Element> isLastPositionBeforeTable(const VisiblePosition& position)
     RefPtr node = downstream.deprecatedNode();
     if (!node)
         return nullptr;
-    auto* renderer = node->renderer();
+    CheckedPtr renderer = node->renderer();
     if (!renderer || !renderer->isRenderTable() || !downstream.atFirstEditingPositionForNode())
         return nullptr;
     return downcast<Element>(node.releaseNonNull());
@@ -573,7 +573,7 @@ RefPtr<Node> highestNodeToRemoveInPruning(Node* node)
     RefPtr<Node> previousNode;
     RefPtr rootEditableElement = node ? node->rootEditableElement() : nullptr;
     for (RefPtr currentNode = node; currentNode; currentNode = currentNode->parentNode()) {
-        if (auto* renderer = currentNode->renderer()) {
+        if (CheckedPtr renderer = currentNode->renderer()) {
             if (!renderer->canHaveChildren() || hasARenderedDescendant(currentNode.get(), previousNode.get()) || rootEditableElement == currentNode.get())
                 return previousNode;
         }
@@ -765,7 +765,7 @@ bool isEmptyTableCell(const Node* node)
         if (!renderer)
             return false;
     }
-    auto* renderTableCell = dynamicDowncast<RenderTableCell>(*renderer);
+    CheckedPtr renderTableCell = dynamicDowncast<RenderTableCell>(*renderer);
     if (!renderTableCell)
         return false;
 
@@ -883,7 +883,7 @@ bool isMailBlockquote(const Node& node)
 
 int caretMinOffset(const Node& node)
 {
-    auto* renderer = node.renderer();
+    CheckedPtr renderer = node.renderer();
     ASSERT(!node.isCharacterDataNode() || !renderer || renderer->isRenderText());
 
     if (renderer && renderer->isRenderText())
@@ -903,7 +903,7 @@ int caretMaxOffset(const Node& node)
 {
     // For rendered text nodes, return the last position that a caret could occupy.
     if (auto* text = dynamicDowncast<Text>(node)) {
-        if (auto* renderer = text->renderer())
+        if (CheckedPtr renderer = text->renderer())
             return renderer->caretMaxOffset();
     }
     return lastOffsetForEditing(node);
@@ -1070,7 +1070,7 @@ bool isRenderedAsNonInlineTableImageOrHR(const Node* node)
 {
     if (!node)
         return false;
-    RenderObject* renderer = node->renderer();
+    CheckedPtr renderer = node->renderer();
     return renderer && !renderer->isInline() && (renderer->isRenderTable() || renderer->isImage() || renderer->isHR());
 }
 
@@ -1162,12 +1162,12 @@ RenderBlock* rendererForCaretPainting(const Node* node)
     if (!node)
         return nullptr;
 
-    auto* renderer = node->renderer();
+    SUPPRESS_UNCHECKED_LOCAL auto* renderer = node->renderer();
     if (!renderer)
         return nullptr;
 
     // If caretNode is a block and caret is inside it, then caret should be painted by that block.
-    if (auto* blockFlow = dynamicDowncast<RenderBlockFlow>(*renderer)) {
+    if (SUPPRESS_UNCHECKED_LOCAL auto* blockFlow = dynamicDowncast<RenderBlockFlow>(*renderer)) {
         if (caretRendersInsideNode(*node))
             return blockFlow;
     }

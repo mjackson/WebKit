@@ -77,7 +77,7 @@ private:
         m_lastValue.visit(visitor);
     }
 
-    Ref<DeferredPromise> protectedPromise() const { return m_promise; }
+    Ref<DeferredPromise> NODELETE protectedPromise() const { return m_promise; }
 
     InternalObserverLast(ScriptExecutionContext& context, Ref<DeferredPromise>&& promise)
         : InternalObserver(context)

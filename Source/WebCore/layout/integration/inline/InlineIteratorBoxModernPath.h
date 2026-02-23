@@ -201,7 +201,7 @@ public:
     {
         auto lineIndex = box().lineIndex();
         bool wasInlineBox = box().isInlineBox();
-        auto& startBox = box().layoutBox();
+        CheckedRef startBox = box().layoutBox();
 
         traverseNextBox();
 
@@ -228,7 +228,7 @@ public:
     {
         ASSERT(box().isInlineBox());
 
-        auto& inlineBox = box().layoutBox();
+        CheckedRef inlineBox = box().layoutBox();
 
         // The next box is the first descendant of this box;
         auto first = *this;
@@ -244,7 +244,7 @@ public:
     {
         ASSERT(box().isInlineBox());
 
-        auto& inlineBox = box().layoutBox();
+        CheckedRef inlineBox = box().layoutBox();
 
         // FIXME: Get the last box index directly from the display box.
         auto last = firstLeafBoxForInlineBox();
@@ -294,7 +294,7 @@ public:
 private:
     bool isWithinInlineBox(const Layout::Box& inlineBox)
     {
-        for (auto* layoutBox = &box().layoutBox().parent();; layoutBox = &layoutBox->parent()) {
+        for (CheckedPtr layoutBox = &box().layoutBox().parent();; layoutBox = &layoutBox->parent()) {
             if (layoutBox == &inlineBox)
                 return true;
             if (!layoutBox->isInlineBox())

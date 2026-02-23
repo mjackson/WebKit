@@ -66,7 +66,7 @@ RenderFrameSet::RenderFrameSet(HTMLFrameSetElement& frameSet, RenderStyle&& styl
 
 RenderFrameSet::~RenderFrameSet() = default;
 
-HTMLFrameSetElement& RenderFrameSet::frameSetElement() const
+HTMLFrameSetElement& NODELETE RenderFrameSet::frameSetElement() const
 {
     return downcast<HTMLFrameSetElement>(nodeForNonAnonymous());
 }

@@ -50,11 +50,6 @@ PerformanceObserver::PerformanceObserver(ScriptExecutionContext& scriptExecution
         ASSERT_NOT_REACHED();
 }
 
-RefPtr<Performance> PerformanceObserver::protectedPerformance() const
-{
-    return m_performance;
-}
-
 void PerformanceObserver::disassociate()
 {
     m_performance = nullptr;
@@ -93,7 +88,7 @@ ExceptionOr<void> PerformanceObserver::observe(Init&& init)
         if (init.buffered) {
             isBuffered = true;
             auto oldSize = m_entriesToDeliver.size();
-            protectedPerformance()->appendBufferedEntriesByType(init.type, m_entriesToDeliver, *this);
+            protect(m_performance)->appendBufferedEntriesByType(init.type, m_entriesToDeliver, *this);
             auto entriesToDeliver = m_entriesToDeliver.mutableSpan();
             auto begin = entriesToDeliver.begin();
             auto oldEnd = entriesToDeliver.subspan(oldSize).begin();
@@ -108,12 +103,12 @@ ExceptionOr<void> PerformanceObserver::observe(Init&& init)
     }
 
     if (!m_registered) {
-        protectedPerformance()->registerPerformanceObserver(*this);
+        protect(m_performance)->registerPerformanceObserver(*this);
         m_registered = true;
     }
 
     if (isBuffered && m_entriesToDeliver.size())
-        protectedPerformance()->scheduleTaskIfNeeded();
+        protect(m_performance)->scheduleTaskIfNeeded();
 
     return { };
 }

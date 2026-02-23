@@ -496,6 +496,7 @@ UIProcess/API/APIContextMenuElementInfo.cpp
 UIProcess/API/APIDataTask.cpp
 UIProcess/API/APIDebuggableInfo.cpp
 UIProcess/API/APIFeature.cpp
+UIProcess/API/APIFormInfo.cpp
 UIProcess/API/APIFrameInfo.cpp
 UIProcess/API/APIFrameTreeNode.cpp
 UIProcess/API/APIHTTPCookieStore.cpp
@@ -626,17 +627,17 @@ UIProcess/GPU/GPUProcessProxy.cpp
 
 UIProcess/Model/ModelProcessProxy.cpp
 
+UIProcess/Inspector/FrameInspectorTargetProxy.cpp
 UIProcess/Inspector/InspectorTargetProxy.cpp
+UIProcess/Inspector/PageInspectorTargetProxy.cpp
 UIProcess/Inspector/RemoteWebInspectorUIProxy.cpp
-UIProcess/Inspector/WebFrameInspectorTargetProxy.cpp
+UIProcess/Inspector/WasmDebuggerDebuggable.cpp
 UIProcess/Inspector/WebInspectorBackendProxy.cpp
 UIProcess/Inspector/WebInspectorUIExtensionControllerProxy.cpp
 UIProcess/Inspector/WebInspectorUIProxy.cpp
 UIProcess/Inspector/WebInspectorUtilities.cpp
-UIProcess/Inspector/WasmDebuggerDebuggable.cpp
 UIProcess/Inspector/WebPageDebuggable.cpp
 UIProcess/Inspector/WebPageInspectorController.cpp
-UIProcess/Inspector/WebPageInspectorTargetProxy.cpp
 
 UIProcess/Inspector/Agents/InspectorBrowserAgent.cpp
 
@@ -741,8 +742,8 @@ WebProcess/InjectedBundle/DOM/InjectedBundleNodeHandle.cpp @no-unify
 WebProcess/InjectedBundle/DOM/InjectedBundleRangeHandle.cpp @no-unify
 
 WebProcess/Inspector/RemoteWebInspectorUI.cpp
-WebProcess/Inspector/WebFrameInspectorTarget.cpp
-WebProcess/Inspector/WebFrameInspectorTargetFrontendChannel.cpp
+WebProcess/Inspector/UIProcessForwardingFrontendChannel.cpp
+WebProcess/Inspector/FrameInspectorTarget.cpp
 WebProcess/Inspector/WebInspectorBackend.cpp
 WebProcess/Inspector/WebInspectorBackendClient.cpp
 WebProcess/Inspector/WebInspectorInterruptDispatcher.cpp
@@ -750,8 +751,7 @@ WebProcess/Inspector/WebInspectorUI.cpp
 
 WebProcess/Inspector/WasmDebuggerDispatcher.cpp
 WebProcess/Inspector/WebInspectorUIExtensionController.cpp
-WebProcess/Inspector/WebPageInspectorTarget.cpp
-WebProcess/Inspector/WebPageInspectorTargetFrontendChannel.cpp
+WebProcess/Inspector/PageInspectorTarget.cpp
 
 WebProcess/Media/RemoteMediaSessionManager.cpp
 

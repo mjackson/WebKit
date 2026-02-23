@@ -75,7 +75,7 @@ private:
     MessageQueue<DatabaseTask> m_queue;
 
     // This set keeps track of the open databases that have been used on this thread.
-    using DatabaseSet = HashSet<RefPtr<Database>>;
+    using DatabaseSet = HashSet<Ref<Database>>;
     mutable Lock m_openDatabaseSetLock;
     DatabaseSet m_openDatabaseSet WTF_GUARDED_BY_LOCK(m_openDatabaseSetLock);
 

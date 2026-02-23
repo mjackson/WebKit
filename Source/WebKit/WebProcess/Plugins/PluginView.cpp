@@ -114,11 +114,11 @@ private:
     }
 
     // NetscapePluginStreamLoaderClient
-    void willSendRequest(NetscapePlugInStreamLoader*, ResourceRequest&&, const ResourceResponse& redirectResponse, CompletionHandler<void(ResourceRequest&&)>&&) override;
-    void didReceiveResponse(NetscapePlugInStreamLoader*, const ResourceResponse&) override;
-    void didReceiveData(NetscapePlugInStreamLoader*, const SharedBuffer&) override;
-    void didFail(NetscapePlugInStreamLoader*, const ResourceError&) override;
-    void didFinishLoading(NetscapePlugInStreamLoader*) override;
+    void willSendRequest(NetscapePlugInStreamLoader&, ResourceRequest&&, const ResourceResponse& redirectResponse, CompletionHandler<void(ResourceRequest&&)>&&) override;
+    void didReceiveResponse(NetscapePlugInStreamLoader&, const ResourceResponse&) override;
+    void didReceiveData(NetscapePlugInStreamLoader&, const SharedBuffer&) override;
+    void didFail(NetscapePlugInStreamLoader&, const ResourceError&) override;
+    void didFinishLoading(NetscapePlugInStreamLoader&) override;
 
     SingleThreadWeakPtr<PluginView> m_pluginView;
     ResourceRequest m_request;
@@ -166,23 +166,23 @@ void PluginView::Stream::continueLoad()
     m_loadCallback(ResourceRequest(m_request));
 }
 
-void PluginView::Stream::willSendRequest(NetscapePlugInStreamLoader*, ResourceRequest&& request, const ResourceResponse&, CompletionHandler<void(ResourceRequest&&)>&& decisionHandler)
+void PluginView::Stream::willSendRequest(NetscapePlugInStreamLoader&, ResourceRequest&& request, const ResourceResponse&, CompletionHandler<void(ResourceRequest&&)>&& decisionHandler)
 {
     m_loadCallback = WTF::move(decisionHandler);
     m_request = WTF::move(request);
 }
 
-void PluginView::Stream::didReceiveResponse(NetscapePlugInStreamLoader*, const ResourceResponse& response)
+void PluginView::Stream::didReceiveResponse(NetscapePlugInStreamLoader&, const ResourceResponse& response)
 {
     m_pluginView->m_plugin->streamDidReceiveResponse(response);
 }
 
-void PluginView::Stream::didReceiveData(NetscapePlugInStreamLoader*, const SharedBuffer& buffer)
+void PluginView::Stream::didReceiveData(NetscapePlugInStreamLoader&, const SharedBuffer& buffer)
 {
     m_pluginView->m_plugin->streamDidReceiveData(buffer);
 }
 
-void PluginView::Stream::didFail(NetscapePlugInStreamLoader*, const ResourceError&)
+void PluginView::Stream::didFail(NetscapePlugInStreamLoader&, const ResourceError&)
 {
     // Calling streamDidFail could cause us to be deleted, so we hold on to a reference here.
     Ref protectedThis { *this };
@@ -196,7 +196,7 @@ void PluginView::Stream::didFail(NetscapePlugInStreamLoader*, const ResourceErro
     m_pluginView = nullptr;
 }
 
-void PluginView::Stream::didFinishLoading(NetscapePlugInStreamLoader*)
+void PluginView::Stream::didFinishLoading(NetscapePlugInStreamLoader&)
 {
     // Calling streamDidFinishLoading could cause us to be deleted, so we hold on to a reference here.
     Ref protectedThis { *this };
@@ -260,11 +260,6 @@ PluginView::~PluginView()
     if (RefPtr stream = m_stream)
         stream->cancel();
     m_plugin->destroy();
-}
-
-RefPtr<WebPage> PluginView::protectedWebPage() const
-{
-    return m_webPage.get();
 }
 
 LocalFrame* PluginView::frame() const
@@ -429,7 +424,7 @@ void PluginView::initializePlugin()
 
 #if PLATFORM(COCOA)
     if (plugin->isComposited() && frame()) {
-        frame()->protectedView()->enterCompositingMode();
+        protect(frame()->view())->enterCompositingMode();
         m_pluginElement->invalidateStyleAndLayerComposition();
     }
     plugin->visibilityDidChange(isVisible());
@@ -934,7 +929,7 @@ IntRect PluginView::clipRectInWindowCoordinates() const
     RefPtr frame = this->frame();
 
     // Get the window clip rect for the plugin element (in window coordinates).
-    IntRect windowClipRect = frame->protectedView()->windowClipRectForFrameOwner(m_pluginElement.ptr(), true);
+    IntRect windowClipRect = protect(frame->view())->windowClipRectForFrameOwner(m_pluginElement.ptr(), true);
 
     // Intersect the two rects to get the view clip rect in window coordinates.
     frameRectInWindowCoordinates.intersect(windowClipRect);
@@ -951,7 +946,7 @@ void PluginView::focusPluginElement()
     if (RefPtr page = frame->page())
         page->focusController().setFocusedElement(pluginElement.ptr(), frame.get());
     else
-        frame->protectedDocument()->setFocusedElement(pluginElement.ptr());
+        protect(frame->document())->setFocusedElement(pluginElement.ptr());
 }
 
 void PluginView::pendingResourceRequestTimerFired()
@@ -1085,7 +1080,7 @@ WebCore::FloatRect PluginView::rectForSelectionInRootView(PDFSelection *selectio
 
 bool PluginView::isUsingUISideCompositing() const
 {
-    return protectedWebPage()->isUsingUISideCompositing();
+    return protect(m_webPage.get())->isUsingUISideCompositing();
 }
 
 void PluginView::didChangeSettings()
@@ -1156,6 +1151,38 @@ void PluginView::openWithPreview(CompletionHandler<void(const String&, std::opti
     m_plugin->openWithPreview(WTF::move(completionHandler));
 }
 
+#if ENABLE(TWO_PHASE_CLICKS)
+
+std::pair<URL, FloatRect> PluginView::linkURLAndBoundsAtPoint(FloatPoint pointInRootView) const
+{
+    return m_plugin->linkURLAndBoundsAtPoint(pointInRootView);
+}
+
+std::tuple<URL, FloatRect, RefPtr<TextIndicator>> PluginView::linkDataAtPoint(FloatPoint pointInRootView)
+{
+    return m_plugin->linkDataAtPoint(pointInRootView);
+}
+
+std::optional<FloatRect> PluginView::highlightRectForTapAtPoint(FloatPoint pointInRootView) const
+{
+    return m_plugin->highlightRectForTapAtPoint(pointInRootView);
+}
+
+CursorContext PluginView::cursorContext(FloatPoint pointInRootView) const
+{
+    return m_plugin->cursorContext(pointInRootView);
+}
+
+void PluginView::clearSelection()
+{
+    m_plugin->clearSelection();
+}
+
+void PluginView::handleSyntheticClick(PlatformMouseEvent&& event)
+{
+    m_plugin->handleSyntheticClick(WTF::move(event));
+}
+
 #if PLATFORM(IOS_FAMILY)
 
 void PluginView::setSelectionRange(FloatPoint pointInRootView, TextGranularity granularity)
@@ -1178,37 +1205,9 @@ DocumentEditingContext PluginView::documentEditingContext(DocumentEditingContext
     return m_plugin->documentEditingContext(WTF::move(request));
 }
 
-void PluginView::clearSelection()
-{
-    m_plugin->clearSelection();
-}
-
-std::pair<URL, FloatRect> PluginView::linkURLAndBoundsAtPoint(FloatPoint pointInRootView) const
-{
-    return m_plugin->linkURLAndBoundsAtPoint(pointInRootView);
-}
-
-std::tuple<URL, FloatRect, RefPtr<TextIndicator>> PluginView::linkDataAtPoint(FloatPoint pointInRootView)
-{
-    return m_plugin->linkDataAtPoint(pointInRootView);
-}
-
-std::optional<FloatRect> PluginView::highlightRectForTapAtPoint(FloatPoint pointInRootView) const
-{
-    return m_plugin->highlightRectForTapAtPoint(pointInRootView);
-}
-
-void PluginView::handleSyntheticClick(PlatformMouseEvent&& event)
-{
-    m_plugin->handleSyntheticClick(WTF::move(event));
-}
-
-CursorContext PluginView::cursorContext(FloatPoint pointInRootView) const
-{
-    return m_plugin->cursorContext(pointInRootView);
-}
-
 #endif // PLATFORM(IOS_FAMILY)
+
+#endif // ENABLE(TWO_PHASE_CLICKS)
 
 bool PluginView::populateEditorStateIfNeeded(EditorState& state) const
 {

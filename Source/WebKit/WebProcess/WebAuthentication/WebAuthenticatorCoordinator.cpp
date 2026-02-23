@@ -73,18 +73,13 @@ WebAuthenticatorCoordinator::WebAuthenticatorCoordinator(WebPage& webPage)
 {
 }
 
-Ref<WebPage> WebAuthenticatorCoordinator::protectedPage() const
-{
-    return m_webPage.get();
-}
-
 void WebAuthenticatorCoordinator::makeCredential(const LocalFrame& frame, const PublicKeyCredentialCreationOptions& options, MediationRequirement mediation, RequestCompletionHandler&& handler)
 {
     auto webFrame = WebFrame::fromCoreFrame(frame);
     if (!webFrame)
         return;
 
-    protectedPage()->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::MakeCredential(webFrame->frameID(), webFrame->info(), options, mediation), WTF::move(handler));
+    protect(m_webPage)->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::MakeCredential(webFrame->frameID(), webFrame->info(), options, mediation), WTF::move(handler));
 }
 
 void WebAuthenticatorCoordinator::getAssertion(const LocalFrame& frame, const PublicKeyCredentialRequestOptions& options, MediationRequirement mediation, const ScopeAndCrossOriginParent& scopeAndCrossOriginParent, RequestCompletionHandler&& handler)
@@ -93,42 +88,42 @@ void WebAuthenticatorCoordinator::getAssertion(const LocalFrame& frame, const Pu
     if (!webFrame)
         return;
 
-    protectedPage()->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::GetAssertion(webFrame->frameID(), webFrame->info(), options, mediation, scopeAndCrossOriginParent.second), WTF::move(handler));
+    protect(m_webPage)->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::GetAssertion(webFrame->frameID(), webFrame->info(), options, mediation, scopeAndCrossOriginParent.second), WTF::move(handler));
 }
 
 void WebAuthenticatorCoordinator::isConditionalMediationAvailable(const SecurityOrigin& origin, QueryCompletionHandler&& handler)
 {
-    protectedPage()->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::isConditionalMediationAvailable(origin.data()), WTF::move(handler));
+    protect(m_webPage)->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::isConditionalMediationAvailable(origin.data()), WTF::move(handler));
 };
 
 void WebAuthenticatorCoordinator::isUserVerifyingPlatformAuthenticatorAvailable(const SecurityOrigin& origin, QueryCompletionHandler&& handler)
 {
-    protectedPage()->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::IsUserVerifyingPlatformAuthenticatorAvailable(origin.data()), WTF::move(handler));
+    protect(m_webPage)->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::IsUserVerifyingPlatformAuthenticatorAvailable(origin.data()), WTF::move(handler));
 }
 
 void WebAuthenticatorCoordinator::cancel(CompletionHandler<void()>&& handler)
 {
-    protectedPage()->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::Cancel(), WTF::move(handler));
+    protect(m_webPage)->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::Cancel(), WTF::move(handler));
 }
 
 void WebAuthenticatorCoordinator::getClientCapabilities(const SecurityOrigin& origin, CapabilitiesCompletionHandler&& handler)
 {
-    protectedPage()->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::GetClientCapabilities(origin.data()), WTF::move(handler));
+    protect(m_webPage)->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::GetClientCapabilities(origin.data()), WTF::move(handler));
 }
 
 void WebAuthenticatorCoordinator::signalUnknownCredential(const SecurityOrigin& origin, UnknownCredentialOptions&& options, CompletionHandler<void(std::optional<WebCore::ExceptionData>)>&& handler)
 {
-    protectedPage()->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::SignalUnknownCredential(origin.data(), WTF::move(options)), WTF::move(handler));
+    protect(m_webPage)->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::SignalUnknownCredential(origin.data(), WTF::move(options)), WTF::move(handler));
 }
 
 void WebAuthenticatorCoordinator::signalAllAcceptedCredentials(const SecurityOrigin& origin, AllAcceptedCredentialsOptions&& options, CompletionHandler<void(std::optional<WebCore::ExceptionData>)>&& handler)
 {
-    protectedPage()->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::SignalAllAcceptedCredentials(origin.data(), WTF::move(options)), WTF::move(handler));
+    protect(m_webPage)->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::SignalAllAcceptedCredentials(origin.data(), WTF::move(options)), WTF::move(handler));
 }
 
 void WebAuthenticatorCoordinator::signalCurrentUserDetails(const SecurityOrigin& origin, CurrentUserDetailsOptions&& options, CompletionHandler<void(std::optional<WebCore::ExceptionData>)>&& handler)
 {
-    protectedPage()->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::SignalCurrentUserDetails(origin.data(), WTF::move(options)), WTF::move(handler));
+    protect(m_webPage)->sendWithAsyncReply(Messages::WebAuthenticatorCoordinatorProxy::SignalCurrentUserDetails(origin.data(), WTF::move(options)), WTF::move(handler));
 }
 
 

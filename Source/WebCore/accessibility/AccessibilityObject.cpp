@@ -1266,7 +1266,7 @@ String AccessibilityObject::altTextFromAttributeOrStyle() const
     }
 
     CheckedPtr style = this->style();
-    return style ? style->altFromContent() : nullString();
+    return style ? style->content().altText() : nullString();
 }
 
 bool AccessibilityObject::isARIAInput(AccessibilityRole ariaRole)
@@ -2532,7 +2532,7 @@ bool AccessibilityObject::isModalDescendant(Node& modalNode) const
 
 bool AccessibilityObject::isModalNode() const
 {
-    if (AXObjectCache* cache = axObjectCache())
+    if (CheckedPtr cache = axObjectCache())
         return node() && cache->modalNode() == node();
 
     return false;
@@ -2564,7 +2564,7 @@ bool AccessibilityObject::ignoredFromModalPresence() const
     if (!node() || !node()->parentNode())
         return false;
 
-    AXObjectCache* cache = axObjectCache();
+    CheckedPtr cache = axObjectCache();
     if (!cache)
         return false;
 
@@ -2852,20 +2852,20 @@ static void initializeRoleMap()
     size_t roleLength = std::size(roles);
     for (size_t i = 0; i < roleLength; ++i) {
         gAriaRoleMap->set(roles[i].ariaRole, roles[i].webcoreRole);
-        gAriaReverseRoleMap->set(enumToUnderlyingType(roles[i].webcoreRole), roles[i].ariaRole);
+        gAriaReverseRoleMap->set(std::to_underlying(roles[i].webcoreRole), roles[i].ariaRole);
     }
 
     // Create specific synonyms for the computedRole which is used in WPT tests and the accessibility inspector.
-    gAriaReverseRoleMap->set(enumToUnderlyingType(AccessibilityRole::DateTime), "textbox"_s);
-    gAriaReverseRoleMap->set(enumToUnderlyingType(AccessibilityRole::TextArea), "textbox"_s);
+    gAriaReverseRoleMap->set(std::to_underlying(AccessibilityRole::DateTime), "textbox"_s);
+    gAriaReverseRoleMap->set(std::to_underlying(AccessibilityRole::TextArea), "textbox"_s);
 
-    gAriaReverseRoleMap->set(enumToUnderlyingType(AccessibilityRole::DescriptionListDetail), "definition"_s);
-    gAriaReverseRoleMap->set(enumToUnderlyingType(AccessibilityRole::DescriptionListTerm), "term"_s);
-    gAriaReverseRoleMap->set(enumToUnderlyingType(AccessibilityRole::Details), "group"_s);
-    gAriaReverseRoleMap->set(enumToUnderlyingType(AccessibilityRole::Image), "image"_s);
-    gAriaReverseRoleMap->set(enumToUnderlyingType(AccessibilityRole::ListBoxOption), "option"_s);
-    gAriaReverseRoleMap->set(enumToUnderlyingType(AccessibilityRole::MenuListOption), "option"_s);
-    gAriaReverseRoleMap->set(enumToUnderlyingType(AccessibilityRole::Presentational), "none"_s);
+    gAriaReverseRoleMap->set(std::to_underlying(AccessibilityRole::DescriptionListDetail), "definition"_s);
+    gAriaReverseRoleMap->set(std::to_underlying(AccessibilityRole::DescriptionListTerm), "term"_s);
+    gAriaReverseRoleMap->set(std::to_underlying(AccessibilityRole::Details), "group"_s);
+    gAriaReverseRoleMap->set(std::to_underlying(AccessibilityRole::Image), "image"_s);
+    gAriaReverseRoleMap->set(std::to_underlying(AccessibilityRole::ListBoxOption), "option"_s);
+    gAriaReverseRoleMap->set(std::to_underlying(AccessibilityRole::MenuListOption), "option"_s);
+    gAriaReverseRoleMap->set(std::to_underlying(AccessibilityRole::Presentational), "none"_s);
 }
 
 static ARIARoleMap& ariaRoleMap()
@@ -2897,7 +2897,7 @@ AccessibilityRole AccessibilityObject::ariaRoleToWebCoreRole(const String& value
         if (skipRole(role))
             continue;
 
-        if (enumToUnderlyingType(role))
+        if (std::to_underlying(role))
             return role;
     }
     return AccessibilityRole::Unknown;
@@ -2909,40 +2909,40 @@ String AccessibilityObject::computedRoleString() const
     auto role = this->role();
 
     if (role == AccessibilityRole::Image && isIgnored())
-        return reverseAriaRoleMap().get(enumToUnderlyingType(AccessibilityRole::Presentational));
+        return reverseAriaRoleMap().get(std::to_underlying(AccessibilityRole::Presentational));
 
     // We do compute a role string for block elements with author-provided roles.
     if (ariaRoleAttribute() == AccessibilityRole::TextGroup
         || role == AccessibilityRole::Footnote
         || role == AccessibilityRole::GraphicsObject)
-        return reverseAriaRoleMap().get(enumToUnderlyingType(AccessibilityRole::Group));
+        return reverseAriaRoleMap().get(std::to_underlying(AccessibilityRole::Group));
 
     // We do not compute a role string for generic block elements with user-agent assigned roles.
     if (role == AccessibilityRole::TextGroup)
         return emptyString();
 
     if (role == AccessibilityRole::GraphicsDocument)
-        return reverseAriaRoleMap().get(enumToUnderlyingType(AccessibilityRole::Document));
+        return reverseAriaRoleMap().get(std::to_underlying(AccessibilityRole::Document));
 
     if (role == AccessibilityRole::GraphicsSymbol)
-        return reverseAriaRoleMap().get(enumToUnderlyingType(AccessibilityRole::Image));
+        return reverseAriaRoleMap().get(std::to_underlying(AccessibilityRole::Image));
 
     if (role == AccessibilityRole::HorizontalRule)
-        return reverseAriaRoleMap().get(enumToUnderlyingType(AccessibilityRole::Splitter));
+        return reverseAriaRoleMap().get(std::to_underlying(AccessibilityRole::Splitter));
 
     if (role == AccessibilityRole::PopUpButton || role == AccessibilityRole::ToggleButton)
-        return reverseAriaRoleMap().get(enumToUnderlyingType(AccessibilityRole::Button));
+        return reverseAriaRoleMap().get(std::to_underlying(AccessibilityRole::Button));
 
     if (role == AccessibilityRole::LandmarkDocRegion)
-        return reverseAriaRoleMap().get(enumToUnderlyingType(AccessibilityRole::LandmarkRegion));
+        return reverseAriaRoleMap().get(std::to_underlying(AccessibilityRole::LandmarkRegion));
 
     if (isColumnHeader())
-        return reverseAriaRoleMap().get(enumToUnderlyingType(AccessibilityRole::ColumnHeader));
+        return reverseAriaRoleMap().get(std::to_underlying(AccessibilityRole::ColumnHeader));
 
     if (isRowHeader())
-        return reverseAriaRoleMap().get(enumToUnderlyingType(AccessibilityRole::RowHeader));
+        return reverseAriaRoleMap().get(std::to_underlying(AccessibilityRole::RowHeader));
 
-    return reverseAriaRoleMap().get(enumToUnderlyingType(role));
+    return reverseAriaRoleMap().get(std::to_underlying(role));
 }
 
 void AccessibilityObject::updateRole()
@@ -2951,7 +2951,7 @@ void AccessibilityObject::updateRole()
     recomputeAriaRole();
     m_role = determineAccessibilityRole();
     if (previousRole != m_role) {
-        if (auto* cache = axObjectCache())
+        if (CheckedPtr cache = axObjectCache())
             cache->handleRoleChanged(*this, previousRole);
     }
 }
@@ -3055,7 +3055,7 @@ bool AccessibilityObject::isTabItemSelected() const
     if (!focusedElement)
         return false;
 
-    auto* cache = axObjectCache();
+    CheckedPtr cache = axObjectCache();
     if (!cache)
         return false;
 
@@ -3959,7 +3959,7 @@ String AccessibilityObject::validationMessage() const
 AccessibilityObjectInclusion AccessibilityObject::defaultObjectInclusion() const
 {
     bool isHiddenUntilFound = false;
-    if (const auto* style = this->style()) {
+    if (CheckedPtr style = this->style()) {
         if (style->effectiveInert())
             return AccessibilityObjectInclusion::IgnoreObject;
         if (isVisibilityHidden(*style)) {
@@ -3971,7 +3971,7 @@ AccessibilityObjectInclusion AccessibilityObject::defaultObjectInclusion() const
     }
 
     if (CheckedPtr style = this->style()) {
-        if (style->display() == DisplayType::None && !isImageMapLink())
+        if (style->display() == Style::DisplayType::None && !isImageMapLink())
             return AccessibilityObjectInclusion::IgnoreObject;
     }
 
@@ -3985,7 +3985,7 @@ AccessibilityObjectInclusion AccessibilityObject::defaultObjectInclusion() const
     bool ignoreARIAHidden = isFocused();
     if (Accessibility::findAncestor<AccessibilityObject>(*this, false, [&] (const auto& object) {
         const auto* style = object.style();
-        if (style && style->display() == DisplayType::None) {
+        if (style && style->display() == Style::DisplayType::None) {
             // We don't want to use AccessibilityObject::isRenderHidden(), as that also checks and returns true
             // for visibility:hidden, which would be wrong if |this| has a visibility:visible ancestor before
             // this visibility:hidden ancestor (visibility:visible cancels out visibility:hidden).
@@ -4043,7 +4043,7 @@ bool AccessibilityObject::isWithinHiddenWebArea() const
 bool AccessibilityObject::isIgnored() const
 {
     AXComputedObjectAttributeCache* attributeCache = nullptr;
-    auto* axObjectCache = this->axObjectCache();
+    CheckedPtr axObjectCache = this->axObjectCache();
     if (axObjectCache)
         attributeCache = axObjectCache->computedObjectAttributeCache();
 
@@ -4117,8 +4117,10 @@ Vector<Ref<Element>> AccessibilityObject::elementsFromAttribute(const QualifiedN
     if (auto elementsFromAttribute = element->elementsArrayForAttributeInternal(attribute))
         return elementsFromAttribute.value();
 
-    if (auto* defaultARIA = element->customElementDefaultARIAIfExists())
-        return defaultARIA->elementsForAttribute(*element, attribute);
+    if (CheckedPtr defaultARIA = element->customElementDefaultARIAIfExists()) {
+        if (std::optional elements = defaultARIA->elementsForAttribute(*element, attribute))
+            return *elements;
+    }
 
     return { };
 }
@@ -4180,7 +4182,7 @@ bool AccessibilityObject::isContainedBySecureField() const
 
 AXCoreObject::AccessibilityChildrenVector AccessibilityObject::relatedObjects(AXRelation relation) const
 {
-    auto* cache = axObjectCache();
+    CheckedPtr cache = axObjectCache();
     if (!cache)
         return { };
 

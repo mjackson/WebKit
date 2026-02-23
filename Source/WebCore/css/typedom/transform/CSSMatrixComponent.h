@@ -44,7 +44,7 @@ public:
 
     ~CSSMatrixComponent();
 
-    DOMMatrix& matrix();
+    DOMMatrix& NODELETE matrix();
     void setMatrix(Ref<DOMMatrix>&&);
 
     void serialize(StringBuilder&) const final;

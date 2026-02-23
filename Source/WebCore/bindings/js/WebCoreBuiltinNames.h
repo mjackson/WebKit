@@ -616,6 +616,7 @@ namespace WebCore {
     macro(crossOriginIsolated) \
     macro(customElements) \
     macro(decode) \
+    macro(didDetectExtraBytes) \
     macro(disturbed) \
     macro(document) \
     macro(encode) \

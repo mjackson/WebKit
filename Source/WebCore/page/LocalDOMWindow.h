@@ -110,9 +110,8 @@ public:
     void suspendForBackForwardCache();
     void resumeFromBackForwardCache();
 
-    WEBCORE_EXPORT Frame* frame() const final;
-    WEBCORE_EXPORT LocalFrame* localFrame() const;
-    RefPtr<LocalFrame> protectedFrame() const;
+    WEBCORE_EXPORT Frame* NODELETE frame() const final;
+    WEBCORE_EXPORT LocalFrame* NODELETE localFrame() const;
 
     RefPtr<WebCore::MediaQueryList> matchMedia(const String&);
 
@@ -126,7 +125,7 @@ public:
     bool allowPopUp(); // Call on first window, not target window.
     static bool allowPopUp(LocalFrame& firstFrame);
     static bool canShowModalDialog(const LocalFrame&);
-    WEBCORE_EXPORT void setCanShowModalDialogOverride(bool);
+    WEBCORE_EXPORT void NODELETE setCanShowModalDialogOverride(bool);
 
     Screen& screen();
     WEBCORE_EXPORT History& history();
@@ -141,7 +140,7 @@ public:
     WEBCORE_EXPORT Ref<Navigator> protectedNavigator();
     Navigator* optionalNavigator() const { return m_navigator.get(); }
 
-    WEBCORE_EXPORT static void overrideTransientActivationDurationForTesting(std::optional<Seconds>&&);
+    WEBCORE_EXPORT static void NODELETE overrideTransientActivationDurationForTesting(std::optional<Seconds>&&);
     void setLastActivationTimestamp(MonotonicTime lastActivationTimestamp) { m_lastActivationTimestamp = lastActivationTimestamp; }
     void consumeLastActivationIfNecessary();
     MonotonicTime lastActivationTimestamp() const { return m_lastActivationTimestamp; }
@@ -151,19 +150,18 @@ public:
     WEBCORE_EXPORT bool consumeTransientActivation();
     WEBCORE_EXPORT bool hasHistoryActionActivation() const;
     WEBCORE_EXPORT bool consumeHistoryActionUserActivation();
-    WEBCORE_EXPORT static Seconds transientActivationDuration();
+    WEBCORE_EXPORT static Seconds NODELETE transientActivationDuration();
 
     struct ClickEventData {
         MonotonicTime time;
         OptionSet<PlatformEventModifier> modifiers;
     };
     void updateLastUserClickEvent(OptionSet<PlatformEventModifier>);
-    WEBCORE_EXPORT std::optional<ClickEventData> consumeLastUserClickEvent();
+    WEBCORE_EXPORT std::optional<ClickEventData> NODELETE consumeLastUserClickEvent();
 
     DOMSelection* getSelection();
 
     HTMLFrameOwnerElement* frameElement() const;
-    RefPtr<HTMLFrameOwnerElement> protectedFrameElement() const;
 
     WEBCORE_EXPORT void focus(bool allowFocus = false);
     void focus(LocalDOMWindow& incumbentWindow);
@@ -184,7 +182,7 @@ public:
 
     bool find(const String&, bool caseSensitive, bool backwards, bool wrap, bool wholeWord, bool searchInFrames, bool showDialog) const;
 
-    bool offscreenBuffering() const;
+    bool NODELETE offscreenBuffering() const;
 
     int outerHeight() const;
     int outerWidth() const;
@@ -212,8 +210,7 @@ public:
 
     // DOM Level 2 AbstractView Interface
 
-    WEBCORE_EXPORT Document* document() const;
-    WEBCORE_EXPORT RefPtr<Document> protectedDocument() const;
+    WEBCORE_EXPORT Document* NODELETE document() const;
 
     // CSSOM View Module
 
@@ -283,8 +280,8 @@ public:
 
     void dispatchLoadEvent();
 
-    void captureEvents();
-    void releaseEvents();
+    void NODELETE captureEvents();
+    void NODELETE releaseEvents();
 
     void finishedLoading();
 
@@ -320,7 +317,7 @@ public:
 
     WEBCORE_EXPORT ReducedResolutionSeconds nowTimestamp() const;
     void freezeNowTimestamp();
-    void unfreezeNowTimestamp();
+    void NODELETE unfreezeNowTimestamp();
     ReducedResolutionSeconds frozenNowTimestamp() const;
 
 #if PLATFORM(IOS_FAMILY)
@@ -372,8 +369,7 @@ public:
     void setMayReuseForNavigation(bool mayReuseForNavigation) { m_mayReuseForNavigation = mayReuseForNavigation; }
     bool mayReuseForNavigation() const { return m_mayReuseForNavigation; }
 
-    Page* page() const;
-    RefPtr<Page> protectedPage() const;
+    Page* NODELETE page() const;
 
     WEBCORE_EXPORT static void forEachWindowInterestedInStorageEvents(NOESCAPE const Function<void(LocalDOMWindow&)>&);
 
@@ -388,7 +384,7 @@ public:
 private:
     explicit LocalDOMWindow(Document&);
 
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
 
     void closePage() final;
     void eventListenersDidChange() final;

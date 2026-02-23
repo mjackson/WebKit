@@ -567,12 +567,12 @@ void Performance::removeAllObservers()
 
 void Performance::registerPerformanceObserver(PerformanceObserver& observer)
 {
-    m_observers.add(&observer);
+    m_observers.add(observer);
 }
 
 void Performance::unregisterPerformanceObserver(PerformanceObserver& observer)
 {
-    m_observers.remove(&observer);
+    m_observers.remove(observer);
 }
 
 void Performance::queueEntry(PerformanceEntry& entry)

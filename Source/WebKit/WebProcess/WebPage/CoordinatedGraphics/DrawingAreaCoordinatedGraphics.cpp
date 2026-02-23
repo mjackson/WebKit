@@ -49,8 +49,6 @@
 
 #if PLATFORM(PLAYSTATION)
 #include "LayerTreeHostPlayStation.h"
-#else
-#include "LayerTreeHost.h"
 #endif
 
 #if USE(GLIB_EVENT_LOOP)

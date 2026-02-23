@@ -148,7 +148,7 @@ void MediaKeySession::generateRequest(const AtomString& initDataType, const Buff
     // 1. If this object is closed, return a promise rejected with an InvalidStateError.
     // 2. If this object's uninitialized value is false, return a promise rejected with an InvalidStateError.
     auto identifier = LOGIDENTIFIER;
-    ALWAYS_LOG(identifier, "initDataType(", initDataType, "), initData.length(", initData.length(), ")");
+    ALWAYS_LOG(identifier, "initDataType(", initDataType, "), initData.byteLength(", initData.byteLength(), ")");
 
     if (m_closed || !m_uninitialized) {
         ERROR_LOG(identifier, "Rejected: closed(", m_closed, ") or !uninitialized(", !m_uninitialized, ")");
@@ -161,8 +161,8 @@ void MediaKeySession::generateRequest(const AtomString& initDataType, const Buff
 
     // 4. If initDataType is the empty string, return a promise rejected with a newly created TypeError.
     // 5. If initData is an empty array, return a promise rejected with a newly created TypeError.
-    if (initDataType.isEmpty() || !initData.length()) {
-        ERROR_LOG(identifier, "Rejected: initDataType empty(", initDataType.isEmpty(), ") or initData empty(", !initData.length(), ")");
+    if (initDataType.isEmpty() || !initData.byteLength()) {
+        ERROR_LOG(identifier, "Rejected: initDataType empty(", initDataType.isEmpty(), ") or initData empty(", !initData.byteLength(), ")");
         promise->reject(ExceptionCode::TypeError);
         return;
     }
@@ -416,7 +416,7 @@ void MediaKeySession::update(const BufferSource& response, Ref<DeferredPromise>&
     // 1. If this object is closed, return a promise rejected with an InvalidStateError.
     // 2. If this object's callable value is false, return a promise rejected with an InvalidStateError.
     auto identifier = LOGIDENTIFIER;
-    ALWAYS_LOG(identifier, "response.length(", response.length(), ")");
+    ALWAYS_LOG(identifier, "response.byteLength(", response.byteLength(), ")");
 
     if (m_closed || !m_callable) {
         ERROR_LOG(identifier, "Rejected: closed(", m_closed, ") or !callable(", !m_callable, ")");
@@ -425,7 +425,7 @@ void MediaKeySession::update(const BufferSource& response, Ref<DeferredPromise>&
     }
 
     // 3. If response is an empty array, return a promise rejected with a newly created TypeError.
-    if (!response.length()) {
+    if (!response.byteLength()) {
         ERROR_LOG(identifier, "Rejected: empty response");
         promise->reject(ExceptionCode::TypeError);
         return;

@@ -50,7 +50,7 @@ public:
     ~CacheStorageCache();
     const String& name() const { return m_name; }
     const String& uniqueName() const { return m_uniqueName; }
-    CacheStorageManager* manager();
+    CacheStorageManager* NODELETE manager();
 
     void getSize(CompletionHandler<void(uint64_t)>&&);
     void open(WebCore::DOMCacheEngine::CacheIdentifierCallback&&);

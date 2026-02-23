@@ -2211,26 +2211,6 @@ LLINT_SLOW_PATH_DECL(slow_path_size_frame_for_varargs)
     LLINT_RETURN_CALLEE_FRAME(calleeFrame);
 }
 
-LLINT_SLOW_PATH_DECL(slow_path_size_frame_for_forward_arguments)
-{
-    LLINT_BEGIN();
-    // This needs to:
-    // - Set up a call frame with the same arguments as the current frame.
-
-    auto bytecode = pc->as<OpTailCallForwardArguments>();
-    unsigned numUsedStackSlots = -bytecode.m_firstFree.offset();
-
-    unsigned arguments = sizeFrameForForwardArguments(globalObject, callFrame, vm, numUsedStackSlots);
-    LLINT_CALL_CHECK_EXCEPTION(globalObject);
-
-    CallFrame* calleeFrame = calleeFrameForVarargs(callFrame, numUsedStackSlots, arguments + 1);
-
-    vm.varargsLength = arguments;
-    vm.newCallFrameReturnValue = calleeFrame;
-
-    LLINT_RETURN_CALLEE_FRAME(calleeFrame);
-}
-
 enum class SetArgumentsWith {
     Object,
     CurrentArguments
@@ -2275,11 +2255,6 @@ LLINT_SLOW_PATH_DECL(slow_path_call_varargs)
 LLINT_SLOW_PATH_DECL(slow_path_tail_call_varargs)
 {
     return varargsSetup<OpTailCallVarargs, SetArgumentsWith::Object>(callFrame, pc, CodeSpecializationKind::CodeForCall);
-}
-
-LLINT_SLOW_PATH_DECL(slow_path_tail_call_forward_arguments)
-{
-    return varargsSetup<OpTailCallForwardArguments, SetArgumentsWith::CurrentArguments>(callFrame, pc, CodeSpecializationKind::CodeForCall);
 }
 
 LLINT_SLOW_PATH_DECL(slow_path_construct_varargs)

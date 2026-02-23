@@ -42,8 +42,8 @@ namespace WebCore {
 LayoutUnit GridBaselineAlignment::logicalAscentForGridItem(const RenderBox& gridItem, Style::GridTrackSizingDirection alignmentContextType, ItemPosition position) const
 {
     auto hasOrthogonalAncestorSubgrids = [&] {
-        for (auto& currentAncestorSubgrid : ancestorSubgridsOfGridItem(gridItem, Style::GridTrackSizingDirection::Rows)) {
-            if (currentAncestorSubgrid.isHorizontalWritingMode() != currentAncestorSubgrid.parent()->isHorizontalWritingMode())
+        for (CheckedRef currentAncestorSubgrid : ancestorSubgridsOfGridItem(gridItem, Style::GridTrackSizingDirection::Rows)) {
+            if (currentAncestorSubgrid->isHorizontalWritingMode() != currentAncestorSubgrid->parent()->isHorizontalWritingMode())
                 return true;
         }
         return false;
@@ -61,22 +61,22 @@ LayoutUnit GridBaselineAlignment::ascentForGridItem(const RenderBox& gridItem, S
 {
     ASSERT(position == ItemPosition::Baseline || position == ItemPosition::LastBaseline);
     auto gridItemMargin = alignmentContextType == Style::GridTrackSizingDirection::Rows ? gridItem.marginBefore(m_writingMode) : gridItem.marginStart(m_writingMode);
-    auto& gridStyle = gridItem.parent()->style();
+    CheckedRef gridStyle = gridItem.parent()->style();
 
     auto baseline = 0_lu;
     if (alignmentContextType == Style::GridTrackSizingDirection::Rows) {
         auto alignmentContextDirection = [&] {
-            return gridStyle.writingMode().isHorizontal() ? LineDirection::Horizontal : LineDirection::Vertical;
+            return gridStyle->writingMode().isHorizontal() ? LineDirection::Horizontal : LineDirection::Vertical;
         };
 
         if (!isParallelToAlignmentAxisForGridItem(gridItem, alignmentContextType)) {
-            auto gridWritingMode = gridStyle.writingMode();
+            auto gridWritingMode = gridStyle->writingMode();
             return gridItemMargin + BaselineAlignmentState::synthesizedBaseline(gridItem, BaselineAlignmentState::dominantBaseline(gridWritingMode),
                 gridWritingMode, alignmentContextDirection(), BaselineSynthesisEdge::BorderBox);
         }
         auto ascent = position == ItemPosition::Baseline ? gridItem.firstLineBaseline() : gridItem.lastLineBaseline();
         if (!ascent) {
-            auto gridWritingMode = gridStyle.writingMode();
+            auto gridWritingMode = gridStyle->writingMode();
             return gridItemMargin + BaselineAlignmentState::synthesizedBaseline(gridItem, BaselineAlignmentState::dominantBaseline(gridWritingMode),
                 gridWritingMode, alignmentContextDirection(), BaselineSynthesisEdge::BorderBox);
         }
@@ -91,7 +91,7 @@ LayoutUnit GridBaselineAlignment::ascentForGridItem(const RenderBox& gridItem, S
             ASSERT(!gridItem.needsLayout());
             if (isVerticalAlignmentContext(alignmentContextType))
                 return m_writingMode.isBlockFlipped() ? gridItemMargin + gridItem.size().width().toInt() : gridItemMargin;
-            auto gridWritingMode = gridStyle.writingMode();
+            auto gridWritingMode = gridStyle->writingMode();
             return gridItemMargin + BaselineAlignmentState::synthesizedBaseline(gridItem, BaselineAlignmentState::dominantBaseline(gridWritingMode),
                 gridWritingMode, LineDirection::Horizontal, BaselineSynthesisEdge::BorderBox);
         }

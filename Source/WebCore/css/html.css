@@ -799,14 +799,12 @@ input:is([type="radio"], [type="checkbox"]) {
     box-sizing: border-box;
     border: initial;
 #if defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY
-    width: -internal-auto-base(16px, 1em);
-    height: -internal-auto-base(16px, 1em);
-    padding: -internal-auto-base(0px, unset);
+    width: 16px;
+    height: 16px;
+    padding: 0px;
     /* We want to be as close to background:transparent as possible without actually being transparent */
     background-color: rgba(255, 255, 255, 0.01);
 #else
-    width: -internal-auto-base(unset, 1em);
-    height: -internal-auto-base(unset, 1em);
     padding: initial;
     background-color: initial;
 #endif
@@ -821,8 +819,6 @@ input[type="checkbox"] {
 input[type="radio"] {
 #if defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY
     border-radius: 50%;
-#else
-    border-radius: -internal-auto-base(unset, 50%);
 #endif
 }
 
@@ -856,22 +852,6 @@ input:is([type="checkbox"], [type="radio"]):checked:disabled {
     opacity: initial;
     background: rgba(0, 0, 0, 0.8);
 #endif
-}
-
-input[type=checkbox]:not([switch]):checked::checkmark {
-    content: "\2713" / "";
-}
-
-input[type=radio]:checked::checkmark {
-    background-color: currentColor;
-    display: inline-block;
-    border-radius: inherit;
-    height: 100%;
-    width: 100%;
-}
-
-input:is([type=checkbox]:not([switch]), [type=radio]):not(:checked)::checkmark {
-    display: none;
 }
 
 input:is([type="button"], [type="submit"], [type="reset"]) {
@@ -998,7 +978,7 @@ input[type="file"]:disabled {
 input:is([type="button"], [type="submit"], [type="reset"]):disabled,
 input[type="file"]:disabled::file-selector-button,
 button:disabled,
-select:disabled {
+select:-internal-uses-menulist:disabled {
     background-color: -apple-system-opaque-secondary-fill-disabled;
     color: -apple-system-tertiary-label;
     opacity: initial;
@@ -1057,59 +1037,174 @@ select {
     appearance: auto;
     border: 1px solid;
     -webkit-rtl-ordering: logical;
+}
+
+/* FIXME: Implement revert-rule CSS keyword so we can de-duplicate some of this. */
+
+select:-internal-uses-menulist {
 #if defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY
-    padding-block: 0;
-    padding-inline: 0.4em;
-    color: -apple-system-blue;
-    font: 11px system-ui;
-    border-color: -webkit-control-background;
+    padding-inline: -internal-auto-base(0.4em, 0.5em);
+    color: -internal-auto-base(-apple-system-blue, inherit);
+    font: -internal-auto-base(11px system-ui, inherit);
+    border-color: -internal-auto-base(-webkit-control-background, initial);
+    border-radius: -internal-auto-base(initial, 0.5em);
 #if defined(WTF_PLATFORM_VISION) && WTF_PLATFORM_VISION
-    background-color: rgba(0, 0, 0, 0.04);
+    background-color: -internal-auto-base(rgba(0, 0, 0, 0.04), transparent);
 #else
-    background-color: -apple-system-opaque-secondary-fill;
+    background-color: -internal-auto-base(-apple-system-opaque-secondary-fill, transparent);
 #endif /* defined(WTF_PLATFORM_VISION) && WTF_PLATFORM_VISION */
 #else
-    color: CanvasText;
-    background-color: Canvas;
-#endif
+    padding-inline: -internal-auto-base(0, 0.5em);
+    color: -internal-auto-base(CanvasText, inherit);
+    background-color: -internal-auto-base(Canvas, transparent);
+    border-radius: -internal-auto-base(5px, 0.5em);
+    font: -internal-auto-base(-webkit-small-control, inherit);
+#endif /* defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY */
+    padding-block: -internal-auto-base(0, 0.25em);
+    align-items: -internal-auto-base(center, unset);
+    white-space: -internal-auto-base(pre, initial);
+    cursor: -internal-auto-base(default, inherit);
+    gap: -internal-auto-base(initial, 0.5em);
+
+    -webkit-rtl-ordering: -internal-auto-base(logical, inherit);
+    text-shadow: -internal-auto-base(none, inherit);
+    text-transform: -internal-auto-base(none, initial);
+    letter-spacing: -internal-auto-base(normal, inherit);
+    word-spacing: -internal-auto-base(normal, inherit);
 }
 
-/* FIXME: Replace with select:-internal-uses-menulist */
-#if !(defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY)
-select:not([size], [multiple]),
-select:is([size=""], [size="0"], [size="1"]):not([multiple]) {
+select:-internal-uses-menulist:enabled:hover {
+#if defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY
+#if defined(WTF_PLATFORM_VISION) && WTF_PLATFORM_VISION
+    background-color: -internal-auto-base(rgba(0, 0, 0, 0.04), color-mix(in lab, currentColor 10%, transparent));
 #else
-select {
-#endif
-#if !(defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY)
-    border-radius: 5px;
-#endif
-    align-items: center;
-    white-space: pre;
-    cursor: default;
+    background-color: -internal-auto-base(-apple-system-opaque-secondary-fill, color-mix(in lab, currentColor 10%, transparent));
+#endif /* defined(WTF_PLATFORM_VISION) && WTF_PLATFORM_VISION */
+#else
+    background-color: -internal-auto-base(Canvas, color-mix(in lab, currentColor 10%, transparent));
+#endif /* defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY */
 }
 
-/* FIXME: Replace with select:not(:-internal-uses-menulist) */
-#if !(defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY)
-select[size][multiple],
-select:is([size], [multiple]):not([size=""], [size="0"], [size="1"]) {
+select:-internal-uses-menulist:enabled:active {
+#if defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY
+#if defined(WTF_PLATFORM_VISION) && WTF_PLATFORM_VISION
+    background-color: -internal-auto-base(rgba(0, 0, 0, 0.04), color-mix(in lab, currentColor 20%, transparent));
+#else
+    background-color: -internal-auto-base(-apple-system-opaque-secondary-fill, color-mix(in lab, currentColor 20%, transparent));
+#endif /* defined(WTF_PLATFORM_VISION) && WTF_PLATFORM_VISION */
+#else
+    background-color: -internal-auto-base(Canvas, color-mix(in lab, currentColor 20%, transparent));
+#endif /* defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY */
+}
+
+select:-internal-uses-menulist:disabled {
+#if defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY
+    background-color: -internal-auto-base(-apple-system-opaque-secondary-fill-disabled, transparent);
+    color: -internal-auto-base(-apple-system-tertiary-label, color-mix(in lab, currentColor 50%, transparent));
+#else
+    color: -internal-auto-base(GrayText, color-mix(in lab, currentColor 50%, transparent));
+#endif
+}
+
+select:-internal-uses-menulist:not([popover]) {
+    display: -internal-auto-base(inline-block, inline-flex);
+}
+
+select:not(:-internal-uses-menulist) {
+    background-color: Canvas;
     border-style: inset;
     border-color: gray;
 }
-#endif
+
+select:not(:-internal-uses-menulist):enabled {
+    color: CanvasText;
+}
 
 select:not([multiple]):-internal-uses-menulist > button:first-child {
     all: unset;
     /* FIXME: add display: contents; once it works as expected */
 }
 
-optgroup {
+select::picker-icon {
+    /* FIXME: Switch to disclosure-open counter once it works */
+    content: "\25BC" / "";
+    display: block;
+    margin-inline-start: auto;
+}
+
+:-internal-select-popover {
+    box-sizing: border-box;
+    border: -internal-auto-base(none, 1px solid);
+    padding: 0;
+    color: -internal-auto-base(inherit, CanvasText);
+    background-color: -internal-auto-base(transparent, Canvas);
+    margin: 0;
+    inset: auto;
+    min-inline-size: -internal-auto-base(unset, anchor-size(self-inline));
+    min-block-size: 1lh;
+    /* Go to the edge of the viewport, and add scrollbars if needed. */
+    max-block-size: stretch;
+    overflow: auto;
+    /* Below and span-right, by default. */
+    position-area: -internal-auto-base(unset, block-end span-inline-end);
+    position-try-order: -internal-auto-base(unset, most-block-size);
+    position-try-fallbacks: -internal-auto-base(unset, {
+        block-start span-inline-end,   /* First try above and span-right. */
+        block-end span-inline-start,   /* Then below but span-left. */
+        block-start span-inline-start }); /* Then above and span-left. */
+
+    display: -internal-auto-base(contents, none);
+}
+
+:-internal-select-popover:popover-open {
+    display: block;
+}
+
+select:-internal-uses-menulist option {
+    min-inline-size: 24px;
+    min-block-size: max(24px, 1lh);
+    padding-inline: 0.5em;
+    padding-block-end: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+select option {
+    white-space: nowrap;
+}
+
+select option:enabled:hover {
+    background-color: color-mix(in lab, currentColor 10%, transparent);
+}
+
+select option:enabled:active {
+    background-color: color-mix(in lab, currentColor 20%, transparent);
+}
+
+select option:disabled {
+    color: color-mix(in lab, currentColor 50%, transparent);
+}
+
+select option::checkmark {
+    content: "\2713" / "";
+}
+
+select option:not(:checked)::checkmark {
+    visibility: hidden;
+}
+
+select optgroup {
     font-weight: bolder;
 }
 
-option {
+select optgroup option {
     font-weight: normal;
-    white-space: nowrap;
+}
+
+select optgroup legend {
+    padding-inline: 0.5em;
+    min-block-size: 1lh;
 }
 
 output {
@@ -1375,7 +1470,7 @@ iframe {
     border: 2px inset;
 }
 
-hr, bdi, output {
+hr, bdi, legend, output {
     unicode-bidi: isolate;
 }
 

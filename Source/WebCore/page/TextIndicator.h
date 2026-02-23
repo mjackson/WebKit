@@ -167,13 +167,12 @@ public:
     Image* contentImageWithHighlight() const { return m_data.contentImageWithHighlight.get(); }
     Image* contentImageWithoutSelection() const { return m_data.contentImageWithoutSelection.get(); }
     Image* contentImage() const { return m_data.contentImage.get(); }
-    RefPtr<Image> protectedContentImage() const { return contentImage(); }
 
     TextIndicatorPresentationTransition presentationTransition() const { return m_data.presentationTransition; }
     void setPresentationTransition(TextIndicatorPresentationTransition transition) { m_data.presentationTransition = transition; }
 
-    WEBCORE_EXPORT bool wantsBounce() const;
-    WEBCORE_EXPORT bool wantsManualAnimation() const;
+    WEBCORE_EXPORT bool NODELETE wantsBounce() const;
+    WEBCORE_EXPORT bool NODELETE wantsManualAnimation() const;
 
     Color estimatedBackgroundColor() const { return m_data.estimatedBackgroundColor; }
     OptionSet<TextIndicatorOption> options() const { return m_data.options; }

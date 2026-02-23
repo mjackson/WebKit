@@ -3420,6 +3420,12 @@ void TestController::didReceiveSynchronousMessageFromInjectedBundle(WKStringRef 
 
     if (WKStringIsEqualToUTF8CString(messageName, "AXCopyAttributeValueAsBoolean"))
         return completionHandler(handleAXCopyAttributeValueAsBoolean(dictionaryValue(messageBody)).get());
+
+    if (WKStringIsEqualToUTF8CString(messageName, "AXCopyAttributeValueAsPoint"))
+        return completionHandler(handleAXCopyAttributeValueAsPoint(dictionaryValue(messageBody)).get());
+
+    if (WKStringIsEqualToUTF8CString(messageName, "AXCopyAttributeValueAsSize"))
+        return completionHandler(handleAXCopyAttributeValueAsSize(dictionaryValue(messageBody)).get());
 #endif
 
     completionHandler(protectedCurrentInvocation()->didReceiveSynchronousMessageFromInjectedBundle(messageName, messageBody).get());
@@ -5566,6 +5572,44 @@ WKRetainPtr<WKTypeRef> TestController::handleAXCopyAttributeValueAsBoolean(WKDic
     bool boolValue = CFBooleanGetValue(static_cast<CFBooleanRef>(value.get()));
 
     return adoptWK(WKBooleanCreate(boolValue));
+}
+
+WKRetainPtr<WKTypeRef> TestController::handleAXCopyAttributeValueAsPoint(WKDictionaryRef messageBody)
+{
+    RetainPtr value = axCopyAttributeValue(messageBody);
+    if (!value)
+        return nullptr;
+
+    if (CFGetTypeID(value.get()) != AXValueGetTypeID())
+        return nullptr;
+
+    CGPoint point;
+    if (!AXValueGetValue(static_cast<AXValueRef>(value.get()), static_cast<AXValueType>(kAXValueCGPointType), &point))
+        return nullptr;
+
+    WKRetainPtr dictionary = adoptWK(WKMutableDictionaryCreate());
+    setValue(dictionary, "x", point.x);
+    setValue(dictionary, "y", point.y);
+    return dictionary;
+}
+
+WKRetainPtr<WKTypeRef> TestController::handleAXCopyAttributeValueAsSize(WKDictionaryRef messageBody)
+{
+    RetainPtr value = axCopyAttributeValue(messageBody);
+    if (!value)
+        return nullptr;
+
+    if (CFGetTypeID(value.get()) != AXValueGetTypeID())
+        return nullptr;
+
+    CGSize size;
+    if (!AXValueGetValue(static_cast<AXValueRef>(value.get()), static_cast<AXValueType>(kAXValueCGSizeType), &size))
+        return nullptr;
+
+    WKRetainPtr dictionary = adoptWK(WKMutableDictionaryCreate());
+    setValue(dictionary, "width", size.width);
+    setValue(dictionary, "height", size.height);
+    return dictionary;
 }
 
 #endif // PLATFORM(MAC)

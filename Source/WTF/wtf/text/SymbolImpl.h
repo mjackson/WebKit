@@ -72,7 +72,7 @@ public:
     };
 
 protected:
-    WTF_EXPORT_PRIVATE static unsigned nextHashForSymbol();
+    WTF_EXPORT_PRIVATE static unsigned NODELETE nextHashForSymbol();
 
     friend class StringImpl;
 

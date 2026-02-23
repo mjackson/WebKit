@@ -447,7 +447,7 @@ NS_ASSUME_NONNULL_END
     ASSERT(isMainThread());
     Locker<Lock> locker(_dataTasksLock);
     for (auto& responseOrigin : _origins) {
-        if (!origin.isSameOriginDomain(*responseOrigin))
+        if (!origin.isSameOriginDomain(responseOrigin))
             return true;
     }
     return false;

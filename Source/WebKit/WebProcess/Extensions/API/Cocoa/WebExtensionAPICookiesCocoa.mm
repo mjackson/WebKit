@@ -99,7 +99,7 @@ static inline NSString *toWebAPI(PAL::SessionID sessionID)
     return [NSString stringWithFormat:@"%@%llu", prefix, maskedValue];
 }
 
-static inline NSString *toWebAPI(WebCore::Cookie::SameSitePolicy policy)
+static inline NSString *NODELETE toWebAPI(WebCore::Cookie::SameSitePolicy policy)
 {
     switch (policy) {
     case WebCore::Cookie::SameSitePolicy::None:
@@ -309,7 +309,7 @@ void WebExtensionAPICookies::set(NSDictionary *details, Ref<WebExtensionCallback
 
     cookie.name = details[@"name"] ?: @"";
     cookie.value = details[valueKey] ?: @"";
-    cookie.secure = details[secureKey] ? objectForKey<NSNumber>(details, secureKey).boolValue : false;
+    cookie.secure = details[secureKey] && objectForKey<NSNumber>(details, secureKey).boolValue;
     auto *domain = dynamic_objc_cast<NSString>(details[domainKey]);
     cookie.domain = domain ? String(domain) : normalizeDomain(url.host().toString());
     auto *path = dynamic_objc_cast<NSString>(details[pathKey]);

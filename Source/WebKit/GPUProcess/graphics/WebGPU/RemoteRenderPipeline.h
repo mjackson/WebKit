@@ -74,12 +74,6 @@ private:
     RemoteRenderPipeline& operator=(RemoteRenderPipeline&&) = delete;
 
     WebCore::WebGPU::RenderPipeline& backing() { return m_backing; }
-    Ref<WebCore::WebGPU::RenderPipeline> protectedBacking();
-
-    Ref<IPC::StreamServerConnection> protectedStreamConnection() const;
-
-    Ref<WebGPU::ObjectHeap> protectedObjectHeap() const { return m_objectHeap; }
-    Ref<RemoteGPU> protectedGPU() const { return m_gpu; }
 
     void didReceiveStreamMessage(IPC::StreamServerConnection&, IPC::Decoder&) final;
 

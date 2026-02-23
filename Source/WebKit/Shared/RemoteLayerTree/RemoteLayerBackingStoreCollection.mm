@@ -89,6 +89,8 @@ bool RemoteLayerBackingStoreCollection::paintReachableBackingStoreContents()
             anyNonEmptyDirtyRegion = true;
         backingStore->paintContents();
     }
+    for (CheckedRef backingStore : m_backingStoresNeedingDisplay)
+        backingStore->flush();
     return anyNonEmptyDirtyRegion;
 }
 

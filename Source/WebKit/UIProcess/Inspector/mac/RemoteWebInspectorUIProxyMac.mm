@@ -118,7 +118,7 @@ WebPageProxy* RemoteWebInspectorUIProxy::platformCreateFrontendPageAndWindow()
     m_objCAdapter = adoptNS([[WKRemoteWebInspectorUIProxyObjCAdapter alloc] initWithRemoteWebInspectorUIProxy:this]);
 
     Ref<API::InspectorConfiguration> configuration = protect(m_client)->configurationForRemoteInspector(*this);
-    m_inspectorView = adoptNS([[WKInspectorViewController alloc] initWithConfiguration:protectedWrapper(configuration.get()).get() inspectedPage:nullptr]);
+    m_inspectorView = adoptNS([[WKInspectorViewController alloc] initWithConfiguration:protect(wrapper(configuration.get())).get() inspectedPage:nullptr]);
     [m_inspectorView.get() setDelegate:m_objCAdapter.get()];
 
     m_window = WebInspectorUIProxy::createFrontendWindow(NSZeroRect, WebInspectorUIProxy::InspectionTargetType::Remote);

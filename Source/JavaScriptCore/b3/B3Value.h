@@ -220,6 +220,7 @@ public:
 
     bool isConstant() const;
     bool isInteger() const;
+    bool isFP() const;
     
     virtual Value* negConstant(Procedure&) const;
     virtual Value* addConstant(Procedure&, int32_t other) const;

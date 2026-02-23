@@ -34,7 +34,7 @@
 {
     RefPtr underlyingError = downcast<API::Error>(&self._apiObject)->underlyingError();
     if (underlyingError)
-        return [bridge_cast(downcast<API::Error>(&self._apiObject)->platformError().protectedCFError(bridge_cast(protectedWrapper(*underlyingError)).get())) copy];
+        return [bridge_cast(downcast<API::Error>(&self._apiObject)->platformError().protectedCFError(bridge_cast(protect(wrapper(*underlyingError))).get())) copy];
     return [bridge_cast(downcast<API::Error>(&self._apiObject)->platformError().protectedCFError()) copy];
 }
 

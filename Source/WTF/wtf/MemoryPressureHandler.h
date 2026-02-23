@@ -95,7 +95,7 @@ public:
 
     WTF_EXPORT_PRIVATE void install();
 
-    WTF_EXPORT_PRIVATE void setMemoryFootprintPollIntervalForTesting(Seconds);
+    WTF_EXPORT_PRIVATE void NODELETE setMemoryFootprintPollIntervalForTesting(Seconds);
     WTF_EXPORT_PRIVATE void setShouldUsePeriodicMemoryMonitor(bool);
 
 #if OS(LINUX) || OS(FREEBSD) || OS(HAIKU) || OS(QNX)
@@ -205,7 +205,7 @@ public:
     WTF_EXPORT_PRIVATE void beginSimulatedMemoryPressure();
     WTF_EXPORT_PRIVATE void endSimulatedMemoryPressure();
 
-    WTF_EXPORT_PRIVATE void setProcessState(WebsamProcessState);
+    WTF_EXPORT_PRIVATE void NODELETE setProcessState(WebsamProcessState);
     WebsamProcessState processState() const { return m_processState; }
 
     WTF_EXPORT_PRIVATE static ASCIILiteral processStateDescription();
@@ -220,8 +220,8 @@ public:
 
 private:
     std::optional<size_t> thresholdForMemoryKill();
-    size_t thresholdForPolicy(MemoryUsagePolicy);
-    MemoryUsagePolicy policyForFootprint(size_t);
+    size_t NODELETE thresholdForPolicy(MemoryUsagePolicy);
+    MemoryUsagePolicy NODELETE policyForFootprint(size_t);
 
     void memoryPressureStatusChanged();
 
@@ -235,7 +235,7 @@ private:
     void didExceedProcessMemoryLimit(ProcessMemoryLimit);
     void respondToMemoryPressure(Critical, Synchronous = Synchronous::No);
     void platformReleaseMemory(Critical);
-    void platformInitialize();
+    void NODELETE platformInitialize();
 
     void measurementTimerFired();
     void shrinkOrDie(size_t killThreshold);

@@ -50,8 +50,8 @@ public:
     void close();
     void error(const Exception&);
 
-    bool isPulling() const;
-    bool isCancelling() const;
+    bool NODELETE isPulling() const;
+    bool NODELETE isCancelling() const;
 
     void resolvePullPromise();
     void detach();

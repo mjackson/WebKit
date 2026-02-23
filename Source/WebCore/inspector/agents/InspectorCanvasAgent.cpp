@@ -366,7 +366,7 @@ void InspectorCanvasAgent::didChangeCanvasSize(CanvasRenderingContext& context)
     m_frontendDispatcher->canvasSizeChanged(inspectorCanvas->identifier(), size.width(), size.height());
 }
 
-void InspectorCanvasAgent::didChangeCanvasMemory(CanvasRenderingContext& context)
+void InspectorCanvasAgent::didChangeCanvasMemory(const CanvasRenderingContext& context)
 {
     RefPtr<InspectorCanvas> inspectorCanvas;
 
@@ -534,16 +534,16 @@ void InspectorCanvasAgent::recordAction(CanvasRenderingContext& canvasRenderingC
 
     // Only enqueue one microtask for all actively recording canvases.
     if (m_recordingCanvasIdentifiers.isEmpty()) {
-        if (auto* scriptExecutionContext = inspectorCanvas->scriptExecutionContext()) {
+        if (RefPtr scriptExecutionContext = inspectorCanvas->scriptExecutionContext()) {
             scriptExecutionContext->eventLoop().queueMicrotask([weakThis = WeakPtr { *this }] {
                 if (!weakThis)
                     return;
 
-                auto& canvasAgent = *weakThis;
+                CheckedRef canvasAgent = *weakThis;
 
-                auto identifiers = copyToVector(canvasAgent.m_recordingCanvasIdentifiers);
+                auto identifiers = copyToVector(canvasAgent->m_recordingCanvasIdentifiers);
                 for (auto& identifier : identifiers) {
-                    auto inspectorCanvas = canvasAgent.m_identifierToInspectorCanvas.get(identifier);
+                    auto inspectorCanvas = canvasAgent->m_identifierToInspectorCanvas.get(identifier);
                     if (!inspectorCanvas)
                         continue;
 
@@ -551,10 +551,10 @@ void InspectorCanvasAgent::recordAction(CanvasRenderingContext& canvasRenderingC
                     // FIXME: <https://webkit.org/b/201651> Web Inspector: Canvas: support canvas recordings for WebGPUDevice
 
                     if (canvasRenderingContext.hasActiveInspectorCanvasCallTracer())
-                        canvasAgent.didFinishRecordingCanvasFrame(canvasRenderingContext);
+                        canvasAgent->didFinishRecordingCanvasFrame(canvasRenderingContext);
                 }
 
-                canvasAgent.m_recordingCanvasIdentifiers.clear();
+                canvasAgent->m_recordingCanvasIdentifiers.clear();
             });
         }
     }
@@ -707,7 +707,7 @@ RefPtr<InspectorCanvas> InspectorCanvasAgent::assertInspectorCanvas(Inspector::P
     return inspectorCanvas;
 }
 
-RefPtr<InspectorCanvas> InspectorCanvasAgent::findInspectorCanvas(CanvasRenderingContext& context)
+RefPtr<InspectorCanvas> InspectorCanvasAgent::findInspectorCanvas(const CanvasRenderingContext& context)
 {
     for (auto& inspectorCanvas : m_identifierToInspectorCanvas.values()) {
         if (&inspectorCanvas->canvasContext() == &context)

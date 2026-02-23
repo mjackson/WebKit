@@ -227,12 +227,11 @@ ExceptionOr<void> WebCodecsAudioEncoder::configure(ScriptExecutionContext&, WebC
                 if (encoder.state() != WebCodecsCodecState::Configured || encoder.m_encoderCount != encoderCount)
                     return;
 
-                RefPtr buffer = JSC::ArrayBuffer::create(result.data);
                 auto chunk = WebCodecsEncodedAudioChunk::create(WebCodecsEncodedAudioChunk::Init {
                     result.isKeyFrame ? WebCodecsEncodedAudioChunkType::Key : WebCodecsEncodedAudioChunkType::Delta,
                     result.timestamp,
                     result.duration,
-                    BufferSource { WTF::move(buffer) }
+                    JSC::ArrayBuffer::create(result.data)
                 });
                 encoder.m_output->invoke(WTF::move(chunk), encoder.createEncodedChunkMetadata());
             });
@@ -278,7 +277,7 @@ WebCodecsEncodedAudioChunkMetadata WebCodecsAudioEncoder::createEncodedChunkMeta
             RELEASE_LOG_ERROR_IF(!!arrayBuffer, Media, "Cannot create array buffer for WebCodecs encoder description");
             if (arrayBuffer) {
                 memcpySpan(arrayBuffer->mutableSpan(), m_activeConfiguration.description->span());
-                metadata.decoderConfig->description = WTF::move(arrayBuffer);
+                metadata.decoderConfig->description = arrayBuffer.releaseNonNull();
             }
         }
     }

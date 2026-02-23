@@ -105,6 +105,7 @@ public:
     const OptionSet<AcceleratedEffectProperty>& replacedProperties() const { return m_replacedProperties; }
 
     bool animatesTransformRelatedProperty() const;
+    WEBCORE_EXPORT bool hasHighImpact() const;
 
 private:
     AcceleratedEffect(const KeyframeEffect&, const IntRect&, const OptionSet<AcceleratedEffectProperty>&);

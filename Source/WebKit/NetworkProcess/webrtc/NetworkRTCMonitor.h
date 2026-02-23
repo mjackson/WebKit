@@ -57,14 +57,14 @@ public:
 #if ASSERT_ENABLED
     bool isStarted() const { return m_isStarted; }
 #endif
-    NetworkRTCProvider& rtcProvider();
+    NetworkRTCProvider& NODELETE rtcProvider();
 
     void onNetworksChanged(const Vector<RTCNetwork>&, const RTCNetwork::IPAddress&, const RTCNetwork::IPAddress&);
 
     const RTCNetwork::IPAddress& ipv4() const;
     const RTCNetwork::IPAddress& ipv6()  const;
 
-    void ref();
+    void NODELETE ref();
     void deref();
 
     std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess(IPC::Connection&) const;

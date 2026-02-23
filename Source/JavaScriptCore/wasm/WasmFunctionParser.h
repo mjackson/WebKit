@@ -3997,6 +3997,7 @@ auto FunctionParser<Context>::parseUnreachableExpression() -> PartialResult
     // two immediate cases
     FOR_EACH_WASM_MEMORY_LOAD_OP(CREATE_CASE)
     FOR_EACH_WASM_MEMORY_STORE_OP(CREATE_CASE) {
+        WASM_PARSER_FAIL_IF(!m_info.memoryCount(), "load/store instruction without memory"_s);
         uint32_t unused;
         WASM_PARSER_FAIL_IF(!parseVarUInt32(unused), "can't get first immediate for "_s, m_currentOpcode, " in unreachable context"_s);
         if (m_info.theOnlyMemory().isMemory64()) {

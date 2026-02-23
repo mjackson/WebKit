@@ -21,9 +21,11 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-#if canImport(RealityCoreRenderer, _version: 9) && (os(macOS) || (os(iOS) && canImport(SwiftUI, _version: "8.0.36"))) && canImport(_USDKit_RealityKit)
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 9) && (os(macOS) || (os(iOS) && canImport(SwiftUI, _version: "8.0.36"))) && canImport(_USDKit_RealityKit) && !os(visionOS)
 
-@_spi(RealityCoreRendererAPI) internal import RealityKit
+@_weakLinked internal import USDKit
+@_weakLinked @_spi(UsdLoaderAPI) internal import _USDKit_RealityKit
+@_spi(RealityCoreRendererAPI) import RealityKit
 
 nonisolated func makeParameters(
     for function: _Proto_LowLevelMaterialResource_v1.Function,

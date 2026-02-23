@@ -217,7 +217,7 @@ public:
     void setPersistedDomains(const HashSet<RegistrableDomain>&);
     void didCreateNetworkProcess();
 
-    NetworkSession* networkSession();
+    NetworkSession* NODELETE networkSession();
     void invalidateAndCancel();
 
     void resourceLoadStatisticsUpdated(Vector<WebCore::ResourceLoadStatistics>&&, CompletionHandler<void()>&&);

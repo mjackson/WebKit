@@ -152,9 +152,9 @@ std::unique_ptr<RenderStyle> RenderScrollbar::getScrollbarPseudoStyle(ScrollbarP
     scrollbarState.orientation = orientation();
     scrollbarState.buttonsPlacement = theme().buttonsPlacement();
     scrollbarState.enabled = enabled();
-    scrollbarState.scrollCornerIsVisible = checkedScrollableArea()->isScrollCornerVisible();
+    scrollbarState.scrollCornerIsVisible = protect(scrollableArea())->isScrollCornerVisible();
     
-    std::unique_ptr<RenderStyle> result = renderer->getUncachedPseudoStyle({ pseudoElementType, scrollbarState }, renderer->checkedStyle().ptr());
+    std::unique_ptr<RenderStyle> result = renderer->getUncachedPseudoStyle({ pseudoElementType, scrollbarState }, protect(renderer->style()).ptr());
     // Scrollbars for root frames should always have background color 
     // unless explicitly specified as transparent. So we force it.
     // This is because WebKit assumes scrollbar to be always painted and missing background
@@ -196,7 +196,7 @@ void RenderScrollbar::updateScrollbarParts()
     }
 }
 
-static PseudoElementType pseudoForScrollbarPart(ScrollbarPart part)
+static PseudoElementType NODELETE pseudoForScrollbarPart(ScrollbarPart part)
 {
     switch (part) {
         case BackButtonStartPart:
@@ -227,9 +227,9 @@ void RenderScrollbar::updateScrollbarPart(ScrollbarPart partType)
         return;
 
     std::unique_ptr<RenderStyle> partStyle = getScrollbarPseudoStyle(partType, pseudoForScrollbarPart(partType));
-    bool needRenderer = partStyle && partStyle->display() != DisplayType::None;
+    bool needRenderer = partStyle && partStyle->display() != Style::DisplayType::None;
 
-    if (needRenderer && partStyle->display() != DisplayType::Block) {
+    if (needRenderer && partStyle->display() != Style::DisplayType::BlockFlow) {
         // See if we are a button that should not be visible according to OS settings.
         ScrollbarButtonsPlacement buttonsPlacement = theme().buttonsPlacement();
         switch (partType) {
@@ -369,7 +369,7 @@ float RenderScrollbar::opacity() const
 bool RenderScrollbar::isHiddenByStyle() const
 {
     std::unique_ptr<RenderStyle> partStyle = getScrollbarPseudoStyle(ScrollbarBGPart, pseudoForScrollbarPart(ScrollbarBGPart));
-    return partStyle && partStyle->display() == DisplayType::None;
+    return partStyle && partStyle->display() == Style::DisplayType::None;
 }
 
 }

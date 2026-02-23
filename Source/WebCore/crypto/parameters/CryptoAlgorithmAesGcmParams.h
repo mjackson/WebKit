@@ -57,7 +57,7 @@ public:
 
     const Vector<uint8_t>& ivVector() const
     {
-        if (!m_ivVector.isEmpty() || !iv || !iv->length())
+        if (!m_ivVector.isEmpty() || !iv || !iv->byteLength())
             return m_ivVector;
 
         if (iv)
@@ -71,7 +71,7 @@ public:
             return m_additionalDataVector;
 
         BufferSource additionalDataBuffer = *std::exchange(additionalData, std::nullopt);
-        if (!additionalDataBuffer.length())
+        if (!additionalDataBuffer.byteLength())
             return m_additionalDataVector;
 
         m_additionalDataVector.append(additionalDataBuffer.span());

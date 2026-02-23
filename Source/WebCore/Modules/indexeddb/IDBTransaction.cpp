@@ -359,7 +359,7 @@ void IDBTransaction::stop()
 void IDBTransaction::addRequest(IDBRequest& request)
 {
     ASSERT(canCurrentThreadAccessThreadLocalData(m_database->originThread()));
-    m_openRequests.add(&request);
+    m_openRequests.add(request);
 }
 
 void IDBTransaction::addCursorRequest(IDBRequest& request)
@@ -374,7 +374,7 @@ void IDBTransaction::removeRequest(IDBRequest& request)
     if (m_currentlyCompletingRequest == &request)
         return;
 
-    m_openRequests.remove(&request);
+    m_openRequests.remove(request);
 
     autoCommit();
 }

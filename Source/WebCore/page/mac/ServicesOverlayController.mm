@@ -341,7 +341,7 @@ void ServicesOverlayController::clearActiveHighlight()
 
 void ServicesOverlayController::removeAllPotentialHighlightsOfType(DataDetectorHighlight::Type type)
 {
-    Vector<RefPtr<DataDetectorHighlight>> highlightsToRemove;
+    Vector<Ref<DataDetectorHighlight>> highlightsToRemove;
     for (auto& highlight : m_potentialHighlights) {
         if (highlight->type() == type)
             highlightsToRemove.append(highlight);
@@ -374,7 +374,7 @@ void ServicesOverlayController::buildPhoneNumberHighlights()
     if (!PAL::isDataDetectorsFrameworkAvailable())
         return;
 
-    HashSet<RefPtr<DataDetectorHighlight>> newPotentialHighlights;
+    HashSet<Ref<DataDetectorHighlight>> newPotentialHighlights;
 
     Ref mainFrameView = *localMainFrame->view();
 
@@ -395,7 +395,7 @@ void ServicesOverlayController::buildPhoneNumberHighlights()
         CGRect cgRect = rect;
         auto ddHighlight = adoptCF(PAL::softLink_DataDetectors_DDHighlightCreateWithRectsInVisibleRectWithStyleScaleAndDirection(nullptr, &cgRect, 1, mainFrameView->visibleContentRect(), static_cast<DDHighlightStyle>(DDHighlightStyleBubbleStandard) | static_cast<DDHighlightStyle>(DDHighlightStyleStandardIconArrow), YES, NSWritingDirectionNatural, NO, YES, 0));
         auto highlight = DataDetectorHighlight::createForTelephoneNumber(*this, WTF::move(ddHighlight), WTF::move(range));
-        m_highlights.add(highlight.get());
+        m_highlights.add(highlight.ptr());
         newPotentialHighlights.add(WTF::move(highlight));
     }
 
@@ -412,7 +412,7 @@ void ServicesOverlayController::buildSelectionHighlight()
     if (!PAL::isDataDetectorsFrameworkAvailable())
         return;
 
-    HashSet<RefPtr<DataDetectorHighlight>> newPotentialHighlights;
+    HashSet<Ref<DataDetectorHighlight>> newPotentialHighlights;
 
     Ref page = m_page.get();
     if (auto selectionRange = page->selection().firstRange()) {
@@ -434,7 +434,7 @@ void ServicesOverlayController::buildSelectionHighlight()
             CGRect visibleRect = mainFrameView->visibleContentRect();
             auto ddHighlight = adoptCF(PAL::softLink_DataDetectors_DDHighlightCreateWithRectsInVisibleRectWithStyleScaleAndDirection(nullptr, cgRects.begin(), cgRects.size(), visibleRect, static_cast<DDHighlightStyle>(DDHighlightStyleBubbleNone) | static_cast<DDHighlightStyle>(DDHighlightStyleStandardIconArrow) | static_cast<DDHighlightStyle>(DDHighlightStyleButtonShowAlways), YES, NSWritingDirectionNatural, NO, YES, 0));
             auto highlight = DataDetectorHighlight::createForSelection(*this, WTF::move(ddHighlight), WTF::move(*selectionRange));
-            m_highlights.add(highlight.get());
+            m_highlights.add(highlight.ptr());
             newPotentialHighlights.add(WTF::move(highlight));
         }
     }
@@ -442,18 +442,18 @@ void ServicesOverlayController::buildSelectionHighlight()
     replaceHighlightsOfTypePreservingEquivalentHighlights(WTF::move(newPotentialHighlights), DataDetectorHighlight::Type::Selection);
 }
 
-void ServicesOverlayController::replaceHighlightsOfTypePreservingEquivalentHighlights(HashSet<RefPtr<DataDetectorHighlight>>&& newPotentialHighlights, DataDetectorHighlight::Type type)
+void ServicesOverlayController::replaceHighlightsOfTypePreservingEquivalentHighlights(HashSet<Ref<DataDetectorHighlight>>&& newPotentialHighlights, DataDetectorHighlight::Type type)
 {
     // If any old Highlights are equivalent (by Range) to a new Highlight, reuse the old
     // one so that any metadata is retained.
-    HashSet<RefPtr<DataDetectorHighlight>> reusedPotentialHighlights;
+    HashSet<Ref<DataDetectorHighlight>> reusedPotentialHighlights;
 
     for (auto& oldHighlight : m_potentialHighlights) {
         if (oldHighlight->type() != type)
             continue;
 
         for (auto& newHighlight : newPotentialHighlights) {
-            if (areEquivalent(oldHighlight.get(), newHighlight.get())) {
+            if (areEquivalent(oldHighlight.ptr(), newHighlight.ptr())) {
                 oldHighlight->setHighlight(newHighlight->highlight());
 
                 reusedPotentialHighlights.add(oldHighlight);
@@ -508,7 +508,7 @@ DataDetectorHighlight* ServicesOverlayController::findTelephoneNumberHighlightCo
 
     for (auto& highlight : m_potentialHighlights) {
         if (highlight->type() == DataDetectorHighlight::Type::TelephoneNumber && contains<ComposedTree>(highlight->range(), *selectionRange))
-            return highlight.get();
+            return highlight.ptr();
     }
 
     return nullptr;
@@ -536,10 +536,10 @@ void ServicesOverlayController::determineActiveHighlight(bool& mouseIsOverActive
 
         // If this highlight isn't hovered, it can't be active.
         bool mouseIsOverButton;
-        if (!mouseIsOverHighlight(*highlight, mouseIsOverButton))
+        if (!mouseIsOverHighlight(highlight, mouseIsOverButton))
             continue;
 
-        newActiveHighlight = highlight;
+        newActiveHighlight = highlight.ptr();
         mouseIsOverActiveHighlightButton = mouseIsOverButton;
     }
 
@@ -679,17 +679,17 @@ void ServicesOverlayController::handleClick(const IntPoint& clickPoint, DataDete
 
 void ServicesOverlayController::scheduleRenderingUpdate(OptionSet<RenderingUpdateStep> requestedSteps)
 {
-    protectedPage()->scheduleRenderingUpdate(requestedSteps);
+    protect(m_page)->scheduleRenderingUpdate(requestedSteps);
 }
 
 float ServicesOverlayController::deviceScaleFactor() const
 {
-    return protectedPage()->deviceScaleFactor();
+    return protect(m_page)->deviceScaleFactor();
 }
 
 RefPtr<GraphicsLayer> ServicesOverlayController::createGraphicsLayer(GraphicsLayerClient& client)
 {
-    return GraphicsLayer::create(protectedPage()->chrome().client().graphicsLayerFactory(), client);
+    return GraphicsLayer::create(protect(m_page)->chrome().client().graphicsLayerFactory(), client);
 }
 
 #endif

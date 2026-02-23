@@ -87,6 +87,8 @@ private:
     void processDidExit() override;
     void processWillSwap() override;
     void didRelaunchProcess() override;
+    void didStartUsingProcessForSiteIsolation(WebProcessProxy&, LayerHostingContextID) override;
+    void didStopUsingProcessForSiteIsolation(WebProcessProxy&) override;
 
 #if HAVE(VISIBILITY_PROPAGATION_VIEW)
     void didCreateContextInWebProcessForVisibilityPropagation(LayerHostingContextID) override;
@@ -184,9 +186,6 @@ private:
     RefPtr<ViewSnapshot> takeViewSnapshot(std::optional<WebCore::IntRect>&&) override;
     void wheelEventWasNotHandledByWebCore(const NativeWebWheelEvent&) override;
 
-    void commitPotentialTapFailed() override;
-    void didGetTapHighlightGeometries(WebKit::TapIdentifier requestID, const WebCore::Color&, const Vector<WebCore::FloatQuad>& highlightedQuads, const WebCore::IntSize& topLeftRadius, const WebCore::IntSize& topRightRadius, const WebCore::IntSize& bottomLeftRadius, const WebCore::IntSize& bottomRightRadius, bool nodeHasBuiltInClickHandling) override;
-
     void didCommitLayerTree(const RemoteLayerTreeTransaction&, const std::optional<MainFrameData>&, const PageData&, const TransactionID&) final;
     void didCommitMainFrameData(const MainFrameData&) final;
     void layerTreeCommitComplete() override;
@@ -230,9 +229,6 @@ private:
 #endif
 
     void dismissAnyOpenPicker() override;
-
-    void disableDoubleTapGesturesDuringTapIfNecessary(WebKit::TapIdentifier) override;
-    void handleSmartMagnificationInformationForPotentialTap(WebKit::TapIdentifier, const WebCore::FloatRect& renderRect, bool fitEntireRect, double viewportMinimumScale, double viewportMaximumScale, bool nodeIsRootLevel, bool nodeIsPluginElement) override;
 
     double minimumZoomScale() const override;
     WebCore::FloatRect documentRect() const override;
@@ -285,9 +281,6 @@ private:
     void didFinishNavigation(API::Navigation*) override;
     void didFailNavigation(API::Navigation*) override;
     void didSameDocumentNavigationForMainFrame(SameDocumentNavigationType) override;
-    void didNotHandleTapAsClick(const WebCore::IntPoint&) override;
-    void didHandleTapAsHover() override;
-    void didCompleteSyntheticClick() override;
 
     void runModalJavaScriptDialog(CompletionHandler<void()>&& callback) final;
 
@@ -366,8 +359,6 @@ private:
 #endif
 
     UIViewController *presentingViewController() const final;
-
-    bool isPotentialTapInProgress() const final;
 
     WebCore::FloatPoint webViewToRootView(const WebCore::FloatPoint&) const final;
     WebCore::FloatRect rootViewToWebView(const WebCore::FloatRect&) const final;

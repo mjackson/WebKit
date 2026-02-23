@@ -38,7 +38,7 @@
 
 namespace WebCore {
 
-static std::optional<ViewTransitionNavigation> toViewTransitionNavigationEnum(RefPtr<CSSValue> navigation)
+static std::optional<ViewTransitionNavigation> NODELETE toViewTransitionNavigationEnum(RefPtr<CSSValue> navigation)
 {
     if (!navigation || !navigation->isPrimitiveValue())
         return std::nullopt;

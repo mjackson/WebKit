@@ -175,7 +175,7 @@ static WebCore::IntPoint viewportLocationToWindowLocation(WebCore::IntPoint loca
 
 #if ENABLE(WEBDRIVER_MOUSE_INTERACTIONS)
 
-static unsigned nsEventButtonNumberFromAutomationMouseButton(MouseButton button)
+static unsigned NODELETE nsEventButtonNumberFromAutomationMouseButton(MouseButton button)
 {
     switch (button) {
     case MouseButton::Right:
@@ -191,7 +191,7 @@ static unsigned nsEventButtonNumberFromAutomationMouseButton(MouseButton button)
     }
 }
 
-static WebMouseEventButton automationMouseButtonToPlatformMouseButton(MouseButton button)
+static WebMouseEventButton NODELETE automationMouseButtonToPlatformMouseButton(MouseButton button)
 {
     switch (button) {
     case MouseButton::Left:   return WebMouseEventButton::Left;
@@ -323,7 +323,7 @@ OptionSet<WebEventModifier> WebAutomationSession::platformWebModifiersFromRaw(We
 #endif // ENABLE(WEBDRIVER_MOUSE_INTERACTIONS)
 
 #if ENABLE(WEBDRIVER_KEYBOARD_INTERACTIONS)
-static bool virtualKeyHasStickyModifier(VirtualKey key)
+static bool NODELETE virtualKeyHasStickyModifier(VirtualKey key)
 {
     // Returns whether the key's modifier flags should affect other events while pressed down.
     switch (key) {
@@ -349,7 +349,7 @@ static bool virtualKeyHasStickyModifier(VirtualKey key)
 // PlatformEventFactoryMac::codeForKeyEvent.
 static constexpr unsigned short unknownKeyCode = USHRT_MAX;
 
-static int keyCodeForCharKey(CharKey charKey)
+static int NODELETE keyCodeForCharKey(CharKey charKey)
 {
     if (charKey.length() != 1)
         return unknownKeyCode;
@@ -636,7 +636,7 @@ static unsigned short keyCodeForVirtualKey(VirtualKey key)
     }
 }
 
-static NSEventModifierFlags eventModifierFlagsForVirtualKey(VirtualKey key)
+static NSEventModifierFlags NODELETE eventModifierFlagsForVirtualKey(VirtualKey key)
 {
     // Computes the modifiers changed by the virtual key when it is pressed or released.
     // The mapping from keys to modifiers is specified in the documentation for NSEvent.

@@ -84,7 +84,7 @@ public:
 
     WebExtensionMenuItemParameters minimalParameters() const;
 
-    WebExtensionContext* extensionContext() const;
+    WebExtensionContext* NODELETE extensionContext() const;
 
     bool matches(const WebExtensionMenuItemContextParameters&) const;
 

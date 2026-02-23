@@ -36,6 +36,12 @@ enum class PDFDisplayMode : uint8_t {
     TwoUpContinuous,
 };
 
+constexpr bool isSinglePagePDFDisplayMode(PDFDisplayMode mode) { return mode == PDFDisplayMode::SinglePageDiscrete || mode == PDFDisplayMode::SinglePageContinuous; }
+constexpr bool isTwoUpPDFDisplayMode(PDFDisplayMode mode) { return mode == PDFDisplayMode::TwoUpDiscrete || mode == PDFDisplayMode::TwoUpContinuous; }
+
+constexpr bool isScrollingPDFDisplayMode(PDFDisplayMode mode) { return mode == PDFDisplayMode::SinglePageContinuous || mode == PDFDisplayMode::TwoUpContinuous; }
+constexpr bool isDiscretePDFDisplayMode(PDFDisplayMode mode) { return mode == PDFDisplayMode::SinglePageDiscrete || mode == PDFDisplayMode::TwoUpDiscrete; }
+
 } // namespace WebKit
 
 #endif

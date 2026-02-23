@@ -50,7 +50,7 @@ public:
     ContextMenuController(Page&, UniqueRef<ContextMenuClient>&&);
     ~ContextMenuController();
 
-    Page& page();
+    Page& NODELETE page();
     ContextMenuClient& client() { return m_client.get(); }
 
     ContextMenu* contextMenu() const { return m_contextMenu.get(); }

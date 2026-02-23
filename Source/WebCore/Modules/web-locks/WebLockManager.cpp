@@ -65,7 +65,7 @@ struct WebLockManager::LockRequest {
     RefPtr<WebLockGrantedCallback> grantedCallback;
     RefPtr<AbortSignal> signal;
 
-    bool isValid() const { return !!lockIdentifier; }
+    bool NODELETE isValid() const { return !!lockIdentifier; }
 };
 
 class WebLockManager::MainThreadBridge : public ThreadSafeRefCounted<MainThreadBridge, WTF::DestructionThread::Main> {

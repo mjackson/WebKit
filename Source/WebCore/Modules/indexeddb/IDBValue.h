@@ -50,7 +50,7 @@ public:
     const Vector<String>& blobURLs() const { return m_blobURLs; }
     const Vector<String>& blobFilePaths() const { return m_blobFilePaths; }
 
-    size_t size() const;
+    size_t NODELETE size() const;
 private:
     ThreadSafeDataBuffer m_data;
     Vector<String> m_blobURLs;

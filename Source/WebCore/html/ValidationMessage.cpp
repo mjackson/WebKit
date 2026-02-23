@@ -177,8 +177,8 @@ void ValidationMessage::adjustBubblePosition()
         return;
     double hostX = hostRect.x();
     double hostY = hostRect.y();
-    if (RenderObject* renderer = m_bubble->renderer()) {
-        if (RenderBox* container = renderer->containingBlock()) {
+    if (CheckedPtr renderer = m_bubble->renderer()) {
+        if (CheckedPtr container = renderer->containingBlock()) {
             FloatPoint containerLocation = container->localToAbsolute();
             hostX -= containerLocation.x() + container->borderLeft();
             hostY -= containerLocation.y() + container->borderTop();

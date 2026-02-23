@@ -44,7 +44,6 @@ class CredentialRequestCoordinatorClient;
 class Document;
 class LocalFrame;
 class Page;
-struct DigitalCredentialsRequestData;
 struct DigitalCredentialsResponseData;
 struct ExceptionData;
 
@@ -92,12 +91,12 @@ private:
         Aborting
     }; // enum class PickerState
 
-    bool canTransitionTo(PickerState) const;
-    PickerState currentState() const;
-    void setState(PickerState);
+    bool NODELETE canTransitionTo(PickerState) const;
+    PickerState NODELETE currentState() const;
+    void NODELETE setState(PickerState);
     bool hasCurrentPromise() const { return m_currentPromise.has_value(); }
     void setCurrentPromise(CredentialPromise&&);
-    CredentialPromise* currentPromise();
+    CredentialPromise* NODELETE currentPromise();
 
     ExceptionOr<JSC::JSObject*> parseDigitalCredentialsResponseData(const String&) const;
     void handleDigitalCredentialsPickerResult(Expected<DigitalCredentialsResponseData, ExceptionData>&& responseOrException, RefPtr<AbortSignal>);

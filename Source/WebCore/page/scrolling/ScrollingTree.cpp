@@ -32,6 +32,7 @@
 #include "EventNames.h"
 #include "Logging.h"
 #include "PlatformWheelEvent.h"
+#include "RubberbandingState.h"
 #include "ScrollingEffectsController.h"
 #include "ScrollingStateFrameScrollingNode.h"
 #include "ScrollingStateTree.h"
@@ -331,7 +332,7 @@ void ScrollingTree::removeNode(ScrollingNodeID nodeID, ScrollingTreeFrameHosting
                 nodeList->value.remove(nodeID);
         }
         if (hostingNode)
-            hostingNode->removeHostedChild(node);
+            hostingNode->removeHostedChild(*node);
         node->willBeDestroyed();
     }
 }
@@ -344,6 +345,16 @@ void ScrollingTree::removeFrameHostingNode(LayerHostingContextIdentifier hosting
 bool ScrollingTree::commitTreeStateInternal(std::unique_ptr<ScrollingStateTree>&& scrollingStateTree, std::optional<LayerHostingContextIdentifier> hostingContextIdentifier)
 {
     bool rootStateNodeChanged = scrollingStateTree->hasNewRootStateNode();
+
+#if HAVE(RUBBER_BANDING)
+    if (RefPtr rootNode = m_rootNode; rootNode && rootStateNodeChanged) {
+        if (auto state = rootNode->captureRubberbandingState()) {
+            LOG_WITH_STREAM(ScrollAnimations, stream << "ScrollingTree::commitTreeStateInternal - captured rubberbanding state: initialOverscroll");
+            setPendingMainFrameRubberbandingState(WTF::move(state));
+        } else
+            setPendingMainFrameRubberbandingState(std::nullopt);
+    }
+#endif
 
     LOG(ScrollingTree, "\nScrollingTree %p commitTreeState", this);
 
@@ -554,7 +565,7 @@ bool ScrollingTree::updateTreeFromStateNodeRecursive(const ScrollingStateNode* s
     }
 
     if (RefPtr hostingNodeForCommit = state.frameHostingNode)
-        hostingNodeForCommit->addHostedChild(node);
+        hostingNodeForCommit->addHostedChild(node.releaseNonNull());
 
     return true;
 }
@@ -789,6 +800,18 @@ void ScrollingTree::setRubberBandingInProgressForNode(ScrollingNodeID nodeID, bo
         m_treeState.nodesWithActiveRubberBanding.remove(nodeID);
 }
 
+#if HAVE(RUBBER_BANDING)
+void ScrollingTree::setPendingMainFrameRubberbandingState(std::optional<RubberbandingState>&& state)
+{
+    m_pendingMainFrameRubberbandingState = WTF::move(state);
+}
+
+std::optional<RubberbandingState> ScrollingTree::takePendingMainFrameRubberbandingState()
+{
+    return std::exchange(m_pendingMainFrameRubberbandingState, std::nullopt);
+}
+#endif
+
 // Can be called from the main thread.
 bool ScrollingTree::isUserScrollInProgressForNode(std::optional<ScrollingNodeID> nodeID)
 {
@@ -910,7 +933,7 @@ RubberBandingBehavior ScrollingTree::clientAllowsMainFrameRubberBandingOnSide(Bo
     return m_swipeState.clientAllowedRubberBandableEdges.at(side);
 }
 
-void ScrollingTree::addPendingScrollUpdate(ScrollUpdate&& update)
+void ScrollingTree::addPendingScrollUpdateInternal(ScrollUpdate&& update)
 {
     Locker locker { m_pendingScrollUpdatesLock };
     for (auto& existingUpdate : m_pendingScrollUpdates) {
@@ -921,6 +944,12 @@ void ScrollingTree::addPendingScrollUpdate(ScrollUpdate&& update)
     }
 
     m_pendingScrollUpdates.append(WTF::move(update));
+}
+
+void ScrollingTree::addPendingScrollUpdate(ScrollUpdate&& update)
+{
+    addPendingScrollUpdateInternal(WTF::move(update));
+    didAddPendingScrollUpdate();
 }
 
 Vector<ScrollUpdate> ScrollingTree::takePendingScrollUpdates()

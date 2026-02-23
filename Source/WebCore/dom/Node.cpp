@@ -255,7 +255,7 @@ void Node::dumpStatistics()
                 useTypeCount++;
             }
             if (useTypeCount == 1) {
-                auto result = rareDataSingleUseTypeCounts.add(enumToUnderlyingType(*useTypes.begin()), 0);
+                auto result = rareDataSingleUseTypeCounts.add(std::to_underlying(*useTypes.begin()), 0);
                 result.iterator->value++;
             } else
                 mixedRareDataUseCount++;
@@ -393,7 +393,7 @@ Node::Node(Document& document, NodeType type, OptionSet<TypeFlag> flags)
 #endif
 }
 
-static HashMap<WeakRef<Node, WeakPtrImplWithEventTargetData>, NodeIdentifier>& nodeIdentifiersMap()
+static HashMap<WeakRef<Node, WeakPtrImplWithEventTargetData>, NodeIdentifier>& NODELETE nodeIdentifiersMap()
 {
     static MainThreadNeverDestroyed<HashMap<WeakRef<Node, WeakPtrImplWithEventTargetData>, NodeIdentifier>> map;
     return map;
@@ -1044,7 +1044,7 @@ inline bool Document::shouldInvalidateNodeListAndCollectionCaches() const
 
 inline bool Document::shouldInvalidateNodeListAndCollectionCachesForAttribute(const QualifiedName& attrName) const
 {
-    return shouldInvalidateNodeListCachesForAttr<enumToUnderlyingType(NodeListInvalidationType::DoNotInvalidateOnAttributeChanges) + 1>(m_nodeListAndCollectionCounts, attrName);
+    return shouldInvalidateNodeListCachesForAttr<std::to_underlying(NodeListInvalidationType::DoNotInvalidateOnAttributeChanges) + 1>(m_nodeListAndCollectionCounts, attrName);
 }
 
 template <typename InvalidationFunction>
@@ -1200,7 +1200,7 @@ bool Node::isComposedTreeDescendantOf(const Node& node) const
 Node* Node::pseudoAwarePreviousSibling() const
 {
     auto* pseudoElement = dynamicDowncast<PseudoElement>(*this);
-    RefPtr parentOrHost = pseudoElement ? pseudoElement->hostElement() : parentElement();
+    auto* parentOrHost = pseudoElement ? pseudoElement->hostElement() : parentElement();
     if (parentOrHost && !previousSibling()) {
         if (isAfterPseudoElement() && parentOrHost->lastChild())
             return parentOrHost->lastChild();
@@ -1213,7 +1213,7 @@ Node* Node::pseudoAwarePreviousSibling() const
 Node* Node::pseudoAwareNextSibling() const
 {
     auto* pseudoElement = dynamicDowncast<PseudoElement>(*this);
-    RefPtr parentOrHost = pseudoElement ? pseudoElement->hostElement() : parentElement();
+    auto* parentOrHost = pseudoElement ? pseudoElement->hostElement() : parentElement();
     if (parentOrHost && !nextSibling()) {
         if (isBeforePseudoElement() && parentOrHost->firstChild())
             return parentOrHost->firstChild();
@@ -1226,7 +1226,7 @@ Node* Node::pseudoAwareNextSibling() const
 Node* Node::pseudoAwareFirstChild() const
 {
     if (auto* currentElement = dynamicDowncast<Element>(*this)) {
-        SUPPRESS_UNCHECKED_LOCAL Node* first = currentElement->beforePseudoElement();
+        Node* first = currentElement->beforePseudoElement();
         if (first)
             return first;
         first = currentElement->firstChild();
@@ -1240,7 +1240,7 @@ Node* Node::pseudoAwareFirstChild() const
 Node* Node::pseudoAwareLastChild() const
 {
     if (auto* currentElement = dynamicDowncast<Element>(*this)) {
-        SUPPRESS_UNCHECKED_LOCAL Node* last = currentElement->afterPseudoElement();
+        Node* last = currentElement->afterPseudoElement();
         if (last)
             return last;
         last = currentElement->lastChild();
@@ -1327,7 +1327,7 @@ bool Node::isClosedShadowHidden(const Node& otherNode) const
     return true;
 }
 
-static inline ShadowRoot* parentShadowRoot(const Node& node)
+static inline ShadowRoot* NODELETE parentShadowRoot(const Node& node)
 {
     if (auto* parent = node.parentElement())
         return parent->shadowRoot();
@@ -1414,11 +1414,15 @@ TreeScope& Node::treeScopeForSVGReferences() const
     return treeScope();
 }
 
-bool Node::isInUserAgentShadowTree() const
+#if ASSERT_ENABLED
+bool Node::checkIsInUserAgentShadowTree(bool isInUserAgentShadowTree) const
 {
     auto* shadowRoot = containingShadowRoot();
-    return shadowRoot && shadowRoot->mode() == ShadowRootMode::UserAgent;
+    auto actualValue = shadowRoot && shadowRoot->mode() == ShadowRootMode::UserAgent;
+    ASSERT(actualValue == isInUserAgentShadowTree);
+    return isInUserAgentShadowTree;
 }
+#endif
 
 Node* Node::nonBoundaryShadowTreeRootNode()
 {
@@ -1533,12 +1537,6 @@ Element* Node::rootEditableElement() const
 }
 
 // FIXME: End of obviously misplaced HTML editing functions.  Try to move these out of Node.
-
-Document* Node::ownerDocument() const
-{
-    Document* document = &this->document();
-    return document == this ? nullptr : document;
-}
 
 const URL& Node::baseURI() const
 {
@@ -2947,7 +2945,7 @@ TextDirection Node::effectiveTextDirection() const
 void Node::setEffectiveTextDirection(TextDirection direction)
 {
     auto bitfields = rareDataBitfields();
-    bitfields.effectiveTextDirection = enumToUnderlyingType(direction);
+    bitfields.effectiveTextDirection = std::to_underlying(direction);
     setRareDataBitfields(bitfields);
 }
 
@@ -3055,7 +3053,7 @@ template Node* commonInclusiveAncestor<Tree>(const Node&, const Node&);
 template Node* commonInclusiveAncestor<ComposedTree>(const Node&, const Node&);
 template Node* commonInclusiveAncestor<ShadowIncludingTree>(const Node&, const Node&);
 
-static bool isSiblingSubsequent(const Node& siblingA, const Node& siblingB)
+static bool NODELETE isSiblingSubsequent(const Node& siblingA, const Node& siblingB)
 {
     ASSERT(siblingA.parentNode());
     ASSERT(siblingA.parentNode() == siblingB.parentNode());

@@ -152,9 +152,9 @@ WKWebView *WKPageGetWebView(WKPageRef page)
 }
 
 #if PLATFORM(MAC)
-bool WKPageIsPlayingVideoInEnhancedFullscreen(WKPageRef pageRef)
+bool WKPageIsPlayingVideoInPictureInPicture(WKPageRef pageRef)
 {
-    return WebKit::toProtectedImpl(pageRef)->isPlayingVideoInEnhancedFullscreen();
+    return WebKit::toProtectedImpl(pageRef)->isPlayingVideoInPictureInPicture();
 }
 #endif
 

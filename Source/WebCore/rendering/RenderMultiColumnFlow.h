@@ -49,7 +49,7 @@ public:
     static RenderBox* nextColumnSetOrSpannerSiblingOf(const RenderBox*);
     static RenderBox* previousColumnSetOrSpannerSiblingOf(const RenderBox*);
 
-    RenderMultiColumnSpannerPlaceholder* findColumnSpannerPlaceholder(const RenderBox& spanner) const;
+    RenderMultiColumnSpannerPlaceholder* NODELETE findColumnSpannerPlaceholder(const RenderBox& spanner) const;
 
     void layout() override;
 

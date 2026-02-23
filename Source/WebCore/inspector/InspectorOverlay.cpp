@@ -78,6 +78,7 @@
 #include "StyleGridData.h"
 #include "StyleGridTrackSizingDirection.h"
 #include "StyleResolver.h"
+#include "StyleZoomPrimitivesInlines.h"
 #include "WritingMode.h"
 #include <wtf/MathExtras.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -215,7 +216,7 @@ static void buildRendererHighlight(RenderObject* renderer, const InspectorOverla
 
 static void buildNodeHighlight(Node& node, const InspectorOverlay::Highlight::Config& highlightConfig, InspectorOverlay::Highlight& highlight, InspectorOverlay::CoordinateSystem coordinateSystem)
 {
-    auto* renderer = node.renderer();
+    CheckedPtr renderer = node.renderer();
     if (!renderer || renderer->isSkippedContent())
         return;
 
@@ -314,11 +315,11 @@ static void drawFragmentHighlight(GraphicsContext& context, Node& node, const In
 
 static void drawShapeHighlight(GraphicsContext& context, Node& node, InspectorOverlay::Highlight::Bounds& bounds)
 {
-    auto* renderer = node.renderer();
+    CheckedPtr renderer = node.renderer();
     if (!renderer || renderer->isSkippedContent() || !is<RenderBox>(renderer))
         return;
 
-    const ShapeOutsideInfo* shapeOutsideInfo = downcast<RenderBox>(renderer)->shapeOutsideInfo();
+    const ShapeOutsideInfo* shapeOutsideInfo = downcast<RenderBox>(renderer.get())->shapeOutsideInfo();
     if (!shapeOutsideInfo)
         return;
 
@@ -727,7 +728,7 @@ bool InspectorOverlay::removeGridOverlayForNode(Node& node)
 
 ErrorStringOr<void> InspectorOverlay::setGridOverlayForNode(Node& node, const InspectorOverlay::Grid::Config& gridOverlayConfig)
 {
-    RenderObject* renderer = node.renderer();
+    CheckedPtr<RenderObject> renderer = node.renderer();
     if (!is<RenderGrid>(renderer))
         return makeUnexpected("Node does not initiate a grid context"_s);
 
@@ -1140,7 +1141,7 @@ void InspectorOverlay::drawRulers(GraphicsContext& context, const InspectorOverl
 
 static bool rendererIsFlexboxItem(RenderObject& renderer)
 {
-    if (auto* parentFlexRenderer = dynamicDowncast<RenderFlexibleBox>(renderer.parent()))
+    if (CheckedPtr parentFlexRenderer = dynamicDowncast<RenderFlexibleBox>(renderer.parent()))
         return !parentFlexRenderer->orderIterator().shouldSkipChild(renderer);
 
     return false;
@@ -1163,7 +1164,7 @@ Path InspectorOverlay::drawElementTitle(GraphicsContext& context, Node& node, co
     if (!element)
         return { };
 
-    auto* renderer = node.renderer();
+    CheckedPtr renderer = node.renderer();
     if (!renderer || renderer->isSkippedContent())
         return { };
 
@@ -1197,9 +1198,9 @@ Path InspectorOverlay::drawElementTitle(GraphicsContext& context, Node& node, co
     String elementWidth;
     String elementHeight;
     if (is<RenderBoxModelObject>(renderer)) {
-        auto* modelObject = downcast<RenderBoxModelObject>(renderer);
-        elementWidth = String::number(adjustForAbsoluteZoom(roundToInt(modelObject->offsetWidth()), *modelObject));
-        elementHeight = String::number(adjustForAbsoluteZoom(roundToInt(modelObject->offsetHeight()), *modelObject));
+        CheckedPtr modelObject = downcast<RenderBoxModelObject>(renderer.get());
+        elementWidth = String::number(Style::adjustForAbsoluteZoom(roundToInt(modelObject->offsetWidth()), *modelObject));
+        elementHeight = String::number(Style::adjustForAbsoluteZoom(roundToInt(modelObject->offsetHeight()), *modelObject));
     } else {
         RefPtr containingView = node.document().frame()->view();
         IntRect boundingBox = snappedIntRect(containingView->contentsToRootView(renderer->absoluteBoundingBoxRect()));
@@ -1224,7 +1225,7 @@ Path InspectorOverlay::drawElementTitle(GraphicsContext& context, Node& node, co
         WebCore::AXObjectCache::enableAccessibility();
 
     String elementRole;
-    if (AXObjectCache* axObjectCache = node.document().axObjectCache()) {
+    if (CheckedPtr<AXObjectCache> axObjectCache = node.document().axObjectCache()) {
         if (RefPtr axObject = axObjectCache->getOrCreate(node); axObject && !axObject->isIgnored())
             elementRole = axObject->computedRoleString();
     }
@@ -1435,7 +1436,7 @@ static Vector<String> authoredGridTrackSizes(Node* node, Style::GridTrackSizingD
     // FIXME: https://bugs.webkit.org/show_bug.cgi?id=301874 add indication for developers that value originally auto
     if (cssValue && cssValue->hasVariableReferences()) {
         Style::Extractor extractor(element);
-        auto& style = element->renderer()->style();
+        CheckedRef style = element->renderer()->style();
         if (auto computedValue = extractor.propertyValueInStyle(style, directionCSSPropertyID, CSSValuePool::singleton(), nullptr))
             cssValue = computedValue;
     }
@@ -1542,23 +1543,23 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
     if (offsetBoundsByScroll)
         viewportBounds.setLocation(scrollPosition);
     
-    auto& renderGrid = *downcast<RenderGrid>(renderer);
-    auto columnPositions = renderGrid.columnPositions();
-    auto rowPositions = renderGrid.rowPositions();
+    CheckedRef renderGrid = *downcast<RenderGrid>(renderer);
+    auto columnPositions = renderGrid->columnPositions();
+    auto rowPositions = renderGrid->rowPositions();
     if (!columnPositions.size() || !rowPositions.size())
         return { };
 
-    LayoutUnit masonryContentSize = renderGrid.masonryContentSize();
+    LayoutUnit masonryContentSize = renderGrid->masonryContentSize();
 
     // There are no actual rows or columns in the masonry axis of a masonry layout.
     // But we can borrow the concept to draw the two lines at the start and end of the masonry axis.
-    if (renderGrid.areMasonryRows()) {
+    if (renderGrid->areMasonryRows()) {
         auto firstRowPosition = rowPositions[0];
         auto lastRowPosition = rowPositions[0] + masonryContentSize;
         rowPositions = Vector<LayoutUnit> { firstRowPosition, lastRowPosition };
     }
 
-    if (renderGrid.areMasonryColumns()) {
+    if (renderGrid->areMasonryColumns()) {
         auto firstColumnPosition = columnPositions[0];
         auto lastColumnPosition = columnPositions[0] + masonryContentSize;
         columnPositions = Vector<LayoutUnit> { firstColumnPosition, lastColumnPosition };
@@ -1581,7 +1582,7 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
     auto isHorizontalWritingMode = computedStyle->writingMode().isHorizontal();
     auto isDirectionFlipped = computedStyle->writingMode().isBidiRTL();
     auto isWritingModeFlipped = computedStyle->writingMode().isBlockFlipped();
-    auto contentBox = renderGrid.absoluteBoundingBoxRectIgnoringTransforms();
+    auto contentBox = renderGrid->absoluteBoundingBoxRectIgnoringTransforms();
 
     auto columnLineAt = [&](float x) -> FloatLine {
         FloatPoint startPoint;
@@ -1594,8 +1595,8 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
             endPoint = { isWritingModeFlipped ? contentBox.width() - gridEndY : gridEndY, isDirectionFlipped ? contentBox.height() - x : x };
         }
         return {
-            localPointToRootPoint(containingView, renderGrid.localToContainerPoint(startPoint, nullptr)),
-            localPointToRootPoint(containingView, renderGrid.localToContainerPoint(endPoint, nullptr)),
+            localPointToRootPoint(containingView, renderGrid->localToContainerPoint(startPoint, nullptr)),
+            localPointToRootPoint(containingView, renderGrid->localToContainerPoint(endPoint, nullptr)),
         };
     };
     auto rowLineAt = [&](float y) -> FloatLine {
@@ -1609,8 +1610,8 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
             endPoint = { isWritingModeFlipped ? contentBox.width() - y : y, isDirectionFlipped ? contentBox.height() - gridEndX : gridEndX };
         }
         return {
-            localPointToRootPoint(containingView, renderGrid.localToContainerPoint(startPoint, nullptr)),
-            localPointToRootPoint(containingView, renderGrid.localToContainerPoint(endPoint, nullptr)),
+            localPointToRootPoint(containingView, renderGrid->localToContainerPoint(startPoint, nullptr)),
+            localPointToRootPoint(containingView, renderGrid->localToContainerPoint(endPoint, nullptr)),
         };
     };
 
@@ -1671,7 +1672,7 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
     gridHighlightOverlay.color = gridOverlay.config.gridColor;
 
     // Draw columns and rows.
-    auto columnWidths = renderGrid.trackSizesForComputedStyle(Style::GridTrackSizingDirection::Columns);
+    auto columnWidths = renderGrid->trackSizesForComputedStyle(Style::GridTrackSizingDirection::Columns);
     auto columnLineNames = gridLineNames(node->renderStyle(), Style::GridTrackSizingDirection::Columns, columnPositions.size());
     auto authoredTrackColumnSizes = authoredGridTrackSizes(node, Style::GridTrackSizingDirection::Columns, columnWidths.size());
     FloatLine previousColumnEndLine;
@@ -1686,7 +1687,7 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
         }
 
         // Draw only the bounding lines of the masonry axis.
-        if (renderGrid.areMasonryColumns())
+        if (renderGrid->areMasonryColumns())
             continue;
         
         FloatLine gapLabelLine = columnStartLine;
@@ -1760,7 +1761,7 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
         }
     }
 
-    auto rowHeights = renderGrid.trackSizesForComputedStyle(Style::GridTrackSizingDirection::Rows);
+    auto rowHeights = renderGrid->trackSizesForComputedStyle(Style::GridTrackSizingDirection::Rows);
     auto rowLineNames = gridLineNames(node->renderStyle(), Style::GridTrackSizingDirection::Rows, rowPositions.size());
     auto authoredTrackRowSizes = authoredGridTrackSizes(node, Style::GridTrackSizingDirection::Rows, rowHeights.size());
     FloatLine previousRowEndLine;
@@ -1775,7 +1776,7 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
         }
 
         // Draw only the bounding lines of the masonry axis.
-        if (renderGrid.areMasonryRows())
+        if (renderGrid->areMasonryRows())
             continue;
 
         FloatPoint gapLabelPosition = rowStartLine.start();
@@ -1837,7 +1838,7 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
         }
     }
 
-    if (gridOverlay.config.showAreaNames && !renderGrid.isMasonry()) {
+    if (gridOverlay.config.showAreaNames && !renderGrid->isMasonry()) {
         for (auto& [name, area] : node->renderStyle()->gridTemplateAreas().map.map) {
             // Named grid areas will always be rectangular per the CSS Grid specification.
             auto columnStartLine = columnLineAt(columnPositions[area.columns.startLine()]);
@@ -1862,8 +1863,8 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
     }
 
     // For masonry layouts, draw gaps between items in the masonry axis direction.
-    if (renderGrid.isMasonry()) {
-        auto& orderIterator = renderGrid.currentGrid().orderIterator();
+    if (renderGrid->isMasonry()) {
+        auto& orderIterator = renderGrid->currentGrid().orderIterator();
 
         struct ItemInfo {
             CheckedPtr<RenderBox> item;
@@ -1873,11 +1874,11 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
         };
 
         Vector<ItemInfo> allItems;
-        for (auto* gridItem = orderIterator.first(); gridItem; gridItem = orderIterator.next()) {
+        for (CheckedPtr gridItem = orderIterator.first(); gridItem; gridItem = orderIterator.next()) {
             if (orderIterator.shouldSkipChild(*gridItem))
                 continue;
 
-            auto gridArea = renderGrid.currentGrid().gridItemArea(*gridItem);
+            auto gridArea = renderGrid->currentGrid().gridItemArea(*gridItem);
             auto absoluteRect = FloatRect { gridItem->absoluteBoundingBoxRect(true) };
             absoluteRect.expand(gridItem->marginBox());
 
@@ -1885,7 +1886,7 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
             auto maxCorner = localPointToRootPoint(containingView, absoluteRect.maxXMaxYCorner());
             FloatRect rootRect { minCorner, maxCorner - minCorner };
 
-            if (renderGrid.areMasonryRows()) {
+            if (renderGrid->areMasonryRows()) {
                 auto& columnSpan = gridArea.columns;
                 if (!columnSpan.isTranslatedDefinite())
                     continue;
@@ -1898,7 +1899,7 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
             }
         }
 
-        unsigned gridAxisTrackCount = renderGrid.areMasonryRows() ? columnWidths.size() : rowHeights.size();
+        unsigned gridAxisTrackCount = renderGrid->areMasonryRows() ? columnWidths.size() : rowHeights.size();
 
         for (unsigned trackIndex = 0; trackIndex < gridAxisTrackCount; ++trackIndex) {
             Vector<ItemInfo*> itemsInTrack;
@@ -1910,7 +1911,7 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
             if (itemsInTrack.size() < 2)
                 continue;
 
-            if (renderGrid.areMasonryRows()) {
+            if (renderGrid->areMasonryRows()) {
                 std::sort(itemsInTrack.begin(), itemsInTrack.end(), [](ItemInfo* a, ItemInfo* b) {
                     return a->bounds.y() < b->bounds.y();
                 });
@@ -1925,7 +1926,7 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
                 auto& currentItem = *itemsInTrack[i];
 
                 FloatQuad gapQuad;
-                if (renderGrid.areMasonryRows()) {
+                if (renderGrid->areMasonryRows()) {
                     float gapTop = previousItem.bounds.maxY();
                     float gapBottom = currentItem.bounds.y();
                     if (gapBottom <= gapTop)
@@ -1971,15 +1972,15 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
         Vector<RenderBox*> gridItemsInDOMOrder;
         bool hasCustomOrder = false;
 
-        auto& orderIterator = renderGrid.currentGrid().orderIterator();
-        for (auto* gridItem = orderIterator.first(); gridItem; gridItem = orderIterator.next()) {
+        auto& orderIterator = renderGrid->currentGrid().orderIterator();
+        for (CheckedPtr gridItem = orderIterator.first(); gridItem; gridItem = orderIterator.next()) {
             if (orderIterator.shouldSkipChild(*gridItem))
                 continue;
             gridItemsInGridOrder.append(gridItem);
         }
 
         for (RefPtr child = node->firstChild(); child; child = child->nextSibling()) {
-            if (auto* renderer = dynamicDowncast<RenderBox>(child->renderer())) {
+            if (CheckedPtr renderer = dynamicDowncast<RenderBox>(child->renderer())) {
                 if (!gridItemsInGridOrder.contains(renderer))
                     continue;
 
@@ -1990,10 +1991,10 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
             }
         }
 
-        for (auto* gridItem : gridItemsInGridOrder) {
+        for (CheckedPtr gridItem : gridItemsInGridOrder) {
             FloatQuad itemBounds;
 
-            if (renderGrid.isMasonry()) {
+            if (renderGrid->isMasonry()) {
                 // For masonry layouts, use absoluteBoundingBoxRect to get the visual position
                 // accounting for all scroll offsets and transforms including zoom.
                 auto absoluteRect = FloatRect { gridItem->absoluteBoundingBoxRect(true) };
@@ -2007,7 +2008,7 @@ std::optional<InspectorOverlay::Highlight::GridHighlightOverlay> InspectorOverla
                 };
             } else {
                 // For regular grid layouts, compute bounds from the grid area.
-                auto gridArea = renderGrid.currentGrid().gridItemArea(*gridItem);
+                auto gridArea = renderGrid->currentGrid().gridItemArea(*gridItem);
                 if (!gridArea.rows.isTranslatedDefinite() || !gridArea.columns.isTranslatedDefinite())
                     continue;
 
@@ -2110,7 +2111,7 @@ std::optional<InspectorOverlay::Highlight::FlexHighlightOverlay> InspectorOverla
         return { };
     }
 
-    auto& renderFlex = *downcast<RenderFlexibleBox>(renderer);
+    CheckedRef renderFlex = *downcast<RenderFlexibleBox>(renderer);
 
     auto itemsAtStartOfLine = m_controller->ensureDOMAgent().flexibleBoxRendererCachedItemsAtStartOfLine(renderFlex);
 
@@ -2142,10 +2143,10 @@ std::optional<InspectorOverlay::Highlight::FlexHighlightOverlay> InspectorOverla
 
     auto childQuadToRootQuad = [&](const FloatQuad& quad) {
         return FloatQuad(
-            localPointToRootPoint(containingView, renderFlex.localToContainerPoint(quad.p1(), nullptr)),
-            localPointToRootPoint(containingView, renderFlex.localToContainerPoint(quad.p2(), nullptr)),
-            localPointToRootPoint(containingView, renderFlex.localToContainerPoint(quad.p3(), nullptr)),
-            localPointToRootPoint(containingView, renderFlex.localToContainerPoint(quad.p4(), nullptr))
+            localPointToRootPoint(containingView, renderFlex->localToContainerPoint(quad.p1(), nullptr)),
+            localPointToRootPoint(containingView, renderFlex->localToContainerPoint(quad.p2(), nullptr)),
+            localPointToRootPoint(containingView, renderFlex->localToContainerPoint(quad.p3(), nullptr)),
+            localPointToRootPoint(containingView, renderFlex->localToContainerPoint(quad.p4(), nullptr))
         );
     };
 
@@ -2196,15 +2197,15 @@ std::optional<InspectorOverlay::Highlight::FlexHighlightOverlay> InspectorOverla
 
     InspectorOverlay::Highlight::FlexHighlightOverlay flexHighlightOverlay;
     flexHighlightOverlay.color = flexOverlay.config.flexColor;
-    flexHighlightOverlay.containerBounds = localQuadToRootQuad(renderFlex.absoluteContentQuad());
+    flexHighlightOverlay.containerBounds = localQuadToRootQuad(renderFlex->absoluteContentQuad());
 
-    float computedMainAxisGap = renderFlex.computeGap(RenderFlexibleBox::GapType::BetweenItems).toFloat();
-    float computedCrossAxisGap = renderFlex.computeGap(RenderFlexibleBox::GapType::BetweenLines).toFloat();
+    float computedMainAxisGap = renderFlex->computeGap(RenderFlexibleBox::GapType::BetweenItems).toFloat();
+    float computedCrossAxisGap = renderFlex->computeGap(RenderFlexibleBox::GapType::BetweenLines).toFloat();
 
     // For reasoning about the edges of the flex container, use the untransformed content rect moved to the origin of the
     // inner top-left corner of padding, which is the same relative coordinate space that each item's `frameRect()` will be in.
-    auto containerRect = renderFlex.absoluteContentBox();
-    containerRect.setLocation({ renderFlex.paddingLeft() + renderFlex.borderLeft(), renderFlex.paddingTop() + renderFlex.borderTop() });
+    auto containerRect = renderFlex->absoluteContentBox();
+    containerRect.setLocation({ renderFlex->paddingLeft() + renderFlex->borderLeft(), renderFlex->paddingTop() + renderFlex->borderTop() });
 
     float containerMainAxisLeadingEdge = correctedMainAxisLeadingEdge(containerRect);
     float containerMainAxisTrailingEdge = correctedMainAxisTrailingEdge(containerRect);
@@ -2218,8 +2219,8 @@ std::optional<InspectorOverlay::Highlight::FlexHighlightOverlay> InspectorOverla
     Vector<RenderBox*> renderChildrenInDOMOrder;
     bool hasCustomOrder = false;
 
-    auto childOrderIterator = renderFlex.orderIterator();
-    for (RenderBox* renderChild = childOrderIterator.first(); renderChild; renderChild = childOrderIterator.next()) {
+    auto childOrderIterator = renderFlex->orderIterator();
+    for (CheckedPtr<RenderBox> renderChild = childOrderIterator.first(); renderChild; renderChild = childOrderIterator.next()) {
         if (childOrderIterator.shouldSkipChild(*renderChild))
             continue;
         renderChildrenInFlexOrder.append(renderChild);
@@ -2227,7 +2228,7 @@ std::optional<InspectorOverlay::Highlight::FlexHighlightOverlay> InspectorOverla
 
     if (flexOverlay.config.showOrderNumbers) {
         for (RefPtr child = node->firstChild(); child; child = child->nextSibling()) {
-            if (auto* renderer = dynamicDowncast<RenderBox>(child->renderer())) {
+            if (CheckedPtr renderer = dynamicDowncast<RenderBox>(child->renderer())) {
                 if (!renderChildrenInFlexOrder.contains(renderer))
                     continue;
 
@@ -2240,11 +2241,11 @@ std::optional<InspectorOverlay::Highlight::FlexHighlightOverlay> InspectorOverla
     }
 
     size_t currentChildIndex = 0;
-    for (auto* renderChild : renderChildrenInFlexOrder) {
+    for (CheckedPtr renderChild : renderChildrenInFlexOrder) {
         // Build bounds for each child and collect children on the same logical line.
         {
             auto childRect = renderChild->frameRect();
-            renderFlex.flipForWritingMode(childRect);
+            renderFlex->flipForWritingMode(childRect);
             childRect.expand(renderChild->marginBox());
 
             auto itemBounds = childQuadToRootQuad({ childRect });

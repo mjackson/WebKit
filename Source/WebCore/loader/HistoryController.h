@@ -55,7 +55,7 @@ public:
     explicit HistoryController(LocalFrame&);
     ~HistoryController();
 
-    WEBCORE_EXPORT void ref() const;
+    WEBCORE_EXPORT void NODELETE ref() const;
     WEBCORE_EXPORT void deref() const;
 
     WEBCORE_EXPORT void saveScrollPositionAndViewStateToItem(HistoryItem*);
@@ -77,7 +77,7 @@ public:
     void updateForClientRedirect();
     void updateForCommit();
     void updateForSameDocumentNavigation();
-    void updateForFrameLoadCompleted();
+    void NODELETE updateForFrameLoadCompleted();
 
     HistoryItem* currentItem() const { return m_currentItem.get(); }
     WEBCORE_EXPORT void setCurrentItem(Ref<HistoryItem>&&);
@@ -116,8 +116,8 @@ private:
     enum class ForNavigationAPI : bool { No, Yes };
     void recursiveSetProvisionalItem(HistoryItem&, HistoryItem*, ForNavigationAPI = ForNavigationAPI::No);
     void recursiveGoToItem(HistoryItem&, HistoryItem*, FrameLoadType, ShouldTreatAsContinuingLoad);
-    bool isMultipartReplaceLoadTypeWithProvisionalItem(FrameLoadType);
-    bool isReloadTypeWithProvisionalItem(FrameLoadType);
+    bool NODELETE isMultipartReplaceLoadTypeWithProvisionalItem(FrameLoadType);
+    bool NODELETE isReloadTypeWithProvisionalItem(FrameLoadType);
     void recursiveUpdateForCommit();
     void recursiveUpdateForSameDocumentNavigation();
     static bool itemsAreClones(HistoryItem&, HistoryItem*);

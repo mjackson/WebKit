@@ -39,7 +39,7 @@ public:
         return adoptRef(*new GPURenderBundle(WTF::move(backing)));
     }
 
-    String label() const;
+    String NODELETE label() const;
     void setLabel(String&&);
 
     WebGPU::RenderBundle& backing() { return m_backing; }

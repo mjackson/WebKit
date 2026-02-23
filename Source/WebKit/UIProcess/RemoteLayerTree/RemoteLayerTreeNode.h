@@ -157,6 +157,7 @@ public:
     void setAcceleratedEffectsAndBaseValues(const WebCore::AcceleratedEffects&, const WebCore::AcceleratedEffectValues&, RemoteLayerTreeHost&);
     const RemoteAnimationStack* animationStack() const { return m_animationStack.get(); }
     RefPtr<RemoteAnimationStack> takeAnimationStack() { return std::exchange(m_animationStack, nullptr); }
+    bool hasHighImpactMonotonicAnimations() const { return m_hasHighImpactMonotonicAnimations; }
 #endif
 
     bool backdropRootIsOpaque() const { return m_backdropRootIsOpaque; }
@@ -222,6 +223,7 @@ private:
 
 #if ENABLE(THREADED_ANIMATIONS)
     RefPtr<RemoteAnimationStack> m_animationStack;
+    bool m_hasHighImpactMonotonicAnimations { false };
 #endif
     bool m_backdropRootIsOpaque { false };
 };

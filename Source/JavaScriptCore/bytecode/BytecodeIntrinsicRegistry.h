@@ -89,7 +89,6 @@ enum class LinkTimeConstant : int32_t;
     macro(isWrapForValidIterator) \
     macro(isRegExpStringIterator) \
     macro(isDisposableStack) \
-    macro(tailCallForwardArguments) \
     macro(throwTypeError) \
     macro(throwRangeError) \
     macro(throwOutOfMemoryError) \

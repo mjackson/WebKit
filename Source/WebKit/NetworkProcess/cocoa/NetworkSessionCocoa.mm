@@ -137,7 +137,7 @@ static NSURLSessionResponseDisposition toNSURLSessionResponseDisposition(WebCore
     }
 }
 
-static NSURLSessionAuthChallengeDisposition toNSURLSessionAuthChallengeDisposition(WebKit::AuthenticationChallengeDisposition disposition)
+static NSURLSessionAuthChallengeDisposition NODELETE toNSURLSessionAuthChallengeDisposition(WebKit::AuthenticationChallengeDisposition disposition)
 {
     switch (disposition) {
     case WebKit::AuthenticationChallengeDisposition::UseCredential:
@@ -160,7 +160,7 @@ static WebCore::NetworkLoadPriority toNetworkLoadPriority(float priority)
     return WebCore::NetworkLoadPriority::Medium;
 }
 
-static WebCore::PrivacyStance toPrivacyStance(nw_connection_privacy_stance_t stance)
+static WebCore::PrivacyStance NODELETE toPrivacyStance(nw_connection_privacy_stance_t stance)
 {
     switch (stance) {
     case nw_connection_privacy_stance_unknown:
@@ -944,14 +944,13 @@ static NSDictionary<NSString *, id> *extractResolutionReport(NSError *error)
 
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didBecomeDownloadTask:(NSURLSessionDownloadTask *)downloadTask
 {
-    auto networkDataTask = [self existingTask:dataTask];
+    RefPtr networkDataTask = [self existingTask:dataTask];
     if (!networkDataTask)
         return;
     CheckedPtr sessionCocoa = networkDataTask->networkSession();
     if (!sessionCocoa)
         return;
 
-    Ref<NetworkDataTaskCocoa> protectedNetworkDataTask(*networkDataTask);
     auto downloadID = *networkDataTask->pendingDownloadID();
     CheckedRef downloadManager = sessionCocoa->networkProcess().downloadManager();
     Ref download = WebKit::Download::create(downloadManager, downloadID, downloadTask, *sessionCocoa, networkDataTask->suggestedFilename());
@@ -1120,6 +1119,12 @@ void SessionWrapper::recreateSessionWithUpdatedProxyConfigurations(NetworkSessio
     dataTaskMap.clear();
     downloadMap.clear();
     webSocketDataTaskMap.clear();
+}
+
+SessionWrapper::~SessionWrapper()
+{
+    if (session)
+        [session invalidateAndCancel];
 }
 
 void SessionWrapper::initialize(NSURLSessionConfiguration *configuration, NetworkSessionCocoa& networkSession, WebCore::StoredCredentialsPolicy storedCredentialsPolicy, NavigatingToAppBoundDomain isNavigatingToAppBoundDomain)
@@ -1336,7 +1341,7 @@ const SessionSet& NetworkSessionCocoa::sessionSetForPage(std::optional<WebPagePr
 
 SessionWrapper& NetworkSessionCocoa::initializeEphemeralStatelessSessionIfNeeded(std::optional<WebPageProxyIdentifier> webPageProxyID, NavigatingToAppBoundDomain isNavigatingToAppBoundDomain)
 {
-    return protectedSessionSetForPage(webPageProxyID)->initializeEphemeralStatelessSessionIfNeeded(isNavigatingToAppBoundDomain, *this);
+    return protect(sessionSetForPage(webPageProxyID))->initializeEphemeralStatelessSessionIfNeeded(isNavigatingToAppBoundDomain, *this);
 }
 
 SessionWrapper& SessionSet::initializeEphemeralStatelessSessionIfNeeded(NavigatingToAppBoundDomain isNavigatingToAppBoundDomain, NetworkSessionCocoa& session)
@@ -1382,7 +1387,7 @@ SessionWrapper& NetworkSessionCocoa::sessionWrapperForTask(std::optional<WebPage
     if (CheckedPtr storageSession = networkStorageSession()) {
         auto firstParty = WebCore::RegistrableDomain(request.firstPartyForCookies());
         if (storageSession->shouldBlockThirdPartyCookiesButKeepFirstPartyCookiesFor(firstParty))
-            return protectedSessionSetForPage(webPageProxyID)->isolatedSession(storedCredentialsPolicy, firstParty, shouldBeConsideredAppBound, *this);
+            return protect(sessionSetForPage(webPageProxyID))->isolatedSession(storedCredentialsPolicy, firstParty, shouldBeConsideredAppBound, *this);
     } else
         ASSERT_NOT_REACHED();
 
@@ -1444,7 +1449,7 @@ void NetworkSessionCocoa::clearAppBoundSession()
 
 SessionWrapper& NetworkSessionCocoa::isolatedSession(WebPageProxyIdentifier webPageProxyID, WebCore::StoredCredentialsPolicy storedCredentialsPolicy, const WebCore::RegistrableDomain& firstPartyDomain, NavigatingToAppBoundDomain isNavigatingToAppBoundDomain)
 {
-    return protectedSessionSetForPage(webPageProxyID)->isolatedSession(storedCredentialsPolicy, firstPartyDomain, isNavigatingToAppBoundDomain, *this);
+    return protect(sessionSetForPage(webPageProxyID))->isolatedSession(storedCredentialsPolicy, firstPartyDomain, isNavigatingToAppBoundDomain, *this);
 }
 
 SessionWrapper& SessionSet::isolatedSession(WebCore::StoredCredentialsPolicy storedCredentialsPolicy, const WebCore::RegistrableDomain& firstPartyDomain, NavigatingToAppBoundDomain isNavigatingToAppBoundDomain, NetworkSessionCocoa& session)

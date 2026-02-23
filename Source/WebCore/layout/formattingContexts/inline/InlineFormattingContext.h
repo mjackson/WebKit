@@ -85,15 +85,15 @@ public:
     const IntegrationUtils& integrationUtils() const { return m_integrationUtils; }
 
 private:
-    UniqueRef<InlineLayoutResult> lineLayout(AbstractLineBuilder&, const InlineItemList&, InlineItemRange, std::optional<PreviousLine>, const ConstraintsForInlineContent&, const InlineDamage* = nullptr);
+    UniqueRef<InlineLayoutResult> lineLayout(AbstractLineBuilder&, const InlineItemList&, InlineItemRange, std::optional<PreviousLine>, const ConstraintsForInlineContent&, const InlineDamage*, bool mayUseSimplifiedDisplayContentBuild = false);
     void layoutFloatContentOnly(const ConstraintsForInlineContent&);
 
     void collectContentIfNeeded();
-    InlineRect createDisplayContentForInlineContent(const LineBox&, const LineLayoutResult&, const ConstraintsForInlineContent&, InlineDisplay::Content&);
+    InlineRect createDisplayContentForInlineContent(const LineBox&, const LineLayoutResult&, const ConstraintsForInlineContent&, InlineDisplay::Content&, bool canUseSimplifiedDisplayContentBuild = false);
     void updateLayoutStateWithLineLayoutResult(const LineLayoutResult&, const InlineRect& lineLogicalRect, const FloatingContext&);
     void updateBoxGeometryForPlacedFloats(const LineLayoutResult::PlacedFloatList&);
     void resetBoxGeometriesForDiscardedContent(const InlineItemRange& discardedRange, const LineLayoutResult::SuspendedFloatList& suspendedFloats);
-    bool createDisplayContentForLineFromCachedContent(const ConstraintsForInlineContent&, InlineLayoutResult&);
+    bool createDisplayContentForLineFromCachedContent(const ConstraintsForInlineContent&, InlineLayoutResult&, bool mayUseSimplifiedDisplayContentBuild);
     bool createDisplayContentForEmptyInlineContent(const ConstraintsForInlineContent&, const InlineItemList&, InlineLayoutResult&);
     void initializeInlineLayoutState(const LayoutState&);
     void rebuildInlineItemListIfNeeded(InlineDamage*);

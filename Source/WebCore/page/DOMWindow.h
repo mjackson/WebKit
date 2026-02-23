@@ -104,8 +104,7 @@ public:
     virtual ~DOMWindow();
 
     const GlobalWindowIdentifier& identifier() const { return m_identifier; }
-    virtual Frame* frame() const = 0;
-    RefPtr<Frame> protectedFrame() const;
+    virtual Frame* NODELETE frame() const = 0;
 
     enum class DOMWindowType : bool { Local, Remote };
     bool isLocalDOMWindow() const { return m_type == DOMWindowType::Local; }
@@ -125,8 +124,7 @@ public:
     FrameConsoleClient* console() const;
 
     WindowProxy* opener() const;
-    WEBCORE_EXPORT Document* documentIfLocal();
-    RefPtr<Document> protectedDocumentIfLocal();
+    WEBCORE_EXPORT Document* NODELETE documentIfLocal();
 
     WindowProxy* top() const;
     WindowProxy* parent() const;
@@ -249,7 +247,7 @@ private:
     const DOMWindowType m_type;
 };
 
-WebCoreOpaqueRoot root(DOMWindow*);
+WebCoreOpaqueRoot NODELETE root(DOMWindow*);
 
 } // namespace WebCore
 

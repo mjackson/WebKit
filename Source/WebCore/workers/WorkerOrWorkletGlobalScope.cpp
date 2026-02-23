@@ -35,6 +35,8 @@
 #include "WorkerOrWorkletThread.h"
 #include "WorkerRunLoop.h"
 #include "WorkletGlobalScope.h"
+#include <JavaScriptCore/JSGlobalObject.h>
+#include <JavaScriptCore/WeakInlines.h>
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -66,6 +68,7 @@ void WorkerOrWorkletGlobalScope::prepareForDestruction()
     }
 
     stopActiveDOMObjects();
+    clearMicrotaskGlobalObject();
 
     // Event listeners would keep DOMWrapperWorld objects alive for too long. Also, they have references to JS objects,
     // which become dangling once Heap is destroyed.
@@ -120,6 +123,7 @@ EventLoopTaskGroup& WorkerOrWorkletGlobalScope::eventLoop()
     if (!m_defaultTaskGroup) [[unlikely]] {
         lazyInitialize(m_eventLoop, WorkerEventLoop::create(*this));
         lazyInitialize(m_defaultTaskGroup, makeUnique<EventLoopTaskGroup>(*m_eventLoop));
+        m_defaultTaskGroup->setScriptExecutionContext(*this);
         if (activeDOMObjectsAreStopped())
             m_defaultTaskGroup->stopAndDiscardAllTasks();
     }
@@ -129,6 +133,11 @@ EventLoopTaskGroup& WorkerOrWorkletGlobalScope::eventLoop()
 bool WorkerOrWorkletGlobalScope::isContextThread() const
 {
     return m_contextThreadUID == Thread::currentSingleton().uid();
+}
+
+bool WorkerOrWorkletGlobalScope::isEventLoopGroupStoppedPermanently() const
+{
+    return m_defaultTaskGroup && m_defaultTaskGroup->isStoppedPermanently();
 }
 
 void WorkerOrWorkletGlobalScope::postTask(Task&& task)

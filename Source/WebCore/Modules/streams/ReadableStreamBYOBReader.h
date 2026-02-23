@@ -57,7 +57,7 @@ public:
     void readForBindings(JSDOMGlobalObject&, JSC::ArrayBufferView&, ReadOptions, Ref<DeferredPromise>&&);
     void releaseLock(JSDOMGlobalObject&);
 
-    DOMPromise& closedPromise();
+    DOMPromise& NODELETE closedPromise();
 
     Ref<DOMPromise> cancel(JSDOMGlobalObject&, JSC::JSValue);
 
@@ -74,7 +74,7 @@ public:
 
     void read(JSDOMGlobalObject&, JSC::ArrayBufferView&, uint64_t, Ref<ReadableStreamReadIntoRequest>&&);
 
-    bool isReachableFromOpaqueRoots() const;
+    bool NODELETE isReachableFromOpaqueRoots() const;
     template<typename Visitor> void visitAdditionalChildren(Visitor&);
 
 private:
@@ -95,6 +95,6 @@ private:
     ClosedCallback m_closedCallback;
 };
 
-WebCoreOpaqueRoot root(ReadableStreamBYOBReader*);
+WebCoreOpaqueRoot NODELETE root(ReadableStreamBYOBReader*);
 
 } // namespace WebCore

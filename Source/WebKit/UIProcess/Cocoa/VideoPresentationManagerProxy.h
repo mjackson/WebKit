@@ -136,7 +136,7 @@ private:
     const Logger* loggerPtr() const final;
 
     ASCIILiteral logClassName() const { return "VideoPresentationModelContext"_s; };
-    WTFLogChannel& logChannel() const;
+    WTFLogChannel& NODELETE logChannel() const;
 #endif
 
     WeakPtr<VideoPresentationManagerProxy> m_manager;
@@ -178,7 +178,7 @@ public:
 
     void requestRouteSharingPolicyAndContextUID(PlaybackSessionContextIdentifier, CompletionHandler<void(WebCore::RouteSharingPolicy, String)>&&);
 
-    bool isPlayingVideoInEnhancedFullscreen() const;
+    bool isPlayingVideoInPictureInPicture() const;
 
     RefPtr<WebCore::PlatformVideoPresentationInterface> controlsManagerInterface();
     using VideoInPictureInPictureDidChangeObserver = WTF::Observer<void(bool)>;
@@ -294,7 +294,7 @@ private:
     void videosInElementFullscreenChanged();
 
 #if !RELEASE_LOG_DISABLED
-    const Logger& logger() const;
+    const Logger& NODELETE logger() const;
     uint64_t logIdentifier() const;
     ASCIILiteral logClassName() const;
     WTFLogChannel& logChannel() const;

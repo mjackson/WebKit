@@ -56,6 +56,8 @@ enum class IsKnownCrossSiteTracker : bool;
 
 namespace WebKit {
 
+bool isTaintedScriptURLBlockable(const URL&);
+
 #if ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
 
 enum class RestrictedOpenerType : uint8_t;
@@ -63,6 +65,7 @@ enum class RestrictedOpenerType : uint8_t;
 void configureForAdvancedPrivacyProtections(NSURLSession *);
 bool isKnownTrackerAddressOrDomain(StringView host);
 WebCore::IsKnownCrossSiteTracker isRequestToKnownCrossSiteTracker(const WebCore::ResourceRequest&);
+bool isRequestBlockable(const WebCore::ResourceRequest&);
 void requestLinkDecorationFilteringData(CompletionHandler<void(Vector<WebCore::LinkDecorationFilteringData>&&)>&&);
 
 class ListDataObserver : public RefCountedAndCanMakeWeakPtr<ListDataObserver> {
@@ -165,7 +168,7 @@ private:
     unsigned resourceTypeValue() const final;
 #ifdef __OBJC__
     // FIXME: Remove when WebPrivacyHelpersAdditions.mm no longer depends on it.
-    WPResourceType resourceType() const;
+    WPResourceType NODELETE resourceType() const;
 #endif
 };
 
@@ -203,6 +206,13 @@ private:
 };
 
 #define HAVE_RESOURCE_MONITOR_URLS_GET_SOURCE 1
+
+class ConsistentPrivacyQuirkController : public ListDataController<ConsistentPrivacyQuirkController, ScriptTrackingPrivacyRules> {
+private:
+    void updateList(CompletionHandler<void()>&&) final;
+    void didUpdateCachedListData() final;
+    unsigned resourceTypeValue() const final;
+};
 
 #endif // ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
 

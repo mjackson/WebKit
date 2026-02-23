@@ -52,7 +52,7 @@ class PlacedGridItem {
 public:
     PlacedGridItem(const UnplacedGridItem&, GridAreaLines, const ComputedSizes& inlineAxisSizes, const ComputedSizes& blockAxisSizes,
         const LayoutUnit& usedInlineBorderAndPadding, const LayoutUnit& usedBlockBorderAndPadding, const StyleSelfAlignmentData& inlineAxisAlignment,
-        const StyleSelfAlignmentData& blockAxisAlignment, const Style::ZoomFactor& usedZoom);
+        const StyleSelfAlignmentData& blockAxisAlignment, const WritingMode&, const Style::ZoomFactor& usedZoom);
 
     const ComputedSizes& inlineAxisSizes() const { return m_inlineAxisSizes; }
     const ComputedSizes& blockAxisSizes() const { return m_blockAxisSizes; }
@@ -68,6 +68,8 @@ public:
 
     LayoutUnit usedInlineBorderAndPadding() const { return m_usedInlineBorderAndPadding; }
     LayoutUnit usedBlockBorderAndPadding() const { return m_usedBlockBorderAndPadding; }
+
+    const WritingMode& writingMode() const { return m_writingMode; }
 
     // FIXME: Add support for grid item's with preferred aspect ratios.
     bool hasPreferredAspectRatio() const { return false; }
@@ -88,6 +90,8 @@ private:
 
     const StyleSelfAlignmentData m_inlineAxisAlignment;
     const StyleSelfAlignmentData m_blockAxisAlignment;
+
+    const WritingMode m_writingMode;
 
     const Style::ZoomFactor m_usedZoom { 1.0f };
 

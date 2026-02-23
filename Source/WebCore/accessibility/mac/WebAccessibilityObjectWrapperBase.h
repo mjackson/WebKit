@@ -51,7 +51,7 @@ class VisiblePosition;
 struct CustomActionData {
     String name;
     AXID targetID;
-    std::optional<AXID> treeID;
+    AXTreeID treeID;
 };
 
 // NSAttributedString support.

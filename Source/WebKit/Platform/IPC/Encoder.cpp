@@ -102,7 +102,7 @@ void Encoder::wrapForTesting(UniqueRef<Encoder>&& original)
         addAttachment(WTF::move(attachment));
 }
 
-static inline size_t roundUpToAlignment(size_t value, size_t alignment)
+static inline size_t NODELETE roundUpToAlignment(size_t value, size_t alignment)
 {
     return ((value + alignment - 1) / alignment) * alignment;
 }

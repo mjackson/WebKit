@@ -105,7 +105,7 @@ public:
 
     std::span<const UnicodeRange> ranges() const LIFETIME_BOUND { ASSERT(m_status != Status::Failure); return m_ranges.span(); }
 
-    RefPtr<CSSValue> familyCSSValue() const;
+    RefPtr<CSSValue> NODELETE familyCSSValue() const;
 
     void setFontSelectionCapabilities(FontSelectionCapabilities capabilities) { m_fontSelectionCapabilities = capabilities; }
     FontSelectionCapabilities fontSelectionCapabilities() const { ASSERT(m_status != Status::Failure); return m_fontSelectionCapabilities.computeFontSelectionCapabilities(); }
@@ -117,7 +117,7 @@ public:
     void addClient(CSSFontFaceClient&);
     void removeClient(CSSFontFaceClient&);
 
-    bool computeFailureState() const;
+    bool NODELETE computeFailureState() const;
 
     void opportunisticallyStartFontDataURLLoading(DownloadableBinaryFontTrustedTypes);
 
@@ -133,7 +133,7 @@ public:
 
     static void appendSources(CSSFontFace&, CSSValueList&, ScriptExecutionContext*, bool isInitiatingElementInUserAgentShadowTree);
 
-    bool rangesMatchCodePoint(char32_t) const;
+    bool NODELETE rangesMatchCodePoint(char32_t) const;
 
     // We don't guarantee that the FontFace wrapper will be the same every time you ask for it.
     Ref<FontFace> wrapper(ScriptExecutionContext*);

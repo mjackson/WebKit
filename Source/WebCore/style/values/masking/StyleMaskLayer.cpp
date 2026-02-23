@@ -56,7 +56,7 @@ MaskLayer::MaskLayer(CSS::Keyword::None keyword)
 {
 }
 
-MaskLayer::MaskLayer(RefPtr<StyleImage>&& image)
+MaskLayer::MaskLayer(RefPtr<Image>&& image)
     : MaskLayer { ImageOrNone { WTF::move(image) } }
 {
 }

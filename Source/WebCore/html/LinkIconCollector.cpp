@@ -38,7 +38,7 @@ namespace WebCore {
 
 constexpr unsigned defaultTouchIconWidth = 60;
 
-static unsigned iconSize(const LinkIcon& icon)
+static unsigned NODELETE iconSize(const LinkIcon& icon)
 {
     if (icon.size)
         return *icon.size;
@@ -49,7 +49,7 @@ static unsigned iconSize(const LinkIcon& icon)
     return 0;
 }
 
-static int compareIcons(const LinkIcon& a, const LinkIcon& b)
+static int NODELETE compareIcons(const LinkIcon& a, const LinkIcon& b)
 {
     // Apple Touch icons always come first.
     if (a.type == LinkIconType::Favicon && b.type != LinkIconType::Favicon)

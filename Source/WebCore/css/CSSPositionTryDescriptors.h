@@ -128,7 +128,7 @@ private:
     // when property value changes.
     ExceptionOr<void> setPropertyInternal(CSSPropertyID, const String& value, IsImportant) override;
 
-    StyleRuleType ruleType() const final;
+    StyleRuleType NODELETE ruleType() const final;
 };
 
 } // namespace WebCore

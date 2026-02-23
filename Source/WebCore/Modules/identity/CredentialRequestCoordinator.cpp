@@ -32,6 +32,7 @@
 #include "CredentialRequestCoordinatorClient.h"
 #include "DigitalCredential.h"
 #include "DigitalCredentialsRequestData.h"
+#include "DigitalCredentialsRequestDataBuilder.h"
 #include "DigitalCredentialsResponseData.h"
 #include "DocumentSecurityOrigin.h"
 #include "ExceptionData.h"
@@ -150,18 +151,19 @@ void CredentialRequestCoordinator::prepareCredentialRequest(const Document& docu
     if (signal && signal->aborted())
         return;
 
+    auto validatedCredentialRequests = validatedRequestsOrException.releaseReturnValue();
+
+    auto requestDataAndRawRequests = DigitalCredentialsRequestDataBuilder::build(validatedCredentialRequests, document, WTF::move(unvalidatedRequests));
+    if (requestDataAndRawRequests.hasException())
+        return promise.reject(requestDataAndRawRequests.releaseException());
+
     setState(PickerState::Presenting);
     observeContext(protect(document.scriptExecutionContext()).get());
 
-    auto validatedCredentialRequests = validatedRequestsOrException.releaseReturnValue();
-    DigitalCredentialsRequestData requestData {
-        WTF::move(validatedCredentialRequests),
-        protect(document.topOrigin())->data(),
-        protect(document.securityOrigin())->data(),
-    };
+    auto [requestData, rawRequests] = requestDataAndRawRequests.releaseReturnValue();
 
     m_client->showDigitalCredentialsPicker(
-        WTF::move(unvalidatedRequests),
+        WTF::move(rawRequests),
         requestData,
         [weakThis = WeakPtr { *this }, signal](Expected<DigitalCredentialsResponseData, ExceptionData>&& responseOrException) {
             if (RefPtr protectedThis = weakThis.get())

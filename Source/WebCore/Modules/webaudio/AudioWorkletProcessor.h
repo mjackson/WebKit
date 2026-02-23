@@ -82,7 +82,7 @@ private:
     JSValueInWrappedObject m_jsParamValues;
 };
 
-WebCoreOpaqueRoot root(AudioWorkletProcessor*);
+WebCoreOpaqueRoot NODELETE root(AudioWorkletProcessor*);
 
 } // namespace WebCore
 

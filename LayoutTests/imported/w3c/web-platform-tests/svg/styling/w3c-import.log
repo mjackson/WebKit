@@ -33,6 +33,8 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/svg/styling/css-var-on-length-attributes-05.svg
 /LayoutTests/imported/w3c/web-platform-tests/svg/styling/css-var-on-length-attributes-06-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/svg/styling/css-var-on-length-attributes-06.html
+/LayoutTests/imported/w3c/web-platform-tests/svg/styling/css-var-on-length-attributes-quirk-expected.html
+/LayoutTests/imported/w3c/web-platform-tests/svg/styling/css-var-on-length-attributes-quirk.html
 /LayoutTests/imported/w3c/web-platform-tests/svg/styling/cx-sibling-index-crash.html
 /LayoutTests/imported/w3c/web-platform-tests/svg/styling/font-size-number-calc-crash.svg
 /LayoutTests/imported/w3c/web-platform-tests/svg/styling/image-sizing-min-content-expected.svg

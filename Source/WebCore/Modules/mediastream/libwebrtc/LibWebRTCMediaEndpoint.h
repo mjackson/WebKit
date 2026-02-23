@@ -127,7 +127,7 @@ public:
     bool isNegotiationNeeded(uint32_t) const;
 
     void startRTCLogs();
-    void stopRTCLogs();
+    void NODELETE stopRTCLogs();
 
     void setPeerConnectionBackend(LibWebRTCPeerConnectionBackend&);
 
@@ -137,7 +137,7 @@ private:
     LibWebRTCMediaEndpoint(RTCPeerConnection&, LibWebRTCProvider&, Document&, bool shouldEnableServiceClass);
 
     // webrtc::PeerConnectionObserver API
-    void OnSignalingChange(webrtc::PeerConnectionInterface::SignalingState) final;
+    void NODELETE OnSignalingChange(webrtc::PeerConnectionInterface::SignalingState) final;
     void OnDataChannel(webrtc::scoped_refptr<webrtc::DataChannelInterface>) final;
 
     void OnNegotiationNeededEvent(uint32_t) final;
@@ -180,12 +180,12 @@ private:
     const Logger& logger() const final { return m_logger.get(); }
     uint64_t logIdentifier() const final { return m_logIdentifier; }
     ASCIILiteral logClassName() const final { return "LibWebRTCMediaEndpoint"_s; }
-    WTFLogChannel& logChannel() const final;
+    WTFLogChannel& NODELETE logChannel() const final;
 
     Seconds statsLogInterval(int64_t) const;
 #endif
 
-    RefPtr<LibWebRTCPeerConnectionBackend> protectedPeerConnectionBackend() const;
+    RefPtr<LibWebRTCPeerConnectionBackend> NODELETE protectedPeerConnectionBackend() const;
 
     WeakPtr<LibWebRTCPeerConnectionBackend> m_peerConnectionBackend;
     const Ref<webrtc::PeerConnectionFactoryInterface> m_peerConnectionFactory;

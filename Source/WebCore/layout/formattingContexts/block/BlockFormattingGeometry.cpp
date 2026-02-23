@@ -87,7 +87,7 @@ ContentHeightAndMargin BlockFormattingGeometry::inFlowNonReplacedContentHeightAn
 
         // 2. the bottom edge of the bottom (possibly collapsed) margin of its last in-flow child, if the child's bottom margin...
         auto marginCollapse = BlockMarginCollapse { layoutState(), formattingContext().formattingState() };
-        auto& lastInFlowChild = downcast<ElementBox>(*layoutBox.lastInFlowChild());
+        CheckedRef lastInFlowChild = downcast<ElementBox>(*layoutBox.lastInFlowChild());
         if (!marginCollapse.marginAfterCollapsesWithParentMarginAfter(lastInFlowChild)) {
             auto& lastInFlowBoxGeometry = formattingContext().geometryForBox(lastInFlowChild);
             auto bottomEdgeOfBottomMargin = BoxGeometry::borderBoxRect(lastInFlowBoxGeometry).bottom() + lastInFlowBoxGeometry.marginAfter();
@@ -95,7 +95,7 @@ ContentHeightAndMargin BlockFormattingGeometry::inFlowNonReplacedContentHeightAn
         }
 
         // 3. the bottom border edge of the last in-flow child whose top margin doesn't collapse with the element's bottom margin
-        auto* inFlowChild = &lastInFlowChild;
+        CheckedPtr inFlowChild = lastInFlowChild.ptr();
         while (inFlowChild && marginCollapse.marginBeforeCollapsesWithParentMarginAfter(*inFlowChild))
             inFlowChild = downcast<ElementBox>(inFlowChild->previousInFlowSibling());
         if (inFlowChild) {
@@ -142,7 +142,7 @@ ContentWidthAndMargin BlockFormattingGeometry::inFlowNonReplacedContentWidthAndM
         //    edges of the containing block.
 
         auto containingBlockWidth = horizontalConstraints.logicalWidth;
-        auto& containingBlockStyle = FormattingContext::containingBlock(layoutBox).style();
+        CheckedRef containingBlockStyle = FormattingContext::containingBlock(layoutBox).style();
         auto& boxGeometry = formattingContext().geometryForBox(layoutBox);
 
         auto width = overriddenHorizontalValues.width ? overriddenHorizontalValues.width : computedWidth(layoutBox, containingBlockWidth);
@@ -162,7 +162,7 @@ ContentWidthAndMargin BlockFormattingGeometry::inFlowNonReplacedContentWidthAndM
 
         // #2
         if (width && computedHorizontalMargin.start && computedHorizontalMargin.end) {
-            if (containingBlockStyle.writingMode().isBidiLTR()) {
+            if (containingBlockStyle->writingMode().isBidiLTR()) {
                 usedHorizontalMargin.start = *computedHorizontalMargin.start;
                 usedHorizontalMargin.end = containingBlockWidth - (usedHorizontalMargin.start + borderLeft + paddingLeft + *width + paddingRight + borderRight);
             } else {
@@ -195,7 +195,7 @@ ContentWidthAndMargin BlockFormattingGeometry::inFlowNonReplacedContentWidthAndM
             usedHorizontalMargin = { horizontalSpaceForMargin / 2, horizontalSpaceForMargin / 2 };
         }
 
-        auto shouldApplyCenterAlignForBlockContent = containingBlockStyle.textAlign() == Style::TextAlign::WebKitCenter && (computedHorizontalMargin.start || computedHorizontalMargin.end);
+        auto shouldApplyCenterAlignForBlockContent = containingBlockStyle->textAlign() == Style::TextAlign::WebKitCenter && (computedHorizontalMargin.start || computedHorizontalMargin.end);
         if (shouldApplyCenterAlignForBlockContent) {
             auto borderBoxWidth = (borderLeft + paddingLeft  + *width + paddingRight + borderRight);
             auto marginStart = computedHorizontalMargin.start.value_or(0);
@@ -238,7 +238,7 @@ LayoutUnit BlockFormattingGeometry::staticVerticalPosition(const ElementBox& lay
     // In a block formatting context, boxes are laid out one after the other, vertically, beginning at the top of a containing block.
     // The vertical distance between two sibling boxes is determined by the 'margin' properties.
     // Vertical margins between adjacent block-level boxes in a block formatting context collapse.
-    if (auto* previousInFlowSibling = layoutBox.previousInFlowSibling()) {
+    if (CheckedPtr previousInFlowSibling = layoutBox.previousInFlowSibling()) {
         auto& previousInFlowBoxGeometry = formattingContext().geometryForBox(*previousInFlowSibling);
         return BoxGeometry::borderBoxRect(previousInFlowBoxGeometry).bottom() + previousInFlowBoxGeometry.marginAfter();
     }
@@ -363,9 +363,9 @@ IntrinsicWidthConstraints BlockFormattingGeometry::intrinsicWidthConstraints(con
             return { };
         }
 
-        auto& layoutState = this->layoutState();
+        CheckedRef layoutState = this->layoutState();
         if (layoutBox.establishesFormattingContext()) {
-            auto intrinsicWidthConstraints = LayoutContext::createFormattingContext(layoutBox, const_cast<LayoutState&>(layoutState))->computedIntrinsicWidthConstraints();
+            auto intrinsicWidthConstraints = LayoutContext::createFormattingContext(layoutBox, const_cast<LayoutState&>(layoutState.get()))->computedIntrinsicWidthConstraints();
             if (logicalWidth.isMinContent())
                 return { intrinsicWidthConstraints.minimum, intrinsicWidthConstraints.minimum };
             if (logicalWidth.isMaxContent())
@@ -375,8 +375,8 @@ IntrinsicWidthConstraints BlockFormattingGeometry::intrinsicWidthConstraints(con
 
         auto intrinsicWidthConstraints = IntrinsicWidthConstraints { };
         auto& formattingState = formattingContext().formattingState();
-        for (auto& child : childrenOfType<ElementBox>(layoutBox)) {
-            if (child.isOutOfFlowPositioned() || (child.isFloatAvoider() && !child.hasFloatClear()))
+        for (CheckedRef child : childrenOfType<ElementBox>(layoutBox)) {
+            if (child->isOutOfFlowPositioned() || (child->isFloatAvoider() && !child->hasFloatClear()))
                 continue;
             auto childIntrinsicWidthConstraints = formattingState.intrinsicWidthConstraintsForBox(child);
             ASSERT(childIntrinsicWidthConstraints);

@@ -68,7 +68,7 @@ private:
     template<typename T>
     [[nodiscard]] IPC::Error send(T&& message)
     {
-        return root().protectedStreamClientConnection()->send(WTF::move(message), backing());
+        return protect(root().streamClientConnection())->send(WTF::move(message), backing());
     }
 
     Ref<WebCore::WebGPU::BindGroupLayout> getBindGroupLayout(uint32_t index) final;

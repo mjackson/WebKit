@@ -317,6 +317,13 @@ void* _WKAccessibilityRootObjectForTesting(WKBundleFrameRef frameRef)
         return document ? document->axObjectCache() : nullptr;
     };
 
+    // Notify the UI process that accessibility is enabled so that any new processes
+    // (e.g., for site-isolated iframes) will also have accessibility enabled.
+    if (!WebCore::AXObjectCache::accessibilityEnabled()) {
+        if (RefPtr page = WebKit::toProtectedImpl(frameRef)->page())
+            page->enableAccessibilityForAllProcesses();
+    }
+
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     if (!isMainRunLoop()) {
         // AXIsolatedTree is threadsafe ref-counted, so it's OK to hold a reference here.

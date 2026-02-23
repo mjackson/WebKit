@@ -48,7 +48,7 @@ public:
     }
 
     void errorIfNeeded(JSC::JSGlobalObject&, JSC::JSValue);
-    JSWritableStreamDefaultController* jsController() { return m_jsController; }
+    JSWritableStreamDefaultController* NODELETE jsController() { return m_jsController; }
 
 private:
     // The owner of WritableStreamDefaultController is responsible to keep uncollected the JSWritableStreamDefaultController.
@@ -113,7 +113,7 @@ JSC::JSValue JSWritableStreamSink::start(JSC::JSGlobalObject& globalObject, JSC:
     return JSC::jsUndefined();
 }
 
-JSC::JSValue JSWritableStreamSink::controller(JSC::JSGlobalObject&) const
+JSC::JSValue NODELETE JSWritableStreamSink::controller(JSC::JSGlobalObject&) const
 {
     ASSERT_NOT_REACHED();
     return JSC::jsUndefined();

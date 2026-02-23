@@ -70,15 +70,15 @@ private:
     template<typename T>
     [[nodiscard]] IPC::Error send(T&& message)
     {
-        return root().protectedStreamClientConnection()->send(WTF::move(message), backing());
+        return protect(root().streamClientConnection())->send(WTF::move(message), backing());
     }
     template<typename T, typename C>
     [[nodiscard]] std::optional<IPC::StreamClientConnection::AsyncReplyID> sendWithAsyncReply(T&& message, C&& completionHandler)
     {
-        return root().protectedStreamClientConnection()->sendWithAsyncReply(WTF::move(message), completionHandler, backing());
+        return protect(root().streamClientConnection())->sendWithAsyncReply(WTF::move(message), completionHandler, backing());
     }
 
-    Ref<WebCore::WebGPU::Queue> queue() final;
+    Ref<WebCore::WebGPU::Queue> NODELETE queue() final;
 
     void destroy() final;
 
@@ -115,12 +115,12 @@ private:
     void setLabelInternal(const String&) final;
     void resolveDeviceLostPromise(CompletionHandler<void(WebCore::WebGPU::DeviceLostReason)>&&) final;
 
-    Ref<WebCore::WebGPU::BindGroupLayout> emptyBindGroupLayout() const final;
+    Ref<WebCore::WebGPU::BindGroupLayout> NODELETE emptyBindGroupLayout() const final;
 
-    Ref<WebCore::WebGPU::CommandEncoder> invalidCommandEncoder() final;
-    Ref<WebCore::WebGPU::CommandBuffer> invalidCommandBuffer() final;
-    Ref<WebCore::WebGPU::RenderPassEncoder> invalidRenderPassEncoder() final;
-    Ref<WebCore::WebGPU::ComputePassEncoder> invalidComputePassEncoder() final;
+    Ref<WebCore::WebGPU::CommandEncoder> NODELETE invalidCommandEncoder() final;
+    Ref<WebCore::WebGPU::CommandBuffer> NODELETE invalidCommandBuffer() final;
+    Ref<WebCore::WebGPU::RenderPassEncoder> NODELETE invalidRenderPassEncoder() final;
+    Ref<WebCore::WebGPU::ComputePassEncoder> NODELETE invalidComputePassEncoder() final;
     void pauseAllErrorReporting(bool pause) final;
 
     bool isRemoteDeviceProxy() const final { return true; }

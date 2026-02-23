@@ -245,18 +245,13 @@ void KeyboardScrollingAnimator::handleKeyUpEvent()
 
     m_scrollTriggeringKeyIsPressed = false;
 
-    checkedScrollableArea()->endKeyboardScroll(false);
+    protect(m_scrollableArea)->endKeyboardScroll(false);
 }
 
 void KeyboardScrollingAnimator::stopScrollingImmediately()
 {
     m_scrollTriggeringKeyIsPressed = false;
-    checkedScrollableArea()->endKeyboardScroll(true);
-}
-
-CheckedRef<ScrollableArea> KeyboardScrollingAnimator::checkedScrollableArea() const
-{
-    return m_scrollableArea.get();
+    protect(m_scrollableArea)->endKeyboardScroll(true);
 }
 
 } // namespace WebCore

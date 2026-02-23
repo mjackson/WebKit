@@ -93,7 +93,7 @@ public:
     double m44() const { return m_matrix.m44(); }
 
     bool is2D() const { return m_is2D; }
-    bool isIdentity() const;
+    bool NODELETE isIdentity() const;
 
     ExceptionOr<void> setMatrixValue(const String&);
     ExceptionOr<void> setMatrixValue(const Vector<double>&);

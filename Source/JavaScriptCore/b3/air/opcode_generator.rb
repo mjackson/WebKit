@@ -471,12 +471,20 @@ class Parser
                         parseError("Form has wrong number of arguments for overload") unless kinds.length == signature.length
                         kinds.each_with_index {
                             | kind, index |
-                            if kind.name == "Imm" or kind.name == "BigImm" or kind.name == "BitImm" or kind.name == "BitImm64" or kind.name == "FPImm32" or kind.name == "FPImm64" or kind.name == "FPImm128"
+                            if kind.name == "Imm" or kind.name == "BigImm" or kind.name == "BitImm" or kind.name == "BitImm64"
                                 if signature[index].role != "U"
                                     parseError("Form has an immediate for a non-use argument")
                                 end
                                 if signature[index].bank != "G"
                                     parseError("Form has an immediate for a non-general-purpose argument")
+                                end
+                            end
+                            if kind.name == "FPImm32" or kind.name == "FPImm64" or kind.name == "FPImm128"
+                                if signature[index].role != "U"
+                                    parseError("Form has an immediate for a non-use argument")
+                                end
+                                if signature[index].bank != "F"
+                                    parseError("Form has an immediate for a non-floating-point-purpose argument")
                                 end
                             end
                             if kind.name == "ZeroReg"

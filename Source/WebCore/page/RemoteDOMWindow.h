@@ -55,11 +55,11 @@ public:
 
     ~RemoteDOMWindow() final;
 
-    RemoteFrame* frame() const final { return m_frame; }
-    ScriptExecutionContext* scriptExecutionContext() const final { return nullptr; }
+    RemoteFrame* NODELETE frame() const final { return m_frame; }
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final { return nullptr; }
 
     // DOM API exposed cross-origin.
-    WindowProxy* self() const;
+    WindowProxy* NODELETE self() const;
     void focus(LocalDOMWindow& incumbentWindow);
     void blur();
     unsigned length() const;

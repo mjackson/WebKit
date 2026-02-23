@@ -539,14 +539,9 @@ void SettingsBase::useSystemAppearanceChanged()
         m_page->useSystemAppearanceChanged();
 }
 
-RefPtr<Page> SettingsBase::protectedPage() const
-{
-    return m_page.get();
-}
-
 void SettingsBase::fontFallbackPrefersPictographsChanged()
 {
-    invalidateAfterGenericFamilyChange(protectedPage().get());
+    invalidateAfterGenericFamilyChange(protect(m_page).get());
 }
 
 } // namespace WebCore

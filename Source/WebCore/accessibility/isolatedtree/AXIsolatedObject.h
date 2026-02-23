@@ -57,7 +57,7 @@ public:
     ~AXIsolatedObject();
 
     // FIXME: tree()->treeID() is never optional, so this shouldn't return an optional either.
-    std::optional<AXID> treeID() const final { return tree()->treeID(); }
+    std::optional<AXTreeID> treeID() const final { return tree()->treeID(); }
     String debugDescriptionInternal(bool, std::optional<OptionSet<AXDebugStringOption>> = std::nullopt) const final;
 
     void updateFromData(IsolatedObjectData&&);

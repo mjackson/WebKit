@@ -90,7 +90,7 @@ public:
     // Apply m_filteredDrawBuffers to GL state if pending sync is needed.
     void applyFilteredDrawBuffers();
 
-    GCGLenum getDrawBuffer(GCGLenum);
+    GCGLenum NODELETE getDrawBuffer(GCGLenum);
 
     void addMembersToOpaqueRoots(const AbstractLocker&, JSC::AbstractSlotVisitor&);
 

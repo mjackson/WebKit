@@ -46,7 +46,7 @@ public:
 private:
     void insertChildToContinuation(RenderInline& parent, RenderPtr<RenderObject> child, RenderObject* beforeChild);
     void splitInlines(RenderInline& parent, RenderBlock* fromBlock, RenderBlock* toBlock, RenderBlock* middleBlock, RenderObject* beforeChild, RenderBoxModelObject* oldCont);
-    bool newChildIsInline(const RenderInline& parent, const RenderObject& child);
+    bool NODELETE newChildIsInline(const RenderInline& parent, const RenderObject& child);
     void splitFlow(RenderInline& parent, RenderObject* beforeChild, RenderPtr<RenderBlock> newBlockBox, RenderPtr<RenderObject> child, RenderBoxModelObject* oldCont);
 
     RenderTreeBuilder& m_builder;

@@ -112,7 +112,7 @@ private:
     HashMap<IDBKeyData, Vector<IDBKeyData>, DefaultHash<IDBKeyData>, IDBKeyDataHashTraits> m_transactionModifiedRecords;
     std::unique_ptr<IndexValueStore> m_records;
 
-    HashMap<IDBResourceIdentifier, RefPtr<MemoryIndexCursor>> m_cursors;
+    HashMap<IDBResourceIdentifier, Ref<MemoryIndexCursor>> m_cursors;
     WeakHashSet<MemoryIndexCursor> m_cleanCursors;
 };
 

@@ -58,7 +58,7 @@ void PresentationContextImpl::setSize(uint32_t width, uint32_t height)
     m_height = height;
 }
 
-static WGPUToneMappingMode convertToToneMappingMode(WebCore::WebGPU::CanvasToneMappingMode toneMappingMode)
+static WGPUToneMappingMode NODELETE convertToToneMappingMode(WebCore::WebGPU::CanvasToneMappingMode toneMappingMode)
 {
     switch (toneMappingMode) {
     case WebCore::WebGPU::CanvasToneMappingMode::Standard:
@@ -71,7 +71,7 @@ static WGPUToneMappingMode convertToToneMappingMode(WebCore::WebGPU::CanvasToneM
     return WGPUToneMappingMode_Extended;
 }
 
-static WGPUCompositeAlphaMode convertToAlphaMode(WebCore::WebGPU::CanvasAlphaMode compositingAlphaMode)
+static WGPUCompositeAlphaMode NODELETE convertToAlphaMode(WebCore::WebGPU::CanvasAlphaMode compositingAlphaMode)
 {
     switch (compositingAlphaMode) {
     case WebCore::WebGPU::CanvasAlphaMode::Opaque:

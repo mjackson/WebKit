@@ -166,7 +166,7 @@ static Style::GridTemplateList gridTemplateListWithPercentagesConvertedToAuto(co
     return Style::GridTemplateList { WTF::move(transformedList) };
 }
 
-void GridFormattingContext::layout(GridLayoutConstraints layoutConstraints)
+UsedTrackSizes GridFormattingContext::layout(GridLayoutConstraints layoutConstraints)
 {
     auto unplacedGridItems = constructUnplacedGridItems();
     CheckedRef gridStyle = root().style();
@@ -189,7 +189,7 @@ void GridFormattingContext::layout(GridLayoutConstraints layoutConstraints)
     auto gridTemplateColumns = inlineAxisDependsOnTracks ? gridTemplateListWithPercentagesConvertedToAuto(gridStyle->gridTemplateColumns()) : gridStyle->gridTemplateColumns();
     auto gridTemplateRows = blockAxisDependsOnTracks ? gridTemplateListWithPercentagesConvertedToAuto(gridStyle->gridTemplateRows()) : gridStyle->gridTemplateRows();
 
-    GridDefinition gridDefinition { gridTemplateColumns, gridTemplateRows, autoFlowOptions };
+    GridDefinition gridDefinition { gridTemplateColumns, gridTemplateRows, gridStyle->gridAutoColumns(), gridStyle->gridAutoRows(), autoFlowOptions };
 
     auto usedJustifyContent = gridStyle->justifyContent().resolve();
     auto usedAlignContent = gridStyle->alignContent().resolve();
@@ -217,19 +217,17 @@ void GridFormattingContext::layout(GridLayoutConstraints layoutConstraints)
     };
     mapGridItemLocationsToGrid();
     setGridItemGeometries(gridItemRects);
+    return usedTrackSizes;
 }
 
 PlacedGridItems GridFormattingContext::constructPlacedGridItems(const GridAreas& gridAreas) const
 {
     PlacedGridItems placedGridItems;
     placedGridItems.reserveInitialCapacity(gridAreas.size());
-    CheckedRef gridContainerStyle = root().style();
+    CheckedRef formattingContextStyle = root().style();
     for (auto [ unplacedGridItem, gridAreaLines ] : gridAreas) {
 
         CheckedRef gridItemStyle = unplacedGridItem.m_layoutBox->style();
-
-        auto usedJustifySelf = gridItemStyle->justifySelf().resolve(gridContainerStyle.ptr());
-        auto usedAlignSelf = gridItemStyle->alignSelf().resolve(gridContainerStyle.ptr());
 
         ComputedSizes inlineAxisSizes {
             gridItemStyle->width(),
@@ -248,9 +246,8 @@ PlacedGridItems GridFormattingContext::constructPlacedGridItems(const GridAreas&
         };
 
         auto& boxGeometry = geometryForGridItem(unplacedGridItem.m_layoutBox);
-        placedGridItems.constructAndAppend(unplacedGridItem, gridAreaLines, inlineAxisSizes, blockAxisSizes,
-            boxGeometry.horizontalBorderAndPadding(), boxGeometry.verticalBorderAndPadding(), usedJustifySelf,
-            usedAlignSelf, gridItemStyle->usedZoomForLength());
+        placedGridItems.constructAndAppend(unplacedGridItem, gridAreaLines, inlineAxisSizes, blockAxisSizes, boxGeometry.horizontalBorderAndPadding(), boxGeometry.verticalBorderAndPadding(),
+            gridItemStyle->justifySelf().resolve(formattingContextStyle.ptr()), gridItemStyle->alignSelf().resolve(formattingContextStyle.ptr()), gridItemStyle->writingMode(), gridItemStyle->usedZoomForLength());
     }
     return placedGridItems;
 }
@@ -304,6 +301,8 @@ GridFormattingContext::IntrinsicWidths GridFormattingContext::computeIntrinsicWi
     GridDefinition gridDefinition {
         gridTemplateListWithPercentagesConvertedToAuto(gridStyle->gridTemplateColumns()),
         gridTemplateListWithPercentagesConvertedToAuto(gridStyle->gridTemplateRows()),
+        gridStyle->gridAutoColumns(),
+        gridStyle->gridAutoRows(),
         autoFlowOptions
     };
 

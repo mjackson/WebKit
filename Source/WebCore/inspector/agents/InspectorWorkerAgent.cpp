@@ -110,11 +110,6 @@ Inspector::Protocol::ErrorStringOr<void> InspectorWorkerAgent::sendMessageToWork
     return { };
 }
 
-bool InspectorWorkerAgent::shouldWaitForDebuggerOnStart() const
-{
-    return m_enabled;
-}
-
 void InspectorWorkerAgent::workerStarted(WorkerInspectorProxy& proxy)
 {
     if (!m_enabled)

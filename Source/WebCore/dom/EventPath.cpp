@@ -40,14 +40,14 @@
 
 namespace WebCore {
 
-static inline bool shouldEventCrossShadowBoundary(Event& event, ShadowRoot& shadowRoot, EventTarget& target)
+static inline bool NODELETE shouldEventCrossShadowBoundary(Event& event, ShadowRoot& shadowRoot, EventTarget& target)
 {
     auto* targetNode = dynamicDowncast<Node>(target);
     bool targetIsInShadowRoot = targetNode && &targetNode->treeScope().rootNode() == &shadowRoot;
     return !targetIsInShadowRoot || event.composed();
 }
 
-static Node* nodeOrHostIfPseudoElement(Node* node)
+static Node* NODELETE nodeOrHostIfPseudoElement(Node* node)
 {
     auto* pseudoElement = dynamicDowncast<PseudoElement>(*node);
     return pseudoElement ? pseudoElement->hostElement() : node;
@@ -310,7 +310,7 @@ EventPath::EventPath(EventTarget& target)
     m_path = { EventContext { EventContext::Type::Normal, nullptr, &target, &target, 0 } };
 }
 
-static Node* moveOutOfAllShadowRoots(Node& startingNode)
+static Node* NODELETE moveOutOfAllShadowRoots(Node& startingNode)
 {
     CheckedPtr node = &startingNode;
     while (node && node->isInShadowTree())
@@ -372,7 +372,7 @@ RelatedNodeRetargeter::RelatedNodeRetargeter(Ref<Node>&& relatedNode, Node& targ
     m_retargetedRelatedNode = nodeInLowestCommonAncestor();
 }
 
-inline Node* RelatedNodeRetargeter::currentNode(Node& currentTarget)
+inline Node* NODELETE RelatedNodeRetargeter::currentNode(Node& currentTarget)
 {
     checkConsistency(currentTarget);
     return m_retargetedRelatedNode.get();
@@ -412,7 +412,7 @@ void RelatedNodeRetargeter::moveToNewTreeScope(TreeScope* previousTreeScope, Tre
     }
 }
 
-inline Node* RelatedNodeRetargeter::nodeInLowestCommonAncestor()
+inline Node* NODELETE RelatedNodeRetargeter::nodeInLowestCommonAncestor()
 {
     if (!m_lowestCommonAncestorIndex)
         return m_relatedNode.ptr();
@@ -430,7 +430,7 @@ void RelatedNodeRetargeter::collectTreeScopes()
 
 #if !ASSERT_ENABLED
 
-inline void RelatedNodeRetargeter::checkConsistency(Node&)
+inline void NODELETE RelatedNodeRetargeter::checkConsistency(Node&)
 {
 }
 

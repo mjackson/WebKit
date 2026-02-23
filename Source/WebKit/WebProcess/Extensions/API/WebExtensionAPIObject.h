@@ -75,10 +75,8 @@ public:
     WebExtensionContentWorldType contentWorldType() const { return m_contentWorldType; }
 
     virtual WebExtensionAPIRuntimeBase& runtime() const { return *m_runtime; }
-    Ref<WebExtensionAPIRuntimeBase> protectedRuntime() const { return runtime(); }
 
     WebExtensionContextProxy& extensionContext() const { return *m_extensionContext; }
-    Ref<WebExtensionContextProxy> protectedExtensionContext() const { return extensionContext(); }
     bool hasExtensionContext() const { return !!m_extensionContext; }
 
     const String& propertyPath() const { return m_propertyPath; }

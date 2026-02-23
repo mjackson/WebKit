@@ -44,10 +44,11 @@ const CSSParserContext& strictCSSParserContext()
     return strictContext;
 }
 
-static void applyUASheetBehaviorsToContext(CSSParserContext& context)
+static void NODELETE applyUASheetBehaviorsToContext(CSSParserContext& context)
 {
     // FIXME: We should turn all of the features on from their WebCore Settings defaults.
     context.cssAppearanceBaseEnabled = true;
+    context.cssRubyDisplayTypesEnabled = true;
     context.cssTextTransformMathAutoEnabled = true;
     context.popoverAttributeEnabled = true;
     context.propertySettings.cssInputSecurityEnabled = true;
@@ -59,7 +60,9 @@ static void applyUASheetBehaviorsToContext(CSSParserContext& context)
 #if HAVE(CORE_MATERIAL)
     context.propertySettings.useSystemAppearance = true;
 #endif
+    context.propertySettings.cssAnchorPositioningEnabled = true;
     context.cssInternalAutoBaseParsingEnabled = true;
+    context.htmlEnhancedSelectEnabled = true;
 }
 
 CSSParserContext::CSSParserContext(CSSParserMode mode, const URL& baseURL)
@@ -107,9 +110,11 @@ CSSParserContext::CSSParserContext(const Settings& settings)
     , imageControlsEnabled { settings.imageControlsEnabled() }
 #endif
     , colorLayersEnabled { settings.cssColorLayersEnabled() }
+    , cssPickerPseudoElementEnabled { settings.cssPickerPseudoElementEnabled() }
     , targetTextPseudoElementEnabled { settings.targetTextPseudoElementEnabled() }
     , htmlEnhancedSelectEnabled { settings.htmlEnhancedSelectEnabled() }
     , cssRandomFunctionEnabled { settings.cssRandomFunctionEnabled() }
+    , cssRubyDisplayTypesEnabled { settings.cssRubyDisplayTypesInAuthorStylesEnabled() }
     , cssTreeCountingFunctionsEnabled { settings.cssTreeCountingFunctionsEnabled() }
     , cssURLModifiersEnabled { settings.cssURLModifiersEnabled() }
     , cssURLIntegrityModifierEnabled { settings.cssURLIntegrityModifierEnabled() }
@@ -145,8 +150,11 @@ void add(Hasher& hasher, const CSSParserContext& context)
         context.imageControlsEnabled,
 #endif
         context.colorLayersEnabled,
+        context.cssPickerPseudoElementEnabled,
         context.targetTextPseudoElementEnabled,
+        context.htmlEnhancedSelectEnabled,
         context.cssRandomFunctionEnabled,
+        context.cssRubyDisplayTypesEnabled,
         context.cssTreeCountingFunctionsEnabled,
         context.cssURLModifiersEnabled,
         context.cssURLIntegrityModifierEnabled,
@@ -157,7 +165,6 @@ void add(Hasher& hasher, const CSSParserContext& context)
         context.cssTextTransformMathAutoEnabled,
         context.cssInternalAutoBaseParsingEnabled,
         context.cssMathDepthEnabled,
-        context.htmlEnhancedSelectEnabled,
         context.openPseudoClassEnabled
     );
     add(hasher, context.baseURL, context.charset, context.propertySettings, context.mode, bits);

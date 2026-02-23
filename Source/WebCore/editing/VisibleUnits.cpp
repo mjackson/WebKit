@@ -944,10 +944,10 @@ bool isLogicalEndOfLine(const VisiblePosition& p)
 
 static inline LayoutPoint absoluteLineDirectionPointToLocalPointInBlock(InlineIterator::LineBoxIterator& lineBox, LayoutUnit lineDirectionPoint)
 {
-    auto& root = lineBox->formattingContextRoot();
-    auto absoluteBlockPoint = root.localToAbsolute(FloatPoint()) - toFloatSize(root.scrollPosition());
+    CheckedRef root = lineBox->formattingContextRoot();
+    auto absoluteBlockPoint = root->localToAbsolute(FloatPoint()) - toFloatSize(root->scrollPosition());
 
-    if (root.isHorizontalWritingMode())
+    if (root->isHorizontalWritingMode())
         return LayoutPoint(lineDirectionPoint - absoluteBlockPoint.x(), contentStartInBlockDirection(*lineBox));
 
     return LayoutPoint(contentStartInBlockDirection(*lineBox), lineDirectionPoint - absoluteBlockPoint.y());
@@ -1005,11 +1005,11 @@ VisiblePosition previousLinePosition(const VisiblePosition& visiblePosition, Lay
             return positionInParentBeforeNode(node.get());
         // FIXME: The HitTestSource state should be propagated down from calls into JavaScript bindings.
         // For the time being, just err on the side of passing in `Bindings`.
-        auto* renderBox = dynamicDowncast<RenderBox>(renderer.get());
+        CheckedPtr renderBox = dynamicDowncast<RenderBox>(renderer.get());
         auto localOffset = renderBox ? renderBox->locationOffset() : LayoutSize { };
         return const_cast<RenderObject&>(renderer.get()).visiblePositionForPoint(pointInLine - localOffset, HitTestSource::Script);
     }
-    
+
     // Could not find a previous line. This means we must already be on the first line.
     // Move to the start of the content in this block, which effectively moves us
     // to the start of the line we're on.
@@ -1067,7 +1067,7 @@ VisiblePosition nextLinePosition(const VisiblePosition& visiblePosition, LayoutU
             return positionInParentBeforeNode(node.get());
         // FIXME: The HitTestSource state should be propagated down from calls into JavaScript bindings.
         // For the time being, just err on the side of passing in `Bindings`.
-        auto* renderBox = dynamicDowncast<RenderBox>(renderer.get());
+        CheckedPtr renderBox = dynamicDowncast<RenderBox>(renderer.get());
         auto localOffset = renderBox ? renderBox->locationOffset() : LayoutSize { };
         return const_cast<RenderObject&>(renderer.get()).visiblePositionForPoint(pointInLine - localOffset, HitTestSource::Script);
     }
@@ -1148,8 +1148,8 @@ RefPtr<Node> findStartOfParagraph(Node* startNode, Node* highestRoot, Node* star
             n = NodeTraversal::previousPostOrder(*n, startBlock);
             continue;
         }
-        const RenderStyle& style = r->style();
-        if (style.visibility() != Visibility::Visible) {
+        CheckedRef style = r->style();
+        if (style->visibility() != Visibility::Visible) {
             n = NodeTraversal::previousPostOrder(*n, startBlock);
             continue;
         }
@@ -1160,7 +1160,7 @@ RefPtr<Node> findStartOfParagraph(Node* startNode, Node* highestRoot, Node* star
         if (CheckedPtr renderText = dynamicDowncast<RenderText>(*r); renderText && renderText->hasRenderedText()) {
             ASSERT_WITH_SECURITY_IMPLICATION(is<Text>(*n));
             type = Position::PositionIsOffsetInAnchor;
-            if (style.preserveNewline()) {
+            if (style->preserveNewline()) {
                 auto& text = renderText->text();
                 int i = text.length();
                 int o = offset;
@@ -1207,8 +1207,8 @@ RefPtr<Node> findEndOfParagraph(Node* startNode, Node* highestRoot, Node* stayIn
             n = NodeTraversal::next(*n, stayInsideBlock);
             continue;
         }
-        const RenderStyle& style = r->style();
-        if (style.visibility() != Visibility::Visible) {
+        CheckedRef style = r->style();
+        if (style->visibility() != Visibility::Visible) {
             n = NodeTraversal::next(*n, stayInsideBlock);
             continue;
         }
@@ -1221,7 +1221,7 @@ RefPtr<Node> findEndOfParagraph(Node* startNode, Node* highestRoot, Node* stayIn
         if (CheckedPtr renderText = dynamicDowncast<RenderText>(*r); renderText && renderText->hasRenderedText()) {
             ASSERT_WITH_SECURITY_IMPLICATION(is<Text>(*n));
             type = Position::PositionIsOffsetInAnchor;
-            if (style.preserveNewline()) {
+            if (style->preserveNewline()) {
                 auto& text = renderText->text();
                 int o = n == startNode ? offset : 0;
                 int length = text.length();

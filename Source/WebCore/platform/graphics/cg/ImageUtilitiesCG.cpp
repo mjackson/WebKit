@@ -67,8 +67,14 @@ static String transcodeImage(const String& path, const String& destinationUTI, c
 
     // It is important to add the appropriate file extension to the temporary file path.
     // The File object depends solely on the extension to know the MIME type of the file.
+    // Extract the original filename (without extension) to preserve it in the transcoded file.
+    auto originalFilename = FileSystem::pathFileName(path);
+    auto dotPosition = originalFilename.reverseFind('.');
+    auto baseName = (dotPosition != notFound) ? originalFilename.left(dotPosition) : originalFilename;
+    if (baseName.isEmpty())
+        baseName = "image"_s;
     auto suffix = makeString('.', destinationExtension);
-    auto [destinationPath, destinationFileHandle] = FileSystem::openTemporaryFile("tempImage"_s, suffix);
+    auto [destinationPath, destinationFileHandle] = FileSystem::openTemporaryFile(baseName, suffix);
     if (!destinationFileHandle) {
         RELEASE_LOG_ERROR(Images, "transcodeImage: Destination image could not be created: %s %s\n", path.utf8().data(), destinationUTI.utf8().data());
         return nullString();

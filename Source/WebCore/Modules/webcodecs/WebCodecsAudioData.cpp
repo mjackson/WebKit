@@ -132,7 +132,7 @@ ExceptionOr<void> WebCodecsAudioData::copyTo(BufferSource&& source, CopyToOption
     if (!WTF::safeMultiply(maxCopyElementCount, bytesPerSample, allocationSize))
         return Exception { ExceptionCode::RangeError, "Calculated destination buffer size overflows"_s };
 
-    if (allocationSize > source.length())
+    if (allocationSize > source.byteLength())
         return Exception { ExceptionCode::RangeError, "Buffer is too small"_s };
 
     m_data.audioData->copyTo(source.mutableSpan(), destFormat, options.planeIndex, options.frameOffset, options.frameCount, maxCopyElementCount);

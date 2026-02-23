@@ -147,9 +147,6 @@ public:
     bool isAutofillEvent() { return m_isAutofillEvent; }
     void setIsAutofillEvent() { m_isAutofillEvent = true; }
 
-    bool isShadowRootAttachedEvent() { return m_isShadowRootAttachedEvent; }
-    void setIsShadowRootAttachedEvent() { m_isShadowRootAttachedEvent = true; }
-
 protected:
     explicit Event(enum EventInterfaceType, IsTrusted = IsTrusted::No);
     Event(enum EventInterfaceType, const AtomString& type, CanBubble, IsCancelable, IsComposed = IsComposed::No);
@@ -179,7 +176,6 @@ private:
     unsigned m_isExecutingPassiveEventListener : 1;
     unsigned m_currentTargetIsInShadowTree : 1;
     unsigned m_isAutofillEvent : 1;
-    unsigned m_isShadowRootAttachedEvent : 1;
 
     unsigned m_eventPhase : 2;
 

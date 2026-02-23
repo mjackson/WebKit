@@ -58,7 +58,7 @@ public:
 
 private:
 
-    static UnsizedTracks initializeTrackSizes(const TrackSizingFunctionsList&);
+    static UnsizedTracks initializeTrackSizes(const TrackSizingFunctionsList&, LayoutUnit availableGridSpace);
 
     // Flex track infrastructure
     static FlexTracks collectFlexTracks(const UnsizedTracks&);
@@ -67,9 +67,11 @@ private:
     static LayoutUnit findSizeOfFr(const UnsizedTracks&, const LayoutUnit& availableSpace, const LayoutUnit& gapSize);
 
     // Expand Flexible Tracks (spec section 11.7)
-    static void expandFlexibleTracks(UnsizedTracks&, const FreeSpaceScenario&, std::optional<LayoutUnit> availableGridSpace, const LayoutUnit& gapSize);
+    static void expandFlexibleTracks(UnsizedTracks&, const FreeSpaceScenario&, std::optional<LayoutUnit> availableGridSpace, const LayoutUnit& gapSize,
+        const PlacedGridItems&, const PlacedGridItemSpanList&, const TrackSizingGridItemConstraintList&, const GridItemSizingFunctions&);
     static void expandFlexibleTracksForMinContent(UnsizedTracks&);
-    static void expandFlexibleTracksForMaxContent(UnsizedTracks&, const FlexTracks&, double totalFlex);
+    static void expandFlexibleTracksForMaxContent(UnsizedTracks&, const FlexTracks&, const LayoutUnit& gapSize,
+        const PlacedGridItems&, const PlacedGridItemSpanList&, const TrackSizingGridItemConstraintList&, const GridItemSizingFunctions&);
     static void expandFlexibleTracksForDefiniteLength(UnsizedTracks&, const FlexTracks&, std::optional<LayoutUnit> availableGridSpace, const LayoutUnit& gapSize);
 };
 

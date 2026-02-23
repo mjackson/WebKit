@@ -113,7 +113,7 @@ public:
     const FragmentedSharedBuffer* resourceData() const;
     void clearResourceData();
     
-    virtual bool isSubresourceLoader() const;
+    virtual bool NODELETE isSubresourceLoader() const;
 
     virtual void willSendRequest(ResourceRequest&&, const ResourceResponse& redirectResponse, CompletionHandler<void(ResourceRequest&&)>&& callback);
     virtual void didSendData(unsigned long long bytesSent, unsigned long long totalBytesToBeSent);
@@ -143,7 +143,7 @@ public:
     bool shouldSniffContent() const { return m_options.sniffContent == ContentSniffingPolicy::SniffContent; }
     ContentEncodingSniffingPolicy contentEncodingSniffingPolicy() const { return m_options.contentEncodingSniffingPolicy; }
     WEBCORE_EXPORT bool isAllowedToAskUserForCredentials() const;
-    WEBCORE_EXPORT bool shouldIncludeCertificateInfo() const;
+    WEBCORE_EXPORT bool NODELETE shouldIncludeCertificateInfo() const;
 
     virtual CachedResource* cachedResource() const { return nullptr; }
 
@@ -163,14 +163,14 @@ public:
     void unschedule(WTF::SchedulePair&);
 #endif
 
-    WEBCORE_EXPORT LocalFrame* frame() const;
+    WEBCORE_EXPORT LocalFrame* NODELETE frame() const;
 
     const ResourceLoaderOptions& options() const { return m_options; }
 
     const ResourceRequest& deferredRequest() const { return m_deferredRequest; }
     ResourceRequest takeDeferredRequest() { return std::exchange(m_deferredRequest, { }); }
 
-    bool isPDFJSResourceLoad() const;
+    bool NODELETE isPDFJSResourceLoad() const;
 
 #if ENABLE(CONTENT_EXTENSIONS)
     WEBCORE_EXPORT ResourceMonitor* resourceMonitorIfExists();

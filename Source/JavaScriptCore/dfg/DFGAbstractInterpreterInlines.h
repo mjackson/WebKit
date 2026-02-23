@@ -391,10 +391,9 @@ bool AbstractInterpreter<AbstractStateType>::handleConstantDivOp(Node* node)
 
                 if (node->child1().useKind() == Int52RepUse) {
                     if (node->hasArithMode()) {
-                        if (!shouldCheckOverflow(node->arithMode())) {
-                            if (std::isnan(doubleResult))
-                                doubleResult = 0;
-                        } else if (!shouldCheckNegativeZero(node->arithMode()))
+                        if (!shouldCheckOverflow(node->arithMode()) && std::isnan(doubleResult))
+                            doubleResult = 0;
+                        else if (!shouldCheckNegativeZero(node->arithMode()))
                             doubleResult += 0; // Sanitizes zero.
                     }
                     if (tryConvertToInt52(doubleResult) != JSValue::notInt52) {

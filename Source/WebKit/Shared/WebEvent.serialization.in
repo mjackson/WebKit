@@ -165,7 +165,7 @@ class WebKit::WebTouchEvent : WebKit::WebEvent {
 };
 
 [CustomHeader] enum class WebKit::WebMouseEventInputSource : uint8_t {
-    Hardware,
+    UserDriven,
     Automation,
 };
 

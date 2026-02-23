@@ -97,7 +97,7 @@ public:
     // InspectorInstrumentation
     void didCreateCanvasRenderingContext(CanvasRenderingContext&);
     void didChangeCanvasSize(CanvasRenderingContext&);
-    void didChangeCanvasMemory(CanvasRenderingContext&);
+    void didChangeCanvasMemory(const CanvasRenderingContext&);
     void didFinishRecordingCanvasFrame(CanvasRenderingContext&, bool forceDispatch = false);
     void consoleStartRecordingCanvas(CanvasRenderingContext&, JSC::JSGlobalObject&, JSC::JSObject* options);
     void consoleStopRecordingCanvas(CanvasRenderingContext&);
@@ -112,7 +112,7 @@ public:
     void recordAction(CanvasRenderingContext&, String&&, InspectorCanvasProcessedArguments&& = { });
 
     RefPtr<InspectorCanvas> assertInspectorCanvas(Inspector::Protocol::ErrorString&, const String& canvasId);
-    RefPtr<InspectorCanvas> findInspectorCanvas(CanvasRenderingContext&);
+    RefPtr<InspectorCanvas> findInspectorCanvas(const CanvasRenderingContext&);
 
 protected:
     InspectorCanvasAgent(WebAgentContext&);

@@ -81,7 +81,7 @@ private:
     const Logger& logger() const final { return m_logger; }
     uint64_t logIdentifier() const final { return m_logIdentifier; }
     ASCIILiteral logClassName() const { return "RemoteLegacyCDMSessionProxy"_s; }
-    WTFLogChannel& logChannel() const;
+    WTFLogChannel& NODELETE logChannel() const;
 #endif
 
     // Messages

@@ -317,6 +317,7 @@ public:
     virtual RefPtr<AccessibilityTextMarkerRange> textMarkerRangeForElement(AccessibilityUIElement*);
     virtual RefPtr<AccessibilityTextMarkerRange> textMarkerRangeForMarkers(AccessibilityTextMarker*, AccessibilityTextMarker*);
     virtual RefPtr<AccessibilityTextMarkerRange> textMarkerRangeForUnorderedMarkers(AccessibilityTextMarker*, AccessibilityTextMarker*);
+    virtual RefPtr<AccessibilityTextMarkerRange> intersectTextMarkerRanges(AccessibilityTextMarkerRange*, AccessibilityTextMarkerRange*);
     virtual RefPtr<AccessibilityTextMarkerRange> textMarkerRangeForRange(unsigned location, unsigned length);
     virtual RefPtr<AccessibilityTextMarkerRange> selectedTextMarkerRange();
     virtual void resetSelectedTextMarkerRange();
@@ -360,6 +361,8 @@ public:
     virtual RefPtr<AccessibilityTextMarkerRange> textMarkerRangeMatchesTextNearMarkers(JSStringRef, AccessibilityTextMarker*, AccessibilityTextMarker*);
     virtual JSRetainPtr<JSStringRef> textMarkerDebugDescription(AccessibilityTextMarker*);
     virtual JSRetainPtr<JSStringRef> textMarkerRangeDebugDescription(AccessibilityTextMarkerRange*);
+    virtual JSRetainPtr<JSStringRef> textMarkerDescription(AccessibilityTextMarker*);
+    virtual JSRetainPtr<JSStringRef> textMarkerRangeDescription(AccessibilityTextMarkerRange*);
 
     // Returns an ordered list of supported actions for an element.
     virtual JSRetainPtr<JSStringRef> supportedActions() const;

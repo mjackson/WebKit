@@ -116,7 +116,7 @@ RefPtr<AccessibilityObject> AccessibilitySlider::elementAccessibilityHitTest(con
             return downcast<AccessibilityObject>(m_children[0].get());
     }
 
-    return checkedAxObjectCache()->getOrCreate(checkedRenderer().get());
+    return protect(axObjectCache())->getOrCreate(protect(renderer()).get());
 }
 
 float AccessibilitySlider::valueForRange() const

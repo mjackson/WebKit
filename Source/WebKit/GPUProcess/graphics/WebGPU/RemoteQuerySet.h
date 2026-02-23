@@ -74,9 +74,6 @@ private:
     RemoteQuerySet& operator=(RemoteQuerySet&&) = delete;
 
     WebCore::WebGPU::QuerySet& backing() { return m_backing; }
-    Ref<WebCore::WebGPU::QuerySet> protectedBacking();
-
-    Ref<IPC::StreamServerConnection> protectedStreamConnection() const;
 
     void didReceiveStreamMessage(IPC::StreamServerConnection&, IPC::Decoder&) final;
 

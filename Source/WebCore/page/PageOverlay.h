@@ -78,7 +78,7 @@ public:
     WEBCORE_EXPORT static Ref<PageOverlay> create(PageOverlayClient&, OverlayType = OverlayType::View, AlwaysTileOverlayLayer = AlwaysTileOverlayLayer::No);
     WEBCORE_EXPORT ~PageOverlay();
 
-    WEBCORE_EXPORT PageOverlayController* controller() const;
+    WEBCORE_EXPORT PageOverlayController* NODELETE controller() const;
 
     typedef uint64_t PageOverlayID;
     PageOverlayID pageOverlayID() const { return m_pageOverlayID; }

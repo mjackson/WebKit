@@ -120,9 +120,7 @@ static VideoDecoder::Config createVideoDecoderConfig(const WebCodecsVideoDecoder
 {
     Vector<uint8_t> description;
     if (config.description) {
-        auto data = WTF::visit([](auto& buffer) {
-            return buffer ? buffer->span() : std::span<const uint8_t> { };
-        }, *config.description);
+        auto data = WTF::switchOn(*config.description, [](auto& buffer) { return buffer->span(); });
         if (!data.empty())
             description = data;
     }

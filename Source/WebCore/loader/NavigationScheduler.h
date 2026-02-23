@@ -57,10 +57,10 @@ public:
     explicit NavigationScheduler(Frame&);
     ~NavigationScheduler();
 
-    void ref() const;
+    void NODELETE ref() const;
     void deref() const;
 
-    bool redirectScheduledDuringLoad();
+    bool NODELETE redirectScheduledDuringLoad();
     bool locationChangePending();
 
     void scheduleRedirect(Document& initiatingDocument, double delay, const URL&, IsMetaRefresh);
@@ -76,10 +76,10 @@ public:
     void cancel(NewLoadInProgress = NewLoadInProgress::No);
     void clear();
 
-    bool hasQueuedNavigation() const;
+    bool NODELETE hasQueuedNavigation() const;
 
 private:
-    bool shouldScheduleNavigation() const;
+    bool NODELETE shouldScheduleNavigation() const;
     bool shouldScheduleNavigation(const URL&) const;
 
     void timerFired();

@@ -39,6 +39,7 @@
 #include "RenderFragmentContainer.h"
 #include "RenderImage.h"
 #include "RenderView.h"
+#include "StyleImage.h"
 #include <JavaScriptCore/ConsoleTypes.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>
@@ -315,7 +316,7 @@ Ref<const LayoutShape> makeShapeForShapeOutside(const RenderBox& renderer)
     );
 }
 
-static inline bool checkShapeImageOrigin(Document& document, const StyleImage& styleImage)
+static inline bool checkShapeImageOrigin(Document& document, const Style::Image& styleImage)
 {
     if (styleImage.isGeneratedImage())
         return true;

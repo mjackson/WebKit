@@ -41,7 +41,7 @@ struct QNameComponentsTranslator {
         return computeHash(components);
     }
 
-    static bool equal(QualifiedName::QualifiedNameImpl* name, const QualifiedNameComponents& c)
+    static bool NODELETE equal(QualifiedName::QualifiedNameImpl* name, const QualifiedNameComponents& c)
     {
         return c.m_prefix == name->m_prefix.impl() && c.m_localName == name->m_localName.impl() && c.m_namespaceURI == name->m_namespaceURI.impl();
     }

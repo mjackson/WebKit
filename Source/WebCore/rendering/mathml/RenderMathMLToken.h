@@ -43,7 +43,7 @@ public:
     RenderMathMLToken(Type, Document&, RenderStyle&&);
     virtual ~RenderMathMLToken();
 
-    MathMLTokenElement& element();
+    MathMLTokenElement& NODELETE element();
 
     virtual void updateTokenContent();
     void updateFromElement() override;

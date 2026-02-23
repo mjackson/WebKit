@@ -39,7 +39,7 @@ public:
     LegacyRenderSVGRect(SVGRectElement&, RenderStyle&&);
     virtual ~LegacyRenderSVGRect();
 
-    SVGRectElement& rectElement() const;
+    SVGRectElement& NODELETE rectElement() const;
 
 private:
     void graphicsElement() const = delete;

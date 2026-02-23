@@ -64,7 +64,7 @@ static constexpr auto Redirect = "Redirect"_s;
 static constexpr auto PopUp = "PopUp"_s;
 static constexpr auto SubFrame = "SubFrame"_s;
 
-static ASCIILiteral toString(const SOAuthorizationSession::InitiatingAction& action)
+static ASCIILiteral NODELETE toString(const SOAuthorizationSession::InitiatingAction& action)
 {
     switch (action) {
     case SOAuthorizationSession::InitiatingAction::Redirect:

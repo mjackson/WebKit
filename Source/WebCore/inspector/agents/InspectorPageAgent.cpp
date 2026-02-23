@@ -133,7 +133,7 @@ Inspector::Protocol::ErrorStringOr<void> InspectorPageAgent::enable()
 
     agents->setEnabledPageAgent(this);
 
-    auto& stopwatch = checkedEnvironment()->executionStopwatch();
+    auto& stopwatch = protect(environment())->executionStopwatch();
     stopwatch.reset();
     stopwatch.start();
 
@@ -178,7 +178,7 @@ Inspector::Protocol::ErrorStringOr<void> InspectorPageAgent::disable()
 
 double InspectorPageAgent::timestamp()
 {
-    return checkedEnvironment()->executionStopwatch().elapsedTime().seconds();
+    return protect(environment())->executionStopwatch().elapsedTime().seconds();
 }
 
 Inspector::Protocol::ErrorStringOr<void> InspectorPageAgent::reload(std::optional<bool>&& ignoreCache, std::optional<bool>&& revalidateAllResources)
@@ -387,7 +387,7 @@ Inspector::Protocol::ErrorStringOr<Ref<JSON::ArrayOf<Inspector::Protocol::Page::
         auto* localFrame = dynamicDowncast<LocalFrame>(frame);
         if (!localFrame)
             continue;
-        auto* document = localFrame->document();
+        RefPtr document = localFrame->document();
         if (!document || !document->page())
             continue;
 
@@ -501,7 +501,7 @@ Inspector::Protocol::ErrorStringOr<void> InspectorPageAgent::setCookie(Ref<JSON:
         auto* localFrame = dynamicDowncast<LocalFrame>(frame);
         if (!localFrame)
             continue;
-        auto* document = localFrame->document();
+        RefPtr document = localFrame->document();
         if (!document)
             continue;
         auto* page = document->page();
@@ -520,7 +520,7 @@ Inspector::Protocol::ErrorStringOr<void> InspectorPageAgent::deleteCookie(const 
         auto* localFrame = dynamicDowncast<LocalFrame>(frame);
         if (!localFrame)
             continue;
-        auto* document = localFrame->document();
+        RefPtr document = localFrame->document();
         if (!document)
             continue;
         auto* page = document->page();
@@ -790,7 +790,7 @@ void InspectorPageAgent::didPaint(RenderObject& renderer, const LayoutRect& rect
         return;
 
     LayoutRect absoluteRect = LayoutRect(renderer.localToAbsoluteQuad(FloatRect(rect)).boundingBox());
-    auto* view = renderer.document().view();
+    RefPtr view = renderer.document().view();
 
     LayoutRect rootRect = absoluteRect;
     Ref localFrame = view->frame();
@@ -929,9 +929,9 @@ Inspector::Protocol::ErrorStringOr<String> InspectorPageAgent::snapshotNode(Insp
 {
     Inspector::Protocol::ErrorString errorString;
 
-    InspectorDOMAgent* domAgent = Ref { m_instrumentingAgents.get() }->persistentDOMAgent();
+    CheckedPtr domAgent = Ref { m_instrumentingAgents.get() }->persistentDOMAgent();
     ASSERT(domAgent);
-    Node* node = domAgent->assertNode(errorString, nodeId);
+    RefPtr node = domAgent->assertNode(errorString, nodeId);
     if (!node)
         return makeUnexpected(errorString);
     

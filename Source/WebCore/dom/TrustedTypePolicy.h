@@ -74,6 +74,6 @@ private:
     mutable Lock m_lock;
 };
 
-WebCoreOpaqueRoot root(TrustedTypePolicy*);
+WebCoreOpaqueRoot NODELETE root(TrustedTypePolicy*);
 
 } // namespace WebCore

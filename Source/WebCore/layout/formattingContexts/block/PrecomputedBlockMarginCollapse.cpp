@@ -60,7 +60,7 @@ UsedVerticalMargin::PositiveAndNegativePair::Values BlockMarginCollapse::precomp
     auto previouSiblingCollapsedMarginAfter = [&]() -> UsedVerticalMargin::PositiveAndNegativePair::Values {
         if (!marginBeforeCollapsesWithPreviousSiblingMarginAfter(layoutBox))
             return { };
-        auto& previousInFlowSibling = *layoutBox.previousInFlowSibling();
+        CheckedRef previousInFlowSibling = *layoutBox.previousInFlowSibling();
         return formattingState().usedVerticalMargin(previousInFlowSibling).positiveAndNegativeValues.after;
     };
 

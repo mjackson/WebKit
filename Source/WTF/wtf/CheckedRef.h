@@ -46,6 +46,12 @@ namespace WTF {
     using BASE::incrementCheckedPtrCount; \
     using BASE::decrementCheckedPtrCount
 
+/**
+ * @brief CheckedRef is the non-nullable variant of CheckedPtr.
+ *
+ * See CheckedPtr for full documentation on checked pointers, including usage requirements and
+ * the zombie mechanism for detecting use-after-free.
+ */
 template<typename T, typename PtrTraits>
 class CheckedRef {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED(CheckedRef);

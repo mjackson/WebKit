@@ -176,21 +176,11 @@ AudioNodeInput* AudioNode::input(unsigned i)
     return nullptr;
 }
 
-CheckedPtr<AudioNodeInput> AudioNode::checkedInput(unsigned i)
-{
-    return input(i);
-}
-
 AudioNodeOutput* AudioNode::output(unsigned i)
 {
     if (i < m_outputs.size())
         return m_outputs[i].get();
     return nullptr;
-}
-
-CheckedPtr<AudioNodeOutput> AudioNode::checkedOutput(unsigned i)
-{
-    return output(i);
 }
 
 ExceptionOr<void> AudioNode::connect(AudioNode& destination, unsigned outputIndex, unsigned inputIndex)

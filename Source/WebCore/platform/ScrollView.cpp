@@ -1743,6 +1743,7 @@ std::unique_ptr<ScrollView::ProhibitScrollingWhenChangingContentSizeForScope> Sc
 
 ScrollView::ProhibitScrollingWhenChangingContentSizeForScope::ProhibitScrollingWhenChangingContentSizeForScope(ScrollView& scrollView)
     : m_scrollView(scrollView)
+    , m_anchoringSuppressor(scrollView)
 {
     scrollView.incrementProhibitsScrollingWhenChangingContentSizeCount();
 }

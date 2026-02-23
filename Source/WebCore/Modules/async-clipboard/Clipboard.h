@@ -47,7 +47,7 @@ public:
     ~Clipboard();
 
     enum EventTargetInterfaceType eventTargetInterface() const final;
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
 
     LocalFrame* frame() const;
     Navigator* NODELETE navigator();
@@ -75,7 +75,7 @@ private:
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }
 
-    Pasteboard& activePasteboard();
+    Pasteboard& NODELETE activePasteboard();
 
     enum class SessionIsValid : bool { No, Yes };
     SessionIsValid updateSessionValidity();

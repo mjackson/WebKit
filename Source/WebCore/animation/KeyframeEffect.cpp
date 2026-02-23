@@ -1947,6 +1947,11 @@ const TimingFunction* KeyframeEffect::timingFunctionForKeyframeAtIndex(size_t in
 
 bool KeyframeEffect::canBeAccelerated() const
 {
+    return canBeAccelerated(AccountForTimelineAccelerationAbility::Yes);
+}
+
+bool KeyframeEffect::canBeAccelerated(AccountForTimelineAccelerationAbility accountForTimelineAccelerationAbility) const
+{
     if (!animation() || !animation()->timeline() || animation()->isSkippedContentAnimation())
         return false;
 
@@ -1975,7 +1980,9 @@ bool KeyframeEffect::canBeAccelerated() const
 
 #if ENABLE(THREADED_ANIMATIONS)
     if (canHaveAcceleratedRepresentation())
-        return !animation()->pending() && animation()->timeline()->canBeAccelerated();
+        return !animation()->pending() && (accountForTimelineAccelerationAbility == AccountForTimelineAccelerationAbility::No || animation()->timeline()->canBeAccelerated());
+#else
+    UNUSED_PARAM(accountForTimelineAccelerationAbility);
 #endif
 
     if (m_isAssociatedWithProgressBasedTimeline)
@@ -2016,7 +2023,7 @@ bool KeyframeEffect::preventsAcceleration() const
     // to an element, either through the underlying style, or through a keyframe.
     if (auto target = targetStyleable()) {
         if (auto* lastStyleChangeEventStyle = target->lastStyleChangeEventStyle()) {
-            if (lastStyleChangeEventStyle->hasOffsetPath())
+            if (!lastStyleChangeEventStyle->offsetPath().isNone())
                 return true;
         }
     }
@@ -3113,7 +3120,7 @@ void KeyframeEffect::lastStyleChangeEventStyleDidChange(const RenderStyle* previ
 #endif
 
     auto hasMotionPath = [](const RenderStyle* style) {
-        return style && style->hasOffsetPath();
+        return style && !style->offsetPath().isNone();
     };
 
     if (hasMotionPath(previousStyle) != hasMotionPath(currentStyle))
@@ -3186,7 +3193,8 @@ void KeyframeEffect::scheduleAssociatedAcceleratedEffectStackUpdate(const std::o
 
 void KeyframeEffect::timelineAccelerationAbilityDidChange()
 {
-    scheduleAssociatedAcceleratedEffectStackUpdate();
+    if (canBeAccelerated(AccountForTimelineAccelerationAbility::No))
+        scheduleAssociatedAcceleratedEffectStackUpdate();
 }
 
 Ref<AcceleratedEffect> KeyframeEffect::acceleratedRepresentation(const IntRect& borderBoxRect, const AcceleratedEffectValues& baseValues, OptionSet<AcceleratedEffectProperty>& disallowedProperties)

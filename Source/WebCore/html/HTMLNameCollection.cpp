@@ -60,7 +60,7 @@ bool WindowNameCollection::elementMatches(const Element& element, const AtomStri
         || element.getIdAttribute() == name;
 }
 
-static inline bool isObjectElementForDocumentNameCollection(const Element& element)
+static inline bool NODELETE isObjectElementForDocumentNameCollection(const Element& element)
 {
     auto* objectElement = dynamicDowncast<HTMLObjectElement>(element);
     return objectElement && objectElement->isExposed();

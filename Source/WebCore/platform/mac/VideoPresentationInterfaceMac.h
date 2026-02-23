@@ -69,7 +69,6 @@ public:
     PlaybackSessionInterfaceMac& playbackSessionInterface() const { return m_playbackSessionInterface; }
     RefPtr<VideoPresentationModel> videoPresentationModel() const { return m_videoPresentationModel.get(); }
     PlaybackSessionModel* playbackSessionModel() const { return m_playbackSessionInterface->playbackSessionModel(); }
-    CheckedPtr<PlaybackSessionModel> checkedPlaybackSessionModel() const { return playbackSessionModel(); }
     WEBCORE_EXPORT void setVideoPresentationModel(VideoPresentationModel*);
 
 #if HAVE(PIP_SKIP_PREROLL)
@@ -105,7 +104,7 @@ public:
     WEBCORE_EXPORT void setMode(HTMLMediaElementEnums::VideoFullscreenMode, VideoPresentationModel::ShouldNotifyMediaElement);
     WEBCORE_EXPORT void clearMode(HTMLMediaElementEnums::VideoFullscreenMode, VideoPresentationModel::ShouldNotifyMediaElement);
 
-    WEBCORE_EXPORT bool isPlayingVideoInEnhancedFullscreen() const;
+    WEBCORE_EXPORT bool isPlayingVideoInPictureInPicture() const;
 
     bool mayAutomaticallyShowVideoPictureInPicture() const { return false; }
     void applicationDidBecomeActive() { }

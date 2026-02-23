@@ -135,7 +135,7 @@ bool AudioSession::tryToSetActive(bool active)
     if (!tryToSetActiveInternal(active))
         return false;
 
-    ALWAYS_LOG(LOGIDENTIFIER, "is active = ", m_active, ", previousIsActive = ", previousIsActive);
+    ALWAYS_LOG(LOGIDENTIFIER, "is active = ", active, ", previousIsActive = ", previousIsActive);
 
     bool hasActiveChanged = previousIsActive != isActive();
     m_active = active;

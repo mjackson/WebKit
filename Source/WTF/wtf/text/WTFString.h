@@ -139,7 +139,7 @@ public:
     char16_t characterAt(unsigned index) const;
     char16_t operator[](unsigned index) const { return characterAt(index); }
 
-    WTF_EXPORT_PRIVATE static String number(int);
+    WTF_EXPORT_PRIVATE static String NODELETE number(int);
     WTF_EXPORT_PRIVATE static String number(unsigned);
     WTF_EXPORT_PRIVATE static String number(long);
     WTF_EXPORT_PRIVATE static String number(unsigned long);
@@ -256,7 +256,7 @@ public:
     [[nodiscard]] WTF_EXPORT_PRIVATE String isolatedCopy() const &;
     [[nodiscard]] WTF_EXPORT_PRIVATE String isolatedCopy() &&;
 
-    WTF_EXPORT_PRIVATE bool isSafeToSendToAnotherThread() const;
+    WTF_EXPORT_PRIVATE bool NODELETE isSafeToSendToAnotherThread() const;
 
     // Prevent Strings from being implicitly convertable to bool as it will be ambiguous on any platform that
     // allows implicit conversion to another pointer type (e.g., Mac allows implicit conversion to NSString *).

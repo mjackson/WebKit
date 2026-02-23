@@ -275,7 +275,7 @@ static inline bool isHTMLSpaceOrDelimiter(CharacterType character)
     return isASCIIWhitespace(character) || character == ',' || character == ';';
 }
 
-static inline bool isNumberStart(char16_t character)
+static inline bool NODELETE isNumberStart(char16_t character)
 {
     return isASCIIDigit(character) || character == '.' || character == '-';
 }

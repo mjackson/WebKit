@@ -133,7 +133,7 @@ protected:
 
     void updateInnerTextElementEditability();
 
-    bool cacheSelection(unsigned start, unsigned end, TextFieldSelectionDirection);
+    bool NODELETE cacheSelection(unsigned start, unsigned end, TextFieldSelectionDirection);
 
     void restoreCachedSelection(SelectionRevealMode, const AXTextStateChangeIntent& = AXTextStateChangeIntent());
     bool hasCachedSelection() const { return m_hasCachedSelection; }

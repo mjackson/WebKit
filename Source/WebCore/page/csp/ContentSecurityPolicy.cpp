@@ -102,7 +102,7 @@ ContentSecurityPolicy::ContentSecurityPolicy(URL&& protectedURL, ContentSecurity
     updateSourceSelf(SecurityOrigin::create(m_protectedURL).get());
 }
 
-static ReportingClient* reportingClientForContext(ScriptExecutionContext& scriptExecutionContext)
+static ReportingClient* NODELETE reportingClientForContext(ScriptExecutionContext& scriptExecutionContext)
 {
     if (auto* document = dynamicDowncast<Document>(scriptExecutionContext))
         return document;
@@ -885,6 +885,21 @@ String ContentSecurityPolicy::createURLForReporting(const URL& url, const String
         return (usesReportingAPI ? url.strippedForUseAsReferrerWithExplicitPort() : url.strippedForUseAsReferrer()).string;
 
     return SecurityOrigin::create(url)->toString();
+}
+
+std::optional<CodePosition> ContentSecurityPolicy::getCurrentCodePosition()
+{
+    auto stack = createScriptCallStack(JSExecState::currentState(), 2);
+    if (auto* callFrame = stack->firstNonNativeCallFrame()) {
+        if (callFrame->lineNumber()) {
+            return CodePosition {
+                callFrame->preRedirectURL().isEmpty() ? callFrame->sourceURL() : callFrame->preRedirectURL(),
+                OrdinalNumber::fromOneBasedInt(callFrame->lineNumber()),
+                OrdinalNumber::fromOneBasedInt(callFrame->columnNumber())
+            };
+        }
+    }
+    return std::nullopt;
 }
 
 void ContentSecurityPolicy::reportViolation(const ContentSecurityPolicyDirective& violatedDirective, const String& blockedURL, const String& consoleMessage, JSC::JSGlobalObject* state, StringView sourceContent) const

@@ -896,6 +896,23 @@ TEST(WKScrollViewTests, ContentInsetAdjustmentBehaviorChangeAfterViewportFitChan
     EXPECT_WK_STREQ([webView stringByEvaluatingJavaScript:@"document.body.clientWidth"], "280");
 }
 
+TEST(WKScrollViewTests, DoNotCrashIfScrollViewOutlivesWebView)
+{
+    RetainPtr delegate = adoptNS([NSObject<UIScrollViewDelegate> new]);
+    RetainPtr<UIScrollView> scrollView;
+
+    @autoreleasepool {
+        RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 800)]);
+        scrollView = [webView scrollView];
+        [scrollView setDelegate:delegate];
+    }
+
+    Util::spinRunLoop(); // Make sure the web view has been deallocated.
+
+    RetainPtr window = adoptNS([[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 400, 800)]);
+    [window addSubview:scrollView.get()];
+}
+
 } // namespace TestWebKitAPI
 
 #endif // PLATFORM(IOS_FAMILY)

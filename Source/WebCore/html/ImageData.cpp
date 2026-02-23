@@ -49,7 +49,7 @@ PredefinedColorSpace ImageData::computeColorSpace(std::optional<ImageDataSetting
     return defaultColorSpace;
 }
 
-static ImageDataPixelFormat computePixelFormat(std::optional<ImageDataSettings> settings, ImageDataPixelFormat defaultPixelFormat = ImageDataPixelFormat::RgbaUnorm8)
+static ImageDataPixelFormat NODELETE computePixelFormat(std::optional<ImageDataSettings> settings, ImageDataPixelFormat defaultPixelFormat = ImageDataPixelFormat::RgbaUnorm8)
 {
     return settings ? settings->pixelFormat : defaultPixelFormat;
 }

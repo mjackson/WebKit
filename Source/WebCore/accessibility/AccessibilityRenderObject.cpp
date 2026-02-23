@@ -1007,7 +1007,7 @@ Path AccessibilityRenderObject::elementPath() const
 
         // The SVG path is in terms of the parent's bounding box. The path needs to be offset to frame coordinates.
         // FIXME: This seems wrong for SVG inside HTML.
-        if (auto svgRoot = ancestorsOfType<LegacyRenderSVGRoot>(*m_renderer).first()) {
+        if (CheckedPtr svgRoot = ancestorsOfType<LegacyRenderSVGRoot>(*m_renderer).first()) {
             LayoutPoint parentOffset = cache->getOrCreate(&*svgRoot)->elementRect().location();
             path.transform(AffineTransform().translate(parentOffset.x(), parentOffset.y()));
         }
@@ -1022,7 +1022,7 @@ Path AccessibilityRenderObject::elementPath() const
             return path;
 
         // The SVG path is in terms of the parent's bounding box. The path needs to be offset to frame coordinates.
-        if (auto svgRoot = ancestorsOfType<RenderSVGRoot>(*m_renderer).first()) {
+        if (CheckedPtr svgRoot = ancestorsOfType<RenderSVGRoot>(*m_renderer).first()) {
             LayoutPoint parentOffset = cache->getOrCreate(&*svgRoot)->elementRect().location();
             path.transform(AffineTransform().translate(parentOffset.x(), parentOffset.y()));
         }
@@ -1097,7 +1097,7 @@ AccessibilityObject* AccessibilityRenderObject::titleUIElement() const
 
         // Table cells that are th cannot have title ui elements, since by definition
         // they are title ui elements
-        if (WebCore::elementName(checkedNode().get()) == ElementName::HTML_th)
+        if (WebCore::elementName(protect(node()).get()) == ElementName::HTML_th)
             return nullptr;
 
         CheckedRef renderCell = downcast<RenderTableCell>(*m_renderer);
@@ -1506,11 +1506,11 @@ bool AccessibilityRenderObject::computeIsIgnored() const
     if (isStyleFormatGroup())
         return false;
 
-    switch (downcast<RenderElement>(*m_renderer).style().display()) {
-    case DisplayType::Ruby:
-    case DisplayType::RubyBlock:
-    case DisplayType::RubyAnnotation:
-    case DisplayType::RubyBase:
+    switch (downcast<RenderElement>(*m_renderer).style().display().value) {
+    case Style::DisplayType::InlineRuby:
+    case Style::DisplayType::BlockRuby:
+    case Style::DisplayType::RubyText:
+    case Style::DisplayType::RubyBase:
         return false;
     default:
         break;
@@ -2521,13 +2521,13 @@ AccessibilityRole AccessibilityRenderObject::determineAccessibilityRole()
     if (m_renderer->isRenderOrLegacyRenderSVGRoot())
         return AccessibilityRole::SVGRoot;
 
-    switch (downcast<RenderElement>(*m_renderer).style().display()) {
-    case DisplayType::Ruby:
+    switch (downcast<RenderElement>(*m_renderer).style().display().value) {
+    case Style::DisplayType::InlineRuby:
         return AccessibilityRole::RubyInline;
-    case DisplayType::RubyAnnotation:
+    case Style::DisplayType::RubyText:
         return AccessibilityRole::RubyText;
-    case DisplayType::RubyBlock:
-    case DisplayType::RubyBase:
+    case Style::DisplayType::BlockRuby:
+    case Style::DisplayType::RubyBase:
         return AccessibilityRole::Group;
     default:
         break;

@@ -52,7 +52,7 @@ public:
     void setVideoLayerSizeFenced(const WebCore::FloatSize&, WTF::MachSendRightAnnotated&&, NOESCAPE CompletionHandler<void()>&& postCommitAction);
     WebCore::FloatSize videoLayerSize() const { return m_videoLayerSize; }
     void setVideoLayerSizeIfPossible();
-    void setInitialVideoLayerSize(const WebCore::FloatSize&);
+    void NODELETE setInitialVideoLayerSize(const WebCore::FloatSize&);
 
 private:
     Vector<LayerHostingContextCallback> m_layerHostingContextRequests;

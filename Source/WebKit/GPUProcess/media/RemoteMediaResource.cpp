@@ -79,11 +79,6 @@ void RemoteMediaResource::shutdown()
     });
 }
 
-bool RemoteMediaResource::didPassAccessControlCheck() const
-{
-    return m_didPassAccessControlCheck;
-}
-
 void RemoteMediaResource::responseReceived(const ResourceResponse& response, bool didPassAccessControlCheck, CompletionHandler<void(ShouldContinuePolicyCheck)>&& completionHandler)
 {
     assertIsCurrent(RemoteMediaResourceLoader::defaultQueue());

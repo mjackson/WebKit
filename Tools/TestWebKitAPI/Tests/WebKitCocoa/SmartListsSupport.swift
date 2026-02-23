@@ -99,7 +99,11 @@ extension SmartListsSupport {
         try await page.callJavaScript("document.body.focus()")
 
         for character in configuration.input {
-            await page.insertText("\(character)")
+            if character == "⌫" {
+                await page.executeEditCommand(.deleteBackward)
+            } else {
+                await page.insertText("\(character)")
+            }
         }
 
         guard let actualHTML = try await page.callJavaScript("return document.body.outerHTML") as? String else {
@@ -125,6 +129,61 @@ extension SmartListsSupport {
             expectedRenderTree: expectedTree,
             actualRenderTree: actualTree,
             expectedHTML: configuration.expectedHTML,
+            actualHTML: actualHTML
+        )
+    }
+
+    open class func testBackspaceWithInvalidWebKitSmartListMarkerAttributeDoesNotApply() async throws -> SmartListsTestResult {
+        let page = WebPage()
+
+        page.setWebFeature("SmartListsAvailable", enabled: true)
+
+        #if os(macOS)
+        page.smartListsEnabled = true
+        #endif
+
+        let html = """
+            <head>
+                <meta charset="UTF-8">
+            </head>
+            <body contenteditable>
+                Hello
+                <ul class="Apple-disc-list" style="list-style-type: disc;" webkitsmartlistmarker="INVALID">
+                    <li>A</li>
+                </ul>
+            </body>
+            """
+
+        try await page.load(html: html).wait()
+        try await page.callJavaScript("document.body.focus()")
+
+        try await page.setCaretSelection(path: "//body/ul/li/text()", offset: 1)
+
+        await page.executeEditCommand(.deleteBackward) // delete "A"
+        await page.executeEditCommand(.deleteBackward) // then break out of the list
+
+        guard let actualHTML = try await page.callJavaScript("return document.body.outerHTML") as? String else {
+            fatalError()
+        }
+
+        let actualTree = try await page.renderTree()
+
+        let expectedHTML = """
+            <body contenteditable>
+                Hello
+            </body>
+            """
+
+        try await page.load(html: expectedHTML).wait()
+
+        try await page.setCaretSelection(path: "//body/text()", offset: 10)
+
+        let expectedTree = try await page.renderTree()
+
+        return .init(
+            expectedRenderTree: expectedTree,
+            actualRenderTree: actualTree,
+            expectedHTML: expectedHTML,
             actualHTML: actualHTML
         )
     }

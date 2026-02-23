@@ -23,9 +23,9 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+// https://w3c.github.io/webcrypto/#dfn-HmacKeyAlgorithm
 [
     JSGenerateToJSObject,
-    LegacyNativeDictionaryRequiredInterfaceNullability,
 ] dictionary CryptoHmacKeyAlgorithm : CryptoKeyAlgorithm {
     // The inner hash function to use.
     required CryptoKeyAlgorithm hash;

@@ -153,7 +153,7 @@ std::optional<LayoutUnit> RenderMathMLPadded::firstLineBaseline() const
 {
     // We try and calculate the baseline from the position of the first child.
     LayoutUnit ascent;
-    if (auto* baselineChild = firstInFlowChildBox())
+    if (CheckedPtr baselineChild = firstInFlowChildBox())
         ascent = ascentForChild(*baselineChild) + baselineChild->logicalTop() + voffset();
     else
         ascent = mpaddedHeight(0);

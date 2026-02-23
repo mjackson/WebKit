@@ -126,9 +126,9 @@ bool SVGFEDropShadowElement::setFilterEffectAttribute(FilterEffect& filterEffect
     case AttributeNames::dyAttr:
         return effect.setDy(dy());
     case AttributeNames::flood_colorAttr:
-        return effect.setShadowColor(renderer()->checkedStyle()->floodColorResolvingCurrentColor());
+        return effect.setShadowColor(protect(renderer()->style())->floodColorResolvingCurrentColor());
     case AttributeNames::flood_opacityAttr:
-        return effect.setShadowOpacity(renderer()->checkedStyle()->floodOpacity().value.value);
+        return effect.setShadowOpacity(protect(renderer()->style())->floodOpacity().value.value);
     default:
         break;
     }

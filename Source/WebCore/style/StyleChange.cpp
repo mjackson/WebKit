@@ -55,7 +55,8 @@ OptionSet<Change> determineChanges(const RenderStyle& s1, const RenderStyle& s2)
         if (s1.columnSpan() != ColumnSpan::All)
             return false;
         // Spanning in ignored for floating and out-of-flow boxes.
-        return s1.isFloating() != s2.isFloating() || s1.hasOutOfFlowPosition() != s2.hasOutOfFlowPosition();
+        return (s1.floating() != Float::None) != (s2.floating() != Float::None)
+            || s1.hasOutOfFlowPosition() != s2.hasOutOfFlowPosition();
     };
 
     auto needsRendererUpdate = [&] {
@@ -69,7 +70,7 @@ OptionSet<Change> determineChanges(const RenderStyle& s1, const RenderStyle& s2)
             return true;
         // When text-combine is on, we use RenderCombineText, otherwise RenderText.
         // https://bugs.webkit.org/show_bug.cgi?id=55069
-        if (s1.hasTextCombine() != s2.hasTextCombine())
+        if ((s1.textCombine() != TextCombine::None) != (s2.textCombine() != TextCombine::None))
             return true;
         if (s1.content() != s2.content())
             return true;

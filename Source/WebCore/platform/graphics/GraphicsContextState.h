@@ -66,7 +66,7 @@ public:
 
         uint32_t value;
     };
-    static constexpr ChangeIndex toIndex(GraphicsContextState::Change change) { return { WTF::ctzConstexpr(enumToUnderlyingType(change)) }; }
+    static constexpr ChangeIndex toIndex(GraphicsContextState::Change change) { return { WTF::ctzConstexpr(std::to_underlying(change)) }; }
 
     static constexpr ChangeFlags basicChangeFlags { Change::StrokeThickness, Change::StrokeBrush, Change::FillBrush };
     static constexpr ChangeFlags strokeChangeFlags { Change::StrokeThickness, Change::StrokeBrush };

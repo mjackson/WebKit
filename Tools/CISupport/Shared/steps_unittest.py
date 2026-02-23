@@ -614,12 +614,7 @@ class TestUpdateSwiftCheckouts(BuildStepMixinAdditions, unittest.TestCase):
             ExpectShell(workdir=SWIFT_DIR,
                         log_environ=False,
                         timeout=1800,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'utils/update-checkout --clone'])
-            .exit(0),
-            ExpectShell(workdir=SWIFT_DIR,
-                        log_environ=False,
-                        timeout=1800,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'utils/update-checkout --tag swift-6.3-DEVELOPMENT-SNAPSHOT'])
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'utils/update-checkout --tag swift-6.3-DEVELOPMENT-SNAPSHOT --clone --skip-repository boringssl'])
             .exit(0),
         )
         self.expect_outcome(result=SUCCESS, state_string='Successfully updated swift checkout')
@@ -634,11 +629,12 @@ class TestUpdateSwiftCheckouts(BuildStepMixinAdditions, unittest.TestCase):
     def test_failure_with_previous_checkout(self):
         self.configureStep()
         self.setProperty('current_swift_tag', 'swift-6.4-DEVELOPMENT-SNAPSHOT')
+        self.setProperty('has_swift_toolchain', True)
         self.expectRemoteCommands(
             ExpectShell(workdir=SWIFT_DIR,
                         log_environ=False,
                         timeout=1800,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'utils/update-checkout --clone'])
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'utils/update-checkout --tag swift-6.3-DEVELOPMENT-SNAPSHOT --clone --skip-repository boringssl'])
             .exit(1),
         )
         self.expect_outcome(result=WARNINGS, state_string='Failed to update swift, using previous checkout')
@@ -650,7 +646,7 @@ class TestUpdateSwiftCheckouts(BuildStepMixinAdditions, unittest.TestCase):
             ExpectShell(workdir=SWIFT_DIR,
                         log_environ=False,
                         timeout=1800,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'utils/update-checkout --clone'])
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'utils/update-checkout --tag swift-6.3-DEVELOPMENT-SNAPSHOT --clone --skip-repository boringssl'])
             .exit(1),
         )
         self.expect_outcome(result=FAILURE, state_string='Failed to update swift checkout')
@@ -711,7 +707,7 @@ class TestInstallSwiftToolchain(BuildStepMixinAdditions, unittest.TestCase):
             ExpectShell(workdir='wkdir',
                         log_environ=False,
                         timeout=600,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'cp -r {source} {dest}'])
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'cp -a {source} {dest}'])
             .exit(0),
         )
         self.expect_outcome(result=SUCCESS, state_string=f'Installed {SWIFT_TOOLCHAIN_NAME} toolchain')
@@ -742,7 +738,7 @@ class TestInstallSwiftToolchain(BuildStepMixinAdditions, unittest.TestCase):
             ExpectShell(workdir='wkdir',
                         log_environ=False,
                         timeout=600,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'cp -r {source} {dest}'])
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'cp -a {source} {dest}'])
             .exit(1),
         )
         self.expect_outcome(result=FAILURE, state_string='Failed to install swift toolchain')

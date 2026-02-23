@@ -565,7 +565,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
             eventNumber:0
             clickCount:0
             pressure:0];
-        WebKit::NativeWebMouseEvent webEvent(fakeEvent.get(), nil, webView.get(), WebKit::WebMouseEventInputSource::Hardware);
+        WebKit::NativeWebMouseEvent webEvent(fakeEvent.get(), nil, webView.get(), WebKit::WebMouseEventInputSource::UserDriven);
         page->handleMouseEvent(webEvent);
     }
     page->flushDeferredResizeEvents();
@@ -653,8 +653,6 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
     [window exitFullScreenMode:self];
 }
-
-WTF_DECLARE_CF_TYPE_TRAIT(CGImage);
 
 static RetainPtr<CGImageRef> takeWindowSnapshot(CGSWindowID windowID, bool captureAtNominalResolution)
 {

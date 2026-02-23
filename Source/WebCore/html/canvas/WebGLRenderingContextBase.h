@@ -193,7 +193,7 @@ public:
     void blendFunc(GCGLenum sfactor, GCGLenum dfactor);
     void blendFuncSeparate(GCGLenum srcRGB, GCGLenum dstRGB, GCGLenum srcAlpha, GCGLenum dstAlpha);
 
-    using BufferDataSource = Variant<RefPtr<ArrayBuffer>, RefPtr<ArrayBufferView>>;
+    using BufferDataSource = Variant<Ref<ArrayBuffer>, Ref<ArrayBufferView>>;
     void bufferData(GCGLenum target, long long size, GCGLenum usage);
     void bufferData(GCGLenum target, std::optional<BufferDataSource>&&, GCGLenum usage);
     void bufferSubData(GCGLenum target, long long offset, BufferDataSource&&);
@@ -251,7 +251,7 @@ public:
     std::optional<Vector<Ref<WebGLShader>>> getAttachedShaders(WebGLProgram&);
     GCGLint getAttribLocation(WebGLProgram&, const String& name);
     WebGLAny getBufferParameter(GCGLenum target, GCGLenum pname);
-    WEBCORE_EXPORT std::optional<WebGLContextAttributes> getContextAttributes();
+    WEBCORE_EXPORT std::optional<WebGLContextAttributes> NODELETE getContextAttributes();
     WebGLContextAttributes creationAttributes() const { return m_creationAttributes; }
     GCGLenum getError();
     virtual std::optional<WebGLExtensionAny> getExtension(const String& name) = 0;
@@ -277,7 +277,7 @@ public:
 
     void hint(GCGLenum target, GCGLenum mode);
     GCGLboolean isBuffer(WebGLBuffer*);
-    bool isContextLost() const;
+    bool NODELETE isContextLost() const;
     GCGLboolean isEnabled(GCGLenum cap);
     GCGLboolean isFramebuffer(WebGLFramebuffer*);
     GCGLboolean isProgram(WebGLProgram*);
@@ -337,10 +337,10 @@ public:
     virtual void texSubImage2D(GCGLenum target, GCGLint level, GCGLint xoffset, GCGLint yoffset, GCGLsizei width, GCGLsizei height, GCGLenum format, GCGLenum type, RefPtr<ArrayBufferView>&&);
     virtual ExceptionOr<void> texSubImage2D(GCGLenum target, GCGLint level, GCGLint xoffset, GCGLint yoffset, GCGLenum format, GCGLenum type, std::optional<TexImageSource>&&);
 
-    template <class TypedArray, class DataType>
+    template<typename TypedArray, typename DataType>
     class TypedList {
     public:
-        using VariantType = Variant<RefPtr<TypedArray>, Vector<DataType>>;
+        using VariantType = Variant<Ref<TypedArray>, Vector<DataType>>;
 
         TypedList(VariantType&& variant)
             : m_variant(WTF::move(variant))
@@ -352,16 +352,16 @@ public:
         const DataType* data() const LIFETIME_BOUND
         {
             return WTF::switchOn(m_variant,
-                [] (const RefPtr<TypedArray>& typedArray) -> const DataType* { return typedArray->data(); },
-                [] (const Vector<DataType>& vector) -> const DataType* { return vector.span().data(); }
+                [](const Ref<TypedArray>& typedArray) -> const DataType* { return typedArray->data(); },
+                [](const Vector<DataType>& vector) -> const DataType* { return vector.span().data(); }
             );
         }
 
         GCGLsizei length() const
         {
             return WTF::switchOn(m_variant,
-                [] (const RefPtr<TypedArray>& typedArray) -> GCGLsizei { return typedArray->length(); },
-                [] (const Vector<DataType>& vector) -> GCGLsizei { return vector.size(); }
+                [](const Ref<TypedArray>& typedArray) -> GCGLsizei { return typedArray->length(); },
+                [](const Vector<DataType>& vector) -> GCGLsizei { return vector.size(); }
             );
         }
 
@@ -437,9 +437,10 @@ public:
 
     RefPtr<GraphicsLayerContentsDisplayDelegate> layerContentsDisplayDelegate() override;
 
-    void reshape() override;
+    void didUpdateCanvasSizeProperties(bool) override;
 
     RefPtr<ImageBuffer> surfaceBufferToImageBuffer(SurfaceBuffer) final;
+    bool isSurfaceBufferTransparentBlack(SurfaceBuffer) const final { return false; }
 
     RefPtr<ByteArrayPixelBuffer> drawingBufferToPixelBuffer();
 #if ENABLE(MEDIA_STREAM) || ENABLE(WEB_CODECS)
@@ -450,7 +451,7 @@ public:
     void removeSharedObject(WebGLObject&);
     void removeContextObject(WebGLObject&);
 
-    bool isContextUnrecoverablyLost() const;
+    bool NODELETE isContextUnrecoverablyLost() const;
 
     // Instanced Array helper functions.
     void drawArraysInstanced(GCGLenum mode, GCGLint first, GCGLsizei count, GCGLsizei primcount);
@@ -478,7 +479,7 @@ public:
     // currently latched into the context - without traversing all of
     // the latched objects to find the current one, which would be
     // prohibitively expensive.
-    Lock& objectGraphLock() WTF_RETURNS_LOCK(m_objectGraphLock);
+    Lock& NODELETE objectGraphLock() WTF_RETURNS_LOCK(m_objectGraphLock);
 
     // Returns the ordinal number of when the context was last active (drew, read pixels).
     uint64_t activeOrdinal() const { return m_activeOrdinal; }
@@ -565,7 +566,7 @@ protected:
 
     // Helper to return the size in bytes of OpenGL data types
     // like GL_FLOAT, GL_INT, etc.
-    unsigned sizeInBytes(GCGLenum type);
+    unsigned NODELETE sizeInBytes(GCGLenum type);
 
     // Validates the incoming WebGL object.
     template<typename T> bool validateWebGLObject(ASCIILiteral, const T&);
@@ -595,7 +596,8 @@ protected:
 
     virtual void uncacheDeletedBuffer(const AbstractLocker&, WebGLBuffer*);
     bool needsPreparationForDisplay() const final { return true; }
-    void updateActiveOrdinal();
+    void NODELETE updateActiveOrdinal();
+    void updateMemoryCost() const;
 
     struct ContextLostState {
         ContextLostState(LostContextMode mode)
@@ -715,7 +717,8 @@ protected:
     int m_numGLErrorsToConsoleAllowed;
 
     bool m_compositingResultsNeedUpdating { false };
-    std::optional<SurfaceBuffer> m_canvasBufferContents;
+    RefPtr<ImageBuffer> m_readDrawingBuffer;
+    RefPtr<ImageBuffer> m_readDisplayBuffer;
 
     // Enabled extension objects.
     // FIXME: Move some of these to WebGLRenderingContext, the ones not needed for WebGL2
@@ -850,8 +853,8 @@ protected:
     bool validateReadPixelsDimensions(GCGLint width, GCGLint height);
     bool validateTexImageSubRectangle(TexImageFunctionID, const IntRect& imageSize, const IntRect& subRect, GCGLsizei depth, GCGLint unpackImageHeight, bool* selectingSubRectangle);
 
-    IntRect sentinelEmptyRect();
-    IntRect getImageDataSize(ImageData*);
+    IntRect NODELETE sentinelEmptyRect();
+    IntRect NODELETE getImageDataSize(ImageData*);
 
     ExceptionOr<void> texImageSourceHelper(TexImageFunctionID, GCGLenum target, GCGLint level, GCGLint internalformat, GCGLint border, GCGLenum format, GCGLenum type, GCGLint xoffset, GCGLint yoffset, GCGLint zoffset, const IntRect& sourceImageRect, GCGLsizei depth, GCGLint unpackImageHeight, TexImageSource&&);
     void texImageArrayBufferViewHelper(TexImageFunctionID, GCGLenum target, GCGLint level, GCGLint internalformat, GCGLsizei width, GCGLsizei height, GCGLsizei depth, GCGLint border, GCGLenum format, GCGLenum type, GCGLint xoffset, GCGLint yoffset, GCGLint zoffset, RefPtr<ArrayBufferView>&& pixels, NullDisposition, GCGLuint srcOffset);
@@ -859,9 +862,9 @@ protected:
     void texImage2DBase(GCGLenum target, GCGLint level, GCGLenum internalFormat, GCGLsizei width, GCGLsizei height, GCGLint border, GCGLenum format, GCGLenum type, std::span<const uint8_t> pixels);
     void texSubImage2DBase(GCGLenum target, GCGLint level, GCGLint xoffset, GCGLint yoffset, GCGLsizei width, GCGLsizei height, GCGLenum internalFormat, GCGLenum format, GCGLenum type, std::span<const uint8_t> pixels);
     static ASCIILiteral texImageFunctionName(TexImageFunctionID);
-    static TexImageFunctionType texImageFunctionType(TexImageFunctionID);
+    static TexImageFunctionType NODELETE texImageFunctionType(TexImageFunctionID);
 
-    PixelStoreParameters computeUnpackPixelStoreParameters(TexImageDimension) const;
+    PixelStoreParameters NODELETE computeUnpackPixelStoreParameters(TexImageDimension) const;
 
     // Helper function to verify limits on the length of uniform and attribute locations.
     bool validateLocationLength(ASCIILiteral functionName, const String&);
@@ -888,7 +891,7 @@ protected:
     RefPtr<WebGLTexture> validateTexture2DBinding(ASCIILiteral, GCGLenum);
 
     void addExtensionSupportedFormatsAndTypes();
-    void addExtensionSupportedFormatsAndTypesWebGL2();
+    void NODELETE addExtensionSupportedFormatsAndTypesWebGL2();
 
     // Helper function to check input internalformat/format/type for functions
     // Tex{Sub}Image taking TexImageSource source data. Generates GL error and
@@ -906,7 +909,7 @@ protected:
     // Helper function to check input level for functions {copy}Tex{Sub}Image.
     // Generates GL error and returns false if level is invalid.
     bool validateTexFuncLevel(ASCIILiteral functionName, GCGLenum target, GCGLint level);
-    virtual GCGLint maxTextureLevelForTarget(GCGLenum target);
+    virtual GCGLint NODELETE maxTextureLevelForTarget(GCGLenum target);
 
     // Helper function for tex{Sub}Image{2|3}D to check if the input format/type/level/target/width/height/depth/border/xoffset/yoffset/zoffset are valid.
     // Otherwise, it would return quickly without doing other work.
@@ -946,15 +949,15 @@ protected:
     void texParameter(GCGLenum target, GCGLenum pname, GCGLfloat paramf, GCGLint parami, bool isFloat);
 
     // Helper function to print errors and warnings to console.
-    bool shouldPrintToConsole() const;
+    bool NODELETE shouldPrintToConsole() const;
     void printToConsole(MessageLevel, String&&);
 
     // Helper function to validate the target for checkFramebufferStatus and
     // validateFramebufferFuncParameters.
-    virtual bool validateFramebufferTarget(GCGLenum target);
+    virtual bool NODELETE validateFramebufferTarget(GCGLenum target);
 
     // Get the framebuffer bound to the given target.
-    virtual WebGLFramebuffer* getFramebufferBinding(GCGLenum target);
+    virtual WebGLFramebuffer* NODELETE getFramebufferBinding(GCGLenum target);
 
     // Helper function to validate input parameters for framebuffer functions.
     // Generate GL error if parameters are illegal.
@@ -1013,14 +1016,14 @@ protected:
     // Clamp the width and height to GL_MAX_VIEWPORT_DIMS.
     IntSize clampedCanvasSize();
 
-    void setBackDrawBuffer(GCGLenum);
+    void NODELETE setBackDrawBuffer(GCGLenum);
     void setFramebuffer(const AbstractLocker&, GCGLenum, WebGLFramebuffer*);
 
     // Check if EXT_draw_buffers extension is supported and if it satisfies the WebGL requirements.
     bool supportsDrawBuffers();
 
 #if ENABLE(OFFSCREEN_CANVAS)
-    OffscreenCanvas* offscreenCanvas();
+    OffscreenCanvas* NODELETE offscreenCanvas();
 #endif
 
     bool validateTypeAndArrayBufferType(ASCIILiteral functionName, ArrayBufferViewFunctionType, GCGLenum type, ArrayBufferView* pixels);
@@ -1092,7 +1095,7 @@ GCGLboolean WebGLRenderingContextBase::validateIsWebGLObject(const T* object) co
     return true;
 }
 
-WebCoreOpaqueRoot root(WebGLRenderingContextBase*);
+WebCoreOpaqueRoot NODELETE root(WebGLRenderingContextBase*);
 
 WebCoreOpaqueRoot root(const WebGLExtension<WebGLRenderingContextBase>*);
 

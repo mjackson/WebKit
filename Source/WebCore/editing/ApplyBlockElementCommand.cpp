@@ -208,7 +208,7 @@ void ApplyBlockElementCommand::rangeForParagraphSplittingTextNodesIfNeeded(const
     end = endOfCurrentParagraph.deepEquivalent();
 
     bool isStartAndEndOnSameNode = false;
-    if (auto* startStyle = renderStyleOfEnclosingTextNode(start)) {
+    if (CheckedPtr startStyle = renderStyleOfEnclosingTextNode(start)) {
         isStartAndEndOnSameNode = renderStyleOfEnclosingTextNode(end) && start.containerNode() == end.containerNode();
         bool isStartAndEndOfLastParagraphOnSameNode = renderStyleOfEnclosingTextNode(m_endOfLastParagraph) && start.containerNode() == m_endOfLastParagraph.containerNode();
         bool preservesNewLine = startStyle->preserveNewline();
@@ -237,7 +237,7 @@ void ApplyBlockElementCommand::rangeForParagraphSplittingTextNodesIfNeeded(const
         }
     }
 
-    if (auto* endStyle = renderStyleOfEnclosingTextNode(end)) {
+    if (CheckedPtr endStyle = renderStyleOfEnclosingTextNode(end)) {
         bool isEndAndEndOfLastParagraphOnSameNode = renderStyleOfEnclosingTextNode(m_endOfLastParagraph) && end.deprecatedNode() == m_endOfLastParagraph.deprecatedNode();
         // Include \n at the end of line if we're at an empty paragraph
         unsigned endOffset = end.offsetInContainerNode();
@@ -280,7 +280,7 @@ VisiblePosition ApplyBlockElementCommand::endOfNextParagraphSplittingTextNodesIf
     VisiblePosition endOfNextParagraph = endOfParagraph(endOfCurrentParagraph.next());
     Position position = endOfNextParagraph.deepEquivalent();
 
-    auto* style = renderStyleOfEnclosingTextNode(position);
+    CheckedPtr style = renderStyleOfEnclosingTextNode(position);
     if (!style)
         return endOfNextParagraph;
     bool preserveNewLine = style->preserveNewline();

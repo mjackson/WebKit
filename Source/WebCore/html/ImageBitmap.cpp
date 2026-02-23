@@ -90,7 +90,7 @@ size_t DetachedImageBitmap::memoryCost() const
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ImageBitmap);
 
-static inline RenderingMode bufferRenderingMode(ScriptExecutionContext& scriptExecutionContext)
+static inline RenderingMode NODELETE bufferRenderingMode(ScriptExecutionContext& scriptExecutionContext)
 {
 #if USE(CA) || USE(SKIA)
     static RenderingMode defaultRenderingMode = RenderingMode::Accelerated;
@@ -287,7 +287,7 @@ static IntSize outputSizeForSourceRectangle(IntRect sourceRectangle, ImageBitmap
     return { outputWidth, outputHeight };
 }
 
-static InterpolationQuality interpolationQualityForResizeQuality(ImageBitmapOptions::ResizeQuality resizeQuality)
+static InterpolationQuality NODELETE interpolationQualityForResizeQuality(ImageBitmapOptions::ResizeQuality resizeQuality)
 {
     switch (resizeQuality) {
     case ImageBitmapOptions::ResizeQuality::Pixelated:
@@ -303,7 +303,7 @@ static InterpolationQuality interpolationQualityForResizeQuality(ImageBitmapOpti
     return InterpolationQuality::Low;
 }
 
-static AlphaPremultiplication alphaPremultiplicationForPremultiplyAlpha(ImageBitmapOptions::PremultiplyAlpha premultiplyAlpha)
+static AlphaPremultiplication NODELETE alphaPremultiplicationForPremultiplyAlpha(ImageBitmapOptions::PremultiplyAlpha premultiplyAlpha)
 {
     // The default is to premultiply - this is the least surprising behavior.
     if (premultiplyAlpha == ImageBitmapOptions::PremultiplyAlpha::None)
@@ -727,18 +727,18 @@ public:
         return adoptRef(*new ImageBitmapImageObserver(mimeType, expectedContentLength, sourceUrl));
     }
 
-    URL sourceUrl() const override { return m_sourceUrl; }
-    String mimeType() const override { return m_mimeType; }
-    long long expectedContentLength() const override { return m_expectedContentLength; }
+    URL NODELETE sourceUrl() const override { return m_sourceUrl; }
+    String NODELETE mimeType() const override { return m_mimeType; }
+    long long NODELETE expectedContentLength() const override { return m_expectedContentLength; }
 
-    void decodedSizeChanged(const Image&, long long) override { }
+    void NODELETE decodedSizeChanged(const Image&, long long) override { }
 
-    void didDraw(const Image&) override { }
+    void NODELETE didDraw(const Image&) override { }
 
-    void imageFrameAvailable(const Image&, ImageAnimatingState, const IntRect* = nullptr, DecodingStatus = DecodingStatus::Invalid) override { }
-    void changedInRect(const Image&, const IntRect* = nullptr) override { }
-    void imageContentChanged(const Image&) override { }
-    void scheduleRenderingUpdate(const Image&) override { }
+    void NODELETE imageFrameAvailable(const Image&, ImageAnimatingState, const IntRect* = nullptr, DecodingStatus = DecodingStatus::Invalid) override { }
+    void NODELETE changedInRect(const Image&, const IntRect* = nullptr) override { }
+    void NODELETE imageContentChanged(const Image&) override { }
+    void NODELETE scheduleRenderingUpdate(const Image&) override { }
 
 private:
     ImageBitmapImageObserver(String mimeType, long long expectedContentLength, const URL& sourceUrl)
@@ -755,7 +755,7 @@ private:
 class PendingImageBitmap final : public RefCounted<PendingImageBitmap>, public ActiveDOMObject, public FileReaderLoaderClient {
     WTF_MAKE_TZONE_ALLOCATED(PendingImageBitmap);
 public:
-    void ref() const final { RefCounted::ref(); }
+    void NODELETE ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
     USING_CAN_MAKE_WEAKPTR(FileReaderLoaderClient);
 
@@ -797,8 +797,8 @@ private:
     void stop() final { m_pendingActivity = nullptr; }
 
     // FileReaderLoaderClient
-    void didStartLoading() final { }
-    void didReceiveData() final { }
+    void NODELETE didStartLoading() final { }
+    void NODELETE didReceiveData() final { }
     void didFinishLoading() final
     {
         createImageBitmapAndCallCompletionHandlerSoon(m_blobLoader->arrayBufferResult());

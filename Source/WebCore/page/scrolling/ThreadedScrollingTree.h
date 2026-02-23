@@ -61,7 +61,7 @@ public:
 
     void displayDidRefresh(PlatformDisplayID) override;
 
-    void didScheduleRenderingUpdate();
+    void NODELETE didScheduleRenderingUpdate();
     void willStartRenderingUpdate();
     virtual void didCompleteRenderingUpdate();
 
@@ -80,6 +80,8 @@ protected:
     void scrollingTreeNodeDidStopWheelEventScroll(ScrollingTreeScrollingNode&) override;
     bool scrollingTreeNodeRequestsScroll(ScrollingNodeID, const RequestedScrollData&) override WTF_REQUIRES_LOCK(m_treeLock);
     bool scrollingTreeNodeRequestsKeyboardScroll(ScrollingNodeID, const RequestedKeyboardScrollData&) override WTF_REQUIRES_LOCK(m_treeLock);
+
+    void addPendingScrollUpdateWithDeferReason(ScrollUpdate&&, WheelEventTestMonitor::DeferReason);
 
 #if PLATFORM(MAC)
     void handleWheelEventPhase(ScrollingNodeID, PlatformWheelEventPhase) override;
@@ -109,14 +111,14 @@ private:
     void displayDidRefreshOnScrollingThread();
     void waitForRenderingUpdateCompletionOrTimeout() WTF_REQUIRES_LOCK(m_treeLock);
 
-    bool canUpdateLayersOnScrollingThread() const WTF_REQUIRES_LOCK(m_treeLock);
+    bool NODELETE canUpdateLayersOnScrollingThread() const WTF_REQUIRES_LOCK(m_treeLock);
 
     void scheduleDelayedRenderingUpdateDetectionTimer(Seconds) WTF_REQUIRES_LOCK(m_treeLock);
     void delayedRenderingUpdateDetectionTimerFired();
 
     void hasNodeWithAnimatedScrollChanged(bool) override;
 
-    bool isScrollingSynchronizedWithMainThread() final WTF_REQUIRES_LOCK(m_treeLock);
+    bool NODELETE isScrollingSynchronizedWithMainThread() final WTF_REQUIRES_LOCK(m_treeLock);
 
     void receivedWheelEventWithPhases(PlatformWheelEventPhase, PlatformWheelEventPhase) final;
     void deferWheelEventTestCompletionForReason(ScrollingNodeID, WheelEventTestMonitor::DeferReason) final;
@@ -126,6 +128,8 @@ private:
     void unlockLayersForHitTesting() final WTF_RELEASES_LOCK(m_layerHitTestMutex);
 
     void scrollingTreeNodeScrollUpdated(ScrollingTreeScrollingNode&, const ScrollUpdateType&);
+
+    void didAddPendingScrollUpdate() override;
 
     enum class SynchronizationState : uint8_t {
         Idle,

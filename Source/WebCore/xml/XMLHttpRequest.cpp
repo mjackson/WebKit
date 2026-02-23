@@ -448,22 +448,12 @@ ExceptionOr<void> XMLHttpRequest::send(std::optional<SendTypes>&& sendType)
     InspectorInstrumentation::willSendXMLHttpRequest(protect(scriptExecutionContext()).get(), url().string());
     m_userGestureToken = UserGestureIndicator::currentUserGesture();
 
-    ExceptionOr<void> result;
     if (!sendType)
-        result = send();
-    else {
-        result = WTF::switchOn(WTF::move(*sendType),
-            [this](Ref<Document>&& document) -> ExceptionOr<void> { return send(WTF::move(document)); },
-            [this](Ref<Blob>&& blob) -> ExceptionOr<void> { return send(WTF::move(blob)); },
-            [this](RefPtr<JSC::ArrayBufferView>&& arrayBufferView) -> ExceptionOr<void> { return send(*arrayBufferView); },
-            [this](RefPtr<JSC::ArrayBuffer>&& arrayBuffer) -> ExceptionOr<void> { return send(*arrayBuffer); },
-            [this](Ref<DOMFormData>&& formData) -> ExceptionOr<void> { return send(WTF::move(formData)); },
-            [this](Ref<URLSearchParams>&& searchParams) -> ExceptionOr<void> { return send(WTF::move(searchParams)); },
-            [this](String&& string) -> ExceptionOr<void> { return send(WTF::move(string)); }
-        );
-    }
+        return send();
 
-    return result;
+    return WTF::switchOn(WTF::move(*sendType),
+        [this](auto&& sendType) -> ExceptionOr<void> { return send(WTF::move(sendType)); }
+    );
 }
 
 ExceptionOr<void> XMLHttpRequest::send(Ref<Document>&& document)
@@ -567,16 +557,16 @@ ExceptionOr<void> XMLHttpRequest::send(Ref<DOMFormData>&& body)
     return createRequest();
 }
 
-ExceptionOr<void> XMLHttpRequest::send(ArrayBuffer& body)
+ExceptionOr<void> XMLHttpRequest::send(Ref<ArrayBuffer>&& body)
 {
     ASCIILiteral consoleMessage { "ArrayBuffer is deprecated in XMLHttpRequest.send(). Use ArrayBufferView instead."_s };
     protect(scriptExecutionContext())->addConsoleMessage(MessageSource::JS, MessageLevel::Warning, consoleMessage);
-    return sendBytesData(body.span());
+    return sendBytesData(body->span());
 }
 
-ExceptionOr<void> XMLHttpRequest::send(ArrayBufferView& body)
+ExceptionOr<void> XMLHttpRequest::send(Ref<ArrayBufferView>&& body)
 {
-    return sendBytesData(body.span());
+    return sendBytesData(body->span());
 }
 
 ExceptionOr<void> XMLHttpRequest::sendBytesData(std::span<const uint8_t> data)

@@ -106,7 +106,7 @@ void BidiBrowsingContextAgent::close(const BrowsingContext& browsingContext, std
 
 static constexpr Inspector::Protocol::Automation::BrowsingContextPresentation defaultBrowsingContextPresentation = Inspector::Protocol::Automation::BrowsingContextPresentation::Tab;
 
-static Inspector::Protocol::Automation::BrowsingContextPresentation browsingContextPresentationFromCreateType(Inspector::Protocol::BidiBrowsingContext::CreateType createType)
+static Inspector::Protocol::Automation::BrowsingContextPresentation NODELETE browsingContextPresentationFromCreateType(Inspector::Protocol::BidiBrowsingContext::CreateType createType)
 {
     switch (createType) {
     case Inspector::Protocol::BidiBrowsingContext::CreateType::Tab:
@@ -278,7 +278,7 @@ void BidiBrowsingContextAgent::handleUserPrompt(const BrowsingContext& browsingC
 static constexpr Seconds defaultPageLoadTimeout = 300_s;
 static constexpr ReadinessState defaultReadinessState = ReadinessState::Interactive;
 
-static PageLoadStrategy pageLoadStrategyFromReadinessState(ReadinessState state)
+static PageLoadStrategy NODELETE pageLoadStrategyFromReadinessState(ReadinessState state)
 {
     switch (state) {
     case ReadinessState::None:

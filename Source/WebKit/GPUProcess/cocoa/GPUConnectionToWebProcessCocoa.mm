@@ -111,17 +111,30 @@ void GPUConnectionToWebProcess::setTCCIdentity()
 #endif // ENABLE(APP_PRIVACY_REPORT)
 
 #if ENABLE(EXTENSION_CAPABILITIES)
-String GPUConnectionToWebProcess::mediaEnvironment(WebCore::PageIdentifier pageIdentifier)
+String GPUConnectionToWebProcess::mediaPlaybackEnvironment(WebCore::PageIdentifier pageIdentifier)
 {
-    return m_mediaEnvironments.get(pageIdentifier);
+    return m_mediaPlaybackEnvironments.get(pageIdentifier);
 }
 
-void GPUConnectionToWebProcess::setMediaEnvironment(WebCore::PageIdentifier pageIdentifier, const String& mediaEnvironment)
+void GPUConnectionToWebProcess::setMediaPlaybackEnvironment(WebCore::PageIdentifier pageIdentifier, const String& mediaPlaybackEnvironment)
 {
-    if (mediaEnvironment.isEmpty())
-        m_mediaEnvironments.remove(pageIdentifier);
+    if (mediaPlaybackEnvironment.isEmpty())
+        m_mediaPlaybackEnvironments.remove(pageIdentifier);
     else
-        m_mediaEnvironments.set(pageIdentifier, mediaEnvironment);
+        m_mediaPlaybackEnvironments.set(pageIdentifier, mediaPlaybackEnvironment);
+}
+
+String GPUConnectionToWebProcess::displayCaptureEnvironment(WebCore::PageIdentifier pageIdentifier)
+{
+    return m_displayCaptureEnvironments.get(pageIdentifier);
+}
+
+void GPUConnectionToWebProcess::setDisplayCaptureEnvironment(WebCore::PageIdentifier pageIdentifier, const String& displayCaptureEnvironment)
+{
+    if (displayCaptureEnvironment.isEmpty())
+        m_displayCaptureEnvironments.remove(pageIdentifier);
+    else
+        m_displayCaptureEnvironments.set(pageIdentifier, displayCaptureEnvironment);
 }
 #endif
 

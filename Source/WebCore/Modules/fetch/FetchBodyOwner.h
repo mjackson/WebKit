@@ -117,7 +117,7 @@ private:
     void finishBlobLoading();
 
     // ActiveDOMObject API
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
 
     class BlobLoader final : public RefCounted<BlobLoader>, public FetchLoaderClient {
         WTF_MAKE_TZONE_ALLOCATED(BlobLoader);

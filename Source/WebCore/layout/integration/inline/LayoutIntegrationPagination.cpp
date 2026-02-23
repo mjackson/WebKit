@@ -64,8 +64,8 @@ std::pair<Vector<LineAdjustment>, std::optional<LayoutRestartLine>> computeAdjus
         if (!floatBox.layoutBox())
             continue;
 
-        auto& renderer = downcast<RenderBox>(*floatBox.layoutBox()->rendererForIntegration());
-        bool isUsplittable = renderer.isUnsplittableForPagination() || renderer.style().breakInside() == BreakInside::Avoid;
+        CheckedRef renderer = downcast<RenderBox>(*floatBox.layoutBox()->rendererForIntegration());
+        bool isUsplittable = renderer->isUnsplittableForPagination() || renderer->style().breakInside() == BreakInside::Avoid;
 
         auto placedByLine = floatBox.placedByLine();
         if (!placedByLine) {
@@ -80,7 +80,7 @@ std::pair<Vector<LineAdjustment>, std::optional<LayoutRestartLine>> computeAdjus
             if (isUsplittable)
                 return floatBox.absoluteRectWithMargin().bottom();
 
-            if (auto* block = dynamicDowncast<RenderBlockFlow>(renderer)) {
+            if (CheckedPtr block = dynamicDowncast<RenderBlockFlow>(renderer)) {
                 if (auto firstLine = InlineIterator::firstLineBoxFor(*block))
                     return LayoutUnit { firstLine->logicalBottom() };
             }

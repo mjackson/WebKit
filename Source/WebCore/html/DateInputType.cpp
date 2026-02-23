@@ -51,7 +51,7 @@ using namespace HTMLNames;
 static const int dateDefaultStep = 1;
 static const int dateDefaultStepBase = 0;
 static const int dateStepScaleFactor = 86400000;
-static const StepRange::StepDescription dateStepDescription { dateDefaultStep, dateDefaultStepBase, dateStepScaleFactor, StepRange::ParsedStepValueShouldBeInteger };
+static const StepRange::StepDescription dateStepDescription { dateDefaultStep, dateDefaultStepBase, dateStepScaleFactor, StepRange::StepValueShouldBe::ParsedInteger };
 
 DateInputType::DateInputType(HTMLInputElement& element)
     : BaseDateAndTimeInputType(Type::Date, element)

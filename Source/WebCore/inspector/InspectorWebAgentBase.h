@@ -86,7 +86,7 @@ protected:
     {
     }
 
-    CheckedRef<Inspector::InspectorEnvironment> checkedEnvironment() { return m_environment.get(); }
+    Inspector::InspectorEnvironment& environment() { return m_environment.get(); }
 
     WeakRef<InstrumentingAgents> m_instrumentingAgents;
 

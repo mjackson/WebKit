@@ -50,8 +50,8 @@ enum class CursorDuplicity {
 
 class IDBCursorInfo {
 public:
-    static IDBCursorInfo objectStoreCursor(IDBTransaction&, IDBObjectStoreIdentifier, const IDBKeyRangeData&, IndexedDB::CursorDirection, IndexedDB::CursorType);
-    static IDBCursorInfo indexCursor(IDBTransaction&, IDBObjectStoreIdentifier, IDBIndexIdentifier, const IDBKeyRangeData&, IndexedDB::CursorDirection, IndexedDB::CursorType);
+    static IDBCursorInfo NODELETE objectStoreCursor(IDBTransaction&, IDBObjectStoreIdentifier, const IDBKeyRangeData&, IndexedDB::CursorDirection, IndexedDB::CursorType);
+    static IDBCursorInfo NODELETE indexCursor(IDBTransaction&, IDBObjectStoreIdentifier, IDBIndexIdentifier, const IDBKeyRangeData&, IndexedDB::CursorDirection, IndexedDB::CursorType);
 
     IDBResourceIdentifier identifier() const { return m_cursorIdentifier; }
     IDBResourceIdentifier transactionIdentifier() const { return m_transactionIdentifier; }
@@ -64,8 +64,8 @@ public:
     IndexedDB::CursorType cursorType() const { return m_type; }
     const IDBKeyRangeData& range() const { return m_range; }
 
-    bool isDirectionForward() const;
-    CursorDuplicity duplicity() const;
+    bool NODELETE isDirectionForward() const;
+    CursorDuplicity NODELETE duplicity() const;
 
     WEBCORE_EXPORT IDBCursorInfo isolatedCopy() const;
 

@@ -1446,7 +1446,7 @@ Vector<ITPThirdPartyDataForSpecificFirstParty> ResourceLoadStatisticsStore::getT
     return thirdPartyDataForSpecificFirstPartyDomains;
 }
 
-static bool hasBeenThirdParty(unsigned timesUnderFirstParty)
+static bool NODELETE hasBeenThirdParty(unsigned timesUnderFirstParty)
 {
     return timesUnderFirstParty > 0;
 }

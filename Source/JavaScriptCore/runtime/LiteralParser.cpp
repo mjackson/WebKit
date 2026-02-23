@@ -1120,25 +1120,65 @@ TokenType LiteralParser<CharType, reviverMode>::Lexer::lexNumber(LiteralParserTo
     //     digit digits?
     //
     // -?(0 | [1-9][0-9]*) ('.' [0-9]+)? ([eE][+-]? [0-9]+)?
-    auto* start = m_ptr;
-    if (m_ptr < m_end && *m_ptr == '-') // -?
+
+    auto* initial = m_ptr;
+    bool negative = false;
+    if (m_ptr < m_end && *m_ptr == '-') {
+        // -?
+        negative = true;
         ++m_ptr;
-    
+    }
+    auto* start = m_ptr; // Do not include '-'.
+
     // (0 | [1-9][0-9]*)
-    if (m_ptr < m_end && *m_ptr == '0') // 0
-        ++m_ptr;
-    else if (m_ptr < m_end && *m_ptr >= '1' && *m_ptr <= '9') { // [1-9]
-        ++m_ptr;
-        // [0-9]*
-        while (m_ptr < m_end && isASCIIDigit(*m_ptr))
-            ++m_ptr;
+    if (m_ptr < m_end && isASCIIDigit(*m_ptr)) [[likely]] {
+        auto character = *m_ptr++;
+        if (character != '0') {
+            // [0-9]*
+            while (m_ptr < m_end && isASCIIDigit(*m_ptr))
+                ++m_ptr;
+        }
     } else {
         m_lexErrorMessage = "Invalid number"_s;
         return TokError;
     }
 
+    const int numberOfDigitsForSafeInt32 = 9; // The numbers from -999999999 to 999999999 are always in range of Int32.
+    if (m_ptr < m_end && (*m_ptr != '.' && *m_ptr != 'e' && *m_ptr != 'E') && (m_ptr - start) <= numberOfDigitsForSafeInt32) {
+        int32_t result = 0;
+        token.type = TokNumber;
+        const CharType* cursor = start;
+        do {
+            result = result * 10 + (*cursor++) - '0';
+        } while (cursor < m_ptr);
+
+        if (!negative)
+            token.numberToken = result;
+        else {
+            if (!result)
+                token.numberToken = -0.0;
+            else
+                token.numberToken = -result;
+        }
+        return TokNumber;
+    }
+
+    size_t parsedLength = 0;
+    auto result = WTF::parseJSONDouble(std::span { initial, m_end }, parsedLength);
+    if (result) [[likely]] {
+        m_ptr = initial + parsedLength;
+        token.type = TokNumber;
+        token.numberToken = result.value();
+        return TokNumber;
+    }
+
+    return lexNumberError(token);
+}
+
+template<typename CharType, JSONReviverMode reviverMode>
+NEVER_INLINE TokenType LiteralParser<CharType, reviverMode>::Lexer::lexNumberError(LiteralParserToken<CharType>&)
+{
     // ('.' [0-9]+)?
-    const int NumberOfDigitsForSafeInt32 = 9;  // The numbers from -99999999 to 999999999 are always in range of Int32.
     if (m_ptr < m_end && *m_ptr == '.') {
         ++m_ptr;
         // [0-9]+
@@ -1150,29 +1190,6 @@ TokenType LiteralParser<CharType, reviverMode>::Lexer::lexNumber(LiteralParserTo
         ++m_ptr;
         while (m_ptr < m_end && isASCIIDigit(*m_ptr))
             ++m_ptr;
-    } else if (m_ptr < m_end && (*m_ptr != 'e' && *m_ptr != 'E') && (m_ptr - start) <= NumberOfDigitsForSafeInt32) {
-        int32_t result = 0;
-        token.type = TokNumber;
-        const CharType* digit = start;
-        bool negative = false;
-        if (*digit == '-') {
-            negative = true;
-            digit++;
-        }
-        
-        ASSERT((m_ptr - digit) <= NumberOfDigitsForSafeInt32);
-        while (digit < m_ptr)
-            result = result * 10 + (*digit++) - '0';
-
-        if (!negative)
-            token.numberToken = result;
-        else {
-            if (!result)
-                token.numberToken = -0.0;
-            else
-                token.numberToken = -result;
-        }
-        return TokNumber;
     }
 
     //  ([eE][+-]? [0-9]+)?
@@ -1188,16 +1205,15 @@ TokenType LiteralParser<CharType, reviverMode>::Lexer::lexNumber(LiteralParserTo
             m_lexErrorMessage = "Exponent symbols should be followed by an optional '+' or '-' and then by at least one number"_s;
             return TokError;
         }
-        
+
         ++m_ptr;
         while (m_ptr < m_end && isASCIIDigit(*m_ptr))
             ++m_ptr;
     }
-    
-    token.type = TokNumber;
-    size_t parsedLength;
-    token.numberToken = parseDouble(std::span { start, m_ptr }, parsedLength);
-    return TokNumber;
+
+    ASSERT_NOT_REACHED();
+    m_lexErrorMessage = "Invalid number"_s;
+    return TokError;
 }
 
 template<typename CharType, JSONReviverMode reviverMode>

@@ -53,7 +53,7 @@ static std::optional<RenderStyle> styleForFirstLetter(const RenderElement& first
     auto firstLetterStyle = RenderStyle::clone(*style);
 
     // If we have an initial letter drop that is >= 1, then we need to force floating to be on.
-    if (firstLetterStyle.initialLetter().drop() >= 1 && !firstLetterStyle.isFloating())
+    if (firstLetterStyle.initialLetter().drop() >= 1 && firstLetterStyle.floating() == Float::None)
         firstLetterStyle.setFloating(firstLetterStyle.writingMode().isBidiLTR() ? Float::Left : Float::Right);
 
     // We have to compute the correct font-size for the first-letter if it has an initial letter height set.
@@ -89,7 +89,7 @@ static std::optional<RenderStyle> styleForFirstLetter(const RenderElement& first
 
     firstLetterStyle.setPseudoElementIdentifier({ { PseudoElementType::FirstLetter } });
     // Force inline display (except for floating first-letters).
-    firstLetterStyle.setDisplay(firstLetterStyle.isFloating() ? DisplayType::Block : DisplayType::Inline);
+    firstLetterStyle.setDisplay(firstLetterStyle.floating() != Float::None ? Style::DisplayType::BlockFlow : Style::DisplayType::InlineFlow);
     // CSS2 says first-letter can't be positioned.
     firstLetterStyle.setPosition(PositionType::Static);
 
@@ -184,7 +184,7 @@ void RenderTreeBuilder::FirstLetter::updateStyle(RenderBlock& firstLetterBlock, 
 
     // The first-letter renderer needs to be replaced. Create a new renderer of the right type.
     RenderPtr<RenderBoxModelObject> newFirstLetter;
-    if (pseudoStyle->display() == DisplayType::Inline)
+    if (pseudoStyle->display() == Style::DisplayType::InlineFlow)
         newFirstLetter = createRenderer<RenderInline>(RenderObject::Type::Inline, firstLetterBlock.document(), WTF::move(*pseudoStyle));
     else
         newFirstLetter = createRenderer<RenderBlockFlow>(RenderObject::Type::BlockFlow, firstLetterBlock.document(), WTF::move(*pseudoStyle));
@@ -225,7 +225,7 @@ void RenderTreeBuilder::FirstLetter::createRenderers(RenderText& currentTextChil
         return;
 
     RenderPtr<RenderBoxModelObject> newFirstLetter;
-    if (pseudoStyle->display() == DisplayType::Inline)
+    if (pseudoStyle->display() == Style::DisplayType::InlineFlow)
         newFirstLetter = createRenderer<RenderInline>(RenderObject::Type::Inline, currentTextChild.document(), WTF::move(*pseudoStyle));
     else
         newFirstLetter = createRenderer<RenderBlockFlow>(RenderObject::Type::BlockFlow, currentTextChild.document(), WTF::move(*pseudoStyle));

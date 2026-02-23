@@ -152,7 +152,8 @@ template<typename CharacterType> std::optional<FloatRect> SVGFitToViewBox::parse
 
 AffineTransform SVGFitToViewBox::viewBoxToViewTransform(const FloatRect& viewBoxRect, const SVGPreserveAspectRatioValue& preserveAspectRatio, float viewWidth, float viewHeight)
 {
-    if (!viewBoxRect.width() || !viewBoxRect.height() || !viewWidth || !viewHeight)
+    // Per SVG spec, negative viewBox dimensions are invalid and should be ignored
+    if (!viewBoxRect.width() || !viewBoxRect.height() || !viewWidth || !viewHeight || viewBoxRect.width() < 0 || viewBoxRect.height() < 0)
         return AffineTransform();
 
     return preserveAspectRatio.getCTM(viewBoxRect.x(), viewBoxRect.y(), viewBoxRect.width(), viewBoxRect.height(), viewWidth, viewHeight);

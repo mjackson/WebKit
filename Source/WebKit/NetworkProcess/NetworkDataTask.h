@@ -118,7 +118,7 @@ public:
     void clearClient() { m_client = nullptr; }
 
     std::optional<DownloadID> pendingDownloadID() const { return m_pendingDownloadID.asOptional(); }
-    PendingDownload* pendingDownload() const;
+    PendingDownload* NODELETE pendingDownload() const;
     void setPendingDownloadID(DownloadID downloadID)
     {
         ASSERT(!m_pendingDownloadID);

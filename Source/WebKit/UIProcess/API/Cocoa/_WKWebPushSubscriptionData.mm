@@ -35,7 +35,7 @@
     if (WebCoreObjCScheduleDeallocateOnMainRunLoop(_WKWebPushSubscriptionData.class, self))
         return;
 
-    _data->API::WebPushSubscriptionData::~WebPushSubscriptionData();
+    SUPPRESS_UNRETAINED_ARG _data->API::WebPushSubscriptionData::~WebPushSubscriptionData();
     [super dealloc];
 }
 

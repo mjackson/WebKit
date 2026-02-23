@@ -77,13 +77,11 @@ private:
 
         bool isEmpty() { return !m_firstNodeInserted; }
         Node* firstNodeInserted() const { return m_firstNodeInserted.get(); }
-        RefPtr<Node> protectedFirstNodeInserted() const { return m_firstNodeInserted; }
         Node* lastLeafInserted() const
         {
             ASSERT(m_lastNodeInserted);
             return m_lastNodeInserted->lastDescendant();
         }
-        RefPtr<Node> protectedLastLeafInserted() const { return lastLeafInserted(); }
         Node* pastLastLeaf() const
         {
             ASSERT(m_lastNodeInserted);
@@ -130,8 +128,6 @@ private:
     void updateDirectionForStartOfInsertedContentIfNeeded(const InsertedNodes&);
 
     void removeForegroundColorsInDarkModeIfNeeded(const InsertedNodes&);
-
-    RefPtr<DocumentFragment> protectedDocumentFragment() const { return m_documentFragment; }
 
     VisibleSelection m_visibleSelectionForInsertedText;
     Position m_startOfInsertedContent;

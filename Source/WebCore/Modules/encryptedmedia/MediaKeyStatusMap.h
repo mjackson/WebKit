@@ -55,7 +55,7 @@ public:
 
     void detachSession();
 
-    unsigned long size();
+    unsigned long NODELETE size();
     bool has(const BufferSource&);
     JSC::JSValue get(JSC::JSGlobalObject&, const BufferSource&);
 

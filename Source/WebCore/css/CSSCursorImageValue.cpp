@@ -73,7 +73,7 @@ bool CSSCursorImageValue::equals(const CSSCursorImageValue& other) const
         && compareCSSValuePtr(m_hotSpot, other.m_hotSpot);
 }
 
-RefPtr<StyleCursorImage> CSSCursorImageValue::createStyleImage(const Style::BuilderState& state) const
+RefPtr<Style::CursorImage> CSSCursorImageValue::createStyleImage(const Style::BuilderState& state) const
 {
     auto styleImage = state.createStyleImage(m_imageValue.get());
     if (!styleImage)
@@ -87,7 +87,7 @@ RefPtr<StyleCursorImage> CSSCursorImageValue::createStyleImage(const Style::Buil
             static_cast<int>(downcast<CSSPrimitiveValue>(m_hotSpot->second()).resolveAsNumber(state.cssToLengthConversionData()))
         };
     }
-    return StyleCursorImage::create(styleImage.releaseNonNull(), hotSpot, Style::toStyle(m_originalURL, state));
+    return Style::CursorImage::create(styleImage.releaseNonNull(), hotSpot, Style::toStyle(m_originalURL, state));
 }
 
 } // namespace WebCore

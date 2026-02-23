@@ -29,10 +29,16 @@
 #if ENABLE(MATHML)
 
 #include <array>
+#include <utility>
 
 namespace WebCore {
 
 using namespace MathMLOperatorDictionary;
+
+// Shorthand aliases for Form enum values for use in the dictionary table.
+static constexpr auto Infix = std::to_underlying(Form::Infix);
+static constexpr auto Prefix = std::to_underlying(Form::Prefix);
+static constexpr auto Postfix = std::to_underlying(Form::Postfix);
 
 typedef std::pair<char32_t, Form> Key;
 struct Entry {

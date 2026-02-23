@@ -58,7 +58,7 @@ namespace WebKit {
 
 using namespace WebCore;
 
-static HashMap<UserContentControllerIdentifier, WeakRef<WebUserContentControllerProxy>>& webUserContentControllerProxies()
+static HashMap<UserContentControllerIdentifier, WeakRef<WebUserContentControllerProxy>>& NODELETE webUserContentControllerProxies()
 {
     static NeverDestroyed<HashMap<UserContentControllerIdentifier, WeakRef<WebUserContentControllerProxy>>> proxies;
     return proxies;

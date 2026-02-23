@@ -356,7 +356,7 @@ static std::optional<SymbolNameWithType> symbolNameWithTypeForAction(const WebCo
     }
     case WebCore::ContextMenuItemTagToggleMediaLoop:
         return { { SymbolType::Public, "arrow.2.squarepath"_s } };
-    case WebCore::ContextMenuItemTagToggleVideoEnhancedFullscreen: {
+    case WebCore::ContextMenuItemTagTogglePictureInPicture: {
         const auto symbolName =  useAlternateImage ? "pip.exit"_s : "pip.enter"_s;
         return { { SymbolType::Public, symbolName } };
     }

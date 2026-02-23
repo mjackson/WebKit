@@ -75,7 +75,7 @@ std::optional<ModelIdentifier> ARKitInlinePreviewModelPlayerMac::modelIdentifier
     return { };
 }
 
-static String& sharedModelElementCacheDirectory()
+static String& NODELETE sharedModelElementCacheDirectory()
 {
     static NeverDestroyed<String> sharedModelElementCacheDirectory;
     return sharedModelElementCacheDirectory;

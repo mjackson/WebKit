@@ -47,7 +47,15 @@ class ExtensionCapabilityGrant;
 class MediaCapability final : public ExtensionCapability, public RefCountedAndCanMakeWeakPtr<MediaCapability> {
     WTF_MAKE_NONCOPYABLE(MediaCapability);
 public:
-    static Ref<MediaCapability> create(URL&&);
+    enum class Kind : uint8_t {
+        MediaPlayback,
+        CameraAndMicCapture,
+        DisplayCapture,
+    };
+
+    static Ref<MediaCapability> create(URL&&, Kind);
+
+    Kind kind() const { return m_kind; }
 
     enum class State : uint8_t {
         Inactive,
@@ -68,10 +76,11 @@ public:
     BEMediaEnvironment *platformMediaEnvironment() const { return m_mediaEnvironment.get(); }
 
 private:
-    explicit MediaCapability(URL&&);
+    explicit MediaCapability(URL&&, Kind);
 
-    State m_state { State::Inactive };
     URL m_webPageURL;
+    Kind m_kind;
+    State m_state { State::Inactive };
     RetainPtr<BEMediaEnvironment> m_mediaEnvironment;
 };
 

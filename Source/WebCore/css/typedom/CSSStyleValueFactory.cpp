@@ -172,7 +172,7 @@ ExceptionOr<Vector<Ref<CSSStyleValue>>> CSSStyleValueFactory::parseStyleValue(Do
     return results;
 }
 
-static bool mayConvertCSSValueListToSingleValue(std::optional<CSSPropertyID> propertyID)
+static bool NODELETE mayConvertCSSValueListToSingleValue(std::optional<CSSPropertyID> propertyID)
 {
     if (!propertyID)
         return true;
@@ -365,7 +365,7 @@ ExceptionOr<Ref<CSSStyleValue>> CSSStyleValueFactory::reifyValue(Document& docum
         if (!valueList->length())
             return Exception { ExceptionCode::TypeError, "The CSSValueList should not be empty."_s };
         if ((valueList->length() == 1 && mayConvertCSSValueListToSingleValue(propertyID)) || (propertyID && CSSProperty::isListValuedProperty(*propertyID)))
-            return reifyValue(document, (*valueList)[0], propertyID);
+            return reifyValue(document, protect((*valueList)[0]), propertyID);
     }
 
     return CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue)));

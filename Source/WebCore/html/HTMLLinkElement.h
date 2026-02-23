@@ -71,7 +71,7 @@ public:
 
     const AtomString& type() const;
 
-    std::optional<LinkIconType> iconType() const;
+    std::optional<LinkIconType> NODELETE iconType() const;
 
     CSSStyleSheet* sheet() const { return m_sheet.get(); }
 
@@ -118,7 +118,7 @@ private:
 
     void potentiallyBlockRendering();
     void unblockRendering();
-    bool isImplicitlyPotentiallyRenderBlocking() const;
+    bool NODELETE isImplicitlyPotentiallyRenderBlocking() const;
 
     InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) final;
     void didFinishInsertingNode() final;
@@ -153,8 +153,6 @@ private:
     void addPendingSheet(PendingSheetType);
 
     void removePendingSheet();
-
-    CheckedPtr<Style::Scope> checkedStyleScope();
 
     const Ref<LinkLoader> m_linkLoader;
     CheckedPtr<Style::Scope> m_styleScope;

@@ -56,7 +56,7 @@ public:
 
     const ElementBox& root() const { return m_root; }
 
-    LayoutState& layoutState();
+    LayoutState& NODELETE layoutState();
     const LayoutState& layoutState() const { return const_cast<FormattingContext&>(*this).layoutState(); }
 
     enum class EscapeReason {

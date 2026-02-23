@@ -67,8 +67,8 @@ protected:
 
 private:
     double tailTime() const final;
-    double latencyTime() const final;
-    bool requiresTailProcessing() const final;
+    double NODELETE latencyTime() const final;
+    bool NODELETE requiresTailProcessing() const final;
 
     float noiseInjectionMultiplier() const final { return 0.01; }
 

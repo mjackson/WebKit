@@ -28,6 +28,7 @@
 #include "IDBCursorInfo.h"
 #include "MemoryBackingStoreTransaction.h"
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
+#include <wtf/WeakPtr.h>
 
 namespace WebCore {
 

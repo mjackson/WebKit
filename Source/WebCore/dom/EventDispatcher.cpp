@@ -82,7 +82,7 @@ static void callDefaultEventHandlersInBubblingOrder(Event& event, const EventPat
     }
 }
 
-static bool isInShadowTree(EventTarget* target)
+static bool NODELETE isInShadowTree(EventTarget* target)
 {
     auto* node = dynamicDowncast<Node>(target);
     return node && node->isInShadowTree();
@@ -136,7 +136,7 @@ static bool shouldSuppressEventDispatchInDOM(Node& node, Event& event)
     return is<CompositionEvent>(event) || is<InputEvent>(event) || is<KeyboardEvent>(event);
 }
 
-static HTMLInputElement* findInputElementInEventPath(const EventPath& path)
+static HTMLInputElement* NODELETE findInputElementInEventPath(const EventPath& path)
 {
     size_t size = path.size();
     for (size_t i = 0; i < size; ++i) {

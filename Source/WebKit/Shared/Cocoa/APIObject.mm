@@ -30,11 +30,16 @@
 #import "WKBackForwardListItemInternal.h"
 #import "WKContentRuleListInternal.h"
 #import "WKContentRuleListStoreInternal.h"
+#import "WKContentWorldConfigurationInternal.h"
 #import "WKContentWorldInternal.h"
 #import "WKContextMenuElementInfoInternal.h"
 #import "WKDownloadInternal.h"
+#import "WKFormInfoInternal.h"
 #import "WKFrameInfoInternal.h"
 #import "WKHTTPCookieStoreInternal.h"
+#import "WKJSHandleInternal.h"
+#import "WKJSScriptingBufferInternal.h"
+#import "WKJSSerializedNodeInternal.h"
 #import "WKNSArray.h"
 #import "WKNSData.h"
 #import "WKNSDictionary.h"
@@ -73,7 +78,6 @@
 #import "_WKAttachmentInternal.h"
 #import "_WKAutomationSessionInternal.h"
 #import "_WKContentRuleListActionInternal.h"
-#import "_WKContentWorldConfigurationInternal.h"
 #import "_WKContextMenuElementInfoInternal.h"
 #import "_WKCustomHeaderFieldsInternal.h"
 #import "_WKDataTaskInternal.h"
@@ -85,13 +89,13 @@
 #import "_WKInspectorConfigurationInternal.h"
 #import "_WKInspectorDebuggableInfoInternal.h"
 #import "_WKInspectorInternal.h"
-#import "_WKJSBufferInternal.h"
-#import "_WKJSHandleInternal.h"
+#import "_WKJSBuffer.h"
+#import "_WKJSHandle.h"
 #import "_WKProcessPoolConfigurationInternal.h"
 #import "_WKResourceLoadInfoInternal.h"
 #import "_WKResourceLoadStatisticsFirstPartyInternal.h"
 #import "_WKResourceLoadStatisticsThirdPartyInternal.h"
-#import "_WKSerializedNodeInternal.h"
+#import "_WKSerializedNode.h"
 #import "_WKTargetedElementInfoInternal.h"
 #import "_WKTargetedElementRequestInternal.h"
 #import "_WKTextRunInternal.h"
@@ -388,7 +392,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         break;
 
     case Type::ContentWorldConfiguration:
-        SUPPRESS_RETAINPTR_CTOR_ADOPT wrapper = [_WKContentWorldConfiguration alloc];
+        SUPPRESS_RETAINPTR_CTOR_ADOPT wrapper = [WKContentWorldConfiguration alloc];
         break;
 
     case Type::TargetedElementInfo:
@@ -542,6 +546,10 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
     case Type::JSBuffer:
         SUPPRESS_RETAINPTR_CTOR_ADOPT wrapper = [_WKJSBuffer alloc];
+        break;
+
+    case Type::FormInfo:
+        SUPPRESS_RETAINPTR_CTOR_ADOPT wrapper = [WKFormInfo alloc];
         break;
 
     default:

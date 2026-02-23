@@ -50,7 +50,7 @@ StyleOriginatedAnimationEvent::StyleOriginatedAnimationEvent(enum EventInterface
     , m_pseudoElement(WTF::move(pseudoElement))
 {
     RefPtr node = dynamicDowncast<Node>(target());
-    auto [parsed, pseudoElementIdentifier] = pseudoElementIdentifierFromString(m_pseudoElement, node ? &node->document() : nullptr);
+    auto [parsed, pseudoElementIdentifier] = pseudoElementIdentifierFromString(m_pseudoElement, node ? protect(node->document()).ptr() : nullptr);
     m_pseudoElementIdentifier = parsed ? pseudoElementIdentifier : std::nullopt;
 }
 

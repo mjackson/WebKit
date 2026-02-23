@@ -104,7 +104,7 @@ bool RenderGrid::isExtrinsicallySized() const
         || !participatesInBlockLayout()
         || !gridStyle.logicalHeight().isFixed()
         || !allTracksAreExtrinsicallySized()
-        || gridStyle.hasAspectRatio()
+        || gridStyle.aspectRatio().hasRatio()
         || isSubgrid()
         || isMasonry())
         return false;
@@ -543,19 +543,17 @@ void RenderGrid::layoutGrid(RelayoutChildren relayoutChildren)
 
         endAndCommitUpdateScrollInfoAfterLayoutTransaction();
 
-        if (size() != previousSize)
-            relayoutChildren = RelayoutChildren::Yes;
+        updateInFlowDescendantTransformsAfterLayout();
+        computeInFlowOverflow(contentOverflowRect(), ComputeOverflowOptions::MarginsExtendLayoutOverflow);
 
-        if (isDocumentElementRenderer())
+        if (isDocumentElementRenderer() || size() != previousSize)
             layoutOutOfFlowBoxes(RelayoutChildren::Yes);
         else
             layoutOutOfFlowBoxes(relayoutChildren);
+        updateOutOfFlowDescendantTransformsAfterLayout();
+        addOverflowFromOutOfFlowBoxes();
 
         m_trackSizingAlgorithm.reset();
-
-        computeOverflow(contentOverflowRect(), ComputeOverflowOptions::MarginsExtendLayoutOverflow);
-
-        updateDescendantTransformsAfterLayout();
     }
 
     updateLayerTransform();
@@ -690,19 +688,17 @@ void RenderGrid::layoutMasonry(RelayoutChildren relayoutChildren)
 
         endAndCommitUpdateScrollInfoAfterLayoutTransaction();
 
-        if (size() != previousSize)
-            relayoutChildren = RelayoutChildren::Yes;
+        updateInFlowDescendantTransformsAfterLayout();
+        computeInFlowOverflow(contentOverflowRect());
 
-        if (isDocumentElementRenderer())
+        if (isDocumentElementRenderer() || size() != previousSize)
             layoutOutOfFlowBoxes(RelayoutChildren::Yes);
         else
             layoutOutOfFlowBoxes(relayoutChildren);
+        updateOutOfFlowDescendantTransformsAfterLayout();
+        addOverflowFromOutOfFlowBoxes();
 
         m_trackSizingAlgorithm.reset();
-
-        computeOverflow(contentOverflowRect(), ComputeOverflowOptions::MarginsExtendLayoutOverflow);
-
-        updateDescendantTransformsAfterLayout();
     }
 
     updateLayerTransform();
@@ -1140,7 +1136,7 @@ bool RenderGrid::isMasonry(Style::GridTrackSizingDirection direction) const
     auto& tracks = style().gridTemplateList(direction);
     if (auto* parentGrid = dynamicDowncast<RenderGrid>(parent()); parentGrid && tracks.subgrid)
         return parentGrid->isMasonry(direction);
-    if (style().display() != DisplayType::GridLanes && style().display() != DisplayType::InlineGridLanes)
+    if (style().display() != Style::DisplayType::BlockGridLanes && style().display() != Style::DisplayType::InlineGridLanes)
         return false;
     return (direction == Style::GridTrackSizingDirection::Columns) == style().gridAutoFlow().isColumn();
 }
@@ -1534,7 +1530,7 @@ Vector<LayoutUnit> RenderGrid::trackSizesForComputedStyle(Style::GridTrackSizing
     return tracks;
 }
 
-static const StyleContentAlignmentData& contentAlignmentNormalBehaviorGrid()
+static const StyleContentAlignmentData& NODELETE contentAlignmentNormalBehaviorGrid()
 {
     static const StyleContentAlignmentData normalBehavior = {ContentPosition::Normal, ContentDistribution::Stretch};
     return normalBehavior;
@@ -1801,7 +1797,7 @@ bool RenderGrid::willStretchItem(const RenderBox& item, LogicalBoxAxis containin
 
 bool RenderGrid::aspectRatioPrefersInline(const RenderBox& gridItem, bool blockFlowIsColumnAxis)
 {
-    if (!gridItem.style().hasAspectRatio())
+    if (!gridItem.style().aspectRatio().hasRatio())
         return false;
     LogicalBoxAxis containingAxis = blockFlowIsColumnAxis ? LogicalBoxAxis::Block : LogicalBoxAxis::Inline;
     return !selfAlignmentForGridItem(gridItem, containingAxis, StretchingMode::Explicit).isStretch();
@@ -2253,16 +2249,25 @@ LayoutRange RenderGrid::gridAreaRangeForOutOfFlow(const RenderBox& gridItem, Sty
         return borderBefore();
     }();
 
+    LayoutRange defaultRange(borderEdge, isRowAxis ? clientLogicalWidth() : clientLogicalHeight());
+    if (!gridItem.style().positionArea().isNone() && hasRenderOverflow() && hasPotentiallyScrollableOverflow()) {
+        // position-area uses the scrollable containing block
+        defaultRange = isRowAxis == writingMode().isHorizontal()
+            ? scrollablePaddingAreaOverflowRect().xRange() : scrollablePaddingAreaOverflowRect().yRange();
+        if (writingMode().isInlineFlipped() && isRowAxis)
+            defaultRange.moveTo(width() - defaultRange.max());
+    }
+
     if (currentGrid().needsItemsPlacement()) {
         // Haven't completed in-flow placement and grid sizing yet.
         // Return something basic that doesn't access unbuilt data structures.
-        return LayoutRange(borderEdge, isRowAxis ? clientLogicalWidth() : clientLogicalHeight());
+        return defaultRange;
     }
 
     int startLine, endLine;
     bool startIsAuto, endIsAuto;
     if (!computeGridPositionsForOutOfFlowGridItem(gridItem, direction, startLine, startIsAuto, endLine, endIsAuto) || (startIsAuto && endIsAuto))
-        return LayoutRange(borderEdge, isRowAxis ? clientLogicalWidth() : clientLogicalHeight());
+        return defaultRange;
 
     LayoutUnit start;
     LayoutUnit end;
@@ -2274,12 +2279,12 @@ LayoutRange RenderGrid::gridAreaRangeForOutOfFlow(const RenderBox& gridItem, Sty
     }
 
     if (startIsAuto)
-        start = borderEdge;
+        start = defaultRange.min();
     else {
         start = positions[startLine];
     }
     if (endIsAuto)
-        end = (isRowAxis ? clientLogicalWidth() : clientLogicalHeight()) + borderEdge;
+        end = defaultRange.max();
     else {
         end = positions[endLine];
         // These vectors store line positions including gaps, but we shouldn't consider them for the edges of the grid.
@@ -2313,7 +2318,7 @@ std::pair<LayoutUnit, LayoutUnit> RenderGrid::gridAreaPositionForInFlowGridItem(
     return { start, end };
 }
 
-std::pair<OverflowAlignment, ContentPosition> static resolveContentDistributionFallback(ContentDistribution distribution)
+std::pair<OverflowAlignment, ContentPosition> static NODELETE resolveContentDistributionFallback(ContentDistribution distribution)
 {
     switch (distribution) {
     case ContentDistribution::SpaceBetween:

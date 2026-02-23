@@ -205,6 +205,7 @@ using WPFingerprintingScriptCompletionHandler = void (^)(NSArray<WPFingerprintin
 
 #endif // !__has_include(<WebPrivacy/WPFingerprintingScript.h>) || __has_feature(modules)
 
+#define WPResourceTypeConsistentPrivacyQuirk ((WPResourceType)10)
 #if !defined(WP_SUPPORTS_SCRIPT_ACCESS_CATEGORY)
 
 typedef NS_OPTIONS(NSUInteger, WPScriptAccessCategories) {

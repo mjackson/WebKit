@@ -260,9 +260,6 @@ svg/custom/pointer-events-text.svg                [ ImageOnlyFailure ]
 
 # Bounding box issues
 imported/w3c/web-platform-tests/svg/interact/scripted/svg-pointer-events-bbox.html    [ Failure ]
-imported/w3c/web-platform-tests/svg/types/scripted/SVGGraphicsElement.getBBox-03.html [ Failure ]
-imported/w3c/web-platform-tests/svg/types/scripted/SVGGraphicsElement.getBBox-06.html [ Failure ]
-svg/text/text-bbox-empty.html                                                         [ Failure ]
 
 # Failing WPT reftests
 imported/w3c/web-platform-tests/svg/animations/animate-rewind-freeze-indefinite.svg                    [ ImageOnlyFailure ]
@@ -275,15 +272,12 @@ imported/w3c/web-platform-tests/svg/embedded/image-modify-href-4.svg            
 imported/w3c/web-platform-tests/svg/embedded/image-remove-href-1.svg                                   [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/embedded/image-remove-href-2.svg                                   [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/embedded/image-remove-href-3.svg                                   [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/svg/linking/reftests/svgview-viewbox-override-multiple.html            [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/painting/marker-009.svg                                            [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/painting/reftests/non-scaling-stroke-001.html                      [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/painting/reftests/non-scaling-stroke-002.html                      [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/painting/reftests/non-scaling-stroke-004.html                      [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/painting/reftests/paint-context-008.svg                            [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/painting/scripted/marker-element-added.html                        [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/svg/pservers/reftests/gradient-transform-01.svg                        [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/svg/pservers/reftests/gradient-transform-02.svg                        [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/pservers/reftests/pattern-inheritance-template-pattern-removed.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/render/reftests/blending-svg-foreign-object.html                   [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/shapes/reftests/pathlength-004b.svg                                [ ImageOnlyFailure ]
@@ -296,12 +290,6 @@ imported/w3c/web-platform-tests/svg/text/reftests/text-path-transformed-002.html
 svg/foreignObject/filter.html                 [ ImageOnlyFailure ]
 svg/foreignObject/vertical-foreignObject.html [ ImageOnlyFailure ]
 svg/overflow/overflow-on-foreignObject.svg    [ ImageOnlyFailure ]
-
-# TODO: Test needs to be adapted (see test), then it will pass with LBSE, but fail legacy -- leaving it as-is for now.
-svg/transforms/svgsvgelement-transform.svg [ ImageOnlyFailure ]
-
-# Outline / focus-ring support
-svg/custom/focus-ring.svg [ ImageOnlyFailure ]
 
 # Text rendering visually different
 svg/W3C-SVG-1.1/text-text-05-t.svg                 [ ImageOnlyFailure ]
@@ -335,15 +323,6 @@ svg/custom/use-nested.svg                          [ ImageOnlyFailure ]
 # SMIL animation issues
 svg/animations/animateMotion-additive-1.svg [ ImageOnlyFailure ]
 svg/stroke/animated-non-scaling-stroke.html [ ImageOnlyFailure ]
-
-# SVGViewSpec / svgView() support broken
-svg/custom/linking-a-03-b-all.svg               [ ImageOnlyFailure ]
-svg/custom/linking-a-03-b-transform.svg         [ ImageOnlyFailure ]
-svg/custom/linking-a-03-b-viewBox-transform.svg [ ImageOnlyFailure ]
-svg/custom/linking-a-03-b-viewBox.svg           [ ImageOnlyFailure ]
-svg/custom/linking-uri-01-b.svg                 [ ImageOnlyFailure ]
-svg/custom/multiple-view-elements.html          [ ImageOnlyFailure ]
-svg/dom/complex-svgView-specification.html      [ ImageOnlyFailure ]
 
 # Empty viewBox doesn't disable rendering for inline SVG documents
 svg/custom/viewBox-empty.html [ ImageOnlyFailure ]

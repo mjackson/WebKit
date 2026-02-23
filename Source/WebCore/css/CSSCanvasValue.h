@@ -30,10 +30,9 @@
 
 namespace WebCore {
 
-class StyleImage;
-
 namespace Style {
 class BuilderState;
+class Image;
 }
 
 class CSSCanvasValue final : public CSSValue {
@@ -44,13 +43,13 @@ public:
     String customCSSText(const CSS::SerializationContext&) const;
     bool equals(const CSSCanvasValue&) const;
 
-    RefPtr<StyleImage> createStyleImage(const Style::BuilderState&) const;
+    RefPtr<Style::Image> createStyleImage(const Style::BuilderState&) const;
 
 private:
     explicit CSSCanvasValue(String&&);
 
     String m_name;
-    mutable RefPtr<StyleImage> m_cachedStyleImage;
+    mutable RefPtr<Style::Image> m_cachedStyleImage;
 };
 
 } // namespace WebCore

@@ -47,8 +47,8 @@ public:
     WEBCORE_EXPORT explicit UserMessageHandlerDescriptor(const AtomString&, DOMWrapperWorld&);
     WEBCORE_EXPORT virtual ~UserMessageHandlerDescriptor();
 
-    WEBCORE_EXPORT const AtomString& name() const;
-    WEBCORE_EXPORT const DOMWrapperWorld& world() const;
+    WEBCORE_EXPORT const AtomString& NODELETE name() const;
+    WEBCORE_EXPORT const DOMWrapperWorld& NODELETE world() const;
 
     virtual void didPostMessage(UserMessageHandler&, JSC::JSGlobalObject&, JSC::JSValue, Function<void(JSC::JSValue, const String&)>&&) const = 0;
     virtual JSC::JSValue didPostLegacySynchronousMessage(UserMessageHandler&, JSC::JSGlobalObject&, JSC::JSValue) const = 0;

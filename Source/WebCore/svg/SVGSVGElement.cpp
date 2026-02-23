@@ -160,7 +160,7 @@ void SVGSVGElement::updateCurrentTranslate()
     if (document().settings().layerBasedSVGEngineEnabled()) {
         if (CheckedPtr svgRoot = dynamicDowncast<RenderSVGRoot>(*renderer)) {
             ASSERT(svgRoot->viewportContainer());
-            svgRoot->checkedViewportContainer()->updateHasSVGTransformFlags();
+            protect(svgRoot->viewportContainer())->updateHasSVGTransformFlags();
         }
 
         // TODO: [LBSE] Avoid relayout upon transform changes (not possible in legacy, but should be in LBSE).
@@ -245,7 +245,7 @@ void SVGSVGElement::svgAttributeChanged(const QualifiedName& attrName)
             // FIXME: try to get rid of this custom handling of embedded SVG invalidation, maybe through abstraction.
             if (CheckedPtr renderer = this->renderer()) {
                 if (isEmbeddedThroughFrameContainingSVGDocument(*renderer))
-                    renderer->checkedView()->setNeedsLayout(MarkOnlyThis);
+                    protect(renderer->view())->setNeedsLayout(MarkOnlyThis);
             }
         }
         invalidateResourceImageBuffersIfNeeded();
@@ -257,7 +257,7 @@ void SVGSVGElement::svgAttributeChanged(const QualifiedName& attrName)
         if (document().settings().layerBasedSVGEngineEnabled()) {
             if (CheckedPtr svgRoot = dynamicDowncast<RenderSVGRoot>(renderer())) {
                 ASSERT(svgRoot->viewportContainer());
-                svgRoot->checkedViewportContainer()->updateHasSVGTransformFlags();
+                protect(svgRoot->viewportContainer())->updateHasSVGTransformFlags();
                 svgRoot->setNeedsLayoutIfNeededAfterIntrinsicSizeChange();
             } else if (CheckedPtr viewportContainer = dynamicDowncast<RenderSVGViewportContainer>(renderer()))
                 viewportContainer->updateHasSVGTransformFlags();
@@ -391,7 +391,7 @@ Ref<SVGTransform> SVGSVGElement::createSVGTransformFromMatrix(DOMMatrix2DInit&& 
 AffineTransform SVGSVGElement::localCoordinateSpaceTransform(CTMScope mode) const
 {
     AffineTransform viewBoxTransform;
-    if (!hasEmptyViewBox()) {
+    if (!viewBox().isEmpty()) {
         FloatSize size = currentViewportSizeExcludingZoom();
         viewBoxTransform = viewBoxToViewTransform(size.width(), size.height());
     }
@@ -664,6 +664,7 @@ AffineTransform SVGSVGElement::viewBoxToViewTransform(float viewWidth, float vie
 {
     if (!m_useCurrentView || !m_viewSpec) {
         auto currentViewBox = currentViewBoxRect();
+
         // If we synthesized a viewBox (no explicit viewBox but embedded through SVGImage),
         // we should also synthesize preserveAspectRatio="none" to allow stretching.
         if (viewBox().isEmpty() && !currentViewBox.isEmpty() && isEmbeddedThroughSVGImage(*this)) {
@@ -714,7 +715,11 @@ bool SVGSVGElement::scrollToFragment(StringView fragmentIdentifier)
 
     auto invalidateView = [&](RenderElement& renderer) {
         if (renderer.document().settings().layerBasedSVGEngineEnabled()) {
-            renderer.repaint();
+            if (CheckedPtr svgRoot = dynamicDowncast<RenderSVGRoot>(renderer)) {
+                ASSERT(svgRoot->viewportContainer());
+                protect(svgRoot->viewportContainer())->updateHasSVGTransformFlags();
+            }
+            updateSVGRendererForElementChange();
             return;
         }
 

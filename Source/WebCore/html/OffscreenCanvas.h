@@ -89,7 +89,7 @@ public:
     WEBCORE_EXPORT ~DetachedOffscreenCanvas();
     const IntSize& size() const { return m_size; }
     bool originClean() const { return m_originClean; }
-    RefPtr<PlaceholderRenderingContextSource> takePlaceholderSource();
+    RefPtr<PlaceholderRenderingContextSource> NODELETE takePlaceholderSource();
 
 private:
     RefPtr<PlaceholderRenderingContextSource> m_placeholderSource;
@@ -127,8 +127,7 @@ public:
 
     void setWidth(unsigned);
     void setHeight(unsigned);
-
-    void setImageBufferAndMarkDirty(RefPtr<ImageBuffer>&&) final;
+    void setSizeForControllingContext(IntSize) final;
 
     CanvasRenderingContext* renderingContext() const final { return m_context.get(); }
 
@@ -145,7 +144,7 @@ public:
 
     SecurityOrigin* securityOrigin() const final;
 
-    bool canDetach() const;
+    bool NODELETE canDetach() const;
     std::unique_ptr<DetachedOffscreenCanvas> detach();
 
     void commitToPlaceholderCanvas();
@@ -166,8 +165,7 @@ private:
     void refEventTarget() final { RefCounted::ref(); }
     void derefEventTarget() final { RefCounted::deref(); }
 
-    void didUpdateSizeProperties();
-    void createImageBuffer() const final;
+    void didUpdateSizeProperties(bool sizeChanged);
 
     void scheduleCommitToPlaceholderCanvas();
 

@@ -25,9 +25,9 @@
 
 typedef DOMString NamedCurve;
 
+// https://w3c.github.io/webcrypto/#dfn-EcKeyAlgorithm
 [
     JSGenerateToJSObject,
-    LegacyNativeDictionaryRequiredInterfaceNullability,
 ] dictionary CryptoEcKeyAlgorithm : CryptoKeyAlgorithm {
     // The named curve that the key uses
     required NamedCurve namedCurve;

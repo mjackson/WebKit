@@ -40,13 +40,13 @@ public:
     RenderModel(HTMLModelElement&, RenderStyle&&);
     virtual ~RenderModel();
 
-    HTMLModelElement& modelElement() const;
+    HTMLModelElement& NODELETE modelElement() const;
 
 private:
     void element() const = delete;
     ASCIILiteral renderName() const final { return "RenderModel"_s; }
 
-    bool requiresLayer() const final;
+    bool NODELETE requiresLayer() const final;
     void updateFromElement() final;
 
     void update();

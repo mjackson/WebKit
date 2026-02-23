@@ -58,7 +58,7 @@ public:
     String dropEffect() const;
     void setDropEffect(const String&);
 
-    String effectAllowed() const;
+    String NODELETE effectAllowed() const;
     void setEffectAllowed(const String&);
 
     DataTransferItemList& items(Document&);
@@ -80,9 +80,9 @@ public:
 
     void makeInvalidForSecurity() { m_storeMode = StoreMode::Invalid; }
 
-    bool canReadTypes() const;
-    bool canReadData() const;
-    bool canWriteData() const;
+    bool NODELETE canReadTypes() const;
+    bool NODELETE canReadData() const;
+    bool NODELETE canWriteData() const;
 
     bool hasFileOfType(const String&);
     bool hasStringOfType(Document&, const String&);
@@ -106,10 +106,10 @@ public:
     void setDragHasStarted() { m_shouldUpdateDragImage = true; }
     DragImageRef createDragImage(const Document*, IntPoint& dragLocation) const;
     void updateDragImage(const Document*);
-    RefPtr<Element> dragImageElement() const;
+    RefPtr<Element> NODELETE dragImageElement() const;
 
     void moveDragState(Ref<DataTransfer>&&);
-    bool hasDragImage() const;
+    bool NODELETE hasDragImage() const;
 
     IntPoint dragLocation() const { return m_dragLocation; }
 #endif

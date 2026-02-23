@@ -380,7 +380,7 @@ public:
     bool hasInjectedContent();
     bool safeToInjectContent() const { return isLoaded() && m_safeToInjectContent; }
 
-    bool hasContentModificationRules();
+    bool NODELETE hasContentModificationRules();
 
     URL optionsPageURL() const;
     URL overrideNewTabPageURL() const;
@@ -555,7 +555,7 @@ public:
     bool hasActiveUserGesture(WebExtensionTab&) const;
     void clearUserGesture(WebExtensionTab&);
 
-    bool inTestingMode() const;
+    bool NODELETE inTestingMode() const;
 
 #if PLATFORM(COCOA)
     void sendTestMessage(const String& message, id argument);
@@ -644,7 +644,7 @@ public:
 
     HashSet<Ref<WebProcessProxy>> processes(EventListenerTypeSet&&, ContentWorldTypeSet&&, Function<bool(WebProcessProxy&, WebPageProxy&, WebFrameProxy&)>&& predicate = nullptr) const;
 
-    const UserContentControllerProxySet& userContentControllers() const;
+    const UserContentControllerProxySet& NODELETE userContentControllers() const;
 
     template<typename T>
     void sendToProcesses(const WebProcessProxySet&, const T& message) const;
@@ -668,7 +668,7 @@ private:
 
     explicit WebExtensionContext();
 
-    int toAPIError(WebExtensionContext::Error);
+    int NODELETE toAPIError(WebExtensionContext::Error);
 
     String stateFilePath() const;
     NSDictionary *currentState() const;
@@ -1013,7 +1013,7 @@ private:
 
     bool isLoaded(IPC::Decoder&) const { return isLoaded(); }
     bool isLoadedAndPrivilegedMessage(IPC::Decoder& message) const { return isLoaded() && isPrivilegedMessage(message); }
-    bool isPrivilegedMessage(IPC::Decoder&) const;
+    bool NODELETE isPrivilegedMessage(IPC::Decoder&) const;
 
     mutable Markable<WebExtensionContextIdentifier> m_privilegedIdentifier;
 

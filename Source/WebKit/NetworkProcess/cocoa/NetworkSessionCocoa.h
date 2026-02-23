@@ -63,6 +63,9 @@ struct SessionWrapper : public CanMakeWeakPtr<SessionWrapper>, public CanMakeChe
     WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(SessionWrapper);
     WTF_STRUCT_OVERRIDE_DELETE_FOR_CHECKED_PTR(SessionWrapper);
 
+    SessionWrapper() = default;
+    ~SessionWrapper();
+
     void initialize(NSURLSessionConfiguration*, NetworkSessionCocoa&, WebCore::StoredCredentialsPolicy, NavigatingToAppBoundDomain);
 
     void recreateSessionWithUpdatedProxyConfigurations(NetworkSessionCocoa&);
@@ -214,8 +217,6 @@ private:
     void initializeNSURLSessionsInSet(SessionSet&, NSURLSessionConfiguration *);
     SessionSet& sessionSetForPage(std::optional<WebPageProxyIdentifier>);
     const SessionSet& sessionSetForPage(std::optional<WebPageProxyIdentifier>) const;
-    Ref<SessionSet> protectedSessionSetForPage(std::optional<WebPageProxyIdentifier> identifier) { return sessionSetForPage(identifier); }
-    Ref<const SessionSet> protectedSessionSetForPage(std::optional<WebPageProxyIdentifier> identifier) const { return sessionSetForPage(identifier); }
 
     void invalidateAndCancelSessionSet(SessionSet&);
     

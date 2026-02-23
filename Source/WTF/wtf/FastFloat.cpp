@@ -24,7 +24,7 @@
  */
 
 #include "config.h"
-#include "FastFloat.h"
+#include <wtf/FastFloat.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "fast_float/fast_float.h"
@@ -44,27 +44,33 @@ double parseDouble(std::span<const Latin1Character> string, size_t& parsedLength
 double parseDouble(std::span<const char16_t> string, size_t& parsedLength)
 {
     double doubleValue = 0;
-    auto stringData = spanReinterpretCast<const char16_t>(string);
-    auto result = fast_float::from_chars(std::to_address(stringData.begin()), std::to_address(stringData.end()), doubleValue, fast_float::chars_format::general | fast_float::chars_format::no_infnan | fast_float::chars_format::allow_leading_plus);
-    parsedLength = result.ptr - stringData.data();
+    auto result = fast_float::from_chars(std::to_address(string.begin()), std::to_address(string.end()), doubleValue, fast_float::chars_format::general | fast_float::chars_format::no_infnan | fast_float::chars_format::allow_leading_plus);
+    parsedLength = result.ptr - string.data();
     return doubleValue;
 }
 
-double parseHexDouble(std::span<const Latin1Character> string, size_t& parsedLength)
+std::optional<double> parseJSONDouble(std::span<const Latin1Character> string, size_t& parsedLength)
 {
     double doubleValue = 0;
     auto stringData = byteCast<char>(string);
-    auto result = fast_float::from_chars(std::to_address(stringData.begin()), std::to_address(stringData.end()), doubleValue, fast_float::chars_format::hex | fast_float::chars_format::no_infnan | fast_float::chars_format::allow_leading_plus);
+    auto result = fast_float::from_chars(std::to_address(stringData.begin()), std::to_address(stringData.end()), doubleValue, fast_float::chars_format::json);
+    if (!result) [[unlikely]] {
+        if (result.ec != std::errc::result_out_of_range)
+            return std::nullopt;
+    }
     parsedLength = result.ptr - stringData.data();
     return doubleValue;
 }
 
-double parseHexDouble(std::span<const char16_t> string, size_t& parsedLength)
+std::optional<double> parseJSONDouble(std::span<const char16_t> string, size_t& parsedLength)
 {
     double doubleValue = 0;
-    auto stringData = spanReinterpretCast<const char16_t>(string);
-    auto result = fast_float::from_chars(std::to_address(stringData.begin()), std::to_address(stringData.end()), doubleValue, fast_float::chars_format::hex | fast_float::chars_format::no_infnan | fast_float::chars_format::allow_leading_plus);
-    parsedLength = result.ptr - stringData.data();
+    auto result = fast_float::from_chars(std::to_address(string.begin()), std::to_address(string.end()), doubleValue, fast_float::chars_format::json);
+    if (!result) [[unlikely]] {
+        if (result.ec != std::errc::result_out_of_range)
+            return std::nullopt;
+    }
+    parsedLength = result.ptr - string.data();
     return doubleValue;
 }
 

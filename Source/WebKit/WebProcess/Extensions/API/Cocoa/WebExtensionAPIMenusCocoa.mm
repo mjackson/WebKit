@@ -178,12 +178,13 @@ bool WebExtensionAPIMenus::parseCreateAndUpdateProperties(ForUpdate forUpdate, N
                 continue;
             }
 
-            if ([context isEqualToString:@"action"] && !extensionContext().supportsManifestVersion(3)) {
+            RefPtr extensionContext = this->extensionContext();
+            if ([context isEqualToString:@"action"] && !extensionContext->supportsManifestVersion(3)) {
                 *outExceptionString = toErrorString(nullString(), contextsKey, @"'%@' is not a valid context", context).createNSString().autorelease();
                 return false;
             }
 
-            if (([context isEqualToString:@"browser_action"] || [context isEqualToString:@"page_action"]) && extensionContext().supportsManifestVersion(3)) {
+            if (([context isEqualToString:@"browser_action"] || [context isEqualToString:@"page_action"]) && extensionContext->supportsManifestVersion(3)) {
                 *outExceptionString = toErrorString(nullString(), contextsKey, @"'%@' is not a valid context", context).createNSString().autorelease();
                 return false;
             }
@@ -253,7 +254,7 @@ bool WebExtensionAPIMenus::parseCreateAndUpdateProperties(ForUpdate forUpdate, N
             return false;
         }
 
-        outClickCallback = WebExtensionCallbackHandler::create(clickCallback.context.JSGlobalContextRef, JSValueToObject(clickCallback.context.JSGlobalContextRef, clickCallback.JSValueRef, nullptr), protectedRuntime());
+        outClickCallback = WebExtensionCallbackHandler::create(clickCallback.context.JSGlobalContextRef, JSValueToObject(clickCallback.context.JSGlobalContextRef, clickCallback.JSValueRef, nullptr), protect(runtime()));
     }
 
     NSDictionary *iconDictionary;

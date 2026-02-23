@@ -120,13 +120,21 @@ SVGLengthValue SVGLengthValue::construct(SVGLengthMode lengthMode, StringView va
     SVGLengthValue length(lengthMode);
 
     parseError = SVGParsingError::None;
+
+    // Empty string should use fallback.
+    if (valueAsString.isEmpty()) {
+        if (!fallbackValue.isNull())
+            return SVGLengthValue(lengthMode, fallbackValue);
+        return length;
+    }
+
     if (length.setValueAsString(valueAsString).hasException())
         parseError = SVGParsingError::ParsingFailed;
     else if (negativeValuesMode == SVGLengthNegativeValuesMode::Forbid && length.valueInSpecifiedUnits() < 0)
         parseError = SVGParsingError::ForbiddenNegativeValue;
 
-    // If parsing failed or value is null, and we have a fallback, use it
-    if (!fallbackValue.isNull() && (parseError != SVGParsingError::None || valueAsString.isNull()))
+    // If parsing failed and we have a fallback, use it.
+    if (!fallbackValue.isNull() && parseError != SVGParsingError::None)
         return SVGLengthValue(lengthMode, fallbackValue);
 
     return length;

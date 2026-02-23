@@ -958,8 +958,9 @@ RefPtr<WebExtensionTab> WebExtensionContext::getCurrentTab(WebPageProxyIdentifie
         if (includeExtensionViews == IncludeExtensionViews::No)
             return nullptr;
 
-        RefPtr tab = entry.value->tab();
-        RefPtr window = tab ? tab->window() : entry.value->window();
+        Ref value = entry.value;
+        RefPtr tab = value->tab();
+        RefPtr window = tab ? tab->window() : value->window();
         if (!tab && window)
             tab = window->activeTab();
 
@@ -2207,8 +2208,9 @@ Vector<WebExtensionContext::PageIdentifierTuple> WebExtensionContext::popupPageI
     Vector<PageIdentifierTuple> result;
 
     for (auto entry : m_popupPageActionMap) {
-        RefPtr tab = entry.value->tab();
-        RefPtr window = tab ? tab->window() : entry.value->window();
+        Ref value = entry.value;
+        RefPtr tab = value->tab();
+        RefPtr window = tab ? tab->window() : value->window();
 
         auto tabIdentifier = tab ? std::optional(tab->identifier()) : std::nullopt;
         auto windowIdentifier = window ? std::optional(window->identifier()) : std::nullopt;
@@ -2960,7 +2962,7 @@ void WebExtensionContext::loadInspectorBackgroundPage(WebInspectorUIProxy& inspe
 
     protect(inspector.extensionController())->registerExtension(uniqueIdentifier(), uniqueIdentifier(), protect(extension())->displayName(), [this, protectedThis = Ref { *this }, inspector = Ref { inspector }, tab = Ref { tab }](Expected<Ref<API::InspectorExtension>, Inspector::ExtensionError> result) {
         if (!result) {
-            RELEASE_LOG_ERROR(Extensions, "Failed to register Inspector extension (error %{public}hhu)", enumToUnderlyingType(result.error()));
+            RELEASE_LOG_ERROR(Extensions, "Failed to register Inspector extension (error %{public}hhu)", std::to_underlying(result.error()));
             return;
         }
 
@@ -3034,7 +3036,7 @@ void WebExtensionContext::unloadInspectorBackgroundPage(WebInspectorUIProxy& ins
 
     protect(inspector.extensionController())->unregisterExtension(uniqueIdentifier(), [](Expected<void, Inspector::ExtensionError> result) {
         if (!result)
-            RELEASE_LOG_ERROR(Extensions, "Failed to unregister Inspector extension (error %{public}hhu)", enumToUnderlyingType(result.error()));
+            RELEASE_LOG_ERROR(Extensions, "Failed to unregister Inspector extension (error %{public}hhu)", std::to_underlying(result.error()));
     });
 }
 
@@ -3217,7 +3219,7 @@ void WebExtensionContext::loadDeclarativeNetRequestRules(CompletionHandler<void(
         if (!allJSONData.get().allKeys.count) {
             removeDeclarativeNetRequestRules();
             API::ContentRuleListStore::defaultStoreSingleton().removeContentRuleListFile(declarativeNetRequestContentRuleListFilePath(), [completionHandler = WTF::move(completionHandler)](std::error_code error) mutable {
-                completionHandler(error ? false : true);
+                completionHandler(!error);
             });
             return;
         }

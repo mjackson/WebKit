@@ -42,10 +42,6 @@
 #include <wtf/StdLibExtras.h>
 #include <wtf/text/TextStream.h>
 
-#if ENABLE(TEXT_AUTOSIZING)
-#include <wtf/text/StringHash.h>
-#endif
-
 #define SET_VAR(group, variable, value) do { \
         if (!compareEqual(group->variable, value)) \
             group.access().variable = value; \
@@ -63,7 +59,7 @@ static_assert(PublicPseudoIDBits == allPublicPseudoElementTypes.size());
 static_assert(!(static_cast<unsigned>(maxTextTransformValue) >> TextTransformBits));
 
 // Value zero is used to indicate no pseudo-element.
-static_assert(!((enumToUnderlyingType(PseudoElementType::HighestEnumValue) + 1) >> PseudoElementTypeBits));
+static_assert(!((std::to_underlying(PseudoElementType::HighestEnumValue) + 1) >> PseudoElementTypeBits));
 
 DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(ComputedStyleBase);
 
@@ -183,11 +179,6 @@ void ComputedStyleBase::addCustomPaintWatchProperty(const AtomString& name)
 }
 
 // MARK: - FontCascade support.
-
-CheckedRef<const FontCascade> ComputedStyleBase::checkedFontCascade() const
-{
-    return fontCascade();
-}
 
 FontCascade& ComputedStyleBase::mutableFontCascadeWithoutUpdate()
 {
@@ -420,8 +411,8 @@ void ComputedStyleBase::NonInheritedFlags::dumpDifferences(TextStream& ts, const
     if (*this == other)
         return;
 
-    LOG_IF_DIFFERENT_WITH_CAST(DisplayType, effectiveDisplay);
-    LOG_IF_DIFFERENT_WITH_CAST(DisplayType, originalDisplay);
+    LOG_IF_DIFFERENT_WITH_CAST(Style::DisplayType, display);
+    LOG_IF_DIFFERENT_WITH_CAST(Style::DisplayType, originalDisplay);
     LOG_IF_DIFFERENT_WITH_CAST(Overflow, overflowX);
     LOG_IF_DIFFERENT_WITH_CAST(Overflow, overflowY);
     LOG_IF_DIFFERENT_WITH_CAST(Clear, clear);

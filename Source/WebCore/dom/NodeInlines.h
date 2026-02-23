@@ -26,6 +26,7 @@
 #include <WebCore/InspectorInstrumentationPublic.h>
 #include <WebCore/LayoutRect.h>
 #include <WebCore/Node.h>
+#include <WebCore/NodeDocument.h>
 #include <WebCore/PseudoElement.h>
 #include <WebCore/RenderBox.h>
 #include <WebCore/ShadowRoot.h>
@@ -56,6 +57,12 @@ inline WebCoreOpaqueRoot Node::opaqueRoot() const
     }
     // FIXME: Possible race?
     return traverseToOpaqueRoot();
+}
+
+inline Document* Node::ownerDocument() const
+{
+    auto* document = &this->document();
+    return document == this ? nullptr : document;
 }
 
 inline RenderBox* Node::renderBox() const
@@ -123,7 +130,7 @@ std::optional<Style::PseudoElementIdentifier> Node::pseudoElementIdentifier() co
 inline void Node::setTabIndexState(TabIndexState state)
 {
     auto bitfields = rareDataBitfields();
-    bitfields.tabIndexState = enumToUnderlyingType(state);
+    bitfields.tabIndexState = std::to_underlying(state);
     setRareDataBitfields(bitfields);
 }
 

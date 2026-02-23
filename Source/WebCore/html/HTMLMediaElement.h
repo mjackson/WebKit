@@ -202,7 +202,7 @@ public:
     bool hasVideo() const override { return false; }
     WEBCORE_EXPORT bool hasAudio() const override;
 
-    WEBCORE_EXPORT static HashSet<WeakRef<HTMLMediaElement>>& allMediaElements();
+    WEBCORE_EXPORT static HashSet<WeakRef<HTMLMediaElement>>& NODELETE allMediaElements();
 
     WEBCORE_EXPORT void rewind(double timeDelta);
     WEBCORE_EXPORT void returnToRealtime() override;
@@ -217,7 +217,7 @@ public:
     bool doesHaveAttribute(const AtomString&, AtomString* value = nullptr) const override;
 
     PlatformLayer* platformLayer() const;
-    bool isVideoLayerInline();
+    bool NODELETE isVideoLayerInline();
     void setPreparedToReturnVideoLayerToInline(bool);
     void waitForPreparedForInlineThen(Function<void()>&& completionHandler);
 #if ENABLE(VIDEO_PRESENTATION_MODE)
@@ -247,7 +247,7 @@ public:
 
     std::optional<MediaSessionGroupIdentifier> mediaSessionGroupIdentifier() const final;
 
-    WEBCORE_EXPORT bool isActiveNowPlayingSession() const;
+    WEBCORE_EXPORT bool NODELETE isActiveNowPlayingSession() const;
 
 // DOM API
 // error state
@@ -262,7 +262,7 @@ public:
 
 // network state
     using HTMLMediaElementEnums::NetworkState;
-    WEBCORE_EXPORT NetworkState networkState() const;
+    WEBCORE_EXPORT NetworkState NODELETE networkState() const;
 
     WEBCORE_EXPORT String preload() const;
     WEBCORE_EXPORT void setPreload(const AtomString&);
@@ -274,7 +274,7 @@ public:
 // ready state
     using HTMLMediaElementEnums::ReadyState;
     ReadyState readyState() const override;
-    WEBCORE_EXPORT bool seeking() const;
+    WEBCORE_EXPORT bool NODELETE seeking() const;
     void setSeeking(bool);
 
 // playback state
@@ -291,7 +291,7 @@ public:
     void setDefaultPlaybackRate(double) override;
     WEBCORE_EXPORT double playbackRate() const override;
     void setPlaybackRate(double) override;
-    WEBCORE_EXPORT bool preservesPitch() const;
+    WEBCORE_EXPORT bool NODELETE preservesPitch() const;
     WEBCORE_EXPORT void setPreservesPitch(bool);
 
     WEBCORE_EXPORT double mediaPlayerCurrentTime() const;
@@ -329,7 +329,7 @@ public:
 
     using HTMLMediaElementEnums::BufferingPolicy;
     WEBCORE_EXPORT void setBufferingPolicy(BufferingPolicy);
-    WEBCORE_EXPORT BufferingPolicy bufferingPolicy() const;
+    WEBCORE_EXPORT BufferingPolicy NODELETE bufferingPolicy() const;
     WEBCORE_EXPORT void purgeBufferedDataIfPossible();
 
 #if ENABLE(MEDIA_STATISTICS)
@@ -462,7 +462,7 @@ public:
 
     void setTextTrackRepresentataionBounds(const IntRect&);
     void setRequiresTextTrackRepresentation(bool);
-    bool requiresTextTrackRepresentation() const;
+    bool NODELETE requiresTextTrackRepresentation() const;
     void setTextTrackRepresentation(TextTrackRepresentation*);
     void syncTextTrackBounds();
 
@@ -486,7 +486,7 @@ public:
     void setShouldPlayToPlaybackTarget(bool) override;
     void playbackTargetPickerWasDismissed() override;
     bool hasWirelessPlaybackTargetAlternative() const;
-    bool isWirelessPlaybackTargetDisabled() const;
+    bool NODELETE isWirelessPlaybackTargetDisabled() const;
     void isWirelessPlaybackTargetDisabledChanged();
     bool hasTargetAvailabilityListeners();
     bool hasEnabledTargetAvailabilityListeners();
@@ -539,8 +539,8 @@ public:
     void sourceWasAdded(HTMLSourceElement&);
 
     // Media cache management.
-    WEBCORE_EXPORT static void setMediaCacheDirectory(const String&);
-    WEBCORE_EXPORT static const String& mediaCacheDirectory();
+    WEBCORE_EXPORT static void NODELETE setMediaCacheDirectory(const String&);
+    WEBCORE_EXPORT static const String& NODELETE mediaCacheDirectory();
     WEBCORE_EXPORT static HashSet<SecurityOriginData> originsInMediaCache(const String&);
     WEBCORE_EXPORT static void clearMediaCache(const String&, WallTime modifiedSince = { });
     WEBCORE_EXPORT static void clearMediaCacheForOrigins(const String&, const HashSet<SecurityOriginData>&);
@@ -557,7 +557,7 @@ public:
     using HTMLMediaElementEnums::InvalidURLAction;
     bool isSafeToLoadURL(const URL&, InvalidURLAction, bool shouldLog = true) const;
 
-    const String& mediaGroup() const;
+    const String& NODELETE mediaGroup() const;
     void setMediaGroup(const String&);
 
     MediaController* NODELETE controller() const;
@@ -576,7 +576,7 @@ public:
     Ref<VideoPlaybackQuality> getVideoPlaybackQuality() const;
 
     MediaPlayer::Preload preloadValue() const { return m_preload; }
-    MediaPlayer::Preload effectivePreloadValue() const;
+    MediaPlayer::Preload NODELETE effectivePreloadValue() const;
     MediaElementSession* mediaSessionIfExists() const { return m_mediaSession.get(); }
     WEBCORE_EXPORT MediaElementSession& mediaSession() const;
 
@@ -602,8 +602,8 @@ public:
     inline RenderMedia* renderer() const; // Defined in RenderMediaInlines.h.
 
     void resetPlaybackSessionState();
-    WEBCORE_EXPORT bool isVisibleInViewport() const;
-    bool hasEverNotifiedAboutPlaying() const;
+    WEBCORE_EXPORT bool NODELETE isVisibleInViewport() const;
+    bool NODELETE hasEverNotifiedAboutPlaying() const;
     void setShouldDelayLoadEvent(bool);
 
     bool hasEverHadAudio() const { return m_hasEverHadAudio; }
@@ -659,7 +659,7 @@ public:
     void applicationWillResignActive();
     void applicationDidBecomeActive();
 
-    MediaUniqueIdentifier mediaUniqueIdentifier() const;
+    MediaUniqueIdentifier NODELETE mediaUniqueIdentifier() const;
     String mediaSessionTitle() const;
     String sourceApplicationIdentifier() const;
 
@@ -696,7 +696,7 @@ public:
     WEBCORE_EXPORT void requestHostingContext(Function<void(HostingContext)>&&);
     WEBCORE_EXPORT WebCore::HostingContext layerHostingContext();
     WEBCORE_EXPORT WebCore::FloatSize naturalSize();
-    WEBCORE_EXPORT WebCore::FloatSize videoLayerSize() const;
+    WEBCORE_EXPORT WebCore::FloatSize NODELETE videoLayerSize() const;
     void setVideoLayerSizeFenced(const FloatSize&, WTF::MachSendRightAnnotated&&);
     void updateMediaState();
 
@@ -960,8 +960,8 @@ private:
 
     URL selectNextSourceChild(ContentType*, InvalidURLAction);
 
-    bool ignoreTrackDisplayUpdateRequests() const;
-    void beginIgnoringTrackDisplayUpdateRequests();
+    bool NODELETE ignoreTrackDisplayUpdateRequests() const;
+    void NODELETE beginIgnoringTrackDisplayUpdateRequests();
     void endIgnoringTrackDisplayUpdateRequests();
 
     void updateActiveTextTrackCues(const MediaTime&);
@@ -981,7 +981,7 @@ private:
     void markCaptionAndSubtitleTracksAsUnconfigured(ReconfigureMode);
     CaptionUserPreferences::CaptionDisplayMode captionDisplayMode();
 
-    bool textTracksAreReady() const;
+    bool NODELETE textTracksAreReady() const;
     void configureTextTrackDisplay(TextTrackVisibilityCheckType = CheckTextTrackVisibility);
     void updateTextTrackDisplay();
 
@@ -1081,7 +1081,7 @@ private:
     void routingContextUIDDidChange(const AudioSession&) final;
 #endif
 
-    bool hasMediaSource() const;
+    bool NODELETE hasMediaSource() const;
     bool hasManagedMediaSource() const;
 
     bool processingUserGestureForMedia() const;
@@ -1144,7 +1144,7 @@ private:
     };
     void applyConfiguration(const RemotePlaybackConfiguration&);
 
-    bool videoUsesElementFullscreen() const;
+    bool NODELETE videoUsesElementFullscreen() const;
 
 #if !RELEASE_LOG_DISABLED
     uint64_t mediaPlayerLogIdentifier() final { return logIdentifier(); }
@@ -1155,7 +1155,7 @@ private:
     WEBCORE_EXPORT PlatformDynamicRangeLimit computePlayerDynamicRangeLimit() const;
     void updatePlayerDynamicRangeLimit() const;
 
-    bool shouldLogWatchtimeEvent() const;
+    bool NODELETE shouldLogWatchtimeEvent() const;
     bool isWatchtimeTimerActive() const;
     void startWatchtimeTimer();
     void pauseWatchtimeTimer();

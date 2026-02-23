@@ -573,6 +573,12 @@ TextStream& operator<<(TextStream& stream, AXRelation relation)
     case AXRelation::LabelFor:
         stream << "LabelFor";
         break;
+    case AXRelation::NativeLabeledBy:
+        stream << "NativeLabeledBy";
+        break;
+    case AXRelation::NativeLabelFor:
+        stream << "NativeLabelFor";
+        break;
     case AXRelation::OwnedBy:
         stream << "OwnedBy";
         break;

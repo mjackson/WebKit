@@ -246,7 +246,7 @@ bool DebugServer::createAndBindServerSocket()
     // 3. Bind to address and port
     sockaddr_in address;
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK); // Bind to localhost only
     address.sin_port = htons(m_port);
     SocketAddress bindAddress(address);
     if (bind(m_serverSocket, &bindAddress.generic, sizeof(sockaddr_in)) < 0) {

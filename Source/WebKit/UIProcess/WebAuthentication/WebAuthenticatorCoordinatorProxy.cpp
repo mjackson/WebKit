@@ -172,7 +172,7 @@ void WebAuthenticatorCoordinatorProxy::handleRequest(WebAuthenticationRequestDat
 #if HAVE(WEB_AUTHN_AS_MODERN)
             afterConsent(consented ? *consented : protectedThis->removeMatchingAutofillEventForUsername(username, origin));
 #else
-            afterConsent(consented ? *consented : false);
+            afterConsent(consented && *consented);
 #endif
         });
         return;

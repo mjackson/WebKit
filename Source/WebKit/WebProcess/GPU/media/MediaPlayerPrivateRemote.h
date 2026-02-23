@@ -133,7 +133,7 @@ public:
     void playbackStateChanged(bool, MediaTimeUpdateData&&);
     void engineFailedToLoad(int64_t);
     void updateCachedState(RemoteMediaPlayerState&&);
-    void updatePlaybackQualityMetrics(WebCore::VideoPlaybackQualityMetrics&&);
+    void NODELETE updatePlaybackQualityMetrics(WebCore::VideoPlaybackQualityMetrics&&);
     void characteristicChanged(RemoteMediaPlayerState&&);
     void sizeChanged(WebCore::FloatSize);
     void firstVideoFrameAvailable();
@@ -225,18 +225,16 @@ private:
         explicit TimeProgressEstimator(const MediaPlayerPrivateRemote& parent);
         MediaTime currentTime() const;
         MediaTime cachedTime() const;
-        bool timeIsProgressing() const;
+        bool NODELETE timeIsProgressing() const;
         void pause();
         void setTime(const MediaTimeUpdateData&);
         void setRate(double);
         Lock& lock() const { return m_lock; };
         MediaTime currentTimeWithLockHeld() const;
-        MediaTime cachedTimeWithLockHeld() const;
+        MediaTime NODELETE cachedTimeWithLockHeld() const;
         void forceUseOfCachedTimeUntilNextSetTime();
 
     private:
-        Ref<const MediaPlayerPrivateRemote> protectedParent() const { return m_parent.get(); }
-
         mutable Lock m_lock;
         std::atomic<bool> m_timeIsProgressing { false };
         MediaTime m_cachedMediaTime WTF_GUARDED_BY_LOCK(m_lock);

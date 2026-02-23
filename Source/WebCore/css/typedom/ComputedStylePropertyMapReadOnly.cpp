@@ -80,7 +80,7 @@ unsigned ComputedStylePropertyMapReadOnly::size() const
     if (!style)
         return 0;
 
-    return element->document().exposedComputedCSSPropertyIDs().size() + style->inheritedCustomProperties().size() + style->nonInheritedCustomProperties().size();
+    return protect(element->document())->exposedComputedCSSPropertyIDs().size() + style->inheritedCustomProperties().size() + style->nonInheritedCustomProperties().size();
 }
 
 Vector<StylePropertyMapReadOnly::StylePropertyMapEntry> ComputedStylePropertyMapReadOnly::entries(ScriptExecutionContext*) const

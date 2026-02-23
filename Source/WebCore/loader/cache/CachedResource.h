@@ -190,8 +190,8 @@ public:
     }
 
     unsigned size() const { return encodedSize() + decodedSize() + overheadSize(); }
-    unsigned encodedSize() const;
-    unsigned decodedSize() const;
+    unsigned NODELETE encodedSize() const;
+    unsigned NODELETE decodedSize() const;
     unsigned overheadSize() const;
 
     bool isLoaded() const { return !m_loading; } // FIXME. Method name is inaccurate. Loading might not have started yet.
@@ -226,7 +226,7 @@ public:
 
     // Computes the status of an object after loading.
     // Updates the expire date on the cache entry file
-    void finish();
+    void NODELETE finish();
 
     // Called by the cache if the object has been removed from the cache
     // while still being referenced. This means the object should delete itself
@@ -246,9 +246,9 @@ public:
     WEBCORE_EXPORT const ResourceResponse& response() const;
     Box<NetworkLoadMetrics> takeNetworkLoadMetrics() { return mutableResponse().takeNetworkLoadMetrics(); }
 
-    void setCrossOrigin();
-    bool isCrossOrigin() const;
-    bool isCORSCrossOrigin() const;
+    void NODELETE setCrossOrigin();
+    bool NODELETE isCrossOrigin() const;
+    bool NODELETE isCORSCrossOrigin() const;
     bool isCORSSameOrigin() const;
     ResourceResponse::Tainting responseTainting() const { return m_responseTainting; }
 

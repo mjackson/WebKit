@@ -52,7 +52,7 @@ public:
 
     const ContentSecurityPolicyDirectiveList& directiveList() const { return m_directiveList; }
 
-    bool isDefaultSrc() const;
+    bool NODELETE isDefaultSrc() const;
 
 private:
     String m_name;

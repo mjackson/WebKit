@@ -37,6 +37,7 @@
 #include "RenderBoxInlines.h"
 #include "RenderElementStyleInlines.h"
 #include "RenderImage.h"
+#include "StyleZoomPrimitivesInlines.h"
 #include <wtf/NeverDestroyed.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>
@@ -178,7 +179,7 @@ unsigned ImageInputType::height() const
 
     CheckedPtr renderer = element->renderer();
     if (renderer)
-        return adjustForAbsoluteZoom(downcast<RenderBox>(*renderer).contentBoxHeight(), *renderer);
+        return Style::adjustForAbsoluteZoom(downcast<RenderBox>(*renderer).contentBoxHeight(), *renderer);
 
     // Check the attribute first for an explicit pixel value.
     if (auto optionalHeight = parseHTMLNonNegativeInteger(element->attributeWithoutSynchronization(heightAttr)))
@@ -201,7 +202,7 @@ unsigned ImageInputType::width() const
 
     CheckedPtr renderer = element->renderer();
     if (renderer)
-        return adjustForAbsoluteZoom(downcast<RenderBox>(*renderer).contentBoxWidth(), *renderer);
+        return Style::adjustForAbsoluteZoom(downcast<RenderBox>(*renderer).contentBoxWidth(), *renderer);
 
     // Check the attribute first for an explicit pixel value.
     if (auto optionalWidth = parseHTMLNonNegativeInteger(element->attributeWithoutSynchronization(widthAttr)))

@@ -51,7 +51,7 @@ ScrollbarsController::~ScrollbarsController() = default;
 
 bool ScrollbarsController::shouldSuspendScrollbarAnimations() const
 {
-    return checkedScrollableArea()->shouldSuspendScrollAnimations();
+    return protect(scrollableArea())->shouldSuspendScrollAnimations();
 }
 
 void ScrollbarsController::cancelAnimations()

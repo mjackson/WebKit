@@ -98,7 +98,10 @@ bool RenderSVGResourceGradient::buildGradientIfNeeded(const RenderLayerModelObje
         userspaceTransform.scale(objectBoundingBox.size());
     }
 
-    if (auto gradientTransform = this->gradientTransform(); !gradientTransform.isIdentity())
+    auto gradientTransform = this->gradientTransform();
+    if (!gradientTransform.isInvertible())
+        return false;
+    if (!gradientTransform.isIdentity())
         userspaceTransform.multiply(gradientTransform);
 
     return true;

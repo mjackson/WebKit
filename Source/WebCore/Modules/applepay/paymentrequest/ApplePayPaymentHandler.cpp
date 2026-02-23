@@ -197,7 +197,7 @@ static ExceptionOr<Vector<ApplePayLineItem>> convertAndValidate(const Vector<Pay
     return { WTF::move(result) };
 }
 
-static ApplePaySessionPaymentRequest::ShippingType convert(PaymentShippingType type)
+static ApplePaySessionPaymentRequest::ShippingType NODELETE convert(PaymentShippingType type)
 {
     switch (type) {
     case PaymentShippingType::Shipping:
@@ -235,7 +235,7 @@ ExceptionOr<void> ApplePayPaymentHandler::convertData(Document& document, JSC::J
     return { };
 }
 
-static void mergePaymentOptions(const PaymentOptions& options, ApplePaySessionPaymentRequest& request)
+static void NODELETE mergePaymentOptions(const PaymentOptions& options, ApplePaySessionPaymentRequest& request)
 {
     auto requiredShippingContactFields = request.requiredShippingContactFields();
     requiredShippingContactFields.email |= options.requestPayerEmail;

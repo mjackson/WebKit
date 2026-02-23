@@ -126,10 +126,8 @@ public:
     unsigned numberOfInputs() const { return m_inputs.size(); }
     unsigned numberOfOutputs() const { return m_outputs.size(); }
 
-    AudioNodeInput* input(unsigned);
-    CheckedPtr<AudioNodeInput> checkedInput(unsigned);
-    AudioNodeOutput* output(unsigned);
-    CheckedPtr<AudioNodeOutput> checkedOutput(unsigned);
+    AudioNodeInput* NODELETE input(unsigned);
+    AudioNodeOutput* NODELETE output(unsigned);
 
     // Called from main thread by corresponding JavaScript methods.
     ExceptionOr<void> connect(AudioNode&, unsigned outputIndex, unsigned inputIndex);
@@ -237,10 +235,10 @@ protected:
     const Logger& logger() const final { return m_logger.get(); }
     uint64_t logIdentifier() const final { return m_logIdentifier; }
     ASCIILiteral logClassName() const final { return "AudioNode"_s; }
-    WTFLogChannel& logChannel() const final;
+    WTFLogChannel& NODELETE logChannel() const final;
 #endif
 
-    void initializeDefaultNodeOptions(unsigned count, ChannelCountMode, ChannelInterpretation);
+    void NODELETE initializeDefaultNodeOptions(unsigned count, ChannelCountMode, ChannelInterpretation);
 
     virtual void updatePullStatus() { }
 
@@ -327,6 +325,11 @@ namespace WTF {
 template<> struct LogArgument<WebCore::AudioNode::NodeType> {
     static String toString(WebCore::AudioNode::NodeType type) { return convertEnumerationToString(type); }
 };
+
+// Make sure `protect()` returns a CheckedPtr/CheckedRef for AudioNodes instead of a RefPtr/Ref
+// since AudioNode's ref-counting is not thread-safe and protect() gets called from the AudioThread.
+inline CheckedRef<WebCore::AudioNode> protect(WebCore::AudioNode& node) { return node; }
+inline CheckedPtr<WebCore::AudioNode> protect(WebCore::AudioNode* node) { return node; }
 
 } // namespace WTF
 

@@ -71,7 +71,7 @@ void LegacyRenderSVGResourcePattern::removeClientFromCache(RenderElement& client
 
 void LegacyRenderSVGResourcePattern::collectPatternAttributes(PatternAttributes& attributes) const
 {
-    const LegacyRenderSVGResourcePattern* current = this;
+    CheckedPtr current = this;
 
     while (current) {
         Ref pattern = current->patternElement();

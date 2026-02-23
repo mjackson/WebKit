@@ -119,7 +119,7 @@ private:
     void updateSaveButton(bool);
     void updateImage();
 
-    void setNeedsIconRequest();
+    void NODELETE setNeedsIconRequest();
 
     RenderPtr<RenderElement> createElementRenderer(RenderStyle&&, const RenderTreePosition&) final;
     bool isReplaced(const RenderStyle* = nullptr) const final { return true; }

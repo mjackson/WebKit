@@ -51,7 +51,7 @@ public:
     const WebCore::Site& sharedProcessMainFrameSite() const { ASSERT(!m_site); return m_mainFrameSite; }
     bool isArchiveProcess() const { return m_isArchiveProcess; }
 
-    BrowsingContextGroup* browsingContextGroup() const;
+    BrowsingContextGroup* NODELETE browsingContextGroup() const;
 
     void incrementFrameCount() { m_frameCount++; }
     void decrementFrameCount() { m_frameCount--; }

@@ -32,7 +32,6 @@
 #include "ProgressShadowElement.h"
 
 #include "ContainerNodeInlines.h"
-#include "HTMLNames.h"
 #include "HTMLProgressElement.h"
 #include "RenderProgress.h"
 #include "RenderStyle+GettersInlines.h"
@@ -46,10 +45,8 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(ProgressInnerElement);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ProgressBarElement);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ProgressValueElement);
 
-using namespace HTMLNames;
-
 ProgressShadowElement::ProgressShadowElement(Document& document)
-    : HTMLDivElement(HTMLNames::divTag, document)
+    : HTMLDivElement(document)
 {
 }
 

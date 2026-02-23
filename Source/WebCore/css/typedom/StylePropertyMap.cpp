@@ -75,7 +75,7 @@ ExceptionOr<void> StylePropertyMap::set(Document& document, const AtomString& pr
         if (styleValues.size() != 1 || !is<CSSUnparsedValue>(styleValues[0].get()))
             return Exception { ExceptionCode::TypeError, "Invalid values"_s };
 
-        auto value = styleValues[0]->toCSSValue();
+        auto value = protect(styleValues[0])->toCSSValue();
         if (!value)
             return Exception { ExceptionCode::TypeError, "Invalid values"_s };
         setCustomProperty(document, property, downcast<CSSVariableReferenceValue>(value.releaseNonNull()));

@@ -104,7 +104,7 @@ public:
     virtual void bufferingDidChange(MediaDeviceRoute&) { }
     virtual void playbackErrorDidChange(MediaDeviceRoute&) { }
     virtual void hasAudioDidChange(MediaDeviceRoute&) { }
-    virtual void currentValueDidChange(MediaDeviceRoute&) { }
+    virtual void currentPlaybackPositionDidChange(MediaDeviceRoute&) { }
     virtual void playingDidChange(MediaDeviceRoute&) { }
     virtual void playbackSpeedDidChange(MediaDeviceRoute&) { }
     virtual void scanSpeedDidChange(MediaDeviceRoute&) { }
@@ -133,14 +133,14 @@ public:
     bool buffering() const;
     std::optional<MediaPlaybackSourceError> playbackError() const;
     bool hasAudio() const;
-    MediaTime currentValue() const;
+    MediaTime currentPlaybackPosition() const;
     bool playing() const;
     float playbackSpeed() const;
     float scanSpeed() const;
     bool muted() const;
     float volume() const;
 
-    void setCurrentValue(MediaTime);
+    void setCurrentPlaybackPosition(MediaTime);
     void setPlaying(bool);
     void setPlaybackSpeed(float);
     void setScanSpeed(float);

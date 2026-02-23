@@ -113,6 +113,8 @@ SOFT_LINK_CONSTANT_FOR_HEADER(PAL, CoreMedia, kCMTimePositiveInfinity, CMTime)
 #define kCMTimePositiveInfinity get_CoreMedia_kCMTimePositiveInfinitySingleton()
 SOFT_LINK_CONSTANT_FOR_HEADER(PAL, CoreMedia, kCMTimeRangeInvalid, CMTimeRange);
 #define kCMTimeRangeInvalid get_CoreMedia_kCMTimeRangeInvalidSingleton()
+SOFT_LINK_CONSTANT_FOR_HEADER(PAL, CoreMedia, kCMTimeRangeZero, CMTimeRange);
+#define kCMTimeRangeZero get_CoreMedia_kCMTimeRangeZeroSingleton()
 SOFT_LINK_CONSTANT_FOR_HEADER(PAL, CoreMedia, kCMTimeIndefinite, CMTime)
 #define kCMTimeIndefinite get_CoreMedia_kCMTimeIndefiniteSingleton()
 

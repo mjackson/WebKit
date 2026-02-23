@@ -60,7 +60,6 @@ public:
 
     virtual WorkerDebuggerProxy* workerDebuggerProxy() const = 0;
     virtual WorkerLoaderProxy* workerLoaderProxy() const = 0;
-    virtual CheckedPtr<WorkerLoaderProxy> checkedWorkerLoaderProxy() const;
 
     WorkerOrWorkletGlobalScope* globalScope() const { return m_globalScope.get(); }
     WorkerRunLoop& runLoop() { return m_runLoop; }

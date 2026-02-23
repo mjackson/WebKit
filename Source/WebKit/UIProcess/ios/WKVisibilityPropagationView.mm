@@ -84,6 +84,11 @@ using ProcessAndInteractionPair = std::pair<WeakPtr<AuxiliaryProcessProxy>, Reta
     });
 }
 
+- (void)clear
+{
+    _processesAndInteractions.clear();
+}
+
 @end
 
 #endif // HAVE(VISIBILITY_PROPAGATION_VIEW) && USE(EXTENSIONKIT)

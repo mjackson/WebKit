@@ -729,7 +729,7 @@ Position Position::upstream(EditingBoundaryCrossingRule rule) const
         }
 
         // return current position if it is in rendered text
-        if (auto* textRenderer = dynamicDowncast<RenderText>(*renderer)) {
+        if (CheckedPtr textRenderer = dynamicDowncast<RenderText>(*renderer)) {
             auto [firstTextBox, orderCache] = InlineIterator::firstTextBoxInLogicalOrderFor(*textRenderer);
             if (!firstTextBox)
                 continue;
@@ -839,7 +839,7 @@ Position Position::downstream(EditingBoundaryCrossingRule rule) const
         }
 
         // return current position if it is in rendered text
-        if (auto* textRenderer = dynamicDowncast<RenderText>(*renderer)) {
+        if (CheckedPtr textRenderer = dynamicDowncast<RenderText>(*renderer)) {
             auto [firstTextBox, orderCache] = InlineIterator::firstTextBoxInLogicalOrderFor(*textRenderer);
             if (!firstTextBox)
                 continue;
@@ -896,7 +896,7 @@ unsigned Position::positionCountBetweenPositions(const Position& a, const Positi
 bool Position::hasRenderedNonAnonymousDescendantsWithHeight(const RenderElement& renderer)
 {
     auto isHorizontal = renderer.isHorizontalWritingMode();
-    auto* stop = renderer.nextInPreOrderAfterChildren();
+    CheckedPtr stop = renderer.nextInPreOrderAfterChildren();
     for (CheckedPtr descendant = renderer.firstChild(); descendant && descendant != stop; descendant = descendant->nextInPreOrder()) {
         if (!descendant->nonPseudoNode())
             continue;

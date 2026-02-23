@@ -93,10 +93,10 @@ public:
     void setStringValueForKey(const String&, const String& value, bool ephemeral);
     void forceUpdate() { update(); }
 
-    void startBatchingUpdates();
+    void NODELETE startBatchingUpdates();
     void endBatchingUpdates();
 
-    static void forceSiteIsolationAlwaysOnForTesting();
+    static void NODELETE forceSiteIsolationAlwaysOnForTesting();
 
 private:
     void platformInitializeStore();

@@ -79,7 +79,7 @@ public:
     
     std::optional<WebCore::DestinationColorSpace> displayColorSpace() const;
 
-    std::optional<DrawingAreaIdentifier> drawingAreaIdentifier() const;
+    std::optional<DrawingAreaIdentifier> NODELETE drawingAreaIdentifier() const;
 
     WebCore::UseLosslessCompression useIOSurfaceLosslessCompression() const;
 
@@ -109,7 +109,7 @@ public:
     bool canShowWhileLocked() const;
 #endif
 
-    WebPage& webPage() const;
+    WebPage& NODELETE webPage() const;
 
 private:
     explicit RemoteLayerTreeContext(WebPage&);

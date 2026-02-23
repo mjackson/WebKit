@@ -110,7 +110,7 @@ public:
 
     // This is meant only for implementing tests. Never call this in release
     // builds.
-    WTF_EXPORT_PRIVATE size_t debugFreeSpaceSize();
+    WTF_EXPORT_PRIVATE size_t NODELETE debugFreeSpaceSize();
 
     WTF_EXPORT_PRIVATE bool isInAllocatedMemory(const AbstractLocker&, void* address);
     
@@ -187,7 +187,7 @@ private:
 
     // Utilities.
     
-    size_t roundUp(size_t sizeInBytes);
+    size_t NODELETE roundUp(size_t sizeInBytes);
     
     FreeSpaceNode* allocFreeSpaceNode();
     WTF_EXPORT_PRIVATE void freeFreeSpaceNode(CheckedPtr<FreeSpaceNode>&&);

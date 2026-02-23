@@ -82,14 +82,14 @@ CustomElementConstructionData::~CustomElementConstructionData() = default;
 
 namespace {
 
-inline bool isASCIIWhitespaceOrReplacementCharacter(char16_t character)
+inline bool NODELETE isASCIIWhitespaceOrReplacementCharacter(char16_t character)
 {
     return isASCIIWhitespace(character) || character == replacementCharacter;
 }
 
 }
 
-static inline TextPosition uninitializedPositionValue1()
+static inline TextPosition NODELETE uninitializedPositionValue1()
 {
     return TextPosition(OrdinalNumber::fromOneBasedInt(-1), OrdinalNumber());
 }
@@ -110,7 +110,7 @@ static bool isTableBodyContextElement(ElementName elementName)
 }
 #endif
 
-static bool isNonAnchorNonNobrFormattingTag(TagName tagName)
+static bool NODELETE isNonAnchorNonNobrFormattingTag(TagName tagName)
 {
     return tagName == TagName::b
         || tagName == TagName::big
@@ -126,13 +126,13 @@ static bool isNonAnchorNonNobrFormattingTag(TagName tagName)
         || tagName == TagName::u;
 }
 
-static bool isNonAnchorFormattingTag(TagName tagName)
+static bool NODELETE isNonAnchorFormattingTag(TagName tagName)
 {
     return tagName == TagName::nobr || isNonAnchorNonNobrFormattingTag(tagName);
 }
 
 // https://html.spec.whatwg.org/multipage/syntax.html#formatting
-bool HTMLConstructionSite::isFormattingTag(TagName tagName)
+bool NODELETE HTMLConstructionSite::isFormattingTag(TagName tagName)
 {
     return tagName == TagName::a || isNonAnchorFormattingTag(tagName);
 }
@@ -158,9 +158,9 @@ public:
         ASSERT(isEmpty());
     }
 
-    bool isEmpty() const { return m_text.isEmpty(); }
+    bool NODELETE isEmpty() const { return m_text.isEmpty(); }
 
-    bool isAll8BitData() const { return m_isAll8BitData; }
+    bool NODELETE isAll8BitData() const { return m_isAll8BitData; }
 
     void skipAtMostOneLeadingNewline()
     {
@@ -446,12 +446,12 @@ void HTMLTreeBuilder::processFakePEndTagIfPInButtonScope()
 
 namespace {
 
-bool isLi(const HTMLStackItem& item)
+bool NODELETE isLi(const HTMLStackItem& item)
 {
     return item.elementName() == HTML::li;
 }
 
-bool isDdOrDt(const HTMLStackItem& item)
+bool NODELETE isDdOrDt(const HTMLStackItem& item)
 {
     return item.elementName() == HTML::dd || item.elementName() == HTML::dt;
 }
@@ -475,7 +475,7 @@ template <bool shouldClose(const HTMLStackItem&)> void HTMLTreeBuilder::processC
     m_tree.insertHTMLElement(WTF::move(token));
 }
 
-static void adjustSVGTagNameCase(AtomHTMLToken& token)
+static void NODELETE adjustSVGTagNameCase(AtomHTMLToken& token)
 {
     if (auto currentTagName = token.tagName(); currentTagName != TagName::Unknown)
         token.setTagName(adjustSVGTagName(currentTagName));
@@ -641,6 +641,11 @@ void HTMLTreeBuilder::processStartTagForInBody(AtomHTMLToken&& token)
     case TagName::noframes:
     case TagName::script:
     case TagName::style:
+        if (m_options.enhancedSelectQuirk && m_tree.openElements().inScope(HTML::select)) {
+            parseError(token);
+            return;
+        }
+        [[fallthrough]];
     case TagName::title: {
         bool didProcess = processStartTagForInHead(WTF::move(token));
         ASSERT_UNUSED(didProcess, didProcess);

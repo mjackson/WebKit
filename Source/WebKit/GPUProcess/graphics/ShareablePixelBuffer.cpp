@@ -57,9 +57,4 @@ RefPtr<PixelBuffer> ShareablePixelBuffer::createScratchPixelBuffer(const IntSize
     return ShareablePixelBuffer::tryCreate(format(), size);
 }
 
-Ref<WebCore::SharedMemory> ShareablePixelBuffer::protectedData() const
-{
-    return m_data;
-}
-
 } // namespace WebKit

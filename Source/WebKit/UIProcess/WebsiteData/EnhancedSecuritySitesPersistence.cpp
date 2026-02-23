@@ -48,7 +48,7 @@ static constexpr auto createEnhancedSecurityStateIndexSQL = "CREATE INDEX idx_si
 
 static constexpr auto selectAllSitesSQL = "SELECT site FROM sites"_s;
 
-static_assert(!enumToUnderlyingType(EnhancedSecurity::Disabled), "EnhancedSecurity::Disabled is not 0 as expected");
+static_assert(!std::to_underlying(EnhancedSecurity::Disabled), "EnhancedSecurity::Disabled is not 0 as expected");
 static constexpr auto selectEnhancedSecurityOnlySitesSQL = "SELECT site FROM sites WHERE enhanced_security_state != 0"_s;
 
 static constexpr auto selectSpecificSiteSQL = "SELECT enhanced_security_state FROM sites WHERE site = ?"_s;
@@ -266,7 +266,7 @@ void EnhancedSecuritySitesPersistence::trackEnhancedSecurityForDomain(WebCore::R
 
     CheckedPtr insertSiteStatement = cachedStatement(StatementType::InsertSite).get();
 
-    auto enhancedSecurityReason = enumToUnderlyingType(reason);
+    auto enhancedSecurityReason = std::to_underlying(reason);
     if (!insertSiteStatement
         || insertSiteStatement->bindText(1, site.string()) != SQLITE_OK
         || insertSiteStatement->bindInt(2, enhancedSecurityReason) != SQLITE_OK

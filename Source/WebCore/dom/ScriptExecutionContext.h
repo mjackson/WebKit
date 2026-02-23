@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include <JavaScriptCore/Weak.h>
 #include <WebCore/ScriptExecutionContextIdentifier.h>
 #include <WebCore/SecurityContext.h>
 #include <WebCore/ServiceWorkerIdentifier.h>
@@ -203,7 +204,7 @@ public:
     bool activeDOMObjectsAreSuspended() const { return m_activeDOMObjectsAreSuspended; }
     bool activeDOMObjectsAreStopped() const { return m_activeDOMObjectsAreStopped; }
 
-    JSC::ScriptExecutionStatus jscScriptExecutionStatus() const;
+    JSC::ScriptExecutionStatus NODELETE jscScriptExecutionStatus() const;
 
     enum class CallStackPosition : bool { BottomMost, TopMost };
     URL currentSourceURL(CallStackPosition = CallStackPosition::BottomMost) const;
@@ -231,9 +232,9 @@ public:
     virtual void beginLoadingFontSoon(FontLoadRequest&) { }
 
     WEBCORE_EXPORT static void setCrossOriginMode(CrossOriginMode);
-    static CrossOriginMode crossOriginMode();
+    static CrossOriginMode NODELETE crossOriginMode();
 
-    WEBCORE_EXPORT void ref();
+    WEBCORE_EXPORT void NODELETE ref();
     WEBCORE_EXPORT void deref();
 
     uint32_t checkedPtrCount() const final { return CanMakeThreadSafeCheckedPtr::checkedPtrCount(); }
@@ -288,7 +289,7 @@ public:
     void postTaskToResponsibleDocument(Function<void(Document&)>&&);
 
     // Gets the next id in a circular sequence from 1 to 2^31-1.
-    int circularSequentialID();
+    int NODELETE circularSequentialID();
 
     inline bool addTimeout(int timeoutId, DOMTimer&); // Defined in ScriptExecutionContextInlines.h
     inline RefPtr<DOMTimer> takeTimeout(int timeoutId); // Defined in ScriptExecutionContextInlines.h
@@ -387,6 +388,11 @@ public:
 
     bool isAlwaysOnLoggingAllowed() const;
 
+    void setMicrotaskGlobalObject(JSC::JSGlobalObject*);
+    JSC::JSGlobalObject* microtaskGlobalObject() const;
+    void clearMicrotaskGlobalObject();
+    virtual bool isEventLoopGroupStoppedPermanently() const { return false; }
+
 protected:
     class AddConsoleMessageTask : public Task {
     public:
@@ -420,7 +426,7 @@ private:
 
     RejectedPromiseTracker* ensureRejectedPromiseTrackerSlow();
 
-    void checkConsistency() const;
+    void NODELETE checkConsistency() const;
     WEBCORE_EXPORT GuaranteedSerialFunctionDispatcher& nativePromiseDispatcher();
 
     WeakHashSet<MessagePort, WeakPtrImplWithEventTargetData> m_messagePorts;
@@ -467,8 +473,9 @@ private:
 
     const RefPtr<GuaranteedSerialFunctionDispatcher> m_nativePromiseDispatcher;
     WeakHashSet<NativePromiseRequest> m_nativePromiseRequests;
+    JSC::Weak<JSC::JSGlobalObject> m_microtaskGlobalObject;
 };
 
-WebCoreOpaqueRoot root(ScriptExecutionContext*);
+WebCoreOpaqueRoot NODELETE root(ScriptExecutionContext*);
 
 } // namespace WebCore

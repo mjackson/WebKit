@@ -49,7 +49,7 @@ private:
 
     void styleDidChange(Style::Difference, const RenderStyle*) final;
 
-    bool shouldStrokeZeroLengthSubpath() const;
+    bool NODELETE shouldStrokeZeroLengthSubpath() const;
     Path* zeroLengthLinecapPath(const FloatPoint&) const;
     FloatRect zeroLengthSubpathRect(const FloatPoint&, float) const;
     void updateZeroLengthSubpaths();

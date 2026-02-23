@@ -85,21 +85,8 @@ static void dump(TextStream& ts, const ScrollingStateScrollingNode& node, bool c
     if (!changedPropertiesOnly || node.hasChangedProperty(ScrollingStateNode::Property::ScrollOrigin))
         ts.dumpProperty("scroll-origin"_s, node.scrollOrigin());
 
-    if (!changedPropertiesOnly || node.hasChangedProperty(ScrollingStateNode::Property::RequestedScrollPosition)) {
-        const auto& requestedScrollData = node.requestedScrollData();
-        ts.dumpProperty("requested-type"_s, requestedScrollData.requestType);
-        if (requestedScrollData.requestType != ScrollRequestType::CancelAnimatedScroll) {
-            if (requestedScrollData.requestType == ScrollRequestType::DeltaUpdate)
-                ts.dumpProperty("requested-scroll-delta"_s, std::get<FloatSize>(requestedScrollData.scrollPositionOrDelta));
-            else
-                ts.dumpProperty("requested-scroll-position"_s, std::get<FloatPoint>(requestedScrollData.scrollPositionOrDelta));
-
-            ts.dumpProperty("requested-scroll-position-is-programatic"_s, requestedScrollData.scrollType);
-            ts.dumpProperty("requested-scroll-position-clamping"_s, requestedScrollData.clamping);
-            ts.dumpProperty("requested-scroll-position-animated"_s, requestedScrollData.animated == ScrollIsAnimated::Yes);
-            ts.dumpProperty("requested-scroll-scrollbars-reveal-behavior"_s, requestedScrollData.scrollbarRevealBehavior);
-        }
-    }
+    if (!changedPropertiesOnly || node.hasChangedProperty(ScrollingStateNode::Property::RequestedScrollPosition))
+        ts.dumpProperty("requested-scroll"_s, node.requestedScrollData());
 
     if (!changedPropertiesOnly || node.hasChangedProperty(ScrollingStateNode::Property::ScrollContainerLayer))
         ts.dumpProperty("scroll-container-layer"_s, node.scrollContainerLayer().layerID());

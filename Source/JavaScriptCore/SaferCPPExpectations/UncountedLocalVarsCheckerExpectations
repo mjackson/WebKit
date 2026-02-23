@@ -26,7 +26,7 @@ bytecompiler/NodesCodegen.cpp
 bytecompiler/StaticPropertyAnalyzer.h
 debugger/Debugger.cpp
 dfg/DFGAbstractInterpreterInlines.h
-dfg/DFGArrayMode.cpp
+[ iOS ] dfg/DFGArrayMode.cpp
 dfg/DFGByteCodeParser.cpp
 dfg/DFGClobberize.h
 dfg/DFGCommonData.cpp
@@ -36,7 +36,7 @@ dfg/DFGDesiredIdentifiers.cpp
 dfg/DFGDesiredWatchpoints.cpp
 dfg/DFGFixupPhase.cpp
 dfg/DFGGraph.cpp
-dfg/DFGJITCode.cpp
+[ iOS ] dfg/DFGJITCode.cpp
 dfg/DFGLazyJSValue.cpp
 dfg/DFGOSREntry.cpp
 dfg/DFGOSRExit.cpp
@@ -60,7 +60,7 @@ ftl/FTLPatchpointExceptionHandle.cpp
 heap/ConservativeRoots.cpp
 heap/JITStubRoutineSet.cpp
 inspector/AsyncStackTrace.cpp
-inspector/JSJavaScriptCallFrame.cpp
+[ iOS ] inspector/JSJavaScriptCallFrame.cpp
 inspector/ScriptCallStackFactory.cpp
 inspector/agents/InspectorDebuggerAgent.cpp
 inspector/agents/InspectorScriptProfilerAgent.cpp
@@ -106,7 +106,7 @@ runtime/StructureInlines.h
 runtime/SymbolTable.h
 runtime/TypeSet.cpp
 runtime/VMTraps.cpp
-runtime/WaiterListManager.h
+[ iOS ] runtime/WaiterListManager.h
 tools/JSDollarVM.cpp
 wasm/WasmBBQJIT.cpp
 wasm/WasmBBQJIT64.cpp
@@ -114,6 +114,7 @@ wasm/WasmBBQPlan.cpp
 wasm/WasmCallee.cpp
 wasm/WasmConstExprGenerator.cpp
 wasm/WasmFaultSignalHandler.cpp
+[ iOS ] wasm/WasmFormat.h
 wasm/WasmFunctionParser.h
 wasm/WasmIPIntGenerator.cpp
 wasm/WasmIPIntPlan.cpp

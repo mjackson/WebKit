@@ -63,7 +63,7 @@ public:
     ~WebExtensionCallbackHandler();
 
     JSGlobalContextRef globalContext() const { return m_globalContext.get(); }
-    JSValueRef callbackFunction() const;
+    JSValueRef NODELETE callbackFunction() const;
 
     void reportError(const String&);
 

@@ -92,6 +92,13 @@ void RemoteImageBufferSet::updateConfiguration(const RemoteImageBufferSetConfigu
     clearBuffers();
 }
 
+void RemoteImageBufferSet::submitDrawingCommands()
+{
+    RefPtr frontBuffer = m_frontBuffer;
+    if (frontBuffer)
+        frontBuffer->submitDrawingCommands();
+}
+
 void RemoteImageBufferSet::endPrepareForDisplay(RenderingUpdateID renderingUpdateID, CompletionHandler<void(ImageBufferSetPrepareBufferForDisplayOutputData, RenderingUpdateID)>&& completionHandler)
 {
     m_context.reset();
@@ -121,9 +128,9 @@ void RemoteImageBufferSet::ensureBufferForDisplay(ImageBufferSetPrepareBufferFor
 {
     assertIsCurrent(workQueue());
     LOG_WITH_STREAM(RemoteLayerBuffers, stream << "GPU Process: ::ensureFrontBufferForDisplay " << " - front "
-        << m_frontBuffer << " (in-use " << (m_frontBuffer && protectedFrontBuffer()->isInUse()) << ") "
-        << m_backBuffer << " (in-use " << (m_backBuffer && protectedBackBuffer()->isInUse()) << ") "
-        << m_secondaryBackBuffer << " (in-use " << (m_secondaryBackBuffer && protectedSecondaryBackBuffer()->isInUse()) << ") ");
+        << m_frontBuffer << " (in-use " << (m_frontBuffer && protect(m_frontBuffer)->isInUse()) << ") "
+        << m_backBuffer << " (in-use " << (m_backBuffer && protect(m_backBuffer)->isInUse()) << ") "
+        << m_secondaryBackBuffer << " (in-use " << (m_secondaryBackBuffer && protect(m_secondaryBackBuffer)->isInUse()) << ") ");
 
     displayRequirement = swapBuffersForDisplay(inputData.hasEmptyDirtyRegion, inputData.supportsPartialRepaint && !isSmallLayerBacking({ m_configuration.logicalSize, m_configuration.resolutionScale, m_configuration.colorSpace, m_configuration.bufferFormat, m_configuration.renderingPurpose }));
     if (displayRequirement == SwapBuffersDisplayRequirement::NeedsFullDisplay) {

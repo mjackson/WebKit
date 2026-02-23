@@ -42,7 +42,7 @@ ALLOW_UNUSED_PARAMETERS_END
 
 namespace WebCore {
 
-static inline RTCIceTransportState toRTCIceTransportState(webrtc::IceTransportState state)
+static inline RTCIceTransportState NODELETE toRTCIceTransportState(webrtc::IceTransportState state)
 {
     switch (state) {
     case webrtc::IceTransportState::kNew:
@@ -64,7 +64,7 @@ static inline RTCIceTransportState toRTCIceTransportState(webrtc::IceTransportSt
     RELEASE_ASSERT_NOT_REACHED();
 }
 
-static inline RTCIceGatheringState toRTCIceGatheringState(webrtc::IceGatheringState state)
+static inline RTCIceGatheringState NODELETE toRTCIceGatheringState(webrtc::IceGatheringState state)
 {
     switch (state) {
     case webrtc::IceGatheringState::kIceGatheringNew:

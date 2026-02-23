@@ -66,7 +66,6 @@ public:
     SCStream* stream() const { return m_stream.get(); }
     SCContentFilter* contentFilter() const { return m_contentFilter.get(); }
     ScreenCaptureSessionSourceObserver* observer() const { return m_observer.get(); }
-    CheckedPtr<ScreenCaptureSessionSourceObserver> checkedObserver() const { return m_observer.get(); }
 
     void updateContentFilter(SCContentFilter*);
     void streamDidEnd();

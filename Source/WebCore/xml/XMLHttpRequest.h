@@ -81,7 +81,7 @@ public:
     enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::XMLHttpRequest; }
     ScriptExecutionContext* scriptExecutionContext() const final;
 
-    using SendTypes = Variant<Ref<Document>, Ref<Blob>, RefPtr<JSC::ArrayBufferView>, RefPtr<JSC::ArrayBuffer>, Ref<DOMFormData>, String, Ref<URLSearchParams>>;
+    using SendTypes = Variant<Ref<Document>, Ref<Blob>, Ref<JSC::ArrayBufferView>, Ref<JSC::ArrayBuffer>, Ref<DOMFormData>, String, Ref<URLSearchParams>>;
 
     const URL& url() const { return m_url; }
     String statusText() const;
@@ -181,8 +181,8 @@ private:
     ExceptionOr<void> send(String&& = { });
     ExceptionOr<void> send(Ref<Blob>&&);
     ExceptionOr<void> send(Ref<DOMFormData>&&);
-    ExceptionOr<void> send(JSC::ArrayBuffer&);
-    ExceptionOr<void> send(JSC::ArrayBufferView&);
+    ExceptionOr<void> send(Ref<JSC::ArrayBuffer>&&);
+    ExceptionOr<void> send(Ref<JSC::ArrayBufferView>&&);
     ExceptionOr<void> sendBytesData(std::span<const uint8_t>);
 
     void changeState(State);

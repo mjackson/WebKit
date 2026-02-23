@@ -45,29 +45,24 @@ RemoteSampler::RemoteSampler(WebCore::WebGPU::Sampler& sampler, WebGPU::ObjectHe
     , m_gpu(gpu)
     , m_identifier(identifier)
 {
-    protectedStreamConnection()->startReceivingMessages(*this, Messages::RemoteSampler::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->startReceivingMessages(*this, Messages::RemoteSampler::messageReceiverName(), m_identifier.toUInt64());
 }
 
 RemoteSampler::~RemoteSampler() = default;
 
 void RemoteSampler::destruct()
 {
-    Ref { m_objectHeap.get() }->removeObject(m_identifier);
+    protect(m_objectHeap)->removeObject(m_identifier);
 }
 
 void RemoteSampler::stopListeningForIPC()
 {
-    protectedStreamConnection()->stopReceivingMessages(Messages::RemoteSampler::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->stopReceivingMessages(Messages::RemoteSampler::messageReceiverName(), m_identifier.toUInt64());
 }
 
 void RemoteSampler::setLabel(String&& label)
 {
-    Ref { m_backing }->setLabel(WTF::move(label));
-}
-
-Ref<IPC::StreamServerConnection> RemoteSampler::protectedStreamConnection() const
-{
-    return m_streamConnection;
+    protect(m_backing)->setLabel(WTF::move(label));
 }
 
 } // namespace WebKit

@@ -1512,6 +1512,8 @@
 		F6B7BE9517469212008A3445 /* DidAssociateFormControls_Bundle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6B7BE92174691EF008A3445 /* DidAssociateFormControls_Bundle.cpp */; };
 		F6D67D3826F90206006E0349 /* Int128.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6D67D3626F90206006E0349 /* Int128.cpp */; };
 		F6F49C6B15545CA70007F39D /* DOMWindowExtensionNoCache_Bundle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6F49C6615545C8D0007F39D /* DOMWindowExtensionNoCache_Bundle.cpp */; };
+		FC0A4AEE2F0E76EE0053173D /* MessageLogTests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FC0A4AED2F0E76EE0053173D /* MessageLogTests.cpp */; };
+		FC0A4AEF2F0E76EE0053173D /* MessageLogEndToEndTests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FC0A4AF02F0E76EE0053173D /* MessageLogEndToEndTests.cpp */; };
 		FAC1FE462F19C3EB0030C30E /* open-in-new-tab.html in Copy Resources */ = {isa = PBXBuildFile; fileRef = FAC1FE452F19C3EB0030C30E /* open-in-new-tab.html */; };
 		FAC1FE572F21AD890030C30E /* JSHandlePlugIn.mm in Sources */ = {isa = PBXBuildFile; fileRef = FAC1FE4F2F2152270030C30E /* JSHandlePlugIn.mm */; };
 		FE2BCDC72470FDA300DEC33B /* StdLibExtrasTests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FE2BCDC62470FC7000DEC33B /* StdLibExtrasTests.cpp */; };
@@ -4484,6 +4486,8 @@
 		FAC1FE4F2F2152270030C30E /* JSHandlePlugIn.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = JSHandlePlugIn.mm; sourceTree = "<group>"; };
 		FAC1FE582F21B1820030C30E /* JSHandlePlugInProtocol.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSHandlePlugInProtocol.h; sourceTree = "<group>"; };
 		FAD420BF2E4AB7AA00069B2E /* SerializedNode.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = SerializedNode.mm; sourceTree = "<group>"; };
+		FC0A4AED2F0E76EE0053173D /* MessageLogTests.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = MessageLogTests.cpp; sourceTree = "<group>"; };
+		FC0A4AF02F0E76EE0053173D /* MessageLogEndToEndTests.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = MessageLogEndToEndTests.cpp; sourceTree = "<group>"; };
 		FE2BCDC62470FC7000DEC33B /* StdLibExtrasTests.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = StdLibExtrasTests.cpp; sourceTree = "<group>"; };
 		FE2D9473245EB2DF00E48135 /* BitSet.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = BitSet.cpp; sourceTree = "<group>"; };
 		FEB6F74E1B2BA44E009E4922 /* NakedPtr.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NakedPtr.cpp; sourceTree = "<group>"; };
@@ -5580,6 +5584,8 @@
 				51FA14302AF5BAE00003ACD1 /* IPCSerialization.mm */,
 				7B7392EB28F84BD2007297FC /* IPCTestUtilities.cpp */,
 				7B7392EA28F849F3007297FC /* IPCTestUtilities.h */,
+				FC0A4AF02F0E76EE0053173D /* MessageLogEndToEndTests.cpp */,
+				FC0A4AED2F0E76EE0053173D /* MessageLogTests.cpp */,
 				7B7392E128F849EC007297FC /* MessageSenderTests.cpp */,
 				7B9FC58328A26792007570E7 /* StreamConnectionBufferTests.cpp */,
 				7B2950DA2972AFDD008CC225 /* StreamConnectionEncoderTests.cpp */,
@@ -7619,6 +7625,8 @@
 				7B7392EC28F84BD3007297FC /* IPCTestUtilities.cpp in Sources */,
 				7B9FC39F28A26137007570E7 /* mainIOS.mm in Sources */,
 				7B9FC3A028A26137007570E7 /* mainMac.mm in Sources */,
+				FC0A4AEF2F0E76EE0053173D /* MessageLogEndToEndTests.cpp in Sources */,
+				FC0A4AEE2F0E76EE0053173D /* MessageLogTests.cpp in Sources */,
 				7B7392E928F849EC007297FC /* MessageSenderTests.cpp in Sources */,
 				7B9FC58428A26792007570E7 /* StreamConnectionBufferTests.cpp in Sources */,
 				7B2950E22972AFDE008CC225 /* StreamConnectionEncoderTests.cpp in Sources */,

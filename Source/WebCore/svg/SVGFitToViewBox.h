@@ -56,8 +56,8 @@ public:
     String viewBoxString() const { return SVGPropertyTraits<FloatRect>::toString(viewBox()); }
     String preserveAspectRatioString() const { return preserveAspectRatio().valueAsString(); }
 
-    bool hasValidViewBox() const { return m_isViewBoxValid; }
-    bool hasEmptyViewBox() const { return m_isViewBoxValid && viewBox().isEmpty(); }
+    bool hasValidViewBox() const { return m_isViewBoxValid && viewBox().width() >= 0 && viewBox().height() >= 0; }
+    bool hasEmptyViewBox() const { return hasValidViewBox() && viewBox().isEmpty(); }
 
 protected:
     SVGFitToViewBox(SVGElement* contextElement, SVGPropertyAccess = SVGPropertyAccess::ReadWrite);

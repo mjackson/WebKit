@@ -1034,7 +1034,7 @@ DEFINE_VISIT_ADDITIONAL_CHILDREN(ReadableByteStreamController);
 template<typename Visitor>
 void JSReadableByteStreamController::visitAdditionalChildren(Visitor& visitor)
 {
-    // Do not ref `wrapped()` here since this function may get called on the GC thread.
+    // Do not ref `wrapped()` here since this function may get called on a GC thread.
     SUPPRESS_UNCOUNTED_ARG wrapped().visitAdditionalChildren(visitor);
 }
 

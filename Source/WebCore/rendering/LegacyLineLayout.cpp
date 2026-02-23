@@ -99,7 +99,7 @@ bool LegacyLineLayout::shouldSkipCreatingRunsForObject(RenderObject& object)
     auto& renderElement = downcast<RenderElement>(object);
     if (renderElement.isFloating())
         return true;
-    if (renderElement.isOutOfFlowPositioned() && !renderElement.style().isOriginalDisplayInlineType() && !renderElement.container()->isRenderInline())
+    if (renderElement.isOutOfFlowPositioned() && !renderElement.style().originalDisplay().isInlineType() && !renderElement.container()->isRenderInline())
         return true;
     return false;
 }
@@ -191,7 +191,7 @@ static inline void dirtyLineBoxesForRenderer(RenderObject& renderer)
         renderInline->deleteLegacyLineBoxes();
 }
 
-static bool parentIsConstructedOrHaveNext(LegacyInlineFlowBox* parentBox)
+static bool NODELETE parentIsConstructedOrHaveNext(LegacyInlineFlowBox* parentBox)
 {
     do {
         if (parentBox->isConstructed() || parentBox->nextOnLine())

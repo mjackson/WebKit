@@ -206,14 +206,14 @@ void ImageDocument::finishedParsing()
     HTMLDocument::finishedParsing();
 }
 
-inline ImageDocument& ImageDocumentParser::document() const
+inline ImageDocument& NODELETE ImageDocumentParser::document() const
 {
     // Only used during parsing, so document is guaranteed to be non-null.
     ASSERT(RawDataDocumentParser::document());
     return downcast<ImageDocument>(*RawDataDocumentParser::document());
 }
 
-inline Ref<ImageDocument> ImageDocumentParser::protectedDocument() const
+inline Ref<ImageDocument> NODELETE ImageDocumentParser::protectedDocument() const
 {
     return document();
 }

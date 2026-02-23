@@ -173,7 +173,7 @@ void FileInputType::showPicker()
     ASSERT(element());
     if (auto* chrome = this->chrome()) {
         applyFileChooserSettings();
-        chrome->runOpenPanel(*element()->document().protectedFrame(), *protect(m_fileChooser));
+        chrome->runOpenPanel(*protect(element()->document().frame()), *protect(m_fileChooser));
     }
 }
 

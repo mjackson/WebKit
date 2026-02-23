@@ -209,7 +209,7 @@ void FontFaceSet::load(ScriptExecutionContext& context, const String& font, cons
             continue;
         waiting = true;
         ASSERT(face.get().existingWrapper());
-        m_pendingPromises.add(face.get().existingWrapper(), Vector<Ref<PendingPromise>>()).iterator->value.append(pendingPromise.copyRef());
+        m_pendingPromises.add(*face.get().existingWrapper(), Vector<Ref<PendingPromise>>()).iterator->value.append(pendingPromise.copyRef());
     }
 
     if (!waiting)
@@ -241,11 +241,7 @@ void FontFaceSet::faceFinished(CSSFontFace& face, CSSFontFace::Status newStatus)
     if (!face.existingWrapper())
         return;
 
-    auto pendingPromises = m_pendingPromises.take(face.existingWrapper());
-    if (pendingPromises.isEmpty())
-        return;
-
-    for (auto& pendingPromise : pendingPromises) {
+    for (auto& pendingPromise : m_pendingPromises.take(*face.existingWrapper())) {
         if (pendingPromise->hasReachedTerminalState)
             continue;
         if (newStatus == CSSFontFace::Status::Success) {

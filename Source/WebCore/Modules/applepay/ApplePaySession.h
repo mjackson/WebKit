@@ -109,16 +109,16 @@ private:
     // ActiveDOMObject.
     void stop() override;
     void suspend(ReasonForSuspension) override;
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
 
     // EventTarget.
     enum EventTargetInterfaceType eventTargetInterface() const override { return EventTargetInterfaceType::ApplePaySession; }
-    ScriptExecutionContext* scriptExecutionContext() const override;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const override;
     void refEventTarget() override { ref(); }
     void derefEventTarget() override { deref(); }
 
     // PaymentSession
-    unsigned version() const override;
+    unsigned version() const override { return m_version; }
     void validateMerchant(URL&&) override;
     void didAuthorizePayment(const Payment&) override;
     void didSelectShippingMethod(const ApplePayShippingMethod&) override;
@@ -129,23 +129,23 @@ private:
 #endif
     void didCancelPaymentSession(PaymentSessionError&&) override;
 
-    PaymentCoordinator& paymentCoordinator() const;
-    Ref<PaymentCoordinator> protectedPaymentCoordinator() const;
+    PaymentCoordinator& NODELETE paymentCoordinator() const;
+    Ref<PaymentCoordinator> NODELETE protectedPaymentCoordinator() const;
 
-    bool canBegin() const;
-    bool canAbort() const;
-    bool canCancel() const;
-    bool canCompleteMerchantValidation() const;
-    bool canCompleteShippingMethodSelection() const;
-    bool canCompleteShippingContactSelection() const;
-    bool canCompletePaymentMethodSelection() const;
+    bool NODELETE canBegin() const;
+    bool NODELETE canAbort() const;
+    bool NODELETE canCancel() const;
+    bool NODELETE canCompleteMerchantValidation() const;
+    bool NODELETE canCompleteShippingMethodSelection() const;
+    bool NODELETE canCompleteShippingContactSelection() const;
+    bool NODELETE canCompletePaymentMethodSelection() const;
 #if ENABLE(APPLE_PAY_COUPON_CODE)
-    bool canCompleteCouponCodeChange() const;
+    bool NODELETE canCompleteCouponCodeChange() const;
 #endif
-    bool canCompletePayment() const;
-    bool canSuspendWithoutCanceling() const;
+    bool NODELETE canCompletePayment() const;
+    bool NODELETE canSuspendWithoutCanceling() const;
 
-    bool isFinalState() const;
+    bool NODELETE isFinalState() const;
 
     enum class State {
         Idle,

@@ -60,16 +60,16 @@ public:
 private:
     MediaQueryList(Document&, MediaQueryMatcher&, MQ::MediaQueryList&&, bool matches);
 
-    void setMatches(bool);
+    void NODELETE setMatches(bool);
 
     enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::MediaQueryList; }
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }
     void eventListenersDidChange() final;
 
     // ActiveDOMObject.
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
 
     RefPtr<MediaQueryMatcher> m_matcher;
     const MQ::MediaQueryList m_mediaQueries;

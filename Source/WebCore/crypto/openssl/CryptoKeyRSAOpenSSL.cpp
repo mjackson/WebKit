@@ -299,6 +299,8 @@ auto CryptoKeyRSA::algorithm() const -> KeyAlgorithm
 {
     RSA* rsa = EVP_PKEY_get0_RSA(platformKey());
 
+    // FIXME: `CryptoRsaKeyAlgorithm` stores `modulusLength` as an `unsigned` requiring us to cast below. We should find a way to remove the need for a cast / ensure the cast is safe and doesn't overflow.
+
     auto modulusLength = getRSAModulusLength(rsa);
     Vector<uint8_t> publicExponent;
 
@@ -309,19 +311,21 @@ auto CryptoKeyRSA::algorithm() const -> KeyAlgorithm
     }
 
     if (m_restrictedToSpecificHash) {
-        CryptoRsaHashedKeyAlgorithm result;
-        result.name = CryptoAlgorithmRegistry::singleton().name(algorithmIdentifier());
-        result.modulusLength = modulusLength;
-        result.publicExponent = Uint8Array::tryCreate(publicExponent.span());
-        result.hash.name = CryptoAlgorithmRegistry::singleton().name(m_hash);
-        return result;
+        return CryptoRsaHashedKeyAlgorithm {
+            CryptoRsaKeyAlgorithm {
+                CryptoKeyAlgorithm { CryptoAlgorithmRegistry::singleton().name(algorithmIdentifier()) },
+                static_cast<unsigned>(modulusLength),
+                Uint8Array::create(publicExponent.span())
+            },
+            CryptoKeyAlgorithm { CryptoAlgorithmRegistry::singleton().name(m_hash) }
+        };
     }
 
-    CryptoRsaKeyAlgorithm result;
-    result.name = CryptoAlgorithmRegistry::singleton().name(algorithmIdentifier());
-    result.modulusLength = modulusLength;
-    result.publicExponent = Uint8Array::tryCreate(publicExponent.span());
-    return result;
+    return CryptoRsaKeyAlgorithm {
+        CryptoKeyAlgorithm { CryptoAlgorithmRegistry::singleton().name(algorithmIdentifier()) },
+        static_cast<unsigned>(modulusLength),
+        Uint8Array::create(publicExponent.span())
+    };
 }
 
 std::unique_ptr<CryptoKeyRSAComponents> CryptoKeyRSA::exportData() const

@@ -36,7 +36,7 @@ class RenderTextControl : public RenderBlockFlow {
 public:
     virtual ~RenderTextControl();
 
-    WEBCORE_EXPORT HTMLTextFormControlElement& textFormControlElement() const;
+    WEBCORE_EXPORT HTMLTextFormControlElement& NODELETE textFormControlElement() const;
 
 #if PLATFORM(IOS_FAMILY)
     bool canScroll() const;

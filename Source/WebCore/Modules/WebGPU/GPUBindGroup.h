@@ -42,7 +42,7 @@ public:
         return adoptRef(*new GPUBindGroup(WTF::move(backing), WTF::move(layout)));
     }
 
-    String label() const;
+    String NODELETE label() const;
     void setLabel(String&&);
 
     WebGPU::BindGroup& backing() { return m_backing; }

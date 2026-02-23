@@ -47,11 +47,6 @@ WebSWRegistrationStore::WebSWRegistrationStore(WebCore::SWServer& server, Networ
     ASSERT(RunLoop::isMain());
 }
 
-RefPtr<WebCore::SWServer> WebSWRegistrationStore::protectedServer() const
-{
-    return m_server.get();
-}
-
 void WebSWRegistrationStore::clearAll(CompletionHandler<void()>&& callback)
 {
     m_updates.clear();
@@ -136,7 +131,7 @@ void WebSWRegistrationStore::updateToStorage(CompletionHandler<void()>&& callbac
 
         auto allScripts = WTF::move(result.value());
         for (auto&& scripts : allScripts)
-            protectedThis->protectedServer()->didSaveWorkerScriptsToDisk(scripts.identifier, WTF::move(scripts.mainScript), WTF::move(scripts.importedScripts));
+            protect(protectedThis->m_server)->didSaveWorkerScriptsToDisk(scripts.identifier, WTF::move(scripts.mainScript), WTF::move(scripts.importedScripts));
 
         callback();
     });

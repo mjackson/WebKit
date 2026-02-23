@@ -176,7 +176,7 @@ static String processFilesizeString(const String& size, bool isDirectory)
     return makeString(FormattedNumber::fixedWidth(*bytes / 1000000000.0, 2), " GB"_s);
 }
 
-static bool wasLastDayOfMonth(int year, int month, int day)
+static bool NODELETE wasLastDayOfMonth(int year, int month, int day)
 {
     static constexpr std::array lastDays { 31, 0, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
     if (month < 0 || month > 11)

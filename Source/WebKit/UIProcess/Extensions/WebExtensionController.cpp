@@ -45,7 +45,7 @@ namespace WebKit {
 constexpr auto freshlyCreatedTimeout = 5_s;
 #endif
 
-static HashMap<WebExtensionControllerIdentifier, WeakPtr<WebExtensionController>>& webExtensionControllers()
+static HashMap<WebExtensionControllerIdentifier, WeakPtr<WebExtensionController>>& NODELETE webExtensionControllers()
 {
     static MainRunLoopNeverDestroyed<HashMap<WebExtensionControllerIdentifier, WeakPtr<WebExtensionController>>> controllers;
     return controllers;

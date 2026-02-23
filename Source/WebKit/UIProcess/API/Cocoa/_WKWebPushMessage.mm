@@ -36,7 +36,7 @@
     if (WebCoreObjCScheduleDeallocateOnMainRunLoop(_WKWebPushMessage.class, self))
         return;
 
-    _message->API::WebPushMessage::~WebPushMessage();
+    SUPPRESS_UNRETAINED_ARG _message->API::WebPushMessage::~WebPushMessage();
     [super dealloc];
 }
 

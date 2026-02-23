@@ -150,14 +150,14 @@ bool MediaPlayerPrivateWirelessPlayback::isCurrentPlaybackTargetWireless() const
 
 void MediaPlayerPrivateWirelessPlayback::setWirelessPlaybackTarget(Ref<MediaPlaybackTarget>&& playbackTarget)
 {
-    ASSERT(playbackTarget->type() == MediaPlaybackTargetType::WirelessPlayback);
     ALWAYS_LOG(LOGIDENTIFIER, playbackTarget->type());
 
     m_playbackTarget = WTF::move(playbackTarget);
 
     RefPtr route = this->route();
     if (!route) {
-        setNetworkState(MediaPlayer::NetworkState::FormatError);
+        if (is<MediaPlaybackTargetWirelessPlayback>(m_playbackTarget))
+            setNetworkState(MediaPlayer::NetworkState::FormatError);
         return;
     }
 

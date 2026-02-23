@@ -104,8 +104,8 @@ void WebSpeechSynthesisClient::speak(RefPtr<WebCore::PlatformSpeechSynthesisUtte
     auto voiceURI = voice ? voice->voiceURI() : emptyString();
     auto name = voice ? voice->name() : emptyString();
     auto lang = voice ? voice->lang() : emptyString();
-    auto localService = voice ? voice->localService() : false;
-    auto isDefault = voice ? voice->isDefault() : false;
+    auto localService = voice && voice->localService();
+    auto isDefault = voice && voice->isDefault();
 
     RefPtr page = m_page.get();
     if (!page)

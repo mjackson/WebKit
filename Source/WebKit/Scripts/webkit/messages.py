@@ -463,6 +463,7 @@ def serialized_identifiers():
         'WebCore::SWServerConnectionIdentifier',
         'WebCore::SamplesRendererTrackIdentifier',
         'WebCore::ScrollingNodeIdentifier',
+        'WebCore::ScrollRequestIdentifier',
         'WebCore::ServiceWorkerIdentifier',
         'WebCore::ServiceWorkerJobIdentifier',
         'WebCore::ServiceWorkerRegistrationIdentifier',
@@ -484,6 +485,7 @@ def serialized_identifiers():
         'WebCore::WebTransportSendGroupIdentifier',
         'WebCore::WebTransportStreamIdentifier',
         'WebCore::WindowIdentifier',
+        'WebCore::XRHitTestSourceIdentifier',
         'WebKit::AudioMediaStreamTrackRendererInternalUnitIdentifier',
         'WebKit::AuthenticationChallengeIdentifier',
         'WebKit::WebModelIdentifier',
@@ -1353,6 +1355,7 @@ def headers_for_type(type, for_implementation_file=False):
         'WebCore::ScriptTrackingPrivacyFlag': ['<WebCore/ScriptTrackingPrivacyCategory.h>'],
         'WebCore::ScheduleLocationChangeResult': ['<WebCore/NavigationScheduler.h>'],
         'WebCore::ScrollUpdate': ['<WebCore/ScrollingCoordinatorTypes.h>'],
+        'WebCore::ScrollRequestIdentifier': ['<WebCore/ScrollingCoordinatorTypes.h>'],
         'WebCore::ScrollbarMode': ['<WebCore/ScrollTypes.h>'],
         'WebCore::ScrollbarOverlayStyle': ['<WebCore/ScrollTypes.h>'],
         'WebCore::ScrollDirection': ['<WebCore/ScrollTypes.h>'],
@@ -1547,6 +1550,7 @@ def headers_for_type(type, for_implementation_file=False):
         'WebKit::TextCheckerRequestID': ['"IdentifierTypes.h"'],
         'WebKit::TextInteractionSource': ['"GestureTypes.h"'],
         'WebKit::WebEventType': ['"WebEvent.h"'],
+        'WebKit::WebMouseEventInputSource': ['"WebMouseEvent.h"'],
         'WebKit::WebExtensionContextInstallReason': ['"WebExtensionContext.h"'],
         'WebKit::WebExtensionCookieFilterParameters': ['"WebExtensionCookieParameters.h"'],
         'WebKit::WebExtensionError': ['"WebExtensionError.h"'],
@@ -2196,7 +2200,7 @@ def generate_message_names_header(receivers):
     result.append('\n')
     result.append('template<> constexpr bool isValidEnum<IPC::MessageName>(std::underlying_type_t<IPC::MessageName> messageName)\n')
     result.append('{\n')
-    result.append('    return messageName <= WTF::enumToUnderlyingType(IPC::MessageName::Last);\n')
+    result.append('    return messageName <= std::to_underlying(IPC::MessageName::Last);\n')
     result.append('}\n')
     result.append('\n')
     result.append('} // namespace WTF\n')
@@ -2408,4 +2412,23 @@ def generate_message_argument_description_implementation(receivers, receiver_hea
     result.append('')
     result.append('#endif // ENABLE(IPC_TESTING_API) || !LOG_DISABLED')
     result.append('')
+    return '\n'.join(result)
+
+
+def generate_modulemap(receiver_headers: list[str]) -> str:
+    result = []
+
+    result.append('module WebKit_DerivedSources {')
+
+    all_headers = receiver_headers + ['MessageNames.h', 'GeneratedSerializers.h', 'GeneratedWebKitSecureCoding.h']
+    for header in all_headers:
+        module_name = header[:-2] if header.endswith('.h') else header
+        result.append('  explicit module %s {' % module_name)
+        result.append('    header "%s"' % header)
+        result.append('    export *')
+        result.append('  }')
+
+    result.append('}')
+    result.append('')
+
     return '\n'.join(result)

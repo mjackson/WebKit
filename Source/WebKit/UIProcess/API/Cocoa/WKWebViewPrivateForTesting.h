@@ -187,6 +187,7 @@ struct WKAppPrivacyReportTestingData {
 - (NSString *)_animationStackForLayerWithID:(unsigned long long)layerID;
 - (NSString *)_progressBasedTimelinesForScrollingNodeID:(uint64_t)scrollingNodeID processID:(uint64_t)processID;
 #endif
+- (bool)_displayLinkWantsHighFrameRate;
 
 @end
 

@@ -36,10 +36,6 @@
 #import <wtf/BlockPtr.h>
 #import <wtf/cocoa/VectorCocoa.h>
 
-static Ref<API::TargetedElementInfo> protectedInfo(_WKTargetedElementInfo *info)
-{
-    return *info->_info;
-}
 
 @implementation _WKTargetedElementInfo
 
@@ -47,7 +43,7 @@ static Ref<API::TargetedElementInfo> protectedInfo(_WKTargetedElementInfo *info)
 {
     if (WebCoreObjCScheduleDeallocateOnMainRunLoop(_WKTargetedElementInfo.class, self))
         return;
-    _info->API::TargetedElementInfo::~TargetedElementInfo();
+    SUPPRESS_UNRETAINED_ARG _info->API::TargetedElementInfo::~TargetedElementInfo();
     [super dealloc];
 }
 
@@ -79,7 +75,7 @@ static Ref<API::TargetedElementInfo> protectedInfo(_WKTargetedElementInfo *info)
 
 - (CGRect)boundsInWebView
 {
-    return protectedInfo(self)->boundsInWebView();
+    return protect(*_info)->boundsInWebView();
 }
 
 - (CGRect)boundsInClientCoordinates
@@ -142,7 +138,7 @@ static Ref<API::TargetedElementInfo> protectedInfo(_WKTargetedElementInfo *info)
 
 - (void)getChildFrames:(void(^)(NSArray<_WKFrameTreeNode *> *))completion
 {
-    return protectedInfo(self)->childFrames([completion = makeBlockPtr(completion)](auto&& nodes) {
+    return protect(*_info)->childFrames([completion = makeBlockPtr(completion)](auto&& nodes) {
         completion(createNSArray(WTF::move(nodes), [](API::FrameTreeNode& node) {
             return wrapper(node);
         }).autorelease());
@@ -151,7 +147,7 @@ static Ref<API::TargetedElementInfo> protectedInfo(_WKTargetedElementInfo *info)
 
 - (BOOL)isSameElement:(_WKTargetedElementInfo *)other
 {
-    return protectedInfo(self)->isSameElement(protectedInfo(other));
+    return protect(*_info)->isSameElement(protect(*other->_info));
 }
 
 - (BOOL)isNearbyTarget
@@ -196,7 +192,7 @@ static Ref<API::TargetedElementInfo> protectedInfo(_WKTargetedElementInfo *info)
 
 - (void)takeSnapshotWithCompletionHandler:(void(^)(CGImageRef))completion
 {
-    return protectedInfo(self)->takeSnapshot([completion = makeBlockPtr(completion)](std::optional<WebCore::ShareableBitmapHandle>&& imageHandle) mutable {
+    return protect(*_info)->takeSnapshot([completion = makeBlockPtr(completion)](std::optional<WebCore::ShareableBitmapHandle>&& imageHandle) mutable {
         if (!imageHandle)
             return completion(nullptr);
 

@@ -46,6 +46,7 @@
 #import <WebCore/DigitalCredentialsRequestData.h>
 #import <WebCore/DigitalCredentialsResponseData.h>
 #import <WebCore/ExceptionData.h>
+#import <WebCore/UnvalidatedDigitalCredentialRequest.h>
 #import <WebCore/ValidatedMobileDocumentRequest.h>
 #import <WebKit/WKIdentityDocumentPresentmentController.h>
 #import <WebKit/WKIdentityDocumentPresentmentError.h>
@@ -247,38 +248,51 @@ static RetainPtr<NSArray<NSArray<WKIdentityDocumentPresentmentRequestAuthenticat
         completionHandler(@[]);
         return;
     }
-    page->fetchRawDigitalCredentialRequests([completionHandler = makeBlockPtr(completionHandler)](auto &&unvalidatedRequests) {
-        RetainPtr<NSMutableArray<WKIdentityDocumentPresentmentRawRequest *>> rawRequests = adoptNS([[NSMutableArray alloc] init]);
+    page->fetchRawDigitalCredentialRequests([completionHandler = makeBlockPtr(completionHandler)](WebCore::DigitalCredentialsRawRequests&& unvalidatedRequests) mutable {
+        WTF::switchOn(WTF::move(unvalidatedRequests),
+            [completionHandler = WTF::move(completionHandler)](Vector<WebCore::UnvalidatedDigitalCredentialRequest>&& unvalidatedRequests) {
+                RetainPtr<NSMutableArray<WKIdentityDocumentPresentmentRawRequest *>> rawRequests = adoptNS([[NSMutableArray alloc] init]);
 
-        for (auto &&unvalidatedRequest : unvalidatedRequests) {
-            const auto &mobileDocumentRequest = unvalidatedRequest;
-            RetainPtr deviceRequest = mobileDocumentRequest.deviceRequest.createNSString();
-            RetainPtr encryptionInfo = mobileDocumentRequest.encryptionInfo.createNSString();
+                for (auto &&unvalidatedRequest : unvalidatedRequests) {
+                    const auto &mobileDocumentRequest = unvalidatedRequest;
+                    RetainPtr deviceRequest = mobileDocumentRequest.deviceRequest.createNSString();
+                    RetainPtr encryptionInfo = mobileDocumentRequest.encryptionInfo.createNSString();
 
-            RetainPtr<NSDictionary<NSString *, id>> jsonRequest = @{
-                @"deviceRequest" : deviceRequest.get(),
-                @"encryptionInfo" : encryptionInfo.get()
-            };
+                    RetainPtr<NSDictionary<NSString *, id>> jsonRequest = @{
+                        @"deviceRequest" : deviceRequest.get(),
+                        @"encryptionInfo" : encryptionInfo.get()
+                    };
 
-            NSError *error = nil;
-            RetainPtr requestDataBytes = [NSJSONSerialization dataWithJSONObject:jsonRequest.get() options:0 error:&error];
+                    NSError *error = nil;
+                    RetainPtr requestDataBytes = [NSJSONSerialization dataWithJSONObject:jsonRequest.get() options:0 error:&error];
 
-            if (!requestDataBytes) {
-                LOG(DigitalCredentials, "Failed to serialize JSON for raw request: %s", error.localizedDescription.UTF8String);
-                continue;
-            }
+                    if (!requestDataBytes) {
+                        LOG(DigitalCredentials, "Failed to serialize JSON for raw request: %s", error.localizedDescription.UTF8String);
+                        continue;
+                    }
 
-            RetainPtr rawRequest = adoptNS([WebKit::allocWKIdentityDocumentPresentmentRawRequestInstance() initWithRequestProtocol:@"org.iso.mdoc" requestData:requestDataBytes.get()]);
-            [rawRequests addObject:rawRequest.get()];
+                    RetainPtr rawRequest = adoptNS([WebKit::allocWKIdentityDocumentPresentmentRawRequestInstance() initWithRequestProtocol:@"org.iso.mdoc" requestData:requestDataBytes.get()]);
+                    [rawRequests addObject:rawRequest.get()];
+                }
+
+                completionHandler(rawRequests.get());
         }
+#if ENABLE(ISO18013_DOCUMENT_REQUEST_INFO)
+        , [] (WebCore::RawDigitalCredentialsWithRequestInfo&& unvalidatedRequestsWithRequestInfo) {
+            ASSERT_NOT_IMPLEMENTED_YET();
+        }
+#endif // ENABLE(ISO18013_DOCUMENT_REQUEST_INFO)
+        );
 
-        completionHandler(rawRequests.get());
     });
 }
 
 - (void)presentWithRequestData:(const WebCore::DigitalCredentialsRequestData &)requestData completionHandler:(CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData> &&)> &&)completionHandler
 {
-    LOG(DigitalCredentials, "WKDigitalCredentialsPicker: Digital Credentials - Presenting with request data: %s.", requestData.topOrigin.toString().utf8().data());
+    WTF::switchOn(requestData,
+        [](const auto& requestData) {
+            LOG(DigitalCredentials, "WKDigitalCredentialsPicker: Digital Credentials - Presenting with request data: %s.", requestData.topOrigin.toString().utf8().data());
+    });
     _completionHandler = WTF::move(completionHandler);
 
     ASSERT(!_presentmentController);
@@ -287,7 +301,15 @@ static RetainPtr<NSArray<NSArray<WKIdentityDocumentPresentmentRequestAuthenticat
 
     _digitalCredentialsPickerDelegate = adoptNS([[WKDigitalCredentialsPickerDelegate alloc] initWithDigitalCredentialsPickerDelegate:self]);
 
-    [self performRequest:requestData];
+    WTF::switchOn(requestData,
+        [self](const WebCore::DigitalCredentialsMobileDocumentRequestData& requestData) {
+            [self performRequest:requestData];
+        },
+        [](const auto& data) {
+            UNUSED_PARAM(data);
+            ASSERT_NOT_IMPLEMENTED_YET();
+        }
+    );
 
     if ([self.delegate respondsToSelector:@selector(digitalCredentialsPickerDidPresent:)])
         [self.delegate digitalCredentialsPickerDidPresent:self];
@@ -302,7 +324,7 @@ static RetainPtr<NSArray<NSArray<WKIdentityDocumentPresentmentRequestAuthenticat
 
 #pragma mark - Helper Methods
 
-- (void)performRequest:(const WebCore::DigitalCredentialsRequestData &)requestData
+- (void)performRequest:(const WebCore::DigitalCredentialsMobileDocumentRequestData &)requestData
 {
     RetainPtr mobileDocumentRequests = adoptNS([[NSMutableArray alloc] init]);
 

@@ -52,7 +52,7 @@ void ScrollbarsControllerCoordinated::scrollbarLayoutDirectionChanged(WebCore::U
     WebCore::ScrollbarsControllerGeneric::scrollbarLayoutDirectionChanged(scrollbarLayoutDirection);
 
     if (RefPtr scrollingCoordinator = m_coordinator.get())
-        scrollingCoordinator->setScrollbarLayoutDirection(checkedScrollableArea(), scrollbarLayoutDirection);
+        scrollingCoordinator->setScrollbarLayoutDirection(protect(scrollableArea()), scrollbarLayoutDirection);
 }
 
 bool ScrollbarsControllerCoordinated::shouldDrawIntoScrollbarLayer(WebCore::Scrollbar& scrollbar) const
@@ -77,25 +77,25 @@ void ScrollbarsControllerCoordinated::updateScrollbarStyle()
     // and length are properly updated.
     updateScrollbarsThickness();
 
-    checkedScrollableArea()->scrollbarStyleChanged(theme.usesOverlayScrollbars() ? WebCore::ScrollbarStyle::Overlay : WebCore::ScrollbarStyle::AlwaysVisible, true);
+    protect(scrollableArea())->scrollbarStyleChanged(theme.usesOverlayScrollbars() ? WebCore::ScrollbarStyle::Overlay : WebCore::ScrollbarStyle::AlwaysVisible, true);
 }
 
 void ScrollbarsControllerCoordinated::scrollbarOpacityChanged()
 {
     if (auto scrollingCoordinator = m_coordinator.get())
-        scrollingCoordinator->setScrollbarOpacity(checkedScrollableArea());
+        scrollingCoordinator->setScrollbarOpacity(protect(scrollableArea()));
 }
 
 void ScrollbarsControllerCoordinated::hoveredPartChanged(WebCore::Scrollbar& scrollbar)
 {
     if (auto scrollingCoordinator = m_coordinator.get())
-        scrollingCoordinator->setHoveredAndPressedScrollbarParts(checkedScrollableArea());
+        scrollingCoordinator->setHoveredAndPressedScrollbarParts(protect(scrollableArea()));
 }
 
 void ScrollbarsControllerCoordinated::pressedPartChanged(WebCore::Scrollbar& scrollbar)
 {
     if (auto scrollingCoordinator = m_coordinator.get())
-        scrollingCoordinator->setHoveredAndPressedScrollbarParts(checkedScrollableArea());
+        scrollingCoordinator->setHoveredAndPressedScrollbarParts(protect(scrollableArea()));
 }
 
 }

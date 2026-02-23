@@ -108,13 +108,13 @@ bool MatchResultCache::isUsableAfterInlineStyleChange(const MatchResultCache::En
 PropertyCascade::IncludedProperties MatchResultCache::computeAndUpdateChangedProperties(MatchResultCache::Entry& entry)
 {
     auto& originalProperties = entry.originalInlineProperties;
-    Ref inlineStyle = entry.inlineStyle.get();
+    auto& inlineStyle = entry.inlineStyle.get();
 
     PropertyCascade::IncludedProperties result;
 
     auto size = originalProperties.size();
     for (size_t index = 0; index < size; ++index) {
-        auto currentProperty = inlineStyle->propertyAt(index);
+        auto currentProperty = inlineStyle.propertyAt(index);
         auto propertyID = currentProperty.id();
 
         ASSERT(originalProperties[index].propertyID == propertyID);
@@ -173,7 +173,7 @@ void MatchResultCache::update(CachedMatchResult& result, const RenderStyle& styl
 
 void MatchResultCache::updateForFastPathInherit(const Element& element, const RenderStyle& parentStyle)
 {
-    auto entry = m_entries.get(element);
+    CheckedPtr entry = m_entries.get(element);
     if (!entry)
         return;
     entry->unadjustedStyle.style->fastPathInheritFrom(parentStyle);
@@ -184,7 +184,7 @@ void MatchResultCache::set(const Element& element, const UnadjustedStyle& unadju
     // For now we cache match results if there is mutable inline style. This way we can avoid
     // selector matching when it gets mutated again.
     auto* styledElement = dynamicDowncast<StyledElement>(element);
-    RefPtr inlineStyle = styledElement ? dynamicDowncast<MutableStyleProperties>(styledElement->inlineStyle()) : nullptr;
+    auto* inlineStyle = styledElement ? dynamicDowncast<MutableStyleProperties>(styledElement->inlineStyle()) : nullptr;
 
     if (inlineStyle)
         m_entries.set(element, makeUniqueRef<Entry>(copy(unadjustedStyle), *inlineStyle));

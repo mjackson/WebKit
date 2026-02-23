@@ -173,14 +173,14 @@ public:
     PAL::SessionID sessionID() const { return m_sessionID; }
 
     bool isLockdownModeEnabled() const { return m_isLockdownModeEnabled; }
-    bool isLockdownSafeFontParserEnabled() const { return sharedPreferencesForWebProcess() ? sharedPreferencesForWebProcess()->lockdownFontParserEnabled : false; }
-    bool isForceLockdownSafeFontParserEnabled() const { return sharedPreferencesForWebProcess() ? sharedPreferencesForWebProcess()->forceLockdownFontParserEnabled : false; }
+    bool isLockdownSafeFontParserEnabled() const { return sharedPreferencesForWebProcess() && sharedPreferencesForWebProcess()->lockdownFontParserEnabled; }
+    bool isForceLockdownSafeFontParserEnabled() const { return sharedPreferencesForWebProcess() && sharedPreferencesForWebProcess()->forceLockdownFontParserEnabled; }
 
     Logger& logger();
 
-    const String& mediaCacheDirectory() const;
+    const String& NODELETE mediaCacheDirectory() const;
 #if ENABLE(LEGACY_ENCRYPTED_MEDIA) || ENABLE(ENCRYPTED_MEDIA)
-    const String& mediaKeysStorageDirectory() const;
+    const String& NODELETE mediaKeysStorageDirectory() const;
 #endif
 
 #if ENABLE(MEDIA_STREAM)
@@ -196,7 +196,7 @@ public:
     bool allowsDisplayCapture() const { return m_allowsDisplayCapture; }
 #endif
 #if ENABLE(VIDEO)
-    RemoteVideoFrameObjectHeap& videoFrameObjectHeap() const;
+    RemoteVideoFrameObjectHeap& NODELETE videoFrameObjectHeap() const;
 #endif
 #if PLATFORM(COCOA) && ENABLE(MEDIA_STREAM)
     void startCapturingAudio();
@@ -263,15 +263,17 @@ public:
 #endif
 
 #if ENABLE(EXTENSION_CAPABILITIES)
-    String mediaEnvironment(WebCore::PageIdentifier);
-    void setMediaEnvironment(WebCore::PageIdentifier, const String&);
+    String mediaPlaybackEnvironment(WebCore::PageIdentifier);
+    void setMediaPlaybackEnvironment(WebCore::PageIdentifier, const String&);
+    String displayCaptureEnvironment(WebCore::PageIdentifier);
+    void setDisplayCaptureEnvironment(WebCore::PageIdentifier, const String&);
 #endif
 
 #if ENABLE(IPC_TESTING_API)
     void takeInvalidMessageStringForTesting(CompletionHandler<void(String&&)>&&);
 #endif
 
-    bool isAlwaysOnLoggingAllowed() const;
+    bool NODELETE isAlwaysOnLoggingAllowed() const;
 
 #if USE(AUDIO_SESSION)
     RemoteAudioSessionProxy& audioSessionProxy();
@@ -283,10 +285,6 @@ public:
 
 private:
     GPUConnectionToWebProcess(GPUProcess&, WebCore::ProcessIdentifier, PAL::SessionID, IPC::Connection::Handle&&, GPUProcessConnectionParameters&&);
-
-#if PLATFORM(COCOA) && USE(LIBWEBRTC)
-    Ref<LibWebRTCCodecsProxy> protectedLibWebRTCCodecsProxy() const;
-#endif
 
 #if ENABLE(WEB_AUDIO)
     RemoteAudioDestinationManager& remoteAudioDestinationManager();
@@ -454,7 +452,8 @@ private:
 #endif
 
 #if ENABLE(EXTENSION_CAPABILITIES)
-    HashMap<WebCore::PageIdentifier, String> m_mediaEnvironments;
+    HashMap<WebCore::PageIdentifier, String> m_mediaPlaybackEnvironments;
+    HashMap<WebCore::PageIdentifier, String> m_displayCaptureEnvironments;
 #endif
 
 #if ENABLE(ROUTING_ARBITRATION) && HAVE(AVAUDIO_ROUTING_ARBITER)

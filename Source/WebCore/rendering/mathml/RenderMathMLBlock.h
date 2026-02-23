@@ -65,7 +65,7 @@ protected:
     inline LayoutUnit ruleThicknessFallback() const;
 
     LayoutUnit mathAxisHeight() const;
-    LayoutUnit mirrorIfNeeded(LayoutUnit horizontalOffset, LayoutUnit boxWidth = 0_lu) const;
+    LayoutUnit NODELETE mirrorIfNeeded(LayoutUnit horizontalOffset, LayoutUnit boxWidth = 0_lu) const;
     inline LayoutUnit mirrorIfNeeded(LayoutUnit horizontalOffset, const RenderBox& child) const;
 
     static inline LayoutUnit ascentForChild(const RenderBox& child);

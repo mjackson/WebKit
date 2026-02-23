@@ -1464,7 +1464,7 @@ static gboolean webkitWebViewBaseScrollEvent(GtkWidget* widget, GdkEventScroll* 
         GdkDevice* device = gdk_event_get_source_device(event);
         GdkInputSource source = gdk_device_get_source(device);
 
-        bool isEnd = gdk_event_is_scroll_stop_event(event) ? true : false;
+        bool isEnd = !!gdk_event_is_scroll_stop_event(event);
 
         PlatformGtkScrollData scrollData = { .delta = delta, .eventTime = eventTime, .source = source, .isEnd = isEnd };
         if (controller->handleScrollWheelEvent(&scrollData))

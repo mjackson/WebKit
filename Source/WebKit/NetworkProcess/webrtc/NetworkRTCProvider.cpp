@@ -100,7 +100,7 @@ void NetworkRTCProvider::close()
 
     protect(connection())->removeMessageReceiver(Messages::NetworkRTCProvider::messageReceiverName());
     m_connection = nullptr;
-    protectedRTCMonitor()->stopUpdating();
+    protect(m_rtcMonitor)->stopUpdating();
 
     callOnRTCNetworkThread([this, protectedThis = Ref { *this }] {
         auto sockets = std::exchange(m_sockets, { });
@@ -387,11 +387,6 @@ void NetworkRTCProvider::assertIsRTCNetworkThread()
 void NetworkRTCProvider::signalSocketIsClosed(LibWebRTCSocketIdentifier identifier)
 {
     protect(connection())->send(Messages::LibWebRTCNetwork::SignalClose(identifier, 1), 0);
-}
-
-Ref<NetworkRTCMonitor> NetworkRTCProvider::protectedRTCMonitor()
-{
-    return m_rtcMonitor;
 }
 
 std::optional<SharedPreferencesForWebProcess> NetworkRTCProvider::sharedPreferencesForWebProcess(IPC::Connection& connection)

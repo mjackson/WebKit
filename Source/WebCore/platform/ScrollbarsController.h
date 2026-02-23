@@ -51,7 +51,6 @@ public:
     WEBCORE_EXPORT virtual ~ScrollbarsController();
     
     inline ScrollableArea& scrollableArea() const; // Defined in ScrollbarsControllerInlines.h
-    inline CheckedRef<ScrollableArea> checkedScrollableArea() const; // Defined in ScrollbarsControllerInlines.h
 
     bool scrollbarAnimationsUnsuspendedByUserInteraction() const { return m_scrollbarAnimationsUnsuspendedByUserInteraction; }
     void setScrollbarAnimationsUnsuspendedByUserInteraction(bool unsuspended) { m_scrollbarAnimationsUnsuspendedByUserInteraction = unsuspended; }

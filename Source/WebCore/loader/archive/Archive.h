@@ -59,7 +59,7 @@ protected:
     void clearAllSubframeArchives();
 
 private:
-    void clearAllSubframeArchives(HashSet<RefPtr<Archive>>&);
+    void clearAllSubframeArchives(HashSet<Ref<Archive>>&);
 
     RefPtr<ArchiveResource> m_mainResource;
     Vector<Ref<ArchiveResource>> m_subresources;

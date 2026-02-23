@@ -72,7 +72,7 @@ auto PDFDocumentLayout::lastPageIndex() const -> PageIndex
 
 bool PDFDocumentLayout::isFirstPageOfRow(PageIndex pageIndex) const
 {
-    return isTwoUpDisplayMode() ? isLeftPageIndex(pageIndex) : true;
+    return !isTwoUpDisplayMode() || isLeftPageIndex(pageIndex);
 }
 
 RetainPtr<PDFPage> PDFDocumentLayout::pageAtIndex(PageIndex index) const

@@ -66,11 +66,11 @@ public:
     void addMarkersToTextNode(Text& textNode, unsigned offsetOfInsertion, const String& textToBeInserted) override
     {
         Ref document = textNode.document();
-        auto& markerController = document->markers();
+        CheckedRef markerController = document->markers();
         for (auto& alternative : m_alternatives) {
             DocumentMarker::DictationData data { alternative.context, textToBeInserted.substring(alternative.range.location, alternative.range.length) };
-            markerController.addMarker(textNode, alternative.range.location + offsetOfInsertion, alternative.range.length, DocumentMarkerType::DictationAlternatives, WTF::move(data));
-            markerController.addMarker(textNode, alternative.range.location + offsetOfInsertion, alternative.range.length, DocumentMarkerType::SpellCheckingExemption);
+            markerController->addMarker(textNode, alternative.range.location + offsetOfInsertion, alternative.range.length, DocumentMarkerType::DictationAlternatives, WTF::move(data));
+            markerController->addMarker(textNode, alternative.range.location + offsetOfInsertion, alternative.range.length, DocumentMarkerType::SpellCheckingExemption);
         }
     }
 

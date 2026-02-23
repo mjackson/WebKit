@@ -497,6 +497,13 @@
             }
         }
     },
+    "TestWebKitWebXR": {
+        "subtests": {
+            "/webkit/WebKitWebXR/leave-immersive-mode": {
+                "expected": {"wpe": {"status": ["TIMEOUT", "PASS"], "bug": "webkit.org/b/308258"}}
+            }
+        }
+    },
     "TestWebProcessExtensions": {
         "subtests": {
             "/webkit/WebKitWebProcessExtension/page-id": {
@@ -515,11 +522,8 @@
             "/webkit/WebKitWebView/client-side-certificate": {
                 "expected": {"all": {"status": ["FAIL", "PASS"], "bug": "webkit.org/b/264507"}}
             },
-            "/webkit/WebKitWebView/web-socket-tls-errors": {
-                "expected": {"all": {"status": ["TIMEOUT", "CRASH", "FAIL", "TIMEOUT"], "bug": "webkit.org/b/286063"}}
-            },
             "/webkit/WebKitWebView/web-socket-client-side-certificate": {
-                "expected": {"all": {"status": ["TIMEOUT", "CRASH", "TIMEOUT"], "bug": "webkit.org/b/286063"}}
+                "expected": {"all": {"status": ["CRASH", "TIMEOUT", "FAIL"], "bug": "webkit.org/b/307757"}}
             }
         }
     },

@@ -53,7 +53,7 @@ enum class Category : uint8_t;
 
 // Type-erased helpers to allow for shared code.
 
-void unevaluatedCalcRef(CSSCalc::Value*);
+void NODELETE unevaluatedCalcRef(CSSCalc::Value*);
 void unevaluatedCalcDeref(CSSCalc::Value*);
 
 // `UnevaluatedCalc` annotates a `CSSCalc::Value` with the raw value type that it
@@ -70,8 +70,8 @@ struct UnevaluatedCalcBase {
     UnevaluatedCalcBase& operator=(UnevaluatedCalcBase&&);
     ~UnevaluatedCalcBase();
 
-    Ref<CSSCalc::Value> protectedCalc() const;
-    [[nodiscard]] CSSCalc::Value& leakRef();
+    Ref<CSSCalc::Value> NODELETE protectedCalc() const;
+    [[nodiscard]] CSSCalc::Value& NODELETE leakRef();
 
     bool requiresConversionData() const;
 

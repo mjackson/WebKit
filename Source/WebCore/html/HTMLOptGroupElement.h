@@ -36,7 +36,7 @@ public:
     static Ref<HTMLOptGroupElement> create(const QualifiedName&, Document&);
 
     bool isDisabledFormControl() const final;
-    WEBCORE_EXPORT HTMLSelectElement* ownerSelectElement() const;
+    WEBCORE_EXPORT HTMLSelectElement* NODELETE ownerSelectElement() const;
     
     WEBCORE_EXPORT String groupLabelText() const;
 
@@ -49,7 +49,7 @@ private:
     const AtomString& formControlType() const;
     bool isFocusable() const final;
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) final;
-    bool rendererIsNeeded(const RenderStyle&) final { return false; }
+    bool rendererIsNeeded(const RenderStyle&) final;
 
     void childrenChanged(const ChildChange&) final;
 

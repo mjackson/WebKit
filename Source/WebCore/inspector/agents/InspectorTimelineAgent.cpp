@@ -178,7 +178,7 @@ void InspectorTimelineAgent::internalStart(std::optional<int>&& maxCallStackDept
 
     Ref { m_instrumentingAgents.get() }->setTrackingTimelineAgent(this);
 
-    checkedEnvironment()->debugger()->addObserver(*this);
+    protect(environment())->debugger()->addObserver(*this);
 
     m_frontendDispatcher->recordingStarted(timestamp());
 }
@@ -187,7 +187,7 @@ void InspectorTimelineAgent::internalStop()
 {
     Ref { m_instrumentingAgents.get() }->setTrackingTimelineAgent(nullptr);
 
-    checkedEnvironment()->debugger()->removeObserver(*this, true);
+    protect(environment())->debugger()->removeObserver(*this, true);
 
     // Complete all pending records to prevent discarding events that are currently in progress.
     while (!m_recordStack.isEmpty())
@@ -205,12 +205,12 @@ void InspectorTimelineAgent::autoCaptureStarted() const
 
 double InspectorTimelineAgent::timestamp()
 {
-    return checkedEnvironment()->executionStopwatch().elapsedTime().seconds();
+    return protect(environment())->executionStopwatch().elapsedTime().seconds();
 }
 
 std::optional<double> InspectorTimelineAgent::timestampFromMonotonicTime(MonotonicTime time)
 {
-    auto stopwatchTime = checkedEnvironment()->executionStopwatch().fromMonotonicTime(time);
+    auto stopwatchTime = protect(environment())->executionStopwatch().fromMonotonicTime(time);
     if (!stopwatchTime)
         return std::nullopt;
     return stopwatchTime->seconds();
@@ -356,7 +356,7 @@ void InspectorTimelineAgent::didEnqueueFirstContentfulPaint()
 void InspectorTimelineAgent::didEnqueueLargestContentfulPaint(Element* element, unsigned area)
 {
     Inspector::Protocol::DOM::NodeId nodeID = 0;
-    if (auto* domAgent = Ref { m_instrumentingAgents.get() }->persistentDOMAgent())
+    if (CheckedPtr domAgent = Ref { m_instrumentingAgents.get() }->persistentDOMAgent())
         nodeID = domAgent->pushNodeToFrontend(element);
 
     appendRecord(TimelineRecordFactory::createLargestContentfulPaintData(nodeID, area), TimelineRecordType::LargestContentfulPaint, false);
@@ -440,7 +440,7 @@ void InspectorTimelineAgent::toggleScriptProfilerInstrument(InstrumentState stat
 
 void InspectorTimelineAgent::toggleHeapInstrument(InstrumentState state)
 {
-    if (auto* heapAgent = Ref { m_instrumentingAgents.get() }->persistentWebHeapAgent()) {
+    if (CheckedPtr heapAgent = Ref { m_instrumentingAgents.get() }->persistentWebHeapAgent()) {
         if (state == InstrumentState::Start) {
             if (shouldStartHeapInstrument())
                 std::ignore = heapAgent->startTracking();
@@ -490,7 +490,7 @@ void InspectorTimelineAgent::toggleTimelineInstrument(InstrumentState state)
 
 void InspectorTimelineAgent::toggleAnimationInstrument(InstrumentState state)
 {
-    if (auto* animationAgent = Ref { m_instrumentingAgents.get() }->persistentAnimationAgent()) {
+    if (CheckedPtr animationAgent = Ref { m_instrumentingAgents.get() }->persistentAnimationAgent()) {
         if (state == InstrumentState::Start)
             std::ignore = animationAgent->startTracking();
         else

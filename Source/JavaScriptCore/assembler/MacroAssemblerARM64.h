@@ -7054,6 +7054,21 @@ public:
         m_assembler.tbl2(dest, a, b, control);
     }
 
+    void vectorUshrInt8(FPRegisterID src, uint8_t shift, FPRegisterID dest)
+    {
+        m_assembler.ushr_vi(dest, src, shift, SIMDLane::i8x16);
+    }
+
+    void vectorTest(SIMDInfo simdInfo, FPRegisterID a, FPRegisterID b, FPRegisterID dest)
+    {
+        m_assembler.cmtst(dest, a, b, simdInfo.lane);
+    }
+
+    void vectorShrnInt8(FPRegisterID src, uint8_t shift, FPRegisterID dest)
+    {
+        m_assembler.template shrn<SIMDLane::i8x16>(dest, src, shift);
+    }
+
     // Misc helper functions.
 
     // Invert a relational condition, e.g. == becomes !=, < becomes >=, etc.

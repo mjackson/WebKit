@@ -83,7 +83,7 @@ public:
         DocumentPredicate(DocumentPredicate&&) = default;
         DocumentPredicate& operator=(DocumentPredicate&&) = default;
 
-        const PredicateVariant& value() const;
+        const PredicateVariant& NODELETE value() const;
 
     private:
         PredicateVariant m_value;

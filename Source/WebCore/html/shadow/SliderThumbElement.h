@@ -48,7 +48,7 @@ public:
 
     void setPositionFromValue();
     void dragFrom(const LayoutPoint&);
-    RefPtr<HTMLInputElement> hostInput() const;
+    RefPtr<HTMLInputElement> NODELETE hostInput() const;
     void setPositionFromPoint(const LayoutPoint&);
 
 #if ENABLE(IOS_TOUCH_EVENTS)

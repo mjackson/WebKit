@@ -64,9 +64,9 @@ static_assert(sizeof(FontCascadeDescription) == sizeof(SameSizeAsFontCascadeDesc
 FontCascadeDescription::FontCascadeDescription()
     : m_families(RefCountedFixedVector<AtomString>::create(1))
     , m_isAbsoluteSize(false)
-    , m_kerning(enumToUnderlyingType(Kerning::Auto))
+    , m_kerning(std::to_underlying(Kerning::Auto))
     , m_keywordSize(0)
-    , m_fontSmoothing(enumToUnderlyingType(FontSmoothingMode::Auto))
+    , m_fontSmoothing(std::to_underlying(FontSmoothingMode::Auto))
     , m_isSpecifiedFont(false)
 {
 }

@@ -366,7 +366,6 @@ void IDBRequest::uncaughtExceptionInEventHandler()
     ASSERT(canCurrentThreadAccessThreadLocalData(originThread()));
 
     if (m_eventBeingDispatched) {
-        ASSERT(!m_hasUncaughtException);
         m_hasUncaughtException = true;
         return;
     }

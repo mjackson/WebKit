@@ -67,17 +67,17 @@ public:
 
     void respondPendingPullIntosOnClose(JSDOMGlobalObject&);
 
-    ReadableStream& stream();
-    Ref<ReadableStream> protectedStream();
+    ReadableStream& NODELETE stream();
+    Ref<ReadableStream> NODELETE protectedStream();
 
     void pullInto(JSDOMGlobalObject&, JSC::ArrayBufferView&, uint64_t, Ref<ReadableStreamReadIntoRequest>&&);
 
     void runCancelSteps(JSDOMGlobalObject&, JSC::JSValue, Function<void(std::optional<JSC::JSValue>&&)>&&);
     void runPullSteps(JSDOMGlobalObject&, Ref<ReadableStreamReadRequest>&&);
-    void runReleaseSteps();
+    void NODELETE runReleaseSteps();
 
     void storeError(JSDOMGlobalObject&, JSC::JSValue);
-    JSC::JSValue storedError() const;
+    JSC::JSValue NODELETE storedError() const;
 
     ExceptionOr<void> respond(JSDOMGlobalObject&, size_t);
     ExceptionOr<void> respondWithNewView(JSDOMGlobalObject&, JSC::ArrayBufferView&);
@@ -86,7 +86,7 @@ public:
 
     bool hasPendingPullIntos() const { return !m_pendingPullIntos.isEmpty(); }
 
-    void ref();
+    void NODELETE ref();
     void deref();
     void stop();
 
@@ -143,14 +143,14 @@ private:
     void invalidateByobRequest();
     Vector<PullIntoDescriptor> processPullIntoDescriptorsUsingQueue();
     void enqueueDetachedPullIntoToQueue(JSDOMGlobalObject&, PullIntoDescriptor&);
-    PullIntoDescriptor shiftPendingPullInto();
+    PullIntoDescriptor NODELETE shiftPendingPullInto();
     void enqueueChunkToQueue(Ref<JSC::ArrayBuffer>&&, size_t byteOffset, size_t byteLength);
     void enqueueClonedChunkToQueue(JSDOMGlobalObject&, JSC::ArrayBuffer&, size_t byteOffset, size_t byteLength);
     void callPullIfNeeded(JSDOMGlobalObject&);
     bool shouldCallPull();
     bool fillPullIntoDescriptorFromQueue(PullIntoDescriptor&);
     RefPtr<JSC::ArrayBufferView> convertPullIntoDescriptor(JSC::VM&, PullIntoDescriptor&);
-    void fillHeadPullIntoDescriptor(size_t, PullIntoDescriptor&);
+    void NODELETE fillHeadPullIntoDescriptor(size_t, PullIntoDescriptor&);
     void commitPullIntoDescriptor(JSDOMGlobalObject&, PullIntoDescriptor&);
 
     void clearAlgorithms();

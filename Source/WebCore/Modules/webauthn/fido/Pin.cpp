@@ -61,7 +61,7 @@ using namespace cbor;
 // hasAtLeastFourCodepoints returns true if |pin| contains
 // four or more code points. This reflects the "4 Unicode characters"
 // requirement in CTAP2.
-static bool hasAtLeastFourCodepoints(const String& pin)
+static bool NODELETE hasAtLeastFourCodepoints(const String& pin)
 {
     return pin.length() >= 4;
 }
@@ -74,11 +74,10 @@ static Vector<uint8_t> decryptForProtocol(PINUVAuthProtocol protocol, const Cryp
         if (ciphertext.size() < 16)
             return { };
 
-        Vector<uint8_t> iv(ciphertext.subspan(0, 16));
-        Vector<uint8_t> ct(ciphertext.subspan(16));
-
         CryptoAlgorithmAesCbcCfbParams params;
-        params.iv = BufferSource(iv);
+        params.iv = toBufferSource(ciphertext.subspan(0, 16));
+
+        Vector<uint8_t> ct(ciphertext.subspan(16));
 
         auto result = CryptoAlgorithmAESCBC::platformDecrypt(params, key, ct, CryptoAlgorithmAESCBC::Padding::No);
         if (result.hasException())
@@ -284,12 +283,12 @@ static Vector<uint8_t> deriveProtocolSharedSecret(PINUVAuthProtocol protocol, Ve
         sharedSecret.reserveInitialCapacity(64);
         auto hkdfKey = CryptoKeyRaw::create(CryptoAlgorithmIdentifier::HKDF, WTF::move(ecdhResult), CryptoKeyUsageDeriveBits);
 
-        Vector<uint8_t> hkdfSalt(32, 0);
+        std::array<uint8_t, 32> hkdfSalt { };
 
         auto hmacHkdfParamsInit = CryptoAlgorithmHkdfParamsInit {
             CryptoAlgorithmParametersInit { "HKDF"_s },
             String(),
-            toBufferSource(hkdfSalt.span()),
+            toBufferSource(std::span { hkdfSalt }),
             toBufferSource(std::span { kHKDFInfoHMACKey }),
         };
         auto hmacHkdfParams = CryptoAlgorithmHkdfParams(CryptoAlgorithmIdentifier::HKDF, WTF::move(hmacHkdfParamsInit), CryptoAlgorithmIdentifier::SHA_256);
@@ -302,7 +301,7 @@ static Vector<uint8_t> deriveProtocolSharedSecret(PINUVAuthProtocol protocol, Ve
         auto aesHkdfParamsInit = CryptoAlgorithmHkdfParamsInit {
             CryptoAlgorithmParametersInit { "HKDF"_s },
             String(),
-            toBufferSource(hkdfSalt.span()),
+            toBufferSource(std::span { hkdfSalt }),
             toBufferSource(std::span { kHKDFInfoAESKey }),
         };
         auto aesHkdfParams = CryptoAlgorithmHkdfParams(CryptoAlgorithmIdentifier::HKDF, WTF::move(aesHkdfParamsInit), CryptoAlgorithmIdentifier::SHA_256);
@@ -321,18 +320,18 @@ static Vector<uint8_t> deriveProtocolSharedSecret(PINUVAuthProtocol protocol, Ve
 static Vector<uint8_t> encryptForProtocol(PINUVAuthProtocol protocol, const CryptoKeyAES& key, const Vector<uint8_t>& plaintext)
 {
     if (protocol == PINUVAuthProtocol::kPinProtocol2) {
-        Vector<uint8_t> iv(16);
-        cryptographicallyRandomValues(iv.mutableSpan());
+        std::array<uint8_t, 16> iv { };
+        cryptographicallyRandomValues(iv);
 
         CryptoAlgorithmAesCbcCfbParams params;
-        params.iv = BufferSource(iv);
+        params.iv = toBufferSource(iv);
 
         auto result = CryptoAlgorithmAESCBC::platformEncrypt(params, key, plaintext, CryptoAlgorithmAESCBC::Padding::No);
         ASSERT(!result.hasException());
 
         Vector<uint8_t> output;
         output.reserveInitialCapacity(iv.size() + result.returnValue().size());
-        output.appendVector(iv);
+        output.append(std::span { iv });
         output.appendVector(result.releaseReturnValue());
         return output;
     }

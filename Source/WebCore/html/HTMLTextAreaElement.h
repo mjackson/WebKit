@@ -75,7 +75,7 @@ private:
 
     bool supportsPlaceholder() const final { return true; }
     HTMLElement* placeholderElement() const final { return m_placeholder.get(); }
-    RefPtr<HTMLElement> protectedPlaceholderElement() const;
+    RefPtr<HTMLElement> NODELETE protectedPlaceholderElement() const;
     void updatePlaceholderText() final;
     bool isEmptyValue() const final { return value()->isEmpty(); }
 
@@ -86,7 +86,7 @@ private:
     
     void subtreeHasChanged() final;
 
-    bool isEnumeratable() const final { return true; }
+    bool NODELETE isEnumeratable() const final { return true; }
     bool isLabelable() const final { return true; }
 
     bool isInteractiveContent() const final { return true; }

@@ -169,10 +169,10 @@ public:
     template<typename T = double> T valueDividingBy100IfPercentageDeprecated() const { return clampTo<T>(doubleValueDividingBy100IfPercentageDeprecated()); }
 
     // These return nullopt for calc, for which range checking is not done at parse time: <https://www.w3.org/TR/css3-values/#calc-range>.
-    std::optional<bool> isZero() const;
-    std::optional<bool> isOne() const;
-    std::optional<bool> isPositive() const;
-    std::optional<bool> isNegative() const;
+    std::optional<bool> NODELETE isZero() const;
+    std::optional<bool> NODELETE isOne() const;
+    std::optional<bool> NODELETE isPositive() const;
+    std::optional<bool> NODELETE isNegative() const;
 
     WEBCORE_EXPORT String stringValue() const;
     const CSSCalc::Value* cssCalcValue() const { return isCalculated() ? m_value.calc : nullptr; }
@@ -204,7 +204,7 @@ private:
     CSSPrimitiveValue(StaticCSSValueTag, ImplicitInitialValueTag);
 
     CSSUnitType primitiveUnitType() const { return static_cast<CSSUnitType>(m_primitiveUnitType); }
-    void setPrimitiveUnitType(CSSUnitType type) { m_primitiveUnitType = enumToUnderlyingType(type); }
+    void setPrimitiveUnitType(CSSUnitType type) { m_primitiveUnitType = std::to_underlying(type); }
 
     // MARK: Length converting
     double resolveAsLengthDouble(const CSSToLengthConversionData&) const;
@@ -227,7 +227,7 @@ private:
     double doubleValueDividingBy100IfPercentageDeprecated() const;
     template<typename T = double> inline T valueDeprecated() const { return clampTo<T>(doubleValueDeprecated()); }
 
-    static std::optional<double> conversionToCanonicalUnitsScaleFactor(CSSUnitType);
+    static std::optional<double> NODELETE conversionToCanonicalUnitsScaleFactor(CSSUnitType);
 
     std::optional<double> doubleValueInternal(CSSUnitType targetUnit, const CSSToLengthConversionData&) const;
     std::optional<double> doubleValueInternalDeprecated(CSSUnitType targetUnit) const;

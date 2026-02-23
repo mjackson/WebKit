@@ -51,29 +51,14 @@ RemoteXRBinding::RemoteXRBinding(GPUConnectionToWebProcess& gpuConnectionToWebPr
     , m_identifier(identifier)
     , m_gpu(gpu)
 {
-    protectedStreamConnection()->startReceivingMessages(*this, Messages::RemoteXRBinding::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->startReceivingMessages(*this, Messages::RemoteXRBinding::messageReceiverName(), m_identifier.toUInt64());
 }
 
 RemoteXRBinding::~RemoteXRBinding() = default;
 
-Ref<IPC::StreamServerConnection> RemoteXRBinding::protectedStreamConnection()
-{
-    return m_streamConnection;
-}
-
-Ref<WebCore::WebGPU::XRBinding> RemoteXRBinding::protectedBacking()
-{
-    return m_backing;
-}
-
-Ref<RemoteGPU> RemoteXRBinding::protectedGPU()
-{
-    return m_gpu.get();
-}
-
 void RemoteXRBinding::destruct()
 {
-    Ref { m_objectHeap.get() }->removeObject(m_identifier);
+    protect(m_objectHeap)->removeObject(m_identifier);
 }
 
 void RemoteXRBinding::createProjectionLayer(WebCore::WebGPU::TextureFormat colorFormat, std::optional<WebCore::WebGPU::TextureFormat> depthStencilFormat, WebCore::WebGPU::TextureUsageFlags textureUsage, double scaleFactor, WebGPUIdentifier identifier)
@@ -84,14 +69,14 @@ void RemoteXRBinding::createProjectionLayer(WebCore::WebGPU::TextureFormat color
         .textureUsage = textureUsage,
         .scaleFactor = scaleFactor
     };
-    RefPtr projectionLayer = protectedBacking()->createProjectionLayer(WTF::move(init));
+    RefPtr projectionLayer = protect(m_backing)->createProjectionLayer(WTF::move(init));
     if (!projectionLayer) {
         // FIXME: Add MESSAGE_CHECK call
         return;
     }
 
     Ref objectHeap = m_objectHeap.get();
-    Ref remoteProjectionLayer = RemoteXRProjectionLayer::create(*projectionLayer, objectHeap, protectedStreamConnection(), protectedGPU(), identifier);
+    Ref remoteProjectionLayer = RemoteXRProjectionLayer::create(*projectionLayer, objectHeap, protect(m_streamConnection), protect(m_gpu), identifier);
     objectHeap->addObject(identifier, remoteProjectionLayer);
 }
 
@@ -104,19 +89,19 @@ void RemoteXRBinding::getViewSubImage(WebGPUIdentifier projectionLayerIdentifier
         return;
     }
 
-    RefPtr subImage = protectedBacking()->getViewSubImage(*projectionLayer);
+    RefPtr subImage = protect(m_backing)->getViewSubImage(*projectionLayer);
     if (!subImage) {
         // FIXME: Add MESSAGE_CHECK call
         return;
     }
 
-    Ref remoteSubImage = RemoteXRSubImage::create(*m_gpuConnectionToWebProcess.get(), *subImage, objectHeap, protectedStreamConnection(), protectedGPU(), identifier);
+    Ref remoteSubImage = RemoteXRSubImage::create(*m_gpuConnectionToWebProcess.get(), *subImage, objectHeap, protect(m_streamConnection), protect(m_gpu), identifier);
     objectHeap->addObject(identifier, remoteSubImage);
 }
 
 void RemoteXRBinding::stopListeningForIPC()
 {
-    protectedStreamConnection()->stopReceivingMessages(Messages::RemoteXRBinding::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->stopReceivingMessages(Messages::RemoteXRBinding::messageReceiverName(), m_identifier.toUInt64());
 }
 
 } // namespace WebKit

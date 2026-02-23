@@ -84,10 +84,6 @@ private:
     RemoteCommandEncoder& operator=(RemoteCommandEncoder&&) = delete;
 
     WebCore::WebGPU::CommandEncoder& backing() { return m_backing; }
-    Ref<WebCore::WebGPU::CommandEncoder> protectedBacking();
-
-    Ref<WebGPU::ObjectHeap> protectedObjectHeap() const { return m_objectHeap; }
-    Ref<RemoteGPU> protectedGPU() const { return m_gpu; }
 
     void didReceiveStreamMessage(IPC::StreamServerConnection&, IPC::Decoder&) final;
 

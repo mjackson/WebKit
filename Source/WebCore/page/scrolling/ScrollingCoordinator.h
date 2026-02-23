@@ -84,13 +84,10 @@ public:
     WEBCORE_EXPORT virtual bool coordinatesScrollingForOverflowLayer(const RenderLayer&) const;
 
     // Returns the ScrollingNodeID of the innermost scrolling node that scrolls the renderer.
-    WEBCORE_EXPORT virtual std::optional<ScrollingNodeID> scrollableContainerNodeID(const RenderObject&) const;
+    WEBCORE_EXPORT virtual std::optional<ScrollingNodeID> NODELETE scrollableContainerNodeID(const RenderObject&) const;
 
     // Should be called whenever the given frame view has been laid out.
     virtual void frameViewLayoutUpdated(LocalFrameView&) { }
-
-    using LayoutViewportOriginOrOverrideRect = Variant<std::optional<FloatPoint>, std::optional<FloatRect>>;
-    virtual void reconcileScrollingState(LocalFrameView&, const FloatPoint&, const LayoutViewportOriginOrOverrideRect&, ScrollType, ViewportRectStability, ScrollingLayerPositionAction) { }
 
     // Should be called whenever the set of fixed objects changes.
     void frameViewFixedObjectsDidChange(LocalFrameView&);
@@ -176,7 +173,7 @@ public:
     virtual void setSynchronousScrollingReasons(std::optional<ScrollingNodeID>, OptionSet<SynchronousScrollingReason>) { }
     virtual OptionSet<SynchronousScrollingReason> synchronousScrollingReasons(std::optional<ScrollingNodeID>) const { return { }; }
     bool hasSynchronousScrollingReasons(std::optional<ScrollingNodeID> nodeID) const { return !!synchronousScrollingReasons(nodeID); }
-    WEBCORE_EXPORT virtual void applyScrollUpdate(ScrollUpdate&&, ScrollType = ScrollType::User) { }
+    virtual void applyScrollUpdate(ScrollUpdate&&, ScrollType = ScrollType::User, ViewportRectStability = ViewportRectStability::Stable) { }
 
     virtual void reconcileViewportConstrainedLayerPositions(std::optional<ScrollingNodeID>, const LayoutRect&, ScrollingLayerPositionAction) { }
     virtual String scrollingStateTreeAsText(OptionSet<ScrollingStateTreeAsTextBehavior> = { }) const;
@@ -224,12 +221,12 @@ public:
     WEBCORE_EXPORT virtual void setLayerHostingContextIdentifierForFrameHostingNode(ScrollingNodeID, std::optional<LayerHostingContextIdentifier>) { }
     WEBCORE_EXPORT virtual void setScrollbarLayoutDirection(ScrollableArea&, UserInterfaceLayoutDirection) { }
     WEBCORE_EXPORT virtual void setScrollbarWidth(ScrollableArea&, ScrollbarWidth) { }
-    WEBCORE_EXPORT virtual void setScrollbarColor(ScrollableArea&, std::optional<ScrollbarColor>);
+    WEBCORE_EXPORT virtual void NODELETE setScrollbarColor(ScrollableArea&, std::optional<ScrollbarColor>);
 #if USE(COORDINATED_GRAPHICS_ASYNC_SCROLLBAR)
     virtual void setScrollbarOpacity(ScrollableArea&) { }
 #endif
 
-    FrameIdentifier mainFrameIdentifier() const;
+    FrameIdentifier NODELETE mainFrameIdentifier() const;
 
 protected:
     explicit ScrollingCoordinator(Page*);
@@ -246,7 +243,6 @@ protected:
     virtual void willCommitTree(FrameIdentifier) { }
 
     WEBCORE_EXPORT Page* NODELETE page() const;
-    WEBCORE_EXPORT RefPtr<Page> protectedPage() const;
 
 private:
     virtual bool hasVisibleSlowRepaintViewportConstrainedObjects(const LocalFrameView&) const;

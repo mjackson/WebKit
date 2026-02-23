@@ -121,8 +121,9 @@ using namespace WebKit;
 
     // New window or main frame navigation to an external URL opens in a new tab.
     if (!navigationAction.targetFrame || (navigationAction.targetFrame.isMainFrame && !isURLForThisExtension)) {
-        RefPtr currentWindow = _webExtensionAction->window();
-        RefPtr currentTab = _webExtensionAction->tab();
+        RefPtr webExtensionAction = _webExtensionAction.get();
+        RefPtr currentWindow = webExtensionAction->window();
+        RefPtr currentTab = webExtensionAction->tab();
         if (!currentWindow && currentTab)
             currentWindow = currentTab->window();
 
@@ -194,8 +195,9 @@ using namespace WebKit;
         return nil;
     }
 
-    RefPtr currentWindow = _webExtensionAction->window();
-    RefPtr currentTab = _webExtensionAction->tab();
+    RefPtr webExtensionAction = _webExtensionAction.get();
+    RefPtr currentWindow = webExtensionAction->window();
+    RefPtr currentTab = webExtensionAction->tab();
     if (!currentWindow && currentTab)
         currentWindow = currentTab->window();
 

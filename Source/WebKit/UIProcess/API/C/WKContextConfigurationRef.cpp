@@ -68,7 +68,7 @@ WKStringRef WKContextConfigurationCopyInjectedBundlePath(WKContextConfigurationR
 
 void WKContextConfigurationSetInjectedBundlePath(WKContextConfigurationRef configuration, WKStringRef injectedBundlePath)
 {
-    toImpl(configuration)->setInjectedBundlePath(toProtectedImpl(injectedBundlePath)->string());
+    protect(toImpl(configuration))->setInjectedBundlePath(toProtectedImpl(injectedBundlePath)->string());
 }
 
 WKArrayRef WKContextConfigurationCopyCustomClassesForParameterCoder(WKContextConfigurationRef configuration)
@@ -215,5 +215,5 @@ WKStringRef WKContextConfigurationCopyTimeZoneOverride(WKContextConfigurationRef
 
 void WKContextConfigurationSetTimeZoneOverride(WKContextConfigurationRef configuration, WKStringRef timeZoneOverride)
 {
-    toImpl(configuration)->setTimeZoneOverride(toProtectedImpl(timeZoneOverride)->string());
+    protect(toImpl(configuration))->setTimeZoneOverride(toProtectedImpl(timeZoneOverride)->string());
 }

@@ -387,6 +387,89 @@ TEST(SmartLists, InsertingSpaceInsideListElementDoesNotActivateSmartLists)
     runTest(@"* A\n1. Hi", expectedHTML.createNSString().get(), @"//body/ul/li[2]/text()", @"1. Hi".length);
 }
 
+TEST(SmartLists, BackspaceOnEmptyListElementShouldKeepPlainTextMarkers)
+{
+    static constexpr auto expectedBulletHTML = R"""(
+    <body contenteditable="" webkitsmartlistmarker="*">
+        <div>* ABC</div>
+    </body>)"""_s;
+
+    runTest(@"* ⌫ABC", expectedBulletHTML.createNSString().get(), @"//body/div/text()", @"* ABC".length);
+
+    static constexpr auto expectedDashHTML = R"""(
+    <body contenteditable="" webkitsmartlistmarker="-">
+        <div>- ABC</div>
+    </body>)"""_s;
+
+    runTest(@"- ⌫ABC", expectedDashHTML.createNSString().get(), @"//body/div/text()", @"- ABC".length);
+
+    static constexpr auto expectedNumberHTML = R"""(
+    <body contenteditable="" webkitsmartlistmarker="1.">
+        <div>1. ABC</div>
+    </body>)"""_s;
+
+    runTest(@"1. ⌫ABC", expectedNumberHTML.createNSString().get(), @"//body/div/text()", @"1. ABC".length);
+}
+
+TEST(SmartLists, BackspaceOnNonEmptyListElementShouldPreserveList)
+{
+    static constexpr auto expectedHTML = R"""(
+    <body contenteditable="">
+        <ul style="list-style-type: disc;" class="Apple-disc-list">
+            <li>Worl</li>
+        </ul>
+    </body>)"""_s;
+
+    runTest(@"* World⌫", expectedHTML.createNSString().get(), @"//body/ul/li/text()", @"Worl".length);
+}
+
+TEST(SmartLists, BackspaceOnEmptyNonFirstListElementShouldKeepPlainTextMarkers)
+{
+    static constexpr auto expectedBulletHTML = R"""(
+    <body contenteditable="" webkitsmartlistmarker="*">
+        <ul class="Apple-disc-list" style="list-style-type: disc;">
+            <li>A</li>
+        </ul>
+        <div>* B</div>
+    </body>)"""_s;
+
+    runTest(@"* A\n⌫B", expectedBulletHTML.createNSString().get(), @"//body/div/text()", @"* B".length);
+}
+
+TEST(SmartLists, BackspaceWithInvalidWebKitSmartListMarkerAttributeDoesNotApply)
+{
+    __block bool finished = false;
+    __block RetainPtr<SmartListsTestResult> result;
+    [SmartListsSupport testBackspaceWithInvalidWebKitSmartListMarkerAttributeDoesNotApplyWithCompletionHandler:^(SmartListsTestResult *testResult, NSError *error) {
+        if (error) {
+            TextStream errorMessage;
+            errorMessage << error;
+            EXPECT_NULL(error) << errorMessage.release().utf8().data();
+        }
+        result = testResult;
+        finished = true;
+    }];
+
+    TestWebKitAPI::Util::run(&finished);
+
+    TextStream stream;
+    stream << "expected " << [result actualHTML] << " to equal " << [result expectedHTML];
+    EXPECT_WK_STREQ([result expectedRenderTree], [result actualRenderTree]) << stream.release().utf8().data();
+}
+
+TEST(SmartLists, NewlineOnEmptyListElementShouldRemovePlainTextMarkers)
+{
+    static constexpr auto expectedHTML = R"""(
+    <body contenteditable="" webkitsmartlistmarker="*">
+        <ul class="Apple-disc-list" style="list-style-type: disc;">
+            <li>A</li>
+        </ul>
+        <div>B</div>
+    </body>)"""_s;
+
+    runTest(@"* A\n\nB", expectedHTML.createNSString().get(), @"//body/div/text()", 1);
+}
+
 TEST(SmartLists, GeneratedSmartListsHaveAssociatedClassNames)
 {
     auto dashMarker = WTF::makeString(WTF::Unicode::emDash, WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace);

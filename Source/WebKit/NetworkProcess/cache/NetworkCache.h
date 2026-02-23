@@ -159,7 +159,7 @@ public:
     ~Cache();
     static RefPtr<Cache> open(NetworkProcess&, const String& cachePath, OptionSet<CacheOption>, PAL::SessionID);
 
-    size_t capacity() const;
+    size_t NODELETE capacity() const;
     void updateCapacity();
 
     // Completion handler may get called back synchronously on failure.
@@ -247,8 +247,6 @@ private:
     void deleteDumpFile();
 
     std::optional<Seconds> maxAgeCap(Entry&, const WebCore::ResourceRequest&, PAL::SessionID);
-
-    Ref<Storage> protectedStorage() const { return m_storage; }
 
     const Ref<Storage> m_storage;
     const Ref<NetworkProcess> m_networkProcess;

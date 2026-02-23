@@ -80,10 +80,10 @@ void ScriptRunner::queueScriptForExecution(ScriptElement& scriptElement, Loadabl
 
     Ref pendingScript = PendingScript::create(scriptElement, loadableScript);
     switch (executionType) {
-    case ASYNC_EXECUTION:
+    case ExecutionType::Async:
         m_pendingAsyncScripts.add(pendingScript.copyRef());
         break;
-    case IN_ORDER_EXECUTION:
+    case ExecutionType::InOrder:
         m_scriptsToExecuteInOrder.append(pendingScript.copyRef());
         break;
     }

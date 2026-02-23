@@ -218,12 +218,12 @@ static constexpr auto logicalSwitchHeight = 18.f;
 static constexpr FloatSize idealRefreshedSwitchSize = { 64, 28 };
 static constexpr auto logicalRefreshedSwitchWidth = logicalSwitchHeight * (idealRefreshedSwitchSize.width() / idealRefreshedSwitchSize.height());
 
-static bool renderThemePaintSwitchThumb(OptionSet<ControlStyle::State>, const RenderElement&, const PaintInfo&, const FloatRect&, const Color&)
+static bool NODELETE renderThemePaintSwitchThumb(OptionSet<ControlStyle::State>, const RenderElement&, const PaintInfo&, const FloatRect&, const Color&)
 {
     return true;
 }
 
-static bool renderThemePaintSwitchTrack(OptionSet<ControlStyle::State>, const RenderElement&, const PaintInfo&, const FloatRect&)
+static bool NODELETE renderThemePaintSwitchTrack(OptionSet<ControlStyle::State>, const RenderElement&, const PaintInfo&, const FloatRect&)
 {
     return true;
 }
@@ -245,7 +245,7 @@ constexpr int kThumbnailBorderCornerRadius = 1;
 constexpr int kVisibleBackgroundImageWidth = 1;
 constexpr int kMultipleThumbnailShrinkSize = 2;
 
-static inline bool canShowCapsLockIndicator()
+static inline bool NODELETE canShowCapsLockIndicator()
 {
 #if HAVE(ACCELERATED_TEXT_INPUT)
     if (redesignedTextCursorEnabled())
@@ -294,7 +294,7 @@ void RenderThemeCocoa::paintFileUploadIconDecorations(const RenderElement&, cons
         thumbnailRect.contract(kMultipleThumbnailShrinkSize, kMultipleThumbnailShrinkSize);
 
         // Background picture frame and simple background icon with a gradient matching the button.
-        auto backgroundImageColor = buttonRenderer.checkedStyle()->visitedDependentBackgroundColor();
+        auto backgroundImageColor = protect(buttonRenderer.style())->visitedDependentBackgroundColor();
         paintInfo.context().fillRoundedRect(FloatRoundedRect(thumbnailPictureFrameRect, cornerSize, cornerSize, cornerSize, cornerSize), pictureFrameColor);
         paintInfo.context().fillRect(thumbnailRect, backgroundImageColor);
 
@@ -1765,7 +1765,7 @@ bool RenderThemeCocoa::adjustColorWellSwatchOverlayStyleForVectorBasedControls(R
     if (!formControlRefreshEnabled(element))
         return false;
 
-    style.setDisplay(DisplayType::None);
+    style.setDisplay(Style::DisplayType::None);
 
     return true;
 #endif
@@ -2929,13 +2929,13 @@ bool RenderThemeCocoa::paintMeterForVectorBasedControls(const RenderElement& ren
 
     auto colorCSSValueID = CSSValueInvalid;
     switch (element->gaugeRegion()) {
-    case HTMLMeterElement::GaugeRegionOptimum:
+    case HTMLMeterElement::GaugeRegion::Optimum:
         colorCSSValueID = CSSValueAppleSystemGreen;
         break;
-    case HTMLMeterElement::GaugeRegionSuboptimal:
+    case HTMLMeterElement::GaugeRegion::Suboptimal:
         colorCSSValueID = CSSValueAppleSystemYellow;
         break;
-    case HTMLMeterElement::GaugeRegionEvenLessGood:
+    case HTMLMeterElement::GaugeRegion::EvenLessGood:
         colorCSSValueID = CSSValueAppleSystemRed;
         break;
     }
@@ -2966,7 +2966,7 @@ bool RenderThemeCocoa::adjustListButtonStyleForVectorBasedControls(RenderStyle& 
         return false;
 
 #if PLATFORM(IOS_FAMILY)
-    if (style.hasContent() || style.hasUsedContentNone()) {
+    if (style.content().isData() || style.hasUsedContentNone()) {
         style.setLogicalWidth(11_css_px);
         return true;
     }
@@ -3039,7 +3039,7 @@ bool RenderThemeCocoa::paintListButtonForVectorBasedControls(const RenderElement
     CheckedRef style = box.style();
 
 #if PLATFORM(IOS_FAMILY)
-    if (style->hasContent() || style->hasUsedContentNone())
+    if (style->content().isData() || style->hasUsedContentNone())
         return true;
 #endif
 

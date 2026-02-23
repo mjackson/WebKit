@@ -42,7 +42,7 @@ void LayerRepresentation::releasePlatformLayer(void* typelessLayer)
         CFRelease(typelessLayer);
 }
 
-CALayer *LayerRepresentation::makePlatformLayerTyped(void* typelessLayer)
+CALayer *NODELETE LayerRepresentation::makePlatformLayerTyped(void* typelessLayer)
 {
     return (__bridge CALayer *)typelessLayer;
 }

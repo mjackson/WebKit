@@ -27,9 +27,9 @@
 #include "InspectorTargetProxy.h"
 
 #include "MessageSenderInlines.h"
+#include "PageInspectorTarget.h"
 #include "ProvisionalPageProxy.h"
 #include "WebFrameProxy.h"
-#include "WebPageInspectorTarget.h"
 #include "WebPageMessages.h"
 #include "WebPageProxy.h"
 #include "WebProcessProxy.h"

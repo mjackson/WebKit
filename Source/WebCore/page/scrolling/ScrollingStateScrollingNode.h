@@ -113,7 +113,7 @@ public:
     enum class CanMergeScrollData : bool { No, Yes };
     WEBCORE_EXPORT void setRequestedScrollData(RequestedScrollData&&, CanMergeScrollData = CanMergeScrollData::Yes);
 
-    WEBCORE_EXPORT bool hasScrollPositionRequest() const;
+    WEBCORE_EXPORT bool NODELETE hasScrollPositionRequest() const;
 
     bool isMonitoringWheelEvents() const { return m_isMonitoringWheelEvents; }
     WEBCORE_EXPORT void setIsMonitoringWheelEvents(bool);

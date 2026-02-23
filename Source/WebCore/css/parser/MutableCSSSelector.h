@@ -97,9 +97,9 @@ public:
     bool needsImplicitShadowCombinatorForMatching() const;
 
     MutableCSSSelector* precedingInComplexSelector() const { return m_precedingInComplexSelector.get(); }
-    MutableCSSSelector* leftmostSimpleSelector();
+    MutableCSSSelector* NODELETE leftmostSimpleSelector();
     const MutableCSSSelector* leftmostSimpleSelector() const;
-    bool startsWithExplicitCombinator() const;
+    bool NODELETE startsWithExplicitCombinator() const;
     void setPrecedingInComplexSelector(std::unique_ptr<MutableCSSSelector> selector) { m_precedingInComplexSelector = WTF::move(selector); }
     void prependInComplexSelector(CSSSelector::Relation, std::unique_ptr<MutableCSSSelector>);
     void prependInComplexSelectorAsRelative(std::unique_ptr<MutableCSSSelector>);

@@ -789,7 +789,8 @@ std::optional<SimpleRange> makeDOMRange(Document* document, NSRange range)
         if (actionName.isEmpty())
             continue;
 
-        result.append({ WTF::move(actionName), actionElement->objectID(), backingObject->treeID() });
+        if (std::optional treeID = backingObject->treeID())
+            result.append({ WTF::move(actionName), actionElement->objectID(), *treeID });
     }
 
     return result;

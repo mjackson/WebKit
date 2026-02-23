@@ -21,11 +21,13 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-#if canImport(RealityCoreRenderer, _version: 9) && (os(macOS) || (os(iOS) && canImport(SwiftUI, _version: "8.0.36"))) && canImport(_USDKit_RealityKit)
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 9) && (os(macOS) || (os(iOS) && canImport(SwiftUI, _version: "8.0.36"))) && canImport(_USDKit_RealityKit) && !os(visionOS)
 
 internal import Metal
-@_spi(RealityCoreRendererAPI) internal import RealityKit
-@_spi(RealityCoreTextureProcessingAPI) internal import RealityKit
+@_weakLinked internal import USDKit
+@_weakLinked @_spi(UsdLoaderAPI) internal import _USDKit_RealityKit
+@_spi(RealityCoreRendererAPI) import RealityKit
+@_spi(RealityCoreTextureProcessingAPI) import RealityKit
 
 class IBLTextures {
     static func loadIBLTextures(

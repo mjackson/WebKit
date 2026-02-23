@@ -97,7 +97,7 @@ private:
     HashSet<Ref<MemoryIndex>> m_indexes;
     HashSet<Ref<MemoryIndex>> m_versionChangeAddedIndexes;
 
-    HashMap<String, RefPtr<MemoryObjectStore>> m_deletedObjectStores;
+    HashMap<String, Ref<MemoryObjectStore>> m_deletedObjectStores;
     HashSet<Ref<MemoryIndex>> m_deletedIndexes;
     HashMap<MemoryObjectStore*, String> m_originalObjectStoreNames;
     HashMap<Ref<MemoryIndex>, String> m_originalIndexNames;

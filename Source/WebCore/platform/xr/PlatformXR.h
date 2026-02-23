@@ -49,6 +49,7 @@
 #endif
 
 #if ENABLE(WEBXR_HIT_TEST)
+#include "XRHitTestSourceIdentifier.h"
 #include <WebCore/ExceptionOr.h>
 #endif
 
@@ -110,8 +111,10 @@ enum class VisibilityState : uint8_t {
 using LayerHandle = int;
 
 #if ENABLE(WEBXR)
-using HitTestSource = unsigned;
-using TransientInputHitTestSource = unsigned;
+#if ENABLE(WEBXR_HIT_TEST)
+using HitTestSource = WebCore::XRHitTestSourceIdentifier;
+using TransientInputHitTestSource = WebCore::XRHitTestSourceIdentifier;
+#endif
 using InputSourceHandle = int;
 
 // https://immersive-web.github.io/webxr/#enumdef-xrhandedness

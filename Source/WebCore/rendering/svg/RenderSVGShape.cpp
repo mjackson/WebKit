@@ -190,7 +190,7 @@ void RenderSVGShape::fillShape(const RenderStyle& style, GraphicsContext& contex
 
 void RenderSVGShape::strokeShape(const RenderStyle& style, GraphicsContext& context)
 {
-    if (!style.hasStroke() || !style.strokeWidth().isPossiblyPositive())
+    if (style.stroke().isNone() || !style.strokeWidth().isPossiblyPositive())
         return;
 
     GraphicsContextStateSaver stateSaver(context, false);
@@ -268,7 +268,7 @@ bool RenderSVGShape::isPointInFill(const FloatPoint& point)
 
 bool RenderSVGShape::isPointInStroke(const FloatPoint& point)
 {
-    if (!style().hasStroke())
+    if (style().stroke().isNone())
         return false;
 
     return shapeDependentStrokeContains(point, LocalCoordinateSpace);
@@ -311,14 +311,14 @@ bool RenderSVGShape::nodeAtPoint(const HitTestRequest& request, HitTestResult& r
         if (request.svgClipContent())
             fillRule = style().clipRule();
 
-        if (hitRules.canHitStroke && (style().hasStroke() || !hitRules.requireStroke) && strokeContains(localPoint, hitRules.requireStroke)) {
+        if (hitRules.canHitStroke && (!style().stroke().isNone() || !hitRules.requireStroke) && strokeContains(localPoint, hitRules.requireStroke)) {
             updateHitTestResult(result, locationInContainer.point() - toLayoutSize(adjustedLocation));
             if (result.addNodeToListBasedTestResult(protect(nodeForHitTest()).get(), request, locationInContainer, strokeBoundingBox()) == HitTestProgress::Stop)
                 return true;
             return false;
         }
 
-        if ((hitRules.canHitFill && (style().hasFill() || !hitRules.requireFill) && fillContains(localPoint, hitRules.requireFill, fillRule))
+        if ((hitRules.canHitFill && (!style().fill().isNone() || !hitRules.requireFill) && fillContains(localPoint, hitRules.requireFill, fillRule))
             || (hitRules.canHitBoundingBox && m_fillBoundingBox.contains(localPoint))) {
             updateHitTestResult(result, locationInContainer.point() - toLayoutSize(adjustedLocation));
             if (result.addNodeToListBasedTestResult(protect(nodeForHitTest()).get(), request, locationInContainer, m_fillBoundingBox) == HitTestProgress::Stop)
@@ -347,7 +347,7 @@ FloatRect RenderSVGShape::calculateStrokeBoundingBox() const
     ASSERT(m_path);
     FloatRect strokeBoundingBox = m_fillBoundingBox;
 
-    if (style().hasStroke()) {
+    if (!style().stroke().isNone()) {
         if (hasNonScalingStroke()) {
             AffineTransform nonScalingTransform = nonScalingStrokeTransform();
             if (std::optional<AffineTransform> inverse = nonScalingTransform.inverse()) {
@@ -428,7 +428,7 @@ std::unique_ptr<Path> RenderSVGShape::createPath() const
 
 void RenderSVGShape::styleWillChange(Style::Difference diff, const RenderStyle& newStyle)
 {
-    auto* oldStyle = hasInitializedStyle() ? &style() : nullptr;
+    CheckedPtr oldStyle = hasInitializedStyle() ? &style() : nullptr;
     if (oldStyle) {
         if (diff == Style::DifferenceResult::Layout)
             setNeedsShapeUpdate();

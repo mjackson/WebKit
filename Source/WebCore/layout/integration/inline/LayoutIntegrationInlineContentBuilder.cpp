@@ -133,9 +133,9 @@ void InlineContentBuilder::adjustDisplayLines(InlineContent& inlineContent, size
     auto& boxes = inlineContent.displayContent().boxes;
 
     size_t boxIndex = !startIndex ? 0 : lines[startIndex - 1].lastBoxIndex() + 1;
-    auto& rootBoxStyle = m_blockFlow.style();
-    auto isLeftToRightInlineDirection = rootBoxStyle.isLeftToRightDirection();
-    auto isHorizontalWritingMode = rootBoxStyle.writingMode().isHorizontal();
+    CheckedRef rootBoxStyle = m_blockFlow.style();
+    auto isLeftToRightInlineDirection = rootBoxStyle->isLeftToRightDirection();
+    auto isHorizontalWritingMode = rootBoxStyle->writingMode().isHorizontal();
 
     auto blockScrollableOverflowRect = FloatRect { };
     auto blockInkOverflowRect = FloatRect { };
@@ -198,15 +198,15 @@ void InlineContentBuilder::adjustDisplayLines(InlineContent& inlineContent, size
                 if (box.isBlockLevelBox())
                     inlineContent.setHasBlockLevelBoxes();
 
-                auto& renderer = downcast<RenderBox>(*box.layoutBox().rendererForIntegration());
-                if (!renderer.hasSelfPaintingLayer()) {
-                    auto childInkOverflow = renderer.logicalVisualOverflowRectForPropagation(renderer.parent()->writingMode());
+                CheckedRef renderer = downcast<RenderBox>(*box.layoutBox().rendererForIntegration());
+                if (!renderer->hasSelfPaintingLayer()) {
+                    auto childInkOverflow = renderer->logicalVisualOverflowRectForPropagation(renderer->parent()->writingMode());
                     childInkOverflow.move(box.left(), box.top());
                     lineInkOverflowRect.unite(childInkOverflow);
                 }
 
-                if (!renderer.hasControlClip()) {
-                    auto childScrollableOverflow = renderer.layoutOverflowRectForPropagation(renderer.parent()->writingMode());
+                if (!renderer->hasControlClip()) {
+                    auto childScrollableOverflow = renderer->layoutOverflowRectForPropagation(renderer->parent()->writingMode());
                     childScrollableOverflow.move(box.left(), box.top());
                     lineScrollableOverflowRect.unite(childScrollableOverflow);
                 }
@@ -219,7 +219,7 @@ void InlineContentBuilder::adjustDisplayLines(InlineContent& inlineContent, size
                     lineInkOverflowRect.unite(box.inkOverflow());
 
                 if (line.hasBlockLevelBox()) {
-                    if (hasSelfPaintingLayer || box.layoutBox().style().hasOpacity() || box.layoutBox().style().hasOutline()) {
+                    if (hasSelfPaintingLayer || !box.layoutBox().style().opacity().isOpaque() || box.layoutBox().style().hasOutline()) {
                         // See if the inline box has properties that affect block-in-inline painting.
                         inlineContent.setHasPaintedInlineLevelBoxes();
                     }
@@ -272,11 +272,11 @@ void InlineContentBuilder::computeIsFirstIsLastBoxAndBidiReorderingForInlineCont
             lastRootInlineBoxIndex = index;
             continue;
         }
-        auto& layoutBox = displayBox.layoutBox();
+        CheckedRef layoutBox = displayBox.layoutBox();
         if (is<Layout::InlineTextBox>(layoutBox) && displayBox.bidiLevel() != UBIDI_DEFAULT_LTR)
-            downcast<RenderText>(*layoutBox.rendererForIntegration()).setNeedsVisualReordering();
+            downcast<RenderText>(*layoutBox->rendererForIntegration()).setNeedsVisualReordering();
 
-        if (lastDisplayBoxForLayoutBoxIndexes.set(&layoutBox, index).isNewEntry)
+        if (lastDisplayBoxForLayoutBoxIndexes.set(layoutBox.ptr(), index).isNewEntry)
             displayBox.setIsFirstForLayoutBox();
     }
     for (auto index : lastDisplayBoxForLayoutBoxIndexes.values())

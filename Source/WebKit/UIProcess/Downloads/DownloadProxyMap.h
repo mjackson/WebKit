@@ -66,7 +66,7 @@ public:
     bool isEmpty() const { return m_downloads.isEmpty(); }
     void invalidate();
 
-    void ref() const;
+    void NODELETE ref() const;
     void deref() const;
 
 private:

@@ -173,12 +173,12 @@ public:
     void setWorkerRouterEvaluationStart(MonotonicTime);
     void setWorkerCacheLookupStart(MonotonicTime);
     void setWorkerMatchedRouterSource(WebCore::RouterSourceEnum);
-    void setWorkerFinalRouterSource(WebCore::RouterSourceEnum);
+    void NODELETE setWorkerFinalRouterSource(WebCore::RouterSourceEnum);
 
     std::optional<WebCore::ResourceError> doCrossOriginOpenerHandlingOfResponse(const WebCore::ResourceResponse&);
     void sendDidReceiveResponsePotentiallyInNewBrowsingContextGroup(const WebCore::ResourceResponse&, PrivateRelayed, bool needsContinueDidReceiveResponseMessage);
 
-    bool isAppInitiated();
+    bool NODELETE isAppInitiated();
 
 #if ENABLE(CONTENT_FILTERING)
     bool continueAfterServiceWorkerReceivedData(const WebCore::SharedBuffer&);
@@ -192,9 +192,6 @@ public:
 
 private:
     NetworkResourceLoader(NetworkResourceLoadParameters&&, NetworkConnectionToWebProcess&, CompletionHandler<void(const WebCore::ResourceError&, const WebCore::ResourceResponse, Vector<uint8_t>&&)>&&);
-
-    RefPtr<NetworkCache::Cache> protectedCache() const;
-    RefPtr<ServiceWorkerFetchTask> protectedServiceWorkerFetchTask() const;
 
     // IPC::MessageSender
     IPC::Connection* messageSenderConnection() const override;
@@ -283,7 +280,7 @@ private:
     void sendReportToEndpoints(const URL& baseURL, std::span<const String> endpointURIs, std::span<const String> endpointTokens, Ref<WebCore::FormData>&& report, WebCore::ViolationReportType) final;
     String httpUserAgent() const final { return originalRequest().httpUserAgent(); }
     void initializeReportingEndpoints(const WebCore::ResourceResponse&);
-    WebCore::FrameIdentifier frameIdentifierForReport() const;
+    WebCore::FrameIdentifier NODELETE frameIdentifierForReport() const;
 
     enum class IsFromServiceWorker : bool { No, Yes };
     void willSendRedirectedRequestInternal(WebCore::ResourceRequest&&, WebCore::ResourceRequest&& redirectRequest, WebCore::ResourceResponse&&, IsFromServiceWorker, CompletionHandler<void(WebCore::ResourceRequest&&)>&&);
@@ -292,7 +289,7 @@ private:
     void startRequest(const WebCore::ResourceRequest&);
     bool abortIfServiceWorkersOnly();
 
-    bool shouldSendResourceLoadMessages() const;
+    bool NODELETE shouldSendResourceLoadMessages() const;
 
     void sendDidReceiveDataMessage(const WebCore::FragmentedSharedBuffer&);
 

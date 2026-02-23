@@ -31,7 +31,6 @@
 #include <WebCore/DocumentSyncData.h>
 #include <WebCore/Element.h>
 #include <WebCore/ExtensionStyleSheets.h>
-#include <WebCore/FrameSelection.h>
 #include <WebCore/NodeIterator.h>
 #include <WebCore/ReportingScope.h>
 #include <WebCore/SecurityOrigin.h>
@@ -137,12 +136,6 @@ inline ReportingScope& Document::reportingScope() const
 inline Ref<DocumentSyncData> Document::syncData()
 {
     return m_syncData.get();
-}
-
-// FIXME: Move to FrameSelectionInlines.h
-RefPtr<Document> FrameSelection::protectedDocument() const
-{
-    return m_document.get();
 }
 
 } // namespace WebCore

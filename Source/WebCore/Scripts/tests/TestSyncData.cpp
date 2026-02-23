@@ -34,24 +34,24 @@ void TestSyncData::update(const TestSyncSerializationData& data)
 {
     switch (data.type) {
     case TestSyncDataType::MainFrameURLChange:
-        mainFrameURLChange = std::get<enumToUnderlyingType(TestSyncDataType::MainFrameURLChange)>(data.value);
+        mainFrameURLChange = std::get<std::to_underlying(TestSyncDataType::MainFrameURLChange)>(data.value);
         break;
     case TestSyncDataType::IsAutofocusProcessed:
-        isAutofocusProcessed = std::get<enumToUnderlyingType(TestSyncDataType::IsAutofocusProcessed)>(data.value);
+        isAutofocusProcessed = std::get<std::to_underlying(TestSyncDataType::IsAutofocusProcessed)>(data.value);
         break;
     case TestSyncDataType::UserDidInteractWithPage:
-        userDidInteractWithPage = std::get<enumToUnderlyingType(TestSyncDataType::UserDidInteractWithPage)>(data.value);
+        userDidInteractWithPage = std::get<std::to_underlying(TestSyncDataType::UserDidInteractWithPage)>(data.value);
         break;
     case TestSyncDataType::AnotherOne:
-        anotherOne = std::get<enumToUnderlyingType(TestSyncDataType::AnotherOne)>(data.value);
+        anotherOne = std::get<std::to_underlying(TestSyncDataType::AnotherOne)>(data.value);
         break;
 #if ENABLE(DOM_AUDIO_SESSION)
     case TestSyncDataType::AudioSessionType:
-        audioSessionType = std::get<enumToUnderlyingType(TestSyncDataType::AudioSessionType)>(data.value);
+        audioSessionType = std::get<std::to_underlying(TestSyncDataType::AudioSessionType)>(data.value);
         break;
 #endif
     case TestSyncDataType::MultipleHeaders:
-        multipleHeaders = std::get<enumToUnderlyingType(TestSyncDataType::MultipleHeaders)>(data.value);
+        multipleHeaders = std::get<std::to_underlying(TestSyncDataType::MultipleHeaders)>(data.value);
         break;
     default:
         RELEASE_ASSERT_NOT_REACHED();

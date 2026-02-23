@@ -63,7 +63,7 @@ public:
     // Return true if the specified renderer (descendant of the flow thread) is inside this column set.
     bool containsRendererInFragmentedFlow(const RenderObject&) const;
 
-    void setLogicalTopInFragmentedFlow(LayoutUnit);
+    void NODELETE setLogicalTopInFragmentedFlow(LayoutUnit);
     LayoutUnit logicalTopInFragmentedFlow() const { return isHorizontalWritingMode() ? fragmentedFlowPortionRect().y() : fragmentedFlowPortionRect().x(); }
     void setLogicalBottomInFragmentedFlow(LayoutUnit);
     LayoutUnit logicalBottomInFragmentedFlow() const { return isHorizontalWritingMode() ? fragmentedFlowPortionRect().maxY() : fragmentedFlowPortionRect().maxX(); }
@@ -176,7 +176,7 @@ private:
     LayoutUnit columnLogicalLeft(unsigned) const;
     LayoutUnit columnLogicalTop(unsigned) const;
 
-    LayoutRect fragmentedFlowPortionRectAt(unsigned index) const;
+    LayoutRect NODELETE fragmentedFlowPortionRectAt(unsigned index) const;
     LayoutRect fragmentedFlowPortionOverflowRect(const LayoutRect& fragmentedFlowPortion, unsigned index, unsigned colCount, LayoutUnit colGap) const;
 
     LayoutUnit initialBlockOffsetForPainting() const;

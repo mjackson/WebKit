@@ -30,7 +30,7 @@
 
 namespace WebCore {
 
-static RefPtr<PermissionController>& sharedController()
+static RefPtr<PermissionController>& NODELETE sharedController()
 {
     static MainThreadNeverDestroyed<RefPtr<PermissionController>> controller;
     return controller;

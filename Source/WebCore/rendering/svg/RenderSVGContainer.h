@@ -62,6 +62,7 @@ protected:
     virtual bool updateLayoutSizeIfNeeded() { return false; }
     virtual std::optional<FloatRect> overridenObjectBoundingBoxWithoutTransformations() const { return std::nullopt; }
     bool nodeAtPoint(const HitTestRequest&, HitTestResult&, const HitTestLocation& locationInContainer, const LayoutPoint& accumulatedOffset, HitTestAction) override;
+    void addFocusRingRects(Vector<LayoutRect>& rects, const LayoutPoint& additionalOffset, const RenderLayerModelObject* container) const override;
 
     bool m_objectBoundingBoxValid { false };
     bool m_isLayoutSizeChanged { false };

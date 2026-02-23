@@ -37,15 +37,15 @@ SVGTextChunk::SVGTextChunk(const Vector<InlineIterator::SVGTextBoxIterator>& lin
     ASSERT(limit <= lineLayoutBoxes.size());
 
     auto firstBox = lineLayoutBoxes[first];
-    auto& style = firstBox->renderer().style();
+    CheckedRef style = firstBox->renderer().style();
 
-    if (style.writingMode().isBidiRTL())
+    if (style->writingMode().isBidiRTL())
         m_chunkStyle.add(ChunkStyle::RightToLeftText);
 
-    if (style.writingMode().isVertical())
+    if (style->writingMode().isVertical())
         m_chunkStyle.add(ChunkStyle::VerticalText);
     
-    switch (style.textAnchor()) {
+    switch (style->textAnchor()) {
     case TextAnchor::Start:
         break;
     case TextAnchor::Middle:

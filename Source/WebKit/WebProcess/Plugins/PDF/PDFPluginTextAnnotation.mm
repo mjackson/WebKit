@@ -75,7 +75,7 @@ Ref<PDFPluginTextAnnotation> PDFPluginTextAnnotation::create(PDFAnnotation *anno
 
 PDFPluginTextAnnotation::~PDFPluginTextAnnotation()
 {
-    protectedElement()->removeEventListener(eventNames().keydownEvent, *eventListener(), { .capture = false });
+    protect(element())->removeEventListener(eventNames().keydownEvent, *eventListener(), { .capture = false });
 }
 
 Ref<Element> PDFPluginTextAnnotation::createAnnotationElement()
@@ -116,12 +116,12 @@ void PDFPluginTextAnnotation::commit()
 
 String PDFPluginTextAnnotation::value() const
 {
-    return downcast<HTMLTextFormControlElement>(protectedElement())->value();
+    return downcast<HTMLTextFormControlElement>(protect(element()))->value();
 }
 
 void PDFPluginTextAnnotation::setValue(const String& value)
 {
-    downcast<HTMLTextFormControlElement>(protectedElement())->setValue(value);
+    downcast<HTMLTextFormControlElement>(protect(element()))->setValue(value);
 }
 
 bool PDFPluginTextAnnotation::handleEvent(Event& event)

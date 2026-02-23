@@ -139,10 +139,6 @@ editing/pasteboard/drag-files-to-editable-element-as-URLs.html [ Skip ]
 # https://bugs.webkit.org/show_bug.cgi?id=63806
 http/tests/cache/history-only-cached-subresource-loads-max-age-https.html
 
-# Frame::findString does nothing on pages that prevent selection
-# https://bugs.webkit.org/show_bug.cgi?id=40361
-editing/text-iterator/findString-selection-disabled.html
-
 # WebKitTestRunner needs to implement testRunner.closeIdleLocalStorageDatabases().
 # https://bugs.webkit.org/show_bug.cgi?id=103861
 storage/domstorage/localstorage/close-idle-localstorage-databases-immediately.html

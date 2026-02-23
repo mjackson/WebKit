@@ -74,7 +74,7 @@ void LegacyInlineFlowBox::setHasBadChildList()
 
 #endif
 
-static void setHasTextDescendantsOnAncestors(LegacyInlineFlowBox* box)
+static void NODELETE setHasTextDescendantsOnAncestors(LegacyInlineFlowBox* box)
 {
     while (box && !box->hasTextDescendants()) {
         box->setHasTextDescendants();
@@ -115,7 +115,7 @@ void LegacyInlineFlowBox::addToLine(LegacyInlineBox* child)
         bool hasMarkers = false;
         if (auto* textBox = dynamicDowncast<LegacyInlineTextBox>(*child))
             hasMarkers = textBox->hasMarkers();
-        if (childStyle->usedLetterSpacing() < 0 || childStyle->hasTextShadow() || !childStyle->textEmphasisStyle().isNone() || childStyle->hasPositiveStrokeWidth() || hasMarkers || !childStyle->textUnderlineOffset().isAuto() || !childStyle->textDecorationThickness().isAuto() || !childStyle->textUnderlinePosition().isAuto())
+        if (childStyle->usedLetterSpacing() < 0 || !childStyle->textShadow().isNone() || !childStyle->textEmphasisStyle().isNone() || childStyle->hasPositiveStrokeWidth() || hasMarkers || !childStyle->textUnderlineOffset().isAuto() || !childStyle->textDecorationThickness().isAuto() || !childStyle->textUnderlinePosition().isAuto())
             child->clearKnownToHaveNoOverflow();
     } else if (child->boxModelObject()->hasSelfPaintingLayer())
         child->clearKnownToHaveNoOverflow();

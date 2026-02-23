@@ -38,18 +38,22 @@ namespace WebCore {
 
 class Model final : public RefCounted<Model> {
 public:
-    WEBCORE_EXPORT static Ref<Model> create(Ref<SharedBuffer>&&, String, URL);
+    WEBCORE_EXPORT static Ref<Model> create(Ref<SharedBuffer>&&, String, URL, bool isConverted = false);
     WEBCORE_EXPORT ~Model();
 
     Ref<SharedBuffer> data() const { return m_data; }
     const String& mimeType() const { return m_mimeType; }
     const URL& url() const { return m_url; }
+    bool isConverted() const { return m_isConverted; }
+    WEBCORE_EXPORT String filename() const;
+
 private:
-    explicit Model(Ref<SharedBuffer>&&, String, URL);
+    explicit Model(Ref<SharedBuffer>&&, String, URL, bool isConverted);
 
     Ref<SharedBuffer> m_data;
     String m_mimeType;
     URL m_url;
+    bool m_isConverted { false };
 };
 
 WEBCORE_EXPORT WTF::TextStream& operator<<(WTF::TextStream&, const Model&);

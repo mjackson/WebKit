@@ -21,6 +21,7 @@
 		0F30CB5A1FCDF134004B5323 /* ConcurrentPtrHashSet.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0F30CB581FCDF133004B5323 /* ConcurrentPtrHashSet.cpp */; };
 		0F3492D722AF431C004F85FC /* TextStreamCocoa.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0F3492D622AF42F1004F85FC /* TextStreamCocoa.mm */; };
 		0F43D8F11DB5ADDC00108FB6 /* AutomaticThread.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0F43D8EF1DB5ADDC00108FB6 /* AutomaticThread.cpp */; };
+		0F43D8F11DB5ADDC00108FC6 /* SequesteredAutomaticThread.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0F43D8EF1DB5ADDC00108FC6 /* SequesteredAutomaticThread.cpp */; };
 		0F5BF1761F23D49A0029D91D /* Gigacage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0F5BF1741F23D49A0029D91D /* Gigacage.cpp */; settings = {COMPILER_FLAGS = "-O3"; }; };
 		0F60F32F1DFCBD1B00416D6C /* LockedPrintStream.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0F60F32D1DFCBD1B00416D6C /* LockedPrintStream.cpp */; };
 		0F66B28A1DC97BAB004A1D3F /* ClockType.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0F66B2801DC97BAB004A1D3F /* ClockType.cpp */; };
@@ -565,6 +566,8 @@
 		DD3DC97C27A4BF8E007E5B61 /* ThreadSafetyAnalysis.h in Headers */ = {isa = PBXBuildFile; fileRef = 7B2739DC2624DAAA0040F182 /* ThreadSafetyAnalysis.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC97D27A4BF8E007E5B61 /* WTFSemaphore.h in Headers */ = {isa = PBXBuildFile; fileRef = A36E16F7216FF828008DD87E /* WTFSemaphore.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC97E27A4BF8E007E5B61 /* AutomaticThread.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F43D8F01DB5ADDC00108FB6 /* AutomaticThread.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		DD3DC97E27A4BF8E007E5BC1 /* SequesteredAutomaticThread.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F43D8F01DB5ADDC00108FC6 /* SequesteredAutomaticThread.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		DD3DC97F27A4BF8E007E5BC1 /* StackAllocation.h in Headers */ = {isa = PBXBuildFile; fileRef = A8A4730F151A825B004123CF /* StackAllocation.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC97F27A4BF8E007E5B61 /* StackBounds.h in Headers */ = {isa = PBXBuildFile; fileRef = A8A4730F151A825B004123FF /* StackBounds.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC98027A4BF8E007E5B61 /* Stopwatch.h in Headers */ = {isa = PBXBuildFile; fileRef = C4F8A93619C65EB400B2B15D /* Stopwatch.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC98127A4BF8E007E5B61 /* StdLibExtras.h in Headers */ = {isa = PBXBuildFile; fileRef = A8A47311151A825B004123FF /* StdLibExtras.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -1124,6 +1127,8 @@
 		0F3501631BB258C800F0A2A3 /* WeakRandom.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WeakRandom.h; sourceTree = "<group>"; };
 		0F43D8EF1DB5ADDC00108FB6 /* AutomaticThread.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AutomaticThread.cpp; sourceTree = "<group>"; };
 		0F43D8F01DB5ADDC00108FB6 /* AutomaticThread.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AutomaticThread.h; sourceTree = "<group>"; };
+		0F43D8EF1DB5ADDC00108FC6 /* SequesteredAutomaticThread.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = SequesteredAutomaticThread.cpp; sourceTree = "<group>"; };
+		0F43D8F01DB5ADDC00108FC6 /* SequesteredAutomaticThread.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SequesteredAutomaticThread.h; sourceTree = "<group>"; };
 		0F4570421BE5B58F0062A629 /* Dominators.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Dominators.h; sourceTree = "<group>"; };
 		0F4570441BE834410062A629 /* BubbleSort.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BubbleSort.h; sourceTree = "<group>"; };
 		0F4D8C711FC1E7CE001D32AC /* SinglyLinkedListWithTail.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SinglyLinkedListWithTail.h; sourceTree = "<group>"; };
@@ -1630,6 +1635,7 @@
 		A8A4730D151A825B004123FF /* Spectrum.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Spectrum.h; sourceTree = "<group>"; };
 		A8A4730E151A825B004123FF /* StackBounds.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = StackBounds.cpp; sourceTree = "<group>"; };
 		A8A4730F151A825B004123FF /* StackBounds.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = StackBounds.h; sourceTree = "<group>"; };
+		A8A4730F151A825B004123CF /* StackAllocation.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = StackAllocation.h; sourceTree = "<group>"; };
 		A8A47311151A825B004123FF /* StdLibExtras.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = StdLibExtras.h; sourceTree = "<group>"; };
 		A8A47311151A825B004123FG /* ValidatedReinterpretCast.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ValidatedReinterpretCast.h; sourceTree = "<group>"; };
 		A8A47314151A825B004123FF /* Hasher.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Hasher.h; sourceTree = "<group>"; };
@@ -2227,7 +2233,6 @@
 				5D247B6E14689C4700E78B76 /* Base.xcconfig */,
 				5D247B7014689C4700E78B76 /* DebugRelease.xcconfig */,
 				DDF308DD27C44F84006A526F /* icu.xcconfig */,
-				07AC4F0D2EF5A62500468BCB /* module.modulemap */,
 				5D247B7314689C4700E78B76 /* WTF.xcconfig */,
 			);
 			path = Configurations;
@@ -2558,6 +2563,7 @@
 				A8A472CE151A825B004123FF /* MetaAllocator.h */,
 				A8A472CF151A825B004123FF /* MetaAllocatorHandle.h */,
 				46F071BA2CDEA45300074E61 /* MmapSpan.h */,
+				07AC4F0D2EF5A62500468BCB /* module.modulemap */,
 				0F66B2821DC97BAB004A1D3F /* MonotonicTime.cpp */,
 				0F66B2831DC97BAB004A1D3F /* MonotonicTime.h */,
 				FE8225301B2A1E5B00BA68FD /* NakedPtr.h */,
@@ -2684,6 +2690,8 @@
 				7B8A1DC72A336B9000A4CE4E /* SequenceLocked.h */,
 				C519C3642D36CD510064418F /* SequesteredAllocator.cpp */,
 				C519C3622D36CD450064418F /* SequesteredAllocator.h */,
+				0F43D8EF1DB5ADDC00108FC6 /* SequesteredAutomaticThread.cpp */,
+				0F43D8F01DB5ADDC00108FC6 /* SequesteredAutomaticThread.h */,
 				C519C3602D36CCD60064418F /* SequesteredImmortalHeap.cpp */,
 				C519C35E2D36CCCC0064418F /* SequesteredImmortalHeap.h */,
 				C519C3682D36CE2B0064418F /* SequesteredMalloc.cpp */,
@@ -2711,6 +2719,7 @@
 				93156C8D262C982200EAE27B /* SortedArrayMap.h */,
 				79038E05224B05A7004C0738 /* SpanningTree.h */,
 				A8A4730D151A825B004123FF /* Spectrum.h */,
+				A8A4730F151A825B004123CF /* StackAllocation.h */,
 				A8A4730E151A825B004123FF /* StackBounds.cpp */,
 				A8A4730F151A825B004123FF /* StackBounds.h */,
 				FE35D09127DC5ECC009DFA5B /* StackCheck.cpp */,
@@ -3834,6 +3843,7 @@
 				DD3DC8C127A4BF8E007E5B61 /* SentinelLinkedList.h in Headers */,
 				7B8A1DC82A336B9000A4CE4E /* SequenceLocked.h in Headers */,
 				C519C3632D36CD4D0064418F /* SequesteredAllocator.h in Headers */,
+				DD3DC97E27A4BF8E007E5BC1 /* SequesteredAutomaticThread.h in Headers */,
 				C519C35F2D36CCD20064418F /* SequesteredImmortalHeap.h in Headers */,
 				C519C3672D36CE220064418F /* SequesteredMalloc.h in Headers */,
 				DD3DC88627A4BF8E007E5B61 /* SetForScope.h in Headers */,
@@ -3861,6 +3871,7 @@
 				466D69112BA4E433005D43F4 /* SpanCocoa.h in Headers */,
 				DD3DC8CD27A4BF8E007E5B61 /* SpanningTree.h in Headers */,
 				DD3DC87727A4BF8E007E5B61 /* Spectrum.h in Headers */,
+				DD3DC97F27A4BF8E007E5BC1 /* StackAllocation.h in Headers */,
 				DD3DC97F27A4BF8E007E5B61 /* StackBounds.h in Headers */,
 				DD3DC98E27A4BF8E007E5B61 /* StackCheck.h in Headers */,
 				DD3DC99527A4BF8E007E5B61 /* StackPointer.h in Headers */,
@@ -4555,6 +4566,7 @@
 				0F66B28E1DC97BAB004A1D3F /* Seconds.cpp in Sources */,
 				0FA6F38F20CC580F00A03DCD /* SegmentedVector.cpp in Sources */,
 				C519C3652D36CD590064418F /* SequesteredAllocator.cpp in Sources */,
+				0F43D8F11DB5ADDC00108FC6 /* SequesteredAutomaticThread.cpp in Sources */,
 				C519C3612D36CCD90064418F /* SequesteredImmortalHeap.cpp in Sources */,
 				C519C3692D36CE2E0064418F /* SequesteredMalloc.cpp in Sources */,
 				A8A47421151A825B004123FF /* SHA1.cpp in Sources */,

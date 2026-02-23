@@ -106,7 +106,7 @@ LineLayoutResult TextOnlySimpleLineBuilder::layoutInlineContent(const LineInput&
     }
 
     initialize(lineInput.needsLayoutRange, lineInput.initialLogicalRect, previousLine, isFirstFormattedLineCandidate);
-    auto& rootStyle = this->rootStyle();
+    CheckedRef rootStyle = this->rootStyle();
     auto placedContentEnd = TextUtil::isWrappingAllowed(rootStyle) ? placeInlineTextContent(rootStyle, lineInput.needsLayoutRange) : placeNonWrappingInlineTextContent(rootStyle, lineInput.needsLayoutRange);
     auto result = m_line.close();
 
@@ -120,7 +120,7 @@ LineLayoutResult TextOnlySimpleLineBuilder::layoutInlineContent(const LineInput&
         , WTF::move(result.runs)
         , { }
         , { contentLogicalLeft, result.contentLogicalWidth, contentLogicalLeft + result.contentLogicalRight, m_overflowContentLogicalWidth }
-        , { m_lineLogicalRect.topLeft(), m_lineLogicalRect.width(), m_lineLogicalRect.left() }
+        , { m_lineLogicalRect.topLeft(), m_lineLogicalRect.width(), m_lineLogicalRect.topLeft() }
         , { !result.isHangingTrailingContentWhitespace, result.hangingTrailingContentWidth }
         , { }
         , { isFirstFormattedLineCandidate && inlineContentEnding.has_value() ? IsFirstFormattedLine::Yes : IsFirstFormattedLine::No, isLastInlineContent }
@@ -182,7 +182,7 @@ std::optional<LineLayoutResult> TextOnlySimpleLineBuilder::placeSingleCharacterC
         , WTF::move(singleRun)
         , { }
         , { contentLeft, contentWidth, contentRight, std::max(0.f, contentRight - lineRect.right()) }
-        , { lineRect.topLeft(), lineRect.width(), lineRect.left() }
+        , { lineRect.topLeft(), lineRect.width(), lineRect.topLeft() }
         , { }
         , { }
         , { isFirstFormattedLineCandidate ? IsFirstFormattedLine::Yes : IsFirstFormattedLine::No, true }
@@ -321,7 +321,7 @@ TextOnlyLineBreakResult TextOnlySimpleLineBuilder::commitCandidateContent(const 
             m_line.appendTextFast(inlineTextItem, rootStyle, contentWidth(inlineTextItem, { }));
         }
 
-        if (m_line.hasContentOrListMarker())
+        if (m_line.hasContent())
             m_wrapOpportunityList.append(&m_inlineItemList[candidateContent.endIndex - 1]);
         return { InlineContentBreaker::IsEndOfLine::No, candidateContent.endIndex - candidateContent.startIndex };
     }
@@ -347,7 +347,7 @@ TextOnlyLineBreakResult TextOnlySimpleLineBuilder::handleOverflowingTextContent(
     auto availableWidth = this->availableWidth();
     auto lineBreakingResult = InlineContentBreaker::Result { InlineContentBreaker::Result::Action::Keep, InlineContentBreaker::IsEndOfLine::No, { }, { } };
     if (candidateContent.logicalWidth() > availableWidth) {
-        auto lineStatus = InlineContentBreaker::LineStatus { m_line.contentLogicalRight(), availableWidth, m_line.trimmableTrailingWidth(), m_line.trailingSoftHyphenWidth(), m_line.isTrailingRunFullyTrimmable(), m_line.hasContentOrListMarker(), !m_wrapOpportunityList.isEmpty() };
+        auto lineStatus = InlineContentBreaker::LineStatus { m_line.contentLogicalRight(), availableWidth, m_line.trimmableTrailingWidth(), m_line.trailingSoftHyphenWidth(), m_line.isTrailingRunFullyTrimmable(), m_line.hasContent(), !m_wrapOpportunityList.isEmpty() };
         lineBreakingResult = inlineContentBreaker().processInlineContent(candidateContent, lineStatus);
     }
 
@@ -355,7 +355,7 @@ TextOnlyLineBreakResult TextOnlySimpleLineBuilder::handleOverflowingTextContent(
         auto& committedRuns = candidateContent.runs();
         for (auto& run : committedRuns)
             m_line.appendTextFast(downcast<InlineTextItem>(run.inlineItem), run.style, run.contentWidth());
-        if (m_line.hasContentOrListMarker())
+        if (m_line.hasContent())
             m_wrapOpportunityList.append(&committedRuns.last().inlineItem);
         return { lineBreakingResult.isEndOfLine, committedRuns.size() };
     }
@@ -493,7 +493,6 @@ bool TextOnlySimpleLineBuilder::isEligibleForSimplifiedTextOnlyInlineLayoutByCon
         return false;
     if (!placedFloats.isEmpty())
         return false;
-
     return true;
 }
 
@@ -508,7 +507,7 @@ bool TextOnlySimpleLineBuilder::isEligibleForSimplifiedInlineLayoutByStyle(const
             return false;
         if (style.textIndent() != Style::ComputedStyle::initialTextIndent())
             return false;
-        if (style.textAlignLast() == Style::TextAlignLast::Justify || style.textAlign() == Style::TextAlign::Justify || style.display() == DisplayType::RubyAnnotation)
+        if (style.textAlignLast() == Style::TextAlignLast::Justify || style.textAlign() == Style::TextAlign::Justify || style.display() == Style::DisplayType::RubyText)
             return false;
         if (style.boxDecorationBreak() == BoxDecorationBreak::Clone)
             return false;
@@ -523,9 +522,29 @@ bool TextOnlySimpleLineBuilder::isEligibleForSimplifiedInlineLayoutByStyle(const
         return true;
     };
 
-    auto& style = box.style();
-    auto& firstLineStyle = box.firstLineStyle();
-    return isEligibleByStyle(style) && (&style == &firstLineStyle || isEligibleByStyle(firstLineStyle));
+    CheckedRef style = box.style();
+    CheckedRef firstLineStyle = box.firstLineStyle();
+    return isEligibleByStyle(style.get()) && (style.ptr() == firstLineStyle.ptr() || isEligibleByStyle(firstLineStyle.get()));
+}
+
+bool TextOnlySimpleLineBuilder::isEligibleForSimplifiedDisplayBuild(const ElementBox& rootBlockContainer)
+{
+    auto isSingleTextBox = is<InlineTextBox>(rootBlockContainer.firstChild()) && rootBlockContainer.firstChild() == rootBlockContainer.lastChild();
+    if (!isSingleTextBox)
+        return false;
+    if (!downcast<InlineTextBox>(*rootBlockContainer.firstChild()).canUseSimplifiedContentMeasuring())
+        return false;
+
+    auto& rootStyle = rootBlockContainer.style();
+    if (rootStyle.textOverflow() != Style::ComputedStyle::initialTextOverflow())
+        return false;
+    if (!rootStyle.writingMode().isHorizontal())
+        return false;
+    if (rootStyle.textEmphasisStyle() != Style::ComputedStyle::initialTextEmphasisStyle())
+        return false;
+    if (rootStyle.lineBoxContain() != Style::ComputedStyle::initialLineBoxContain())
+        return false;
+    return true;
 }
 
 }

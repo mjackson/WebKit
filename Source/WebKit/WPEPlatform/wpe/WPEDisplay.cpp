@@ -240,7 +240,7 @@ bool wpeDisplayCheckEGLExtension(WPEDisplay* display, const char* extensionName)
 {
     auto addResult = display->priv->extensionsMap.ensure(ASCIILiteral::fromLiteralUnsafe(extensionName), [&] {
         auto* eglDisplay = wpe_display_get_egl_display(display, nullptr);
-        return eglDisplay ? epoxy_has_egl_extension(eglDisplay, extensionName) : false;
+        return eglDisplay && epoxy_has_egl_extension(eglDisplay, extensionName);
     });
     return addResult.iterator->value;
 }

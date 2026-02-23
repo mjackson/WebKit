@@ -228,7 +228,7 @@ RefPtr<AXCoreObject> AXTextMarker::object() const
     return tree ? tree->objectForID(*objectID()) : nullptr;
 }
 
-String AXTextMarker::debugDescription() const
+String AXTextMarker::description() const
 {
     auto separator = ", "_s;
     RefPtr object = this->object();
@@ -237,12 +237,9 @@ String AXTextMarker::debugDescription() const
     // the value is the non-default one: upstream.
     String affinity = m_data.affinity == Affinity::Downstream ? ""_s : makeString(separator, "upstream"_s);
     String origin = m_data.origin == TextMarkerOrigin::Unknown ? ""_s : makeString(separator, originToString(m_data.origin));
-    // If there is no object, we'll log it once here, then emptyString() for role which also requires an object.
-    String id = object ? makeString("ID "_s, object->objectID().loggingString()) : String("no object"_s);
 
     return makeString("{"_s
-        , id
-        , object ? makeString(separator, "role "_s, roleToString(object->role())) : ""_s
+        , object ? makeString("role "_s, roleToString(object->role())) : "no object"_s
         , isIgnored() ? makeString(separator, "ignored"_s) : ""_s
         // Anchor type and other fields below are not used for text markers processed off the main-thread.
         , isMainThread() ? makeString(separator, "anchor "_s, m_data.anchorType) : ""_s
@@ -253,6 +250,16 @@ String AXTextMarker::debugDescription() const
         , origin
         , "}"_s
     );
+}
+
+String AXTextMarker::debugDescription() const
+{
+    String description = this->description();
+    RefPtr object = this->object();
+    String id = object ? makeString("ID "_s, object->objectID().loggingString()) : String("no object"_s);
+
+    // Insert the object ID after the opening brace.
+    return makeString("{"_s, id, ", "_s, StringView(description).substring(1));
 }
 
 AXTextMarkerRange::AXTextMarkerRange(const VisibleSelection& selection)
@@ -319,7 +326,7 @@ AXTextMarkerRange::AXTextMarkerRange(AXTextMarker&& start, AXTextMarker&& end)
     m_end = reverse ? WTF::move(start) : WTF::move(end);
 }
 
-AXTextMarkerRange::AXTextMarkerRange(std::optional<AXID> treeID, std::optional<AXID> objectID, unsigned start, unsigned end)
+AXTextMarkerRange::AXTextMarkerRange(std::optional<AXTreeID> treeID, std::optional<AXID> objectID, unsigned start, unsigned end)
 {
     if (start > end)
         std::swap(start, end);
@@ -462,6 +469,13 @@ std::optional<AXTextMarkerRange> AXTextMarkerRange::intersectionWith(const AXTex
     if (intersection.isNull())
         return std::nullopt;
     return { AXTextMarkerRange(intersection) };
+}
+
+String AXTextMarkerRange::description() const
+{
+    return makeString("text: '"_s, toString(), "'"_s,
+        ", start: {"_s, m_start.description(), '}',
+        ", end: {"_s, m_end.description(), '}');
 }
 
 String AXTextMarkerRange::debugDescription() const

@@ -38,7 +38,7 @@
 #include <WebCore/AVAudioSessionCaptureDeviceManager.h>
 #include <wtf/TZoneMalloc.h>
 
-#define MESSAGE_CHECK(assertion) MESSAGE_CHECK_BASE(assertion, protectedConnection().get())
+#define MESSAGE_CHECK(assertion) MESSAGE_CHECK_BASE(assertion, protect(connection()).ptr())
 
 namespace WebKit {
 
@@ -56,6 +56,11 @@ RemoteAudioSessionProxy::~RemoteAudioSessionProxy() = default;
 RefPtr<GPUConnectionToWebProcess> RemoteAudioSessionProxy::gpuConnectionToWebProcess() const
 {
     return m_gpuConnection.get();
+}
+
+IPC::Connection& RemoteAudioSessionProxy::connection() const
+{
+    return m_gpuConnection.get()->connection();
 }
 
 WebCore::ProcessIdentifier RemoteAudioSessionProxy::processIdentifier()
@@ -133,19 +138,19 @@ void RemoteAudioSessionProxy::setIsPlayingToBluetoothOverride(std::optional<bool
 
 void RemoteAudioSessionProxy::configurationChanged()
 {
-    protectedConnection()->send(Messages::RemoteAudioSession::ConfigurationChanged(configuration()), { });
+    protect(connection())->send(Messages::RemoteAudioSession::ConfigurationChanged(configuration()), { });
 }
 
 void RemoteAudioSessionProxy::beginInterruption()
 {
     m_isInterrupted = true;
-    protectedConnection()->send(Messages::RemoteAudioSession::BeginInterruptionRemote(), { });
+    protect(connection())->send(Messages::RemoteAudioSession::BeginInterruptionRemote(), { });
 }
 
 void RemoteAudioSessionProxy::endInterruption(AudioSession::MayResume mayResume)
 {
     m_isInterrupted = false;
-    protectedConnection()->send(Messages::RemoteAudioSession::EndInterruptionRemote(mayResume), { });
+    protect(connection())->send(Messages::RemoteAudioSession::EndInterruptionRemote(mayResume), { });
 }
 
 void RemoteAudioSessionProxy::beginInterruptionRemote()
@@ -173,11 +178,6 @@ void RemoteAudioSessionProxy::setSoundStageSize(AudioSession::SoundStageSize siz
 RemoteAudioSessionProxyManager& RemoteAudioSessionProxy::audioSessionManager()
 {
     return m_gpuConnection.get()->gpuProcess().audioSessionManager();
-}
-
-Ref<IPC::Connection> RemoteAudioSessionProxy::protectedConnection() const
-{
-    return m_gpuConnection.get()->connection();
 }
 
 void RemoteAudioSessionProxy::triggerBeginInterruptionForTesting()

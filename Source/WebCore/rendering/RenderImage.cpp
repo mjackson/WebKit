@@ -59,7 +59,7 @@
 #include "RenderElementInlines.h"
 #include "RenderElementStyleInlines.h"
 #include "RenderFragmentedFlow.h"
-#include "RenderImageResourceStyleImage.h"
+#include "RenderImageResource.h"
 #include "RenderObjectInlines.h"
 #include "RenderStyle+GettersInlines.h"
 #include "RenderTheme.h"
@@ -152,9 +152,9 @@ void RenderImage::collectSelectionGeometries(Vector<SelectionGeometry>& geometri
 
 using namespace HTMLNames;
 
-RenderImage::RenderImage(Type type, Element& element, RenderStyle&& style, OptionSet<ReplacedFlag> flags, StyleImage* styleImage, const float imageDevicePixelRatio)
+RenderImage::RenderImage(Type type, Element& element, RenderStyle&& style, OptionSet<ReplacedFlag> flags, Style::Image* styleImage, const float imageDevicePixelRatio)
     : RenderReplaced(type, element, WTF::move(style), IntSize(), flags | ReplacedFlag::IsImage)
-    , m_imageResource(styleImage ? makeUnique<RenderImageResourceStyleImage>(*styleImage) : makeUnique<RenderImageResource>())
+    , m_imageResource(makeUnique<RenderImageResource>(styleImage))
     , m_hasImageOverlay([&] {
         auto* htmlElement = dynamicDowncast<HTMLElement>(element);
         return htmlElement && ImageOverlay::hasOverlay(*htmlElement);
@@ -172,14 +172,14 @@ RenderImage::RenderImage(Type type, Element& element, RenderStyle&& style, Optio
 #endif
 }
 
-RenderImage::RenderImage(Type type, Element& element, RenderStyle&& style, StyleImage* styleImage, const float imageDevicePixelRatio)
+RenderImage::RenderImage(Type type, Element& element, RenderStyle&& style, Style::Image* styleImage, const float imageDevicePixelRatio)
     : RenderImage(type, element, WTF::move(style), ReplacedFlag::IsImage, styleImage, imageDevicePixelRatio)
 {
 }
 
-RenderImage::RenderImage(Type type, Document& document, RenderStyle&& style, StyleImage* styleImage)
+RenderImage::RenderImage(Type type, Document& document, RenderStyle&& style, Style::Image* styleImage)
     : RenderReplaced(type, document, WTF::move(style), IntSize(), ReplacedFlag::IsImage)
-    , m_imageResource(styleImage ? makeUnique<RenderImageResourceStyleImage>(*styleImage) : makeUnique<RenderImageResource>())
+    , m_imageResource(makeUnique<RenderImageResource>(styleImage))
 {
 }
 
@@ -188,7 +188,7 @@ RenderImage::~RenderImage() = default;
 
 void RenderImage::willBeDestroyed()
 {
-    imageResource().shutdown();
+    imageResource().willBeDestroyed();
     RenderReplaced::willBeDestroyed();
 }
 
@@ -827,7 +827,7 @@ bool RenderImage::foregroundIsKnownToBeOpaqueInRect(const LayoutRect& localRect,
         return false;
     auto backgroundClip = style().backgroundLayers().usedFirst().clip();
     // Background paints under borders.
-    if (backgroundClip == FillBox::BorderBox && style().hasBorder() && !borderObscuresBackground())
+    if (backgroundClip == FillBox::BorderBox && style().border().hasBorder() && !borderObscuresBackground())
         return false;
     // Background shows in padding area.
     if ((backgroundClip == FillBox::BorderBox || backgroundClip == FillBox::PaddingBox) && !Style::isKnownZero(style().paddingBox()))
@@ -902,7 +902,7 @@ void RenderImage::updateAltText()
     if (m_altText.isNull()) {
         // We check isNull() and not isEmpty() because we don't want to override empty-string
         // alt text provided by either of the above branches.
-        m_altText = style().altFromContent();
+        m_altText = style().content().altText();
     }
 }
 
@@ -975,11 +975,6 @@ RenderBox* RenderImage::embeddedContentBox() const
             return image->embeddedContentBox();
     }
     return nullptr;
-}
-
-CheckedRef<RenderImageResource> RenderImage::checkedImageResource() const
-{
-    return *m_imageResource;
 }
 
 } // namespace WebCore

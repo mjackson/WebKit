@@ -57,7 +57,7 @@ public:
 
     const Vector<uint8_t>& ivVector() const
     {
-        if (!m_ivVector.isEmpty() || !iv || !iv->length())
+        if (!m_ivVector.isEmpty() || !iv || !iv->byteLength())
             return m_ivVector;
 
         if (iv)

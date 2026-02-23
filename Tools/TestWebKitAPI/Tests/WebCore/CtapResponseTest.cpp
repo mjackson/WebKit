@@ -557,7 +557,7 @@ TEST(CTAPResponseTest, TestParseSignResponseData)
 
 TEST(CTAPResponseTest, TestParseU2fSignWithNullKeyHandle)
 {
-    auto response = readU2fSignResponse(TestData::kRelyingPartyId, BufferSource(), getTestSignResponse(), AuthenticatorAttachment::CrossPlatform);
+    auto response = readU2fSignResponse(TestData::kRelyingPartyId, JSC::ArrayBuffer::create(static_cast<size_t>(0U), 1), getTestSignResponse(), AuthenticatorAttachment::CrossPlatform);
     EXPECT_FALSE(response);
 }
 

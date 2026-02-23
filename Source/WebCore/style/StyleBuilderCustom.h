@@ -141,6 +141,7 @@ inline OffsetDistance forwardInheritedValue(const OffsetDistance& value) { auto 
 inline OffsetPath forwardInheritedValue(const OffsetPath& value) { auto copy = value; return copy; }
 inline OffsetPosition forwardInheritedValue(const OffsetPosition& value) { auto copy = value; return copy; }
 inline OffsetRotate forwardInheritedValue(const OffsetRotate& value) { auto copy = value; return copy; }
+inline OverflowClipMargin forwardInheritedValue(const OverflowClipMargin& value) { auto copy = value; return copy; }
 inline Position forwardInheritedValue(const Position& value) { auto copy = value; return copy; }
 inline PositionAnchor forwardInheritedValue(const PositionAnchor& value) { auto copy = value; return copy; }
 inline PositionTryFallbacks forwardInheritedValue(const PositionTryFallbacks& value) { auto copy = value; return copy; }
@@ -179,12 +180,11 @@ inline TextShadows forwardInheritedValue(const TextShadows& value) { auto copy =
 inline TextUnderlineOffset forwardInheritedValue(const TextUnderlineOffset& value) { auto copy = value; return copy; }
 inline URL forwardInheritedValue(const URL& value) { auto copy = value; return copy; }
 inline FixedVector<PositionTryFallback> forwardInheritedValue(const FixedVector<PositionTryFallback>& value) { auto copy = value; return copy; }
-inline ProgressTimelineAxes forwardInheritedValue(const ProgressTimelineAxes& value) { auto copy = value; return copy; }
-inline ProgressTimelineNames forwardInheritedValue(const ProgressTimelineNames& value) { auto copy = value; return copy; }
+inline ProgressTimelineName forwardInheritedValue(const ProgressTimelineName& value) { auto copy = value; return copy; }
 inline ScrollTimelines forwardInheritedValue(const ScrollTimelines& value) { auto copy = value; return copy; }
 inline Transform forwardInheritedValue(const Transform& value) { auto copy = value; return copy; }
 inline VerticalAlign forwardInheritedValue(const VerticalAlign& value) { auto copy = value; return copy; }
-inline ViewTimelineInsets forwardInheritedValue(const ViewTimelineInsets& value) { auto copy = value; return copy; }
+inline ViewTimelineInsetItem forwardInheritedValue(const ViewTimelineInsetItem& value) { auto copy = value; return copy; }
 inline ViewTimelines forwardInheritedValue(const ViewTimelines& value) { auto copy = value; return copy; }
 inline ViewTransitionClasses forwardInheritedValue(const ViewTransitionClasses& value) { auto copy = value; return copy; }
 inline ViewTransitionName forwardInheritedValue(const ViewTransitionName& value) { auto copy = value; return copy; }
@@ -336,7 +336,7 @@ inline void BuilderCustom::applyInheritZoom(BuilderState& builderState)
 
 inline void BuilderCustom::applyValueZoom(BuilderState& builderState, CSSValue& value)
 {
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
+    auto primitiveValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
     if (!primitiveValue)
         return;
 
@@ -435,7 +435,7 @@ inline void BuilderCustom::applyInitialLineHeight(BuilderState& builderState)
 static inline float computeBaseSpecifiedFontSize(const Document& document, const ComputedStyle& style, bool percentageAutosizingEnabled)
 {
     float result = style.specifiedFontSize();
-    RefPtr frame = document.frame();
+    auto* frame = document.frame();
     if (frame && style.textZoom() != TextZoom::Reset)
         result *= frame->textZoomFactor();
     result *= style.usedZoom();
@@ -509,7 +509,7 @@ inline void BuilderCustom::applyValueLineHeight(BuilderState& builderState, CSSV
 
 inline void BuilderCustom::applyValueWebkitLocale(BuilderState& builderState, CSSValue& value)
 {
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
+    auto primitiveValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
     if (!primitiveValue)
         return;
 
@@ -540,7 +540,7 @@ inline void BuilderCustom::applyValueWebkitTextSizeAdjust(BuilderState& builderS
 
 inline void BuilderCustom::applyValueWebkitTextZoom(BuilderState& builderState, CSSValue& value)
 {
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
+    auto primitiveValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
     if (!primitiveValue)
         return;
 
@@ -673,9 +673,9 @@ inline float BuilderCustom::determineRubyTextSizeMultiplier(BuilderState& builde
         // FIXME: This hack is to ensure tone marks are the same size as
         // the bopomofo. This code will go away if we make a special renderer
         // for the tone marks eventually.
-        if (RefPtr element = builderState.element()) {
-            for (Ref ancestor : ancestorsOfType<HTMLElement>(*element)) {
-                if (ancestor->hasTagName(HTMLNames::rtTag))
+        if (auto* element = builderState.element()) {
+            for (auto& ancestor : ancestorsOfType<HTMLElement>(*element)) {
+                if (ancestor.hasTagName(HTMLNames::rtTag))
                     return 1.0f;
             }
         }
@@ -745,7 +745,7 @@ inline void BuilderCustom::applyValueFontSize(BuilderState& builderState, CSSVal
     float parentSize = builderState.parentStyle().fontDescription().specifiedSize();
     bool parentIsAbsoluteSize = builderState.parentStyle().fontDescription().isAbsoluteSize();
 
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
+    auto primitiveValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
     if (!primitiveValue)
         return;
 

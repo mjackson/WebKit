@@ -37,14 +37,14 @@ class HTMLMaybeFormAssociatedCustomElement final : public HTMLElement {
 public:
     static Ref<HTMLMaybeFormAssociatedCustomElement> create(const QualifiedName& tagName, Document&);
 
-    bool isMaybeFormAssociatedCustomElement() const final { return true; }
-    bool isFormListedElement() const final;
-    bool isValidatedFormListedElement() const final;
-    bool isFormAssociatedCustomElement() const;
+    bool NODELETE isMaybeFormAssociatedCustomElement() const final { return true; }
+    bool NODELETE isFormListedElement() const final;
+    bool NODELETE isValidatedFormListedElement() const final;
+    bool NODELETE isFormAssociatedCustomElement() const;
 
-    FormAssociatedElement* asFormAssociatedElement() final;
-    FormListedElement* asFormListedElement() final;
-    ValidatedFormListedElement* asValidatedFormListedElement() final;
+    FormAssociatedElement* NODELETE asFormAssociatedElement() final;
+    FormListedElement* NODELETE asFormListedElement() final;
+    ValidatedFormListedElement* NODELETE asValidatedFormListedElement() final;
     FormAssociatedCustomElement* formAssociatedCustomElementForElementInternals() const;
 
     bool matchesValidPseudoClass() const final;

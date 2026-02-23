@@ -879,7 +879,7 @@ void RenderThemeIOS::adjustSearchFieldStyle(RenderStyle& style, const Element* e
     if (!element)
         return;
 
-    if (!style.hasBorder())
+    if (!style.border().hasBorder())
         return;
 
     RenderBox* box = element->renderBox();
@@ -1711,13 +1711,13 @@ bool RenderThemeIOS::paintMeter(const RenderElement& renderer, const PaintInfo& 
     roundedFillRect.setRect(fillRect);
 
     switch (element->gaugeRegion()) {
-    case HTMLMeterElement::GaugeRegionOptimum:
+    case HTMLMeterElement::GaugeRegion::Optimum:
         context.fillRoundedRect(roundedFillRect, systemColor(CSSValueAppleSystemGreen, styleColorOptions));
         break;
-    case HTMLMeterElement::GaugeRegionSuboptimal:
+    case HTMLMeterElement::GaugeRegion::Suboptimal:
         context.fillRoundedRect(roundedFillRect, systemColor(CSSValueAppleSystemYellow, styleColorOptions));
         break;
-    case HTMLMeterElement::GaugeRegionEvenLessGood:
+    case HTMLMeterElement::GaugeRegion::EvenLessGood:
         context.fillRoundedRect(roundedFillRect, systemColor(CSSValueAppleSystemRed, styleColorOptions));
         break;
     }
@@ -1733,7 +1733,7 @@ bool RenderThemeIOS::paintListButton(const RenderElement& box, const PaintInfo& 
 #endif
 
     auto& style = box.style();
-    if (style.hasContent() || style.hasUsedContentNone())
+    if (style.content().isData() || style.hasUsedContentNone())
         return false;
 
     auto& context = paintInfo.context();

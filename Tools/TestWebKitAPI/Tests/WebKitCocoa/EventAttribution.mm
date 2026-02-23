@@ -505,7 +505,10 @@ static NSDictionary<NSString *, id> *testDaemonPList(NSURL *storageLocation)
         @"Label" : @"org.webkit.pcmtestdaemon",
         @"LaunchOnlyOnce" : @YES,
         @"StandardErrorPath" : [storageLocation URLByAppendingPathComponent:@"daemon_stderr"].path,
-        @"EnvironmentVariables" : @{ @"DYLD_FRAMEWORK_PATH" : currentExecutableDirectory().get().path },
+        @"EnvironmentVariables" : @{
+            @"DYLD_FRAMEWORK_PATH" : currentExecutableDirectory().get().path,
+            @"DYLD_LIBRARY_PATH"   : currentExecutableDirectory().get().path
+        },
         @"MachServices" : @{ @"org.webkit.pcmtestdaemon.service" : @YES },
         @"ProgramArguments" : @[
             testPCMDaemonLocation().get().path,

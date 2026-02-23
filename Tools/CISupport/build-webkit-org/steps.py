@@ -2342,8 +2342,6 @@ class BuildSwift(steps.ShellSequence, ShellMixin):
             '--darwin-toolchain-version=6.0.0',
             '--darwin-toolchain-alias=webkit',
             '--darwin-toolchain-require-use-os-runtime=0',
-            '--skip-test-swift=1',
-            '--skip-test-cmark=1',
             '--swift-testing=1',
             '--install-swift-testing=1',
             '--swift-testing-macros=1',
@@ -2357,6 +2355,7 @@ class BuildSwift(steps.ShellSequence, ShellMixin):
         self.commands = [
             util.ShellArg(command=self.shell_command('rm -rf ../build'), logname='stdio', haltOnFailure=False),
             util.ShellArg(command=self.shell_command('rm -rf "$(getconf DARWIN_USER_CACHE_DIR)org.llvm.clang"'), logname='stdio', haltOnFailure=False),
+            util.ShellArg(command=self.shell_command('rm -rf /Users/buildbot/Library/Developer/Xcode/DerivedData'), logname='stdio'),
             util.ShellArg(command=self.shell_command(filter_command), logname='stdio', haltOnFailure=True),
         ]
 
@@ -2377,7 +2376,7 @@ class BuildSwift(steps.ShellSequence, ShellMixin):
         ]
 
         if rc != SUCCESS:
-            if self.getProperty('current_swift_tag', ''):
+            if self.getProperty('current_swift_tag', '') and self.getProperty('has_swift_toolchain', False):
                 return WARNINGS
             self.build.buildFinished(['Failed to set up swift, retrying update'], RETRY)
         else:
@@ -2398,6 +2397,4 @@ class BuildSwift(steps.ShellSequence, ShellMixin):
         return {'step': 'Successfully built Swift'}
 
     def doStepIf(self, step):
-        if not self.getProperty('has_swift_toolchain'):
-            return True
         return self.getProperty('canonical_swift_tag') and self.getProperty('current_swift_tag', '') != self.getProperty('canonical_swift_tag')

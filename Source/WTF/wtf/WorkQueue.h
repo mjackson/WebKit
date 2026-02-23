@@ -78,7 +78,7 @@ protected:
     uint32_t m_threadID { 0 };
 private:
     void platformInitialize(ASCIILiteral name, Type, QOS);
-    void platformInvalidate();
+    void NODELETE platformInvalidate();
 };
 
 /**

@@ -97,7 +97,7 @@ std::optional<Style::Filter> CanvasRenderingContext2D::setFilterStringWithoutUpd
 
     document->updateStyleIfNeeded();
 
-    const auto* style = canvas->computedStyle();
+    CheckedPtr style = canvas->computedStyle();
     if (!style)
         return std::nullopt;
 
@@ -202,7 +202,7 @@ void CanvasRenderingContext2D::setFontWithoutUpdatingStyle(const String& newFont
         return;
 
     FontCascadeDescription fontDescription;
-    if (auto* computedStyle = canvas->computedStyle())
+    if (CheckedPtr computedStyle = canvas->computedStyle())
         fontDescription = FontCascadeDescription { computedStyle->fontDescription() };
     else {
         static NeverDestroyed<AtomString> family = DefaultFontFamily;
@@ -234,7 +234,7 @@ void CanvasRenderingContext2D::setFontWithoutUpdatingStyle(const String& newFont
 
 inline TextDirection CanvasRenderingContext2D::toTextDirection(Direction direction, const RenderStyle** computedStyle) const
 {
-    auto* style = computedStyle || direction == Direction::Inherit ? protect(canvas())->existingComputedStyle() : nullptr;
+    CheckedPtr style = computedStyle || direction == Direction::Inherit ? protect(canvas())->existingComputedStyle() : nullptr;
     if (computedStyle)
         *computedStyle = style;
     switch (direction) {

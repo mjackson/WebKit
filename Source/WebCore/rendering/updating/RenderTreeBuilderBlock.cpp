@@ -233,14 +233,14 @@ void RenderTreeBuilder::Block::attachIgnoringContinuation(RenderBlock& parent, R
 
     auto shouldBuildAnonymousBlock = [&] {
         constexpr auto parentRequiresAnonymousBlock = EnumSet {
-            DisplayType::Flex,
-            DisplayType::InlineFlex,
-            DisplayType::Box,
-            DisplayType::InlineBox,
-            DisplayType::Grid,
-            DisplayType::InlineGrid
+            Style::DisplayType::BlockFlex,
+            Style::DisplayType::InlineFlex,
+            Style::DisplayType::BlockDeprecatedFlex,
+            Style::DisplayType::InlineDeprecatedFlex,
+            Style::DisplayType::BlockGrid,
+            Style::DisplayType::InlineGrid
         };
-        return m_buildsSimpleAnonymousBlocks || parentRequiresAnonymousBlock.contains(parent.style().display());
+        return m_buildsSimpleAnonymousBlocks || parentRequiresAnonymousBlock.contains(parent.style().display().value);
     };
 
     if (!shouldBuildAnonymousBlock()) {
@@ -366,7 +366,7 @@ RenderPtr<RenderObject> RenderTreeBuilder::Block::detach(RenderBlock& parent, Re
             // column span flag if it is set.
             ASSERT(!inlineChildrenBlock.continuation());
             // Cache this value as it might get changed in setStyle() call.
-            inlineChildrenBlock.setStyle(RenderStyle::createAnonymousStyleWithDisplay(parent.style(), DisplayType::Block));
+            inlineChildrenBlock.setStyle(RenderStyle::createAnonymousStyleWithDisplay(parent.style(), Style::DisplayType::BlockFlow));
             auto blockToMove = m_builder.detachFromRenderElement(parent, inlineChildrenBlock, WillBeDestroyed::No);
 
             // Now just put the inlineChildrenBlock inside the blockChildrenBlock.
@@ -459,7 +459,7 @@ RenderPtr<RenderObject> RenderTreeBuilder::Block::detach(RenderBlockFlow& parent
 
 RenderPtr<RenderBlockFlow> RenderTreeBuilder::Block::createAnonymousBlockWithStyle(Document& document, const RenderStyle& style)
 {
-    RenderPtr<RenderBlockFlow> newBox = createRenderer<RenderBlockFlow>(RenderObject::Type::BlockFlow, document, RenderStyle::createAnonymousStyleWithDisplay(style, DisplayType::Block));
+    RenderPtr<RenderBlockFlow> newBox = createRenderer<RenderBlockFlow>(RenderObject::Type::BlockFlow, document, RenderStyle::createAnonymousStyleWithDisplay(style, Style::DisplayType::BlockFlow));
     newBox->initializeStyle();
     return newBox;
 }

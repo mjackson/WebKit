@@ -101,11 +101,6 @@ const RenderStyle& LegacyInlineTextBox::lineStyle() const
     return isFirstLine() ? renderer().firstLineStyle() : renderer().style();
 }
 
-bool LegacyInlineTextBox::hasTextContent() const
-{
-    return m_len;
-}
-
 void LegacyInlineTextBox::markDirty(bool dirty)
 {
     if (dirty) {
@@ -226,11 +221,6 @@ bool LegacyInlineTextBox::hasMarkers() const
     return MarkedText::collectForDocumentMarkers(renderer(), selectableRange(), MarkedText::PaintPhase::Decoration).size();
 }
 
-int LegacyInlineTextBox::caretMinOffset() const
-{
-    return m_start;
-}
-
 int LegacyInlineTextBox::caretMaxOffset() const
 {
     return m_start + m_len;
@@ -247,9 +237,9 @@ float LegacyInlineTextBox::textPos() const
 
 TextRun LegacyInlineTextBox::createTextRun() const
 {
-    const auto& style = lineStyle();
-    TextRun textRun { text(), textPos(), 0, ExpansionBehavior::forbidAll(), direction(), style.rtlOrdering() == Order::Visual, !renderer().canUseSimpleFontCodePath() };
-    textRun.setTabSize(!style.collapseWhiteSpace(), Style::toPlatform(style.tabSize()));
+    CheckedRef style = lineStyle();
+    TextRun textRun { text(), textPos(), 0, ExpansionBehavior::forbidAll(), direction(), style->rtlOrdering() == Order::Visual, !renderer().canUseSimpleFontCodePath() };
+    textRun.setTabSize(!style->collapseWhiteSpace(), Style::toPlatform(style->tabSize()));
     return textRun;
 }
 

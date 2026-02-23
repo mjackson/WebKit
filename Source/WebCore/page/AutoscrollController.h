@@ -61,8 +61,8 @@ class AutoscrollController final : public CanMakeCheckedPtr<AutoscrollController
 public:
     AutoscrollController();
     RenderBox* NODELETE autoscrollRenderer() const;
-    bool autoscrollInProgress() const;
-    bool panScrollInProgress() const;
+    bool NODELETE autoscrollInProgress() const;
+    bool NODELETE panScrollInProgress() const;
     void startAutoscrollForSelection(RenderObject*);
     void stopAutoscrollTimer(bool rendererIsBeingDestroyed = false);
     void updateAutoscrollRenderer();

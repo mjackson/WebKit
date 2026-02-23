@@ -107,67 +107,67 @@ public:
             : m_kind(None)
         { }
 
-        static Location none();
+        static Location NODELETE none();
 
-        static Location fromStack(int32_t stackOffset);
+        static Location NODELETE fromStack(int32_t stackOffset);
 
-        static Location fromStackArgument(int32_t stackOffset);
+        static Location NODELETE fromStackArgument(int32_t stackOffset);
 
-        static Location fromGPR(GPRReg gpr);
+        static Location NODELETE fromGPR(GPRReg gpr);
 
         static Location fromGPR2(GPRReg hi, GPRReg lo);
 
-        static Location fromFPR(FPRReg fpr);
+        static Location NODELETE fromFPR(FPRReg fpr);
 
-        static Location fromGlobal(int32_t globalOffset);
+        static Location NODELETE fromGlobal(int32_t globalOffset);
 
         static Location fromArgumentLocation(ArgumentLocation argLocation, TypeKind type);
 
-        bool isNone() const;
+        bool NODELETE isNone() const;
 
-        bool isGPR() const;
+        bool NODELETE isGPR() const;
 
-        bool isGPR2() const;
+        bool NODELETE isGPR2() const;
 
-        bool isFPR() const;
+        bool NODELETE isFPR() const;
 
         bool isRegister() const;
 
-        bool isStack() const;
+        bool NODELETE isStack() const;
 
-        bool isStackArgument() const;
+        bool NODELETE isStackArgument() const;
 
-        bool isGlobal() const;
+        bool NODELETE isGlobal() const;
 
-        bool isMemory() const;
+        bool NODELETE isMemory() const;
 
-        int32_t asStackOffset() const;
+        int32_t NODELETE asStackOffset() const;
 
-        Address asStackAddress() const;
+        Address NODELETE asStackAddress() const;
 
-        int32_t asGlobalOffset() const;
+        int32_t NODELETE asGlobalOffset() const;
 
-        Address asGlobalAddress() const;
+        Address NODELETE asGlobalAddress() const;
 
-        int32_t asStackArgumentOffset() const;
+        int32_t NODELETE asStackArgumentOffset() const;
 
-        Address asStackArgumentAddress() const;
+        Address NODELETE asStackArgumentAddress() const;
 
-        Address asAddress() const;
+        Address NODELETE asAddress() const;
 
-        GPRReg asGPR() const;
-        FPRReg asFPR() const;
+        GPRReg NODELETE asGPR() const;
+        FPRReg NODELETE asFPR() const;
         Reg asReg() const { return isGPR() ? Reg(asGPR()) : Reg(asFPR()); }
 
-        GPRReg asGPRlo() const;
+        GPRReg NODELETE asGPRlo() const;
 
-        GPRReg asGPRhi() const;
+        GPRReg NODELETE asGPRhi() const;
 
         void dump(PrintStream& out) const;
 
         bool operator==(Location other) const;
 
-        Kind kind() const;
+        Kind NODELETE kind() const;
 
     private:
         union {
@@ -194,18 +194,18 @@ public:
 
     static_assert(sizeof(Location) == 4);
 
-    static bool isValidValueTypeKind(TypeKind kind);
+    static bool NODELETE isValidValueTypeKind(TypeKind kind);
 
-    static TypeKind pointerType();
+    static TypeKind NODELETE pointerType();
 
-    static bool isFloatingPointType(TypeKind type);
+    static bool NODELETE isFloatingPointType(TypeKind type);
 
     static bool typeNeedsGPR2(TypeKind type);
 
 public:
     static uint32_t sizeOfType(TypeKind type);
 
-    static TypeKind toValueKind(TypeKind kind);
+    static TypeKind NODELETE toValueKind(TypeKind kind);
 
     class Value {
     public:
@@ -441,7 +441,7 @@ public:
         static RegisterBinding fromValue(Value value);
         static RegisterBinding scratch();
 
-        Value toValue() const;
+        Value NODELETE toValue() const;
 
         bool isNone() const { return m_kind == None; }
         bool isValid() const { return m_kind != None; }
@@ -451,7 +451,7 @@ public:
 
         void dump(PrintStream& out) const;
 
-        unsigned hash() const;
+        unsigned NODELETE hash() const;
 
         TypeKind m_type { 0 };
         unsigned m_kind : 3 { None };
@@ -833,9 +833,9 @@ public:
             }
         }
 
-        void convertIfToBlock();
+        void NODELETE convertIfToBlock();
 
-        void convertLoopToBlock();
+        void NODELETE convertLoopToBlock();
 
         void addBranch(Jump jump);
 
@@ -851,18 +851,18 @@ public:
 
         void dump(PrintStream& out) const;
 
-        LocalOrTempIndex enclosedHeight() const;
+        LocalOrTempIndex NODELETE enclosedHeight() const;
 
-        unsigned implicitSlots() const;
+        unsigned NODELETE implicitSlots() const;
 
-        const Vector<Location, 2>& targetLocations() const;
+        const Vector<Location, 2>& NODELETE targetLocations() const;
 
-        const Vector<Location, 2>& argumentLocations() const;
+        const Vector<Location, 2>& NODELETE argumentLocations() const;
 
-        const Vector<Location, 2>& resultLocations() const;
+        const Vector<Location, 2>& NODELETE resultLocations() const;
 
-        BlockType blockType() const;
-        const BlockSignature& signature() const;
+        BlockType NODELETE blockType() const;
+        const BlockSignature& NODELETE signature() const;
 
         FunctionArgCount branchTargetArity() const;
 
@@ -870,17 +870,17 @@ public:
 
         Type argumentType(unsigned i) const;
 
-        CatchKind catchKind() const;
+        CatchKind NODELETE catchKind() const;
 
-        void setCatchKind(CatchKind catchKind);
+        void NODELETE setCatchKind(CatchKind catchKind);
 
-        unsigned tryStart() const;
+        unsigned NODELETE tryStart() const;
 
-        unsigned tryEnd() const;
+        unsigned NODELETE tryEnd() const;
 
-        unsigned tryCatchDepth() const;
+        unsigned NODELETE tryCatchDepth() const;
 
-        void setTryInfo(unsigned tryStart, unsigned tryEnd, unsigned tryCatchDepth);
+        void NODELETE setTryInfo(unsigned tryStart, unsigned tryEnd, unsigned tryCatchDepth);
 
         struct TryTableTarget {
             CatchKind type;
@@ -892,18 +892,18 @@ public:
 
         void setTryTableTargets(TargetList&&);
 
-        void setIfBranch(MacroAssembler::Jump branch);
+        void NODELETE setIfBranch(MacroAssembler::Jump branch);
 
-        void setLoopLabel(MacroAssembler::Label label);
+        void NODELETE setLoopLabel(MacroAssembler::Label label);
 
-        const MacroAssembler::Label& loopLabel() const;
+        const MacroAssembler::Label& NODELETE loopLabel() const;
 
         void touch(LocalOrTempIndex local);
 
     private:
         friend class BBQJIT;
 
-        void fillLabels(CCallHelpers::Label label);
+        void NODELETE fillLabels(CCallHelpers::Label label);
 
         BlockSignature m_signature;
         BlockType m_blockType;
@@ -1092,9 +1092,9 @@ public:
         return Value::none();
     }
 
-    void setParser(FunctionParser<BBQJIT>* parser);
+    void NODELETE setParser(FunctionParser<BBQJIT>* parser);
 
-    bool addArguments(const TypeDefinition& signature);
+    bool NODELETE addArguments(const TypeDefinition& signature);
 
     Value addConstant(Type type, uint64_t value);
 
@@ -1131,9 +1131,9 @@ public:
 
     // Globals
 
-    Value topValue(TypeKind type);
+    Value NODELETE topValue(TypeKind type);
 
-    Value exception(const ControlData& control);
+    Value NODELETE exception(const ControlData& control);
 
     [[nodiscard]] PartialResult getGlobal(uint32_t index, Value& result);
 
@@ -1375,11 +1375,11 @@ public:
         I64TruncF64U
     };
 
-    TruncationKind truncationKind(OpType truncationOp);
+    TruncationKind NODELETE truncationKind(OpType truncationOp);
 
     TruncationKind truncationKind(Ext1OpType truncationOp);
 
-    FloatingPointRange lookupTruncationRange(TruncationKind truncationKind);
+    FloatingPointRange NODELETE lookupTruncationRange(TruncationKind truncationKind);
 
     void truncInBounds(TruncationKind truncationKind, Location operandLocation, Location resultLocation, FPRReg scratch1FPR, FPRReg scratch2FPR);
 

@@ -37,6 +37,13 @@
 namespace WebCore {
 namespace Style {
 
+String Content::altText() const
+{
+    if (auto* contentData = tryData())
+        return contentData->altText.value_or(nullString());
+    return { };
+}
+
 // MARK: - Conversion
 
 auto CSSValueConversion<Content>::operator()(BuilderState& state, const CSSValue& value) -> Content

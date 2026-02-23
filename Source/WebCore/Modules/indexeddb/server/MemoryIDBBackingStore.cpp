@@ -208,9 +208,9 @@ IDBError MemoryIDBBackingStore::clearObjectStore(const IDBResourceIdentifier& tr
 
     ASSERT_UNUSED(transactionIdentifier, m_transactions.contains(transactionIdentifier));
 
-#ifndef NDEBUG
+#if ASSERT_ENABLED
     RefPtr transaction = m_transactions.get(transactionIdentifier);
-    ASSERT_UNUSED(transaction, transaction->isWriting());
+    ASSERT(transaction->isWriting());
 #endif
 
     RefPtr objectStore = m_objectStoresByIdentifier.get(objectStoreIdentifier);

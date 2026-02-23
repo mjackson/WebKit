@@ -166,7 +166,7 @@ bool DrawingArea::supportsGPUProcessRendering()
 
 WebCore::TiledBacking* DrawingArea::mainFrameTiledBacking() const
 {
-    RefPtr frameView = protectedWebPage()->localMainFrameView();
+    RefPtr frameView = protect(m_webPage)->localMainFrameView();
     return frameView ? frameView->tiledBacking() : nullptr;
 }
 

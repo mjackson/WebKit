@@ -40,8 +40,10 @@
 
 namespace JSC {
 class JSGlobalObject;
+class JSMicrotaskDispatcher;
 class QueuedTask;
 class MicrotaskDispatcher;
+class VM;
 }
 
 namespace WebCore {
@@ -187,13 +189,7 @@ public:
     void markAsReadyToStop();
 
     // This gets called by the event loop when all groups in the EventLoop as ready to stop.
-    void stopAndDiscardAllTasks()
-    {
-        ASSERT(isReadyToStop());
-        m_state = State::Stopped;
-        if (RefPtr eventLoop = m_eventLoop.get())
-            eventLoop->stopGroup(*this);
-    }
+    void stopAndDiscardAllTasks();
 
     void suspend();
     void resume();
@@ -232,16 +228,18 @@ public:
     void didAddTimer(EventLoopTimer&);
     void didRemoveTimer(EventLoopTimer&);
 
-    Ref<JSC::MicrotaskDispatcher> jsMicrotaskDispatcher(JSC::QueuedTask&);
+    JSC::JSMicrotaskDispatcher* jsMicrotaskDispatcherForDebugger(JSC::VM&, JSC::JSGlobalObject*);
+
+    void setScriptExecutionContext(ScriptExecutionContext&);
 
 private:
     enum class State : uint8_t { Running, Suspended, ReadyToStop, Stopped };
 
-    RefPtr<EventLoop> protectedEventLoop() const;
+    RefPtr<EventLoop> NODELETE protectedEventLoop() const;
 
     WeakPtr<EventLoop> m_eventLoop;
     WeakHashSet<EventLoopTimer> m_timers;
-    const Ref<JSC::MicrotaskDispatcher> m_jsMicrotaskDispatcher;
+    WeakPtr<ScriptExecutionContext> m_context;
     State m_state { State::Running };
 };
 

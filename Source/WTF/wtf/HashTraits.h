@@ -347,6 +347,7 @@ struct PairHashTraits : GenericHashTraits<std::pair<typename FirstTraitsArg::Tra
     typedef std::pair<typename FirstTraits::EmptyValueType, typename SecondTraits::EmptyValueType> EmptyValueType;
 
     static constexpr bool emptyValueIsZero = FirstTraits::emptyValueIsZero && SecondTraits::emptyValueIsZero;
+    static constexpr bool hasIsEmptyValueFunction = FirstTraits::hasIsEmptyValueFunction && SecondTraits::hasIsEmptyValueFunction;
     static EmptyValueType emptyValue() { return std::make_pair(FirstTraits::emptyValue(), SecondTraits::emptyValue()); }
 
     // Override constructEmptyValue to construct elements individually, avoiding move-construction from emptyValue().

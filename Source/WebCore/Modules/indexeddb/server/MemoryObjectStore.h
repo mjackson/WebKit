@@ -133,7 +133,7 @@ private:
 
     HashMap<IDBIndexIdentifier, Ref<MemoryIndex>> m_indexesByIdentifier;
     HashMap<String, Ref<MemoryIndex>> m_indexesByName;
-    HashMap<IDBResourceIdentifier, RefPtr<MemoryObjectStoreCursor>> m_cursors;
+    HashMap<IDBResourceIdentifier, Ref<MemoryObjectStoreCursor>> m_cursors;
 };
 
 } // namespace IDBServer

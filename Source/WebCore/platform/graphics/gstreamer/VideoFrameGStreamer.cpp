@@ -99,6 +99,8 @@ static std::optional<uint32_t> videoFormatToDRMFourcc(GstVideoFormat format)
         return DRM_FORMAT_YUV422;
     case GST_VIDEO_FORMAT_P010_10LE:
         return DRM_FORMAT_P010;
+    case GST_VIDEO_FORMAT_ENCODED:
+        return std::nullopt;
     default:
         break;
     }
@@ -128,9 +130,8 @@ VideoFrameGStreamer::Info VideoFrameGStreamer::infoFromCaps(const GRefPtr<GstCap
         dmabufFormat = { drmVideoInfo.drm_fourcc, drmVideoInfo.drm_modifier };
     }
 #else
-    auto fourccFromFormat = videoFormatToDRMFourcc(GST_VIDEO_INFO_FORMAT(&videoInfo));
-    ASSERT(fourccFromFormat);
-    dmabufFormat = { *fourccFromFormat, DRM_FORMAT_MOD_INVALID };
+    if (auto fourccFromFormat = videoFormatToDRMFourcc(GST_VIDEO_INFO_FORMAT(&videoInfo)))
+        dmabufFormat = { *fourccFromFormat, DRM_FORMAT_MOD_INVALID };
 #endif // GST_CHECK_VERSION(1, 24, 0)
 #endif // USE(GBM)
     return { videoInfo, dmabufFormat };

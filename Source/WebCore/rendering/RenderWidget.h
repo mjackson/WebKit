@@ -49,7 +49,7 @@ public:
 
 private:
     using WidgetToParentMap = HashMap<Ref<Widget>, SingleThreadWeakPtr<LocalFrameView>>;
-    static WidgetToParentMap& widgetNewParentMap();
+    static WidgetToParentMap& NODELETE widgetNewParentMap();
 
     WEBCORE_EXPORT void moveWidgets();
     WEBCORE_EXPORT static unsigned s_widgetHierarchyUpdateSuspendCount;
@@ -67,7 +67,7 @@ public:
     Widget* widget() const { return m_widget.get(); }
     WEBCORE_EXPORT void setWidget(RefPtr<Widget>&&);
 
-    static RenderWidget* find(const Widget&);
+    static RenderWidget* NODELETE find(const Widget&);
 
     enum class ChildWidgetState { Valid, Destroyed };
     [[nodiscard]] ChildWidgetState updateWidgetPosition();
@@ -75,7 +75,7 @@ public:
 
     virtual bool requiresAcceleratedCompositing() const;
 
-    RemoteFrame* remoteFrame() const;
+    RemoteFrame* NODELETE remoteFrame() const;
 
 protected:
     RenderWidget(Type, HTMLFrameOwnerElement&, RenderStyle&&);

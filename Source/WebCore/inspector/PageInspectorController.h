@@ -86,7 +86,7 @@ public:
     void inspectedPageDestroyed();
 
     WEBCORE_EXPORT bool enabled() const;
-    Page& inspectedPage() const;
+    Page& NODELETE inspectedPage() const;
 
     WEBCORE_EXPORT void show();
 
@@ -140,7 +140,7 @@ public:
     Inspector::InspectorFunctionCallHandler functionCallHandler() const override;
     Inspector::InspectorEvaluateHandler evaluateHandler() const override;
     void frontendInitialized() override;
-    WTF::Stopwatch& executionStopwatch() const final;
+    WTF::Stopwatch& NODELETE executionStopwatch() const final;
     JSC::Debugger* debugger() override;
     JSC::VM& vm() override;
 

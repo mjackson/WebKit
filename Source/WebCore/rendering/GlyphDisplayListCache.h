@@ -108,7 +108,7 @@ public:
     void remove(const InlineDisplay::Box& run) { remove(&run); }
 
     void clear();
-    unsigned size() const;
+    unsigned NODELETE size() const;
 
     void setForceUseGlyphDisplayListForTesting(bool flag)
     {

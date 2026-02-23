@@ -58,8 +58,8 @@ private:
 
     PositionWithAffinity positionForPoint(const LayoutPoint&, HitTestSource, const RenderFragmentContainer*) final;
     int caretMinOffset() const final;
-    int caretMaxOffset() const final;
-    bool canBeSelectionLeaf() const final;
+    int NODELETE caretMaxOffset() const final;
+    bool NODELETE canBeSelectionLeaf() const final;
 
     LayoutUnit marginTop() const final { return 0; }
     LayoutUnit marginBottom() const final { return 0; }
@@ -75,7 +75,7 @@ private:
     LayoutRect frameRectForStickyPositioning() const final { ASSERT_NOT_REACHED(); return { }; }
     RepaintRects localRectsForRepaint(RepaintOutlineBounds) const final { return { }; }
 
-    void updateFromStyle() final;
+    void NODELETE updateFromStyle() final;
     bool requiresLayer() const final { return false; }
 };
 

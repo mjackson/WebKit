@@ -209,13 +209,11 @@ public:
     };
 
     WEBCORE_EXPORT EditorClient* client() const;
-    WEBCORE_EXPORT CheckedPtr<EditorClient> checkedClient() const;
     WEBCORE_EXPORT TextCheckerClient* textChecker() const;
 
     CompositeEditCommand* lastEditCommand() { return m_lastEditCommand.get(); }
 
     Document& document() const { return m_document; }
-    Ref<Document> protectedDocument() const { return m_document; }
 
     WEBCORE_EXPORT void ref() const;
     WEBCORE_EXPORT void deref() const;
@@ -448,7 +446,6 @@ public:
 
     // getting international text input composition state (for use by LegacyInlineTextBox)
     Text* compositionNode() const { return m_compositionNode.get(); }
-    RefPtr<Text> protectedCompositionNode() const { return m_compositionNode; }
     unsigned compositionStart() const { return m_compositionStart; }
     unsigned compositionEnd() const { return m_compositionEnd; }
     bool compositionUsesCustomUnderlines() const { return !m_customCompositionUnderlines.isEmpty(); }

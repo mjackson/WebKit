@@ -156,6 +156,7 @@ Modules/highlight/Highlight.cpp
 Modules/highlight/HighlightRegistry.cpp
 Modules/identity/CredentialRequestCoordinator.cpp
 Modules/identity/DigitalCredential.cpp
+Modules/identity/DigitalCredentialsRequestDataBuilder.cpp
 Modules/identity/dummy/DummyCredentialRequestCoordinatorClient.cpp
 Modules/indexeddb/IDBCursor.cpp
 Modules/indexeddb/IDBCursorWithValue.cpp
@@ -195,6 +196,7 @@ Modules/indexeddb/server/MemoryIndexCursor.cpp
 Modules/indexeddb/server/MemoryObjectStore.cpp
 Modules/indexeddb/server/MemoryObjectStoreCursor.cpp
 Modules/indexeddb/server/SQLiteIDBBackingStore.cpp
+Modules/indexeddb/server/SQLiteMemoryIDBBackingStore.cpp
 Modules/indexeddb/server/SQLiteIDBCursor.cpp
 Modules/indexeddb/server/SQLiteIDBTransaction.cpp
 Modules/indexeddb/server/ServerOpenDBRequest.cpp
@@ -1057,6 +1059,7 @@ css/parser/CSSPropertyParserConsumer+Inline.cpp
 css/parser/CSSPropertyParserConsumer+Lists.cpp
 css/parser/CSSPropertyParserConsumer+Masking.cpp
 css/parser/CSSPropertyParserConsumer+Motion.cpp
+css/parser/CSSPropertyParserConsumer+Overflow.cpp
 css/parser/CSSPropertyParserConsumer+Percentage.cpp
 css/parser/CSSPropertyParserConsumer+Position.cpp
 css/parser/CSSPropertyParserConsumer+PositionTry.cpp
@@ -1804,6 +1807,7 @@ html/shadow/DateTimeSymbolicFieldElement.cpp
 html/shadow/MediaControlTextTrackContainerElement.cpp
 html/shadow/ProgressShadowElement.cpp
 html/shadow/SelectFallbackButtonElement.cpp
+html/shadow/SelectPopoverElement.cpp
 html/shadow/SliderThumbElement.cpp
 html/shadow/SpinButtonElement.cpp
 html/shadow/TextControlInnerElements.cpp
@@ -1889,6 +1893,7 @@ inspector/agents/InspectorWorkerAgent.cpp
 inspector/agents/WebConsoleAgent.cpp
 inspector/agents/WebDebuggerAgent.cpp
 inspector/agents/WebHeapAgent.cpp
+inspector/agents/frame/FrameConsoleAgent.cpp
 inspector/agents/page/PageAuditAgent.cpp
 inspector/agents/page/PageCanvasAgent.cpp
 inspector/agents/page/PageConsoleAgent.cpp
@@ -2896,7 +2901,6 @@ rendering/RenderHighlight.cpp
 rendering/RenderIFrame.cpp
 rendering/RenderImage.cpp
 rendering/RenderImageResource.cpp
-rendering/RenderImageResourceStyleImage.cpp
 rendering/RenderInline.cpp
 rendering/RenderLayer.cpp
 rendering/RenderLayerBacking.cpp
@@ -2994,19 +2998,7 @@ rendering/style/OutlineValue.cpp
 rendering/style/PositionTryOrder.cpp
 rendering/style/RenderStyle.cpp
 rendering/style/RenderStyleConstants.cpp
-rendering/style/StyleCachedImage.cpp
-rendering/style/StyleCanvasImage.cpp
 rendering/style/StyleContentAlignmentData.cpp
-rendering/style/StyleCrossfadeImage.cpp
-rendering/style/StyleCursorImage.cpp
-rendering/style/StyleFilterImage.cpp
-rendering/style/StyleGeneratedImage.cpp
-rendering/style/StyleGradientImage.cpp
-rendering/style/StyleImageSet.cpp
-rendering/style/StyleInvalidImage.cpp
-rendering/style/StyleMultiImage.cpp
-rendering/style/StyleNamedImage.cpp
-rendering/style/StylePaintImage.cpp
 rendering/style/StyleSelfAlignmentData.cpp
 rendering/svg/RenderSVGBlock.cpp
 rendering/svg/RenderSVGContainer.cpp
@@ -3251,6 +3243,7 @@ style/values/content/StyleContent.cpp
 style/values/content/StyleQuotes.cpp
 style/values/counter-styles/StyleCounterStyle.cpp
 style/values/css2/StyleZIndex.cpp
+style/values/display/StyleDisplay.cpp
 style/values/easing/StyleCubicBezierEasingFunction.cpp
 style/values/easing/StyleEasingFunction.cpp
 style/values/easing/StyleLinearEasingFunction.cpp
@@ -3295,6 +3288,18 @@ style/values/grid/StyleGridTrackBreadth.cpp
 style/values/grid/StyleGridTrackSize.cpp
 style/values/grid/StyleGridTrackSizes.cpp
 style/values/grid/StyleFlowTolerance.cpp
+style/values/images/kinds/StyleCachedImage.cpp
+style/values/images/kinds/StyleCanvasImage.cpp
+style/values/images/kinds/StyleCrossfadeImage.cpp
+style/values/images/kinds/StyleCursorImage.cpp
+style/values/images/kinds/StyleFilterImage.cpp
+style/values/images/kinds/StyleGeneratedImage.cpp
+style/values/images/kinds/StyleGradientImage.cpp
+style/values/images/kinds/StyleImageSet.cpp
+style/values/images/kinds/StyleInvalidImage.cpp
+style/values/images/kinds/StyleMultiImage.cpp
+style/values/images/kinds/StyleNamedImage.cpp
+style/values/images/kinds/StylePaintImage.cpp
 style/values/images/StyleGradient.cpp
 style/values/images/StyleImageOrNone.cpp
 style/values/images/StyleImageOrientation.cpp
@@ -3332,6 +3337,7 @@ style/values/non-standard/StyleWebKitTextStrokeWidth.cpp
 style/values/non-standard/StyleWebKitTouchCallout.cpp
 style/values/overflow/StyleBlockEllipsis.cpp
 style/values/overflow/StyleScrollbarGutter.cpp
+style/values/overflow/StyleOverflowClipMargin.cpp
 style/values/page/StylePageSize.cpp
 style/values/pointerevents/StyleTouchAction.cpp
 style/values/primitives/StyleLengthResolution.cpp
@@ -3343,10 +3349,11 @@ style/values/primitives/StyleRatio.cpp
 style/values/primitives/StyleURL.cpp
 style/values/primitives/StyleUnevaluatedCalculation.cpp
 style/values/rhythm/StyleBlockStepSize.cpp
-style/values/scroll-animations/StyleProgressTimelineName.cpp
 style/values/scroll-animations/StyleScrollFunction.cpp
+style/values/scroll-animations/StyleScrollTimeline.cpp
 style/values/scroll-animations/StyleViewFunction.cpp
-style/values/scroll-animations/StyleViewTimelineInsets.cpp
+style/values/scroll-animations/StyleViewTimelineInsetItem.cpp
+style/values/scroll-animations/StyleViewTimeline.cpp
 style/values/scroll-snap/StyleScrollMargin.cpp
 style/values/scroll-snap/StyleScrollPadding.cpp
 style/values/scroll-snap/StyleScrollSnapAlign.cpp

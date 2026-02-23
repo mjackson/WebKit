@@ -36,6 +36,10 @@
 #include <wtf/WeakHashSet.h>
 #include <wtf/WeakPtr.h>
 
+namespace WTF {
+class TextStream;
+}
+
 namespace WebCore {
 
 class DOMWindow;
@@ -77,14 +81,12 @@ public:
     const WindowProxy& windowProxy() const { return m_windowProxy; }
 
     DOMWindow* window() const { return virtualWindow(); }
-    RefPtr<DOMWindow> protectedWindow() const;
     FrameTree& tree() const { return m_treeNode; }
     WEBCORE_EXPORT std::optional<uint64_t> indexInFrameTreeSiblings() const;
     WEBCORE_EXPORT Vector<uint64_t> pathToFrame() const;
     FrameIdentifier frameID() const { return m_frameID; }
     WEBCORE_EXPORT SecurityOrigin& topOrigin() const;
     inline Page* page() const; // Defined in DocumentPage.h.
-    inline RefPtr<Page> protectedPage() const; // Defined in DocumentPage.h.
     inline std::optional<PageIdentifier> pageID() const; // Defined in DocumentPage.h.
     Settings& settings() const { return m_settings.get(); }
     Frame& mainFrame() { return *m_mainFrame; }
@@ -95,7 +97,7 @@ public:
     WEBCORE_EXPORT void setOpenerForWebKitLegacy(Frame*);
     const Frame* opener() const { return m_opener.get(); }
     Frame* opener() { return m_opener.get(); }
-    bool hasOpenedFrames() const;
+    bool NODELETE hasOpenedFrames() const;
     WEBCORE_EXPORT void detachFromAllOpenedFrames();
     virtual bool isRootFrame() const = 0;
 #if ASSERT_ENABLED
@@ -106,7 +108,6 @@ public:
 
     WEBCORE_EXPORT void setOwnerElement(HTMLFrameOwnerElement*);
     inline HTMLFrameOwnerElement* ownerElement() const; // Defined in FrameInlines.h.
-    inline RefPtr<HTMLFrameOwnerElement> protectedOwnerElement() const; // Defined in FrameInlines.h.
 
     WEBCORE_EXPORT void disconnectOwnerElement();
     NavigationScheduler& navigationScheduler() const { return m_navigationScheduler.get(); }
@@ -119,7 +120,6 @@ public:
     virtual void didFinishLoadInAnotherProcess() = 0;
 
     virtual FrameView* virtualView() const = 0;
-    WEBCORE_EXPORT RefPtr<FrameView> protectedVirtualView() const;
     virtual void disconnectView() = 0;
     virtual FrameLoaderClient& loaderClient() = 0;
     virtual void documentURLForConsoleLog(CompletionHandler<void(const URL&)>&&) = 0;
@@ -146,7 +146,7 @@ public:
 
     void stopForBackForwardCache();
 
-    WEBCORE_EXPORT void updateFrameTreeSyncData(Ref<FrameTreeSyncData>&&);
+    WEBCORE_EXPORT void NODELETE updateFrameTreeSyncData(Ref<FrameTreeSyncData>&&);
     WEBCORE_EXPORT void updateFrameTreeSyncData(const FrameTreeSyncSerializationData&);
 
     virtual bool frameCanCreatePaymentSession() const;
@@ -156,7 +156,9 @@ public:
     WEBCORE_EXPORT virtual String frameURLProtocol() const = 0;
 
     WEBCORE_EXPORT virtual void setPrinting(bool printing, FloatSize pageSize, FloatSize originalPageSize, float maximumShrinkRatio, AdjustViewSize, NotifyUIProcess = NotifyUIProcess::Yes);
-    WEBCORE_EXPORT bool isPrinting() const;
+
+    WEBCORE_EXPORT bool NODELETE isPrinting() const;
+    WEBCORE_EXPORT RefPtr<Frame> parent() const;
 
 protected:
     Frame(Page&, FrameIdentifier, FrameType, HTMLFrameOwnerElement*, Frame* parent, Frame* opener, Ref<FrameTreeSyncData>&&, AddToFrameTree = AddToFrameTree::Yes);
@@ -184,5 +186,7 @@ private:
 
     Ref<FrameTreeSyncData> m_frameTreeSyncData;
 };
+
+WTF::TextStream& operator<<(WTF::TextStream&, const Frame&);
 
 } // namespace WebCore

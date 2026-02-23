@@ -35,10 +35,10 @@ class CachedResourceLoader;
 class DeprecatedCSSOMValue;
 class CSSStyleDeclaration;
 class RenderElement;
-class StyleImage;
 
 namespace Style {
 class BuilderState;
+class Image;
 }
 
 class CSSImageValue final : public CSSValue {
@@ -46,11 +46,12 @@ public:
     static Ref<CSSImageValue> create();
     static Ref<CSSImageValue> create(CSS::URL, AtomString initiatorType = { });
     static Ref<CSSImageValue> create(WTF::URL, AtomString initiatorType = { });
+    static Ref<CSSImageValue> create(CachedImage&);
     ~CSSImageValue();
 
     Ref<CSSImageValue> copyForComputedStyle(const CSS::URL& resolvedURL) const;
 
-    bool isPending() const;
+    bool NODELETE isPending() const;
     CachedImage* loadImage(CachedResourceLoader&, const ResourceLoaderOptions&);
     CachedImage* cachedImage() const { return m_cachedImage ? m_cachedImage.value().get() : nullptr; }
 
@@ -68,9 +69,9 @@ public:
 
     bool knownToBeOpaque(const RenderElement&) const;
 
-    RefPtr<StyleImage> createStyleImage(const Style::BuilderState&) const;
+    RefPtr<Style::Image> createStyleImage(const Style::BuilderState&) const;
 
-    bool isLoadedFromOpaqueSource() const;
+    bool NODELETE isLoadedFromOpaqueSource() const;
 
     IterationStatus customVisitChildren(NOESCAPE const Function<IterationStatus(CSSValue&)>& func) const
     {
@@ -84,10 +85,11 @@ public:
 private:
     CSSImageValue();
     CSSImageValue(CSS::URL&&, AtomString&&);
+    explicit CSSImageValue(CachedImage&);
 
     CSS::URL m_location;
-    std::optional<CachedResourceHandle<CachedImage>> m_cachedImage;
     AtomString m_initiatorType;
+    std::optional<CachedResourceHandle<CachedImage>> m_cachedImage;
     RefPtr<CSSImageValue> m_unresolvedValue;
     bool m_isInvalid { false };
 };

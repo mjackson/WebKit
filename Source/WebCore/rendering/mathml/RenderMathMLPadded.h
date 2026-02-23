@@ -46,7 +46,7 @@ private:
     void layoutBlock(RelayoutChildren, LayoutUnit pageLogicalHeight = 0_lu) final;
     std::optional<LayoutUnit> firstLineBaseline() const final;
 
-    MathMLPaddedElement& element() const;
+    MathMLPaddedElement& NODELETE element() const;
     LayoutUnit voffset() const;
     LayoutUnit lspace() const;
     LayoutUnit mpaddedWidth(LayoutUnit contentWidth) const;

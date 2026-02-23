@@ -79,7 +79,7 @@ RenderFileUploadControl::RenderFileUploadControl(HTMLInputElement& input, Render
 
 RenderFileUploadControl::~RenderFileUploadControl() = default;
 
-HTMLInputElement& RenderFileUploadControl::inputElement() const
+HTMLInputElement& NODELETE RenderFileUploadControl::inputElement() const
 {
     return downcast<HTMLInputElement>(nodeForNonAnonymous());
 }
@@ -104,13 +104,13 @@ void RenderFileUploadControl::updateFromElement()
         repaint();
 }
 
-static int nodeLogicalWidth(Node* node)
+static int NODELETE nodeLogicalWidth(Node* node)
 {
     return (node && node->renderBox()) ? roundToInt(node->renderBox()->logicalSize().width()) : 0;
 }
 
 #if PLATFORM(COCOA)
-static int nodeLogicalHeight(Node* node)
+static int NODELETE nodeLogicalHeight(Node* node)
 {
     return (node && node->renderBox()) ? roundToInt(node->renderBox()->logicalSize().height()) : 0;
 }

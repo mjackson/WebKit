@@ -45,7 +45,7 @@ public:
     WEBCORE_EXPORT void intersectWith(const TimeRanges&);
     void unionWith(const TimeRanges&);
     
-    WEBCORE_EXPORT unsigned length() const;
+    WEBCORE_EXPORT unsigned NODELETE length() const;
 
     WEBCORE_EXPORT void add(double start, double end, AddTimeRangeOption = AddTimeRangeOption::None);
     bool contain(double time) const;

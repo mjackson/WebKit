@@ -399,8 +399,8 @@ void RenderFragmentContainer::computePreferredLogicalWidths()
     // It should also support other values, like percentage, calc or viewport relative.
     m_minPreferredLogicalWidth = m_maxPreferredLogicalWidth = 0;
 
-    auto& styleToUse = style();
-    if (auto fixedLogicalWidth = styleToUse.logicalWidth().tryFixed(); fixedLogicalWidth && fixedLogicalWidth->isPositive())
+    CheckedRef styleToUse = style();
+    if (auto fixedLogicalWidth = styleToUse->logicalWidth().tryFixed(); fixedLogicalWidth && fixedLogicalWidth->isPositive())
         m_minPreferredLogicalWidth = m_maxPreferredLogicalWidth = adjustContentBoxLogicalWidthForBoxSizing(*fixedLogicalWidth);
     else
         computeIntrinsicLogicalWidths(m_minPreferredLogicalWidth, m_maxPreferredLogicalWidth);

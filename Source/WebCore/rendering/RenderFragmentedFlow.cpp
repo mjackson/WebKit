@@ -271,8 +271,8 @@ public:
     {
     }
 
-    const LayoutUnit& lowValue() const { return m_offset; }
-    const LayoutUnit& highValue() const { return m_offset; }
+    const LayoutUnit& NODELETE lowValue() const { return m_offset; }
+    const LayoutUnit& NODELETE highValue() const { return m_offset; }
 
     void collectIfNeeded(const PODInterval<LayoutUnit, SingleThreadWeakPtr<RenderFragmentContainer>>& interval)
     {
@@ -282,7 +282,7 @@ public:
             m_result = interval.data();
     }
 
-    RenderFragmentContainer* result() const { return m_result.get(); }
+    RenderFragmentContainer* NODELETE result() const { return m_result.get(); }
 
 private:
     LayoutUnit m_offset;

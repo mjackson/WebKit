@@ -46,8 +46,6 @@ private:
     RefPtr<DataTransfer> inputEventDataTransfer() const final;
     Vector<Ref<StaticRange>> targetRanges() const final;
 
-    RefPtr<DocumentFragment> protectedTextFragment() const { return m_textFragment; }
-
     SimpleRange m_rangeToBeReplaced;
     RefPtr<DocumentFragment> m_textFragment;
     String m_text;

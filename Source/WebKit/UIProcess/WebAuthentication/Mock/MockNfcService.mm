@@ -141,7 +141,7 @@ static RetainPtr<id<NFReaderSessionDelegate>> protectedGlobalNFReaderSessionDele
     return globalNFReaderSessionDelegate;
 }
 
-static WeakPtr<MockNfcService>& weakGlobalNfcService()
+static WeakPtr<MockNfcService>& NODELETE weakGlobalNfcService()
 {
     static NeverDestroyed<WeakPtr<MockNfcService>> service;
     return service.get();

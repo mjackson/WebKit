@@ -44,7 +44,7 @@ public:
         return adoptRef(*new GPUCommandBuffer(WTF::move(backing), encoder));
     }
 
-    String label() const;
+    String NODELETE label() const;
     void setLabel(String&&);
     void setOverrideLabel(String&&);
 

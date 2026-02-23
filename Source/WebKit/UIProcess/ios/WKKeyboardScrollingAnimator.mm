@@ -481,7 +481,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 - (void)stopScrollingImmediately
 {
     [self resetViewForScrollToExtentAnimation];
-    [_scrollable didFinishScrolling];
+    [protect(_scrollable) didFinishScrolling];
     [self stopDisplayLink];
     _velocity = { };
 }

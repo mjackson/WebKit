@@ -3851,13 +3851,6 @@ RegisterID* BytecodeGenerator::emitSuperConstructVarargs(RegisterID* dst, Regist
     return emitCallVarargs<OpSuperConstructVarargs>(dst, func, thisRegister, arguments, firstFreeRegister, firstVarArgOffset, divot, divotStart, divotEnd, debuggableCall);
 }
 
-RegisterID* BytecodeGenerator::emitCallForwardArgumentsInTailPosition(RegisterID* dst, RegisterID* func, RegisterID* thisRegister, RegisterID* firstFreeRegister, int32_t firstVarArgOffset, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd, DebuggableCall debuggableCall)
-{
-    // We must emit a tail call here because we did not allocate an arguments object thus we would otherwise have no way to correctly make this call.
-    ASSERT(m_allowTailCallOptimization || !Options::useTailCalls());
-    return emitCallVarargs<OpTailCallForwardArguments>(dst, func, thisRegister, nullptr, firstFreeRegister, firstVarArgOffset, divot, divotStart, divotEnd, debuggableCall);
-}
-    
 template<typename VarargsOp>
 RegisterID* BytecodeGenerator::emitCallVarargs(RegisterID* dst, RegisterID* func, RegisterID* thisRegister, RegisterID* arguments, RegisterID* firstFreeRegister, int32_t firstVarArgOffset, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd, DebuggableCall debuggableCall)
 {
@@ -3871,12 +3864,11 @@ RegisterID* BytecodeGenerator::emitCallVarargs(RegisterID* dst, RegisterID* func
     
     // Emit call.
     ASSERT(dst != ignoredResult());
-    if constexpr (VarargsOp::opcodeID == op_tail_call_varargs || VarargsOp::opcodeID == op_tail_call_forward_arguments)
+    if constexpr (VarargsOp::opcodeID == op_tail_call_varargs)
         VarargsOp::emit(this, dst, func, thisRegister, arguments ? arguments : VirtualRegister(0), firstFreeRegister, firstVarArgOffset);
     else
         VarargsOp::emit(this, dst, func, thisRegister, arguments ? arguments : VirtualRegister(0), firstFreeRegister, firstVarArgOffset, nextValueProfileIndex());
-    if (VarargsOp::opcodeID != op_tail_call_forward_arguments)
-        ASSERT(m_codeBlock->hasCheckpoints());
+    ASSERT(m_codeBlock->hasCheckpoints());
     return dst;
 }
 

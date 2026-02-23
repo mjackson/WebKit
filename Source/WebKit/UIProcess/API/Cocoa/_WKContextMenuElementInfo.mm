@@ -46,7 +46,7 @@
 {
     if (WebCoreObjCScheduleDeallocateOnMainRunLoop(_WKContextMenuElementInfo.class, self))
         return;
-    _contextMenuElementInfoMac->API::ContextMenuElementInfoMac::~ContextMenuElementInfoMac();
+    SUPPRESS_UNCOUNTED_ARG _contextMenuElementInfoMac->API::ContextMenuElementInfoMac::~ContextMenuElementInfoMac();
     [super dealloc];
 }
 

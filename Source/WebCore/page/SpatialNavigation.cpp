@@ -103,23 +103,23 @@ static RectsAlignment alignmentForRects(FocusDirection direction, const LayoutRe
     return RectsAlignment::None;
 }
 
-static inline bool isHorizontalMove(FocusDirection direction)
+static inline bool NODELETE isHorizontalMove(FocusDirection direction)
 {
     return direction == FocusDirection::Left || direction == FocusDirection::Right;
 }
 
-static inline LayoutUnit start(FocusDirection direction, const LayoutRect& rect)
+static inline LayoutUnit NODELETE start(FocusDirection direction, const LayoutRect& rect)
 {
     return isHorizontalMove(direction) ? rect.y() : rect.x();
 }
 
-static inline LayoutUnit middle(FocusDirection direction, const LayoutRect& rect)
+static inline LayoutUnit NODELETE middle(FocusDirection direction, const LayoutRect& rect)
 {
     LayoutPoint center(rect.center());
     return isHorizontalMove(direction) ? center.y(): center.x();
 }
 
-static inline LayoutUnit end(FocusDirection direction, const LayoutRect& rect)
+static inline LayoutUnit NODELETE end(FocusDirection direction, const LayoutRect& rect)
 {
     return isHorizontalMove(direction) ? rect.maxY() : rect.maxX();
 }
@@ -317,7 +317,7 @@ bool hasOffscreenRect(const Node& node, FocusDirection direction)
         break;
     }
 
-    auto* render = node.renderer();
+    CheckedPtr render = node.renderer();
     if (!render)
         return true;
 
@@ -362,7 +362,7 @@ bool scrollInDirection(LocalFrame* frame, FocusDirection direction)
 bool scrollInDirection(const ContainerNode& container, FocusDirection direction)
 {
     if (is<Document>(container))
-        return scrollInDirection(downcast<Document>(container).protectedFrame().get(), direction);
+        return scrollInDirection(protect(downcast<Document>(container).frame()).get(), direction);
 
     if (!canScrollInDirection(container, direction))
         return false;
@@ -390,7 +390,7 @@ bool scrollInDirection(const ContainerNode& container, FocusDirection direction)
             return false;
         }
 
-        if (auto* scrollableArea = renderBox->enclosingLayer()->scrollableArea())
+        if (CheckedPtr scrollableArea = renderBox->enclosingLayer()->scrollableArea())
             scrollableArea->scrollByRecursively(IntSize(dx, dy));
         return true;
     }
@@ -442,7 +442,7 @@ bool canScrollInDirection(const ContainerNode& container, FocusDirection directi
         return false;
 
     if (is<Document>(container))
-        return canScrollInDirection(downcast<Document>(container).protectedFrame().get(), direction);
+        return canScrollInDirection(protect(downcast<Document>(container).frame()).get(), direction);
 
     if (!isScrollableNode(container))
         return false;
@@ -517,17 +517,17 @@ LayoutRect nodeRectInAbsoluteCoordinates(const ContainerNode& containerNode, boo
     ASSERT(containerNode.renderer() && !containerNode.document().view()->needsLayout());
 
     if (is<Document>(containerNode))
-        return frameRectInAbsoluteCoordinates(downcast<Document>(containerNode).protectedFrame().get());
+        return frameRectInAbsoluteCoordinates(protect(downcast<Document>(containerNode).frame()).get());
 
     if (CheckedPtr renderer = containerNode.renderer()) {
-        auto rect = rectToAbsoluteCoordinates(containerNode.document().protectedFrame().get(), renderer->absoluteBoundingBoxRect());
+        auto rect = rectToAbsoluteCoordinates(protect(containerNode.document().frame()).get(), renderer->absoluteBoundingBoxRect());
         // For authors that use border instead of outline in their CSS, we compensate by ignoring the border when calculating
         // the rect of the focused element.
         if (ignoreBorder) {
-            auto& style = renderer->style();
-            rect.move(Style::evaluate<LayoutUnit>(style.usedBorderLeftWidth(), Style::ZoomNeeded { }), Style::evaluate<LayoutUnit>(style.usedBorderTopWidth(), Style::ZoomNeeded { }));
-            rect.setWidth(rect.width() - Style::evaluate<LayoutUnit>(style.usedBorderLeftWidth(), Style::ZoomNeeded { }) - Style::evaluate<LayoutUnit>(style.usedBorderRightWidth(), Style::ZoomNeeded { }));
-            rect.setHeight(rect.height() - Style::evaluate<LayoutUnit>(style.usedBorderTopWidth(), Style::ZoomNeeded { }) - Style::evaluate<LayoutUnit>(style.usedBorderBottomWidth(), Style::ZoomNeeded { }));
+            CheckedRef style = renderer->style();
+            rect.move(Style::evaluate<LayoutUnit>(style->usedBorderLeftWidth(), Style::ZoomNeeded { }), Style::evaluate<LayoutUnit>(style->usedBorderTopWidth(), Style::ZoomNeeded { }));
+            rect.setWidth(rect.width() - Style::evaluate<LayoutUnit>(style->usedBorderLeftWidth(), Style::ZoomNeeded { }) - Style::evaluate<LayoutUnit>(style->usedBorderRightWidth(), Style::ZoomNeeded { }));
+            rect.setHeight(rect.height() - Style::evaluate<LayoutUnit>(style->usedBorderTopWidth(), Style::ZoomNeeded { }) - Style::evaluate<LayoutUnit>(style->usedBorderBottomWidth(), Style::ZoomNeeded { }));
         }
         return rect;
     }
@@ -758,7 +758,7 @@ LayoutRect virtualRectForAreaElementAndDirection(HTMLAreaElement* area, FocusDir
     ASSERT(area->imageElement());
     // Area elements tend to overlap more than other focusable elements. We flatten the rect of the area elements
     // to minimize the effect of overlapping areas.
-    LayoutRect rect = virtualRectForDirection(direction, rectToAbsoluteCoordinates(area->document().protectedFrame().get(), area->computeRect(protect(area->imageElement()->renderer()).get())), 1);
+    LayoutRect rect = virtualRectForDirection(direction, rectToAbsoluteCoordinates(protect(area->document().frame()).get(), area->computeRect(protect(area->imageElement()->renderer()).get())), 1);
     return rect;
 }
 

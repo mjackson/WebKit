@@ -296,10 +296,10 @@ RefPtr<WebGLBuffer> WebGL2RenderingContext::validateBufferDataTarget(ASCIILitera
         synthesizeGLError(GraphicsContextGL::INVALID_OPERATION, functionName, "no buffer"_s);
         return nullptr;
     }
-    if (protect(m_boundTransformFeedback.get())->hasBoundIndexedTransformFeedbackBuffer(buffer.get())) {
+    if (protect(m_boundTransformFeedback)->hasBoundIndexedTransformFeedbackBuffer(buffer.get())) {
         ASSERT(buffer != m_boundVertexArrayObject->getElementArrayBuffer());
         if (m_boundIndexedUniformBuffers.contains(buffer)
-            || protect(m_boundVertexArrayObject.get())->hasArrayBuffer(buffer.get())
+            || protect(m_boundVertexArrayObject)->hasArrayBuffer(buffer.get())
             || buffer == m_boundArrayBuffer
             || buffer == m_boundCopyReadBuffer
             || buffer == m_boundCopyWriteBuffer
@@ -332,7 +332,7 @@ bool WebGL2RenderingContext::validateAndCacheBufferBinding(const AbstractLocker&
         m_boundCopyWriteBuffer = buffer;
         break;
     case GraphicsContextGL::ELEMENT_ARRAY_BUFFER:
-        protect(m_boundVertexArrayObject.get())->setElementArrayBuffer(locker, buffer);
+        protect(m_boundVertexArrayObject)->setElementArrayBuffer(locker, buffer);
         break;
     case GraphicsContextGL::PIXEL_PACK_BUFFER:
         m_boundPixelPackBuffer = buffer;
@@ -542,13 +542,13 @@ void WebGL2RenderingContext::pixelStorei(GCGLenum pname, GCGLint param)
 void WebGL2RenderingContext::bufferData(GCGLenum target, const ArrayBufferView& data, GCGLenum usage, GCGLuint srcOffset, GCGLuint length)
 {
     if (auto slice = sliceArrayBufferView("bufferData"_s, data, srcOffset, length))
-        WebGLRenderingContextBase::bufferData(target, BufferDataSource(slice.get()), usage);
+        WebGLRenderingContextBase::bufferData(target, BufferDataSource(slice.releaseNonNull()), usage);
 }
 
 void WebGL2RenderingContext::bufferSubData(GCGLenum target, long long offset, const ArrayBufferView& data, GCGLuint srcOffset, GCGLuint length)
 {
     if (auto slice = sliceArrayBufferView("bufferSubData"_s, data, srcOffset, length))
-        WebGLRenderingContextBase::bufferSubData(target, offset, BufferDataSource(slice.get()));
+        WebGLRenderingContextBase::bufferSubData(target, offset, BufferDataSource(slice.releaseNonNull()));
 }
 
 void WebGL2RenderingContext::copyBufferSubData(GCGLenum readTarget, GCGLenum writeTarget, GCGLint64 readOffset, GCGLint64 writeOffset, GCGLint64 size)
@@ -761,7 +761,7 @@ WebGLAny WebGL2RenderingContext::getInternalformatParameter(GCGLenum target, GCG
             return nullptr;
     }
 
-    return Int32Array::tryCreate(params.span());
+    return toWebGLAny(Int32Array::tryCreate(params.span()));
 }
 
 void WebGL2RenderingContext::invalidateFramebuffer(GCGLenum target, const Vector<GCGLenum>& attachments)
@@ -1558,7 +1558,7 @@ void WebGL2RenderingContext::vertexAttribIPointer(GCGLuint index, GCGLint size, 
     }
     GCGLsizei bytesPerElement = size * typeSize;
 
-    protect(m_boundVertexArrayObject.get())->setVertexAttribState(locker, index, bytesPerElement, size, type, false, stride, static_cast<GCGLintptr>(offset), true, RefPtr { m_boundArrayBuffer.get() }.get());
+    protect(m_boundVertexArrayObject)->setVertexAttribState(locker, index, bytesPerElement, size, type, false, stride, static_cast<GCGLintptr>(offset), true, RefPtr { m_boundArrayBuffer.get() }.get());
     graphicsContextGL()->vertexAttribIPointer(index, size, type, stride, offset);
 }
 
@@ -1652,7 +1652,7 @@ void WebGL2RenderingContext::drawBuffers(const Vector<GCGLenum>& buffers)
                 return;
             }
         }
-        protect(m_framebufferBinding.get())->drawBuffers(buffers);
+        protect(m_framebufferBinding)->drawBuffers(buffers);
     }
 }
 
@@ -2153,7 +2153,7 @@ void WebGL2RenderingContext::bindTransformFeedback(GCGLenum target, WebGLTransfo
     m_boundTransformFeedback = toBeBound;
 }
 
-static bool ValidateTransformFeedbackPrimitiveMode(GCGLenum mode)
+static bool NODELETE ValidateTransformFeedbackPrimitiveMode(GCGLenum mode)
 {
     switch (mode) {
     case GraphicsContextGL::POINTS:
@@ -2286,7 +2286,7 @@ void WebGL2RenderingContext::resumeTransformFeedback()
     if (isContextLost())
         return;
 
-    if (!protect(m_boundTransformFeedback.get())->validateProgramForResume(m_currentProgram.get())) {
+    if (!protect(m_boundTransformFeedback)->validateProgramForResume(m_currentProgram.get())) {
         synthesizeGLError(GraphicsContextGL::INVALID_OPERATION, "resumeTransformFeedback"_s, "the current program is not the same as when beginTransformFeedback was called"_s);
         return;
     }
@@ -2339,7 +2339,7 @@ bool WebGL2RenderingContext::setIndexedBufferBinding(ASCIILiteral functionName, 
 
     switch (target) {
     case GraphicsContextGL::TRANSFORM_FEEDBACK_BUFFER:
-        protect(m_boundTransformFeedback.get())->setBoundIndexedTransformFeedbackBuffer(locker, index, buffer);
+        protect(m_boundTransformFeedback)->setBoundIndexedTransformFeedbackBuffer(locker, index, buffer);
         break;
     case GraphicsContextGL::UNIFORM_BUFFER:
         m_boundIndexedUniformBuffers[index] = buffer;
@@ -2379,7 +2379,7 @@ WebGLAny WebGL2RenderingContext::getIndexedParameter(GCGLenum target, GCGLuint i
     switch (target) {
     case GraphicsContextGL::TRANSFORM_FEEDBACK_BUFFER_BINDING: {
         WebGLBuffer* buffer;
-        bool success = protect(m_boundTransformFeedback.get())->getBoundIndexedTransformFeedbackBuffer(index, &buffer);
+        bool success = protect(m_boundTransformFeedback)->getBoundIndexedTransformFeedbackBuffer(index, &buffer);
         if (!success) {
             synthesizeGLError(GraphicsContextGL::INVALID_VALUE, "getIndexedParameter"_s, "index out of range"_s);
             return nullptr;
@@ -2523,7 +2523,7 @@ WebGLAny WebGL2RenderingContext::getActiveUniformBlockParameter(WebGLProgram& pr
         GCGLint size = context->getActiveUniformBlocki(program.object(), uniformBlockIndex, GraphicsContextGL::UNIFORM_BLOCK_ACTIVE_UNIFORMS);
         Vector<GCGLint> params(size, 0);
         context->getActiveUniformBlockiv(program.object(), uniformBlockIndex, pname, params);
-        return Uint32Array::tryCreate(spanReinterpretCast<const GCGLuint>(params.span()));
+        return toWebGLAny(Uint32Array::tryCreate(spanReinterpretCast<const GCGLuint>(params.span())));
     }
     case GraphicsContextGL::UNIFORM_BLOCK_REFERENCED_BY_VERTEX_SHADER:
     case GraphicsContextGL::UNIFORM_BLOCK_REFERENCED_BY_FRAGMENT_SHADER:
@@ -2740,7 +2740,7 @@ std::optional<Vector<String>> WebGL2RenderingContext::getSupportedExtensions()
     return result;
 }
 
-static bool validateDefaultFramebufferAttachment(GCGLenum attachment)
+static bool NODELETE validateDefaultFramebufferAttachment(GCGLenum attachment)
 {
     switch (attachment) {
     case GraphicsContextGL::BACK:
@@ -3532,7 +3532,7 @@ void WebGL2RenderingContext::uncacheDeletedBuffer(const AbstractLocker& locker, 
     REMOVE_BUFFER_FROM_BINDING(m_boundPixelUnpackBuffer);
     REMOVE_BUFFER_FROM_BINDING(m_boundTransformFeedbackBuffer);
     REMOVE_BUFFER_FROM_BINDING(m_boundUniformBuffer);
-    protect(m_boundTransformFeedback.get())->unbindBuffer(locker, *buffer);
+    protect(m_boundTransformFeedback)->unbindBuffer(locker, *buffer);
 
     for (auto& boundBuffer : m_boundIndexedUniformBuffers) {
         if (boundBuffer == buffer)

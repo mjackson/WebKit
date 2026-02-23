@@ -172,7 +172,7 @@ void RenderMathMLToken::layoutBlock(RelayoutChildren relayoutChildren, LayoutUni
     }
 
     recomputeLogicalWidth();
-    for (auto* child = firstInFlowChildBox(); child; child = child->nextInFlowSiblingBox())
+    for (CheckedPtr child = firstInFlowChildBox(); child; child = child->nextInFlowSiblingBox())
         child->layoutIfNeeded();
     setLogicalWidth(LayoutUnit(mathVariantGlyph.font->widthForGlyph(mathVariantGlyph.glyph)));
     setLogicalHeight(LayoutUnit(mathVariantGlyph.font->boundsForGlyph(mathVariantGlyph.glyph).height()));

@@ -38,7 +38,7 @@ public:
     RenderSVGForeignObject(SVGForeignObjectElement&, RenderStyle&&);
     virtual ~RenderSVGForeignObject();
 
-    SVGForeignObjectElement& foreignObjectElement() const;
+    SVGForeignObjectElement& NODELETE foreignObjectElement() const;
 
     void paint(PaintInfo&, const LayoutPoint&) override;
 
@@ -48,6 +48,8 @@ public:
     FloatRect strokeBoundingBox() const final { return m_viewport; }
     FloatRect repaintRectInLocalCoordinates(RepaintRectCalculation = RepaintRectCalculation::Fast) const final { return SVGBoundingBoxComputation::computeRepaintBoundingBox(*this); }
     FloatRect decoratedBoundingBox() const final { return m_viewport; }
+
+    bool isObjectBoundingBoxValid() const { return !m_viewport.isEmpty(); }
 
 private:
     void graphicsElement() const = delete;

@@ -198,19 +198,18 @@ private:
 enum class ScrollingStateNodeProperty : uint64_t {
     // ScrollingStateNode
     Layer                                       = 1LLU << 0,
-    ChildNodes                                  = 1LLU << 45,
     // ScrollingStateScrollingNode
-    ScrollableAreaSize                          = 1LLU << 1, // Same value as RelatedOverflowScrollingNodes, ViewportConstraints and OverflowScrollingNode
-    TotalContentsSize                           = 1LLU << 2, // Same value as LayoutConstraintData
-    ReachableContentsSize                       = 1LLU << 3,
-    ScrollPosition                              = 1LLU << 4,
-    ScrollOrigin                                = 1LLU << 5,
-    ScrollableAreaParams                        = 1LLU << 6,
+    ScrollableAreaSize                          = Layer << 1, // Same value as RelatedOverflowScrollingNodes, ViewportConstraints and OverflowScrollingNode
+    TotalContentsSize                           = ScrollableAreaSize << 1, // Same value as LayoutConstraintData
+    ReachableContentsSize                       = TotalContentsSize << 1,
+    ScrollPosition                              = ReachableContentsSize << 1,
+    ScrollOrigin                                = ScrollPosition << 1,
+    ScrollableAreaParams                        = ScrollOrigin << 1,
 #if ENABLE(SCROLLING_THREAD)
-    ReasonsForSynchronousScrolling              = 1LLU << 7,
-    RequestedScrollPosition                     = 1LLU << 8,
+    ReasonsForSynchronousScrolling              = ScrollableAreaParams << 1,
+    RequestedScrollPosition                     = ReasonsForSynchronousScrolling << 1,
 #else
-    RequestedScrollPosition                     = 1LLU << 7,
+    RequestedScrollPosition                     = ScrollableAreaParams << 1,
 #endif
     SnapOffsetsInfo                             = RequestedScrollPosition << 1,
     CurrentHorizontalSnapOffsetIndex            = SnapOffsetsInfo << 1,
@@ -220,7 +219,6 @@ enum class ScrollingStateNodeProperty : uint64_t {
     ScrolledContentsLayer                       = ScrollContainerLayer << 1,
     HorizontalScrollbarLayer                    = ScrolledContentsLayer << 1,
     VerticalScrollbarLayer                      = HorizontalScrollbarLayer << 1,
-    PainterForScrollbar                         = 1LLU << 44, // Not serialized
     ContentAreaHoverState                       = VerticalScrollbarLayer << 1,
     MouseActivityState                          = ContentAreaHoverState << 1,
     ScrollbarHoverState                         = MouseActivityState << 1,
@@ -229,9 +227,6 @@ enum class ScrollingStateNodeProperty : uint64_t {
     ScrollbarLayoutDirection                    = ScrollbarColor << 1,
     ScrollbarWidth                              = ScrollbarLayoutDirection << 1,
     UseDarkAppearanceForScrollbars              = ScrollbarWidth << 1,
-#if USE(COORDINATED_GRAPHICS_ASYNC_SCROLLBAR)
-    ScrollbarOpacity                            = 1LLU << 51, // Not serialized
-#endif
     // ScrollingStateFrameScrollingNode
     KeyboardScrollData                          = UseDarkAppearanceForScrollbars << 1,
     FrameScaleFactor                            = KeyboardScrollData << 1,
@@ -242,11 +237,14 @@ enum class ScrollingStateNodeProperty : uint64_t {
     ContentShadowLayer                          = InsetClipLayer << 1,
     HeaderHeight                                = ContentShadowLayer << 1,
     FooterHeight                                = HeaderHeight << 1,
-    HeaderLayer                                 = 1LLU << 50, // Not serialized
-    FooterLayer                                 = 1LLU << 43, // Not serialized
     BehaviorForFixedElements                    = FooterHeight << 1,
     ObscuredContentInsets                       = BehaviorForFixedElements << 1,
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+    BannerViewHeight                            = ObscuredContentInsets << 1,
+    VisualViewportIsSmallerThanLayoutViewport   = BannerViewHeight << 1,
+#else
     VisualViewportIsSmallerThanLayoutViewport   = ObscuredContentInsets << 1,
+#endif
     AsyncFrameOrOverflowScrollingEnabled        = VisualViewportIsSmallerThanLayoutViewport << 1,
     WheelEventGesturesBecomeNonBlocking         = AsyncFrameOrOverflowScrollingEnabled << 1,
     ScrollingPerformanceTestingEnabled          = WheelEventGesturesBecomeNonBlocking << 1,
@@ -256,17 +254,27 @@ enum class ScrollingStateNodeProperty : uint64_t {
     MaxLayoutViewportOrigin                     = MinLayoutViewportOrigin << 1,
     OverrideVisualViewportSize                  = MaxLayoutViewportOrigin << 1,
     OverlayScrollbarsEnabled                    = OverrideVisualViewportSize << 1,
+    ChildNodes                                  = OverlayScrollbarsEnabled << 1,
     // ScrollingStatePositionedNode
-    RelatedOverflowScrollingNodes               = 1LLU << 1, // Same value as ScrollableAreaSize, ViewportConstraints and OverflowScrollingNode
-    LayoutConstraintData                        = 1LLU << 2, // Same value as TotalContentsSize
+    RelatedOverflowScrollingNodes               = ScrollableAreaSize,
+    LayoutConstraintData                        = TotalContentsSize,
     // ScrollingStateFixedNode, ScrollingStateStickyNode
-    ViewportConstraints                         = 1LLU << 1, // Same value as ScrollableAreaSize, RelatedOverflowScrollingNodes and OverflowScrollingNode
-    ViewportAnchorLayer                         = 1LLU << 2, // Same value as TotalContentsSize
+    ViewportConstraints                         = ScrollableAreaSize,
+    ViewportAnchorLayer                         = TotalContentsSize,
     // ScrollingStateOverflowScrollProxyNode
-    OverflowScrollingNode                       = 1LLU << 1, // Same value as ScrollableAreaSize, ViewportConstraints and RelatedOverflowScrollingNodes
+    OverflowScrollingNode                       = ScrollableAreaSize,
     // ScrollingStateFrameHostingNode
-    LayerHostingContextIdentifier               = 1LLU << 1,
+    LayerHostingContextIdentifier               = ScrollableAreaSize,
 
+    // The following flags are not serialized.
+    PainterForScrollbar                         = ChildNodes << 1,
+#if USE(COORDINATED_GRAPHICS_ASYNC_SCROLLBAR)
+    ScrollbarOpacity                            = PainterForScrollbar << 1,
+    HeaderLayer                                 = ScrollbarOpacity << 1,
+#else
+    HeaderLayer                                 = PainterForScrollbar << 1,
+#endif
+    FooterLayer                                 = HeaderLayer << 1,
 };
 
 class ScrollingStateNode : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<ScrollingStateNode> {
@@ -314,7 +322,7 @@ public:
         ASSERT(m_scrollingStateTree);
         return *m_scrollingStateTree;
     }
-    void attachAfterDeserialization(ScrollingStateTree&);
+    void NODELETE attachAfterDeserialization(ScrollingStateTree&);
 
     ScrollingNodeID scrollingNodeID() const { return m_nodeID; }
 

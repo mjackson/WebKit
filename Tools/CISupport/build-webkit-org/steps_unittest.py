@@ -2732,6 +2732,7 @@ class TestBuildSwift(BuildStepMixinAdditions, unittest.TestCase):
         self.setup_step(BuildSwift())
         self.setProperty('architecture', 'arm64')
         self.setProperty('builddir', 'webkit')
+        self.setProperty('canonical_swift_tag', 'swift-6.0.3-RELEASE')
 
     def expectedShellCommand(self):
         builddir = 'webkit'
@@ -2754,7 +2755,7 @@ class TestBuildSwift(BuildStepMixinAdditions, unittest.TestCase):
             f"'--darwin-toolchain-display-name-short=WebKit Swift' "
             f"--darwin-toolchain-name={SWIFT_TOOLCHAIN_NAME} "
             f"--darwin-toolchain-version=6.0.0 --darwin-toolchain-alias=webkit --darwin-toolchain-require-use-os-runtime=0 "
-            f"--skip-test-swift=1 --skip-test-cmark=1 --swift-testing=1 --install-swift-testing=1 --swift-testing-macros=1 --install-swift-testing-macros=1 --swift-driver=1 --install-swift-driver=1 "
+            f"--swift-testing=1 --install-swift-testing=1 --swift-testing-macros=1 --install-swift-testing-macros=1 --swift-driver=1 --install-swift-driver=1 "
             f"2>&1 | python3 {builddir}/build/Tools/Scripts/filter-test-logs swift --output {builddir}/build/swift-build-log.txt"
         )
 
@@ -2775,6 +2776,11 @@ class TestBuildSwift(BuildStepMixinAdditions, unittest.TestCase):
             ExpectShell(workdir=SWIFT_DIR,
                         log_environ=False,
                         timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf /Users/buildbot/Library/Developer/Xcode/DerivedData'])
+            .exit(0),
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
                         command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', self.expectedShellCommand()])
             .exit(0),
         )
@@ -2784,7 +2790,6 @@ class TestBuildSwift(BuildStepMixinAdditions, unittest.TestCase):
     def test_skipped_toolchain_exists_same_tag(self):
         self.configureStep()
         self.setProperty('has_swift_toolchain', True)
-        self.setProperty('canonical_swift_tag', 'swift-6.0.3-RELEASE')
         self.setProperty('current_swift_tag', 'swift-6.0.3-RELEASE')
         self.expect_outcome(result=SKIPPED, state_string='Swift toolchain already exists')
         return self.run_step()
@@ -2792,7 +2797,6 @@ class TestBuildSwift(BuildStepMixinAdditions, unittest.TestCase):
     def test_build_when_tag_changed(self):
         self.configureStep()
         self.setProperty('has_swift_toolchain', True)
-        self.setProperty('canonical_swift_tag', 'swift-6.0.3-RELEASE')
         self.setProperty('current_swift_tag', 'swift-6.0.2-RELEASE')
         self.expectRemoteCommands(
             ExpectShell(workdir=SWIFT_DIR,
@@ -2804,6 +2808,11 @@ class TestBuildSwift(BuildStepMixinAdditions, unittest.TestCase):
                         log_environ=False,
                         timeout=1200,
                         command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf "$(getconf DARWIN_USER_CACHE_DIR)org.llvm.clang"'])
+            .exit(0),
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf /Users/buildbot/Library/Developer/Xcode/DerivedData'])
             .exit(0),
             ExpectShell(workdir=SWIFT_DIR,
                         log_environ=False,
@@ -2816,7 +2825,7 @@ class TestBuildSwift(BuildStepMixinAdditions, unittest.TestCase):
 
     def test_failure_with_previous_checkout(self):
         self.configureStep()
-        self.setProperty('has_swift_toolchain', False)
+        self.setProperty('has_swift_toolchain', True)
         self.setProperty('current_swift_tag', 'swift-6.0.2-RELEASE')
         self.expectRemoteCommands(
             ExpectShell(workdir=SWIFT_DIR,
@@ -2828,6 +2837,11 @@ class TestBuildSwift(BuildStepMixinAdditions, unittest.TestCase):
                         log_environ=False,
                         timeout=1200,
                         command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf "$(getconf DARWIN_USER_CACHE_DIR)org.llvm.clang"'])
+            .exit(0),
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf /Users/buildbot/Library/Developer/Xcode/DerivedData'])
             .exit(0),
             ExpectShell(workdir=SWIFT_DIR,
                         log_environ=False,
@@ -2851,6 +2865,11 @@ class TestBuildSwift(BuildStepMixinAdditions, unittest.TestCase):
                         log_environ=False,
                         timeout=1200,
                         command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf "$(getconf DARWIN_USER_CACHE_DIR)org.llvm.clang"'])
+            .exit(0),
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf /Users/buildbot/Library/Developer/Xcode/DerivedData'])
             .exit(0),
             ExpectShell(workdir=SWIFT_DIR,
                         log_environ=False,

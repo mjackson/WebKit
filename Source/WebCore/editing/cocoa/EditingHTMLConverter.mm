@@ -140,8 +140,8 @@ static RetainPtr<NSFileWrapper> fileWrapperForElement(const HTMLImageElement& el
         }
     }
 
-    auto* renderer = element.renderer();
-    if (auto* renderImage = dynamicDowncast<RenderImage>(renderer)) {
+    CheckedPtr renderer = element.renderer();
+    if (CheckedPtr renderImage = dynamicDowncast<RenderImage>(renderer)) {
         CachedResourceHandle image = renderImage->cachedImage();
         if (image && !image->errorOccurred()) {
             RetainPtr<NSFileWrapper> wrapper = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:(__bridge NSData *)image->imageForRenderer(renderer)->adapter().tiffRepresentation()]);
@@ -215,7 +215,7 @@ static bool elementQualifiesForWritingToolsPreservation(Element* element)
         return false;
 
     // If the element has no renderer, it can't have `whitespace:pre` so it need not be preserved.
-    auto renderer = element->renderer();
+    CheckedPtr renderer = element->renderer();
     if (!renderer)
         return false;
 
@@ -481,10 +481,10 @@ static AttributedString editingAttributedStringInternal(const SimpleRange& range
         // In those cases, base the style on the container.
         if (!node)
             node = it.range().start.container.ptr();
-        auto renderer = node->renderer();
+        CheckedPtr renderer = node->renderer();
 
         if (renderer)
-            updateAttributes(node.get(), renderer->checkedStyle(), includedElements, elementQualifiesForWritingToolsPreservationCache, enclosingLinkCache, enclosingListCache, attributes.get(), textListsForListElements);
+            updateAttributes(node.get(), protect(renderer->style()), includedElements, elementQualifiesForWritingToolsPreservationCache, enclosingLinkCache, enclosingListCache, attributes.get(), textListsForListElements);
         else if (!includedElements.contains(IncludedElement::NonRenderedContent))
             continue;
 

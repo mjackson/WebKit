@@ -52,7 +52,7 @@ public:
     int getTrackIndexRelativeToRenderedTracks(TextTrack&);
     bool contains(TrackBase&) const final;
 
-    TextTrack* item(unsigned index) const;
+    TextTrack* NODELETE item(unsigned index) const;
     RefPtr<TextTrack> getTrackById(const AtomString&) const;
     RefPtr<TextTrack> getTrackById(TrackID) const;
     TextTrack* lastItem() const { return item(length() - 1); }

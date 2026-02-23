@@ -1,0 +1,2 @@
+CONSOLE MESSAGE: Error: One unhandled exception
+This test passes if it doesn't crash.

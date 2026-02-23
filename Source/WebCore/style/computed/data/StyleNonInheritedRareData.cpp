@@ -80,13 +80,8 @@ NonInheritedRareData::NonInheritedRareData()
     , offsetRotate(ComputedStyle::initialOffsetRotate())
     , textDecorationColor(ComputedStyle::initialTextDecorationColor())
     , textDecorationThickness(ComputedStyle::initialTextDecorationThickness())
-    // scrollTimelines
-    , scrollTimelineAxes(ComputedStyle::initialScrollTimelineAxes())
-    , scrollTimelineNames(ComputedStyle::initialScrollTimelineNames())
-    // viewTimelines
-    , viewTimelineInsets(ComputedStyle::initialViewTimelineInsets())
-    , viewTimelineAxes(ComputedStyle::initialViewTimelineAxes())
-    , viewTimelineNames(ComputedStyle::initialViewTimelineNames())
+    , scrollTimelines { CSS::Keyword::None { } }
+    , viewTimelines { CSS::Keyword::None { } }
     , timelineScope(ComputedStyle::initialTimelineScope())
     , scrollbarGutter(ComputedStyle::initialScrollbarGutter())
     , scrollSnapType(ComputedStyle::initialScrollSnapType())
@@ -98,6 +93,7 @@ NonInheritedRareData::NonInheritedRareData()
     , positionArea(ComputedStyle::initialPositionArea())
     , positionTryFallbacks(ComputedStyle::initialPositionTryFallbacks())
     , usedPositionOptionIndex()
+    , overflowClipMargin(ComputedStyle::initialOverflowClipMargin())
     , blockStepSize(ComputedStyle::initialBlockStepSize())
     , blockStepAlign(static_cast<unsigned>(ComputedStyle::initialBlockStepAlign()))
     , blockStepInsert(static_cast<unsigned>(ComputedStyle::initialBlockStepInsert()))
@@ -191,12 +187,7 @@ inline NonInheritedRareData::NonInheritedRareData(const NonInheritedRareData& o)
     , textDecorationColor(o.textDecorationColor)
     , textDecorationThickness(o.textDecorationThickness)
     , scrollTimelines(o.scrollTimelines)
-    , scrollTimelineAxes(o.scrollTimelineAxes)
-    , scrollTimelineNames(o.scrollTimelineNames)
     , viewTimelines(o.viewTimelines)
-    , viewTimelineInsets(o.viewTimelineInsets)
-    , viewTimelineAxes(o.viewTimelineAxes)
-    , viewTimelineNames(o.viewTimelineNames)
     , timelineScope(o.timelineScope)
     , scrollbarGutter(o.scrollbarGutter)
     , scrollSnapType(o.scrollSnapType)
@@ -208,6 +199,7 @@ inline NonInheritedRareData::NonInheritedRareData(const NonInheritedRareData& o)
     , positionArea(o.positionArea)
     , positionTryFallbacks(o.positionTryFallbacks)
     , usedPositionOptionIndex(o.usedPositionOptionIndex)
+    , overflowClipMargin(o.overflowClipMargin)
     , blockStepSize(o.blockStepSize)
     , blockStepAlign(o.blockStepAlign)
     , blockStepInsert(o.blockStepInsert)
@@ -306,12 +298,7 @@ bool NonInheritedRareData::operator==(const NonInheritedRareData& o) const
         && offsetRotate == o.offsetRotate
         && textDecorationThickness == o.textDecorationThickness
         && scrollTimelines == o.scrollTimelines
-        && scrollTimelineAxes == o.scrollTimelineAxes
-        && scrollTimelineNames == o.scrollTimelineNames
         && viewTimelines == o.viewTimelines
-        && viewTimelineInsets == o.viewTimelineInsets
-        && viewTimelineAxes == o.viewTimelineAxes
-        && viewTimelineNames == o.viewTimelineNames
         && timelineScope == o.timelineScope
         && scrollbarGutter == o.scrollbarGutter
         && scrollSnapType == o.scrollSnapType
@@ -323,6 +310,7 @@ bool NonInheritedRareData::operator==(const NonInheritedRareData& o) const
         && positionArea == o.positionArea
         && positionTryFallbacks == o.positionTryFallbacks
         && usedPositionOptionIndex == o.usedPositionOptionIndex
+        && overflowClipMargin == o.overflowClipMargin
         && blockStepSize == o.blockStepSize
         && blockStepAlign == o.blockStepAlign
         && blockStepInsert == o.blockStepInsert
@@ -458,13 +446,7 @@ void NonInheritedRareData::dumpDifferences(TextStream& ts, const NonInheritedRar
     LOG_IF_DIFFERENT(textDecorationThickness);
 
     LOG_IF_DIFFERENT(scrollTimelines);
-    LOG_IF_DIFFERENT(scrollTimelineAxes);
-    LOG_IF_DIFFERENT(scrollTimelineNames);
-
     LOG_IF_DIFFERENT(viewTimelines);
-    LOG_IF_DIFFERENT(viewTimelineInsets);
-    LOG_IF_DIFFERENT(viewTimelineAxes);
-    LOG_IF_DIFFERENT(viewTimelineNames);
 
     LOG_IF_DIFFERENT(timelineScope);
 
@@ -482,6 +464,8 @@ void NonInheritedRareData::dumpDifferences(TextStream& ts, const NonInheritedRar
     LOG_IF_DIFFERENT(positionTryFallbacks);
     LOG_IF_DIFFERENT(usedPositionOptionIndex);
     LOG_IF_DIFFERENT(positionVisibility);
+
+    LOG_IF_DIFFERENT(overflowClipMargin);
 
     LOG_IF_DIFFERENT(blockStepSize);
 

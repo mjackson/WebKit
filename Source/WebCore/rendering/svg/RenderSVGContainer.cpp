@@ -175,7 +175,7 @@ bool RenderSVGContainer::nodeAtPoint(const HitTestRequest& request, HitTestResul
         return false;
 
 
-    for (auto* child = lastChild(); child; child = child->previousSibling()) {
+    for (CheckedPtr child = lastChild(); child; child = child->previousSibling()) {
         if (!child->hasLayer() && child->nodeAtPoint(request, result, locationInContainer, adjustedLocation, hitTestAction)) {
             updateHitTestResult(result, locationInContainer.point() - toLayoutSize(adjustedLocation));
             if (result.addNodeToListBasedTestResult(protect(child->node()).get(), request, locationInContainer, visualOverflowRect) == HitTestProgress::Stop)
@@ -201,6 +201,16 @@ bool RenderSVGContainer::nodeAtPoint(const HitTestRequest& request, HitTestResul
     }
     // 16.4: "If there are no graphics elements whose relevant graphics content is under the pointer (i.e., there is no target element), the event is not dispatched."
     return false;
+}
+
+void RenderSVGContainer::addFocusRingRects(Vector<LayoutRect>& rects, const LayoutPoint& additionalOffset, const RenderLayerModelObject* container) const
+{
+    if (needsHasSVGTransformFlags())
+        return RenderSVGModelObject::addFocusRingRects(rects, additionalOffset, container);
+    auto repaintBoundingBox = enclosingLayoutRect(repaintRectInLocalCoordinates());
+    if (repaintBoundingBox.size().isEmpty())
+        return;
+    rects.append(repaintBoundingBox);
 }
 
 }

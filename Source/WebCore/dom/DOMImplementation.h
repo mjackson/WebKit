@@ -47,7 +47,7 @@ public:
     static Ref<Document> createDocument(const String& contentType, LocalFrame*, const Settings&, const URL&, std::optional<ScriptExecutionContextIdentifier> = std::nullopt);
 
 private:
-    Ref<Document> protectedDocument();
+    Ref<Document> NODELETE protectedDocument();
 
     WeakRef<Document, WeakPtrImplWithEventTargetData> m_document;
 };

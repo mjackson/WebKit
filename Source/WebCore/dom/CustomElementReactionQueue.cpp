@@ -301,11 +301,6 @@ bool CustomElementReactionQueue::hasFormStateRestoreCallback() const
     return m_interface->hasFormStateRestoreCallback();
 }
 
-bool CustomElementReactionQueue::isElementInternalsAttached() const
-{
-    return m_elementInternalsAttached;
-}
-
 void CustomElementReactionQueue::setElementInternalsAttached()
 {
     m_elementInternalsAttached = true;

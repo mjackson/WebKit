@@ -110,7 +110,7 @@ public:
         remove();
     }
 
-    bool isMain() const { return m_isMain; }
+    bool NODELETE isMain() const { return m_isMain; }
 
     static Worker& current()
     {

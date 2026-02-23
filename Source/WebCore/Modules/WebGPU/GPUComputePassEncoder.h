@@ -53,7 +53,7 @@ public:
         return adoptRef(*new GPUComputePassEncoder(WTF::move(backing), device));
     }
 
-    String label() const;
+    String NODELETE label() const;
     void setLabel(String&&);
 
     void setPipeline(const GPUComputePipeline&);

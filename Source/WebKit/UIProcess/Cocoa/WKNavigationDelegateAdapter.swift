@@ -125,6 +125,15 @@ final class WKNavigationDelegateAdapter: NSObject, WKNavigationDelegate {
     ) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
         await navigationDecider.decideAuthenticationChallengeDisposition(for: challenge)
     }
+
+    @available(WK_IOS_TBA, WK_MAC_TBA, WK_XROS_TBA, *)
+    func webView(
+        _ webView: WKWebView,
+        willSubmitForm formInfo: WKFormInfo
+    ) async {
+        let convertedFormInfo = WebPage.FormInfo(formInfo)
+        await navigationDecider.willSubmit(formInfo: convertedFormInfo)
+    }
 }
 
 #endif

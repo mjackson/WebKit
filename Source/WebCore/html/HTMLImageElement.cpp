@@ -66,6 +66,7 @@
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "SizesAttributeParser.h"
+#include "StyleZoomPrimitivesInlines.h"
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/StringBuilder.h>
 
@@ -478,7 +479,7 @@ const AtomString& HTMLImageElement::altText() const
 
 RenderPtr<RenderElement> HTMLImageElement::createElementRenderer(RenderStyle&& style, const RenderTreePosition&)
 {
-    if (style.hasContent())
+    if (style.content().isData())
         return RenderElement::createFor(*this, WTF::move(style));
 
     return createRenderer<RenderImage>(RenderObject::Type::Image, *this, WTF::move(style), nullptr, m_imageDevicePixelRatio);
@@ -486,7 +487,7 @@ RenderPtr<RenderElement> HTMLImageElement::createElementRenderer(RenderStyle&& s
 
 bool HTMLImageElement::isReplaced(const RenderStyle* style) const
 {
-    return !style || !style->hasContent();
+    return !style || !style->content().isData();
 }
 
 bool HTMLImageElement::canStartSelection() const
@@ -599,7 +600,7 @@ unsigned HTMLImageElement::width()
     if (!box)
         return 0;
     LayoutRect contentRect = box->contentBoxRect();
-    return adjustLayoutUnitForAbsoluteZoom(contentRect.width(), *box).round();
+    return Style::adjustLayoutUnitForAbsoluteZoom(contentRect.width(), *box).round();
 }
 
 unsigned HTMLImageElement::height()
@@ -622,7 +623,7 @@ unsigned HTMLImageElement::height()
     if (!box)
         return 0;
     LayoutRect contentRect = box->contentBoxRect();
-    return adjustLayoutUnitForAbsoluteZoom(contentRect.height(), *box).round();
+    return Style::adjustLayoutUnitForAbsoluteZoom(contentRect.height(), *box).round();
 }
 
 float HTMLImageElement::effectiveImageDevicePixelRatio() const

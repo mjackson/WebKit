@@ -54,7 +54,7 @@ private:
     {
     }
 
-    bool hasCallback() const final { return true; }
+    bool NODELETE hasCallback() const final { return true; }
 
     CallbackResult<void> invoke(IntersectionObserver&, const Vector<Ref<IntersectionObserverEntry>>& entries, IntersectionObserver&) final
     {

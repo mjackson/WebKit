@@ -96,7 +96,7 @@ public:
 
     template<typename Function> void traverseNonRootInlineBoxes(const Layout::Box&, Function&&);
 
-    const RenderBlockFlow& formattingContextRoot() const;
+    const RenderBlockFlow& NODELETE formattingContextRoot() const;
 
     const Vector<SVGTextFragment>& svgTextFragments(size_t boxIndex) const;
     Vector<Vector<SVGTextFragment>>& svgTextFragmentsForBoxes() { return m_svgTextFragmentsForBoxes; }

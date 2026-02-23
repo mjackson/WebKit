@@ -44,7 +44,7 @@ RenderFrame::RenderFrame(HTMLFrameElement& frame, RenderStyle&& style)
 
 RenderFrame::~RenderFrame() = default;
 
-HTMLFrameElement& RenderFrame::frameElement() const
+HTMLFrameElement& NODELETE RenderFrame::frameElement() const
 {
     return downcast<HTMLFrameElement>(RenderFrameBase::frameOwnerElement());
 }

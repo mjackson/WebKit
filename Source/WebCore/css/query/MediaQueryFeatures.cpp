@@ -42,6 +42,7 @@
 #include "ScreenProperties.h"
 #include "ScriptController.h"
 #include "Settings.h"
+#include "StyleZoomPrimitivesInlines.h"
 #include "Theme.h"
 #include <wtf/Function.h>
 
@@ -283,7 +284,7 @@ static const IntegerSchema& colorFeatureSchema()
         "color"_s,
         OptionSet<MediaQueryDynamicDependency>(),
         [](auto& context) {
-            return screenDepthPerComponent(context.document->frame()->mainFrame().protectedVirtualView().get());
+            return screenDepthPerComponent(protect(context.document->frame()->mainFrame().virtualView()).get());
         }
     };
     return schema;
@@ -298,7 +299,7 @@ static const IdentifierSchema& colorGamutFeatureSchema()
         [](auto& context) {
             // FIXME: At some point we should start detecting displays that support more colors.
             MatchingIdentifiers identifiers { CSSValueSRGB };
-            if (screenSupportsExtendedColor(context.document->protectedFrame()->mainFrame().protectedVirtualView().get()))
+            if (screenSupportsExtendedColor(protect(protect(context.document->frame())->mainFrame().virtualView()).get()))
                 identifiers.append(CSSValueP3);
             return identifiers;
         }
@@ -385,7 +386,7 @@ static const IdentifierSchema& dynamicRangeFeatureSchema()
                     return true;
                 if (frame->settings().forcedSupportsHighDynamicRangeValue() == ForcedAccessibilityValue::Off)
                     return false;
-                return screenSupportsHighDynamicRange(frame->mainFrame().protectedVirtualView().get());
+                return screenSupportsHighDynamicRange(protect(frame->mainFrame().virtualView()).get());
             }();
 
             MatchingIdentifiers identifiers { CSSValueStandard };
@@ -428,7 +429,7 @@ static const LengthSchema& heightFeatureSchema()
         [](auto& context) {
             auto height = protect(context.document->view())->layoutHeight();
             if (CheckedPtr renderView = context.document->renderView())
-                height = adjustForAbsoluteZoom(height, *renderView);
+                height = Style::adjustForAbsoluteZoom(height, *renderView);
             return height;
         }
     };
@@ -720,7 +721,7 @@ static const LengthSchema& widthFeatureSchema()
         [](auto& context) {
             auto width = protect(context.document->view())->layoutWidth();
             if (CheckedPtr renderView = context.document->renderView())
-                width = adjustForAbsoluteZoom(width, *renderView);
+                width = Style::adjustForAbsoluteZoom(width, *renderView);
             return width;
         }
     };

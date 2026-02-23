@@ -140,7 +140,7 @@ std::optional<DetectedItem> DataDetection::detectItemAroundHitTestResult(const H
     RefPtr<Node> node = hitTestResult.innerNonSharedNode();
     if (!node)
         return { };
-    auto renderer = node->renderer();
+    CheckedPtr renderer = node->renderer();
     if (!renderer)
         return { };
 
@@ -283,7 +283,7 @@ static void removeResultLinksFromAnchor(Element& element)
     for (auto* child = ElementTraversal::firstChild(element); child; child = ElementTraversal::nextSibling(*child))
         removeResultLinksFromAnchor(*child);
 
-    auto* elementParent = element.parentElement();
+    RefPtr elementParent = element.parentElement();
     if (!elementParent)
         return;
     
@@ -292,7 +292,7 @@ static void removeResultLinksFromAnchor(Element& element)
         return;
 
     // Iterate over the children and move them all onto the same level as this anchor. Remove the anchor afterwards.
-    while (auto* child = element.firstChild())
+    while (RefPtr child = element.firstChild())
         elementParent->insertBefore(*child, &element);
 
     elementParent->removeChild(element);
@@ -302,7 +302,7 @@ static bool searchForLinkRemovingExistingDDLinks(Node& startNode, Node& endNode)
 {
     Vector<Ref<HTMLAnchorElement>> elementsToProcess;
     auto result = ([&] {
-        for (auto* node = &startNode; node; node = NodeTraversal::next(*node)) {
+        for (RefPtr node = &startNode; node; node = NodeTraversal::next(*node)) {
             if (RefPtr anchor = dynamicDowncast<HTMLAnchorElement>(*node)) {
                 if (!equalLettersIgnoringASCIICase(anchor->attributeWithoutSynchronization(x_apple_data_detectorsAttr), "true"_s))
                     return true;
@@ -312,10 +312,10 @@ static bool searchForLinkRemovingExistingDDLinks(Node& startNode, Node& endNode)
             if (node == &endNode) {
                 // If we found the end node and no link, return false unless an ancestor node is a link.
                 // The only ancestors not tested at this point are in the direct line from self's parent to the top.
-                for (auto& anchor : ancestorsOfType<HTMLAnchorElement>(startNode)) {
-                    if (!equalLettersIgnoringASCIICase(anchor.attributeWithoutSynchronization(x_apple_data_detectorsAttr), "true"_s))
+                for (Ref anchor : ancestorsOfType<HTMLAnchorElement>(startNode)) {
+                    if (!equalLettersIgnoringASCIICase(anchor->attributeWithoutSynchronization(x_apple_data_detectorsAttr), "true"_s))
                         return true;
-                    elementsToProcess.append(anchor);
+                    elementsToProcess.append(WTF::move(anchor));
                 }
                 return false;
             }
@@ -452,8 +452,8 @@ static inline CFComparisonResult queryOffsetCompare(DDQueryOffset o1, DDQueryOff
 void DataDetection::removeDataDetectedLinksInDocument(Document& document)
 {
     Vector<Ref<HTMLAnchorElement>> allAnchorElements;
-    for (auto& anchor : descendantsOfType<HTMLAnchorElement>(document))
-        allAnchorElements.append(anchor);
+    for (Ref anchor : descendantsOfType<HTMLAnchorElement>(document))
+        allAnchorElements.append(WTF::move(anchor));
 
     for (auto& anchor : allAnchorElements)
         removeResultLinksFromAnchor(anchor.get());
@@ -635,7 +635,7 @@ static NSArray * processDataDetectorScannerResults(DDScannerRef scanner, OptionS
         BOOL shouldUseLightLinks = PAL::softLink_DataDetectorsCore_DDShouldUseLightLinksForResult(coreResult, [indexPaths[resultIndex] length] > 1);
 
         for (auto& range : resultRanges) {
-            auto* parentNode = range.start.container->parentNode();
+            RefPtr parentNode = range.start.container->parentNode();
             if (!parentNode)
                 continue;
 
@@ -643,7 +643,7 @@ static NSArray * processDataDetectorScannerResults(DDScannerRef scanner, OptionS
             if (!currentTextNode)
                 continue;
 
-            auto& document = currentTextNode->document();
+            Ref document = currentTextNode->document();
             String textNodeData;
 
             if (lastTextNodeToUpdate != currentTextNode.get()) {
@@ -667,10 +667,8 @@ static NSArray * processDataDetectorScannerResults(DDScannerRef scanner, OptionS
             anchorElement->setAttributeWithoutSynchronization(dirAttr, "ltr"_s);
 
             if (shouldUseLightLinks) {
-                document.updateStyleIfNeeded();
-
-                auto* renderStyle = parentNode->computedStyle();
-                if (renderStyle) {
+                document->updateStyleIfNeeded();
+                if (CheckedPtr renderStyle = parentNode->computedStyle()) {
                     auto textColor = renderStyle->visitedDependentColor();
                     if (textColor.isValid()) {
                         // FIXME: Consider using LCHA<float> rather than HSLA<float> for better perceptual results and to avoid clamping to sRGB gamut, which is what HSLA does.

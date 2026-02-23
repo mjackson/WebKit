@@ -66,7 +66,7 @@ public:
     bool allowDatabaseAccess() const;
     void databaseExceededQuota(const String& name, DatabaseDetails);
 
-    Document* document() const;
+    Document* NODELETE document() const;
     const SecurityOriginData& securityOrigin() const;
 
     bool isContextThread() const;

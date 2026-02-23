@@ -40,6 +40,7 @@
 #include "JITBitAndGenerator.h"
 #include "JITBitOrGenerator.h"
 #include "JITBitXorGenerator.h"
+#include "JITDivGenerator.h"
 #include "JITInlines.h"
 #include "JITLeftShiftGenerator.h"
 #include "JITSizeStatistics.h"
@@ -360,7 +361,6 @@ void LOLJIT::privateCompileMainPass()
         DEFINE_OP(op_call_direct_eval)
         DEFINE_OP(op_call_varargs)
         DEFINE_OP(op_tail_call_varargs)
-        DEFINE_OP(op_tail_call_forward_arguments)
         DEFINE_OP(op_construct_varargs)
         DEFINE_OP(op_super_construct_varargs)
         DEFINE_OP(op_catch)
@@ -560,7 +560,8 @@ void LOLJIT::privateCompileSlowCases()
 #define REPLAY_ALLOCATION_FOR_OP(name, Struct) \
     case name: { \
         ASSERT(isImplemented(name)); \
-        m_replayAllocator.allocate(*this, currentInstruction->as<Struct>(), m_bytecodeIndex); \
+        auto allocations = m_replayAllocator.allocate(*this, currentInstruction->as<Struct>(), m_bytecodeIndex); \
+        m_replayAllocator.releaseScratches(allocations); \
         break; \
     }
 
@@ -667,7 +668,6 @@ void LOLJIT::privateCompileSlowCases()
         DEFINE_SLOWCASE_OP(op_loop_hint)
         DEFINE_SLOWCASE_OP(op_enter)
         DEFINE_SLOWCASE_OP(op_check_traps)
-        DEFINE_SLOWCASE_OP(op_mod)
         DEFINE_SLOWCASE_OP(op_pow)
         DEFINE_SLOWCASE_OP(op_mul)
         DEFINE_SLOWCASE_OP(op_negate)
@@ -698,6 +698,7 @@ void LOLJIT::privateCompileSlowCases()
         DEFINE_SLOWCASE_SLOW_OP(rshift, OpRshift)
         DEFINE_SLOWCASE_SLOW_OP(urshift, OpUrshift)
         DEFINE_SLOWCASE_SLOW_OP(div, OpDiv)
+        DEFINE_SLOWCASE_SLOW_OP(mod, OpMod)
         DEFINE_SLOWCASE_SLOW_OP(create_this, OpCreateThis)
         DEFINE_SLOWCASE_SLOW_OP(create_promise, OpCreatePromise)
         DEFINE_SLOWCASE_SLOW_OP(create_generator, OpCreateGenerator)
@@ -1728,23 +1729,23 @@ void LOLJIT::emit_op_new_object(const JSInstruction* currentInstruction)
 {
     auto bytecode = currentInstruction->as<OpNewObject>();
     auto allocations = m_fastAllocator.allocate(*this, bytecode, m_bytecodeIndex);
+    auto [ dstRegs ] = allocations.defs;
+    auto [ allocatorRegs, structureRegs ] = allocations.scratches;
 
-    RegisterID resultReg = regT0;
-    RegisterID allocatorReg = regT1;
-    RegisterID scratchReg = regT2;
-    RegisterID structureReg = regT3;
+    GPRReg resultReg = dstRegs.payloadGPR();
+    GPRReg allocatorReg = allocatorRegs.payloadGPR();
+    GPRReg structureReg = structureRegs.payloadGPR();
 
     loadPtrFromMetadata(bytecode, OpNewObject::Metadata::offsetOfObjectAllocationProfile() + ObjectAllocationProfile::offsetOfAllocator(), allocatorReg);
     loadPtrFromMetadata(bytecode, OpNewObject::Metadata::offsetOfObjectAllocationProfile() + ObjectAllocationProfile::offsetOfStructure(), structureReg);
 
     JumpList slowCases;
     auto butterfly = TrustedImmPtr(nullptr);
-    emitAllocateJSObject(resultReg, JITAllocator::variable(), allocatorReg, structureReg, butterfly, scratchReg, slowCases, SlowAllocationResult::UndefinedBehavior);
-    load8(Address(structureReg, Structure::inlineCapacityOffset()), scratchReg);
-    emitInitializeInlineStorage(resultReg, scratchReg);
+    emitAllocateJSObject(resultReg, JITAllocator::variable(), allocatorReg, structureReg, butterfly, s_scratch, slowCases, SlowAllocationResult::UndefinedBehavior);
+    load8(Address(structureReg, Structure::inlineCapacityOffset()), s_scratch);
+    emitInitializeInlineStorage(resultReg, s_scratch);
     mutatorFence(*m_vm);
-    boxCell(resultReg, jsRegT10);
-    emitPutVirtualRegister(bytecode.m_dst, jsRegT10);
+    boxCell(resultReg, dstRegs);
 
     addSlowCase(slowCases);
 
@@ -1755,15 +1756,16 @@ void LOLJIT::emitSlow_op_new_object(const JSInstruction* currentInstruction, Vec
 {
     linkAllSlowCases(iter);
 
-    RegisterID structureReg = regT3;
-
     auto bytecode = currentInstruction->as<OpNewObject>();
     auto allocations = m_replayAllocator.allocate(*this, bytecode, m_bytecodeIndex);
+    auto [ dstRegs ] = allocations.defs;
 
-    VirtualRegister dst = bytecode.m_dst;
-    callOperationNoExceptionCheck(operationNewObject, TrustedImmPtr(&vm()), structureReg);
-    boxCell(returnValueGPR, returnValueJSR);
-    emitPutVirtualRegister(dst, returnValueJSR);
+    silentSpill(m_replayAllocator, allocations);
+    // Reload structure from metadata since fast path scratch is not preserved.
+    loadPtrFromMetadata(bytecode, OpNewObject::Metadata::offsetOfObjectAllocationProfile() + ObjectAllocationProfile::offsetOfStructure(), s_scratch);
+    callOperationNoExceptionCheck(operationNewObject, TrustedImmPtr(&vm()), s_scratch);
+    boxCell(returnValueGPR, dstRegs);
+    silentFill(m_replayAllocator, dstRegs.payloadGPR());
 
     m_replayAllocator.releaseScratches(allocations);
 }
@@ -2133,8 +2135,10 @@ void LOLJIT::emit_op_jmp(const JSInstruction* currentInstruction)
 {
     auto bytecode = currentInstruction->as<OpJmp>();
     unsigned target = jumpTarget(currentInstruction, bytecode.m_targetLabel);
-    m_fastAllocator.allocate(*this, bytecode, m_bytecodeIndex);
+    auto allocations = m_fastAllocator.allocate(*this, bytecode, m_bytecodeIndex);
     addJump(jump(), target);
+
+    m_fastAllocator.releaseScratches(allocations);
 }
 
 void LOLJIT::emit_op_jtrue(const JSInstruction* currentInstruction)
@@ -2512,6 +2516,8 @@ void LOLJIT::emitRightShiftFastPath(const JSInstruction* currentInstruction, JIT
     gen.endJumpList().link(this);
 
     addSlowCase(gen.slowPathJumpList());
+
+    m_fastAllocator.releaseScratches(allocations);
 }
 
 void LOLJIT::emit_op_rshift(const JSInstruction* currentInstruction)
@@ -2552,6 +2558,8 @@ void LOLJIT::emit_op_lshift(const JSInstruction* currentInstruction)
     gen.endJumpList().link(this);
 
     addSlowCase(gen.slowPathJumpList());
+
+    m_fastAllocator.releaseScratches(allocations);
 }
 
 template<typename Op, typename SnippetGenerator>
@@ -2659,6 +2667,8 @@ void LOLJIT::emitMathICFast(JITBinaryMathIC<Generator>* mathIC, const JSInstruct
         mathIC->m_generatedCodeSize += size;
     });
 #endif
+
+    m_fastAllocator.releaseScratches(allocations);
 }
 
 template <typename Op, typename Generator, typename ProfiledRepatchFunction, typename ProfiledFunction, typename RepatchFunction>
@@ -2669,8 +2679,10 @@ void LOLJIT::emitMathICSlow(JITBinaryMathIC<Generator>* mathIC, const JSInstruct
     auto [ leftRegs, rightRegs ] = allocations.uses;
     auto [ destRegs ] = allocations.defs;
 
-    if (!hasAnySlowCases(iter))
+    if (!hasAnySlowCases(iter)) {
+        m_replayAllocator.releaseScratches(allocations);
         return;
+    }
 
     linkAllSlowCases(iter);
 
@@ -2720,6 +2732,8 @@ void LOLJIT::emitMathICSlow(JITBinaryMathIC<Generator>* mathIC, const JSInstruct
         MathICGenerationState& mathICGenerationState = m_instructionToMathICGenerationState.find(currentInstruction)->value.get();
         mathIC->finalizeInlineCode(mathICGenerationState, linkBuffer);
     });
+
+    m_replayAllocator.releaseScratches(allocations);
 }
 
 template <typename Op, typename Generator, typename ProfiledFunction, typename NonProfiledFunction>
@@ -2759,6 +2773,8 @@ void LOLJIT::emitMathICFast(JITUnaryMathIC<Generator>* mathIC, const JSInstructi
         mathIC->m_generatedCodeSize += size;
     });
 #endif
+
+    m_fastAllocator.releaseScratches(allocations);
 }
 
 template <typename Op, typename Generator, typename ProfiledRepatchFunction, typename ProfiledFunction, typename RepatchFunction>
@@ -2769,8 +2785,10 @@ void LOLJIT::emitMathICSlow(JITUnaryMathIC<Generator>* mathIC, const JSInstructi
     auto [ srcRegs ] = allocations.uses;
     auto [ destRegs ] = allocations.defs;
 
-    if (!hasAnySlowCases(iter))
+    if (!hasAnySlowCases(iter)) {
+        m_replayAllocator.releaseScratches(allocations);
         return;
+    }
 
     linkAllSlowCases(iter);
 
@@ -2807,6 +2825,8 @@ void LOLJIT::emitMathICSlow(JITUnaryMathIC<Generator>* mathIC, const JSInstructi
         MathICGenerationState& mathICGenerationState = m_instructionToMathICGenerationState.find(currentInstruction)->value.get();
         mathIC->finalizeInlineCode(mathICGenerationState, linkBuffer);
     });
+
+    m_replayAllocator.releaseScratches(allocations);
 }
 
 void LOLJIT::emit_op_add(const JSInstruction* currentInstruction)
@@ -2849,6 +2869,138 @@ void LOLJIT::emitSlow_op_sub(const JSInstruction* currentInstruction, Vector<Slo
 {
     JITSubIC* subIC = std::bit_cast<JITSubIC*>(m_instructionToMathIC.get(currentInstruction));
     emitMathICSlow<OpSub>(subIC, currentInstruction, operationValueSubProfiledOptimize, operationValueSubProfiled, operationValueSubOptimize, iter);
+}
+
+#if CPU(X86_64)
+
+void LOLJIT::emit_op_mod(const JSInstruction* currentInstruction)
+{
+    auto bytecode = currentInstruction->as<OpMod>();
+    auto allocations = m_fastAllocator.allocate(*this, bytecode, m_bytecodeIndex);
+    auto [ lhsRegs, rhsRegs ] = allocations.uses;
+    auto [ dstRegs ] = allocations.defs;
+
+    // Make sure registers are correct for x86 IDIV instructions.
+    ASSERT(regT0 == X86Registers::eax);
+    auto eax = X86Registers::eax;
+    auto edx = X86Registers::edx;
+    auto ecx = X86Registers::ecx;
+
+    addSlowCase(branchIfNotInt32(lhsRegs));
+    addSlowCase(branchIfNotInt32(rhsRegs));
+    addSlowCase(branchTest32(Zero, rhsRegs.payloadGPR()));
+
+    // Check for INT32_MIN % -1 (would overflow on IDIV)
+    Jump denominatorNotNeg1 = branch32(NotEqual, rhsRegs.payloadGPR(), TrustedImm32(-1));
+    addSlowCase(branch32(Equal, lhsRegs.payloadGPR(), TrustedImm32(INT32_MIN)));
+    denominatorNotNeg1.link(this);
+
+    move(rhsRegs.payloadGPR(), ecx);
+    move(lhsRegs.payloadGPR(), eax);
+
+    // Sign extend eax to edx:eax
+    x86ConvertToDoubleWord32(eax, edx);
+    // Perform division: quotient in eax, remainder in edx
+    x86Div32(ecx);
+
+    // Check for negative zero result: if numerator was negative and remainder is 0
+    Jump numeratorPositive = branch32(GreaterThanOrEqual, lhsRegs.payloadGPR(), TrustedImm32(0));
+    addSlowCase(branchTest32(Zero, edx));
+    numeratorPositive.link(this);
+
+    // Box the remainder result
+    boxInt32(edx, dstRegs);
+
+    m_fastAllocator.releaseScratches(allocations);
+}
+
+#elif CPU(ARM64)
+
+void LOLJIT::emit_op_mod(const JSInstruction* currentInstruction)
+{
+    auto bytecode = currentInstruction->as<OpMod>();
+    auto allocations = m_fastAllocator.allocate(*this, bytecode, m_bytecodeIndex);
+    auto [ lhsRegs, rhsRegs ] = allocations.uses;
+    auto [ dstRegs ] = allocations.defs;
+
+    addSlowCase(branchIfNotInt32(lhsRegs));
+    addSlowCase(branchIfNotInt32(rhsRegs));
+
+    GPRReg dividendGPR = lhsRegs.payloadGPR();
+    GPRReg divisorGPR = rhsRegs.payloadGPR();
+    GPRReg quotientThenRemainderGPR = s_scratch;
+    // GPRReg multiplyAnswerGPR = s_scratch;
+    addSlowCase(branchTest32(Zero, divisorGPR));
+
+    // This is doing: x - ((x / y) * y)
+    div32(dividendGPR, divisorGPR, quotientThenRemainderGPR);
+    // This should only overflow for INT32_MIN % -1 but that will end up with quotientThenRemainderGPR == 0 and finally yield -0.0 as expected.
+    multiplySub32(quotientThenRemainderGPR, divisorGPR, dividendGPR, quotientThenRemainderGPR);
+
+    // Make sure we're not accidentally producing a positive zero when it should be a negative zero.
+    Jump numeratorPositive = branch32(GreaterThanOrEqual, dividendGPR, TrustedImm32(0));
+    Jump nonZeroRemainder = branchTest32(NonZero, quotientThenRemainderGPR);
+    moveValue(jsDoubleNumber(-0.0), dstRegs);
+    Jump done = jump();
+
+    numeratorPositive.link(this);
+    nonZeroRemainder.link(this);
+
+    boxInt32(quotientThenRemainderGPR, dstRegs);
+    done.link(this);
+
+    m_fastAllocator.releaseScratches(allocations);
+}
+#else
+#error "Unsupported Architecture"
+#endif
+
+void LOLJIT::emit_op_div(const JSInstruction* currentInstruction)
+{
+    auto bytecode = currentInstruction->as<OpDiv>();
+    auto allocations = m_fastAllocator.allocate(*this, bytecode, m_bytecodeIndex);
+    auto [ leftRegs, rightRegs ] = allocations.uses;
+    auto [ resultRegs ] = allocations.defs;
+
+    VirtualRegister op1 = bytecode.m_lhs;
+    VirtualRegister op2 = bytecode.m_rhs;
+
+    BinaryArithProfile* arithProfile = nullptr;
+    if (shouldEmitProfiling())
+        arithProfile = &m_unlinkedCodeBlock->binaryArithProfile(bytecode.m_profileIndex);
+
+    SnippetOperand leftOperand(bytecode.m_operandTypes.first());
+    SnippetOperand rightOperand(bytecode.m_operandTypes.second());
+
+    if (isOperandConstantInt(op1))
+        leftOperand.setConstInt32(getOperandConstantInt(op1));
+#if USE(JSVALUE64)
+    else if (isOperandConstantDouble(op1))
+        leftOperand.setConstDouble(getOperandConstantDouble(op1));
+#endif
+    else if (isOperandConstantInt(op2))
+        rightOperand.setConstInt32(getOperandConstantInt(op2));
+#if USE(JSVALUE64)
+    else if (isOperandConstantDouble(op2))
+        rightOperand.setConstDouble(getOperandConstantDouble(op2));
+#endif
+
+    RELEASE_ASSERT(!leftOperand.isConst() || !rightOperand.isConst());
+
+    JITDivGenerator gen(leftOperand, rightOperand, resultRegs, leftRegs, rightRegs,
+        fpRegT0, fpRegT1, s_scratch, fpRegT2, arithProfile);
+
+    gen.generateFastPath(*this);
+
+    if (gen.didEmitFastPath()) {
+        gen.endJumpList().link(this);
+        addSlowCase(gen.slowPathJumpList());
+    } else {
+        // No fast path emitted - always go slow path.
+        addSlowCase(jump());
+    }
+
+    m_fastAllocator.releaseScratches(allocations);
 }
 
 void LOLJIT::emit_op_negate(const JSInstruction* currentInstruction)

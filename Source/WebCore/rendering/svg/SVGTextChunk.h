@@ -38,7 +38,7 @@ class SVGTextChunk {
 public:
     SVGTextChunk(const Vector<InlineIterator::SVGTextBoxIterator>&, unsigned first, unsigned limit, SVGTextFragmentMap&);
 
-    unsigned totalCharacters() const;
+    unsigned NODELETE totalCharacters() const;
     float totalLength() const;
     float totalAnchorShift() const;
     void layout(SVGChunkTransformMap&) const;

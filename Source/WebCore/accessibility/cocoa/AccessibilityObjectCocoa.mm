@@ -242,7 +242,7 @@ bool AccessibilityObject::isSuperscript() const
 bool AccessibilityObject::hasTextShadow() const
 {
     const CheckedPtr style = this->style();
-    return style && style->hasTextShadow();
+    return style && !style->textShadow().isNone();
 }
 
 LineDecorationStyle AccessibilityObject::lineDecorationStyle() const
@@ -264,7 +264,7 @@ AttributedStringStyle AccessibilityObject::stylesForAttributedString() const
         backgroundColorFrom(*style),
         WTF::holdsAlternative<CSS::Keyword::Sub>(alignment),
         WTF::holdsAlternative<CSS::Keyword::Super>(alignment),
-        style->hasTextShadow(),
+        !style->textShadow().isNone(),
         lineDecorationStyle()
     };
 }

@@ -43,7 +43,7 @@ public:
     bool operator==(const AncestorSubgridIterator&) const;
 
     AncestorSubgridIterator& operator++();
-    AncestorSubgridIterator begin();
+    AncestorSubgridIterator NODELETE begin();
     AncestorSubgridIterator end();
 private:
     AncestorSubgridIterator(SingleThreadWeakPtr<RenderGrid> firstAncestorSubgrid, SingleThreadWeakPtr<RenderGrid> currentAncestor, Style::GridTrackSizingDirection);

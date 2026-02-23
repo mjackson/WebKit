@@ -134,7 +134,7 @@ public:
     RemoteLayerTreeTransaction& operator=(RemoteLayerTreeTransaction&&);
 
     std::optional<WebCore::PlatformLayerIdentifier> rootLayerID() const { return m_rootLayerID.asOptional(); }
-    void setRootLayerID(WebCore::PlatformLayerIdentifier);
+    void NODELETE setRootLayerID(WebCore::PlatformLayerIdentifier);
     void layerPropertiesChanged(PlatformCALayerRemote&);
     void setCreatedLayers(Vector<LayerCreationProperties>);
     void setDestroyedLayerIDs(Vector<WebCore::PlatformLayerIdentifier>);
@@ -145,15 +145,15 @@ public:
     void dump() const;
 #endif
     
-    bool hasAnyLayerChanges() const;
+    bool NODELETE hasAnyLayerChanges() const;
 
     const Vector<LayerCreationProperties>& createdLayers() const { return m_createdLayers; }
     const Vector<WebCore::PlatformLayerIdentifier>& destroyedLayers() const { return m_destroyedLayerIDs; }
     const Vector<WebCore::PlatformLayerIdentifier>& layerIDsWithNewlyUnreachableBackingStore() const { return m_layerIDsWithNewlyUnreachableBackingStore; }
 
-    HashSet<Ref<PlatformCALayerRemote>>& changedLayers();
+    HashSet<Ref<PlatformCALayerRemote>>& NODELETE changedLayers();
 
-    const LayerPropertiesMap& changedLayerProperties() const;
+    const LayerPropertiesMap& NODELETE changedLayerProperties() const;
     LayerPropertiesMap& changedLayerProperties();
 
     void setRemoteContextHostedIdentifier(Markable<WebCore::LayerHostingContextIdentifier> identifier) { m_remoteContextHostedIdentifier = identifier; }

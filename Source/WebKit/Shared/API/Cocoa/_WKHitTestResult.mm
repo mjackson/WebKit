@@ -41,7 +41,7 @@
     if (WebCoreObjCScheduleDeallocateOnMainRunLoop(_WKHitTestResult.class, self))
         return;
 
-    _hitTestResult->~HitTestResult();
+    SUPPRESS_UNCOUNTED_ARG _hitTestResult->~HitTestResult();
 
     [super dealloc];
 }

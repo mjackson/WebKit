@@ -102,7 +102,7 @@ void AudioNodeOutput::propagateChannelCount()
     if (isChannelCountKnown()) {
         // Announce to any nodes we're connected to that we changed our channel count for its input.
         for (auto& input : m_inputs.keys())
-            input->checkedNode()->checkNumberOfChannelsForInput(input);
+            protect(input->node())->checkNumberOfChannelsForInput(input);
     }
 }
 
@@ -121,7 +121,7 @@ AudioBus& AudioNodeOutput::pull(AudioBus* inPlaceBus, size_t framesToProcess)
 
     m_inPlaceBus = isInPlace ? inPlaceBus : nullptr;
 
-    checkedNode()->processIfNecessary(framesToProcess);
+    protect(node())->processIfNecessary(framesToProcess);
     return bus();
 }
 
@@ -141,16 +141,6 @@ unsigned AudioNodeOutput::paramFanOutCount()
 {
     ASSERT(context().isGraphOwner());
     return m_params.size();
-}
-
-unsigned AudioNodeOutput::renderingFanOutCount() const
-{
-    return m_renderingFanOutCount;
-}
-
-unsigned AudioNodeOutput::renderingParamFanOutCount() const
-{
-    return m_renderingParamFanOutCount;
 }
 
 void AudioNodeOutput::addInput(AudioNodeInput* input)

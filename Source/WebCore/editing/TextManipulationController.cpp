@@ -342,7 +342,7 @@ static bool isEnclosingItemBoundaryElement(const Element& element)
     auto displayType = renderer->style().display();
     bool isListItem = element.hasTagName(HTMLNames::liTag);
     if (isListItem || element.hasTagName(HTMLNames::aTag)) {
-        if (displayType == DisplayType::Block || displayType == DisplayType::InlineBlock)
+        if (displayType == Style::DisplayType::BlockFlow || displayType == Style::DisplayType::InlineFlowRoot)
             return true;
 
         auto floating = renderer->style().floating();
@@ -359,13 +359,13 @@ static bool isEnclosingItemBoundaryElement(const Element& element)
             return true;
     }
 
-    if (displayType == DisplayType::TableCell)
+    if (displayType == Style::DisplayType::TableCell)
         return true;
 
-    if (element.hasTagName(HTMLNames::spanTag) && displayType == DisplayType::InlineBlock)
+    if (element.hasTagName(HTMLNames::spanTag) && displayType == Style::DisplayType::InlineFlowRoot)
         return true;
 
-    if (displayType == DisplayType::Block && is<HTMLHeadingElement>(element))
+    if (displayType == Style::DisplayType::BlockFlow && is<HTMLHeadingElement>(element))
         return true;
 
     return false;
@@ -397,7 +397,7 @@ TextManipulationController::ManipulationUnit TextManipulationController::createU
 
 bool TextManipulationController::shouldExcludeNodeBasedOnStyle(const Node& node)
 {
-    auto* style = node.renderStyle();
+    CheckedPtr style = node.renderStyle();
     if (!style)
         return false;
 
@@ -600,7 +600,7 @@ void TextManipulationController::scheduleObservationUpdate()
     m_didScheduleObservationUpdate = true;
 
     m_document->eventLoop().queueTask(TaskSource::InternalAsyncTask, [weakThis = WeakPtr { *this }] {
-        auto* controller = weakThis.get();
+        CheckedPtr controller = weakThis.get();
         if (!controller)
             return;
 
@@ -744,8 +744,8 @@ TextManipulationController::ManipulationResult TextManipulationController::compl
             if (!box || !box->hasVisualOverflow())
                 continue;
 
-            auto& style = box->style();
-            if (style.width().isFixed() && style.height().isFixed() && !style.hasOutOfFlowPosition() && !style.hasClip()) {
+            CheckedRef style = box->style();
+            if (style->width().isFixed() && style->height().isFixed() && !style->hasOutOfFlowPosition() && style->clip().isAuto()) {
                 element->setInlineStyleProperty(CSSPropertyOverflowX, CSSValueHidden);
                 element->setInlineStyleProperty(CSSPropertyOverflowY, CSSValueAuto);
             }

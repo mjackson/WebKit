@@ -1398,6 +1398,11 @@ RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElementIOS::textMarkerRangeF
     return AccessibilityTextMarkerRange::create(textMarkerRange);
 }
 
+RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElementIOS::intersectTextMarkerRanges(AccessibilityTextMarkerRange*, AccessibilityTextMarkerRange*)
+{
+    return nullptr;
+}
+
 RefPtr<AccessibilityTextMarker> AccessibilityUIElementIOS::startTextMarkerForTextMarkerRange(AccessibilityTextMarkerRange* range)
 {
     id textMarkers = range->platformTextMarkerRange();

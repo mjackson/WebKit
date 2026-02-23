@@ -45,7 +45,7 @@ RetainPtr<NSDecimalNumber> toProtectedDecimalNumber(const String& amount)
     return toDecimalNumber(amount);
 }
 
-static PKPaymentSummaryItemType toPKPaymentSummaryItemType(ApplePayLineItem::Type type)
+static PKPaymentSummaryItemType NODELETE toPKPaymentSummaryItemType(ApplePayLineItem::Type type)
 {
     switch (type) {
     case ApplePayLineItem::Type::Final:
@@ -75,7 +75,7 @@ static RetainPtr<NSDate> toProtectedDate(WallTime date)
 
 #if HAVE(PASSKIT_RECURRING_SUMMARY_ITEM)
 
-static NSCalendarUnit toCalendarUnit(ApplePayRecurringPaymentDateUnit unit)
+static NSCalendarUnit NODELETE toCalendarUnit(ApplePayRecurringPaymentDateUnit unit)
 {
     switch (unit) {
     case ApplePayRecurringPaymentDateUnit::Year:

@@ -70,11 +70,11 @@ Inspector::Protocol::ErrorStringOr<void> PageDOMDebuggerAgent::setDOMBreakpoint(
 {
     Inspector::Protocol::ErrorString errorString;
 
-    auto* domAgent = Ref { m_instrumentingAgents.get() }->persistentDOMAgent();
+    CheckedPtr domAgent = Ref { m_instrumentingAgents.get() }->persistentDOMAgent();
     if (!domAgent)
         return makeUnexpected("DOM domain must be enabled"_s);
 
-    Node* node = domAgent->assertNode(errorString, nodeId);
+    RefPtr<Node> node = domAgent->assertNode(errorString, nodeId);
     if (!node)
         return makeUnexpected(errorString);
 
@@ -107,11 +107,11 @@ Inspector::Protocol::ErrorStringOr<void> PageDOMDebuggerAgent::removeDOMBreakpoi
 {
     Inspector::Protocol::ErrorString errorString;
 
-    auto* domAgent = Ref { m_instrumentingAgents.get() }->persistentDOMAgent();
+    CheckedPtr domAgent = Ref { m_instrumentingAgents.get() }->persistentDOMAgent();
     if (!domAgent)
         return makeUnexpected("DOM domain must be enabled"_s);
 
-    Node* node = domAgent->assertNode(errorString, nodeId);
+    RefPtr<Node> node = domAgent->assertNode(errorString, nodeId);
     if (!node)
         return makeUnexpected(errorString);
 
@@ -156,7 +156,7 @@ static std::optional<size_t> calculateDistance(Node& child, Node& ancestor)
 {
     size_t distance = 0;
 
-    auto* current = &child;
+    CheckedPtr current = &child;
     while (current != &ancestor) {
         ++distance;
 
@@ -215,7 +215,7 @@ void PageDOMDebuggerAgent::willRemoveDOMNode(Node& node)
     std::optional<size_t> closestDistance;
     RefPtr<JSC::Breakpoint> closestBreakpoint;
     std::optional<Inspector::Protocol::DOMDebugger::DOMBreakpointType> closestBreakpointType;
-    Node* closestBreakpointOwner = nullptr;
+    CheckedPtr<Node> closestBreakpointOwner = nullptr;
 
     for (auto [breakpointOwner, breakpoint] : m_domNodeRemovedBreakpoints) {
         auto distance = calculateDistance(*breakpointOwner, node);
@@ -252,7 +252,7 @@ void PageDOMDebuggerAgent::willRemoveDOMNode(Node& node)
     ASSERT(closestBreakpointOwner);
 
     auto pauseData = buildPauseDataForDOMBreakpoint(*closestBreakpointType, *closestBreakpointOwner);
-    if (auto* domAgent = Ref { m_instrumentingAgents.get() }->persistentDOMAgent()) {
+    if (CheckedPtr domAgent = Ref { m_instrumentingAgents.get() }->persistentDOMAgent()) {
         if (&node != closestBreakpointOwner) {
             if (auto targetNodeId = domAgent->pushNodeToFrontend(&node))
                 pauseData->setInteger("targetNodeId"_s, targetNodeId);
@@ -311,7 +311,7 @@ Ref<JSON::Object> PageDOMDebuggerAgent::buildPauseDataForDOMBreakpoint(Inspector
 
     auto pauseData = JSON::Object::create();
     pauseData->setString("type"_s, Inspector::Protocol::Helpers::getEnumConstantValue(breakpointType));
-    if (auto* domAgent = Ref { m_instrumentingAgents.get() }->persistentDOMAgent()) {
+    if (CheckedPtr domAgent = Ref { m_instrumentingAgents.get() }->persistentDOMAgent()) {
         if (auto breakpointOwnerNodeId = domAgent->pushNodeToFrontend(&breakpointOwner))
             pauseData->setInteger("nodeId"_s, breakpointOwnerNodeId);
     }

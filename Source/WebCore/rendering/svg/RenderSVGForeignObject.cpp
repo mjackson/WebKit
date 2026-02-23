@@ -99,8 +99,8 @@ void RenderSVGForeignObject::layout()
     // Cache viewport boundaries
     auto x = useForeignObjectElement->x().value(lengthContext);
     auto y = useForeignObjectElement->y().value(lengthContext);
-    auto width = useForeignObjectElement->width().value(lengthContext);
-    auto height = useForeignObjectElement->height().value(lengthContext);
+    auto width = std::max(0.0f, useForeignObjectElement->width().value(lengthContext));
+    auto height = std::max(0.0f, useForeignObjectElement->height().value(lengthContext));
     m_viewport = { x, y, width, height };
 
     RenderSVGBlock::layout();

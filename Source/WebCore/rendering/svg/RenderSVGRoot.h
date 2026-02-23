@@ -39,7 +39,7 @@ public:
     RenderSVGRoot(SVGSVGElement&, RenderStyle&&);
     virtual ~RenderSVGRoot();
 
-    SVGSVGElement& svgSVGElement() const;
+    SVGSVGElement& NODELETE svgSVGElement() const;
     FloatSize computeViewportSize() const;
 
     bool isEmbeddedThroughSVGImage() const;
@@ -56,9 +56,9 @@ public:
     IntSize containerSize() const { return m_containerSize; }
     void setContainerSize(const IntSize& containerSize) { m_containerSize = containerSize; }
 
-    bool hasRelativeDimensions() const final;
+    bool NODELETE hasRelativeDimensions() const final;
 
-    bool shouldApplyViewportClip() const;
+    bool NODELETE shouldApplyViewportClip() const;
 
     FloatRect objectBoundingBox() const final { return m_objectBoundingBox; }
     FloatRect objectBoundingBoxWithoutTransformations() const final { return m_objectBoundingBoxWithoutTransformations; }
@@ -76,7 +76,6 @@ public:
     void invalidateCachedVisualOverflowRect() final { m_cachedVisualOverflowRect = std::nullopt; }
 
     RenderSVGViewportContainer* viewportContainer() const;
-    CheckedPtr<RenderSVGViewportContainer> checkedViewportContainer() const;
 
 private:
     void element() const = delete;
@@ -88,7 +87,7 @@ private:
     bool paintingAffectedByExternalOffset() const;
 
     // To prevent certain legacy code paths to hit assertions in debug builds, when switching off LBSE (during the teardown of the LBSE tree).
-    std::optional<FloatRect> computeFloatVisibleRectInContainer(const FloatRect&, const RenderLayerModelObject*, VisibleRectContext) const final;
+    std::optional<FloatRect> NODELETE computeFloatVisibleRectInContainer(const FloatRect&, const RenderLayerModelObject*, VisibleRectContext) const final;
 
     LayoutUnit computeReplacedLogicalWidth(ShouldComputePreferred  = ShouldComputePreferred::ComputeActual) const final;
     LayoutUnit computeReplacedLogicalHeight(std::optional<LayoutUnit> estimatedUsedWidth = std::nullopt) const final;

@@ -260,13 +260,22 @@ TEST(WebKit, GeolocationPermission)
     _validationHandler = WTF::move(validationHandler);
 }
 
-- (void)_webView:(WKWebView *)webView requestGeolocationPermissionForOrigin:(WKSecurityOrigin*)origin initiatedByFrame:(WKFrameInfo *)frame decisionHandler:(void (^)(WKPermissionDecision decision))decisionHandler {
+- (void)_webView:(WKWebView *)webView requestGeolocationPermissionForOrigin:(WKSecurityOrigin*)origin initiatedByFrame:(WKFrameInfo *)frame decisionHandler:(void (^)(WKPermissionDecision decision))decisionHandler
+{
+    // With the API version of this method in place, we expect this SPI version to never be called.
+    // Leaving it here and having it cause a test failure will make sure this is the case.
+    FAIL();
+}
+
+- (void)webView:(WKWebView *)webView requestGeolocationPermissionForOrigin:(WKSecurityOrigin*)origin initiatedByFrame:(WKFrameInfo *)frame decisionHandler:(void (^)(WKPermissionDecision decision))decisionHandler
+{
     if (_validationHandler)
         _validationHandler(origin, frame);
 
     done  = true;
     decisionHandler(WKPermissionDecisionGrant);
 }
+
 @end
  
 @interface GeolocationPermissionMessageHandler : NSObject <WKScriptMessageHandler>

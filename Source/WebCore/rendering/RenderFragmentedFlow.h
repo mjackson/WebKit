@@ -120,7 +120,7 @@ public:
     virtual void setFragmentRangeForBox(const RenderBox&, RenderFragmentContainer*, RenderFragmentContainer*);
     bool getFragmentRangeForBox(const RenderBox&, RenderFragmentContainer*& startFragment, RenderFragmentContainer*& endFragment) const;
     bool computedFragmentRangeForBox(const RenderBox&, RenderFragmentContainer*& startFragment, RenderFragmentContainer*& endFragment) const;
-    bool hasCachedFragmentRangeForBox(const RenderBox&) const;
+    bool NODELETE hasCachedFragmentRangeForBox(const RenderBox&) const;
 
     // Check if the object is in fragment and the fragment is part of this flow thread.
     bool objectInFlowFragment(const RenderObject*, const RenderFragmentContainer*) const;
@@ -150,7 +150,7 @@ public:
     LayoutRect mapFromFragmentedFlowToLocal(const RenderBox*, const LayoutRect&) const;
     LayoutRect mapFromLocalToFragmentedFlow(const RenderBox*, const LayoutRect&) const;
 
-    void flipForWritingModeLocalCoordinates(LayoutRect&) const;
+    void NODELETE flipForWritingModeLocalCoordinates(LayoutRect&) const;
 
     // Used to estimate the maximum height of the flow thread.
     static LayoutUnit maxLogicalHeight() { return LayoutUnit::max() / 2; }
@@ -164,7 +164,7 @@ public:
     void layout() override;
 
     void setCurrentFragmentMaintainer(CurrentRenderFragmentContainerMaintainer* currentFragmentMaintainer) { m_currentFragmentMaintainer = currentFragmentMaintainer; }
-    RenderFragmentContainer* currentFragment() const;
+    RenderFragmentContainer* NODELETE currentFragment() const;
 
     bool cachedEnclosingFragmentedFlowNeedsUpdate() const override { return false; }
 

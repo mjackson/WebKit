@@ -918,6 +918,13 @@ window.UIHelper = class UIHelper {
         });
     }
 
+    static isShowingContextMenu()
+    {
+        return new Promise(resolve => {
+            testRunner.runUIScript(`uiController.isShowingContextMenu`, result => resolve(result === "true"));
+        });
+    }
+
     static dismissMenu()
     {
         if (!this.isWebKit2())
@@ -2076,6 +2083,15 @@ window.UIHelper = class UIHelper {
             if (timeline.identifier == identifier)
                 return timeline;
         }
+    }
+
+    static async displayLinkWantsHighFrameRate()
+    {
+        if (!this.isWebKit2() || !this.isIOSFamily())
+            return Promise.resolve(false);
+
+        const script = `uiController.displayLinkWantsHighFrameRate()`;
+        return new Promise(resolve => testRunner.runUIScript(script, result => resolve(result === "true")));
     }
 
     static dragFromPointToPoint(fromX, fromY, toX, toY, duration)

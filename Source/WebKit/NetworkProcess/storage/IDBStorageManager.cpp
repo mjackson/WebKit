@@ -33,6 +33,7 @@
 #include <WebCore/MemoryIDBBackingStore.h>
 #include <WebCore/SQLiteFileSystem.h>
 #include <WebCore/SQLiteIDBBackingStore.h>
+#include <WebCore/SQLiteMemoryIDBBackingStore.h>
 #include <algorithm>
 #include <wtf/TZoneMalloc.h>
 
@@ -196,10 +197,11 @@ bool IDBStorageManager::migrateOriginData(const String& oldOriginDirectory, cons
     });
 }
 
-IDBStorageManager::IDBStorageManager(const String& path, IDBStorageRegistry& registry, QuotaCheckFunction&& quotaCheckFunction)
+IDBStorageManager::IDBStorageManager(const String& path, IDBStorageRegistry& registry, QuotaCheckFunction&& quotaCheckFunction, bool useSQLiteMemoryBackingStore)
     : m_path(path)
     , m_registry(registry)
     , m_quotaCheckFunction(WTF::move(quotaCheckFunction))
+    , m_useSQLiteMemoryBackingStore(useSQLiteMemoryBackingStore)
 {
 }
 
@@ -338,8 +340,11 @@ void IDBStorageManager::unregisterTransaction(WebCore::IDBServer::UniqueIDBDatab
 
 std::unique_ptr<WebCore::IDBServer::IDBBackingStore> IDBStorageManager::createBackingStore(const WebCore::IDBDatabaseIdentifier& identifier)
 {
-    if (m_path.isEmpty() || identifier.isTransient())
+    if (m_path.isEmpty() || identifier.isTransient()) {
+        if (m_useSQLiteMemoryBackingStore)
+            return makeUnique<WebCore::IDBServer::SQLiteMemoryIDBBackingStore>(identifier);
         return makeUnique<WebCore::IDBServer::MemoryIDBBackingStore>(identifier);
+    }
 
     auto name = WebCore::SQLiteFileSystem::computeHashForFileName(identifier.databaseName());
     return makeUnique<WebCore::IDBServer::SQLiteIDBBackingStore>(identifier, FileSystem::pathByAppendingComponent(m_path, name));

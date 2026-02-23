@@ -392,7 +392,6 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'print-clang-version',
             'checkout-llvm-project',
             'update-clang',
-            'install-metal-toolchain',
             'scan-build'
         ],
         'Apple-Sequoia-Release-Build': [
@@ -768,11 +767,15 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'delete-stale-build-files',
             'install-cmake',
             'install-ninja',
+            'get-llvm-version',
+            'print-clang-version',
+            'checkout-llvm-project',
             'get-swift-tag-name',
             'print-swift-version',
             'checkout-swift-project',
             'update-swift-checkouts',
             'build-swift',
+            'install-metal-toolchain',
             'scan-build'
         ],
         'Apple-iPadOS-26-Simulator-Release-WK2-Tests': [
@@ -1687,6 +1690,58 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'set-permissions',
             'run-api-tests'
         ],
+        'WPE-Linux-ARM64-bit-Release-Build': [
+            'configure-build',
+            'configuration',
+            'clean-and-update-working-directory',
+            'checkout-specific-revision',
+            'show-identifier',
+            'kill-old-processes',
+            'delete-WebKitBuild-directory',
+            'delete-stale-build-files',
+            'jhbuild',
+            'compile-webkit',
+            'trigger'
+        ],
+        'WPE-Linux-ARM64-bit-Release-Tests': [
+            'configure-build',
+            'configuration',
+            'clean-and-update-working-directory',
+            'checkout-specific-revision',
+            'show-identifier',
+            'kill-old-processes',
+            'delete-WebKitBuild-directory',
+            'delete-stale-build-files',
+            'jhbuild',
+            'download-built-product',
+            'extract-built-product',
+            'layout-test',
+            'dashboard-tests',
+            'archive-test-results',
+            'upload',
+            'extract-test-results',
+            'set-permissions',
+            'run-api-tests',
+            'webkitpy-test',
+            'webkitperl-test',
+            'bindings-generation-tests',
+            'builtins-generator-tests'
+        ],
+        'WPE-Linux-ARM64-bit-Release-JS-Tests': [
+            'configure-build',
+            'configuration',
+            'clean-and-update-working-directory',
+            'checkout-specific-revision',
+            'show-identifier',
+            'kill-old-processes',
+            'delete-WebKitBuild-directory',
+            'delete-stale-build-files',
+            'jhbuild',
+            'download-built-product',
+            'extract-built-product',
+            'jscore-test',
+            'test262-test'
+        ]
     }
 
     def setUp(self):

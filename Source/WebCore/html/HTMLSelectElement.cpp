@@ -31,6 +31,7 @@
 #include "AXObjectCache.h"
 #include "Chrome.h"
 #include "ChromeClient.h"
+#include "CommonAtomStrings.h"
 #include "ContainerNodeInlines.h"
 #include "CSSFontSelector.h"
 #include "DOMFormData.h"
@@ -46,6 +47,7 @@
 #include "GenericCachedHTMLCollection.h"
 #include "HTMLButtonElement.h"
 #include "HTMLDataListElement.h"
+#include "HTMLDivElement.h"
 #include "HTMLFormElement.h"
 #include "HTMLHRElement.h"
 #include "HTMLNames.h"
@@ -67,6 +69,7 @@
 #include "RenderTheme.h"
 #include "ScriptDisallowedScope.h"
 #include "SelectFallbackButtonElement.h"
+#include "SelectPopoverElement.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "SlotAssignment.h"
@@ -92,6 +95,11 @@ static const AtomString& buttonSlotName()
     return buttonSlot;
 }
 
+static bool NODELETE isFirstElementChildButton(const Node& child)
+{
+    return is<HTMLButtonElement>(child) && !child.previousElementSibling();
+}
+
 class SelectSlotAssignment final : public NamedSlotAssignment {
 private:
     void hostChildElementDidChange(const Element&, ShadowRoot&) final;
@@ -110,13 +118,7 @@ void SelectSlotAssignment::hostChildElementDidChange(const Element& childElement
 
 const AtomString& SelectSlotAssignment::slotNameForHostChild(const Node& child) const
 {
-    // The first button child gets assigned to the button slot.
-    if (is<HTMLButtonElement>(child)) {
-        Ref select = downcast<HTMLSelectElement>(*child.parentNode());
-        if (&child == childrenOfType<HTMLButtonElement>(select).first())
-            return buttonSlotName();
-    }
-    return NamedSlotAssignment::defaultSlotName();
+    return isFirstElementChildButton(child) ? buttonSlotName() : NamedSlotAssignment::defaultSlotName();
 }
 
 // https://html.spec.whatwg.org/#dom-htmloptionscollection-length
@@ -178,7 +180,20 @@ void HTMLSelectElement::didAddUserAgentShadowRoot(ShadowRoot& root)
     root.appendChild(buttonSlot);
     m_buttonSlot = WTF::move(buttonSlot);
 
-    root.appendChild(HTMLSlotElement::create(slotTag, document));
+    if (!document->settings().htmlEnhancedSelectEnabled()) {
+        root.appendChild(HTMLSlotElement::create(slotTag, document));
+        return;
+    }
+
+    Ref popover = SelectPopoverElement::create(document);
+    ScriptDisallowedScope::EventAllowedScope popoverScope { popover };
+    popover->setAttributeWithoutSynchronization(popoverAttr, autoAtom());
+    popover->setUserAgentPart(pickerSelectAtom());
+
+    popover->appendChild(HTMLSlotElement::create(slotTag, document));
+
+    root.appendChild(popover);
+    m_popover = WTF::move(popover);
 }
 
 HTMLSelectElement* HTMLSelectElement::findOwnerSelect(ContainerNode* startNode, ExcludeOptGroup excludeOptGroup)
@@ -313,6 +328,95 @@ bool HTMLSelectElement::usesMenuListDeprecated() const
 #endif
 }
 
+bool HTMLSelectElement::usesBaseAppearancePicker() const
+{
+    if (m_multiple || m_size > 1)
+        return false;
+
+    RefPtr popover = m_popover;
+    if (!popover)
+        return false;
+
+    ASSERT(document().settings().htmlEnhancedSelectEnabled());
+
+    if (CheckedPtr style = existingComputedStyle(); !style || style->usedAppearance() != StyleAppearance::Base)
+        return false;
+
+    CheckedPtr pickerStyle = popover->computedStyle();
+    return pickerStyle && pickerStyle->usedAppearance() == StyleAppearance::Base;
+}
+
+SelectPopoverElement* HTMLSelectElement::pickerPopoverElement() const
+{
+    return m_popover;
+}
+
+void HTMLSelectElement::hidePickerPopoverElement()
+{
+    RefPtr popover = m_popover;
+    if (!popover)
+        return;
+
+    setPopupIsVisible(false);
+    popover->hidePopover();
+}
+
+static inline auto navigationKeyIdentifiersForWritingMode(const RenderElement* renderer) -> HTMLSelectElement::NavigationKeyIdentifiers
+{
+    bool isHorizontalWritingMode = renderer ? renderer->writingMode().isHorizontal() : true;
+    bool isBlockFlipped = renderer ? renderer->writingMode().isBlockFlipped() : false;
+
+    auto next = isHorizontalWritingMode ? "Down"_s : "Right"_s;
+    auto previous = isHorizontalWritingMode ? "Up"_s : "Left"_s;
+    if (isBlockFlipped)
+        std::swap(next, previous);
+
+    return { next, previous };
+}
+
+auto HTMLSelectElement::pickerNavigationKeyIdentifiers() const -> NavigationKeyIdentifiers
+{
+    RefPtr popover = m_popover;
+    CheckedPtr renderer = popover ? popover->renderer() : nullptr;
+    return navigationKeyIdentifiersForWritingMode(renderer);
+}
+
+int HTMLSelectElement::computeNavigationIndex(const String& keyIdentifier, int currentListIndex, NavigationKeyIdentifiers navKeys) const
+{
+    // Primary axis (writing-mode aware block direction).
+    if (keyIdentifier == navKeys.next)
+        return nextSelectableListIndex(currentListIndex);
+    if (keyIdentifier == navKeys.previous)
+        return previousSelectableListIndex(currentListIndex);
+
+    // Secondary axis (the other pair of arrow keys, for convenience).
+    bool primaryIsVertical = (navKeys.next == "Down"_s || navKeys.next == "Up"_s);
+    if (primaryIsVertical) {
+        // Primary is Down/Up, secondary is Right/Left.
+        if (keyIdentifier == "Right"_s)
+            return nextSelectableListIndex(currentListIndex);
+        if (keyIdentifier == "Left"_s)
+            return previousSelectableListIndex(currentListIndex);
+    } else {
+        // Primary is Right/Left, secondary is Down/Up.
+        if (keyIdentifier == "Down"_s)
+            return nextSelectableListIndex(currentListIndex);
+        if (keyIdentifier == "Up"_s)
+            return previousSelectableListIndex(currentListIndex);
+    }
+
+    if (keyIdentifier == "Home"_s)
+        return firstSelectableListIndex();
+    if (keyIdentifier == "End"_s)
+        return lastSelectableListIndex();
+    if (keyIdentifier == "PageDown"_s)
+        return nextValidIndex(currentListIndex, SkipDirection::Forwards, 3);
+    if (keyIdentifier == "PageUp"_s)
+        return nextValidIndex(currentListIndex, SkipDirection::Backwards, 3);
+
+    return -1;
+}
+
 int HTMLSelectElement::activeSelectionStartListIndex() const
 {
     if (m_activeSelectionAnchorIndex >= 0)
@@ -444,11 +548,6 @@ bool HTMLSelectElement::isMouseFocusable() const
     return HTMLFormControlElement::isMouseFocusable();
 }
 
-bool HTMLSelectElement::canSelectAll() const
-{
-    return m_multiple;
-}
-
 RenderPtr<RenderElement> HTMLSelectElement::createElementRenderer(RenderStyle&& style, const RenderTreePosition& position)
 {
     if (usesMenuList()) {
@@ -463,16 +562,14 @@ bool HTMLSelectElement::childShouldCreateRenderer(const Node& child) const
 {
     if (!HTMLFormControlElement::childShouldCreateRenderer(child))
         return false;
-#if !PLATFORM(IOS_FAMILY)
     if (!usesMenuList())
         return is<HTMLOptionElement>(child) || is<HTMLOptGroupElement>(child) || validationMessageShadowTreeContains(child);
-#endif
     if (child.isInShadowTree() && child.containingShadowRoot() == userAgentShadowRoot())
         return true;
-    if (usesMenuList() && is<HTMLButtonElement>(child)) {
-        if (&child == childrenOfType<HTMLButtonElement>(*this).first())
-            return true;
-    }
+    if (isFirstElementChildButton(child))
+        return true;
+    if (usesBaseAppearancePicker())
+        return true;
     return validationMessageShadowTreeContains(child);
 }
 
@@ -682,10 +779,15 @@ int HTMLSelectElement::nextValidIndex(int listIndex, SkipDirection direction, in
     int lastGoodIndex = listIndex;
     int size = listItems.size();
     int step = direction == SkipDirection::Forwards ? 1 : -1;
+    bool isBaseSelectPicker = usesBaseAppearancePicker();
     for (listIndex += step; listIndex >= 0 && listIndex < size; listIndex += step) {
         --skip;
         RefPtr listItem = listItems[listIndex].get();
         if (!listItem->isDisabledFormControl() && is<HTMLOptionElement>(*listItem)) {
+            if (isBaseSelectPicker && !listItem->isFocusable()) {
+                // Skip hidden options.
+                continue;
+            }
             lastGoodIndex = listIndex;
             if (skip <= 0)
                 break;
@@ -1316,12 +1418,8 @@ bool HTMLSelectElement::platformHandleKeydownEvent(KeyboardEvent* event)
             if (!renderer() || !usesMenuList())
                 return true;
 
-            // Save the selection so it can be compared to the new selection
-            // when dispatching change events during selectOption, which
-            // gets called from RenderMenuList::valueChanged, which gets called
-            // after the user makes a selection from the menu.
-            saveLastSelection();
-            showPopup(); // showPopup() may run JS and cause the renderer to get destroyed.
+            openPickerForUserInteraction();
+
             event->setDefaultHandled();
         }
         return true;
@@ -1338,9 +1436,17 @@ void HTMLSelectElement::menuListDefaultEventHandler(Event& event)
     ASSERT(usesMenuList());
 
     auto& eventNames = WebCore::eventNames();
+
+    bool isBaseSelectPicker = usesBaseAppearancePicker();
+    bool popoverOpen = isBaseSelectPicker && m_popover && protect(m_popover)->isPopoverShowing();
+
     if (event.type() == eventNames.keydownEvent) {
         RefPtr keyboardEvent = dynamicDowncast<KeyboardEvent>(event);
         if (!keyboardEvent)
+            return;
+
+        // When popover is open in base-select mode, let focused option handle navigation.
+        if (popoverOpen)
             return;
 
         if (platformHandleKeydownEvent(keyboardEvent.get()))
@@ -1355,7 +1461,6 @@ void HTMLSelectElement::menuListDefaultEventHandler(Event& event)
         }
 
         const String& keyIdentifier = keyboardEvent->keyIdentifier();
-        bool handled = true;
         auto& listItems = this->listItems();
         int listIndex = optionToListIndex(selectedIndex());
 
@@ -1366,26 +1471,16 @@ void HTMLSelectElement::menuListDefaultEventHandler(Event& event)
                 return;
         }
 
-        if (keyIdentifier == "Down"_s || keyIdentifier == "Right"_s)
-            listIndex = nextValidIndex(listIndex, SkipDirection::Forwards, 1);
-        else if (keyIdentifier == "Up"_s || keyIdentifier == "Left"_s)
-            listIndex = nextValidIndex(listIndex, SkipDirection::Backwards, 1);
-        else if (keyIdentifier == "PageDown"_s)
-            listIndex = nextValidIndex(listIndex, SkipDirection::Forwards, 3);
-        else if (keyIdentifier == "PageUp"_s)
-            listIndex = nextValidIndex(listIndex, SkipDirection::Backwards, 3);
-        else if (keyIdentifier == "Home"_s)
-            listIndex = nextValidIndex(-1, SkipDirection::Forwards, 1);
-        else if (keyIdentifier == "End"_s)
-            listIndex = nextValidIndex(listItems.size(), SkipDirection::Backwards, 1);
-        else
-            handled = false;
+        // Menulist uses Down/Up for navigation; Right/Left are also accepted.
+        listIndex = computeNavigationIndex(keyIdentifier, listIndex, { "Down"_s, "Up"_s });
+        if (listIndex < 0)
+            return;
 
-        if (handled && static_cast<size_t>(listIndex) < listItems.size())
+        if (static_cast<size_t>(listIndex) < listItems.size())
             selectOption(listToOptionIndex(listIndex), { SelectOptionFlag::DeselectOtherOptions, SelectOptionFlag::DispatchChangeEvent, SelectOptionFlag::UserDriven });
 
-        if (handled)
-            keyboardEvent->setDefaultHandled();
+        keyboardEvent->setDefaultHandled();
+        return;
     }
 
     // Use key press event here since sending simulated mouse events
@@ -1393,6 +1488,10 @@ void HTMLSelectElement::menuListDefaultEventHandler(Event& event)
     if (event.type() == eventNames.keypressEvent) {
         RefPtr keyboardEvent = dynamicDowncast<KeyboardEvent>(event);
         if (!keyboardEvent)
+            return;
+
+        // When popover is open in base-select mode, let focused option handle key presses.
+        if (popoverOpen)
             return;
 
         int keyCode = keyboardEvent->keyCode();
@@ -1414,12 +1513,8 @@ void HTMLSelectElement::menuListDefaultEventHandler(Event& event)
                 if (!renderer() || !usesMenuList())
                     return;
 
-                // Save the selection so it can be compared to the new selection
-                // when dispatching change events during selectOption, which
-                // gets called from RenderMenuList::valueChanged, which gets called
-                // after the user makes a selection from the menu.
-                saveLastSelection();
-                showPopup(); // showPopup() may run JS and cause the renderer to get destroyed.
+                openPickerForUserInteraction();
+
                 handled = true;
             }
         } else if (RenderTheme::singleton().popsMenuByArrowKeys()) {
@@ -1431,12 +1526,8 @@ void HTMLSelectElement::menuListDefaultEventHandler(Event& event)
                 if (!renderer() || !usesMenuList())
                     return;
 
-                // Save the selection so it can be compared to the new selection
-                // when dispatching change events during selectOption, which
-                // gets called from RenderMenuList::valueChanged, which gets called
-                // after the user makes a selection from the menu.
-                saveLastSelection();
-                showPopup(); // showPopup() may run JS and cause the renderer to get destroyed.
+                openPickerForUserInteraction();
+
                 handled = true;
             } else if (keyCode == '\r') {
                 if (RefPtr form = this->form())
@@ -1448,25 +1539,44 @@ void HTMLSelectElement::menuListDefaultEventHandler(Event& event)
 
         if (handled)
             keyboardEvent->setDefaultHandled();
+        return;
     }
 
     if (RefPtr mouseEvent = dynamicDowncast<MouseEvent>(event); event.type() == eventNames.mousedownEvent && mouseEvent && mouseEvent->button() == MouseButton::Left) {
         focus();
-#if !PLATFORM(IOS_FAMILY)
         protect(document())->updateStyleIfNeeded();
-
-        if (renderer() && usesMenuList()) {
-            ASSERT(!m_popupIsVisible);
-            // Save the selection so it can be compared to the new
-            // selection when we call onChange during selectOption,
-            // which gets called from RenderMenuList::valueChanged,
-            // which gets called after the user makes a selection from
-            // the menu.
-            saveLastSelection();
-            showPopup(); // showPopup() may run JS and cause the renderer to get destroyed.
-        }
+#if !PLATFORM(IOS_FAMILY)
+        if (!renderer() || !usesMenuList()) {
+#else
+        if (!usesBaseAppearancePicker()) {
 #endif
+            event.setDefaultHandled();
+            return;
+        }
+        ASSERT(usesBaseAppearancePicker() || !m_popupIsVisible);
+        if (m_popupIsVisible) {
+            bool clickedInsidePopover = [&] {
+                RefPtr popover = m_popover;
+                if (!popover)
+                    return false;
+                RefPtr targetNode = dynamicDowncast<Node>(event.target());
+                if (!targetNode)
+                    return false;
+                for (RefPtr element = dynamicDowncast<Element>(targetNode); element; element = element->parentElementInComposedTree()) {
+                    if (element == popover)
+                        return true;
+                    if (element == this)
+                        return false;
+                }
+                return false;
+            }();
+            if (!clickedInsidePopover)
+                hidePickerPopoverElement();
+        } else
+            openPickerForUserInteraction();
+
         event.setDefaultHandled();
+        return;
     }
 
 #if !PLATFORM(IOS_FAMILY)
@@ -1606,13 +1716,7 @@ void HTMLSelectElement::listBoxDefaultEventHandler(Event& event)
             return;
 
         CheckedPtr renderer = this->renderer();
-        bool isHorizontalWritingMode = renderer ? renderer->writingMode().isHorizontal() : true;
-        bool isBlockFlipped = renderer ? renderer->writingMode().isBlockFlipped() : false;
-
-        auto nextKeyIdentifier = isHorizontalWritingMode ? "Down"_s : "Right"_s;
-        auto previousKeyIdentifier = isHorizontalWritingMode ? "Up"_s : "Left"_s;
-        if (isBlockFlipped)
-            std::swap(nextKeyIdentifier, previousKeyIdentifier);
+        auto [nextKeyIdentifier, previousKeyIdentifier] = navigationKeyIdentifiersForWritingMode(renderer);
 
         const String& keyIdentifier = keyboardEvent->keyIdentifier();
 
@@ -1786,12 +1890,17 @@ String HTMLSelectElement::optionAtIndex(int index) const
 
 void HTMLSelectElement::typeAheadFind(KeyboardEvent& event)
 {
-    int index = m_typeAhead.handleEvent(&event, TypeAhead::MatchPrefix | TypeAhead::CycleFirstChar);
+    int index = typeAheadMatchIndex(event);
     if (index < 0)
         return;
     selectOption(listToOptionIndex(index), { SelectOptionFlag::DeselectOtherOptions, SelectOptionFlag::DispatchChangeEvent, SelectOptionFlag::UserDriven });
     if (!usesMenuListDeprecated())
         listBoxOnChange();
+}
+
+int HTMLSelectElement::typeAheadMatchIndex(KeyboardEvent& event)
+{
+    return m_typeAhead.handleEvent(&event, TypeAhead::MatchPrefix | TypeAhead::CycleFirstChar);
 }
 
 void HTMLSelectElement::accessKeySetSelectedIndex(int index)
@@ -1887,6 +1996,57 @@ bool HTMLSelectElement::isOpen() const
     return m_popupIsVisible;
 }
 
+void HTMLSelectElement::showPickerInternal()
+{
+    if (!usesBaseAppearancePicker()) {
+#if !PLATFORM(IOS_FAMILY)
+        showPopup();
+#endif
+        return;
+    }
+    if (RefPtr popover = m_popover) {
+        setPopupIsVisible(true);
+        popover->showPopoverInternal(this);
+    }
+}
+
+void HTMLSelectElement::openPickerForUserInteraction()
+{
+    // Save the selection so it can be compared to the new selection when
+    // dispatching change events during selectOption, which gets called from
+    // RenderMenuList::valueChanged, which gets called after the user makes
+    // a selection from the menu.
+    saveLastSelection();
+    showPickerInternal(); // May run JS and cause the renderer to get destroyed.
+
+    if (!usesBaseAppearancePicker())
+        return;
+
+    protect(document())->updateStyleIfNeeded();
+    int listIndex = optionToListIndex(selectedIndex());
+    if (listIndex < 0)
+        listIndex = firstSelectableListIndex();
+    focusOptionAtIndex(listIndex);
+}
+
+void HTMLSelectElement::focusOptionAtIndex(int listIndex)
+{
+    if (!usesBaseAppearancePicker())
+        return;
+
+    auto& items = listItems();
+    if (listIndex < 0 || static_cast<size_t>(listIndex) >= items.size())
+        return;
+
+    RefPtr option = dynamicDowncast<HTMLOptionElement>(items[listIndex].get());
+    if (!option)
+        return;
+
+    FocusOptions focusOptions;
+    focusOptions.preventScroll = false;
+    option->focus(focusOptions);
+}
+
 ExceptionOr<void> HTMLSelectElement::showPicker()
 {
     RefPtr frame = document().frame();
@@ -1905,9 +2065,7 @@ ExceptionOr<void> HTMLSelectElement::showPicker()
     if (!window || !window->consumeTransientActivation())
         return Exception { ExceptionCode::NotAllowedError, "Select showPicker() requires a user gesture."_s };
 
-#if !PLATFORM(IOS_FAMILY)
-    showPopup(); // showPopup() may run JS and cause the renderer to get destroyed.
-#endif
+    showPickerInternal(); // showPickerInternal() may run JS and cause the renderer to get destroyed.
 
     return { };
 }
@@ -1983,7 +2141,7 @@ String HTMLSelectElement::itemText(unsigned listIndex) const
         itemString = optionElement->textIndentedToRespectGroupLabel();
 
     if (CheckedPtr renderer = this->renderer())
-        return applyTextTransform(renderer->checkedStyle().get(), itemString);
+        return applyTextTransform(protect(renderer->style()).get(), itemString);
     return itemString;
 }
 
@@ -2049,7 +2207,7 @@ PopupMenuStyle HTMLSelectElement::itemStyle(unsigned listIndex) const
         style->fontCascade(),
         element->getAttribute(langAttr),
         style->visibility() == Visibility::Visible,
-        style->display() == DisplayType::None,
+        style->display() == Style::DisplayType::None,
         true,
         style->writingMode().bidiDirection(),
         isOverride(style->unicodeBidi()),
@@ -2087,7 +2245,7 @@ PopupMenuStyle HTMLSelectElement::menuStyle() const
         outerStyle->fontCascade(),
         nullString(),
         outerStyle->usedVisibility() == Visibility::Visible,
-        outerStyle->display() == DisplayType::None,
+        outerStyle->display() == Style::DisplayType::None,
         outerStyle->hasUsedAppearance() && outerStyle->usedAppearance() == StyleAppearance::Menulist,
         outerStyle->writingMode().bidiDirection(),
         isOverride(outerStyle->unicodeBidi()),

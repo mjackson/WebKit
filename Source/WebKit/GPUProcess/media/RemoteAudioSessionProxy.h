@@ -107,7 +107,7 @@ private:
     void endInterruptionRemote(WebCore::AudioSession::MayResume);
 
     RemoteAudioSessionProxyManager& audioSessionManager();
-    Ref<IPC::Connection> protectedConnection() const;
+    IPC::Connection& connection() const;
 
     ThreadSafeWeakPtr<GPUConnectionToWebProcess> m_gpuConnection;
     WebCore::AudioSession::CategoryType m_category { WebCore::AudioSession::CategoryType::None };

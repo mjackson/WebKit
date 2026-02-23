@@ -185,7 +185,7 @@ private:
 
 #if !RELEASE_LOG_DISABLED
     Logger& logger() { return m_logger; }
-    WTFLogChannel& logChannel() const;
+    WTFLogChannel& NODELETE logChannel() const;
     ASCIILiteral logClassName() const { return "RemoteAudioVideoRendererProxyManager"; }
     uint64_t logIdentifier() const { return m_logIdentifier; }
 #endif

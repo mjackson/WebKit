@@ -110,7 +110,8 @@ public:
 #endif
 
 #if ENABLE(EXTENSION_CAPABILITIES)
-    void setMediaEnvironment(WebCore::PageIdentifier, const String&);
+    void setMediaPlaybackEnvironment(WebCore::PageIdentifier, const String&);
+    void setDisplayCaptureEnvironment(WebCore::PageIdentifier, const String&);
 #endif
 
     void configureLoggingChannel(const String&, WTFLogChannelState, WTFLogLevel);

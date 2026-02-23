@@ -56,7 +56,7 @@ public:
 Color SVGStyleColorResolutionDelegate::currentColor() const
 {
     if (CheckedPtr renderer = m_element->renderer())
-        return renderer->checkedStyle()->visitedDependentColor();
+        return protect(renderer->style())->visitedDependentColor();
     return { };
 }
 

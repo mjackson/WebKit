@@ -47,6 +47,11 @@
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
 #import <wtf/WeakObjCPtr.h>
 
+// FIXME: https://bugs.webkit.org/show_bug.cgi?id=306415
+#if ENABLE(BACK_FORWARD_LIST_SWIFT)
+#include "WebKit-Swift.h"
+#endif
+
 @interface WKSwipeTransitionController : NSObject <_UINavigationInteractiveTransitionBaseDelegate>
 - (instancetype)initWithViewGestureController:(WebKit::ViewGestureController*)gestureController gestureRecognizerView:(UIView *)gestureRecognizerView;
 - (void)invalidate;
@@ -528,10 +533,21 @@ bool ViewGestureController::completeSimulatedSwipeInDirectionForTesting(SwipeDir
     return true;
 }
 
+#if ENABLE(BACK_FORWARD_LIST_SWIFT)
+
+std::optional<WebBackForwardList> ViewGestureController::backForwardListForNavigation() const
+{
+    return m_webPageProxyForBackForwardListForCurrentSwipe->backForwardList();
+}
+
+#else
+
 WebBackForwardList* ViewGestureController::backForwardListForNavigation() const
 {
     return &m_webPageProxyForBackForwardListForCurrentSwipe->backForwardList();
 }
+
+#endif
 
 } // namespace WebKit
 

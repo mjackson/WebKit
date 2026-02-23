@@ -120,28 +120,35 @@ RetainPtr<NSAttributedString> AXTextMarkerRange::toAttributedString(AXCoreObject
             result = WTF::move(string);
     };
 
-    auto emitNewlineOnExit = [&] (AXIsolatedObject& object) {
-        // FIXME: This function should not just be emitting newlines, but instead handling every character type in TextEmissionBehavior.
+    auto emitExitCharacter = [&] (AXIsolatedObject& object) {
         auto behavior = object.textEmissionBehavior();
-        if (behavior != TextEmissionBehavior::Newline && behavior != TextEmissionBehavior::DoubleNewline)
+        if (behavior == TextEmissionBehavior::None)
             return;
 
         auto length = [result length];
-        // Like TextIterator, don't emit a newline if the most recently emitted character was already a newline.
-        if (length && [[result string] characterAtIndex:length - 1] != '\n') {
+        if (!length)
+            return;
+
+        NSString *exitString = nil;
+        if (behavior == TextEmissionBehavior::Tab)
+            exitString = @"\t";
+        else {
+            // Like TextIterator, don't emit a newline if the most recently emitted character was already a newline.
+            if ([[result string] characterAtIndex:length - 1] == '\n')
+                return;
             // FIXME: This is super inefficient. We are creating a whole new dictionary and attributed string just to append newline(s).
-            NSString *newlineString = behavior == TextEmissionBehavior::Newline ? @"\n" : @"\n\n";
-            RetainPtr<NSDictionary> attributes = [result attributesAtIndex:length - 1 effectiveRange:nil];
-            appendToResult(adoptNS([[NSMutableAttributedString alloc] initWithString:newlineString attributes:attributes.get()]));
+            exitString = behavior == TextEmissionBehavior::Newline ? @"\n" : @"\n\n";
         }
+        RetainPtr<NSDictionary> attributes = [result attributesAtIndex:length - 1 effectiveRange:nil];
+        appendToResult(adoptNS([[NSMutableAttributedString alloc] initWithString:exitString attributes:attributes.get()]));
     };
 
     // FIXME: If we've been given reversed markers, i.e. the end marker actually comes before the start marker,
     // we may want to detect this and try searching AXDirection::Previous?
-    RefPtr current = findObjectWithRuns(*startObject, AXDirection::Next, std::nullopt, emitNewlineOnExit);
+    RefPtr current = findObjectWithRuns(*startObject, AXDirection::Next, std::nullopt, emitExitCharacter);
     while (current && current->objectID() != end.objectID()) {
         appendToResult(current->createAttributedString(current->textRuns()->toStringView(), spellCheck));
-        current = findObjectWithRuns(*current, AXDirection::Next, std::nullopt, emitNewlineOnExit);
+        current = findObjectWithRuns(*current, AXDirection::Next, std::nullopt, emitExitCharacter);
     }
     appendToResult(end.isolatedObject()->createAttributedString(end.runs()->substring(0, end.offset()), spellCheck));
 

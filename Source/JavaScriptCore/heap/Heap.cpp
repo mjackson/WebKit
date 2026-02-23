@@ -53,6 +53,7 @@
 #include "JSFinalizationRegistry.h"
 #include "JSFunctionWithFields.h"
 #include "JSIterator.h"
+#include "JSMicrotaskDispatcher.h"
 #include "JSPromiseCombinatorsContext.h"
 #include "JSPromiseCombinatorsGlobalContext.h"
 #include "JSPromiseReaction.h"

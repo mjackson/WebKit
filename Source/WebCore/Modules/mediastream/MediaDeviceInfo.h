@@ -59,7 +59,7 @@ private:
     const Kind m_kind;
 };
 
-MediaDeviceInfo::Kind toMediaDeviceInfoKind(CaptureDevice::DeviceType);
+MediaDeviceInfo::Kind NODELETE toMediaDeviceInfoKind(CaptureDevice::DeviceType);
 
 } // namespace WebCore
 

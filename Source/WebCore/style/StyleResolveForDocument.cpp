@@ -55,14 +55,14 @@ RenderStyle resolveForDocument(const Document& document)
 {
     ASSERT(document.hasLivingRenderTree());
 
-    RenderView& renderView = *document.renderView();
+    CheckedRef renderView = *document.renderView();
 
     auto documentStyle = RenderStyle::create();
 
-    documentStyle.setDisplay(DisplayType::Block);
+    documentStyle.setDisplay(DisplayType::BlockFlow);
     documentStyle.setRTLOrdering(document.visuallyOrdered() ? WebCore::Order::Visual : WebCore::Order::Logical);
-    documentStyle.setZoom(!document.printing() ? renderView.frame().pageZoomFactor() : 1);
-    if (auto frameScaleFactor = renderView.frame().frameScaleFactor(); frameScaleFactor != 1) {
+    documentStyle.setZoom(!document.printing() ? renderView->frame().pageZoomFactor() : 1);
+    if (auto frameScaleFactor = renderView->frame().frameScaleFactor(); frameScaleFactor != 1) {
         documentStyle.setTransform(Style::Transform { Style::TransformFunction { Style::ScaleTransformFunction::create(frameScaleFactor, frameScaleFactor, Style::TransformFunctionType::Scale) } });
         documentStyle.setTransformOrigin(Style::TransformOrigin { 0_css_px, 0_css_px, 0_css_px });
     }
@@ -76,16 +76,16 @@ RenderStyle resolveForDocument(const Document& document)
 
     Adjuster::adjustEventListenerRegionTypesForRootStyle(documentStyle, document);
     
-    auto& pagination = renderView.frameView().pagination();
+    auto& pagination = renderView->frameView().pagination();
     if (pagination.mode != Pagination::Mode::Unpaginated) {
         Adjuster::adjustColumnStylesForPaginationMode(documentStyle, pagination.mode);
         documentStyle.setColumnGap(GapGutter::Fixed { static_cast<float>(pagination.gap) });
-        if (renderView.multiColumnFlow())
-            renderView.updateColumnProgressionFromStyle(documentStyle);
+        if (renderView->multiColumnFlow())
+            renderView->updateColumnProgressionFromStyle(documentStyle);
     }
 
     auto fontDescription = [&]() {
-        auto& settings = renderView.frame().settings();
+        auto& settings = renderView->frame().settings();
 
         FontCascadeDescription fontDescription;
         fontDescription.setSpecifiedLocale(document.contentLanguage());

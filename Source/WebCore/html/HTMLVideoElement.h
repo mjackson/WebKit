@@ -101,16 +101,16 @@ public:
 
 #if ENABLE(VIDEO_PRESENTATION_MODE)
     enum class VideoPresentationMode { Inline, Fullscreen, PictureInPicture, InWindow };
-    static VideoPresentationMode toPresentationMode(HTMLMediaElementEnums::VideoFullscreenMode);
+    static VideoPresentationMode NODELETE toPresentationMode(HTMLMediaElementEnums::VideoFullscreenMode);
     WEBCORE_EXPORT bool webkitSupportsPresentationMode(VideoPresentationMode) const;
-    VideoPresentationMode webkitPresentationMode() const;
-    VideoPresentationMode webkitPresentationModeForBindings() const;
+    VideoPresentationMode NODELETE webkitPresentationMode() const;
+    VideoPresentationMode NODELETE webkitPresentationModeForBindings() const;
     void webkitSetPresentationMode(VideoPresentationMode);
 
     WEBCORE_EXPORT void setPresentationMode(VideoPresentationMode);
     WEBCORE_EXPORT void didEnterFullscreenOrPictureInPicture(const FloatSize&);
     WEBCORE_EXPORT void didExitFullscreenOrPictureInPicture();
-    WEBCORE_EXPORT bool isChangingPresentationMode() const;
+    WEBCORE_EXPORT bool NODELETE isChangingPresentationMode() const;
     WEBCORE_EXPORT void setPresentationModeIgnoringPermissionsPolicy(VideoPresentationMode);
 
     void setVideoFullscreenFrame(const FloatRect&) final;

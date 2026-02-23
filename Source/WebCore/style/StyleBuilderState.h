@@ -42,7 +42,6 @@ namespace WebCore {
 
 class FontCascadeDescription;
 class FontSelectionValue;
-class StyleImage;
 class StyleResolver;
 
 namespace CSSCalc {
@@ -52,6 +51,7 @@ struct RandomCachingKey;
 namespace Style {
 
 class BuilderState;
+class Image;
 struct Color;
 struct FontFamilies;
 struct FontFeatureSettings;
@@ -109,11 +109,9 @@ public:
 
     ComputedStyle& style() { return m_style.computedStyle(); }
     const ComputedStyle& style() const { return m_style.computedStyle(); }
-    CheckedRef<const ComputedStyle> checkedStyle() const { return style(); }
 
     RenderStyle& renderStyle() { return m_style; }
     const RenderStyle& renderStyle() const { return m_style; }
-    CheckedRef<const RenderStyle> checkedRenderStyle() const { return renderStyle(); }
 
     const ComputedStyle& parentStyle() const { return m_context.parentStyle->computedStyle(); }
     const RenderStyle& parentRenderStyle() const { return *m_context.parentStyle; }
@@ -145,7 +143,7 @@ public:
 
     ScopeOrdinal styleScopeOrdinal() const { return m_currentProperty->styleScopeOrdinal; }
 
-    RefPtr<StyleImage> createStyleImage(const CSSValue&) const;
+    RefPtr<Image> createStyleImage(const CSSValue&) const;
 
     const Vector<AtomString>& registeredContentAttributes() const { return m_registeredContentAttributes; }
     void registerContentAttribute(const AtomString& attributeLocalName);

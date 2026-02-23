@@ -108,7 +108,7 @@ void NetscapePlugInStreamLoader::willSendRequest(ResourceRequest&& request, cons
     if (!client)
         return;
 
-    client->willSendRequest(this, WTF::move(request), redirectResponse, [protectedThis = Ref { *this }, redirectResponse, callback = WTF::move(callback)] (ResourceRequest&& request) mutable {
+    client->willSendRequest(*this, WTF::move(request), redirectResponse, [protectedThis = Ref { *this }, redirectResponse, callback = WTF::move(callback)](ResourceRequest&& request) mutable {
         if (!request.isNull())
             protectedThis->willSendRequestInternal(WTF::move(request), redirectResponse, WTF::move(callback));
         else
@@ -122,7 +122,7 @@ void NetscapePlugInStreamLoader::didReceiveResponse(ResourceResponse&& response,
     CompletionHandlerCallingScope completionHandlerCaller(WTF::move(policyCompletionHandler));
 
     if (RefPtr client = m_client.get())
-        client->didReceiveResponse(this, response);
+        client->didReceiveResponse(*this, response);
 
     // Don't continue if the stream is cancelled
     if (!m_client)
@@ -152,7 +152,7 @@ void NetscapePlugInStreamLoader::didReceiveBuffer(const FragmentedSharedBuffer& 
     Ref protectedThis { *this };
 
     if (RefPtr client = m_client.get())
-        client->didReceiveData(this, buffer.makeContiguous());
+        client->didReceiveData(*this, buffer.makeContiguous());
 
     ResourceLoader::didReceiveBuffer(buffer, encodedDataLength, dataPayloadType);
 }
@@ -164,7 +164,7 @@ void NetscapePlugInStreamLoader::didFinishLoading(const NetworkLoadMetrics& netw
     notifyDone();
 
     if (RefPtr client = m_client.get())
-        client->didFinishLoading(this);
+        client->didFinishLoading(*this);
     ResourceLoader::didFinishLoading(networkLoadMetrics);
 }
 
@@ -175,14 +175,14 @@ void NetscapePlugInStreamLoader::didFail(const ResourceError& error)
     notifyDone();
 
     if (RefPtr client = m_client.get())
-        client->didFail(this, error);
+        client->didFail(*this, error);
     ResourceLoader::didFail(error);
 }
 
 void NetscapePlugInStreamLoader::willCancel(const ResourceError& error)
 {
     if (RefPtr client = m_client.get())
-        client->didFail(this, error);
+        client->didFail(*this, error);
 }
 
 void NetscapePlugInStreamLoader::didCancel(LoadWillContinueInAnotherProcess)

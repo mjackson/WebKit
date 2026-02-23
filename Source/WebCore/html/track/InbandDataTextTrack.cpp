@@ -137,10 +137,10 @@ void InbandDataTextTrack::removeDataCue(const MediaTime&, const MediaTime&, Seri
 
 ExceptionOr<void> InbandDataTextTrack::removeCue(TextTrackCue& cue)
 {
-    ASSERT(cue.cueType() == TextTrackCue::Data);
-
-    if (RefPtr platformValue = const_cast<SerializedPlatformDataCue*>(downcast<DataCue>(cue).platformValue()))
-        removeDataCue({ }, { }, *platformValue);
+    if (is<DataCue>(cue)) {
+        if (RefPtr platformValue = const_cast<SerializedPlatformDataCue*>(downcast<DataCue>(cue).platformValue()))
+            removeDataCue({ }, { }, *platformValue);
+    }
 
     return InbandTextTrack::removeCue(cue);
 }

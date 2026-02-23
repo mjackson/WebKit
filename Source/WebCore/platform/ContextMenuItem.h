@@ -153,7 +153,7 @@ enum ContextMenuAction {
     ContextMenuItemTagPauseAnimation,
     ContextMenuItemTagToggleVideoFullscreen,
     ContextMenuItemTagShareMenu,
-    ContextMenuItemTagToggleVideoEnhancedFullscreen,
+    ContextMenuItemTagTogglePictureInPicture,
     ContextMenuItemTagToggleVideoViewer,
     ContextMenuItemTagAddHighlightToCurrentQuickNote,
     ContextMenuItemTagAddHighlightToNewQuickNote,

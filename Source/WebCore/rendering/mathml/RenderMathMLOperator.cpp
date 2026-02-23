@@ -233,7 +233,7 @@ void RenderMathMLOperator::layoutBlock(RelayoutChildren relayoutChildren, Layout
 
     if (useMathOperator()) {
         recomputeLogicalWidth();
-        for (auto child = firstInFlowChildBox(); child; child = child->nextInFlowSiblingBox())
+        for (CheckedPtr child = firstInFlowChildBox(); child; child = child->nextInFlowSiblingBox())
             child->layoutIfNeeded();
         setLogicalWidth(leadingSpaceValue + m_mathOperator.width() + trailingSpaceValue + borderAndPaddingLogicalWidth());
         setLogicalHeight(m_mathOperator.ascent() + m_mathOperator.descent() + borderAndPaddingLogicalHeight());
@@ -278,6 +278,7 @@ void RenderMathMLOperator::updateTokenContent()
 void RenderMathMLOperator::updateFromElement()
 {
     updateTokenContent();
+    resetStretchSize();
 }
 
 bool RenderMathMLOperator::useMathOperator() const

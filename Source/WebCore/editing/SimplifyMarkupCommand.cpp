@@ -59,7 +59,7 @@ void SimplifyMarkupCommand::doApply()
             continue;
         
         RefPtr startingNode = node->parentNode();
-        auto* startingStyle = startingNode->renderStyle();
+        CheckedPtr startingStyle = startingNode->renderStyle();
         if (!startingStyle)
             continue;
         RefPtr currentNode = startingNode;

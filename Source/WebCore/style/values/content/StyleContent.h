@@ -117,6 +117,8 @@ struct Content {
         return WTF::switchOn(m_value, std::forward<F>(f)...);
     }
 
+    String altText() const;
+
     bool operator==(const Content&) const = default;
 
 private:

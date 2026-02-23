@@ -35,9 +35,8 @@ namespace WebCore {
 
 namespace Style {
 class BuilderState;
+class Image;
 }
-
-class StyleImage;
 
 class CSSFilterImageValue final : public CSSValue {
 public:
@@ -53,7 +52,7 @@ public:
     String customCSSText(const CSS::SerializationContext&) const;
     IterationStatus customVisitChildren(NOESCAPE const Function<IterationStatus(CSSValue&)>&) const;
 
-    RefPtr<StyleImage> createStyleImage(const Style::BuilderState&) const;
+    RefPtr<Style::Image> createStyleImage(const Style::BuilderState&) const;
 
 private:
     explicit CSSFilterImageValue(Ref<CSSValue>&& imageValueOrNone, CSS::Filter&&);

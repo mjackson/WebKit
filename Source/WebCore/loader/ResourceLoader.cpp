@@ -435,9 +435,7 @@ void ResourceLoader::willSendRequestInternal(ResourceRequest&& request, const Re
         }
     }
 
-    RESOURCELOADER_RELEASE_LOG("willSendRequestInternal: %s", request.url().string().ascii().data());
     if (RefPtr document = frameLoader->frame().document()) {
-        RESOURCELOADER_RELEASE_LOG("willSendRequestInternal: requiresScriptTrackingPrivacyProtection: %d", document->requiresScriptTrackingPrivacyProtection(ScriptTrackingPrivacyCategory::NetworkRequests));
         if (document->requiresScriptTrackingPrivacyProtection(ScriptTrackingPrivacyCategory::NetworkRequests)) {
             RESOURCELOADER_RELEASE_LOG("willSendRequestInternal: resource load canceled because of script tracking privacy protection");
             didFail({ errorDomainWebKitInternal, 0, request.url(), "Blocked by script tracking privacy protection"_s, ResourceError::Type::AccessControl });

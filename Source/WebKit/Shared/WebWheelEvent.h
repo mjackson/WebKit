@@ -90,7 +90,7 @@ public:
 
     bool isMomentumEvent() const { return momentumPhase() != Phase::None && momentumPhase() != Phase::WillBegin; }
 
-    static bool isWheelEventType(WebEventType);
+    static bool NODELETE isWheelEventType(WebEventType);
 
 private:
     WebCore::IntPoint m_position;

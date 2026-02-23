@@ -44,9 +44,9 @@ public:
     Node* node() const { return m_anchorNode.get(); }
     int offsetInLeafNode() const { return m_offsetInAnchor; }
 
-    bool atStart() const;
+    bool NODELETE atStart() const;
     bool atEnd() const;
-    bool atStartOfNode() const;
+    bool NODELETE atStartOfNode() const;
     bool atEndOfNode() const;
     bool isCandidate() const;
 

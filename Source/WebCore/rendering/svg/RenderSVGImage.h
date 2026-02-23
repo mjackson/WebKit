@@ -39,12 +39,14 @@ public:
     RenderSVGImage(SVGImageElement&, RenderStyle&&);
     virtual ~RenderSVGImage();
 
-    SVGImageElement& imageElement() const;
+    SVGImageElement& NODELETE imageElement() const;
 
     RenderImageResource& imageResource() { return m_imageResource; }
     const RenderImageResource& imageResource() const { return m_imageResource; }
 
     bool updateImageViewport();
+
+    bool isObjectBoundingBoxValid() const { return !m_objectBoundingBox.isEmpty(); }
 
 private:
     void willBeDestroyed() final;

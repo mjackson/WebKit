@@ -208,7 +208,7 @@ void RenderSVGText::subtreeChildWasAdded(RenderObject* child)
     m_layoutAttributes = newLayoutAttributes;
 }
 
-static inline void checkLayoutAttributesConsistency(RenderSVGText* text, Vector<SVGTextLayoutAttributes*>& expectedLayoutAttributes)
+static inline void NODELETE checkLayoutAttributesConsistency(RenderSVGText* text, Vector<SVGTextLayoutAttributes*>& expectedLayoutAttributes)
 {
 #ifndef NDEBUG
     Vector<SVGTextLayoutAttributes*> newLayoutAttributes;
@@ -654,8 +654,8 @@ bool RenderSVGText::nodeAtFloatPoint(const HitTestRequest& request, HitTestResul
 
     PointerEventsHitRules hitRules(PointerEventsHitRules::HitTestingTargetType::SVGText, request, usedPointerEvents());
     if (isVisibleToHitTesting(style(), request) || !hitRules.requireVisible) {
-        if ((hitRules.canHitStroke && (style().hasStroke() || !hitRules.requireStroke))
-            || (hitRules.canHitFill && (style().hasFill() || !hitRules.requireFill))) {
+        if ((hitRules.canHitStroke && (!style().stroke().isNone() || !hitRules.requireStroke))
+            || (hitRules.canHitFill && (!style().fill().isNone() || !hitRules.requireFill))) {
             static NeverDestroyed<SVGVisitedRendererTracking::VisitedSet> s_visitedSet;
 
             SVGVisitedRendererTracking recursionTracking(s_visitedSet);
@@ -685,8 +685,8 @@ bool RenderSVGText::nodeAtPoint(const HitTestRequest& request, HitTestResult& re
 
     PointerEventsHitRules hitRules(PointerEventsHitRules::HitTestingTargetType::SVGText, request, style().pointerEvents());
     if (isVisibleToHitTesting(style(), request) || !hitRules.requireVisible) {
-        if ((hitRules.canHitStroke && (style().hasStroke() || !hitRules.requireStroke))
-        || (hitRules.canHitFill && (style().hasFill() || !hitRules.requireFill))) {
+        if ((hitRules.canHitStroke && (!style().stroke().isNone() || !hitRules.requireStroke))
+        || (hitRules.canHitFill && (!style().fill().isNone() || !hitRules.requireFill))) {
             static NeverDestroyed<SVGVisitedRendererTracking::VisitedSet> s_visitedSet;
 
             SVGVisitedRendererTracking recursionTracking(s_visitedSet);
@@ -723,8 +723,8 @@ bool RenderSVGText::hitTestInlineChildren(const HitTestRequest& request, HitTest
             if (!isVisibleToHitTesting(renderer.style(), request) && hitRules.requireVisible)
                 continue;
 
-            bool hitsStroke = hitRules.canHitStroke && (renderer.style().hasStroke() || !hitRules.requireStroke);
-            bool hitsFill = hitRules.canHitFill && (renderer.style().hasFill() || !hitRules.requireFill);
+            bool hitsStroke = hitRules.canHitStroke && (!renderer.style().stroke().isNone() || !hitRules.requireStroke);
+            bool hitsFill = hitRules.canHitFill && (!renderer.style().fill().isNone() || !hitRules.requireFill);
             if (!hitsStroke && !hitsFill)
                 continue;
 
@@ -824,13 +824,15 @@ void RenderSVGText::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
             return;
         }
 
+        GraphicsContextStateSaver stateSaver(paintInfo.context());
+
         if (paintInfo.phase == PaintPhase::Outline || paintInfo.phase == PaintPhase::SelfOutline) {
+            paintInfo.context().resetClip();
             RenderBlock::paint(paintInfo, paintOffset);
             return;
         }
 
         ASSERT(paintInfo.phase == PaintPhase::Foreground);
-        GraphicsContextStateSaver stateSaver(paintInfo.context());
 
         auto coordinateSystemOriginTranslation = adjustedPaintOffset - nominalSVGLayoutLocation();
         paintInfo.context().translate(coordinateSystemOriginTranslation.width(), coordinateSystemOriginTranslation.height());
@@ -927,7 +929,7 @@ void RenderSVGText::paintInlineChildren(PaintInfo& paintInfo, const LayoutPoint&
 FloatRect RenderSVGText::strokeBoundingBox() const
 {
     FloatRect strokeBoundaries = objectBoundingBox();
-    if (!style().hasStroke())
+    if (style().stroke().isNone())
         return strokeBoundaries;
 
     Ref textElement = this->textElement();

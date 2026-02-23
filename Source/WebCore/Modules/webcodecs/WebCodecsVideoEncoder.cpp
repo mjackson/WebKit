@@ -211,12 +211,11 @@ ExceptionOr<void> WebCodecsVideoEncoder::configure(ScriptExecutionContext& conte
                 if (encoder.state() != WebCodecsCodecState::Configured || encoder.m_encoderCount != encoderCount)
                     return;
 
-                RefPtr<JSC::ArrayBuffer> buffer = JSC::ArrayBuffer::create(result.data);
                 auto chunk = WebCodecsEncodedVideoChunk::create(WebCodecsEncodedVideoChunk::Init {
                     result.isKeyFrame ? WebCodecsEncodedVideoChunkType::Key : WebCodecsEncodedVideoChunkType::Delta,
                     result.timestamp,
                     result.duration,
-                    BufferSource { WTF::move(buffer) }
+                    JSC::ArrayBuffer::create(result.data)
                 });
                 encoder.m_output->invoke(WTF::move(chunk), encoder.createEncodedChunkMetadata(result.temporalIndex));
             });
@@ -264,7 +263,7 @@ WebCodecsEncodedVideoChunkMetadata WebCodecsVideoEncoder::createEncodedChunkMeta
             RELEASE_LOG_ERROR_IF(!!arrayBuffer, Media, "Cannot create array buffer for WebCodecs encoder description");
             if (arrayBuffer) {
                 memcpySpan(arrayBuffer->mutableSpan(), m_activeConfiguration.description->span());
-                metadata.decoderConfig->description = WTF::move(arrayBuffer);
+                metadata.decoderConfig->description = arrayBuffer.releaseNonNull();
             }
         }
 

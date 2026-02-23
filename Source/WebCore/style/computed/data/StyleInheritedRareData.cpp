@@ -55,7 +55,7 @@ InheritedRareData::InheritedRareData()
     , colorScheme(ComputedStyle::initialColorScheme())
 #endif
     , cursorImages(ComputedStyle::initialCursor().images)
-#if ENABLE(TOUCH_EVENTS)
+#if ENABLE(CSS_TAP_HIGHLIGHT_COLOR)
     , tapHighlightColor(ComputedStyle::initialTapHighlightColor())
 #endif
     , listStyleType(ComputedStyle::initialListStyleType())
@@ -161,7 +161,7 @@ inline InheritedRareData::InheritedRareData(const InheritedRareData& o)
     , colorScheme(o.colorScheme)
 #endif
     , cursorImages(o.cursorImages)
-#if ENABLE(TOUCH_EVENTS)
+#if ENABLE(CSS_TAP_HIGHLIGHT_COLOR)
     , tapHighlightColor(o.tapHighlightColor)
 #endif
     , listStyleType(o.listStyleType)
@@ -267,7 +267,7 @@ bool InheritedRareData::operator==(const InheritedRareData& o) const
         && accentColor == o.accentColor
         && scrollbarColor == o.scrollbarColor
         && dynamicRangeLimit == o.dynamicRangeLimit
-#if ENABLE(TOUCH_EVENTS)
+#if ENABLE(CSS_TAP_HIGHLIGHT_COLOR)
         && tapHighlightColor == o.tapHighlightColor
 #endif
         && textShadow == o.textShadow
@@ -498,7 +498,7 @@ void InheritedRareData::dumpDifferences(TextStream& ts, const InheritedRareData&
 #if ENABLE(TEXT_AUTOSIZING)
     LOG_IF_DIFFERENT(textSizeAdjust);
 #endif
-#if ENABLE(TOUCH_EVENTS)
+#if ENABLE(CSS_TAP_HIGHLIGHT_COLOR)
     LOG_IF_DIFFERENT(tapHighlightColor);
 #endif
 

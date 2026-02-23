@@ -38,6 +38,8 @@ class RenderGrid;
 
 namespace Layout {
 class ElementBox;
+struct GridLayoutConstraints;
+struct UsedTrackSizes;
 }
 
 namespace LayoutIntegration {
@@ -56,7 +58,7 @@ public:
 
 private:
     void updateGridItemRenderers();
-    void updateFormattingContextRootRenderer();
+    void updateFormattingContextRootRenderer(const Layout::GridLayoutConstraints&, const Layout::UsedTrackSizes&);
 
     const Layout::ElementBox& gridBox() const { return *m_gridBox; }
     Layout::ElementBox& gridBox() { return *m_gridBox; }

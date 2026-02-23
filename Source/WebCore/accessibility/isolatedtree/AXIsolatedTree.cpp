@@ -186,11 +186,21 @@ RefPtr<AXIsolatedTree> AXIsolatedTree::create(AXObjectCache& axObjectCache)
     tree->updateLoadingProgress(axObjectCache.loadingProgress());
 
     auto relations = axObjectCache.relations();
-    for (auto& relatedObjectID : relations.keys()) {
-        RefPtr axObject = axObjectCache.objectForID(relatedObjectID);
-        if (axObject && axObject->isIgnored())
+    // Add unconnected nodes for relation origins and targets that are either
+    // ignored or have no renderer (e.g., inside display:none containers).
+    auto addUnconnectedNodeIfNeeded = [&tree, &axObjectCache] (AXID objectID) {
+        RefPtr axObject = axObjectCache.objectForID(objectID);
+        if (axObject && (axObject->isIgnored() || !axObject->renderer()))
             tree->addUnconnectedNode(axObject.releaseNonNull());
-    }
+    };
+
+    // relations.keys() gives us all objects that are the origin of a relation.
+    for (auto& relatedObjectID : relations.keys())
+        addUnconnectedNodeIfNeeded(relatedObjectID);
+
+    // relationTargetIDs() gives us all objects that are the target of a relation.
+    for (auto& targetID : axObjectCache.relationTargetIDs())
+        addUnconnectedNodeIfNeeded(targetID);
     tree->updateRelations(WTF::move(relations));
 
     // Now that the tree is ready to take client requests, add it to the tree maps so that it can be found.

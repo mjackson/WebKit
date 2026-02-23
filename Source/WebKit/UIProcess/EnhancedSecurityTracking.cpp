@@ -38,7 +38,7 @@ using namespace WebCore;
 
 using EnhancedSecuritySitesMap = HashMap<WebCore::RegistrableDomain, EnhancedSecurityReason>;
 
-static EnhancedSecuritySitesMap& enabledSitesMap()
+static EnhancedSecuritySitesMap& NODELETE enabledSitesMap()
 {
     static MainRunLoopNeverDestroyed<EnhancedSecuritySitesMap> staticEnabledSites;
     return staticEnabledSites;
@@ -88,6 +88,9 @@ EnhancedSecurity EnhancedSecurityTracking::enhancedSecurityState() const
     case EnhancedSecurityReason::InsecureLoad:
         return EnhancedSecurity::EnabledInsecure;
 
+    case EnhancedSecurityReason::LinkSecurity:
+        return EnhancedSecurity::EnabledLinkSecurity;
+
     case EnhancedSecurityReason::Policy:
         return EnhancedSecurity::EnabledPolicy;
     }
@@ -112,7 +115,7 @@ void EnhancedSecurityTracking::makeActive()
     m_activeState = ActivationState::Active;
 }
 
-static EnhancedSecurityReason reasonForEnhancedSecurity(EnhancedSecurity state)
+static EnhancedSecurityReason NODELETE reasonForEnhancedSecurity(EnhancedSecurity state)
 {
     switch (state) {
     case EnhancedSecurity::Disabled:
@@ -123,6 +126,9 @@ static EnhancedSecurityReason reasonForEnhancedSecurity(EnhancedSecurity state)
 
     case EnhancedSecurity::EnabledPolicy:
         return EnhancedSecurityReason::Policy;
+
+    case EnhancedSecurity::EnabledLinkSecurity:
+        return EnhancedSecurityReason::LinkSecurity;
     }
 
     ASSERT_NOT_REACHED();
@@ -172,6 +178,11 @@ bool EnhancedSecurityTracking::enableIfRequired(const API::Navigation& navigatio
     if (currentRequestURL.protocolIs("http"_s)
         && !SecurityOrigin::isLocalHostOrLoopbackIPAddress(currentRequestURL.host())) {
         enableFor(EnhancedSecurityReason::InsecureProvisional, navigation);
+        return true;
+    }
+
+    if (navigation.isEnhancedSecurityLinkForCurrentSite()) {
+        enableFor(EnhancedSecurityReason::LinkSecurity, navigation);
         return true;
     }
 

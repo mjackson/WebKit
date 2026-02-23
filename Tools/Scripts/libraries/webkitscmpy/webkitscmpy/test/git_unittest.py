@@ -568,6 +568,65 @@ CommitDate: {time_c}
             mocked.staged['added.txt'] = 'added'
             self.assertEqual(local.Git(self.path).pull(), 128)
 
+    def test_is_worktree_false_for_normal_repo(self):
+        """Test that is_worktree returns False for a normal repository."""
+        with mocks.local.Git(self.path), OutputCapture():
+            repo = local.Git(self.path)
+            self.assertFalse(repo.is_worktree)
+
+    def test_is_worktree_true_for_worktree(self):
+        """Test that is_worktree returns True when running in a worktree."""
+        with mocks.local.Git(self.path, is_worktree=True), OutputCapture():
+            repo = local.Git(self.path)
+            self.assertTrue(repo.is_worktree)
+
+    def test_fetch_fails_in_worktree(self):
+        """Test that fetch with refspec fails when in a worktree.
+
+        Git refuses to fetch into a branch that is checked out in any worktree
+        with: "fatal: refusing to fetch into branch 'refs/heads/main' checked out at <path>"
+        """
+        with mocks.local.Git(self.path, is_worktree=True), OutputCapture():
+            repo = local.Git(self.path)
+            # fetch() with a branch runs 'git fetch origin main:main' which fails in worktrees
+            result = repo.fetch(branch='main', remote='origin')
+            self.assertNotEqual(result, 0)
+
+    def test_pull_rebase_with_branch(self):
+        """Test that pull(rebase=True, branch=X) works in a normal repository.
+
+        When not in a worktree, pull() calls fetch() first to update the
+        local branch before rebasing.
+        """
+        with mocks.local.Git(self.path) as mock_git, OutputCapture():
+            # Switch to a different branch
+            mock_git.head = mock_git.commits['branch-a'][-1]
+
+            repo = local.Git(self.path)
+            # Verify this is not a worktree
+            self.assertFalse(repo.is_worktree)
+            # This should succeed - fetch updates local main, then rebase
+            result = repo.pull(rebase=True, branch='main', remote='origin')
+            self.assertEqual(result, 0)
+
+    def test_pull_rebase_with_branch_checked_out_in_worktree(self):
+        """Test that pull(rebase=True, branch=X) works when running in a worktree.
+
+        When in a worktree, the git fetch origin main:main command is skipped
+        to avoid the error: "fatal: refusing to fetch into branch 'refs/heads/main'
+        checked out at <path>"
+        """
+        with mocks.local.Git(self.path, is_worktree=True) as mock_git, OutputCapture():
+            # Switch to a different branch
+            mock_git.head = mock_git.commits['branch-a'][-1]
+
+            repo = local.Git(self.path)
+            # Verify we detect this as a worktree
+            self.assertTrue(repo.is_worktree)
+            # This should succeed because is_worktree skips the problematic fetch
+            result = repo.pull(rebase=True, branch='main', remote='origin')
+            self.assertEqual(result, 0)
+
     def test_source_remotes_default(self):
         with mocks.local.Git(self.path), OutputCapture():
             self.assertEqual(local.Git(self.path).source_remotes(), ['origin'])
@@ -712,6 +771,32 @@ CommitDate: {time_c}
             self.assertNotEqual(mock_git.remotes[remote_ref][-1].hash, fetched_commit.hash)
             self.assertFalse(repo._is_on_default_branch(fetched_commit.hash))
             self.assertNotEqual(mock_git.remotes[remote_ref][-1].hash, fetched_commit.hash)
+
+    def test_fetch_head_in_worktree_uses_git_directory(self):
+        """Test that FETCH_HEAD is read from git_directory in a worktree.
+
+        In a worktree, git_directory differs from common_directory.
+        FETCH_HEAD is a per-worktree file stored in git_directory.
+        """
+        with mocks.local.Git(self.path, is_worktree=True) as mock_git, OutputCapture():
+            fetched_commit = self._prepare_fetch_head_commit(mock_git)
+            repo = local.Git(self.path)
+            default_branch = repo.default_branch
+            remote_ref = f'origin/{default_branch}'
+
+            # Verify we're in a worktree where git_directory != common_directory
+            self.assertTrue(repo.is_worktree)
+            self.assertNotEqual(repo.git_directory, repo.common_directory)
+
+            # Write FETCH_HEAD to git_directory (where git pull writes it in a worktree)
+            fetch_path = os.path.join(repo.git_directory, 'FETCH_HEAD')
+            with open(fetch_path, 'w') as fetch_head:
+                fetch_head.write(f"{fetched_commit.hash}\tbranch '{default_branch}' of {repo.url()}\n")
+
+            self.assertNotIn(default_branch, repo.branches_for(fetched_commit.hash))
+            self.assertNotEqual(mock_git.remotes[remote_ref][-1].hash, fetched_commit.hash)
+            self.assertTrue(repo._is_on_default_branch(fetched_commit.hash))
+            self.assertEqual(mock_git.remotes[remote_ref][-1].hash, fetched_commit.hash)
 
     def test_branches_for(self):
         with mocks.local.Git(

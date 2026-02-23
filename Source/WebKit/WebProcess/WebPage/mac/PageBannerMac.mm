@@ -100,9 +100,9 @@ void PageBanner::hide()
 {
     // We can hide the banner by removing the parent layer that hosts it.
     if (m_type == Header)
-        protect(protectedWebPage()->corePage())->setHeaderHeight(0);
+        protect(protect(m_webPage.get())->corePage())->setHeaderHeight(0);
     else if (m_type == Footer)
-        protect(protectedWebPage()->corePage())->setFooterHeight(0);
+        protect(protect(m_webPage.get())->corePage())->setFooterHeight(0);
 
     m_isHidden = true;
 }
@@ -129,7 +129,7 @@ bool PageBanner::mouseEvent(const WebMouseEvent& mouseEvent)
     if (m_isHidden)
         return false;
 
-    RefPtr frameView = protectedWebPage()->localMainFrameView();
+    RefPtr frameView = protect(m_webPage.get())->localMainFrameView();
     if (!frameView)
         return false;
 
@@ -162,11 +162,6 @@ bool PageBanner::mouseEvent(const WebMouseEvent& mouseEvent)
 CALayer *PageBanner::layer()
 {
     return m_layer.get();
-}
-
-RefPtr<WebPage> PageBanner::protectedWebPage()
-{
-    return m_webPage.get();
 }
 
 } // namespace WebKit

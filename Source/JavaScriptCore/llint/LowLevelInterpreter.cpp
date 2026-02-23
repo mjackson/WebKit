@@ -597,17 +597,15 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 #endif
 #define OFFLINE_ASM_NOALIGN ""
 
-#if CPU(ARM64) || CPU(ARM64E)
-#if OS(WINDOWS)
+#if CPU(ARM64) && OS(WINDOWS)
 // COFF uses power-of-two alignment: .align N means 2^N bytes
 // For 256-byte alignment: log2(256) = 8, for 64-byte: log2(64) = 6
 // Note: COFF doesn't support fill value, so padding bytes are zeros
 #define OFFLINE_ASM_ALIGN_TRAP_256 "\n .align 8\n"
 #define OFFLINE_ASM_ALIGN_TRAP_64 "\n .align 6\n"
 #define OFFLINE_ASM_ALIGN_TRAP(align) OFFLINE_ASM_ALIGN_TRAP_##align
-#else
+#elif CPU(ARM64) || CPU(ARM64E)
 #define OFFLINE_ASM_ALIGN_TRAP(align) OFFLINE_ASM_BEGIN_SPACER "\n .balignl " #align ", 0xd4388e20\n" // pad with brk instructions
-#endif
 #elif CPU(X86_64)
 #define OFFLINE_ASM_ALIGN_TRAP(align) OFFLINE_ASM_BEGIN_SPACER "\n .balign " #align ", 0xcc\n" // pad with int 3 instructions
 #elif CPU(ARM)

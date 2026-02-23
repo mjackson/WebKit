@@ -142,7 +142,7 @@ public:
 
     RetainPtr<id> toID() const;
 
-    static bool valueIsAllowed(IPC::Decoder&, ObjectValue&);
+    static bool NODELETE valueIsAllowed(IPC::Decoder&, ObjectValue&);
 
     const UniqueRef<ObjectValue>& value() const { return m_value; }
 private:

@@ -87,13 +87,13 @@ static std::unique_ptr<CaptionPreferencesDelegate>& captionPreferencesDelegate()
     return delegate.get();
 }
 
-static std::optional<CaptionUserPreferencesMediaAF::CaptionDisplayMode>& cachedCaptionDisplayMode()
+static std::optional<CaptionUserPreferencesMediaAF::CaptionDisplayMode>& NODELETE cachedCaptionDisplayMode()
 {
     static NeverDestroyed<std::optional<CaptionUserPreferencesMediaAF::CaptionDisplayMode>> captionDisplayMode;
     return captionDisplayMode;
 }
 
-static std::optional<Vector<String>>& cachedPreferredLanguages()
+static std::optional<Vector<String>>& NODELETE cachedPreferredLanguages()
 {
     static NeverDestroyed<std::optional<Vector<String>>> preferredLanguages;
     return preferredLanguages;

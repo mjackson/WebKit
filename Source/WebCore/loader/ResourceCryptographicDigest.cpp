@@ -134,7 +134,7 @@ std::optional<ResourceCryptographicDigest> decodeEncodedResourceCryptographicDig
     return std::nullopt;
 }
 
-static PAL::CryptoDigest::Algorithm toCryptoDigestAlgorithm(ResourceCryptographicDigest::Algorithm algorithm)
+static PAL::CryptoDigest::Algorithm NODELETE toCryptoDigestAlgorithm(ResourceCryptographicDigest::Algorithm algorithm)
 {
     switch (algorithm) {
     case ResourceCryptographicDigest::Algorithm::SHA256:

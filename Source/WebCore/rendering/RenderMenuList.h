@@ -37,7 +37,7 @@ public:
     RenderMenuList(HTMLSelectElement&, RenderStyle&&);
     virtual ~RenderMenuList();
 
-    HTMLSelectElement& selectElement() const;
+    HTMLSelectElement& NODELETE selectElement() const;
 
     // CheckedPtr interface.
     uint32_t checkedPtrCount() const { return RenderFlexibleBox::checkedPtrCount(); }

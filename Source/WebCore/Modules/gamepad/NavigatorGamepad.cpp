@@ -188,12 +188,6 @@ void NavigatorGamepad::gamepadDisconnected(PlatformGamepad& platformGamepad)
     m_gamepads[platformGamepad.index()] = nullptr;
 }
 
-RefPtr<Page> NavigatorGamepad::protectedPage() const
-{
-    RefPtr frame = m_navigator->frame();
-    return frame ? protect(frame->page()) : nullptr;
-}
-
 } // namespace WebCore
 
 #endif // ENABLE(GAMEPAD)

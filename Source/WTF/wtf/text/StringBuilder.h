@@ -47,7 +47,7 @@ public:
     void clear();
     void swap(StringBuilder&);
 
-    void didOverflow();
+    void NODELETE didOverflow();
     bool hasOverflowed() const { return m_length > String::MaxLength; }
     bool crashesOnOverflow() const { return m_shouldCrashOnOverflow; }
 
@@ -96,7 +96,7 @@ public:
     WTF_EXPORT_PRIVATE void reserveCapacity(unsigned newCapacity);
 
     WTF_EXPORT_PRIVATE void shrink(unsigned newLength);
-    WTF_EXPORT_PRIVATE bool shouldShrinkToFit() const;
+    WTF_EXPORT_PRIVATE bool NODELETE shouldShrinkToFit() const;
     WTF_EXPORT_PRIVATE void shrinkToFit();
 
     WTF_EXPORT_PRIVATE bool containsOnlyASCII() const;

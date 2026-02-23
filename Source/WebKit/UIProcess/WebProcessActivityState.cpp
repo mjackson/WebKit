@@ -234,7 +234,7 @@ bool WebProcessActivityState::hasValidOpeningAppLinkActivity() const
 void WebProcessActivityState::updateWebProcessSuspensionDelay()
 {
     Seconds timeout = WTF::visit(WTF::makeVisitor([&](const WeakRef<WebPageProxy>& page) {
-        return webProcessSuspensionDelay(protect(page.get()).ptr());
+        return webProcessSuspensionDelay(protect(page).ptr());
     }, [&] (const WeakRef<RemotePageProxy>& page) {
         return webProcessSuspensionDelay(protect(page->page()).get());
     }), m_page);

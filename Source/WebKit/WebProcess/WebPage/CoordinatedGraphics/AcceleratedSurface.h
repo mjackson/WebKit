@@ -413,7 +413,7 @@ private:
 
     static constexpr ColorComponents white { 1.f, 1.f, 1.f, WebCore::AlphaTraits<float>::opaque };
 
-    WeakRef<WebPage> m_webPage;
+    const WeakRef<WebPage> m_webPage;
     Function<void()> m_frameCompleteHandler;
     uint64_t m_id { 0 };
     WebCore::IntSize m_size;

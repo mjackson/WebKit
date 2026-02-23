@@ -360,9 +360,4 @@ void WorkerOrWorkletThread::removeChildThread(WorkerOrWorkletThread& childThread
         std::exchange(m_runWhenLastChildThreadIsGone, nullptr)();
 }
 
-CheckedPtr<WorkerLoaderProxy> WorkerOrWorkletThread::checkedWorkerLoaderProxy() const
-{
-    return workerLoaderProxy();
-}
-
 } // namespace WebCore

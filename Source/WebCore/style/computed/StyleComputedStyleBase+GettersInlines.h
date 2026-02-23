@@ -34,6 +34,7 @@
 #include <WebCore/StyleBoxData.h>
 #include <WebCore/StyleCustomPropertyData.h>
 #include <WebCore/StyleDeprecatedFlexibleBoxData.h>
+#include <WebCore/StyleDisplay.h>
 #include <WebCore/StyleFillLayers.h>
 #include <WebCore/StyleFilterData.h>
 #include <WebCore/StyleFlexibleBoxData.h>
@@ -228,14 +229,9 @@ inline std::optional<size_t> ComputedStyleBase::usedPositionOptionIndex() const
     return m_nonInheritedData->rareData->usedPositionOptionIndex;
 }
 
-inline constexpr DisplayType ComputedStyleBase::originalDisplay() const
+inline constexpr Display ComputedStyleBase::originalDisplay() const
 {
-    return static_cast<DisplayType>(m_nonInheritedFlags.originalDisplay);
-}
-
-inline DisplayType ComputedStyleBase::effectiveDisplay() const
-{
-    return static_cast<DisplayType>(m_nonInheritedFlags.effectiveDisplay);
+    return Display::fromRaw(m_nonInheritedFlags.originalDisplay);
 }
 
 inline StyleAppearance ComputedStyleBase::usedAppearance() const

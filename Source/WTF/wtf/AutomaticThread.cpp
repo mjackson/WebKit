@@ -27,6 +27,7 @@
 #include <wtf/AutomaticThread.h>
 
 #include <wtf/DataLog.h>
+#include <wtf/PageBlock.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/Threading.h>
 
@@ -166,7 +167,19 @@ void AutomaticThread::start(const AbstractLocker&)
     RefPtr<AutomaticThread> preserveThisForThread = this;
     
     m_hasUnderlyingThread = true;
-    
+
+    auto stackSpec = stackSpecification();
+    switch (stackSpec.kind()) {
+    case StackAllocationSpecification::Kind::Default:
+        break;
+    case StackAllocationSpecification::Kind::SizeAndLocation:
+        RELEASE_ASSERT(!(reinterpret_cast<uintptr_t>(stackSpec.stackSpan().data()) % pageSize()));
+        [[fallthrough]];
+    case StackAllocationSpecification::Kind::SizeOnly:
+        RELEASE_ASSERT(!(stackSpec.sizeBytes() % pageSize()));
+        break;
+    }
+
     Thread::create(
         name(),
         [=, this] () {
@@ -232,7 +245,7 @@ void AutomaticThread::start(const AbstractLocker&)
                 }
                 RELEASE_ASSERT(result == WorkResult::Continue);
             }
-        }, m_threadType)->detach();
+        }, m_threadType, Thread::defaultQOS, Thread::defaultSchedulingPolicy, stackSpec)->detach();
 }
 
 void AutomaticThread::threadDidStart()
@@ -244,4 +257,3 @@ void AutomaticThread::threadIsStopping(const AbstractLocker&)
 }
 
 } // namespace WTF
-

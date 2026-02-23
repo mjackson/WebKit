@@ -105,7 +105,7 @@ public:
     void processEventEntry(const PerformanceEventTimingCandidate&);
 
     void clearResourceTimings();
-    void setResourceTimingBufferSize(unsigned);
+    void NODELETE setResourceTimingBufferSize(unsigned);
 
     ExceptionOr<Ref<PerformanceMark>> mark(JSC::JSGlobalObject&, const String& markName, std::optional<PerformanceMarkOptions>&&);
     void clearMarks(const String& markName);
@@ -127,14 +127,14 @@ public:
     void unregisterPerformanceObserver(PerformanceObserver&);
 
     static void allowHighPrecisionTime();
-    static Seconds timeResolution();
+    static Seconds NODELETE timeResolution();
     static Seconds reduceTimeResolution(Seconds);
 
     Seconds relativeTimeFromTimeOriginInReducedResolutionSeconds(MonotonicTime) const;
     DOMHighResTimeStamp relativeTimeFromTimeOriginInReducedResolution(MonotonicTime) const;
     MonotonicTime monotonicTimeFromRelativeTime(DOMHighResTimeStamp) const;
 
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
 
     void scheduleTaskIfNeeded();
 
@@ -150,7 +150,7 @@ private:
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }
 
-    bool isResourceTimingBufferFull() const;
+    bool NODELETE isResourceTimingBufferFull() const;
     void resourceTimingBufferFullTimerFired();
 
     void queueEntry(PerformanceEntry&);
@@ -185,7 +185,7 @@ private:
     RefPtr<PerformanceEntry> m_largestContentfulPaint;
     std::unique_ptr<PerformanceUserTiming> m_userTiming;
 
-    ListHashSet<RefPtr<PerformanceObserver>> m_observers;
+    ListHashSet<Ref<PerformanceObserver>> m_observers;
 };
 
 } // namespace WebCore

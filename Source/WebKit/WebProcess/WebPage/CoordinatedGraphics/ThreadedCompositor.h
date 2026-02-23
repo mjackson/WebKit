@@ -52,6 +52,7 @@ namespace WebKit {
 class AcceleratedSurface;
 class CoordinatedSceneState;
 class LayerTreeHost;
+class WebPage;
 struct RenderProcessInfo;
 
 class ThreadedCompositor : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<ThreadedCompositor>, public CanMakeThreadSafeCheckedPtr<ThreadedCompositor> {
@@ -59,7 +60,7 @@ class ThreadedCompositor : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPt
     WTF_MAKE_NONCOPYABLE(ThreadedCompositor);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(ThreadedCompositor);
 public:
-    static Ref<ThreadedCompositor> create(LayerTreeHost&);
+    static Ref<ThreadedCompositor> create(WebPage&, LayerTreeHost&, CoordinatedSceneState&);
     virtual ~ThreadedCompositor();
 
     uint64_t surfaceID() const;
@@ -96,7 +97,7 @@ public:
     void fillGLInformation(RenderProcessInfo&&, CompletionHandler<void(RenderProcessInfo&&)>&&);
 
 private:
-    explicit ThreadedCompositor(LayerTreeHost&);
+    ThreadedCompositor(WebPage&, LayerTreeHost&, CoordinatedSceneState&);
 
     void startRenderTimer();
     void stopRenderTimer();

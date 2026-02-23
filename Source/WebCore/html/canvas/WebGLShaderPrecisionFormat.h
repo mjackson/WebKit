@@ -37,9 +37,9 @@ class WebGLShaderPrecisionFormat : public RefCounted<WebGLShaderPrecisionFormat>
 public:
     static Ref<WebGLShaderPrecisionFormat> create(GCGLint rangeMin, GCGLint rangeMax, GCGLint precision);
 
-    GCGLint rangeMin() const;
-    GCGLint rangeMax() const;
-    GCGLint precision() const;
+    GCGLint NODELETE rangeMin() const;
+    GCGLint NODELETE rangeMax() const;
+    GCGLint NODELETE precision() const;
 
 private:
     WebGLShaderPrecisionFormat(GCGLint rangeMin, GCGLint rangeMax, GCGLint precision);

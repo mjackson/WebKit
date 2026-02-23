@@ -181,7 +181,7 @@ public:
         }
     }
 
-    void setDestinationLayerID(WebCore::PlatformLayerIdentifier layerID)
+    void NODELETE setDestinationLayerID(WebCore::PlatformLayerIdentifier layerID)
     {
         m_layerID = layerID;
     }

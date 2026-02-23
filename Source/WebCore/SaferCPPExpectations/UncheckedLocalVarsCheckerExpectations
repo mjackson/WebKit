@@ -1,185 +1,71 @@
-Modules/push-api/PushDatabase.cpp
-Modules/webaudio/AudioWorkletGlobalScope.cpp
 accessibility/AXObjectCache.cpp
-accessibility/AccessibilityObject.cpp
-accessibility/AccessibilityRenderObject.cpp
+[ Mac ] accessibility/AccessibilityNodeObject.cpp
+[ iOS ] accessibility/AccessibilityNodeObject.cpp
+[ Mac ] accessibility/AccessibilityRenderObject.cpp
 [ iOS ] accessibility/cocoa/AXTextMarkerCocoa.mm
 [ iOS ] accessibility/ios/AccessibilityObjectIOS.mm
 [ iOS ] accessibility/ios/WebAccessibilityObjectWrapperIOS.mm
-bindings/js/JSDOMGlobalObject.cpp
+[ Mac ] dom/Document.cpp
 dom/Position.cpp
-dom/TreeScope.cpp
-[ Mac ] editing/AlternativeTextController.cpp
-editing/ApplyBlockElementCommand.cpp
-editing/BreakBlockquoteCommand.cpp
-editing/DictationCommand.cpp
+[ Mac ] dom/Range.cpp
+[ Mac ] editing/DeleteSelectionCommand.cpp
 editing/Editing.cpp
-editing/Editor.cpp
-editing/EditorCommand.cpp
-editing/FrameSelection.cpp
-editing/RenderedPosition.cpp
-editing/SimplifyMarkupCommand.cpp
-editing/TextIterator.cpp
-editing/TextManipulationController.cpp
-editing/VisibleUnits.cpp
-editing/cocoa/DataDetection.mm
-editing/cocoa/EditingHTMLConverter.mm
 [ iOS ] editing/cocoa/EditorCocoa.mm
-editing/cocoa/NodeHTMLConverter.mm
-editing/cocoa/WebContentReaderCocoa.mm
 [ iOS ] editing/ios/DictationCommandIOS.cpp
-[ Mac ] editing/mac/EditorMac.mm
-[ Mac ] editing/mac/FrameSelectionMac.mm
-editing/markup.cpp
 [ iOS ] html/HTMLAnchorElement.cpp
+[ Mac ] html/HTMLEmbedElement.cpp
+[ Mac ] html/HTMLFormElement.cpp
+[ iOS ] html/HTMLImageElement.cpp
 [ iOS ] html/HTMLImageLoader.cpp
-html/HTMLInputElement.cpp
-html/HTMLStyleElement.cpp
-html/HTMLTextFormControlElement.cpp
-html/ValidationMessage.cpp
-html/canvas/CanvasRenderingContext2D.cpp
+[ Mac ] html/HTMLOptionElement.cpp
+[ iOS ] html/HTMLPictureElement.cpp
+[ Mac ] html/HTMLSelectElement.cpp
+[ Mac ] html/HTMLTableRowElement.cpp
+[ Mac ] html/OffscreenCanvas.cpp
 html/canvas/CanvasRenderingContext2DBase.cpp
-inspector/InspectorAuditAccessibilityObject.cpp
-inspector/InspectorCanvasCallTracer.cpp
-inspector/InspectorInstrumentation.cpp
+[ Mac ] inspector/InspectorNodeFinder.cpp
 inspector/InspectorOverlay.cpp
-inspector/WorkerToPageFrontendChannel.h
-inspector/agents/InspectorAnimationAgent.cpp
-inspector/agents/InspectorCSSAgent.cpp
-inspector/agents/InspectorCanvasAgent.cpp
 inspector/agents/InspectorDOMAgent.cpp
-inspector/agents/InspectorDOMDebuggerAgent.cpp
-inspector/agents/InspectorNetworkAgent.cpp
-inspector/agents/InspectorPageAgent.cpp
-inspector/agents/InspectorTimelineAgent.cpp
-inspector/agents/page/PageCanvasAgent.cpp
-inspector/agents/page/PageDOMDebuggerAgent.cpp
-inspector/agents/page/PageNetworkAgent.cpp
-inspector/agents/worker/WorkerNetworkAgent.cpp
-layout/floats/FloatingContext.cpp
-layout/floats/PlacedFloats.cpp
-layout/formattingContexts/FormattingContext.cpp
 layout/formattingContexts/FormattingGeometry.cpp
-layout/formattingContexts/block/BlockFormattingContext.cpp
-layout/formattingContexts/block/BlockFormattingGeometry.cpp
-layout/formattingContexts/block/BlockFormattingQuirks.cpp
-layout/formattingContexts/block/BlockMarginCollapse.cpp
-layout/formattingContexts/block/PrecomputedBlockMarginCollapse.cpp
-layout/formattingContexts/block/tablewrapper/TableWrapperBlockFormattingContext.cpp
-layout/formattingContexts/inline/AbstractLineBuilder.cpp
-layout/formattingContexts/inline/InlineContentAligner.cpp
-layout/formattingContexts/inline/InlineContentBreaker.cpp
-layout/formattingContexts/inline/InlineContentConstrainer.cpp
-layout/formattingContexts/inline/InlineFormattingContext.cpp
-layout/formattingContexts/inline/InlineFormattingUtils.cpp
-layout/formattingContexts/inline/InlineItemsBuilder.cpp
-layout/formattingContexts/inline/InlineLine.cpp
 layout/formattingContexts/inline/InlineLineBoxBuilder.cpp
-layout/formattingContexts/inline/InlineLineBoxVerticalAligner.cpp
 layout/formattingContexts/inline/InlineLineBuilder.cpp
 layout/formattingContexts/inline/InlineQuirks.cpp
 layout/formattingContexts/inline/IntrinsicWidthHandler.cpp
-layout/formattingContexts/inline/RangeBasedLineBuilder.cpp
 layout/formattingContexts/inline/TextOnlySimpleLineBuilder.cpp
 layout/formattingContexts/inline/display/InlineDisplayContentBuilder.cpp
-layout/formattingContexts/inline/display/InlineDisplayLineBuilder.cpp
-layout/formattingContexts/inline/invalidation/InlineInvalidation.cpp
-layout/formattingContexts/inline/ruby/RubyFormattingContext.cpp
-layout/formattingContexts/inline/text/TextUtil.cpp
 layout/formattingContexts/table/TableFormattingContext.cpp
-layout/formattingContexts/table/TableFormattingGeometry.cpp
-layout/formattingContexts/table/TableFormattingQuirks.cpp
-layout/formattingContexts/table/TableFormattingState.cpp
 layout/formattingContexts/table/TableLayout.cpp
 layout/integration/LayoutIntegrationBoxGeometryUpdater.cpp
 layout/integration/LayoutIntegrationBoxTreeUpdater.cpp
-layout/integration/LayoutIntegrationCoverage.cpp
-layout/integration/LayoutIntegrationFormattingContextLayout.cpp
-layout/integration/flex/LayoutIntegrationFlexLayout.cpp
-layout/integration/inline/InlineIteratorBox.cpp
-layout/integration/inline/InlineIteratorBoxLegacyPath.h
-layout/integration/inline/InlineIteratorBoxModernPath.h
-layout/integration/inline/InlineIteratorBoxModernPathInlines.h
-layout/integration/inline/InlineIteratorInlineBox.cpp
-layout/integration/inline/InlineIteratorLineBox.cpp
-layout/integration/inline/InlineIteratorSVGTextBox.cpp
-layout/integration/inline/InlineIteratorTextBox.cpp
-layout/integration/inline/LayoutIntegrationInlineContentBuilder.cpp
-layout/integration/inline/LayoutIntegrationInlineContentPainter.cpp
-layout/integration/inline/LayoutIntegrationLineLayout.cpp
-layout/integration/inline/LayoutIntegrationPagination.cpp
-layout/integration/inline/LineSelection.h
 layout/layouttree/LayoutBox.cpp
-layout/layouttree/LayoutElementBox.cpp
-layout/layouttree/LayoutTreeBuilder.cpp
-loader/FrameLoader.cpp
-loader/archive/cf/LegacyWebArchive.cpp
-loader/cache/MemoryCache.cpp
-page/AutoscrollController.cpp
-[ iOS ] page/Chrome.cpp
 [ iOS ] page/DOMTimer.cpp
-page/DragController.cpp
 page/ElementTargetingController.cpp
 page/EventHandler.cpp
-page/FrameSnapshotting.cpp
-page/FrameView.cpp
-page/ImageOverlayController.cpp
-page/IntelligenceTextEffectsSupport.cpp
-page/InteractionRegion.cpp
-page/IntersectionObserver.cpp
-page/LocalFrame.cpp
+[ iOS ] page/FocusController.cpp
+[ Mac ] page/InteractionRegion.cpp
+[ Mac ] page/IntersectionObserver.cpp
 page/LocalFrameView.cpp
-page/LocalFrameViewLayoutContext.cpp
-page/PageColorSampler.cpp
-page/PrintContext.cpp
-page/ResizeObservation.cpp
-page/SpatialNavigation.cpp
+[ iOS ] page/cocoa/ContentChangeObserver.cpp
 [ iOS ] page/ios/EventHandlerIOS.mm
 [ iOS ] page/ios/FrameIOS.mm
-[ Mac ] page/mac/EventHandlerMac.mm
-[ Mac ] page/mac/ImageOverlayControllerMac.mm
-page/scrolling/AsyncScrollingCoordinator.cpp
-page/scrolling/ScrollAnchoringController.cpp
-page/scrolling/ScrollSnapOffsetsInfo.cpp
-page/scrolling/ScrollingCoordinator.cpp
-page/writing-tools/WritingToolsController.mm
-platform/DictationCaretAnimator.cpp
-platform/DragImage.cpp
-platform/animation/AcceleratedEffect.cpp
-platform/graphics/GraphicsLayer.cpp
 platform/graphics/ca/GraphicsLayerCA.cpp
-platform/graphics/ca/PlatformCALayer.mm
-platform/graphics/ca/cocoa/PlatformCALayerCocoa.mm
 platform/graphics/cg/CGSubimageCacheWithTimer.cpp
 [ iOS ] platform/ios/DragImageIOS.mm
-[ iOS ] platform/ios/PasteboardIOS.mm
-platform/ios/PlaybackSessionInterfaceIOS.mm
-platform/ios/WebAVPlayerController.mm
 [ iOS ] platform/ios/WebVideoFullscreenControllerAVKit.mm
 platform/network/mac/ResourceHandleMac.mm
-rendering/AccessibilityRegionContext.cpp
-rendering/AncestorSubgridIterator.cpp
 rendering/AutoTableLayout.cpp
 rendering/BackgroundPainter.cpp
-rendering/CaretRectComputation.cpp
 rendering/CounterNode.cpp
-rendering/EllipsisBoxPainter.cpp
 rendering/FixedTableLayout.cpp
-rendering/FloatingObjects.cpp
-rendering/GridBaselineAlignment.cpp
 rendering/GridLayoutFunctions.cpp
 rendering/GridTrackSizingAlgorithm.cpp
 rendering/HitTestResult.cpp
 rendering/InlineBoxPainter.cpp
 rendering/LegacyInlineBox.cpp
 rendering/LegacyInlineFlowBox.cpp
-rendering/LegacyInlineIterator.cpp
 rendering/LegacyInlineIterator.h
-rendering/LegacyInlineIteratorInlines.h
-rendering/LegacyInlineTextBox.cpp
 rendering/LegacyLineLayout.cpp
 rendering/MarkedText.cpp
-rendering/MotionPath.cpp
 rendering/PositionedLayoutConstraints.cpp
 rendering/RenderAttachment.cpp
 rendering/RenderBlock.cpp
@@ -190,17 +76,15 @@ rendering/RenderButton.cpp
 rendering/RenderCounter.cpp
 rendering/RenderDeprecatedFlexibleBox.cpp
 rendering/RenderElement.cpp
-rendering/RenderElement.h
 rendering/RenderElementStyleInlines.h
 rendering/RenderFileUploadControl.cpp
 rendering/RenderFlexibleBox.cpp
-rendering/RenderFragmentContainer.cpp
 rendering/RenderFragmentedFlow.cpp
 rendering/RenderFrameSet.cpp
-rendering/RenderGeometryMap.cpp
+[ Mac ] rendering/RenderGeometryMap.cpp
 rendering/RenderGrid.cpp
 rendering/RenderImage.cpp
-rendering/RenderImageResourceStyleImage.cpp
+[ Mac ] rendering/RenderImageResource.cpp
 rendering/RenderInline.cpp
 rendering/RenderIterator.h
 rendering/RenderLayer.cpp
@@ -209,18 +93,14 @@ rendering/RenderLayerCompositor.cpp
 rendering/RenderLayerModelObject.cpp
 rendering/RenderLayerScrollableArea.cpp
 rendering/RenderLayoutState.cpp
-rendering/RenderLineBoxList.cpp
-[ iOS ] rendering/RenderLineBreak.cpp
 rendering/RenderListBox.cpp
 rendering/RenderListItem.cpp
 rendering/RenderListMarker.cpp
-rendering/RenderMenuList.cpp
 rendering/RenderMultiColumnFlow.cpp
 rendering/RenderMultiColumnSet.cpp
 rendering/RenderObject.cpp
-rendering/RenderObject.h
-rendering/RenderQuote.cpp
 rendering/RenderReplaced.cpp
+[ iOS ] rendering/RenderSelectFallbackButton.cpp
 rendering/RenderTable.cpp
 rendering/RenderTableCell.cpp
 rendering/RenderTableCellInlines.h
@@ -229,54 +109,32 @@ rendering/RenderTableSection.cpp
 rendering/RenderText.cpp
 rendering/RenderText.h
 rendering/RenderTextControl.cpp
-rendering/RenderTextControlMultiLine.cpp
 rendering/RenderTextControlSingleLine.cpp
-rendering/RenderTextFragment.cpp
+[ Mac ] rendering/RenderTheme.cpp
 rendering/RenderTreeAsText.cpp
 rendering/RenderVTTCue.cpp
 rendering/RenderView.cpp
-rendering/RenderWidget.cpp
 rendering/StyledMarkedText.cpp
 rendering/TextAutoSizing.cpp
 rendering/TextBoxPainter.cpp
 rendering/TextBoxTrimmer.cpp
 rendering/TextDecorationPainter.cpp
+[ iOS ] rendering/cocoa/RenderThemeCocoa.mm
 [ iOS ] rendering/ios/RenderThemeIOS.mm
 rendering/line/BreakingContext.h
 rendering/line/LineInlineHeaders.h
-rendering/line/WordTrailingSpace.h
 rendering/mathml/MathMLStyle.cpp
 rendering/mathml/RenderMathMLBlock.cpp
-rendering/mathml/RenderMathMLFenced.cpp
-rendering/mathml/RenderMathMLFraction.cpp
-rendering/mathml/RenderMathMLMath.cpp
-rendering/mathml/RenderMathMLOperator.cpp
-rendering/mathml/RenderMathMLPadded.cpp
-rendering/mathml/RenderMathMLRoot.cpp
 rendering/mathml/RenderMathMLRow.cpp
 rendering/mathml/RenderMathMLScripts.cpp
-rendering/mathml/RenderMathMLToken.cpp
 rendering/mathml/RenderMathMLUnderOver.cpp
-rendering/shapes/BoxLayoutShape.cpp
 rendering/shapes/ShapeOutsideInfo.cpp
-rendering/style/StyleCachedImage.cpp
-rendering/style/StyleCanvasImage.cpp
-rendering/style/StyleCrossfadeImage.cpp
-rendering/style/StyleFilterImage.cpp
-rendering/style/StyleGradientImage.cpp
-rendering/svg/RenderSVGContainer.cpp
-rendering/svg/RenderSVGGradientStop.cpp
 rendering/svg/RenderSVGInline.cpp
 rendering/svg/RenderSVGInlineText.cpp
-rendering/svg/RenderSVGModelObject.cpp
 rendering/svg/RenderSVGPath.cpp
 rendering/svg/RenderSVGResourceClipper.cpp
-rendering/svg/RenderSVGResourceFilterPrimitive.cpp
 rendering/svg/RenderSVGRoot.cpp
-rendering/svg/RenderSVGShape.cpp
 rendering/svg/RenderSVGText.cpp
-rendering/svg/RenderSVGTextPath.cpp
-rendering/svg/SVGBoundingBoxComputation.cpp
 rendering/svg/SVGContainerLayout.cpp
 rendering/svg/SVGLayerTransformComputation.h
 rendering/svg/SVGPaintServerHandlingInlines.h
@@ -285,10 +143,8 @@ rendering/svg/SVGRenderSupport.cpp
 rendering/svg/SVGRenderTreeAsText.cpp
 rendering/svg/SVGRenderingContext.cpp
 rendering/svg/SVGTextBoxPainter.cpp
-rendering/svg/SVGTextChunk.cpp
 rendering/svg/SVGTextLayoutAttributesBuilder.cpp
 rendering/svg/SVGTextLayoutEngine.cpp
-rendering/svg/SVGTextLayoutEngineBaseline.cpp
 rendering/svg/SVGTextMetrics.cpp
 rendering/svg/SVGTextMetricsBuilder.cpp
 rendering/svg/legacy/LegacyRenderSVGContainer.cpp
@@ -296,10 +152,9 @@ rendering/svg/legacy/LegacyRenderSVGPath.cpp
 rendering/svg/legacy/LegacyRenderSVGResource.cpp
 rendering/svg/legacy/LegacyRenderSVGResourceClipper.cpp
 rendering/svg/legacy/LegacyRenderSVGResourceContainer.cpp
-rendering/svg/legacy/LegacyRenderSVGResourceFilterPrimitive.cpp
 rendering/svg/legacy/LegacyRenderSVGResourceGradient.cpp
-rendering/svg/legacy/LegacyRenderSVGResourcePattern.cpp
 rendering/svg/legacy/LegacyRenderSVGRoot.cpp
+[ Mac ] rendering/svg/legacy/LegacyRenderSVGTransformableContainer.cpp
 rendering/svg/legacy/SVGResources.cpp
 rendering/svg/legacy/SVGResourcesCache.cpp
 rendering/svg/legacy/SVGResourcesCycleSolver.cpp
@@ -319,35 +174,32 @@ rendering/updating/RenderTreeUpdaterGeneratedContent.cpp
 rendering/updating/RenderTreeUpdaterViewTransition.cpp
 style/AnchorPositionEvaluator.cpp
 style/ChildChangeInvalidation.cpp
-style/ContainerQueryEvaluator.cpp
 style/ElementRuleCollector.cpp
 style/InlineTextBoxStyle.cpp
-style/MatchResultCache.cpp
 style/StyleAdjuster.cpp
 style/StyleBuilder.cpp
+style/StyleBuilderCustom.h
 style/StyleBuilderStateInlines.h
 style/StyleDifference.cpp
 style/StyleExtractor.cpp
 style/StyleExtractorCustom.h
-style/StylePendingResources.cpp
-style/StyleResolveForDocument.cpp
+style/StyleInvalidationFunctions.h
+style/StyleRelations.cpp
 style/StyleResolver.cpp
 style/StyleScope.cpp
 style/StyleTreeResolver.cpp
 style/Styleable.cpp
 style/computed/StyleComputedStyleBase.cpp
 style/values/grid/StyleGridPositionsResolver.cpp
+style/values/images/kinds/StyleCanvasImage.cpp
 style/values/primitives/StyleLengthResolution.cpp
-style/values/transforms/StyleTransformList.cpp
+[ Mac ] style/values/text/StyleTextAlign.cpp
 svg/SVGClipPathElement.cpp
-svg/SVGFEFloodElement.cpp
 svg/SVGFilterPrimitiveStandardAttributes.cpp
 svg/SVGGeometryElement.cpp
 svg/SVGLengthContext.cpp
-svg/SVGMaskElement.cpp
-svg/SVGStopElement.cpp
 svg/SVGUseElement.cpp
 testing/Internals.cpp
-testing/js/WebCoreTestSupport.cpp
 workers/WorkerGlobalScope.cpp
 workers/WorkerOrWorkletThread.cpp
+[ Mac ] workers/service/ServiceWorkerContainer.cpp

@@ -77,7 +77,7 @@ WK_EXPORT void WKPageAccessibilityClearIsolatedTree(WKPageRef page);
 WK_EXPORT bool WKPageIsURLKnownHSTSHost(WKPageRef page, WKURLRef url);
 
 #if !TARGET_OS_IPHONE
-WK_EXPORT bool WKPageIsPlayingVideoInEnhancedFullscreen(WKPageRef page);
+WK_EXPORT bool WKPageIsPlayingVideoInPictureInPicture(WKPageRef page);
 #endif
 
 #ifdef __cplusplus

@@ -93,11 +93,11 @@ private:
     CSSSelector::Match consumeAttributeMatch(CSSParserTokenRange&);
     CSSSelector::AttributeMatchType consumeAttributeFlags(CSSParserTokenRange&);
 
-    const AtomString& defaultNamespace() const;
+    const AtomString& NODELETE defaultNamespace() const;
     const AtomString& determineNamespace(const AtomString& prefix);
     void prependTypeSelectorIfNeeded(const AtomString& namespacePrefix, const AtomString& elementName, MutableCSSSelector&);
     static std::unique_ptr<MutableCSSSelector> splitCompoundAtImplicitShadowCrossingCombinator(std::unique_ptr<MutableCSSSelector> compoundSelector, const CSSSelectorParserContext&);
-    static bool containsUnknownWebKitPseudoElements(const CSSSelector& complexSelector);
+    static bool NODELETE containsUnknownWebKitPseudoElements(const CSSSelector& complexSelector);
 
     class DisallowPseudoElementsScope;
 

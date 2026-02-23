@@ -258,7 +258,7 @@ TEST(TextExtractionTests, InteractionDebugDescription)
 
         [interaction setNodeIdentifier:testButtonID.get()];
         description = [interaction debugDescriptionInWebView:webView.get() error:&error];
-        EXPECT_WK_STREQ("Click on button labeled “Click Me”, with rendered text “Test”", description);
+        EXPECT_WK_STREQ("Click on button labeled “Click Me” with id “test-button”, with rendered text “Test”", description);
         EXPECT_NULL(error);
 
         [interaction setNodeIdentifier:emailID.get()];
@@ -268,7 +268,7 @@ TEST(TextExtractionTests, InteractionDebugDescription)
 
         [interaction setNodeIdentifier:composeID.get()];
         description = [interaction debugDescriptionInWebView:webView.get() error:&error];
-        EXPECT_WK_STREQ("Click on editable div labeled “Compose a new message”, with rendered text “Subject  'The quick brown fox jumped over the lazy dog'”, containing child labeled “Heading”", description);
+        EXPECT_WK_STREQ("Click on editable div labeled “Compose a new message” with class “message-body”, with rendered text “Subject 'The quick brown fox jumped over the lazy dog'”, containing child labeled “Heading”", description);
         EXPECT_NULL(error);
     }
     {
@@ -285,7 +285,7 @@ TEST(TextExtractionTests, InteractionDebugDescription)
         [interaction setText:@"«Testing»"];
         [interaction setReplaceAll:NO];
         description = [interaction debugDescriptionInWebView:webView.get() error:&error];
-        EXPECT_WK_STREQ("Enter text “'Testing'” into editable div labeled “Compose a new message”, with rendered text “Subject  'The quick brown fox jumped over the lazy dog'”, containing child labeled “Heading”", description);
+        EXPECT_WK_STREQ("Enter text “'Testing'” into editable div labeled “Compose a new message” with class “message-body”, with rendered text “Subject 'The quick brown fox jumped over the lazy dog'”, containing child labeled “Heading”", description);
         EXPECT_NULL(error);
     }
     {
@@ -301,7 +301,7 @@ TEST(TextExtractionTests, InteractionDebugDescription)
         auto clickLocation = [webView elementMidpointFromSelector:@"#test-button"];
         [interaction setLocation:clickLocation];
         description = [interaction debugDescriptionInWebView:webView.get() error:&error];
-        RetainPtr expectedString = [NSString stringWithFormat:@"Click at coordinates (%.0f, %.0f) on child node of button labeled “Click Me”, with rendered text “Test”", clickLocation.x, clickLocation.y];
+        RetainPtr expectedString = [NSString stringWithFormat:@"Click at coordinates (%.0f, %.0f) on child node of button labeled “Click Me” with id “test-button”, with rendered text “Test”", clickLocation.x, clickLocation.y];
         EXPECT_WK_STREQ(expectedString.get(), description);
         EXPECT_NULL(error);
     }

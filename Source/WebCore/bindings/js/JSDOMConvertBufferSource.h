@@ -97,44 +97,15 @@ template<> struct JSConverter<IDLBufferSource> {
         auto* jsDOMGlobalObject = JSC::jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject);
 
         return WTF::switchOn(bufferSource.variant(),
-            [&](RefPtr<JSC::ArrayBufferView> view) {
-                return toJS(&lexicalGlobalObject, &lexicalGlobalObject, *view);
+            [&](const Ref<JSC::ArrayBufferView>& buffer) {
+                return toJS(&lexicalGlobalObject, &lexicalGlobalObject, const_cast<Ref<JSC::ArrayBufferView>&>(buffer));
             },
-            [&](RefPtr<JSC::ArrayBuffer> arrayBuffer)  {
-                return toJS(&lexicalGlobalObject, jsDOMGlobalObject, *arrayBuffer);
+            [&](const Ref<JSC::ArrayBuffer>& buffer)  {
+                return toJS(&lexicalGlobalObject, jsDOMGlobalObject, const_cast<Ref<JSC::ArrayBuffer>&>(buffer));
             }
         );
     }
-    static JSC::JSValue convert(JSC::JSGlobalObject& lexicalGlobalObject, const std::optional<BufferSource>& bufferSource)
-    {
-        auto* jsDOMGlobalObject = JSC::jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject);
-
-        JSC::JSValue jsValue;
-        if (bufferSource) {
-            jsValue = WTF::switchOn(bufferSource->variant(),
-                [&](RefPtr<JSC::ArrayBufferView> view) {
-                    return toJS(&lexicalGlobalObject, &lexicalGlobalObject, *view);
-                },
-                [&](RefPtr<JSC::ArrayBuffer> arrayBuffer) {
-                    return toJS(&lexicalGlobalObject, jsDOMGlobalObject, *arrayBuffer);
-                }
-            );
-        }
-        return jsValue;
-    }
 };
-
-inline JSC::JSValue toJS(JSC::JSGlobalObject* lexicalGlobalObject, JSDOMGlobalObject* globalObject, BufferSource* bufferSource)
-{
-    return WTF::switchOn(bufferSource->variant(),
-        [&](RefPtr<JSC::ArrayBufferView> view) {
-            return toJS(lexicalGlobalObject, globalObject, *view);
-        },
-        [&](RefPtr<JSC::ArrayBuffer> arrayBuffer) {
-            return toJS(lexicalGlobalObject, globalObject, *arrayBuffer);
-        }
-    );
-}
 
 inline RefPtr<JSC::ArrayBufferView> toPossiblySharedArrayBufferView(JSC::VM&, JSC::JSValue value)
 {

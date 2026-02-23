@@ -83,54 +83,54 @@ void commitRelations(std::unique_ptr<Relations> relations, Update& update)
     if (!relations)
         return;
     for (auto& relation : *relations) {
-        Ref element = const_cast<Element&>(*relation.element);
+        auto& element = const_cast<Element&>(*relation.element);
         switch (relation.type) {
         case Relation::AffectedByEmpty:
-            element->setStyleAffectedByEmpty();
+            element.setStyleAffectedByEmpty();
             break;
         case Relation::AffectedByPreviousSibling:
-            element->setStyleIsAffectedByPreviousSibling();
+            element.setStyleIsAffectedByPreviousSibling();
             break;
         case Relation::DescendantsAffectedByPreviousSibling:
-            element->setDescendantsAffectedByPreviousSibling();
+            element.setDescendantsAffectedByPreviousSibling();
             break;
         case Relation::AffectsNextSibling: {
-            RefPtr sibling = element.ptr();
+            auto* sibling = &element;
             for (unsigned i = 0; i < relation.value && sibling; ++i, sibling = sibling->nextElementSibling())
                 sibling->setAffectsNextSiblingElementStyle();
             break;
         }
         case Relation::ChildrenAffectedByForwardPositionalRules:
-            element->setChildrenAffectedByForwardPositionalRules();
+            element.setChildrenAffectedByForwardPositionalRules();
             break;
         case Relation::DescendantsAffectedByForwardPositionalRules:
-            element->setDescendantsAffectedByForwardPositionalRules();
+            element.setDescendantsAffectedByForwardPositionalRules();
             break;
         case Relation::ChildrenAffectedByBackwardPositionalRules:
-            element->setChildrenAffectedByBackwardPositionalRules();
+            element.setChildrenAffectedByBackwardPositionalRules();
             break;
         case Relation::DescendantsAffectedByBackwardPositionalRules:
-            element->setDescendantsAffectedByBackwardPositionalRules();
+            element.setDescendantsAffectedByBackwardPositionalRules();
             break;
         case Relation::ChildrenAffectedByFirstChildRules:
-            element->setChildrenAffectedByFirstChildRules();
+            element.setChildrenAffectedByFirstChildRules();
             break;
         case Relation::ChildrenAffectedByLastChildRules:
-            element->setChildrenAffectedByLastChildRules();
+            element.setChildrenAffectedByLastChildRules();
             break;
         case Relation::AffectedByHasWithPositionalPseudoClass:
-            element->setAffectedByHasWithPositionalPseudoClass();
+            element.setAffectedByHasWithPositionalPseudoClass();
             break;
         case Relation::FirstChild:
-            if (auto* style = update.elementStyle(element.get()))
+            if (auto* style = update.elementStyle(element))
                 style->setFirstChildState();
             break;
         case Relation::LastChild:
-            if (auto* style = update.elementStyle(element.get()))
+            if (auto* style = update.elementStyle(element))
                 style->setLastChildState();
             break;
         case Relation::NthChildIndex:
-            element->setChildIndex(relation.value);
+            element.setChildIndex(relation.value);
             break;
         }
     }

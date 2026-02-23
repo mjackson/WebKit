@@ -363,33 +363,28 @@ EditorClient* Editor::client() const
     return m_client.get();
 }
 
-CheckedPtr<EditorClient> Editor::checkedClient() const
-{
-    return client();
-}
-
 TextCheckerClient* Editor::textChecker() const
 {
-    if (EditorClient* owner = client())
+    if (CheckedPtr owner = client())
         return owner->textChecker();
     return 0;
 }
 
 void Editor::handleKeyboardEvent(KeyboardEvent& event)
 {
-    if (auto* client = this->client())
+    if (CheckedPtr client = this->client())
         client->handleKeyboardEvent(event);
 }
 
 void Editor::handleInputMethodKeydown(KeyboardEvent& event)
 {
-    if (auto* client = this->client())
+    if (CheckedPtr client = this->client())
         client->handleInputMethodKeydown(event);
 }
 
 void Editor::didDispatchInputMethodKeydown(KeyboardEvent& event)
 {
-    if (auto* client = this->client())
+    if (CheckedPtr client = this->client())
         client->didDispatchInputMethodKeydown(event);
 }
 
@@ -662,7 +657,7 @@ void Editor::deleteSelectionWithSmartDelete(bool smartDelete, EditAction editing
 
 void Editor::clearText()
 {
-    ClearTextCommand::CreateAndApply(protectedDocument());
+    ClearTextCommand::CreateAndApply(protect(document()));
 }
 
 void Editor::pasteAsPlainText(const String& pastingText, bool smartReplace)
@@ -840,7 +835,7 @@ void Editor::respondToChangedContents(const VisibleSelection& endingSelection)
 {
     if (AXObjectCache::accessibilityEnabled()) {
         if (RefPtr node = endingSelection.start().deprecatedNode()) {
-            if (AXObjectCache* cache = document().existingAXObjectCache())
+            if (CheckedPtr cache = document().existingAXObjectCache())
                 cache->onEditableTextValueChanged(*node.get());
         }
     }
@@ -913,7 +908,7 @@ RefPtr<Node> Editor::insertOrderedList()
     if (!canEditRichly())
         return nullptr;
         
-    auto newList = InsertListCommand::insertList(protectedDocument(), InsertListCommand::Type::OrderedList);
+    auto newList = InsertListCommand::insertList(protect(document()), InsertListCommand::Type::OrderedList);
     revealSelectionAfterEditingOperation();
     return newList;
 }
@@ -923,7 +918,7 @@ RefPtr<Node> Editor::insertUnorderedList()
     if (!canEditRichly())
         return nullptr;
         
-    auto newList = InsertListCommand::insertList(protectedDocument(), InsertListCommand::Type::UnorderedList);
+    auto newList = InsertListCommand::insertList(protect(document()), InsertListCommand::Type::UnorderedList);
     revealSelectionAfterEditingOperation();
     return newList;
 }
@@ -983,7 +978,7 @@ void Editor::decreaseSelectionListLevel()
 
 void Editor::removeFormattingAndStyle()
 {
-    RemoveFormatCommand::create(protectedDocument())->apply();
+    RemoveFormatCommand::create(protect(document()))->apply();
 }
 
 void Editor::clearLastEditCommand() 
@@ -1308,13 +1303,13 @@ void Editor::appliedEditing(CompositeEditCommand& command)
 
 bool Editor::willUnapplyEditing(const EditCommandComposition& composition) const
 {
-    TypingCommand::closeTyping(protectedDocument());
+    TypingCommand::closeTyping(protect(document()));
     return dispatchBeforeInputEvents(composition.startingRootEditableElement(), composition.endingRootEditableElement(), "historyUndo"_s, IsInputMethodComposing::No);
 }
 
 void Editor::unappliedEditing(EditCommandComposition& composition)
 {
-    protectedDocument()->updateLayout();
+    protect(document())->updateLayout();
 
     notifyTextFromControls(composition.startingRootEditableElement(), composition.endingRootEditableElement());
 
@@ -1331,7 +1326,7 @@ void Editor::unappliedEditing(EditCommandComposition& composition)
 #endif
 
     m_lastEditCommand = nullptr;
-    if (auto* client = this->client())
+    if (CheckedPtr client = this->client())
         client->registerRedoStep(composition);
     respondToChangedContents(newSelection);
 }
@@ -1343,7 +1338,7 @@ bool Editor::willReapplyEditing(const EditCommandComposition& composition) const
 
 void Editor::reappliedEditing(EditCommandComposition& composition)
 {
-    protectedDocument()->updateLayout();
+    protect(document())->updateLayout();
 
     notifyTextFromControls(composition.startingRootEditableElement(), composition.endingRootEditableElement());
 
@@ -1359,7 +1354,7 @@ void Editor::reappliedEditing(EditCommandComposition& composition)
 #endif
 
     m_lastEditCommand = nullptr;
-    if (auto* client = this->client())
+    if (CheckedPtr client = this->client())
         client->registerUndoStep(composition);
     respondToChangedContents(newSelection);
 }
@@ -1394,8 +1389,8 @@ void Editor::clear()
     m_lastEditCommand = nullptr;
     if (m_compositionNode) {
         m_compositionNode = nullptr;
-        if (EditorClient* client = this->client())
-            client->discardedComposition(protectedDocument());
+        if (CheckedPtr client = this->client())
+            client->discardedComposition(protect(document()));
     }
     m_customCompositionUnderlines.clear();
     m_customCompositionHighlights.clear();
@@ -1534,7 +1529,7 @@ bool Editor::insertParagraphSeparator()
 bool Editor::insertParagraphSeparatorInQuotedContent()
 {
     // FIXME: Why is this missing calls to canEdit, canEditRichly, etc.?
-    TypingCommand::insertParagraphSeparatorInQuotedContent(protectedDocument());
+    TypingCommand::insertParagraphSeparatorInQuotedContent(protect(document()));
     revealSelectionAfterEditingOperation();
     return true;
 }
@@ -1766,7 +1761,7 @@ void Editor::simplifyMarkup(Node* startNode, Node* endNode)
         pastEndNode = NodeTraversal::next(*endNode);
     }
     
-    SimplifyMarkupCommand::create(protectedDocument(), startNode, pastEndNode.get())->apply();
+    SimplifyMarkupCommand::create(protect(document()), startNode, pastEndNode.get())->apply();
 }
 
 void Editor::copyURL(const URL& url, const String& title)
@@ -1853,7 +1848,7 @@ void Editor::renderLayerDidScroll(const RenderLayer& layer)
     if (!startContainer)
         return;
 
-    auto* startContainerRenderer = startContainer->renderer();
+    CheckedPtr startContainerRenderer = startContainer->renderer();
     if (!startContainerRenderer)
         return;
 
@@ -2108,7 +2103,7 @@ void Editor::redo()
 void Editor::registerCustomUndoStep(Ref<CustomUndoStep>&& undoStep)
 {
     ASSERT(document().settings().undoManagerAPIEnabled());
-    if (auto* client = this->client())
+    if (CheckedPtr client = this->client())
         client->registerUndoStep(WTF::move(undoStep));
 }
 
@@ -2351,7 +2346,7 @@ String Editor::compositionText() const
     if (!m_compositionNode)
         return { };
 
-    return protectedCompositionNode()->data().substring(m_compositionStart, m_compositionEnd - m_compositionStart);
+    return protect(compositionNode())->data().substring(m_compositionStart, m_compositionEnd - m_compositionStart);
 }
 
 bool Editor::hasDeadKeyComposition() const
@@ -2381,7 +2376,7 @@ void Editor::confirmOrCancelCompositionAndNotifyClient()
 
     confirmComposition();
 
-    if (auto editorClient = client()) {
+    if (CheckedPtr editorClient = client()) {
         editorClient->respondToChangedSelection(frame.get());
         editorClient->discardedComposition(document);
     }
@@ -2429,7 +2424,7 @@ public:
     ~SetCompositionScope()
     {
         m_document->editor().setIgnoreSelectionChanges(false);
-        if (auto* editorClient = m_document->editor().client())
+        if (CheckedPtr editorClient = m_document->editor().client())
             editorClient->didUpdateComposition();
     }
 
@@ -2668,7 +2663,7 @@ void Editor::setComposition(const String& text, const Vector<CompositionUnderlin
                     range.location += baseOffset;
             }
 
-            if (auto renderer = baseTextNode->renderer())
+            if (CheckedPtr renderer = baseTextNode->renderer())
                 renderer->repaint();
 
             unsigned start = std::min(baseOffset + selectionStart, extentOffset);
@@ -3459,7 +3454,7 @@ void Editor::markAndReplaceFor(const SpellCheckRequest& request, const Vector<Te
             } else if (canEdit() && shouldInsertText(replacement, rangeToReplace, EditorInsertAction::Typed)) {
                 correctSpellcheckingPreservingTextCheckingParagraph(paragraph, rangeToReplace, replacement, { resultLocation, resultLength });
 
-                if (AXObjectCache* cache = document->existingAXObjectCache()) {
+                if (CheckedPtr cache = document->existingAXObjectCache()) {
                     if (RefPtr root = document->selection().selection().rootEditableElement())
                         cache->onAutocorrectionOccured(*root.get());
                 }
@@ -3894,7 +3889,7 @@ RefPtr<TextPlaceholderElement> Editor::insertTextPlaceholder(const IntSize& size
 #if ENABLE(WRITING_TOOLS)
     // For Writing Tools, we need the snapshot of the last inserted placeholder.
     if (auto placeholderRange = makeRangeSelectingNode(placeholder.get()))
-        protectedDocument()->page()->chrome().client().saveSnapshotOfTextPlaceholderForAnimation(*placeholderRange);
+        document->page()->chrome().client().saveSnapshotOfTextPlaceholderForAnimation(*placeholderRange);
 #endif
 
     return placeholder;
@@ -4656,7 +4651,7 @@ FontAttributes Editor::fontAttributesAtSelectionStart()
             nodeToRemove->remove();
     });
 
-    auto* style = styleForSelectionStart(nodeToRemove);
+    CheckedPtr style = styleForSelectionStart(nodeToRemove);
     if (!style)
         return { };
 
@@ -4756,7 +4751,7 @@ FontAttributes Editor::fontAttributesAtSelectionStart()
 
 PromisedAttachmentInfo Editor::promisedAttachmentInfo(Element& element)
 {
-    auto* client = this->client();
+    CheckedPtr client = this->client();
     if (!client || !client->supportsClientSideAttachmentData())
         return { };
 
@@ -4779,25 +4774,25 @@ PromisedAttachmentInfo Editor::promisedAttachmentInfo(Element& element)
 
 void Editor::registerAttachmentIdentifier(const String& identifier, const String& contentType, const String& preferredFileName, Ref<FragmentedSharedBuffer>&& data)
 {
-    if (auto* client = this->client())
+    if (CheckedPtr client = this->client())
         client->registerAttachmentIdentifier(identifier, contentType, preferredFileName, WTF::move(data));
 }
 
 void Editor::registerAttachmentIdentifier(const String& identifier, const String& contentType, const String& filePath)
 {
-    if (auto* client = this->client())
+    if (CheckedPtr client = this->client())
         client->registerAttachmentIdentifier(identifier, contentType, filePath);
 }
 
 void Editor::registerAttachments(Vector<SerializedAttachmentData>&& data)
 {
-    if (auto* client = this->client())
+    if (CheckedPtr client = this->client())
         client->registerAttachments(WTF::move(data));
 }
 
 void Editor::registerAttachmentIdentifier(const String& identifier, const AttachmentAssociatedElement& element)
 {
-    auto* client = this->client();
+    CheckedPtr client = this->client();
     if (!client)
         return;
 
@@ -4844,7 +4839,7 @@ void Editor::registerAttachmentIdentifier(const String& identifier, const Attach
 
 void Editor::cloneAttachmentData(const String& fromIdentifier, const String& toIdentifier)
 {
-    if (auto* client = this->client())
+    if (CheckedPtr client = this->client())
         client->cloneAttachmentData(fromIdentifier, toIdentifier);
 }
 
@@ -5000,7 +4995,7 @@ RefPtr<Font> Editor::fontForSelection(bool& hasMultipleFonts)
         RefPtr<Node> nodeToRemove;
         RefPtr<Font> font;
         {
-            auto* style = styleForSelectionStart(nodeToRemove);
+            CheckedPtr style = styleForSelectionStart(nodeToRemove);
             if (!style)
                 return nullptr;
             ScriptDisallowedScope::InMainThread scriptDisallowedScope;
@@ -5027,7 +5022,7 @@ RefPtr<Font> Editor::fontForSelection(bool& hasMultipleFonts)
 
     RefPtr<Font> font;
     for (Ref node : intersectingNodes(*range)) {
-        auto renderer = node->renderer();
+        CheckedPtr renderer = node->renderer();
         if (!renderer)
             continue;
         Ref primaryFont = renderer->style().fontCascade().primaryFont();

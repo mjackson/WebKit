@@ -147,7 +147,7 @@ WebAutomationSessionProxy::~WebAutomationSessionProxy()
 #endif
 }
 
-static bool isValidNodeHandle(const String& nodeHandle)
+static bool NODELETE isValidNodeHandle(const String& nodeHandle)
 {
     // Node identifier has the following format:
     // node-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
@@ -1032,7 +1032,7 @@ void WebAutomationSessionProxy::takeScreenshot(WebCore::PageIdentifier pageID, s
         RefPtr localMainFrame = dynamicDowncast<LocalFrame>(frame->coreFrame()->mainFrame());
         if (!localMainFrame)
             return;
-        auto snapshotRect = WebCore::IntRect(localMainFrame->protectedView()->clientToDocumentRect(rect));
+        auto snapshotRect = WebCore::IntRect(protect(localMainFrame->view())->clientToDocumentRect(rect));
         RefPtr<WebImage> image = page->scaledSnapshotWithOptions(snapshotRect, 1, SnapshotOption::Shareable);
         if (!image)
             return completionHandler(std::nullopt, Inspector::Protocol::AutomationHelpers::getEnumConstantValue(Inspector::Protocol::Automation::ErrorMessage::ScreenshotError));
@@ -1090,7 +1090,7 @@ void WebAutomationSessionProxy::snapshotRectForScreenshot(WebCore::PageIdentifie
         return;
     }
 
-    completionHandler(std::nullopt, WebCore::IntRect(localMainFrame->protectedView()->documentToClientRect(snapshotRect)));
+    completionHandler(std::nullopt, WebCore::IntRect(protect(localMainFrame->view())->documentToClientRect(snapshotRect)));
 }
 
 void WebAutomationSessionProxy::getCookiesForFrame(WebCore::PageIdentifier pageID, std::optional<WebCore::FrameIdentifier> frameID, CompletionHandler<void(std::optional<String>, Vector<WebCore::Cookie>)>&& completionHandler)

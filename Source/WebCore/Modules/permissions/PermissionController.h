@@ -45,7 +45,7 @@ struct ClientOrigin;
 class PermissionController : public ThreadSafeRefCounted<PermissionController> {
 public:
     WEBCORE_EXPORT static PermissionController& singleton();
-    WEBCORE_EXPORT static void setSharedController(Ref<PermissionController>&&);
+    WEBCORE_EXPORT static void NODELETE setSharedController(Ref<PermissionController>&&);
     
     virtual ~PermissionController() = default;
     virtual void query(ClientOrigin&&, PermissionDescriptor, const WeakPtr<Page>&, PermissionQuerySource, CompletionHandler<void(std::optional<PermissionState>)>&&) = 0;

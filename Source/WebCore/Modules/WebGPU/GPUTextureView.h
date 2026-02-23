@@ -40,7 +40,7 @@ public:
         return adoptRef(*new GPUTextureView(WTF::move(backing)));
     }
 
-    String label() const;
+    String NODELETE label() const;
     void setLabel(String&&);
 
     WebGPU::TextureView& backing() { return m_backing; }

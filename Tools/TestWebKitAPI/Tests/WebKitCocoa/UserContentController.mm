@@ -35,6 +35,7 @@
 #import "UIKitSPIForTesting.h"
 #import "WKWebViewConfigurationExtras.h"
 #import <WebKit/WKContentWorld.h>
+#import <WebKit/WKContentWorldConfiguration.h>
 #import <WebKit/WKContentWorldPrivate.h>
 #import <WebKit/WKProcessPoolPrivate.h>
 #import <WebKit/WKScriptMessage.h>
@@ -1246,8 +1247,8 @@ TEST(WKUserContentController, AllowAutofill)
     receivedScriptMessage = false;
 
     RetainPtr contentWorldConfiguration = adoptNS([[_WKContentWorldConfiguration alloc] init]);
-    [contentWorldConfiguration setName:@"TestWorldAllowingAutofill"];
-    [contentWorldConfiguration setAllowAutofill:YES];
+    [contentWorldConfiguration setName:@"TestWorldAllowingAutofill1"];
+    [contentWorldConfiguration setAutofillScriptingEnabled:YES];
 
     RetainPtr world = [WKContentWorld _worldWithConfiguration:contentWorldConfiguration.get()];
     RetainPtr handler = adoptNS([[ScriptMessageHandler alloc] init]);
@@ -1289,9 +1290,9 @@ TEST(WKUserContentController, AllowAutofill)
 TEST(WKUserContentController, DidAssociateFormControls)
 {
     RetainPtr webView = adoptNS([TestWKWebView new]);
-    RetainPtr configuration = adoptNS([_WKContentWorldConfiguration new]);
-    configuration.get().allowAutofill = YES;
-    RetainPtr autofillWorld = [WKContentWorld _worldWithConfiguration:configuration.get()];
+    RetainPtr configuration = adoptNS([WKContentWorldConfiguration new]);
+    configuration.get().autofillScriptingEnabled = YES;
+    RetainPtr autofillWorld = [WKContentWorld worldWithConfiguration:configuration.get()];
     NSString *pageWorldJS = @"window.addEventListener('webkitassociateformcontrols', () => alert('fail') )";
     NSString *autofillWorldJS = @"window.addEventListener('webkitassociateformcontrols', (e) => { setTimeout(() => alert('pass ' + e.target), 50)})";
     RetainPtr pageWorldScript = adoptNS([[WKUserScript alloc] initWithSource:pageWorldJS injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]);
@@ -1313,9 +1314,9 @@ TEST(WKUserContentController, DidAssociateFormControlsFromShadowTree)
 #endif
 {
     RetainPtr webView = adoptNS([TestWKWebView new]);
-    RetainPtr configuration = adoptNS([_WKContentWorldConfiguration new]);
-    configuration.get().allowAutofill = YES;
-    RetainPtr autofillWorld = [WKContentWorld _worldWithConfiguration:configuration.get()];
+    RetainPtr configuration = adoptNS([WKContentWorldConfiguration new]);
+    configuration.get().autofillScriptingEnabled = YES;
+    RetainPtr autofillWorld = [WKContentWorld worldWithConfiguration:configuration.get()];
     NSString *pageWorldJS = @"window.addEventListener('webkitassociateformcontrols', () => alert('fail') )";
     NSString *autofillWorldJS = @"window.addEventListener('webkitassociateformcontrols', (e) => { let composedTarget = e.composedPath()[0]; setTimeout(() => alert('pass ' + composedTarget), 50)})";
     RetainPtr pageWorldScript = adoptNS([[WKUserScript alloc] initWithSource:pageWorldJS injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]);
@@ -1348,9 +1349,9 @@ TEST(WKUserContentController, DidAssociateFormControlsFromShadowTree)
 TEST(WKUserContentController, BeforeFocusEvent)
 {
     RetainPtr webView = adoptNS([TestWKWebView new]);
-    RetainPtr configuration = adoptNS([_WKContentWorldConfiguration new]);
-    configuration.get().allowAutofill = YES;
-    RetainPtr autofillWorld = [WKContentWorld _worldWithConfiguration:configuration.get()];
+    RetainPtr configuration = adoptNS([WKContentWorldConfiguration new]);
+    configuration.get().autofillScriptingEnabled = YES;
+    RetainPtr autofillWorld = [WKContentWorld worldWithConfiguration:configuration.get()];
     NSString *pageWorldJS = @"window.addEventListener('webkitbeforefocus', () => alert('focus-fail') )";
     NSString *autofillWorldJS = @"window.addEventListener('webkitbeforefocus', () => { setTimeout(() => alert('focus-pass'), 50); })";
     RetainPtr pageWorldScript = adoptNS([[WKUserScript alloc] initWithSource:pageWorldJS injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]);
@@ -1377,9 +1378,9 @@ TEST(WKUserContentController, BeforeFocusEvent)
 TEST(WKUserContentController, BeforeBlurEvent)
 {
     RetainPtr webView = adoptNS([TestWKWebView new]);
-    RetainPtr configuration = adoptNS([_WKContentWorldConfiguration new]);
-    configuration.get().allowAutofill = YES;
-    RetainPtr autofillWorld = [WKContentWorld _worldWithConfiguration:configuration.get()];
+    RetainPtr configuration = adoptNS([WKContentWorldConfiguration new]);
+    configuration.get().autofillScriptingEnabled = YES;
+    RetainPtr autofillWorld = [WKContentWorld worldWithConfiguration:configuration.get()];
     NSString *pageWorldJS = @"window.addEventListener('webkitbeforeblur', () => alert('blur-fail') )";
     NSString *autofillWorldJS = @"window.addEventListener('webkitbeforeblur', () => { setTimeout(() => alert('blur-pass'), 50); })";
     RetainPtr pageWorldScript = adoptNS([[WKUserScript alloc] initWithSource:pageWorldJS injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]);
@@ -1400,23 +1401,6 @@ TEST(WKUserContentController, BeforeBlurEvent)
     EXPECT_WK_STREQ([webView _test_waitForAlert], "blur-pass");
 }
 
-TEST(WKUserContentController, ShadowRootAttachedEvent)
-{
-    RetainPtr webView = adoptNS([TestWKWebView new]);
-    RetainPtr configuration = adoptNS([_WKContentWorldConfiguration new]);
-    configuration.get().allowAccessToClosedShadowRoots = YES;
-    RetainPtr shadowRootWorld = [WKContentWorld _worldWithConfiguration:configuration.get()];
-    NSString *pageWorldJS = @"window.addEventListener('webkitshadowrootattached', () => alert('fail') ); onload = () => { setTimeout(() => alert('fail'), 100); }";
-    NSString *shadowRootWorldJS = @"window.addEventListener('webkitshadowrootattached', (e) => { setTimeout(() => alert('pass ' + e.target.localName), 50)})";
-    RetainPtr pageWorldScript = adoptNS([[WKUserScript alloc] initWithSource:pageWorldJS injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]);
-    RetainPtr shadowRootScript = adoptNS([[WKUserScript alloc] initWithSource:shadowRootWorldJS injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES inContentWorld:shadowRootWorld.get()]);
-    RetainPtr<WKUserContentController> userContentController = [webView configuration].userContentController;
-    [userContentController addUserScript:pageWorldScript.get()];
-    [userContentController addUserScript:shadowRootScript.get()];
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"closed-shadow-tree-test" withExtension:@"html"]]];
-    EXPECT_WK_STREQ([webView _test_waitForAlert], "pass shadow-host");
-}
-
 #if WK_HAVE_C_SPI
 
 TEST(WKUserContentController, DisableAutofillSpellcheck)
@@ -1426,7 +1410,7 @@ TEST(WKUserContentController, DisableAutofillSpellcheck)
     receivedScriptMessage = false;
 
     RetainPtr contentWorldConfiguration = adoptNS([[_WKContentWorldConfiguration alloc] init]);
-    [contentWorldConfiguration setName:@"TestWorldAllowingAutofill"];
+    [contentWorldConfiguration setName:@"TestWorldAllowingAutofill2"];
     [contentWorldConfiguration setAllowAutofill:YES];
 
     RetainPtr world = [WKContentWorld _worldWithConfiguration:contentWorldConfiguration.get()];
@@ -1495,7 +1479,7 @@ TEST(WKUserContentController, AllowElementUserInfo)
     receivedScriptMessage = false;
 
     RetainPtr contentWorldConfiguration = adoptNS([[_WKContentWorldConfiguration alloc] init]);
-    [contentWorldConfiguration setName:@"TestWorldAllowingAutofill"];
+    [contentWorldConfiguration setName:@"TestWorldAllowingAutofill3"];
     [contentWorldConfiguration setAllowElementUserInfo:YES];
     [contentWorldConfiguration setAllowAutofill:YES];
 
@@ -1544,7 +1528,7 @@ TEST(WKUserContentController, AllowElementUserInfoFromShadowTree)
     receivedScriptMessage = false;
 
     RetainPtr contentWorldConfiguration = adoptNS([[_WKContentWorldConfiguration alloc] init]);
-    [contentWorldConfiguration setName:@"TestWorldAllowingAutofill"];
+    [contentWorldConfiguration setName:@"TestWorldAllowingAutofill4"];
     [contentWorldConfiguration setAllowElementUserInfo:YES];
     [contentWorldConfiguration setAllowAutofill:YES];
 
@@ -1603,7 +1587,7 @@ TEST(WKUserContentController, LastChangeWasUserEdit)
     receivedScriptMessage = false;
 
     RetainPtr contentWorldConfiguration = adoptNS([[_WKContentWorldConfiguration alloc] init]);
-    [contentWorldConfiguration setName:@"TestWorldAllowingAutofill"];
+    [contentWorldConfiguration setName:@"TestWorldAllowingAutofill5"];
     [contentWorldConfiguration setAllowAutofill:YES];
 
     RetainPtr world = [WKContentWorld _worldWithConfiguration:contentWorldConfiguration.get()];
@@ -1860,8 +1844,8 @@ TEST(WKUserContentController, FormSubmissionWithUserInfo)
 
 TEST(WKUserContentController, AutoFillWorldTrustedEventHandler)
 {
-    RetainPtr contentWorldConfiguration = adoptNS([[_WKContentWorldConfiguration alloc] init]);
-    [contentWorldConfiguration setAllowAutofill:YES];
+    RetainPtr contentWorldConfiguration = adoptNS([[WKContentWorldConfiguration alloc] init]);
+    [contentWorldConfiguration setAutofillScriptingEnabled:YES];
 
     __block int autoFillWorldEventCount = 0;
     __block int pageWorldEventCount = 0;
@@ -1869,7 +1853,7 @@ TEST(WKUserContentController, AutoFillWorldTrustedEventHandler)
 
     RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 
-    RetainPtr world = [WKContentWorld _worldWithConfiguration:contentWorldConfiguration.get()];
+    RetainPtr world = [WKContentWorld worldWithConfiguration:contentWorldConfiguration.get()];
     RetainPtr autoFillHandler = adoptNS([[TestMessageHandler alloc] init]);
     [autoFillHandler addMessage:@"event" withHandler:^{
         autoFillWorldEventCount++;
@@ -1910,9 +1894,9 @@ TEST(WKUserContentController, AutoFillWorldTrustedEventHandler)
 TEST(WKUserContentController, WebKitSubmitEvent)
 {
     RetainPtr webView = adoptNS([TestWKWebView new]);
-    RetainPtr configuration = adoptNS([_WKContentWorldConfiguration new]);
-    configuration.get().allowAutofill = YES;
-    RetainPtr autofillWorld = [WKContentWorld _worldWithConfiguration:configuration.get()];
+    RetainPtr configuration = adoptNS([WKContentWorldConfiguration new]);
+    configuration.get().autofillScriptingEnabled = YES;
+    RetainPtr autofillWorld = [WKContentWorld worldWithConfiguration:configuration.get()];
     NSString *pageWorldJS = @"window.addEventListener('webkitsubmit', () => alert('fail') )";
     NSString *autofillWorldJS = @"window.addEventListener('webkitsubmit', (e) => { let composedTargetID = e.composedPath()[0].id; setTimeout(() => alert('pass ' + composedTargetID), 50)})";
     RetainPtr pageWorldScript = adoptNS([[WKUserScript alloc] initWithSource:pageWorldJS injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]);
@@ -1940,9 +1924,9 @@ TEST(WKUserContentController, WebKitSubmitEvent)
 TEST(WKUserContentController, EvaluateLargeJavaScriptStringInAutoFillWorld)
 {
     RetainPtr webView = adoptNS([TestWKWebView new]);
-    RetainPtr configuration = adoptNS([_WKContentWorldConfiguration new]);
-    configuration.get().allowAutofill = YES;
-    RetainPtr autofillWorld = [WKContentWorld _worldWithConfiguration:configuration.get()];
+    RetainPtr configuration = adoptNS([WKContentWorldConfiguration new]);
+    configuration.get().autofillScriptingEnabled = YES;
+    RetainPtr autofillWorld = [WKContentWorld worldWithConfiguration:configuration.get()];
 
     [webView synchronouslyLoadHTMLString:@"<p>Hello<p>World"];
 

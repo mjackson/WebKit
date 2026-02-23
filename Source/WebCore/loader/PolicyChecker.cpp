@@ -32,6 +32,8 @@
 #include "PolicyChecker.h"
 
 #include "BlobRegistry.h"
+#include "Chrome.h"
+#include "ChromeClient.h"
 #include "ContentFilter.h"
 #include "ContentSecurityPolicy.h"
 #include "DocumentEventLoop.h"
@@ -181,6 +183,11 @@ void PolicyChecker::checkNavigationPolicy(ResourceRequest&& request, const Resou
         POLICYCHECKER_RELEASE_LOG("checkNavigationPolicy: ignoring because disallowed by content security policy");
         function(WTF::move(request), { }, NavigationPolicyDecision::IgnoreLoad);
         return;
+    }
+
+    if (RefPtr page = frame->page()) {
+        auto [filteredURL, didFilter] = page->chrome().client().applyLinkDecorationFilteringWithResult(request.url(), LinkDecorationFilteringTrigger::Navigation);
+        request.setURL(WTF::move(filteredURL), didFilter == DidFilterLinkDecoration::Yes);
     }
 
     loader->setLastCheckedRequest(ResourceRequest(request));

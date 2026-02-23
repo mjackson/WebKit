@@ -175,19 +175,12 @@ RefPtr<WebCore::NativeImage> RemoteQueueProxy::getNativeImage(WebCore::VideoFram
 {
     RefPtr<WebCore::NativeImage> nativeImage;
 #if ENABLE(VIDEO) && PLATFORM(COCOA) && ENABLE(WEB_CODECS)
-    callOnMainRunLoopAndWait([&nativeImage, videoFrame = Ref { videoFrame }, videoFrameHeap = protectedVideoFrameObjectHeapProxy()] {
+    callOnMainRunLoopAndWait([&nativeImage, videoFrame = Ref { videoFrame }, videoFrameHeap = protect(m_videoFrameObjectHeapProxy)] {
         nativeImage = videoFrameHeap->getNativeImage(videoFrame);
     });
 #endif
     return nativeImage;
 }
-
-#if ENABLE(VIDEO)
-RefPtr<RemoteVideoFrameObjectHeapProxy> RemoteQueueProxy::protectedVideoFrameObjectHeapProxy() const
-{
-    return m_videoFrameObjectHeapProxy;
-}
-#endif
 
 
 } // namespace WebKit::WebGPU

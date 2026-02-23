@@ -118,6 +118,9 @@ WebCore::WritingTools::TextSuggestion::State convertToWebTextSuggestionState(WTT
         return WebCore::WritingTools::TextSuggestion::State::Rejected;
     case WTTextSuggestionStateInvalid:
         return WebCore::WritingTools::TextSuggestion::State::Invalid;
+    default:
+        ASSERT_NOT_REACHED();
+        return WebCore::WritingTools::TextSuggestion::State::Invalid;
     }
 }
 

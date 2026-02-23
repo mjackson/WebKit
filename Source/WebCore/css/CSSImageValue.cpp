@@ -50,6 +50,14 @@ CSSImageValue::CSSImageValue(CSS::URL&& location, AtomString&& initiatorType)
 {
 }
 
+CSSImageValue::CSSImageValue(CachedImage& cachedImage)
+    : CSSValue(ClassType::Image)
+    , m_location(CSS::URL { .specified = cachedImage.url().string(), .resolved = cachedImage.url(), .modifiers = { } })
+    , m_initiatorType(cachedImage.initiatorType())
+    , m_cachedImage(cachedImage)
+{
+}
+
 Ref<CSSImageValue> CSSImageValue::create()
 {
     return adoptRef(*new CSSImageValue);
@@ -63,6 +71,11 @@ Ref<CSSImageValue> CSSImageValue::create(CSS::URL location, AtomString initiator
 Ref<CSSImageValue> CSSImageValue::create(WTF::URL imageURL, AtomString initiatorType)
 {
     return create(CSS::URL { .specified = imageURL.string(), .resolved = WTF::move(imageURL), .modifiers = { } }, WTF::move(initiatorType));
+}
+
+Ref<CSSImageValue> CSSImageValue::create(CachedImage& cachedImage)
+{
+    return adoptRef(*new CSSImageValue(cachedImage));
 }
 
 CSSImageValue::~CSSImageValue() = default;
@@ -89,11 +102,11 @@ bool CSSImageValue::isPending() const
     return !m_cachedImage;
 }
 
-RefPtr<StyleImage> CSSImageValue::createStyleImage(const Style::BuilderState& state) const
+RefPtr<Style::Image> CSSImageValue::createStyleImage(const Style::BuilderState& state) const
 {
     auto styleLocation = Style::toStyle(m_location, state);
     if (styleLocation.resolved == m_location.resolved)
-        return StyleCachedImage::create(WTF::move(styleLocation), const_cast<CSSImageValue&>(*this));
+        return Style::CachedImage::create(WTF::move(styleLocation), const_cast<CSSImageValue&>(*this));
 
     // FIXME: This case can only happen when a element from a document with no baseURL has an inline style with a relative image URL in it and has been moved to a document with a non-null baseURL. Instead of re-resolving in this case, moved elements with this kind of inline style should have their inline style re-parsed.
 
@@ -103,7 +116,7 @@ RefPtr<StyleImage> CSSImageValue::createStyleImage(const Style::BuilderState& st
     result->m_cachedImage = m_cachedImage;
     result->m_initiatorType = m_initiatorType;
     result->m_unresolvedValue = const_cast<CSSImageValue*>(this);
-    return StyleCachedImage::create(WTF::move(styleLocation), WTF::move(result));
+    return Style::CachedImage::create(WTF::move(styleLocation), WTF::move(result));
 }
 
 CachedImage* CSSImageValue::loadImage(CachedResourceLoader& loader, const ResourceLoaderOptions& options)

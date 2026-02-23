@@ -39,19 +39,14 @@ inline Document* LocalFrame::document() const
     return m_doc.get();
 }
 
-inline RefPtr<Document> LocalFrame::protectedDocument() const
-{
-    return document();
-}
-
 inline Editor& LocalFrame::editor()
 {
-    return protectedDocument()->editor();
+    return protect(document())->editor();
 }
 
 inline const Editor& LocalFrame::editor() const
 {
-    return protectedDocument()->editor();
+    return protect(document())->editor();
 }
 
 inline FrameSelection& LocalFrame::selection()

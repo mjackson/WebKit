@@ -82,15 +82,15 @@ Ref<FontFace> FontFace::create(ScriptExecutionContext& context, const String& fa
             CSSFontFace::appendSources(result->backing(), *value, &context, false);
             return { };
         },
-        [&, fontTrustedTypes](RefPtr<ArrayBufferView>& arrayBufferView) -> ExceptionOr<void> {
-            if (!arrayBufferView || fontBinaryParsingPolicy(arrayBufferView->span(), fontTrustedTypes) == FontParsingPolicy::Deny)
+        [&, fontTrustedTypes](Ref<ArrayBufferView>& arrayBufferView) -> ExceptionOr<void> {
+            if (fontBinaryParsingPolicy(arrayBufferView->span(), fontTrustedTypes) == FontParsingPolicy::Deny)
                 return { };
 
-            dataRequiresAsynchronousLoading = populateFontFaceWithArrayBuffer(result->backing(), arrayBufferView.releaseNonNull());
+            dataRequiresAsynchronousLoading = populateFontFaceWithArrayBuffer(result->backing(), WTF::move(arrayBufferView));
             return { };
         },
-        [&, fontTrustedTypes](RefPtr<ArrayBuffer>& arrayBuffer) -> ExceptionOr<void> {
-            if (!arrayBuffer || fontBinaryParsingPolicy(arrayBuffer->span(), fontTrustedTypes) == FontParsingPolicy::Deny)
+        [&, fontTrustedTypes](Ref<ArrayBuffer>& arrayBuffer) -> ExceptionOr<void> {
+            if (fontBinaryParsingPolicy(arrayBuffer->span(), fontTrustedTypes) == FontParsingPolicy::Deny)
                 return { };
 
             unsigned byteLength = arrayBuffer->byteLength();

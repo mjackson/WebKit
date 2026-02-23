@@ -65,8 +65,6 @@ struct OpenXRCoordinator::RenderState {
     XrFrameState frameState;
     bool passthroughFullyObscured { false };
 #if ENABLE(WEBXR_HIT_TEST)
-    PlatformXR::HitTestSource nextHitTestSource { 1 };
-    PlatformXR::TransientInputHitTestSource nextTransientInputHitTestSource { 1 };
     HashMap<PlatformXR::HitTestSource, UniqueRef<PlatformXR::HitTestOptions>> hitTestSources;
     HashMap<PlatformXR::TransientInputHitTestSource, UniqueRef<PlatformXR::TransientInputHitTestOptions>> transientInputHitTestSources;
     std::unique_ptr<OpenXRHitTestManager> hitTestManager;
@@ -350,7 +348,7 @@ void OpenXRCoordinator::scheduleAnimationFrame(WebPageProxy& page, std::optional
             }
 
             active.renderQueue->dispatch([this, renderState = active.renderState, requestData = WTF::move(requestData), onFrameUpdateCallback = WTF::move(onFrameUpdateCallback)]() mutable {
-                renderState->passthroughFullyObscured = requestData ? requestData->isPassthroughFullyObscured : false;
+                renderState->passthroughFullyObscured = requestData && requestData->isPassthroughFullyObscured;
                 renderState->onFrameUpdate = WTF::move(onFrameUpdateCallback);
                 renderLoop(renderState);
             });
@@ -411,12 +409,12 @@ void OpenXRCoordinator::requestHitTestSource(WebPageProxy& page, const PlatformX
                     });
                     return;
                 }
-                auto addResult = renderState->hitTestSources.add(renderState->nextHitTestSource, WTF::move(options));
+                auto sourceId = PlatformXR::HitTestSource::generate();
+                auto addResult = renderState->hitTestSources.add(sourceId, WTF::move(options));
                 ASSERT_UNUSED(addResult.isNewEntry, addResult);
-                callOnMainRunLoop([source = renderState->nextHitTestSource, completionHandler = WTF::move(completionHandler)] mutable {
-                    completionHandler(source);
+                callOnMainRunLoop([sourceId = WTF::move(sourceId), completionHandler = WTF::move(completionHandler)] mutable {
+                    completionHandler(WTF::move(sourceId));
                 });
-                renderState->nextHitTestSource++;
             });
         });
 }
@@ -474,12 +472,12 @@ void OpenXRCoordinator::requestTransientInputHitTestSource(WebPageProxy& page, c
                     });
                     return;
                 }
-                auto addResult = renderState->transientInputHitTestSources.add(renderState->nextTransientInputHitTestSource, WTF::move(options));
+                auto sourceId = PlatformXR::TransientInputHitTestSource::generate();
+                auto addResult = renderState->transientInputHitTestSources.add(sourceId, WTF::move(options));
                 ASSERT_UNUSED(addResult.isNewEntry, addResult);
-                callOnMainRunLoop([source = renderState->nextTransientInputHitTestSource, completionHandler = WTF::move(completionHandler)] mutable {
-                    completionHandler(source);
+                callOnMainRunLoop([sourceId = WTF::move(sourceId), completionHandler = WTF::move(completionHandler)] mutable {
+                    completionHandler(WTF::move(sourceId));
                 });
-                renderState->nextTransientInputHitTestSource++;
             });
         });
 }

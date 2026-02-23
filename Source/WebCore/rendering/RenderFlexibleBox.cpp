@@ -358,7 +358,7 @@ std::optional <LayoutUnit> RenderFlexibleBox::lastLineBaseline() const
     return (settings().subpixelInlineLayoutEnabled() ? LayoutUnit(baselineFlexItem->logicalTop()) : LayoutUnit(baselineFlexItem->logicalTop().toInt())) + *baseline;
 }
 
-static const StyleContentAlignmentData& contentAlignmentNormalBehavior()
+static const StyleContentAlignmentData& NODELETE contentAlignmentNormalBehavior()
 {
     // The justify-content property applies along the main axis, but since
     // flexing in the main axis is controlled by flex, stretch behaves as
@@ -470,20 +470,18 @@ void RenderFlexibleBox::layoutBlock(RelayoutChildren relayoutChildren, LayoutUni
             endAndCommitUpdateScrollInfoAfterLayoutTransaction();
         }
 
-        if (logicalHeight() != previousHeight)
-            relayoutChildren = RelayoutChildren::Yes;
+        repaintFlexItemsDuringLayoutIfMoved(oldFlexItemRects);
+        // FIXME: css3/flexbox/repaint-rtl-column.html seems to repaint more overflow than it needs to.
+        updateInFlowDescendantTransformsAfterLayout();
+        computeInFlowOverflow(flippedContentBoxRect(),  { ComputeOverflowOptions::MarginsExtendContentAreaX, ComputeOverflowOptions::MarginsExtendContentAreaY });
+        // FIXME: Only the items at the edges should contribute to the content area. But this distinction only matters in some weird cases with extreme negative margins.
 
-        if (isDocumentElementRenderer())
+        if (isDocumentElementRenderer() || logicalHeight() != previousHeight)
             layoutOutOfFlowBoxes(RelayoutChildren::Yes);
         else
             layoutOutOfFlowBoxes(relayoutChildren);
-
-        repaintFlexItemsDuringLayoutIfMoved(oldFlexItemRects);
-        // FIXME: css3/flexbox/repaint-rtl-column.html seems to repaint more overflow than it needs to.
-        computeOverflow(flippedContentBoxRect(), { ComputeOverflowOptions::MarginsExtendContentAreaX, ComputeOverflowOptions::MarginsExtendContentAreaY });
-        // FIXME: Only the items at the edges should contribute to the content area. But this distinction only matters in some weird cases with extreme negative margins.
-
-        updateDescendantTransformsAfterLayout();
+        updateOutOfFlowDescendantTransformsAfterLayout();
+        addOverflowFromOutOfFlowBoxes();
     }
 
     updateLayerTransform();
@@ -561,17 +559,17 @@ bool RenderFlexibleBox::isColumnFlow() const
     return style().isColumnFlexDirection();
 }
 
-bool RenderFlexibleBox::isColumnOrRowReverse() const
+bool NODELETE RenderFlexibleBox::isColumnOrRowReverse() const
 {
     return style().flexDirection() == FlexDirection::ColumnReverse || style().flexDirection() == FlexDirection::RowReverse;
 }
 
-bool RenderFlexibleBox::isWrapReverse() const
+bool NODELETE RenderFlexibleBox::isWrapReverse() const
 {
     return style().flexWrap() == FlexWrap::Reverse;
 }
 
-bool RenderFlexibleBox::isHorizontalFlow() const
+bool NODELETE RenderFlexibleBox::isHorizontalFlow() const
 {
     if (isHorizontalWritingMode())
         return !isColumnFlow();
@@ -585,7 +583,7 @@ bool RenderFlexibleBox::isLeftToRightFlow() const
     return writingMode().isLogicalLeftInlineStart() ^ (style().flexDirection() == FlexDirection::RowReverse);
 }
 
-RenderFlexibleBox::Direction RenderFlexibleBox::crossAxisDirection() const
+RenderFlexibleBox::Direction NODELETE RenderFlexibleBox::crossAxisDirection() const
 {
     auto crossAxisDirection = style().isRowFlexDirection() ? writingMode().blockDirection() : writingMode().inlineDirection();
     switch (crossAxisDirection) {
@@ -646,8 +644,8 @@ LayoutUnit RenderFlexibleBox::cachedFlexItemIntrinsicContentLogicalHeight(const 
     if (auto* renderReplaced = dynamicDowncast<RenderReplaced>(flexItem))
         return renderReplaced->intrinsicLogicalHeight();
     
-    if (m_intrinsicContentLogicalHeights.contains(flexItem))
-        return m_intrinsicContentLogicalHeights.get(flexItem);
+    if (auto it = m_intrinsicContentLogicalHeights.find(flexItem); it != m_intrinsicContentLogicalHeights.end())
+        return it->value;
     
     return flexItem.contentBoxLogicalHeight();
 }
@@ -750,7 +748,9 @@ static bool isSVGRootWithIntrinsicAspectRatio(const RenderBox& flexItem)
 
 static bool flexItemHasAspectRatio(const RenderBox& flexItem)
 {
-    return flexItem.hasIntrinsicAspectRatio() || flexItem.style().hasAspectRatio() || isSVGRootWithIntrinsicAspectRatio(flexItem);
+    return flexItem.hasIntrinsicAspectRatio()
+        || flexItem.style().aspectRatio().hasRatio()
+        || isSVGRootWithIntrinsicAspectRatio(flexItem);
 }
 
 template<typename SizeType> std::optional<LayoutUnit> RenderFlexibleBox::computeMainAxisExtentForFlexItem(RenderBox& flexItem, const SizeType& size)
@@ -1243,7 +1243,9 @@ bool RenderFlexibleBox::flexItemHasComputableAspectRatio(const RenderBox& flexIt
 {
     if (!flexItemHasAspectRatio(flexItem))
         return false;
-    return flexItem.intrinsicSize().height() || flexItem.style().hasAspectRatio() || isSVGRootWithIntrinsicAspectRatio(flexItem);
+    return flexItem.intrinsicSize().height()
+        || flexItem.style().aspectRatio().hasRatio()
+        || isSVGRootWithIntrinsicAspectRatio(flexItem);
 }
 
 bool RenderFlexibleBox::flexItemHasComputableAspectRatioAndCrossSizeIsConsideredDefinite(const RenderBox& flexItem)
@@ -2044,7 +2046,7 @@ static LayoutUnit justifyContentSpaceBetweenFlexItems(LayoutUnit availableFreeSp
     return 0;
 }
 
-static LayoutUnit alignmentOffset(LayoutUnit availableFreeSpace, ItemPosition position, std::optional<LayoutUnit> ascent, std::optional<LayoutUnit> maxAscent, bool isWrapReverse)
+static LayoutUnit NODELETE alignmentOffset(LayoutUnit availableFreeSpace, ItemPosition position, std::optional<LayoutUnit> ascent, std::optional<LayoutUnit> maxAscent, bool isWrapReverse)
 {
     switch (position) {
     case ItemPosition::Legacy:

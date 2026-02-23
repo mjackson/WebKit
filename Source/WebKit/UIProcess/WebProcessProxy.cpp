@@ -768,7 +768,7 @@ WebPageProxy* WebProcessProxy::webPage(PageIdentifier pageID)
 WebPageProxy* WebProcessProxy::audioCapturingWebPage()
 {
     for (WeakRef page : globalPageMap().values()) {
-        if (protect(page.get())->hasActiveAudioStream())
+        if (protect(page)->hasActiveAudioStream())
             return page.ptr();
     }
     return nullptr;
@@ -1827,7 +1827,7 @@ RefPtr<API::Object> WebProcessProxy::transformHandlesToObjects(API::Object* obje
             }
         }
 
-        WebProcessProxy& process() const { return m_webProcessProxy; }
+        WebProcessProxy& NODELETE process() const { return m_webProcessProxy; }
 
         WeakRef<WebProcessProxy> m_webProcessProxy;
     };
@@ -1978,17 +1978,6 @@ void WebProcessProxy::prepareToDropLastAssertion(CompletionHandler<void()>&& com
 #else
     completionHandler();
 #endif
-}
-
-String WebProcessProxy::environmentIdentifier() const
-{
-    if (m_environmentIdentifier.isEmpty()) {
-        StringBuilder builder;
-        builder.append(clientName());
-        builder.append(processID());
-        m_environmentIdentifier = builder.toString();
-    }
-    return m_environmentIdentifier;
 }
 
 void WebProcessProxy::updateAudibleMediaAssertions()
@@ -3152,7 +3141,7 @@ void WebProcessProxy::setResourceMonitorRuleLists(RefPtr<WebCompiledContentRuleL
 std::optional<SandboxExtension::Handle> WebProcessProxy::sandboxExtensionForFile(const String& fileName) const
 {
     auto handle = m_fileSandboxExtensions.getOptional(fileName);
-    WEBPROCESSPROXY_RELEASE_LOG(Sandbox, "sandboxExtensionForFile: %" PRIVATE_LOG_STRING ", has cached extension: %d", fileName.utf8().data(), handle ? true : false);
+    WEBPROCESSPROXY_RELEASE_LOG(Sandbox, "sandboxExtensionForFile: %" PRIVATE_LOG_STRING ", has cached extension: %d", fileName.utf8().data(), !!handle);
     return handle;
 }
 

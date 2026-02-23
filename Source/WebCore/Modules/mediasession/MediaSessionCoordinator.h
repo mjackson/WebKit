@@ -85,11 +85,11 @@ private:
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }
     enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::MediaSessionCoordinator; }
-        ScriptExecutionContext* scriptExecutionContext() const final;
+        ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
     void eventListenersDidChange() final;
 
     // ActiveDOMObject.
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
 
     // MediaSessionObserver
     void metadataChanged(const RefPtr<MediaMetadata>&) final;
@@ -108,9 +108,9 @@ private:
 
     const Logger& logger() const { return m_logger; }
     uint64_t logIdentifier() const { return m_logIdentifier; }
-    static WTFLogChannel& logChannel();
+    static WTFLogChannel& NODELETE logChannel();
     static ASCIILiteral logClassName() { return "MediaSessionCoordinator"_s; }
-    bool shouldFireEvents() const;
+    bool NODELETE shouldFireEvents() const;
 
     RefPtr<MediaSessionCoordinatorPrivate> protectedPrivateCoordinator() const { return m_privateCoordinator; }
 

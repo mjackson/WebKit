@@ -68,6 +68,11 @@ ScrollingTreeScrollingNodeDelegateMac& ScrollingTreeFrameScrollingNodeMac::deleg
     return *static_cast<ScrollingTreeScrollingNodeDelegateMac*>(m_delegate.get());
 }
 
+void ScrollingTreeFrameScrollingNodeMac::startRubberBandSnapBack()
+{
+    delegate().startRubberBandSnapBack();
+}
+
 void ScrollingTreeFrameScrollingNodeMac::willBeDestroyed()
 {
     delegate().nodeWillBeDestroyed();

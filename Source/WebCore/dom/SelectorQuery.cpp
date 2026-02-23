@@ -80,13 +80,13 @@ template<typename Output> static ALWAYS_INLINE void appendOutputForElement(Outpu
         output.append(element);
 }
 
-static bool canBeUsedForIdFastPath(const CSSSelector& selector)
+static bool NODELETE canBeUsedForIdFastPath(const CSSSelector& selector)
 {
     return selector.match() == CSSSelector::Match::Id
         || (selector.match() == CSSSelector::Match::Exact && selector.attribute() == HTMLNames::idAttr && !selector.attributeValueMatchingIsCaseInsensitive());
 }
 
-static IdMatchingType findIdMatchingType(const CSSSelector& firstSelector)
+static IdMatchingType NODELETE findIdMatchingType(const CSSSelector& firstSelector)
 {
     bool inRightmost = true;
     for (const CSSSelector* selector = &firstSelector; selector; selector = selector->precedingInComplexSelector()) {
@@ -230,7 +230,7 @@ Element* SelectorDataList::queryFirst(ContainerNode& rootNode) const
     return result;
 }
 
-static const CSSSelector* selectorForIdLookup(const ContainerNode& rootNode, const CSSSelector& firstSelector)
+static const CSSSelector* NODELETE selectorForIdLookup(const ContainerNode& rootNode, const CSSSelector& firstSelector)
 {
     if (!rootNode.isConnected())
         return nullptr;

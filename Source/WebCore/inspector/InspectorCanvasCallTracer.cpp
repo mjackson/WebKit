@@ -50,7 +50,7 @@ static InspectorCanvasAgent* enabledCanvasAgent(CanvasRenderingContext& canvasRe
 
 RefPtr<InspectorCanvas> InspectorCanvasCallTracer::enabledInspectorCanvas(CanvasRenderingContext& canvasRenderingContext)
 {
-    auto* canvasAgent = enabledCanvasAgent(canvasRenderingContext);
+    CheckedPtr canvasAgent = enabledCanvasAgent(canvasRenderingContext);
     if (!canvasAgent)
         return nullptr;
     return canvasAgent->findInspectorCanvas(canvasRenderingContext);
@@ -58,7 +58,7 @@ RefPtr<InspectorCanvas> InspectorCanvasCallTracer::enabledInspectorCanvas(Canvas
 
 void InspectorCanvasCallTracer::recordAction(CanvasRenderingContext& canvasRenderingContext, String&& name, InspectorCanvasProcessedArguments&& arguments)
 {
-    if (auto* canvasAgent = enabledCanvasAgent(canvasRenderingContext))
+    if (CheckedPtr canvasAgent = enabledCanvasAgent(canvasRenderingContext))
         canvasAgent->recordAction(canvasRenderingContext, WTF::move(name), WTF::move(arguments));
 }
 

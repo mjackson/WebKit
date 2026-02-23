@@ -862,6 +862,19 @@ public:
         return kind() == FPImm128;
     }
 
+    bool isFPImmZero() const
+    {
+        switch (kind()) {
+        case FPImm32:
+        case FPImm64:
+            return value() == 0;
+        case FPImm128:
+            return bitEquals(asV128(), v128_t { });
+        default:
+            return false;
+        }
+    }
+
     bool isZeroReg() const
     {
         return kind() == ZeroReg;

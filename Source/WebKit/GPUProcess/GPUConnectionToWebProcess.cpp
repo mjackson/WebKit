@@ -238,9 +238,9 @@ private:
 #if ENABLE(EXTENSION_CAPABILITIES)
     bool setCurrentMediaEnvironment(WebCore::PageIdentifier pageIdentifier) final
     {
-        auto mediaEnvironment = m_process.get()->mediaEnvironment(pageIdentifier);
-        bool result = !mediaEnvironment.isEmpty();
-        WebCore::RealtimeMediaSourceCenter::singleton().setCurrentMediaEnvironment(WTF::move(mediaEnvironment));
+        auto mediaPlaybackEnvironment = m_process.get()->mediaPlaybackEnvironment(pageIdentifier);
+        bool result = !mediaPlaybackEnvironment.isEmpty();
+        WebCore::RealtimeMediaSourceCenter::singleton().setCurrentMediaEnvironment(WTF::move(mediaPlaybackEnvironment));
         return result;
     }
 #endif
@@ -402,13 +402,6 @@ GPUConnectionToWebProcess::~GPUConnectionToWebProcess()
     --gObjectCountForTesting;
 }
 
-#if PLATFORM(COCOA) && USE(LIBWEBRTC)
-Ref<LibWebRTCCodecsProxy> GPUConnectionToWebProcess::protectedLibWebRTCCodecsProxy() const
-{
-    return *m_libWebRTCCodecsProxy.get();
-}
-#endif
-
 Ref<RemoteSharedResourceCache> GPUConnectionToWebProcess::sharedResourceCache()
 {
     if (!m_sharedResourceCache)
@@ -563,7 +556,7 @@ bool GPUConnectionToWebProcess::allowsExitUnderMemoryPressure() const
         return false;
 #endif
 #if PLATFORM(COCOA) && USE(LIBWEBRTC)
-    if (!protectedLibWebRTCCodecsProxy()->allowsExitUnderMemoryPressure())
+    if (!protect(m_libWebRTCCodecsProxy.get())->allowsExitUnderMemoryPressure())
         return false;
 #endif
     return true;
@@ -1247,7 +1240,7 @@ void GPUConnectionToWebProcess::updateSharedPreferencesForWebProcess(SharedPrefe
 {
     m_sharedPreferencesForWebProcess = WTF::move(sharedPreferencesForWebProcess);
 #if PLATFORM(COCOA) && USE(LIBWEBRTC)
-    protectedLibWebRTCCodecsProxy()->updateSharedPreferencesForWebProcess(m_sharedPreferencesForWebProcess);
+    protect(m_libWebRTCCodecsProxy.get())->updateSharedPreferencesForWebProcess(m_sharedPreferencesForWebProcess);
 #endif
 #if PLATFORM(COCOA) && ENABLE(MEDIA_STREAM)
     m_sampleBufferDisplayLayerManager->updateSharedPreferencesForWebProcess(m_sharedPreferencesForWebProcess);

@@ -172,10 +172,10 @@ void TextAnimationController::removeTransparentMarkersForTextAnimationID(const W
 void TextAnimationController::removeInitialTextAnimationForActiveWritingToolsSession()
 {
     if (auto initialAnimationID = std::exchange(m_initialAnimationID, std::nullopt))
-        protectedWebPage()->removeTextAnimationForAnimationID(*initialAnimationID);
+        protect(m_webPage.get())->removeTextAnimationForAnimationID(*initialAnimationID);
 }
 
-static WebCore::CharacterRange remainingCharacterRange(WebCore::CharacterRange totalRange, WebCore::CharacterRange previousRange)
+static WebCore::CharacterRange NODELETE remainingCharacterRange(WebCore::CharacterRange totalRange, WebCore::CharacterRange previousRange)
 {
     if (totalRange.length < previousRange.length)
         return totalRange;
@@ -200,7 +200,7 @@ void TextAnimationController::addInitialTextAnimationForActiveWritingToolsSessio
 
     removeInitialTextAnimationForActiveWritingToolsSession();
 
-    protectedWebPage()->addTextAnimationForAnimationID(initialAnimationID, { WebCore::TextAnimationType::Initial, WebCore::TextAnimationRunMode::RunAnimation }, textIndicator);
+    protect(m_webPage.get())->addTextAnimationForAnimationID(initialAnimationID, { WebCore::TextAnimationType::Initial, WebCore::TextAnimationRunMode::RunAnimation }, textIndicator);
 
     m_initialAnimationID = initialAnimationID;
 }
@@ -242,7 +242,7 @@ void TextAnimationController::addSourceTextAnimationForActiveWritingToolsSession
     }
 
     // On iOS this will search for the completion handler to pass the text indicator to so that the animation can continue.
-    protectedWebPage()->addTextAnimationForAnimationID(sourceAnimationUUID, { WebCore::TextAnimationType::Source, runMode, WTF::UUID(WTF::UUID::emptyValue), sourceAnimationUUID, destinationAnimationUUID }, textIndicator, WTF::move(completionHandler));
+    protect(m_webPage.get())->addTextAnimationForAnimationID(sourceAnimationUUID, { WebCore::TextAnimationType::Source, runMode, WTF::UUID(WTF::UUID::emptyValue), sourceAnimationUUID, destinationAnimationUUID }, textIndicator, WTF::move(completionHandler));
     m_activeAnimation = sourceAnimationUUID;
     m_textAnimationRanges.append({ sourceAnimationUUID, replaceCharacterRange });
 }

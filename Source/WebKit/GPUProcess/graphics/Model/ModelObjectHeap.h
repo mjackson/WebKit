@@ -57,7 +57,7 @@ public:
 
     ~ModelObjectHeap();
 
-    void addObject(WebModelIdentifier, RemoteMesh&);
+    void NODELETE addObject(WebModelIdentifier, RemoteMesh&);
 
     void removeObject(WebModelIdentifier);
 

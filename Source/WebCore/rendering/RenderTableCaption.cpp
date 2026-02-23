@@ -49,7 +49,7 @@ void RenderTableCaption::willBeRemovedFromTree()
     table()->removeCaption(*this);
 }
 
-RenderTable* RenderTableCaption::table() const
+RenderTable* NODELETE RenderTableCaption::table() const
 {
     return downcast<RenderTable>(parent());
 }

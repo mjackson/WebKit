@@ -516,3 +516,15 @@ for (let i = 0; i < testLoopCount; i++) {
     if (result !== expected)
         throw "FAIL: modAlmostDivisor, got " + result + " expected " + expected;
 }
+
+function negZeroWithInt32Overflow(x) {
+    let sum = x + x;
+    let neg = -sum;
+    return (neg % sum) | 0;
+}
+for (let i = 0; i < testLoopCount; i++) {
+    let result = negZeroWithInt32Overflow(0x7FFFFFFF);
+    let expected = 0;
+    if (result !== expected)
+        throw "FAIL: negZeroWith32Overflow, got " + result + " expected " + expected;
+}

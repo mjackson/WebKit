@@ -57,11 +57,6 @@ inline AXObjectCache* AccessibilityObject::axObjectCache() const
     return m_axObjectCache.get();
 }
 
-inline CheckedPtr<AXObjectCache> AccessibilityObject::checkedAxObjectCache() const
-{
-    return axObjectCache();
-}
-
 inline bool AccessibilityObject::isDetached() const
 {
     return !wrapper();
@@ -298,7 +293,7 @@ inline void AccessibilityObject::initializeAncestorFlags(const OptionSet<AXAnces
     m_ancestorFlags.add(flags);
 }
 
-inline std::optional<AXID> AccessibilityObject::treeID() const
+inline std::optional<AXTreeID> AccessibilityObject::treeID() const
 {
     auto* cache = axObjectCache();
     return cache ? std::optional { cache->treeID() } : std::nullopt;

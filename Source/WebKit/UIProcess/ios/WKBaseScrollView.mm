@@ -139,6 +139,12 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     self.allowsKeyboardScrolling = YES;
 #endif
 
+#if PLATFORM(VISION)
+    static BOOL alternateRenderingAvailable = [UIScrollView instancesRespondToSelector:@selector(_setUseVisionAlternateScrollIndicatorRendering:)];
+    if (alternateRenderingAvailable)
+        [self _setUseVisionAlternateScrollIndicatorRendering:YES];
+#endif
+
     _axesToPreventMomentumScrolling = UIAxisNeither;
     [self.panGestureRecognizer addTarget:self action:@selector(_updatePanGestureToPreventScrolling)];
     return self;

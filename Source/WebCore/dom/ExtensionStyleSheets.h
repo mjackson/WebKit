@@ -64,7 +64,7 @@ public:
     const Vector<Ref<CSSStyleSheet>>& injectedAuthorStyleSheets() const;
     const Vector<Ref<CSSStyleSheet>>& authorStyleSheetsForTesting() const { return m_authorStyleSheetsForTesting; }
 
-    bool hasCachedInjectedStyleSheets() const;
+    bool NODELETE hasCachedInjectedStyleSheets() const;
 
     void clearPageUserSheet();
     void updatePageUserSheet();
@@ -83,13 +83,11 @@ public:
     void injectPageSpecificUserStyleSheet(const UserStyleSheet&);
     void removePageSpecificUserStyleSheet(const UserStyleSheet&);
 
-    String contentForInjectedStyleSheet(CSSStyleSheet&) const;
+    String NODELETE contentForInjectedStyleSheet(CSSStyleSheet&) const;
 
     void detachFromDocument();
 
 private:
-    Ref<Document> protectedDocument() const;
-
     WeakRef<Document, WeakPtrImplWithEventTargetData> m_document;
 
     RefPtr<CSSStyleSheet> m_pageUserSheet;
@@ -105,7 +103,7 @@ private:
 
 #if ENABLE(CONTENT_EXTENSIONS)
     MemoryCompactRobinHoodHashMap<String, Ref<CSSStyleSheet>> m_contentExtensionSheets;
-    MemoryCompactRobinHoodHashMap<String, RefPtr<ContentExtensions::ContentExtensionStyleSheet>> m_contentExtensionSelectorSheets;
+    MemoryCompactRobinHoodHashMap<String, Ref<ContentExtensions::ContentExtensionStyleSheet>> m_contentExtensionSelectorSheets;
 #endif
 };
 

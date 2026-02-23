@@ -36,8 +36,10 @@
 #import "Logging.h"
 #import "MessageSenderInlines.h"
 #import "PageClient.h"
+#import "PlaybackSessionInterfaceAVKit.h"
 #import "PlaybackSessionInterfaceLMK.h"
 #import "PlaybackSessionManagerProxy.h"
+#import "VideoPresentationInterfaceAVKit.h"
 #import "VideoPresentationInterfaceLMK.h"
 #import "VideoPresentationManagerMessages.h"
 #import "VideoPresentationManagerProxyMessages.h"
@@ -51,12 +53,10 @@
 #import <WebCore/HTMLMediaElement.h>
 #import <WebCore/MediaPlayerEnums.h>
 #import <WebCore/NullVideoPresentationInterface.h>
-#import <WebCore/PlaybackSessionInterfaceAVKit.h>
 #import <WebCore/PlaybackSessionInterfaceAVKitLegacy.h>
 #import <WebCore/PlaybackSessionInterfaceMac.h>
 #import <WebCore/PlaybackSessionInterfaceTVOS.h>
 #import <WebCore/TimeRanges.h>
-#import <WebCore/VideoPresentationInterfaceAVKit.h>
 #import <WebCore/VideoPresentationInterfaceAVKitLegacy.h>
 #import <WebCore/VideoPresentationInterfaceMac.h>
 #import <WebCore/VideoPresentationInterfaceTVOS.h>
@@ -568,12 +568,12 @@ void VideoPresentationModelContext::requestHideCaptionDisplaySettingsPreview()
 #if !RELEASE_LOG_DISABLED
 uint64_t VideoPresentationModelContext::logIdentifier() const
 {
-    return m_playbackSessionModel->logIdentifier();
+    return protect(m_playbackSessionModel)->logIdentifier();
 }
 
 uint64_t VideoPresentationModelContext::nextChildIdentifier() const
 {
-    return LoggerHelper::childLogIdentifier(m_playbackSessionModel->logIdentifier(), ++m_childIdentifierSeed);
+    return LoggerHelper::childLogIdentifier(protect(m_playbackSessionModel)->logIdentifier(), ++m_childIdentifierSeed);
 }
 
 const Logger* VideoPresentationModelContext::loggerPtr() const
@@ -677,10 +677,10 @@ bool VideoPresentationManagerProxy::mayAutomaticallyShowVideoPictureInPicture() 
 }
 
 #if ENABLE(VIDEO_PRESENTATION_MODE)
-bool VideoPresentationManagerProxy::isPlayingVideoInEnhancedFullscreen() const
+bool VideoPresentationManagerProxy::isPlayingVideoInPictureInPicture() const
 {
     for (auto& [model, interface] : m_contextMap.values()) {
-        if (interface->isPlayingVideoInEnhancedFullscreen())
+        if (interface->isPlayingVideoInPictureInPicture())
             return true;
     }
 
@@ -715,8 +715,8 @@ void VideoPresentationManagerProxy::requestRouteSharingPolicyAndContextUID(Playb
 
 static Ref<PlatformVideoPresentationInterface> videoPresentationInterface(WebPageProxy& page, PlatformPlaybackSessionInterface& playbackSessionInterface)
 {
-#if HAVE(AVKIT_CONTENT_SOURCE)
-    if (page.preferences().isAVKitContentSourceEnabled())
+#if HAVE(AVEXPERIENCECONTROLLER)
+    if (page.preferences().isAVExperienceControllerFullscreenEnabled())
         return VideoPresentationInterfaceAVKit::create(playbackSessionInterface);
 #endif
 
@@ -1069,7 +1069,15 @@ void VideoPresentationManagerProxy::setupFullscreenWithID(PlaybackSessionContext
     // Do not add another refcount for this contextId if the interface is already in
     // a fullscreen mode, lest the refcounts get out of sync, as removeClientForContext
     // is only called once both PiP and video fullscreen are fully exited.
-    if (interface->mode() == HTMLMediaElementEnums::VideoFullscreenModeNone || interface->mode() == HTMLMediaElementEnums::VideoFullscreenModeInWindow)
+    bool shouldAddClient = interface->mode() == HTMLMediaElementEnums::VideoFullscreenModeNone || interface->mode() == HTMLMediaElementEnums::VideoFullscreenModeInWindow;
+
+#if PLATFORM(IOS)
+    // For swipe-to-PiP, the mode may already be updated by the time we reach here,
+    // so we also check isPlayingVideoInPictureInPicture() to catch that case.
+    shouldAddClient = shouldAddClient || interface->isPlayingVideoInPictureInPicture();
+#endif
+
+    if (shouldAddClient)
         addClientForContext(contextId);
 
     if (m_mockVideoPresentationModeEnabled) {
@@ -1681,7 +1689,7 @@ WTFLogChannel& VideoPresentationManagerProxy::logChannel() const
 RefPtr<PlatformVideoPresentationInterface> VideoPresentationManagerProxy::bestVideoForElementFullscreen()
 {
     if (m_lastInteractedWithVideo) {
-        if (auto* modelAndInterface = findModelAndInterface(*m_lastInteractedWithVideo); modelAndInterface && modelAndInterface->first->isChildOfElementFullscreen())
+        if (auto* modelAndInterface = findModelAndInterface(*m_lastInteractedWithVideo); modelAndInterface && protect(modelAndInterface->first)->isChildOfElementFullscreen())
             return protect(modelAndInterface->second);
     }
 #if PLATFORM(IOS_FAMILY)

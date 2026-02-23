@@ -56,7 +56,7 @@ RemoteLegacyCDMProxy::~RemoteLegacyCDMProxy()
 
 void RemoteLegacyCDMProxy::supportsMIMEType(const String& mimeType, SupportsMIMETypeCallback&& callback)
 {
-    callback(protectedCDM()->supportsMIMEType(mimeType));
+    callback(protect(m_cdm)->supportsMIMEType(mimeType));
 }
 
 void RemoteLegacyCDMProxy::createSession(uint64_t logIdentifier, CreateSessionCallback&& callback)
@@ -68,7 +68,7 @@ void RemoteLegacyCDMProxy::createSession(uint64_t logIdentifier, CreateSessionCa
     }
 
     auto sessionIdentifier = RemoteLegacyCDMSessionIdentifier::generate();
-    Ref session = RemoteLegacyCDMSessionProxy::create(*factory, logIdentifier, sessionIdentifier, protectedCDM());
+    Ref session = RemoteLegacyCDMSessionProxy::create(*factory, logIdentifier, sessionIdentifier, protect(m_cdm));
     factory->addSession(sessionIdentifier, WTF::move(session));
     callback(WTF::move(sessionIdentifier));
 }

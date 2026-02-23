@@ -212,6 +212,8 @@ WI.CSSManager = class CSSManager extends WI.Object
             return WI.unlocalizedString("::spelling-error");
         case CSSManager.PseudoSelectorNames.Checkmark:
             return WI.unlocalizedString("::checkmark");
+        case CSSManager.PseudoSelectorNames.PickerIcon:
+            return WI.unlocalizedString("::picker-icon");
         case CSSManager.PseudoSelectorNames.TargetText:
             return WI.unlocalizedString("::target-text");
         case CSSManager.PseudoSelectorNames.ViewTransition:
@@ -864,6 +866,7 @@ WI.CSSManager.PseudoSelectorNames = {
     Highlight: "highlight",
     GrammarError: "grammar-error",
     Marker: "marker",
+    PickerIcon: "picker-icon",
     Selection: "selection",
     SpellingError: "spelling-error",
     TargetText: "target-text",

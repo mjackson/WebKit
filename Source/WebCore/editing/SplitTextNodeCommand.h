@@ -50,8 +50,6 @@ private:
     void getNodesInCommand(NodeSet&) override;
 #endif
 
-    RefPtr<Text> protectedText1() const { return m_text1; }
-
     RefPtr<Text> m_text1;
     const Ref<Text> m_text2;
     unsigned m_offset;

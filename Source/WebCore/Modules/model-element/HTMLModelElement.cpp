@@ -369,6 +369,22 @@ void HTMLModelElement::didFailLoading(ModelPlayer& modelPlayer, const ResourceEr
     reportExtraMemoryCost();
 }
 
+#if ENABLE(MODEL_PROCESS)
+
+void HTMLModelElement::didConvertModelData(ModelPlayer& modelPlayer, Ref<SharedBuffer>&& convertedData, const String& convertedMIMEType)
+{
+    ASSERT_UNUSED(modelPlayer, &modelPlayer == m_modelPlayer);
+    ASSERT(m_dataComplete);
+
+    RELEASE_LOG(ModelElement, "%p - HTMLModelElement::didConvertModelData: Received converted model data, size=%zu mimeType=%s", this, convertedData->size(), convertedMIMEType.utf8().data());
+
+    m_model = Model::create(WTF::move(convertedData), convertedMIMEType, m_sourceURL, true /* isConverted */);
+    m_dataMemoryCost.store(m_model->data()->size(), std::memory_order_relaxed);
+    reportExtraMemoryCost();
+}
+
+#endif
+
 #if ENABLE(MODEL_ELEMENT_ENVIRONMENT_MAP)
 
 void HTMLModelElement::didFinishEnvironmentMapLoading(ModelPlayer&, bool succeeded)

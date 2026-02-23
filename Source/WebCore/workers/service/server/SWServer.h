@@ -358,8 +358,6 @@ private:
     enum class ShouldUpdateRegistrations : bool { No, Yes };
     void unregisterServiceWorkerClientInternal(const ClientOrigin&, ScriptExecutionContextIdentifier, ShouldUpdateRegistrations);
 
-    CheckedRef<SWServerDelegate> checkedDelegate() const;
-
     WeakPtr<SWServerDelegate> m_delegate;
 
     HashMap<SWServerConnectionIdentifier, Ref<Connection>> m_connections;

@@ -364,11 +364,6 @@ void WebLocalFrameLoaderClient::dispatchDidDispatchOnloadEvents()
     webPage->injectedBundleLoaderClient().didHandleOnloadEventsForFrame(*webPage, m_frame);
 }
 
-Ref<WebCore::LocalFrame> WebLocalFrameLoaderClient::protectedLocalFrame() const
-{
-    return m_localFrame.get();
-}
-
 void WebLocalFrameLoaderClient::dispatchDidReceiveServerRedirectForProvisionalLoad()
 {
     RefPtr webPage = m_frame->page();
@@ -526,7 +521,7 @@ void WebLocalFrameLoaderClient::didSameDocumentNavigationForFrameViaJS(SameDocum
     };
 
     // Notify the UIProcess.
-    webPage->send(Messages::WebPageProxy::DidSameDocumentNavigationForFrameViaJS(navigationType, localFrame->document()->url(), navigationActionData, UserData(WebProcess::singleton().transformObjectsToHandles(userData.get()).get())));
+    webPage->send(Messages::WebPageProxy::DidSameDocumentNavigationForFrameViaJS(navigationType, protect(localFrame->document())->url(), navigationActionData, UserData(WebProcess::singleton().transformObjectsToHandles(userData.get()).get())));
 
 }
 
@@ -924,7 +919,7 @@ LocalFrame* WebLocalFrameLoaderClient::dispatchCreatePage(const NavigationAction
     // Just call through to the chrome client.
     WindowFeatures windowFeatures;
     windowFeatures.noopener = newFrameOpenerPolicy == NewFrameOpenerPolicy::Suppress;
-    RefPtr newPage = webPage->corePage()->chrome().createWindow(protectedLocalFrame(), { }, windowFeatures, navigationAction);
+    RefPtr newPage = webPage->corePage()->chrome().createWindow(protect(m_localFrame), { }, windowFeatures, navigationAction);
     if (!newPage)
         return nullptr;
     
@@ -966,13 +961,13 @@ void WebLocalFrameLoaderClient::dispatchDecidePolicyForResponse(const ResourceRe
     RefPtr policyDocumentLoader = m_localFrame->loader().provisionalDocumentLoader();
     auto navigationID = policyDocumentLoader ? policyDocumentLoader->navigationID() : std::nullopt;
 
-    auto protectedFrame = m_frame.copyRef();
-    uint64_t listenerID = protectedFrame->setUpPolicyListener(WTF::move(function), WebFrame::ForNavigationAction::No);
+    Ref frame = m_frame;
+    uint64_t listenerID = frame->setUpPolicyListener(WTF::move(function), WebFrame::ForNavigationAction::No);
 
     bool isShowingInitialAboutBlank = m_localFrame->loader().stateMachine().isDisplayingInitialEmptyDocument();
-    auto activeDocumentCOOPValue = m_localFrame->document() ? m_localFrame->protectedDocument()->crossOriginOpenerPolicy().value : CrossOriginOpenerPolicyValue::SameOrigin;
+    auto activeDocumentCOOPValue = m_localFrame->document() ? protect(m_localFrame->document())->crossOriginOpenerPolicy().value : CrossOriginOpenerPolicyValue::SameOrigin;
 
-    webPage->sendWithAsyncReply(Messages::WebPageProxy::DecidePolicyForResponse(protectedFrame->info(), navigationID, response, request, canShowResponse, downloadAttribute, isShowingInitialAboutBlank, activeDocumentCOOPValue), [frame = protectedFrame, listenerID] (PolicyDecision&& policyDecision) {
+    webPage->sendWithAsyncReply(Messages::WebPageProxy::DecidePolicyForResponse(frame->info(), navigationID, response, request, canShowResponse, downloadAttribute, isShowingInitialAboutBlank, activeDocumentCOOPValue), [frame, listenerID] (PolicyDecision&& policyDecision) {
         frame->didReceivePolicyDecision(listenerID, WTF::move(policyDecision));
     });
 }
@@ -1108,7 +1103,7 @@ void WebLocalFrameLoaderClient::dispatchWillSendSubmitEvent(Ref<FormState>&& for
     Ref form = formState->form();
 
     ASSERT(formState->sourceDocument().frame());
-    auto sourceFrame = WebFrame::fromCoreFrame(*formState->sourceDocument().protectedFrame());
+    auto sourceFrame = WebFrame::fromCoreFrame(*protect(formState->sourceDocument().frame()));
     ASSERT(sourceFrame);
 
     webPage->injectedBundleFormClient().willSendSubmitEvent(webPage.get(), form.ptr(), m_frame.ptr(), sourceFrame.get(), formState->textFieldValues());
@@ -1483,7 +1478,7 @@ void WebLocalFrameLoaderClient::prepareForDataSourceReplacement()
 
 Ref<DocumentLoader> WebLocalFrameLoaderClient::createDocumentLoader(ResourceRequest&& request, SubstituteData&& substituteData, ResourceRequest&& originalRequest)
 {
-    return protect(m_frame->page())->createDocumentLoader(protectedLocalFrame(), WTF::move(request), WTF::move(substituteData), WTF::move(originalRequest));
+    return protect(m_frame->page())->createDocumentLoader(protect(m_localFrame), WTF::move(request), WTF::move(substituteData), WTF::move(originalRequest));
 }
 
 Ref<DocumentLoader> WebLocalFrameLoaderClient::createDocumentLoader(ResourceRequest&& request, SubstituteData&& substituteData)
@@ -1493,7 +1488,7 @@ Ref<DocumentLoader> WebLocalFrameLoaderClient::createDocumentLoader(ResourceRequ
 
 void WebLocalFrameLoaderClient::updateCachedDocumentLoader(WebCore::DocumentLoader& loader)
 {
-    protect(m_frame->page())->updateCachedDocumentLoader(loader, protectedLocalFrame());
+    protect(m_frame->page())->updateCachedDocumentLoader(loader, protect(m_localFrame));
 }
 
 void WebLocalFrameLoaderClient::setTitle(const StringWithDirection& title, const URL& url)
@@ -1838,7 +1833,7 @@ void WebLocalFrameLoaderClient::dispatchWillDestroyGlobalObjectForDOMWindowExten
 void WebLocalFrameLoaderClient::didChangeScrollOffset()
 {
     if (RefPtr webPage = m_frame->page())
-        webPage->didChangeScrollOffsetForFrame(protectedLocalFrame());
+        webPage->didChangeScrollOffsetForFrame(protect(m_localFrame));
 }
 
 bool WebLocalFrameLoaderClient::allowScript(bool enabledPerSettings)

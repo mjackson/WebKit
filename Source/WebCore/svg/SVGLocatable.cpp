@@ -81,7 +81,7 @@ FloatRect SVGLocatable::getBBox(SVGElement* element, StyleUpdateStrategy styleUp
         protect(element->document())->updateLayoutIgnorePendingStylesheets({ LayoutOptions::TreatContentVisibilityHiddenAsVisible, LayoutOptions::TreatContentVisibilityAutoAsVisible }, element);
 
     // FIXME: Eventually we should support getBBox for detached elements.
-    if (!element->renderer())
+    if (!element->renderer() || element->renderer()->isRenderSVGHiddenContainer())
         return FloatRect();
 
     return element->renderer()->objectBoundingBox();

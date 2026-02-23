@@ -173,7 +173,9 @@ void SVGAnimationElement::attributeChanged(const QualifiedName& name, const Atom
         // http://www.w3.org/TR/SVG11/animate.html#ValuesAttribute
         m_values.clear();
         newValue.string().split(';', [this](StringView innerValue) {
-            m_values.append(innerValue.trim(isASCIIWhitespace<char16_t>).toString());
+            auto trimmed = innerValue.trim(isASCIIWhitespace<char16_t>).toString();
+            if (!trimmed.isEmpty())
+                m_values.append(WTF::move(trimmed));
         });
         updateAnimationMode();
         break;
@@ -585,7 +587,7 @@ void SVGAnimationElement::startedActiveInterval()
 }
 
 void SVGAnimationElement::updateAnimation(float percent, unsigned repeatCount)
-{    
+{
     if (!m_animationValid)
         return;
 

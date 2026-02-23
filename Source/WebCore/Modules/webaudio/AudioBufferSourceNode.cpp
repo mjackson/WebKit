@@ -460,7 +460,7 @@ ExceptionOr<void> AudioBufferSourceNode::setBufferForBindings(RefPtr<AudioBuffer
         unsigned numberOfChannels = buffer->numberOfChannels();
         ASSERT(numberOfChannels <= AudioContext::maxNumberOfChannels);
 
-        checkedOutput(0)->setNumberOfChannels(numberOfChannels);
+        protect(output(0))->setNumberOfChannels(numberOfChannels);
 
         m_sourceChannels = FixedVector<std::span<const float>>(numberOfChannels);
         m_destinationChannels = FixedVector<std::span<float>>(numberOfChannels);

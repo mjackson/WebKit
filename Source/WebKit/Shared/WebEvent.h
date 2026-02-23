@@ -67,7 +67,7 @@ public:
 
     MonotonicTime timestamp() const { return m_timestamp; }
 
-    bool isActivationTriggeringEvent() const;
+    bool NODELETE isActivationTriggeringEvent() const;
     WTF::UUID authorizationToken() const { return m_authorizationToken; }
 
 private:

@@ -76,8 +76,8 @@ public:
     void updateValues();
 
     FloatSize visibleSize() const;
-    bool useDarkAppearance() const;
-    ScrollbarWidth scrollbarWidthStyle() const;
+    bool NODELETE useDarkAppearance() const;
+    ScrollbarWidth NODELETE scrollbarWidthStyle() const;
 
     struct Values {
         float value;

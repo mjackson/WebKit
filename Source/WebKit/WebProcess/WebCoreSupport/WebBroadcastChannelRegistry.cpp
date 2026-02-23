@@ -41,11 +41,6 @@ static inline IPC::Connection& networkProcessConnection()
     return WebProcess::singleton().ensureNetworkProcessConnection().connection();
 }
 
-static inline Ref<IPC::Connection> protectedNetworkProcessConnection()
-{
-    return networkProcessConnection();
-}
-
 // Opaque origins are only stored in process in m_channelsPerOrigin and never sent to the NetworkProcess as a ClientOrigin.
 // The identity of opaque origins wouldn't be preserved when serializing them as a SecurityOriginData (via ClientOrigin).
 // Since BroadcastChannels from an opaque origin can only communicate with other BroadcastChannels from the same opaque origin,
@@ -67,7 +62,7 @@ void WebBroadcastChannelRegistry::registerChannel(const WebCore::PartitionedSecu
 
     if (channelsForName.size() == 1) {
         if (auto clientOrigin = toClientOrigin(origin))
-            protectedNetworkProcessConnection()->send(Messages::NetworkBroadcastChannelRegistry::RegisterChannel { *clientOrigin, name }, 0);
+            protect(networkProcessConnection())->send(Messages::NetworkBroadcastChannelRegistry::RegisterChannel { *clientOrigin, name }, 0);
     }
 }
 
@@ -90,7 +85,7 @@ void WebBroadcastChannelRegistry::unregisterChannel(const WebCore::PartitionedSe
 
     channelsForOrigin.remove(channelsForOriginIterator);
     if (auto clientOrigin = toClientOrigin(origin))
-        protectedNetworkProcessConnection()->send(Messages::NetworkBroadcastChannelRegistry::UnregisterChannel { *clientOrigin, name }, 0);
+        protect(networkProcessConnection())->send(Messages::NetworkBroadcastChannelRegistry::UnregisterChannel { *clientOrigin, name }, 0);
 
     if (channelsForOrigin.isEmpty())
         m_channelsPerOrigin.remove(channelsPerOriginIterator);
@@ -101,7 +96,7 @@ void WebBroadcastChannelRegistry::postMessage(const WebCore::PartitionedSecurity
     auto callbackAggregator = CallbackAggregator::create(WTF::move(completionHandler));
     postMessageLocally(origin, name, source, message.copyRef(), callbackAggregator.copyRef());
     if (auto clientOrigin = toClientOrigin(origin))
-        protectedNetworkProcessConnection()->sendWithAsyncReply(Messages::NetworkBroadcastChannelRegistry::PostMessage { *clientOrigin, name, WebCore::MessageWithMessagePorts { WTF::move(message), { } } }, [callbackAggregator] { }, 0);
+        protect(networkProcessConnection())->sendWithAsyncReply(Messages::NetworkBroadcastChannelRegistry::PostMessage { *clientOrigin, name, WebCore::MessageWithMessagePorts { WTF::move(message), { } } }, [callbackAggregator] { }, 0);
 }
 
 void WebBroadcastChannelRegistry::postMessageLocally(const WebCore::PartitionedSecurityOrigin& origin, const String& name, std::optional<WebCore::BroadcastChannelIdentifier> sourceInProcess, Ref<WebCore::SerializedScriptValue>&& message, Ref<WTF::CallbackAggregator>&& callbackAggregator)
@@ -140,7 +135,7 @@ void WebBroadcastChannelRegistry::networkProcessCrashed()
         if (!clientOrigin)
             continue;
         for (auto& name : channelsForOrigin.keys())
-            protectedNetworkProcessConnection()->send(Messages::NetworkBroadcastChannelRegistry::RegisterChannel { *clientOrigin, name }, 0);
+            protect(networkProcessConnection())->send(Messages::NetworkBroadcastChannelRegistry::RegisterChannel { *clientOrigin, name }, 0);
     }
 
 }

@@ -158,7 +158,7 @@ struct OverrideScreenSize {
     FloatSize size;
 };
 
-static inline float parentPageZoomFactor(LocalFrame* frame)
+static inline float NODELETE parentPageZoomFactor(LocalFrame* frame)
 {
     SUPPRESS_UNCOUNTED_LOCAL auto* parent = dynamicDowncast<LocalFrame>(frame->tree().parent());
     if (!parent)
@@ -166,7 +166,7 @@ static inline float parentPageZoomFactor(LocalFrame* frame)
     return parent->pageZoomFactor();
 }
 
-static inline float parentTextZoomFactor(LocalFrame* frame)
+static inline float NODELETE parentTextZoomFactor(LocalFrame* frame)
 {
     SUPPRESS_UNCOUNTED_LOCAL auto* parent = dynamicDowncast<LocalFrame>(frame->tree().parent());
     if (!parent)
@@ -174,7 +174,7 @@ static inline float parentTextZoomFactor(LocalFrame* frame)
     return parent->textZoomFactor();
 }
 
-static const LocalFrame& rootFrame(const LocalFrame& frame, Frame* parent)
+static const LocalFrame& NODELETE rootFrame(const LocalFrame& frame, Frame* parent)
 {
     SUPPRESS_UNCOUNTED_LOCAL auto* localParent = dynamicDowncast<LocalFrame>(parent);
     if (localParent)
@@ -198,7 +198,7 @@ LocalFrame::LocalFrame(Page& page, ClientCreator&& clientCreator, FrameIdentifie
     , m_sandboxFlags(sandboxFlags)
     , m_parentFrameOrOpenerReferrerPolicy(referrerPolicy)
     , m_eventHandler(makeUniqueRef<EventHandler>(*this))
-    , m_inspectorController(makeUniqueRefWithoutRefCountedCheck<FrameInspectorController>(*this))
+    , m_inspectorController(makeUniqueRefWithoutRefCountedCheck<FrameInspectorController>(*this, page.inspectorController()))
     , m_consoleClient(makeUniqueRef<FrameConsoleClient>(*this))
 {
     ProcessWarming::initializeNames();
@@ -664,7 +664,7 @@ bool LocalFrame::requestDOMPasteAccess(DOMPasteAccessCategory pasteAccessCategor
     case DOMPasteAccessPolicy::Denied:
         return false;
     case DOMPasteAccessPolicy::NotRequestedYet: {
-        auto* client = editor().client();
+        CheckedPtr client = editor().client();
         if (!client)
             return false;
 
@@ -845,7 +845,7 @@ void LocalFrame::injectUserScriptImmediately(DOMWrapperWorld& world, const UserS
     WTFEndSignpost(this, UserScript);
 }
 
-RenderView* LocalFrame::contentRenderer() const
+RenderView* NODELETE LocalFrame::contentRenderer() const
 {
     return document() ? document()->renderView() : nullptr;
 }
@@ -1009,11 +1009,6 @@ void LocalFrame::createView(const IntSize& viewportSize, const std::optional<Col
 LocalDOMWindow* LocalFrame::window() const
 {
     return document() ? document()->window() : nullptr;
-}
-
-RefPtr<LocalDOMWindow> LocalFrame::protectedWindow() const
-{
-    return window();
 }
 
 DOMWindow* LocalFrame::virtualWindow() const
@@ -1753,7 +1748,7 @@ static inline NodeQualifier ancestorRespondingToClickEventsNodeQualifier(Securit
     };
 }
 
-void LocalFrame::betterApproximateNode(const IntPoint& testPoint, const NodeQualifier& nodeQualifierFunction, Node*& best, Node* failedNode, IntPoint& bestPoint, IntRect& bestRect, const IntRect& testRect)
+RefPtr<Node> LocalFrame::betterApproximateNode(const IntPoint& testPoint, const NodeQualifier& nodeQualifierFunction, Node* best, Node* failedNode, IntPoint& bestPoint, IntRect& bestRect, const IntRect& testRect)
 {
     IntRect candidateRect;
     constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::DisallowUserAgentShadowContent, HitTestRequest::Type::AllowVisibleChildFrameContentOnly };
@@ -1762,24 +1757,24 @@ void LocalFrame::betterApproximateNode(const IntPoint& testPoint, const NodeQual
     // Bail if we have no candidate, or the candidate is already equal to our current best node,
     // or our candidate is the avoidedNode and there is a current best node.
     if (!candidate || candidate == best)
-        return;
+        return best;
 
     // The document should never be considered the best alternative.
     if (candidate->isDocumentNode())
-        return;
+        return best;
 
     if (best) {
         IntRect bestIntersect = intersection(testRect, bestRect);
         IntRect candidateIntersect = intersection(testRect, candidateRect);
         // if the candidate intersection is smaller than the current best intersection, bail.
         if (candidateIntersect.width() * candidateIntersect.height() <= bestIntersect.width() * bestIntersect.height())
-            return;
+            return best;
     }
 
     // At this point we either don't have a previous best, or our current candidate has a better intersection.
-    best = candidate;
     bestPoint = testPoint;
     bestRect = candidateRect;
+    return candidate;
 }
 
 RefPtr<Node> LocalFrame::nodeRespondingToInteraction(const FloatPoint& viewportLocation, FloatPoint& adjustedViewportLocation)
@@ -1897,9 +1892,7 @@ RefPtr<Node> LocalFrame::qualifyingNodeAtViewportLocation(const FloatPoint& view
                 if (approximateNode)
                     break;
             }
-            Node* approximateNodePtr = approximateNode.get();
-            betterApproximateNode(testPoint, nodeQualifierFunction, approximateNodePtr, failedNode, bestPoint, bestFrame, testRect);
-            approximateNode = approximateNodePtr;
+            approximateNode = betterApproximateNode(testPoint, nodeQualifierFunction, approximateNode.get(), failedNode, bestPoint, bestFrame, testRect);
         }
     }
 

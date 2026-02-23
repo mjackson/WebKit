@@ -154,7 +154,7 @@ static Ref<Inspector::Protocol::Network::Headers> buildObjectForHeaders(const HT
 Ref<Inspector::Protocol::Network::ResourceTiming> InspectorNetworkAgent::buildObjectForTiming(const NetworkLoadMetrics& timing, ResourceLoader& resourceLoader)
 {
     auto elapsedTimeSince = [&] (const MonotonicTime& time) {
-        return checkedEnvironment()->executionStopwatch().elapsedTimeSince(time).seconds();
+        return protect(environment())->executionStopwatch().elapsedTimeSince(time).seconds();
     };
     auto millisecondsSinceFetchStart = [&] (const MonotonicTime& time) {
         if (!time)
@@ -390,7 +390,7 @@ Ref<Inspector::Protocol::Network::CachedResource> InspectorNetworkAgent::buildOb
 
 double InspectorNetworkAgent::timestamp()
 {
-    return checkedEnvironment()->executionStopwatch().elapsedTime().seconds();
+    return protect(environment())->executionStopwatch().elapsedTime().seconds();
 }
 
 void InspectorNetworkAgent::willSendRequest(ResourceLoaderIdentifier identifier, DocumentLoader* loader, ResourceRequest& request, const ResourceResponse& redirectResponse, Inspector::ResourceType type, ResourceLoader* resourceLoader)
@@ -416,7 +416,7 @@ void InspectorNetworkAgent::willSendRequest(ResourceLoaderIdentifier identifier,
 
     auto protocolResourceType = ResourceUtilities::resourceTypeToProtocol(type);
 
-    Document* document = loader && loader->frame() ? loader->frame()->document() : nullptr;
+    RefPtr document = loader && loader->frame() ? loader->frame()->document() : nullptr;
     auto initiatorObject = buildInitiatorObject(document, &request);
 
     String url = loader ? loader->url().string() : request.url().string();
@@ -580,7 +580,7 @@ void InspectorNetworkAgent::didFinishLoading(ResourceLoaderIdentifier identifier
 
     double elapsedFinishTime;
     if (networkLoadMetrics.responseEnd)
-        elapsedFinishTime = checkedEnvironment()->executionStopwatch().elapsedTimeSince(networkLoadMetrics.responseEnd).seconds();
+        elapsedFinishTime = protect(environment())->executionStopwatch().elapsedTimeSince(networkLoadMetrics.responseEnd).seconds();
     else
         elapsedFinishTime = timestamp();
 
@@ -733,7 +733,7 @@ Ref<Inspector::Protocol::Network::Initiator> InspectorNetworkAgent::buildInitiat
         initiatorObject->setLineNumber(document->scriptableDocumentParser()->textPosition().m_line.oneBasedInt());
     }
 
-    auto domAgent = Ref { m_instrumentingAgents.get() }->persistentDOMAgent();
+    CheckedPtr domAgent = Ref { m_instrumentingAgents.get() }->persistentDOMAgent();
     if (domAgent && resourceRequest) {
         if (auto inspectorInitiatorNodeIdentifier = resourceRequest->inspectorInitiatorNodeIdentifier()) {
             if (!initiatorObject) {
@@ -948,7 +948,7 @@ Inspector::Protocol::ErrorStringOr<void> InspectorNetworkAgent::setResourceCachi
 void InspectorNetworkAgent::loadResource(const Inspector::Protocol::Network::FrameId& frameId, const String& urlString, Ref<LoadResourceCallback>&& callback)
 {
     Inspector::Protocol::ErrorString errorString;
-    auto* context = scriptExecutionContext(errorString, frameId);
+    RefPtr context = scriptExecutionContext(errorString, frameId);
     if (!context) {
         callback->sendFailure(errorString);
         return;

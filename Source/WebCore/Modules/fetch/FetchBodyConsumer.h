@@ -69,7 +69,7 @@ public:
     RefPtr<JSC::ArrayBuffer> takeAsArrayBuffer();
     String takeAsText();
 
-    bool hasPendingActivity() const;
+    bool NODELETE hasPendingActivity() const;
 
     void setType(Type type) { m_type = type; }
 

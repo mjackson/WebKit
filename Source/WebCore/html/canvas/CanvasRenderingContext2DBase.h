@@ -266,7 +266,7 @@ public:
         bool realized() const { return m_font.fontSelector(); }
         void initialize(FontSelector&, const FontCascade&);
         const FontMetrics& metricsOfPrimaryFont() const;
-        const FontCascadeDescription& fontDescription() const;
+        const FontCascadeDescription& NODELETE fontDescription() const;
         float width(const TextRun&, GlyphOverflow* = 0) const;
         void drawBidiText(GraphicsContext&, const TextRun&, const FloatPoint&, FontCascade::CustomFontNotReadyAction) const;
 
@@ -327,10 +327,10 @@ public:
 
         RefPtr<CanvasLayerContextSwitcher> targetSwitcher;
 
-        CanvasLineCap canvasLineCap() const;
-        CanvasLineJoin canvasLineJoin() const;
-        CanvasTextAlign canvasTextAlign() const;
-        CanvasTextBaseline canvasTextBaseline() const;
+        CanvasLineCap NODELETE canvasLineCap() const;
+        CanvasLineJoin NODELETE canvasLineJoin() const;
+        CanvasTextAlign NODELETE canvasTextAlign() const;
+        CanvasTextBaseline NODELETE canvasTextBaseline() const;
         String fontString() const;
         String globalCompositeOperationString() const;
         String shadowColorString() const;
@@ -345,12 +345,9 @@ protected:
     void realizeSaves();
     State& modifiableState() { ASSERT(!m_unrealizedSaveCount || m_stateStack.size() >= MaxSaveCount); return m_stateStack.last(); }
 
-    // These methods are de-virtualized for performance reasons.
     GraphicsContext* drawingContext() const;
     GraphicsContext* effectiveDrawingContext() const;
-
-    virtual GraphicsContext* existingDrawingContext() const;
-    virtual AffineTransform baseTransform() const;
+    AffineTransform baseTransform() const;
 
     enum class DidDrawOption {
         ApplyTransform = 1 << 0,
@@ -399,6 +396,14 @@ protected:
     bool usesCSSCompatibilityParseMode() const { return m_usesCSSCompatibilityParseMode; }
 
     void updateStateTransform(const AffineTransform&);
+
+    RefPtr<ImageBuffer> allocateImageBuffer() const;
+    bool hasCreatedImageBuffer() const { return m_hasCreatedImageBuffer; }
+    ImageBuffer* buffer() const;
+    RefPtr<ImageBuffer> makeRenderingResultsAvailable(ShouldApplyPostProcessingToDirtyRect = ShouldApplyPostProcessingToDirtyRect::Yes);
+    RefPtr<ImageBuffer> createImageForNoiseInjection() const;
+    void didUpdateCanvasSizeProperties(bool) override;
+
 private:
     struct CachedContentsTransparent {
     };
@@ -427,7 +432,6 @@ private:
     DestinationColorSpace colorSpace() const final;
     bool willReadFrequently() const final;
 
-    void unwindStateStack();
     void realizeSavesLoop();
     void setStrokeColorImpl(Color&& color, String&& unparsedColor = { });
     void setFillColorImpl(Color&& color, String&& unparsedColor = { });
@@ -481,6 +485,7 @@ private:
 
     template<class T> void fullCanvasCompositedDrawImage(T&, const FloatRect&, const FloatRect&, CompositeOperator);
 
+    RefPtr<ImageBuffer> surfaceBufferToImageBuffer(SurfaceBuffer) final;
     bool isSurfaceBufferTransparentBlack(SurfaceBuffer) const override;
 #if USE(SKIA)
     RefPtr<GraphicsLayerContentsDisplayDelegate> layerContentsDisplayDelegate() override;
@@ -499,13 +504,15 @@ private:
     void evictCachedImageData();
 
     static constexpr unsigned MaxSaveCount = 1024 * 16;
-    Vector<State, 1> m_stateStack;
+    mutable RefPtr<ImageBuffer> m_buffer;
+    Vector<State, 1> m_stateStack; // References go m_stateStack -> targetSwitcher -> m_buffer, so destroy state stack first.
     FloatRect m_dirtyRect;
     unsigned m_unrealizedSaveCount { 0 };
     bool m_usesCSSCompatibilityParseMode;
     mutable Variant<CachedContentsTransparent, CachedContentsUnknown, CachedContentsImageData> m_cachedContents;
     CanvasRenderingContext2DSettings m_settings;
     bool m_hasDeferredOperations { false };
+    mutable bool m_hasCreatedImageBuffer { false };
 };
 
 } // namespace WebCore

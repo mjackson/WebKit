@@ -66,7 +66,7 @@ RemoteSourceBufferProxy::RemoteSourceBufferProxy(GPUConnectionToWebProcess& conn
     , m_remoteMediaPlayerProxy(remoteMediaPlayerProxy)
 {
     connectionToWebProcess.messageReceiverMap().addMessageReceiver(Messages::RemoteSourceBufferProxy::messageReceiverName(), m_identifier.toUInt64(), *this);
-    protectedSourceBufferPrivate()->setClient(*this);
+    protect(m_sourceBufferPrivate)->setClient(*this);
 }
 
 RemoteSourceBufferProxy::~RemoteSourceBufferProxy()
@@ -170,53 +170,53 @@ void RemoteSourceBufferProxy::append(IPC::SharedBufferReference&& buffer, Comple
         connection->connection().send(Messages::SourceBufferPrivateRemoteMessageReceiver::TakeOwnershipOfMemory(WTF::move(*handle)), m_identifier);
 
     sourceBufferPrivate->append(sharedMemory->createSharedBuffer(buffer.size()))->whenSettled(RunLoop::currentSingleton(), [this, protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler)](auto&& result) mutable {
-        completionHandler(WTF::move(result), protectedSourceBufferPrivate()->timestampOffset());
+        completionHandler(WTF::move(result), protect(m_sourceBufferPrivate)->timestampOffset());
     });
 }
 
 void RemoteSourceBufferProxy::abort()
 {
-    protectedSourceBufferPrivate()->abort();
+    protect(m_sourceBufferPrivate)->abort();
 }
 
 void RemoteSourceBufferProxy::resetParserState()
 {
-    protectedSourceBufferPrivate()->resetParserState();
+    protect(m_sourceBufferPrivate)->resetParserState();
 }
 
 void RemoteSourceBufferProxy::removedFromMediaSource()
 {
-    protectedSourceBufferPrivate()->removedFromMediaSource();
+    protect(m_sourceBufferPrivate)->removedFromMediaSource();
 }
 
 void RemoteSourceBufferProxy::setMediaSourceEnded(bool isEnded)
 {
-    protectedSourceBufferPrivate()->setMediaSourceEnded(isEnded);
+    protect(m_sourceBufferPrivate)->setMediaSourceEnded(isEnded);
 }
 
 void RemoteSourceBufferProxy::setActive(bool active)
 {
-    protectedSourceBufferPrivate()->setActive(active);
+    protect(m_sourceBufferPrivate)->setActive(active);
 }
 
 void RemoteSourceBufferProxy::canSwitchToType(const ContentType& contentType, CompletionHandler<void(bool)>&& completionHandler)
 {
-    completionHandler(protectedSourceBufferPrivate()->canSwitchToType(contentType));
+    completionHandler(protect(m_sourceBufferPrivate)->canSwitchToType(contentType));
 }
 
 void RemoteSourceBufferProxy::setMode(WebCore::SourceBufferAppendMode appendMode)
 {
-    protectedSourceBufferPrivate()->setMode(appendMode);
+    protect(m_sourceBufferPrivate)->setMode(appendMode);
 }
 
 void RemoteSourceBufferProxy::startChangingType()
 {
-    protectedSourceBufferPrivate()->startChangingType();
+    protect(m_sourceBufferPrivate)->startChangingType();
 }
 
 void RemoteSourceBufferProxy::removeCodedFrames(const MediaTime& start, const MediaTime& end, const MediaTime& currentTime, CompletionHandler<void()>&& completionHandler)
 {
-    protectedSourceBufferPrivate()->removeCodedFrames(start, end, currentTime)->whenSettled(RunLoop::currentSingleton(), WTF::move(completionHandler));
+    protect(m_sourceBufferPrivate)->removeCodedFrames(start, end, currentTime)->whenSettled(RunLoop::currentSingleton(), WTF::move(completionHandler));
 }
 
 void RemoteSourceBufferProxy::evictCodedFrames(uint64_t newDataSize, const MediaTime& currentTime, CompletionHandler<void(Vector<WebCore::PlatformTimeRanges>&&, WebCore::SourceBufferEvictionData&&)>&& completionHandler)
@@ -228,119 +228,119 @@ void RemoteSourceBufferProxy::evictCodedFrames(uint64_t newDataSize, const Media
 
 void RemoteSourceBufferProxy::asyncEvictCodedFrames(uint64_t newDataSize, const MediaTime& currentTime)
 {
-    protectedSourceBufferPrivate()->asyncEvictCodedFrames(newDataSize, currentTime);
+    protect(m_sourceBufferPrivate)->asyncEvictCodedFrames(newDataSize, currentTime);
 }
 
 void RemoteSourceBufferProxy::addTrackBuffer(TrackID trackId)
 {
     MESSAGE_CHECK(m_mediaDescriptions.contains(trackId));
-    protectedSourceBufferPrivate()->addTrackBuffer(trackId, m_mediaDescriptions.find(trackId)->second.ptr());
+    protect(m_sourceBufferPrivate)->addTrackBuffer(trackId, m_mediaDescriptions.find(trackId)->second.ptr());
 }
 
 void RemoteSourceBufferProxy::resetTrackBuffers()
 {
-    protectedSourceBufferPrivate()->resetTrackBuffers();
+    protect(m_sourceBufferPrivate)->resetTrackBuffers();
 }
 
 void RemoteSourceBufferProxy::clearTrackBuffers()
 {
-    protectedSourceBufferPrivate()->clearTrackBuffers();
+    protect(m_sourceBufferPrivate)->clearTrackBuffers();
 }
 
 void RemoteSourceBufferProxy::setAllTrackBuffersNeedRandomAccess()
 {
-    protectedSourceBufferPrivate()->setAllTrackBuffersNeedRandomAccess();
+    protect(m_sourceBufferPrivate)->setAllTrackBuffersNeedRandomAccess();
 }
 
 void RemoteSourceBufferProxy::reenqueueMediaIfNeeded(const MediaTime& currentMediaTime)
 {
-    protectedSourceBufferPrivate()->reenqueueMediaIfNeeded(currentMediaTime);
+    protect(m_sourceBufferPrivate)->reenqueueMediaIfNeeded(currentMediaTime);
 }
 
 void RemoteSourceBufferProxy::setGroupStartTimestamp(const MediaTime& timestamp)
 {
-    protectedSourceBufferPrivate()->setGroupStartTimestamp(timestamp);
+    protect(m_sourceBufferPrivate)->setGroupStartTimestamp(timestamp);
 }
 
 void RemoteSourceBufferProxy::setGroupStartTimestampToEndTimestamp()
 {
-    protectedSourceBufferPrivate()->setGroupStartTimestampToEndTimestamp();
+    protect(m_sourceBufferPrivate)->setGroupStartTimestampToEndTimestamp();
 }
 
 void RemoteSourceBufferProxy::setShouldGenerateTimestamps(bool shouldGenerateTimestamps)
 {
-    protectedSourceBufferPrivate()->setShouldGenerateTimestamps(shouldGenerateTimestamps);
+    protect(m_sourceBufferPrivate)->setShouldGenerateTimestamps(shouldGenerateTimestamps);
 }
 
 void RemoteSourceBufferProxy::resetTimestampOffsetInTrackBuffers()
 {
-    protectedSourceBufferPrivate()->resetTimestampOffsetInTrackBuffers();
+    protect(m_sourceBufferPrivate)->resetTimestampOffsetInTrackBuffers();
 }
 
 void RemoteSourceBufferProxy::setTimestampOffset(const MediaTime& timestampOffset)
 {
-    protectedSourceBufferPrivate()->setTimestampOffset(timestampOffset);
+    protect(m_sourceBufferPrivate)->setTimestampOffset(timestampOffset);
 }
 
 void RemoteSourceBufferProxy::setAppendWindowStart(const MediaTime& appendWindowStart)
 {
-    protectedSourceBufferPrivate()->setAppendWindowStart(appendWindowStart);
+    protect(m_sourceBufferPrivate)->setAppendWindowStart(appendWindowStart);
 }
 
 void RemoteSourceBufferProxy::setAppendWindowEnd(const MediaTime& appendWindowEnd)
 {
-    protectedSourceBufferPrivate()->setAppendWindowEnd(appendWindowEnd);
+    protect(m_sourceBufferPrivate)->setAppendWindowEnd(appendWindowEnd);
 }
 
 void RemoteSourceBufferProxy::setMaximumBufferSize(uint64_t size, CompletionHandler<void()>&& completionHandler)
 {
-    protectedSourceBufferPrivate()->setMaximumBufferSize(size)->whenSettled(RunLoop::currentSingleton(), WTF::move(completionHandler));
+    protect(m_sourceBufferPrivate)->setMaximumBufferSize(size)->whenSettled(RunLoop::currentSingleton(), WTF::move(completionHandler));
 }
 
 void RemoteSourceBufferProxy::computeSeekTime(const SeekTarget& target, CompletionHandler<void(SourceBufferPrivate::ComputeSeekPromise::Result&&)>&& completionHandler)
 {
-    protectedSourceBufferPrivate()->computeSeekTime(target)->whenSettled(RunLoop::currentSingleton(), WTF::move(completionHandler));
+    protect(m_sourceBufferPrivate)->computeSeekTime(target)->whenSettled(RunLoop::currentSingleton(), WTF::move(completionHandler));
 }
 
 void RemoteSourceBufferProxy::updateTrackIds(Vector<std::pair<TrackID, TrackID>>&& trackIdPairs)
 {
     if (!trackIdPairs.isEmpty())
-        protectedSourceBufferPrivate()->updateTrackIds(WTF::move(trackIdPairs));
+        protect(m_sourceBufferPrivate)->updateTrackIds(WTF::move(trackIdPairs));
 }
 
 void RemoteSourceBufferProxy::bufferedSamplesForTrackId(TrackID trackId, CompletionHandler<void(WebCore::SourceBufferPrivate::SamplesPromise::Result&&)>&& completionHandler)
 {
-    protectedSourceBufferPrivate()->bufferedSamplesForTrackId(trackId)->whenSettled(RunLoop::currentSingleton(), WTF::move(completionHandler));
+    protect(m_sourceBufferPrivate)->bufferedSamplesForTrackId(trackId)->whenSettled(RunLoop::currentSingleton(), WTF::move(completionHandler));
 }
 
 void RemoteSourceBufferProxy::enqueuedSamplesForTrackID(TrackID trackId, CompletionHandler<void(WebCore::SourceBufferPrivate::SamplesPromise::Result&&)>&& completionHandler)
 {
-    protectedSourceBufferPrivate()->enqueuedSamplesForTrackID(trackId)->whenSettled(RunLoop::currentSingleton(), WTF::move(completionHandler));
+    protect(m_sourceBufferPrivate)->enqueuedSamplesForTrackID(trackId)->whenSettled(RunLoop::currentSingleton(), WTF::move(completionHandler));
 }
 
 void RemoteSourceBufferProxy::memoryPressure(const MediaTime& currentTime)
 {
-    protectedSourceBufferPrivate()->memoryPressure(currentTime);
+    protect(m_sourceBufferPrivate)->memoryPressure(currentTime);
 }
 
 void RemoteSourceBufferProxy::minimumUpcomingPresentationTimeForTrackID(TrackID trackID, CompletionHandler<void(MediaTime)>&& completionHandler)
 {
-    completionHandler(protectedSourceBufferPrivate()->minimumUpcomingPresentationTimeForTrackID(trackID));
+    completionHandler(protect(m_sourceBufferPrivate)->minimumUpcomingPresentationTimeForTrackID(trackID));
 }
 
 void RemoteSourceBufferProxy::setMaximumQueueDepthForTrackID(TrackID trackID, uint64_t depth)
 {
-    protectedSourceBufferPrivate()->setMaximumQueueDepthForTrackID(trackID, depth);
+    protect(m_sourceBufferPrivate)->setMaximumQueueDepthForTrackID(trackID, depth);
 }
 
 void RemoteSourceBufferProxy::detach()
 {
-    protectedSourceBufferPrivate()->detach();
+    protect(m_sourceBufferPrivate)->detach();
 }
 
 void RemoteSourceBufferProxy::attach()
 {
-    protectedSourceBufferPrivate()->attach();
+    protect(m_sourceBufferPrivate)->attach();
 }
 
 Ref<MediaPromise> RemoteSourceBufferProxy::sourceBufferPrivateDidAttach(InitializationSegment&& segment)

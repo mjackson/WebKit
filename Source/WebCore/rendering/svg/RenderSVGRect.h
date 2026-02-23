@@ -41,7 +41,7 @@ public:
     RenderSVGRect(SVGRectElement&, RenderStyle&&);
     virtual ~RenderSVGRect();
 
-    SVGRectElement& rectElement() const;
+    SVGRectElement& NODELETE rectElement() const;
 
 private:
     void graphicsElement() const = delete;

@@ -93,30 +93,30 @@ public:
     void remove(iterator&);
     void remove(const_iterator&);
     
-    template<typename Func> size_t removeAllMatching(const Func&);
-    template<typename Func> bool removeFirstMatching(const Func&);
+    template<std::predicate<T&> Predicate> size_t removeAllMatching(const Predicate&);
+    template<std::predicate<T&> Predicate> bool removeFirstMatching(const Predicate&);
 
     // This is a priority enqueue. The callback is given a value, and if it returns true, then this
     // will put the appended value before that value. It will keep bubbling until the callback returns
     // false or the value ends up at the head of the queue.
-    template<typename U, typename Func>
-    void appendAndBubble(U&&, const Func&);
+    template<typename U, std::predicate<T&> Predicate>
+    void appendAndBubble(U&&, const Predicate&);
     
     // Remove and return the first element for which the callback returns true. Returns a null version of
     // T if it the callback always returns false.
-    template<typename Func>
-    T takeFirst(NOESCAPE const Func&);
+    template<std::predicate<T&> Predicate>
+    T takeFirst(NOESCAPE const Predicate&);
 
     // Remove and return the last element for which the callback returns true. Returns a null version of
     // T if it the callback always returns false.
-    template<typename Func>
-    T takeLast(NOESCAPE const Func&);
+    template<std::predicate<T&> Predicate>
+    T takeLast(NOESCAPE const Predicate&);
 
     void clear();
 
-    template<typename Predicate> iterator findIf(NOESCAPE const Predicate&) LIFETIME_BOUND;
-    template<typename Predicate> const_iterator findIf(NOESCAPE const Predicate&) const LIFETIME_BOUND;
-    template<typename Predicate> bool containsIf(NOESCAPE const Predicate& predicate) const LIFETIME_BOUND
+    template<std::predicate<T&> Predicate> iterator findIf(NOESCAPE const Predicate&) LIFETIME_BOUND;
+    template<std::predicate<const T&> Predicate> const_iterator findIf(NOESCAPE const Predicate&) const LIFETIME_BOUND;
+    template<std::predicate<const T&> Predicate> bool containsIf(NOESCAPE const Predicate& predicate) const LIFETIME_BOUND
     {
         return findIf(predicate) != end();
     }
@@ -411,14 +411,14 @@ inline void Deque<T, inlineCapacity>::clear()
 }
 
 template<typename T, size_t inlineCapacity>
-template<typename Predicate>
+template<std::predicate<T&> Predicate>
 inline auto Deque<T, inlineCapacity>::findIf(NOESCAPE const Predicate& predicate) LIFETIME_BOUND -> iterator
 {
     return std::find_if(begin(), end(), predicate);
 }
 
 template<typename T, size_t inlineCapacity>
-template<typename Predicate>
+template<std::predicate<const T&> Predicate>
 inline auto Deque<T, inlineCapacity>::findIf(NOESCAPE const Predicate& predicate) const LIFETIME_BOUND -> const_iterator
 {
     return std::find_if(begin(), end(), predicate);
@@ -574,24 +574,24 @@ inline void Deque<T, inlineCapacity>::remove(size_t position)
 }
 
 template<typename T, size_t inlineCapacity>
-template<typename Func>
-inline size_t Deque<T, inlineCapacity>::removeAllMatching(const Func& func)
+template<std::predicate<T&> Predicate>
+inline size_t Deque<T, inlineCapacity>::removeAllMatching(const Predicate& predicate)
 {
     auto oldSize = size();
     for (size_t i = 0; i < oldSize; ++i) {
         auto value = takeFirst();
-        if (!func(value))
+        if (!predicate(value))
             append(WTF::move(value));
     }
     return size() - oldSize;
 }
 
 template<typename T, size_t inlineCapacity>
-template<typename Func>
-inline bool Deque<T, inlineCapacity>::removeFirstMatching(const Func& func)
+template<std::predicate<T&> Predicate>
+inline bool Deque<T, inlineCapacity>::removeFirstMatching(const Predicate& predicate)
 {
     for (auto iter = begin(); iter != end(); ++iter) {
-        if (func(*iter)) {
+        if (predicate(*iter)) {
             remove(iter);
             return true;
         }
@@ -600,8 +600,8 @@ inline bool Deque<T, inlineCapacity>::removeFirstMatching(const Func& func)
 }
 
 template<typename T, size_t inlineCapacity>
-template<typename U, typename Func>
-inline void Deque<T, inlineCapacity>::appendAndBubble(U&& value, const Func& func)
+template<typename U, std::predicate<T&> Predicate>
+inline void Deque<T, inlineCapacity>::appendAndBubble(U&& value, const Predicate& predicate)
 {
     append(std::forward<U>(value));
     iterator begin = this->begin();
@@ -610,7 +610,7 @@ inline void Deque<T, inlineCapacity>::appendAndBubble(U&& value, const Func& fun
     while (iter != begin) {
         iterator prev = iter;
         --prev;
-        if (!func(*prev))
+        if (!predicate(*prev))
             return;
         std::swap(*prev, *iter);
         iter = prev;
@@ -618,14 +618,14 @@ inline void Deque<T, inlineCapacity>::appendAndBubble(U&& value, const Func& fun
 }
 
 template<typename T, size_t inlineCapacity>
-template<typename Func>
-inline T Deque<T, inlineCapacity>::takeFirst(NOESCAPE const Func& func)
+template<std::predicate<T&> Predicate>
+inline T Deque<T, inlineCapacity>::takeFirst(NOESCAPE const Predicate& predicate)
 {
     unsigned count = 0;
     unsigned size = this->size();
     while (count < size) {
         T candidate = takeFirst();
-        if (func(candidate)) {
+        if (predicate(candidate)) {
             while (count--)
                 prepend(takeLast());
             return candidate;
@@ -637,14 +637,14 @@ inline T Deque<T, inlineCapacity>::takeFirst(NOESCAPE const Func& func)
 }
 
 template<typename T, size_t inlineCapacity>
-template<typename Func>
-inline T Deque<T, inlineCapacity>::takeLast(NOESCAPE const Func& func)
+template<std::predicate<T&> Predicate>
+inline T Deque<T, inlineCapacity>::takeLast(NOESCAPE const Predicate& predicate)
 {
     unsigned count = 0;
     unsigned size = this->size();
     while (count < size) {
         T candidate = takeLast();
-        if (func(candidate)) {
+        if (predicate(candidate)) {
             while (count--)
                 append(takeFirst());
             return candidate;

@@ -58,7 +58,7 @@ UserMediaProcessManager::UserMediaProcessManager()
 }
 
 #if ENABLE(SANDBOX_EXTENSIONS)
-static bool needsAppleCameraService()
+static bool NODELETE needsAppleCameraService()
 {
 #if !PLATFORM(MAC) && !PLATFORM(MACCATALYST)
     return false;

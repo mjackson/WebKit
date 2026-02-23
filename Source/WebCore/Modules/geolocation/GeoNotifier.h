@@ -60,7 +60,7 @@ public:
     void startTimerIfNeeded();
     void stopTimer();
     void timerFired();
-    bool hasZeroTimeout() const;
+    bool NODELETE hasZeroTimeout() const;
 
 private:
     GeoNotifier(Geolocation&, Ref<PositionCallback>&&, RefPtr<PositionErrorCallback>&&, PositionOptions&&);

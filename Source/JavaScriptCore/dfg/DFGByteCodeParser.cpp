@@ -995,8 +995,7 @@ private:
 
         switch (opcodeID) {
         case op_tail_call:
-        case op_tail_call_varargs:
-        case op_tail_call_forward_arguments: {
+        case op_tail_call_varargs: {
             // Things should be more permissive to us returning BOTTOM instead of TOP here.
             // Currently, this will cause us to Force OSR exit. This is bad because returning
             // TOP will cause anything that transitively touches this speculated type to
@@ -9111,22 +9110,6 @@ void ByteCodeParser::parseBlock(unsigned limit)
                 NEXT_OPCODE(op_tail_call_varargs);
             else
                 LAST_OPCODE(op_tail_call_varargs);
-        }
-
-        case op_tail_call_forward_arguments: {
-            // We need to make sure that we don't unbox our arguments here since that won't be
-            // done by the arguments object creation node as that node may not exist.
-            noticeArgumentsUse();
-            flushForReturn();
-            Terminality terminality = handleVarargsCall<OpTailCallForwardArguments>(currentInstruction, TailCallForwardVarargs, CallMode::Tail);
-            ASSERT_WITH_MESSAGE(m_currentInstruction == currentInstruction, "handleVarargsCall, which may have inlined the callee, trashed m_currentInstruction");
-            // If the call is terminal then we should not parse any further bytecodes as the TailCall will exit the function.
-            // If the call is not terminal, however, then we want the subsequent op_ret/op_jmp to update metadata and clean
-            // things up.
-            if (terminality == NonTerminal)
-                NEXT_OPCODE(op_tail_call_forward_arguments);
-            else
-                LAST_OPCODE(op_tail_call_forward_arguments);
         }
 
         case op_construct_varargs: {

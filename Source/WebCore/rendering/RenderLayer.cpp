@@ -184,7 +184,7 @@ public:
         return adoptRef(*new ClipRects(other));
     }
 
-    void reset()
+    void NODELETE reset()
     {
         m_overflowClipRect.reset();
         m_fixedClipRect.reset();
@@ -193,18 +193,18 @@ public:
     }
 
     const ClipRect& overflowClipRect() const { return m_overflowClipRect; }
-    void setOverflowClipRect(const ClipRect& clipRect) { m_overflowClipRect = clipRect; }
+    void NODELETE setOverflowClipRect(const ClipRect& clipRect) { m_overflowClipRect = clipRect; }
 
-    const ClipRect& fixedClipRect() const { return m_fixedClipRect; }
-    void setFixedClipRect(const ClipRect& clipRect) { m_fixedClipRect = clipRect; }
+    const ClipRect& NODELETE fixedClipRect() const { return m_fixedClipRect; }
+    void NODELETE setFixedClipRect(const ClipRect& clipRect) { m_fixedClipRect = clipRect; }
 
-    const ClipRect& posClipRect() const { return m_posClipRect; }
-    void setPosClipRect(const ClipRect& clipRect) { m_posClipRect = clipRect; }
+    const ClipRect& NODELETE posClipRect() const { return m_posClipRect; }
+    void NODELETE setPosClipRect(const ClipRect& clipRect) { m_posClipRect = clipRect; }
 
-    bool fixed() const { return m_fixed; }
-    void setFixed(bool fixed) { m_fixed = fixed; }
+    bool NODELETE fixed() const { return m_fixed; }
+    void NODELETE setFixed(bool fixed) { m_fixed = fixed; }
 
-    void setOverflowClipRectAffectedByRadius() { m_overflowClipRect.setAffectedByRadius(true); }
+    void NODELETE setOverflowClipRectAffectedByRadius() { m_overflowClipRect.setAffectedByRadius(true); }
 
     bool operator==(const ClipRects& other) const
     {
@@ -261,12 +261,12 @@ public:
 
     }
 
-    ClipRects* getClipRects(const RenderLayer::ClipRectsContext& context) const
+    ClipRects* NODELETE getClipRects(const RenderLayer::ClipRectsContext& context) const
     {
         return m_clipRects[getIndex(context.clipRectsType, context.respectOverflowClip())].get();
     }
 
-    void setClipRects(ClipRectsType clipRectsType, bool respectOverflowClip, RefPtr<ClipRects>&& clipRects)
+    void NODELETE setClipRects(ClipRectsType clipRectsType, bool respectOverflowClip, RefPtr<ClipRects>&& clipRects)
     {
         m_clipRects[getIndex(clipRectsType, respectOverflowClip)] = WTF::move(clipRects);
     }
@@ -275,7 +275,7 @@ public:
     std::array<const RenderLayer*, NumCachedClipRectsTypes> m_clipRectsRoot;
 #endif
 private:
-    unsigned getIndex(ClipRectsType clipRectsType, bool respectOverflowClip) const
+    unsigned NODELETE getIndex(ClipRectsType clipRectsType, bool respectOverflowClip) const
     {
         unsigned index = static_cast<unsigned>(clipRectsType);
         if (respectOverflowClip)
@@ -307,7 +307,7 @@ static TextStream& operator<<(TextStream& ts, const ClipRects& clipRects)
 
 #endif
 
-static ScrollingScope nextScrollingScope()
+static ScrollingScope NODELETE nextScrollingScope()
 {
     static ScrollingScope currentScope = 0;
     return ++currentScope;
@@ -602,7 +602,7 @@ static bool canCreateStackingContext(const RenderLayer& layer)
         || renderer.isRenderViewTransitionCapture()
         || renderer.isPositioned() // Note that this only creates stacking context in conjunction with explicit z-index.
         || renderer.hasReflection()
-        || renderer.style().hasIsolation()
+        || renderer.style().isolation() != Isolation::Auto
         || renderer.shouldApplyPaintContainment()
         || !renderer.style().usedZIndex().isAuto()
         || renderer.style().willChange().canCreateStackingContext()
@@ -758,7 +758,7 @@ bool RenderLayer::willCompositeClipPath() const
     if (!isComposited())
         return false;
 
-    if (!renderer().style().hasClipPath())
+    if (!renderer().hasClipPath())
         return false;
 
     if (renderer().hasMask())
@@ -2229,7 +2229,7 @@ TransformationMatrix RenderLayer::perspectiveTransform() const
         return { };
 
     const auto& style = renderer().style();
-    if (!style.hasPerspective())
+    if (style.perspective().isNone())
         return { };
 
     auto transformReferenceBoxRect = snapRectToDevicePixelsIfNeeded(renderer().transformReferenceBoxRect(style), renderer());
@@ -3239,7 +3239,7 @@ void RenderLayer::clipToRect(GraphicsContext& context, GraphicsContextStateSaver
             if (paintBehavior.contains(PaintBehavior::CompositedOverflowScrollContent) && layer->usesCompositedScrolling())
                 break;
         
-            if (layer->renderer().hasNonVisibleOverflow() && layer->renderer().style().hasBorderRadius() && ancestorLayerIsInContainingBlockChain(*layer)) {
+            if (layer->renderer().hasNonVisibleOverflow() && layer->renderer().style().border().hasBorderRadius() && ancestorLayerIsInContainingBlockChain(*layer)) {
                 auto adjustedClipRect = LayoutRect { LayoutPoint { layer->offsetFromAncestor(paintingInfo.rootLayer, AdjustForColumns) }, layer->rendererBorderBoxRect().size() };
                 adjustedClipRect.move(paintingInfo.subpixelOffset);
                 auto borderShape = BorderShape::shapeForBorderRect(layer->renderer().style(), adjustedClipRect);
@@ -3273,12 +3273,12 @@ static void performOverlapTests(OverlapTestRequestMap& overlapTestRequests, cons
         overlapTestRequests.remove(client);
 }
 
-static inline bool shouldDoSoftwarePaint(const RenderLayer* layer, bool paintingReflection)
+static inline bool NODELETE shouldDoSoftwarePaint(const RenderLayer* layer, bool paintingReflection)
 {
     return paintingReflection && !layer->has3DTransform();
 }
 
-static inline bool shouldSuppressPaintingLayer(RenderLayer* layer)
+static inline bool NODELETE shouldSuppressPaintingLayer(RenderLayer* layer)
 {
     // Avoid painting all layers if the document is in a state where visual updates aren't allowed.
     // A full repaint will occur in Document::setVisualUpdatesAllowed(bool) if painting is suppressed here.
@@ -3315,7 +3315,7 @@ void RenderLayer::paintSVGResourceLayer(GraphicsContext& context, const AffineTr
     m_isPaintingSVGResourceLayer = wasPaintingSVGResourceLayer;
 }
 
-static inline bool paintForFixedRootBackground(const RenderLayer* layer, OptionSet<RenderLayer::PaintLayerFlag> paintFlags)
+static inline bool NODELETE paintForFixedRootBackground(const RenderLayer* layer, OptionSet<RenderLayer::PaintLayerFlag> paintFlags)
 {
     return layer->renderer().isDocumentElementRenderer() && (paintFlags & RenderLayer::PaintLayerFlag::PaintingRootBackgroundOnly);
 }
@@ -4653,7 +4653,7 @@ static RefPtr<Element> flattenedParent(Element* element)
         return nullptr;
     RefPtr parent = element->parentElementInComposedTree();
     while (parent) {
-        if (!parent->isConnected() || parent->computedStyle()->display() != DisplayType::Contents)
+        if (!parent->isConnected() || parent->computedStyle()->display() != Style::DisplayType::Contents)
             break;
         parent = parent->parentElementInComposedTree();
     }
@@ -5169,7 +5169,7 @@ Ref<ClipRects> RenderLayer::updateClipRects(const ClipRectsContext& clipRectsCon
 #if ASSERT_ENABLED
     m_clipRectsCache->m_clipRectsRoot[clipRectsType] = clipRectsContext.rootLayer;
 #endif
-    ASSERT(enumToUnderlyingType(clipRectsContext.overlayScrollbarSizeRelevancy()) == (clipRectsContext.clipRectsType == RootRelativeClipRects));
+    ASSERT(std::to_underlying(clipRectsContext.overlayScrollbarSizeRelevancy()) == (clipRectsContext.clipRectsType == RootRelativeClipRects));
 
     RefPtr<ClipRects> parentClipRects = this->parentClipRects(clipRectsContext);
 
@@ -5251,7 +5251,7 @@ void RenderLayer::calculateClipRects(const ClipRectsContext& clipRectsContext, C
             if (needsTransform)
                 newOverflowClip = LayoutRect(renderer().localToContainerQuad(FloatRect(newOverflowClip.rect()), &clipRectsContext.rootLayer->renderer()).boundingBox());
             newOverflowClip.moveBy(offset);
-            newOverflowClip.setAffectedByRadius(renderer().style().hasBorderRadius());
+            newOverflowClip.setAffectedByRadius(renderer().style().border().hasBorderRadius());
             clipRects.setOverflowClipRect(intersection(newOverflowClip, clipRects.overflowClipRect()));
             if (renderer().canContainAbsolutelyPositionedObjects())
                 clipRects.setPosClipRect(intersection(newOverflowClip, clipRects.posClipRect()));
@@ -5269,7 +5269,7 @@ void RenderLayer::calculateClipRects(const ClipRectsContext& clipRectsContext, C
                 clipRects.setFixedClipRect(intersection(newPosClip, clipRects.fixedClipRect()));
             }
         }
-    } else if (renderer().hasNonVisibleOverflow() && transform() && renderer().style().hasBorderRadius())
+    } else if (renderer().hasNonVisibleOverflow() && transform() && renderer().style().border().hasBorderRadius())
         clipRects.setOverflowClipRectAffectedByRadius();
 
     LOG_WITH_STREAM(ClipRects, stream << "RenderLayer " << this << " calculateClipRects " << clipRectsContext << " computed " << clipRects);
@@ -5302,7 +5302,7 @@ RefPtr<ClipRects> RenderLayer::parentClipRects(const ClipRectsContext& clipRects
     return containerLayer->updateClipRects(clipRectsContext);
 }
 
-static inline ClipRect backgroundClipRectForPosition(const ClipRects& parentRects, PositionType position)
+static inline ClipRect NODELETE backgroundClipRectForPosition(const ClipRects& parentRects, PositionType position)
 {
     if (position == PositionType::Fixed)
         return parentRects.fixedClipRect();
@@ -5401,7 +5401,7 @@ ClipRect RenderLayer::calculateForegroundRect(const ClipRectsContext& clipRectsC
         return foregroundRect;
     }
 
-    if (transform() && renderer().style().hasBorderRadius())
+    if (transform() && renderer().style().border().hasBorderRadius())
         foregroundRect.setAffectedByRadius(true);
 
     return foregroundRect;
@@ -6029,9 +6029,8 @@ static bool rendererHasHDRContent(const RenderElement& renderer)
     }
 
     auto styleHasHDRContent = [](const auto& style) {
-        if (style.hasBackgroundImage()) {
-            if (Style::hasHDRContent(style.backgroundLayers()))
-                return true;
+        if (auto& backgroundLayers = style.backgroundLayers(); Style::hasImageInAnyLayer(backgroundLayers) && Style::hasHDRContent(backgroundLayers)) {
+            return true;
         }
 
         if (auto image = style.borderImageSource().tryImage()) {
@@ -6245,7 +6244,7 @@ void RenderLayer::styleChanged(Style::Difference diff, const RenderStyle* oldSty
         if (oldStyle->opacity().isTransparent() != renderer().style().opacity().isTransparent())
             setNeedsPositionUpdate();
 
-        if (oldStyle->preserves3D() != preserves3D()) {
+        if ((oldStyle->usedTransformStyle3D() == TransformStyle3D::Preserve3D) != preserves3D()) {
             dirty3DTransformedDescendantStatus();
             setNeedsPostLayoutCompositingUpdateOnAncestors();
         }
@@ -6574,11 +6573,6 @@ void RenderLayer::markFrontBufferVolatileForTesting()
 RenderLayerScrollableArea* RenderLayer::scrollableArea() const
 {
     return m_scrollableArea.get();
-}
-
-CheckedPtr<RenderLayerScrollableArea> RenderLayer::checkedScrollableArea() const
-{
-    return scrollableArea();
 }
 
 #if ENABLE(ASYNC_SCROLLING) && !LOG_DISABLED

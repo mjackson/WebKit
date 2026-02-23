@@ -118,7 +118,7 @@ bool BuilderState::useSVGZoomRulesForLength() const
     return is<SVGElement>(element()) && !(is<SVGSVGElement>(*element()) && element()->parentNode());
 }
 
-RefPtr<StyleImage> BuilderState::createStyleImage(const CSSValue& value) const
+RefPtr<Image> BuilderState::createStyleImage(const CSSValue& value) const
 {
     if (auto* imageValue = dynamicDowncast<CSSImageValue>(value))
         return imageValue->createStyleImage(*this);

@@ -1105,6 +1105,10 @@ class StyleProperty:
             return "ensureBackgroundLayers"
         if "mask-" in self.name:
             return "ensureMaskLayers"
+        if "scroll-timeline-" in self.name:
+            return "ensureScrollTimelines"
+        if "view-timeline-" in self.name:
+            return "ensureViewTimelines"
         raise Exception(f"Unrecognized coordinated list value property name: '{self.name}")
 
     @property
@@ -1117,6 +1121,10 @@ class StyleProperty:
             return "backgroundLayers"
         if "mask-" in self.name:
             return "maskLayers"
+        if "scroll-timeline-" in self.name:
+            return "scrollTimelines"
+        if "view-timeline-" in self.name:
+            return "viewTimelines"
         raise Exception(f"Unrecognized coordinated list value property name: '{self.name}")
 
     @property
@@ -1129,6 +1137,10 @@ class StyleProperty:
             return "setBackgroundLayers"
         if "mask-" in self.name:
             return "setMaskLayers"
+        if "scroll-timeline-" in self.name:
+            return "setScrollTimelines"
+        if "view-timeline-" in self.name:
+            return "setViewTimelines"
         raise Exception(f"Unrecognized coordinated list value property name: '{self.name}")
 
     @property
@@ -1141,6 +1153,10 @@ class StyleProperty:
             return "initialBackgroundLayers"
         if "mask-" in self.name:
             return "initialMaskLayers"
+        if "scroll-timeline-" in self.name:
+            return "initialScrollTimelines"
+        if "view-timeline-" in self.name:
+            return "initialViewTimelines"
         raise Exception(f"Unrecognized coordinated list value property name: '{self.name}")
 
     @property
@@ -1153,6 +1169,10 @@ class StyleProperty:
             return "BackgroundLayers"
         if "mask-" in self.name:
             return "MaskLayers"
+        if "scroll-timeline-" in self.name:
+            return "ScrollTimelines"
+        if "view-timeline-" in self.name:
+            return "ViewTimelines"
         raise Exception(f"Unrecognized coordinated list value property name: '{self.name}")
 
     # Computes the return type of the getter.

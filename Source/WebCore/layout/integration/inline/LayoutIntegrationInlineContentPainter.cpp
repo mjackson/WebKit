@@ -79,8 +79,8 @@ void InlineContentPainter::paintDisplayBox(const InlineDisplay::Box& box)
 
     if (box.isLineBreak()) {
         if (m_paintInfo.phase == PaintPhase::Accessibility) {
-            auto* renderLineBreak = dynamicDowncast<RenderLineBreak>(box.layoutBox().rendererForIntegration());
-            m_paintInfo.accessibilityRegionContext()->takeBounds(renderLineBreak, m_paintOffset);
+            CheckedPtr renderLineBreak = dynamicDowncast<RenderLineBreak>(box.layoutBox().rendererForIntegration());
+            m_paintInfo.accessibilityRegionContext()->takeBounds(renderLineBreak.get(), m_paintOffset);
         }
         return;
     }
@@ -124,7 +124,7 @@ void InlineContentPainter::paintDisplayBox(const InlineDisplay::Box& box)
         return;
     }
 
-    if (auto* renderer = dynamicDowncast<RenderBox>(box.layoutBox().rendererForIntegration()); renderer) {
+    if (CheckedPtr renderer = dynamicDowncast<RenderBox>(box.layoutBox().rendererForIntegration()); renderer) {
         if (m_paintInfo.shouldPaintWithinRoot(*renderer)) {
             // FIXME: Painting should not require a non-const renderer.
             CheckedRef paintRenderer = const_cast<RenderBox&>(*renderer);
@@ -193,7 +193,7 @@ void InlineContentPainter::paint()
     paintLineEndingEllipsisIfApplicable({ });
 
     OutlinePainter outlinePainter { m_paintInfo };
-    for (auto& renderInline : m_outlineObjects)
+    for (CheckedRef renderInline : m_outlineObjects)
         outlinePainter.paintOutline(renderInline, m_paintOffset);
 }
 
@@ -245,7 +245,7 @@ bool LayerPaintScope::testIsIncludesAndUpdate(const InlineDisplay::Box& box)
     if (box.isText() || box.isLineBreak())
         return true;
 
-    auto* renderer = dynamicDowncast<RenderLayerModelObject>(box.layoutBox().rendererForIntegration());
+    CheckedPtr renderer = dynamicDowncast<RenderLayerModelObject>(box.layoutBox().rendererForIntegration());
     bool hasSelfPaintingLayer = renderer && renderer->hasSelfPaintingLayer();
 
     if (hasSelfPaintingLayer && box.isNonRootInlineBox())

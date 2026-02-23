@@ -54,7 +54,7 @@
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 // We don't have a NO_RETURN_DUE_TO_EXIT, nor should we. That's ridiculous.
-static bool hiddenTruthBecauseNoReturnIsStupid() { return true; }
+static bool NODELETE hiddenTruthBecauseNoReturnIsStupid() { return true; }
 
 static void usage()
 {
@@ -1359,7 +1359,7 @@ void testShuffleShiftMemoryAllRegs64()
     CHECK(memory[1] == 35000000000000ll);
 }
 
-int64_t combineHiLo(int64_t high, int64_t low)
+int64_t NODELETE combineHiLo(int64_t high, int64_t low)
 {
     union {
         int64_t value;
@@ -2616,6 +2616,181 @@ void testEarlyClobberInterference()
     }
 }
 
+#if USE(JSVALUE64)
+void testMoveDoubleZeroConstant()
+{
+    B3::Procedure proc;
+    Code& code = proc.code();
+
+    BasicBlock* root = code.addBlock();
+    Tmp result = code.newTmp(FP);
+    // Test MoveDouble with FPImm64 zero
+    root->append(MoveDouble, nullptr, Arg::fpImm64(0), result);
+    root->append(MoveDoubleTo64, nullptr, result, Tmp(GPRInfo::returnValueGPR));
+    root->append(Ret64, nullptr, Tmp(GPRInfo::returnValueGPR));
+
+    CHECK(compileAndRun<uint64_t>(proc) == 0);
+}
+
+void testMoveFloatZeroConstant()
+{
+    B3::Procedure proc;
+    Code& code = proc.code();
+
+    BasicBlock* root = code.addBlock();
+    Tmp result = code.newTmp(FP);
+    // Test MoveFloat with FPImm32 zero
+    root->append(MoveFloat, nullptr, Arg::fpImm32(0), result);
+    root->append(MoveFloatTo32, nullptr, result, Tmp(GPRInfo::returnValueGPR));
+    root->append(Ret32, nullptr, Tmp(GPRInfo::returnValueGPR));
+
+    CHECK(compileAndRun<uint32_t>(proc) == 0);
+}
+
+void testMoveDoubleConstant()
+{
+    B3::Procedure proc;
+    Code& code = proc.code();
+
+    BasicBlock* root = code.addBlock();
+    Tmp result = code.newTmp(FP);
+    // 1.5 = 0x3ff8000000000000
+    uint64_t bits = 0x3ff8000000000000ULL;
+    root->append(MoveDouble, nullptr, Arg::fpImm64(bits), result);
+    root->append(MoveDoubleTo64, nullptr, result, Tmp(GPRInfo::returnValueGPR));
+    root->append(Ret64, nullptr, Tmp(GPRInfo::returnValueGPR));
+
+    CHECK(compileAndRun<uint64_t>(proc) == bits);
+}
+
+void testMoveFloatConstant()
+{
+    B3::Procedure proc;
+    Code& code = proc.code();
+
+    BasicBlock* root = code.addBlock();
+    Tmp result = code.newTmp(FP);
+    // 1.5f = 0x3fc00000
+    uint32_t bits = 0x3fc00000U;
+    root->append(MoveFloat, nullptr, Arg::fpImm32(bits), result);
+    root->append(MoveFloatTo32, nullptr, result, Tmp(GPRInfo::returnValueGPR));
+    root->append(Ret32, nullptr, Tmp(GPRInfo::returnValueGPR));
+
+    CHECK(compileAndRun<uint32_t>(proc) == bits);
+}
+
+void testMoveVectorZeroConstant()
+{
+    B3::Procedure proc;
+    Code& code = proc.code();
+
+    BasicBlock* root = code.addBlock();
+    Tmp result = code.newTmp(FP);
+    Tmp gpScratch = code.newTmp(GP);
+    // Test MoveVector with FPImm128 zero
+    root->append(MoveVector, nullptr, Arg::fpImm128(vectorAllZeros()), result);
+
+    // Store vector to memory and verify
+    uint64_t output[2] = { 0xdeadbeef, 0xdeadbeef };
+    root->append(Move, nullptr, Arg::bigImm(std::bit_cast<intptr_t>(&output)), gpScratch);
+    root->append(MoveVector, nullptr, result, Arg::addr(gpScratch));
+    root->append(Move, nullptr, Arg::imm(1), Tmp(GPRInfo::returnValueGPR));
+    root->append(Ret32, nullptr, Tmp(GPRInfo::returnValueGPR));
+
+    CHECK(compileAndRun<int>(proc) == 1);
+    CHECK(output[0] == 0);
+    CHECK(output[1] == 0);
+}
+
+// Test that float constants are correctly rematerialized when spilled.
+// This test creates many float tmps to force spilling, and verifies
+// that the 32-bit float constant is not misinterpreted as a 64-bit double.
+// Regression test for https://bugs.webkit.org/show_bug.cgi?id=308019
+void testMoveFloatConstantSpill()
+{
+    B3::Procedure proc;
+    Code& code = proc.code();
+
+    BasicBlock* root = code.addBlock();
+
+    // 1.0f = 0x3f800000 as a 32-bit float
+    // If misinterpreted as a 64-bit double, it's ~4.6e-315
+    uint32_t floatBits = 0x3f800000U;
+
+    // Create many float constants to force spilling
+    Vector<Tmp> tmps;
+    for (unsigned i = 0; i < 50; ++i) {
+        Tmp tmp = code.newTmp(FP);
+        tmps.append(tmp);
+        root->append(MoveFloat, nullptr, Arg::fpImm32(floatBits), tmp);
+    }
+
+    // Use all the temps to ensure they stay live and get spilled
+    Tmp accumulator = code.newTmp(FP);
+    root->append(MoveFloat, nullptr, tmps[0], accumulator);
+    for (unsigned i = 1; i < tmps.size(); ++i)
+        root->append(AddFloat, nullptr, accumulator, tmps[i], accumulator);
+
+    // Return the result as a 32-bit value
+    root->append(MoveFloatTo32, nullptr, accumulator, Tmp(GPRInfo::returnValueGPR));
+    root->append(Ret32, nullptr, Tmp(GPRInfo::returnValueGPR));
+
+    // The result should be 50.0f (1.0 + 1.0 + ... 50 times)
+    uint32_t expected = std::bit_cast<uint32_t>(50.0f);
+    CHECK(compileAndRun<uint32_t>(proc) == expected);
+}
+
+void testAddDoubleZeroWithOther()
+{
+    B3::Procedure proc;
+    Code& code = proc.code();
+
+    BasicBlock* root = code.addBlock();
+    Tmp zero = code.newTmp(FP);
+    Tmp scratch = code.newTmp(GP);
+
+    // Load 2.5 into a register
+    double inputValue = 2.5;
+    loadDoubleConstant(root, inputValue, Tmp(FPRInfo::fpRegT0), scratch);
+
+    // Move zero to another register
+    root->append(MoveDouble, nullptr, Arg::fpImm64(0), zero);
+
+    // Add them
+    Tmp result = code.newTmp(FP);
+    root->append(AddDouble, nullptr, Tmp(FPRInfo::fpRegT0), zero, result);
+    root->append(MoveDoubleTo64, nullptr, result, Tmp(GPRInfo::returnValueGPR));
+    root->append(Ret64, nullptr, Tmp(GPRInfo::returnValueGPR));
+
+    CHECK(std::bit_cast<double>(compileAndRun<uint64_t>(proc)) == 2.5);
+}
+
+void testMulDoubleZeroWithOther()
+{
+    B3::Procedure proc;
+    Code& code = proc.code();
+
+    BasicBlock* root = code.addBlock();
+    Tmp zero = code.newTmp(FP);
+    Tmp scratch = code.newTmp(GP);
+
+    // Load 2.5 into a register
+    double inputValue = 2.5;
+    loadDoubleConstant(root, inputValue, Tmp(FPRInfo::fpRegT0), scratch);
+
+    // Move zero to another register
+    root->append(MoveDouble, nullptr, Arg::fpImm64(0), zero);
+
+    // Multiply them
+    Tmp result = code.newTmp(FP);
+    root->append(MulDouble, nullptr, Tmp(FPRInfo::fpRegT0), zero, result);
+    root->append(MoveDoubleTo64, nullptr, result, Tmp(GPRInfo::returnValueGPR));
+    root->append(Ret64, nullptr, Tmp(GPRInfo::returnValueGPR));
+
+    CHECK(std::bit_cast<double>(compileAndRun<uint64_t>(proc)) == 0.0);
+}
+#endif
+
 #if CPU(ARM64)
 void testStorePair()
 {
@@ -2796,6 +2971,15 @@ void run(const char* filter)
     RUN(testLinearScanSpillRangesEarlyDef());
 
 #if USE(JSVALUE64)
+    RUN(testMoveDoubleZeroConstant());
+    RUN(testMoveFloatZeroConstant());
+    RUN(testMoveDoubleConstant());
+    RUN(testMoveFloatConstant());
+    RUN(testMoveVectorZeroConstant());
+    RUN(testMoveFloatConstantSpill());
+    RUN(testAddDoubleZeroWithOther());
+    RUN(testMulDoubleZeroWithOther());
+
     RUN(testZDefOfSpillSlotWithOffsetNeedingToBeMaterializedInARegister());
 
     RUN(testEarlyAndLateUseOfSameTmp());

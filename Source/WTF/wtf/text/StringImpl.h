@@ -327,7 +327,7 @@ public:
     size_t cost() const;
     size_t costDuringGC();
 
-    WTF_EXPORT_PRIVATE size_t sizeInBytes() const;
+    WTF_EXPORT_PRIVATE size_t NODELETE sizeInBytes() const;
 
     bool isSymbol() const { return m_hashAndFlags & s_hashFlagStringKindIsSymbol; }
     bool isAtom() const { return m_hashAndFlags & s_hashFlagStringKindIsAtom; }
@@ -461,7 +461,7 @@ public:
 
     char16_t at(unsigned) const;
     char16_t operator[](unsigned i) const { return at(i); }
-    WTF_EXPORT_PRIVATE char32_t characterStartingAt(unsigned);
+    WTF_EXPORT_PRIVATE char32_t NODELETE characterStartingAt(unsigned);
 
     // FIXME: Like the strict functions above, these give false for "ok" when there is trailing garbage.
     // Like the non-strict functions above, these return the value when there is trailing garbage.
@@ -500,21 +500,21 @@ public:
     WTF_EXPORT_PRIVATE size_t findIgnoringASCIICase(StringView) const;
     WTF_EXPORT_PRIVATE size_t findIgnoringASCIICase(StringView, size_t start) const;
 
-    WTF_EXPORT_PRIVATE size_t reverseFind(char16_t, size_t start = MaxLength);
-    WTF_EXPORT_PRIVATE size_t reverseFind(StringView, size_t start = MaxLength);
+    WTF_EXPORT_PRIVATE size_t NODELETE reverseFind(char16_t, size_t start = MaxLength);
+    WTF_EXPORT_PRIVATE size_t NODELETE reverseFind(StringView, size_t start = MaxLength);
     ALWAYS_INLINE size_t reverseFind(ASCIILiteral literal, size_t start = MaxLength) { return reverseFind(literal.span8(), start); }
 
-    WTF_EXPORT_PRIVATE bool startsWith(StringView) const;
-    WTF_EXPORT_PRIVATE bool startsWithIgnoringASCIICase(StringView) const;
-    WTF_EXPORT_PRIVATE bool startsWith(char16_t) const;
-    WTF_EXPORT_PRIVATE bool startsWith(std::span<const char>) const;
-    WTF_EXPORT_PRIVATE bool hasInfixStartingAt(StringView, size_t start) const;
+    WTF_EXPORT_PRIVATE bool NODELETE startsWith(StringView) const;
+    WTF_EXPORT_PRIVATE bool NODELETE startsWithIgnoringASCIICase(StringView) const;
+    WTF_EXPORT_PRIVATE bool NODELETE startsWith(char16_t) const;
+    WTF_EXPORT_PRIVATE bool NODELETE startsWith(std::span<const char>) const;
+    WTF_EXPORT_PRIVATE bool NODELETE hasInfixStartingAt(StringView, size_t start) const;
 
-    WTF_EXPORT_PRIVATE bool endsWith(StringView);
-    WTF_EXPORT_PRIVATE bool endsWithIgnoringASCIICase(StringView) const;
-    WTF_EXPORT_PRIVATE bool endsWith(char16_t) const;
-    WTF_EXPORT_PRIVATE bool endsWith(std::span<const char>) const;
-    WTF_EXPORT_PRIVATE bool hasInfixEndingAt(StringView, size_t end) const;
+    WTF_EXPORT_PRIVATE bool NODELETE endsWith(StringView);
+    WTF_EXPORT_PRIVATE bool NODELETE endsWithIgnoringASCIICase(StringView) const;
+    WTF_EXPORT_PRIVATE bool NODELETE endsWith(char16_t) const;
+    WTF_EXPORT_PRIVATE bool NODELETE endsWith(std::span<const char>) const;
+    WTF_EXPORT_PRIVATE bool NODELETE hasInfixEndingAt(StringView, size_t end) const;
 
     WTF_EXPORT_PRIVATE Ref<StringImpl> replace(char16_t, char16_t);
     WTF_EXPORT_PRIVATE Ref<StringImpl> replace(char16_t, StringView);
@@ -558,8 +558,8 @@ private:
     template<typename> static size_t allocationSize(Checked<size_t> tailElementCount);
     template<typename> static constexpr size_t tailOffset();
 
-    WTF_EXPORT_PRIVATE size_t find(std::span<const Latin1Character>, size_t start);
-    WTF_EXPORT_PRIVATE size_t reverseFind(std::span<const Latin1Character>, size_t start);
+    WTF_EXPORT_PRIVATE size_t NODELETE find(std::span<const Latin1Character>, size_t start);
+    WTF_EXPORT_PRIVATE size_t NODELETE reverseFind(std::span<const Latin1Character>, size_t start);
 
     bool requiresCopy() const;
     template<typename T> const T* tailPointer() const;
@@ -643,12 +643,12 @@ WTF_EXPORT_PRIVATE bool equal(const StringImpl& a, const StringImpl& b);
 WTF_EXPORT_PRIVATE bool equalIgnoringNullity(StringImpl*, StringImpl*);
 WTF_EXPORT_PRIVATE bool equalIgnoringNullity(std::span<const char16_t>, StringImpl*);
 
-bool equalIgnoringASCIICase(const StringImpl&, const StringImpl&);
-WTF_EXPORT_PRIVATE bool equalIgnoringASCIICase(const StringImpl*, const StringImpl*);
+bool NODELETE equalIgnoringASCIICase(const StringImpl&, const StringImpl&);
+WTF_EXPORT_PRIVATE bool NODELETE equalIgnoringASCIICase(const StringImpl*, const StringImpl*);
 bool equalIgnoringASCIICase(const StringImpl&, ASCIILiteral);
 bool equalIgnoringASCIICase(const StringImpl*, ASCIILiteral);
 
-WTF_EXPORT_PRIVATE bool equalIgnoringASCIICaseNonNull(const StringImpl*, const StringImpl*);
+WTF_EXPORT_PRIVATE bool NODELETE equalIgnoringASCIICaseNonNull(const StringImpl*, const StringImpl*);
 
 bool equalLettersIgnoringASCIICase(const StringImpl&, ASCIILiteral);
 bool equalLettersIgnoringASCIICase(const StringImpl*, ASCIILiteral);

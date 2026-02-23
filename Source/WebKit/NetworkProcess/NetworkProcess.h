@@ -157,8 +157,6 @@ public:
     using DomainInNeedOfStorageAccess = WebCore::RegistrableDomain;
     using OpenerDomain = WebCore::RegistrableDomain;
 
-    static void setSharedParentalControlsURLFilterIfNecessary();
-
     NetworkProcess(AuxiliaryProcessInitializationParameters&&);
     ~NetworkProcess();
     static constexpr WTF::AuxiliaryProcessType processType = WTF::AuxiliaryProcessType::Network;
@@ -195,7 +193,7 @@ public:
     void removeNetworkConnectionToWebProcess(NetworkConnectionToWebProcess&);
 
     AuthenticationManager& authenticationManager();
-    DownloadManager& downloadManager();
+    DownloadManager& NODELETE downloadManager();
 
     void setSession(PAL::SessionID, std::unique_ptr<NetworkSession>&&);
     NetworkSession* networkSession(PAL::SessionID) const final;
@@ -322,9 +320,14 @@ public:
 
     void notifyMediaStreamingActivity(bool);
 
-    void setPrivateClickMeasurementEnabled(bool);
-    bool privateClickMeasurementEnabled() const;
+    void NODELETE setPrivateClickMeasurementEnabled(bool);
+    bool NODELETE privateClickMeasurementEnabled() const;
     void setPrivateClickMeasurementDebugMode(PAL::SessionID, bool);
+
+#if HAVE(ENHANCED_SECURITY_LINKS)
+    void setIsEnhancedSecurityLinksEnabled(bool);
+    bool isEnhancedSecurityLinksEnabled() const;
+#endif
 
     void setShouldSendPrivateTokenIPCForTesting(PAL::SessionID, bool) const;
 #if ENABLE(OPT_IN_PARTITIONED_COOKIES)
@@ -334,7 +337,7 @@ public:
     void preconnectTo(PAL::SessionID, WebPageProxyIdentifier, WebCore::PageIdentifier, WebCore::ResourceRequest&&, WebCore::StoredCredentialsPolicy, std::optional<NavigatingToAppBoundDomain>, uint64_t requiredCookiesVersion);
 
     void setSessionIsControlledByAutomation(PAL::SessionID, bool);
-    bool sessionIsControlledByAutomation(PAL::SessionID) const;
+    bool NODELETE sessionIsControlledByAutomation(PAL::SessionID) const;
 
     void connectionToWebProcessClosed(IPC::Connection&, PAL::SessionID);
 
@@ -373,7 +376,7 @@ public:
     void simulatePrivateClickMeasurementConversion(PAL::SessionID, int priority, int triggerData, const URL& sourceURL, const URL& destinationURL);
     void dumpPrivateClickMeasurement(PAL::SessionID, CompletionHandler<void(String)>&&);
     void clearPrivateClickMeasurement(PAL::SessionID, CompletionHandler<void()>&&);
-    bool allowsPrivateClickMeasurementTestFunctionality() const;
+    bool NODELETE allowsPrivateClickMeasurementTestFunctionality() const;
     void setPrivateClickMeasurementOverrideTimerForTesting(PAL::SessionID, bool value, CompletionHandler<void()>&&);
     void markAttributedPrivateClickMeasurementsAsExpiredForTesting(PAL::SessionID, CompletionHandler<void()>&&);
     void setPrivateClickMeasurementEphemeralMeasurementForTesting(PAL::SessionID, bool value, CompletionHandler<void()>&&);
@@ -392,8 +395,7 @@ public:
     const OptionSet<NetworkCache::CacheOption>& cacheOptions() const { return m_cacheOptions; }
 
     NetworkConnectionToWebProcess* webProcessConnection(WebCore::ProcessIdentifier) const;
-    RefPtr<NetworkConnectionToWebProcess> protectedWebProcessConnection(WebCore::ProcessIdentifier) const;
-    RefPtr<NetworkConnectionToWebProcess> protectedWebProcessConnection(const IPC::Connection&) const;
+    NetworkConnectionToWebProcess* webProcessConnection(const IPC::Connection&) const;
     WebCore::MessagePortChannelRegistry& messagePortChannelRegistry() { return m_messagePortChannelRegistry; }
 
     void setServiceWorkerFetchTimeoutForTesting(Seconds, CompletionHandler<void()>&&);
@@ -482,6 +484,10 @@ public:
 
 #if HAVE(WEBCONTENTRESTRICTIONS)
     void allowEvaluatedURL(const WebCore::ParentalControlsURLFilterParameters&, CompletionHandler<void(bool)>&&);
+#endif
+
+#if HAVE(ENHANCED_SECURITY_LINKS)
+    void isEnhancedSecurityLink(const URL&, CompletionHandler<void(bool)>&&);
 #endif
 
 private:
@@ -665,6 +671,9 @@ private:
     bool m_isParentProcessFullWebBrowserOrRunningTest { false };
 #endif
     bool m_enableModernDownloadProgress { false };
+#if HAVE(ENHANCED_SECURITY_LINKS)
+    bool m_isEnhancedSecurityLinksEnabled { false };
+#endif
 
     struct DeleteWebsiteDataTask {
         std::optional<PAL::SessionID> sessionID;

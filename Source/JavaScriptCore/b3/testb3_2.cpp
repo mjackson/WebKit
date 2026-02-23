@@ -2135,6 +2135,207 @@ void testMulNegArgsFloat()
     }
 }
 
+void testMulDoubleByTwo(double a)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<double>(proc, root);
+
+    Value* value = arguments[0];
+    Value* two = root->appendNew<ConstDoubleValue>(proc, Origin(), 2.0);
+    root->appendNewControlValue(
+        proc, Return, Origin(),
+        root->appendNew<Value>(proc, Mul, Origin(), value, two));
+
+    CHECK(isIdentical(compileAndRun<double>(proc, a), a * 2.0));
+}
+
+void testMulFloatByTwo(float a)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t>(proc, root);
+
+    Value* argument32 = arguments[0];
+    Value* floatValue = root->appendNew<Value>(proc, BitwiseCast, Origin(), argument32);
+    Value* two = root->appendNew<ConstFloatValue>(proc, Origin(), 2.0f);
+    Value* result = root->appendNew<Value>(proc, Mul, Origin(), floatValue, two);
+    Value* result32 = root->appendNew<Value>(proc, BitwiseCast, Origin(), result);
+    root->appendNewControlValue(proc, Return, Origin(), result32);
+
+    CHECK(isIdentical(compileAndRun<int32_t>(proc, std::bit_cast<int32_t>(a)), std::bit_cast<int32_t>(a * 2.0f)));
+}
+
+void testMulDoubleByNegOne(double a)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<double>(proc, root);
+
+    Value* value = arguments[0];
+    Value* negOne = root->appendNew<ConstDoubleValue>(proc, Origin(), -1.0);
+    root->appendNewControlValue(
+        proc, Return, Origin(),
+        root->appendNew<Value>(proc, Mul, Origin(), value, negOne));
+
+    double expected = a * -1.0;
+    double actual = compileAndRun<double>(proc, a);
+    if (std::isnan(expected))
+        CHECK(std::isnan(actual));
+    else
+        CHECK(isIdentical(actual, expected));
+}
+
+void testMulFloatByNegOne(float a)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t>(proc, root);
+
+    Value* argument32 = arguments[0];
+    Value* floatValue = root->appendNew<Value>(proc, BitwiseCast, Origin(), argument32);
+    Value* negOne = root->appendNew<ConstFloatValue>(proc, Origin(), -1.0f);
+    Value* result = root->appendNew<Value>(proc, Mul, Origin(), floatValue, negOne);
+    Value* result32 = root->appendNew<Value>(proc, BitwiseCast, Origin(), result);
+    root->appendNewControlValue(proc, Return, Origin(), result32);
+
+    float expected = a * -1.0f;
+    float actual = std::bit_cast<float>(compileAndRun<int32_t>(proc, std::bit_cast<int32_t>(a)));
+    if (std::isnan(expected))
+        CHECK(std::isnan(actual));
+    else
+        CHECK(isIdentical(actual, expected));
+}
+
+void testMulDoubleByNegTwo(double a)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<double>(proc, root);
+
+    Value* value = arguments[0];
+    Value* negTwo = root->appendNew<ConstDoubleValue>(proc, Origin(), -2.0);
+    root->appendNewControlValue(
+        proc, Return, Origin(),
+        root->appendNew<Value>(proc, Mul, Origin(), value, negTwo));
+
+    double expected = a * -2.0;
+    double actual = compileAndRun<double>(proc, a);
+    if (std::isnan(expected))
+        CHECK(std::isnan(actual));
+    else
+        CHECK(isIdentical(actual, expected));
+}
+
+void testMulFloatByNegTwo(float a)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t>(proc, root);
+
+    Value* argument32 = arguments[0];
+    Value* floatValue = root->appendNew<Value>(proc, BitwiseCast, Origin(), argument32);
+    Value* negTwo = root->appendNew<ConstFloatValue>(proc, Origin(), -2.0f);
+    Value* result = root->appendNew<Value>(proc, Mul, Origin(), floatValue, negTwo);
+    Value* result32 = root->appendNew<Value>(proc, BitwiseCast, Origin(), result);
+    root->appendNewControlValue(proc, Return, Origin(), result32);
+
+    float expected = a * -2.0f;
+    float actual = std::bit_cast<float>(compileAndRun<int32_t>(proc, std::bit_cast<int32_t>(a)));
+    if (std::isnan(expected))
+        CHECK(std::isnan(actual));
+    else
+        CHECK(isIdentical(actual, expected));
+}
+
+void testDivDoubleByNegOne(double a)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<double>(proc, root);
+
+    Value* value = arguments[0];
+    Value* negOne = root->appendNew<ConstDoubleValue>(proc, Origin(), -1.0);
+    root->appendNewControlValue(
+        proc, Return, Origin(),
+        root->appendNew<Value>(proc, Div, Origin(), value, negOne));
+
+    double expected = a / -1.0;
+    double actual = compileAndRun<double>(proc, a);
+    if (std::isnan(expected))
+        CHECK(std::isnan(actual));
+    else
+        CHECK(isIdentical(actual, expected));
+}
+
+void testDivFloatByNegOne(float a)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t>(proc, root);
+
+    Value* argument32 = arguments[0];
+    Value* floatValue = root->appendNew<Value>(proc, BitwiseCast, Origin(), argument32);
+    Value* negOne = root->appendNew<ConstFloatValue>(proc, Origin(), -1.0f);
+    Value* result = root->appendNew<Value>(proc, Div, Origin(), floatValue, negOne);
+    Value* result32 = root->appendNew<Value>(proc, BitwiseCast, Origin(), result);
+    root->appendNewControlValue(proc, Return, Origin(), result32);
+
+    float expected = a / -1.0f;
+    float actual = std::bit_cast<float>(compileAndRun<int32_t>(proc, std::bit_cast<int32_t>(a)));
+    if (std::isnan(expected))
+        CHECK(std::isnan(actual));
+    else
+        CHECK(isIdentical(actual, expected));
+}
+
+void testDivDoubleByPowerOfTwo(double a)
+{
+    double divisors[] = { 2.0, 4.0, 0.5, -2.0, -4.0 };
+    for (double divisor : divisors) {
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<double>(proc, root);
+
+        Value* value = arguments[0];
+        Value* divisorValue = root->appendNew<ConstDoubleValue>(proc, Origin(), divisor);
+        root->appendNewControlValue(
+            proc, Return, Origin(),
+            root->appendNew<Value>(proc, Div, Origin(), value, divisorValue));
+
+        double expected = a / divisor;
+        double actual = compileAndRun<double>(proc, a);
+        if (std::isnan(expected))
+            CHECK(std::isnan(actual));
+        else
+            CHECK(isIdentical(actual, expected));
+    }
+}
+
+void testDivFloatByPowerOfTwo(float a)
+{
+    float divisors[] = { 2.0f, 4.0f, 0.5f, -2.0f, -4.0f };
+    for (float divisor : divisors) {
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<int32_t>(proc, root);
+
+        Value* argument32 = arguments[0];
+        Value* floatValue = root->appendNew<Value>(proc, BitwiseCast, Origin(), argument32);
+        Value* divisorValue = root->appendNew<ConstFloatValue>(proc, Origin(), divisor);
+        Value* result = root->appendNew<Value>(proc, Div, Origin(), floatValue, divisorValue);
+        Value* result32 = root->appendNew<Value>(proc, BitwiseCast, Origin(), result);
+        root->appendNewControlValue(proc, Return, Origin(), result32);
+
+        float expected = a / divisor;
+        float actual = std::bit_cast<float>(compileAndRun<int32_t>(proc, std::bit_cast<int32_t>(a)));
+        if (std::isnan(expected))
+            CHECK(std::isnan(actual));
+        else
+            CHECK(isIdentical(actual, expected));
+    }
+}
+
 void testDivArgDouble(double a)
 {
     Procedure proc;
@@ -6955,7 +7156,7 @@ static void testBitAndWithMaskReturnsBooleans(int64_t a, int64_t b)
     CHECK_EQ(compileAndRun<intptr_t>(proc, a, b), expected);
 }
 
-static double bitAndDouble(double a, double b)
+static double NODELETE bitAndDouble(double a, double b)
 {
     return std::bit_cast<double>(std::bit_cast<uint64_t>(a) & std::bit_cast<uint64_t>(b));
 }
@@ -7013,7 +7214,7 @@ static void testBitAndImmsDouble(double a, double b)
     CHECK(isIdentical(compileAndRun<double>(proc), bitAndDouble(a, b)));
 }
 
-static float bitAndFloat(float a, float b)
+static float NODELETE bitAndFloat(float a, float b)
 {
     return std::bit_cast<float>(std::bit_cast<uint32_t>(a) & std::bit_cast<uint32_t>(b));
 }

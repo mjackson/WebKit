@@ -70,10 +70,10 @@ public:
     void sendH2Ping(const URL&, CompletionHandler<void(Expected<Seconds, ResourceError>&&)>&&) final;
     void removeResource(MediaResource&);
 
-    Document* document();
-    const String& crossOriginMode() const;
+    Document* NODELETE document();
+    const String& NODELETE crossOriginMode() const;
 
-    WEBCORE_EXPORT static void recordResponsesForTesting();
+    WEBCORE_EXPORT static void NODELETE recordResponsesForTesting();
     WEBCORE_EXPORT Vector<ResourceResponse> responsesForTesting() const;
     void addResponseForTesting(const ResourceResponse&);
 

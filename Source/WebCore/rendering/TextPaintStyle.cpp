@@ -125,7 +125,7 @@ TextPaintStyle computeTextPaintStyle(const RenderText& renderer, const RenderSty
             forceBackgroundToWhite = false;
 
         if (forceBackgroundToWhite) {
-            if (Style::hasAnyBackgroundClipText(renderer.checkedStyle()->backgroundLayers()))
+            if (Style::hasAnyBackgroundClipText(protect(renderer.style())->backgroundLayers()))
                 paintStyle.fillColor = Color::black;
         }
     }

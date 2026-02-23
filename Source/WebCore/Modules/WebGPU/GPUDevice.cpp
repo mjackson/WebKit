@@ -286,7 +286,7 @@ ExceptionOr<Ref<GPUTexture>> GPUDevice::createTexture(GPUTextureDescriptor&& tex
     return GPUTexture::create(texture.releaseNonNull(), textureDescriptor, *this);
 }
 
-static WebGPU::SamplerDescriptor convertToBacking(const std::optional<GPUSamplerDescriptor>& samplerDescriptor)
+static WebGPU::SamplerDescriptor NODELETE convertToBacking(const std::optional<GPUSamplerDescriptor>& samplerDescriptor)
 {
     if (!samplerDescriptor) {
         return {
@@ -362,7 +362,7 @@ private:
     {
     }
 
-    bool hasCallback() const final { return true; }
+    bool NODELETE hasCallback() const final { return true; }
 
     CallbackResult<void> invoke(double, const VideoFrameMetadata&) override
     {
@@ -599,7 +599,7 @@ ExceptionOr<void> GPUDevice::createRenderPipelineAsync(UniquelyAnnotatedDescript
     return { };
 }
 
-static WebGPU::CommandEncoderDescriptor convertToBacking(const std::optional<GPUCommandEncoderDescriptor>& commandEncoderDescriptor)
+static WebGPU::CommandEncoderDescriptor NODELETE convertToBacking(const std::optional<GPUCommandEncoderDescriptor>& commandEncoderDescriptor)
 {
     if (!commandEncoderDescriptor)
         return { };

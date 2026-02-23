@@ -85,17 +85,17 @@ public:
 
     const AtomString& altText() const;
 
-    WEBCORE_EXPORT CachedImage* cachedImage() const;
+    WEBCORE_EXPORT CachedImage* NODELETE cachedImage() const;
 
-    void setLoadManually(bool);
+    void NODELETE setLoadManually(bool);
 
-    bool matchesUsemap(const AtomString&) const;
+    bool NODELETE matchesUsemap(const AtomString&) const;
     RefPtr<HTMLMapElement> associatedMapElement() const;
 
     WEBCORE_EXPORT String crossOrigin() const;
     WEBCORE_EXPORT int x() const;
     WEBCORE_EXPORT int y() const;
-    WEBCORE_EXPORT bool complete() const;
+    WEBCORE_EXPORT bool NODELETE complete() const;
     String decoding() const;
 
     DecodingMode decodingMode() const;
@@ -113,7 +113,7 @@ public:
     void setAttachmentElement(Ref<HTMLAttachmentElement>&&) final;
 #endif
 
-    WEBCORE_EXPORT size_t pendingDecodePromisesCountForTesting() const;
+    WEBCORE_EXPORT size_t NODELETE pendingDecodePromisesCountForTesting() const;
 
     bool canContainRangeEndPoint() const override { return false; }
 
@@ -146,19 +146,19 @@ public:
     bool isLazyLoadable() const;
     static bool hasLazyLoadableAttributeValue(StringView);
 
-    bool isDeferred() const;
+    bool NODELETE isDeferred() const;
 
     bool isDroppedImagePlaceholder() const { return m_isDroppedImagePlaceholder; }
     void setIsDroppedImagePlaceholder() { m_isDroppedImagePlaceholder = true; }
 
-    void setIsUserAgentShadowRootResource();
+    void NODELETE setIsUserAgentShadowRootResource();
 
     void evaluateDynamicMediaQueryDependencies();
 
     String referrerPolicyForBindings() const;
     ReferrerPolicy referrerPolicy() const;
 
-    bool allowsOrientationOverride() const;
+    bool NODELETE allowsOrientationOverride() const;
 
     bool allowsAnimation() const;
 #if ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
@@ -214,8 +214,8 @@ private:
     InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) override;
     void removedFromAncestor(RemovalType, ContainerNode&) override;
 
-    bool isFormListedElement() const final { return false; }
-    FormAssociatedElement* asFormAssociatedElement() final { return this; }
+    bool NODELETE isFormListedElement() const final { return false; }
+    FormAssociatedElement* NODELETE asFormAssociatedElement() final { return this; }
     HTMLImageElement& asHTMLElement() final { return *this; }
     const HTMLImageElement& asHTMLElement() const final { return *this; }
 

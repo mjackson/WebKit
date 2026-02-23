@@ -902,7 +902,7 @@ void VideoPresentationInterfaceAVKitLegacy::stopPictureInPicture()
     [m_playerViewController stopPictureInPicture];
 }
 
-bool VideoPresentationInterfaceAVKitLegacy::isPlayingVideoInEnhancedFullscreen() const
+bool VideoPresentationInterfaceAVKitLegacy::isPlayingVideoInPictureInPicture() const
 {
     return hasMode(WebCore::HTMLMediaElementEnums::VideoFullscreenModePictureInPicture) && [playerController() isPlaying];
 }

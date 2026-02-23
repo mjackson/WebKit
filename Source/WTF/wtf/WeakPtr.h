@@ -26,25 +26,6 @@
 
 #pragma once
 
-// WeakPtr is a nullable weak pointer that does not prevent the referenced
-// object from being destroyed. When the referenced object is destroyed, the
-// WeakPtr automatically becomes null. Use get() to retrieve the raw pointer,
-// which will return nullptr if the object has been destroyed. Note that
-// operator->() and operator*() will safely crash (via RELEASE_ASSERT) if
-// called on a null WeakPtr.
-//
-// WeakPtr can only be used with classes that inherit from CanMakeWeakPtr or
-// CanMakeWeakPtrWithBitField (which provide the weak pointer implementation).
-//
-// If you expect the pointer to never become null during its usage, consider
-// using WeakRef instead, which provides clearer semantics and more actionable
-// crash reports when the referenced object is unexpectedly destroyed.
-//
-// Performance note: WeakPtr is often less efficient than RefPtr or CheckedPtr
-// because it involves an extra level of indirection when dereferencing (it is
-// a pointer to a pointer). This can hurt compiler optimizations. Prefer RefPtr
-// or CheckedPtr in performance sensitive code.
-
 #include <type_traits>
 #include <wtf/CanMakeWeakPtr.h>
 #include <wtf/CompactRefPtrTuple.h>
@@ -61,6 +42,28 @@ template<typename, typename, typename = DefaultWeakPtrImpl> class WeakHashMap;
 template<typename, typename = DefaultWeakPtrImpl> class WeakHashSet;
 template<typename, typename = DefaultWeakPtrImpl> class WeakListHashSet;
 
+/**
+ * @brief A nullable weak pointer that automatically becomes null when the referenced object is destroyed.
+ *
+ * WeakPtr is a nullable weak pointer that does not prevent the referenced
+ * object from being destroyed. When the referenced object is destroyed, the
+ * WeakPtr automatically becomes null. Use get() to retrieve the raw pointer,
+ * which will return nullptr if the object has been destroyed. Note that
+ * operator->() and operator*() will safely crash (via RELEASE_ASSERT) if
+ * called on a null WeakPtr.
+ *
+ * @note WeakPtr can only be used with classes that inherit from CanMakeWeakPtr or
+ * CanMakeWeakPtrWithBitField (which provide the weak pointer implementation).
+ *
+ * @note If you expect the pointer to never become null during its usage, consider
+ * using WeakRef instead, which provides clearer semantics and more actionable
+ * crash reports when the referenced object is unexpectedly destroyed.
+ *
+ * @note Performance note: WeakPtr is often less efficient than RefPtr or CheckedPtr
+ * because it involves an extra level of indirection when dereferencing (it is
+ * a pointer to a pointer). This can hurt compiler optimizations. Prefer RefPtr
+ * or CheckedPtr in performance sensitive code.
+ */
 template<typename T, typename WeakPtrImpl, typename PtrTraits> class WeakPtr {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED(WeakPtr);
 public:

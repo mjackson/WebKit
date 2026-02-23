@@ -205,7 +205,7 @@ RefPtr<ImageBuffer> RenderSVGResourcePattern::createTileImage(GraphicsContext& c
     GraphicsContextStateSaver stateSaver(tileImageContext);
 
     // Draw the content into the ImageBuffer.
-    patternRenderer->checkedLayer()->paintSVGResourceLayer(tileImageContext, tileImageTransform);
+    protect(patternRenderer->layer())->paintSVGResourceLayer(tileImageContext, tileImageTransform);
     return tileImage;
 }
 

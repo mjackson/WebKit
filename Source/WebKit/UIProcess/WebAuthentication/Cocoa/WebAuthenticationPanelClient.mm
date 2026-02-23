@@ -64,7 +64,7 @@ RetainPtr<id<_WKWebAuthenticationPanelDelegate>> WebAuthenticationPanelClient::d
     return m_delegate.get();
 }
 
-static _WKWebAuthenticationPanelUpdate wkWebAuthenticationPanelUpdate(WebAuthenticationStatus status)
+static _WKWebAuthenticationPanelUpdate NODELETE wkWebAuthenticationPanelUpdate(WebAuthenticationStatus status)
 {
     if (status == WebAuthenticationStatus::MultipleNFCTagsPresent)
         return _WKWebAuthenticationPanelUpdateMultipleNFCTagsPresent;
@@ -106,7 +106,7 @@ void WebAuthenticationPanelClient::updatePanel(WebAuthenticationStatus status) c
     [delegate panel:m_panel.get().get() updateWebAuthenticationPanel:wkWebAuthenticationPanelUpdate(status)];
 }
 
-static _WKWebAuthenticationResult wkWebAuthenticationResult(WebAuthenticationResult result)
+static _WKWebAuthenticationResult NODELETE wkWebAuthenticationResult(WebAuthenticationResult result)
 {
     switch (result) {
     case WebAuthenticationResult::Succeeded:
@@ -178,7 +178,7 @@ void WebAuthenticationPanelClient::requestNewPin(uint64_t minLength, CompletionH
     }).get()];
 }
 
-static _WKWebAuthenticationSource wkWebAuthenticationSource(WebAuthenticationSource result)
+static _WKWebAuthenticationSource NODELETE wkWebAuthenticationSource(WebAuthenticationSource result)
 {
     switch (result) {
     case WebAuthenticationSource::Local:
@@ -222,7 +222,7 @@ void WebAuthenticationPanelClient::selectAssertionResponse(Vector<Ref<WebCore::A
     }).get()];
 }
 
-static LocalAuthenticatorPolicy localAuthenticatorPolicy(_WKLocalAuthenticatorPolicy result)
+static LocalAuthenticatorPolicy NODELETE localAuthenticatorPolicy(_WKLocalAuthenticatorPolicy result)
 {
     switch (result) {
     case _WKLocalAuthenticatorPolicyAllow:

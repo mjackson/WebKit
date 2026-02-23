@@ -106,7 +106,7 @@ public:
     WEBCORE_EXPORT static bool isContextAlive(uint64_t contextID);
     uint64_t contextID() const { return m_contextID; }
 
-    Document* document() const;
+    Document* NODELETE document() const;
     bool isInitialized() const { return m_isInitialized; }
     
     virtual bool isOfflineContext() const = 0;
@@ -214,16 +214,16 @@ public:
     void removeMarkedSummingJunction(AudioSummingJunction*);
 
     // EventTarget
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
 
     virtual void sourceNodeWillBeginPlayback(AudioNode&);
     // When a source node has no more processing to do (has finished playing), then it tells the context to dereference it.
-    void sourceNodeDidFinishPlayback(AudioNode&);
+    void NODELETE sourceNodeDidFinishPlayback(AudioNode&);
 
 #if !RELEASE_LOG_DISABLED
     const Logger& logger() const override { return m_logger.get(); }
     uint64_t logIdentifier() const override { return m_logIdentifier; }
-    WTFLogChannel& logChannel() const final;
+    WTFLogChannel& NODELETE logChannel() const final;
     uint64_t nextAudioNodeLogIdentifier() { return childLogIdentifier(m_logIdentifier, ++m_nextAudioNodeIdentifier); }
     uint64_t nextAudioParameterLogIdentifier() { return childLogIdentifier(m_logIdentifier, ++m_nextAudioParameterIdentifier); }
 #endif
@@ -333,8 +333,8 @@ private:
         }
         TailProcessingNode& operator=(const TailProcessingNode&) = delete;
         TailProcessingNode& operator=(TailProcessingNode&&) = delete;
-        CheckedPtr<AudioNode> checkedNode() const { return m_node.get(); }
         AudioNode* operator->() const { return m_node.get(); }
+        AudioNode* node() const { return m_node.get(); }
         friend bool operator==(const TailProcessingNode&, const TailProcessingNode&) = default;
         bool operator==(const AudioNode& node) const { return m_node == &node; }
     private:

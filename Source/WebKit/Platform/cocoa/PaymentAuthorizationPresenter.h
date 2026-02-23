@@ -79,7 +79,6 @@ public:
     virtual ~PaymentAuthorizationPresenter() = default;
 
     Client* client() { return m_client; }
-    RefPtr<Client> protectedClient() { return m_client; }
 
     void completeMerchantValidation(const WebCore::PaymentMerchantSession&);
     void completePaymentMethodSelection(std::optional<WebCore::ApplePayPaymentMethodUpdate>&&);

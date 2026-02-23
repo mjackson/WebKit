@@ -44,6 +44,7 @@
 #include "HTMLMeterElement.h"
 #include "HTMLNames.h"
 #include "HTMLProgressElement.h"
+#include "HTMLSelectElement.h"
 #include "HTMLSlotElement.h"
 #include "LoaderStrategy.h"
 #include "LocalFrame.h"
@@ -59,6 +60,7 @@
 #include "RenderStyle+SettersInlines.h"
 #include "RenderView.h"
 #include "ResolvedStyle.h"
+#include "SelectPopoverElement.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "StyleAdjuster.h"
@@ -404,7 +406,7 @@ auto TreeResolver::resolveElement(Element& element, const RenderStyle* existingS
         update.style->addCachedPseudoStyle(WTF::move(pseudoElementUpdate->style));
         return pseudoElementUpdate->changes;
     };
-    
+
     if (resolveAndAddPseudoElementStyle({ PseudoElementType::FirstLine }))
         descendantsToResolve = DescendantsToResolve::All;
     if (resolveAndAddPseudoElementStyle({ PseudoElementType::FirstLetter }))
@@ -412,13 +414,13 @@ auto TreeResolver::resolveElement(Element& element, const RenderStyle* existingS
     if (resolveAndAddPseudoElementStyle({ PseudoElementType::WebKitScrollbar }))
         descendantsToResolve = DescendantsToResolve::All;
 
+    // Early-returns are usually added `resolvePseudoElement()` to avoid unnecessarily resolving style in irrelevant cases.
     resolveAndAddPseudoElementStyle({ PseudoElementType::Marker });
     resolveAndAddPseudoElementStyle({ PseudoElementType::Before });
     resolveAndAddPseudoElementStyle({ PseudoElementType::After });
     resolveAndAddPseudoElementStyle({ PseudoElementType::Backdrop });
-
-    if (m_document->settings().cssAppearanceBaseEnabled())
-        resolveAndAddPseudoElementStyle({ PseudoElementType::Checkmark });
+    resolveAndAddPseudoElementStyle({ PseudoElementType::Checkmark });
+    resolveAndAddPseudoElementStyle({ PseudoElementType::PickerIcon });
 
     if (isDocumentElement && m_document->hasViewTransitionPseudoElementTree()) {
         resolveAndAddPseudoElementStyle({ PseudoElementType::ViewTransition });
@@ -453,8 +455,34 @@ std::optional<ElementUpdate> TreeResolver::resolvePseudoElement(Element& element
 
     if (pseudoElementIdentifier.type == PseudoElementType::Backdrop && !element.isInTopLayer())
         return { };
-    if (pseudoElementIdentifier.type == PseudoElementType::Marker && elementUpdate.style->display() != DisplayType::ListItem)
+    if (pseudoElementIdentifier.type == PseudoElementType::Marker && elementUpdate.style->display() != DisplayType::BlockFlowListItem)
         return { };
+
+    if (pseudoElementIdentifier.type == PseudoElementType::Checkmark) {
+        // Option elements need to check against the picker for their appearance value.
+        if (RefPtr option = dynamicDowncast<HTMLOptionElement>(element)) {
+            RefPtr select = option->ownerSelectElement();
+            if (!select)
+                return { };
+            RefPtr pickerElement = select->pickerPopoverElement();
+            if (!pickerElement)
+                return { };
+            CheckedPtr pickerStyle = m_update->elementStyle(*pickerElement);
+            if (!pickerStyle || pickerStyle->usedAppearance() != StyleAppearance::Base)
+                return { };
+        } else if (elementUpdate.style->usedAppearance() != StyleAppearance::Base)
+            return { };
+
+        if (RefPtr input = dynamicDowncast<HTMLInputElement>(element); !input || !input->isCheckable())
+            return { };
+    }
+
+    if (pseudoElementIdentifier.type == PseudoElementType::PickerIcon) {
+        if (elementUpdate.style->usedAppearance() != StyleAppearance::Base)
+            return { };
+        if (RefPtr select = dynamicDowncast<HTMLSelectElement>(element); !select || !select->usesMenuList())
+            return { };
+    }
 
     auto userAgentShadowTreeEnclosingResolver = [&] -> Resolver* {
         if (element.isInUserAgentShadowTree())
@@ -571,7 +599,7 @@ std::optional<ElementUpdate> TreeResolver::resolveAncestorPseudoElement(Element&
 static bool isChildInBlockFormattingContext(const RenderStyle& style)
 {
     // FIXME: Incomplete. There should be shared code with layout for this.
-    if (style.display() != DisplayType::Block && style.display() != DisplayType::ListItem)
+    if (style.display() != DisplayType::BlockFlow && style.display() != DisplayType::BlockFlowListItem)
         return false;
     if (style.hasOutOfFlowPosition())
         return false;
@@ -584,7 +612,7 @@ static bool isChildInBlockFormattingContext(const RenderStyle& style)
 
 std::optional<ResolvedStyle> TreeResolver::resolveAncestorFirstLinePseudoElement(Element& element, const ElementUpdate& elementUpdate)
 {
-    if (elementUpdate.style->display() == DisplayType::Inline) {
+    if (elementUpdate.style->display() == DisplayType::InlineFlow) {
         auto* parent = boxGeneratingParent();
         if (!parent)
             return { };
@@ -641,14 +669,14 @@ std::optional<ResolvedStyle> TreeResolver::resolveAncestorFirstLetterPseudoEleme
         if (parent().resolvedFirstLineAndLetterChild)
             return nullptr;
 
-        bool skipInlines = elementUpdate.style->display() == DisplayType::Inline;
+        bool skipInlines = elementUpdate.style->display() == DisplayType::InlineFlow;
         if (!skipInlines && !isChildInBlockFormattingContext(*elementUpdate.style))
             return nullptr;
 
         for (auto& parent : m_parentStack | std::views::reverse) {
             if (parent.style.display() == DisplayType::Contents)
                 continue;
-            if (skipInlines && parent.style.display() == DisplayType::Inline)
+            if (skipInlines && parent.style.display() == DisplayType::InlineFlow)
                 continue;
             skipInlines = false;
 
@@ -747,7 +775,7 @@ const RenderStyle* TreeResolver::parentBoxStyle() const
 
 const RenderStyle* TreeResolver::parentBoxStyleForPseudoElement(const ElementUpdate& elementUpdate) const
 {
-    switch (elementUpdate.style->display()) {
+    switch (elementUpdate.style->display().value) {
     case DisplayType::None:
         return nullptr;
     case DisplayType::Contents:
@@ -774,7 +802,7 @@ ElementUpdate TreeResolver::createAnimatedElementUpdate(ResolvedStyle&& resolved
         if (auto* styleBefore = beforeResolutionStyle(element.get(), styleable.pseudoElementIdentifier))
             return styleBefore;
 
-        if (resolvedStyle.style->hasTransitions()) {
+        if (!resolvedStyle.style->transitions().isInitial()) {
             // https://drafts.csswg.org/css-transitions-2/#at-ruledef-starting-style
             // "If an element does not have a before-change style for a given style change event, the starting style is used instead."
             startingStyle = resolveStartingStyle(resolvedStyle, styleable, resolutionContext);
@@ -801,13 +829,13 @@ ElementUpdate TreeResolver::createAnimatedElementUpdate(ResolvedStyle&& resolved
         if (skipAnimationForAnchorPosition)
             return;
 
-        if (oldStyle && (oldStyle->hasTransitions() || resolvedStyle.style->hasTransitions()))
+        if (oldStyle && (!oldStyle->transitions().isInitial() || !resolvedStyle.style->transitions().isInitial()))
             styleable.updateCSSTransitions(*oldStyle, *resolvedStyle.style, newStyleOriginatedAnimations);
 
-        if ((oldStyle && oldStyle->hasScrollTimelines()) || resolvedStyle.style->hasScrollTimelines())
+        if ((oldStyle && !oldStyle->scrollTimelines().isInitial()) || !resolvedStyle.style->scrollTimelines().isInitial())
             styleable.updateCSSScrollTimelines(oldStyle, *resolvedStyle.style);
 
-        if ((oldStyle && oldStyle->hasViewTimelines()) || resolvedStyle.style->hasViewTimelines())
+        if ((oldStyle && !oldStyle->viewTimelines().isInitial()) || !resolvedStyle.style->viewTimelines().isInitial())
             styleable.updateCSSViewTimelines(oldStyle, *resolvedStyle.style);
 
         if ((oldStyle && oldStyle->timelineScope().type != NameScope::Type::None) || resolvedStyle.style->timelineScope().type != NameScope::Type::None) {
@@ -818,7 +846,7 @@ ElementUpdate TreeResolver::createAnimatedElementUpdate(ResolvedStyle&& resolved
         // The order in which CSS Transitions and CSS Animations are updated matters since CSS Transitions define the after-change style
         // to use CSS Animations as defined in the previous style change event. As such, we update CSS Animations after CSS Transitions
         // such that when CSS Transitions are updated the CSS Animations data is the same as during the previous style change event.
-        if ((oldStyle && oldStyle->hasAnimations()) || resolvedStyle.style->hasAnimations())
+        if ((oldStyle && !oldStyle->animations().isInitial()) || !resolvedStyle.style->animations().isInitial())
             styleable.updateCSSAnimations(oldStyle, *resolvedStyle.style, resolutionContext, newStyleOriginatedAnimations, isInDisplayNoneTree);
     };
 
@@ -834,7 +862,7 @@ ElementUpdate TreeResolver::createAnimatedElementUpdate(ResolvedStyle&& resolved
             // to the old value. To remedy this, we manually patch display to be the old value if:
             // 1. the old style's display is not none, and
             // 2. the new style has display: none and specifies a transition on display.
-            if (oldStyle && oldStyle->hasTransitions() && oldStyle->display() != DisplayType::None && styleHasDisplayTransition(*newStyle) && newStyle->display() == DisplayType::None)
+            if (oldStyle && !oldStyle->transitions().isInitial() && oldStyle->display() != DisplayType::None && styleHasDisplayTransition(*newStyle) && newStyle->display() == DisplayType::None)
                 newStyle->setDisplay(oldStyle->display());
             return { WTF::move(newStyle), OptionSet<AnimationImpact> { } };
         }
@@ -1335,7 +1363,7 @@ void TreeResolver::resolveComposedTree()
         if (!m_didSeePendingStylesheet)
             m_didSeePendingStylesheet = hasLoadingStylesheet(m_document->styleScope(), element.get(), !shouldIterateChildren);
 
-        if (!parent.resolvedFirstLineAndLetterChild && style && generatesBox(*style) && supportsFirstLineAndLetterPseudoElement(*style))
+        if (!parent.resolvedFirstLineAndLetterChild && style && style->display().doesGenerateBox() && supportsFirstLineAndLetterPseudoElement(*style))
             parent.resolvedFirstLineAndLetterChild = true;
 
         if (!shouldIterateChildren) {

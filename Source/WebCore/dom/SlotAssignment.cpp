@@ -53,7 +53,7 @@ struct SameSizeAsNamedSlotAssignment {
 
 static_assert(sizeof(NamedSlotAssignment) == sizeof(SameSizeAsNamedSlotAssignment), "NamedSlotAssignment should remain small");
 
-static const AtomString& slotNameFromAttributeValue(const AtomString& value)
+static const AtomString& NODELETE slotNameFromAttributeValue(const AtomString& value)
 {
     return value == nullAtom() ? NamedSlotAssignment::defaultSlotName() : value;
 }

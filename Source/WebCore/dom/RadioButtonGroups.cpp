@@ -37,9 +37,9 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(RadioButtonGroups);
 class RadioButtonGroup {
     WTF_MAKE_TZONE_ALLOCATED(RadioButtonGroup);
 public:
-    bool isEmpty() const { return m_members.isEmptyIgnoringNullReferences(); }
-    bool isRequired() const { return m_requiredCount; }
-    RefPtr<HTMLInputElement> checkedButton() const { return m_checkedButton; }
+    bool NODELETE isEmpty() const { return m_members.isEmptyIgnoringNullReferences(); }
+    bool NODELETE isRequired() const { return m_requiredCount; }
+    RefPtr<HTMLInputElement> NODELETE checkedButton() const { return m_checkedButton; }
     void add(HTMLInputElement&);
     void updateCheckedState(HTMLInputElement&);
     void requiredStateChanged(HTMLInputElement&);
@@ -60,7 +60,7 @@ private:
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(RadioButtonGroup);
 
-inline bool RadioButtonGroup::isValid() const
+inline bool NODELETE RadioButtonGroup::isValid() const
 {
     return !isRequired() || m_checkedButton;
 }
@@ -191,7 +191,7 @@ void RadioButtonGroup::updateValidityForAllButtons()
     }
 }
 
-bool RadioButtonGroup::contains(HTMLInputElement& button) const
+bool NODELETE RadioButtonGroup::contains(HTMLInputElement& button) const
 {
     return m_members.contains(button);
 }

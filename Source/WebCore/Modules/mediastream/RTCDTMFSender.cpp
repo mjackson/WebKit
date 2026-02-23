@@ -69,7 +69,7 @@ bool RTCDTMFSender::canInsertDTMF() const
     if (!m_sender || m_sender->isStopped())
         return false;
 
-    auto currentDirection = m_sender->currentTransceiverDirection();
+    auto currentDirection = protect(m_sender)->currentTransceiverDirection();
     if (!currentDirection)
         return false;
     if (*currentDirection != RTCRtpTransceiverDirection::Sendrecv && *currentDirection != RTCRtpTransceiverDirection::Sendonly)
@@ -83,7 +83,7 @@ String RTCDTMFSender::toneBuffer() const
     return m_tones;
 }
 
-static inline bool isToneCharacterInvalid(char16_t character)
+static inline bool NODELETE isToneCharacterInvalid(char16_t character)
 {
     if (character >= '0' && character <= '9')
         return false;

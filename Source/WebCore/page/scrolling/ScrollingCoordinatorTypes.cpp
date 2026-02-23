@@ -62,6 +62,7 @@ void RequestedScrollData::merge(RequestedScrollData&& other)
     if (scrollbarRevealBehavior == ScrollbarRevealBehavior::Default)
         other.scrollbarRevealBehavior = ScrollbarRevealBehavior::Default;
 
+    other.identifier = std::max(*identifier, *other.identifier);
     *this = WTF::move(other);
 }
 
@@ -201,6 +202,7 @@ TextStream& operator<<(TextStream& ts, ScrollUpdateType type)
 {
     switch (type) {
     case ScrollUpdateType::PositionUpdate: ts << "position update"_s; break;
+    case ScrollUpdateType::ScrollRequestResponse: ts << "scroll request response"_s; break;
     case ScrollUpdateType::AnimatedScrollWillStart: ts << "animated scroll will start"_s; break;
     case ScrollUpdateType::AnimatedScrollDidEnd: ts << "animated scroll did end"_s; break;
     case ScrollUpdateType::WheelEventScrollWillStart: ts << "wheel event scroll will start"_s; break;
@@ -264,6 +266,8 @@ TextStream& operator<<(TextStream& ts, const ScrollUpdate& update)
 {
     if (update.updateType == ScrollUpdateType::PositionUpdate)
         ts << "updateType: " << update.updateType << " nodeID: " << update.nodeID << " scrollPosition: " << update.scrollPosition << " layoutViewportOrigin: " << update.layoutViewportOrigin << " updateLayerPositionAction: " << update.updateLayerPositionAction;
+    else if (update.updateType == ScrollUpdateType::ScrollRequestResponse)
+        ts << "updateType: " << update.updateType << " nodeID: " << update.nodeID << " scrollPosition: " << update.scrollPosition << " identifier: " << update.responseIdentifier;
     else
         ts << "updateType: " << update.updateType << " nodeID: " << update.nodeID;
 

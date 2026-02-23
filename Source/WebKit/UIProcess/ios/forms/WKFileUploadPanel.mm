@@ -815,7 +815,7 @@ static NSSet<NSString *> *UTIsForMIMETypes(NSArray *mimeTypes)
     if (!_menuPresenter)
         return;
 
-    auto *webView = [_view.get() webView];
+    RetainPtr webView = [_view.get() webView];
     if (!webView)
         return;
 

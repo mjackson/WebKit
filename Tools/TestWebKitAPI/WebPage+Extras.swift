@@ -27,8 +27,13 @@ import Foundation
 @_spi(Testing) @_spi(CrossImportOverlay) import WebKit
 import WebKit_Private.WKPreferencesPrivate
 import WebKit_Private.WKWebViewPrivateForTesting
+import WebKit_Private.WKWebViewPrivate
 
 extension WebPage {
+    enum EditCommand: String {
+        case deleteBackward = "DeleteBackward"
+    }
+
     func waitForNextPresentationUpdate() async {
         await withCheckedContinuation { continuation in
             backingWebView._do(afterNextPresentationUpdate: {
@@ -56,6 +61,11 @@ extension WebPage {
         backingWebView.textInputContentView.insertText(text)
         #endif
         await waitForNextPresentationUpdate()
+    }
+
+    func executeEditCommand(_ command: EditCommand, with argument: String? = nil) async {
+        let success = await backingWebView._executeEditCommand(command.rawValue, argument: argument)
+        assert(success)
     }
 }
 

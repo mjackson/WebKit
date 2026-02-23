@@ -1185,7 +1185,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         [CATransaction begin];
         [CATransaction setDisableActions:YES];
 
-        [[_webViewPlaceholder layer] setContents:(id)protect<CGImage>([snapshotImage CGImage]).get()];
+        [[_webViewPlaceholder layer] setContents:(id)protect([snapshotImage CGImage]).get()];
         WebKit::replaceViewWithView(webView.get(), _webViewPlaceholder.get());
 
         [webView setAutoresizingMask:(UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight)];

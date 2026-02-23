@@ -71,7 +71,7 @@ void RemoteMesh::stopListeningForIPC()
 
 void RemoteMesh::destruct()
 {
-    Ref { m_objectHeap.get() }->removeObject(m_identifier);
+    protect(m_objectHeap)->removeObject(m_identifier);
 }
 
 void RemoteMesh::setLabel(String&& label)

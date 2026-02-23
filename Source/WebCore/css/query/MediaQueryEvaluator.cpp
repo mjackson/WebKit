@@ -86,7 +86,7 @@ bool MediaQueryEvaluator::evaluate(const MediaQuery& query) const
         if (!document->view() || !document->documentElement())
             return EvaluationResult::Unknown;
 
-        FeatureEvaluationContext context { *document, { *rootElementStyle, rootElementStyle.get(), nullptr, document->renderView() }, nullptr };
+        FeatureEvaluationContext context { *document, { *rootElementStyle, rootElementStyle.get(), nullptr, document->renderView(), nullptr, CSS::RangeZoomOptions::Unzoomed }, nullptr };
         return evaluateCondition(*query.condition, context);
     }();
 

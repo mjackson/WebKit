@@ -114,7 +114,7 @@ private:
         m_subscriber->visitAdditionalChildren(visitor);
     }
 
-    Ref<Subscriber> protectedSubscriber() const { return m_subscriber; }
+    Ref<Subscriber> NODELETE protectedSubscriber() const { return m_subscriber; }
 
     InternalObserverDrop(ScriptExecutionContext& context, Ref<Subscriber> subscriber, uint64_t amount)
         : InternalObserver(context)

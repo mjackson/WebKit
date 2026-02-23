@@ -46,10 +46,10 @@ class SVGElement;
 class SVGFilterElement;
 class SVGMarkerElement;
 class SVGMaskElement;
-class StyleImage;
 class TreeScope;
 
 namespace Style {
+class Image;
 struct FilterReference;
 struct ReferencePath;
 struct URL;
@@ -76,7 +76,7 @@ public:
     // LBSE: All element based.
     static RefPtr<SVGClipPathElement> referencedClipPathElement(TreeScope&, const Style::ReferencePath&);
     static RefPtr<SVGMarkerElement> referencedMarkerElement(TreeScope&, const Style::URL&);
-    static RefPtr<SVGMaskElement> referencedMaskElement(TreeScope&, const StyleImage&);
+    static RefPtr<SVGMaskElement> referencedMaskElement(TreeScope&, const Style::Image&);
     static RefPtr<SVGMaskElement> referencedMaskElement(TreeScope&, const AtomString&);
     static RefPtr<SVGElement> referencedPaintServerElement(TreeScope&, const Style::URL&);
 

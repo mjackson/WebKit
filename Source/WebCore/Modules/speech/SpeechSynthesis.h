@@ -54,9 +54,9 @@ public:
     void deref() const final { RefCounted::deref(); }
     USING_CAN_MAKE_WEAKPTR(EventTarget);
 
-    bool pending() const;
-    bool speaking() const;
-    bool paused() const;
+    bool NODELETE pending() const;
+    bool NODELETE speaking() const;
+    bool NODELETE paused() const;
 
     void speak(SpeechSynthesisUtterance&);
     void cancel();
@@ -80,7 +80,7 @@ public:
 
 private:
     SpeechSynthesis(ScriptExecutionContext&);
-    RefPtr<SpeechSynthesisUtterance> protectedCurrentSpeechUtterance();
+    RefPtr<SpeechSynthesisUtterance> NODELETE protectedCurrentSpeechUtterance();
 
     // PlatformSpeechSynthesizerClient
     void voicesDidChange() override;
@@ -101,13 +101,13 @@ private:
     void voicesChanged() override;
 
     // ActiveDOMObject
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
 
     void startSpeakingImmediately(SpeechSynthesisUtterance&);
     void handleSpeakingCompleted(SpeechSynthesisUtterance&, bool errorOccurred);
 
     // EventTarget
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
     enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::SpeechSynthesis; }
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }

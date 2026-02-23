@@ -81,6 +81,13 @@ public:
     void operator()(TextLayout*) const;
 };
 
+struct TextShapingResult {
+    WTF_MAKE_TZONE_ALLOCATED_INLINE(TextShapingResult);
+public:
+    float width { 0.f };
+    GlyphBuffer glyphBuffer;
+};
+
 class FontCascade final : public CanMakeWeakPtr<FontCascade>, public CanMakeCheckedPtr<FontCascade, WTF::DefaultedOperatorEqual::No, WTF::CheckedPtrDeleteCheckException::Yes> {
     WTF_MAKE_TZONE_ALLOCATED(FontCascade);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(FontCascade);
@@ -107,6 +114,7 @@ public:
     unsigned fontSelectorVersion() const;
 
     enum class CustomFontNotReadyAction : bool { DoNotPaintIfFontNotReady, UseFallbackIfFontNotReady };
+    enum class ForTextEmphasis : bool { No, Yes };
     WEBCORE_EXPORT FloatSize drawText(GraphicsContext&, const TextRun&, const FloatPoint&, unsigned from = 0, std::optional<unsigned> to = std::nullopt, CustomFontNotReadyAction = CustomFontNotReadyAction::DoNotPaintIfFontNotReady) const;
     static void drawGlyphs(GraphicsContext&, const Font&, std::span<const GlyphBufferGlyph>, std::span<const GlyphBufferAdvance>, const FloatPoint&, FontSmoothingMode);
     void drawEmphasisMarks(GraphicsContext&, const TextRun&, const AtomString& mark, const FloatPoint&, unsigned from = 0, std::optional<unsigned> to = std::nullopt) const;
@@ -205,12 +213,12 @@ public:
 
     unsigned generation() const { return m_generation; }
 
-private:
-    enum class ForTextEmphasisOrNot : bool { NotForTextEmphasis, ForTextEmphasis };
-
-    GlyphBuffer layoutText(CodePath, const TextRun&, unsigned from, unsigned to, ForTextEmphasisOrNot = ForTextEmphasisOrNot::NotForTextEmphasis) const;
-    GlyphBuffer layoutSimpleText(const TextRun&, unsigned from, unsigned to, ForTextEmphasisOrNot = ForTextEmphasisOrNot::NotForTextEmphasis) const;
+    TextShapingResult layoutText(CodePath, const TextRun&, unsigned from, unsigned to, ForTextEmphasis = ForTextEmphasis::No) const;
     void drawGlyphBuffer(GraphicsContext&, const GlyphBuffer&, FloatPoint&, CustomFontNotReadyAction) const;
+
+private:
+
+    TextShapingResult layoutSimpleText(const TextRun&, unsigned from, unsigned to, ForTextEmphasis = ForTextEmphasis::No) const;
     void drawEmphasisMarks(GraphicsContext&, const GlyphBuffer&, const AtomString&, const FloatPoint&) const;
     int offsetForPositionForSimpleText(const TextRun&, float position, bool includePartialGlyphs) const;
     void adjustSelectionRectForSimpleText(const TextRun&, LayoutRect& selectionRect, unsigned from, unsigned to) const;
@@ -225,7 +233,7 @@ private:
     static constexpr bool canReturnFallbackFontsForComplexText();
     static constexpr bool canExpandAroundIdeographsInComplexText();
 
-    GlyphBuffer layoutComplexText(const TextRun&, unsigned from, unsigned to, ForTextEmphasisOrNot = ForTextEmphasisOrNot::NotForTextEmphasis) const;
+    TextShapingResult layoutComplexText(const TextRun&, unsigned from, unsigned to, ForTextEmphasis = ForTextEmphasis::No) const;
     int offsetForPositionForComplexText(const TextRun&, float position, bool includePartialGlyphs) const;
     void adjustSelectionRectForComplexText(const TextRun&, LayoutRect& selectionRect, unsigned from, unsigned to) const;
 

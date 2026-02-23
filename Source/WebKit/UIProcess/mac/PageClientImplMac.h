@@ -65,7 +65,7 @@ public:
     virtual ~PageClientImpl();
 
     // FIXME: Eventually WebViewImpl should become the PageClient.
-    void setImpl(WebViewImpl&);
+    void NODELETE setImpl(WebViewImpl&);
 
     void viewWillMoveToAnotherWindow();
 
@@ -82,6 +82,7 @@ private:
     bool isActiveViewVisible() override;
     bool isMainViewVisible() override;
     bool canTakeForegroundAssertions() override { return true; };
+    void scrollingCoordinatorWasCreated() override;
     bool isViewVisibleOrOccluded() override;
     bool isViewInWindow() override;
     bool isVisuallyIdle() override;
@@ -205,6 +206,8 @@ private:
     void setEditableElementIsFocused(bool) override;
 
     void scrollingNodeScrollViewDidScroll(WebCore::ScrollingNodeID) override;
+
+    void didCommitMainFrameData(const MainFrameData&) override;
 
     void registerInsertionUndoGrouping() override;
 
@@ -331,8 +334,6 @@ private:
 #endif
 
     void positionInformationDidChange(const InteractionInformationAtPosition&) override;
-
-    CheckedPtr<WebViewImpl> checkedImpl() const { return m_impl.get(); }
 
     bool isViewVisible(NSView *, NSWindow *);
 

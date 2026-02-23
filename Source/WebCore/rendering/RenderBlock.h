@@ -90,7 +90,7 @@ public:
         auto* renderers = percentHeightDescendants();
         return renderers && !renderers->isEmptyIgnoringNullReferences();
     }
-    static bool hasPercentHeightContainerMap();
+    static bool NODELETE hasPercentHeightContainerMap();
     static void clearPercentHeightDescendantsFrom(RenderBox&);
 
     virtual bool willStretchItem(const RenderBox& item, LogicalBoxAxis containingAxis, StretchingMode = StretchingMode::Normal) const;
@@ -104,8 +104,8 @@ public:
     bool hasMarginAfterQuirk() const { return renderBlockHasMarginAfterQuirk(); }
     bool hasBorderOrPaddingLogicalWidthChanged() const { return renderBlockShouldForceRelayoutChildren(); }
 
-    bool hasMarginBeforeQuirk(const RenderBox& child) const;
-    bool hasMarginAfterQuirk(const RenderBox& child) const;
+    bool NODELETE hasMarginBeforeQuirk(const RenderBox& child) const;
+    bool NODELETE hasMarginAfterQuirk(const RenderBox& child) const;
 
     void markOutOfFlowBoxesForLayout();
     void markForPaginationRelayoutIfNeeded() override;
@@ -126,7 +126,7 @@ public:
     GapRects selectionGapRectsForRepaint(const RenderLayerModelObject* repaintContainer);
     LayoutRect logicalLeftSelectionGap(RenderBlock& rootBlock, const LayoutPoint& rootBlockPhysicalPosition, const LayoutSize& offsetFromRootBlock, RenderElement* selObj, LayoutUnit logicalLeft, LayoutUnit logicalTop, LayoutUnit logicalHeight, const LogicalSelectionOffsetCaches&, const PaintInfo*);
     LayoutRect logicalRightSelectionGap(RenderBlock& rootBlock, const LayoutPoint& rootBlockPhysicalPosition, const LayoutSize& offsetFromRootBlock, RenderElement* selObj, LayoutUnit logicalRight, LayoutUnit logicalTop, LayoutUnit logicalHeight, const LogicalSelectionOffsetCaches&, const PaintInfo*);
-    void getSelectionGapInfo(HighlightState, bool& leftGap, bool& rightGap);
+    void NODELETE getSelectionGapInfo(HighlightState, bool& leftGap, bool& rightGap);
     bool isSelectionRoot() const;
 
     LayoutRect logicalRectToPhysicalRect(const LayoutPoint& physicalPosition, const LayoutRect& logicalRect);
@@ -233,7 +233,8 @@ public:
 
     virtual bool hasLineIfEmpty() const;
 
-    void updateDescendantTransformsAfterLayout();
+    void updateInFlowDescendantTransformsAfterLayout();
+    void updateOutOfFlowDescendantTransformsAfterLayout();
 
     virtual bool canPerformSimplifiedLayout() const;
 
@@ -308,7 +309,7 @@ protected:
 
     virtual bool isPointInOverflowControl(HitTestResult&, const LayoutPoint& locationInContainer, const LayoutPoint& accumulatedOffset);
 
-    virtual void computeOverflow(LayoutRect contentArea, OptionSet<ComputeOverflowOptions> = { });
+    virtual void computeInFlowOverflow(LayoutRect contentArea, OptionSet<ComputeOverflowOptions> = { });
     void addOverflowFromOutOfFlowBoxes();
     void addVisualOverflowFromTheme();
 
@@ -400,8 +401,8 @@ private:
     static bool s_canPropagateFloatIntoSibling;
 };
 
-LayoutUnit blockDirectionOffset(RenderBlock& rootBlock, const LayoutSize& offsetFromRootBlock);
-LayoutUnit inlineDirectionOffset(RenderBlock& rootBlock, const LayoutSize& offsetFromRootBlock);
+LayoutUnit NODELETE blockDirectionOffset(RenderBlock& rootBlock, const LayoutSize& offsetFromRootBlock);
+LayoutUnit NODELETE inlineDirectionOffset(RenderBlock& rootBlock, const LayoutSize& offsetFromRootBlock);
 PositionWithAffinity positionForPointRespectingEditingBoundaries(RenderBlock&, RenderBox&, const LayoutPoint&, HitTestSource);
 
 } // namespace WebCore

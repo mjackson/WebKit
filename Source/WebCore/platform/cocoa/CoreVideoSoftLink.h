@@ -30,8 +30,11 @@
 #include <wtf/Platform.h>
 #include <wtf/SoftLinking.h>
 #include <wtf/StdLibExtras.h>
+#include <wtf/cf/CFTypeTraits.h>
 
 typedef struct __IOSurface* IOSurfaceRef;
+
+WTF_DECLARE_CF_TYPE_TRAIT(CVPixelBufferPool);
 
 SOFT_LINK_FRAMEWORK_FOR_HEADER(WebCore, CoreVideo)
 

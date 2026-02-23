@@ -90,7 +90,7 @@ TextTrackCue* TextTrackCueBox::getCue() const
     return m_cue.get();
 }
 
-static inline bool isLegalNode(Node& node)
+static inline bool NODELETE isLegalNode(Node& node)
 {
     return node.hasTagName(HTMLNames::bTag)
         || node.hasTagName(HTMLNames::brTag)

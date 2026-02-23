@@ -84,6 +84,7 @@
 #include <JavaScriptCore/CallFrame.h>
 #include <JavaScriptCore/DeferredWorkTimer.h>
 #include <JavaScriptCore/Exception.h>
+#include <JavaScriptCore/JSGlobalObject.h>
 #include <JavaScriptCore/JSPromise.h>
 #include <JavaScriptCore/ScriptCallStack.h>
 #include <JavaScriptCore/SourceTaintedOrigin.h>
@@ -91,6 +92,7 @@
 #include <JavaScriptCore/StrongInlines.h>
 #include <JavaScriptCore/TopExceptionScope.h>
 #include <JavaScriptCore/VM.h>
+#include <JavaScriptCore/WeakInlines.h>
 #include <wtf/Lock.h>
 #include <wtf/MainThread.h>
 #include <wtf/Ref.h>
@@ -104,7 +106,7 @@ using namespace Inspector;
 static std::atomic<CrossOriginMode> globalCrossOriginMode { CrossOriginMode::Shared };
 
 static Lock allScriptExecutionContextsMapLock;
-static HashMap<ScriptExecutionContextIdentifier, WeakRef<ScriptExecutionContext>>& allScriptExecutionContextsMap() WTF_REQUIRES_LOCK(allScriptExecutionContextsMapLock)
+static HashMap<ScriptExecutionContextIdentifier, WeakRef<ScriptExecutionContext>>& NODELETE allScriptExecutionContextsMap() WTF_REQUIRES_LOCK(allScriptExecutionContextsMapLock)
 {
     static NeverDestroyed<HashMap<ScriptExecutionContextIdentifier, WeakRef<ScriptExecutionContext>>> contexts;
     ASSERT(allScriptExecutionContextsMapLock.isLocked());
@@ -188,7 +190,7 @@ void ScriptExecutionContext::checkConsistency() const
     for (auto& destructionObserver : m_destructionObservers)
         ASSERT(destructionObserver.scriptExecutionContext() == this);
 
-    // This can run on the GC thread.
+    // This can run on a GC thread.
     for (SUPPRESS_UNCOUNTED_LOCAL auto& activeDOMObject : m_activeDOMObjects) {
         ASSERT(activeDOMObject.scriptExecutionContext() == this);
         activeDOMObject.assertSuspendIfNeededWasCalled();
@@ -348,6 +350,29 @@ URL ScriptExecutionContext::currentSourceURL(CallStackPosition position) const
     return sourceURL;
 }
 
+void ScriptExecutionContext::setMicrotaskGlobalObject(JSC::JSGlobalObject* globalObject)
+{
+    m_microtaskGlobalObject = JSC::Weak<JSC::JSGlobalObject>(globalObject);
+    if (!globalObject)
+        return;
+    if (isEventLoopGroupStoppedPermanently())
+        globalObject->setMicrotaskRunnability(JSC::QueuedTaskResult::Discard);
+    else if (activeDOMObjectsAreSuspended())
+        globalObject->setMicrotaskRunnability(JSC::QueuedTaskResult::Suspended);
+    else
+        globalObject->setMicrotaskRunnability(JSC::QueuedTaskResult::Executed);
+}
+
+JSC::JSGlobalObject* ScriptExecutionContext::microtaskGlobalObject() const
+{
+    return m_microtaskGlobalObject.get();
+}
+
+void ScriptExecutionContext::clearMicrotaskGlobalObject()
+{
+    m_microtaskGlobalObject.clear();
+}
+
 void ScriptExecutionContext::suspendActiveDOMObjects(ReasonForSuspension why)
 {
     checkConsistency();
@@ -361,6 +386,9 @@ void ScriptExecutionContext::suspendActiveDOMObjects(ReasonForSuspension why)
     }
 
     m_activeDOMObjectsAreSuspended = true;
+
+    if (auto* globalObject = microtaskGlobalObject())
+        globalObject->setMicrotaskRunnability(JSC::QueuedTaskResult::Suspended);
 
     forEachActiveDOMObject([why](auto& activeDOMObject) {
         activeDOMObject.suspend(why);
@@ -385,6 +413,9 @@ void ScriptExecutionContext::resumeActiveDOMObjects(ReasonForSuspension why)
     vm().deferredWorkTimer->didResumeScriptExecutionOwner();
 
     m_activeDOMObjectsAreSuspended = false;
+
+    if (auto* globalObject = microtaskGlobalObject())
+        globalObject->setMicrotaskRunnability(JSC::QueuedTaskResult::Executed);
 
     // In case there were pending messages at the time the script execution context entered the BackForwardCache,
     // make sure those get dispatched shortly after restoring from the BackForwardCache.
@@ -633,7 +664,7 @@ bool ScriptExecutionContext::hasPendingActivity() const
 {
     checkConsistency();
 
-    // This runs on the GC thread.
+    // This runs on a GC thread.
     for (SUPPRESS_UNCOUNTED_LOCAL auto& activeDOMObject : m_activeDOMObjects) {
         if (activeDOMObject.hasPendingActivity())
             return true;
@@ -843,7 +874,7 @@ void ScriptExecutionContext::postTaskToResponsibleDocument(Function<void(Documen
         callback(document.releaseNonNull());
 }
 
-static bool isOriginEquivalentToLocal(const SecurityOrigin& origin)
+static bool NODELETE isOriginEquivalentToLocal(const SecurityOrigin& origin)
 {
     return origin.isLocal() && !origin.needsStorageAccessFromFileURLsQuirk() && !origin.hasUniversalAccess();
 }
@@ -986,7 +1017,7 @@ bool ScriptExecutionContext::requiresScriptTrackingPrivacyProtection(ScriptTrack
         return false;
 
     bool shouldApplyConsistently = (category == ScriptTrackingPrivacyCategory::QueryParameters && document->quirks().needsConsistentQueryParameterFilteringQuirk(taintedURL))
-        || document->quirks().mayBenefitFromFingerprintingProtectionQuirk(taintedURL);
+        || (category != ScriptTrackingPrivacyCategory::NetworkRequests && document->quirks().mayBenefitFromFingerprintingProtectionQuirk(taintedURL));
     if (!shouldEnableScriptTrackingPrivacy(category, advancedPrivacyProtections(), shouldApplyConsistently))
         return false;
 

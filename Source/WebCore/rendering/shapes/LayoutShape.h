@@ -84,7 +84,7 @@ public:
 protected:
     float shapeMargin() const { return m_margin; }
     WritingMode writingMode() const { return m_writingMode; }
-    static bool shouldFlipStartAndEndPoints(WritingMode);
+    static bool NODELETE shouldFlipStartAndEndPoints(WritingMode);
 
 private:
     bool lineOverlapsBoundingBox(LayoutUnit lineTop, LayoutUnit lineHeight, const LayoutRect& rect) const

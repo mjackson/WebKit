@@ -2044,6 +2044,42 @@ public:
         insn(0b010'011110'0000'000'000001'00000'00000 | (immh << 19) | (immb << 16) | (vn << 5) | vd);
     }
 
+    ALWAYS_INLINE void ushr_vi(FPRegisterID vd, FPRegisterID vn, uint8_t shift, SIMDLane lane)
+    {
+        uint8_t maxShift = elementByteSize(lane) * 8;
+        ASSERT(shift <= maxShift && shift);
+        shift = maxShift - shift;
+        unsigned immh = elementByteSize(lane) | ((shift & 0b0111000) >> 3);
+        unsigned immb = shift & 0b0111;
+        ASSERT(immh);
+        ASSERT(!(immh & (~0b1111)));
+        insn(0b011'011110'0000'000'000001'00000'00000 | (immh << 19) | (immb << 16) | (vn << 5) | vd);
+    }
+
+    template<SIMDLane narrowedLane>
+    ALWAYS_INLINE void shrn(FPRegisterID vd, FPRegisterID vn, uint8_t shift)
+    {
+        static_assert(narrowedLane == SIMDLane::i8x16 || narrowedLane == SIMDLane::i16x8 || narrowedLane == SIMDLane::i32x4, "SHRN destination lane must be i8x16, i16x8, or i32x4");
+
+        // Calculate source element size in bits (2x destination)
+        constexpr uint8_t destBitSize = narrowedLane == SIMDLane::i8x16 ? 8 : (narrowedLane == SIMDLane::i16x8 ? 16 : 32);
+        constexpr uint8_t srcBitSize = destBitSize * 2;
+
+        ASSERT(shift > 0 && shift <= srcBitSize);
+
+        // immh:immb = (source_element_bits) - shift
+        unsigned immhb = srcBitSize - shift;
+        unsigned immh = immhb >> 3;
+        unsigned immb = immhb & 0b111;
+
+        insn(0b000'011110'0000'000'100001'00000'00000 | (immh << 19) | (immb << 16) | (vn << 5) | vd);
+    }
+
+    ALWAYS_INLINE void cmtst(FPRegisterID vd, FPRegisterID vn, FPRegisterID vm, SIMDLane lane)
+    {
+        insn(0b01001110'00'1'00000'10001'1'00000'00000 | (sizeForIntegralSIMDOp(lane) << 22) | (vm << 16) | (vn << 5) | vd);
+    }
+
     ALWAYS_INLINE void sqadd(FPRegisterID vd, FPRegisterID vn, FPRegisterID vm, SIMDLane lane)
     {
         insn(0b01001110001000000000110000000000 | (sizeForIntegralSIMDOp(lane) << 22) | (vm << 16) | (vn << 5) | vd);

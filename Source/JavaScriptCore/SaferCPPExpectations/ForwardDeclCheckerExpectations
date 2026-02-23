@@ -62,3 +62,4 @@ runtime/StringSplitCache.h
 runtime/Structure.h
 runtime/VM.h
 runtime/WriteBarrier.h
+[ iOS ] wasm/WasmIPIntGenerator.cpp

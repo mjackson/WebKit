@@ -1402,6 +1402,14 @@ typedef NS_ENUM(NSUInteger, _UIScrollDeviceCategory) {
 
 #endif // HAVE(LIQUID_GLASS)
 
+#if PLATFORM(VISION)
+
+@interface UIScrollView ()
+@property (nonatomic, setter=_setUseVisionAlternateScrollIndicatorRendering:) BOOL _useVisionAlternateScrollIndicatorRendering;
+@end
+
+#endif // PLATFORM(VISION)
+
 WTF_EXTERN_C_BEGIN
 
 BOOL UIKeyboardEnabledInputModesAllowOneToManyShortcuts(void);

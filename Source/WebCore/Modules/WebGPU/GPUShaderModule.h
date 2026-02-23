@@ -45,7 +45,7 @@ public:
         return adoptRef(*new GPUShaderModule(WTF::move(backing)));
     }
 
-    String label() const;
+    String NODELETE label() const;
     void setLabel(String&&);
 
     using CompilationInfoPromise = DOMPromiseDeferred<IDLInterface<GPUCompilationInfo>>;

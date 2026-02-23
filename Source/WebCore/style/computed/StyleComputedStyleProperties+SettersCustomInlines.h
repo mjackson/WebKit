@@ -32,7 +32,7 @@
 #define SET_NESTED(group, parent, variable, value) SET_STYLE_PROPERTY(group->parent->variable, group.access().parent.access().variable, value)
 #define SET_DOUBLY_NESTED(group, grandparent, parent, variable, value) SET_STYLE_PROPERTY(group->grandparent->parent->variable, group.access().grandparent.access().parent.access().variable, value)
 #define SET_NESTED_STRUCT(group, parent, variable, value) SET_STYLE_PROPERTY(group->parent.variable, group.access().parent.variable, value)
-#define SET_STYLE_PROPERTY_PAIR(read, write, variable1, value1, variable2, value2) do { Ref readable = Ref { *read }; if (!compareEqual(readable->variable1, value1) || !compareEqual(readable->variable2, value2)) { Ref writable = write; writable->variable1 = value1; writable->variable2 = value2; } } while (0)
+#define SET_STYLE_PROPERTY_PAIR(read, write, variable1, value1, variable2, value2) do { Ref readable = Ref { *read }; if (!compareEqual(readable->variable1, value1) || !compareEqual(readable->variable2, value2)) { auto& writable = write; writable.variable1 = value1; writable.variable2 = value2; } } while (0)
 #define SET_PAIR(group, variable1, value1, variable2, value2) SET_STYLE_PROPERTY_PAIR(group, group.access(), variable1, value1, variable2, value2)
 #define SET_NESTED_PAIR(group, parent, variable1, value1, variable2, value2) SET_STYLE_PROPERTY_PAIR(group->parent, group.access().parent.access(), variable1, value1, variable2, value2)
 #define SET_DOUBLY_NESTED_PAIR(group, grandparent, parent, variable1, value1, variable2, value2) SET_STYLE_PROPERTY_PAIR(group->grandparent->parent, group.access().grandparent.access().parent.access(), variable1, value1, variable2, value2)
@@ -94,10 +94,10 @@ inline void ComputedStyleProperties::setBlendMode(BlendMode mode)
     SET(m_inheritedRareData, isInSubtreeWithBlendMode, mode != BlendMode::Normal);
 }
 
-inline void ComputedStyleProperties::setDisplay(DisplayType value)
+inline void ComputedStyleProperties::setDisplay(Display value)
 {
-    m_nonInheritedFlags.originalDisplay = static_cast<unsigned>(value);
-    m_nonInheritedFlags.effectiveDisplay = static_cast<unsigned>(value);
+    m_nonInheritedFlags.originalDisplay = value.toRaw();
+    m_nonInheritedFlags.display = value.toRaw();
 }
 
 // FIXME: Support generating properties that have their storage spread out

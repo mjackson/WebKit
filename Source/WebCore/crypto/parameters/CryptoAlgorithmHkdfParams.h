@@ -59,7 +59,7 @@ public:
 
     const Vector<uint8_t>& saltVector() const
     {
-        if (!m_saltVector.isEmpty() || !salt || !salt->length())
+        if (!m_saltVector.isEmpty() || !salt || !salt->byteLength())
             return m_saltVector;
 
         if (salt)
@@ -69,7 +69,7 @@ public:
 
     const Vector<uint8_t>& infoVector() const
     {
-        if (!m_infoVector.isEmpty() || !info || !info->length())
+        if (!m_infoVector.isEmpty() || !info || !info->byteLength())
             return m_infoVector;
 
         if (info)

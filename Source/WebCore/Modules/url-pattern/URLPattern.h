@@ -72,7 +72,7 @@ public:
     const String& search() const { return m_searchComponent.patternString(); }
     const String& hash() const { return m_hashComponent.patternString(); }
 
-    bool hasRegExpGroups() const;
+    bool NODELETE hasRegExpGroups() const;
     bool shouldIgnoreCase() const { return m_shouldIgnoreCase; }
 
 private:

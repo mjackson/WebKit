@@ -145,7 +145,7 @@ bool isDraggableLink(const Element& element)
 static PlatformMouseEvent createMouseEvent(const DragData& dragData)
 {
     auto modifiers = PlatformKeyboardEvent::currentStateOfModifierKeys();
-    return PlatformMouseEvent(dragData.clientPosition(), dragData.globalPosition(), MouseButton::Left, PlatformEvent::Type::MouseMoved, 0, modifiers, MonotonicTime::now(), ForceAtClick, SyntheticClickType::NoTap, MouseEventInputSource::Hardware);
+    return PlatformMouseEvent(dragData.clientPosition(), dragData.globalPosition(), MouseButton::Left, PlatformEvent::Type::MouseMoved, 0, modifiers, MonotonicTime::now(), ForceAtClick, SyntheticClickType::NoTap, MouseEventInputSource::UserDriven);
 }
 
 DragController::DragController(Page& page, std::unique_ptr<DragClient>&& client)
@@ -234,7 +234,7 @@ void DragController::dragExited(LocalFrame& frame, DragData&& dragData)
         fileInput->setCanReceiveDroppedFiles(false);
 }
 
-inline static bool dragIsHandledByDocument(DragHandlingMethod dragHandlingMethod)
+inline static bool NODELETE dragIsHandledByDocument(DragHandlingMethod dragHandlingMethod)
 {
     return dragHandlingMethod != DragHandlingMethod::None && dragHandlingMethod != DragHandlingMethod::PageLoad;
 }
@@ -426,11 +426,6 @@ void DragController::updateSupportedTypeIdentifiersForDragHandlingMethod(DragHan
 
 #endif
 
-Ref<Page> DragController::protectedPage() const
-{
-    return m_page.get();
-}
-
 DragHandlingMethod DragController::tryDocumentDrag(LocalFrame& frame, const DragData& dragData, OptionSet<DragDestinationAction> destinationActionMask, std::optional<DragOperation>& dragOperation)
 {
     if (!m_documentUnderMouse)
@@ -470,7 +465,7 @@ DragHandlingMethod DragController::tryDocumentDrag(LocalFrame& frame, const Drag
         }
 
         IntPoint point = frameView->windowToContents(dragData.clientPosition());
-        RefPtr element = elementUnderMouse(*protectedDocumentUnderMouse(), point);
+        RefPtr element = elementUnderMouse(*protect(m_documentUnderMouse), point);
         if (!element)
             return DragHandlingMethod::None;
         
@@ -482,7 +477,7 @@ DragHandlingMethod DragController::tryDocumentDrag(LocalFrame& frame, const Drag
         }
         
         if (!m_fileInputElementUnderMouse)
-            protectedPage()->dragCaretController().setCaretPosition(m_documentUnderMouse->frame()->visiblePositionForPoint(point));
+            protect(m_page)->dragCaretController().setCaretPosition(m_documentUnderMouse->frame()->visiblePositionForPoint(point));
         else
             clearDragCaret();
 
@@ -581,7 +576,7 @@ bool DragController::concludeEditDrag(const DragData& dragData)
         return false;
 
     IntPoint point = protect(m_documentUnderMouse->view())->windowToContents(dragData.clientPosition());
-    RefPtr element = elementUnderMouse(*protectedDocumentUnderMouse(), point);
+    RefPtr element = elementUnderMouse(*protect(m_documentUnderMouse), point);
     if (!element)
         return false;
     RefPtr innerFrame = element->document().frame();
@@ -660,7 +655,7 @@ bool DragController::concludeEditDrag(const DragData& dragData)
                     options.add(ReplaceSelectionCommand::SmartReplace);
                 if (chosePlainText || dragData.shouldMatchStyleOnDrop())
                     options.add(ReplaceSelectionCommand::MatchStyle);
-                ReplaceSelectionCommand::create(protectedDocumentUnderMouse().releaseNonNull(), fragment.releaseNonNull(), options, EditAction::InsertFromDrop)->apply();
+                ReplaceSelectionCommand::create(protect(m_documentUnderMouse).releaseNonNull(), fragment.releaseNonNull(), options, EditAction::InsertFromDrop)->apply();
             }
         }
     } else {
@@ -674,7 +669,7 @@ bool DragController::concludeEditDrag(const DragData& dragData)
             return true;
 
         if (setSelectionToDragCaret(innerFrame.get(), dragCaret, point))
-            ReplaceSelectionCommand::create(protectedDocumentUnderMouse().releaseNonNull(), WTF::move(fragment), { ReplaceSelectionCommand::SelectReplacement, ReplaceSelectionCommand::MatchStyle, ReplaceSelectionCommand::PreventNesting }, EditAction::InsertFromDrop)->apply();
+            ReplaceSelectionCommand::create(protect(m_documentUnderMouse).releaseNonNull(), WTF::move(fragment), { ReplaceSelectionCommand::SelectReplacement, ReplaceSelectionCommand::MatchStyle, ReplaceSelectionCommand::PreventNesting }, EditAction::InsertFromDrop)->apply();
     }
 
     if (rootEditableElement) {
@@ -821,7 +816,7 @@ RefPtr<Element> DragController::draggableElement(const LocalFrame* sourceFrame, 
     if (auto attachment = enclosingAttachmentElement(*startElement)) {
         auto& selection = sourceFrame->selection().selection();
         bool isSingleAttachmentSelection = selection.start() == Position(attachment.get(), Position::PositionIsBeforeAnchor) && selection.end() == Position(attachment.get(), Position::PositionIsAfterAnchor);
-        auto* renderer = attachment->renderer();
+        CheckedPtr renderer = attachment->renderer();
         if (!renderer || renderer->style().userDrag() == UserDrag::None)
             return nullptr;
 
@@ -838,7 +833,7 @@ RefPtr<Element> DragController::draggableElement(const LocalFrame* sourceFrame, 
         return selectionDragElement;
 
     for (RefPtr element = startElement; element; element = element->parentOrShadowHostElement()) {
-        auto* renderer = element->renderer();
+        CheckedPtr renderer = element->renderer();
         if (!renderer)
             continue;
 
@@ -909,7 +904,7 @@ static void selectElement(Element& element)
     }
 }
 
-static IntPoint dragLocForDHTMLDrag(const IntPoint& mouseDraggedPoint, const IntPoint& dragOrigin, const IntPoint& dragImageOffset, bool isLinkImage)
+static IntPoint NODELETE dragLocForDHTMLDrag(const IntPoint& mouseDraggedPoint, const IntPoint& dragOrigin, const IntPoint& dragImageOffset, bool isLinkImage)
 {
     // dragImageOffset is the cursor position relative to the lower-left corner of the image.
 #if PLATFORM(MAC)
@@ -1296,7 +1291,7 @@ bool DragController::startDrag(LocalFrame& src, const DragState& state, OptionSe
         dragImage = DragImage { createDragImageForNode(src, *modelElement) };
 
         PasteboardImage pasteboardImage;
-        pasteboardImage.suggestedName = modelElement->currentSrc().lastPathComponent().toString();
+        pasteboardImage.suggestedName = modelElement->model()->filename();
         pasteboardImage.resourceMIMEType = modelElement->model()->mimeType();
         pasteboardImage.resourceData = modelElement->model()->data();
         dataTransfer->pasteboard().write(pasteboardImage);
@@ -1608,7 +1603,7 @@ void DragController::placeDragCaret(const IntPoint& windowPoint)
         return;
     IntPoint framePoint = frameView->windowToContents(windowPoint);
 
-    protectedPage()->dragCaretController().setCaretPosition(frame->visiblePositionForPoint(framePoint));
+    protect(m_page)->dragCaretController().setCaretPosition(frame->visiblePositionForPoint(framePoint));
 }
 
 bool DragController::shouldUseCachedImageForDragImage(const Image& image) const

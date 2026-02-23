@@ -185,7 +185,8 @@ void FindController::didFindString()
     // text, so we reveal the text at the center of the viewport.
     // FIXME: Find a better way to estimate the obscured area (https://webkit.org/b/183889).
     selection->revealSelection({ SelectionRevealMode::RevealUpToMainFrame, ScrollAlignment::alignCenterAlways, WebCore::RevealExtentOption::DoNotRevealExtent });
-    revealClosedDetailsAndHiddenUntilFoundAncestors(*protect(selection->selection().start().anchorNode()));
+    if (RefPtr anchorNode = selection->selection().start().anchorNode())
+        revealClosedDetailsAndHiddenUntilFoundAncestors(*anchorNode);
 }
 
 void FindController::didFailToFindString()

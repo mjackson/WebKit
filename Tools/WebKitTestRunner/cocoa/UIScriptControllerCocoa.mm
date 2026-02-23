@@ -363,6 +363,32 @@ static _WKTextExtractionDataDetectorTypes dataDetectorTypes(JSValueRef typesArra
     return result;
 }
 
+static std::optional<_WKTextExtractionEventListenerCategory> eventListenerCategories(JSValueRef categoriesArray, JSContextRef jsContext)
+{
+    if (!JSValueIsArray(jsContext, categoriesArray))
+        return std::nullopt;
+
+    _WKTextExtractionEventListenerCategory result = _WKTextExtractionEventListenerCategoryNone;
+
+    RetainPtr context = [JSContext contextWithJSGlobalContextRef:JSContextGetGlobalContext(jsContext)];
+    for (NSString *category in [[JSValue valueWithJSValueRef:categoriesArray inContext:context.get()] toArray]) {
+        if ([category caseInsensitiveCompare:@"click"] == NSOrderedSame)
+            result |= _WKTextExtractionEventListenerCategoryClick;
+        else if ([category caseInsensitiveCompare:@"hover"] == NSOrderedSame)
+            result |= _WKTextExtractionEventListenerCategoryHover;
+        else if ([category caseInsensitiveCompare:@"touch"] == NSOrderedSame)
+            result |= _WKTextExtractionEventListenerCategoryTouch;
+        else if ([category caseInsensitiveCompare:@"wheel"] == NSOrderedSame)
+            result |= _WKTextExtractionEventListenerCategoryWheel;
+        else if ([category caseInsensitiveCompare:@"keyboard"] == NSOrderedSame)
+            result |= _WKTextExtractionEventListenerCategoryKeyboard;
+        else if ([category caseInsensitiveCompare:@"all"] == NSOrderedSame)
+            result |= _WKTextExtractionEventListenerCategoryAll;
+    }
+
+    return result;
+}
+
 RetainPtr<_WKTextExtractionConfiguration> createTextExtractionConfiguration(WKWebView *webView, TextExtractionTestOptions* options, JSContextRef jsContext)
 {
     auto extractionRect = CGRectNull;
@@ -389,7 +415,15 @@ RetainPtr<_WKTextExtractionConfiguration> createTextExtractionConfiguration(WKWe
 
         return _WKTextExtractionNodeIdentifierInclusionNone;
     }()];
-    [configuration setIncludeEventListeners:options && options->includeEventListeners];
+
+    [configuration setEventListenerCategories:[&] -> _WKTextExtractionEventListenerCategory {
+        if (!options)
+            return _WKTextExtractionEventListenerCategoryNone;
+
+        auto categories = eventListenerCategories(options->eventListenerCategories, jsContext);
+        return categories.value_or(_WKTextExtractionEventListenerCategoryNone);
+    }()];
+
     [configuration setIncludeAccessibilityAttributes:options && options->includeAccessibilityAttributes];
     [configuration setIncludeTextInAutoFilledControls:options && options->includeTextInAutoFilledControls];
     [configuration setIncludeOffscreenPasswordFields:options && options->includeOffscreenPasswordFields];
@@ -484,8 +518,8 @@ void UIScriptControllerCocoa::performTextExtractionInteraction(JSStringRef jsAct
         action = _WKTextExtractionActionKeyPress;
     if (equalLettersIgnoringASCIICase(actionName, "highlighttext"))
         action = _WKTextExtractionActionHighlightText;
-    if (equalLettersIgnoringASCIICase(actionName, "scrollby"))
-        action = _WKTextExtractionActionScrollBy;
+    if (equalLettersIgnoringASCIICase(actionName, "scroll"))
+        action = _WKTextExtractionActionScroll;
 
     if (!action) {
         ASSERT_NOT_REACHED();
@@ -644,5 +678,10 @@ JSRetainPtr<JSStringRef> UIScriptControllerCocoa::progressBasedTimelinesForScrol
     return adopt(JSStringCreateWithCFString((CFStringRef) [webView() _progressBasedTimelinesForScrollingNodeID:scrollingNodeID processID:processID]));
 }
 #endif
+
+bool UIScriptControllerCocoa::displayLinkWantsHighFrameRate() const
+{
+    return [webView() _displayLinkWantsHighFrameRate];
+}
 
 } // namespace WTR

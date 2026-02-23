@@ -122,7 +122,7 @@ int Scrollbar::occupiedHeight() const
 
 void Scrollbar::offsetDidChange()
 {
-    float position = static_cast<float>(offsetForOrientation(checkedScrollableArea()->scrollOffset(), m_orientation));
+    float position = static_cast<float>(offsetForOrientation(protect(scrollableArea())->scrollOffset(), m_orientation));
     if (position == m_currentPos)
         return;
 
@@ -173,7 +173,7 @@ void Scrollbar::updateThumbProportion()
 void Scrollbar::setFrameRect(const IntRect& rect)
 {
     Widget::setFrameRect(rect);
-    checkedScrollableArea()->scrollbarFrameRectChanged(*this);
+    protect(scrollableArea())->scrollbarFrameRectChanged(*this);
 }
 
 void Scrollbar::paint(GraphicsContext& context, const IntRect& damageRect, Widget::SecurityOriginPaintPolicy, RegionContext*)
@@ -216,7 +216,7 @@ void Scrollbar::autoscrollPressedPart(Seconds delay)
     }
 
     // Handle the arrows and track.
-    if (checkedScrollableArea()->scroll(pressedPartScrollDirection(), pressedPartScrollGranularity()))
+    if (protect(scrollableArea())->scroll(pressedPartScrollDirection(), pressedPartScrollGranularity()))
         startTimerIfNeeded(delay);
 }
 
@@ -310,7 +310,7 @@ void Scrollbar::moveThumb(int pos, bool draggingDocument)
     
     if (delta) {
         float newOffset = static_cast<float>(thumbPos + delta) * maximum() / (trackLen - thumbLen);
-        checkedScrollableArea()->scrollToOffsetWithoutAnimation(m_orientation, newOffset);
+        protect(scrollableArea())->scrollToOffsetWithoutAnimation(m_orientation, newOffset);
     }
 }
 
@@ -327,7 +327,7 @@ void Scrollbar::setHoveredPart(ScrollbarPart part)
     }
     m_hoveredPart = part;
 #if USE(COORDINATED_GRAPHICS_ASYNC_SCROLLBAR)
-    checkedScrollableArea()->scrollbarsController().hoveredPartChanged(*this);
+    protect(scrollableArea())->scrollbarsController().hoveredPartChanged(*this);
 #endif
 }
 
@@ -341,7 +341,7 @@ void Scrollbar::setPressedPart(ScrollbarPart part)
     else if (m_hoveredPart != NoPart)  // When we no longer have a pressed part, we can start drawing a hovered state on the hovered part.
         theme().invalidatePart(*this, m_hoveredPart);
 #if USE(COORDINATED_GRAPHICS_ASYNC_SCROLLBAR)
-    checkedScrollableArea()->scrollbarsController().pressedPartChanged(*this);
+    protect(scrollableArea())->scrollbarsController().pressedPartChanged(*this);
 #endif
 }
 
@@ -350,7 +350,7 @@ bool Scrollbar::mouseMoved(const PlatformMouseEvent& evt)
 {
     if (m_pressedPart == ThumbPart) {
         if (theme().shouldSnapBackToDragOrigin(*this, evt))
-            checkedScrollableArea()->scrollToOffsetWithoutAnimation(m_orientation, m_dragOrigin);
+            protect(scrollableArea())->scrollToOffsetWithoutAnimation(m_orientation, m_dragOrigin);
         else
             moveThumb(m_orientation == ScrollbarOrientation::Horizontal ? convertFromContainingWindow(evt.position()).x() : convertFromContainingWindow(evt.position()).y(), theme().shouldDragDocumentInsteadOfThumb(*this, evt));
 
@@ -385,12 +385,12 @@ bool Scrollbar::mouseMoved(const PlatformMouseEvent& evt)
 
 void Scrollbar::mouseEntered()
 {
-    checkedScrollableArea()->mouseEnteredScrollbar(this);
+    protect(scrollableArea())->mouseEnteredScrollbar(this);
 }
 
 bool Scrollbar::mouseExited()
 {
-    checkedScrollableArea()->mouseExitedScrollbar(this);
+    protect(scrollableArea())->mouseExitedScrollbar(this);
     setHoveredPart(NoPart);
     return true;
 }
@@ -425,7 +425,7 @@ bool Scrollbar::mouseDown(const PlatformMouseEvent& evt)
     if (action == ScrollbarButtonPressAction::None)
         return true;
 
-    checkedScrollableArea()->mouseIsDownInScrollbar(this, true);
+    protect(scrollableArea())->mouseIsDownInScrollbar(this, true);
     setPressedPart(pressedPart);
 
     int pressedPosition = (orientation() == ScrollbarOrientation::Horizontal ? convertFromContainingWindow(evt.position()).x() : convertFromContainingWindow(evt.position()).y());
@@ -457,7 +457,7 @@ void Scrollbar::setEnabled(bool e)
         return;
     m_enabled = e;
     theme().updateEnabledState(*this);
-    checkedScrollableArea()->scrollbarsController().updateScrollbarEnabledState(*this);
+    protect(scrollableArea())->scrollbarsController().updateScrollbarEnabledState(*this);
     invalidate();
 }
 
@@ -476,12 +476,12 @@ bool Scrollbar::shouldParticipateInHitTesting()
     // Non-overlay scrollbars should always participate in hit testing.
     if (!isOverlayScrollbar())
         return true;
-    return checkedScrollableArea()->scrollbarsController().shouldScrollbarParticipateInHitTesting(this);
+    return protect(scrollableArea())->scrollbarsController().shouldScrollbarParticipateInHitTesting(this);
 }
 
 bool Scrollbar::isWindowActive() const
 {
-    return checkedScrollableArea()->isActive();
+    return protect(scrollableArea())->isActive();
 }
 
 void Scrollbar::invalidateRect(const IntRect& rect)
@@ -489,27 +489,27 @@ void Scrollbar::invalidateRect(const IntRect& rect)
     if (suppressInvalidation())
         return;
 
-    checkedScrollableArea()->invalidateScrollbar(*this, rect);
+    protect(scrollableArea())->invalidateScrollbar(*this, rect);
 }
 
 IntRect Scrollbar::convertToContainingView(const IntRect& localRect) const
 {
-    return checkedScrollableArea()->convertFromScrollbarToContainingView(*this, localRect);
+    return protect(scrollableArea())->convertFromScrollbarToContainingView(*this, localRect);
 }
 
 IntRect Scrollbar::convertFromContainingView(const IntRect& parentRect) const
 {
-    return checkedScrollableArea()->convertFromContainingViewToScrollbar(*this, parentRect);
+    return protect(scrollableArea())->convertFromContainingViewToScrollbar(*this, parentRect);
 }
 
 IntPoint Scrollbar::convertToContainingView(IntPoint localPoint) const
 {
-    return checkedScrollableArea()->convertFromScrollbarToContainingView(*this, localPoint);
+    return protect(scrollableArea())->convertFromScrollbarToContainingView(*this, localPoint);
 }
 
 IntPoint Scrollbar::convertFromContainingView(IntPoint parentPoint) const
 {
-    return checkedScrollableArea()->convertFromContainingViewToScrollbar(*this, parentPoint);
+    return protect(scrollableArea())->convertFromContainingViewToScrollbar(*this, parentPoint);
 }
 
 bool Scrollbar::supportsUpdateOnSecondaryThread() const
@@ -542,22 +542,22 @@ bool Scrollbar::isHiddenByStyle() const
 
 float Scrollbar::deviceScaleFactor() const
 {
-    return checkedScrollableArea()->deviceScaleFactor();
+    return protect(scrollableArea())->deviceScaleFactor();
 }
 
 bool Scrollbar::shouldRegisterScrollbar() const
 {
-    return checkedScrollableArea()->scrollbarsController().shouldRegisterScrollbars();
+    return protect(scrollableArea())->scrollbarsController().shouldRegisterScrollbars();
 }
 
 int Scrollbar::minimumThumbLength() const
 {
-    return checkedScrollableArea()->scrollbarsController().minimumThumbLength(m_orientation);
+    return protect(scrollableArea())->scrollbarsController().minimumThumbLength(m_orientation);
 }
 
 void Scrollbar::updateScrollbarThickness()
 {
-    m_widthStyle = checkedScrollableArea()->scrollbarWidthStyle();
+    m_widthStyle = protect(scrollableArea())->scrollbarWidthStyle();
     if (!isCustomScrollbar() || isMockScrollbar()) {
         int thickness = ScrollbarTheme::theme().scrollbarThickness(widthStyle());
         setFrameRect(IntRect(0, 0, thickness, thickness));

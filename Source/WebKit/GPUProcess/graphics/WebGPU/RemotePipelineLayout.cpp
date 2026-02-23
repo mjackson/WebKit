@@ -45,29 +45,24 @@ RemotePipelineLayout::RemotePipelineLayout(WebCore::WebGPU::PipelineLayout& pipe
     , m_gpu(gpu)
     , m_identifier(identifier)
 {
-    protectedStreamConnection()->startReceivingMessages(*this, Messages::RemotePipelineLayout::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->startReceivingMessages(*this, Messages::RemotePipelineLayout::messageReceiverName(), m_identifier.toUInt64());
 }
 
 RemotePipelineLayout::~RemotePipelineLayout() = default;
 
 void RemotePipelineLayout::destruct()
 {
-    Ref { m_objectHeap.get() }->removeObject(m_identifier);
+    protect(m_objectHeap)->removeObject(m_identifier);
 }
 
 void RemotePipelineLayout::stopListeningForIPC()
 {
-    protectedStreamConnection()->stopReceivingMessages(Messages::RemotePipelineLayout::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->stopReceivingMessages(Messages::RemotePipelineLayout::messageReceiverName(), m_identifier.toUInt64());
 }
 
 void RemotePipelineLayout::setLabel(String&& label)
 {
-    Ref { m_backing }->setLabel(WTF::move(label));
-}
-
-Ref<IPC::StreamServerConnection> RemotePipelineLayout::protectedStreamConnection() const
-{
-    return m_streamConnection;
+    protect(m_backing)->setLabel(WTF::move(label));
 }
 
 } // namespace WebKit

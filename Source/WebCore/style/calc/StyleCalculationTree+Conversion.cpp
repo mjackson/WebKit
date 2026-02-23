@@ -39,6 +39,7 @@
 #include "StyleBuilderState.h"
 #include "StyleCalculationTree.h"
 #include "StyleLengthResolution.h"
+#include "StyleZoomPrimitivesInlines.h"
 #include <wtf/MathExtras.h>
 #include <wtf/StdLibExtras.h>
 
@@ -158,7 +159,7 @@ CSSCalc::Child toCSS(const Dimension& root, const ToCSSConversionOptions& option
 {
     switch (options.canonicalDimension) {
     case CSSCalc::CanonicalDimension::Dimension::Length:
-        return CSSCalc::makeChild(CSSCalc::CanonicalDimension { .value = adjustFloatForAbsoluteZoom(root.value, options.style), .dimension = options.canonicalDimension });
+        return CSSCalc::makeChild(CSSCalc::CanonicalDimension { .value = Style::adjustFloatForAbsoluteZoom(root.value, options.style), .dimension = options.canonicalDimension });
 
     case CSSCalc::CanonicalDimension::Dimension::Angle:
     case CSSCalc::CanonicalDimension::Dimension::Time:

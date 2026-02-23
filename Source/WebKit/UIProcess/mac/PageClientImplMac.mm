@@ -39,6 +39,7 @@
 #import "NativeWebWheelEvent.h"
 #import "NavigationState.h"
 #import "PlatformWritingToolsUtilities.h"
+#import "RemoteLayerTreeCommitBundle.h"
 #import "RemoteLayerTreeNode.h"
 #import "TextExtractionFilter.h"
 #import "UndoOrRedo.h"
@@ -285,6 +286,11 @@ void PageClientImpl::pageClosed()
 {
     protect(m_impl)->pageClosed();
     PageClientImplCocoa::pageClosed();
+}
+
+void PageClientImpl::scrollingCoordinatorWasCreated()
+{
+    protect(m_impl)->scrollingCoordinatorWasCreated();
 }
 
 void PageClientImpl::didRelaunchProcess()
@@ -738,7 +744,7 @@ String PageClientImpl::dismissCorrectionPanelSoon(WebCore::ReasonForDismissingAl
 #endif
 }
 
-static inline NSCorrectionResponse toCorrectionResponse(AutocorrectionResponse response)
+static inline NSCorrectionResponse NODELETE toCorrectionResponse(AutocorrectionResponse response)
 {
     switch (response) {
     case WebCore::AutocorrectionResponse::Reverted:
@@ -798,6 +804,14 @@ void PageClientImpl::setEditableElementIsFocused(bool editableElementIsFocused)
 void PageClientImpl::scrollingNodeScrollViewDidScroll(WebCore::ScrollingNodeID)
 {
     protect(m_impl)->suppressContentRelativeChildViews(WebViewImpl::ContentRelativeChildViewsSuppressionType::TemporarilyRemove);
+}
+
+void PageClientImpl::didCommitMainFrameData(const MainFrameData& mainFrameData)
+{
+    PageClientImplCocoa::didCommitMainFrameData(mainFrameData);
+#if ENABLE(SCROLL_STRETCH_NOTIFICATIONS)
+    [webView() _topScrollStretchDidChange:mainFrameData.topScrollStretch];
+#endif
 }
 
 void PageClientImpl::willBeginViewGesture()

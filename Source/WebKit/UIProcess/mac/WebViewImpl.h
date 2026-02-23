@@ -39,6 +39,7 @@
 #include "WKLayoutMode.h"
 #include "WebMouseEvent.h"
 #include <WebCore/DOMPasteAccess.h>
+#include <WebCore/DigitalCredentialsRequestData.h>
 #include <WebCore/FocusDirection.h>
 #include <WebCore/HTMLMediaElementIdentifier.h>
 #include <WebCore/KeypressCommand.h>
@@ -66,6 +67,7 @@
 #include <WebKitAdditions/AppKitSPIAdditions.h>
 #endif
 
+OBJC_CLASS CAShapeLayer;
 OBJC_CLASS NSAccessibilityRemoteUIElement;
 OBJC_CLASS NSImmediateActionGestureRecognizer;
 OBJC_CLASS NSPanGestureRecognizer;
@@ -204,7 +206,7 @@ struct DragItem;
 struct ResolvedCaptionDisplaySettingsOptions;
 
 #if ENABLE(WEB_AUTHN)
-struct DigitalCredentialsRequestData;
+struct DigitalCredentialsMobileDocumentRequestData;
 struct DigitalCredentialsResponseData;
 #endif
 
@@ -258,6 +260,7 @@ public:
     void processDidExit();
     void pageClosed();
     void didRelaunchProcess();
+    void NODELETE scrollingCoordinatorWasCreated();
 
     void setDrawsBackground(bool);
     bool drawsBackground() const;
@@ -267,7 +270,7 @@ public:
 
     void setShouldSuppressFirstResponderChanges(bool);
     bool acceptsFirstMouse(NSEvent *);
-    bool acceptsFirstResponder();
+    bool NODELETE acceptsFirstResponder();
     bool becomeFirstResponder();
     bool resignFirstResponder();
     bool isFocused() const;
@@ -293,7 +296,7 @@ public:
     CGSize fixedLayoutSize() const;
 
     Ref<DrawingAreaProxy> createDrawingAreaProxy(WebProcessProxy&);
-    bool isUsingUISideCompositing() const;
+    bool NODELETE isUsingUISideCompositing() const;
     void setDrawingAreaSize(CGSize);
     void updateLayer();
     static bool wantsUpdateLayer() { return true; }
@@ -303,7 +306,7 @@ public:
     RetainPtr<NSPrintOperation> printOperationWithPrintInfo(NSPrintInfo *, WebFrameProxy&);
 
     void setAutomaticallyAdjustsContentInsets(bool);
-    bool automaticallyAdjustsContentInsets() const;
+    bool NODELETE automaticallyAdjustsContentInsets() const;
     void updateContentInsetsIfAutomatic();
     void setObscuredContentInsets(const WebCore::FloatBoxExtent&);
     WebCore::FloatBoxExtent obscuredContentInsets() const;
@@ -319,12 +322,12 @@ public:
     void setSizeToContentAutoSizeMaximumSize(CGSize);
     CGSize sizeToContentAutoSizeMaximumSize() const;
     void setShouldExpandToViewHeightForAutoLayout(bool);
-    bool shouldExpandToViewHeightForAutoLayout() const;
+    bool NODELETE shouldExpandToViewHeightForAutoLayout() const;
     void setIntrinsicContentSize(CGSize);
-    CGSize intrinsicContentSize() const;
+    CGSize NODELETE intrinsicContentSize() const;
 
     void setViewScale(CGFloat);
-    CGFloat viewScale() const;
+    CGFloat NODELETE viewScale() const;
 
     void showWarningView(const BrowsingWarning&, CompletionHandler<void(Variant<ContinueUnsafeLoad, URL>&&)>&&);
     void clearWarningView();
@@ -347,8 +350,8 @@ public:
     void windowDidChangeScreen();
     void windowDidChangeOcclusionState();
     void windowWillClose();
-    void windowWillEnterOrExitFullScreen();
-    void windowDidEnterOrExitFullScreen();
+    void NODELETE windowWillEnterOrExitFullScreen();
+    void NODELETE windowDidEnterOrExitFullScreen();
     void screenDidChangeColorSpace();
     bool shouldDelayWindowOrderingForEvent(NSEvent *);
     bool windowResizeMouseLocationIsInVisibleScrollerThumb(CGPoint);
@@ -370,7 +373,7 @@ public:
     void pageDidScroll(const WebCore::IntPoint&);
 
     NSRect scrollViewFrame();
-    bool hasScrolledContentsUnderTitlebar();
+    bool NODELETE hasScrolledContentsUnderTitlebar();
     void updateTitlebarAdjacencyState();
 
     RetainPtr<NSView> hitTest(CGPoint);
@@ -391,7 +394,7 @@ public:
     void setAlwaysBounceHorizontal(bool);
 
     void setOverlayScrollbarStyle(std::optional<WebCore::ScrollbarOverlayStyle> scrollbarStyle);
-    std::optional<WebCore::ScrollbarOverlayStyle> overlayScrollbarStyle() const;
+    std::optional<WebCore::ScrollbarOverlayStyle> NODELETE overlayScrollbarStyle() const;
 
     void beginDeferringViewInWindowChanges();
     // FIXME: Merge these two?
@@ -419,14 +422,14 @@ public:
     NSEvent *lastPressureEvent() { return m_lastPressureEvent.get(); }
 
 #if ENABLE(FULLSCREEN_API)
-    bool hasFullScreenWindowController() const;
+    bool NODELETE hasFullScreenWindowController() const;
     WKFullScreenWindowController *fullScreenWindowController();
     void closeFullScreenWindowController();
 #endif
     NSView *fullScreenPlaceholderView();
     NSWindow *fullScreenWindow();
 
-    bool isEditable() const;
+    bool NODELETE isEditable() const;
     bool executeSavedCommandBySelector(SEL);
     void executeEditCommandForSelector(SEL, const String& argument = String());
     void registerEditCommand(Ref<WebEditCommandProxy>&&, UndoOrRedo);
@@ -521,7 +524,7 @@ public:
     bool ignoresMouseMoveEvents() const { return m_ignoresMouseMoveEvents; }
     void setIgnoresAllEvents(bool);
     bool ignoresAllEvents() const { return m_ignoresAllEvents; }
-    void setIgnoresMouseDraggedEvents(bool);
+    void NODELETE setIgnoresMouseDraggedEvents(bool);
     bool ignoresMouseDraggedEvents() const { return m_ignoresMouseDraggedEvents; }
 
     void setAccessibilityWebProcessToken(NSData *, pid_t);
@@ -538,7 +541,7 @@ public:
     NSUInteger accessibilityRemoteChildTokenHash();
     NSUInteger accessibilityUIProcessLocalTokenHash();
     NSArray<NSNumber *> *registeredRemoteAccessibilityPids();
-    NSData *remoteAccessibilityChildToken();
+    NSData *NODELETE remoteAccessibilityChildToken();
     bool hasRemoteAccessibilityChild();
 
     void updatePrimaryTrackingAreaOptions(NSTrackingAreaOptions);
@@ -617,9 +620,12 @@ public:
     ViewGestureController* gestureController() const { return m_gestureController.get(); }
     ViewGestureController& ensureGestureController();
     Ref<ViewGestureController> ensureProtectedGestureController();
-    void setAllowsBackForwardNavigationGestures(bool);
+#if HAVE(APPKIT_GESTURES_SUPPORT)
+    WKAppKitGestureController *appKitGestureController() const { return m_appKitGestureController.get(); }
+#endif
+    void NODELETE setAllowsBackForwardNavigationGestures(bool);
     bool allowsBackForwardNavigationGestures() const { return m_allowsBackForwardNavigationGestures; }
-    void setAllowsMagnification(bool);
+    void NODELETE setAllowsMagnification(bool);
     bool allowsMagnification() const { return m_allowsMagnification; }
 
     void setMagnification(double, CGPoint centerPoint);
@@ -627,7 +633,7 @@ public:
     double magnification() const;
     void setCustomSwipeViews(NSArray *);
     WebCore::FloatRect windowRelativeBoundsForCustomSwipeViews() const;
-    WebCore::FloatBoxExtent customSwipeViewsObscuredContentInsets() const;
+    WebCore::FloatBoxExtent NODELETE customSwipeViewsObscuredContentInsets() const;
     void setCustomSwipeViewsObscuredContentInsets(WebCore::FloatBoxExtent&&);
     bool tryToSwipeWithEvent(NSEvent *, bool ignoringPinnedState);
     void setDidMoveSwipeSnapshotCallback(BlockPtr<void (CGRect)>&&);
@@ -656,14 +662,15 @@ public:
     void insertText(id string);
     void insertText(id string, NSRange replacementRange);
     NSTextInputContext *inputContext();
+    NSTextInputContext *inputContextIncludingNonEditable();
     void unmarkText();
     void setMarkedText(id string, NSRange selectedRange, NSRange replacementRange);
-    NSRange selectedRange();
+    NSRange NODELETE selectedRange();
     bool hasMarkedText();
-    NSRange markedRange();
-    NSAttributedString *attributedSubstringForProposedRange(NSRange, NSRangePointer actualRange);
-    NSUInteger characterIndexForPoint(NSPoint);
-    NSRect firstRectForCharacterRange(NSRange, NSRangePointer actualRange);
+    NSRange NODELETE markedRange();
+    NSAttributedString *NODELETE attributedSubstringForProposedRange(NSRange, NSRangePointer actualRange);
+    NSUInteger NODELETE characterIndexForPoint(NSPoint);
+    NSRect NODELETE firstRectForCharacterRange(NSRange, NSRangePointer actualRange);
     bool performKeyEquivalent(NSEvent *);
     void keyUp(NSEvent *);
     void keyDown(NSEvent *);
@@ -692,7 +699,7 @@ public:
 
     void createFlagsChangedEventMonitor();
     void removeFlagsChangedEventMonitor();
-    bool hasFlagsChangedEventMonitor();
+    bool NODELETE hasFlagsChangedEventMonitor();
 
     void mouseMoved(NSEvent *);
     void mouseDown(NSEvent *, WebMouseEventInputSource);
@@ -728,7 +735,7 @@ public:
 
     bool windowIsFrontWindowUnderMouse(NSEvent *);
 
-    bool requiresUserActionForEditingControlsManager() const;
+    bool NODELETE requiresUserActionForEditingControlsManager() const;
 
     WebCore::UserInterfaceLayoutDirection userInterfaceLayoutDirection();
     void setUserInterfaceLayoutDirection(NSUserInterfaceLayoutDirection);
@@ -774,7 +781,7 @@ public:
 
     void effectiveAppearanceDidChange();
     bool effectiveAppearanceIsDark();
-    bool effectiveUserInterfaceLevelIsElevated();
+    bool NODELETE effectiveUserInterfaceLevelIsElevated();
 
     void takeFocus(WebCore::FocusDirection);
     void clearPromisedDragImage();
@@ -840,9 +847,18 @@ public:
 #endif
 
 #if ENABLE(BANNER_VIEW_OVERLAYS)
-void setBannerView(WKBannerView *);
-WKBannerView *bannerView() const { return m_bannerView.get(); }
-void applyBannerViewOverlayHeight(CGFloat, bool);
+    void setBannerView(WKBannerView *);
+    WKBannerView *bannerView() const { return m_bannerView.get(); }
+
+    void applyBannerViewOverlayHeight(CGFloat, bool);
+    CGFloat bannerViewHeight() const;
+    CGFloat bannerViewMaximumHeight() const;
+    void updateBannerViewForWheelEvent(NSEvent *);
+    void updateBannerViewForPanGesture(NSGestureRecognizerState);
+    void updateBannerViewFrame();
+#endif
+#if ENABLE(SCROLL_STRETCH_NOTIFICATIONS)
+    void topScrollStretchDidChange(uint64_t topScrollStretch);
 #endif
 
 #if ENABLE(VIDEO)
@@ -1147,6 +1163,13 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 #if ENABLE(BANNER_VIEW_OVERLAYS)
     RetainPtr<WKBannerView> m_bannerView;
+    RetainPtr<CAShapeLayer> m_bannerViewMask;
+    CGFloat m_bannerViewHeight { 0 };
+    bool m_canShowBannerViewOverlay { false };
+#endif
+
+#if ENABLE(SCROLL_STRETCH_NOTIFICATIONS)
+    uint64_t m_cachedTopScrollStretch { 0 };
 #endif
 
 #if HAVE(INLINE_PREDICTIONS)

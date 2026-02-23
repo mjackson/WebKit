@@ -48,7 +48,7 @@ String multiVMSameModuleDifferentFunction();
 String multiVMSameModuleSameFunction();
 
 // Get all registered test scripts
-std::span<const TestScript> getTestScripts();
+std::span<const TestScript> NODELETE getTestScripts();
 
 } // namespace TestScripts
 

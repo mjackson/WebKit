@@ -292,5 +292,14 @@ bool allPropertiesAreUnsetOrFilled(const T& value)
     });
 }
 
+template<CoordinatedValueListValue T>
+bool allPropertiesAreSet(const T& value)
+{
+    return allOfCoordinatedValueListProperties<T>([&value]<CSSPropertyID propertyID>() {
+        using PropertyAccessor = CoordinatedValueListPropertyConstAccessor<propertyID>;
+        return PropertyAccessor { value }.isSet();
+    });
+}
+
 } // namespace Style
 } // namespace WebCore

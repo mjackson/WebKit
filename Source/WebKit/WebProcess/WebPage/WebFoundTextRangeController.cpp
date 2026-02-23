@@ -119,7 +119,7 @@ static inline Vector<WebFoundTextRange::PDFData> findPDFMatchesInFrame(Frame* fr
 
 void WebFoundTextRangeController::findTextRangesForStringMatches(const String& string, OptionSet<FindOptions> options, uint32_t maxMatchCount, CompletionHandler<void(HashMap<WebCore::FrameIdentifier, Vector<WebFoundTextRange>>&&)>&& completionHandler)
 {
-    auto matchingRanges = protect(protectedWebPage()->corePage())->findTextMatches(string, core(options), maxMatchCount, false);
+    auto matchingRanges = protect(protect(m_webPage.get())->corePage())->findTextMatches(string, core(options), maxMatchCount, false);
     Vector<WebCore::SimpleRange> findMatches = WTF::move(matchingRanges.ranges);
 
     if (findMatches.size() > 0)
@@ -283,7 +283,7 @@ void WebFoundTextRangeController::clearAllDecoratedFoundText()
     clearCachedRanges();
     m_decoratedRanges.clear();
     m_unhighlightedFoundRanges.clear();
-    protect(protectedWebPage()->corePage())->unmarkAllTextMatches();
+    protect(protect(m_webPage.get())->corePage())->unmarkAllTextMatches();
 
     m_highlightedRange = { };
     m_textIndicator = nullptr;
@@ -302,7 +302,7 @@ void WebFoundTextRangeController::didBeginTextSearchOperation()
         m_findPageOverlay = WTF::move(findPageOverlay);
     }
 
-    protectedFindPageOverlay()->setNeedsDisplay();
+    protect(m_findPageOverlay)->setNeedsDisplay();
 }
 
 void WebFoundTextRangeController::addLayerForFindOverlay(CompletionHandler<void(std::optional<WebCore::PlatformLayerIdentifier>)>&& completionHandler)
@@ -344,7 +344,7 @@ void WebFoundTextRangeController::redraw()
     if (!m_findPageOverlay)
         return;
 
-    auto setNeedsDisplay = makeScopeExit([findPageOverlay = protectedFindPageOverlay()] {
+    auto setNeedsDisplay = makeScopeExit([findPageOverlay = protect(m_findPageOverlay)] {
         findPageOverlay->setNeedsDisplay();
     });
 
@@ -475,7 +475,7 @@ void WebFoundTextRangeController::flashTextIndicatorAndUpdateSelectionWithRange(
     document->selection().setSelection(WebCore::VisibleSelection(range), WebCore::FrameSelection::defaultSetSelectionOptions(WebCore::UserTriggered::Yes));
 
     if (auto textIndicator = createTextIndicatorForRange(range, WebCore::TextIndicatorPresentationTransition::Bounce))
-        protectedWebPage()->setTextIndicator(WTF::move(textIndicator));
+        protect(m_webPage.get())->setTextIndicator(WTF::move(textIndicator));
 }
 
 RefPtr<WebCore::TextIndicator> WebFoundTextRangeController::createTextIndicatorForPDFRange(const WebFoundTextRange& range, WebCore::TextIndicatorPresentationTransition transition)
@@ -504,7 +504,7 @@ void WebFoundTextRangeController::setTextIndicatorWithPDFRange(const WebFoundTex
 void WebFoundTextRangeController::flashTextIndicatorAndUpdateSelectionWithPDFRange(const WebFoundTextRange& range)
 {
     if (RefPtr textIndicator = createTextIndicatorForPDFRange(range, WebCore::TextIndicatorPresentationTransition::Bounce))
-        protectedWebPage()->setTextIndicator(WTF::move(textIndicator));
+        protect(m_webPage.get())->setTextIndicator(WTF::move(textIndicator));
 }
 
 Vector<WebCore::FloatRect> WebFoundTextRangeController::rectsForTextMatchesInRect(WebCore::IntRect clipRect)
@@ -544,7 +544,7 @@ Vector<WebCore::FloatRect> WebFoundTextRangeController::rectsForTextMatchesInRec
 
         for (auto rect : protect(document->markers())->renderedRectsForMarkers(WebCore::DocumentMarkerType::TextMatch)) {
             if (!localFrame->isMainFrame())
-                rect = mainFrameView->windowToContents(localFrame->protectedView()->contentsToWindow(enclosingIntRect(rect)));
+                rect = mainFrameView->windowToContents(protect(localFrame->view())->contentsToWindow(enclosingIntRect(rect)));
 
             if (rect.isEmpty() || !rect.intersects(clipRect))
                 continue;
@@ -558,7 +558,7 @@ Vector<WebCore::FloatRect> WebFoundTextRangeController::rectsForTextMatchesInRec
 
 WebCore::LocalFrame* WebFoundTextRangeController::frameForFoundTextRange(const WebFoundTextRange& range) const
 {
-    Ref mainFrame = protect(protectedWebPage()->corePage())->mainFrame();
+    Ref mainFrame = protect(protect(m_webPage.get())->corePage())->mainFrame();
 
     if (range.pathToFrame.isEmpty())
         return dynamicDowncast<WebCore::LocalFrame>(mainFrame.ptr());

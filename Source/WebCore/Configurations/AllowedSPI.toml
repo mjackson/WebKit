@@ -107,6 +107,13 @@ symbols = [
     "CGContextStrokeArc",
 ]
 
+ [[temporary-usage]]
+ request = "rdar://170272259"
+ cleanup = "rdar://170272662"
+ symbols = [
+     "CGIOSurfaceContextFlushQueue",
+ ]
+
 [[temporary-usage]]
 request = "rdar://168696619"
 cleanup = "rdar://169487203"
@@ -115,3 +122,11 @@ selectors = [
     { name = "evaluateURL:mainDocumentURL:withCompletion:onCompletionQueue:", class = "WCRBrowserEngineClient" },
 ]
 requires = ["HAVE_WEBCONTENTRESTRICTIONS_TRANSITIVE_TRUST"]
+
+[[temporary-usage]]
+requires = [ "HAVE_CGPATTERN_CREATE_WITH_IMAGE_TRANSFORM_STEP" ]
+request = "rdar://170092229"
+cleanup = "rdar://170092414"
+symbols = [
+    "CGPatternCreateWithImageTransformStep",
+]

@@ -101,17 +101,17 @@ public:
     virtual bool targetIsCurrentFrame() const { return true; }
     virtual bool isSameDocumentNavigation(Frame&) const { return false; }
 
-    double delay() const { return m_delay; }
-    LockHistory lockHistory() const { return m_lockHistory; }
-    LockBackForwardList lockBackForwardList() const { return m_lockBackForwardList; }
-    bool wasDuringLoad() const { return m_wasDuringLoad; }
-    bool isLocationChange() const { return m_isLocationChange; }
-    UserGestureToken* userGestureToForward() const { return m_userGestureToForward.get(); }
+    double NODELETE delay() const { return m_delay; }
+    LockHistory NODELETE lockHistory() const { return m_lockHistory; }
+    LockBackForwardList NODELETE lockBackForwardList() const { return m_lockBackForwardList; }
+    bool NODELETE wasDuringLoad() const { return m_wasDuringLoad; }
+    bool NODELETE isLocationChange() const { return m_isLocationChange; }
+    UserGestureToken* NODELETE userGestureToForward() const { return m_userGestureToForward.get(); }
 
 protected:
     void clearUserGesture() { m_userGestureToForward = nullptr; }
-    ShouldOpenExternalURLsPolicy shouldOpenExternalURLs() const { return m_shouldOpenExternalURLsPolicy; }
-    InitiatedByMainFrame initiatedByMainFrame() const { return m_initiatedByMainFrame; };
+    ShouldOpenExternalURLsPolicy NODELETE shouldOpenExternalURLs() const { return m_shouldOpenExternalURLsPolicy; }
+    InitiatedByMainFrame NODELETE initiatedByMainFrame() const { return m_initiatedByMainFrame; };
 
 private:
     double m_delay;
@@ -165,10 +165,10 @@ protected:
             localFrame->loader().clientRedirectCancelledOrFinished(newLoadInProgress);
     }
 
-    Document& initiatingDocument() const { return m_initiatingDocument.get(); }
-    SecurityOrigin* securityOrigin() const { return m_securityOrigin.get(); }
-    const URL& url() const { return m_url; }
-    const String& referrer() const { return m_referrer; }
+    Document& NODELETE initiatingDocument() const { return m_initiatingDocument.get(); }
+    SecurityOrigin* NODELETE securityOrigin() const { return m_securityOrigin.get(); }
+    const URL& NODELETE url() const { return m_url; }
+    const String& NODELETE referrer() const { return m_referrer; }
 
     bool isSameDocumentNavigation(Frame&) const final { return equalIgnoringFragmentIdentifier(initiatingDocument().url(), url()); }
 

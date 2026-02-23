@@ -37,10 +37,10 @@ namespace WebKit::WebGPU {
 
 static WebGPUIdentifier getIdentifier(ConvertToBackingContext& convertToBacking, const WebCore::WebGPU::RenderPassColorAttachment& renderPassColorAttachment)
 {
-    if (RefPtr view = renderPassColorAttachment.protectedView().get())
+    if (RefPtr view = renderPassColorAttachment.textureView())
         return convertToBacking.convertToBacking(*view);
 
-    return convertToBacking.convertToBacking(*renderPassColorAttachment.protectedTexture().get());
+    return convertToBacking.convertToBacking(*protect(renderPassColorAttachment.texture()));
 }
 std::optional<RenderPassColorAttachment> ConvertToBackingContext::convertToBacking(const WebCore::WebGPU::RenderPassColorAttachment& renderPassColorAttachment)
 {
@@ -48,11 +48,11 @@ std::optional<RenderPassColorAttachment> ConvertToBackingContext::convertToBacki
 
     std::optional<WebGPUIdentifier> resolveTarget;
     if (renderPassColorAttachment.resolveTarget) {
-        RefPtr textureView = renderPassColorAttachment.protectedResolveTarget().get();
+        RefPtr textureView = renderPassColorAttachment.resolveTextureView();
         if (textureView)
             resolveTarget = convertToBacking(*textureView);
         else
-            resolveTarget = convertToBacking(*renderPassColorAttachment.protectedResolveTexture());
+            resolveTarget = convertToBacking(*protect(renderPassColorAttachment.resolveTexture()));
         if (!resolveTarget)
             return std::nullopt;
     }

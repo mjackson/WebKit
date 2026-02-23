@@ -48,7 +48,7 @@ public:
 private:
     explicit UserActivation(Navigator&);
 
-    LocalDOMWindow* window() const;
+    LocalDOMWindow* NODELETE window() const;
 
     WeakPtr<Navigator> m_navigator;
 };

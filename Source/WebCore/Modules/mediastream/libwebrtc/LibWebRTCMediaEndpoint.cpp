@@ -71,7 +71,7 @@ IGNORE_CLANG_WARNINGS_END
 
 namespace WebCore {
 
-static void prepareConfiguration(webrtc::PeerConnectionInterface::RTCConfiguration& configuration)
+static void NODELETE prepareConfiguration(webrtc::PeerConnectionInterface::RTCConfiguration& configuration)
 {
     configuration.sdp_semantics = webrtc::SdpSemantics::kUnifiedPlan;
     configuration.crypto_options.srtp.enable_gcm_crypto_suites = true;
@@ -178,7 +178,7 @@ bool LibWebRTCMediaEndpoint::isNegotiationNeeded(uint32_t eventId) const
     return !m_isStopped ? m_backend->ShouldFireNegotiationNeededEvent(eventId) : false;
 }
 
-static inline webrtc::SdpType sessionDescriptionType(RTCSdpType sdpType)
+static inline webrtc::SdpType NODELETE sessionDescriptionType(RTCSdpType sdpType)
 {
     switch (sdpType) {
     case RTCSdpType::Offer:
@@ -521,7 +521,7 @@ void LibWebRTCMediaEndpoint::OnNegotiationNeededEvent(uint32_t eventId)
     });
 }
 
-static inline RTCIceConnectionState toRTCIceConnectionState(webrtc::PeerConnectionInterface::IceConnectionState state)
+static inline RTCIceConnectionState NODELETE toRTCIceConnectionState(webrtc::PeerConnectionInterface::IceConnectionState state)
 {
     switch (state) {
     case webrtc::PeerConnectionInterface::kIceConnectionNew:
@@ -557,7 +557,7 @@ void LibWebRTCMediaEndpoint::OnStandardizedIceConnectionChange(webrtc::PeerConne
     });
 }
 
-static inline RTCIceGatheringState toRTCIceGatheringState(webrtc::PeerConnectionInterface::IceGatheringState state)
+static inline RTCIceGatheringState NODELETE toRTCIceGatheringState(webrtc::PeerConnectionInterface::IceGatheringState state)
 {
     switch (state) {
     case webrtc::PeerConnectionInterface::IceGatheringState::kIceGatheringNew:
@@ -591,7 +591,7 @@ static inline RTCSdpType fromSessionDescriptionType(const webrtc::SessionDescrip
     return RTCSdpType::Pranswer;
 }
 
-static RTCSignalingState toRTCSignalingState(webrtc::PeerConnectionInterface::SignalingState state)
+static RTCSignalingState NODELETE toRTCSignalingState(webrtc::PeerConnectionInterface::SignalingState state)
 {
     switch (state) {
     case webrtc::PeerConnectionInterface::kStable:
@@ -730,7 +730,7 @@ std::unique_ptr<LibWebRTCSctpTransportBackend> SctpTransportState::createBackend
     return makeUnique<LibWebRTCSctpTransportBackend>(m_transport.releaseNonNull(), toRef(m_information.dtls_transport()));
 }
 
-std::optional<double> SctpTransportState::maxMessageSize() const
+std::optional<double> NODELETE SctpTransportState::maxMessageSize() const
 {
     return m_information.MaxMessageSize() ? std::make_optional(*m_information.MaxMessageSize()) : std::nullopt;
 }

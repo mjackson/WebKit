@@ -307,7 +307,7 @@ RetainPtr<UITargetedDragPreview> DragDropInteractionState::createDragPreviewInte
         ASSERT(image);
         if (shouldUseVisiblePathToCreatePreviewForDragSource(source)) {
             auto path = source.visiblePath.value();
-            RetainPtr visiblePath = [UIBezierPath bezierPathWithCGPath:protect<CGPathRef>(path.platformPath()).get()];
+            RetainPtr visiblePath = [UIBezierPath bezierPathWithCGPath:protect(path.platformPath()).get()];
             return createTargetedDragPreview(image->get(), contentView, previewContainer, source.dragPreviewFrameInRootViewCoordinates, { }, nil, visiblePath, addPreviewViewToContainer).autorelease();
         }
         return createTargetedDragPreview(image->get(), contentView, previewContainer, source.dragPreviewFrameInRootViewCoordinates, { }, nil, nil, addPreviewViewToContainer).autorelease();

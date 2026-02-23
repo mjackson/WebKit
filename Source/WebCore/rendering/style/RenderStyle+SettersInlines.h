@@ -202,9 +202,9 @@ inline void RenderStyle::setUsedPositionOptionIndex(std::optional<size_t> index)
     m_computedStyle.setUsedPositionOptionIndex(index);
 }
 
-inline void RenderStyle::setEffectiveDisplay(DisplayType effectiveDisplay)
+inline void RenderStyle::setDisplayMaintainingOriginalDisplay(Style::Display display)
 {
-    m_computedStyle.setEffectiveDisplay(effectiveDisplay);
+    m_computedStyle.setDisplayMaintainingOriginalDisplay(display);
 }
 
 // MARK: - Cache used values
@@ -334,6 +334,16 @@ inline Style::BackgroundLayers& RenderStyle::ensureBackgroundLayers()
 inline Style::MaskLayers& RenderStyle::ensureMaskLayers()
 {
     return m_computedStyle.ensureMaskLayers();
+}
+
+inline Style::ScrollTimelines& RenderStyle::ensureScrollTimelines()
+{
+    return m_computedStyle.ensureScrollTimelines();
+}
+
+inline Style::ViewTimelines& RenderStyle::ensureViewTimelines()
+{
+    return m_computedStyle.ensureViewTimelines();
 }
 
 inline void RenderStyle::setBackgroundLayers(Style::BackgroundLayers&& layers)

@@ -35,6 +35,7 @@
 #import "InjectedBundle.h"
 #import "InjectedBundlePage.h"
 #import "JSBasics.h"
+#import "WebCoreTestSupport.h"
 #import <JavaScriptCore/JSStringRefCF.h>
 #import <WebKit/WKBundle.h>
 #import <WebKit/WKBundleFramePrivate.h>
@@ -154,6 +155,7 @@ JSRetainPtr<JSStringRef> AccessibilityController::platformName()
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 void AccessibilityController::updateIsolatedTreeMode()
 {
+    WebCoreTestSupport::setAccessibilityIsolatedTreeEnabled(m_accessibilityIsolatedTreeMode);
     _AXSSetIsolatedTreeMode(m_accessibilityIsolatedTreeMode ? AXSIsolatedTreeModeSecondaryThread : AXSIsolatedTreeModeOff);
 }
 #endif

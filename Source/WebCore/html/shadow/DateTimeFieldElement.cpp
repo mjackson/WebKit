@@ -52,7 +52,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(DateTimeFieldElement);
 DateTimeFieldElementFieldOwner::~DateTimeFieldElementFieldOwner() = default;
 
 DateTimeFieldElement::DateTimeFieldElement(Document& document, DateTimeFieldElementFieldOwner& fieldOwner)
-    : HTMLDivElement(divTag, document, TypeFlag::HasCustomStyleResolveCallbacks)
+    : HTMLDivElement(document, TypeFlag::HasCustomStyleResolveCallbacks)
     , m_fieldOwner(fieldOwner)
 {
 }

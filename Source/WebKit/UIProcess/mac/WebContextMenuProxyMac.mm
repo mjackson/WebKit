@@ -452,8 +452,8 @@ static void updateMenuItemImage(NSMenuItem *menuItem, const WebCore::ContextMenu
     case ContextMenuItemTagToggleMediaControls:
         useAlternateImage = title == contextMenuItemTagShowMediaControls();
         break;
-    case ContextMenuItemTagToggleVideoEnhancedFullscreen:
-        useAlternateImage = title == contextMenuItemTagExitVideoEnhancedFullscreen();
+    case ContextMenuItemTagTogglePictureInPicture:
+        useAlternateImage = title == contextMenuItemTagExitPictureInPicture();
         break;
     case ContextMenuItemTagToggleVideoFullscreen:
         useAlternateImage = title == contextMenuItemTagExitVideoFullscreen();
@@ -671,8 +671,8 @@ static RetainPtr<NSString> menuItemIdentifier(const WebCore::ContextMenuAction a
     case ContextMenuItemTagShowMediaStats:
         return _WKMenuItemIdentifierShowHideMediaStats;
 
-    case ContextMenuItemTagToggleVideoEnhancedFullscreen:
-        return _WKMenuItemIdentifierToggleEnhancedFullScreen;
+    case ContextMenuItemTagTogglePictureInPicture:
+        return _WKMenuItemIdentifierTogglePictureInPicture;
 
     case ContextMenuItemTagToggleVideoFullscreen:
         return _WKMenuItemIdentifierToggleFullScreen;

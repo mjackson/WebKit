@@ -41,13 +41,13 @@ OptionSet<WebKit::ContentWorldOption> ContentWorld::defaultOptions()
     return WebKit::ContentWorldOption::Inspectable;
 }
 
-static HashMap<WTF::String, WeakRef<ContentWorld>>& sharedWorldNameMap()
+static HashMap<WTF::String, WeakRef<ContentWorld>>& NODELETE sharedWorldNameMap()
 {
     static NeverDestroyed<HashMap<WTF::String, WeakRef<ContentWorld>>> sharedMap;
     return sharedMap;
 }
 
-static HashMap<WebKit::ContentWorldIdentifier, WeakRef<ContentWorld>>& sharedWorldIdentifierMap()
+static HashMap<WebKit::ContentWorldIdentifier, WeakRef<ContentWorld>>& NODELETE sharedWorldIdentifierMap()
 {
     static NeverDestroyed<HashMap<WebKit::ContentWorldIdentifier, WeakRef<ContentWorld>>> sharedMap;
     return sharedMap;
@@ -96,6 +96,11 @@ Ref<ContentWorld> ContentWorld::sharedWorldWithName(const WTF::String& name, Opt
         return WeakRef { *newContentWorld };
     });
     return newContentWorld ? newContentWorld.releaseNonNull() : Ref { result.iterator->value.get() };
+}
+
+Ref<ContentWorld> ContentWorld::createNamelessWorld(OptionSet<WebKit::ContentWorldOption> options)
+{
+    return adoptRef(*new ContentWorld(nullString(), options));
 }
 
 ContentWorld& ContentWorld::pageContentWorldSingleton()

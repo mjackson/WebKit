@@ -24,11 +24,11 @@
  */
 
 #import "config.h"
-#import "AuditToken.h"
+#import <wtf/cocoa/AuditToken.h>
 
-#import "Logging.h"
 #import <mach/mach.h>
 #import <mach/task_info.h>
+#import <wtf/Logging.h>
 
 namespace WTF {
 

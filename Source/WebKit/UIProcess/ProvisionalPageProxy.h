@@ -105,7 +105,7 @@ public:
     WebCore::PageIdentifier webPageID() const { return m_webPageID; }
     WebFrameProxy* mainFrame() const { return m_mainFrame.get(); }
     BrowsingContextGroup& browsingContextGroup() const { return m_browsingContextGroup.get(); }
-    WebProcessProxy& process();
+    WebProcessProxy& NODELETE process();
     ProcessSwapRequestedByClient processSwapRequestedByClient() const { return m_processSwapRequestedByClient; }
     WebCore::NavigationIdentifier navigationID() const { return m_navigationID; }
     const URL& provisionalURL() const { return m_provisionalLoadURL; }
@@ -116,7 +116,7 @@ public:
     DrawingAreaProxy* drawingArea() const { return m_drawingArea.get(); }
     RefPtr<DrawingAreaProxy> takeDrawingArea();
 
-    void setNavigation(API::Navigation&);
+    void NODELETE setNavigation(API::Navigation&);
 
 #if PLATFORM(COCOA)
     Vector<uint8_t> takeAccessibilityToken() { return WTF::move(m_accessibilityToken); }

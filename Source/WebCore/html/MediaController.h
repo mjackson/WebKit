@@ -95,7 +95,7 @@ private:
     void bringElementUpToSpeed(HTMLMediaElement&);
     void scheduleEvent(const AtomString& eventName);
     void asyncEventTimerFired();
-    void clearPositionTimerFired();
+    void NODELETE clearPositionTimerFired();
     bool hasEnded() const;
     void scheduleTimeupdateEvent();
     void startTimeupdateTimer();

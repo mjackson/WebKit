@@ -69,7 +69,7 @@ public:
         return std::exchange(m_handles, std::nullopt);
     }
 
-    RenderingUpdateID renderingUpdateID() const { return m_renderingUpdateID; }
+    RenderingUpdateID NODELETE renderingUpdateID() const { return m_renderingUpdateID; }
 
 private:
     RemoteImageBufferSetProxyFlushFence(RenderingUpdateID renderingUpdateID, Seconds timeoutDuration)
@@ -235,6 +235,15 @@ void RemoteImageBufferSetProxy::setConfiguration(RemoteImageBufferSetConfigurati
 {
     m_configuration = WTF::move(configuration);
     m_remoteNeedsConfigurationUpdate = true;
+}
+
+void RemoteImageBufferSetProxy::submitDrawingCommands()
+{
+    RefPtr connection = this->connection();
+    if (!connection)
+        return;
+
+    send(Messages::RemoteImageBufferSet::SubmitDrawingCommands());
 }
 
 std::unique_ptr<ThreadSafeImageBufferSetFlusher> RemoteImageBufferSetProxy::flushFrontBufferAsync(ThreadSafeImageBufferSetFlusher::FlushType flushType)

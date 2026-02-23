@@ -804,6 +804,20 @@ void run(const TestConfig* config)
     RUN(testReduceStrengthReassociation(false));
     RUN_BINARY(testReduceStrengthTruncInt64Constant, int64Operands(), int32Operands());
     RUN_BINARY(testReduceStrengthTruncDoubleConstant, floatingPointOperands<double>(), floatingPointOperands<float>());
+    RUN(testReduceStrengthMulDoubleByTwo());
+    RUN(testReduceStrengthMulFloatByTwo());
+    RUN(testReduceStrengthMulDoubleByNegOne());
+    RUN(testReduceStrengthMulFloatByNegOne());
+    RUN(testReduceStrengthMulDoubleByNegTwo());
+    RUN(testReduceStrengthMulFloatByNegTwo());
+    RUN(testReduceStrengthDivDoubleByNegOne());
+    RUN(testReduceStrengthDivFloatByNegOne());
+    RUN(testReduceStrengthDivDoubleByTwo());
+    RUN(testReduceStrengthDivFloatByTwo());
+    RUN(testReduceStrengthDivDoubleByFour());
+    RUN(testReduceStrengthDivFloatByFour());
+    RUN(testReduceStrengthDivDoubleByNegTwo());
+    RUN(testReduceStrengthDivFloatByNegTwo());
     RUN(testAddShl32());
     RUN(testAddShl64());
     RUN(testAddShl65());
@@ -877,6 +891,19 @@ void run(const TestConfig* config)
 
     RUN(testConstDoubleMove());
     RUN(testConstFloatMove());
+
+    RUN(testConstDoubleZero());
+    RUN(testConstDoubleNegativeZero());
+    RUN(testConstFloatZero());
+    RUN(testConstFloatNegativeZero());
+    RUN(testConstDoubleAddZero());
+    RUN(testConstFloatAddZero());
+    RUN(testConstDoubleCompareZero());
+    RUN(testConstFloatCompareZero());
+    RUN(testConstDoubleSelectZero());
+    RUN(testConstFloatSelectZero());
+    RUN(testConstDoubleMultipleZeroUses());
+    RUN(testConstFloatMultipleZeroUses());
 
     RUN(testLoadImmutable());
 
@@ -1007,6 +1034,64 @@ void run(const TestConfig* config)
     RUN(testCCmpMixedWidth64And32(5000, 10));       // both match
     RUN(testCCmpMixedWidth64And32(5000, 9));        // second doesn't match
     RUN(testCCmpMixedWidth64And32(4999, 10));       // first doesn't match
+
+    // ARM64 fccmp tests (floating-point conditional compare)
+    RUN(testFCCmpAndDouble(1.0, 1.0, 2.0, 2.0));    // both true
+    RUN(testFCCmpAndDouble(1.0, 2.0, 2.0, 2.0));    // first false
+    RUN(testFCCmpAndDouble(1.0, 1.0, 2.0, 3.0));    // second false
+    RUN(testFCCmpAndDouble(1.0, 2.0, 2.0, 3.0));    // both false
+
+    RUN(testFCCmpOrDouble(1.0, 1.0, 2.0, 2.0));     // both true
+    RUN(testFCCmpOrDouble(1.0, 1.0, 2.0, 3.0));     // first true
+    RUN(testFCCmpOrDouble(1.0, 2.0, 2.0, 2.0));     // second true
+    RUN(testFCCmpOrDouble(1.0, 2.0, 2.0, 3.0));     // both false
+
+    RUN(testFCCmpAndFloat(1.0f, 1.0f, 2.0f, 2.0f)); // both true
+    RUN(testFCCmpAndFloat(1.0f, 2.0f, 2.0f, 2.0f)); // first false
+    RUN(testFCCmpAndFloat(1.0f, 1.0f, 2.0f, 3.0f)); // second false
+    RUN(testFCCmpAndFloat(1.0f, 2.0f, 2.0f, 3.0f)); // both false
+
+    RUN(testFCCmpOrFloat(1.0f, 1.0f, 2.0f, 2.0f));  // both true
+    RUN(testFCCmpOrFloat(1.0f, 1.0f, 2.0f, 3.0f));  // first true
+    RUN(testFCCmpOrFloat(1.0f, 2.0f, 2.0f, 2.0f));  // second true
+    RUN(testFCCmpOrFloat(1.0f, 2.0f, 2.0f, 3.0f));  // both false
+
+    RUN(testFCCmpAndAndDouble(1.0, 1.0, 2.0, 2.0, 3.0, 3.0));  // all true
+    RUN(testFCCmpAndAndDouble(1.0, 1.0, 2.0, 2.0, 3.0, 4.0));  // first two true, last false
+    RUN(testFCCmpAndAndDouble(1.0, 1.0, 2.0, 3.0, 3.0, 3.0));  // first true, second false
+    RUN(testFCCmpAndAndDouble(1.0, 2.0, 2.0, 2.0, 3.0, 3.0));  // first false
+    RUN(testFCCmpAndAndDouble(1.0, 2.0, 2.0, 3.0, 3.0, 4.0));  // all false
+
+    RUN(testFCCmpMixedIntDouble(5, 5, 1.0, 2.0));   // int true, double true
+    RUN(testFCCmpMixedIntDouble(5, 6, 1.0, 2.0));   // int false, double true
+    RUN(testFCCmpMixedIntDouble(5, 5, 2.0, 1.0));   // int true, double false
+    RUN(testFCCmpMixedIntDouble(5, 6, 2.0, 1.0));   // int false, double false
+
+    RUN(testFCCmpMixedDoubleInt(1.0, 2.0, 5, 5));   // double true, int true
+    RUN(testFCCmpMixedDoubleInt(2.0, 1.0, 5, 5));   // double false, int true
+    RUN(testFCCmpMixedDoubleInt(1.0, 2.0, 5, 6));   // double true, int false
+    RUN(testFCCmpMixedDoubleInt(2.0, 1.0, 5, 6));   // double false, int false
+
+    RUN(testFCCmpLessThanAndDouble(1.0, 2.0, 3.0, 4.0));  // both true
+    RUN(testFCCmpLessThanAndDouble(2.0, 1.0, 3.0, 4.0));  // first false
+    RUN(testFCCmpLessThanAndDouble(1.0, 2.0, 4.0, 3.0));  // second false
+    RUN(testFCCmpLessThanAndDouble(2.0, 1.0, 4.0, 3.0));  // both false
+
+    RUN(testFCCmpGreaterEqualOrDouble(2.0, 1.0, 4.0, 3.0));  // both true
+    RUN(testFCCmpGreaterEqualOrDouble(2.0, 1.0, 3.0, 4.0));  // first true
+    RUN(testFCCmpGreaterEqualOrDouble(1.0, 2.0, 4.0, 3.0));  // second true
+    RUN(testFCCmpGreaterEqualOrDouble(1.0, 2.0, 3.0, 4.0));  // both false
+
+    // NaN tests
+    RUN(testFCCmpNaN(1.0, 1.0, std::numeric_limits<double>::quiet_NaN(), 1.0));  // second has NaN
+    RUN(testFCCmpNaN(std::numeric_limits<double>::quiet_NaN(), 1.0, 1.0, 1.0));  // first has NaN
+    RUN(testFCCmpNaN(std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), 1.0, 1.0));  // NaN == NaN is false
+
+    // Negated fccmp
+    RUN(testFCCmpNegatedAndDouble(1.0, 2.0, 3.0, 4.0));  // !(true && true) = false
+    RUN(testFCCmpNegatedAndDouble(2.0, 1.0, 3.0, 4.0));  // !(false && true) = true
+    RUN(testFCCmpNegatedAndDouble(1.0, 2.0, 4.0, 3.0));  // !(true && false) = true
+    RUN(testFCCmpNegatedAndDouble(2.0, 1.0, 4.0, 3.0));  // !(false && false) = true
 
     RUN_UNARY(testSShrCompare32, int32OperandsMore());
     RUN_UNARY(testSShrCompare64, int64OperandsMore());

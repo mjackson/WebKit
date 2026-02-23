@@ -103,7 +103,6 @@ private:
     void didCheck(TextCheckingRequestIdentifier, const Vector<TextCheckingResult>&, const Vector<TextCheckingResult>&, const std::optional<SimpleRange>&);
 
     Document& document() const;
-    Ref<Document> protectedDocument() const;
 
     WeakRef<Editor> m_editor;
     Markable<TextCheckingRequestIdentifier> m_lastRequestIdentifier;

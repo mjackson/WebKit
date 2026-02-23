@@ -128,7 +128,7 @@ AcceleratedSurface::AcceleratedSurface(WebPage& webPage, Function<void()>&& fram
 
 #if (PLATFORM(GTK) || ENABLE(WPE_PLATFORM)) && (USE(GBM) || OS(ANDROID))
     if (m_swapChain.type() == SwapChain::Type::EGLImage)
-        m_swapChain.setupBufferFormat(m_webPage->preferredBufferFormats(), isColorOpaque(m_backgroundColor));
+        m_swapChain.setupBufferFormat(webPage.preferredBufferFormats(), isColorOpaque(m_backgroundColor));
 #endif
 #if USE(WPE_RENDERER)
     if (m_swapChain.type() == SwapChain::Type::WPEBackend)
@@ -973,7 +973,7 @@ void AcceleratedSurface::preferredBufferFormatsDidChange()
     if (m_swapChain.type() != SwapChain::Type::EGLImage)
         return;
 
-    m_swapChain.setupBufferFormat(m_webPage->preferredBufferFormats(), isColorOpaque(m_backgroundColor));
+    m_swapChain.setupBufferFormat(protect(m_webPage)->preferredBufferFormats(), isColorOpaque(m_backgroundColor));
 }
 #endif
 
@@ -997,7 +997,8 @@ void AcceleratedSurface::visibilityDidChange(bool isVisible)
 void AcceleratedSurface::backgroundColorDidChange()
 {
     ASSERT(RunLoop::isMain());
-    const auto& color = m_webPage->backgroundColor();
+    Ref webPage = m_webPage;
+    const auto& color = webPage->backgroundColor();
 
     bool wasOpaque = isColorOpaque(m_backgroundColor);
     m_backgroundColor = color ? color->toResolvedColorComponentsInColorSpace(WebCore::ColorSpace::SRGB) : white;
@@ -1008,7 +1009,7 @@ void AcceleratedSurface::backgroundColorDidChange()
 
 #if (PLATFORM(GTK) || ENABLE(WPE_PLATFORM)) && (USE(GBM) || OS(ANDROID))
     if (m_swapChain.type() == SwapChain::Type::EGLImage)
-        m_swapChain.setupBufferFormat(m_webPage->preferredBufferFormats(), isOpaque);
+        m_swapChain.setupBufferFormat(webPage->preferredBufferFormats(), isOpaque);
 #endif
 }
 

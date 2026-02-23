@@ -59,7 +59,7 @@ public:
 
     const Vector<uint8_t>& saltVector() const
     {
-        if (!m_saltVector.isEmpty() || !salt || !salt->length())
+        if (!m_saltVector.isEmpty() || !salt || !salt->byteLength())
             return m_saltVector;
 
         if (salt)

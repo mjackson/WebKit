@@ -71,7 +71,7 @@ public:
 
     void stop();
 
-    IPC::Connection* ipcConnection() const;
+    IPC::Connection* NODELETE ipcConnection() const;
 
     // IPC::MessageReceiver
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&) final;
@@ -90,7 +90,7 @@ public:
     void unregisterDownload(ServiceWorkerDownloadTask&);
 
     WebCore::ProcessIdentifier webProcessIdentifier() const final { return m_webProcessIdentifier; }
-    NetworkProcess* networkProcess();
+    NetworkProcess* NODELETE networkProcess();
 
     void didFinishInstall(const std::optional<WebCore::ServiceWorkerJobDataIdentifier>&, WebCore::ServiceWorkerIdentifier, bool wasSuccessful);
     void didFinishActivation(WebCore::ServiceWorkerIdentifier);
@@ -104,8 +104,6 @@ public:
     std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const;
 private:
     WebSWServerToContextConnection(NetworkConnectionToWebProcess&, WebPageProxyIdentifier, WebCore::Site&&, std::optional<WebCore::ScriptExecutionContextIdentifier>, WebCore::SWServer&);
-
-    RefPtr<NetworkConnectionToWebProcess> protectedConnection() const;
 
     template<typename T> void sendToParentProcess(T&&);
     template<typename T, typename C> void sendWithAsyncReplyToParentProcess(T&&, C&&);

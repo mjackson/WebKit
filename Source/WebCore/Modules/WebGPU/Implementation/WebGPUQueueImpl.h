@@ -64,14 +64,14 @@ private:
 
     void onSubmittedWorkDone(CompletionHandler<void()>&&) final;
 
-    void writeBuffer(
+    void NODELETE writeBuffer(
         const Buffer&,
         Size64 bufferOffset,
         std::span<const uint8_t> source,
         Size64 dataOffset,
         std::optional<Size64>) final;
 
-    void writeTexture(
+    void NODELETE writeTexture(
         const ImageCopyTexture& destination,
         std::span<const uint8_t> source,
         const ImageDataLayout&,
@@ -90,13 +90,13 @@ private:
         const ImageDataLayout&,
         const Extent3D& size) final;
 
-    void copyExternalImageToTexture(
+    void NODELETE copyExternalImageToTexture(
         const ImageCopyExternalImage& source,
         const ImageCopyTextureTagged& destination,
         const Extent3D& copySize) final;
 
     void setLabelInternal(const String&) final;
-    RefPtr<WebCore::NativeImage> getNativeImage(WebCore::VideoFrame&) final;
+    RefPtr<WebCore::NativeImage> NODELETE getNativeImage(WebCore::VideoFrame&) final;
 
     WebGPUPtr<WGPUQueue> m_backing;
     const Ref<ConvertToBackingContext> m_convertToBackingContext;

@@ -98,7 +98,7 @@ private:
 
     AnimationTimelinesController* controller() const override;
 #if ENABLE(THREADED_ANIMATIONS)
-    bool computeCanBeAccelerated() const final { return true; }
+    bool canBeAccelerated() const final { return true; }
     Ref<AcceleratedTimeline> createAcceleratedRepresentation() const final;
 #endif
 
@@ -112,7 +112,7 @@ private:
     bool shouldRunUpdateAnimationsAndSendEventsIgnoringSuspensionState() const;
 
     Timer m_tickScheduleTimer;
-    HashSet<RefPtr<WebAnimation>> m_acceleratedAnimationsPendingRunningStateChange;
+    HashSet<Ref<WebAnimation>> m_acceleratedAnimationsPendingRunningStateChange;
     AnimationEvents m_pendingAnimationEvents;
     WeakPtr<Document, WeakPtrImplWithEventTargetData> m_document;
     Seconds m_originTime;

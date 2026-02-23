@@ -268,7 +268,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     protect(*_preferences)->setTelephoneNumberParsingEnabled(telephoneNumberDetectionIsEnabled);
 }
 
-static WebCore::StorageBlockingPolicy toStorageBlockingPolicy(_WKStorageBlockingPolicy policy)
+static WebCore::StorageBlockingPolicy NODELETE toStorageBlockingPolicy(_WKStorageBlockingPolicy policy)
 {
     switch (policy) {
     case _WKStorageBlockingPolicyAllowAll:
@@ -283,7 +283,7 @@ static WebCore::StorageBlockingPolicy toStorageBlockingPolicy(_WKStorageBlocking
     return WebCore::StorageBlockingPolicy::AllowAll;
 }
 
-static _WKStorageBlockingPolicy toAPI(WebCore::StorageBlockingPolicy policy)
+static _WKStorageBlockingPolicy NODELETE toAPI(WebCore::StorageBlockingPolicy policy)
 {
     switch (policy) {
     case WebCore::StorageBlockingPolicy::AllowAll:
@@ -797,7 +797,7 @@ static _WKStorageBlockingPolicy toAPI(WebCore::StorageBlockingPolicy policy)
     protect(*_preferences)->setShouldAllowUserInstalledFonts(_shouldAllowUserInstalledFonts);
 }
 
-static _WKEditableLinkBehavior toAPI(WebCore::EditableLinkBehavior behavior)
+static _WKEditableLinkBehavior NODELETE toAPI(WebCore::EditableLinkBehavior behavior)
 {
     switch (behavior) {
     case WebCore::EditableLinkBehavior::Default:
@@ -816,7 +816,7 @@ static _WKEditableLinkBehavior toAPI(WebCore::EditableLinkBehavior behavior)
     return _WKEditableLinkBehaviorNeverLive;
 }
 
-static WebCore::EditableLinkBehavior toEditableLinkBehavior(_WKEditableLinkBehavior wkBehavior)
+static WebCore::EditableLinkBehavior NODELETE toEditableLinkBehavior(_WKEditableLinkBehavior wkBehavior)
 {
     switch (wkBehavior) {
     case _WKEditableLinkBehaviorDefault:

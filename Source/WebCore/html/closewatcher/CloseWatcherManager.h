@@ -36,8 +36,8 @@ public:
     void add(Ref<CloseWatcher>);
     void remove(CloseWatcher&);
 
-    void notifyAboutUserActivation();
-    bool canPreventClose();
+    void NODELETE notifyAboutUserActivation();
+    bool NODELETE canPreventClose();
 
     void escapeKeyHandler(KeyboardEvent&);
 private:

@@ -101,6 +101,7 @@
 #include <WebCore/FocusOptions.h>
 #include <WebCore/Frame.h>
 #include <WebCore/FrameDestructionObserverInlines.h>
+#include <WebCore/FrameInlines.h>
 #include <WebCore/FrameLoader.h>
 #include <WebCore/HTMLInputElement.h>
 #include <WebCore/HTMLMediaElement.h>
@@ -115,6 +116,7 @@
 #include <WebCore/PointerLockController.h>
 #include <WebCore/PopupMenuClient.h>
 #include <WebCore/RegistrableDomain.h>
+#include <WebCore/RemoteFrame.h>
 #include <WebCore/ScriptController.h>
 #include <WebCore/SecurityOrigin.h>
 #include <WebCore/SecurityOriginData.h>
@@ -791,7 +793,30 @@ IntRect WebChromeClient::rootViewToScreen(const IntRect& rect) const
     RefPtr page = m_page.get();
     return page ? page->rootViewToScreen(rect) : IntRect();
 }
-    
+
+std::optional<IntPoint> WebChromeClient::screenToRootViewUsingCachedPosition(const IntPoint& screenPoint, const IntSize& viewSize) const
+{
+#if PLATFORM(MAC)
+    RefPtr page = m_page.get();
+    if (!page || !page->hasCachedWindowFrame())
+        return std::nullopt;
+
+    auto accessibilityPosition = page->accessibilityPosition();
+
+    // macOS accessibility coordinates use bottom-left origin (Y increases upward).
+    // Root view coordinates use top-left origin (Y increases downward).
+    // Convert: rootViewY = viewHeight - screenY + accessibilityPosition.y
+    int rootViewX = screenPoint.x() - static_cast<int>(accessibilityPosition.x());
+    int rootViewY = viewSize.height() - screenPoint.y() + static_cast<int>(accessibilityPosition.y());
+
+    return IntPoint(rootViewX, rootViewY);
+#else
+    UNUSED_PARAM(screenPoint);
+    UNUSED_PARAM(viewSize);
+    return std::nullopt;
+#endif
+}
+
 IntPoint WebChromeClient::accessibilityScreenToRootView(const IntPoint& point) const
 {
     RefPtr page = m_page.get();
@@ -1690,6 +1715,12 @@ void WebChromeClient::dismissImmersiveElement(CompletionHandler<void()>&& comple
     else
         completion();
 }
+
+bool WebChromeClient::supportsImmersiveElement() const
+{
+    RefPtr page = m_page.get();
+    return page && page->allowsImmersiveEnvironments();
+}
 #endif
 
 #if ENABLE(APP_HIGHLIGHTS)
@@ -2351,9 +2382,31 @@ bool WebChromeClient::requiresScriptTrackingPrivacyProtections(const URL& url, c
     return WebProcess::singleton().requiresScriptTrackingPrivacyProtections(url, topOrigin);
 }
 
+HTMLFrameOwnerElement* WebChromeClient::frameOwnerElementForFrameID(FrameIdentifier frameID) const
+{
+    RefPtr webFrame = WebFrame::webFrame(frameID);
+    if (!webFrame)
+        return nullptr;
+
+    RefPtr remoteFrame = webFrame->coreRemoteFrame();
+    if (remoteFrame)
+        return remoteFrame->ownerElement();
+
+    RefPtr localFrame = webFrame->coreLocalFrame();
+    if (localFrame)
+        return localFrame->ownerElement();
+
+    return nullptr;
+}
+
 bool WebChromeClient::shouldAllowScriptAccess(const URL& url, const SecurityOrigin& topOrigin, ScriptTrackingPrivacyCategory category) const
 {
     return WebProcess::singleton().shouldAllowScriptAccess(url, topOrigin, category);
+}
+
+bool WebChromeClient::requiresConsistentPrivacyQuirkForDomain(const URL& url) const
+{
+    return WebProcess::singleton().requiresConsistentPrivacyQuirkForDomain(url);
 }
 
 void WebChromeClient::callAfterPendingSyntheticClick(CompletionHandler<void(SyntheticClickResult)>&& completion)

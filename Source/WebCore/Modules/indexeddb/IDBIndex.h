@@ -49,13 +49,13 @@ public:
 
     virtual ~IDBIndex();
 
-    const String& name() const;
+    const String& NODELETE name() const;
     ExceptionOr<void> setName(const String&);
-    IDBObjectStore& objectStore();
-    Ref<IDBObjectStore> protectedObjectStore();
-    const IDBKeyPath& keyPath() const;
-    bool unique() const;
-    bool multiEntry() const;
+    IDBObjectStore& NODELETE objectStore();
+    Ref<IDBObjectStore> NODELETE protectedObjectStore();
+    const IDBKeyPath& NODELETE keyPath() const;
+    bool NODELETE unique() const;
+    bool NODELETE multiEntry() const;
 
     void rollbackInfoForVersionChangeAbort();
 
@@ -79,14 +79,14 @@ public:
 
     const IDBIndexInfo& info() const { return m_info; }
 
-    void markAsDeleted();
+    void NODELETE markAsDeleted();
     bool isDeleted() const { return m_deleted; }
 
     // ActiveDOMObject.
-    void ref() const final;
+    void NODELETE ref() const final;
     void deref() const final;
 
-    WebCoreOpaqueRoot opaqueRoot();
+    WebCoreOpaqueRoot NODELETE opaqueRoot();
 
 private:
     IDBIndex(ScriptExecutionContext&, const IDBIndexInfo&, IDBObjectStore&);

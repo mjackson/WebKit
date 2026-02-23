@@ -40,7 +40,7 @@ struct ObjectIdentifierThreadSafeAccessTraits {
 
 template<>
 struct ObjectIdentifierThreadSafeAccessTraits<uint64_t> {
-    WTF_EXPORT_PRIVATE static uint64_t generateIdentifierInternal();
+    WTF_EXPORT_PRIVATE static uint64_t NODELETE generateIdentifierInternal();
 };
 
 template<>

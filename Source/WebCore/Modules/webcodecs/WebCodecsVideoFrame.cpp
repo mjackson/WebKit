@@ -303,8 +303,8 @@ ExceptionOr<Ref<WebCodecsVideoFrame>> WebCodecsVideoFrame::create(ScriptExecutio
         return layoutOrException.releaseException();
     
     auto layout = layoutOrException.releaseReturnValue();
-    if (data.length() < layout.allocationSize)
-        return Exception { ExceptionCode::TypeError, makeString("Data is too small "_s, data.length(), " / "_s, layout.allocationSize) };
+    if (data.byteLength() < layout.allocationSize)
+        return Exception { ExceptionCode::TypeError, makeString("Data is too small "_s, data.byteLength(), " / "_s, layout.allocationSize) };
 
     auto colorSpace = videoFramePickColorSpace(init.colorSpace, pixelFormat);
     RefPtr<VideoFrame> videoFrame;
@@ -370,7 +370,7 @@ Ref<WebCodecsVideoFrame> WebCodecsVideoFrame::create(ScriptExecutionContext& con
     return result;
 }
 
-static VideoPixelFormat computeVideoPixelFormat(VideoPixelFormat baseFormat, bool shouldDiscardAlpha)
+static VideoPixelFormat NODELETE computeVideoPixelFormat(VideoPixelFormat baseFormat, bool shouldDiscardAlpha)
 {
     if (!shouldDiscardAlpha)
         return baseFormat;
@@ -506,7 +506,7 @@ void WebCodecsVideoFrame::copyTo(BufferSource&& source, CopyToOptions&& options,
     }
 
     auto combinedLayout = combinedLayoutOrException.releaseReturnValue();
-    if (source.length() < combinedLayout.allocationSize) {
+    if (source.byteLength() < combinedLayout.allocationSize) {
         promise.reject(Exception { ExceptionCode::TypeError,  "Buffer is too small"_s });
         return;
     }

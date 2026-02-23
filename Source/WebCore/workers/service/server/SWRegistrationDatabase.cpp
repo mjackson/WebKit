@@ -212,7 +212,7 @@ SQLiteStatementAutoResetScope SWRegistrationDatabase::cachedStatement(StatementT
     ASSERT(m_database);
     ASSERT(type < StatementType::Invalid);
 
-    auto index = enumToUnderlyingType(type);
+    auto index = std::to_underlying(type);
     if (!m_cachedStatements[index]) {
         if (auto statement = CheckedRef { *m_database }->prepareStatement(statementString(type)))
             m_cachedStatements[index] = WTF::move(statement);
@@ -252,11 +252,6 @@ SWScriptStorage& SWRegistrationDatabase::scriptStorage()
     return *m_scriptStorage;
 }
 
-CheckedPtr<SQLiteDatabase> SWRegistrationDatabase::checkedDatabase() const
-{
-    return m_database.get();
-}
-
 bool SWRegistrationDatabase::prepareDatabase(ShouldCreateIfNotExists shouldCreateIfNotExists)
 {
     if (CheckedPtr database = m_database.get(); database && database->isOpen())
@@ -272,13 +267,13 @@ bool SWRegistrationDatabase::prepareDatabase(ShouldCreateIfNotExists shouldCreat
 
     m_database = makeUnique<SQLiteDatabase>();
     FileSystem::makeAllDirectories(m_directory);
-    auto openResult  = checkedDatabase()->open(databasePath, SQLiteDatabase::OpenMode::ReadWriteCreate, SQLiteDatabase::OpenOptions::CanSuspendWhileLocked);
+    auto openResult  = protect(m_database)->open(databasePath, SQLiteDatabase::OpenMode::ReadWriteCreate, SQLiteDatabase::OpenOptions::CanSuspendWhileLocked);
     if (!openResult) {
-        auto lastError = checkedDatabase()->lastError();
+        auto lastError = protect(m_database)->lastError();
         if (lastError == SQLITE_CORRUPT && lastError == SQLITE_NOTADB) {
             m_database = makeUnique<SQLiteDatabase>();
             SQLiteFileSystem::deleteDatabaseFile(databasePath);
-            openResult  = checkedDatabase()->open(databasePath);
+            openResult  = protect(m_database)->open(databasePath);
         }
     }
 
@@ -288,11 +283,11 @@ bool SWRegistrationDatabase::prepareDatabase(ShouldCreateIfNotExists shouldCreat
         return false;
     }
 
-    checkedDatabase()->disableThreadingChecks();
+    protect(m_database)->disableThreadingChecks();
 
     int version = 1;
     {
-        auto sql = checkedDatabase()->prepareStatement("PRAGMA user_version"_s);
+        auto sql = protect(m_database)->prepareStatement("PRAGMA user_version"_s);
         if (sql && sql->step() == SQLITE_ROW)
             version = sql->columnInt(0);
     }
@@ -309,14 +304,14 @@ bool SWRegistrationDatabase::prepareDatabase(ShouldCreateIfNotExists shouldCreat
 
         if (databaseExists) {
             for (auto statement : swRegistrationUpdatesV2) {
-                if (!checkedDatabase()->executeCommand(statement)) {
+                if (!protect(m_database)->executeCommand(statement)) {
                     RELEASE_LOG_ERROR(ServiceWorker, "Error executing SWRegistrationDatabase statement update: %d", m_database->lastError());
                     return false;
                 }
             }
         }
 
-        if (!checkedDatabase()->executeCommandSlow(makeString("PRAGMA user_version = "_s, currentSWRegistrationVersion)))
+        if (!protect(m_database)->executeCommandSlow(makeString("PRAGMA user_version = "_s, currentSWRegistrationVersion)))
             RELEASE_LOG_ERROR(ServiceWorker, "Error setting SWRegistrationDatabase user version: %d", m_database->lastError());
 
         transaction.commit();

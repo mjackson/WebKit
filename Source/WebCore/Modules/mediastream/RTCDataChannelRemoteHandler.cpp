@@ -88,7 +88,7 @@ void RTCDataChannelRemoteHandler::readyToSend()
     m_isReadyToSend = true;
 
     for (auto& message : m_pendingMessages)
-        m_connection->sendData(m_remoteIdentifier, message.isRaw, message.buffer->makeContiguous()->span());
+        m_connection->sendData(m_remoteIdentifier, message.isRaw, protect(message.buffer)->makeContiguous()->span());
     m_pendingMessages.clear();
 
     if (m_isPendingClose)

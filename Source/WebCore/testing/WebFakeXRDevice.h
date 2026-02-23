@@ -125,8 +125,6 @@ private:
     HashMap<PlatformXR::LayerHandle, WebCore::IntSize> m_layers;
     uint32_t m_layerIndex { 0 };
 #if ENABLE(WEBXR_HIT_TEST)
-    PlatformXR::HitTestSource m_nextHitTestSource { 1 };
-    PlatformXR::TransientInputHitTestSource m_nextTransientInputHitTestSource { 1 };
     HashMap<PlatformXR::HitTestSource, UniqueRef<PlatformXR::HitTestOptions>> m_hitTestSources;
     HashMap<PlatformXR::TransientInputHitTestSource, UniqueRef<PlatformXR::TransientInputHitTestOptions>> m_transientInputHitTestSources;
     FakeXRWorldInit m_world;

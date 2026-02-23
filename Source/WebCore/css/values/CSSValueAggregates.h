@@ -204,7 +204,7 @@ struct CustomIdentifier {
 };
 TextStream& operator<<(TextStream&, const CustomIdentifier&);
 
-void add(Hasher&, const CustomIdentifier&);
+void NODELETE add(Hasher&, const CustomIdentifier&);
 
 // Helper type used to represent an arbitrary property identifier.
 struct PropertyIdentifier {

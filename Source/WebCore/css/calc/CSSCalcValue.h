@@ -84,7 +84,7 @@ public:
     CSS::Category category() const { return m_category; }
     CSS::Range range() const { return m_range; }
 
-    CSSUnitType primitiveType() const;
+    CSSUnitType NODELETE primitiveType() const;
 
     // Returns whether the CSSCalc::Tree requires `CSSToLengthConversionData` to fully resolve.
     bool requiresConversionData() const { return m_tree.requiresConversionData; };

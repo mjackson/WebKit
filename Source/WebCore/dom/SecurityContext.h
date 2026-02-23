@@ -92,7 +92,7 @@ public:
     void setIntegrityPolicyReportOnly(std::unique_ptr<IntegrityPolicy>&&);
 
     virtual ReferrerPolicy referrerPolicy() const { return m_referrerPolicy; }
-    void setReferrerPolicy(ReferrerPolicy);
+    void NODELETE setReferrerPolicy(ReferrerPolicy);
 
     IPAddressSpace ipAddressSpace() const { return m_ipAddressSpace; }
     void setIPAddressSpace(IPAddressSpace ipAddressSpace) { m_ipAddressSpace = ipAddressSpace; }

@@ -153,7 +153,7 @@ void MockContentFilter::maybeDetermineStatus(DecisionPoint decisionPoint)
     if (m_state != State::Filtering || decisionPoint != MockContentFilterSettings::singleton().decisionPoint())
         return;
 
-    LOG(ContentFiltering, "MockContentFilter stopped buffering with state %u at decision point %hhu.\n", enumToUnderlyingType(m_state), enumToUnderlyingType(decisionPoint));
+    LOG(ContentFiltering, "MockContentFilter stopped buffering with state %u at decision point %hhu.\n", std::to_underlying(m_state), std::to_underlying(decisionPoint));
 
     m_state = MockContentFilterSettings::singleton().decision() == Decision::Allow ? State::Allowed : State::Blocked;
     if (m_state != State::Blocked)

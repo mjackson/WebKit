@@ -8363,7 +8363,7 @@ class TestAddReviewerToCommitMessage(BuildStepMixinAdditions, unittest.TestCase)
                         command=[
                             'git', 'filter-branch', '-f',
                             '--env-filter', "GIT_AUTHOR_DATE='{date}';GIT_COMMITTER_DATE='{date}'".format(date=date),
-                            '--msg-filter', 'sed "s/NOBODY (OO*PP*S!*)/WebKit Reviewer and Other Reviewer/g"',
+                            '--msg-filter', 'sed -E "s/by NOBODY( \\(OO*PP*S!*\\))?/by WebKit Reviewer and Other Reviewer/g"',
                             'eng/pull-request-branch...main',
                         ])
             .exit(0)
@@ -8392,7 +8392,7 @@ class TestAddReviewerToCommitMessage(BuildStepMixinAdditions, unittest.TestCase)
                         command=[
                             'git', 'filter-branch', '-f',
                             '--env-filter', "GIT_AUTHOR_DATE='{date}';GIT_COMMITTER_DATE='{date}'".format(date=date),
-                            '--msg-filter', 'sed "s/NOBODY (OO*PP*S!*)/WebKit Reviewer, Other Reviewer, and Another Reviewer/g"',
+                            '--msg-filter', 'sed -E "s/by NOBODY( \\(OO*PP*S!*\\))?/by WebKit Reviewer, Other Reviewer, and Another Reviewer/g"',
                             'eng/pull-request-branch...main',
                         ])
             .exit(0)
@@ -8421,7 +8421,7 @@ class TestAddReviewerToCommitMessage(BuildStepMixinAdditions, unittest.TestCase)
                         command=[
                             'git', 'filter-branch', '-f',
                             '--env-filter', "GIT_AUTHOR_DATE='{date}';GIT_COMMITTER_DATE='{date}'".format(date=date),
-                            '--msg-filter', 'sed "s/NOBODY (OO*PP*S!*)/WebKit Reviewer and Other Reviewer/g"',
+                            '--msg-filter', 'sed -E "s/by NOBODY( \\(OO*PP*S!*\\))?/by WebKit Reviewer and Other Reviewer/g"',
                             'eng/pull-request-branch...main',
                         ])
             .exit(2)
@@ -8464,6 +8464,12 @@ class TestValidateCommitMessage(BuildStepMixinAdditions, unittest.TestCase):
                         log_environ=False,
                         timeout=60,
                         command=['/bin/bash', '--posix', '-o', 'pipefail', '-c',
+                                 "git log eng/pull-request-branch ^main | grep -q 'by NOBODY' && echo 'Commit message contains \"by NOBODY\" and no valid reviewer found' || test $? -eq 1"])
+            .exit(0),
+            ExpectShell(workdir='wkdir',
+                        log_environ=False,
+                        timeout=60,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c',
                                  "git log eng/pull-request-branch ^main > commit_msg.txt; grep -q '\\(Reviewed by\\|Rubber-stamped by\\|Rubber stamped by\\|Unreviewed\\|Versioning.\\)' commit_msg.txt || echo 'No reviewer information in commit message';"])
             .exit(0),
             ExpectShell(workdir='wkdir',
@@ -8497,6 +8503,11 @@ class TestValidateCommitMessage(BuildStepMixinAdditions, unittest.TestCase):
                         log_environ=False,
                         timeout=60,
                         command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', "git log HEAD ^origin/main | grep -q 'OO*PP*S!' && echo 'Commit message contains (OOPS!) and no valid reviewer found' || test $? -eq 1"])
+            .exit(0),
+            ExpectShell(workdir='wkdir',
+                        log_environ=False,
+                        timeout=60,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', "git log HEAD ^origin/main | grep -q 'by NOBODY' && echo 'Commit message contains \"by NOBODY\" and no valid reviewer found' || test $? -eq 1"])
             .exit(0),
             ExpectShell(workdir='wkdir',
                         log_environ=False,
@@ -8559,6 +8570,11 @@ class TestValidateCommitMessage(BuildStepMixinAdditions, unittest.TestCase):
                         log_environ=False,
                         timeout=60,
                         command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', "git log eng/pull-request-branch ^main | grep -q 'OO*PP*S!' && echo 'Commit message contains (OOPS!) and Web Kit is not a reviewer' || test $? -eq 1"])
+            .exit(0),
+            ExpectShell(workdir='wkdir',
+                        log_environ=False,
+                        timeout=60,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', "git log eng/pull-request-branch ^main | grep -q 'by NOBODY' && echo 'Commit message contains \"by NOBODY\" and Web Kit is not a reviewer' || test $? -eq 1"])
             .exit(0),
             ExpectShell(workdir='wkdir',
                         log_environ=False,
@@ -9495,9 +9511,173 @@ Date:   Tue Mar 29 16:04:35 2023 -0700
             return rc
 
 
+class TestBuildSwift(BuildStepMixinAdditions, unittest.TestCase):
+    def setUp(self):
+        self.longMessage = True
+        return self.setup_test_build_step()
+
+    def tearDown(self):
+        return self.tear_down_test_build_step()
+
+    def configureStep(self):
+        self.setup_step(BuildSwift())
+        self.setProperty('archForUpload', 'arm64')
+        self.setProperty('builddir', 'webkit')
+        self.setProperty('canonical_swift_tag', 'swift-6.0.3-RELEASE')
+
+    def expectedShellCommand(self):
+        builddir = 'webkit'
+        swift_install_dir = f'{builddir}/{SWIFT_DIR}/swift-nightly-install'
+        swift_symroot_dir = f'{builddir}/{SWIFT_DIR}/swift-nightly-symroot'
+        return (
+            f"utils/build-script "
+            f"'--swift-install-components=autolink-driver;back-deployment;compiler;clang-resource-dir-symlink;libexec;stdlib;sdk-overlay;static-mirror-lib;toolchain-tools;license;sourcekit-xpc-service;sourcekit-inproc;swift-remote-mirror;swift-remote-mirror-headers' "
+            f"'--llvm-install-components=llvm-ar;llvm-nm;llvm-ranlib;llvm-cov;llvm-profdata;llvm-objdump;llvm-objcopy;llvm-symbolizer;IndexStore;clang;clang-resource-headers;builtins;runtimes;clangd;libclang;dsymutil;LTO;clang-features-file;lld' "
+            f"--ios --release --no-assertions --compiler-vendor=apple --infer-cross-compile-hosts-on-darwin --build-ninja --skip-build-benchmarks --skip-tvos --skip-watchos --skip-xros --build-subdir=buildbot_osx "
+            f"--install-llvm --install-swift "
+            f"--install-destdir={swift_install_dir} "
+            f"--install-prefix=/Library/Developer/Toolchains/{SWIFT_TOOLCHAIN_NAME}.xctoolchain/usr "
+            f"--darwin-install-extract-symbols "
+            f"--install-symroot={swift_symroot_dir} "
+            f"--installable-package={swift_install_dir}/{SWIFT_TOOLCHAIN_NAME}-osx.tar.gz "
+            f"--symbols-package={swift_install_dir}/{SWIFT_TOOLCHAIN_NAME}-osx-symbols.tar.gz "
+            f"--darwin-toolchain-bundle-identifier={SWIFT_TOOLCHAIN_BUNDLE_IDENTIFIER} "
+            f"'--darwin-toolchain-display-name=WebKit Swift Toolchain' "
+            f"'--darwin-toolchain-display-name-short=WebKit Swift' "
+            f"--darwin-toolchain-name={SWIFT_TOOLCHAIN_NAME} "
+            f"--darwin-toolchain-version=6.0.0 --darwin-toolchain-alias=webkit --darwin-toolchain-require-use-os-runtime=0 "
+            f"--swift-testing=1 --install-swift-testing=1 --swift-testing-macros=1 --install-swift-testing-macros=1 --swift-driver=1 --install-swift-driver=1 "
+            f"2>&1 | python3 {builddir}/build/Tools/Scripts/filter-test-logs swift --output {builddir}/build/swift-build-log.txt"
+        )
+
+    def test_success(self):
+        self.configureStep()
+        self.setProperty('has_swift_toolchain', False)
+        self.expectRemoteCommands(
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf ../build'])
+            .exit(0),
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf "$(getconf DARWIN_USER_CACHE_DIR)org.llvm.clang"'])
+            .exit(0),
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf /Users/buildbot/Library/Developer/Xcode/DerivedData'])
+            .exit(0),
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', self.expectedShellCommand()])
+            .exit(0),
+        )
+        self.expect_outcome(result=SUCCESS, state_string='Successfully built Swift')
+        return self.run_step()
+
+    def test_skipped_toolchain_exists_same_tag(self):
+        self.configureStep()
+        self.setProperty('has_swift_toolchain', True)
+        self.setProperty('canonical_swift_tag', 'swift-6.0.3-RELEASE')
+        self.setProperty('current_swift_tag', 'swift-6.0.3-RELEASE')
+        self.expect_outcome(result=SKIPPED, state_string='Swift toolchain already exists')
+        return self.run_step()
+
+    def test_build_when_tag_changed(self):
+        self.configureStep()
+        self.setProperty('has_swift_toolchain', True)
+        self.setProperty('canonical_swift_tag', 'swift-6.0.3-RELEASE')
+        self.setProperty('current_swift_tag', 'swift-6.0.2-RELEASE')
+        self.expectRemoteCommands(
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf ../build'])
+            .exit(0),
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf "$(getconf DARWIN_USER_CACHE_DIR)org.llvm.clang"'])
+            .exit(0),
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf /Users/buildbot/Library/Developer/Xcode/DerivedData'])
+            .exit(0),
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', self.expectedShellCommand()])
+            .exit(0),
+        )
+        self.expect_outcome(result=SUCCESS, state_string='Successfully built Swift')
+        return self.run_step()
+
+    def test_failure_with_previous_checkout(self):
+        self.configureStep()
+        self.setProperty('has_swift_toolchain', True)
+        self.setProperty('current_swift_tag', 'swift-6.0.2-RELEASE')
+        self.expectRemoteCommands(
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf ../build'])
+            .exit(0),
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf "$(getconf DARWIN_USER_CACHE_DIR)org.llvm.clang"'])
+            .exit(0),
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf /Users/buildbot/Library/Developer/Xcode/DerivedData'])
+            .exit(0),
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', self.expectedShellCommand()])
+            .exit(1),
+        )
+        self.expect_outcome(result=WARNINGS, state_string='Failed to update swift, using previous checkout')
+        return self.run_step()
+
+    def test_failure_without_previous_checkout(self):
+        self.configureStep()
+        self.setProperty('has_swift_toolchain', False)
+        self.expectRemoteCommands(
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf ../build'])
+            .exit(0),
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf "$(getconf DARWIN_USER_CACHE_DIR)org.llvm.clang"'])
+            .exit(0),
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'rm -rf /Users/buildbot/Library/Developer/Xcode/DerivedData'])
+            .exit(0),
+            ExpectShell(workdir=SWIFT_DIR,
+                        log_environ=False,
+                        timeout=1200,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', self.expectedShellCommand()])
+            .exit(1),
+        )
+        self.expect_outcome(result=FAILURE, state_string='Failed to build Swift')
+        return self.run_step()
+
+
 class TestScanBuild(BuildStepMixinAdditions, unittest.TestCase):
     WORK_DIR = 'wkdir'
-    EXPECTED_BUILD_COMMAND = ['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'Tools/Scripts/build-and-analyze --output-dir wkdir/build/{SCAN_BUILD_OUTPUT_DIR} --configuration release --only-smart-pointers --analyzer-path=wkdir/llvm-project/build/bin/clang --scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=macosx --preprocessor-additions=CLANG_WEBKIT_BRANCH=1 2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt']
+    EXPECTED_BUILD_COMMAND = ['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'Tools/Scripts/build-and-analyze --output-dir wkdir/build/{SCAN_BUILD_OUTPUT_DIR} --configuration release --only-smart-pointers --analyzer-path=wkdir/llvm-project/build/bin/clang --preprocessor-additions=CLANG_WEBKIT_BRANCH=1 --scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=macosx 2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt']
+    EXPECTED_IOS_BUILD_COMMAND = ['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'Tools/Scripts/build-and-analyze --output-dir wkdir/build/{SCAN_BUILD_OUTPUT_DIR} --configuration release --only-smart-pointers --toolchains=org.webkit.swift --swift-conditions=SWIFT_WEBKIT_TOOLCHAIN --scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=iphonesimulator 2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt']
 
     def setUp(self):
         return self.setup_test_build_step()
@@ -9599,10 +9779,31 @@ class TestScanBuild(BuildStepMixinAdditions, unittest.TestCase):
         self.assertEqual(expected_steps, next_steps)
         return rc
 
+    def test_success_ios(self):
+        self.configureStep()
+        self.setProperty('platform', 'ios')
+        next_steps = []
+        self.patch(self.build, 'addStepsAfterCurrentStep', lambda s: next_steps.extend(s))
+        self.expectRemoteCommands(
+            ExpectShell(workdir=self.WORK_DIR,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'/bin/rm -rf wkdir/build/{SCAN_BUILD_OUTPUT_DIR}'],
+                        log_environ=False,
+                        timeout=2 * 60 * 60)
+            .exit(0),
+            ExpectShell(workdir=self.WORK_DIR,
+                        command=self.EXPECTED_IOS_BUILD_COMMAND,
+                        log_environ=False,
+                        timeout=2 * 60 * 60)
+            .log('stdio', stdout='ANALYZE SUCCEEDED No issues found.\n')
+            .exit(0)
+        )
+        self.expect_outcome(result=SUCCESS, state_string='Found 0 issues')
+        return self.run_step()
+
 
 class TestScanBuildWithoutChange(BuildStepMixinAdditions, unittest.TestCase):
     WORK_DIR = 'wkdir'
-    EXPECTED_BUILD_COMMAND = ['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'Tools/Scripts/build-and-analyze --output-dir wkdir/build/{SCAN_BUILD_OUTPUT_DIR}-baseline --configuration release --only-smart-pointers --analyzer-path=wkdir/llvm-project/build/bin/clang --scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=macosx --preprocessor-additions=CLANG_WEBKIT_BRANCH=1 2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt']
+    EXPECTED_BUILD_COMMAND = ['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'Tools/Scripts/build-and-analyze --output-dir wkdir/build/{SCAN_BUILD_OUTPUT_DIR}-baseline --configuration release --only-smart-pointers --analyzer-path=wkdir/llvm-project/build/bin/clang --preprocessor-additions=CLANG_WEBKIT_BRANCH=1 --scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=macosx 2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt']
 
     def setUp(self):
         self.maxDiff = None
@@ -9898,7 +10099,7 @@ class TestFindUnexpectedStaticAnalyzerResults(BuildStepMixinAdditions, unittest.
             ExpectShell(workdir='wkdir',
                         log_environ=False,
                         logfiles={'json': self.jsonFileName},
-                        command=['python3', 'Tools/Scripts/compare-static-analysis-results', 'wkdir/build/new', '--build-output', SCAN_BUILD_OUTPUT_DIR, '--check-expectations'],
+                        command=['python3', 'Tools/Scripts/compare-static-analysis-results', 'wkdir/build/new', '--build-output', SCAN_BUILD_OUTPUT_DIR, '--check-expectations', '--platform', 'mac'],
                         env={'RESULTS_SERVER_API_KEY': 'test-api-key'})
             .log('stdio', stdout='Total new issues: 19\nTotal fixed files: 3\n')
             .exit(0)
@@ -9920,7 +10121,7 @@ class TestFindUnexpectedStaticAnalyzerResults(BuildStepMixinAdditions, unittest.
             ExpectShell(workdir='wkdir',
                         log_environ=False,
                         logfiles={'json': self.jsonFileName},
-                        command=['python3', 'Tools/Scripts/compare-static-analysis-results', 'wkdir/build/new', '--build-output', SCAN_BUILD_OUTPUT_DIR, '--check-expectations'],
+                        command=['python3', 'Tools/Scripts/compare-static-analysis-results', 'wkdir/build/new', '--build-output', SCAN_BUILD_OUTPUT_DIR, '--check-expectations', '--platform', 'mac'],
                         env={'RESULTS_SERVER_API_KEY': 'test-api-key'})
             .log('stdio', stdout='Total new issues: 19\nTotal new files: 3\n')
             .exit(0),
@@ -9941,7 +10142,7 @@ class TestFindUnexpectedStaticAnalyzerResults(BuildStepMixinAdditions, unittest.
             ExpectShell(workdir='wkdir',
                         log_environ=False,
                         logfiles={'json': self.jsonFileName},
-                        command=['python3', 'Tools/Scripts/compare-static-analysis-results', 'wkdir/build/new', '--build-output', SCAN_BUILD_OUTPUT_DIR, '--check-expectations'],
+                        command=['python3', 'Tools/Scripts/compare-static-analysis-results', 'wkdir/build/new', '--build-output', SCAN_BUILD_OUTPUT_DIR, '--check-expectations', '--platform', 'mac'],
                         env={'RESULTS_SERVER_API_KEY': 'test-api-key'})
             .log('stdio', stdout='Total new issues: 19\nTotal fixed files: 3\n')
             .exit(0),
@@ -9964,7 +10165,7 @@ class TestFindUnexpectedStaticAnalyzerResults(BuildStepMixinAdditions, unittest.
             ExpectShell(workdir='wkdir',
                         log_environ=False,
                         logfiles={'json': self.jsonFileName},
-                        command=['python3', 'Tools/Scripts/compare-static-analysis-results', 'wkdir/build/new', '--build-output', SCAN_BUILD_OUTPUT_DIR, '--check-expectations'],
+                        command=['python3', 'Tools/Scripts/compare-static-analysis-results', 'wkdir/build/new', '--build-output', SCAN_BUILD_OUTPUT_DIR, '--check-expectations', '--platform', 'mac'],
                         env={'RESULTS_SERVER_API_KEY': 'test-api-key'})
             .log('stdio', stdout='Total new issues: 1\nTotal fixed files: 1\n')
             .exit(0),
@@ -9986,7 +10187,7 @@ class TestFindUnexpectedStaticAnalyzerResults(BuildStepMixinAdditions, unittest.
             ExpectShell(workdir='wkdir',
                         log_environ=False,
                         logfiles={'json': self.jsonFileName},
-                        command=['python3', 'Tools/Scripts/compare-static-analysis-results', 'wkdir/build/new', '--build-output', SCAN_BUILD_OUTPUT_DIR, '--check-expectations'],
+                        command=['python3', 'Tools/Scripts/compare-static-analysis-results', 'wkdir/build/new', '--build-output', SCAN_BUILD_OUTPUT_DIR, '--check-expectations', '--platform', 'mac'],
                         env={'RESULTS_SERVER_API_KEY': 'test-api-key'})
             .log('stdio', stdout='Total new issues: 1\nTotal fixed files: 2\n')
             .exit(0),

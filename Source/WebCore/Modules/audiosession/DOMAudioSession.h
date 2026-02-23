@@ -65,12 +65,12 @@ private:
 
     // EventTarget
     EventTargetInterfaceType eventTargetInterface() const final;
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }
 
     // ActiveDOMObject
-    void stop() final;
+    void NODELETE stop() final;
     bool virtualHasPendingActivity() const final;
 
     // InterruptionObserver

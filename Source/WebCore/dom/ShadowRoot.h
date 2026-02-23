@@ -158,8 +158,6 @@ private:
     ShadowRoot(Document&, ShadowRootMode, SlotAssignmentMode, ShadowRootDelegatesFocus, Clonable, ShadowRootSerializable, ShadowRootAvailableToElementInternals, RefPtr<CustomElementRegistry>&&, ShadowRootScopedCustomElementRegistry, const AtomString& referenceTarget);
     ShadowRoot(Document&, std::unique_ptr<SlotAssignment>&&);
 
-    bool childTypeAllowed(NodeType) const override;
-
     Node::InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) override;
     void removedFromAncestor(RemovalType, ContainerNode& insertionPoint) override;
 

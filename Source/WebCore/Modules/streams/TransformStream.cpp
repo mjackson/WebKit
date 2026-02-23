@@ -32,6 +32,7 @@
 #include "JSTransformStream.h"
 #include "JSWritableStream.h"
 #include "MessagePort.h"
+#include "StreamTransferUtilities.h"
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/JSObjectInlines.h>
 

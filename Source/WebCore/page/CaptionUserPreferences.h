@@ -111,18 +111,18 @@ public:
     virtual bool testingMode() const { return m_testingModeCount; }
 
     friend class CaptionUserPreferencesTestingModeToken;
-    WEBCORE_EXPORT UniqueRef<CaptionUserPreferencesTestingModeToken> createTestingModeToken();
+    WEBCORE_EXPORT UniqueRef<CaptionUserPreferencesTestingModeToken> NODELETE createTestingModeToken();
 
     virtual String captionPreviewTitle() const;
 
-    PageGroup& pageGroup() const;
+    PageGroup& NODELETE pageGroup() const;
 
 protected:
     explicit CaptionUserPreferences(PageGroup&);
 
     void updateCaptionStyleSheetOverride();
-    void beginBlockingNotifications();
-    void endBlockingNotifications();
+    void NODELETE beginBlockingNotifications();
+    void NODELETE endBlockingNotifications();
 
 private:
     void incrementTestingModeCount() { ++m_testingModeCount; }

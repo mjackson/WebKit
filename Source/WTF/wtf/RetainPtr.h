@@ -67,8 +67,6 @@
 
 namespace WTF {
 
-// RetainPtr can point to NS or CF objects, e.g. RetainPtr<NSDictionary> or RetainPtr<CFDictionaryRef>.
-
 template<typename T> class RetainPtr;
 
 template<typename T> constexpr bool IsNSType = std::is_convertible_v<T, id>;
@@ -78,6 +76,41 @@ template<typename T> [[nodiscard]] constexpr RetainPtr<RetainPtrType<T>> adoptCF
 
 template<typename T> [[nodiscard]] constexpr RetainPtr<RetainPtrType<T>> adoptNS(T NS_RELEASES_ARGUMENT);
 
+/**
+ * @brief RetainPtr is a reference-counting smart pointer for Objective-C and Core Foundation (CF) types.
+ *
+ * It extends the lifetime of the referenced object by retaining it on construction and releasing it on
+ * destruction.
+ *
+ * RetainPtr can hold either Objective-C types (e.g., RetainPtr<NSDictionary>, RetainPtr<UIView>,
+ * RetainPtr<AVPlayer>) or CF types (e.g., RetainPtr<CFDictionaryRef>). CF types include not only Core
+ * Foundation types, but also types from other Apple frameworks that follow CF-style reference counting,
+ * such as Core Graphics (CGImageRef), Core Text (CTFontRef), Core Media (CMSampleBufferRef), Core Video
+ * (CVPixelBufferRef), IOSurface, Security (SecAccessControlRef), and others. For Objective-C types, it
+ * uses retain and release; for CF types, it uses CFRetain/CFRelease.
+ *
+ * To create a RetainPtr, use one of the following:
+ * @code
+ * RetainPtr ptr = value;      // Retains the value (increments the ref count)
+ * RetainPtr ptr = adoptCF(x); // Takes ownership without retaining
+ * RetainPtr ptr = adoptNS(x); // Takes ownership without retaining
+ * @endcode
+ *
+ * Use adoptCF() or adoptNS() when you receive an object that you already own (i.e., the object was
+ * returned to you with a +1 retain count). This includes objects from Create/Copy CF functions (e.g.,
+ * CFStringCreateCopy()) and Objective-C alloc/init/copy/new methods (e.g., [[NSString alloc] init]).
+ * Using the regular RetainPtr constructor instead of adoptCF()/adoptNS() would add an extra retain,
+ * causing a leak when the RetainPtr is destroyed. Use the regular constructor when you want to add a
+ * reference to an object you don't already own (e.g., a parameter passed to your function or a property
+ * getter).
+ *
+ * @note For libdispatch types (dispatch_queue_t, dispatch_source_t, etc.), XPC types (xpc_connection_t,
+ * xpc_object_t, etc.), and Network framework types (nw_endpoint_t, nw_path_t, etc.), use OSObjectPtr
+ * instead of RetainPtr.
+ *
+ * @note RetainPtr is compatible with ARC (Automatic Reference Counting) and will automatically use the
+ * appropriate retain/release semantics based on the compilation mode.
+ */
 template<typename T> class RetainPtr {
 public:
     using ValueType = std::remove_pointer_t<T>;
@@ -342,6 +375,9 @@ ALWAYS_INLINE CLANG_POINTER_CONVERSION RetainPtr<T> protect(const RetainPtr<T>& 
 {
     return ptr;
 }
+
+template<typename T>
+RetainPtr<T> protect(RetainPtr<T>&&) = delete;
 
 template<typename T> struct IsSmartPtr<RetainPtr<T>> {
     static constexpr bool value = true;

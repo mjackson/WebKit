@@ -48,7 +48,7 @@ RenderModel::RenderModel(HTMLModelElement& element, RenderStyle&& style)
 // Do not add any code to the destructor, instead, add it to willBeDestroyed().
 RenderModel::~RenderModel() = default;
 
-HTMLModelElement& RenderModel::modelElement() const
+HTMLModelElement& NODELETE RenderModel::modelElement() const
 {
     return downcast<HTMLModelElement>(nodeForNonAnonymous());
 }

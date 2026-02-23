@@ -85,8 +85,8 @@ public:
     void scheduleSubtreeLayout(RenderElement& layoutRoot);
     void unscheduleLayout();
 
-    void disableSetNeedsLayout();
-    void enableSetNeedsLayout();
+    void NODELETE disableSetNeedsLayout();
+    void NODELETE enableSetNeedsLayout();
 
     enum class LayoutPhase : uint8_t {
         OutsideLayout,
@@ -105,7 +105,7 @@ public:
     bool isSkippedContentForLayout(const RenderElement&) const;
     bool isSkippedContentRootForLayout(const RenderBox&) const;
 
-    bool isPercentHeightResolveDisabledFor(const RenderBox& flexItem);
+    bool NODELETE isPercentHeightResolveDisabledFor(const RenderBox& flexItem);
 
     struct TextBoxTrim {
         bool trimFirstFormattedLine { false };
@@ -128,7 +128,7 @@ public:
     void flushPostLayoutTasks();
     void didLayout(bool canDeferUpdateLayerPositions);
 
-    void requestUpdateLayerPositions(bool needsFullRepaint = false);
+    void NODELETE requestUpdateLayerPositions(bool needsFullRepaint = false);
     void flushUpdateLayerPositions();
     void markForUpdateLayerPositionsAfterSVGTransformChange();
 
@@ -137,7 +137,7 @@ public:
     // Returns true if a pending compositing layer update was done.
     bool updateCompositingLayersAfterLayoutIfNeeded();
 
-    RenderLayoutState* layoutState() const PURE_FUNCTION;
+    RenderLayoutState* NODELETE layoutState() const PURE_FUNCTION;
     // Returns true if layoutState should be used for its cached offset and clip.
     bool isPaintOffsetCacheEnabled() const { return !m_paintOffsetCacheDisableCount && layoutState(); }
 #ifndef NDEBUG
@@ -146,7 +146,7 @@ public:
     // layoutDelta is used transiently during layout to store how far an object has moved from its
     // last layout location, in order to repaint correctly.
     // If we're doing a full repaint m_layoutState will be 0, but in that case layoutDelta doesn't matter.
-    LayoutSize layoutDelta() const;
+    LayoutSize NODELETE layoutDelta() const;
     void addLayoutDelta(const LayoutSize& delta);
 #if ASSERT_ENABLED
     bool layoutDeltaMatches(const LayoutSize& delta);
@@ -229,11 +229,9 @@ private:
     void enablePercentHeightResolveFor(const RenderBox& flexItem);
 
     LocalFrame& frame() const;
-    Ref<LocalFrame> protectedFrame();
-    LocalFrameView& view() const;
+    LocalFrameView& NODELETE view() const;
     RenderView* renderView() const;
     Document* document() const;
-    RefPtr<Document> protectedDocument() const;
 
     SingleThreadWeakRef<LocalFrameView> m_frameView;
     Timer m_layoutTimer;

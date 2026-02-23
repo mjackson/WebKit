@@ -442,6 +442,13 @@ void AudioVideoRendererAVFObjC::pause(std::optional<MonotonicTime> hostTime)
 {
     ALWAYS_LOG(LOGIDENTIFIER, "m_rate: ", m_rate);
     m_isPlaying = false;
+    // Capture current time to prevent time going backwards after resume.
+    // The AVSampleBufferRenderSynchronizer can briefly report earlier times
+    // during playback resumption due to timing jitter.
+    // False positive see webkit.org/b/298024
+    SUPPRESS_UNRETAINED_ARG MediaTime pauseTime = PAL::toMediaTime(PAL::CMTimebaseGetTime([m_synchronizer timebase]));
+    if (pauseTime.isFinite() && pauseTime > m_lastSeekTime)
+        m_lastSeekTime = pauseTime;
     setSynchronizerRate(0, hostTime);
 }
 

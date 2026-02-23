@@ -121,7 +121,7 @@ static bool isResponseEligible(const CachedResource& resource)
     return resource.isCORSSameOrigin();
 }
 
-static std::optional<EncodedResourceCryptographicDigest::Algorithm> prioritizedHashFunction(EncodedResourceCryptographicDigest::Algorithm a, EncodedResourceCryptographicDigest::Algorithm b)
+static std::optional<EncodedResourceCryptographicDigest::Algorithm> NODELETE prioritizedHashFunction(EncodedResourceCryptographicDigest::Algorithm a, EncodedResourceCryptographicDigest::Algorithm b)
 {
     if (a == b)
         return std::nullopt;
@@ -203,7 +203,7 @@ static String addHashPrefix(ResourceCryptographicDigest::Algorithm algorithm, St
     return String();
 }
 
-static std::optional<ResourceCryptographicDigest::Algorithm> findStrongestAlgorithm(HashAlgorithmSet algorithmSet)
+static std::optional<ResourceCryptographicDigest::Algorithm> NODELETE findStrongestAlgorithm(HashAlgorithmSet algorithmSet)
 {
     for (int i = ResourceCryptographicDigest::algorithmCount - 1; i >= 0; --i) {
         uint8_t algorithm = (1 << i);

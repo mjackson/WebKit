@@ -44,7 +44,7 @@
 
 @implementation WKNavigationAction
 
-static WKNavigationType toWKNavigationType(WebCore::NavigationType navigationType)
+static WKNavigationType NODELETE toWKNavigationType(WebCore::NavigationType navigationType)
 {
     switch (navigationType) {
     case WebCore::NavigationType::LinkClicked:
@@ -86,7 +86,7 @@ static WKSyntheticClickType toWKSyntheticClickType(WebKit::WebMouseEventSyntheti
     if (WebCoreObjCScheduleDeallocateOnMainRunLoop(WKNavigationAction.class, self))
         return;
 
-    _navigationAction->~NavigationAction();
+    SUPPRESS_UNCOUNTED_ARG _navigationAction->~NavigationAction();
 
     [super dealloc];
 }

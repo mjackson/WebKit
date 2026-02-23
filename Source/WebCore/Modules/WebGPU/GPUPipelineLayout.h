@@ -39,7 +39,7 @@ public:
         return adoptRef(*new GPUPipelineLayout(WTF::move(backing)));
     }
 
-    String label() const;
+    String NODELETE label() const;
     void setLabel(String&&);
 
     WebGPU::PipelineLayout& backing() { return m_backing; }

@@ -71,7 +71,7 @@ using namespace CSS::Literals;
 using namespace HTMLNames;
 
 TextControlInnerContainer::TextControlInnerContainer(Document& document)
-    : HTMLDivElement(divTag, document, TypeFlag::HasCustomStyleResolveCallbacks)
+    : HTMLDivElement(document, TypeFlag::HasCustomStyleResolveCallbacks)
 {
 }
 
@@ -117,7 +117,7 @@ std::optional<Style::UnadjustedStyle> TextControlInnerContainer::resolveCustomSt
 }
 
 TextControlInnerElement::TextControlInnerElement(Document& document)
-    : HTMLDivElement(divTag, document, TypeFlag::HasCustomStyleResolveCallbacks)
+    : HTMLDivElement(document, TypeFlag::HasCustomStyleResolveCallbacks)
 {
 }
 
@@ -135,7 +135,7 @@ std::optional<Style::UnadjustedStyle> TextControlInnerElement::resolveCustomStyl
     // Needed for correct shrinking.
     newStyle->setLogicalMinWidth(0_css_px);
 
-    newStyle->setDisplay(DisplayType::Block);
+    newStyle->setDisplay(Style::DisplayType::BlockFlow);
     newStyle->setDirection(TextDirection::LTR);
     // We don't want the shadow DOM to be editable, so we set this block to read-only in case the input itself is editable.
     newStyle->setUserModify(UserModify::ReadOnly);
@@ -154,7 +154,7 @@ std::optional<Style::UnadjustedStyle> TextControlInnerElement::resolveCustomStyl
 // MARK: TextControlInnerTextElement
 
 inline TextControlInnerTextElement::TextControlInnerTextElement(Document& document)
-    : HTMLDivElement(divTag, document, TypeFlag::HasCustomStyleResolveCallbacks )
+    : HTMLDivElement(document, TypeFlag::HasCustomStyleResolveCallbacks)
 {
 }
 
@@ -219,7 +219,7 @@ std::optional<Style::UnadjustedStyle> TextControlInnerTextElement::resolveCustom
 // MARK: TextControlPlaceholderElement
 
 inline TextControlPlaceholderElement::TextControlPlaceholderElement(Document& document)
-    : HTMLDivElement(divTag, document, TypeFlag::HasCustomStyleResolveCallbacks)
+    : HTMLDivElement(document, TypeFlag::HasCustomStyleResolveCallbacks)
 {
 }
 
@@ -237,7 +237,7 @@ std::optional<Style::UnadjustedStyle> TextControlPlaceholderElement::resolveCust
 
     Ref controlElement = downcast<HTMLTextFormControlElement>(*containingShadowRoot()->host());
     CheckedRef styleStyle = *style.style;
-    styleStyle->setDisplay(controlElement->isPlaceholderVisible() ? DisplayType::Block : DisplayType::None);
+    styleStyle->setDisplay(controlElement->isPlaceholderVisible() ? Style::DisplayType::BlockFlow : Style::DisplayType::None);
 
     if (RefPtr inputElement = dynamicDowncast<HTMLInputElement>(controlElement)) {
         styleStyle->setTextOverflow(inputElement->shouldTruncateText(*shadowHostStyle) ? TextOverflow::Ellipsis : TextOverflow::Clip);
@@ -253,14 +253,14 @@ std::optional<Style::UnadjustedStyle> TextControlPlaceholderElement::resolveCust
 
 // MARK: SearchFieldResultsButtonElement
 
-static inline bool searchFieldStyleHasExplicitlySpecifiedTextFieldAppearance(const RenderStyle& style)
+static inline bool NODELETE searchFieldStyleHasExplicitlySpecifiedTextFieldAppearance(const RenderStyle& style)
 {
     auto appearance = style.appearance();
     return appearance == StyleAppearance::TextField && appearance == style.usedAppearance();
 }
 
 inline SearchFieldResultsButtonElement::SearchFieldResultsButtonElement(Document& document)
-    : HTMLDivElement(divTag, document, TypeFlag::HasCustomStyleResolveCallbacks)
+    : HTMLDivElement(document, TypeFlag::HasCustomStyleResolveCallbacks)
 {
 }
 
@@ -282,7 +282,7 @@ std::optional<Style::UnadjustedStyle> SearchFieldResultsButtonElement::resolveCu
 
     if (searchFieldStyleHasExplicitlySpecifiedTextFieldAppearance(*shadowHostStyle)) {
         auto elementStyle = resolveStyle(resolutionContext);
-        elementStyle.style->setDisplay(DisplayType::None);
+        elementStyle.style->setDisplay(Style::DisplayType::None);
         return elementStyle;
     }
 
@@ -333,7 +333,7 @@ bool SearchFieldResultsButtonElement::willRespondToMouseClickEventsWithEditabili
 // MARK: SearchFieldCancelButtonElement
 
 inline SearchFieldCancelButtonElement::SearchFieldCancelButtonElement(Document& document)
-    : HTMLDivElement(divTag, document, TypeFlag::HasCustomStyleResolveCallbacks)
+    : HTMLDivElement(document, TypeFlag::HasCustomStyleResolveCallbacks)
 {
 }
 
@@ -357,7 +357,7 @@ std::optional<Style::UnadjustedStyle> SearchFieldCancelButtonElement::resolveCus
     elementStyle.style->setVisibility(elementStyle.style->usedVisibility() == Visibility::Hidden || inputElement->value()->isEmpty() ? Visibility::Hidden : Visibility::Visible);
 
     if (shadowHostStyle && searchFieldStyleHasExplicitlySpecifiedTextFieldAppearance(*shadowHostStyle))
-        elementStyle.style->setDisplay(DisplayType::None);
+        elementStyle.style->setDisplay(Style::DisplayType::None);
 
     return elementStyle;
 }

@@ -170,12 +170,12 @@ public:
     RefPtr<DocumentFragment> getCueAsHTML() final;
     RefPtr<DocumentFragment> createCueRenderingTree();
 
-    void notifyRegionWhenRemovingDisplayTree(bool);
+    void NODELETE notifyRegionWhenRemovingDisplayTree(bool);
 
-    VTTRegion* region();
+    VTTRegion* NODELETE region();
     void setRegion(VTTRegion*);
 
-    const String& regionId();
+    const String& NODELETE regionId();
 
     void setIsActive(bool) override;
 
@@ -194,10 +194,10 @@ public:
     using DisplayPosition = std::pair<std::optional<double>, std::optional<double>>;
     const DisplayPosition& getCSSPosition() const { return m_displayPosition; };
 
-    CSSValueID getCSSAlignment() const;
-    int getCSSSize() const;
-    CSSValueID getCSSWritingDirection() const;
-    CSSValueID getCSSWritingMode() const;
+    CSSValueID NODELETE getCSSAlignment() const;
+    int NODELETE getCSSSize() const;
+    CSSValueID NODELETE getCSSWritingDirection() const;
+    CSSValueID NODELETE getCSSWritingMode() const;
 
     void recalculateStyles() final { m_displayTreeShouldChange = true; }
     void setFontSize(int, bool important) override;
@@ -209,8 +209,8 @@ public:
 
     void didChange(bool = false) final;
 
-    double calculateComputedTextPosition() const;
-    PositionAlignSetting calculateComputedPositionAlignment() const;
+    double NODELETE calculateComputedTextPosition() const;
+    PositionAlignSetting NODELETE calculateComputedPositionAlignment() const;
     double calculateMaximumSize() const;
 
 #if ENABLE(SPEECH_SYNTHESIS)

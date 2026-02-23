@@ -27,7 +27,6 @@
 #include "config.h"
 #include <wtf/URL.h>
 
-#include "URLParser.h"
 #include <ranges>
 #include <stdio.h>
 #include <unicode/uidna.h>
@@ -38,6 +37,7 @@
 #include <wtf/NeverDestroyed.h>
 #include <wtf/PrintStream.h>
 #include <wtf/StdLibExtras.h>
+#include <wtf/URLParser.h>
 #include <wtf/UUID.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/MakeString.h>
@@ -74,7 +74,7 @@ URL::URL(String&& absoluteURL, const URLTextEncoding* encoding)
     *this = URLParser(WTF::move(absoluteURL), URL(), encoding).result();
 }
 
-static bool shouldTrimFromURL(char16_t character)
+static bool NODELETE shouldTrimFromURL(char16_t character)
 {
     // Ignore leading/trailing whitespace and control characters.
     return character <= ' ';
@@ -197,7 +197,7 @@ String URL::protocolHostAndPort() const
     );
 }
 
-static std::optional<Latin1Character> decodeEscapeSequence(StringView input, unsigned index, unsigned length)
+static std::optional<Latin1Character> NODELETE decodeEscapeSequence(StringView input, unsigned index, unsigned length)
 {
     if (index + 3 > length || input[index] != '%')
         return std::nullopt;
@@ -373,7 +373,7 @@ String URL::fileSystemPath() const
 
 #if !ASSERT_ENABLED
 
-static inline void assertProtocolIsGood(StringView)
+static inline void NODELETE assertProtocolIsGood(StringView)
 {
 }
 
@@ -397,13 +397,13 @@ static void assertProtocolIsGood(StringView protocol)
 static Lock defaultPortForProtocolMapForTestingLock;
 
 using DefaultPortForProtocolMapForTesting = HashMap<String, uint16_t>;
-static DefaultPortForProtocolMapForTesting*& defaultPortForProtocolMapForTesting() WTF_REQUIRES_LOCK(defaultPortForProtocolMapForTestingLock)
+static DefaultPortForProtocolMapForTesting*& NODELETE defaultPortForProtocolMapForTesting() WTF_REQUIRES_LOCK(defaultPortForProtocolMapForTestingLock)
 {
     static DefaultPortForProtocolMapForTesting* defaultPortForProtocolMap;
     return defaultPortForProtocolMap;
 }
 
-static DefaultPortForProtocolMapForTesting& ensureDefaultPortForProtocolMapForTesting() WTF_REQUIRES_LOCK(defaultPortForProtocolMapForTestingLock)
+static DefaultPortForProtocolMapForTesting& NODELETE ensureDefaultPortForProtocolMapForTesting() WTF_REQUIRES_LOCK(defaultPortForProtocolMapForTestingLock)
 {
     DefaultPortForProtocolMapForTesting*& defaultPortForProtocolMap = defaultPortForProtocolMapForTesting();
     if (!defaultPortForProtocolMap)
@@ -546,14 +546,14 @@ unsigned URL::credentialsEnd() const
     return end;
 }
 
-static bool forwardSlashHashOrQuestionMark(char16_t c)
+static bool NODELETE forwardSlashHashOrQuestionMark(char16_t c)
 {
     return c == '/'
         || c == '#'
         || c == '?';
 }
 
-static bool slashHashOrQuestionMark(char16_t c)
+static bool NODELETE slashHashOrQuestionMark(char16_t c)
 {
     return forwardSlashHashOrQuestionMark(c) || c == '\\';
 }
@@ -605,7 +605,7 @@ void URL::setPort(std::optional<uint16_t> port)
     ));
 }
 
-static unsigned countASCIIDigits(StringView string)
+static unsigned NODELETE countASCIIDigits(StringView string)
 {
     unsigned length = string.length();
     for (unsigned count = 0; count < length; ++count) {

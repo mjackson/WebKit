@@ -63,7 +63,7 @@ void NetworkRTCSharedMonitor::addListener(NetworkRTCMonitor& monitor)
         return;
 
 #if PLATFORM(COCOA)
-    if (monitor.rtcProvider().webRTCInterfaceMonitoringViaNWEnabled()) {
+    if (protect(monitor.rtcProvider())->webRTCInterfaceMonitoringViaNWEnabled()) {
         setupNWPathMonitor();
         return;
     }

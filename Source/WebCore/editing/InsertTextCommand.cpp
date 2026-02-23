@@ -179,7 +179,7 @@ bool InsertTextCommand::applySmartListsIfNeeded()
         return false;
     }
 
-    auto attributes = nodeAttributesForSmartList(*listElement, *smartList);
+    auto attributes = nodeAttributesForSmartList(*listElement, *smartList, lineText);
     for (const auto& [attribute, value] : attributes)
         setNodeAttribute(*listElement, attribute, value);
 

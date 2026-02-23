@@ -129,8 +129,8 @@ public:
     size_t redirectChainIndex(const WTF::URL&);
 
     bool wasUserInitiated() const { return m_lastNavigationAction && !!m_lastNavigationAction->userGestureTokenIdentifier; }
-    bool isRequestFromClientOrUserInput() const;
-    void markRequestAsFromClientInput();
+    bool NODELETE isRequestFromClientOrUserInput() const;
+    void NODELETE markRequestAsFromClientInput();
     void markAsFromLoadData() { m_isFromLoadData = true; }
     bool isFromLoadData() const { return m_isFromLoadData; }
 
@@ -185,8 +185,8 @@ public:
     void setSafeBrowsingCheckOngoing(size_t, bool);
     bool safeBrowsingCheckOngoing(size_t);
     bool safeBrowsingCheckOngoing();
-    void setSafeBrowsingWarning(RefPtr<WebKit::BrowsingWarning>&&);
-    RefPtr<WebKit::BrowsingWarning> safeBrowsingWarning();
+    void NODELETE setSafeBrowsingWarning(RefPtr<WebKit::BrowsingWarning>&&);
+    RefPtr<WebKit::BrowsingWarning> NODELETE safeBrowsingWarning();
     void setSafeBrowsingCheckTimedOut() { m_safeBrowsingCheckTimedOut = true; }
     bool safeBrowsingCheckTimedOut() { return m_safeBrowsingCheckTimedOut; }
     MonotonicTime requestStart() const { return m_requestStart; }
@@ -197,8 +197,11 @@ public:
 
     void setPendingSharedProcess(WebKit::FrameProcess&);
 
-    void setHasStorageForCurrentSite(bool);
+    void NODELETE setHasStorageForCurrentSite(bool);
     bool hasStorageForCurrentSite() const { return m_hasStorageForCurrentSite; }
+
+    void setIsEnhancedSecurityLinkForCurrentSite(bool isEnhancedSecurityLink) { m_isEnhancedSecurityLinkForCurrentSite = isEnhancedSecurityLink; }
+    bool isEnhancedSecurityLinkForCurrentSite() const { return m_isEnhancedSecurityLinkForCurrentSite; }
 
 private:
     Navigation(WebCore::ProcessIdentifier);
@@ -231,6 +234,7 @@ private:
     bool m_isFromLoadData : 1 { false };
     bool m_safeBrowsingCheckTimedOut : 1 { false };
     bool m_hasStorageForCurrentSite : 1 { false };
+    bool m_isEnhancedSecurityLinkForCurrentSite : 1 { false };
     RefPtr<API::WebsitePolicies> m_websitePolicies;
     std::optional<OptionSet<WebCore::AdvancedPrivacyProtections>> m_originatorAdvancedPrivacyProtections;
     MonotonicTime m_requestStart { MonotonicTime::now() };

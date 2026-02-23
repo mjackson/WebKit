@@ -55,7 +55,7 @@ void UserMessageHandlersNamespace::didInvalidate(UserContentProvider& provider)
 
     provider.forEachUserMessageHandler([&](const UserMessageHandlerDescriptor& descriptor) {
         if (RefPtr userMessageHandler = oldMap.take({ descriptor.name(), descriptor.world() })) {
-            m_messageHandlers.add({ descriptor.name(), &descriptor.world() }, userMessageHandler.releaseNonNull());
+            m_messageHandlers.add({ descriptor.name(), descriptor.world() }, userMessageHandler.releaseNonNull());
             return;
         }
     });
@@ -88,17 +88,17 @@ RefPtr<UserMessageHandler> UserMessageHandlersNamespace::namedItem(DOMWrapperWor
     if (!userContentProvider)
         return nullptr;
 
-    RefPtr handler = m_messageHandlers.get({ name, &world });
+    RefPtr handler = m_messageHandlers.get({ name, world });
     if (handler)
         return handler;
 
     userContentProvider->forEachUserMessageHandler([&](const UserMessageHandlerDescriptor& descriptor) {
         if (descriptor.name() != name || &descriptor.world() != &world)
             return;
-        
+
         ASSERT(!handler);
 
-        auto addResult = m_messageHandlers.add({ descriptor.name(), &descriptor.world() }, UserMessageHandler::create(*frame, descriptor));
+        auto addResult = m_messageHandlers.add({ descriptor.name(), descriptor.world() }, UserMessageHandler::create(*frame, descriptor));
         handler = addResult.iterator->value.get();
     });
 

@@ -57,7 +57,7 @@ void RenderMathMLMath::centerChildren(LayoutUnit contentWidth)
 
     if (!style().isLeftToRightDirection())
         centerBlockOffset = -centerBlockOffset;
-    for (auto* child = firstInFlowChildBox(); child; child = child->nextInFlowSiblingBox()) {
+    for (CheckedPtr child = firstInFlowChildBox(); child; child = child->nextInFlowSiblingBox()) {
         auto repaintRect = child->checkForRepaintDuringLayout() ? std::make_optional(child->frameRect()) : std::nullopt;
         child->move(centerBlockOffset, { });
         if (repaintRect) {
@@ -71,7 +71,7 @@ void RenderMathMLMath::layoutBlock(RelayoutChildren relayoutChildren, LayoutUnit
 {
     ASSERT(needsLayout());
 
-    if (style().display() != DisplayType::Block) {
+    if (style().display() != Style::DisplayType::BlockFlow) {
         RenderMathMLRow::layoutBlock(relayoutChildren, pageLogicalHeight);
         return;
     }

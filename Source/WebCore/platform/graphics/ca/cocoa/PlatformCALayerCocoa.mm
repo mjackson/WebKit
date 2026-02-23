@@ -326,7 +326,7 @@ void PlatformCALayerCocoa::commonInit()
 
     if (usesTiledBackingLayer()) {
         RetainPtr tiledBackingLayer = static_cast<WebTiledBackingLayer*>(m_layer.get());
-        TileController* tileController = [tiledBackingLayer.get() createTileController:this];
+        CheckedPtr tileController = [tiledBackingLayer.get() createTileController:this];
 
         m_customSublayers = makeUnique<PlatformCALayerList>(tileController->containerLayers());
     }

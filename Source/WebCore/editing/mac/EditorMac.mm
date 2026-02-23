@@ -84,7 +84,7 @@ void Editor::pasteWithPasteboard(Pasteboard* pasteboard, OptionSet<PasteOption> 
     if (fragment && shouldInsertFragment(*fragment, range, EditorInsertAction::Pasted))
         pasteAsFragment(fragment.releaseNonNull(), canSmartReplaceWithPasteboard(*pasteboard), false, options.contains(PasteOption::IgnoreMailBlockquote) ? MailBlockquoteHandling::IgnoreBlockquote : MailBlockquoteHandling::RespectBlockquote );
     
-    if (auto* client = this->client())
+    if (CheckedPtr client = this->client())
         client->setInsertionPasteboard(String());
 }
 

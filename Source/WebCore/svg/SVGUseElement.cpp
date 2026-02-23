@@ -345,7 +345,7 @@ static bool isDirectReference(const SVGElement& element)
 SVGGraphicsElement* SVGUseElement::visibleTargetGraphicsElement() const
 {
     RefPtr clone = this->targetClone();
-    SUPPRESS_UNCOUNTED_LOCAL auto* targetElement = dynamicDowncast<SVGGraphicsElement>(clone.get());
+    auto* targetElement = dynamicDowncast<SVGGraphicsElement>(clone.get());
     if (!targetElement)
         return nullptr;
 
@@ -354,7 +354,7 @@ SVGGraphicsElement* SVGUseElement::visibleTargetGraphicsElement() const
         return nullptr;
 
     auto& style = renderer->style();
-    if (style.display() == DisplayType::None || style.usedVisibility() != Visibility::Visible)
+    if (style.display() == Style::DisplayType::None || style.usedVisibility() != Visibility::Visible)
         return nullptr;
 
     // Spec: "If a <use> element is a child of a clipPath element, it must directly

@@ -90,12 +90,12 @@ template<VariantLike CSSType> struct StyleImageIsUncacheable<CSSType> {
 
 // MARK: -
 
-RefPtr<StyleImage> CSSGradientValue::createStyleImage(const Style::BuilderState& state) const
+RefPtr<Style::Image> CSSGradientValue::createStyleImage(const Style::BuilderState& state) const
 {
     if (m_cachedStyleImage)
         return m_cachedStyleImage;
 
-    auto styleImage = StyleGradientImage::create(
+    auto styleImage = Style::GradientImage::create(
         Style::toStyle(m_gradient, state)
     );
     if (!CSS::styleImageIsUncacheable(m_gradient))

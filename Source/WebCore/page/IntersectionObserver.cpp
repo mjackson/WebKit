@@ -455,8 +455,8 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
     bool isFirstObservation = !registration.previousThresholdIndex;
 
     float rootUsedZoom = 1.0;
-    RenderBlock* rootRenderer = nullptr;
-    RenderElement* targetRenderer = nullptr;
+    CheckedPtr<RenderBlock> rootRenderer;
+    CheckedPtr<RenderElement> targetRenderer;
     IntersectionObservationState intersectionState;
 
     auto layoutViewportRectForIntersection = [&] {
@@ -533,7 +533,7 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
             return unionRect(rects);
         }
 
-        if (CheckedPtr renderLineBreak = dynamicDowncast<RenderLineBreak>(targetRenderer))
+        if (CheckedPtr renderLineBreak = dynamicDowncast<RenderLineBreak>(targetRenderer.get()))
             return renderLineBreak->linesBoundingBox();
 
         // FIXME: Implement for SVG etc.

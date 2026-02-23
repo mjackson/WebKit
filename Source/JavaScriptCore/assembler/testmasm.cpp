@@ -47,7 +47,7 @@
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 // We don't have a NO_RETURN_DUE_TO_EXIT, nor should we. That's ridiculous.
-static bool hiddenTruthBecauseNoReturnIsStupid() { return true; }
+static bool NODELETE hiddenTruthBecauseNoReturnIsStupid() { return true; }
 
 static void usage()
 {
@@ -222,7 +222,7 @@ template<typename T> T nextID(T id) { return static_cast<T>(id + 1); }
         CRASH();                                                        \
     } while (false)
 
-bool isPC(MacroAssembler::RegisterID id)
+bool NODELETE isPC(MacroAssembler::RegisterID id)
 {
 #if CPU(ARM_THUMB2)
     return id == ARMRegisters::pc;
@@ -232,17 +232,17 @@ bool isPC(MacroAssembler::RegisterID id)
 #endif
 }
 
-bool isSP(MacroAssembler::RegisterID id)
+bool NODELETE isSP(MacroAssembler::RegisterID id)
 {
     return id == MacroAssembler::stackPointerRegister;
 }
 
-bool isFP(MacroAssembler::RegisterID id)
+bool NODELETE isFP(MacroAssembler::RegisterID id)
 {
     return id == MacroAssembler::framePointerRegister;
 }
 
-bool isSpecialGPR(MacroAssembler::RegisterID id)
+bool NODELETE isSpecialGPR(MacroAssembler::RegisterID id)
 {
     if (isPC(id) || isSP(id) || isFP(id))
         return true;
@@ -5393,7 +5393,7 @@ void testProbeWritesArgumentRegisters()
     CHECK_EQ(probeCallCount, 2);
 }
 
-static NEVER_INLINE NOT_TAIL_CALLED int testFunctionToTrashGPRs(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j)
+static NEVER_INLINE NOT_TAIL_CALLED int NODELETE testFunctionToTrashGPRs(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j)
 {
     if (j > 0)
         return testFunctionToTrashGPRs(a + 1, b + a, c + b, d + 5, e - a, f * 1.5, g ^ a, h - b, i, j - 1);

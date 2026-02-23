@@ -52,7 +52,7 @@
 
 namespace WebCore {
 
-static inline bool isValidCSSUnitTypeForDoubleConversion(CSSUnitType unitType)
+static inline bool NODELETE isValidCSSUnitTypeForDoubleConversion(CSSUnitType unitType)
 {
     switch (unitType) {
     case CSSUnitType::CSS_CALC:
@@ -235,7 +235,7 @@ static inline bool isStringType(CSSUnitType type)
 
 #endif // ASSERT_ENABLED
 
-static HashMap<const CSSPrimitiveValue*, String>& serializedPrimitiveValues()
+static HashMap<const CSSPrimitiveValue*, String>& NODELETE serializedPrimitiveValues()
 {
     static NeverDestroyed<HashMap<const CSSPrimitiveValue*, String>> map;
     return map;

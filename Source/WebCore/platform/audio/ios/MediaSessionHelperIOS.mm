@@ -107,7 +107,7 @@ public:
     void mediaServerConnectionDied();
 #endif
     void activeAudioRouteDidChange(bool);
-    void activeVideoRouteDidChange();
+    void activeVideoRouteDidChange(Ref<MediaPlaybackTarget>&&);
 
 private:
     void setIsPlayingToAutomotiveHeadUnit(bool);
@@ -292,14 +292,27 @@ void MediaSessionHelper::setActiveAudioRouteSupportsSpatialPlayback(bool support
 #if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
 void MediaSessionHelper::activeRoutesDidChange(MediaDeviceRouteController& routeController)
 {
+    ASSERT(&MediaDeviceRouteController::singleton() == &routeController);
+
+    Ref target = MediaPlaybackTargetCocoa::create();
+
     if (RefPtr mostRecentActiveRoute = routeController.mostRecentActiveRoute()) {
+#if HAVE(AVROUTING_FRAMEWORK)
+        if (!target->hasAirPlayDevice())
+            return;
+
+        auto wirelessPlaybackTarget = dynamicDowncast<MediaPlaybackTargetWirelessPlayback>(m_playbackTarget.get());
+        if (wirelessPlaybackTarget && wirelessPlaybackTarget->route() == mostRecentActiveRoute.get())
+            return;
+#endif
+
         activeVideoRouteDidChange(SupportsAirPlayVideo::Yes, MediaPlaybackTargetWirelessPlayback::create(*mostRecentActiveRoute));
         return;
     }
 
 #if PLATFORM(IOS_FAMILY_SIMULATOR)
     activeAudioRouteDidChange(ShouldPause::Yes);
-    activeVideoRouteDidChange(SupportsAirPlayVideo::No, MediaPlaybackTargetCocoa::create());
+    activeVideoRouteDidChange(SupportsAirPlayVideo::No, WTF::move(target));
 #endif
 }
 #endif // ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
@@ -402,9 +415,8 @@ void MediaSessionHelperIOS::activeAudioRouteDidChange(bool shouldPause)
     MediaSessionHelper::activeAudioRouteDidChange(shouldPause ? ShouldPause::Yes : ShouldPause::No);
 }
 
-void MediaSessionHelperIOS::activeVideoRouteDidChange()
+void MediaSessionHelperIOS::activeVideoRouteDidChange(Ref<MediaPlaybackTarget>&& target)
 {
-    Ref target = MediaPlaybackTargetCocoa::create();
     auto supportsRemoteVideoPlayback = target->supportsRemoteVideoPlayback() ? SupportsAirPlayVideo::Yes : SupportsAirPlayVideo::No;
     MediaSessionHelper::activeVideoRouteDidChange(supportsRemoteVideoPlayback, WTF::move(target));
 }
@@ -624,15 +636,22 @@ void MediaSessionHelperIOS::externalOutputDeviceAvailableDidChange()
         if (!callback)
             return;
 
-#if HAVE(AVROUTING_FRAMEWORK)
-        Ref target = MediaPlaybackTargetCocoa::create();
-        if (target->hasAirPlayDevice())
-            return;
-#endif
-
         callback->updateCarPlayIsConnected();
         callback->activeAudioRouteDidChange(shouldPause);
-        callback->activeVideoRouteDidChange();
+
+        Ref target = MediaPlaybackTargetCocoa::create();
+
+#if HAVE(AVROUTING_FRAMEWORK)
+        if (target->hasAirPlayDevice()) {
+            RefPtr mostRecentActiveRoute = MediaDeviceRouteController::singleton().mostRecentActiveRoute();
+            auto wirelessPlaybackTarget = dynamicDowncast<MediaPlaybackTargetWirelessPlayback>(callback->playbackTarget());
+            if (!wirelessPlaybackTarget || wirelessPlaybackTarget->route() != mostRecentActiveRoute.get())
+                callback->activeVideoRouteDidChange(MediaPlaybackTargetWirelessPlayback::create(*mostRecentActiveRoute));
+            return;
+        }
+#endif
+
+        callback->activeVideoRouteDidChange(WTF::move(target));
     });
 }
 

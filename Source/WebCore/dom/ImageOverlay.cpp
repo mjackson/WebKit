@@ -58,6 +58,7 @@
 #include "ShadowRoot.h"
 #include "SharedBuffer.h"
 #include "SimpleRange.h"
+#include "StyleZoomPrimitivesInlines.h"
 #include "Text.h"
 #include "TextIterator.h"
 #include "TextRecognitionResult.h"
@@ -567,8 +568,8 @@ void updateWithTextRecognitionResult(HTMLElement& element, const TextRecognition
             FloatSize sizeBeforeTransform;
             if (CheckedPtr renderer = textContainer->renderBoxModelObject()) {
                 sizeBeforeTransform = {
-                    adjustLayoutUnitForAbsoluteZoom(renderer->offsetWidth(), *renderer).toFloat(),
-                    adjustLayoutUnitForAbsoluteZoom(renderer->offsetHeight(), *renderer).toFloat(),
+                    Style::adjustLayoutUnitForAbsoluteZoom(renderer->offsetWidth(), *renderer).toFloat(),
+                    Style::adjustLayoutUnitForAbsoluteZoom(renderer->offsetHeight(), *renderer).toFloat(),
                 };
             }
 

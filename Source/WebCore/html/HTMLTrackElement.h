@@ -55,17 +55,17 @@ public:
     bool isDefault() const;
 
     enum ReadyState { NONE = 0, LOADING = 1, LOADED = 2, TRACK_ERROR = 3 };
-    ReadyState readyState() const;
+    ReadyState NODELETE readyState() const;
     void setReadyState(ReadyState);
 
-    TextTrack& track();
+    TextTrack& NODELETE track();
 
     void scheduleLoad();
 
     enum LoadStatus { Failure, Success };
     void didCompleteLoad(LoadStatus);
 
-    RefPtr<HTMLMediaElement> mediaElement() const;
+    RefPtr<HTMLMediaElement> NODELETE mediaElement() const;
     const AtomString& mediaElementCrossOriginAttribute() const;
 
     void scheduleTask(Function<void(HTMLTrackElement&)>&&);

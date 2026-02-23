@@ -106,7 +106,8 @@ public:
         return false;
     }
 
-    [[nodiscard]] virtual GRefPtr<GstCaps> videoSinkGLCapsFormat() const { return nullptr;  }
+    [[nodiscard]] virtual GRefPtr<GstCaps> videoSinkGLCapsFormat() const { return nullptr; }
+    virtual bool isVideoCapsGLCompatible(const GRefPtr<GstCaps>&) const { return true; }
 };
 
 class GStreamerHolePunchQuirk : public GStreamerQuirkBase {
@@ -142,6 +143,7 @@ public:
     Vector<String> disallowedWebAudioDecoders() const;
 
     [[nodiscard]] GRefPtr<GstCaps> videoSinkGLCapsFormat() const;
+    bool isVideoCapsGLCompatible(const GRefPtr<GstCaps>&) const;
 
     bool supportsVideoHolePunchRendering() const;
     GstElement* createHolePunchVideoSink(bool isLegacyPlaybin, const MediaPlayer*);

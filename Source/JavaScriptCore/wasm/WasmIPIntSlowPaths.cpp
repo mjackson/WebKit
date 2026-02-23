@@ -342,7 +342,7 @@ WASM_IPINT_EXTERN_CPP_DECL(epilogue_osr, CallFrame* callFrame)
 }
 #endif
 
-static void copyExceptionStackToPayload(const Wasm::FunctionSignature& tagType, const IPIntStackEntry* stackPointer, FixedVector<uint64_t>& payload)
+static void NODELETE copyExceptionStackToPayload(const Wasm::FunctionSignature& tagType, const IPIntStackEntry* stackPointer, FixedVector<uint64_t>& payload)
 {
     unsigned payloadIndex = payload.size();
     for (unsigned i = 0; i < tagType.argumentCount(); ++i) {
@@ -356,7 +356,7 @@ static void copyExceptionStackToPayload(const Wasm::FunctionSignature& tagType, 
     ASSERT(!payloadIndex);
 }
 
-static void copyExceptionPayloadToStack(const Wasm::FunctionSignature& tagType, const FixedVector<uint64_t>& payload, IPIntStackEntry* stackPointer)
+static void NODELETE copyExceptionPayloadToStack(const Wasm::FunctionSignature& tagType, const FixedVector<uint64_t>& payload, IPIntStackEntry* stackPointer)
 {
     unsigned payloadIndex = payload.size();
     for (unsigned i = 0; i < tagType.argumentCount(); ++i) {
@@ -1297,7 +1297,7 @@ static UNUSED_FUNCTION void displayWasmDebugState(JSWebAssemblyInstance* instanc
         logWasmLocalValue(i,  pl[i], localTypes[i]);
 
     constexpr size_t STACK_ENTRY_SIZE = 16;
-    if (sp && pl && sp <= reinterpret_cast<IPIntStackEntry*>(pl)) {
+    if (sp && pl && std::bit_cast<uintptr_t>(sp) <= std::bit_cast<uintptr_t>(pl)) {
         size_t stackDepth = (reinterpret_cast<uint8_t*>(pl) - reinterpret_cast<uint8_t*>(sp)) / STACK_ENTRY_SIZE;
         dataLogLn("WASM Stack (", stackDepth, " entries - showing all type interpretations):");
 
@@ -1325,7 +1325,7 @@ WASM_IPINT_EXTERN_CPP_DECL(unreachable_breakpoint_handler, CallFrame* callFrame,
             IPIntLocal* pl = static_cast<IPIntLocal*>(sp[0].pointer());
             Wasm::IPIntCallee* callee = static_cast<Wasm::IPIntCallee*>(sp[1].pointer());
 
-            IPIntStackEntry* stackPointer = reinterpret_cast<IPIntStackEntry*>(sp + 4);
+            IPIntStackEntry* stackPointer = std::bit_cast<IPIntStackEntry*>(sp + 4);
             if (Options::verboseWasmDebugger())
                 displayWasmDebugState(instance, callee, stackPointer, pl);
             breakpointHandled = debugServer.execution().hitBreakpoint(callFrame, instance, callee, pc, mc, pl, stackPointer);

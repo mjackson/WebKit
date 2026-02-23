@@ -5300,8 +5300,14 @@ Vector<GraphicsLayer::AcceleratedAnimationForTesting> GraphicsLayerCA::accelerat
 
 #if ENABLE(THREADED_ANIMATIONS)
     auto addAcceleratedEffect = [&](const AcceleratedEffect& effect) {
-        for (auto property : effect.animatedProperties())
-            animations.append({ acceleratedEffectPropertyIDAsString(property), effect.playbackRate(), true });
+        for (auto property : effect.animatedProperties()) {
+            animations.append({
+                .property = acceleratedEffectPropertyIDAsString(property),
+                .speed = effect.playbackRate(),
+                .isThreaded = true,
+                .hasHighImpact = effect.hasHighImpact()
+            });
+        }
     };
 
     if (RefPtr effectsStack = acceleratedEffectStack()) {
@@ -5315,10 +5321,21 @@ Vector<GraphicsLayer::AcceleratedAnimationForTesting> GraphicsLayerCA::accelerat
     for (auto& animation : m_animations) {
         if (animation.m_pendingRemoval)
             continue;
-        if (auto caAnimation = protectedAnimatedLayer(animation.m_property)->animationForKey(animation.animationIdentifier()))
-            animations.append({ animatedPropertyIDAsString(animation.m_property), caAnimation->speed(), false });
-        else
-            animations.append({ animatedPropertyIDAsString(animation.m_property), (animation.m_playState == PlayState::Playing || animation.m_playState == PlayState::PlayPending) ? 1.0 : 0.0, false });
+        if (auto caAnimation = protectedAnimatedLayer(animation.m_property)->animationForKey(animation.animationIdentifier())) {
+            animations.append({
+                .property = animatedPropertyIDAsString(animation.m_property),
+                .speed = caAnimation->speed(),
+                .isThreaded = false,
+                .hasHighImpact = false
+            });
+        } else {
+            animations.append({
+                .property = animatedPropertyIDAsString(animation.m_property),
+                .speed = (animation.m_playState == PlayState::Playing || animation.m_playState == PlayState::PlayPending) ? 1.0 : 0.0,
+                .isThreaded = false,
+                .hasHighImpact = false
+            });
+        }
     }
 
     return animations;

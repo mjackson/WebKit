@@ -40,7 +40,7 @@ public:
     void updateValue();
 
     WEBCORE_EXPORT String markerTextWithoutSuffix() const;
-    String markerTextWithSuffix() const;
+    String NODELETE markerTextWithSuffix() const;
 
     void updateListMarkerNumbers();
 
@@ -70,7 +70,7 @@ private:
     mutable std::optional<int> m_value;
 };
 
-bool isHTMLListElement(const Node&);
+bool NODELETE isHTMLListElement(const Node&);
 
 inline int RenderListItem::value() const
 {

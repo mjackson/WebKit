@@ -72,9 +72,9 @@ public:
     USING_CAN_MAKE_WEAKPTR(HTMLDivElement);
 
     void step(int amount);
-    
-    bool willRespondToMouseMoveEvents() const override;
-    bool willRespondToMouseClickEventsWithEditability(Editability) const override;
+
+    bool willRespondToMouseMoveEvents() const final;
+    bool willRespondToMouseClickEventsWithEditability(Editability) const final;
 
     // PopupOpeningObserver.
     void ref() const final { HTMLDivElement::ref(); }
@@ -83,19 +83,19 @@ public:
 private:
     SpinButtonElement(Document&, SpinButtonOwner&);
 
-    void willDetachRenderers() override;
-    bool isSpinButtonElement() const override { return true; }
-    bool isDisabledFormControl() const override;
-    bool matchesReadWritePseudoClass() const override;
-    void defaultEventHandler(Event&) override;
-    void willOpenPopup() override;
+    void willDetachRenderers() final;
+    bool isSpinButtonElement() const final { return true; }
+    bool isDisabledFormControl() const final;
+    bool matchesReadWritePseudoClass() const final;
+    void defaultEventHandler(Event&) final;
+    void willOpenPopup() final;
     void doStepAction(int);
     void startRepeatingTimer();
     void stopRepeatingTimer();
     void repeatingTimerFired();
-    void setHovered(bool, Style::InvalidationScope, HitTestRequest) override;
+    void setHovered(bool, Style::InvalidationScope, HitTestRequest) final;
     bool shouldRespondToMouseEvents() const;
-    bool isMouseFocusable() const override { return false; }
+    bool isMouseFocusable() const final { return false; }
 
     WeakPtr<SpinButtonOwner> m_spinButtonOwner;
     bool m_capturing;

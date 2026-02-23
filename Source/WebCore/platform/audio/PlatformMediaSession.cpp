@@ -171,9 +171,11 @@ void PlatformMediaSession::setState(State state)
     if (state == m_state)
         return;
 
-    ALWAYS_LOG(LOGIDENTIFIER, state);
+    bool canProduceAudio = this->canProduceAudio();
+    ALWAYS_LOG(LOGIDENTIFIER, state, ", canProduceAudio=", canProduceAudio);
+
     m_state = state;
-    if (m_state == State::Playing && canProduceAudio())
+    if (m_state == State::Playing && canProduceAudio)
         setHasPlayedAudiblySinceLastInterruption(true);
 
     if (RefPtr manager = sessionManager())
@@ -208,7 +210,7 @@ void PlatformMediaSession::beginInterruption(InterruptionType type)
         m_interruptionStack.append({ type, true });
         return;
     }
-    if (checkedClient()->shouldOverrideBackgroundPlaybackRestriction(type)) {
+    if (protect(client())->shouldOverrideBackgroundPlaybackRestriction(type)) {
         ALWAYS_LOG(LOGIDENTIFIER, "returning early because client says to override interruption");
         m_interruptionStack.append({ type, true });
         return;
@@ -218,7 +220,7 @@ void PlatformMediaSession::beginInterruption(InterruptionType type)
     m_stateToRestore = state();
     m_notifyingClient = true;
     setState(State::Interrupted);
-    checkedClient()->suspendPlayback();
+    protect(client())->suspendPlayback();
     m_notifyingClient = false;
 }
 
@@ -242,10 +244,10 @@ void PlatformMediaSession::endInterruption(OptionSet<EndInterruptionFlags> flags
     setState(stateToRestore);
 
     if (stateToRestore == State::Autoplaying)
-        checkedClient()->resumeAutoplaying();
+        protect(client())->resumeAutoplaying();
 
     bool shouldResume = flags.contains(EndInterruptionFlags::MayResumePlaying) && stateToRestore == State::Playing;
-    checkedClient()->mayResumePlayback(shouldResume);
+    protect(client())->mayResumePlayback(shouldResume);
 }
 
 void PlatformMediaSession::clientWillBeginAutoplaying()
@@ -337,13 +339,13 @@ void PlatformMediaSession::pauseSession()
     if (state() == State::Interrupted)
         m_stateToRestore = State::Paused;
 
-    checkedClient()->suspendPlayback();
+    protect(client())->suspendPlayback();
 }
 
 void PlatformMediaSession::stopSession()
 {
     ALWAYS_LOG(LOGIDENTIFIER);
-    checkedClient()->suspendPlayback();
+    protect(client())->suspendPlayback();
     if (RefPtr manager = sessionManager())
         manager->removeSession(*this);
 }
@@ -352,7 +354,7 @@ void PlatformMediaSession::didReceiveRemoteControlCommand(RemoteControlCommandTy
 {
     ALWAYS_LOG(LOGIDENTIFIER, command);
 
-    checkedClient()->didReceiveRemoteControlCommand(command, argument);
+    protect(client())->didReceiveRemoteControlCommand(command, argument);
 }
 
 void PlatformMediaSession::isPlayingToWirelessPlaybackTargetChanged(bool isWireless)
@@ -382,6 +384,9 @@ bool PlatformMediaSession::activeAudioSessionRequired() const
 
 void PlatformMediaSession::canProduceAudioChanged()
 {
+    if (m_state == State::Playing && canProduceAudio())
+        setHasPlayedAudiblySinceLastInterruption(true);
+
     if (RefPtr manager = sessionManager())
         manager->sessionCanProduceAudioChanged();
 }
@@ -409,17 +414,17 @@ bool PlatformMediaSession::canPlayConcurrently(const PlatformMediaSessionInterfa
     if (otherMediaType != mediaType && (!isPlayingAudio(mediaType) || !isPlayingAudio(otherMediaType)))
         return true;
 
-    auto groupID = checkedClient()->mediaSessionGroupIdentifier();
-    auto otherGroupID = otherSession.checkedClient()->mediaSessionGroupIdentifier();
+    auto groupID = protect(client())->mediaSessionGroupIdentifier();
+    auto otherGroupID = protect(otherSession.client())->mediaSessionGroupIdentifier();
     if (!groupID || !otherGroupID || groupID != otherGroupID)
         return false;
 
-    return checkedClient()->hasMediaStreamSource() || otherSession.checkedClient()->hasMediaStreamSource();
+    return protect(client())->hasMediaStreamSource() || protect(otherSession.client())->hasMediaStreamSource();
 }
 
 WeakPtr<PlatformMediaSessionInterface> PlatformMediaSession::selectBestMediaSession(const Vector<WeakPtr<PlatformMediaSessionInterface>>& sessions, PlaybackControlsPurpose purpose)
 {
-    return checkedClient()->selectBestMediaSession(sessions, purpose);
+    return protect(client())->selectBestMediaSession(sessions, purpose);
 }
 
 void PlatformMediaSession::setActiveNowPlayingSession(bool isActiveNowPlayingSession)
@@ -433,12 +438,12 @@ void PlatformMediaSession::setActiveNowPlayingSession(bool isActiveNowPlayingSes
 #if !RELEASE_LOG_DISABLED
 const Logger& PlatformMediaSession::logger() const
 {
-    return checkedClient()->logger();
+    return protect(client())->logger();
 }
 
 uint64_t PlatformMediaSession::logIdentifier() const
 {
-    return checkedClient()->logIdentifier();
+    return protect(client())->logIdentifier();
 }
 
 WTFLogChannel& PlatformMediaSession::logChannel() const

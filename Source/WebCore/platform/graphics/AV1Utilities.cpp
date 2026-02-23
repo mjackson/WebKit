@@ -40,9 +40,9 @@ namespace WTF {
 template<> bool isValidEnum<WebCore::AV1ConfigurationProfile>(std::underlying_type_t<WebCore::AV1ConfigurationProfile> value)
 {
     switch (value) {
-    case enumToUnderlyingType(WebCore::AV1ConfigurationProfile::Main):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationProfile::High):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationProfile::Professional):
+    case std::to_underlying(WebCore::AV1ConfigurationProfile::Main):
+    case std::to_underlying(WebCore::AV1ConfigurationProfile::High):
+    case std::to_underlying(WebCore::AV1ConfigurationProfile::Professional):
         return true;
     default:
         return false;
@@ -52,31 +52,31 @@ template<> bool isValidEnum<WebCore::AV1ConfigurationProfile>(std::underlying_ty
 template<> bool isValidEnum<WebCore::AV1ConfigurationLevel>(std::underlying_type_t<WebCore::AV1ConfigurationLevel> value)
 {
     switch (value) {
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_2_0):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_2_1):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_2_2):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_2_3):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_3_0):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_3_1):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_3_2):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_3_3):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_4_0):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_4_1):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_4_2):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_4_3):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_5_0):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_5_1):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_5_2):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_5_3):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_6_0):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_6_1):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_6_2):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_6_3):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_7_0):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_7_1):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_7_2):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_7_3):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationLevel::Level_Maximum):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_2_0):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_2_1):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_2_2):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_2_3):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_3_0):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_3_1):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_3_2):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_3_3):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_4_0):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_4_1):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_4_2):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_4_3):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_5_0):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_5_1):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_5_2):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_5_3):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_6_0):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_6_1):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_6_2):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_6_3):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_7_0):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_7_1):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_7_2):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_7_3):
+    case std::to_underlying(WebCore::AV1ConfigurationLevel::Level_Maximum):
         return true;
     default:
         return false;
@@ -86,11 +86,11 @@ template<> bool isValidEnum<WebCore::AV1ConfigurationLevel>(std::underlying_type
 template<> bool isValidEnum<WebCore::AV1ConfigurationChromaSubsampling>(std::underlying_type_t<WebCore::AV1ConfigurationChromaSubsampling> value)
 {
     switch (value) {
-    case enumToUnderlyingType(WebCore::AV1ConfigurationChromaSubsampling::Subsampling_444):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationChromaSubsampling::Subsampling_422):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationChromaSubsampling::Subsampling_420_Unknown):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationChromaSubsampling::Subsampling_420_Vertical):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationChromaSubsampling::Subsampling_420_Colocated):
+    case std::to_underlying(WebCore::AV1ConfigurationChromaSubsampling::Subsampling_444):
+    case std::to_underlying(WebCore::AV1ConfigurationChromaSubsampling::Subsampling_422):
+    case std::to_underlying(WebCore::AV1ConfigurationChromaSubsampling::Subsampling_420_Unknown):
+    case std::to_underlying(WebCore::AV1ConfigurationChromaSubsampling::Subsampling_420_Vertical):
+    case std::to_underlying(WebCore::AV1ConfigurationChromaSubsampling::Subsampling_420_Colocated):
         return true;
     default:
         return false;
@@ -100,8 +100,8 @@ template<> bool isValidEnum<WebCore::AV1ConfigurationChromaSubsampling>(std::und
 template<> bool isValidEnum<WebCore::AV1ConfigurationRange>(std::underlying_type_t<WebCore::AV1ConfigurationRange> value)
 {
     switch (value) {
-    case enumToUnderlyingType(WebCore::AV1ConfigurationRange::VideoRange):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationRange::FullRange):
+    case std::to_underlying(WebCore::AV1ConfigurationRange::VideoRange):
+    case std::to_underlying(WebCore::AV1ConfigurationRange::FullRange):
         return true;
     default:
         return false;
@@ -111,18 +111,18 @@ template<> bool isValidEnum<WebCore::AV1ConfigurationRange>(std::underlying_type
 template<> bool isValidEnum<WebCore::AV1ConfigurationColorPrimaries>(std::underlying_type_t<WebCore::AV1ConfigurationColorPrimaries> value)
 {
     switch (value) {
-    case enumToUnderlyingType(WebCore::AV1ConfigurationColorPrimaries::BT_709_6):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationColorPrimaries::Unspecified):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationColorPrimaries::BT_470_6_M):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationColorPrimaries::BT_470_7_BG):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationColorPrimaries::BT_601_7):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationColorPrimaries::SMPTE_ST_240):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationColorPrimaries::Film):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationColorPrimaries::BT_2020_Nonconstant_Luminance):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationColorPrimaries::SMPTE_ST_428_1):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationColorPrimaries::SMPTE_RP_431_2):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationColorPrimaries::SMPTE_EG_432_1):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationColorPrimaries::EBU_Tech_3213_E):
+    case std::to_underlying(WebCore::AV1ConfigurationColorPrimaries::BT_709_6):
+    case std::to_underlying(WebCore::AV1ConfigurationColorPrimaries::Unspecified):
+    case std::to_underlying(WebCore::AV1ConfigurationColorPrimaries::BT_470_6_M):
+    case std::to_underlying(WebCore::AV1ConfigurationColorPrimaries::BT_470_7_BG):
+    case std::to_underlying(WebCore::AV1ConfigurationColorPrimaries::BT_601_7):
+    case std::to_underlying(WebCore::AV1ConfigurationColorPrimaries::SMPTE_ST_240):
+    case std::to_underlying(WebCore::AV1ConfigurationColorPrimaries::Film):
+    case std::to_underlying(WebCore::AV1ConfigurationColorPrimaries::BT_2020_Nonconstant_Luminance):
+    case std::to_underlying(WebCore::AV1ConfigurationColorPrimaries::SMPTE_ST_428_1):
+    case std::to_underlying(WebCore::AV1ConfigurationColorPrimaries::SMPTE_RP_431_2):
+    case std::to_underlying(WebCore::AV1ConfigurationColorPrimaries::SMPTE_EG_432_1):
+    case std::to_underlying(WebCore::AV1ConfigurationColorPrimaries::EBU_Tech_3213_E):
         return true;
     default:
         return false;
@@ -132,23 +132,23 @@ template<> bool isValidEnum<WebCore::AV1ConfigurationColorPrimaries>(std::underl
 template<> bool isValidEnum<WebCore::AV1ConfigurationTransferCharacteristics>(std::underlying_type_t<WebCore::AV1ConfigurationTransferCharacteristics> value)
 {
     switch (value) {
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::BT_709_6):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::Unspecified):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::BT_470_6_M):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::BT_470_7_BG):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::BT_601_7):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::SMPTE_ST_240):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::Linear):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::Logrithmic):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::Logrithmic_Sqrt):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::IEC_61966_2_4):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::BT_1361_0):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::IEC_61966_2_1):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::BT_2020_10bit):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::BT_2020_12bit):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::SMPTE_ST_2084):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::SMPTE_ST_428_1):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationTransferCharacteristics::BT_2100_HLG):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::BT_709_6):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::Unspecified):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::BT_470_6_M):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::BT_470_7_BG):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::BT_601_7):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::SMPTE_ST_240):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::Linear):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::Logrithmic):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::Logrithmic_Sqrt):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::IEC_61966_2_4):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::BT_1361_0):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::IEC_61966_2_1):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::BT_2020_10bit):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::BT_2020_12bit):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::SMPTE_ST_2084):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::SMPTE_ST_428_1):
+    case std::to_underlying(WebCore::AV1ConfigurationTransferCharacteristics::BT_2100_HLG):
         return true;
     default:
         return false;
@@ -158,20 +158,20 @@ template<> bool isValidEnum<WebCore::AV1ConfigurationTransferCharacteristics>(st
 template<> bool isValidEnum<WebCore::AV1ConfigurationMatrixCoefficients>(std::underlying_type_t<WebCore::AV1ConfigurationMatrixCoefficients> value)
 {
     switch (value) {
-    case enumToUnderlyingType(WebCore::AV1ConfigurationMatrixCoefficients::Identity):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationMatrixCoefficients::BT_709_6):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationMatrixCoefficients::Unspecified):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationMatrixCoefficients::FCC):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationMatrixCoefficients::BT_470_7_BG):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationMatrixCoefficients::BT_601_7):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationMatrixCoefficients::SMPTE_ST_240):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationMatrixCoefficients::YCgCo):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationMatrixCoefficients::BT_2020_Nonconstant_Luminance):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationMatrixCoefficients::BT_2020_Constant_Luminance):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationMatrixCoefficients::SMPTE_ST_2085):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationMatrixCoefficients::Chromacity_Nonconstant_Luminance):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationMatrixCoefficients::Chromacity_Constant_Luminance):
-    case enumToUnderlyingType(WebCore::AV1ConfigurationMatrixCoefficients::BT_2100_ICC):
+    case std::to_underlying(WebCore::AV1ConfigurationMatrixCoefficients::Identity):
+    case std::to_underlying(WebCore::AV1ConfigurationMatrixCoefficients::BT_709_6):
+    case std::to_underlying(WebCore::AV1ConfigurationMatrixCoefficients::Unspecified):
+    case std::to_underlying(WebCore::AV1ConfigurationMatrixCoefficients::FCC):
+    case std::to_underlying(WebCore::AV1ConfigurationMatrixCoefficients::BT_470_7_BG):
+    case std::to_underlying(WebCore::AV1ConfigurationMatrixCoefficients::BT_601_7):
+    case std::to_underlying(WebCore::AV1ConfigurationMatrixCoefficients::SMPTE_ST_240):
+    case std::to_underlying(WebCore::AV1ConfigurationMatrixCoefficients::YCgCo):
+    case std::to_underlying(WebCore::AV1ConfigurationMatrixCoefficients::BT_2020_Nonconstant_Luminance):
+    case std::to_underlying(WebCore::AV1ConfigurationMatrixCoefficients::BT_2020_Constant_Luminance):
+    case std::to_underlying(WebCore::AV1ConfigurationMatrixCoefficients::SMPTE_ST_2085):
+    case std::to_underlying(WebCore::AV1ConfigurationMatrixCoefficients::Chromacity_Nonconstant_Luminance):
+    case std::to_underlying(WebCore::AV1ConfigurationMatrixCoefficients::Chromacity_Constant_Luminance):
+    case std::to_underlying(WebCore::AV1ConfigurationMatrixCoefficients::BT_2100_ICC):
         return true;
     default:
         return false;

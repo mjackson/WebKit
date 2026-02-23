@@ -153,7 +153,7 @@ Ref<DocumentParser> MediaDocument::createParser()
     return MediaDocumentParser::create(*this);
 }
 
-static inline HTMLVideoElement* descendantVideoElement(ContainerNode& node)
+static inline HTMLVideoElement* NODELETE descendantVideoElement(ContainerNode& node)
 {
     if (auto* video = dynamicDowncast<HTMLVideoElement>(node))
         return video;

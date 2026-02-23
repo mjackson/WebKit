@@ -63,7 +63,7 @@ public:
 
     static bool isValidKindKeyword(const AtomString&);
 
-    TextTrackList* textTrackList() const;
+    TextTrackList* NODELETE textTrackList() const;
 
     enum class Kind { Subtitles, Captions, Descriptions, Chapters, Metadata, Forced };
     Kind kind() const;
@@ -119,8 +119,8 @@ public:
         m_renderedTrackIndex = std::nullopt;
     }
 
-    bool isRendered();
-    bool isSpoken();
+    bool NODELETE isRendered();
+    bool NODELETE isSpoken();
     int trackIndexRelativeToRenderedTracks();
 
     bool hasBeenConfigured() const { return m_hasBeenConfigured; }

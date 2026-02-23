@@ -548,7 +548,7 @@ struct TmpData {
     {
         out.print("{stage = ", stage, " liveRange = ", liveRange, ", preferredReg = ", preferredReg,
             ", coalescables = ", listDump(coalescables), ", parentGroup = ", parentGroup, ", subGroup0 = ", subGroup0, ", subGroup1 = ", subGroup1,
-            ", useDefCost = ", useDefCost, ", spillability = ", spillability, ", assigned = ", assigned, ", groupSpillSlot = ", pointerDump(groupSpillSlot),
+            ", useDefCost = ", useDefCost, ", spillability = ", spillability, ", assigned = ", assigned, ", spillSlot = ", pointerDump(spillSlot),
             ", splitMetadataIndex = ", splitMetadataIndex, "}");
     }
 
@@ -582,10 +582,10 @@ struct TmpData {
 
     void validate()
     {
-        ASSERT(!(groupSpillSlot && assigned));
+        ASSERT(!(spillSlot && assigned));
         ASSERT(!!assigned == (stage == Stage::Assigned));
         ASSERT(liveRange.intervals().isEmpty() == !liveRange.size());
-        ASSERT_IMPLIES(groupSpillSlot, !parentGroup); // Spill slots are assigned only at the group's root
+        ASSERT_IMPLIES(spillSlot, stage == Stage::Spilled || !parentGroup);
         ASSERT_IMPLIES(stage == Stage::Spilled, spillCost() != unspillableCost);
         ASSERT_IMPLIES(stage == Stage::Spilled, !isGroup()); // Should have been split
         ASSERT_IMPLIES(coalescables.size(), !isGroup()); // Only bottom-most should have coalescables
@@ -593,7 +593,7 @@ struct TmpData {
 
     LiveRange liveRange;
     Vector<CoalescableWith> coalescables;
-    StackSlot* groupSpillSlot { nullptr };
+    StackSlot* spillSlot { nullptr };
     float useDefCost { 0.0f };
     Tmp parentGroup;
     Tmp subGroup0, subGroup1;
@@ -903,10 +903,11 @@ private:
 
     // Returns the root of the spill-group tree. All Tmps in the tree are known to not interfere and
     // will share the same spill slot.
+    template<Bank bank>
     Tmp groupForSpill(Tmp tmp)
     {
-        ASSERT(m_map[tmp].stage == Stage::Spilled);
-        while (Tmp parent = m_map[tmp].parentGroup)
+        ASSERT(m_map.get<bank>(tmp).stage == Stage::Spilled);
+        while (Tmp parent = m_map.get<bank>(tmp).parentGroup)
             tmp = parent;
         return tmp;
     }
@@ -943,11 +944,21 @@ private:
     }
 
     // Returns the stack slot a Tmp should use if spilled. Otherwise, returns nullptr.
+    template<Bank bank>
     StackSlot* spillSlot(Tmp tmp)
     {
-        if (m_map[tmp].stage != Stage::Spilled)
-            return nullptr;
-        return m_map[groupForSpill(tmp)].groupSpillSlot;
+        TmpData& tmpData = m_map.get<bank>(tmp);
+        if (tmpData.stage == Stage::Spilled) {
+            ASSERT(tmpData.spillSlot && tmpData.spillSlot == m_map.get<bank>(groupForSpill<bank>(tmp)).spillSlot);
+            return tmpData.spillSlot;
+        }
+        return nullptr;
+    }
+
+    StackSlot* spillSlot(Tmp tmp)
+    {
+        ASSERT(tmp.isGP() || tmp.isFP());
+        return tmp.isGP() ? spillSlot<GP>(tmp) : spillSlot<FP>(tmp);
     }
 
     float adjustedBlockFrequency(BasicBlock* block)
@@ -1490,7 +1501,7 @@ private:
             ASSERT(tmpData.useDefCost == 0.0f);
             auto index = AbsoluteTmpMapper<bank>::absoluteIndex(tmp);
             float useDefCost = m_useCounts.numWarmUsesAndDefs<bank>(index);
-            if (bank == GP && m_useCounts.isConstDef<GP>(index))
+            if (m_useCounts.isConstDef<bank>(index))
                 useDefCost /= 2; // Can rematerialize rather than spill in many cases.
             tmpData.useDefCost = useDefCost;
 
@@ -1538,6 +1549,7 @@ private:
     void setStageAndEnqueue(Tmp tmp, TmpData& tmpData, Stage stage)
     {
         ASSERT(!tmp.isReg());
+        ASSERT(&tmpData == &m_map[tmp]);
         ASSERT(m_map[tmp].liveRange.size()); // 0-size ranges don't need a register and spillCost() depends on size() != 0
         ASSERT(stage == Stage::Unspillable || stage == Stage::TryAllocate || stage == Stage::TrySplit || stage == Stage::Spill);
         ASSERT(groupForReg(tmp) == tmp); // Only the roots of register-groups should be enqueued
@@ -1597,34 +1609,17 @@ private:
                     dumpRegRanges<bank>(out);
                     dataLog(out.toCString());
                 }
-                if (tmpData.stage == Stage::Replaced)
-                    continue; // Tmp no longer relevant
-                if (tryAllocate<bank>(tmp, tmpData))
-                    continue;
-                if (tmpData.stage != Stage::TrySplit && tryEvict<bank>(tmp, tmpData))
-                    continue;
-
-                ASSERT(&tmpData == &m_map.get<bank>(tmp)); // Verify m_map hasn't been resized on this path
                 switch (tmpData.stage) {
-                case Stage::TryAllocate: {
-                    // If we couldn't allocate tmp, allow it to split next time.
-                    Stage nextStage = Stage::TrySplit;
-                    // If we already know splitting won't be profitable, skip it.
-                    if (!tmpData.isGroup() && tmpData.liveRange.size() < splitMinRangeSize)
-                        nextStage = Stage::Spill;
-                    setStageAndEnqueue(tmp, tmpData, nextStage);
+                case Stage::Unspillable:
+                case Stage::TryAllocate:
+                    doStageTryAllocate<bank>(tmp, tmpData);
                     continue;
-                }
                 case Stage::TrySplit:
-                    if (!trySplit<bank>(tmp, tmpData))
-                        setStageAndEnqueue(tmp, tmpData, Stage::Spill);
+                    doStageTrySplit<bank>(tmp, tmpData);
                     continue;
                 case Stage::Spill:
-                    ASSERT(queueContainsOnlySpills()); // FIXME: remove
-                    spill(tmp, tmpData);
+                    doStageSpill<bank>(tmp, tmpData);
                     continue;
-                case Stage::Unspillable:
-                    // Unspillables must have been allocated during tryAllocate or tryEvict.
                 default:
                     dataLogLn("Invalid stage tmp = ", tmp, " tmpData = ", tmpData);
                     // Tmps in these stages should not have been enqueued.
@@ -1638,6 +1633,46 @@ private:
             }
             // Process the spill/fill tmps,
         } while (!m_queue.isEmpty());
+    }
+
+    template <Bank bank>
+    void doStageTryAllocate(Tmp tmp, TmpData& tmpData)
+    {
+        ASSERT(tmpData.stage == Stage::TryAllocate || tmpData.stage == Stage::Unspillable);
+        if (tryAllocate<bank>(tmp, tmpData))
+            return;
+        if (tryEvict<bank>(tmp, tmpData))
+            return;
+        RELEASE_ASSERT(tmpData.stage == Stage::TryAllocate); // Unspillable must have succeeded
+        // If we couldn't allocate tmp, allow it to split next time.
+        Stage nextStage = Stage::TrySplit;
+        // If we already know splitting won't be profitable, skip it.
+        if (!tmpData.isGroup() && tmpData.liveRange.size() < splitMinRangeSize)
+            nextStage = Stage::Spill;
+        setStageAndEnqueue(tmp, tmpData, nextStage);
+    }
+
+    template <Bank bank>
+    void doStageTrySplit(Tmp tmp, TmpData& tmpData)
+    {
+        ASSERT(tmpData.stage == Stage::TrySplit);
+        if (tryAllocate<bank>(tmp, tmpData))
+            return;
+        if (trySplit<bank>(tmp, tmpData))
+            return;
+        setStageAndEnqueue(tmp, tmpData, Stage::Spill);
+    }
+
+    template <Bank bank>
+    void doStageSpill(Tmp tmp, TmpData& tmpData)
+    {
+        ASSERT(tmpData.stage == Stage::Spill);
+        if (tryAllocate<bank>(tmp, tmpData))
+            return;
+        if (tryEvict<bank>(tmp, tmpData))
+            return;
+        ASSERT(queueContainsOnlySpills());
+        spill(tmp, tmpData);
     }
 
     template <Bank bank>
@@ -1733,7 +1768,7 @@ private:
         };
 
         Reg bestEvictReg;
-        float minSpillCost = unspillableCost;
+        float minSpillCost = tmpData.spillCost();
         m_visited.resize(m_code.numTmps(bank));
         LiveRange& liveRange = tmpData.liveRange;
         Width width = widthForConflicts<bank>(tmp);
@@ -2015,7 +2050,7 @@ private:
             return false;
 
         unsigned tmpIndex = AbsoluteTmpMapper<bank>::absoluteIndex(tmp);
-        if (bank == GP && m_useCounts.isConstDef<bank>(tmpIndex))
+        if (m_useCounts.isConstDef<bank>(tmpIndex))
             return false; // Constant will be rematerialized instead
 
         // Don't split an already intra-block tmp. Otherwise, we might recursively try to
@@ -2169,29 +2204,39 @@ private:
         return move;
     }
 
+    template<Bank bank>
+    StackSlot* ensureGroupSpillSlot(Tmp tmp)
+    {
+        Tmp group = groupForSpill<bank>(tmp);
+        TmpData& groupData = m_map.get<bank>(group);
+
+        if (!groupData.spillSlot)
+            groupData.spillSlot = m_code.addStackSlot(stackSlotMinimumWidth(m_tmpWidth.requiredWidth(group)), StackSlotKind::Spill);
+        return groupData.spillSlot;
+    }
+
     template <Bank bank>
     void emitSpillCodeAndEnqueueNewTmps()
     {
         m_code.forEachTmp<bank>([&](Tmp tmp) {
             TmpData& tmpData = m_map.get<bank>(tmp);
-            if (tmpData.stage == Stage::Spilled && !spillSlot(tmp)) {
-                Tmp group = groupForSpill(tmp);
-                m_map[group].groupSpillSlot = m_code.addStackSlot(stackSlotMinimumWidth(m_tmpWidth.requiredWidth(group)), StackSlotKind::Spill);
-                ASSERT(spillSlot(tmp));
+            if (tmpData.stage == Stage::Spilled && !tmpData.spillSlot) {
+                tmpData.spillSlot = ensureGroupSpillSlot<bank>(tmp);
+                ASSERT(spillSlot<bank>(tmp));
                 m_stats[bank].numSpillStackSlots++;
             }
             if (tmpData.splitMetadataIndex) {
                 auto& metadata = m_splitMetadata[tmpData.splitMetadataIndex];
                 if (metadata.type == SplitMetadata::Type::IntraBlock) {
                     // Redirect spilled intra-block cluster tmps to the spill slot of the original tmp.
-                    ASSERT(tmpData.stage == Stage::Spilled && spillSlot(tmp));
+                    ASSERT(tmpData.stage == Stage::Spilled && spillSlot<bank>(tmp));
                     for (auto& split : metadata.splits) {
                         Tmp clusterTmp = split.tmp;
                         TmpData& clusterData = m_map.get<bank>(clusterTmp);
                         if (clusterData.stage == Stage::Spilled) {
-                            if (!spillSlot(clusterTmp))
-                                m_map[groupForSpill(clusterTmp)].groupSpillSlot = spillSlot(tmp);
-                            ASSERT(spillSlot(clusterTmp) == spillSlot(tmp));
+                            if (!clusterData.spillSlot)
+                                clusterData.spillSlot = spillSlot<bank>(tmp);
+                            ASSERT(spillSlot<bank>(clusterTmp) == spillSlot<bank>(tmp));
                         }
                     }
                 }
@@ -2203,19 +2248,22 @@ private:
                 Inst& inst = block->at(instIndex);
                 unsigned indexOfEarly = positionOfEarly(positionOfHead, instIndex);
 
-                // The TmpWidth analysis will say that a Move only stores 32 bits into the destination,
-                // if the source only had 32 bits worth of non-zero bits. Same for the source: it will
-                // only claim to read 32 bits from the source if only 32 bits of the destination are
-                // read. Note that we only apply this logic if this turns into a load or store, since
-                // Move is the canonical way to move data between GPRs.
-                bool canUseMove32IfDidSpill = false;
+                bool useMove32IfDidSpill = false;
                 bool didSpill = false;
                 bool needScratch = false;
                 Tmp scratchForTmp;
+
                 if (bank == GP && inst.kind.opcode == Move) {
-                    if ((inst.args[0].isTmp() && m_tmpWidth.width(inst.args[0].tmp()) <= Width32)
-                        || (inst.args[1].isTmp() && m_tmpWidth.width(inst.args[1].tmp()) <= Width32))
-                        canUseMove32IfDidSpill = true;
+                    Arg& srcArg = inst.args[0];
+                    Arg& dstArg = inst.args[1];
+                    if (dstArg.isTmp() && spillSlot(dstArg.tmp())) {
+                        // Storing to spill. If storing to a 4-byte slot, use store32, otherwise storePtr.
+                        useMove32IfDidSpill = spillSlot(dstArg.tmp())->byteSize() == 4;
+                    } else if (srcArg.isTmp() && spillSlot(srcArg.tmp())) {
+                        // Loading from a spill slot (but not storing to a spill slot). If loading from a
+                        // 4-byte slot, then use load32, otherwise loadPtr.
+                        useMove32IfDidSpill = spillSlot(srcArg.tmp())->byteSize() == 4;
+                    }
                 }
 
                 bool maybeCoalescable = this->mayBeCoalescable(inst);
@@ -2226,7 +2274,7 @@ private:
                             return;
                         if (argBank != bank)
                             return;
-                        StackSlot* spilled = spillSlot(arg.tmp());
+                        StackSlot* spilled = spillSlot<bank>(arg.tmp());
                         if (!spilled)
                             return;
                         ASSERT(!arg.isReg());
@@ -2258,57 +2306,52 @@ private:
                         unsigned tmpIndex = AbsoluteTmpMapper<bank>::absoluteIndex(arg.tmp());
                         ASSERT_IMPLIES(Arg::isColdUse(role), m_map.get<bank>(arg.tmp()).hasColdUse);
                         if (!Arg::isColdUse(role) && m_useCounts.isConstDef<bank>(tmpIndex)) {
-                            int64_t value = m_useCounts.constant<bank>(tmpIndex);
-                            Arg oldArg = arg;
-                            Arg imm;
-                            if (Arg::isValidImmForm(value))
-                                imm = Arg::imm(value);
-                            else
-                                imm = Arg::bigImm(value);
-                            ASSERT(inst.isValidForm());
-                            arg = imm;
-                            if (inst.isValidForm()) {
-                                m_stats[bank].numRematerializeConst++;
-                                dataLogLnIf(verbose(), "Rematerialized (direct imm), BB", *block, " arg=", oldArg, ", inst=", inst);
-                                return;
+                            // We do not handle FP here as there is almost zero instructions which can take FPImm except for Move.
+                            if constexpr (bank == GP) {
+                                int64_t value = m_useCounts.constant<bank>(tmpIndex);
+                                Arg oldArg = arg;
+                                Arg imm;
+                                if (Arg::isValidImmForm(value))
+                                    imm = Arg::imm(value);
+                                else
+                                    imm = Arg::bigImm(value);
+                                ASSERT(inst.isValidForm());
+                                arg = imm;
+                                if (inst.isValidForm()) {
+                                    m_stats[bank].numRematerializeConst++;
+                                    dataLogLnIf(verbose(), "Rematerialized (direct imm), BB", *block, " arg=", oldArg, ", inst=", inst);
+                                    return;
+                                }
+                                // Couldn't insert the immediate into the instruction directly, so undo.
+                                arg = oldArg;
                             }
-                            // Couldn't insert the immediate into the instruction directly, so undo.
-                            arg = oldArg;
                             // We can still rematerialize it into a register. In order for that optimization to kick in,
                             // we need to avoid placing the Tmp's stack address into the instruction.
                             return;
                         }
-                        Width spillWidth = m_tmpWidth.requiredWidth(groupForSpill(arg.tmp()));
-                        if (Arg::isAnyDef(role) && width < spillWidth) {
-                            // Either there are users of this tmp who will use more than width,
-                            // or there are producers who will produce more than width non-zero
-                            // bits.
-                            // FIXME: It's not clear why we should have to return here. We have
-                            // a ZDef fixup in allocateStack. And if this isn't a ZDef, then it
-                            // doesn't seem like it matters what happens to the high bits. Note
-                            // that this isn't the case where we're storing more than what the
-                            // spill slot can hold - we already got that covered because we
-                            // stretch the spill slot on demand. One possibility is that it's ZDefs of
-                            // smaller width than 32-bit.
-                            // https://bugs.webkit.org/show_bug.cgi?id=169823
-                            m_stats[bank].numInPlaceSpillGiveUpSpillWidth++;
-                            return;
-                        }
-                        ASSERT(inst.kind.opcode == Move || !(Arg::isAnyUse(role) && width > spillWidth));
-                        if (spillWidth != Width32)
-                            canUseMove32IfDidSpill = false;
 
-                        spilled->ensureSize(canUseMove32IfDidSpill ? 4 : bytesForWidth(width));
+                        Arg spilledArg = Arg::stack(spilled);
+                        if (Arg::isZDef(role) && bytesForWidth(width) < spilled->byteSize()) {
+                            // ZDef32 to 64 slot would require two 32-bit accesses (second one for zero extend), so
+                            // usually it will be better to ZDef into a register and then storePtr the register.
+                            // Unless, this move can have its live range coalesced.
+                            ASSERT_IMPLIES(maybeCoalescable, &arg == &inst.args[1]);
+                            if (!maybeCoalescable || spilledArg != inst.args[0]) {
+                                m_stats[bank].numInPlaceSpillGiveUpSpillWidth++;
+                                return;
+                            }
+                        }
+                        spilled->ensureSize(useMove32IfDidSpill ? 4 : bytesForWidth(width));
                         didSpill = true;
                         if (needScratchIfSpilledInPlace) {
                             needScratch = true;
                             scratchForTmp = arg.tmp();
                         }
-                        arg = Arg::stack(spilled);
+                        arg = spilledArg;
                         m_stats[bank].numInPlaceSpill++;
                     });
 
-                if (didSpill && canUseMove32IfDidSpill)
+                if (didSpill && useMove32IfDidSpill)
                     inst.kind.opcode = Move32;
 
                 if (needScratch) {
@@ -2316,7 +2359,6 @@ private:
                     // This has become a Move spillN, spillM. If N==M, we can remove this instruction. Otherwise,
                     // a scratch register is needed in order to execute the move between spill slots.
                     if (maybeCoalescable && inst.args[0] == inst.args[1]) {
-                        ASSERT_IMPLIES(inst.kind.opcode == Move32, inst.args[1].stackSlot()->byteSize() == bytesForWidth(Width32));
                         m_stats[bank].numCoalescedStackSlotMoves++;
                         inst = Inst(); // Will be removed during assignRegisters final pass
                         continue;
@@ -2342,7 +2384,7 @@ private:
                 inst.forEachTmp([&] (Tmp& tmp, Arg::Role role, Bank argBank, Width) {
                     if (tmp.isReg() || argBank != bank)
                         return;
-                    StackSlot* spilled = spillSlot(tmp);
+                    StackSlot* spilled = spillSlot<bank>(tmp);
                     if (!spilled)
                         return;
 
@@ -2350,7 +2392,7 @@ private:
                     auto originalTmp = tmp;
                     auto tmpIndex = AbsoluteTmpMapper<bank>::absoluteIndex(tmp);
 
-                    bool canRematerializeConstant = bank == GP && m_useCounts.isConstDef<bank>(tmpIndex);
+                    bool canRematerializeConstant = m_useCounts.isConstDef<bank>(tmpIndex);
                     ASSERT_IMPLIES(canRematerializeConstant, !(Arg::isAnyUse(role) && Arg::isAnyDef(role)));
                     ASSERT_IMPLIES(canRematerializeConstant, role != Arg::Scratch);
 
@@ -2364,26 +2406,69 @@ private:
 
                     Arg arg = Arg::stack(spilled);
                     if (Arg::isAnyUse(role)) {
-                        if (canRematerializeConstant) {
-                            int64_t value = m_useCounts.constant<bank>(tmpIndex);
-                            if (Arg::isValidImmForm(value) && isValidForm(Move, Arg::Imm, Arg::Tmp)) {
-                                m_insertionSets[block].insert(instIndex, spillLoad, Move, inst.origin, Arg::imm(value), tmp);
-                                m_stats[bank].numRematerializeConst++;
-                                dataLogLnIf(verbose(), "Rematerialized (imm) BB", *block, " ", originalTmp, ": ", tmp, " <- ", WTF::RawHex(value));
-                            } else {
+                        auto tryRematerialize = [&]() {
+                            if (!canRematerializeConstant)
+                                return false;
+
+                            if constexpr (bank == GP) {
+                                int64_t value = m_useCounts.constant<bank>(tmpIndex);
+                                if (Arg::isValidImmForm(value) && isValidForm(Move, Arg::Imm, Arg::Tmp)) {
+                                    m_insertionSets[block].insert(instIndex, spillLoad, Move, inst.origin, Arg::imm(value), tmp);
+                                    m_stats[bank].numRematerializeConst++;
+                                    dataLogLnIf(verbose(), "Rematerialized (imm) BB", *block, " ", originalTmp, ": ", tmp, " <- ", WTF::RawHex(value));
+                                    return true;
+                                }
                                 RELEASE_ASSERT(isValidForm(Move, Arg::BigImm, Arg::Tmp));
                                 m_insertionSets[block].insert(instIndex, spillLoad, Move, inst.origin, Arg::bigImm(value), tmp);
                                 m_stats[bank].numRematerializeConst++;
                                 dataLogLnIf(verbose(), "Rematerialized (bigImm) BB", *block, " ", originalTmp, ": ", tmp, " <- ", WTF::RawHex(value));
+                                return true;
+                            } else {
+                                v128_t constant = m_useCounts.constant<bank>(tmpIndex);
+                                Width constWidth = m_useCounts.constantWidth<bank>(tmpIndex);
+                                Arg imm;
+                                Opcode constMove = Oops;
+                                switch (constWidth) {
+                                case Width32:
+                                    if (Arg::isValidFPImm32Form(constant.u64x2[0]))
+                                        imm = Arg::fpImm32(constant.u64x2[0]);
+                                    constMove = MoveFloat;
+                                    break;
+                                case Width64:
+                                    if (Arg::isValidFPImm64Form(constant.u64x2[0]))
+                                        imm = Arg::fpImm64(constant.u64x2[0]);
+                                    constMove = MoveDouble;
+                                    break;
+                                case Width128:
+                                    if (Arg::isValidFPImm128Form(constant))
+                                        imm = Arg::fpImm128(constant);
+                                    constMove = MoveVector;
+                                    break;
+                                default:
+                                    RELEASE_ASSERT_NOT_REACHED();
+                                }
+
+                                if (imm && isValidForm(constMove, imm.kind(), Arg::Tmp)) {
+                                    m_insertionSets[block].insert(instIndex, spillLoad, constMove, inst.origin, imm, tmp);
+                                    m_stats[bank].numRematerializeConst++;
+                                    dataLogLnIf(verbose(), "Rematerialized (FP) BB", *block, " ", originalTmp, ": ", tmp);
+                                    return true;
+                                }
+
+                                return false;
                             }
-                        } else {
+                        };
+
+                        if (!tryRematerialize()) {
                             m_insertionSets[block].insert(instIndex, spillLoad, move, inst.origin, arg, tmp);
                             m_stats[bank].numLoadSpill++;
                         }
                     }
                     if (Arg::isAnyDef(role)) {
                         if (canKillDef) {
-                            ASSERT(inst.kind.opcode == Move || inst.kind.opcode == Move32);
+                            ASSERT(inst.kind.opcode == Move || inst.kind.opcode == Move32
+                                || inst.kind.opcode == MoveFloat || inst.kind.opcode == MoveDouble
+                                || inst.kind.opcode == MoveVector);
                             ASSERT(inst.args[0].isSomeImm() && inst.args[1] == originalTmp);
                             doKillInst = true;
                             dataLogLnIf(verbose(), "Rematerialized BB", *block, " removing def inst: ", inst);
@@ -2516,10 +2601,6 @@ private:
         // We can coalesce a Move32 so long as either of the following holds:
         // - The input is already zero-filled.
         // - The output only cares about the low 32 bits.
-        //
-        // Note that the input property requires an analysis over ZDef's, so it's only valid so long
-        // as the input gets a register. We don't know if the input gets a register, but we do know
-        // that if it doesn't get a register then we will still emit this Move32.
         if (inst.kind.opcode == Move32 && !is32Bit() && m_tmpWidth.defWidth(inst.args[0].tmp()) > Width32)
             return false;
         return true;

@@ -91,7 +91,7 @@ struct ParserState {
 
 } // namespace (anonymous)
 
-static ParseStatus checkDepth(int depth)
+static ParseStatus NODELETE checkDepth(int depth)
 {
     if (depth > maxExpressionDepth)
         return ParseStatus::TooDeep;
@@ -659,7 +659,7 @@ static std::optional<Random::SharingFixed> consumeOptionalRandomSharingFixed(CSS
     };
 }
 
-static Random::SharingOptions::Auto makeRandomSharingAuto(ParserState& state)
+static Random::SharingOptions::Auto NODELETE makeRandomSharingAuto(ParserState& state)
 {
     return {
         .property = state.propertyParserState.currentProperty,
@@ -1069,7 +1069,7 @@ static std::optional<TypedChild> consumeAnchor(CSSParserTokenRange& tokens, int 
     return TypedChild { makeChild(WTF::move(anchor), type), type };
 }
 
-static std::optional<Style::AnchorSizeDimension> cssValueIDToAnchorSizeDimension(CSSValueID value)
+static std::optional<Style::AnchorSizeDimension> NODELETE cssValueIDToAnchorSizeDimension(CSSValueID value)
 {
     switch (value) {
     case CSSValueWidth:

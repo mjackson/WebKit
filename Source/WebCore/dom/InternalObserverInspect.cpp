@@ -205,7 +205,7 @@ private:
         return globalObject->vm();
     }
 
-    Ref<Subscriber> protectedSubscriber() const
+    Ref<Subscriber> NODELETE protectedSubscriber() const
     {
         return m_subscriber;
     }

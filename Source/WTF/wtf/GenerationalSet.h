@@ -33,7 +33,9 @@ namespace WTF {
 // A set of integers in the range [0, size) optimized for repeated clear() operations.
 // clear() is amortized O(1) by using a generation counter instead of clearing storage.
 
-template<typename GenerationType, template<typename> typename VectorType = Vector>
+template<typename T> using DefaultGenerationalSetVector = Vector<T>;
+
+template<typename GenerationType, template<typename> typename VectorType = DefaultGenerationalSetVector>
     requires std::is_unsigned_v<GenerationType>
 class GenerationalSet {
     WTF_FORBID_HEAP_ALLOCATION;

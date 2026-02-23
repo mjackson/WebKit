@@ -63,7 +63,7 @@ private:
     ExternalTextureImpl& operator=(const ExternalTextureImpl&) = delete;
     ExternalTextureImpl& operator=(ExternalTextureImpl&&) = delete;
 
-    void setLabelInternal(const String&) final;
+    void NODELETE setLabelInternal(const String&) final;
     void destroy() final;
     void undestroy() final;
 #if PLATFORM(COCOA)

@@ -40,12 +40,12 @@ public:
     RenderVideo(HTMLVideoElement&, RenderStyle&&);
     virtual ~RenderVideo();
 
-    WEBCORE_EXPORT HTMLVideoElement& videoElement() const;
+    WEBCORE_EXPORT HTMLVideoElement& NODELETE videoElement() const;
 
     IntRect videoBox() const;
     WEBCORE_EXPORT IntRect videoBoxInRootView() const;
 
-    static IntSize defaultSize();
+    static IntSize NODELETE defaultSize();
 
     bool supportsAcceleratedRendering() const;
     void acceleratedRenderingStateChanged();

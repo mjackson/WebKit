@@ -221,11 +221,12 @@ class GitHubEWS(GitHub):
                           ['webkitperl', 'ios-wk2', 'api-mac', 'api-wpe', ''],
                           ['webkitpy', 'ios-wk2-wpt', 'api-mac-debug', 'gtk3-libwebrtc', ''],
                           ['jsc', 'api-ios', 'mac-wk1', 'gtk', ''],
-                          ['jsc-debug-arm64', 'vision', 'mac-wk2', 'gtk-wk2', ''],
-                          ['services', 'vision-sim', 'mac-AS-debug-wk2', 'api-gtk', ''],
-                          ['merge', 'vision-wk2', 'mac-wk2-stress', 'playstation', ''],
-                          ['unsafe-merge', 'tv', 'mac-intel-wk2', 'jsc-armv7', ''],
-                          ['', 'tv-sim', 'mac-safer-cpp', 'jsc-armv7-tests', ''],
+                          ['jsc-debug-arm64', 'ios-safer-cpp', 'mac-wk2', 'gtk-wk2', ''],
+                          ['services', 'vision', 'mac-AS-debug-wk2', 'api-gtk', ''],
+                          ['merge', 'vision-sim', 'mac-wk2-stress', 'playstation', ''],
+                          ['unsafe-merge', 'vision-wk2', 'mac-intel-wk2', 'jsc-armv7', ''],
+                          ['', 'tv', 'mac-safer-cpp', 'jsc-armv7-tests', ''],
+                          ['', 'tv-sim', '', '', ''],
                           ['', 'watch', '', '', ''],
                           ['', 'watch-sim', '', '', '']]
     approved_user_list_for_apple_internal_builds = []

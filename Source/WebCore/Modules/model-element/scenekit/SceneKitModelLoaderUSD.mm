@@ -48,9 +48,9 @@ public:
     }
 
     virtual ~SceneKitModelLoaderUSD() = default;
-    virtual void cancel() final { m_canceled = true; }
+    virtual void NODELETE cancel() final { m_canceled = true; }
 
-    bool isCanceled() const { return m_canceled; }
+    bool NODELETE isCanceled() const { return m_canceled; }
 
 private:
     SceneKitModelLoaderUSD()
@@ -78,12 +78,12 @@ private:
     }
 
     // SceneKitModel overrides.
-    virtual const Model& modelSource() const override
+    virtual const Model& NODELETE modelSource() const override
     {
         return m_modelSource.get();
     }
 
-    virtual SCNScene *defaultScene() const override
+    virtual SCNScene *NODELETE defaultScene() const override
     {
         return m_scene.get();
     }

@@ -1,4 +1,5 @@
 Storage/InProcessIDBServer.cpp
+[ Mac ] Storage/StorageAreaImpl.cpp
 Storage/StorageSyncManager.cpp
 WebCoreSupport/SocketStreamHandleImpl.cpp
 WebCoreSupport/WebSocketChannel.cpp
@@ -98,6 +99,7 @@ mac/WebCoreSupport/WebGeolocationClient.mm
 [ Mac ] mac/WebCoreSupport/WebInspectorClient.mm
 mac/WebCoreSupport/WebKitFullScreenListener.mm
 mac/WebCoreSupport/WebValidationMessageClient.mm
+[ iOS ] mac/WebInspector/WebNodeHighlightView.mm
 mac/WebView/WebDeviceOrientationProviderMock.mm
 mac/WebView/WebFrame.mm
 [ Mac ] mac/WebView/WebFullScreenController.mm

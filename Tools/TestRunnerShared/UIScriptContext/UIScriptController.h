@@ -64,7 +64,7 @@ struct TextExtractionTestOptions {
     bool includeURLs { false };
     bool shortenURLs { false };
     JSRetainPtr<JSStringRef> nodeIdentifierInclusion;
-    bool includeEventListeners { false };
+    JSValueRef eventListenerCategories { nullptr };
     bool includeAccessibilityAttributes { false };
     bool includeTextInAutoFilledControls { false };
     bool includeOffscreenPasswordFields { false };
@@ -482,6 +482,7 @@ public:
     virtual JSRetainPtr<JSStringRef> animationStackForLayerWithID(uint64_t) const { notImplemented(); return nullptr; }
     virtual JSRetainPtr<JSStringRef> progressBasedTimelinesForScrollingNodeID(unsigned long long, unsigned long long) const { notImplemented(); return nullptr; }
 #endif
+    virtual bool displayLinkWantsHighFrameRate() const { notImplemented(); return false; };
 
 protected:
     explicit UIScriptController(UIScriptContext&);

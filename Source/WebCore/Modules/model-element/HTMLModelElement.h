@@ -99,7 +99,7 @@ public:
     using ReadyPromise = DOMPromiseProxyWithResolveCallback<IDLInterface<HTMLModelElement>>;
     ReadyPromise& ready() { return m_readyPromise.get(); }
 
-    WEBCORE_EXPORT RefPtr<Model> model() const;
+    WEBCORE_EXPORT RefPtr<Model> NODELETE model() const;
 
 #if ENABLE(MODEL_ELEMENT_ENTITY_TRANSFORM)
     const DOMMatrixReadOnly& entityTransform() const;
@@ -192,9 +192,9 @@ public:
     WEBCORE_EXPORT String inlinePreviewUUIDForTesting() const;
 #endif
 
-    size_t memoryCost() const;
+    size_t NODELETE memoryCost() const;
 #if ENABLE(RESOURCE_USAGE)
-    size_t externalMemoryCost() const;
+    size_t NODELETE externalMemoryCost() const;
 #endif
 
     bool isIntersectingViewport() const { return m_isIntersectingViewport; }
@@ -215,12 +215,12 @@ private:
     void startLoadModelTimer();
     void loadModelTimerFired();
 
-    HTMLModelElement& readyPromiseResolve();
+    HTMLModelElement& NODELETE readyPromiseResolve();
 
     CachedResourceRequest createResourceRequest(const URL&, FetchOptions::Destination);
 
     // ActiveDOMObject.
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
     void resume() final;
     void suspend(ReasonForSuspension) final;
     void stop() final;
@@ -246,6 +246,9 @@ private:
     // ModelPlayerClient overrides.
     void didFinishLoading(ModelPlayer&) final;
     void didFailLoading(ModelPlayer&, const ResourceError&) final;
+#if ENABLE(MODEL_PROCESS)
+    void didConvertModelData(ModelPlayer&, Ref<SharedBuffer>&& convertedData, const String& convertedMIMEType) final;
+#endif
     void didUnload(ModelPlayer&) final;
     void didUpdate(ModelPlayer&) final;
 #if ENABLE(MODEL_ELEMENT_ENTITY_TRANSFORM)
@@ -306,7 +309,7 @@ private:
     void modelResourceFinished();
     void sourceRequestResource();
     bool shouldDeferLoading() const;
-    bool isModelDeferred() const;
+    bool NODELETE isModelDeferred() const;
     bool isModelLoading() const;
     bool isModelLoaded() const;
     bool isModelUnloading() const;
@@ -358,7 +361,7 @@ private:
     void ensureModelPlayer(CompletionHandler<void(ExceptionOr<RefPtr<ModelPlayer>>)>&&);
 #endif
 
-    void triggerModelPlayerCreationCallbacksIfNeeded(ExceptionOr<RefPtr<ModelPlayer>>&&);
+    void NODELETE triggerModelPlayerCreationCallbacksIfNeeded(ExceptionOr<RefPtr<ModelPlayer>>&&);
 };
 
 } // namespace WebCore

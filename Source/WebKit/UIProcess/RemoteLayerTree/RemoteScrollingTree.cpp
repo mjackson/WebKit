@@ -75,46 +75,43 @@ void RemoteScrollingTree::scrollingTreeNodeDidScroll(ScrollingTreeScrollingNode&
 
     ScrollingTree::scrollingTreeNodeDidScroll(node, scrollingLayerPositionAction);
 
-    CheckedPtr scrollingCoordinatorProxy = m_scrollingCoordinatorProxy.get();
-    if (!scrollingCoordinatorProxy)
-        return;
-
     std::optional<FloatPoint> layoutViewportOrigin;
     if (auto* scrollingNode = dynamicDowncast<ScrollingTreeFrameScrollingNode>(node))
         layoutViewportOrigin = scrollingNode->layoutViewport().location();
 
-    auto scrollUpdate = ScrollUpdate { node.scrollingNodeID(), node.currentScrollPosition(), layoutViewportOrigin, ScrollUpdateType::PositionUpdate, scrollingLayerPositionAction };
+    auto scrollUpdate = ScrollUpdate {
+        .nodeID = node.scrollingNodeID(),
+        .scrollPosition = node.currentScrollPosition(),
+        .layoutViewportOrigin = layoutViewportOrigin,
+        .updateLayerPositionAction = scrollingLayerPositionAction,
+    };
     addPendingScrollUpdate(WTF::move(scrollUpdate));
-
-    scrollingCoordinatorProxy->scrollingThreadAddedPendingUpdate();
 }
 
 void RemoteScrollingTree::scrollingTreeNodeDidStopAnimatedScroll(ScrollingTreeScrollingNode& node)
 {
     ASSERT(isMainRunLoop());
 
-    CheckedPtr scrollingCoordinatorProxy = m_scrollingCoordinatorProxy.get();
-    if (!scrollingCoordinatorProxy)
-        return;
-
-    auto scrollUpdate = ScrollUpdate { node.scrollingNodeID(), { }, { }, ScrollUpdateType::AnimatedScrollDidEnd };
+    auto scrollUpdate = ScrollUpdate {
+        .nodeID = node.scrollingNodeID(),
+        .scrollPosition = { },
+        .layoutViewportOrigin = { },
+        .updateType = ScrollUpdateType::AnimatedScrollDidEnd,
+    };
     addPendingScrollUpdate(WTF::move(scrollUpdate));
-
-    scrollingCoordinatorProxy->scrollingThreadAddedPendingUpdate();
 }
 
 void RemoteScrollingTree::scrollingTreeNodeDidStopWheelEventScroll(WebCore::ScrollingTreeScrollingNode& node)
 {
     ASSERT(isMainRunLoop());
 
-    CheckedPtr scrollingCoordinatorProxy = m_scrollingCoordinatorProxy.get();
-    if (!scrollingCoordinatorProxy)
-        return;
-
-    auto scrollUpdate = ScrollUpdate { node.scrollingNodeID(), { }, { }, ScrollUpdateType::WheelEventScrollDidEnd };
+    auto scrollUpdate = ScrollUpdate {
+        .nodeID = node.scrollingNodeID(),
+        .scrollPosition = { },
+        .layoutViewportOrigin = { },
+        .updateType = ScrollUpdateType::WheelEventScrollDidEnd,
+    };
     addPendingScrollUpdate(WTF::move(scrollUpdate));
-
-    scrollingCoordinatorProxy->scrollingThreadAddedPendingUpdate();
 }
 
 bool RemoteScrollingTree::scrollingTreeNodeRequestsScroll(ScrollingNodeID nodeID, const RequestedScrollData& request)
@@ -139,18 +136,36 @@ bool RemoteScrollingTree::scrollingTreeNodeRequestsKeyboardScroll(ScrollingNodeI
     return scrollingCoordinatorProxy->scrollingTreeNodeRequestsKeyboardScroll(nodeID, request);
 }
 
-void RemoteScrollingTree::scrollingTreeNodeDidStopProgrammaticScroll(WebCore::ScrollingTreeScrollingNode& node)
+void RemoteScrollingTree::didHandleScrollRequestForNode(ScrollingNodeID nodeID, FloatPoint scrollPosition, ScrollRequestIdentifier requestIdentifier)
+{
+    auto scrollUpdate = ScrollUpdate {
+        .nodeID = nodeID,
+        .scrollPosition = scrollPosition,
+        .layoutViewportOrigin = { },
+        .updateType = ScrollUpdateType::ScrollRequestResponse,
+        .updateLayerPositionAction = ScrollingLayerPositionAction::Set,
+        .responseIdentifier = requestIdentifier
+    };
+    addPendingScrollUpdate(WTF::move(scrollUpdate));
+}
+
+void RemoteScrollingTree::scrollingTreeNodeDidStopProgrammaticScroll(ScrollingTreeScrollingNode& node)
 {
     ASSERT(isMainRunLoop());
 
-    CheckedPtr scrollingCoordinatorProxy = m_scrollingCoordinatorProxy.get();
-    if (!scrollingCoordinatorProxy)
-        return;
-
-    auto scrollUpdate = ScrollUpdate { node.scrollingNodeID(), { }, { }, ScrollUpdateType::ProgrammaticScrollDidEnd };
+    auto scrollUpdate = ScrollUpdate {
+        .nodeID = node.scrollingNodeID(),
+        .scrollPosition = { },
+        .layoutViewportOrigin = { },
+        .updateType = ScrollUpdateType::ProgrammaticScrollDidEnd,
+    };
     addPendingScrollUpdate(WTF::move(scrollUpdate));
+}
 
-    scrollingCoordinatorProxy->scrollingThreadAddedPendingUpdate();
+void RemoteScrollingTree::didAddPendingScrollUpdate()
+{
+    if (CheckedPtr scrollingCoordinatorProxy = m_scrollingCoordinatorProxy.get())
+        scrollingCoordinatorProxy->scrollingThreadAddedPendingUpdate();
 }
 
 void RemoteScrollingTree::scrollingTreeNodeWillStartScroll(ScrollingNodeID nodeID)

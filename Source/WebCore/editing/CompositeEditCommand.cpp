@@ -43,6 +43,7 @@
 #include "EditorInsertAction.h"
 #include "ElementTraversal.h"
 #include "Event.h"
+#include "FontAttributes.h"
 #include "FrameDestructionObserverInlines.h"
 #include "HTMLBRElement.h"
 #include "HTMLDivElement.h"
@@ -78,6 +79,7 @@
 #include "StaticRange.h"
 #include "Text.h"
 #include "TextIterator.h"
+#include "TextListParser.h"
 #include "VisibleUnits.h"
 #include "WrapContentsInDummySpanCommand.h"
 #include "markup.h"
@@ -1603,8 +1605,27 @@ VisibleSelection CompositeEditCommand::shouldBreakOutOfEmptyListItem() const
     return VisibleSelection(endingSelection().start().previous(BackwardDeletion), endingSelection().end());
 }
 
+bool CompositeEditCommand::hasSmartListMarkerAttribute() const
+{
+#if PLATFORM(COCOA)
+    if (shouldBreakOutOfEmptyListItem().isNone())
+        return false;
+
+    RefPtr emptyListItem = enclosingEmptyListItem(endingSelection().visibleStart());
+    ASSERT(emptyListItem);
+
+    RefPtr listNode = emptyListItem->parentElement();
+    ASSERT(listNode);
+
+    auto attribute = listNode->getAttribute(HTMLNames::webkitsmartlistmarkerAttr);
+    return !attribute.isEmpty() && parseTextList(attribute);
+#else
+    return false;
+#endif
+}
+
 // FIXME: Send an appropriate shouldDeleteRange call.
-bool CompositeEditCommand::breakOutOfEmptyListItem()
+bool CompositeEditCommand::breakOutOfEmptyListItem(ReconstitutePlainTextListIfNeeded reconstitutePlainTextListIfNeeded)
 {
     if (shouldBreakOutOfEmptyListItem().isNone())
         return false;
@@ -1655,6 +1676,11 @@ bool CompositeEditCommand::breakOutOfEmptyListItem()
 
     appendBlockPlaceholder(*newBlock);
     setEndingSelection(VisibleSelection(firstPositionInNode(newBlock.get()), Affinity::Downstream, endingSelection().directionality()));
+
+    if (reconstitutePlainTextListIfNeeded == ReconstitutePlainTextListIfNeeded::Yes) {
+        if (auto smartListMarker = downcast<Element>(*listNode).getAttribute(HTMLNames::webkitsmartlistmarkerAttr); !smartListMarker.isEmpty())
+            inputText(WTF::makeString(smartListMarker, " "_s));
+    }
 
     style->prepareToApplyAt(endingSelection().start());
     if (!style->isEmpty())

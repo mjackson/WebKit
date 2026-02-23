@@ -93,7 +93,7 @@ std::optional<WebCore::ScrollbarOverlayStyle> toCoreScrollbarStyle(_WKOverlayScr
     return std::nullopt;
 }
 
-static WebCore::FloatBoxExtent coreBoxExtentsFromEdgeInsets(NSEdgeInsets insets)
+static WebCore::FloatBoxExtent NODELETE coreBoxExtentsFromEdgeInsets(NSEdgeInsets insets)
 {
     return {
         static_cast<float>(insets.top),
@@ -233,7 +233,7 @@ static WebCore::FloatBoxExtent coreBoxExtentsFromEdgeInsets(NSEdgeInsets insets)
 
 - (void)_setSemanticContext:(NSViewSemanticContext)semanticContext
 {
-    auto wasUsingFormSemanticContext = _impl ? _impl->useFormSemanticContext() : false;
+    auto wasUsingFormSemanticContext = _impl && _impl->useFormSemanticContext();
 
     [super _setSemanticContext:semanticContext];
 
@@ -557,12 +557,12 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_BEGIN
 
 - (void)mouseDown:(NSEvent *)event
 {
-    _impl->mouseDown(event, WebKit::WebMouseEventInputSource::Hardware);
+    _impl->mouseDown(event, WebKit::WebMouseEventInputSource::UserDriven);
 }
 
 - (void)mouseUp:(NSEvent *)event
 {
-    _impl->mouseUp(event, WebKit::WebMouseEventInputSource::Hardware);
+    _impl->mouseUp(event, WebKit::WebMouseEventInputSource::UserDriven);
 }
 
 - (void)mouseDragged:(NSEvent *)event
@@ -1239,11 +1239,11 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
     _impl->effectiveAppearanceDidChange();
 }
 
+@end
+
 #if USE(APPLE_INTERNAL_SDK) && __has_include(<WebKitAdditions/WKWebViewMacAdditionsAfter.mm>)
 #import <WebKitAdditions/WKWebViewMacAdditionsAfter.mm>
 #endif
-
-@end
 
 #pragma mark -
 
@@ -1363,7 +1363,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 - (id)_web_immediateActionAnimationControllerForHitTestResultInternal:(API::HitTestResult*)hitTestResult withType:(uint32_t)type userData:(API::Object*)userData
 {
     RetainPtr data = userData ? static_cast<id<NSSecureCoding>>(userData->wrapper()) : nil;
-    return [self _immediateActionAnimationControllerForHitTestResult:protectedWrapper(*hitTestResult).get() withType:(_WKImmediateActionType)type userData:data.get()];
+    return [self _immediateActionAnimationControllerForHitTestResult:protect(wrapper(*hitTestResult)).get() withType:(_WKImmediateActionType)type userData:data.get()];
 }
 
 - (void)_web_prepareForImmediateActionAnimation

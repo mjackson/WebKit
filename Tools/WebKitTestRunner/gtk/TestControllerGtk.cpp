@@ -49,7 +49,6 @@ namespace WTR {
 
 void TestController::notifyDone()
 {
-    RunLoop::mainSingleton().stop();
 }
 
 void TestController::platformInitialize(const Options&)
@@ -68,7 +67,6 @@ void TestController::platformRunUntil(bool& done, WTF::Seconds timeout)
         TimeoutTimer(WTF::Seconds timeout, bool& timedOut)
             : m_timer(RunLoop::mainSingleton(), "TestController::TimeoutTimer"_s, [&timedOut] {
                 timedOut = true;
-                RunLoop::mainSingleton().stop();
             })
         {
             m_timer.setPriority(G_PRIORITY_DEFAULT_IDLE);
@@ -79,8 +77,9 @@ void TestController::platformRunUntil(bool& done, WTF::Seconds timeout)
         RunLoop::Timer m_timer;
     } timeoutTimer(timeout, timedOut);
 
+    auto* mainContext = g_main_context_default();
     while (!done && !timedOut)
-        RunLoop::mainSingleton().run();
+        g_main_context_iteration(mainContext, TRUE);
 }
 
 static char* getEnvironmentVariableAsUTF8String(const char* variableName)

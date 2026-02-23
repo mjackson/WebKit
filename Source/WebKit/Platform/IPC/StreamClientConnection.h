@@ -73,7 +73,7 @@ public:
     ~StreamClientConnection();
 
     void setSemaphores(IPC::Semaphore&& wakeUp, IPC::Semaphore&& clientWait);
-    bool hasSemaphores() const;
+    bool NODELETE hasSemaphores() const;
     void setMaxBatchSize(unsigned);
 
     void open(Connection::Client&, SerialFunctionDispatcher& = RunLoop::currentSingleton());
@@ -104,8 +104,8 @@ public:
     void addWorkQueueMessageReceiver(ReceiverName, WorkQueue&, WorkQueueMessageReceiverBase&, uint64_t destinationID = 0);
     void removeWorkQueueMessageReceiver(ReceiverName, uint64_t destinationID = 0);
 
-    StreamClientConnectionBuffer& bufferForTesting();
-    Connection& connectionForTesting();
+    StreamClientConnectionBuffer& NODELETE bufferForTesting();
+    Connection& NODELETE connectionForTesting();
 
     // Returns the timeout moment for current time.
     Timeout defaultTimeout() const { return m_defaultTimeoutDuration; }
@@ -116,7 +116,7 @@ public:
 
 #if ENABLE(CORE_IPC_SIGNPOSTS)
     static bool signpostsEnabled();
-    static void forceEnableSignposts();
+    static void NODELETE forceEnableSignposts();
 #endif
 
 private:

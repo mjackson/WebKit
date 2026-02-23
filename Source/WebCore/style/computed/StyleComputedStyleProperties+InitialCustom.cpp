@@ -30,7 +30,7 @@
 namespace WebCore {
 namespace Style {
 
-#if ENABLE(TOUCH_EVENTS)
+#if ENABLE(CSS_TAP_HIGHLIGHT_COLOR)
 
 Color ComputedStyleProperties::initialTapHighlightColor()
 {

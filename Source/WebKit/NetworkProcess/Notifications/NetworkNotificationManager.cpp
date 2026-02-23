@@ -75,7 +75,7 @@ void NetworkNotificationManager::getPendingPushMessage(CompletionHandler<void(co
         completionHandler(WTF::move(message));
     };
 
-    protectedConnection()->sendWithAsyncReplyWithoutUsingIPCConnection(Messages::PushClientConnection::GetPendingPushMessage(), WTF::move(replyHandler));
+    protect(m_connection)->sendWithAsyncReplyWithoutUsingIPCConnection(Messages::PushClientConnection::GetPendingPushMessage(), WTF::move(replyHandler));
 }
 
 void NetworkNotificationManager::getPendingPushMessages(CompletionHandler<void(const Vector<WebPushMessage>&)>&& completionHandler)
@@ -85,7 +85,7 @@ void NetworkNotificationManager::getPendingPushMessages(CompletionHandler<void(c
         completionHandler(WTF::move(messages));
     };
 
-    protectedConnection()->sendWithAsyncReplyWithoutUsingIPCConnection(Messages::PushClientConnection::GetPendingPushMessages(), WTF::move(replyHandler));
+    protect(m_connection)->sendWithAsyncReplyWithoutUsingIPCConnection(Messages::PushClientConnection::GetPendingPushMessages(), WTF::move(replyHandler));
 }
 
 void NetworkNotificationManager::showNotification(const WebCore::NotificationData& notification, RefPtr<NotificationResources>&& notificationResources, CompletionHandler<void()>&& completionHandler)
@@ -252,25 +252,20 @@ static void getPushPermissionStateImpl(WebPushD::Connection* connection, WebCore
 
 void NetworkNotificationManager::getPermissionState(WebCore::SecurityOriginData&& origin, CompletionHandler<void(WebCore::PushPermissionState)>&& completionHandler)
 {
-    getPushPermissionStateImpl(protectedConnection().get(), WTF::move(origin), WTF::move(completionHandler));
+    getPushPermissionStateImpl(protect(m_connection).get(), WTF::move(origin), WTF::move(completionHandler));
 }
 
 void NetworkNotificationManager::getPermissionStateSync(WebCore::SecurityOriginData&& origin, CompletionHandler<void(WebCore::PushPermissionState)>&& completionHandler)
 {
-    getPushPermissionStateImpl(protectedConnection().get(), WTF::move(origin), WTF::move(completionHandler));
+    getPushPermissionStateImpl(protect(m_connection).get(), WTF::move(origin), WTF::move(completionHandler));
 }
 
 std::optional<SharedPreferencesForWebProcess> NetworkNotificationManager::sharedPreferencesForWebProcess(const IPC::Connection& connection) const
 {
-    RefPtr webProcessConnection = m_networkProcess->protectedWebProcessConnection(connection);
+    RefPtr webProcessConnection = m_networkProcess->webProcessConnection(connection);
     if (!webProcessConnection)
         return std::nullopt;
     return webProcessConnection->sharedPreferencesForWebProcess();
-}
-
-RefPtr<WebPushD::Connection> NetworkNotificationManager::protectedConnection() const
-{
-    return m_connection;
 }
 
 } // namespace WebKit

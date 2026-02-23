@@ -79,7 +79,7 @@ ExceptionOr<Ref<Text>> Text::splitText(unsigned offset)
     return newText;
 }
 
-static const Text* earliestLogicallyAdjacentTextNode(const Text* text)
+static const Text* NODELETE earliestLogicallyAdjacentTextNode(const Text* text)
 {
     const Node* node = text;
     while ((node = node->previousSibling())) {
@@ -91,7 +91,7 @@ static const Text* earliestLogicallyAdjacentTextNode(const Text* text)
     return text;
 }
 
-static const Text* latestLogicallyAdjacentTextNode(const Text* text)
+static const Text* NODELETE latestLogicallyAdjacentTextNode(const Text* text)
 {
     const Node* node = text;
     while ((node = node->nextSibling())) {
@@ -162,14 +162,14 @@ SerializedNode Text::serializeNode(CloningOperation) const
     return { SerializedNode::Text { data() } };
 }
 
-static bool isSVGShadowText(const Text& text)
+static bool NODELETE isSVGShadowText(const Text& text)
 {
     ASSERT(text.parentNode());
     auto* parentShadowRoot = dynamicDowncast<ShadowRoot>(*text.parentNode());
     return parentShadowRoot && parentShadowRoot->host()->hasTagName(SVGNames::trefTag);
 }
 
-static bool isSVGText(const Text& text)
+static bool NODELETE isSVGText(const Text& text)
 {
     ASSERT(text.parentNode());
     auto* parentElement = dynamicDowncast<SVGElement>(*text.parentNode());
@@ -181,7 +181,7 @@ RenderPtr<RenderText> Text::createTextRenderer(const RenderStyle& style)
     if (isSVGText(*this) || isSVGShadowText(*this))
         return createRenderer<RenderSVGInlineText>(*this, data());
 
-    if (style.hasTextCombine())
+    if (style.textCombine() != TextCombine::None)
         return createRenderer<RenderCombineText>(*this, data());
 
     return createRenderer<RenderText>(RenderObject::Type::Text, *this, data());

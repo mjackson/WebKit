@@ -133,7 +133,6 @@ public:
 
     const Vector<Ref<NavigationHistoryEntry>>& entries() const;
     NavigationHistoryEntry* currentEntry() const;
-    RefPtr<NavigationHistoryEntry> protectedCurrentEntry() const { return currentEntry(); }
     NavigationTransition* transition() { return m_transition.get(); };
     NavigationActivation* activation() { return m_activation.get(); };
 
@@ -171,7 +170,6 @@ public:
 
     // EventTarget.
     ScriptExecutionContext* scriptExecutionContext() const final;
-    RefPtr<ScriptExecutionContext> protectedScriptExecutionContext() const;
 
     void rejectFinishedPromise(NavigationAPIMethodTracker*);
     NavigationAPIMethodTracker* upcomingTraverseMethodTracker(const String& key) const;
@@ -237,8 +235,7 @@ public:
     // Testing support
     RateLimiter& rateLimiterForTesting() { return m_rateLimiter; }
 
-    NavigateEvent* ongoingNavigateEvent() { return m_ongoingNavigateEvent.get(); } // This may get called on the GC thread.
-    RefPtr<NavigateEvent> protectedOngoingNavigateEvent() { return m_ongoingNavigateEvent; }
+    NavigateEvent* ongoingNavigateEvent() { return m_ongoingNavigateEvent.get(); } // This may get called on a GC thread.
     bool hasInterceptedOngoingNavigateEvent() const { return m_ongoingNavigateEvent && m_ongoingNavigateEvent->wasIntercepted(); }
 
     void updateNavigationEntry(Ref<HistoryItem>&&, ShouldCopyStateObjectFromCurrentEntry);

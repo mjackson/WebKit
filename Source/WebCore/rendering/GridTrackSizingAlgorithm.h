@@ -71,10 +71,10 @@ public:
     GridTrack() = default;
 
     LayoutUnit baseSize() const;
-    LayoutUnit unclampedBaseSize() const;
+    LayoutUnit NODELETE unclampedBaseSize() const;
     void setBaseSize(LayoutUnit);
 
-    const LayoutUnit& growthLimit() const;
+    const LayoutUnit& NODELETE growthLimit() const;
     bool growthLimitIsInfinite() const { return m_growthLimit == infinity; }
     void setGrowthLimit(LayoutUnit);
 
@@ -85,13 +85,13 @@ public:
     void setPlannedSize(LayoutUnit plannedSize) { m_plannedSize = plannedSize; }
 
     const LayoutUnit& tempSize() const { return m_tempSize; }
-    void setTempSize(const LayoutUnit&);
-    void growTempSize(const LayoutUnit&);
+    void NODELETE setTempSize(const LayoutUnit&);
+    void NODELETE growTempSize(const LayoutUnit&);
 
     bool infinitelyGrowable() const { return m_infinitelyGrowable; }
     void setInfinitelyGrowable(bool infinitelyGrowable) { m_infinitelyGrowable = infinitelyGrowable; }
 
-    void setGrowthLimitCap(std::optional<LayoutUnit>);
+    void NODELETE setGrowthLimitCap(std::optional<LayoutUnit>);
     std::optional<LayoutUnit> growthLimitCap() const { return m_growthLimitCap; }
 
     const Style::GridTrackSize& NODELETE cachedTrackSize() const;
@@ -121,7 +121,7 @@ public:
     ~GridTrackSizingAlgorithm();
 
     void run(Style::GridTrackSizingDirection, unsigned numTracks, SizingOperation, std::optional<LayoutUnit> availableSpace, RenderGridLayoutState&);
-    void reset();
+    void NODELETE reset();
 
     // Required by RenderGrid. Try to minimize the exposed surface.
     const Grid& grid() const { return m_grid; }
@@ -146,10 +146,10 @@ public:
     const Vector<UniqueRef<GridTrack>>& tracks(Style::GridTrackSizingDirection direction) const { return direction == Style::GridTrackSizingDirection::Columns ? m_columns : m_rows; }
 
     std::optional<LayoutUnit> freeSpace(Style::GridTrackSizingDirection direction) const { return direction == Style::GridTrackSizingDirection::Columns ? m_freeSpaceColumns : m_freeSpaceRows; }
-    void setFreeSpace(Style::GridTrackSizingDirection, std::optional<LayoutUnit>);
+    void NODELETE setFreeSpace(Style::GridTrackSizingDirection, std::optional<LayoutUnit>);
 
     std::optional<LayoutUnit> availableSpace(Style::GridTrackSizingDirection direction) const { return direction == Style::GridTrackSizingDirection::Columns ? m_availableSpaceColumns : m_availableSpaceRows; }
-    void setAvailableSpace(Style::GridTrackSizingDirection, std::optional<LayoutUnit>);
+    void NODELETE setAvailableSpace(Style::GridTrackSizingDirection, std::optional<LayoutUnit>);
 
     LayoutUnit computeTrackBasedSize() const;
 
@@ -177,7 +177,7 @@ private:
         GridSpan gridSpan;
     };
 
-    std::optional<LayoutUnit> availableSpace() const;
+    std::optional<LayoutUnit> NODELETE availableSpace() const;
     Style::GridTrackSize calculateGridTrackSize(Style::GridTrackSizingDirection, unsigned translatedIndex) const;
     const Style::GridTrackSize& rawGridTrackSize(Style::GridTrackSizingDirection, unsigned translatedIndex) const;
 
@@ -231,7 +231,7 @@ private:
     void convertIndefiniteItemsToDefiniteMasonry(const StdMap<SpanLength, MasonryMinMaxTrackSize>& gridTrackSpans, StdMap<SpanLength, Vector<MasonryMinMaxTrackSizeWithGridSpan>>&, Vector<MasonryMinMaxTrackSizeWithGridSpan>&);
 
     LayoutUnit itemSizeForTrackSizeComputationPhase(TrackSizeComputationPhase, RenderBox&, RenderGridLayoutState&) const;
-    LayoutUnit itemSizeForTrackSizeComputationPhaseMasonry(TrackSizeComputationPhase, const MasonryMinMaxTrackSize&) const;
+    LayoutUnit NODELETE itemSizeForTrackSizeComputationPhaseMasonry(TrackSizeComputationPhase, const MasonryMinMaxTrackSize&) const;
 
     template <TrackSizeComputationVariant variant, TrackSizeComputationPhase phase> void distributeSpaceToTracks(Vector<CheckedRef<GridTrack>>& tracks, Vector<CheckedRef<GridTrack>>* growBeyondGrowthLimitsTracks, LayoutUnit& freeSpace) const;
 
@@ -286,7 +286,7 @@ private:
 
     // State machine.
     void advanceNextState();
-    bool isValidTransition() const;
+    bool NODELETE isValidTransition() const;
 
     bool isDirectionInMasonryDirection() const;
 

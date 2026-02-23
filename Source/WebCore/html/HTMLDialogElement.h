@@ -36,7 +36,7 @@ class HTMLDialogElement final : public HTMLElement {
 public:
     template<typename... Args> static Ref<HTMLDialogElement> create(Args&&... args) { return adoptRef(*new HTMLDialogElement(std::forward<Args>(args)...)); }
 
-    bool isOpen() const;
+    bool isOpen() const { return m_isOpen; }
 
     const String& returnValue() const { return m_returnValue; }
     void setReturnValue(String&& value) { m_returnValue = WTF::move(value); }

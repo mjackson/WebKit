@@ -79,7 +79,7 @@ public:
     ReadyState readyState() const { return m_state; }
     DOMException* error() { return m_error.get(); }
     FileReaderLoader::ReadType readType() const { return m_readType; }
-    std::optional<Variant<String, RefPtr<JSC::ArrayBuffer>>> result() const;
+    std::optional<Variant<String, Ref<JSC::ArrayBuffer>>> result() const;
 
 private:
     explicit FileReader(ScriptExecutionContext&);

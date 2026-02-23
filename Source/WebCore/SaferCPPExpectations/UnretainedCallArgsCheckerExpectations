@@ -1,6 +1,5 @@
 Modules/WebGPU/GPUQueue.cpp
 [ Mac ] Modules/model-element/scenekit/SceneKitModelPlayer.mm
-[ iOS ] Modules/notifications/NotificationDataCocoa.mm
 [ iOS ] Modules/system-preview/ARKitBadgeSystemImage.mm
 [ Mac ] accessibility/cocoa/AXCoreObjectCocoa.mm
 [ Mac ] accessibility/cocoa/AXTextMarkerCocoa.mm
@@ -18,11 +17,13 @@ bridge/objc/objc_runtime.mm
 bridge/objc/objc_utility.mm
 crypto/cocoa/SerializedCryptoKeyWrapMac.mm
 editing/SmartReplaceCF.cpp
+[ iOS ] editing/cocoa/DataDetection.mm
 editing/cocoa/EditingHTMLConverter.mm
 editing/cocoa/FontAttributeChangesCocoa.mm
 editing/cocoa/NodeHTMLConverter.mm
 editing/cocoa/WebContentReaderCocoa.mm
 inspector/agents/page/PageTimelineAgent.cpp
+[ iOS ] page/InteractionRegion.cpp
 page/cocoa/PageCocoa.mm
 page/cocoa/WebTextIndicatorLayer.mm
 [ iOS ] page/ios/EventHandlerIOS.mm
@@ -41,15 +42,16 @@ platform/cf/MainThreadSharedTimerCF.cpp
 platform/cocoa/FileMonitorCocoa.mm
 platform/cocoa/LocalizedStringsCocoa.mm
 platform/cocoa/NetworkExtensionContentFilter.mm
+[ iOS ] platform/cocoa/ParentalControlsURLFilter.mm
 platform/cocoa/PlatformPasteboardCocoa.mm
 platform/cocoa/SearchPopupMenuCocoa.mm
 platform/cocoa/UserAgentCocoa.mm
 platform/cocoa/WebAVPlayerLayer.mm
-[ iOS ] platform/cocoa/WebAVPlayerLayerView.mm
 [ Mac ] platform/gamepad/mac/HIDGamepadElement.cpp
 platform/graphics/BitmapImageDescriptor.cpp
 platform/graphics/avfoundation/AVTrackPrivateAVFObjCImpl.mm
 platform/graphics/avfoundation/AudioSourceProviderAVFObjC.mm
+[ iOS ] platform/graphics/avfoundation/FormatDescriptionUtilities.cpp
 [ Mac ] platform/graphics/avfoundation/objc/AVOutputDeviceMenuControllerTargetPicker.mm
 [ Mac ] platform/graphics/avfoundation/objc/AVRoutePickerViewTargetPicker.mm
 platform/graphics/avfoundation/objc/CDMInstanceFairPlayStreamingAVFObjC.mm
@@ -110,7 +112,6 @@ platform/graphics/coreimage/SourceGraphicCoreImageApplier.mm
 platform/ios/WebAVPlayerController.mm
 [ iOS ] platform/ios/WebEvent.mm
 [ iOS ] platform/ios/WebItemProviderPasteboard.mm
-[ iOS ] platform/ios/WidgetIOS.mm
 [ iOS ] platform/ios/wak/WAKClipView.mm
 [ iOS ] platform/ios/wak/WAKScrollView.mm
 [ iOS ] platform/ios/wak/WAKView.mm
@@ -123,7 +124,6 @@ platform/mediastream/mac/AVVideoCaptureSource.mm
 [ Mac ] platform/mediastream/mac/ScreenCaptureKitCaptureSource.mm
 [ Mac ] platform/mediastream/mac/ScreenCaptureKitSharingSessionManager.mm
 platform/network/cf/DNSResolveQueueCFNet.cpp
-[ iOS ] platform/network/mac/ResourceErrorMac.mm
 platform/network/mac/ResourceHandleMac.mm
 platform/network/mac/SynchronousLoaderClient.mm
 platform/network/mac/WebCoreResourceHandleAsOperationQueueDelegate.mm

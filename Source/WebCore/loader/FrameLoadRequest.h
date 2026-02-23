@@ -119,8 +119,8 @@ public:
 
     bool isEmpty() const { return m_resourceRequest.isEmpty(); }
 
-    WEBCORE_EXPORT Document& requester() const;
-    const SecurityOrigin& requesterSecurityOrigin() const;
+    WEBCORE_EXPORT Document& NODELETE requester() const;
+    const SecurityOrigin& NODELETE requesterSecurityOrigin() const;
 
     ResourceRequest& resourceRequest() { return m_resourceRequest; }
     const ResourceRequest& resourceRequest() const { return m_resourceRequest; }

@@ -51,22 +51,22 @@ template<typename CharacterType> static bool isDirectiveValueCharacter(Character
     return isASCIIWhitespace(c) || (c >= 0x21 && c <= 0x7e); // Whitespace + VCHAR
 }
 
-static inline bool checkEval(ContentSecurityPolicySourceListDirective* directive)
+static inline bool NODELETE checkEval(ContentSecurityPolicySourceListDirective* directive)
 {
     return !directive || directive->allowEval();
 }
 
-static inline bool checkTrustedEval(ContentSecurityPolicySourceListDirective* directive)
+static inline bool NODELETE checkTrustedEval(ContentSecurityPolicySourceListDirective* directive)
 {
     return !directive || directive->allowTrustedEval();
 }
 
-static inline bool checkWasmEval(ContentSecurityPolicySourceListDirective* directive)
+static inline bool NODELETE checkWasmEval(ContentSecurityPolicySourceListDirective* directive)
 {
     return !directive || directive->allowWasmEval();
 }
 
-static inline bool checkInline(ContentSecurityPolicySourceListDirective* directive)
+static inline bool NODELETE checkInline(ContentSecurityPolicySourceListDirective* directive)
 {
     return !directive || directive->allowInline();
 }
@@ -76,7 +76,7 @@ static inline bool checkUnsafeHashes(ContentSecurityPolicySourceListDirective* d
     return !directive || directive->allowUnsafeHashes(hashes);
 }
 
-static inline bool checkNonParserInsertedScripts(ContentSecurityPolicySourceListDirective* directive, ParserInserted parserInserted)
+static inline bool NODELETE checkNonParserInsertedScripts(ContentSecurityPolicySourceListDirective* directive, ParserInserted parserInserted)
 {
     if (!directive)
         return true;

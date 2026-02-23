@@ -77,10 +77,6 @@ private:
     RemoteRenderPassEncoder& operator=(RemoteRenderPassEncoder&&) = delete;
 
     WebCore::WebGPU::RenderPassEncoder& backing() { return m_backing; }
-    Ref<WebCore::WebGPU::RenderPassEncoder> protectedBacking();
-
-    Ref<WebGPU::ObjectHeap> protectedObjectHeap() const;
-    Ref<RemoteGPU> protectedGPU() const { return m_gpu; }
 
     void didReceiveStreamMessage(IPC::StreamServerConnection&, IPC::Decoder&) final;
 

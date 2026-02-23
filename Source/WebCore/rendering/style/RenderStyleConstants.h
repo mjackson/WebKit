@@ -64,6 +64,7 @@ enum class PseudoElementType : uint8_t {
     SpellingError,
     TargetText,
     Checkmark,
+    PickerIcon,
     ViewTransition,
     ViewTransitionGroup,
     ViewTransitionImagePair,
@@ -96,6 +97,7 @@ constexpr auto allPublicPseudoElementTypes = EnumSet {
     PseudoElementType::SpellingError,
     PseudoElementType::TargetText,
     PseudoElementType::Checkmark,
+    PseudoElementType::PickerIcon,
     PseudoElementType::ViewTransition,
     PseudoElementType::ViewTransitionGroup,
     PseudoElementType::ViewTransitionImagePair,
@@ -620,7 +622,7 @@ enum class BreakBetween : uint8_t {
     RectoPage,
     VersoPage
 };
-bool alwaysPageBreak(BreakBetween);
+bool NODELETE alwaysPageBreak(BreakBetween);
     
 enum class BreakInside : uint8_t {
     Auto,
@@ -700,38 +702,6 @@ enum class CursorVisibility : bool {
     AutoHide,
 };
 #endif
-
-enum class DisplayType : uint8_t {
-    Inline,
-    Block,
-    ListItem,
-    InlineBlock,
-    Table,
-    InlineTable,
-    TableRowGroup,
-    TableHeaderGroup,
-    TableFooterGroup,
-    TableRow,
-    TableColumnGroup,
-    TableColumn,
-    TableCell,
-    TableCaption,
-    Box,
-    InlineBox,
-    Flex,
-    InlineFlex,
-    Contents,
-    Grid,
-    InlineGrid,
-    GridLanes,
-    InlineGridLanes,
-    FlowRoot,
-    Ruby,
-    RubyBlock,
-    RubyBase,
-    RubyAnnotation,
-    None
-};
 
 enum class InsideLink : uint8_t {
     NotInside,
@@ -906,6 +876,12 @@ enum class CSSBoxType : uint8_t {
     FillBox,
     StrokeBox,
     ViewBox
+};
+
+enum class VisualBox : uint8_t {
+    BorderBox,
+    ContentBox,
+    PaddingBox
 };
 
 enum class ScrollSnapStrictness : bool {
@@ -1132,7 +1108,7 @@ enum class MaskType : uint8_t {
     Alpha
 };
 
-CSSBoxType transformBoxToCSSBoxType(TransformBox);
+CSSBoxType NODELETE transformBoxToCSSBoxType(TransformBox);
 
 constexpr float defaultMiterLimit = 4;
 
@@ -1176,7 +1152,6 @@ WTF::TextStream& operator<<(WTF::TextStream&, CursorType);
 #if ENABLE(CURSOR_VISIBILITY)
 WTF::TextStream& operator<<(WTF::TextStream&, CursorVisibility);
 #endif
-WTF::TextStream& operator<<(WTF::TextStream&, DisplayType);
 WTF::TextStream& operator<<(WTF::TextStream&, Edge);
 WTF::TextStream& operator<<(WTF::TextStream&, EmptyCell);
 WTF::TextStream& operator<<(WTF::TextStream&, EventListenerRegionType);
@@ -1263,5 +1238,6 @@ WTF::TextStream& operator<<(WTF::TextStream&, MaskType);
 WTF::TextStream& operator<<(WTF::TextStream&, ShapeRendering);
 WTF::TextStream& operator<<(WTF::TextStream&, TextAnchor);
 WTF::TextStream& operator<<(WTF::TextStream&, VectorEffect);
+WTF::TextStream& operator<<(WTF::TextStream&, VisualBox);
 
 } // namespace WebCore

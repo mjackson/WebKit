@@ -3,7 +3,6 @@
 <link rel="help" href="https://drafts.csswg.org/css-highlight-api-1/">
 <script src="/resources/testharness.js"></script>
 <script src="/resources/testharnessreport.js"></script>
-
 <body>
 <script>
 "use strict";
@@ -28,13 +27,12 @@ function tamperMapPrototype() {
 function restoreMapPrototype(originalDescriptors) {
   // Create a new object with the original descriptors
   const newProto = Object.create(Object.prototype);
-  
+
   for (const [key, descriptor] of Object.entries(originalDescriptors)) {
     if (descriptor) {
       Object.defineProperty(newProto, key, descriptor);
     }
   }
-  
   // Replace the frozen prototype with the restored one
   Object.setPrototypeOf(Map, newProto);
 }
@@ -90,3 +88,4 @@ test(() => {
   restoreMapPrototype(originalDescriptors);
 }, "HighlightRegistry is a maplike interface that works as expected even if Map.prototype is tampered.");
 </script>
+</body>

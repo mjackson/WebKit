@@ -174,6 +174,7 @@ public:
 
     private:
         SingleThreadWeakPtr<ScrollView> m_scrollView;
+        ScrollAnchoringSuppressionScope m_anchoringSuppressor;
     };
 
     WEBCORE_EXPORT std::unique_ptr<ProhibitScrollingWhenChangingContentSizeForScope> prohibitScrollingWhenChangingContentSizeForScope();

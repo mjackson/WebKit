@@ -67,7 +67,7 @@ private:
 
     String m_identifier;
     Vector<Ref<WorkletGlobalScopeProxy>> m_proxies;
-    HashSet<RefPtr<WorkletPendingTasks>> m_pendingTasksSet;
+    HashSet<Ref<WorkletPendingTasks>> m_pendingTasksSet;
 };
 
 } // namespace WebCore

@@ -42,30 +42,33 @@ namespace WebCore {
 
 static ExceptionOr<FileSystemWritableFileStream::WriteParams> writeParamsFromChunk(FileSystemWritableFileStream::ChunkType&& chunk)
 {
-    return WTF::switchOn(WTF::move(chunk), [](FileSystemWritableFileStream::WriteParams&& params) -> ExceptionOr<FileSystemWritableFileStream::WriteParams> {
-        switch (params.type) {
-        case FileSystemWriteCommandType::Write:
-            if (!params.data)
-                return Exception { ExceptionCode::SyntaxError, "Data is missing"_s };
+    return WTF::switchOn(WTF::move(chunk),
+        [](FileSystemWritableFileStream::WriteParams&& params) -> ExceptionOr<FileSystemWritableFileStream::WriteParams> {
+            switch (params.type) {
+            case FileSystemWriteCommandType::Write:
+                if (!params.data)
+                    return Exception { ExceptionCode::SyntaxError, "Data is missing"_s };
+                return params;
+            case FileSystemWriteCommandType::Seek:
+                // FIXME: Reconsider exception type when https://github.com/whatwg/fs/issues/168 is closed.
+                if (!params.position)
+                    return Exception { ExceptionCode::SyntaxError, "Position is missing."_s };
+                return params;
+            case FileSystemWriteCommandType::Truncate:
+                // FIXME: Reconsider exception type when https://github.com/whatwg/fs/issues/168 is closed.
+                if (!params.size)
+                    return Exception { ExceptionCode::SyntaxError, "Size is missing."_s };
+                return params;
+            }
             return params;
-        case FileSystemWriteCommandType::Seek:
-            // FIXME: Reconsider exception type when https://github.com/whatwg/fs/issues/168 is closed.
-            if (!params.position)
-                return Exception { ExceptionCode::SyntaxError, "Position is missing."_s };
-            return params;
-        case FileSystemWriteCommandType::Truncate:
-            // FIXME: Reconsider exception type when https://github.com/whatwg/fs/issues/168 is closed.
-            if (!params.size)
-                return Exception { ExceptionCode::SyntaxError, "Size is missing."_s };
-            return params;
+        },
+        [](auto&& data) -> ExceptionOr<FileSystemWritableFileStream::WriteParams> {
+            return FileSystemWritableFileStream::WriteParams {
+                .type = FileSystemWritableFileStream::WriteCommandType::Write,
+                .data = WTF::move(data)
+            };
         }
-        return params;
-    }, [](auto&& data) -> ExceptionOr<FileSystemWritableFileStream::WriteParams> {
-        return FileSystemWritableFileStream::WriteParams {
-            .type = FileSystemWritableFileStream::WriteCommandType::Write,
-            .data = WTF::move(data)
-        };
-    });
+    );
 }
 
 static void fetchDataBytesForWrite(const std::optional<FileSystemWritableFileStream::DataVariant>& data, CompletionHandler<void(ExceptionOr<std::span<const uint8_t>>&&)>&& completionHandler)
@@ -74,8 +77,8 @@ static void fetchDataBytesForWrite(const std::optional<FileSystemWritableFileStr
         return completionHandler(Exception { ExceptionCode::TypeError });
 
     WTF::switchOn(*data,
-        [&](const RefPtr<JSC::ArrayBufferView>& bufferView) {
-            if (!bufferView || bufferView->isDetached())
+        [&](const Ref<JSC::ArrayBufferView>& bufferView) {
+            if (bufferView->isDetached())
                 return completionHandler(Exception { ExceptionCode::TypeError });
 
             RefPtr buffer = bufferView->possiblySharedBuffer();
@@ -84,8 +87,8 @@ static void fetchDataBytesForWrite(const std::optional<FileSystemWritableFileStr
 
             completionHandler(buffer->span());
         },
-        [&](const RefPtr<JSC::ArrayBuffer>& buffer) {
-            if (!buffer || buffer->isDetached())
+        [&](const Ref<JSC::ArrayBuffer>& buffer) {
+            if (buffer->isDetached())
                 return completionHandler(Exception { ExceptionCode::TypeError });
 
             completionHandler(buffer->span());

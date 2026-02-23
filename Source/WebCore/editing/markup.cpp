@@ -402,7 +402,7 @@ public:
         if (!block || block != enclosingBlock(protect(end.deepEquivalent().containerNode())))
             return;
 
-        auto renderer = block->renderer();
+        CheckedPtr renderer = block->renderer();
         if (!renderer)
             return;
 

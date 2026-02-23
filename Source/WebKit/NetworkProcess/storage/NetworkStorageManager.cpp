@@ -83,7 +83,7 @@ static constexpr auto persistedFileName = "persisted"_s;
 static constexpr Seconds originLastModificationTimeUpdateInterval = 30_s;
 
 // FIXME: Remove this if rdar://104754030 is fixed.
-static HashMap<String, ThreadSafeWeakPtr<NetworkStorageManager>>& activePaths()
+static HashMap<String, ThreadSafeWeakPtr<NetworkStorageManager>>& NODELETE activePaths()
 {
     static MainRunLoopNeverDestroyed<HashMap<String, ThreadSafeWeakPtr<NetworkStorageManager>>> pathToManagerMap;
     return pathToManagerMap;
@@ -244,11 +244,6 @@ NetworkStorageManager::~NetworkStorageManager()
     ASSERT(m_closed);
 }
 
-RefPtr<NetworkProcess> NetworkStorageManager::protectedProcess() const
-{
-    return m_process.get();
-}
-
 bool NetworkStorageManager::canHandleTypes(OptionSet<WebsiteDataType> types)
 {
     return allManagedTypes().containsAny(types);
@@ -348,6 +343,10 @@ void NetworkStorageManager::updateSharedPreferencesForConnection(IPC::Connection
         assertIsCurrent(workQueue());
         if (auto iter = m_preferencesForConnections.find(connection); iter != m_preferencesForConnections.end())
             iter->value = preferences;
+
+        // Use SQLite in-memory backing store if any connection enables it.
+        if (preferences.indexedDBSQLiteMemoryBackingStoreEnabled)
+            m_useSQLiteMemoryBackingStore = true;
 
         RunLoop::mainSingleton().dispatch([protectedThis = WTF::move(protectedThis)] { });
     });
@@ -455,7 +454,7 @@ void NetworkStorageManager::prepareForEviction()
         if (!protectedThis || protectedThis->m_closed || !protectedThis->m_process)
             return;
 
-        protectedThis->protectedProcess()->registrableDomainsWithLastAccessedTime(protectedThis->m_sessionID, [weakThis = WTF::move(weakThis)](auto result) mutable {
+        protect(protectedThis->m_process)->registrableDomainsWithLastAccessedTime(protectedThis->m_sessionID, [weakThis = WTF::move(weakThis)](auto result) mutable {
             auto protectedThis = weakThis.get();
             if (!protectedThis || protectedThis->m_closed)
                 return;
@@ -705,7 +704,7 @@ void NetworkStorageManager::fetchRegistrableDomainsForPersist()
     if (!m_process)
         return didFetchRegistrableDomainsForPersist({ });
 
-    protectedProcess()->registrableDomainsExemptFromWebsiteDataDeletion(m_sessionID, [weakThis = ThreadSafeWeakPtr { *this }](HashSet<WebCore::RegistrableDomain>&& domains) mutable {
+    protect(m_process)->registrableDomainsExemptFromWebsiteDataDeletion(m_sessionID, [weakThis = ThreadSafeWeakPtr { *this }](HashSet<WebCore::RegistrableDomain>&& domains) mutable {
         if (RefPtr protectedThis = weakThis.get())
             protectedThis->didFetchRegistrableDomainsForPersist(std::forward<decltype(domains)>(domains));
     });
@@ -896,7 +895,7 @@ void NetworkStorageManager::fileSystemGetDirectory(IPC::Connection& connection, 
 {
     ASSERT(!RunLoop::isMain());
 
-    Ref fileSystemStorageManager = protect(originStorageManager(origin))->fileSystemStorageManager(*protectedFileSystemStorageHandleRegistry());
+    Ref fileSystemStorageManager = protect(originStorageManager(origin))->fileSystemStorageManager(*protect(m_fileSystemStorageHandleRegistry));
     auto result = fileSystemStorageManager->getDirectory(connection.uniqueID());
     if (result)
         completionHandler(std::optional { result.value() });
@@ -908,7 +907,7 @@ void NetworkStorageManager::closeHandle(WebCore::FileSystemHandleIdentifier iden
 {
     ASSERT(!RunLoop::isMain());
 
-    if (RefPtr handle = protectedFileSystemStorageHandleRegistry()->getHandle(identifier))
+    if (RefPtr handle = protect(m_fileSystemStorageHandleRegistry)->getHandle(identifier))
         handle->close();
 }
 
@@ -916,7 +915,7 @@ void NetworkStorageManager::isSameEntry(WebCore::FileSystemHandleIdentifier iden
 {
     ASSERT(!RunLoop::isMain());
 
-    RefPtr handle = protectedFileSystemStorageHandleRegistry()->getHandle(identifier);
+    RefPtr handle = protect(m_fileSystemStorageHandleRegistry)->getHandle(identifier);
     if (!handle)
         return completionHandler(false);
 
@@ -927,7 +926,7 @@ void NetworkStorageManager::move(WebCore::FileSystemHandleIdentifier identifier,
 {
     ASSERT(!RunLoop::isMain());
 
-    RefPtr handle = protectedFileSystemStorageHandleRegistry()->getHandle(identifier);
+    RefPtr handle = protect(m_fileSystemStorageHandleRegistry)->getHandle(identifier);
     if (!handle)
         return completionHandler(FileSystemStorageError::Unknown);
 
@@ -938,7 +937,7 @@ void NetworkStorageManager::getFileHandle(IPC::Connection& connection, WebCore::
 {
     ASSERT(!RunLoop::isMain());
 
-    RefPtr handle = protectedFileSystemStorageHandleRegistry()->getHandle(identifier);
+    RefPtr handle = protect(m_fileSystemStorageHandleRegistry)->getHandle(identifier);
     if (!handle)
         return completionHandler(makeUnexpected(FileSystemStorageError::Unknown));
 
@@ -949,7 +948,7 @@ void NetworkStorageManager::getDirectoryHandle(IPC::Connection& connection, WebC
 {
     ASSERT(!RunLoop::isMain());
 
-    RefPtr handle = protectedFileSystemStorageHandleRegistry()->getHandle(identifier);
+    RefPtr handle = protect(m_fileSystemStorageHandleRegistry)->getHandle(identifier);
     if (!handle)
         return completionHandler(makeUnexpected(FileSystemStorageError::Unknown));
 
@@ -960,7 +959,7 @@ void NetworkStorageManager::removeEntry(WebCore::FileSystemHandleIdentifier iden
 {
     ASSERT(!RunLoop::isMain());
 
-    RefPtr handle = protectedFileSystemStorageHandleRegistry()->getHandle(identifier);
+    RefPtr handle = protect(m_fileSystemStorageHandleRegistry)->getHandle(identifier);
     if (!handle)
         return completionHandler(FileSystemStorageError::Unknown);
 
@@ -971,7 +970,7 @@ void NetworkStorageManager::resolve(WebCore::FileSystemHandleIdentifier identifi
 {
     ASSERT(!RunLoop::isMain());
 
-    RefPtr handle = protectedFileSystemStorageHandleRegistry()->getHandle(identifier);
+    RefPtr handle = protect(m_fileSystemStorageHandleRegistry)->getHandle(identifier);
     if (!handle)
         return completionHandler(makeUnexpected(FileSystemStorageError::Unknown));
 
@@ -982,7 +981,7 @@ void NetworkStorageManager::getFile(WebCore::FileSystemHandleIdentifier identifi
 {
     ASSERT(!RunLoop::isMain());
 
-    RefPtr handle = protectedFileSystemStorageHandleRegistry()->getHandle(identifier);
+    RefPtr handle = protect(m_fileSystemStorageHandleRegistry)->getHandle(identifier);
     if (!handle)
         return completionHandler(makeUnexpected(FileSystemStorageError::Unknown));
 
@@ -993,7 +992,7 @@ void NetworkStorageManager::createSyncAccessHandle(WebCore::FileSystemHandleIden
 {
     ASSERT(!RunLoop::isMain());
 
-    RefPtr handle = protectedFileSystemStorageHandleRegistry()->getHandle(identifier);
+    RefPtr handle = protect(m_fileSystemStorageHandleRegistry)->getHandle(identifier);
     if (!handle)
         return completionHandler(makeUnexpected(FileSystemStorageError::Unknown));
 
@@ -1004,7 +1003,7 @@ void NetworkStorageManager::closeSyncAccessHandle(WebCore::FileSystemHandleIdent
 {
     ASSERT(!RunLoop::isMain());
 
-    if (RefPtr handle = protectedFileSystemStorageHandleRegistry()->getHandle(identifier))
+    if (RefPtr handle = protect(m_fileSystemStorageHandleRegistry)->getHandle(identifier))
         handle->closeSyncAccessHandle(accessHandleIdentifier);
 
     completionHandler();
@@ -1014,7 +1013,7 @@ void NetworkStorageManager::requestNewCapacityForSyncAccessHandle(WebCore::FileS
 {
     ASSERT(!RunLoop::isMain());
 
-    RefPtr handle = protectedFileSystemStorageHandleRegistry()->getHandle(identifier);
+    RefPtr handle = protect(m_fileSystemStorageHandleRegistry)->getHandle(identifier);
     if (!handle)
         return completionHandler(std::nullopt);
 
@@ -1025,7 +1024,7 @@ void NetworkStorageManager::createWritable(WebCore::FileSystemHandleIdentifier i
 {
     ASSERT(!RunLoop::isMain());
 
-    RefPtr handle = protectedFileSystemStorageHandleRegistry()->getHandle(identifier);
+    RefPtr handle = protect(m_fileSystemStorageHandleRegistry)->getHandle(identifier);
     if (!handle)
         return completionHandler(makeUnexpected(FileSystemStorageError::Unknown));
 
@@ -1036,7 +1035,7 @@ void NetworkStorageManager::closeWritable(WebCore::FileSystemHandleIdentifier id
 {
     ASSERT(!RunLoop::isMain());
 
-    RefPtr handle = protectedFileSystemStorageHandleRegistry()->getHandle(identifier);
+    RefPtr handle = protect(m_fileSystemStorageHandleRegistry)->getHandle(identifier);
     if (!handle)
         return completionHandler(FileSystemStorageError::Unknown);
 
@@ -1047,7 +1046,7 @@ void NetworkStorageManager::executeCommandForWritable(WebCore::FileSystemHandleI
 {
     ASSERT(!RunLoop::isMain());
 
-    RefPtr handle = protectedFileSystemStorageHandleRegistry()->getHandle(identifier);
+    RefPtr handle = protect(m_fileSystemStorageHandleRegistry)->getHandle(identifier);
     if (!handle)
         return completionHandler(FileSystemStorageError::Unknown);
 
@@ -1058,7 +1057,7 @@ void NetworkStorageManager::getHandleNames(WebCore::FileSystemHandleIdentifier i
 {
     ASSERT(!RunLoop::isMain());
 
-    RefPtr handle = protectedFileSystemStorageHandleRegistry()->getHandle(identifier);
+    RefPtr handle = protect(m_fileSystemStorageHandleRegistry)->getHandle(identifier);
     if (!handle)
         return completionHandler(makeUnexpected(FileSystemStorageError::Unknown));
 
@@ -1069,7 +1068,7 @@ void NetworkStorageManager::getHandle(IPC::Connection& connection, WebCore::File
 {
     ASSERT(!RunLoop::isMain());
 
-    RefPtr handle = protectedFileSystemStorageHandleRegistry()->getHandle(identifier);
+    RefPtr handle = protect(m_fileSystemStorageHandleRegistry)->getHandle(identifier);
     if (!handle)
         return completionHandler(makeUnexpected(FileSystemStorageError::Unknown));
 
@@ -1730,19 +1729,19 @@ void NetworkStorageManager::openDatabase(IPC::Connection& connection, const WebC
 {
     MESSAGE_CHECK(requestData.requestIdentifier().connectionIdentifier(), connection);
     Ref connectionToClient = m_idbStorageRegistry->ensureConnectionToClient(connection.uniqueID(), *requestData.requestIdentifier().connectionIdentifier());
-    protect(protect(originStorageManager(requestData.databaseIdentifier().origin()))->idbStorageManager(*m_idbStorageRegistry))->openDatabase(connectionToClient, requestData);
+    protect(protect(originStorageManager(requestData.databaseIdentifier().origin()))->idbStorageManager(*m_idbStorageRegistry, useSQLiteMemoryBackingStore()))->openDatabase(connectionToClient, requestData);
 }
 
 void NetworkStorageManager::openDBRequestCancelled(const WebCore::IDBOpenRequestData& requestData)
 {
-    protect(protect(originStorageManager(requestData.databaseIdentifier().origin()))->idbStorageManager(*m_idbStorageRegistry))->openDBRequestCancelled(requestData);
+    protect(protect(originStorageManager(requestData.databaseIdentifier().origin()))->idbStorageManager(*m_idbStorageRegistry, useSQLiteMemoryBackingStore()))->openDBRequestCancelled(requestData);
 }
 
 void NetworkStorageManager::deleteDatabase(IPC::Connection& connection, const WebCore::IDBOpenRequestData& requestData)
 {
     MESSAGE_CHECK(requestData.requestIdentifier().connectionIdentifier(), connection);
     Ref connectionToClient = m_idbStorageRegistry->ensureConnectionToClient(connection.uniqueID(), *requestData.requestIdentifier().connectionIdentifier());
-    protect(protect(originStorageManager(requestData.databaseIdentifier().origin()))->idbStorageManager(*m_idbStorageRegistry))->deleteDatabase(connectionToClient, requestData);
+    protect(protect(originStorageManager(requestData.databaseIdentifier().origin()))->idbStorageManager(*m_idbStorageRegistry, useSQLiteMemoryBackingStore()))->deleteDatabase(connectionToClient, requestData);
 }
 
 void NetworkStorageManager::establishTransaction(WebCore::IDBDatabaseConnectionIdentifier databaseConnectionIdentifier, const WebCore::IDBTransactionInfo& transactionInfo)
@@ -1770,7 +1769,7 @@ void NetworkStorageManager::databaseConnectionClosed(WebCore::IDBDatabaseConnect
     }
 
     if (databaseIdentifier.isValid())
-        protect(protect(originStorageManager(databaseIdentifier.origin()))->idbStorageManager(*m_idbStorageRegistry))->tryCloseDatabase(databaseIdentifier);
+        protect(protect(originStorageManager(databaseIdentifier.origin()))->idbStorageManager(*m_idbStorageRegistry, useSQLiteMemoryBackingStore()))->tryCloseDatabase(databaseIdentifier);
 }
 
 void NetworkStorageManager::abortOpenAndUpgradeNeeded(WebCore::IDBDatabaseConnectionIdentifier databaseConnectionIdentifier, const std::optional<WebCore::IDBResourceIdentifier>& transactionIdentifier)
@@ -1963,13 +1962,13 @@ void NetworkStorageManager::getAllDatabaseNamesAndVersions(IPC::Connection& conn
 {
     MESSAGE_CHECK(requestIdentifier.connectionIdentifier(), connection);
     Ref connectionToClient = m_idbStorageRegistry->ensureConnectionToClient(connection.uniqueID(), *requestIdentifier.connectionIdentifier());
-    auto result = protect(protect(originStorageManager(origin))->idbStorageManager(*m_idbStorageRegistry))->getAllDatabaseNamesAndVersions();
+    auto result = protect(protect(originStorageManager(origin))->idbStorageManager(*m_idbStorageRegistry, useSQLiteMemoryBackingStore()))->getAllDatabaseNamesAndVersions();
     connectionToClient->didGetAllDatabaseNamesAndVersions(requestIdentifier, WTF::move(result));
 }
 
 void NetworkStorageManager::cacheStorageOpenCache(const WebCore::ClientOrigin& origin, const String& cacheName, WebCore::DOMCacheEngine::CacheIdentifierCallback&& callback)
 {
-    protect(originStorageManager(origin))->protectedCacheStorageManager(*m_cacheStorageRegistry, origin, m_queue.copyRef())->openCache(cacheName, WTF::move(callback));
+    protect(protect(originStorageManager(origin))->cacheStorageManager(*m_cacheStorageRegistry, origin, m_queue.copyRef()))->openCache(cacheName, WTF::move(callback));
 }
 
 void NetworkStorageManager::cacheStorageRemoveCache(WebCore::DOMCacheIdentifier cacheIdentifier, WebCore::DOMCacheEngine::RemoveCacheIdentifierCallback&& callback)
@@ -1987,7 +1986,7 @@ void NetworkStorageManager::cacheStorageRemoveCache(WebCore::DOMCacheIdentifier 
 
 void NetworkStorageManager::cacheStorageAllCaches(const WebCore::ClientOrigin& origin, uint64_t updateCounter, WebCore::DOMCacheEngine::CacheInfosCallback&& callback)
 {
-    protect(originStorageManager(origin))->protectedCacheStorageManager(*m_cacheStorageRegistry, origin, m_queue.copyRef())->allCaches(updateCounter, WTF::move(callback));
+    protect(protect(originStorageManager(origin))->cacheStorageManager(*m_cacheStorageRegistry, origin, m_queue.copyRef()))->allCaches(updateCounter, WTF::move(callback));
 }
 
 void NetworkStorageManager::cacheStorageReference(IPC::Connection& connection, WebCore::DOMCacheIdentifier cacheIdentifier)
@@ -2018,7 +2017,7 @@ void NetworkStorageManager::cacheStorageDereference(IPC::Connection& connection,
 
 void NetworkStorageManager::lockCacheStorage(IPC::Connection& connection, const WebCore::ClientOrigin& origin)
 {
-    protect(originStorageManager(origin))->protectedCacheStorageManager(*m_cacheStorageRegistry, origin, m_queue.copyRef())->lockStorage(connection.uniqueID());
+    protect(protect(originStorageManager(origin))->cacheStorageManager(*m_cacheStorageRegistry, origin, m_queue.copyRef()))->lockStorage(connection.uniqueID());
 }
 
 void NetworkStorageManager::unlockCacheStorage(IPC::Connection& connection, const WebCore::ClientOrigin& origin)
@@ -2081,7 +2080,7 @@ void NetworkStorageManager::cacheStorageRepresentation(CompletionHandler<void(co
                 originStrings.append(makeString("\n{ \"origin\" : { \"topOrigin\" : \""_s,
                     origin.topOrigin.toString(), "\", \"clientOrigin\": \""_s,
                     origin.clientOrigin.toString(), "\" }, \"caches\" : "_s,
-                    originStorageManager->protectedCacheStorageManager(*m_cacheStorageRegistry, origin, m_queue.copyRef())->representationString(),
+                    protect(originStorageManager->cacheStorageManager(*m_cacheStorageRegistry, origin, m_queue.copyRef()))->representationString(),
                     '}'
                 ));
             }
@@ -2276,11 +2275,6 @@ bool NetworkStorageManager::shouldManageServiceWorkerRegistrationsByOrigin()
     return m_unifiedOriginStorageLevel >= UnifiedOriginStorageLevel::Standard;
 }
 
-RefPtr<FileSystemStorageHandleRegistry> NetworkStorageManager::protectedFileSystemStorageHandleRegistry()
-{
-    return m_fileSystemStorageHandleRegistry;
-}
-
 bool NetworkStorageManager::isStorageTypeEnabled(IPC::Connection& connection, WebCore::StorageType storageType) const
 {
     auto preferences = sharedPreferencesForWebProcess(connection);
@@ -2323,6 +2317,12 @@ std::optional<SharedPreferencesForWebProcess> NetworkStorageManager::sharedPrefe
         return std::nullopt;
 
     return iter->value;
+}
+
+bool NetworkStorageManager::useSQLiteMemoryBackingStore() const
+{
+    assertIsCurrent(workQueue());
+    return m_useSQLiteMemoryBackingStore;
 }
 
 void NetworkStorageManager::queryCacheStorage(WebCore::ClientOrigin&& origin, WebCore::RetrieveRecordsOptions&& options, String&& cacheName, CompletionHandler<void(std::optional<WebCore::DOMCacheEngine::Record>&&)>&& callback)

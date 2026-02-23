@@ -299,7 +299,7 @@ void LegacyRenderSVGRoot::paintReplaced(PaintInfo& paintInfo, const LayoutPoint&
 
     // Convert from container offsets (html renderers) to a relative transform (svg renderers).
     // Transform from our paint container's coordinate system to our local coords.
-    IntPoint adjustedPaintOffset = roundedIntPoint(paintOffset);
+    FloatPoint adjustedPaintOffset = roundPointToDevicePixels(paintOffset, document().deviceScaleFactor());
     auto transform = AffineTransform::makeTranslation(toFloatSize(adjustedPaintOffset)) * localToBorderBoxTransform();
     childPaintInfo.applyTransform(transform);
     if (paintInfo.phase == PaintPhase::EventRegion && childPaintInfo.eventRegionContext())

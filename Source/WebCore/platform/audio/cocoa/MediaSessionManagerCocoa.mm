@@ -464,6 +464,10 @@ void MediaSessionManagerCocoa::setNowPlayingInfo(bool setAsNowPlayingApplication
         CFDictionarySetValue(info.get(), kMRMediaRemoteNowPlayingInfoArtworkIdentifier, String::number(nowPlayingInfo.metadata.artwork->src.hash()).createCFString().get());
     }
 
+#if HAVE(AVEXPERIENCECONTROLLER)
+    CFDictionarySetValue(info.get(), kMRMediaRemoteNowPlayingInfoMediaType, nowPlayingInfo.isVideo ? kMRMediaRemoteNowPlayingInfoTypeVideo : kMRMediaRemoteNowPlayingInfoTypeAudio);
+#endif
+
     if (canLoad_MediaRemote_MRMediaRemoteSetParentApplication() && !nowPlayingInfo.metadata.sourceApplicationIdentifier.isEmpty())
         MRMediaRemoteSetParentApplication(MRMediaRemoteGetLocalOrigin(), nowPlayingInfo.metadata.sourceApplicationIdentifier.createCFString().get());
 

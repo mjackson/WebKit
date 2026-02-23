@@ -108,7 +108,7 @@ enum class LoadWillContinueInAnotherProcess : bool;
 enum class ShouldContinue;
 enum class ShouldTreatAsContinuingLoad : uint8_t;
 
-using ResourceLoaderMap = HashSet<RefPtr<ResourceLoader>>;
+using ResourceLoaderMap = HashSet<Ref<ResourceLoader>>;
 
 enum class AutoplayQuirk : uint8_t {
     SynthesizedPauseEvents = 1 << 0,
@@ -213,8 +213,8 @@ public:
 
     WEBCORE_EXPORT virtual void detachFromFrame(LoadWillContinueInAnotherProcess);
 
-    WEBCORE_EXPORT FrameLoader* frameLoader() const;
-    WEBCORE_EXPORT SubresourceLoader* mainResourceLoader() const;
+    WEBCORE_EXPORT FrameLoader* NODELETE frameLoader() const;
+    WEBCORE_EXPORT SubresourceLoader* NODELETE mainResourceLoader() const;
     WEBCORE_EXPORT RefPtr<FragmentedSharedBuffer> mainResourceData() const;
     
     DocumentWriter& writer() const { return m_writer; }
@@ -245,7 +245,7 @@ public:
     void stopLoading();
     void setCommitted(bool committed) { m_committed = committed; }
     bool isCommitted() const { return m_committed; }
-    WEBCORE_EXPORT bool isLoading() const;
+    WEBCORE_EXPORT bool NODELETE isLoading() const;
 
     const ResourceError& mainDocumentError() const { return m_mainDocumentError; }
 
@@ -259,7 +259,7 @@ public:
 
     bool isClientRedirect() const { return m_isClientRedirect; }
     void setIsClientRedirect(bool isClientRedirect) { m_isClientRedirect = isClientRedirect; }
-    void dispatchOnloadEvents();
+    void NODELETE dispatchOnloadEvents();
     bool wasOnloadDispatched() { return m_wasOnloadDispatched; }
     WEBCORE_EXPORT bool isLoadingInAPISense() const;
     WEBCORE_EXPORT void setTitle(const StringWithDirection&);
@@ -275,7 +275,7 @@ public:
     WEBCORE_EXPORT void addAllArchiveResources(Archive&);
     WEBCORE_EXPORT void addArchiveResource(Ref<ArchiveResource>&&);
     RefPtr<Archive> popArchiveForSubframe(const String& frameName, const URL&);
-    WEBCORE_EXPORT SharedBuffer* parsedArchiveData() const;
+    WEBCORE_EXPORT SharedBuffer* NODELETE parsedArchiveData() const;
 
     bool hasArchiveResourceCollection() const { return !!m_archiveResourceCollection; }
     WEBCORE_EXPORT bool scheduleArchiveLoad(ResourceLoader&, const ResourceRequest&);
@@ -408,11 +408,11 @@ public:
     void setModalContainerObservationPolicy(ModalContainerObservationPolicy policy) { m_modalContainerObservationPolicy = policy; }
 
     // FIXME: Why is this in a Loader?
-    WEBCORE_EXPORT ColorSchemePreference colorSchemePreference() const;
+    WEBCORE_EXPORT ColorSchemePreference NODELETE colorSchemePreference() const;
     void setColorSchemePreference(ColorSchemePreference preference) { m_colorSchemePreference = preference; }
 
     HTTPSByDefaultMode httpsByDefaultMode() { return m_httpsByDefaultMode; }
-    WEBCORE_EXPORT void setHTTPSByDefaultMode(HTTPSByDefaultMode);
+    WEBCORE_EXPORT void NODELETE setHTTPSByDefaultMode(HTTPSByDefaultMode);
 
     PushAndNotificationsEnabledPolicy pushAndNotificationsEnabledPolicy() const { return m_pushAndNotificationsEnabledPolicy; }
     void setPushAndNotificationsEnabledPolicy(PushAndNotificationsEnabledPolicy policy) { m_pushAndNotificationsEnabledPolicy = policy; }
@@ -425,7 +425,7 @@ public:
         String overrideReferrerForAllRequests;
     };
     const WebpagePreferences& preferences() const { return m_preferences; }
-    WEBCORE_EXPORT void setPreferences(WebpagePreferences&&);
+    WEBCORE_EXPORT void NODELETE setPreferences(WebpagePreferences&&);
 
     void addSubresourceLoader(SubresourceLoader&);
     void removeSubresourceLoader(LoadCompletionType, SubresourceLoader&);
@@ -455,7 +455,7 @@ public:
 
 #if USE(QUICK_LOOK)
     void setPreviewConverter(RefPtr<PreviewConverter>&&);
-    PreviewConverter* previewConverter() const;
+    PreviewConverter* NODELETE previewConverter() const;
 #endif
 
 #if ENABLE(CONTENT_EXTENSIONS)
@@ -540,7 +540,7 @@ public:
 #endif
 
     std::optional<NavigationIdentifier> navigationID() const { return m_navigationID.asOptional(); }
-    WEBCORE_EXPORT void setNavigationID(NavigationIdentifier);
+    WEBCORE_EXPORT void NODELETE setNavigationID(NavigationIdentifier);
 
     bool isInitialAboutBlank() const { return m_isInitialAboutBlank; }
 
@@ -559,7 +559,7 @@ protected:
     WEBCORE_EXPORT virtual void attachToFrame();
 
 private:
-    Document* document() const;
+    Document* NODELETE document() const;
 
     void matchRegistration(const URL&, CompletionHandler<void(std::optional<ServiceWorkerRegistrationData>&&)>&&);
     void unregisterReservedServiceWorkerClient();

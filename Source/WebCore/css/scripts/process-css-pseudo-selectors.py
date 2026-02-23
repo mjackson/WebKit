@@ -38,7 +38,7 @@ COMMON_KNOWN_KEY_TYPES = {
     'argument': [str],
     'comment': [str],
     'conditional': [str],
-    'settings-flag': [str],
+    'settings-flag': [str, list],
     'status': [str],
 }
 
@@ -629,10 +629,12 @@ class CSSSelectorInlinesGenerator:
     def format_enablement_condition(self, settings_flag, is_internal):
         conditions = []
         if settings_flag is not None:
-            if settings_flag.startswith('DeprecatedGlobalSettings::'):
-                conditions.append(f'{settings_flag}()')
-            else:
-                conditions.append(f'context.{settings_flag}')
+            flags = settings_flag if isinstance(settings_flag, list) else [settings_flag]
+            for flag in flags:
+                if flag.startswith('DeprecatedGlobalSettings::'):
+                    conditions.append(f'{flag}()')
+                else:
+                    conditions.append(f'context.{flag}')
 
         if is_internal:
             conditions.append('isUASheetBehavior(context.mode)')

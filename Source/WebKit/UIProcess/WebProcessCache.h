@@ -65,8 +65,8 @@ public:
 
     enum class ShouldShutDownProcess : bool { No, Yes };
     void removeProcess(WebProcessProxy&, ShouldShutDownProcess);
-    static void setCachedProcessSuspensionDelayForTesting(Seconds);
-    void setCachedProcessLifetimeForTesting(Seconds);
+    static void NODELETE setCachedProcessSuspensionDelayForTesting(Seconds);
+    void NODELETE setCachedProcessLifetimeForTesting(Seconds);
 
     void ref() const final;
     void deref() const final;

@@ -116,7 +116,7 @@ public:
         return source;
     }
 
-    void ref() const final { RefCounted::ref(); }
+    void NODELETE ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
 
 private:
@@ -173,8 +173,8 @@ private:
     }
 
     // ReadableStreamSource
-    void setActive() final { };
-    void setInactive() final { };
+    void NODELETE setActive() final { };
+    void NODELETE setInactive() final { };
 
     void doStart() final { startFinished(); }
     void doPull() final

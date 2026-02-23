@@ -64,7 +64,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(ColorInputType);
 using namespace HTMLNames;
 
 // https://html.spec.whatwg.org/multipage/infrastructure.html#valid-simple-colour
-static bool isValidSimpleColor(StringView string)
+static bool NODELETE isValidSimpleColor(StringView string)
 {
     if (string.length() != 7)
         return false;
@@ -78,7 +78,7 @@ static bool isValidSimpleColor(StringView string)
 }
 
 // https://html.spec.whatwg.org/multipage/common-microsyntaxes.html#rules-for-parsing-simple-colour-values
-static std::optional<SRGBA<uint8_t>> parseSimpleColorValue(StringView string)
+static std::optional<SRGBA<uint8_t>> NODELETE parseSimpleColorValue(StringView string)
 {
     if (!isValidSimpleColor(string))
         return std::nullopt;

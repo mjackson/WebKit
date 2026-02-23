@@ -57,7 +57,7 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
-template<typename ElementType> static void complete4Sides(std::array<ElementType, 4>& sides)
+template<typename ElementType> static void NODELETE complete4Sides(std::array<ElementType, 4>& sides)
 {
     if (!sides[1])
         sides[1] = sides[0];

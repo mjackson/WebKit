@@ -65,7 +65,7 @@ public:
 
     bool hasValues(size_t startFrame, double sampleRate) const;
 
-    WEBCORE_EXPORT static float exponentialRampAtTime(Seconds t, float value1, Seconds time1, float value2, Seconds time2);
+    WEBCORE_EXPORT static float NODELETE exponentialRampAtTime(Seconds t, float value1, Seconds time1, float value2, Seconds time2);
 private:
     class ParamEvent {
         WTF_MAKE_TZONE_ALLOCATED(ParamEvent);

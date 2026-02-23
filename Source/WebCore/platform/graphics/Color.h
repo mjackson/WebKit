@@ -56,12 +56,6 @@ WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 #endif
 
-#if USE(CG)
-typedef struct CGColor* CGColorRef;
-extern "C" CFTypeID CGColorGetTypeID();
-WTF_DECLARE_CF_TYPE_TRAIT(CGColor);
-#endif
-
 namespace WebCore {
 
 struct OutOfLineColorDataForIPC {

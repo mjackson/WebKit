@@ -217,7 +217,16 @@
     { "name": "ews264", "platform": "mac-sequoia" },
     { "name": "ews265", "platform": "mac-sequoia" },
     { "name": "ews266", "platform": "mac-sequoia" },
-    { "name": "ews2000", "platform": "mac-tahoe" },
+    { "name": "ews2000", "platform": "ios-26" },
+    { "name": "ews2001", "platform": "ios-26" },
+    { "name": "ews2002", "platform": "ios-26" },
+    { "name": "ews2003", "platform": "ios-26" },
+    { "name": "ews2004", "platform": "ios-26" },
+    { "name": "ews2006", "platform": "ios-26" },
+    { "name": "ews2007", "platform": "ios-26" },
+    { "name": "ews2008", "platform": "ios-26" },
+    { "name": "ews2009", "platform": "ios-26" },
+    { "name": "ews2010", "platform": "ios-26" },
     { "name": "webkit-cq-01", "platform": "mac-sequoia" },
     { "name": "webkit-cq-02", "platform": "mac-sequoia" },
     { "name": "webkit-cq-03", "platform": "mac-sequoia" },
@@ -229,7 +238,7 @@
     {
       "name": "Style-EWS", "shortname": "style", "icon": "testOnly",
       "factory": "StyleFactory", "platform": "*",
-      "workernames": ["ews2000", "ews151", "ews253", "webkit-misc"]
+      "workernames": ["ews151", "ews253", "webkit-misc"]
     },
     {
       "name": "GTK-Build-EWS", "shortname": "gtk", "icon": "buildOnly",
@@ -336,6 +345,12 @@
       "factory": "SaferCPPStaticAnalyzerFactory", "platform": "mac-sequoia",
       "configuration": "release", "architectures": ["arm64"],
       "workernames": ["ews237", "ews246", "ews247", "ews248", "ews249", "ews250", "ews260", "ews261", "ews262", "ews263", "ews264"]
+    },
+    {
+      "name": "Apple-iOS-26-Safer-CPP-Checks-EWS", "shortname": "ios-safer-cpp", "icon": "buildOnly",
+      "factory": "SaferCPPStaticAnalyzerFactory", "platform": "ios-26",
+      "configuration": "release", "architectures": ["arm64"],
+      "workernames": ["ews2000", "ews2001", "ews2002", "ews2003", "ews2004", "ews2006", "ews2007", "ews2008", "ews2009", "ews2010"]
     },
     {
       "name": "watchOS-26-Build-EWS", "shortname": "watch", "icon": "buildOnly",
@@ -450,17 +465,17 @@
     {
       "name": "Bindings-Tests-EWS", "shortname": "bindings", "icon": "testOnly",
       "factory": "BindingsFactory", "platform": "*",
-      "workernames": ["ews2000", "ews151", "ews253", "webkit-misc"]
+      "workernames": ["ews151", "ews253", "webkit-misc"]
     },
     {
       "name": "WebKitPy-Tests-EWS", "shortname": "webkitpy", "icon": "testOnly",
       "factory": "WebKitPyFactory", "platform": "*",
-      "workernames": ["ews2000", "ews151", "ews253", "webkit-misc"]
+      "workernames": ["ews151", "ews253", "webkit-misc"]
     },
     {
       "name": "WebKitPerl-Tests-EWS", "shortname": "webkitperl", "icon": "testOnly",
       "factory": "WebKitPerlFactory", "platform": "*",
-      "workernames": ["ews2000", "ews151", "ews253", "webkit-misc"]
+      "workernames": ["ews151", "ews253", "webkit-misc"]
     },
     {
       "name": "API-Tests-iOS-Simulator-EWS", "shortname": "api-ios", "icon": "testOnly",
@@ -492,7 +507,7 @@
     {
       "name": "Services-EWS", "shortname": "services", "icon": "testOnly",
       "factory": "ServicesFactory", "platform": "*",
-      "workernames": ["ews2000", "ews151", "ews253", "webkit-misc"]
+      "workernames": ["ews151", "ews253", "webkit-misc"]
     },
     {
       "name": "Commit-Queue", "shortname": "commit", "icon": "buildAndTest",
@@ -524,7 +539,7 @@
       "builderNames": [
             "Bindings-Tests-EWS", "GTK-Build-EWS", "iOS-26-Build-EWS", "iOS-26-Simulator-Build-EWS",
             "JSC-ARMv7-32bits-Build-EWS", "JSC-Tests-EWS", "JSC-Tests-O3-Debug-arm64-EWS",
-            "macOS-Tahoe-Debug-Build-EWS", "macOS-Sequoia-Release-Build-EWS", "macOS-Safer-CPP-Checks-EWS",
+            "macOS-Tahoe-Debug-Build-EWS", "macOS-Sequoia-Release-Build-EWS", "macOS-Safer-CPP-Checks-EWS", "Apple-iOS-26-Safer-CPP-Checks-EWS",
             "Services-EWS", "Style-EWS", "tvOS-26-Build-EWS", "tvOS-26-Simulator-Build-EWS", "visionOS-26-Build-EWS", "visionOS-26-Simulator-Build-EWS",
             "watchOS-26-Build-EWS", "watchOS-26-Simulator-Build-EWS", "WPE-Build-EWS", "WebKitPerl-Tests-EWS", "WebKitPy-Tests-EWS", "PlayStation-Build-EWS", "Win-Build-EWS",
             "GTK-GTK3-LibWebRTC-Build-EWS"
@@ -539,7 +554,7 @@
       "builderNames": [
             "Bindings-Tests-EWS", "GTK-Build-EWS", "iOS-26-Build-EWS", "iOS-26-Simulator-Build-EWS",
             "JSC-ARMv7-32bits-Build-EWS", "JSC-Tests-EWS", "JSC-Tests-O3-Debug-arm64-EWS",
-            "macOS-Tahoe-Debug-Build-EWS", "macOS-Sequoia-Release-Build-EWS", "macOS-Safer-CPP-Checks-EWS",
+            "macOS-Tahoe-Debug-Build-EWS", "macOS-Sequoia-Release-Build-EWS", "macOS-Safer-CPP-Checks-EWS", "Apple-iOS-26-Safer-CPP-Checks-EWS",
             "Services-EWS", "Style-EWS", "Style-EWS", "tvOS-26-Build-EWS", "tvOS-26-Simulator-Build-EWS", "visionOS-26-Build-EWS", "visionOS-26-Simulator-Build-EWS",
             "watchOS-26-Build-EWS", "watchOS-26-Simulator-Build-EWS", "WPE-Build-EWS", "WebKitPerl-Tests-EWS", "WebKitPy-Tests-EWS", "PlayStation-Build-EWS", "Win-Build-EWS",
             "GTK-GTK3-LibWebRTC-Build-EWS"

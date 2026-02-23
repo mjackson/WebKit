@@ -61,7 +61,7 @@ public:
 
 private:
     FormState(HTMLFormElement&, StringPairVector&& textFieldValues, Document&, FormSubmissionTrigger, HTMLFormControlElement* submitter);
-    void willDetachPage() override;
+    void NODELETE willDetachPage() override;
 
     const Ref<HTMLFormElement> m_form;
     StringPairVector m_textFieldValues;

@@ -67,7 +67,7 @@ void MediaKeySystemPermissionRequestManager::startMediaKeySystemRequest(MediaKey
         return;
     }
 
-    auto& pendingRequests = m_pendingMediaKeySystemRequests.add(document.get(), Vector<Ref<MediaKeySystemRequest>>()).iterator->value;
+    auto& pendingRequests = m_pendingMediaKeySystemRequests.add(*document, Vector<Ref<MediaKeySystemRequest>>()).iterator->value;
     if (pendingRequests.isEmpty())
         document->addMediaCanStartListener(*this);
     pendingRequests.append(request);
@@ -104,7 +104,7 @@ void MediaKeySystemPermissionRequestManager::cancelMediaKeySystemRequest(MediaKe
     if (!document)
         return;
 
-    auto iterator = m_pendingMediaKeySystemRequests.find(document.get());
+    auto iterator = m_pendingMediaKeySystemRequests.find(*document);
     if (iterator == m_pendingMediaKeySystemRequests.end())
         return;
 
@@ -124,7 +124,7 @@ void MediaKeySystemPermissionRequestManager::mediaCanStart(Document& document)
 {
     ASSERT(document.page()->canStartMedia());
 
-    auto pendingRequests = m_pendingMediaKeySystemRequests.take(&document);
+    auto pendingRequests = m_pendingMediaKeySystemRequests.take(document);
     for (auto& pendingRequest : pendingRequests)
         sendMediaKeySystemRequest(pendingRequest);
 }

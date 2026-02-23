@@ -40,11 +40,11 @@ public:
     static ExceptionOr<Ref<WebTransportDatagramsWritable>> create(ScriptExecutionContext&, RefPtr<WebTransport>&&, WebTransportSendOptions&&);
     ~WebTransportDatagramsWritable();
 
-    const RefPtr<WebTransportSendGroup>& sendGroup();
-    void setSendGroup(WebTransportSendGroup*);
+    const RefPtr<WebTransportSendGroup>& NODELETE sendGroup();
+    void NODELETE setSendGroup(WebTransportSendGroup*);
 
-    int64_t sendOrder();
-    void setSendOrder(int64_t);
+    int64_t NODELETE sendOrder();
+    void NODELETE setSendOrder(int64_t);
 
 private:
     WebTransportDatagramsWritable(Ref<InternalWritableStream>&&, WebTransportSendOptions&&);

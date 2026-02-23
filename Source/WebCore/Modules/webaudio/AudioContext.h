@@ -61,7 +61,7 @@ public:
     void ref() const final { ThreadSafeRefCounted::ref(); }
     void deref() const final { ThreadSafeRefCounted::deref(); }
 
-    WEBCORE_EXPORT static void setDefaultSampleRateForTesting(std::optional<float>);
+    WEBCORE_EXPORT static void NODELETE setDefaultSampleRateForTesting(std::optional<float>);
 
     void close(DOMPromiseDeferred<void>&&);
 
@@ -147,7 +147,7 @@ private:
     std::optional<MediaSessionGroupIdentifier> mediaSessionGroupIdentifier() const final;
     bool shouldOverrideBackgroundPlaybackRestriction(PlatformMediaSession::InterruptionType) const final;
     bool isSuspended() const final;
-    bool isPlaying() const final;
+    bool NODELETE isPlaying() const final;
     bool isAudible() const final;
     bool isNowPlayingEligible() const final;
     std::optional<NowPlayingInfo> nowPlayingInfo() const final;
@@ -159,7 +159,7 @@ private:
     // ActiveDOMObject
     void suspend(ReasonForSuspension) final;
     void resume() final;
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
 
     const UniqueRef<DefaultAudioDestinationNode> m_destinationNode;
     const Ref<PlatformMediaSession> m_mediaSession;

@@ -50,7 +50,7 @@ public:
     void deref() const final { RefCounted::deref(); }
     USING_CAN_MAKE_WEAKPTR(EventTarget);
 
-    virtual unsigned length() const;
+    virtual unsigned NODELETE length() const;
     virtual bool contains(TrackBase&) const;
     virtual bool contains(TrackID) const;
     virtual void remove(TrackBase&, bool scheduleEvent = true);

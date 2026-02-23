@@ -47,24 +47,24 @@ RemoteShaderModule::RemoteShaderModule(WebCore::WebGPU::ShaderModule& shaderModu
     , m_gpu(gpu)
     , m_identifier(identifier)
 {
-    protectedStreamConnection()->startReceivingMessages(*this, Messages::RemoteShaderModule::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->startReceivingMessages(*this, Messages::RemoteShaderModule::messageReceiverName(), m_identifier.toUInt64());
 }
 
 RemoteShaderModule::~RemoteShaderModule() = default;
 
 void RemoteShaderModule::destruct()
 {
-    protectedObjectHeap()->removeObject(m_identifier);
+    protect(m_objectHeap)->removeObject(m_identifier);
 }
 
 void RemoteShaderModule::stopListeningForIPC()
 {
-    protectedStreamConnection()->stopReceivingMessages(Messages::RemoteShaderModule::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->stopReceivingMessages(Messages::RemoteShaderModule::messageReceiverName(), m_identifier.toUInt64());
 }
 
 void RemoteShaderModule::compilationInfo(CompletionHandler<void(Vector<WebGPU::CompilationMessage>&&)>&& callback)
 {
-    protectedBacking()->compilationInfo([callback = WTF::move(callback)] (Ref<WebCore::WebGPU::CompilationInfo>&& compilationMessage) mutable {
+    protect(m_backing)->compilationInfo([callback = WTF::move(callback)] (Ref<WebCore::WebGPU::CompilationInfo>&& compilationMessage) mutable {
         auto convertedMessages = compilationMessage->messages().map([] (const Ref<WebCore::WebGPU::CompilationMessage>& message) {
             return WebGPU::CompilationMessage {
                 message->message(),
@@ -81,17 +81,7 @@ void RemoteShaderModule::compilationInfo(CompletionHandler<void(Vector<WebGPU::C
 
 void RemoteShaderModule::setLabel(String&& label)
 {
-    protectedBacking()->setLabel(WTF::move(label));
-}
-
-Ref<WebCore::WebGPU::ShaderModule> RemoteShaderModule::protectedBacking()
-{
-    return m_backing;
-}
-
-Ref<IPC::StreamServerConnection> RemoteShaderModule::protectedStreamConnection() const
-{
-    return m_streamConnection;
+    protect(m_backing)->setLabel(WTF::move(label));
 }
 
 } // namespace WebKit

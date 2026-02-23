@@ -48,7 +48,7 @@ static void visitNodeList(JSC::AbstractSlotVisitor& visitor, NodeList& nodeList)
     ASSERT(!nodeList.isLiveNodeList());
     unsigned length = nodeList.length();
     for (unsigned i = 0; i < length; ++i) {
-        // We cannot ref the item here as this function may get called from the GC thread.
+        // We cannot ref the item here as this function may get called from a GC thread.
         SUPPRESS_UNRETAINED_ARG addWebCoreOpaqueRoot(visitor, nodeList.item(i));
     }
 }
@@ -75,9 +75,9 @@ private:
     void visitNodesConcurrently(JSC::AbstractSlotVisitor& visitor) const final
     {
         addWebCoreOpaqueRoot(visitor, m_target.get());
-        // We cannot ref m_addedNodes here as this function may get called from the GC thread.
+        // We cannot ref m_addedNodes here as this function may get called from a GC thread.
         SUPPRESS_UNRETAINED_ARG visitNodeList(visitor, m_addedNodes.get());
-        // We cannot ref m_removedNodes here as this function may get called from the GC thread.
+        // We cannot ref m_removedNodes here as this function may get called from a GC thread.
         SUPPRESS_UNRETAINED_ARG visitNodeList(visitor, m_removedNodes.get());
     }
     

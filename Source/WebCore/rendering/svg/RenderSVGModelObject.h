@@ -118,7 +118,7 @@ protected:
     mutable std::optional<LayoutRect> m_cachedVisualOverflowRect;
 
 private:
-    LayoutSize cachedSizeForOverflowClip() const;
+    LayoutSize NODELETE cachedSizeForOverflowClip() const;
 
     LayoutRect m_layoutRect;
 };

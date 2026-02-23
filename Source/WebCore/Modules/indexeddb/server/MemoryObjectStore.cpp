@@ -516,12 +516,12 @@ MemoryObjectStoreCursor* MemoryObjectStore::maybeOpenCursor(const IDBCursorInfo&
     if (transaction.isWriting() && m_writeTransaction != &transaction)
         return nullptr;
 
-    auto result = m_cursors.add(info.identifier(), nullptr);
+    auto result = m_cursors.ensure(info.identifier(), [&] {
+        return MemoryObjectStoreCursor::create(*this, info, transaction);
+    });
     if (!result.isNewEntry)
         return nullptr;
-
-    result.iterator->value = MemoryObjectStoreCursor::create(*this, info, transaction);
-    return result.iterator->value.get();
+    return result.iterator->value.ptr();
 }
 
 void MemoryObjectStore::renameIndex(MemoryIndex& index, const String& newName)

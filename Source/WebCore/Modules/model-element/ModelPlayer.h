@@ -63,17 +63,17 @@ public:
     virtual ~ModelPlayer();
 
     virtual ModelPlayerIdentifier identifier() const = 0;
-    virtual bool isPlaceholder() const;
+    virtual bool NODELETE isPlaceholder() const;
 
     // Loading.
     virtual void load(Model&, LayoutSize) = 0;
-    virtual void reload(Model&, LayoutSize, ModelPlayerAnimationState&, std::unique_ptr<ModelPlayerTransformState>&&);
+    virtual void NODELETE reload(Model&, LayoutSize, ModelPlayerAnimationState&, std::unique_ptr<ModelPlayerTransformState>&&);
 
     // Graphics.
     virtual void configureGraphicsLayer(GraphicsLayer&, ModelPlayerGraphicsLayerConfiguration&&) = 0;
 
     // State changes.
-    virtual void visibilityStateDidChange();
+    virtual void NODELETE visibilityStateDidChange();
     virtual void sizeDidChange(LayoutSize) = 0;
 
     // State accessors.
@@ -95,9 +95,9 @@ public:
     virtual void enterFullscreen() = 0;
 
     // Interaction.
-    virtual bool supportsMouseInteraction();
-    virtual bool supportsDragging();
-    virtual void setInteractionEnabled(bool);
+    virtual bool NODELETE supportsMouseInteraction();
+    virtual bool NODELETE supportsDragging();
+    virtual void NODELETE setInteractionEnabled(bool);
     virtual void handleMouseDown(const LayoutPoint&, MonotonicTime) = 0;
     virtual void handleMouseMove(const LayoutPoint&, MonotonicTime) = 0;
     virtual void handleMouseUp(const LayoutPoint&, MonotonicTime) = 0;

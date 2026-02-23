@@ -162,21 +162,21 @@ public:
         requires (std::is_invocable_r_v<bool, CodeUnitMatchFunction, char16_t>)
     size_t find(CodeUnitMatchFunction&&, unsigned start = 0) const;
     ALWAYS_INLINE size_t find(ASCIILiteral literal, unsigned start = 0) const { return find(literal.span8(), start); }
-    WTF_EXPORT_PRIVATE size_t find(StringView, unsigned start = 0) const;
-    WTF_EXPORT_PRIVATE size_t find(AdaptiveStringSearcherTables&, StringView, unsigned start = 0) const;
+    WTF_EXPORT_PRIVATE size_t NODELETE find(StringView, unsigned start = 0) const;
+    WTF_EXPORT_PRIVATE size_t NODELETE find(AdaptiveStringSearcherTables&, StringView, unsigned start = 0) const;
 
     size_t reverseFind(char16_t, unsigned index = std::numeric_limits<unsigned>::max()) const;
     ALWAYS_INLINE size_t reverseFind(ASCIILiteral literal, unsigned start = std::numeric_limits<unsigned>::max()) const { return reverseFind(literal.span8(), start); }
-    WTF_EXPORT_PRIVATE size_t reverseFind(StringView, unsigned start = std::numeric_limits<unsigned>::max()) const;
+    WTF_EXPORT_PRIVATE size_t NODELETE reverseFind(StringView, unsigned start = std::numeric_limits<unsigned>::max()) const;
 
-    WTF_EXPORT_PRIVATE size_t findIgnoringASCIICase(StringView) const;
-    WTF_EXPORT_PRIVATE size_t findIgnoringASCIICase(StringView, unsigned start) const;
+    WTF_EXPORT_PRIVATE size_t NODELETE findIgnoringASCIICase(StringView) const;
+    WTF_EXPORT_PRIVATE size_t NODELETE findIgnoringASCIICase(StringView, unsigned start) const;
 
     WTF_EXPORT_PRIVATE String convertToASCIILowercase() const;
     WTF_EXPORT_PRIVATE String convertToASCIIUppercase() const;
     WTF_EXPORT_PRIVATE AtomString convertToASCIILowercaseAtom() const;
 
-    WTF_EXPORT_PRIVATE std::optional<char32_t> convertToSingleCodePoint() const;
+    WTF_EXPORT_PRIVATE std::optional<char32_t> NODELETE convertToSingleCodePoint() const;
 
     bool contains(char16_t) const;
     template<typename CodeUnitMatchFunction>
@@ -185,20 +185,20 @@ public:
     bool contains(ASCIILiteral literal) const { return find(literal) != notFound; }
     bool contains(StringView string) const { return find(string) != notFound; }
 
-    WTF_EXPORT_PRIVATE bool containsIgnoringASCIICase(StringView) const;
-    WTF_EXPORT_PRIVATE bool containsIgnoringASCIICase(StringView, unsigned start) const;
+    WTF_EXPORT_PRIVATE bool NODELETE containsIgnoringASCIICase(StringView) const;
+    WTF_EXPORT_PRIVATE bool NODELETE containsIgnoringASCIICase(StringView, unsigned start) const;
 
     template<bool isSpecialCharacter(char16_t)> bool containsOnly() const;
 
-    WTF_EXPORT_PRIVATE bool startsWith(char16_t) const;
-    WTF_EXPORT_PRIVATE bool startsWith(StringView) const;
-    WTF_EXPORT_PRIVATE bool startsWithIgnoringASCIICase(StringView) const;
-    WTF_EXPORT_PRIVATE bool hasInfixStartingAt(StringView prefix, unsigned start) const;
+    WTF_EXPORT_PRIVATE bool NODELETE startsWith(char16_t) const;
+    WTF_EXPORT_PRIVATE bool NODELETE startsWith(StringView) const;
+    WTF_EXPORT_PRIVATE bool NODELETE startsWithIgnoringASCIICase(StringView) const;
+    WTF_EXPORT_PRIVATE bool NODELETE hasInfixStartingAt(StringView prefix, unsigned start) const;
 
-    WTF_EXPORT_PRIVATE bool endsWith(char16_t) const;
-    WTF_EXPORT_PRIVATE bool endsWith(StringView) const;
-    WTF_EXPORT_PRIVATE bool endsWithIgnoringASCIICase(StringView) const;
-    WTF_EXPORT_PRIVATE bool hasInfixEndingAt(StringView suffix, unsigned end) const;
+    WTF_EXPORT_PRIVATE bool NODELETE endsWith(char16_t) const;
+    WTF_EXPORT_PRIVATE bool NODELETE endsWith(StringView) const;
+    WTF_EXPORT_PRIVATE bool NODELETE endsWithIgnoringASCIICase(StringView) const;
+    WTF_EXPORT_PRIVATE bool NODELETE hasInfixEndingAt(StringView suffix, unsigned end) const;
 
     float toFloat(bool& isValid) const;
     double toDouble(bool& isValid) const;
@@ -217,20 +217,20 @@ private:
 
     friend bool equal(StringView, StringView);
     friend bool equal(StringView, StringView, unsigned length);
-    friend WTF_EXPORT_PRIVATE bool equalRespectingNullity(StringView, StringView);
+    friend WTF_EXPORT_PRIVATE bool NODELETE equalRespectingNullity(StringView, StringView);
     friend size_t findCommon(StringView haystack, StringView needle, unsigned start);
 
     void initialize(std::span<const Latin1Character>);
     void initialize(std::span<const char16_t>);
 
-    WTF_EXPORT_PRIVATE size_t find(std::span<const Latin1Character> match, unsigned start) const;
-    WTF_EXPORT_PRIVATE size_t reverseFind(std::span<const Latin1Character> match, unsigned start) const;
+    WTF_EXPORT_PRIVATE size_t NODELETE find(std::span<const Latin1Character> match, unsigned start) const;
+    WTF_EXPORT_PRIVATE size_t NODELETE reverseFind(std::span<const Latin1Character> match, unsigned start) const;
 
     template<typename CharacterType, typename MatchedCharacterPredicate>
     StringView trim(std::span<const CharacterType>, const MatchedCharacterPredicate&) const;
 
-    WTF_EXPORT_PRIVATE bool underlyingStringIsValidImpl() const;
-    WTF_EXPORT_PRIVATE void setUnderlyingStringImpl(const StringImpl*);
+    WTF_EXPORT_PRIVATE bool NODELETE underlyingStringIsValidImpl() const;
+    WTF_EXPORT_PRIVATE void NODELETE setUnderlyingStringImpl(const StringImpl*);
     WTF_EXPORT_PRIVATE void setUnderlyingStringImpl(const StringView&);
 
 #if CHECK_STRINGVIEW_LIFETIME
@@ -263,7 +263,7 @@ bool equal(StringView, std::span<const Latin1Character>);
 bool equalIgnoringASCIICase(StringView, StringView);
 bool equalIgnoringASCIICase(StringView, ASCIILiteral);
 
-WTF_EXPORT_PRIVATE bool equalRespectingNullity(StringView, StringView);
+WTF_EXPORT_PRIVATE bool NODELETE equalRespectingNullity(StringView, StringView);
 bool equalIgnoringNullity(StringView, StringView);
 
 bool equalLettersIgnoringASCIICase(StringView, ASCIILiteral);
@@ -1287,7 +1287,7 @@ inline bool startsWith(StringView reference, StringView prefix)
     return equal(reference.span16().data(), prefix.span16());
 }
 
-inline bool startsWithIgnoringASCIICase(StringView reference, StringView prefix)
+inline bool NODELETE startsWithIgnoringASCIICase(StringView reference, StringView prefix)
 {
     if (prefix.length() > reference.length())
         return false;
@@ -1321,7 +1321,7 @@ inline bool endsWith(StringView reference, StringView suffix)
     return equal(reference.span16().subspan(startOffset).data(), suffix.span16());
 }
 
-inline bool endsWithIgnoringASCIICase(StringView reference, StringView suffix)
+inline bool NODELETE endsWithIgnoringASCIICase(StringView reference, StringView suffix)
 {
     unsigned suffixLength = suffix.length();
     unsigned referenceLength = reference.length();

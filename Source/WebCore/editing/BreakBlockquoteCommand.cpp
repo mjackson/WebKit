@@ -80,7 +80,7 @@ void BreakBlockquoteCommand::doApply()
         if (!containerNode || !containerNode->renderStyle())
             return lineBreak;
 
-        auto* parentStyle = topBlockquote->parentNode()->renderStyle();
+        CheckedPtr parentStyle = topBlockquote->parentNode()->renderStyle();
         if (!parentStyle)
             return lineBreak;
 
@@ -170,7 +170,7 @@ void BreakBlockquoteCommand::doApply()
             while (listChildNode && !listChildNode->hasTagName(liTag))
                 listChildNode = listChildNode->nextSibling();
             if (listChildNode) {
-                if (auto* listItemRenderer = dynamicDowncast<RenderListItem>(listChildNode->renderer()))
+                if (CheckedPtr listItemRenderer = dynamicDowncast<RenderListItem>(listChildNode->renderer()))
                     setNodeAttribute(clonedChild, startAttr, AtomString::number(listItemRenderer->value()));
             }
         }

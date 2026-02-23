@@ -1235,7 +1235,7 @@ Ref<BindGroup> Device::createBindGroup(const WGPUBindGroupDescriptor& descriptor
                 if (stage != ShaderStage::Undefined) {
                     argumentIndices[stage].remove(index);
                     [argumentEncoder[stage] setSamplerState:sampler atIndex:index];
-                    samplersSet.add(apiSampler.ptr(), BindGroup::ShaderStageArray<std::optional<uint32_t>> { }).iterator->value[stage] = index;
+                    samplersSet.add(WTF::move(apiSampler), BindGroup::ShaderStageArray<std::optional<uint32_t>> { }).iterator->value[stage] = index;
                 }
             } else if (textureViewIsPresent || textureIsPresent) {
                 auto it = bindGroupLayoutEntries.find(bindingIndex);
@@ -1463,10 +1463,9 @@ bool BindGroup::rebindSamplersIfNeeded() const
     if (!m_bindGroupLayout)
         return true;
 
-    for (auto& [samplerRefPtr, shaderStageArray] : m_samplers) {
-        auto sampler = samplerRefPtr;
-        ASSERT(sampler);
-        if (!sampler || sampler->cachedSamplerState())
+    for (auto& [samplerRef, shaderStageArray] : m_samplers) {
+        Ref sampler = samplerRef;
+        if (sampler->cachedSamplerState())
             continue;
 
         WTFLogAlways("Rebinding of samplers required, if this occurs frequently the application is using too many unique samplers");

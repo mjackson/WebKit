@@ -84,10 +84,10 @@ protected:
     bool computeHaveSelection() const;
     std::pair<unsigned, unsigned> selectionStartEnd() const;
     MarkedText createMarkedTextFromSelectionInBox();
-    const FontCascade& fontCascade() const;
+    const FontCascade& NODELETE fontCascade() const;
     WritingMode writingMode() const { return m_style->writingMode(); }
     FloatPoint textOriginFromPaintRect(const FloatRect&) const;
-    bool isInsideShapedContent() const;
+    bool NODELETE isInsideShapedContent() const;
 
     struct DecoratingBox {
         InlineIterator::InlineBoxIterator inlineBox;

@@ -41,6 +41,7 @@
 #include "ParentalControlsContentFilter.h"
 #include "ScriptController.h"
 #include "SharedBuffer.h"
+#include <array>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/Ref.h>
 #include <wtf/SetForScope.h>
@@ -462,7 +463,20 @@ bool ContentFilter::isWebContentRestrictionsUnblockURL(const URL& url)
         return true;
 #endif
 
-    return url.protocolIs(ContentFilter::urlScheme()) && equalIgnoringASCIICase(url.host(), "unblock"_s);
+    if (!url.protocolIs(ContentFilter::urlScheme()))
+        return false;
+
+#if HAVE(WEBCONTENTRESTRICTIONS_ASK_TO)
+    static constexpr std::array validHosts { "unblock"_s, "present"_s, "ask"_s };
+#else
+    static constexpr std::array validHosts { "unblock"_s };
+#endif
+
+    for (const auto& host : validHosts) {
+        if (equalIgnoringASCIICase(url.host(), host))
+            return true;
+    }
+    return false;
 }
 
 #endif

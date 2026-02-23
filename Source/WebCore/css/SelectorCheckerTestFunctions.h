@@ -41,6 +41,7 @@
 #include "InspectorInstrumentation.h"
 #include "LocalFrameInlines.h"
 #include "Page.h"
+#include "SelectPopoverElement.h"
 #include "SelectorChecker.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
@@ -625,6 +626,11 @@ ALWAYS_INLINE bool matchesUsesMenulistPseudoClass(const Element& element)
     if (auto* select = dynamicDowncast<HTMLSelectElement>(element))
         return select->usesMenuList();
     return false;
+}
+
+ALWAYS_INLINE bool matchesSelectPopoverPseudoClass(const Element& element)
+{
+    return is<SelectPopoverElement>(element);
 }
 
 } // namespace WebCore

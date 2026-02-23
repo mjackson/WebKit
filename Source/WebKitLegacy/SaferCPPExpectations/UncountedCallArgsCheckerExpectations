@@ -144,6 +144,7 @@ mac/WebCoreSupport/WebNotificationClient.mm
 mac/WebCoreSupport/WebOpenPanelResultListener.mm
 mac/WebCoreSupport/WebSecurityOrigin.mm
 mac/WebCoreSupport/WebValidationMessageClient.mm
+[ iOS ] mac/WebInspector/WebNodeHighlightView.mm
 mac/WebView/WebArchive.mm
 mac/WebView/WebDataSource.mm
 mac/WebView/WebFrame.mm

@@ -142,7 +142,7 @@ ServiceWorkerFetchTask::ServiceWorkerFetchTask(WebSWServerConnection& swServerCo
         m_preloader = ServiceWorkerNavigationPreloader::create(*session, WTF::move(parameters), registration.navigationPreloadState(), loader.shouldCaptureExtraNetworkLoadMetrics());
         session->addNavigationPreloaderTask(*this);
 
-        protectedPreloader()->waitForResponse([weakThis = WeakPtr { *this }] {
+        protect(m_preloader)->waitForResponse([weakThis = WeakPtr { *this }] {
             if (RefPtr protectedThis = weakThis.get())
                 protectedThis->preloadResponseIsReady();
         });
@@ -518,7 +518,7 @@ void ServiceWorkerFetchTask::loadResponseFromPreloader()
         return;
 
     m_isLoadingFromPreloader = true;
-    protectedPreloader()->waitForResponse([weakThis = WeakPtr { *this }] {
+    protect(m_preloader)->waitForResponse([weakThis = WeakPtr { *this }] {
         if (RefPtr protectedThis = weakThis.get())
             protectedThis->preloadResponseIsReady();
     });
@@ -591,11 +591,6 @@ void ServiceWorkerFetchTask::sendNavigationPreloadUpdate()
     connection->send(Messages::WebSWContextManagerConnection::NavigationPreloadIsReady { *m_serverConnectionIdentifier, *m_serviceWorkerIdentifier, m_fetchIdentifier, m_preloader->response() }, 0);
 }
 
-RefPtr<ServiceWorkerNavigationPreloader> ServiceWorkerFetchTask::protectedPreloader()
-{
-    return m_preloader;
-}
-
 void ServiceWorkerFetchTask::loadBodyFromPreloader()
 {
     SWFETCH_RELEASE_LOG("loadBodyFromPreloader");
@@ -607,7 +602,7 @@ void ServiceWorkerFetchTask::loadBodyFromPreloader()
         return;
     }
 
-    protectedPreloader()->waitForBody([weakThis = WeakPtr { *this }](RefPtr<const WebCore::FragmentedSharedBuffer>&& chunk) {
+    protect(m_preloader)->waitForBody([weakThis = WeakPtr { *this }](RefPtr<const WebCore::FragmentedSharedBuffer>&& chunk) {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
@@ -632,7 +627,7 @@ void ServiceWorkerFetchTask::cancelPreloadIfNecessary()
     if (CheckedPtr session = this->session())
         session->removeNavigationPreloaderTask(*this);
 
-    protectedPreloader()->cancel();
+    protect(m_preloader)->cancel();
     m_preloader = nullptr;
 }
 

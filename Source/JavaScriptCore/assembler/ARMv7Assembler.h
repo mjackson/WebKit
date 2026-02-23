@@ -1719,7 +1719,7 @@ public:
     }
 
 #if HAVE(ARM_IDIV_INSTRUCTIONS)
-    template<int datasize>
+    template<int datasize = 32>
     ALWAYS_INLINE void sdiv(RegisterID rd, RegisterID rn, RegisterID rm)
     {
         static_assert(datasize == 32, "sdiv datasize must be 32 for armv7s");        

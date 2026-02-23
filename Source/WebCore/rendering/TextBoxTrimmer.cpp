@@ -37,14 +37,14 @@
 
 namespace WebCore {
 
-static TextBoxTrim textBoxTrim(const RenderBlockFlow& textBoxTrimRoot)
+static TextBoxTrim NODELETE textBoxTrim(const RenderBlockFlow& textBoxTrimRoot)
 {
     if (auto* multiColumnFlow = dynamicDowncast<RenderMultiColumnFlow>(textBoxTrimRoot))
         return multiColumnFlow->multiColumnBlockFlow()->style().textBoxTrim();
     return textBoxTrimRoot.style().textBoxTrim();
 }
 
-static void removeTextBoxTrimStart(LocalFrameViewLayoutContext& layoutContext)
+static void NODELETE removeTextBoxTrimStart(LocalFrameViewLayoutContext& layoutContext)
 {
     auto textBoxTrim = layoutContext.textBoxTrim();
     if (!textBoxTrim || !textBoxTrim->trimFirstFormattedLine) {
@@ -56,7 +56,7 @@ static void removeTextBoxTrimStart(LocalFrameViewLayoutContext& layoutContext)
 
 static bool shouldIgnoreAsFirstLastFormattedLineContainer(const RenderBlockFlow& container)
 {
-    if (container.style().display() == DisplayType::RubyAnnotation || container.createsNewFormattingContext())
+    if (container.style().display() == Style::DisplayType::RubyText || container.createsNewFormattingContext())
         return true;
     // Empty continuation pre/post blocks should be ignored as they are implementation detail.
     if (container.isAnonymousBlock()) {

@@ -112,7 +112,7 @@ bool LibWebRTCPeerConnectionBackend::isNegotiationNeeded(uint32_t eventId) const
     return m_endpoint->isNegotiationNeeded(eventId);
 }
 
-static inline webrtc::PeerConnectionInterface::BundlePolicy bundlePolicyfromConfiguration(const MediaEndpointConfiguration& configuration)
+static inline webrtc::PeerConnectionInterface::BundlePolicy NODELETE bundlePolicyfromConfiguration(const MediaEndpointConfiguration& configuration)
 {
     switch (configuration.bundlePolicy) {
     case RTCBundlePolicy::MaxCompat:
@@ -127,7 +127,7 @@ static inline webrtc::PeerConnectionInterface::BundlePolicy bundlePolicyfromConf
     return webrtc::PeerConnectionInterface::kBundlePolicyMaxCompat;
 }
 
-static inline webrtc::PeerConnectionInterface::RtcpMuxPolicy rtcpMuxPolicyfromConfiguration(const MediaEndpointConfiguration& configuration)
+static inline webrtc::PeerConnectionInterface::RtcpMuxPolicy NODELETE rtcpMuxPolicyfromConfiguration(const MediaEndpointConfiguration& configuration)
 {
     switch (configuration.rtcpMuxPolicy) {
     case RTCPMuxPolicy::Negotiate:
@@ -140,7 +140,7 @@ static inline webrtc::PeerConnectionInterface::RtcpMuxPolicy rtcpMuxPolicyfromCo
     return webrtc::PeerConnectionInterface::kRtcpMuxPolicyRequire;
 }
 
-static inline webrtc::PeerConnectionInterface::IceTransportsType iceTransportPolicyfromConfiguration(const MediaEndpointConfiguration& configuration)
+static inline webrtc::PeerConnectionInterface::IceTransportsType NODELETE iceTransportPolicyfromConfiguration(const MediaEndpointConfiguration& configuration)
 {
     switch (configuration.iceTransportPolicy) {
     case RTCIceTransportPolicy::Relay:
@@ -203,13 +203,13 @@ void LibWebRTCPeerConnectionBackend::getStats(Ref<DeferredPromise>&& promise)
     m_endpoint->getStats(WTF::move(promise));
 }
 
-static inline LibWebRTCRtpSenderBackend& backendFromRTPSender(RTCRtpSender& sender)
+static inline LibWebRTCRtpSenderBackend& NODELETE backendFromRTPSender(RTCRtpSender& sender)
 {
     ASSERT(!sender.isStopped());
     return downcast<LibWebRTCRtpSenderBackend>(*sender.backend());
 }
 
-static inline Ref<LibWebRTCRtpSenderBackend> protectedBackendFromRTPSender(RTCRtpSender& sender)
+static inline Ref<LibWebRTCRtpSenderBackend> NODELETE protectedBackendFromRTPSender(RTCRtpSender& sender)
 {
     return backendFromRTPSender(sender);
 }
@@ -374,7 +374,7 @@ void LibWebRTCPeerConnectionBackend::setSenderSourceFromTrack(LibWebRTCRtpSender
     m_endpoint->setSenderSourceFromTrack(sender, track);
 }
 
-static inline LibWebRTCRtpTransceiverBackend& backendFromRTPTransceiver(RTCRtpTransceiver& transceiver)
+static inline LibWebRTCRtpTransceiverBackend& NODELETE backendFromRTPTransceiver(RTCRtpTransceiver& transceiver)
 {
     return downcast<LibWebRTCRtpTransceiverBackend>(*transceiver.backend());
 }

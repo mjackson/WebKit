@@ -97,7 +97,7 @@ void Update::addElement(Element& element, Element* parent, ElementUpdate&& eleme
     ASSERT(composedTreeAncestors(element).first() == parent);
     ASSERT(!m_elements.contains(&element));
 
-    m_roots.remove(&element);
+    m_roots.remove(element);
     addPossibleRoot(parent);
 
     if (elementUpdate.mayNeedRebuildRoot)
@@ -135,7 +135,7 @@ void Update::addText(Text& text, TextUpdate&& textUpdate)
 void Update::addSVGRendererUpdate(SVGElement& element)
 {
     RefPtr parent = composedTreeAncestors(element).first();
-    m_roots.remove(&element);
+    m_roots.remove(element);
     addPossibleRoot(parent.get());
     element.setNeedsSVGRendererUpdate(true);
 }
@@ -148,20 +148,20 @@ void Update::addInitialContainingBlockUpdate(std::unique_ptr<RenderStyle> style)
 void Update::addPossibleRoot(Element* element)
 {
     if (!element) {
-        m_roots.add(m_document.ptr());
+        m_roots.add(m_document);
         return;
     }
     if (element->needsSVGRendererUpdate() || m_elements.contains(element))
         return;
-    m_roots.add(element);
+    m_roots.add(*element);
 }
 
 void Update::addPossibleRebuildRoot(Element& element, Element* parent)
 {
-    if (parent && m_rebuildRoots.contains(parent))
+    if (parent && m_rebuildRoots.contains(*parent))
         return;
 
-    m_rebuildRoots.add(&element);
+    m_rebuildRoots.add(element);
 }
 
 }

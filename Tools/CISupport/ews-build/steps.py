@@ -45,7 +45,7 @@ import socket
 import sys
 import time
 
-from Shared.steps import ShellMixin, SetBuildSummary, SetO3OptimizationLevel, WaitForDuration
+from Shared.steps import ShellMixin, SetBuildSummary, SetO3OptimizationLevel, WaitForDuration, InstallSwiftToolchain, SWIFT_TOOLCHAIN_NAME, SWIFT_TOOLCHAIN_BUNDLE_IDENTIFIER, SWIFT_DIR, USER_TOOLCHAINS_DIR
 
 if sys.version_info < (3, 9):  # noqa: UP036
     print('ERROR: Minimum supported Python version for this code is Python 3.9')
@@ -4569,7 +4569,7 @@ class ReRunWebKitTests(RunWebKitTests):
 
             # The significant additional build time isn't worth it on Windows, we'd rather
             # the worker start on another job in the queue.
-            if platform != 'win':
+            if platform not in ('win',):
                 steps_to_add += [
                     ArchiveTestResults(),
                     UploadTestResults(identifier='rerun'),
@@ -7175,7 +7175,7 @@ class ValidateSquashed(shell.ShellCommand, AddToLogMixin):
 
 
 class AddReviewerMixin(object):
-    NOBODY_SED = 's/NOBODY (OO*PP*S!*)/{}/g'
+    NOBODY_SED = 's/by NOBODY( \\(OO*PP*S!*\\))?/by {}/g'
 
     @defer.inlineCallbacks
     def gitCommitEnvironment(self):
@@ -7232,7 +7232,7 @@ class AddReviewerToCommitMessage(shell.ShellCommand, AddReviewerMixin):
         self.command = [
             'git', 'filter-branch', '-f',
             '--env-filter', f"GIT_AUTHOR_DATE='{date}';GIT_COMMITTER_DATE='{date}'",
-            '--msg-filter', f'sed "{self.NOBODY_SED.format(self.reviewers())}"',
+            '--msg-filter', f'sed -E "{self.NOBODY_SED.format(self.reviewers())}"',
             f'{head_ref}...{base_ref}',
         ]
 
@@ -7318,6 +7318,7 @@ class ValidateCommitMessage(steps.ShellSequence, ShellMixin, AddToLogMixin):
         self.commands = []
         commands = [
             f"git log {head_ref} ^{base_ref} | grep -q '{self.OOPS_RE}' && echo 'Commit message contains (OOPS!){reviewer_error_msg}' || test $? -eq 1",
+            f"git log {head_ref} ^{base_ref} | grep -q 'by NOBODY' && echo 'Commit message contains \"by NOBODY\"{reviewer_error_msg}' || test $? -eq 1",
             "git log {} ^{} > commit_msg.txt; grep -q '\\({}\\)' commit_msg.txt || echo 'No reviewer information in commit message';".format(
                 head_ref, base_ref,
                 '\\|'.join(self.REVIEWED_STRINGS)
@@ -7608,6 +7609,108 @@ class UpdatePullRequest(shell.ShellCommand, GitHubMixin, AddToLogMixin):
         return not self.doStepIf(step)
 
 
+class BuildSwift(steps.ShellSequence, ShellMixin):
+    name = 'build-swift'
+    flunkOnFailure = True
+
+    def __init__(self, **kwargs):
+        super().__init__(logEnviron=False, workdir=SWIFT_DIR, **kwargs)
+        self.commands = []
+
+    @defer.inlineCallbacks
+    def run(self):
+        builddir = self.getProperty('builddir')
+        swift_install_dir = f'{builddir}/{SWIFT_DIR}/swift-nightly-install'
+        swift_symroot_dir = f'{builddir}/{SWIFT_DIR}/swift-nightly-symroot'
+
+        build_script_args = [
+            'utils/build-script',
+            '--swift-install-components=autolink-driver;back-deployment;compiler;clang-resource-dir-symlink;libexec;stdlib;sdk-overlay;static-mirror-lib;toolchain-tools;license;sourcekit-xpc-service;sourcekit-inproc;swift-remote-mirror;swift-remote-mirror-headers',
+            '--llvm-install-components=llvm-ar;llvm-nm;llvm-ranlib;llvm-cov;llvm-profdata;llvm-objdump;llvm-objcopy;llvm-symbolizer;IndexStore;clang;clang-resource-headers;builtins;runtimes;clangd;libclang;dsymutil;LTO;clang-features-file;lld',
+            '--ios',
+            '--release',
+            '--no-assertions',
+            '--compiler-vendor=apple',
+            '--infer-cross-compile-hosts-on-darwin',
+            '--build-ninja',
+            '--skip-build-benchmarks',
+            '--skip-tvos',
+            '--skip-watchos',
+            '--skip-xros',
+            '--build-subdir=buildbot_osx',
+            '--install-llvm',
+            '--install-swift',
+            f'--install-destdir={swift_install_dir}',
+            f'--install-prefix=/Library/Developer/Toolchains/{SWIFT_TOOLCHAIN_NAME}.xctoolchain/usr',
+            '--darwin-install-extract-symbols',
+            f'--install-symroot={swift_symroot_dir}',
+            f'--installable-package={swift_install_dir}/{SWIFT_TOOLCHAIN_NAME}-osx.tar.gz',
+            f'--symbols-package={swift_install_dir}/{SWIFT_TOOLCHAIN_NAME}-osx-symbols.tar.gz',
+            f'--darwin-toolchain-bundle-identifier={SWIFT_TOOLCHAIN_BUNDLE_IDENTIFIER}',
+            '--darwin-toolchain-display-name=WebKit Swift Toolchain',
+            '--darwin-toolchain-display-name-short=WebKit Swift',
+            f'--darwin-toolchain-name={SWIFT_TOOLCHAIN_NAME}',
+            '--darwin-toolchain-version=6.0.0',
+            '--darwin-toolchain-alias=webkit',
+            '--darwin-toolchain-require-use-os-runtime=0',
+            '--swift-testing=1',
+            '--install-swift-testing=1',
+            '--swift-testing-macros=1',
+            '--install-swift-testing-macros=1',
+            '--swift-driver=1',
+            '--install-swift-driver=1',
+        ]
+
+        filter_command = ' '.join(quote(str(c)) for c in build_script_args) + f" 2>&1 | python3 {builddir}/build/Tools/Scripts/filter-test-logs swift --output {builddir}/build/swift-build-log.txt"
+
+        self.commands = [
+            util.ShellArg(command=self.shell_command('rm -rf ../build'), logname='stdio', haltOnFailure=False),
+            util.ShellArg(command=self.shell_command('rm -rf "$(getconf DARWIN_USER_CACHE_DIR)org.llvm.clang"'), logname='stdio', haltOnFailure=False),
+            util.ShellArg(command=self.shell_command('rm -rf /Users/buildbot/Library/Developer/Xcode/DerivedData'), logname='stdio'),
+            util.ShellArg(command=self.shell_command(filter_command), logname='stdio', haltOnFailure=True),
+        ]
+
+        rc = yield super().run()
+
+        steps_to_add = [
+            GenerateS3URL(
+                f"{self.getProperty('fullPlatform')}-{self.getProperty('archForUpload')}-{self.getProperty('configuration')}-{self.name}",
+                extension='txt',
+                content_type='text/plain',
+                additions=f'{self.build.number}',
+            ),
+            UploadFileToS3(
+                'swift-build-log.txt',
+                links={self.name: 'Swift build log'},
+                content_type='text/plain',
+            )
+        ]
+
+        if rc != SUCCESS:
+            if self.getProperty('current_swift_tag', '') and self.getProperty('has_swift_toolchain', False):
+                return WARNINGS
+            self.build.buildFinished(['Failed to set up swift, retrying update'], RETRY)
+        else:
+            self.setProperty('swift_toolchain_rebuilt', True)
+            steps_to_add += [InstallSwiftToolchain()]
+
+        self.build.addStepsAfterCurrentStep(steps_to_add)
+
+        return defer.returnValue(rc)
+
+    def getResultSummary(self):
+        if self.results == SKIPPED:
+            return {'step': 'Swift toolchain already exists'}
+        elif self.results == WARNINGS:
+            return {'step': 'Failed to update swift, using previous checkout'}
+        elif self.results != SUCCESS:
+            return {'step': 'Failed to build Swift'}
+        return {'step': 'Successfully built Swift'}
+
+    def doStepIf(self, step):
+        return self.getProperty('canonical_swift_tag') and self.getProperty('current_swift_tag', '') != self.getProperty('canonical_swift_tag')
+
+
 # FIXME: Share static analyzer steps with build-webkit-org since they have a lot of similarities
 class ScanBuild(steps.ShellSequence, ShellMixin):
     name = "scan-build"
@@ -7624,9 +7727,15 @@ class ScanBuild(steps.ShellSequence, ShellMixin):
     @defer.inlineCallbacks
     def run(self):
         self.commands = []
-        build_command = f"Tools/Scripts/build-and-analyze --output-dir {os.path.join(self.getProperty('builddir'), f'build/{self.output_directory}')} --configuration {self.build.getProperty('configuration')} "
-        build_command += f"--only-smart-pointers --analyzer-path={os.path.join(self.getProperty('builddir'), 'llvm-project/build/bin/clang')} "
-        build_command += '--scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=macosx --preprocessor-additions=CLANG_WEBKIT_BRANCH=1 '
+
+        build_command = f"Tools/Scripts/build-and-analyze --output-dir {os.path.join(self.getProperty('builddir'), f'build/{self.output_directory}')} --configuration {self.build.getProperty('configuration')} --only-smart-pointers "
+        if self.getProperty('platform', '').lower() == 'ios':
+            sdkroot = 'iphonesimulator'
+            build_command += f'--toolchains={SWIFT_TOOLCHAIN_BUNDLE_IDENTIFIER} --swift-conditions=SWIFT_WEBKIT_TOOLCHAIN '
+        else:
+            sdkroot = 'macosx'
+            build_command += f"--analyzer-path={os.path.join(self.getProperty('builddir'), 'llvm-project/build/bin/clang')} --preprocessor-additions=CLANG_WEBKIT_BRANCH=1 "
+        build_command += f'--scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot={sdkroot} '
         if SHOULD_FILTER_LOGS is True:
             build_command += '2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt'
 
@@ -7881,7 +7990,7 @@ class FindUnexpectedStaticAnalyzerResults(shell.ShellCommand, AnalyzeChange, Add
         else:
             yield self._addToLog('stdio', 'No API key for {} found'.format(RESULTS_DB_URL))
 
-        self.command = ['python3', 'Tools/Scripts/compare-static-analysis-results', os.path.join(self.getProperty('builddir'), 'build/new'), '--build-output', SCAN_BUILD_OUTPUT_DIR, '--check-expectations']
+        self.command = ['python3', 'Tools/Scripts/compare-static-analysis-results', os.path.join(self.getProperty('builddir'), 'build/new'), '--build-output', SCAN_BUILD_OUTPUT_DIR, '--check-expectations', '--platform', self.getProperty('platform', '')]
 
         self.log_observer = logobserver.BufferLogObserver()
         self.addLogObserver('stdio', self.log_observer)

@@ -41,7 +41,7 @@ public:
         return adoptRef(*new GPUComputePipeline(WTF::move(backing), uniqueId));
     }
 
-    String label() const;
+    String NODELETE label() const;
     void setLabel(String&&);
 
     Ref<GPUBindGroupLayout> getBindGroupLayout(uint32_t index);

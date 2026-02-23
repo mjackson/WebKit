@@ -251,10 +251,10 @@ public:
     WebsiteDataStore* websiteDataStore() const { ASSERT(m_websiteDataStore); return m_websiteDataStore.get(); }
     void setWebsiteDataStore(WebsiteDataStore&);
     
-    PAL::SessionID sessionID() const;
+    PAL::SessionID NODELETE sessionID() const;
 
     static bool hasReachedProcessCountLimit();
-    static void setProcessCountLimit(unsigned);
+    static void NODELETE setProcessCountLimit(unsigned);
 
     static RefPtr<WebProcessProxy> processForIdentifier(WebCore::ProcessIdentifier);
     static Ref<WebProcessProxy> fromConnection(const IPC::Connection&);
@@ -310,7 +310,7 @@ public:
 
     void consumeIfNotVerifiablyFromUIProcess(WebCore::PageIdentifier, API::UserInitiatedAction&, std::optional<WTF::UUID>);
 
-    bool isResponsive() const;
+    bool NODELETE isResponsive() const;
 
     VisibleWebPageToken visiblePageToken() const;
 
@@ -428,7 +428,6 @@ public:
     void prepareToDropLastAssertion(CompletionHandler<void()>&&) final;
     void didDropLastAssertion() final;
     ASCIILiteral clientName() const final { return "WebProcess"_s; }
-    String environmentIdentifier() const final;
 
 #if PLATFORM(COCOA)
     enum SandboxExtensionType : uint32_t {
@@ -551,15 +550,15 @@ public:
     void hardwareConsoleStateChanged();
 #endif
 
-    const WeakHashSet<WebProcessProxy>* serviceWorkerClientProcesses() const;
-    const WeakHashSet<WebProcessProxy>* sharedWorkerClientProcesses() const;
+    const WeakHashSet<WebProcessProxy>* NODELETE serviceWorkerClientProcesses() const;
+    const WeakHashSet<WebProcessProxy>* NODELETE sharedWorkerClientProcesses() const;
 
     static void permissionChanged(WebCore::PermissionName, const WebCore::SecurityOriginData&);
     void processPermissionChanged(WebCore::PermissionName, const WebCore::SecurityOriginData&);
 
     Logger& logger();
 
-    void resetState();
+    void NODELETE resetState();
 
     ProcessThrottleState throttleStateForStatistics() const { return m_throttleStateForStatistics; }
     Seconds totalForegroundTime() const;
@@ -598,10 +597,10 @@ public:
     void createWasmDebuggerTarget();
     bool createWasmDebuggerDebuggable() const { return m_createWasmDebuggerDebuggable; }
     void destroyWasmDebuggerTarget();
-    void connectWasmDebuggerTarget(bool isAutomaticConnection, bool immediatelyPause);
-    void disconnectWasmDebuggerTarget();
+    void NODELETE connectWasmDebuggerTarget(bool isAutomaticConnection, bool immediatelyPause);
+    void NODELETE disconnectWasmDebuggerTarget();
     void dispatchWasmDebuggerMessage(const String& message);
-    void setWasmDebuggerTargetIndicating(bool);
+    void NODELETE setWasmDebuggerTargetIndicating(bool);
 
     void sendWasmDebuggerResponse(const String& response);
 #endif
@@ -609,6 +608,9 @@ public:
 #if ENABLE(IPC_TESTING_API)
     void takeInvalidMessageStringForTesting(CompletionHandler<void(String&&)>&&);
 #endif
+
+    void setIneligbleForWebProcessCache() { m_isEligibleForWebProcessCache = false; }
+    bool isEligibleForWebProcessCache() const { return m_isEligibleForWebProcessCache; }
 
 private:
     Type type() const final { return Type::WebContent; }
@@ -646,9 +648,9 @@ private:
     void wrapCryptoKey(Vector<uint8_t>&&, CompletionHandler<void(std::optional<Vector<uint8_t>>&&)>&&);
 
     using WebProcessProxyMap = HashMap<WebCore::ProcessIdentifier, CheckedRef<WebProcessProxy>>;
-    static WebProcessProxyMap& allProcessMap();
+    static WebProcessProxyMap& NODELETE allProcessMap();
     static Vector<Ref<WebProcessProxy>> allProcesses();
-    static WebPageProxyMap& globalPageMap();
+    static WebPageProxyMap& NODELETE globalPageMap();
     static Vector<Ref<WebPageProxy>> globalPages();
 
     void initializePreferencesForGPUAndNetworkProcesses(const WebPageProxy&);
@@ -892,7 +894,6 @@ private:
 #if PLATFORM(COCOA)
     bool m_platformSuspendDidReleaseNearSuspendedAssertion { false };
 #endif
-    mutable String m_environmentIdentifier;
     mutable SharedPreferencesForWebProcess m_sharedPreferencesForWebProcess;
     uint64_t m_sharedPreferencesVersionInNetworkProcess { 0 };
 #if ENABLE(GPU_PROCESS)
@@ -932,6 +933,8 @@ private:
     RefPtr<WasmDebuggerDebuggable> m_wasmDebuggerDebuggable;
     bool m_createWasmDebuggerDebuggable { false };
 #endif
+
+    bool m_isEligibleForWebProcessCache { true };
 
     HashMap<String, SandboxExtension::Handle> m_fileSandboxExtensions;
 

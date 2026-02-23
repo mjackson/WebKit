@@ -163,8 +163,8 @@ namespace WebCore {
     String contextMenuItemTagEnterVideoFullscreen();
     WEBCORE_EXPORT String contextMenuItemTagExitVideoFullscreen();
 #if PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE)
-    String contextMenuItemTagEnterVideoEnhancedFullscreen();
-    WEBCORE_EXPORT String contextMenuItemTagExitVideoEnhancedFullscreen();
+    String contextMenuItemTagEnterPictureInPicture();
+    WEBCORE_EXPORT String contextMenuItemTagExitPictureInPicture();
     String contextMenuItemTagEnterVideoViewer();
     WEBCORE_EXPORT String contextMenuItemTagExitVideoViewer();
 #endif

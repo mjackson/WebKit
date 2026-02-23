@@ -77,7 +77,7 @@ FindController::~FindController() = default;
 
 PluginView* FindController::mainFramePlugIn()
 {
-    return protectedWebPage()->mainFramePlugIn();
+    return protect(m_webPage.get())->mainFramePlugIn();
 }
 
 #endif
@@ -138,11 +138,6 @@ RefPtr<LocalFrame> FindController::frameWithSelection(Page* page)
             return localFrame;
     }
     return nullptr;
-}
-
-RefPtr<WebPage> FindController::protectedWebPage() const
-{
-    return m_webPage.get();
 }
 
 void FindController::updateFindUIAfterPageScroll(bool found, const String& string, OptionSet<FindOptions> options, unsigned maxMatchCount, WebCore::DidWrap didWrap, std::optional<FrameIdentifier> idOfFrameContainingString, CompletionHandler<void(std::optional<WebCore::FrameIdentifier>, Vector<IntRect>&&, uint32_t, int32_t, bool)>&& completionHandler)
@@ -257,7 +252,7 @@ void FindController::updateFindUIAfterPageScroll(bool found, const String& strin
 #if ENABLE(IMAGE_ANALYSIS)
 void FindController::findStringIncludingImages(const String& string, OptionSet<FindOptions> options, unsigned maxMatchCount, CompletionHandler<void(std::optional<FrameIdentifier>, Vector<IntRect>&&, uint32_t, int32_t, bool)>&& completionHandler)
 {
-    protect(protectedWebPage()->corePage())->analyzeImagesForFindInPage([weakPage = WeakPtr { m_webPage }, string, options, maxMatchCount, completionHandler = WTF::move(completionHandler)]() mutable {
+    protect(protect(m_webPage.get())->corePage())->analyzeImagesForFindInPage([weakPage = WeakPtr { m_webPage }, string, options, maxMatchCount, completionHandler = WTF::move(completionHandler)]() mutable {
         if (weakPage)
             weakPage->findController().findString(string, options, maxMatchCount, WTF::move(completionHandler));
         else
@@ -403,7 +398,7 @@ void FindController::indicateFindMatch(uint32_t matchIndex)
 
     selectFindMatch(matchIndex);
 
-    if (!frameWithSelection(protect(protectedWebPage()->corePage()).get()))
+    if (!frameWithSelection(protect(protect(m_webPage.get())->corePage()).get()))
         return;
 
     didFindString();
@@ -422,7 +417,7 @@ void FindController::hideFindUI()
         pluginView->findString(emptyString(), { }, 0);
     else
 #endif
-    protect(protectedWebPage()->corePage())->unmarkAllTextMatches();
+    protect(protect(m_webPage.get())->corePage())->unmarkAllTextMatches();
 
     hideFindIndicator();
     resetMatchIndex();
@@ -496,13 +491,14 @@ void FindController::willFindString()
 
 void FindController::didFindString()
 {
-    RefPtr selectedFrame = frameWithSelection(protect(protectedWebPage()->corePage()).get());
+    RefPtr selectedFrame = frameWithSelection(protect(protect(m_webPage.get())->corePage()).get());
     if (!selectedFrame)
         return;
 
     CheckedRef selection = selectedFrame->selection();
     selection->revealSelection();
-    revealClosedDetailsAndHiddenUntilFoundAncestors(*protect(selection->selection().start().anchorNode()));
+    if (RefPtr anchorNode = selection->selection().start().anchorNode())
+        revealClosedDetailsAndHiddenUntilFoundAncestors(*anchorNode);
 }
 
 void FindController::didHideFindIndicator()
@@ -549,7 +545,7 @@ Vector<FloatRect> FindController::rectsForTextMatchesInRect(IntRect clipRect)
 #endif
 
     Vector<FloatRect> rects;
-    RefPtr mainFrameView = protect(protect(protectedWebPage()->corePage())->mainFrame())->virtualView();
+    RefPtr mainFrameView = protect(protect(protect(m_webPage.get())->corePage())->mainFrame())->virtualView();
     for (RefPtr frame = m_webPage->corePage()->mainFrame(); frame; frame = frame->tree().traverseNext()) {
         auto* localFrame = dynamicDowncast<LocalFrame>(frame.get());
         if (!localFrame)
@@ -560,7 +556,7 @@ Vector<FloatRect> FindController::rectsForTextMatchesInRect(IntRect clipRect)
 
         for (FloatRect rect : protect(document->markers())->renderedRectsForMarkers(DocumentMarkerType::TextMatch)) {
             if (!localFrame->isMainFrame())
-                rect = mainFrameView->windowToContents(localFrame->protectedView()->contentsToWindow(enclosingIntRect(rect)));
+                rect = mainFrameView->windowToContents(protect(localFrame->view())->contentsToWindow(enclosingIntRect(rect)));
 
             if (rect.isEmpty() || !rect.intersects(clipRect))
                 continue;
@@ -625,8 +621,8 @@ void FindController::drawRect(PageOverlay&, GraphicsContext& graphicsContext, co
     if (!m_isShowingFindIndicator)
         return;
 
-    if (RefPtr selectedFrame = frameWithSelection(protect(protectedWebPage()->corePage()).get())) {
-        auto findIndicatorRect = selectedFrame->protectedView()->contentsToRootView(enclosingIntRect(protect(selectedFrame->selection())->selectionBounds(FrameSelection::ClipToVisibleContent::No)));
+    if (RefPtr selectedFrame = frameWithSelection(protect(protect(m_webPage)->corePage()))) {
+        auto findIndicatorRect = protect(selectedFrame->view())->contentsToRootView(enclosingIntRect(protect(selectedFrame->selection())->selectionBounds(FrameSelection::ClipToVisibleContent::No)));
 
         if (findIndicatorRect != m_findIndicatorRect) {
             // We are underneath painting, so it's not safe to mutate the layer tree synchronously.

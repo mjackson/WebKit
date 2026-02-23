@@ -208,7 +208,12 @@ TEST(WebKit, WKNavigationResponsePDFType)
 
 @end
 
+// FIXME when rdar://170575820 is resolved.
+#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 260000
+TEST(WebKit, DISABLED_WKNavigationResponseDownloadAttribute)
+#else
 TEST(WebKit, WKNavigationResponseDownloadAttribute)
+#endif
 {
     auto getDownloadResponse = [] (RetainPtr<NSString> body) -> RetainPtr<WKNavigationResponse> {
         using namespace TestWebKitAPI;

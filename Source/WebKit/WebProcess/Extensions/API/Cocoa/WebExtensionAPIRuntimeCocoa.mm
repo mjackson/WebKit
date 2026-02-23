@@ -227,7 +227,7 @@ void WebExtensionAPIRuntime::getBackgroundPage(Ref<WebExtensionCallbackHandler>&
 {
     // Documentation: https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/runtime/getBackgroundPage
 
-    if (auto backgroundPage = protectedExtensionContext()->backgroundPage()) {
+    if (auto backgroundPage = protect(extensionContext())->backgroundPage()) {
         callback->call(toWindowObject(callback->globalContext(), *backgroundPage));
         return;
     }
@@ -394,7 +394,7 @@ RefPtr<WebExtensionAPIPort> WebExtensionAPIRuntime::connect(WebPageProxyIdentifi
         if (result)
             return;
 
-        port->setError(protectedRuntime()->reportError(result.error().createNSString().get(), globalContext.get()));
+        port->setError(protect(runtime())->reportError(result.error().createNSString().get(), globalContext.get()));
         port->disconnect();
     }, extensionContext().identifier());
 
@@ -425,7 +425,7 @@ RefPtr<WebExtensionAPIPort> WebExtensionAPIRuntime::connectNative(WebPageProxyId
         if (result)
             return;
 
-        port->setError(protectedRuntime()->reportError(result.error().createNSString().get(), globalContext.get()));
+        port->setError(protect(runtime())->reportError(result.error().createNSString().get(), globalContext.get()));
         port->disconnect();
     }, extensionContext().identifier());
 
@@ -515,13 +515,13 @@ RefPtr<WebExtensionAPIPort> WebExtensionAPIWebPageRuntime::connect(WebPage& page
         return port;
     }
 
-    Ref port = WebExtensionAPIPort::create(contentWorldType(), protectedRuntime(), *destinationExtensionContext, page.webPageProxyIdentifier(), WebExtensionContentWorldType::Main, resolvedName);
+    Ref port = WebExtensionAPIPort::create(contentWorldType(), protect(runtime()), *destinationExtensionContext, page.webPageProxyIdentifier(), WebExtensionContentWorldType::Main, resolvedName);
 
     WebProcess::singleton().sendWithAsyncReply(Messages::WebExtensionContext::RuntimeWebPageConnect(extensionID, port->channelIdentifier(), resolvedName, senderParameters), [=, this, protectedThis = Ref { *this }, globalContext = JSRetainPtr { JSContextGetGlobalContext(context) }](Expected<void, WebExtensionError>&& result) {
         if (result)
             return;
 
-        port->setError(protectedRuntime()->reportError(result.error().createNSString().get(), globalContext.get()));
+        port->setError(protect(runtime())->reportError(result.error().createNSString().get(), globalContext.get()));
         port->disconnect();
     }, destinationExtensionContext->identifier());
 
@@ -684,9 +684,9 @@ void WebExtensionContextProxy::internalDispatchRuntimeMessageEvent(WebExtensionC
 
         WebExtensionAPIEvent::ListenerVector listeners;
         if (sourceContentWorldType == WebExtensionContentWorldType::WebPage)
-            listeners = namespaceObject.protectedRuntime()->onMessageExternal().listeners();
+            listeners = protect(namespaceObject.runtime())->onMessageExternal().listeners();
         else
-            listeners = namespaceObject.protectedRuntime()->onMessage().listeners();
+            listeners = protect(namespaceObject.runtime())->onMessage().listeners();
 
         if (listeners.isEmpty())
             return;

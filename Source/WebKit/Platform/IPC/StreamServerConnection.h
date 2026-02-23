@@ -104,7 +104,7 @@ public:
         HasMoreMessages
     };
     DispatchResult dispatchStreamMessages(size_t messageLimit);
-    void markCurrentlyDispatchedMessageAsInvalid(ASCIILiteral error);
+    void NODELETE markCurrentlyDispatchedMessageAsInvalid(ASCIILiteral error);
 
     void open(Client&, StreamConnectionWorkQueue&);
     void invalidate();
@@ -140,8 +140,6 @@ private:
     bool processOutOfStreamMessage(Decoder&);
     bool dispatchStreamMessage(Decoder&, StreamMessageReceiver&);
     void dispatchDidReceiveInvalidMessage(Decoder&);
-
-    RefPtr<StreamConnectionWorkQueue> protectedWorkQueue() const;
 
     using WakeUpClient = StreamServerConnectionBuffer::WakeUpClient;
     const Ref<IPC::Connection> m_connection;

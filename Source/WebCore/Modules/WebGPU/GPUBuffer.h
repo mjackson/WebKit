@@ -55,7 +55,7 @@ public:
         return adoptRef(*new GPUBuffer(WTF::move(backing), bufferSize, usage, mappedAtCreation, device));
     }
 
-    String label() const;
+    String NODELETE label() const;
     void setLabel(String&&);
 
     using MapAsyncPromise = DOMPromiseDeferred<IDLNull>;

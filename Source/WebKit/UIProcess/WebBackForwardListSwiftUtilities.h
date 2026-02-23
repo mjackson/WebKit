@@ -26,6 +26,7 @@
 #pragma once
 
 #include "Logging.h"
+#include "SessionState.h"
 #include "WebBackForwardListItem.h"
 #include "WebBackForwardListMessages.h"
 #include "WebProcessProxy.h"
@@ -66,5 +67,32 @@ inline void setOptionalUInt32Value(std::optional<uint32_t>& optional, uint32_t v
 }
 
 using WebBackForwardListItemFilter = WTF::RefCountable<WTF::Function<bool (WebKit::WebBackForwardListItem&)>>;
+
+// Workaround for rdar://170233903
+// In each case the Swift call can be replaced with fn.pointee(args) when this is fixed
+inline bool callFilter(WebBackForwardListItemFilter& fn, WebKit::WebBackForwardListItem& item)
+{
+    return (*fn)(item);
+}
+inline void callCompletionHandler(CompletionHandlers::WebBackForwardList::BackForwardGoToItemCompletionHandler& fn, WebKit::WebBackForwardListCounts&& counts)
+{
+    (*fn)(WTF::move(counts));
+}
+inline void callCompletionHandler(CompletionHandlers::WebBackForwardList::BackForwardListContainsItemCompletionHandler& fn, bool found)
+{
+    (*fn)(found);
+}
+inline void callCompletionHandler(CompletionHandlers::WebBackForwardList::BackForwardAllItemsCompletionHandler& fn, WebKit::VectorRefFrameState&& items)
+{
+    (*fn)(WTF::move(items));
+}
+inline void callCompletionHandler(CompletionHandlers::WebBackForwardList::BackForwardItemAtIndexCompletionHandler& fn, WebKit::RefPtrFrameState&& state)
+{
+    (*fn)(WTF::move(state));
+}
+inline bool filterSpecified(WebBackForwardListItemFilter& fn)
+{
+    return bool(*fn);
+}
 
 #endif // ENABLE(BACK_FORWARD_LIST_SWIFT)

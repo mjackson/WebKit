@@ -42,7 +42,7 @@
 
 namespace WebCore {
 
-static bool shouldDiscloseFeatures(Document& document)
+static bool NODELETE shouldDiscloseFeatures(Document& document)
 {
     auto* page = document.page();
     if (!page || page->usesEphemeralSession())

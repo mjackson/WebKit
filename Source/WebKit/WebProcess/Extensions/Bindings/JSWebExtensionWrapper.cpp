@@ -397,7 +397,7 @@ JSValueRef fromObject(JSContextRef context, HashMap<String, JSValueRef>&& object
     return result;
 }
 
-static HashMap<JSGlobalContextRef, JSWeakObjectMapRef>& wrapperCache()
+static HashMap<JSGlobalContextRef, JSWeakObjectMapRef>& NODELETE wrapperCache()
 {
     static NeverDestroyed<HashMap<JSGlobalContextRef, JSWeakObjectMapRef>> wrappers;
     return wrappers;

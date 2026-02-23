@@ -123,7 +123,7 @@ double WebExtensionAPIDevToolsInspectedWindow::tabId(WebPage& page)
 {
     // Documentation: https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/devtools/inspectedWindow/tabId
 
-    auto result = protectedExtensionContext()->tabIdentifier(page);
+    auto result = protect(extensionContext())->tabIdentifier(page);
     return toWebAPI(result ? result.value() : WebExtensionTabConstants::NoneIdentifier);
 }
 

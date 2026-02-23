@@ -69,7 +69,7 @@ public:
     bool currentFrameIsComplete(const RenderElement*);
 
     std::pair<WeakPtr<Image>, float> brokenImage(float deviceScaleFactor) const; // Returns an image and the image's resolution scale factor.
-    bool willPaintBrokenImage() const;
+    bool NODELETE willPaintBrokenImage() const;
 
     bool canRender(const RenderElement* renderer, float multiplier) { return !errorOccurred() && !imageSizeForRenderer(renderer, multiplier).isEmpty(); }
 
@@ -102,7 +102,7 @@ public:
 
     bool isOriginClean(SecurityOrigin*);
 
-    bool isClientWaitingForAsyncDecoding(const CachedImageClient&) const;
+    bool NODELETE isClientWaitingForAsyncDecoding(const CachedImageClient&) const;
     void addClientWaitingForAsyncDecoding(CachedImageClient&);
     void removeAllClientsWaitingForAsyncDecoding();
 

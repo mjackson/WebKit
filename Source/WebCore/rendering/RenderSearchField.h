@@ -41,7 +41,7 @@ public:
     bool popupIsVisible() const { return m_searchPopupIsVisible; }
     void showPopup();
     void hidePopup();
-    void popupDidHide();
+    void NODELETE popupDidHide();
     WEBCORE_EXPORT std::span<const RecentSearch> recentSearches();
 
     void updatePopup(const AtomString& name, const Vector<WebCore::RecentSearch>& searchItems);

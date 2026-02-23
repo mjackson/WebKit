@@ -178,7 +178,7 @@ struct TextMarkerData {
         zeroBytes(*this);
     }
 
-    TextMarkerData(std::optional<AXID> axTreeID, std::optional<AXID> axObjectID,
+    TextMarkerData(std::optional<AXTreeID> axTreeID, std::optional<AXID> axObjectID,
         unsigned offsetParam = 0,
         Position::AnchorType anchorTypeParam = Position::PositionIsOffsetInAnchor,
         Affinity affinityParam = Affinity::Downstream,
@@ -201,9 +201,9 @@ struct TextMarkerData {
 
     friend bool operator==(const TextMarkerData&, const TextMarkerData&) = default;
 
-    std::optional<AXID> axTreeID() const
+    std::optional<AXTreeID> axTreeID() const
     {
-        return treeID ? std::optional { ObjectIdentifier<AXIDType>(treeID) } : std::nullopt;
+        return treeID ? std::optional { ObjectIdentifier<AXTreeIDType>(treeID) } : std::nullopt;
     }
 
     std::optional<AXID> axObjectID() const
@@ -236,7 +236,7 @@ public:
 #if PLATFORM(COCOA)
     AXTextMarker(PlatformTextMarkerData);
 #endif
-    AXTextMarker(std::optional<AXID> treeID, std::optional<AXID> objectID, unsigned offset, TextMarkerOrigin origin = TextMarkerOrigin::Unknown)
+    AXTextMarker(std::optional<AXTreeID> treeID, std::optional<AXID> objectID, unsigned offset, TextMarkerOrigin origin = TextMarkerOrigin::Unknown)
         : m_data({ treeID, objectID, offset, Position::PositionIsOffsetInAnchor, Affinity::Downstream, 0, offset, false, origin })
     { }
     AXTextMarker(const AXCoreObject& object, unsigned offset, TextMarkerOrigin origin = TextMarkerOrigin::Unknown)
@@ -257,7 +257,7 @@ public:
     operator PlatformTextMarkerData() const { return platformData().autorelease(); }
 #endif
 
-    std::optional<AXID> treeID() const { return m_data.axTreeID(); }
+    std::optional<AXTreeID> treeID() const { return m_data.axTreeID(); }
     std::optional<AXID> objectID() const { return m_data.axObjectID(); }
     unsigned offset() const { return m_data.offset; }
     bool isNull() const { return !treeID() || !objectID(); }
@@ -272,6 +272,7 @@ public:
     bool isDownstream() const { return affinity() == Affinity::Downstream; }
     void setAffinity(Affinity affinity) { m_data.affinity = affinity; }
 
+    String description() const;
     String debugDescription() const;
     TextMarkerOrigin origin() const { return m_data.origin; }
 
@@ -387,8 +388,8 @@ public:
 #if PLATFORM(MAC)
     AXTextMarkerRange(AXTextMarkerRangeRef);
 #endif
-    AXTextMarkerRange(std::optional<AXID> treeID, std::optional<AXID> objectID, const CharacterRange&);
-    AXTextMarkerRange(std::optional<AXID> treeID, std::optional<AXID> objectID, unsigned offset, unsigned length);
+    AXTextMarkerRange(std::optional<AXTreeID>, std::optional<AXID>, const CharacterRange&);
+    AXTextMarkerRange(std::optional<AXTreeID>, std::optional<AXID>, unsigned offset, unsigned length);
     AXTextMarkerRange() = default;
 
     operator bool() const { return m_start && m_end; }
@@ -429,13 +430,14 @@ public:
 #endif // PLATFORM(COCOA)
 #endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
+    String description() const;
     String debugDescription() const;
 private:
     AXTextMarker m_start;
     AXTextMarker m_end;
 };
 
-inline AXTextMarkerRange::AXTextMarkerRange(std::optional<AXID> treeID, std::optional<AXID> objectID, const CharacterRange& range)
+inline AXTextMarkerRange::AXTextMarkerRange(std::optional<AXTreeID> treeID, std::optional<AXID> objectID, const CharacterRange& range)
     : AXTextMarkerRange(treeID, objectID, range.location, range.location + range.length)
 { }
 

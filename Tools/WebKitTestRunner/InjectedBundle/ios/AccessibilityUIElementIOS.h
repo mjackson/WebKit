@@ -328,6 +328,7 @@ public:
     RefPtr<AccessibilityUIElement> accessibilityElementForTextMarker(AccessibilityTextMarker*) override;
     RefPtr<AccessibilityTextMarkerRange> textMarkerRangeForElement(AccessibilityUIElement*) override;
     RefPtr<AccessibilityTextMarkerRange> textMarkerRangeForMarkers(AccessibilityTextMarker*, AccessibilityTextMarker*) override;
+    RefPtr<AccessibilityTextMarkerRange> intersectTextMarkerRanges(AccessibilityTextMarkerRange*, AccessibilityTextMarkerRange*) override;
     int indexForTextMarker(AccessibilityTextMarker*) override;
     JSRetainPtr<JSStringRef> rectsForTextMarkerRange(AccessibilityTextMarkerRange*, JSStringRef) override;
     JSRetainPtr<JSStringRef> attributedStringForTextMarkerRange(AccessibilityTextMarkerRange*) override;

@@ -46,24 +46,49 @@ namespace TestWebKitAPI {
 using namespace WebCore;
 using namespace fido;
 
+static PublicKeyCredentialRpEntity testRp()
+{
+    return PublicKeyCredentialRpEntity {
+        PublicKeyCredentialEntity { "Acme"_s, { } },
+        "acme.com"_s
+    };
+}
+
+static PublicKeyCredentialUserEntity testUser()
+{
+    return PublicKeyCredentialUserEntity {
+        PublicKeyCredentialEntity { "johnpsmith@example.com"_s, "https://pics.acme.com/00/p/aBjjjpqPb.png"_s },
+        WebCore::toBufferSource(TestData::kUserId),
+        "John P. Smith"_s
+    };
+}
+
+static BufferSource testChallenge()
+{
+    return BufferSource { JSC::ArrayBuffer::create(static_cast<size_t>(0U), 1) };
+}
+
+static PublicKeyCredentialRequestOptions testRequestOptions()
+{
+    return PublicKeyCredentialRequestOptions {
+        .challenge = testChallenge(),
+        .timeout = { },
+        .rpId = "acme.com"_s,
+        .allowCredentials = { },
+        .userVerification = UserVerificationRequirement::Preferred,
+        .extensions = { },
+        .authenticatorAttachment = { },
+    };
+}
+
 // Leveraging example 2 of section 6.1 of the spec
 // https://fidoalliance.org/specs/fido-v2.0-ps-20170927/fido-client-to-authenticator-protocol-v2.0-ps-20170927.html
 TEST(CTAPRequestTest, TestConstructMakeCredentialRequestParam)
 {
-    PublicKeyCredentialRpEntity rp;
-    rp.name = "Acme"_s;
-    rp.id = "acme.com"_s;
-
-    PublicKeyCredentialUserEntity user;
-    user.name = "johnpsmith@example.com"_s;
-    user.icon = "https://pics.acme.com/00/p/aBjjjpqPb.png"_s;
-    user.id = WebCore::toBufferSource(TestData::kUserId);
-    user.displayName = "John P. Smith"_s;
-
     Vector<PublicKeyCredentialParameters> params { { PublicKeyCredentialType::PublicKey, 7 }, { PublicKeyCredentialType::PublicKey, 257 } };
     WebCore::AuthenticatorSelectionCriteria selection { AuthenticatorAttachment::Platform, std::nullopt, true, UserVerificationRequirement::Preferred };
 
-    WebCore::PublicKeyCredentialCreationOptions options { rp, user, { }, params, std::nullopt, { }, selection, AttestationConveyancePreference::None, std::nullopt };
+    PublicKeyCredentialCreationOptions options { testRp(), testUser(), testChallenge(), params, std::nullopt, { }, selection, AttestationConveyancePreference::None, std::nullopt };
     Vector<uint8_t> hash;
     Vector<String> extensions;
     hash.append(std::span { TestData::kClientDataHash });
@@ -74,20 +99,10 @@ TEST(CTAPRequestTest, TestConstructMakeCredentialRequestParam)
 
 TEST(CTAPRequestTest, TestConstructMakeCredentialRequestParamNoUVNoRK)
 {
-    PublicKeyCredentialRpEntity rp;
-    rp.name = "Acme"_s;
-    rp.id = "acme.com"_s;
-
-    PublicKeyCredentialUserEntity user;
-    user.name = "johnpsmith@example.com"_s;
-    user.icon = "https://pics.acme.com/00/p/aBjjjpqPb.png"_s;
-    user.id = WebCore::toBufferSource(TestData::kUserId);
-    user.displayName = "John P. Smith"_s;
-
     Vector<PublicKeyCredentialParameters> params { { PublicKeyCredentialType::PublicKey, 7 }, { PublicKeyCredentialType::PublicKey, 257 } };
     AuthenticatorSelectionCriteria selection { AuthenticatorAttachment::Platform, std::nullopt, false, UserVerificationRequirement::Discouraged };
 
-    PublicKeyCredentialCreationOptions options { rp, user, { }, params, std::nullopt, { }, selection, AttestationConveyancePreference::None, std::nullopt };
+    PublicKeyCredentialCreationOptions options { testRp(), testUser(), testChallenge(), params, std::nullopt, { }, selection, AttestationConveyancePreference::None, std::nullopt };
     Vector<uint8_t> hash;
     Vector<String> extensions;
     hash.append(std::span { TestData::kClientDataHash });
@@ -98,20 +113,10 @@ TEST(CTAPRequestTest, TestConstructMakeCredentialRequestParamNoUVNoRK)
 
 TEST(CTAPRequestTest, TestConstructMakeCredentialRequestParamUVRequiredButNotSupported)
 {
-    PublicKeyCredentialRpEntity rp;
-    rp.name = "Acme"_s;
-    rp.id = "acme.com"_s;
-
-    PublicKeyCredentialUserEntity user;
-    user.name = "johnpsmith@example.com"_s;
-    user.icon = "https://pics.acme.com/00/p/aBjjjpqPb.png"_s;
-    user.id = WebCore::toBufferSource(TestData::kUserId);
-    user.displayName = "John P. Smith"_s;
-
     Vector<PublicKeyCredentialParameters> params { { PublicKeyCredentialType::PublicKey, 7 }, { PublicKeyCredentialType::PublicKey, 257 } };
     AuthenticatorSelectionCriteria selection { AuthenticatorAttachment::Platform, std::nullopt, false, UserVerificationRequirement::Required };
 
-    PublicKeyCredentialCreationOptions options { rp, user, { }, params, std::nullopt, { }, selection, AttestationConveyancePreference::None, std::nullopt };
+    PublicKeyCredentialCreationOptions options { testRp(), testUser(), testChallenge(), params, std::nullopt, { }, selection, AttestationConveyancePreference::None, std::nullopt };
     Vector<uint8_t> hash;
     Vector<String> extensions;
     hash.append(std::span { TestData::kClientDataHash });
@@ -122,16 +127,6 @@ TEST(CTAPRequestTest, TestConstructMakeCredentialRequestParamUVRequiredButNotSup
 
 TEST(CTAPRequestTest, TestConstructMakeCredentialRequestParamWithPin)
 {
-    PublicKeyCredentialRpEntity rp;
-    rp.name = "Acme"_s;
-    rp.id = "acme.com"_s;
-
-    PublicKeyCredentialUserEntity user;
-    user.name = "johnpsmith@example.com"_s;
-    user.icon = "https://pics.acme.com/00/p/aBjjjpqPb.png"_s;
-    user.id = WebCore::toBufferSource(TestData::kUserId);
-    user.displayName = "John P. Smith"_s;
-
     Vector<PublicKeyCredentialParameters> params { { PublicKeyCredentialType::PublicKey, 7 }, { PublicKeyCredentialType::PublicKey, 257 } };
     AuthenticatorSelectionCriteria selection { AuthenticatorAttachment::Platform, std::nullopt, true, UserVerificationRequirement::Preferred };
 
@@ -139,7 +134,7 @@ TEST(CTAPRequestTest, TestConstructMakeCredentialRequestParamWithPin)
     pin.protocol = pin::kProtocolVersion;
     pin.auth.append(std::span { TestData::kCtap2PinAuth });
 
-    PublicKeyCredentialCreationOptions options { rp, user, { }, params, std::nullopt, { }, selection, AttestationConveyancePreference::None, std::nullopt };
+    PublicKeyCredentialCreationOptions options { testRp(), testUser(), testChallenge(), params, std::nullopt, { }, selection, AttestationConveyancePreference::None, std::nullopt };
     Vector<uint8_t> hash;
     Vector<String> extensions;
     hash.append(std::span { TestData::kClientDataHash });
@@ -150,16 +145,6 @@ TEST(CTAPRequestTest, TestConstructMakeCredentialRequestParamWithPin)
 
 TEST(CTAPRequestTest, TestConstructMakeCredentialRequestRKPreferred)
 {
-    PublicKeyCredentialRpEntity rp;
-    rp.name = "Acme"_s;
-    rp.id = "acme.com"_s;
-
-    PublicKeyCredentialUserEntity user;
-    user.name = "johnpsmith@example.com"_s;
-    user.icon = "https://pics.acme.com/00/p/aBjjjpqPb.png"_s;
-    user.id = WebCore::toBufferSource(TestData::kUserId);
-    user.displayName = "John P. Smith"_s;
-
     Vector<PublicKeyCredentialParameters> params { { PublicKeyCredentialType::PublicKey, 7 }, { PublicKeyCredentialType::PublicKey, 257 } };
     AuthenticatorSelectionCriteria selection { AuthenticatorAttachment::Platform, ResidentKeyRequirement::Preferred, true, UserVerificationRequirement::Preferred };
 
@@ -167,7 +152,7 @@ TEST(CTAPRequestTest, TestConstructMakeCredentialRequestRKPreferred)
     pin.protocol = pin::kProtocolVersion;
     pin.auth.append(std::span { TestData::kCtap2PinAuth });
 
-    PublicKeyCredentialCreationOptions options { rp, user, { }, params, std::nullopt, { }, selection, AttestationConveyancePreference::None, std::nullopt };
+    PublicKeyCredentialCreationOptions options { testRp(), testUser(), testChallenge(), params, std::nullopt, { }, selection, AttestationConveyancePreference::None, std::nullopt };
     Vector<uint8_t> hash;
     Vector<String> extensions;
     hash.append(std::span { TestData::kClientDataHash });
@@ -178,20 +163,10 @@ TEST(CTAPRequestTest, TestConstructMakeCredentialRequestRKPreferred)
 
 TEST(CTAPRequestTest, TestConstructMakeCredentialRequestRKPreferredNotSupported)
 {
-    PublicKeyCredentialRpEntity rp;
-    rp.name = "Acme"_s;
-    rp.id = "acme.com"_s;
-
-    PublicKeyCredentialUserEntity user;
-    user.name = "johnpsmith@example.com"_s;
-    user.icon = "https://pics.acme.com/00/p/aBjjjpqPb.png"_s;
-    user.id = WebCore::toBufferSource(TestData::kUserId);
-    user.displayName = "John P. Smith"_s;
-
     Vector<PublicKeyCredentialParameters> params { { PublicKeyCredentialType::PublicKey, 7 }, { PublicKeyCredentialType::PublicKey, 257 } };
     AuthenticatorSelectionCriteria selection { AuthenticatorAttachment::Platform, ResidentKeyRequirement::Preferred, true, UserVerificationRequirement::Required };
 
-    PublicKeyCredentialCreationOptions options { rp, user, { }, params, std::nullopt, { }, selection, AttestationConveyancePreference::None, std::nullopt };
+    PublicKeyCredentialCreationOptions options { testRp(), testUser(), testChallenge(), params, std::nullopt, { }, selection, AttestationConveyancePreference::None, std::nullopt };
     Vector<uint8_t> hash;
     Vector<String> extensions;
     hash.append(std::span { TestData::kClientDataHash });
@@ -202,20 +177,10 @@ TEST(CTAPRequestTest, TestConstructMakeCredentialRequestRKPreferredNotSupported)
 
 TEST(CTAPRequestTest, TestConstructMakeCredentialRequestRKDiscouraged)
 {
-    PublicKeyCredentialRpEntity rp;
-    rp.name = "Acme"_s;
-    rp.id = "acme.com"_s;
-
-    PublicKeyCredentialUserEntity user;
-    user.name = "johnpsmith@example.com"_s;
-    user.icon = "https://pics.acme.com/00/p/aBjjjpqPb.png"_s;
-    user.id = WebCore::toBufferSource(TestData::kUserId);
-    user.displayName = "John P. Smith"_s;
-
     Vector<PublicKeyCredentialParameters> params { { PublicKeyCredentialType::PublicKey, 7 }, { PublicKeyCredentialType::PublicKey, 257 } };
     AuthenticatorSelectionCriteria selection { AuthenticatorAttachment::Platform, ResidentKeyRequirement::Discouraged, true, UserVerificationRequirement::Required };
 
-    PublicKeyCredentialCreationOptions options { rp, user, { }, params, std::nullopt, { }, selection, AttestationConveyancePreference::None, std::nullopt };
+    PublicKeyCredentialCreationOptions options { testRp(), testUser(), testChallenge(), params, std::nullopt, { }, selection, AttestationConveyancePreference::None, std::nullopt };
     Vector<uint8_t> hash;
     Vector<String> extensions;
     hash.append(std::span { TestData::kClientDataHash });
@@ -226,16 +191,6 @@ TEST(CTAPRequestTest, TestConstructMakeCredentialRequestRKDiscouraged)
 
 TEST(CTAPRequestTest, TestConstructMakeCredentialRequestWithLargeBlob)
 {
-    PublicKeyCredentialRpEntity rp;
-    rp.name = "Acme"_s;
-    rp.id = "acme.com"_s;
-
-    PublicKeyCredentialUserEntity user;
-    user.name = "johnpsmith@example.com"_s;
-    user.icon = "https://pics.acme.com/00/p/aBjjjpqPb.png"_s;
-    user.id = WebCore::toBufferSource(TestData::kUserId);
-    user.displayName = "John P. Smith"_s;
-
     Vector<PublicKeyCredentialParameters> params { { PublicKeyCredentialType::PublicKey, 7 }, { PublicKeyCredentialType::PublicKey, 257 } };
     AuthenticatorSelectionCriteria selection { AuthenticatorAttachment::Platform, std::nullopt, false, UserVerificationRequirement::Discouraged };
     AuthenticationExtensionsClientInputs extensionInputs = {
@@ -249,7 +204,7 @@ TEST(CTAPRequestTest, TestConstructMakeCredentialRequestWithLargeBlob)
         .prf = std::nullopt,
     };
 
-    PublicKeyCredentialCreationOptions options { rp, user, { }, params, std::nullopt, { }, selection, AttestationConveyancePreference::None, extensionInputs };
+    PublicKeyCredentialCreationOptions options { testRp(), testUser(), testChallenge(), params, std::nullopt, { }, selection, AttestationConveyancePreference::None, extensionInputs };
     Vector<uint8_t> hash;
     Vector<String> extensions = { "largeBlob"_s };
     hash.append(std::span { TestData::kClientDataHash });
@@ -260,16 +215,6 @@ TEST(CTAPRequestTest, TestConstructMakeCredentialRequestWithLargeBlob)
 
 TEST(CTAPRequestTest, TestConstructMakeCredentialRequestWithUnsupportedLargeBlob)
 {
-    PublicKeyCredentialRpEntity rp;
-    rp.name = "Acme"_s;
-    rp.id = "acme.com"_s;
-
-    PublicKeyCredentialUserEntity user;
-    user.name = "johnpsmith@example.com"_s;
-    user.icon = "https://pics.acme.com/00/p/aBjjjpqPb.png"_s;
-    user.id = WebCore::toBufferSource(TestData::kUserId);
-    user.displayName = "John P. Smith"_s;
-
     Vector<PublicKeyCredentialParameters> params { { PublicKeyCredentialType::PublicKey, 7 }, { PublicKeyCredentialType::PublicKey, 257 } };
     AuthenticatorSelectionCriteria selection { AuthenticatorAttachment::Platform, std::nullopt, false, UserVerificationRequirement::Discouraged };
     AuthenticationExtensionsClientInputs extensionInputs = {
@@ -283,7 +228,7 @@ TEST(CTAPRequestTest, TestConstructMakeCredentialRequestWithUnsupportedLargeBlob
         .prf = std::nullopt,
     };
 
-    PublicKeyCredentialCreationOptions options { rp, user, { }, params, std::nullopt, { }, selection, AttestationConveyancePreference::None, extensionInputs };
+    PublicKeyCredentialCreationOptions options { testRp(), testUser(), testChallenge(), params, std::nullopt, { }, selection, AttestationConveyancePreference::None, extensionInputs };
     Vector<uint8_t> hash;
     Vector<String> extensions;
     hash.append(std::span { TestData::kClientDataHash });
@@ -294,11 +239,8 @@ TEST(CTAPRequestTest, TestConstructMakeCredentialRequestWithUnsupportedLargeBlob
 
 TEST(CTAPRequestTest, TestConstructGetAssertionRequest)
 {
-    PublicKeyCredentialRequestOptions options;
-    options.rpId = "acme.com"_s;
+    auto options = testRequestOptions();
 
-    PublicKeyCredentialDescriptor descriptor1;
-    descriptor1.type = PublicKeyCredentialType::PublicKey;
     const uint8_t id1[] = {
         0xf2, 0x20, 0x06, 0xde, 0x4f, 0x90, 0x5a, 0xf6, 0x8a, 0x43, 0x94,
         0x2f, 0x02, 0x4f, 0x2a, 0x5e, 0xce, 0x60, 0x3d, 0x9c, 0x6d, 0x4b,
@@ -306,18 +248,24 @@ TEST(CTAPRequestTest, TestConstructGetAssertionRequest)
         0x34, 0x85, 0x8a, 0xc7, 0x5b, 0xed, 0x3f, 0xd5, 0x80, 0xbf, 0x98,
         0x08, 0xd9, 0x4f, 0xcb, 0xee, 0x82, 0xb9, 0xb2, 0xef, 0x66, 0x77,
         0xaf, 0x0a, 0xdc, 0xc3, 0x58, 0x52, 0xea, 0x6b, 0x9e };
-    descriptor1.id = WebCore::toBufferSource(id1);
+    auto descriptor1 = PublicKeyCredentialDescriptor {
+        .type = PublicKeyCredentialType::PublicKey,
+        .id = WebCore::toBufferSource(id1),
+        .transports = { },
+    };
     options.allowCredentials.append(descriptor1);
 
-    PublicKeyCredentialDescriptor descriptor2;
-    descriptor2.type = PublicKeyCredentialType::PublicKey;
     const uint8_t id2[] = {
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03 };
-    descriptor2.id = WebCore::toBufferSource(id2);
+    auto descriptor2 = PublicKeyCredentialDescriptor {
+        .type = PublicKeyCredentialType::PublicKey,
+        .id = WebCore::toBufferSource(id2),
+        .transports = { },
+    };
     options.allowCredentials.append(descriptor2);
 
     options.userVerification = UserVerificationRequirement::Required;
@@ -332,11 +280,8 @@ TEST(CTAPRequestTest, TestConstructGetAssertionRequest)
 
 TEST(CTAPRequestTest, TestConstructGetAssertionRequestNoUV)
 {
-    PublicKeyCredentialRequestOptions options;
-    options.rpId = "acme.com"_s;
+    auto options = testRequestOptions();
 
-    PublicKeyCredentialDescriptor descriptor1;
-    descriptor1.type = PublicKeyCredentialType::PublicKey;
     const uint8_t id1[] = {
         0xf2, 0x20, 0x06, 0xde, 0x4f, 0x90, 0x5a, 0xf6, 0x8a, 0x43, 0x94,
         0x2f, 0x02, 0x4f, 0x2a, 0x5e, 0xce, 0x60, 0x3d, 0x9c, 0x6d, 0x4b,
@@ -344,18 +289,24 @@ TEST(CTAPRequestTest, TestConstructGetAssertionRequestNoUV)
         0x34, 0x85, 0x8a, 0xc7, 0x5b, 0xed, 0x3f, 0xd5, 0x80, 0xbf, 0x98,
         0x08, 0xd9, 0x4f, 0xcb, 0xee, 0x82, 0xb9, 0xb2, 0xef, 0x66, 0x77,
         0xaf, 0x0a, 0xdc, 0xc3, 0x58, 0x52, 0xea, 0x6b, 0x9e };
-    descriptor1.id = WebCore::toBufferSource(id1);
+    auto descriptor1 = PublicKeyCredentialDescriptor {
+        .type = PublicKeyCredentialType::PublicKey,
+        .id = WebCore::toBufferSource(id1),
+        .transports = { },
+    };
     options.allowCredentials.append(descriptor1);
 
-    PublicKeyCredentialDescriptor descriptor2;
-    descriptor2.type = PublicKeyCredentialType::PublicKey;
     const uint8_t id2[] = {
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03 };
-    descriptor2.id = WebCore::toBufferSource(id2);
+    auto descriptor2 = PublicKeyCredentialDescriptor {
+        .type = PublicKeyCredentialType::PublicKey,
+        .id = WebCore::toBufferSource(id2),
+        .transports = { },
+    };
     options.allowCredentials.append(descriptor2);
 
     options.userVerification = UserVerificationRequirement::Discouraged;
@@ -370,11 +321,8 @@ TEST(CTAPRequestTest, TestConstructGetAssertionRequestNoUV)
 
 TEST(CTAPRequestTest, TestConstructGetAssertionRequestUVRequiredButNotSupported)
 {
-    PublicKeyCredentialRequestOptions options;
-    options.rpId = "acme.com"_s;
+    auto options = testRequestOptions();
 
-    PublicKeyCredentialDescriptor descriptor1;
-    descriptor1.type = PublicKeyCredentialType::PublicKey;
     const uint8_t id1[] = {
         0xf2, 0x20, 0x06, 0xde, 0x4f, 0x90, 0x5a, 0xf6, 0x8a, 0x43, 0x94,
         0x2f, 0x02, 0x4f, 0x2a, 0x5e, 0xce, 0x60, 0x3d, 0x9c, 0x6d, 0x4b,
@@ -382,18 +330,24 @@ TEST(CTAPRequestTest, TestConstructGetAssertionRequestUVRequiredButNotSupported)
         0x34, 0x85, 0x8a, 0xc7, 0x5b, 0xed, 0x3f, 0xd5, 0x80, 0xbf, 0x98,
         0x08, 0xd9, 0x4f, 0xcb, 0xee, 0x82, 0xb9, 0xb2, 0xef, 0x66, 0x77,
         0xaf, 0x0a, 0xdc, 0xc3, 0x58, 0x52, 0xea, 0x6b, 0x9e };
-    descriptor1.id = WebCore::toBufferSource(id1);
+    auto descriptor1 = PublicKeyCredentialDescriptor {
+        .type = PublicKeyCredentialType::PublicKey,
+        .id = WebCore::toBufferSource(id1),
+        .transports = { },
+    };
     options.allowCredentials.append(descriptor1);
 
-    PublicKeyCredentialDescriptor descriptor2;
-    descriptor2.type = PublicKeyCredentialType::PublicKey;
     const uint8_t id2[] = {
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03 };
-    descriptor2.id = WebCore::toBufferSource(id2);
+    auto descriptor2 = PublicKeyCredentialDescriptor {
+        .type = PublicKeyCredentialType::PublicKey,
+        .id = WebCore::toBufferSource(id2),
+        .transports = { },
+    };
     options.allowCredentials.append(descriptor2);
 
     options.userVerification = UserVerificationRequirement::Required;
@@ -408,11 +362,8 @@ TEST(CTAPRequestTest, TestConstructGetAssertionRequestUVRequiredButNotSupported)
 
 TEST(CTAPRequestTest, TestConstructGetAssertionRequestWithPin)
 {
-    PublicKeyCredentialRequestOptions options;
-    options.rpId = "acme.com"_s;
+    auto options = testRequestOptions();
 
-    PublicKeyCredentialDescriptor descriptor1;
-    descriptor1.type = PublicKeyCredentialType::PublicKey;
     const uint8_t id1[] = {
         0xf2, 0x20, 0x06, 0xde, 0x4f, 0x90, 0x5a, 0xf6, 0x8a, 0x43, 0x94,
         0x2f, 0x02, 0x4f, 0x2a, 0x5e, 0xce, 0x60, 0x3d, 0x9c, 0x6d, 0x4b,
@@ -420,18 +371,24 @@ TEST(CTAPRequestTest, TestConstructGetAssertionRequestWithPin)
         0x34, 0x85, 0x8a, 0xc7, 0x5b, 0xed, 0x3f, 0xd5, 0x80, 0xbf, 0x98,
         0x08, 0xd9, 0x4f, 0xcb, 0xee, 0x82, 0xb9, 0xb2, 0xef, 0x66, 0x77,
         0xaf, 0x0a, 0xdc, 0xc3, 0x58, 0x52, 0xea, 0x6b, 0x9e };
-    descriptor1.id = WebCore::toBufferSource(id1);
+    auto descriptor1 = PublicKeyCredentialDescriptor {
+        .type = PublicKeyCredentialType::PublicKey,
+        .id = WebCore::toBufferSource(id1),
+        .transports = { },
+    };
     options.allowCredentials.append(descriptor1);
 
-    PublicKeyCredentialDescriptor descriptor2;
-    descriptor2.type = PublicKeyCredentialType::PublicKey;
     const uint8_t id2[] = {
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03 };
-    descriptor2.id = WebCore::toBufferSource(id2);
+    auto descriptor2 = PublicKeyCredentialDescriptor {
+        .type = PublicKeyCredentialType::PublicKey,
+        .id = WebCore::toBufferSource(id2),
+        .transports = { },
+    };
     options.allowCredentials.append(descriptor2);
 
     options.userVerification = UserVerificationRequirement::Required;
@@ -469,11 +426,8 @@ TEST(CTAPRequestTest, TestConstructCtapAuthenticatorRequestParam)
 
 TEST(CTAPRequestTest, TestConstructGetAssertionRequestLargeBlobRead)
 {
-    PublicKeyCredentialRequestOptions options;
-    options.rpId = "acme.com"_s;
+    auto options = testRequestOptions();
 
-    PublicKeyCredentialDescriptor descriptor1;
-    descriptor1.type = PublicKeyCredentialType::PublicKey;
     const uint8_t id1[] = {
         0xf2, 0x20, 0x06, 0xde, 0x4f, 0x90, 0x5a, 0xf6, 0x8a, 0x43, 0x94,
         0x2f, 0x02, 0x4f, 0x2a, 0x5e, 0xce, 0x60, 0x3d, 0x9c, 0x6d, 0x4b,
@@ -481,18 +435,24 @@ TEST(CTAPRequestTest, TestConstructGetAssertionRequestLargeBlobRead)
         0x34, 0x85, 0x8a, 0xc7, 0x5b, 0xed, 0x3f, 0xd5, 0x80, 0xbf, 0x98,
         0x08, 0xd9, 0x4f, 0xcb, 0xee, 0x82, 0xb9, 0xb2, 0xef, 0x66, 0x77,
         0xaf, 0x0a, 0xdc, 0xc3, 0x58, 0x52, 0xea, 0x6b, 0x9e };
-    descriptor1.id = WebCore::toBufferSource(id1);
+    auto descriptor1 = PublicKeyCredentialDescriptor {
+        .type = PublicKeyCredentialType::PublicKey,
+        .id = WebCore::toBufferSource(id1),
+        .transports = { },
+    };
     options.allowCredentials.append(descriptor1);
 
-    PublicKeyCredentialDescriptor descriptor2;
-    descriptor2.type = PublicKeyCredentialType::PublicKey;
     const uint8_t id2[] = {
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03 };
-    descriptor2.id = WebCore::toBufferSource(id2);
+    auto descriptor2 = PublicKeyCredentialDescriptor {
+        .type = PublicKeyCredentialType::PublicKey,
+        .id = WebCore::toBufferSource(id2),
+        .transports = { },
+    };
     options.allowCredentials.append(descriptor2);
     options.extensions = AuthenticationExtensionsClientInputs {
         .appid = WTF::nullString(),
@@ -517,11 +477,8 @@ TEST(CTAPRequestTest, TestConstructGetAssertionRequestLargeBlobRead)
 
 TEST(CTAPRequestTest, TestConstructGetAssertionRequestUnsupportedLargeBlobRead)
 {
-    PublicKeyCredentialRequestOptions options;
-    options.rpId = "acme.com"_s;
+    auto options = testRequestOptions();
 
-    PublicKeyCredentialDescriptor descriptor1;
-    descriptor1.type = PublicKeyCredentialType::PublicKey;
     const uint8_t id1[] = {
         0xf2, 0x20, 0x06, 0xde, 0x4f, 0x90, 0x5a, 0xf6, 0x8a, 0x43, 0x94,
         0x2f, 0x02, 0x4f, 0x2a, 0x5e, 0xce, 0x60, 0x3d, 0x9c, 0x6d, 0x4b,
@@ -529,18 +486,24 @@ TEST(CTAPRequestTest, TestConstructGetAssertionRequestUnsupportedLargeBlobRead)
         0x34, 0x85, 0x8a, 0xc7, 0x5b, 0xed, 0x3f, 0xd5, 0x80, 0xbf, 0x98,
         0x08, 0xd9, 0x4f, 0xcb, 0xee, 0x82, 0xb9, 0xb2, 0xef, 0x66, 0x77,
         0xaf, 0x0a, 0xdc, 0xc3, 0x58, 0x52, 0xea, 0x6b, 0x9e };
-    descriptor1.id = WebCore::toBufferSource(id1);
+    auto descriptor1 = PublicKeyCredentialDescriptor {
+        .type = PublicKeyCredentialType::PublicKey,
+        .id = WebCore::toBufferSource(id1),
+        .transports = { },
+    };
     options.allowCredentials.append(descriptor1);
 
-    PublicKeyCredentialDescriptor descriptor2;
-    descriptor2.type = PublicKeyCredentialType::PublicKey;
     const uint8_t id2[] = {
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03 };
-    descriptor2.id = WebCore::toBufferSource(id2);
+    auto descriptor2 = PublicKeyCredentialDescriptor {
+        .type = PublicKeyCredentialType::PublicKey,
+        .id = WebCore::toBufferSource(id2),
+        .transports = { },
+    };
     options.allowCredentials.append(descriptor2);
     options.extensions = AuthenticationExtensionsClientInputs {
         .appid = WTF::nullString(),
@@ -565,11 +528,8 @@ TEST(CTAPRequestTest, TestConstructGetAssertionRequestUnsupportedLargeBlobRead)
 
 TEST(CTAPRequestTest, TestConstructGetAssertionRequestLargeBlobWrite)
 {
-    PublicKeyCredentialRequestOptions options;
-    options.rpId = "acme.com"_s;
+    auto options = testRequestOptions();
 
-    PublicKeyCredentialDescriptor descriptor1;
-    descriptor1.type = PublicKeyCredentialType::PublicKey;
     const uint8_t id1[] = {
         0xf2, 0x20, 0x06, 0xde, 0x4f, 0x90, 0x5a, 0xf6, 0x8a, 0x43, 0x94,
         0x2f, 0x02, 0x4f, 0x2a, 0x5e, 0xce, 0x60, 0x3d, 0x9c, 0x6d, 0x4b,
@@ -577,18 +537,24 @@ TEST(CTAPRequestTest, TestConstructGetAssertionRequestLargeBlobWrite)
         0x34, 0x85, 0x8a, 0xc7, 0x5b, 0xed, 0x3f, 0xd5, 0x80, 0xbf, 0x98,
         0x08, 0xd9, 0x4f, 0xcb, 0xee, 0x82, 0xb9, 0xb2, 0xef, 0x66, 0x77,
         0xaf, 0x0a, 0xdc, 0xc3, 0x58, 0x52, 0xea, 0x6b, 0x9e };
-    descriptor1.id = WebCore::toBufferSource(id1);
+    auto descriptor1 = PublicKeyCredentialDescriptor {
+        .type = PublicKeyCredentialType::PublicKey,
+        .id = WebCore::toBufferSource(id1),
+        .transports = { },
+    };
     options.allowCredentials.append(descriptor1);
 
-    PublicKeyCredentialDescriptor descriptor2;
-    descriptor2.type = PublicKeyCredentialType::PublicKey;
     const uint8_t id2[] = {
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
         0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03 };
-    descriptor2.id = WebCore::toBufferSource(id2);
+    auto descriptor2 = PublicKeyCredentialDescriptor {
+        .type = PublicKeyCredentialType::PublicKey,
+        .id = WebCore::toBufferSource(id2),
+        .transports = { },
+    };
     options.allowCredentials.append(descriptor2);
 
     const uint8_t blob[] = {
@@ -617,8 +583,7 @@ TEST(CTAPRequestTest, TestConstructGetAssertionRequestLargeBlobWrite)
 
 TEST(CTAPRequestTest, TestConstructGetAssertionRequestWithHmacSecret)
 {
-    PublicKeyCredentialRequestOptions options;
-    options.rpId = "acme.com"_s;
+    auto options = testRequestOptions();
 
     // Create hmac-secret extension inputs (two 32-byte salts)
     const uint8_t salt1Data[32] = { 0x00 }; // 32 bytes of zeros
@@ -629,10 +594,10 @@ TEST(CTAPRequestTest, TestConstructGetAssertionRequestWithHmacSecret)
 
     AuthenticationExtensionsClientInputs extensions;
     AuthenticationExtensionsClientInputs::PRFInputs prfInputs;
-    AuthenticationExtensionsClientInputs::PRFValues prfValues;
-    prfValues.first = WebCore::toBufferSource(salt1Data);
-    prfValues.second = WebCore::toBufferSource(salt2Data);
-    prfInputs.eval = WTF::move(prfValues);
+    prfInputs.eval = AuthenticationExtensionsClientInputs::PRFValues {
+        WebCore::toBufferSource(salt1Data),
+        WebCore::toBufferSource(salt2Data),
+    };
     extensions.prf = WTF::move(prfInputs);
 
     options.extensions = extensions;

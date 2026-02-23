@@ -88,7 +88,7 @@ class GPUProcessProxy final : public AuxiliaryProcessProxy {
 public:
     static void keepProcessAliveTemporarily();
     static Ref<GPUProcessProxy> getOrCreate();
-    static GPUProcessProxy* singletonIfCreated();
+    static GPUProcessProxy* NODELETE singletonIfCreated();
     ~GPUProcessProxy();
 
     void createGPUProcessConnection(WebProcessProxy&, IPC::Connection::Handle&&, GPUProcessConnectionParameters&&);

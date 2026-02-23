@@ -107,7 +107,7 @@ class SegmentedStringSource {
 public:
     explicit SegmentedStringSource(SegmentedString&);
 
-    bool isEmpty() const { return m_source.isEmpty(); }
+    bool NODELETE isEmpty() const { return m_source.isEmpty(); }
     char16_t currentCharacter() const { return m_source.currentCharacter(); }
     void advance();
     void pushEverythingBack();
@@ -122,7 +122,7 @@ template<typename CharacterType> class StringParsingBufferSource {
 public:
     explicit StringParsingBufferSource(StringParsingBuffer<CharacterType>&);
 
-    static bool isEmpty() { return false; }
+    static bool NODELETE isEmpty() { return false; }
     char16_t currentCharacter() const { return m_source.atEnd() ? 0 : char16_t { *m_source }; }
     void advance() { m_source.advance(); }
     void pushEverythingBack() { m_source.setPosition(m_startPosition); }

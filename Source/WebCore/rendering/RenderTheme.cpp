@@ -73,6 +73,7 @@
 #include "SearchFieldCancelButtonPart.h"
 #include "SearchFieldPart.h"
 #include "SearchFieldResultsPart.h"
+#include "SelectPopoverElement.h"
 #include "SliderThumbElement.h"
 #include "SliderThumbPart.h"
 #include "SliderTrackPart.h"
@@ -131,7 +132,7 @@ StyleAppearance RenderTheme::adjustAppearanceForElement(RenderStyle& style, cons
 
     auto appearance = style.usedAppearance();
     if (appearance == StyleAppearance::BaseSelect) {
-        if (is<HTMLSelectElement>(element)) [[likely]] {
+        if (is<HTMLSelectElement>(element) || is<SelectPopoverElement>(element)) [[likely]] {
             style.setUsedAppearance(StyleAppearance::Base);
             return StyleAppearance::Base;
         }
@@ -211,7 +212,7 @@ StyleAppearance RenderTheme::adjustAppearanceForElement(RenderStyle& style, cons
     return appearance;
 }
 
-static bool isAppearanceAllowedForAllElements(StyleAppearance appearance)
+static bool NODELETE isAppearanceAllowedForAllElements(StyleAppearance appearance)
 {
 #if ENABLE(APPLE_PAY)
     if (appearance == StyleAppearance::ApplePayButton)
@@ -232,7 +233,7 @@ static bool devolvableWidgetsEnabledAndSupported(const Element* element)
 #endif
 }
 
-static bool shouldCheckLegacyStylesForNativeAppearance(const Element* element)
+static bool NODELETE shouldCheckLegacyStylesForNativeAppearance(const Element* element)
 {
 #if PLATFORM(MAC)
 #if ENABLE(FORM_CONTROL_REFRESH)
@@ -269,13 +270,13 @@ void RenderTheme::adjustStyle(RenderStyle& style, const RenderStyle& parentStyle
         return;
 
     // Force inline and table display styles to be inline-block (except for table- which is block)
-    if (style.display() == DisplayType::Inline || style.display() == DisplayType::InlineTable || style.display() == DisplayType::TableRowGroup
-        || style.display() == DisplayType::TableHeaderGroup || style.display() == DisplayType::TableFooterGroup
-        || style.display() == DisplayType::TableRow || style.display() == DisplayType::TableColumnGroup || style.display() == DisplayType::TableColumn
-        || style.display() == DisplayType::TableCell || style.display() == DisplayType::TableCaption)
-        style.setEffectiveDisplay(DisplayType::InlineBlock);
-    else if (style.display() == DisplayType::ListItem || style.display() == DisplayType::Table)
-        style.setEffectiveDisplay(DisplayType::Block);
+    if (style.display() == Style::DisplayType::InlineFlow || style.display() == Style::DisplayType::InlineTable || style.display() == Style::DisplayType::TableRowGroup
+        || style.display() == Style::DisplayType::TableHeaderGroup || style.display() == Style::DisplayType::TableFooterGroup
+        || style.display() == Style::DisplayType::TableRow || style.display() == Style::DisplayType::TableColumnGroup || style.display() == Style::DisplayType::TableColumn
+        || style.display() == Style::DisplayType::TableCell || style.display() == Style::DisplayType::TableCaption)
+        style.setDisplayMaintainingOriginalDisplay(Style::DisplayType::InlineFlowRoot);
+    else if (style.display() == Style::DisplayType::BlockFlowListItem || style.display() == Style::DisplayType::BlockTable)
+        style.setDisplayMaintainingOriginalDisplay(Style::DisplayType::BlockFlow);
 
     bool widgetMayDevolve = devolvableWidgetsEnabledAndSupported(element);
     bool widgetHasNativeAppearanceDisabled = widgetMayDevolve && element->isDevolvableWidget() && style.nativeAppearanceDisabled() && !isAppearanceAllowedForAllElements(appearance);
@@ -536,13 +537,13 @@ static void updateMeterPartForRenderer(MeterPart& meterPart, const RenderMeter& 
     MeterPart::GaugeRegion gaugeRegion;
 
     switch (element->gaugeRegion()) {
-    case HTMLMeterElement::GaugeRegionOptimum:
+    case HTMLMeterElement::GaugeRegion::Optimum:
         gaugeRegion = MeterPart::GaugeRegion::Optimum;
         break;
-    case HTMLMeterElement::GaugeRegionSuboptimal:
+    case HTMLMeterElement::GaugeRegion::Suboptimal:
         gaugeRegion = MeterPart::GaugeRegion::Suboptimal;
         break;
-    case HTMLMeterElement::GaugeRegionEvenLessGood:
+    case HTMLMeterElement::GaugeRegion::EvenLessGood:
         gaugeRegion = MeterPart::GaugeRegion::EvenLessGood;
         break;
     }
@@ -879,7 +880,7 @@ bool RenderTheme::paint(const RenderBox& box, ControlPart& part, const PaintInfo
 
     float deviceScaleFactor = protect(box.document())->deviceScaleFactor();
     auto zoomedRect = snapRectToDevicePixels(rect, deviceScaleFactor);
-    auto borderShape = BorderShape::shapeForBorderRect(box.checkedStyle().get(), LayoutRect(zoomedRect));
+    auto borderShape = BorderShape::shapeForBorderRect(protect(box.style()).get(), LayoutRect(zoomedRect));
     auto controlStyle = extractControlStyleForRenderer(box);
     auto& context = paintInfo.context();
 
@@ -1721,12 +1722,12 @@ void RenderTheme::adjustSliderThumbStyle(RenderStyle& style, const Element* elem
 void RenderTheme::adjustSwitchStyleDisplay(RenderStyle& style) const
 {
     // RenderTheme::adjustStyle() normalizes a bunch of display types to InlineBlock and Block.
-    switch (style.display()) {
-    case DisplayType::InlineBlock:
-        style.setEffectiveDisplay(DisplayType::InlineGrid);
+    switch (style.display().value) {
+    case Style::DisplayType::InlineFlowRoot:
+        style.setDisplayMaintainingOriginalDisplay(Style::DisplayType::InlineGrid);
         break;
-    case DisplayType::Block:
-        style.setEffectiveDisplay(DisplayType::Grid);
+    case Style::DisplayType::BlockFlow:
+        style.setDisplayMaintainingOriginalDisplay(Style::DisplayType::BlockGrid);
         break;
     default:
         break;
@@ -1738,7 +1739,7 @@ void RenderTheme::adjustSwitchStyle(RenderStyle& style, const Element*) const
     // FIXME: This probably has the same flaw as
     // RenderTheme::adjustButtonOrCheckboxOrColorWellOrInnerSpinButtonOrRadioStyle() by not taking
     // min-width/min-height into account.
-    auto controlSize = this->controlSize(StyleAppearance::Switch, style.checkedFontCascade().get(), { style.logicalWidth(), style.logicalHeight() }, usedZoomForComputedStyle(style));
+    auto controlSize = this->controlSize(StyleAppearance::Switch, protect(style.fontCascade()).get(), { style.logicalWidth(), style.logicalHeight() }, usedZoomForComputedStyle(style));
     style.setLogicalWidth(Style::PreferredSize { controlSize.width() });
     style.setLogicalHeight(Style::PreferredSize { controlSize.height() });
 
@@ -2086,7 +2087,7 @@ Color RenderTheme::platformDefaultButtonTextColor(OptionSet<StyleColorOptions> o
     return systemColor(CSSValueActivebuttontext, options);
 }
 
-#if ENABLE(TOUCH_EVENTS)
+#if ENABLE(CSS_TAP_HIGHLIGHT_COLOR)
 
 Color RenderTheme::tapHighlightColor()
 {
@@ -2236,7 +2237,7 @@ void RenderTheme::paintSystemPreviewBadge(Image& image, const PaintInfo& paintIn
 }
 #endif
 
-#if ENABLE(TOUCH_EVENTS)
+#if ENABLE(CSS_TAP_HIGHLIGHT_COLOR)
 
 Color RenderTheme::platformTapHighlightColor() const
 {

@@ -325,8 +325,11 @@ void ScriptController::initScriptForWindowProxy(JSWindowProxy& windowProxy)
 
     windowProxy.window()->setConsoleClient(m_frame->console());
 
-    if (RefPtr document = m_frame->document())
+    if (RefPtr document = m_frame->document()) {
         protect(document->contentSecurityPolicy())->didCreateWindowProxy(windowProxy);
+        if (world->isNormal())
+            document->setMicrotaskGlobalObject(windowProxy.window());
+    }
 
     if (RefPtr page = m_frame->page()) {
         windowProxy.attachDebugger(page->debugger());

@@ -47,12 +47,12 @@ public:
 protected:
     bool isRenderMathMLScripts() const override { return true; }
     ASCIILiteral renderName() const override { return "RenderMathMLScripts"_s; }
-    MathMLScriptsElement::ScriptType scriptType() const;
+    MathMLScriptsElement::ScriptType NODELETE scriptType() const;
     void computePreferredLogicalWidths() override;
     void layoutBlock(RelayoutChildren, LayoutUnit pageLogicalHeight = 0_lu) override;
 
 private:
-    MathMLScriptsElement& element() const;
+    MathMLScriptsElement& NODELETE element() const;
     std::optional<LayoutUnit> firstLineBaseline() const final;
     struct ReferenceChildren {
         RenderBox* base;

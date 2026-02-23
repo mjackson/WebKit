@@ -138,8 +138,8 @@ void DatabaseThread::recordDatabaseOpen(Database& database)
     Locker locker { m_openDatabaseSetLock };
 
     ASSERT(m_thread == &Thread::currentSingleton());
-    ASSERT(!m_openDatabaseSet.contains(&database));
-    m_openDatabaseSet.add(&database);
+    ASSERT(!m_openDatabaseSet.contains(database));
+    m_openDatabaseSet.add(database);
 }
 
 void DatabaseThread::recordDatabaseClosed(Database& database)
@@ -147,8 +147,8 @@ void DatabaseThread::recordDatabaseClosed(Database& database)
     Locker locker { m_openDatabaseSetLock };
 
     ASSERT(m_thread == &Thread::currentSingleton());
-    ASSERT(m_queue.killed() || m_openDatabaseSet.contains(&database));
-    m_openDatabaseSet.remove(&database);
+    ASSERT(m_queue.killed() || m_openDatabaseSet.contains(database));
+    m_openDatabaseSet.remove(database);
 }
 
 void DatabaseThread::scheduleTask(std::unique_ptr<DatabaseTask>&& task)

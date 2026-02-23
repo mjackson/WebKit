@@ -81,7 +81,7 @@ RefPtr<TextIndicator> TextIndicator::createWithRange(const SimpleRange& range, O
             Ref indicatorNode = commonAncestor.releaseNonNull();
 
             for (Ref ancestorElement : ancestorsOfType<Element>(indicatorNode)) {
-                if (CheckedPtr renderer = ancestorElement->renderer(); renderer && renderer->checkedStyle()->usedUserSelect() == UserSelect::All)
+                if (CheckedPtr renderer = ancestorElement->renderer(); renderer && protect(renderer->style())->usedUserSelect() == UserSelect::All)
                     indicatorNode = ancestorElement;
             }
 
@@ -258,7 +258,7 @@ static HashSet<Color> estimatedTextColorsForRange(const SimpleRange& range)
         if (!node)
             continue;
         if (CheckedPtr renderText = dynamicDowncast<RenderText>(node->renderer()))
-            colors.add(renderText->checkedStyle()->color());
+            colors.add(protect(renderText->style())->color());
     }
     return colors;
 }

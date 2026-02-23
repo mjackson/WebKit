@@ -125,23 +125,25 @@ public:
     bool performDelegatedLayerDisplay();
 
     void paintContents();
+    void flush();
     virtual void prepareToDisplay() = 0;
     virtual void createContextAndPaintContents() = 0;
 
     virtual std::unique_ptr<ThreadSafeImageBufferSetFlusher> createFlusher(ThreadSafeImageBufferSetFlusher::FlushType = ThreadSafeImageBufferSetFlusher::FlushType::BackendHandlesAndDrawing) = 0;
+    virtual void submitDrawingCommands() { }
 
     WebCore::FloatSize size() const { return m_parameters.size; }
     float scale() const { return m_parameters.scale; }
     WebCore::ContentsFormat contentsFormat() const { return m_parameters.contentsFormat; }
     WebCore::DestinationColorSpace colorSpace() const { return m_parameters.colorSpace; }
-    WebCore::PixelFormat pixelFormat() const;
+    WebCore::PixelFormat NODELETE pixelFormat() const;
     Type type() const { return m_parameters.type; }
     bool isOpaque() const { return m_parameters.isOpaque; }
-    unsigned bytesPerPixel() const;
+    unsigned NODELETE bytesPerPixel() const;
     bool supportsPartialRepaint() const;
     bool drawingRequiresClearedPixels() const;
 
-    PlatformCALayerRemote& layer() const;
+    PlatformCALayerRemote& NODELETE layer() const;
 
     void encode(IPC::Encoder&) const;
 
@@ -177,7 +179,7 @@ public:
     void markFrontBufferVolatileForTesting();
 
 protected:
-    RemoteLayerBackingStoreCollection* backingStoreCollection() const;
+    RemoteLayerBackingStoreCollection* NODELETE backingStoreCollection() const;
 
     void drawInContext(WebCore::GraphicsContext&);
 
@@ -208,6 +210,7 @@ protected:
     float m_maxPaintedEDRHeadroom { 1 };
     float m_maxRequestedEDRHeadroom { 1 };
 #endif
+    bool m_needsFlush { false };
 };
 
 // The subset of RemoteLayerBackingStore that gets serialized into the UI

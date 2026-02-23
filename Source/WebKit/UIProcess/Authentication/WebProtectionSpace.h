@@ -39,13 +39,13 @@ public:
     }
     
     const String& protocol() const;
-    const String& host() const;
-    int port() const;
-    const String& realm() const;
+    const String& NODELETE host() const;
+    int NODELETE port() const;
+    const String& NODELETE realm() const;
     bool isProxy() const;
-    WebCore::ProtectionSpace::ServerType serverType() const;
+    WebCore::ProtectionSpace::ServerType NODELETE serverType() const;
     bool receivesCredentialSecurely() const;
-    WebCore::ProtectionSpace::AuthenticationScheme authenticationScheme() const;
+    WebCore::ProtectionSpace::AuthenticationScheme NODELETE authenticationScheme() const;
 
     const WebCore::ProtectionSpace& protectionSpace() const { return m_coreProtectionSpace; }
 

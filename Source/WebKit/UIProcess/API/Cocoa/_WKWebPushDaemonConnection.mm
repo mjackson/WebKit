@@ -97,7 +97,7 @@ IGNORE_NULL_CHECK_WARNINGS_END
     return self;
 }
 
-static _WKWebPushPermissionState toWKPermissionsState(WebCore::PushPermissionState state)
+static _WKWebPushPermissionState NODELETE toWKPermissionsState(WebCore::PushPermissionState state)
 {
     switch (state) {
     case WebCore::PushPermissionState::Denied:

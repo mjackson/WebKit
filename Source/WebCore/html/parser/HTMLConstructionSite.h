@@ -90,12 +90,6 @@ template<> struct VectorTraits<WebCore::HTMLConstructionSiteTask> : SimpleClassV
 
 namespace WebCore {
 
-enum WhitespaceMode {
-    AllWhitespace,
-    NotAllWhitespace,
-    WhitespaceUnknown
-};
-
 class AtomHTMLToken;
 class CustomElementRegistry;
 class Document;
@@ -147,10 +141,10 @@ public:
 
     HTMLStackItem createElementFromSavedToken(const HTMLStackItem&);
 
-    bool shouldFosterParent() const;
+    bool NODELETE shouldFosterParent() const;
     void fosterParent(Ref<Node>&&);
 
-    std::optional<unsigned> indexOfFirstUnopenFormattingElement() const;
+    std::optional<unsigned> NODELETE indexOfFirstUnopenFormattingElement() const;
     void reconstructTheActiveFormattingElements();
 
     void generateImpliedEndTags();
@@ -176,7 +170,7 @@ public:
 
     void setForm(HTMLFormElement*);
     HTMLFormElement* form() const { return m_form.get(); }
-    RefPtr<HTMLFormElement> takeForm();
+    RefPtr<HTMLFormElement> NODELETE takeForm();
 
     OptionSet<ParserContentPolicy> parserContentPolicy() { return m_parserContentPolicy; }
 
@@ -218,8 +212,8 @@ private:
     void mergeAttributesFromTokenIntoElement(AtomHTMLToken&&, Element&);
     void dispatchDocumentElementAvailableIfNeeded();
 
-    Ref<Document> protectedDocument() const;
-    Ref<ContainerNode> protectedAttachmentRoot() const;
+    Ref<Document> NODELETE protectedDocument() const;
+    Ref<ContainerNode> NODELETE protectedAttachmentRoot() const;
 
     // m_head has to be destroyed after destroying CheckedRef of m_document and m_attachmentRoot
     HTMLStackItem m_head;

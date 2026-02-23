@@ -3958,7 +3958,12 @@ TEST(SiteIsolation, ValidateSessionRestoreWithoutNavigating)
     EXPECT_TRUE([newIsolatedSessionState isEqualForTesting:normalSessionState.get()]);
 }
 
+// FIXME: webkit.org/b/308060
+#if PLATFORM(IOS) && !defined(NDEBUG)
+TEST(SiteIsolation, DISABLED_BackNavigationOverCrossSiteIframeWithoutBFCache)
+#else
 TEST(SiteIsolation, BackNavigationOverCrossSiteIframeWithoutBFCache)
+#endif
 {
     HTTPServer server({
         { "/example"_s, { "<iframe src='https://webkit.org/a'></iframe>"_s } },

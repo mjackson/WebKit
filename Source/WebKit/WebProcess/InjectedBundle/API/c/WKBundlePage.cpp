@@ -253,7 +253,7 @@ void WKAccessibilityAnnounce(WKBundlePageRef pageRef, WKStringRef message)
     if (!core->document())
         return;
 
-    if (CheckedPtr cache = core->protectedDocument()->axObjectCache())
+    if (CheckedPtr cache = protect(core->document())->axObjectCache())
         cache->announce(WebKit::toWTFString(message));
 }
 

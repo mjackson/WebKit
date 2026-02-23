@@ -243,7 +243,7 @@ static bool contentTypeIsSuitableForInlineImageRepresentation(const String& cont
 
 static bool supportsClientSideAttachmentData(const LocalFrame& frame)
 {
-    if (auto* client = frame.editor().client())
+    if (CheckedPtr client = frame.editor().client())
         return client->supportsClientSideAttachmentData();
 
     return false;
@@ -954,7 +954,7 @@ bool WebContentReader::readDataBuffer(SharedBuffer& buffer, const String& type, 
         m_fragment = document->createDocumentFragment();
 
 #if ENABLE(ATTACHMENT_ELEMENT)
-    protectedFragment()->appendChild(attachmentForData(frame, buffer, type, name, preferredPresentationSize));
+    protect(fragment())->appendChild(attachmentForData(frame, buffer, type, name, preferredPresentationSize));
 #else
     UNUSED_PARAM(type);
     UNUSED_PARAM(name);

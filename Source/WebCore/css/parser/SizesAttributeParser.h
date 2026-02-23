@@ -58,7 +58,7 @@ private:
 
     bool mediaConditionMatches(const MQ::MediaQuery&);
 
-    Ref<const Document> protectedDocument() const;
+    Ref<const Document> NODELETE protectedDocument() const;
     std::optional<CSSToLengthConversionData> conversionData() const;
     float effectiveSizeDefaultValue();
 

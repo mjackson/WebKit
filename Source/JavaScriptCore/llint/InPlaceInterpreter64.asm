@@ -925,14 +925,34 @@ end)
 reservedOpcode(0x27)
 
 macro popMemoryIndex(reg, tmp)
+    loadb JSWebAssemblyInstance::m_cachedIsMemory64[wasmInstance], tmp
+    btiz tmp, .memory32
+    popInt64(reg)
+    jmp .done
+.memory32:
     popInt32(reg)
     ori 0, reg
+.done:
 end
 
 macro ipintCheckMemoryBound(mem, scratch, size)
     # Memory indices are 32 bit
     leap size - 1[mem], scratch
     bpb scratch, boundsCheckingSize, .continuation
+    ipintException(OutOfBoundsMemoryAccess)
+.continuation:
+end
+
+macro preparePointerAndCheckMemoryBound(mem, offset, scratch, size)
+    # mem: in = wasm index, out = effective address (index + offset)
+    # make this baddpc
+    addp offset, mem
+    bpb mem, offset, .outOfBounds # overflow
+    # make this baddpc
+    leap size - 1[mem], scratch
+    bpb scratch, mem, .outOfBounds # overflow
+    bpb scratch, boundsCheckingSize, .continuation
+.outOfBounds:
     ipintException(OutOfBoundsMemoryAccess)
 .continuation:
 end
@@ -956,8 +976,7 @@ ipintOp(_i32_load_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 4)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 4)
     # load memory location
     loadi [memoryBase, t0], t1
     pushInt32(t1)
@@ -971,8 +990,7 @@ ipintOp(_i64_load_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 8)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 8)
     # load memory location
     loadq [memoryBase, t0], t1
     pushInt64(t1)
@@ -986,8 +1004,7 @@ ipintOp(_f32_load_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 4)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 4)
     # load memory location
     loadf [memoryBase, t0], ft0
     pushFloat32(ft0)
@@ -1001,8 +1018,7 @@ ipintOp(_f64_load_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 8)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 8)
     # load memory location
     loadd [memoryBase, t0], ft0
     pushFloat64(ft0)
@@ -1016,8 +1032,7 @@ ipintOp(_i32_load8s_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
     loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 1)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 1)
     # load memory location
     loadb [memoryBase, t0], t1
     sxb2i t1, t1
@@ -1032,8 +1047,7 @@ ipintOp(_i32_load8u_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 1)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 1)
     # load memory location
     loadb [memoryBase, t0], t1
     pushInt32(t1)
@@ -1047,8 +1061,7 @@ ipintOp(_i32_load16s_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 2)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 2)
     # load memory location
     loadh [memoryBase, t0], t1
     sxh2i t1, t1
@@ -1063,8 +1076,7 @@ ipintOp(_i32_load16u_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 2)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 2)
     # load memory location
     loadh [memoryBase, t0], t1
     pushInt32(t1)
@@ -1078,8 +1090,7 @@ ipintOp(_i64_load8s_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 1)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 1)
     # load memory location
     loadb [memoryBase, t0], t1
     sxb2q t1, t1
@@ -1094,8 +1105,7 @@ ipintOp(_i64_load8u_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 1)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 1)
     # load memory location
     loadb [memoryBase, t0], t1
     pushInt64(t1)
@@ -1109,8 +1119,7 @@ ipintOp(_i64_load16s_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 2)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 2)
     # load memory location
     loadh [memoryBase, t0], t1
     sxh2q t1, t1
@@ -1125,8 +1134,7 @@ ipintOp(_i64_load16u_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 2)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 2)
     # load memory location
     loadh [memoryBase, t0], t1
     pushInt64(t1)
@@ -1140,8 +1148,7 @@ ipintOp(_i64_load32s_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 4)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 4)
     # load memory location
     loadi [memoryBase, t0], t1
     sxi2q t1, t1
@@ -1156,8 +1163,7 @@ ipintOp(_i64_load32u_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 4)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 4)
     # load memory location
     loadi [memoryBase, t0], t1
     pushInt64(t1)
@@ -1173,8 +1179,7 @@ ipintOp(_i32_store_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 4)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 4)
     # load memory location
     storei t1, [memoryBase, t0]
 
@@ -1189,8 +1194,7 @@ ipintOp(_i64_store_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 8)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 8)
     # load memory location
     storeq t1, [memoryBase, t0]
 
@@ -1205,8 +1209,7 @@ ipintOp(_f32_store_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 4)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 4)
     # load memory location
     storef ft0, [memoryBase, t0]
 
@@ -1221,8 +1224,7 @@ ipintOp(_f64_store_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 8)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 8)
     # load memory location
     stored ft0, [memoryBase, t0]
 
@@ -1237,8 +1239,7 @@ ipintOp(_i32_store8_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 1)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 1)
     # load memory location
     storeb t1, [memoryBase, t0]
 
@@ -1253,8 +1254,7 @@ ipintOp(_i32_store16_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 2)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 2)
     # load memory location
     storeh t1, [memoryBase, t0]
 
@@ -1269,8 +1269,7 @@ ipintOp(_i64_store8_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 1)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 1)
     # load memory location
     storeb t1, [memoryBase, t0]
 
@@ -1285,8 +1284,7 @@ ipintOp(_i64_store16_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 2)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 2)
     # load memory location
     storeh t1, [memoryBase, t0]
 
@@ -1301,8 +1299,7 @@ ipintOp(_i64_store32_mem, macro()
     # pop index
     popMemoryIndex(t0, t2)
 	loadMemoryOffsetAndAdvanceMC(t2, t3, t4)
-    addp t2, t0
-    ipintCheckMemoryBound(t0, t2, 4)
+    preparePointerAndCheckMemoryBound(t0, t2, t3, 4)
     # load memory location
     storei t1, [memoryBase, t0]
 

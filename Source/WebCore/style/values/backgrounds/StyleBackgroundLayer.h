@@ -73,7 +73,7 @@ struct BackgroundLayer {
     BackgroundLayer();
     BackgroundLayer(CSS::Keyword::None);
     BackgroundLayer(ImageOrNone&&);
-    BackgroundLayer(RefPtr<StyleImage>&&);
+    BackgroundLayer(RefPtr<Image>&&);
 
     const ImageOrNone& image() const { return m_image; }
     const PositionX& positionX() const { return m_positionX; }

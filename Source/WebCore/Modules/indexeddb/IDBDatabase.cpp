@@ -433,7 +433,7 @@ void IDBDatabase::didCommitOrAbortTransaction(IDBTransaction& transaction)
     if (m_versionChangeTransaction == &transaction)
         m_versionChangeTransaction = nullptr;
 
-#ifndef NDBEBUG
+#if ASSERT_ENABLED
     unsigned count = 0;
     if (m_activeTransactions.contains(transaction.info().identifier()))
         ++count;
@@ -442,7 +442,7 @@ void IDBDatabase::didCommitOrAbortTransaction(IDBTransaction& transaction)
     if (m_abortingTransactions.contains(transaction.info().identifier()))
         ++count;
 
-    ASSERT_UNUSED(count, count == 1);
+    ASSERT(count == 1);
 #endif
 
     m_activeTransactions.remove(transaction.info().identifier());

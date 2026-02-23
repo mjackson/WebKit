@@ -30,6 +30,8 @@
 #include "RejectedPromiseTracker.h"
 #include "ScriptExecutionContext.h"
 #include "WorkerGlobalScope.h"
+#include <JavaScriptCore/JSGlobalObject.h>
+#include <JavaScriptCore/JSMicrotaskDispatcher.h>
 #include <JavaScriptCore/MicrotaskQueueInlines.h>
 #include <JavaScriptCore/ScriptProfilingScope.h>
 #include <JavaScriptCore/TopExceptionScope.h>
@@ -123,15 +125,11 @@ void MicrotaskQueue::performMicrotaskCheckpoint()
         JSC::JSGlobalObject* currentGlobalObject = nullptr;
         m_microtaskQueue.performMicrotaskCheckpoint</* useCallOnEachMicrotask */ false>(vm,
             [&](JSC::QueuedTask& task) ALWAYS_INLINE_LAMBDA {
-                RefPtr dispatcher = downcast<WebCoreMicrotaskDispatcher>(task.dispatcher());
-                if (!dispatcher) [[unlikely]]
-                    return JSC::QueuedTask::Result::Discard;
-
-                auto result = dispatcher->currentRunnability();
-                if (result == JSC::QueuedTask::Result::Executed) {
-                    switch (dispatcher->type()) {
-                    case WebCoreMicrotaskDispatcher::Type::WebCoreJS: {
-                        auto* globalObject = task.globalObject();
+                auto* dispatcher = task.dispatcher();
+                if (dispatcher->type() != JSC::JSMicrotaskDispatcherType) [[likely]] {
+                    auto* globalObject = JSC::jsCast<JSC::JSGlobalObject*>(dispatcher);
+                    auto result = globalObject->microtaskRunnability();
+                    if (result == JSC::QueuedTask::Result::Executed) [[likely]] {
                         data.setCurrentState(globalObject);
                         if (currentGlobalObject != globalObject) {
                             if (!entryScope)
@@ -141,21 +139,14 @@ void MicrotaskQueue::performMicrotaskCheckpoint()
                             currentGlobalObject = globalObject;
                         }
                         runJSMicrotask(globalObject, vm, task);
-                        break;
                     }
-                    case WebCoreMicrotaskDispatcher::Type::None:
-                    case WebCoreMicrotaskDispatcher::Type::JSCDebuggable:
-                    case WebCoreMicrotaskDispatcher::Type::WebCoreJSDebuggable:
-                    case WebCoreMicrotaskDispatcher::Type::WebCoreUserGestureIndicator:
-                    case WebCoreMicrotaskDispatcher::Type::WebCoreFunction:
-                        entryScope = std::nullopt;
-                        currentGlobalObject = nullptr;
-                        data.setCurrentState(previousState);
-                        dispatcher->run(task);
-                        break;
-                    }
+                    return result;
                 }
-                return result;
+
+                entryScope = std::nullopt;
+                currentGlobalObject = nullptr;
+                data.setCurrentState(previousState);
+                return JSC::jsCast<JSC::JSMicrotaskDispatcher*>(dispatcher)->dispatcher()->run(task);
             });
         data.setCurrentState(previousState);
     }

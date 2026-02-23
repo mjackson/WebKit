@@ -110,6 +110,7 @@ class Geolocation;
 class GraphicsLayer;
 class GraphicsLayerFactory;
 class HTMLAttachmentElement;
+class HTMLFrameOwnerElement;
 class HTMLImageElement;
 class HTMLInputElement;
 class HTMLMediaElement;
@@ -140,7 +141,7 @@ class Widget;
 class WorkerClient;
 
 #if ENABLE(WEB_AUTHN)
-struct DigitalCredentialsRequestData;
+struct DigitalCredentialsMobileDocumentRequestData;
 struct MobileDocumentRequest;
 #endif
 
@@ -284,6 +285,9 @@ public:
     virtual IntPoint screenToRootView(const IntPoint&) const = 0;
     virtual IntPoint rootViewToScreen(const IntPoint&) const = 0;
     virtual IntRect rootViewToScreen(const IntRect&) const = 0;
+    // Returns the screen-to-rootView conversion using cached accessibility position if available.
+    // Returns std::nullopt if cached data is not available, in which case caller should use screenToRootView().
+    virtual std::optional<IntPoint> screenToRootViewUsingCachedPosition(const IntPoint&, const IntSize&) const { return std::nullopt; }
     virtual IntPoint accessibilityScreenToRootView(const IntPoint&) const = 0;
     virtual IntRect rootViewToAccessibilityScreen(const IntRect&) const = 0;
 #if PLATFORM(IOS_FAMILY)
@@ -344,6 +348,7 @@ public:
     virtual void allowImmersiveElement(CompletionHandler<void(bool)>&& completion) const { completion(false); }
     virtual void presentImmersiveElement(const LayerHostingContextIdentifier, CompletionHandler<void(bool)>&& completion) const { completion(false); }
     virtual void dismissImmersiveElement(CompletionHandler<void()>&& completion) const { completion(); }
+    virtual bool supportsImmersiveElement() const { return false; }
 #endif
 
 #if ENABLE(APP_HIGHLIGHTS)
@@ -510,7 +515,7 @@ public:
     // Returns true if layer tree updates are disabled.
     virtual bool layerTreeStateIsFrozen() const { return false; }
 
-    WEBCORE_EXPORT virtual RefPtr<ScrollingCoordinator> createScrollingCoordinator(Page&) const;
+    WEBCORE_EXPORT virtual RefPtr<ScrollingCoordinator> NODELETE createScrollingCoordinator(Page&) const;
     WEBCORE_EXPORT virtual void ensureScrollbarsController(Page&, ScrollableArea&, bool update = false) const;
 
     virtual bool canEnterVideoFullscreen(HTMLVideoElement&, HTMLMediaElementEnums::VideoFullscreenMode) const { return false; }
@@ -693,8 +698,11 @@ public:
     virtual void setMockWebAuthenticationConfiguration(const MockWebAuthenticationConfiguration&) { }
 #endif
 
+    virtual HTMLFrameOwnerElement* frameOwnerElementForFrameID(FrameIdentifier) const { return nullptr; }
+
     virtual bool requiresScriptTrackingPrivacyProtections(const URL&, const SecurityOrigin& /* topOrigin */) const { return false; }
     virtual bool shouldAllowScriptAccess(const URL&, const WebCore::SecurityOrigin&, ScriptTrackingPrivacyCategory) const { return true; }
+    virtual bool requiresConsistentPrivacyQuirkForDomain(const URL&) const { return false; };
 
     virtual void animationDidFinishForElement(const Element&) { }
 

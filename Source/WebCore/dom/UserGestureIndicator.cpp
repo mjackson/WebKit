@@ -42,7 +42,7 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(UserGestureIndicator);
 
-static RefPtr<UserGestureToken>& currentToken()
+static RefPtr<UserGestureToken>& NODELETE currentToken()
 {
     ASSERT(isMainThread());
     static NeverDestroyed<RefPtr<UserGestureToken>> token;

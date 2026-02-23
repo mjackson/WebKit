@@ -73,9 +73,9 @@ typedef void* DragImageRef;
 #endif
 
 #if PLATFORM(COCOA)
-extern const float ColorSwatchCornerRadius;
-extern const float ColorSwatchStrokeSize;
-extern const float ColorSwatchWidth;
+inline constexpr float ColorSwatchCornerRadius = 4;
+inline constexpr float ColorSwatchStrokeSize = 4;
+inline constexpr float ColorSwatchWidth = 24;
 #endif
 
 IntSize dragImageSize(DragImageRef);

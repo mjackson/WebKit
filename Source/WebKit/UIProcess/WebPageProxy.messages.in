@@ -79,7 +79,12 @@ messages -> WebPageProxy {
     [EnabledBy=ContactPickerAPIEnabled] ShowContactPicker(struct WebCore::ContactsRequestData requestData) -> (std::optional<Vector<WebCore::ContactInfo>> info)
 
 #if ENABLE(WEB_AUTHN)
-    [EnabledBy=DigitalCredentialsEnabled] ShowDigitalCredentialsPicker(struct WebCore::DigitalCredentialsRequestData requestData) -> (Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData> response)
+#if ENABLE(ISO18013_DOCUMENT_REQUEST_INFO)
+    [EnabledBy=DigitalCredentialsEnabled] ShowDigitalCredentialsPicker(Variant<WebCore::DigitalCredentialsMobileDocumentRequestData, WebCore::DigitalCredentialsMobileDocumentRequestDataWithRequestInfo> requestData) -> (Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData> response)
+#endif
+#if !ENABLE(ISO18013_DOCUMENT_REQUEST_INFO)
+    [EnabledBy=DigitalCredentialsEnabled] ShowDigitalCredentialsPicker(Variant<WebCore::DigitalCredentialsMobileDocumentRequestData> requestData) -> (Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData> response)
+#endif
     [EnabledBy=DigitalCredentialsEnabled] DismissDigitalCredentialsPicker() -> (bool didDismiss)
 #endif
 
@@ -197,6 +202,8 @@ messages -> WebPageProxy {
     InterpretKeyEvent(struct WebKit::EditorState state, struct WebKit::KeyEventInterpretationContext context) -> (bool handled) Synchronous
     SaveImageToLibrary(WebCore::SharedMemory::Handle handle, String authorizationToken)
     ShowPlaybackTargetPicker(bool hasVideo, WebCore::IntRect elementRect, enum:uint8_t WebCore::RouteSharingPolicy policy, String routingContextUID)
+#endif
+#if ENABLE(TWO_PHASE_CLICKS)
     CommitPotentialTapFailed()
     DidNotHandleTapAsClick(WebCore::IntPoint point)
     DidCompleteSyntheticClick()
@@ -411,8 +418,11 @@ messages -> WebPageProxy {
     CouldNotRestorePageState()
     RestorePageState(std::optional<WebCore::FloatPoint> scrollPosition, WebCore::FloatPoint scrollOrigin, WebCore::FloatBoxExtent obscuredInsetsOnSave, double scale)
     RestorePageCenterAndScale(std::optional<WebCore::FloatPoint> unobscuredCenter, double scale)
+#endif
+#if ENABLE(TWO_PHASE_CLICKS)
     DidGetTapHighlightGeometries(WebKit::TapIdentifier requestID, WebCore::Color color, Vector<WebCore::FloatQuad> geometries, WebCore::IntSize topLeftRadius, WebCore::IntSize topRightRadius, WebCore::IntSize bottomLeftRadius, WebCore::IntSize bottomRightRadius, bool nodeHasBuiltInClickHandling)
-
+#endif
+#if PLATFORM(IOS_FAMILY)
     ElementDidFocus(struct WebKit::FocusedElementInformation information, bool userIsInteracting, bool blurPreviousNode, OptionSet<WebCore::ActivityState> activityStateChanges, WebKit::UserData userData)
     ElementDidBlur()
     UpdateInputContextAfterBlurringAndRefocusingElement()

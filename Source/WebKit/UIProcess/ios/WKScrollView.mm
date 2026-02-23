@@ -212,6 +212,12 @@ static BOOL shouldForwardScrollViewDelegateMethodToExternalDelegate(SEL selector
     return _internalDelegate.getAutoreleased();
 }
 
+- (void)_invalidateInternalDelegate
+{
+    _internalDelegate = nil;
+    [self _updateDelegate];
+}
+
 - (void)setInternalDelegate:(WKWebView <UIScrollViewDelegate> *)internalDelegate
 {
     if (internalDelegate == _internalDelegate.get())

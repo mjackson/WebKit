@@ -34,6 +34,8 @@
 #include "SimpleRegisterAllocator.h"
 #include "VirtualRegister.h"
 
+#include <wtf/Scope.h>
+
 namespace JSC::LOL {
 
 // TODO: Pack this.
@@ -115,8 +117,13 @@ public:
     template<size_t useCount, size_t defCount, size_t scratchCount>
     ALWAYS_INLINE void releaseScratches(const AllocationBindings<useCount, defCount, scratchCount>& allocations)
     {
+#if ASSERT_ENABLED
+        m_needsReleaseScratches = false;
+#endif
+
         for (JSValueRegs scratch : allocations.scratches) {
             ASSERT(!bindingFor(scratch.gpr()).isValid());
+            m_allocator.unlock(scratch.gpr());
             m_allocator.unbind(scratch.gpr());
         }
     }
@@ -134,7 +141,14 @@ private:
     template<size_t scratchCount, size_t useCount, size_t defCount>
     ALWAYS_INLINE AllocationBindings<useCount, defCount, scratchCount> allocateImpl(Backend& jit, const auto& instruction, BytecodeIndex index, const std::array<AllocationHint, useCount>& uses, const std::array<AllocationHint, defCount>& defs)
     {
-        // TODO: Validation.
+#if ASSERT_ENABLED
+        ASSERT(!m_needsReleaseScratches);
+        auto setter = makeScopeExit([&] {
+            m_needsReleaseScratches = true;
+        });
+#endif
+        m_allocator.assertAllValidRegistersAreUnlocked();
+        // TODO: More validation.
         UNUSED_PARAM(instruction);
         // Bump the spill count for our uses so we don't spill them when allocating below.
         for (auto operand : uses) {
@@ -168,9 +182,12 @@ private:
         for (size_t i = 0; i < defs.size(); ++i)
             result.defs[i] = doAllocate(defs[i], true);
 
-        // TODO: Maybe lock the register here for debugging purposes.
-        for (size_t i = 0; i < result.scratches.size(); ++i)
-            result.scratches[i] = JSValueRegs(m_allocator.allocate(*this, VirtualRegister(), 0));
+        for (size_t i = 0; i < result.scratches.size(); ++i) {
+            GPRReg scratch = m_allocator.allocate(*this, VirtualRegister(), 0);
+            result.scratches[i] = JSValueRegs(scratch);
+            // Lock the register so it doesn't get spilled subsequently.
+            m_allocator.lock(scratch);
+        }
 
         return result;
     }
@@ -221,6 +238,9 @@ private:
     FixedVector<Location> m_locations;
     SimpleRegisterAllocator<GPRBank> m_allocator;
     Backend& m_backend;
+#if ASSERT_ENABLED
+    bool m_needsReleaseScratches { false };
+#endif
 };
 
 class ReplayBackend {
@@ -412,6 +432,14 @@ auto RegisterAllocator<Backend>::allocate(Backend& jit, const OpJmp& instruction
     return result;
 }
 
+template<typename Backend>
+auto RegisterAllocator<Backend>::allocate(Backend& jit, const OpNewObject& instruction, BytecodeIndex index)
+{
+    std::array<AllocationHint, 0> uses = { };
+    std::array<AllocationHint, 1> defs = { instruction.m_dst };
+    return allocateImpl<2>(jit, instruction, index, uses, defs);
+}
+
 // These ops always call C++ operations, so we just flush everything
 // TODO: Inline the allocation so there's a fast path that doesn't require flushing.
 template<typename Backend>
@@ -556,16 +584,6 @@ auto RegisterAllocator<Backend>::allocate(Backend& jit, const OpNewAsyncGenerato
 }
 
 template<typename Backend>
-auto RegisterAllocator<Backend>::allocate(Backend& jit, const OpNewObject& instruction, BytecodeIndex index)
-{
-    std::array<AllocationHint, 0> uses = { };
-    std::array<AllocationHint, 0> defs = { };
-    auto result = allocateImpl<0>(jit, instruction, index, uses, defs);
-    m_allocator.flushAllRegisters(*this);
-    return result;
-}
-
-template<typename Backend>
 auto RegisterAllocator<Backend>::allocate(Backend& jit, const OpNewRegExp& instruction, BytecodeIndex index)
 {
     std::array<AllocationHint, 0> uses = { };
@@ -589,6 +607,42 @@ auto RegisterAllocator<Backend>::allocate(Backend& jit, const OpDec& instruction
     std::array<AllocationHint, 1> uses = { instruction.m_srcDst };
     std::array<AllocationHint, 1> defs = { instruction.m_srcDst };
     return allocateImpl<0>(jit, instruction, index, uses, defs);
+}
+
+template<typename Backend>
+auto RegisterAllocator<Backend>::allocate(Backend& jit, const OpMod& instruction, BytecodeIndex index)
+{
+    std::array<AllocationHint, 2> uses = { instruction.m_lhs, instruction.m_rhs };
+    std::array<AllocationHint, 1> defs = { instruction.m_dst };
+
+    auto result = allocateImpl<0>(jit, instruction, index, uses, defs);
+#if CPU(X86_64)
+    // TODO: FIX X86 clobbering rules for eax/edx/ecx. This is inefficient and hacky.
+    m_allocator.flushAllRegisters(*this);
+    Location& dstLocation = locationOfImpl(instruction.m_dst);
+    dstLocation.regs = result.defs[0];
+    ASSERT(!dstLocation.isFlushed);
+    m_allocator.bind(result.defs[0].payloadGPR(), instruction.m_dst, index.offset());
+#endif
+    return result;
+}
+
+template<typename Backend>
+auto RegisterAllocator<Backend>::allocate(Backend& jit, const OpDiv& instruction, BytecodeIndex index)
+{
+    std::array<AllocationHint, 2> uses = { instruction.m_lhs, instruction.m_rhs };
+    std::array<AllocationHint, 1> defs = { instruction.m_dst };
+
+    auto result = allocateImpl<0>(jit, instruction, index, uses, defs);
+#if CPU(X86_64)
+    // TODO: FIX X86 clobbering rules for eax/edx/ecx. This is inefficient and hacky.
+    m_allocator.flushAllRegisters(*this);
+    Location& dstLocation = locationOfImpl(instruction.m_dst);
+    dstLocation.regs = result.defs[0];
+    ASSERT(!dstLocation.isFlushed);
+    m_allocator.bind(result.defs[0].payloadGPR(), instruction.m_dst, index.offset());
+#endif
+    return result;
 }
 
 template<typename Backend>

@@ -43,7 +43,7 @@ public:
     void trackNavigation(const API::Navigation&, bool hasOpenedPage);
 
     bool isEnhancedSecurityEnabled() const { return isEnhancedSecurityEnabledForState(enhancedSecurityState()); }
-    EnhancedSecurity enhancedSecurityState() const;
+    EnhancedSecurity NODELETE enhancedSecurityState() const;
     EnhancedSecurityReason enhancedSecurityReason() const { return m_activeReason; }
 
     void initializeFrom(const EnhancedSecurityTracking&);
@@ -51,9 +51,9 @@ public:
 private:
     enum class ActivationState : uint8_t { None, Dormant, Active };
 
-    void reset();
-    void makeDormant();
-    void makeActive();
+    void NODELETE reset();
+    void NODELETE makeDormant();
+    void NODELETE makeActive();
 
     void handleBackForwardNavigation(const API::Navigation&);
 

@@ -78,12 +78,12 @@ void SVGCursorElement::attributeChanged(const QualifiedName& name, const AtomStr
     SVGElement::attributeChanged(name, oldValue, newValue, attributeModificationReason);
 }
 
-void SVGCursorElement::addClient(StyleCursorImage& value)
+void SVGCursorElement::addClient(Style::CursorImage& value)
 {
     m_clients.add(value);
 }
 
-void SVGCursorElement::removeClient(StyleCursorImage& value)
+void SVGCursorElement::removeClient(Style::CursorImage& value)
 {
     m_clients.remove(value);
 }

@@ -39,9 +39,11 @@
 #include "AXUtilities.h"
 #include "AccessibilityNodeObject.h"
 #include "DateComponents.h"
+#include "Element.h"
 #include "HTMLNames.h"
 #include "Logging.h"
 #include "RenderObject.h"
+#include "WebAnimation.h"
 #include <wtf/text/MakeString.h>
 
 #if ENABLE(MODEL_ELEMENT_ACCESSIBILITY)
@@ -579,25 +581,62 @@ SRGBA<uint8_t> AXIsolatedObject::colorValue() const
 
 RefPtr<AXCoreObject> AXIsolatedObject::accessibilityHitTest(const IntPoint& point) const
 {
-    auto hitTestOnMainThread = [axID = objectID(), treeID = treeID(), point] -> std::optional<AXID> {
+    // For layout tests, we want to exercise hit testing using the accessibility thread, so don't
+    // use any caching or main-thread calls in testing contexts.
+    if (AXObjectCache::clientIsInTestMode()) [[unlikely]]
+        return approximateHitTest(point);
+
+    // Check if we have a cached result for this point.
+    RefPtr geometryManager = tree()->geometryManager();
+    if (auto cachedID = geometryManager ? geometryManager->cachedHitTestResult(point) : std::nullopt)
+        return tree()->objectForID(*cachedID);
+
+    struct HitTestResult {
+        AXID resultID;
+        bool shouldCache;
+    };
+    auto hitTestOnMainThread = [axID = objectID(), treeID = treeID(), point] -> std::optional<HitTestResult> {
         if (WeakPtr<AXObjectCache> cache = AXTreeStore<AXObjectCache>::axObjectCacheForID(treeID)) {
             RefPtr object = cache->objectForID(axID);
             auto pageRelativePoint = cache->mapScreenPointToPagePoint(point);
-            if (RefPtr hitTestResult = object ? object->accessibilityHitTest(pageRelativePoint) : nullptr)
-                return hitTestResult->objectID();
+            if (RefPtr hitTestResult = object ? object->accessibilityHitTest(pageRelativePoint) : nullptr) {
+                // Don't cache elements with running animations since their bounds may change frequently.
+                bool shouldCache = true;
+                if (RefPtr element = hitTestResult->element()) {
+                    if (auto* animations = element->animations(std::nullopt)) {
+                        for (auto& animation : *animations) {
+                            if (animation->playState() == WebAnimation::PlayState::Running) {
+                                shouldCache = false;
+                                break;
+                            }
+                        }
+                    }
+                    if (shouldCache && element->hasRunningTransitions(std::nullopt))
+                        shouldCache = false;
+                }
+
+                return HitTestResult { hitTestResult->objectID(), shouldCache };
+            }
         }
         return std::nullopt;
     };
 
-    // For layout tests, we want to exercise hit testing using the accessibility thread, so only call.
-    // out to the main-thread in non-testing contexts.
-    if (!AXObjectCache::clientIsInTestMode()) [[likely]] {
-        auto mainThreadValue = Accessibility::retrieveValueFromMainThreadWithTimeout(hitTestOnMainThread, 15_ms);
-        if (std::optional<std::optional<AXID>> optionalAXID = mainThreadValue.value)
-            return *optionalAXID ? tree()->objectForID(**optionalAXID) : nullptr;
+    auto mainThreadValue = Accessibility::retrieveValueFromMainThreadWithTimeout(hitTestOnMainThread, Accessibility::HitTestTimeout);
+    if (std::optional<std::optional<HitTestResult>> optionalResult = mainThreadValue.value) {
+        if (*optionalResult) {
+            HitTestResult result = **optionalResult;
+            if (geometryManager) {
+                if (result.shouldCache) {
+                    geometryManager->cacheHitTestResult(result.resultID, point);
+                    geometryManager->expandHitTestCacheAroundPoint(point, *treeID());
+                }
+            }
+            return tree()->objectForID(result.resultID);
+        }
+        return nullptr;
     }
 
-    // If we're here (because !timeoutableValue.value), the request to the main-thread timed out.
+    // If we're here (because !mainThreadValue.value), the request to the main-thread timed out.
     // Let's use the accessibility thread to serve an approximate hit test. One optimization we
     // could consider is computing the hit-test on the accessibility thread while waiting for the
     // main-thread to compute the result (or timeout).
@@ -621,8 +660,8 @@ RefPtr<AXIsolatedObject> AXIsolatedObject::approximateHitTest(const IntPoint& po
     adjustedPoint.moveBy(-remoteFrameOffset());
 
     if (!bounds.contains(adjustedPoint) && !bounds.isEmpty()) {
-        // If our bounds are empty, we cannot possible contain the hit-point. However, this may happen
-        // because we haven't got geomtry for |this| yet, but maybe our children contain the hit-point,
+        // If our bounds are empty, we cannot possibly contain the hit-point. However, this may happen
+        // because we haven't got geometry for |this| yet, but maybe our children contain the hit-point,
         // so check them before exiting. If our bounds are not empty and we don't contain the hit-point,
         // we can exit now.
         //
@@ -1227,16 +1266,21 @@ FloatRect AXIsolatedObject::relativeFrame() const
         std::optional<IntRect> rectFromLabels;
         if (isControl()) {
             // For controls, we can try to use the frame of any associated labels.
-            auto labels = labeledByObjects();
-            for (const auto& label : labels) {
-                std::optional frame = downcast<AXIsolatedObject>(label)->cachedRelativeFrame();
-                if (!frame)
-                    continue;
-                if (!rectFromLabels)
-                    rectFromLabels = *frame;
-                else if (rectFromLabels->intersects(*frame))
-                    rectFromLabels->unite(*frame);
-            }
+            // Prefer ARIA labels first, fall back to native labels if none provide geometry.
+            auto uniteLabelsIntoRect = [&rectFromLabels](const AccessibilityChildrenVector& labels) {
+                for (const auto& label : labels) {
+                    std::optional frame = downcast<AXIsolatedObject>(label)->cachedRelativeFrame();
+                    if (!frame)
+                        continue;
+                    if (!rectFromLabels)
+                        rectFromLabels = *frame;
+                    else if (rectFromLabels->intersects(*frame))
+                        rectFromLabels->unite(*frame);
+                }
+            };
+            uniteLabelsIntoRect(labeledByObjects());
+            if (!rectFromLabels)
+                uniteLabelsIntoRect(nativeLabeledByObjects());
         }
 
         if (rectFromLabels && !rectFromLabels->isEmpty())

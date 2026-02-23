@@ -80,26 +80,26 @@ public:
     void deref() const final { WebTransportSessionClient::deref(); }
 
     void getStats(ScriptExecutionContext&, Ref<DeferredPromise>&&);
-    DOMPromise& ready();
-    WebTransportReliabilityMode reliability();
-    WebTransportCongestionControl congestionControl();
-    std::optional<uint16_t> anticipatedConcurrentIncomingUnidirectionalStreams();
-    void setAnticipatedConcurrentIncomingUnidirectionalStreams(std::optional<uint16_t>);
-    std::optional<uint16_t> anticipatedConcurrentIncomingBidirectionalStreams();
-    void setAnticipatedConcurrentIncomingBidirectionalStreams(std::optional<uint16_t>);
-    String& protocol();
-    DOMPromise& closed();
-    DOMPromise& draining();
+    DOMPromise& NODELETE ready();
+    WebTransportReliabilityMode NODELETE reliability();
+    WebTransportCongestionControl NODELETE congestionControl();
+    std::optional<uint16_t> NODELETE anticipatedConcurrentIncomingUnidirectionalStreams();
+    void NODELETE setAnticipatedConcurrentIncomingUnidirectionalStreams(std::optional<uint16_t>);
+    std::optional<uint16_t> NODELETE anticipatedConcurrentIncomingBidirectionalStreams();
+    void NODELETE setAnticipatedConcurrentIncomingBidirectionalStreams(std::optional<uint16_t>);
+    String& NODELETE protocol();
+    DOMPromise& NODELETE closed();
+    DOMPromise& NODELETE draining();
     void close(WebTransportCloseInfo&&);
-    WebTransportDatagramDuplexStream& datagrams();
+    WebTransportDatagramDuplexStream& NODELETE datagrams();
     void createBidirectionalStream(ScriptExecutionContext&, WebTransportSendStreamOptions&&, Ref<DeferredPromise>&&);
-    ReadableStream& incomingBidirectionalStreams();
+    ReadableStream& NODELETE incomingBidirectionalStreams();
     void createUnidirectionalStream(ScriptExecutionContext&, WebTransportSendStreamOptions&&, Ref<DeferredPromise>&&);
-    ReadableStream& incomingUnidirectionalStreams();
+    ReadableStream& NODELETE incomingUnidirectionalStreams();
     Ref<WebTransportSendGroup> createSendGroup();
-    static bool supportsReliableOnly();
+    static bool NODELETE supportsReliableOnly();
 
-    RefPtr<WebTransportSession> session();
+    RefPtr<WebTransportSession> NODELETE session();
     void datagramsWritableCreated(WebTransportDatagramsWritable&);
     void cleanupContext(ScriptExecutionContext&);
 
@@ -114,7 +114,7 @@ private:
     void cleanupWithSessionError();
 
     // ActiveDOMObject.
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
     void suspend(ReasonForSuspension) final;
 
     void receiveDatagram(std::span<const uint8_t>, bool, std::optional<Exception>&&) final;
@@ -126,7 +126,7 @@ private:
     void didFail(std::optional<uint32_t>&&, String&&) final;
     void didDrain() final;
 
-    RefPtr<WebTransportSession> protectedSession();
+    RefPtr<WebTransportSession> NODELETE protectedSession();
 
     ListHashSet<Ref<WritableStream>> m_sendStreams;
     ListHashSet<Ref<ReadableStream>> m_receiveStreams;

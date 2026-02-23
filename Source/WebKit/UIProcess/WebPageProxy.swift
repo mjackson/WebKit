@@ -46,12 +46,58 @@ extension WebKit.WebPageProxy {
         }
     }
 
+    @MainActor
+    func selectPosition(at point: WebCore.IntPoint, isInteractingWithFocusedElement: Bool) async {
+        await withCheckedContinuation { continuation in
+            selectPositionAtPoint(
+                point,
+                isInteractingWithFocusedElement,
+                consuming: .init({ continuation.resume() }, WTF.ThreadLikeAssertion(WTF.CurrentThreadLike()))
+            )
+        }
+    }
+
+    @MainActor
+    func selectText(
+        at point: WebCore.IntPoint,
+        by granularity: WebCore.TextGranularity,
+        isInteractingWithFocusedElement: Bool
+    ) async {
+        await withCheckedContinuation { continuation in
+            selectTextWithGranularityAtPoint(
+                point,
+                granularity,
+                isInteractingWithFocusedElement,
+                consuming: .init({ continuation.resume() }, WTF.ThreadLikeAssertion(WTF.CurrentThreadLike()))
+            )
+        }
+    }
+
+    @MainActor
+    @discardableResult
+    func updateSelection(
+        withExtentPoint point: WebCore.IntPoint,
+        by granularity: WebCore.TextGranularity,
+        isInteractingWithFocusedElement: Bool,
+        source: WebKit.TextInteractionSource,
+    ) async -> Bool {
+        await withCheckedContinuation { continuation in
+            updateSelectionWithExtentPointAndBoundary(
+                point,
+                granularity,
+                isInteractingWithFocusedElement,
+                source,
+                consuming: .init({ continuation.resume(returning: $0) }, WTF.ThreadLikeAssertion(WTF.CurrentThreadLike()))
+            )
+        }
+    }
+
     private borrowing func editorStateCopy() -> WebKit.EditorState {
-        __editorStateUnsafe().pointee
+        unsafe __editorStateUnsafe().pointee
     }
 
     var editorState: WebKit.EditorState {
-        editorStateCopy()
+        unsafe editorStateCopy()
     }
 }
 

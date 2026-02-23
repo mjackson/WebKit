@@ -48,7 +48,6 @@
 #include <JavaScriptCore/ArrayBufferView.h>
 #include <JavaScriptCore/TypedArrays.h>
 #include <wtf/Ref.h>
-#include <wtf/RefPtr.h>
 #include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
 
@@ -171,15 +170,15 @@ template<> struct InspectorCanvasArgumentProcessor<IDLArrayBufferView> {
 };
 
 template<> struct InspectorCanvasArgumentProcessor<IDLFloat32Array> {
-    std::optional<InspectorCanvasProcessedArgument> operator()(InspectorCanvas&, const RefPtr<JSC::Float32Array>&);
+    std::optional<InspectorCanvasProcessedArgument> operator()(InspectorCanvas&, const Ref<JSC::Float32Array>&);
 };
 
 template<> struct InspectorCanvasArgumentProcessor<IDLInt32Array> {
-    std::optional<InspectorCanvasProcessedArgument> operator()(InspectorCanvas&, const RefPtr<JSC::Int32Array>&);
+    std::optional<InspectorCanvasProcessedArgument> operator()(InspectorCanvas&, const Ref<JSC::Int32Array>&);
 };
 
 template<> struct InspectorCanvasArgumentProcessor<IDLUint32Array> {
-    std::optional<InspectorCanvasProcessedArgument> operator()(InspectorCanvas&, const RefPtr<JSC::Uint32Array>&);
+    std::optional<InspectorCanvasProcessedArgument> operator()(InspectorCanvas&, const Ref<JSC::Uint32Array>&);
 };
 
 // MARK: - Interfaces

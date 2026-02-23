@@ -36,6 +36,26 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(DocumentSharedObjectPool);
 
+static HashMap<RegistrableDomain, size_t>& NODELETE peakSizeInPast()
+{
+    static MainThreadNeverDestroyed<HashMap<RegistrableDomain, size_t>> map;
+    return map;
+}
+
+DocumentSharedObjectPool::DocumentSharedObjectPool(RegistrableDomain&& domain)
+    : m_domain(WTF::move(domain))
+{
+    m_shareableElementDataCache.reserveInitialCapacity(peakSizeInPast().get(m_domain));
+}
+
+DocumentSharedObjectPool::~DocumentSharedObjectPool()
+{
+    size_t currentSizeRoundedUp = roundUpToPowerOfTwo(m_shareableElementDataCache.size());
+    auto result = peakSizeInPast().add(m_domain, currentSizeRoundedUp);
+    if (!result.isNewEntry && currentSizeRoundedUp > result.iterator->value)
+        result.iterator->value = currentSizeRoundedUp;
+}
+
 struct DocumentSharedObjectPool::ShareableElementDataHash {
     static unsigned hash(const Ref<ShareableElementData>& data)
     {

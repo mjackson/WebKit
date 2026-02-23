@@ -56,7 +56,7 @@ public:
     virtual ~WebImage();
 
     WebCore::IntSize size() const;
-    const WebCore::ImageBufferParameters* parameters() const;
+    const WebCore::ImageBufferParameters* NODELETE parameters() const;
     std::optional<ParametersAndHandle> parametersAndHandle() const;
     bool isEmpty() const { return !m_buffer; }
 

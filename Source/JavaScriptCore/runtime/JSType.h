@@ -64,6 +64,7 @@ namespace JSC {
     macro(JSPromiseReactionType, SpecCellOther) \
     macro(JSPromiseCombinatorsContextType, SpecCellOther) \
     macro(JSPromiseCombinatorsGlobalContextType, SpecCellOther) \
+    macro(JSMicrotaskDispatcherType, SpecCellOther) \
     \
     /* The ObjectType value must come before any JSType that is a subclass of JSObject. */ \
     macro(ObjectType, SpecObjectOther) \

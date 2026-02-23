@@ -3041,6 +3041,48 @@ auto OMGIRGenerator::atomicFence(ExtAtomicOpType, uint8_t) -> PartialResult
 auto OMGIRGenerator::truncSaturated(Ext1OpType op, ExpressionType argVar, ExpressionType& result, Type returnType, Type) -> PartialResult
 {
     Value* arg = get(argVar);
+
+    if constexpr (isARM64()) {
+        // ARM64 FCVTZS/FCVTZU natively implement WebAssembly trunc-sat semantics:
+        // NaN -> 0, out-of-range -> saturated min/max.
+        PatchpointValue* patchpoint = m_currentBlock->appendNew<PatchpointValue>(m_proc, toB3Type(returnType), origin());
+        patchpoint->append(arg, ValueRep::SomeRegister);
+        patchpoint->setGenerator([=](CCallHelpers& jit, const StackmapGenerationParams& params) {
+            switch (op) {
+            case Ext1OpType::I32TruncSatF32S:
+                jit.truncateFloatToInt32(params[1].fpr(), params[0].gpr());
+                break;
+            case Ext1OpType::I32TruncSatF32U:
+                jit.truncateFloatToUint32(params[1].fpr(), params[0].gpr());
+                break;
+            case Ext1OpType::I32TruncSatF64S:
+                jit.truncateDoubleToInt32(params[1].fpr(), params[0].gpr());
+                break;
+            case Ext1OpType::I32TruncSatF64U:
+                jit.truncateDoubleToUint32(params[1].fpr(), params[0].gpr());
+                break;
+            case Ext1OpType::I64TruncSatF32S:
+                jit.truncateFloatToInt64(params[1].fpr(), params[0].gpr());
+                break;
+            case Ext1OpType::I64TruncSatF32U:
+                jit.truncateFloatToUint64(params[1].fpr(), params[0].gpr(), InvalidFPRReg, InvalidFPRReg);
+                break;
+            case Ext1OpType::I64TruncSatF64S:
+                jit.truncateDoubleToInt64(params[1].fpr(), params[0].gpr());
+                break;
+            case Ext1OpType::I64TruncSatF64U:
+                jit.truncateDoubleToUint64(params[1].fpr(), params[0].gpr(), InvalidFPRReg, InvalidFPRReg);
+                break;
+            default:
+                RELEASE_ASSERT_NOT_REACHED();
+                break;
+            }
+        });
+        patchpoint->effects = Effects::none();
+        result = push(patchpoint);
+        return { };
+    }
+
     Value* maxFloat = nullptr;
     Value* minFloat = nullptr;
     Value* signBitConstant = nullptr;

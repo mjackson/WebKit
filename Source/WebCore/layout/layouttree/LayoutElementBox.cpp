@@ -162,7 +162,7 @@ void ElementBox::insertChild(UniqueRef<Box> childRef, Box* beforeChild)
     }
 
     ASSERT(&beforeChild->parent() == this);
-    auto* nextSibling = beforeChild->m_nextSibling.get();
+    CheckedPtr nextSibling = beforeChild->m_nextSibling.get();
     ASSERT(nextSibling);
     childBox->m_previousSibling = beforeChild;
     childBox->m_nextSibling = WTF::move(beforeChild->m_nextSibling);

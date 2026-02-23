@@ -169,8 +169,8 @@ ApplicationStateTracker::ApplicationStateTracker(UIView *view, SEL didEnterBackg
     , m_didCompleteSnapshotSequenceSelector(didCompleteSnapshotSequenceSelector)
     , m_isInBackground(true)
 {
-    ASSERT([m_view.get() respondsToSelector:m_didEnterBackgroundSelector]);
-    ASSERT([m_view.get() respondsToSelector:m_willEnterForegroundSelector]);
+    ASSERT([protect(m_view) respondsToSelector:m_didEnterBackgroundSelector]);
+    ASSERT([protect(m_view) respondsToSelector:m_willEnterForegroundSelector]);
 
     allApplicationStateTrackers().add(*this);
 }

@@ -381,8 +381,8 @@ void ContextMenuController::contextMenuItemSelected(ContextMenuAction action, co
     case ContextMenuItemTagMediaMute:
         m_context.hitTestResult().toggleMediaMuteState();
         break;
-    case ContextMenuItemTagToggleVideoEnhancedFullscreen:
-        m_context.hitTestResult().toggleEnhancedFullscreenForVideo();
+    case ContextMenuItemTagTogglePictureInPicture:
+        m_context.hitTestResult().togglePictureInPictureForVideo();
         break;
     case ContextMenuItemTagToggleVideoViewer:
         m_context.hitTestResult().toggleVideoViewer();
@@ -1001,7 +1001,7 @@ void ContextMenuController::populate()
     ContextMenuItem ToggleVideoFullscreen(ContextMenuItemType::Action, ContextMenuItemTagToggleVideoFullscreen,
         contextMenuItemTagEnterVideoFullscreen());
 #if PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE)
-    ContextMenuItem ToggleVideoEnhancedFullscreen(ContextMenuItemType::Action, ContextMenuItemTagToggleVideoEnhancedFullscreen, contextMenuItemTagEnterVideoEnhancedFullscreen());
+    ContextMenuItem TogglePictureInPicture(ContextMenuItemType::Action, ContextMenuItemTagTogglePictureInPicture, contextMenuItemTagEnterPictureInPicture());
     ContextMenuItem ToggleVideoViewer(ContextMenuItemType::Action, ContextMenuItemTagToggleVideoViewer, contextMenuItemTagEnterVideoViewer());
 #endif
 
@@ -1201,7 +1201,7 @@ void ContextMenuController::populate()
             appendItem(EnterVideoFullscreen, m_contextMenu.get());
 #endif
 #if PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE)
-            appendItem(ToggleVideoEnhancedFullscreen, m_contextMenu.get());
+            appendItem(TogglePictureInPicture, m_contextMenu.get());
             appendItem(ToggleVideoViewer, m_contextMenu.get());
 #endif
             if (m_context.hitTestResult().isDownloadableMedia() && loader->client().canHandleRequest(ResourceRequest(WTF::move(mediaURL)))) {
@@ -1839,11 +1839,11 @@ void ContextMenuController::checkOrEnableIfNeeded(ContextMenuItem& item) const
         case ContextMenuItemTagEnterVideoFullscreen:
             shouldEnable = m_context.hitTestResult().mediaSupportsFullscreen();
             break;
-        case ContextMenuItemTagToggleVideoEnhancedFullscreen:
+        case ContextMenuItemTagTogglePictureInPicture:
 #if PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE)
-            item.setTitle(m_context.hitTestResult().mediaIsInEnhancedFullscreen() ? contextMenuItemTagExitVideoEnhancedFullscreen() : contextMenuItemTagEnterVideoEnhancedFullscreen());
+            item.setTitle(m_context.hitTestResult().mediaIsInPictureInPicture() ? contextMenuItemTagExitPictureInPicture() : contextMenuItemTagEnterPictureInPicture());
 #endif
-            shouldEnable = m_context.hitTestResult().mediaSupportsEnhancedFullscreen();
+            shouldEnable = m_context.hitTestResult().mediaSupportsPictureInPicture();
             break;
         case ContextMenuItemTagToggleVideoViewer:
 #if PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE)
@@ -1920,7 +1920,7 @@ void ContextMenuController::showContextMenuAt(LocalFrame& frame, const IntPoint&
     clearContextMenu();
     
     // Simulate a click in the middle of the accessibility object.
-    PlatformMouseEvent mouseEvent(clickPoint, clickPoint, MouseButton::Right, PlatformEvent::Type::MousePressed, 1, { }, MonotonicTime::now(), ForceAtClick, SyntheticClickType::NoTap, MouseEventInputSource::Hardware);
+    PlatformMouseEvent mouseEvent(clickPoint, clickPoint, MouseButton::Right, PlatformEvent::Type::MousePressed, 1, { }, MonotonicTime::now(), ForceAtClick, SyntheticClickType::NoTap, MouseEventInputSource::UserDriven);
 
     frame.eventHandler().handleMousePressEvent(mouseEvent);
     bool handled = frame.eventHandler().sendContextMenuEvent(mouseEvent);

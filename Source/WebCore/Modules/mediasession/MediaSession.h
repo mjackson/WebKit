@@ -104,7 +104,7 @@ public:
     void willBeginPlayback();
     void willPausePlayback();
 
-    WEBCORE_EXPORT Document* document() const;
+    WEBCORE_EXPORT Document* NODELETE document() const;
 
 #if ENABLE(MEDIA_SESSION_COORDINATOR)
     MediaSessionReadyState readyState() const { return m_readyState; };
@@ -130,7 +130,7 @@ public:
     const Logger& logger() const { return *m_logger.get(); }
 #endif
 
-    bool hasObserver(MediaSessionObserver&) const;
+    bool NODELETE hasObserver(MediaSessionObserver&) const;
     WEBCORE_EXPORT void addObserver(MediaSessionObserver&);
     void removeObserver(MediaSessionObserver&);
 
@@ -175,7 +175,7 @@ private:
     PlatformMediaSessionMediaType presentationType() const final { return PlatformMediaSessionMediaType::DOMMediaSession; }
     void mayResumePlayback(bool shouldResume) final;
     void suspendPlayback() final;
-    bool isPlaying() const final;
+    bool NODELETE isPlaying() const final;
     bool isAudible() const final { return false; }
     bool isEnded() const final;
     MediaTime mediaSessionDuration() const final;
@@ -193,7 +193,7 @@ private:
     std::optional<MediaPositionState> m_positionState;
     std::optional<double> m_lastReportedPosition;
     MonotonicTime m_timeAtLastPositionUpdate;
-    HashMap<MediaSessionAction, RefPtr<MediaSessionActionHandler>, IntHash<MediaSessionAction>, WTF::StrongEnumHashTraits<MediaSessionAction>> m_actionHandlers WTF_GUARDED_BY_LOCK(m_actionHandlersLock);
+    HashMap<MediaSessionAction, Ref<MediaSessionActionHandler>, IntHash<MediaSessionAction>, WTF::StrongEnumHashTraits<MediaSessionAction>> m_actionHandlers WTF_GUARDED_BY_LOCK(m_actionHandlersLock);
     RefPtr<const Logger> m_logger;
     uint64_t m_logIdentifier { 0 };
 
@@ -225,10 +225,8 @@ void MediaSession::visitActionHandlers(Visitor& visitor) const
 {
     Locker lock { m_actionHandlersLock };
     for (auto& actionHandler : m_actionHandlers) {
-        if (actionHandler.value) {
-            // We are not ref'ing here as this function may get called from the GC thread.
-            SUPPRESS_UNCOUNTED_ARG actionHandler.value->visitJSFunction(visitor);
-        }
+        // We are not ref'ing here as this function may get called from a GC thread.
+        SUPPRESS_UNCOUNTED_ARG actionHandler.value->visitJSFunction(visitor);
     }
 }
 

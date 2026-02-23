@@ -183,7 +183,7 @@ ExceptionOr<void> MediaRecorder::startRecording(std::optional<unsigned> timeSlic
         return result.releaseException();
 
     m_private = result.releaseReturnValue();
-    checkedPrivate()->startRecording([pendingActivity = makePendingActivity(*this)](auto&& mimeTypeOrException, unsigned audioBitsPerSecond, unsigned videoBitsPerSecond) mutable {
+    protect(m_private)->startRecording([pendingActivity = makePendingActivity(*this)](auto&& mimeTypeOrException, unsigned audioBitsPerSecond, unsigned videoBitsPerSecond) mutable {
         if (!pendingActivity->object().m_isActive)
             return;
 
@@ -297,7 +297,7 @@ ExceptionOr<void> MediaRecorder::pauseRecording()
         m_timeSliceTimer.stop();
     }
 
-    checkedPrivate()->pause([pendingActivity = makePendingActivity(*this)] {
+    protect(m_private)->pause([pendingActivity = makePendingActivity(*this)] {
         if (!pendingActivity->object().m_isActive)
             return;
         queueTaskKeepingObjectAlive(pendingActivity->object(), TaskSource::Networking, [](auto& recorder) mutable {
@@ -324,7 +324,7 @@ ExceptionOr<void> MediaRecorder::resumeRecording()
         m_nextFireInterval = { };
     }
 
-    checkedPrivate()->resume([pendingActivity = makePendingActivity(*this)] {
+    protect(m_private)->resume([pendingActivity = makePendingActivity(*this)] {
         if (!pendingActivity->object().m_isActive)
             return;
         queueTaskKeepingObjectAlive(pendingActivity->object(), TaskSource::Networking, [](auto& recorder) mutable {
@@ -375,7 +375,7 @@ void MediaRecorder::stopRecordingInternal(CompletionHandler<void()>&& completion
         track->removeObserver(*this);
 
     m_state = RecordingState::Inactive;
-    checkedPrivate()->stop(WTF::move(completionHandler));
+    protect(m_private)->stop(WTF::move(completionHandler));
 }
 
 void MediaRecorder::handleTrackChange()
@@ -458,11 +458,6 @@ void MediaRecorder::computeBitRates(const MediaStreamPrivate* stream)
     auto bitRates = MediaRecorderPrivate::computeBitRates(m_options, stream);
     m_audioBitsPerSecond = bitRates.audio;
     m_videoBitsPerSecond = bitRates.video;
-}
-
-CheckedPtr<MediaRecorderPrivate> MediaRecorder::checkedPrivate()
-{
-    return m_private.get();
 }
 
 } // namespace WebCore

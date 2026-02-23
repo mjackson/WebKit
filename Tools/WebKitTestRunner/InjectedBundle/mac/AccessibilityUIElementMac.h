@@ -40,6 +40,7 @@ namespace WTR {
 class AccessibilityUIElementMac final : public AccessibilityUIElement {
     // Helper functions that dispatch to AX secondary thread
     friend RetainPtr<NSArray> supportedAttributes(id);
+    friend RetainPtr<NSArray> supportedParameterizedAttributes(id);
     friend void setAttributeValue(id, NSString *, id, bool synchronous);
 
 public:
@@ -269,6 +270,7 @@ public:
     RefPtr<AccessibilityTextMarkerRange> textMarkerRangeForElement(AccessibilityUIElement*) override;
     RefPtr<AccessibilityTextMarkerRange> textMarkerRangeForMarkers(AccessibilityTextMarker*, AccessibilityTextMarker*) override;
     RefPtr<AccessibilityTextMarkerRange> textMarkerRangeForUnorderedMarkers(AccessibilityTextMarker*, AccessibilityTextMarker*) override;
+    RefPtr<AccessibilityTextMarkerRange> intersectTextMarkerRanges(AccessibilityTextMarkerRange*, AccessibilityTextMarkerRange*) override;
     RefPtr<AccessibilityTextMarkerRange> textMarkerRangeForRange(unsigned location, unsigned length) override;
     RefPtr<AccessibilityTextMarkerRange> selectedTextMarkerRange() override;
     void resetSelectedTextMarkerRange() override;
@@ -311,6 +313,8 @@ public:
     RefPtr<AccessibilityTextMarker> previousSentenceStartTextMarkerForTextMarker(AccessibilityTextMarker*) override;
     JSRetainPtr<JSStringRef> textMarkerDebugDescription(AccessibilityTextMarker*) override;
     JSRetainPtr<JSStringRef> textMarkerRangeDebugDescription(AccessibilityTextMarkerRange*) override;
+    JSRetainPtr<JSStringRef> textMarkerDescription(AccessibilityTextMarker*) override;
+    JSRetainPtr<JSStringRef> textMarkerRangeDescription(AccessibilityTextMarkerRange*) override;
 
     JSRetainPtr<JSStringRef> supportedActions() const override;
     JSRetainPtr<JSStringRef> mathPostscriptsDescription() const override;

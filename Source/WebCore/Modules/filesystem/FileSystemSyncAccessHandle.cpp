@@ -159,7 +159,7 @@ ExceptionOr<unsigned long long> FileSystemSyncAccessHandle::write(BufferSource&&
         options.at = *result;
     }
 
-    if (!requestSpaceForWrite(*options.at, buffer.length()))
+    if (!requestSpaceForWrite(*options.at, buffer.byteLength()))
         return Exception { ExceptionCode::QuotaExceededError };
 
     auto result = m_file.write(buffer.span());

@@ -125,7 +125,7 @@ RenderTableSection* RenderTable::firstBody() const
     return m_firstBody.get();
 }
 
-RenderTableSection* RenderTable::topSection() const
+RenderTableSection* NODELETE RenderTable::topSection() const
 {
     ASSERT(!needsSectionRecalc());
     if (m_head)
@@ -205,8 +205,8 @@ void RenderTable::willInsertTableColumn(RenderTableCol&, RenderObject*)
 
 void RenderTable::willInsertTableSection(RenderTableSection& child, RenderObject* beforeChild)
 {
-    switch (child.style().display()) {
-    case DisplayType::TableHeaderGroup:
+    switch (child.style().display().value) {
+    case Style::DisplayType::TableHeaderGroup:
         resetSectionPointerIfNotBefore(m_head, beforeChild);
         if (!m_head)
             m_head = child;
@@ -216,14 +216,14 @@ void RenderTable::willInsertTableSection(RenderTableSection& child, RenderObject
                 m_firstBody = child;
         }
         break;
-    case DisplayType::TableFooterGroup:
+    case Style::DisplayType::TableFooterGroup:
         resetSectionPointerIfNotBefore(m_foot, beforeChild);
         if (!m_foot) {
             m_foot = child;
             break;
         }
         [[fallthrough]];
-    case DisplayType::TableRowGroup:
+    case Style::DisplayType::TableRowGroup:
         resetSectionPointerIfNotBefore(m_firstBody, beforeChild);
         if (!m_firstBody)
             m_firstBody = child;
@@ -681,19 +681,20 @@ void RenderTable::layout()
         if (isOutOfFlowPositioned())
             updateLogicalHeight();
 
-        // table can be containing block of positioned elements.
-        bool dimensionChanged = oldLogicalWidth != logicalWidth() || oldLogicalHeight != logicalHeight();
-        layoutOutOfFlowBoxes(dimensionChanged ? RelayoutChildren::Yes : RelayoutChildren::No);
-
-        updateLayerTransform();
-
         // Layout was changed, so probably borders too.
         invalidateCollapsedBorders();
 
         // The location or height of one or more sections may have changed.
         invalidateCachedColumnOffsets();
 
-        computeOverflow(flippedContentBoxRect());
+        computeInFlowOverflow(flippedContentBoxRect());
+
+        // table can be containing block of positioned elements.
+        bool dimensionChanged = oldLogicalWidth != logicalWidth() || oldLogicalHeight != logicalHeight();
+        layoutOutOfFlowBoxes(dimensionChanged ? RelayoutChildren::Yes : RelayoutChildren::No);
+        addOverflowFromOutOfFlowBoxes();
+
+        updateLayerTransform();
     }
 
     auto* layoutState = view().frameView().layoutContext().layoutState();
@@ -959,7 +960,7 @@ void RenderTable::paintBoxDecorations(PaintInfo& paintInfo, const LayoutPoint& p
     backgroundPainter.paintBackground(rect, bleedAvoidance);
     backgroundPainter.paintBoxShadow(rect, style(), Style::ShadowStyle::Inset);
 
-    if (style().hasVisibleBorderDecoration() && !collapseBorders())
+    if (style().border().hasVisibleBorderDecoration() && !collapseBorders())
         BorderPainter { *this, paintInfo }.paintBorder(rect, style());
 
     if (bleedAvoidance == BleedAvoidance::UseTransparencyLayer)
@@ -1247,12 +1248,12 @@ void RenderTable::recalcSections() const
 
     // We need to get valid pointers to caption, head, foot and first body again
     for (auto* child = firstChildBox(); child; child = child->nextSiblingBox()) {
-        switch (child->style().display()) {
-        case DisplayType::TableColumn:
-        case DisplayType::TableColumnGroup:
+        switch (child->style().display().value) {
+        case Style::DisplayType::TableColumn:
+        case Style::DisplayType::TableColumnGroup:
             m_hasColElements = true;
             break;
-        case DisplayType::TableHeaderGroup:
+        case Style::DisplayType::TableHeaderGroup:
             if (CheckedPtr section = dynamicDowncast<RenderTableSection>(*child)) {
                 if (!m_head)
                     m_head = *section;
@@ -1261,7 +1262,7 @@ void RenderTable::recalcSections() const
                 section->recalcCellsIfNeeded();
             }
             break;
-        case DisplayType::TableFooterGroup:
+        case Style::DisplayType::TableFooterGroup:
             if (CheckedPtr section = dynamicDowncast<RenderTableSection>(*child)) {
                 if (!m_foot)
                     m_foot = *section;
@@ -1270,7 +1271,7 @@ void RenderTable::recalcSections() const
                 section->recalcCellsIfNeeded();
             }
             break;
-        case DisplayType::TableRowGroup:
+        case Style::DisplayType::TableRowGroup:
             if (CheckedPtr section = dynamicDowncast<RenderTableSection>(*child)) {
                 if (!m_firstBody)
                     m_firstBody = *section;

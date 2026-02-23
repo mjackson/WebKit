@@ -26,8 +26,10 @@
 #import "config.h"
 #import "JavaScriptEvaluationResult.h"
 
-#import "_WKJSHandleInternal.h"
-#import "_WKSerializedNodeInternal.h"
+#import "WKJSHandleInternal.h"
+#import "WKJSSerializedNodeInternal.h"
+#import "_WKJSHandle.h"
+#import "_WKSerializedNode.h"
 
 namespace WebKit {
 

@@ -243,7 +243,7 @@ void RemoteRenderingBackendProxy::disconnectGPUProcess()
     m_getPixelBufferSharedMemory = nullptr;
     m_renderingUpdateID = { };
     m_didRenderingUpdateID = { };
-    protectedConnection()->invalidate();
+    protect(m_connection)->invalidate();
     m_connection = nullptr;
     m_isResponsive = false;
     m_gpuProcessConnection = nullptr;

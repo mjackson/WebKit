@@ -69,17 +69,16 @@ public:
     void connectionClosed(IPC::Connection::UniqueID);
     WebCore::StorageEstimate estimate();
     const String& path() const { return m_path; }
-    OriginQuotaManager& quotaManager();
+    OriginQuotaManager& NODELETE quotaManager();
     FileSystemStorageManager& fileSystemStorageManager(FileSystemStorageHandleRegistry&);
     FileSystemStorageManager* existingFileSystemStorageManager();
     LocalStorageManager& localStorageManager(StorageAreaRegistry&);
     LocalStorageManager* existingLocalStorageManager();
     SessionStorageManager& sessionStorageManager(StorageAreaRegistry&);
     SessionStorageManager* existingSessionStorageManager();
-    IDBStorageManager& idbStorageManager(IDBStorageRegistry&);
+    IDBStorageManager& idbStorageManager(IDBStorageRegistry&, bool useSQLiteMemoryBackingStore);
     IDBStorageManager* existingIDBStorageManager();
     CacheStorageManager& cacheStorageManager(CacheStorageRegistry&, const WebCore::ClientOrigin&, Ref<WorkQueue>&&);
-    Ref<CacheStorageManager> protectedCacheStorageManager(CacheStorageRegistry&, const WebCore::ClientOrigin&, Ref<WorkQueue>&&);
     CacheStorageManager* existingCacheStorageManager();
     BackgroundFetchStoreManager& backgroundFetchManager(Ref<WTF::WorkQueue>&&);
     ServiceWorkerStorageManager& serviceWorkerStorageManager();

@@ -731,6 +731,12 @@ String canonicalizeUnicodeLocaleID(const CString& tag)
     return languageTagForLocaleID(canonicalized->span().data());
 }
 
+String canonicalizeUnicodeLocaleID(const StringView tag)
+{
+    ASSERT(tag.containsOnlyASCII());
+    return canonicalizeUnicodeLocaleID(tag.utf8());
+}
+
 Vector<String> canonicalizeLocaleList(JSGlobalObject* globalObject, JSValue locales)
 {
     // CanonicalizeLocaleList (locales)

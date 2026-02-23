@@ -137,7 +137,7 @@ RefPtr<const Element> ContainerQueryEvaluator::selectContainer(OptionSet<CQ::Axi
     };
 
     auto isContainerForQuery = [&](const Element& candidateElement, const Element* originatingElement = nullptr) {
-        auto style = styleForContainer(candidateElement, requiredAxes, evaluationState);
+        CheckedPtr style = styleForContainer(candidateElement, requiredAxes, evaluationState);
         if (!style)
             return false;
         if (!isValidContainerForRequiredAxes(style->containerType(), candidateElement.renderer()))

@@ -99,7 +99,7 @@ public:
     bool isEmpty() const { return !size(); }
     size_t size() const { return m_entries.size(); }
 
-    Element* closestElementInScopeWithName(ElementName);
+    Element* NODELETE closestElementInScopeWithName(ElementName);
 
     Entry* find(Element&);
     bool contains(Element&);
@@ -112,7 +112,7 @@ public:
 
     void appendMarker();
     // clearToLastMarker also clears the marker (per the HTML5 spec).
-    void clearToLastMarker();
+    void NODELETE clearToLastMarker();
 
     const Entry& at(size_t i) const { return m_entries[i]; }
     Entry& at(size_t i) { return m_entries[i]; }

@@ -39,14 +39,10 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(PushEvent);
 static Vector<uint8_t> dataFromPushMessageDataInit(PushMessageDataInit& data)
 {
     return WTF::switchOn(data,
-        [](RefPtr<JSC::ArrayBuffer>& value) -> Vector<uint8_t> {
-            if (!value)
-                return { };
+        [](Ref<JSC::ArrayBuffer>& value) -> Vector<uint8_t> {
             return value->span();
         },
-        [](RefPtr<JSC::ArrayBufferView>& value) -> Vector<uint8_t> {
-            if (!value)
-                return { };
+        [](Ref<JSC::ArrayBufferView>& value) -> Vector<uint8_t> {
             return value->span();
         },
         [](String& value) -> Vector<uint8_t> {

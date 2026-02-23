@@ -138,7 +138,7 @@ void ViewGestureGeometryCollector::collectGeometryForSmartMagnificationGesture(F
     HitTestResult hitTestResult = HitTestResult(originInContentsSpace);
 
     if (RefPtr mainFrame = dynamicDowncast<WebCore::LocalFrame>(webPage->mainFrame()))
-        mainFrame->protectedDocument()->hitTest(HitTestRequest(), hitTestResult);
+        protect(mainFrame->document())->hitTest(HitTestRequest(), hitTestResult);
 
     RefPtr node = hitTestResult.innerNode();
     if (!node) {

@@ -231,9 +231,9 @@
 // ==============================================================================
 // The RefPtr chain goes something like this:
 //
-//     At birth (in DatabaseBackend::runTransaction()):
+//     At birth (in Database::runTransaction()):
 //     ====================================================
-//     DatabaseBackend                    // Deque<RefPtr<SQLTransactionBackend>> m_transactionQueue points to ...
+//     Database                           // Deque<Ref<SQLTransaction>> m_transactionQueue points to ...
 //     --> SQLTransactionBackend          // RefPtr<SQLTransaction> m_frontend points to ...
 //         --> SQLTransaction             // RefPtr<SQLTransactionBackend> m_backend points to ...
 //             --> SQLTransactionBackend  // which is a circular reference.
@@ -246,7 +246,7 @@
 //     or if the database was interrupted. See comments on "What happens if a transaction
 //     is interrupted?" below for details.
 //
-//     After scheduling the transaction with the DatabaseThread (DatabaseBackend::scheduleTransaction()):
+//     After scheduling the transaction with the DatabaseThread (Database::scheduleTransaction()):
 //     ======================================================================================================
 //     DatabaseThread                         // MessageQueue<DatabaseTask> m_queue points to ...
 //     --> DatabaseTransactionTask            // RefPtr<SQLTransactionBackend> m_transaction points to ...
@@ -300,9 +300,9 @@
 //     Phase 1. After Birth, before scheduling
 //
 //     - To clean up, DatabaseThread::databaseThread() will call
-//       DatabaseBackend::close() during its shutdown.
-//     - DatabaseBackend::close() will iterate
-//       DatabaseBackend::m_transactionQueue and call
+//       Database::close() during its shutdown.
+//     - Database::close() will iterate
+//       Database::m_transactionQueue and call
 //       notifyDatabaseThreadIsShuttingDown() on each transaction there.
 //        
 //     Phase 2. After scheduling, before state AcquireLock

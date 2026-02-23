@@ -129,13 +129,13 @@ public:
     String asText(const CSS::SerializationContext&) const;
     AtomString asTextAtom(const CSS::SerializationContext&) const;
 
-    bool hasCSSOMWrapper() const;
+    bool NODELETE hasCSSOMWrapper() const;
     bool isMutable() const { return m_isMutable; }
 
     bool traverseSubresources(NOESCAPE const Function<bool(const CachedResource&)>& handler) const;
     bool mayDependOnBaseURL() const;
 
-    static unsigned averageSizeInBytes();
+    static unsigned NODELETE averageSizeInBytes();
 
 #ifndef NDEBUG
     void showStyle();

@@ -2235,9 +2235,9 @@ private:
                     Arg arg = Arg::stack(stackSlotEntry->value);
                     if (Arg::isAnyUse(role)) {
                         auto tryRematerialize = [&]() {
-                            if constexpr (bank == GP) {
-                                auto oldIndex = AbsoluteTmpMapper<bank>::absoluteIndex(oldTmp);
-                                if (m_useCounts.isConstDef<bank>(oldIndex)) {
+                            auto oldIndex = AbsoluteTmpMapper<bank>::absoluteIndex(oldTmp);
+                            if (m_useCounts.isConstDef<bank>(oldIndex)) {
+                                if constexpr (bank == GP) {
                                     int64_t value = m_useCounts.constant<bank>(oldIndex);
                                     if (Arg::isValidImmForm(value) && isValidForm(Move, Arg::Imm, Arg::Tmp)) {
                                         insertionSet.insert(instIndex, Move, inst.origin, Arg::imm(value), tmp);
@@ -2246,6 +2246,36 @@ private:
                                     }
                                     if (isValidForm(Move, Arg::BigImm, Arg::Tmp)) {
                                         insertionSet.insert(instIndex, Move, inst.origin, Arg::bigImm(value), tmp);
+                                        m_stats[bank].numRematerializeConst++;
+                                        return true;
+                                    }
+                                } else {
+                                    v128_t constant = m_useCounts.constant<bank>(oldIndex);
+                                    Width constWidth = m_useCounts.constantWidth<bank>(oldIndex);
+                                    Arg imm;
+                                    Opcode constMove = Oops;
+                                    switch (constWidth) {
+                                    case Width32:
+                                        if (Arg::isValidFPImm32Form(constant.u64x2[0]))
+                                            imm = Arg::fpImm32(constant.u64x2[0]);
+                                        constMove = MoveFloat;
+                                        break;
+                                    case Width64:
+                                        if (Arg::isValidFPImm64Form(constant.u64x2[0]))
+                                            imm = Arg::fpImm64(constant.u64x2[0]);
+                                        constMove = MoveDouble;
+                                        break;
+                                    case Width128:
+                                        if (Arg::isValidFPImm128Form(constant))
+                                            imm = Arg::fpImm128(constant);
+                                        constMove = MoveVector;
+                                        break;
+                                    default:
+                                        RELEASE_ASSERT_NOT_REACHED();
+                                    }
+
+                                    if (imm && isValidForm(constMove, imm.kind(), Arg::Tmp)) {
+                                        insertionSet.insert(instIndex, constMove, inst.origin, imm, tmp);
                                         m_stats[bank].numRematerializeConst++;
                                         return true;
                                     }

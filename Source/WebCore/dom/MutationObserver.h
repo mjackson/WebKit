@@ -91,7 +91,6 @@ public:
     MutationCallback& callback() const { return m_callback.get(); }
 
     static void enqueueSlotChangeEvent(HTMLSlotElement&);
-    static void enqueueShadowRootAttachedEvent(Element&);
 
     static void notifyMutationObservers(WindowEventLoop&);
 
@@ -104,7 +103,7 @@ private:
     explicit MutationObserver(Ref<MutationCallback>&&);
     void deliver();
 
-    static bool validateOptions(MutationObserverOptions);
+    static bool NODELETE validateOptions(MutationObserverOptions);
 
     const Ref<MutationCallback> m_callback;
     Vector<Ref<MutationRecord>> m_records;

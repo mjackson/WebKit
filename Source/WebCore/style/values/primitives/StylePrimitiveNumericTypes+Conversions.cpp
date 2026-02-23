@@ -28,6 +28,7 @@
 #include "RenderStyle+GettersInlines.h"
 #include "Settings.h"
 #include "StyleLengthResolution.h"
+#include "StyleZoomPrimitivesInlines.h"
 
 namespace WebCore {
 namespace Style {

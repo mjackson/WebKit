@@ -32,6 +32,7 @@
 #include "Connection.h"
 #include "DrawingAreaMessages.h"
 #include "DrawingAreaProxy.h"
+#include "FrameInspectorTarget.h"
 #include "FrameProcess.h"
 #include "FrameTreeCreationParameters.h"
 #include "FrameTreeNodeData.h"
@@ -44,7 +45,6 @@
 #include "ProvisionalPageProxy.h"
 #include "RemotePageProxy.h"
 #include "WebBackForwardListFrameItem.h"
-#include "WebFrameInspectorTarget.h"
 #include "WebFrameMessages.h"
 #include "WebFramePolicyListenerProxy.h"
 #include "WebNavigationState.h"
@@ -85,6 +85,10 @@
 #include <WebCore/ParentalControlsURLFilterParameters.h>
 #endif
 
+#if HAVE(BROWSERENGINEKIT_WEBCONTENTFILTER)
+#include "WebParentalControlsURLFilter.h"
+#endif
+
 #define MESSAGE_CHECK(assertion) MESSAGE_CHECK_BASE(assertion, process().connection())
 
 namespace WebKit {
@@ -92,7 +96,7 @@ using namespace WebCore;
 
 class WebPageProxy;
 
-static HashMap<FrameIdentifier, WeakRef<WebFrameProxy>>& allFrames()
+static HashMap<FrameIdentifier, WeakRef<WebFrameProxy>>& NODELETE allFrames()
 {
     ASSERT(RunLoop::isMain());
     static NeverDestroyed<HashMap<FrameIdentifier, WeakRef<WebFrameProxy>>> map;
@@ -359,7 +363,7 @@ void WebFrameProxy::didChangeTitle(String&& title)
     m_title = WTF::move(title);
 }
 
-WebFramePolicyListenerProxy& WebFrameProxy::setUpPolicyListenerProxy(CompletionHandler<void(PolicyAction, API::WebsitePolicies*, ProcessSwapRequestedByClient, std::optional<NavigatingToAppBoundDomain>, WasNavigationIntercepted)>&& completionHandler, ShouldExpectSafeBrowsingResult expectSafeBrowsingResult, ShouldExpectAppBoundDomainResult expectAppBoundDomainResult, ShouldWaitForInitialLinkDecorationFilteringData shouldWaitForInitialLinkDecorationFilteringData, ShouldWaitForSiteHasStorageCheck shouldWaitForSiteHasStorageCheck)
+WebFramePolicyListenerProxy& WebFrameProxy::setUpPolicyListenerProxy(CompletionHandler<void(PolicyAction, API::WebsitePolicies*, ProcessSwapRequestedByClient, std::optional<NavigatingToAppBoundDomain>, WasNavigationIntercepted)>&& completionHandler, ShouldExpectSafeBrowsingResult expectSafeBrowsingResult, ShouldExpectAppBoundDomainResult expectAppBoundDomainResult, ShouldWaitForInitialLinkDecorationFilteringData shouldWaitForInitialLinkDecorationFilteringData, ShouldWaitForSiteHasStorageCheck shouldWaitForSiteHasStorageCheck, ShouldWaitForEnhancedSecurityLinkCheck shouldWaitForEnhancedSecurityLinkCheck)
 {
     if (RefPtr previousListener = m_activeListener)
         previousListener->ignore();
@@ -369,7 +373,7 @@ WebFramePolicyListenerProxy& WebFrameProxy::setUpPolicyListenerProxy(CompletionH
 
         completionHandler(action, policies, processSwapRequestedByClient, isNavigatingToAppBoundDomain, wasNavigationIntercepted);
         m_activeListener = nullptr;
-    }, expectSafeBrowsingResult, expectAppBoundDomainResult, shouldWaitForInitialLinkDecorationFilteringData, shouldWaitForSiteHasStorageCheck);
+    }, expectSafeBrowsingResult, expectAppBoundDomainResult, shouldWaitForInitialLinkDecorationFilteringData, shouldWaitForSiteHasStorageCheck, shouldWaitForEnhancedSecurityLinkCheck);
     return *m_activeListener;
 }
 
@@ -431,17 +435,26 @@ bool WebFrameProxy::didHandleContentFilterUnblockNavigation(const ResourceReques
     m_contentFilterUnblockHandler.setConfigurationPath(protect(page->websiteDataStore())->configuration().webContentRestrictionsConfigurationFile());
 #endif
 
+    std::optional<URL> unblockRequestURL = std::nullopt;
+#if HAVE(WEBCONTENTRESTRICTIONS_ASK_TO)
+    if (page->preferences().webContentRestrictionsAskToEnabled())
+        unblockRequestURL = request.url();
+#endif
+
 #if HAVE(WEBCONTENTRESTRICTIONS)
     if (m_contentFilterUnblockHandler.needsNetworkProcess()) {
         if (auto evaluatedURL = m_contentFilterUnblockHandler.evaluatedURL()) {
             WebCore::ParentalControlsURLFilterParameters parameters {
                 *evaluatedURL,
 #if HAVE(WEBCONTENTRESTRICTIONS_PATH_SPI)
-                m_contentFilterUnblockHandler.configurationPath()
+                m_contentFilterUnblockHandler.configurationPath(),
+#endif
+#if HAVE(WEBCONTENTRESTRICTIONS_ASK_TO)
+                unblockRequestURL,
 #endif
             };
             protect(protect(page->websiteDataStore())->networkProcess())->allowEvaluatedURL(parameters, [page](bool unblocked) {
-                if (unblocked)
+            if (unblocked)
                     page->reload({ });
             });
             return true;
@@ -449,10 +462,14 @@ bool WebFrameProxy::didHandleContentFilterUnblockNavigation(const ResourceReques
     }
 #endif
 
+#if HAVE(BROWSERENGINEKIT_WEBCONTENTFILTER) && !HAVE(WEBCONTENTRESTRICTIONS_PATH_SPI)
+    WebParentalControlsURLFilter::setSharedParentalControlsURLFilterIfNecessary();
+#endif
+
     m_contentFilterUnblockHandler.requestUnblockAsync([page](bool unblocked) {
         if (unblocked)
             page->reload({ });
-    });
+    }, unblockRequestURL);
     return true;
 }
 #endif
@@ -873,6 +890,11 @@ void WebFrameProxy::findFocusableElementDescendingIntoRemoteFrame(WebCore::Focus
     }
 
     sendWithAsyncReply(Messages::WebFrame::FindFocusableElementDescendingIntoRemoteFrame(direction, focusEventData, shouldFocusElement), WTF::move(completionHandler));
+}
+
+void WebFrameProxy::findFocusableElementContinuingFromFrame(WebCore::FocusDirection direction, WebCore::FrameIdentifier frameID, const WebCore::FocusEventData& focusEventData, WebCore::ShouldFocusElement shouldFocusElement)
+{
+    send(Messages::WebFrame::FindFocusableElementContinuingFromFrame(direction, frameID, focusEventData, shouldFocusElement));
 }
 
 std::optional<SharedPreferencesForWebProcess> WebFrameProxy::sharedPreferencesForWebProcess() const

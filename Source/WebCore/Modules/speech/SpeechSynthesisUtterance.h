@@ -52,7 +52,7 @@ public:
     virtual ~SpeechSynthesisUtterance();
 
     // ContextDestructionObserver, PlatformSpeechSynthesisUtteranceClient.
-    void ref() const final;
+    void NODELETE ref() const final;
     void deref() const final;
     USING_CAN_MAKE_WEAKPTR(EventTarget);
 
@@ -89,14 +89,14 @@ private:
     bool isSpeechSynthesisUtterance() const final { return true; }
 
     void dispatchEventAndUpdateState(Event&);
-    void incrementActivityCountForEventDispatch();
-    void decrementActivityCountForEventDispatch();
+    void NODELETE incrementActivityCountForEventDispatch();
+    void NODELETE decrementActivityCountForEventDispatch();
 
     // ActiveDOMObject
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
 
     // EventTarget
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
     EventTargetInterfaceType eventTargetInterface() const final;
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }

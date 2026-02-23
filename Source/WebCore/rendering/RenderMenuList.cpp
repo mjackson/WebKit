@@ -59,7 +59,7 @@ RenderMenuList::RenderMenuList(HTMLSelectElement& element, RenderStyle&& style)
 
 RenderMenuList::~RenderMenuList() = default;
 
-HTMLSelectElement& RenderMenuList::selectElement() const
+HTMLSelectElement& NODELETE RenderMenuList::selectElement() const
 {
     return downcast<HTMLSelectElement>(nodeForNonAnonymous());
 }
@@ -89,9 +89,9 @@ void RenderMenuList::updateOptionsWidth()
         String text = option->textIndentedToRespectGroupLabel();
         text = applyTextTransform(style(), text);
         if (!text.isEmpty()) {
-            const FontCascade& font = style().fontCascade();
+            CheckedRef font = style().fontCascade();
             TextRun run = RenderBlock::constructTextRun(text, style());
-            maxOptionWidth = std::max(maxOptionWidth, font.width(run));
+            maxOptionWidth = std::max(maxOptionWidth, font->width(run));
         }
     }
 
@@ -198,7 +198,7 @@ void RenderMenuList::getItemBackgroundColor(unsigned listIndex, Color& itemBackg
     RefPtr element = listItems[listIndex].get();
 
     Color backgroundColor;
-    if (auto* style = element->computedStyleForEditability())
+    if (CheckedPtr style = element->computedStyleForEditability())
         backgroundColor = style->visitedDependentBackgroundColorApplyingColorFilter();
 
     itemHasCustomBackgroundColor = backgroundColor.isValid() && backgroundColor.isVisible();

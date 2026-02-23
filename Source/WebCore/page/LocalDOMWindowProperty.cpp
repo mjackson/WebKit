@@ -39,12 +39,7 @@ LocalDOMWindowProperty::LocalDOMWindowProperty(LocalDOMWindow* window)
 
 LocalFrame* LocalDOMWindowProperty::frame() const
 {
-    return m_window ? protect(window())->localFrame() : nullptr;
-}
-
-RefPtr<LocalFrame> LocalDOMWindowProperty::protectedFrame() const
-{
-    return frame();
+    return m_window ? window()->localFrame() : nullptr;
 }
 
 LocalDOMWindow* LocalDOMWindowProperty::window() const

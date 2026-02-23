@@ -325,6 +325,15 @@ GRefPtr<GstCaps> GStreamerQuirksManager::videoSinkGLCapsFormat() const
     return nullptr;
 }
 
+bool GStreamerQuirksManager::isVideoCapsGLCompatible(const GRefPtr<GstCaps>& caps) const
+{
+    for (auto& quirk : m_quirks) {
+        if (!quirk->isVideoCapsGLCompatible(caps))
+            return false;
+    }
+    return true;
+}
+
 bool GStreamerQuirksManager::needsBufferingPercentageCorrection() const
 {
     for (auto& quirk : m_quirks) {

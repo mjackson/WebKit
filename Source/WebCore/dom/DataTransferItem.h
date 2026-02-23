@@ -59,9 +59,9 @@ public:
     RefPtr<File> file() { return m_file; }
     void clearListAndPutIntoDisabledMode();
 
-    bool isFile() const;
+    bool NODELETE isFile() const;
     String kind() const;
-    String type() const;
+    String NODELETE type() const;
     void getAsString(Document&, RefPtr<StringCallback>&&) const;
     RefPtr<File> getAsFile() const;
     RefPtr<FileSystemEntry> getAsEntry(ScriptExecutionContext&) const;

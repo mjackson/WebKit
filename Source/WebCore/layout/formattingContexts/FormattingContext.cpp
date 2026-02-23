@@ -181,7 +181,7 @@ const ElementBox& FormattingContext::containingBlock(const Box& layoutBox)
     // If the element has 'position: absolute', the containing block is established by the nearest ancestor with a
     // 'position' of 'absolute', 'relative' or 'fixed'.
     if (!layoutBox.isPositioned() || layoutBox.isInFlowPositioned()) {
-        auto* ancestor = &layoutBox.parent();
+        SUPPRESS_UNCHECKED_LOCAL auto* ancestor = &layoutBox.parent();
         for (; !is<InitialContainingBlock>(*ancestor); ancestor = &ancestor->parent()) {
             if (ancestor->isContainingBlockForInFlow())
                 return *ancestor;
@@ -190,7 +190,7 @@ const ElementBox& FormattingContext::containingBlock(const Box& layoutBox)
     }
 
     if (layoutBox.isFixedPositioned()) {
-        auto* ancestor = &layoutBox.parent();
+        SUPPRESS_UNCHECKED_LOCAL auto* ancestor = &layoutBox.parent();
         for (; !is<InitialContainingBlock>(*ancestor); ancestor = &ancestor->parent()) {
             if (ancestor->isContainingBlockForFixedPosition())
                 return *ancestor;
@@ -199,7 +199,7 @@ const ElementBox& FormattingContext::containingBlock(const Box& layoutBox)
     }
 
     if (layoutBox.isOutOfFlowPositioned()) {
-        auto* ancestor = &layoutBox.parent();
+        SUPPRESS_UNCHECKED_LOCAL auto* ancestor = &layoutBox.parent();
         for (; !is<InitialContainingBlock>(*ancestor); ancestor = &ancestor->parent()) {
             if (ancestor->isContainingBlockForOutOfFlowPosition())
                 return *ancestor;

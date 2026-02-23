@@ -472,11 +472,6 @@ SWServer::SWServer(SWServerDelegate& delegate, UniqueRef<SWOriginStore>&& origin
     UNUSED_PARAM(registrationDatabaseDirectory);
 }
 
-CheckedRef<SWServerDelegate> SWServer::checkedDelegate() const
-{
-    return *m_delegate;
-}
-
 unsigned SWServer::maxRegistrationCount()
 {
     if (m_overrideServiceWorkerRegistrationCountTestingValue)
@@ -504,7 +499,7 @@ void SWServer::validateRegistrationDomain(WebCore::RegistrableDomain domain, Ser
         return;
     }
 
-    checkedDelegate()->appBoundDomains([weakThis = WeakPtr { *this }, domain = WTF::move(domain), jobTypeAllowed, completionHandler = WTF::move(completionHandler)](HashSet<RegistrableDomain>&& appBoundDomains) mutable {
+    protect(*m_delegate)->appBoundDomains([weakThis = WeakPtr { *this }, domain = WTF::move(domain), jobTypeAllowed, completionHandler = WTF::move(completionHandler)](HashSet<RegistrableDomain>&& appBoundDomains) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return completionHandler(false);
@@ -633,7 +628,7 @@ void SWServer::startScriptFetch(const ServiceWorkerJobData& jobData, SWServerReg
         // This is a soft-update job, create directly a network load to fetch the script.
         auto request = createScriptRequest(jobData.scriptURL, jobData, registration);
         request.setHTTPHeaderField(HTTPHeaderName::ServiceWorker, "script"_s);
-        checkedDelegate()->softUpdate(ServiceWorkerJobData { jobData }, shouldRefreshCache, WTF::move(request), [weakThis = WeakPtr { *this }, jobDataIdentifier = jobData.identifier(), registrationKey = jobData.registrationKey()](WorkerFetchResult&& result) {
+        protect(*m_delegate)->softUpdate(ServiceWorkerJobData { jobData }, shouldRefreshCache, WTF::move(request), [weakThis = WeakPtr { *this }, jobDataIdentifier = jobData.identifier(), registrationKey = jobData.registrationKey()](WorkerFetchResult&& result) {
             std::optional<ProcessIdentifier> requestingProcessIdentifier;
             if (RefPtr protectedThis = weakThis.get())
                 protectedThis->scriptFetchFinished(jobDataIdentifier, registrationKey, requestingProcessIdentifier, WTF::move(result));
@@ -923,7 +918,7 @@ void SWServer::tryInstallContextData(const std::optional<ProcessIdentifier>& req
         return;
     }
 
-    checkedDelegate()->addAllowedFirstPartyForCookies(connection->webProcessIdentifier(), requestingProcessIdentifier, data.registration.key.firstPartyForCookies());
+    protect(*m_delegate)->addAllowedFirstPartyForCookies(connection->webProcessIdentifier(), requestingProcessIdentifier, data.registration.key.firstPartyForCookies());
     installContextData(data);
 }
 
@@ -1607,7 +1602,7 @@ void SWServer::createContextConnection(const Site& site, std::optional<ScriptExe
     }
 
     m_pendingConnectionDomains.add(site.domain());
-    checkedDelegate()->createContextConnection(site, requestingProcessIdentifier, serviceWorkerPageIdentifier, [weakThis = WeakPtr { *this }, site, serviceWorkerPageIdentifier] {
+    protect(*m_delegate)->createContextConnection(site, requestingProcessIdentifier, serviceWorkerPageIdentifier, [weakThis = WeakPtr { *this }, site, serviceWorkerPageIdentifier] {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
@@ -1838,7 +1833,7 @@ void SWServer::fireFunctionalEvent(SWServerRegistration& registration, Completio
 
     // FIXME: we should check whether we can skip the event and if skipping do a soft-update.
 
-    RELEASE_LOG(ServiceWorker, "SWServer::fireFunctionalEvent serviceWorkerID=%" PRIu64 ", state=%hhu", worker->identifier().toUInt64(), enumToUnderlyingType(worker->state()));
+    RELEASE_LOG(ServiceWorker, "SWServer::fireFunctionalEvent serviceWorkerID=%" PRIu64 ", state=%hhu", worker->identifier().toUInt64(), std::to_underlying(worker->state()));
 
     worker->whenActivated([weakThis = WeakPtr { *this }, callback = WTF::move(callback), registrationIdentifier = registration.identifier(), serviceWorkerIdentifier = worker->identifier()](bool success) mutable {
         RefPtr protectedThis = weakThis.get();

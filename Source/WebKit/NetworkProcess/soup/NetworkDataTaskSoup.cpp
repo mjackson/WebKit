@@ -171,7 +171,7 @@ void NetworkDataTaskSoup::createRequest(ResourceRequest&& request, WasBlockingCo
     }
     soup_message_set_flags(m_soupMessage.get(), static_cast<SoupMessageFlags>(soup_message_get_flags(m_soupMessage.get()) | messageFlags));
 
-    bool shouldBlockCookies = wasBlockingCookies == WasBlockingCookies::Yes ? true : m_storedCredentialsPolicy == StoredCredentialsPolicy::EphemeralStateless;
+    bool shouldBlockCookies = wasBlockingCookies == WasBlockingCookies::Yes || m_storedCredentialsPolicy == StoredCredentialsPolicy::EphemeralStateless;
     if (!shouldBlockCookies) {
         if (auto* networkStorageSession = m_session->networkStorageSession())
             shouldBlockCookies = networkStorageSession->shouldBlockCookies(m_currentRequest, m_frameID, m_pageID, WebCore::ShouldRelaxThirdPartyCookieBlocking::No, WebCore::IsKnownCrossSiteTracker::No);

@@ -87,7 +87,7 @@ private:
     ExceptionOr<Vector<uint8_t>> encryptData(std::span<const uint8_t>, const Vector<uint8_t>& iv, const Vector<uint8_t>& key);
     ExceptionOr<Vector<uint8_t>> decryptData(std::span<const uint8_t>, const Vector<uint8_t>& iv, const Vector<uint8_t>& key);
     Vector<uint8_t> computeEncryptedDataSignature(const Vector<uint8_t>& nonce, std::span<const uint8_t> header, std::span<const uint8_t> data, const Vector<uint8_t>& key);
-    void updateAuthenticationSize();
+    void NODELETE updateAuthenticationSize();
 
     mutable Lock m_keyLock;
     bool m_hasKey { false };

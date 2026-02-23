@@ -371,8 +371,8 @@ public:
     static RefPtr<Connection> connection(UniqueID);
     UniqueID uniqueID() const { return m_uniqueID; }
 
-    void setOnlySendMessagesAsDispatchWhenWaitingForSyncReplyWhenProcessingSuchAMessage(bool);
-    void setShouldExitOnSyncMessageSendFailure(bool);
+    void NODELETE setOnlySendMessagesAsDispatchWhenWaitingForSyncReplyWhenProcessingSuchAMessage(bool);
+    void NODELETE setShouldExitOnSyncMessageSendFailure(bool);
 
     // The set callback will be called on the connection work queue when the connection is closed,
     // before didCall is called on the client thread. Must be called before the connection is opened.
@@ -380,7 +380,7 @@ public:
     // on the work queue, for example if we want to handle them on some other thread we could avoid
     // handling the message on the client thread first.
     typedef void (*DidCloseOnConnectionWorkQueueCallback)(Connection*);
-    void setDidCloseOnConnectionWorkQueueCallback(DidCloseOnConnectionWorkQueueCallback);
+    void NODELETE setDidCloseOnConnectionWorkQueueCallback(DidCloseOnConnectionWorkQueueCallback);
 
     using OutgoingMessageQueueIsGrowingLargeCallback = Function<void()>;
     void setOutgoingMessageQueueIsGrowingLargeCallback(OutgoingMessageQueueIsGrowingLargeCallback&&);
@@ -517,7 +517,7 @@ public:
 
     void ignoreTimeoutsForTesting() { m_ignoreTimeoutsForTesting = true; }
 
-    void enableIncomingMessagesThrottling();
+    void NODELETE enableIncomingMessagesThrottling();
 
 #if ENABLE(IPC_TESTING_API)
     void addMessageObserver(const MessageObserver&);
@@ -549,11 +549,11 @@ public:
 
 #if ENABLE(CORE_IPC_SIGNPOSTS)
     static bool signpostsEnabled();
-    static void forceEnableSignposts();
+    static void NODELETE forceEnableSignposts();
 #endif
 
-    static bool shouldCrashOnMessageCheckFailure();
-    static void setShouldCrashOnMessageCheckFailure(bool);
+    static bool NODELETE shouldCrashOnMessageCheckFailure();
+    static void NODELETE setShouldCrashOnMessageCheckFailure(bool);
 
 #if ENABLE(IPC_TESTING_API)
     bool hasErrorString() const { return !m_errorString.isNull(); }
@@ -569,7 +569,7 @@ private:
     Connection(Identifier&&, bool isServer, Thread::QOS = Thread::QOS::Default);
     Connection();
     void platformInitialize(Identifier&&);
-    bool platformPrepareForOpen();
+    bool NODELETE platformPrepareForOpen();
     void platformOpen();
     void platformInvalidate();
 
@@ -647,7 +647,6 @@ private:
     Ref<SerialFunctionDispatcher> dispatcher();
 
     class SyncMessageState;
-    RefPtr<SyncMessageState> protectedSyncState() const;
 
     void addAsyncReplyHandler(AsyncReplyHandler&&);
     void addAsyncReplyHandlerWithDispatcher(AsyncReplyHandlerWithDispatcher&&);

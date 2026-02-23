@@ -86,7 +86,7 @@ void RTCRtpReceiver::getStats(Ref<DeferredPromise>&& promise)
         promise->reject(ExceptionCode::InvalidStateError);
         return;
     }
-    m_connection->getStats(*this, WTF::move(promise));
+    protect(m_connection)->getStats(*this, WTF::move(promise));
 }
 
 std::optional<RTCRtpCapabilities> RTCRtpReceiver::getCapabilities(ScriptExecutionContext& context, const String& kind)

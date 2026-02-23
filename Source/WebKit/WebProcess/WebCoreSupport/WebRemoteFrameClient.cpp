@@ -265,4 +265,9 @@ void WebRemoteFrameClient::findFocusableElementDescendingIntoRemoteFrame(WebCore
     m_frame->sendWithAsyncReply(Messages::WebFrameProxy::FindFocusableElementDescendingIntoRemoteFrame(direction, focusEventData, shouldFocusElement), WTF::move(completionHandler));
 }
 
+void WebRemoteFrameClient::findFocusableElementContinuingFromFrame(WebCore::FocusDirection direction, WebCore::FrameIdentifier frameID, const WebCore::FocusEventData& focusEventData, WebCore::ShouldFocusElement shouldFocusElement)
+{
+    m_frame->send(Messages::WebFrameProxy::FindFocusableElementContinuingFromFrame(direction, frameID, focusEventData, shouldFocusElement));
+}
+
 }

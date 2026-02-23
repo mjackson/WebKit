@@ -85,8 +85,8 @@ static std::optional<bool> emphasisMarkExistsAndIsAbove(const RenderText& render
         for (auto* baseCandidate = renderer.parent(); baseCandidate; baseCandidate = baseCandidate->parent()) {
             if (!baseCandidate->isInline())
                 return { };
-            if (baseCandidate->style().display() == DisplayType::RubyBase) {
-                if (auto* annotationCandidate = dynamicDowncast<RenderBlockFlow>(baseCandidate->nextSibling()); annotationCandidate && annotationCandidate->style().display() == DisplayType::RubyAnnotation)
+            if (baseCandidate->style().display() == Style::DisplayType::RubyBase) {
+                if (auto* annotationCandidate = dynamicDowncast<RenderBlockFlow>(baseCandidate->nextSibling()); annotationCandidate && annotationCandidate->style().display() == Style::DisplayType::RubyText)
                     return annotationCandidate;
                 return { };
             }

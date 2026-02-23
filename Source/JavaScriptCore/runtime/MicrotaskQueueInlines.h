@@ -25,11 +25,66 @@
 
 #pragma once
 
-#include "TopExceptionScope.h"
 #include "Debugger.h"
+#include "JSCellInlines.h"
+#include "JSMicrotaskDispatcher.h"
 #include "MicrotaskQueue.h"
+#include "TopExceptionScope.h"
 
 namespace JSC {
+
+inline JSCell* QueuedTask::dispatcher() const
+{
+    return m_dispatcher.pointer();
+}
+
+inline JSGlobalObject* QueuedTask::globalObject() const
+{
+    auto* dispatcher = this->dispatcher();
+    if (dispatcher->type() == JSMicrotaskDispatcherType) [[unlikely]]
+        return jsCast<JSMicrotaskDispatcher*>(dispatcher)->globalObject();
+    return jsCast<JSGlobalObject*>(dispatcher);
+}
+
+inline JSMicrotaskDispatcher* QueuedTask::jsMicrotaskDispatcher() const
+{
+    auto* dispatcher = this->dispatcher();
+    if (dispatcher->type() == JSMicrotaskDispatcherType) [[unlikely]]
+        return jsCast<JSMicrotaskDispatcher*>(dispatcher);
+    return nullptr;
+}
+
+inline std::optional<MicrotaskIdentifier> QueuedTask::identifier() const
+{
+    auto* dispatcher = jsMicrotaskDispatcher();
+    if (!dispatcher)
+        return std::nullopt;
+    return MicrotaskIdentifier { std::bit_cast<uintptr_t>(dispatcher) };
+}
+
+#if USE(BUN_JSC_ADDITIONS)
+inline void MarkedMicrotaskDeque::clearForGlobalObject(JSGlobalObject* targetGlobalObject)
+{
+    if (!targetGlobalObject)
+        return;
+    Deque<QueuedTask> remaining;
+    while (!m_queue.isEmpty()) {
+        QueuedTask task = m_queue.takeFirst();
+        if (task.globalObject() != targetGlobalObject)
+            remaining.append(WTF::move(task));
+    }
+    m_queue.swap(remaining);
+    m_markedBefore = 0;
+}
+
+inline void MicrotaskQueue::clearForGlobalObject(JSGlobalObject* targetGlobalObject)
+{
+    if (!targetGlobalObject)
+        return;
+    m_queue.clearForGlobalObject(targetGlobalObject);
+    m_toKeep.clearForGlobalObject(targetGlobalObject);
+}
+#endif
 
 template<bool useCallOnEachMicrotask>
 inline void MicrotaskQueue::performMicrotaskCheckpoint(VM& vm, NOESCAPE const Invocable<QueuedTask::Result(QueuedTask&)> auto& functor)

@@ -183,7 +183,7 @@ String quoteAndEscapeNonPrintables(StringView s)
     return result.toString();
 }
 
-inline bool shouldEnableSubpixelPrecisionForTextDump(const Document& document)
+inline bool NODELETE shouldEnableSubpixelPrecisionForTextDump(const Document& document)
 {
     // If LBSE is activated and the document contains outermost <svg> elements, generate the text
     // representation with subpixel precision. It would be awkward to only see the SVG part of a

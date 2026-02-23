@@ -17,5 +17,5 @@ PASS getBBox on path with no height
 PASS path with no height should contribute to parent bbox
 PASS arc bbox should be tight
 PASS empty foreignObject does not contribute to parent bbox
-FAIL empty image does not contribute to parent bbox assert_approx_equals: x expected 5 +/- 5.960464477539063e-8 but got 0
+PASS empty image does not contribute to parent bbox
 

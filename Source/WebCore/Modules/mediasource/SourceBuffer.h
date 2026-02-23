@@ -118,7 +118,7 @@ public:
     bool active() const { return m_active; }
 
     // EventTarget
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
 
     enum class AppendMode { Segments, Sequence };
     AppendMode mode() const { return m_mode; }
@@ -126,12 +126,12 @@ public:
 
     WEBCORE_EXPORT void setShouldGenerateTimestamps(bool flag);
 
-    bool isBufferedDirty() const;
+    bool NODELETE isBufferedDirty() const;
     void setBufferedDirty(bool flag);
 
-    MediaTime highestPresentationTimestamp() const;
+    MediaTime NODELETE highestPresentationTimestamp() const;
 
-    size_t memoryCost() const;
+    size_t NODELETE memoryCost() const;
 
     void setMediaSourceEnded(bool isEnded);
     bool receivedFirstInitializationSegment() const { return m_receivedFirstInitializationSegment; }
@@ -140,10 +140,10 @@ public:
     const Logger& logger() const final { return m_logger.get(); }
     uint64_t logIdentifier() const final { return m_logIdentifier; }
     ASCIILiteral logClassName() const final { return "SourceBuffer"_s; }
-    WTFLogChannel& logChannel() const final;
+    WTFLogChannel& NODELETE logChannel() const final;
 #endif
 
-    WebCoreOpaqueRoot opaqueRoot();
+    WebCoreOpaqueRoot NODELETE opaqueRoot();
 
     virtual bool isManaged() const { return false; }
     void memoryPressure();
@@ -162,11 +162,11 @@ private:
     void derefEventTarget() final { deref(); }
 
     // ActiveDOMObject.
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
 
     Ref<MediaPromise> sourceBufferPrivateDidReceiveInitializationSegment(SourceBufferPrivateClient::InitializationSegment&&);
     Ref<MediaPromise> sourceBufferPrivateBufferedChanged(Vector<PlatformTimeRanges>&&);
-    void sourceBufferPrivateHighestPresentationTimestampChanged(const MediaTime&);
+    void NODELETE sourceBufferPrivateHighestPresentationTimestampChanged(const MediaTime&);
     Ref<MediaPromise> sourceBufferPrivateDurationChanged(const MediaTime& duration);
     void sourceBufferPrivateDidDropSample();
     Ref<MediaPromise> sourceBufferPrivateDidAttach(SourceBufferPrivateClient::InitializationSegment&&);
@@ -191,7 +191,7 @@ private:
     // EventTarget
     enum EventTargetInterfaceType eventTargetInterface() const override { return EventTargetInterfaceType::SourceBuffer; }
 
-    bool isRemoved() const;
+    bool NODELETE isRemoved() const;
     void scheduleEvent(const AtomString& eventName);
 
     ExceptionOr<void> appendBufferInternal(std::span<const uint8_t>);
@@ -211,7 +211,7 @@ private:
     bool hasAudio() const;
 
     void rangeRemoval(const MediaTime&, const MediaTime&);
-    RefPtr<MediaSource> protectedSource() const;
+    RefPtr<MediaSource> NODELETE protectedSource() const;
 
     friend class Internals;
     using SamplesPromise = NativePromise<Vector<String>, PlatformMediaError>;

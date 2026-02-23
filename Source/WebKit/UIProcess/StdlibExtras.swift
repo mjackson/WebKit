@@ -49,9 +49,11 @@ protocol CxxRefVector {
     func __atUnsafe(_ index: Int) -> UnsafePointer<Element>
 }
 
-extension WTF.String: LosslessStringConvertible {
+// FIXME(rdar://164119356)): conform to LosslessStringConvertible
+// when this moves to WTF (requires members to be public)
+extension WTF.String {
     /// Construct a `WTF.String` from a `Swift.String`.
-    public init(_ string: Swift.String) {
+    init(_ string: Swift.String) {
         // rdar://162517354 prevents us from simply writing
         // self = WTF.String.fromUTF8(swiftString.utf8CString.span);
         // Safety - we are guaranteed to get a valid buffer from the Swift
@@ -67,16 +69,18 @@ extension WTF.String: LosslessStringConvertible {
     }
 
     /// Return a `Swift.String` from this `WTF.String`.
-    public var description: Swift.String {
+    var description: Swift.String {
         // We could possibly make this quicker by treating a C++ span as
         // a Sequence. For now, we want to avoid unsafe as much as possible.
         String(utf8(WTF.LenientConversion).toStdString())
     }
 }
 
-extension WTF.String: ExpressibleByStringLiteral {
+// FIXME(rdar://164119356)): conform to ExpressibleByStringLiteral
+// when this moves to WTF (requires members to be public)
+extension WTF.String {
     /// Construct a `WTF.String` from a string literal.
-    public init(stringLiteral: Swift.String) {
+    init(stringLiteral: Swift.String) {
         self.init(stringLiteral)
     }
 }

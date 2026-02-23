@@ -320,6 +320,11 @@ inline bool Value::isInteger() const
     return type() == Int32 || type() == Int64;
 }
 
+inline bool Value::isFP() const
+{
+    return type() == Float || type() == Double;
+}
+
 inline bool Value::hasInt32() const
 {
     return !!as<Const32Value>();

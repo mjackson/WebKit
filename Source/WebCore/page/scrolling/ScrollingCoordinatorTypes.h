@@ -28,6 +28,7 @@
 #include <WebCore/FloatPoint.h>
 #include <WebCore/KeyboardScroll.h>
 #include <WebCore/ScrollTypes.h>
+#include <wtf/Markable.h>
 #include <wtf/OptionSet.h>
 
 namespace WebCore {
@@ -106,9 +107,13 @@ enum class ScrollRequestType : uint8_t {
     CancelAnimatedScroll
 };
 
+struct ScrollRequestIdentifierType;
+using ScrollRequestIdentifier = ObjectIdentifier<ScrollRequestIdentifierType>;
+
 struct RequestedScrollData {
     ScrollRequestType requestType { ScrollRequestType::PositionUpdate };
-    Variant<FloatPoint, FloatSize> scrollPositionOrDelta;
+    Variant<FloatPoint, FloatSize> scrollPositionOrDelta { };
+    Markable<ScrollRequestIdentifier> identifier { };
     ScrollType scrollType { ScrollType::User };
     ScrollClamping clamping { ScrollClamping::Clamped };
     ScrollIsAnimated animated { ScrollIsAnimated::No };
@@ -131,6 +136,7 @@ struct RequestedScrollData {
 
     bool operator==(const RequestedScrollData& other) const
     {
+        // The identifier is not checked.
         return requestType == other.requestType
             && comparePositionOrDelta(other)
             && scrollType == other.scrollType
@@ -156,6 +162,7 @@ struct RequestedKeyboardScrollData {
 
 enum class ScrollUpdateType : uint8_t {
     PositionUpdate,
+    ScrollRequestResponse,
     AnimatedScrollWillStart,
     AnimatedScrollDidEnd,
     WheelEventScrollWillStart,
@@ -169,16 +176,21 @@ struct ScrollUpdate {
     std::optional<FloatPoint> layoutViewportOrigin;
     ScrollUpdateType updateType { ScrollUpdateType::PositionUpdate };
     ScrollingLayerPositionAction updateLayerPositionAction { ScrollingLayerPositionAction::Sync };
+    Markable<ScrollRequestIdentifier> responseIdentifier { }; // Only set for ScrollRequestResponse types.
+    // maybe add a bit to say to fire scrollEnd
     
     bool canMerge(const ScrollUpdate& other) const
     {
-        return nodeID == other.nodeID && updateLayerPositionAction == other.updateLayerPositionAction && updateType == other.updateType && updateType == ScrollUpdateType::PositionUpdate;
+        return nodeID == other.nodeID && updateLayerPositionAction == other.updateLayerPositionAction && updateType == other.updateType
+            && (updateType == ScrollUpdateType::PositionUpdate || updateType == ScrollUpdateType::ScrollRequestResponse);
     }
     
     void merge(ScrollUpdate&& other)
     {
         scrollPosition = other.scrollPosition;
         layoutViewportOrigin = other.layoutViewportOrigin;
+        if (updateType == ScrollUpdateType::ScrollRequestResponse)
+            responseIdentifier = std::max(*responseIdentifier, *other.responseIdentifier);
     }
 };
 

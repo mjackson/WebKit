@@ -59,6 +59,7 @@
 #import "WKHistoryDelegatePrivate.h"
 #import "WKWebView.h"
 #import "WebContextMenuProxy.h"
+#import "WebEventModifier.h"
 #import "WebFrameProxy.h"
 #import "WebPage.h"
 #import "WebPageLoadTiming.h"
@@ -1199,12 +1200,12 @@ void WebPageProxy::setMediaCapability(RefPtr<MediaCapability>&& capability)
 
     if (!internals().mediaCapability) {
         WEBPAGEPROXY_RELEASE_LOG(ProcessCapabilities, "setMediaCapability: clearing media capability");
-        protect(legacyMainFrameProcess())->send(Messages::WebPage::SetMediaEnvironment({ }), webPageIDInMainFrameProcess());
+        protect(legacyMainFrameProcess())->send(Messages::WebPage::SetDisplayCaptureEnvironment({ }), webPageIDInMainFrameProcess());
         return;
     }
 
     WEBPAGEPROXY_RELEASE_LOG(ProcessCapabilities, "setMediaCapability: creating (envID=%{public}s) for URL '%{sensitive}s'", internals().mediaCapability->environmentIdentifier().utf8().data(), internals().mediaCapability->webPageURL().string().utf8().data());
-    protect(legacyMainFrameProcess())->send(Messages::WebPage::SetMediaEnvironment(protect(internals().mediaCapability)->environmentIdentifier()), webPageIDInMainFrameProcess());
+    protect(legacyMainFrameProcess())->send(Messages::WebPage::SetDisplayCaptureEnvironment(protect(internals().mediaCapability)->environmentIdentifier()), webPageIDInMainFrameProcess());
 }
 
 void WebPageProxy::deactivateMediaCapability(MediaCapability& capability)
@@ -1230,7 +1231,7 @@ void WebPageProxy::resetMediaCapability()
 
     RefPtr mediaCapability = this->mediaCapability();
     if (!mediaCapability || !protocolHostAndPortAreEqual(mediaCapability->webPageURL(), currentURL))
-        setMediaCapability(MediaCapability::create(WTF::move(currentURL)));
+        setMediaCapability(MediaCapability::create(WTF::move(currentURL), MediaCapability::Kind::MediaPlayback));
 }
 
 void WebPageProxy::updateMediaCapability()
@@ -1279,6 +1280,93 @@ bool WebPageProxy::shouldDeactivateMediaCapability() const
     return true;
 }
 
+const MediaCapability* WebPageProxy::displayCaptureCapability() const
+{
+    return internals().displayCaptureCapability.get();
+}
+
+void WebPageProxy::setDisplayCaptureCapability(RefPtr<MediaCapability>&& capability)
+{
+    if (RefPtr oldCapability = std::exchange(internals().displayCaptureCapability, nullptr))
+        deactivateDisplayCaptureCapability(*oldCapability);
+
+    internals().displayCaptureCapability = WTF::move(capability);
+
+    if (!internals().displayCaptureCapability) {
+        WEBPAGEPROXY_RELEASE_LOG(ProcessCapabilities, "setDisplayCaptureCapability: clearing capability");
+        protect(legacyMainFrameProcess())->send(Messages::WebPage::SetDisplayCaptureEnvironment({ }), webPageIDInMainFrameProcess());
+        return;
+    }
+
+    WEBPAGEPROXY_RELEASE_LOG(ProcessCapabilities, "setDisplayCaptureCapability: creating (envID=%{public}s) for URL '%{sensitive}s'", internals().displayCaptureCapability->environmentIdentifier().utf8().data(), internals().displayCaptureCapability->webPageURL().string().utf8().data());
+    protect(legacyMainFrameProcess())->send(Messages::WebPage::SetDisplayCaptureEnvironment(protect(internals().displayCaptureCapability)->environmentIdentifier()), webPageIDInMainFrameProcess());
+}
+
+void WebPageProxy::deactivateDisplayCaptureCapability(MediaCapability& capability)
+{
+    WEBPAGEPROXY_RELEASE_LOG(ProcessCapabilities, "deactivateDisplayCaptureCapability: deactivating (envID=%{public}s) for URL '%{sensitive}s'", capability.environmentIdentifier().utf8().data(), capability.webPageURL().string().utf8().data());
+    Ref processPool = protect(legacyMainFrameProcess())->processPool();
+    Ref granter = processPool->extensionCapabilityGranter();
+    granter->setMediaCapabilityActive(capability, false);
+    granter->revoke(capability, *this);
+}
+
+void WebPageProxy::resetDisplayCaptureCapability()
+{
+    if (!protect(preferences())->mediaCapabilityGrantsEnabled())
+        return;
+
+    URL currentURL { this->currentURL() };
+
+    if (!hasRunningProcess() || !currentURL.isValid()) {
+        setDisplayCaptureCapability(nullptr);
+        return;
+    }
+
+    RefPtr displayCaptureCapability = this->displayCaptureCapability();
+    if (!displayCaptureCapability || !protocolHostAndPortAreEqual(displayCaptureCapability->webPageURL(), currentURL))
+        setDisplayCaptureCapability(MediaCapability::create(WTF::move(currentURL), MediaCapability::Kind::DisplayCapture));
+}
+
+void WebPageProxy::updateDisplayCaptureCapability()
+{
+    RefPtr displayCaptureCapability = internals().displayCaptureCapability;
+    if (!displayCaptureCapability)
+        return;
+
+    if (shouldDeactivateDisplayCaptureCapability()) {
+        deactivateDisplayCaptureCapability(*displayCaptureCapability);
+        return;
+    }
+
+    Ref processPool = protect(legacyMainFrameProcess())->processPool();
+
+    if (shouldActivateDisplayCaptureCapability())
+        protect(processPool->extensionCapabilityGranter())->setMediaCapabilityActive(*displayCaptureCapability, true);
+
+    if (displayCaptureCapability->isActivatingOrActive())
+        protect(processPool->extensionCapabilityGranter())->grant(*displayCaptureCapability, *this);
+}
+
+bool WebPageProxy::shouldActivateDisplayCaptureCapability() const
+{
+    if (!isViewVisible())
+        return false;
+
+    return internals().mediaState.containsAny(MediaProducer::DisplayCaptureMask);
+}
+
+bool WebPageProxy::shouldDeactivateDisplayCaptureCapability() const
+{
+    RefPtr displayCaptureCapability = this->displayCaptureCapability();
+    if (!displayCaptureCapability || !displayCaptureCapability->isActivatingOrActive())
+        return false;
+
+    if (internals().mediaState & WebCore::MediaProducer::DisplayCaptureMask)
+        return false;
+
+    return true;
+}
 #endif // ENABLE(EXTENSION_CAPABILITIES)
 
 #if ENABLE(WRITING_TOOLS)
@@ -1861,6 +1949,125 @@ void WebPageProxy::requestPositionInformation(const InteractionInformationReques
 {
     protect(m_legacyMainFrameProcess)->send(Messages::WebPage::RequestPositionInformation(request), webPageIDInMainFrameProcess());
 }
+
+void WebPageProxy::selectPositionAtPoint(WebCore::IntPoint point, bool isInteractingWithFocusedElement, CompletionHandler<void()>&& callbackFunction)
+{
+    if (!hasRunningProcess()) {
+        callbackFunction();
+        return;
+    }
+
+    WTF::protect(legacyMainFrameProcess())->sendWithAsyncReply(Messages::WebPage::SelectPositionAtPoint(point, isInteractingWithFocusedElement), [callbackFunction = WTF::move(callbackFunction), backgroundActivity = protect(m_legacyMainFrameProcess->throttler())->backgroundActivity("WebPageProxy::selectPositionAtPoint"_s)] mutable {
+        callbackFunction();
+    }, webPageIDInMainFrameProcess());
+}
+
+void WebPageProxy::selectTextWithGranularityAtPoint(WebCore::IntPoint point, WebCore::TextGranularity granularity, bool isInteractingWithFocusedElement, CompletionHandler<void()>&& callbackFunction)
+{
+    if (!hasRunningProcess()) {
+        callbackFunction();
+        return;
+    }
+
+    protect(legacyMainFrameProcess())->sendWithAsyncReply(Messages::WebPage::SelectTextWithGranularityAtPoint(point, granularity, isInteractingWithFocusedElement), [callbackFunction = WTF::move(callbackFunction), backgroundActivity = protect(m_legacyMainFrameProcess->throttler())->backgroundActivity("WebPageProxy::selectTextWithGranularityAtPoint"_s)] mutable {
+        callbackFunction();
+    }, webPageIDInMainFrameProcess());
+}
+
+void WebPageProxy::updateSelectionWithExtentPoint(WebCore::IntPoint point, bool isInteractingWithFocusedElement, RespectSelectionAnchor respectSelectionAnchor, CompletionHandler<void(bool)>&& callback)
+{
+    protect(legacyMainFrameProcess())->sendWithAsyncReply(Messages::WebPage::UpdateSelectionWithExtentPoint(point, isInteractingWithFocusedElement, respectSelectionAnchor), WTF::move(callback), webPageIDInMainFrameProcess());
+}
+
+void WebPageProxy::updateSelectionWithExtentPointAndBoundary(WebCore::IntPoint point, WebCore::TextGranularity granularity, bool isInteractingWithFocusedElement, TextInteractionSource source, CompletionHandler<void(bool)>&& callback)
+{
+    protect(legacyMainFrameProcess())->sendWithAsyncReply(Messages::WebPage::UpdateSelectionWithExtentPointAndBoundary(point, granularity, isInteractingWithFocusedElement, source), WTF::move(callback), webPageIDInMainFrameProcess());
+}
+
+#if ENABLE(TWO_PHASE_CLICKS)
+
+void WebPageProxy::potentialTapAtPosition(std::optional<WebCore::FrameIdentifier> remoteFrameID, const WebCore::FloatPoint& position, bool shouldRequestMagnificationInformation, WebKit::TapIdentifier requestID, WebMouseEventInputSource inputSource)
+{
+    hideValidationMessage();
+    sendWithAsyncReplyToProcessContainingFrame(remoteFrameID, Messages::WebPage::PotentialTapAtPosition(remoteFrameID, requestID, position, shouldRequestMagnificationInformation, inputSource), Messages::WebPage::PotentialTapAtPosition::Reply { [weakThis = WeakPtr { *this }, shouldRequestMagnificationInformation, requestID, inputSource](auto data) {
+        if (!data)
+            return;
+        RefPtr protectedThis = weakThis.get();
+        if (!protectedThis)
+            return;
+        protectedThis->potentialTapAtPosition(data->targetFrameID, FloatPoint(data->transformedPoint), shouldRequestMagnificationInformation, requestID, inputSource);
+    } });
+}
+
+void WebPageProxy::commitPotentialTap(std::optional<WebCore::FrameIdentifier> remoteFrameID, OptionSet<WebEventModifier> modifiers, TransactionID layerTreeTransactionIdAtLastTouchStart, WebCore::PointerID pointerId)
+{
+    sendWithAsyncReplyToProcessContainingFrame(remoteFrameID, Messages::WebPage::CommitPotentialTap(remoteFrameID, modifiers, layerTreeTransactionIdAtLastTouchStart, pointerId), Messages::WebPage::CommitPotentialTap::Reply { [weakThis = WeakPtr { *this }, modifiers, layerTreeTransactionIdAtLastTouchStart, pointerId](auto targetFrameID) {
+        if (!targetFrameID)
+            return;
+        RefPtr protectedThis = weakThis.get();
+        if (!protectedThis)
+            return;
+        protectedThis->commitPotentialTap(targetFrameID, modifiers, layerTreeTransactionIdAtLastTouchStart, pointerId);
+    } });
+}
+
+void WebPageProxy::cancelPotentialTap()
+{
+    protect(legacyMainFrameProcess())->send(Messages::WebPage::CancelPotentialTap(), webPageIDInMainFrameProcess());
+}
+
+void WebPageProxy::didGetTapHighlightGeometries(WebKit::TapIdentifier requestID, const WebCore::Color& color, const Vector<WebCore::FloatQuad>& highlightedQuads, const WebCore::IntSize& topLeftRadius, const WebCore::IntSize& topRightRadius, const WebCore::IntSize& bottomLeftRadius, const WebCore::IntSize& bottomRightRadius, bool nodeHasBuiltInClickHandling)
+{
+    if (RefPtr pageClient = this->pageClient())
+        pageClient->didGetTapHighlightGeometries(requestID, color, highlightedQuads, topLeftRadius, topRightRadius, bottomLeftRadius, bottomRightRadius, nodeHasBuiltInClickHandling);
+}
+
+void WebPageProxy::commitPotentialTapFailed()
+{
+    if (RefPtr pageClient = this->pageClient())
+        pageClient->commitPotentialTapFailed();
+}
+
+void WebPageProxy::didNotHandleTapAsClick(const WebCore::IntPoint& point)
+{
+    if (RefPtr pageClient = this->pageClient())
+        pageClient->didNotHandleTapAsClick(point);
+
+#if PLATFORM(IOS_FAMILY)
+    m_uiClient->didNotHandleTapAsClick(point);
+#endif
+}
+
+void WebPageProxy::didHandleTapAsHover()
+{
+    if (RefPtr pageClient = this->pageClient())
+        pageClient->didHandleTapAsHover();
+}
+
+void WebPageProxy::didCompleteSyntheticClick()
+{
+    if (RefPtr pageClient = this->pageClient())
+        pageClient->didCompleteSyntheticClick();
+}
+
+void WebPageProxy::disableDoubleTapGesturesDuringTapIfNecessary(WebKit::TapIdentifier requestID)
+{
+    if (RefPtr pageClient = this->pageClient())
+        pageClient->disableDoubleTapGesturesDuringTapIfNecessary(requestID);
+}
+
+void WebPageProxy::handleSmartMagnificationInformationForPotentialTap(WebKit::TapIdentifier requestID, const WebCore::FloatRect& renderRect, bool fitEntireRect, double viewportMinimumScale, double viewportMaximumScale, bool nodeIsRootLevel, bool nodeIsPluginElement)
+{
+    if (RefPtr pageClient = this->pageClient())
+        pageClient->handleSmartMagnificationInformationForPotentialTap(requestID, renderRect, fitEntireRect, viewportMinimumScale, viewportMaximumScale, nodeIsRootLevel, nodeIsPluginElement);
+}
+
+void WebPageProxy::isPotentialTapInProgress(CompletionHandler<void(bool)>&& completion)
+{
+    completion(protect(pageClient())->isPotentialTapInProgress());
+}
+
+#endif // ENABLE(TWO_PHASE_CLICKS)
 
 } // namespace WebKit
 

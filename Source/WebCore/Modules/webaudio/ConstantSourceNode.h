@@ -51,7 +51,7 @@ private:
     double latencyTime() const final { return 0; }
     
     // If we are no longer playing, propogate silence ahead to downstream nodes.
-    bool propagatesSilence() const final;
+    bool NODELETE propagatesSilence() const final;
     
     const Ref<AudioParam> m_offset;
     

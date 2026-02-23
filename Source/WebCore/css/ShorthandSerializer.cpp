@@ -26,6 +26,7 @@
 #include "ShorthandSerializer.h"
 
 #include "CSSBorderImageWidthValue.h"
+#include "CSSFunctionValue.h"
 #include "CSSGridLineNamesValue.h"
 #include "CSSGridTemplateAreasValue.h"
 #include "CSSParserIdioms.h"
@@ -79,23 +80,23 @@ private:
     };
     template<typename IteratorType> struct LonghandRange {
         IteratorType begin() const { return { { serializer } }; }
-        static constexpr std::nullptr_t end() { return nullptr; }
-        unsigned size() const { return serializer.length(); }
+        static constexpr std::nullptr_t NODELETE end() { return nullptr; }
+        unsigned NODELETE size() const { return serializer.length(); }
         const ShorthandSerializer& serializer;
     };
 
     static bool isInitialValue(Longhand);
     String serializeValue(Longhand) const;
 
-    unsigned length() const { return m_shorthand.length(); }
-    Longhand longhand(unsigned index) const { return { longhandProperty(index), longhandValue(index) }; }
+    unsigned NODELETE length() const { return m_shorthand.length(); }
+    Longhand NODELETE longhand(unsigned index) const { return { longhandProperty(index), longhandValue(index) }; }
     CSSPropertyID longhandProperty(unsigned index) const;
     CSSValue& longhandValue(unsigned index) const;
 
     unsigned longhandIndex(unsigned index, CSSPropertyID) const;
 
-    LonghandRange<LonghandIterator> longhands() const { return { *this }; }
-    LonghandRange<LonghandValueIterator> longhandValues() const { return { *this }; }
+    LonghandRange<LonghandIterator> NODELETE longhands() const { return { *this }; }
+    LonghandRange<LonghandValueIterator> NODELETE longhandValues() const { return { *this }; }
 
     CSSValueID longhandValueID(unsigned index) const;
     bool isLonghandValueID(unsigned index, CSSValueID valueID) const { return longhandValueID(index) == valueID; }
@@ -158,12 +159,12 @@ inline ShorthandSerializer::ShorthandSerializer(const CSS::SerializationContext&
 {
 }
 
-inline CSSPropertyID ShorthandSerializer::longhandProperty(unsigned index) const
+inline CSSPropertyID NODELETE ShorthandSerializer::longhandProperty(unsigned index) const
 {
     return m_shorthand.properties()[index];
 }
 
-inline CSSValue& ShorthandSerializer::longhandValue(unsigned index) const
+inline CSSValue& NODELETE ShorthandSerializer::longhandValue(unsigned index) const
 {
     return *m_longhandValues[index];
 }
@@ -178,7 +179,7 @@ inline bool ShorthandSerializer::isInitialValue(Longhand longhand)
     return isInitialValueForLonghand(longhand.property, longhand.value);
 }
 
-inline unsigned ShorthandSerializer::longhandIndex(unsigned index, CSSPropertyID longhand) const
+inline unsigned NODELETE ShorthandSerializer::longhandIndex(unsigned index, CSSPropertyID longhand) const
 {
     ASSERT_UNUSED(longhand, longhandProperty(index) == longhand);
     return index;
@@ -264,6 +265,10 @@ bool ShorthandSerializer::commonSerializationChecks(const StyleProperties& prope
 
         // Don't serialize if any longhand was set to a variable.
         if (is<CSSVariableReferenceValue>(value))
+            return true;
+
+        // Don't serialize if any longhand was set to -internal-auto-base().
+        if (RefPtr functionValue = dynamicDowncast<CSSFunctionValue>(value); functionValue && functionValue->name() == CSSValueInternalAutoBase)
             return true;
 
         // Don't serialize if any longhand was set by a different shorthand.
@@ -532,7 +537,7 @@ public:
         m_values[index] = value;
     }
 
-    bool& skip(unsigned index)
+    bool& NODELETE skip(unsigned index)
     {
         ASSERT(index < m_shorthand.length());
         return m_skipSerializing[index];
@@ -564,7 +569,7 @@ public:
         return result && *result != CSSValueInvalid;
     }
 
-    bool isPair(unsigned index) const
+    bool NODELETE isPair(unsigned index) const
     {
         // This returns false for implicit initial values that are pairs, which is OK for now.
         ASSERT(index < m_shorthand.length());
@@ -606,29 +611,29 @@ String ShorthandSerializer::serializeCoordinatingListPropertyGroup() const
     // https://drafts.csswg.org/css-values-4/#linked-properties
 
     // First, figure out the number of items in the coordinating list base property,
-    // which we'll need to match for all coordinated longhands, thus possibly trimming
-    // or expanding.
+    // which we'll need to match for all coordinated longhands.
     unsigned numberOfItemsForCoordinatingListBaseProperty = 1;
     if (RefPtr valueList = dynamicDowncast<CSSValueList>(longhandValue(0)))
         numberOfItemsForCoordinatingListBaseProperty = std::max(valueList->length(), numberOfItemsForCoordinatingListBaseProperty);
 
-    // Now go through all longhands and ensure we repeat items earlier in the list
-    // should there not be a specified value.
+    // If any longhand has a different number of items than the coordinating list base
+    // property, there is no serialization that will round-trip, so the serialization fails
+    for (unsigned longhandIndex = 1; longhandIndex < length(); ++longhandIndex) {
+        Ref value = longhandValue(longhandIndex);
+        if (RefPtr valueList = dynamicDowncast<CSSValueList>(value)) {
+            if (valueList->length() != numberOfItemsForCoordinatingListBaseProperty)
+                return String();
+        }
+    }
+
     StringBuilder result;
     for (unsigned listItemIndex = 0; listItemIndex < numberOfItemsForCoordinatingListBaseProperty; ++listItemIndex) {
         LayerValues layerValues { m_shorthand };
         for (unsigned longhandIndex = 0; longhandIndex < length(); ++longhandIndex) {
             Ref value = longhandValue(longhandIndex);
-            if (auto* valueList = dynamicDowncast<CSSValueList>(value.ptr())) {
-                auto* valueInList = [&]() -> const CSSValue* {
-                    if (auto* specifiedValue = valueList->item(listItemIndex))
-                        return specifiedValue;
-                    if (auto numberOfItemsInList = valueList->size())
-                        return valueList->item(listItemIndex % numberOfItemsInList);
-                    return nullptr;
-                }();
-                layerValues.set(longhandIndex, valueInList);
-            } else
+            if (auto* valueList = dynamicDowncast<CSSValueList>(value.ptr()))
+                layerValues.set(longhandIndex, valueList->item(listItemIndex));
+            else
                 layerValues.set(longhandIndex, value.ptr());
         }
         // The coordinating list base property must never be skipped.
@@ -1071,7 +1076,7 @@ String ShorthandSerializer::serializeFontVariant() const
     return serializeLonghandsOmittingInitialValues();
 }
 
-static bool isValueIDIncludingList(const CSSValue& value, CSSValueID id)
+static bool NODELETE isValueIDIncludingList(const CSSValue& value, CSSValueID id)
 {
     if (auto* valueList = dynamicDowncast<CSSValueList>(value)) {
         if (valueList->size() != 1)

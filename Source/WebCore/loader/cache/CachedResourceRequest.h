@@ -78,20 +78,20 @@ public:
     bool ignoreForRequestCount() const { return m_ignoreForRequestCount; }
     void setIgnoreForRequestCount(bool ignoreForRequestCount) { m_ignoreForRequestCount = ignoreForRequestCount; }
 
-    void setDestinationIfNotSet(FetchOptions::Destination);
+    void NODELETE setDestinationIfNotSet(FetchOptions::Destination);
 
     void updateForAccessControl(Document&);
 
-    void updateReferrerPolicy(ReferrerPolicy);
+    void NODELETE updateReferrerPolicy(ReferrerPolicy);
     void updateReferrerAndOriginHeaders(FrameLoader&);
     void updateUserAgentHeader(FrameLoader&);
     void upgradeInsecureRequestIfNeeded(Document&, ContentSecurityPolicy::AlwaysUpgradeRequest = ContentSecurityPolicy::AlwaysUpgradeRequest::No);
     void setAcceptHeaderIfNone(CachedResource::Type);
     void updateAccordingCacheMode();
     void updateAcceptEncodingHeader();
-    void updateCacheModeIfNeeded(CachePolicy);
+    void NODELETE updateCacheModeIfNeeded(CachePolicy);
 
-    void disableCachingIfNeeded();
+    void NODELETE disableCachingIfNeeded();
 
     void removeFragmentIdentifierIfNeeded();
 #if ENABLE(CONTENT_EXTENSIONS)
@@ -114,9 +114,9 @@ public:
     static String splitFragmentIdentifierFromRequestURL(ResourceRequest&);
     static String acceptHeaderValueFromType(CachedResource::Type, bool usingSecureProtocol);
 
-    void setClientIdentifierIfNeeded(ScriptExecutionContextIdentifier);
-    void setSelectedServiceWorkerRegistrationIdentifierIfNeeded(ServiceWorkerRegistrationIdentifier);
-    void setNavigationServiceWorkerRegistrationData(const std::optional<ServiceWorkerRegistrationData>&);
+    void NODELETE setClientIdentifierIfNeeded(ScriptExecutionContextIdentifier);
+    void NODELETE setSelectedServiceWorkerRegistrationIdentifierIfNeeded(ServiceWorkerRegistrationIdentifier);
+    void NODELETE setNavigationServiceWorkerRegistrationData(const std::optional<ServiceWorkerRegistrationData>&);
 
 private:
     ResourceRequest m_resourceRequest;

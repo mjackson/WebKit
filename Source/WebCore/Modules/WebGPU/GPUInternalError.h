@@ -44,7 +44,7 @@ public:
         return adoptRef(*new GPUInternalError(WTF::move(backing)));
     }
 
-    const String& message() const;
+    const String& NODELETE message() const;
 
     WebGPU::InternalError* backing() { return m_backing.get(); }
     const WebGPU::InternalError* backing() const { return m_backing.get(); }

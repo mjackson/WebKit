@@ -162,6 +162,19 @@ RetainPtr<NSArray> supportedAttributes(id element)
     return attributes;
 }
 
+RetainPtr<NSArray> supportedParameterizedAttributes(id element)
+{
+    RetainPtr<NSArray> attributes;
+
+    BEGIN_AX_OBJC_EXCEPTIONS
+    AccessibilityUIElementMac::s_controller->executeOnAXThreadAndWait([&attributes, &element] {
+        attributes = [element accessibilityParameterizedAttributeNames];
+    });
+    END_AX_OBJC_EXCEPTIONS
+
+    return attributes;
+}
+
 static id attributeValue(id element, NSString *attribute)
 {
     // The given `element` may not respond to `accessibilityAttributeValue`, so first check to see if it responds to the attribute-specific selector.
@@ -966,7 +979,9 @@ bool AccessibilityUIElementMac::isAttributeSettableNS(NSString *attribute) const
 bool AccessibilityUIElementMac::isAttributeSupported(JSStringRef attribute)
 {
     BEGIN_AX_OBJC_EXCEPTIONS
-    return [supportedAttributes(m_element.getAutoreleased()) containsObject:[NSString stringWithJSStringRef:attribute]];
+    NSString *attributeName = [NSString stringWithJSStringRef:attribute];
+    id element = m_element.getAutoreleased();
+    return [supportedAttributes(element) containsObject:attributeName] || [supportedParameterizedAttributes(element) containsObject:attributeName];
     END_AX_OBJC_EXCEPTIONS
 
     return false;
@@ -2438,6 +2453,19 @@ RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElementMac::textMarkerRangeF
     return nullptr;
 }
 
+RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElementMac::intersectTextMarkerRanges(AccessibilityTextMarkerRange* range1, AccessibilityTextMarkerRange* range2)
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    if (!range1->platformTextMarkerRange() || !range2->platformTextMarkerRange())
+        return nullptr;
+    NSArray *textMarkerRanges = @[range1->platformTextMarkerRange(), range2->platformTextMarkerRange()];
+    auto intersection = attributeValueForParameter(@"AXIntersectTextMarkerRanges", textMarkerRanges);
+    return AccessibilityTextMarkerRange::create(intersection.get());
+    END_AX_OBJC_EXCEPTIONS
+
+    return nullptr;
+}
+
 RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElementMac::textMarkerRangeForRange(unsigned location, unsigned length)
 {
     BEGIN_AX_OBJC_EXCEPTIONS
@@ -2944,7 +2972,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElementMac::textMarkerDebugDescription(A
         return nullptr;
 
     BEGIN_AX_OBJC_EXCEPTIONS
-    RetainPtr description = attributeValueForParameter(@"AXTextMarkerDebugDescription", marker->platformTextMarker());
+    RetainPtr description = attributeValueForParameter(@"_AXTextMarkerDebugDescription", marker->platformTextMarker());
     return [description createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
 
@@ -2957,7 +2985,33 @@ JSRetainPtr<JSStringRef> AccessibilityUIElementMac::textMarkerRangeDebugDescript
         return nullptr;
 
     BEGIN_AX_OBJC_EXCEPTIONS
-    RetainPtr description = attributeValueForParameter(@"AXTextMarkerRangeDebugDescription", range->platformTextMarkerRange());
+    RetainPtr description = attributeValueForParameter(@"_AXTextMarkerRangeDebugDescription", range->platformTextMarkerRange());
+    return [description createJSStringRef];
+    END_AX_OBJC_EXCEPTIONS
+
+    return nullptr;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElementMac::textMarkerDescription(AccessibilityTextMarker* marker)
+{
+    if (!marker)
+        return nullptr;
+
+    BEGIN_AX_OBJC_EXCEPTIONS
+    RetainPtr description = attributeValueForParameter(@"_AXTextMarkerDescription", marker->platformTextMarker());
+    return [description createJSStringRef];
+    END_AX_OBJC_EXCEPTIONS
+
+    return nullptr;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElementMac::textMarkerRangeDescription(AccessibilityTextMarkerRange* range)
+{
+    if (!range)
+        return nullptr;
+
+    BEGIN_AX_OBJC_EXCEPTIONS
+    RetainPtr description = attributeValueForParameter(@"_AXTextMarkerRangeDescription", range->platformTextMarkerRange());
     return [description createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
 

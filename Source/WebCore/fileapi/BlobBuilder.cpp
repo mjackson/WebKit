@@ -46,17 +46,13 @@ BlobBuilder::BlobBuilder(EndingType endings)
 {
 }
 
-void BlobBuilder::append(RefPtr<ArrayBuffer>&& arrayBuffer)
+void BlobBuilder::append(Ref<ArrayBuffer>&& arrayBuffer)
 {
-    if (!arrayBuffer)
-        return;
     m_appendableData.append(arrayBuffer->span());
 }
 
-void BlobBuilder::append(RefPtr<ArrayBufferView>&& arrayBufferView)
+void BlobBuilder::append(Ref<ArrayBufferView>&& arrayBufferView)
 {
-    if (!arrayBufferView)
-        return;
     m_appendableData.append(arrayBufferView->span());
 }
 

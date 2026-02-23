@@ -108,7 +108,7 @@ private:
     void didReceiveResponse(WebCore::ResourceResponse&&, bool needsContinueDidReceiveResponseMessage);
     void didReceiveData(const IPC::SharedBufferReference&);
     void didReceiveDataFromPreloader(const WebCore::FragmentedSharedBuffer&);
-    void didReceiveFormData(const IPC::FormDataReference&);
+    void NODELETE didReceiveFormData(const IPC::FormDataReference&);
     void didFinish(const WebCore::NetworkLoadMetrics&);
     void didFail(const WebCore::ResourceError&);
     void didNotHandle();
@@ -138,8 +138,6 @@ private:
     template<typename Message> bool sendToClient(Message&&);
 
     void sendNavigationPreloadUpdate();
-
-    RefPtr<ServiceWorkerNavigationPreloader> protectedPreloader();
     void processPreloadResponse();
 
     WeakPtr<WebSWServerConnection> m_swServerConnection;

@@ -186,7 +186,7 @@ void HTMLLinkElement::setDisabledState(bool disabled)
     if (!m_sheet && m_disabledState == EnabledViaScript)
         process();
     else {
-        checkedStyleScope()->didChangeActiveStyleSheetCandidates();
+        protect(m_styleScope)->didChangeActiveStyleSheetCandidates();
         if (m_sheet)
             clearSheet();
     }
@@ -418,7 +418,7 @@ void HTMLLinkElement::process()
     if (m_sheet) {
         // we no longer contain a stylesheet, e.g. perhaps rel or type was changed
         clearSheet();
-        checkedStyleScope()->didChangeActiveStyleSheetCandidates();
+        protect(m_styleScope)->didChangeActiveStyleSheetCandidates();
         return;
     }
 
@@ -521,7 +521,7 @@ Node::InsertedIntoAncestorResult HTMLLinkElement::insertedIntoAncestor(Insertion
         return InsertedIntoAncestorResult::Done;
 
     m_styleScope = &Style::Scope::forNode(*this);
-    checkedStyleScope()->addStyleSheetCandidateNode(*this, m_createdByParser);
+    protect(m_styleScope)->addStyleSheetCandidateNode(*this, m_createdByParser);
 
     return InsertedIntoAncestorResult::NeedsPostInsertionCallback;
 }
@@ -783,7 +783,7 @@ std::optional<LinkIconType> HTMLLinkElement::iconType() const
     return m_relAttribute.iconType;
 }
 
-static bool mayFetchResource(LinkRelAttribute relAttribute)
+static bool NODELETE mayFetchResource(LinkRelAttribute relAttribute)
 {
     // https://html.spec.whatwg.org/multipage/links.html#linkTypes
     return relAttribute.isStyleSheet
@@ -821,7 +821,7 @@ void HTMLLinkElement::addPendingSheet(PendingSheetType type)
 
     if (m_pendingSheetType == PendingSheetType::Inactive)
         return;
-    checkedStyleScope()->addPendingSheet(*this);
+    protect(m_styleScope)->addPendingSheet(*this);
 }
 
 void HTMLLinkElement::removePendingSheet()
@@ -865,11 +865,6 @@ String HTMLLinkElement::fetchPriorityForBindings() const
 RequestPriority HTMLLinkElement::fetchPriority() const
 {
     return parseEnumerationFromString<RequestPriority>(attributeWithoutSynchronization(fetchpriorityAttr)).value_or(RequestPriority::Auto);
-}
-
-CheckedPtr<Style::Scope> HTMLLinkElement::checkedStyleScope()
-{
-    return m_styleScope;
 }
 
 } // namespace WebCore

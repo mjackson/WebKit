@@ -76,10 +76,6 @@ private:
     void removeNodeUpdatingStates(Node&, ShouldAssumeContentIsAlwaysEditable);
     void insertBlockPlaceholderForTableCellIfNeeded(Element&);
 
-    RefPtr<Node> protectedStartBlock() const { return m_startBlock; }
-    RefPtr<Node> protectedEndBlock() const { return m_endBlock; }
-    RefPtr<Node> protectedEndTableRow() const { return m_endTableRow; }
-
     bool m_hasSelectionToDelete;
     bool m_smartDelete;
     bool m_mergeBlocksAfterDelete;

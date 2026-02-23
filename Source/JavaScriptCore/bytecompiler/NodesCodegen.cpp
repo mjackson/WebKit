@@ -2219,18 +2219,6 @@ RegisterID* BytecodeIntrinsicNode::emit_intrinsic_superSamplerEnd(BytecodeGenera
     return dst;
 }
 
-RegisterID* BytecodeIntrinsicNode::emit_intrinsic_tailCallForwardArguments(BytecodeGenerator& generator, RegisterID* dst)
-{
-    ArgumentListNode* node = m_args->m_listNode;
-    RefPtr<RegisterID> function = generator.emitNode(node);
-    node = node->m_next;
-    RefPtr<RegisterID> thisRegister = generator.emitNode(node);
-    ASSERT(!node->m_next);
-
-    RefPtr<RegisterID> finalDst = generator.finalDestination(dst);
-    return generator.emitCallForwardArgumentsInTailPosition(finalDst.get(), function.get(), thisRegister.get(), generator.newTemporary(), 0, divot(), divotStart(), divotEnd(), DebuggableCall::No);
-}
-
 RegisterID* BytecodeIntrinsicNode::emit_intrinsic_throwTypeError(BytecodeGenerator& generator, RegisterID* dst)
 {
     ArgumentListNode* node = m_args->m_listNode;
@@ -3162,7 +3150,7 @@ RegisterID* VoidNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst
         generator.emitNodeInIgnoreResultPosition(m_expr);
         return nullptr;
     }
-    RefPtr<RegisterID> r0 = generator.emitNode(m_expr);
+    generator.emitNodeInIgnoreResultPosition(m_expr);
     return generator.emitLoad(dst, jsUndefined());
 }
 

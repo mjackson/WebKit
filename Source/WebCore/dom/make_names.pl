@@ -1156,7 +1156,7 @@ sub printNodeNameHeaderFile
     print F "{\n";
     print F "    constexpr auto s_lastUniqueTagName = TagName::$lastUniqueTagEnumValue;\n";
     print F"\n";
-    print F "    if (enumToUnderlyingType(elementName) <= enumToUnderlyingType(s_lastUniqueTagName)) [[likely]]\n";
+    print F "    if (std::to_underlying(elementName) <= std::to_underlying(s_lastUniqueTagName)) [[likely]]\n";
     print F "        return static_cast<TagName>(elementName);\n";
     print F "\n";
     print F "    switch (elementName) {\n";

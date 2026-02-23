@@ -33,22 +33,22 @@
 
 namespace WebCore {
 
-static inline bool isSliceNALU(uint8_t data)
+static inline bool NODELETE isSliceNALU(uint8_t data)
 {
     return (data & 0x1F) == 1;
 }
 
-static inline bool isSPSNALU(uint8_t data)
+static inline bool NODELETE isSPSNALU(uint8_t data)
 {
     return (data & 0x1F) == 7;
 }
 
-static inline bool isPPSNALU(uint8_t data)
+static inline bool NODELETE isPPSNALU(uint8_t data)
 {
     return (data & 0x1F) == 8;
 }
 
-static inline bool isIDRNALU(uint8_t data)
+static inline bool NODELETE isIDRNALU(uint8_t data)
 {
     return (data & 0x1F) == 5;
 }
@@ -186,7 +186,7 @@ void toRbsp(Vector<uint8_t>& frame, size_t offset)
     frame = WTF::move(newFrame);
 }
 
-static inline bool isVP8KeyFrame(std::span<const uint8_t> frame)
+static inline bool NODELETE isVP8KeyFrame(std::span<const uint8_t> frame)
 {
     ASSERT(frame.size());
     return !(frame.front() & 0x01);

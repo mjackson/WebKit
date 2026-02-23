@@ -23,6 +23,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import argparse
 import copy
 import os
 import re
@@ -2026,6 +2027,13 @@ def generate_webkit_secure_coding_header(serialized_types):
 
 
 def main(argv):
+    parser = argparse.ArgumentParser(description='Generate serializers from input files')
+    parser.add_argument('file_extension', help='File extension for output files')
+    parser.add_argument('input_files', nargs='+', help='Input files to process')
+    parser.add_argument('--output-dir', help='Directory for output files')
+
+    args = parser.parse_args(argv[1:])
+
     serialized_types = []
     serialized_enums = []
     using_statements = []
@@ -2034,9 +2042,13 @@ def main(argv):
     header_set = set()
     header_set.add(ConditionalHeader('"FormDataReference.h"', None))
     additional_forward_declarations_list = []
-    file_extension = argv[1]
-    for i in range(2, len(argv)):
-        with open(argv[i]) as file:
+    file_extension = args.file_extension
+    output_dir = args.output_dir
+
+    input_files = args.input_files
+
+    for input_file in input_files:
+        with open(input_file) as file:
             new_types, new_enums, new_headers, new_using_statements, new_additional_forward_declarations, new_objc_wrapped_types = parse_serialized_types(file)
             for type in new_types:
                 type.enforce_opaque_ipc_types_usage()
@@ -2056,17 +2068,25 @@ def main(argv):
 
     serialized_types = resolve_inheritance(serialized_types)
 
-    with open('GeneratedSerializers.h', "w+") as output:
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    def output_path(filename):
+        if output_dir:
+            return os.path.join(output_dir, filename)
+        return filename
+
+    with open(output_path('GeneratedSerializers.h'), "w+") as output:
         output.write(generate_header(serialized_types, serialized_enums, additional_forward_declarations_list))
-    with open('GeneratedSerializers.%s' % file_extension, "w+") as output:
+    with open(output_path('GeneratedSerializers.%s' % file_extension), "w+") as output:
         output.write(generate_impl(serialized_types, serialized_enums, headers, False, []))
-    with open('WebKitPlatformGeneratedSerializers.%s' % file_extension, "w+") as output:
+    with open(output_path('WebKitPlatformGeneratedSerializers.%s' % file_extension), "w+") as output:
         output.write(generate_impl(serialized_types, serialized_enums, headers, True, objc_wrapped_types))
-    with open('SerializedTypeInfo.%s' % file_extension, "w+") as output:
+    with open(output_path('SerializedTypeInfo.%s' % file_extension), "w+") as output:
         output.write(generate_serialized_type_info(serialized_types, serialized_enums, headers, using_statements, objc_wrapped_types))
-    with open('GeneratedWebKitSecureCoding.h', "w+") as output:
+    with open(output_path('GeneratedWebKitSecureCoding.h'), "w+") as output:
         output.write(generate_webkit_secure_coding_header(serialized_types))
-    with open('GeneratedWebKitSecureCoding.%s' % file_extension, "w+") as output:
+    with open(output_path('GeneratedWebKitSecureCoding.%s' % file_extension), "w+") as output:
         output.write(generate_webkit_secure_coding_impl(serialized_types, headers))
     return 0
 

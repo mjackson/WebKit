@@ -69,15 +69,15 @@ public:
     void removeAllItems();
     void clear();
 
-    WebBackForwardListItem* currentItem() const;
-    WebBackForwardListItem* backItem() const;
-    WebBackForwardListItem* forwardItem() const;
-    WebBackForwardListItem* itemAtIndex(int) const;
+    WebBackForwardListItem* NODELETE currentItem() const;
+    WebBackForwardListItem* NODELETE backItem() const;
+    WebBackForwardListItem* NODELETE forwardItem() const;
+    WebBackForwardListItem* NODELETE itemAtIndex(int) const;
 
     RefPtr<WebBackForwardListItem> goBackItemSkippingItemsWithoutUserGesture() const;
     RefPtr<WebBackForwardListItem> goForwardItemSkippingItemsWithoutUserGesture() const;
-    unsigned backListCount() const;
-    unsigned forwardListCount() const;
+    unsigned NODELETE backListCount() const;
+    unsigned NODELETE forwardListCount() const;
 
     Ref<API::Array> backList() const;
     Ref<API::Array> forwardList() const;
@@ -106,7 +106,7 @@ private:
     void addChildItem(WebCore::FrameIdentifier, Ref<FrameState>&&);
     void didRemoveItem(WebBackForwardListItem&);
     const BackForwardListItemVector& entries() const { return m_entries; }
-    WebBackForwardListCounts counts() const;
+    WebBackForwardListCounts NODELETE counts() const;
     Ref<FrameState> completeFrameStateForNavigation(Ref<FrameState>&&);
 
     void updateAllFrameIDs(WebCore::FrameIdentifier oldFrameID, WebCore::FrameIdentifier newFrameID);

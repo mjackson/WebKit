@@ -107,7 +107,7 @@ std::optional<MotionPathData> MotionPath::motionPathDataForRenderer(const Render
         );
     };
 
-    auto* container = renderer.containingBlock();
+    CheckedPtr container = renderer.containingBlock();
     if (!container)
         return std::nullopt;
 

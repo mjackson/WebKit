@@ -86,7 +86,7 @@ private:
     class AudioFactory : public WebCore::AudioCaptureFactory {
     public:
         explicit AudioFactory(UserMediaCaptureManager& manager) : m_manager(manager) { }
-        void setShouldCaptureInGPUProcess(bool);
+        void NODELETE setShouldCaptureInGPUProcess(bool);
 
     private:
         WebCore::CaptureSourceOrError createAudioCaptureSource(const WebCore::CaptureDevice&, WebCore::MediaDeviceHashSalts&&, const WebCore::MediaConstraints*, std::optional<WebCore::PageIdentifier>) final;

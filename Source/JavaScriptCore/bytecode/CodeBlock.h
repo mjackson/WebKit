@@ -759,6 +759,10 @@ public:
     bool shouldReoptimizeNow();
     bool shouldReoptimizeFromLoopNow();
 
+    void didInstallDFGCode();
+    void didDFGJettison(Profiler::JettisonReason);
+    void didFailDFGCompilation();
+
 #else // No JIT
     void optimizeAfterWarmUp() { }
     unsigned numberOfDFGCompiles() { return 0; }

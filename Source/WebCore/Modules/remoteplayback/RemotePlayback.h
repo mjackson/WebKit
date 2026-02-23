@@ -63,7 +63,7 @@ public:
     void cancelWatchAvailability(std::optional<int32_t> id, Ref<DeferredPromise>&&);
     void prompt(Ref<DeferredPromise>&&);
 
-    bool hasAvailabilityCallbacks() const;
+    bool NODELETE hasAvailabilityCallbacks() const;
     void availabilityChanged(bool);
     void playbackTargetPickerWasDismissed();
     void shouldPlayToRemoteTargetChanged(bool);
@@ -85,12 +85,12 @@ private:
     explicit RemotePlayback(HTMLMediaElement&);
 
     void setState(State);
-    void establishConnection();
+    void NODELETE establishConnection();
     void disconnect();
 
     // EventTarget.
     enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::RemotePlayback; }
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }
 
@@ -100,7 +100,7 @@ private:
 #if !RELEASE_LOG_DISABLED
     const Logger& logger() const { return m_logger.get(); }
     uint64_t logIdentifier() const { return m_logIdentifier; }
-    WTFLogChannel& logChannel() const;
+    WTFLogChannel& NODELETE logChannel() const;
     ASCIILiteral logClassName() const { return "RemotePlayback"_s; }
 
     const Ref<const Logger> m_logger;

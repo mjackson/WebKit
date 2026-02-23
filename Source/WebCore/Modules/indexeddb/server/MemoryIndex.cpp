@@ -276,12 +276,12 @@ MemoryIndexCursor* MemoryIndex::maybeOpenCursor(const IDBCursorInfo& info, Memor
             return nullptr;
     }
 
-    auto result = m_cursors.add(info.identifier(), nullptr);
+    auto result = m_cursors.ensure(info.identifier(), [&] {
+        return MemoryIndexCursor::create(*this, info, transaction);
+    });
     if (!result.isNewEntry)
         return nullptr;
-
-    result.iterator->value = MemoryIndexCursor::create(*this, info, transaction);
-    return result.iterator->value.get();
+    return result.iterator->value.ptr();
 }
 
 IDBError MemoryIndex::addIndexRecord(const IDBKeyData& indexKey, const IDBKeyData& valueKey)

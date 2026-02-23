@@ -204,7 +204,7 @@ ContentsFormat PlatformCALayer::contentsFormatForLayer(PlatformCALayerClient* cl
 void PlatformCALayer::moveToLayerPool()
 {
     ASSERT(!superlayer());
-    if (auto pool = layerPool())
+    if (CheckedPtr pool = layerPool())
         pool->addLayer(*this);
 }
 

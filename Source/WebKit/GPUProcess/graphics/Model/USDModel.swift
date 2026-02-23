@@ -22,19 +22,21 @@
 // THE POSSIBILITY OF SUCH DAMAGE.
 
 internal import Metal
-internal import OSLog
-internal import WebKit_Internal
-internal import simd
+import OSLog
+import WebKit
+import simd
 
-#if canImport(RealityCoreRenderer, _version: 9) && (os(macOS) || (os(iOS) && canImport(SwiftUI, _version: "8.0.36"))) && canImport(_USDKit_RealityKit)
-@_spi(RealityCoreRendererAPI) internal import RealityKit
-@_spi(RealityCoreTextureProcessingAPI) internal import RealityCoreTextureProcessing
-@_spi(UsdLoaderAPI) internal import _USDKit_RealityKit
-@_spi(SwiftAPI) internal import DirectResource
-internal import _USDKit_RealityKit
-internal import RealityKit
-@_spi(SGPrivate) internal import ShaderGraph
-internal import RealityCoreDeformation
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 9) && (os(macOS) || (os(iOS) && canImport(SwiftUI, _version: "8.0.36"))) && canImport(_USDKit_RealityKit) && !os(visionOS)
+@_weakLinked @_spi(UsdLoaderAPI) internal import _USDKit_RealityKit
+@_spi(RealityCoreRendererAPI) import RealityKit
+@_weakLinked @_spi(RealityCoreTextureProcessingAPI) internal import RealityCoreTextureProcessing
+@_weakLinked internal import USDKit
+@_weakLinked @_spi(SwiftAPI) internal import DirectResource
+@_weakLinked internal import USDKit
+@_weakLinked internal import _USDKit_RealityKit
+import RealityKit
+@_weakLinked @_spi(SGPrivate) internal import ShaderGraph
+@_weakLinked internal import RealityCoreDeformation
 
 extension _USDKit_RealityKit._Proto_MeshDataUpdate_v1 {
     @_silgen_name("$s18_USDKit_RealityKit24_Proto_MeshDataUpdate_v1V18instanceTransformsSaySo13simd_float4x4aGvg")
@@ -808,7 +810,7 @@ private func makeMTLTextureFromImageAsset(
     let bytesPerRow = imageAsset.width * imageAsset.bytesPerPixel
     let bytesPerImage = bytesPerRow * imageAsset.height
 
-#if compiler(>=6.2)
+    #if compiler(>=6.2)
     unsafe imageAssetData.bytes.withUnsafeBytes { textureBytes in
         guard let textureBytesBaseAddress = textureBytes.baseAddress else {
             return
@@ -827,7 +829,7 @@ private func makeMTLTextureFromImageAsset(
             )
         }
     }
-#else
+    #else
     imageAssetData.bytes.withUnsafeBytes { textureBytes in
         guard let textureBytesBaseAddress = textureBytes.baseAddress else {
             return
@@ -846,7 +848,7 @@ private func makeMTLTextureFromImageAsset(
             )
         }
     }
-#endif
+    #endif
 
     return mtlTexture
 }
@@ -1277,18 +1279,11 @@ extension WKBridgeReceiver {
             let originalTransforms = meshTransforms[identifier]
             // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
             // swift-format-ignore: NeverForceUnwrap
-            let angle: Float = 0.707
-            let rotationY90 = simd_float4x4(
-                simd_float4(angle, 0, angle, 0), // column 0
-                simd_float4(0, 1, 0, 0), // column 1
-                simd_float4(-angle, 0, angle, 0), // column 2
-                simd_float4(0, 0, 0, 1) // column 3
-            )
 
             for (index, meshInstance) in meshes.enumerated() {
                 // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
                 // swift-format-ignore: NeverForceUnwrap
-                let computedTransform = modelTransform * rotationY90 * originalTransforms![index]
+                let computedTransform = modelTransform * originalTransforms![index]
                 meshInstance.setTransform(.single(computedTransform))
             }
         }

@@ -34,10 +34,6 @@
 #include <wtf/MathExtras.h>
 #include <wtf/StdLibExtras.h>
 
-#if ENABLE(TEXT_AUTOSIZING)
-#include <wtf/text/StringHash.h>
-#endif
-
 namespace WebCore {
 namespace Style {
 
@@ -210,57 +206,6 @@ bool ComputedStyle::borderAndBackgroundEqual(const ComputedStyle& other) const
         && backgroundLayers() == other.backgroundLayers()
         && backgroundColor() == other.backgroundColor();
 }
-
-#if ENABLE(TEXT_AUTOSIZING)
-
-static inline unsigned computeFontHash(const FontCascade& font)
-{
-    // FIXME: Would be better to hash the family name rather than hashing a hash of the family name. Also, should this use FontCascadeDescription::familyNameHash?
-    return computeHash(ASCIICaseInsensitiveHash::hash(font.fontDescription().firstFamily()), font.fontDescription().specifiedSize());
-}
-
-unsigned ComputedStyle::hashForTextAutosizing() const
-{
-    // FIXME: Not a very smart hash. Could be improved upon. See <https://bugs.webkit.org/show_bug.cgi?id=121131>.
-    unsigned hash = m_nonInheritedData->miscData->usedAppearance;
-    hash ^= m_nonInheritedData->rareData->lineClamp.valueForHash();
-    hash ^= m_inheritedRareData->overflowWrap;
-    hash ^= m_inheritedRareData->nbspMode;
-    hash ^= m_inheritedRareData->lineBreak;
-    hash ^= m_inheritedData->specifiedLineHeight.valueForHash();
-    hash ^= computeFontHash(m_inheritedData->fontData->fontCascade);
-    hash ^= WTF::FloatHash<float>::hash(m_inheritedData->borderHorizontalSpacing.unresolvedValue());
-    hash ^= WTF::FloatHash<float>::hash(m_inheritedData->borderVerticalSpacing.unresolvedValue());
-    hash ^= m_inheritedFlags.boxDirection;
-    hash ^= m_inheritedFlags.rtlOrdering;
-    hash ^= m_nonInheritedFlags.position;
-    hash ^= m_nonInheritedFlags.floating;
-    hash ^= m_nonInheritedData->miscData->textOverflow;
-    hash ^= m_inheritedRareData->textSecurity;
-    return hash;
-}
-
-bool ComputedStyle::equalForTextAutosizing(const ComputedStyle& other) const
-{
-    return m_nonInheritedData->miscData->usedAppearance == other.m_nonInheritedData->miscData->usedAppearance
-        && m_nonInheritedData->rareData->lineClamp == other.m_nonInheritedData->rareData->lineClamp
-        && m_inheritedRareData->textSizeAdjust == other.m_inheritedRareData->textSizeAdjust
-        && m_inheritedRareData->overflowWrap == other.m_inheritedRareData->overflowWrap
-        && m_inheritedRareData->nbspMode == other.m_inheritedRareData->nbspMode
-        && m_inheritedRareData->lineBreak == other.m_inheritedRareData->lineBreak
-        && m_inheritedRareData->textSecurity == other.m_inheritedRareData->textSecurity
-        && m_inheritedData->specifiedLineHeight == other.m_inheritedData->specifiedLineHeight
-        && m_inheritedData->fontData->fontCascade.equalForTextAutoSizing(other.m_inheritedData->fontData->fontCascade)
-        && m_inheritedData->borderHorizontalSpacing == other.m_inheritedData->borderHorizontalSpacing
-        && m_inheritedData->borderVerticalSpacing == other.m_inheritedData->borderVerticalSpacing
-        && m_inheritedFlags.boxDirection == other.m_inheritedFlags.boxDirection
-        && m_inheritedFlags.rtlOrdering == other.m_inheritedFlags.rtlOrdering
-        && m_nonInheritedFlags.position == other.m_nonInheritedFlags.position
-        && m_nonInheritedFlags.floating == other.m_nonInheritedFlags.floating
-        && m_nonInheritedData->miscData->textOverflow == other.m_nonInheritedData->miscData->textOverflow;
-}
-
-#endif
 
 float ComputedStyle::computedLineHeight() const
 {

@@ -61,20 +61,20 @@ public:
 
     ~WebMesh();
 
-    bool isValid() const;
-    void render() const;
-    void update(const WebModel::UpdateMeshDescriptor&);
-    void updateTexture(const WebModel::UpdateTextureDescriptor&);
-    void updateMaterial(const WebModel::UpdateMaterialDescriptor&);
-    void setTransform(const simd_float4x4&);
+    bool NODELETE isValid() const;
+    void NODELETE render() const;
+    void NODELETE update(const WebModel::UpdateMeshDescriptor&);
+    void NODELETE updateTexture(const WebModel::UpdateTextureDescriptor&);
+    void NODELETE updateMaterial(const WebModel::UpdateMaterialDescriptor&);
+    void NODELETE setTransform(const simd_float4x4&);
     void setCameraDistance(float);
-    void setEnvironmentMap(const WebModel::ImageAsset&);
-    void play(bool);
+    void NODELETE setEnvironmentMap(const WebModel::ImageAsset&);
+    void NODELETE play(bool);
 
 private:
     WebMesh(const WebModelCreateMeshDescriptor&);
 
-    void processUpdates() const;
+    void NODELETE processUpdates() const;
 
     RetainPtr<NSMutableArray> m_textures;
 

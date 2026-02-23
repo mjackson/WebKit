@@ -40,7 +40,7 @@ public:
         return adoptRef(*new GPUExternalTexture(WTF::move(backing)));
     }
 
-    String label() const;
+    String NODELETE label() const;
     void setLabel(String&&);
 
     WebGPU::ExternalTexture& backing() { return m_backing; }

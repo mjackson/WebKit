@@ -69,7 +69,7 @@ public:
 
     bool willRespondToMouseClickEventsWithEditability(Editability) const final;
 
-    bool hasRel(Relation) const;
+    bool NODELETE hasRel(Relation) const;
     
     inline SharedStringHash visitedLinkHash() const;
 
@@ -123,7 +123,7 @@ private:
         MouseEventWithShiftKey,
         NonMouseEvent,
     };
-    static EventType eventType(Event&);
+    static EventType NODELETE eventType(Event&);
     bool treatLinkAsLiveForEventType(EventType) const;
 
     Element* rootEditableElementForSelectionOnMouseDown() const;

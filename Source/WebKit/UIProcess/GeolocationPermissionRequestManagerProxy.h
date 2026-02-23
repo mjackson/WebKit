@@ -44,7 +44,7 @@ public:
 
     void invalidateRequests();
 
-    void ref() const;
+    void NODELETE ref() const;
     void deref() const;
 
     // Create a request to be presented to the user.

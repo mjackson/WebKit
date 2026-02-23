@@ -41,7 +41,7 @@ class RenderSelectFallbackButton final : public RenderBlockFlow {
 public:
     RenderSelectFallbackButton(SelectFallbackButtonElement&, RenderStyle&&);
 
-    SelectFallbackButtonElement& selectFallbackButtonElement() const;
+    SelectFallbackButtonElement& NODELETE selectFallbackButtonElement() const;
 
     // CheckedPtr interface.
     uint32_t checkedPtrCount() const { return RenderBlockFlow::checkedPtrCount(); }

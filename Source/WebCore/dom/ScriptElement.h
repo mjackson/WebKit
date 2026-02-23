@@ -83,7 +83,7 @@ public:
 
     JSC::SourceTaintedOrigin sourceTaintedOrigin() const { return m_taintedOrigin; }
 
-    void ref() const;
+    void NODELETE ref() const;
     void deref() const;
 
     static std::optional<ScriptType> determineScriptType(const String& typeAttribute, const String& languageAttribute, bool isHTMLDocument = true, bool speculationRulesPrefetchEnabled = false);
@@ -109,7 +109,7 @@ protected:
     void childrenChanged(const ContainerNode::ChildChange&);
     void finishParsingChildren();
     void handleSourceAttribute(const String& sourceURL);
-    void handleAsyncAttribute();
+    void NODELETE handleAsyncAttribute();
 
     void setTrustedScriptText(const String&);
 
@@ -120,7 +120,7 @@ private:
     void executeScriptAndDispatchEvent(LoadableScript&);
 
     std::optional<ScriptType> determineScriptType() const;
-    bool ignoresLoadRequest() const;
+    bool NODELETE ignoresLoadRequest() const;
     void dispatchLoadEventRespectingUserGestureIndicator();
 
     bool requestClassicScript(const String& sourceURL);
@@ -167,7 +167,7 @@ private:
 };
 
 // FIXME: replace with is/downcast<ScriptElement>.
-bool isScriptElement(Node&);
-ScriptElement* dynamicDowncastScriptElement(Element&);
+bool NODELETE isScriptElement(Node&);
+ScriptElement* NODELETE dynamicDowncastScriptElement(Element&);
 
 }

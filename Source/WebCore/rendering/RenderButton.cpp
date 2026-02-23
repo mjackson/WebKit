@@ -50,7 +50,7 @@ RenderButton::RenderButton(HTMLFormControlElement& element, RenderStyle&& style)
 
 RenderButton::~RenderButton() = default;
 
-HTMLFormControlElement& RenderButton::formControlElement() const
+HTMLFormControlElement& NODELETE RenderButton::formControlElement() const
 {
     return downcast<HTMLFormControlElement>(nodeForNonAnonymous());
 }

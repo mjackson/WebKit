@@ -84,7 +84,7 @@ RemoteGPU::~RemoteGPU() = default;
 void RemoteGPU::initialize()
 {
     assertIsMainRunLoop();
-    protectedWorkQueue()->dispatch([protectedThis = Ref { *this }]() mutable {
+    protect(m_workQueue)->dispatch([protectedThis = Ref { *this }]() mutable {
         protectedThis->workQueueInitialize();
     });
 }
@@ -115,7 +115,7 @@ void RemoteGPU::workQueueInitialize()
     // The retain cycle is broken in workQueueUninitialize().
     auto gpuProcessConnection = m_gpuConnectionToWebProcess.get();
     auto backing = WebCore::WebGPU::create([protectedThis = Ref { *this }](WebCore::WebGPU::WorkItem&& workItem) {
-        protectedThis->protectedWorkQueue()->dispatch(WTF::move(workItem));
+        protect(protectedThis->m_workQueue)->dispatch(WTF::move(workItem));
     }, gpuProcessConnection ? &gpuProcessConnection->webProcessIdentity() : nullptr);
 #else
     RefPtr<WebCore::WebGPU::GPU> backing;
@@ -134,7 +134,7 @@ void RemoteGPU::workQueueUninitialize()
     streamConnection->stopReceivingMessages(Messages::RemoteGPU::messageReceiverName(), m_identifier.toUInt64());
     streamConnection->invalidate();
     m_streamConnection = nullptr;
-    Ref { m_objectHeap }->clear();
+    protect(m_objectHeap)->clear();
     Ref { m_modelObjectHeap }->clear();
     m_backing = nullptr;
 }
@@ -340,7 +340,7 @@ void RemoteGPU::isValid(WebGPUIdentifier identifier, CompletionHandler<void(bool
         return;
     }
 
-    auto result = Ref { m_objectHeap }->objectExistsAndValid(*gpu, identifier);
+    auto result = protect(m_objectHeap)->objectExistsAndValid(*gpu, identifier);
     completionHandler(result.valid, result.exists);
 }
 

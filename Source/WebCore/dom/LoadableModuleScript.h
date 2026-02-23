@@ -41,10 +41,10 @@ public:
     enum class IsInline : bool { No, Yes };
     static Ref<LoadableModuleScript> create(IsInline, const AtomString& nonce, const AtomString& integrity, ReferrerPolicy, RequestPriority, const AtomString& crossOriginMode, const AtomString& charset, const AtomString& initiatorType, bool isInUserAgentShadowTree);
 
-    bool isLoaded() const final;
+    bool isLoaded() const final { return m_isLoaded; }
     bool hasError() const final;
     std::optional<Error> takeError() final;
-    bool wasCanceled() const final;
+    bool wasCanceled() const final { return m_wasCanceled; }
     bool isInlineModule() const final { return m_isInline; }
 
     ScriptType scriptType() const final { return ScriptType::Module; }

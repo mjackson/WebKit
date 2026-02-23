@@ -49,7 +49,7 @@ dictionary TextExtractionTestOptions {
     boolean includeURLs = false;
     boolean shortenURLs = false;
     DOMString nodeIdentifierInclusion = "none";
-    boolean includeEventListeners = false;
+    object eventListenerCategories;
     boolean includeAccessibilityAttributes = false;
     boolean includeTextInAutoFilledControls = false;
     boolean includeOffscreenPasswordFields = false;
@@ -472,4 +472,5 @@ interface UIScriptController {
     DOMString animationStackForLayerWithID(unsigned long long layerID);
     DOMString progressBasedTimelinesForScrollingNodeID(unsigned long long scrollingNodeID, unsigned long long processID);
 #endif
+    boolean displayLinkWantsHighFrameRate();
 };

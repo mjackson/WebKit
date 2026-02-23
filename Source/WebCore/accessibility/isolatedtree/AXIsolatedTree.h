@@ -511,7 +511,7 @@ public:
     WEBCORE_EXPORT void applyPendingChanges();
     void applyPendingChangesUnlessQueuedForDestruction();
 
-    constexpr AXID treeID() const { return m_id; }
+    constexpr AXTreeID treeID() const { return m_id; }
     constexpr ProcessID processID() const { return m_processID; }
     void setPageActivityState(OptionSet<ActivityState>);
     OptionSet<ActivityState> pageActivityState() const;

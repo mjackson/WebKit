@@ -386,7 +386,7 @@ FEATURE_AND_PLATFORM_DEFINES := $(patsubst -D%, %, $(filter -D%, $(FEATURE_AND_P
 MESSAGE_RECEIVER_FILES := $(addsuffix MessageReceiver.cpp,$(notdir $(MESSAGE_RECEIVERS)))
 MESSAGES_FILES := $(addsuffix Messages.h,$(notdir $(MESSAGE_RECEIVERS)))
 
-GENERATED_MESSAGES_FILES := $(MESSAGE_RECEIVER_FILES) $(MESSAGES_FILES) MessageNames.h MessageNames.cpp MessageArgumentDescriptions.cpp
+GENERATED_MESSAGES_FILES := $(addprefix IPC/,$(MESSAGE_RECEIVER_FILES) $(MESSAGES_FILES) MessageNames.h MessageNames.cpp MessageArgumentDescriptions.cpp module.private.modulemap)
 GENERATED_MESSAGES_FILES_AS_PATTERNS := $(call to-pattern, $(GENERATED_MESSAGES_FILES))
 
 MESSAGES_IN_FILES := $(addsuffix .messages.in,$(MESSAGE_RECEIVERS))
@@ -432,7 +432,7 @@ $(LOG_OUTPUT_FILES) : $(GENERATE_DERIVED_LOG_SOURCES_SCRIPT) $(LOG_IN_FILES) $(F
 all : $(GENERATED_MESSAGES_FILES)
 
 $(GENERATED_MESSAGES_FILES_AS_PATTERNS) : $(LOG_OUTPUT_FILES) $(MESSAGES_IN_FILES) $(GENERATE_MESSAGE_RECEIVER_SCRIPTS)
-	$(PYTHON) $(GENERATE_MESSAGE_RECEIVER_SCRIPT) $(WebKit2) $(MESSAGE_RECEIVERS)
+	$(PYTHON) $(GENERATE_MESSAGE_RECEIVER_SCRIPT) $(WebKit2) --output-dir=IPC $(MESSAGE_RECEIVERS)
 
 TEXT_PREPROCESSOR_FLAGS=-E -P -w
 
@@ -970,21 +970,21 @@ WEBCORE_SERIALIZATION_DESCRIPTION_FILES = \
 
 WEBCORE_SERIALIZATION_DESCRIPTION_FILES_FULLPATH := $(foreach I,$(WEBCORE_SERIALIZATION_DESCRIPTION_FILES),$(WebCorePrivateHeaders)/$I)
 
-all : GeneratedSerializers.h GeneratedSerializers.mm GeneratedWebKitSecureCoding.h GeneratedWebKitSecureCoding.mm SerializedTypeInfo.mm WebKitPlatformGeneratedSerializers.mm
+all : IPC/GeneratedSerializers.h IPC/GeneratedSerializers.mm IPC/GeneratedWebKitSecureCoding.h IPC/GeneratedWebKitSecureCoding.mm IPC/SerializedTypeInfo.mm IPC/WebKitPlatformGeneratedSerializers.mm
 
 GENERATED_SERIALIZERS_OUTPUT_FILES = \
-    GeneratedSerializers.h \
-    GeneratedSerializers.mm \
-    GeneratedWebKitSecureCoding.h \
-    GeneratedWebKitSecureCoding.mm \
-    SerializedTypeInfo.mm \
-    WebKitPlatformGeneratedSerializers.mm \
+    IPC/GeneratedSerializers.h \
+    IPC/GeneratedSerializers.mm \
+    IPC/GeneratedWebKitSecureCoding.h \
+    IPC/GeneratedWebKitSecureCoding.mm \
+    IPC/SerializedTypeInfo.mm \
+    IPC/WebKitPlatformGeneratedSerializers.mm \
 #
 
 GENERATED_SERIALIZERS_OUTPUT_PATTERNS = $(call to-pattern, $(GENERATED_SERIALIZERS_OUTPUT_FILES))
 
 $(GENERATED_SERIALIZERS_OUTPUT_PATTERNS) : $(WebKit2)/Scripts/generate-serializers.py $(SERIALIZATION_DESCRIPTION_FILES) $(WebKit2)/DerivedSources.make $(WEBCORE_SERIALIZATION_DESCRIPTION_FILES_FULLPATH) $(WebKit2)/Scripts/webkit/opaque_ipc_types.py $(WebKit2)/Scripts/webkit/opaque_ipc_types.tracking.in
-	$(PYTHON) $(WebKit2)/Scripts/generate-serializers.py mm $(filter %.serialization.in,$^)
+	$(PYTHON) $(WebKit2)/Scripts/generate-serializers.py mm --output-dir=IPC $(filter %.serialization.in,$^)
 
 EXTENSIONS_DIR = $(WebKit2)/WebProcess/Extensions
 EXTENSIONS_SCRIPTS_DIR = $(EXTENSIONS_DIR)/Bindings/Scripts
@@ -1057,6 +1057,7 @@ WEBKIT_ADDITIONS_SWIFT_FILES = \
 	UIWindowScene+Extras.swift \
 	WKWebView+WKBannerViewOverlay.swift \
 	WKWebView+SystemTextExtraction.swift \
+	WKSExperienceController+Transitions.swift \
 #
 
 $(WEBKIT_ADDITIONS_SWIFT_FILES): %.swift : %.swift.in

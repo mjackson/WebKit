@@ -66,7 +66,7 @@ DeviceMotionEvent::DeviceMotionEvent(const AtomString& eventType, DeviceMotionDa
 {
 }
 
-static std::optional<DeviceMotionEvent::Acceleration> convert(const DeviceMotionData::Acceleration* acceleration)
+static std::optional<DeviceMotionEvent::Acceleration> NODELETE convert(const DeviceMotionData::Acceleration* acceleration)
 {
     if (!acceleration)
         return std::nullopt;
@@ -74,7 +74,7 @@ static std::optional<DeviceMotionEvent::Acceleration> convert(const DeviceMotion
     return DeviceMotionEvent::Acceleration { acceleration->x(), acceleration->y(), acceleration->z() };
 }
 
-static std::optional<DeviceMotionEvent::RotationRate> convert(const DeviceMotionData::RotationRate* rotationRate)
+static std::optional<DeviceMotionEvent::RotationRate> NODELETE convert(const DeviceMotionData::RotationRate* rotationRate)
 {
     if (!rotationRate)
         return std::nullopt;

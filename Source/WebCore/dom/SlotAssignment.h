@@ -127,7 +127,7 @@ private:
 
     virtual const AtomString& slotNameForHostChild(const Node&) const;
 
-    HTMLSlotElement* findFirstSlotElement(Slot&);
+    HTMLSlotElement* NODELETE findFirstSlotElement(Slot&);
 
     void assignSlots(ShadowRoot&);
     void assignToSlot(Node& child, const AtomString& slotName);

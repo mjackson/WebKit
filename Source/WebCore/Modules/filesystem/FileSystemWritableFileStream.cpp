@@ -52,15 +52,15 @@ FileSystemWritableFileStream::FileSystemWritableFileStream(Ref<InternalWritableS
 static JSC::JSValue convertChunk(JSC::JSGlobalObject& lexicalGlobalObject, JSDOMGlobalObject& globalObject, const FileSystemWritableFileStream::ChunkType& data)
 {
     return WTF::switchOn(data,
-        [&](const RefPtr<JSC::ArrayBufferView>& arrayBufferView) {
-            if (!arrayBufferView || arrayBufferView->isDetached())
+        [&](const Ref<JSC::ArrayBufferView>& arrayBufferView) {
+            if (arrayBufferView->isDetached())
                 return JSC::jsNull();
-            return toJS<IDLArrayBufferView>(lexicalGlobalObject, globalObject, *arrayBufferView);
+            return toJS<IDLArrayBufferView>(lexicalGlobalObject, globalObject, arrayBufferView);
         },
-        [&](const RefPtr<JSC::ArrayBuffer>& arrayBuffer) {
-            if (!arrayBuffer || arrayBuffer->isDetached())
+        [&](const Ref<JSC::ArrayBuffer>& arrayBuffer) {
+            if (arrayBuffer->isDetached())
                 return JSC::jsNull();
-            return toJS<IDLArrayBuffer>(lexicalGlobalObject, globalObject, *arrayBuffer);
+            return toJS<IDLArrayBuffer>(lexicalGlobalObject, globalObject, arrayBuffer);
         },
         [&](const Ref<Blob>& blob) {
             return toJS<IDLInterface<Blob>>(lexicalGlobalObject, globalObject, blob);

@@ -100,7 +100,6 @@ enum class ContentPosition : uint8_t;
 enum class ContentVisibility : uint8_t;
 enum class CursorType : uint8_t;
 enum class CursorVisibility : bool;
-enum class DisplayType : uint8_t;
 enum class DominantBaseline : uint8_t;
 enum class EmptyCell : bool;
 enum class EventListenerRegionType : uint64_t;
@@ -251,6 +250,7 @@ struct CounterIncrement;
 struct CounterReset;
 struct CounterSet;
 struct Cursor;
+struct Display;
 struct DynamicRangeLimit;
 struct Filter;
 struct FlexBasis;
@@ -308,6 +308,7 @@ struct OffsetPosition;
 struct OffsetRotate;
 struct Opacity;
 struct Orphans;
+struct OverflowClipMargin;
 struct PaddingEdge;
 struct PageSize;
 struct Perspective;
@@ -319,8 +320,6 @@ struct PositionX;
 struct PositionY;
 struct PositionTryFallbacks;
 struct PreferredSize;
-struct ProgressTimelineAxes;
-struct ProgressTimelineNames;
 struct Quotes;
 struct RepeatStyle;
 struct Rotate;
@@ -341,7 +340,7 @@ struct ScrollMarginEdge;
 struct ScrollPaddingEdge;
 struct ScrollSnapAlign;
 struct ScrollSnapType;
-struct ScrollTimelines;
+struct ScrollTimeline;
 struct ScrollbarColor;
 struct ScrollbarGutter;
 struct ShapeMargin;
@@ -369,8 +368,7 @@ struct TransformOrigin;
 struct Transition;
 struct Translate;
 struct VerticalAlign;
-struct ViewTimelineInsets;
-struct ViewTimelines;
+struct ViewTimeline;
 struct ViewTransitionClasses;
 struct ViewTransitionName;
 struct WebkitBoxReflect;
@@ -391,6 +389,7 @@ struct Zoom;
 struct ZoomFactor;
 
 enum class Change : uint8_t;
+enum class DisplayType : uint8_t;
 enum class GridTrackSizingDirection : bool;
 enum class ImageOrientation : bool;
 enum class PositionTryOrder : uint8_t;
@@ -426,6 +425,7 @@ using PerspectiveOriginX = PositionX;
 using PerspectiveOriginY = PositionY;
 using ScrollMarginBox = MinimallySerializingSpaceSeparatedRectEdges<ScrollMarginEdge>;
 using ScrollPaddingBox = MinimallySerializingSpaceSeparatedRectEdges<ScrollPaddingEdge>;
+using ScrollTimelines = CoordinatedValueList<ScrollTimeline>;
 using ShapeImageThreshold = Number<CSS::ClosedUnitRangeClampBoth, float>;
 using TextShadows = Shadows<TextShadow>;
 using TransformOriginX = PositionX;
@@ -433,12 +433,13 @@ using TransformOriginXY = Position;
 using TransformOriginY = PositionY;
 using TransformOriginZ = Length<>;
 using Transitions = CoordinatedValueList<Transition>;
+using ViewTimelines = CoordinatedValueList<ViewTimeline>;
 using WebkitBorderSpacing = Length<CSS::NonnegativeUnzoomed>;
 using WebkitBoxFlex = Number<CSS::All, float>;
 using WebkitBoxFlexGroup = Integer<CSS::Nonnegative>;
 using WebkitBoxOrdinalGroup = Integer<CSS::Positive>;
 
-constexpr auto PublicPseudoIDBits = 18;
+constexpr auto PublicPseudoIDBits = 19;
 constexpr auto TextDecorationLineBits = 5;
 constexpr auto TextTransformBits = 6;
 constexpr auto PseudoElementTypeBits = 5;
@@ -538,11 +539,10 @@ public:
     inline void setIsEffectivelyTransparent(bool);
 
     // No setter. Set via `ComputedStyleProperties::setDisplay()`.
-    inline constexpr DisplayType originalDisplay() const;
+    inline constexpr Display originalDisplay() const;
 
-    // `effectiveDisplay()` getter is an alias of `ComputedStyleProperties::display()`.
-    inline DisplayType effectiveDisplay() const;
-    inline void setEffectiveDisplay(DisplayType);
+    // Sets the value of `display`, but leaves the value of `originalDisplay` unchanged.
+    inline void setDisplayMaintainingOriginalDisplay(Display);
 
     inline StyleAppearance usedAppearance() const;
     inline void setUsedAppearance(StyleAppearance);
@@ -624,7 +624,6 @@ public:
     // MARK: - Fonts
 
     inline const FontCascade& fontCascade() const;
-    CheckedRef<const FontCascade> checkedFontCascade() const;
     WEBCORE_EXPORT FontCascade& mutableFontCascadeWithoutUpdate();
     void setFontCascade(FontCascade&&);
 
@@ -681,6 +680,8 @@ public:
     inline BackgroundLayers& ensureBackgroundLayers();
     inline MaskLayers& ensureMaskLayers();
     inline Transitions& ensureTransitions();
+    inline ScrollTimelines& ensureScrollTimelines();
+    inline ViewTimelines& ensureViewTimelines();
 
     inline const BorderData& border() const;
     inline const BorderValue& borderBottom() const;
@@ -743,8 +744,8 @@ public:
         void dumpDifferences(TextStream&, const NonInheritedFlags&) const;
 #endif
 
-        PREFERRED_TYPE(DisplayType) unsigned effectiveDisplay : 5;
-        PREFERRED_TYPE(DisplayType) unsigned originalDisplay : 5;
+        PREFERRED_TYPE(Style::DisplayType) unsigned display : 5;
+        PREFERRED_TYPE(Style::DisplayType) unsigned originalDisplay : 5;
         PREFERRED_TYPE(Overflow) unsigned overflowX : 3;
         PREFERRED_TYPE(Overflow) unsigned overflowY : 3;
         PREFERRED_TYPE(Clear) unsigned clear : 3;

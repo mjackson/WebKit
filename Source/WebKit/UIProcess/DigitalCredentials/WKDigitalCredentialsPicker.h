@@ -32,6 +32,7 @@
 #import <UIKit/UIKit.h>
 #endif
 #import <WebCore/DigitalCredential.h>
+#import <WebCore/DigitalCredentialsRequestData.h>
 #import <wtf/Forward.h>
 
 OBJC_CLASS WKWebView;
@@ -43,7 +44,6 @@ class WebPageProxy;
 @class WKDigitalCredentialsPicker;
 
 namespace WebCore {
-struct DigitalCredentialsRequestData;
 struct DigitalCredentialsResponseData;
 struct ExceptionData;
 }

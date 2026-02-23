@@ -34,6 +34,9 @@ private import CxxStdlib
 extension WKTextSelectionController {
     private weak let view: WKWebView?
 
+    @nonobjc
+    private var currentRangeSelectionGranularity: NSTextSelection.Granularity? = nil
+
     init(view: WKWebView) {
         self.view = view
         super.init()
@@ -58,6 +61,16 @@ extension WKTextSelectionController {
             gestureRecognizer.buttonMask = 0
         }
     }
+
+    func selectionDidChange() {
+        guard let view, let page = view._protectedPage().get() else {
+            return
+        }
+
+        let editorState = unsafe page.editorState
+        view.textSelectionManager?.textSelectionMode =
+            editorState.isContentEditable || editorState.isContentRichlyEditable ? .editable : .selectable
+    }
 }
 
 @objc(NSTextSelectionManagerDelegate)
@@ -75,7 +88,7 @@ extension WKTextSelectionController {
             return false
         }
 
-        Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] Checking if text is selected at point \(point.debugDescription)...")
+        Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] \(#function) point: \(String(reflecting: point))")
 
         let editorState = unsafe page.editorState
         let hasSelection = unsafe !editorState.selectionIsNone
@@ -119,28 +132,39 @@ extension WKTextSelectionController {
             return
         }
 
-        Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] Moving insertion cursor to point \(point.debugDescription)...")
-    }
+        Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] \(#function) point: \(String(reflecting: point))")
 
-    @objc(handleClickAtPoint:)
-    func handleClick(at point: NSPoint) {
         Task.immediate {
-            await handleClickInternal(at: point)
+            await page.selectPosition(
+                at: WebCore.IntPoint(point),
+                isInteractingWithFocusedElement: true // FIXME: Properly handle the case where this isn't actually true.
+            )
         }
     }
 
     @MainActor
-    private func handleClickInternal(at point: NSPoint) async {
-        // The `point` location is relative to the view.
-
+    private func handleDoubleClick(at point: NSPoint) async {
         guard let view, let page = view._protectedPage().get() else {
             return
         }
 
-        Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] Handling click at point \(point.debugDescription)...")
+        // Select the nearest word and then open a context menu.
 
-        defer {
-            Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] Done handling click.")
+        await page.selectWithGesture(
+            at: WebCore.IntPoint(point),
+            type: .OneFingerDoubleTap,
+            state: .Ended,
+            isInteractingWithFocusedElement: true, // FIXME: Properly handle the case where this isn't actually true.
+        )
+
+        let pointInGlobalCoordinateSpace = view.convert(point, to: nil)
+        showContextMenu(at: pointInGlobalCoordinateSpace)
+    }
+
+    @MainActor
+    private func handleSingleClick(at point: NSPoint) async {
+        guard let view, let page = view._protectedPage().get() else {
+            return
         }
 
         let previousState = unsafe page.editorState
@@ -180,6 +204,35 @@ extension WKTextSelectionController {
         }
     }
 
+    @objc(handleClickAtPoint:)
+    func handleClick(at point: NSPoint) {
+        handleClick(at: point, clickCount: 1)
+    }
+
+    @objc(handleClickAtPoint:clickCount:)
+    func handleClick(at point: NSPoint, clickCount: Int) {
+        // The `point` location is relative to the view.
+
+        guard let view, let page = view._protectedPage().get() else {
+            return
+        }
+
+        Logger.viewGestures.log(
+            "[pageProxyID=\(page.logIdentifier())] \(#function) point: \(String(reflecting: point)) clickCount: \(clickCount)"
+        )
+
+        Task.immediate {
+            switch clickCount {
+            case 1:
+                await handleSingleClick(at: point)
+            case 2:
+                await handleDoubleClick(at: point)
+            default:
+                break
+            }
+        }
+    }
+
     @objc(showContextMenuAtPoint:)
     func showContextMenu(at point: NSPoint) {
         // The `point` location is relative to the window.
@@ -188,7 +241,7 @@ extension WKTextSelectionController {
             return
         }
 
-        Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] Showing context menu at point \(point.debugDescription)...")
+        Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] \(#function) point: \(String(reflecting: point))")
 
         let timestamp = GetCurrentEventTime()
         let windowNumber = unsafe impl.windowNumber()
@@ -222,18 +275,85 @@ extension WKTextSelectionController {
 
     @objc(dragSelectionWithGesture:completionHandler:)
     func dragSelection(withGesture gesture: NSGestureRecognizer, completionHandler: @escaping @Sendable (NSDraggingSession) -> Void) {
+        guard let page = view?._protectedPage().get() else {
+            return
+        }
+
+        Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] \(#function) gesture: \(String(reflecting: gesture))")
     }
 
     @objc(beginRangeSelectionAtPoint:withGranularity:)
     func beginRangeSelection(at point: NSPoint, with granularity: NSTextSelection.Granularity) {
+        guard let page = view?._protectedPage().get() else {
+            return
+        }
+
+        Logger.viewGestures.log(
+            "[pageProxyID=\(page.logIdentifier())] \(#function) point: \(String(reflecting: point)) granularity: \(String(reflecting: granularity))"
+        )
+
+        currentRangeSelectionGranularity = granularity
+
+        Task.immediate {
+            await page.selectText(
+                at: WebCore.IntPoint(point),
+                by: .init(granularity),
+                isInteractingWithFocusedElement: true // FIXME: Properly handle the case where this isn't actually true.
+            )
+        }
     }
 
     @objc(continueRangeSelectionAtPoint:)
     func continueRangeSelection(at point: NSPoint) {
+        guard let page = view?._protectedPage().get() else {
+            return
+        }
+
+        Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] \(#function) point: \(String(reflecting: point))")
+
+        guard let currentRangeSelectionGranularity else {
+            assertionFailure("continueRangeSelection was called with a nil currentRangeSelectionGranularity")
+            return
+        }
+
+        Task.immediate {
+            await page.updateSelection(
+                withExtentPoint: WebCore.IntPoint(point),
+                by: .init(currentRangeSelectionGranularity),
+                isInteractingWithFocusedElement: true, // FIXME: Properly handle the case where this isn't actually true.
+                source: .Mouse
+            )
+        }
     }
 
     @objc(endRangeSelectionAtPoint:)
     func endRangeSelection(at point: NSPoint) {
+        guard let page = view?._protectedPage().get() else {
+            return
+        }
+
+        Logger.viewGestures.log("[pageProxyID=\(page.logIdentifier())] \(#function) point: \(String(reflecting: point))")
+
+        guard currentRangeSelectionGranularity != nil else {
+            assertionFailure("endRangeSelection was called with a nil currentRangeSelectionGranularity")
+            return
+        }
+
+        currentRangeSelectionGranularity = nil
+    }
+}
+
+extension WebCore.TextGranularity {
+    fileprivate init(_ value: NSTextSelection.Granularity) {
+        self =
+            switch value {
+            case .character: .CharacterGranularity
+            case .word: .WordGranularity
+            case .line: .LineGranularity
+            case .sentence: .SentenceGranularity
+            case .paragraph: .ParagraphGranularity
+            @unknown default: .CharacterGranularity
+            }
     }
 }
 

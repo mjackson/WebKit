@@ -27,7 +27,6 @@
     Conditional=WEB_AUTHN,
     JSGenerateToJSObject,
     JSGenerateToNativeObject,
-    LegacyNativeDictionaryRequiredInterfaceNullability,
 ] dictionary AuthenticationExtensionsLargeBlobInputs {
     DOMString support;
     boolean read;
@@ -38,7 +37,6 @@
     Conditional=WEB_AUTHN,
     JSGenerateToJSObject,
     JSGenerateToNativeObject,
-    LegacyNativeDictionaryRequiredInterfaceNullability,
 ] dictionary AuthenticationExtensionsPRFValues {
     required [OverrideIDLType=IDLBufferSource] BufferSource first;
     [OverrideIDLType=IDLBufferSource] BufferSource second;

@@ -192,7 +192,7 @@ public:
             m_callback(WTF::move(m_records));
     }
 
-    const Vector<Record>& records() const { return m_records; }
+    const Vector<Record>& NODELETE records() const { return m_records; }
 
     size_t addRecord(Record&& record)
     {
@@ -209,7 +209,7 @@ public:
         record.responseBody = WTF::move(data);
     }
 
-    bool isDone() const { return !m_callback; }
+    bool NODELETE isDone() const { return !m_callback; }
 
     void error(Exception&& exception)
     {

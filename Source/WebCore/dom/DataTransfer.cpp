@@ -232,7 +232,7 @@ String DataTransfer::readStringFromPasteboard(Document& document, const String& 
     if (!is<StaticPasteboard>(*m_pasteboard) && lowercaseType == textHTMLContentTypeAtom()) {
         if (!document.frame())
             return { };
-        WebContentMarkupReader reader { document.protectedFrame().releaseNonNull() };
+        WebContentMarkupReader reader { protect(document.frame()).releaseNonNull() };
         m_pasteboard->read(reader, policy);
         return reader.takeMarkup();
     }

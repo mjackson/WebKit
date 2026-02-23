@@ -145,7 +145,7 @@ public:
     void releaseCompiledSelectors() const { m_compiledSelectors = { }; }
 #endif
 
-    static unsigned averageSizeInBytes();
+    static unsigned NODELETE averageSizeInBytes();
     void setProperties(Ref<StyleProperties>&&);
 
     String debugDescription() const;
@@ -307,7 +307,7 @@ private:
 
 class StyleRuleGroup : public StyleRuleBase {
 public:
-    const Vector<Ref<StyleRuleBase>>& childRules() const;
+    const Vector<Ref<StyleRuleBase>>& NODELETE childRules() const;
 
     void wrapperInsertRule(unsigned, Ref<StyleRuleBase>&&);
     void wrapperRemoveRule(unsigned);
@@ -421,7 +421,7 @@ public:
     const CSSSelectorList& originalScopeEnd() const { return m_originalScopeEnd; }
     void setScopeStart(CSSSelectorList&& scopeStart) { m_scopeStart = WTF::move(scopeStart); }
     void setScopeEnd(CSSSelectorList&& scopeEnd) { m_scopeEnd = WTF::move(scopeEnd); }
-    WeakPtr<const StyleSheetContents> styleSheetContents() const;
+    WeakPtr<const StyleSheetContents> NODELETE styleSheetContents() const;
     void setStyleSheetContents(const StyleSheetContents&);
 
 private:

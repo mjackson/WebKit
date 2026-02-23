@@ -68,7 +68,8 @@ RemotePlayback::~RemotePlayback() = default;
 
 WebCoreOpaqueRoot RemotePlayback::opaqueRootConcurrently() const
 {
-    return root(m_mediaElement.get());
+    // Cannot ref m_mediaElement here since this may get called on a GC thread.
+    SUPPRESS_UNCOUNTED_ARG return root(m_mediaElement.get());
 }
 
 Node* RemotePlayback::ownerNode() const

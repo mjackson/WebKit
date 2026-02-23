@@ -262,6 +262,7 @@ class Heap;
     v(javaScriptCallFrameSpace, javaScriptCallFrameHeapCellType, Inspector::JSJavaScriptCallFrame) \
     v(jsModuleRecordSpace, jsModuleRecordHeapCellType, JSModuleRecord) \
     v(syntheticModuleRecordSpace, syntheticModuleRecordHeapCellType, SyntheticModuleRecord) \
+    v(jsMicrotaskDispatcherSpace, destructibleCellHeapCellType, JSMicrotaskDispatcher) \
     v(mapIteratorSpace, cellHeapCellType, JSMapIterator) \
     v(mapSpace, cellHeapCellType, JSMap) \
     v(moduleNamespaceObjectSpace, moduleNamespaceObjectHeapCellType, JSModuleNamespaceObject) \

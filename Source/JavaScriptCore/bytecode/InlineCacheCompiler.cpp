@@ -3417,13 +3417,10 @@ void InlineCacheCompiler::generateAccessCase(unsigned index, AccessCase& accessC
         // ... and a value argument if we're calling a setter.
         unsigned numberOfParameters = isGetter ? 1 : 2;
 
-        // Get the accessor; if there ain't one then the result is jsUndefined().
-        // Note that GetterSetter always has cells for both. If it is not set (like, getter exits, but setter is not set), Null{Getter,Setter}Function is stored.
-        std::optional<CCallHelpers::Jump> returnUndefined;
-        if (isGetter) {
+        // Get the accessor. Note that GetterSetter always has cells for both get/set. If it is not set (e.g., getter exists, but setter is not), Null{Getter,Setter}Function is stored.
+        if (isGetter)
             jit.loadPtr(CCallHelpers::Address(scratchGPR, GetterSetter::offsetOfGetter()), scratchGPR);
-            returnUndefined = jit.branchIfType(scratchGPR, NullSetterFunctionType);
-        } else {
+        else {
             jit.loadPtr(CCallHelpers::Address(scratchGPR, GetterSetter::offsetOfSetter()), scratchGPR);
             if (ecmaMode.isStrict()) {
                 CCallHelpers::Jump shouldNotThrowError = jit.branchIfNotType(scratchGPR, NullSetterFunctionType);
@@ -3479,14 +3476,8 @@ void InlineCacheCompiler::generateAccessCase(unsigned index, AccessCase& accessC
             CallLinkInfo::emitFastPath(jit, callLinkInfo);
         }
 
-        if (isGetter) {
+        if (isGetter)
             jit.setupResults(valueRegs);
-            auto done = jit.jump();
-            ASSERT(returnUndefined);
-            returnUndefined.value().link(&jit);
-            jit.moveTrustedValue(jsUndefined(), valueRegs);
-            done.link(&jit);
-        }
 
         if (m_stubInfo.useDataIC) {
             jit.loadPtr(CCallHelpers::Address(GPRInfo::jitDataRegister, BaselineJITData::offsetOfStackOffset()), scratchGPR);
@@ -5383,17 +5374,10 @@ static void getterHandlerImpl(VM&, CCallHelpers& jit, JSValueRegs baseJSR, JSVal
     // shrink it after.
 
     // There is a "this" argument.
-    // ... and a value argument if we're calling a setter.
     constexpr unsigned numberOfParameters = 1;
 
-    // Get the accessor; if there ain't one then the result is jsUndefined().
-    // Note that GetterSetter always has cells for both. If it is not set (like, getter exits, but setter is not set), Null{Getter,Setter}Function is stored.
+    // Get the accessor. Note that GetterSetter always has cells for both get/set. If it is not set (e.g., getter exists, but setter is not), Null{Getter,Setter}Function is stored.
     jit.loadPtr(CCallHelpers::Address(scratch1GPR, GetterSetter::offsetOfGetter()), scratch1GPR);
-    auto willInvokeGetter = jit.branchIfNotType(scratch1GPR, NullSetterFunctionType);
-
-    jit.moveTrustedValue(jsUndefined(), resultJSR);
-    auto done = jit.jump();
-    willInvokeGetter.link(&jit);
 
     constexpr unsigned numberOfRegsForCall = CallFrame::headerSizeInRegisters + roundArgumentCountToAlignFrame(numberOfParameters);
     static_assert(!(numberOfRegsForCall % stackAlignmentRegisters()));
@@ -5421,8 +5405,6 @@ static void getterHandlerImpl(VM&, CCallHelpers& jit, JSValueRegs baseJSR, JSVal
     jit.loadPtr(CCallHelpers::Address(GPRInfo::jitDataRegister, BaselineJITData::offsetOfStackOffset()), scratch1GPR);
     jit.addPtr(CCallHelpers::TrustedImm32(-static_cast<int32_t>(sizeof(CallerFrameAndPC) + maxFrameExtentForSlowPathCall)), scratch1GPR);
     jit.addPtr(scratch1GPR, GPRInfo::callFrameRegister, CCallHelpers::stackPointerRegister);
-
-    done.link(&jit);
 }
 
 MacroAssemblerCodeRef<JITThunkPtrTag> getByIdGetterHandler(VM& vm)
@@ -5484,8 +5466,7 @@ MacroAssemblerCodeRef<JITThunkPtrTag> getByIdProxyObjectLoadHandler(VM&)
     // Therefore, we temporarily grow the stack for the purpose of the call and then
     // shrink it after.
 
-    // There is a "this" argument.
-    // ... and a value argument if we're calling a setter.
+    // There are "this", value, and receiver arguments.
     constexpr unsigned numberOfParameters = 3;
     constexpr unsigned numberOfRegsForCall = CallFrame::headerSizeInRegisters + roundArgumentCountToAlignFrame(numberOfParameters);
     static_assert(!(numberOfRegsForCall % stackAlignmentRegisters()));
@@ -5851,12 +5832,10 @@ static void setterHandlerImpl(VM&, CCallHelpers& jit, JSValueRegs baseJSR, JSVal
     // Therefore, we temporarily grow the stack for the purpose of the call and then
     // shrink it after.
 
-    // There is a "this" argument.
-    // ... and a value argument if we're calling a setter.
+    // There are "this" and value arguments.
     constexpr unsigned numberOfParameters = 2;
 
-    // Get the accessor; if there ain't one then the result is jsUndefined().
-    // Note that GetterSetter always has cells for both. If it is not set (like, getter exits, but setter is not set), Null{Getter,Setter}Function is stored.
+    // Get the accessor. Note that GetterSetter always has cells for both get/set. If it is not set (e.g., getter exists, but setter is not), Null{Getter,Setter}Function is stored.
     jit.loadPtr(CCallHelpers::Address(scratch1GPR, GetterSetter::offsetOfSetter()), scratch1GPR);
     if constexpr (isStrict) {
         CCallHelpers::Jump shouldNotThrowError = jit.branchIfNotType(scratch1GPR, NullSetterFunctionType);

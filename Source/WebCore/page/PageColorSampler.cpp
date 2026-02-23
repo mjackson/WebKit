@@ -76,12 +76,12 @@ static bool isValidSampleLocation(Document& document, const IntPoint& location)
     for (auto& hitTestNode : hitTestResult.listBasedTestResult()) {
         Ref node = hitTestNode.get();
 
-        auto* renderer = node->renderer();
+        CheckedPtr renderer = node->renderer();
         if (!renderer)
             return false;
 
         // Skip images (both `<img>` and CSS `background-image`) as they're likely not a solid color.
-        if (is<RenderImage>(renderer) || renderer->style().hasBackgroundImage())
+        if (is<RenderImage>(renderer) || Style::hasImageInAnyLayer(renderer->style().backgroundLayers()))
             return false;
 
         RefPtr element = dynamicDowncast<Element>(node.get());

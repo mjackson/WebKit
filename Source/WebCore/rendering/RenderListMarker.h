@@ -62,7 +62,7 @@ public:
     String textWithoutSuffix() const { return m_textContent.textWithoutSuffix().toString(); };
     String textWithSuffix() const { return m_textContent.textWithSuffix; };
 
-    bool isInside() const;
+    bool NODELETE isInside() const;
     bool isDisclosureMarker() const;
 
     void updateInlineMarginsAndContent();
@@ -82,7 +82,7 @@ private:
     void paint(PaintInfo&, const LayoutPoint&) final;
     void layout() final;
     void imageChanged(WrappedImagePtr, const IntRect*) final;
-    LayoutRect selectionRectForRepaint(const RenderLayerModelObject* repaintContainer, bool clipToVisibleContent) final;
+    LayoutRect NODELETE selectionRectForRepaint(const RenderLayerModelObject* repaintContainer, bool clipToVisibleContent) final;
     bool canBeSelectionLeaf() const final { return true; }
     void styleWillChange(Style::Difference, const RenderStyle& newStyle) final;
     void styleDidChange(Style::Difference, const RenderStyle* oldStyle) final;
@@ -96,7 +96,7 @@ private:
     void updateContent();
     RenderBox* parentBox(RenderBox&);
     FloatRect relativeMarkerRect();
-    LayoutRect localSelectionRect();
+    LayoutRect NODELETE localSelectionRect();
     void paintDisclosureMarker(GraphicsContext&, const FloatRect& markerRect);
 
     RefPtr<CSSCounterStyle> counterStyle() const;
@@ -104,7 +104,7 @@ private:
 
 private:
     ListMarkerTextContent m_textContent;
-    RefPtr<StyleImage> m_image;
+    RefPtr<Style::Image> m_image;
 
     SingleThreadWeakPtr<RenderListItem> m_listItem;
     LayoutUnit m_lineOffsetForListItem;

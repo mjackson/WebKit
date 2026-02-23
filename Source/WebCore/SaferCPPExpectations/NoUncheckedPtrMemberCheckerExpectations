@@ -22,6 +22,7 @@ layout/layouttree/LayoutChildIterator.h
 layout/layouttree/LayoutContainingBlockChainIterator.h
 layout/layouttree/LayoutDescendantIterator.h
 layout/layouttree/LayoutIterator.h
+[ iOS ] page/cocoa/ContentChangeObserver.h
 platform/graphics/TextRunIterator.h
 [ iOS ] platform/ios/DeviceMotionClientIOS.h
 [ iOS ] platform/ios/DeviceOrientationClientIOS.h
@@ -55,7 +56,7 @@ rendering/RenderSelectionGeometry.h
 rendering/RenderTableSection.h
 rendering/RenderText.cpp
 rendering/TextDecorationPainter.h
-[ iOS ] rendering/ios/RenderThemeIOS.mm
+[ iOS ] rendering/cocoa/RenderThemeCocoa.mm
 rendering/line/BreakingContext.h
 rendering/mathml/RenderMathMLScripts.h
 rendering/shapes/ShapeOutsideInfo.h

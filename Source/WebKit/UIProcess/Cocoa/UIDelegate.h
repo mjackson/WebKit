@@ -152,7 +152,7 @@ private:
 #if ENABLE(DEVICE_ORIENTATION)
         void shouldAllowDeviceOrientationAndMotionAccess(WebKit::WebPageProxy&, WebFrameProxy&, FrameInfoData&&, CompletionHandler<void(bool)>&&) final;
 #endif
-        bool needsFontAttributes() const final { return m_uiDelegate ? m_uiDelegate->m_delegateMethods.webViewDidChangeFontAttributes : false; }
+        bool needsFontAttributes() const final { return m_uiDelegate && m_uiDelegate->m_delegateMethods.webViewDidChangeFontAttributes; }
         void didChangeFontAttributes(const WebCore::FontAttributes&) final;
         void decidePolicyForUserMediaPermissionRequest(WebPageProxy&, WebFrameProxy&, API::SecurityOrigin&, API::SecurityOrigin&, UserMediaPermissionRequestProxy&) final;
         void decidePolicyForScreenCaptureUnmuting(WebKit::WebPageProxy&, WebKit::WebFrameProxy&, WebKit::FrameInfoData&&, API::SecurityOrigin&, API::SecurityOrigin&, CompletionHandler<void(bool isAllowed)>&&) final;
@@ -237,6 +237,7 @@ private:
         bool webViewRequestStorageAccessPanelForDomainUnderCurrentDomainForQuirkDomainsCompletionHandler : 1;
         bool webViewRunBeforeUnloadConfirmPanelWithMessageInitiatedByFrameCompletionHandler : 1;
         bool webViewRequestGeolocationPermissionForFrameDecisionHandler : 1;
+        bool webViewRequestGeolocationPermissionForOriginDecisionHandlerSPI : 1;
         bool webViewRequestGeolocationPermissionForOriginDecisionHandler : 1;
         bool webViewDidResignInputElementStrongPasswordAppearanceWithUserInfo : 1;
         bool webViewTakeFocus : 1;

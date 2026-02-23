@@ -419,7 +419,7 @@ void DocumentTimeline::scheduleAcceleratedEffectStackUpdate()
 
 void DocumentTimeline::animationAcceleratedRunningStateDidChange(WebAnimation& animation)
 {
-    m_acceleratedAnimationsPendingRunningStateChange.add(&animation);
+    m_acceleratedAnimationsPendingRunningStateChange.add(animation);
 
     if (shouldRunUpdateAnimationsAndSendEventsIgnoringSuspensionState())
         scheduleAnimationResolution();

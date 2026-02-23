@@ -96,7 +96,7 @@ protected:
     WebPageProxy* page() const { return m_page.get(); }
     State state() const { return m_state; }
     ASCIILiteral stateString() const;
-    ASCIILiteral initiatingActionString() const;
+    ASCIILiteral NODELETE initiatingActionString() const;
     void setState(State state) { m_state = state; }
     const API::NavigationAction* navigationAction() { return m_navigationAction.get(); }
     Ref<API::NavigationAction> releaseNavigationAction();

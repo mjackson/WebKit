@@ -59,6 +59,7 @@
 #include "StyleResolver.h"
 #include "StyleScope.h"
 #include "StyleTransformFunction.h"
+#include "StyleZoomPrimitivesInlines.h"
 #include "Styleable.h"
 #include "TransformState.h"
 #include "ViewTransitionTypeSet.h"
@@ -970,7 +971,7 @@ void ViewTransition::copyElementBaseProperties(RenderLayerModelObject& renderer,
     // Factor out the zoom from the nearest common ancestor of the captured element and the view transition
     // pseudo tree (the document element), so that it doesn't get applied a second time when rendering the
     // snapshots.
-    LayoutSize cssSize = adjustLayoutSizeForAbsoluteZoom(output.size, documentElementRenderer->style());
+    LayoutSize cssSize = Style::adjustLayoutSizeForAbsoluteZoom(output.size, documentElementRenderer->style());
     protect(output.properties)->setProperty(CSSPropertyWidth, CSSPrimitiveValue::create(cssSize.width(), CSSUnitType::CSS_PX));
     protect(output.properties)->setProperty(CSSPropertyHeight, CSSPrimitiveValue::create(cssSize.height(), CSSUnitType::CSS_PX));
 }

@@ -379,7 +379,7 @@ static inline NSSet<WKWebExtensionMatchPattern *> *toAPI(const WebKit::WebExtens
     return extensionContext->hasPermission(url, toImplNullable(tab, extensionContext.get()).get());
 }
 
-static inline WKWebExtensionContextPermissionStatus toAPI(WebKit::WebExtensionContext::PermissionState status)
+static inline WKWebExtensionContextPermissionStatus NODELETE toAPI(WebKit::WebExtensionContext::PermissionState status)
 {
     switch (status) {
     case WebKit::WebExtensionContext::PermissionState::DeniedExplicitly:
@@ -642,7 +642,7 @@ static inline WebKit::WebExtensionContext::PermissionState toImpl(WKWebExtension
     extensionContext->clearUserGesture(toImpl(tab, extensionContext.get()));
 }
 
-static inline id<WKWebExtensionWindow> toAPI(const RefPtr<WebKit::WebExtensionWindow>& window)
+static inline id<WKWebExtensionWindow> NODELETE toAPI(const RefPtr<WebKit::WebExtensionWindow>& window)
 {
     return window ? window->delegate() : nil;
 }

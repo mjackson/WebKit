@@ -64,7 +64,7 @@ void PDFScrollingPresentationController::teardown()
 
 bool PDFScrollingPresentationController::supportsDisplayMode(PDFDisplayMode mode) const
 {
-    return PDFDocumentLayout::isScrollingDisplayMode(mode);
+    return isScrollingPDFDisplayMode(mode);
 }
 
 #pragma mark -
@@ -187,7 +187,7 @@ void PDFScrollingPresentationController::updateLayersOnLayoutChange(FloatSize do
     transform.translate(centeringOffset.width(), centeringOffset.height());
 
     contentsLayer->setTransform(transform);
-    protectedPageBackgroundsContainerLayer()->setTransform(transform);
+    protect(m_pageBackgroundsContainerLayer)->setTransform(transform);
 
 #if ENABLE(PDFKIT_PAINTED_SELECTIONS)
     Ref selectionLayer = *m_selectionLayer;
@@ -218,14 +218,13 @@ void PDFScrollingPresentationController::updatePageBackgroundLayers()
             if (pageIndex < pageContainerLayers.size())
                 return pageContainerLayers[pageIndex];
 
-            RefPtr pageContainerLayer = makePageContainerLayer(pageIndex);
+            Ref pageContainerLayer = makePageContainerLayer(pageIndex);
 
             // Sure would be nice if we could just stuff data onto a GraphicsLayer.
-            RefPtr pageBackgroundLayer = pageBackgroundLayerForPageContainerLayer(*pageContainerLayer);
-            m_pageBackgroundLayers.add(pageBackgroundLayer, pageIndex);
+            Ref pageBackgroundLayer = pageBackgroundLayerForPageContainerLayer(pageContainerLayer);
+            m_pageBackgroundLayers.add(WTF::move(pageBackgroundLayer), pageIndex);
 
-            auto containerLayer = pageContainerLayer.releaseNonNull();
-            pageContainerLayers.append(WTF::move(containerLayer));
+            pageContainerLayers.append(WTF::move(pageContainerLayer));
 
             return pageContainerLayers[pageIndex];
         }(i);
@@ -270,13 +269,13 @@ void PDFScrollingPresentationController::didGeneratePreviewForPage(PDFDocumentLa
 
 void PDFScrollingPresentationController::updateIsInWindow(bool isInWindow)
 {
-    protectedContentsLayer()->setIsInWindow(isInWindow);
+    protect(m_contentsLayer)->setIsInWindow(isInWindow);
 
 #if ENABLE(PDFKIT_PAINTED_SELECTIONS)
-    protectedSelectionLayer()->setIsInWindow(isInWindow);
+    protect(m_selectionLayer)->setIsInWindow(isInWindow);
 #endif
 
-    for (auto& pageLayer : protectedPageBackgroundsContainerLayer()->children()) {
+    for (auto& pageLayer : protect(m_pageBackgroundsContainerLayer)->children()) {
         if (pageLayer->children().size()) {
             Ref pageContentsLayer = pageLayer->children()[0];
             pageContentsLayer->setIsInWindow(isInWindow);
@@ -323,7 +322,7 @@ void PDFScrollingPresentationController::updateForCurrentScrollability(OptionSet
         tiledBacking->setScrollability(scrollability);
 
 #if ENABLE(PDFKIT_PAINTED_SELECTIONS)
-    if (CheckedPtr tiledBacking = protectedSelectionLayer()->tiledBacking())
+    if (CheckedPtr tiledBacking = protect(m_selectionLayer)->tiledBacking())
         tiledBacking->setScrollability(scrollability);
 #endif
 }
@@ -356,11 +355,7 @@ void PDFScrollingPresentationController::paintBackgroundLayerForPage(const Graph
 
 std::optional<PDFDocumentLayout::PageIndex> PDFScrollingPresentationController::pageIndexForPageBackgroundLayer(const GraphicsLayer& layer) const
 {
-    auto it = m_pageBackgroundLayers.find(&layer);
-    if (it == m_pageBackgroundLayers.end())
-        return { };
-
-    return it->value;
+    return m_pageBackgroundLayers.getOptional(layer);
 }
 
 #pragma mark -
@@ -418,7 +413,7 @@ bool PDFScrollingPresentationController::layerAllowsDynamicContentScaling(const 
 void PDFScrollingPresentationController::tiledBackingUsageChanged(const GraphicsLayer* layer, bool usingTiledBacking)
 {
     if (usingTiledBacking)
-        layer->checkedTiledBacking()->setIsInWindow(m_plugin->isInWindow());
+        protect(layer->tiledBacking())->setIsInWindow(m_plugin->isInWindow());
 }
 
 void PDFScrollingPresentationController::paintContents(const GraphicsLayer& layer, GraphicsContext& context, const FloatRect& clipRect, OptionSet<GraphicsLayerPaintBehavior>)

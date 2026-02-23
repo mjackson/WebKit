@@ -132,6 +132,7 @@ using PseudoClassesSet = UncheckedKeyHashSet<CSSSelector::PseudoClass, IntHash<C
     v(operationMatchesModalPseudoClass) \
     v(operationMatchesHtmlDocumentPseudoClass) \
     v(operationMatchesActiveViewTransitionPseudoClass) \
+    v(operationMatchesSelectPopoverPseudoClass) \
     v(operationMatchesUsesMenulistPseudoClass) \
     v(operationIsUserInvalid) \
     v(operationIsUserValid) \
@@ -289,6 +290,7 @@ static JSC_DECLARE_NOEXCEPT_JIT_OPERATION_WITHOUT_WTF_INTERNAL(operationMatchesO
 static JSC_DECLARE_NOEXCEPT_JIT_OPERATION_WITHOUT_WTF_INTERNAL(operationMatchesPopoverOpenPseudoClass, bool, (const Element&));
 static JSC_DECLARE_NOEXCEPT_JIT_OPERATION_WITHOUT_WTF_INTERNAL(operationMatchesModalPseudoClass, bool, (const Element&));
 static JSC_DECLARE_NOEXCEPT_JIT_OPERATION_WITHOUT_WTF_INTERNAL(operationMatchesActiveViewTransitionPseudoClass, bool, (const Element&));
+static JSC_DECLARE_NOEXCEPT_JIT_OPERATION_WITHOUT_WTF_INTERNAL(operationMatchesSelectPopoverPseudoClass, bool, (const Element&));
 static JSC_DECLARE_NOEXCEPT_JIT_OPERATION_WITHOUT_WTF_INTERNAL(operationMatchesUsesMenulistPseudoClass, bool, (const Element&));
 static JSC_DECLARE_NOEXCEPT_JIT_OPERATION_WITHOUT_WTF_INTERNAL(operationIsUserInvalid, bool, (const Element&));
 static JSC_DECLARE_NOEXCEPT_JIT_OPERATION_WITHOUT_WTF_INTERNAL(operationIsUserValid, bool, (const Element&));
@@ -1063,6 +1065,12 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationIsUserValid, bool, (const Element& el
     return matchesUserValidPseudoClass(element);
 }
 
+JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationMatchesSelectPopoverPseudoClass, bool, (const Element& element))
+{
+    COUNT_SELECTOR_OPERATION(operationMatchesSelectPopoverPseudoClass);
+    return matchesSelectPopoverPseudoClass(element);
+}
+
 JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationMatchesUsesMenulistPseudoClass, bool, (const Element& element))
 {
     COUNT_SELECTOR_OPERATION(operationMatchesUsesMenulistPseudoClass);
@@ -1234,6 +1242,10 @@ static inline FunctionType addPseudoClassType(const CSSSelector& selector, Selec
 
     case CSSSelector::PseudoClass::ActiveViewTransition:
         fragment.unoptimizedPseudoClasses.append(CodePtr<JSC::OperationPtrTag>(operationMatchesActiveViewTransitionPseudoClass));
+        return FunctionType::SimpleSelectorChecker;
+
+    case CSSSelector::PseudoClass::InternalSelectPopover:
+        fragment.unoptimizedPseudoClasses.append(CodePtr<JSC::OperationPtrTag>(operationMatchesSelectPopoverPseudoClass));
         return FunctionType::SimpleSelectorChecker;
 
     case CSSSelector::PseudoClass::InternalUsesMenulist:
@@ -1520,6 +1532,7 @@ static FunctionType constructFragmentsInternal(const CSSSelector& rootSelector, 
             case CSSSelector::PseudoElement::InternalWritingSuggestions:
             case CSSSelector::PseudoElement::Marker:
             case CSSSelector::PseudoElement::Picker:
+            case CSSSelector::PseudoElement::PickerIcon:
             case CSSSelector::PseudoElement::WebKitResizer:
             case CSSSelector::PseudoElement::WebKitScrollbar:
             case CSSSelector::PseudoElement::WebKitScrollbarButton:
@@ -1646,22 +1659,23 @@ static FunctionType constructFragments(const CSSSelector& rootSelector, Selector
     return functionType;
 }
 
-static inline bool attributeNameTestingRequiresNamespaceRegister(const CSSSelector& attributeSelector)
+static inline unsigned extraRegistersForAttributeNameTesting(const CSSSelector& attributeSelector)
 {
-    return attributeSelector.attribute().prefix() != starAtom() && !attributeSelector.attribute().namespaceURI().isNull();
+    return attributeSelector.attribute().prefix() == starAtom() || attributeSelector.attribute().namespaceURI().isNull() ? 0 : 1;
 }
 
-static inline bool attributeValueTestingRequiresExtraRegister(const AttributeMatchingInfo& attributeInfo)
+static inline unsigned extraRegistersForAttributeValueTesting(const AttributeMatchingInfo& attributeInfo)
 {
     switch (attributeInfo.attributeCaseSensitivity()) {
     case AttributeCaseSensitivity::CaseSensitive:
-        return false;
+        return 0;
     case AttributeCaseSensitivity::HTMLLegacyCaseInsensitive:
-        return true;
+        return 1;
     case AttributeCaseSensitivity::CaseInsensitive:
-        return attributeInfo.selector().match() == CSSSelector::Match::Exact;
+        return attributeInfo.selector().match() == CSSSelector::Match::Exact ? 1 : 0;
     }
-    return true;
+    ASSERT_NOT_REACHED();
+    return 1;
 }
 
 // Element + ElementData + a pointer to values + an index on that pointer + the value we expect;
@@ -1688,9 +1702,8 @@ static unsigned minimumRegisterRequirements(const SelectorFragment& selectorFrag
 
         const AttributeMatchingInfo& attributeInfo = attributes[attributeIndex];
         const CSSSelector& attributeSelector = attributeInfo.selector();
-        if (attributeNameTestingRequiresNamespaceRegister(attributeSelector)
-            || attributeValueTestingRequiresExtraRegister(attributeInfo))
-            attributeMinimum += 1;
+
+        attributeMinimum += std::max(extraRegistersForAttributeNameTesting(attributeSelector), extraRegistersForAttributeValueTesting(attributeInfo));
 
         minimum = std::max(minimum, attributeMinimum);
     }
@@ -3623,43 +3636,32 @@ void SelectorCodeGenerator::generateElementAttributeValueExactMatching(Assembler
     LocalRegisterWithPreference expectedValueRegister(m_registerAllocator, JSC::GPRInfo::argumentGPR1);
     m_assembler.move(Assembler::TrustedImmPtr(expectedValue.impl()), expectedValueRegister);
 
-    switch (valueCaseSensitivity) {
-    case AttributeCaseSensitivity::CaseSensitive: {
+    if (valueCaseSensitivity == AttributeCaseSensitivity::CaseSensitive) {
         failureCases.append(m_assembler.branchPtr(Assembler::NotEqual, Assembler::Address(currentAttributeAddress, Attribute::valueMemoryOffset()), expectedValueRegister));
-        break;
+        return;
     }
-    case AttributeCaseSensitivity::HTMLLegacyCaseInsensitive: {
-        Assembler::Jump skipCaseInsensitiveComparison = m_assembler.branchPtr(Assembler::Equal, Assembler::Address(currentAttributeAddress, Attribute::valueMemoryOffset()), expectedValueRegister);
 
-        // If the element is an HTML element, in a HTML dcoument (not including XHTML), value matching is case insensitive.
+    auto pointersEqual = m_assembler.branchPtr(Assembler::Equal, Assembler::Address(currentAttributeAddress, Attribute::valueMemoryOffset()), expectedValueRegister);
+
+    if (valueCaseSensitivity == AttributeCaseSensitivity::HTMLLegacyCaseInsensitive) {
+        // If the element is an HTML element, in a HTML document (not including XHTML), value matching is case insensitive.
         // Taking the contrapositive, if we find the element is not HTML or is not in a HTML document, the condition above
-        // sould be sufficient and we can fail early.
+        // should be sufficient and we can fail early.
         generateElementAndDocumentIsHTML(failureCases);
-
-        LocalRegister valueStringImpl(m_registerAllocator);
-        m_assembler.loadPtr(Assembler::Address(currentAttributeAddress, Attribute::valueMemoryOffset()), valueStringImpl);
-
-        FunctionCall functionCall(m_assembler, m_registerAllocator, m_stackAllocator, m_functionCalls);
-        functionCall.setFunctionAddress(operationEqualIgnoringASCIICaseNonNull);
-        functionCall.setTwoArguments(valueStringImpl, expectedValueRegister);
-        failureCases.append(functionCall.callAndBranchOnBooleanReturnValue(Assembler::Zero));
-
-        skipCaseInsensitiveComparison.link(&m_assembler);
-        break;
     }
-    case AttributeCaseSensitivity::CaseInsensitive: {
-        LocalRegister valueStringImpl(m_registerAllocator);
-        m_assembler.loadPtr(Assembler::Address(currentAttributeAddress, Attribute::valueMemoryOffset()), valueStringImpl);
 
-        Assembler::Jump skipCaseInsensitiveComparison = m_assembler.branchPtr(Assembler::Equal, valueStringImpl, expectedValueRegister);
-        FunctionCall functionCall(m_assembler, m_registerAllocator, m_stackAllocator, m_functionCalls);
-        functionCall.setFunctionAddress(operationEqualIgnoringASCIICaseNonNull);
-        functionCall.setTwoArguments(valueStringImpl, expectedValueRegister);
-        failureCases.append(functionCall.callAndBranchOnBooleanReturnValue(Assembler::Zero));
-        skipCaseInsensitiveComparison.link(&m_assembler);
-        break;
-    }
-    }
+    LocalRegister valueRegister(m_registerAllocator);
+    m_assembler.loadPtr(Assembler::Address(currentAttributeAddress, Attribute::valueMemoryOffset()), valueRegister);
+
+    auto lengthsInequal = m_assembler.branch32(Assembler::NotEqual, Assembler::Address(valueRegister, StringImpl::lengthMemoryOffset()), Assembler::TrustedImm32(expectedValue.length()));
+    failureCases.append(lengthsInequal);
+
+    FunctionCall functionCall(m_assembler, m_registerAllocator, m_stackAllocator, m_functionCalls);
+    functionCall.setFunctionAddress(operationEqualIgnoringASCIICaseNonNull);
+    functionCall.setTwoArguments(valueRegister, expectedValueRegister);
+    failureCases.append(functionCall.callAndBranchOnBooleanReturnValue(Assembler::Zero));
+
+    pointersEqual.link(&m_assembler);
 }
 
 void SelectorCodeGenerator::generateElementAttributeFunctionCallValueMatching(Assembler::JumpList& failureCases, Assembler::RegisterID currentAttributeAddress, const AtomString& expectedValue, AttributeCaseSensitivity valueCaseSensitivity, CodePtr<JSC::OperationPtrTag> caseSensitiveTest, CodePtr<JSC::OperationPtrTag> caseInsensitiveTest)

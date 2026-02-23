@@ -175,6 +175,11 @@ public:
     bool hasCheckpoints() const { return m_hasCheckpoints; }
     void setHasCheckpoints() { m_hasCheckpoints = true; }
 
+    bool hasQuickDFGTierUpUpdated() const { return m_quickDFGTierUp != TriState::Indeterminate; }
+    bool isQuickDFGTierUp() const { return m_quickDFGTierUp == TriState::True; }
+    void setQuickDFGTierUp(TriState state) { m_quickDFGTierUp = state; }
+    TriState quickDFGTierUp() const { return m_quickDFGTierUp; }
+
     // Special registers
     void setThisRegister(VirtualRegister thisRegister) { m_thisRegister = thisRegister; }
     void setScopeRegister(VirtualRegister scopeRegister) { m_scopeRegister = scopeRegister; }
@@ -429,6 +434,7 @@ private:
     static_assert(((1U << 3) - 1) >= maxAge);
     bool m_hasCheckpoints : 1;
     LexicallyScopedFeatures m_lexicallyScopedFeatures : bitWidthOfLexicallyScopedFeatures { 0 };
+    TriState m_quickDFGTierUp : 2 { TriState::Indeterminate };
 public:
     ConcurrentJSLock m_lock;
 #if ENABLE(JIT)

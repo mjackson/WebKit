@@ -737,8 +737,8 @@ JSC::JSGlobalObject* JSDOMGlobalObject::deriveShadowRealmGlobalObject(JSC::JSGlo
     auto& vm = globalObject->vm();
 
     auto domGlobalObject = jsCast<JSDOMGlobalObject*>(globalObject);
-    auto context = domGlobalObject->scriptExecutionContext();
-    if (CheckedPtr document = dynamicDowncast<Document>(context)) {
+    RefPtr context = domGlobalObject->scriptExecutionContext();
+    if (RefPtr document = dynamicDowncast<Document>(context.get())) {
         // Same-origin iframes present a difficult circumstance because the
         // shadow realm global object cannot retain the incubating realm's
         // global object (that would be a refcount loop); but, same-origin
@@ -754,7 +754,7 @@ JSC::JSGlobalObject* JSDOMGlobalObject::deriveShadowRealmGlobalObject(JSC::JSGlo
         auto& originalWorld = domGlobalObject->world();
 
         while (!document->isTopDocument()) {
-            CheckedPtr candidateDocument = document->parentDocument();
+            RefPtr candidateDocument = document->parentDocument();
             if (!candidateDocument || !protect(candidateDocument->securityOrigin())->isSameOriginDomain(originalOrigin))
                 break;
 

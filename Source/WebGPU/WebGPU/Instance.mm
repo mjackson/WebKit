@@ -191,20 +191,18 @@ void Instance::requestAdapter(const WGPURequestAdapterOptions& options, Completi
 void Instance::retainDevice(Device& device, id<MTLCommandBuffer> commandBuffer)
 {
     Locker locker(m_lock);
-    CommandBufferContainer* container = nullptr;
-    if (auto it = retainedDeviceInstances.find(&device); it != retainedDeviceInstances.end())
-        container = &it->value;
-    else
-        container = &retainedDeviceInstances.add(&device, CommandBufferContainer { }).iterator->value;
+    auto& container = retainedDeviceInstances.ensure(device, [] {
+        return CommandBufferContainer { };
+    }).iterator->value;
 
-    container->append(commandBuffer);
+    container.append(commandBuffer);
 
-    for (auto& [device, container] : retainedDeviceInstances) {
-        container.removeAllMatching([&] (auto& pair) {
+    for (auto& container : retainedDeviceInstances.values()) {
+        container.removeAllMatching([&](auto& pair) {
             return !pair;
         });
     }
-    retainedDeviceInstances.removeIf([&] (auto& pair) {
+    retainedDeviceInstances.removeIf([&](auto& pair) {
         return !pair.value.size();
     });
 }

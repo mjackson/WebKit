@@ -99,7 +99,7 @@ AlignmentBaseline SVGTextLayoutEngineBaseline::dominantBaselineToAlignmentBaseli
 
 float SVGTextLayoutEngineBaseline::calculateAlignmentBaselineShift(bool isVerticalText, const RenderSVGInlineText& textRenderer) const
 {
-    auto* textRendererParent = textRenderer.parent();
+    CheckedPtr textRendererParent = textRenderer.parent();
     ASSERT(textRendererParent);
 
     AlignmentBaseline baseline = textRenderer.style().alignmentBaseline();

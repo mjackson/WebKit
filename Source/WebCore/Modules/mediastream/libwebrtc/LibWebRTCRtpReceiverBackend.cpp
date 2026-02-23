@@ -39,6 +39,7 @@
 #include "RealtimeIncomingAudioSource.h"
 #include "RealtimeIncomingVideoSource.h"
 #include "Settings.h"
+#include <webrtc/rtc_base/time_utils.h>
 #include <wtf/MonotonicTime.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/WallTime.h>

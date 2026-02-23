@@ -134,7 +134,7 @@ void HTMLVideoElement::didAttachRenderers()
             lazyInitialize(m_imageLoader, makeUniqueWithoutRefCountedCheck<HTMLImageLoader>(*this));
         m_imageLoader->updateFromElement();
         if (CheckedPtr renderer = this->renderer())
-            renderer->checkedImageResource()->setCachedImage(protect(m_imageLoader->image()));
+            protect(renderer->imageResource())->setCachedImage(protect(m_imageLoader->image()));
     }
 }
 
@@ -172,7 +172,7 @@ void HTMLVideoElement::computeAcceleratedRenderingStateAndUpdateMediaPlayer()
     bool isInFullScreen = false;
 #endif
     CheckedPtr renderer = this->renderer();
-    bool canBeAccelerated = player->supportsAcceleratedRendering() && (isInFullScreen || (renderer && renderer->checkedView()->compositor().hasAcceleratedCompositing()));
+    bool canBeAccelerated = player->supportsAcceleratedRendering() && (isInFullScreen || (renderer && protect(renderer->view())->compositor().hasAcceleratedCompositing()));
     if (canBeAccelerated == m_renderingCanBeAccelerated)
         return;
     m_renderingCanBeAccelerated = canBeAccelerated;
@@ -215,12 +215,11 @@ void HTMLVideoElement::attributeChanged(const QualifiedName& name, const AtomStr
             m_imageLoader->updateFromElementIgnoringPreviousError();
         } else {
             if (CheckedPtr renderer = this->renderer()) {
-                renderer->checkedImageResource()->setCachedImage(nullptr);
+                protect(renderer->imageResource())->clearCachedImage();
                 renderer->updateFromElement();
             }
         }
-    }
-    else {
+    } else {
         HTMLMediaElement::attributeChanged(name, oldValue, newValue, attributeModificationReason);
 
 #if PLATFORM(IOS_FAMILY) && ENABLE(WIRELESS_PLAYBACK_TARGET)
@@ -537,7 +536,7 @@ bool HTMLVideoElement::webkitSupportsPresentationMode(VideoPresentationMode mode
     return false;
 }
 
-static inline HTMLMediaElementEnums::VideoFullscreenMode toFullscreenMode(HTMLVideoElement::VideoPresentationMode mode)
+static inline HTMLMediaElementEnums::VideoFullscreenMode NODELETE toFullscreenMode(HTMLVideoElement::VideoPresentationMode mode)
 {
     switch (mode) {
     case HTMLVideoElement::VideoPresentationMode::Fullscreen:

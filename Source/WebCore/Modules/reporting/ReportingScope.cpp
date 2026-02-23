@@ -101,7 +101,7 @@ void ReportingScope::notifyReportObservers(Ref<Report>&& report)
     for (auto& observer : possibleReportObservers)
         observer->appendQueuedReportIfCorrectType(report);
 
-    auto currentReportType = report->protectedBody()->reportBodyType();
+    auto currentReportType = protect(report->body())->reportBodyType();
 
     // Step 4.2.2
     m_queuedReportTypeCounts.add(currentReportType);

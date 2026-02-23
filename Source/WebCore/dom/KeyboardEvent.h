@@ -84,7 +84,7 @@ public:
     PlatformKeyboardEvent* underlyingPlatformEvent() { return m_underlyingPlatformEvent.get(); }
 
     WEBCORE_EXPORT int keyCode() const; // key code for keydown and keyup, character for keypress
-    int keyCodeForKeyDown() const; // key code for the keydown that matches the keypress
+    int NODELETE keyCodeForKeyDown() const; // key code for the keydown that matches the keypress
     WEBCORE_EXPORT int charCode() const; // character code for keypress, 0 for keydown and keyup
 
     unsigned which() const final;
@@ -97,7 +97,7 @@ public:
     Vector<KeypressCommand>& keypressCommands() { return m_keypressCommands; }
 #endif
 
-    FocusEventData focusEventData() const;
+    FocusEventData NODELETE focusEventData() const;
 
 private:
     KeyboardEvent();

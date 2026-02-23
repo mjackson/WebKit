@@ -66,7 +66,7 @@ static inline void expandInlineBox(InlineLayoutUnit expansion, InlineDisplay::Bo
 
 static inline InlineLayoutUnit alignmentOffset(auto& latyoutBox, auto& alignmentOffsetList)
 {
-    auto alignmentOffsetEntry = alignmentOffsetList.find(&latyoutBox);
+    auto alignmentOffsetEntry = alignmentOffsetList.find(latyoutBox.ptr());
     return alignmentOffsetEntry != alignmentOffsetList.end() ? alignmentOffsetEntry->value : 0.f;
 }
 
@@ -80,10 +80,10 @@ static InlineBoxIndexAndExpansion expandInlineBoxWithDescendants(size_t inlineBo
         ASSERT_NOT_REACHED();
         return { inlineBoxIndex, { } };
     }
-    auto& inlineBox = displayBoxes[inlineBoxIndex].layoutBox();
+    CheckedRef inlineBox = displayBoxes[inlineBoxIndex].layoutBox();
     auto descendantExpansion = InlineLayoutUnit { 0.f };
     size_t index = inlineBoxIndex + 1;
-    while (index < displayBoxes.size() && &displayBoxes[index].layoutBox().parent() == &inlineBox) {
+    while (index < displayBoxes.size() && &displayBoxes[index].layoutBox().parent() == inlineBox.ptr()) {
         if (displayBoxes[index].isInlineBox()) {
             auto indexAndExpansion = expandInlineBoxWithDescendants(index, displayBoxes, alignmentOffsetList, inlineFormattingContext);
             index = indexAndExpansion.index;
@@ -113,30 +113,30 @@ static BaseIndexAndOffset shiftRubyBaseContentByAlignmentOffset(BaseIndexAndOffs
     }
 
     // Shift base content within the base (no resize) as part of the alignment process.
-    auto& rootBox = inlineFormattingContext.root();
-    auto& rubyBaseBox = displayBoxes[baseIndex].layoutBox();
+    CheckedRef rootBox = inlineFormattingContext.root();
+    CheckedRef rubyBaseBox = displayBoxes[baseIndex].layoutBox();
     auto baseOffset = baseIndexAndOffset.offset;
     auto baseContentOffset = alignmentOffset(rubyBaseBox, alignmentOffsetList);
     size_t baseContentIndex = baseIndex + 1;
 
     while (baseContentIndex < displayBoxes.size()) {
         auto& displayBox = displayBoxes[baseContentIndex];
-        auto& layoutBox = displayBox.layoutBox();
+        CheckedRef layoutBox = displayBox.layoutBox();
         auto isInsideCurrentRubyBase = [&] {
             // Ruby content tends to produce flat structures.
-            for (auto* ancestor = &layoutBox.parent(); ancestor; ancestor = &ancestor->parent()) {
-                if (ancestor == &rubyBaseBox)
+            for (auto* ancestor = &layoutBox->parent(); ancestor; ancestor = &ancestor->parent()) {
+                if (ancestor == rubyBaseBox.ptr())
                     return true;
-                if (ancestor->isRubyBase() || ancestor->isRuby() || ancestor == &rootBox)
+                if (ancestor->isRubyBase() || ancestor->isRuby() || ancestor == rootBox.ptr())
                     return false;
             }
             return false;
         };
         if (!isInsideCurrentRubyBase())
             break;
-        if (!layoutBox.isRubyAnnotationBox())
+        if (!layoutBox->isRubyAnnotationBox())
             shiftDisplayBox(displayBox, baseOffset + baseContentOffset, inlineFormattingContext);
-        if (layoutBox.isRubyBase()) {
+        if (layoutBox->isRubyBase()) {
             auto baseEndIndexAndAlignment = shiftRubyBaseContentByAlignmentOffset({ baseContentIndex, baseOffset + baseContentOffset }, displayBoxes, alignmentOffsetList, adjustContentOnlyInsideRubyBase, inlineFormattingContext);
             baseContentIndex = baseEndIndexAndAlignment.index;
             if (adjustContentOnlyInsideRubyBase == InlineContentAligner::AdjustContentOnlyInsideRubyBase::No)

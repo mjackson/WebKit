@@ -152,8 +152,8 @@ public:
 
     WEBCORE_EXPORT void garbageCollectDocumentResources();
 
-    void incrementRequestCount(const CachedResource&);
-    void decrementRequestCount(const CachedResource&);
+    void NODELETE incrementRequestCount(const CachedResource&);
+    void NODELETE decrementRequestCount(const CachedResource&);
     int requestCount() const { return m_requestCount; }
 
     WEBCORE_EXPORT bool isPreloaded(const String& urlString) const;
@@ -207,7 +207,7 @@ private:
 
     void performPostLoadActions();
 
-    ImageLoading clientDefersImage(const URL&) const;
+    ImageLoading NODELETE clientDefersImage(const URL&) const;
     void reloadImagesIfNotDeferred();
 
     bool canRequestAfterRedirection(CachedResource::Type, const URL&, const ResourceLoaderOptions&, const URL& preRedirectURL) const;

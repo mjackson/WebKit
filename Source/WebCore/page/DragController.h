@@ -68,7 +68,7 @@ public:
     DragController(Page&, std::unique_ptr<DragClient>&&);
     ~DragController();
 
-    static DragOperation platformGenericDragOperation();
+    static DragOperation NODELETE platformGenericDragOperation();
 
     WEBCORE_EXPORT Variant<std::optional<DragOperation>, RemoteUserInputEventData> dragEnteredOrUpdated(LocalFrame&, DragData&&);
     WEBCORE_EXPORT void dragExited(LocalFrame&, DragData&&);
@@ -90,7 +90,6 @@ public:
     DragHandlingMethod dragHandlingMethod() const { return m_dragHandlingMethod; }
 
     Document* documentUnderMouse() const { return m_documentUnderMouse.get(); }
-    RefPtr<Document> protectedDocumentUnderMouse() const { return m_documentUnderMouse; }
     OptionSet<DragDestinationAction> dragDestinationActionMask() const { return m_dragDestinationActionMask; }
     OptionSet<DragSourceAction> delegateDragSourceAction(const IntPoint& rootViewPoint);
 
@@ -153,7 +152,6 @@ private:
 
     void cleanupAfterSystemDrag();
     void declareAndWriteDragImage(DataTransfer&, Element&, const URL&, const String& label);
-    Ref<Page> protectedPage() const;
 
     WeakRef<Page> m_page;
     std::unique_ptr<DragClient> m_client;

@@ -56,7 +56,7 @@ public:
     HTMLElement* item(unsigned offset) const override;
     std::optional<Variant<Ref<RadioNodeList>, Ref<Element>>> namedItemOrItems(const AtomString&) const;
 
-    HTMLFormElement& ownerNode() const;
+    HTMLFormElement& NODELETE ownerNode() const;
 
     // For CachedHTMLCollection.
     HTMLElement* customElementAfter(Element*) const;

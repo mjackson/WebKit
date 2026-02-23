@@ -49,7 +49,7 @@ public:
     void fileSystemGetDirectory(DOMPromiseDeferred<IDLInterface<FileSystemDirectoryHandle>>&&);
 
 private:
-    RefPtr<NavigatorBase> protectedNavigator() const;
+    RefPtr<NavigatorBase> NODELETE protectedNavigator() const;
 
     explicit StorageManager(NavigatorBase&);
     WeakPtr<NavigatorBase> m_navigator;

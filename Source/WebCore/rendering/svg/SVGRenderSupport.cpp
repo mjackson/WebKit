@@ -263,7 +263,7 @@ static inline void invalidateResourcesOfChildren(RenderElement& renderer)
         invalidateResourcesOfChildren(child);
 }
 
-static inline bool layoutSizeOfNearestViewportChanged(const RenderElement& renderer)
+static inline bool NODELETE layoutSizeOfNearestViewportChanged(const RenderElement& renderer)
 {
     for (CheckedPtr start = &renderer; start; start = start->parent()) {
         if (auto* svgRoot = dynamicDowncast<LegacyRenderSVGRoot>(*start))
@@ -562,7 +562,7 @@ void SVGRenderSupport::applyStrokeStyleToContext(GraphicsContext& context, const
 
 void SVGRenderSupport::styleChanged(RenderElement& renderer, const RenderStyle* oldStyle)
 {
-    if (renderer.element() && renderer.element()->isSVGElement() && (!oldStyle || renderer.style().hasBlendMode() != oldStyle->hasBlendMode()))
+    if (renderer.element() && renderer.element()->isSVGElement() && (!oldStyle || (renderer.style().blendMode() != BlendMode::Normal) != (oldStyle->blendMode() != BlendMode::Normal)))
         SVGRenderSupport::updateMaskedAncestorShouldIsolateBlending(renderer);
 
     bool hadNonScalingStroke = oldStyle && oldStyle->vectorEffect() == VectorEffect::NonScalingStroke;
@@ -595,7 +595,10 @@ void SVGRenderSupport::elementWillBeRemovedFromTree(RenderElement& renderer)
 
 bool SVGRenderSupport::isolatesBlending(const RenderStyle& style)
 {
-    return style.hasPositionedMask() || style.hasFilter() || style.hasBlendMode() || !style.opacity().isOpaque();
+    return style.hasPositionedMask()
+        || !style.filter().isNone()
+        || style.blendMode() != BlendMode::Normal
+        || !style.opacity().isOpaque();
 }
 
 void SVGRenderSupport::updateMaskedAncestorShouldIsolateBlending(const RenderElement& renderer)
@@ -608,7 +611,7 @@ void SVGRenderSupport::updateMaskedAncestorShouldIsolateBlending(const RenderEle
         if (!style || !isolatesBlending(*style))
             continue;
         if (style->hasPositionedMask())
-            ancestor->setShouldIsolateBlending(renderer.style().hasBlendMode());
+            ancestor->setShouldIsolateBlending(renderer.style().blendMode() != BlendMode::Normal);
         return;
     }
 }
@@ -620,7 +623,7 @@ FloatRect SVGRenderSupport::calculateApproximateStrokeBoundingBox(const RenderEl
         // https://drafts.fxtf.org/css-masking/#compute-stroke-bounding-box
         // except that we ignore whether the stroke is none.
 
-        ASSERT(renderer.style().hasStroke());
+        ASSERT(!renderer.style().stroke().isNone());
 
         auto strokeBoundingBox = fillBoundingBox;
         const float strokeWidth = renderer.strokeWidth();
@@ -666,7 +669,7 @@ FloatRect SVGRenderSupport::calculateApproximateStrokeBoundingBox(const RenderEl
 
     auto calculateApproximateNonScalingStrokeBoundingBox = [&](const auto& renderer, FloatRect fillBoundingBox) -> FloatRect {
         ASSERT(renderer.hasPath());
-        ASSERT(renderer.style().hasStroke());
+        ASSERT(!renderer.style().stroke().isNone());
         ASSERT(renderer.hasNonScalingStroke());
 
         auto strokeBoundingBox = fillBoundingBox;
@@ -682,7 +685,7 @@ FloatRect SVGRenderSupport::calculateApproximateStrokeBoundingBox(const RenderEl
     };
 
     auto calculate = [&](const auto& renderer) {
-        if (!renderer.style().hasStroke())
+        if (renderer.style().stroke().isNone())
             return renderer.objectBoundingBox();
         if (renderer.hasNonScalingStroke())
             return calculateApproximateNonScalingStrokeBoundingBox(renderer, renderer.objectBoundingBox());

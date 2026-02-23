@@ -534,8 +534,7 @@ void WKPageSetCustomTextEncodingName(WKPageRef pageRef, WKStringRef encodingName
 void WKPageTerminate(WKPageRef pageRef)
 {
     CRASH_IF_SUSPENDED;
-    Ref<WebProcessProxy> protectedProcessProxy(toProtectedImpl(pageRef)->legacyMainFrameProcess());
-    protectedProcessProxy->requestTermination(ProcessTerminationReason::RequestedByClient);
+    protect(toProtectedImpl(pageRef)->legacyMainFrameProcess())->requestTermination(ProcessTerminationReason::RequestedByClient);
 }
 
 void WKPageResetStateBetweenTests(WKPageRef pageRef)
@@ -3526,4 +3525,11 @@ void WKPageClearBackForwardCache(WKPageRef page)
 {
     RefPtr protectedPage = toProtectedImpl(page);
     protect(protectedPage->backForwardCache())->removeEntriesForPage(*protectedPage);
+}
+
+void WKPageDoAfterProcessingAllPendingMouseEvents(WKPageRef page, void* context, WKPageDoAfterProcessingAllPendingMouseEventsFunction completionHandler)
+{
+    toProtectedImpl(page)->doAfterProcessingAllPendingMouseEvents([context, completionHandler] {
+        completionHandler(context);
+    });
 }

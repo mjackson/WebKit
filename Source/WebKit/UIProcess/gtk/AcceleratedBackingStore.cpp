@@ -542,7 +542,15 @@ AcceleratedBackingStore::BufferGBM::BufferGBM(WebPageProxy& webPage, uint64_t id
     : Buffer(webPage, id, surfaceID, size, usage)
     , m_fd(WTF::move(fd))
     , m_buffer(buffer)
+#if GTK_CHECK_VERSION(4, 16, 0)
+    , m_builder(adoptGRef(gdk_memory_texture_builder_new()))
+#endif
 {
+#if GTK_CHECK_VERSION(4, 16, 0)
+    gdk_memory_texture_builder_set_width(m_builder.get(), m_size.width());
+    gdk_memory_texture_builder_set_height(m_builder.get(), m_size.height());
+    gdk_memory_texture_builder_set_format(m_builder.get(), GDK_MEMORY_DEFAULT);
+#endif
 }
 
 AcceleratedBackingStore::BufferGBM::~BufferGBM()
@@ -550,7 +558,7 @@ AcceleratedBackingStore::BufferGBM::~BufferGBM()
     gbm_bo_destroy(m_buffer);
 }
 
-void AcceleratedBackingStore::BufferGBM::didUpdateContents(Buffer*, const Rects&)
+void AcceleratedBackingStore::BufferGBM::didUpdateContents(Buffer* previousBuffer, const Rects& damageRects)
 {
     uint32_t mapStride = 0;
     void* mapData = nullptr;
@@ -558,20 +566,50 @@ void AcceleratedBackingStore::BufferGBM::didUpdateContents(Buffer*, const Rects&
     if (!map)
         return;
 
-    auto cairoFormat = gbm_bo_get_format(m_buffer) == DRM_FORMAT_ARGB8888 ? CAIRO_FORMAT_ARGB32 : CAIRO_FORMAT_RGB24;
-    m_surface = adoptRef(cairo_image_surface_create_for_data(static_cast<unsigned char*>(map), cairoFormat, m_size.width(), m_size.height(), mapStride));
-    cairo_surface_set_device_scale(m_surface.get(), deviceScaleFactor(), deviceScaleFactor());
     struct BufferData {
         WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(BufferData);
         RefPtr<BufferGBM> buffer;
         void* data;
     };
     auto bufferData = makeUnique<BufferData>(BufferData { const_cast<BufferGBM*>(this), mapData });
+
+#if GTK_CHECK_VERSION(4, 16, 0)
+    gdk_memory_texture_builder_set_stride(m_builder.get(), mapStride);
+
+    if (!damageRects.isEmpty() && previousBuffer && previousBuffer->texture()) {
+        gdk_memory_texture_builder_set_update_texture(m_builder.get(), previousBuffer->texture());
+        RefPtr<cairo_region_t> region = adoptRef(cairo_region_create());
+        for (const auto& rect : damageRects) {
+            cairo_rectangle_int_t cairoRect = rect;
+            cairo_region_union_rectangle(region.get(), &cairoRect);
+        }
+        gdk_memory_texture_builder_set_update_region(m_builder.get(), region.get());
+    } else {
+        gdk_memory_texture_builder_set_update_texture(m_builder.get(), nullptr);
+        gdk_memory_texture_builder_set_update_region(m_builder.get(), nullptr);
+    }
+
+    GRefPtr<GBytes> bytes = adoptGRef(g_bytes_new_with_free_func(map, mapStride * m_size.height(), [](void* userData) {
+        std::unique_ptr<BufferData> bufferData(static_cast<BufferData*>(userData));
+        gbm_bo_unmap(bufferData->buffer->m_buffer, bufferData->data);
+    }, bufferData.release()));
+    gdk_memory_texture_builder_set_bytes(m_builder.get(), bytes.get());
+
+    m_texture = adoptGRef(gdk_memory_texture_builder_build(m_builder.get()));
+#else
+    auto cairoFormat = gbm_bo_get_format(m_buffer) == DRM_FORMAT_ARGB8888 ? CAIRO_FORMAT_ARGB32 : CAIRO_FORMAT_RGB24;
+    m_surface = adoptRef(cairo_image_surface_create_for_data(static_cast<unsigned char*>(map), cairoFormat, m_size.width(), m_size.height(), mapStride));
+    cairo_surface_set_device_scale(m_surface.get(), deviceScaleFactor(), deviceScaleFactor());
+
     static cairo_user_data_key_t s_surfaceDataKey;
     cairo_surface_set_user_data(m_surface.get(), &s_surfaceDataKey, bufferData.release(), [](void* data) {
         std::unique_ptr<BufferData> bufferData(static_cast<BufferData*>(data));
         gbm_bo_unmap(bufferData->buffer->m_buffer, bufferData->data);
     });
+
+    UNUSED_PARAM(previousBuffer);
+    UNUSED_PARAM(damageRects);
+#endif
 }
 
 RendererBufferDescription AcceleratedBackingStore::BufferGBM::description() const
@@ -586,7 +624,11 @@ RefPtr<NativeImage> AcceleratedBackingStore::BufferGBM::asNativeImageForTesting(
 
 void AcceleratedBackingStore::BufferGBM::release()
 {
+#if GTK_CHECK_VERSION(4, 16, 0)
+    m_texture = nullptr;
+#else
     m_surface = nullptr;
+#endif
     didRelease();
 }
 #endif
@@ -602,11 +644,42 @@ RefPtr<AcceleratedBackingStore::Buffer> AcceleratedBackingStore::BufferSHM::crea
 AcceleratedBackingStore::BufferSHM::BufferSHM(WebPageProxy& webPage, uint64_t id, uint64_t surfaceID, RefPtr<ShareableBitmap>&& bitmap)
     : Buffer(webPage, id, surfaceID, bitmap->size(), RendererBufferFormat::Usage::Rendering)
     , m_bitmap(WTF::move(bitmap))
+#if GTK_CHECK_VERSION(4, 16, 0)
+    , m_builder(adoptGRef(gdk_memory_texture_builder_new()))
+#endif
 {
+#if GTK_CHECK_VERSION(4, 16, 0)
+    gdk_memory_texture_builder_set_width(m_builder.get(), m_bitmap->size().width());
+    gdk_memory_texture_builder_set_height(m_builder.get(), m_bitmap->size().height());
+    gdk_memory_texture_builder_set_format(m_builder.get(), GDK_MEMORY_DEFAULT);
+    gdk_memory_texture_builder_set_stride(m_builder.get(), m_bitmap->bytesPerRow());
+#endif
 }
 
-void AcceleratedBackingStore::BufferSHM::didUpdateContents(Buffer*, const Rects&)
+void AcceleratedBackingStore::BufferSHM::didUpdateContents(Buffer* previousBuffer, const Rects& damageRects)
 {
+#if GTK_CHECK_VERSION(4, 16, 0)
+    if (!damageRects.isEmpty() && previousBuffer && previousBuffer->texture()) {
+        gdk_memory_texture_builder_set_update_texture(m_builder.get(), previousBuffer->texture());
+        RefPtr<cairo_region_t> region = adoptRef(cairo_region_create());
+        for (const auto& rect : damageRects) {
+            cairo_rectangle_int_t cairoRect = rect;
+            cairo_region_union_rectangle(region.get(), &cairoRect);
+        }
+        gdk_memory_texture_builder_set_update_region(m_builder.get(), region.get());
+    } else {
+        gdk_memory_texture_builder_set_update_texture(m_builder.get(), nullptr);
+        gdk_memory_texture_builder_set_update_region(m_builder.get(), nullptr);
+    }
+
+    m_bitmap->ref();
+    GRefPtr<GBytes> bytes = adoptGRef(g_bytes_new_with_free_func(m_bitmap->mutableSpan().data(), m_bitmap->sizeInBytes(), [](void* userData) {
+        static_cast<ShareableBitmap*>(userData)->deref();
+    }, m_bitmap.get()));
+    gdk_memory_texture_builder_set_bytes(m_builder.get(), bytes.get());
+
+    m_texture = adoptGRef(gdk_memory_texture_builder_build(m_builder.get()));
+#else
     m_surface = adoptRef(cairo_image_surface_create_for_data(m_bitmap->mutableSpan().data(), CAIRO_FORMAT_ARGB32, m_size.width(), m_size.height(), m_bitmap->bytesPerRow()));
     m_bitmap->ref();
     static cairo_user_data_key_t s_surfaceDataKey;
@@ -614,6 +687,10 @@ void AcceleratedBackingStore::BufferSHM::didUpdateContents(Buffer*, const Rects&
         static_cast<ShareableBitmap*>(userData)->deref();
     });
     cairo_surface_set_device_scale(m_surface.get(), deviceScaleFactor(), deviceScaleFactor());
+
+    UNUSED_PARAM(previousBuffer);
+    UNUSED_PARAM(damageRects);
+#endif
 }
 
 RendererBufferDescription AcceleratedBackingStore::BufferSHM::description() const
@@ -634,7 +711,11 @@ RefPtr<NativeImage> AcceleratedBackingStore::BufferSHM::asNativeImageForTesting(
 
 void AcceleratedBackingStore::BufferSHM::release()
 {
+#if GTK_CHECK_VERSION(4, 16, 0)
+    m_texture = nullptr;
+#else
     m_surface = nullptr;
+#endif
     didRelease();
 }
 

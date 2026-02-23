@@ -38,7 +38,7 @@ public:
     RenderHTMLCanvas(HTMLCanvasElement&, RenderStyle&&);
     virtual ~RenderHTMLCanvas();
 
-    HTMLCanvasElement& canvasElement() const;
+    HTMLCanvasElement& NODELETE canvasElement() const;
 
     void canvasSizeChanged();
 

@@ -91,27 +91,27 @@ template <class R, class RR> bool operator==(const CachedResourceHandle<R>& h, c
 
 namespace WTF {
 
-template<typename T> requires std::derived_from<T, WebCore::CachedResource>
+template<typename T> requires (requires { sizeof(T); } && std::derived_from<T, WebCore::CachedResource>)
 WebCore::CachedResourceHandle<T> protect(T* resource)
 {
     return WebCore::CachedResourceHandle<T> { resource };
 }
 
-template<typename T> requires std::derived_from<T, WebCore::CachedResource>
+template<typename T> requires (requires { sizeof(T); } && std::derived_from<T, WebCore::CachedResource>)
 WebCore::CachedResourceHandle<T> protect(T& resource)
 {
     return WebCore::CachedResourceHandle<T> { resource };
 }
 
 template<typename T, typename WeakPtrImpl, typename PtrTraits>
-    requires std::derived_from<T, WebCore::CachedResource>
+    requires (requires { sizeof(T); } && std::derived_from<T, WebCore::CachedResource>)
 ALWAYS_INLINE CLANG_POINTER_CONVERSION WebCore::CachedResourceHandle<T> protect(const WeakPtr<T, WeakPtrImpl, PtrTraits>& resource)
 {
     return WebCore::CachedResourceHandle<T> { resource.get() };
 }
 
 template<typename T, typename WeakPtrImpl>
-    requires std::derived_from<T, WebCore::CachedResource>
+    requires (requires { sizeof(T); } && std::derived_from<T, WebCore::CachedResource>)
 ALWAYS_INLINE CLANG_POINTER_CONVERSION WebCore::CachedResourceHandle<T> protect(const WeakRef<T, WeakPtrImpl>& resource)
 {
     return WebCore::CachedResourceHandle<T> { resource.get() };

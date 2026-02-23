@@ -347,7 +347,6 @@ TestWebKitAPI.MIMETypeRegistry
 TestWebKitAPI.MarkedText
 TestWebKitAPI.MediaCaptureDisabledTest
 TestWebKitAPI.MediaDocument
-TestWebKitAPI.MediaLoading
 TestWebKitAPI.MediaReorderQueue
 TestWebKitAPI.MediaSessionCoordinatorTest
 TestWebKitAPI.MemoryFootprintThreshold

@@ -28,10 +28,13 @@
 
 #include "FormattingContextBoxIterator.h"
 #include "GridFormattingContext.h"
+#include "GridLayoutUtils.h"
 #include "LayoutIntegrationBoxGeometryUpdater.h"
 #include "LayoutIntegrationBoxTreeUpdater.h"
 #include "RenderGrid.h"
 #include "RenderView.h"
+#include "StylePrimitiveKeyword+Logging.h"
+#include "UsedTrackSizes.h"
 #include <wtf/CheckedPtr.h>
 #include <wtf/CheckedRef.h>
 #include <wtf/text/TextStream.h>
@@ -156,12 +159,19 @@ void GridLayout::updateGridItemRenderers()
     }
 }
 
-void GridLayout::updateFormattingContextRootRenderer()
+void GridLayout::updateFormattingContextRootRenderer(const Layout::GridLayoutConstraints& layoutConstraints, const Layout::UsedTrackSizes& usedTrackSizes)
 {
     CheckedRef renderGrid = gridBoxRenderer();
     auto& currentGrid = renderGrid->currentGrid();
     currentGrid.setNeedsItemsPlacement(false);
     OrderIteratorPopulator orderIteratorPopulator(currentGrid.orderIterator());
+
+    if (layoutConstraints.blockAxis.scenario() != Layout::FreeSpaceScenario::Definite) {
+        auto& rowSizes = usedTrackSizes.rowSizes;
+        auto usedRowGutter = Layout::GridLayoutUtils::computeGapValue(renderGrid->style().rowGap());
+        auto blockContentSize = std::reduce(rowSizes.begin(), rowSizes.end()) + Layout::GridLayoutUtils::totalGuttersSize(rowSizes.size(), usedRowGutter);
+        renderGrid->setHeight(blockContentSize);
+    }
 
     for (CheckedRef layoutBox : formattingContextBoxes(gridBox()))
         orderIteratorPopulator.collectChild(CheckedRef { downcast<RenderBox>(*layoutBox->rendererForIntegration()) });
@@ -176,9 +186,10 @@ std::pair<LayoutUnit, LayoutUnit> GridLayout::computeIntrinsicWidths()
 
 void GridLayout::layout()
 {
-    Layout::GridFormattingContext { gridBox(), layoutState() }.layout(constraintsForGridContent(gridBox()));
+    auto gridLayoutConstraints = constraintsForGridContent(gridBox());
+    auto usedTrackSizes = Layout::GridFormattingContext { gridBox(), layoutState() }.layout(gridLayoutConstraints);
     updateGridItemRenderers();
-    updateFormattingContextRootRenderer();
+    updateFormattingContextRootRenderer(gridLayoutConstraints, usedTrackSizes);
 }
 
 TextStream& operator<<(TextStream& stream, const GridLayout& layout)

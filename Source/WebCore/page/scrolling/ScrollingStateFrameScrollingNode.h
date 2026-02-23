@@ -81,6 +81,13 @@ public:
     FloatBoxExtent obscuredContentInsets() const { return m_obscuredContentInsets; }
     WEBCORE_EXPORT void setObscuredContentInsets(const FloatBoxExtent&);
 
+    // The target offset for rubber band animations when a banner view overlay is present.
+    // When non-zero, rubber banding will snap to this offset instead of the edge.
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+    float bannerViewHeight() const { return m_bannerViewHeight; }
+    WEBCORE_EXPORT void setBannerViewHeight(float);
+#endif
+
     const LayerRepresentation& rootContentsLayer() const { return m_rootContentsLayer; }
     WEBCORE_EXPORT void setRootContentsLayer(const LayerRepresentation&);
 
@@ -122,7 +129,7 @@ public:
     bool overlayScrollbarsEnabled() const { return m_overlayScrollbarsEnabled; }
     WEBCORE_EXPORT void setOverlayScrollbarsEnabled(bool);
 
-    WEBCORE_EXPORT bool isMainFrame() const;
+    WEBCORE_EXPORT bool NODELETE isMainFrame() const;
     
     void dumpProperties(WTF::TextStream&, OptionSet<ScrollingStateTreeAsTextBehavior>) const override;
 
@@ -170,6 +177,9 @@ private:
         int footerHeight,
         ScrollBehaviorForFixedElements&&,
         FloatBoxExtent&& obscuredContentInsets,
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+        float bannerViewHeight,
+#endif
         bool visualViewportIsSmallerThanLayoutViewport,
         bool asyncFrameOrOverflowScrollingEnabled,
         bool wheelEventGesturesBecomeNonBlocking,
@@ -204,6 +214,9 @@ private:
 
     float m_frameScaleFactor { 1 };
     FloatBoxExtent m_obscuredContentInsets;
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+    float m_bannerViewHeight { 0 };
+#endif
     int m_headerHeight { 0 };
     int m_footerHeight { 0 };
     ScrollBehaviorForFixedElements m_behaviorForFixed { ScrollBehaviorForFixedElements::StickToDocumentBounds };

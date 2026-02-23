@@ -19,6 +19,10 @@
         line-height: 100%;
     }
 
+    input[type=checkbox]:not([switch]):checked::checkmark {
+        content: "\2713" / "";
+    }
+
     .enabled input[type="checkbox"] {
         color: darkblue;
     }

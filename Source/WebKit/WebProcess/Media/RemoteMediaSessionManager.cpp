@@ -162,31 +162,31 @@ RefPtr<WebCore::PlatformMediaSessionInterface> RemoteMediaSessionManager::sessio
 void RemoteMediaSessionManager::clientShouldResumeAutoplaying(WebCore::MediaSessionIdentifier identifier)
 {
     if (RefPtr session = sessionWithIdentifier(identifier))
-        session->checkedClient()->resumeAutoplaying();
+        protect(session->client())->resumeAutoplaying();
 }
 
 void RemoteMediaSessionManager::clientMayResumePlayback(WebCore::MediaSessionIdentifier identifier, bool shouldResume)
 {
     if (RefPtr session = sessionWithIdentifier(identifier))
-        session->checkedClient()->mayResumePlayback(shouldResume);
+        protect(session->client())->mayResumePlayback(shouldResume);
 }
 
 void RemoteMediaSessionManager::clientShouldSuspendPlayback(WebCore::MediaSessionIdentifier identifier)
 {
     if (RefPtr session = sessionWithIdentifier(identifier))
-        session->checkedClient()->suspendPlayback();
+        protect(session->client())->suspendPlayback();
 }
 
 void RemoteMediaSessionManager::clientSetShouldPlayToPlaybackTarget(WebCore::MediaSessionIdentifier identifier, bool shouldPlay)
 {
     if (RefPtr session = sessionWithIdentifier(identifier))
-        session->checkedClient()->setShouldPlayToPlaybackTarget(shouldPlay);
+        protect(session->client())->setShouldPlayToPlaybackTarget(shouldPlay);
 }
 
 void RemoteMediaSessionManager::clientDidReceiveRemoteControlCommand(WebCore::MediaSessionIdentifier identifier, WebCore::PlatformMediaSessionRemoteControlCommandType command, WebCore::PlatformMediaSessionRemoteCommandArgument argument)
 {
     if (RefPtr session = sessionWithIdentifier(identifier))
-        session->checkedClient()->didReceiveRemoteControlCommand(command, argument);
+        protect(session->client())->didReceiveRemoteControlCommand(command, argument);
 }
 
 void RemoteMediaSessionManager::setCurrentMediaSession(std::optional<WebCore::MediaSessionIdentifier> identifier)

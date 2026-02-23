@@ -36,9 +36,8 @@ class GraphicsContext;
 }
 
 namespace WebKit {
-class NonCompositedFrameRenderer;
+class FrameRenderer;
 struct RenderProcessInfo;
-struct UpdateInfo;
 
 class DrawingAreaCoordinatedGraphics final : public DrawingArea {
 public:
@@ -108,10 +107,6 @@ private:
     void suspendPainting();
     void resumePainting();
 
-    void scheduleDisplay();
-    void displayTimerFired();
-    void display();
-
     // Whether we're currently processing an UpdateGeometry message.
     bool m_inUpdateGeometry { false };
 
@@ -126,15 +121,9 @@ private:
     // won't paint until painting has resumed again.
     bool m_isPaintingSuspended { false };
 
-    // The layer tree host that handles accelerated compositing.
-    std::unique_ptr<LayerTreeHost> m_layerTreeHost;
-
-    // Frame renderer used in non-composited mode.
-    std::unique_ptr<NonCompositedFrameRenderer> m_nonCompositedFrameRenderer;
+    std::unique_ptr<FrameRenderer> m_renderer;
 
     bool m_supportsAsyncScrolling { true };
-
-    RunLoop::Timer m_displayTimer;
 
 #if PLATFORM(GTK)
     bool m_transientZoom { false };

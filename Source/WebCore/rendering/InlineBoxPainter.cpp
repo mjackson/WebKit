@@ -253,7 +253,7 @@ void InlineBoxPainter::paintDecorations()
 
     // :first-line cannot be used to put borders on a line. Always paint borders with our
     // non-first-line style.
-    if (m_isRootInlineBox || !renderer().style().hasVisibleBorderDecoration())
+    if (m_isRootInlineBox || !renderer().style().border().hasVisibleBorderDecoration())
         return;
 
     auto& borderImage = renderer().style().borderImage();
@@ -306,7 +306,7 @@ template<typename Layer> void InlineBoxPainter::paintFillLayer(const Color& colo
 {
     RefPtr image = fillLayer.layer.image().tryStyleImage();
     bool hasFillImage = image && image->canRender(&renderer(), renderer().style().usedZoom());
-    bool hasFillImageOrBorderRadius = hasFillImage || renderer().style().hasBorderRadius();
+    bool hasFillImageOrBorderRadius = hasFillImage || renderer().style().border().hasBorderRadius();
 
     BackgroundPainter backgroundPainter { renderer(), m_paintInfo };
 

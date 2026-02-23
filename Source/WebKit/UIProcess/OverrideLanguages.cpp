@@ -29,7 +29,7 @@
 
 namespace WebKit {
 
-static Vector<String>& overrideLanguagesStorage()
+static Vector<String>& NODELETE overrideLanguagesStorage()
 {
     static NeverDestroyed<Vector<String>> storage;
     return storage.get();

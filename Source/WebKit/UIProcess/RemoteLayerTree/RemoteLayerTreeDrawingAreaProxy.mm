@@ -465,15 +465,14 @@ void RemoteLayerTreeDrawingAreaProxy::commitLayerTreeTransaction(IPC::Connection
     if (!page)
         return;
 
-#if ENABLE(ASYNC_SCROLLING)
-    std::optional<RequestedScrollData> requestedScroll;
-#endif
-
     {
+        std::optional<RequestedScrollData> requestedScroll;
         CheckedRef scrollingCoordinatorProxy = *page->scrollingCoordinatorProxy();
+
         auto commitLayerAndScrollingTrees = [&] {
             if (layerTreeTransaction.hasAnyLayerChanges())
                 ++m_countOfTransactionsWithNonEmptyLayerChanges;
+
             if (m_remoteLayerTreeHost->updateLayerTree(connection, layerTreeTransaction, mainFrameData)) {
                 if (!m_replyForUnhidingContent) {
                     if (m_hasDetachedRootLayer)
@@ -483,9 +482,7 @@ void RemoteLayerTreeDrawingAreaProxy::commitLayerTreeTransaction(IPC::Connection
                 } else
                     m_remoteLayerTreeHost->detachRootLayer();
             }
-#if ENABLE(ASYNC_SCROLLING)
             requestedScroll = scrollingCoordinatorProxy->commitScrollingTreeState(connection, scrollingTreeTransaction, layerTreeTransaction.remoteContextHostedIdentifier());
-#endif
         };
 
         scrollingCoordinatorProxy->willCommitLayerAndScrollingTrees();
@@ -495,27 +492,14 @@ void RemoteLayerTreeDrawingAreaProxy::commitLayerTreeTransaction(IPC::Connection
         page->didCommitLayerTree(layerTreeTransaction, mainFrameData, pageData, transactionID);
         didCommitLayerTree(connection, layerTreeTransaction, scrollingTreeTransaction, mainFrameData, transactionID);
 
-#if ENABLE(ASYNC_SCROLLING)
         scrollingCoordinatorProxy->applyScrollingTreeLayerPositionsAfterCommit();
 #if PLATFORM(IOS_FAMILY)
         page->adjustLayersForLayoutViewport(page->unobscuredContentRect().location(), page->unconstrainedLayoutViewportRect(), page->displayedContentScale());
 #endif
-
         // Handle requested scroll position updates from the scrolling tree transaction after didCommitLayerTree()
         // has updated the view size based on the content size.
-        if (requestedScroll) {
-            auto currentScrollPosition = scrollingCoordinatorProxy->currentMainFrameScrollPosition();
-            if (auto previousData = std::exchange(requestedScroll->requestedDataBeforeAnimatedScroll, std::nullopt)) {
-                auto& [requestType, positionOrDeltaBeforeAnimatedScroll, scrollType, clamping] = *previousData;
-                if (requestType != ScrollRequestType::CancelAnimatedScroll)
-                    currentScrollPosition = RequestedScrollData::computeDestinationPosition(currentScrollPosition, requestType, positionOrDeltaBeforeAnimatedScroll);
-            }
-
-            // FIXME: Maybe we should avoid interrupting animations in more cases?
-            auto interruptScrollAnimation = requestedScroll->requestType == ScrollRequestType::DeltaUpdate ? InterruptScrollAnimation::No : InterruptScrollAnimation::Yes;
-            page->requestScroll(requestedScroll->destinationPosition(currentScrollPosition), layerTreeTransaction.scrollOrigin(), requestedScroll->animated, interruptScrollAnimation);
-        }
-#endif // ENABLE(ASYNC_SCROLLING)
+        if (requestedScroll)
+            scrollingCoordinatorProxy->adjustMainFrameDelegatedScrollPosition(WTF::move(*requestedScroll));
 
 #if ENABLE(OVERLAY_REGIONS_IN_EVENT_REGION)
         if (layerTreeTransaction.changedLayerProperties().size() || layerTreeTransaction.destroyedLayers().size())
@@ -787,11 +771,7 @@ bool ProcessState::canSendDisplayDidRefresh(RemoteLayerTreeDrawingAreaProxy& dra
     if (pendingCommits.size() >= 2)
         return false;
     if (pendingCommits.size() == 1)
-#if PLATFORM(IOS_FAMILY)
-        return false;
-#else
         return drawingArea.allowMultipleCommitLayerTreePending() && pendingCommits[0].pendingMessage == PendingCommitMessage::CommitLayerTree && delayedCommits >= 4;
-#endif
     return true;
 }
 

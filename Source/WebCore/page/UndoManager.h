@@ -58,7 +58,7 @@ private:
     UndoManager(Document&);
 
     WeakRef<Document, WeakPtrImplWithEventTargetData> m_document;
-    HashSet<RefPtr<UndoItem>> m_items;
+    HashSet<Ref<UndoItem>> m_items;
 };
 
 } // namespace WebCore

@@ -730,7 +730,7 @@ EOF
             if ($callbackHandlerArgument && !$returnsPromiseIfNoCallback) {
                 push(@contents, <<EOF);
     if (!${callbackHandlerArgument})
-        ${callbackHandlerArgument} = toJSErrorCallbackHandler(context, impl->protectedRuntime());
+        ${callbackHandlerArgument} = toJSErrorCallbackHandler(context, protect(impl->runtime()));
 
 EOF
             }
@@ -1473,7 +1473,7 @@ sub _platformTypeConstructor
         return "toJSValue(context, $argumentName)";
     }
 
-    return "toJSCallbackHandler(context, $argumentName, impl->protectedRuntime())" if $idlTypeName eq "function" && $signature->extendedAttributes->{"CallbackHandler"};
+    return "toJSCallbackHandler(context, $argumentName, protect(impl->runtime()))" if $idlTypeName eq "function" && $signature->extendedAttributes->{"CallbackHandler"};
     return "toNSArray(context, $argumentName, $arrayType.class)" if $idlTypeName eq "array" && $arrayType;
     return "toNSArray(context, $argumentName)" if $idlTypeName eq "array";
     return "JSValueToBoolean(context, $argumentName)" if $idlTypeName eq "boolean";

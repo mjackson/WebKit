@@ -45,7 +45,7 @@ class CSSOMColorValue : public CSSStyleValue {
 public:
     RefPtr<CSSKeywordValue> colorSpace();
     RefPtr<CSSOMColorValue> to(CSSKeywordish);
-    static std::optional<Variant<Ref<CSSOMColorValue>, Ref<CSSStyleValue>>> parse(const String&);
+    static std::optional<Variant<Ref<CSSOMColorValue>, Ref<CSSStyleValue>>> NODELETE parse(const String&);
 
     static ExceptionOr<RectifiedCSSColorPercent> rectifyCSSColorPercent(CSSColorPercent&&);
     static ExceptionOr<RectifiedCSSColorAngle> rectifyCSSColorAngle(CSSColorAngle&&);

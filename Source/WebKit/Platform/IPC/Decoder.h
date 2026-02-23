@@ -97,16 +97,16 @@ public:
     bool matches(const ReceiverMatcher& matcher) const { return matcher.matches(messageReceiverName(), destinationID()); }
 
     bool isSyncMessage() const { return messageIsSync(messageName()); }
-    ShouldDispatchWhenWaitingForSyncReply shouldDispatchMessageWhenWaitingForSyncReply() const;
+    ShouldDispatchWhenWaitingForSyncReply NODELETE shouldDispatchMessageWhenWaitingForSyncReply() const;
     bool isAllowedWhenWaitingForSyncReply() const { return messageAllowedWhenWaitingForSyncReply(messageName()) || m_isAllowedWhenWaitingForSyncReplyOverride; }
     bool isAllowedWhenWaitingForUnboundedSyncReply() const { return messageAllowedWhenWaitingForUnboundedSyncReply(messageName()); }
-    bool shouldUseFullySynchronousModeForTesting() const;
-    bool shouldMaintainOrderingWithAsyncMessages() const;
+    bool NODELETE shouldUseFullySynchronousModeForTesting() const;
+    bool NODELETE shouldMaintainOrderingWithAsyncMessages() const;
     void setIsAllowedWhenWaitingForSyncReplyOverride(bool value) { m_isAllowedWhenWaitingForSyncReplyOverride = value; }
     bool isAsyncReplyMessage() const { return isAsyncReply(messageName()); }
 
 #if PLATFORM(MAC)
-    void setImportanceAssertion(ImportanceAssertion&&);
+    void NODELETE setImportanceAssertion(ImportanceAssertion&&);
 #endif
 
 #if ENABLE(IPC_TESTING_API)

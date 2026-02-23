@@ -1,4 +1,6 @@
 
+one
+two
 
-FAIL select::picker(select) should support author provided top layer animations. assert_equals: option color should start animating when opening the picker. expected "rgb(100, 0, 0)" but got "rgb(0, 0, 0)"
+PASS select::picker(select) should support author provided top layer animations.
 

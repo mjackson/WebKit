@@ -40,7 +40,7 @@ struct JSHandleData {
     size_t refCount { 0 };
 };
 using HandleMap = HashMap<JSHandleIdentifier, JSHandleData>;
-static HandleMap& handleMap()
+static HandleMap& NODELETE handleMap()
 {
     static MainThreadNeverDestroyed<HandleMap> map;
     return map.get();

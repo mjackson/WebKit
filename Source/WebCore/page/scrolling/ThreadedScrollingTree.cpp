@@ -255,7 +255,14 @@ void ThreadedScrollingTree::scrollingTreeNodeDidScroll(ScrollingTreeScrollingNod
         layoutViewportOrigin = scrollingNode->layoutViewport().location();
 
     auto scrollPosition = node.currentScrollPosition();
-    auto scrollUpdate = ScrollUpdate { node.scrollingNodeID(), scrollPosition, layoutViewportOrigin, ScrollUpdateType::PositionUpdate, scrollingLayerPositionAction };
+    auto scrollUpdate = ScrollUpdate {
+        .nodeID = node.scrollingNodeID(),
+        .scrollPosition = scrollPosition,
+        .layoutViewportOrigin = layoutViewportOrigin,
+        .updateType = ScrollUpdateType::PositionUpdate,
+        .updateLayerPositionAction = scrollingLayerPositionAction,
+        .responseIdentifier = { }
+    };
 
     if (RunLoop::isMain()) {
         scrollingCoordinator->applyScrollUpdate(WTF::move(scrollUpdate));
@@ -263,14 +270,7 @@ void ThreadedScrollingTree::scrollingTreeNodeDidScroll(ScrollingTreeScrollingNod
     }
 
     LOG_WITH_STREAM(Scrolling, stream << "ThreadedScrollingTree::scrollingTreeNodeDidScroll " << node.scrollingNodeID() << " to " << scrollPosition << " triggering main thread rendering update");
-
-    addPendingScrollUpdate(WTF::move(scrollUpdate));
-
-    auto deferrer = ScrollingTreeWheelEventTestMonitorCompletionDeferrer { *this, node.scrollingNodeID(), WheelEventTestMonitor::DeferReason::ScrollingThreadSyncNeeded };
-    RunLoop::mainSingleton().dispatch([protectedThis = Ref { *this }, deferrer = WTF::move(deferrer)] {
-        if (RefPtr scrollingCoordinator = protectedThis->m_scrollingCoordinator)
-            scrollingCoordinator->scrollingThreadAddedPendingUpdate();
-    });
+    addPendingScrollUpdateWithDeferReason(WTF::move(scrollUpdate), WheelEventTestMonitor::DeferReason::ScrollingThreadSyncNeeded);
 }
 
 void ThreadedScrollingTree::scrollingTreeNodeScrollUpdated(ScrollingTreeScrollingNode& node, const ScrollUpdateType& scrollUpdateType)
@@ -281,7 +281,14 @@ void ThreadedScrollingTree::scrollingTreeNodeScrollUpdated(ScrollingTreeScrollin
 
     LOG_WITH_STREAM(Scrolling, stream << "ThreadedScrollingTree::scrollingTreeNodeScrollUpdated " << node.scrollingNodeID() << " update type " << scrollUpdateType);
 
-    auto scrollUpdate = ScrollUpdate { node.scrollingNodeID(), { }, { }, scrollUpdateType };
+    auto scrollUpdate = ScrollUpdate {
+        .nodeID = node.scrollingNodeID(),
+        .scrollPosition = { },
+        .layoutViewportOrigin = { },
+        .updateType = scrollUpdateType,
+        .updateLayerPositionAction = ScrollingLayerPositionAction::Sync,
+        .responseIdentifier = { }
+    };
 
     if (RunLoop::isMain()) {
         scrollingCoordinator->applyScrollUpdate(WTF::move(scrollUpdate));
@@ -289,8 +296,23 @@ void ThreadedScrollingTree::scrollingTreeNodeScrollUpdated(ScrollingTreeScrollin
     }
 
     addPendingScrollUpdate(WTF::move(scrollUpdate));
+}
 
+void ThreadedScrollingTree::didAddPendingScrollUpdate()
+{
     RunLoop::mainSingleton().dispatch([protectedThis = Ref { *this }] {
+        if (RefPtr scrollingCoordinator = protectedThis->m_scrollingCoordinator)
+            scrollingCoordinator->scrollingThreadAddedPendingUpdate();
+    });
+}
+
+void ThreadedScrollingTree::addPendingScrollUpdateWithDeferReason(ScrollUpdate&& update, WheelEventTestMonitor::DeferReason deferReason)
+{
+    auto nodeID = update.nodeID;
+    addPendingScrollUpdateInternal(WTF::move(update));
+
+    auto deferrer = ScrollingTreeWheelEventTestMonitorCompletionDeferrer { *this, nodeID, deferReason };
+    RunLoop::mainSingleton().dispatch([protectedThis = Ref { *this }, deferrer = WTF::move(deferrer)] {
         if (RefPtr scrollingCoordinator = protectedThis->m_scrollingCoordinator)
             scrollingCoordinator->scrollingThreadAddedPendingUpdate();
     });
@@ -424,7 +446,7 @@ void ThreadedScrollingTree::hasNodeWithAnimatedScrollChanged(bool hasNodeWithAni
     });
 }
 
-// This code allows the main thread about half a frame to complete its rendering udpate. If the main thread
+// This code allows the main thread about half a frame to complete its rendering update. If the main thread
 // is responsive (i.e. managing to render every frame), then we expect to get a didCompletePlatformRenderingUpdate()
 // within 8ms of willStartRenderingUpdate(). We time this via m_stateCondition, which blocks the scrolling
 // thread (with m_treeLock locked at the start and end) so that we don't handle wheel events while waiting.

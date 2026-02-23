@@ -58,16 +58,16 @@ using namespace WebCore;
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ThreadedCompositor);
 
-Ref<ThreadedCompositor> ThreadedCompositor::create(LayerTreeHost& layerTreeHost)
+Ref<ThreadedCompositor> ThreadedCompositor::create(WebPage& webPage, LayerTreeHost& layerTreeHost, CoordinatedSceneState& sceneState)
 {
-    return adoptRef(*new ThreadedCompositor(layerTreeHost));
+    return adoptRef(*new ThreadedCompositor(webPage, layerTreeHost, sceneState));
 }
 
-ThreadedCompositor::ThreadedCompositor(LayerTreeHost& layerTreeHost)
+ThreadedCompositor::ThreadedCompositor(WebPage& webPage, LayerTreeHost& layerTreeHost, CoordinatedSceneState& sceneState)
     : m_workQueue(WorkQueue::create("org.webkit.ThreadedCompositor"_s))
     , m_layerTreeHost(&layerTreeHost)
-    , m_surface(AcceleratedSurface::create(layerTreeHost.webPage(), [this] { frameComplete(); }))
-    , m_sceneState(&m_layerTreeHost->sceneState())
+    , m_surface(AcceleratedSurface::create(webPage, [this] { frameComplete(); }))
+    , m_sceneState(&sceneState)
     , m_flipY(m_surface->shouldPaintMirrored())
     , m_renderTimer(m_workQueue->runLoop(), "ThreadedCompositor::RenderTimer"_s, this, &ThreadedCompositor::renderLayerTree)
 {
@@ -82,7 +82,6 @@ ThreadedCompositor::ThreadedCompositor(LayerTreeHost& layerTreeHost)
     m_damage.visualizer = TextureMapperDamageVisualizer::create();
 #endif
 
-    const auto& webPage = m_layerTreeHost->webPage();
     updateSceneAttributes(webPage.size(), webPage.deviceScaleFactor());
 
     m_surface->didCreateCompositingRunLoop(m_workQueue->runLoop());
@@ -252,7 +251,12 @@ void ThreadedCompositor::flushCompositingState(const OptionSet<CompositionReason
     if (reasons.hasExactlyOneBitSet() && reasons.contains(CompositionReason::Animation))
         return;
 
-    ASSERT(!reasons.contains(CompositionReason::RenderingUpdate) || !m_sceneState->pendingTiles());
+#if ASSERT_ENABLED
+    {
+        Locker locker { m_state.lock };
+        ASSERT(!reasons.contains(CompositionReason::RenderingUpdate) || !m_state.isWaitingForTiles);
+    }
+#endif
     m_sceneState->rootLayer().flushCompositingState(reasons, *m_textureMapper);
     for (auto& layer : m_sceneState->committedLayers())
         layer->flushCompositingState(reasons, *m_textureMapper);

@@ -53,7 +53,7 @@ public:
     int width() const { return m_size.width(); }
     int height() const { return m_size.height(); }
     void setSize(const IntSize&);
-    void close();
+    void NODELETE close();
 
 private:
     PictureInPictureWindow(Document&);
@@ -62,7 +62,7 @@ private:
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }
     enum EventTargetInterfaceType eventTargetInterface() const override { return EventTargetInterfaceType::PictureInPictureWindow; };
-    ScriptExecutionContext* scriptExecutionContext() const override;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const override;
 
     IntSize m_size;
 };

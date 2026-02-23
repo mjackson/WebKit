@@ -55,7 +55,6 @@ Ref<Highlight> Highlight::create(FixedVector<std::reference_wrapper<AbstractRang
 Highlight::Highlight(FixedVector<std::reference_wrapper<AbstractRange>>&& initialRanges)
 {
     m_highlightRanges = WTF::map(initialRanges, [&](std::reference_wrapper<AbstractRange>& range) {
-        repaintRange(Ref { range.get() }.get());
         return HighlightRange::create(range.get());
     });
 }

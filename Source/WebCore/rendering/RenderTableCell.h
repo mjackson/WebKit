@@ -60,7 +60,6 @@ public:
     RenderTableRow* row() const { return downcast<RenderTableRow>(parent()); }
     RenderTableSection* section() const;
     RenderTable* table() const;
-    CheckedPtr<RenderTable> checkedTable() const;
     unsigned rowIndex() const;
     inline std::pair<Style::PreferredSize, Style::ZoomFactor> styleOrColLogicalWidth() const;
     LayoutUnit logicalHeightForRowSizing() const;
@@ -178,7 +177,7 @@ private:
     void setIntrinsicPaddingAfter(LayoutUnit p) { m_intrinsicPaddingAfter = p; }
     void setIntrinsicPadding(LayoutUnit before, LayoutUnit after) { setIntrinsicPaddingBefore(before); setIntrinsicPaddingAfter(after); }
 
-    bool hasStartBorderAdjoiningTable() const;
+    bool NODELETE hasStartBorderAdjoiningTable() const;
     bool hasEndBorderAdjoiningTable() const;
 
     CollapsedBorderValue collapsedStartBorder(IncludeBorderColorOrNot = IncludeBorderColor) const;
@@ -287,11 +286,6 @@ inline RenderTable* RenderTableCell::table() const
     return downcast<RenderTable>(section->parent());
 }
 
-inline CheckedPtr<RenderTable> RenderTableCell::checkedTable() const
-{
-    return table();
-}
-
 inline unsigned RenderTableCell::rowIndex() const
 {
     // This function shouldn't be called on a detached cell.
@@ -312,22 +306,18 @@ inline RenderTableCell* RenderTableRow::lastCell() const
 inline void RenderTableCell::setHasEmptyCollapsedBorder(CollapsedBorderSide side, bool empty) const
 {
     switch (side) {
-    case CBSAfter: {
+    case CollapsedBorderSide::After:
         m_hasEmptyCollapsedAfterBorder = empty;
         break;
-    }
-    case CBSBefore: {
+    case CollapsedBorderSide::Before:
         m_hasEmptyCollapsedBeforeBorder = empty;
         break;
-    }
-    case CBSStart: {
+    case CollapsedBorderSide::Start:
         m_hasEmptyCollapsedStartBorder = empty;
         break;
-    }
-    case CBSEnd: {
+    case CollapsedBorderSide::End:
         m_hasEmptyCollapsedEndBorder = empty;
         break;
-    }
     }
     if (empty)
         table()->collapsedEmptyBorderIsPresent();

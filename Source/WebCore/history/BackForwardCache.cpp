@@ -112,7 +112,6 @@ static bool canCacheFrame(LocalFrame& frame, DiagnosticLoggingClient& diagnostic
 
     if (!document->frame()) {
         PCLOG("   -Document is detached from frame"_s);
-        ASSERT_NOT_REACHED();
         return false;
     }
 
@@ -626,7 +625,7 @@ void BackForwardCache::prune(PruningReason pruningReason)
     }
 }
 
-void BackForwardCache::clearEntriesForOrigins(const HashSet<RefPtr<SecurityOrigin>>& origins)
+void BackForwardCache::clearEntriesForOrigins(const HashSet<Ref<SecurityOrigin>>& origins)
 {
     m_cachedPageMap.removeIf([&](auto& pair) -> bool {
         if (auto* cachedPage = std::get_if<UniqueRef<CachedPage>>(&pair.value)) {

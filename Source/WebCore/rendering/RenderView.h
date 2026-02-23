@@ -138,8 +138,7 @@ public:
     void setIsInWindow(bool);
 
     WEBCORE_EXPORT RenderLayerCompositor& compositor();
-    WEBCORE_EXPORT CheckedRef<RenderLayerCompositor> checkedCompositor();
-    WEBCORE_EXPORT bool usesCompositing() const;
+    WEBCORE_EXPORT bool NODELETE usesCompositing() const;
 
     WEBCORE_EXPORT IntRect unscaledDocumentRect() const;
     LayoutRect unextendedBackgroundRect() const;
@@ -216,12 +215,12 @@ public:
     void unregisterPositionTryBox(const RenderBox&);
     const SingleThreadWeakHashSet<const RenderBox>& positionTryBoxes() const { return m_positionTryBoxes; }
 
-    SingleThreadWeakPtr<RenderBlockFlow> viewTransitionContainingBlock() const;
+    SingleThreadWeakPtr<RenderBlockFlow> NODELETE viewTransitionContainingBlock() const;
     void setViewTransitionContainingBlock(RenderBlockFlow& renderer);
 
     void addViewTransitionGroup(const AtomString&, RenderBox&);
     void removeViewTransitionGroup(const AtomString&);
-    RenderBox* viewTransitionGroupForName(const AtomString&);
+    RenderBox* NODELETE viewTransitionGroupForName(const AtomString&);
 
 protected:
     void willBeDestroyed() override;

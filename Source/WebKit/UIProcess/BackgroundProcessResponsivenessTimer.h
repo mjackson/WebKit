@@ -56,7 +56,7 @@ private:
     bool shouldBeActive() const;
     bool isActive() const;
     void scheduleNextResponsivenessCheck();
-    ResponsivenessTimer::Client& client() const;
+    ResponsivenessTimer::Client& NODELETE client() const;
 
     WeakRef<WebProcessProxy> m_webProcessProxy;
     Seconds m_checkingInterval;

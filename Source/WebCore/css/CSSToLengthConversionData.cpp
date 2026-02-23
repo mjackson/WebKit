@@ -43,7 +43,7 @@ CSSToLengthConversionData::CSSToLengthConversionData(const CSSToLengthConversion
 CSSToLengthConversionData::CSSToLengthConversionData(CSSToLengthConversionData&&) = default;
 
 // FIXME: Only rely on the RenderView for style resolution if we have an active LocalFrameView.
-static RenderView* renderViewForDocument(const Document& document)
+static RenderView* NODELETE renderViewForDocument(const Document& document)
 {
     if (document.view()) [[likely]]
         return document.renderView();
@@ -60,13 +60,14 @@ CSSToLengthConversionData::CSSToLengthConversionData(const RenderStyle& style, S
 {
 }
 
-CSSToLengthConversionData::CSSToLengthConversionData(const RenderStyle& style, const RenderStyle* rootStyle, const RenderStyle* parentStyle, const RenderView* renderView, const Element* elementForContainerUnitResolution)
+CSSToLengthConversionData::CSSToLengthConversionData(const RenderStyle& style, const RenderStyle* rootStyle, const RenderStyle* parentStyle, const RenderView* renderView, const Element* elementForContainerUnitResolution, CSS::RangeZoomOptions rangeZoomOptions)
     : m_style(&style)
     , m_rootStyle(rootStyle)
     , m_parentStyle(parentStyle)
     , m_renderView(renderView)
     , m_elementForContainerUnitResolution(elementForContainerUnitResolution)
     , m_zoom(1.f)
+    , m_rangeZoomOption(rangeZoomOptions)
 {
 }
 

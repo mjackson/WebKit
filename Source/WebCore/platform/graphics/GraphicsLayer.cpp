@@ -587,7 +587,7 @@ void GraphicsLayer::noteDeviceOrPageScaleFactorChangedIncludingDescendants()
 
 void GraphicsLayer::setIsInWindow(bool inWindow)
 {
-    if (auto* tiledBacking = this->tiledBacking())
+    if (CheckedPtr tiledBacking = this->tiledBacking())
         tiledBacking->setIsInWindow(inWindow);
 }
 
@@ -903,7 +903,7 @@ void GraphicsLayer::traverse(GraphicsLayer& layer, NOESCAPE const Function<void(
 
 void GraphicsLayer::setTileCoverage(TileCoverage coverage)
 {
-    if (auto* backing = tiledBacking())
+    if (CheckedPtr backing = tiledBacking())
         backing->setTileCoverage(coverage);
 }
 

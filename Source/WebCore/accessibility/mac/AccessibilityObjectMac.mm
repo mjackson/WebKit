@@ -28,7 +28,6 @@
 
 #import "AXObjectCacheInlines.h"
 #import "AXRemoteFrame.h"
-#import "BufferSource.h"
 #import "ColorCocoa.h"
 #import "CompositionHighlight.h"
 #import "CompositionUnderline.h"
@@ -523,7 +522,7 @@ void AXRemoteFrame::initializePlatformElementWithRemoteToken(AccessibilityRemote
     m_processIdentifier = processIdentifier;
     if ([wrapper() respondsToSelector:@selector(accessibilitySetPresenterProcessIdentifier:)])
         [(id)wrapper() accessibilitySetPresenterProcessIdentifier:processIdentifier];
-    m_remoteFramePlatformElement = adoptNS([[NSAccessibilityRemoteUIElement alloc] initWithRemoteToken:toNSData(BufferSource { token.bytes }).get()]);
+    m_remoteFramePlatformElement = adoptNS([[NSAccessibilityRemoteUIElement alloc] initWithRemoteToken:WTF::toNSData(token.bytes.span()).get()]);
 
     if (CheckedPtr cache = axObjectCache())
         cache->onRemoteFrameInitialized(*this);

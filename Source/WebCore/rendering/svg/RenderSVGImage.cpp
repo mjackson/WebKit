@@ -64,7 +64,7 @@ RenderSVGImage::~RenderSVGImage() = default;
 
 void RenderSVGImage::willBeDestroyed()
 {
-    imageResource().shutdown();
+    imageResource().willBeDestroyed();
     RenderSVGModelObject::willBeDestroyed();
 }
 
@@ -144,13 +144,15 @@ void RenderSVGImage::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
     if (!visualOverflowRect.intersects(paintInfo.rect))
         return;
 
+    GraphicsContextStateSaver stateSaver(paintInfo.context());
+
     if (paintInfo.phase == PaintPhase::Outline || paintInfo.phase == PaintPhase::SelfOutline) {
+        paintInfo.context().resetClip();
         paintSVGOutline(paintInfo, adjustedPaintOffset);
         return;
     }
 
     ASSERT(paintInfo.phase == PaintPhase::Foreground);
-    GraphicsContextStateSaver stateSaver(paintInfo.context());
 
     auto coordinateSystemOriginTranslation = adjustedPaintOffset - flooredLayoutPoint(objectBoundingBox().location());
     paintInfo.context().translate(coordinateSystemOriginTranslation.width(), coordinateSystemOriginTranslation.height());

@@ -99,9 +99,10 @@ void GPUQueue::onSubmittedWorkDone(OnSubmittedWorkDonePromise&& promise)
 static GPUSize64 computeElementSize(const BufferSource& data)
 {
     return WTF::switchOn(data.variant(),
-        [&](const RefPtr<JSC::ArrayBufferView>& bufferView) {
+        [&](const Ref<JSC::ArrayBufferView>& bufferView) {
             return static_cast<GPUSize64>(JSC::elementSize(bufferView->getType()));
-        }, [&](const RefPtr<JSC::ArrayBuffer>&) {
+        },
+        [&](const Ref<JSC::ArrayBuffer>&) {
             return static_cast<GPUSize64>(1);
         }
     );
@@ -116,7 +117,7 @@ ExceptionOr<void> GPUQueue::writeBuffer(
 {
     auto elementSize = computeElementSize(data);
     auto dataOffset = elementSize * optionalDataOffset;
-    auto dataSize = data.length();
+    auto dataSize = data.byteLength();
     auto contentSize = optionalSize.has_value() ? (elementSize * optionalSize.value()) : (dataSize - dataOffset);
 
     if (dataOffset > dataSize || dataOffset + contentSize > dataSize || (contentSize % 4))
@@ -250,7 +251,7 @@ void GPUQueue::writeTexture(
 }
 
 #if PLATFORM(COCOA) && ENABLE(VIDEO) && ENABLE(WEB_CODECS)
-static PixelFormat toPixelFormat(GPUTextureFormat textureFormat)
+static PixelFormat NODELETE toPixelFormat(GPUTextureFormat textureFormat)
 {
     switch (textureFormat) {
     case GPUTextureFormat::R8unorm:
@@ -819,7 +820,7 @@ static bool isStateValid(const auto& source, const std::optional<GPUOrigin2D>& o
 // FIXME: https://bugs.webkit.org/show_bug.cgi?id=263692 - this code should be removed, it is to unblock
 // compiler <-> pipeline dependencies
 #if PLATFORM(COCOA)
-static uint32_t convertRGBA8888ToRGB10A2(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+static uint32_t NODELETE convertRGBA8888ToRGB10A2(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     uint32_t r0 = (static_cast<uint32_t>(r) << 2) | (static_cast<uint32_t>(r) >> 6);
     uint32_t g0 = (static_cast<uint32_t>(g) << 2) | (static_cast<uint32_t>(g) >> 6);

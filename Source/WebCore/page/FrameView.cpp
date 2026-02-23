@@ -122,7 +122,7 @@ ScrollableArea* FrameView::enclosingScrollableArea() const
     if (!ownerElement)
         return nullptr;
 
-    auto* ownerRenderer = ownerElement->renderer();
+    CheckedPtr ownerRenderer = ownerElement->renderer();
     if (!ownerRenderer)
         return nullptr;
 

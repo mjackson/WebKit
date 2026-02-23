@@ -1467,9 +1467,32 @@ FloatingPointRange BBQJIT::lookupTruncationRange(TruncationKind truncationKind)
 
 [[nodiscard]] PartialResult BBQJIT::truncSaturated(Ext1OpType truncationOp, Value operand, Value& result, Type returnType, Type operandType)
 {
+    TruncationKind kind = truncationKind(truncationOp);
+
+    if constexpr (isARM64()) {
+        // ARM64 FCVTZS/FCVTZU natively implement WebAssembly trunc-sat semantics:
+        // NaN -> 0, out-of-range -> saturated min/max.
+        Location operandLocation;
+        if (operand.isConst()) {
+            operandLocation = Location::fromFPR(wasmScratchFPR);
+            emitMoveConst(operand, operandLocation);
+        } else
+            operandLocation = loadIfNecessary(operand);
+        ASSERT(operandLocation.isRegister());
+
+        consume(operand);
+
+        result = topValue(returnType.kind);
+        Location resultLocation = allocate(result);
+
+        LOG_INSTRUCTION("TruncSaturated", operand, operandLocation, RESULT(result));
+
+        truncInBounds(kind, operandLocation, resultLocation, InvalidFPRReg, InvalidFPRReg);
+        return { };
+    }
+
     ScratchScope<0, 2> scratches(*this);
 
-    TruncationKind kind = truncationKind(truncationOp);
     auto range = lookupTruncationRange(kind);
     auto minFloatConst = range.min;
     auto maxFloatConst = range.max;

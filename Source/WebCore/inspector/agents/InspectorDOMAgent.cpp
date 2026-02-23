@@ -285,7 +285,7 @@ public:
             data->setBoolean("enabled"_s, !!node->document().fullscreen().fullscreenElement());
 #endif // ENABLE(FULLSCREEN_API)
 
-        auto timestamp = domAgent->checkedEnvironment()->executionStopwatch().elapsedTime().seconds();
+        auto timestamp = protect(domAgent->environment())->executionStopwatch().elapsedTime().seconds();
         domAgent->m_frontendDispatcher->didFireEvent(nodeId, event.type(), timestamp, data->size() ? WTF::move(data) : nullptr);
     }
 
@@ -464,7 +464,7 @@ void InspectorDOMAgent::unbind(Node& node)
             unbind(*afterElement);
     }
 
-    if (auto* cssAgent = Ref { m_instrumentingAgents.get() }->enabledCSSAgent())
+    if (CheckedPtr cssAgent = Ref { m_instrumentingAgents.get() }->enabledCSSAgent())
         cssAgent->didRemoveDOMNode(node, id);
 
     if (m_childrenRequested.remove(id)) {
@@ -1516,7 +1516,7 @@ Inspector::Protocol::ErrorStringOr<void> InspectorDOMAgent::highlightSelector(co
 
     if (!!frameId) {
         Ref agents = m_instrumentingAgents.get();
-        auto* pageAgent = agents->enabledPageAgent();
+        CheckedPtr pageAgent = agents->enabledPageAgent();
         if (!pageAgent)
             return makeUnexpected("Page domain must be enabled"_s);
 
@@ -1692,7 +1692,7 @@ Inspector::Protocol::ErrorStringOr<void> InspectorDOMAgent::highlightFrame(const
     Inspector::Protocol::ErrorString errorString;
 
     Ref agents = m_instrumentingAgents.get();
-    auto* pageAgent = agents->enabledPageAgent();
+    CheckedPtr pageAgent = agents->enabledPageAgent();
     if (!pageAgent)
         return makeUnexpected("Page domain must be enabled"_s);
 
@@ -2009,7 +2009,7 @@ Ref<Inspector::Protocol::DOM::Node> InspectorDOMAgent::buildObjectForNode(Node* 
 
     auto value = Inspector::Protocol::DOM::Node::create()
         .setNodeId(id)
-        .setNodeType(enumToUnderlyingType(node->nodeType()))
+        .setNodeType(std::to_underlying(node->nodeType()))
         .setNodeName(nodeName)
         .setLocalName(localName)
         .setNodeValue(nodeValue)
@@ -2024,12 +2024,12 @@ Ref<Inspector::Protocol::DOM::Node> InspectorDOMAgent::buildObjectForNode(Node* 
     }
 
     Ref agents = m_instrumentingAgents.get();
-    if (auto* cssAgent = agents->enabledCSSAgent()) {
+    if (CheckedPtr cssAgent = agents->enabledCSSAgent()) {
         if (auto layoutFlags = cssAgent->protocolLayoutFlagsForNode(*node))
             value->setLayoutFlags(layoutFlags.releaseNonNull());
     }
 
-    auto* pageAgent = agents->enabledPageAgent();
+    CheckedPtr pageAgent = agents->enabledPageAgent();
     if (pageAgent) {
         if (RefPtr frameView = node->document().view())
             value->setFrameId(pageAgent->frameId(&frameView->frame()));
@@ -2271,7 +2271,7 @@ Ref<Inspector::Protocol::DOM::AccessibilityProperties> InspectorDOMAgent::buildO
     bool liveRegionAtomic = false;
     RefPtr<JSON::ArrayOf<String>> liveRegionRelevant;
     auto liveRegionStatus = Inspector::Protocol::DOM::AccessibilityProperties::LiveRegionStatus::Off;
-    Node* mouseEventNode = nullptr;
+    RefPtr<Node> mouseEventNode;
     RefPtr<JSON::ArrayOf<Inspector::Protocol::DOM::NodeId>> ownedNodeIds;
     RefPtr<Node> parentNode;
     bool pressed = false;
@@ -2292,7 +2292,7 @@ Ref<Inspector::Protocol::DOM::AccessibilityProperties> InspectorDOMAgent::buildO
     unsigned hierarchicalLevel = 0;
     unsigned level = 0;
 
-    if (auto* axObjectCache = protect(node.document())->axObjectCache()) {
+    if (CheckedPtr axObjectCache = protect(node.document())->axObjectCache()) {
         if (RefPtr axObject = axObjectCache->getOrCreate(node)) {
 
             if (RefPtr activeDescendant = axObject->activeDescendant())
@@ -2760,7 +2760,7 @@ void InspectorDOMAgent::willDestroyDOMNode(Node& node)
     m_idToNode.remove(nodeId);
     m_childrenRequested.remove(nodeId);
 
-    if (auto* cssAgent = Ref { m_instrumentingAgents.get() }->enabledCSSAgent())
+    if (CheckedPtr cssAgent = Ref { m_instrumentingAgents.get() }->enabledCSSAgent())
         cssAgent->didRemoveDOMNode(node, nodeId);
 
     // This can be called in response to GC. Due to the single-process model used in WebKit1, the
@@ -2808,7 +2808,7 @@ void InspectorDOMAgent::didModifyDOMAttr(Element& element, const AtomString& nam
     if (!id)
         return;
 
-    if (auto* cssAgent = Ref { m_instrumentingAgents.get() }->enabledCSSAgent())
+    if (CheckedPtr cssAgent = Ref { m_instrumentingAgents.get() }->enabledCSSAgent())
         cssAgent->didModifyDOMAttr(element);
 
     m_frontendDispatcher->attributeModified(id, name, value);
@@ -2820,7 +2820,7 @@ void InspectorDOMAgent::didRemoveDOMAttr(Element& element, const AtomString& nam
     if (!id)
         return;
 
-    if (auto* cssAgent = Ref { m_instrumentingAgents.get() }->enabledCSSAgent())
+    if (CheckedPtr cssAgent = Ref { m_instrumentingAgents.get() }->enabledCSSAgent())
         cssAgent->didModifyDOMAttr(element);
 
     m_frontendDispatcher->attributeRemoved(id, name);
@@ -3070,7 +3070,7 @@ void InspectorDOMAgent::mediaMetricsTimerFired()
             iterator->value.isPowerEfficient = isPowerEfficient;
 
             if (auto nodeId = pushNodePathToFrontend(mediaElement.ptr())) {
-                auto timestamp = checkedEnvironment()->executionStopwatch().elapsedTime().seconds();
+                auto timestamp = protect(environment())->executionStopwatch().elapsedTime().seconds();
                 m_frontendDispatcher->powerEfficientPlaybackStateChanged(nodeId, timestamp, iterator->value.isPowerEfficient);
             }
         }
@@ -3174,7 +3174,7 @@ Node* InspectorDOMAgent::scriptValueAsNode(JSC::JSValue value)
 JSC::JSValue InspectorDOMAgent::nodeAsScriptValue(JSC::JSGlobalObject& state, Node* node)
 {
     JSC::JSLockHolder lock(&state);
-    if (auto* checked = BindingSecurity::checkSecurityForNode(state, node))
+    if (RefPtr checked = BindingSecurity::checkSecurityForNode(state, node))
         return toJS(&state, deprecatedGlobalObjectForPrototype(&state), *checked);
     return JSC::jsNull();
 }

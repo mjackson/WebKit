@@ -83,7 +83,7 @@ private:
     void stopSource();
     bool hasSource() const;
 
-    RefPtr<LibWebRTCPeerConnectionBackend> protectedPeerConnectionBackend() const;
+    RefPtr<LibWebRTCPeerConnectionBackend> NODELETE protectedPeerConnectionBackend() const;
 
     WeakPtr<LibWebRTCPeerConnectionBackend> m_peerConnectionBackend;
     RefPtr<webrtc::RtpSenderInterface> m_rtcSender;

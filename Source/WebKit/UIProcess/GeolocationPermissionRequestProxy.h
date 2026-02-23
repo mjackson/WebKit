@@ -47,7 +47,7 @@ public:
     
     void invalidate();
 
-    WebProcessProxy* process() const;
+    WebProcessProxy* NODELETE process() const;
 
 private:
     GeolocationPermissionRequestProxy(GeolocationPermissionRequestManagerProxy&, GeolocationIdentifier, WebProcessProxy&);

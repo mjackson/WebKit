@@ -59,7 +59,7 @@ InlineDisplayLineBuilder::EnclosingLineGeometry InlineDisplayLineBuilder::collec
 {
     auto& rootInlineBox = lineBox.rootInlineBox();
     auto initialEnclosingTopAndBottom = [&]() -> std::tuple<std::optional<InlineLayoutUnit>, std::optional<InlineLayoutUnit>>  {
-        if (!lineBox.hasContent() || !rootInlineBox.hasContent())
+        if (!lineLayoutResult.hasContentfulInFlowContent() || !rootInlineBox.hasContent())
             return { };
         return {
             lineBoxRect.top() + rootInlineBox.logicalTop() - rootInlineBox.textEmphasisAbove().value_or(0.f),
@@ -86,7 +86,7 @@ InlineDisplayLineBuilder::EnclosingLineGeometry InlineDisplayLineBuilder::collec
         if (!inlineLevelBox.isAtomicInlineBox() && !inlineLevelBox.isInlineBox() && !inlineLevelBox.isLineBreakBox())
             continue;
 
-        auto& layoutBox = inlineLevelBox.layoutBox();
+        CheckedRef layoutBox = inlineLevelBox.layoutBox();
         auto borderBox = InlineRect { };
 
         if (inlineLevelBox.isAtomicInlineBox()) {
@@ -101,7 +101,7 @@ InlineDisplayLineBuilder::EnclosingLineGeometry InlineDisplayLineBuilder::collec
             borderBox = lineBox.logicalBorderBoxForInlineBox(layoutBox, boxGeometry);
             borderBox.moveBy(lineBoxRect.topLeft());
             // Collect scrollable overflow from inline boxes. All other inline level boxes (e.g atomic inline level boxes) stretch the line.
-            if (lineBox.hasContent()) {
+            if (lineLayoutResult.hasContentfulInFlowContent()) {
                 // Empty lines (e.g. continuation pre/post blocks) don't expect scrollbar overflow.
                 contentOverflowRect.expandVerticallyToContain(borderBox);
             }
@@ -148,13 +148,13 @@ InlineDisplay::Line InlineDisplayLineBuilder::build(const LineLayoutResult& line
     };
     auto writingMode = root().writingMode();
     return InlineDisplay::Line { hasInflowContent()
-        , lineBox.hasContent()
+        , lineLayoutResult.hasContentfulInFlowContent()
         , lineLayoutResult.isBlockContent()
         , lineBoxLogicalRect
         , mapLineRectLogicalToVisual(lineBoxLogicalRect, constraints.formattingRootBorderBoxSize(), writingMode)
         , mapLineRectLogicalToVisual(enclosingLineGeometry.contentOverflowRect, constraints.formattingRootBorderBoxSize(), writingMode)
         , enclosingLineGeometry.enclosingTopAndBottom
-        , rootInlineBox.logicalTop() + rootInlineBox.ascent()
+        , lineBox.alignmentBaseline()
         , lineBox.baselineType()
         , rootInlineBoxRect.left()
         , contentLineLeftEdge
@@ -171,7 +171,7 @@ static float truncateTextContentWithMismatchingDirection(InlineDisplay::Box& dis
     // we take a different approach and truncate content the other way around (i.e. ellipsis follows inline direction truncating the beginning of the content).
     // <div dir=rtl>some long content</div>
     // [...ng content]
-    auto& inlineTextBox = downcast<InlineTextBox>(displayBox.layoutBox());
+    CheckedRef inlineTextBox = downcast<InlineTextBox>(displayBox.layoutBox());
     auto& textContent = displayBox.text();
 
     auto availableWidthForTruncatedContent = contentWidth - availableWidthForContent;
@@ -210,7 +210,7 @@ static float truncate(InlineDisplay::Box& displayBox, float contentWidth, float 
         if (displayBox.layoutBox().parent().style().writingMode().bidiDirection() != contentDirection)
             return truncateTextContentWithMismatchingDirection(displayBox, contentWidth, availableWidthForContent, canFullyTruncate);
 
-        auto& inlineTextBox = downcast<InlineTextBox>(displayBox.layoutBox());
+        CheckedRef inlineTextBox = downcast<InlineTextBox>(displayBox.layoutBox());
         auto& textContent = displayBox.text();
         auto visibleSide = TextUtil::breakWord(inlineTextBox, textContent.start(), textContent.length(), contentWidth, availableWidthForContent, { }, displayBox.style().fontCascade());
         if (visibleSide.length) {
@@ -314,8 +314,8 @@ static std::optional<FloatRect> trailingEllipsisVisualRectAfterTruncation(LineEn
 
     ASSERT(displayBoxes[0].isRootInlineBox());
     auto& rootInlineBox = displayBoxes[0];
-    auto& rootStyle = rootInlineBox.style();
-    auto ellipsisWidth = std::max(0.f, rootStyle.fontCascade().width(ellipsisText));
+    CheckedRef rootStyle = rootInlineBox.style();
+    auto ellipsisWidth = std::max(0.f, rootStyle->fontCascade().width(ellipsisText));
 
     auto contentNeedsTruncation = [&] {
         switch (lineEndingTruncationPolicy) {
@@ -334,18 +334,18 @@ static std::optional<FloatRect> trailingEllipsisVisualRectAfterTruncation(LineEn
     if (!contentNeedsTruncation()) {
         // The content does not overflow the line box. The ellipsis is supposed to be either visually trailing or leading depending on the inline direction.
         if (displayBoxes.size() > 1)
-            ellipsisStart = rootStyle.writingMode().isBidiLTR() ? displayBoxes.last().right() : displayBoxes[1].left() - ellipsisWidth;
+            ellipsisStart = rootStyle->writingMode().isBidiLTR() ? displayBoxes.last().right() : displayBoxes[1].left() - ellipsisWidth;
         else {
             // All we have is the root inline box.
             ellipsisStart = displayBoxes.first().left();
         }
     } else {
-        auto lineBoxVisualLeft = rootStyle.writingMode().isHorizontal() ? displayLine.left() : displayLine.top();
-        auto lineBoxVisualRight = std::max(rootStyle.writingMode().isHorizontal() ? displayLine.right() : displayLine.bottom(), lineBoxVisualLeft);
+        auto lineBoxVisualLeft = rootStyle->writingMode().isHorizontal() ? displayLine.left() : displayLine.top();
+        auto lineBoxVisualRight = std::max(rootStyle->writingMode().isHorizontal() ? displayLine.right() : displayLine.bottom(), lineBoxVisualLeft);
         ellipsisStart = truncateOverflowingDisplayBoxes(displayBoxes, 0, displayBoxes.size() - 1, lineBoxVisualLeft, lineBoxVisualRight, ellipsisWidth, rootStyle, lineEndingTruncationPolicy);
     }
 
-    if (rootStyle.writingMode().isHorizontal())
+    if (rootStyle->writingMode().isHorizontal())
         return FloatRect { ellipsisStart, rootInlineBox.top(), ellipsisWidth, rootInlineBox.height() };
     return FloatRect { rootInlineBox.left(), ellipsisStart, rootInlineBox.width(), ellipsisWidth };
 }
@@ -375,7 +375,7 @@ static inline void makeRoomForLinkBoxOnClampedLineIfNeeded(auto& content, auto c
     auto ellipsisBoxRect = content.lineEllipsis(clampedLineIndex)->visualRect;
     if (ellipsisBoxRect.maxX() + linkContentWidth <= clampedLine.right())
         return;
-    auto& rootStyle = displayBoxes[0].layoutBox().style();
+    CheckedRef rootStyle = displayBoxes[0].layoutBox().style();
     auto startIndex = [&]() -> size_t {
         ASSERT(insertionPosition);
         for (size_t index = insertionPosition - 1; index--;) {

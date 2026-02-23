@@ -105,7 +105,7 @@ private:
         else
             m_arraySizeAndFlags &= ~flag;
     }
-    static inline uint32_t arraySizeAndFlagsFromOther(const ElementData& other, bool isUnique);
+    static inline uint32_t NODELETE arraySizeAndFlagsFromOther(const ElementData& other, bool isUnique);
 
 protected:
     ElementData();
@@ -174,7 +174,7 @@ public:
     void removeAttributeAt(unsigned index);
 
     Attribute& attributeAt(unsigned index);
-    Attribute* findAttributeByName(const QualifiedName&);
+    Attribute* NODELETE findAttributeByName(const QualifiedName&);
 
     std::span<const Attribute> attributes() const LIFETIME_BOUND { return m_attributeVector.span(); }
 

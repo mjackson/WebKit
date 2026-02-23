@@ -96,6 +96,7 @@ namespace WebCore {
     M(DisplayLink) \
     M(DisplayLists) \
     M(DragAndDrop) \
+    M(DOMAPI) \
     M(DOMTimers) \
     M(Editing) \
     M(EME) \

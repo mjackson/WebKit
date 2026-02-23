@@ -649,7 +649,7 @@ enum class AllowPageBackgroundColorOverride : bool { No, Yes };
 static WebCore::Color baseScrollViewBackgroundColor(WKWebView *webView, AllowPageBackgroundColorOverride allowPageBackgroundColorOverride)
 {
     if (webView->_customContentView)
-        return WebCore::roundAndClampToSRGBALossy(protect<CGColorRef>([webView->_customContentView backgroundColor].CGColor));
+        return WebCore::roundAndClampToSRGBALossy(protect([webView->_customContentView backgroundColor].CGColor));
 
     if (webView->_gestureController) {
         WebCore::Color color = webView->_gestureController->backgroundColorForCurrentSnapshot();
@@ -673,10 +673,10 @@ static WebCore::Color scrollViewBackgroundColor(WKWebView *webView, AllowPageBac
         color = baseScrollViewBackgroundColor(webView.get(), allowPageBackgroundColorOverride);
 
         if (!color.isValid() && webView->_contentView)
-            color = WebCore::roundAndClampToSRGBALossy(protect<CGColorRef>([webView->_contentView backgroundColor].CGColor));
+            color = WebCore::roundAndClampToSRGBALossy(protect([webView->_contentView backgroundColor].CGColor));
 
         if (!color.isValid())
-            color = WebCore::roundAndClampToSRGBALossy(protect<CGColorRef>(UIColor.systemBackgroundColor.CGColor));
+            color = WebCore::roundAndClampToSRGBALossy(protect(UIColor.systemBackgroundColor.CGColor));
     }];
 
     return color;
@@ -989,7 +989,7 @@ static void changeContentOffsetBoundedInValidRange(UIScrollView *scrollView, Web
 {
     if (_perProcessState.didDeferUpdateVisibleContentRectsForUnstableScrollView) {
         WKWEBVIEW_RELEASE_LOG("%p (pageProxyID=%llu) -[WKWebView _didCommitLayerTree:] - received a commit (%llu) while deferring visible content rect updates (dynamicViewportUpdateMode %d, resetViewStateAfterTransactionID %llu, sizeChangedSinceLastVisibleContentRectUpdate %d, [_scrollView isZoomBouncing] %d, currentlyAdjustingScrollViewInsetsForKeyboard %d)",
-        self, _page->identifier().toUInt64(), transactionID.object().toUInt64(), enumToUnderlyingType(_perProcessState.dynamicViewportUpdateMode), _perProcessState.resetViewStateAfterTransactionID ? _perProcessState.resetViewStateAfterTransactionID->object().toUInt64() : 0, [_contentView sizeChangedSinceLastVisibleContentRectUpdate], [_scrollView isZoomBouncing], _perProcessState.currentlyAdjustingScrollViewInsetsForKeyboard);
+        self, _page->identifier().toUInt64(), transactionID.object().toUInt64(), std::to_underlying(_perProcessState.dynamicViewportUpdateMode), _perProcessState.resetViewStateAfterTransactionID ? _perProcessState.resetViewStateAfterTransactionID->object().toUInt64() : 0, [_contentView sizeChangedSinceLastVisibleContentRectUpdate], [_scrollView isZoomBouncing], _perProcessState.currentlyAdjustingScrollViewInsetsForKeyboard);
     }
 
     if (_timeOfFirstVisibleContentRectUpdateWithPendingCommit) {
@@ -1160,7 +1160,7 @@ static void changeContentOffsetBoundedInValidRange(UIScrollView *scrollView, Web
         if (![self usesStandardContentView])
             return;
 
-        LOG_WITH_STREAM(VisibleRects, stream << "-[WKWebView " << _page->identifier() << " _didCommitLayerTree:] transactionID " << transactionID << " dynamicViewportUpdateMode " << enumToUnderlyingType(_perProcessState.dynamicViewportUpdateMode));
+        LOG_WITH_STREAM(VisibleRects, stream << "-[WKWebView " << _page->identifier() << " _didCommitLayerTree:] transactionID " << transactionID << " dynamicViewportUpdateMode " << std::to_underlying(_perProcessState.dynamicViewportUpdateMode));
 
         bool needUpdateVisibleContentRects = _page->updateLayoutViewportParameters(mainFrameCommitData);
 
@@ -1908,6 +1908,12 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
     [super setOpaque:opaque];
 
     [_contentView setOpaque:opaque];
+
+#if PLATFORM(VISION)
+    static BOOL alternateRenderingAvailable = [UIScrollView instancesRespondToSelector:@selector(_setUseVisionAlternateScrollIndicatorRendering:)];
+    if (alternateRenderingAvailable)
+        [_scrollView _setUseVisionAlternateScrollIndicatorRendering:opaque];
+#endif
 
     if (!_page)
         return;
@@ -2957,7 +2963,7 @@ static bool scrollViewCanScroll(UIScrollView *scrollView)
         || _perProcessState.currentlyAdjustingScrollViewInsetsForKeyboard) {
         _perProcessState.didDeferUpdateVisibleContentRectsForAnyReason = YES;
         _perProcessState.didDeferUpdateVisibleContentRectsForUnstableScrollView = YES;
-        WKWEBVIEW_RELEASE_LOG("%p (pageProxyID=%llu) -[WKWebView _updateVisibleContentRects:] - scroll view state is non-stable, bailing (shouldDeferGeometryUpdates %d, dynamicViewportUpdateMode %d, resetViewStateAfterTransactionID %llu, sizeChangedSinceLastVisibleContentRectUpdate %d, [_scrollView isZoomBouncing] %d, currentlyAdjustingScrollViewInsetsForKeyboard %d)", self, _page->identifier().toUInt64(), self._shouldDeferGeometryUpdates, enumToUnderlyingType(_perProcessState.dynamicViewportUpdateMode), _perProcessState.resetViewStateAfterTransactionID ? _perProcessState.resetViewStateAfterTransactionID->object().toUInt64() : 0, [_contentView sizeChangedSinceLastVisibleContentRectUpdate], [_scrollView isZoomBouncing], _perProcessState.currentlyAdjustingScrollViewInsetsForKeyboard);
+        WKWEBVIEW_RELEASE_LOG("%p (pageProxyID=%llu) -[WKWebView _updateVisibleContentRects:] - scroll view state is non-stable, bailing (shouldDeferGeometryUpdates %d, dynamicViewportUpdateMode %d, resetViewStateAfterTransactionID %llu, sizeChangedSinceLastVisibleContentRectUpdate %d, [_scrollView isZoomBouncing] %d, currentlyAdjustingScrollViewInsetsForKeyboard %d)", self, _page->identifier().toUInt64(), self._shouldDeferGeometryUpdates, std::to_underlying(_perProcessState.dynamicViewportUpdateMode), _perProcessState.resetViewStateAfterTransactionID ? _perProcessState.resetViewStateAfterTransactionID->object().toUInt64() : 0, [_contentView sizeChangedSinceLastVisibleContentRectUpdate], [_scrollView isZoomBouncing], _perProcessState.currentlyAdjustingScrollViewInsetsForKeyboard);
         return;
     }
 
@@ -3048,7 +3054,7 @@ static WebCore::IntDegrees activeOrientation(WKWebView *webView)
 
 - (void)_cancelAnimatedResize
 {
-    WKWEBVIEW_RELEASE_LOG("%p (pageProxyID=%llu) -[WKWebView _cancelAnimatedResize] dynamicViewportUpdateMode %d", self, _page->identifier().toUInt64(), enumToUnderlyingType(_perProcessState.dynamicViewportUpdateMode));
+    WKWEBVIEW_RELEASE_LOG("%p (pageProxyID=%llu) -[WKWebView _cancelAnimatedResize] dynamicViewportUpdateMode %d", self, _page->identifier().toUInt64(), std::to_underlying(_perProcessState.dynamicViewportUpdateMode));
 
     if (_perProcessState.dynamicViewportUpdateMode == WebKit::DynamicViewportUpdateMode::NotResizing)
         return;
@@ -4245,9 +4251,9 @@ static bool isLockdownModeWarningNeeded()
     auto updateBlockCopy = makeBlockPtr(updateBlock);
 
     if (_stableStatePresentationUpdateCallbacks)
-        [_stableStatePresentationUpdateCallbacks addObject:updateBlockCopy.get()];
+        SUPPRESS_UNRETAINED_ARG [_stableStatePresentationUpdateCallbacks addObject:updateBlockCopy.get()];
     else {
-        _stableStatePresentationUpdateCallbacks = adoptNS([[NSMutableArray alloc] initWithObjects:updateBlockCopy.get(), nil]);
+        SUPPRESS_UNRETAINED_ARG _stableStatePresentationUpdateCallbacks = adoptNS([[NSMutableArray alloc] initWithObjects:updateBlockCopy.get(), nil]);
         [self _firePresentationUpdateForPendingStableStatePresentationCallbacks];
     }
 }
@@ -4519,7 +4525,7 @@ static bool isLockdownModeWarningNeeded()
 
 - (void)_endAnimatedResize
 {
-    WKWEBVIEW_RELEASE_LOG("%p (pageProxyID=%llu) -[WKWebView _endAnimatedResize] dynamicViewportUpdateMode %d", self, _page->identifier().toUInt64(), enumToUnderlyingType(_perProcessState.dynamicViewportUpdateMode));
+    WKWEBVIEW_RELEASE_LOG("%p (pageProxyID=%llu) -[WKWebView _endAnimatedResize] dynamicViewportUpdateMode %d", self, _page->identifier().toUInt64(), std::to_underlying(_perProcessState.dynamicViewportUpdateMode));
 
     // If we already have an up-to-date layer tree, immediately complete
     // the resize. Otherwise, we will defer completion until we do.
@@ -5101,6 +5107,54 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 }
 
 @end
+
+#if ENABLE(TWO_PHASE_CLICKS)
+
+@implementation WKWebView (TwoPhaseClicks)
+
+- (void)_didNotHandleTapAsClick:(const WebCore::IntPoint&)point
+{
+    [_contentView _didNotHandleTapAsClick:point];
+}
+
+- (void)_didHandleTapAsHover
+{
+    [_contentView _didHandleTapAsHover];
+}
+
+- (void)_didCompleteSyntheticClick
+{
+    [_contentView _didCompleteSyntheticClick];
+}
+
+- (void)_commitPotentialTapFailed
+{
+    [_contentView _commitPotentialTapFailed];
+}
+
+- (void)_didGetTapHighlightGeometries:(WebKit::TapIdentifier)requestID color:(const WebCore::Color&)color quads:(const Vector<WebCore::FloatQuad>&)highlightedQuads topLeftRadius:(const WebCore::IntSize&)topLeftRadius topRightRadius:(const WebCore::IntSize&)topRightRadius bottomLeftRadius:(const WebCore::IntSize&)bottomLeftRadius bottomRightRadius:(const WebCore::IntSize&)bottomRightRadius nodeHasBuiltInClickHandling:(BOOL)nodeHasBuiltInClickHandling
+{
+    [_contentView _didGetTapHighlightForRequest:requestID color:color quads:highlightedQuads topLeftRadius:topLeftRadius topRightRadius:topRightRadius bottomLeftRadius:bottomLeftRadius bottomRightRadius:bottomRightRadius nodeHasBuiltInClickHandling:nodeHasBuiltInClickHandling];
+}
+
+- (BOOL)_isPotentialTapInProgress
+{
+    return [_contentView isPotentialTapInProgress];
+}
+
+- (void)_disableDoubleTapGesturesDuringTapIfNecessary:(WebKit::TapIdentifier)requestID
+{
+    [_contentView _disableDoubleTapGesturesDuringTapIfNecessary:requestID];
+}
+
+- (void)_handleSmartMagnificationInformationForPotentialTap:(WebKit::TapIdentifier)requestID renderRect:(const WebCore::FloatRect&)renderRect fitEntireRect:(BOOL)fitEntireRect viewportMinimumScale:(double)viewportMinimumScale viewportMaximumScale:(double)viewportMaximumScale nodeIsRootLevel:(BOOL)nodeIsRootLevel nodeIsPluginElement:(BOOL)nodeIsPluginElement
+{
+    [_contentView _handleSmartMagnificationInformationForPotentialTap:requestID renderRect:renderRect fitEntireRect:fitEntireRect viewportMinimumScale:viewportMinimumScale viewportMaximumScale:viewportMaximumScale nodeIsRootLevel:nodeIsRootLevel nodeIsPluginElement:nodeIsPluginElement];
+}
+
+@end
+
+#endif // ENABLE(TWO_PHASE_CLICKS)
 
 #undef WKWEBVIEW_RELEASE_LOG
 

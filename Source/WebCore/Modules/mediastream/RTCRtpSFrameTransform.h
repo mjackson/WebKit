@@ -67,9 +67,9 @@ public:
     void initializeBackendForSender(RTCRtpTransformBackend&);
     void willClearBackend(RTCRtpTransformBackend&);
 
-    WEBCORE_EXPORT void setCounterForTesting(uint64_t);
-    WEBCORE_EXPORT uint64_t counterForTesting() const;
-    WEBCORE_EXPORT uint64_t keyIdForTesting() const;
+    WEBCORE_EXPORT void NODELETE setCounterForTesting(uint64_t);
+    WEBCORE_EXPORT uint64_t NODELETE counterForTesting() const;
+    WEBCORE_EXPORT uint64_t NODELETE keyIdForTesting() const;
 
     ExceptionOr<Ref<ReadableStream>> readable();
     ExceptionOr<Ref<WritableStream>> writable();
@@ -85,11 +85,11 @@ private:
     RTCRtpSFrameTransform(ScriptExecutionContext&, Options);
 
     // ActiveDOMObject
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
 
     // EventTarget
     enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::RTCRtpSFrameTransform; }
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }
 

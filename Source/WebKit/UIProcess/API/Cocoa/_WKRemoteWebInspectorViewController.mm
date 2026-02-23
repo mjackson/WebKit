@@ -190,7 +190,7 @@ private:
             return;
         }
 
-        capturedBlock(nil, protectedWrapper(result.value()).get());
+        capturedBlock(nil, protect(wrapper(result.value())).get());
     });
 #else
     completionHandler(adoptNS([[NSError alloc] initWithDomain:WKErrorDomain code:WKErrorUnknown userInfo:nil]).get(), nil);

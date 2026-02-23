@@ -94,7 +94,7 @@ HashMap<String, bool> WebNotificationManagerProxy::notificationPermissions()
     return m_provider->notificationPermissions();
 }
 
-static std::optional<WebPageProxyIdentifier> identifierForPagePointer(WebPageProxy* webPage)
+static std::optional<WebPageProxyIdentifier> NODELETE identifierForPagePointer(WebPageProxy* webPage)
 {
     return webPage ? std::optional { webPage->identifier() } : std::nullopt;
 }

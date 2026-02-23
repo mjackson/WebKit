@@ -66,12 +66,12 @@ public:
 
     UnhandledPromise(UnhandledPromise&&) = default;
 
-    ScriptCallStack* callStack()
+    ScriptCallStack* NODELETE callStack()
     {
         return m_stack.get();
     }
 
-    DOMPromise& promise()
+    DOMPromise& NODELETE promise()
     {
         return m_promise.get();
     }

@@ -120,7 +120,9 @@
 #include "CookieStorageUtilsCF.h"
 #include "LaunchServicesDatabaseObserver.h"
 #include "NetworkSessionCocoa.h"
+#include <wtf/cocoa/AuditToken.h>
 #include <wtf/cocoa/Entitlements.h>
+#include <wtf/spi/darwin/SandboxSPI.h>
 #endif
 
 #if USE(SOUP)
@@ -139,6 +141,10 @@
 
 #if HAVE(BROWSERENGINEKIT_WEBCONTENTFILTER)
 #include "WebParentalControlsURLFilter.h"
+#endif
+
+#if HAVE(ENHANCED_SECURITY_LINKS)
+#include "EnhancedSecurityLinkUtilities.h"
 #endif
 
 namespace WebKit {
@@ -198,18 +204,6 @@ NetworkProcess::NetworkProcess(AuxiliaryProcessInitializationParameters&& parame
 }
 
 NetworkProcess::~NetworkProcess() = default;
-
-void NetworkProcess::setSharedParentalControlsURLFilterIfNecessary()
-{
-#if HAVE(BROWSERENGINEKIT_WEBCONTENTFILTER) && !HAVE(WEBCONTENTRESTRICTIONS_PATH_SPI)
-    ASSERT(isMainRunLoop());
-    static bool initialized = false;
-    if (!initialized) {
-        WebCore::ParentalControlsURLFilter::setGlobalFilter(WebParentalControlsURLFilter::create());
-        initialized = true;
-    }
-#endif
-}
 
 AuthenticationManager& NetworkProcess::authenticationManager()
 {
@@ -338,6 +332,9 @@ void NetworkProcess::initializeNetworkProcess(NetworkProcessCreationParameters&&
     setCacheModel(parameters.cacheModel);
 
     setPrivateClickMeasurementEnabled(parameters.enablePrivateClickMeasurement);
+#if HAVE(ENHANCED_SECURITY_LINKS)
+    setIsEnhancedSecurityLinksEnabled(parameters.enableEnhancedSecurityLinks);
+#endif
     m_ftpEnabled = parameters.ftpEnabled;
 
     for (auto [processIdentifier, domain] : parameters.allowedFirstPartiesForCookies)
@@ -1530,6 +1527,29 @@ bool NetworkProcess::privateClickMeasurementEnabled() const
 {
     return m_privateClickMeasurementEnabled;
 }
+
+#if HAVE(ENHANCED_SECURITY_LINKS)
+void NetworkProcess::setIsEnhancedSecurityLinksEnabled(bool enabled)
+{
+    m_isEnhancedSecurityLinksEnabled = enabled;
+
+    if (enabled)
+        return;
+
+    RELEASE_LOG(Process, "Setting sandbox state flag to block Enhanced Security Links access");
+    if (auto auditTokenForSelf = WTF::auditTokenForSelf()) {
+        if (!sandbox_enable_state_flag("BlockEnhancedSecurityLinks", *auditTokenForSelf))
+            RELEASE_LOG_ERROR(Process, "Unable to set sandbox state flag to block Enhanced Security Links");
+    } else
+        RELEASE_LOG_FAULT(Process, "Unable to get audit token to block Enhanced Security Links access");
+}
+
+bool NetworkProcess::isEnhancedSecurityLinksEnabled() const
+{
+    return m_isEnhancedSecurityLinksEnabled;
+}
+#endif // HAVE(ENHANCED_SECURITY_LINKS)
+
 
 void NetworkProcess::notifyMediaStreamingActivity(bool activity)
 {
@@ -3063,16 +3083,11 @@ NetworkConnectionToWebProcess* NetworkProcess::webProcessConnection(ProcessIdent
     return m_webProcessConnections.get(identifier);
 }
 
-RefPtr<NetworkConnectionToWebProcess> NetworkProcess::protectedWebProcessConnection(WebCore::ProcessIdentifier identifier) const
+NetworkConnectionToWebProcess* NetworkProcess::webProcessConnection(const IPC::Connection& connection) const
 {
-    return webProcessConnection(identifier);
-}
-
-RefPtr<NetworkConnectionToWebProcess> NetworkProcess::protectedWebProcessConnection(const IPC::Connection& connection) const
-{
-    for (Ref webProcessConnection : m_webProcessConnections.values()) {
+    for (auto& webProcessConnection : m_webProcessConnections.values()) {
         if (webProcessConnection->connection().uniqueID() == connection.uniqueID())
-            return webProcessConnection;
+            return webProcessConnection.ptr();
     }
     return nullptr;
 }
@@ -3368,7 +3383,30 @@ void NetworkProcess::setDefaultRequestTimeoutInterval(double timeoutInterval)
 #if HAVE(WEBCONTENTRESTRICTIONS)
 void NetworkProcess::allowEvaluatedURL(const WebCore::ParentalControlsURLFilterParameters& parameters, CompletionHandler<void(bool)>&& completionHandler)
 {
-    WebCore::ParentalControlsURLFilter::allowURL(parameters, WTF::move(completionHandler));
+#if HAVE(WEBCONTENTRESTRICTIONS_PATH_SPI)
+    Ref filter = WebCore::ParentalControlsURLFilter::filterWithConfigurationPath(parameters.configurationPath);
+#else
+    Ref filter = WebCore::ParentalControlsURLFilter::singleton();
+#endif
+
+#if HAVE(WEBCONTENTRESTRICTIONS_ASK_TO)
+    if (parameters.referrerURL) {
+        filter->requestPermissionForURL(parameters.urlToAllow, *parameters.referrerURL, WTF::move(completionHandler));
+        return;
+    }
+#else
+    filter->allowURL(parameters.urlToAllow, WTF::move(completionHandler));
+#endif
+}
+#endif
+
+#if HAVE(ENHANCED_SECURITY_LINKS)
+void NetworkProcess::isEnhancedSecurityLink(const URL& url, CompletionHandler<void(bool)>&& completionHandler)
+{
+    if (!isEnhancedSecurityLinksEnabled())
+        return completionHandler(false);
+
+    isEnhancedSecurityEnabledForURL(url, WTF::move(completionHandler));
 }
 #endif
 

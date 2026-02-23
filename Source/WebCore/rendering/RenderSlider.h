@@ -36,7 +36,7 @@ public:
     RenderSlider(HTMLInputElement&, RenderStyle&&);
     virtual ~RenderSlider();
 
-    HTMLInputElement& element() const;
+    HTMLInputElement& NODELETE element() const;
 
     bool canHaveGeneratedChildren() const override { return false; }
 

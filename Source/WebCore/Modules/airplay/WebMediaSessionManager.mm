@@ -75,7 +75,7 @@ struct ClientState {
 
 WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(ClientState);
 
-static bool flagsAreSet(MediaProducerMediaStateFlags value, MediaProducerMediaStateFlags flags)
+static bool NODELETE flagsAreSet(MediaProducerMediaStateFlags value, MediaProducerMediaStateFlags flags)
 {
     return value.containsAny(flags);
 }

@@ -29,8 +29,8 @@
 
 namespace WebKit {
 
-enum class EnhancedSecurity : uint8_t { Disabled, EnabledInsecure, EnabledPolicy };
-enum class EnhancedSecurityReason : uint8_t { None, InsecureProvisional, InsecureLoad, Policy };
+enum class EnhancedSecurity : uint8_t { Disabled, EnabledInsecure, EnabledLinkSecurity, EnabledPolicy };
+enum class EnhancedSecurityReason : uint8_t { None, InsecureProvisional, InsecureLoad, LinkSecurity, Policy };
 
 ALWAYS_INLINE bool isEnhancedSecurityEnabledForState(EnhancedSecurity state)
 {

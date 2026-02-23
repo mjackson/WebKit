@@ -594,7 +594,7 @@ WTFLogChannel* WTFLogChannelByName(WTFLogChannel* channels[], size_t count, cons
     return nullptr;
 }
 
-static void setStateOfAllChannels(WTFLogChannel* channels[], size_t channelCount, WTFLogChannelState state)
+static void NODELETE setStateOfAllChannels(WTFLogChannel* channels[], size_t channelCount, WTFLogChannelState state)
 {
     for (size_t i = 0; i < channelCount; ++i)
         channels[i]->state = state;

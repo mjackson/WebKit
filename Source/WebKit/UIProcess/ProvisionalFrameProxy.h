@@ -47,7 +47,7 @@ public:
     ~ProvisionalFrameProxy();
 
     WebFrameProxy& frame() const { return m_frame.get(); }
-    WebProcessProxy& process() const;
+    WebProcessProxy& NODELETE process() const;
 
     RefPtr<FrameProcess> takeFrameProcess();
 

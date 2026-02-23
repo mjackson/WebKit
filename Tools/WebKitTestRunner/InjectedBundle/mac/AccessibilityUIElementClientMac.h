@@ -53,9 +53,17 @@ public:
     JSRetainPtr<JSStringRef> stringValue() override;
     unsigned childrenCount() override;
     RefPtr<AccessibilityUIElement> childAtIndex(unsigned) override;
+    int hierarchicalLevel() const override;
+    double minValue() override;
+    double maxValue() override;
+    double x() override;
+    double y() override;
+    double width() override;
+    double height() override;
 
     // Helpers.
     JSRetainPtr<JSStringRef> getStringAttribute(const char* attributeName) const;
+    double getNumberAttribute(const char* attributeName) const;
     Vector<RefPtr<AccessibilityUIElement>> getChildren() const;
     Vector<RefPtr<AccessibilityUIElement>> getChildrenInRange(unsigned location, unsigned length) const;
 

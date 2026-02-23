@@ -50,7 +50,7 @@ std::optional<BoundaryPoint> makeBoundaryPointAfterNode(Node& node)
     return BoundaryPoint { parent.releaseNonNull(), node.computeNodeIndex() + 1 };
 }
 
-static bool isOffsetBeforeChild(ContainerNode& container, unsigned offset, Node& child)
+static bool NODELETE isOffsetBeforeChild(ContainerNode& container, unsigned offset, Node& child)
 {
     if (!offset)
         return true;

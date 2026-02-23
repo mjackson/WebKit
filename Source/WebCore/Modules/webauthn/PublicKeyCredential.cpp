@@ -94,61 +94,76 @@ void PublicKeyCredential::getClientCapabilities(Document& document, DOMPromiseDe
 PublicKeyCredentialJSON PublicKeyCredential::toJSON()
 {
     if (RefPtr attestationResponse = dynamicDowncast<AuthenticatorAttestationResponse>(m_response)) {
-        RegistrationResponseJSON response;
-        if (RefPtr id = rawId()) {
-            auto encodedString = base64URLEncodeToString(id->span());
-            response.id = encodedString;
-            response.rawId = encodedString;
-        }
+        String encodedId;
+        if (RefPtr decodedRawId = rawId())
+            encodedId = base64URLEncodeToString(decodedRawId->span());
 
-        response.response = attestationResponse->toJSON();
-        response.authenticatorAttachment = convertEnumerationToString(authenticatorAttachment());
-        response.clientExtensionResults = getClientExtensionResults().toJSON();
-        response.type = type();
-
-        return response;
+        return RegistrationResponseJSON {
+            .id = encodedId,
+            .rawId = encodedId,
+            .response = attestationResponse->toJSON(),
+            .authenticatorAttachment = convertEnumerationToString(authenticatorAttachment()),
+            .clientExtensionResults = getClientExtensionResults().toJSON(),
+            .type = type(),
+        };
     }
     if (RefPtr assertionResponse = dynamicDowncast<AuthenticatorAssertionResponse>(m_response)) {
-        AuthenticationResponseJSON response;
-        if (RefPtr id = rawId()) {
-            auto encodedString = base64URLEncodeToString(id->span());
-            response.id = encodedString;
-            response.rawId = encodedString;
-        }
-        response.response = assertionResponse->toJSON();
-        response.authenticatorAttachment = convertEnumerationToString(authenticatorAttachment());
-        response.clientExtensionResults = getClientExtensionResults().toJSON();
-        response.type = type();
-        return response;
+        String encodedId;
+        if (RefPtr decodedRawId = rawId())
+            encodedId = base64URLEncodeToString(decodedRawId->span());
+
+        return AuthenticationResponseJSON {
+            .id = encodedId,
+            .rawId = encodedId,
+            .response = assertionResponse->toJSON(),
+            .authenticatorAttachment = convertEnumerationToString(authenticatorAttachment()),
+            .clientExtensionResults = getClientExtensionResults().toJSON(),
+            .type = type(),
+        };
     }
-    AuthenticationResponseJSON response;
+
     ASSERT_NOT_REACHED();
-    return response;
+    return AuthenticationResponseJSON { };
 }
 
-static ExceptionOr<PublicKeyCredentialDescriptor> fromJSON(PublicKeyCredentialDescriptorJSON jsonOptions)
+template<typename ErrorStringFunction> static ExceptionOr<BufferSource> fromJSONBase64(String&& value, ErrorStringFunction&& errorStringFunction)
 {
-    PublicKeyCredentialDescriptor descriptor;
+    if (auto decodedValue = base64URLDecode(value))
+        return toBufferSource(decodedValue->span());
+    return Exception { ExceptionCode::EncodingError, errorStringFunction() };
+}
+
+static ExceptionOr<PublicKeyCredentialDescriptor> fromJSON(PublicKeyCredentialDescriptorJSON&& jsonOptions)
+{
+    std::optional<PublicKeyCredentialType> descriptorType;
     if (auto type = parseEnumerationFromString<PublicKeyCredentialType>(jsonOptions.type))
-        descriptor.type = *type;
+        descriptorType = *type;
     else
         return Exception { ExceptionCode::EncodingError, makeString("Unrecognized credential type: "_s, jsonOptions.type) };
-    if (auto id = base64URLDecode(jsonOptions.id))
-        descriptor.id = BufferSource { *id };
-    else
-        return Exception { ExceptionCode::EncodingError, makeString("Invalid encoding of credential ID: "_s, jsonOptions.id, " (It should be Base64URL encoded.)"_s) };
+
+    auto id = fromJSONBase64(WTF::move(jsonOptions.id), [&] { return makeString("Invalid encoding of credential ID: "_s, jsonOptions.id, " (It should be Base64URL encoded.)"_s); });
+    if (id.hasException())
+        return id.releaseException();
+
+    Vector<AuthenticatorTransport> descriptorTransports;
     for (auto transportString : jsonOptions.transports) {
-        if (auto transport = convertStringToAuthenticatorTransport(transportString))
-            descriptor.transports.append(*transport);
+        if (auto transport = convertStringToAuthenticatorTransport(transportString)) {
+            descriptorTransports.append(*transport);
+        }
     }
-    return descriptor;
+
+    return PublicKeyCredentialDescriptor {
+        .type = WTF::move(*descriptorType),
+        .id = id.releaseReturnValue(),
+        .transports = WTF::move(descriptorTransports),
+    };
 }
 
-static ExceptionOr<Vector<PublicKeyCredentialDescriptor>> fromJSON(Vector<PublicKeyCredentialDescriptorJSON> jsonDescriptors)
+static ExceptionOr<Vector<PublicKeyCredentialDescriptor>> fromJSON(Vector<PublicKeyCredentialDescriptorJSON>&& jsonDescriptors)
 {
     Vector<PublicKeyCredentialDescriptor> descriptors;
     for (auto jsonDescriptor : jsonDescriptors) {
-        auto descriptor = fromJSON(jsonDescriptor);
+        auto descriptor = fromJSON(WTF::move(jsonDescriptor));
         if (descriptor.hasException())
             return descriptor.releaseException();
         descriptors.append(descriptor.releaseReturnValue());
@@ -156,146 +171,171 @@ static ExceptionOr<Vector<PublicKeyCredentialDescriptor>> fromJSON(Vector<Public
     return descriptors;
 }
 
-static ExceptionOr<AuthenticationExtensionsClientInputs::LargeBlobInputs> fromJSON(AuthenticationExtensionsClientInputsJSON::LargeBlobInputsJSON jsonInputs)
+static ExceptionOr<AuthenticationExtensionsClientInputs::LargeBlobInputs> fromJSON(AuthenticationExtensionsClientInputsJSON::LargeBlobInputsJSON&& jsonInputs)
 {
-    AuthenticationExtensionsClientInputs::LargeBlobInputs largeBlob;
-    largeBlob.support = jsonInputs.support;
-    largeBlob.read = jsonInputs.read;
-    if (auto decodedWrite = base64URLDecode(jsonInputs.write))
-        largeBlob.write = BufferSource { *decodedWrite };
-    else
-        return Exception { ExceptionCode::EncodingError, makeString("Invalid encoding of largeBlob.write: "_s, jsonInputs.write, " (It should be Base64URL encoded.)"_s) };
-    return largeBlob;
+    auto write = fromJSONBase64(WTF::move(jsonInputs.write), [&] { return makeString("Invalid encoding of largeBlob.write: "_s, jsonInputs.write, " (It should be Base64URL encoded.)"_s); });
+    if (write.hasException())
+        return write.releaseException();
+
+    return AuthenticationExtensionsClientInputs::LargeBlobInputs {
+        .support = WTF::move(jsonInputs.support),
+        .read = WTF::move(jsonInputs.read),
+        .write = write.releaseReturnValue(),
+    };
 }
 
-static ExceptionOr<AuthenticationExtensionsClientInputs::PRFValues> fromJSON(AuthenticationExtensionsClientInputsJSON::PRFValuesJSON jsonInputs)
+static ExceptionOr<AuthenticationExtensionsClientInputs::PRFValues> fromJSON(AuthenticationExtensionsClientInputsJSON::PRFValuesJSON&& jsonInputs)
 {
-    AuthenticationExtensionsClientInputs::PRFValues values;
-    if (auto decodedFirst = base64URLDecode(jsonInputs.first))
-        values.first = BufferSource { *decodedFirst };
-    else
-        return Exception { ExceptionCode::EncodingError, makeString("Invalid encoding of prf.first: "_s, jsonInputs.first, " (It should be Base64URL encoded.)"_s) };
+    auto first = fromJSONBase64(WTF::move(jsonInputs.first), [&] { return makeString("Invalid encoding of prf.first: "_s, jsonInputs.first, " (It should be Base64URL encoded.)"_s); });
+    if (first.hasException())
+        return first.releaseException();
+
+    std::optional<BufferSource> second;
     if (!jsonInputs.second.isNull()) {
-        if (auto decodedSecond = base64URLDecode(jsonInputs.second))
-            values.second = BufferSource { *decodedSecond };
-
-        else
-            return Exception { ExceptionCode::EncodingError, makeString("Invalid encoding of prf.second: "_s, jsonInputs.second, " (It should be Base64URL encoded.)"_s) };
+        auto decodedSecond = fromJSONBase64(WTF::move(jsonInputs.second), [&] { return makeString("Invalid encoding of prf.second: "_s, jsonInputs.second, " (It should be Base64URL encoded.)"_s); });
+        if (decodedSecond.hasException())
+            return decodedSecond.releaseException();
+        second = decodedSecond.releaseReturnValue();
     }
-    return values;
-}
 
-static ExceptionOr<AuthenticationExtensionsClientInputs::PRFInputs> fromJSON(AuthenticationExtensionsClientInputsJSON::PRFInputsJSON jsonInputs)
+    return AuthenticationExtensionsClientInputs::PRFValues {
+        .first = first.releaseReturnValue(),
+        .second = WTF::move(second),
+    };
+};
+
+static ExceptionOr<AuthenticationExtensionsClientInputs::PRFInputs> fromJSON(AuthenticationExtensionsClientInputsJSON::PRFInputsJSON&& jsonInputs)
 {
-    AuthenticationExtensionsClientInputs::PRFInputs inputs;
+    std::optional<AuthenticationExtensionsClientInputs::PRFValues> eval;
     if (jsonInputs.eval) {
-        auto eval = fromJSON(*jsonInputs.eval);
-        if (eval.hasException())
-            return eval.releaseException();
-        inputs.eval = eval.releaseReturnValue();
+        auto decodedEval = fromJSON(WTF::move(*jsonInputs.eval));
+        if (decodedEval.hasException())
+            return decodedEval.releaseException();
+        eval = decodedEval.releaseReturnValue();
     }
+
+    std::optional<Vector<KeyValuePair<String, AuthenticationExtensionsClientInputs::PRFValues>>> evalByCredential;
     if (jsonInputs.evalByCredential) {
-        Vector<KeyValuePair<String, AuthenticationExtensionsClientInputs::PRFValues>> evalByCredential;
+        evalByCredential = Vector<KeyValuePair<String, AuthenticationExtensionsClientInputs::PRFValues>> { };
         for (auto credentialEvalJSON : *jsonInputs.evalByCredential) {
-            auto value = fromJSON(credentialEvalJSON.value);
+            auto value = fromJSON(WTF::move(credentialEvalJSON.value));
             if (value.hasException())
                 return value.releaseException();
-            evalByCredential.append({ credentialEvalJSON.key, value.releaseReturnValue() });
+            evalByCredential->append({ credentialEvalJSON.key, value.releaseReturnValue() });
         }
-        inputs.evalByCredential = evalByCredential;
     }
-    return inputs;
+
+    return AuthenticationExtensionsClientInputs::PRFInputs {
+        .eval = WTF::move(eval),
+        .evalByCredential = WTF::move(evalByCredential),
+    };
 }
 
 static ExceptionOr<AuthenticationExtensionsClientInputs> fromJSON(AuthenticationExtensionsClientInputsJSON&& jsonInputs)
 {
-    AuthenticationExtensionsClientInputs inputs;
-    inputs.appid = jsonInputs.appid;
+    std::optional<bool> credProps;
     if (jsonInputs.credProps)
-        inputs.credProps = *jsonInputs.credProps;
+        credProps = *jsonInputs.credProps;
+
+    std::optional<AuthenticationExtensionsClientInputs::LargeBlobInputs> largeBlob;
     if (jsonInputs.largeBlob) {
-        auto largeBlob = fromJSON(*jsonInputs.largeBlob);
-        if (largeBlob.hasException())
-            return largeBlob.releaseException();
-        inputs.largeBlob = largeBlob.releaseReturnValue();
+        auto decodedLargeBlob = fromJSON(WTF::move(*jsonInputs.largeBlob));
+        if (decodedLargeBlob.hasException())
+            return decodedLargeBlob.releaseException();
+        largeBlob = decodedLargeBlob.releaseReturnValue();
     }
+
+    std::optional<AuthenticationExtensionsClientInputs::PRFInputs> prf;
     if (jsonInputs.prf) {
-        auto prf = fromJSON(*jsonInputs.prf);
-        if (prf.hasException())
-            return prf.releaseException();
-        inputs.prf = prf.releaseReturnValue();
+        auto decodedPrf = fromJSON(WTF::move(*jsonInputs.prf));
+        if (decodedPrf.hasException())
+            return decodedPrf.releaseException();
+        prf = decodedPrf.releaseReturnValue();
     }
-    return inputs;
+
+    return AuthenticationExtensionsClientInputs {
+        .appid = WTF::move(jsonInputs.appid),
+        .credProps = WTF::move(credProps),
+        .largeBlob = WTF::move(largeBlob),
+        .prf = WTF::move(prf),
+    };
 }
 
 static ExceptionOr<PublicKeyCredentialUserEntity> fromJSON(PublicKeyCredentialUserEntityJSON&& jsonUserEntity)
 {
-    PublicKeyCredentialUserEntity userEntity;
-    if (auto decodedId = base64URLDecode(jsonUserEntity.id))
-        userEntity.id = BufferSource { *decodedId };
-    else
-        return Exception { ExceptionCode::EncodingError, makeString("Invalid encoding of user.id: "_s, jsonUserEntity.id, " (It should be Base64URL encoded.)"_s) };
-    userEntity.name = jsonUserEntity.name;
-    userEntity.displayName = jsonUserEntity.displayName;
-    return userEntity;
+    auto id = fromJSONBase64(WTF::move(jsonUserEntity.id), [&] { return makeString("Invalid encoding of user.id: "_s, jsonUserEntity.id, " (It should be Base64URL encoded.)"_s); });
+    if (id.hasException())
+        return id.releaseException();
+
+    return PublicKeyCredentialUserEntity {
+        PublicKeyCredentialEntity { WTF::move(jsonUserEntity.name), { } },
+        id.releaseReturnValue(),
+        WTF::move(jsonUserEntity.displayName),
+    };
 }
 
 ExceptionOr<PublicKeyCredentialCreationOptions> PublicKeyCredential::parseCreationOptionsFromJSON(PublicKeyCredentialCreationOptionsJSON&& jsonOptions)
 {
-    PublicKeyCredentialCreationOptions options;
-
-    options.rp = jsonOptions.rp;
     auto userEntity = fromJSON(WTF::move(jsonOptions.user));
     if (userEntity.hasException())
         return userEntity.releaseException();
-    options.user = userEntity.releaseReturnValue();
 
-    if (auto decodedChallenge = base64URLDecode(jsonOptions.challenge))
-        options.challenge = BufferSource { *decodedChallenge };
-    else
-        return Exception { ExceptionCode::EncodingError, makeString("Invalid encoding of challenge: "_s, jsonOptions.challenge, " (It should be Base64URL encoded.)"_s) };
-    options.pubKeyCredParams = jsonOptions.pubKeyCredParams;
-    options.timeout = jsonOptions.timeout;
-    auto excludeCredentials = fromJSON(jsonOptions.excludeCredentials);
+    auto challenge = fromJSONBase64(WTF::move(jsonOptions.challenge), [&] { return makeString("Invalid encoding of challenge: "_s, jsonOptions.challenge, " (It should be Base64URL encoded.)"_s); });
+    if (challenge.hasException())
+        return challenge.releaseException();
+
+    auto excludeCredentials = fromJSON(WTF::move(jsonOptions.excludeCredentials));
     if (excludeCredentials.hasException())
         return excludeCredentials.releaseException();
-    options.excludeCredentials = excludeCredentials.releaseReturnValue();
 
-    options.authenticatorSelection = jsonOptions.authenticatorSelection;
-    if (auto attestation = parseEnumerationFromString<AttestationConveyancePreference>(jsonOptions.attestation))
-        options.attestation = *attestation;
+    std::optional<AuthenticationExtensionsClientInputs> extensions;
     if (jsonOptions.extensions) {
-        auto extensions = fromJSON(WTF::move(*jsonOptions.extensions));
-        if (extensions.hasException())
-            return extensions.releaseException();
-        options.extensions = extensions.releaseReturnValue();
+        auto decodedExtensions = fromJSON(WTF::move(*jsonOptions.extensions));
+        if (decodedExtensions.hasException())
+            return decodedExtensions.releaseException();
+        extensions = decodedExtensions.releaseReturnValue();
     }
-    return options;
+
+    return PublicKeyCredentialCreationOptions {
+        .rp = WTF::move(jsonOptions.rp),
+        .user = userEntity.releaseReturnValue(),
+        .challenge = challenge.releaseReturnValue(),
+        .pubKeyCredParams = WTF::move(jsonOptions.pubKeyCredParams),
+        .timeout = WTF::move(jsonOptions.timeout),
+        .excludeCredentials = excludeCredentials.releaseReturnValue(),
+        .authenticatorSelection = WTF::move(jsonOptions.authenticatorSelection),
+        .attestation = parseEnumerationFromString<AttestationConveyancePreference>(jsonOptions.attestation).value_or(AttestationConveyancePreference::None),
+        .extensions = WTF::move(extensions),
+    };
 }
 
 ExceptionOr<PublicKeyCredentialRequestOptions> PublicKeyCredential::parseRequestOptionsFromJSON(PublicKeyCredentialRequestOptionsJSON&& jsonOptions)
 {
-    PublicKeyCredentialRequestOptions options;
+    auto challenge = fromJSONBase64(WTF::move(jsonOptions.challenge), [&] { return makeString("Invalid encoding of challenge: "_s, jsonOptions.challenge, " (It should be Base64URL encoded.)"_s); });
+    if (challenge.hasException())
+        return challenge.releaseException();
 
-    if (auto decodedChallenge = base64URLDecode(jsonOptions.challenge))
-        options.challenge = BufferSource { *decodedChallenge };
-    else
-        return Exception { ExceptionCode::EncodingError, makeString("Invalid encoding of challenge: "_s, jsonOptions.challenge, " (It should be Base64URL encoded.)"_s) };
-    options.timeout = jsonOptions.timeout;
-    options.rpId = jsonOptions.rpId;
-    auto allowCredentials = fromJSON(jsonOptions.allowCredentials);
+    auto allowCredentials = fromJSON(WTF::move(jsonOptions.allowCredentials));
     if (allowCredentials.hasException())
         return allowCredentials.releaseException();
-    options.allowCredentials = allowCredentials.releaseReturnValue();
-    if (auto userVerification = parseEnumerationFromString<UserVerificationRequirement>(jsonOptions.userVerification))
-        options.userVerification = *userVerification;
+
+    std::optional<AuthenticationExtensionsClientInputs> extensions;
     if (jsonOptions.extensions) {
-        auto extensions = fromJSON(WTF::move(*jsonOptions.extensions));
-        if (extensions.hasException())
-            return extensions.releaseException();
-        options.extensions = extensions.releaseReturnValue();
+        auto decodedExtensions = fromJSON(WTF::move(*jsonOptions.extensions));
+        if (decodedExtensions.hasException())
+            return decodedExtensions.releaseException();
+        extensions = decodedExtensions.releaseReturnValue();
     }
-    return options;
+
+    return PublicKeyCredentialRequestOptions {
+        .challenge = challenge.releaseReturnValue(),
+        .timeout = WTF::move(jsonOptions.timeout),
+        .rpId = WTF::move(jsonOptions.rpId),
+        .allowCredentials = allowCredentials.releaseReturnValue(),
+        .userVerification = parseEnumerationFromString<UserVerificationRequirement>(jsonOptions.userVerification).value_or(UserVerificationRequirement::Preferred),
+        .extensions = WTF::move(extensions),
+        .authenticatorAttachment = { },
+    };
 }
 
 void PublicKeyCredential::signalUnknownCredential(Document& document, UnknownCredentialOptions&& options, DOMPromiseDeferred<void>&& promise)

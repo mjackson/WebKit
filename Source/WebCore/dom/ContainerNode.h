@@ -50,8 +50,8 @@ public:
     bool directChildNeedsStyleRecalc() const { return hasStyleFlag(NodeStyleFlag::DirectChildNeedsStyleResolution); }
     void setDirectChildNeedsStyleRecalc() { setStyleFlag(NodeStyleFlag::DirectChildNeedsStyleResolution); }
 
-    WEBCORE_EXPORT unsigned countChildNodes() const;
-    WEBCORE_EXPORT Node* traverseToChildAt(unsigned) const;
+    WEBCORE_EXPORT unsigned NODELETE countChildNodes() const;
+    WEBCORE_EXPORT Node* NODELETE traverseToChildAt(unsigned) const;
 
     ExceptionOr<void> insertBefore(Node& newChild, RefPtr<Node>&& refChild);
     ExceptionOr<void> replaceChild(Node& newChild, Node& oldChild);
@@ -61,7 +61,7 @@ public:
     void replaceAll(Node*);
 
     inline ContainerNode& rootNode() const; // Defined in ContainerNodeInlines.h
-    ContainerNode& traverseToRootNode() const;
+    ContainerNode& NODELETE traverseToRootNode() const;
 
     // These methods are only used during parsing.
     // They don't send DOM mutation events or handle reparenting.
@@ -136,8 +136,8 @@ public:
 
     // From the ParentNode interface - https://dom.spec.whatwg.org/#interface-parentnode
     WEBCORE_EXPORT Ref<HTMLCollection> children();
-    WEBCORE_EXPORT Element* firstElementChild() const;
-    WEBCORE_EXPORT Element* lastElementChild() const;
+    WEBCORE_EXPORT Element* NODELETE firstElementChild() const;
+    WEBCORE_EXPORT Element* NODELETE lastElementChild() const;
     WEBCORE_EXPORT unsigned childElementCount() const;
     ExceptionOr<void> append(FixedVector<NodeOrString>&&);
     ExceptionOr<void> prepend(FixedVector<NodeOrString>&&);
@@ -178,8 +178,8 @@ private:
     void removeBetween(Node* previousChild, Node* nextChild, Node& oldChild);
     ExceptionOr<void> appendChildWithoutPreInsertionValidityCheck(Node&);
 
-    void insertBeforeCommon(Node& nextChild, Node& oldChild);
-    void appendChildCommon(Node&);
+    void NODELETE insertBeforeCommon(Node& nextChild, Node& oldChild);
+    void NODELETE appendChildCommon(Node&);
 
     void rebuildSVGExtensionsElementsIfNecessary();
 

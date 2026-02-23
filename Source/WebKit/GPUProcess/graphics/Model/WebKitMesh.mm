@@ -27,6 +27,7 @@
 #import "WebKitMesh.h"
 
 #import "ModelTypes.h"
+#import "WebKitSwiftSoftLink.h"
 
 #import <wtf/CheckedArithmetic.h>
 #import <wtf/MathExtras.h>
@@ -40,7 +41,7 @@ namespace WebModel {
 
 static WKBridgeMeshPart *convert(const MeshPart& part)
 {
-    return [[WKBridgeMeshPart alloc] initWithIndexOffset:part.indexOffset indexCount:part.indexCount topology:static_cast<MTLPrimitiveType>(part.topology) materialIndex:part.materialIndex boundsMin:part.boundsMin boundsMax:part.boundsMax];
+    return [WebKit::allocWKBridgeMeshPartInstance() initWithIndexOffset:part.indexOffset indexCount:part.indexCount topology:static_cast<MTLPrimitiveType>(part.topology) materialIndex:part.materialIndex boundsMin:part.boundsMin boundsMax:part.boundsMax];
 }
 
 static NSArray<WKBridgeMeshPart *> *convert(const Vector<MeshPart>& parts)
@@ -86,7 +87,7 @@ static NSArray<WKBridgeVertexAttributeFormat *> *convert(const Vector<VertexAttr
 
     NSMutableArray<WKBridgeVertexAttributeFormat *> *result = [NSMutableArray array];
     for (auto& format : formats)
-        [result addObject:[[WKBridgeVertexAttributeFormat alloc] initWithSemantic:format.semantic format:format.format layoutIndex:format.layoutIndex offset:format.offset]];
+        [result addObject:[WebKit::allocWKBridgeVertexAttributeFormatInstance() initWithSemantic:format.semantic format:format.format layoutIndex:format.layoutIndex offset:format.offset]];
 
     return result;
 }
@@ -98,7 +99,7 @@ static NSArray<WKBridgeVertexLayout *> *convert(const Vector<VertexLayout>& layo
 
     NSMutableArray<WKBridgeVertexLayout *> *result = [NSMutableArray array];
     for (auto& layout : layouts)
-        [result addObject:[[WKBridgeVertexLayout alloc] initWithBufferIndex:layout.bufferIndex bufferOffset:layout.bufferOffset bufferStride:layout.bufferStride]];
+        [result addObject:[WebKit::allocWKBridgeVertexLayoutInstance() initWithBufferIndex:layout.bufferIndex bufferOffset:layout.bufferOffset bufferStride:layout.bufferStride]];
 
     return result;
 }
@@ -108,7 +109,7 @@ static WKBridgeMeshDescriptor *convert(const MeshDescriptor& descriptor)
     if (!descriptor.vertexBufferCount)
         return nil;
 
-    return [[WKBridgeMeshDescriptor alloc] initWithVertexBufferCount:descriptor.vertexBufferCount
+    return [WebKit::allocWKBridgeMeshDescriptorInstance() initWithVertexBufferCount:descriptor.vertexBufferCount
         vertexCapacity:descriptor.vertexCapacity
         vertexAttributes:convert(descriptor.vertexAttributes)
         vertexLayouts:convert(descriptor.vertexLayouts)
@@ -133,7 +134,7 @@ static WKBridgeSkinningData *convert(const std::optional<SkinningData>& data)
     if (!data)
         return nil;
 
-    return [[WKBridgeSkinningData alloc] initWithInfluencePerVertexCount:data->influencePerVertexCount jointTransforms:convert(data->jointTransforms) inverseBindPoses:convert(data->inverseBindPoses) influenceJointIndices:convert(data->influenceJointIndices) influenceWeights:convert(data->influenceWeights) geometryBindTransform:data->geometryBindTransform];
+    return [WebKit::allocWKBridgeSkinningDataInstance() initWithInfluencePerVertexCount:data->influencePerVertexCount jointTransforms:convert(data->jointTransforms) inverseBindPoses:convert(data->inverseBindPoses) influenceJointIndices:convert(data->influenceJointIndices) influenceWeights:convert(data->influenceWeights) geometryBindTransform:data->geometryBindTransform];
 }
 
 static WKBridgeBlendShapeData *convert(const std::optional<BlendShapeData>& data)
@@ -141,7 +142,7 @@ static WKBridgeBlendShapeData *convert(const std::optional<BlendShapeData>& data
     if (!data)
         return nil;
 
-    return [[WKBridgeBlendShapeData alloc] initWithWeights:convert(data->weights) positionOffsets:convert(data->positionOffsets) normalOffsets:convert(data->normalOffsets)];
+    return [WebKit::allocWKBridgeBlendShapeDataInstance() initWithWeights:convert(data->weights) positionOffsets:convert(data->positionOffsets) normalOffsets:convert(data->normalOffsets)];
 }
 
 static WKBridgeRenormalizationData *convert(const std::optional<RenormalizationData>& data)
@@ -149,7 +150,7 @@ static WKBridgeRenormalizationData *convert(const std::optional<RenormalizationD
     if (!data)
         return nil;
 
-    return [[WKBridgeRenormalizationData alloc] initWithVertexIndicesPerTriangle:convert(data->vertexIndicesPerTriangle) vertexAdjacencies:convert(data->vertexAdjacencies) vertexAdjacencyEndIndices:convert(data->vertexAdjacencyEndIndices)];
+    return [WebKit::allocWKBridgeRenormalizationDataInstance() initWithVertexIndicesPerTriangle:convert(data->vertexIndicesPerTriangle) vertexAdjacencies:convert(data->vertexAdjacencies) vertexAdjacencyEndIndices:convert(data->vertexAdjacencyEndIndices)];
 }
 
 static WKBridgeDeformationData *convert(const std::optional<DeformationData>& data)
@@ -157,7 +158,7 @@ static WKBridgeDeformationData *convert(const std::optional<DeformationData>& da
     if (!data)
         return nil;
 
-    return [[WKBridgeDeformationData alloc] initWithSkinningData:convert(data->skinningData) blendShapeData:convert(data->blendShapeData) renormalizationData:convert(data->renormalizationData)];
+    return [WebKit::allocWKBridgeDeformationDataInstance() initWithSkinningData:convert(data->skinningData) blendShapeData:convert(data->blendShapeData) renormalizationData:convert(data->renormalizationData)];
 }
 
 static MTLTextureSwizzleChannels convert(ImageAssetSwizzle swizzle)
@@ -302,7 +303,7 @@ static WKBridgeImageAsset* convert(const ImageAsset& imageAsset)
 {
     MTLPixelFormat mtlPixelFormat = static_cast<MTLPixelFormat>(imageAsset.pixelFormat);
 
-    return [[WKBridgeImageAsset alloc] initWithData:convert(imageAsset.data) width:imageAsset.width height:imageAsset.height depth:imageAsset.depth bytesPerPixel:imageAsset.bytesPerPixel ?: texelBlockSize(mtlPixelFormat) textureType:static_cast<MTLTextureType>(imageAsset.textureType) pixelFormat:mtlPixelFormat mipmapLevelCount:imageAsset.mipmapLevelCount arrayLength:imageAsset.arrayLength textureUsage:static_cast<MTLTextureUsage>(imageAsset.textureUsage) swizzle:convert(imageAsset.swizzle)];
+    return [WebKit::allocWKBridgeImageAssetInstance() initWithData:convert(imageAsset.data) width:imageAsset.width height:imageAsset.height depth:imageAsset.depth bytesPerPixel:imageAsset.bytesPerPixel ?: texelBlockSize(mtlPixelFormat) textureType:static_cast<MTLTextureType>(imageAsset.textureType) pixelFormat:mtlPixelFormat mipmapLevelCount:imageAsset.mipmapLevelCount arrayLength:imageAsset.arrayLength textureUsage:static_cast<MTLTextureUsage>(imageAsset.textureUsage) swizzle:convert(imageAsset.swizzle)];
 }
 
 #endif
@@ -322,17 +323,19 @@ WebMesh::WebMesh(const WebModelCreateMeshDescriptor& descriptor)
         [m_textures addObject:[device newTextureWithDescriptor:textureDescriptor iosurface:ioSurface.get() plane:0]];
 
 #if ENABLE(GPU_PROCESS_MODEL)
-    WKBridgeUSDConfiguration *configuration = [[WKBridgeUSDConfiguration alloc] initWithDevice:device];
+    WKBridgeUSDConfiguration *configuration = [WebKit::allocWKBridgeUSDConfigurationInstance() initWithDevice:device];
     WKBridgeImageAsset *diffuseAsset = WebModel::convert(descriptor.diffuseTexture);
     WKBridgeImageAsset *specularAsset = WebModel::convert(descriptor.specularTexture);
-    BinarySemaphore completion;
-    [configuration createMaterialCompiler:[&completion] mutable {
-        completion.signal();
-    }];
-    completion.wait();
+    if (configuration) {
+        BinarySemaphore completion;
+        [configuration createMaterialCompiler:[&completion] mutable {
+            completion.signal();
+        }];
+        completion.wait();
+    }
 
     NSError *error;
-    m_receiver = [[WKBridgeReceiver alloc] initWithConfiguration:configuration diffuseAsset:diffuseAsset specularAsset:specularAsset error:&error];
+    m_receiver = [WebKit::allocWKBridgeReceiverInstance() initWithConfiguration:configuration diffuseAsset:diffuseAsset specularAsset:specularAsset error:&error];
     if (error)
         WTFLogAlways("Could not initialize USD renderer"); // NOLINT
 
@@ -370,7 +373,7 @@ void WebMesh::render() const
 void WebMesh::update(const WebModel::UpdateMeshDescriptor& input)
 {
 #if ENABLE(GPU_PROCESS_MODEL)
-    WKBridgeUpdateMesh *descriptor = [[WKBridgeUpdateMesh alloc] initWithIdentifier:input.identifier.createNSString().get()
+    WKBridgeUpdateMesh *descriptor = [WebKit::allocWKBridgeUpdateMeshInstance() initWithIdentifier:input.identifier.createNSString().get()
         updateType:static_cast<WKBridgeDataUpdateType>(input.updateType)
         descriptor:WebModel::convert(input.descriptor)
         parts:WebModel::convert(input.parts)
@@ -412,7 +415,7 @@ void WebMesh::processUpdates() const
 void WebMesh::updateTexture(const WebModel::UpdateTextureDescriptor& input)
 {
 #if ENABLE(GPU_PROCESS_MODEL)
-    WKBridgeUpdateTexture *descriptor = [[WKBridgeUpdateTexture alloc] initWithImageAsset:WebModel::convert(input.imageAsset) identifier:input.identifier.createNSString().get() hashString:input.hashString.createNSString().get()];
+    WKBridgeUpdateTexture *descriptor = [WebKit::allocWKBridgeUpdateTextureInstance() initWithImageAsset:WebModel::convert(input.imageAsset) identifier:input.identifier.createNSString().get() hashString:input.hashString.createNSString().get()];
 
     if (!descriptor)
         return;
@@ -425,7 +428,7 @@ void WebMesh::updateTexture(const WebModel::UpdateTextureDescriptor& input)
 void WebMesh::updateMaterial(const WebModel::UpdateMaterialDescriptor& originalDescriptor)
 {
 #if ENABLE(GPU_PROCESS_MODEL)
-    WKBridgeUpdateMaterial *descriptor = [[WKBridgeUpdateMaterial alloc] initWithMaterialGraph:WebModel::convert(originalDescriptor.materialGraph) identifier:originalDescriptor.identifier.createNSString().get() geometryModifierFunctionReference:nil surfaceShaderFunctionReference:nil shaderGraphModule:nil];
+    WKBridgeUpdateMaterial *descriptor = [WebKit::allocWKBridgeUpdateMaterialInstance() initWithMaterialGraph:WebModel::convert(originalDescriptor.materialGraph) identifier:originalDescriptor.identifier.createNSString().get() geometryModifierFunctionReference:nil surfaceShaderFunctionReference:nil shaderGraphModule:nil];
     if (!descriptor)
         return;
 

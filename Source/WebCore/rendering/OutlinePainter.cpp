@@ -100,7 +100,7 @@ void OutlinePainter::paintOutline(const RenderElement& renderer, const LayoutRec
     if (outerRect.isEmpty())
         return;
 
-    auto hasBorderRadius = styleToUse->hasBorderRadius();
+    auto hasBorderRadius = styleToUse->border().hasBorderRadius();
     auto closedEdges = RectEdges<bool> { true };
 
     auto outlineEdgeWidths = RectEdges<LayoutUnit> { outlineWidth };
@@ -220,7 +220,7 @@ void OutlinePainter::paintOutlineWithLineRects(const RenderInline& renderer, con
         graphicsContext.endTransparencyLayer();
 }
 
-static bool usePlatformFocusRingColorForOutlineStyleAuto()
+static bool NODELETE usePlatformFocusRingColorForOutlineStyleAuto()
 {
 #if PLATFORM(COCOA) || PLATFORM(GTK) || PLATFORM(WPE)
     return true;
@@ -229,7 +229,7 @@ static bool usePlatformFocusRingColorForOutlineStyleAuto()
 #endif
 }
 
-static bool useShrinkWrappedFocusRingForOutlineStyleAuto()
+static bool NODELETE useShrinkWrappedFocusRingForOutlineStyleAuto()
 {
 #if PLATFORM(COCOA) || PLATFORM(GTK) || PLATFORM(WPE)
     return true;
@@ -269,7 +269,7 @@ void OutlinePainter::paintFocusRing(const RenderElement& renderer, const Vector<
     auto styleOptions = renderer.styleColorOptions();
     styleOptions.add(StyleColorOptions::UseSystemAppearance);
     auto focusRingColor = usePlatformFocusRingColorForOutlineStyleAuto() ? RenderTheme::singleton().focusRingColor(styleOptions) : style->visitedDependentOutlineColorApplyingColorFilter();
-    if (useShrinkWrappedFocusRingForOutlineStyleAuto() && style->hasBorderRadius()) {
+    if (useShrinkWrappedFocusRingForOutlineStyleAuto() && style->border().hasBorderRadius()) {
         auto path = pathWithShrinkWrappedRects(pixelSnappedFocusRingRects, style->border().radii, outlineOffset, style->writingMode(), deviceScaleFactor);
         if (path.isEmpty()) {
             for (auto rect : pixelSnappedFocusRingRects)

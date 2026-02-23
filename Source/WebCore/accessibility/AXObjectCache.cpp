@@ -502,7 +502,7 @@ bool AXObjectCache::isNodeVisible(const Node* node) const
         return false;
 
     CheckedRef style = renderer->style();
-    if (style->display() == DisplayType::None)
+    if (style->display() == Style::DisplayType::None)
         return false;
 
     CheckedPtr renderLayer = renderer->enclosingLayer();
@@ -661,16 +661,20 @@ void AXObjectCache::setIsolatedTreeFocusedObject(AccessibilityObject* focus)
 IntPoint AXObjectCache::mapScreenPointToPagePoint(const IntPoint& screenRelativePoint) const
 {
     RefPtr page = this->page();
-    if (!page) {
-        // We can't do the conversion if we don't have a page.
+    if (!page)
         return screenRelativePoint;
-    }
 
-    // FIXME: WebPage::screenToRootView does sync IPC. Can we find a way to convert this point
-    // without sync IPC?
-    auto convertedPoint = page->chrome().client().screenToRootView(WebCore::IntPoint(screenRelativePoint));
     RefPtr frame = m_document ? m_document->frame() : nullptr;
-    if (RefPtr frameView = frame ? frame->view() : nullptr)
+    RefPtr frameView = frame ? frame->view() : nullptr;
+
+    // Try to use cached accessibility position to avoid sync IPC (macOS only).
+    IntPoint convertedPoint;
+    if (auto localResult = page->chrome().client().screenToRootViewUsingCachedPosition(screenRelativePoint, frameView ? frameView->size() : IntSize()))
+        convertedPoint = *localResult;
+    else
+        convertedPoint = page->chrome().client().screenToRootView(screenRelativePoint);
+
+    if (frameView)
         convertedPoint.moveBy(frameView->scrollPosition());
 
     auto obscuredContentInsets = page->obscuredContentInsets();
@@ -2421,7 +2425,7 @@ void AXObjectCache::onStyleChange(RenderText& renderText, Style::Difference diff
     if (oldStyle->verticalAlign() != newStyle.verticalAlign())
         tree->queueNodeUpdate(object->objectID(), { { AXProperty::IsSuperscript, AXProperty::IsSubscript } });
 
-    if (oldStyle->hasTextShadow() != newStyle.hasTextShadow())
+    if (oldStyle->textShadow().isNone() != newStyle.textShadow().isNone())
         tree->queueNodeUpdate(object->objectID(), { AXProperty::HasTextShadow });
 
     auto oldDecor = oldStyle->textDecorationLineInEffect();
@@ -3036,7 +3040,17 @@ void AXObjectCache::deferAttributeChangeIfNeeded(Element& element, const Qualifi
 {
     AXTRACE(makeString("AXObjectCache::deferAttributeChangeIfNeeded 0x"_s, hex(reinterpret_cast<uintptr_t>(this))));
 
-    if (nodeRendererIsValid(element) && rendererNeedsDeferredUpdate(*element.renderer())) {
+    // Because the |id| attribute requires dirtying relations, and this code is called directly
+    // downstream of DOM changes, we can never eagerly process attribute changes for it. Here's
+    // an example scenario where this would cause issues:
+    //
+    //  1. VoiceOver requests focus to be set on an element.
+    //  2. A JS event handler is synchronously called, changing an id.
+    //  3. We handle it eagerly, dirtying relations.
+    //  4. The event handler also does something else that would cause us to un-dirty relations,
+    //     like calling parentObject() on any object as a result of an element removal
+    //  5. We crash because we try to un-dirty relations when style / layout is dirty.
+    if (attrName == idAttr || (nodeRendererIsValid(element) && rendererNeedsDeferredUpdate(*element.renderer()))) {
         m_deferredAttributeChange.append({ element, attrName, oldValue, newValue });
         if (!m_performCacheUpdateTimer.isActive())
             m_performCacheUpdateTimer.startOneShot(0_s);
@@ -3045,8 +3059,6 @@ void AXObjectCache::deferAttributeChangeIfNeeded(Element& element, const Qualifi
     }
     Ref protectedElement { element };
     handleAttributeChange(protectedElement.ptr(), attrName, oldValue, newValue);
-    if (attrName == idAttr)
-        relationsNeedUpdate(true);
 }
 
 void AXObjectCache::handleReferenceTargetChanged()
@@ -5530,7 +5542,7 @@ bool isVisibilityHidden(const RenderStyle& style)
 // https://www.w3.org/TR/wai-aria/#dfn-hidden
 bool isRenderHidden(const RenderStyle& style)
 {
-    return style.display() == DisplayType::None || isVisibilityHidden(style);
+    return style.display() == Style::DisplayType::None || isVisibilityHidden(style);
 }
 
 bool isRenderHidden(const RenderStyle* style)
@@ -5663,6 +5675,10 @@ AXRelation AXObjectCache::symmetricRelation(AXRelation relation)
         return AXRelation::LabelFor;
     case AXRelation::LabelFor:
         return AXRelation::LabeledBy;
+    case AXRelation::NativeLabeledBy:
+        return AXRelation::NativeLabelFor;
+    case AXRelation::NativeLabelFor:
+        return AXRelation::NativeLabeledBy;
     case AXRelation::OwnedBy:
         return AXRelation::OwnerFor;
     case AXRelation::OwnerFor:
@@ -5782,10 +5798,10 @@ bool AXObjectCache::addRelation(AccessibilityObject* origin, AccessibilityObject
     auto relationsIterator = m_relations.find(originID);
     if (relationsIterator == m_relations.end()) {
         // No relations for this object, add the first one.
-        m_relations.add(originID, AXRelations { { enumToUnderlyingType(relation), { targetID } } });
-    } else if (auto targetsIterator = relationsIterator->value.find(enumToUnderlyingType(relation)); targetsIterator == relationsIterator->value.end()) {
+        m_relations.add(originID, AXRelations { { std::to_underlying(relation), { targetID } } });
+    } else if (auto targetsIterator = relationsIterator->value.find(std::to_underlying(relation)); targetsIterator == relationsIterator->value.end()) {
         // No relation of this type for this object, add the first one.
-        relationsIterator->value.add(enumToUnderlyingType(relation), ListHashSet { targetID });
+        relationsIterator->value.add(std::to_underlying(relation), ListHashSet { targetID });
     } else {
         // There are already relations of this type for the object. Add the new relation.
         if (relation == AXRelation::ActiveDescendant
@@ -5868,7 +5884,7 @@ bool AXObjectCache::removeRelation(Element& origin, AXRelation relation)
     if (relationsIterator == m_relations.end())
         return false;
 
-    auto targetIDs = relationsIterator->value.take(enumToUnderlyingType(relation));
+    auto targetIDs = relationsIterator->value.take(std::to_underlying(relation));
     bool removedRelation = !targetIDs.isEmpty();
 
     auto symmetric = symmetricRelation(relation);
@@ -5900,7 +5916,7 @@ void AXObjectCache::removeRelationByID(AXID originID, AXID targetID, AXRelation 
     if (relationsIterator == m_relations.end())
         return;
 
-    auto targetsIterator = relationsIterator->value.find(enumToUnderlyingType(relation));
+    auto targetsIterator = relationsIterator->value.find(std::to_underlying(relation));
     if (targetsIterator == relationsIterator->value.end())
         return;
     targetsIterator->value.remove(targetID);
@@ -5968,9 +5984,11 @@ bool AXObjectCache::addRelation(Element& origin, const QualifiedName& attribute)
     auto& value = origin.attributeWithoutSynchronization(attribute);
     if (value.isNull()) {
         if (CheckedPtr defaultARIA = origin.customElementDefaultARIAIfExists()) {
-            for (auto& target : defaultARIA->elementsForAttribute(origin, attribute)) {
-                if (addRelation(origin, target, relation))
-                    addedRelation = true;
+            if (std::optional elements = defaultARIA->elementsForAttribute(origin, attribute)) {
+                for (auto& target : *elements) {
+                    if (addRelation(origin, target, relation))
+                        addedRelation = true;
+                }
             }
         }
         return addedRelation;
@@ -5995,8 +6013,13 @@ void AXObjectCache::addLabelForRelation(Element& origin)
 
     // LabelFor relations are established for <label for=...>.
     if (RefPtr label = dynamicDowncast<HTMLLabelElement>(origin)) {
-        if (RefPtr control = Accessibility::controlForLabelElement(*label))
-            addedRelation = addRelation(origin, *control, AXRelation::LabelFor);
+        if (RefPtr control = Accessibility::controlForLabelElement(*label)) {
+            // Always add NativeLabelFor for geometry purposes.
+            addedRelation = addRelation(origin, *control, AXRelation::NativeLabelFor);
+            // Only add LabelFor (for accname) if no ARIA labelling exists.
+            if (!hasAnyARIALabelling(*control))
+                addRelation(origin, *control, AXRelation::LabelFor);
+        }
     }
 
     if (addedRelation)
@@ -6071,7 +6094,7 @@ std::optional<ListHashSet<AXID>> AXObjectCache::relatedObjectIDsFor(const AXCore
     if (relationsIterator == m_relations.end())
         return std::nullopt;
 
-    auto targetsIterator = relationsIterator->value.find(enumToUnderlyingType(relation));
+    auto targetsIterator = relationsIterator->value.find(std::to_underlying(relation));
     if (targetsIterator == relationsIterator->value.end())
         return std::nullopt;
     return targetsIterator->value;

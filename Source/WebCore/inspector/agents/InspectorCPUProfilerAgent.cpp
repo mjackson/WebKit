@@ -72,7 +72,7 @@ Inspector::Protocol::ErrorStringOr<void> InspectorCPUProfilerAgent::startTrackin
 
     m_tracking = true;
 
-    m_frontendDispatcher->trackingStart(checkedEnvironment()->executionStopwatch().elapsedTime().seconds());
+    m_frontendDispatcher->trackingStart(protect(environment())->executionStopwatch().elapsedTime().seconds());
 
     return { };
 }
@@ -86,7 +86,7 @@ Inspector::Protocol::ErrorStringOr<void> InspectorCPUProfilerAgent::stopTracking
 
     m_tracking = false;
 
-    m_frontendDispatcher->trackingComplete(checkedEnvironment()->executionStopwatch().elapsedTime().seconds());
+    m_frontendDispatcher->trackingComplete(protect(environment())->executionStopwatch().elapsedTime().seconds());
 
     return { };
 }
@@ -114,7 +114,7 @@ static Ref<Inspector::Protocol::CPUProfiler::ThreadInfo> buildThreadInfo(const T
 void InspectorCPUProfilerAgent::collectSample(const ResourceUsageData& data)
 {
     auto event = Inspector::Protocol::CPUProfiler::Event::create()
-        .setTimestamp(checkedEnvironment()->executionStopwatch().elapsedTimeSince(data.timestamp).seconds())
+        .setTimestamp(protect(environment())->executionStopwatch().elapsedTimeSince(data.timestamp).seconds())
         .setUsage(data.cpuExcludingDebuggerThreads)
         .release();
 

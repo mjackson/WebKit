@@ -84,7 +84,7 @@ Ref<MediaControlTextTrackContainerElement> MediaControlTextTrackContainerElement
 }
 
 MediaControlTextTrackContainerElement::MediaControlTextTrackContainerElement(Document& document, HTMLMediaElement& element)
-    : HTMLDivElement(divTag, document)
+    : HTMLDivElement(document)
     , m_mediaElement(element)
 {
 }

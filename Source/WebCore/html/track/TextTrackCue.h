@@ -79,7 +79,7 @@ public:
     void didMoveToNewDocument(Document&);
 
     TextTrack* NODELETE track() const;
-    RefPtr<TextTrack> protectedTrack() const;
+    RefPtr<TextTrack> NODELETE protectedTrack() const;
     void setTrack(TextTrack*);
 
     const AtomString& id() const { return m_id; }
@@ -92,7 +92,7 @@ public:
     void setEndTime(double);
 
     bool pauseOnExit() const { return m_pauseOnExit; }
-    void setPauseOnExit(bool);
+    void NODELETE setPauseOnExit(bool);
 
     MediaTime startMediaTime() const { return m_startTime; }
     void setStartTime(const MediaTime&);
@@ -100,7 +100,7 @@ public:
     MediaTime endMediaTime() const { return m_endTime; }
     void setEndTime(const MediaTime&);
 
-    bool isActive() const;
+    bool NODELETE isActive() const;
     virtual void setIsActive(bool);
 
     virtual bool isOrderedBefore(const TextTrackCue*) const;
@@ -110,7 +110,7 @@ public:
 
     enum CueType { Generic, Data, ConvertedToWebVTT, WebVTT };
     virtual CueType cueType() const { return CueType::Generic; }
-    virtual bool isRenderable() const;
+    virtual bool NODELETE isRenderable() const;
 
     enum CueMatchRules { MatchAllFields, IgnoreDuration };
     bool isEqual(const TextTrackCue&, CueMatchRules) const;
@@ -127,7 +127,7 @@ public:
     String toJSONString() const;
 
     virtual void recalculateStyles() { m_displayTreeNeedsUpdate = true; }
-    virtual void setFontSize(int fontSize, bool important);
+    virtual void NODELETE setFontSize(int fontSize, bool important);
     virtual void updateDisplayTree(const MediaTime&) { }
 
     unsigned cueIndex() const;

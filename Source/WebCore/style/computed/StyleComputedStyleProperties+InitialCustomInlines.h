@@ -37,6 +37,7 @@
 #include <WebCore/StyleBoxData.h>
 #include <WebCore/StyleCustomPropertyData.h>
 #include <WebCore/StyleDeprecatedFlexibleBoxData.h>
+#include <WebCore/StyleDisplay.h>
 #include <WebCore/StyleFillLayers.h>
 #include <WebCore/StyleFilterData.h>
 #include <WebCore/StyleFlexibleBoxData.h>

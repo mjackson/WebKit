@@ -30,6 +30,7 @@
 
 #include <WebCore/KeyboardScroll.h>
 #include <WebCore/RectEdges.h>
+#include <WebCore/RubberbandingState.h>
 #include <WebCore/ScrollAnimation.h>
 #include <WebCore/ScrollSnapAnimatorState.h>
 #include <WebCore/ScrollSnapOffsetsInfo.h>
@@ -108,6 +109,10 @@ public:
     virtual void didStopRubberBandAnimation() { }
 
     virtual void rubberBandingStateChanged(bool) { }
+
+    virtual FloatSize rubberBandTargetOffset() const { return { }; }
+    virtual bool hasBannerViewOverlay() const { return false; }
+    virtual float bannerViewMaximumHeight() const { return 0; }
 #endif
 
     virtual void deferWheelEventTestCompletionForReason(ScrollingNodeID, WheelEventTestMonitor::DeferReason) const { /* Do nothing */ }
@@ -193,8 +198,14 @@ public:
     bool processWheelEventForScrollSnap(const PlatformWheelEvent&);
 
     void stopRubberBanding();
+    void startRubberBandSnapBack();
     bool isRubberBandInProgress() const;
     RectEdges<bool> rubberBandingEdges() const { return m_rubberBandingEdges; }
+
+    std::optional<RubberbandingState> captureRubberbandingState() const;
+    bool restoreRubberbandingState(const RubberbandingState&);
+    bool shouldAttemptRubberbandingRestoration(const RubberbandingState&);
+    FloatSize deltaWithAdditionalAdjustments(const FloatSize& adjustedDelta, bool);
 #endif
 
 private:
@@ -220,6 +231,7 @@ private:
     void startRubberBandAnimationIfNecessary();
 
     bool startRubberBandAnimation(const FloatSize& initialVelocity, const FloatSize& initialOverscroll);
+    bool startRubberBandAnimationWithElapsedTime(const FloatSize& initialVelocity, const FloatSize& initialOverscroll, Seconds alreadyElapsed);
     void stopRubberBandAnimation();
 
     void willStartRubberBandAnimation();
@@ -285,6 +297,9 @@ private:
     bool m_momentumScrollInProgress { false };
     bool m_ignoreMomentumScrolls { false };
     bool m_isRubberBanding { false };
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+    bool m_skipAdditionalDeltaAdjustments { false };
+#endif
 
     Deque<FloatSize> m_recentDiscreteWheelDeltas;
     std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteSnapTransitionTimer;

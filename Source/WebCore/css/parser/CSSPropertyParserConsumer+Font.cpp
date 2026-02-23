@@ -82,7 +82,7 @@ static Ref<CSSPrimitiveValue> resolveToCSSPrimitiveValue(CSS::Numeric auto&& pri
     return WTF::switchOn(WTF::move(primitive), [](auto&& alternative) { return CSSPrimitiveValueResolverBase::resolve(WTF::move(alternative), { }); }).releaseNonNull();
 }
 
-static CSSParserMode parserMode(ScriptExecutionContext& context)
+static CSSParserMode NODELETE parserMode(ScriptExecutionContext& context)
 {
     auto* document = dynamicDowncast<Document>(context);
     return (document && document->inQuirksMode()) ? HTMLQuirksMode : HTMLStandardMode;
@@ -516,7 +516,7 @@ Vector<FontTechnology> consumeFontTech(CSSParserTokenRange& range, CSS::Property
     return technologies;
 }
 
-static bool isFontFormatKeywordValid(CSSValueID id)
+static bool NODELETE isFontFormatKeywordValid(CSSValueID id)
 {
     switch (id) {
     case CSSValueCollection:

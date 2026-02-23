@@ -286,7 +286,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 {
     if (RefPtr activeAnnotation = _pdfPlugin->activeAnnotation()) {
         if (WebCore::AXObjectCache* existingCache = _pdfPlugin->axObjectCache()) {
-            if (RefPtr object = existingCache->exportedGetOrCreate(activeAnnotation->protectedElement().get()))
+            if (RefPtr object = existingCache->exportedGetOrCreate(activeAnnotation->element()))
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
                 return [object->wrapper() accessibilityAttributeValue:@"_AXAssociatedPluginParent"];
 ALLOW_DEPRECATED_DECLARATIONS_END
@@ -304,7 +304,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     id wrapper = nil;
     callOnMainRunLoopAndWait([activeAnnotation, protectedSelf = retainPtr(self), &wrapper] {
         if (auto* axObjectCache = protectedSelf->_pdfPlugin->axObjectCache()) {
-            if (RefPtr annotationElementAxObject = axObjectCache->exportedGetOrCreate(activeAnnotation->protectedElement().get()))
+            if (RefPtr annotationElementAxObject = axObjectCache->exportedGetOrCreate(activeAnnotation->element()))
                 wrapper = annotationElementAxObject->wrapper();
         }
     });

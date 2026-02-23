@@ -74,7 +74,7 @@ void LegacyRenderSVGImage::notifyFinished(CachedResource& newImage, const Networ
 
 void LegacyRenderSVGImage::willBeDestroyed()
 {
-    imageResource().shutdown();
+    imageResource().willBeDestroyed();
     LegacyRenderSVGModelObject::willBeDestroyed();
 }
 

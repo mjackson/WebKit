@@ -68,8 +68,8 @@ public:
     void deref() const final { RefCounted::deref(); }
     USING_CAN_MAKE_WEAKPTR(EventTarget);
 
-    static HashSet<CheckedPtr<WebSocket>>& allActiveWebSockets() WTF_REQUIRES_LOCK(s_allActiveWebSocketsLock);
-    static Lock& allActiveWebSocketsLock() WTF_RETURNS_LOCK(s_allActiveWebSocketsLock);
+    static HashSet<CheckedPtr<WebSocket>>& NODELETE allActiveWebSockets() WTF_REQUIRES_LOCK(s_allActiveWebSocketsLock);
+    static Lock& NODELETE allActiveWebSocketsLock() WTF_RETURNS_LOCK(s_allActiveWebSocketsLock);
 
     enum State {
         CONNECTING = 0,
@@ -89,20 +89,20 @@ public:
 
     ExceptionOr<void> close(std::optional<unsigned short> code, const String& reason);
 
-    RefPtr<ThreadableWebSocketChannel> channel() const;
+    RefPtr<ThreadableWebSocketChannel> NODELETE channel() const;
 
-    const URL& url() const;
-    State readyState() const;
-    unsigned bufferedAmount() const;
+    const URL& NODELETE url() const;
+    State NODELETE readyState() const;
+    unsigned NODELETE bufferedAmount() const;
 
-    String protocol() const;
-    String extensions() const;
+    String NODELETE protocol() const;
+    String NODELETE extensions() const;
 
     enum class BinaryType : bool { Blob, Arraybuffer };
     BinaryType binaryType() const { return m_binaryType; }
-    void setBinaryType(BinaryType);
+    void NODELETE setBinaryType(BinaryType);
 
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
 
 private:
     explicit WebSocket(ScriptExecutionContext&);
@@ -125,12 +125,12 @@ private:
     void didReceiveMessage(String&& message) final;
     void didReceiveBinaryData(Vector<uint8_t>&&) final;
     void didReceiveMessageError(String&& reason) final;
-    void didUpdateBufferedAmount(unsigned bufferedAmount) final;
+    void NODELETE didUpdateBufferedAmount(unsigned bufferedAmount) final;
     void didStartClosingHandshake() final;
     void didClose(unsigned unhandledBufferedAmount, ClosingHandshakeCompletionStatus, unsigned short code, const String& reason) final;
     void didUpgradeURL() final;
 
-    size_t getFramingOverhead(size_t payloadSize);
+    size_t NODELETE getFramingOverhead(size_t payloadSize);
 
     void failAsynchronously();
 

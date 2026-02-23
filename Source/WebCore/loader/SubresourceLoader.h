@@ -51,7 +51,7 @@ public:
     virtual ~SubresourceLoader();
 
     void cancelIfNotFinishing();
-    bool isSubresourceLoader() const final;
+    bool NODELETE isSubresourceLoader() const final;
     CachedResource* cachedResource() const final { return m_resource.get(); };
 
     WEBCORE_EXPORT const HTTPHeaderMap* originalHeaders() const;

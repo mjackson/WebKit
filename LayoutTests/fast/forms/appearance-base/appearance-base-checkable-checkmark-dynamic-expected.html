@@ -1,19 +1,25 @@
+<!-- webkit-test-runner [ CSSInternalAutoBaseParsingEnabled=true ] -->
 <style>
+    /* This is supposed to be UA sheet. */
     input:is([type="radio"], [type="checkbox"]) {
         margin: 3px 2px;
         box-sizing: border-box;
-        border: 0.3em solid currentColor;
+        border: -internal-auto-base(initial, 0.3em solid currentColor);
         padding: initial;
-        background-color: transparent;
+        background-color: -internal-auto-base(initial, transparent);
+    }
+
+    input:is([type=checkbox]:not([switch])) {
+        border-radius: -internal-auto-base(unset, 0.5em);
     }
 
     input[type=radio] {
-        border-radius: 50%;
+        border-radius: -internal-auto-base(unset, 100%);
     }
 
     input:is([type=checkbox]:not([switch]), [type=radio]):disabled {
-        border-color: color-mix(in srgb, currentColor 30%, transparent);
-        background-color: color-mix(in srgb, currentColor 10%, transparent);
+        border-color: -internal-auto-base(unset, color-mix(in srgb, currentColor 30%, transparent));
+        background-color: -internal-auto-base(unset, color-mix(in srgb, currentColor 10%, transparent));
     }
 
     input[type=checkbox]:not([switch]):checked::checkmark {
@@ -36,6 +42,7 @@
         background-color: color-mix(in srgb, currentColor 30%, transparent);
     }
 
+    /* This is the beginning of the author sheet. */
     input:is([type=checkbox]:not([switch]), [type=radio]) {
         width: 50px;
         height: 50px;

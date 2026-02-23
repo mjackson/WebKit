@@ -1671,7 +1671,7 @@ sub commandExists($)
     my $command = shift;
     my $devnull = File::Spec->devnull();
 
-    if (isAnyWindows()) {
+    if (isWindows()) {
         return exitStatus(system("where /q $command >$devnull 2>&1")) == 0;
     }
     return exitStatus(system("which $command >$devnull 2>&1")) == 0;
@@ -1864,9 +1864,14 @@ sub isCygwin()
     return ($^O eq "cygwin") || 0;
 }
 
+sub isMsys()
+{
+    return ($^O eq "msys") || 0;
+}
+
 sub isAnyWindows()
 {
-    return isWindows() || isCygwin();
+    return isWindows() || isCygwin() || isMsys();
 }
 
 sub determineWinVersion()
@@ -1926,7 +1931,7 @@ sub isX86_64()
 
 sub isARM64()
 {
-    return (architecture() eq "arm64") || 0;
+    return (lc(architecture()) eq "arm64") || 0;
 }
 
 sub isCrossCompilation()
@@ -2674,7 +2679,7 @@ sub shouldUseFlatpak()
 
 sub shouldUseVcpkg()
 {
-    return isWin() || (isJSCOnly() && isWindows());
+    return isWin() || (isJSCOnly() && isAnyWindows());
 }
 
 sub cmakeCachePath()
@@ -2851,7 +2856,11 @@ sub generateBuildSystemFromCMakeProject
 
     if (shouldUseVcpkg()) {
         push @args, '-DCMAKE_TOOLCHAIN_FILE="' . $ENV{VCPKG_ROOT} . '\\scripts\\buildsystems\\vcpkg.cmake"';
-        push @args, '-DVCPKG_TARGET_TRIPLET=x64-windows-webkit'
+        if (architecture() eq "ARM64") {
+            push @args, '-DVCPKG_TARGET_TRIPLET=arm64-windows-static-md';
+        } else {
+            push @args, '-DVCPKG_TARGET_TRIPLET=x64-windows-webkit'
+        }
     } elsif (isPlayStation()) {
         my $toolChainFile = $ENV{'CMAKE_TOOLCHAIN_FILE'} || "Platform/PlayStation5";
         push @args, '-DCMAKE_TOOLCHAIN_FILE=' . $toolChainFile;

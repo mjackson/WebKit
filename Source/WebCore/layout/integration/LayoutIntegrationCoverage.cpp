@@ -109,30 +109,30 @@ static EnumSet<FlexAvoidanceReason> canUseForFlexLayoutWithReason(const RenderFl
     if (!flexBox.firstInFlowChild())
         ADD_REASON_AND_RETURN_IF_NEEDED(NoFlexLayoutIsNeeded, reasons, includeReasons);
 
-    auto& flexBoxStyle = flexBox.style();
-    if (flexBoxStyle.display() == DisplayType::InlineFlex)
+    CheckedRef flexBoxStyle = flexBox.style();
+    if (flexBoxStyle->display() == Style::DisplayType::InlineFlex)
         ADD_REASON_AND_RETURN_IF_NEEDED(FlexBoxNeedsBaseline, reasons, includeReasons);
 
-    auto isColumnDirection = flexBoxStyle.flexDirection() == FlexDirection::Column || flexBoxStyle.flexDirection() == FlexDirection::ColumnReverse;
-    auto isHorizontalWritingMode = flexBoxStyle.writingMode().isHorizontal();
+    auto isColumnDirection = flexBoxStyle->flexDirection() == FlexDirection::Column || flexBoxStyle->flexDirection() == FlexDirection::ColumnReverse;
+    auto isHorizontalWritingMode = flexBoxStyle->writingMode().isHorizontal();
     if (!isHorizontalWritingMode) {
         // FIXME: Integration layer needs to do geometry translate from logical to physical (or whatever render tree needs).
         ADD_REASON_AND_RETURN_IF_NEEDED(FlexIsVertical, reasons, includeReasons);
     }
 
-    if (((isHorizontalWritingMode && isColumnDirection) || (!isHorizontalWritingMode && !isColumnDirection)) && !flexBoxStyle.height().isFixed())
+    if (((isHorizontalWritingMode && isColumnDirection) || (!isHorizontalWritingMode && !isColumnDirection)) && !flexBoxStyle->height().isFixed())
         ADD_REASON_AND_RETURN_IF_NEEDED(FlexBoxHasNonFixedHeightInMainAxis, reasons, includeReasons);
 
-    if (mayHaveScrollbarOrScrollableOverflow(flexBoxStyle))
+    if (mayHaveScrollbarOrScrollableOverflow(flexBoxStyle.get()))
         ADD_REASON_AND_RETURN_IF_NEEDED(FlexBoxHasUnsupportedOverflow, reasons, includeReasons);
 
-    if (flexBoxStyle.marginTrim() != Style::ComputedStyle::initialMarginTrim())
+    if (flexBoxStyle->marginTrim() != Style::ComputedStyle::initialMarginTrim())
         ADD_REASON_AND_RETURN_IF_NEEDED(FlexBoxHasMarginTrim, reasons, includeReasons);
 
     auto isFlexBoxInsideBFC = [&] {
         // FIXME: This may be somewhat expensive in some deeply nested cases.
-        for (auto* containingBlock = flexBox.containingBlock(); containingBlock && !is<RenderView>(*containingBlock); containingBlock = containingBlock->containingBlock()) {
-            if (containingBlock->style().display() != DisplayType::Block)
+        for (CheckedPtr containingBlock = flexBox.containingBlock(); containingBlock && !is<RenderView>(*containingBlock); containingBlock = containingBlock->containingBlock()) {
+            if (containingBlock->style().display() != Style::DisplayType::BlockFlow)
                 return false;
             if (containingBlock->createsNewFormattingContext())
                 return true;
@@ -144,7 +144,7 @@ static EnumSet<FlexAvoidanceReason> canUseForFlexLayoutWithReason(const RenderFl
         ADD_REASON_AND_RETURN_IF_NEEDED(FlexBoxHasNestedFlex, reasons, includeReasons);
     }
 
-    if (flexBoxStyle.minHeight() != Style::ComputedStyle::initialMinHeight() || flexBoxStyle.maxHeight() != Style::ComputedStyle::initialMaxHeight())
+    if (flexBoxStyle->minHeight() != Style::ComputedStyle::initialMinHeight() || flexBoxStyle->maxHeight() != Style::ComputedStyle::initialMaxHeight())
         ADD_REASON_AND_RETURN_IF_NEEDED(FlexWithNonInitialMinMaxHeight, reasons, includeReasons);
 
     if (flexBox.isOutOfFlowPositioned()) {
@@ -152,51 +152,51 @@ static EnumSet<FlexAvoidanceReason> canUseForFlexLayoutWithReason(const RenderFl
         ADD_REASON_AND_RETURN_IF_NEEDED(FlexBoxIsOutOfFlow, reasons, includeReasons);
     }
 
-    for (auto& flexItem : childrenOfType<RenderElement>(flexBox)) {
-        auto& flexItemStyle = flexItem.style();
+    for (CheckedRef flexItem : childrenOfType<RenderElement>(flexBox)) {
+        CheckedRef flexItemStyle = flexItem->style();
 
-        if (!flexItemStyle.flexBasis().isFixed()) {
+        if (!flexItemStyle->flexBasis().isFixed()) {
             // Note that percentage values of flex-basis are resolved against the flex item's containing block and if that containing block's size is indefinite, the used value for flex-basis is content.
             ADD_REASON_AND_RETURN_IF_NEEDED(FlexItemHasIntrinsicFlexBasis, reasons, includeReasons);
         }
 
-        if (!is<RenderBlock>(flexItem) || flexItem.isFieldset() || flexItem.isRenderTextControl() || flexItem.isRenderTable())
+        if (!is<RenderBlock>(flexItem.get()) || flexItem->isFieldset() || flexItem->isRenderTextControl() || flexItem->isRenderTable())
             ADD_REASON_AND_RETURN_IF_NEEDED(FlexBoxHasUnsupportedTypeOfRenderer, reasons, includeReasons);
 
-        if (flexItem.isOutOfFlowPositioned())
+        if (flexItem->isOutOfFlowPositioned())
             ADD_REASON_AND_RETURN_IF_NEEDED(FlexBoxHasOutOfFlowChild, reasons, includeReasons);
 
-        if (!flexItem.isHorizontalWritingMode())
+        if (!flexItem->isHorizontalWritingMode())
             ADD_REASON_AND_RETURN_IF_NEEDED(FlexIsVertical, reasons, includeReasons);
 
-        if (flexItem.isRenderOrLegacyRenderSVGRoot())
+        if (flexItem->isRenderOrLegacyRenderSVGRoot())
             ADD_REASON_AND_RETURN_IF_NEEDED(FlexBoxHasSVGChild, reasons, includeReasons);
 
-        if (flexItem.isFlexibleBoxIncludingDeprecated())
+        if (flexItem->isFlexibleBoxIncludingDeprecated())
             ADD_REASON_AND_RETURN_IF_NEEDED(FlexBoxHasNestedFlex, reasons, includeReasons);
 
-        if (!flexItemStyle.height().isFixed())
+        if (!flexItemStyle->height().isFixed())
             ADD_REASON_AND_RETURN_IF_NEEDED(FlexItemHasNonFixedHeight, reasons, includeReasons);
 
-        if (flexItemStyle.minHeight() != Style::ComputedStyle::initialMinHeight() || flexItemStyle.maxHeight() != Style::ComputedStyle::initialMaxHeight())
+        if (flexItemStyle->minHeight() != Style::ComputedStyle::initialMinHeight() || flexItemStyle->maxHeight() != Style::ComputedStyle::initialMaxHeight())
             ADD_REASON_AND_RETURN_IF_NEEDED(FlexWithNonInitialMinMaxHeight, reasons, includeReasons);
 
-        if (flexItemStyle.usedContain().contains(Style::ContainValue::Size))
+        if (flexItemStyle->usedContain().contains(Style::ContainValue::Size))
             ADD_REASON_AND_RETURN_IF_NEEDED(FlexItemHasContainsSize, reasons, includeReasons);
 
-        if (mayHaveScrollbarOrScrollableOverflow(flexItemStyle))
+        if (mayHaveScrollbarOrScrollableOverflow(flexItemStyle.get()))
             ADD_REASON_AND_RETURN_IF_NEEDED(FlexItemHasUnsupportedOverflow, reasons, includeReasons);
 
-        if ((is<RenderBox>(flexItem) && downcast<RenderBox>(flexItem).hasIntrinsicAspectRatio()) || flexItemStyle.hasAspectRatio())
+        if ((is<RenderBox>(flexItem.get()) && downcast<RenderBox>(flexItem.get()).hasIntrinsicAspectRatio()) || flexItemStyle->aspectRatio().hasRatio())
             ADD_REASON_AND_RETURN_IF_NEEDED(FlexItemHasAspectRatio, reasons, includeReasons);
 
-        auto isBaseline = !flexItemStyle.alignSelf().isAuto() ? flexItemStyle.alignSelf().isBaseline() : flexBoxStyle.alignItems().isBaseline();
+        auto isBaseline = !flexItemStyle->alignSelf().isAuto() ? flexItemStyle->alignSelf().isBaseline() : flexBoxStyle->alignItems().isBaseline();
         if (isBaseline)
             ADD_REASON_AND_RETURN_IF_NEEDED(FlexItemHasBaselineAlign, reasons, includeReasons);
 
-        for (auto& child : childrenOfType<RenderElement>(flexItem)) {
+        for (CheckedRef child : childrenOfType<RenderElement>(flexItem.get())) {
             // FIXME: Should check descendants too?
-            if (child.style().height().isPercentOrCalculated())
+            if (child->style().height().isPercentOrCalculated())
                 ADD_REASON_AND_RETURN_IF_NEEDED(FlexItemHasNonFixedHeight, reasons, includeReasons);
         }
     }
@@ -344,16 +344,16 @@ bool canUseForLineLayout(const RenderBlockFlow& rootContainer)
 bool canUseForPreferredWidthComputation(const RenderBlockFlow& blockContainer)
 {
     for (auto walker = InlineWalker(blockContainer); !walker.atEnd(); walker.advance()) {
-        auto& renderer = *walker.current();
-        if (!renderer.isInFlow())
+        CheckedRef renderer = *walker.current();
+        if (!renderer->isInFlow())
             return false;
 
-        auto isFullySupportedInFlowRenderer = renderer.isRenderText() || is<RenderLineBreak>(renderer) || is<RenderInline>(renderer) || is<RenderListMarker>(renderer);
+        auto isFullySupportedInFlowRenderer = renderer->isRenderText() || is<RenderLineBreak>(renderer.get()) || is<RenderInline>(renderer.get()) || is<RenderListMarker>(renderer.get());
         if (isFullySupportedInFlowRenderer)
             continue;
 
-        auto& unsupportedRenderElement = downcast<RenderElement>(renderer);
-        if (!unsupportedRenderElement.writingMode().isHorizontal() || !unsupportedRenderElement.style().logicalWidth().isFixed())
+        CheckedRef unsupportedRenderElement = downcast<RenderElement>(renderer.get());
+        if (!unsupportedRenderElement->writingMode().isHorizontal() || !unsupportedRenderElement->style().logicalWidth().isFixed())
             return false;
 
         auto isNonSupportedFixedWidthContent = [&] {
@@ -363,7 +363,7 @@ bool canUseForPreferredWidthComputation(const RenderBlockFlow& blockContainer)
                 return true;
             // FIXME: See RenderReplaced::computePreferredLogicalWidths where m_minPreferredLogicalWidth is set to 0.
             auto isReplacedWithSpecialIntrinsicWidth = [&] {
-                if (CheckedPtr renderReplaced = dynamicDowncast<RenderReplaced>(unsupportedRenderElement))
+                if (CheckedPtr renderReplaced = dynamicDowncast<RenderReplaced>(unsupportedRenderElement.get()))
                     return renderReplaced->style().logicalMaxWidth().isPercentOrCalculated();
                 return false;
             };

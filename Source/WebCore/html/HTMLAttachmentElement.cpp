@@ -589,11 +589,11 @@ void HTMLAttachmentElement::setFile(RefPtr<File>&& file, UpdateDisplayAttributes
 #if ATTACHMENT_LOG_DOCUMENT_TRAFFIC
 class AttachmentEvent {
 public:
-    uintptr_t attachment() const { return m_attachment; }
-    uintptr_t document() const { return m_document; }
-    String uniqueIdentifier() const { return m_uniqueIdentifier; }
-    WTF::MonotonicTime time() const { return m_time; }
-    StackTrace& stackTrace() const { return *m_stackTrace; }
+    uintptr_t NODELETE attachment() const { return m_attachment; }
+    uintptr_t NODELETE document() const { return m_document; }
+    String NODELETE uniqueIdentifier() const { return m_uniqueIdentifier; }
+    WTF::MonotonicTime NODELETE time() const { return m_time; }
+    StackTrace& NODELETE stackTrace() const { return *m_stackTrace; }
 
     void capture(const HTMLAttachmentElement& a, WTF::MonotonicTime t)
     {

@@ -38,7 +38,7 @@ class RenderSVGResourceFilterPrimitive final : public RenderSVGHiddenContainer {
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderSVGResourceFilterPrimitive);
 public:
     RenderSVGResourceFilterPrimitive(SVGFilterPrimitiveStandardAttributes&, RenderStyle&&);
-    SVGFilterPrimitiveStandardAttributes& filterPrimitiveElement() const;
+    SVGFilterPrimitiveStandardAttributes& NODELETE filterPrimitiveElement() const;
 
     void markFilterEffectForRepaint(FilterEffect*);
     void markFilterEffectForRebuild();

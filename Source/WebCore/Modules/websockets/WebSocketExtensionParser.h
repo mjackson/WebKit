@@ -43,8 +43,8 @@ public:
         : m_data(data)
     {
     }
-    bool finished();
-    bool parsedSuccessfully();
+    bool NODELETE finished();
+    bool NODELETE parsedSuccessfully();
 
     // FIXME: What character encoding are we parsing? Specify Latin1Character, char8_t, char16_t, or something else here.
     bool parseExtension(String& extensionToken, HashMap<String, String>& parameters);
@@ -57,9 +57,9 @@ private:
     bool consumeToken();
     bool consumeQuotedString();
     bool consumeQuotedStringOrToken();
-    bool consumeCharacter(char);
+    bool NODELETE consumeCharacter(char);
 
-    void skipSpaces();
+    void NODELETE skipSpaces();
 
     std::span<const uint8_t> m_data;
     String m_currentToken;

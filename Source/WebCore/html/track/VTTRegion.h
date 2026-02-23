@@ -65,7 +65,7 @@ public:
     ExceptionOr<void> setWidth(double);
 
     unsigned lines() const { return m_lines; }
-    void setLines(unsigned);
+    void NODELETE setLines(unsigned);
 
     double regionAnchorX() const { return m_regionAnchor.x(); }
     ExceptionOr<void> setRegionAnchorX(double);
@@ -81,9 +81,9 @@ public:
 
     enum class ScrollSetting : bool { EmptyString, Up };
     ScrollSetting scroll() const { return m_scroll; }
-    void setScroll(const ScrollSetting);
+    void NODELETE setScroll(const ScrollSetting);
 
-    void updateParametersFromRegion(const VTTRegion&);
+    void NODELETE updateParametersFromRegion(const VTTRegion&);
 
     const String& regionSettings() const { return m_settings; }
     void setRegionSettings(const String&);

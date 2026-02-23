@@ -42,7 +42,7 @@
 namespace WebCore {
 
 typedef HashMap<const CSSStyleRule*, String> SelectorTextCache;
-static SelectorTextCache& selectorTextCache()
+static SelectorTextCache& NODELETE selectorTextCache()
 {
     static NeverDestroyed<SelectorTextCache> cache;
     return cache;

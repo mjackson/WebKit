@@ -519,7 +519,7 @@ public:
 private:
     void constructTreeFromToken(Document&);
 
-    WebVTTNodeType currentType() const { return m_typeStack.isEmpty() ? WebVTTNodeTypeNone : m_typeStack.last(); }
+    WebVTTNodeType NODELETE currentType() const { return m_typeStack.isEmpty() ? WebVTTNodeType::None : m_typeStack.last(); }
 
     WebVTTToken m_token;
     Vector<WebVTTNodeType> m_typeStack;
@@ -632,33 +632,33 @@ bool WebVTTParser::collectTimeStamp(VTTScanner& input, MediaTime& timeStamp)
     return true;
 }
 
-static WebVTTNodeType tokenToNodeType(WebVTTToken& token)
+static WebVTTNodeType NODELETE tokenToNodeType(WebVTTToken& token)
 {
     switch (token.name().length()) {
     case 1:
         if (token.name()[0] == 'c')
-            return WebVTTNodeTypeClass;
+            return WebVTTNodeType::Class;
         if (token.name()[0] == 'v')
-            return WebVTTNodeTypeVoice;
+            return WebVTTNodeType::Voice;
         if (token.name()[0] == 'b')
-            return WebVTTNodeTypeBold;
+            return WebVTTNodeType::Bold;
         if (token.name()[0] == 'i')
-            return WebVTTNodeTypeItalic;
+            return WebVTTNodeType::Italic;
         if (token.name()[0] == 'u')
-            return WebVTTNodeTypeUnderline;
+            return WebVTTNodeType::Underline;
         break;
     case 2:
         if (token.name()[0] == 'r' && token.name()[1] == 't')
-            return WebVTTNodeTypeRubyText;
+            return WebVTTNodeType::RubyText;
         break;
     case 4:
         if (token.name()[0] == 'r' && token.name()[1] == 'u' && token.name()[2] == 'b' && token.name()[3] == 'y')
-            return WebVTTNodeTypeRuby;
+            return WebVTTNodeType::Ruby;
         if (token.name()[0] == 'l' && token.name()[1] == 'a' && token.name()[2] == 'n' && token.name()[3] == 'g')
-            return WebVTTNodeTypeLanguage;
+            return WebVTTNodeType::Language;
         break;
     }
-    return WebVTTNodeTypeNone;
+    return WebVTTNodeType::None;
 }
 
 template<int width>
@@ -704,11 +704,11 @@ void WebVTTTreeBuilder::constructTreeFromToken(Document& document)
     }
     case WebVTTTokenTypes::StartTag: {
         WebVTTNodeType nodeType = tokenToNodeType(m_token);
-        if (nodeType == WebVTTNodeTypeNone)
+        if (nodeType == WebVTTNodeType::None)
             break;
 
         // <rt> is only allowed if the current node is <ruby>.
-        if (nodeType == WebVTTNodeTypeRubyText && currentType() != WebVTTNodeTypeRuby)
+        if (nodeType == WebVTTNodeType::RubyText && currentType() != WebVTTNodeType::Ruby)
             break;
 
         auto language = !m_languageStack.isEmpty() ? m_languageStack.last() : emptyAtom();
@@ -716,9 +716,9 @@ void WebVTTTreeBuilder::constructTreeFromToken(Document& document)
         if (!m_token.classes().isEmpty())
             child->setAttributeWithoutSynchronization(classAttr, m_token.classes());
 
-        if (nodeType == WebVTTNodeTypeVoice)
+        if (nodeType == WebVTTNodeType::Voice)
             child->setAttributeWithoutSynchronization(WebVTTElement::voiceAttributeName(), m_token.annotation());
-        else if (nodeType == WebVTTNodeTypeLanguage) {
+        else if (nodeType == WebVTTNodeType::Language) {
             m_languageStack.append(m_token.annotation());
             child->setAttributeWithoutSynchronization(WebVTTElement::langAttributeName(), m_languageStack.last());
         }
@@ -729,18 +729,18 @@ void WebVTTTreeBuilder::constructTreeFromToken(Document& document)
     }
     case WebVTTTokenTypes::EndTag: {
         WebVTTNodeType nodeType = tokenToNodeType(m_token);
-        if (nodeType == WebVTTNodeTypeNone)
+        if (nodeType == WebVTTNodeType::None)
             break;
-        
+
         // The only non-VTTElement would be the DocumentFragment root. (Text
         // nodes and PIs will never appear as m_currentNode.)
-        if (currentType() == WebVTTNodeTypeNone)
+        if (currentType() == WebVTTNodeType::None)
             break;
 
         bool matchesCurrent = nodeType == currentType();
         if (!matchesCurrent) {
             // </ruby> auto-closes <rt>
-            if (currentType() == WebVTTNodeTypeRubyText && nodeType == WebVTTNodeTypeRuby) {
+            if (currentType() == WebVTTNodeType::RubyText && nodeType == WebVTTNodeType::Ruby) {
                 if (m_currentNode->parentNode()) {
                     m_currentNode = m_currentNode->parentNode();
                     m_typeStack.removeLast();
@@ -748,7 +748,7 @@ void WebVTTTreeBuilder::constructTreeFromToken(Document& document)
             } else
                 break;
         }
-        if (nodeType == WebVTTNodeTypeLanguage)
+        if (nodeType == WebVTTNodeType::Language)
             m_languageStack.removeLast();
         if (m_currentNode->parentNode()) {
             m_currentNode = m_currentNode->parentNode();

@@ -56,7 +56,7 @@ static WorkQueue& remoteVideoFrameObjectHeapQueueSingleton()
 Ref<RemoteVideoFrameObjectHeap> RemoteVideoFrameObjectHeap::create(Ref<IPC::Connection>&& connection)
 {
     Ref heap = adoptRef(*new RemoteVideoFrameObjectHeap(WTF::move(connection)));
-    heap->protectedConnection()->addWorkQueueMessageReceiver(Messages::RemoteVideoFrameObjectHeap::messageReceiverName(), remoteVideoFrameObjectHeapQueueSingleton(), heap);
+    protect(heap->m_connection)->addWorkQueueMessageReceiver(Messages::RemoteVideoFrameObjectHeap::messageReceiverName(), remoteVideoFrameObjectHeapQueueSingleton(), heap);
     return heap;
 }
 
@@ -78,7 +78,7 @@ void RemoteVideoFrameObjectHeap::close()
         return;
 
     m_isClosed = true;
-    protectedConnection()->removeWorkQueueMessageReceiver(Messages::RemoteVideoFrameObjectHeap::messageReceiverName());
+    protect(m_connection)->removeWorkQueueMessageReceiver(Messages::RemoteVideoFrameObjectHeap::messageReceiverName());
 
 #if PLATFORM(COCOA)
     m_sharedVideoFrameWriter.disable();

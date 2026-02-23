@@ -132,7 +132,7 @@ public:
     using OpenerDomain = WebCore::RegistrableDomain;
 
     static Ref<NetworkProcessProxy> ensureDefaultNetworkProcess();
-    static WeakPtr<NetworkProcessProxy>& defaultNetworkProcess();
+    static WeakPtr<NetworkProcessProxy>& NODELETE defaultNetworkProcess();
     static Ref<NetworkProcessProxy> create() { return adoptRef(*new NetworkProcessProxy); }
     ~NetworkProcessProxy();
 
@@ -256,7 +256,7 @@ public:
     void sendProcessDidResume(ResumeReason) final;
     ASCIILiteral clientName() const final { return "NetworkProcess"_s; }
     
-    static void setSuspensionAllowedForTesting(bool);
+    static void NODELETE setSuspensionAllowedForTesting(bool);
     void sendProcessWillSuspendImminentlyForTesting();
 
     void registerSchemeForLegacyCustomProtocol(const String&);
@@ -444,9 +444,6 @@ private:
 #if PLATFORM(IOS_FAMILY)
     void addBackgroundStateObservers();
     void removeBackgroundStateObservers();
-#endif
-
-#if ENABLE(LEGACY_CUSTOM_PROTOCOL_MANAGER)
 #endif
 
     const std::unique_ptr<DownloadProxyMap> m_downloadProxyMap;

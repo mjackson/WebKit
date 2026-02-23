@@ -220,7 +220,7 @@ void UserMediaPermissionRequestManagerProxy::clearCachedState()
 }
 
 #if ENABLE(MEDIA_STREAM)
-static uint64_t toWebCore(UserMediaPermissionRequestProxy::UserMediaAccessDenialReason reason)
+static uint64_t NODELETE toWebCore(UserMediaPermissionRequestProxy::UserMediaAccessDenialReason reason)
 {
     switch (reason) {
     case UserMediaPermissionRequestProxy::UserMediaAccessDenialReason::NoConstraints:
@@ -911,8 +911,8 @@ public:
         m_handler(m_cameraPermission, m_microphonePermission);
     }
 
-    void setCameraPermission(PermissionState state) { m_cameraPermission = state; }
-    void setMicrophonePermission(PermissionState state) { m_microphonePermission = state; }
+    void NODELETE setCameraPermission(PermissionState state) { m_cameraPermission = state; }
+    void NODELETE setMicrophonePermission(PermissionState state) { m_microphonePermission = state; }
 
 private:
     explicit UserMediaPermissionInfoGatherer(CompletionHandler<void(PermissionState, PermissionState)>&& handler)

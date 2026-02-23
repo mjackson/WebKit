@@ -87,14 +87,14 @@ private:
             m_connectTime = wrapped->connectTime();
         }
 
-        MonotonicTime lastUpdateTime() const final { return checkedPlatformGamepad()->lastUpdateTime(); }
-        const Vector<SharedGamepadValue>& axisValues() const final { return checkedPlatformGamepad()->axisValues(); }
-        const Vector<SharedGamepadValue>& buttonValues() const final { return checkedPlatformGamepad()->buttonValues(); }
+        MonotonicTime lastUpdateTime() const final { return protect(platformGamepad())->lastUpdateTime(); }
+        const Vector<SharedGamepadValue>& axisValues() const final { return protect(platformGamepad())->axisValues(); }
+        const Vector<SharedGamepadValue>& buttonValues() const final { return protect(platformGamepad())->buttonValues(); }
 
-        ASCIILiteral source() const final { return checkedPlatformGamepad()->source(); }
+        ASCIILiteral source() const final { return protect(platformGamepad())->source(); }
 
     private:
-        CheckedRef<PlatformGamepad> checkedPlatformGamepad() const { return *m_platformGamepad; }
+        PlatformGamepad& platformGamepad() const { return *m_platformGamepad; }
 
         WeakPtr<PlatformGamepad> m_platformGamepad;
     };

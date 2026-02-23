@@ -110,6 +110,37 @@ void WebParentalControlsURLFilter::allowURL(const URL& url, CompletionHandler<vo
     });
 }
 
+void WebParentalControlsURLFilter::setSharedParentalControlsURLFilterIfNecessary()
+{
+#if !HAVE(WEBCONTENTRESTRICTIONS_PATH_SPI)
+    ASSERT(isMainRunLoop());
+    static bool initialized = false;
+    if (!initialized) {
+        WebCore::ParentalControlsURLFilter::setGlobalFilter(WebParentalControlsURLFilter::create());
+        initialized = true;
+    }
+#endif
+}
+
+#if HAVE(WEBCONTENTRESTRICTIONS_ASK_TO)
+void WebParentalControlsURLFilter::requestPermissionForURL(const URL& url, const URL& referrerURL, CompletionHandler<void(bool)>&& completionHandler)
+{
+    workQueueSingleton().dispatchSync([this, protectedThis = Ref { *this }, currentIsEnabled = isEnabled(), url = crossThreadCopy(url), referrerURL = crossThreadCopy(referrerURL), completionHandler = WTF::move(completionHandler)]() mutable {
+        if (!currentIsEnabled) {
+            callOnMainRunLoop([completionHandler = WTF::move(completionHandler)] mutable {
+                completionHandler(true);
+            });
+            return;
+        }
+        auto filter = ensureWebContentFilter();
+#if __has_include(<WebKitAdditions/BEKAdditions.h>)
+        RELEASE_LOG(Loading, "WebParentalControlsURLFilter::requestPermissionForURL starts execution");
+        MAYBE_REQUEST_PERMISSION_ASK_TO
+#endif
+    });
+}
+#endif
+
 } // namespace WebKit
 
 #endif

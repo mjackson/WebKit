@@ -784,7 +784,7 @@ void WebsiteDataStore::reinitializeAppBoundDomains()
 
 
 #if ENABLE(MANAGED_DOMAINS)
-static HashSet<WebCore::RegistrableDomain>& managedDomains()
+static HashSet<WebCore::RegistrableDomain>& NODELETE managedDomains()
 {
     ASSERT(RunLoop::isMain());
     static NeverDestroyed<HashSet<WebCore::RegistrableDomain>> managedDomains;

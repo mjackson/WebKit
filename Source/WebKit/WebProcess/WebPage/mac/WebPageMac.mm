@@ -212,10 +212,10 @@ void WebPage::getPlatformEditorState(LocalFrame& frame, EditorState& result) con
 
     auto quads = RenderObject::absoluteTextQuads(*selectedRange);
     if (!quads.isEmpty())
-        postLayoutData.selectionBoundingRect = frame.protectedView()->contentsToWindow(enclosingIntRect(unitedBoundingBoxes(quads)));
+        postLayoutData.selectionBoundingRect = protect(frame.view())->contentsToWindow(enclosingIntRect(unitedBoundingBoxes(quads)));
     else if (selection.isCaret()) {
         // Quads will be empty at the start of a paragraph.
-        postLayoutData.selectionBoundingRect = frame.protectedView()->contentsToWindow(protect(frame.selection())->absoluteCaretBounds());
+        postLayoutData.selectionBoundingRect = protect(frame.view())->contentsToWindow(protect(frame.selection())->absoluteCaretBounds());
     }
 }
 
@@ -249,7 +249,7 @@ static String commandNameForSelectorName(const String& selectorName)
     return selectorName.left(selectorNameLength - 1);
 }
 
-static LocalFrame* frameForEvent(KeyboardEvent* event)
+static LocalFrame* NODELETE frameForEvent(KeyboardEvent* event)
 {
     ASSERT(event->target());
     ASSERT(downcast<Node>(event->target())->document().frame());
@@ -550,7 +550,7 @@ void WebPage::shouldDelayWindowOrderingEvent(const WebKit::WebMouseEvent& event,
     bool result = false;
 #if ENABLE(DRAG_SUPPORT)
     constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::AllowChildFrameContent };
-    HitTestResult hitResult = frame->eventHandler().hitTestResultAtPoint(frame->protectedView()->windowToContents(flooredIntPoint(event.position())), hitType);
+    HitTestResult hitResult = frame->eventHandler().hitTestResultAtPoint(protect(frame->view())->windowToContents(flooredIntPoint(event.position())), hitType);
     if (hitResult.isSelected())
         result = frame->eventHandler().eventMayStartDrag(platform(event));
 #endif
@@ -571,7 +571,7 @@ void WebPage::requestAcceptsFirstMouse(int eventNumber, const WebKit::WebMouseEv
         return;
 
     constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::AllowChildFrameContent };
-    HitTestResult hitResult = frame->eventHandler().hitTestResultAtPoint(frame->protectedView()->windowToContents(flooredIntPoint(event.position())), hitType);
+    HitTestResult hitResult = frame->eventHandler().hitTestResultAtPoint(protect(frame->view())->windowToContents(flooredIntPoint(event.position())), hitType);
     frame->eventHandler().setActivationEventNumber(eventNumber);
     bool result = false;
 #if ENABLE(DRAG_SUPPORT)
@@ -743,7 +743,7 @@ void WebPage::performImmediateActionHitTestAtLocation(WebCore::FrameIdentifier f
         return;
     }
 
-    auto locationInContentCoordinates = localCurrentFrame->protectedView()->rootViewToContents(roundedIntPoint(locationInViewCoordinates));
+    auto locationInContentCoordinates = protect(localCurrentFrame->view())->rootViewToContents(roundedIntPoint(locationInViewCoordinates));
     auto hitTestResult = localCurrentFrame->eventHandler().hitTestResultAtPoint(locationInContentCoordinates, {
         HitTestRequest::Type::ReadOnly,
         HitTestRequest::Type::Active,
@@ -861,10 +861,10 @@ std::optional<WebCore::SimpleRange> WebPage::lookupTextAtLocation(FrameIdentifie
 {
     RefPtr currentFrame = WebProcess::singleton().webFrame(frameID);
     RefPtr localCurrentFrame = dynamicDowncast<LocalFrame>(currentFrame->coreFrame());
-    if (!localCurrentFrame || !localCurrentFrame->view() || !localCurrentFrame->protectedView()->renderView())
+    if (!localCurrentFrame || !localCurrentFrame->view() || !protect(localCurrentFrame->view())->renderView())
         return std::nullopt;
 
-    return DictionaryLookup::rangeAtHitTestResult(localCurrentFrame->eventHandler().hitTestResultAtPoint(localCurrentFrame->protectedView()->windowToContents(roundedIntPoint(locationInViewCoordinates)), {
+    return DictionaryLookup::rangeAtHitTestResult(localCurrentFrame->eventHandler().hitTestResultAtPoint(protect(localCurrentFrame->view())->windowToContents(roundedIntPoint(locationInViewCoordinates)), {
         HitTestRequest::Type::ReadOnly,
         HitTestRequest::Type::Active,
         HitTestRequest::Type::DisallowUserAgentShadowContentExceptForImageOverlays,

@@ -65,7 +65,7 @@ private:
     template<typename T>
     [[nodiscard]] IPC::Error send(T&& message)
     {
-        return root().protectedStreamClientConnection()->send(WTF::move(message), backing());
+        return protect(root().streamClientConnection())->send(WTF::move(message), backing());
     }
 
     void setPipeline(const WebCore::WebGPU::ComputePipeline&) final;

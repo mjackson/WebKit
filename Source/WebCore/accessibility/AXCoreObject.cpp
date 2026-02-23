@@ -2061,7 +2061,7 @@ String roleToPlatformString(AccessibilityRole role)
     // The only thing we need to make thread-safe is its initialization, accomplished
     // by expliciting initializing the map before the accessibility thread is started.
     static NeverDestroyed<PlatformRoleMap> roleMap = createPlatformRoleMap();
-    return roleMap->get(enumToUnderlyingType(role));
+    return roleMap->get(std::to_underlying(role));
 }
 
 bool inRenderTreeOrStyleUpdate(const Document& document)
@@ -2078,13 +2078,10 @@ Color defaultColor()
     return color.get();
 }
 
-bool performCustomActionPress(std::optional<AXID> treeID, AXID targetID)
+bool performCustomActionPress(AXTreeID treeID, AXID targetID)
 {
-    if (!treeID)
-        return false;
-
     return retrieveValueFromMainThreadWithTimeoutAndDefault([treeID, targetID] () -> bool {
-        if (WeakPtr<AXObjectCache> cache = AXTreeStore<AXObjectCache>::axObjectCacheForID(*treeID)) {
+        if (WeakPtr<AXObjectCache> cache = AXTreeStore<AXObjectCache>::axObjectCacheForID(treeID)) {
             if (RefPtr object = cache->objectForID(targetID))
                 return object->press();
         }

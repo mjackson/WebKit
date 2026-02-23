@@ -68,10 +68,9 @@ public:
     virtual ~RegionOverlay();
 
     void recomputeRegion();
-    PageOverlay& overlay() { return *m_overlay; }
-    Ref<PageOverlay> protectedOverlay() { return *m_overlay; }
+    PageOverlay& NODELETE overlay() { return *m_overlay; }
 
-    void setRegionChanged() { m_regionChanged = true; }
+    void NODELETE setRegionChanged() { m_regionChanged = true; }
 
     virtual bool shouldPaintOverlayIntoLayer() const { return true; }
 
@@ -312,7 +311,7 @@ private:
 
 bool InteractionRegionOverlay::updateRegion()
 {
-    protectedOverlay()->setNeedsDisplay();
+    protect(overlay())->setNeedsDisplay();
     return true;
 }
 
@@ -365,7 +364,7 @@ std::optional<std::pair<RenderLayer&, GraphicsLayer&>> InteractionRegionOverlay:
     return { { *layer, *graphicsLayer } };
 }
 
-std::optional<InteractionRegion> InteractionRegionOverlay::activeRegion() const
+std::optional<InteractionRegion> NODELETE InteractionRegionOverlay::activeRegion() const
 {
 #if ENABLE(INTERACTION_REGIONS_IN_EVENT_REGION)
     RefPtr page = m_page;
@@ -697,7 +696,7 @@ private:
 
     bool updateRegion() final
     {
-        protectedOverlay()->setNeedsDisplay();
+        protect(overlay())->setNeedsDisplay();
         return true;
     }
     void drawRect(PageOverlay&, GraphicsContext&, const IntRect& dirtyRect) final;
@@ -764,7 +763,7 @@ void RegionOverlay::willMoveToPage(PageOverlay&, Page* page)
         m_overlay = nullptr;
 }
 
-void RegionOverlay::didMoveToPage(PageOverlay&, Page* page)
+void NODELETE RegionOverlay::didMoveToPage(PageOverlay&, Page* page)
 {
     if (page)
         setRegionChanged();
@@ -790,12 +789,12 @@ void RegionOverlay::drawRegion(GraphicsContext& context, const Region& region, c
     }
 }
 
-bool RegionOverlay::mouseEvent(PageOverlay&, const PlatformMouseEvent&)
+bool NODELETE RegionOverlay::mouseEvent(PageOverlay&, const PlatformMouseEvent&)
 {
     return false;
 }
 
-void RegionOverlay::didScrollFrame(PageOverlay&, LocalFrame&)
+void NODELETE RegionOverlay::didScrollFrame(PageOverlay&, LocalFrame&)
 {
 }
 
@@ -805,7 +804,7 @@ void RegionOverlay::recomputeRegion()
         return;
 
     if (updateRegion())
-        protectedOverlay()->setNeedsDisplay();
+        protect(overlay())->setNeedsDisplay();
 
     m_regionChanged = false;
 }
@@ -822,7 +821,7 @@ DebugPageOverlays& DebugPageOverlays::singleton()
     return *sharedDebugOverlays;
 }
 
-static inline size_t indexOf(DebugPageOverlays::RegionType regionType)
+static inline size_t NODELETE indexOf(DebugPageOverlays::RegionType regionType)
 {
     return static_cast<size_t>(regionType);
 }
@@ -847,7 +846,7 @@ Ref<RegionOverlay> DebugPageOverlays::ensureRegionOverlayForPage(Page& page, Reg
 void DebugPageOverlays::showRegionOverlay(Page& page, RegionType regionType)
 {
     Ref visualizer = ensureRegionOverlayForPage(page, regionType);
-    page.pageOverlayController().installPageOverlay(visualizer->protectedOverlay(), PageOverlay::FadeMode::DoNotFade);
+    page.pageOverlayController().installPageOverlay(protect(visualizer->overlay()), PageOverlay::FadeMode::DoNotFade);
 }
 
 void DebugPageOverlays::hideRegionOverlay(Page& page, RegionType regionType)
@@ -858,7 +857,7 @@ void DebugPageOverlays::hideRegionOverlay(Page& page, RegionType regionType)
     auto& visualizer = it->value[indexOf(regionType)];
     if (!visualizer)
         return;
-    page.pageOverlayController().uninstallPageOverlay(visualizer->protectedOverlay(), PageOverlay::FadeMode::DoNotFade);
+    page.pageOverlayController().uninstallPageOverlay(protect(visualizer->overlay()), PageOverlay::FadeMode::DoNotFade);
     visualizer = nullptr;
 }
 

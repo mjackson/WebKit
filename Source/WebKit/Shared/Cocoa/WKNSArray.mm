@@ -38,7 +38,7 @@
     if (WebCoreObjCScheduleDeallocateOnMainRunLoop(WKNSArray.class, self))
         return;
 
-    _array->~Array();
+    SUPPRESS_UNCOUNTED_ARG _array->~Array();
 
     [super dealloc];
 }

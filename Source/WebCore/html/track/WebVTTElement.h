@@ -32,16 +32,16 @@
 
 namespace WebCore {
 
-enum WebVTTNodeType {
-    WebVTTNodeTypeNone = 0,
-    WebVTTNodeTypeClass,
-    WebVTTNodeTypeItalic,
-    WebVTTNodeTypeLanguage,
-    WebVTTNodeTypeBold,
-    WebVTTNodeTypeUnderline,
-    WebVTTNodeTypeRuby,
-    WebVTTNodeTypeRubyText,
-    WebVTTNodeTypeVoice
+enum class WebVTTNodeType : uint8_t {
+    None = 0,
+    Class,
+    Italic,
+    Language,
+    Bold,
+    Underline,
+    Ruby,
+    RubyText,
+    Voice
 };
 
 class WebVTTElement final : public Element {

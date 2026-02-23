@@ -128,7 +128,7 @@ void GainNode::checkNumberOfChannelsForInput(AudioNodeInput* input)
 
     if (!isInitialized()) {
         // This will propagate the channel count to any nodes connected further downstream in the graph.
-        checkedOutput(0)->setNumberOfChannels(numberOfChannels);
+        protect(output(0))->setNumberOfChannels(numberOfChannels);
         initialize();
     }
 

@@ -88,7 +88,7 @@ public:
     void didReceiveDownloadProxyMessage(IPC::Connection&, IPC::Decoder&);
     void didReceiveSyncDownloadProxyMessage(IPC::Connection&, IPC::Decoder&, UniqueRef<IPC::Encoder>&);
 
-    WebPageProxy* originatingPage() const;
+    WebPageProxy* NODELETE originatingPage() const;
 
     void setRedirectChain(Vector<URL>&& redirectChain) { m_redirectChain = WTF::move(redirectChain); }
     const Vector<URL>& redirectChain() const { return m_redirectChain; }

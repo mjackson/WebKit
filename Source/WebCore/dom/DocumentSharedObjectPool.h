@@ -26,6 +26,7 @@
 
 #pragma once
 
+#include "RegistrableDomain.h"
 #include <memory>
 #include <wtf/HashSet.h>
 #include <wtf/RefPtr.h>
@@ -40,12 +41,15 @@ class ShareableElementData;
 class DocumentSharedObjectPool {
     WTF_MAKE_TZONE_ALLOCATED(DocumentSharedObjectPool);
 public:
+    explicit DocumentSharedObjectPool(RegistrableDomain&&);
+    ~DocumentSharedObjectPool();
     Ref<ShareableElementData> cachedShareableElementDataWithAttributes(std::span<const Attribute>);
 
 private:
     struct ShareableElementDataHash;
     using ShareableElementDataCache = HashSet<Ref<ShareableElementData>, ShareableElementDataHash>;
     ShareableElementDataCache m_shareableElementDataCache;
+    RegistrableDomain m_domain;
 };
 
 } // namespace WebCore

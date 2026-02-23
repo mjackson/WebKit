@@ -230,6 +230,7 @@ public:
 
     ExceptionOr<String> elementRenderTreeAsText(Element&);
     bool hasPausedImageAnimations(Element&);
+    bool effectiveLangKnownToMatchDocumentElement(Element&);
     void markFrontBufferVolatile(Element&);
 
     bool isFullyActive(Document&);
@@ -336,6 +337,7 @@ public:
         String property;
         double speed;
         bool isThreaded;
+        bool hasHighImpact;
     };
     struct ScrollingNodeID {
         uint64_t nodeIdentifier;

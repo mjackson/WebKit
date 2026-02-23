@@ -1,3 +1,2 @@
-Storage/StorageAreaImpl.cpp
 Storage/StorageThread.cpp
 WebCoreSupport/WebResourceLoadScheduler.cpp

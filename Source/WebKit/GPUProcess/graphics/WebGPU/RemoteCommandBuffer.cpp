@@ -45,29 +45,24 @@ RemoteCommandBuffer::RemoteCommandBuffer(WebCore::WebGPU::CommandBuffer& command
     , m_gpu(gpu)
     , m_identifier(identifier)
 {
-    protectedStreamConnection()->startReceivingMessages(*this, Messages::RemoteCommandBuffer::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->startReceivingMessages(*this, Messages::RemoteCommandBuffer::messageReceiverName(), m_identifier.toUInt64());
 }
 
 RemoteCommandBuffer::~RemoteCommandBuffer() = default;
 
 void RemoteCommandBuffer::destruct()
 {
-    Ref { m_objectHeap.get() }->removeObject(m_identifier);
+    protect(m_objectHeap)->removeObject(m_identifier);
 }
 
 void RemoteCommandBuffer::stopListeningForIPC()
 {
-    protectedStreamConnection()->stopReceivingMessages(Messages::RemoteCommandBuffer::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->stopReceivingMessages(Messages::RemoteCommandBuffer::messageReceiverName(), m_identifier.toUInt64());
 }
 
 void RemoteCommandBuffer::setLabel(String&& label)
 {
-    Ref { m_backing }->setLabel(WTF::move(label));
-}
-
-Ref<IPC::StreamServerConnection> RemoteCommandBuffer::protectedStreamConnection() const
-{
-    return m_streamConnection;
+    protect(m_backing)->setLabel(WTF::move(label));
 }
 
 } // namespace WebKit

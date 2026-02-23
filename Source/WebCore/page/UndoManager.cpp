@@ -64,8 +64,8 @@ ExceptionOr<void> UndoManager::addItem(Ref<UndoItem>&& item)
 
 void UndoManager::removeItem(UndoItem& item)
 {
-    if (auto foundItem = m_items.take(&item))
-        foundItem->setUndoManager(nullptr);
+    if (m_items.remove(item))
+        item.setUndoManager(nullptr);
 }
 
 void UndoManager::removeAllItems()

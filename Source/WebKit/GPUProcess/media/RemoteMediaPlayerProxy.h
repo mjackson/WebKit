@@ -402,21 +402,12 @@ private:
 
 #if !RELEASE_LOG_DISABLED
     const Logger& mediaPlayerLogger() final { return m_logger; }
-    Ref<const Logger> protectedMediaPlayerLogger() const { return m_logger; }
     uint64_t mediaPlayerLogIdentifier() { return m_configuration.logIdentifier; }
     const Logger& logger() { return mediaPlayerLogger(); }
     uint64_t logIdentifier() { return mediaPlayerLogIdentifier(); }
     ASCIILiteral logClassName() const { return "RemoteMediaPlayerProxy"_s; }
-    WTFLogChannel& logChannel() const;
+    WTFLogChannel& NODELETE logChannel() const;
 #endif
-
-    RefPtr<WebCore::MediaPlayer> protectedPlayer() const { return m_player; }
-#if ENABLE(MEDIA_SOURCE)
-    RefPtr<RemoteMediaSourceProxy> protectedMediaSourceProxy() const { return m_mediaSourceProxy; }
-#endif
-
-    Ref<IPC::Connection> protectedConnection() const { return m_webProcessConnection; }
-    Ref<RemoteVideoFrameObjectHeap> protectedVideoFrameObjectHeap() const;
 
     Vector<Ref<RemoteAudioTrackProxy>> m_audioTracks;
     Vector<Ref<RemoteVideoTrackProxy>> m_videoTracks;

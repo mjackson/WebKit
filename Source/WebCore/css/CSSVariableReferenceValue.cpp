@@ -118,7 +118,7 @@ static const Style::CustomProperty* propertyValueForVariableName(const AtomStrin
     // Apply this variable first, in case it is still unresolved
     builder.applyCustomProperty(variableName);
 
-    return builder.state().checkedStyle()->customPropertyValue(variableName);
+    return protect(builder.state().style())->customPropertyValue(variableName);
 }
 
 bool CSSVariableReferenceValue::resolveVariableReference(CSSParserTokenRange range, CSSValueID functionId, Vector<CSSParserToken>& tokens, Style::Builder& builder) const

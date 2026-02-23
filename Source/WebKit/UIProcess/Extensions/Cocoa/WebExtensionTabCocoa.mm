@@ -381,7 +381,7 @@ bool WebExtensionTab::isActive() const
         return false;
 
     RefPtr window = this->window();
-    return window ? window->activeTab() == this : false;
+    return window && window->activeTab() == this;
 }
 
 bool WebExtensionTab::isSelected() const

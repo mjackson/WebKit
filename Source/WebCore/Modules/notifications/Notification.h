@@ -101,17 +101,17 @@ public:
     WEBCORE_EXPORT void dispatchErrorEvent();
     WEBCORE_EXPORT void dispatchShowEvent();
 
-    WEBCORE_EXPORT void finalize();
+    WEBCORE_EXPORT void NODELETE finalize();
 
     static Permission permission(ScriptExecutionContext&);
     static void requestPermission(Document&, RefPtr<NotificationPermissionCallback>&&, Ref<DeferredPromise>&&);
 
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
 
     WEBCORE_EXPORT NotificationData data() const;
     RefPtr<NotificationResources> resources() const { return m_resources; }
 
-    void markAsShown();
+    void NODELETE markAsShown();
     void showSoon();
 
     WTF::UUID identifier() const { return m_identifier; }
@@ -132,7 +132,7 @@ private:
     // ActiveDOMObject
     void suspend(ReasonForSuspension);
     void stop() final;
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
 
     // EventTarget
     void refEventTarget() final { ref(); }

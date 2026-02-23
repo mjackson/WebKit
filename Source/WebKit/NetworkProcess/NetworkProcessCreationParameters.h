@@ -79,6 +79,9 @@ struct NetworkProcessCreationParameters {
 #if PLATFORM(COCOA)
     bool enableModernDownloadProgress { false };
 #endif
+#if HAVE(ENHANCED_SECURITY_LINKS)
+    bool enableEnhancedSecurityLinks { false };
+#endif
     Vector<WebsiteDataStoreParameters> websiteDataStoreParameters;
     Vector<std::pair<WebCore::ProcessIdentifier, WebCore::RegistrableDomain>> allowedFirstPartiesForCookies;
     HashMap<WebCore::ProcessIdentifier, Vector<String>> allowedFilePaths;

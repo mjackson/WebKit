@@ -1383,7 +1383,7 @@ bool SpeculativeJIT::genericJSValueStrictEq(Node* node, bool invert)
     return false;
 }
 
-static const char* dataFormatString(DataFormat format)
+static const char* NODELETE dataFormatString(DataFormat format)
 {
     // These values correspond to the DataFormat enum.
     const char* strings[] = {
@@ -6314,13 +6314,10 @@ void SpeculativeJIT::compileArithMod(Node* node)
         strictInt32Result(edx.gpr(), node);
 
 #elif HAVE(ARM_IDIV_INSTRUCTIONS) || CPU(ARM64)
-        GPRTemporary temp(this);
         GPRTemporary quotientThenRemainder(this);
-        GPRTemporary multiplyAnswer(this);
         GPRReg dividendGPR = op1.gpr();
         GPRReg divisorGPR = op2.gpr();
         GPRReg quotientThenRemainderGPR = quotientThenRemainder.gpr();
-        GPRReg multiplyAnswerGPR = multiplyAnswer.gpr();
 
         JumpList done;
     
@@ -6336,15 +6333,14 @@ void SpeculativeJIT::compileArithMod(Node* node)
             denominatorNotZero.link(this);
         }
 
-        assembler().sdiv<32>(quotientThenRemainderGPR, dividendGPR, divisorGPR);
-        // FIXME: It seems like there are cases where we don't need this? What if we have
-        // arithMode() == Arith::Unchecked?
-        // https://bugs.webkit.org/show_bug.cgi?id=126444
-        speculationCheck(ExitKind::Overflow, JSValueRegs(), 0, branchMul32(Overflow, quotientThenRemainderGPR, divisorGPR, multiplyAnswerGPR));
-#if HAVE(ARM_IDIV_INSTRUCTIONS)
-        assembler().sub(quotientThenRemainderGPR, dividendGPR, multiplyAnswerGPR);
+        // This is doing: x - ((x / y) * y)
+        div32(dividendGPR, divisorGPR, quotientThenRemainderGPR);
+        // This should only overflow for INT32_MIN % -1 but that will end up with quotientThenRemainderGPR == 0, which will be handled as needed in the negative zero check.
+#if CPU(ARM64)
+        multiplySub32(quotientThenRemainderGPR, divisorGPR, dividendGPR, quotientThenRemainderGPR);
 #else
-        assembler().sub<32>(quotientThenRemainderGPR, dividendGPR, multiplyAnswerGPR);
+        mul32(quotientThenRemainderGPR, divisorGPR, quotientThenRemainderGPR);
+        sub32(dividendGPR, quotientThenRemainderGPR, quotientThenRemainderGPR);
 #endif
 
         // If the user cares about negative zero, then speculate that we're not about

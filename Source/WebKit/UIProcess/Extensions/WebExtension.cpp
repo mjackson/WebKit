@@ -577,7 +577,7 @@ Expected<String, RefPtr<API::Error>> WebExtension::resourceStringForPath(const S
     return result;
 }
 
-static int toAPI(WebExtension::Error error)
+static int NODELETE toAPI(WebExtension::Error error)
 {
     switch (error) {
     case WebExtension::Error::Unknown:

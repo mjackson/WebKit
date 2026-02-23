@@ -71,7 +71,7 @@ using DragImage = CGImageRef;
 
 static RefPtr<ShareableBitmap> convertDragImageToBitmap(DragImage image, const IntSize& size, Frame& frame)
 {
-    auto bitmap = ShareableBitmap::create({ size, screenColorSpace(protect(frame.mainFrame())->protectedVirtualView().get()) });
+    auto bitmap = ShareableBitmap::create({ size, screenColorSpace(protect(protect(frame.mainFrame())->virtualView()).get()) });
     if (!bitmap)
         return nullptr;
 

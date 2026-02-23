@@ -1407,4 +1407,8 @@ TEST(EnhancedSecurityPolicies, HistoryEventsUseCorrectOriginalRequest)
     EXPECT_WK_STREQ([historyDelegate->lastRedirectDestination absoluteString], destinationURL);
 }
 
+#if USE(APPLE_INTERNAL_SDK) && __has_include(<WebKitAdditions/EnhancedSecurityPoliciesAdditions.mm>)
+#import <WebKitAdditions/EnhancedSecurityPoliciesAdditions.mm>
+#endif
+
 #endif

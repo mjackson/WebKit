@@ -31,7 +31,9 @@
 #include "JSCJSValueInlines.h"
 #include "JSGlobalObject.h"
 #include "JSMicrotask.h"
+#include "JSMicrotaskDispatcher.h"
 #include "JSObject.h"
+#include "MicrotaskQueueInlines.h"
 #include "SlotVisitorInlines.h"
 #include <wtf/SetForScope.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -46,9 +48,10 @@ WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(DebuggableMicrotaskDispatcher);
 
 bool QueuedTask::isRunnable() const
 {
-    if (RefPtr dispatcher = m_dispatcher.pointer())
-        return dispatcher->isRunnable();
-    return true;
+    auto* dispatcher = this->dispatcher();
+    if (dispatcher->type() == JSMicrotaskDispatcherType) [[unlikely]]
+        return jsCast<JSMicrotaskDispatcher*>(dispatcher)->dispatcher()->isRunnable();
+    return jsCast<JSGlobalObject*>(dispatcher)->microtaskRunnability() == QueuedTaskResult::Executed;
 }
 
 QueuedTaskResult DebuggableMicrotaskDispatcher::run(QueuedTask& task)
@@ -136,7 +139,7 @@ void MarkedMicrotaskDeque::visitAggregateImpl(Visitor& visitor)
     // there is no concurrency issue.
     for (auto iterator = m_queue.begin() + m_markedBefore, end = m_queue.end(); iterator != end; ++iterator) {
         auto& task = *iterator;
-        visitor.appendUnbarriered(task.m_globalObject);
+        visitor.appendUnbarriered(task.dispatcher());
         visitor.appendUnbarriered(task.m_arguments, QueuedTask::maxArguments);
     }
     m_markedBefore = m_queue.size();

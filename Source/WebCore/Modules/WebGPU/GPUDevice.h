@@ -104,13 +104,13 @@ public:
     void deref() const final { RefCounted::deref(); }
     USING_CAN_MAKE_WEAKPTR(EventTarget);
 
-    String label() const;
+    String NODELETE label() const;
     void setLabel(String&&);
 
-    Ref<GPUSupportedFeatures> features() const;
-    Ref<GPUSupportedLimits> limits() const;
+    Ref<GPUSupportedFeatures> NODELETE features() const;
+    Ref<GPUSupportedLimits> NODELETE limits() const;
 
-    Ref<GPUQueue> queue() const;
+    Ref<GPUQueue> NODELETE queue() const;
 
     void destroy(ScriptExecutionContext&);
 
@@ -152,7 +152,7 @@ public:
     const WebGPU::Device& backing() const { return m_backing; }
     void removeBufferToUnmap(GPUBuffer&);
     void addBufferToUnmap(GPUBuffer&);
-    Ref<GPUAdapterInfo> adapterInfo() const;
+    Ref<GPUAdapterInfo> NODELETE adapterInfo() const;
 
 #if ENABLE(VIDEO)
     WeakPtr<GPUExternalTexture> takeExternalTextureForVideoElement(const HTMLVideoElement&);
@@ -166,7 +166,7 @@ private:
 
     // EventTarget.
     enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::GPUDevice; }
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }
 

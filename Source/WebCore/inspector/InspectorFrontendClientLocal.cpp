@@ -281,7 +281,7 @@ RefPtr<PageInspectorController> InspectorFrontendClientLocal::protectedInspected
 
 void InspectorFrontendClientLocal::changeAttachedWindowHeight(unsigned height)
 {
-    unsigned totalHeight = protect(protect(frontendPage())->mainFrame())->protectedVirtualView()->visibleHeight() + protect(protect(protectedInspectedPageController()->inspectedPage())->mainFrame())->protectedVirtualView()->visibleHeight();
+    unsigned totalHeight = protect(protect(protect(frontendPage())->mainFrame())->virtualView())->visibleHeight() + protect(protect(protect(protectedInspectedPageController()->inspectedPage())->mainFrame())->virtualView())->visibleHeight();
     unsigned attachedHeight = constrainedAttachedWindowHeight(height, totalHeight);
     m_settings->setProperty(inspectorAttachedHeightSetting, String::number(attachedHeight));
     setAttachedWindowHeight(attachedHeight);
@@ -289,7 +289,7 @@ void InspectorFrontendClientLocal::changeAttachedWindowHeight(unsigned height)
 
 void InspectorFrontendClientLocal::changeAttachedWindowWidth(unsigned width)
 {
-    unsigned totalWidth = protect(protect(frontendPage())->mainFrame())->protectedVirtualView()->visibleWidth() + protect(protect(protectedInspectedPageController()->inspectedPage())->mainFrame())->protectedVirtualView()->visibleWidth();
+    unsigned totalWidth = protect(protect(protect(frontendPage())->mainFrame())->virtualView())->visibleWidth() + protect(protect(protect(protectedInspectedPageController()->inspectedPage())->mainFrame())->virtualView())->visibleWidth();
     unsigned attachedWidth = constrainedAttachedWindowWidth(width, totalWidth);
     setAttachedWindowWidth(attachedWidth);
 }
@@ -359,7 +359,7 @@ void InspectorFrontendClientLocal::setAttachedWindow(DockSide dockSide)
 
 void InspectorFrontendClientLocal::restoreAttachedWindowHeight()
 {
-    unsigned inspectedPageHeight = protect(protect(protectedInspectedPageController()->inspectedPage())->mainFrame())->protectedVirtualView()->visibleHeight();
+    unsigned inspectedPageHeight = protect(protect(protect(protectedInspectedPageController()->inspectedPage())->mainFrame())->virtualView())->visibleHeight();
     String value = m_settings->getProperty(inspectorAttachedHeightSetting);
     unsigned preferredHeight = value.isEmpty() ? defaultAttachedHeight : parseIntegerAllowingTrailingJunk<unsigned>(value).value_or(0);
 

@@ -64,7 +64,7 @@ public:
 
 protected:
     explicit SVGAnimatedPropertyBase(SVGElement*);
-    SVGPropertyOwner* owner() const override;
+    SVGPropertyOwner* NODELETE owner() const override;
     void commitPropertyChange(SVGProperty*) override;
 
     WeakPtr<SVGElement, WeakPtrImplWithEventTargetData> m_contextElement;

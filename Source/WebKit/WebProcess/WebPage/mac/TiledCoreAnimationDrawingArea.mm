@@ -493,7 +493,7 @@ void TiledCoreAnimationDrawingArea::setViewExposedRect(std::optional<FloatRect> 
 {
     m_viewExposedRect = viewExposedRect;
 
-    if (RefPtr frameView = protectedWebPage()->localMainFrameView())
+    if (RefPtr frameView = protect(m_webPage)->localMainFrameView())
         frameView->setViewExposedRect(m_viewExposedRect);
 }
 
@@ -681,7 +681,7 @@ void TiledCoreAnimationDrawingArea::applyTransientZoomToLayers(double scale, Flo
     if (!m_hostingLayer)
         return;
 
-    RefPtr frameView = protectedWebPage()->localMainFrameView();
+    RefPtr frameView = protect(m_webPage)->localMainFrameView();
     if (!frameView)
         return;
 

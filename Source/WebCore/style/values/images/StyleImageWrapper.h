@@ -30,9 +30,9 @@
 namespace WebCore {
 namespace Style {
 
-// Utility type that wraps a StyleImage for use with the strong style type system.
+// Utility type that wraps an Image for use with the strong style type system.
 struct ImageWrapper {
-    Ref<StyleImage> value;
+    Ref<Image> value;
 
     bool operator==(const ImageWrapper& other) const
     {

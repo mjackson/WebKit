@@ -82,6 +82,8 @@ struct FrameInfoData;
 struct FrameTreeCreationParameters;
 struct NavigationActionData;
 
+using LayerHostingContextID = uint32_t;
+
 enum class ProcessTerminationReason : uint8_t;
 
 class RemotePageProxy : public IPC::MessageReceiver, public RefCounted<RemotePageProxy> {
@@ -93,7 +95,7 @@ public:
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
 
-    WebPageProxy* page() const;
+    WebPageProxy* NODELETE page() const;
 
     void injectPageIntoNewProcess();
     void processDidTerminate(WebProcessProxy&, ProcessTerminationReason);
@@ -106,7 +108,7 @@ public:
     WebCore::PageIdentifier identifierInSiteIsolatedProcess() const { return m_webPageID; }
     const WebCore::Site& site() const { return m_site; }
 
-    WebProcessActivityState& processActivityState();
+    WebProcessActivityState& NODELETE processActivityState();
 
     WebCore::MediaProducerMediaStateFlags mediaState() const { return m_mediaState; }
     void setDrawingArea(DrawingAreaProxy*);
@@ -116,6 +118,11 @@ public:
     bool hasNetworkRequestsInProgress() const { return m_hasNetworkRequestsInProgress; }
 
     void disconnect();
+
+#if HAVE(VISIBILITY_PROPAGATION_VIEW)
+    void didCreateContextInWebProcessForVisibilityPropagation(LayerHostingContextID);
+    LayerHostingContextID contextIDForVisibilityPropagationInWebProcess() const { return m_contextIDForVisibilityPropagationInWebProcess; }
+#endif
 
 private:
     RemotePageProxy(WebPageProxy&, WebProcessProxy&, const WebCore::Site&, WebPageProxyMessageReceiverRegistration*, std::optional<WebCore::PageIdentifier>);
@@ -151,6 +158,10 @@ private:
 #if ASSERT_ENABLED
     bool m_disconnected { false };
 #endif
+#if HAVE(VISIBILITY_PROPAGATION_VIEW)
+    LayerHostingContextID m_contextIDForVisibilityPropagationInWebProcess { 0 };
+#endif
+
 };
 
 }

@@ -45,7 +45,7 @@ public:
     Node& currentNode() { return m_current.get(); }
     const Node& currentNode() const { return m_current.get(); }
 
-    WEBCORE_EXPORT void setCurrentNode(Node&);
+    WEBCORE_EXPORT void NODELETE setCurrentNode(Node&);
 
     WEBCORE_EXPORT ExceptionOr<Node*> parentNode();
     WEBCORE_EXPORT ExceptionOr<Node*> firstChild();

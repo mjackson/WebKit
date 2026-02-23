@@ -59,12 +59,15 @@ class Image;
 class ImageBuffer;
 class RenderTextFragment;
 class StickyPositionViewportConstraints;
-class StyleImage;
 class TransformationMatrix;
 
 namespace InlineIterator {
 class InlineBoxIterator;
 };
+
+namespace Style {
+class Image;
+}
 
 enum class BoxSide : uint8_t;
 enum class DecodingMode : uint8_t;
@@ -240,7 +243,7 @@ public:
     void clearFirstLetterRemainingText();
 
     enum class ScaleByUsedZoom : bool { No, Yes };
-    LayoutSize calculateImageIntrinsicDimensions(StyleImage*, const LayoutSize& scaledPositioningAreaSize, ScaleByUsedZoom) const;
+    LayoutSize calculateImageIntrinsicDimensions(Style::Image*, const LayoutSize& scaledPositioningAreaSize, ScaleByUsedZoom) const;
 
     RenderBlock* containingBlockForAutoHeightDetection(const Style::PreferredSize& logicalHeight) const;
     RenderBlock* containingBlockForAutoHeightDetection(const Style::MinimumSize& logicalHeight) const;
@@ -258,7 +261,7 @@ public:
         ContinuationChainNode(RenderBoxModelObject&);
         ~ContinuationChainNode();
 
-        void insertAfter(ContinuationChainNode&);
+        void NODELETE insertAfter(ContinuationChainNode&);
     };
 
     ContinuationChainNode* continuationChainNode() const;

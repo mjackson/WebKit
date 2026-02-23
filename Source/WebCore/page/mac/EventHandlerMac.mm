@@ -194,7 +194,7 @@ void EventHandler::focusDocumentView()
     }
 
     RELEASE_ASSERT(page == m_frame->page());
-    page->focusController().setFocusedFrame(protectedFrame().ptr());
+    page->focusController().setFocusedFrame(protect(m_frame).ptr());
 }
 
 bool EventHandler::passWidgetMouseDownEventToWidget(const MouseEventWithHitTestResults& event)
@@ -454,7 +454,7 @@ static IMP originalNSScrollViewScrollWheel;
 static bool _nsScrollViewScrollWheelShouldRetainSelf;
 static void selfRetainingNSScrollViewScrollWheel(NSScrollView *, SEL, NSEvent *);
 
-static bool nsScrollViewScrollWheelShouldRetainSelf()
+static bool NODELETE nsScrollViewScrollWheelShouldRetainSelf()
 {
     ASSERT(isMainThread());
 
@@ -745,12 +745,12 @@ PlatformMouseEvent EventHandler::currentPlatformMouseEvent() const
     return PlatformEventFactory::createPlatformMouseEvent(currentNSEvent(), correspondingPressureEvent(), windowView.get());
 }
 
-bool EventHandler::eventActivatedView(const PlatformMouseEvent& event) const
+bool NODELETE EventHandler::eventActivatedView(const PlatformMouseEvent& event) const
 {
     return m_activationEventNumber == event.eventNumber();
 }
 
-bool EventHandler::needsKeyboardEventDisambiguationQuirks() const
+bool NODELETE EventHandler::needsKeyboardEventDisambiguationQuirks() const
 {
     return m_frame->settings().needsKeyboardEventDisambiguationQuirks();
 }
@@ -766,7 +766,7 @@ OptionSet<PlatformEvent::Modifier> EventHandler::accessKeyModifiers()
     return { PlatformEvent::Modifier::ControlKey, PlatformEvent::Modifier::AltKey };
 }
 
-static ScrollableArea* scrollableAreaForBox(RenderBox& box)
+static ScrollableArea* NODELETE scrollableAreaForBox(RenderBox& box)
 {
     if (auto* listBox = dynamicDowncast<RenderListBox>(box))
         return listBox;
@@ -789,11 +789,11 @@ static ContainerNode* findEnclosingScrollableContainer(ContainerNode* node, cons
         if (is<HTMLHtmlElement>(*candidate) || is<HTMLDocument>(*candidate))
             return nullptr;
 
-        RenderBox* box = candidate->renderBox();
+        CheckedPtr box = candidate->renderBox();
         if (!box || !box->canBeScrolledAndHasScrollableArea())
             continue;
 
-        auto* scrollableArea = scrollableAreaForBox(*box);
+        CheckedPtr scrollableArea = scrollableAreaForBox(*box);
         if (!scrollableArea)
             continue;
 
@@ -823,11 +823,11 @@ static bool eventTargetIsPlatformWidget(Element* eventTarget)
 
 static WeakPtr<ScrollableArea> scrollableAreaForContainerNode(ContainerNode& container)
 {
-    auto box = container.renderBox();
+    CheckedPtr box = container.renderBox();
     if (!box)
         return { };
 
-    auto scrollableAreaPtr = scrollableAreaForBox(*box);
+    CheckedPtr scrollableAreaPtr = scrollableAreaForBox(*box);
     if (!scrollableAreaPtr)
         return { };
     
@@ -862,7 +862,7 @@ void EventHandler::determineWheelEventTarget(const PlatformWheelEvent& wheelEven
     if (wheelEvent.shouldResetLatching() || wheelEvent.isNonGestureEvent())
         return;
 
-    page->scrollLatchingController().updateAndFetchLatchingStateForFrame(protectedFrame(), wheelEvent, wheelEventTarget, scrollableArea, isOverWidget);
+    page->scrollLatchingController().updateAndFetchLatchingStateForFrame(protect(m_frame), wheelEvent, wheelEventTarget, scrollableArea, isOverWidget);
 }
 
 bool EventHandler::processWheelEventForScrolling(const PlatformWheelEvent& wheelEvent, const WeakPtr<ScrollableArea>& scrollableArea, OptionSet<EventHandling> eventHandling)

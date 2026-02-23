@@ -570,8 +570,8 @@ inline WKContextMenuItemTag toAPI(WebCore::ContextMenuAction action)
         return kWKContextMenuItemTagToggleVideoFullscreen;
     case WebCore::ContextMenuItemTagEnterVideoFullscreen:
         return kWKContextMenuItemTagEnterVideoFullscreen;
-    case WebCore::ContextMenuItemTagToggleVideoEnhancedFullscreen:
-        return kWKContextMenuItemTagToggleVideoEnhancedFullscreen;
+    case WebCore::ContextMenuItemTagTogglePictureInPicture:
+        return kWKContextMenuItemTagTogglePictureInPicture;
     case WebCore::ContextMenuItemTagMediaPlayPause:
         return kWKContextMenuItemTagMediaPlayPause;
     case WebCore::ContextMenuItemTagToggleVideoViewer:
@@ -800,8 +800,8 @@ inline WebCore::ContextMenuAction toImpl(WKContextMenuItemTag tag)
         return WebCore::ContextMenuItemTagToggleVideoFullscreen;
     case kWKContextMenuItemTagEnterVideoFullscreen:
         return WebCore::ContextMenuItemTagEnterVideoFullscreen;
-    case kWKContextMenuItemTagToggleVideoEnhancedFullscreen:
-        return WebCore::ContextMenuItemTagToggleVideoEnhancedFullscreen;
+    case kWKContextMenuItemTagTogglePictureInPicture:
+        return WebCore::ContextMenuItemTagTogglePictureInPicture;
     case kWKContextMenuItemTagMediaPlayPause:
         return WebCore::ContextMenuItemTagMediaPlayPause;
     case kWKContextMenuItemTagToggleVideoViewer:

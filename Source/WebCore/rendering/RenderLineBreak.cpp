@@ -155,7 +155,7 @@ void RenderLineBreak::collectSelectionGeometries(Vector<SelectionGeometry>& rect
     auto absoluteQuad = localToAbsoluteQuad(FloatRect(rect), UseTransforms, &isFixed);
     bool boxIsHorizontal = !is<InlineIterator::SVGTextBoxIterator>(run) ? run->isHorizontal() : !writingMode().isVertical();
 
-    rects.append(SelectionGeometry(absoluteQuad, HTMLElement::selectionRenderingBehavior(WTF::protect(element())), run->direction(), extentsRect.x(), extentsRect.maxX(), extentsRect.maxY(), 0, run->isLineBreak(), isFirstOnLine, isLastOnLine, false, false, boxIsHorizontal, isFixed, checkedView()->pageNumberForBlockProgressionOffset(absoluteQuad.enclosingBoundingBox().x())));
+    rects.append(SelectionGeometry(absoluteQuad, HTMLElement::selectionRenderingBehavior(WTF::protect(element())), run->direction(), extentsRect.x(), extentsRect.maxX(), extentsRect.maxY(), 0, run->isLineBreak(), isFirstOnLine, isLastOnLine, false, false, boxIsHorizontal, isFixed, protect(view())->pageNumberForBlockProgressionOffset(absoluteQuad.enclosingBoundingBox().x())));
 }
 
 } // namespace WebCore

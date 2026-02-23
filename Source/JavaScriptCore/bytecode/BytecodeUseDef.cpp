@@ -258,7 +258,6 @@ void computeUsesForBytecodeIndexImpl(const JSInstruction* instruction, Checkpoin
     USES(OpPushWithScope, currentScope, newScope)
     USES(OpGetByIdWithThis, base, thisValue)
     USES(OpDelByVal, base, property)
-    USES(OpTailCallForwardArguments, callee, thisValue)
 
     USES(OpGetByValWithThis, base, thisValue, property)
 
@@ -500,7 +499,6 @@ void computeDefsForBytecodeIndexImpl(unsigned numVars, const JSInstruction* inst
         return;
     }
 
-    DEFS(OpTailCallForwardArguments, dst)
     DEFS(OpGetFromScope, dst)
     DEFS(OpCall, dst)
     DEFS(OpTailCall, dst)

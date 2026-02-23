@@ -90,12 +90,6 @@ private:
     RemoteCompositorIntegration& operator=(RemoteCompositorIntegration&&) = delete;
 
     WebCore::WebGPU::CompositorIntegration& backing() { return m_backing; }
-    Ref<WebCore::WebGPU::CompositorIntegration> protectedBacking();
-
-    Ref<IPC::StreamServerConnection> protectedStreamConnection() const;
-
-    Ref<WebGPU::ObjectHeap> protectedObjectHeap() const { return m_objectHeap; }
-    Ref<RemoteGPU> protectedGPU() const { return m_gpu; }
 
     void didReceiveStreamMessage(IPC::StreamServerConnection&, IPC::Decoder&) final;
     void destruct();

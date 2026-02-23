@@ -145,7 +145,7 @@ bool LegacyRenderSVGResourceMasker::drawContentIntoContext(GraphicsContext& cont
         if (renderer->needsLayout())
             return false;
         const CheckedRef style = renderer->style();
-        if (style->display() == DisplayType::None)
+        if (style->display() == Style::DisplayType::None)
             continue;
         SVGRenderingContext::renderSubtreeToContext(context, *renderer, maskContentTransformation);
     }
@@ -176,7 +176,7 @@ void LegacyRenderSVGResourceMasker::calculateMaskContentRepaintRect(RepaintRectC
         if (!renderer || !childNode->isSVGElement())
             continue;
         const CheckedRef style = renderer->style();
-        if (style->display() == DisplayType::None)
+        if (style->display() == Style::DisplayType::None)
              continue;
         m_maskContentBoundaries[repaintRectCalculation].unite(renderer->localToParentTransform().mapRect(renderer->repaintRectInLocalCoordinates(repaintRectCalculation)));
     }

@@ -130,45 +130,50 @@ OffscreenCanvas::~OffscreenCanvas()
 {
     notifyObserversCanvasDestroyed();
     removeCanvasNeedingPreparationForDisplayOrFlush();
-
-    m_context = nullptr; // Ensure this goes away before the ImageBuffer.
-    setImageBuffer(nullptr);
 }
 
 void OffscreenCanvas::setWidth(unsigned newWidth)
 {
     if (m_detached)
         return;
-    setSize(IntSize(newWidth, height()));
-    didUpdateSizeProperties();
+    IntSize newSize(newWidth, height());
+    bool sizeChanged = newSize != size();
+    if (sizeChanged)
+        setSize(newSize);
+    didUpdateSizeProperties(sizeChanged);
 }
 
 void OffscreenCanvas::setHeight(unsigned newHeight)
 {
     if (m_detached)
         return;
-    setSize(IntSize(width(), newHeight));
-    didUpdateSizeProperties();
+    IntSize newSize(width(), newHeight);
+    bool sizeChanged = newSize != size();
+    if (sizeChanged)
+        setSize(newSize);
+    didUpdateSizeProperties(sizeChanged);
 }
 
-void OffscreenCanvas::didUpdateSizeProperties()
+void OffscreenCanvas::setSizeForControllingContext(IntSize newSize)
 {
-    if (RefPtr context = dynamicDowncast<OffscreenCanvasRenderingContext2D>(m_context.get()))
-        context->reset();
+    // Controlling context size change semantics are different to width, height assignment.
+    if (size() == newSize)
+        return;
+    setSize(newSize);
+    didUpdateSizeProperties(true);
+}
 
-    setHasCreatedImageBuffer(false);
-    setImageBuffer(nullptr);
+void OffscreenCanvas::didUpdateSizeProperties(bool sizeChanged)
+{
     clearCopiedImage();
-
+    if (m_context)
+        m_context->didUpdateCanvasSizeProperties(sizeChanged);
     notifyObserversCanvasResized();
     scheduleCommitToPlaceholderCanvas();
-
-    if (RefPtr context = dynamicDowncast<GPUBasedCanvasRenderingContext>(m_context.get()))
-        context->reshape();
 }
 
 #if ENABLE(WEBGL)
-static bool requiresAcceleratedCompositingForWebGL()
+static bool NODELETE requiresAcceleratedCompositingForWebGL()
 {
 #if PLATFORM(GTK) || PLATFORM(WIN)
     return false;
@@ -177,7 +182,7 @@ static bool requiresAcceleratedCompositingForWebGL()
 #endif
 }
 
-static bool shouldEnableWebGL(const SettingsValues& settings, bool isWorker)
+static bool NODELETE shouldEnableWebGL(const SettingsValues& settings, bool isWorker)
 {
     if (!settings.webGLEnabled)
         return false;
@@ -290,10 +295,11 @@ ExceptionOr<RefPtr<ImageBitmap>> OffscreenCanvas::transferToImageBitmap()
     if (size().isEmpty())
         return { RefPtr<ImageBitmap> { nullptr } };
     clearCopiedImage();
+    bool bitmapOriginClean = originClean();
     RefPtr buffer = m_context->transferToImageBuffer();
     if (!buffer)
         return Exception { ExceptionCode::UnknownError }; // UnknownError is used for DOM out-of-memory.
-    return { ImageBitmap::create(buffer.releaseNonNull(), originClean()) };
+    return { ImageBitmap::create(buffer.releaseNonNull(), bitmapOriginClean) };
 }
 
 static String toEncodingMimeType(const String& mimeType)
@@ -433,20 +439,6 @@ void OffscreenCanvas::scheduleCommitToPlaceholderCanvas()
             commitToPlaceholderCanvas();
         });
     }
-}
-
-void OffscreenCanvas::createImageBuffer() const
-{
-    const_cast<OffscreenCanvas*>(this)->setHasCreatedImageBuffer(true);
-    setImageBuffer(allocateImageBuffer());
-}
-
-void OffscreenCanvas::setImageBufferAndMarkDirty(RefPtr<ImageBuffer>&& buffer)
-{
-    setHasCreatedImageBuffer(true);
-    setImageBuffer(WTF::move(buffer));
-
-    CanvasBase::didDraw(FloatRect(FloatPoint(), size()));
 }
 
 void OffscreenCanvas::queueTaskKeepingObjectAlive(TaskSource source, Function<void(CanvasBase&)>&& task)

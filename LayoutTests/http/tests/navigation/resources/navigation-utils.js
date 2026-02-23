@@ -1,10 +1,5 @@
-const hostname = location.hostname;
-
-const localhost = "localhost";
-const loopbackAddress = "127.0.0.1";
-
-const sameSiteHostname = hostname;
-const crossSiteHostname = hostname === localhost ? loopbackAddress : localhost;
+const sameSiteHostname = "127.0.0.1";
+const crossSiteHostname = "localhost";
 
 /* `page` must be defined in embedding HTML files */
 function makeMessage(action, arg = "") {
@@ -95,10 +90,4 @@ function navigateTo(url) {
 
 function navigateIframeTo(url) {
     iframeContentWindow().location.href = url;
-}
-
-function crossSiteUrl(path) {
-    const url = new URL(path, location.href);
-    url.hostname = crossSiteHostname;
-    return url.href;
 }

@@ -146,7 +146,7 @@ void NetworkStorageSession::hasCookies(const RegistrableDomain& domain, Completi
 
     // FIXME: rdar://168454473 (Remove workaround in CookieStorageObserver once CFNetwork bug is resolved)
     if (m_cookieStorageObserver && cookieStorage().get())
-        checkedCookieStorageObserver()->registerInternalsForNotifications(true);
+        protect(cookieStorageObserver())->registerInternalsForNotifications(true);
 
     completionHandler(hasCookieForDomain);
 }
@@ -199,11 +199,6 @@ CookieStorageObserver& NetworkStorageSession::cookieStorageObserver() const
         m_cookieStorageObserver = makeUnique<CookieStorageObserver>(nsCookieStorage().get());
 
     return *m_cookieStorageObserver;
-}
-
-CheckedRef<CookieStorageObserver> NetworkStorageSession::checkedCookieStorageObserver() const
-{
-    return cookieStorageObserver();
 }
 
 RetainPtr<CFURLStorageSessionRef> createPrivateStorageSession(CFStringRef identifier, std::optional<HTTPCookieAcceptPolicy> cookieAcceptPolicy, NetworkStorageSession::ShouldDisableCFURLCache shouldDisableCFURLCache)

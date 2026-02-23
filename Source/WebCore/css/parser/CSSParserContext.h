@@ -72,9 +72,11 @@ struct CSSParserContext {
     bool imageControlsEnabled : 1 { false };
 #endif
     bool colorLayersEnabled : 1 { false };
+    bool cssPickerPseudoElementEnabled : 1 { false };
     bool targetTextPseudoElementEnabled : 1 { false };
     bool htmlEnhancedSelectEnabled : 1 { false };
     bool cssRandomFunctionEnabled : 1 { false };
+    bool cssRubyDisplayTypesEnabled : 1 { false };
     bool cssTreeCountingFunctionsEnabled : 1 { false };
     bool cssURLModifiersEnabled : 1 { false };
     bool cssURLIntegrityModifierEnabled : 1 { false };
@@ -95,7 +97,7 @@ struct CSSParserContext {
     CSSParserContext(const Document&, const URL& baseURL, ASCIILiteral charset = ""_s);
     CSSParserContext(const Settings&);
 
-    void setUASheetMode();
+    void NODELETE setUASheetMode();
 
     bool operator==(const CSSParserContext&) const = default;
 };

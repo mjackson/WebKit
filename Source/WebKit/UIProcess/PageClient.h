@@ -234,9 +234,7 @@ class WebFullScreenManagerProxyClient;
 class InstallMissingMediaPluginsPermissionRequest;
 #endif
 
-#if HAVE(VISIBILITY_PROPAGATION_VIEW)
 using LayerHostingContextID = uint32_t;
-#endif
 
 #if PLATFORM(GTK) || PLATFORM(WPE)
 class WebKitWebResourceLoadManager;
@@ -286,6 +284,7 @@ public:
 
 #if PLATFORM(COCOA)
     virtual bool canTakeForegroundAssertions() = 0;
+    virtual void scrollingCoordinatorWasCreated() { }
 #endif
 
     // Return whether the view is visible, or occluded by another window.
@@ -302,6 +301,8 @@ public:
     virtual void processDidExit() = 0;
     virtual void processWillSwap() { processDidExit(); }
     virtual void didRelaunchProcess() = 0;
+    virtual void didStartUsingProcessForSiteIsolation(WebProcessProxy&, LayerHostingContextID) { }
+    virtual void didStopUsingProcessForSiteIsolation(WebProcessProxy&) { }
     virtual void processDidUpdateThrottleState() { }
     virtual void pageClosed() = 0;
 
@@ -426,7 +427,7 @@ public:
 #if PLATFORM(MAC)
     virtual WebCore::IntRect rootViewToWindow(const WebCore::IntRect&) = 0;
 #endif
-#if PLATFORM(IOS_FAMILY)
+#if ENABLE(TWO_PHASE_CLICKS)
     virtual void didNotHandleTapAsClick(const WebCore::IntPoint&) = 0;
     virtual void didHandleTapAsHover() = 0;
     virtual void didCompleteSyntheticClick() = 0;
@@ -562,11 +563,15 @@ public:
 
     virtual void reconcileEnclosingScrollViewContentOffset(EditorState&) { };
 
-#if PLATFORM(IOS_FAMILY)
+#if ENABLE(TWO_PHASE_CLICKS)
     virtual void commitPotentialTapFailed() = 0;
     virtual void didGetTapHighlightGeometries(WebKit::TapIdentifier requestID, const WebCore::Color&, const Vector<WebCore::FloatQuad>& highlightedQuads, const WebCore::IntSize& topLeftRadius, const WebCore::IntSize& topRightRadius, const WebCore::IntSize& bottomLeftRadius, const WebCore::IntSize& bottomRightRadius, bool nodeHasBuiltInClickHandling) = 0;
     virtual bool isPotentialTapInProgress() const = 0;
+    virtual void disableDoubleTapGesturesDuringTapIfNecessary(WebKit::TapIdentifier) = 0;
+    virtual void handleSmartMagnificationInformationForPotentialTap(WebKit::TapIdentifier, const WebCore::FloatRect& renderRect, bool fitEntireRect, double viewportMinimumScale, double viewportMaximumScale, bool nodeIsRootLevel, bool nodeIsPluginElement) = 0;
+#endif
 
+#if PLATFORM(IOS_FAMILY)
     virtual void couldNotRestorePageState() = 0;
     virtual void restorePageState(std::optional<WebCore::FloatPoint> scrollPosition, const WebCore::FloatPoint& scrollOrigin, const WebCore::FloatBoxExtent& obscuredInsetsOnSave, double scale) = 0;
     virtual void restorePageCenterAndScale(std::optional<WebCore::FloatPoint> center, double scale) = 0;
@@ -583,8 +588,6 @@ public:
     virtual void saveImageToLibrary(Ref<WebCore::SharedBuffer>&&) = 0;
     virtual void showPlaybackTargetPicker(bool hasVideo, const WebCore::IntRect& elementRect, WebCore::RouteSharingPolicy, const String&) = 0;
     virtual void showDataDetectorsUIForPositionInformation(const InteractionInformationAtPosition&) = 0;
-    virtual void disableDoubleTapGesturesDuringTapIfNecessary(WebKit::TapIdentifier) = 0;
-    virtual void handleSmartMagnificationInformationForPotentialTap(WebKit::TapIdentifier, const WebCore::FloatRect& renderRect, bool fitEntireRect, double viewportMinimumScale, double viewportMaximumScale, bool nodeIsRootLevel, bool nodeIsPluginElement) = 0;
     virtual double minimumZoomScale() const = 0;
     virtual WebCore::FloatRect documentRect() const = 0;
     virtual void scrollingNodeScrollViewWillStartPanGesture(WebCore::ScrollingNodeID) = 0;

@@ -98,7 +98,7 @@ public:
     // Style resolvers are shared between shadow trees with identical styles. That's why we don't simply provide a Style::Scope.
     enum class ScopeType : bool { Document, ShadowTree };
     static Ref<Resolver> create(Document&, ScopeType);
-    WEBCORE_EXPORT ~Resolver();
+    ~Resolver();
 
     UnadjustedStyle unadjustedStyleForElement(Element&, const ResolutionContext&, RuleMatchingBehavior = RuleMatchingBehavior::MatchAllRules);
     UnadjustedStyle unadjustedStyleForCachedMatchResult(Element&, const ResolutionContext&, CachedMatchResult&&);

@@ -188,12 +188,12 @@ String contextMenuItemTagChangeBack(const String& replacedString)
 }
 
 #if PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE)
-String contextMenuItemTagEnterVideoEnhancedFullscreen()
+String contextMenuItemTagEnterPictureInPicture()
 {
     return WEB_UI_STRING("Enter Picture in Picture", "menu item");
 }
 
-String contextMenuItemTagExitVideoEnhancedFullscreen()
+String contextMenuItemTagExitPictureInPicture()
 {
     return WEB_UI_STRING("Exit Picture in Picture", "menu item");
 }

@@ -73,25 +73,25 @@ public:
     {
     }
     
-    WEBCORE_EXPORT static const Seconds maxAge();
+    WEBCORE_EXPORT static const Seconds NODELETE maxAge();
     WEBCORE_EXPORT bool isNeitherSameSiteNorCrossSiteTriggeringEvent(const RegistrableDomain& redirectDomain, const URL& firstPartyURL, const PCM::AttributionTriggerData&);
     WEBCORE_EXPORT static Expected<PCM::AttributionTriggerData, String> parseAttributionRequest(const URL& redirectURL);
     WEBCORE_EXPORT PCM::AttributionSecondsUntilSendData attributeAndGetEarliestTimeToSend(PCM::AttributionTriggerData&&, IsRunningLayoutTest);
-    WEBCORE_EXPORT bool hasHigherPriorityThan(const PrivateClickMeasurement&) const;
+    WEBCORE_EXPORT bool NODELETE hasHigherPriorityThan(const PrivateClickMeasurement&) const;
     WEBCORE_EXPORT URL attributionReportClickSourceURL() const;
     WEBCORE_EXPORT URL attributionReportClickDestinationURL() const;
     WEBCORE_EXPORT Ref<JSON::Object> attributionReportJSON() const;
     const PCM::SourceSite& sourceSite() const { return m_sourceSite; };
     const PCM::AttributionDestinationSite& destinationSite() const { return m_destinationSite; };
     WallTime timeOfAdClick() const { return m_timeOfAdClick; }
-    WEBCORE_EXPORT bool hasPreviouslyBeenReported();
+    WEBCORE_EXPORT bool NODELETE hasPreviouslyBeenReported();
     PCM::AttributionTimeToSendData timesToSend() const { return m_timesToSend; };
     void setTimesToSend(PCM::AttributionTimeToSendData data) { m_timesToSend = data; }
     const SourceID& sourceID() const { return m_sourceID; }
     const std::optional<PCM::AttributionTriggerData>& attributionTriggerData() const { return m_attributionTriggerData; }
     void setAttribution(PCM::AttributionTriggerData&& attributionTriggerData) { m_attributionTriggerData = WTF::move(attributionTriggerData); }
     const String& sourceApplicationBundleID() const { return m_sourceApplicationBundleID; }
-    WEBCORE_EXPORT void setSourceApplicationBundleIDForTesting(const String&);
+    WEBCORE_EXPORT void NODELETE setSourceApplicationBundleIDForTesting(const String&);
 
     PCM::AttributionEphemeral isEphemeral() const { return m_isEphemeral; }
     void setEphemeral(PCM::AttributionEphemeral isEphemeral) { m_isEphemeral = isEphemeral; }
@@ -118,8 +118,8 @@ public:
     PCM::SourceUnlinkableToken& sourceUnlinkableToken() { return m_sourceUnlinkableToken; }
     void setSourceUnlinkableTokenValue(const String& value) { m_sourceUnlinkableToken.valueBase64URL = value; }
     const std::optional<PCM::SourceSecretToken>& sourceSecretToken() const { return m_sourceSecretToken; }
-    WEBCORE_EXPORT void setSourceSecretToken(PCM::SourceSecretToken&&);
-    WEBCORE_EXPORT void setDestinationSecretToken(PCM::DestinationSecretToken&&);
+    WEBCORE_EXPORT void NODELETE setSourceSecretToken(PCM::SourceSecretToken&&);
+    WEBCORE_EXPORT void NODELETE setDestinationSecretToken(PCM::DestinationSecretToken&&);
 
     static std::optional<uint64_t> appStoreURLAdamID(const URL&);
     bool isSKAdNetworkAttribution() const { return !!m_adamID; }

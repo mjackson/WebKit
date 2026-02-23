@@ -190,7 +190,7 @@
 #else
 namespace WebCore {
 
-static void verifyUserAgent(const String&)
+static void NODELETE verifyUserAgent(const String&)
 {
 }
 
@@ -250,7 +250,7 @@ bool isReload(FrameLoadType type)
 // non-member lets us exclude it from the header file, thus keeping FrameLoader.h's
 // API simpler.
 //
-static bool isDocumentSandboxed(LocalFrame& frame, SandboxFlag flag)
+static bool NODELETE isDocumentSandboxed(LocalFrame& frame, SandboxFlag flag)
 {
     return frame.document() && frame.document()->isSandboxed(flag);
 }
@@ -1075,23 +1075,15 @@ void FrameLoader::loadURLIntoChildFrame(const URL& url, const String& referer, L
 #endif
 
     // If we're moving in the back/forward list, we might want to replace the content
-    // of this child frame with whatever was there at that point, though during session
-    // restoration, the child frame should be loaded normally through the frame tree
-    // restoration rather than using the history restoration path.
-    URL childURL { url };
+    // of this child frame with whatever was there at that point.
     RefPtr parentItem = history().currentItem();
     if (parentItem && parentItem->children().size() && isBackForwardLoadType(loadType()) && !m_frame->document()->loadEventFinished()) {
-        if (RefPtr childItem = parentItem->childItemForFrame(childFrame)) {
-            if (!childItem->wasRestoredFromSession()) {
-                Ref childLoader = childFrame.loader();
-                childItem->setFrameID(childFrame.frameID());
-                childLoader->m_requestedHistoryItem = childItem;
-                childLoader->loadDifferentDocumentItem(*childItem, nullptr, loadType(), MayAttemptCacheOnlyLoadForFormSubmissionItem, ShouldTreatAsContinuingLoad::No);
-                return;
-            }
-
-            childItem->setWasRestoredFromSession(false);
-            childURL = URL { childItem->urlString() };
+        if (RefPtr childItem = parentItem->childItemWithTarget(childFrame.tree().uniqueName())) {
+            Ref childLoader = childFrame.loader();
+            childItem->setFrameID(childFrame.frameID());
+            childLoader->m_requestedHistoryItem = childItem;
+            childLoader->loadDifferentDocumentItem(*childItem, nullptr, loadType(), MayAttemptCacheOnlyLoadForFormSubmissionItem, ShouldTreatAsContinuingLoad::No);
+            return;
         }
     }
 
@@ -1099,7 +1091,7 @@ void FrameLoader::loadURLIntoChildFrame(const URL& url, const String& referer, L
     auto initiatedByMainFrame = lexicalFrame && lexicalFrame->isMainFrame() ? InitiatedByMainFrame::Yes : InitiatedByMainFrame::Unknown;
 
     RefPtr document = m_frame->document();
-    FrameLoadRequest frameLoadRequest { *document, document->securityOrigin(), { WTF::move(childURL) }, selfTargetFrameName(), initiatedByMainFrame };
+    FrameLoadRequest frameLoadRequest { *document, document->securityOrigin(), { URL { url } }, selfTargetFrameName(), initiatedByMainFrame };
     frameLoadRequest.setNewFrameOpenerPolicy(NewFrameOpenerPolicy::Suppress);
     frameLoadRequest.setLockBackForwardList(LockBackForwardList::Yes);
     frameLoadRequest.setIsInitialFrameSrcLoad(true);
@@ -1226,7 +1218,7 @@ void FrameLoader::setFirstPartyForCookies(const URL& url)
     }
 }
 
-static NavigationNavigationType determineNavigationType(FrameLoadType loadType, NavigationHistoryBehavior historyHandling)
+static NavigationNavigationType NODELETE determineNavigationType(FrameLoadType loadType, NavigationHistoryBehavior historyHandling)
 {
     if (historyHandling == NavigationHistoryBehavior::Push)
         return NavigationNavigationType::Push;
@@ -1372,11 +1364,6 @@ void FrameLoader::loadInSameDocument(URL url, RefPtr<SerializedScriptValue> stat
 
     // LocalFrameLoaderClient::didFinishLoad() tells the internal load delegate the load finished with no error
     m_client->didFinishLoad();
-}
-
-bool FrameLoader::isComplete() const
-{
-    return m_isComplete;
 }
 
 void FrameLoader::completed()
@@ -2807,7 +2794,7 @@ void FrameLoader::willChangeTitle(DocumentLoader* loader)
     m_client->willChangeTitle(loader);
 }
 
-FrameLoadType FrameLoader::loadType() const
+FrameLoadType NODELETE FrameLoader::loadType() const
 {
     return m_loadType;
 }
@@ -3016,7 +3003,7 @@ void FrameLoader::checkLoadCompleteForThisFrame(LoadWillContinueInAnotherProcess
             FRAMELOADER_RELEASE_LOG_FORWARDABLE(FRAMELOADER_CHECKLOADCOMPLETEFORTHISFRAME);
 #if ENABLE(DATA_DETECTION)
             RefPtr document = m_frame->document();
-            auto types = OptionSet<DataDetectorType>::fromRaw(enumToUnderlyingType(m_frame->settings().dataDetectorTypes()));
+            auto types = OptionSet<DataDetectorType>::fromRaw(std::to_underlying(m_frame->settings().dataDetectorTypes()));
 
             if (document && types) {
                 DataDetection::detectContentInFrame(protect(m_frame).ptr(), types, m_client->dataDetectionReferenceDate(), [weakThis = WeakPtr { *this }](NSArray *results) {
@@ -3805,7 +3792,7 @@ static bool itemAllowsScrollRestoration(HistoryItem* historyItem, FrameLoadType 
     return true;
 }
 
-static bool isSameDocumentReload(bool isNewNavigation, FrameLoadType loadType)
+static bool NODELETE isSameDocumentReload(bool isNewNavigation, FrameLoadType loadType)
 {
     return !isNewNavigation && !isBackForwardLoadType(loadType);
 }
@@ -4163,14 +4150,14 @@ void FrameLoader::continueLoadAfterNavigationPolicy(const ResourceRequest& reque
     setPolicyDocumentLoader(nullptr);
 
     if (isBackForwardLoadType(type)) {
-        auto& diagnosticLoggingClient = protect(frame->page())->diagnosticLoggingClient();
+        CheckedRef diagnosticLoggingClient = protect(frame->page())->diagnosticLoggingClient();
         if (RefPtr provisionalItem = history().provisionalItem(); provisionalItem && provisionalItem->isInBackForwardCache()) {
-            diagnosticLoggingClient.logDiagnosticMessageWithResult(DiagnosticLoggingKeys::backForwardCacheKey(), DiagnosticLoggingKeys::retrievalKey(), DiagnosticLoggingResultPass, ShouldSample::Yes);
+            diagnosticLoggingClient->logDiagnosticMessageWithResult(DiagnosticLoggingKeys::backForwardCacheKey(), DiagnosticLoggingKeys::retrievalKey(), DiagnosticLoggingResultPass, ShouldSample::Yes);
             loadProvisionalItemFromCachedPage();
             FRAMELOADER_RELEASE_LOG(ResourceLoading, "continueLoadAfterNavigationPolicy: can't continue loading frame because it will be loaded from cache");
             return;
         }
-        diagnosticLoggingClient.logDiagnosticMessageWithResult(DiagnosticLoggingKeys::backForwardCacheKey(), DiagnosticLoggingKeys::retrievalKey(), DiagnosticLoggingResultFail, ShouldSample::Yes);
+        diagnosticLoggingClient->logDiagnosticMessageWithResult(DiagnosticLoggingKeys::backForwardCacheKey(), DiagnosticLoggingKeys::retrievalKey(), DiagnosticLoggingResultFail, ShouldSample::Yes);
     }
 
     CompletionHandler<void()> completionHandler = [this, protectedThis = Ref { *this }] () mutable {
@@ -4226,8 +4213,10 @@ void FrameLoader::continueLoadAfterNewWindowPolicy(ResourceRequest&& request,
 
     Ref mainFrameLoader = mainFrame->loader();
 
-    if (!isBlankTargetFrameName(frameName))
+    if (!isBlankTargetFrameName(frameName)) {
         mainFrame->tree().setSpecifiedName(frameName);
+        mainFrameLoader->client().frameNameChanged(frameName);
+    }
 
     protect(mainFrame->page())->setOpenedByDOM();
     mainFrameLoader->m_client->dispatchShow();
@@ -4603,10 +4592,9 @@ void FrameLoader::loadItem(HistoryItem& item, HistoryItem* fromItem, FrameLoadTy
     m_requestedHistoryItem = item;
     RefPtr currentItem = history().currentItem();
 
-    bool sameDocumentNavigation = currentItem && item.shouldDoSameDocumentNavigationTo(*currentItem);
-
-    // If we're continuing this history navigation in a new process, then doing a same document navigation never makes sense.
-    ASSERT(!sameDocumentNavigation || shouldTreatAsContinuingLoad == ShouldTreatAsContinuingLoad::No);
+    // If we're continuing this history navigation in a new process, we cannot perform a same document navigation.
+    // Otherwise, the load won't commit and navigation won't complete.
+    bool sameDocumentNavigation = currentItem && item.shouldDoSameDocumentNavigationTo(*currentItem) && shouldTreatAsContinuingLoad == ShouldTreatAsContinuingLoad::No;
 
     // Check if Navigation API should handle this traversal
     if (frame().document() && frame().document()->settings().navigationAPIEnabled() && shouldDispatchNavigateEventForHistoryTraversal(item, fromItem)) {
@@ -4823,7 +4811,7 @@ void FrameLoader::clearTestingOverrides()
     m_isStrictRawResourceValidationPolicyDisabledForTesting = false;
 }
 
-bool LocalFrameLoaderClient::hasHTMLView() const
+bool NODELETE LocalFrameLoaderClient::hasHTMLView() const
 {
     return true;
 }

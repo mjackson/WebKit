@@ -167,11 +167,11 @@ bool ImageOverlayController::handleDataDetectorAction(const HTMLElement& element
     if (!dataDetectionResult)
         return false;
 
-    auto* renderer = element.renderer();
+    CheckedPtr renderer = element.renderer();
     if (!renderer)
         return false;
 
-    protectedPage()->chrome().client().handleClickForDataDetectionResult({ WTF::move(dataDetectionResult), frameView->contentsToWindow(renderer->absoluteBoundingBoxRect()) }, frameView->contentsToWindow(locationInContents));
+    protect(m_page)->chrome().client().handleClickForDataDetectionResult({ WTF::move(dataDetectionResult), frameView->contentsToWindow(renderer->absoluteBoundingBoxRect()) }, frameView->contentsToWindow(locationInContents));
     return true;
 }
 
@@ -191,7 +191,7 @@ void ImageOverlayController::textRecognitionResultsChanged(HTMLElement& element)
     uninstallPageOverlayIfNeeded();
 }
 
-bool ImageOverlayController::hasActiveDataDetectorHighlightForTesting() const
+bool NODELETE ImageOverlayController::hasActiveDataDetectorHighlightForTesting() const
 {
     return !!m_activeDataDetectorHighlight;
 }
@@ -246,17 +246,17 @@ void ImageOverlayController::elementUnderMouseDidChange(LocalFrame& frame, Eleme
 
 void ImageOverlayController::scheduleRenderingUpdate(OptionSet<RenderingUpdateStep> requestedSteps)
 {
-    protectedPage()->scheduleRenderingUpdate(requestedSteps);
+    protect(m_page)->scheduleRenderingUpdate(requestedSteps);
 }
 
 float ImageOverlayController::deviceScaleFactor() const
 {
-    return protectedPage()->deviceScaleFactor();
+    return protect(m_page)->deviceScaleFactor();
 }
 
 RefPtr<GraphicsLayer> ImageOverlayController::createGraphicsLayer(GraphicsLayerClient& client)
 {
-    return GraphicsLayer::create(protectedPage()->chrome().client().graphicsLayerFactory(), client);
+    return GraphicsLayer::create(protect(m_page)->chrome().client().graphicsLayerFactory(), client);
 }
 
 #endif

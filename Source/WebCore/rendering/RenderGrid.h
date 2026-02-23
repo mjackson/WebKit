@@ -61,7 +61,7 @@ enum class SubgridDidChange : bool { No, Yes };
 class GridItemSizeCache {
 public:
     void setSizeForGridItem(const RenderBox& gridItem, LayoutUnit size);
-    std::optional<LayoutUnit> sizeForItem(const RenderBox& gridItem) const;
+    std::optional<LayoutUnit> NODELETE sizeForItem(const RenderBox& gridItem) const;
     void invalidateSizeForItem(const RenderBox& gridItem);
 
 private:
@@ -99,7 +99,7 @@ public:
 
     // Required by GridTrackSizingAlgorithm. Keep them under control.
     LayoutUnit guttersSize(Style::GridTrackSizingDirection, unsigned startLine, unsigned span, std::optional<LayoutUnit> availableSize) const;
-    LayoutUnit gridItemOffset(Style::GridTrackSizingDirection) const;
+    LayoutUnit NODELETE gridItemOffset(Style::GridTrackSizingDirection) const;
 
     std::optional<LayoutUnit> explicitIntrinsicInnerLogicalSize(Style::GridTrackSizingDirection) const;
     void updateGridAreaLogicalSize(RenderBox&, std::optional<LayoutUnit> width, std::optional<LayoutUnit> height) const;
@@ -138,7 +138,7 @@ public:
     bool areMasonryRows() const { return isMasonry(Style::GridTrackSizingDirection::Rows); }
     bool areMasonryColumns() const { return isMasonry(Style::GridTrackSizingDirection::Columns); }
 
-    const Grid& currentGrid() const;
+    const Grid& NODELETE currentGrid() const;
     Grid& currentGrid();
 
     unsigned numTracks(Style::GridTrackSizingDirection) const;
@@ -149,10 +149,10 @@ public:
     LayoutUnit gridGap(Style::GridTrackSizingDirection) const;
     LayoutUnit gridGap(Style::GridTrackSizingDirection, std::optional<LayoutUnit> availableSize) const;
 
-    LayoutUnit masonryContentSize() const;
+    LayoutUnit NODELETE masonryContentSize() const;
 
     void updateIntrinsicLogicalHeightsForRowSizingFirstPassCacheAvailability();
-    std::optional<GridItemSizeCache>& intrinsicLogicalHeightsForRowSizingFirstPass() const;
+    std::optional<GridItemSizeCache>& NODELETE intrinsicLogicalHeightsForRowSizingFirstPass() const;
 
     bool shouldCheckExplicitIntrinsicInnerLogicalSize(Style::GridTrackSizingDirection) const;
 
@@ -179,8 +179,8 @@ private:
     bool selfAlignmentChangedToStretch(LogicalBoxAxis containingAxis, const RenderStyle& oldStyle, const RenderStyle& newStyle, const RenderBox& gridItem) const;
     bool selfAlignmentChangedFromStretch(LogicalBoxAxis containingAxis, const RenderStyle& oldStyle, const RenderStyle& newStyle, const RenderBox& gridItem) const;
 
-    SubgridDidChange subgridDidChange(const RenderStyle& oldStyle) const;
-    bool explicitGridDidResize(const RenderStyle&) const;
+    SubgridDidChange NODELETE subgridDidChange(const RenderStyle& oldStyle) const;
+    bool NODELETE explicitGridDidResize(const RenderStyle&) const;
     bool namedGridLinesDefinitionDidChange(const RenderStyle&) const;
     bool implicitGridLinesDefinitionDidChange(const RenderStyle&) const;
 
@@ -202,8 +202,8 @@ private:
     void placeAutoMajorAxisItemsOnGrid(const Vector<RenderBox*>&);
     typedef std::pair<unsigned, unsigned> AutoPlacementCursor;
     void placeAutoMajorAxisItemOnGrid(RenderBox&, AutoPlacementCursor&);
-    Style::GridTrackSizingDirection autoPlacementMajorAxisDirection() const;
-    Style::GridTrackSizingDirection autoPlacementMinorAxisDirection() const;
+    Style::GridTrackSizingDirection NODELETE autoPlacementMajorAxisDirection() const;
+    Style::GridTrackSizingDirection NODELETE autoPlacementMinorAxisDirection() const;
 
     static bool itemGridAreaIsWithinImplicitGrid(const GridArea& area, unsigned gridAxisLinesCount, Style::GridTrackSizingDirection gridAxisDirection)
     {
@@ -213,7 +213,7 @@ private:
 
     bool canPerformSimplifiedLayout() const final;
     void prepareGridItemForPositionedLayout(RenderBox&);
-    bool hasStaticPositionForGridItem(const RenderBox&, Style::GridTrackSizingDirection) const;
+    bool NODELETE hasStaticPositionForGridItem(const RenderBox&, Style::GridTrackSizingDirection) const;
     void layoutOutOfFlowBox(RenderBox&, RelayoutChildren, bool fixedPositionObjectsOnly) override;
 
     void computeTrackSizesForDefiniteSize(Style::GridTrackSizingDirection, LayoutUnit availableSpace, RenderGridLayoutState&);
@@ -285,7 +285,7 @@ private:
         Grid m_layoutGrid;
     public:
         GridWrapper(RenderGrid&);
-        void resetCurrentGrid() const;
+        void NODELETE resetCurrentGrid() const;
         mutable std::reference_wrapper<Grid> m_currentGrid { std::ref(m_layoutGrid) };
     } m_grid;
 

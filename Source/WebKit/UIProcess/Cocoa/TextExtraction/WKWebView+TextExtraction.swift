@@ -107,7 +107,7 @@ extension WKWebView {
             configuration.mergeParagraphs = true
             configuration.skipNearlyTransparentContent = true
             configuration.nodeIdentifierInclusion = .none
-            configuration.includeEventListeners = false
+            configuration.eventListenerCategories = []
             configuration.includeAccessibilityAttributes = false
             configuration.filterOptions = []
             if let rootItem = await _requestTextExtraction(configuration) {

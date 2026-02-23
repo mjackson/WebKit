@@ -46,7 +46,7 @@ public:
 private:
     explicit AutoFillButtonElement(Document&, AutoFillButtonOwner&);
 
-    void defaultEventHandler(Event&) override;
+    void defaultEventHandler(Event&) final;
 
     AutoFillButtonOwner& m_owner;
 };

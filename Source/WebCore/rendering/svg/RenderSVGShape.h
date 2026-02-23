@@ -106,7 +106,7 @@ protected:
     Path& ensurePath();
 
     virtual void updateShapeFromElement() = 0;
-    virtual bool isEmpty() const;
+    virtual bool NODELETE isEmpty() const;
     virtual bool shapeDependentStrokeContains(const FloatPoint&, PointCoordinateSpace = GlobalCoordinateSpace);
     virtual bool shapeDependentFillContains(const FloatPoint&, const WindRule) const;
     float strokeWidth() const;

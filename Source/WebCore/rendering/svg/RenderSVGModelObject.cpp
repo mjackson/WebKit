@@ -202,7 +202,7 @@ void RenderSVGModelObject::mapAbsoluteToLocalPoint(OptionSet<MapCoordinatesMode>
     if (isTransformed())
         mode.remove(IsFixed);
 
-    auto* container = parent();
+    CheckedPtr container = parent();
     if (!container)
         return;
 
@@ -250,7 +250,7 @@ static bool intersectsAllowingEmpty(const FloatRect& r, const FloatRect& other)
 
 // One of the element types that can cause graphics to be drawn onto the target canvas. Specifically: circle, ellipse,
 // image, line, path, polygon, polyline, rect, text and use.
-static bool isGraphicsElement(const RenderElement& renderer)
+static bool NODELETE isGraphicsElement(const RenderElement& renderer)
 {
     return renderer.isRenderSVGShape() || renderer.isRenderSVGText() || renderer.isRenderSVGImage() || renderer.element()->hasTagName(SVGNames::useTag);
 }
@@ -316,7 +316,7 @@ Path RenderSVGModelObject::computeClipPath(AffineTransform& transform) const
 
     if (RefPtr useElement = dynamicDowncast<SVGUseElement>(protect(element()))) {
         if (CheckedPtr clipChildRenderer = useElement->rendererClipChild())
-            transform.multiply(downcast<RenderLayerModelObject>(*clipChildRenderer).checkedLayer()->currentTransform(Style::TransformResolver::individualTransformOperations).toAffineTransform());
+            transform.multiply(protect(downcast<RenderLayerModelObject>(*clipChildRenderer).layer())->currentTransform(Style::TransformResolver::individualTransformOperations).toAffineTransform());
         if (RefPtr clipChild = useElement->clipChild())
             return pathFromGraphicsElement(*clipChild);
     }

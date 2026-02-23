@@ -71,11 +71,11 @@ public:
     WebCore::IOSurfacePool& ioSurfacePool() const { return m_ioSurfacePool; }
 #endif
 
-    void didCreateImageBuffer(WebCore::RenderingPurpose, WebCore::RenderingMode);
-    void didReleaseImageBuffer(WebCore::RenderingPurpose, WebCore::RenderingMode);
-    bool reachedAcceleratedImageBufferLimit(WebCore::RenderingPurpose) const;
-    bool reachedImageBufferForCanvasLimit() const;
-    WebCore::ImageBufferResourceLimits getResourceLimitsForTesting() const;
+    void NODELETE didCreateImageBuffer(WebCore::RenderingPurpose, WebCore::RenderingMode);
+    void NODELETE didReleaseImageBuffer(WebCore::RenderingPurpose, WebCore::RenderingMode);
+    bool NODELETE reachedAcceleratedImageBufferLimit(WebCore::RenderingPurpose) const;
+    bool NODELETE reachedImageBufferForCanvasLimit() const;
+    WebCore::ImageBufferResourceLimits NODELETE getResourceLimitsForTesting() const;
 
     void lowMemoryHandler();
 

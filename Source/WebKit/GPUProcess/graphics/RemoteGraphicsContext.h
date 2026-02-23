@@ -171,7 +171,7 @@ protected:
 
     void drawFilteredImageBufferInternal(std::optional<WebCore::RenderingResourceIdentifier> sourceImageIdentifier, const WebCore::FloatRect& sourceImageRect, WebCore::Filter&, WebCore::FilterResults&);
 
-    RemoteResourceCache& resourceCache() const;
+    RemoteResourceCache& NODELETE resourceCache() const;
     WebCore::GraphicsContext& context() { return m_context; }
     RefPtr<WebCore::ImageBuffer> imageBuffer(WebCore::RenderingResourceIdentifier) const;
     std::optional<WebCore::SourceImage> sourceImage(WebCore::RenderingResourceIdentifier) const;

@@ -866,19 +866,19 @@ private:
             break;
         case Air::MoveFloat:
             if (source.isZeroReg()) {
-                append(Air::MoveZeroToFloat, dest);
+                append(Air::MoveFloat, Arg::fpImm32(0), dest);
                 return;
             }
             break;
         case Air::MoveDouble:
             if (source.isZeroReg()) {
-                append(Air::MoveZeroToDouble, dest);
+                append(Air::MoveDouble, Arg::fpImm64(0), dest);
                 return;
             }
             break;
         case Air::MoveVector:
             if (source.isZeroReg()) {
-                append(Air::MoveZeroToVector, dest);
+                append(Air::MoveVector, Arg::fpImm128(v128_t { }), dest);
                 return;
             }
             break;
@@ -2277,6 +2277,75 @@ private:
         }
     }
 
+    // Float-specific condition mapping. ARM64 fcmp sets NZCV differently from cmp and acts as a lookup table:
+    //     ┌─────────────────┬─────┬─────┬─────┬─────┐
+    //     │     Result      │  N  │  Z  │  C  │  V  │
+    //     ├─────────────────┼─────┼─────┼─────┼─────┤
+    //     │ Less than       │ 1   │ 0   │ 0   │ 0   │
+    //     ├─────────────────┼─────┼─────┼─────┼─────┤
+    //     │ Equal           │ 0   │ 1   │ 1   │ 0   │
+    //     ├─────────────────┼─────┼─────┼─────┼─────┤
+    //     │ Greater than    │ 0   │ 0   │ 1   │ 0   │
+    //     ├─────────────────┼─────┼─────┼─────┼─────┤
+    //     │ Unordered (NaN) │ 0   │ 0   │ 1   │ 1   │
+    //     └─────────────────┴─────┴─────┴─────┴─────┘
+    // B3 LessThan maps to Below (ConditionLO = C==0) not LessThan (ConditionLT = N!=V)
+    // B3 LessEqual maps to BelowOrEqual (ConditionLS = C==0 || Z==1) not LessThanOrEqual (ConditionLE = N!=V || Z==1)
+    static MacroAssembler::RelationalCondition floatRelationalConditionForOpcode(B3::Opcode opcode)
+    {
+        switch (opcode) {
+        case Equal:
+            return MacroAssembler::Equal;
+        case NotEqual:
+            return MacroAssembler::NotEqual;
+        case LessThan:
+            return MacroAssembler::Below;
+        case GreaterThan:
+            return MacroAssembler::GreaterThan;
+        case LessEqual:
+            return MacroAssembler::BelowOrEqual;
+        case GreaterEqual:
+            return MacroAssembler::GreaterThanOrEqual;
+        default:
+            RELEASE_ASSERT_NOT_REACHED();
+            return MacroAssembler::Equal;
+        }
+    }
+
+    static Air::Opcode compareOnFlagsOpcodeForType(B3::Type type)
+    {
+        switch (type.kind()) {
+        case Float:
+            return Air::CompareOnFlagsFloat;
+        case Double:
+            return Air::CompareOnFlagsDouble;
+        case Int64:
+            return Air::CompareOnFlags64;
+        case Int32:
+            return Air::CompareOnFlags32;
+        default:
+            RELEASE_ASSERT_NOT_REACHED();
+            return Air::CompareOnFlags32;
+        }
+    }
+
+    static Air::Opcode compareConditionallyOnFlagsOpcodeForType(B3::Type type)
+    {
+        switch (type.kind()) {
+        case Float:
+            return Air::CompareConditionallyOnFlagsFloat;
+        case Double:
+            return Air::CompareConditionallyOnFlagsDouble;
+        case Int64:
+            return Air::CompareConditionallyOnFlags64;
+        case Int32:
+            return Air::CompareConditionallyOnFlags32;
+        default:
+            RELEASE_ASSERT_NOT_REACHED();
+            return Air::CompareConditionallyOnFlags32;
+        }
+    }
+
     CompareChainNode* findCompareChain(Value* value, SegmentedVector<CompareChainNode>& nodes, Vector<CompareChainNode*, 16>& logicalNodes, Vector<Value*, 16> usedValues)
     {
         dataLogLnIf(B3LowerToAirInternal::verbose, "    findCompareChain: nodes.size()=", nodes.size(), ", value=", pointerDump(value));
@@ -2288,10 +2357,24 @@ private:
 
         // Check if this is a comparison
         if (isComparisonOpcode(opcode)) {
-            // Must be integer comparison (not float/double for now)
-            if (!value->child(0)->type().isInt()) {
-                dataLogLnIf(B3LowerToAirInternal::verbose, "    findCompareChain: not integer comparison");
+            // Must be integer or float/double comparison
+            if (!value->child(0)->type().isScalar()) {
+                dataLogLnIf(B3LowerToAirInternal::verbose, "    findCompareChain: unsupported comparison type");
                 return nullptr;
+            }
+
+            // Float types don't support Above/Below/AboveEqual/BelowEqual B3 opcodes
+            if (value->child(0)->type().isFloat()) {
+                switch (opcode) {
+                case Above:
+                case Below:
+                case AboveEqual:
+                case BelowEqual:
+                    dataLogLnIf(B3LowerToAirInternal::verbose, "    findCompareChain: unsigned comparison not supported for floats");
+                    return nullptr;
+                default:
+                    break;
+                }
             }
 
             if (!canBeInternal(value)) {
@@ -2315,7 +2398,9 @@ private:
             auto node = &nodes.alloc();
             node->type = CompareChainNode::COMPARE;
             node->value = value;
-            node->relCond = relationalConditionForOpcode(opcode);
+            node->relCond = value->child(0)->type().isFloat()
+                ? floatRelationalConditionForOpcode(opcode)
+                : relationalConditionForOpcode(opcode);
             dataLogLnIf(B3LowerToAirInternal::verbose, "    findCompareChain: created comparison node");
             usedValues.append(value);
             return node;
@@ -2449,8 +2534,7 @@ private:
                     std::swap(lhs, rhs);
                 }
 
-                Width width = lhs->value->child(0)->resultWidth();
-                Air::Opcode initialOpcode = OPCODE_FOR_CANONICAL_WIDTH(CompareOnFlags, width);
+                Air::Opcode initialOpcode = compareOnFlagsOpcodeForType(lhs->value->child(0)->type());
                 sequence.setInitialCompare(initialOpcode, lhs->value->child(0), lhs->value->child(1));
                 dataLogLnIf(B3LowerToAirInternal::verbose, "      buildCompareSequence: set initial compare from lhs, opcode=", initialOpcode);
             }
@@ -2475,8 +2559,7 @@ private:
                 std::swap(ccmpLeft, ccmpRight);
             }
 
-            Width width = ccmpLeft->resultWidth();
-            Air::Opcode ccmpOpcode = OPCODE_FOR_CANONICAL_WIDTH(CompareConditionallyOnFlags, width);
+            Air::Opcode ccmpOpcode = compareConditionallyOnFlagsOpcodeForType(ccmpLeft->type());
             sequence.addConditionalCompare(ccmpOpcode, ccmpCondition, defaultFlags, ccmpLeft, ccmpRight);
 
             dataLogLnIf(B3LowerToAirInternal::verbose, "      buildCompareSequence: added ccmp #", i, ", isOr=", isOrOp, ", ccmpCond=", ccmpCondition, ", defaultFlags=", defaultFlags);
@@ -2585,7 +2668,8 @@ private:
 
         Tmp initialLeftTmp = tmp(sequence.initialLeft());
         Value* initialRight = sequence.initialRight();
-        if (auto rightImm = imm(initialRight))
+        auto rightImm = imm(initialRight);
+        if (rightImm && isValidForm(compareOpcode, Arg::Tmp, Arg::Imm))
             append(compareOpcode, initialLeftTmp, rightImm);
         else
             append(compareOpcode, initialLeftTmp, tmp(initialRight));
@@ -2602,7 +2686,7 @@ private:
             Value* right = ccmp.right;
 
             unsigned defaultFlags = nzcvForCondition(ccmp.defaultFlags);
-            if (right->hasInt() && isValidConditionalCompareImmediate(right->asInt()))
+            if (right->hasInt() && isValidConditionalCompareImmediate(right->asInt()) && isValidForm(ccmpOpcode, Arg::Tmp, Arg::Imm, Arg::Imm, Arg::RelCond))
                 append(ccmpOpcode, leftTmp, imm(right), imm(defaultFlags), Arg::relCond(ccmp.ccmpCondition));
             else
                 append(ccmpOpcode, leftTmp, tmp(right), imm(defaultFlags), Arg::relCond(ccmp.ccmpCondition));
@@ -5193,23 +5277,15 @@ private:
         }
 
         case ConstDouble: {
-            if (isIdentical(m_value->asDouble(), 0.0)) {
-                append(MoveZeroToDouble, tmp(m_value));
-                return;
-            }
-            append(Move64ToDouble, Arg::fpImm64(std::bit_cast<uint64_t>(m_value->asDouble())), tmp(m_value));
+            append(MoveDouble, Arg::fpImm64(std::bit_cast<uint64_t>(m_value->asDouble())), tmp(m_value));
             return;
         }
 
         case ConstFloat: {
             uint32_t imm = std::bit_cast<uint32_t>(m_value->asFloat());
-            if (!imm) {
-                append(MoveZeroToDouble, tmp(m_value));
-                return;
-            }
 
             if (Arg::isValidFPImm32Form(imm)) {
-                append(Move32ToFloat, Arg::fpImm32(imm), tmp(m_value));
+                append(MoveFloat, Arg::fpImm32(imm), tmp(m_value));
                 return;
             }
 
@@ -5225,11 +5301,7 @@ private:
         case Const128: {
             // We expect that the moveConstants() phase has run, and any constant vector referenced from stackmaps get fused.
             auto v128 = m_value->asV128();
-            if (bitEquals(v128, vectorAllZeros())) {
-                append(MoveZeroToVector, tmp(m_value));
-                return;
-            }
-            append(Move128ToVector, Arg::fpImm128(v128), tmp(m_value));
+            append(MoveVector, Arg::fpImm128(v128), tmp(m_value));
             return;
         }
 
@@ -5238,7 +5310,6 @@ private:
                 switch (type.kind()) {
                 case Void:
                 case Tuple:
-                case V128:
                     RELEASE_ASSERT_NOT_REACHED();
                     break;
                 case Int32:
@@ -5247,8 +5318,13 @@ private:
                     append(Move, imm(static_cast<int64_t>(0)), tmp.tmp());
                     break;
                 case Float:
+                    append(MoveFloat, Arg::fpImm32(0), tmp.tmp());
+                    break;
                 case Double:
-                    append(MoveZeroToDouble, tmp.tmp());
+                    append(MoveDouble, Arg::fpImm64(0), tmp.tmp());
+                    break;
+                case V128:
+                    append(MoveVector, Arg::fpImm128(v128_t { }), tmp.tmp());
                     break;
                 }
             });

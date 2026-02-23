@@ -114,7 +114,7 @@ static void applyBasicAuthorizationHeader(WebCore::ResourceRequest& request, con
     request.setHTTPHeaderField(WebCore::HTTPHeaderName::Authorization, credential.serializationForBasicAuthorizationHeader());
 }
 
-static float toNSURLSessionTaskPriority(WebCore::ResourceLoadPriority priority)
+static float NODELETE toNSURLSessionTaskPriority(WebCore::ResourceLoadPriority priority)
 {
     switch (priority) {
     case WebCore::ResourceLoadPriority::VeryLow:

@@ -40,18 +40,30 @@ DocumentImmersive::DocumentImmersive(Document& document)
 {
 }
 
-bool DocumentImmersive::immersiveEnabled(Document& document)
+static std::optional<String> immersiveAvailabilityError(const Document& document)
 {
     if (!document.settings().modelElementImmersiveEnabled())
-        return false;
+        return "Immersive API is disabled."_s;
+
+    RefPtr page = document.page();
+    if (!page)
+        return "Missing page."_s;
+
+    if (!page->chrome().client().supportsImmersiveElement())
+        return "Immersive environments are not supported."_s;
 
     if (!document.isFullyActive())
-        return false;
+        return "Cannot request immersive on a document that is not fully active."_s;
 
     if (!document.isTopDocument())
-        return false;
+        return "Immersive API is only available in a top-level frame."_s;
 
-    return false; // FIXME: rdar://168579137 - Needs client support
+    return std::nullopt;
+}
+
+bool DocumentImmersive::immersiveEnabled(Document& document)
+{
+    return !immersiveAvailabilityError(document);
 }
 
 Element* DocumentImmersive::immersiveElement(Document& document)
@@ -84,15 +96,8 @@ void DocumentImmersive::exitImmersive(Document& document, Ref<DeferredPromise>&&
 
 void DocumentImmersive::requestImmersive(HTMLModelElement* element, CompletionHandler<void(ExceptionOr<void>)>&& completionHandler)
 {
-    RefPtr protectedPage = document().page();
-    if (!protectedPage || !protectedPage->settings().modelElementImmersiveEnabled())
-        return handleImmersiveError(element, "Immersive API is disabled."_s, EmitErrorEvent::Yes, ExceptionCode::TypeError, WTF::move(completionHandler));
-
-    if (!protect(document())->isFullyActive())
-        return handleImmersiveError(element, "Cannot request immersive on a document that is not fully active."_s, EmitErrorEvent::No, ExceptionCode::TypeError, WTF::move(completionHandler));
-
-    if (!protect(document())->isTopDocument())
-        return handleImmersiveError(element, "Immersive API is only available in a top-level frame."_s, EmitErrorEvent::Yes, ExceptionCode::InvalidAccessError, WTF::move(completionHandler));
+    if (auto errorMessage = immersiveAvailabilityError(document()))
+        return handleImmersiveError(element, *errorMessage, document().isFullyActive() ? EmitErrorEvent::Yes : EmitErrorEvent::No, ExceptionCode::InvalidAccessError, WTF::move(completionHandler));
 
     if (RefPtr window = document().window(); !window || !window->consumeTransientActivation())
         return handleImmersiveError(element, "Cannot request immersive without transient activation."_s, EmitErrorEvent::Yes, ExceptionCode::TypeError, WTF::move(completionHandler));
@@ -114,13 +119,10 @@ void DocumentImmersive::requestImmersive(HTMLModelElement* element, CompletionHa
                 return completionHandler(Exception { ExceptionCode::AbortError });
 
             if (protectedThis->m_pendingImmersiveElement != protectedElement.get())
-                return completionHandler(Exception { ExceptionCode::AbortError, "Immersive request was superseded by another request."_s });
+                return protectedThis->handleImmersiveError(protectedElement.get(), "Immersive request was superseded by another request."_s, EmitErrorEvent::Yes, ExceptionCode::AbortError, WTF::move(completionHandler));
 
-            if (!protect(protectedThis->document())->isFullyActive())
-                return protectedThis->handleImmersiveError(protectedElement.get(), "Document is no longer fully active."_s, EmitErrorEvent::Yes, ExceptionCode::AbortError, WTF::move(completionHandler));
-
-            if (!protect(protectedThis->document())->isTopDocument())
-                return protectedThis->handleImmersiveError(protectedElement.get(), "Document is no longer a top-level frame."_s, EmitErrorEvent::Yes, ExceptionCode::InvalidAccessError, WTF::move(completionHandler));
+            if (auto errorMessage = immersiveAvailabilityError(protectedThis->document()))
+                return protectedThis->handleImmersiveError(protectedElement.get(), *errorMessage, EmitErrorEvent::Yes, ExceptionCode::InvalidAccessError, WTF::move(completionHandler));
 
             if (!protectedElement->isConnected() || &protectedElement->document() != protect(protectedThis->document()).ptr())
                 return protectedThis->handleImmersiveError(protectedElement.get(), "Element is not connected to the document."_s, EmitErrorEvent::No, ExceptionCode::AbortError, WTF::move(completionHandler));
@@ -276,7 +278,7 @@ void DocumentImmersive::beginImmersiveRequest(Ref<HTMLModelElement>&& element, C
             return completionHandler(Exception { ExceptionCode::AbortError });
 
         if (auto error = protectedThis->checkRequestStillValid(protectedElement.get(), ActiveRequest::Stage::Permission))
-            return completionHandler(WTF::move(*error));
+            return protectedThis->handleImmersiveError(protectedElement.get(), error->message(), EmitErrorEvent::Yes, error->code(), WTF::move(completionHandler));
 
         if (!allowed)
             return protectedThis->handleImmersiveError(protectedElement.get(), "Immersive request was denied."_s, EmitErrorEvent::Yes, ExceptionCode::AbortError, WTF::move(completionHandler));
@@ -298,7 +300,7 @@ void DocumentImmersive::createModelPlayerForImmersive(Ref<HTMLModelElement>&& el
 
         if (auto error = protectedThis->checkRequestStillValid(protectedElement.get(), ActiveRequest::Stage::ModelPlayer)) {
             protectedElement->exitImmersivePresentation([] { });
-            return completionHandler(WTF::move(*error));
+            return protectedThis->handleImmersiveError(protectedElement.get(), error->message(), EmitErrorEvent::Yes, error->code(), WTF::move(completionHandler));
         }
 
         if (result.hasException()) {
@@ -322,7 +324,7 @@ void DocumentImmersive::createModelPlayerForImmersive(Ref<HTMLModelElement>&& el
 
                 if (auto error = protectedThis->checkRequestStillValid(protectedElement.get(), ActiveRequest::Stage::ModelPlayer)) {
                     protectedElement->exitImmersivePresentation([] { });
-                    return completionHandler(WTF::move(*error));
+                    return protectedThis->handleImmersiveError(protectedElement.get(), error->message(), EmitErrorEvent::Yes, error->code(), WTF::move(completionHandler));
                 }
 
                 protectedThis->presentImmersiveElement(protectedElement.releaseNonNull(), contextID, WTF::move(completionHandler));
@@ -357,7 +359,7 @@ void DocumentImmersive::presentImmersiveElement(Ref<HTMLModelElement>&& element,
 
         if (auto error = protectedThis->checkRequestStillValid(protectedElement.get(), ActiveRequest::Stage::Presentation)) {
             protectedElement->exitImmersivePresentation([] { });
-            return completionHandler(WTF::move(*error));
+            return protectedThis->handleImmersiveError(protectedElement.get(), error->message(), EmitErrorEvent::Yes, error->code(), WTF::move(completionHandler));
         }
 
         if (!success) {
@@ -379,7 +381,6 @@ void DocumentImmersive::presentImmersiveElement(Ref<HTMLModelElement>&& element,
         completionHandler({ });
     });
 }
-
 
 void DocumentImmersive::updateElementIsImmersive(HTMLModelElement* element, bool isImmersive)
 {

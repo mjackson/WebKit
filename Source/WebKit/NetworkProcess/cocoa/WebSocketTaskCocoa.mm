@@ -73,7 +73,7 @@ WebSocketTask::WebSocketTask(NetworkSocketChannel& channel, WebPageProxyIdentifi
         blockCookies();
 
     readNextMessage();
-    protectedChannel()->didSendHandshakeRequest(ResourceRequest { [m_task currentRequest] });
+    protect(m_channel)->didSendHandshakeRequest(ResourceRequest { [m_task currentRequest] });
 
 #if ENABLE(OPT_IN_PARTITIONED_COOKIES) && defined(CFN_COOKIE_ACCEPTS_POLICY_PARTITION) && CFN_COOKIE_ACCEPTS_POLICY_PARTITION
     updateTaskWithStoragePartitionIdentifier(request);
@@ -81,11 +81,6 @@ WebSocketTask::WebSocketTask(NetworkSocketChannel& channel, WebPageProxyIdentifi
 }
 
 WebSocketTask::~WebSocketTask() = default;
-
-RefPtr<NetworkSocketChannel> WebSocketTask::protectedChannel() const
-{
-    return m_channel.get();
-}
 
 void WebSocketTask::readNextMessage()
 {
@@ -148,7 +143,7 @@ void WebSocketTask::didClose(unsigned short code, const String& reason)
         return;
 
     m_receivedDidClose = true;
-    protectedChannel()->didClose(code, reason);
+    protect(m_channel)->didClose(code, reason);
 }
 
 void WebSocketTask::sendString(std::span<const uint8_t> utf8String, CompletionHandler<void()>&& callback)
@@ -193,7 +188,7 @@ WebSocketTask::TaskIdentifier WebSocketTask::identifier() const
 
 NetworkSessionCocoa* WebSocketTask::networkSession()
 {
-    return downcast<NetworkSessionCocoa>(protectedChannel()->session());
+    return downcast<NetworkSessionCocoa>(protect(m_channel)->session());
 }
 
 NSURLSessionTask* WebSocketTask::task() const

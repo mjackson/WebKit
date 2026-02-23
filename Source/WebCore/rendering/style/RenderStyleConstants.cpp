@@ -459,42 +459,6 @@ TextStream& operator<<(TextStream& ts, CursorVisibility visibility)
 }
 #endif
 
-TextStream& operator<<(TextStream& ts, DisplayType display)
-{
-    switch (display) {
-    case DisplayType::Inline: ts << "inline"_s; break;
-    case DisplayType::Block: ts << "block"_s; break;
-    case DisplayType::ListItem: ts << "list-item"_s; break;
-    case DisplayType::InlineBlock: ts << "inline-block"_s; break;
-    case DisplayType::Table: ts << "table"_s; break;
-    case DisplayType::InlineTable: ts << "inline-table"_s; break;
-    case DisplayType::TableRowGroup: ts << "table-row-group"_s; break;
-    case DisplayType::TableHeaderGroup: ts << "table-header-group"_s; break;
-    case DisplayType::TableFooterGroup: ts << "table-footer-group"_s; break;
-    case DisplayType::TableRow: ts << "table-row"_s; break;
-    case DisplayType::TableColumnGroup: ts << "table-column-group"_s; break;
-    case DisplayType::TableColumn: ts << "table-column"_s; break;
-    case DisplayType::TableCell: ts << "table-cell"_s; break;
-    case DisplayType::TableCaption: ts << "table-caption"_s; break;
-    case DisplayType::Box: ts << "box"_s; break;
-    case DisplayType::InlineBox: ts << "inline-box"_s; break;
-    case DisplayType::Flex: ts << "flex"_s; break;
-    case DisplayType::InlineFlex: ts << "inline-flex"_s; break;
-    case DisplayType::Contents: ts << "contents"_s; break;
-    case DisplayType::Grid: ts << "grid"_s; break;
-    case DisplayType::InlineGrid: ts << "inline-grid"_s; break;
-    case DisplayType::GridLanes: ts << "grid-lanes"_s; break;
-    case DisplayType::InlineGridLanes: ts << "inline-grid-lanes"_s; break;
-    case DisplayType::FlowRoot: ts << "flow-root"_s; break;
-    case DisplayType::Ruby: ts << "ruby"_s; break;
-    case DisplayType::RubyBlock: ts << "block ruby"_s; break;
-    case DisplayType::RubyBase: ts << "ruby-base"_s; break;
-    case DisplayType::RubyAnnotation: ts << "ruby-text"_s; break;
-    case DisplayType::None: ts << "none"_s; break;
-    }
-    return ts;
-}
-
 TextStream& operator<<(TextStream& ts, Edge edge)
 {
     switch (edge) {
@@ -944,6 +908,7 @@ TextStream& operator<<(TextStream& ts, PseudoElementType pseudoElementType)
     case PseudoElementType::SpellingError: ts << "spelling-error"_s; break;
     case PseudoElementType::TargetText: ts << "target-text"_s; break;
     case PseudoElementType::Checkmark: ts << "checkmark"_s; break;
+    case PseudoElementType::PickerIcon: ts << "picker-icon"_s; break;
     case PseudoElementType::ViewTransition: ts << "view-transition"_s; break;
     case PseudoElementType::ViewTransitionGroup: ts << "view-transition-group"_s; break;
     case PseudoElementType::ViewTransitionImagePair: ts << "view-transition-image-pair"_s; break;
@@ -1493,6 +1458,16 @@ TextStream& operator<<(TextStream& ts, VectorEffect value)
     switch (value) {
     case VectorEffect::None: ts << "none"_s; break;
     case VectorEffect::NonScalingStroke: ts << "non-scaling-stroke"_s; break;
+    }
+    return ts;
+}
+
+TextStream& operator<<(TextStream& ts, VisualBox visualBox)
+{
+    switch (visualBox) {
+    case VisualBox::BorderBox: ts << "border-box"_s; break;
+    case VisualBox::ContentBox: ts << "content-box"_s; break;
+    case VisualBox::PaddingBox: ts << "padding-box"_s; break;
     }
     return ts;
 }

@@ -68,12 +68,10 @@ ExceptionOr<FetchBody> FetchBody::extract(Init&& value, String& contentType)
             contentType = HTTPHeaderValues::formURLEncodedContentType();
             return FetchBody(WTF::move(params));
         },
-        [&](RefPtr<ArrayBuffer>&& value) -> ExceptionOr<FetchBody> {
-            Ref<ArrayBuffer> buffer = value.releaseNonNull();
+        [&](Ref<ArrayBuffer>&& buffer) -> ExceptionOr<FetchBody> {
             return FetchBody(WTF::move(buffer));
         },
-        [&](RefPtr<ArrayBufferView>&& value) -> ExceptionOr<FetchBody> {
-            Ref<ArrayBufferView> buffer = value.releaseNonNull();
+        [&](Ref<ArrayBufferView>&& buffer) -> ExceptionOr<FetchBody> {
             return FetchBody(WTF::move(buffer));
         },
         [&](Ref<ReadableStream>&& stream) -> ExceptionOr<FetchBody> {
@@ -97,7 +95,7 @@ std::optional<FetchBody> FetchBody::fromFormData(ScriptExecutionContext& context
 
     if (auto buffer = formData->asSharedBuffer()) {
         FetchBody body;
-        body.checkedConsumer()->setData(buffer.releaseNonNull());
+        protect(body.consumer())->setData(buffer.releaseNonNull());
         return body;
     }
 
@@ -113,19 +111,19 @@ std::optional<FetchBody> FetchBody::fromFormData(ScriptExecutionContext& context
 
 void FetchBody::arrayBuffer(FetchBodyOwner& owner, Ref<DeferredPromise>&& promise)
 {
-    checkedConsumer()->setType(FetchBodyConsumer::Type::ArrayBuffer);
+    protect(consumer())->setType(FetchBodyConsumer::Type::ArrayBuffer);
     consume(owner, WTF::move(promise));
 }
 
 void FetchBody::blob(FetchBodyOwner& owner, Ref<DeferredPromise>&& promise)
 {
-    checkedConsumer()->setType(FetchBodyConsumer::Type::Blob);
+    protect(consumer())->setType(FetchBodyConsumer::Type::Blob);
     consume(owner, WTF::move(promise));
 }
 
 void FetchBody::bytes(FetchBodyOwner& owner, Ref<DeferredPromise>&& promise)
 {
-    checkedConsumer()->setType(FetchBodyConsumer::Type::Bytes);
+    protect(consumer())->setType(FetchBodyConsumer::Type::Bytes);
     consume(owner, WTF::move(promise));
 }
 
@@ -135,7 +133,7 @@ void FetchBody::json(FetchBodyOwner& owner, Ref<DeferredPromise>&& promise)
         fulfillPromiseWithJSON(WTF::move(promise), textBody());
         return;
     }
-    checkedConsumer()->setType(FetchBodyConsumer::Type::JSON);
+    protect(consumer())->setType(FetchBodyConsumer::Type::JSON);
     consume(owner, WTF::move(promise));
 }
 
@@ -145,13 +143,13 @@ void FetchBody::text(FetchBodyOwner& owner, Ref<DeferredPromise>&& promise)
         promise->resolve<IDLDOMString>(textBody());
         return;
     }
-    checkedConsumer()->setType(FetchBodyConsumer::Type::Text);
+    protect(consumer())->setType(FetchBodyConsumer::Type::Text);
     consume(owner, WTF::move(promise));
 }
 
 void FetchBody::formData(FetchBodyOwner& owner, Ref<DeferredPromise>&& promise)
 {
-    checkedConsumer()->setType(FetchBodyConsumer::Type::FormData);
+    protect(consumer())->setType(FetchBodyConsumer::Type::FormData);
     consume(owner, WTF::move(promise));
 }
 
@@ -189,7 +187,7 @@ void FetchBody::consume(FetchBodyOwner& owner, Ref<DeferredPromise>&& promise)
         return;
     }
 
-    checkedConsumer()->resolve(WTF::move(promise), owner.contentType(), &owner, m_readableStream.get());
+    protect(consumer())->resolve(WTF::move(promise), owner.contentType(), &owner, m_readableStream.get());
 }
 
 void FetchBody::consumeAsStream(FetchBodyOwner& owner, FetchBodySource& source)
@@ -208,7 +206,7 @@ void FetchBody::consumeAsStream(FetchBodyOwner& owner, FetchBodySource& source)
     } else if (isBlob())
         owner.loadBlob(protect(blobBody()).get(), nullptr);
     else if (isFormData())
-        checkedConsumer()->consumeFormDataAsStream(protect(formDataBody()).get(), source, protect(owner.scriptExecutionContext()).get());
+        protect(consumer())->consumeFormDataAsStream(protect(formDataBody()).get(), source, protect(owner.scriptExecutionContext()).get());
     else if (CheckedRef consumer = this->consumer(); consumer->hasData())
         closeStream = source.enqueue(consumer->asArrayBuffer());
     else
@@ -220,20 +218,20 @@ void FetchBody::consumeAsStream(FetchBodyOwner& owner, FetchBodySource& source)
 
 void FetchBody::consumeArrayBuffer(FetchBodyOwner& owner, Ref<DeferredPromise>&& promise)
 {
-    checkedConsumer()->resolveWithData(WTF::move(promise), owner.contentType(), protect(arrayBufferBody())->span());
+    protect(consumer())->resolveWithData(WTF::move(promise), owner.contentType(), protect(arrayBufferBody())->span());
     m_data = nullptr;
 }
 
 void FetchBody::consumeArrayBufferView(FetchBodyOwner& owner, Ref<DeferredPromise>&& promise)
 {
-    checkedConsumer()->resolveWithData(WTF::move(promise), owner.contentType(), protect(arrayBufferViewBody())->span());
+    protect(consumer())->resolveWithData(WTF::move(promise), owner.contentType(), protect(arrayBufferViewBody())->span());
     m_data = nullptr;
 }
 
 void FetchBody::consumeText(FetchBodyOwner& owner, Ref<DeferredPromise>&& promise, const String& text)
 {
     auto data = PAL::TextCodecUTF8::encodeUTF8(text);
-    checkedConsumer()->resolveWithData(WTF::move(promise), owner.contentType(), data.span());
+    protect(consumer())->resolveWithData(WTF::move(promise), owner.contentType(), data.span());
     m_data = nullptr;
 }
 
@@ -248,18 +246,18 @@ void FetchBody::consumeBlob(FetchBodyOwner& owner, Ref<DeferredPromise>&& promis
 
 void FetchBody::consumeFormData(FetchBodyOwner& owner, Ref<DeferredPromise>&& promise)
 {
-    checkedConsumer()->resolveWithFormData(WTF::move(promise), owner.contentType(), protect(formDataBody()).get(), protect(owner.scriptExecutionContext()).get());
+    protect(consumer())->resolveWithFormData(WTF::move(promise), owner.contentType(), protect(formDataBody()).get(), protect(owner.scriptExecutionContext()).get());
     m_data = nullptr;
 }
 
 void FetchBody::loadingFailed(const Exception& exception)
 {
-    checkedConsumer()->loadingFailed(exception);
+    protect(consumer())->loadingFailed(exception);
 }
 
 void FetchBody::loadingSucceeded(const String& contentType)
 {
-    checkedConsumer()->loadingSucceeded(contentType);
+    protect(consumer())->loadingSucceeded(contentType);
 }
 
 RefPtr<FormData> FetchBody::bodyAsFormData() const
@@ -279,7 +277,7 @@ RefPtr<FormData> FetchBody::bodyAsFormData() const
         return FormData::create(protect(arrayBufferViewBody())->span());
     if (isFormData())
         return &const_cast<FormData&>(formDataBody());
-    if (RefPtr data = const_cast<FetchBody*>(this)->checkedConsumer()->data())
+    if (RefPtr data = protect(const_cast<FetchBody*>(this)->consumer())->data())
         return FormData::create(data->makeContiguous()->span());
 
     ASSERT_NOT_REACHED();
@@ -290,7 +288,7 @@ void FetchBody::convertReadableStreamToArrayBuffer(FetchBodyOwner& owner, Comple
 {
     ASSERT(hasReadableStream());
 
-    checkedConsumer()->extract(*protect(readableStream()), [owner = Ref { owner }, data = SharedBufferBuilder(), completionHandler = WTF::move(completionHandler)](auto&& result) mutable {
+    protect(consumer())->extract(*protect(readableStream()), [owner = Ref { owner }, data = SharedBufferBuilder(), completionHandler = WTF::move(completionHandler)](auto&& result) mutable {
         WTF::switchOn(WTF::move(result),
             [&](std::nullptr_t) {
                 if (RefPtr arrayBuffer = data.takeBufferAsArrayBuffer())
@@ -313,7 +311,7 @@ void FetchBody::convertReadableStreamToArrayBuffer(FetchBodyOwner& owner, Comple
 FetchBody::TakenData FetchBody::take()
 {
     if (m_consumer && m_consumer->hasData()) {
-        auto buffer = checkedConsumer()->takeData();
+        auto buffer = protect(consumer())->takeData();
         if (!buffer)
             return nullptr;
         return buffer->makeContiguous();
@@ -350,7 +348,7 @@ FetchBodyConsumer& FetchBody::consumer()
 
 FetchBody FetchBody::clone(JSDOMGlobalObject& globalObject)
 {
-    FetchBody clone(checkedConsumer()->clone());
+    FetchBody clone(protect(consumer())->clone());
 
     if (isArrayBuffer())
         clone.m_data = protect(arrayBufferBody());

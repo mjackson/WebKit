@@ -65,16 +65,16 @@ void ScrollAnimatorMac::handleWheelEventPhase(PlatformWheelEventPhase phase)
 
     // FIXME: Need to ensure we get PlatformWheelEventPhase::Ended.
     if (phase == PlatformWheelEventPhase::Began)
-        checkedScrollableArea()->scrollbarsController().didBeginScrollGesture();
+        protect(scrollableArea())->scrollbarsController().didBeginScrollGesture();
     else if (phase == PlatformWheelEventPhase::Ended || phase == PlatformWheelEventPhase::Cancelled)
-        checkedScrollableArea()->scrollbarsController().didEndScrollGesture();
+        protect(scrollableArea())->scrollbarsController().didEndScrollGesture();
     else if (phase == PlatformWheelEventPhase::MayBegin)
-        checkedScrollableArea()->scrollbarsController().mayBeginScrollGesture();
+        protect(scrollableArea())->scrollbarsController().mayBeginScrollGesture();
 }
 
 bool ScrollAnimatorMac::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
 {
-    checkedScrollableArea()->scrollbarsController().setScrollbarAnimationsUnsuspendedByUserInteraction(true);
+    protect(scrollableArea())->scrollbarsController().setScrollbarAnimationsUnsuspendedByUserInteraction(true);
     m_scrollController.updateGestureInProgressState(wheelEvent);
 
     // Events in the PlatformWheelEventPhase::MayBegin phase have no deltas, and therefore never passes through the scroll handling logic below.

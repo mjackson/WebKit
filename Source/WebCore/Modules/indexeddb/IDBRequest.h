@@ -94,8 +94,8 @@ public:
 
     ExceptionOr<DOMException*> error() const;
 
-    IDBTransaction* transaction() const;
-    IDBTransaction* transactionForBindings() const;
+    IDBTransaction* NODELETE transaction() const;
+    IDBTransaction* NODELETE transactionForBindings() const;
     
     enum class ReadyState { Pending, Done };
     ReadyState readyState() const { return m_readyState; }
@@ -104,10 +104,10 @@ public:
 
     std::optional<IDBObjectStoreIdentifier> sourceObjectStoreIdentifier() const;
     std::optional<IDBIndexIdentifier> sourceIndexIdentifier() const;
-    IndexedDB::ObjectStoreRecordType requestedObjectStoreRecordType() const;
-    IndexedDB::IndexRecordType requestedIndexRecordType() const;
+    IndexedDB::ObjectStoreRecordType NODELETE requestedObjectStoreRecordType() const;
+    IndexedDB::IndexRecordType NODELETE requestedIndexRecordType() const;
 
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
 
     // ActiveDOMObject.
     void ref() const final { ThreadSafeRefCounted::ref(); }
@@ -134,7 +134,7 @@ public:
 
     void setTransactionOperationID(uint64_t transactionOperationID) { m_currentTransactionOperationID = transactionOperationID; }
     bool willAbortTransactionAfterDispatchingEvent() const;
-    void transactionTransitionedToFinishing();
+    void NODELETE transactionTransitionedToFinishing();
     bool isEventBeingDispatched() const { return !!m_eventBeingDispatched; }
 
 protected:
@@ -160,7 +160,7 @@ private:
     EventTargetInterfaceType eventTargetInterface() const override;
 
     // ActiveDOMObject.
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
     void stop() final;
 
     virtual void cancelForStop();
@@ -212,7 +212,7 @@ private:
     RefPtr<Event> m_eventBeingDispatched;
 };
 
-WebCoreOpaqueRoot root(IDBRequest*);
+WebCoreOpaqueRoot NODELETE root(IDBRequest*);
 
 } // namespace WebCore
 

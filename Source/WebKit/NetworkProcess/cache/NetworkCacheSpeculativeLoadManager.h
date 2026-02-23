@@ -84,9 +84,6 @@ private:
     static bool canUsePreloadedEntry(const PreloadedEntry&, const WebCore::ResourceRequest& actualRequest);
     static bool canUsePendingPreload(const SpeculativeLoad&, const WebCore::ResourceRequest& actualRequest);
 
-    Ref<Storage> protectedStorage() const;
-    Ref<Cache> protectedCache() const;
-
     const WeakRef<Cache> m_cache;
     ThreadSafeWeakRef<Storage> m_storage;
 

@@ -51,7 +51,7 @@ bool CSSVariableParser::isValidVariableName(const CSSParserToken& token)
     return isCustomPropertyName(token.value());
 }
 
-static bool isValidConstantName(const CSSParserToken& token)
+static bool NODELETE isValidConstantName(const CSSParserToken& token)
 {
     return token.type() == IdentToken;
 }

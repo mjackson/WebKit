@@ -60,7 +60,7 @@ public:
     class Iterator {
     public:
         explicit Iterator(URLSearchParams&);
-        std::optional<KeyValuePair<String, String>> next();
+        std::optional<KeyValuePair<String, String>> NODELETE next();
 
     private:
         const Ref<URLSearchParams> m_target;

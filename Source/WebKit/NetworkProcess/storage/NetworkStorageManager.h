@@ -162,10 +162,10 @@ private:
     NetworkStorageManager(NetworkProcess&, PAL::SessionID, Markable<WTF::UUID>, std::optional<IPC::Connection::UniqueID>, const String& path, const String& customLocalStoragePath, const String& customIDBStoragePath, const String& customCacheStoragePath, const String& customServiceWorkerStoragePath, uint64_t defaultOriginQuota, std::optional<double> originQuotaRatio, std::optional<double> totalQuotaRatio, std::optional<uint64_t> standardVolumeCapacity, std::optional<uint64_t> volumeCapacityOverride, UnifiedOriginStorageLevel, bool storageSiteValidationEnabled);
     ~NetworkStorageManager();
 
-    RefPtr<NetworkProcess> protectedProcess() const;
     std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess(IPC::Connection&) const;
     bool isStorageTypeEnabled(IPC::Connection&, WebCore::StorageType) const;
     bool isStorageAreaTypeEnabled(IPC::Connection&, StorageAreaBase::StorageType) const;
+    bool NODELETE useSQLiteMemoryBackingStore() const;
 
     void writeOriginToFileIfNecessary(const WebCore::ClientOrigin&, StorageAreaBase* = nullptr);
     enum class ShouldWriteOriginFile : bool { No, Yes };
@@ -259,7 +259,7 @@ private:
     void cacheStorageRepresentation(CompletionHandler<void(const String&)>&&);
 
     void cloneSessionStorageNamespace(StorageNamespaceIdentifier, StorageNamespaceIdentifier);
-    bool shouldManageServiceWorkerRegistrationsByOrigin();
+    bool NODELETE shouldManageServiceWorkerRegistrationsByOrigin();
     void migrateServiceWorkerRegistrationsToOrigins();
     Vector<WebCore::ServiceWorkerScripts> updateServiceWorkerRegistrationsByOrigin(Vector<WebCore::ServiceWorkerContextData>&&, Vector<WebCore::ServiceWorkerRegistrationKey>&&);
 
@@ -289,8 +289,6 @@ private:
     void setStorageSiteValidationEnabledInternal(bool);
     void addAllowedSitesForConnectionInternal(IPC::Connection::UniqueID, const Vector<WebCore::RegistrableDomain>&);
     bool isSiteAllowedForConnection(IPC::Connection::UniqueID, const WebCore::RegistrableDomain&) const;
-
-    RefPtr<FileSystemStorageHandleRegistry> protectedFileSystemStorageHandleRegistry();
 
     WeakPtr<NetworkProcess> m_process;
     PAL::SessionID m_sessionID;
@@ -333,6 +331,7 @@ private:
     using ConnectionSitesMap = HashMap<IPC::Connection::UniqueID, HashSet<WebCore::RegistrableDomain>>;
     std::optional<ConnectionSitesMap> m_allowedSitesForConnections WTF_GUARDED_BY_CAPABILITY(workQueue());
     HashMap<IPC::Connection::UniqueID, SharedPreferencesForWebProcess> m_preferencesForConnections WTF_GUARDED_BY_CAPABILITY(workQueue());
+    bool m_useSQLiteMemoryBackingStore WTF_GUARDED_BY_CAPABILITY(workQueue()) { false };
 };
 
 } // namespace WebKit

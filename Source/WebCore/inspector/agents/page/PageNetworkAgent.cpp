@@ -61,7 +61,7 @@ PageNetworkAgent::~PageNetworkAgent() = default;
 Inspector::Protocol::Network::LoaderId PageNetworkAgent::loaderIdentifier(DocumentLoader* loader)
 {
     if (loader) {
-        if (auto* pageAgent = Ref { m_instrumentingAgents.get() }->enabledPageAgent())
+        if (CheckedPtr pageAgent = Ref { m_instrumentingAgents.get() }->enabledPageAgent())
             return pageAgent->loaderId(loader);
     }
     return { };
@@ -70,7 +70,7 @@ Inspector::Protocol::Network::LoaderId PageNetworkAgent::loaderIdentifier(Docume
 Inspector::Protocol::Network::FrameId PageNetworkAgent::frameIdentifier(DocumentLoader* loader)
 {
     if (loader) {
-        if (auto* pageAgent = Ref { m_instrumentingAgents.get() }->enabledPageAgent())
+        if (CheckedPtr pageAgent = Ref { m_instrumentingAgents.get() }->enabledPageAgent())
             return pageAgent->frameId(loader->frame());
     }
     return { };
@@ -118,7 +118,7 @@ bool PageNetworkAgent::setEmulatedConditionsInternal(std::optional<int>&& bytesP
 
 ScriptExecutionContext* PageNetworkAgent::scriptExecutionContext(Inspector::Protocol::ErrorString& errorString, const Inspector::Protocol::Network::FrameId& frameId)
 {
-    auto* pageAgent = Ref { m_instrumentingAgents.get() }->enabledPageAgent();
+    CheckedPtr pageAgent = Ref { m_instrumentingAgents.get() }->enabledPageAgent();
     if (!pageAgent) {
         errorString = "Page domain must be enabled"_s;
         return nullptr;
@@ -128,7 +128,7 @@ ScriptExecutionContext* PageNetworkAgent::scriptExecutionContext(Inspector::Prot
     if (!frame)
         return nullptr;
 
-    auto* document = frame->document();
+    SUPPRESS_UNCOUNTED_LOCAL auto* document = frame->document();
     if (!document) {
         errorString = "Missing frame of docuemnt for given frameId"_s;
         return nullptr;

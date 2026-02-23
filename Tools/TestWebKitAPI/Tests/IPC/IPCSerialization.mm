@@ -28,6 +28,7 @@
 #import "ArgumentCodersCocoa.h"
 #import "CoreIPCCFDictionary.h"
 #import "CoreIPCError.h"
+#import "CoreIPCNSURLRequest.h"
 #import "CoreIPCPKPayment.h"
 #import "CoreIPCPKPaymentMethod.h"
 #import "CoreIPCPKPaymentSetupFeature.h"
@@ -1698,6 +1699,106 @@ TEST(IPCSerialization, NSURLRequest)
     urlRequest = [NSURLRequest requestWithURL:url.get()];
     runTestNS({ urlRequest });
 }
+
+#if PLATFORM(COCOA) && HAVE(WK_SECURE_CODING_NSURLREQUEST)
+
+@interface NSURLRequest (WKSecureCoding)
+- (NSDictionary *)_webKitPropertyListData;
+- (instancetype)_initWithWebKitPropertyListData:(NSDictionary *)plist;
+@end
+
+TEST(IPCSerialization, NSURLRequestProtocolProperties)
+{
+    WebKit::CoreIPCNSURLRequestData requestData;
+    requestData.url = WebKit::CoreIPCURL([NSURL URLWithString:@"https://webkit.org/"]);
+    requestData.timeout = 60.0;
+
+    WebKit::ProtocolProperties props;
+    props.isTopLevelNavigation = true;
+    props.allowAllPOSTCaching = false;
+    props.siteForCookies = WebKit::CoreIPCString(@"webkit.org");
+    props.cachePartitionKey = WebKit::CoreIPCString(@"testPartition");
+    props.wkVeryLowLoadPriority = true;
+    props.fileProtocolExpectedDevice = WebKit::CoreIPCNumber(@123);
+    props.shouldSniff = false;
+    props.contentDecoderSkipURLCheck = true;
+    requestData.protocolProperties = WTF::move(props);
+
+    WebKit::CoreIPCNSURLRequest wrapper(WTF::move(requestData));
+    RetainPtr<id> reconstructed = wrapper.toID();
+    EXPECT_TRUE([reconstructed isKindOfClass:[NSURLRequest class]]);
+
+    // Verify the reconstructed NSURLRequest has all protocol properties
+    RetainPtr reconstructedRequest = (NSURLRequest *)reconstructed.get();
+    RetainPtr plistData = [reconstructedRequest _webKitPropertyListData];
+    RetainPtr protocolProperties = [plistData.get() objectForKey:@"protocolProperties"];
+    EXPECT_TRUE(protocolProperties != nil);
+    EXPECT_EQ([protocolProperties count], 8U);
+
+    EXPECT_TRUE([[protocolProperties objectForKey:@"_kCFHTTPCookiePolicyPropertyIsTopLevelNavigation"] boolValue]);
+    EXPECT_FALSE([[protocolProperties objectForKey:@"kCFURLRequestAllowAllPOSTCaching"] boolValue]);
+    EXPECT_TRUE([[protocolProperties objectForKey:@"_kCFHTTPCookiePolicyPropertySiteForCookies"] isEqualToString:@"webkit.org"]);
+    EXPECT_TRUE([[protocolProperties objectForKey:@"_kCFURLCachePartitionKey"] isEqualToString:@"testPartition"]);
+    EXPECT_TRUE([[protocolProperties objectForKey:@"WKVeryLowLoadPriority"] boolValue]);
+    EXPECT_EQ([[protocolProperties objectForKey:@"NSURLRequestFileProtocolExpectedDevice"] intValue], 123);
+    EXPECT_FALSE([[protocolProperties objectForKey:@"_kCFURLConnectionPropertyShouldSniff"] boolValue]);
+    EXPECT_TRUE([[protocolProperties objectForKey:@"kCFURLRequestContentDecoderSkipURLCheck"] boolValue]);
+
+    // Test full round-trip serialization
+    runTestNS({ reconstructedRequest });
+
+    // Test with partial fields set
+    WebKit::CoreIPCNSURLRequestData requestData2;
+    requestData2.url = WebKit::CoreIPCURL([NSURL URLWithString:@"https://example.com/"]);
+    requestData2.timeout = 30.0;
+
+    WebKit::ProtocolProperties props2;
+    props2.isTopLevelNavigation = false;
+    props2.cachePartitionKey = WebKit::CoreIPCString(@"partition2");
+    requestData2.protocolProperties = WTF::move(props2);
+
+    WebKit::CoreIPCNSURLRequest wrapper2(WTF::move(requestData2));
+    RetainPtr<id> reconstructed2 = wrapper2.toID();
+    EXPECT_TRUE([reconstructed2 isKindOfClass:[NSURLRequest class]]);
+
+    RetainPtr reconstructedRequest2 = (NSURLRequest *)reconstructed2.get();
+    RetainPtr plistData2 = [reconstructedRequest2 _webKitPropertyListData];
+    RetainPtr protocolProperties2 = [plistData2.get() objectForKey:@"protocolProperties"];
+    EXPECT_TRUE(protocolProperties2 != nil);
+    EXPECT_EQ([protocolProperties2 count], 2U);
+    EXPECT_FALSE([[protocolProperties2 objectForKey:@"_kCFHTTPCookiePolicyPropertyIsTopLevelNavigation"] boolValue]);
+    EXPECT_TRUE([[protocolProperties2 objectForKey:@"_kCFURLCachePartitionKey"] isEqualToString:@"partition2"]);
+
+    runTestNS({ reconstructedRequest2 });
+
+    // Test edge cases
+    WebKit::CoreIPCNSURLRequestData requestData3;
+    requestData3.url = WebKit::CoreIPCURL([NSURL URLWithString:@"https://test.org/"]);
+    requestData3.timeout = 15.0;
+
+    WebKit::ProtocolProperties props3;
+    props3.siteForCookies = WebKit::CoreIPCString(@"");
+    props3.cachePartitionKey = WebKit::CoreIPCString(@"🎉");
+    props3.fileProtocolExpectedDevice = WebKit::CoreIPCNumber(@0);
+    requestData3.protocolProperties = WTF::move(props3);
+
+    WebKit::CoreIPCNSURLRequest wrapper3(WTF::move(requestData3));
+    RetainPtr<id> reconstructed3 = wrapper3.toID();
+    EXPECT_TRUE([reconstructed3 isKindOfClass:[NSURLRequest class]]);
+
+    RetainPtr reconstructedRequest3 = (NSURLRequest *)reconstructed3.get();
+    RetainPtr plistData3 = [reconstructedRequest3 _webKitPropertyListData];
+    RetainPtr protocolProperties3 = [plistData3.get() objectForKey:@"protocolProperties"];
+    EXPECT_TRUE(protocolProperties3 != nil);
+    EXPECT_EQ([protocolProperties3 count], 3U);
+    EXPECT_TRUE([[protocolProperties3 objectForKey:@"_kCFHTTPCookiePolicyPropertySiteForCookies"] isEqualToString:@""]);
+    EXPECT_TRUE([[protocolProperties3 objectForKey:@"_kCFURLCachePartitionKey"] isEqualToString:@"🎉"]);
+    EXPECT_EQ([[protocolProperties3 objectForKey:@"NSURLRequestFileProtocolExpectedDevice"] intValue], 0);
+
+    runTestNS({ reconstructedRequest3 });
+}
+
+#endif // PLATFORM(COCOA) && HAVE(WK_SECURE_CODING_NSURLREQUEST)
 
 #if USE(AVFOUNDATION) && PLATFORM(MAC)
 TEST(IPCSerialization, AVOutputContext)

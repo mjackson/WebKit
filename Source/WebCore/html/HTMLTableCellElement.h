@@ -45,7 +45,7 @@ public:
 
     static Ref<HTMLTableCellElement> create(const QualifiedName&, Document&);
 
-    WEBCORE_EXPORT int cellIndex() const;
+    WEBCORE_EXPORT int NODELETE cellIndex() const;
     WEBCORE_EXPORT unsigned colSpan() const;
     unsigned rowSpan() const;
     WEBCORE_EXPORT unsigned rowSpanForBindings() const;

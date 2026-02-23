@@ -143,8 +143,8 @@ RenderObject::HighlightState Box::selectionState() const
         return { };
 
     if (auto* text = dynamicDowncast<TextBox>(*this)) {
-        auto& renderer = text->renderer();
-        return renderer.view().selection().highlightStateForTextBox(renderer, text->selectableRange());
+        CheckedRef renderer = text->renderer();
+        return renderer->view().selection().highlightStateForTextBox(renderer, text->selectableRange());
     }
     return renderer().selectionState();
 }
@@ -193,14 +193,14 @@ LeafBoxIterator& LeafBoxIterator::traverseLineLeftwardOnLineIgnoringLineBreak()
 
 LeafBoxIterator boxFor(const RenderLineBreak& renderer)
 {
-    if (auto* lineLayout = LayoutIntegration::LineLayout::containing(renderer))
+    if (CheckedPtr lineLayout = LayoutIntegration::LineLayout::containing(renderer))
         return lineLayout->boxFor(renderer);
     return { };
 }
 
 LeafBoxIterator boxFor(const RenderBox& renderer)
 {
-    if (auto* lineLayout = LayoutIntegration::LineLayout::containing(renderer))
+    if (CheckedPtr lineLayout = LayoutIntegration::LineLayout::containing(renderer))
         return lineLayout->boxFor(renderer);
     return { };
 }

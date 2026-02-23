@@ -160,7 +160,10 @@ static NSDictionary<NSString *, id> *testWebPushDaemonPList(NSURL *storageLocati
         @"LaunchOnlyOnce" : @(static_cast<BOOL>(launchOnlyOnce)),
         @"ThrottleInterval" : @(1),
         @"StandardErrorPath" : [storageLocation URLByAppendingPathComponent:@"daemon_stderr"].path,
-        @"EnvironmentVariables" : @{ @"DYLD_FRAMEWORK_PATH" : currentExecutableDirectory().get().path },
+        @"EnvironmentVariables" : @{
+            @"DYLD_FRAMEWORK_PATH" : currentExecutableDirectory().get().path,
+            @"DYLD_LIBRARY_PATH"   : currentExecutableDirectory().get().path
+        },
         @"MachServices" : @{ @"org.webkit.webpushtestdaemon.service" : @YES },
         @"ProgramArguments" : @[
             testWebPushDaemonLocation().get().path,

@@ -80,7 +80,7 @@ public:
     virtual ~CSSKeyframeRule();
 
     String cssText() const final { return m_keyframe->cssText(); }
-    void reattach(StyleRuleBase&) final;
+    void NODELETE reattach(StyleRuleBase&) final;
 
     String keyText() const { return m_keyframe->keyText(); }
     void setKeyText(const String& text) { m_keyframe->setKeyText(text); }

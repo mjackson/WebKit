@@ -55,21 +55,21 @@ enum ImagePiece {
 
 static ImagePiece& operator++(ImagePiece& piece)
 {
-    piece = static_cast<ImagePiece>(enumToUnderlyingType(piece) + 1);
+    piece = static_cast<ImagePiece>(std::to_underlying(piece) + 1);
     return piece;
 }
 
-static bool isCornerPiece(ImagePiece piece)
+static bool NODELETE isCornerPiece(ImagePiece piece)
 {
     return piece == TopLeftPiece || piece == TopRightPiece || piece == BottomLeftPiece || piece == BottomRightPiece;
 }
 
-static bool isHorizontalPiece(ImagePiece piece)
+static bool NODELETE isHorizontalPiece(ImagePiece piece)
 {
     return piece == TopPiece || piece == BottomPiece || piece == MiddlePiece;
 }
 
-static bool isVerticalPiece(ImagePiece piece)
+static bool NODELETE isVerticalPiece(ImagePiece piece)
 {
     return piece == LeftPiece || piece == RightPiece || piece == MiddlePiece;
 }
@@ -129,7 +129,7 @@ static void scaleSlicesIfNeeded(const LayoutSize& size, LayoutBoxExtent& slices,
     slices.left()   *= sliceScaleFactor;
 }
 
-static bool isEmptyPieceRect(ImagePiece piece, const Vector<FloatRect, MaxPiece>& destinationRects, const Vector<FloatRect, MaxPiece>& sourceRects)
+static bool NODELETE isEmptyPieceRect(ImagePiece piece, const Vector<FloatRect, MaxPiece>& destinationRects, const Vector<FloatRect, MaxPiece>& sourceRects)
 {
     return destinationRects[piece].isEmpty() || sourceRects[piece].isEmpty();
 }

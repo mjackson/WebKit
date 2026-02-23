@@ -53,9 +53,9 @@ public:
     static Ref<RTCRtpTransceiver> create(Ref<RTCRtpSender>&& sender, Ref<RTCRtpReceiver>&& receiver, std::unique_ptr<RTCRtpTransceiverBackend>&& backend) { return adoptRef(*new RTCRtpTransceiver(WTF::move(sender), WTF::move(receiver), WTF::move(backend))); }
     ~RTCRtpTransceiver();
 
-    bool hasSendingDirection() const;
-    void enableSendingDirection();
-    void disableSendingDirection();
+    bool NODELETE hasSendingDirection() const;
+    void NODELETE enableSendingDirection();
+    void NODELETE disableSendingDirection();
 
     RTCRtpTransceiverDirection direction() const;
     std::optional<RTCRtpTransceiverDirection> currentDirection() const;

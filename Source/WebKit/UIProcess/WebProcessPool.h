@@ -273,8 +273,8 @@ public:
     DisplayLinkCollection& displayLinks() { return m_displayLinks; }
 #endif
 
-    void addSupportedPlugin(String&& matchingDomain, String&& name, HashSet<String>&& mimeTypes, HashSet<String> extensions);
-    void clearSupportedPlugins();
+    void NODELETE addSupportedPlugin(String&& matchingDomain, String&& name, HashSet<String>&& mimeTypes, HashSet<String> extensions);
+    void NODELETE clearSupportedPlugins();
 
     HashSet<ProcessID> prewarmedProcessIdentifiers();
     void activePagesOriginsInWebProcessForTesting(ProcessID, CompletionHandler<void(Vector<String>&&)>&&);
@@ -344,7 +344,7 @@ public:
 
     void prewarmProcess();
 
-    bool shouldTerminate(WebProcessProxy&);
+    bool NODELETE shouldTerminate(WebProcessProxy&);
 
     void disableProcessTermination();
     void enableProcessTermination();
@@ -360,7 +360,7 @@ public:
     std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess(const IPC::Connection&) const;
 
     bool javaScriptConfigurationFileEnabled() { return m_javaScriptConfigurationFileEnabled; }
-    void setJavaScriptConfigurationFileEnabled(bool flag);
+    void NODELETE setJavaScriptConfigurationFileEnabled(bool flag);
 #if PLATFORM(IOS_FAMILY)
     void setJavaScriptConfigurationFileEnabledFromDefaults();
 #endif
@@ -428,7 +428,7 @@ public:
 
     void windowServerConnectionStateChanged();
 
-    static void setInvalidMessageCallback(void (*)(WKStringRef));
+    static void NODELETE setInvalidMessageCallback(void (*)(WKStringRef));
     static void didReceiveInvalidMessage(IPC::MessageName);
 
     bool isURLKnownHSTSHost(const String& urlString) const;
@@ -536,7 +536,7 @@ public:
     WebProcessWithAudibleMediaToken webProcessWithAudibleMediaToken() const;
     WebProcessWithMediaStreamingToken webProcessWithMediaStreamingToken() const;
 
-    static bool globalDelaysWebProcessLaunchDefaultValue();
+    static bool NODELETE globalDelaysWebProcessLaunchDefaultValue();
     bool delaysWebProcessLaunchDefaultValue() const { return m_delaysWebProcessLaunchDefaultValue; }
     void setDelaysWebProcessLaunchDefaultValue(bool delaysWebProcessLaunchDefaultValue) { m_delaysWebProcessLaunchDefaultValue = delaysWebProcessLaunchDefaultValue; }
 
@@ -600,6 +600,7 @@ public:
 
 #if ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
     void observeScriptTrackingPrivacyUpdatesIfNeeded();
+    void observeConsistentQueryParameterFilteringQuirkUpdatesIfNeeded();
 #endif
 
 #if ENABLE(WEB_PROCESS_SUSPENSION_DELAY)

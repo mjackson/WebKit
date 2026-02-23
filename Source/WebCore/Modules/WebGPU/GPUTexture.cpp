@@ -142,7 +142,7 @@ GPUFlagsConstant GPUTexture::usage() const
     return m_usage;
 }
 
-static GPUTextureFormat depthSpecificFormat(GPUTextureFormat textureFormat)
+static GPUTextureFormat NODELETE depthSpecificFormat(GPUTextureFormat textureFormat)
 {
     // https://gpuweb.github.io/gpuweb/#aspect-specific-format
 
@@ -156,7 +156,7 @@ static GPUTextureFormat depthSpecificFormat(GPUTextureFormat textureFormat)
     }
 }
 
-static GPUTextureFormat stencilSpecificFormat(GPUTextureFormat textureFormat)
+static GPUTextureFormat NODELETE stencilSpecificFormat(GPUTextureFormat textureFormat)
 {
     // https://gpuweb.github.io/gpuweb/#aspect-specific-format
 

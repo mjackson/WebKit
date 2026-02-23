@@ -121,7 +121,7 @@ void RemoteCDMInstanceProxy::createSession(uint64_t logIdentifier, CompletionHan
 
     auto identifier = RemoteCDMInstanceSessionIdentifier::generate();
     auto session = RemoteCDMInstanceSessionProxy::create(m_cdm.get(), privSession.releaseNonNull(), logIdentifier, identifier);
-    protect(protectedCdm()->factory())->addSession(identifier, WTF::move(session));
+    protect(protect(m_cdm)->factory())->addSession(identifier, WTF::move(session));
     completion(identifier);
 }
 
@@ -130,12 +130,7 @@ std::optional<SharedPreferencesForWebProcess> RemoteCDMInstanceProxy::sharedPref
     if (!m_cdm)
         return std::nullopt;
 
-    return protectedCdm()->sharedPreferencesForWebProcess();
-}
-
-RefPtr<RemoteCDMProxy> RemoteCDMInstanceProxy::protectedCdm() const
-{
-    return m_cdm.get();
+    return protect(m_cdm)->sharedPreferencesForWebProcess();
 }
 
 }

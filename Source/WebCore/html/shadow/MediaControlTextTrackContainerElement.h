@@ -82,11 +82,11 @@ private:
     explicit MediaControlTextTrackContainerElement(Document&, HTMLMediaElement&);
 
     // Element
-    RenderPtr<RenderElement> createElementRenderer(RenderStyle&&, const RenderTreePosition&) override;
+    RenderPtr<RenderElement> createElementRenderer(RenderStyle&&, const RenderTreePosition&) final;
 
     // TextTrackRepresentationClient
-    RefPtr<NativeImage> createTextTrackRepresentationImage() override;
-    void textTrackRepresentationBoundsChanged(const IntRect&) override;
+    RefPtr<NativeImage> createTextTrackRepresentationImage() final;
+    void textTrackRepresentationBoundsChanged(const IntRect&) final;
 
     void updateTextTrackRepresentationIfNeeded();
     void clearTextTrackRepresentation();

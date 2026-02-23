@@ -68,7 +68,7 @@ public:
     virtual void receivedEventAfterDefaultHandling(const WebCore::PlatformWheelEvent&, std::optional<WebCore::WheelScrollGestureState>) { };
     virtual WebCore::WheelEventHandlingResult handleWheelEventAfterDefaultHandling(const WebCore::PlatformWheelEvent&, std::optional<WebCore::ScrollingNodeID>, std::optional<WebCore::WheelScrollGestureState>) { return WebCore::WheelEventHandlingResult::unhandled(); }
 
-    RemoteScrollingCoordinatorProxy* scrollingCoordinatorProxy() const;
+    RemoteScrollingCoordinatorProxy* NODELETE scrollingCoordinatorProxy() const;
 
     void scrollingTreeNodeDidScroll(WebCore::ScrollingTreeScrollingNode&, WebCore::ScrollingLayerPositionAction = WebCore::ScrollingLayerPositionAction::Sync) override;
     void scrollingTreeNodeDidStopAnimatedScroll(WebCore::ScrollingTreeScrollingNode&) override;
@@ -76,6 +76,8 @@ public:
     bool scrollingTreeNodeRequestsScroll(WebCore::ScrollingNodeID, const WebCore::RequestedScrollData&) override;
     bool scrollingTreeNodeRequestsKeyboardScroll(WebCore::ScrollingNodeID, const WebCore::RequestedKeyboardScrollData&) override;
     void scrollingTreeNodeDidStopProgrammaticScroll(WebCore::ScrollingTreeScrollingNode&) override;
+
+    void didHandleScrollRequestForNode(WebCore::ScrollingNodeID, WebCore::FloatPoint scrollPosition, WebCore::ScrollRequestIdentifier) override;
 
     void scrollingTreeNodeWillStartScroll(WebCore::ScrollingNodeID) override;
     void scrollingTreeNodeDidEndScroll(WebCore::ScrollingNodeID) override;
@@ -96,6 +98,17 @@ public:
 
     void tryToApplyLayerPositions();
 
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+    float bannerViewHeight() const override { return m_bannerViewHeight; }
+    void setBannerViewHeight(float height) { m_bannerViewHeight = height; }
+    float bannerViewMaximumHeight() const override { return m_bannerViewMaximumHeight; }
+    void setBannerViewMaximumHeight(float height) { m_bannerViewMaximumHeight = height; }
+    void triggerMainFrameRubberBandSnapBack() override { }
+
+    bool hasBannerViewOverlay() const override { return m_hasBannerViewOverlay; }
+    void setHasBannerViewOverlay(bool hasBannerViewOverlay) { m_hasBannerViewOverlay = hasBannerViewOverlay; }
+#endif
+
 #if ENABLE(THREADED_ANIMATIONS)
     void updateTimelinesRegistration(WebCore::ProcessIdentifier, const WebCore::AcceleratedTimelinesUpdate&);
     RefPtr<const RemoteAnimationTimeline> timeline(const TimelineID&) const;
@@ -115,11 +128,18 @@ protected:
     // This gets nulled out via invalidate(), since the scrolling thread can hold a ref to the ScrollingTree after the RemoteScrollingCoordinatorProxy has gone away.
     WeakPtr<RemoteScrollingCoordinatorProxy> m_scrollingCoordinatorProxy;
     bool m_hasNodesWithSynchronousScrollingReasons WTF_GUARDED_BY_LOCK(m_treeLock) { false };
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+    float m_bannerViewHeight { 0 };
+    float m_bannerViewMaximumHeight { 0 };
+    bool m_hasBannerViewOverlay { false };
+#endif
 
 #if ENABLE(THREADED_ANIMATIONS)
     void updateProgressBasedTimelinesForNode(const WebCore::ScrollingTreeScrollingNode&);
 
 private:
+    void didAddPendingScrollUpdate() override;
+
     std::unique_ptr<RemoteProgressBasedTimelineRegistry> m_progressBasedTimelineRegistry;
 #endif
 };

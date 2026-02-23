@@ -32,6 +32,7 @@
 #include "JSBigIntInlines.h"
 #include "JSGlobalObject.h"
 #include "JSGlobalObjectFunctions.h"
+#include <wtf/Range.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
@@ -316,22 +317,41 @@ void appendNumberFormatNotationOptionsToSkeleton(IntlType* intlInstance, StringB
     }
 }
 
+struct IntlNumberFormatField {
+    int32_t m_field;
+    WTF::Range<int32_t> m_range;
+};
+
 class IntlFieldIterator {
 public:
     WTF_MAKE_NONCOPYABLE(IntlFieldIterator);
 
     explicit IntlFieldIterator(UFieldPositionIterator& iterator)
-        : m_iterator(iterator)
+        : m_iterator(&iterator)
+    {
+    }
+
+    explicit IntlFieldIterator(Vector<IntlNumberFormatField>&& fields)
+        : m_fields(WTF::move(fields))
     {
     }
 
     int32_t next(int32_t& beginIndex, int32_t& endIndex, UErrorCode&)
     {
-        return ufieldpositer_next(&m_iterator, &beginIndex, &endIndex);
+        if (m_iterator)
+            return ufieldpositer_next(m_iterator, &beginIndex, &endIndex);
+        if (m_cursor >= m_fields.size())
+            return -1;
+        auto& field = m_fields[m_cursor++];
+        beginIndex = field.m_range.begin();
+        endIndex = field.m_range.end();
+        return field.m_field;
     }
 
 private:
-    UFieldPositionIterator& m_iterator;
+    UFieldPositionIterator* m_iterator { nullptr };
+    Vector<IntlNumberFormatField> m_fields;
+    size_t m_cursor { 0 };
 };
 
 // https://tc39.es/ecma402/#sec-unwrapnumberformat

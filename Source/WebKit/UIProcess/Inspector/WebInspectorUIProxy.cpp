@@ -156,8 +156,9 @@ void WebInspectorUIProxy::connect()
     legacyMainFrameProcess->send(Messages::WebInspectorInterruptDispatcher::NotifyNeedDebuggerBreak(), 0);
     legacyMainFrameProcess->sendWithAsyncReply(
         Messages::WebInspectorBackend::Show(),
-        [this, protectedThis = Ref { *this }] {
-            openLocalInspectorFrontend();
+        [this, protectedThis = Ref { *this }] (bool success) {
+            if (success)
+                openLocalInspectorFrontend();
         },
         m_inspectedPage->webPageIDInMainFrameProcess());
 }
@@ -822,6 +823,15 @@ void WebInspectorUIProxy::setDiagnosticLoggingAvailable(bool available)
 #else
     UNUSED_PARAM(available);
 #endif
+}
+
+void WebInspectorUIProxy::systemAppearanceDidChange()
+{
+    RefPtr inspectorPage = m_inspectorPage.get();
+    if (!inspectorPage)
+        return;
+
+    protect(inspectorPage->legacyMainFrameProcess())->send(Messages::WebInspectorUI::SystemAppearanceDidChange(), inspectorPage->webPageIDInMainFrameProcess());
 }
 
 void WebInspectorUIProxy::save(Vector<InspectorFrontendClient::SaveData>&& saveDatas, bool forceSaveAs)

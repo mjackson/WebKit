@@ -45,29 +45,24 @@ RemoteRenderBundle::RemoteRenderBundle(WebCore::WebGPU::RenderBundle& renderBund
     , m_gpu(gpu)
     , m_identifier(identifier)
 {
-    protectedStreamConnection()->startReceivingMessages(*this, Messages::RemoteRenderBundle::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->startReceivingMessages(*this, Messages::RemoteRenderBundle::messageReceiverName(), m_identifier.toUInt64());
 }
 
 RemoteRenderBundle::~RemoteRenderBundle() = default;
 
 void RemoteRenderBundle::destruct()
 {
-    Ref { m_objectHeap.get() }->removeObject(m_identifier);
+    protect(m_objectHeap)->removeObject(m_identifier);
 }
 
 void RemoteRenderBundle::stopListeningForIPC()
 {
-    protectedStreamConnection()->stopReceivingMessages(Messages::RemoteRenderBundle::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->stopReceivingMessages(Messages::RemoteRenderBundle::messageReceiverName(), m_identifier.toUInt64());
 }
 
 void RemoteRenderBundle::setLabel(String&& label)
 {
-    Ref { m_backing }->setLabel(WTF::move(label));
-}
-
-Ref<IPC::StreamServerConnection> RemoteRenderBundle::protectedStreamConnection() const
-{
-    return m_streamConnection;
+    protect(m_backing)->setLabel(WTF::move(label));
 }
 
 } // namespace WebKit

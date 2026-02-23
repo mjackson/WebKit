@@ -205,17 +205,17 @@ JSValue convertToJSValue(JSGlobalObject& lexicalGlobalObject, JSDOMGlobalObject&
             RELEASE_ASSERT(!list.hasOverflowed());
             return constructArray(&globalObject, static_cast<JSC::ArrayAllocationProfile*>(nullptr), list);
         },
-        [&](const RefPtr<Float32Array>& array) -> JSValue {
-            return array ? toJS(&lexicalGlobalObject, &globalObject, *array) : jsNull();
+        [&](const Ref<Float32Array>& array) -> JSValue {
+            return toJS(&lexicalGlobalObject, &globalObject, array);
         },
-        [&](const RefPtr<Int32Array>& array) -> JSValue {
-            return array ? toJS(&lexicalGlobalObject, &globalObject, *array) : jsNull();
+        [&](const Ref<Int32Array>& array) -> JSValue {
+            return toJS(&lexicalGlobalObject, &globalObject, array);
         },
-        [&](const RefPtr<Uint8Array>& array) -> JSValue {
-            return array ? toJS(&lexicalGlobalObject, &globalObject, *array) : jsNull();
+        [&](const Ref<Uint8Array>& array) -> JSValue {
+            return toJS(&lexicalGlobalObject, &globalObject, array);
         },
-        [&](const RefPtr<Uint32Array>& array) -> JSValue {
-            return array ? toJS(&lexicalGlobalObject, &globalObject, *array) : jsNull();
+        [&](const Ref<Uint32Array>& array) -> JSValue {
+            return toJS(&lexicalGlobalObject, &globalObject, array);
         },
         [&](const Ref<WebGLBuffer>& buffer) -> JSValue {
             return toJS(&lexicalGlobalObject, &globalObject, buffer);

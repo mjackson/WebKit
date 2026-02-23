@@ -121,8 +121,8 @@ public:
         ASSERT(m_parent || !previous);
         m_previousOnLine = previous;
     }
-    bool nextOnLineExists() const;
-    bool previousOnLineExists() const;
+    bool NODELETE nextOnLineExists() const;
+    bool NODELETE previousOnLineExists() const;
 
     virtual bool isLeaf() const { return true; }
     
@@ -140,7 +140,7 @@ public:
     }
     void setParent(LegacyInlineFlowBox* par) { m_parent = par; }
 
-    const LegacyRootInlineBox& root() const;
+    const LegacyRootInlineBox& NODELETE root() const;
     LegacyRootInlineBox& root();
 
     // x() is the left side of the box in the containing block's coordinate system.
@@ -234,7 +234,7 @@ public:
     LayoutPoint flipForWritingMode(const LayoutPoint&) const;
 
     bool knownToHaveNoOverflow() const { return m_bitfields.knownToHaveNoOverflow(); }
-    void clearKnownToHaveNoOverflow();
+    void NODELETE clearKnownToHaveNoOverflow();
 
     // For LegacyInlineTextBox
     bool isInGlyphDisplayListCache() const { return m_bitfields.isInGlyphDisplayListCache(); }

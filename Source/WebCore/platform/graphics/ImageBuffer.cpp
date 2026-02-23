@@ -316,6 +316,12 @@ bool ImageBuffer::flushDrawingContextAsync()
     return true;
 }
 
+void ImageBuffer::submitDrawingCommands()
+{
+    if (auto* backend = ensureBackend())
+        backend->submitDrawingCommands();
+}
+
 void ImageBuffer::prepareForDisplay()
 {
     flushDrawingContextAsync();

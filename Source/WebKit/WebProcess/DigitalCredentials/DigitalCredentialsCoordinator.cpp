@@ -29,6 +29,7 @@
 #if ENABLE(WEB_AUTHN)
 #include "DigitalCredentialsCoordinatorMessages.h"
 #include "DigitalCredentialsRequestValidatorBridge.h"
+#include "Logging.h"
 #include "WebPage.h"
 #include "WebProcess.h"
 #include <WebCore/DigitalCredentialsProtocols.h>
@@ -60,9 +61,11 @@ Ref<DigitalCredentialsCoordinator> DigitalCredentialsCoordinator::create(WebPage
     return adoptRef(*new DigitalCredentialsCoordinator(webPage));
 }
 
-void DigitalCredentialsCoordinator::showDigitalCredentialsPicker(Vector<UnvalidatedDigitalCredentialRequest>&& rawRequests, const WebCore::DigitalCredentialsRequestData& request, WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&& completionHandler)
+void DigitalCredentialsCoordinator::showDigitalCredentialsPicker(WebCore::DigitalCredentialsRawRequests&& rawRequests, const WebCore::DigitalCredentialsRequestData& request, WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&& completionHandler)
 {
-    ASSERT(m_rawRequests.isEmpty());
+    WTF::switchOn(m_rawRequests, [](auto& cachedRawRequests) {
+        ASSERT(cachedRawRequests.isEmpty());
+    });
     m_rawRequests = WTF::move(rawRequests);
 
     if (RefPtr page = m_page.get()) {
@@ -71,11 +74,15 @@ void DigitalCredentialsCoordinator::showDigitalCredentialsPicker(Vector<Unvalida
             if (!protectedThis)
                 return completionHandler(makeUnexpected(WebCore::ExceptionData { WebCore::ExceptionCode::AbortError, "The coordinator is no longer available."_s }));
 
-            protectedThis->m_rawRequests.clear();
+            WTF::switchOn(protectedThis->m_rawRequests, [](auto& cachedRawRequests) {
+                cachedRawRequests.clear();
+            });
             completionHandler(WTF::move(responseOrException));
         });
     } else {
-        m_rawRequests.clear();
+        WTF::switchOn(m_rawRequests, [](auto& cachedRawRequests) {
+            cachedRawRequests.clear();
+        });
         completionHandler(makeUnexpected(WebCore::ExceptionData { WebCore::ExceptionCode::InvalidStateError, "The page is not available."_s }));
     }
 }
@@ -88,16 +95,20 @@ ExceptionOr<Vector<WebCore::ValidatedDigitalCredentialRequest>> DigitalCredentia
 
 void DigitalCredentialsCoordinator::dismissDigitalCredentialsPicker(CompletionHandler<void(bool)>&& completionHandler)
 {
-    m_rawRequests.clear();
+    WTF::switchOn(m_rawRequests, [](auto& rawRequests) {
+        rawRequests.clear();
+    });
     if (RefPtr page = m_page.get())
         page->dismissDigitalCredentialsPicker(WTF::move(completionHandler));
     else
         completionHandler(false);
 }
 
-void DigitalCredentialsCoordinator::provideRawDigitalCredentialRequests(CompletionHandler<void(Vector<WebCore::UnvalidatedDigitalCredentialRequest>&&)>&& completionHandler)
+void DigitalCredentialsCoordinator::provideRawDigitalCredentialRequests(CompletionHandler<void(WebCore::DigitalCredentialsRawRequests&&)>&& completionHandler)
 {
-    ASSERT(!m_rawRequests.isEmpty());
+    WTF::switchOn(m_rawRequests, [](auto& rawRequests) {
+        ASSERT(!rawRequests.isEmpty());
+    });
     completionHandler(std::exchange(m_rawRequests, { }));
 }
 

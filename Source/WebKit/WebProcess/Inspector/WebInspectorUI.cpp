@@ -356,6 +356,11 @@ void WebInspectorUI::setDiagnosticLoggingAvailable(bool available)
 }
 #endif // ENABLE(INSPECTOR_TELEMETRY)
 
+void WebInspectorUI::systemAppearanceDidChange()
+{
+    m_frontendAPIDispatcher->dispatchCommandWithResultAsync("systemAppearanceDidChange"_s);
+}
+
 #if ENABLE(INSPECTOR_EXTENSIONS)
 bool WebInspectorUI::supportsWebExtensions()
 {

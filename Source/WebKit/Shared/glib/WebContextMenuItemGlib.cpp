@@ -86,7 +86,7 @@ WebContextMenuItemGlib::WebContextMenuItemGlib(GAction* action, const String& ti
 #if PLATFORM(GTK) && !USE(GTK4)
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 WebContextMenuItemGlib::WebContextMenuItemGlib(GtkAction* action)
-    : WebContextMenuItemData(GTK_IS_TOGGLE_ACTION(action) ? ContextMenuItemType::CheckableAction : ContextMenuItemType::Action, ContextMenuItemBaseApplicationTag, String::fromUTF8(gtk_action_get_label(action)), gtk_action_get_sensitive(action), GTK_IS_TOGGLE_ACTION(action) ? gtk_toggle_action_get_active(GTK_TOGGLE_ACTION(action)) : false)
+    : WebContextMenuItemData(GTK_IS_TOGGLE_ACTION(action) ? ContextMenuItemType::CheckableAction : ContextMenuItemType::Action, ContextMenuItemBaseApplicationTag, String::fromUTF8(gtk_action_get_label(action)), gtk_action_get_sensitive(action), GTK_IS_TOGGLE_ACTION(action) && gtk_toggle_action_get_active(GTK_TOGGLE_ACTION(action)))
 {
     m_gtkAction = action;
     createActionIfNeeded();

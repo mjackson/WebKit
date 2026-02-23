@@ -52,7 +52,7 @@ using namespace HTMLNames;
 static const int dateTimeLocalDefaultStep = 60;
 static const int dateTimeLocalDefaultStepBase = 0;
 static const int dateTimeLocalStepScaleFactor = 1000;
-static const StepRange::StepDescription dateTimeLocalStepDescription { dateTimeLocalDefaultStep, dateTimeLocalDefaultStepBase, dateTimeLocalStepScaleFactor, StepRange::ScaledStepValueShouldBeInteger };
+static const StepRange::StepDescription dateTimeLocalStepDescription { dateTimeLocalDefaultStep, dateTimeLocalDefaultStepBase, dateTimeLocalStepScaleFactor, StepRange::StepValueShouldBe::ScaledInteger };
 
 const AtomString& DateTimeLocalInputType::formControlType() const
 {

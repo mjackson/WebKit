@@ -37,7 +37,7 @@
 
 namespace WebKit {
 
-static HashMap<WebCore::SharedWorkerIdentifier, WeakRef<WebSharedWorker>>& allWorkers()
+static HashMap<WebCore::SharedWorkerIdentifier, WeakRef<WebSharedWorker>>& NODELETE allWorkers()
 {
     ASSERT(RunLoop::isMain());
     static NeverDestroyed<HashMap<WebCore::SharedWorkerIdentifier, WeakRef<WebSharedWorker>>> allWorkers;

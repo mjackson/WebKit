@@ -166,7 +166,7 @@ namespace ax = WebCore::Accessibility;
         [self setSize:webPage->size()];
 #endif
         RefPtr frame = dynamicDowncast<WebCore::LocalFrame>(webPage->mainFrame());
-        m_hasMainFramePlugin = frame && frame->document() ? frame->document()->isPluginDocument() : false;
+        m_hasMainFramePlugin = frame && frame->document() && frame->document()->isPluginDocument();
     } else {
         m_pageID = std::nullopt;
         m_hasMainFramePlugin = false;

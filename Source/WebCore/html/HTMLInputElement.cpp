@@ -1079,14 +1079,14 @@ void HTMLInputElement::setChecked(bool isChecked, WasSetByJavaScript wasCheckedB
 
     if (auto* buttons = radioButtonGroups())
         buttons->updateCheckedState(*this);
-    if (auto* renderer = this->renderer(); renderer && renderer->style().hasUsedAppearance())
+    if (CheckedPtr renderer = this->renderer(); renderer && renderer->style().hasUsedAppearance())
         renderer->repaint();
     updateValidity();
 
     // Ideally we'd do this from the render tree (matching
     // RenderTextView), but it's not possible to do it at the moment
     // because of the way the code is structured.
-    if (auto* renderer = this->renderer()) {
+    if (CheckedPtr renderer = this->renderer()) {
         if (CheckedPtr cache = renderer->document().existingAXObjectCache())
             cache->checkedStateChanged(*this);
     }
@@ -1102,7 +1102,7 @@ void HTMLInputElement::setIndeterminate(bool newValue)
     Style::PseudoClassChangeInvalidation indeterminateInvalidation(*this, CSSSelector::PseudoClass::Indeterminate, newValue);
     m_isIndeterminate = newValue;
 
-    if (auto* renderer = this->renderer(); renderer && renderer->style().hasUsedAppearance())
+    if (CheckedPtr renderer = this->renderer(); renderer && renderer->style().hasUsedAppearance())
         renderer->repaint();
 
     if (CheckedPtr cache = document().existingAXObjectCache())
@@ -1437,7 +1437,7 @@ ExceptionOr<void> HTMLInputElement::showPicker()
     return { };
 }
 
-static inline bool isRFC2616TokenCharacter(char16_t ch)
+static inline bool NODELETE isRFC2616TokenCharacter(char16_t ch)
 {
     return isASCII(ch) && ch > ' ' && ch != '"' && ch != '(' && ch != ')' && ch != ',' && ch != '/' && (ch < ':' || ch > '@') && (ch < '[' || ch > ']') && ch != '{' && ch != '}' && ch != 0x7f;
 }
@@ -1454,7 +1454,7 @@ static bool isValidMIMEType(StringView type)
     return true;
 }
 
-static bool isValidFileExtension(StringView type)
+static bool NODELETE isValidFileExtension(StringView type)
 {
     if (type.length() < 2)
         return false;
@@ -1561,7 +1561,7 @@ void HTMLInputElement::setAutofillButtonType(AutoFillButtonType autoFillButtonTy
         return;
 
     m_lastAutoFillButtonType = m_autoFillButtonType;
-    m_autoFillButtonType = enumToUnderlyingType(autoFillButtonType);
+    m_autoFillButtonType = std::to_underlying(autoFillButtonType);
     m_inputType->updateAutoFillButton();
     updateInnerTextElementEditability();
     invalidateStyleForSubtree();
@@ -1930,7 +1930,7 @@ RefPtr<InputType> HTMLInputElement::inputType() const
     return m_inputType;
 }
 
-bool HTMLInputElement::isSteppable() const
+bool NODELETE HTMLInputElement::isSteppable() const
 {
     return m_inputType->isSteppable();
 }
@@ -1973,6 +1973,11 @@ bool HTMLInputElement::isCheckbox() const
 bool HTMLInputElement::isSwitch() const
 {
     return m_inputType->isSwitch();
+}
+
+bool HTMLInputElement::isCheckable() const
+{
+    return m_inputType && m_inputType->isCheckable();
 }
 
 bool HTMLInputElement::isRangeControl() const
@@ -2256,7 +2261,7 @@ void HTMLInputElement::invalidateStyleOnFocusChangeIfNeeded()
     if (!isTextField())
         return;
     // Focus change may affect the result of shouldTruncateText().
-    if (auto* style = renderStyle(); style && style->textOverflow() == TextOverflow::Ellipsis)
+    if (CheckedPtr style = renderStyle(); style && style->textOverflow() == TextOverflow::Ellipsis)
         invalidateStyleForSubtreeInternal();
 }
 
@@ -2320,9 +2325,9 @@ ExceptionOr<void> HTMLInputElement::setSelectionRangeForBindings(unsigned start,
     return { };
 }
 
-static Ref<StyleGradientImage> autoFillStrongPasswordMaskImage()
+static Ref<Style::GradientImage> autoFillStrongPasswordMaskImage()
 {
-    return StyleGradientImage::create(
+    return Style::GradientImage::create(
         FunctionNotation<CSSValueLinearGradient, Style::LinearGradient> {
             .parameters = {
                 .colorInterpolationMethod = Style::GradientColorInterpolationMethod::legacyMethod(AlphaPremultiplication::Unpremultiplied),
@@ -2349,10 +2354,10 @@ RenderStyle HTMLInputElement::createInnerTextStyle(const RenderStyle& style)
     textBlockStyle.setOverflowY(Overflow::Hidden);
     textBlockStyle.setTextOverflow(shouldTruncateText(style) ? TextOverflow::Ellipsis : TextOverflow::Clip);
 
-    textBlockStyle.setDisplay(DisplayType::Block);
+    textBlockStyle.setDisplay(Style::DisplayType::BlockFlow);
 
     if (hasAutofillStrongPasswordButton() && isMutable()) {
-        textBlockStyle.setDisplay(DisplayType::InlineBlock);
+        textBlockStyle.setDisplay(Style::DisplayType::InlineFlowRoot);
         textBlockStyle.setLogicalMaxWidth(100_css_percentage);
         textBlockStyle.setColor(Color::black.colorWithAlphaByte(153));
         textBlockStyle.setTextOverflow(TextOverflow::Clip);

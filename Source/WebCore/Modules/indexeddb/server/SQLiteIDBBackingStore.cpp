@@ -2770,6 +2770,16 @@ void SQLiteIDBBackingStore::closeSQLiteDB()
     m_sqliteDB = nullptr;
 }
 
+void SQLiteIDBBackingStore::setSqliteDB(std::unique_ptr<SQLiteDatabase>&& db)
+{
+    m_sqliteDB = WTF::move(db);
+}
+
+void SQLiteIDBBackingStore::setDatabaseInfo(std::unique_ptr<IDBDatabaseInfo>&& info)
+{
+    m_databaseInfo = WTF::move(info);
+}
+
 bool SQLiteIDBBackingStore::hasTransaction(const IDBResourceIdentifier& transactionIdentifier) const
 {
     ASSERT(isMainThread());

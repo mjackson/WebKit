@@ -230,7 +230,7 @@ private:
 
     static ViewGestureController* controllerForGesture(WebPageProxyIdentifier, GestureID);
 
-    static GestureID takeNextGestureID();
+    static GestureID NODELETE takeNextGestureID();
     void willBeginGesture(ViewGestureType);
     void didEndGesture();
     void resetState();
@@ -273,7 +273,7 @@ private:
         enum class ShouldIgnoreEventIfPaused : bool { No, Yes };
         bool eventOccurred(Events, ShouldIgnoreEventIfPaused = ShouldIgnoreEventIfPaused::Yes);
         bool cancelOutstandingEvent(Events);
-        bool hasOutstandingEvent(Event);
+        bool NODELETE hasOutstandingEvent(Event);
 
         void startWatchdog(Seconds);
 

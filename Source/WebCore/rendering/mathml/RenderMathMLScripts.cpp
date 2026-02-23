@@ -41,7 +41,7 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderMathMLScripts);
 
-static bool isPrescriptDelimiter(const RenderObject& renderObject)
+static bool NODELETE isPrescriptDelimiter(const RenderObject& renderObject)
 {
     return renderObject.node() && renderObject.node()->hasTagName(MathMLNames::mprescriptsTag);
 }
@@ -467,6 +467,20 @@ void RenderMathMLScripts::layoutBlock(RelayoutChildren relayoutChildren, LayoutU
         LayoutPoint baseLocation(mirrorIfNeeded(horizontalOffset + reference.base->marginStart(), *reference.base), ascent - baseAscent + reference.base->marginBefore());
         reference.base->setLocation(baseLocation);
         horizontalOffset += reference.base->logicalWidth() + reference.base->marginLogicalWidth();
+
+        // Position the prescriptDelimiter (mprescripts element) aligned with the base, vertically centered.
+        // In LTR, left edges align. In RTL, right edges align.
+        if (reference.prescriptDelimiter) {
+            LayoutUnit prescriptHeight = reference.prescriptDelimiter->logicalHeight();
+            LayoutUnit baseBorderBoxHeight = reference.base->logicalHeight();
+            LayoutUnit baseCenterY = baseLocation.y() + baseBorderBoxHeight / 2;
+            LayoutUnit prescriptX = baseLocation.x();
+            if (writingMode().isBidiRTL())
+                prescriptX += reference.base->logicalWidth() - reference.prescriptDelimiter->logicalWidth();
+            LayoutPoint prescriptLocation(prescriptX, baseCenterY - prescriptHeight / 2);
+            reference.prescriptDelimiter->setLocation(prescriptLocation);
+        }
+
         subScript = reference.firstPostScript;
         while (subScript && subScript != reference.prescriptDelimiter) {
             auto supScript = subScript->nextInFlowSiblingBox();

@@ -111,7 +111,7 @@ public:
     virtual ~RemoteRenderingBackend();
     void stopListeningForIPC();
 
-    std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const;
+    std::optional<SharedPreferencesForWebProcess> NODELETE sharedPreferencesForWebProcess() const;
 
     RemoteResourceCache& remoteResourceCache() { return m_remoteResourceCache; }
     RemoteSharedResourceCache& sharedResourceCache() { return m_sharedResourceCache; }
@@ -199,7 +199,7 @@ private:
     void createTextDetector(ShapeDetectionIdentifier);
     void releaseTextDetector(ShapeDetectionIdentifier);
 
-    bool shouldUseLockdownFontParser() const;
+    bool NODELETE shouldUseLockdownFontParser() const;
 
     void getImageBufferResourceLimitsForTesting(CompletionHandler<void(WebCore::ImageBufferResourceLimits)>&&);
 

@@ -399,7 +399,7 @@ void LibWebRTCCodecsProxy::releaseEncoder(VideoEncoderIdentifier identifier)
     m_hasEncodersOrDecoders = !m_encoders.isEmpty() || !m_decoders.isEmpty();
 }
 
-static bool validateEncoderInitializationData(WebCore::VideoCodecType codecType, bool useLowLatency, size_t width, size_t height)
+static bool NODELETE validateEncoderInitializationData(WebCore::VideoCodecType codecType, bool useLowLatency, size_t width, size_t height)
 {
     switch (codecType) {
     case WebCore::VideoCodecType::H264:
@@ -437,7 +437,7 @@ LibWebRTCCodecsProxy::Encoder* LibWebRTCCodecsProxy::findEncoder(VideoEncoderIde
     return &iterator->value;
 }
 
-static inline webrtc::VideoRotation toWebRTCVideoRotation(WebCore::VideoFrame::Rotation rotation)
+static inline webrtc::VideoRotation NODELETE toWebRTCVideoRotation(WebCore::VideoFrame::Rotation rotation)
 {
     switch (rotation) {
     case WebCore::VideoFrame::Rotation::None:

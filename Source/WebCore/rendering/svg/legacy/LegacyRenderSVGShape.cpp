@@ -235,7 +235,7 @@ void LegacyRenderSVGShape::strokeShapeInternal(const RenderStyle& style, Graphic
 
 void LegacyRenderSVGShape::strokeShape(const RenderStyle& style, GraphicsContext& context)
 {
-    if (!style.hasStroke() || !style.strokeWidth().isPossiblyPositive())
+    if (style.stroke().isNone() || !style.strokeWidth().isPossiblyPositive())
         return;
 
     GraphicsContextStateSaver stateSaver(context, false);
@@ -318,7 +318,7 @@ bool LegacyRenderSVGShape::isPointInFill(const FloatPoint& point)
 
 bool LegacyRenderSVGShape::isPointInStroke(const FloatPoint& point)
 {
-    if (!style().hasStroke())
+    if (style().stroke().isNone())
         return false;
 
     return shapeDependentStrokeContains(point, LocalCoordinateSpace);
@@ -358,8 +358,8 @@ bool LegacyRenderSVGShape::nodeAtFloatPoint(const HitTestRequest& request, HitTe
         WindRule fillRule = style().fillRule();
         if (request.svgClipContent())
             fillRule = style().clipRule();
-        if ((hitRules.canHitStroke && (style().hasStroke() || !hitRules.requireStroke) && strokeContains(localPoint, hitRules.requireStroke))
-            || (hitRules.canHitFill && (style().hasFill() || !hitRules.requireFill) && fillContains(localPoint, hitRules.requireFill, fillRule))
+        if ((hitRules.canHitStroke && (!style().stroke().isNone() || !hitRules.requireStroke) && strokeContains(localPoint, hitRules.requireStroke))
+            || (hitRules.canHitFill && (!style().fill().isNone() || !hitRules.requireFill) && fillContains(localPoint, hitRules.requireFill, fillRule))
             || (hitRules.canHitBoundingBox && objectBoundingBox().contains(localPoint))) {
             updateHitTestResult(result, LayoutPoint(localPoint));
             if (result.addNodeToListBasedTestResult(protect(nodeForHitTest()).get(), request, flooredLayoutPoint(localPoint)) == HitTestProgress::Stop)
@@ -386,7 +386,7 @@ FloatRect LegacyRenderSVGShape::calculateStrokeBoundingBox() const
     ASSERT(m_path);
     FloatRect strokeBoundingBox = m_fillBoundingBox;
 
-    if (style().hasStroke()) {
+    if (!style().stroke().isNone()) {
         if (hasNonScalingStroke()) {
             AffineTransform nonScalingTransform = nonScalingStrokeTransform();
             if (std::optional<AffineTransform> inverse = nonScalingTransform.inverse()) {

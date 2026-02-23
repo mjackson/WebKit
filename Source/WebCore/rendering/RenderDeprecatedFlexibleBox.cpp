@@ -72,7 +72,7 @@ public:
         reset();
     }
 
-    void reset()
+    void NODELETE reset()
     {
         m_currentChild = nullptr;
         m_ordinalIteration = std::numeric_limits<unsigned>::max();
@@ -155,7 +155,7 @@ static LayoutUnit marginWidthForChild(RenderBox* child)
     return margin;
 }
 
-static bool childDoesNotAffectWidthOrFlexing(RenderObject* child)
+static bool NODELETE childDoesNotAffectWidthOrFlexing(RenderObject* child)
 {
     // Positioned children don't affect the min/max width.
     return child->isOutOfFlowPositioned();
@@ -375,18 +375,15 @@ void RenderDeprecatedFlexibleBox::layoutBlock(RelayoutChildren relayoutChildren,
 
         auto contentArea = flippedContentBoxRect();
         updateLogicalHeight();
+        updateInFlowDescendantTransformsAfterLayout();
+        computeInFlowOverflow(contentArea);
 
-        if (previousSize.height() != height())
-            relayoutChildren = RelayoutChildren::Yes;
-
-        if (isDocumentElementRenderer())
+        if (isDocumentElementRenderer() || previousSize.height() != height())
             layoutOutOfFlowBoxes(RelayoutChildren::Yes);
         else
             layoutOutOfFlowBoxes(relayoutChildren);
-
-        updateDescendantTransformsAfterLayout();
-
-        computeOverflow(contentArea);
+        updateOutOfFlowDescendantTransformsAfterLayout();
+        addOverflowFromOutOfFlowBoxes();
     }
 
     updateLayerTransform();
@@ -754,7 +751,7 @@ void RenderDeprecatedFlexibleBox::layoutSingleClampedFlexItem()
     setHeight(childBoxBottom + paddingBottom() + borderBottom());
     updateLogicalHeight();
 
-    computeOverflow(flippedContentBoxRect());
+    computeInFlowOverflow(flippedContentBoxRect());
 
     endAndCommitUpdateScrollInfoAfterLayoutTransaction();
 

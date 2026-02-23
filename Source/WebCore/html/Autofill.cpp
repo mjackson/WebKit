@@ -134,7 +134,7 @@ static inline bool isContactToken(const AtomString& token)
     return token == home || token == work || token == mobile || token == fax || token == pager;
 }
 
-static unsigned maxTokensForAutofillFieldCategory(AutofillCategory category)
+static unsigned NODELETE maxTokensForAutofillFieldCategory(AutofillCategory category)
 {
     switch (category) {
     case AutofillCategory::Automatic:

@@ -96,7 +96,7 @@ WTF_EXPORT_PRIVATE bool moveFile(const String& oldPath, const String& newPath);
 WTF_EXPORT_PRIVATE std::optional<uint64_t> fileSize(const String&); // Follows symlinks.
 WTF_EXPORT_PRIVATE std::optional<uint64_t> directorySize(const String&);
 WTF_EXPORT_PRIVATE std::optional<WallTime> fileModificationTime(const String&);
-WTF_EXPORT_PRIVATE bool fileIDsAreEqual(std::optional<PlatformFileID>, std::optional<PlatformFileID>);
+WTF_EXPORT_PRIVATE bool NODELETE fileIDsAreEqual(std::optional<PlatformFileID>, std::optional<PlatformFileID>);
 WTF_EXPORT_PRIVATE bool updateFileModificationTime(const String& path); // Sets modification time to now.
 WTF_EXPORT_PRIVATE std::optional<WallTime> fileCreationTime(const String&); // Not all platforms store file creation time.
 WTF_EXPORT_PRIVATE bool isHiddenFile(const String&);
@@ -198,8 +198,8 @@ WTF_EXPORT_PRIVATE bool deleteNonEmptyDirectory(const String&);
 
 WTF_EXPORT_PRIVATE String realPath(const String&);
 
-WTF_EXPORT_PRIVATE bool isSafeToUseMemoryMapForPath(const String&);
-[[nodiscard]] WTF_EXPORT_PRIVATE bool makeSafeToUseMemoryMapForPath(const String&);
+WTF_EXPORT_PRIVATE bool NODELETE isSafeToUseMemoryMapForPath(const String&);
+[[nodiscard]] WTF_EXPORT_PRIVATE bool NODELETE makeSafeToUseMemoryMapForPath(const String&);
 
 WTF_EXPORT_PRIVATE std::optional<MappedFileData> mapFile(const String& path, MappedFileMode);
 

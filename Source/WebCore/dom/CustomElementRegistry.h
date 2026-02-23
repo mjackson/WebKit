@@ -69,7 +69,7 @@ public:
     void deref() const final { RefCounted::deref(); }
 
     bool isScoped() const { return !m_window; }
-    Document* document() const;
+    Document* NODELETE document() const;
 
     static CustomElementRegistry* registryForElement(const Element& element)
     {

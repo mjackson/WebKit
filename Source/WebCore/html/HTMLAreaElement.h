@@ -65,7 +65,7 @@ private:
 
     enum class Shape : uint8_t { Default, Poly, Rect, Circle };
     Path getRegion(const LayoutSize&) const;
-    void invalidateCachedRegion();
+    void NODELETE invalidateCachedRegion();
 
     std::unique_ptr<Path> m_region;
     Vector<double> m_coords;

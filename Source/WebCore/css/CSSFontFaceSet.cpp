@@ -474,34 +474,33 @@ CSSSegmentedFontFace* CSSFontFaceSet::fontFace(FontSelectionRequest request, con
 
     auto& segmentedFontFaceCache = m_cache.add(family, FontSelectionHashMap()).iterator->value;
 
-    auto& face = segmentedFontFaceCache.add(request, nullptr).iterator->value;
-    if (face)
-        return face.get();
+    return segmentedFontFaceCache.ensure(request, [&] {
+        Ref face = CSSSegmentedFontFace::create();
 
-    face = CSSSegmentedFontFace::create();
-
-    Vector<std::reference_wrapper<CSSFontFace>, 32> candidateFontFaces;
-    for (int i = familyFontFaces.size() - 1; i >= 0; --i) {
-        Ref candidate = familyFontFaces[i];
-        if (candidate->status() == CSSFontFace::Status::Failure)
-            continue;
-        if (!isItalic(request.slope) && isItalic(candidate->fontSelectionCapabilities().slope.minimum))
-            continue;
-        candidateFontFaces.append(candidate);
-    }
-
-    auto localIterator = m_locallyInstalledFacesLookupTable.find(family);
-    if (localIterator != m_locallyInstalledFacesLookupTable.end()) {
-        for (auto& candidate : localIterator->value) {
+        Vector<std::reference_wrapper<CSSFontFace>, 32> candidateFontFaces;
+        for (int i = familyFontFaces.size() - 1; i >= 0; --i) {
+            Ref candidate = familyFontFaces[i];
             if (candidate->status() == CSSFontFace::Status::Failure)
                 continue;
             if (!isItalic(request.slope) && isItalic(candidate->fontSelectionCapabilities().slope.minimum))
                 continue;
             candidateFontFaces.append(candidate);
         }
-    }
 
-    if (!candidateFontFaces.isEmpty()) {
+        auto localIterator = m_locallyInstalledFacesLookupTable.find(family);
+        if (localIterator != m_locallyInstalledFacesLookupTable.end()) {
+            for (auto& candidate : localIterator->value) {
+                if (candidate->status() == CSSFontFace::Status::Failure)
+                    continue;
+                if (!isItalic(request.slope) && isItalic(candidate->fontSelectionCapabilities().slope.minimum))
+                    continue;
+                candidateFontFaces.append(candidate);
+            }
+        }
+
+        if (candidateFontFaces.isEmpty())
+            return face;
+
         auto capabilities = candidateFontFaces.map([](auto& face) {
             return face.get().fontSelectionCapabilities();
         });
@@ -509,7 +508,7 @@ CSSSegmentedFontFace* CSSFontFaceSet::fontFace(FontSelectionRequest request, con
         std::ranges::stable_sort(candidateFontFaces, [&fontSelectionAlgorithm](auto& first, auto& second) {
             auto firstCapabilities = first.get().fontSelectionCapabilities();
             auto secondCapabilities = second.get().fontSelectionCapabilities();
-            
+
             auto widthDistanceFirst = fontSelectionAlgorithm.widthDistance(firstCapabilities).distance;
             auto widthDistanceSecond = fontSelectionAlgorithm.widthDistance(secondCapabilities).distance;
             if (widthDistanceFirst < widthDistanceSecond)
@@ -537,9 +536,9 @@ CSSSegmentedFontFace* CSSFontFaceSet::fontFace(FontSelectionRequest request, con
             previousCandidate = &candidate.get();
             face->appendFontFace(candidate.get());
         }
-    }
 
-    return face.get();
+        return face;
+    }).iterator->value.ptr();
 }
 
 void CSSFontFaceSet::fontStateChanged(CSSFontFace& face, CSSFontFace::Status oldState, CSSFontFace::Status newState)

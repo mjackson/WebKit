@@ -24,7 +24,7 @@
  */
 
 #include "config.h"
-#include "StatisticsManager.h"
+#include <wtf/StatisticsManager.h>
 
 #include <wtf/DataLog.h>
 #include <wtf/NeverDestroyed.h>

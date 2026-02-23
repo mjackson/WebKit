@@ -51,7 +51,7 @@ protected:
 
     bool buildGradientIfNeeded(const RenderLayerModelObject&, const RenderStyle&, AffineTransform& userspaceTransform);
     GradientColorStops stopsByApplyingColorFilter(const GradientColorStops&, const RenderStyle&) const;
-    GradientSpreadMethod platformSpreadMethodFromSVGType(SVGSpreadMethodType) const;
+    GradientSpreadMethod NODELETE platformSpreadMethodFromSVGType(SVGSpreadMethodType) const;
     ColorInterpolationMethod gradientColorInterpolationMethod() const;
 
     RefPtr<Gradient> m_gradient;

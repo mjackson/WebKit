@@ -62,15 +62,15 @@ public:
     ~PointerLockController();
     void requestPointerLock(Element* target, std::optional<PointerLockOptions>&& = std::nullopt, RefPtr<DeferredPromise> = nullptr);
 
-    void ref() const;
+    void NODELETE ref() const;
     void deref() const;
 
     void requestPointerUnlock();
     void requestPointerUnlockAndForceCursorVisible();
     void elementWasRemoved(Element&);
     void documentDetached(Document&);
-    bool isLocked() const;
-    WEBCORE_EXPORT bool lockPending() const;
+    bool NODELETE isLocked() const;
+    WEBCORE_EXPORT bool NODELETE lockPending() const;
     WEBCORE_EXPORT Element* NODELETE element() const;
 
     WEBCORE_EXPORT void didAcquirePointerLock();

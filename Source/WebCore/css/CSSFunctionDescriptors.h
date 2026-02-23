@@ -49,7 +49,7 @@ public:
 
     CSSFunctionDescriptors(MutableStyleProperties&, CSSFunctionDeclarations&);
 
-    StyleRuleType ruleType() const final;
+    StyleRuleType NODELETE ruleType() const final;
 };
 
 } // namespace WebCore

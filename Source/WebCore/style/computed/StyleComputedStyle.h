@@ -71,13 +71,6 @@ public:
     inline void resetMargin();
     inline void resetPadding();
 
-#if ENABLE(TEXT_AUTOSIZING)
-    // MARK: - Text autosizing
-
-    uint32_t hashForTextAutosizing() const;
-    bool equalForTextAutosizing(const ComputedStyle&) const;
-#endif
-
     // MARK: - Derived Values
 
     WEBCORE_EXPORT float computedLineHeight() const;

@@ -161,8 +161,6 @@ FOR_EACH_INSPECTOR_AGENT(DECLARE_GETTER_SETTER_FOR_INSPECTOR_AGENT)
 private:
     InstrumentingAgents(Inspector::InspectorEnvironment&, InstrumentingAgents* fallbackAgents);
 
-    CheckedRef<const Inspector::InspectorEnvironment> checkedEnvironment() const { return m_environment.get(); }
-
     WeakRef<Inspector::InspectorEnvironment> m_environment;
     const WeakPtr<InstrumentingAgents> m_fallbackAgents;
 

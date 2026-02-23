@@ -57,7 +57,7 @@ inline LayoutUnit RenderMathMLBlock::mirrorIfNeeded(LayoutUnit horizontalOffset,
 // https://w3c.github.io/mathml-core/#dfn-default-rule-thickness
 inline LayoutUnit RenderMathMLBlock::ruleThicknessFallback() const
 {
-    return LayoutUnit(checkedStyle()->metricsOfPrimaryFont().underlineThickness().value_or(0.0f));
+    return LayoutUnit(protect(style())->metricsOfPrimaryFont().underlineThickness().value_or(0.0f));
 }
 
 } // namespace WebCore

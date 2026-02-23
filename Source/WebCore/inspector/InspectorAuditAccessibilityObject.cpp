@@ -57,7 +57,7 @@ static AccessibilityObject* accessibilityObjectForNode(Node& node)
     if (!AXObjectCache::accessibilityEnabled())
         AXObjectCache::enableAccessibility();
 
-    if (AXObjectCache* axObjectCache = node.document().axObjectCache())
+    if (CheckedPtr axObjectCache = node.document().axObjectCache())
         return axObjectCache->getOrCreate(node);
 
     return nullptr;
@@ -70,7 +70,7 @@ ExceptionOr<Vector<Ref<Node>>> InspectorAuditAccessibilityObject::getElementsByC
     Vector<Ref<Node>> nodes;
 
     auto* containerNode = dynamicDowncast<ContainerNode>(container);
-    for (Element& element : descendantsOfType<Element>(containerNode ? *containerNode : document)) {
+    for (Ref element : descendantsOfType<Element>(containerNode ? *containerNode : document)) {
         if (auto* axObject = accessibilityObjectForNode(element)) {
             if (axObject->computedRoleString() == role)
                 nodes.append(element);

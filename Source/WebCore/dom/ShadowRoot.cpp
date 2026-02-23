@@ -270,20 +270,6 @@ ExceptionOr<void> ShadowRoot::setInnerHTML(Variant<Ref<TrustedHTML>, String>&& h
     return replaceChildrenWithMarkup(stringValueHolder.releaseReturnValue(), { });
 }
 
-bool ShadowRoot::childTypeAllowed(NodeType type) const
-{
-    switch (type) {
-    case ELEMENT_NODE:
-    case PROCESSING_INSTRUCTION_NODE:
-    case COMMENT_NODE:
-    case TEXT_NODE:
-    case CDATA_SECTION_NODE:
-        return true;
-    default:
-        return false;
-    }
-}
-
 Ref<Node> ShadowRoot::cloneNodeInternal(Document& document, CloningOperation type, CustomElementRegistry*) const
 {
     RELEASE_ASSERT(m_mode != ShadowRootMode::UserAgent);

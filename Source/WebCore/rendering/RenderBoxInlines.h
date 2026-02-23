@@ -24,6 +24,7 @@
 #include <WebCore/RenderBox.h>
 #include <WebCore/RenderBoxModelObjectInlines.h>
 #include <WebCore/RenderElementInlines.h>
+#include <WebCore/StyleContainmentCheckerInlines.h>
 
 namespace WebCore {
 
@@ -265,7 +266,11 @@ inline LayoutUnit resolveHeightForRatio(LayoutUnit borderAndPaddingLogicalWidth,
 
 inline bool isSkippedContentRoot(const RenderBox& renderBox)
 {
-    return renderBox.element() && WebCore::isSkippedContentRoot(renderBox.style(), *protect(renderBox.element()));
+    RefPtr element = renderBox.element();
+    if (!element)
+        return false;
+
+    return Style::ContainmentChecker { renderBox.style(), *element }.isSkippedContentRoot();
 }
 
 inline bool RenderBox::backgroundIsKnownToBeObscured(const LayoutPoint& paintOffset)

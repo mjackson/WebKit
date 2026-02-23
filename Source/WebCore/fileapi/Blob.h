@@ -64,7 +64,7 @@ struct IDLArrayBuffer;
 template<typename> class DOMPromiseDeferred;
 template<typename> class ExceptionOr;
 
-using BlobPartVariant = Variant<RefPtr<JSC::ArrayBufferView>, RefPtr<JSC::ArrayBuffer>, Ref<Blob>, String>;
+using BlobPartVariant = Variant<Ref<JSC::ArrayBufferView>, Ref<JSC::ArrayBuffer>, Ref<Blob>, String>;
 
 class Blob : public ScriptWrappable, public URLRegistrable, public RefCounted<Blob>, public ActiveDOMObject {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(Blob, WEBCORE_EXPORT);

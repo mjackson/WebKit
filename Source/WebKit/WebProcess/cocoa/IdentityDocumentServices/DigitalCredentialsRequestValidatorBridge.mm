@@ -182,10 +182,11 @@ Vector<WebCore::ValidatedMobileDocumentRequest> DigitalCredentials::validateRequ
                 MessageLevel::Warning,
                 errorMessage));
 
-            LOG(DigitalCredentials, "Validation failed for request: %@", error);
+            LOG(DigitalCredentials, "DigitalCredentials::validateRequests() - WebProcess: Validation failed for request: %@", error);
         }
     }
 
+    LOG(DigitalCredentials, "DigitalCredentials::validateRequests() - WebProcess: returning %zu validated requests", validatedRequests.size());
     return validatedRequests;
 }
 

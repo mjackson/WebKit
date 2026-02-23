@@ -88,7 +88,7 @@ public:
         incrementIndex(m_current);
     }
 
-    T& last()
+    T& NODELETE last()
     {
         unsigned index = m_current;
         decrementIndex(index);
@@ -105,13 +105,13 @@ public:
     }
 
 private:
-    static void incrementIndex(unsigned& index)
+    static void NODELETE incrementIndex(unsigned& index)
     {
         if (++index == size)
             index = 0;
     }
 
-    static void decrementIndex(unsigned& index)
+    static void NODELETE decrementIndex(unsigned& index)
     {
         if (index)
             --index;

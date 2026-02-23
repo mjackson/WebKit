@@ -323,11 +323,11 @@ bool ScriptElement::prepareScript(const TextPosition& scriptStartPosition)
     } else if ((isClassicExternalScript || scriptType == ScriptType::Module) && !hasAsyncAttribute() && !m_forceAsync) {
         m_willExecuteInOrder = true;
         ASSERT(m_loadableScript);
-        protect(document->scriptRunner())->queueScriptForExecution(*this, *protect(loadableScript()), ScriptRunner::IN_ORDER_EXECUTION);
+        protect(document->scriptRunner())->queueScriptForExecution(*this, *protect(loadableScript()), ScriptRunner::ExecutionType::InOrder);
     } else if (hasSourceAttribute() || scriptType == ScriptType::Module) {
         ASSERT(m_loadableScript);
         ASSERT(hasAsyncAttribute() || m_forceAsync);
-        protect(document->scriptRunner())->queueScriptForExecution(*this, *protect(loadableScript()), ScriptRunner::ASYNC_EXECUTION);
+        protect(document->scriptRunner())->queueScriptForExecution(*this, *protect(loadableScript()), ScriptRunner::ExecutionType::Async);
     } else if (!hasSourceAttribute() && m_parserInserted == ParserInserted::Yes && !document->haveStylesheetsLoaded()) {
         ASSERT(scriptType == ScriptType::Classic || scriptType == ScriptType::ImportMap || scriptType == ScriptType::SpeculationRules);
         m_willBeParserExecuted = true;

@@ -78,15 +78,15 @@ public:
         ASSERT(m_completionHandler);
     }
 
-    Storage::ReadOperationIdentifier identifier() const { return m_identifier; }
-    const Key& key() const { return m_key; }
-    unsigned priority() const { return m_priority; }
-    bool isCanceled() const { return m_isCanceled; }
-    bool canFinish() const { return !m_waitsForRecord && !m_waitsForBlob; }
+    Storage::ReadOperationIdentifier NODELETE identifier() const { return m_identifier; }
+    const Key& NODELETE key() const { return m_key; }
+    unsigned NODELETE priority() const { return m_priority; }
+    bool NODELETE isCanceled() const { return m_isCanceled; }
+    bool NODELETE canFinish() const { return !m_waitsForRecord && !m_waitsForBlob; }
 
     void updateForStart(size_t readOperationDispatchCount);
     void updateForDispatch(bool synchronizationInProgress, bool shrinkInProgress, size_t readOperationDispatchCount);
-    void setWaitsForBlob() { m_waitsForBlob = true; }
+    void NODELETE setWaitsForBlob() { m_waitsForBlob = true; }
     void finishReadRecord(Record&&, MonotonicTime recordIOStartTime, MonotonicTime recordIOEndTime);
     void finishReadBlob(BlobStorage::Blob&&, MonotonicTime blobIOStartTime, MonotonicTime blobIOEndTime);
     void cancel();
@@ -220,10 +220,10 @@ public:
         ASSERT(isMainRunLoop());
     }
 
-    Storage::WriteOperationIdentifier identifier() const { return m_identifier; }
-    const Record& record() const WTF_REQUIRES_CAPABILITY(mainThread) { return m_record; }
+    Storage::WriteOperationIdentifier NODELETE identifier() const { return m_identifier; }
+    const Record& NODELETE record() const WTF_REQUIRES_CAPABILITY(mainThread) { return m_record; }
     void invokeMappedBodyHandler(const Data&);
-    bool storeBlobInMemoryCache() const { return m_storeBlobInMemoryCache; }
+    bool NODELETE storeBlobInMemoryCache() const { return m_storeBlobInMemoryCache; }
 
 private:
     Storage::WriteOperationIdentifier m_identifier;

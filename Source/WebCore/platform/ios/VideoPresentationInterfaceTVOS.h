@@ -43,7 +43,7 @@ public:
     void hasVideoChanged(bool) final { }
     AVPlayerViewController *avPlayerViewController() const final { return { }; }
     bool mayAutomaticallyShowVideoPictureInPicture() const final { return false; }
-    bool isPlayingVideoInEnhancedFullscreen() const final { return false; }
+    bool isPlayingVideoInPictureInPicture() const final { return false; }
     bool pictureInPictureWasStartedWhenEnteringBackground() const final { return false; }
     
 private:

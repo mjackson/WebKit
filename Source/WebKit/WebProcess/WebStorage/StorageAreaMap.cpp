@@ -109,7 +109,7 @@ void StorageAreaMap::setItem(LocalFrame& sourceFrame, StorageAreaImpl* sourceAre
             weakThis->didSetItem(seed, key, hasError, WTF::move(allItems));
     };
     Ref connection = WebProcess::singleton().ensureNetworkProcessConnection().connection();
-    connection->sendWithAsyncReply(Messages::NetworkStorageManager::SetItem(*m_remoteAreaIdentifier, sourceArea->identifier(), key, value, sourceFrame.document()->url().string()), WTF::move(callback));
+    connection->sendWithAsyncReply(Messages::NetworkStorageManager::SetItem(*m_remoteAreaIdentifier, sourceArea->identifier(), key, value, protect(sourceFrame.document())->url().string()), WTF::move(callback));
 }
 
 void StorageAreaMap::removeItem(WebCore::LocalFrame& sourceFrame, StorageAreaImpl* sourceArea, const String& key)
@@ -134,7 +134,7 @@ void StorageAreaMap::removeItem(WebCore::LocalFrame& sourceFrame, StorageAreaImp
         if (weakThis)
             weakThis->didRemoveItem(seed, key, hasError, WTF::move(allItems));
     };
-    WebProcess::singleton().ensureNetworkProcessConnection().connection().sendWithAsyncReply(Messages::NetworkStorageManager::RemoveItem(*m_remoteAreaIdentifier, sourceArea->identifier(), key, sourceFrame.document()->url().string()), WTF::move(callback));
+    WebProcess::singleton().ensureNetworkProcessConnection().connection().sendWithAsyncReply(Messages::NetworkStorageManager::RemoveItem(*m_remoteAreaIdentifier, sourceArea->identifier(), key, protect(sourceFrame.document())->url().string()), WTF::move(callback));
 }
 
 void StorageAreaMap::clear(WebCore::LocalFrame& sourceFrame, StorageAreaImpl* sourceArea)
@@ -153,7 +153,7 @@ void StorageAreaMap::clear(WebCore::LocalFrame& sourceFrame, StorageAreaImpl* so
         if (weakThis)
             weakThis->didClear(seed);
     };
-    WebProcess::singleton().ensureNetworkProcessConnection().connection().sendWithAsyncReply(Messages::NetworkStorageManager::Clear(*m_remoteAreaIdentifier, sourceArea->identifier(), sourceFrame.document()->url().string()), WTF::move(callback));
+    WebProcess::singleton().ensureNetworkProcessConnection().connection().sendWithAsyncReply(Messages::NetworkStorageManager::Clear(*m_remoteAreaIdentifier, sourceArea->identifier(), protect(sourceFrame.document())->url().string()), WTF::move(callback));
 }
 
 bool StorageAreaMap::contains(const String& key)
@@ -271,7 +271,7 @@ void StorageAreaMap::dispatchLocalStorageEvent(const std::optional<StorageAreaIm
 StorageType StorageAreaMap::computeStorageType() const
 {
     auto type = m_type;
-    if ((type == StorageType::Local || type == StorageType::TransientLocal) && m_namespace->topLevelOrigin())
+    if ((type == StorageType::Local || type == StorageType::TransientLocal) && protect(m_namespace)->topLevelOrigin())
         type = StorageType::TransientLocal;
 
     return type;
@@ -280,7 +280,8 @@ StorageType StorageAreaMap::computeStorageType() const
 WebCore::ClientOrigin StorageAreaMap::clientOrigin() const
 {
     auto originData = m_securityOrigin->data();
-    auto topOriginData = m_namespace->topLevelOrigin() ? m_namespace->topLevelOrigin()->data() : originData;
+    Ref protectedNamespace = m_namespace.get();
+    auto topOriginData = protectedNamespace->topLevelOrigin() ? protectedNamespace->topLevelOrigin()->data() : originData;
     return WebCore::ClientOrigin { topOriginData, originData };
 }
 
@@ -367,12 +368,7 @@ void StorageAreaMap::incrementUseCount()
 void StorageAreaMap::decrementUseCount()
 {
     if (!--m_useCount)
-        protectedNamespace()->destroyStorageAreaMap(*this);
-}
-
-Ref<StorageNamespaceImpl> StorageAreaMap::protectedNamespace() const
-{
-    return m_namespace.get();
+        protect(m_namespace)->destroyStorageAreaMap(*this);
 }
 
 void StorageAreaMap::syncOneItem(const String& key, const String& value)

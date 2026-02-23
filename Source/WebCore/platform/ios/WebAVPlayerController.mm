@@ -784,18 +784,8 @@ Class webAVPlayerControllerClassSingleton()
 
     _currentLegibleMediaSelectionOption = option;
 
-    if (!self.delegate)
-        return;
-
-    NSInteger index = NSNotFound;
-
-    if (option && self.legibleMediaSelectionOptions)
-        index = [self.legibleMediaSelectionOptions indexOfObject:option];
-
-    if (index == NSNotFound)
-        return;
-
-    self.delegate->selectLegibleMediaOption(index);
+    if (self.delegate && option)
+        self.delegate->selectLegibleMediaOption(option.tag);
 }
 
 - (BOOL)isPlayingOnExternalScreen
@@ -901,7 +891,7 @@ Class webAVPlayerControllerClassSingleton()
     }
 
     if (WebAVPlayerControllerIsPlayingOnSecondScreenObserverContext == context) {
-        if (auto* delegate = self.delegate)
+        if (CheckedPtr<PlaybackSessionModel> delegate = self.delegate)
             delegate->setPlayingOnSecondScreen(_playingOnSecondScreen);
         return;
     }
@@ -1199,7 +1189,7 @@ Class webAVPlayerControllerClassSingleton()
     RetainPtr<NSLocale> _locale;
 }
 
-- (instancetype)initWithMediaType:(AVMediaType)mediaType displayName:(NSString *)displayName extendedLanguageTag:(NSString *)extendedLanguageTag
+- (instancetype)initWithMediaType:(AVMediaType)mediaType displayName:(NSString *)displayName extendedLanguageTag:(NSString *)extendedLanguageTag tag:(NSInteger)tag
 {
     self = [super init];
     if (!self)
@@ -1209,6 +1199,7 @@ Class webAVPlayerControllerClassSingleton()
     _localizedDisplayName = displayName;
     _extendedLanguageTag = extendedLanguageTag;
     _locale = adoptNS([[NSLocale alloc] initWithLocaleIdentifier:_extendedLanguageTag.get()]);
+    _tag = tag;
 
     return self;
 }
@@ -1216,7 +1207,7 @@ Class webAVPlayerControllerClassSingleton()
 - (id)copyWithZone:(NSZone *)zone
 {
     RetainPtr displayName = adoptNS([_localizedDisplayName copyWithZone:zone]);
-    SUPPRESS_RETAINPTR_CTOR_ADOPT return [[WebAVMediaSelectionOption allocWithZone:zone] initWithMediaType:_mediaType.get() displayName:displayName.get() extendedLanguageTag:_extendedLanguageTag.get()];
+    SUPPRESS_RETAINPTR_CTOR_ADOPT return [[WebAVMediaSelectionOption allocWithZone:zone] initWithMediaType:_mediaType.get() displayName:displayName.get() extendedLanguageTag:_extendedLanguageTag.get() tag:_tag];
 }
 
 - (NSString *)displayName

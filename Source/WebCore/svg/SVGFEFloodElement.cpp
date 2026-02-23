@@ -49,13 +49,13 @@ bool SVGFEFloodElement::setFilterEffectAttribute(FilterEffect& effect, const Qua
 {
     CheckedPtr renderer = this->renderer();
     ASSERT(renderer);
-    auto& style = renderer->style();
+    CheckedRef style = renderer->style();
 
     auto& feFlood = downcast<FEFlood>(effect);
     if (attrName == SVGNames::flood_colorAttr)
-        return feFlood.setFloodColor(style.floodColorResolvingCurrentColor());
+        return feFlood.setFloodColor(style->floodColorResolvingCurrentColor());
     if (attrName == SVGNames::flood_opacityAttr)
-        return feFlood.setFloodOpacity(style.floodOpacity().value.value);
+        return feFlood.setFloodOpacity(style->floodOpacity().value.value);
 
     ASSERT_NOT_REACHED();
     return false;

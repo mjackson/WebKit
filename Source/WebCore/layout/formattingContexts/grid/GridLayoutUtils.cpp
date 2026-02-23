@@ -43,6 +43,12 @@ LayoutUnit computeGapValue(const Style::GapGutter& gap)
     return { };
 }
 
+LayoutUnit totalGuttersSize(size_t tracksCount, LayoutUnit gapsSize)
+{
+    ASSERT(tracksCount);
+    return gapsSize * (tracksCount - 1);
+}
+
 static bool spansAutoMinTrackSizingFunction(WTF::Range<size_t> spannedTrackIndexes, const TrackSizingFunctionsList& trackSizingFunctions)
 {
     for (auto trackIndex : std::views::iota(spannedTrackIndexes.begin(), spannedTrackIndexes.end())) {
@@ -114,20 +120,21 @@ static LayoutUnit blockContentSizeSuggestion(const PlacedGridItem& gridItem, con
 
 static bool hasScrollableInlineOverflow(const PlacedGridItem&)
 {
-    ASSERT_NOT_IMPLEMENTED_YET();
+    notImplemented();
     return false;
 }
 
 static bool hasScrollableBlockOverflow(const PlacedGridItem&)
 {
-    ASSERT_NOT_IMPLEMENTED_YET();
+    notImplemented();
     return false;
 }
 
-LayoutUnit usedInlineSizeForGridItem(const PlacedGridItem& placedGridItem, LayoutUnit borderAndPadding, LayoutUnit columnsSize)
+LayoutUnit usedInlineSizeForGridItem(const PlacedGridItem& placedGridItem, LayoutUnit borderAndPadding,
+    const TrackSizingFunctionsList& trackSizingFunctions, LayoutUnit columnsSize, const IntegrationUtils& integrationUtils)
 {
     auto& inlineAxisSizes = placedGridItem.inlineAxisSizes();
-    ASSERT(inlineAxisSizes.minimumSize.isFixed() && (inlineAxisSizes.maximumSize.isFixed() || inlineAxisSizes.maximumSize.isNone()));
+    ASSERT(inlineAxisSizes.maximumSize.isFixed() || inlineAxisSizes.maximumSize.isNone());
 
     auto& preferredSize = inlineAxisSizes.preferredSize;
     if (preferredSize.isAuto()) {
@@ -151,7 +158,7 @@ LayoutUnit usedInlineSizeForGridItem(const PlacedGridItem& placedGridItem, Layou
             && !marginStart.isAuto() && !marginEnd.isAuto()) {
             auto& usedZoom = placedGridItem.usedZoom();
 
-            auto minimumSize = LayoutUnit { inlineAxisSizes.minimumSize.tryFixed()->resolveZoom(usedZoom) };
+            auto minimumSize = GridLayoutUtils::usedInlineMinimumSize(placedGridItem, trackSizingFunctions, borderAndPadding, columnsSize, integrationUtils);
             auto maximumSize = [&inlineAxisSizes, &usedZoom] {
                 auto& computedMaximumSize = inlineAxisSizes.maximumSize;
                 if (computedMaximumSize.isNone())
@@ -189,8 +196,10 @@ static LayoutUnit automaticMinimumInlineSize(const PlacedGridItem& gridItem, Lay
     // if it spans more than one track in that axis, none of those tracks are flexible
     //
     // Otherwise, the automatic minimum size is zero, as usual.
-    if (hasScrollableInlineOverflow(gridItem))
+    if (hasScrollableInlineOverflow(gridItem)) {
+        ASSERT_NOT_IMPLEMENTED_YET();
         return { };
+    }
 
     auto gridItemColumnStartLine = gridItem.columnStartLine();
     auto gridItemColumnEndLine = gridItem.columnEndLine();
@@ -239,8 +248,10 @@ static LayoutUnit automaticMinimumBlockSize(const PlacedGridItem& gridItem, Layo
     // if it spans more than one track in that axis, none of those tracks are flexible
     //
     // Otherwise, the automatic minimum size is zero, as usual.
-    if (hasScrollableBlockOverflow(gridItem))
+    if (hasScrollableBlockOverflow(gridItem)) {
+        ASSERT_NOT_IMPLEMENTED_YET();
         return { };
+    }
 
     auto gridItemRowStartLine = gridItem.rowStartLine();
     auto gridItemRowEndLine = gridItem.rowEndLine();
@@ -274,9 +285,12 @@ static LayoutUnit automaticMinimumBlockSize(const PlacedGridItem& gridItem, Layo
     return contentBasedMinimumSize();
 }
 
-LayoutUnit usedBlockSizeForGridItem(const PlacedGridItem& placedGridItem, LayoutUnit borderAndPadding, LayoutUnit rowsSize)
+LayoutUnit usedBlockSizeForGridItem(const PlacedGridItem& placedGridItem, LayoutUnit borderAndPadding,
+    const TrackSizingFunctionsList& trackSizingFunctions, LayoutUnit rowsSize, const IntegrationUtils& integrationUtils)
 {
     auto& blockAxisSizes = placedGridItem.blockAxisSizes();
+    ASSERT(blockAxisSizes.maximumSize.isFixed() || blockAxisSizes.maximumSize.isNone());
+
     auto& preferredSize = blockAxisSizes.preferredSize;
     if (preferredSize.isAuto()) {
         // Grid item calculations for automatic sizes in a given dimensions vary by their
@@ -299,7 +313,7 @@ LayoutUnit usedBlockSizeForGridItem(const PlacedGridItem& placedGridItem, Layout
             && !marginStart.isAuto() && !marginEnd.isAuto()) {
             auto& usedZoom = placedGridItem.usedZoom();
 
-            auto minimumSize = LayoutUnit { blockAxisSizes.minimumSize.tryFixed()->resolveZoom(usedZoom) };
+            auto minimumSize = GridLayoutUtils::usedBlockMinimumSize(placedGridItem, trackSizingFunctions, borderAndPadding, rowsSize, integrationUtils);
             auto maximumSize = [&blockAxisSizes, &usedZoom] {
                 auto& computedMaximumSize = blockAxisSizes.maximumSize;
                 if (computedMaximumSize.isNone())

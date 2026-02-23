@@ -472,8 +472,25 @@ void RemoteLayerBackingStore::drawInContext(GraphicsContext& context)
     layer->owner()->platformCALayerLayerDidDisplay(layer.ptr());
 
     m_previouslyPaintedRect = dirtyBounds;
+#if HAVE(CGIOSURFACECONTEXT_FLUSH_QUEUE)
+    if (type() == Type::IOSurface && processModel() == ProcessModel::Remote) {
+        m_needsFlush = true;
+        submitDrawingCommands();
+        return;
+    }
+#endif
     if (auto flusher = createFlusher())
         m_frontBufferFlushers.append(WTF::move(flusher));
+
+}
+
+void RemoteLayerBackingStore::flush()
+{
+    if (m_needsFlush) {
+        if (auto flusher = createFlusher())
+            m_frontBufferFlushers.append(WTF::move(flusher));
+        m_needsFlush = false;
+    }
 }
 
 void RemoteLayerBackingStore::enumerateRectsBeingDrawn(GraphicsContext& context, void (^block)(FloatRect))

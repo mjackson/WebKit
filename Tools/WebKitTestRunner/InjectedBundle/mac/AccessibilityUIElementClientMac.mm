@@ -89,6 +89,67 @@ static WKRetainPtr<WKArrayRef> axCopyAttributeValueAsElementArray(uint64_t eleme
     return adoptWK(static_cast<WKArrayRef>(returnData));
 }
 
+static std::optional<double> axCopyAttributeValueAsNumber(uint64_t elementToken, const char* attributeName)
+{
+    WKRetainPtr dictionary = adoptWK(WKMutableDictionaryCreate());
+    setValue(dictionary, "elementToken", elementToken);
+    setValue(dictionary, "attributeName", attributeName);
+
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    WKTypeRef returnData = nullptr;
+    WKBundlePostSynchronousMessage(InjectedBundle::singleton().bundle(), toWK("AXCopyAttributeValueAsNumber").get(), dictionary.get(), &returnData);
+    ALLOW_DEPRECATED_DECLARATIONS_END
+
+    if (!returnData || WKGetTypeID(returnData) != WKDoubleGetTypeID())
+        return std::nullopt;
+
+    double value = WKDoubleGetValue(static_cast<WKDoubleRef>(returnData));
+    WKRelease(returnData);
+    return value;
+}
+
+static std::pair<double, double> axCopyAttributeValueAsPoint(uint64_t elementToken, const char* attributeName)
+{
+    WKRetainPtr dictionary = adoptWK(WKMutableDictionaryCreate());
+    setValue(dictionary, "elementToken", elementToken);
+    setValue(dictionary, "attributeName", attributeName);
+
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    WKTypeRef returnData = nullptr;
+    WKBundlePostSynchronousMessage(InjectedBundle::singleton().bundle(), toWK("AXCopyAttributeValueAsPoint").get(), dictionary.get(), &returnData);
+    ALLOW_DEPRECATED_DECLARATIONS_END
+
+    if (!returnData || WKGetTypeID(returnData) != WKDictionaryGetTypeID())
+        return { 0, 0 };
+
+    auto resultDict = static_cast<WKDictionaryRef>(returnData);
+    double x = doubleValue(resultDict, "x");
+    double y = doubleValue(resultDict, "y");
+    WKRelease(returnData);
+    return { x, y };
+}
+
+static std::pair<double, double> axCopyAttributeValueAsSize(uint64_t elementToken, const char* attributeName)
+{
+    WKRetainPtr dictionary = adoptWK(WKMutableDictionaryCreate());
+    setValue(dictionary, "elementToken", elementToken);
+    setValue(dictionary, "attributeName", attributeName);
+
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    WKTypeRef returnData = nullptr;
+    WKBundlePostSynchronousMessage(InjectedBundle::singleton().bundle(), toWK("AXCopyAttributeValueAsSize").get(), dictionary.get(), &returnData);
+    ALLOW_DEPRECATED_DECLARATIONS_END
+
+    if (!returnData || WKGetTypeID(returnData) != WKDictionaryGetTypeID())
+        return { 0, 0 };
+
+    auto resultDict = static_cast<WKDictionaryRef>(returnData);
+    double width = doubleValue(resultDict, "width");
+    double height = doubleValue(resultDict, "height");
+    WKRelease(returnData);
+    return { width, height };
+}
+
 Ref<AccessibilityUIElementClientMac> AccessibilityUIElementClientMac::create(uint64_t elementToken)
 {
     return adoptRef(*new AccessibilityUIElementClientMac(elementToken));
@@ -170,6 +231,61 @@ JSRetainPtr<JSStringRef> AccessibilityUIElementClientMac::description()
 JSRetainPtr<JSStringRef> AccessibilityUIElementClientMac::stringValue()
 {
     return getStringAttribute("AXValue");
+}
+
+double AccessibilityUIElementClientMac::getNumberAttribute(const char* attributeName) const
+{
+    if (!isValid())
+        return 0;
+
+    return axCopyAttributeValueAsNumber(m_elementToken, attributeName).value_or(0);
+}
+
+int AccessibilityUIElementClientMac::hierarchicalLevel() const
+{
+    return static_cast<int>(getNumberAttribute("AXDisclosureLevel"));
+}
+
+double AccessibilityUIElementClientMac::minValue()
+{
+    return getNumberAttribute("AXMinValue");
+}
+
+double AccessibilityUIElementClientMac::maxValue()
+{
+    return getNumberAttribute("AXMaxValue");
+}
+
+double AccessibilityUIElementClientMac::x()
+{
+    if (!isValid())
+        return 0;
+    auto [x, y] = axCopyAttributeValueAsPoint(m_elementToken, "AXPosition");
+    return x;
+}
+
+double AccessibilityUIElementClientMac::y()
+{
+    if (!isValid())
+        return 0;
+    auto [x, y] = axCopyAttributeValueAsPoint(m_elementToken, "AXPosition");
+    return y;
+}
+
+double AccessibilityUIElementClientMac::width()
+{
+    if (!isValid())
+        return 0;
+    auto [width, height] = axCopyAttributeValueAsSize(m_elementToken, "AXSize");
+    return width;
+}
+
+double AccessibilityUIElementClientMac::height()
+{
+    if (!isValid())
+        return 0;
+    auto [width, height] = axCopyAttributeValueAsSize(m_elementToken, "AXSize");
+    return height;
 }
 
 Vector<RefPtr<AccessibilityUIElement>> AccessibilityUIElementClientMac::getChildren() const

@@ -412,8 +412,8 @@ static std::optional<WebCore::ContextMenuAction> toAction(NSInteger tag)
         return ContextMenuItemTagToggleMediaLoop;
     case WebMenuItemTagEnterVideoFullscreen:
         return ContextMenuItemTagEnterVideoFullscreen;
-    case WebMenuItemTagToggleVideoEnhancedFullscreen:
-        return ContextMenuItemTagToggleVideoEnhancedFullscreen;
+    case WebMenuItemTagTogglePictureInPicture:
+        return ContextMenuItemTagTogglePictureInPicture;
     case WebMenuItemTagToggleVideoViewer:
         return ContextMenuItemTagToggleVideoViewer;
     case WebMenuItemTagMediaPlayPause:
@@ -602,8 +602,8 @@ static std::optional<NSInteger> toTag(WebCore::ContextMenuAction action)
         return WebMenuItemTagToggleVideoFullscreen;
     case ContextMenuItemTagShareMenu:
         return WebMenuItemTagShareMenu;
-    case ContextMenuItemTagToggleVideoEnhancedFullscreen:
-        return WebMenuItemTagToggleVideoEnhancedFullscreen;
+    case ContextMenuItemTagTogglePictureInPicture:
+        return WebMenuItemTagTogglePictureInPicture;
     case ContextMenuItemTagToggleVideoViewer:
         return WebMenuItemTagToggleVideoViewer;
     case ContextMenuItemTagTranslate:

@@ -53,7 +53,7 @@ static ASCIILiteral logClassName()
     return "MediaKeySystemPermissionRequestManagerProxy"_s;
 }
 
-static WTFLogChannel& logChannel()
+static WTFLogChannel& NODELETE logChannel()
 {
     return JOIN_LOG_CHANNEL_WITH_PREFIX(LOG_CHANNEL_PREFIX, EME);
 }
@@ -62,7 +62,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(MediaKeySystemPermissionRequestManagerProxy);
 
 const Logger& MediaKeySystemPermissionRequestManagerProxy::logger() const
 {
-    return protect(m_page.get())->logger();
+    return protect(m_page)->logger();
 }
 #endif
 

@@ -37,6 +37,8 @@
 #include "ScrollingStateTree.h"
 #include "ScrollingTree.h"
 #include "ScrollingTreeScrollingNodeDelegate.h"
+#include <wtf/Scope.h>
+#include <wtf/SetForScope.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
 
@@ -318,6 +320,15 @@ void ScrollingTreeScrollingNode::setScrollSnapInProgress(bool isSnapping)
     scrollingTree()->setNodeScrollSnapInProgress(scrollingNodeID(), isSnapping);
 }
 
+#if HAVE(RUBBER_BANDING)
+std::optional<RubberbandingState> ScrollingTreeScrollingNode::captureRubberbandingState() const
+{
+    if (m_delegate)
+        return m_delegate->captureRubberbandingState();
+    return std::nullopt;
+}
+#endif
+
 void ScrollingTreeScrollingNode::willStartAnimatedScroll()
 {
     scrollingTree()->scrollingTreeNodeWillStartAnimatedScroll(*this);
@@ -383,6 +394,20 @@ void ScrollingTreeScrollingNode::requestKeyboardScroll(const RequestedKeyboardSc
 
 void ScrollingTreeScrollingNode::handleScrollPositionRequest(const RequestedScrollData& requestedScrollData)
 {
+    auto scopeExit = WTF::makeScopeExit([&] {
+        if (requestedScrollData.identifier)
+            scrollingTree()->didHandleScrollRequestForNode(scrollingNodeID(), currentScrollPosition(), *requestedScrollData.identifier);
+    });
+
+#if HAVE(RUBBER_BANDING)
+    LOG_WITH_STREAM(ScrollAnimations, stream << "ScrollingTreeScrollingNode::handleScrollPositionRequest nodeID=" << scrollingNodeID() << " requestType=" << static_cast<unsigned>(requestedScrollData.requestType) << " isRubberBanding=" << scrollingTree()->isRubberBandInProgressForNode(scrollingNodeID()) << " restoredRubberbandingInProgress=" << restoredRubberbandingInProgress());
+
+    if (restoredRubberbandingInProgress()) {
+        LOG_WITH_STREAM(ScrollAnimations, stream << "ScrollingTreeScrollingNode::handleScrollPositionRequest - skipping because restored rubberbanding is in progress");
+        return;
+    }
+#endif
+
     if (requestedScrollData.requestType != ScrollRequestType::DeltaUpdate)
         stopAnimatedScroll();
 
@@ -393,8 +418,10 @@ void ScrollingTreeScrollingNode::handleScrollPositionRequest(const RequestedScro
         return;
     }
 
-    if (scrollingTree()->scrollingTreeNodeRequestsScroll(scrollingNodeID(), requestedScrollData))
+    if (scrollingTree()->scrollingTreeNodeRequestsScroll(scrollingNodeID(), requestedScrollData)) {
+        LOG_WITH_STREAM(Scrolling, stream << "ScrollingTreeScrollingNode " << scrollingNodeID() << " handleScrollPositionRequest() with data " << requestedScrollData << " handled for delegated scrolling");
         return;
+    }
 
     LOG_WITH_STREAM(Scrolling, stream << "ScrollingTreeScrollingNode " << scrollingNodeID() << " handleScrollPositionRequest() with data " << requestedScrollData);
 
@@ -422,6 +449,7 @@ void ScrollingTreeScrollingNode::handleScrollPositionRequest(const RequestedScro
 
     m_scrollbarRevealBehaviorForNextScrollbarUpdate = requestedScrollData.scrollbarRevealBehavior;
     scrollTo(destinationPosition, requestedScrollData.scrollType, requestedScrollData.clamping);
+
     didStopProgrammaticScroll();
 }
 

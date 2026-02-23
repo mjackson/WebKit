@@ -66,7 +66,7 @@ public:
     void deleteObjectStore(const String& objectStoreName);
     void deleteObjectStore(IDBObjectStoreIdentifier);
 
-    void setMaxIndexID(uint64_t maxIndexID);
+    void NODELETE setMaxIndexID(uint64_t maxIndexID);
     IDBIndexIdentifier generateNextIndexID() { return IDBIndexIdentifier { ++m_maxIndexID }; }
 
 #if !LOG_DISABLED

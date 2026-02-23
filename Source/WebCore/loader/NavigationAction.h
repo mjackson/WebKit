@@ -115,10 +115,10 @@ public:
     bool openedByDOMWithOpener() const { return m_openedByDOMWithOpener; }
     void setOpenedByDOMWithOpener() { m_openedByDOMWithOpener = true; }
 
-    void setTargetBackForwardItem(HistoryItem&);
+    void NODELETE setTargetBackForwardItem(HistoryItem&);
     const std::optional<BackForwardItemIdentifier>& targetBackForwardItemIdentifier() const { return m_targetBackForwardItemIdentifier; }
 
-    void setSourceBackForwardItem(HistoryItem*);
+    void NODELETE setSourceBackForwardItem(HistoryItem*);
     const std::optional<BackForwardItemIdentifier>& sourceBackForwardItemIdentifier() const { return m_sourceBackForwardItemIdentifier; }
 
 

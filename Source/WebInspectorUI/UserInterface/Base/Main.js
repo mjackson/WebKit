@@ -232,6 +232,9 @@ WI.contentLoaded = function()
     document.body.classList.add(WI.sharedApp.debuggableType);
     document.body.setAttribute("dir", WI.resolvedLayoutDirection());
 
+    if (WI.Platform.name === "mac")
+        WI._updateAccentColorClass();
+
     WI.layoutMeasurementContainer = document.body.appendChild(document.createElement("div"));
     WI.layoutMeasurementContainer.id = "layout-measurement-container";
 
@@ -1846,6 +1849,48 @@ WI._updateModifierKeys = function(event)
 
     if (changed)
         WI.notifications.dispatchEventToListeners(WI.Notification.GlobalModifierKeysDidChange, event);
+};
+
+WI._updateAccentColorClass = function()
+{
+    let testElement = document.createElement("div");
+    testElement.style.color = "-apple-system-control-accent";
+    testElement.style.position = "absolute";
+    testElement.style.visibility = "hidden";
+    document.body.appendChild(testElement);
+    let accentColorString = getComputedStyle(testElement).color;
+    document.body.removeChild(testElement);
+
+    let accentColor = WI.Color.fromString(accentColorString);
+    if (!accentColor)
+        return;
+
+    let hsl = accentColor.hsl;
+    if (hsl[1] < 20) {
+        let isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        let darkFallbacks = {
+            accent: "hsl(212, 100%, 71%)",
+            selected: "hsl(219, 80%, 43%)",
+            selectedActive: "hsl(218, 85%, 62%)",
+            selectedText: "hsl(230, 51%, 36%)",
+        };
+        let lightFallbacks = {
+            accent: "hsl(212, 92%, 54%)",
+            selected: "hsl(212, 92%, 54%)",
+            selectedActive: "hsl(218, 85%, 52%)",
+            selectedText: "hsl(210, 98%, 93%)",
+        };
+        let {accent, selected, selectedActive, selectedText} = isDark ? darkFallbacks : lightFallbacks;
+        document.body.style.setProperty("--system-accent-color", accent);
+        document.body.style.setProperty("--selected-background-color", selected);
+        document.body.style.setProperty("--selected-background-color-active", selectedActive);
+        document.body.style.setProperty("--selected-text-background-color", selectedText);
+    } else {
+        document.body.style.removeProperty("--system-accent-color");
+        document.body.style.removeProperty("--selected-background-color");
+        document.body.style.removeProperty("--selected-background-color-active");
+        document.body.style.removeProperty("--selected-text-background-color");
+    }
 };
 
 WI._windowKeyDown = function(event)

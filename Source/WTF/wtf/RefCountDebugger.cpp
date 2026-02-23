@@ -46,7 +46,7 @@ public:
     {
     }
 
-    const void* ptr() { return m_ptr; }
+    const void* NODELETE ptr() { return m_ptr; }
 
     void print()
     {

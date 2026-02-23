@@ -94,7 +94,10 @@ static Style::Difference adjustedStyleDifference(Style::Difference diff, const R
     if (diff >= Style::DifferenceResult::Layout)
         return diff;
     // FIXME: Preferably we do this at RenderStyle::changeRequiresLayout but checking against pseudo(::marker) is not sufficient.
-    auto needsLayout = oldStyle.listStylePosition() != newStyle.listStylePosition() || oldStyle.listStyleType() != newStyle.listStyleType() || oldStyle.isDisplayInlineType() != newStyle.isDisplayInlineType();
+    auto needsLayout =
+           oldStyle.listStylePosition() != newStyle.listStylePosition()
+        || oldStyle.listStyleType() != newStyle.listStyleType()
+        || oldStyle.display().isInlineType() != newStyle.display().isInlineType();
     return needsLayout ? Style::DifferenceResult::Layout : diff;
 }
 

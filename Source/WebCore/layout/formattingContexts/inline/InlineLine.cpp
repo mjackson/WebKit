@@ -88,7 +88,7 @@ Line::Result Line::close()
 {
     auto trailingClonedDecorationWidth = [&] {
         auto decorationWidth = InlineLayoutUnit { };
-        for (auto* inlineBox : m_inlineBoxListWithClonedDecorationEnd) {
+        for (CheckedPtr inlineBox : m_inlineBoxListWithClonedDecorationEnd) {
             auto& boxGeometry = formattingContext().geometryForBox(*inlineBox);
             decorationWidth += boxGeometry.borderEnd() + boxGeometry.paddingEnd();
         }
@@ -189,10 +189,10 @@ const Box* Line::removeOverflowingOutOfFlowContent()
     }
     if (!lastTrailingOutOfFlowItemIndex)
         return { };
-    auto* lastTrailingOpaqueBox = &m_runs[*lastTrailingOutOfFlowItemIndex].layoutBox();
+    CheckedPtr lastTrailingOpaqueBox = &m_runs[*lastTrailingOutOfFlowItemIndex].layoutBox();
     m_runs.removeAt(*lastTrailingOutOfFlowItemIndex, m_runs.size() - *lastTrailingOutOfFlowItemIndex);
     ASSERT(!m_runs.isEmpty());
-    return lastTrailingOpaqueBox;
+    return lastTrailingOpaqueBox.unsafeGet();
 }
 
 void Line::handleTrailingHangingContent(std::optional<IntrinsicWidthMode> intrinsicWidthMode, InlineLayoutUnit horizontalAvailableSpaceForContent, bool isLastFormattedLine)
@@ -688,6 +688,20 @@ bool Line::hasTrailingForcedLineBreak(const RunList& runs)
     return !runs.isEmpty() && runs.last().isLineBreak();
 }
 
+bool Line::hasContentOrDecoration(IncludeInsideListMarker includeInsideListMarker) const
+{
+    if (m_runs.isEmpty())
+        return false;
+    if (includeInsideListMarker == IncludeInsideListMarker::Yes && m_runs.first().isListMarkerInside())
+        return true;
+    auto& formattingContext = this->formattingContext();
+    for (auto& run : m_runs | std::views::reverse) {
+        if (Line::Run::isContentfulOrHasDecoration(run, formattingContext) && !run.isListMarker())
+            return true;
+    }
+    return false;
+}
+
 const InlineFormattingContext& Line::formattingContext() const
 {
     return m_inlineFormattingContext;
@@ -858,10 +872,6 @@ Line::Run::Run(const InlineTextItem& inlineTextItem, const RenderStyle& style, I
         if (*whitespaceType == TrailingWhitespace::Type::Collapsed)
             length =  1;
         m_trailingWhitespace = { *whitespaceType, length, logicalWidth };
-    } else {
-        auto glyphOverflow = inlineTextItem.glyphOverflow();
-        if (glyphOverflow.first || glyphOverflow.second)
-            m_glyphOverflow = { glyphOverflow.first, glyphOverflow.second };
     }
     m_textContent = { inlineTextItem.start(), length };
 }
@@ -881,10 +891,6 @@ void Line::Run::expand(const InlineTextItem& inlineTextItem, InlineLayoutUnit lo
         m_trailingWhitespace = { };
         m_textContent.length += inlineTextItem.length();
         m_lastNonWhitespaceContentStart = inlineTextItem.start();
-
-        auto glyphOverflow = inlineTextItem.glyphOverflow();
-        if (glyphOverflow.first || glyphOverflow.second)
-            m_glyphOverflow = { std::max(m_glyphOverflow.top, glyphOverflow.first), std::max(m_glyphOverflow.bottom, glyphOverflow.second) };
         return;
     }
     auto whitespaceWidth = !hasTrailingWhitespace() ? logicalWidth : m_trailingWhitespace.width + logicalWidth;
@@ -951,11 +957,11 @@ InlineLayoutUnit Line::Run::removeTrailingWhitespace()
         // While LTR content could also suffer from slightly incorrect content width after trimming trailing whitespace (see TextUtil::width)
         // it hardly produces visually observable result.
         // FIXME: This may still incorrectly leave some content on the line (vs. re-measuring also at ::expand).
-        auto& inlineTextBox = downcast<InlineTextBox>(*m_layoutBox);
+        CheckedRef inlineTextBox = downcast<InlineTextBox>(*m_layoutBox);
         auto startPosition = *m_lastNonWhitespaceContentStart;
         auto endPosition = m_textContent.start + m_textContent.length;
         RELEASE_ASSERT(startPosition < endPosition - trailingTrimmableContentLength);
-        if (inlineTextBox.content()[endPosition - 1] == space)
+        if (inlineTextBox->content()[endPosition - 1] == space)
             trimmedWidth = TextUtil::trailingWhitespaceWidth(inlineTextBox, m_style.fontCascade(), startPosition, endPosition);
     }
     m_textContent.length -= trailingTrimmableContentLength;
@@ -990,7 +996,7 @@ bool Line::Run::isContentfulOrHasDecoration(const Run& run, const InlineFormatti
 
 bool Line::Run::hasTextCombine() const
 {
-    return m_style.hasTextCombine();
+    return m_style.textCombine() != TextCombine::None;
 }
 
 InlineLayoutUnit Line::Run::letterSpacing() const

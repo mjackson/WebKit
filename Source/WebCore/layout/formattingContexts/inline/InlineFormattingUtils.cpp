@@ -56,12 +56,17 @@ InlineLayoutUnit InlineFormattingUtils::logicalTopForNextLine(const LineLayoutRe
         auto logicalTopCandidateByContent = [&] {
             // Normally the next line's logical top is the previous line's logical bottom, but when the line ends
             // with the clear property set, the next line needs to clear the existing floats.
+            if (!lineLayoutResult.hasContentfulInFlowContent() && lineLayoutResult.floatContent.placedFloats.isEmpty()) {
+                // We didn't manage to put any contentful inflow box on the last line, so next line should just be where the last one was.
+                // Normally line's bottom matches initial top (no content!) but block-in-inline's margin may push the line down.
+                return lineLayoutResult.lineGeometry.initialLogicalTopLeft.y();
+            }
             if (!lineLayoutResult.hasContentfulInlineContent())
                 return lineLogicalRect.bottom();
-            auto& lastRunLayoutBox = lineLayoutResult.runs.last().layoutBox();
-            if (!lastRunLayoutBox.hasFloatClear() || lastRunLayoutBox.isOutOfFlowPositioned())
+            CheckedRef lastRunLayoutBox = lineLayoutResult.runs.last().layoutBox();
+            if (!lastRunLayoutBox->hasFloatClear() || lastRunLayoutBox->isOutOfFlowPositioned())
                 return lineLogicalRect.bottom();
-            auto blockAxisPositionWithClearance = floatingContext.blockAxisPositionWithClearance(lastRunLayoutBox, formattingContext().geometryForBox(lastRunLayoutBox));
+            auto blockAxisPositionWithClearance = floatingContext.blockAxisPositionWithClearance(lastRunLayoutBox.get(), formattingContext().geometryForBox(lastRunLayoutBox.get()));
             if (!blockAxisPositionWithClearance)
                 return lineLogicalRect.bottom();
             return std::max(lineLogicalRect.bottom(), InlineLayoutUnit(blockAxisPositionWithClearance->position));
@@ -98,22 +103,6 @@ InlineLayoutUnit InlineFormattingUtils::logicalTopForNextLine(const LineLayoutRe
         return *firstAvailableVerticalPosition;
     // Do not get stuck on the same vertical position even when we find ourselves in this unexpected state.
     return ceil(nextafter(lineLogicalRect.bottom(), std::numeric_limits<float>::max()));
-}
-
-ContentWidthAndMargin InlineFormattingUtils::inlineBlockContentWidthAndMargin(const Box&, const HorizontalConstraints&, const OverriddenHorizontalValues&) const
-{
-    ASSERT_NOT_IMPLEMENTED_YET();
-    // 10.3.9 'Inline-block', non-replaced elements in normal flow
-    // 10.3.10 'Inline-block', replaced elements in normal flow
-    return { };
-}
-
-ContentHeightAndMargin InlineFormattingUtils::inlineBlockContentHeightAndMargin(const Box&, const HorizontalConstraints&, const OverriddenVerticalValues&) const
-{
-    ASSERT_NOT_IMPLEMENTED_YET();
-    // 10.6.2 Inline replaced elements, block-level replaced elements in normal flow, 'inline-block' replaced elements in normal flow and floating replaced elements
-    // 10.6.6 Complicated cases
-    return { };
 }
 
 bool InlineFormattingUtils::inlineLevelBoxAffectsLineBox(const InlineLevelBox& inlineLevelBox) const
@@ -153,7 +142,7 @@ InlineRect InlineFormattingUtils::flipVisualRectToLogicalForWritingMode(const In
 
 InlineLayoutUnit InlineFormattingUtils::computedTextIndent(IsIntrinsicWidthMode isIntrinsicWidthMode, IsFirstFormattedLine isFirstFormattedLine, std::optional<LineEndsWithLineBreak> previousLineEndsWithLineBreak, InlineLayoutUnit availableWidth) const
 {
-    auto& root = formattingContext().root();
+    CheckedRef root = formattingContext().root();
 
     // text-indent property specifies the indentation applied to lines of inline content in a block.
     // The indent is treated as a margin applied to the start edge of the line box.
@@ -162,21 +151,21 @@ InlineLayoutUnit InlineFormattingUtils::computedTextIndent(IsIntrinsicWidthMode 
     // If 'each-line' is specified, indentation also applies to all lines where the previous line ends with a hard break.
     // [Integration] root()->parent() would normally produce a valid layout box.
     auto shouldIndent = false;
-    if (root.style().textIndent().eachLine.has_value())
+    if (root->style().textIndent().eachLine.has_value())
         shouldIndent = isFirstFormattedLine == IsFirstFormattedLine::Yes || (previousLineEndsWithLineBreak && *previousLineEndsWithLineBreak == LineEndsWithLineBreak::Yes);
-    else if (root.isAnonymousTextIndentCandidateForIntegration()
-        || !root.isAnonymous()
-        || (!root.isInlineIntegrationRoot() && root.parent().firstInFlowChild() == &root))
+    else if (root->isAnonymousTextIndentCandidateForIntegration()
+        || !root->isAnonymous()
+        || (!root->isInlineIntegrationRoot() && root->parent().firstInFlowChild() == root.ptr()))
             shouldIndent = isFirstFormattedLine == IsFirstFormattedLine::Yes;
 
     // Specifying 'hanging' inverts whether the line should be indented or not.
-    if (root.style().textIndent().hanging.has_value())
+    if (root->style().textIndent().hanging.has_value())
         shouldIndent = !shouldIndent;
 
     if (!shouldIndent)
         return { };
 
-    auto& textIndentLength = root.style().textIndent().length;
+    auto& textIndentLength = root->style().textIndent().length;
     if (textIndentLength == 0_css_px)
         return { };
     if (isIntrinsicWidthMode == IsIntrinsicWidthMode::Yes && textIndentLength.isPercent()) {
@@ -184,7 +173,7 @@ InlineLayoutUnit InlineFormattingUtils::computedTextIndent(IsIntrinsicWidthMode 
         // https://drafts.csswg.org/css-text/#text-indent-property
         return { };
     }
-    return Style::evaluate<InlineLayoutUnit>(textIndentLength, availableWidth, root.style().usedZoomForLength());
+    return Style::evaluate<InlineLayoutUnit>(textIndentLength, availableWidth, root->style().usedZoomForLength());
 }
 
 InlineLayoutUnit InlineFormattingUtils::initialLineHeight(bool isFirstLine) const
@@ -311,7 +300,7 @@ InlineLayoutUnit InlineFormattingUtils::inlineItemWidth(const InlineItem& inline
     if (auto* inlineTextItem = dynamicDowncast<InlineTextItem>(inlineItem)) {
         if (auto contentWidth = inlineTextItem->width())
             return *contentWidth;
-        auto& fontCascade = useFirstLineStyle ? inlineTextItem->firstLineStyle().fontCascade() : inlineTextItem->style().fontCascade();
+        CheckedRef fontCascade = useFirstLineStyle ? inlineTextItem->firstLineStyle().fontCascade() : inlineTextItem->style().fontCascade();
         if (!inlineTextItem->isWhitespace() || InlineTextItem::shouldPreserveSpacesAndTabs(*inlineTextItem))
             return TextUtil::width(*inlineTextItem, fontCascade, contentLogicalLeft);
         return TextUtil::width(*inlineTextItem, fontCascade, inlineTextItem->start(), inlineTextItem->start() + 1, contentLogicalLeft);
@@ -320,10 +309,10 @@ InlineLayoutUnit InlineFormattingUtils::inlineItemWidth(const InlineItem& inline
     if (inlineItem.isLineBreak() || inlineItem.isWordBreakOpportunity())
         return { };
 
-    auto& layoutBox = inlineItem.layoutBox();
-    auto& boxGeometry = formattingContext().geometryForBox(layoutBox);
+    CheckedRef layoutBox = inlineItem.layoutBox();
+    auto& boxGeometry = formattingContext().geometryForBox(layoutBox.get());
 
-    if (layoutBox.isReplacedBox())
+    if (layoutBox->isReplacedBox())
         return boxGeometry.marginBoxWidth();
 
     if (inlineItem.isInlineBoxStart())
@@ -355,18 +344,18 @@ static inline bool endsWithSoftWrapOpportunity(const InlineTextItem& previousInl
             return true;
         // The bidi boundary may or may not be the reason for splitting the inline text box content.
         // FIXME: We could add a "reason flag" to InlineTextItem to tell why the split happened.
-        auto& style = previousInlineTextItem.style();
-        auto lineBreakIteratorFactory = CachedLineBreakIteratorFactory { previousInlineTextItem.inlineTextBox().content(), Style::toPlatform(style.computedLocale()), TextUtil::lineBreakIteratorMode(style.lineBreak()), TextUtil::contentAnalysis(style.wordBreak()) };
+        CheckedRef style = previousInlineTextItem.style();
+        auto lineBreakIteratorFactory = CachedLineBreakIteratorFactory { previousInlineTextItem.inlineTextBox().content(), Style::toPlatform(style->computedLocale()), TextUtil::lineBreakIteratorMode(style->lineBreak()), TextUtil::contentAnalysis(style->wordBreak()) };
         auto softWrapOpportunityCandidate = nextInlineTextItem.start();
-        return TextUtil::findNextBreakablePosition(lineBreakIteratorFactory, softWrapOpportunityCandidate, style) == softWrapOpportunityCandidate;
+        return TextUtil::findNextBreakablePosition(lineBreakIteratorFactory, softWrapOpportunityCandidate, style.get()) == softWrapOpportunityCandidate;
     }
     return TextUtil::mayBreakInBetween(previousInlineTextItem, nextInlineTextItem);
 }
 
 static inline const ElementBox& nearestCommonAncestor(const Box& first, const Box& second, const ElementBox& rootBox)
 {
-    auto& firstParent = first.parent();
-    auto& secondParent = second.parent();
+    SUPPRESS_UNCHECKED_LOCAL auto& firstParent = first.parent();
+    SUPPRESS_UNCHECKED_LOCAL auto& secondParent = second.parent();
     // Cover a few common cases first.
     // 'some content'
     if (&firstParent == &secondParent)
@@ -382,9 +371,9 @@ static inline const ElementBox& nearestCommonAncestor(const Box& first, const Bo
         return firstParent.parent();
 
     HashSet<CheckedRef<const ElementBox>> descendantsSet;
-    for (auto* descendant = &firstParent; descendant != &rootBox; descendant = &descendant->parent())
+    for (SUPPRESS_UNCHECKED_LOCAL auto* descendant = &firstParent; descendant != &rootBox; descendant = &descendant->parent())
         descendantsSet.add(*descendant);
-    for (auto* descendant = &secondParent; descendant != &rootBox; descendant = &descendant->parent()) {
+    for (SUPPRESS_UNCHECKED_LOCAL auto* descendant = &secondParent; descendant != &rootBox; descendant = &descendant->parent()) {
         if (!descendantsSet.add(*descendant).isNewEntry)
             return *descendant;
     }
@@ -557,15 +546,15 @@ std::pair<InlineLayoutUnit, InlineLayoutUnit> InlineFormattingUtils::textEmphasi
     // Generic, non-inline box inline-level content (e.g. replaced elements) can't have text-emphasis annotations.
     ASSERT(layoutBox.isInlineBox() || &layoutBox == &rootBox);
 
-    auto& style = layoutBox.style();
-    auto hasTextEmphasis =  !style.textEmphasisStyle().isNone();
+    CheckedRef style = layoutBox.style();
+    auto hasTextEmphasis =  !style->textEmphasisStyle().isNone();
     if (!hasTextEmphasis)
         return { };
-    auto emphasisPosition = style.textEmphasisPosition();
+    auto emphasisPosition = style->textEmphasisPosition();
     // Normally we resolve visual -> logical values at pre-layout time, but emphasis values are not part of the general box geometry.
     auto hasAboveTextEmphasis = false;
     auto hasUnderTextEmphasis = false;
-    if (style.writingMode().isVerticalTypographic()) {
+    if (style->writingMode().isVerticalTypographic()) {
         hasAboveTextEmphasis = !emphasisPosition.contains(Style::TextEmphasisPositionValue::Left);
         hasUnderTextEmphasis = !hasAboveTextEmphasis;
     } else {
@@ -585,14 +574,14 @@ std::pair<InlineLayoutUnit, InlineLayoutUnit> InlineFormattingUtils::textEmphasi
         }
         return nullptr;
     };
-    if (auto* rubyBase = enclosingRubyBase(); rubyBase && RubyFormattingContext::hasInterlinearAnnotation(*rubyBase)) {
+    if (CheckedPtr rubyBase = enclosingRubyBase(); rubyBase && RubyFormattingContext::hasInterlinearAnnotation(*rubyBase)) {
         auto annotationPosition = rubyBase->style().rubyPosition();
         if ((hasAboveTextEmphasis && annotationPosition == RubyPosition::Over) || (hasUnderTextEmphasis && annotationPosition == RubyPosition::Under)) {
             // FIXME: Check if annotation box has content.
             return { };
         }
     }
-    auto annotationSize = style.fontCascade().floatEmphasisMarkHeight(style.textEmphasisStyle().markString());
+    auto annotationSize = style->fontCascade().floatEmphasisMarkHeight(style->textEmphasisStyle().markString());
     return { hasAboveTextEmphasis ? annotationSize : 0.f, hasAboveTextEmphasis ? 0.f : annotationSize };
 }
 

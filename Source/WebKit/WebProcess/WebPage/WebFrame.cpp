@@ -31,6 +31,7 @@
 #include "DownloadManager.h"
 #include "DrawingArea.h"
 #include "FrameInfoData.h"
+#include "FrameInspectorTarget.h"
 #include "FrameTreeNodeData.h"
 #include "InjectedBundleCSSStyleDeclarationHandle.h"
 #include "InjectedBundleHitTestResult.h"
@@ -50,7 +51,6 @@
 #include "WebContextMenu.h"
 #include "WebEventConversion.h"
 #include "WebEventFactory.h"
-#include "WebFrameInspectorTarget.h"
 #include "WebFrameProxyMessages.h"
 #include "WebImage.h"
 #include "WebKeyboardEvent.h"
@@ -138,7 +138,7 @@ namespace WebKit {
 using namespace JSC;
 using namespace WebCore;
 
-static uint64_t generateListenerID()
+static uint64_t NODELETE generateListenerID()
 {
     static uint64_t uniqueListenerID = 1;
     return uniqueListenerID++;
@@ -315,7 +315,7 @@ FrameInfoData WebFrame::info(WithCertificateInfo withCertificateInfo) const
         withCertificateInfo == WithCertificateInfo::Yes ? certificateInfo() : CertificateInfo(),
         getCurrentProcessID(),
         isFocused(),
-        coreLocalFrame ? coreLocalFrame->loader().errorOccurredInLoading() : false,
+        coreLocalFrame && coreLocalFrame->loader().errorOccurredInLoading(),
         WTF::move(metrics)
     };
 }
@@ -458,7 +458,7 @@ void WebFrame::createProvisionalFrame(ProvisionalFrameCreationParameters&& param
     m_provisionalFrame = localFrame.ptr();
     m_frameIDBeforeProvisionalNavigation = parameters.frameIDBeforeProvisionalNavigation;
     localFrame->init();
-    localFrame->protectedDocument()->setURL(URL { aboutBlankURL() });
+    protect(localFrame->document())->setURL(URL { aboutBlankURL() });
 
     if (parameters.layerHostingContextIdentifier)
         setLayerHostingContextIdentifier(*parameters.layerHostingContextIdentifier);
@@ -630,7 +630,7 @@ void WebFrame::startDownload(const WebCore::ResourceRequest& request, const Stri
         return;
     }
     RefPtr localFrame = dynamicDowncast<LocalFrame>(m_coreFrame.get());
-    auto topOrigin = localFrame && localFrame->document() ? std::optional { localFrame->protectedDocument()->topOrigin().data() } : std::nullopt;
+    auto topOrigin = localFrame && localFrame->document() ? std::optional { protect(localFrame->document())->topOrigin().data() } : std::nullopt;
     auto policyDownloadID = *std::exchange(m_policyDownloadID, std::nullopt);
 
     std::optional<NavigatingToAppBoundDomain> isAppBound = NavigatingToAppBoundDomain::No;
@@ -646,7 +646,7 @@ void WebFrame::convertMainResourceLoadToDownload(DocumentLoader* documentLoader,
         return;
     }
     RefPtr localFrame = dynamicDowncast<LocalFrame>(m_coreFrame.get());
-    auto topOrigin = localFrame && localFrame->document() ? std::optional { localFrame->protectedDocument()->topOrigin().data() } : std::nullopt;
+    auto topOrigin = localFrame && localFrame->document() ? std::optional { protect(localFrame->document())->topOrigin().data() } : std::nullopt;
     auto policyDownloadID = *std::exchange(m_policyDownloadID, std::nullopt);
 
     RefPtr mainResourceLoader = documentLoader->mainResourceLoader();
@@ -1382,7 +1382,7 @@ bool WebFrame::handleContextMenuEvent(const PlatformMouseEvent& platformMouseEve
     RefPtr coreLocalFrame = dynamicDowncast<LocalFrame>(coreFrame());
     if (!coreLocalFrame)
         return false;
-    IntPoint point = coreLocalFrame->protectedView()->windowToContents(flooredIntPoint(platformMouseEvent.position()));
+    IntPoint point = protect(coreLocalFrame->view())->windowToContents(flooredIntPoint(platformMouseEvent.position()));
     constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::DisallowUserAgentShadowContent,  HitTestRequest::Type::AllowChildFrameContent };
     HitTestResult result = coreLocalFrame->eventHandler().hitTestResultAtPoint(point, hitType);
 
@@ -1587,6 +1587,17 @@ void WebFrame::findFocusableElementDescendingIntoRemoteFrame(WebCore::FocusDirec
     completionHandler(foundElementInRemoteFrame);
 }
 
+void WebFrame::findFocusableElementContinuingFromFrame(WebCore::FocusDirection direction, WebCore::FrameIdentifier frameID, const WebCore::FocusEventData& focusEventData, WebCore::ShouldFocusElement shouldFocusElement)
+{
+    if (!m_coreFrame)
+        return;
+
+    if (RefPtr localFrame = dynamicDowncast<LocalFrame>(m_coreFrame.get())) {
+        if (RefPtr page = localFrame->page())
+            page->focusController().findFocusableElementContinuingFromFrame(direction, frameID, focusEventData, *localFrame, shouldFocusElement);
+    }
+}
+
 static RefPtr<Node> nodeFromJSHandleIdentifier(JSHandleIdentifier identifier)
 {
     auto* object = WebKitJSHandle::objectForIdentifier(identifier);
@@ -1617,10 +1628,10 @@ void WebFrame::takeSnapshotOfNode(JSHandleIdentifier identifier, CompletionHandl
     completion(bitmap->createHandle(SharedMemory::Protection::ReadOnly));
 }
 
-CheckedRef<WebFrameInspectorTarget> WebFrame::ensureInspectorTarget()
+CheckedRef<FrameInspectorTarget> WebFrame::ensureInspectorTarget()
 {
     if (!m_inspectorTarget)
-        m_inspectorTarget = makeUnique<WebFrameInspectorTarget>(*this);
+        m_inspectorTarget = makeUnique<FrameInspectorTarget>(*this);
     return *m_inspectorTarget;
 }
 

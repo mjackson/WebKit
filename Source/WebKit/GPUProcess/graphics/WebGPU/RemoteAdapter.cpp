@@ -59,7 +59,7 @@ RemoteAdapter::~RemoteAdapter() = default;
 
 void RemoteAdapter::destruct()
 {
-    protectedObjectHeap()->removeObject(m_identifier);
+    protect(m_objectHeap)->removeObject(m_identifier);
 }
 
 void RemoteAdapter::stopListeningForIPC()
@@ -76,7 +76,7 @@ void RemoteAdapter::requestDevice(const WebGPU::DeviceDescriptor& descriptor, We
         return;
     }
 
-    Ref { m_backing }->requestDevice(*convertedDescriptor, [callback = WTF::move(callback), objectHeap = protectedObjectHeap(), streamConnection = m_streamConnection.copyRef(), identifier, queueIdentifier, gpuConnectionToWebProcess = m_gpuConnectionToWebProcess.get(), gpu = protectedGPU()] (RefPtr<WebCore::WebGPU::Device>&& devicePtr) mutable {
+    protect(m_backing)->requestDevice(*convertedDescriptor, [callback = WTF::move(callback), objectHeap = protect(m_objectHeap), streamConnection = protect(m_streamConnection), identifier, queueIdentifier, gpuConnectionToWebProcess = m_gpuConnectionToWebProcess.get(), gpu = protect(m_gpu)] (RefPtr<WebCore::WebGPU::Device>&& devicePtr) mutable {
         if (!devicePtr.get() || !gpuConnectionToWebProcess) {
             callback({ }, { });
             return;

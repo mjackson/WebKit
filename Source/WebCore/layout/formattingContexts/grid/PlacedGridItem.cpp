@@ -35,16 +35,17 @@ namespace Layout {
 PlacedGridItem::PlacedGridItem(const UnplacedGridItem& unplacedGridItem, GridAreaLines gridAreaLines,
     const ComputedSizes& inlineAxisSizes, const ComputedSizes& blockAxisSizes, const LayoutUnit& usedInlineBorderAndPadding,
     const LayoutUnit& usedBlockBorderAndPadding, const StyleSelfAlignmentData& inlineAxisAlignment, const StyleSelfAlignmentData& blockAxisAlignment,
-    const Style::ZoomFactor& usedZoom)
-    : m_layoutBox(unplacedGridItem.m_layoutBox)
-    , m_inlineAxisSizes(inlineAxisSizes)
-    , m_blockAxisSizes(blockAxisSizes)
-    , m_usedInlineBorderAndPadding(usedInlineBorderAndPadding)
-    , m_usedBlockBorderAndPadding(usedBlockBorderAndPadding)
-    , m_inlineAxisAlignment(inlineAxisAlignment)
-    , m_blockAxisAlignment(blockAxisAlignment)
-    , m_usedZoom(usedZoom)
-    , m_gridAreaLines(gridAreaLines)
+    const WritingMode& writingMode, const Style::ZoomFactor& usedZoom)
+        : m_layoutBox(unplacedGridItem.m_layoutBox)
+        , m_inlineAxisSizes(inlineAxisSizes)
+        , m_blockAxisSizes(blockAxisSizes)
+        , m_usedInlineBorderAndPadding(usedInlineBorderAndPadding)
+        , m_usedBlockBorderAndPadding(usedBlockBorderAndPadding)
+        , m_inlineAxisAlignment(inlineAxisAlignment)
+        , m_blockAxisAlignment(blockAxisAlignment)
+        , m_writingMode(writingMode)
+        , m_usedZoom(usedZoom)
+        , m_gridAreaLines(gridAreaLines)
 {
 }
 

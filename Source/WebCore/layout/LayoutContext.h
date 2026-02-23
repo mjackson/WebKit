@@ -60,7 +60,7 @@ public:
 
 private:
     void layoutFormattingContextSubtree(const ElementBox&);
-    LayoutState& layoutState();
+    LayoutState& NODELETE layoutState();
 
     const CheckedRef<LayoutState> m_layoutState;
 };

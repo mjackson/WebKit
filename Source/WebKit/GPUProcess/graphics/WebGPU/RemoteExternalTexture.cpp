@@ -45,44 +45,34 @@ RemoteExternalTexture::RemoteExternalTexture(WebCore::WebGPU::ExternalTexture& e
     , m_gpu(gpu)
     , m_identifier(identifier)
 {
-    protectedStreamConnection()->startReceivingMessages(*this, Messages::RemoteExternalTexture::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->startReceivingMessages(*this, Messages::RemoteExternalTexture::messageReceiverName(), m_identifier.toUInt64());
 }
 
 RemoteExternalTexture::~RemoteExternalTexture() = default;
 
 void RemoteExternalTexture::destroy()
 {
-    protectedBacking()->destroy();
+    protect(m_backing)->destroy();
 }
 
 void RemoteExternalTexture::undestroy()
 {
-    protectedBacking()->undestroy();
+    protect(m_backing)->undestroy();
 }
 
 void RemoteExternalTexture::destruct()
 {
-    Ref { m_objectHeap.get() }->removeObject(m_identifier);
+    protect(m_objectHeap)->removeObject(m_identifier);
 }
 
 void RemoteExternalTexture::stopListeningForIPC()
 {
-    protectedStreamConnection()->stopReceivingMessages(Messages::RemoteExternalTexture::messageReceiverName(), m_identifier.toUInt64());
+    protect(m_streamConnection)->stopReceivingMessages(Messages::RemoteExternalTexture::messageReceiverName(), m_identifier.toUInt64());
 }
 
 void RemoteExternalTexture::setLabel(String&& label)
 {
-    protectedBacking()->setLabel(WTF::move(label));
-}
-
-Ref<WebCore::WebGPU::ExternalTexture> RemoteExternalTexture::protectedBacking()
-{
-    return m_backing;
-}
-
-Ref<IPC::StreamServerConnection> RemoteExternalTexture::protectedStreamConnection() const
-{
-    return m_streamConnection;
+    protect(m_backing)->setLabel(WTF::move(label));
 }
 
 } // namespace WebKit

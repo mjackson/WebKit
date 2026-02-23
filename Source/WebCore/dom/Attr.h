@@ -55,9 +55,9 @@ public:
     void attachToElement(Element&);
     void detachFromElementWithValue(const AtomString&);
 
-    const AtomString& namespaceURI() const final { return m_name.namespaceURI(); }
-    const AtomString& localName() const final { return m_name.localName(); }
-    const AtomString& prefix() const final { return m_name.prefix(); }
+    const AtomString& NODELETE namespaceURI() const final { return m_name.namespaceURI(); }
+    const AtomString& NODELETE localName() const final { return m_name.localName(); }
+    const AtomString& NODELETE prefix() const final { return m_name.prefix(); }
 
 private:
     Attr(Element&, const QualifiedName&);

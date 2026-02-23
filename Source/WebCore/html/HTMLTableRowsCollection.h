@@ -56,7 +56,7 @@ public:
     HTMLTableElement& tableElement() const { return downcast<HTMLTableElement>(ownerNode()); }
 
     static HTMLTableRowElement* rowAfter(HTMLTableElement&, HTMLTableRowElement*);
-    static HTMLTableRowElement* lastRow(HTMLTableElement&);
+    static HTMLTableRowElement* NODELETE lastRow(HTMLTableElement&);
 
     // For CachedHTMLCollection.
     Element* customElementAfter(Element*) const;

@@ -244,11 +244,11 @@ InlineContentBreaker::Result InlineContentBreaker::processOverflowingContent(con
         // e.g. <div style="white-space: nowrap">no wrap<div style="display: inline-block; white-space: normal">yes wrap</div></div>.
         // While the inline-block has pre-wrap which allows wrapping (for its own content), the content lives in a nowrap context.
         auto& runs = continuousContent.runs();
-        auto& overflowingBox = runs[overflowingRunIndex].inlineItem.layoutBox();
-        auto& styleToUse = overflowingBox.isInlineBox() ? overflowingBox.style() : overflowingBox.parent().style();
+        CheckedRef overflowingBox = runs[overflowingRunIndex].inlineItem.layoutBox();
+        CheckedRef styleToUse = overflowingBox->isInlineBox() ? overflowingBox->style() : overflowingBox->parent().style();
         auto isWrappingAllowed = TextUtil::isWrappingAllowed(styleToUse);
         for (auto index = overflowingRunIndex; !isWrappingAllowed && index--;) {
-            auto& styleToUse = runs[index].inlineItem.layoutBox().parent().style();
+            CheckedRef styleToUse = runs[index].inlineItem.layoutBox().parent().style();
             isWrappingAllowed = TextUtil::isWrappingAllowed(styleToUse);
         }
         return isWrappingAllowed;
@@ -266,7 +266,7 @@ std::optional<InlineContentBreaker::Result> InlineContentBreaker::simplifiedMini
         return { };
 
     auto& leadingInlineTextItem = downcast<InlineTextItem>(candidateContent.runs().first().inlineItem);
-    auto& style = leadingInlineTextItem.style();
+    CheckedRef style = leadingInlineTextItem.style();
     if (!TextUtil::isWrappingAllowed(style))
         return Result { Result::Action::Keep, IsEndOfLine::No };
 
@@ -281,7 +281,7 @@ std::optional<InlineContentBreaker::Result> InlineContentBreaker::simplifiedMini
             auto firstCharacterLength = TextUtil::firstUserPerceivedCharacterLength(leadingInlineTextItem);
             if (leadingInlineTextItem.length() <= firstCharacterLength)
                 return Result { Result::Action::Keep, IsEndOfLine::Yes };
-            auto firstCharacterWidth = TextUtil::width(leadingInlineTextItem, style.fontCascade(), leadingInlineTextItem.start(), leadingInlineTextItem.start() + firstCharacterLength, { }, TextUtil::UseTrailingWhitespaceMeasuringOptimization::No);
+            auto firstCharacterWidth = TextUtil::width(leadingInlineTextItem, style->fontCascade(), leadingInlineTextItem.start(), leadingInlineTextItem.start() + firstCharacterLength, { }, TextUtil::UseTrailingWhitespaceMeasuringOptimization::No);
             return Result { Result::Action::Break, IsEndOfLine::Yes, Result::PartialTrailingContent { { }, PartialRun { firstCharacterLength, firstCharacterWidth }, { } } };
         }
         return { };
@@ -485,14 +485,14 @@ std::optional<InlineContentBreaker::PartialRun> InlineContentBreaker::tryBreakin
     auto& candidateRun = runs[candidateTextRun.index];
     ASSERT(candidateRun.inlineItem.isText());
     auto& inlineTextItem = downcast<InlineTextItem>(candidateRun.inlineItem);
-    auto& style = candidateRun.style;
+    CheckedRef style = candidateRun.style;
     auto lineHasRoomForContent = availableWidth > 0;
 
     auto breakRules = wordBreakBehavior(style, lineStatus.hasWrapOpportunityAtPreviousPosition);
     if (breakRules.isEmpty())
         return { };
 
-    auto& fontCascade = style.fontCascade();
+    CheckedRef fontCascade = style->fontCascade();
     if (breakRules.contains(WordBreakRule::AtArbitraryPositionWithinWords)) {
         auto tryBreakingAtArbitraryPositionWithinWords = [&]() -> std::optional<PartialRun> {
             // Breaking is allowed within “words”: specifically, in addition to soft wrap opportunities allowed for normal, any typographic letter units
@@ -514,7 +514,7 @@ std::optional<InlineContentBreaker::PartialRun> InlineContentBreaker::tryBreakin
                     if (auto wordBreak = midWordBreak(candidateRun, candidateTextRun.logicalLeft, availableWidth))
                         return PartialRun { wordBreak->length, wordBreak->logicalWidth };
                 }
-                if (canBreakBefore(inlineTextItem.inlineTextBox().content()[inlineTextItem.start()], style.lineBreak()))
+                if (canBreakBefore(inlineTextItem.inlineTextBox().content()[inlineTextItem.start()], style->lineBreak()))
                     return PartialRun { };
                 else {
                     // Since this is an overflowing content and we are allowed to break at arbitrary position, we really ought to find a breaking position.
@@ -529,10 +529,10 @@ std::optional<InlineContentBreaker::PartialRun> InlineContentBreaker::tryBreakin
                         U16_SET_CP_START(text, left, right);
                         while (right < inlineTextItem.end()) {
                             U16_FWD_1(text, right, inlineTextItem.length());
-                            if (canBreakBefore(text[right], style.lineBreak())) {
+                            if (canBreakBefore(text[right], style->lineBreak())) {
                                 if (right == inlineTextItem.end())
                                     return { };
-                                return TextUtil::WordBreakLeft { right - left, TextUtil::width(inlineTextItem, style.fontCascade(), left, right, candidateTextRun.logicalLeft) };
+                                return TextUtil::WordBreakLeft { right - left, TextUtil::width(inlineTextItem, style->fontCascade(), left, right, candidateTextRun.logicalLeft) };
                             }
                         }
                         return { };
@@ -565,7 +565,7 @@ std::optional<InlineContentBreaker::PartialRun> InlineContentBreaker::tryBreakin
                     return lastHyphenPosition(inlineTextItem.content(), style);
 
                 auto availableWidthExcludingHyphen = availableWidth - hyphenWidth;
-                auto hasSomeRoomForContent = availableWidthExcludingHyphen > 0 && enoughWidthForHyphenation(availableWidthExcludingHyphen, fontCascade.size());
+                auto hasSomeRoomForContent = availableWidthExcludingHyphen > 0 && enoughWidthForHyphenation(availableWidthExcludingHyphen, fontCascade->size());
                 if (hasSomeRoomForContent && candidateRun.spaceRequired()) {
                     auto leftSideLength = TextUtil::breakWord(inlineTextItem, fontCascade, candidateRun.spaceRequired(), availableWidthExcludingHyphen, candidateTextRun.logicalLeft).length;
                     if (auto position = hyphenPositionBefore(inlineTextItem.content(), style, leftSideLength))
@@ -720,7 +720,7 @@ std::optional<InlineContentBreaker::OverflowingTextContent::BreakingPosition> In
     if (runs.size() == 1)
         return { };
 
-    auto& style = runs.first().inlineItem.style();
+    CheckedRef style = runs.first().inlineItem.style();
     if (!wordBreakBehavior(style, lineStatus.hasWrapOpportunityAtPreviousPosition).contains(WordBreakRule::AtHyphenationOpportunities))
         return { };
 
@@ -734,7 +734,7 @@ std::optional<InlineContentBreaker::OverflowingTextContent::BreakingPosition> In
         // FIXME: Maybe content across inline boxes should be hyphenated as well.
         if (inlineItem.isOpaque())
             continue;
-        if (!inlineItem.style().fontCascadeEqual(style))
+        if (!inlineItem.style().fontCascadeEqual(style.get()))
             return { };
 
         auto* inlineTextItem = dynamicDowncast<InlineTextItem>(inlineItem);
@@ -746,10 +746,10 @@ std::optional<InlineContentBreaker::OverflowingTextContent::BreakingPosition> In
         overflowingRunStartPosition += index < overflowingRunIndex ? inlineTextItem->length() : 0;
     }
     // Only non-whitespace text runs with same style.
-    auto& fontCascade = style.fontCascade();
-    auto hyphenWidth = TextUtil::hyphenWidth(style);
+    CheckedRef fontCascade = style->fontCascade();
+    auto hyphenWidth = TextUtil::hyphenWidth(style.get());
     auto availableWidthExcludingHyphen = lineStatus.availableWidth - hyphenWidth;
-    if (availableWidthExcludingHyphen <= 0 || !enoughWidthForHyphenation(availableWidthExcludingHyphen, fontCascade.size()))
+    if (availableWidthExcludingHyphen <= 0 || !enoughWidthForHyphenation(availableWidthExcludingHyphen, fontCascade->size()))
         return { };
 
     auto& overflowingRun = runs[overflowingRunIndex];

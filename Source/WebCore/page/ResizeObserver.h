@@ -90,8 +90,8 @@ private:
     void removeAllTargets();
     bool removeObservation(const Element&);
     void observeInternal(Element&, const ResizeObserverBoxOptions);
-    bool isNativeCallback();
-    bool isJSCallback();
+    bool NODELETE isNativeCallback();
+    bool NODELETE isJSCallback();
 
     WeakPtr<Document, WeakPtrImplWithEventTargetData> m_document;
     JSOrNativeResizeObserverCallback m_JSOrNativeCallback;

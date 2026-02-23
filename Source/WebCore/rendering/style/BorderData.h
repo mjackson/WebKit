@@ -62,6 +62,11 @@ struct BorderData {
         return radii.anyOf([](auto& corner) { return !Style::isKnownEmpty(corner); });
     }
 
+    bool hasVisibleBorderDecoration() const
+    {
+        return hasVisibleBorder() || hasBorderImage();
+    }
+
     // `BorderEdgesView` provides a `RectEdges`-like interface for efficiently working with
     // the values stored in `BorderValue` by edge. This allows `Style::ComputedStyle` code
     // generation to work as if the `border-{edge}-*`properties were stored in a `RectEdges`,

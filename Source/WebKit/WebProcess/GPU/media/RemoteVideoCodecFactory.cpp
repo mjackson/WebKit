@@ -41,7 +41,7 @@ public:
 
     void notifyDecodingResult(RefPtr<WebCore::VideoFrame>&&, int64_t timestamp);
 
-    void close() { m_isClosed = true; }
+    void NODELETE close() { m_isClosed = true; }
     void addDuration(int64_t timestamp, uint64_t duration) { m_timestampToDuration.insert_or_assign(timestamp, duration); }
 
 private:
@@ -77,7 +77,7 @@ public:
     void notifyEncodedChunk(Vector<uint8_t>&&, bool isKeyFrame, int64_t timestamp, std::optional<uint64_t> duration, std::optional<unsigned> temporalIndex);
     void notifyEncoderDescription(WebCore::VideoEncoderActiveConfiguration&&);
 
-    void close() { m_isClosed = true; }
+    void NODELETE close() { m_isClosed = true; }
 
 private:
     RemoteVideoEncoderCallbacks(WebCore::VideoEncoder::DescriptionCallback&&, WebCore::VideoEncoder::OutputCallback&&);
@@ -119,7 +119,7 @@ RemoteVideoCodecFactory::RemoteVideoCodecFactory(WebProcess& process)
 
 RemoteVideoCodecFactory::~RemoteVideoCodecFactory() = default;
 
-static bool shouldUseLocalDecoder(std::optional<WebCore::VideoCodecType> type, const WebCore::VideoDecoder::Config& config)
+static bool NODELETE shouldUseLocalDecoder(std::optional<WebCore::VideoCodecType> type, const WebCore::VideoDecoder::Config& config)
 {
     if (!type)
         return true;

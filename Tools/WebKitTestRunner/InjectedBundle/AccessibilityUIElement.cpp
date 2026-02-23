@@ -1384,6 +1384,16 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::textMarkerRangeDebugDescription
     return nullptr;
 }
 
+JSRetainPtr<JSStringRef> AccessibilityUIElement::textMarkerDescription(WTR::AccessibilityTextMarker*)
+{
+    return nullptr;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::textMarkerRangeDescription(WTR::AccessibilityTextMarkerRange*)
+{
+    return nullptr;
+}
+
 RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRangeForElement(WTR::AccessibilityUIElement*)
 {
     return nullptr;
@@ -1395,6 +1405,11 @@ RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRangeForL
 }
 
 RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRangeForMarkers(WTR::AccessibilityTextMarker*, WTR::AccessibilityTextMarker*)
+{
+    return nullptr;
+}
+
+RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::intersectTextMarkerRanges(WTR::AccessibilityTextMarkerRange*, WTR::AccessibilityTextMarkerRange*)
 {
     return nullptr;
 }

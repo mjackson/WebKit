@@ -97,11 +97,6 @@ StorageAreaImpl::StorageAreaImpl(const StorageAreaImpl& area)
     ASSERT(!m_isShutdown);
 }
 
-StorageType StorageAreaImpl::storageType() const
-{
-    return m_storageType;
-}
-
 unsigned StorageAreaImpl::length()
 {
     ASSERT(!m_isShutdown);

@@ -67,7 +67,7 @@ public:
 
     CALayer *layerForID(std::optional<WebCore::PlatformLayerIdentifier>) const;
     RetainPtr<CALayer> protectedLayerForID(std::optional<WebCore::PlatformLayerIdentifier>) const;
-    CALayer *rootLayer() const;
+    CALayer *NODELETE rootLayer() const;
 
     RemoteLayerTreeDrawingAreaProxy& NODELETE drawingArea() const;
 
@@ -99,7 +99,7 @@ public:
 
     CALayer *layerWithIDForTesting(WebCore::PlatformLayerIdentifier) const;
 
-    bool replayDynamicContentScalingDisplayListsIntoBackingStore() const;
+    bool NODELETE replayDynamicContentScalingDisplayListsIntoBackingStore() const;
     bool threadedAnimationsEnabled() const;
 
     bool cssUnprefixedBackdropFilterEnabled() const;

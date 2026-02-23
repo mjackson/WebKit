@@ -108,7 +108,7 @@ RefPtr<VideoFrame> VideoFrame::createNV12(std::span<const uint8_t> span, size_t 
 {
     CVPixelBufferRef rawPixelBuffer = nullptr;
 
-    auto status = CVPixelBufferCreate(kCFAllocatorDefault, width, height, kCVPixelFormatType_420YpCbCr8BiPlanarFullRange, nullptr, &rawPixelBuffer);
+    auto status = CVPixelBufferCreate(kCFAllocatorDefault, width, height, colorSpace.fullRange.value_or(false) ? kCVPixelFormatType_420YpCbCr8BiPlanarFullRange : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange, nullptr, &rawPixelBuffer);
     if (status != noErr || !rawPixelBuffer)
         return nullptr;
     RetainPtr pixelBuffer = adoptCF(rawPixelBuffer);
@@ -203,7 +203,7 @@ RefPtr<VideoFrame> VideoFrame::createI420(std::span<const uint8_t> buffer, size_
         offsetLayoutU, layoutU.sourceWidthBytes,
         offsetLayoutV, layoutV.sourceWidthBytes
     };
-    auto pixelBuffer = adoptCF(webrtc::createPixelBufferFromI420Buffer(buffer.data(), buffer.size(), width, height, layout));
+    auto pixelBuffer = adoptCF(webrtc::createPixelBufferFromI420Buffer(buffer.data(), buffer.size(), width, height, layout, colorSpace.fullRange.value_or(false)));
 
     if (!pixelBuffer)
         return nullptr;

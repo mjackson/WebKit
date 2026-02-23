@@ -119,11 +119,6 @@ void WebMemorySampler::stop()
     if (RefPtr extension = std::exchange(m_sampleLogSandboxExtension, nullptr))
         extension->revoke();
 }
-
-bool WebMemorySampler::isRunning() const
-{
-    return m_isRunning;
-}
     
 void WebMemorySampler::initializeTempLogFile()
 {

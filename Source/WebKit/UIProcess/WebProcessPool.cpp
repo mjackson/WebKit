@@ -194,7 +194,7 @@ Ref<WebProcessPool> WebProcessPool::create(API::ProcessPoolConfiguration& config
     return adoptRef(*new WebProcessPool(configuration));
 }
 
-static Vector<WeakRef<WebProcessPool>>& processPools()
+static Vector<WeakRef<WebProcessPool>>& NODELETE processPools()
 {
     static NeverDestroyed<Vector<WeakRef<WebProcessPool>>> processPools;
     return processPools;
@@ -207,7 +207,7 @@ Vector<Ref<WebProcessPool>> WebProcessPool::allProcessPools()
     });
 }
 
-static HashSet<String, ASCIICaseInsensitiveHash>& globalURLSchemesWithCustomProtocolHandlers()
+static HashSet<String, ASCIICaseInsensitiveHash>& NODELETE globalURLSchemesWithCustomProtocolHandlers()
 {
     static NeverDestroyed<HashSet<String, ASCIICaseInsensitiveHash>> set;
     return set;
@@ -470,7 +470,7 @@ void WebProcessPool::setApplicationIsActive(bool isActive)
     m_webProcessCache->setApplicationIsActive(isActive);
 }
 
-static bool shouldReportNetworkOrGPUProcessCrash(ProcessTerminationReason reason)
+static bool NODELETE shouldReportNetworkOrGPUProcessCrash(ProcessTerminationReason reason)
 {
     switch (reason) {
     case ProcessTerminationReason::ExceededMemoryLimit:
@@ -715,22 +715,19 @@ void WebProcessPool::establishRemoteWorkerContextConnectionToNetworkProcess(Remo
     auto useProcessForRemoteWorkers = [&](WebProcessProxy& process) {
         remoteWorkerProcessProxy = process;
         process.enableRemoteWorkers(workerType, processPool->userContentControllerForRemoteWorkers());
-        if (process.isInProcessCache()) {
-            processPool->webProcessCache().removeProcess(process, WebProcessCache::ShouldShutDownProcess::No);
-            ASSERT(!process.isInProcessCache());
-        }
+        RELEASE_ASSERT(!process.isInProcessCache());
     };
 
     if (serviceWorkerPageIdentifier) {
         ASSERT(workerType == RemoteWorkerType::ServiceWorker);
         // This is a service worker for a service worker page so we need to make sure we use use the page's WebProcess for the service worker.
-        if (RefPtr process = WebProcessProxy::processForIdentifier(serviceWorkerPageIdentifier->processIdentifier()))
+        if (RefPtr process = WebProcessProxy::processForIdentifier(serviceWorkerPageIdentifier->processIdentifier()); process && !process->isInProcessCache())
             useProcessForRemoteWorkers(*process);
     }
 
     // Prioritize the requesting WebProcess for running the service worker.
     if (!remoteWorkerProcessProxy && !s_useSeparateServiceWorkerProcess && requestingProcess && requestingProcess->state() != WebProcessProxy::State::Terminated) {
-        if (requestingProcess->websiteDataStore() == websiteDataStore && requestingProcess->site() == site)
+        if (requestingProcess->websiteDataStore() == websiteDataStore && requestingProcess->site() == site && !requestingProcess->isInProcessCache())
             useProcessForRemoteWorkers(*requestingProcess);
     }
 
@@ -743,6 +740,8 @@ void WebProcessPool::establishRemoteWorkerContextConnectionToNetworkProcess(Remo
             if (process->site() != site)
                 continue;
             if (process->lockdownMode() != lockdownMode)
+                continue;
+            if (process->isInProcessCache())
                 continue;
 
             useProcessForRemoteWorkers(process);
@@ -1305,6 +1304,8 @@ Ref<WebProcessProxy> WebProcessPool::processForSite(WebsiteDataStore& websiteDat
             tryPrewarmWithDomainInformation(*process, site->domain());
         ASSERT(m_processes.containsIf([&](auto& item) { return item.ptr() == process; }));
         process->setIsolatedProcessType(isolatedProcessType);
+        if (processSwapDisposition == ProcessSwapDisposition::COOP)
+            process->setIneligbleForWebProcessCache();
         return process.releaseNonNull();
     }
 
@@ -1328,6 +1329,8 @@ Ref<WebProcessProxy> WebProcessPool::processForSite(WebsiteDataStore& websiteDat
     auto enableWebAssemblyDebugger = protect(pageConfiguration.preferences())->webAssemblyDebuggerEnabled() ? WebProcessProxy::EnableWebAssemblyDebugger::Yes : WebProcessProxy::EnableWebAssemblyDebugger::No;
     Ref process = createNewWebProcess(&websiteDataStore, lockdownMode, enhancedSecurity, enableWebAssemblyDebugger);
     process->setIsolatedProcessType(isolatedProcessType);
+    if (processSwapDisposition == ProcessSwapDisposition::COOP)
+        process->setIneligbleForWebProcessCache();
     return process;
 }
 
@@ -1565,7 +1568,7 @@ void WebProcessPool::countWebPagesInAllProcessesForTesting(CompletionHandler<voi
     class ResultAggregator : public RefCounted<ResultAggregator> {
     public:
         static Ref<ResultAggregator> create(CompletionHandler<void(size_t)>&& completionHandler) { return adoptRef(*new ResultAggregator(WTF::move(completionHandler))); }
-        void addWebPageCount(unsigned count) { m_count += count; }
+        void NODELETE addWebPageCount(unsigned count) { m_count += count; }
         ~ResultAggregator()
         {
             m_completionHandler(m_count);
@@ -2671,7 +2674,7 @@ void WebProcessPool::isJITDisabledInAllRemoteWorkerProcesses(CompletionHandler<v
                 m_callback(m_isJITDisabled);
         }
 
-        void setJITEnabled(bool isJITEnabled) { m_isJITDisabled &= !isJITEnabled; }
+        void NODELETE setJITEnabled(bool isJITEnabled) { m_isJITDisabled &= !isJITEnabled; }
 
     private:
         explicit JITDisabledCallbackAggregator(CompletionHandler<void(bool)>&& callback)
@@ -2747,6 +2750,23 @@ void WebProcessPool::observeScriptTrackingPrivacyUpdatesIfNeeded()
 
         if (auto data = ScriptTrackingPrivacyController::sharedSingleton().cachedListData(); !data.isEmpty())
             protectedThis->sendToAllProcesses(Messages::WebProcess::UpdateScriptTrackingPrivacyFilter(WTF::move(data)));
+    });
+    controller->initializeIfNeeded();
+}
+
+void WebProcessPool::observeConsistentQueryParameterFilteringQuirkUpdatesIfNeeded()
+{
+    if (m_scriptTrackingPrivacyDataUpdateObserver)
+        return;
+
+    Ref controller = ConsistentPrivacyQuirkController::sharedSingleton();
+    m_scriptTrackingPrivacyDataUpdateObserver = controller->observeUpdates([weakThis = WeakPtr { *this }] {
+        RefPtr protectedThis = weakThis.get();
+        if (!protectedThis)
+            return;
+
+        if (auto data = ConsistentPrivacyQuirkController::sharedSingleton().cachedListData(); !data.isEmpty())
+            protectedThis->sendToAllProcesses(Messages::WebProcess::UpdateConsistentPrivacyQuirkFilter(WTF::move(data)));
     });
     controller->initializeIfNeeded();
 }

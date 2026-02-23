@@ -63,8 +63,8 @@ public:
     CSSFilterRenderer* filter() const { return m_filter.get(); }
     void clearFilter() { m_filter = nullptr; }
     
-    bool hasFilterThatMovesPixels() const;
-    bool hasFilterThatShouldBeRestrictedBySecurityOrigin() const;
+    bool NODELETE hasFilterThatMovesPixels() const;
+    bool NODELETE hasFilterThatShouldBeRestrictedBySecurityOrigin() const;
     bool hasSourceImage() const;
 
     void updateReferenceFilterClients(const Style::Filter&);

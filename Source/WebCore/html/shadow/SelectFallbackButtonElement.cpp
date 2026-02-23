@@ -47,7 +47,7 @@ Ref<SelectFallbackButtonElement> SelectFallbackButtonElement::create(Document& d
 }
 
 SelectFallbackButtonElement::SelectFallbackButtonElement(Document& document)
-    : HTMLDivElement(HTMLNames::divTag, document, TypeFlag::HasCustomStyleResolveCallbacks)
+    : HTMLDivElement(document, TypeFlag::HasCustomStyleResolveCallbacks)
 {
 }
 

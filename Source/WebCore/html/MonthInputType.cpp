@@ -55,7 +55,7 @@ using namespace HTMLNames;
 static const int monthDefaultStep = 1;
 static const int monthDefaultStepBase = 0;
 static const int monthStepScaleFactor = 1;
-static const StepRange::StepDescription monthStepDescription { monthDefaultStep, monthDefaultStepBase, monthStepScaleFactor, StepRange::ParsedStepValueShouldBeInteger };
+static const StepRange::StepDescription monthStepDescription { monthDefaultStep, monthDefaultStepBase, monthStepScaleFactor, StepRange::StepValueShouldBe::ParsedInteger };
 
 const AtomString& MonthInputType::formControlType() const
 {

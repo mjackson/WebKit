@@ -337,6 +337,7 @@ enum AV1ConfigurationRange {
     required DOMString property;
     required double speed;
     required boolean isThreaded;
+    required boolean hasHighImpact;
 };
 
 [
@@ -521,6 +522,9 @@ enum ContentsFormat {
 
     // Animated image pausing testing.
     boolean hasPausedImageAnimations(Element element);
+
+    // lang attribute testing.
+    boolean effectiveLangKnownToMatchDocumentElement(Element element);
 
     undefined markFrontBufferVolatile(Element element);
     boolean isFullyActive(Document document);

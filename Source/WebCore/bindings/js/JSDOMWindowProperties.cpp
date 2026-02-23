@@ -47,7 +47,7 @@ static bool jsDOMWindowPropertiesGetOwnPropertySlotNamedItemGetter(JSDOMWindowPr
 {
     if (RefPtr frame = window.frame()) {
         if (RefPtr scopedChild = frame->tree().scopedChildBySpecifiedName(propertyNameToAtomString(propertyName))) {
-            slot.setValue(thisObject, enumToUnderlyingType(PropertyAttribute::DontEnum), toJS(lexicalGlobalObject, scopedChild->window()));
+            slot.setValue(thisObject, std::to_underlying(PropertyAttribute::DontEnum), toJS(lexicalGlobalObject, scopedChild->window()));
             return true;
         }
     }
@@ -67,7 +67,7 @@ static bool jsDOMWindowPropertiesGetOwnPropertySlotNamedItemGetter(JSDOMWindowPr
                 namedItem = toJS(lexicalGlobalObject, thisObject->globalObject(), collection);
             } else
                 namedItem = toJS(lexicalGlobalObject, thisObject->globalObject(), *htmlDocument->windowNamedItem(atomPropertyName));
-            slot.setValue(thisObject, enumToUnderlyingType(PropertyAttribute::DontEnum), namedItem);
+            slot.setValue(thisObject, std::to_underlying(PropertyAttribute::DontEnum), namedItem);
             return true;
         }
     }

@@ -736,12 +736,12 @@ bool InputType::rendererIsNeeded()
     return true;
 }
 
-ValueOrReference<String> InputType::fallbackValue() const
+ValueOrReference<String> NODELETE InputType::fallbackValue() const
 {
     return String();
 }
 
-String InputType::defaultValue() const
+String NODELETE InputType::defaultValue() const
 {
     return String();
 }

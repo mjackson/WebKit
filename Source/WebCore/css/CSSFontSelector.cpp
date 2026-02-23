@@ -142,7 +142,7 @@ void CSSFontSelector::buildStarted()
     for (size_t i = 0; i < m_cssFontFaceSet->faceCount(); ++i) {
         Ref face = m_cssFontFaceSet.get()[i];
         if (face->cssConnection())
-            m_cssConnectionsPossiblyToRemove.add(face.get());
+            m_cssConnectionsPossiblyToRemove.add(WTF::move(face));
     }
 
     m_paletteMap.clear();
@@ -159,8 +159,8 @@ void CSSFontSelector::buildCompleted()
     for (auto& face : m_cssConnectionsPossiblyToRemove) {
         RefPtr connection = face->cssConnection();
         ASSERT(connection);
-        if (!m_cssConnectionsEncounteredDuringBuild.contains(connection))
-            m_cssFontFaceSet->remove(*face);
+        if (!m_cssConnectionsEncounteredDuringBuild.contains(*connection))
+            m_cssFontFaceSet->remove(face);
     }
 
     for (auto& item : m_stagingArea)
@@ -173,7 +173,7 @@ void CSSFontSelector::buildCompleted()
 void CSSFontSelector::addFontFaceRule(StyleRuleFontFace& fontFaceRule, bool isInitiatingElementInUserAgentShadowTree)
 {
     if (m_buildIsUnderway) {
-        m_cssConnectionsEncounteredDuringBuild.add(&fontFaceRule);
+        m_cssConnectionsEncounteredDuringBuild.add(fontFaceRule);
         m_stagingArea.append({fontFaceRule, isInitiatingElementInUserAgentShadowTree});
         return;
     }

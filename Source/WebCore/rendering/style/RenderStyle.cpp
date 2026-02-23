@@ -106,7 +106,7 @@ std::unique_ptr<RenderStyle> RenderStyle::clonePtr(const RenderStyle& style)
     return makeUnique<RenderStyle>(style, Clone);
 }
 
-RenderStyle RenderStyle::createAnonymousStyleWithDisplay(const RenderStyle& parentStyle, DisplayType display)
+RenderStyle RenderStyle::createAnonymousStyleWithDisplay(const RenderStyle& parentStyle, Style::Display display)
 {
     auto newStyle = create();
     newStyle.inheritFrom(parentStyle);
@@ -167,7 +167,7 @@ bool RenderStyle::scrollAnchoringSuppressionStyleDidChange(const RenderStyle* ot
     if (position() != other->position())
         return true;
 
-    if (m_computedStyle.m_nonInheritedData->surroundData.ptr() && other->m_computedStyle.m_nonInheritedData->surroundData.ptr()) {
+    if (m_computedStyle.m_nonInheritedData->surroundData.ptr() != other->m_computedStyle.m_nonInheritedData->surroundData.ptr()) {
         SUPPRESS_UNCOUNTED_LOCAL auto& surroundData = m_computedStyle.m_nonInheritedData->surroundData.get();
         SUPPRESS_UNCOUNTED_LOCAL auto& otherSurroundData = other->m_computedStyle.m_nonInheritedData->surroundData.get();
         if (surroundData.margin != otherSurroundData.margin)
@@ -182,9 +182,24 @@ bool RenderStyle::scrollAnchoringSuppressionStyleDidChange(const RenderStyle* ot
         }
     }
 
-    if (hasTransformRelatedProperty() != other->hasTransformRelatedProperty() || transform() != other->transform())
-        return true;
+    if (m_computedStyle.m_nonInheritedData->miscData.ptr() != other->m_computedStyle.m_nonInheritedData->miscData.ptr()) {
+        SUPPRESS_UNCOUNTED_LOCAL auto& miscData = m_computedStyle.m_nonInheritedData->miscData.get();
+        SUPPRESS_UNCOUNTED_LOCAL auto& otherMiscData = other->m_computedStyle.m_nonInheritedData->miscData.get();
+        if (miscData.transform != otherMiscData.transform)
+            return true;
+    }
 
+    // The spec doesn't list `translate`, `rotate`, `scale` but test them here.
+    // https://github.com/w3c/csswg-drafts/issues/13489
+    if (m_computedStyle.m_nonInheritedData->rareData.ptr() != other->m_computedStyle.m_nonInheritedData->rareData.ptr()) {
+        SUPPRESS_UNCOUNTED_LOCAL auto& rareData = m_computedStyle.m_nonInheritedData->rareData.get();
+        SUPPRESS_UNCOUNTED_LOCAL auto& otherRareData = other->m_computedStyle.m_nonInheritedData->rareData.get();
+        if (rareData.translate != otherRareData.translate
+            || rareData.rotate != otherRareData.rotate
+            || rareData.scale != otherRareData.scale) {
+            return true;
+        }
+    }
     return false;
 }
 
@@ -196,95 +211,7 @@ bool RenderStyle::outOfFlowPositionStyleDidChange(const RenderStyle* other) cons
     return other && hasOutOfFlowPosition() != other->hasOutOfFlowPosition();
 }
 
-#if ENABLE(TEXT_AUTOSIZING)
-
-// MARK: - Text Autosizing
-
-bool RenderStyle::isIdempotentTextAutosizingCandidate() const
-{
-    return isIdempotentTextAutosizingCandidate(OptionSet<AutosizeStatus::Fields>::fromRaw(m_computedStyle.m_inheritedFlags.autosizeStatus));
-}
-
-bool RenderStyle::isIdempotentTextAutosizingCandidate(AutosizeStatus status) const
-{
-    // Refer to <rdar://problem/51826266> for more information regarding how this function was generated.
-    auto fields = status.fields();
-
-    if (fields.contains(AutosizeStatus::Fields::AvoidSubtree))
-        return false;
-
-    constexpr float smallMinimumDifferenceThresholdBetweenLineHeightAndSpecifiedFontSizeForBoostingText = 5;
-    constexpr float largeMinimumDifferenceThresholdBetweenLineHeightAndSpecifiedFontSizeForBoostingText = 25;
-
-    if (fields.contains(AutosizeStatus::Fields::FixedHeight)) {
-        if (fields.contains(AutosizeStatus::Fields::FixedWidth)) {
-            if (whiteSpaceCollapse() == WhiteSpaceCollapse::Collapse && textWrapMode() == TextWrapMode::NoWrap) {
-                if (width().isFixed())
-                    return false;
-                if (auto fixedHeight = height().tryFixed(); fixedHeight && specifiedLineHeight().isFixed()) {
-                    if (auto fixedSpecifiedLineHeight = specifiedLineHeight().tryFixed()) {
-                        float specifiedSize = specifiedFontSize();
-                        if (fixedHeight->resolveZoom(usedZoomForLength()) == specifiedSize && fixedSpecifiedLineHeight->resolveZoom(usedZoomForLength()) == specifiedSize)
-                            return false;
-                    }
-                }
-                return true;
-            }
-            if (fields.contains(AutosizeStatus::Fields::Floating)) {
-                if (auto fixedHeight = height().tryFixed(); specifiedLineHeight().isFixed() && fixedHeight) {
-                    if (auto fixedSpecifiedLineHeight = specifiedLineHeight().tryFixed()) {
-                        float specifiedSize = specifiedFontSize();
-                        if (fixedSpecifiedLineHeight->resolveZoom(Style::ZoomFactor { 1.0f }) - specifiedSize > smallMinimumDifferenceThresholdBetweenLineHeightAndSpecifiedFontSizeForBoostingText
-                            && fixedHeight->resolveZoom(usedZoomForLength()) - specifiedSize > smallMinimumDifferenceThresholdBetweenLineHeightAndSpecifiedFontSizeForBoostingText)
-                            return true;
-                    }
-                }
-                return false;
-            }
-            if (fields.contains(AutosizeStatus::Fields::OverflowXHidden))
-                return false;
-            return true;
-        }
-        if (fields.contains(AutosizeStatus::Fields::OverflowXHidden)) {
-            if (fields.contains(AutosizeStatus::Fields::Floating))
-                return false;
-            return true;
-        }
-        return true;
-    }
-
-    if (width().isFixed()) {
-        if (breakWords())
-            return true;
-        return false;
-    }
-
-    if (textSizeAdjust().isPercentage() && textSizeAdjust().percentage() == 100) {
-        if (fields.contains(AutosizeStatus::Fields::Floating))
-            return true;
-        if (fields.contains(AutosizeStatus::Fields::FixedWidth))
-            return true;
-        if (auto fixedSpecifiedLineHeight = specifiedLineHeight().tryFixed(); fixedSpecifiedLineHeight && fixedSpecifiedLineHeight->resolveZoom(usedZoomForLength()) - specifiedFontSize() > largeMinimumDifferenceThresholdBetweenLineHeightAndSpecifiedFontSizeForBoostingText)
-            return true;
-        return false;
-    }
-
-    if (hasBackgroundImage() && backgroundLayers().usedFirst().repeat() == FillRepeat::NoRepeat)
-        return false;
-
-    return true;
-}
-
-#endif // ENABLE(TEXT_AUTOSIZING)
-
 // MARK: - Used Values
-
-String RenderStyle::altFromContent() const
-{
-    if (auto* contentData = content().tryData())
-        return contentData->altText.value_or(nullString());
-    return { };
-}
 
 const AtomString& RenderStyle::hyphenString() const
 {

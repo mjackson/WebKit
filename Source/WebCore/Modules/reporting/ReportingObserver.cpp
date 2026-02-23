@@ -157,7 +157,7 @@ void ReportingObserver::appendQueuedReportIfCorrectType(const Ref<Report>& repor
 
 bool ReportingObserver::virtualHasPendingActivity() const
 {
-    // We cannot ref `m_reportingScope` here since this function may get called on the GC thread.
+    // We cannot ref `m_reportingScope` here since this function may get called on a GC thread.
     SUPPRESS_UNCOUNTED_ARG return m_reportingScope && m_reportingScope->containsObserver(*this);
 }
 

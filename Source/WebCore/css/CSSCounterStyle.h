@@ -92,10 +92,10 @@ private:
     CSSCounterStyle(const CSSCounterStyleDescriptors&, bool isPredefinedCounterStyle);
 
     // https://www.w3.org/TR/css-counter-styles-3/#counter-style-range
-    bool isInRange(int) const;
+    bool NODELETE isInRange(int) const;
     // https://www.w3.org/TR/css-counter-styles-3/#counter-style-negative
     bool usesNegativeSign();
-    bool shouldApplyNegativeSymbols(int) const;
+    bool NODELETE shouldApplyNegativeSymbols(int) const;
     // https://www.w3.org/TR/css-counter-styles-3/#counter-style-fallback
     WeakPtr<CSSCounterStyle> fallback() const { return m_fallbackReference; };
     String fallbackText(int, WritingMode);
@@ -105,8 +105,8 @@ private:
     // Initial text representation for the counter, before applying pad and/or negative symbols. Suffix and Prefix are also not considered as described by https://www.w3.org/TR/css-counter-styles-3/#counter-styles.
     String initialRepresentation(int, WritingMode) const;
 
-    String counterForSystemCyclic(int) const;
-    String counterForSystemFixed(int) const;
+    String NODELETE counterForSystemCyclic(int) const;
+    String NODELETE counterForSystemFixed(int) const;
     String counterForSystemSymbolic(unsigned) const;
     String counterForSystemAlphabetic(unsigned) const;
     String counterForSystemNumeric(unsigned) const;

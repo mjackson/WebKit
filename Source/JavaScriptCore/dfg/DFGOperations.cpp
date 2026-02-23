@@ -3103,13 +3103,19 @@ JSC_DEFINE_JIT_OPERATION(operationStringReplaceStringEmptyString, JSString*, (JS
     // Because replacement string is empty, it cannot include backreferences.
     size_t searchLength = search->length();
     size_t matchEnd = matchStart + searchLength;
-    auto result = tryMakeString(StringView(string).substring(0, matchStart), StringView(string).substring(matchEnd, string->length() - matchEnd));
-    if (!result) [[unlikely]] {
-        throwOutOfMemoryError(globalObject, scope);
-        OPERATION_RETURN(scope,  nullptr);
+    unsigned suffixLength = string->length() - matchEnd;
+    if (!matchStart) {
+        if (!suffixLength)
+            OPERATION_RETURN(scope, jsEmptyString(vm));
+        OPERATION_RETURN(scope, jsSubstring(globalObject, vm, stringCell, matchEnd, suffixLength));
     }
-
-    OPERATION_RETURN(scope,  jsString(vm, WTF::move(result)));
+    JSString* left = jsSubstring(globalObject, vm, stringCell, 0, matchStart);
+    OPERATION_RETURN_IF_EXCEPTION(scope, nullptr);
+    if (!suffixLength)
+        OPERATION_RETURN(scope, left);
+    JSString* right = jsSubstring(globalObject, vm, stringCell, matchEnd, suffixLength);
+    OPERATION_RETURN_IF_EXCEPTION(scope, nullptr);
+    OPERATION_RETURN(scope, jsString(globalObject, left, right));
 }
 
 JSC_DEFINE_JIT_OPERATION(operationStringReplaceStringStringWithTable8, JSString*, (JSGlobalObject* globalObject, JSString* stringCell, JSString* searchCell, JSString* replacementCell, const BoyerMooreHorspoolTable<uint8_t>* table))
@@ -3170,13 +3176,19 @@ JSC_DEFINE_JIT_OPERATION(operationStringReplaceStringEmptyStringWithTable8, JSSt
     // Because replacement string is empty, it cannot include backreferences.
     size_t searchLength = search->length();
     size_t matchEnd = matchStart + searchLength;
-    auto result = tryMakeString(StringView(string).substring(0, matchStart), StringView(string).substring(matchEnd, string->length() - matchEnd));
-    if (!result) [[unlikely]] {
-        throwOutOfMemoryError(globalObject, scope);
-        OPERATION_RETURN(scope, nullptr);
+    unsigned suffixLength = string->length() - matchEnd;
+    if (!matchStart) {
+        if (!suffixLength)
+            OPERATION_RETURN(scope, jsEmptyString(vm));
+        OPERATION_RETURN(scope, jsSubstring(globalObject, vm, stringCell, matchEnd, suffixLength));
     }
-
-    OPERATION_RETURN(scope, jsString(vm, WTF::move(result)));
+    JSString* left = jsSubstring(globalObject, vm, stringCell, 0, matchStart);
+    OPERATION_RETURN_IF_EXCEPTION(scope, nullptr);
+    if (!suffixLength)
+        OPERATION_RETURN(scope, left);
+    JSString* right = jsSubstring(globalObject, vm, stringCell, matchEnd, suffixLength);
+    OPERATION_RETURN_IF_EXCEPTION(scope, nullptr);
+    OPERATION_RETURN(scope, jsString(globalObject, left, right));
 }
 
 JSC_DEFINE_JIT_OPERATION(operationStringReplaceStringGeneric, JSString*, (JSGlobalObject* globalObject, JSString* stringCell, JSString* searchCell, EncodedJSValue encodedReplaceValue))

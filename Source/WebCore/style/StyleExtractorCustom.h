@@ -482,7 +482,7 @@ template<CSSPropertyID propertyID> struct MarginEdgeSharedAdaptor {
 
             if (value.isPercentOrCalculated()) {
                 // RenderBox gives a marginRight() that is the distance between the right-edge of the child box
-                // and the right-edge of the containing box, when display == DisplayType::Block. Let's calculate the absolute
+                // and the right-edge of the containing box, when display == DisplayType::BlockFlow. Let's calculate the absolute
                 // value of the specified margin-right % instead of relying on RenderBox's marginRight() value.
                 return functor(Length<> { evaluateMinimum<float>(value, box->containingBlockLogicalWidthForContent(), state.style.usedZoomForLength()) });
             }
@@ -919,15 +919,15 @@ template<> struct PropertyExtractorAdaptor<CSSPropertyGridAutoFlow> {
             switch (gridFlow.packing()) {
             case GridAutoFlow::Packing::Dense:
                 if (!state.style.gridTemplateRows().isNone() && state.style.gridTemplateColumns().isNone()
-                    && (state.style.display() == DisplayType::GridLanes || state.style.display() == DisplayType::InlineGridLanes))
+                    && (state.style.display() == DisplayType::BlockGridLanes || state.style.display() == DisplayType::InlineGridLanes))
                     return functor(SpaceSeparatedTuple { CSS::Keyword::Row { }, CSS::Keyword::Dense { } });
                 return functor(CSS::Keyword::Dense { });
             case GridAutoFlow::Packing::Sparse:
                 return functor(CSS::Keyword::Row { });
             }
         default:
-            ASSERT(state.style.display() != DisplayType::GridLanes && state.style.display() != DisplayType::InlineGridLanes
-                && state.style.display() != DisplayType::Grid && state.style.display() != DisplayType::InlineGrid);
+            ASSERT(state.style.display() != DisplayType::BlockGridLanes && state.style.display() != DisplayType::InlineGridLanes
+                && state.style.display() != DisplayType::BlockGrid && state.style.display() != DisplayType::InlineGrid);
             switch (gridFlow.packing()) {
             case GridAutoFlow::Packing::Dense:
                 return functor(CSS::Keyword::Dense { });
@@ -1794,13 +1794,13 @@ template<CSSPropertyID property> inline Ref<CSSValue> extractFillLayerPropertySh
         if (i == layerCount - 1 && lastValue)
             beforeList.append(*lastValue);
         for (size_t j = 0; j < propertiesBeforeSlashSeparator.length(); j++) {
-            Ref value = *before->item(j);
-            beforeList.append(const_cast<CSSValue&>(layerCount == 1 ? value.get() : *downcast<CSSValueList>(value.get()).item(i)));
+            auto& value = *before->item(j);
+            beforeList.append(const_cast<CSSValue&>(layerCount == 1 ? value : *downcast<CSSValueList>(value).item(i)));
         }
         CSSValueListBuilder afterList;
         for (size_t j = 0; j < propertiesAfterSlashSeparator.length(); j++) {
-            Ref value = *after->item(j);
-            afterList.append(const_cast<CSSValue&>(layerCount == 1 ? value.get() : *downcast<CSSValueList>(value.get()).item(i)));
+            auto& value = *after->item(j);
+            afterList.append(const_cast<CSSValue&>(layerCount == 1 ? value : *downcast<CSSValueList>(value).item(i)));
         }
         auto list = CSSValueList::createSlashSeparated(CSSValueList::createSpaceSeparated(WTF::move(beforeList)), CSSValueList::createSpaceSeparated(WTF::move(afterList)));
         if (layerCount == 1)
@@ -2156,7 +2156,7 @@ inline void ExtractorCustom::extractBorderImageWidthSerialization(ExtractorState
 
 inline Ref<CSSValue> ExtractorCustom::extractTransform(ExtractorState& state)
 {
-    if (!state.style.hasTransform())
+    if (state.style.transform().isNone() && state.style.offsetPath().isNone())
         return createCSSValue(state.pool, state.style, CSS::Keyword::None { });
 
     if (state.renderer)
@@ -2173,7 +2173,7 @@ inline Ref<CSSValue> ExtractorCustom::extractTransform(ExtractorState& state)
 
 inline void ExtractorCustom::extractTransformSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)
 {
-    if (!state.style.hasTransform()) {
+    if (state.style.transform().isNone() && state.style.offsetPath().isNone()) {
         serializationForCSS(builder, context, state.style, CSS::Keyword::None { });
         return;
     }
@@ -2934,7 +2934,7 @@ inline RefPtr<CSSValue> ExtractorCustom::extractOffsetShorthand(ExtractorState& 
     bool nonInitialDistance = state.style.offsetDistance() != ComputedStyle::initialOffsetDistance();
     bool nonInitialRotate = state.style.offsetRotate() != ComputedStyle::initialOffsetRotate();
 
-    if (state.style.hasOffsetPath() || nonInitialDistance || nonInitialRotate)
+    if (!state.style.offsetPath().isNone() || nonInitialDistance || nonInitialRotate)
         innerList.append(createCSSValue(state.pool, state.style, state.style.offsetPath()));
 
     if (nonInitialDistance)
@@ -3033,39 +3033,67 @@ inline void ExtractorCustom::extractPositionTryShorthandSerialization(ExtractorS
 
 inline RefPtr<CSSValue> ExtractorCustom::extractScrollTimelineShorthand(ExtractorState& state)
 {
-    auto& timelines = state.style.scrollTimelines();
-    if (timelines.isEmpty())
+    auto& scrollTimelines = state.style.scrollTimelines();
+    if (scrollTimelines.isInitial())
         return createCSSValue(state.pool, state.style, CSS::Keyword::None { });
 
+    // If there is more than one scroll timeline and any scroll timeline has any
+    // property not set, there is no serialization that will round-trip, so the
+    // extraction fails.
+    if (scrollTimelines.computedLength() > 1) {
+        for (auto& scrollTimeline : scrollTimelines.computedValues()) {
+            if (!allPropertiesAreSet(scrollTimeline))
+                return nullptr;
+        }
+    }
+
     CSSValueListBuilder list;
-    for (auto& timeline : timelines) {
-        auto& name = timeline->name();
-        auto axis = timeline->axis();
+    for (auto& scrollTimeline : scrollTimelines.computedValues()) {
+        auto& name = scrollTimeline.name();
+        auto axis = scrollTimeline.axis();
 
-        ASSERT(!name.isNull());
-        auto nameCSSValue = createCSSValue(state.pool, state.style, CustomIdentifier { name });
+        auto hasDefaultAxis = axis == ProgressTimelineAxis::Block;
 
-        if (axis == ScrollAxis::Block)
-            list.append(WTF::move(nameCSSValue));
-        else
-            list.append(CSSValuePair::createNoncoalescing(nameCSSValue, createCSSValue(state.pool, state.style, axis)));
+        if (hasDefaultAxis)
+            list.append(createCSSValue(state.pool, state.style, name));
+        else {
+            list.append(CSSValuePair::createNoncoalescing(
+                createCSSValue(state.pool, state.style, name),
+                createCSSValue(state.pool, state.style, axis)
+            ));
+        }
     }
     return CSSValueList::createCommaSeparated(WTF::move(list));
 }
 
 inline void ExtractorCustom::extractScrollTimelineShorthandSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)
 {
-    auto& timelines = state.style.scrollTimelines();
-    if (timelines.isEmpty()) {
+    auto& scrollTimelines = state.style.scrollTimelines();
+    if (scrollTimelines.isInitial()) {
         serializationForCSS(builder, context, state.style, CSS::Keyword::None { });
         return;
     }
 
-    builder.append(interleave(timelines, [&](auto& builder, auto& timeline) {
-        ASSERT(!timeline->name().isNull());
+    // If there is more than one scroll timeline and any scroll timeline has any
+    // property not set, there is no serialization that will round-trip, so the
+    // extraction fails.
+    if (scrollTimelines.computedLength() > 1) {
+        for (auto& scrollTimeline : scrollTimelines.computedValues()) {
+            if (!allPropertiesAreSet(scrollTimeline))
+                return;
+        }
+    }
 
-        serializationForCSS(builder, context, state.style, CustomIdentifier { timeline->name() });
-        if (auto axis = timeline->axis(); axis != ScrollAxis::Block) {
+    builder.append(interleave(scrollTimelines.computedValues(), [&](auto& builder, auto& scrollTimeline) {
+        auto& name = scrollTimeline.name();
+        auto axis = scrollTimeline.axis();
+
+        auto hasDefaultAxis = axis == ProgressTimelineAxis::Block;
+
+        if (hasDefaultAxis)
+            serializationForCSS(builder, context, state.style, name);
+        else {
+            serializationForCSS(builder, context, state.style, name);
             builder.append(' ');
             serializationForCSS(builder, context, state.style, axis);
         }
@@ -3195,33 +3223,46 @@ inline void ExtractorCustom::extractTransitionShorthandSerialization(ExtractorSt
 
 inline RefPtr<CSSValue> ExtractorCustom::extractViewTimelineShorthand(ExtractorState& state)
 {
-    auto& timelines = state.style.viewTimelines();
-    if (timelines.isEmpty())
+    auto& viewTimelines = state.style.viewTimelines();
+    if (viewTimelines.isInitial())
         return createCSSValue(state.pool, state.style, CSS::Keyword::None { });
 
+    // If there is more than one view timeline and any view timeline has any
+    // property not set, there is no serialization that will round-trip, so the
+    // extraction fails.
+    if (viewTimelines.computedLength() > 1) {
+        for (auto& viewTimeline : viewTimelines.computedValues()) {
+            if (!allPropertiesAreSet(viewTimeline))
+                return nullptr;
+        }
+    }
+
     CSSValueListBuilder list;
-    for (auto& timeline : timelines) {
-        auto& name = timeline->name();
-        auto axis = timeline->axis();
-        auto& insets = timeline->insets();
+    for (auto& viewTimeline : viewTimelines.computedValues()) {
+        auto& name = viewTimeline.name();
+        auto axis = viewTimeline.axis();
+        auto& inset = viewTimeline.inset();
 
-        auto hasDefaultAxis = axis == ScrollAxis::Block;
-        auto hasDefaultInsets = insets.start().isAuto() && insets.end().isAuto();
+        auto hasDefaultAxis = axis == ProgressTimelineAxis::Block;
+        auto hasDefaultInset = inset.start().isAuto() && inset.end().isAuto();
 
-        ASSERT(!name.isNull());
-        auto nameCSSValue = createCSSValue(state.pool, state.style, CustomIdentifier { name });
-
-        if (hasDefaultAxis && hasDefaultInsets)
-            list.append(WTF::move(nameCSSValue));
-        else if (hasDefaultAxis)
-            list.append(CSSValuePair::createNoncoalescing(nameCSSValue, createCSSValue(state.pool, state.style, insets)));
-        else if (hasDefaultInsets)
-            list.append(CSSValuePair::createNoncoalescing(nameCSSValue, createCSSValue(state.pool, state.style, axis)));
-        else {
+        if (hasDefaultAxis && hasDefaultInset)
+            list.append(createCSSValue(state.pool, state.style, name));
+        else if (hasDefaultAxis) {
+            list.append(CSSValuePair::createNoncoalescing(
+                createCSSValue(state.pool, state.style, name),
+                createCSSValue(state.pool, state.style, inset)
+            ));
+        } else if (hasDefaultInset) {
+            list.append(CSSValuePair::createNoncoalescing(
+                createCSSValue(state.pool, state.style, name),
+                createCSSValue(state.pool, state.style, axis)
+            ));
+        } else {
             list.append(CSSValueList::createSpaceSeparated(
-                WTF::move(nameCSSValue),
+                createCSSValue(state.pool, state.style, name),
                 createCSSValue(state.pool, state.style, axis),
-                createCSSValue(state.pool, state.style, insets)
+                createCSSValue(state.pool, state.style, inset)
             ));
         }
     }
@@ -3230,8 +3271,48 @@ inline RefPtr<CSSValue> ExtractorCustom::extractViewTimelineShorthand(ExtractorS
 
 inline void ExtractorCustom::extractViewTimelineShorthandSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)
 {
-    // FIXME: Do this more efficiently without creating and destroying a CSSValue object.
-    builder.append(extractViewTimelineShorthand(state)->cssText(context));
+    auto& viewTimelines = state.style.viewTimelines();
+    if (viewTimelines.isInitial()) {
+        serializationForCSS(builder, context, state.style, CSS::Keyword::None { });
+        return;
+    }
+
+    // If there is more than one view timeline and any view timeline has any
+    // property not set, there is no serialization that will round-trip, so the
+    // extraction fails.
+    if (viewTimelines.computedLength() > 1) {
+        for (auto& viewTimeline : viewTimelines.computedValues()) {
+            if (!allPropertiesAreSet(viewTimeline))
+                return;
+        }
+    }
+
+    builder.append(interleave(viewTimelines.computedValues(), [&](auto& builder, auto& viewTimeline) {
+        auto& name = viewTimeline.name();
+        auto axis = viewTimeline.axis();
+        auto& inset = viewTimeline.inset();
+
+        auto hasDefaultAxis = axis == ProgressTimelineAxis::Block;
+        auto hasDefaultInset = inset.start().isAuto() && inset.end().isAuto();
+
+        if (hasDefaultAxis && hasDefaultInset)
+            serializationForCSS(builder, context, state.style, name);
+        else if (hasDefaultAxis) {
+            serializationForCSS(builder, context, state.style, name);
+            builder.append(' ');
+            serializationForCSS(builder, context, state.style, inset);
+        } else if (hasDefaultInset) {
+            serializationForCSS(builder, context, state.style, name);
+            builder.append(' ');
+            serializationForCSS(builder, context, state.style, axis);
+        } else {
+            serializationForCSS(builder, context, state.style, name);
+            builder.append(' ');
+            serializationForCSS(builder, context, state.style, axis);
+            builder.append(' ');
+            serializationForCSS(builder, context, state.style, inset);
+        }
+    }, ", "_s));
 }
 
 inline RefPtr<CSSValue> ExtractorCustom::extractWhiteSpaceShorthand(ExtractorState& state)

@@ -247,7 +247,7 @@ RetainPtr<CVPixelBufferRef> SharedVideoFrameReader::readBufferFromSharedMemory()
         return { };
     }
 
-    auto result = info->createPixelBufferFromMemory(data.subspan(SharedVideoFrameInfoEncodingLength), protectedPixelBufferPool(*info).get());
+    auto result = info->createPixelBufferFromMemory(data.subspan(SharedVideoFrameInfoEncodingLength), protect(pixelBufferPool(*info)));
     if (result && m_resourceOwner && m_useIOSurfaceBufferPool == UseIOSurfaceBufferPool::Yes)
         setOwnershipIdentityForCVPixelBuffer(result.get(), m_resourceOwner);
     return result;
@@ -313,11 +313,6 @@ CVPixelBufferPoolRef SharedVideoFrameReader::pixelBufferPool(const SharedVideoFr
     }
 
     return m_bufferPool.get();
-}
-
-RetainPtr<CVPixelBufferPoolRef> SharedVideoFrameReader::protectedPixelBufferPool(const SharedVideoFrameInfo& info)
-{
-    return pixelBufferPool(info);
 }
 
 bool SharedVideoFrameReader::setSharedMemory(SharedMemory::Handle&& handle)

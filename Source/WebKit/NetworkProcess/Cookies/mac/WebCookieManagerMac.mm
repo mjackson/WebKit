@@ -37,7 +37,7 @@
 namespace WebKit {
 using namespace WebCore;
 
-static CFHTTPCookieStorageAcceptPolicy toCFHTTPCookieStorageAcceptPolicy(HTTPCookieAcceptPolicy policy)
+static CFHTTPCookieStorageAcceptPolicy NODELETE toCFHTTPCookieStorageAcceptPolicy(HTTPCookieAcceptPolicy policy)
 {
     switch (policy) {
     case HTTPCookieAcceptPolicy::AlwaysAccept:
@@ -58,7 +58,7 @@ void WebCookieManager::platformSetHTTPCookieAcceptPolicy(PAL::SessionID sessionI
 {
     ASSERT(hasProcessPrivilege(ProcessPrivilege::CanAccessRawCookies));
 
-    CheckedPtr storageSession = protectedProcess()->storageSession(sessionID);
+    CheckedPtr storageSession = protect(m_process)->storageSession(sessionID);
     if (!storageSession)
         return completionHandler();
 

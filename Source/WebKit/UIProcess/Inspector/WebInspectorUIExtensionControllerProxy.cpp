@@ -105,7 +105,7 @@ void WebInspectorUIExtensionControllerProxy::registerExtension(const Inspector::
             return;
         }
 
-        protect(protect(weakThis->m_inspectorPage)->legacyMainFrameProcess())->sendWithAsyncReply(Messages::WebInspectorUIExtensionController::RegisterExtension { extensionID, extensionBundleIdentifier, displayName }, [protectedThis = protect(*weakThis.get()), extensionID, completionHandler = WTF::move(completionHandler)](Expected<void, Inspector::ExtensionError> result) mutable {
+        protect(protect(weakThis->m_inspectorPage)->legacyMainFrameProcess())->sendWithAsyncReply(Messages::WebInspectorUIExtensionController::RegisterExtension { extensionID, extensionBundleIdentifier, displayName }, [protectedThis = protect(*weakThis), extensionID, completionHandler = WTF::move(completionHandler)](Expected<void, Inspector::ExtensionError> result) mutable {
             if (!result) {
                 completionHandler(makeUnexpected(Inspector::ExtensionError::RegistrationFailed));
                 return;
@@ -132,7 +132,7 @@ void WebInspectorUIExtensionControllerProxy::unregisterExtension(const Inspector
             return;
         }
 
-        protect(protect(weakThis->m_inspectorPage)->legacyMainFrameProcess())->sendWithAsyncReply(Messages::WebInspectorUIExtensionController::UnregisterExtension { extensionID }, [protectedThis = protect(*weakThis.get()), extensionID, completionHandler = WTF::move(completionHandler)](Expected<void, Inspector::ExtensionError> result) mutable {
+        protect(protect(weakThis->m_inspectorPage)->legacyMainFrameProcess())->sendWithAsyncReply(Messages::WebInspectorUIExtensionController::UnregisterExtension { extensionID }, [protectedThis = protect(*weakThis), extensionID, completionHandler = WTF::move(completionHandler)](Expected<void, Inspector::ExtensionError> result) mutable {
             if (!result) {
                 completionHandler(makeUnexpected(Inspector::ExtensionError::InvalidRequest));
                 return;

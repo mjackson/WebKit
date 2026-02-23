@@ -875,7 +875,7 @@ RetainPtr<PlatformColor> HTMLConverter::_colorForElement(Element& element, CSSPr
 
 static PlatformFont *_font(Element& element)
 {
-    auto* renderer = element.renderer();
+    CheckedPtr renderer = element.renderer();
     if (!renderer)
         return nil;
     Ref primaryFont = renderer->style().fontCascade().primaryFont();

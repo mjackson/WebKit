@@ -226,8 +226,8 @@ static unsigned verticalScrollDistance(LocalFrame& frame)
     CheckedPtr renderBox = dynamicDowncast<RenderBox>(focusedElement->renderer());
     if (!renderBox)
         return 0;
-    const RenderStyle& style = renderBox->style();
-    if (!(style.overflowY() == Overflow::Scroll || style.overflowY() == Overflow::Auto || focusedElement->hasEditableStyle()))
+    CheckedRef style = renderBox->style();
+    if (!(style->overflowY() == Overflow::Scroll || style->overflowY() == Overflow::Auto || focusedElement->hasEditableStyle()))
         return 0;
     int height = std::min<int>(renderBox->clientHeight(), frame.view()->visibleHeight());
     return static_cast<unsigned>(Scrollbar::pageStep(height));
@@ -358,15 +358,15 @@ static bool executeDeleteToEndOfParagraph(LocalFrame& frame, Event*, EditorComma
 static bool executeDeleteToMark(LocalFrame& frame, Event*, EditorCommandSource, const String&)
 {
     Ref editor = frame.editor();
-    auto& selection = frame.selection();
+    CheckedRef selection = frame.selection();
     auto markRange = editor->mark().toNormalizedRange();
-    auto selectionRange = selection.selection().toNormalizedRange();
+    auto selectionRange = selection->selection().toNormalizedRange();
     if (markRange && selectionRange) {
-        if (!selection.setSelectedRange(unionRange(*markRange, *selectionRange), Affinity::Downstream, FrameSelection::ShouldCloseTyping::Yes))
+        if (!selection->setSelectedRange(unionRange(*markRange, *selectionRange), Affinity::Downstream, FrameSelection::ShouldCloseTyping::Yes))
             return false;
     }
     editor->performDelete();
-    editor->setMark(selection.selection());
+    editor->setMark(selection->selection());
     return true;
 }
 
@@ -1081,14 +1081,14 @@ static bool executeSelectSentence(LocalFrame& frame, Event*, EditorCommandSource
 static bool executeSelectToMark(LocalFrame& frame, Event*, EditorCommandSource, const String&)
 {
     Ref editor = frame.editor();
-    auto& selection = frame.selection();
+    CheckedRef selection = frame.selection();
     auto markRange = editor->mark().toNormalizedRange();
-    auto selectionRange = selection.selection().toNormalizedRange();
+    auto selectionRange = selection->selection().toNormalizedRange();
     if (!markRange || !selectionRange) {
         SystemSoundManager::singleton().systemBeep();
         return false;
     }
-    selection.setSelectedRange(unionRange(*markRange, *selectionRange), Affinity::Downstream, FrameSelection::ShouldCloseTyping::Yes);
+    selection->setSelectedRange(unionRange(*markRange, *selectionRange), Affinity::Downstream, FrameSelection::ShouldCloseTyping::Yes);
     // FIXME: Why do we ignore the return value from setSelectedRange here?
     return true;
 }
@@ -1262,7 +1262,7 @@ static bool supportedCopyCut(LocalFrame* frame)
 
     bool defaultValue = defaultValueForSupportedCopyCut(*frame);
 
-    EditorClient* client = frame->editor().client();
+    CheckedPtr client = frame->editor().client();
     return client ? client->canCopyCut(frame, defaultValue) : defaultValue;
 }
 
@@ -1282,7 +1282,7 @@ static bool supportedPaste(LocalFrame* frame)
 
     bool defaultValue = defaultValueForSupportedPaste(*frame);
 
-    EditorClient* client = frame->editor().client();
+    CheckedPtr client = frame->editor().client();
     return client ? client->canPaste(frame, defaultValue) : defaultValue;
 }
 

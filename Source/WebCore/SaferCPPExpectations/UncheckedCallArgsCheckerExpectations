@@ -1,9 +1,10 @@
+[ Mac ] Modules/contact-picker/ContactsManager.cpp
 Modules/mediacapabilities/MediaCapabilities.cpp
 Modules/pictureinpicture/HTMLVideoElementPictureInPicture.cpp
 Modules/push-api/PushDatabase.cpp
 Modules/push-api/PushManager.cpp
 Modules/push-api/PushSubscription.cpp
-Modules/remoteplayback/RemotePlayback.cpp
+[ Mac ] Modules/webaudio/BaseAudioContext.h
 Modules/webaudio/DefaultAudioDestinationNode.cpp
 Modules/webaudio/IIRFilterNode.cpp
 Modules/webaudio/MediaStreamAudioDestinationNode.cpp
@@ -15,6 +16,7 @@ StyleBuilderGenerated.cpp
 StyleExtractorGenerated.cpp
 accessibility/AXObjectCache.cpp
 accessibility/AXObjectCache.h
+[ Mac ] accessibility/AXTableHelpers.cpp
 accessibility/AccessibilityListBoxOption.cpp
 accessibility/AccessibilityMathMLElement.cpp
 accessibility/AccessibilityMenuList.cpp
@@ -26,6 +28,7 @@ accessibility/AccessibilityObjectInlines.h
 accessibility/AccessibilityProgressIndicator.cpp
 accessibility/AccessibilityRenderObject.cpp
 accessibility/cocoa/AccessibilityObjectCocoa.mm
+[ iOS ] accessibility/ios/AXObjectCacheIOS.mm
 [ iOS ] accessibility/ios/AccessibilityObjectIOS.mm
 [ iOS ] accessibility/ios/WebAccessibilityObjectWrapperIOS.mm
 [ Mac ] accessibility/mac/AXObjectCacheMac.mm
@@ -35,7 +38,6 @@ animation/ElementAnimationRareData.cpp
 animation/KeyframeEffect.cpp
 animation/ScrollTimeline.cpp
 animation/StyleOriginatedAnimation.cpp
-animation/StyleOriginatedAnimationEvent.cpp
 animation/ViewTimeline.cpp
 animation/WebAnimation.cpp
 bindings/js/DOMPromiseProxy.h
@@ -48,6 +50,7 @@ bindings/js/JSDOMConvertNullable.h
 bindings/js/JSDOMGlobalObject.cpp
 bindings/js/JSDOMPromiseDeferred.cpp
 bindings/js/JSDOMWindowBase.cpp
+[ Mac ] bindings/js/JSDocumentCustom.cpp
 bindings/js/JSElementCustom.cpp
 bindings/js/JSExecState.cpp
 bindings/js/JSHTMLElementCustom.cpp
@@ -63,6 +66,7 @@ bindings/js/JSWorkerGlobalScopeBase.cpp
 bindings/js/JSWorkerNavigatorCustom.cpp
 bindings/js/JSWorkletGlobalScopeBase.cpp
 bindings/js/ScheduledAction.cpp
+[ Mac ] bindings/js/ScriptController.cpp
 bindings/js/ScriptModuleLoader.cpp
 bridge/objc/WebScriptObject.mm
 bridge/runtime_method.cpp
@@ -79,7 +83,6 @@ css/SelectorCheckerTestFunctions.h
 css/SelectorFilter.cpp
 css/StyleAttributeMutationScope.h
 css/parser/SizesAttributeParser.cpp
-css/typedom/ComputedStylePropertyMapReadOnly.cpp
 css/typedom/InlineStylePropertyMap.cpp
 dom/Attr.cpp
 dom/BoundaryPoint.cpp
@@ -89,14 +92,16 @@ dom/ContainerNode.cpp
 dom/ContainerNodeAlgorithms.cpp
 dom/ContentVisibilityDocumentState.cpp
 dom/CurrentScriptIncrementer.h
+[ iOS ] dom/DataTransfer.cpp
+[ iOS ] dom/DeviceMotionController.cpp
+[ iOS ] dom/DeviceOrientationController.cpp
 dom/Document.cpp
 dom/DocumentFullscreen.cpp
 dom/Element.cpp
 dom/ElementInternals.cpp
-dom/ElementIteratorInlines.h
-dom/ElementTraversal.h
+[ Mac ] dom/ElementIteratorInlines.h
+[ Mac ] dom/ElementTraversal.h
 dom/EventLoop.cpp
-dom/ExtensionStyleSheets.cpp
 dom/FragmentDirectiveRangeFinder.cpp
 dom/IdTargetObserver.cpp
 dom/IdleCallbackController.cpp
@@ -119,8 +124,6 @@ dom/RangeBoundaryPoint.h
 dom/ScriptElement.cpp
 dom/SelectorQuery.cpp
 dom/ShadowRoot.cpp
-dom/SimpleRange.cpp
-dom/SimulatedClick.cpp
 dom/TreeScope.cpp
 dom/TreeScopeOrderedMap.cpp
 dom/TypedElementDescendantIteratorInlines.h
@@ -147,11 +150,10 @@ editing/ModifySelectionListLevel.cpp
 editing/RemoveFormatCommand.cpp
 editing/RenderedPosition.cpp
 editing/ReplaceSelectionCommand.cpp
-editing/ReplaceSelectionCommand.h
 editing/SimplifyMarkupCommand.cpp
 editing/SpellChecker.cpp
 editing/TextInsertionBaseCommand.cpp
-editing/TextIterator.cpp
+[ Mac ] editing/TextIterator.cpp
 editing/TextManipulationController.cpp
 editing/TypingCommand.cpp
 editing/VisiblePosition.cpp
@@ -165,18 +167,20 @@ editing/cocoa/WebContentReaderCocoa.mm
 [ Mac ] editing/mac/EditorMac.mm
 editing/mac/FrameSelectionMac.mm
 editing/markup.cpp
+[ Mac ] history/CachedFrame.cpp
+[ Mac ] html/BaseDateAndTimeInputType.cpp
 html/CachedHTMLCollection.h
 html/CachedHTMLCollectionInlines.h
 html/CollectionTraversalInlines.h
-[ iOS ] html/ColorInputType.cpp
+html/ColorInputType.cpp
 html/FTPDirectoryDocument.cpp
+[ Mac ] html/FormAssociatedCustomElement.cpp
 html/FormAssociatedElement.cpp
-[ iOS ] html/HTMLAnchorElement.cpp
 html/HTMLFormElement.cpp
 html/HTMLInputElement.cpp
 html/HTMLLinkElement.cpp
+[ iOS ] html/HTMLMediaElement.cpp
 html/HTMLMetaElement.cpp
-html/HTMLNameCollectionInlines.h
 html/HTMLOptionsCollection.cpp
 html/HTMLPlugInElement.cpp
 html/HTMLTextFormControlElement.cpp
@@ -185,6 +189,9 @@ html/LazyLoadFrameObserver.cpp
 html/LazyLoadImageObserver.cpp
 html/MediaElementSession.cpp
 html/ModelDocument.cpp
+[ Mac ] html/RangeInputType.cpp
+[ Mac ] html/ResetInputType.cpp
+[ Mac ] html/TextFieldInputType.cpp
 html/ValidatedFormListedElement.cpp
 html/ValidationMessage.cpp
 html/canvas/CanvasRenderingContext2D.cpp
@@ -200,6 +207,7 @@ html/parser/HTMLTreeBuilder.cpp
 html/shadow/DateTimeNumericFieldElement.cpp
 html/shadow/DateTimeSymbolicFieldElement.cpp
 html/shadow/SliderThumbElement.cpp
+[ Mac ] html/shadow/TextControlInnerElements.cpp
 inspector/DOMEditor.cpp
 inspector/InspectorAuditAccessibilityObject.cpp
 inspector/InspectorCanvas.cpp
@@ -214,6 +222,7 @@ inspector/InspectorResourceUtilities.cpp
 inspector/InspectorStyleSheet.cpp
 inspector/PageDebugger.cpp
 inspector/WorkerDebugger.cpp
+[ Mac ] inspector/agents/InspectorAnimationAgent.cpp
 inspector/agents/InspectorCSSAgent.cpp
 inspector/agents/InspectorCanvasAgent.cpp
 inspector/agents/InspectorDOMAgent.cpp
@@ -231,11 +240,13 @@ layout/floats/FloatingContext.cpp
 layout/floats/PlacedFloats.cpp
 layout/formattingContexts/FormattingGeometry.cpp
 layout/formattingContexts/block/BlockFormattingContext.cpp
+[ Mac ] layout/formattingContexts/block/BlockFormattingGeometry.cpp
 layout/formattingContexts/block/BlockFormattingQuirks.cpp
 layout/formattingContexts/block/BlockMarginCollapse.cpp
 layout/formattingContexts/block/PrecomputedBlockMarginCollapse.cpp
 layout/formattingContexts/block/tablewrapper/TableWrapperBlockFormattingContext.cpp
 layout/formattingContexts/flex/FlexLayout.cpp
+[ Mac ] layout/formattingContexts/grid/GridFormattingContext.h
 layout/formattingContexts/inline/AbstractLineBuilder.cpp
 layout/formattingContexts/inline/InlineContentAligner.cpp
 layout/formattingContexts/inline/InlineContentBreaker.cpp
@@ -251,7 +262,7 @@ layout/formattingContexts/inline/InlineLineBox.cpp
 layout/formattingContexts/inline/InlineLineBox.h
 layout/formattingContexts/inline/InlineLineBoxBuilder.cpp
 layout/formattingContexts/inline/InlineLineBoxBuilder.h
-layout/formattingContexts/inline/InlineLineBoxVerticalAligner.cpp
+[ iOS ] layout/formattingContexts/inline/InlineLineBoxVerticalAligner.cpp
 layout/formattingContexts/inline/InlineLineBuilder.cpp
 layout/formattingContexts/inline/InlineQuirks.cpp
 layout/formattingContexts/inline/InlineTextItem.cpp
@@ -266,6 +277,7 @@ layout/formattingContexts/inline/ruby/RubyFormattingContext.cpp
 layout/formattingContexts/inline/text/TextUtil.cpp
 layout/formattingContexts/table/TableFormattingContext.cpp
 layout/formattingContexts/table/TableFormattingGeometry.cpp
+[ Mac ] layout/formattingContexts/table/TableFormattingQuirks.cpp
 layout/formattingContexts/table/TableGrid.cpp
 layout/formattingContexts/table/TableLayout.cpp
 layout/integration/LayoutIntegrationBoxGeometryUpdater.cpp
@@ -274,7 +286,6 @@ layout/integration/LayoutIntegrationFormattingContextLayout.cpp
 layout/integration/flex/LayoutIntegrationFlexLayout.cpp
 layout/integration/flex/LayoutIntegrationFlexLayout.h
 layout/integration/inline/InlineIteratorBox.cpp
-layout/integration/inline/InlineIteratorBoxLegacyPath.h
 layout/integration/inline/InlineIteratorBoxModernPath.h
 layout/integration/inline/InlineIteratorInlineBox.cpp
 layout/integration/inline/InlineIteratorLineBox.cpp
@@ -291,13 +302,16 @@ layout/integration/inline/LineSelection.h
 layout/layouttree/FormattingContextBoxIterator.h
 layout/layouttree/LayoutBox.cpp
 layout/layouttree/LayoutContainingBlockChainIterator.h
+[ Mac ] layout/layouttree/LayoutElementBox.cpp
 layout/layouttree/LayoutTreeBuilder.cpp
 loader/ApplicationManifestLoader.cpp
 loader/CrossOriginPreflightChecker.cpp
+[ Mac ] loader/DocumentLoader.cpp
+[ Mac ] loader/DocumentWriter.cpp
 loader/FrameLoadRequest.cpp
 loader/FrameLoader.cpp
+[ Mac ] loader/HistoryController.cpp
 loader/ImageLoader.cpp
-loader/MediaResourceLoader.cpp
 loader/NavigationScheduler.cpp
 loader/PolicyChecker.cpp
 loader/ResourceLoader.cpp
@@ -307,21 +321,20 @@ loader/SubframeLoader.cpp
 loader/SubresourceLoader.cpp
 loader/WorkerThreadableLoader.cpp
 loader/archive/cf/LegacyWebArchive.cpp
+[ Mac ] loader/cache/CachedResourceLoader.cpp
 mathml/MathMLElement.cpp
 mathml/MathMLMathElement.cpp
-mathml/MathMLOperatorElement.cpp
 mathml/MathMLPresentationElement.cpp
 mathml/MathMLSelectElement.cpp
 page/AutoscrollController.cpp
-[ iOS ] page/Chrome.cpp
 [ Mac ] page/ContextMenuController.cpp
 [ iOS ] page/DOMTimer.cpp
+[ Mac ] page/DOMWindow.cpp
 page/DragController.cpp
 page/ElementTargetingController.cpp
 page/EventHandler.cpp
 page/FocusController.cpp
 page/FrameSnapshotting.cpp
-page/ImageOverlayController.cpp
 page/IntelligenceTextEffectsSupport.cpp
 page/InteractionRegion.cpp
 page/IntersectionObserver.cpp
@@ -332,22 +345,22 @@ page/LocalFrameViewLayoutContext.cpp
 page/Location.cpp
 page/MemoryRelease.cpp
 page/NavigateEvent.cpp
+[ Mac ] page/Navigator.cpp
 [ iOS ] page/Page.cpp
-page/PageColorSampler.cpp
 page/PageSerializer.cpp
 page/Performance.cpp
 page/PerformanceMonitor.cpp
 page/PointerCaptureController.cpp
 page/PointerLockController.cpp
 page/PrintContext.cpp
-[ iOS ] page/Quirks.cpp
+page/Quirks.cpp
 page/RemoteFrame.cpp
-page/ResizeObservation.cpp
 page/ResizeObserver.cpp
 page/ScrollBehavior.cpp
 page/SettingsBase.cpp
 page/SpatialNavigation.cpp
 page/VisualViewport.cpp
+[ iOS ] page/cocoa/ContentChangeObserver.cpp
 page/cocoa/PageCocoa.mm
 [ iOS ] page/ios/EventHandlerIOS.mm
 [ iOS ] page/ios/FrameIOS.mm
@@ -376,6 +389,7 @@ platform/graphics/ca/TileController.cpp
 platform/graphics/ca/TileCoverageMap.cpp
 platform/graphics/ca/cocoa/WebTiledBackingLayer.mm
 platform/graphics/cg/CGSubimageCacheWithTimer.cpp
+platform/graphics/cocoa/TextTrackRepresentationCocoa.mm
 [ iOS ] platform/ios/DeviceMotionClientIOS.mm
 [ iOS ] platform/ios/DeviceOrientationClientIOS.mm
 [ iOS ] platform/ios/PlatformScreenIOS.mm
@@ -387,8 +401,8 @@ platform/ios/WebAVPlayerController.mm
 [ iOS ] platform/ios/WebVideoFullscreenControllerAVKit.mm
 platform/mock/MockRealtimeVideoSource.cpp
 platform/text/cocoa/LocalizedDateCache.mm
+[ Mac ] plugins/PluginData.cpp
 rendering/AccessibilityRegionContext.cpp
-rendering/AncestorSubgridIterator.cpp
 rendering/AttachmentLayout.mm
 rendering/AutoTableLayout.cpp
 rendering/BackgroundPainter.cpp
@@ -400,6 +414,9 @@ rendering/CounterNode.cpp
 rendering/EllipsisBoxPainter.cpp
 rendering/FixedTableLayout.cpp
 rendering/FloatingObjects.cpp
+[ Mac ] rendering/GlyphDisplayListCache.cpp
+[ Mac ] rendering/GlyphDisplayListCache.h
+[ Mac ] rendering/GridMasonryLayout.cpp
 rendering/GridTrackSizingAlgorithm.cpp
 rendering/HitTestResult.cpp
 rendering/ImageQualityController.cpp
@@ -416,9 +433,11 @@ rendering/LegacyRootInlineBox.cpp
 rendering/LineClampUpdater.h
 rendering/LogicalSelectionOffsetCachesInlines.h
 rendering/MarkedText.cpp
+[ Mac ] rendering/MarkedText.h
 rendering/MotionPath.cpp
 rendering/OrderIterator.cpp
 rendering/PositionedLayoutConstraints.cpp
+[ Mac ] rendering/PositionedLayoutConstraints.h
 rendering/RegionContext.h
 rendering/RenderAttachment.cpp
 rendering/RenderBlock.cpp
@@ -448,8 +467,6 @@ rendering/RenderHTMLCanvas.cpp
 rendering/RenderImage.cpp
 rendering/RenderImage.h
 rendering/RenderImageResource.cpp
-rendering/RenderImageResourceStyleImage.cpp
-rendering/RenderImageResourceStyleImage.h
 rendering/RenderInline.cpp
 rendering/RenderIterator.h
 rendering/RenderLayer.cpp
@@ -460,7 +477,6 @@ rendering/RenderLayerCompositor.cpp
 rendering/RenderLayerModelObject.cpp
 rendering/RenderLayerScrollableArea.cpp
 rendering/RenderLayoutState.cpp
-[ iOS ] rendering/RenderLineBreak.cpp
 rendering/RenderListBox.cpp
 rendering/RenderListItem.cpp
 rendering/RenderListMarker.cpp
@@ -469,11 +485,12 @@ rendering/RenderMultiColumnFlow.cpp
 rendering/RenderMultiColumnSet.cpp
 rendering/RenderObject.cpp
 rendering/RenderObjectNode.h
-rendering/RenderProgress.cpp
 rendering/RenderQuote.cpp
 rendering/RenderReplaced.cpp
 rendering/RenderReplica.cpp
+[ Mac ] rendering/RenderScrollbarPart.cpp
 rendering/RenderSelectionGeometry.cpp
+[ Mac ] rendering/RenderSlider.cpp
 rendering/RenderTable.cpp
 rendering/RenderTableCaption.cpp
 rendering/RenderTableCell.cpp
@@ -487,6 +504,7 @@ rendering/RenderTextControlMultiLine.cpp
 rendering/RenderTextControlSingleLine.cpp
 rendering/RenderTextControlSingleLine.h
 rendering/RenderTextFragment.cpp
+[ Mac ] rendering/RenderTextInlines.h
 rendering/RenderTextLineBoxes.cpp
 rendering/RenderTreeAsText.cpp
 rendering/RenderVTTCue.cpp
@@ -495,10 +513,10 @@ rendering/RenderViewTransitionCapture.cpp
 rendering/RenderWidget.cpp
 rendering/StyledMarkedText.cpp
 rendering/TextAutoSizing.cpp
-rendering/TextAutoSizing.h
 rendering/TextBoxPainter.cpp
 rendering/TextBoxTrimmer.cpp
 rendering/TextDecorationPainter.cpp
+[ iOS ] rendering/cocoa/RenderThemeCocoa.mm
 [ iOS ] rendering/ios/RenderThemeIOS.mm
 rendering/line/BreakingContext.h
 rendering/line/LineInlineHeaders.h
@@ -523,15 +541,7 @@ rendering/shapes/ShapeOutsideInfo.cpp
 rendering/style/RenderStyle+GettersInlines.h
 rendering/style/RenderStyle+SettersInlines.h
 rendering/style/RenderStyle.cpp
-rendering/style/RenderStyle.h
-rendering/style/StyleCachedImage.cpp
-rendering/style/StyleCanvasImage.cpp
-rendering/style/StyleGeneratedImage.cpp
-rendering/style/StyleGradientImage.cpp
-rendering/style/StyleMultiImage.cpp
-rendering/style/StylePaintImage.cpp
 rendering/svg/RenderSVGBlock.cpp
-rendering/svg/RenderSVGContainer.cpp
 rendering/svg/RenderSVGImage.cpp
 rendering/svg/RenderSVGInline.cpp
 rendering/svg/RenderSVGInlineText.cpp
@@ -540,11 +550,9 @@ rendering/svg/RenderSVGPath.cpp
 rendering/svg/RenderSVGResourceClipper.cpp
 rendering/svg/RenderSVGResourceFilterInlines.h
 rendering/svg/RenderSVGResourceFilterPrimitive.cpp
-rendering/svg/RenderSVGResourceMarker.cpp
 rendering/svg/RenderSVGRoot.cpp
 rendering/svg/RenderSVGShape.cpp
 rendering/svg/RenderSVGText.cpp
-rendering/svg/RenderSVGTextPath.cpp
 rendering/svg/RenderSVGViewportContainer.cpp
 rendering/svg/SVGBoundingBoxComputation.cpp
 rendering/svg/SVGContainerLayout.cpp
@@ -559,6 +567,7 @@ rendering/svg/SVGTextChunk.cpp
 rendering/svg/SVGTextLayoutEngine.cpp
 rendering/svg/SVGTextLayoutEngineBaseline.cpp
 rendering/svg/SVGTextMetrics.cpp
+[ Mac ] rendering/svg/SVGTextMetricsBuilder.cpp
 rendering/svg/SVGTextQuery.cpp
 rendering/svg/SVGVisitedRendererTracking.h
 rendering/svg/legacy/LegacyRenderSVGContainer.cpp
@@ -615,7 +624,6 @@ style/StyleChangedAnimatableProperties.cpp
 style/StyleCustomPropertyRegistry.cpp
 style/StyleExtractor.cpp
 style/StyleExtractorCustom.h
-style/StyleInterpolation.cpp
 style/StyleInvalidationFunctions.h
 style/StyleInvalidator.cpp
 style/StyleResolveForDocument.cpp
@@ -627,14 +635,21 @@ style/StyleTreeResolver.cpp
 style/StyleUpdate.cpp
 style/Styleable.cpp
 style/Styleable.h
-style/computed/StyleComputedStyle.cpp
+[ Mac ] style/calc/StyleCalculationTree+Conversion.cpp
 style/computed/StyleComputedStyleBase.cpp
 style/values/color/StyleColor.cpp
 style/values/content/StyleContent.cpp
 style/values/fonts/StyleFontWeight.cpp
 style/values/grid/StyleGridPositionsResolver.cpp
+style/values/images/kinds/StyleCachedImage.cpp
+style/values/images/kinds/StyleCanvasImage.cpp
+style/values/images/kinds/StyleGeneratedImage.cpp
+style/values/images/kinds/StyleGradientImage.cpp
+style/values/images/kinds/StyleMultiImage.cpp
+style/values/images/kinds/StylePaintImage.cpp
 style/values/inline/StyleLineHeight.cpp
 style/values/primitives/StyleLengthResolution.cpp
+[ Mac ] style/values/viewport/StyleZoomPrimitivesInlines.h
 svg/SVGAElement.cpp
 svg/SVGClipPathElement.cpp
 svg/SVGCursorElement.cpp
@@ -665,3 +680,6 @@ workers/WorkerThread.cpp
 workers/shared/context/SharedWorkerThreadProxy.cpp
 worklets/PaintWorkletGlobalScope.cpp
 worklets/WorkletGlobalScope.cpp
+[ Mac ] xml/DOMParser.cpp
+[ Mac ] xml/XSLTProcessorLibxslt.cpp
+[ Mac ] xml/parser/XMLDocumentParserLibxml2.cpp

@@ -138,7 +138,7 @@ void RenderLineBoxList::dirtyLineFromChangedChild(RenderBoxModelObject& containe
     }
     // For an empty inline, propagate the check up to our parent.
     if (inlineContainer && inlineContainer->everHadLayout()) {
-        auto* parent = inlineContainer->parent();
+        CheckedPtr parent = inlineContainer->parent();
         parent->dirtyLineFromChangedChild();
         parent->setNeedsLayout();
     }

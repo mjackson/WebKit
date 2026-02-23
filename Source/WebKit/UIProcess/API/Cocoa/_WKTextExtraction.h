@@ -55,6 +55,18 @@ typedef NS_ENUM(NSInteger, _WKTextExtractionOutputFormat) {
     _WKTextExtractionOutputFormatJSON,
 } WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA));
 
+#define WK_TEXT_EXTRACTION_HAS_EVENT_LISTENER_CATEGORIES 1
+
+typedef NS_OPTIONS(NSUInteger, _WKTextExtractionEventListenerCategory) {
+    _WKTextExtractionEventListenerCategoryNone          = 0,
+    _WKTextExtractionEventListenerCategoryClick         = 1 << 0,
+    _WKTextExtractionEventListenerCategoryHover         = 1 << 1,
+    _WKTextExtractionEventListenerCategoryTouch         = 1 << 2,
+    _WKTextExtractionEventListenerCategoryWheel         = 1 << 3,
+    _WKTextExtractionEventListenerCategoryKeyboard      = 1 << 4,
+    _WKTextExtractionEventListenerCategoryAll           = NSUIntegerMax
+} WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA));
+
 #define WK_TEXT_EXTRACTION_HAS_DATA_DETECTOR_TYPES 1
 
 typedef NS_OPTIONS(NSUInteger, _WKTextExtractionDataDetectorTypes) {
@@ -119,6 +131,13 @@ WK_CLASS_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA))
 @property (nonatomic) BOOL includeEventListeners;
 
 /*!
+ Specifies categories of event listeners to include in text extraction output.
+ Setting this to `.none` excludes all event listener data, while `.all` includes all categories.
+ The default value is `.all`.
+ */
+@property (nonatomic) _WKTextExtractionEventListenerCategory eventListenerCategories;
+
+/*!
  Include accessibility attributes (e.g. `role`, `aria-label`).
  The default value is `YES`.
  */
@@ -126,7 +145,7 @@ WK_CLASS_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA))
 
 /*!
  Include text content underneath form controls that have been modified via AutoFill.
- The default value is `YES`.
+ The default value is `NO`.
  */
 @property (nonatomic) BOOL includeTextInAutoFilledControls;
 
@@ -239,7 +258,8 @@ typedef NS_ENUM(NSInteger, _WKTextExtractionAction) {
     _WKTextExtractionActionTextInput,
     _WKTextExtractionActionKeyPress,
     _WKTextExtractionActionHighlightText,
-    _WKTextExtractionActionScrollBy
+    _WKTextExtractionActionScroll,
+    _WKTextExtractionActionScrollBy = _WKTextExtractionActionScroll,
 } WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA));
 
 WK_CLASS_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA))

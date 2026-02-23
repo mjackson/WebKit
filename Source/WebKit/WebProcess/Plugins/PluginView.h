@@ -72,9 +72,9 @@ class PluginView final : public WebCore::PluginViewBase {
 public:
     static RefPtr<PluginView> create(WebCore::HTMLPlugInElement&, const URL&, const String& contentType, bool shouldUseManualLoader);
 
-    WebCore::LocalFrame* frame() const;
+    WebCore::LocalFrame* NODELETE frame() const;
 
-    bool isBeingDestroyed() const;
+    bool NODELETE isBeingDestroyed() const;
 
     void manualLoadDidReceiveResponse(const WebCore::ResourceResponse&);
     void manualLoadDidReceiveData(const WebCore::SharedBuffer&);
@@ -99,17 +99,19 @@ public:
     void mainFramePageScaleFactorDidChange();
     double pageScaleFactor() const;
     void pluginScaleFactorDidChange();
-#if PLATFORM(IOS_FAMILY)
+#if ENABLE(TWO_PHASE_CLICKS)
     std::pair<URL, WebCore::FloatRect> linkURLAndBoundsAtPoint(WebCore::FloatPoint pointInRootView) const;
     std::tuple<URL, WebCore::FloatRect, RefPtr<WebCore::TextIndicator>> linkDataAtPoint(WebCore::FloatPoint pointInRootView);
     std::optional<WebCore::FloatRect> highlightRectForTapAtPoint(WebCore::FloatPoint pointInRootView) const;
+    CursorContext cursorContext(WebCore::FloatPoint pointInRootView) const;
     void handleSyntheticClick(WebCore::PlatformMouseEvent&&);
-    void setSelectionRange(WebCore::FloatPoint pointInRootView, WebCore::TextGranularity);
     void clearSelection();
+#if PLATFORM(IOS_FAMILY)
+    void setSelectionRange(WebCore::FloatPoint pointInRootView, WebCore::TextGranularity);
     SelectionWasFlipped moveSelectionEndpoint(WebCore::FloatPoint pointInRootView, SelectionEndpoint);
     SelectionEndpoint extendInitialSelection(WebCore::FloatPoint pointInRootView, WebCore::TextGranularity);
-    CursorContext cursorContext(WebCore::FloatPoint pointInRootView) const;
     DocumentEditingContext documentEditingContext(DocumentEditingContextRequest&&) const;
+#endif
 #endif
 
     bool populateEditorStateIfNeeded(EditorState&) const;
@@ -155,7 +157,7 @@ public:
 
     void didSameDocumentNavigationForFrame(WebFrame&);
 
-    PDFPluginIdentifier pdfPluginIdentifier() const;
+    PDFPluginIdentifier NODELETE pdfPluginIdentifier() const;
 
     void setPDFDisplayMode(PDFDisplayMode);
 
@@ -197,7 +199,7 @@ private:
 
     void updateDocumentForPluginSizingBehavior();
 
-    WebCore::RenderEmbeddedObject* renderer() const;
+    WebCore::RenderEmbeddedObject* NODELETE renderer() const;
 
     // WebCore::PluginViewBase
     WebCore::PluginLayerHostingStrategy layerHostingStrategy() const final;
@@ -233,8 +235,6 @@ private:
     void clipRectChanged() final;
 
     void releaseMemory() final;
-
-    RefPtr<WebPage> protectedWebPage() const;
 
     const Ref<WebCore::HTMLPlugInElement> m_pluginElement;
     const Ref<PDFPluginBase> m_plugin;

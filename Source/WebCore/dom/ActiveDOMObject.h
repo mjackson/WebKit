@@ -103,8 +103,8 @@ public:
         return adoptRef(*new PendingActivity<T>(thisObject));
     }
 
-    bool isContextStopped() const;
-    bool isAllowedToRunScript() const;
+    bool NODELETE isContextStopped() const;
+    bool NODELETE isAllowedToRunScript() const;
 
     template<typename T, typename Task>
     static void queueTaskKeepingObjectAlive(T& object, TaskSource source, Task&& task)

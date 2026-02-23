@@ -190,7 +190,7 @@ def generate_process_sync_client_impl(prefix, synched_datas):
         result.append('void %sSyncClient::broadcast%sToOtherProcesses(const %s& data)' % (prefix, data.name, data.fully_qualified_type))
         result.append('{')
         result.append('    %sSyncDataVariant dataVariant;' % (prefix))
-        result.append('    dataVariant.emplace<enumToUnderlyingType(%sSyncDataType::%s)>(data);' % (prefix, data.name))
+        result.append('    dataVariant.emplace<std::to_underlying(%sSyncDataType::%s)>(data);' % (prefix, data.name))
         result.append('    broadcast%sSyncDataToOtherProcesses({ %sSyncDataType::%s, WTF::move(dataVariant) });' % (prefix, prefix, data.name))
         result.append('}')
         if data.conditional is not None:
@@ -369,7 +369,7 @@ def generate_synched_data_impl(prefix, synched_datas):
 
         lowercase_name = data.name[0].lower() + data.name[1:]
         result.append('    case %sSyncDataType::%s:' % (prefix, data.name))
-        result.append('        %s = std::get<enumToUnderlyingType(%sSyncDataType::%s)>(data.value);' % (lowercase_name, prefix, data.name))
+        result.append('        %s = std::get<std::to_underlying(%sSyncDataType::%s)>(data.value);' % (lowercase_name, prefix, data.name))
         result.append('        break;')
 
         if data.conditional is not None:

@@ -84,7 +84,7 @@
     if (!_supportingTouchEventsGestureRecognizer)
         return;
 
-    RetainPtr activeTouches = [_supportingTouchEventsGestureRecognizer activeTouchesByIdentifier];
+    RetainPtr activeTouches = [protect(_supportingTouchEventsGestureRecognizer) activeTouchesByIdentifier];
     for (NSNumber *touchIdentifier in activeTouches.get()) {
         UITouch *touch = [activeTouches objectForKey:touchIdentifier];
         if ([touch.gestureRecognizers containsObject:self]) {

@@ -185,16 +185,6 @@ NetworkResourceLoader::~NetworkResourceLoader()
         m_responseCompletionHandler(PolicyAction::Ignore);
 }
 
-RefPtr<NetworkCache::Cache> NetworkResourceLoader::protectedCache() const
-{
-    return m_cache;
-}
-
-RefPtr<ServiceWorkerFetchTask> NetworkResourceLoader::protectedServiceWorkerFetchTask() const
-{
-    return m_serviceWorkerFetchTask;
-}
-
 bool NetworkResourceLoader::canUseCache(const ResourceRequest& request) const
 {
     if (!m_cache)
@@ -290,7 +280,9 @@ void NetworkResourceLoader::startContentFiltering(ResourceRequest&& request, Com
         completionHandler(WTF::move(request));
         return;
     }
-    NetworkProcess::setSharedParentalControlsURLFilterIfNecessary();
+#if HAVE(BROWSERENGINEKIT_WEBCONTENTFILTER) && !HAVE(WEBCONTENTRESTRICTIONS_PATH_SPI)
+    WebParentalControlsURLFilter::setSharedParentalControlsURLFilterIfNecessary();
+#endif
     m_contentFilter = ContentFilter::create(*this);
     RefPtr contentFilter = m_contentFilter;
 #if HAVE(AUDIT_TOKEN)
@@ -642,7 +634,7 @@ void NetworkResourceLoader::abort()
         if (canUseCache(networkLoad->currentRequest())) {
             // We might already have used data from this incomplete load. Ensure older versions don't remain in the cache after cancel.
             if (!m_response.isNull())
-                protectedCache()->remove(networkLoad->currentRequest());
+                protect(m_cache)->remove(networkLoad->currentRequest());
         }
         LOADER_RELEASE_LOG("abort: Cancelling network load");
         networkLoad->cancel();
@@ -883,7 +875,7 @@ void NetworkResourceLoader::processClearSiteDataHeader(const WebCore::ResourceRe
     }
 }
 
-static BrowsingContextGroupSwitchDecision toBrowsingContextGroupSwitchDecision(const std::optional<CrossOriginOpenerPolicyEnforcementResult>& currentCoopEnforcementResult)
+static BrowsingContextGroupSwitchDecision NODELETE toBrowsingContextGroupSwitchDecision(const std::optional<CrossOriginOpenerPolicyEnforcementResult>& currentCoopEnforcementResult)
 {
     if (!currentCoopEnforcementResult || !currentCoopEnforcementResult->needsBrowsingContextGroupSwitch)
         return BrowsingContextGroupSwitchDecision::StayInGroup;
@@ -965,7 +957,7 @@ void NetworkResourceLoader::didReceiveResponse(ResourceResponse&& receivedRespon
         bool validationSucceeded = m_response.httpStatusCode() == httpStatus304NotModified;
         LOADER_RELEASE_LOG("didReceiveResponse: Received revalidation response (validationSucceeded=%d, wasOriginalRequestConditional=%d)", validationSucceeded, originalRequest().isConditional());
         if (validationSucceeded) {
-            m_cacheEntryForValidation = protectedCache()->update(originalRequest(), *m_cacheEntryForValidation, m_response, m_privateRelayed);
+            m_cacheEntryForValidation = protect(m_cache)->update(originalRequest(), *m_cacheEntryForValidation, m_response, m_privateRelayed);
             // If the request was conditional then this revalidation was not triggered by the network cache and we pass the 304 response to WebCore.
             if (originalRequest().isConditional()) {
                 // Add CORP header to the 304 response if previously set to avoid being blocked by load checker due to COEP.
@@ -1114,7 +1106,7 @@ void NetworkResourceLoader::didReceiveBuffer(const WebCore::FragmentedSharedBuff
 
     if (m_bufferedDataForCache) {
         // Prevent memory growth in case of streaming data and limit size of entries in the cache.
-        const size_t maximumCacheBufferSize = protectedCache()->capacity() / 8;
+        const size_t maximumCacheBufferSize = protect(m_cache)->capacity() / 8;
         if (m_bufferedDataForCache.size() + buffer.size() <= maximumCacheBufferSize)
             m_bufferedDataForCache.append(buffer);
         else
@@ -1248,7 +1240,7 @@ std::optional<Seconds> NetworkResourceLoader::validateCacheEntryForMaxAgeCapVali
         if (redirectResponse.httpHeaderField(WebCore::HTTPHeaderName::Location) == m_cacheEntryForMaxAgeCapValidation->response().httpHeaderField(WebCore::HTTPHeaderName::Location))
             existingCacheEntryMatchesNewResponse = true;
 
-        protectedCache()->remove(m_cacheEntryForMaxAgeCapValidation->key());
+        protect(m_cache)->remove(m_cacheEntryForMaxAgeCapValidation->key());
         m_cacheEntryForMaxAgeCapValidation = nullptr;
     }
     
@@ -1296,7 +1288,7 @@ void NetworkResourceLoader::willSendRedirectedRequestInternal(ResourceRequest&& 
     if (isFromServiceWorker == IsFromServiceWorker::No) {
         auto maxAgeCap = validateCacheEntryForMaxAgeCapValidation(request, redirectRequest, redirectResponse);
         if (redirectResponse.source() == ResourceResponse::Source::Network && canUseCachedRedirect(request))
-            protectedCache()->storeRedirect(request, redirectResponse, redirectRequest, maxAgeCap);
+            protect(m_cache)->storeRedirect(request, redirectResponse, redirectRequest, maxAgeCap);
     }
 
     if (isMainResource() && shouldInterruptNavigationForCrossOriginEmbedderPolicy(redirectResponse)) {
@@ -1424,7 +1416,7 @@ void NetworkResourceLoader::didFinishWithRedirectResponse(WebCore::ResourceReque
     networkLoadMetrics.responseBodyDecodedSize = 0;
 
     if (m_serviceWorkerFetchTask)
-        networkLoadMetrics.fetchStart = protectedServiceWorkerFetchTask()->startTime();
+        networkLoadMetrics.fetchStart = protect(m_serviceWorkerFetchTask)->startTime();
     send(Messages::WebResourceLoader::DidFinishResourceLoad { networkLoadMetrics });
 
     cleanup(LoadResult::Success);
@@ -1465,7 +1457,7 @@ void NetworkResourceLoader::restartNetworkLoad(WebCore::ResourceRequest&& newReq
         startNetworkLoad(WTF::move(newRequest), FirstLoad::No);
 }
 
-static bool shouldTryToMatchRegistrationOnRedirection(const FetchOptions& options, bool isServiceWorkerLoaded)
+static bool NODELETE shouldTryToMatchRegistrationOnRedirection(const FetchOptions& options, bool isServiceWorkerLoaded)
 {
     if (options.mode == FetchOptions::Mode::Navigate)
         return true;
@@ -1502,7 +1494,7 @@ void NetworkResourceLoader::continueWillSendRequest(ResourceRequest&& newRequest
     }
     if (m_serviceWorkerFetchTask) {
         LOADER_RELEASE_LOG("continueWillSendRequest: Continuing fetch task with redirect (fetchIdentifier=%" PRIu64 ")", m_serviceWorkerFetchTask->fetchIdentifier().toUInt64());
-        protectedServiceWorkerFetchTask()->continueFetchTaskWith(WTF::move(newRequest));
+        protect(m_serviceWorkerFetchTask)->continueFetchTaskWith(WTF::move(newRequest));
         return completionHandler({ });
     }
 
@@ -1561,7 +1553,7 @@ void NetworkResourceLoader::continueDidReceiveResponse()
     LOADER_RELEASE_LOG("continueDidReceiveResponse: (hasCacheEntryWaitingForContinueDidReceiveResponse=%d, hasResponseCompletionHandler=%d)", !!m_cacheEntryWaitingForContinueDidReceiveResponse, !!m_responseCompletionHandler);
     if (m_serviceWorkerFetchTask) {
         LOADER_RELEASE_LOG("continueDidReceiveResponse: continuing with ServiceWorkerFetchTask (fetchIdentifier=%" PRIu64 ")", m_serviceWorkerFetchTask->fetchIdentifier().toUInt64());
-        protectedServiceWorkerFetchTask()->continueDidReceiveFetchResponse();
+        protect(m_serviceWorkerFetchTask)->continueDidReceiveFetchResponse();
         return;
     }
 
@@ -1640,7 +1632,7 @@ void NetworkResourceLoader::tryStoreAsCacheEntry()
         return;
     }
     LOADER_RELEASE_LOG("tryStoreAsCacheEntry: Storing entry in HTTP disk cache");
-    protectedCache()->store(m_networkLoad->currentRequest(), m_response, m_privateRelayed, m_bufferedDataForCache.takeBuffer(), [loader = Ref { *this }](auto&& mappedBody) mutable {
+    protect(m_cache)->store(m_networkLoad->currentRequest(), m_response, m_privateRelayed, m_bufferedDataForCache.takeBuffer(), [loader = Ref { *this }](auto&& mappedBody) mutable {
 #if ENABLE(SHAREABLE_RESOURCE)
         if (!mappedBody.shareableResourceHandle)
             return;
@@ -2051,7 +2043,7 @@ void NetworkResourceLoader::logSlowCacheRetrieveIfNeeded(const NetworkCache::Cac
 
 bool NetworkResourceLoader::isCrossOriginPrefetch() const
 {
-    return parameters().isInitiatorPrefetch && !m_parameters.protectedSourceOrigin()->canRequest(originalRequest().url(), connectionToWebProcess().originAccessPatterns());
+    return parameters().isInitiatorPrefetch && !protect(m_parameters.sourceOrigin)->canRequest(originalRequest().url(), connectionToWebProcess().originAccessPatterns());
 }
 
 void NetworkResourceLoader::setWorkerStart(MonotonicTime value)

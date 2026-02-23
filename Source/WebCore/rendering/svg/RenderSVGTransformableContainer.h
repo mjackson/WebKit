@@ -40,7 +40,7 @@ private:
     ASCIILiteral renderName() const final { return "RenderSVGTransformableContainer"_s; }
 
     void element() const = delete;
-    SVGGraphicsElement& graphicsElement() const;
+    SVGGraphicsElement& NODELETE graphicsElement() const;
 
     void applyTransform(TransformationMatrix&, const RenderStyle&, const FloatRect& boundingBox, OptionSet<Style::TransformResolverOption>) const final;
     void updateLayerTransform() final;

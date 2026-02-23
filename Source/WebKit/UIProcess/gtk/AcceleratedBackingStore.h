@@ -211,14 +211,23 @@ private:
 
         Buffer::Type type() const override { return Buffer::Type::Gbm; }
         void didUpdateContents(Buffer*, const Rects&) override;
+#if GTK_CHECK_VERSION(4, 16, 0)
+        GdkTexture* texture() const override { return m_texture.get(); }
+#else
         cairo_surface_t* surface() const override { return m_surface.get(); }
+#endif
         RendererBufferDescription description() const override;
         RefPtr<WebCore::NativeImage> asNativeImageForTesting() const override;
         void release() override;
 
         WTF::UnixFileDescriptor m_fd;
         struct gbm_bo* m_buffer { nullptr };
+#if GTK_CHECK_VERSION(4, 16, 0)
+        GRefPtr<GdkMemoryTextureBuilder> m_builder;
+        GRefPtr<GdkTexture> m_texture;
+#else
         RefPtr<cairo_surface_t> m_surface;
+#endif
     };
 #endif
 
@@ -231,13 +240,22 @@ private:
 
         Buffer::Type type() const override { return Buffer::Type::SharedMemory; }
         void didUpdateContents(Buffer*, const Rects&) override;
+#if GTK_CHECK_VERSION(4, 16, 0)
+        GdkTexture* texture() const override { return m_texture.get(); }
+#else
         cairo_surface_t* surface() const override { return m_surface.get(); }
+#endif
         RendererBufferDescription description() const override;
         RefPtr<WebCore::NativeImage> asNativeImageForTesting() const override;
         void release() override;
 
         RefPtr<WebCore::ShareableBitmap> m_bitmap;
+#if GTK_CHECK_VERSION(4, 16, 0)
+        GRefPtr<GdkMemoryTextureBuilder> m_builder;
+        GRefPtr<GdkTexture> m_texture;
+#else
         RefPtr<cairo_surface_t> m_surface;
+#endif
     };
 
     WeakPtr<WebPageProxy> m_webPage;

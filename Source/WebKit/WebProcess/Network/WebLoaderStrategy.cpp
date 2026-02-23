@@ -105,17 +105,17 @@ using namespace WebCore;
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebLoaderStrategy);
 
-[[maybe_unused]] static uint64_t pageIDForLog(const std::optional<WebResourceLoader::TrackingParameters>& parameters)
+[[maybe_unused]] static uint64_t NODELETE pageIDForLog(const std::optional<WebResourceLoader::TrackingParameters>& parameters)
 {
     return parameters ? parameters->pageID.toUInt64() : 0;
 }
 
-[[maybe_unused]] static uint64_t frameIDForLog(const std::optional<WebResourceLoader::TrackingParameters>& parameters)
+[[maybe_unused]] static uint64_t NODELETE frameIDForLog(const std::optional<WebResourceLoader::TrackingParameters>& parameters)
 {
     return parameters ? parameters->frameID.toUInt64() : 0;
 }
 
-[[maybe_unused]] static uint64_t resourceIDForLog(const std::optional<WebResourceLoader::TrackingParameters>& parameters)
+[[maybe_unused]] static uint64_t NODELETE resourceIDForLog(const std::optional<WebResourceLoader::TrackingParameters>& parameters)
 {
     return parameters ? parameters->resourceID.toUInt64() : 0;
 }
@@ -368,7 +368,7 @@ static RefPtr<DocumentLoader> policySourceDocumentLoaderForFrame(const LocalFram
     auto mainFrameDocumentLoader = mainFrame->loader().loaderForWebsitePolicies(canIncludeCurrentDocumentLoader);
 
     auto policySourceDocumentLoader = mainFrameDocumentLoader;
-    if (policySourceDocumentLoader && !policySourceDocumentLoader->request().url().hasSpecialScheme() && frame.document()->url().protocolIsInHTTPFamily())
+    if (policySourceDocumentLoader && !policySourceDocumentLoader->request().url().hasSpecialScheme() && protect(frame.document())->url().protocolIsInHTTPFamily())
         policySourceDocumentLoader = frame.loader().documentLoader();
 
     return policySourceDocumentLoader;
@@ -389,17 +389,19 @@ static void addParametersShared(const LocalFrame* frame, NetworkResourceLoadPara
     Ref mainFrame = frame->mainFrame();
     RefPtr policySourceDocumentLoader = policySourceDocumentLoaderForFrame(*frame, isMainFrameNavigation);
 
-    parameters.allowPrivacyProxy = policySourceDocumentLoader ? policySourceDocumentLoader->allowPrivacyProxy() : true;
+    parameters.allowPrivacyProxy = !policySourceDocumentLoader || policySourceDocumentLoader->allowPrivacyProxy();
 
     if (RefPtr framePolicySourceDocumentLoader = frame->loader().loaderForWebsitePolicies(isMainFrameNavigation ? FrameLoader::CanIncludeCurrentDocumentLoader::No : FrameLoader::CanIncludeCurrentDocumentLoader::Yes)) {
         if (String referrer = framePolicySourceDocumentLoader->preferences().overrideReferrerForAllRequests; !referrer.isNull())
             parameters.request.setHTTPHeaderField(HTTPHeaderName::Referer, referrer);
     }
 
-    if (auto* document = frame->document()) {
+    if (RefPtr document = frame->document()) {
         parameters.crossOriginEmbedderPolicy = document->crossOriginEmbedderPolicy();
         parameters.isClearSiteDataHeaderEnabled = document->settings().clearSiteDataHTTPHeaderEnabled();
         parameters.isClearSiteDataExecutionContextEnabled = document->settings().clearSiteDataExecutionContextsSupportEnabled();
+        parameters.mayBlockNetworkRequest = document->settings().scriptTrackingPrivacyNetworkRequestBlockingLatchEnabled() ?
+            std::optional { WebProcess::singleton().shouldBlockRequest(parameters.request.url(), protect(document->topOrigin())) } : std::nullopt;
     }
 
     if (RefPtr page = frame->page()) {
@@ -418,7 +420,7 @@ static void addParametersShared(const LocalFrame* frame, NetworkResourceLoadPara
         if (RefPtr parentFrame = ownerElement->document().frame()) {
             parameters.parentFrameID = parentFrame->loader().frameID();
             parameters.parentCrossOriginEmbedderPolicy = ownerElement->document().crossOriginEmbedderPolicy();
-            parameters.parentFrameURL = ownerElement->document().url();
+            parameters.parentFrameURL = protect(ownerElement->document())->url();
         }
     }
 
@@ -563,7 +565,7 @@ void WebLoaderStrategy::scheduleLoadFromNetworkProcess(ResourceLoader& resourceL
         RefPtr coreFrame = webFrame ? webFrame->coreFrame() : nullptr;
         RefPtr openerFrame = coreFrame ? coreFrame->opener() : nullptr;
         RefPtr openerDocumentSecurityOrigin = openerFrame ? openerFrame->frameDocumentSecurityOrigin() : nullptr;
-        bool openerDocumentIsSameOriginAsTopDocument = openerDocumentSecurityOrigin ? openerDocumentSecurityOrigin->isSameOriginAs(protect(openerFrame->topOrigin())) : false;
+        bool openerDocumentIsSameOriginAsTopDocument = openerDocumentSecurityOrigin && openerDocumentSecurityOrigin->isSameOriginAs(protect(openerFrame->topOrigin()));
         auto openerDocumentSecurityPolicy = openerFrame ? openerFrame->frameDocumentSecurityPolicy() : std::nullopt;
         if (!document->haveInitializedSecurityOrigin() && openerDocumentSecurityPolicy && openerDocumentIsSameOriginAsTopDocument)
             loadParameters.sourceCrossOriginOpenerPolicy = openerDocumentSecurityPolicy->crossOriginOpenerPolicy;
@@ -589,8 +591,8 @@ void WebLoaderStrategy::scheduleLoadFromNetworkProcess(ResourceLoader& resourceL
     loadParameters.isDisplayingInitialEmptyDocument = frame && frame->loader().stateMachine().isDisplayingInitialEmptyDocument();
     if (frame)
         loadParameters.effectiveSandboxFlags = frame->sandboxFlagsFromSandboxAttributeNotCSP();
-    if (auto* openerFrame = frame ? dynamicDowncast<LocalFrame>(frame->opener()) : nullptr) {
-        if (auto openerDocument = openerFrame->document())
+    if (RefPtr openerFrame = frame ? dynamicDowncast<LocalFrame>(frame->opener()) : nullptr) {
+        if (RefPtr openerDocument = openerFrame->document())
             loadParameters.openerURL = openerDocument->url();
     }
 

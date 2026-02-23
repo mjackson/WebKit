@@ -43,7 +43,7 @@
 
 namespace WebCore {
 
-static inline bool compareByDensity(const ImageCandidate& first, const ImageCandidate& second)
+static inline bool NODELETE compareByDensity(const ImageCandidate& first, const ImageCandidate& second)
 {
     return first.density < second.density;
 }

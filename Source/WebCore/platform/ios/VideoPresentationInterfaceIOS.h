@@ -168,7 +168,7 @@ public:
     void willStopPictureInPicture();
     WEBCORE_EXPORT virtual void didStopPictureInPicture();
     WEBCORE_EXPORT virtual void prepareForPictureInPictureStopWithCompletionHandler(void (^)(BOOL));
-    virtual bool isPlayingVideoInEnhancedFullscreen() const = 0;
+    virtual bool isPlayingVideoInPictureInPicture() const = 0;
 
     WEBCORE_EXPORT void setMode(HTMLMediaElementEnums::VideoFullscreenMode, VideoPresentationModel::ShouldNotifyMediaElement);
     void clearMode(HTMLMediaElementEnums::VideoFullscreenMode, VideoPresentationModel::ShouldNotifyMediaElement);

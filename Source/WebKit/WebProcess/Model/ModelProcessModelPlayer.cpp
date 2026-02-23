@@ -111,6 +111,14 @@ void ModelProcessModelPlayer::didFinishLoading(const WebCore::FloatPoint3D& boun
     client->didUpdateBoundingBox(*this, boundingBoxCenter, boundingBoxExtents);
 }
 
+void ModelProcessModelPlayer::didConvertModelData(Ref<WebCore::SharedBuffer>&& convertedData, const String& convertedMIMEType)
+{
+    RELEASE_LOG(ModelElement, "%p - ModelProcessModelPlayer didConvertModelData mimeType=%s id=%" PRIu64, this, convertedMIMEType.utf8().data(), m_id.toUInt64());
+    RELEASE_ASSERT(modelProcessEnabled());
+
+    protect(client())->didConvertModelData(*this, WTF::move(convertedData), convertedMIMEType);
+}
+
 void ModelProcessModelPlayer::didFailLoading()
 {
     RELEASE_LOG(ModelElement, "%p - ModelProcessModelPlayer didFailLoading id=%" PRIu64, this, m_id.toUInt64());

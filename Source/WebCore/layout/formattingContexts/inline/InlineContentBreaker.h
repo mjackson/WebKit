@@ -157,7 +157,6 @@ public:
     Result processInlineContent(const ContinuousContent&, const LineStatus&);
     void setHyphenationDisabled(bool hyphenationIsDisabled) { n_hyphenationIsDisabled = hyphenationIsDisabled; }
     void setIsMinimumInIntrinsicWidthMode(bool isMinimumInIntrinsicWidthMode) { m_isMinimumInIntrinsicWidthMode = isMinimumInIntrinsicWidthMode; }
-    static bool isWrappingAllowed(const ContinuousContent::Run&);
 
 private:
     Result processOverflowingContent(const ContinuousContent&, const LineStatus&) const;

@@ -126,7 +126,7 @@ public:
 
     void setCapacity(size_t);
     size_t capacity() const { return m_capacity; }
-    size_t approximateSize() const;
+    size_t NODELETE approximateSize() const;
 
     // Incrementing this number will delete all existing cache content for everyone. Do you really need to do it?
     static const unsigned version = 17;
@@ -182,8 +182,8 @@ private:
     ConcurrentWorkQueue& backgroundIOQueue() { return m_backgroundIOQueue.get(); }
     WorkQueue& serialBackgroundIOQueue() { return m_serialBackgroundIOQueue.get(); }
 
-    bool mayContain(const Key&) const;
-    bool mayContainBlob(const Key&) const;
+    bool NODELETE mayContain(const Key&) const;
+    bool NODELETE mayContainBlob(const Key&) const;
 
     void addToRecordFilter(const Key&);
     void deleteFiles(const Key&);

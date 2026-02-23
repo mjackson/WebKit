@@ -32,6 +32,7 @@ public:
     bool isPlatformSupported() const final;
     const ASCIILiteral identifier() const final { return "Qualcomm"_s; }
     [[nodiscard]] GRefPtr<GstCaps> videoSinkGLCapsFormat() const final { return m_glCaps; }
+    bool isVideoCapsGLCompatible(const GRefPtr<GstCaps>&) const final;
 
 private:
     mutable GRefPtr<GstCaps> m_glCaps;

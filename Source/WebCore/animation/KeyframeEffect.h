@@ -249,6 +249,9 @@ private:
     void updateIsAssociatedWithProgressBasedTimeline();
     bool isRunningAccountingForSuspension() const;
 
+    enum AccountForTimelineAccelerationAbility : bool { No, Yes };
+    bool canBeAccelerated(AccountForTimelineAccelerationAbility) const;
+
     void abilityToBeAcceleratedDidChange();
     void updateAcceleratedAnimationIfNecessary();
 

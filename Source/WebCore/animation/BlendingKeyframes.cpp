@@ -292,16 +292,6 @@ bool BlendingKeyframes::containsProperty(const AnimatableCSSProperty& property) 
     return m_properties.contains(property);
 }
 
-bool BlendingKeyframes::usesRelativeFontWeight() const
-{
-    return m_usesRelativeFontWeight;
-}
-
-bool BlendingKeyframes::hasCSSVariableReferences() const
-{
-    return m_containsCSSVariableReferences;
-}
-
 bool BlendingKeyframes::hasColorSetToCurrentColor() const
 {
     return m_propertiesSetToCurrentColor.contains(CSSPropertyColor);

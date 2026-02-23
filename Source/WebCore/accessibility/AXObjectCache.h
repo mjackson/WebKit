@@ -340,6 +340,7 @@ public:
 
     // Returns the root object for a specific frame.
     WEBCORE_EXPORT AXCoreObject* rootObjectForFrame(LocalFrame&);
+    AccessibilityObject* rootWebArea();
 #if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
     WEBCORE_EXPORT void setFrameInheritedState(LocalFrame&, const InheritedFrameState&);
 #endif
@@ -448,6 +449,10 @@ public:
             // We only need to handle DOM changes for things that don't have renderers.
             // If something does have a renderer, we would already get children-changed notifications
             // from the render tree.
+            childrenChanged(RefPtr { get(node) }.get());
+        } else if (node.renderer()->isRenderHTMLCanvas()) {
+            // Canvas fallback content (its DOM children) is not rendered, so we won't receive
+            // children-changed notifications from the render tree when those children change.
             childrenChanged(RefPtr { get(node) }.get());
         }
     }
@@ -835,8 +840,6 @@ protected:
     LayoutRect localCaretRectForCharacterOffset(RenderObject*&, const CharacterOffset&);
     bool shouldSkipBoundary(const CharacterOffset&, const CharacterOffset&);
 private:
-    AccessibilityObject* rootWebArea();
-
     // Returns the object or nearest render-tree ancestor object that is already created (i.e.
     // retrievable by |get|, not |getOrCreate|).
     AccessibilityObject* getIncludingAncestors(RenderObject&) const;

@@ -89,11 +89,6 @@ RenderSVGViewportContainer* RenderSVGRoot::viewportContainer() const
     return dynamicDowncast<RenderSVGViewportContainer>(child);
 }
 
-CheckedPtr<RenderSVGViewportContainer> RenderSVGRoot::checkedViewportContainer() const
-{
-    return viewportContainer();
-}
-
 bool RenderSVGRoot::hasIntrinsicAspectRatio() const
 {
     return computeIntrinsicAspectRatio();
@@ -498,7 +493,7 @@ FloatSize RenderSVGRoot::computeViewportSize() const
 
 void RenderSVGRoot::mapLocalToContainer(const RenderLayerModelObject* repaintContainer, TransformState& transformState, OptionSet<MapCoordinatesMode> mode, bool* wasFixed) const
 {
-    ASSERT(!view().frameView().layoutContext().isPaintOffsetCacheEnabled());
+    ASSERT(!isInLayout() || !view().frameView().layoutContext().isPaintOffsetCacheEnabled());
 
     if (repaintContainer == this)
         return;

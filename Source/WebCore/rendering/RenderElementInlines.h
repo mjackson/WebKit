@@ -53,13 +53,13 @@ inline bool RenderElement::isBlockLevelBox() const
 
     if (renderBox->isFlexItem() || renderBox->isGridItem() || renderBox->isRenderTableCell())
         return false;
-    return style().isDisplayBlockLevel();
+    return style().display().isBlockType();
 }
 
 inline bool RenderElement::isAnonymousBlock() const
 {
     return isAnonymous()
-        && (style().display() == DisplayType::Block || style().display() == DisplayType::Box)
+        && (style().display() == Style::DisplayType::BlockFlow || style().display() == Style::DisplayType::BlockDeprecatedFlex)
         && !style().pseudoElementType()
         && isRenderBlock()
 #if ENABLE(MATHML)
@@ -74,13 +74,7 @@ inline bool RenderElement::isAnonymousBlock() const
 
 inline bool RenderElement::isBlockContainer() const
 {
-    auto display = style().display();
-    return (display == DisplayType::Block
-        || display == DisplayType::InlineBlock
-        || display == DisplayType::FlowRoot
-        || display == DisplayType::ListItem
-        || display == DisplayType::TableCell
-        || display == DisplayType::TableCaption) && !isRenderReplaced();
+    return style().display().doesGenerateBlockContainer() && !isRenderReplaced();
 }
 
 inline bool RenderElement::isBlockBox() const

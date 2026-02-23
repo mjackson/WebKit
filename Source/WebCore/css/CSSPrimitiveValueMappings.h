@@ -44,6 +44,7 @@
 #include "ScrollAxis.h"
 #include "ScrollTypes.h"
 #include "StyleContain.h"
+#include "StyleDisplay.h"
 #include "StyleHangingPunctuation.h"
 #include "StyleImageOrientation.h"
 #include "StyleMarginTrim.h"
@@ -682,140 +683,6 @@ DEFINE_TO_FROM_CSS_VALUE_ID_FUNCTIONS
 #undef FOR_EACH
 
 #endif
-
-constexpr CSSValueID toCSSValueID(DisplayType e)
-{
-    switch (e) {
-    case DisplayType::Inline:
-        return CSSValueInline;
-    case DisplayType::Block:
-        return CSSValueBlock;
-    case DisplayType::ListItem:
-        return CSSValueListItem;
-    case DisplayType::InlineBlock:
-        return CSSValueInlineBlock;
-    case DisplayType::Table:
-        return CSSValueTable;
-    case DisplayType::InlineTable:
-        return CSSValueInlineTable;
-    case DisplayType::TableRowGroup:
-        return CSSValueTableRowGroup;
-    case DisplayType::TableHeaderGroup:
-        return CSSValueTableHeaderGroup;
-    case DisplayType::TableFooterGroup:
-        return CSSValueTableFooterGroup;
-    case DisplayType::TableRow:
-        return CSSValueTableRow;
-    case DisplayType::TableColumnGroup:
-        return CSSValueTableColumnGroup;
-    case DisplayType::TableColumn:
-        return CSSValueTableColumn;
-    case DisplayType::TableCell:
-        return CSSValueTableCell;
-    case DisplayType::TableCaption:
-        return CSSValueTableCaption;
-    case DisplayType::Box:
-        return CSSValueWebkitBox;
-    case DisplayType::InlineBox:
-        return CSSValueWebkitInlineBox;
-    case DisplayType::Flex:
-        return CSSValueFlex;
-    case DisplayType::InlineFlex:
-        return CSSValueInlineFlex;
-    case DisplayType::Grid:
-        return CSSValueGrid;
-    case DisplayType::InlineGrid:
-        return CSSValueInlineGrid;
-    case DisplayType::GridLanes:
-        return CSSValueGridLanes;
-    case DisplayType::InlineGridLanes:
-        return CSSValueInlineGridLanes;
-    case DisplayType::None:
-        return CSSValueNone;
-    case DisplayType::Contents:
-        return CSSValueContents;
-    case DisplayType::FlowRoot:
-        return CSSValueFlowRoot;
-    case DisplayType::Ruby:
-        return CSSValueRuby;
-    case DisplayType::RubyBlock:
-        return CSSValueBlockRuby;
-    case DisplayType::RubyBase:
-        return CSSValueRubyBase;
-    case DisplayType::RubyAnnotation:
-        return CSSValueRubyText;
-    }
-    ASSERT_NOT_REACHED_UNDER_CONSTEXPR_CONTEXT();
-    return CSSValueInvalid;
-}
-
-template<> constexpr DisplayType fromCSSValueID(CSSValueID valueID)
-{
-    switch (valueID) {
-    case CSSValueInline:
-        return DisplayType::Inline;
-    case CSSValueBlock:
-        return DisplayType::Block;
-    case CSSValueListItem:
-        return DisplayType::ListItem;
-    case CSSValueInlineBlock:
-        return DisplayType::InlineBlock;
-    case CSSValueTable:
-        return DisplayType::Table;
-    case CSSValueInlineTable:
-        return DisplayType::InlineTable;
-    case CSSValueTableRowGroup:
-        return DisplayType::TableRowGroup;
-    case CSSValueTableHeaderGroup:
-        return DisplayType::TableHeaderGroup;
-    case CSSValueTableFooterGroup:
-        return DisplayType::TableFooterGroup;
-    case CSSValueTableRow:
-        return DisplayType::TableRow;
-    case CSSValueTableColumnGroup:
-        return DisplayType::TableColumnGroup;
-    case CSSValueTableColumn:
-        return DisplayType::TableColumn;
-    case CSSValueTableCell:
-        return DisplayType::TableCell;
-    case CSSValueTableCaption:
-        return DisplayType::TableCaption;
-    case CSSValueWebkitBox:
-        return DisplayType::Box;
-    case CSSValueWebkitInlineBox:
-        return DisplayType::InlineBox;
-    case CSSValueFlex:
-        return DisplayType::Flex;
-    case CSSValueInlineFlex:
-        return DisplayType::InlineFlex;
-    case CSSValueGrid:
-        return DisplayType::Grid;
-    case CSSValueInlineGrid:
-        return DisplayType::InlineGrid;
-    case CSSValueGridLanes:
-        return DisplayType::GridLanes;
-    case CSSValueInlineGridLanes:
-        return DisplayType::InlineGridLanes;
-    case CSSValueNone:
-        return DisplayType::None;
-    case CSSValueContents:
-        return DisplayType::Contents;
-    case CSSValueFlowRoot:
-        return DisplayType::FlowRoot;
-    case CSSValueRuby:
-        return DisplayType::Ruby;
-    case CSSValueBlockRuby:
-        return DisplayType::RubyBlock;
-    case CSSValueRubyBase:
-        return DisplayType::RubyBase;
-    case CSSValueRubyText:
-        return DisplayType::RubyAnnotation;
-    default:
-        break;
-    }
-    ASSERT_NOT_REACHED_UNDER_CONSTEXPR_CONTEXT();
-    return DisplayType::Inline;
-}
 
 #define TYPE EmptyCell
 #define FOR_EACH(CASE) CASE(Show) CASE(Hide)
@@ -2557,6 +2424,12 @@ constexpr CSSValueID toCSSValueIDForWebkitMaskSourceType(Style::MaskMode e)
     ASSERT_NOT_REACHED_UNDER_CONSTEXPR_CONTEXT();
     return CSSValueInvalid;
 }
+
+#define TYPE VisualBox
+#define FOR_EACH(CASE) CASE(ContentBox) CASE(BorderBox) CASE(PaddingBox)
+DEFINE_TO_FROM_CSS_VALUE_ID_FUNCTIONS
+#undef TYPE
+#undef FOR_EACH
 
 #if ENABLE(WEBKIT_OVERFLOW_SCROLLING_CSS_PROPERTY)
 

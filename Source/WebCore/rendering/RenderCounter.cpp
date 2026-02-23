@@ -105,7 +105,7 @@ static RenderElement* previousInPreOrderRespectingContainment(const RenderElemen
     return nullptr;
 }
 
-static inline Element* parentOrPseudoHostElement(const RenderElement& renderer)
+static inline Element* NODELETE parentOrPseudoHostElement(const RenderElement& renderer)
 {
     if (renderer.isPseudoElement())
         return renderer.generatingElement();
@@ -148,7 +148,7 @@ static RenderElement* previousSiblingOrParent(const RenderElement& renderer)
     return previous ? previous->renderer() : nullptr;
 }
 
-static inline bool areRenderersElementsSiblings(const RenderElement& first, const RenderElement& second)
+static inline bool NODELETE areRenderersElementsSiblings(const RenderElement& first, const RenderElement& second)
 {
     return parentOrPseudoHostElement(first) == parentOrPseudoHostElement(second);
 }

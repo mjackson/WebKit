@@ -123,14 +123,14 @@ InlineBoxIterator& InlineBoxIterator::traverseInlineBoxLineLeftward()
 
 InlineBoxIterator lineLeftmostInlineBoxFor(const RenderInline& renderInline)
 {
-    if (auto* lineLayout = LayoutIntegration::LineLayout::containing(renderInline))
+    if (CheckedPtr lineLayout = LayoutIntegration::LineLayout::containing(renderInline))
         return lineLayout->firstInlineBoxFor(renderInline);
     return { BoxLegacyPath { renderInline.firstLegacyInlineBox() } };
 }
 
 InlineBoxIterator firstRootInlineBoxFor(const RenderBlockFlow& block)
 {
-    if (auto* lineLayout = block.inlineLayout())
+    if (CheckedPtr lineLayout = block.inlineLayout())
         return lineLayout->firstRootInlineBox();
     return { BoxLegacyPath { block.legacyRootBox() } };
 }

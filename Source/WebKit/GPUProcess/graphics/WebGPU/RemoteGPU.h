@@ -109,7 +109,6 @@ private:
 
     void initialize();
     IPC::StreamConnectionWorkQueue& workQueue() const { return m_workQueue; }
-    Ref<IPC::StreamConnectionWorkQueue> protectedWorkQueue() const { return m_workQueue; }
     void workQueueInitialize();
     void workQueueUninitialize();
 
@@ -126,7 +125,7 @@ private:
 
 
     void requestAdapter(const WebGPU::RequestAdapterOptions&, WebGPUIdentifier, CompletionHandler<void(std::optional<RemoteGPURequestAdapterResponse>&&)>&&);
-    void createModelBacking(unsigned width, unsigned height, const WebModel::ImageAsset& diffuseTexture, const WebModel::ImageAsset& specularTexture, WebKit::WebModelIdentifier, CompletionHandler<void(Vector<MachSendRight>&&)>&&);
+    void NODELETE createModelBacking(unsigned width, unsigned height, const WebModel::ImageAsset& diffuseTexture, const WebModel::ImageAsset& specularTexture, WebKit::WebModelIdentifier, CompletionHandler<void(Vector<MachSendRight>&&)>&&);
 
     void createPresentationContext(const WebGPU::PresentationContextDescriptor&, WebGPUIdentifier);
 

@@ -207,7 +207,7 @@ static RetainPtr<IOSurfaceRef> createSurfaceViaCoreVideo(IntSize size, IOSurface
     CVPixelBufferRef rawPixelBuffer = nullptr;
     CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault, size.width(), size.height(), coreVideoFormat, (CFDictionaryRef)additionalProperties.get(), &rawPixelBuffer);
     if (status != kCVReturnSuccess) {
-        RELEASE_LOG_ERROR(Layers, "IOSurface creation via CVPixelBufferCreate failed for size: (%d %d) and format: (%d) - error %d", size.width(), size.height(), enumToUnderlyingType(format), status);
+        RELEASE_LOG_ERROR(Layers, "IOSurface creation via CVPixelBufferCreate failed for size: (%d %d) and format: (%d) - error %d", size.width(), size.height(), std::to_underlying(format), status);
         return nullptr;
     }
 
@@ -372,7 +372,7 @@ IOSurface::IOSurface(IntSize size, const DestinationColorSpace& colorSpace, IOSu
         setColorSpaceProperty();
         m_totalBytes = IOSurfaceGetAllocSize(m_surface.get());
     } else
-        RELEASE_LOG_ERROR(Layers, "IOSurface creation failed for size: (%d %d) and format: (%d)", size.width(), size.height(), enumToUnderlyingType(format));
+        RELEASE_LOG_ERROR(Layers, "IOSurface creation failed for size: (%d %d) and format: (%d)", size.width(), size.height(), std::to_underlying(format));
 }
 
 static std::optional<IOSurface::UsedFormat> formatFromSurface(IOSurfaceRef surface)

@@ -73,7 +73,7 @@ struct MaskLayer {
     MaskLayer();
     MaskLayer(CSS::Keyword::None);
     MaskLayer(ImageOrNone&&);
-    MaskLayer(RefPtr<StyleImage>&&);
+    MaskLayer(RefPtr<Image>&&);
 
     const ImageOrNone& image() const { return m_image; }
     const PositionX& positionX() const { return m_positionX; }
@@ -133,7 +133,7 @@ struct MaskLayer {
 
     static constexpr auto computedValueUsesUsedValues = true;
     static constexpr auto baseProperty = PropertyNameConstant<CSSPropertyMaskImage> { };
-    static constexpr auto properties =  std::tuple { FOR_EACH_MASK_LAYER_PROPERTY(DECLARE_COORDINATED_VALUE_LIST_PROPERTY) };
+    static constexpr auto properties = std::tuple { FOR_EACH_MASK_LAYER_PROPERTY(DECLARE_COORDINATED_VALUE_LIST_PROPERTY) };
     static MaskLayer clone(const MaskLayer& other) { return other; }
     bool isInitial() const { return m_image.isNone(); }
 

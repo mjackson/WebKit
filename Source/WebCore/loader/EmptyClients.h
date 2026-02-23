@@ -147,13 +147,13 @@ class EmptyChromeClient : public ChromeClient {
 
     RefPtr<DateTimeChooser> createDateTimeChooser(DateTimeChooserClient&) final;
 
-    void setTextIndicator(RefPtr<TextIndicator>&&) const final;
-    void updateTextIndicator(RefPtr<TextIndicator>&&) const final;
+    void NODELETE setTextIndicator(RefPtr<TextIndicator>&&) const final;
+    void NODELETE updateTextIndicator(RefPtr<TextIndicator>&&) const final;
 
-    DisplayRefreshMonitorFactory* displayRefreshMonitorFactory() const final;
+    DisplayRefreshMonitorFactory* NODELETE displayRefreshMonitorFactory() const final;
 
-    void runOpenPanel(LocalFrame&, FileChooser&) final;
-    void showShareSheet(ShareDataWithParsedURL&&, CompletionHandler<void(bool)>&&) final;
+    void NODELETE runOpenPanel(LocalFrame&, FileChooser&) final;
+    void NODELETE showShareSheet(ShareDataWithParsedURL&&, CompletionHandler<void(bool)>&&) final;
     void loadIconForFiles(const Vector<String>&, FileIconLoader&) final { }
 
     void elementDidFocus(Element&, const FocusOptions&) final { }

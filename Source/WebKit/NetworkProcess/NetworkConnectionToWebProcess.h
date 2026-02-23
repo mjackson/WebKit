@@ -278,7 +278,7 @@ public:
     void allowAccessToFile(const String& path);
     void loadCancelledDownloadRedirectRequestInFrame(const WebCore::ResourceRequest&, const WebCore::FrameIdentifier&, const WebCore::PageIdentifier&);
 
-    bool isAlwaysOnLoggingAllowed() const;
+    bool NODELETE isAlwaysOnLoggingAllowed() const;
 
 private:
     NetworkConnectionToWebProcess(NetworkProcess&, WebCore::ProcessIdentifier, PAL::SessionID, NetworkProcessConnectionParameters&&, IPC::Connection::Identifier&&);

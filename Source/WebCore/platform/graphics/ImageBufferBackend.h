@@ -121,6 +121,7 @@ public:
 
     virtual GraphicsContext& context() = 0;
     virtual void flushContext() { }
+    virtual void submitDrawingCommands() { }
 
     virtual RefPtr<NativeImage> copyNativeImage() = 0;
     virtual RefPtr<NativeImage> createNativeImageReference() = 0;

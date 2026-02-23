@@ -46,7 +46,7 @@ public:
     RenderSVGText(SVGTextElement&, RenderStyle&&);
     virtual ~RenderSVGText();
 
-    SVGTextElement& textElement() const;
+    SVGTextElement& NODELETE textElement() const;
 
     bool isChildAllowed(const RenderObject&, const RenderStyle&) const override;
 
@@ -56,7 +56,7 @@ public:
     // FIXME: [LBSE] Only needed for legacy SVG engine.
     void setNeedsTransformUpdate() override { m_needsTransformUpdate = true; }
 
-    static RenderSVGText* locateRenderSVGTextAncestor(RenderObject&);
+    static RenderSVGText* NODELETE locateRenderSVGTextAncestor(RenderObject&);
     static const RenderSVGText* locateRenderSVGTextAncestor(const RenderObject&);
 
     bool needsReordering() const { return m_needsReordering; }
@@ -119,7 +119,7 @@ private:
     AffineTransform localTransform() const override { return m_localTransform; }
     // FIXME: [LBSE] End code only needed for legacy SVG engine.
 
-    bool shouldHandleSubtreeMutations() const;
+    bool NODELETE shouldHandleSubtreeMutations() const;
 
     bool m_needsReordering : 1 { false };
     bool m_needsPositioningValuesUpdate : 1 { false };

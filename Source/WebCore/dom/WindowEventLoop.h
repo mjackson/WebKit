@@ -54,7 +54,6 @@ public:
 
     void queueMutationObserverCompoundMicrotask();
     Vector<GCReachableRef<HTMLSlotElement>>& signalSlotList() { return m_signalSlotList; }
-    Vector<GCReachableRef<Element>>& shadowRootAttachedElements() { return m_shadowRootAttachedElementList; }
     HashSet<Ref<MutationObserver>>& activeMutationObservers() { return m_activeObservers; }
     HashSet<Ref<MutationObserver>>& suspendedMutationObservers() { return m_suspendedObservers; }
 
@@ -96,7 +95,6 @@ private:
     bool m_mutationObserverCompoundMicrotaskQueuedFlag { false };
     bool m_deliveringMutationRecords { false }; // FIXME: This flag doesn't exist in the spec.
     Vector<GCReachableRef<HTMLSlotElement>> m_signalSlotList; // https://dom.spec.whatwg.org/#signal-slot-list
-    Vector<GCReachableRef<Element>> m_shadowRootAttachedElementList;
     HashSet<Ref<MutationObserver>> m_activeObservers;
     HashSet<Ref<MutationObserver>> m_suspendedObservers;
 

@@ -128,7 +128,7 @@ Cache::Cache(NetworkProcess& networkProcess, const String& storageDirectory, Ref
                 updateSpeculativeLoadManagerEnabledState();
         });
         if (shouldUseSpeculativeLoadManager())
-            m_speculativeLoadManager = makeUnique<SpeculativeLoadManager>(*this, protectedStorage());
+            m_speculativeLoadManager = makeUnique<SpeculativeLoadManager>(*this, protect(m_storage));
     }
 
     if (options.contains(CacheOption::RegisterNotify)) {
@@ -172,7 +172,7 @@ Key Cache::makeCacheKey(const WebCore::ResourceRequest& request)
     return { request.cachePartition(), resourceType(), range, request.url().stringWithoutFragmentIdentifier(), m_storage->salt() };
 }
 
-static bool cachePolicyAllowsExpired(WebCore::ResourceRequestCachePolicy policy)
+static bool NODELETE cachePolicyAllowsExpired(WebCore::ResourceRequestCachePolicy policy)
 {
     switch (policy) {
     case WebCore::ResourceRequestCachePolicy::ReturnCacheDataElseLoad:
@@ -347,7 +347,7 @@ void Cache::updateSpeculativeLoadManagerEnabledState()
         m_speculativeLoadManager = nullptr;
         RELEASE_LOG(NetworkCacheSpeculativePreloading, "%p - Cache::updateSpeculativeLoadManagerEnabledState: disabling speculative loads due to low power mode or thermal change", this);
     } else if (shouldEnable && !m_speculativeLoadManager) {
-        m_speculativeLoadManager = makeUnique<SpeculativeLoadManager>(*this, protectedStorage());
+        m_speculativeLoadManager = makeUnique<SpeculativeLoadManager>(*this, protect(m_storage));
         RELEASE_LOG(NetworkCacheSpeculativePreloading, "%p - Cache::updateSpeculativeLoadManagerEnabledState: enabling speculative loads due to low power mode or thermal change", this);
     }
 }

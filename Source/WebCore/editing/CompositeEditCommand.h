@@ -120,7 +120,6 @@ public:
     void apply();
     bool isFirstCommand(EditCommand* command) { return !m_commands.isEmpty() && m_commands.first() == command; }
     EditCommandComposition* composition() const;
-    RefPtr<EditCommandComposition> protectedComposition() const { return composition(); }
     Ref<EditCommandComposition> ensureComposition();
 
     virtual bool isTypingCommand() const;
@@ -216,9 +215,12 @@ protected:
     void moveParagraphWithClones(const VisiblePosition& startOfParagraphToMove, const VisiblePosition& endOfParagraphToMove, Element* blockElement, Node* outerNode);
     void cloneParagraphUnderNewElement(const Position& start, const Position& end, Node* outerNode, Element* blockElement);
     void cleanupAfterDeletion(VisiblePosition destination = VisiblePosition());
-    
+
+    enum class ReconstitutePlainTextListIfNeeded : bool { No, Yes };
+
     VisibleSelection shouldBreakOutOfEmptyListItem() const;
-    bool breakOutOfEmptyListItem();
+    bool hasSmartListMarkerAttribute() const;
+    bool breakOutOfEmptyListItem(ReconstitutePlainTextListIfNeeded = ReconstitutePlainTextListIfNeeded::No);
     bool breakOutOfEmptyMailBlockquotedParagraph();
     
     Position positionAvoidingSpecialElementBoundary(const Position&);

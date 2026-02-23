@@ -229,7 +229,7 @@ bool RenderVideo::shouldDisplayVideo() const
 
 bool RenderVideo::failedToLoadPosterImage() const
 {
-    return checkedImageResource()->errorOccurred();
+    return protect(imageResource())->errorOccurred();
 }
 
 void RenderVideo::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
@@ -317,7 +317,7 @@ void RenderVideo::styleDidChange(Style::Difference difference, const RenderStyle
         setNeedsLayout();
 }
 
-HTMLVideoElement& RenderVideo::videoElement() const
+HTMLVideoElement& NODELETE RenderVideo::videoElement() const
 {
     return downcast<HTMLVideoElement>(RenderMedia::mediaElement());
 }
@@ -404,7 +404,7 @@ bool RenderVideo::hasPosterFrameSize() const
     // so that contain: inline-size could affect the intrinsic size, which should be 0 x block-size.
     if (shouldApplyInlineSizeContainment())
         isEmpty = isHorizontalWritingMode() ? !m_cachedImageSize.height() : !m_cachedImageSize.width();
-    return protect(videoElement())->shouldDisplayPosterImage() && !isEmpty && !checkedImageResource()->errorOccurred();
+    return protect(videoElement())->shouldDisplayPosterImage() && !isEmpty && !protect(imageResource())->errorOccurred();
 }
 
 bool RenderVideo::hasDefaultObjectSize() const

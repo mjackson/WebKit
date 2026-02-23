@@ -509,7 +509,6 @@ ethiopic-numeric
 //none
 //
 // CSS_PROP_DISPLAY:
-// The order here must match the order of the DisplayType enum in RenderStyleConstants.h.
 //
 inline
 block
@@ -530,6 +529,7 @@ table-caption
 flex
 inline-flex
 contents
+// none
 grid
 inline-grid
 grid-lanes
@@ -539,7 +539,6 @@ flow
 -webkit-inline-flex
 -webkit-flex
 // ruby
-block-ruby
 ruby-base
 ruby-text
 // none
@@ -1090,6 +1089,7 @@ entry
 exit
 entry-crossing
 exit-crossing
+// scroll
 
 //
 // CSS_PROP_ZOOM

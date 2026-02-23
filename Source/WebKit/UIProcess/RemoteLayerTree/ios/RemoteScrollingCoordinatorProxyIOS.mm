@@ -674,7 +674,7 @@ void RemoteScrollingCoordinatorProxyIOS::establishLayerTreeScrollingRelations(co
         MESSAGE_CHECK(overflowNode);
 
         if (RefPtr layerNode = RemoteLayerTreeNode::forCALayer(protect(scrollProxyNode->layer()))) {
-            layerNode->setActingScrollContainerID(RemoteLayerTreeNode::layerID(static_cast<CALayer*>(overflowNode->scrollContainerLayer())));
+            layerNode->setActingScrollContainerID(RemoteLayerTreeNode::layerID(protect(static_cast<CALayer*>(overflowNode->scrollContainerLayer()))));
             m_layersWithScrollingRelations.add(layerNode->layerID());
         }
     }
@@ -819,6 +819,8 @@ void RemoteScrollingCoordinatorProxyIOS::animationsWereRemovedFromNode(RemoteLay
     m_animatedNodeLayerIDs.remove(node.layerID());
     if (m_animatedNodeLayerIDs.isEmpty() || !m_monotonicTimelineRegistry || m_monotonicTimelineRegistry->isEmpty())
         protect(drawingAreaIOS())->pauseDisplayRefreshCallbacksForMonotonicAnimations();
+    else if (node.hasHighImpactMonotonicAnimations())
+        protect(drawingAreaIOS())->highImpactMonotonicAnimationsWereRemoved();
 }
 
 void RemoteScrollingCoordinatorProxyIOS::updateTimelinesRegistration(WebCore::ProcessIdentifier processIdentifier, const WebCore::AcceleratedTimelinesUpdate& timelinesUpdate, MonotonicTime now)
@@ -886,6 +888,17 @@ void RemoteScrollingCoordinatorProxyIOS::updateAnimationStacks(NOESCAPE const Fu
         if (!animationStack->isEmpty())
             m_animatedNodeLayerIDs.add(animatedNodeLayerID);
     }
+}
+
+bool RemoteScrollingCoordinatorProxyIOS::hasHighImpactMonotonicAnimations() const
+{
+    auto& layerTreeHost = drawingAreaIOS().remoteLayerTreeHost();
+    for (auto animatedNodeLayerID : m_animatedNodeLayerIDs) {
+        RefPtr animatedNode = layerTreeHost.nodeForID(animatedNodeLayerID);
+        if (animatedNode->hasHighImpactMonotonicAnimations())
+            return true;
+    }
+    return false;
 }
 #endif
 

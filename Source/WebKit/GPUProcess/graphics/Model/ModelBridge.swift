@@ -22,14 +22,15 @@
 // THE POSSIBILITY OF SUCH DAMAGE.
 
 internal import Metal
-internal import WebKit_Internal
+import WebKit
 
-#if canImport(RealityCoreRenderer, _version: 9) && (os(macOS) || (os(iOS) && canImport(SwiftUI, _version: "8.0.36"))) && canImport(_USDKit_RealityKit)
-@_spi(RealityCoreRendererAPI) internal import RealityKit
-@_spi(UsdLoaderAPI) internal import _USDKit_RealityKit
-@_spi(SwiftAPI) internal import DirectResource
-internal import _USDKit_RealityKit
-internal import ShaderGraph
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 9) && (os(macOS) || (os(iOS) && canImport(SwiftUI, _version: "8.0.36"))) && canImport(_USDKit_RealityKit) && !os(visionOS)
+@_weakLinked @_spi(UsdLoaderAPI) internal import _USDKit_RealityKit
+@_spi(RealityCoreRendererAPI) import RealityKit
+@_weakLinked internal import USDKit
+@_weakLinked @_spi(SwiftAPI) internal import DirectResource
+@_weakLinked internal import _USDKit_RealityKit
+@_weakLinked internal import ShaderGraph
 #endif
 
 @objc
@@ -263,7 +264,7 @@ extension WKBridgeUpdateMesh {
             return []
         }
 
-#if compiler(>=6.2)
+        #if compiler(>=6.2)
         return unsafe data.withUnsafeBytes { rawBufferPointer in
             guard let baseAddress = rawBufferPointer.baseAddress else {
                 return []
@@ -272,7 +273,7 @@ extension WKBridgeUpdateMesh {
             let matrices = unsafe baseAddress.assumingMemoryBound(to: simd_float4x4.self)
             return (0..<instanceTransformsCount).map { unsafe matrices[$0] }
         }
-#else
+        #else
         return data.withUnsafeBytes { rawBufferPointer in
             guard let baseAddress = rawBufferPointer.baseAddress else {
                 return []
@@ -281,7 +282,7 @@ extension WKBridgeUpdateMesh {
             let matrices = baseAddress.assumingMemoryBound(to: simd_float4x4.self)
             return (0..<instanceTransformsCount).map { matrices[$0] }
         }
-#endif
+        #endif
     }
 }
 
@@ -804,18 +805,18 @@ extension WKBridgeLiteral {
     }
 }
 
-#if canImport(RealityCoreRenderer, _version: 9) && (os(macOS) || (os(iOS) && canImport(SwiftUI, _version: "8.0.36"))) && canImport(_USDKit_RealityKit)
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 9) && (os(macOS) || (os(iOS) && canImport(SwiftUI, _version: "8.0.36"))) && canImport(_USDKit_RealityKit) && !os(visionOS)
 
 internal func toData<T>(_ input: [T]) -> Data {
-#if compiler(>=6.2)
+    #if compiler(>=6.2)
     unsafe input.withUnsafeBytes { bufferPointer in
         Data(bufferPointer)
     }
-#else
+    #else
     input.withUnsafeBytes { bufferPointer in
         Data(bufferPointer)
     }
-#endif
+    #endif
 }
 
 private func toDataArray<T>(_ input: [[T]]) -> [Data] {
@@ -890,7 +891,7 @@ extension WKBridgeSkinningData {
             return []
         }
 
-#if compiler(>=6.2)
+        #if compiler(>=6.2)
         return unsafe data.withUnsafeBytes { rawBufferPointer in
             guard let baseAddress = rawBufferPointer.baseAddress else {
                 return []
@@ -899,7 +900,7 @@ extension WKBridgeSkinningData {
             let matrices = unsafe baseAddress.assumingMemoryBound(to: simd_float4x4.self)
             return (0..<jointTransformsCount).map { unsafe matrices[$0] }
         }
-#else
+        #else
         return data.withUnsafeBytes { rawBufferPointer in
             guard let baseAddress = rawBufferPointer.baseAddress else {
                 return []
@@ -908,7 +909,7 @@ extension WKBridgeSkinningData {
             let matrices = baseAddress.assumingMemoryBound(to: simd_float4x4.self)
             return (0..<jointTransformsCount).map { matrices[$0] }
         }
-#endif
+        #endif
     }
 
     var inverseBindPoses: [simd_float4x4] {
@@ -929,7 +930,7 @@ extension WKBridgeSkinningData {
             return []
         }
 
-#if compiler(>=6.2)
+        #if compiler(>=6.2)
         return unsafe data.withUnsafeBytes { rawBufferPointer in
             guard let baseAddress = rawBufferPointer.baseAddress else {
                 return []
@@ -938,7 +939,7 @@ extension WKBridgeSkinningData {
             let matrices = unsafe baseAddress.assumingMemoryBound(to: simd_float4x4.self)
             return (0..<inverseBindPosesCount).map { unsafe matrices[$0] }
         }
-#else
+        #else
         return data.withUnsafeBytes { rawBufferPointer in
             guard let baseAddress = rawBufferPointer.baseAddress else {
                 return []
@@ -947,7 +948,7 @@ extension WKBridgeSkinningData {
             let matrices = baseAddress.assumingMemoryBound(to: simd_float4x4.self)
             return (0..<inverseBindPosesCount).map { matrices[$0] }
         }
-#endif
+        #endif
     }
 
     var influenceJointIndices: [UInt32] {
@@ -968,7 +969,7 @@ extension WKBridgeSkinningData {
             return []
         }
 
-#if compiler(>=6.2)
+        #if compiler(>=6.2)
         return unsafe data.withUnsafeBytes { rawBufferPointer in
             guard let baseAddress = rawBufferPointer.baseAddress else {
                 return []
@@ -977,7 +978,7 @@ extension WKBridgeSkinningData {
             let matrices = unsafe baseAddress.assumingMemoryBound(to: UInt32.self)
             return (0..<influenceJointIndicesCount).map { unsafe matrices[$0] }
         }
-#else
+        #else
         return data.withUnsafeBytes { rawBufferPointer in
             guard let baseAddress = rawBufferPointer.baseAddress else {
                 return []
@@ -986,7 +987,7 @@ extension WKBridgeSkinningData {
             let matrices = baseAddress.assumingMemoryBound(to: UInt32.self)
             return (0..<influenceJointIndicesCount).map { matrices[$0] }
         }
-#endif
+        #endif
     }
 
     var influenceWeights: [Float] {
@@ -1007,7 +1008,7 @@ extension WKBridgeSkinningData {
             return []
         }
 
-#if compiler(>=6.2)
+        #if compiler(>=6.2)
         return unsafe data.withUnsafeBytes { rawBufferPointer in
             guard let baseAddress = rawBufferPointer.baseAddress else {
                 return []
@@ -1016,7 +1017,7 @@ extension WKBridgeSkinningData {
             let matrices = unsafe baseAddress.assumingMemoryBound(to: Float.self)
             return (0..<influenceWeightsCount).map { unsafe matrices[$0] }
         }
-#else
+        #else
         return data.withUnsafeBytes { rawBufferPointer in
             guard let baseAddress = rawBufferPointer.baseAddress else {
                 return []
@@ -1025,7 +1026,7 @@ extension WKBridgeSkinningData {
             let matrices = baseAddress.assumingMemoryBound(to: Float.self)
             return (0..<influenceWeightsCount).map { matrices[$0] }
         }
-#endif
+        #endif
     }
 
     @nonobjc

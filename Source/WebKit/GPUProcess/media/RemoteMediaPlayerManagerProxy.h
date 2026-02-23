@@ -111,7 +111,7 @@ private:
 
 #if !RELEASE_LOG_DISABLED
     ASCIILiteral logClassName() const { return "RemoteMediaPlayerManagerProxy"; }
-    WTFLogChannel& logChannel() const;
+    WTFLogChannel& NODELETE logChannel() const;
     uint64_t logIdentifier() const { return m_logIdentifier; }
 #endif
 

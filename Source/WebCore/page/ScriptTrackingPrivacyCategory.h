@@ -67,9 +67,9 @@ using ScriptTrackingPrivacyFlags = OptionSet<ScriptTrackingPrivacyFlag>;
 
 String makeLogMessage(const URL&, ScriptTrackingPrivacyCategory);
 ASCIILiteral description(ScriptTrackingPrivacyCategory);
-WEBCORE_EXPORT ScriptTrackingPrivacyFlag scriptCategoryAsFlag(ScriptTrackingPrivacyCategory);
+WEBCORE_EXPORT ScriptTrackingPrivacyFlag NODELETE scriptCategoryAsFlag(ScriptTrackingPrivacyCategory);
 
-bool shouldEnableScriptTrackingPrivacy(ScriptTrackingPrivacyCategory, OptionSet<AdvancedPrivacyProtections>, bool needsConsistentPrivacy = false);
+bool NODELETE shouldEnableScriptTrackingPrivacy(ScriptTrackingPrivacyCategory, OptionSet<AdvancedPrivacyProtections>, bool needsConsistentPrivacy = false);
 
 } // namespace WebCore
 

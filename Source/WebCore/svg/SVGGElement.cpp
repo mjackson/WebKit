@@ -58,7 +58,7 @@ RenderPtr<RenderElement> SVGGElement::createElementRenderer(RenderStyle&& style,
 {
     // FIXME: [LBSE] Support hidden containers
     if (document().settings().layerBasedSVGEngineEnabled()) {
-        if (style.display() == DisplayType::None)
+        if (style.display() == Style::DisplayType::None)
             return createRenderer<RenderSVGHiddenContainer>(RenderObject::Type::SVGHiddenContainer, *this, WTF::move(style));
         return createRenderer<RenderSVGTransformableContainer>(*this, WTF::move(style));
     }
@@ -67,7 +67,7 @@ RenderPtr<RenderElement> SVGGElement::createElementRenderer(RenderStyle&& style,
     // We still have to create renderers for the <g> & <linearGradient> element, though the
     // subtree may be hidden - we only want the resource renderers to exist so they can be
     // referenced from somewhere else.
-    if (style.display() == DisplayType::None)
+    if (style.display() == Style::DisplayType::None)
         return createRenderer<LegacyRenderSVGHiddenContainer>(RenderObject::Type::LegacySVGHiddenContainer, *this, WTF::move(style));
     return createRenderer<LegacyRenderSVGTransformableContainer>(*this, WTF::move(style));
 }

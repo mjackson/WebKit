@@ -103,14 +103,14 @@ public:
     bool isValid() const { return m_valid; }
     bool isSupported() const;
 
-    String scheme() const;
+    String NODELETE scheme() const;
     String host() const;
-    String path() const;
+    String NODELETE path() const;
 
     bool hostIsPublicSuffix() const;
 
     bool matchesAllURLs() const { return m_matchesAllURLs; }
-    bool matchesAllHosts() const;
+    bool NODELETE matchesAllHosts() const;
 
     bool matchesURL(const URL&, OptionSet<Options> = { }) const;
     bool matchesPattern(const WebExtensionMatchPattern&, OptionSet<Options> = { }) const;

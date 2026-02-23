@@ -63,7 +63,7 @@ private:
     using WebGLRenderingContextBase::WebGLRenderingContextBase;
 };
 
-WebCoreOpaqueRoot root(const WebGLExtension<WebGLRenderingContext>*);
+WebCoreOpaqueRoot NODELETE root(const WebGLExtension<WebGLRenderingContext>*);
 
 } // namespace WebCore
 

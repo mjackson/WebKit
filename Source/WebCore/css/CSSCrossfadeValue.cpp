@@ -64,9 +64,9 @@ String CSSCrossfadeValue::customCSSText(const CSS::SerializationContext& context
     return makeString(m_isPrefixed ? "-webkit-"_s : ""_s, "cross-fade("_s, m_fromValueOrNone->cssText(context), ", "_s, m_toValueOrNone->cssText(context), ", "_s, m_percentageValue->cssText(context), ')');
 }
 
-RefPtr<StyleImage> CSSCrossfadeValue::createStyleImage(const Style::BuilderState& state) const
+RefPtr<Style::Image> CSSCrossfadeValue::createStyleImage(const Style::BuilderState& state) const
 {
-    return StyleCrossfadeImage::create(
+    return Style::CrossfadeImage::create(
         state.createStyleImage(m_fromValueOrNone),
         state.createStyleImage(m_toValueOrNone),
         clampTo<double>(m_percentageValue->valueDividingBy100IfPercentage<double>(state.cssToLengthConversionData()), 0, 1),

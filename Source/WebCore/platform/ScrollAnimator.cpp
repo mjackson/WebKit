@@ -176,7 +176,7 @@ bool ScrollAnimator::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
     if (processWheelEventForScrollSnap(wheelEvent))
         return false;
 
-    if (checkedScrollableArea()->hasSteppedScrolling())
+    if (protect(scrollableArea())->hasSteppedScrolling())
         return handleSteppedScrolling(wheelEvent);
 
     return m_scrollController.handleWheelEvent(wheelEvent);
@@ -261,7 +261,7 @@ void ScrollAnimator::setCurrentPosition(const FloatPoint& position, NotifyScroll
     if (notify == NotifyScrollableArea::Yes)
         notifyPositionChanged(delta);
     else
-        notifyScrollAnchoringControllerOfScroll(checkedScrollableArea());
+        notifyScrollAnchoringControllerOfScroll(protect(scrollableArea()));
 
     updateActiveScrollSnapIndexForOffset();
 }
@@ -291,17 +291,17 @@ const LayoutScrollSnapOffsetsInfo* ScrollAnimator::snapOffsetsInfo() const
 
 FloatPoint ScrollAnimator::scrollOffset() const
 {
-    return checkedScrollableArea()->scrollOffsetFromPosition(roundedIntPoint(currentPosition()));
+    return protect(scrollableArea())->scrollOffsetFromPosition(roundedIntPoint(currentPosition()));
 }
 
 bool ScrollAnimator::allowsHorizontalScrolling() const
 {
-    return checkedScrollableArea()->allowsHorizontalScrolling();
+    return protect(scrollableArea())->allowsHorizontalScrolling();
 }
 
 bool ScrollAnimator::allowsVerticalScrolling() const
 {
-    return checkedScrollableArea()->allowsVerticalScrolling();
+    return protect(scrollableArea())->allowsVerticalScrolling();
 }
 
 void ScrollAnimator::willStartAnimatedScroll()
@@ -320,17 +320,17 @@ void ScrollAnimator::didStopAnimatedScroll()
 #if HAVE(RUBBER_BANDING)
 IntSize ScrollAnimator::stretchAmount() const
 {
-    return checkedScrollableArea()->overhangAmount();
+    return protect(scrollableArea())->overhangAmount();
 }
 
 RectEdges<bool> ScrollAnimator::edgePinnedState() const
 {
-    return checkedScrollableArea()->edgePinnedState();
+    return protect(scrollableArea())->edgePinnedState();
 }
 
 bool ScrollAnimator::isPinnedOnSide(BoxSide side) const
 {
-    return checkedScrollableArea()->isPinnedOnSide(side);
+    return protect(scrollableArea())->isPinnedOnSide(side);
 }
 
 #endif
@@ -381,7 +381,7 @@ ScrollExtents ScrollAnimator::scrollExtents() const
 
 float ScrollAnimator::pageScaleFactor() const
 {
-    return checkedScrollableArea()->pageScaleFactor();
+    return protect(scrollableArea())->pageScaleFactor();
 }
 
 std::unique_ptr<ScrollingEffectsControllerTimer> ScrollAnimator::createTimer(Function<void()>&& function)
@@ -397,7 +397,7 @@ void ScrollAnimator::startAnimationCallback(ScrollingEffectsController&)
 {
     if (!m_scrollAnimationScheduled) {
         m_scrollAnimationScheduled = true;
-        checkedScrollableArea()->didStartScrollAnimation();
+        protect(scrollableArea())->didStartScrollAnimation();
     }
 }
 
@@ -421,14 +421,14 @@ void ScrollAnimator::removeWheelEventTestCompletionDeferralForReason(ScrollingNo
 #if USE(COORDINATED_GRAPHICS)
 bool ScrollAnimator::scrollAnimationEnabled() const
 {
-    return checkedScrollableArea()->scrollAnimatorEnabled();
+    return protect(scrollableArea())->scrollAnimatorEnabled();
 }
 #endif
 
 void ScrollAnimator::cancelAnimations()
 {
     m_scrollController.stopAnimatedScroll();
-    checkedScrollableArea()->scrollbarsController().cancelAnimations();
+    protect(scrollableArea())->scrollbarsController().cancelAnimations();
 }
 
 void ScrollAnimator::contentsSizeChanged()
@@ -474,7 +474,7 @@ ScrollAnimationStatus ScrollAnimator::serviceScrollAnimation(MonotonicTime time)
 
 ScrollingNodeID ScrollAnimator::scrollingNodeIDForTesting() const
 {
-    return checkedScrollableArea()->scrollingNodeIDForTesting();
+    return protect(scrollableArea())->scrollingNodeIDForTesting();
 }
 
 

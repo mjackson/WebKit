@@ -131,8 +131,8 @@ void InteractionRegion::clearCache()
 
 static bool hasInteractiveCursorType(Element& element)
 {
-    auto* renderer = element.renderer();
-    auto* style = renderer ? &renderer->style() : nullptr;
+    CheckedPtr renderer = element.renderer();
+    CheckedPtr style = renderer ? &renderer->style() : nullptr;
     auto cursorType = style ? style->cursorType() : CursorType::Auto;
 
     if (cursorType == CursorType::Auto && element.enclosingLinkEventParentOrSelf())
@@ -260,11 +260,11 @@ static bool hasTransparentContainerStyle(const RenderStyle& style)
 {
     return !style.hasBackground()
         && !style.hasOutline()
-        && !style.hasBoxShadow()
-        && !style.hasClipPath()
+        && style.boxShadow().isNone()
+        && style.clipPath().isNone()
         && !style.hasExplicitlySetBorderRadius()
         // No visible borders or borders that do not create a complete box.
-        && (!style.hasVisibleBorder()
+        && (!style.border().hasVisibleBorder()
             || !(style.usedBorderTopWidth() && style.usedBorderRightWidth() && style.usedBorderBottomWidth() && style.usedBorderLeftWidth()));
 }
 
@@ -314,8 +314,8 @@ static bool isGuardContainer(const Element& element)
     if (!element.renderer())
         return false;
 
-    auto& renderer = *element.renderer();
-    return hasTransparentContainerStyle(renderer.style());
+    CheckedRef renderer = *element.renderer();
+    return hasTransparentContainerStyle(renderer->style());
 }
 
 static FloatSize boundingSize(const RenderObject& renderer, const std::optional<AffineTransform>& transform)
@@ -428,15 +428,15 @@ std::optional<InteractionRegion> interactionRegionForRenderedRegion(const Render
 
     if (!matchedElement->renderer())
         return std::nullopt;
-    auto& renderer = *matchedElement->renderer();
+    CheckedRef renderer = *matchedElement->renderer();
 
-    if (renderer.usedPointerEvents() == PointerEvents::None)
+    if (renderer->usedPointerEvents() == PointerEvents::None)
         return std::nullopt;
 
     bool isOriginalMatch = matchedElement == originalElement;
 
     // FIXME: Consider also allowing elements that only receive touch events.
-    bool hasListener = renderer.style().eventListenerRegionTypes().contains(EventListenerRegionType::MouseClick);
+    bool hasListener = renderer->style().eventListenerRegionTypes().contains(EventListenerRegionType::MouseClick);
     bool hasPointer = hasInteractiveCursorType(*matchedElement) || shouldAllowNonInteractiveCursorForElement(*matchedElement);
 
     RefPtr localMainFrame = dynamicDowncast<LocalFrame>(regionRenderer.document().frame()->mainFrame());
@@ -472,9 +472,9 @@ std::optional<InteractionRegion> interactionRegionForRenderedRegion(const Render
     bool detectedHoverRules = false;
     if (!hasPointer) {
         // The hover check can be expensive (it may end up doing selector matching), so we only run it on some elements.
-        bool hasVisibleBoxDecorations = renderer.hasVisibleBoxDecorations();
+        bool hasVisibleBoxDecorations = renderer->hasVisibleBoxDecorations();
         bool nonScrollable = [&] {
-            auto* box = dynamicDowncast<RenderBox>(renderer);
+            CheckedPtr box = dynamicDowncast<RenderBox>(renderer.get());
             return !box || (!box->hasScrollableOverflowX() && !box->hasScrollableOverflowY());
         }();
         if (hasVisibleBoxDecorations && nonScrollable)
@@ -482,7 +482,7 @@ std::optional<InteractionRegion> interactionRegionForRenderedRegion(const Render
     }
 
     if (!hasListener || !(hasPointer || detectedHoverRules) || isTooBigForInteraction) {
-        if (isOriginalMatch && shouldGetOcclusion(renderer) && !isTooBigForOcclusion) {
+        if (isOriginalMatch && shouldGetOcclusion(renderer.get()) && !isTooBigForOcclusion) {
             return { {
                 InteractionRegion::Type::Occlusion,
                 nodeIdentifier,
@@ -493,7 +493,7 @@ std::optional<InteractionRegion> interactionRegionForRenderedRegion(const Render
         return std::nullopt;
     }
 
-    bool isInlineNonBlock = renderer.isInline() && !renderer.isBlockLevelReplacedOrAtomicInline();
+    bool isInlineNonBlock = renderer->isInline() && !renderer->isBlockLevelReplacedOrAtomicInline();
     bool isPhoto = false;
 
     float minimumContentHintArea = 200 * 200;
@@ -510,9 +510,9 @@ std::optional<InteractionRegion> interactionRegionForRenderedRegion(const Render
 
                 return cachedImageIsPhoto(*renderImage->cachedImage());
             }();
-        } else if (regionRenderer.style().hasBackgroundImage()) {
+        } else if (auto& backgroundLayers = regionRenderer.style().backgroundLayers(); Style::hasImageInAnyLayer(backgroundLayers)) {
             isPhoto = [&]() -> bool {
-                RefPtr backgroundImage = regionRenderer.style().backgroundLayers().usedFirst().image().tryStyleImage();
+                RefPtr backgroundImage = backgroundLayers.usedFirst().image().tryStyleImage();
                 if (!backgroundImage || !backgroundImage->cachedImage())
                     return false;
 
@@ -532,7 +532,7 @@ std::optional<InteractionRegion> interactionRegionForRenderedRegion(const Render
     }
 
     // The parent will get its own InteractionRegion.
-    if (!isOriginalMatch && !matchedElementIsGuardContainer && !isPhoto && !isInlineNonBlock && !renderer.style().isDisplayTableOrTablePart())
+    if (!isOriginalMatch && !matchedElementIsGuardContainer && !isPhoto && !isInlineNonBlock && !renderer->style().display().isTableOrTablePart())
         return std::nullopt;
 
     // FIXME: Consider allowing rotation / skew - rdar://127499446.
@@ -552,10 +552,10 @@ std::optional<InteractionRegion> interactionRegionForRenderedRegion(const Render
     OptionSet<InteractionRegion::CornerMask> maskedCorners { };
     std::optional<Path> clipPath = std::nullopt;
 
-    auto& style = regionRenderer.style();
+    CheckedRef style = regionRenderer.style();
     CheckedPtr<const RenderBox> regionRendererBox;
 
-    if (auto basicShapePath = style.clipPath().tryBasicShape(); !hasRotationOrShear && originalElement && basicShapePath) {
+    if (auto basicShapePath = style->clipPath().tryBasicShape(); !hasRotationOrShear && originalElement && basicShapePath) {
         auto size = boundingSize(regionRenderer, transform);
         auto path = Style::tryPath(*basicShapePath, TransformOperationData(FloatRect(FloatPoint(), size)));
 
@@ -641,7 +641,7 @@ std::optional<InteractionRegion> interactionRegionForRenderedRegion(const Render
 
     bool canTweakShape = !isPhoto
         && !clipPath
-        && canTweakShapeForStyle(style);
+        && canTweakShapeForStyle(style.get());
 
     auto adjustForTheme = false;
     auto useContinuousCorners = false;
@@ -657,7 +657,7 @@ std::optional<InteractionRegion> interactionRegionForRenderedRegion(const Render
 
     adjustForTheme = regionRendererBox
         && regionRendererBox->settings().formControlRefreshEnabled()
-        && !style.hasTransformRelatedProperty();
+        && !style->hasTransformRelatedProperty();
 
     if (adjustForTheme) {
         // We only need the bounding path for the region if a clip path exists so that we can compute

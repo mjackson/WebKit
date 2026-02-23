@@ -195,7 +195,7 @@ void DatabaseContext::databaseExceededQuota(const String& name, DatabaseDetails 
     RefPtr context = scriptExecutionContext();
     if (RefPtr document = dynamicDowncast<Document>(*context)) {
         if (RefPtr page = document->page())
-            page->chrome().client().exceededDatabaseQuota(*document->protectedFrame(), name, details);
+            page->chrome().client().exceededDatabaseQuota(*protect(document->frame()), name, details);
         return;
     }
     ASSERT(context->isWorkerGlobalScope());

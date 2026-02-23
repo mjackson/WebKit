@@ -94,7 +94,7 @@ void UserContentProvider::invalidateInjectedStyleSheetCacheInAllFramesInAllPages
 }
 
 #if ENABLE(CONTENT_EXTENSIONS)
-static DocumentLoader* mainDocumentLoader(DocumentLoader& loader)
+static DocumentLoader* NODELETE mainDocumentLoader(DocumentLoader& loader)
 {
     if (auto frame = loader.frame()) {
         if (frame->isMainFrame())

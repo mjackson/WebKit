@@ -50,6 +50,7 @@
             "conditional": "ENABLE(FULLSCREEN_API)"
         },
         "-internal-media-document": {},
+        "-internal-select-popover": {},
         "-internal-uses-menulist": {},
         "-webkit-any": {
             "argument": "required",
@@ -553,6 +554,9 @@
         },
         "picker": {
             "argument": "required",
+            "settings-flag": ["htmlEnhancedSelectEnabled", "cssPickerPseudoElementEnabled"]
+        },
+        "picker-icon": {
             "settings-flag": "htmlEnhancedSelectEnabled"
         },
         "placeholder": {

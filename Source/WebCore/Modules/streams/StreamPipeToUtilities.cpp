@@ -79,7 +79,7 @@ public:
     ~StreamPipeToState();
 
     // ContextDestructionObserver.
-    void ref() const final { RefCounted::ref(); }
+    void NODELETE ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
 
     void doWrite(JSC::JSValue);

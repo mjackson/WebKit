@@ -229,8 +229,8 @@ WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH void WTFLogAlwaysAndCrash(const char* 
 WTF_EXPORT_PRIVATE WTFLogChannel* WTFLogChannelByName(WTFLogChannel*[], size_t count, const char*);
 WTF_EXPORT_PRIVATE void WTFInitializeLogChannelStatesFromString(WTFLogChannel*[], size_t count, const char*);
 WTF_EXPORT_PRIVATE void WTFLogWithLevel(WTFLogChannel*, WTFLogLevel, const char* format, ...) WTF_ATTRIBUTE_NSSTRING(3, 4);
-WTF_EXPORT_PRIVATE void WTFSetLogChannelLevel(WTFLogChannel*, WTFLogLevel);
-WTF_EXPORT_PRIVATE bool WTFWillLogWithLevel(WTFLogChannel*, WTFLogLevel);
+WTF_EXPORT_PRIVATE void NODELETE WTFSetLogChannelLevel(WTFLogChannel*, WTFLogLevel);
+WTF_EXPORT_PRIVATE bool NODELETE WTFWillLogWithLevel(WTFLogChannel*, WTFLogLevel);
 
 WTF_EXPORT_PRIVATE NEVER_INLINE void WTFGetBacktrace(void** stack, int* size);
 WTF_EXPORT_PRIVATE void WTFReportBacktraceWithPrefix(const char*);
@@ -342,7 +342,7 @@ WTF_EXPORT_PRIVATE bool WTFIsDebuggerAttached(void);
 
 #endif // !defined(CRASH)
 
-WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH void WTFCrash(void);
+WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH void NODELETE WTFCrash(void);
 
 #ifndef CRASH_WITH_SECURITY_IMPLICATION
 #define CRASH_WITH_SECURITY_IMPLICATION() WTFCrashWithSecurityImplication()
@@ -353,7 +353,7 @@ extern WTF_EXPORT_PRIVATE int wtfConjectureAssertIsEnabled;
 WTF_EXPORT_PRIVATE NEVER_INLINE NO_RETURN_DUE_TO_CRASH void WTFCrashDueToConjectureAssert(const char* file, int line, const char* function, const char* assertion);
 #endif
 
-WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH void WTFCrashWithSecurityImplication(void);
+WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH void NODELETE WTFCrashWithSecurityImplication(void);
 
 #ifdef __cplusplus
 }
@@ -902,7 +902,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END \
 
 // The combination of line, file, and function should be a unique number per call to this crash. This tricks the compiler into not coalescing calls to WTFCrashWithInfo.
 // The easiest way to fill these values per translation unit is to pass __LINE__, __FILE__, and WTF_PRETTY_FUNCTION.
-WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH NOT_TAIL_CALLED void WTFCrashWithInfoImpl(int line, const char* file, const char* function, uint64_t reason, uint64_t misc1, uint64_t misc2, uint64_t misc3, uint64_t misc4, uint64_t misc5, uint64_t misc6);
+WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH NOT_TAIL_CALLED void NODELETE WTFCrashWithInfoImpl(int line, const char* file, const char* function, uint64_t reason, uint64_t misc1, uint64_t misc2, uint64_t misc3, uint64_t misc4, uint64_t misc5, uint64_t misc6);
 WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH NOT_TAIL_CALLED void WTFCrashWithInfoImpl(int line, const char* file, const char* function, uint64_t reason, uint64_t misc1, uint64_t misc2, uint64_t misc3, uint64_t misc4, uint64_t misc5);
 WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH NOT_TAIL_CALLED void WTFCrashWithInfoImpl(int line, const char* file, const char* function, uint64_t reason, uint64_t misc1, uint64_t misc2, uint64_t misc3, uint64_t misc4);
 WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH NOT_TAIL_CALLED void WTFCrashWithInfoImpl(int line, const char* file, const char* function, uint64_t reason, uint64_t misc1, uint64_t misc2, uint64_t misc3);
@@ -1000,7 +1000,7 @@ void isIntegralOrPointerType(T, Types... types)
 }
 
 #if PLATFORM(COCOA) || OS(ANDROID)
-WTF_EXPORT_PRIVATE void disableForwardingVPrintfStdErrToOSLog();
+WTF_EXPORT_PRIVATE void NODELETE disableForwardingVPrintfStdErrToOSLog();
 #endif
 
 } // namespace WTF

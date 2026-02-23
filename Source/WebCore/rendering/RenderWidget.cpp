@@ -53,7 +53,7 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderWidget);
 
-static HashMap<SingleThreadWeakRef<const Widget>, SingleThreadWeakRef<RenderWidget>>& widgetRendererMap()
+static HashMap<SingleThreadWeakRef<const Widget>, SingleThreadWeakRef<RenderWidget>>& NODELETE widgetRendererMap()
 {
     static NeverDestroyed<HashMap<SingleThreadWeakRef<const Widget>, SingleThreadWeakRef<RenderWidget>>> staticWidgetRendererMap;
     return staticWidgetRendererMap;
@@ -110,7 +110,7 @@ RenderWidget::RenderWidget(Type type, HTMLFrameOwnerElement& element, RenderStyl
 void RenderWidget::willBeDestroyed()
 {
     if (CheckedPtr cache = document().existingAXObjectCache()) {
-        if (auto* parent = this->parent())
+        if (CheckedPtr parent = this->parent())
             cache->childrenChanged(*parent);
         cache->remove(*this);
     }
@@ -128,7 +128,7 @@ RenderWidget::~RenderWidget() = default;
 // Widgets are always placed on integer boundaries, so rounding the size is actually
 // the desired behavior. This function is here because it's otherwise seldom what we
 // want to do with a LayoutRect.
-static inline IntRect roundedIntRect(const LayoutRect& rect)
+static inline IntRect NODELETE roundedIntRect(const LayoutRect& rect)
 {
     return IntRect(roundedIntPoint(rect.location()), roundedIntSize(rect.size()));
 }
@@ -342,7 +342,7 @@ void RenderWidget::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
     if (paintInfo.phase != PaintPhase::Foreground && !needsEventRegionContentPaint)
         return;
 
-    if (style().hasBorderRadius()) {
+    if (style().border().hasBorderRadius()) {
         LayoutRect borderRect = LayoutRect(adjustedPaintOffset, size());
 
         if (borderRect.isEmpty())
@@ -356,7 +356,7 @@ void RenderWidget::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
     if (m_widget && !isSkippedContentRoot(*this))
         paintContents(paintInfo, paintOffset);
 
-    if (style().hasBorderRadius())
+    if (style().border().hasBorderRadius())
         paintInfo.context().restore();
 
     if (paintInfo.phase == PaintPhase::EventRegion || paintInfo.phase == PaintPhase::Accessibility)
@@ -478,7 +478,7 @@ bool RenderWidget::requiresAcceleratedCompositing() const
     return false;
 }
 
-RemoteFrame* RenderWidget::remoteFrame() const
+RemoteFrame* NODELETE RenderWidget::remoteFrame() const
 {
     return dynamicDowncast<RemoteFrame>(frameOwnerElement().contentFrame());
 }

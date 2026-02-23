@@ -323,7 +323,6 @@
     "webkitplaybacktargetavailabilitychanged": { },
     "webkitpresentationmodechanged": { },
     "webkitremovesourcebuffer": { },
-    "webkitshadowrootattached": { },
     "webkitsourceclose": { },
     "webkitsourceended": { },
     "webkitsourceopen": { },

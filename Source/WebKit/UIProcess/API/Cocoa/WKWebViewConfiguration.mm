@@ -555,7 +555,7 @@ static NSString *defaultApplicationNameForUserAgent()
 
 - (void)setApplicationNameForUserAgent:(NSString *)applicationNameForUserAgent
 {
-    _pageConfiguration->setApplicationNameForUserAgent(applicationNameForUserAgent);
+    protect(*_pageConfiguration)->setApplicationNameForUserAgent(applicationNameForUserAgent);
 }
 
 - (_WKVisitedLinkStore *)_visitedLinkStore
@@ -725,7 +725,7 @@ static NSString *defaultApplicationNameForUserAgent()
 
 - (void)_setGroupIdentifier:(NSString *)groupIdentifier
 {
-    _pageConfiguration->setGroupIdentifier(groupIdentifier);
+    protect(*_pageConfiguration)->setGroupIdentifier(groupIdentifier);
 }
 
 - (BOOL)_respectsImageOrientation
@@ -755,7 +755,7 @@ static NSString *defaultApplicationNameForUserAgent()
 
 - (void)_setIncrementalRenderingSuppressionTimeout:(NSTimeInterval)incrementalRenderingSuppressionTimeout
 {
-    _pageConfiguration->setIncrementalRenderingSuppressionTimeout(incrementalRenderingSuppressionTimeout);
+    protect(*_pageConfiguration)->setIncrementalRenderingSuppressionTimeout(incrementalRenderingSuppressionTimeout);
 }
 
 - (BOOL)_allowsJavaScriptMarkup
@@ -1304,7 +1304,7 @@ static WebKit::AttributionOverrideTesting toAttributionOverrideTesting(_WKAttrib
 
 - (void)_setCPULimit:(double)cpuLimit
 {
-    _pageConfiguration->setCPULimit(cpuLimit);
+    protect(*_pageConfiguration)->setCPULimit(cpuLimit);
 }
 
 - (double)_cpuLimit
@@ -1367,7 +1367,7 @@ static WebKit::AttributionOverrideTesting toAttributionOverrideTesting(_WKAttrib
 
 - (void)_setOverrideContentSecurityPolicy:(NSString *)overrideContentSecurityPolicy
 {
-    _pageConfiguration->setOverrideContentSecurityPolicy(overrideContentSecurityPolicy);
+    protect(*_pageConfiguration)->setOverrideContentSecurityPolicy(overrideContentSecurityPolicy);
 }
 
 - (NSString *)_mediaContentTypesRequiringHardwareSupport
@@ -1377,7 +1377,7 @@ static WebKit::AttributionOverrideTesting toAttributionOverrideTesting(_WKAttrib
 
 - (void)_setMediaContentTypesRequiringHardwareSupport:(NSString *)mediaContentTypesRequiringHardwareSupport
 {
-    _pageConfiguration->setMediaContentTypesRequiringHardwareSupport(mediaContentTypesRequiringHardwareSupport);
+    protect(*_pageConfiguration)->setMediaContentTypesRequiringHardwareSupport(mediaContentTypesRequiringHardwareSupport);
 }
 
 - (NSArray<NSString *> *)_additionalSupportedImageTypes
@@ -1502,12 +1502,12 @@ static WebKit::AttributionOverrideTesting toAttributionOverrideTesting(_WKAttrib
 
 - (void)_setProcessDisplayName:(NSString *)lsDisplayName
 {
-    _pageConfiguration->setProcessDisplayName(lsDisplayName);
+    protect(*_pageConfiguration)->setProcessDisplayName(lsDisplayName);
 }
 
 - (void)_setSampledPageTopColorMaxDifference:(double)value
 {
-    _pageConfiguration->setSampledPageTopColorMaxDifference(value);
+    protect(*_pageConfiguration)->setSampledPageTopColorMaxDifference(value);
 }
 
 - (double)_sampledPageTopColorMaxDifference
@@ -1517,7 +1517,7 @@ static WebKit::AttributionOverrideTesting toAttributionOverrideTesting(_WKAttrib
 
 - (void)_setSampledPageTopColorMinHeight:(double)value
 {
-    _pageConfiguration->setSampledPageTopColorMinHeight(value);
+    protect(*_pageConfiguration)->setSampledPageTopColorMinHeight(value);
 }
 
 - (double)_sampledPageTopColorMinHeight
@@ -1527,7 +1527,7 @@ static WebKit::AttributionOverrideTesting toAttributionOverrideTesting(_WKAttrib
 
 - (void)_setAttributedBundleIdentifier:(NSString *)identifier
 {
-    _pageConfiguration->setAttributedBundleIdentifier(identifier);
+    protect(*_pageConfiguration)->setAttributedBundleIdentifier(identifier);
 }
 
 - (NSString *)_attributedBundleIdentifier
@@ -1637,6 +1637,22 @@ static WebKit::AttributionOverrideTesting toAttributionOverrideTesting(_WKAttrib
 {
 #if HAVE(CORE_ANIMATION_SEPARATED_LAYERS)
     _pageConfiguration->setCSSTransformStyleSeparatedEnabled(enabled);
+#endif
+}
+
+- (void)_setAllowsImmersiveEnvironments:(BOOL)allows
+{
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    _pageConfiguration->setAllowsImmersiveEnvironments(allows);
+#endif
+}
+
+- (BOOL)_allowsImmersiveEnvironments
+{
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    return _pageConfiguration->allowsImmersiveEnvironments();
+#else
+    return false;
 #endif
 }
 

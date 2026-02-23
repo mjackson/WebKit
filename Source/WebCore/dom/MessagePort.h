@@ -90,7 +90,7 @@ public:
     // Returns null if there is no entangled port, or if the entangled port is run by a different thread.
     // This is used solely to enable a GC optimization. Some platforms may not be able to determine ownership
     // of the remote port (since it may live cross-process) - those platforms may always return null.
-    MessagePort* locallyEntangledPort() const;
+    MessagePort* NODELETE locallyEntangledPort() const;
 
     const MessagePortIdentifier& identifier() const { return m_identifier; }
     const MessagePortIdentifier& remoteIdentifier() const { return m_remoteIdentifier; }
@@ -132,7 +132,7 @@ private:
     MessageHandler m_messageHandler;
 };
 
-WebCoreOpaqueRoot root(MessagePort*);
+WebCoreOpaqueRoot NODELETE root(MessagePort*);
 
 } // namespace WebCore
 

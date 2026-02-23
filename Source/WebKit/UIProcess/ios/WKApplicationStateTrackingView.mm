@@ -56,7 +56,7 @@
         return;
 
     auto page = [_webViewToTrack.get() _page];
-    RELEASE_LOG(ViewState, "%p - WKApplicationStateTrackingView: View with page [%p, pageProxyID=%" PRIu64 "] was removed from a window, _lastObservedStateWasBackground=%d", self, page.get(), page ? page->identifier().toUInt64() : 0, page ? page->lastObservedStateWasBackground() : false);
+    RELEASE_LOG(ViewState, "%p - WKApplicationStateTrackingView: View with page [%p, pageProxyID=%" PRIu64 "] was removed from a window, _lastObservedStateWasBackground=%d", self, page.get(), page ? page->identifier().toUInt64() : 0, page && page->lastObservedStateWasBackground());
     protect(*_applicationStateTracker)->setWindow(nil);
 }
 
@@ -66,7 +66,7 @@
         return;
 
     auto page = [_webViewToTrack.get() _page];
-    bool lastObservedStateWasBackground = page ? page->lastObservedStateWasBackground() : false;
+    bool lastObservedStateWasBackground = page && page->lastObservedStateWasBackground();
 
     protect(*_applicationStateTracker)->setWindow(self._contentView.window);
     RELEASE_LOG(ViewState, "%p - WKApplicationStateTrackingView: View with page [%p, pageProxyID=%" PRIu64 "] was added to a window, _lastObservedStateWasBackground=%d, isNowBackground=%d", self, page.get(), page ? page->identifier().toUInt64() : 0, lastObservedStateWasBackground, [self isBackground]);

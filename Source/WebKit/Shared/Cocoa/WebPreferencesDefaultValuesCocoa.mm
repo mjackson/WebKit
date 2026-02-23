@@ -52,7 +52,7 @@ namespace WebKit {
 
 #if ENABLE(VIDEO)
 
-bool defaultCaptionDisplaySettingsEnabled()
+bool NODELETE defaultCaptionDisplaySettingsEnabled()
 {
     return false;
 }
@@ -61,12 +61,12 @@ bool defaultCaptionDisplaySettingsEnabled()
 
 #if PLATFORM(MAC)
 
-bool defaultUseAppKitGestures()
+bool NODELETE defaultUseAppKitGestures()
 {
     return false;
 }
 
-bool defaultTextInputClientSelectionUpdatesEnabled()
+bool NODELETE defaultTextInputClientSelectionUpdatesEnabled()
 {
     return false;
 }
@@ -166,7 +166,7 @@ bool defaultTopContentInsetBackgroundCanChangeAfterScrolling()
 #endif
 }
 
-bool defaultContentInsetBackgroundFillEnabled()
+bool NODELETE defaultContentInsetBackgroundFillEnabled()
 {
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
     return isLiquidGlassEnabled();
@@ -182,7 +182,7 @@ bool defaultHostedBlurMaterialInMediaControlsEnabled()
 }
 #endif
 
-bool defaultIOSurfaceLosslessCompressionEnabled()
+bool NODELETE defaultIOSurfaceLosslessCompressionEnabled()
 {
 #if HAVE(COREVIDEO_COMPRESSED_PIXEL_FORMAT_TYPES) && HAVE(LOSSLESS_COMPRESSED_IOSURFACE_CG_SUPPORT)
 #define WK_CA_FEATURE_CG_COMPRESSED_IOSURFACES 15
@@ -194,7 +194,7 @@ bool defaultIOSurfaceLosslessCompressionEnabled()
 }
 
 #if ENABLE(UNIFIED_PDF)
-bool defaultUnifiedPDFEnabled()
+bool NODELETE defaultUnifiedPDFEnabled()
 {
 #if ENABLE(UNIFIED_PDF_BY_DEFAULT)
     return true;

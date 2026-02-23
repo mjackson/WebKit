@@ -90,7 +90,7 @@ bool InlineQuirks::inlineBoxAffectsLineBox(const InlineLevelBox& inlineLevelBox)
         // The side effect of having no marker is that in quirks mode we have to specifically check for list-item
         // and make sure it is treated as if it had content and stretched the line.
         // see LegacyInlineFlowBox c'tor.
-        return inlineLevelBox.layoutBox().style().isOriginalDisplayListItemType();
+        return inlineLevelBox.layoutBox().style().originalDisplay().isListItemType();
     }
     // Non-root inline boxes (e.g. <span>).
     auto& boxGeometry = formattingContext().geometryForBox(inlineLevelBox.layoutBox());

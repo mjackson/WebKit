@@ -146,8 +146,8 @@ public:
     auto end() const LIFETIME_BOUND { return m_keyframes.end(); }
 
     bool usesContainerUnits() const;
-    bool usesRelativeFontWeight() const;
-    bool hasCSSVariableReferences() const;
+    bool usesRelativeFontWeight() const { return m_usesRelativeFontWeight; }
+    bool hasCSSVariableReferences() const { return m_containsCSSVariableReferences; }
     bool hasColorSetToCurrentColor() const;
     bool hasPropertySetToCurrentColor() const;
     const HashSet<AnimatableCSSProperty>& propertiesSetToInherit() const;

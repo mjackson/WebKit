@@ -75,7 +75,7 @@ public:
     bool hasMode(HTMLMediaElementEnums::VideoFullscreenMode) const { return false; }
     bool pictureInPictureWasStartedWhenEnteringBackground() const { return false; }
     AVPlayerViewController *avPlayerViewController() const { return nullptr; }
-    bool isPlayingVideoInEnhancedFullscreen() const { return false; }
+    bool isPlayingVideoInPictureInPicture() const { return false; }
     std::optional<MediaPlayerIdentifier> playerIdentifier() const { return std::nullopt; }
     bool changingStandbyOnly() { return false; }
     bool returningToStandby() const { return false; }

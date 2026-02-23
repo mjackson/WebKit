@@ -57,7 +57,7 @@ public:
     void grantRequest(MediaKeySystemPermissionRequestProxy&);
     void denyRequest(MediaKeySystemPermissionRequestProxy&, const String& message = { });
 
-    void ref() const;
+    void NODELETE ref() const;
     void deref() const;
 
 private:

@@ -109,8 +109,6 @@ private:
     bool unifiedTextCheckerEnabled() const;
     int findUngrammaticalPhrases(Operation, const Vector<GrammarDetail>&, uint64_t badGrammarPhraseLocation, uint64_t startOffset, uint64_t endOffset) const;
 
-    CheckedRef<EditorClient> checkedClient() const;
-
     WeakRef<EditorClient> m_client;
     SimpleRange m_range;
 };

@@ -57,7 +57,7 @@ InlineLayoutUnit TextUtil::singleSpaceWidth(const FontCascade& fontCascade, bool
     return width;
 }
 
-InlineLayoutUnit TextUtil::width(const InlineTextBox& inlineTextBox, const FontCascade& fontCascade, unsigned from, unsigned to, InlineLayoutUnit contentLogicalLeft, UseTrailingWhitespaceMeasuringOptimization useTrailingWhitespaceMeasuringOptimization, TextSpacing::SpacingState spacingState, GlyphOverflow* glyphOverflow)
+InlineLayoutUnit TextUtil::width(const InlineTextBox& inlineTextBox, const FontCascade& fontCascade, unsigned from, unsigned to, InlineLayoutUnit contentLogicalLeft, UseTrailingWhitespaceMeasuringOptimization useTrailingWhitespaceMeasuringOptimization, TextSpacing::SpacingState spacingState)
 {
     if (from == to)
         return 0;
@@ -83,14 +83,14 @@ InlineLayoutUnit TextUtil::width(const InlineTextBox& inlineTextBox, const FontC
         else
             width = fontCascade.widthForTextUsingSimplifiedMeasuring(view);
     } else {
-        auto& style = inlineTextBox.style();
-        auto directionalOverride = isOverride(style.unicodeBidi());
-        auto run = WebCore::TextRun { StringView(text).substring(from, to - from), contentLogicalLeft, { }, ExpansionBehavior::defaultBehavior(), directionalOverride ? style.writingMode().bidiDirection() : TextDirection::LTR, directionalOverride };
-        if (!style.collapseWhiteSpace() && !style.tabSize().isZero())
-            run.setTabSize(true, Style::toPlatform(style.tabSize()));
+        CheckedRef style = inlineTextBox.style();
+        auto directionalOverride = isOverride(style->unicodeBidi());
+        auto run = WebCore::TextRun { StringView(text).substring(from, to - from), contentLogicalLeft, { }, ExpansionBehavior::defaultBehavior(), directionalOverride ? style->writingMode().bidiDirection() : TextDirection::LTR, directionalOverride };
+        if (!style->collapseWhiteSpace() && !style->tabSize().isZero())
+            run.setTabSize(true, Style::toPlatform(style->tabSize()));
         // FIXME: consider moving this to TextRun ctor
         run.setTextSpacingState(spacingState);
-        width = fontCascade.width(run, { }, glyphOverflow);
+        width = fontCascade.width(run);
     }
 
     if (extendedMeasuring)
@@ -106,18 +106,18 @@ InlineLayoutUnit TextUtil::width(const InlineTextItem& inlineTextItem, const Fon
     return TextUtil::width(inlineTextItem, fontCascade, inlineTextItem.start(), inlineTextItem.end(), contentLogicalLeft);
 }
 
-InlineLayoutUnit TextUtil::width(const InlineTextItem& inlineTextItem, const FontCascade& fontCascade, unsigned from, unsigned to, InlineLayoutUnit contentLogicalLeft, UseTrailingWhitespaceMeasuringOptimization useTrailingWhitespaceMeasuringOptimization, TextSpacing::SpacingState spacingState, GlyphOverflow* glyphOverflow)
+InlineLayoutUnit TextUtil::width(const InlineTextItem& inlineTextItem, const FontCascade& fontCascade, unsigned from, unsigned to, InlineLayoutUnit contentLogicalLeft, UseTrailingWhitespaceMeasuringOptimization useTrailingWhitespaceMeasuringOptimization, TextSpacing::SpacingState spacingState)
 {
     RELEASE_ASSERT(from >= inlineTextItem.start());
     RELEASE_ASSERT(to <= inlineTextItem.end());
 
     if (inlineTextItem.isWhitespace()) {
-        auto& inlineTextBox = inlineTextItem.inlineTextBox();
+        CheckedRef inlineTextBox = inlineTextItem.inlineTextBox();
         auto singleWhiteSpace = from - to == 1 || !TextUtil::shouldPreserveSpacesAndTabs(inlineTextBox);
         if (singleWhiteSpace)
-            return std::max(0.f, singleSpaceWidth(fontCascade, inlineTextBox.canUseSimplifiedContentMeasuring()));
+            return std::max(0.f, singleSpaceWidth(fontCascade, inlineTextBox->canUseSimplifiedContentMeasuring()));
     }
-    return width(inlineTextItem.inlineTextBox(), fontCascade, from, to, contentLogicalLeft, useTrailingWhitespaceMeasuringOptimization, spacingState, glyphOverflow);
+    return width(inlineTextItem.inlineTextBox(), fontCascade, from, to, contentLogicalLeft, useTrailingWhitespaceMeasuringOptimization, spacingState);
 }
 
 InlineLayoutUnit TextUtil::trailingWhitespaceWidth(const InlineTextBox& inlineTextBox, const FontCascade& fontCascade, size_t startPosition, size_t endPosition)
@@ -397,7 +397,7 @@ bool TextUtil::mayBreakInBetween(String previousContent, const RenderStyle& prev
 unsigned TextUtil::findNextBreakablePosition(CachedLineBreakIteratorFactory& lineBreakIteratorFactory, unsigned startPosition, const RenderStyle& style)
 {
     auto wordBreak = style.wordBreak();
-    auto breakNBSP = style.autoWrap() && style.nbspMode() == NBSPMode::Space;
+    auto breakNBSP = style.textWrapMode() != TextWrapMode::NoWrap && style.nbspMode() == NBSPMode::Space;
 
     if (wordBreak == WordBreak::KeepAll) {
         if (breakNBSP)

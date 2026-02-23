@@ -26,6 +26,7 @@
 #include "DeferredWorkTimer.h"
 #include "JSSegmentedVariableObject.h"
 #include "LazyClassStructure.h"
+#include "Microtask.h"
 #include "RegExpGlobalData.h"
 #include "RuntimeFlags.h"
 #include "SourceTaintedOrigin.h"
@@ -230,6 +231,8 @@ private:
     // m_vm must be a pointer (instead of a reference) because the JSCLLIntOffsetsExtractor
     // cannot handle it being a reference.
     VM* const m_vm;
+    Debugger* m_debugger { nullptr };
+    QueuedTaskResult m_microtaskRunnability { QueuedTaskResult::Executed };
 
 // Our hashtable code-generator tries to access these properties, so we make them public.
 // However, we'd like it better if they could be protected.
@@ -485,8 +488,6 @@ public:
     bool m_isAsyncContextTrackingEnabled { false };
     WriteBarrier<InternalFieldTuple> m_asyncContextData;
 #endif
-
-    Debugger* m_debugger;
 
 #if ENABLE(REMOTE_INSPECTOR)
     // FIXME: <http://webkit.org/b/246237> Local inspection should be controlled by `inspectable` API.
@@ -1270,6 +1271,9 @@ public:
 
     const ImportMap& importMap() const { return m_importMap.get(); }
     ImportMap& importMap() { return m_importMap.get(); }
+
+    QueuedTaskResult microtaskRunnability() const { return m_microtaskRunnability; }
+    void setMicrotaskRunnability(QueuedTaskResult runnability) { m_microtaskRunnability = runnability; }
 
 protected:
     enum class HasSpeciesProperty : bool { No, Yes };

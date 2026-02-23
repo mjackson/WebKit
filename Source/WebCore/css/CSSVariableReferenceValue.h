@@ -57,7 +57,7 @@ public:
     String customCSSText(const CSS::SerializationContext&) const;
 
     RefPtr<CSSVariableData> resolveVariableReferences(Style::Builder&) const;
-    const CSSParserContext& context() const;
+    const CSSParserContext& NODELETE context() const;
 
     RefPtr<CSSValue> resolveSingleValue(Style::Builder&, CSSPropertyID) const;
 

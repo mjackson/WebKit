@@ -77,7 +77,7 @@ struct IDLType {
     using NullableInnerParameterType = std::optional<ImplementationType>;
 
     using NullableType = std::optional<ImplementationType>;
-    static NullableType nullValue() { return std::nullopt; }
+    static constexpr std::nullopt_t nullValue() { return std::nullopt; }
     static bool isNullValue(const NullableType& value) { return !value; }
     static ImplementationType extractValueFromNullable(const NullableType& value) { return value.value(); }
 
@@ -202,10 +202,6 @@ struct IDLObject : IDLType<JSC::Strong<JSC::JSObject>> {
 template<typename T> struct IDLWrapper : IDLType<Ref<T>> {
     using RawType = T;
 
-    // FIXME: This is needed to work around unions storing non-nullable buffer source types using RefPtr rather than Ref<>.
-    // See "Support using Ref for buffer source types in IDL unions" (https://bugs.webkit.org/show_bug.cgi?id=306967)".
-    using UnionStorageType = RefPtr<T>;
-
     using CallbackReturnType = Ref<T>;
     using NullableCallbackReturnType = RefPtr<T>;
 
@@ -255,18 +251,24 @@ template<typename T> struct IDLWrapper : IDLType<Ref<T>> {
 template<typename T> struct IDLInterface : IDLWrapper<T> {
     using ConversionResultType = T&;
     using NullableConversionResultType = T*;
-
-    using UnionStorageType = Ref<T>;
 };
 
 template<typename T> struct IDLCallbackInterface : IDLWrapper<T> {
     using ConversionResultType = Ref<T>;
     using NullableConversionResultType = RefPtr<T>;
+
+    // FIXME: This is needed to work around unions storing non-nullable callback types using RefPtr rather than Ref<>.
+    // See "Support using Ref for callback types in IDL unions" (https://bugs.webkit.org/show_bug.cgi?id=307452).
+    using UnionStorageType = RefPtr<T>;
 };
 
 template<typename T> struct IDLCallbackFunction : IDLWrapper<T> {
     using ConversionResultType = Ref<T>;
     using NullableConversionResultType = RefPtr<T>;
+
+    // FIXME: This is needed to work around unions storing non-nullable callback types using RefPtr rather than Ref<>.
+    // See "Support using Ref for callback types in IDL unions" (https://bugs.webkit.org/show_bug.cgi?id=307452).
+    using UnionStorageType = RefPtr<T>;
 };
 
 template<typename T> struct IDLDictionary : IDLType<T> {
@@ -358,16 +360,8 @@ struct IDLDataView : IDLBufferSourceBase<JSC::DataView> { };
 template<typename T> struct IDLTypedArray : IDLBufferSourceBase<T> { };
 // NOTE: The specific typed array types are IDLTypedArray specialized on the typed array
 //       implementation type, e.g. IDLFloat64Array is IDLTypedArray<JSC::Float64Array>
-struct IDLBufferSource : IDLWrapper<BufferSource> {
-    using ConversionResultType = BufferSource;
-    using NullableConversionResultType = std::optional<BufferSource>;
 
-    static constexpr bool isNullValue(const BufferSource&) { return false; }
-    static inline bool isNullValue(const std::optional<BufferSource>& value) { return !value; }
-    static inline const BufferSource& extractValueFromNullable(const BufferSource& value) { return value; }
-    static inline const BufferSource& extractValueFromNullable(const std::optional<BufferSource>& value) { return *value; }
-    static inline BufferSource extractValueFromNullable(std::optional<BufferSource>&& value) { return WTF::move(*value); }
-};
+struct IDLBufferSource : IDLType<BufferSource> { };
 
 // Non-WebIDL extensions
 

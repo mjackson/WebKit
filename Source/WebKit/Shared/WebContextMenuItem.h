@@ -53,7 +53,7 @@ public:
 
     Ref<API::Array> submenuItemsAsAPIArray() const;
 
-    API::Object* userData() const;
+    API::Object* NODELETE userData() const;
     void setUserData(API::Object*);
 
     const WebContextMenuItemData& data() { return m_webContextMenuItemData; }

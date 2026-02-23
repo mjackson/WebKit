@@ -71,10 +71,6 @@ PositionedLayoutConstraints::PositionedLayoutConstraints(const RenderBox& render
     m_containingInlineSize = (LogicalBoxAxis::Inline == m_containingAxis) ? m_containingRange.size()
         : renderer.containingBlockRangeForPositioned(*m_container, oppositeAxis(m_physicalAxis)).size();
 
-    // Adjust for scrollable area.
-    if (!m_style.positionArea().isNone() && PositionType::Fixed != m_style.position())
-        expandToScrollableArea(m_containingRange);
-
     // Adjust for grid-area.
     captureGridArea();
 
@@ -149,22 +145,15 @@ void PositionedLayoutConstraints::captureInsets()
 
 void PositionedLayoutConstraints::expandToScrollableArea(LayoutRange& containingRange, const std::optional<ScrollPosition> fromScrollPosition) const
 {
-    // FIXME: Extend this logic to other scrollable containing blocks.
-    if (!is<RenderView>(m_container))
+    auto containingBlock = dynamicDowncast<RenderBox>(m_container.get());
+    if (!containingBlock || !containingBlock->hasRenderOverflow()
+        || (!containingBlock->isRenderView() && !containingBlock->hasPotentiallyScrollableOverflow()))
         return;
 
-    auto initialContainingBlock = downcast<RenderBox>(m_container.get());
-    for (CheckedPtr child = initialContainingBlock->firstChildBox(); child; child = child->nextSiblingBox()) {
-        if (child->isOutOfFlowPositioned())
-            continue;
-        LayoutUnit outerSize = BoxAxis::Vertical == m_physicalAxis
-            ? child->height() + std::max(0_lu, child->marginTop() + child->marginBottom())
-            : child->width() + std::max(0_lu, child->marginLeft() + child->marginRight());
-        if (startIsBefore())
-            containingRange.floorSizeFromMinEdge(outerSize);
-        else
-            containingRange.floorSizeFromMaxEdge(outerSize);
-    }
+    auto scrollableArea = containingBlock->scrollablePaddingAreaOverflowRect();
+    auto scrollableRange = BoxAxis::Horizontal == m_physicalAxis ? scrollableArea.xRange() : scrollableArea.yRange();
+    containingRange.capMinEdgeTo(scrollableRange.min());
+    containingRange.floorMaxEdgeTo(scrollableRange.max());
 
     if (fromScrollPosition) {
         auto scrollOffset = BoxAxis::Horizontal == m_physicalAxis ? fromScrollPosition->x() : fromScrollPosition->y();
@@ -538,7 +527,7 @@ bool PositionedLayoutConstraints::alignmentAppliesStretch(ItemPosition normalAli
     return ItemPosition::Stretch == alignmentPosition;
 }
 
-bool PositionedLayoutConstraints::insetFitsContent() const
+bool NODELETE PositionedLayoutConstraints::insetFitsContent() const
 {
     return (m_insetBefore.isAuto() || m_insetAfter.isAuto())
         && !m_defaultAnchorBox; // position-area and align-center zero out auto insets.
@@ -717,7 +706,7 @@ LayoutUnit PositionedLayoutConstraints::computedBlockStaticDistance() const
     return !isOrthogonal() ? staticPosition.y() : staticPosition.x();
 }
 
-static bool shouldInlineStaticDistanceAdjustedWithBoxHeight(WritingMode containinigBlockWritingMode, WritingMode parentWritingMode, WritingMode outOfFlowBoxWritingMode)
+static bool NODELETE shouldInlineStaticDistanceAdjustedWithBoxHeight(WritingMode containinigBlockWritingMode, WritingMode parentWritingMode, WritingMode outOfFlowBoxWritingMode)
 {
     if (!containinigBlockWritingMode.isOrthogonal(parentWritingMode))
         return false;
@@ -771,7 +760,7 @@ void PositionedLayoutConstraints::fixupLogicalLeftPosition(RenderBox::LogicalExt
 }
 
 // FIXME: Let's move this over to RenderBoxModelObject and collapse some of the logic here.
-static bool shouldBlockStaticDistanceAdjustedWithBoxHeight(const RenderBoxModelObject& containingBlock, const RenderElement& parent, WritingMode outOfFlowBoxWritingMode)
+static bool NODELETE shouldBlockStaticDistanceAdjustedWithBoxHeight(const RenderBoxModelObject& containingBlock, const RenderElement& parent, WritingMode outOfFlowBoxWritingMode)
 {
     // This is where we check if the final static position needs to be adjusted with the height of the out-of-flow box.
     // In ::computeBlockStaticDistance we convert the static position relative to the containing block but in some cases

@@ -40,9 +40,9 @@ public:
     virtual ~HTMLFrameOwnerElement();
 
     Frame* contentFrame() const { return m_contentFrame.get(); }
-    RefPtr<Frame> protectedContentFrame() const;
-    WEBCORE_EXPORT WindowProxy* contentWindow() const;
-    WEBCORE_EXPORT Document* contentDocument() const;
+    RefPtr<Frame> NODELETE protectedContentFrame() const;
+    WEBCORE_EXPORT WindowProxy* NODELETE contentWindow() const;
+    WEBCORE_EXPORT Document* NODELETE contentDocument() const;
 
     WEBCORE_EXPORT void setContentFrame(Frame&);
     void clearContentFrame();
@@ -52,9 +52,9 @@ public:
     // Most subclasses use RenderWidget (either RenderEmbeddedObject or RenderIFrame)
     // except for HTMLObjectElement and HTMLEmbedElement which may return any
     // RenderElement when using fallback content.
-    RenderWidget* renderWidget() const;
+    RenderWidget* NODELETE renderWidget() const;
 
-    Document* getSVGDocument() const;
+    Document* NODELETE getSVGDocument() const;
 
     virtual ScrollbarMode scrollingMode() const { return ScrollbarMode::Auto; }
 

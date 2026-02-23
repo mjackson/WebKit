@@ -284,7 +284,7 @@ void CachedRawResource::setDataBufferingPolicy(DataBufferingPolicy dataBuffering
     m_options.dataBufferingPolicy = dataBufferingPolicy;
 }
 
-static bool shouldIgnoreHeaderForCacheReuse(HTTPHeaderName name)
+static bool NODELETE shouldIgnoreHeaderForCacheReuse(HTTPHeaderName name)
 {
     switch (name) {
     // FIXME: This list of headers that don't affect cache policy almost certainly isn't complete.

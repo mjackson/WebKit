@@ -125,7 +125,6 @@ static constexpr unsigned bitWidthForMaxBytecodeStructLength = WTF::getMSBSetCon
     macro(OpIteratorNext) \
     macro(OpCallVarargs) \
     macro(OpTailCallVarargs) \
-    macro(OpTailCallForwardArguments) \
     macro(OpConstructVarargs) \
     macro(OpSuperConstructVarargs) \
     macro(OpCallIgnoreResult) \

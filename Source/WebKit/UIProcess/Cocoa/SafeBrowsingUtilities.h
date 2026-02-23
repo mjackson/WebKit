@@ -48,7 +48,7 @@ struct NamespacedCollection {
 using NamespacedLists = NSDictionary<NSString *, NSArray<NSString *> *>;
 void listsForNamespace(NamespacedCollection&&, CompletionHandler<void(NamespacedLists *, NSError *)>&&);
 
-NamespacedCollection namespacedCollectionForTextExtraction();
+NamespacedCollection NODELETE namespacedCollectionForTextExtraction();
 
 } // namespace WebKit::SafeBrowsingUtilities
 

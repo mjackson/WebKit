@@ -44,7 +44,7 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderTreeBuilder::Inline);
 
-static bool canUseAsParentForContinuation(const RenderObject* renderer)
+static bool NODELETE canUseAsParentForContinuation(const RenderObject* renderer)
 {
     if (!renderer)
         return false;
@@ -94,7 +94,7 @@ static RenderPtr<RenderInline> cloneAsContinuation(RenderInline& renderer)
     return cloneInline;
 }
 
-static RenderElement* inFlowPositionedInlineAncestor(RenderElement& renderer)
+static RenderElement* NODELETE inFlowPositionedInlineAncestor(RenderElement& renderer)
 {
     auto* ancestor = &renderer;
     while (ancestor && ancestor->isRenderInline()) {
@@ -195,7 +195,7 @@ void RenderTreeBuilder::Inline::attachIgnoringContinuation(RenderInline& parent,
         // inline into continuations. This involves creating an anonymous block box to hold
         // |newChild|. We then make that block box a continuation of this inline. We take all of
         // the children after |beforeChild| and put them in a clone of this object.
-        auto newStyle = RenderStyle::createAnonymousStyleWithDisplay(parent.containingBlock() ? parent.containingBlock()->style() : parent.style(), DisplayType::Block);
+        auto newStyle = RenderStyle::createAnonymousStyleWithDisplay(parent.containingBlock() ? parent.containingBlock()->style() : parent.style(), Style::DisplayType::BlockFlow);
 
         // If inside an inline affected by in-flow positioning the block needs to be affected by it too.
         // Giving the block a layer like this allows it to collect the x/y offsets from inline parents later.
@@ -417,7 +417,7 @@ void RenderTreeBuilder::Inline::splitInlines(RenderInline& parent, RenderBlock* 
 bool RenderTreeBuilder::Inline::newChildIsInline(const RenderInline& parent, const RenderObject& child)
 {
     // inline parent generates inline-table.
-    return child.isInline() || (m_builder.tableBuilder().childRequiresTable(parent, child) && parent.style().display() == DisplayType::Inline);
+    return child.isInline() || (m_builder.tableBuilder().childRequiresTable(parent, child) && parent.style().display() == Style::DisplayType::InlineFlow);
 }
 
 void RenderTreeBuilder::Inline::childBecameNonInline(RenderInline& parent, RenderElement& child)

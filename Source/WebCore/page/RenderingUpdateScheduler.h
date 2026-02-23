@@ -58,7 +58,7 @@ private:
     void displayRefreshFired() final;
     DisplayRefreshMonitorFactory* displayRefreshMonitorFactory() const final;
 
-    bool isScheduled() const;
+    bool NODELETE isScheduled() const;
     void startTimer(Seconds);
     void clearScheduled();
 

@@ -78,7 +78,7 @@ public:
 
     void fontCacheInvalidated() final;
 
-    bool isEmpty() const;
+    bool NODELETE isEmpty() const;
 
     void registerForInvalidationCallbacks(FontSelectorClient&) final;
     void unregisterForInvalidationCallbacks(FontSelectorClient&) final;
@@ -143,8 +143,8 @@ private:
     HashMap<std::pair<AtomString, AtomString>, FontPaletteValues, PaletteMapHash> m_paletteMap;
     HashMap<String, Ref<FontFeatureValues>> m_featureValues;
 
-    HashSet<RefPtr<CSSFontFace>> m_cssConnectionsPossiblyToRemove;
-    HashSet<RefPtr<StyleRuleFontFace>> m_cssConnectionsEncounteredDuringBuild;
+    HashSet<Ref<CSSFontFace>> m_cssConnectionsPossiblyToRemove;
+    HashSet<Ref<StyleRuleFontFace>> m_cssConnectionsEncounteredDuringBuild;
 
     const Ref<CSSFontFaceSet::FontModifiedObserver> m_fontModifiedObserver;
 

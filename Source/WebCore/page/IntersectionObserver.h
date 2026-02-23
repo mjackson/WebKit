@@ -82,7 +82,7 @@ public:
 
     ~IntersectionObserver();
 
-    Document* trackingDocument() const;
+    Document* NODELETE trackingDocument() const;
 
     ContainerNode* root() const { return m_root.get(); }
     String rootMargin() const;

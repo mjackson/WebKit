@@ -91,7 +91,7 @@ public:
 
     void getStats(Ref<DeferredPromise>&&);
 
-    bool isCreatedBy(const RTCPeerConnection&) const;
+    bool NODELETE isCreatedBy(const RTCPeerConnection&) const;
 
     RTCDTMFSender* dtmf();
     std::optional<RTCRtpTransceiverDirection> currentTransceiverDirection() const;
@@ -108,7 +108,7 @@ private:
     const Logger& logger() const final { return m_logger.get(); }
     uint64_t logIdentifier() const final { return m_logIdentifier; }
     ASCIILiteral logClassName() const final { return "RTCRtpSender"_s; }
-    WTFLogChannel& logChannel() const final;
+    WTFLogChannel& NODELETE logChannel() const final;
 #endif
 
     RefPtr<MediaStreamTrack> m_track;

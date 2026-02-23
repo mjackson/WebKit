@@ -69,7 +69,7 @@ private:
 
     void regionChanged(LocalFrame&, RegionType);
 
-    bool hasOverlaysForPage(Page&) const;
+    bool NODELETE hasOverlaysForPage(Page&) const;
     
     void updateOverlayRegionVisibility(Page&, OptionSet<DebugOverlayRegions>);
 

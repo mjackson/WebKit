@@ -55,11 +55,11 @@ public:
     LayoutRect captureLocalOverflowRect() const { return m_localOverflowRect; }
 
     // Inset of the scaled capture from the visualOverflowRect()
-    LayoutPoint captureContentInset() const;
+    LayoutPoint NODELETE captureContentInset() const;
 
     bool canUseExistingLayers() const { return !hasNonVisibleOverflow(); }
 
-    bool paintsContent() const final;
+    bool NODELETE paintsContent() const final;
 
     bool isRootElementCapture() const { return m_isRootElementCapture; }
 

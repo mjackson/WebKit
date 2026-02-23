@@ -475,7 +475,7 @@ static bool preferMediaControlsForCandidateSessionOverOtherCandidateSession(cons
     return session.timeOfLastUserInteraction.value_or(MonotonicTime { }) > otherSession.timeOfLastUserInteraction.value_or(MonotonicTime { });
 }
 
-static bool mediaSessionMayBeConfusedWithMainContent(const MediaElementSessionInfo& session, MediaElementSession::PlaybackControlsPurpose purpose)
+static bool NODELETE mediaSessionMayBeConfusedWithMainContent(const MediaElementSessionInfo& session, MediaElementSession::PlaybackControlsPurpose purpose)
 {
     if (purpose == MediaElementSession::PlaybackControlsPurpose::MediaSession)
         return false;
@@ -503,7 +503,7 @@ static bool defaultVolumeLocked()
 #endif
 }
 
-static bool isInWindowOrStandardFullscreen(HTMLMediaElementEnums::VideoFullscreenMode mode)
+static bool NODELETE isInWindowOrStandardFullscreen(HTMLMediaElementEnums::VideoFullscreenMode mode)
 {
     return mode == HTMLMediaElementEnums::VideoFullscreenModeStandard || mode == HTMLMediaElementEnums::VideoFullscreenModeInWindow;
 }
@@ -645,7 +645,7 @@ HTMLMediaElement::HTMLMediaElement(const QualifiedName& tagName, Document& docum
     , m_processingPreferenceChange(false)
     , m_volumeLocked(defaultVolumeLocked())
     , m_opaqueRootProvider(WTF::Observer<WebCoreOpaqueRoot()>::create([weakThis = WeakPtr { *this }] {
-        // This gets called on the GC thread so we cannot ref `this`.
+        // This gets called on a GC thread so we cannot ref `this`.
         return weakThis->opaqueRoot();
     }))
 #if USE(AUDIO_SESSION)
@@ -7964,7 +7964,7 @@ void HTMLMediaElement::setShouldDelayLoadEvent(bool shouldDelay)
         protect(document())->decrementLoadEventDelayCount();
 }
 
-static String& sharedMediaCacheDirectory()
+static String& NODELETE sharedMediaCacheDirectory()
 {
     static NeverDestroyed<String> sharedMediaCacheDirectory;
     return sharedMediaCacheDirectory;
@@ -8453,7 +8453,7 @@ String HTMLMediaElement::mediaPlayerUserAgent() const
     return frame->loader().userAgent(m_currentSrc);
 }
 
-static inline PlatformTextTrackData::TrackKind toPlatform(TextTrack::Kind kind)
+static inline PlatformTextTrackData::TrackKind NODELETE toPlatform(TextTrack::Kind kind)
 {
     switch (kind) {
     case TextTrack::Kind::Captions:
@@ -8473,7 +8473,7 @@ static inline PlatformTextTrackData::TrackKind toPlatform(TextTrack::Kind kind)
     return PlatformTextTrackData::TrackKind::Caption;
 }
 
-static inline PlatformTextTrackData::TrackMode toPlatform(TextTrack::Mode mode)
+static inline PlatformTextTrackData::TrackMode NODELETE toPlatform(TextTrack::Mode mode)
 {
     switch (mode) {
     case TextTrack::Mode::Disabled:

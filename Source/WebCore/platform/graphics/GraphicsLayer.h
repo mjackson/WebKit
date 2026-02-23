@@ -377,6 +377,7 @@ public:
         String property;
         double speed;
         bool isThreaded;
+        bool hasHighImpact;
     };
     virtual Vector<AcceleratedAnimationForTesting> acceleratedAnimationsForTesting() const { return { }; }
 
@@ -512,7 +513,6 @@ public:
     virtual bool backingStoreAttachedForTesting() const { return backingStoreAttached(); }
 
     virtual TiledBacking* tiledBacking() const { return 0; }
-    CheckedPtr<TiledBacking> checkedTiledBacking() const { return tiledBacking(); }
     WEBCORE_EXPORT virtual void setTileCoverage(TileCoverage);
 
     void resetTrackedRepaints();
@@ -542,7 +542,7 @@ public:
     virtual void markFrontBufferVolatileForTesting() { }
 
 #if ENABLE(THREADED_ANIMATIONS)
-    AcceleratedEffectStack* acceleratedEffectStack() const { return m_effectStack.get(); }
+    const AcceleratedEffectStack* acceleratedEffectStack() const { return m_effectStack.get(); }
     WEBCORE_EXPORT virtual void setAcceleratedEffectsAndBaseValues(AcceleratedEffects&&, AcceleratedEffectValues&&);
 #endif
 

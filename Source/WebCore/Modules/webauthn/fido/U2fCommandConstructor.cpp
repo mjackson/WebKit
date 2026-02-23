@@ -63,14 +63,14 @@ static Vector<uint8_t> constructU2fRegisterCommand(std::span<const uint8_t> appl
 
 static std::optional<Vector<uint8_t>> constructU2fSignCommand(const Vector<uint8_t>& applicationParameter, const Vector<uint8_t>& challengeParameter, const BufferSource& keyHandle, bool checkOnly)
 {
-    if (keyHandle.length() > kMaxKeyHandleLength)
+    if (keyHandle.byteLength() > kMaxKeyHandleLength)
         return std::nullopt;
 
     Vector<uint8_t> data;
-    data.reserveInitialCapacity(kU2fChallengeParamLength + kU2fApplicationParamLength + 1 + keyHandle.length());
+    data.reserveInitialCapacity(kU2fChallengeParamLength + kU2fApplicationParamLength + 1 + keyHandle.byteLength());
     data.appendVector(challengeParameter);
     data.appendVector(applicationParameter);
-    data.append(static_cast<uint8_t>(keyHandle.length()));
+    data.append(static_cast<uint8_t>(keyHandle.byteLength()));
     data.append(keyHandle.span());
 
     apdu::ApduCommand command;

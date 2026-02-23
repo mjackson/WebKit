@@ -52,7 +52,7 @@ public:
     HashSet<String>& supportedTypes();
     WebCore::MediaPlayerEnums::SupportsType supportsTypeAndCodecs(const WebCore::MediaEngineSupportParameters&);
     void addSupportedTypes(const Vector<String>&);
-    bool isEmpty() const;
+    bool NODELETE isEmpty() const;
 
 private:
     Ref<RemoteMediaPlayerManager> manager() const;

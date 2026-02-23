@@ -97,11 +97,11 @@ public:
 
     void startProducingData();
     void stopProducingData();
-    void inactivate();
+    void NODELETE inactivate();
 
     // EventTarget
     enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::MediaStream; }
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
 
     void addTrackFromPlatform(Ref<MediaStreamTrack>&&);
 
@@ -117,7 +117,7 @@ protected:
 
 #if !RELEASE_LOG_DISABLED
     const Logger& logger() const final { return m_private->logger(); }
-    WTFLogChannel& logChannel() const final;
+    WTFLogChannel& NODELETE logChannel() const final;
     ASCIILiteral logClassName() const final { return "MediaStream"_s; }
 #endif
 
@@ -142,7 +142,7 @@ private:
 
     // ActiveDOMObject.
     void stop() final { inactivate(); }
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
 
     void updateActiveState();
     void activityEventTimerFired();
@@ -151,7 +151,7 @@ private:
 
     MediaStreamTrackVector filteredTracks(NOESCAPE const Function<bool(const MediaStreamTrack&)>&) const;
 
-    Document* document() const;
+    Document* NODELETE document() const;
     RefPtr<MediaSessionManagerInterface> mediaSessionManager() const;
 
     const Ref<MediaStreamPrivate> m_private;

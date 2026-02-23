@@ -53,7 +53,7 @@ public:
     
     WebCore::ContextMenuItem core() const;
     
-    API::Object* userData() const;
+    API::Object* NODELETE userData() const;
     void setUserData(API::Object*);
 
 private:

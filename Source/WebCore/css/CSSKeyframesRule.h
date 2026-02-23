@@ -42,7 +42,7 @@ public:
     static Ref<StyleRuleKeyframes> create(const AtomString& name);
     ~StyleRuleKeyframes();
     
-    const Vector<Ref<StyleRuleKeyframe>>& keyframes() const;
+    const Vector<Ref<StyleRuleKeyframe>>& NODELETE keyframes() const;
 
     void parserAppendKeyframe(RefPtr<StyleRuleKeyframe>&&);
     void wrapperAppendKeyframe(Ref<StyleRuleKeyframe>&&);
@@ -73,7 +73,7 @@ public:
 
     StyleRuleType styleRuleType() const final { return StyleRuleType::Keyframes; }
     String cssText() const final;
-    void reattach(StyleRuleBase&) final;
+    void NODELETE reattach(StyleRuleBase&) final;
 
     const AtomString& name() const { return m_keyframesRule->name(); }
     void setName(const AtomString&);
@@ -85,7 +85,7 @@ public:
     CSSKeyframeRule* findRule(const String& key);
 
     // For IndexedGetter and CSSRuleList.
-    unsigned length() const;
+    unsigned NODELETE length() const;
     CSSKeyframeRule* item(unsigned index) const;
     bool isSupportedPropertyIndex(unsigned index) const { return index < length(); }
 

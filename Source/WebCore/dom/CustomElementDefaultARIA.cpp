@@ -109,12 +109,12 @@ void CustomElementDefaultARIA::setElementForAttribute(const QualifiedName& name,
     m_map.set(name, WeakPtr<Element, WeakPtrImplWithEventTargetData> { element });
 }
 
-Vector<Ref<Element>> CustomElementDefaultARIA::elementsForAttribute(const Element& thisElement, const QualifiedName& name) const
+std::optional<Vector<Ref<Element>>> CustomElementDefaultARIA::elementsForAttribute(const Element& thisElement, const QualifiedName& name) const
 {
-    Vector<Ref<Element>> result;
     auto it = m_map.find(name);
     if (it == m_map.end())
-        return result;
+        return std::nullopt;
+    Vector<Ref<Element>> result;
     WTF::visit(WTF::makeVisitor([&](const AtomString& stringValue) {
         if (thisElement.isInTreeScope()) {
             SpaceSplitString idList { stringValue, SpaceSplitString::ShouldFoldCase::No };
@@ -139,12 +139,13 @@ Vector<Ref<Element>> CustomElementDefaultARIA::elementsForAttribute(const Elemen
 
 void CustomElementDefaultARIA::setElementsForAttribute(const QualifiedName& name, std::optional<Vector<Ref<Element>>>&& values)
 {
-    Vector<WeakPtr<Element, WeakPtrImplWithEventTargetData>> elements;
-    if (values) {
-        for (auto& element : *values) {
-            elements.append(WeakPtr<Element, WeakPtrImplWithEventTargetData> { element });
-        }
+    if (!values) {
+        m_map.remove(name);
+        return;
     }
+    Vector<WeakPtr<Element, WeakPtrImplWithEventTargetData>> elements;
+    for (auto& element : *values)
+        elements.append(element);
     m_map.set(name, WTF::move(elements));
 }
 

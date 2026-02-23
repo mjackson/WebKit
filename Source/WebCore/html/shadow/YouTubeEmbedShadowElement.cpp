@@ -41,7 +41,7 @@ Ref<YouTubeEmbedShadowElement> YouTubeEmbedShadowElement::create(Document& docum
 }
 
 YouTubeEmbedShadowElement::YouTubeEmbedShadowElement(Document& document)
-    : HTMLDivElement(HTMLNames::divTag, document)
+    : HTMLDivElement(document)
 {
 }
 

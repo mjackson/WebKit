@@ -50,18 +50,13 @@ RemoteCDMInstanceSession::RemoteCDMInstanceSession(WeakPtr<RemoteCDMFactory>&& f
 
 RemoteCDMInstanceSession::~RemoteCDMInstanceSession()
 {
-    protectedFactory()->removeSession(m_identifier);
-}
-
-RefPtr<RemoteCDMFactory> RemoteCDMInstanceSession::protectedFactory() const
-{
-    return m_factory.get();
+    protect(m_factory.get())->removeSession(m_identifier);
 }
 
 #if !RELEASE_LOG_DISABLED
 void RemoteCDMInstanceSession::setLogIdentifier(uint64_t logIdentifier)
 {
-    protectedFactory()->gpuProcessConnection().connection().send(Messages::RemoteCDMInstanceSessionProxy::SetLogIdentifier(reinterpret_cast<uint64_t>(logIdentifier)), m_identifier);
+    protect(m_factory.get())->gpuProcessConnection().connection().send(Messages::RemoteCDMInstanceSessionProxy::SetLogIdentifier(reinterpret_cast<uint64_t>(logIdentifier)), m_identifier);
 }
 #endif
 

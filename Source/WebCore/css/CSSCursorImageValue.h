@@ -28,11 +28,10 @@
 
 namespace WebCore {
 
-class StyleCursorImage;
-class StyleImage;
-
 namespace Style {
 class BuilderState;
+class CursorImage;
+class Image;
 }
 
 class CSSCursorImageValue final : public CSSValue {
@@ -51,7 +50,7 @@ public:
         return func(m_imageValue.get());
     }
 
-    RefPtr<StyleCursorImage> createStyleImage(const Style::BuilderState&) const;
+    RefPtr<Style::CursorImage> createStyleImage(const Style::BuilderState&) const;
 
 private:
     CSSCursorImageValue(Ref<CSSValue>&& imageValue, RefPtr<CSSValue>&& hotSpot, CSS::URL&&);

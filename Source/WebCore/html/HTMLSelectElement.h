@@ -41,6 +41,7 @@
 namespace WebCore {
 
 class HTMLOptionsCollection;
+class SelectPopoverElement;
 class ShadowRoot;
 
 #if !PLATFORM(IOS_FAMILY)
@@ -62,7 +63,7 @@ public:
     ~HTMLSelectElement();
 
     enum class ExcludeOptGroup : bool { No, Yes };
-    static HTMLSelectElement* findOwnerSelect(ContainerNode*, ExcludeOptGroup);
+    static HTMLSelectElement* NODELETE findOwnerSelect(ContainerNode*, ExcludeOptGroup);
 
     WEBCORE_EXPORT int selectedIndex() const;
     WEBCORE_EXPORT void setSelectedIndex(int);
@@ -77,10 +78,10 @@ public:
     unsigned size() const { return m_size; }
     bool multiple() const { return m_multiple; }
 
-    bool usesMenuList() const;
+    bool NODELETE usesMenuList() const;
 
     // This method is deprecated because the return value doesn't match the rendering on iOS for multiple selects.
-    bool usesMenuListDeprecated() const;
+    bool NODELETE usesMenuListDeprecated() const;
 
     using OptionOrOptGroupElement = Variant<Ref<HTMLOptionElement>, Ref<HTMLOptGroupElement>>;
     using HTMLElementOrInt = Variant<Ref<HTMLElement>, int>;
@@ -120,7 +121,7 @@ public:
     bool popupIsVisible() const { return m_popupIsVisible; }
     WEBCORE_EXPORT void setPopupIsVisible(bool);
 
-    bool isOpen() const;
+    bool NODELETE isOpen() const;
 
     void didUpdateActiveOption(int optionIndex);
 
@@ -156,7 +157,7 @@ public:
 
     void scrollToSelection();
 
-    bool canSelectAll() const;
+    bool canSelectAll() const { return m_multiple; }
     void selectAll();
     int listToOptionIndex(int listIndex) const;
     void listBoxOnChange();
@@ -164,7 +165,7 @@ public:
     int activeSelectionStartListIndex() const;
     int activeSelectionEndListIndex() const;
     void setActiveSelectionAnchorIndex(int);
-    void setActiveSelectionEndIndex(int);
+    void NODELETE setActiveSelectionEndIndex(int);
     void updateListBoxSelection(bool deselectOtherOptions);
 
     // For use in the implementation of HTMLOptionElement.
@@ -180,8 +181,21 @@ public:
 
     void updateSelectedContent(HTMLOptionElement* = nullptr) const;
 
-    void registerSelectedContentElement();
-    void unregisterSelectedContentElement();
+    void NODELETE registerSelectedContentElement();
+    void NODELETE unregisterSelectedContentElement();
+
+    WEBCORE_EXPORT bool usesBaseAppearancePicker() const;
+    SelectPopoverElement* NODELETE pickerPopoverElement() const;
+    void hidePickerPopoverElement();
+
+    struct NavigationKeyIdentifiers {
+        ASCIILiteral next;
+        ASCIILiteral previous;
+    };
+    NavigationKeyIdentifiers pickerNavigationKeyIdentifiers() const;
+    int computeNavigationIndex(const String& keyIdentifier, int currentListIndex, NavigationKeyIdentifiers) const;
+    void focusOptionAtIndex(int listIndex);
+    int typeAheadMatchIndex(KeyboardEvent&);
 
 protected:
     HTMLSelectElement(const QualifiedName&, Document&, HTMLFormElement*);
@@ -199,7 +213,7 @@ private:
     
     bool canStartSelection() const final { return false; }
 
-    bool isEnumeratable() const final { return true; }
+    bool NODELETE isEnumeratable() const final { return true; }
     bool isLabelable() const final { return true; }
 
     bool isInteractiveContent() const final { return true; }
@@ -266,6 +280,9 @@ private:
 
     void didAddUserAgentShadowRoot(ShadowRoot&) final;
 
+    void showPickerInternal();
+    void openPickerForUserInteraction();
+
     // TypeAheadDataSource functions.
     int indexOfSelectedOption() const final;
     int optionCount() const final;
@@ -290,6 +307,7 @@ private:
     std::optional<int> m_lastActiveIndex;
 
     WeakPtr<HTMLSlotElement, WeakPtrImplWithEventTargetData> m_buttonSlot;
+    WeakPtr<SelectPopoverElement, WeakPtrImplWithEventTargetData> m_popover;
 
 #if !PLATFORM(IOS_FAMILY)
     RefPtr<PopupMenu> m_popup;

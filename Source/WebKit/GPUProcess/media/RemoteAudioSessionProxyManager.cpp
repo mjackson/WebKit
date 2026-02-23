@@ -46,7 +46,7 @@ namespace WebKit {
 
 using namespace WebCore;
 
-static bool categoryCanMixWithOthers(AudioSession::CategoryType category)
+static bool NODELETE categoryCanMixWithOthers(AudioSession::CategoryType category)
 {
     return category == AudioSession::CategoryType::AmbientSound;
 }

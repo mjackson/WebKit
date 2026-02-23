@@ -367,13 +367,12 @@ class UpdateSwiftCheckouts(steps.ShellSequence, ShellMixin):
 
         swift_tag = self.getProperty('canonical_swift_tag')
         self.commands = [
-            util.ShellArg(command=self.shell_command('utils/update-checkout --clone'), logname='stdio', haltOnFailure=True),
-            util.ShellArg(command=self.shell_command(f'utils/update-checkout --tag {swift_tag}'), logname='stdio'),
+            util.ShellArg(command=self.shell_command(f'utils/update-checkout --tag {swift_tag} --clone --skip-repository boringssl'), logname='stdio', haltOnFailure=True),
         ]
 
         rc = yield super().run()
         if rc != SUCCESS:
-            if self.getProperty('current_swift_tag', ''):
+            if self.getProperty('current_swift_tag', '') and self.getProperty('has_swift_toolchain', False):
                 self.summary = 'Failed to update swift, using previous checkout'
                 return WARNINGS
             self.summary = 'Failed to update swift checkout'
@@ -412,7 +411,7 @@ class InstallSwiftToolchain(steps.ShellSequence, ShellMixin):
         command_list = [
             f'rm -rf {USER_TOOLCHAINS_DIR}',
             f'mkdir -p {USER_TOOLCHAINS_DIR}',
-            f'cp -r {source_toolchain} {dest_toolchain}'
+            f'cp -a {source_toolchain} {dest_toolchain}'
         ]
         for command in command_list:
             self.commands.append(util.ShellArg(command=self.shell_command(command), logname='stdio', haltOnFailure=True))

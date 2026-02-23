@@ -204,7 +204,7 @@ bool RenderTreeBuilder::isRebuildRootForChildren(const RenderElement& renderer)
     // This can greatly simplify the code needed to maintain the correct structure.
 
     auto display = renderer.style().display();
-    if (display == DisplayType::Ruby || display == DisplayType::RubyBlock)
+    if (display == Style::DisplayType::InlineRuby || display == Style::DisplayType::BlockRuby)
         return true;
 
     return false;
@@ -309,7 +309,7 @@ void RenderTreeBuilder::attachInternal(RenderElement& parent, RenderPtr<RenderOb
         return;
     }
 
-    if (parent.style().display() == DisplayType::Ruby || parent.style().display() == DisplayType::RubyBlock) {
+    if (parent.style().display() == Style::DisplayType::InlineRuby || parent.style().display() == Style::DisplayType::BlockRuby) {
         auto& parentCandidate = rubyBuilder().findOrCreateParentForStyleBasedRubyChild(parent, *child, beforeChild);
         if (&parentCandidate == &parent) {
             rubyBuilder().attachForStyleBasedRuby(parentCandidate, WTF::move(child), beforeChild);
@@ -657,9 +657,9 @@ void RenderTreeBuilder::normalizeTreeAfterStyleChange(RenderElement& renderer, R
     if (!renderer.parent())
         return;
 
-    bool wasFloating = oldStyle.isFloating();
+    bool wasFloating = oldStyle.floating() != Float::None;
     bool wasOutOfFlowPositioned = oldStyle.hasOutOfFlowPosition();
-    bool isFloating = renderer.style().isFloating();
+    bool isFloating = renderer.style().floating() != Float::None;
     bool isOutOfFlowPositioned = renderer.style().hasOutOfFlowPosition();
     bool startsAffectingParent = false;
     bool noLongerAffectsParent = false;
@@ -873,7 +873,7 @@ void RenderTreeBuilder::removeAnonymousWrappersForInlineChildrenIfNeeded(RenderE
     // if we find a continuation.
     std::optional<bool> shouldAllChildrenBeInline;
     for (auto* current = blockParent->firstChild(); current; current = current->nextSibling()) {
-        if (current->style().isFloating() || current->style().hasOutOfFlowPosition())
+        if (current->style().floating() != Float::None || current->style().hasOutOfFlowPosition())
             continue;
 
         if (!is<RenderBlock>(*current))
@@ -1009,10 +1009,10 @@ void RenderTreeBuilder::updateAfterDescendants(RenderElement& renderer)
         firstLetterBuilder().updateAfterDescendants(*block);
     if (auto* listItem = dynamicDowncast<RenderListItem>(renderer))
         listBuilder().updateItemMarker(*listItem);
-    if (auto* blockFlow = dynamicDowncast<RenderBlockFlow>(renderer)) {
+    if (auto* blockFlow = dynamicDowncast<RenderBlockFlow>(renderer))
         multiColumnBuilder().updateAfterDescendants(*blockFlow);
-        formControlsBuilder().updateAfterDescendants(*blockFlow);
-    }
+
+    formControlsBuilder().updateAfterDescendants(renderer);
 }
 
 RenderPtr<RenderObject> RenderTreeBuilder::detachFromRenderGrid(RenderGrid& parent, RenderObject& child, WillBeDestroyed willBeDestroyed)

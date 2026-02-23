@@ -65,7 +65,7 @@ public:
 
     // Typically a no-op for many subclasses of PrintStream, this is a hint that
     // the implementation should flush its buffers if it had not done so already.
-    WTF_EXPORT_PRIVATE virtual void flush();
+    WTF_EXPORT_PRIVATE virtual void NODELETE flush();
     
     template<typename Func>
     void atomically(NOESCAPE const Func& func)
@@ -100,7 +100,7 @@ protected:
     }
     
     WTF_EXPORT_PRIVATE virtual PrintStream& begin();
-    WTF_EXPORT_PRIVATE virtual void end();
+    WTF_EXPORT_PRIVATE virtual void NODELETE end();
 };
 
 WTF_EXPORT_PRIVATE void printInternal(PrintStream&, const char*);

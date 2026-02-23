@@ -87,7 +87,7 @@ public:
     int close();
 
     sqlite3* sqlite3Handle() const { return m_db; };
-    void assertQueue();
+    void NODELETE assertQueue();
     WorkQueue& queue() const { return m_queue; };
 
 private:

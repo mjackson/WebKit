@@ -163,7 +163,7 @@ public:
     }
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
-    void setDetectsHDRContent()
+    void NODELETE setDetectsHDRContent()
     {
         m_hdrContent = RequestState::Unknown;
         m_rendererHDRContent = RequestState::Unknown;
@@ -178,7 +178,7 @@ public:
     }
 
 
-    bool isPaintsContentSatisfied() const
+    bool NODELETE isPaintsContentSatisfied() const
     {
 #if HAVE(SUPPORT_HDR_DISPLAY)
         if (m_hdrContent == RequestState::Unknown)
@@ -202,7 +202,7 @@ public:
     }
 #endif
 
-    bool isContentsTypeSatisfied() const
+    bool NODELETE isContentsTypeSatisfied() const
     {
 #if HAVE(SUPPORT_HDR_DISPLAY)
         if (m_rendererHDRContent == RequestState::Unknown)
@@ -311,7 +311,7 @@ RenderLayerBacking::RenderLayerBacking(RenderLayer& layer)
         if (style.pseudoElementType() != PseudoElementType::Backdrop || style.position() != PositionType::Fixed)
             return false;
 
-        if (style.hasTransform() || style.hasClip() || style.hasMask())
+        if (!style.transform().isNone() || !style.offsetPath().isNone() || !style.clip().isAuto() || Style::hasImageInAnyLayer(style.maskLayers()) || !style.maskBorderSource().isNone())
             return false;
 
         auto* box = dynamicDowncast<RenderBox>(renderer);
@@ -349,7 +349,7 @@ RenderLayerBacking::~RenderLayerBacking()
     // Note that m_owningLayer->backing() is null here.
     updateAncestorClipping(false, nullptr);
     updateDescendantClippingLayer(false);
-    updateOverflowControlsLayers(false, false, false);
+    clearOverflowControlsLayers();
     updateForegroundLayer(false);
     updateBackgroundLayer(false);
     updateMaskingLayer(false, false);
@@ -621,7 +621,7 @@ void RenderLayerBacking::createPrimaryGraphicsLayer()
 #if USE(CA)
     if (!compositor().acceleratedDrawingEnabled() && renderer().isRenderHTMLCanvas()) {
         const RefPtr canvas = downcast<HTMLCanvasElement>(renderer().element());
-        if (canvas->shouldAccelerate(canvas->size()))
+        if (canvas->shouldAccelerate())
             m_graphicsLayer->setAcceleratesDrawing(true);
     }
 #endif    
@@ -801,7 +801,7 @@ void RenderLayerBacking::updateChildrenTransformAndAnchorPoint(const LayoutRect&
             m_graphicsLayer->setChildrenTransform({ });
     };
 
-    if (!renderer().style().hasPerspective()) {
+    if (renderer().style().perspective().isNone()) {
         removeChildrenTransformFromLayers();
         return;
     }
@@ -861,7 +861,7 @@ void RenderLayerBacking::updateBackdropFiltersGeometry()
         return;
 
     FloatRoundedRect backdropFiltersRect;
-    if (renderBox->style().hasBorderRadius() && !renderBox->hasClip()) {
+    if (renderBox->style().border().hasBorderRadius() && !renderBox->hasClip()) {
         auto borderShape = BorderShape::shapeForBorderRect(renderBox->style(), renderBox->borderBoxRect());
         auto roundedBoxRect = borderShape.deprecatedRoundedRect();
         roundedBoxRect.move(contentOffsetInCompositingLayer());
@@ -965,7 +965,7 @@ void RenderLayerBacking::updateAppleVisualEffect(const RenderStyle& style)
 #if HAVE(MATERIAL_HOSTING)
     if (appleVisualEffectIsHostedMaterial(style.appleVisualEffect())) {
         if (CheckedPtr renderBox = dynamicDowncast<RenderBox>(renderer())) {
-            if (renderBox->style().hasBorderRadius()) {
+            if (renderBox->style().border().hasBorderRadius()) {
                 auto borderShape = BorderShape::shapeForBorderRect(renderBox->style(), renderBox->borderBoxRect());
                 auto roundedBoxRect = borderShape.deprecatedRoundedRect();
                 roundedBoxRect.move(contentOffsetInCompositingLayer());
@@ -979,7 +979,7 @@ void RenderLayerBacking::updateAppleVisualEffect(const RenderStyle& style)
 }
 #endif
 
-static bool layerOrAncestorIsTransformedOrUsingCompositedScrolling(RenderLayer& layer)
+static bool NODELETE layerOrAncestorIsTransformedOrUsingCompositedScrolling(RenderLayer& layer)
 {
     for (auto* curr = &layer; curr; curr = curr->parent()) {
         if (curr->isTransformed() || curr->hasCompositedScrollableOverflow())
@@ -1059,7 +1059,7 @@ bool RenderLayerBacking::updateCompositedBounds()
     // If the element has a transform-origin that has fixed lengths, and the renderer has zero size,
     // then we need to ensure that the compositing layer has non-zero size so that we can apply
     // the transform-origin via the GraphicsLayer anchorPoint (which is expressed as a fractional value).
-    if (layerBounds.isEmpty() && (hasNonZeroTransformOrigin(renderer()) || renderer().style().hasPerspective())) {
+    if (layerBounds.isEmpty() && (hasNonZeroTransformOrigin(renderer()) || !renderer().style().perspective().isNone())) {
         layerBounds.setWidth(1);
         layerBounds.setHeight(1);
         m_artificiallyInflatedBounds = true;
@@ -1560,7 +1560,7 @@ void RenderLayerBacking::updateGeometry(const RenderLayer* compositedAncestor)
     auto primaryLayerPosition = primaryGraphicsLayerRect.location();
 
     // FIXME: reflections should force transform-style to be flat in the style: https://bugs.webkit.org/show_bug.cgi?id=106959
-    bool preserves3D = style.preserves3D() && !renderer().hasReflection();
+    bool preserves3D = style.usedTransformStyle3D() == TransformStyle3D::Preserve3D && !renderer().hasReflection();
 
     if (m_viewportAnchorLayer) {
         if (m_viewportClippingLayer) {
@@ -1636,7 +1636,7 @@ void RenderLayerBacking::updateGeometry(const RenderLayer* compositedAncestor)
         clipLayer->setOffsetFromRenderer(toLayoutSize(clippingBox.location() - snappedClippingGraphicsLayer.m_snapDelta));
 
         auto computeMasksToBoundsRect = [&] {
-            if ((renderer().style().hasClipPath() || renderer().style().hasBorderRadius())) {
+            if ((renderer().hasClipPath() || renderer().style().border().hasBorderRadius())) {
                 auto borderShape = BorderShape::shapeForBorderRect(renderer().style(), m_owningLayer.rendererBorderBoxRect());
                 auto contentsClippingRect = borderShape.deprecatedPixelSnappedInnerRoundedRect(deviceScaleFactor);
                 contentsClippingRect.move(LayoutSize(-clipLayer->offsetFromRenderer()));
@@ -2514,6 +2514,22 @@ bool RenderLayerBacking::requiresScrollCornerLayer() const
     return requiresLayerForScrollbar(scrollbar);
 }
 
+void RenderLayerBacking::clearOverflowControlsLayers()
+{
+    auto destroyLayer = [&](RefPtr<GraphicsLayer>& layer) {
+        if (!layer)
+            return;
+
+        willDestroyLayer(layer.get());
+        GraphicsLayer::unparentAndClear(layer);
+    };
+
+    destroyLayer(m_overflowControlsContainer);
+    destroyLayer(m_layerForHorizontalScrollbar);
+    destroyLayer(m_layerForVerticalScrollbar);
+    destroyLayer(m_layerForScrollCorner);
+}
+
 bool RenderLayerBacking::updateOverflowControlsLayers(bool needsHorizontalScrollbarLayer, bool needsVerticalScrollbarLayer, bool needsScrollCornerLayer)
 {
     auto createOrDestroyLayer = [&](RefPtr<GraphicsLayer>& layer, bool needLayer, bool drawsContent, ASCIILiteral layerName) {
@@ -2605,7 +2621,10 @@ static bool ancestorLayerWillCombineTransform(const RenderLayer* compositingAnce
 {
     if (!compositingAncestor)
         return false;
-    return compositingAncestor->preserves3D() || compositingAncestor->hasPerspective();
+
+    auto& style = compositingAncestor->renderer().style();
+    return style.usedTransformStyle3D() == TransformStyle3D::Preserve3D
+        || !style.perspective().isNone();
 }
 
 bool RenderLayerBacking::updateTransformFlatteningLayer(const RenderLayer* compositingAncestor)
@@ -2924,7 +2943,12 @@ float RenderLayerBacking::compositingOpacity(float rendererOpacity) const
 // FIXME: Code is duplicated in RenderLayer. Also, we should probably not consider filters a box decoration here.
 static inline bool hasVisibleBoxDecorations(const RenderStyle& style)
 {
-    return style.hasVisibleBorder() || style.hasBorderRadius() || style.hasOutline() || style.hasUsedAppearance() || style.hasBoxShadow() || style.hasFilter();
+    return style.border().hasVisibleBorder()
+        || style.border().hasBorderRadius()
+        || style.hasOutline()
+        || style.hasUsedAppearance()
+        || !style.boxShadow().isNone()
+        || !style.filter().isNone();
 }
 
 static bool canDirectlyCompositeBackgroundBackgroundImage(const RenderElement& renderer)
@@ -2970,7 +2994,7 @@ static bool hasPaintedBoxDecorationsOrBackgroundImage(const RenderElement& rende
     if (hasVisibleBoxDecorations(style))
         return true;
 
-    if (!style.hasBackgroundImage())
+    if (!Style::hasImageInAnyLayer(style.backgroundLayers()))
         return false;
 
     return !canDirectlyCompositeBackgroundBackgroundImage(renderer);
@@ -2978,7 +3002,7 @@ static bool hasPaintedBoxDecorationsOrBackgroundImage(const RenderElement& rende
 
 static inline bool hasPerspectiveOrPreserves3D(const RenderStyle& style)
 {
-    return style.hasPerspective() || style.preserves3D();
+    return !style.perspective().isNone() || style.usedTransformStyle3D() == TransformStyle3D::Preserve3D;
 }
 
 Color RenderLayerBacking::rendererBackgroundColor() const
@@ -3031,13 +3055,18 @@ void RenderLayerBacking::updateDirectlyCompositedBackgroundImage(PaintedContents
     if (contentsInfo.isDirectlyCompositedImage())
         return;
 
-    auto& style = renderer().style();
-    if (!contentsInfo.isSimpleContainer() || !style.hasBackgroundImage()) {
+    if (!contentsInfo.isSimpleContainer()) {
         m_graphicsLayer->setContentsToImage(nullptr);
         return;
     }
 
-    auto& backgroundLayer = style.backgroundLayers().usedFirst();
+    auto& backgroundLayers = renderer().style().backgroundLayers();
+    if (!Style::hasImageInAnyLayer(backgroundLayers)) {
+        m_graphicsLayer->setContentsToImage(nullptr);
+        return;
+    }
+
+    auto& backgroundLayer = backgroundLayers.usedFirst();
     auto backgroundBox = LayoutRect { backgroundBoxForSimpleContainerPainting() };
     // FIXME: Absolute paint location is required here.
     auto geometry = BackgroundPainter::calculateFillLayerImageGeometry(*renderBox(), renderBox(), backgroundLayer, { }, backgroundBox);
@@ -3347,7 +3376,7 @@ bool RenderLayerBacking::isDirectlyCompositedImage() const
         // GTK and WPE ports don't support rounded rect clipping at TextureMapper level, so they cannot
         // directly composite images that have border-radius propery. Draw them as non directly composited
         // content instead. See https://bugs.webkit.org/show_bug.cgi?id=174157.
-        if (renderer().style().hasBorderRadius())
+        if (renderer().style().border().hasBorderRadius())
             return false;
 #endif
 
@@ -4488,6 +4517,11 @@ bool RenderLayerBacking::startAnimation(double timeOffset, const GraphicsLayerAn
 }
 
 #if ENABLE(THREADED_ANIMATIONS)
+const AcceleratedEffectStack* RenderLayerBacking::acceleratedEffectStack() const
+{
+    return m_graphicsLayer->acceleratedEffectStack();
+}
+
 void RenderLayerBacking::updateAcceleratedEffectsAndBaseValues(HashSet<Ref<AcceleratedTimeline>>& timelines)
 {
     auto& renderer = this->renderer();

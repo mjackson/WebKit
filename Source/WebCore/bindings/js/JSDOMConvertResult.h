@@ -181,6 +181,11 @@ public:
     {
     }
 
+    ConversionResult(std::nullopt_t) requires std::is_same_v<decltype(IDL::nullValue()), std::nullopt_t>
+        : m_storage { std::nullopt }
+    {
+    }
+
     template<typename OtherIDL>
     ConversionResult(ConversionResult<OtherIDL>&& other)
         : m_storage { WTF::move(other.m_storage) }

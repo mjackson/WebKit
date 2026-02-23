@@ -899,7 +899,7 @@ void XMLDocumentParser::startElementNs(const xmlChar* xmlLocalName, const xmlCha
         pushCurrentNode(newElement.ptr());
 
     if (!m_parsingFragment && isFirstElement && document->frame())
-        document->protectedFrame()->injectUserScripts(UserScriptInjectionTime::DocumentStart);
+        protect(document->frame())->injectUserScripts(UserScriptInjectionTime::DocumentStart);
 }
 
 void XMLDocumentParser::endElementNs()

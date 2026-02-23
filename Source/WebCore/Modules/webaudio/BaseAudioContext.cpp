@@ -112,14 +112,14 @@ bool BaseAudioContext::isSupportedSampleRate(float sampleRate)
     return sampleRate >= 3000 && sampleRate <= 384000;
 }
 
-static uint64_t generateContextID()
+static uint64_t NODELETE generateContextID()
 {
     ASSERT(isMainThread());
     static uint64_t contextIDSeed = 0;
     return ++contextIDSeed;
 }
 
-static HashSet<uint64_t>& liveAudioContexts()
+static HashSet<uint64_t>& NODELETE liveAudioContexts()
 {
     ASSERT(isMainThread());
     static NeverDestroyed<HashSet<uint64_t>> contexts;
@@ -664,7 +664,7 @@ void BaseAudioContext::updateTailProcessingNodes()
     // We are on the audio thread so we want to avoid allocations as much as possible.
     for (auto i = m_tailProcessingNodes.size(); i > 0; --i) {
         auto& node = m_tailProcessingNodes[i - 1];
-        if (!node.checkedNode()->propagatesSilence())
+        if (!protect(node.node())->propagatesSilence())
             continue; // Node is not done processing its tail.
 
         // Ideally we'd find a way to avoid this vector append since we try to avoid potential heap allocations
@@ -698,7 +698,7 @@ void BaseAudioContext::disableOutputsForFinishedTailProcessingNodes()
     ASSERT(isMainThread());
     ASSERT(isGraphOwner());
     for (auto& finishedTailProcessingNode : std::exchange(m_finishedTailProcessingNodes, { }))
-        finishedTailProcessingNode.checkedNode()->disableOutputs();
+        protect(finishedTailProcessingNode.node())->disableOutputs();
 }
 
 void BaseAudioContext::finishTailProcessing()
@@ -709,7 +709,7 @@ void BaseAudioContext::finishTailProcessing()
     // disableOutputs() can cause new nodes to start tail processing so we need to loop until both vectors are empty.
     while (!m_tailProcessingNodes.isEmpty() || !m_finishedTailProcessingNodes.isEmpty()) {
         for (auto& tailProcessingNode : std::exchange(m_tailProcessingNodes, { }))
-            tailProcessingNode.checkedNode()->disableOutputs();
+            protect(tailProcessingNode.node())->disableOutputs();
         disableOutputsForFinishedTailProcessingNodes();
     }
 }
@@ -782,12 +782,12 @@ void BaseAudioContext::deleteMarkedNodes()
         // Before deleting the node, clear out any AudioNodeInputs from m_dirtySummingJunctions.
         unsigned numberOfInputs = node->numberOfInputs();
         for (unsigned i = 0; i < numberOfInputs; ++i)
-            m_dirtySummingJunctions.remove(node->checkedInput(i).get());
+            m_dirtySummingJunctions.remove(protect(node->input(i)).get());
 
         // Before deleting the node, clear out any AudioNodeOutputs from m_dirtyAudioNodeOutputs.
         unsigned numberOfOutputs = node->numberOfOutputs();
         for (unsigned i = 0; i < numberOfOutputs; ++i)
-            m_dirtyAudioNodeOutputs.remove(node->checkedOutput(i).get());
+            m_dirtyAudioNodeOutputs.remove(protect(node->output(i)).get());
 
         ASSERT_WITH_MESSAGE(node->nodeType() != AudioNode::NodeTypeDestination, "Destination node is owned by the BaseAudioContext");
 

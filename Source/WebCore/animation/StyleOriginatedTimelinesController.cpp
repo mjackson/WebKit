@@ -310,7 +310,7 @@ void StyleOriginatedTimelinesController::unregisterNamedTimeline(const AtomStrin
     if (i == notFound)
         return;
 
-    auto timeline = timelines.at(i);
+    Ref timeline = timelines.at(i);
 
     // Make sure to remove the named timeline from our name-to-timelines map first,
     // such that re-syncing any CSS Animation previously registered with it resolves
@@ -500,10 +500,10 @@ void StyleOriginatedTimelinesController::unregisterNamedTimelinesAssociatedWithE
 
 void StyleOriginatedTimelinesController::styleableWasRemoved(const Styleable& styleable)
 {
-    for (auto& timeline : m_removedTimelines) {
+    for (Ref timeline : m_removedTimelines) {
         if (originatingElement(timeline) != styleable)
             continue;
-        for (auto& animation : timeline->relevantAnimations()) {
+        for (Ref animation : timeline->relevantAnimations()) {
             if (RefPtr cssAnimation = dynamicDowncast<CSSAnimation>(animation.get())) {
                 if (auto owningElement = cssAnimation->owningElement()) {
                     attachAnimation(*cssAnimation, AllowsDeferral::Yes);

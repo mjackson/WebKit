@@ -237,7 +237,7 @@ void LibWebRTCNetworkManager::CreateNameForAddress(const webrtc::IPAddress& addr
 
         protect(protect(WebProcess::singleton().libWebRTCNetwork())->mdnsRegister())->registerMDNSName(weakThis->m_documentIdentifier, fromStdString(address.ToString()), [address, callback = WTF::move(callback)](auto name, auto error) mutable {
             WebCore::LibWebRTCProvider::callOnWebRTCNetworkThread([address, callback = std::move(callback), name = WTF::move(name).isolatedCopy(), error] {
-                RELEASE_LOG_ERROR_IF(error, WebRTC, "MDNS registration of a host candidate failed with error %hhu", enumToUnderlyingType(*error));
+                RELEASE_LOG_ERROR_IF(error, WebRTC, "MDNS registration of a host candidate failed with error %hhu", std::to_underlying(*error));
                 // In case of error, we provide the name to let gathering complete.
                 callback(address, name.utf8().data());
             });

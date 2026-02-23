@@ -41,6 +41,7 @@
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSCJSValueInlines.h>
 #include <JavaScriptCore/JSGlobalProxy.h>
+#include <JavaScriptCore/JSMicrotaskDispatcher.h>
 #include <JavaScriptCore/Microtask.h>
 #include <wtf/Language.h>
 
@@ -155,7 +156,8 @@ void JSWorkerGlobalScopeBase::queueMicrotaskToEventLoop(JSGlobalObject& object, 
 {
     auto& thisObject = *jsCast<JSWorkerGlobalScopeBase*>(&object);
     CheckedRef context = thisObject.wrapped();
-    task.setDispatcher(context->eventLoop().jsMicrotaskDispatcher(task));
+    if (object.debugger()) [[unlikely]]
+        task.setDispatcher(context->eventLoop().jsMicrotaskDispatcherForDebugger(object.vm(), &object));
     context->eventLoop().queueMicrotask(WTF::move(task));
 }
 

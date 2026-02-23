@@ -125,23 +125,23 @@ public:
         WebCore::SecurityOriginData securityOrigin;
         bool operator==(const OpenerInfo&) const;
     };
-    const std::optional<OpenerInfo>& openerInfo() const;
+    const std::optional<OpenerInfo>& NODELETE openerInfo() const;
     void setOpenerInfo(std::optional<OpenerInfo>&&);
-    void consumeOpenerInfo();
+    void NODELETE consumeOpenerInfo();
 
-    const WebCore::Site& openedSite() const;
+    const WebCore::Site& NODELETE openedSite() const;
     void setOpenedSite(const WebCore::Site&);
 
-    const WTF::String& openedMainFrameName() const;
+    const WTF::String& NODELETE openedMainFrameName() const;
     void setOpenedMainFrameName(const WTF::String&);
 
     WebCore::SandboxFlags initialSandboxFlags() const { return m_data.initialSandboxFlags; }
-    void setInitialSandboxFlags(WebCore::SandboxFlags);
+    void NODELETE setInitialSandboxFlags(WebCore::SandboxFlags);
 
     WebCore::ReferrerPolicy initialReferrerPolicy() const { return m_data.initialReferrerPolicy; }
-    void setInitialReferrerPolicy(WebCore::ReferrerPolicy);
+    void NODELETE setInitialReferrerPolicy(WebCore::ReferrerPolicy);
 
-    const std::optional<WebCore::WindowFeatures>& windowFeatures() const;
+    const std::optional<WebCore::WindowFeatures>& NODELETE windowFeatures() const;
     void setWindowFeatures(WebCore::WindowFeatures&&);
 
     WebKit::WebProcessPool& processPool() const;
@@ -151,36 +151,36 @@ public:
     void setUserContentController(RefPtr<WebKit::WebUserContentControllerProxy>&&);
 
 #if ENABLE(WK_WEB_EXTENSIONS)
-    const WTF::URL& requiredWebExtensionBaseURL() const;
+    const WTF::URL& NODELETE requiredWebExtensionBaseURL() const;
     void setRequiredWebExtensionBaseURL(WTF::URL&&);
 
-    WebKit::WebExtensionController* webExtensionController() const;
+    WebKit::WebExtensionController* NODELETE webExtensionController() const;
     void setWebExtensionController(RefPtr<WebKit::WebExtensionController>&&);
 
-    WebKit::WebExtensionController* weakWebExtensionController() const;
+    WebKit::WebExtensionController* NODELETE weakWebExtensionController() const;
     void setWeakWebExtensionController(WebKit::WebExtensionController*);
 #endif
 
-    WebKit::WebPageGroup* pageGroup();
+    WebKit::WebPageGroup* NODELETE pageGroup();
     void setPageGroup(RefPtr<WebKit::WebPageGroup>&&);
 
     WebKit::WebPreferences& preferences() const;
     void setPreferences(RefPtr<WebKit::WebPreferences>&&);
 
-    WebKit::WebPageProxy* relatedPage() const;
+    WebKit::WebPageProxy* NODELETE relatedPage() const;
     void setRelatedPage(WeakPtr<WebKit::WebPageProxy>&& relatedPage) { m_data.relatedPage = WTF::move(relatedPage); }
 
-    WebKit::WebPageProxy* pageToCloneSessionStorageFrom() const;
-    void setPageToCloneSessionStorageFrom(WeakPtr<WebKit::WebPageProxy>&&);
+    WebKit::WebPageProxy* NODELETE pageToCloneSessionStorageFrom() const;
+    void NODELETE setPageToCloneSessionStorageFrom(WeakPtr<WebKit::WebPageProxy>&&);
 
-    WebKit::WebPageProxy* alternateWebViewForNavigationGestures() const;
-    void setAlternateWebViewForNavigationGestures(WeakPtr<WebKit::WebPageProxy>&&);
+    WebKit::WebPageProxy* NODELETE alternateWebViewForNavigationGestures() const;
+    void NODELETE setAlternateWebViewForNavigationGestures(WeakPtr<WebKit::WebPageProxy>&&);
 
     WebKit::VisitedLinkStore& visitedLinkStore() const;
     void setVisitedLinkStore(RefPtr<WebKit::VisitedLinkStore>&&);
 
     WebKit::WebsiteDataStore& websiteDataStore() const;
-    WebKit::WebsiteDataStore* websiteDataStoreIfExists() const;
+    WebKit::WebsiteDataStore* NODELETE websiteDataStoreIfExists() const;
     void setWebsiteDataStore(RefPtr<WebKit::WebsiteDataStore>&&);
 
     WebsitePolicies& defaultWebsitePolicies() const;
@@ -268,7 +268,7 @@ public:
 #endif
 
 #if ENABLE(APPLICATION_MANIFEST)
-    ApplicationManifest* applicationManifest() const;
+    ApplicationManifest* NODELETE applicationManifest() const;
     void setApplicationManifest(RefPtr<ApplicationManifest>&&);
 #endif
 
@@ -336,7 +336,7 @@ public:
 
 #if ENABLE(APPLE_PAY)
     bool applePayEnabled() const;
-    void setApplePayEnabled(bool);
+    void NODELETE setApplePayEnabled(bool);
 #endif
 
 #if ENABLE(APP_HIGHLIGHTS)
@@ -460,8 +460,8 @@ public:
     void setDelaysWebProcessLaunchUntilFirstLoad(bool);
     bool delaysWebProcessLaunchUntilFirstLoad() const;
 
-    void setAllowPostingLegacySynchronousMessages(bool);
-    bool allowPostingLegacySynchronousMessages() const;
+    void NODELETE setAllowPostingLegacySynchronousMessages(bool);
+    bool NODELETE allowPostingLegacySynchronousMessages() const;
 
     void setContentSecurityPolicyModeForExtension(WebCore::ContentSecurityPolicyModeForExtension mode) { m_data.contentSecurityPolicyModeForExtension = mode; }
     WebCore::ContentSecurityPolicyModeForExtension contentSecurityPolicyModeForExtension() const { return m_data.contentSecurityPolicyModeForExtension; }
@@ -481,6 +481,11 @@ public:
 #if HAVE(CORE_ANIMATION_SEPARATED_LAYERS)
     bool cssTransformStyleSeparatedEnabled() const { return m_data.cssTransformStyleSeparatedEnabled; }
     void setCSSTransformStyleSeparatedEnabled(bool value) { m_data.cssTransformStyleSeparatedEnabled = value; }
+#endif
+
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    bool allowsImmersiveEnvironments() const { return m_data.allowsImmersiveEnvironments; }
+    void setAllowsImmersiveEnvironments(bool allows) { m_data.allowsImmersiveEnvironments = allows; }
 #endif
 
 #endif // PLATFORM(VISION)
@@ -663,6 +668,10 @@ private:
 
 #if HAVE(CORE_ANIMATION_SEPARATED_LAYERS)
         bool cssTransformStyleSeparatedEnabled { false };
+#endif
+
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+        bool allowsImmersiveEnvironments { false };
 #endif
 
 #endif // PLATFORM(VISION)

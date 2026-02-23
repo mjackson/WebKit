@@ -387,6 +387,7 @@ size_t CGIOSurfaceContextGetBitmapInfo(CGContextRef);
 void CGIOSurfaceContextSetDisplayMask(CGContextRef, uint32_t mask);
 IOSurfaceRef CGIOSurfaceContextGetSurface(CGContextRef);
 void CGIOSurfaceContextInvalidateSurface(CGContextRef);
+void CGIOSurfaceContextFlushQueue(CGContextRef);
 #endif // HAVE(IOSURFACE)
 
 #if PLATFORM(COCOA)
@@ -418,6 +419,11 @@ CGShadingRef CGShadingCreateConic(CGColorSpaceRef, CGPoint center, CGFloat angle
 
 CGGradientRef CGGradientCreateWithColorComponentsAndOptions(CGColorSpaceRef, const CGFloat*, const CGFloat*, size_t, CFDictionaryRef);
 CGGradientRef CGGradientCreateWithColorsAndOptions(CGColorSpaceRef, CFArrayRef, const CGFloat*, CFDictionaryRef);
+
+#if HAVE(CGPATTERN_CREATE_WITH_IMAGE_TRANSFORM_STEP)
+CGPatternRef CGPatternCreateWithImageTransformStep(CGImageRef, CGAffineTransform,
+    CGFloat xStep, CGFloat yStep, CGPatternTiling);
+#endif
 
 extern const CFStringRef kCGGradientInterpolatesPremultiplied;
 

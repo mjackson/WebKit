@@ -165,7 +165,7 @@ void AuthenticatorCoordinator::create(const Document& document, CredentialCreati
     }
 
     // Step 5.
-    if (options.user.id.length() < 1 || options.user.id.length() > 64) {
+    if (options.user.id.byteLength() < 1 || options.user.id.byteLength() > 64) {
         promise.reject(Exception { ExceptionCode::TypeError, "The length options.user.id must be between 1-64 bytes."_s });
         return;
     }

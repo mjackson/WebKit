@@ -42,9 +42,21 @@ NS_SWIFT_UI_ACTOR
 
 - (void)addTextSelectionManager;
 
+- (void)selectionDidChange;
+
 @end
 
-@interface WKTextSelectionController (NSTextSelectionManagerDelegate) <NSTextSelectionManagerDelegateForWebKit>
+@interface WKTextSelectionController (NSTextSelectionManagerDelegate) <NSTextSelectionManagerDelegateForWebKit_Staging>
+
+- (BOOL)isTextSelectedAtPoint:(NSPoint)point;
+- (void)moveInsertionCursorToPoint:(NSPoint)point;
+- (void)handleClickAtPoint:(NSPoint)point; // FIXME: Remove this declaration and its definition when possible.
+- (void)handleClickAtPoint:(NSPoint)point clickCount:(NSUInteger)clickCount;
+- (void)showContextMenuAtPoint:(NSPoint)point;
+- (void)dragSelectionWithGesture:(NSGestureRecognizer *)gesture completionHandler:(void(^)(NSDraggingSession*))completionHandler;
+- (void)beginRangeSelectionAtPoint:(NSPoint)point withGranularity:(NSTextSelectionGranularity)granularity;
+- (void)continueRangeSelectionAtPoint:(NSPoint)point;
+- (void)endRangeSelectionAtPoint:(NSPoint)point;
 
 @end
 

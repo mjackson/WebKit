@@ -334,19 +334,6 @@ op :call_direct_eval,
         callLinkInfo: DataOnlyCallLinkInfo,
     }
 
-op :tail_call_forward_arguments,
-    args: {
-        dst: VirtualRegister,
-        callee: VirtualRegister,
-        thisValue?: VirtualRegister,
-        arguments?: VirtualRegister,
-        firstFree: VirtualRegister,
-        firstVarArg: int,
-    },
-    metadata: {
-        callLinkInfo: DataOnlyCallLinkInfo,
-    }
-
 op_group :CreateInternalFieldObjectOp,
     [
         :create_generator,

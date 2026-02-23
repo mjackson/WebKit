@@ -244,7 +244,7 @@ GridArea GridMasonryLayout::gridAreaForIndefiniteGridAxisItem(const RenderBox& i
     LayoutUnit toleranceValue = tolerance.switchOn(
         [&](const CSS::Keyword::Normal&) -> LayoutUnit {
             // Normal resolves to 1em
-            return LayoutUnit { m_renderGrid->checkedStyle()->computedFontSize() };
+            return LayoutUnit { protect(m_renderGrid->style())->computedFontSize() };
         },
         [&](const typename Style::FlowTolerance::Fixed& fixed) -> LayoutUnit {
             return LayoutUnit { fixed.resolveZoom(m_renderGrid->style().usedZoomForLength()) };

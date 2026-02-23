@@ -75,7 +75,7 @@ private:
 
     const ElementBox& root() const { return m_formattingContextRoot; }
     // FIXME: Turn this into an actual geometry cache.
-    const LayoutState& containingBlockGeometries() const;
+    const LayoutState& NODELETE containingBlockGeometries() const;
 
     void findPositionForFormattingContextRoot(FloatAvoider&, BoxGeometry::HorizontalEdges containingBlockContentBoxEdges) const;
 

@@ -1296,6 +1296,7 @@ enum class WebCore::ScreenOrientationLockType : uint8_t {
 struct WebCore::ApplicationManifest {
     String rawJSON
     WebCore::ApplicationManifest::Direction dir
+    String lang
     String name
     String shortName
     String description
@@ -1442,7 +1443,7 @@ header: <WebCore/Report.h>
 [RefCounted] class WebCore::Report {
     String type()
     String url()
-    RefPtr<WebCore::ReportBody> protectedBody()
+    RefPtr<WebCore::ReportBody> bodyForSerialization()
 };
 
 [RefCounted] class WebCore::TestReportBody {
@@ -2799,6 +2800,7 @@ header: <WebCore/ScrollingCoordinatorTypes.h>
 header: <WebCore/ScrollingCoordinatorTypes.h>
 [CustomHeader] enum class WebCore::ScrollUpdateType : uint8_t {
     PositionUpdate,
+    ScrollRequestResponse,
     AnimatedScrollWillStart,
     AnimatedScrollDidEnd,
     WheelEventScrollWillStart,
@@ -2820,6 +2822,7 @@ header: <WebCore/ScrollingCoordinatorTypes.h>
     std::optional<WebCore::FloatPoint> layoutViewportOrigin;
     WebCore::ScrollUpdateType updateType;
     WebCore::ScrollingLayerPositionAction updateLayerPositionAction;
+    Markable<WebCore::ScrollRequestIdentifier> responseIdentifier;
 };
 
 header: <WebCore/ScrollingCoordinatorTypes.h>
@@ -4240,7 +4243,6 @@ enum class WebCore::IncludeSecureCookies : bool;
 header: <WebCore/ScrollingStateNode.h>
 [OptionSet] enum class WebCore::ScrollingStateNodeProperty : uint64_t {
     Layer
-    ChildNodes
     ScrollableAreaSize
     TotalContentsSize
     ReachableContentsSize
@@ -4280,6 +4282,9 @@ header: <WebCore/ScrollingStateNode.h>
     FooterLayer
     BehaviorForFixedElements
     ObscuredContentInsets
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+    BannerViewHeight
+#endif
     VisualViewportIsSmallerThanLayoutViewport
     AsyncFrameOrOverflowScrollingEnabled
     WheelEventGesturesBecomeNonBlocking
@@ -4296,6 +4301,7 @@ header: <WebCore/ScrollingStateNode.h>
     OverflowScrollingNode
     KeyboardScrollData
     OverlayScrollbarsEnabled
+    ChildNodes
     LayerHostingContextIdentifier
 };
 #endif
@@ -4306,6 +4312,7 @@ enum class WebCore::ScrollType : bool;
 [CustomHeader] struct WebCore::RequestedScrollData {
     WebCore::ScrollRequestType requestType;
     Variant<WebCore::FloatPoint, WebCore::FloatSize> scrollPositionOrDelta;
+    Markable<WebCore::ScrollRequestIdentifier> identifier;
     WebCore::ScrollType scrollType;
     WebCore::ScrollClamping clamping;
     WebCore::ScrollIsAnimated animated;
@@ -5435,11 +5442,11 @@ header: <WebCore/SecurityPolicyViolationEvent.h>
     uint64_t columnNumber();
 };
 
-class WebCore::SecurityOriginData {
+[AdditionalEncoder=StreamConnectionEncoder] class WebCore::SecurityOriginData {
     Variant<WebCore::SecurityOriginData::Tuple, WebCore::OpaqueOriginIdentifierProcessQualified> data();
 };
 
-[Nested] class WebCore::SecurityOriginData::Tuple {
+[Nested, AdditionalEncoder=StreamConnectionEncoder] class WebCore::SecurityOriginData::Tuple {
     [Validator='!protocol->isHashTableDeletedValue()'] String protocol;
     String host;
     std::optional<uint16_t> port;
@@ -6443,11 +6450,27 @@ struct WebCore::MobileDocumentRequest {
     Vector<WebCore::ISO18013PresentmentRequest> presentmentRequests;
 };
 
-struct WebCore::DigitalCredentialsRequestData {
-    Vector<WebCore::ValidatedMobileDocumentRequest> requests;
+header: <WebCore/DigitalCredentialsRequestData.h>
+[AdditionalEncoder=StreamConnectionEncoder] struct WebCore::DigitalCredentialsSecurityOriginData {
     [Validator='!topOrigin->isNull()'] WebCore::SecurityOriginData topOrigin;
     [Validator='!documentOrigin->isNull()'] WebCore::SecurityOriginData documentOrigin;
+}
+
+struct WebCore::DigitalCredentialsMobileDocumentRequestData : WebCore::DigitalCredentialsSecurityOriginData {
+    Vector<WebCore::ValidatedMobileDocumentRequest> requests;
 };
+
+#if ENABLE(ISO18013_DOCUMENT_REQUEST_INFO)
+[Nested] enum class WebCore::ResponseType : uint8_t {
+    Attestation,
+    Disclosure,
+};
+
+[AdditionalEncoder=StreamConnectionEncoder] struct WebCore::DigitalCredentialsMobileDocumentRequestDataWithRequestInfo : WebCore::DigitalCredentialsSecurityOriginData {
+    WebCore::ResponseType responseType;
+    String matchingHint;
+}
+#endif // ENABLE(ISO18013_DOCUMENT_REQUEST_INFO)
 
 struct WebCore::DigitalCredentialsResponseData {
     WebCore::DigitalCredentialPresentationProtocol protocol;
@@ -6845,7 +6868,7 @@ header: <WebCore/TextExtractionTypes.h>
     TextInput,
     KeyPress,
     HighlightText,
-    ScrollBy
+    Scroll
 };
 
 header: <WebCore/TextExtractionTypes.h>
@@ -6888,7 +6911,7 @@ header: <WebCore/TextExtractionTypes.h>
     bool mergeParagraphs;
     bool skipNearlyTransparentContent;
     WebCore::TextExtraction::NodeIdentifierInclusion nodeIdentifierInclusion;
-    bool includeEventListeners;
+    OptionSet<WebCore::TextExtraction::EventListenerCategory> eventListenerCategories;
     bool includeAccessibilityAttributes;
     bool includeTextInAutoFilledControls;
     bool includeOffscreenPasswordFields;
@@ -9274,6 +9297,9 @@ struct WebCore::ParentalControlsURLFilterParameters {
     URL urlToAllow;
 #if HAVE(WEBCONTENTRESTRICTIONS_PATH_SPI)
     String configurationPath;
+#endif
+#if HAVE(WEBCONTENTRESTRICTIONS_ASK_TO)
+    std::optional<URL> referrerURL;
 #endif
 };
 #endif

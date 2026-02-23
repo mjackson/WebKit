@@ -35,6 +35,7 @@
 #include "LocalDOMWindow.h"
 #include "LocalDOMWindowProperty.h"
 #include "LocalFrame.h"
+#include "Logging.h"
 #include "NavigationScheduler.h"
 #include "Quirks.h"
 #include "ScriptWrappableInlines.h"
@@ -144,6 +145,7 @@ Ref<DOMStringList> Location::ancestorOrigins() const
 
 String Location::hash() const
 {
+    RELEASE_LOG_DEBUG(DOMAPI, "Location::hash length=%u frameID=%" PRIu64, url().fragmentIdentifier().length(), frame() ? protect(frame())->frameID().toUInt64() : 0);
     return url().fragmentIdentifier().isEmpty() ? emptyString() : url().fragmentIdentifierWithLeadingNumberSign().toString();
 }
 
@@ -331,11 +333,6 @@ ExceptionOr<void> Location::setLocation(LocalDOMWindow& incumbentWindow, LocalDO
     ASSERT(frame->window());
     frame->window()->setLocation(incumbentWindow, completedURL, historyHandling, SetLocationLocking::LockHistoryBasedOnGestureState, canNavigateState);
     return { };
-}
-
-RefPtr<DOMWindow> Location::protectedWindow()
-{
-    return m_window.get();
 }
 
 Location::~Location() = default;

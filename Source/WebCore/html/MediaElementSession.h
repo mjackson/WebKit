@@ -111,7 +111,7 @@ public:
 #endif
 
     bool requiresFullscreenForVideoPlayback() const;
-    WEBCORE_EXPORT bool allowsPictureInPicture() const;
+    WEBCORE_EXPORT bool NODELETE allowsPictureInPicture() const;
     MediaPlayer::Preload effectivePreloadForElement() const;
     bool allowsAutomaticMediaDataLoading() const;
 
@@ -165,7 +165,7 @@ public:
     bool isLargeEnoughForMainContent(MediaSessionMainContentPurpose) const;
     bool isLongEnoughForMainContent() const final;
     bool isMainContentForPurposesOfAutoplayEvents() const;
-    Markable<MonotonicTime> mostRecentUserInteractionTime() const;
+    Markable<MonotonicTime> NODELETE mostRecentUserInteractionTime() const;
 
     bool allowsPlaybackControlsForAutoplayingAudio() const;
 
@@ -193,7 +193,7 @@ public:
 #endif
     void metadataChanged(const RefPtr<MediaMetadata>&);
     void positionStateChanged(const std::optional<MediaPositionState>&);
-    void playbackStateChanged(MediaSessionPlaybackState);
+    void NODELETE playbackStateChanged(MediaSessionPlaybackState);
     void actionHandlersChanged();
 
     MediaSession* mediaSession() const;

@@ -63,6 +63,16 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/svg/animations/animate-path-animation-lL-vV-hH-inverse.tentative.html
 /LayoutTests/imported/w3c/web-platform-tests/svg/animations/animate-path-animation-mM-aA-Z-inverse.tentative.html
 /LayoutTests/imported/w3c/web-platform-tests/svg/animations/animate-path-animation-qQ-tT-inverse.tentative.html
+/LayoutTests/imported/w3c/web-platform-tests/svg/animations/animate-path-by-animation-accumulate-mismatch.tentative.html
+/LayoutTests/imported/w3c/web-platform-tests/svg/animations/animate-path-by-animation-accumulate.tentative.html
+/LayoutTests/imported/w3c/web-platform-tests/svg/animations/animate-path-by-animation-additive-mismatch.tentative.html
+/LayoutTests/imported/w3c/web-platform-tests/svg/animations/animate-path-by-animation-additive.tentative.html
+/LayoutTests/imported/w3c/web-platform-tests/svg/animations/animate-path-by-animation-mismatch.tentative.html
+/LayoutTests/imported/w3c/web-platform-tests/svg/animations/animate-path-by-animation.tentative.html
+/LayoutTests/imported/w3c/web-platform-tests/svg/animations/animate-path-from-by-animation-mismatch.tentative.html
+/LayoutTests/imported/w3c/web-platform-tests/svg/animations/animate-path-from-to-animation-additive.tentative.html
+/LayoutTests/imported/w3c/web-platform-tests/svg/animations/animate-path-from-to-animation-mismatch-diff-seg-counts.tentative.html
+/LayoutTests/imported/w3c/web-platform-tests/svg/animations/animate-path-from-to-animation-mismatch-same-seg-count.tentative.html
 /LayoutTests/imported/w3c/web-platform-tests/svg/animations/animate-path-to-animation.tentative.html
 /LayoutTests/imported/w3c/web-platform-tests/svg/animations/animate-reset-freeze.html
 /LayoutTests/imported/w3c/web-platform-tests/svg/animations/animate-rewind-freeze-indefinite-expected.svg

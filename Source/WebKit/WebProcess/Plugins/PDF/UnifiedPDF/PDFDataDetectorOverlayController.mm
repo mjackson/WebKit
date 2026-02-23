@@ -71,18 +71,13 @@ PDFDataDetectorOverlayController::PDFDataDetectorOverlayController(UnifiedPDFPlu
 
 PDFDataDetectorOverlayController::~PDFDataDetectorOverlayController() = default;
 
-RefPtr<UnifiedPDFPlugin> PDFDataDetectorOverlayController::protectedPlugin() const
-{
-    return m_plugin.get();
-}
-
 Ref<PageOverlay> PDFDataDetectorOverlayController::installProtectedOverlayIfNeeded()
 {
     if (m_overlay)
         return *m_overlay;
 
     m_overlay = PageOverlay::create(*this, PageOverlay::OverlayType::Document);
-    protectedPlugin()->installDataDetectorOverlay(Ref { *m_overlay });
+    protect(m_plugin.get())->installDataDetectorOverlay(Ref { *m_overlay });
 
     return *m_overlay;
 }

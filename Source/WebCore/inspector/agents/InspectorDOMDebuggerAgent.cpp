@@ -289,7 +289,7 @@ void InspectorDOMDebuggerAgent::willHandleEvent(ScriptExecutionContext& scriptEx
         return;
 
     Ref agents = m_instrumentingAgents.get();
-    auto* domAgent = agents->persistentDOMAgent();
+    CheckedPtr domAgent = agents->persistentDOMAgent();
 
     auto breakpoint = m_pauseOnAllListenersBreakpoint;
     if (!breakpoint) {
@@ -349,7 +349,7 @@ void InspectorDOMDebuggerAgent::didHandleEvent(ScriptExecutionContext& scriptExe
     }
     if (!breakpoint) {
         Ref agents = m_instrumentingAgents.get();
-        if (auto* domAgent = agents->persistentDOMAgent())
+        if (CheckedPtr domAgent = agents->persistentDOMAgent())
             breakpoint = domAgent->breakpointForEventListener(*event.currentTarget(), event.type(), registeredEventListener.callback(), registeredEventListener.useCapture());
     }
     if (!breakpoint)

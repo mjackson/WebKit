@@ -90,7 +90,7 @@ void MemoryIndexCursor::iterate(const IDBKeyData& key, const IDBKeyData& primary
 {
     LOG(IndexedDB, "MemoryIndexCursor::iterate to key %s, %u count", key.loggingString().utf8().data(), count);
 
-#ifndef NDEBUG
+#if ASSERT_ENABLED
     if (primaryKey.isValid())
         ASSERT(key.isValid());
 #endif

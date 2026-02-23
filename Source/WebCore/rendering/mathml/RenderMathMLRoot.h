@@ -46,15 +46,15 @@ public:
     virtual ~RenderMathMLRoot();
 
     void updateStyle();
-    void resetRadicalOperator() { m_radicalOperator.reset(checkedStyle()); }
+    void resetRadicalOperator() { m_radicalOperator.reset(protect(style())); }
 
 private:
     bool isValid() const;
     RenderBox& getBase() const;
     RenderBox& getIndex() const;
     ASCIILiteral renderName() const final { return "RenderMathMLRoot"_s; }
-    MathMLRootElement& element() const;
-    RootType rootType() const;
+    MathMLRootElement& NODELETE element() const;
+    RootType NODELETE rootType() const;
 
     void styleDidChange(Style::Difference, const RenderStyle* oldStyle) final;
 

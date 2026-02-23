@@ -76,7 +76,7 @@ template<typename... F> static decltype(auto) switchTogether(const Child& a, con
 
 // MARK: Predicate: percentageResolveToDimension
 
-static bool percentageResolveToDimension(const SimplificationOptions& options)
+static bool NODELETE percentageResolveToDimension(const SimplificationOptions& options)
 {
     switch (options.category) {
     case CSS::Category::Integer:
@@ -101,66 +101,66 @@ static bool percentageResolveToDimension(const SimplificationOptions& options)
 
 // MARK: Predicate: unitsMatch
 
-constexpr bool unitsMatch(const Number&, const Number&, const SimplificationOptions&)
+constexpr bool NODELETE unitsMatch(const Number&, const Number&, const SimplificationOptions&)
 {
     return true;
 }
 
-constexpr bool unitsMatch(const Percentage&, const Percentage&, const SimplificationOptions&)
+constexpr bool NODELETE unitsMatch(const Percentage&, const Percentage&, const SimplificationOptions&)
 {
     return true;
 }
 
-static bool unitsMatch(const CanonicalDimension& a, const CanonicalDimension& b, const SimplificationOptions&)
+static bool NODELETE unitsMatch(const CanonicalDimension& a, const CanonicalDimension& b, const SimplificationOptions&)
 {
     return a.dimension == b.dimension;
 }
 
-static bool unitsMatch(const NonCanonicalDimension& a, const NonCanonicalDimension& b, const SimplificationOptions&)
+static bool NODELETE unitsMatch(const NonCanonicalDimension& a, const NonCanonicalDimension& b, const SimplificationOptions&)
 {
     return a.unit == b.unit;
 }
 
 // MARK: Predicate: magnitudeComparable
 
-constexpr bool magnitudeComparable(const Number&, const SimplificationOptions&)
+constexpr bool NODELETE magnitudeComparable(const Number&, const SimplificationOptions&)
 {
     return true;
 }
 
-static bool magnitudeComparable(const Percentage&, const SimplificationOptions& options)
+static bool NODELETE magnitudeComparable(const Percentage&, const SimplificationOptions& options)
 {
     return !percentageResolveToDimension(options);
 }
 
-constexpr bool magnitudeComparable(const CanonicalDimension&, const SimplificationOptions&)
+constexpr bool NODELETE magnitudeComparable(const CanonicalDimension&, const SimplificationOptions&)
 {
     return true;
 }
 
-constexpr bool magnitudeComparable(const NonCanonicalDimension&, const SimplificationOptions&)
+constexpr bool NODELETE magnitudeComparable(const NonCanonicalDimension&, const SimplificationOptions&)
 {
     return true;
 }
 
 // MARK: Predicate: fullyResolved
 
-constexpr bool fullyResolved(const Number&, const SimplificationOptions&)
+constexpr bool NODELETE fullyResolved(const Number&, const SimplificationOptions&)
 {
     return true;
 }
 
-static bool fullyResolved(const Percentage&, const SimplificationOptions& options)
+static bool NODELETE fullyResolved(const Percentage&, const SimplificationOptions& options)
 {
     return !percentageResolveToDimension(options);
 }
 
-constexpr bool fullyResolved(const CanonicalDimension&, const SimplificationOptions&)
+constexpr bool NODELETE fullyResolved(const CanonicalDimension&, const SimplificationOptions&)
 {
     return true;
 }
 
-constexpr bool fullyResolved(const NonCanonicalDimension&, const SimplificationOptions&)
+constexpr bool NODELETE fullyResolved(const NonCanonicalDimension&, const SimplificationOptions&)
 {
     return false;
 }

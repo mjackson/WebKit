@@ -126,7 +126,7 @@
     return protect(*_nodeHandle)->isHTMLInputElementAutoFillButtonEnabled();
 }
 
-static WebCore::AutoFillButtonType toAutoFillButtonType(_WKAutoFillButtonType autoFillButtonType)
+static WebCore::AutoFillButtonType NODELETE toAutoFillButtonType(_WKAutoFillButtonType autoFillButtonType)
 {
     switch (autoFillButtonType) {
     case _WKAutoFillButtonTypeNone:
@@ -146,7 +146,7 @@ static WebCore::AutoFillButtonType toAutoFillButtonType(_WKAutoFillButtonType au
     return WebCore::AutoFillButtonType::None;
 }
 
-static _WKAutoFillButtonType toWKAutoFillButtonType(WebCore::AutoFillButtonType autoFillButtonType)
+static _WKAutoFillButtonType NODELETE toWKAutoFillButtonType(WebCore::AutoFillButtonType autoFillButtonType)
 {
     switch (autoFillButtonType) {
     case WebCore::AutoFillButtonType::None:

@@ -58,7 +58,7 @@ public:
 
     static constexpr ASCIILiteral urlScheme() { return "x-apple-content-filter"_s; }
 
-    WEBCORE_EXPORT void startFilteringMainResource(const URL&);
+    WEBCORE_EXPORT void NODELETE startFilteringMainResource(const URL&);
     void startFilteringMainResource(CachedRawResource&);
     WEBCORE_EXPORT void stopFilteringMainResource();
 
@@ -82,7 +82,7 @@ public:
     WEBCORE_EXPORT static const URL& blockedPageURL();
 
 #if HAVE(AUDIT_TOKEN)
-    WEBCORE_EXPORT void setHostProcessAuditToken(const std::optional<audit_token_t>&);
+    WEBCORE_EXPORT void NODELETE setHostProcessAuditToken(const std::optional<audit_token_t>&);
 #endif
 
 #if HAVE(WEBCONTENTRESTRICTIONS)

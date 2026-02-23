@@ -57,7 +57,7 @@ public:
             return m_labelVector;
 
         BufferSource labelBuffer = *std::exchange(label, std::nullopt);
-        if (!labelBuffer.length())
+        if (!labelBuffer.byteLength())
             return m_labelVector;
 
         m_labelVector.append(labelBuffer.span());

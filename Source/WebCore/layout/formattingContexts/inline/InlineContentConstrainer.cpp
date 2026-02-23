@@ -123,12 +123,12 @@ static bool containsPreservedTab(const InlineItem& inlineItem)
         return false;
     if (!textItem->isWhitespace())
         return false;
-    const auto& textBox = textItem->inlineTextBox();
+    CheckedRef textBox = textItem->inlineTextBox();
     if (!TextUtil::shouldPreserveSpacesAndTabs(textBox))
         return false;
     auto start = textItem->start();
     auto length = textItem->length();
-    const auto& textContent = textBox.content();
+    const auto& textContent = textBox->content();
     for (size_t index = start; index < start + length; index++) {
         if (textContent[index] == tabCharacter)
             return true;
@@ -713,7 +713,7 @@ InlineLayoutUnit InlineContentConstrainer::inlineItemWidth(size_t inlineItemInde
 bool InlineContentConstrainer::shouldTrimLeading(size_t inlineItemIndex, bool useFirstLineStyle, bool isFirstLineInChunk) const
 {
     auto& inlineItem = m_inlineItemList[inlineItemIndex];
-    auto& style = useFirstLineStyle ? inlineItem.firstLineStyle() : inlineItem.style();
+    CheckedRef style = useFirstLineStyle ? inlineItem.firstLineStyle() : inlineItem.style();
 
     // Handle line break first so we can focus on other types of white space
     if (inlineItem.isLineBreak())
@@ -721,8 +721,8 @@ bool InlineContentConstrainer::shouldTrimLeading(size_t inlineItemIndex, bool us
 
     if (auto* textItem = dynamicDowncast<InlineTextItem>(inlineItem)) {
         if (textItem->isWhitespace()) {
-            bool isFirstLineLeadingPreservedWhiteSpace = style.whiteSpaceCollapse() == WhiteSpaceCollapse::Preserve && isFirstLineInChunk;
-            return !isFirstLineLeadingPreservedWhiteSpace && style.whiteSpaceCollapse() != WhiteSpaceCollapse::BreakSpaces;
+            bool isFirstLineLeadingPreservedWhiteSpace = style->whiteSpaceCollapse() == WhiteSpaceCollapse::Preserve && isFirstLineInChunk;
+            return !isFirstLineLeadingPreservedWhiteSpace && style->whiteSpaceCollapse() != WhiteSpaceCollapse::BreakSpaces;
         }
         return false;
     }
@@ -736,7 +736,7 @@ bool InlineContentConstrainer::shouldTrimLeading(size_t inlineItemIndex, bool us
 bool InlineContentConstrainer::shouldTrimTrailing(size_t inlineItemIndex, bool useFirstLineStyle) const
 {
     auto& inlineItem = m_inlineItemList[inlineItemIndex];
-    auto& style = useFirstLineStyle ? inlineItem.firstLineStyle() : inlineItem.style();
+    CheckedRef style = useFirstLineStyle ? inlineItem.firstLineStyle() : inlineItem.style();
 
     // Handle line break first so we can focus on other types of white space
     if (inlineItem.isLineBreak())
@@ -744,7 +744,7 @@ bool InlineContentConstrainer::shouldTrimTrailing(size_t inlineItemIndex, bool u
 
     if (auto* textItem = dynamicDowncast<InlineTextItem>(inlineItem)) {
         if (textItem->isWhitespace())
-            return style.whiteSpaceCollapse() != WhiteSpaceCollapse::BreakSpaces;
+            return style->whiteSpaceCollapse() != WhiteSpaceCollapse::BreakSpaces;
         return false;
     }
 

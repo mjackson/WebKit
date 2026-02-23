@@ -148,9 +148,9 @@ void RenderLayerModelObject::styleDidChange(Style::Difference diff, const Render
     // Position changes and other types of display changes are handled elsewhere.
     if ((oldStyle && isOutOfFlowPositioned() && parent() && (parent() != containingBlock()))
         && (style().position() == oldStyle->position())
-        && (style().isOriginalDisplayInlineType() != oldStyle->isOriginalDisplayInlineType())
-        && ((style().isOriginalDisplayBlockType()) || (style().isOriginalDisplayInlineType()))
-        && ((oldStyle->isOriginalDisplayBlockType()) || (oldStyle->isOriginalDisplayInlineType())))
+        && (style().originalDisplay().isInlineType() != oldStyle->originalDisplay().isInlineType())
+        && (style().originalDisplay().isBlockType() || style().originalDisplay().isInlineType())
+        && (oldStyle->originalDisplay().isBlockType() || oldStyle->originalDisplay().isInlineType()))
             parent()->setChildNeedsLayout();
 
     bool gainedOrLostLayer = false;
@@ -165,7 +165,7 @@ void RenderLayerModelObject::styleDidChange(Style::Difference diff, const Render
         }
     } else if (layer() && layer()->parent()) {
         gainedOrLostLayer = true;
-        if (oldStyle && oldStyle->hasBlendMode())
+        if (oldStyle && oldStyle->blendMode() != BlendMode::Normal)
             layer()->willRemoveChildWithBlendMode();
         setHasTransformRelatedProperty(false); // All transform-related properties force layers, so we know we don't have one or the object doesn't support them.
         setHasSVGTransform(false); // Same reason as for setHasTransformRelatedProperty().
@@ -307,7 +307,7 @@ bool RenderLayerModelObject::shouldPaintSVGRenderer(const PaintInfo& paintInfo, 
     if (!paintInfo.shouldPaintWithinRoot(*this))
         return false;
 
-    if (style().usedVisibility() == Visibility::Hidden || style().display() == DisplayType::None)
+    if (style().usedVisibility() == Visibility::Hidden || style().display() == Style::DisplayType::None)
         return false;
 
     return true;
@@ -398,7 +398,11 @@ void RenderLayerModelObject::applySVGTransform(TransformationMatrix& transform, 
 
     // This check does not use style.hasTransformRelatedProperty() on purpose -- we only want to know if either the 'transform' property, an
     // offset path, or the individual transform operations are set (perspective / transform-style: preserve-3d are not relevant here).
-    bool hasCSSTransform = style.hasTransform() || style.hasRotate() || style.hasTranslate() || style.hasScale();
+    bool hasCSSTransform = !style.transform().isNone()
+        || !style.offsetPath().isNone()
+        || !style.rotate().isNone()
+        || !style.translate().isNone()
+        || !style.scale().isNone();
     bool hasSVGTransform = !svgTransform.isIdentity() || preApplySVGTransformMatrix || postApplySVGTransformMatrix || supplementalTransform;
 
     // Common case: 'viewBox' set on outermost <svg> element -> 'preApplySVGTransformMatrix'
@@ -663,11 +667,6 @@ bool RenderLayerModelObject::pointInSVGClippingArea(const FloatPoint& point) con
             return true;
         }
     );
-}
-
-CheckedPtr<RenderLayer> RenderLayerModelObject::checkedLayer() const
-{
-    return m_layer.get();
 }
 
 void RenderLayerModelObject::repaintOrRelayoutAfterSVGTransformChange()

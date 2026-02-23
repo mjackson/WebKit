@@ -1065,7 +1065,7 @@ Structure* Structure::flattenDictionaryStructure(VM& vm, JSObject* object)
     WTF::storeStoreFence();
     object->setStructureIDDirectly(id());
 
-    // We need to do a writebarrier here because the GC thread might be scanning the butterfly while
+    // We need to do a writebarrier here because a GC thread might be scanning the butterfly while
     // we are shuffling properties around. See: https://bugs.webkit.org/show_bug.cgi?id=166989
     vm.writeBarrier(object);
 

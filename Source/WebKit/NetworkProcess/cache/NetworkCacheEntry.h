@@ -66,14 +66,14 @@ public:
 #endif
 
     bool needsValidation() const;
-    void setNeedsValidation(bool);
+    void NODELETE setNeedsValidation(bool);
 
     const Storage::Record& sourceStorageRecord() const { return m_sourceStorageRecord; }
 
     void asJSON(StringBuilder&, const Storage::RecordInfo&) const;
 
     bool hasReachedPrevalentResourceAgeCap() const;
-    void capMaxAge(const Seconds);
+    void NODELETE capMaxAge(const Seconds);
 
 private:
     void initializeBufferFromStorageRecord() const;

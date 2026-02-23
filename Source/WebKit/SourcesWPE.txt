@@ -329,6 +329,7 @@ WebProcess/WebCoreSupport/wpe/WebEditorClientWPE.cpp
 WebProcess/WebPage/CoordinatedGraphics/AcceleratedSurface.cpp
 WebProcess/WebPage/CoordinatedGraphics/CoordinatedSceneState.cpp
 WebProcess/WebPage/CoordinatedGraphics/DrawingAreaCoordinatedGraphicsGLib.cpp
+WebProcess/WebPage/CoordinatedGraphics/FrameRenderer.cpp
 WebProcess/WebPage/CoordinatedGraphics/LayerTreeHost.cpp
 WebProcess/WebPage/CoordinatedGraphics/NonCompositedFrameRenderer.cpp
 WebProcess/WebPage/CoordinatedGraphics/ScrollbarsControllerCoordinated.cpp

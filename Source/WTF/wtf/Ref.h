@@ -74,6 +74,11 @@ concept CanUseDefaultRefDerefTraits = HasRefPtrMemberFunctions<T>::value || !Def
 template<typename T, typename PtrTraits, typename RefDerefTraits> class Ref;
 template<typename T, typename PtrTraits = RawPtrTraits<T>, typename RefDerefTraits = DefaultRefDerefTraits<T>> Ref<T, PtrTraits, RefDerefTraits> adoptRef(T&);
 
+/**
+ * @brief Ref is the non-nullable variant of RefPtr.
+ *
+ * See RefPtr for full documentation on intrusive reference counting.
+ */
 template<typename T, typename _PtrTraits, typename RefDerefTraits>
 class Ref {
     WTF_FORBID_HEAP_ALLOCATION_ALLOWING_PLACEMENT_NEW;

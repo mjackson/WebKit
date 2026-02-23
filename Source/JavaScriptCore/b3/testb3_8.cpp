@@ -2660,6 +2660,510 @@ void testCCmpMixedWidth64And32(int64_t a, int32_t b)
     CHECK_EQ(compileAndRun<int32_t>(proc, a, b), expected);
 }
 
+void testConstDoubleZero()
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    root->appendNewControlValue(proc, Return, Origin(),
+        root->appendNew<ConstDoubleValue>(proc, Origin(), 0.0));
+    CHECK_EQ(compileAndRun<double>(proc), 0.0);
+}
+
+void testConstDoubleNegativeZero()
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    root->appendNewControlValue(proc, Return, Origin(),
+        root->appendNew<ConstDoubleValue>(proc, Origin(), -0.0));
+    double result = compileAndRun<double>(proc);
+    CHECK_EQ(std::bit_cast<uint64_t>(result), 0x8000000000000000ULL);
+}
+
+void testConstFloatZero()
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    root->appendNewControlValue(proc, Return, Origin(),
+        root->appendNew<ConstFloatValue>(proc, Origin(), 0.0f));
+    CHECK_EQ(compileAndRun<float>(proc), 0.0f);
+}
+
+void testConstFloatNegativeZero()
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    root->appendNewControlValue(proc, Return, Origin(),
+        root->appendNew<ConstFloatValue>(proc, Origin(), -0.0f));
+    float result = compileAndRun<float>(proc);
+    CHECK_EQ(std::bit_cast<uint32_t>(result), 0x80000000U);
+}
+
+void testConstDoubleAddZero()
+{
+    auto test = [&] (double input, double expected) {
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<double>(proc, root);
+        Value* zero = root->appendNew<ConstDoubleValue>(proc, Origin(), 0.0);
+        Value* result = root->appendNew<Value>(proc, Add, Origin(), arguments[0], zero);
+        root->appendNewControlValue(proc, Return, Origin(), result);
+        CHECK_EQ(compileAndRun<double>(proc, input), expected);
+    };
+
+    test(2.5, 2.5);
+    test(-3.14, -3.14);
+    test(0.0, 0.0);
+}
+
+void testConstFloatAddZero()
+{
+    auto test = [&] (float input, float expected) {
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<float>(proc, root);
+        Value* zero = root->appendNew<ConstFloatValue>(proc, Origin(), 0.0f);
+        Value* result = root->appendNew<Value>(proc, Add, Origin(), arguments[0], zero);
+        root->appendNewControlValue(proc, Return, Origin(), result);
+        CHECK_EQ(compileAndRun<float>(proc, input), expected);
+    };
+
+    test(2.5f, 2.5f);
+    test(-3.14f, -3.14f);
+    test(0.0f, 0.0f);
+}
+
+void testConstDoubleCompareZero()
+{
+    auto test = [&] (double input, int32_t expected) {
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<double>(proc, root);
+        Value* zero = root->appendNew<ConstDoubleValue>(proc, Origin(), 0.0);
+        Value* result = root->appendNew<Value>(proc, Equal, Origin(), arguments[0], zero);
+        root->appendNewControlValue(proc, Return, Origin(), result);
+        CHECK_EQ(compileAndRun<int32_t>(proc, input), expected);
+    };
+
+    test(0.0, 1);
+    test(-0.0, 1); // -0.0 == 0.0
+    test(1.0, 0);
+    test(-1.0, 0);
+}
+
+void testConstFloatCompareZero()
+{
+    auto test = [&] (float input, int32_t expected) {
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<float>(proc, root);
+        Value* zero = root->appendNew<ConstFloatValue>(proc, Origin(), 0.0f);
+        Value* result = root->appendNew<Value>(proc, Equal, Origin(), arguments[0], zero);
+        root->appendNewControlValue(proc, Return, Origin(), result);
+        CHECK_EQ(compileAndRun<int32_t>(proc, input), expected);
+    };
+
+    test(0.0f, 1);
+    test(-0.0f, 1); // -0.0f == 0.0f
+    test(1.0f, 0);
+    test(-1.0f, 0);
+}
+
+void testConstDoubleSelectZero()
+{
+    auto test = [&] (int32_t selector, double input, double expected) {
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<int32_t, double>(proc, root);
+        Value* zero = root->appendNew<ConstDoubleValue>(proc, Origin(), 0.0);
+        Value* result = root->appendNew<Value>(proc, Select, Origin(), arguments[0], arguments[1], zero);
+        root->appendNewControlValue(proc, Return, Origin(), result);
+        CHECK_EQ(compileAndRun<double>(proc, selector, input), expected);
+    };
+
+    test(1, 2.5, 2.5);
+    test(0, 2.5, 0.0);
+}
+
+void testConstFloatSelectZero()
+{
+    auto test = [&] (int32_t selector, float input, float expected) {
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<int32_t, float>(proc, root);
+        Value* zero = root->appendNew<ConstFloatValue>(proc, Origin(), 0.0f);
+        Value* result = root->appendNew<Value>(proc, Select, Origin(), arguments[0], arguments[1], zero);
+        root->appendNewControlValue(proc, Return, Origin(), result);
+        CHECK_EQ(compileAndRun<float>(proc, selector, input), expected);
+    };
+
+    test(1, 2.5f, 2.5f);
+    test(0, 2.5f, 0.0f);
+}
+
+void testConstDoubleMultipleZeroUses()
+{
+    // Test that multiple uses of zero constant work correctly
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<double, double>(proc, root);
+    Value* zero = root->appendNew<ConstDoubleValue>(proc, Origin(), 0.0);
+
+    // Use zero multiple times: (a + 0) + (b + 0)
+    Value* aPlusZero = root->appendNew<Value>(proc, Add, Origin(), arguments[0], zero);
+    Value* bPlusZero = root->appendNew<Value>(proc, Add, Origin(), arguments[1], zero);
+    Value* result = root->appendNew<Value>(proc, Add, Origin(), aPlusZero, bPlusZero);
+
+    root->appendNewControlValue(proc, Return, Origin(), result);
+
+    CHECK_EQ(compileAndRun<double>(proc, 2.5, 3.5), 6.0);
+}
+
+void testConstFloatMultipleZeroUses()
+{
+    // Test that multiple uses of zero constant work correctly
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<float, float>(proc, root);
+    Value* zero = root->appendNew<ConstFloatValue>(proc, Origin(), 0.0f);
+
+    // Use zero multiple times: (a + 0) + (b + 0)
+    Value* aPlusZero = root->appendNew<Value>(proc, Add, Origin(), arguments[0], zero);
+    Value* bPlusZero = root->appendNew<Value>(proc, Add, Origin(), arguments[1], zero);
+    Value* result = root->appendNew<Value>(proc, Add, Origin(), aPlusZero, bPlusZero);
+
+    root->appendNewControlValue(proc, Return, Origin(), result);
+
+    CHECK_EQ(compileAndRun<float>(proc, 2.5f, 3.5f), 6.0f);
+}
+
+void testFCCmpAndDouble(double a, double b, double c, double d)
+{
+    // Test: (a == b) && (c == d)
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    BasicBlock* thenCase = proc.addBlock();
+    BasicBlock* elseCase = proc.addBlock();
+    auto arguments = cCallArgumentValues<double, double, double, double>(proc, root);
+
+    Value* cmp1 = root->appendNew<Value>(proc, Equal, Origin(), arguments[0], arguments[1]);
+    Value* cmp2 = root->appendNew<Value>(proc, Equal, Origin(), arguments[2], arguments[3]);
+    Value* condition = root->appendNew<Value>(proc, BitAnd, Origin(), cmp1, cmp2);
+
+    root->appendNewControlValue(
+        proc, Branch, Origin(), condition,
+        FrequentedBlock(thenCase), FrequentedBlock(elseCase));
+
+    thenCase->appendNewControlValue(
+        proc, Return, Origin(),
+        thenCase->appendNew<Const32Value>(proc, Origin(), 1));
+
+    elseCase->appendNewControlValue(
+        proc, Return, Origin(),
+        elseCase->appendNew<Const32Value>(proc, Origin(), 0));
+
+    int32_t expected = (a == b && c == d) ? 1 : 0;
+    CHECK_EQ(compileAndRun<int32_t>(proc, a, b, c, d), expected);
+}
+
+void testFCCmpOrDouble(double a, double b, double c, double d)
+{
+    // Test: (a == b) || (c == d)
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    BasicBlock* thenCase = proc.addBlock();
+    BasicBlock* elseCase = proc.addBlock();
+    auto arguments = cCallArgumentValues<double, double, double, double>(proc, root);
+
+    Value* cmp1 = root->appendNew<Value>(proc, Equal, Origin(), arguments[0], arguments[1]);
+    Value* cmp2 = root->appendNew<Value>(proc, Equal, Origin(), arguments[2], arguments[3]);
+    Value* condition = root->appendNew<Value>(proc, BitOr, Origin(), cmp1, cmp2);
+
+    root->appendNewControlValue(
+        proc, Branch, Origin(), condition,
+        FrequentedBlock(thenCase), FrequentedBlock(elseCase));
+
+    thenCase->appendNewControlValue(
+        proc, Return, Origin(),
+        thenCase->appendNew<Const32Value>(proc, Origin(), 1));
+
+    elseCase->appendNewControlValue(
+        proc, Return, Origin(),
+        elseCase->appendNew<Const32Value>(proc, Origin(), 0));
+
+    int32_t expected = (a == b || c == d) ? 1 : 0;
+    CHECK_EQ(compileAndRun<int32_t>(proc, a, b, c, d), expected);
+}
+
+void testFCCmpAndFloat(float a, float b, float c, float d)
+{
+    // Test: (a == b) && (c == d)
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    BasicBlock* thenCase = proc.addBlock();
+    BasicBlock* elseCase = proc.addBlock();
+    auto arguments = cCallArgumentValues<float, float, float, float>(proc, root);
+
+    Value* cmp1 = root->appendNew<Value>(proc, Equal, Origin(), arguments[0], arguments[1]);
+    Value* cmp2 = root->appendNew<Value>(proc, Equal, Origin(), arguments[2], arguments[3]);
+    Value* condition = root->appendNew<Value>(proc, BitAnd, Origin(), cmp1, cmp2);
+
+    root->appendNewControlValue(
+        proc, Branch, Origin(), condition,
+        FrequentedBlock(thenCase), FrequentedBlock(elseCase));
+
+    thenCase->appendNewControlValue(
+        proc, Return, Origin(),
+        thenCase->appendNew<Const32Value>(proc, Origin(), 1));
+
+    elseCase->appendNewControlValue(
+        proc, Return, Origin(),
+        elseCase->appendNew<Const32Value>(proc, Origin(), 0));
+
+    int32_t expected = (a == b && c == d) ? 1 : 0;
+    CHECK_EQ(compileAndRun<int32_t>(proc, a, b, c, d), expected);
+}
+
+void testFCCmpOrFloat(float a, float b, float c, float d)
+{
+    // Test: (a == b) || (c == d)
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    BasicBlock* thenCase = proc.addBlock();
+    BasicBlock* elseCase = proc.addBlock();
+    auto arguments = cCallArgumentValues<float, float, float, float>(proc, root);
+
+    Value* cmp1 = root->appendNew<Value>(proc, Equal, Origin(), arguments[0], arguments[1]);
+    Value* cmp2 = root->appendNew<Value>(proc, Equal, Origin(), arguments[2], arguments[3]);
+    Value* condition = root->appendNew<Value>(proc, BitOr, Origin(), cmp1, cmp2);
+
+    root->appendNewControlValue(
+        proc, Branch, Origin(), condition,
+        FrequentedBlock(thenCase), FrequentedBlock(elseCase));
+
+    thenCase->appendNewControlValue(
+        proc, Return, Origin(),
+        thenCase->appendNew<Const32Value>(proc, Origin(), 1));
+
+    elseCase->appendNewControlValue(
+        proc, Return, Origin(),
+        elseCase->appendNew<Const32Value>(proc, Origin(), 0));
+
+    int32_t expected = (a == b || c == d) ? 1 : 0;
+    CHECK_EQ(compileAndRun<int32_t>(proc, a, b, c, d), expected);
+}
+
+void testFCCmpAndAndDouble(double a, double b, double c, double d, double e, double f)
+{
+    // Test: ((a == b) && (c == d)) && (e == f)
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    BasicBlock* thenCase = proc.addBlock();
+    BasicBlock* elseCase = proc.addBlock();
+    auto arguments = cCallArgumentValues<double, double, double, double, double, double>(proc, root);
+
+    Value* cmp1 = root->appendNew<Value>(proc, Equal, Origin(), arguments[0], arguments[1]);
+    Value* cmp2 = root->appendNew<Value>(proc, Equal, Origin(), arguments[2], arguments[3]);
+    Value* and1 = root->appendNew<Value>(proc, BitAnd, Origin(), cmp1, cmp2);
+    Value* cmp3 = root->appendNew<Value>(proc, Equal, Origin(), arguments[4], arguments[5]);
+    Value* condition = root->appendNew<Value>(proc, BitAnd, Origin(), and1, cmp3);
+
+    root->appendNewControlValue(
+        proc, Branch, Origin(), condition,
+        FrequentedBlock(thenCase), FrequentedBlock(elseCase));
+
+    thenCase->appendNewControlValue(
+        proc, Return, Origin(),
+        thenCase->appendNew<Const32Value>(proc, Origin(), 1));
+
+    elseCase->appendNewControlValue(
+        proc, Return, Origin(),
+        elseCase->appendNew<Const32Value>(proc, Origin(), 0));
+
+    int32_t expected = (a == b && c == d && e == f) ? 1 : 0;
+    CHECK_EQ(compileAndRun<int32_t>(proc, a, b, c, d, e, f), expected);
+}
+
+void testFCCmpMixedIntDouble(int32_t a, int32_t b, double c, double d)
+{
+    // Test: (a == b) && (c < d) — int compare AND float compare
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    BasicBlock* thenCase = proc.addBlock();
+    BasicBlock* elseCase = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t, int32_t, double, double>(proc, root);
+
+    Value* cmp1 = root->appendNew<Value>(proc, Equal, Origin(), arguments[0], arguments[1]);
+    Value* cmp2 = root->appendNew<Value>(proc, LessThan, Origin(), arguments[2], arguments[3]);
+    Value* condition = root->appendNew<Value>(proc, BitAnd, Origin(), cmp1, cmp2);
+
+    root->appendNewControlValue(
+        proc, Branch, Origin(), condition,
+        FrequentedBlock(thenCase), FrequentedBlock(elseCase));
+
+    thenCase->appendNewControlValue(
+        proc, Return, Origin(),
+        thenCase->appendNew<Const32Value>(proc, Origin(), 1));
+
+    elseCase->appendNewControlValue(
+        proc, Return, Origin(),
+        elseCase->appendNew<Const32Value>(proc, Origin(), 0));
+
+    int32_t expected = (a == b && c < d) ? 1 : 0;
+    CHECK_EQ(compileAndRun<int32_t>(proc, a, b, c, d), expected);
+}
+
+void testFCCmpMixedDoubleInt(double a, double b, int32_t c, int32_t d)
+{
+    // Test: (a < b) && (c == d) — float compare AND int compare
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    BasicBlock* thenCase = proc.addBlock();
+    BasicBlock* elseCase = proc.addBlock();
+    auto arguments = cCallArgumentValues<double, double, int32_t, int32_t>(proc, root);
+
+    Value* cmp1 = root->appendNew<Value>(proc, LessThan, Origin(), arguments[0], arguments[1]);
+    Value* cmp2 = root->appendNew<Value>(proc, Equal, Origin(), arguments[2], arguments[3]);
+    Value* condition = root->appendNew<Value>(proc, BitAnd, Origin(), cmp1, cmp2);
+
+    root->appendNewControlValue(
+        proc, Branch, Origin(), condition,
+        FrequentedBlock(thenCase), FrequentedBlock(elseCase));
+
+    thenCase->appendNewControlValue(
+        proc, Return, Origin(),
+        thenCase->appendNew<Const32Value>(proc, Origin(), 1));
+
+    elseCase->appendNewControlValue(
+        proc, Return, Origin(),
+        elseCase->appendNew<Const32Value>(proc, Origin(), 0));
+
+    int32_t expected = (a < b && c == d) ? 1 : 0;
+    CHECK_EQ(compileAndRun<int32_t>(proc, a, b, c, d), expected);
+}
+
+void testFCCmpLessThanAndDouble(double a, double b, double c, double d)
+{
+    // Test: (a < b) && (c < d)
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    BasicBlock* thenCase = proc.addBlock();
+    BasicBlock* elseCase = proc.addBlock();
+    auto arguments = cCallArgumentValues<double, double, double, double>(proc, root);
+
+    Value* cmp1 = root->appendNew<Value>(proc, LessThan, Origin(), arguments[0], arguments[1]);
+    Value* cmp2 = root->appendNew<Value>(proc, LessThan, Origin(), arguments[2], arguments[3]);
+    Value* condition = root->appendNew<Value>(proc, BitAnd, Origin(), cmp1, cmp2);
+
+    root->appendNewControlValue(
+        proc, Branch, Origin(), condition,
+        FrequentedBlock(thenCase), FrequentedBlock(elseCase));
+
+    thenCase->appendNewControlValue(
+        proc, Return, Origin(),
+        thenCase->appendNew<Const32Value>(proc, Origin(), 1));
+
+    elseCase->appendNewControlValue(
+        proc, Return, Origin(),
+        elseCase->appendNew<Const32Value>(proc, Origin(), 0));
+
+    int32_t expected = (a < b && c < d) ? 1 : 0;
+    CHECK_EQ(compileAndRun<int32_t>(proc, a, b, c, d), expected);
+}
+
+void testFCCmpGreaterEqualOrDouble(double a, double b, double c, double d)
+{
+    // Test: (a >= b) || (c >= d)
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    BasicBlock* thenCase = proc.addBlock();
+    BasicBlock* elseCase = proc.addBlock();
+    auto arguments = cCallArgumentValues<double, double, double, double>(proc, root);
+
+    Value* cmp1 = root->appendNew<Value>(proc, GreaterEqual, Origin(), arguments[0], arguments[1]);
+    Value* cmp2 = root->appendNew<Value>(proc, GreaterEqual, Origin(), arguments[2], arguments[3]);
+    Value* condition = root->appendNew<Value>(proc, BitOr, Origin(), cmp1, cmp2);
+
+    root->appendNewControlValue(
+        proc, Branch, Origin(), condition,
+        FrequentedBlock(thenCase), FrequentedBlock(elseCase));
+
+    thenCase->appendNewControlValue(
+        proc, Return, Origin(),
+        thenCase->appendNew<Const32Value>(proc, Origin(), 1));
+
+    elseCase->appendNewControlValue(
+        proc, Return, Origin(),
+        elseCase->appendNew<Const32Value>(proc, Origin(), 0));
+
+    int32_t expected = (a >= b || c >= d) ? 1 : 0;
+    CHECK_EQ(compileAndRun<int32_t>(proc, a, b, c, d), expected);
+}
+
+void testFCCmpNaN(double a, double b, double c, double d)
+{
+    // Test: (a == b) && (c == d) with NaN inputs
+    // NaN comparisons should always be false
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    BasicBlock* thenCase = proc.addBlock();
+    BasicBlock* elseCase = proc.addBlock();
+    auto arguments = cCallArgumentValues<double, double, double, double>(proc, root);
+
+    Value* cmp1 = root->appendNew<Value>(proc, Equal, Origin(), arguments[0], arguments[1]);
+    Value* cmp2 = root->appendNew<Value>(proc, Equal, Origin(), arguments[2], arguments[3]);
+    Value* condition = root->appendNew<Value>(proc, BitAnd, Origin(), cmp1, cmp2);
+
+    root->appendNewControlValue(
+        proc, Branch, Origin(), condition,
+        FrequentedBlock(thenCase), FrequentedBlock(elseCase));
+
+    thenCase->appendNewControlValue(
+        proc, Return, Origin(),
+        thenCase->appendNew<Const32Value>(proc, Origin(), 1));
+
+    elseCase->appendNewControlValue(
+        proc, Return, Origin(),
+        elseCase->appendNew<Const32Value>(proc, Origin(), 0));
+
+    int32_t expected = (a == b && c == d) ? 1 : 0;
+    CHECK_EQ(compileAndRun<int32_t>(proc, a, b, c, d), expected);
+}
+
+void testFCCmpNegatedAndDouble(double a, double b, double c, double d)
+{
+    // Test: !(a < b && c < d)
+    // This becomes: (a < b && c < d) == 0
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    BasicBlock* thenCase = proc.addBlock();
+    BasicBlock* elseCase = proc.addBlock();
+    auto arguments = cCallArgumentValues<double, double, double, double>(proc, root);
+
+    Value* cmp1 = root->appendNew<Value>(proc, LessThan, Origin(), arguments[0], arguments[1]);
+    Value* cmp2 = root->appendNew<Value>(proc, LessThan, Origin(), arguments[2], arguments[3]);
+    Value* andResult = root->appendNew<Value>(proc, BitAnd, Origin(), cmp1, cmp2);
+
+    Value* negated = root->appendNew<Value>(
+        proc, Equal, Origin(),
+        andResult,
+        root->appendNew<Const32Value>(proc, Origin(), 0));
+
+    root->appendNewControlValue(
+        proc, Branch, Origin(), negated,
+        FrequentedBlock(thenCase), FrequentedBlock(elseCase));
+
+    thenCase->appendNewControlValue(
+        proc, Return, Origin(),
+        thenCase->appendNew<Const32Value>(proc, Origin(), 1));
+
+    elseCase->appendNewControlValue(
+        proc, Return, Origin(),
+        elseCase->appendNew<Const32Value>(proc, Origin(), 0));
+
+    int32_t expected = !(a < b && c < d) ? 1 : 0;
+    CHECK_EQ(compileAndRun<int32_t>(proc, a, b, c, d), expected);
+}
+
 #endif // ENABLE(B3_JIT)
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END

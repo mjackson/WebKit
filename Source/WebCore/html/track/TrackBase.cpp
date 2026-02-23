@@ -128,7 +128,7 @@ WebCoreOpaqueRoot TrackBase::opaqueRoot()
 }
 
 // See: https://tools.ietf.org/html/bcp47#section-2.1
-static bool isValidBCP47LanguageTag(const String& languageTag)
+static bool NODELETE isValidBCP47LanguageTag(const String& languageTag)
 {
     auto const length = languageTag.length();
 

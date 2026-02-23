@@ -40,7 +40,7 @@ public:
 
     WTF_ABSTRACT_THREAD_SAFE_REF_COUNTED_AND_CAN_MAKE_WEAK_PTR_IMPL;
 
-    WEBCORE_EXPORT void attachSession(Ref<WebTransportSession>&&);
+    WEBCORE_EXPORT void NODELETE attachSession(Ref<WebTransportSession>&&);
 
 private:
     WorkerWebTransportSession(ScriptExecutionContextIdentifier, WebTransportSessionClient&);

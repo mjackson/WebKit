@@ -88,8 +88,8 @@ public:
     void destroyBidirectionalStream(WebCore::WebTransportStreamIdentifier);
     void streamSendBytes(WebCore::WebTransportStreamIdentifier, std::span<const uint8_t>, bool withFin, CompletionHandler<void(std::optional<WebCore::Exception>&&)>&&);
     void terminate(WebCore::WebTransportSessionErrorCode, CString&&);
-    void datagramIncomingMaxAgeUpdated(std::optional<double>);
-    void datagramOutgoingMaxAgeUpdated(std::optional<double>);
+    void NODELETE datagramIncomingMaxAgeUpdated(std::optional<double>);
+    void NODELETE datagramOutgoingMaxAgeUpdated(std::optional<double>);
     void datagramIncomingHighWaterMarkUpdated(double);
     void datagramOutgoingHighWaterMarkUpdated(double);
 
@@ -105,7 +105,7 @@ public:
     void destroyStream(WebCore::WebTransportStreamIdentifier, std::optional<WebCore::WebTransportStreamErrorCode>);
 
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&) final;
-    std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const;
+    std::optional<SharedPreferencesForWebProcess> NODELETE sharedPreferencesForWebProcess() const;
     bool isSessionClosed() const;
 private:
 #if PLATFORM(COCOA)

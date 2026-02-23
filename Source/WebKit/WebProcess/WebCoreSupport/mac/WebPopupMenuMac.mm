@@ -39,9 +39,9 @@ void WebPopupMenu::setUpPlatformData(const IntRect&, PlatformPopupMenuData& data
 {
 #if USE(APPKIT)
     RefPtr popupClient = m_popupClient;
-    std::optional<InstalledFont> font = popupClient->menuStyle().checkedFont()->primaryFont()->toSerializableInstalledFont();
+    std::optional<InstalledFont> font = protect(popupClient->menuStyle().font())->primaryFont()->toSerializableInstalledFont();
     if (!font) {
-        double pointSize = popupClient->menuStyle().checkedFont()->primaryFont()->platformData().size();
+        double pointSize = protect(popupClient->menuStyle().font())->primaryFont()->platformData().size();
         font = Font::create(FontPlatformData(bridge_cast([NSFont menuFontOfSize:pointSize]), pointSize))->toSerializableInstalledFont();
     }
     ASSERT(font);

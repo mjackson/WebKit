@@ -68,6 +68,7 @@
 #import <WebCore/ActivityState.h>
 #import <WebCore/Color.h>
 #import <WebCore/DataOwnerType.h>
+#import <WebCore/DigitalCredentialsRequestData.h>
 #import <WebCore/FloatQuad.h>
 #import <WebCore/MediaControlsContextMenuItem.h>
 #import <WebCore/PointerID.h>
@@ -102,7 +103,7 @@ class IntSize;
 class SelectionRect;
 struct ContactInfo;
 struct ContactsRequestData;
-struct DigitalCredentialsRequestData;
+
 struct DigitalCredentialsResponseData;
 struct MediaPlayerClientIdentifierType;
 struct PromisedAttachmentInfo;

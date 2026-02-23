@@ -140,8 +140,8 @@ private:
         m_predicate->visitJSFunction(visitor);
     }
 
-    Ref<Subscriber> protectedSubscriber() const { return m_subscriber; }
-    Ref<PredicateCallback> protectedPredicate() const { return m_predicate; }
+    Ref<Subscriber> NODELETE protectedSubscriber() const { return m_subscriber; }
+    Ref<PredicateCallback> NODELETE protectedPredicate() const { return m_predicate; }
 
     InternalObserverFilter(ScriptExecutionContext& context, Ref<Subscriber> subscriber, Ref<PredicateCallback> predicate)
         : InternalObserver(context)

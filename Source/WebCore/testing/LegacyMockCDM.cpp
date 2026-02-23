@@ -103,25 +103,25 @@ void LegacyMockCDM::deref() const
 static Uint8Array* initDataPrefix()
 {
     static constexpr std::array<uint8_t, 4> prefixData { 'm', 'o', 'c', 'k' };
-    static NeverDestroyed<Ref<Uint8Array>> prefix { Uint8Array::create(prefixData) };
+    static Uint8Array& prefix { Uint8Array::create(prefixData).leakRef() };
 
-    return prefix->ptr();
+    return &prefix;
 }
 
 static Uint8Array* keyPrefix()
 {
     static constexpr std::array<uint8_t, 3> prefixData { 'k', 'e', 'y' };
-    static NeverDestroyed<Ref<Uint8Array>> prefix { Uint8Array::create(prefixData) };
+    static Uint8Array& prefix { Uint8Array::create(prefixData).leakRef() };
 
-    return prefix->ptr();
+    return &prefix;
 }
 
 static Uint8Array* keyRequest()
 {
     static constexpr std::array<uint8_t, 7> requestData { 'r', 'e', 'q', 'u', 'e', 's', 't' };
-    static NeverDestroyed<Ref<Uint8Array>> request { Uint8Array::create(requestData) };
+    static Uint8Array& request { Uint8Array::create(requestData).leakRef() };
 
-    return request->ptr();
+    return &request;
 }
 
 static String generateSessionId()

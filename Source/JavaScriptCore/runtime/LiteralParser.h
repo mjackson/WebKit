@@ -282,6 +282,7 @@ private:
         ALWAYS_INLINE TokenType lexString(LiteralParserToken<CharType>&, CharType terminator);
         TokenType lexStringSlow(LiteralParserToken<CharType>&, const CharType* runStart, CharType terminator);
         ALWAYS_INLINE TokenType lexNumber(LiteralParserToken<CharType>&);
+        TokenType lexNumberError(LiteralParserToken<CharType>&);
 
         String m_lexErrorMessage;
         LiteralParserToken<CharType> m_currentToken;

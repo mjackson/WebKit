@@ -89,6 +89,13 @@ struct SVGResourcesMap {
     MemoryCompactRobinHoodHashMap<AtomString, SingleThreadWeakPtr<LegacyRenderSVGResourceContainer>> legacyResources;
 };
 
+struct NodesInCommonTreeScope {
+    SUPPRESS_UNCOUNTED_MEMBER TreeScope* treeScope { nullptr };
+    SUPPRESS_UNCOUNTED_MEMBER Node* nodeA { nullptr };
+    SUPPRESS_UNCOUNTED_MEMBER Node* nodeB { nullptr };
+};
+static NodesInCommonTreeScope NODELETE findNodesInCommonTreeScope(Node*, Node*);
+
 TreeScope::TreeScope(ShadowRoot& shadowRoot, Document& document, RefPtr<CustomElementRegistry>&& registry)
     : m_rootNode(shadowRoot)
     , m_documentScope(document)
@@ -243,33 +250,9 @@ void TreeScope::removeElementByName(const AtomString& name, Element& element)
 
 Ref<Node> TreeScope::retargetToScope(Node& node) const
 {
-    Ref scope = node.treeScope();
-    if (this == scope.ptr() || !node.isInShadowTree()) [[likely]]
-        return node;
-    ASSERT(is<ShadowRoot>(scope->rootNode()));
-
-    Vector<TreeScope*, 8> nodeTreeScopes;
-    for (auto* currentScope = scope.ptr(); currentScope; currentScope = currentScope->parentTreeScope())
-        nodeTreeScopes.append(currentScope);
-    ASSERT(nodeTreeScopes.size() >= 2);
-
-    Vector<const TreeScope*, 8> ancestorScopes;
-    for (auto* currentScope = this; currentScope; currentScope = currentScope->parentTreeScope())
-        ancestorScopes.append(currentScope);
-
-    auto i = nodeTreeScopes.size();
-    auto j = ancestorScopes.size();
-    while (i > 0 && j > 0 && nodeTreeScopes[i - 1] == ancestorScopes[j - 1]) {
-        --i;
-        --j;
-    }
-
-    bool nodeIsInOuterTreeScope = !i;
-    if (nodeIsInOuterTreeScope)
-        return node;
-
-    auto& shadowRootInLowestCommonTreeScope = downcast<ShadowRoot>(nodeTreeScopes[i - 1]->rootNode());
-    return *shadowRootInLowestCommonTreeScope.host();
+    ASSERT(findNodesInCommonTreeScope(&rootNode(), &node).nodeB == findNodesInCommonTreeScope(&node, &rootNode()).nodeA);
+    auto* nodeInCommonAncestorTreeScope = findNodesInCommonTreeScope(&rootNode(), &node).nodeB;
+    return nodeInCommonAncestorTreeScope ? *nodeInCommonAncestorTreeScope : node;
 }
 
 Node* TreeScope::ancestorNodeInThisScope(SUPPRESS_UNCHECKED_ARG Node* node) const
@@ -482,7 +465,7 @@ Vector<Ref<Element>> TreeScope::elementsFromPoint(double clientX, double clientY
         if (!node)
             continue;
 
-        if (auto pseudoElement = dynamicDowncast<PseudoElement>(*node))
+        if (RefPtr pseudoElement = dynamicDowncast<PseudoElement>(*node))
             node = pseudoElement->hostElement();
 
         // Prune duplicate entries. A pseudo ::before content above its parent
@@ -536,7 +519,7 @@ bool TreeScope::isMatchingAnchor(HTMLAnchorElement& anchor, StringView name)
     return false;
 }
 
-static Element* focusedFrameOwnerElement(Frame* focusedFrame, LocalFrame* currentFrame)
+static Element* NODELETE focusedFrameOwnerElement(Frame* focusedFrame, LocalFrame* currentFrame)
 {
     for (; focusedFrame; focusedFrame = focusedFrame->tree().parent()) {
         if (focusedFrame->tree().parent() == currentFrame)
@@ -572,41 +555,73 @@ Element* TreeScope::pointerLockElement() const
 
 #endif
 
-static void listTreeScopes(Node* node, Vector<TreeScope*, 5>& treeScopes)
+static ALWAYS_INLINE Node* host(TreeScope& treeScope)
 {
-    while (true) {
-        treeScopes.append(&node->treeScope());
-        RefPtr ancestor = node->shadowHost();
-        if (!ancestor)
-            break;
-        SUPPRESS_UNCHECKED_ARG(node) = ancestor.get();
+    if (auto* shadowRoot = dynamicDowncast<ShadowRoot>(treeScope.rootNode()))
+        return shadowRoot->host();
+    return nullptr;
+}
+
+static NodesInCommonTreeScope findNodesInCommonTreeScope(Node* nodeA, Node* nodeB)
+{
+    if (!nodeA || !nodeB)
+        return { nullptr, nullptr, nullptr };
+
+    if (&nodeA->treeScope() == &nodeB->treeScope())
+        return { &nodeA->treeScope(), nodeA, nodeB };
+
+    if (&nodeA->document() != &nodeB->document())
+        return { nullptr, nullptr, nullptr };
+
+    unsigned depthA = 0;
+    Node* currentNodeA = nodeA;
+    for (auto* treeScope = &nodeA->treeScope(); treeScope; treeScope = treeScope->parentTreeScope()) {
+        if (treeScope == &nodeB->treeScope())
+            return { treeScope, currentNodeA, nodeB };
+        depthA++;
+        currentNodeA = host(*treeScope);
     }
+
+    unsigned depthB = 0;
+    Node* currentNodeB = nodeB;
+    for (auto* treeScope = &nodeB->treeScope(); treeScope; treeScope = treeScope->parentTreeScope()) {
+        if (treeScope == &nodeA->treeScope())
+            return { treeScope, nodeA, currentNodeB };
+        depthB++;
+        currentNodeB = host(*treeScope);
+    }
+
+    if (depthA > depthB) {
+        for (auto* treeScope = &nodeA->treeScope(); treeScope && depthA > depthB; treeScope = treeScope->parentTreeScope()) {
+            nodeA = host(*treeScope);
+            depthA--;
+        }
+    } else {
+        for (auto* treeScope = &nodeB->treeScope(); treeScope && depthB > depthA; treeScope = treeScope->parentTreeScope()) {
+            nodeB = host(*treeScope);
+            depthB--;
+        }
+    }
+    ASSERT(nodeA && nodeB);
+    ASSERT(depthA == depthB);
+    auto* treeScopeA = &nodeA->treeScope();
+    auto* treeScopeB = &nodeB->treeScope();
+    while (treeScopeA && treeScopeB) {
+        if (treeScopeA == treeScopeB)
+            return { treeScopeA, nodeA, nodeB };
+        nodeA = host(*treeScopeA);
+        nodeB = host(*treeScopeB);
+        treeScopeA = treeScopeA->parentTreeScope();
+        treeScopeB = treeScopeB->parentTreeScope();
+    }
+
+    ASSERT_NOT_REACHED(); // If they didn't share the root, document equality check above should have failed.
+    return { nullptr, nullptr, nullptr };
 }
 
 TreeScope* commonTreeScope(Node* nodeA, Node* nodeB)
 {
-    if (!nodeA || !nodeB)
-        return nullptr;
-
-    if (&nodeA->treeScope() == &nodeB->treeScope())
-        return &nodeA->treeScope();
-
-    Vector<TreeScope*, 5> treeScopesA;
-    listTreeScopes(nodeA, treeScopesA);
-
-    Vector<TreeScope*, 5> treeScopesB;
-    listTreeScopes(nodeB, treeScopesB);
-
-    size_t indexA = treeScopesA.size();
-    size_t indexB = treeScopesB.size();
-
-    for (; indexA > 0 && indexB > 0 && treeScopesA[indexA - 1] == treeScopesB[indexB - 1]; --indexA, --indexB) { }
-
-    // If the nodes had no common tree scope, return immediately.
-    if (indexA == treeScopesA.size())
-        return nullptr;
-    
-    return treeScopesA[indexA] == treeScopesB[indexB] ? treeScopesA[indexA] : nullptr;
+    return findNodesInCommonTreeScope(nodeA, nodeB).treeScope;
 }
 
 RadioButtonGroups& TreeScope::radioButtonGroups()

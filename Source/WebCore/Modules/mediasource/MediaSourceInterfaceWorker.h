@@ -38,7 +38,7 @@ public:
     static Ref<MediaSourceInterfaceWorker> create(Ref<MediaSourceHandle>&& handle) { return adoptRef(*new MediaSourceInterfaceWorker(WTF::move(handle))); }
 
 private:
-    RefPtr<MediaSourcePrivateClient> client() const final;
+    RefPtr<MediaSourcePrivateClient> NODELETE client() const final;
     void monitorSourceBuffers() final;
     bool isClosed() const final;
     MediaTime duration() const final;
@@ -49,10 +49,10 @@ private:
     void detachFromElement() final;
     void elementIsShuttingDown() final;
     void openIfDeferredOpen() final;
-    bool isManaged() const final;
+    bool NODELETE isManaged() const final;
     void setAsSrcObject(bool) final;
     void memoryPressure() final;
-    bool detachable() const final;
+    bool NODELETE detachable() const final;
     void setLogIdentifier(uint64_t) final;
 
     explicit MediaSourceInterfaceWorker(Ref<MediaSourceHandle>&&);

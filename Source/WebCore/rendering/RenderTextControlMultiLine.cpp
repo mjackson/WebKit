@@ -101,10 +101,10 @@ void RenderTextControlMultiLine::layoutExcludedChildren(RelayoutChildren relayou
 {
     RenderTextControl::layoutExcludedChildren(relayoutChildren);
     RefPtr placeholder = textFormControlElement().placeholderElement();
-    RenderElement* placeholderRenderer = placeholder ? placeholder->renderer() : 0;
+    CheckedPtr placeholderRenderer = placeholder ? placeholder->renderer() : 0;
     if (!placeholderRenderer)
         return;
-    if (CheckedPtr placeholderBox = dynamicDowncast<RenderBox>(placeholderRenderer)) {
+    if (CheckedPtr placeholderBox = dynamicDowncast<RenderBox>(placeholderRenderer.get())) {
         placeholderBox->mutableStyle().setLogicalWidth(Style::PreferredSize::Fixed { contentBoxLogicalWidth() - placeholderBox->borderAndPaddingLogicalWidth() });
         placeholderBox->layoutIfNeeded();
         placeholderBox->setX(borderLeft() + paddingLeft());

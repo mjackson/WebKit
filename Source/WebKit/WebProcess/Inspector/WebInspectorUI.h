@@ -107,6 +107,8 @@ public:
     void setDiagnosticLoggingAvailable(bool);
 #endif
 
+    void systemAppearanceDidChange();
+
     // WebCore::InspectorFrontendClient
     void windowObjectCleared() override;
     void frontendLoaded() override;

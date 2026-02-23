@@ -177,48 +177,48 @@ uint64_t WebPaymentCoordinator::messageSenderDestinationID() const
     return m_webPage ? m_webPage->identifier().toUInt64() : 0;
 }
 
+WebCore::PaymentCoordinator& WebPaymentCoordinator::paymentCoordinator() const
+{
+    return m_webPage->corePage()->paymentCoordinator();
+}
+
 void WebPaymentCoordinator::validateMerchant(const String& validationURLString)
 {
-    protectedPaymentCoordinator()->validateMerchant(URL { validationURLString });
+    protect(paymentCoordinator())->validateMerchant(URL { validationURLString });
 }
 
 void WebPaymentCoordinator::didAuthorizePayment(const WebCore::Payment& payment)
 {
-    protectedPaymentCoordinator()->didAuthorizePayment(payment);
+    protect(paymentCoordinator())->didAuthorizePayment(payment);
 }
 
 void WebPaymentCoordinator::didSelectShippingMethod(const WebCore::ApplePayShippingMethod& shippingMethod)
 {
-    protectedPaymentCoordinator()->didSelectShippingMethod(shippingMethod);
+    protect(paymentCoordinator())->didSelectShippingMethod(shippingMethod);
 }
 
 void WebPaymentCoordinator::didSelectShippingContact(const WebCore::PaymentContact& shippingContact)
 {
-    protectedPaymentCoordinator()->didSelectShippingContact(shippingContact);
+    protect(paymentCoordinator())->didSelectShippingContact(shippingContact);
 }
 
 void WebPaymentCoordinator::didSelectPaymentMethod(const WebCore::PaymentMethod& paymentMethod)
 {
-    protectedPaymentCoordinator()->didSelectPaymentMethod(paymentMethod);
+    protect(paymentCoordinator())->didSelectPaymentMethod(paymentMethod);
 }
 
 #if ENABLE(APPLE_PAY_COUPON_CODE)
 
 void WebPaymentCoordinator::didChangeCouponCode(String&& couponCode)
 {
-    protectedPaymentCoordinator()->didChangeCouponCode(WTF::move(couponCode));
+    protect(paymentCoordinator())->didChangeCouponCode(WTF::move(couponCode));
 }
 
 #endif // ENABLE(APPLE_PAY_COUPON_CODE)
 
 void WebPaymentCoordinator::didCancelPaymentSession(WebCore::PaymentSessionError&& sessionError)
 {
-    protectedPaymentCoordinator()->didCancelPaymentSession(WTF::move(sessionError));
-}
-
-Ref<WebCore::PaymentCoordinator> WebPaymentCoordinator::protectedPaymentCoordinator()
-{
-    return m_webPage->corePage()->paymentCoordinator();
+    protect(paymentCoordinator())->didCancelPaymentSession(WTF::move(sessionError));
 }
 
 void WebPaymentCoordinator::getSetupFeatures(const WebCore::ApplePaySetupConfiguration& configuration, const URL& url, CompletionHandler<void(Vector<Ref<WebCore::ApplePaySetupFeature>>&&)>&& completionHandler)

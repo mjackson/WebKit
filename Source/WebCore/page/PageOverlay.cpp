@@ -43,7 +43,7 @@ static const double fadeAnimationFrameRate = 30;
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(PageOverlay);
 
-static PageOverlay::PageOverlayID generatePageOverlayID()
+static PageOverlay::PageOverlayID NODELETE generatePageOverlayID()
 {
     static PageOverlay::PageOverlayID pageOverlayID;
     return ++pageOverlayID;
@@ -201,7 +201,7 @@ bool PageOverlay::mouseEvent(const PlatformMouseEvent& mouseEvent)
     IntPoint mousePositionInOverlayCoordinates(flooredIntPoint(mouseEvent.position()));
 
     if (m_overlayType == PageOverlay::OverlayType::Document)
-        mousePositionInOverlayCoordinates = protect(m_page->mainFrame())->protectedVirtualView()->windowToContents(mousePositionInOverlayCoordinates);
+        mousePositionInOverlayCoordinates = protect(protect(m_page->mainFrame())->virtualView())->windowToContents(mousePositionInOverlayCoordinates);
     mousePositionInOverlayCoordinates.moveBy(-frame().location());
 
     // Ignore events outside the bounds.

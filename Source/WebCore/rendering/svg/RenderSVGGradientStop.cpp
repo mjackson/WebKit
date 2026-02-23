@@ -62,7 +62,7 @@ void RenderSVGGradientStop::styleDidChange(Style::Difference diff, const RenderS
     if (!renderer)
         return;
 
-    if (auto* gradientRenderer = dynamicDowncast<RenderSVGResourceGradient>(renderer.get())) {
+    if (CheckedPtr gradientRenderer = dynamicDowncast<RenderSVGResourceGradient>(renderer.get())) {
         gradientRenderer->invalidateGradient();
         return;
     }

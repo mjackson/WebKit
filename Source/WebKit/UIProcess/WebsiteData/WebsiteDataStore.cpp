@@ -113,13 +113,13 @@ void WebsiteDataStore::allowWebsiteDataRecordsForAllOrigins()
     allowsWebsiteDataRecordsForAllOrigins = true;
 }
 
-static HashMap<String, PAL::SessionID>& activeGeneralStorageDirectories()
+static HashMap<String, PAL::SessionID>& NODELETE activeGeneralStorageDirectories()
 {
     static MainRunLoopNeverDestroyed<HashMap<String, PAL::SessionID>> directoryToSessionMap;
     return directoryToSessionMap;
 }
 
-static HashMap<PAL::SessionID, WeakRef<WebsiteDataStore>>& allDataStores()
+static HashMap<PAL::SessionID, WeakRef<WebsiteDataStore>>& NODELETE allDataStores()
 {
     RELEASE_ASSERT(isUIThread());
     static NeverDestroyed<HashMap<PAL::SessionID, WeakRef<WebsiteDataStore>>> map;
@@ -140,7 +140,7 @@ WorkQueue& WebsiteDataStore::websiteDataStoreIOQueueSingleton()
 void WebsiteDataStore::forEachWebsiteDataStore(NOESCAPE Function<void(WebsiteDataStore&)>&& function)
 {
     for (auto& dataStore : allDataStores().values())
-        function(protect(dataStore.get()));
+        function(protect(dataStore));
 }
 
 Ref<WebsiteDataStore> WebsiteDataStore::createNonPersistent()
@@ -215,19 +215,19 @@ WebsiteDataStore::~WebsiteDataStore()
 }
 
 // FIXME: Remove this when rdar://95786441 is resolved.
-static RefPtr<WebsiteDataStore>& protectedGlobalDefaultDataStore()
+static RefPtr<WebsiteDataStore>& NODELETE protectedGlobalDefaultDataStore()
 {
     static NeverDestroyed<RefPtr<WebsiteDataStore>> globalDefaultDataStore;
     return globalDefaultDataStore.get();
 }
 
-static WeakPtr<WebsiteDataStore>& globalDefaultDataStore()
+static WeakPtr<WebsiteDataStore>& NODELETE globalDefaultDataStore()
 {
     static NeverDestroyed<WeakPtr<WebsiteDataStore>> globalDefaultDataStore;
     return globalDefaultDataStore.get();
 }
 
-static IsPersistent defaultDataStoreIsPersistent()
+static IsPersistent NODELETE defaultDataStoreIsPersistent()
 {
 #if PLATFORM(GTK) || PLATFORM(WPE)
     // GTK and WPE ports require explicit configuration of a WebsiteDataStore. All default storage
@@ -282,7 +282,7 @@ Ref<WebsiteDataStore> WebsiteDataStore::dataStoreForIdentifier(const WTF::UUID& 
     InitializeWebKit2();
     for (auto& dataStore : allDataStores().values()) {
         if (dataStore->configuration().identifier() == uuid)
-            return protect(dataStore.get());
+            return protect(dataStore);
     }
 
     Ref configuration = WebsiteDataStoreConfiguration::create(uuid);
@@ -587,7 +587,7 @@ static WebsiteDataStore::ProcessAccessType computeNetworkProcessAccessTypeForDat
     return WebsiteDataStore::ProcessAccessType::None;
 }
 
-static WebsiteDataStore::ProcessAccessType computeWebProcessAccessTypeForDataFetch(OptionSet<WebsiteDataType> dataTypes, bool /* isNonPersistentStore */)
+static WebsiteDataStore::ProcessAccessType NODELETE computeWebProcessAccessTypeForDataFetch(OptionSet<WebsiteDataType> dataTypes, bool /* isNonPersistentStore */)
 {
     if (dataTypes.contains(WebsiteDataType::MemoryCache))
         return WebsiteDataStore::ProcessAccessType::OnlyIfLaunched;
@@ -635,7 +635,7 @@ void WebsiteDataStore::fetchDataAndApply(OptionSet<WebsiteDataType> dataTypes, O
             });
         }
 
-        const OptionSet<WebsiteDataFetchOption>& fetchOptions() const { return m_fetchOptions; }
+        const OptionSet<WebsiteDataFetchOption>& NODELETE fetchOptions() const { return m_fetchOptions; }
 
         void addWebsiteData(WebsiteData&& websiteData)
         {
@@ -873,7 +873,7 @@ auto WebsiteDataStore::computeWebProcessAccessTypeForDataRemoval(OptionSet<Websi
     return ProcessAccessType::None;
 }
 
-static WebsiteDataStore::ProcessAccessType computeWebProcessAccessTypeForDataRemovalWithRecords(OptionSet<WebsiteDataType> dataTypes)
+static WebsiteDataStore::ProcessAccessType NODELETE computeWebProcessAccessTypeForDataRemovalWithRecords(OptionSet<WebsiteDataType> dataTypes)
 {
     // FIXME: We currently don't remove resource load statistics in web process for origin data removal as TestRunner might dead lock.
     if (dataTypes.contains(WebsiteDataType::MemoryCache))
@@ -2566,7 +2566,7 @@ void WebsiteDataStore::forwardAppBoundDomainsToITPIfInitialized(CompletionHandle
     propagateAppBoundDomains(protectedGlobalDefaultDataStore().get(), *appBoundDomains);
 
     for (auto& store : allDataStores().values())
-        propagateAppBoundDomains(protect(store.get()).ptr(), *appBoundDomains);
+        propagateAppBoundDomains(protect(store).ptr(), *appBoundDomains);
 }
 
 void WebsiteDataStore::setAppBoundDomainsForITP(const HashSet<WebCore::RegistrableDomain>& domains, CompletionHandler<void()>&& completionHandler)
@@ -2595,7 +2595,7 @@ void WebsiteDataStore::forwardManagedDomainsToITPIfInitialized(CompletionHandler
     propagateManagedDomains(protectedGlobalDefaultDataStore().get(), *managedDomains);
 
     for (auto& store : allDataStores().values())
-        propagateManagedDomains(protect(store.get()).ptr(), *managedDomains);
+        propagateManagedDomains(protect(store).ptr(), *managedDomains);
 }
 
 void WebsiteDataStore::setManagedDomainsForITP(const HashSet<WebCore::RegistrableDomain>& domains, CompletionHandler<void()>&& completionHandler)

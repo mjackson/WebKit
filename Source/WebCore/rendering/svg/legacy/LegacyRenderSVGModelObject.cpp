@@ -193,7 +193,7 @@ static bool intersectsAllowingEmpty(const FloatRect& r, const FloatRect& other)
 
 // One of the element types that can cause graphics to be drawn onto the target canvas. Specifically: circle, ellipse,
 // image, line, path, polygon, polyline, rect, text and use.
-static bool isGraphicsElement(const RenderElement& renderer)
+static bool NODELETE isGraphicsElement(const RenderElement& renderer)
 {
     return renderer.isLegacyRenderSVGShape() || renderer.isRenderSVGText() || renderer.isLegacyRenderSVGImage() || renderer.element()->hasTagName(SVGNames::useTag);
 }

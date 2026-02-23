@@ -212,6 +212,9 @@
                   { "name": "wpe-linux-bot-35", "platform": "wpe" },
                   { "name": "wpe-linux-bot-36", "platform": "wpe" },
                   { "name": "wpe-linux-bot-37", "platform": "wpe" },
+                  { "name": "wpe-linux-bot-38", "platform": "wpe" },
+                  { "name": "wpe-linux-bot-39", "platform": "wpe" },
+                  { "name": "wpe-linux-bot-40", "platform": "wpe" },
 
                   { "name": "wpe-linux-queue-1-bot-1", "platform": "wpe" },
                   { "name": "wpe-linux-queue-1-bot-2", "platform": "wpe" },
@@ -747,6 +750,22 @@
                     "platform": "wpe", "configuration": "release", "architectures": ["x86_64"],
                     "additionalArguments": ["--wpe-legacy-api"],
                     "workernames": ["wpe-linux-bot-37"]
+                  },
+                  {
+                    "name": "WPE-Linux-ARM64-bit-Release-Build", "factory": "BuildFactory",
+                    "platform": "wpe", "configuration": "release", "architectures": ["arm64"],
+                    "triggers": ["wpe-linux-arm64-release-tests", "wpe-linux-arm64-release-tests-js"],
+                    "workernames": ["wpe-linux-bot-38"]
+                  },
+                  {
+                    "name": "WPE-Linux-ARM64-bit-Release-Tests", "factory": "TestAllButJSCFactory",
+                    "platform": "wpe", "configuration": "release", "architectures": ["arm64"],
+                    "workernames": ["wpe-linux-bot-39"]
+                  },
+                  {
+                    "name": "WPE-Linux-ARM64-bit-Release-JS-Tests", "factory": "TestJSFactory",
+                    "platform": "wpe", "configuration": "release", "architectures": ["arm64"],
+                    "workernames": ["wpe-linux-bot-40"]
                   }
                 ],
 
@@ -772,7 +791,8 @@
                                      "WPE-Linux-64-bit-Release-LibWebRTC-Build",
                                      "WPE-Linux-ARM64-bit-Release-Debian-Stable-Build",
                                      "WPE-Linux-ARM32-bit-Release-Debian-Stable-Build",
-                                     "WPE-Linux-64-bit-Release-Non-Unified-Build"]
+                                     "WPE-Linux-64-bit-Release-Non-Unified-Build",
+                                     "WPE-Linux-ARM64-bit-Release-Build"]
                   },
                   { "type": "PlatformSpecificScheduler", "platform": "mac-tahoe", "branch": "main", "treeStableTimer": 45.0,
                   "builderNames": ["Apple-Tahoe-Release-Build", "Apple-Tahoe-Debug-Build", "Apple-Tahoe-LLINT-CLoop-BuildAndTest"]
@@ -850,7 +870,7 @@
                     "builderNames": ["Apple-Sequoia-Intel-Release-JSC-Tests"]
                   },
                   { "type": "PlatformSpecificScheduler", "platform": "ios-26", "branch": "main", "treeStableTimer": 45.0,
-                    "builderNames": ["Apple-iOS-26-Release-Build"]
+                    "builderNames": ["Apple-iOS-26-Release-Build", "Apple-iOS-26-Safer-CPP-Checks"]
                   },
                   { "type": "PlatformSpecificScheduler", "platform": "ios-simulator-26", "branch": "main", "treeStableTimer": 45.0,
                     "builderNames": ["Apple-iOS-26-Simulator-Release-Build", "Apple-iOS-26-Simulator-Debug-Build"]
@@ -953,6 +973,12 @@
                   },
                   { "type": "Triggerable", "name": "wpe-linux-64-release-tests-mvt",
                     "builderNames": ["WPE-Linux-64-bit-Release-MVT-Tests"]
+                  },
+                  { "type": "Triggerable", "name": "wpe-linux-arm64-release-tests",
+                    "builderNames": ["WPE-Linux-ARM64-bit-Release-Tests"]
+                  },
+                  { "type": "Triggerable", "name": "wpe-linux-arm64-release-tests-js",
+                    "builderNames": ["WPE-Linux-ARM64-bit-Release-JS-Tests"]
                   },
                   { "type": "Nightly", "name": "NightlyScheduler", "change_filter": "main_filter",
                     "branch": "main", "hour": 22, "minute": 0,

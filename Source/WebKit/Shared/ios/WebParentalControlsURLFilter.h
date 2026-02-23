@@ -35,6 +35,7 @@ namespace WebKit {
 
 class WebParentalControlsURLFilter final : public WebCore::ParentalControlsURLFilter {
 public:
+    static void setSharedParentalControlsURLFilterIfNecessary();
     static Ref<WebParentalControlsURLFilter> create();
     ~WebParentalControlsURLFilter();
 
@@ -45,6 +46,9 @@ private:
     bool isEnabledImpl() const final;
     void isURLAllowedImpl(const URL& mainDocumentURL, const URL&, CompletionHandler<void(bool, NSData *)>&&) final;
     void allowURL(const URL&, CompletionHandler<void(bool)>&&) final;
+#if HAVE(WEBCONTENTRESTRICTIONS_ASK_TO)
+    void requestPermissionForURL(const URL&, const URL& referrerURL, CompletionHandler<void(bool)>&&) final;
+#endif
 
     BEWebContentFilter* ensureWebContentFilter();
 

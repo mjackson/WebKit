@@ -140,7 +140,7 @@ JSObject* JSLazyEventListener::initializeJSFunction(ScriptExecutionContext& exec
     if (!isolatedWorld) [[unlikely]]
         return nullptr;
 
-    auto* globalObject = toJSDOMWindow(*executionContextDocument->protectedFrame(), *isolatedWorld);
+    auto* globalObject = toJSDOMWindow(*protect(executionContextDocument->frame()), *isolatedWorld);
     if (!globalObject)
         return nullptr;
 

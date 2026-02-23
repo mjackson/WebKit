@@ -55,9 +55,9 @@ public:
 
     bool isCurrentColor() const;
 
-    bool isVariableReference() const;
-    bool isVariableData() const;
-    bool isCSSWideKeyword() const;
+    bool NODELETE isVariableReference() const;
+    bool NODELETE isVariableData() const;
+    bool NODELETE isCSSWideKeyword() const;
 
     std::optional<CSSWideKeyword> tryCSSWideKeyword() const;
 

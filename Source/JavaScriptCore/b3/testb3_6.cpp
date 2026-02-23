@@ -861,7 +861,7 @@ void testCheckSelectAndCSE()
     CHECK_EQ(invoke<int>(*code, false), 666);
 }
 
-double b3Pow(double x, int y)
+double NODELETE b3Pow(double x, int y)
 {
     if (y < 0 || y > 1000)
         return pow(x, y);

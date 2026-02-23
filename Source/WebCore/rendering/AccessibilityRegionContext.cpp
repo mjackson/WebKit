@@ -118,7 +118,7 @@ void AccessibilityRegionContext::takeBoundsInternal(const RenderBoxModelObject& 
     if (RefPtr view = renderObject.document().view())
         paintRect = view->contentsToRootView(paintRect);
 
-    if (auto* cache = renderObject.document().axObjectCache())
+    if (CheckedPtr cache = renderObject.document().axObjectCache())
         cache->onPaint(renderObject, WTF::move(paintRect));
 }
 
@@ -162,7 +162,7 @@ void AccessibilityRegionContext::onPaint(const ScrollView& scrollView)
             relativeFrame = ownerDocumentFrameView->contentsToRootView(relativeFrame);
     }
 
-    if (auto* cache = frameView->axObjectCache())
+    if (CheckedPtr cache = frameView->axObjectCache())
         cache->onPaint(*frameView, WTF::move(relativeFrame));
 }
 

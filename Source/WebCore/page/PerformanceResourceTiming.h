@@ -48,7 +48,7 @@ public:
 
     const String& initiatorType() const { return m_resourceTiming.initiatorType(); }
     String deliveryType() const { return m_resourceTiming.deliveryType(); }
-    const String& nextHopProtocol() const;
+    const String& NODELETE nextHopProtocol() const;
 
     double workerStart() const;
     double redirectStart() const;
@@ -64,13 +64,13 @@ public:
     double firstInterimResponseStart() const;
     double responseStart() const;
     double responseEnd() const;
-    uint64_t transferSize() const;
-    uint64_t encodedBodySize() const;
-    uint64_t decodedBodySize() const;
+    uint64_t NODELETE transferSize() const;
+    uint64_t NODELETE encodedBodySize() const;
+    uint64_t NODELETE decodedBodySize() const;
     double workerRouterEvaluationStart() const;
     double workerCacheLookupStart() const;
-    const String& workerMatchedRouterSource() const;
-    const String& workerFinalRouterSource() const;
+    const String& NODELETE workerMatchedRouterSource() const;
+    const String& NODELETE workerFinalRouterSource() const;
 
     const Vector<Ref<PerformanceServerTiming>>& serverTiming() const { return m_serverTiming; }
     ResourceTiming& resourceTiming() { return m_resourceTiming; }

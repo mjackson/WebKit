@@ -125,8 +125,8 @@ public:
     virtual void setSelectionLayerEnabled(bool) { }
 
 protected:
-    RefPtr<WebCore::GraphicsLayer> createGraphicsLayer(const String&, WebCore::GraphicsLayerType);
-    RefPtr<WebCore::GraphicsLayer> makePageContainerLayer(PDFDocumentLayout::PageIndex);
+    Ref<WebCore::GraphicsLayer> createGraphicsLayer(const String&, WebCore::GraphicsLayerType);
+    Ref<WebCore::GraphicsLayer> makePageContainerLayer(PDFDocumentLayout::PageIndex);
     struct LayerCoverage {
         Ref<WebCore::GraphicsLayer> layer;
         WebCore::FloatRect bounds;
@@ -134,10 +134,10 @@ protected:
     };
     virtual Vector<LayerCoverage> layerCoveragesForRepaintPageCoverage(RepaintRequirements, const PDFPageCoverage&) = 0;
 
-    static RefPtr<WebCore::GraphicsLayer> pageBackgroundLayerForPageContainerLayer(WebCore::GraphicsLayer&);
+    static Ref<WebCore::GraphicsLayer> NODELETE pageBackgroundLayerForPageContainerLayer(WebCore::GraphicsLayer&);
 
     Ref<AsyncPDFRenderer> asyncRenderer();
-    RefPtr<AsyncPDFRenderer> asyncRendererIfExists() const;
+    RefPtr<AsyncPDFRenderer> NODELETE asyncRendererIfExists() const;
     void clearAsyncRenderer();
 
     bool shouldUseInProcessBackingStore() const;

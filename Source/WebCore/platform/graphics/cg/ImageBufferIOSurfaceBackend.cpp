@@ -122,6 +122,16 @@ void ImageBufferIOSurfaceBackend::flushContext()
     flushContextDraws();
 }
 
+void ImageBufferIOSurfaceBackend::submitDrawingCommands()
+{
+    if (PAL::canLoad_CoreGraphics_CGIOSurfaceContextFlushQueue())
+        PAL::softLink_CoreGraphics_CGIOSurfaceContextFlushQueue(ensurePlatformContext());
+    else {
+        // Creating a snapshot image forces the rendering to commence
+        createImage();
+    }
+}
+
 bool ImageBufferIOSurfaceBackend::flushContextDraws()
 {
     bool contextNeedsFlush = m_context && m_context->consumeHasDrawn();

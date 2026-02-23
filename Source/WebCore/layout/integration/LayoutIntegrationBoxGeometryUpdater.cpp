@@ -134,8 +134,8 @@ static inline void adjustBorderForTableAndFieldset(const RenderBoxModelObject& r
     if (renderer.isFieldset()) {
         auto adjustment = downcast<RenderBlock>(renderer).intrinsicBorderForFieldset();
         // Note that this adjustment is coming from _inside_ the fieldset so its own flow direction is what is relevant here.
-        auto& style = renderer.style();
-        switch (style.writingMode().blockDirection()) {
+        CheckedRef style = renderer.style();
+        switch (style->writingMode().blockDirection()) {
         case FlowDirection::TopToBottom:
             borderWidths.top() += adjustment;
             break;
@@ -335,7 +335,7 @@ static bool shouldUseMarginBoxAsBaseline(const RenderBox& renderBox)
     if (CheckedPtr blockFlow = dynamicDowncast<RenderBlockFlow>(renderBox)) {
         // The baseline of an 'inline-block' is the baseline of its last line box in the normal flow, unless it has either no in-flow line boxes or if its 'overflow'
         // property has a computed value other than 'visible'. see https://www.w3.org/TR/CSS22/visudet.html
-        if (blockFlow->style().display() == DisplayType::InlineBlock && !blockFlow->style().isOverflowVisible())
+        if (blockFlow->style().display() == Style::DisplayType::InlineFlowRoot && !blockFlow->style().isOverflowVisible())
             return true;
 
         if (blockFlow->childrenInline() && !blockFlow->hasContentfulInlineOrBlockLine() && !blockFlow->hasLineIfEmpty())
@@ -365,13 +365,26 @@ static std::optional<LayoutUnit> lastInflowBoxBaseline(const RenderBlock& blockC
 {
     auto* lastInFlowChild = blockContainer.lastInFlowChildBox();
     for (auto* inflowBox = lastInFlowChild; inflowBox; inflowBox = inflowBox->previousInFlowSiblingBox()) {
-        if (inflowBox->isWritingModeRoot())
-            continue;
 
-        if (inflowBox->shouldApplyLayoutContainment())
-            continue;
+        auto isBaselineCanididate = [&](auto& inflowChildBox) {
+            if (inflowChildBox.isWritingModeRoot() || inflowChildBox.shouldApplyLayoutContainment() || is<RenderTable>(inflowChildBox))
+                return false;
 
-        if (shouldUseMarginBoxAsBaseline(*inflowBox)) {
+            if (CheckedPtr scrollableArea = inflowChildBox.layer() ? inflowChildBox.layer()->scrollableArea() : nullptr) {
+                if (scrollableArea->marquee())
+                    return false;
+
+                auto isScrollable = blockContainer.writingMode().isHorizontal() ? (scrollableArea->verticalScrollbar() || scrollableArea->scrollOffset().y()) : (scrollableArea->horizontalScrollbar() || scrollableArea->scrollOffset().x());
+                return !isScrollable;
+            }
+            if (CheckedPtr blockFlow = dynamicDowncast<RenderBlockFlow>(inflowChildBox)) {
+                auto hasValidBaseline = !blockFlow->childrenInline() || blockFlow->hasContentfulInlineOrBlockLine() || blockFlow->hasLineIfEmpty();
+                return hasValidBaseline;
+            }
+            return true;
+        };
+
+        if (!isBaselineCanididate(*inflowBox)) {
             // We need to find a better candidate for baseline.
             continue;
         }
@@ -592,7 +605,7 @@ static inline void setIntegrationBaseline(const RenderBox& renderBox)
         if (auto* renderListMarker = dynamicDowncast<RenderListMarker>(renderBox))
             return !renderListMarker->isImage();
 
-        if ((is<RenderReplaced>(renderBox) && renderBox.style().display() == DisplayType::Inline)
+        if ((is<RenderReplaced>(renderBox) && renderBox.style().display() == Style::DisplayType::InlineFlow)
             || is<RenderListBox>(renderBox)
             || is<RenderSlider>(renderBox)
             || is<RenderTextControlMultiLine>(renderBox)
@@ -748,7 +761,7 @@ void BoxGeometryUpdater::setFormattingContextRootGeometry(LayoutUnit availableWi
 {
     // FIXME: BFC should be responsible for creating the box geometry for this block box (IFC root) as part of the block layout.
     // This is really only required by float layout as IFC does not consult the root geometry directly.
-    auto& rootRenderer = this->rootRenderer();
+    CheckedRef rootRenderer = this->rootRenderer();
     auto writingMode = this->writingMode();
 
     auto padding = logicalPadding(rootRenderer, availableWidth, writingMode);
@@ -759,7 +772,7 @@ void BoxGeometryUpdater::setFormattingContextRootGeometry(LayoutUnit availableWi
     }
 
     auto& rootGeometry = layoutState().ensureGeometryForBox(rootLayoutBox());
-    rootGeometry.setContentBoxWidth(writingMode.isHorizontal() ? rootRenderer.contentBoxWidth() : rootRenderer.contentBoxHeight());
+    rootGeometry.setContentBoxWidth(writingMode.isHorizontal() ? rootRenderer->contentBoxWidth() : rootRenderer->contentBoxHeight());
     rootGeometry.setPadding(padding);
     rootGeometry.setBorder(border);
     rootGeometry.setSpaceForScrollbar(scrollbarLogicalSize(rootRenderer));
@@ -769,12 +782,12 @@ void BoxGeometryUpdater::setFormattingContextRootGeometry(LayoutUnit availableWi
 
 Layout::ConstraintsForInlineContent BoxGeometryUpdater::formattingContextConstraints(LayoutUnit availableWidth)
 {
-    auto& rootRenderer = this->rootRenderer();
+    CheckedRef rootRenderer = this->rootRenderer();
     auto writingMode = this->writingMode();
 
-    if (rootRenderer.isRenderSVGText()) {
+    if (rootRenderer->isRenderSVGText()) {
         auto horizontalConstraints = Layout::HorizontalConstraints { 0_lu, LayoutUnit::max() };
-        return { { horizontalConstraints, 0_lu }, 0_lu, rootRenderer.size() };
+        return { { horizontalConstraints, 0_lu }, 0_lu, rootRenderer->size() };
     }
 
     auto padding = logicalPadding(rootRenderer, availableWidth, writingMode);
@@ -786,9 +799,9 @@ Layout::ConstraintsForInlineContent BoxGeometryUpdater::formattingContextConstra
     padding.vertical += intrinsicPaddingForTableCell(rootRenderer);
 
     auto scrollbarSize = scrollbarLogicalSize(rootRenderer);
-    auto shouldPlaceVerticalScrollbarOnLeft = rootRenderer.shouldPlaceVerticalScrollbarOnLeft();
+    auto shouldPlaceVerticalScrollbarOnLeft = rootRenderer->shouldPlaceVerticalScrollbarOnLeft();
 
-    auto contentBoxWidth = writingMode.isHorizontal() ? rootRenderer.contentBoxWidth() : rootRenderer.contentBoxHeight();
+    auto contentBoxWidth = writingMode.isHorizontal() ? rootRenderer->contentBoxWidth() : rootRenderer->contentBoxHeight();
     auto contentBoxLeft = border.horizontal.start + padding.horizontal.start;
     auto contentBoxTop = border.vertical.before + padding.vertical.before;
     if (writingMode.isInlineLeftToRight())
@@ -801,12 +814,12 @@ Layout::ConstraintsForInlineContent BoxGeometryUpdater::formattingContextConstra
         ? border.horizontal.end + scrollbarSize.width() + padding.horizontal.end
         : contentBoxLeft;
 
-    return { { horizontalConstraints, contentBoxTop }, visualLeft, rootRenderer.size() };
+    return { { horizontalConstraints, contentBoxTop }, visualLeft, rootRenderer->size() };
 }
 
 void BoxGeometryUpdater::updateBoxGeometryAfterIntegrationLayout(const Layout::ElementBox& layoutBox, LayoutUnit availableWidth)
 {
-    auto* renderBox = dynamicDowncast<RenderBox>(layoutBox.rendererForIntegration());
+    CheckedPtr renderBox = dynamicDowncast<RenderBox>(layoutBox.rendererForIntegration());
     if (!renderBox) {
         ASSERT_NOT_REACHED();
         return;
@@ -820,9 +833,9 @@ void BoxGeometryUpdater::updateBoxGeometryAfterIntegrationLayout(const Layout::E
         // FIXME: These should eventually be all absorbed by LFC layout.
         setIntegrationBaseline(*renderBox);
 
-        if (auto* renderListMarker = dynamicDowncast<RenderListMarker>(*renderBox)) {
-            auto& style = layoutBox.parent().style();
-            boxGeometry.setHorizontalMargin(horizontalLogicalMargin(*renderListMarker, { }, style.writingMode()));
+        if (CheckedPtr renderListMarker = dynamicDowncast<RenderListMarker>(*renderBox)) {
+            CheckedRef style = layoutBox.parent().style();
+            boxGeometry.setHorizontalMargin(horizontalLogicalMargin(*renderListMarker, { }, style->writingMode()));
             if (!renderListMarker->isInside())
                 setListMarkerOffsetForMarkerOutside(*renderListMarker);
             const_cast<Layout::ElementBox&>(layoutBox).setListMarkerLayoutBounds(renderListMarker->layoutBounds());
@@ -830,8 +843,8 @@ void BoxGeometryUpdater::updateBoxGeometryAfterIntegrationLayout(const Layout::E
 
         if (is<RenderTable>(*renderBox)) {
             // Tables have their special collapsed border values (updated at layout).
-            auto& style = layoutBox.parent().style();
-            boxGeometry.setBorder(logicalBorder(*renderBox, style.writingMode()));
+            CheckedRef style = layoutBox.parent().style();
+            boxGeometry.setBorder(logicalBorder(*renderBox, style->writingMode()));
         }
 
         auto needsFullGeometryUpdate = [&] {

@@ -512,21 +512,21 @@ static std::optional<KeyData> toKeyData(SubtleCrypto::KeyFormat format, SubtleCr
     case SubtleCrypto::KeyFormat::Pkcs8:
     case SubtleCrypto::KeyFormat::Raw:
         return WTF::switchOn(keyDataVariant,
-            [&promise] (JsonWebKey&) -> std::optional<KeyData> {
+            [&promise](JsonWebKey&) -> std::optional<KeyData> {
                 promise->reject(Exception { ExceptionCode::TypeError });
                 return std::nullopt;
             },
-            [] (auto& bufferSource) -> std::optional<KeyData> {
+            [](auto& bufferSource) -> std::optional<KeyData> {
                 return KeyData { Vector(bufferSource->span()) };
             }
         );
     case SubtleCrypto::KeyFormat::Jwk:
         return WTF::switchOn(keyDataVariant,
-            [] (JsonWebKey& webKey) -> std::optional<KeyData> {
+            [](JsonWebKey& webKey) -> std::optional<KeyData> {
                 normalizeJsonWebKey(webKey);
                 return KeyData { webKey };
             },
-            [&promise] (auto&) -> std::optional<KeyData> {
+            [&promise](auto&) -> std::optional<KeyData> {
                 promise->reject(Exception { ExceptionCode::TypeError });
                 return std::nullopt;
             }

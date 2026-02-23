@@ -91,7 +91,7 @@ FloatRect LegacyRenderSVGPath::adjustStrokeBoundingBoxForMarkersAndZeroLengthLin
             strokeBoundingBox.unite(markerRect);
     }
 
-    if (style().hasStroke()) {
+    if (!style().stroke().isNone()) {
         // FIXME: zero-length subpaths do not respect vector-effect = non-scaling-stroke.
         for (auto& zeroLengthLinecapLocation : m_zeroLengthLinecapLocations) {
             auto subpathRect = zeroLengthSubpathRect(zeroLengthLinecapLocation, strokeWidth);
@@ -115,7 +115,7 @@ static void useStrokeStyleToFill(GraphicsContext& context)
 
 void LegacyRenderSVGPath::strokeShape(GraphicsContext& context) const
 {
-    if (!style().hasStroke() || !style().strokeWidth().isPossiblyPositive())
+    if (style().stroke().isNone() || !style().strokeWidth().isPossiblyPositive())
         return;
 
     // This happens only if the layout was never been called for this element.
@@ -132,7 +132,7 @@ bool LegacyRenderSVGPath::shapeDependentStrokeContains(const FloatPoint& point, 
         return true;
 
     for (size_t i = 0; i < m_zeroLengthLinecapLocations.size(); ++i) {
-        ASSERT(style().hasStroke());
+        ASSERT(!style().stroke().isNone());
         float strokeWidth = this->strokeWidth();
         if (style().capStyle() == LineCap::Square) {
             if (zeroLengthSubpathRect(m_zeroLengthLinecapLocations[i], strokeWidth).contains(point))
@@ -151,7 +151,7 @@ bool LegacyRenderSVGPath::shouldStrokeZeroLengthSubpath() const
 {
     // Spec(11.4): Any zero length subpath shall not be stroked if the "stroke-linecap" property has a value of butt
     // but shall be stroked if the "stroke-linecap" property has a value of round or square
-    return style().hasStroke() && style().capStyle() != LineCap::Butt;
+    return !style().stroke().isNone() && style().capStyle() != LineCap::Butt;
 }
 
 Path* LegacyRenderSVGPath::zeroLengthLinecapPath(const FloatPoint& linecapPosition) const
@@ -205,7 +205,7 @@ void LegacyRenderSVGPath::strokeZeroLengthSubpaths(GraphicsContext& context) con
     }
 }
 
-static inline LegacyRenderSVGResourceMarker* markerForType(SVGMarkerType type, LegacyRenderSVGResourceMarker* markerStart, LegacyRenderSVGResourceMarker* markerMid, LegacyRenderSVGResourceMarker* markerEnd)
+static inline LegacyRenderSVGResourceMarker* NODELETE markerForType(SVGMarkerType type, LegacyRenderSVGResourceMarker* markerStart, LegacyRenderSVGResourceMarker* markerMid, LegacyRenderSVGResourceMarker* markerEnd)
 {
     switch (type) {
     case StartMarker:

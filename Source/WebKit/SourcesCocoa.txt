@@ -110,9 +110,12 @@ Platform/cocoa/WebKitAdditions.mm @nonARC @no-unify
 Platform/cocoa/WebPrivacyHelpers.mm @nonARC
 
 Platform/ios/PaymentAuthorizationController.mm @nonARC
+Platform/ios/PlaybackSessionInterfaceAVKit.mm @nonARC @no-unify
 Platform/ios/PlaybackSessionInterfaceLMK.mm @nonARC @no-unify
+Platform/ios/VideoPresentationInterfaceAVKit.mm @nonARC @no-unify
 Platform/ios/VideoPresentationInterfaceLMK.mm @nonARC
 Platform/ios/VideoReceiverEndpointMessage.mm @nonARC
+Platform/ios/WKAVContentSource.mm @nonARC @no-unify
 
 Platform/mac/MenuUtilities.mm @nonARC
 Platform/mac/StringUtilities.mm @nonARC
@@ -182,6 +185,7 @@ Shared/Cocoa/AuxiliaryProcessCocoa.mm @nonARC
 Shared/Cocoa/CodeSigning.mm @nonARC
 Shared/Cocoa/CompletionHandlerCallChecker.mm @nonARC
 Shared/Cocoa/DefaultWebBrowserChecks.mm @nonARC
+Shared/Cocoa/EnhancedSecurityLinkUtilities.mm @nonARC
 Shared/Cocoa/InteractionInformationAtPosition.mm @nonARC
 Shared/Cocoa/InteractionInformationRequest.cpp
 Shared/Cocoa/LoadParametersCocoa.mm @nonARC
@@ -300,8 +304,6 @@ UIProcess/API/Cocoa/_WKInspectorExtension.mm @nonARC
 UIProcess/API/Cocoa/_WKInspectorTesting.mm @nonARC
 UIProcess/API/Cocoa/_WKInspectorWindow.mm @nonARC
 UIProcess/API/Cocoa/_WKInternalDebugFeature.mm @nonARC
-UIProcess/API/Cocoa/_WKJSBuffer.mm @nonARC
-UIProcess/API/Cocoa/_WKJSHandle.mm @nonARC
 UIProcess/API/Cocoa/_WKLinkIconParameters.mm @nonARC
 UIProcess/API/Cocoa/_WKModalContainerInfo.mm @nonARC
 UIProcess/API/Cocoa/_WKNotificationData.mm @nonARC
@@ -311,7 +313,6 @@ UIProcess/API/Cocoa/_WKPageLoadTiming.mm @nonARC
 UIProcess/API/Cocoa/_WKProcessPoolConfiguration.mm @nonARC
 UIProcess/API/Cocoa/_WKRemoteWebInspectorViewController.mm @nonARC
 UIProcess/API/Cocoa/_WKResourceLoadInfo.mm @nonARC
-UIProcess/API/Cocoa/_WKSerializedNode.mm @nonARC
 UIProcess/API/Cocoa/_WKSessionState.mm @nonARC
 UIProcess/API/Cocoa/_WKSpatialBackdropSource.mm @nonARC
 UIProcess/API/Cocoa/_WKSystemPreferences.mm @nonARC
@@ -360,8 +361,12 @@ UIProcess/API/Cocoa/WKDownload.mm @nonARC
 UIProcess/API/Cocoa/WKError.mm @nonARC
 UIProcess/API/Cocoa/WKFindConfiguration.mm @nonARC
 UIProcess/API/Cocoa/WKFindResult.mm @nonARC
+UIProcess/API/Cocoa/WKFormInfo.mm @nonARC
 UIProcess/API/Cocoa/WKFrameInfo.mm @nonARC
 UIProcess/API/Cocoa/WKHTTPCookieStore.mm @nonARC
+UIProcess/API/Cocoa/WKJSHandle.mm @nonARC
+UIProcess/API/Cocoa/WKJSScriptingBuffer.mm @nonARC
+UIProcess/API/Cocoa/WKJSSerializedNode.mm @nonARC
 UIProcess/API/Cocoa/WKMenuItemIdentifiers.mm @nonARC
 UIProcess/API/Cocoa/WKNavigation.mm @nonARC
 UIProcess/API/Cocoa/WKNavigationAction.mm @nonARC

@@ -60,13 +60,13 @@ public:
 
     WEBCORE_EXPORT HitTestResult& operator=(const HitTestResult&);
 
-    WEBCORE_EXPORT void setInnerNode(Node*);
+    WEBCORE_EXPORT void NODELETE setInnerNode(Node*);
     Node* innerNode() const { return m_innerNode.get(); }
 
     void setInnerNonSharedNode(Node*);
     Node* innerNonSharedNode() const { return m_innerNonSharedNode.get(); }
 
-    WEBCORE_EXPORT Element* innerNonSharedElement() const;
+    WEBCORE_EXPORT Element* NODELETE innerNonSharedElement() const;
 
     void setURLElement(Element*);
     Element* URLElement() const { return m_innerURLElement.get(); }
@@ -77,7 +77,7 @@ public:
     bool isOverWidget() const { return m_isOverWidget; }
     void setIsOverWidget(bool isOverWidget) { m_isOverWidget = isOverWidget; }
 
-    std::optional<Style::PseudoElementIdentifier> pseudoElementIdentifier() const;
+    std::optional<Style::PseudoElementIdentifier> NODELETE pseudoElementIdentifier() const;
     void setPseudoElementIdentifier(std::optional<Style::PseudoElementIdentifier>);
 
     WEBCORE_EXPORT String linkSuggestedFilename() const;
@@ -93,17 +93,17 @@ public:
     const LayoutPoint pointInInnerNodeFrame() const { return LayoutPoint(m_doublePointInInnerNodeFrame); }
     const DoublePoint& doublePointInInnerNodeFrame() const { return m_doublePointInInnerNodeFrame; }
     IntPoint roundedPointInInnerNodeFrame() const { return roundedIntPoint(pointInInnerNodeFrame()); }
-    WEBCORE_EXPORT LocalFrame* innerNodeFrame() const;
+    WEBCORE_EXPORT LocalFrame* NODELETE innerNodeFrame() const;
 
     // The hit-tested point in the coordinates of the inner node.
     const LayoutPoint& localPoint() const { return m_localPoint; }
-    void setLocalPoint(const LayoutPoint&);
+    void NODELETE setLocalPoint(const LayoutPoint&);
 
-    WEBCORE_EXPORT void setToNonUserAgentShadowAncestor();
+    WEBCORE_EXPORT void NODELETE setToNonUserAgentShadowAncestor();
 
     const HitTestLocation& hitTestLocation() const { return m_hitTestLocation; }
 
-    WEBCORE_EXPORT LocalFrame* frame() const;
+    WEBCORE_EXPORT LocalFrame* NODELETE frame() const;
     WEBCORE_EXPORT RefPtr<Frame> targetFrame() const;
     WEBCORE_EXPORT bool isSelected() const;
     WEBCORE_EXPORT bool allowsFollowingLink() const;
@@ -124,7 +124,7 @@ public:
     WEBCORE_EXPORT URL absoluteLinkURL() const;
     WEBCORE_EXPORT bool hasLocalDataForLinkURL() const;
     WEBCORE_EXPORT String textContent() const;
-    bool isOverLink() const;
+    bool NODELETE isOverLink() const;
     WEBCORE_EXPORT bool isContentEditable() const;
     void toggleMediaControlsDisplay() const;
     void toggleMediaLoopPlayback() const;
@@ -140,14 +140,14 @@ public:
     bool mediaPlaying() const;
     bool mediaSupportsFullscreen() const;
     void toggleMediaPlayState() const;
-    WEBCORE_EXPORT bool hasMediaElement() const;
+    WEBCORE_EXPORT bool NODELETE hasMediaElement() const;
     WEBCORE_EXPORT bool mediaHasAudio() const;
-    WEBCORE_EXPORT bool mediaIsVideo() const;
+    WEBCORE_EXPORT bool NODELETE mediaIsVideo() const;
     bool mediaMuted() const;
     void toggleMediaMuteState() const;
-    bool mediaSupportsEnhancedFullscreen() const;
-    bool mediaIsInEnhancedFullscreen() const;
-    void toggleEnhancedFullscreenForVideo() const;
+    bool mediaSupportsPictureInPicture() const;
+    bool mediaIsInPictureInPicture() const;
+    void togglePictureInPictureForVideo() const;
 
 #if ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
     void pauseAnimation() const;
@@ -181,11 +181,11 @@ private:
 
 #if ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
     void setAllowsAnimation(bool /* allowAnimation */) const;
-    HTMLImageElement* imageElement() const;
+    HTMLImageElement* NODELETE imageElement() const;
 #endif
 
 #if ENABLE(VIDEO)
-    HTMLMediaElement* mediaElement() const;
+    HTMLMediaElement* NODELETE mediaElement() const;
 #endif
     HitTestLocation m_hitTestLocation;
 

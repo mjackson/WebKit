@@ -126,7 +126,7 @@ PopupMenuStyle SearchInputType::menuStyle() const
         style->fontCascade(),
         nullString(),
         style->usedVisibility() == Visibility::Visible,
-        style->display() == DisplayType::None,
+        style->display() == Style::DisplayType::None,
         true,
         style->writingMode().bidiDirection(),
         isOverride(style->unicodeBidi()),

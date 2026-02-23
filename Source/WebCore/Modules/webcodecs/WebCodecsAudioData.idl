@@ -50,7 +50,6 @@
 
 [
     Conditional=WEB_CODECS,
-    LegacyNativeDictionaryRequiredInterfaceNullability,
 ] dictionary AudioDataInit {
     required AudioSampleFormat format;
     required float sampleRate;

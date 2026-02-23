@@ -51,7 +51,7 @@ public:
     void setSVGFontFaceElement(SVGFontFaceElement&);
 
     String customCSSText(const CSS::SerializationContext&) const;
-    bool equals(const CSSFontFaceSrcLocalValue&) const;
+    bool NODELETE equals(const CSSFontFaceSrcLocalValue&) const;
 
 private:
     explicit CSSFontFaceSrcLocalValue(AtomString&&);

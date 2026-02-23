@@ -467,12 +467,12 @@ private:
         m_items.clear();
     }
 
-    ContextMenuContext::Type contextMenuContextType() override
+    ContextMenuContext::Type NODELETE contextMenuContextType() override
     {
         return ContextMenuContext::Type::MediaControls;
     }
 
-    void prepareContext(ContextMenuContext& context) override
+    void NODELETE prepareContext(ContextMenuContext& context) override
     {
         context.setMediaElementIdentifier(m_identifier);
     }
@@ -848,7 +848,7 @@ bool MediaControlsHost::showMediaControlsContextMenu(HTMLElement& target, String
     page->chrome().client().showMediaControlsContextMenu(bounds, WTF::move(items), mediaElement.get(), WTF::move(handleItemSelected));
 #elif ENABLE(CONTEXT_MENUS) && USE(ACCESSIBILITY_CONTEXT_MENUS)
     target.addEventListener(eventNames().contextmenuEvent, MediaControlsContextMenuEventListener::create(MediaControlsContextMenuProvider::create(mediaElement->identifier(), WTF::move(items), WTF::move(handleItemSelected))), { { /*capture */ true }, /* passive */ std::nullopt, /* once */ true, nullptr, false });
-    page->contextMenuController().showContextMenuAt(*target.document().protectedFrame(), bounds.center());
+    page->contextMenuController().showContextMenuAt(*protect(target.document().frame()), bounds.center());
 #endif
 
     return true;

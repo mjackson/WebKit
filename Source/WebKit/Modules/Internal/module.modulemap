@@ -267,6 +267,24 @@ module WebKit_Internal [system] {
         export *
     }
 
+    module WebInspectorUtilities {
+        requires cplusplus20
+        header "../../UIProcess/Inspector/WebInspectorUtilities.h"
+        export *
+    }
+
+    module SuspendedPageProxy {
+        requires cplusplus20
+        header "../../UIProcess/SuspendedPageProxy.h"
+        export *
+    }
+
+    module IPCTesterReceiver {
+        requires cplusplus20
+        header "../../Shared/IPCTesterReceiver.h"
+        export *
+    }
+
     // FIXME: These parts of the module map needs work as discussed in https://github.com/WebKit/WebKit/pull/54322
 
     module WebKit_Internal_Objc {

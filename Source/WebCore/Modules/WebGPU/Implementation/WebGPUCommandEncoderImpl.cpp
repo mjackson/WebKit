@@ -59,10 +59,10 @@ RefPtr<RenderPassEncoder> CommandEncoderImpl::beginRenderPass(const RenderPassDe
     Ref convertToBackingContext = m_convertToBackingContext;
     for (const auto& colorAttachment : descriptor.colorAttachments) {
         if (colorAttachment) {
-            RefPtr texture = colorAttachment->protectedTexture().get();
-            RefPtr textureView = colorAttachment->protectedView().get();
-            RefPtr resolveTexture = colorAttachment->protectedResolveTexture().get();
-            RefPtr resolveTarget = colorAttachment->protectedResolveTarget().get();
+            RefPtr texture = colorAttachment->texture();
+            RefPtr textureView = colorAttachment->textureView();
+            RefPtr resolveTexture = colorAttachment->resolveTexture();
+            RefPtr resolveTarget = colorAttachment->resolveTextureView();
             colorAttachments.append(WGPURenderPassColorAttachment {
                 .texture = texture ? convertToBackingContext->convertToBacking(*texture) : nullptr,
                 .view = textureView ? convertToBackingContext->convertToBacking(*textureView) : nullptr,
@@ -88,8 +88,8 @@ RefPtr<RenderPassEncoder> CommandEncoderImpl::beginRenderPass(const RenderPassDe
 
     std::optional<WGPURenderPassDepthStencilAttachment> depthStencilAttachment;
     if (descriptor.depthStencilAttachment) {
-        RefPtr texture = descriptor.depthStencilAttachment->protectedTexture().get();
-        RefPtr textureView = descriptor.depthStencilAttachment->protectedView().get();
+        RefPtr texture = descriptor.depthStencilAttachment->texture();
+        RefPtr textureView = descriptor.depthStencilAttachment->textureView();
 
         depthStencilAttachment = WGPURenderPassDepthStencilAttachment {
             .texture = texture ? convertToBackingContext->convertToBacking(*texture) : nullptr,

@@ -97,10 +97,10 @@ AffineTransform SVGGraphicsElement::animatedLocalTransform() const
 
     CheckedPtr renderer = this->renderer();
     CheckedPtr style = renderer ? &renderer->style() : nullptr;
-    bool hasSpecifiedTransform = style && style->hasTransform();
+    bool hasSpecifiedTransform = style && (!style->transform().isNone() || !style->offsetPath().isNone());
 
     // Honor any of the transform-related CSS properties if set.
-    if (hasSpecifiedTransform || (style && (style->hasTranslate() || style->hasScale() || style->hasRotate()))) {
+    if (hasSpecifiedTransform || (style && (!style->translate().isNone() || !style->scale().isNone() || !style->rotate().isNone()))) {
         // Note: objectBoundingBox is an emptyRect for elements like pattern or clipPath.
         // See the "Object bounding box units" section of http://dev.w3.org/csswg/css3-transforms/
         auto transform = Style::TransformResolver::computeTransform(*style, TransformOperationData(renderer->transformReferenceBoxRect(), renderer.get()));

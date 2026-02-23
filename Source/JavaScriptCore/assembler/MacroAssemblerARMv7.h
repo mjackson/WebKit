@@ -645,6 +645,14 @@ public:
         m_assembler.umull(destLo, destHi, left, right);
     }
 
+#if HAVE(ARM_IDIV_INSTRUCTIONS)
+    // FIXME: Add more of div flavors.
+    void div32(RegisterID left, RegisterID right, RegisterID dest)
+    {
+        m_assembler.sdiv(dest, left, right);
+    }
+#endif
+
     void neg32(RegisterID srcDest)
     {
         m_assembler.neg(srcDest, srcDest);

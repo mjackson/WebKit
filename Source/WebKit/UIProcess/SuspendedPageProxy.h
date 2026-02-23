@@ -69,17 +69,17 @@ public:
 
     static RefPtr<WebProcessProxy> findReusableSuspendedPageProcess(WebProcessPool&, const WebCore::RegistrableDomain&, WebsiteDataStore&, WebProcessProxy::LockdownMode, EnhancedSecurity, const API::PageConfiguration&);
 
-    WebPageProxy* page() const;
+    WebPageProxy* NODELETE page() const;
     WebCore::PageIdentifier webPageID() const { return m_webPageID; }
     WebProcessProxy& process() const { return m_process.get(); }
     WebFrameProxy& mainFrame() { return m_mainFrame.get(); }
     const BrowsingContextGroup& browsingContextGroup() { return m_browsingContextGroup.get(); }
 
-    WebBackForwardCache& backForwardCache() const;
+    WebBackForwardCache& NODELETE backForwardCache() const;
 
     WebPageProxyMessageReceiverRegistration& messageReceiverRegistration() { return m_messageReceiverRegistration; }
 
-    bool pageIsClosedOrClosing() const;
+    bool NODELETE pageIsClosedOrClosing() const;
 
     void waitUntilReadyToUnsuspend(CompletionHandler<void(SuspendedPageProxy*)>&&);
     void unsuspend();

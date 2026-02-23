@@ -54,7 +54,7 @@ public:
 
 private:
     enum class Resource { Image, Icon, Badge, ActionIcon };
-    static bool resourceIsSupportedInPlatform(Resource);
+    static bool NODELETE resourceIsSupportedInPlatform(Resource);
 
     class ResourceLoader final : public ThreadableLoaderClient, public RefCounted<ResourceLoader> {
         WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(ResourceLoader, ResourceLoader);

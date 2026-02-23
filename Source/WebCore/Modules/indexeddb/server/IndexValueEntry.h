@@ -48,9 +48,9 @@ public:
     bool removeKey(const IDBKeyData&);
     bool contains(const IDBKeyData&);
 
-    const IDBKeyData* getLowest() const LIFETIME_BOUND;
+    const IDBKeyData* NODELETE getLowest() const LIFETIME_BOUND;
 
-    uint64_t getCount() const;
+    uint64_t NODELETE getCount() const;
 
     class Iterator {
     public:
@@ -62,10 +62,10 @@ public:
         Iterator(IndexValueEntry&, IDBKeyDataSet::iterator);
         Iterator(IndexValueEntry&, IDBKeyDataSet::reverse_iterator);
 
-        bool isValid() const;
-        void invalidate();
+        bool NODELETE isValid() const;
+        void NODELETE invalidate();
 
-        const IDBKeyData& key() const;
+        const IDBKeyData& NODELETE key() const;
         const ThreadSafeDataBuffer& value() const;
 
         Iterator& operator++();

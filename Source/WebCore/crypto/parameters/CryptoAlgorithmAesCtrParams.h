@@ -54,7 +54,7 @@ public:
 
     const Vector<uint8_t>& counterVector() const
     {
-        if (!m_counterVector.isEmpty() || !counter || !counter->length())
+        if (!m_counterVector.isEmpty() || !counter || !counter->byteLength())
             return m_counterVector;
 
         if (counter)

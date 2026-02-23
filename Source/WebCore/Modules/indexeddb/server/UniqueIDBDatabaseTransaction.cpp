@@ -50,7 +50,7 @@ UniqueIDBDatabaseTransaction::UniqueIDBDatabaseTransaction(UniqueIDBDatabaseConn
     ASSERT(database());
 
     if (m_transactionInfo.mode() == IDBTransactionMode::Versionchange)
-        m_originalDatabaseInfo = makeUnique<IDBDatabaseInfo>(checkedDatabase()->info());
+        m_originalDatabaseInfo = makeUnique<IDBDatabaseInfo>(protect(database())->info());
 
     RefPtr databaseConnection = m_databaseConnection.get();
     if (!databaseConnection)
@@ -111,11 +111,6 @@ void UniqueIDBDatabaseTransaction::abortWithoutCallback()
 UniqueIDBDatabase* UniqueIDBDatabaseTransaction::database() const
 {
     return m_databaseConnection ? m_databaseConnection->database() : nullptr;
-}
-
-CheckedPtr<UniqueIDBDatabase> UniqueIDBDatabaseTransaction::checkedDatabase() const
-{
-    return database();
 }
 
 bool UniqueIDBDatabaseTransaction::isVersionChange() const

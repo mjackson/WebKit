@@ -50,7 +50,7 @@ static String fromDecimalNumber(NSDecimalNumber *number)
     return [numberFormatter stringFromNumber:number];
 }
 
-static std::optional<ApplePaySetupFeatureType> applePaySetupFeatureType(PKPaymentSetupFeatureType featureType)
+static std::optional<ApplePaySetupFeatureType> NODELETE applePaySetupFeatureType(PKPaymentSetupFeatureType featureType)
 {
     switch (featureType) {
     case PKPaymentSetupFeatureTypeApplePay:
@@ -65,7 +65,7 @@ static std::optional<ApplePaySetupFeatureType> applePaySetupFeatureType(PKPaymen
     }
 }
 
-static PKPaymentSetupFeatureType platformFeatureType(ApplePaySetupFeatureType featureType)
+static PKPaymentSetupFeatureType NODELETE platformFeatureType(ApplePaySetupFeatureType featureType)
 {
     switch (featureType) {
     case ApplePaySetupFeatureType::ApplePay:
@@ -75,7 +75,7 @@ static PKPaymentSetupFeatureType platformFeatureType(ApplePaySetupFeatureType fe
     }
 }
 
-static ApplePayInstallmentItemType applePayItemType(PKInstallmentItemType itemType)
+static ApplePayInstallmentItemType NODELETE applePayItemType(PKInstallmentItemType itemType)
 {
     switch (itemType) {
     case PKInstallmentItemTypeGeneric:
@@ -91,7 +91,7 @@ static ApplePayInstallmentItemType applePayItemType(PKInstallmentItemType itemTy
     }
 }
 
-static PKInstallmentItemType platformItemType(ApplePayInstallmentItemType itemType)
+static PKInstallmentItemType NODELETE platformItemType(ApplePayInstallmentItemType itemType)
 {
     switch (itemType) {
     case ApplePayInstallmentItemType::Generic:
@@ -107,7 +107,7 @@ static PKInstallmentItemType platformItemType(ApplePayInstallmentItemType itemTy
     }
 }
 
-static ApplePayInstallmentRetailChannel applePayRetailChannel(PKInstallmentRetailChannel retailChannel)
+static ApplePayInstallmentRetailChannel NODELETE applePayRetailChannel(PKInstallmentRetailChannel retailChannel)
 {
     switch (retailChannel) {
     case PKInstallmentRetailChannelUnknown:
@@ -121,7 +121,7 @@ static ApplePayInstallmentRetailChannel applePayRetailChannel(PKInstallmentRetai
     }
 }
 
-static PKInstallmentRetailChannel platformRetailChannel(ApplePayInstallmentRetailChannel retailChannel)
+static PKInstallmentRetailChannel NODELETE platformRetailChannel(ApplePayInstallmentRetailChannel retailChannel)
 {
     switch (retailChannel) {
     case ApplePayInstallmentRetailChannel::Unknown:
@@ -240,7 +240,7 @@ PaymentInstallmentConfiguration::PaymentInstallmentConfiguration(RetainPtr<PKPay
 {
 }
 
-const std::optional<ApplePayInstallmentConfiguration>& PaymentInstallmentConfiguration::applePayInstallmentConfiguration() const
+const std::optional<ApplePayInstallmentConfiguration>& NODELETE PaymentInstallmentConfiguration::applePayInstallmentConfiguration() const
 {
     return m_configuration;
 }

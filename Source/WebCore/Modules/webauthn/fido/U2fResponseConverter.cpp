@@ -169,7 +169,7 @@ RefPtr<AuthenticatorAttestationResponse> readU2fRegisterResponse(const String& r
 
 RefPtr<AuthenticatorAssertionResponse> readU2fSignResponse(const String& rpId, const WebCore::BufferSource& keyHandle, const Vector<uint8_t>& u2fData, AuthenticatorAttachment attachment)
 {
-    if (!keyHandle.length() || u2fData.size() <= signatureIndex)
+    if (!keyHandle.byteLength() || u2fData.size() <= signatureIndex)
         return nullptr;
 
     // 1 byte flags, 4 bytes counter

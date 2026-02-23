@@ -37,8 +37,7 @@ class InlineItemsBuilder;
 class InlineTextItem : public InlineItem {
 public:
     static InlineTextItem createWhitespaceItem(const InlineTextBox&, unsigned start, unsigned length, UBiDiLevel, bool isWordSeparator, std::optional<InlineLayoutUnit> width);
-    static InlineTextItem createNonWhitespaceItem(const InlineTextBox&, unsigned start, unsigned length, UBiDiLevel, bool hasTrailingSoftHyphen);
-    static InlineTextItem createNonWhitespaceItem(const InlineTextBox&, unsigned start, unsigned length, UBiDiLevel, bool hasTrailingSoftHyphen, InlineLayoutUnit width, std::optional<std::pair<LayoutUnit, LayoutUnit>> glyphTopBottomOverflow);
+    static InlineTextItem createNonWhitespaceItem(const InlineTextBox&, unsigned start, unsigned length, UBiDiLevel, bool hasTrailingSoftHyphen, std::optional<InlineLayoutUnit> width = { });
     static InlineTextItem createEmptyItem(const InlineTextBox&);
 
     unsigned start() const { return m_startOrPosition; }
@@ -53,7 +52,6 @@ public:
     bool isFullyTrimmable() const;
     bool hasTrailingSoftHyphen() const { return m_hasTrailingSoftHyphen; }
     std::optional<InlineLayoutUnit> width() const { return m_hasWidth ? std::make_optional(m_width) : std::optional<InlineLayoutUnit> { }; }
-    std::pair<uint8_t, uint8_t> glyphOverflow() const { return { m_glyphTopOverflow, m_glyphBottomOverflow }; }
 
     const InlineTextBox& inlineTextBox() const { return downcast<InlineTextBox>(layoutBox()); }
 
@@ -70,7 +68,6 @@ private:
     using InlineItem::TextItemType;
 
     InlineTextItem split(size_t leftSideLength);
-    void setGlyphOverflow(LayoutUnit top, LayoutUnit bottom);
 
     InlineTextItem(const InlineTextBox&, unsigned start, unsigned length, UBiDiLevel, bool hasTrailingSoftHyphen, bool isWordSeparator, std::optional<InlineLayoutUnit> width, TextItemType);
     explicit InlineTextItem(const InlineTextBox&);
@@ -81,31 +78,15 @@ inline InlineTextItem InlineTextItem::createWhitespaceItem(const InlineTextBox& 
     return { inlineTextBox, start, length, bidiLevel, false, isWordSeparator, width, TextItemType::Whitespace };
 }
 
-inline InlineTextItem InlineTextItem::createNonWhitespaceItem(const InlineTextBox& inlineTextBox, unsigned start, unsigned length, UBiDiLevel bidiLevel, bool hasTrailingSoftHyphen)
+inline InlineTextItem InlineTextItem::createNonWhitespaceItem(const InlineTextBox& inlineTextBox, unsigned start, unsigned length, UBiDiLevel bidiLevel, bool hasTrailingSoftHyphen, std::optional<InlineLayoutUnit> width)
 {
-    return { inlineTextBox, start, length, bidiLevel, hasTrailingSoftHyphen, false, { }, TextItemType::NonWhitespace };
-}
-
-inline InlineTextItem InlineTextItem::createNonWhitespaceItem(const InlineTextBox& inlineTextBox, unsigned start, unsigned length, UBiDiLevel bidiLevel, bool hasTrailingSoftHyphen, InlineLayoutUnit width, std::optional<std::pair<LayoutUnit, LayoutUnit>> glyphTopBottomOverflow)
-{
-    if (!glyphTopBottomOverflow)
-        return { inlineTextBox, start, length, bidiLevel, hasTrailingSoftHyphen, false, width, TextItemType::NonWhitespace };
-
-    auto inlineTextItem = InlineTextItem { inlineTextBox, start, length, bidiLevel, hasTrailingSoftHyphen, false, width, TextItemType::NonWhitespace };
-    inlineTextItem.setGlyphOverflow(glyphTopBottomOverflow->first, glyphTopBottomOverflow->second);
-    return inlineTextItem;
+    return { inlineTextBox, start, length, bidiLevel, hasTrailingSoftHyphen, false, width, TextItemType::NonWhitespace };
 }
 
 inline InlineTextItem InlineTextItem::createEmptyItem(const InlineTextBox& inlineTextBox)
 {
     ASSERT(!inlineTextBox.content().length());
     return InlineTextItem { inlineTextBox };
-}
-
-inline void InlineTextItem::setGlyphOverflow(LayoutUnit top, LayoutUnit bottom)
-{
-    m_glyphTopOverflow = top.ceil();
-    m_glyphBottomOverflow = bottom.ceil();
 }
 
 }

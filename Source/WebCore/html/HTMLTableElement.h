@@ -42,7 +42,7 @@ public:
     static Ref<HTMLTableElement> create(const QualifiedName&, Document&);
     ~HTMLTableElement();
 
-    WEBCORE_EXPORT RefPtr<HTMLTableCaptionElement> caption() const;
+    WEBCORE_EXPORT RefPtr<HTMLTableCaptionElement> NODELETE caption() const;
     WEBCORE_EXPORT ExceptionOr<void> setCaption(RefPtr<HTMLTableCaptionElement>&&);
 
     WEBCORE_EXPORT RefPtr<HTMLTableSectionElement> tHead() const;
@@ -86,7 +86,7 @@ private:
     enum TableRules { UnsetRules, NoneRules, GroupsRules, RowsRules, ColsRules, AllRules };
     enum CellBorders { NoBorders, SolidBorders, InsetBorders, SolidBordersColsOnly, SolidBordersRowsOnly };
 
-    CellBorders cellBorders() const;
+    CellBorders NODELETE cellBorders() const;
 
     Ref<MutableStyleProperties> createSharedCellStyle() const;
 

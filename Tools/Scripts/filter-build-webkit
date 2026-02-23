@@ -185,7 +185,8 @@ sub main() {
             }
             printLine("SwiftCompile$path", $target, $project, STYLE_PLAIN);
         } elsif ($line =~ /^(\e\[1m)?(PhaseScriptExecution|RuleScriptExecution|ClCompile|CompileC|Distributed-CompileC|Ld|PBXCp|CpResource|CopyPNGFile|CopyTiffFile|CpHeader|Preprocess|Processing|ProcessInfoPlistFile|ProcessPCH|ProcessPCH\+\+|Touch|Libtool|CopyStringsFile|Mig|CreateUniversalBinary|Analyze|AnalyzeShallow|ProcessProductPackaging|ProcessProductPackagingDER|CodeSign|Validate|SymLink|Updating|CompileDTraceScript|CompileXIB|StripNIB|CopyPlistFile|GenerateDSYMFile|GenerateTAPI|CompileStoryboard|ExternalBuildToolExecution|CreateBuildDirectory|WriteAuxiliaryFile|RegisterWithLaunchServices|RegisterExecutionPolicyException|MkDir|Strip|MetalLink|CompileMetalFile|ValidateEmbeddedBinary|Copy|ScanDependencies|SwiftDriver|SwiftMergeGeneratedHeaders|SwiftDriverJobDiscovery|SwiftEmitModule|EmitSwiftModule|VerifyModule|ExecuteExternalTool|Unifdef|MergeInfoPlistFile|CompileAssetCatalogVariant|LinkAssetCatalog|GenerateAssetSymbols|GeneratedAssetSymbols|CopySwiftLibs|CopySwiftLibs)(\e\[0m)? ("[^"]+"|(\\|(?<=\\)\s|\S)+)?/) {
-            my ($command, $path) = ($2, basename($4));
+            my $command = $2;
+            my $path = defined($4) ? basename($4) : "";
             $command = "ScanDeps" if $command eq "ScanDependencies";
             $path =~ s/("|\\|\.[ah]$)//g;
             printLine("$command $path", $target, $project, STYLE_PLAIN);

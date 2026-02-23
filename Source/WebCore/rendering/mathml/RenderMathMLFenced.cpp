@@ -85,7 +85,7 @@ void RenderMathMLFenced::updateFromElement()
 
     if (firstChild()) {
         // FIXME: The mfenced element fails to update dynamically when its open, close and separators attributes are changed (https://bugs.webkit.org/show_bug.cgi?id=57696).
-        if (auto* fencedOperator = dynamicDowncast<RenderMathMLFencedOperator>(*firstChild()))
+        if (CheckedPtr fencedOperator = dynamicDowncast<RenderMathMLFencedOperator>(*firstChild()))
             fencedOperator->updateOperatorContent(m_open);
         m_closeFenceRenderer->updateOperatorContent(m_close);
     }

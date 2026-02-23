@@ -49,13 +49,13 @@ public:
 
     const String& name() const { return m_name; }
     const String& virtualPath() const { return m_virtualPath; }
-    DOMFileSystem& filesystem() const;
+    DOMFileSystem& NODELETE filesystem() const;
 
     void getParent(ScriptExecutionContext&, RefPtr<FileSystemEntryCallback>&&, RefPtr<ErrorCallback>&&);
 
 protected:
     FileSystemEntry(ScriptExecutionContext&, DOMFileSystem&, const String& virtualPath);
-    Document* document() const;
+    Document* NODELETE document() const;
 
 private:
     const Ref<DOMFileSystem> m_filesystem;

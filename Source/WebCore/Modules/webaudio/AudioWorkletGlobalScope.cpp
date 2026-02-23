@@ -124,7 +124,7 @@ ExceptionOr<void> AudioWorkletGlobalScope::registerProcessor(String&& name, Ref<
     if (!addResult.isNewEntry)
         return Exception { ExceptionCode::NotSupportedError, "A processor was already registered with this name"_s };
 
-    auto* messagingProxy = thread()->messagingProxy();
+    RefPtr messagingProxy = thread()->messagingProxy();
     if (!messagingProxy)
         return Exception { ExceptionCode::InvalidStateError };
 
@@ -173,7 +173,7 @@ RefPtr<AudioWorkletProcessor> AudioWorkletGlobalScope::createProcessor(const Str
     if (!jsProcessor)
         return nullptr;
 
-    m_processors.add(jsProcessor->wrapped());
+    m_processors.add(protect(jsProcessor->wrapped()).get());
     return &jsProcessor->wrapped();
 }
 

@@ -325,9 +325,4 @@ void HTMLDialogElement::queueDialogToggleEventTask(ToggleState oldState, ToggleS
     RefPtr { m_toggleEventTask }->queue(oldState, newState, source);
 }
 
-bool HTMLDialogElement::isOpen() const
-{
-    return m_isOpen;
-}
-
 }

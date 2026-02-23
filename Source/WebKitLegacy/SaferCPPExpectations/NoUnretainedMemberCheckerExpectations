@@ -4,7 +4,6 @@ WebCoreSupport/SocketStreamHandleImplCFNet.cpp
 [ iOS ] ios/WebCoreSupport/WebGeolocationPrivate.h
 [ iOS ] ios/WebView/WebPDFViewIOS.mm
 [ iOS ] ios/WebView/WebPDFViewPlaceholder.h
-[ iOS ] ios/WebView/WebPDFViewPlaceholder.mm
 mac/History/BackForwardList.h
 mac/History/WebBackForwardList.h
 mac/History/WebHistory.h
@@ -39,7 +38,6 @@ mac/WebView/WebArchive.h
 mac/WebView/WebDeviceOrientation.h
 mac/WebView/WebDeviceOrientationProviderMock.h
 mac/WebView/WebDocumentLoaderMac.h
-[ iOS ] mac/WebView/WebFeature.h
 mac/WebView/WebFrame.h
 mac/WebView/WebFrameView.h
 mac/WebView/WebFrameView.mm
@@ -65,6 +63,5 @@ mac/WebView/WebTextIterator.h
 mac/WebView/WebView.h
 mac/WebView/WebView.mm
 mac/WebView/WebViewData.h
-[ iOS ] mac/WebView/WebViewPrivate.h
 [ iOS ] mac/WebView/WebViewRenderingUpdateScheduler.h
 [ Mac ] mac/WebView/WebWindowAnimation.h

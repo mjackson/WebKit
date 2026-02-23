@@ -128,17 +128,17 @@ static inline void addStyleRelation(SelectorChecker::CheckingContext& checkingCo
     checkingContext.styleRelations.append({ element, type, value });
 }
 
-static inline bool isFirstChildElement(const Element& element)
+static inline bool NODELETE isFirstChildElement(const Element& element)
 {
     return !ElementTraversal::previousSibling(element);
 }
 
-static inline bool isLastChildElement(const Element& element)
+static inline bool NODELETE isLastChildElement(const Element& element)
 {
     return !ElementTraversal::nextSibling(element);
 }
 
-static inline bool isFirstOfType(const Element& element, const QualifiedName& type)
+static inline bool NODELETE isFirstOfType(const Element& element, const QualifiedName& type)
 {
     for (const Element* sibling = ElementTraversal::previousSibling(element); sibling; sibling = ElementTraversal::previousSibling(*sibling)) {
         if (sibling->hasTagName(type))
@@ -147,7 +147,7 @@ static inline bool isFirstOfType(const Element& element, const QualifiedName& ty
     return true;
 }
 
-static inline bool isLastOfType(const Element& element, const QualifiedName& type)
+static inline bool NODELETE isLastOfType(const Element& element, const QualifiedName& type)
 {
     for (const Element* sibling = ElementTraversal::nextSibling(element); sibling; sibling = ElementTraversal::nextSibling(*sibling)) {
         if (sibling->hasTagName(type))
@@ -156,7 +156,7 @@ static inline bool isLastOfType(const Element& element, const QualifiedName& typ
     return true;
 }
 
-static inline int countElementsBefore(const Element& element)
+static inline int NODELETE countElementsBefore(const Element& element)
 {
     int count = 0;
     for (CheckedPtr<const Element> sibling = ElementTraversal::previousSibling(element); sibling; sibling = ElementTraversal::previousSibling(*sibling)) {
@@ -170,7 +170,7 @@ static inline int countElementsBefore(const Element& element)
     return count;
 }
 
-static inline int countElementsOfTypeBefore(const Element& element, const QualifiedName& type)
+static inline int NODELETE countElementsOfTypeBefore(const Element& element, const QualifiedName& type)
 {
     int count = 0;
     for (const Element* sibling = ElementTraversal::previousSibling(element); sibling; sibling = ElementTraversal::previousSibling(*sibling)) {
@@ -180,7 +180,7 @@ static inline int countElementsOfTypeBefore(const Element& element, const Qualif
     return count;
 }
 
-static inline int countElementsAfter(const Element& element)
+static inline int NODELETE countElementsAfter(const Element& element)
 {
     int count = 0;
     for (const Element* sibling = ElementTraversal::nextSibling(element); sibling; sibling = ElementTraversal::nextSibling(*sibling))
@@ -188,7 +188,7 @@ static inline int countElementsAfter(const Element& element)
     return count;
 }
 
-static inline int countElementsOfTypeAfter(const Element& element, const QualifiedName& type)
+static inline int NODELETE countElementsOfTypeAfter(const Element& element, const QualifiedName& type)
 {
     int count = 0;
     for (const Element* sibling = ElementTraversal::nextSibling(element); sibling; sibling = ElementTraversal::nextSibling(*sibling)) {
@@ -295,7 +295,7 @@ inline static bool hasScrollbarPseudoElement(EnumSet<PseudoElementType> collecte
     return collectedPseudoElements.contains(PseudoElementType::WebKitResizer);
 }
 
-static SelectorChecker::LocalContext localContextForParent(const SelectorChecker::LocalContext& context)
+static SelectorChecker::LocalContext NODELETE localContextForParent(const SelectorChecker::LocalContext& context)
 {
     SelectorChecker::LocalContext updatedContext(context);
     // Disable :visited matching when we see the first link.
@@ -1242,6 +1242,9 @@ bool SelectorChecker::checkOne(CheckingContext& checkingContext, LocalContext& c
 
         case CSSSelector::PseudoClass::InternalMediaDocument:
             return isMediaDocument(element);
+
+        case CSSSelector::PseudoClass::InternalSelectPopover:
+            return matchesSelectPopoverPseudoClass(element);
 
         case CSSSelector::PseudoClass::InternalUsesMenulist:
             return matchesUsesMenulistPseudoClass(element);

@@ -65,7 +65,7 @@ public:
 
     using CreatorFunction = ExceptionOr<std::unique_ptr<MediaRecorderPrivate>> (*)(MediaStreamPrivate&, const Options&);
 
-    WEBCORE_EXPORT static void setCustomPrivateRecorderCreator(CreatorFunction);
+    WEBCORE_EXPORT static void NODELETE setCustomPrivateRecorderCreator(CreatorFunction);
 
     RecordingState state() const { return m_state; }
     const String& mimeType() const { return m_options.mimeType; }
@@ -88,18 +88,18 @@ private:
 
     static ExceptionOr<std::unique_ptr<MediaRecorderPrivate>> createMediaRecorderPrivate(MediaStreamPrivate&, const Options&);
     
-    Document* document() const;
+    Document* NODELETE document() const;
 
     // EventTarget
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }
     enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::MediaRecorder; }
-    ScriptExecutionContext* scriptExecutionContext() const final;
+    ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
 
     // ActiveDOMObject.
     void suspend(ReasonForSuspension) final;
     void stop() final;
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
     
     void stopRecordingInternal(CompletionHandler<void()>&& = [] { });
     void dispatchError(Exception&&);
@@ -126,8 +126,6 @@ private:
     void updateBitRates() { computeBitRates(&m_stream->privateStream()); }
     void computeBitRates(const MediaStreamPrivate*);
     void timeSlicerTimerFired();
-
-    CheckedPtr<MediaRecorderPrivate> checkedPrivate();
 
     static CreatorFunction m_customCreator;
 

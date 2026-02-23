@@ -50,7 +50,7 @@ void RevealFocusedElementDeferrer::fulfill(RevealFocusedElementDeferralReason re
     if (!m_reasons.isEmpty())
         return;
 
-    [m_view.get() _zoomToRevealFocusedElement];
+    [protect(m_view) _zoomToRevealFocusedElement];
     m_view = nil;
 }
 

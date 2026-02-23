@@ -485,7 +485,7 @@ MediaProducerMediaStateFlags MediaStreamTrack::mediaState() const
     if (!document || !document->page())
         return MediaProducer::IsNotPlaying;
 
-    return captureState(privateTrack().source());
+    return captureState(protect(privateTrack().source()));
 }
 
 void MediaStreamTrack::trackStarted(MediaStreamTrackPrivate&)

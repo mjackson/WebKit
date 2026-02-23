@@ -67,7 +67,7 @@ void WebEditorClient::stopDelayingAndCoalescingContentChangeNotifications()
 bool WebEditorClient::hasRichlyEditableSelection()
 {
     RefPtr page = m_page.get();
-    return page ? page->hasRichlyEditableSelection() : false;
+    return page && page->hasRichlyEditableSelection();
 }
 
 int WebEditorClient::getPasteboardItemsCount()
@@ -109,25 +109,25 @@ void WebEditorClient::subFrameScrollPositionChanged()
 bool WebEditorClient::shouldRevealCurrentSelectionAfterInsertion() const
 {
     RefPtr page = m_page.get();
-    return page ? page->shouldRevealCurrentSelectionAfterInsertion() : false;
+    return page && page->shouldRevealCurrentSelectionAfterInsertion();
 }
 
 bool WebEditorClient::shouldSuppressPasswordEcho() const
 {
     RefPtr page = m_page.get();
-    return page ? (page->screenIsBeingCaptured() || page->hardwareKeyboardIsAttached()) : false;
+    return page && (page->screenIsBeingCaptured() || page->hardwareKeyboardIsAttached());
 }
 
 bool WebEditorClient::shouldRemoveDictationAlternativesAfterEditing() const
 {
     RefPtr page = m_page.get();
-    return page ? page->shouldRemoveDictationAlternativesAfterEditing() : false;
+    return page && page->shouldRemoveDictationAlternativesAfterEditing();
 }
 
 bool WebEditorClient::shouldDrawVisuallyContiguousBidiSelection() const
 {
     RefPtr page = m_page.get();
-    return page ? page->shouldDrawVisuallyContiguousBidiSelection() : false;
+    return page && page->shouldDrawVisuallyContiguousBidiSelection();
 }
 
 } // namespace WebKit

@@ -62,7 +62,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(HTMLTextAreaElement);
 
 using namespace HTMLNames;
 
-static inline unsigned computeLengthForAPIValue(StringView text)
+static inline unsigned NODELETE computeLengthForAPIValue(StringView text)
 {
     unsigned length = text.length();
     unsigned crlfCount = 0;
@@ -551,7 +551,7 @@ RenderStyle HTMLTextAreaElement::createInnerTextStyle(const RenderStyle& style)
     auto textBlockStyle = RenderStyle::create();
     textBlockStyle.inheritFrom(style);
     adjustInnerTextStyle(style, textBlockStyle);
-    textBlockStyle.setDisplay(DisplayType::Block);
+    textBlockStyle.setDisplay(Style::DisplayType::BlockFlow);
     return textBlockStyle;
 }
 

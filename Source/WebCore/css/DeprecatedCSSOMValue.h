@@ -47,7 +47,7 @@ public:
         CSS_CUSTOM = 3
     };
 
-    WEBCORE_EXPORT unsigned short cssValueType() const;
+    WEBCORE_EXPORT unsigned short NODELETE cssValueType() const;
 
     WEBCORE_EXPORT String cssText() const;
     ExceptionOr<void> setCssText(const String&) { return { }; } // Will never implement.
@@ -76,7 +76,7 @@ protected:
     ClassType classType() const { return static_cast<ClassType>(m_classType); }
 
     DeprecatedCSSOMValue(ClassType classType, CSSStyleDeclaration& owner)
-        : m_classType(enumToUnderlyingType(classType))
+        : m_classType(std::to_underlying(classType))
         , m_owner(owner)
     {
     }

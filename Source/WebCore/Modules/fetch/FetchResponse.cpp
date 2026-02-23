@@ -49,7 +49,7 @@ namespace WebCore {
 WTF_MAKE_TZONE_ALLOCATED_IMPL(FetchResponseBodyLoader);
 
 // https://fetch.spec.whatwg.org/#null-body-status
-static inline bool isNullBodyStatus(int status)
+static inline bool NODELETE isNullBodyStatus(int status)
 {
     return status == 101 || status == 204 || status == 205 || status == 304;
 }
@@ -265,7 +265,7 @@ Ref<FetchResponse> FetchResponse::createFetchResponse(ScriptExecutionContext& co
     auto response = adoptRef(*new FetchResponse(&context, FetchBody { }, FetchHeaders::create(FetchHeaders::Guard::Immutable), { }));
     response->suspendIfNeeded();
 
-    response->body().checkedConsumer()->setAsLoading();
+    protect(response->body().consumer())->setAsLoading();
 
     response->addAbortSteps(request.signal());
 
@@ -437,7 +437,7 @@ void FetchResponse::Loader::didReceiveData(const SharedBuffer& buffer)
 bool FetchResponse::Loader::start(ScriptExecutionContext& context, const FetchRequest& request, const String& initiator)
 {
     m_credentials = request.fetchOptions().credentials;
-    Ref loader = FetchLoader::create(*this, m_response->m_body->checkedConsumer().ptr());
+    Ref loader = FetchLoader::create(*this, protect(m_response->m_body->consumer()).ptr());
     m_loader = loader.copyRef();
     loader->start(context, request, initiator);
 
@@ -499,7 +499,7 @@ void FetchResponse::consumeBodyReceivedByChunk(ConsumeDataByChunkCallback&& call
     m_isDisturbed = true;
 
     if (hasReadableStreamBody()) {
-        m_body->checkedConsumer()->extract(*protect(m_body->readableStream()), [callback = WTF::move(callback), weakThis = WeakPtr { *this }](auto&& result) {
+        protect(m_body->consumer())->extract(*protect(m_body->readableStream()), [callback = WTF::move(callback), weakThis = WeakPtr { *this }](auto&& result) {
             WTF::switchOn(WTF::move(result), [&](std::nullptr_t) {
                 callback(nullptr);
             }, [&](std::span<const uint8_t> chunk) {
@@ -534,7 +534,7 @@ void FetchResponse::setBodyData(ResponseData&& data, uint64_t bodySizeWithPaddin
         [this](Ref<SharedBuffer>& buffer) {
             if (isBodyNull())
                 setBody({ });
-            body().checkedConsumer()->setData(WTF::move(buffer));
+            protect(body().consumer())->setData(WTF::move(buffer));
         },
         [](std::nullptr_t&) {
         }
@@ -543,7 +543,7 @@ void FetchResponse::setBodyData(ResponseData&& data, uint64_t bodySizeWithPaddin
 
 void FetchResponse::consumeChunk(Ref<JSC::Uint8Array>&& chunk)
 {
-    body().checkedConsumer()->append(SharedBuffer::create(chunk->span()));
+    protect(body().consumer())->append(SharedBuffer::create(chunk->span()));
 }
 
 void FetchResponse::consumeBodyAsStream()
@@ -699,7 +699,7 @@ void FetchResponse::didSucceed(const NetworkLoadMetrics& metrics)
 
 void FetchResponse::receivedData(Ref<SharedBuffer>&& buffer)
 {
-    body().checkedConsumer()->append(buffer.get());
+    protect(body().consumer())->append(buffer.get());
 }
 
 ResourceResponse FetchResponse::resourceResponse() const

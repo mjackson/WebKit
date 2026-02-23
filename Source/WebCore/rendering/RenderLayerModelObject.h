@@ -53,9 +53,8 @@ public:
 
     void destroyLayer();
 
-    bool hasSelfPaintingLayer() const;
+    bool NODELETE hasSelfPaintingLayer() const;
     RenderLayer* layer() const { return m_layer.get(); }
-    CheckedPtr<RenderLayer> checkedLayer() const;
 
     void styleWillChange(Style::Difference, const RenderStyle& newStyle) override;
     void styleDidChange(Style::Difference, const RenderStyle* oldStyle) override;
@@ -72,9 +71,9 @@ public:
 
     virtual bool isScrollableOrRubberbandableBox() const { return false; }
 
-    bool shouldPlaceVerticalScrollbarOnLeft() const;
+    bool NODELETE shouldPlaceVerticalScrollbarOnLeft() const;
 
-    std::optional<LayoutRect> cachedLayerClippedOverflowRect() const;
+    std::optional<LayoutRect> NODELETE cachedLayerClippedOverflowRect() const;
 
     bool startAnimation(double timeOffset, const GraphicsLayerAnimation&, const BlendingKeyframes&) override;
     void animationPaused(double timeOffset, const BlendingKeyframes&) override;
@@ -122,7 +121,7 @@ public:
     void paintSVGClippingMask(PaintInfo&, const FloatRect& objectBoundingBox) const;
     void paintSVGMask(PaintInfo&, const LayoutPoint& adjustedPaintOffset) const;
 
-    TransformationMatrix* layerTransform() const;
+    TransformationMatrix* NODELETE layerTransform() const;
 
     virtual void updateLayerTransform();
     virtual void applyTransform(TransformationMatrix&, const RenderStyle&, const FloatRect& boundingBox, OptionSet<Style::TransformResolverOption>) const = 0;
@@ -154,7 +153,7 @@ private:
 };
 
 // Pixel-snapping (== 'device pixel alignment') helpers.
-bool rendererNeedsPixelSnapping(const RenderLayerModelObject&);
+bool NODELETE rendererNeedsPixelSnapping(const RenderLayerModelObject&);
 FloatRect snapRectToDevicePixelsIfNeeded(const LayoutRect&, const RenderLayerModelObject&);
 FloatRect snapRectToDevicePixelsIfNeeded(const FloatRect&, const RenderLayerModelObject&);
 

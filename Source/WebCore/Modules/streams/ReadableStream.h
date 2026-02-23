@@ -148,6 +148,7 @@ public:
     public:
         virtual ~DependencyToVisit() = default;
         virtual void visit(JSC::AbstractSlotVisitor&) = 0;
+        virtual void stop() = 0;
     };
     enum class StartSynchronously : bool { No, Yes };
     enum class IsSourceReachableFromOpaqueRoot : bool { No, Yes };
@@ -173,7 +174,7 @@ public:
         ~Iterator();
 
         Ref<DOMPromise> next(JSDOMGlobalObject&);
-        bool isFinished() const;
+        bool NODELETE isFinished() const;
         Ref<DOMPromise> returnSteps(JSDOMGlobalObject&, JSC::JSValue);
 
     private:
@@ -194,7 +195,7 @@ private:
     ExceptionOr<void> setupReadableByteStreamControllerFromUnderlyingSource(JSDOMGlobalObject&, JSC::JSValue, UnderlyingSource&&, double);
     void setupReadableByteStreamController(JSDOMGlobalObject&, ReadableByteStreamController::PullAlgorithm&&, ReadableByteStreamController::CancelAlgorithm&&, double, StartSynchronously);
 
-    bool isPulling() const;
+    bool NODELETE isPulling() const;
     void teedBranchIsDestroyed(ReadableStream&);
 
     const bool m_isSourceReachableFromOpaqueRoot { false };
@@ -213,6 +214,6 @@ private:
     WeakPtr<ReadableStream> m_sourceTeedStream;
 };
 
-WebCoreOpaqueRoot root(ReadableStream*);
+WebCoreOpaqueRoot NODELETE root(ReadableStream*);
 
 } // namespace WebCore

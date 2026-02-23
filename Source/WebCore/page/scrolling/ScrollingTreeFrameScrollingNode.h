@@ -57,6 +57,9 @@ public:
     int headerHeight() const { return m_headerHeight; }
     int footerHeight() const { return m_footerHeight; }
     FloatBoxExtent obscuredContentInsets() const { return m_obscuredContentInsets; }
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+    float bannerViewHeight() const { return m_bannerViewHeight; }
+#endif
     virtual void viewWillStartLiveResize() { }
     virtual void viewWillEndLiveResize() { }
     virtual void viewSizeDidChange() { }
@@ -78,7 +81,7 @@ protected:
 
 private:
     void updateViewportForCurrentScrollPosition(std::optional<FloatRect>) override;
-    bool scrollPositionAndLayoutViewportMatch(const FloatPoint& position, std::optional<FloatRect> overrideLayoutViewport) override;
+    bool NODELETE scrollPositionAndLayoutViewportMatch(const FloatPoint& position, std::optional<FloatRect> overrideLayoutViewport) override;
     FloatRect layoutViewportForScrollPosition(const FloatPoint&, float scale, ScrollBehaviorForFixedElements = ScrollBehaviorForFixedElements::StickToDocumentBounds) const;
 
     void dumpProperties(WTF::TextStream&, OptionSet<ScrollingStateTreeAsTextBehavior>) const override;
@@ -91,6 +94,9 @@ private:
     
     float m_frameScaleFactor { 1 };
     FloatBoxExtent m_obscuredContentInsets;
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+    float m_bannerViewHeight { 0 };
+#endif
 
     int m_headerHeight { 0 };
     int m_footerHeight { 0 };

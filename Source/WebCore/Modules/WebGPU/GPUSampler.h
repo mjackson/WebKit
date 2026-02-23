@@ -39,7 +39,7 @@ public:
         return adoptRef(*new GPUSampler(WTF::move(backing)));
     }
 
-    String label() const;
+    String NODELETE label() const;
     void setLabel(String&&);
 
     WebGPU::Sampler& backing() { return m_backing; }

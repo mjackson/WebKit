@@ -79,7 +79,7 @@ public:
     bool isKeypad() const { return m_isKeypad; }
     bool isSystemKey() const { return m_isSystemKey; }
 
-    static bool isKeyboardEventType(WebEventType);
+    static bool NODELETE isKeyboardEventType(WebEventType);
 
 #if PLATFORM(WPE)
     static String keyValueStringForWPEKeyval(unsigned);

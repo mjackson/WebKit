@@ -458,7 +458,7 @@ static inline bool mightBeHSL(std::span<const CharacterType> characters)
         && isASCIIAlphaCaselessEqual(characters[2], 'l');
 }
 
-static std::optional<SRGBA<uint8_t>> finishParsingHexColor(uint32_t value, unsigned length)
+static std::optional<SRGBA<uint8_t>> NODELETE finishParsingHexColor(uint32_t value, unsigned length)
 {
     switch (length) {
     case 3: {

@@ -177,6 +177,69 @@ static std::optional<EncryptionDataCollection> getEncryptionDataCollection(CMFor
 }
 #endif
 
+static RetainPtr<CFMutableDictionaryRef> createExtensionsDictionary(const TrackInfo& info)
+{
+    if (info.isAudio()) {
+#if ENABLE(ENCRYPTED_MEDIA) && HAVE(AVCONTENTKEYSESSION)
+        if (!info.encryptionDataCollection())
+            return nullptr;
+#else
+        return nullptr;
+#endif
+    }
+
+    size_t maxNumberOfElements = [&] {
+#if ENABLE(ENCRYPTED_MEDIA) && HAVE(AVCONTENTKEYSESSION)
+        return info.isAudio() ? 5 : 9;
+#else
+        return 5;
+#endif
+    }();
+    RetainPtr extensions = adoptCF(CFDictionaryCreateMutable(kCFAllocatorDefault, maxNumberOfElements, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
+    if (!extensions)
+        return nullptr;
+
+    Vector<std::pair<FourCC, Ref<SharedBuffer>>> configurations;
+    CFIndex configurationsNumKey = 0;
+#if ENABLE(ENCRYPTED_MEDIA) && HAVE(AVCONTENTKEYSESSION)
+    if (auto& encryptionCollection = info.encryptionDataCollection()) {
+        CFDictionaryAddValue(extensions.get(), CFSTR("CommonEncryptionProtected"), kCFBooleanTrue);
+        RetainPtr data = Ref { encryptionCollection->encryptionData.second }->createCFData();
+        switch (encryptionCollection->encryptionData.first) {
+        case EncryptionBoxType::CommonEncryptionTrackEncryptionBox:
+            CFDictionaryAddValue(extensions.get(), CFSTR("CommonEncryptionTrackEncryptionBox"), data.get());
+            break;
+        case EncryptionBoxType::TransportStreamEncryptionInitData:
+            CFDictionaryAddValue(extensions.get(), CFSTR("TransportStreamEncryptionInitData"), data.get());
+            break;
+        }
+        if (encryptionCollection->encryptionOriginalFormat) {
+            RetainPtr originalFormat = adoptCF(CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &encryptionCollection->encryptionOriginalFormat->value));
+            CFDictionaryAddValue(extensions.get(), CFSTR("CommonEncryptionOriginalFormat"), originalFormat.get());
+        }
+        configurationsNumKey += encryptionCollection->encryptionInitDatas.size();
+    }
+#endif
+
+    if (info.isVideo())
+        configurationsNumKey += downcast<const VideoInfo>(info).extensionAtoms().size();
+
+    configurations.reserveInitialCapacity(configurationsNumKey);
+
+#if ENABLE(ENCRYPTED_MEDIA)
+    if (auto& encryptionCollection = info.encryptionDataCollection())
+        configurations.appendVector(encryptionCollection->encryptionInitDatas);
+#endif
+
+    if (info.isVideo())
+        configurations.appendVector(downcast<const VideoInfo>(info).extensionAtoms());
+
+    if (configurations.size())
+        CFDictionaryAddValue(extensions.get(), PAL::kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms, createExtensionAtomsDictionary(configurations).get());
+
+    return extensions;
+}
+
 static RetainPtr<CMFormatDescriptionRef> createAudioFormatDescription(const AudioInfo& info)
 {
     auto streamDescription = audioStreamDescriptionFromAudioInfo(info);
@@ -185,15 +248,7 @@ static RetainPtr<CMFormatDescriptionRef> createAudioFormatDescription(const Audi
     if (cookieData)
         cookie = cookieData->span();
 
-    RetainPtr<CFDictionaryRef> extensions;
-#if ENABLE(ENCRYPTED_MEDIA)
-    if (info.encryptionDataCollection()) {
-        RetainPtr dict = createExtensionAtomsDictionary(info.encryptionDataCollection()->encryptionInitDatas);
-        CFTypeRef keys[] = { PAL::kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms };
-        CFTypeRef values[] = { dict.get() };
-        extensions = adoptCF(CFDictionaryCreate(kCFAllocatorDefault, keys, values, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
-    }
-#endif
+    RetainPtr<CFDictionaryRef> extensions = createExtensionsDictionary(info);
 
     auto basicDescription = std::get<const AudioStreamBasicDescription*>(streamDescription.platformDescription().description);
     CMFormatDescriptionRef format = nullptr;
@@ -290,8 +345,9 @@ RetainPtr<CMFormatDescriptionRef> createFormatDescriptionFromTrackInfo(const Tra
         case kAudioFormatLinearPCM: {
             auto absd = CAAudioStreamDescription { static_cast<double>(audioInfo->rate()), audioInfo->channels(), AudioStreamDescription::Float32, CAAudioStreamDescription::IsInterleaved::Yes }.streamDescription();
 
+            RetainPtr extensions = createExtensionsDictionary(info);
             CMFormatDescriptionRef newFormat = nullptr;
-            if (auto error = PAL::CMAudioFormatDescriptionCreate(kCFAllocatorDefault, &absd, 0, nullptr, 0, nullptr, nullptr, &newFormat)) {
+            if (auto error = PAL::CMAudioFormatDescriptionCreate(kCFAllocatorDefault, &absd, 0, nullptr, 0, nullptr, extensions.get(), &newFormat)) {
                 RELEASE_LOG_ERROR(MediaStream, "createFormatDescriptionFromTrackInfo: CMAudioFormatDescriptionCreate failed with error %d", (int)error);
                 return nullptr;
             }
@@ -303,29 +359,7 @@ RetainPtr<CMFormatDescriptionRef> createFormatDescriptionFromTrackInfo(const Tra
     }
 
     auto& videoInfo = downcast<const VideoInfo>(info);
-
-    size_t maxNumberOfElements = [] {
-#if ENABLE(ENCRYPTED_MEDIA) && HAVE(AVCONTENTKEYSESSION)
-        return 9;
-#else
-        return 5;
-#endif
-    }();
-    RetainPtr extensions = adoptCF(CFDictionaryCreateMutable(kCFAllocatorDefault, maxNumberOfElements, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
-
-    CFIndex numKeys = videoInfo.extensionAtoms().size();
-#if ENABLE(ENCRYPTED_MEDIA)
-    if (videoInfo.encryptionDataCollection())
-        numKeys += videoInfo.encryptionDataCollection()->encryptionInitDatas.size();
-#endif
-    Vector<std::pair<FourCC, Ref<SharedBuffer>>> configurations;
-    configurations.reserveInitialCapacity(numKeys);
-    configurations.appendVector(videoInfo.extensionAtoms());
-#if ENABLE(ENCRYPTED_MEDIA)
-    if (videoInfo.encryptionDataCollection())
-        configurations.appendVector(videoInfo.encryptionDataCollection()->encryptionInitDatas);
-#endif
-    CFDictionaryAddValue(extensions.get(), PAL::kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms, createExtensionAtomsDictionary(configurations).get());
+    RetainPtr extensions = createExtensionsDictionary(info);
 
     if (videoInfo.colorSpace().fullRange.value_or(false))
         CFDictionaryAddValue(extensions.get(), PAL::kCMFormatDescriptionExtension_FullRangeVideo, kCFBooleanTrue);
@@ -351,25 +385,6 @@ RetainPtr<CMFormatDescriptionRef> createFormatDescriptionFromTrackInfo(const Tra
             (__bridge NSString*)PAL::get_CoreMedia_kCMFormatDescriptionKey_PixelAspectRatioVerticalSpacingSingleton() : @(verticalRatio)
         });
     }
-
-#if ENABLE(ENCRYPTED_MEDIA) && HAVE(AVCONTENTKEYSESSION)
-    if (auto& encryptionCollection = videoInfo.encryptionDataCollection()) {
-        CFDictionaryAddValue(extensions.get(), CFSTR("CommonEncryptionProtected"), kCFBooleanTrue);
-        RetainPtr data = Ref { encryptionCollection->encryptionData.second }->createCFData();
-        switch (encryptionCollection->encryptionData.first) {
-        case EncryptionBoxType::CommonEncryptionTrackEncryptionBox:
-            CFDictionaryAddValue(extensions.get(), CFSTR("CommonEncryptionTrackEncryptionBox"), data.get());
-            break;
-        case EncryptionBoxType::TransportStreamEncryptionInitData:
-            CFDictionaryAddValue(extensions.get(), CFSTR("TransportStreamEncryptionInitData"), data.get());
-            break;
-        }
-        if (encryptionCollection->encryptionOriginalFormat) {
-            RetainPtr originalFormat = adoptCF(CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &encryptionCollection->encryptionOriginalFormat->value));
-            CFDictionaryAddValue(extensions.get(), CFSTR("CommonEncryptionOriginalFormat"), originalFormat.get());
-        }
-    }
-#endif
 
 #if PLATFORM(VISION)
     if (videoInfo.immersiveVideoMetadata()) {

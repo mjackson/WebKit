@@ -145,7 +145,7 @@ private:
     void setVolume(double) final;
     void setPlayingOnSecondScreen(bool) final;
     void sendRemoteCommand(WebCore::PlatformMediaSession::RemoteControlCommandType, const WebCore::PlatformMediaSession::RemoteCommandArgument&) final;
-    void setVideoReceiverEndpoint(const WebCore::VideoReceiverEndpoint&) final;
+    void NODELETE setVideoReceiverEndpoint(const WebCore::VideoReceiverEndpoint&) final;
     const WebCore::VideoReceiverEndpoint& videoReceiverEndpoint() const { return m_videoReceiverEndpoint; }
     const std::optional<WebCore::VideoReceiverEndpointIdentifier>& videoReceiverEndpointIdentifier() const { return m_videoReceiverEndpointIdentifier; }
 
@@ -191,7 +191,7 @@ private:
     bool prefersAutoDimming() const final { return m_prefersAutoDimming; }
     void setPrefersAutoDimming(bool) final;
 
-    void swapVideoReceiverEndpointsWith(PlaybackSessionModelContext&);
+    void NODELETE swapVideoReceiverEndpointsWith(PlaybackSessionModelContext&);
 
 #if !RELEASE_LOG_DISABLED
     void setLogIdentifier(uint64_t identifier) { m_logIdentifier = identifier; }
@@ -199,7 +199,7 @@ private:
     const Logger* loggerPtr() const;
 
     ASCIILiteral logClassName() const { return "PlaybackSessionModelContext"_s; };
-    WTFLogChannel& logChannel() const;
+    WTFLogChannel& NODELETE logChannel() const;
 #endif
 
     WeakPtr<PlaybackSessionManagerProxy> m_manager;
@@ -351,7 +351,7 @@ private:
     void setPlayingOnSecondScreen(PlaybackSessionContextIdentifier, bool);
     void sendRemoteCommand(PlaybackSessionContextIdentifier, WebCore::PlatformMediaSession::RemoteControlCommandType, const WebCore::PlatformMediaSession::RemoteCommandArgument&);
     void setVideoReceiverEndpoint(PlaybackSessionContextIdentifier, const WebCore::VideoReceiverEndpoint&, WebCore::VideoReceiverEndpointIdentifier);
-    void swapVideoReceiverEndpoints(PlaybackSessionContextIdentifier, PlaybackSessionContextIdentifier);
+    void NODELETE swapVideoReceiverEndpoints(PlaybackSessionContextIdentifier, PlaybackSessionContextIdentifier);
 #if HAVE(SPATIAL_TRACKING_LABEL)
     void setSpatialTrackingLabel(PlaybackSessionContextIdentifier, const String&);
 #endif

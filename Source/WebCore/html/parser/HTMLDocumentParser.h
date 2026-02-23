@@ -113,7 +113,7 @@ private:
     // PendingScriptClient
     void notifyFinished(PendingScript&) final;
 
-    Document* contextForParsingSession();
+    Document* NODELETE contextForParsingSession();
 
     enum class SynchronousMode : bool { AllowYield, ForceSynchronous };
     void append(RefPtr<StringImpl>&&, SynchronousMode);
@@ -131,9 +131,9 @@ private:
     void attemptToRunDeferredScriptsAndEnd();
     void end();
 
-    bool isParsingFragment() const;
+    bool NODELETE isParsingFragment() const;
     bool isScheduledForResume() const;
-    bool inPumpSession() const;
+    bool NODELETE inPumpSession() const;
     bool shouldDelayEnd() const;
 
     void didBeginYieldingParser() final;

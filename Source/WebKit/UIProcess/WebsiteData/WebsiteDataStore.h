@@ -129,7 +129,7 @@ using RemoveDataTaskCounter = RefCounter<RemoveDataTaskCounterType>;
 class WebsiteDataStore : public API::ObjectImpl<API::Object::Type::WebsiteDataStore>, public CanMakeWeakPtr<WebsiteDataStore> {
 public:
     static WebsiteDataStore& defaultDataStore();
-    static bool defaultDataStoreExists();
+    static bool NODELETE defaultDataStoreExists();
     static void deleteDefaultDataStoreForTesting();
     static RefPtr<WebsiteDataStore> existingDataStoreForIdentifier(const WTF::UUID&);
     
@@ -149,13 +149,13 @@ public:
     NetworkProcessProxy* networkProcessIfExists() { return m_networkProcess.get(); }
     void setNetworkProcess(NetworkProcessProxy&);
     
-    static WebsiteDataStore* existingDataStoreForSessionID(PAL::SessionID);
+    static WebsiteDataStore* NODELETE existingDataStoreForSessionID(PAL::SessionID);
 
     bool isPersistent() const { return !m_sessionID.isEphemeral(); }
     PAL::SessionID sessionID() const { return m_sessionID; }
 
     enum class ProcessAccessType : uint8_t { None, OnlyIfLaunched, Launch };
-    static ProcessAccessType computeWebProcessAccessTypeForDataRemoval(OptionSet<WebsiteDataType> dataTypes, bool /* isNonPersistentStore */);
+    static ProcessAccessType NODELETE computeWebProcessAccessTypeForDataRemoval(OptionSet<WebsiteDataType> dataTypes, bool /* isNonPersistentStore */);
     
     void registerProcess(WebProcessProxy&);
     void unregisterProcess(WebProcessProxy&);
@@ -169,12 +169,12 @@ public:
     void sendNetworkProcessWillSuspendImminentlyForTesting();
     void sendNetworkProcessDidResume();
     void networkProcessDidTerminate(NetworkProcessProxy&);
-    static void makeNextNetworkProcessLaunchFailForTesting();
-    static bool shouldMakeNextNetworkProcessLaunchFailForTesting();
+    static void NODELETE makeNextNetworkProcessLaunchFailForTesting();
+    static bool NODELETE shouldMakeNextNetworkProcessLaunchFailForTesting();
 
     bool trackingPreventionEnabled() const;
     void setTrackingPreventionEnabled(bool);
-    bool resourceLoadStatisticsDebugMode() const;
+    bool NODELETE resourceLoadStatisticsDebugMode() const;
     void setResourceLoadStatisticsDebugMode(bool);
     void setResourceLoadStatisticsDebugMode(bool, CompletionHandler<void()>&&);
     void isResourceLoadStatisticsEphemeral(CompletionHandler<void(bool)>&&) const;
@@ -195,7 +195,7 @@ public:
 #if ENABLE(OPT_IN_PARTITIONED_COOKIES)
     bool computeIsOptInCookiePartitioningEnabled() const;
 #endif
-    void propagateSettingUpdates();
+    void NODELETE propagateSettingUpdates();
 
 #if PLATFORM(IOS_FAMILY)
     String resolvedCookieStorageDirectory();
@@ -339,7 +339,7 @@ public:
     void setHTTPCookieAcceptPolicy(WebCore::HTTPCookieAcceptPolicy);
 #endif
 
-    static void allowWebsiteDataRecordsForAllOrigins();
+    static void NODELETE allowWebsiteDataRecordsForAllOrigins();
 
 #if HAVE(SEC_KEY_PROXY)
     void addSecKeyProxyStore(Ref<SecKeyProxyStore>&&);

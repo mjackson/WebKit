@@ -28,14 +28,14 @@
  */
 
 #include "config.h"
-#include "URLHelpers.h"
+#include <wtf/URLHelpers.h>
 
-#include "URLParser.h"
 #include <mutex>
 #include <ranges>
 #include <unicode/uidna.h>
 #include <unicode/uscript.h>
 #include <wtf/StdLibExtras.h>
+#include <wtf/URLParser.h>
 #include <wtf/text/ParsingUtilities.h>
 #include <wtf/text/WTFString.h>
 
@@ -461,7 +461,7 @@ static inline bool isSecondLevelDomainNameAllowedByTLDRules(std::span<const char
             return isSecondLevelDomainNameAllowedByTLDRules(buffer.first(buffer.size() - suffixLength), function); \
     }
 
-static bool isRussianDomainNameCharacter(char16_t ch)
+static bool NODELETE isRussianDomainNameCharacter(char16_t ch)
 {
     // Only modern Russian letters, digits and dashes are allowed.
     return (ch >= 0x0430 && ch <= 0x044f) || ch == 0x0451 || isASCIIDigit(ch) || ch == '-';

@@ -53,6 +53,7 @@ public:
     IOSurface* surface() override;
     GraphicsContext& context() override;
     void flushContext() override;
+    void submitDrawingCommands() override;
 
 protected:
     ImageBufferIOSurfaceBackend(const Parameters&, std::unique_ptr<IOSurface>, RetainPtr<CGContextRef> platformContext, PlatformDisplayID, IOSurfacePool*);

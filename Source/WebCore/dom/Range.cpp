@@ -272,7 +272,7 @@ bool Range::intersectsNode(Node& node) const
     return intersects(makeSimpleRange(*this), node);
 }
 
-static inline Node* highestAncestorUnderCommonRoot(Node* node, Node* commonRoot)
+static inline Node* NODELETE highestAncestorUnderCommonRoot(Node* node, Node* commonRoot)
 {
     if (node == commonRoot)
         return 0;
@@ -954,7 +954,7 @@ void Range::updateRangeForParentlessNodeMovedToNewDocument(Node& node)
     protect(m_ownerDocument)->attachRange(*this);
 }
 
-static inline void boundaryTextInserted(RangeBoundaryPoint& boundary, Node& text, unsigned offset, unsigned length)
+static inline void NODELETE boundaryTextInserted(RangeBoundaryPoint& boundary, Node& text, unsigned offset, unsigned length)
 {
     if (&boundary.container() != &text)
         return;
@@ -972,7 +972,7 @@ void Range::textInserted(Node& text, unsigned offset, unsigned length)
     m_didChangeForHighlight = true;
 }
 
-static inline void boundaryTextRemoved(RangeBoundaryPoint& boundary, Node& text, unsigned offset, unsigned length)
+static inline void NODELETE boundaryTextRemoved(RangeBoundaryPoint& boundary, Node& text, unsigned offset, unsigned length)
 {
     if (&boundary.container() != &text)
         return;

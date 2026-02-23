@@ -99,8 +99,8 @@ private:
     template<typename Layer> static BackgroundImageGeometry calculateFillLayerImageGeometryImpl(const RenderBoxModelObject&, const RenderLayerModelObject* paintContainer, const Layer&, const LayoutPoint& paintOffset, const LayoutRect& borderBoxRect, std::optional<FillBox> overrideOrigin = std::nullopt);
     template<typename Layer> static LayoutSize calculateFillTileSize(const RenderBoxModelObject&, const Layer&, const LayoutSize& positioningAreaSize);
 
-    const Document& document() const;
-    const RenderView& view() const;
+    const Document& NODELETE document() const;
+    const RenderView& NODELETE view() const;
 
     RenderBoxModelObject& m_renderer;
     const PaintInfo& m_paintInfo;

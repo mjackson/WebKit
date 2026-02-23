@@ -196,7 +196,7 @@ static void* const safeAreaInsetsKVOContext = (void*)&safeAreaInsetsKVOContext;
 
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     if (useDefaultProcessPool)
-        [configuration setProcessPool:protectedWrapper(Ref { WebKit::defaultInspectorProcessPool(inspectorLevel) }.get()).get()];
+        [configuration setProcessPool:wrapper(protect(WebKit::defaultInspectorProcessPool(inspectorLevel))).get()];
     ALLOW_DEPRECATED_DECLARATIONS_END
 
     // Ensure that a page group identifier is set. This is for computing inspection levels.

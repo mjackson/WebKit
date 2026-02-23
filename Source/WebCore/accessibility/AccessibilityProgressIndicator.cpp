@@ -165,11 +165,11 @@ String AccessibilityProgressIndicator::gaugeRegionValueDescription() const
         return String();
 
     switch (meterElement->gaugeRegion()) {
-    case HTMLMeterElement::GaugeRegionOptimum:
+    case HTMLMeterElement::GaugeRegion::Optimum:
         return AXMeterGaugeRegionOptimumText();
-    case HTMLMeterElement::GaugeRegionSuboptimal:
+    case HTMLMeterElement::GaugeRegion::Suboptimal:
         return AXMeterGaugeRegionSuboptimalText();
-    case HTMLMeterElement::GaugeRegionEvenLessGood:
+    case HTMLMeterElement::GaugeRegion::EvenLessGood:
         return AXMeterGaugeRegionLessGoodText();
     }
 #endif

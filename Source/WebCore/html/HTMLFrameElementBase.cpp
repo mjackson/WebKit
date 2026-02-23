@@ -78,7 +78,7 @@ bool HTMLFrameElementBase::canLoadURL(const URL& completeURL) const
 {
     if (completeURL.protocolIsJavaScript()) {
         RefPtr contentDocument = this->contentDocument();
-        if (contentDocument && !ScriptController::canAccessFromCurrentOrigin(contentDocument->protectedFrame().get(), protect(document()).get()))
+        if (contentDocument && !ScriptController::canAccessFromCurrentOrigin(protect(contentDocument->frame()).get(), protect(document()).get()))
             return false;
     }
 

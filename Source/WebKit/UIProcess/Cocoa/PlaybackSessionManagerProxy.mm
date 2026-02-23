@@ -29,6 +29,7 @@
 #if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
 
 #import "MessageSenderInlines.h"
+#import "PlaybackSessionInterfaceAVKit.h"
 #import "PlaybackSessionInterfaceLMK.h"
 #import "PlaybackSessionManagerMessages.h"
 #import "PlaybackSessionManagerProxyMessages.h"
@@ -40,7 +41,6 @@
 #import "WebProcessProxy.h"
 #import <Foundation/Foundation.h>
 #import <WebCore/NullPlaybackSessionInterface.h>
-#import <WebCore/PlaybackSessionInterfaceAVKit.h>
 #import <WebCore/PlaybackSessionInterfaceAVKitLegacy.h>
 #import <WebCore/PlaybackSessionInterfaceMac.h>
 #import <WebCore/PlaybackSessionInterfaceTVOS.h>
@@ -609,8 +609,8 @@ void PlaybackSessionManagerProxy::sendToWebProcess(PlaybackSessionContextIdentif
 
 static Ref<PlatformPlaybackSessionInterface> playbackSessionInterface(WebPageProxy& page, PlaybackSessionModel& model)
 {
-#if HAVE(AVKIT_CONTENT_SOURCE)
-    if (page.preferences().isAVKitContentSourceEnabled())
+#if HAVE(AVEXPERIENCECONTROLLER)
+    if (page.preferences().isAVExperienceControllerFullscreenEnabled())
         return PlaybackSessionInterfaceAVKit::create(model);
 #endif
 
@@ -1147,7 +1147,7 @@ bool PlaybackSessionManagerProxy::wirelessVideoPlaybackDisabled()
     if (it == m_contextMap.end())
         return true;
 
-    return std::get<0>(it->value)->wirelessVideoPlaybackDisabled();
+    return protect(std::get<0>(it->value))->wirelessVideoPlaybackDisabled();
 }
 
 void PlaybackSessionManagerProxy::requestControlledElementID()

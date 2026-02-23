@@ -203,7 +203,7 @@ void SpellChecker::requestExtendedCheckingFor(Ref<SpellCheckRequest>&& request, 
     request->setCheckerAndIdentifier(this, identifier);
     request->setExistingResults(results);
 
-    client()->requestExtendedCheckingOfString(WTF::move(request), protectedDocument()->selection().selection());
+    client()->requestExtendedCheckingOfString(WTF::move(request), protect(document())->selection().selection());
 }
 
 void SpellChecker::invokeRequest(Ref<SpellCheckRequest>&& request)
@@ -212,7 +212,7 @@ void SpellChecker::invokeRequest(Ref<SpellCheckRequest>&& request)
     if (!client())
         return;
     m_processingRequest = WTF::move(request);
-    client()->requestCheckingOfString(*m_processingRequest, protectedDocument()->selection().selection());
+    client()->requestCheckingOfString(*m_processingRequest, protect(document())->selection().selection());
 }
 
 void SpellChecker::enqueueRequest(Ref<SpellCheckRequest>&& request)
@@ -263,11 +263,11 @@ void SpellChecker::didCheck(TextCheckingRequestIdentifier identifier, const Vect
             return;
         VisibleSelection selection = VisibleSelection(*range);
         SetForScope isRecheckingForScope(m_inRecheck, true);
-        protectedDocument()->editor().markMisspellingsAndBadGrammar(selection);
+        protect(document())->editor().markMisspellingsAndBadGrammar(selection);
         return;
     }
 
-    protectedDocument()->editor().markAndReplaceFor(*m_processingRequest, results);
+    protect(document())->editor().markAndReplaceFor(*m_processingRequest, results);
 
     if (!m_lastProcessedIdentifier || *m_lastProcessedIdentifier < identifier)
         m_lastProcessedIdentifier = identifier;
@@ -278,11 +278,6 @@ void SpellChecker::didCheck(TextCheckingRequestIdentifier identifier, const Vect
 }
 
 Document& SpellChecker::document() const
-{
-    return m_editor->document();
-}
-
-Ref<Document> SpellChecker::protectedDocument() const
 {
     return m_editor->document();
 }

@@ -55,7 +55,7 @@ enum class Action : uint8_t {
     TextInput,
     KeyPress,
     HighlightText,
-    ScrollBy,
+    Scroll,
 };
 
 struct Interaction {
@@ -101,7 +101,7 @@ struct Request {
     bool mergeParagraphs { false };
     bool skipNearlyTransparentContent { false };
     NodeIdentifierInclusion nodeIdentifierInclusion { NodeIdentifierInclusion::None };
-    bool includeEventListeners { false };
+    OptionSet<EventListenerCategory> eventListenerCategories;
     bool includeAccessibilityAttributes { false };
     bool includeTextInAutoFilledControls { false };
     bool includeOffscreenPasswordFields { false };

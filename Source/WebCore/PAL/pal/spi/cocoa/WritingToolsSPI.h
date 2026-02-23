@@ -32,7 +32,7 @@ DECLARE_SYSTEM_HEADER
 
 #if ENABLE(WRITING_TOOLS)
 
-#if USE(APPLE_INTERNAL_SDK) && !__has_feature(modules)
+#if USE(APPLE_INTERNAL_SDK) && (!__has_feature(modules) || HAVE(VALID_WRITING_TOOLS_MODULE))
 #import <WritingTools/WTSession_Private.h>
 #import <WritingTools/WritingTools.h>
 #else

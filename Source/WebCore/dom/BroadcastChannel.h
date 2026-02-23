@@ -59,7 +59,7 @@ public:
     void deref() const final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::deref(); }
     USING_CAN_MAKE_WEAKPTR(EventTarget);
 
-    BroadcastChannelIdentifier identifier() const;
+    BroadcastChannelIdentifier NODELETE identifier() const;
     String name() const;
 
     ExceptionOr<void> postMessage(JSC::JSGlobalObject&, JSC::JSValue message);

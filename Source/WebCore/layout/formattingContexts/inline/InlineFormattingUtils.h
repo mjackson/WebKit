@@ -43,9 +43,6 @@ public:
 
     InlineLayoutUnit logicalTopForNextLine(const LineLayoutResult&, const InlineRect& lineLogicalRect, const FloatingContext&, const BlockLayoutState::MarginState&) const;
 
-    ContentHeightAndMargin inlineBlockContentHeightAndMargin(const Box&, const HorizontalConstraints&, const OverriddenVerticalValues&) const;
-    ContentWidthAndMargin inlineBlockContentWidthAndMargin(const Box&, const HorizontalConstraints&, const OverriddenHorizontalValues&) const;
-
     enum class IsIntrinsicWidthMode : bool { No, Yes };
     enum class LineEndsWithLineBreak : bool { No, Yes };
     InlineLayoutUnit computedTextIndent(IsIntrinsicWidthMode, IsFirstFormattedLine, std::optional<LineEndsWithLineBreak> previousLineEndsWithLineBreak, InlineLayoutUnit availableWidth) const;
@@ -57,8 +54,6 @@ public:
     FloatingContext::Constraints floatConstraintsForLine(InlineLayoutUnit lineLogicalTop, InlineLayoutUnit contentLogicalHeight, const FloatingContext&) const;
 
     static InlineRect flipVisualRectToLogicalForWritingMode(const InlineRect& visualRect, WritingMode);
-
-    void adjustMarginStartForListMarker(const ElementBox&, LayoutUnit nestedListMarkerMarginStart, InlineLayoutUnit rootInlineBoxOffset) const;
 
     static InlineLayoutUnit horizontalAlignmentOffset(const RenderStyle& rootStyle, InlineLayoutUnit contentLogicalRight, InlineLayoutUnit lineLogicalRight, InlineLayoutUnit hangingTrailingWidth, bool isLastLineOrLineEndsWithForcedLineBreak, std::optional<TextDirection> inlineBaseDirectionOverride = std::nullopt);
 
@@ -87,7 +82,6 @@ public:
     static InlineLayoutUnit descent(const FontMetrics&, FontBaseline, const Box&);
 
 private:
-    InlineLayoutUnit contentLeftAfterLastLine(const ConstraintsForInFlowContent&, std::optional<InlineLayoutUnit> lastLineLogicalBottom, const FloatingContext&) const;
     bool isAtSoftWrapOpportunity(const InlineItem& previous, const InlineItem& next) const;
 
     const InlineFormattingContext& formattingContext() const { return m_inlineFormattingContext; }

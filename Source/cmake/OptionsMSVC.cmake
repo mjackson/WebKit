@@ -65,14 +65,11 @@ add_link_options(/INCREMENTAL:NO)
 string(REGEX MATCH "^[0-9]+" CLANG_CL_MAJOR_VERSION ${CMAKE_CXX_COMPILER_VERSION})
 cmake_path(REMOVE_FILENAME CMAKE_CXX_COMPILER OUTPUT_VARIABLE CLANG_CL_DIR)
 cmake_path(APPEND CLANG_CL_DIR "../lib/clang" ${CLANG_CL_MAJOR_VERSION} "lib/windows")
-
-# Determine the correct architecture for clang_rt.builtins library
-if (CMAKE_SYSTEM_PROCESSOR STREQUAL "ARM64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+if (WTF_CPU_ARM64)
     set(CLANG_BUILTINS_ARCH "aarch64")
 else ()
     set(CLANG_BUILTINS_ARCH "x86_64")
 endif ()
-
 find_library(CLANG_BUILTINS_LIBRARY clang_rt.builtins-${CLANG_BUILTINS_ARCH} PATHS ${CLANG_CL_DIR} REQUIRED NO_DEFAULT_PATH)
 link_libraries(${CLANG_BUILTINS_LIBRARY})
 

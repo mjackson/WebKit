@@ -606,7 +606,9 @@ void WorkerOrWorkletScriptController::initScriptWithSubclass()
     auto* proxyStructure = JSGlobalProxy::createStructure(*m_vm, nullptr, jsNull());
     auto* proxy = JSGlobalProxy::create(*m_vm, proxyStructure);
 
-    m_globalScopeWrapper.set(*m_vm, JSGlobalScope::create(*m_vm, structure, static_cast<GlobalScope&>(*m_globalScope), proxy));
+    RefPtr globalScope = m_globalScope.get();
+    SUPPRESS_MEMORY_UNSAFE_CAST auto& scope = static_cast<GlobalScope&>(*globalScope);
+    m_globalScopeWrapper.set(*m_vm, JSGlobalScope::create(*m_vm, structure, scope, proxy));
     contextPrototypeStructure->setGlobalObject(*m_vm, m_globalScopeWrapper.get());
     ASSERT(structure->globalObject() == m_globalScopeWrapper);
     ASSERT(m_globalScopeWrapper->structure()->globalObject() == m_globalScopeWrapper);
@@ -620,8 +622,9 @@ void WorkerOrWorkletScriptController::initScriptWithSubclass()
     ASSERT(m_globalScopeWrapper->globalObject() == m_globalScopeWrapper);
     ASSERT(asObject(m_globalScopeWrapper->getPrototypeDirect())->globalObject() == m_globalScopeWrapper);
 
-    m_consoleClient = makeUnique<WorkerConsoleClient>(*protect(globalScope()));
+    m_consoleClient = makeUnique<WorkerConsoleClient>(*globalScope);
     m_globalScopeWrapper->setConsoleClient(*m_consoleClient);
+    globalScope->setMicrotaskGlobalObject(m_globalScopeWrapper.get());
 }
 
 void WorkerOrWorkletScriptController::initScript()

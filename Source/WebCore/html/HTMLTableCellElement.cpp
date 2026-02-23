@@ -202,7 +202,7 @@ HTMLTableCellElement* HTMLTableCellElement::cellAbove() const
     if (!tableCellRenderer)
         return nullptr;
 
-    CheckedPtr cellAboveRenderer = tableCellRenderer->checkedTable()->cellAbove(tableCellRenderer.get());
+    CheckedPtr cellAboveRenderer = protect(tableCellRenderer->table())->cellAbove(tableCellRenderer.get());
     if (!cellAboveRenderer)
         return nullptr;
 

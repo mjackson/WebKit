@@ -46,17 +46,12 @@ PopupMenu* WebSearchPopupMenu::popupMenu()
     return m_popup.get();
 }
 
-RefPtr<WebPopupMenu> WebSearchPopupMenu::protectedPopup()
-{
-    return m_popup;
-}
-
 void WebSearchPopupMenu::saveRecentSearches(const AtomString& name, const Vector<RecentSearch>& searchItems)
 {
     if (name.isEmpty())
         return;
 
-    RefPtr page = protectedPopup()->page();
+    RefPtr page = protect(m_popup)->page();
     if (!page)
         return;
 
@@ -68,7 +63,7 @@ void WebSearchPopupMenu::loadRecentSearches(const AtomString& name, Vector<Recen
     if (name.isEmpty())
         return;
 
-    RefPtr page = protectedPopup()->page();
+    RefPtr page = protect(m_popup)->page();
     if (!page)
         return;
 

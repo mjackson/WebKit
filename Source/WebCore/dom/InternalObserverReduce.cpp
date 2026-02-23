@@ -106,8 +106,8 @@ private:
         m_accumulator.visit(visitor);
     }
 
-    Ref<DeferredPromise> protectedPromise() const { return m_promise; }
-    Ref<ReducerCallback> protectedCallback() const { return m_callback; }
+    Ref<DeferredPromise> NODELETE protectedPromise() const { return m_promise; }
+    Ref<ReducerCallback> NODELETE protectedCallback() const { return m_callback; }
 
     InternalObserverReduce(ScriptExecutionContext& context, Ref<AbortSignal>&& signal, Ref<ReducerCallback>&& callback, JSC::JSValue initialValue, Ref<DeferredPromise>&& promise)
         : InternalObserver(context)

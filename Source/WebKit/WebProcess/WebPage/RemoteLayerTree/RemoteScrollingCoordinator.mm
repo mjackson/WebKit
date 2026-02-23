@@ -120,12 +120,19 @@ RemoteScrollingCoordinatorTransaction RemoteScrollingCoordinator::buildTransacti
     };
 }
 
+void RemoteScrollingCoordinator::willSendScrollPositionRequest(ScrollingNodeID nodeID, RequestedScrollData& request)
+{
+    request.identifier = ScrollRequestIdentifier::generate();
+    // This may clobber an older one, but that's OK.
+    m_scrollRequestsPendingResponse.set(nodeID, *request.identifier);
+}
+
 // Notification from the UI process that we scrolled.
-void RemoteScrollingCoordinator::scrollUpdateForNode(ScrollUpdate update, CompletionHandler<void()>&& completionHandler)
+void RemoteScrollingCoordinator::scrollUpdateForNode(ScrollUpdate&& update, CompletionHandler<void()>&& completionHandler)
 {
     LOG_WITH_STREAM(Scrolling, stream << "RemoteScrollingCoordinator::scrollUpdateForNode: " << update);
 
-    applyScrollUpdate(WTF::move(update));
+    applyScrollUpdate(WTF::move(update), ScrollType::User, ViewportRectStability::Stable);
     completionHandler();
 }
 
@@ -165,19 +172,19 @@ void RemoteScrollingCoordinator::startMonitoringWheelEvents(bool clearLatchingSt
 
 void RemoteScrollingCoordinator::receivedWheelEventWithPhases(WebCore::PlatformWheelEventPhase phase, WebCore::PlatformWheelEventPhase momentumPhase)
 {
-    if (auto monitor = protectedPage()->wheelEventTestMonitor())
+    if (auto monitor = protect(page())->wheelEventTestMonitor())
         monitor->receivedWheelEventWithPhases(phase, momentumPhase);
 }
 
 void RemoteScrollingCoordinator::startDeferringScrollingTestCompletionForNode(WebCore::ScrollingNodeID nodeID, OptionSet<WebCore::WheelEventTestMonitor::DeferReason> reason)
 {
-    if (auto monitor = protectedPage()->wheelEventTestMonitor())
+    if (auto monitor = protect(page())->wheelEventTestMonitor())
         monitor->deferForReason(nodeID, reason);
 }
 
 void RemoteScrollingCoordinator::stopDeferringScrollingTestCompletionForNode(WebCore::ScrollingNodeID nodeID, OptionSet<WebCore::WheelEventTestMonitor::DeferReason> reason)
 {
-    if (auto monitor = protectedPage()->wheelEventTestMonitor())
+    if (auto monitor = protect(page())->wheelEventTestMonitor())
         monitor->removeDeferralForReason(nodeID, reason);
 }
 

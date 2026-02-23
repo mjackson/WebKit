@@ -86,7 +86,7 @@ struct ShapeOutside {
 
     const BasicShape* shape() const { RefPtr value = m_value; return value ? value->shape() : nullptr; }
     CSSBoxType effectiveCSSBox() const { RefPtr value = m_value; return value ? value->effectiveCSSBox() : CSSBoxType::BoxMissing; }
-    RefPtr<StyleImage> image() const { RefPtr value = m_value; return value ? value->image() : nullptr; }
+    RefPtr<Style::Image> image() const { RefPtr value = m_value; return value ? value->image() : nullptr; }
 
     bool operator==(const ShapeOutside& other) const
     {
@@ -112,7 +112,7 @@ private:
 
         inline const BasicShape* shape() const;
         inline CSSBoxType effectiveCSSBox() const;
-        inline RefPtr<StyleImage> image() const;
+        inline RefPtr<Style::Image> image() const;
 
         bool operator==(const Value& other) const
         {
@@ -145,13 +145,13 @@ inline const BasicShape* ShapeOutside::Value::shape() const
     );
 }
 
-inline RefPtr<StyleImage> ShapeOutside::Value::image() const
+inline RefPtr<Style::Image> ShapeOutside::Value::image() const
 {
     return WTF::switchOn(value,
-        [](const ShapeOutside::Shape&) -> RefPtr<StyleImage> { return nullptr; },
-        [](const ShapeOutside::ShapeBox&) -> RefPtr<StyleImage> { return nullptr; },
-        [](const ShapeOutside::ShapeAndShapeBox&) -> RefPtr<StyleImage> { return nullptr; },
-        [](const ShapeOutside::Image& image) -> RefPtr<StyleImage> { return image.image.value.ptr(); }
+        [](const ShapeOutside::Shape&) -> RefPtr<Style::Image> { return nullptr; },
+        [](const ShapeOutside::ShapeBox&) -> RefPtr<Style::Image> { return nullptr; },
+        [](const ShapeOutside::ShapeAndShapeBox&) -> RefPtr<Style::Image> { return nullptr; },
+        [](const ShapeOutside::Image& image) -> RefPtr<Style::Image> { return image.image.value.ptr(); }
     );
 }
 

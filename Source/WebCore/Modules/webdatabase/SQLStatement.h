@@ -51,7 +51,7 @@ public:
     ~SQLStatement();
 
     bool execute(Database&);
-    bool lastExecutionFailedDueToQuota() const;
+    bool NODELETE lastExecutionFailedDueToQuota() const;
 
     bool hasStatementCallback() const { return m_statementCallbackWrapper.hasCallback(); }
     bool hasStatementErrorCallback() const { return m_statementErrorCallbackWrapper.hasCallback(); }

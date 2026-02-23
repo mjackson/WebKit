@@ -83,9 +83,6 @@ private:
     RemoteBuffer& operator=(RemoteBuffer&&) = delete;
 
     WebCore::WebGPU::Buffer& backing() { return m_backing; }
-    Ref<WebCore::WebGPU::Buffer> protectedBacking();
-
-    Ref<IPC::StreamServerConnection> protectedStreamConnection() const;
 
     void didReceiveStreamMessage(IPC::StreamServerConnection&, IPC::Decoder&) final;
 

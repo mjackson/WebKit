@@ -199,7 +199,7 @@ void DateTimeEditBuilder::visitLiteral(const String& text)
 DateTimeEditElementEditControlOwner::~DateTimeEditElementEditControlOwner() = default;
 
 DateTimeEditElement::DateTimeEditElement(Document& document, DateTimeEditElementEditControlOwner& editControlOwner)
-    : HTMLDivElement(divTag, document)
+    : HTMLDivElement(document)
     , m_editControlOwner(editControlOwner)
 {
     m_placeholderDate.setToCurrentLocalTime();

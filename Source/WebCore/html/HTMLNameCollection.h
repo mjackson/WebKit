@@ -83,7 +83,7 @@ public:
     bool elementMatches(const Element& element) const { return elementMatches(element, m_name.impl()); }
 
     static bool elementMatchesIfIdAttributeMatch(const Element&) { return true; }
-    static bool elementMatchesIfNameAttributeMatch(const Element&);
+    static bool NODELETE elementMatchesIfNameAttributeMatch(const Element&);
     static bool elementMatches(const Element&, const AtomString&);
 
 private:

@@ -58,8 +58,10 @@
 #include <JavaScriptCore/DeferredWorkTimer.h>
 #include <JavaScriptCore/GlobalObjectMethodTable.h>
 #include <JavaScriptCore/JSInternalPromise.h>
+#include <JavaScriptCore/JSMicrotaskDispatcher.h>
 #include <JavaScriptCore/JSWebAssembly.h>
 #include <JavaScriptCore/Microtask.h>
+#include <JavaScriptCore/MicrotaskQueueInlines.h>
 #include <JavaScriptCore/StrongInlines.h>
 #include <JavaScriptCore/VMTrapsInlines.h>
 #include <wtf/Language.h>
@@ -151,7 +153,7 @@ void JSDOMWindowBase::finishCreation(VM& vm, JSWindowProxy* proxy)
         setNeedsSiteSpecificQuirks(true);
 
     if (m_wrapped && ((m_wrapped->frame() && m_wrapped->frame()->settings().showModalDialogEnabled()) || (m_wrapped->documentIfLocal() && m_wrapped->documentIfLocal()->quirks().shouldExposeShowModalDialog())))
-        putDirectCustomAccessor(vm, builtinNames(vm).showModalDialogPublicName(), CustomGetterSetter::create(vm, showModalDialogGetter, nullptr), enumToUnderlyingType(PropertyAttribute::CustomValue));
+        putDirectCustomAccessor(vm, builtinNames(vm).showModalDialogPublicName(), CustomGetterSetter::create(vm, showModalDialogGetter, nullptr), std::to_underlying(PropertyAttribute::CustomValue));
 }
 
 void JSDOMWindowBase::destroy(JSCell* cell)
@@ -295,10 +297,14 @@ void JSDOMWindowBase::queueMicrotaskToEventLoop(JSGlobalObject& object, QueuedTa
     if (userGestureToken && (!userGestureToken->shouldPropagateToMicroTask() || !objectScriptExecutionContext->settingsValues().userGesturePromisePropagationEnabled))
         userGestureToken = nullptr;
 
-    if (!userGestureToken)
-        task.setDispatcher(eventLoop->jsMicrotaskDispatcher(task));
-    else
-        task.setDispatcher(UserGestureInitiatedMicrotaskDispatcher::create(eventLoop.get(), Ref { *userGestureToken }));
+    if (!userGestureToken) {
+        if (object.debugger()) [[unlikely]]
+            task.setDispatcher(eventLoop->jsMicrotaskDispatcherForDebugger(object.vm(), &object));
+    } else {
+        auto& vm = object.vm();
+        JSC::JSLockHolder locker(vm);
+        task.setDispatcher(JSC::JSMicrotaskDispatcher::create(vm, UserGestureInitiatedMicrotaskDispatcher::create(eventLoop.get(), Ref { *userGestureToken }), &object));
+    }
 
     eventLoop->queueMicrotask(WTF::move(task));
 }

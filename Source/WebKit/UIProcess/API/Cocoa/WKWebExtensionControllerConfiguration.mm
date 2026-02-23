@@ -204,7 +204,7 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtensionControllerConfiguration, Web
 
 - (void)_setStorageDirectoryPath:(NSString *)path
 {
-    _webExtensionControllerConfiguration->setStorageDirectory(path);
+    protect(*_webExtensionControllerConfiguration)->setStorageDirectory(path);
 }
 
 #pragma mark WKObject protocol implementation

@@ -248,7 +248,7 @@ void RemoteLayerTreeDrawingArea::updateRenderingWithForcedRepaint()
     if (m_isRenderingSuspended)
         return;
 
-    protect(protectedWebPage()->corePage())->forceRepaintAllFrames();
+    protect(protect(m_webPage)->corePage())->forceRepaintAllFrames();
     updateRendering();
 }
 
@@ -272,13 +272,13 @@ void RemoteLayerTreeDrawingArea::setViewExposedRect(std::optional<WebCore::Float
 {
     m_viewExposedRect = viewExposedRect;
 
-    if (RefPtr frameView = protectedWebPage()->localMainFrameView())
+    if (RefPtr frameView = protect(m_webPage)->localMainFrameView())
         frameView->setViewExposedRect(m_viewExposedRect);
 }
 
 WebCore::FloatRect RemoteLayerTreeDrawingArea::exposedContentRect() const
 {
-    RefPtr frameView = protectedWebPage()->localMainFrameView();
+    RefPtr frameView = protect(m_webPage)->localMainFrameView();
     if (!frameView)
         return FloatRect();
 
@@ -287,7 +287,7 @@ WebCore::FloatRect RemoteLayerTreeDrawingArea::exposedContentRect() const
 
 void RemoteLayerTreeDrawingArea::setExposedContentRect(const FloatRect& exposedContentRect)
 {
-    RefPtr frameView = protectedWebPage()->localMainFrameView();
+    RefPtr frameView = protect(m_webPage)->localMainFrameView();
     if (!frameView)
         return;
     if (frameView->exposedContentRect() == exposedContentRect)
@@ -441,7 +441,7 @@ void RemoteLayerTreeDrawingArea::updateRendering()
 
 void RemoteLayerTreeDrawingArea::didCompleteRenderingUpdateDisplayFlush(bool flushSucceeded)
 {
-    protectedWebPage()->didFlushLayerTreeAtTime(MonotonicTime::now(), flushSucceeded);
+    protect(m_webPage)->didFlushLayerTreeAtTime(MonotonicTime::now(), flushSucceeded);
     didCompleteRenderingUpdateDisplay();
 }
 

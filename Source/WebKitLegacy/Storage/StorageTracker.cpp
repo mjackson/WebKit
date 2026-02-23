@@ -596,11 +596,6 @@ void StorageTracker::cancelDeletingOrigin(const String& originIdentifier)
     }
 }
 
-bool StorageTracker::isActive()
-{
-    return m_isActive;
-}
-
 void StorageTracker::setIsActive(bool flag)
 {
     m_isActive = flag;

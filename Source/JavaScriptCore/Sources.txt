@@ -944,6 +944,7 @@ runtime/JSLock.cpp
 runtime/JSMap.cpp
 runtime/JSMapIterator.cpp
 runtime/JSMicrotask.cpp
+runtime/JSMicrotaskDispatcher.cpp
 runtime/JSModuleEnvironment.cpp
 runtime/JSModuleLoader.cpp
 runtime/JSModuleNamespaceObject.cpp

@@ -44,7 +44,7 @@ class AudioWorklet final : public Worklet {
 public:
     static Ref<AudioWorklet> create(BaseAudioContext&);
 
-    AudioWorkletMessagingProxy* proxy() const;
+    AudioWorkletMessagingProxy* NODELETE proxy() const;
     BaseAudioContext* NODELETE audioContext() const;
 
     void createProcessor(const String& name, TransferredMessagePort, Ref<SerializedScriptValue>&&, AudioWorkletNode&);

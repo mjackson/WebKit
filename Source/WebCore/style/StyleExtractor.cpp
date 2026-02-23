@@ -49,6 +49,7 @@
 #include "StylePropertyShorthand.h"
 #include "StyleResolver.h"
 #include "StyleScope.h"
+#include "StyleZoomPrimitivesInlines.h"
 #include "Styleable.h"
 
 namespace WebCore {

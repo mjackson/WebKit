@@ -88,21 +88,10 @@ static inline bool isTextOrLineBreak(const Box& layoutBox)
     return layoutBox.isInFlow() && (layoutBox.isInlineTextBox() || (layoutBox.isLineBreakBox() && !layoutBox.isWordBreakOpportunity()));
 }
 
-struct WidthAndGlyphOverflow {
-    InlineLayoutUnit width { 0.f };
-    std::optional<std::pair<LayoutUnit, LayoutUnit>> topBottomOverflow { };
-};
-static inline WidthAndGlyphOverflow nonWhitespaceContentWidth(const auto& inlineTextBox, auto startPosition, auto endPosition, auto mayHaveGlyphOverflow)
+static inline InlineLayoutUnit nonWhitespaceContentWidth(const auto& inlineTextBox, auto startPosition, auto endPosition)
 {
-    auto& fontCascade = inlineTextBox.style().fontCascade();
-    if (!mayHaveGlyphOverflow)
-        return { TextUtil::width(inlineTextBox, fontCascade, startPosition, endPosition, { }, TextUtil::UseTrailingWhitespaceMeasuringOptimization::Yes), { } };
-
-    // We don’t need glyph overflow until after display boxes are created, but walking the content again is a major performance hit. See InlineDisplayContentBuilder::appendTextDisplayBox's addGlyphOverflow.
-    GlyphOverflow glyphOverflow;
-    glyphOverflow.computeBounds = true;
-    auto width = TextUtil::width(inlineTextBox, fontCascade, startPosition, endPosition, { }, TextUtil::UseTrailingWhitespaceMeasuringOptimization::Yes, { }, &glyphOverflow);
-    return { width, std::pair<LayoutUnit, LayoutUnit> { std::clamp(glyphOverflow.top, 0_lu, 31_lu), std::clamp(glyphOverflow.bottom, 0_lu, 7_lu) } };
+    CheckedRef fontCascade = inlineTextBox.style().fontCascade();
+    return TextUtil::width(inlineTextBox, fontCascade, startPosition, endPosition, { }, TextUtil::UseTrailingWhitespaceMeasuringOptimization::Yes);
 }
 
 InlineItemsBuilder::InlineItemsBuilder(InlineContentCache& inlineContentCache, const ElementBox& root, const SecurityOrigin& securityOrigin)
@@ -196,8 +185,8 @@ void InlineItemsBuilder::computeInlineBoxBoundaryTextSpacings(const InlineItemLi
 
         auto start = inlineTextItem->start();
         auto length = inlineTextItem->length();
-        auto& inlineTextBox = inlineTextItem->inlineTextBox();
-        auto content = inlineTextBox.content().substring(start, length);
+        CheckedRef inlineTextBox = inlineTextItem->inlineTextBox();
+        auto content = inlineTextBox->content().substring(start, length);
         if (!processInlineBoxBoundary || !lastCharacterFromPreviousRun) {
             lastCharacterFromPreviousRun = TextUtil::lastBaseCharacterFromText(content);
             lastCharacterDepth = currentCharacterDepth;
@@ -208,10 +197,10 @@ void InlineItemsBuilder::computeInlineBoxBoundaryTextSpacings(const InlineItemLi
         size_t boundaryDepth = std::min(currentCharacterDepth, lastCharacterDepth);
         size_t inlineBoxStartOnBoundaryIndex = inlineBoxStartIndexesOnInlineItemsList.size() - 1 - (currentCharacterDepth - boundaryDepth);
         size_t boundaryIndex = inlineBoxStartIndexesOnInlineItemsList[inlineBoxStartOnBoundaryIndex];
-        const RenderStyle& boundaryOwnerStyle = inlineItemList[boundaryIndex].layoutBox().parent().style();
-        auto boundaryTextAutospace = boundaryOwnerStyle.textAutospace();
-        if (!boundaryTextAutospace.isNoAutospace() && boundaryTextAutospace.shouldApplySpacing(inlineTextBox.content().characterAt(start), lastCharacterFromPreviousRun))
-            spacings.add(boundaryIndex, TextAutospace::textAutospaceSize(boundaryOwnerStyle.fontCascade().primaryFont()));
+        CheckedRef boundaryOwnerStyle = inlineItemList[boundaryIndex].layoutBox().parent().style();
+        auto boundaryTextAutospace = boundaryOwnerStyle->textAutospace();
+        if (!boundaryTextAutospace.isNoAutospace() && boundaryTextAutospace.shouldApplySpacing(inlineTextBox->content().characterAt(start), lastCharacterFromPreviousRun))
+            spacings.add(boundaryIndex, TextAutospace::textAutospaceSize(boundaryOwnerStyle->fontCascade().primaryFont()));
 
         lastCharacterFromPreviousRun = TextUtil::lastBaseCharacterFromText(content);
         lastCharacterDepth = currentCharacterDepth;
@@ -257,7 +246,7 @@ InlineItemsBuilder::LayoutQueue InlineItemsBuilder::traverseUntilDamaged(const B
             if (!isInlineBoxWithInlineContent(layoutBox))
                 break;
             ++m_inlineBoxCount;
-            auto* firstChild = downcast<ElementBox>(layoutBox).firstChild();
+            CheckedPtr firstChild = downcast<ElementBox>(layoutBox).firstChild();
             if (!firstChild)
                 break;
             if (appendAndCheckForDamage(*firstChild))
@@ -265,7 +254,7 @@ InlineItemsBuilder::LayoutQueue InlineItemsBuilder::traverseUntilDamaged(const B
         }
 
         while (!queue.isEmpty()) {
-            if (auto* nextSibling = queue.takeLast()->nextSibling()) {
+            if (CheckedPtr nextSibling = queue.takeLast()->nextSibling()) {
                 if (appendAndCheckForDamage(*nextSibling))
                     return queue;
                 break;
@@ -280,15 +269,15 @@ InlineItemsBuilder::LayoutQueue InlineItemsBuilder::traverseUntilDamaged(const B
 
 InlineItemsBuilder::LayoutQueue InlineItemsBuilder::initializeLayoutQueue(InlineItemPosition startPosition)
 {
-    auto& root = this->root();
-    if (!root.firstChild()) {
+    CheckedRef root = this->root();
+    if (!root->firstChild()) {
         // There should always be at least one inflow child in this inline formatting context.
         ASSERT_NOT_REACHED();
         return { };
     }
 
     if (!startPosition)
-        return { *root.firstChild() };
+        return { *root->firstChild() };
 
     // For partial layout we need to build the layout queue up to the point where the new content is in order
     // to be able to produce non-content type of trailing inline items.
@@ -301,11 +290,11 @@ InlineItemsBuilder::LayoutQueue InlineItemsBuilder::initializeLayoutQueue(Inline
     auto& existingInlineItems = inlineContentCache().inlineItems().content();
     if (startPosition.index >= existingInlineItems.size()) {
         ASSERT_NOT_REACHED();
-        return { *root.firstChild() };
+        return { *root->firstChild() };
     }
 
-    auto& firstDamagedLayoutBox = existingInlineItems[startPosition.index].layoutBox();
-    return traverseUntilDamaged(firstDamagedLayoutBox);
+    CheckedRef firstDamagedLayoutBox = existingInlineItems[startPosition.index].layoutBox();
+    return traverseUntilDamaged(firstDamagedLayoutBox.get());
 }
 
 void InlineItemsBuilder::collectInlineItems(InlineItemList& inlineItemList, InlineItemPosition startPosition)
@@ -341,10 +330,10 @@ void InlineItemsBuilder::collectInlineItems(InlineItemList& inlineItemList, Inli
                 break;
             // This is the start of an inline box (e.g. <span>).
             handleInlineBoxStart(layoutBox, inlineItemList);
-            auto& inlineBox = downcast<ElementBox>(layoutBox);
-            if (!inlineBox.hasChild())
+            CheckedRef inlineBox = downcast<ElementBox>(layoutBox);
+            if (!inlineBox->hasChild())
                 break;
-            layoutQueue.append(*inlineBox.firstChild());
+            layoutQueue.append(*inlineBox->firstChild());
         }
 
         while (!layoutQueue.isEmpty()) {
@@ -352,7 +341,7 @@ void InlineItemsBuilder::collectInlineItems(InlineItemList& inlineItemList, Inli
             m_hasTextAndLineBreakOnlyContent &= (isInlineBoxWithInlineContent(layoutBox) || isTextOrLineBreak(layoutBox));
             if (layoutBox->isOutOfFlowPositioned())
                 inlineItemList.append({ layoutBox, InlineItem::Type::Opaque });
-            else if (auto* inlineTextBox = dynamicDowncast<InlineTextBox>(layoutBox.get()))
+            else if (CheckedPtr inlineTextBox = dynamicDowncast<InlineTextBox>(layoutBox.get()))
                 handleTextContent(*inlineTextBox, inlineItemList, partialContentOffset(*inlineTextBox));
             else if (layoutBox->isAtomicInlineBox() || layoutBox->isLineBreakBox())
                 handleInlineLevelBox(layoutBox, inlineItemList);
@@ -366,7 +355,7 @@ void InlineItemsBuilder::collectInlineItems(InlineItemList& inlineItemList, Inli
             } else
                 ASSERT_NOT_REACHED();
 
-            if (auto* nextSibling = layoutBox->nextSibling()) {
+            if (CheckedPtr nextSibling = layoutBox->nextSibling()) {
                 layoutQueue.append(*nextSibling);
                 break;
             }
@@ -548,21 +537,21 @@ static inline void buildBidiParagraph(const RenderStyle& rootStyle, const Inline
     if (rootStyle.rtlOrdering() != Order::Logical)
         handleEnterExitBidiContext(paragraphContentBuilder, UnicodeBidi::Override, rootStyle.writingMode().isBidiLTR(), EnterExitType::EnteringBlock, bidiContextStack);
 
-    const Box* lastInlineTextBox = nullptr;
+    CheckedPtr<const Box> lastInlineTextBox = nullptr;
     size_t inlineTextBoxOffset = 0;
     for (size_t index = 0; index < inlineItemList.size(); ++index) {
         auto& inlineItem = inlineItemList[index];
-        auto& layoutBox = inlineItem.layoutBox();
+        CheckedRef layoutBox = inlineItem.layoutBox();
 
         if (inlineItem.isText() || inlineItem.isSoftLineBreak()) {
-            auto* inlineTextBox = dynamicDowncast<InlineTextBox>(layoutBox);
+            CheckedPtr inlineTextBox = dynamicDowncast<InlineTextBox>(layoutBox.get());
             auto mayAppendTextContentAsOneEntry = inlineTextBox && !TextUtil::shouldPreserveNewline(*inlineTextBox);
             if (mayAppendTextContentAsOneEntry) {
                 // Append the entire InlineTextBox content and keep track of individual inline item positions as we process them.
-                if (lastInlineTextBox != &layoutBox) {
+                if (lastInlineTextBox != layoutBox.ptr()) {
                     inlineTextBoxOffset = paragraphContentBuilder.length();
                     replaceNonPreservedNewLineAndTabCharactersAndAppend(*inlineTextBox, paragraphContentBuilder);
-                    lastInlineTextBox = &layoutBox;
+                    lastInlineTextBox = layoutBox.ptr();
                 }
                 auto* inlineTextItem = dynamicDowncast<InlineTextItem>(inlineItem);
                 inlineItemOffsetList.append({ inlineTextBoxOffset + (inlineTextItem ? inlineTextItem->start() : downcast<InlineSoftLineBreakItem>(inlineItem).position()) });
@@ -578,8 +567,8 @@ static inline void buildBidiParagraph(const RenderStyle& rootStyle, const Inline
             paragraphContentBuilder.append(objectReplacementCharacter);
         } else if (inlineItem.isInlineBoxStartOrEnd()) {
             // https://drafts.csswg.org/css-writing-modes/#unicode-bidi
-            auto& style = inlineItem.style();
-            auto initiatesControlCharacter = style.rtlOrdering() == Order::Logical && style.unicodeBidi() != UnicodeBidi::Normal;
+            CheckedRef style = inlineItem.style();
+            auto initiatesControlCharacter = style->rtlOrdering() == Order::Logical && style->unicodeBidi() != UnicodeBidi::Normal;
             if (!initiatesControlCharacter) {
                 // Opaque items do not have position in the bidi paragraph. They inherit their bidi level from the next inline item.
                 inlineItemOffsetList.append({ });
@@ -588,8 +577,8 @@ static inline void buildBidiParagraph(const RenderStyle& rootStyle, const Inline
             inlineItemOffsetList.append({ paragraphContentBuilder.length() });
             auto isEnteringBidi = inlineItem.isInlineBoxStart();
             handleEnterExitBidiContext(paragraphContentBuilder
-                , style.unicodeBidi()
-                , style.writingMode().isBidiLTR()
+                , style->unicodeBidi()
+                , style->writingMode().isBidiLTR()
                 , isEnteringBidi ? EnterExitType::EnteringInlineBox : EnterExitType::ExitingInlineBox
                 , bidiContextStack
             );
@@ -721,8 +710,8 @@ void InlineItemsBuilder::breakAndComputeBidiLevels(InlineItemList& inlineItemLis
         inlineBoxContentFlagStack.reserveInitialCapacity(inlineItemList.size());
         for (auto index = inlineItemList.size(); index--;) {
             auto& inlineItem = inlineItemList[index];
-            auto& style = inlineItem.style();
-            auto initiatesControlCharacter = style.rtlOrdering() == Order::Logical && style.unicodeBidi() != UnicodeBidi::Normal;
+            CheckedRef style = inlineItem.style();
+            auto initiatesControlCharacter = style->rtlOrdering() == Order::Logical && style->unicodeBidi() != UnicodeBidi::Normal;
 
             if (inlineItem.isInlineBoxStart()) {
                 ASSERT(!inlineBoxContentFlagStack.isEmpty());
@@ -796,8 +785,6 @@ void InlineItemsBuilder::computeInlineTextItemWidthsAndTextSpacing(InlineItemLis
     TextSpacing::SpacingState spacingState;
     TrimmableTextSpacings trimmableTextSpacings;
     auto& inlineBoxBoundaryTextSpacings = inlineContentCache().inlineBoxBoundaryTextSpacings();
-    const InlineTextBox* currentInlineTextBox = nullptr;
-    auto currentInlineTextBoxMayHaveGlyphOverflow = false;
     for (size_t inlineItemIndex = 0; inlineItemIndex < inlineItemList.size(); ++inlineItemIndex) {
         auto extraInlineTextSpacing = 0.f;
         auto& inlineItem = inlineItemList[inlineItemIndex];
@@ -812,23 +799,8 @@ void InlineItemsBuilder::computeInlineTextItemWidthsAndTextSpacing(InlineItemLis
                     if (auto inlineBoxBoundaryTextSpacing = inlineBoxBoundaryTextSpacings.find(potentialInlineBoxStartIndex); inlineBoxBoundaryTextSpacing != inlineBoxBoundaryTextSpacings.end())
                         extraInlineTextSpacing = inlineBoxBoundaryTextSpacing->value;
                 }
-                auto& fontCascade = inlineTextItem->style().fontCascade();
-                auto width = InlineLayoutUnit { };
-                auto mayHaveGlyphOverflow = [&] {
-                    if (currentInlineTextBox != &inlineTextItem->inlineTextBox()) {
-                        currentInlineTextBoxMayHaveGlyphOverflow = !inlineTextItem->inlineTextBox().canUseSimpleFontCodePath() || fontCascade.primaryFont()->origin() == FontOrigin::Remote;
-                        currentInlineTextBox = &inlineTextItem->inlineTextBox();
-                    }
-                    return currentInlineTextBoxMayHaveGlyphOverflow;
-                };
-                if (mayHaveGlyphOverflow()) {
-                    // We don’t need glyph overflow until after display boxes are created, but walking the content again is a major performance hit. See InlineDisplayContentBuilder::appendTextDisplayBox's addGlyphOverflow.
-                    GlyphOverflow glyphOverflow;
-                    glyphOverflow.computeBounds = true;
-                    width = TextUtil::width(*inlineTextItem, fontCascade, start, start + inlineTextItem->length(), { }, TextUtil::UseTrailingWhitespaceMeasuringOptimization::Yes, spacingState, &glyphOverflow);
-                    inlineTextItem->setGlyphOverflow(std::clamp(glyphOverflow.top, 0_lu, 31_lu), std::clamp(glyphOverflow.bottom, 0_lu, 7_lu));
-                } else
-                    width = TextUtil::width(*inlineTextItem, fontCascade, start, start + inlineTextItem->length(), { }, TextUtil::UseTrailingWhitespaceMeasuringOptimization::Yes, spacingState);
+                CheckedRef fontCascade = inlineTextItem->style().fontCascade();
+                auto width = TextUtil::width(*inlineTextItem, fontCascade.get(), start, start + inlineTextItem->length(), { }, TextUtil::UseTrailingWhitespaceMeasuringOptimization::Yes, spacingState);
                 inlineTextItem->setWidth(width + extraInlineTextSpacing);
                 handleTextSpacing(spacingState, trimmableTextSpacings, *inlineTextItem, inlineItemIndex);
             }
@@ -848,16 +820,15 @@ bool InlineItemsBuilder::buildInlineItemListForTextFromBreakingPositionsCache(co
 
     auto shouldPreserveNewline = TextUtil::shouldPreserveNewline(inlineTextBox);
     auto shouldPreserveSpacesAndTabs = TextUtil::shouldPreserveSpacesAndTabs(inlineTextBox);
-    auto& style = inlineTextBox.style();
+    CheckedRef style = inlineTextBox.style();
 
     auto intialSize = inlineItemList.size();
     auto contentLength = text.length();
     ASSERT(contentLength);
 
-    auto& fontCascade = style.fontCascade();
+    CheckedRef fontCascade = style->fontCascade();
     auto [ deferNonWhitespaceMeasurement, deferWhitespaceMeasurement ] = shouldDeferTextMeasurement(inlineTextBox);
-    auto singleSpaceWidth = !deferWhitespaceMeasurement ? std::optional(std::max(0.f, TextUtil::singleSpaceWidth(fontCascade, inlineTextBox.canUseSimplifiedContentMeasuring()))) : std::nullopt;
-    auto mayHaveGlyphOverflow = !inlineTextBox.canUseSimpleFontCodePath() || fontCascade.primaryFont()->origin() == FontOrigin::Remote;
+    auto singleSpaceWidth = !deferWhitespaceMeasurement ? std::optional(std::max(0.f, TextUtil::singleSpaceWidth(fontCascade.get(), inlineTextBox.canUseSimplifiedContentMeasuring()))) : std::nullopt;
 
     inlineItemList.reserveCapacity(inlineItemList.size() + breakingPositions->size());
     size_t previousPosition = 0;
@@ -897,10 +868,8 @@ bool InlineItemsBuilder::buildInlineItemListForTextFromBreakingPositionsCache(co
         auto length = endPosition - startPosition;
         if (deferNonWhitespaceMeasurement || !length)
             inlineItemList.append(InlineTextItem::createNonWhitespaceItem(inlineTextBox, startPosition, length, UBIDI_DEFAULT_LTR, hasTrailingSoftHyphen));
-        else {
-            auto widthAndGlyphOverflow = nonWhitespaceContentWidth(inlineTextBox, startPosition, endPosition, mayHaveGlyphOverflow);
-            inlineItemList.append(InlineTextItem::createNonWhitespaceItem(inlineTextBox, startPosition, length, UBIDI_DEFAULT_LTR, hasTrailingSoftHyphen, widthAndGlyphOverflow.width, widthAndGlyphOverflow.topBottomOverflow));
-        }
+        else
+            inlineItemList.append(InlineTextItem::createNonWhitespaceItem(inlineTextBox, startPosition, length, UBIDI_DEFAULT_LTR, hasTrailingSoftHyphen, nonWhitespaceContentWidth(inlineTextBox, startPosition, endPosition)));
     }
     return true;
 }
@@ -924,14 +893,13 @@ void InlineItemsBuilder::handleTextContent(const InlineTextBox& inlineTextBox, I
     }
 
     m_textContentPopulatedFromCache = false;
-    auto& style = inlineTextBox.style();
-    auto& fontCascade = style.fontCascade();
+    CheckedRef style = inlineTextBox.style();
+    CheckedRef fontCascade = style->fontCascade();
     auto [ deferNonWhitespaceMeasurement, deferWhitespaceMeasurement ] = shouldDeferTextMeasurement(inlineTextBox);
-    auto mayHaveGlyphOverflow = !inlineTextBox.canUseSimpleFontCodePath() || fontCascade.primaryFont()->origin() == FontOrigin::Remote;
-    auto singleSpaceWidth = !deferWhitespaceMeasurement ? std::optional(std::max(0.f, TextUtil::singleSpaceWidth(fontCascade, inlineTextBox.canUseSimplifiedContentMeasuring()))) : std::nullopt;
+    auto singleSpaceWidth = !deferWhitespaceMeasurement ? std::optional(std::max(0.f, TextUtil::singleSpaceWidth(fontCascade.get(), inlineTextBox.canUseSimplifiedContentMeasuring()))) : std::nullopt;
     auto shouldPreserveSpacesAndTabs = TextUtil::shouldPreserveSpacesAndTabs(inlineTextBox);
     auto shouldPreserveNewline = TextUtil::shouldPreserveNewline(inlineTextBox);
-    auto lineBreakIteratorFactory = CachedLineBreakIteratorFactory { text, Style::toPlatform(style.computedLocale()), TextUtil::lineBreakIteratorMode(style.lineBreak()), TextUtil::contentAnalysis(style.wordBreak()) };
+    auto lineBreakIteratorFactory = CachedLineBreakIteratorFactory { text, Style::toPlatform(style->computedLocale()), TextUtil::lineBreakIteratorMode(style->lineBreak()), TextUtil::contentAnalysis(style->wordBreak()) };
     auto currentPosition = partialContentOffset.value_or(0lu);
     ASSERT(currentPosition <= contentLength);
 
@@ -944,7 +912,7 @@ void InlineItemsBuilder::handleTextContent(const InlineTextBox& inlineTextBox, I
         return true;
     };
     auto handleWhitespace = [&] {
-        auto stopAtWordSeparatorBoundary = shouldPreserveSpacesAndTabs && fontCascade.wordSpacing();
+        auto stopAtWordSeparatorBoundary = shouldPreserveSpacesAndTabs && fontCascade->wordSpacing();
         auto whitespaceContent = text.is8Bit()
             ? moveToNextNonWhitespacePosition(text.span8(), currentPosition, shouldPreserveNewline, shouldPreserveSpacesAndTabs, stopAtWordSeparatorBoundary)
             : moveToNextNonWhitespacePosition(text.span16(), currentPosition, shouldPreserveNewline, shouldPreserveSpacesAndTabs, stopAtWordSeparatorBoundary);
@@ -952,7 +920,7 @@ void InlineItemsBuilder::handleTextContent(const InlineTextBox& inlineTextBox, I
             return false;
 
         ASSERT(whitespaceContent->length);
-        if (style.whiteSpaceCollapse() == WhiteSpaceCollapse::BreakSpaces) {
+        if (style->whiteSpaceCollapse() == WhiteSpaceCollapse::BreakSpaces) {
             // https://www.w3.org/TR/css-text-3/#white-space-phase-1
             // For break-spaces, a soft wrap opportunity exists after every space and every tab.
             // FIXME: if this turns out to be a perf hit with too many individual whitespace inline items, we should transition this logic to line breaking.
@@ -974,7 +942,7 @@ void InlineItemsBuilder::handleTextContent(const InlineTextBox& inlineTextBox, I
 
     };
     auto handleNonBreakingSpace = [&] {
-        if (style.nbspMode() != NBSPMode::Space) {
+        if (style->nbspMode() != NBSPMode::Space) {
             // Let's just defer to regular non-whitespace inline items when non breaking space needs no special handling.
             return false;
         }
@@ -987,7 +955,7 @@ void InlineItemsBuilder::handleTextContent(const InlineTextBox& inlineTextBox, I
         if (startPosition == endPosition)
             return false;
         inlineItemList.appendUsingFunctor(endPosition - startPosition, [&](size_t offset) {
-            return InlineTextItem::createNonWhitespaceItem(inlineTextBox, startPosition + offset, 1, UBIDI_DEFAULT_LTR, false, nonWhitespaceContentWidth(inlineTextBox, startPosition + offset, startPosition + offset + 1, mayHaveGlyphOverflow).width, { });
+            return InlineTextItem::createNonWhitespaceItem(inlineTextBox, startPosition + offset, 1, UBIDI_DEFAULT_LTR, false, nonWhitespaceContentWidth(inlineTextBox, startPosition + offset, startPosition + offset + 1));
         });
         currentPosition = endPosition;
         return true;
@@ -996,7 +964,7 @@ void InlineItemsBuilder::handleTextContent(const InlineTextBox& inlineTextBox, I
         auto startPosition = currentPosition;
         auto endPosition = startPosition;
         auto hasTrailingSoftHyphen = false;
-        if (style.hyphens() == Hyphens::None) {
+        if (style->hyphens() == Hyphens::None) {
             // Let's merge candidate InlineTextItems separated by soft hyphen when the style says so.
             do {
                 endPosition += moveToNextBreakablePosition(endPosition, lineBreakIteratorFactory, style);
@@ -1007,15 +975,13 @@ void InlineItemsBuilder::handleTextContent(const InlineTextBox& inlineTextBox, I
             ASSERT(startPosition < endPosition);
             hasTrailingSoftHyphen = text[endPosition - 1] == softHyphen;
         }
-        ASSERT_IMPLIES(style.hyphens() == Hyphens::None, !hasTrailingSoftHyphen);
+        ASSERT_IMPLIES(style->hyphens() == Hyphens::None, !hasTrailingSoftHyphen);
 
         auto length = endPosition - startPosition;
         if (deferNonWhitespaceMeasurement || !length)
             inlineItemList.append(InlineTextItem::createNonWhitespaceItem(inlineTextBox, startPosition, length, UBIDI_DEFAULT_LTR, hasTrailingSoftHyphen));
-        else {
-            auto widthAndGlyphOverflow = nonWhitespaceContentWidth(inlineTextBox, startPosition, endPosition, mayHaveGlyphOverflow);
-            inlineItemList.append(InlineTextItem::createNonWhitespaceItem(inlineTextBox, startPosition, length, UBIDI_DEFAULT_LTR, hasTrailingSoftHyphen, widthAndGlyphOverflow.width, widthAndGlyphOverflow.topBottomOverflow));
-        }
+        else
+            inlineItemList.append(InlineTextItem::createNonWhitespaceItem(inlineTextBox, startPosition, length, UBIDI_DEFAULT_LTR, hasTrailingSoftHyphen, nonWhitespaceContentWidth(inlineTextBox, startPosition, endPosition)));
         currentPosition = endPosition;
         return true;
     };
@@ -1082,7 +1048,7 @@ void InlineItemsBuilder::populateBreakingPositionCache(const InlineItemList& inl
     auto& breakingPositionCache = TextBreakingPositionCache::singleton();
     size_t index = 0;
     while (index < inlineItemList.size()) {
-        auto* inlineTextBox = dynamicDowncast<InlineTextBox>(inlineItemList[index].layoutBox());
+        CheckedPtr inlineTextBox = dynamicDowncast<InlineTextBox>(inlineItemList[index].layoutBox());
         if (!inlineTextBox) {
             ++index;
             continue;

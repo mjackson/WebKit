@@ -136,11 +136,11 @@ namespace WTF {
 template<> bool isValidEnum<WebCore::MediaPlaybackTargetType>(std::underlying_type_t<WebCore::MediaPlaybackTargetType> value)
 {
     switch (value) {
-    case enumToUnderlyingType(WebCore::MediaPlaybackTargetType::None):
-    case enumToUnderlyingType(WebCore::MediaPlaybackTargetType::AVOutputContext):
-    case enumToUnderlyingType(WebCore::MediaPlaybackTargetType::Mock):
-    case enumToUnderlyingType(WebCore::MediaPlaybackTargetType::WirelessPlayback):
-    case enumToUnderlyingType(WebCore::MediaPlaybackTargetType::Serialized):
+    case std::to_underlying(WebCore::MediaPlaybackTargetType::None):
+    case std::to_underlying(WebCore::MediaPlaybackTargetType::AVOutputContext):
+    case std::to_underlying(WebCore::MediaPlaybackTargetType::Mock):
+    case std::to_underlying(WebCore::MediaPlaybackTargetType::WirelessPlayback):
+    case std::to_underlying(WebCore::MediaPlaybackTargetType::Serialized):
         return true;
     default:
         return false;

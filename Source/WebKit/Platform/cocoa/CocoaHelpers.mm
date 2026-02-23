@@ -223,7 +223,7 @@ NSSet *objectForKey<NSSet>(NSDictionary *dictionary, id key, bool nilIfEmpty, Cl
 
 // MARK: JSON Helpers
 
-static inline NSJSONReadingOptions toReadingImpl(JSONOptionSet options)
+static inline NSJSONReadingOptions NODELETE toReadingImpl(JSONOptionSet options)
 {
     NSJSONReadingOptions result = 0;
     if (options.contains(JSONOptions::FragmentsAllowed))
@@ -231,7 +231,7 @@ static inline NSJSONReadingOptions toReadingImpl(JSONOptionSet options)
     return result;
 }
 
-static inline NSJSONWritingOptions toWritingImpl(JSONOptionSet options)
+static inline NSJSONWritingOptions NODELETE toWritingImpl(JSONOptionSet options)
 {
     NSJSONWritingOptions result = 0;
     if (options.contains(JSONOptions::FragmentsAllowed))

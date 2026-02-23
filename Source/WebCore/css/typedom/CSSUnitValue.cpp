@@ -298,7 +298,7 @@ static CSS::Range rangeForProperty(CSSPropertyID propertyID, CSSUnitType)
     }
 }
 
-static CSS::Category calculationCategoryForProperty(CSSPropertyID, CSSUnitType unit)
+static CSS::Category NODELETE calculationCategoryForProperty(CSSPropertyID, CSSUnitType unit)
 {
     // FIXME: This should be looking up the supported calculation categories for the CSSPropertyID and picking the one that best matches the unit.
 

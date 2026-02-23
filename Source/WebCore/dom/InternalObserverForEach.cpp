@@ -92,8 +92,8 @@ private:
         m_callback->visitJSFunction(visitor);
     }
 
-    Ref<DeferredPromise> protectedPromise() const { return m_promise; }
-    Ref<VisitorCallback> protectedCallback() const { return m_callback; }
+    Ref<DeferredPromise> NODELETE protectedPromise() const { return m_promise; }
+    Ref<VisitorCallback> NODELETE protectedCallback() const { return m_callback; }
 
     InternalObserverForEach(ScriptExecutionContext& context, Ref<VisitorCallback>&& callback, Ref<AbortSignal>&& signal, Ref<DeferredPromise>&& promise)
         : InternalObserver(context)

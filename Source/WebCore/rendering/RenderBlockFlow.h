@@ -140,7 +140,7 @@ protected:
     void simplifiedNormalFlowLayout() override;
     LayoutUnit shiftForAlignContent(LayoutUnit intrinsicLogicalHeight, LayoutUnit& repaintLogicalTop, LayoutUnit& repaintLogicalBottom);
 
-    void computeOverflow(LayoutRect contentArea, OptionSet<ComputeOverflowOptions> = { }) override;
+    void computeInFlowOverflow(LayoutRect contentArea, OptionSet<ComputeOverflowOptions> = { }) override;
     void addOverflowFromInFlowChildren(OptionSet<ComputeOverflowOptions> = { }) override;
 
     // RenderBlockFlows override these methods, since they are the only class that supports margin collapsing.
@@ -265,15 +265,15 @@ public:
     bool childrenPreventSelfCollapsing() const final;
 
     bool shouldBreakAtLineToAvoidWidow() const { return hasRareBlockFlowData() && rareBlockFlowData()->m_lineBreakToAvoidWidow >= 0; }
-    void clearShouldBreakAtLineToAvoidWidow() const;
+    void NODELETE clearShouldBreakAtLineToAvoidWidow() const;
     int lineBreakToAvoidWidow() const { return hasRareBlockFlowData() ? rareBlockFlowData()->m_lineBreakToAvoidWidow : -1; }
     void setBreakAtLineToAvoidWidow(int);
-    void clearDidBreakAtLineToAvoidWidow();
-    void setDidBreakAtLineToAvoidWidow();
+    void NODELETE clearDidBreakAtLineToAvoidWidow();
+    void NODELETE setDidBreakAtLineToAvoidWidow();
     bool didBreakAtLineToAvoidWidow() const { return hasRareBlockFlowData() && rareBlockFlowData()->m_didBreakAtLineToAvoidWidow; }
 
     RenderMultiColumnFlow* multiColumnFlow() const { return hasRareBlockFlowData() ? multiColumnFlowSlowCase() : nullptr; }
-    RenderMultiColumnFlow* multiColumnFlowSlowCase() const;
+    RenderMultiColumnFlow* NODELETE multiColumnFlowSlowCase() const;
     void setMultiColumnFlow(RenderMultiColumnFlow&);
     void clearMultiColumnFlow();
     bool willCreateColumns(std::optional<unsigned> desiredColumnCount = std::nullopt) const;
@@ -340,7 +340,7 @@ public:
             floatingObject.setMarginOffset(LayoutSize(logicalBeforeMargin, logicalLeftMargin));
     }
 
-    LayoutPoint flipFloatForWritingModeForChild(const FloatingObject&, const LayoutPoint&) const;
+    LayoutPoint NODELETE flipFloatForWritingModeForChild(const FloatingObject&, const LayoutPoint&) const;
 
     LegacyRootInlineBox* legacyRootBox() const { return svgTextLayout() ? svgTextLayout()->legacyRootBox() : nullptr; }
 
@@ -386,7 +386,7 @@ public:
     LayoutUnit pageLogicalTopForOffset(LayoutUnit offset) const;
     LayoutUnit pageLogicalHeightForOffset(LayoutUnit offset) const;
     LayoutUnit pageRemainingLogicalHeightForOffset(LayoutUnit offset, PageBoundaryRule = IncludePageBoundary) const;
-    LayoutUnit logicalHeightForChildForFragmentation(const RenderBox& child) const;
+    LayoutUnit NODELETE logicalHeightForChildForFragmentation(const RenderBox& child) const;
     bool hasNextPage(LayoutUnit logicalOffset, PageBoundaryRule = ExcludePageBoundary) const;
 
     void updateColumnProgressionFromStyle(const RenderStyle&);
@@ -454,10 +454,10 @@ protected:
     std::optional<LayoutUnit> firstLineBaseline() const override;
     std::optional<LayoutUnit> lastLineBaseline() const override;
 
-    void setComputedColumnCountAndWidth(int, LayoutUnit);
+    void NODELETE setComputedColumnCountAndWidth(int, LayoutUnit);
 
     LayoutUnit computedColumnWidth() const;
-    unsigned computedColumnCount() const;
+    unsigned NODELETE computedColumnCount() const;
     
     LayoutOptionalOutsets allowedLayoutOverflow() const override;
 

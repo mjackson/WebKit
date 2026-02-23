@@ -206,6 +206,8 @@ public:
 
     void setDiagnosticLoggingAvailable(bool);
 
+    void systemAppearanceDidChange();
+
     // Provided by platform WebInspectorUIProxy implementations.
     static String inspectorPageURL();
     static String inspectorTestPageURL();

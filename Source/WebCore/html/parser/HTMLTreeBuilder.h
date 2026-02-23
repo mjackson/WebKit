@@ -197,8 +197,8 @@ private:
         FragmentParsingContext(DocumentFragment&, Element& contextElement);
 
         DocumentFragment* fragment() const;
-        Element& contextElement();
-        HTMLStackItem& contextElementStackItem();
+        Element& NODELETE contextElement();
+        HTMLStackItem& NODELETE contextElementStackItem();
 
     private:
         WeakPtr<DocumentFragment, WeakPtrImplWithEventTargetData> m_fragment;

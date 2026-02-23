@@ -142,7 +142,7 @@ public:
 
     // A method for asking if a control is a container or not.  Leaf controls have to have some special behavior (like
     // the baseline position API above).
-    bool isControlContainer(StyleAppearance) const;
+    bool NODELETE isControlContainer(StyleAppearance) const;
 
     // A method asking if the control changes its tint when the window has focus or not.
     virtual bool controlSupportsTints(const RenderElement&) const { return false; }
@@ -159,7 +159,7 @@ public:
     virtual void adjustRepaintRect(const RenderBox&, FloatRect&) { }
 
     // A method asking if the theme is able to draw the focus ring.
-    virtual bool supportsFocusRing(const RenderElement&, const RenderStyle&) const;
+    virtual bool NODELETE supportsFocusRing(const RenderElement&, const RenderStyle&) const;
 
     // A method asking if the theme's controls actually care about redrawing when hovered.
     virtual bool supportsHover() const { return false; }
@@ -202,7 +202,7 @@ public:
     virtual Color platformFocusRingColor(OptionSet<StyleColorOptions>) const { return Color::black; }
     static float platformFocusRingWidth() { return 3; }
     static float platformFocusRingOffset(float outlineWidth) { return std::max<float>(outlineWidth - platformFocusRingWidth(), 0); }
-#if ENABLE(TOUCH_EVENTS)
+#if ENABLE(CSS_TAP_HIGHLIGHT_COLOR)
     static Color tapHighlightColor();
     virtual Color platformTapHighlightColor() const;
 #endif
@@ -404,7 +404,7 @@ protected:
     virtual void adjustSearchFieldResultsButtonStyle(RenderStyle&, const Element*) const { }
     virtual bool paintSearchFieldResultsButton(const RenderBox&, const PaintInfo&, const FloatRect&) { return true; }
 
-    void adjustSwitchStyleDisplay(RenderStyle&) const;
+    void NODELETE adjustSwitchStyleDisplay(RenderStyle&) const;
     virtual void adjustSwitchStyle(RenderStyle&, const Element*) const;
     void adjustSwitchThumbOrSwitchTrackStyle(RenderStyle&) const;
     virtual bool paintSwitchThumb(const RenderElement&, const PaintInfo&, const FloatRect&) { return true; }
@@ -439,7 +439,7 @@ private:
     void adjustButtonOrCheckboxOrColorWellOrInnerSpinButtonOrRadioStyle(RenderStyle&, const Element*) const;
 
 public:
-    bool isWindowActive(const RenderElement&) const;
+    bool NODELETE isWindowActive(const RenderElement&) const;
     bool isChecked(const RenderElement&) const;
     bool isIndeterminate(const RenderElement&) const;
     bool isEnabled(const RenderElement&) const;
@@ -450,7 +450,7 @@ public:
     bool isSpinUpButtonPartHovered(const RenderElement&) const;
     bool isPresenting(const RenderElement&) const;
     bool isReadOnlyControl(const RenderElement&) const;
-    bool isDefault(const RenderElement&) const;
+    bool NODELETE isDefault(const RenderElement&) const;
     bool hasListButton(const RenderElement&) const;
     bool hasListButtonPressed(const RenderElement&) const;
 

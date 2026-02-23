@@ -9277,7 +9277,7 @@ IGNORE_CLANG_WARNINGS_END
             Int64, operationCreateRest, weakPointer(globalObject), argumentStart, m_out.constInt32(numberOfArgumentsToSkip), arrayLength));
     }
 
-    const AbstractHeap& abstractHeapForOwnPropertyKeysCache(NodeType type)
+    const AbstractHeap& NODELETE abstractHeapForOwnPropertyKeysCache(NodeType type)
     {
         switch (type) {
         case ObjectKeys:
@@ -14664,7 +14664,7 @@ IGNORE_CLANG_WARNINGS_END
         terminate(InadequateCoverage);
     }
 
-    void compileCPUIntrinsic()
+    void NODELETE compileCPUIntrinsic()
     {
 #if CPU(X86_64)
         Intrinsic intrinsic = m_node->intrinsic();
@@ -22854,7 +22854,7 @@ IGNORE_CLANG_WARNINGS_END
         didAlreadyTerminate();
     }
 
-    void didAlreadyTerminate()
+    void NODELETE didAlreadyTerminate()
     {
         m_state.setIsValid(false);
     }
@@ -23654,7 +23654,7 @@ IGNORE_CLANG_WARNINGS_END
             m_out.constInt64(JSValue::ValueNull));
     }
 
-    LValue isProvenValue(SpeculatedType provenType, SpeculatedType wantedType)
+    LValue NODELETE isProvenValue(SpeculatedType provenType, SpeculatedType wantedType)
     {
         if (!(provenType & ~wantedType))
             return m_out.booleanTrue;
@@ -25443,7 +25443,7 @@ IGNORE_CLANG_WARNINGS_END
     {
         m_doubleValues.set(node, LoweredNodeValue(value, m_highBlock));
     }
-    void setTuple(Node* tuple, unsigned index, LValue value)
+    void NODELETE setTuple(Node* tuple, unsigned index, LValue value)
     {
         ASSERT(index < tuple->tupleSize());
         m_tupleValues.at(tuple->tupleOffset() + index) = LoweredNodeValue(value, m_highBlock);
@@ -25481,12 +25481,12 @@ IGNORE_CLANG_WARNINGS_END
     {
         setDouble(m_node, value);
     }
-    void setTuple(unsigned index, LValue value)
+    void NODELETE setTuple(unsigned index, LValue value)
     {
         setTuple(m_node, index, value);
     }
 
-    bool isValid(const LoweredNodeValue& value)
+    bool NODELETE isValid(const LoweredNodeValue& value)
     {
         if (!value)
             return false;
@@ -25703,10 +25703,10 @@ IGNORE_CLANG_WARNINGS_END
         return result;
     }
 
-    AvailabilityMap& availabilityMap() { return m_availabilityCalculator.m_availability; }
+    AvailabilityMap& NODELETE availabilityMap() { return m_availabilityCalculator.m_availability; }
 
-    VM& vm() { return m_graph.m_vm; }
-    CodeBlock* codeBlock() { return m_graph.m_codeBlock; }
+    VM& NODELETE vm() { return m_graph.m_vm; }
+    CodeBlock* NODELETE codeBlock() { return m_graph.m_codeBlock; }
 
     Graph& m_graph;
     State& m_ftlState;

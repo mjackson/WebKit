@@ -104,7 +104,7 @@ void RenderListBox::willBeDestroyed()
     RenderBlockFlow::willBeDestroyed();
 }
 
-HTMLSelectElement& RenderListBox::selectElement() const
+HTMLSelectElement& NODELETE RenderListBox::selectElement() const
 {
     return downcast<HTMLSelectElement>(nodeForNonAnonymous());
 }

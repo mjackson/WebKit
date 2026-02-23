@@ -195,19 +195,19 @@ public:
 
     UniqueRef<ViewTransitionParams> takeViewTransitionParams();
 
-    DOMPromise& ready();
-    DOMPromise& updateCallbackDone();
-    DOMPromise& finished();
+    DOMPromise& NODELETE ready();
+    DOMPromise& NODELETE updateCallbackDone();
+    DOMPromise& NODELETE finished();
 
     ViewTransitionPhase phase() const { return m_phase; }
     const OrderedNamedElementsMap& namedElements() const { return m_namedElements; };
 
-    Document* document() const;
+    Document* NODELETE document() const;
 
     bool documentElementIsCaptured() const;
 
     const ViewTransitionTypeSet& types() const { return m_types; }
-    void setTypes(Ref<ViewTransitionTypeSet>&&);
+    void NODELETE setTypes(Ref<ViewTransitionTypeSet>&&);
 
     RenderViewTransitionCapture* viewTransitionNewPseudoForCapturedElement(RenderLayerModelObject&);
 

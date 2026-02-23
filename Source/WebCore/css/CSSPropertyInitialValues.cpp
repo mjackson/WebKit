@@ -42,7 +42,7 @@
 
 namespace WebCore {
 
-static bool isValueIDPair(const CSSValue& value, CSSValueID valueID)
+static bool NODELETE isValueIDPair(const CSSValue& value, CSSValueID valueID)
 {
     return value.isPair() && isValueID(value.first(), valueID) && isValueID(value.second(), valueID);
 }
@@ -70,7 +70,7 @@ static bool isNumber(const RectBase& quad, double number, CSSUnitType type)
         && isNumber(quad.left(), number, type);
 }
 
-static bool isValueID(const RectBase& quad, CSSValueID valueID)
+static bool NODELETE isValueID(const RectBase& quad, CSSValueID valueID)
 {
     return isValueID(quad.top(), valueID)
         && isValueID(quad.right(), valueID)

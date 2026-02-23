@@ -131,7 +131,7 @@ void RenderTreeUpdater::commit(std::unique_ptr<Style::Update> styleUpdate)
     for (auto& root : m_styleUpdate->roots()) {
         if (&root->document() != m_document.ptr())
             continue;
-        RefPtr renderingRoot = findRenderingRoot(*root);
+        RefPtr renderingRoot = findRenderingRoot(root.get());
         if (!renderingRoot)
             continue;
         updateRenderTree(*renderingRoot);
@@ -219,7 +219,7 @@ void RenderTreeUpdater::updateRebuildRoots()
         if (rebuildRoots.isEmpty())
             break;
         for (auto& rebuildRoot : rebuildRoots) {
-            if (RefPtr newRebuildRoot = findNewRebuildRoot(*rebuildRoot))
+            if (RefPtr newRebuildRoot = findNewRebuildRoot(rebuildRoot.get()))
                 addSubtreeForRebuild(*newRebuildRoot);
         }
     }
@@ -454,7 +454,7 @@ void RenderTreeUpdater::updateElementRenderer(Element& element, const Style::Ele
 
         // display:none cancels animations.
         auto teardownType = [&]() {
-            if (!elementUpdate.style->hasDisplayAffectedByAnimations() && elementUpdate.style->display() == DisplayType::None)
+            if (!elementUpdate.style->hasDisplayAffectedByAnimations() && elementUpdate.style->display() == Style::DisplayType::None)
                 return TeardownType::RendererUpdateCancelingAnimations;
             return TeardownType::RendererUpdate;
         }();
@@ -464,8 +464,8 @@ void RenderTreeUpdater::updateElementRenderer(Element& element, const Style::Ele
         renderingParent().didCreateOrDestroyChildRenderer = true;
     }
 
-    bool hasDisplayContents = elementUpdate.style->display() == DisplayType::Contents;
-    bool hasDisplayNonePreventingRendererCreation = elementUpdate.style->display() == DisplayType::None && !element.rendererIsNeeded(elementUpdateStyle);
+    bool hasDisplayContents = elementUpdate.style->display() == Style::DisplayType::Contents;
+    bool hasDisplayNonePreventingRendererCreation = elementUpdate.style->display() == Style::DisplayType::None && !element.rendererIsNeeded(elementUpdateStyle);
     bool hasDisplayContentsOrNone = hasDisplayContents || hasDisplayNonePreventingRendererCreation;
     if (hasDisplayContentsOrNone)
         element.storeDisplayContentsOrNoneStyle(makeUnique<RenderStyle>(WTF::move(elementUpdateStyle)));
@@ -482,7 +482,7 @@ void RenderTreeUpdater::updateElementRenderer(Element& element, const Style::Ele
     auto scopeExit = makeScopeExit([&] {
         if (!hasDisplayContentsOrNone) {
             auto* box = element.renderBox();
-            if (box && box->style().hasAutoLengthContainIntrinsicSize() && !isSkippedContentRoot(*box))
+            if (box && (box->style().containIntrinsicWidth().hasAuto() || box->style().containIntrinsicHeight().hasAuto()) && !isSkippedContentRoot(*box))
                 m_document->observeForContainIntrinsicSize(element);
             else
                 m_document->unobserveForContainIntrinsicSize(element);
@@ -729,13 +729,30 @@ void RenderTreeUpdater::tearDownRenderers(Element& root)
 void RenderTreeUpdater::tearDownRenderersForShadowRootInsertion(Element& host)
 {
     ASSERT(!host.shadowRoot());
-    tearDownRenderers(host, TeardownType::FullAfterSlotOrShadowRootChange);
+    tearDownRenderers(host, TeardownType::FullAfterShadowRootInsertion);
 }
 
 void RenderTreeUpdater::tearDownRenderersAfterSlotChange(Element& host)
 {
     ASSERT(host.shadowRoot());
-    tearDownRenderers(host, TeardownType::FullAfterSlotOrShadowRootChange);
+    auto* view = host.document().renderView();
+    if (!view)
+        return;
+
+    if (!host.renderer() && !host.hasDisplayContents())
+        return;
+
+    RenderTreeBuilder builder(*view);
+
+    tearDownDescendantRenderers(host, TeardownType::RendererUpdate, builder);
+
+    // Remove any remaining child renderers (pseudo-elements like ::picker-icon,
+    // ::before, ::after, anonymous blocks, etc.) so they get recreated at the
+    // correct position when the tree is rebuilt.
+    if (auto* hostRenderer = host.renderer()) {
+        while (auto* child = hostRenderer->firstChild())
+            builder.destroy(*child);
+    }
 }
 
 void RenderTreeUpdater::tearDownRenderer(Text& text)
@@ -837,19 +854,32 @@ static std::optional<DidRepaintAndMarkContainingBlock> repaintAndMarkContainingB
     return destroyRootRenderer ? DidRepaintAndMarkContainingBlock::Yes : DidRepaintAndMarkContainingBlock::No;
 }
 
-void RenderTreeUpdater::tearDownRenderers(Element& root, TeardownType teardownType, RenderTreeBuilder& builder)
+template<RenderTreeUpdater::TeardownScope scope>
+void RenderTreeUpdater::tearDownRenderersInternal(Element& root, TeardownType teardownType, RenderTreeBuilder& builder)
 {
     Vector<Element*, 30> teardownStack;
 
-    auto push = [&] (Element& element) {
+    auto push = [&](Element& element) {
+        if constexpr (scope == TeardownScope::DescendantsOnly) {
+            if (&element == &root) {
+                teardownStack.append(&element);
+                return;
+            }
+        }
         if (element.hasCustomStyleResolveCallbacks())
             element.willDetachRenderers();
         teardownStack.append(&element);
     };
 
-    auto pop = [&] (unsigned depth, NeedsRepaintAndLayout needsRepaintAndLayout) {
+    auto pop = [&](unsigned depth, NeedsRepaintAndLayout needsRepaintAndLayout) {
         while (teardownStack.size() > depth) {
             Ref element = *teardownStack.takeLast();
+
+            if constexpr (scope == TeardownScope::DescendantsOnly) {
+                if (element.ptr() == &root)
+                    continue;
+            }
+
             auto styleable = Styleable::fromElement(element.get());
 
             // Make sure we don't leave any renderers behind in nodes outside the composed tree.
@@ -858,7 +888,7 @@ void RenderTreeUpdater::tearDownRenderers(Element& root, TeardownType teardownTy
                 tearDownLeftoverChildrenOfComposedTree(element.get(), builder);
 
             switch (teardownType) {
-            case TeardownType::FullAfterSlotOrShadowRootChange:
+            case TeardownType::FullAfterShadowRootInsertion:
                 if (element.ptr() == &root) {
                     // Keep animations going on the host.
                     styleable.willChangeRenderer();
@@ -928,7 +958,18 @@ void RenderTreeUpdater::tearDownRenderers(Element& root, TeardownType teardownTy
 
     pop(0, needsDescendantRepaintAndLayout);
 
-    tearDownLeftoverPaginationRenderersIfNeeded(root, builder);
+    if constexpr (scope == TeardownScope::IncludingRoot)
+        tearDownLeftoverPaginationRenderersIfNeeded(root, builder);
+}
+
+void RenderTreeUpdater::tearDownRenderers(Element& root, TeardownType teardownType, RenderTreeBuilder& builder)
+{
+    tearDownRenderersInternal<TeardownScope::IncludingRoot>(root, teardownType, builder);
+}
+
+void RenderTreeUpdater::tearDownDescendantRenderers(Element& root, TeardownType teardownType, RenderTreeBuilder& builder)
+{
+    tearDownRenderersInternal<TeardownScope::DescendantsOnly>(root, teardownType, builder);
 }
 
 void RenderTreeUpdater::tearDownTextRenderer(Text& text, const ContainerNode* root, RenderTreeBuilder& builder, NeedsRepaintAndLayout needsRepaintAndLayout)

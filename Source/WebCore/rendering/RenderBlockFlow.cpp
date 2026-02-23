@@ -359,7 +359,7 @@ void RenderBlockFlow::computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth,
         adjustIntrinsicLogicalWidthsForColumns(minLogicalWidth, maxLogicalWidth);
 
     auto resetMinimumWidthForMarqueeIfApplicable = [&] {
-        if (style().autoWrap() || !layer())
+        if (style().textWrapMode() != TextWrapMode::NoWrap || !layer())
             return;
         CheckedPtr scrollableArea = layer()->scrollableArea();
         if (!scrollableArea || !scrollableArea->marquee() || !scrollableArea->marquee()->isHorizontal())
@@ -435,7 +435,7 @@ bool RenderBlockFlow::willCreateColumns(std::optional<unsigned> desiredColumnCou
         return false;
     if (isRenderSVGBlock())
         return false;
-    if (style().display() == DisplayType::RubyBlock || style().display() == DisplayType::RubyAnnotation)
+    if (style().display() == Style::DisplayType::BlockRuby || style().display() == Style::DisplayType::RubyText)
         return false;
 #if ENABLE(MATHML)
     if (isRenderMathMLBlock())
@@ -657,24 +657,22 @@ void RenderBlockFlow::layoutBlock(RelayoutChildren relayoutChildren, LayoutUnit 
             }
         }
 
-        bool heightChanged = (previousHeight != newHeight);
-        if (heightChanged || alignContentShift)
-            relayoutChildren = RelayoutChildren::Yes;
-        if (isDocumentElementRenderer())
+        // Add overflow from children (unless we're multi-column, since in that case all our child overflow is clipped anyway).
+        auto contentArea = flippedContentBoxRect();
+        if (writingMode().isHorizontal())
+            contentArea.shiftMaxYEdgeTo(afterPaddingEdge - paddingAfter());
+        else
+            contentArea.shiftMaxXEdgeTo(afterPaddingEdge - paddingAfter());
+        updateInFlowDescendantTransformsAfterLayout();
+        computeInFlowOverflow(contentArea, isHorizontalWritingMode() ? ComputeOverflowOptions::MarginsExtendContentAreaX : ComputeOverflowOptions::MarginsExtendContentAreaY);
+
+        if (isDocumentElementRenderer() || previousHeight != newHeight || alignContentShift)
             layoutOutOfFlowBoxes(RelayoutChildren::Yes);
         else
             layoutOutOfFlowBoxes(relayoutChildren);
+        updateOutOfFlowDescendantTransformsAfterLayout();
+        addOverflowFromOutOfFlowBoxes();
     }
-
-    updateDescendantTransformsAfterLayout();
-
-    // Add overflow from children (unless we're multi-column, since in that case all our child overflow is clipped anyway).
-    auto contentArea = flippedContentBoxRect();
-    if (writingMode().isHorizontal())
-        contentArea.shiftMaxYEdgeTo(afterPaddingEdge - paddingAfter());
-    else
-        contentArea.shiftMaxXEdgeTo(afterPaddingEdge - paddingAfter());
-    computeOverflow(contentArea, isHorizontalWritingMode() ? ComputeOverflowOptions::MarginsExtendContentAreaX : ComputeOverflowOptions::MarginsExtendContentAreaY);
 
     auto* state = view().frameView().layoutContext().layoutState();
     if (state && state->pageLogicalHeight())
@@ -745,7 +743,7 @@ void RenderBlockFlow::dirtyForLayoutFromPercentageHeightDescendants()
                 // If the width of an image is affected by the height of a child (e.g., an image with an aspect ratio),
                 // then we have to dirty preferred widths, since even enclosing blocks can become dirty as a result.
                 // (A horizontal flexbox that contains an inline image wrapped in an anonymous block for example.)
-                if (renderBox->hasIntrinsicAspectRatio() || renderBox->style().hasAspectRatio())
+                if (renderBox->hasIntrinsicAspectRatio() || renderBox->style().aspectRatio().hasRatio())
                     renderBox->setNeedsPreferredWidthsUpdate();
             }
         }
@@ -1302,7 +1300,7 @@ void RenderBlockFlow::adjustFloatingBlock(const MarginInfo& marginInfo)
 
 void RenderBlockFlow::updateStaticInlinePositionForChild(RenderBox& child, LayoutUnit logicalTop)
 {
-    if (child.style().isOriginalDisplayInlineType())
+    if (child.style().originalDisplay().isInlineType())
         setStaticInlinePositionForChild(child, staticInlinePositionForOriginalDisplayInline(logicalTop));
     else
         setStaticInlinePositionForChild(child, startOffsetForContent());
@@ -1610,7 +1608,7 @@ LayoutUnit RenderBlockFlow::collapseMarginsWithChildInfo(RenderBox* child, Margi
 bool RenderBlockFlow::isChildEligibleForMarginTrim(Style::MarginTrimSide marginTrimSide, const RenderBox& child) const
 {
     ASSERT(style().marginTrim().contains(marginTrimSide));
-    if (!child.style().isDisplayBlockLevel())
+    if (!child.style().display().isBlockType())
         return false;
     // https://drafts.csswg.org/css-box-4/#margin-trim-block
     // 3.3.1. Trimming Block Container Content
@@ -2042,7 +2040,7 @@ static inline bool needsAppleMailPaginationQuirk(const RenderBlockFlow& renderer
     return false;
 }
 
-static void clearShouldBreakAtLineToAvoidWidowIfNeeded(RenderBlockFlow& blockFlow)
+static void NODELETE clearShouldBreakAtLineToAvoidWidowIfNeeded(RenderBlockFlow& blockFlow)
 {
     if (!blockFlow.shouldBreakAtLineToAvoidWidow())
         return;
@@ -2456,7 +2454,7 @@ void RenderBlockFlow::updateStylesForColumnChildren(const RenderStyle* oldStyle)
 {
     auto columnsNeedLayout = oldStyle && (oldStyle->columnCount() != style().columnCount() || oldStyle->columnWidth() != style().columnWidth()); 
     for (auto* child = firstChildBox(); child && (child->isRenderFragmentedFlow() || child->isRenderMultiColumnSet()); child = child->nextSiblingBox()) {
-        child->setStyle(RenderStyle::createAnonymousStyleWithDisplay(style(), DisplayType::Block));
+        child->setStyle(RenderStyle::createAnonymousStyleWithDisplay(style(), Style::DisplayType::BlockFlow));
         if (columnsNeedLayout)
             child->setNeedsLayoutAndPreferredWidthsUpdate();
     }
@@ -2517,9 +2515,9 @@ void RenderBlockFlow::addFloatsToNewParent(RenderBlockFlow& toBlockFlow) const
     }
 }
 
-void RenderBlockFlow::computeOverflow(LayoutRect contentArea, OptionSet<ComputeOverflowOptions> options)
+void RenderBlockFlow::computeInFlowOverflow(LayoutRect contentArea, OptionSet<ComputeOverflowOptions> options)
 {
-    RenderBlock::computeOverflow(contentArea, options);
+    RenderBlock::computeInFlowOverflow(contentArea, options);
 
     auto addOverflowFromFloatsIfApplicable = [&] {
 
@@ -4009,7 +4007,7 @@ bool RenderBlockFlow::layoutSimpleBlockContentInInline(MarginInfo& marginInfo)
     return true;
 }
 
-static bool hasSimpleStaticPositionForInlineLevelOutOfFlowChildrenByStyle(const RenderStyle& rootStyle)
+static bool NODELETE hasSimpleStaticPositionForInlineLevelOutOfFlowChildrenByStyle(const RenderStyle& rootStyle)
 {
     if (rootStyle.textAlign() != Style::TextAlign::Start)
         return false;
@@ -4036,7 +4034,7 @@ static void setFullRepaintOnParentInlineBoxLayerIfNeeded(const RenderText& rende
     }
     if (!parent->isInline() || !parent->hasLayer())
         return;
-    downcast<RenderLayerModelObject>(*parent).checkedLayer()->setRepaintStatus(RepaintStatus::NeedsFullRepaint);
+    protect(downcast<RenderLayerModelObject>(*parent).layer())->setRepaintStatus(RepaintStatus::NeedsFullRepaint);
 }
 
 std::pair<float, float> RenderBlockFlow::inlineContentTopAndBottomIncludingInkOverflow() const
@@ -4100,7 +4098,7 @@ RenderBlockFlow::InlineContentStatus RenderBlockFlow::markInlineContentDirtyForL
             if (hasParentRelativeHeightOrTop)
                 hasSimpleOutOfFlowContentOnly = false;
 
-            if (hasSimpleOutOfFlowContentOnly && style.isOriginalDisplayInlineType())
+            if (hasSimpleOutOfFlowContentOnly && style.originalDisplay().isInlineType())
                 hasSimpleOutOfFlowContentOnly = hasSimpleStaticPositionForInlineLevelOutOfFlowContentByStyle;
         } else
             hasSimpleOutOfFlowContentOnly = false;
@@ -4269,7 +4267,7 @@ void RenderBlockFlow::setStaticPositionsForSimpleOutOfFlowContent()
 #ifndef NDEBUG
     ASSERT(!hasLineIfEmpty());
     for (auto walker = InlineWalker(*this); !walker.atEnd(); walker.advance()) {
-        if (walker.current()->style().isDisplayInlineType()) {
+        if (walker.current()->style().display().isInlineType()) {
             ASSERT(hasSimpleStaticPositionForInlineLevelOutOfFlowChildrenByStyle(style()));
             break;
         }
@@ -4362,7 +4360,7 @@ static inline bool resizeTextPermitted(const RenderObject& renderer)
     return true;
 }
 
-static bool isNonBlocksOrNonFixedHeightListItems(const RenderObject& renderer)
+static bool NODELETE isNonBlocksOrNonFixedHeightListItems(const RenderObject& renderer)
 {
     if (!renderer.isRenderBlock())
         return true;
@@ -4617,7 +4615,7 @@ struct InlineMinMaxIterator {
         }
 
     RenderObject* next();
-    bool isEndOfInline() const { return m_isEndOfInline; }
+    bool NODELETE isEndOfInline() const { return m_isEndOfInline; }
 
 private:
     const RenderBlockFlow& m_blockContainer;
@@ -4672,7 +4670,7 @@ RenderObject* InlineMinMaxIterator::next()
         if (is<RenderInline>(*candidate) || candidate->isRenderTextOrLineBreak() || candidate->isFloating() || candidate->isBlockLevelReplacedOrAtomicInline())
             break;
 
-        if (candidate->style().isDisplayBlockLevel()) {
+        if (candidate->style().display().isBlockType()) {
             ASSERT(candidate->settings().blocksInInlineLayoutEnabled());
             break;
         }
@@ -4742,7 +4740,7 @@ static inline std::optional<std::pair<const RenderText&, const RenderText&>> tra
         if (is<RenderInline>(renderer))
             return true;
         auto& renderBox = downcast<RenderBoxModelObject>(renderer);
-        return !renderBox.isInFlow() || renderBox.style().display() == DisplayType::RubyAnnotation;
+        return !renderBox.isInFlow() || renderBox.style().display() == Style::DisplayType::RubyText;
     };
 
     auto walker = InlineWalker(blockContainer, rubyBase.firstInFlowChild());
@@ -4777,7 +4775,7 @@ static inline std::optional<std::pair<const RenderText&, const RenderText&>> tra
 
 static inline bool hasTrailingSoftWrapOpportunity(const RenderInline& rubyBase, const RenderBlockFlow& blockContainer)
 {
-    if (!rubyBase.parent()->style().autoWrap())
+    if (rubyBase.parent()->style().textWrapMode() == TextWrapMode::NoWrap)
         return false;
 
     if (auto lastAndNextTextContent = trailingRubyBaseAndAdjacentTextContent(rubyBase, blockContainer))
@@ -4829,7 +4827,7 @@ void RenderBlockFlow::computeInlinePreferredLogicalWidths(LayoutUnit& minLogical
     // Not supporting the quirk has caused us to mis-render some real sites. (See Bugzilla 10517.) 
     bool allowImagesToBreak = !document().inQuirksMode() || !isRenderTableCell() || !styleToUse.logicalWidth().isIntrinsicOrLegacyIntrinsicOrAuto();
 
-    bool oldAutoWrap = styleToUse.autoWrap();
+    bool oldAutoWrap = styleToUse.textWrapMode() != TextWrapMode::NoWrap;
 
     InlineMinMaxIterator childIterator(*this);
 
@@ -4857,7 +4855,7 @@ void RenderBlockFlow::computeInlinePreferredLogicalWidths(LayoutUnit& minLogical
         auto isInterlinearTypeAnnotation = [&] {
             if (CheckedPtr renderBlock = dynamicDowncast<RenderBlock>(*child)) {
                 auto& style = renderBlock->style();
-                return style.display() == DisplayType::RubyAnnotation && (!style.isInterCharacterRubyPosition() || styleToUse.writingMode().isVerticalTypographic());
+                return style.display() == Style::DisplayType::RubyText && (!style.isInterCharacterRubyPosition() || styleToUse.writingMode().isVerticalTypographic());
             }
             return false;
         };
@@ -4896,7 +4894,7 @@ void RenderBlockFlow::computeInlinePreferredLogicalWidths(LayoutUnit& minLogical
             remainingNegativeTextIndent = { };
             addedStartPunctuationHang = true;
             isPrevChildInlineFlow = false;
-            oldAutoWrap = child->parent()->style().autoWrap();
+            oldAutoWrap = child->parent()->style().textWrapMode() != TextWrapMode::NoWrap;
         };
 
         if (child->isBR()) {
@@ -4904,7 +4902,7 @@ void RenderBlockFlow::computeInlinePreferredLogicalWidths(LayoutUnit& minLogical
             continue;
         }
 
-        if (child->style().isDisplayBlockLevel() && !child->isFloating() && is<RenderBox>(*child)) {
+        if (child->style().display().isBlockType() && !child->isFloating() && is<RenderBox>(*child)) {
             ASSERT(settings().blocksInInlineLayoutEnabled());
 
             resetLineForForcedLineBreak();
@@ -4957,7 +4955,7 @@ void RenderBlockFlow::computeInlinePreferredLogicalWidths(LayoutUnit& minLogical
         // values (if any of them are larger than our current min/max). We then look at
         // the width of the last non-breakable run and use that to start a new line
         // (unless we end in whitespace).
-        auto autoWrap = child->isBlockLevelReplacedOrAtomicInline() || is<RenderText>(*child) ? child->parent()->style().autoWrap() : child->style().autoWrap();
+        auto autoWrap = child->isBlockLevelReplacedOrAtomicInline() || is<RenderText>(*child) ? (child->parent()->style().textWrapMode() != TextWrapMode::NoWrap) : (child->style().textWrapMode() != TextWrapMode::NoWrap);
         auto childMin = 0.f;
         auto childMax = 0.f;
 
@@ -4976,13 +4974,13 @@ void RenderBlockFlow::computeInlinePreferredLogicalWidths(LayoutUnit& minLogical
                 childMin += bpm;
                 childMax += bpm;
 
-                if (childStyle.display() == DisplayType::RubyBase && !childIterator.isEndOfInline())
+                if (childStyle.display() == Style::DisplayType::RubyBase && !childIterator.isEndOfInline())
                     rubyBaseContentStack.append({ inlineMin, inlineMax, false });
 
                 inlineMin += childMin;
                 inlineMax += childMax;
 
-                if (childStyle.display() == DisplayType::RubyBase && childIterator.isEndOfInline()) {
+                if (childStyle.display() == Style::DisplayType::RubyBase && childIterator.isEndOfInline()) {
                     if (!rubyBaseContentStack.isEmpty()) {
                         auto rubyBaseStart = rubyBaseContentStack.last();
                         auto baseHasBreakingPositionAfter = hasTrailingSoftWrapOpportunity(*renderInline, *this);
@@ -5096,7 +5094,7 @@ void RenderBlockFlow::computeInlinePreferredLogicalWidths(LayoutUnit& minLogical
                 lastText = nullptr;
             }
         } else if (CheckedPtr renderText = dynamicDowncast<RenderText>(*child)) {
-            if (renderText->style().hasTextCombine()) {
+            if (renderText->style().textCombine() != TextCombine::None) {
                 if (CheckedPtr renderCombineText = dynamicDowncast<RenderCombineText>(*renderText))
                     renderCombineText->combineTextIfNeeded();
             }

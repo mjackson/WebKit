@@ -82,7 +82,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(AudioContext);
 static unsigned hardwareContextCount;
 #endif
 
-static std::optional<float>& defaultSampleRateForTesting()
+static std::optional<float>& NODELETE defaultSampleRateForTesting()
 {
     static std::optional<float> sampleRate;
     return sampleRate;
@@ -215,7 +215,7 @@ AudioTimestamp AudioContext::getOutputTimestamp()
     DOMHighResTimeStamp performanceTime = 0.0;
     RefPtr document = this->document();
     if (document && document->window())
-        performanceTime = std::max(protect(document->window()->performance())->relativeTimeFromTimeOriginInReducedResolution(position.timestamp), 0.0);
+        performanceTime = std::max(protect(protect(document->window())->performance())->relativeTimeFromTimeOriginInReducedResolution(position.timestamp), 0.0);
 
     return { position.position.seconds(), performanceTime };
 }

@@ -33,6 +33,7 @@
 #include "CredentialRequestOptions.h"
 #include "DigitalCredentialPresentationProtocol.h"
 #include "DocumentPage.h"
+#include "DocumentSecurityOrigin.h"
 #include "ExceptionOr.h"
 #include "FrameDestructionObserverInlines.h"
 #include "IDLTypes.h"

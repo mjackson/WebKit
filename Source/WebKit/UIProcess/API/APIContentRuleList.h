@@ -47,7 +47,7 @@ public:
     ContentRuleList(Ref<WebKit::WebCompiledContentRuleList>&&, WebKit::NetworkCache::Data&&);
     virtual ~ContentRuleList();
 
-    const WTF::String& name() const;
+    const WTF::String& NODELETE name() const;
     const WebKit::WebCompiledContentRuleList& compiledRuleList() const { return m_compiledRuleList.get(); }
     
     static bool supportsRegularExpression(const WTF::String&);

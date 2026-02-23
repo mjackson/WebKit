@@ -40,7 +40,7 @@ class TextCheckerCompletion : public RefCounted<TextCheckerCompletion> {
 public:
     static Ref<TextCheckerCompletion> create(TextCheckerRequestID, const WebCore::TextCheckingRequestData&, WebPageProxy&);
 
-    const WebCore::TextCheckingRequestData& textCheckingRequestData() const;
+    const WebCore::TextCheckingRequestData& NODELETE textCheckingRequestData() const;
     SpellDocumentTag spellDocumentTag();
     void didFinishCheckingText(const Vector<WebCore::TextCheckingResult>&) const;
     void didCancelCheckingText() const;

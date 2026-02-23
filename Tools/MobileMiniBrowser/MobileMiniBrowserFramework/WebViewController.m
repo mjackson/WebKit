@@ -291,9 +291,6 @@ void* URLContext = &URLContext;
             return url;
     }
 
-    if (NSProcessInfo.processInfo.arguments.count >= 2)
-        return [NSURL URLWithString:NSProcessInfo.processInfo.arguments[1]];
-
     return [NSURL URLWithString:[self.settingsViewController defaultURL]];
 }
 

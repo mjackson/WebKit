@@ -39,12 +39,12 @@ namespace WebCore {
 
 namespace GridLayoutFunctions {
 
-static inline bool marginStartIsAuto(const RenderBox& gridItem, Style::GridTrackSizingDirection direction)
+static inline bool NODELETE marginStartIsAuto(const RenderBox& gridItem, Style::GridTrackSizingDirection direction)
 {
     return direction == Style::GridTrackSizingDirection::Columns ? gridItem.style().marginStart().isAuto() : gridItem.style().marginBefore().isAuto();
 }
 
-static inline bool marginEndIsAuto(const RenderBox& gridItem, Style::GridTrackSizingDirection direction)
+static inline bool NODELETE marginEndIsAuto(const RenderBox& gridItem, Style::GridTrackSizingDirection direction)
 {
     return direction == Style::GridTrackSizingDirection::Columns ? gridItem.style().marginEnd().isAuto() : gridItem.style().marginAfter().isAuto();
 }
@@ -141,7 +141,8 @@ bool isOrthogonalParent(const RenderGrid& grid, const RenderElement& parent)
 
 bool isAspectRatioBlockSizeDependentGridItem(const RenderBox& gridItem)
 {
-    return (gridItem.style().hasAspectRatio() || gridItem.hasIntrinsicAspectRatio()) && (gridItem.hasRelativeLogicalHeight() || gridItem.hasStretchedLogicalHeight());
+    return (gridItem.style().aspectRatio().hasRatio() || gridItem.hasIntrinsicAspectRatio())
+        && (gridItem.hasRelativeLogicalHeight() || gridItem.hasStretchedLogicalHeight());
 }
 
 bool isGridItemInlineSizeDependentOnBlockConstraints(const RenderBox& gridItem, const RenderGrid& parentGrid, ItemPosition gridItemAlignSelf)
@@ -168,7 +169,7 @@ bool isGridItemInlineSizeDependentOnBlockConstraints(const RenderBox& gridItem, 
 
     auto hasAspectRatioAndInlineSizeDependsOnBlockSize = [](auto& renderer) {
         auto& rendererStyle = renderer.style();
-        bool rendererHasAspectRatio = renderer.hasIntrinsicAspectRatio() || rendererStyle.hasAspectRatio();
+        bool rendererHasAspectRatio = renderer.hasIntrinsicAspectRatio() || rendererStyle.aspectRatio().hasRatio();
 
         return rendererHasAspectRatio && rendererStyle.logicalWidth().isAuto() && !rendererStyle.logicalHeight().isIntrinsicOrLegacyIntrinsicOrAuto();
     };
@@ -254,7 +255,7 @@ bool hasStretchableSizeInColumnAxis(const RenderBox& gridItem, const RenderGrid&
     if (!(gridContainer.isHorizontalWritingMode() ? gridItem.style().height().isAuto() : gridItem.style().width().isAuto()))
         return false;
 
-    if (gridItem.style().hasAspectRatio() && !gridContainer.selfAlignmentForGridItem(gridItem, LogicalBoxAxis::Block, StretchingMode::Explicit).isStretch()) {
+    if (gridItem.style().aspectRatio().hasRatio() && !gridContainer.selfAlignmentForGridItem(gridItem, LogicalBoxAxis::Block, StretchingMode::Explicit).isStretch()) {
         if (gridContainer.isHorizontalWritingMode() == gridItem.isHorizontalWritingMode()) {
             // A non-auto inline size means the same for block size (column axis size) because of the aspect ratio.
             if (!gridItem.style().logicalWidth().isAuto())
@@ -277,7 +278,7 @@ bool hasStretchableSizeInRowAxis(const RenderBox& gridItem, const RenderGrid& gr
     if (!(gridContainer.isHorizontalWritingMode() ? gridItem.style().width().isAuto() : gridItem.style().height().isAuto()))
         return false;
 
-    if (gridItem.style().hasAspectRatio() && !gridContainer.selfAlignmentForGridItem(gridItem, LogicalBoxAxis::Inline, StretchingMode::Explicit).isStretch()) {
+    if (gridItem.style().aspectRatio().hasRatio() && !gridContainer.selfAlignmentForGridItem(gridItem, LogicalBoxAxis::Inline, StretchingMode::Explicit).isStretch()) {
         if (gridContainer.isHorizontalWritingMode() != gridItem.isHorizontalWritingMode()) {
             // A non-auto inline size (column axis size) means the same for block size (row axis size) because of the aspect ratio.
             if (!gridItem.style().logicalWidth().isAuto())

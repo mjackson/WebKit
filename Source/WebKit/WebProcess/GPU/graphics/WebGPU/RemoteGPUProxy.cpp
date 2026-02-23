@@ -87,7 +87,7 @@ RemoteGPUProxy::~RemoteGPUProxy()
 void RemoteGPUProxy::initializeIPC(Ref<IPC::StreamClientConnection>&& streamConnection, RemoteRenderingBackendIdentifier renderingBackend, IPC::StreamServerConnection::Handle&& serverHandle)
 {
     m_streamConnection = WTF::move(streamConnection);
-    protectedStreamConnection()->open(*this, *this);
+    protect(m_streamConnection)->open(*this, *this);
     callOnMainRunLoopAndWait([&]() {
         Ref gpuProcessConnection = WebProcess::singleton().ensureGPUProcessConnection();
         gpuProcessConnection->createGPU(m_backing, renderingBackend, WTF::move(serverHandle));
@@ -99,7 +99,7 @@ void RemoteGPUProxy::disconnectGpuProcessIfNeeded()
 {
     if (m_lost)
         return;
-    protectedStreamConnection()->invalidate();
+    protect(m_streamConnection)->invalidate();
     // FIXME: deallocate m_streamConnection once the children work without the connection.
     ensureOnMainRunLoop([identifier = m_backing, weakGPUProcessConnection = WTF::move(m_gpuProcessConnection)]() {
         RefPtr gpuProcessConnection = weakGPUProcessConnection.get();
@@ -117,7 +117,7 @@ void RemoteGPUProxy::didClose(IPC::Connection&)
 
 void RemoteGPUProxy::abandonGPUProcess()
 {
-    protectedStreamConnection()->invalidate();
+    protect(m_streamConnection)->invalidate();
     m_lost = true;
 }
 
@@ -138,7 +138,7 @@ void RemoteGPUProxy::wasCreated(bool didSucceed, IPC::Semaphore&& wakeUpSemaphor
     ASSERT(!m_didInitialize);
     m_didInitialize = true;
     if (didSucceed)
-        protectedStreamConnection()->setSemaphores(WTF::move(wakeUpSemaphore), WTF::move(clientWaitSemaphore));
+        protect(m_streamConnection)->setSemaphores(WTF::move(wakeUpSemaphore), WTF::move(clientWaitSemaphore));
     else
         abandonGPUProcess();
 }
@@ -147,7 +147,7 @@ void RemoteGPUProxy::waitUntilInitialized()
 {
     if (m_didInitialize)
         return;
-    if (protectedStreamConnection()->waitForAndDispatchImmediately<Messages::RemoteGPUProxy::WasCreated>(m_backing) == IPC::Error::NoError)
+    if (protect(m_streamConnection)->waitForAndDispatchImmediately<Messages::RemoteGPUProxy::WasCreated>(m_backing) == IPC::Error::NoError)
         return;
     abandonGPUProcess();
 }

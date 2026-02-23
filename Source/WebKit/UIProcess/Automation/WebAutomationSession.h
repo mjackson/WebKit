@@ -159,7 +159,7 @@ public:
     void setSessionIdentifier(const String& sessionIdentifier) { m_sessionIdentifier = sessionIdentifier; }
     String sessionIdentifier() const { return m_sessionIdentifier; }
 
-    WebProcessPool* processPool() const;
+    WebProcessPool* NODELETE processPool() const;
     void setProcessPool(WebProcessPool*);
 
     void navigationOccurredForFrame(const WebFrameProxy&);
@@ -189,7 +189,7 @@ public:
     void didEnterFullScreenForPage(const WebPageProxy&);
     void didExitFullScreenForPage(const WebPageProxy&);
 
-    bool shouldAllowGetUserMediaForPage(const WebPageProxy&) const;
+    bool NODELETE shouldAllowGetUserMediaForPage(const WebPageProxy&) const;
 
 #if ENABLE(REMOTE_INSPECTOR)
     String name() const { return m_sessionIdentifier; }
@@ -198,8 +198,8 @@ public:
     void disconnect(Inspector::FrontendChannel&);
 
     void init();
-    bool isPaired() const;
-    bool isPendingTermination() const;
+    bool NODELETE isPaired() const;
+    bool NODELETE isPendingTermination() const;
 #endif
 
     void terminate();
@@ -298,7 +298,7 @@ public:
 #endif
 
     // Event Simulation Support.
-    bool isSimulatingUserInteraction() const;
+    bool NODELETE isSimulatingUserInteraction() const;
 #if ENABLE(WEBDRIVER_ACTIONS_API)
     SimulatedInputDispatcher& inputDispatcherForPage(WebPageProxy&);
 #endif
@@ -347,9 +347,9 @@ private:
 
     // Platform-dependent implementations.
 #if ENABLE(WEBDRIVER_MOUSE_INTERACTIONS)
-    void resetMouseState();
+    void NODELETE resetMouseState();
     void updateClickCount(MouseButton, const WebCore::IntPoint&, Seconds maxTime = 0.5_s, int maxDistance = 0);
-    void updateLastPosition(const WebCore::IntPoint&, int maxDistance = 0);
+    void NODELETE updateLastPosition(const WebCore::IntPoint&, int maxDistance = 0);
     void platformSimulateMouseInteraction(WebPageProxy&, MouseInteraction, MouseButton, const WebCore::IntPoint& locationInViewport, OptionSet<WebEventModifier>, const String& pointerType);
     static OptionSet<WebEventModifier> platformWebModifiersFromRaw(WebPageProxy&, unsigned modifiers);
 #endif

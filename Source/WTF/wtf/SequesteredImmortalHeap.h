@@ -161,7 +161,8 @@ private:
 
     void* alignedAllocateImpl(size_t alignment, size_t bytes)
     {
-        uintptr_t allocation = WTF::roundUpToMultipleOf<minHeadAlignment>(m_allocHead);
+        alignment = std::max(alignment, minHeadAlignment);
+        uintptr_t allocation = WTF::roundUpToMultipleOf(alignment, m_allocHead);
         uintptr_t newHead = headIncrementedBy((allocation - m_allocHead) + bytes);
         if (newHead < m_allocBound) [[likely]] {
             m_allocHead = newHead;
@@ -183,7 +184,9 @@ private:
 
     NEVER_INLINE void* alignedAllocateImplSlowPath(size_t alignment, size_t bytes)
     {
-        addGranule(bytes);
+        // FIXME: store granule headers out-of-line to avoid wasting
+        // up to alignment bytes per granule on header padding.
+        addGranule(alignment + bytes);
 
         alignment = std::max(alignment, minHeadAlignment);
         uintptr_t allocation = WTF::roundUpToMultipleOf(alignment, m_allocHead);
@@ -308,6 +311,34 @@ public:
     }
 };
 
+struct StackHandle : public DoublyLinkedListNode<StackHandle> {
+    std::span<std::byte> stack;
+private:
+    friend class DoublyLinkedListNode<StackHandle>;
+    StackHandle* m_prev;
+    StackHandle* m_next;
+};
+
+class SequesteredStackAllocator {
+public:
+    struct Result {
+        StackHandle* handle;
+    };
+
+    WTF_EXPORT_PRIVATE Result allocate(size_t stackSize, size_t guardSize);
+    WTF_EXPORT_PRIVATE void deallocate(StackHandle*);
+
+    SequesteredStackAllocator() = default;
+    SequesteredStackAllocator(SequesteredStackAllocator&&) = delete;
+    SequesteredStackAllocator& operator=(SequesteredStackAllocator&&) = delete;
+    SequesteredStackAllocator(const SequesteredStackAllocator&) = delete;
+    SequesteredStackAllocator& operator=(const SequesteredStackAllocator&) = delete;
+private:
+    DoublyLinkedList<StackHandle> m_freeList;
+    DoublyLinkedList<StackHandle> m_inUseList;
+    Lock m_lock;
+};
+
 class alignas(16 * KB) SequesteredImmortalHeap {
     friend class WTF::LazyNeverDestroyed<SequesteredImmortalHeap>;
     friend class SlotManager;
@@ -354,6 +385,8 @@ public:
     {
         return m_immortalAllocator.alignedAllocate(alignment, bytes);
     }
+
+    SequesteredStackAllocator& stackAllocator() { return m_stackAllocator; }
 
     void* getSlot()
     {
@@ -427,6 +460,7 @@ private:
     Lock m_scavengerLock { };
     SequesteredImmortalAllocator m_immortalAllocator { };
     SlotManager m_slotManager { };
+    SequesteredStackAllocator m_stackAllocator { };
 };
 
 }

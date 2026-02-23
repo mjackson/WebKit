@@ -164,7 +164,7 @@ public:
     void testJSObjectSetOnGlobalObjectSubclassDefinition();
     void testBigInt();
 
-    int failed() const { return m_failed; }
+    int NODELETE failed() const { return m_failed; }
 
 private:
 

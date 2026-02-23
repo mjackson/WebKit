@@ -73,7 +73,7 @@ public:
     void unregisterSVGFontFaceElement(SVGFontFaceElement&);
 
 private:
-    Ref<Document> protectedDocument() const;
+    Ref<Document> NODELETE protectedDocument() const;
 
     WeakRef<Document, WeakPtrImplWithEventTargetData> m_document;
     WeakHashSet<SVGSVGElement, WeakPtrImplWithEventTargetData> m_timeContainers; // For SVG 1.2 support this will need to be made more general.

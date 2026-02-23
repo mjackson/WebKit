@@ -66,8 +66,6 @@ public:
     unsigned nextHeapInsertionCount() { return m_currentHeapInsertionOrder++; }
 
 private:
-    inline CheckedPtr<SharedTimer> checkedSharedTimer();
-
     void sharedTimerFiredInternal();
     void fireTimersInNestedEventLoopInternal();
 

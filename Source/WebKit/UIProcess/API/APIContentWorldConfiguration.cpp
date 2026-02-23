@@ -26,6 +26,8 @@
 #include "config.h"
 #include "APIContentWorldConfiguration.h"
 
+#include "ContentWorldShared.h"
+
 namespace API {
 
 Ref<ContentWorldConfiguration> ContentWorldConfiguration::create()
@@ -38,6 +40,28 @@ ContentWorldConfiguration::Data::Data() = default;
 ContentWorldConfiguration::ContentWorldConfiguration() = default;
 
 ContentWorldConfiguration::~ContentWorldConfiguration() = default;
+
+OptionSet<WebKit::ContentWorldOption> ContentWorldConfiguration::optionSet() const
+{
+    OptionSet<WebKit::ContentWorldOption> result;
+
+    if (allowAccessToClosedShadowRoots())
+        result.add(WebKit::ContentWorldOption::AllowAccessToClosedShadowRoots);
+    if (allowAutofill())
+        result.add(WebKit::ContentWorldOption::AllowAutofill);
+    if (allowElementUserInfo())
+        result.add(WebKit::ContentWorldOption::AllowElementUserInfo);
+    if (disableLegacyBuiltinOverrides())
+        result.add(WebKit::ContentWorldOption::DisableLegacyBuiltinOverrides);
+    if (allowJSHandleCreation())
+        result.add(WebKit::ContentWorldOption::AllowJSHandleCreation);
+    if (allowNodeSerialization())
+        result.add(WebKit::ContentWorldOption::AllowNodeSerialization);
+    if (isInspectable())
+        result.add(WebKit::ContentWorldOption::Inspectable);
+
+    return result;
+}
 
 Ref<ContentWorldConfiguration> ContentWorldConfiguration::copy() const
 {

@@ -135,8 +135,8 @@ private:
         m_mapper->visitJSFunction(visitor);
     }
 
-    Ref<Subscriber> protectedSubscriber() const { return m_subscriber; }
-    Ref<MapperCallback> protectedMapper() const { return m_mapper; }
+    Ref<Subscriber> NODELETE protectedSubscriber() const { return m_subscriber; }
+    Ref<MapperCallback> NODELETE protectedMapper() const { return m_mapper; }
 
     InternalObserverMap(ScriptExecutionContext& context, Ref<Subscriber> subscriber, Ref<MapperCallback> mapper)
         : InternalObserver(context)

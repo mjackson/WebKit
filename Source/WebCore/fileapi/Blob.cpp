@@ -143,10 +143,10 @@ static size_t computeMemoryCost(const std::optional<Vector<BlobPartVariant>>& bl
                 [&](const Ref<Blob>& blob) {
                     memoryCost += blob->memoryCost();
                 },
-                [&](const RefPtr<JSC::ArrayBufferView>& view) {
+                [&](const Ref<JSC::ArrayBufferView>& view) {
                     memoryCost += view->byteLength();
                 },
-                [&](const RefPtr<JSC::ArrayBuffer>& array) {
+                [&](const Ref<JSC::ArrayBuffer>& array) {
                     memoryCost += array->byteLength();
                 },
                 [&](const String& string) {

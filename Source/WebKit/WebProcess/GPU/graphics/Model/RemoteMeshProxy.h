@@ -80,7 +80,7 @@ private:
     template<typename T>
     [[nodiscard]] IPC::Error send(T&& message)
     {
-        return root().protectedStreamClientConnection()->send(WTF::move(message), backing());
+        return protect(root().streamClientConnection())->send(WTF::move(message), backing());
     }
 
     void update(const WebModel::UpdateMeshDescriptor&) final;
@@ -94,6 +94,7 @@ private:
     void render() final;
     void setLabelInternal(const String&) final;
     void setEntityTransform(const WebModel::Float4x4&) final;
+    void NODELETE setEntityTransformInternal(const WebModel::Float4x4&);
 #if PLATFORM(COCOA)
     std::optional<WebModel::Float4x4> entityTransform() const final;
 #endif

@@ -139,9 +139,9 @@ void MemoryBackingStoreTransaction::objectStoreDeleted(Ref<MemoryObjectStore>&& 
         return;
     }
 
-    auto addResult = m_deletedObjectStores.add(objectStore->info().name(), nullptr);
-    if (addResult.isNewEntry)
-        addResult.iterator->value = WTF::move(objectStore);
+    m_deletedObjectStores.ensure(objectStore->info().name(), [&] {
+        return WTF::move(objectStore);
+    });
 }
 
 void MemoryBackingStoreTransaction::objectStoreRenamed(MemoryObjectStore& objectStore, const String& oldName)
@@ -213,9 +213,9 @@ void MemoryBackingStoreTransaction::abort()
 
     // Restore deleted object stores.
     for (auto& objectStore : m_deletedObjectStores.values()) {
-        m_backingStore->restoreObjectStoreForVersionChangeAbort(*objectStore);
-        ASSERT(!m_objectStores.contains(objectStore.get()));
-        m_objectStores.add(objectStore.releaseNonNull());
+        m_backingStore->restoreObjectStoreForVersionChangeAbort(objectStore.get());
+        ASSERT(!m_objectStores.contains(objectStore.ptr()));
+        m_objectStores.add(objectStore.get());
     }
     m_deletedObjectStores.clear();
 

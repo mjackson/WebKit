@@ -67,6 +67,12 @@
 
 (allow fs-quota-get)
 
+#if !RC_XBS
+;; Allow development dylibs to be loaded
+(allow file-read* file-map-executable
+    (literal (string-append (param "WEBKIT2_FRAMEWORK_DIR") "/libWebKitSwift.dylib")))
+#endif
+
 #if HAVE(SANDBOX_STATE_FLAGS)
 (with-filter (require-not (webcontent-process-launched))
     (allow file-map-executable))

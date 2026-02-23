@@ -108,7 +108,7 @@ public:
     RTCSocketFactory(WebPageProxyIdentifier, String&& userAgent, ScriptExecutionContextIdentifier, bool isFirstParty, RegistrableDomain&&);
 
     void disableRelay() final { m_flags.isRelayDisabled = true; }
-    void enableServiceClass() { m_flags.enableServiceClass = true; }
+    void NODELETE enableServiceClass() { m_flags.enableServiceClass = true; }
 
 private:
     // SuspendableSocketFactory

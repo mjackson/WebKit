@@ -44,6 +44,7 @@ public:
     InlineDisplayContentBuilder(InlineFormattingContext&, const ConstraintsForInlineContent&, const LineBox&, const InlineDisplay::Line&);
 
     InlineDisplay::Boxes build(const LineLayoutResult&);
+    InlineDisplay::Boxes buildTextOnlyContent(const LineLayoutResult&);
 
 private:
     void processNonBidiContent(const LineLayoutResult&, InlineDisplay::Boxes&);
@@ -53,11 +54,11 @@ private:
     void truncateForEllipsisPolicy(LineEndingTruncationPolicy, const LineLayoutResult&, InlineDisplay::Boxes&);
 
     void appendTextDisplayBox(const Line::Run&, const InlineRect&, InlineDisplay::Boxes&);
-    void appendSoftLineBreakDisplayBox(const Line::Run&, const InlineRect&, InlineDisplay::Boxes&);
-    void appendHardLineBreakDisplayBox(const Line::Run&, const InlineRect&, InlineDisplay::Boxes&);
+    void appendSoftLineBreakDisplayBox(const Line::Run&, const InlineRect&, InlineDisplay::Boxes&) const;
+    void appendHardLineBreakDisplayBox(const Line::Run&, const InlineRect&, InlineDisplay::Boxes&) const;
     void appendAtomicInlineLevelDisplayBox(const Line::Run&, const InlineRect&, InlineDisplay::Boxes&);
     void appendBlockLevelDisplayBox(const Line::Run&, const InlineRect&, InlineDisplay::Boxes&);
-    void appendRootInlineBoxDisplayBox(const InlineRect&, bool lineHasContent, InlineDisplay::Boxes&);
+    void appendRootInlineBoxDisplayBox(const InlineRect&, bool lineHasContent, InlineDisplay::Boxes&) const;
     void appendInlineBoxDisplayBox(const Line::Run&, const InlineLevelBox&, const InlineRect&, InlineDisplay::Boxes&);
     void appendInlineDisplayBoxAtBidiBoundary(const Box&, InlineDisplay::Boxes&);
     void insertRubyAnnotationBox(const Box& annotationBox, size_t insertionPosition, const InlineRect&, InlineDisplay::Boxes&);

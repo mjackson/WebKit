@@ -140,7 +140,7 @@ void AuxiliaryProcess::didReceiveInvalidMessage(IPC::Connection&, IPC::MessageNa
     auto index = [&](size_t i) -> int32_t {
         return i < indicesOfObjectsFailingDecoding.size() ? indicesOfObjectsFailingDecoding[i] : -1;
     };
-    CRASH_WITH_INFO(WTF::enumToUnderlyingType(messageName), index(5), index(4), index(3), index(2), index(1), index(0));
+    CRASH_WITH_INFO(std::to_underlying(messageName), index(5), index(4), index(3), index(2), index(1), index(0));
 }
 
 bool AuxiliaryProcess::parentProcessHasEntitlement(ASCIILiteral entitlement)

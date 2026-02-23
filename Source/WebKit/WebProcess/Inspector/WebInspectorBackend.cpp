@@ -132,13 +132,15 @@ void WebInspectorBackend::whenFrontendConnectionEstablished(Function<void(IPC::C
 }
 
 // Called by WebInspectorBackend messages
-void WebInspectorBackend::show(CompletionHandler<void()>&& completionHandler)
+void WebInspectorBackend::show(CompletionHandler<void(bool success)>&& completionHandler)
 {
-    if (!m_page->corePage())
+    if (!m_page->corePage()) {
+        completionHandler(false);
         return;
+    }
 
     m_page->corePage()->inspectorController().show();
-    completionHandler();
+    completionHandler(true);
 }
 
 void WebInspectorBackend::close()
@@ -280,8 +282,8 @@ bool WebInspectorBackend::canAttachWindow()
     RefPtr localMainFrame = RefPtr { m_page.get() }->localMainFrame();
     if (!localMainFrame)
         return false;
-    unsigned inspectedPageHeight = localMainFrame->protectedView()->visibleHeight();
-    unsigned inspectedPageWidth = localMainFrame->protectedView()->visibleWidth();
+    unsigned inspectedPageHeight = protect(localMainFrame->view())->visibleHeight();
+    unsigned inspectedPageWidth = protect(localMainFrame->view())->visibleWidth();
     unsigned maximumAttachedHeight = inspectedPageHeight * maximumAttachedHeightRatio;
     return minimumAttachedHeight <= maximumAttachedHeight && minimumAttachedWidth <= inspectedPageWidth;
 }

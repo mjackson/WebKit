@@ -61,7 +61,7 @@ static uint64_t nextLogIdentifier()
 }
 
 #if !RELEASE_LOG_DISABLED
-static WTFLogChannel& logChannel()
+static WTFLogChannel& NODELETE logChannel()
 {
     return LogMedia;
 }
@@ -88,7 +88,7 @@ static PlatformMediaSession::RemoteControlCommandType platformCommandForMediaSes
     return map.get(action, PlatformMediaSession::RemoteControlCommandType::NoCommand);
 }
 
-static std::optional<std::pair<PlatformMediaSession::RemoteControlCommandType, PlatformMediaSession::RemoteCommandArgument>> platformCommandForMediaSessionAction(const MediaSessionActionDetails& actionDetails)
+static std::optional<std::pair<PlatformMediaSession::RemoteControlCommandType, PlatformMediaSession::RemoteCommandArgument>> NODELETE platformCommandForMediaSessionAction(const MediaSessionActionDetails& actionDetails)
 {
     PlatformMediaSession::RemoteControlCommandType command = PlatformMediaSession::RemoteControlCommandType::NoCommand;
     PlatformMediaSession::RemoteCommandArgument argument;
@@ -291,7 +291,7 @@ ExceptionOr<void> MediaSession::setActionHandler(MediaSessionAction action, RefP
         ALWAYS_LOG(LOGIDENTIFIER, "adding ", action);
         {
             Locker lock { m_actionHandlersLock };
-            m_actionHandlers.set(action, handler);
+            m_actionHandlers.set(action, handler.releaseNonNull());
         }
 
         if (sessionManager) {

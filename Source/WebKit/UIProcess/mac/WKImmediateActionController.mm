@@ -113,7 +113,7 @@
 - (void)_clearImmediateActionState
 {
     if (_page)
-        protect(_page.get())->clearTextIndicator();
+        protect(_page)->clearTextIndicator();
 
     if (_currentActionContext && _hasActivatedActionContext) {
         _hasActivatedActionContext = NO;
@@ -150,7 +150,7 @@
 
 - (void)dismissContentRelativeChildWindows
 {
-    protect(_page.get())->setMaintainsInactiveSelection(false);
+    protect(_page)->setMaintainsInactiveSelection(false);
     [_currentQLPreviewMenuItem close];
 }
 
@@ -172,7 +172,7 @@
         viewImpl->dismissContentRelativeChildWindowsWithAnimation(true);
     }
 
-    protect(_page.get())->setMaintainsInactiveSelection(true);
+    protect(_page)->setMaintainsInactiveSelection(true);
 
     _state = WebKit::ImmediateActionState::Pending;
     immediateActionRecognizer.animationController = nil;
@@ -180,7 +180,7 @@
     if (!_page->mainFrame())
         return;
 
-    protect(_page.get())->performImmediateActionHitTestAtLocation(_page->mainFrame()->frameID(), [immediateActionRecognizer locationInView:retainPtr(immediateActionRecognizer.view).get()]);
+    protect(_page)->performImmediateActionHitTestAtLocation(_page->mainFrame()->frameID(), [immediateActionRecognizer locationInView:retainPtr(immediateActionRecognizer.view).get()]);
 }
 
 - (void)immediateActionRecognizerWillBeginAnimation:(NSImmediateActionGestureRecognizer *)immediateActionRecognizer
@@ -188,7 +188,7 @@
     if (immediateActionRecognizer != _immediateActionRecognizer)
         return;
 
-    Ref mainFrameProcess = protect(_page.get())->legacyMainFrameProcess();
+    Ref mainFrameProcess = protect(_page)->legacyMainFrameProcess();
     if (_state == WebKit::ImmediateActionState::None || !mainFrameProcess->hasConnection())
         return;
 
@@ -198,7 +198,7 @@
     // FIXME: Connection can be null if the process is closed; we should clean up better in that case.
     if (_state == WebKit::ImmediateActionState::Pending) {
         Ref connection = mainFrameProcess->connection();
-        bool receivedReply = connection->waitForAndDispatchImmediately<Messages::WebPageProxy::DidPerformImmediateActionHitTest>(protect(_page.get())->webPageIDInMainFrameProcess(), 500_ms) == IPC::Error::NoError;
+        bool receivedReply = connection->waitForAndDispatchImmediately<Messages::WebPageProxy::DidPerformImmediateActionHitTest>(protect(_page)->webPageIDInMainFrameProcess(), 500_ms) == IPC::Error::NoError;
         if (!receivedReply)
             _state = WebKit::ImmediateActionState::TimedOut;
     }
@@ -222,11 +222,11 @@
     if (immediateActionRecognizer != _immediateActionRecognizer)
         return;
 
-    protect(_page.get())->immediateActionDidUpdate();
+    protect(_page)->immediateActionDidUpdate();
     if (_contentPreventsDefault)
         return;
 
-    protect(_page.get())->setTextIndicatorAnimationProgress([immediateActionRecognizer animationProgress]);
+    protect(_page)->setTextIndicatorAnimationProgress([immediateActionRecognizer animationProgress]);
 }
 
 - (void)immediateActionRecognizerDidCancelAnimation:(NSImmediateActionGestureRecognizer *)immediateActionRecognizer
@@ -234,13 +234,13 @@
     if (immediateActionRecognizer != _immediateActionRecognizer)
         return;
 
-    protect(_page.get())->immediateActionDidCancel();
+    protect(_page)->immediateActionDidCancel();
 
     CheckedPtr { _viewImpl.get() }->cancelImmediateActionAnimation();
 
-    protect(_page.get())->setTextIndicatorAnimationProgress(0);
+    protect(_page)->setTextIndicatorAnimationProgress(0);
     [self _clearImmediateActionState];
-    protect(_page.get())->setMaintainsInactiveSelection(false);
+    protect(_page)->setMaintainsInactiveSelection(false);
 }
 
 - (void)immediateActionRecognizerDidCompleteAnimation:(NSImmediateActionGestureRecognizer *)immediateActionRecognizer
@@ -248,11 +248,11 @@
     if (immediateActionRecognizer != _immediateActionRecognizer)
         return;
 
-    protect(_page.get())->immediateActionDidComplete();
+    protect(_page)->immediateActionDidComplete();
 
     CheckedPtr { _viewImpl.get() }->completeImmediateActionAnimation();
 
-    protect(_page.get())->setTextIndicatorAnimationProgress(1);
+    protect(_page)->setTextIndicatorAnimationProgress(1);
 }
 
 - (RefPtr<API::HitTestResult>)_webHitTestResult
@@ -305,7 +305,7 @@
             _currentQLPreviewMenuItem = item.get();
 
             if (RefPtr textIndicator = _hitTestResultData.linkTextIndicator)
-                protect(_page.get())->setTextIndicator(WTF::move(textIndicator), WebCore::TextIndicatorLifetime::Permanent);
+                protect(_page)->setTextIndicator(WTF::move(textIndicator), WebCore::TextIndicatorLifetime::Permanent);
 
             return (id<NSImmediateActionAnimationController>)item.autorelease();
         }
@@ -343,7 +343,7 @@
         return;
     }
 
-    RetainPtr<id> customClientAnimationController = protect(_page.get())->immediateActionAnimationControllerForHitTestResult(hitTestResult, _type, _userData);
+    RetainPtr<id> customClientAnimationController = protect(_page)->immediateActionAnimationControllerForHitTestResult(hitTestResult, _type, _userData);
     if (customClientAnimationController.get() == [NSNull null]) {
         [self _cancelImmediateAction];
         return;
@@ -507,9 +507,9 @@
 
     CheckedPtr { _viewImpl.get() }->prepareForDictionaryLookup();
     return WebCore::DictionaryLookup::animationControllerForPopup(dictionaryPopupInfo, _view.get().get(), [self](WebCore::TextIndicator& textIndicator) {
-        protect(_page.get())->setTextIndicator(textIndicator, WebCore::TextIndicatorLifetime::Permanent);
+        protect(_page)->setTextIndicator(textIndicator, WebCore::TextIndicatorLifetime::Permanent);
     }, nullptr, [strongSelf = retainPtr(self)]() {
-        protect(strongSelf->_page.get())->clearTextIndicatorWithAnimation(WebCore::TextIndicatorDismissalAnimation::None);
+        protect(strongSelf->_page)->clearTextIndicatorWithAnimation(WebCore::TextIndicatorDismissalAnimation::None);
     });
 }
 

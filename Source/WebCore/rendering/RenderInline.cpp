@@ -128,7 +128,7 @@ void RenderInline::updateFromStyle()
     setHasReflection(false);    
 }
 
-static RenderElement* inFlowPositionedInlineAncestor(RenderElement* p)
+static RenderElement* NODELETE inFlowPositionedInlineAncestor(RenderElement* p)
 {
     while (p && p->isRenderInline()) {
         if (p->isInFlowPositioned())
@@ -157,7 +157,7 @@ static void updateStyleOfAnonymousBlockContinuations(const RenderBlock& block, c
         RenderInline* continuation = block->inlineContinuation();
         if (oldStyle->hasInFlowPosition() && inFlowPositionedInlineAncestor(continuation))
             continue;
-        auto blockStyle = RenderStyle::createAnonymousStyleWithDisplay(block->style(), DisplayType::Block);
+        auto blockStyle = RenderStyle::createAnonymousStyleWithDisplay(block->style(), Style::DisplayType::BlockFlow);
         blockStyle.setPosition(newStyle->position());
         block->setStyle(WTF::move(blockStyle));
     }
@@ -243,8 +243,18 @@ void RenderInline::generateLineBoxRects(GeneratorContext& context) const
             context.addRect({ });
             return;
         }
-        for (auto inlineBoxRect : inlineBoxRects)
-            context.addRect(inlineBoxRect);
+        if (inlineBoxRects.size() == 1) {
+            context.addRect(inlineBoxRects.first());
+            return;
+        }
+
+        for (auto inlineBoxRect : inlineBoxRects) {
+            if (!inlineBoxRect.size().isZero()) {
+                // Empty inline boxes may show up for cases where the inline box is fragmented and (usually) in-between line(s)
+                // can't accomodate any content (e.g. due to floats). Let's not report such rectanges to functions like getClientRects.
+                context.addRect(inlineBoxRect);
+            }
+        }
         return;
     }
     if (auto* curr = firstLegacyInlineBox()) {

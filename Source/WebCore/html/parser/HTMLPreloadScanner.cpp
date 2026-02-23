@@ -190,7 +190,7 @@ public:
         return request;
     }
 
-    static bool match(const AtomString& name, const QualifiedName& qName)
+    static bool NODELETE match(const AtomString& name, const QualifiedName& qName)
     {
         ASSERT(isMainThread());
         return qName.localName() == name;
@@ -351,7 +351,7 @@ private:
         }
     }
 
-    static bool relAttributeIsStyleSheet(const LinkRelAttribute& parsedAttribute)
+    static bool NODELETE relAttributeIsStyleSheet(const LinkRelAttribute& parsedAttribute)
     {
         return parsedAttribute.isStyleSheet && !parsedAttribute.isAlternate && !parsedAttribute.iconType && !parsedAttribute.isDNSPrefetch;
     }
@@ -373,7 +373,7 @@ private:
         m_urlToLoad = trimmedURL.toString();
     }
 
-    const String& charset() const
+    const String& NODELETE charset() const
     {
         return m_charset;
     }

@@ -44,6 +44,7 @@ void HighlightRegistry::setFromMapLike(AtomString&& key, Ref<Highlight>&& value)
     if (addResult.isNewEntry) {
         ASSERT(!m_highlightNames.contains(key));
         m_highlightNames.append(WTF::move(key));
+        protect(addResult.iterator->value)->repaint();
     }
 }
 

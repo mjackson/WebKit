@@ -57,7 +57,7 @@ public:
         return adoptRef(*new GPURenderPassEncoder(WTF::move(backing), device));
     }
 
-    String label() const;
+    String NODELETE label() const;
     void setLabel(String&&);
 
     void setPipeline(const GPURenderPipeline&);

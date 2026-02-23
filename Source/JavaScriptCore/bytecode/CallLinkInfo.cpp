@@ -47,7 +47,6 @@ CallLinkInfo::CallType CallLinkInfo::callTypeFor(OpcodeID opcodeID)
 {
     switch (opcodeID) {
     case op_tail_call_varargs:
-    case op_tail_call_forward_arguments:
         return TailCallVarargs;
 
     case op_call:

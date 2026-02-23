@@ -87,7 +87,7 @@ public:
     DrawingAreaIdentifier identifier() const { return m_identifier; }
 
 #if ENABLE(TILED_CA_DRAWING_AREA)
-    static bool supportsGPUProcessRendering(DrawingAreaType);
+    static bool NODELETE supportsGPUProcessRendering(DrawingAreaType);
 #else
     static bool supportsGPUProcessRendering();
 #endif
@@ -207,8 +207,6 @@ protected:
         Ref webPage = m_webPage;
         return webPage->send(std::forward<T>(message), m_identifier.toUInt64(), { });
     }
-
-    Ref<WebPage> protectedWebPage() const { return m_webPage; }
 
     DrawingAreaIdentifier m_identifier;
     WeakRef<WebPage> m_webPage;

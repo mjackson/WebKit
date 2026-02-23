@@ -34,11 +34,11 @@ namespace WebCore {
 class RenderTableCell;
 class RenderTableRow;
 
-enum CollapsedBorderSide {
-    CBSBefore,
-    CBSAfter,
-    CBSStart,
-    CBSEnd
+enum class CollapsedBorderSide : uint8_t {
+    Before,
+    After,
+    Start,
+    End
 };
 
 // Helper class for paintObject.
@@ -176,11 +176,11 @@ private:
     Color rowGroupBorderColor(CSSPropertyID borderColor) const;
     void paintRowGroupBorder(const PaintInfo&, bool antialias, LayoutRect, BoxSide, CSSPropertyID borderColor, BorderStyle, BorderStyle tableBorderStyle);
     void paintRowGroupBorderIfRequired(const PaintInfo&, const LayoutPoint& paintOffset, unsigned row, unsigned col, BoxSide, RenderTableCell* = 0);
-    LayoutUnit offsetLeftForRowGroupBorder(RenderTableCell*, const LayoutRect& rowGroupRect, unsigned row);
+    LayoutUnit NODELETE offsetLeftForRowGroupBorder(RenderTableCell*, const LayoutRect& rowGroupRect, unsigned row);
 
-    LayoutUnit offsetTopForRowGroupBorder(RenderTableCell*, BoxSide borderSide, unsigned row);
-    LayoutUnit verticalRowGroupBorderHeight(RenderTableCell*, const LayoutRect& rowGroupRect, unsigned row);
-    LayoutUnit horizontalRowGroupBorderWidth(RenderTableCell*, const LayoutRect& rowGroupRect, unsigned row, unsigned column);
+    LayoutUnit NODELETE offsetTopForRowGroupBorder(RenderTableCell*, BoxSide borderSide, unsigned row);
+    LayoutUnit NODELETE verticalRowGroupBorderHeight(RenderTableCell*, const LayoutRect& rowGroupRect, unsigned row);
+    LayoutUnit NODELETE horizontalRowGroupBorderWidth(RenderTableCell*, const LayoutRect& rowGroupRect, unsigned row, unsigned column);
 
     void computeIntrinsicLogicalWidths(LayoutUnit&, LayoutUnit&) const override { }
 
@@ -193,7 +193,7 @@ private:
     void relayoutCellIfFlexed(RenderTableCell&, int rowIndex, int rowHeight);
     
     void distributeExtraLogicalHeightToPercentRows(LayoutUnit& extraLogicalHeight, int totalPercent);
-    void distributeExtraLogicalHeightToAutoRows(LayoutUnit& extraLogicalHeight, unsigned autoRowsCount);
+    void NODELETE distributeExtraLogicalHeightToAutoRows(LayoutUnit& extraLogicalHeight, unsigned autoRowsCount);
     void distributeRemainingExtraLogicalHeight(LayoutUnit& extraLogicalHeight);
 
     bool hasOverflowingCell() const;
@@ -243,7 +243,7 @@ private:
 
     // This map holds the collapsed border values for cells with collapsed borders.
     // It is held at RenderTableSection level to spare memory consumption by table cells.
-    HashMap<std::pair<const RenderTableCell*, int>, CollapsedBorderValue > m_cellsCollapsedBorders;
+    HashMap<std::pair<const RenderTableCell*, int>, CollapsedBorderValue> m_cellsCollapsedBorders;
 
     bool m_forceSlowPaintPathWithOverflowingCell { false };
     bool m_hasMultipleCellLevels { false };

@@ -32,6 +32,7 @@
 #include "SelectorChecker.h"
 #include "SelectorMatchingState.h"
 #include "StyleChange.h"
+#include "StyleDisplay.h"
 #include "StylePositionTryFallback.h"
 #include "StyleUpdate.h"
 #include "Styleable.h"
@@ -259,12 +260,12 @@ bool postResolutionCallbacksAreSuspended();
 inline bool supportsFirstLineAndLetterPseudoElement(const RenderStyle& style)
 {
     auto display = style.display();
-    return display == DisplayType::Block
-        || display == DisplayType::ListItem
-        || display == DisplayType::InlineBlock
+    return display == DisplayType::BlockFlow
+        || display == DisplayType::BlockFlowRoot
+        || display == DisplayType::BlockFlowListItem
+        || display == DisplayType::InlineFlowRoot
         || display == DisplayType::TableCell
-        || display == DisplayType::TableCaption
-        || display == DisplayType::FlowRoot;
+        || display == DisplayType::TableCaption;
 }
 
 class PostResolutionCallbackDisabler {
@@ -272,10 +273,10 @@ public:
     enum class DrainCallbacks : bool { No, Yes };
     explicit PostResolutionCallbackDisabler(Document&, DrainCallbacks = DrainCallbacks::Yes);
     ~PostResolutionCallbackDisabler();
+
 private:
     DrainCallbacks m_drainCallbacks;
 };
 
-}
-
-}
+} // namespace Style
+} // namespace WebCore

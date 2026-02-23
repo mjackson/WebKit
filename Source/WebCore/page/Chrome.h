@@ -22,6 +22,7 @@
 #pragma once
 
 #include <WebCore/Cursor.h>
+#include <WebCore/DigitalCredentialsRequestData.h>
 #include <WebCore/DisabledAdaptations.h>
 #include <WebCore/FocusDirection.h>
 #include <WebCore/HostWindow.h>
@@ -33,6 +34,7 @@
 #include <wtf/RefPtr.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/UniqueRef.h>
+#include <wtf/Variant.h>
 #include <wtf/Vector.h>
 
 #if PLATFORM(COCOA)
@@ -95,8 +97,6 @@ struct WindowFeatures;
 
 #if ENABLE(WEB_AUTHN)
 class SecurityOriginData;
-
-struct DigitalCredentialsRequestData;
 struct DigitalCredentialsResponseData;
 struct ExceptionData;
 struct MobileDocumentRequest;
@@ -144,7 +144,7 @@ public:
     RefPtr<ShapeDetection::FaceDetector> createFaceDetector(const ShapeDetection::FaceDetectorOptions&) const;
     RefPtr<ShapeDetection::TextDetector> createTextDetector() const;
 
-    PlatformDisplayID displayID() const override;
+    PlatformDisplayID NODELETE displayID() const override;
     void windowScreenDidChange(PlatformDisplayID, std::optional<FramesPerSecond>) override;
 
     FloatSize screenSize() const override;
@@ -242,7 +242,6 @@ public:
 
 private:
     void notifyPopupOpeningObservers() const;
-    Ref<Page> protectedPage() const;
 
     WeakRef<Page> m_page;
     const UniqueRef<ChromeClient> m_client;

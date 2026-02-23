@@ -83,14 +83,14 @@ public:
     void didCreateFrame(WebFrameProxy&);
     void willDestroyFrame(const WebFrameProxy&);
 
-    InspectorBrowserAgent* enabledBrowserAgent() const;
+    InspectorBrowserAgent* NODELETE enabledBrowserAgent() const;
     void setEnabledBrowserAgent(InspectorBrowserAgent*);
 
     void browserExtensionsEnabled(HashMap<String, String>&&);
     void browserExtensionsDisabled(HashSet<String>&&);
 
 private:
-    WebPageAgentContext webPageAgentContext();
+    WebPageAgentContext NODELETE webPageAgentContext();
     void createLazyAgents();
 
     void addTarget(std::unique_ptr<InspectorTargetProxy>&&);

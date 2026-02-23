@@ -79,7 +79,7 @@ public:
 
     WEBCORE_EXPORT SecurityOrigin* userMediaDocumentOrigin() const;
     WEBCORE_EXPORT SecurityOrigin* topLevelDocumentOrigin() const;
-    WEBCORE_EXPORT Document* document() const;
+    WEBCORE_EXPORT Document* NODELETE document() const;
 
     const MediaStreamRequest& request() const { return m_request; }
 

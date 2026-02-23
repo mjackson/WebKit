@@ -132,11 +132,6 @@ void FrameTree::replaceChild(Frame& oldChild, Frame& newChild)
         oldPreviousSibling->tree().m_nextSibling = &newChild;
 }
 
-Ref<Frame> FrameTree::protectedThisFrame() const
-{
-    return m_thisFrame.get();
-}
-
 static bool inScope(Frame& frame, TreeScope& scope)
 {
     RefPtr localFrame = dynamicDowncast<LocalFrame>(frame);
@@ -229,7 +224,7 @@ unsigned FrameTree::scopedChildCount() const
     return m_scopedChildCount;
 }
 
-unsigned FrameTree::childCount() const
+unsigned NODELETE FrameTree::childCount() const
 {
     unsigned count = 0;
     for (auto* child = firstChild(); child; child = child->tree().nextSibling())
@@ -273,7 +268,7 @@ Frame* FrameTree::childBySpecifiedName(const AtomString& name) const
 
 // FrameTree::find() only returns frames in pages that are related to the active
 // page by an opener <-> openee relationship.
-static bool isFrameFamiliarWith(Frame& frameA, Frame& frameB)
+static bool NODELETE isFrameFamiliarWith(Frame& frameA, Frame& frameB)
 {
     if (frameA.page() == frameB.page())
         return true;
@@ -346,7 +341,7 @@ RefPtr<Frame> FrameTree::findBySpecifiedName(const AtomString& specifiedName, Fr
     }, activeFrame);
 }
 
-bool FrameTree::isDescendantOf(const Frame* ancestor) const
+bool NODELETE FrameTree::isDescendantOf(const Frame* ancestor) const
 {
     if (!ancestor)
         return false;

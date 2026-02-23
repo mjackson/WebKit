@@ -159,7 +159,7 @@ public:
     bool allowSharedProcess() const { return m_data.allowSharedProcess; }
     void setAllowSharedProcess(bool allowSharedProcess) { m_data.allowSharedProcess = allowSharedProcess; }
 
-    const WebCore::ResourceRequest& alternateRequest() const;
+    const WebCore::ResourceRequest& NODELETE alternateRequest() const;
     void setAlternateRequest(WebCore::ResourceRequest&&);
 
     bool allowsJSHandleCreationInPageWorld() const { return m_data.allowsJSHandleCreationInPageWorld; }

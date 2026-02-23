@@ -54,7 +54,7 @@ bool RenderMathMLFraction::isValid() const
 {
     // Verify whether the list of children is valid:
     // <mfrac> numerator denominator </mfrac>
-    auto* child = firstInFlowChildBox();
+    CheckedPtr child = firstInFlowChildBox();
     if (!child)
         return false;
     child = child->nextInFlowSiblingBox();
@@ -174,7 +174,7 @@ RenderMathMLOperator* RenderMathMLFraction::unembellishedOperator() const
     if (!isValid())
         return RenderMathMLRow::unembellishedOperator();
 
-    auto* mathMLBlock = dynamicDowncast<RenderMathMLBlock>(numerator());
+    CheckedPtr mathMLBlock = dynamicDowncast<RenderMathMLBlock>(numerator());
     return mathMLBlock ? mathMLBlock->unembellishedOperator() : nullptr;
 }
 

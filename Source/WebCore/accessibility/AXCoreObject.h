@@ -380,6 +380,8 @@ enum class AXRelation : uint8_t {
     HeaderFor,
     LabeledBy,
     LabelFor,
+    NativeLabeledBy,
+    NativeLabelFor,
     OwnedBy,
     OwnerFor,
 };
@@ -478,7 +480,7 @@ public:
     String debugDescription(OptionSet<AXDebugStringOption> options) const { return debugDescriptionInternal(false, { options }); }
 
     inline AXID objectID() const { return m_id; }
-    virtual std::optional<AXID> treeID() const = 0;
+    virtual std::optional<AXTreeID> treeID() const = 0;
     virtual ProcessID processID() const = 0;
 
     // When the corresponding WebCore object that this accessible object
@@ -760,6 +762,11 @@ public:
     AccessibilityChildrenVector flowFromObjects() const { return relatedObjects(AXRelation::FlowsFrom); }
     AccessibilityChildrenVector labeledByObjects() const { return relatedObjects(AXRelation::LabeledBy); }
     AccessibilityChildrenVector labelForObjects() const { return relatedObjects(AXRelation::LabelFor); }
+    // This function exists because in the accname calculation, aria-labelledby takes precedence over "native"
+    // labels (like <label for="z"><input id="z">), and thus we do not create a LabelFor relationship for the native
+    // label. However, sometimes outside of accname, we do also want to know the native label relationship,
+    // which is what this function is for.
+    AccessibilityChildrenVector nativeLabeledByObjects() const { return relatedObjects(AXRelation::NativeLabeledBy); }
     AccessibilityChildrenVector ownedObjects() const { return relatedObjects(AXRelation::OwnerFor); }
     AccessibilityChildrenVector owners() const { return relatedObjects(AXRelation::OwnedBy); }
     virtual AccessibilityChildrenVector relatedObjects(AXRelation) const = 0;
@@ -1688,6 +1695,7 @@ struct TimeoutSafeSemaphore : RefCounted<TimeoutSafeSemaphore<T>> {
     bool wait(Seconds timeout) { return semaphore.waitFor(timeout); }
 };
 
+constexpr Seconds HitTestCacheExpiration = 500_ms;
 // Timeout constants for retrieveValueFromMainThreadWithTimeoutAndDefault.
 // These are grouped by operation type to make it easier to tune timeouts.
 constexpr Seconds HitTestTimeout = 15_ms;
@@ -1817,7 +1825,7 @@ Color defaultColor();
 
 // Performs a press action on the target object identified by treeID and targetID.
 // Handles the tree lookup and main thread execution. Returns true if the press succeeded.
-bool performCustomActionPress(std::optional<AXID> treeID, AXID targetID);
+bool performCustomActionPress(AXTreeID, AXID targetID);
 
 // Intended to work with size-types (like IntSize) or rect-types (like LayoutRect).
 template <typename SizeOrRectType>

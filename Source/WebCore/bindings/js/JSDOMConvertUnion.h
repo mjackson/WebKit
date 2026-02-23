@@ -206,7 +206,7 @@ template<typename... T> struct Converter<IDLUnion<T...>> : DefaultConverter<IDLU
             RefPtr arrayBuffer = (brigand::any<TypeList, IsIDLArrayBufferAllowShared<brigand::_1>>::value) ? JSC::JSArrayBuffer::toWrappedAllowShared(vm, value) : JSC::JSArrayBuffer::toWrapped(vm, value);
             if (arrayBuffer) {
                 if constexpr (hasArrayBufferType) {
-                    return functor(WTF::move(arrayBuffer));
+                    return functor(arrayBuffer.releaseNonNull());
                 } else if constexpr (hasObjectType) {
                     scope.release();
                     return functor(Converter<ObjectType>::convert(lexicalGlobalObject, value));
@@ -216,10 +216,10 @@ template<typename... T> struct Converter<IDLUnion<T...>> : DefaultConverter<IDLU
 
         constexpr bool hasArrayBufferViewType = brigand::any<TypeList, IsIDLArrayBufferView<brigand::_1>>::value;
         if constexpr (hasArrayBufferViewType || hasObjectType) {
-            auto arrayBufferView = (brigand::any<TypeList, IsIDLArrayBufferViewAllowShared<brigand::_1>>::value) ? JSC::JSArrayBufferView::toWrappedAllowShared(vm, value) : JSC::JSArrayBufferView::toWrapped(vm, value);
+            RefPtr arrayBufferView = (brigand::any<TypeList, IsIDLArrayBufferViewAllowShared<brigand::_1>>::value) ? JSC::JSArrayBufferView::toWrappedAllowShared(vm, value) : JSC::JSArrayBufferView::toWrapped(vm, value);
             if (arrayBufferView) {
                 if constexpr (hasArrayBufferViewType) {
-                    return functor(WTF::move(arrayBufferView));
+                    return functor(arrayBufferView.releaseNonNull());
                 } else if constexpr (hasObjectType) {
                     scope.release();
                     return functor(Converter<ObjectType>::convert(lexicalGlobalObject, value));
@@ -238,10 +238,10 @@ template<typename... T> struct Converter<IDLUnion<T...>> : DefaultConverter<IDLU
         //     2. If types includes object, then return the IDL value that is a reference to the object V.
         constexpr bool hasDataViewType = brigand::any<TypeList, std::is_same<IDLDataView, brigand::_1>>::value;
         if constexpr (hasDataViewType || hasObjectType) {
-            auto dataView = JSC::JSDataView::toWrapped(vm, value);
+            RefPtr dataView = JSC::JSDataView::toWrapped(vm, value);
             if (dataView) {
                 if constexpr (hasDataViewType) {
-                    return functor(WTF::move(dataView));
+                    return functor(dataView.releaseNonNull());
                 } else if constexpr (hasObjectType) {
                     scope.release();
                     return functor(Converter<ObjectType>::convert(lexicalGlobalObject, value));
@@ -262,7 +262,7 @@ template<typename... T> struct Converter<IDLUnion<T...>> : DefaultConverter<IDLU
 
                 using WrapperType = typename Converter<Type>::WrapperType;
 
-                auto castedValue = (brigand::any<TypeList, IsIDLTypedArrayAllowShared<brigand::_1>>::value) ? WrapperType::toWrappedAllowShared(vm, value) : WrapperType::toWrapped(vm, value);
+                RefPtr castedValue = (brigand::any<TypeList, IsIDLTypedArrayAllowShared<brigand::_1>>::value) ? WrapperType::toWrappedAllowShared(vm, value) : WrapperType::toWrapped(vm, value);
                 if (!castedValue)
                     return;
 
@@ -407,19 +407,6 @@ template<typename... T> struct Converter<IDLUnion<T...>> : DefaultConverter<IDLU
     }
 };
 
-// FIXME: This is needed to work around unions storing non-nullable buffer source types using RefPtr rather than Ref<>.
-// See "Support using Ref for buffer source types in IDL unions" (https://bugs.webkit.org/show_bug.cgi?id=306967)".
-template<typename T> struct AddNullableIfArrayBufferSource {
-    using type = std::conditional_t<
-               IsIDLTypedArray<T>::value
-            || IsIDLArrayBuffer<T>::value
-            || IsIDLArrayBufferView<T>::value
-            || std::same_as<T, IDLDataView>,
-        IDLNullable<T>,
-        T
-    >;
-};
-
 template<typename... T> struct JSConverter<IDLUnion<T...>> {
     using Type = IDLUnion<T...>;
     using TypeList = typename Type::TypeList;
@@ -438,7 +425,7 @@ template<typename... T> struct JSConverter<IDLUnion<T...>> {
         forEach<Sequence>([&]<typename I>() {
             if (I::value == index) {
                 ASSERT(!returnValue);
-                returnValue = toJS<typename AddNullableIfArrayBufferSource<brigand::at<TypeList, I>>::type>(lexicalGlobalObject, globalObject, std::get<I::value>(variant));
+                returnValue = toJS<brigand::at<TypeList, I>>(lexicalGlobalObject, globalObject, std::get<I::value>(variant));
             }
         });
 

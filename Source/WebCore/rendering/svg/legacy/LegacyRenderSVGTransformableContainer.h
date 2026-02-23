@@ -41,7 +41,7 @@ public:
     const FloatSize& additionalTranslation() const { return m_additionalTranslation; }
 
 private:
-    SVGGraphicsElement& graphicsElement();
+    SVGGraphicsElement& NODELETE graphicsElement();
 
     void element() const = delete;
     bool calculateLocalTransform() override;

@@ -109,10 +109,10 @@ public:
 
     virtual WebCore::PlatformWheelEvent filteredWheelEvent(const WebCore::PlatformWheelEvent& wheelEvent) { return wheelEvent; }
 
-    std::optional<WebCore::ScrollingNodeID> rootScrollingNodeID() const;
+    std::optional<WebCore::ScrollingNodeID> NODELETE rootScrollingNodeID() const;
 
     const RemoteLayerTreeHost* layerTreeHost() const;
-    WebPageProxy& webPageProxy() const;
+    WebPageProxy& NODELETE webPageProxy() const;
 
     virtual void stickyScrollingTreeNodeBeganSticking(WebCore::ScrollingNodeID);
 #if ENABLE(OVERLAY_REGIONS_REMOTE_EFFECT)
@@ -121,10 +121,11 @@ public:
 #endif
 
     std::optional<WebCore::RequestedScrollData> commitScrollingTreeState(IPC::Connection&, const RemoteScrollingCoordinatorTransaction&, std::optional<WebCore::LayerHostingContextIdentifier> = std::nullopt);
+    void adjustMainFrameDelegatedScrollPosition(WebCore::RequestedScrollData&&);
 
     bool hasFixedOrSticky() const;
-    bool hasScrollableMainFrame() const;
-    bool hasScrollableOrZoomedMainFrame() const;
+    bool NODELETE hasScrollableMainFrame() const;
+    bool NODELETE hasScrollableOrZoomedMainFrame() const;
 
     WebCore::ScrollbarWidth mainFrameScrollbarWidth() const;
     std::optional<WebCore::ScrollbarColor> mainFrameScrollbarColor() const;
@@ -159,6 +160,7 @@ public:
     virtual void progressBasedTimelinesWereUpdatedForNode(const WebCore::ScrollingTreeScrollingNode&) { }
     virtual RefPtr<const RemoteAnimationStack> animationStackForNodeWithIDForTesting(WebCore::PlatformLayerIdentifier) const { return nullptr; }
     virtual HashSet<Ref<RemoteProgressBasedTimeline>> timelinesForScrollingNodeIDForTesting(WebCore::ScrollingNodeID) const { return { }; }
+    virtual bool hasHighImpactMonotonicAnimations() const { return false; }
 #endif
 
     String scrollingTreeAsText() const;
@@ -166,10 +168,10 @@ public:
     void resetStateAfterProcessExited();
 
     virtual void displayDidRefresh(WebCore::PlatformDisplayID);
-    void reportExposedUnfilledArea(MonotonicTime, unsigned unfilledArea);
+    void NODELETE reportExposedUnfilledArea(MonotonicTime, unsigned unfilledArea);
     void reportSynchronousScrollingReasonsChanged(MonotonicTime, OptionSet<WebCore::SynchronousScrollingReason>);
     void reportFilledVisibleFreshTile(MonotonicTime, unsigned);
-    bool scrollingPerformanceTestingEnabled() const;
+    bool NODELETE scrollingPerformanceTestingEnabled() const;
     
     void receivedWheelEventWithPhases(WebCore::PlatformWheelEventPhase phase, WebCore::PlatformWheelEventPhase momentumPhase);
     void deferWheelEventTestCompletionForReason(std::optional<WebCore::ScrollingNodeID>, WebCore::WheelEventTestMonitor::DeferReason);
@@ -179,6 +181,11 @@ public:
     virtual void windowScreenDidChange(WebCore::PlatformDisplayID, std::optional<WebCore::FramesPerSecond>) { }
 
     WebCore::FloatBoxExtent obscuredContentInsets() const;
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+    void setBannerViewHeight(float);
+    void setBannerViewMaximumHeight(float);
+    void setHasBannerViewOverlay(bool);
+#endif
     WebCore::FloatPoint currentMainFrameScrollPosition() const;
     WebCore::FloatRect computeVisibleContentRect();
     WebCore::IntPoint scrollOrigin() const;
@@ -198,7 +205,7 @@ public:
     void scrollingTreeNodeScrollbarVisibilityDidChange(WebCore::ScrollingNodeID, WebCore::ScrollbarOrientation, bool);
     void scrollingTreeNodeScrollbarMinimumThumbLengthDidChange(WebCore::ScrollingNodeID, WebCore::ScrollbarOrientation, int);
     void receivedLastScrollingTreeNodeUpdateReply();
-    bool isMonitoringWheelEvents();
+    bool NODELETE isMonitoringWheelEvents();
 
 protected:
     explicit RemoteScrollingCoordinatorProxy(WebPageProxy&);

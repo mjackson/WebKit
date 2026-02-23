@@ -457,12 +457,12 @@ static void dumpCALayer(TextStream& ts, CALayer *layer, bool traverse)
 
 - (BOOL)_hasServiceWorkerBackgroundActivityForTesting
 {
-    return _page ? protect(_page->configuration().processPool())->hasServiceWorkerBackgroundActivityForTesting() : false;
+    return _page && protect(_page->configuration().processPool())->hasServiceWorkerBackgroundActivityForTesting();
 }
 
 - (BOOL)_hasServiceWorkerForegroundActivityForTesting
 {
-    return _page ? protect(_page->configuration().processPool())->hasServiceWorkerForegroundActivityForTesting() : false;
+    return _page && protect(_page->configuration().processPool())->hasServiceWorkerForegroundActivityForTesting();
 }
 
 - (void)_denyNextUserMediaRequest
@@ -834,7 +834,7 @@ static void dumpCALayer(TextStream& ts, CALayer *layer, bool traverse)
                 coordinatorClient->coordinatorStateChanged(state);
         }
 
-        std::optional<WebCore::ExceptionData> result(bool success) const
+        std::optional<WebCore::ExceptionData> NODELETE result(bool success) const
         {
             if (!success)
                 return { WebCore::ExceptionData { WebCore::ExceptionCode::InvalidStateError, String() } };
@@ -1264,6 +1264,11 @@ static void dumpCALayer(TextStream& ts, CALayer *layer, bool traverse)
     return object->toJSONString().createNSString().autorelease();
 }
 #endif
+
+- (bool)_displayLinkWantsHighFrameRate
+{
+    return downcast<WebKit::RemoteLayerTreeDrawingAreaProxy>(protect(_page->drawingArea()))->displayLinkWantsHighFrameRateForTesting();
+}
 
 @end
 

@@ -246,7 +246,7 @@ std::optional<BoundaryPoint> RenderedPosition::boundaryPoint() const
 
 bool renderObjectContainsPosition(const RenderObject* target, const Position& position)
 {
-    for (auto* renderer = rendererFromPosition(position); renderer && renderer->node(); renderer = renderer->parent()) {
+    for (CheckedPtr renderer = rendererFromPosition(position); renderer && renderer->node(); renderer = renderer->parent()) {
         if (renderer == target)
             return true;
     }

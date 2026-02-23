@@ -48,8 +48,6 @@ private:
     void getNodesInCommand(NodeSet&) override;
 #endif
 
-    RefPtr<Element> protectedElement1() const { return m_element1; }
-
     RefPtr<Element> m_element1;
     const Ref<Element> m_element2;
     const Ref<Node> m_atChild;

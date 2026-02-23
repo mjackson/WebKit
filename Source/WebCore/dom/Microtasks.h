@@ -49,7 +49,7 @@ public:
         return currentRunnability() == JSC::QueuedTask::Result::Executed;
     }
 
-    JSC::QueuedTask::Result currentRunnability() const;
+    JSC::QueuedTask::Result NODELETE currentRunnability() const;
 
 private:
     WeakPtr<EventLoopTaskGroup> m_group;
@@ -73,8 +73,9 @@ public:
     static void runJSMicrotask(JSC::JSGlobalObject*, JSC::VM&, JSC::QueuedTask&);
     static void runJSMicrotaskWithDebugger(JSC::JSGlobalObject*, JSC::VM&, JSC::QueuedTask&);
 
-private:
     JSC::VM& vm() const { return m_vm.get(); }
+
+private:
 
     bool m_performingMicrotaskCheckpoint { false };
     // For the main thread the VM lives forever. For workers it's lifetime is tied to our owning WorkerGlobalScope. Regardless, we retain the VM here to be safe.

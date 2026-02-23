@@ -1175,6 +1175,16 @@ void testMulImmsFloat(float, float);
 void testMulArgFloatWithUselessDoubleConversion(float);
 void testMulArgsFloatWithUselessDoubleConversion(float, float);
 void testMulArgsFloatWithEffectfulDoubleConversion(float, float);
+void testMulDoubleByTwo(double);
+void testMulFloatByTwo(float);
+void testMulDoubleByNegOne(double);
+void testMulFloatByNegOne(float);
+void testMulDoubleByNegTwo(double);
+void testMulFloatByNegTwo(float);
+void testDivDoubleByNegOne(double);
+void testDivFloatByNegOne(float);
+void testDivDoubleByPowerOfTwo(double);
+void testDivFloatByPowerOfTwo(float);
 void testDivArgDouble(double);
 void testDivArgsDouble(double, double);
 void testDivArgImmDouble(double, double);
@@ -1220,6 +1230,20 @@ void testAddShl65();
 void testReduceStrengthReassociation(bool flip);
 void testReduceStrengthTruncInt64Constant(int64_t filler, int32_t value);
 void testReduceStrengthTruncDoubleConstant(double filler, float value);
+void testReduceStrengthMulDoubleByTwo();
+void testReduceStrengthMulFloatByTwo();
+void testReduceStrengthMulDoubleByNegOne();
+void testReduceStrengthMulFloatByNegOne();
+void testReduceStrengthMulDoubleByNegTwo();
+void testReduceStrengthMulFloatByNegTwo();
+void testReduceStrengthDivDoubleByNegOne();
+void testReduceStrengthDivFloatByNegOne();
+void testReduceStrengthDivDoubleByTwo();
+void testReduceStrengthDivFloatByTwo();
+void testReduceStrengthDivDoubleByFour();
+void testReduceStrengthDivFloatByFour();
+void testReduceStrengthDivDoubleByNegTwo();
+void testReduceStrengthDivFloatByNegTwo();
 void testLoadBaseIndexShift2();
 void testLoadBaseIndexShift32();
 void testOptimizeMaterialization();
@@ -1403,6 +1427,19 @@ void testVectorMulLow();
 void testConstDoubleMove();
 void testConstFloatMove();
 
+void testConstDoubleZero();
+void testConstDoubleNegativeZero();
+void testConstFloatZero();
+void testConstFloatNegativeZero();
+void testConstDoubleAddZero();
+void testConstFloatAddZero();
+void testConstDoubleCompareZero();
+void testConstFloatCompareZero();
+void testConstDoubleSelectZero();
+void testConstFloatSelectZero();
+void testConstDoubleMultipleZeroUses();
+void testConstFloatMultipleZeroUses();
+
 void testSShrCompare32(int32_t);
 void testSShrCompare64(int64_t);
 
@@ -1449,5 +1486,18 @@ void testCCmpNegatedAnd32(int32_t, int32_t);
 void testCCmpNegatedOr32(int32_t, int32_t);
 void testCCmpMixedWidth32And64(int32_t, int64_t, int32_t);
 void testCCmpMixedWidth64And32(int64_t, int32_t);
+
+// ARM64 fccmp tests (floating-point conditional compare)
+void testFCCmpAndDouble(double, double, double, double);
+void testFCCmpOrDouble(double, double, double, double);
+void testFCCmpAndFloat(float, float, float, float);
+void testFCCmpOrFloat(float, float, float, float);
+void testFCCmpAndAndDouble(double, double, double, double, double, double);
+void testFCCmpMixedIntDouble(int32_t, int32_t, double, double);
+void testFCCmpMixedDoubleInt(double, double, int32_t, int32_t);
+void testFCCmpLessThanAndDouble(double, double, double, double);
+void testFCCmpGreaterEqualOrDouble(double, double, double, double);
+void testFCCmpNaN(double, double, double, double);
+void testFCCmpNegatedAndDouble(double, double, double, double);
 
 #endif // ENABLE(B3_JIT)

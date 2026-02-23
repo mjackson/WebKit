@@ -361,6 +361,10 @@ struct WebPageCreationParameters {
     WebCore::ShouldRequireExplicitConsentForGamepadAccess gamepadAccessRequiresExplicitConsent { WebCore::ShouldRequireExplicitConsentForGamepadAccess::No };
 #endif
 
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    bool allowsImmersiveEnvironments { false };
+#endif
+
 #if HAVE(AUDIT_TOKEN)
     std::optional<CoreIPCAuditToken> presentingApplicationAuditToken;
 #endif
@@ -377,6 +381,8 @@ struct WebPageCreationParameters {
     std::optional<TextManipulationParameters> textManipulationParameters { std::nullopt };
 
     bool isPopup { false };
+
+    bool accessibilityEnabled { false };
 };
 
 } // namespace WebKit

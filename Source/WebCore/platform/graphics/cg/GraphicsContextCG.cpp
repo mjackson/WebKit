@@ -43,6 +43,7 @@
 #include "Pattern.h"
 #include "ShadowBlur.h"
 #include "Timer.h"
+#include <pal/cg/CoreGraphicsSoftLink.h>
 #include <pal/spi/cg/CoreGraphicsSPI.h>
 #include <wtf/MathExtras.h>
 #include <wtf/RetainPtr.h>
@@ -495,11 +496,22 @@ void GraphicsContextCG::drawPattern(NativeImage& nativeImage, const FloatRect& d
         matrix = CGAffineTransformConcat(matrix, CGContextGetCTM(context));
         // The top of a partially-decoded image is drawn at the bottom of the tile. Map it to the top.
         matrix = CGAffineTransformTranslate(matrix, 0, imageSize.height() - h);
-        CGImageRef platformImage = CGImageRetain(subImage.get());
-        RetainPtr<CGPatternRef> pattern = adoptCF(CGPatternCreate(platformImage, CGRectMake(0, 0, tileRect.width(), tileRect.height()), matrix,
-            tileRect.width() + spacing.width() * (1 / narrowPrecisionToFloat(patternTransform.a())),
-            tileRect.height() + spacing.height() * (1 / narrowPrecisionToFloat(patternTransform.d())),
-            kCGPatternTilingConstantSpacing, true, &patternCallbacks));
+        RetainPtr<CGPatternRef> pattern;
+#if HAVE(CGPATTERN_CREATE_WITH_IMAGE_TRANSFORM_STEP)
+        if (PAL::canLoad_CoreGraphics_CGPatternCreateWithImageTransformStep()) {
+            pattern = adoptCF(PAL::softLink_CoreGraphics_CGPatternCreateWithImageTransformStep(subImage.get(), matrix,
+                tileRect.width() + spacing.width() * (1 / narrowPrecisionToFloat(patternTransform.a())),
+                tileRect.height() + spacing.height() * (1 / narrowPrecisionToFloat(patternTransform.d())),
+                kCGPatternTilingConstantSpacing));
+        } else
+#endif
+        {
+            CGImageRef platformImage = CGImageRetain(subImage.get());
+            pattern = adoptCF(CGPatternCreate(platformImage, CGRectMake(0, 0, tileRect.width(), tileRect.height()), matrix,
+                tileRect.width() + spacing.width() * (1 / narrowPrecisionToFloat(patternTransform.a())),
+                tileRect.height() + spacing.height() * (1 / narrowPrecisionToFloat(patternTransform.d())),
+                kCGPatternTilingConstantSpacing, true, &patternCallbacks));
+        }
 
         if (!pattern)
             return;

@@ -127,7 +127,7 @@ String HTMLElement::nodeName() const
     return Element::nodeName();
 }
 
-static inline CSSValueID unicodeBidiAttributeForDirAuto(HTMLElement& element)
+static inline CSSValueID NODELETE unicodeBidiAttributeForDirAuto(HTMLElement& element)
 {
     if (element.hasTagName(preTag) || element.hasTagName(textareaTag))
         return CSSValuePlaintext;
@@ -1256,6 +1256,7 @@ ExceptionOr<void> HTMLElement::hidePopoverInternal(FocusPreviousElement focusPre
     std::optional<Style::PseudoClassChangeInvalidation> styleInvalidation;
     if (parentNode())
         styleInvalidation.emplace(*this, CSSSelector::PseudoClass::PopoverOpen, false);
+    popoverWasHidden();
     popoverData()->setVisibilityState(PopoverVisibilityState::Hidden);
 
     if (fireEvents == FireEvents::Yes)

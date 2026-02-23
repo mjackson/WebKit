@@ -76,7 +76,7 @@ bool RenderMathMLRoot::isValid() const
         return true;
 
     ASSERT(rootType() == RootType::RootWithIndex);
-    auto* child = firstInFlowChildBox();
+    CheckedPtr child = firstInFlowChildBox();
     if (!child)
         return false;
     child = child->nextInFlowSiblingBox();
@@ -264,7 +264,7 @@ void RenderMathMLRoot::layoutBlock(RelayoutChildren relayoutChildren, LayoutUnit
         horizontalOffset += horizontal.kernBeforeDegree + getIndex().logicalWidth() + getIndex().marginLogicalWidth() + horizontal.kernAfterDegree;
     if (rootType() == RootType::SquareRoot) {
         LayoutPoint baseLocation(mirrorIfNeeded(horizontalOffset, m_baseWidth), ascent - baseAscent);
-        for (auto* child = firstInFlowChildBox(); child; child = child->nextInFlowSiblingBox())
+        for (CheckedPtr child = firstInFlowChildBox(); child; child = child->nextInFlowSiblingBox())
             child->setLocation(child->location() + baseLocation);
     } else {
         ASSERT(rootType() == RootType::RootWithIndex);

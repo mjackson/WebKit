@@ -108,7 +108,7 @@ public:
         }
     }
 
-    bool isObservingMedia() const { return m_isObservingMedia; }
+    bool NODELETE isObservingMedia() const { return m_isObservingMedia; }
 
     void whenReady(UserMediaCaptureManagerProxy::CreateSourceCallback&& createCallback)
     {
@@ -122,8 +122,8 @@ public:
         });
     }
 
-    bool isUsingSource(const RealtimeMediaSource& source) const { return m_source.ptr() == &source; }
-    RealtimeMediaSource& source() { return m_source; }
+    bool NODELETE isUsingSource(const RealtimeMediaSource& source) const { return m_source.ptr() == &source; }
+    RealtimeMediaSource& NODELETE source() { return m_source; }
 
     void audioUnitWillStart() final
     {
@@ -443,8 +443,6 @@ private:
         return !m_isEnded;
     }
 
-    Ref<IPC::Connection> protectedConnection() const { return m_connection; }
-
     bool m_isObservingMedia { false };
     bool m_isStopped { false };
     bool m_isEnded { false };
@@ -523,7 +521,7 @@ CaptureSourceOrError UserMediaCaptureManagerProxy::createMicrophoneSource(const 
     return source;
 }
 
-static bool canCaptureFromMultipleCameras()
+static bool NODELETE canCaptureFromMultipleCameras()
 {
 #if PLATFORM(IOS_FAMILY)
     return false;
@@ -601,7 +599,7 @@ void UserMediaCaptureManagerProxy::createMediaSourceForCaptureDeviceWithConstrai
 
     auto source = sourceOrError.source();
 #if !RELEASE_LOG_DISABLED
-    source->setLogger(m_connectionProxy->protectedLogger(), LoggerHelper::uniqueLogIdentifier());
+    source->setLogger(protect(m_connectionProxy->logger()), LoggerHelper::uniqueLogIdentifier());
 #endif
 
     ASSERT(!m_proxies.contains(id));
@@ -727,7 +725,7 @@ void UserMediaCaptureManagerProxy::applyConstraints(RealtimeMediaSourceIdentifie
 {
     RefPtr proxy = m_proxies.get(id);
     if (!proxy) {
-        m_connectionProxy->protectedConnection()->send(Messages::UserMediaCaptureManager::ApplyConstraintsFailed(id, { }, "Unknown source"_s), 0);
+        protect(m_connectionProxy->connection())->send(Messages::UserMediaCaptureManager::ApplyConstraintsFailed(id, { }, "Unknown source"_s), 0);
         return;
     }
 
@@ -735,7 +733,7 @@ void UserMediaCaptureManagerProxy::applyConstraints(RealtimeMediaSourceIdentifie
     for (const auto& advancedConstraint : constraints.advancedConstraints)
         MESSAGE_CHECK(advancedConstraint.isValid());
 
-    proxy->applyConstraints(WTF::move(constraints), [id, proxy, connection = m_connectionProxy->protectedConnection()](auto&& result) {
+    proxy->applyConstraints(WTF::move(constraints), [id, proxy, connection = protect(m_connectionProxy->connection())](auto&& result) {
         if (result) {
             connection->send(Messages::UserMediaCaptureManager::ApplyConstraintsFailed(id, result->invalidConstraint, result->message), 0);
             return;
@@ -831,7 +829,7 @@ void UserMediaCaptureManagerProxy::setIsInBackground(RealtimeMediaSourceIdentifi
 void UserMediaCaptureManagerProxy::isPowerEfficient(WebCore::RealtimeMediaSourceIdentifier sourceID, CompletionHandler<void(bool)>&& callback)
 {
     RefPtr proxy = m_proxies.get(sourceID);
-    callback(proxy ? proxy->isPowerEfficient() : false);
+    callback(proxy && proxy->isPowerEfficient());
 }
 
 void UserMediaCaptureManagerProxy::clear()

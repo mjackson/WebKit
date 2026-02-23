@@ -558,6 +558,7 @@ public:
 #endif
     WriteBarrier<Structure> moduleProgramExecutableStructure;
     WriteBarrier<Structure> promiseReactionStructure;
+    WriteBarrier<Structure> jsMicrotaskDispatcherStructure;
     WriteBarrier<Structure> promiseCombinatorsContextStructure;
     WriteBarrier<Structure> promiseCombinatorsGlobalContextStructure;
     WriteBarrier<Structure> regExpStructure;
@@ -1100,7 +1101,7 @@ public:
     DrainMicrotaskDelayScope drainMicrotaskDelayScope() { return DrainMicrotaskDelayScope { *this }; }
     JS_EXPORT_PRIVATE void drainMicrotasks();
 #if USE(BUN_JSC_ADDITIONS)
-    void drainMicrotasksForGlobalObject(JSGlobalObject* globalObject) { m_defaultMicrotaskQueue.clearForGlobalObject(globalObject); }
+    void drainMicrotasksForGlobalObject(JSGlobalObject* globalObject);
 #endif
     void setOnEachMicrotaskTick(WTF::Function<void(VM&)>&& func) { m_onEachMicrotaskTick = WTF::move(func); }
     void callOnEachMicrotaskTick()

@@ -156,7 +156,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 - (NSString *)description
 {
-    return [NSString stringWithFormat:@"<%@: %p; configuration = %@>", RetainPtr { NSStringFromClass(self.class) }.get(), self, protectedWrapper(_processPool->configuration()).get()];
+    return [NSString stringWithFormat:@"<%@: %p; configuration = %@>", RetainPtr { NSStringFromClass(self.class) }.get(), self, protect(wrapper(_processPool->configuration())).get()];
 }
 
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
@@ -353,7 +353,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 {
     if (directory && ![directory isFileURL])
         [NSException raise:NSInvalidArgumentException format:@"%@ is not a file URL", directory];
-    _processPool->setJavaScriptConfigurationDirectory(directory.path);
+    protect(*_processPool)->setJavaScriptConfigurationDirectory(directory.path);
 }
 
 - (void)_addSupportedPlugin:(NSString *) domain named:(NSString *) name withMimeTypes: (NSSet<NSString *> *) nsMimeTypes withExtensions: (NSSet<NSString *> *) nsExtensions
@@ -742,7 +742,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 @synthesize totalSystemCPUTime = _totalSystemCPUTime;
 @synthesize physicalFootprint = _physicalFootprint;
 
-static _WKProcessState processStateFromThrottleState(WebKit::ProcessThrottleState state)
+static _WKProcessState NODELETE processStateFromThrottleState(WebKit::ProcessThrottleState state)
 {
     switch (state) {
     case WebKit::ProcessThrottleState::Foreground:

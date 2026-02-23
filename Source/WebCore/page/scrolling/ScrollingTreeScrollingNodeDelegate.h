@@ -27,6 +27,7 @@
 
 #if ENABLE(ASYNC_SCROLLING)
 
+#include <WebCore/RubberbandingState.h>
 #include <WebCore/ScrollingTreeScrollingNode.h>
 
 #include <wtf/TZoneMalloc.h>
@@ -62,6 +63,10 @@ public:
 
     virtual FloatPoint adjustedScrollPosition(const FloatPoint& scrollPosition) const { return scrollPosition; }
     virtual String scrollbarStateForOrientation(ScrollbarOrientation) const { return ""_s; }
+
+#if HAVE(RUBBER_BANDING)
+    virtual std::optional<RubberbandingState> captureRubberbandingState() const { return std::nullopt; }
+#endif
 
 protected:
     WEBCORE_EXPORT RefPtr<ScrollingTree> scrollingTree() const;

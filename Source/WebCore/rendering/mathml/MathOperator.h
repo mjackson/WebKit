@@ -80,7 +80,7 @@ private:
         LeftAndRight
     };
 
-    LayoutUnit stretchSize() const;
+    LayoutUnit NODELETE stretchSize() const;
     bool getGlyph(const RenderStyle&, char32_t character, GlyphData&) const;
     bool getBaseGlyph(const RenderStyle& style, GlyphData& baseGlyph) const { return getGlyph(style, m_baseCharacter, baseGlyph); }
     void setSizeVariant(const GlyphData&);
@@ -88,7 +88,7 @@ private:
     void getMathVariantsWithFallback(const RenderStyle&, bool isVertical, Vector<Glyph>&, Vector<OpenTypeMathData::AssemblyPart>&);
     void calculateDisplayStyleLargeOperator(const RenderStyle&);
     void calculateStretchyData(const RenderStyle&, bool calculateMaxPreferredWidth, LayoutUnit targetSize = 0_lu);
-    bool calculateGlyphAssemblyFallback(const Vector<OpenTypeMathData::AssemblyPart>&, GlyphAssemblyData&) const;
+    bool NODELETE calculateGlyphAssemblyFallback(const Vector<OpenTypeMathData::AssemblyPart>&, GlyphAssemblyData&) const;
 
     LayoutRect paintGlyph(const RenderStyle&, PaintInfo&, const GlyphData&, const LayoutPoint& origin, GlyphPaintTrimming);
     void fillWithVerticalExtensionGlyph(const RenderStyle&, PaintInfo&, const LayoutPoint& from, const LayoutPoint& to);

@@ -44,7 +44,7 @@ public:
         return adoptRef(*new GPUValidationError(WTF::move(backing)));
     }
 
-    const String& message() const;
+    const String& NODELETE message() const;
 
     WebGPU::ValidationError* backing() { return m_backing.get(); }
     const WebGPU::ValidationError* backing() const { return m_backing.get(); }

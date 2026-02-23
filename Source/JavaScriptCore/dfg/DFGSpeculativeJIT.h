@@ -358,7 +358,7 @@ public:
 
     void checkArgumentTypes();
 
-    void clearGenerationInfo();
+    void NODELETE clearGenerationInfo();
 
     // These methods are used when generating 'unexpected'
     // calls out from JIT code to C++ helper routines -
@@ -1732,7 +1732,7 @@ public:
     void compileThrow(Node*);
     void compileThrowStaticError(Node*);
 
-    void compileExtractFromTuple(Node*);
+    void NODELETE compileExtractFromTuple(Node*);
     void compileEnumeratorNextUpdateIndexAndMode(Node*);
     void compileEnumeratorNextUpdatePropertyName(Node*);
     void compileEnumeratorGetByVal(Node*);
@@ -2377,7 +2377,7 @@ public:
         return *this;
     }
 
-    void adopt(GPRTemporary&);
+    void NODELETE adopt(GPRTemporary&);
 
     ~GPRTemporary()
     {
@@ -2409,7 +2409,7 @@ public:
 
     JSValueRegsTemporary& operator=(JSValueRegsTemporary&&) = default;
 
-    JSValueRegs regs();
+    JSValueRegs NODELETE regs();
 
 private:
 #if USE(JSVALUE64)

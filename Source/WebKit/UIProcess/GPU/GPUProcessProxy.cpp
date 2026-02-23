@@ -92,7 +92,7 @@ namespace WebKit {
 using namespace WebCore;
 
 #if ENABLE(MEDIA_STREAM) && HAVE(AUDIT_TOKEN)
-static bool shouldCreateAppleCameraServiceSandboxExtension()
+static bool NODELETE shouldCreateAppleCameraServiceSandboxExtension()
 {
 #if !PLATFORM(MAC) && !PLATFORM(MACCATALYST)
     return false;
@@ -104,13 +104,13 @@ static bool shouldCreateAppleCameraServiceSandboxExtension()
 }
 #endif
 
-static WeakPtr<GPUProcessProxy>& singleton()
+static WeakPtr<GPUProcessProxy>& NODELETE singleton()
 {
     static NeverDestroyed<WeakPtr<GPUProcessProxy>> singleton;
     return singleton;
 }
 
-static RefPtr<GPUProcessProxy>& keptAliveGPUProcessProxy()
+static RefPtr<GPUProcessProxy>& NODELETE keptAliveGPUProcessProxy()
 {
     static MainRunLoopNeverDestroyed<RefPtr<GPUProcessProxy>> keptAliveGPUProcessProxy;
     return keptAliveGPUProcessProxy.get();

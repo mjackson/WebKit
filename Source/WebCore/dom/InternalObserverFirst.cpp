@@ -71,7 +71,7 @@ private:
     {
     }
 
-    Ref<DeferredPromise> protectedPromise() const { return m_promise; }
+    Ref<DeferredPromise> NODELETE protectedPromise() const { return m_promise; }
 
     InternalObserverFirst(ScriptExecutionContext& context, Ref<AbortSignal>&& signal, Ref<DeferredPromise>&& promise)
         : InternalObserver(context)

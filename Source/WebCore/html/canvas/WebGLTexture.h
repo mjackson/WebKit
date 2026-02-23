@@ -39,7 +39,7 @@ public:
 
     static RefPtr<WebGLTexture> create(WebGLRenderingContextBase&);
 
-    void didBind(GCGLenum);
+    void NODELETE didBind(GCGLenum);
     GCGLenum getTarget() const { return m_target; }
 
     static GCGLint computeLevelCount(GCGLsizei width, GCGLsizei height);

@@ -140,6 +140,6 @@ private:
     const RefPtr<AbortController> m_abortController;
 };
 
-WebCoreOpaqueRoot root(NavigateEvent*);
+WebCoreOpaqueRoot NODELETE root(NavigateEvent*);
 
 } // namespace WebCore

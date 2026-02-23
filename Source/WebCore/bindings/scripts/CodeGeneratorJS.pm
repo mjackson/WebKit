@@ -2920,6 +2920,8 @@ sub GenerateDictionaryImplementationMemberConversion
         my ($enumClassName, $defaultValue) = GetPermissiveEnumDefault($typeScope, $member);
         my $returnExpr = $defaultValue eq "std::nullopt" ? "parseResult" : "parseResult.value_or(${defaultValue})";
 
+        AddToImplIncludes("JSDOMConvertOptional.h", $conditional) if $optional;
+
         $conversion = "[&]() -> ConversionResult<${adjustedIDLType}> {\n";
         $conversion .= "        if (${key}Value.isUndefined())\n";
         $conversion .= "            return ${defaultValue};\n";

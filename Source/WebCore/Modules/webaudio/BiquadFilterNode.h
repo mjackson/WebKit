@@ -38,7 +38,7 @@ class BiquadFilterNode final : public AudioBasicProcessorNode {
 public:
     static ExceptionOr<Ref<BiquadFilterNode>> create(BaseAudioContext& context, const BiquadFilterOptions& = { });
 
-    BiquadFilterType type() const;
+    BiquadFilterType NODELETE type() const;
     void setType(BiquadFilterType);
 
     AudioParam& frequency() { return biquadProcessor()->parameter1(); }
@@ -54,7 +54,6 @@ private:
     explicit BiquadFilterNode(BaseAudioContext&);
 
     BiquadProcessor* biquadProcessor() { return downcast<BiquadProcessor>(processor()); }
-    CheckedPtr<BiquadProcessor> checkedBiquadProcessor() { return biquadProcessor(); }
 };
 
 } // namespace WebCore

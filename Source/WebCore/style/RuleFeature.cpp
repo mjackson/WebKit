@@ -396,7 +396,7 @@ PseudoClassInvalidationKey makePseudoClassInvalidationKey(CSSSelector::PseudoCla
 {
     ASSERT(keyType != InvalidationKeyType::Universal || keyString == starAtom());
     return {
-        enumToUnderlyingType(pseudoClass),
+        std::to_underlying(pseudoClass),
         static_cast<uint8_t>(keyType),
         keyString
     };
@@ -442,6 +442,10 @@ static PseudoClassInvalidationKey makePseudoClassInvalidationKey(CSSSelector::Ps
 
 void RuleFeatureSet::collectFeatures(CollectionContext& collectionContext, const RuleData& ruleData, const Vector<Ref<const StyleRuleScope>>& scopeRules)
 {
+    // Empty rules don't affect style so we never need to invalidate for them.
+    if (ruleData.styleRule().properties().isEmpty())
+        return;
+
     SelectorFeatures selectorFeatures;
 
     auto& selector = ruleData.selector();

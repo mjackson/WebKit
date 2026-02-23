@@ -146,7 +146,7 @@ void CachedPage::restore(Page& page)
             localMainFrame->selection().suppressScrolling();
 
         bool hadProhibitsScrolling = false;
-        RefPtr frameView = localMainFrame->protectedVirtualView();
+        RefPtr frameView = localMainFrame->virtualView();
         if (frameView) {
             hadProhibitsScrolling = frameView->prohibitsScrolling();
             frameView->setProhibitsScrolling(true);
@@ -172,7 +172,7 @@ void CachedPage::restore(Page& page)
 #endif
 
     if (m_needsUpdateContentsSize) {
-        if (RefPtr frameView = localMainFrame->protectedVirtualView())
+        if (RefPtr frameView = localMainFrame->virtualView())
             frameView->updateContentsSize();
     }
 

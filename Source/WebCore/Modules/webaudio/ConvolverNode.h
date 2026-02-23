@@ -46,7 +46,7 @@ public:
     AudioBuffer* bufferForBindings(); // Only safe to call on the main thread.
 
     bool normalizeForBindings() const WTF_IGNORES_THREAD_SAFETY_ANALYSIS { ASSERT(isMainThread()); return m_normalize; }
-    void setNormalizeForBindings(bool);
+    void NODELETE setNormalizeForBindings(bool);
 
     ExceptionOr<void> setChannelCount(unsigned) final;
     ExceptionOr<void> setChannelCountMode(ChannelCountMode) final;
@@ -56,7 +56,7 @@ private:
 
     double tailTime() const final;
     double latencyTime() const final;
-    bool requiresTailProcessing() const final;
+    bool NODELETE requiresTailProcessing() const final;
 
     void process(size_t framesToProcess) final;
     void checkNumberOfChannelsForInput(AudioNodeInput*) final;

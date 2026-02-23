@@ -75,6 +75,7 @@ private:
     // Messages
     void didCreateLayer(WebCore::LayerHostingContextIdentifier);
     void didFinishLoading(const WebCore::FloatPoint3D&, const WebCore::FloatPoint3D&);
+    void didConvertModelData(Ref<WebCore::SharedBuffer>&&, const String& convertedMIMEType);
     void didFailLoading();
     void didUpdateEntityTransform(const WebCore::TransformationMatrix&);
     void didUpdateAnimationPlaybackState(bool isPaused, double playbackRate, Seconds duration, Seconds currentTime, MonotonicTime clockTimestamp);

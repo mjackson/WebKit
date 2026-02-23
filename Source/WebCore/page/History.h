@@ -81,7 +81,7 @@ private:
     bool stateChanged() const;
 
     SerializedScriptValue* stateInternal() const;
-    uint32_t totalStateObjectPayloadLimit() const;
+    uint32_t NODELETE totalStateObjectPayloadLimit() const;
 
     RefPtr<SerializedScriptValue> m_lastStateObjectRequested;
     JSValueInWrappedObject m_cachedState;

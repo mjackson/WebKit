@@ -382,6 +382,8 @@ bool hasCapacityToUseLargeGigacage();
     v(Double, desiredProfileLivenessRate, 0.75, Normal, nullptr) \
     v(Double, desiredProfileFullnessRate, 0.35, Normal, nullptr) \
     \
+    v(Double, quickDFGTierUpThresholdFactor, 0.2, Normal, "Threshold factor for quick DFG tier-up"_s) \
+    \
     v(Double, doubleVoteRatioForDoubleFormat, 2, Normal, nullptr) \
     v(Double, structureCheckVoteRatioForHoisting, 1, Normal, nullptr) \
     v(Double, checkArrayVoteRatioForHoisting, 1, Normal, nullptr) \
@@ -657,7 +659,7 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, useIteratorChunking, false, Normal, "Expose the Iterator.prototype.chunks and Iterator.prototype.windows methods."_s) \
     v(Bool, useIteratorSequencing, true, Normal, "Expose the Iterator.concat method."_s) \
     v(Bool, useJSONSourceTextAccess, true, Normal, "Expose JSON source text access feature."_s) \
-    v(Bool, useJSPI, false, Normal, "Enable the implementation of JavaScript Promise Integration."_s) \
+    v(Bool, useJSPI, true, Normal, "Enable the implementation of JavaScript Promise Integration."_s) \
     v(Bool, useMoreCurrencyDisplayChoices, false, Normal, "Enable more currencyDisplay choices for Intl.NumberFormat"_s) \
     v(Bool, useSharedArrayBuffer, false, Normal, nullptr) \
     v(Bool, useShadowRealm, false, Normal, "Expose the ShadowRealm object."_s) \

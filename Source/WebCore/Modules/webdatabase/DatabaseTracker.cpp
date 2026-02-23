@@ -1269,7 +1269,7 @@ static Lock notificationLock;
 
 using NotificationQueue = Vector<std::pair<SecurityOriginData, String>>;
 
-static NotificationQueue& notificationQueue()
+static NotificationQueue& NODELETE notificationQueue()
 {
     static NeverDestroyed<NotificationQueue> queue;
     return queue;

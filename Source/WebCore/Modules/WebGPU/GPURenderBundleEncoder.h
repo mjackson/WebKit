@@ -51,7 +51,7 @@ public:
         return adoptRef(*new GPURenderBundleEncoder(WTF::move(backing)));
     }
 
-    String label() const;
+    String NODELETE label() const;
     void setLabel(String&&);
 
     void setPipeline(const GPURenderPipeline&);

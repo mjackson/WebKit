@@ -37,7 +37,7 @@ class CSSMathMax final : public CSSMathValue {
 public:
     static ExceptionOr<Ref<CSSMathMax>> create(FixedVector<CSSNumberish>&&);
     static ExceptionOr<Ref<CSSMathMax>> create(Vector<Ref<CSSNumericValue>>&&);
-    const CSSNumericArray& values() const;
+    const CSSNumericArray& NODELETE values() const;
 
     std::optional<CSSCalc::Child> toCalcTreeNode() const final;
 

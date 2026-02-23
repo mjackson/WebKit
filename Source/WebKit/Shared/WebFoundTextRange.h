@@ -50,7 +50,7 @@ struct WebFoundTextRange {
         uint64_t endOffset { 0 };
 
         bool operator==(const PDFData& other) const = default;
-        unsigned hash() const;
+        unsigned NODELETE hash() const;
         static constexpr bool safeToCompareToHashTableEmptyOrDeletedValue = true;
     };
 

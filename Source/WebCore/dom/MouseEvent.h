@@ -118,7 +118,7 @@ private:
 
     void setRelatedTarget(RefPtr<EventTarget>&&) final;
 
-    int16_t m_button { enumToUnderlyingType(MouseButton::Left) };
+    int16_t m_button { std::to_underlying(MouseButton::Left) };
     unsigned short m_buttons { 0 };
     SyntheticClickType m_syntheticClickType { SyntheticClickType::NoTap };
     bool m_buttonDown { false };

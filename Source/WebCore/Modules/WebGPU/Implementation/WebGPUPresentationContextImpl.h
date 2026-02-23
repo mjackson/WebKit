@@ -50,7 +50,7 @@ public:
 
     virtual ~PresentationContextImpl();
 
-    void setSize(uint32_t width, uint32_t height);
+    void NODELETE setSize(uint32_t width, uint32_t height);
 
     void present(uint32_t frameIndex, bool = false);
 

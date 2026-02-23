@@ -38,7 +38,7 @@ public func Queue_writeBuffer_thunk(queue: WebGPU.Queue, buffer: MTLBuffer, buff
 
 extension WebGPU.Queue {
     func writeBuffer(buffer: MTLBuffer, bufferOffset: UInt64, data: consuming MutableSpan<UInt8>) {
-        guard let _ = self.metalDevice() else {
+        guard self.metalDevice() != nil else {
             return
         }
 

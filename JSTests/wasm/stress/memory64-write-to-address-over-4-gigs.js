@@ -19,17 +19,12 @@ const {write, read} = instance.exports;
 
 const writeAddr = BigInt(Number.MAX_SAFE_INTEGER + 1);
 function test() {
-    const writeAndRead = (val) => {
-        write(val, writeAddr);
-
-        const readResult = read(writeAddr);
-        assert.eq(readResult, val);
-    }
-
-    writeAndRead(42);
-    // reset
-    writeAndRead(0);
+    const outOfBoundsError = [
+        WebAssembly.RuntimeError,
+        "Out of bounds memory access (evaluating 'func(...args)')",
+    ];
+    assert.throws(() => write(42, writeAddr), ...outOfBoundsError);
+    assert.throws(() => read(writeAddr), ...outOfBoundsError);
 }
 
-for (let i = 0; i < wasmTestLoopCount; i++)
-    test();
+test();

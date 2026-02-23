@@ -36,7 +36,6 @@
 #include "RenderDescendantIterator.h"
 #include "RenderElementInlines.h"
 #include "RenderImage.h"
-#include "RenderImageResourceStyleImage.h"
 #include "RenderQuote.h"
 #include "RenderStyle+GettersInlines.h"
 #include "RenderTextFragment.h"
@@ -224,7 +223,7 @@ void RenderTreeUpdater::GeneratedContent::updateBeforeOrAfterPseudoElement(Eleme
 
     pseudoElement = &current.ensurePseudoElement(pseudoElementType);
 
-    if (updateStyle->display() == DisplayType::Contents) {
+    if (updateStyle->display() == Style::DisplayType::Contents) {
         // For display:contents we create an inline wrapper that inherits its
         // style from the display:contents style.
         auto contentsStyle = RenderStyle::createPtr();
@@ -241,7 +240,7 @@ void RenderTreeUpdater::GeneratedContent::updateBeforeOrAfterPseudoElement(Eleme
         auto pseudoElementUpdateStyle = RenderStyle::cloneIncludingPseudoElements(*updateStyle);
         Style::ElementUpdate pseudoElementUpdate { makeUnique<RenderStyle>(WTF::move(pseudoElementUpdateStyle)), styleChanges, elementUpdate.recompositeLayer };
         m_updater.updateElementRenderer(*pseudoElement, WTF::move(pseudoElementUpdate));
-        if (updateStyle->display() == DisplayType::None) {
+        if (updateStyle->display() == Style::DisplayType::None) {
             auto pseudoElementUpdateStyle = RenderStyle::cloneIncludingPseudoElements(*updateStyle);
             pseudoElement->storeDisplayContentsOrNoneStyle(makeUnique<RenderStyle>(WTF::move(pseudoElementUpdateStyle)));
         } else
@@ -278,7 +277,7 @@ void RenderTreeUpdater::GeneratedContent::updateBackdropRenderer(RenderElement& 
     }
 
     auto style = renderer.getCachedPseudoStyle({ PseudoElementType::Backdrop }, &renderer.style());
-    if (!style || style->display() == DisplayType::None) {
+    if (!style || style->display() == Style::DisplayType::None) {
         destroyBackdropIfNeeded();
         return;
     }
@@ -356,7 +355,7 @@ void RenderTreeUpdater::GeneratedContent::updateWritingSuggestionsRenderer(Rende
     }
 
     auto style = renderer.getCachedPseudoStyle({ PseudoElementType::InternalWritingSuggestions }, &renderer.style());
-    if (!style || style->display() == DisplayType::None) {
+    if (!style || style->display() == Style::DisplayType::None) {
         destroyWritingSuggestionsIfNeeded();
         return;
     }
@@ -386,7 +385,7 @@ void RenderTreeUpdater::GeneratedContent::updateWritingSuggestionsRenderer(Rende
     nodeBeforeWritingSuggestionsTextRenderer->setText(prefix);
 
     auto newStyle = RenderStyle::clone(*style);
-    newStyle.setDisplay(DisplayType::Inline);
+    newStyle.setDisplay(Style::DisplayType::InlineFlow);
 
     if (auto writingSuggestionsRenderer = editor->writingSuggestionRenderer()) {
         writingSuggestionsRenderer->setStyle(WTF::move(newStyle), minimalStyleDifference);

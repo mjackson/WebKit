@@ -477,8 +477,12 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     Modules/identity/DigitalCredentialGetRequest.h
     Modules/identity/DigitalCredentialPresentationProtocol.h
     Modules/identity/DigitalCredentialRequestOptions.h
+    Modules/identity/DigitalCredentialsMobileDocumentRequestData.h
+    Modules/identity/DigitalCredentialsMobileDocumentRequestDataWithRequestInfo.h
     Modules/identity/DigitalCredentialsRequestData.h
+    Modules/identity/DigitalCredentialsRequestDataBuilder.h
     Modules/identity/DigitalCredentialsResponseData.h
+    Modules/identity/DigitalCredentialsSecurityOriginData.h
 
     Modules/identity/dummy/DummyCredentialRequestCoordinatorClient.h
 
@@ -529,6 +533,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     Modules/indexeddb/server/MemoryBackingStoreTransaction.h
     Modules/indexeddb/server/MemoryIDBBackingStore.h
     Modules/indexeddb/server/SQLiteIDBBackingStore.h
+    Modules/indexeddb/server/SQLiteMemoryIDBBackingStore.h
     Modules/indexeddb/server/SQLiteIDBTransaction.h
     Modules/indexeddb/server/ServerOpenDBRequest.h
     Modules/indexeddb/server/UniqueIDBDatabase.h
@@ -844,8 +849,8 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     Modules/webxr/XRCanvasConfiguration.h
     Modules/webxr/XRGPUProjectionLayerInit.h
-    Modules/webxr/XRLayerBacking.h
     Modules/webxr/XRHitTestTrackableType.h
+    Modules/webxr/XRLayerBacking.h
 
     Scripts/generate-log-declarations.py
 
@@ -1134,37 +1139,23 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/CSSConditionRule.h
     css/CSSCounterStyle.h
     css/CSSCounterStyleDescriptors.h
-    css/CSSCounterStyleRegistry.h
-    css/CSSCounterStyleRule.h
     css/CSSCounterValue.h
-    css/CSSCursorImageValue.h
     css/CSSCustomPropertyValue.h
     css/CSSFontFaceDescriptors.h
     css/CSSFontFaceRule.h
-    css/CSSFontFeatureValue.h
     css/CSSFontPaletteValuesRule.h
-    css/CSSFunctionValue.h
-    css/CSSGradientValue.h
     css/CSSGridIntegerRepeatValue.h
     css/CSSGroupingRule.h
-    css/CSSImageSetValue.h
-    css/CSSImageValue.h
     css/CSSImportRule.h
     css/CSSMediaRule.h
-    css/CSSNamedImageValue.h
-    css/CSSNamespaceRule.h
-    css/CSSNestedDeclarations.h
     css/CSSPageDescriptors.h
     css/CSSPageRule.h
-    css/CSSPositionTryDescriptors.h
     css/CSSPrimitiveValue.h
     css/CSSPrimitiveValueMappings.h
     css/CSSProperty.h
     css/CSSPropertyInitialValues.h
-    css/CSSPropertySourceData.h
     css/CSSQuadValue.h
     css/CSSRectValue.h
-    css/CSSReflectValue.h
     css/CSSRegisteredCustomProperty.h
     css/CSSRule.h
     css/CSSRuleList.h
@@ -1176,7 +1167,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/CSSStyleSheet.h
     css/CSSSubgridValue.h
     css/CSSToLengthConversionData.h
-    css/CSSTransformListValue.h
     css/CSSUnits.h
     css/CSSValue.h
     css/CSSValueList.h
@@ -1184,7 +1174,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/CSSValuePool.h
     css/CSSVariableData.h
     css/CSSVariableReferenceValue.h
-    css/CSSViewValue.h
     css/CSSWideKeyword.h
     css/ComputedStyleDependencies.h
     css/DOMCSSPaintWorklet.h
@@ -1216,14 +1205,11 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     css/calc/CSSCalcOperator.h
     css/calc/CSSCalcRandomCachingKey.h
-    css/calc/CSSCalcRandomCachingKeyMap.h
     css/calc/CSSCalcSymbolTable.h
-    css/calc/CSSCalcSymbolsAllowed.h
     css/calc/CSSCalcTree.h
     css/calc/CSSCalcType.h
     css/calc/CSSCalcValue.h
 
-    css/parser/CSSCustomPropertySyntax.h
     css/parser/CSSParser.h
     css/parser/CSSParserContext.h
     css/parser/CSSParserEnum.h
@@ -1234,9 +1220,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/parser/CSSParserTokenRange.h
     css/parser/CSSPropertyParser.h
     css/parser/CSSPropertyParserConsumer+Color.h
-    css/parser/CSSPropertyParserResult.h
-    css/parser/CSSPropertyParserState.h
-    css/parser/CSSSelectorParser.h
     css/parser/CSSSelectorParserContext.h
     css/parser/CSSTokenizer.h
     css/parser/CSSTokenizerInputStream.h
@@ -1260,7 +1243,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     css/values/borders/CSSBorderRadius.h
     css/values/borders/CSSBoxShadow.h
-    css/values/borders/CSSBoxShadowProperty.h
 
     css/values/color-adjust/CSSColorScheme.h
 
@@ -1419,7 +1401,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     dom/FragmentDirectiveUtilities.h
     dom/FullscreenOptions.h
     dom/GCReachableRef.h
-    dom/GetHTMLOptions.h
     dom/IdTargetObserver.h
     dom/IdTargetObserverRegistry.h
     dom/ImageOverlay.h
@@ -1495,7 +1476,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     dom/SelectionRestorationMode.h
     dom/SerializedNode.h
     dom/ShadowRoot.h
-    dom/ShadowRootInit.h
     dom/ShadowRootMode.h
     dom/SimpleRange.h
     dom/SimulatedClickOptions.h
@@ -1712,7 +1692,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     html/HTMLQuoteElement.h
     html/HTMLScriptElement.h
     html/HTMLSelectElement.h
-    html/HTMLSelectedContentElement.h
     html/HTMLStyleElement.h
     html/HTMLSummaryElement.h
     html/HTMLTableCaptionElement.h
@@ -1870,6 +1849,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     layout/formattingContexts/grid/GridItemRect.h
     layout/formattingContexts/grid/GridLayoutState.h
     layout/formattingContexts/grid/GridTypeAliases.h
+    layout/formattingContexts/grid/ImplicitGrid.h
 
     layout/formattingContexts/inline/AbstractLineBuilder.h
     layout/formattingContexts/inline/AvailableLineWidthOverride.h
@@ -2413,6 +2393,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/ReferrerPolicy.h
     platform/RegistrableDomain.h
     platform/RemoteCommandListener.h
+    platform/RubberbandingState.h
     platform/RunLoopObserver.h
     platform/ScreenOrientationManager.h
     platform/ScreenProperties.h
@@ -3104,6 +3085,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/video-codecs/VideoCodecType.h
 
     platform/xr/PlatformXR.h
+    platform/xr/XRHitTestSourceIdentifier.h
 
     plugins/PluginData.h
     plugins/PluginInfoProvider.h
@@ -3163,7 +3145,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     rendering/RenderIFrame.h
     rendering/RenderImage.h
     rendering/RenderImageResource.h
-    rendering/RenderImageResourceStyleImage.h
     rendering/RenderInline.h
     rendering/RenderLayer.h
     rendering/RenderLayerBacking.h
@@ -3229,10 +3210,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     rendering/style/RenderStyle.h
     rendering/style/RenderStyle+GettersInlines.h
     rendering/style/RenderStyleConstants.h
-    rendering/style/StyleCachedImage.h
     rendering/style/StyleContentAlignmentData.h
-    rendering/style/StyleGeneratedImage.h
-    rendering/style/StyleImage.h
     rendering/style/StyleSelfAlignmentData.h
 
     rendering/svg/RenderSVGInlineText.h
@@ -3260,6 +3238,8 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/ScopedName.h
     style/StyleChange.h
     style/StyleColorResolver.h
+    style/StyleContainmentChecker.h
+    style/StyleContainmentCheckerInlines.h
     style/StyleCustomProperty.h
     style/StyleDifference.h
     style/StyleForVisitedLink.h
@@ -3397,6 +3377,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     style/values/css2/StyleZIndex.h
 
+    style/values/display/StyleDisplay.h
     style/values/display/StyleOrder.h
 
     style/values/easing/StyleEasingFunction.h
@@ -3461,6 +3442,9 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/images/StyleImageWrapper.h
     style/values/images/StyleObjectPosition.h
 
+    style/values/images/kinds/StyleCachedImage.h
+    style/values/images/kinds/StyleImage.h
+
     style/values/inline/StyleLineFitEdge.h
     style/values/inline/StyleLineHeight.h
     style/values/inline/StyleTextBoxEdge.h
@@ -3513,6 +3497,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     style/values/overflow/StyleBlockEllipsis.h
     style/values/overflow/StyleMaximumLines.h
+    style/values/overflow/StyleOverflowClipMargin.h
     style/values/overflow/StyleScrollBehavior.h
     style/values/overflow/StyleScrollbarGutter.h
 
@@ -3545,12 +3530,14 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     style/values/rhythm/StyleBlockStepSize.h
 
-    style/values/scroll-animations/StyleProgressTimelineAxes.h
+    style/values/scroll-animations/StyleProgressTimelineAxis.h
     style/values/scroll-animations/StyleProgressTimelineName.h
     style/values/scroll-animations/StyleScrollFunction.h
+    style/values/scroll-animations/StyleScrollTimeline.h
     style/values/scroll-animations/StyleScrollTimelines.h
     style/values/scroll-animations/StyleViewFunction.h
-    style/values/scroll-animations/StyleViewTimelineInsets.h
+    style/values/scroll-animations/StyleViewTimeline.h
+    style/values/scroll-animations/StyleViewTimelineInsetItem.h
     style/values/scroll-animations/StyleViewTimelines.h
 
     style/values/scroll-snap/StyleScrollMargin.h

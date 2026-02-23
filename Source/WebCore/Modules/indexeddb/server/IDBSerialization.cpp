@@ -100,7 +100,7 @@ bool deserializeIDBKeyPath(std::span<const uint8_t> data, std::optional<IDBKeyPa
     return true;
 }
 
-static bool isLegacySerializedIDBKeyData(std::span<const uint8_t> data)
+static bool NODELETE isLegacySerializedIDBKeyData(std::span<const uint8_t> data)
 {
 #if USE(CF)
     // This is the magic character that begins serialized PropertyLists, and tells us whether
@@ -226,7 +226,7 @@ static void writeDouble(Vector<uint8_t>& data, double d)
     writeLittleEndian(data, *reinterpret_cast<uint64_t*>(&d));
 }
 
-static bool readDouble(std::span<const uint8_t>& data, double& d)
+static bool NODELETE readDouble(std::span<const uint8_t>& data, double& d)
 {
     return readLittleEndian(data, *reinterpret_cast<uint64_t*>(&d));
 }

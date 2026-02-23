@@ -92,7 +92,7 @@ private:
         void settingsDidChange(OptionSet<RealtimeMediaSourceSettings::Flag>) final;
         void scheduleCaptureCanvas();
         void captureCanvas();
-        void requestFrameTimerFired();
+        void NODELETE requestFrameTimerFired();
 
         bool m_shouldEmitFrame { true };
         std::optional<double> m_frameRequestRate;

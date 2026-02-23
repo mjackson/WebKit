@@ -45,7 +45,7 @@ public:
 
     CSSStyleSheet* sheet() const { return m_styleSheetOwner.sheet(); }
 
-    WEBCORE_EXPORT bool disabled() const;
+    WEBCORE_EXPORT bool NODELETE disabled() const;
     WEBCORE_EXPORT void setDisabled(bool);
 
     void dispatchPendingEvent(StyleEventSender*, const AtomString& eventType);

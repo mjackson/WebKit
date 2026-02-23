@@ -82,7 +82,7 @@ public:
 
     WebExtensionCommandParameters parameters() const;
 
-    WebExtensionContext* extensionContext() const;
+    WebExtensionContext* NODELETE extensionContext() const;
 
     bool isActionCommand() const;
 

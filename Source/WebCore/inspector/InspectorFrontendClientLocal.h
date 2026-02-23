@@ -107,7 +107,7 @@ public:
     String backendCommandsURL() const final { return String(); };
 
     InspectorFrontendAPIDispatcher& frontendAPIDispatcher() final { return m_frontendAPIDispatcher; }
-    WEBCORE_EXPORT Page* frontendPage() final;
+    WEBCORE_EXPORT Page* NODELETE frontendPage() final;
     
     WEBCORE_EXPORT bool canAttachWindow();
     WEBCORE_EXPORT void setDockingUnavailable(bool);

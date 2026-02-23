@@ -134,7 +134,7 @@ void GridTrack::ensureGrowthLimitIsBiggerThanBaseSize()
         m_growthLimit = std::max(m_baseSize, 0_lu);
 }
 
-static bool hasRelativeMarginOrPaddingForGridItem(const RenderBox& gridItem, Style::GridTrackSizingDirection direction)
+static bool NODELETE hasRelativeMarginOrPaddingForGridItem(const RenderBox& gridItem, Style::GridTrackSizingDirection direction)
 {
     if (direction == Style::GridTrackSizingDirection::Columns)
         return gridItem.style().marginStart().isPercentOrCalculated() || gridItem.style().marginEnd().isPercentOrCalculated() || gridItem.style().paddingStart().isPercentOrCalculated() || gridItem.style().paddingEnd().isPercentOrCalculated();
@@ -347,8 +347,8 @@ public:
     {
     }
 
-    RenderBox& gridItem() const { return m_gridItem; }
-    GridSpan span() const { return m_span; }
+    RenderBox& NODELETE gridItem() const { return m_gridItem; }
+    GridSpan NODELETE span() const { return m_span; }
 
     bool operator<(const GridItemWithSpan other) const { return m_span.integerSpan() < other.m_span.integerSpan(); }
 
@@ -402,7 +402,7 @@ LayoutUnit GridTrackSizingAlgorithm::itemSizeForTrackSizeComputationPhaseMasonry
     return 0;
 }
 
-static bool shouldProcessTrackForTrackSizeComputationPhase(TrackSizeComputationPhase phase, const Style::GridTrackSize& trackSize)
+static bool NODELETE shouldProcessTrackForTrackSizeComputationPhase(TrackSizeComputationPhase phase, const Style::GridTrackSize& trackSize)
 {
     switch (phase) {
     case TrackSizeComputationPhase::ResolveIntrinsicMinimums:
@@ -461,7 +461,7 @@ static void updateTrackSizeForTrackSizeComputationPhase(TrackSizeComputationPhas
     ASSERT_NOT_REACHED();
 }
 
-static bool trackShouldGrowBeyondGrowthLimitsForTrackSizeComputationPhase(TrackSizeComputationPhase phase, const Style::GridTrackSize& trackSize)
+static bool NODELETE trackShouldGrowBeyondGrowthLimitsForTrackSizeComputationPhase(TrackSizeComputationPhase phase, const Style::GridTrackSize& trackSize)
 {
     switch (phase) {
     case TrackSizeComputationPhase::ResolveIntrinsicMinimums:
@@ -712,7 +712,7 @@ void GridTrackSizingAlgorithm::convertIndefiniteItemsToDefiniteMasonry(const Std
 }
 
 template <TrackSizeComputationVariant variant>
-static double getSizeDistributionWeight(const GridTrack& track)
+static double NODELETE getSizeDistributionWeight(const GridTrack& track)
 {
     if (variant != TrackSizeComputationVariant::CrossingFlexibleTracks)
         return 0;

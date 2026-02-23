@@ -32,6 +32,7 @@
 #import "WKContentRuleListInternal.h"
 #import "WKContentWorldInternal.h"
 #import "WKFrameInfoInternal.h"
+#import "WKJSScriptingBufferInternal.h"
 #import "WKNSArray.h"
 #import "WKScriptMessageHandler.h"
 #import "WKScriptMessageHandlerWithReply.h"
@@ -41,7 +42,7 @@
 #import "WebPageProxy.h"
 #import "WebScriptMessageHandler.h"
 #import "WebUserContentControllerProxy.h"
-#import "_WKJSBufferInternal.h"
+#import "_WKJSBuffer.h"
 #import "_WKUserContentFilterInternal.h"
 #import "_WKUserContentWorldInternal.h"
 #import "_WKUserStyleSheetInternal.h"
@@ -230,6 +231,16 @@ private:
     protect(*_userContentControllerProxy)->removeAllUserMessageHandlers();
 }
 
+- (void)addBuffer:(WKJSScriptingBuffer *)buffer name:(NSString *)name contentWorld:(WKContentWorld *)world
+{
+    protect(*_userContentControllerProxy)->addJSBuffer(Ref { *buffer->_buffer }, Ref { *world->_contentWorld }, name);
+}
+
+- (void)removeBufferWithName:(NSString *)name contentWorld:(WKContentWorld *)world
+{
+    protect(*_userContentControllerProxy)->removeJSBuffer(Ref { *world->_contentWorld }, name);
+}
+
 #pragma mark WKObject protocol implementation
 
 - (API::Object&)_apiObject
@@ -314,12 +325,12 @@ private:
 
 - (void)_addBuffer:(_WKJSBuffer *)buffer contentWorld:(WKContentWorld *)world name:(NSString *)name
 {
-    protect(*_userContentControllerProxy)->addJSBuffer(Ref { *buffer->_buffer }, Ref { *world->_contentWorld }, name);
+    [self addBuffer:buffer name:name contentWorld:world];
 }
 
 - (void)_removeBufferWithName:(NSString *)name contentWorld:(WKContentWorld *)world
 {
-    protect(*_userContentControllerProxy)->removeJSBuffer(Ref { *world->_contentWorld }, name);
+    [self removeBufferWithName:name contentWorld:world];
 }
 
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN

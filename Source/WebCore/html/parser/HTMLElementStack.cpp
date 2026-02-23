@@ -44,12 +44,12 @@ using namespace ElementNames;
 
 namespace {
 
-inline bool isRootNode(HTMLStackItem& item)
+inline bool NODELETE isRootNode(HTMLStackItem& item)
 {
     return item.isDocumentFragment() || item.elementName() == HTML::html;
 }
 
-inline bool isScopeMarker(HTMLStackItem& item)
+inline bool NODELETE isScopeMarker(HTMLStackItem& item)
 {
     switch (item.elementName()) {
     case HTML::applet:
@@ -78,21 +78,21 @@ inline bool isScopeMarker(HTMLStackItem& item)
     return isRootNode(item);
 }
 
-inline bool isListItemScopeMarker(HTMLStackItem& item)
+inline bool NODELETE isListItemScopeMarker(HTMLStackItem& item)
 {
     return isScopeMarker(item)
         || item.elementName() == HTML::ol
         || item.elementName() == HTML::ul;
 }
 
-inline bool isTableScopeMarker(HTMLStackItem& item)
+inline bool NODELETE isTableScopeMarker(HTMLStackItem& item)
 {
     return item.elementName() == HTML::table
         || item.elementName() == HTML::template_
         || isRootNode(item);
 }
 
-inline bool isTableBodyScopeMarker(HTMLStackItem& item)
+inline bool NODELETE isTableBodyScopeMarker(HTMLStackItem& item)
 {
     return item.elementName() == HTML::tbody
         || item.elementName() == HTML::tfoot
@@ -101,7 +101,7 @@ inline bool isTableBodyScopeMarker(HTMLStackItem& item)
         || isRootNode(item);
 }
 
-inline bool isTableRowScopeMarker(HTMLStackItem& item)
+inline bool NODELETE isTableRowScopeMarker(HTMLStackItem& item)
 {
     return item.elementName() == HTML::tr
         || item.elementName() == HTML::template_
@@ -115,13 +115,13 @@ inline bool isForeignContentScopeMarker(HTMLStackItem& item)
         || isInHTMLNamespace(item);
 }
 
-inline bool isButtonScopeMarker(HTMLStackItem& item)
+inline bool NODELETE isButtonScopeMarker(HTMLStackItem& item)
 {
     return isScopeMarker(item)
         || item.elementName() == HTML::button;
 }
 
-inline bool isSelectScopeMarker(HTMLStackItem& item)
+inline bool NODELETE isSelectScopeMarker(HTMLStackItem& item)
 {
     return item.elementName() != HTML::optgroup
         && item.elementName() != HTML::option;

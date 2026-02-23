@@ -74,7 +74,7 @@ public:
     TreeScope* parentTreeScope() const { return m_parentTreeScope; }
     void setParentTreeScope(TreeScope&);
 
-    WEBCORE_EXPORT void ref() const;
+    WEBCORE_EXPORT void NODELETE ref() const;
     WEBCORE_EXPORT void deref() const;
 
     Element* focusedElementInScope();
@@ -105,8 +105,8 @@ public:
     // https://dom.spec.whatwg.org/#retarget
     Ref<Node> retargetToScope(Node&) const;
 
-    WEBCORE_EXPORT Node* ancestorNodeInThisScope(Node*) const;
-    WEBCORE_EXPORT Element* ancestorElementInThisScope(Element*) const;
+    WEBCORE_EXPORT Node* NODELETE ancestorNodeInThisScope(Node*) const;
+    WEBCORE_EXPORT Element* NODELETE ancestorElementInThisScope(Element*) const;
 
     void addImageMap(HTMLMapElement&);
     void removeImageMap(HTMLMapElement&);
@@ -141,7 +141,7 @@ public:
     RadioButtonGroups& radioButtonGroups();
 
     JSC::JSValue adoptedStyleSheetWrapper(JSDOMGlobalObject&);
-    std::span<const Ref<CSSStyleSheet>> adoptedStyleSheets() const;
+    std::span<const Ref<CSSStyleSheet>> NODELETE adoptedStyleSheets() const;
     ExceptionOr<void> setAdoptedStyleSheets(Vector<Ref<CSSStyleSheet>>&&);
 
     void addSVGResource(const AtomString& id, LegacyRenderSVGResourceContainer&);

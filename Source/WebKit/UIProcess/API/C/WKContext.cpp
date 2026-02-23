@@ -258,7 +258,7 @@ void WKContextSetDownloadClient(WKContextRef context, const WKContextDownloadCli
 
 void WKContextSetInitializationUserDataForInjectedBundle(WKContextRef contextRef,  WKTypeRef userDataRef)
 {
-    WebKit::toImpl(contextRef)->setInjectedBundleInitializationUserData(WebKit::toImpl(userDataRef));
+    protect(WebKit::toImpl(contextRef))->setInjectedBundleInitializationUserData(WebKit::toImpl(userDataRef));
 }
 
 void WKContextPostMessageToInjectedBundle(WKContextRef contextRef, WKStringRef messageNameRef, WKTypeRef messageBodyRef)

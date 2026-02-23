@@ -62,7 +62,7 @@ private:
     AudioBuffer* renderTarget() const { return destination().renderTarget(); }
 
     // ActiveDOMObject
-    bool virtualHasPendingActivity() const final;
+    bool NODELETE virtualHasPendingActivity() const final;
 
     void settleRenderingPromise(ExceptionOr<Ref<AudioBuffer>>&&);
     void uninitialize() final;

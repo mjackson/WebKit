@@ -40,7 +40,6 @@
 \
 
 #define FOR_EACH_READWRITE_KEY_PATH(Macro) \
-    Macro(currentValue, CurrentValue, MediaTime) \
     Macro(playing, Playing, bool) \
     Macro(playbackSpeed, PlaybackSpeed, float) \
     Macro(scanSpeed, ScanSpeed, float) \
@@ -91,6 +90,10 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@interface NSObject (Staging_169033633)
+@property (nonatomic) CMTime currentPlaybackPosition;
+@end
+
 static void* WebMediaSourceObserverContext = &WebMediaSourceObserverContext;
 
 @interface WebMediaSourceObserver : NSObject
@@ -131,6 +134,14 @@ static void* WebMediaSourceObserverContext = &WebMediaSourceObserverContext;
 {
     if (context != WebMediaSourceObserverContext) {
         [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
+        return;
+    }
+
+    if ([keyPath isEqualToString:@"currentValue"] || [keyPath isEqualToString:@"currentPlaybackPosition"]) {
+        if (RefPtr route = _route.get()) {
+            if (RefPtr client = route->client())
+                client->currentPlaybackPositionDidChange(*route);
+        }
         return;
     }
 
@@ -212,6 +223,28 @@ String MediaDeviceRoute::deviceName() const
 WebMediaDevicePlatformRoute *MediaDeviceRoute::platformRoute() const
 {
     return m_platformRoute.get();
+}
+
+MediaTime MediaDeviceRoute::currentPlaybackPosition() const
+{
+    if ([[m_mediaSourceObserver mediaSource] respondsToSelector:@selector(currentPlaybackPosition)])
+        return convert([[m_mediaSourceObserver mediaSource] currentPlaybackPosition]);
+
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    return convert([m_mediaSourceObserver mediaSource].currentValue);
+ALLOW_DEPRECATED_DECLARATIONS_END
+}
+
+void MediaDeviceRoute::setCurrentPlaybackPosition(MediaTime currentPlaybackPosition)
+{
+    if ([[m_mediaSourceObserver mediaSource] respondsToSelector:@selector(setCurrentPlaybackPosition:)]) {
+        [[m_mediaSourceObserver mediaSource] setCurrentPlaybackPosition:convert(WTF::move(currentPlaybackPosition))];
+        return;
+    }
+
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    [[m_mediaSourceObserver mediaSource] setCurrentValue:convert(WTF::move(currentPlaybackPosition))];
+ALLOW_DEPRECATED_DECLARATIONS_END
 }
 
 MediaDeviceRoute::~MediaDeviceRoute()

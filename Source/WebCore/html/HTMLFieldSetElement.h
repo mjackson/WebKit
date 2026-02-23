@@ -34,7 +34,7 @@ class HTMLFieldSetElement final : public HTMLFormControlElement {
 public:
     static Ref<HTMLFieldSetElement> create(const QualifiedName&, Document&, HTMLFormElement*);
 
-    HTMLLegendElement* legend() const;
+    HTMLLegendElement* NODELETE legend() const;
 
     Ref<HTMLCollection> elements();
 
@@ -47,7 +47,7 @@ private:
 
     bool isDisabledFormControl() const final;
     bool isActuallyDisabled() const final;
-    bool isEnumeratable() const final { return true; }
+    bool NODELETE isEnumeratable() const final { return true; }
     bool supportsFocus() const final;
     RenderPtr<RenderElement> createElementRenderer(RenderStyle&&, const RenderTreePosition&) final;
     const AtomString& formControlType() const final;

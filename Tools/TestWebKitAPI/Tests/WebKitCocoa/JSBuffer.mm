@@ -28,17 +28,18 @@
 #import "PlatformUtilities.h"
 #import "TestWKWebView.h"
 #import <WebKit/WKContentWorldPrivate.h>
+#import <WebKit/WKJSScriptingBuffer.h>
 #import <WebKit/WKUserContentControllerPrivate.h>
 #import <WebKit/_WKContentWorldConfiguration.h>
 #import <WebKit/_WKJSBuffer.h>
 
 TEST(JSBuffer, Data)
 {
-    RetainPtr oddLength = adoptNS([[_WKJSBuffer alloc] initWithData:[NSData dataWithBytes:"abc" length:3]]);
+    RetainPtr oddLength = adoptNS([[WKJSScriptingBuffer alloc] initWithData:[NSData dataWithBytes:"abc" length:3]]);
     RetainPtr evenLength = adoptNS([[_WKJSBuffer alloc] initWithData:[NSData dataWithBytes:"abcd" length:4]]);
     RetainPtr invalidSurrogatePair = adoptNS([[_WKJSBuffer alloc] initWithData:[NSData dataWithBytes:"\x3d\xd8\x27\x00\xff\xff\x00\x00" length:8]]);
     RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
-    [configuration.get().userContentController _addBuffer:oddLength.get() contentWorld:WKContentWorld.pageWorld name:@"oddLength"];
+    [configuration.get().userContentController addBuffer:oddLength.get() name:@"oddLength" contentWorld:WKContentWorld.pageWorld];
     [configuration.get().userContentController _addBuffer:evenLength.get() contentWorld:WKContentWorld.pageWorld name:@"evenLength"];
     [configuration.get().userContentController _addBuffer:invalidSurrogatePair.get() contentWorld:WKContentWorld.pageWorld name:@"invalidSurrogatePair"];
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
@@ -71,14 +72,14 @@ TEST(JSBuffer, IDLExposed)
 TEST(JSBuffer, EvaluateScript)
 {
     const uint8_t script[] = "didPass = true; 'PAS' + 'S'";
-    RetainPtr sourceBuffer = adoptNS([[_WKJSBuffer alloc] initWithData:[NSData dataWithBytes:script length:std::size(script) - 1]]);
+    RetainPtr sourceBuffer = adoptNS([[WKJSScriptingBuffer alloc] initWithData:[NSData dataWithBytes:script length:std::size(script) - 1]]);
     RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
 
     RetainPtr contentWorldConfiguration = adoptNS([_WKContentWorldConfiguration new]);
     contentWorldConfiguration.get().name = @"nonMainWorld";
     RetainPtr world = [WKContentWorld _worldWithConfiguration:contentWorldConfiguration.get()];
 
-    [configuration.get().userContentController _addBuffer:sourceBuffer.get() contentWorld:world.get() name:@"sourceCode"];
+    [configuration.get().userContentController addBuffer:sourceBuffer.get() name:@"sourceCode" contentWorld:world.get()];
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
     EXPECT_FALSE([[webView objectByEvaluatingJavaScript:@"window.didPass"] boolValue]);

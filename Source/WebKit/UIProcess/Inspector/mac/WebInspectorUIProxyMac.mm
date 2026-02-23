@@ -152,6 +152,12 @@ static void* kWindowContentLayoutObserverContext = &kWindowContentLayoutObserver
         proxy->windowFullScreenDidChange();
 }
 
+- (void)_systemColorsDidChange:(NSNotification *)notification
+{
+    if (RefPtr proxy = _inspectorProxy.get())
+        proxy->systemAppearanceDidChange();
+}
+
 - (void)inspectedViewFrameDidChange:(NSNotification *)notification
 {
     // Resizing the views while inside this notification can lead to bad results when entering
@@ -199,7 +205,7 @@ static void* kWindowContentLayoutObserverContext = &kWindowContentLayoutObserver
 
 - (BOOL)inspectorViewControllerInspectorIsUnderTest:(WKInspectorViewController *)inspectorViewController
 {
-    return _inspectorProxy ? _inspectorProxy->isUnderTest() : false;
+    return _inspectorProxy && _inspectorProxy->isUnderTest();
 }
 
 - (BOOL)inspectorViewControllerInspectorIsHorizontallyAttached:(WKInspectorViewController *)inspectorViewController
@@ -478,9 +484,10 @@ RefPtr<WebPageProxy> WebInspectorUIProxy::platformCreateFrontendPage()
     m_objCAdapter = adoptNS([[WKWebInspectorUIProxyObjCAdapter alloc] initWithWebInspectorUIProxy:this]);
     RetainPtr inspectedView = inspectedPage->inspectorAttachmentView();
     [[NSNotificationCenter defaultCenter] addObserver:m_objCAdapter.get() selector:@selector(inspectedViewFrameDidChange:) name:NSViewFrameDidChangeNotification object:inspectedView.get()];
+    [[NSNotificationCenter defaultCenter] addObserver:m_objCAdapter.get() selector:@selector(_systemColorsDidChange:) name:NSSystemColorsDidChangeNotification object:nil];
 
     Ref configuration = inspectedPage->uiClient().configurationForLocalInspector(*inspectedPage, *this);
-    m_inspectorViewController = adoptNS([[WKInspectorViewController alloc] initWithConfiguration:protectedWrapper(configuration.get()).get() inspectedPage:inspectedPage.get()]);
+    m_inspectorViewController = adoptNS([[WKInspectorViewController alloc] initWithConfiguration:protect(WebKit::wrapper(configuration.get())).get() inspectedPage:inspectedPage.get()]);
     [m_inspectorViewController setDelegate:m_objCAdapter.get()];
 
     RefPtr inspectorPage = [m_inspectorViewController webView]->_page.get();

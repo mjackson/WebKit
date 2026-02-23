@@ -349,7 +349,7 @@ void TypingCommand::postTextStateChangeNotificationForDeletion(const VisibleSele
     VisiblePositionIndexRange range;
     range.startIndex.value = indexForVisiblePosition(selection.visibleStart(), range.startIndex.scope);
     range.endIndex.value = indexForVisiblePosition(selection.visibleEnd(), range.endIndex.scope);
-    protectedComposition()->setRangeDeletedByUnapply(range);
+    protect(composition())->setRangeDeletedByUnapply(range);
 }
 
 bool TypingCommand::willApplyCommand()
@@ -547,7 +547,7 @@ void TypingCommand::insertTextAndNotifyAccessibility(const String& text, bool se
     AccessibilityReplacedText replacedText(document().selection().selection());
     insertText(text, selectInsertedText);
     replacedText.postTextStateChangeNotification(document().existingAXObjectCache(), AXTextEditType::Typing, text, document().selection().selection());
-    protectedComposition()->setRangeDeletedByUnapply(replacedText.replacedRange());
+    protect(composition())->setRangeDeletedByUnapply(replacedText.replacedRange());
 }
 
 void TypingCommand::insertTextRunWithoutNewlines(const String& text, bool selectInsertedText)
@@ -580,7 +580,7 @@ void TypingCommand::insertLineBreakAndNotifyAccessibility()
     AccessibilityReplacedText replacedText(document().selection().selection());
     insertLineBreak();
     replacedText.postTextStateChangeNotification(document().existingAXObjectCache(), AXTextEditType::Typing, "\n"_s, document().selection().selection());
-    protectedComposition()->setRangeDeletedByUnapply(replacedText.replacedRange());
+    protect(composition())->setRangeDeletedByUnapply(replacedText.replacedRange());
 }
 
 void TypingCommand::insertParagraphSeparator()
@@ -600,7 +600,7 @@ void TypingCommand::insertParagraphSeparatorAndNotifyAccessibility()
     AccessibilityReplacedText replacedText(document().selection().selection());
     insertParagraphSeparator();
     replacedText.postTextStateChangeNotification(document().existingAXObjectCache(), AXTextEditType::Typing, "\n"_s, document().selection().selection());
-    protectedComposition()->setRangeDeletedByUnapply(replacedText.replacedRange());
+    protect(composition())->setRangeDeletedByUnapply(replacedText.replacedRange());
 }
 
 void TypingCommand::insertParagraphSeparatorInQuotedContent()
@@ -624,7 +624,7 @@ void TypingCommand::insertParagraphSeparatorInQuotedContentAndNotifyAccessibilit
     AccessibilityReplacedText replacedText(document().selection().selection());
     insertParagraphSeparatorInQuotedContent();
     replacedText.postTextStateChangeNotification(document().existingAXObjectCache(), AXTextEditType::Typing, "\n"_s, document().selection().selection());
-    protectedComposition()->setRangeDeletedByUnapply(replacedText.replacedRange());
+    protect(composition())->setRangeDeletedByUnapply(replacedText.replacedRange());
 }
 
 bool TypingCommand::makeEditableRootEmpty()
@@ -682,11 +682,11 @@ void TypingCommand::deleteKeyPressed(TextGranularity granularity, bool shouldAdd
         const VisiblePosition& previousPosition = visibleStart.previous(CannotCrossEditingBoundary);
         RefPtr enclosingTableCell = enclosingNodeOfType(visibleStart.deepEquivalent(), &isTableCell);
         RefPtr enclosingTableCellForPreviousPosition = enclosingNodeOfType(previousPosition.deepEquivalent(), &isTableCell);
-        if (previousPosition.isNull() || enclosingTableCell != enclosingTableCellForPreviousPosition) {
+        if (previousPosition.isNull() || enclosingTableCell != enclosingTableCellForPreviousPosition || hasSmartListMarkerAttribute()) {
             // When the caret is at the start of the editable area in an empty list item, break out of the list item.
             if (auto deleteListSelection = shouldBreakOutOfEmptyListItem(); !deleteListSelection.isNone()) {
                 if (willAddTypingToOpenCommand(Type::DeleteKey, granularity, { }, deleteListSelection.firstRange())) {
-                    breakOutOfEmptyListItem();
+                    breakOutOfEmptyListItem(ReconstitutePlainTextListIfNeeded::Yes);
                     typingAddedToOpenCommand(Type::DeleteKey);
                 }
                 return;

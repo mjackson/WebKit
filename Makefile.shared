@@ -200,7 +200,7 @@ analyze:
 	@$(call invoke_xcode,analyze,$(ANALYZER_XCODE_SETTINGS)) || true
 	@for dir in $$(ls -d $(ANALYZER_OUTPUT)/StaticAnalyzer/*); do \
 		mkdir -p $$dir/StaticAnalyzerReports; \
-		find $$dir -name 'report-*.html' -exec mv {} $$dir/StaticAnalyzerReports/ \;; \
+		find $$dir -name 'report-*.html' -exec sh -c 'mv "$$@" "$$0"' $$dir/StaticAnalyzerReports/ {} +; \
 		$(PATH_TO_SCAN_BUILD) --generate-index-only $$dir; \
 	done
 

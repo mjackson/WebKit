@@ -80,7 +80,7 @@ IDBObjectStore::~IDBObjectStore()
 
 bool IDBObjectStore::virtualHasPendingActivity() const
 {
-    // Cannot ref the transaction here since this may get called on the GC thread.
+    // Cannot ref the transaction here since this may get called on a GC thread.
     SUPPRESS_UNCOUNTED_ARG return m_transaction->hasPendingActivity();
 }
 
@@ -749,11 +749,11 @@ void IDBObjectStore::visitReferencedIndexesConcurrently(Visitor& visitor) const
 {
     Locker locker { m_referencedIndexLock };
     for (auto& index : m_referencedIndexes.values()) {
-        // Cannot ref `index` here since this may get called on the GC thread.
+        // Cannot ref `index` here since this may get called on a GC thread.
         SUPPRESS_UNCOUNTED_ARG addWebCoreOpaqueRoot(visitor, index.get());
     }
     for (auto& index : m_deletedIndexes.values()) {
-        // Cannot ref `index` here since this may get called on the GC thread.
+        // Cannot ref `index` here since this may get called on a GC thread.
         SUPPRESS_UNCOUNTED_ARG addWebCoreOpaqueRoot(visitor, index.get());
     }
 }

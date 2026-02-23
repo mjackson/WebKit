@@ -33,12 +33,14 @@
 
 #if !__has_feature(modules) || (defined(WK_SUPPORTS_SWIFT_OBJCXX_INTEROP) && WK_SUPPORTS_SWIFT_OBJCXX_INTEROP)
 
+#import "IdentifierTypes.h"
 #import "PDFPluginIdentifier.h"
 #import "VisibleContentRectUpdateInfo.h"
 #import <WebCore/CocoaView.h>
 #import <WebCore/CocoaWritingToolsTypes.h>
 #import <WebCore/ColorCocoa.h>
 #import <WebCore/CornerRadii.h>
+#import <WebCore/DigitalCredentialsRequestData.h>
 #import <WebCore/FixedContainerEdges.h>
 #import <WebCore/LayerHostingContextIdentifier.h>
 #import <WebCore/TextExtractionTypes.h>
@@ -120,6 +122,10 @@ class Attachment;
 }
 
 namespace WebCore {
+class FloatQuad;
+class FloatRect;
+class IntPoint;
+class IntSize;
 struct AppHighlight;
 struct ExceptionData;
 struct ExceptionDetails;
@@ -132,7 +138,6 @@ enum class TextSuggestionState : uint8_t;
 }
 
 #if ENABLE(WEB_AUTHN)
-struct DigitalCredentialsRequestData;
 struct DigitalCredentialsResponseData;
 struct MobileDocumentRequest;
 #endif
@@ -644,6 +649,10 @@ struct PerWebProcessState {
 - (void)_updateFixedContainerEdges:(const WebCore::FixedContainerEdges&)edges;
 - (void)_updateScrollGeometryWithContentOffset:(CGPoint)contentOffset contentSize:(CGSize)contentSize;
 
+#if ENABLE(SCROLL_STRETCH_NOTIFICATIONS)
+- (void)_topScrollStretchDidChange:(NSUInteger)topScrollStretch;
+#endif
+
 - (WKPageRef)_pageForTesting;
 - (NakedPtr<WebKit::WebPageProxy>)_page;
 - (RefPtr<WebKit::WebPageProxy>)_protectedPage;
@@ -742,6 +751,21 @@ RetainPtr<NSError> nsErrorFromExceptionDetails(const std::optional<WebCore::Exce
 #endif
 
 WebCore::CocoaColor *sampledFixedPositionContentColor(const WebCore::FixedContainerEdges&, WebCore::BoxSide);
+
+#if ENABLE(TWO_PHASE_CLICKS)
+
+@interface WKWebView (TwoPhaseClicks)
+- (void)_didNotHandleTapAsClick:(const WebCore::IntPoint&)point;
+- (void)_didHandleTapAsHover;
+- (void)_didCompleteSyntheticClick;
+- (void)_commitPotentialTapFailed;
+- (void)_didGetTapHighlightGeometries:(WebKit::TapIdentifier)requestID color:(const WebCore::Color&)color quads:(const Vector<WebCore::FloatQuad>&)highlightedQuads topLeftRadius:(const WebCore::IntSize&)topLeftRadius topRightRadius:(const WebCore::IntSize&)topRightRadius bottomLeftRadius:(const WebCore::IntSize&)bottomLeftRadius bottomRightRadius:(const WebCore::IntSize&)bottomRightRadius nodeHasBuiltInClickHandling:(BOOL)nodeHasBuiltInClickHandling;
+- (BOOL)_isPotentialTapInProgress;
+- (void)_disableDoubleTapGesturesDuringTapIfNecessary:(WebKit::TapIdentifier)requestID;
+- (void)_handleSmartMagnificationInformationForPotentialTap:(WebKit::TapIdentifier)requestID renderRect:(const WebCore::FloatRect&)renderRect fitEntireRect:(BOOL)fitEntireRect viewportMinimumScale:(double)viewportMinimumScale viewportMaximumScale:(double)viewportMaximumScale nodeIsRootLevel:(BOOL)nodeIsRootLevel nodeIsPluginElement:(BOOL)nodeIsPluginElement;
+@end
+
+#endif
 
 #endif // !__has_feature(modules) || WK_SUPPORTS_SWIFT_OBJCXX_INTEROP
 

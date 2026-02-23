@@ -82,8 +82,8 @@ void Worklet::addModule(const String& moduleURLString, WorkletOptions&& options,
     if (m_proxies.isEmpty())
         m_proxies.appendVector(createGlobalScopes());
 
-    auto pendingTasks = WorkletPendingTasks::create(*this, WTF::move(promise), m_proxies.size());
-    m_pendingTasksSet.add(pendingTasks.copyRef());
+    Ref pendingTasks = WorkletPendingTasks::create(*this, WTF::move(promise), m_proxies.size());
+    m_pendingTasksSet.add(pendingTasks);
 
     for (auto& proxy : m_proxies) {
         proxy->postTaskForModeToWorkletGlobalScope([pendingTasks = pendingTasks.copyRef(), moduleURL = moduleURL.isolatedCopy(), credentials = options.credentials, pendingActivity = makePendingActivity(*this)](ScriptExecutionContext& context) mutable {
@@ -102,9 +102,9 @@ void Worklet::addModule(const String& moduleURLString, WorkletOptions&& options,
 void Worklet::finishPendingTasks(WorkletPendingTasks& tasks)
 {
     ASSERT(isMainThread());
-    ASSERT(m_pendingTasksSet.contains(&tasks));
+    ASSERT(m_pendingTasksSet.contains(tasks));
 
-    m_pendingTasksSet.remove(&tasks);
+    m_pendingTasksSet.remove(tasks);
 }
 
 } // namespace WebCore

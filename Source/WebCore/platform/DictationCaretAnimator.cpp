@@ -119,7 +119,7 @@ int DictationCaretAnimator::computeScrollLeft() const
         return 0;
 
     if (RefPtr caretNode = m_client.caretNode()) {
-        if (auto* rendererForCaret = rendererForCaretPainting(caretNode.get()))
+        if (CheckedPtr rendererForCaret = rendererForCaretPainting(caretNode.get()))
             return rendererForCaret->scrollLeft();
     }
 

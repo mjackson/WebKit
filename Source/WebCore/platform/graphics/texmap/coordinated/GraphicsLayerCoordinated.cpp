@@ -666,7 +666,7 @@ Vector<GraphicsLayer::AcceleratedAnimationForTesting> GraphicsLayerCoordinated::
 {
     Vector<GraphicsLayer::AcceleratedAnimationForTesting> animations;
     for (auto& animation : m_animations.animations())
-        animations.append({ animatedPropertyIDAsString(animation.keyframes().property()), animation.state() == TextureMapperAnimation::State::Playing ? 1.0 : 0.0, false });
+        animations.append({ animatedPropertyIDAsString(animation.keyframes().property()), animation.state() == TextureMapperAnimation::State::Playing ? 1.0 : 0.0, false, false });
     return animations;
 }
 

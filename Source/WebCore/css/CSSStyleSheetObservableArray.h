@@ -52,7 +52,7 @@ private:
     unsigned length() const final { return m_sheets.size(); }
     void shrinkTo(unsigned) final;
 
-    TreeScope* treeScope() const;
+    TreeScope* NODELETE treeScope() const;
 
     void didAddSheet(CSSStyleSheet&);
     void willRemoveSheet(CSSStyleSheet&);

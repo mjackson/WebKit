@@ -50,6 +50,8 @@ enum class WebKit::GestureType : uint8_t {
     PhraseBoundaryChanged,
 };
 
+enum class WebKit::RespectSelectionAnchor : bool
+
 enum class WebKit::SelectionTouch : uint8_t {
     Started,
     Moved,

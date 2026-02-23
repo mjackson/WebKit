@@ -54,7 +54,7 @@ struct AtomStringVectorReader {
     Vector<AtomString> consumeSubvector(size_t subvectorSize);
 };
 
-const AtomString& AtomStringVectorReader::consumeString()
+const AtomString& NODELETE AtomStringVectorReader::consumeString()
 {
     if (index == vector.size())
         return nullAtom();
@@ -104,7 +104,7 @@ class FormController::SavedFormState {
 public:
     static SavedFormState consumeSerializedState(AtomStringVectorReader&);
 
-    bool isEmpty() const { return m_map.isEmpty(); }
+    bool NODELETE isEmpty() const { return m_map.isEmpty(); }
 
     using FormElementKey = std::pair<AtomString, AtomString>;
     FormControlState takeControlState(const FormElementKey&);

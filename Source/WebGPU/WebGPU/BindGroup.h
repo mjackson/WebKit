@@ -58,7 +58,7 @@ class BindGroup : public RefCountedAndCanMakeWeakPtr<BindGroup>, public WGPUBind
 public:
     template <typename T>
     using ShaderStageArray = EnumeratedArray<ShaderStage, T, ShaderStage::Compute>;
-    using SamplersContainer = HashMap<RefPtr<Sampler>, ShaderStageArray<std::optional<uint32_t>>>;
+    using SamplersContainer = HashMap<Ref<Sampler>, ShaderStageArray<std::optional<uint32_t>>>;
     struct BufferAndType {
         WGPUBufferBindingType type;
         uint64_t bindingSize;

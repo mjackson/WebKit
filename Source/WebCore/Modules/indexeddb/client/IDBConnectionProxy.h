@@ -120,7 +120,7 @@ public:
 
     IDBConnectionIdentifier serverConnectionIdentifier() const { return m_serverConnectionIdentifier; }
 
-    void ref();
+    void NODELETE ref();
     void deref();
 
     void getAllDatabaseNamesAndVersions(ScriptExecutionContext&, Function<void(std::optional<Vector<IDBDatabaseNameAndVersion>>&&)>&&);
@@ -134,7 +134,7 @@ public:
     void abortActivitiesForCurrentThread();
     void setContextSuspended(ScriptExecutionContext& currentContext, bool isContextSuspended);
 
-    PAL::SessionID sessionID() const;
+    PAL::SessionID NODELETE sessionID() const;
 
 private:
     void completeOpenDBRequest(const IDBResultData&);

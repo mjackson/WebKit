@@ -306,7 +306,7 @@ private:
     WebCore::IncludeDynamicContentScalingDisplayList shouldIncludeDisplayListInBackingStore() const;
 #endif
 
-    bool requiresCustomAppearanceUpdateOnBoundsChange() const;
+    bool NODELETE requiresCustomAppearanceUpdateOnBoundsChange() const;
 
     WebCore::LayerPool* layerPool() override;
 

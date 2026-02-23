@@ -77,7 +77,7 @@ private:
     void updateConstantsForSafeAreaInsets();
     void updateConstantsForFullscreen();
 
-    Ref<Document> protectedDocument() const;
+    Ref<Document> NODELETE protectedDocument() const;
 
     std::optional<Values> m_values;
 

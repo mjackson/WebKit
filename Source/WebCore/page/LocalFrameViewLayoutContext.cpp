@@ -66,7 +66,7 @@ UpdateScrollInfoAfterLayoutTransaction::~UpdateScrollInfoAfterLayoutTransaction(
 
 static bool isObjectAncestorContainerOf(RenderElement& ancestor, RenderElement& descendant)
 {
-    for (auto* renderer = &descendant; renderer; renderer = renderer->container()) {
+    for (CheckedPtr renderer = &descendant; renderer; renderer = renderer->container()) {
         if (renderer == &ancestor)
             return true;
     }
@@ -162,7 +162,7 @@ void LocalFrameViewLayoutContext::layout(bool canDeferUpdateLayerPositions)
 
     Style::Scope::LayoutDependencyUpdateContext layoutDependencyUpdateContext;
     while (document() && document()->styleScope().invalidateForLayoutDependencies(layoutDependencyUpdateContext)) {
-        protectedDocument()->updateStyleIfNeeded();
+        protect(document())->updateStyleIfNeeded();
 
         if (!needsLayout())
             break;
@@ -221,7 +221,7 @@ void LocalFrameViewLayoutContext::performLayout(bool canDeferUpdateLayerPosition
     {
         SetForScope layoutPhase(m_layoutPhase, LayoutPhase::InPreLayout);
 
-        if (!protectedDocument()->isInStyleInterleavedLayoutForSelfOrAncestor()) {
+        if (!protect(document())->isInStyleInterleavedLayoutForSelfOrAncestor()) {
             // If this is a new top-level layout and there are any remaining tasks from the previous layout, finish them now.
             if (!isLayoutNested() && m_postLayoutTaskTimer.isActive())
                 runPostLayoutTasks();
@@ -369,7 +369,7 @@ void LocalFrameViewLayoutContext::flushUpdateLayerPositions()
     if (!view)
         return;
 
-    auto repaintRectEnvironment = RepaintRectEnvironment { view->page().deviceScaleFactor(), protectedDocument()->printing(), protect(this->view())->useFixedLayout() };
+    auto repaintRectEnvironment = RepaintRectEnvironment { view->page().deviceScaleFactor(), protect(document())->printing(), protect(this->view())->useFixedLayout() };
     bool environmentChanged = repaintRectEnvironment != m_lastRepaintRectEnvironment;
 
     auto updateLayerPositions = *std::exchange(m_pendingUpdateLayerPositions, std::nullopt);
@@ -389,7 +389,7 @@ bool LocalFrameViewLayoutContext::updateCompositingLayersAfterStyleChange()
     if (needsLayout() || isInLayout())
         return false;
 
-    auto repaintRectEnvironment = RepaintRectEnvironment { view->page().deviceScaleFactor(), protectedDocument()->printing(), protect(this->view())->useFixedLayout() };
+    auto repaintRectEnvironment = RepaintRectEnvironment { view->page().deviceScaleFactor(), protect(document())->printing(), protect(this->view())->useFixedLayout() };
     bool environmentChanged = repaintRectEnvironment != m_lastRepaintRectEnvironment;
 
     view->layer()->updateLayerPositionsAfterStyleChange(environmentChanged);
@@ -414,7 +414,7 @@ void LocalFrameViewLayoutContext::markForUpdateLayerPositionsAfterSVGTransformCh
 
 void LocalFrameViewLayoutContext::updateCompositingLayersAfterLayout()
 {
-    auto* renderView = this->renderView();
+    CheckedPtr renderView = this->renderView();
     if (!renderView)
         return;
 
@@ -459,7 +459,7 @@ bool LocalFrameViewLayoutContext::needsLayoutInternal() const
     // This can return true in cases where the document does not have a body yet.
     // Document::shouldScheduleLayout takes care of preventing us from scheduling
     // layout in that case.
-    auto* renderView = this->renderView();
+    CheckedPtr renderView = this->renderView();
     return isLayoutPending()
         || (renderView && renderView->needsLayout())
         || subtreeLayoutRoot()
@@ -473,7 +473,7 @@ void LocalFrameViewLayoutContext::setNeedsLayoutAfterViewConfigurationChange()
         return;
     }
 
-    if (auto* renderView = this->renderView()) {
+    if (CheckedPtr renderView = this->renderView()) {
         ASSERT(!document()->inHitTesting());
         renderView->setNeedsLayout();
         scheduleLayout();
@@ -517,7 +517,7 @@ void LocalFrameViewLayoutContext::scheduleLayout()
         LOG(Layout, "LocalFrameView %p layout timer scheduled at %.3fs", this, document->timeSinceDocumentCreation().value());
 #endif
 
-    InspectorInstrumentation::didInvalidateLayout(protectedFrame());
+    InspectorInstrumentation::didInvalidateLayout(protect(frame()));
     m_layoutTimer.startOneShot(0_s);
 }
 
@@ -540,33 +540,33 @@ void LocalFrameViewLayoutContext::unscheduleLayout()
 void LocalFrameViewLayoutContext::scheduleSubtreeLayout(RenderElement& layoutRoot)
 {
     ASSERT(renderView());
-    auto& renderView = *this->renderView();
+    CheckedRef renderView = *this->renderView();
 
     // Try to catch unnecessary work during render tree teardown.
-    ASSERT(!renderView.renderTreeBeingDestroyed());
+    ASSERT(!renderView->renderTreeBeingDestroyed());
     ASSERT(frame().view() == &view());
 
-    if (renderView.needsLayout() && !subtreeLayoutRoot()) {
-        layoutRoot.markContainingBlocksForLayout(&renderView);
+    if (renderView->needsLayout() && !subtreeLayoutRoot()) {
+        layoutRoot.markContainingBlocksForLayout(renderView.ptr());
         return;
     }
 
     if (!isLayoutPending() && isLayoutSchedulingEnabled()) {
         ASSERT(!layoutRoot.container() || is<RenderView>(layoutRoot.container()) || !layoutRoot.container()->needsLayout());
         setSubtreeLayoutRoot(layoutRoot);
-        InspectorInstrumentation::didInvalidateLayout(protectedFrame());
+        InspectorInstrumentation::didInvalidateLayout(protect(frame()));
         m_layoutTimer.startOneShot(0_s);
         return;
     }
 
-    auto* subtreeLayoutRoot = this->subtreeLayoutRoot();
+    CheckedPtr subtreeLayoutRoot = this->subtreeLayoutRoot();
     if (subtreeLayoutRoot == &layoutRoot)
         return;
 
     if (!subtreeLayoutRoot) {
         // We already have a pending (full) layout. Just mark the subtree for layout.
-        layoutRoot.markContainingBlocksForLayout(&renderView);
-        InspectorInstrumentation::didInvalidateLayout(protectedFrame());
+        layoutRoot.markContainingBlocksForLayout(renderView.ptr());
+        InspectorInstrumentation::didInvalidateLayout(protect(frame()));
         return;
     }
 
@@ -582,13 +582,13 @@ void LocalFrameViewLayoutContext::scheduleSubtreeLayout(RenderElement& layoutRoo
         subtreeLayoutRoot->markContainingBlocksForLayout(&layoutRoot);
         setSubtreeLayoutRoot(layoutRoot);
         ASSERT(!layoutRoot.container() || is<RenderView>(layoutRoot.container()) || !layoutRoot.container()->needsLayout());
-        InspectorInstrumentation::didInvalidateLayout(protectedFrame());
+        InspectorInstrumentation::didInvalidateLayout(protect(frame()));
         return;
     }
     // Two disjoint subtrees need layout. Mark both of them and issue a full layout instead.
     convertSubtreeLayoutToFullLayout();
-    layoutRoot.markContainingBlocksForLayout(&renderView);
-    InspectorInstrumentation::didInvalidateLayout(protectedFrame());
+    layoutRoot.markContainingBlocksForLayout(renderView.ptr());
+    InspectorInstrumentation::didInvalidateLayout(protect(frame()));
 }
 
 void LocalFrameViewLayoutContext::layoutTimerFired()
@@ -635,7 +635,7 @@ bool LocalFrameViewLayoutContext::canPerformLayout() const
 void LocalFrameViewLayoutContext::applyTextSizingIfNeeded(RenderElement& layoutRoot)
 {
     ASSERT(document());
-    if (protectedDocument()->quirks().shouldIgnoreTextAutoSizing())
+    if (protect(document())->quirks().shouldIgnoreTextAutoSizing())
         return;
     Ref settings = layoutRoot.settings();
     bool idempotentMode = settings->textAutosizingUsesIdempotentMode();
@@ -896,11 +896,6 @@ LocalFrame& LocalFrameViewLayoutContext::frame() const
     return view().frame();
 }
 
-Ref<LocalFrame> LocalFrameViewLayoutContext::protectedFrame()
-{
-    return frame();
-}
-
 LocalFrameView& LocalFrameViewLayoutContext::view() const
 {
     return m_frameView.get();
@@ -914,11 +909,6 @@ RenderView* LocalFrameViewLayoutContext::renderView() const
 Document* LocalFrameViewLayoutContext::document() const
 {
     return frame().document();
-}
-
-RefPtr<Document> LocalFrameViewLayoutContext::protectedDocument() const
-{
-    return document();
 }
 
 } // namespace WebCore

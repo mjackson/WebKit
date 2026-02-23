@@ -13,6 +13,7 @@ bridge/objc/objc_instance.mm
 bridge/objc/objc_runtime.mm
 bridge/objc/objc_utility.mm
 crypto/cocoa/SerializedCryptoKeyWrapMac.mm
+[ iOS ] editing/cocoa/DataDetection.mm
 editing/cocoa/EditingHTMLConverter.mm
 editing/cocoa/NodeHTMLConverter.mm
 loader/archive/cf/LegacyWebArchive.cpp
@@ -23,19 +24,20 @@ loader/archive/cf/LegacyWebArchive.cpp
 [ Mac ] page/scrolling/mac/ScrollingTreeScrollingNodeDelegateMac.mm
 [ iOS ] platform/audio/ios/AudioSessionIOS.mm
 platform/cf/KeyedDecoderCF.cpp
-[ iOS ] platform/cocoa/ContentFilterUnblockHandlerCocoa.mm
 [ Mac ] platform/cocoa/DragImageCocoa.mm
 platform/cocoa/PlatformPasteboardCocoa.mm
 platform/cocoa/RemoteCommandListenerCocoa.mm
 platform/cocoa/SerializedPlatformDataCueValue.mm
 platform/cocoa/SystemVersion.mm
 [ iOS ] platform/cocoa/WebAVPlayerLayerView.mm
+[ iOS ] platform/graphics/avfoundation/FormatDescriptionUtilities.cpp
 [ Mac ] platform/graphics/avfoundation/objc/AVRoutePickerViewTargetPicker.mm
 platform/graphics/avfoundation/objc/CDMInstanceFairPlayStreamingAVFObjC.mm
 platform/graphics/avfoundation/objc/CDMSessionAVContentKeySession.mm
 platform/graphics/avfoundation/objc/MediaPlayerPrivateMediaStreamAVFObjC.mm
 platform/graphics/avfoundation/objc/SourceBufferParserAVFObjC.mm
 platform/graphics/avfoundation/objc/SourceBufferPrivateAVFObjC.mm
+[ iOS ] platform/graphics/ca/cocoa/PlatformCALayerCocoa.mm
 platform/graphics/cg/GradientRendererCG.cpp
 platform/graphics/cg/GraphicsContextCG.cpp
 platform/graphics/cg/GraphicsContextGLCG.cpp

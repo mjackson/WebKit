@@ -68,8 +68,12 @@ void RenderSVGRect::updateShapeFromElement()
     FloatSize boundingBoxSize(lengthContext.valueForLength(style->width(), usedZoom, SVGLengthMode::Width), lengthContext.valueForLength(style->height(), usedZoom, SVGLengthMode::Height));
 
     // Spec: "A negative value is illegal. A value of zero disables rendering of the element."
-    if (boundingBoxSize.isEmpty())
+    if (boundingBoxSize.isEmpty()) {
+        // We set this for getBBox().
+        m_fillBoundingBox = FloatRect(FloatPoint(lengthContext.valueForLength(style->x(), Style::ZoomNeeded { }, SVGLengthMode::Width),
+            lengthContext.valueForLength(style->y(), Style::ZoomNeeded { }, SVGLengthMode::Height)), boundingBoxSize);
         return;
+    }
 
     if (lengthContext.valueForLength(style->rx(), Style::ZoomNeeded { }, SVGLengthMode::Width) > 0
         || lengthContext.valueForLength(style->ry(), Style::ZoomNeeded { }, SVGLengthMode::Height) > 0)
@@ -84,11 +88,10 @@ void RenderSVGRect::updateShapeFromElement()
     }
 
     m_fillBoundingBox = FloatRect(FloatPoint(lengthContext.valueForLength(style->x(), Style::ZoomNeeded { }, SVGLengthMode::Width),
-        lengthContext.valueForLength(style->y(), Style::ZoomNeeded { }, SVGLengthMode::Height)),
-        boundingBoxSize);
+        lengthContext.valueForLength(style->y(), Style::ZoomNeeded { }, SVGLengthMode::Height)), boundingBoxSize);
 
     auto strokeBoundingBox = m_fillBoundingBox;
-    if (style->hasStroke())
+    if (!style->stroke().isNone())
         strokeBoundingBox.inflate(this->strokeWidth() / 2);
 
 #if USE(CG)
@@ -160,7 +163,7 @@ bool RenderSVGRect::definitelyHasSimpleStroke() const
 
 void RenderSVGRect::strokeShape(GraphicsContext& context) const
 {
-    if (!style().hasStroke() || !style().strokeWidth().isPossiblyPositive())
+    if (style().stroke().isNone() || !style().strokeWidth().isPossiblyPositive())
         return;
 
     if (hasPath()) {

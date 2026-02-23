@@ -247,8 +247,7 @@ bool GPUProcessConnection::dispatchMessage(IPC::Connection& connection, IPC::Dec
 
 #if PLATFORM(COCOA) && ENABLE(MEDIA_STREAM)
     if (decoder.messageReceiverName() == Messages::UserMediaCaptureManager::messageReceiverName()) {
-        if (RefPtr captureManager = WebProcess::singleton().supplement<UserMediaCaptureManager>())
-            captureManager->didReceiveMessageFromGPUProcess(connection, decoder);
+        protect(WebProcess::singleton().userMediaCaptureManager())->didReceiveMessageFromGPUProcess(connection, decoder);
         return true;
     }
 
@@ -430,9 +429,14 @@ void GPUProcessConnection::updateMediaConfiguration(bool forceUpdate)
 }
 
 #if ENABLE(EXTENSION_CAPABILITIES)
-void GPUProcessConnection::setMediaEnvironment(WebCore::PageIdentifier pageIdentifier, const String& mediaEnvironment)
+void GPUProcessConnection::setMediaPlaybackEnvironment(WebCore::PageIdentifier pageIdentifier, const String& environment)
 {
-    m_connection->send(Messages::GPUConnectionToWebProcess::SetMediaEnvironment(pageIdentifier, mediaEnvironment), { });
+    m_connection->send(Messages::GPUConnectionToWebProcess::SetMediaPlaybackEnvironment(pageIdentifier, environment), { });
+}
+
+void GPUProcessConnection::setDisplayCaptureEnvironment(WebCore::PageIdentifier pageIdentifier, const String& environment)
+{
+    m_connection->send(Messages::GPUConnectionToWebProcess::SetDisplayCaptureEnvironment(pageIdentifier, environment), { });
 }
 #endif
 

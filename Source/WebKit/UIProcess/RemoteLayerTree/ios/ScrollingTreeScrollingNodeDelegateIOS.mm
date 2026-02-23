@@ -395,11 +395,6 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         END_BLOCK_OBJC_EXCEPTIONS
     }
 
-    if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::RequestedScrollPosition)) {
-        scrollingNode->handleScrollPositionRequest(scrollingStateNode.requestedScrollData());
-        scrollingTree()->setNeedsApplyLayerPositionsAfterCommit();
-    }
-
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollbarWidth)) {
         auto scrollbarWidth = scrollingStateNode.scrollbarWidth();
 

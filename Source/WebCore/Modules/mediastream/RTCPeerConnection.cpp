@@ -371,7 +371,7 @@ void RTCPeerConnection::createAnswer(RTCAnswerOptions&& options, Ref<DeferredPro
     });
 }
 
-static RTCSdpType typeForSetLocalDescription(const std::optional<RTCLocalSessionDescriptionInit>& description, RTCSignalingState signalingState)
+static RTCSdpType NODELETE typeForSetLocalDescription(const std::optional<RTCLocalSessionDescriptionInit>& description, RTCSignalingState signalingState)
 {
     std::optional<RTCSdpType> type;
     if (description)
@@ -483,9 +483,6 @@ void RTCPeerConnection::addIceCandidate(Candidate&& rtcCandidate, Ref<DeferredPr
         promise->reject(Exception { ExceptionCode::TypeError, "Trying to add a candidate that is missing both sdpMid and sdpMLineIndex"_s });
         return;
     }
-
-    if (isClosed())
-        return;
 
     chainOperation(WTF::move(promise), [this, candidate = WTF::move(candidate)](Ref<DeferredPromise>&& promise) mutable {
         protectedBackend()->addIceCandidate(candidate.get(), [protectedThis = Ref { *this }, promise = DOMPromiseDeferred<void>(WTF::move(promise))](auto&& result) mutable {
@@ -851,7 +848,7 @@ void RTCPeerConnection::updateIceConnectionState(RTCIceConnectionState)
     });
 }
 
-static bool isIceTransportUsedByTransceiver(const RTCIceTransport& iceTransport, RTCRtpTransceiver& transceiver)
+static bool NODELETE isIceTransportUsedByTransceiver(const RTCIceTransport& iceTransport, RTCRtpTransceiver& transceiver)
 {
     auto* dtlsTransport = transceiver.sender().transport();
     return dtlsTransport && &dtlsTransport->iceTransport() == &iceTransport;
@@ -998,6 +995,8 @@ void RTCPeerConnection::updateNegotiationNeededFlag(std::optional<uint32_t> even
 void RTCPeerConnection::scheduleEvent(Ref<Event>&& event)
 {
     queueTaskKeepingObjectAlive(*this, TaskSource::Networking, [event = WTF::move(event)](auto& connection) mutable {
+        if (connection.isClosed())
+            return;
         connection.dispatchEvent(event);
     });
 }

@@ -44,7 +44,7 @@ public:
 
     const RenderView& view() const { return m_view; }
 
-    static bool isRebuildRootForChildren(const RenderElement&);
+    static bool NODELETE isRebuildRootForChildren(const RenderElement&);
 
     void attach(RenderElement& parent, RenderPtr<RenderObject>, RenderObject* beforeChild = nullptr);
 

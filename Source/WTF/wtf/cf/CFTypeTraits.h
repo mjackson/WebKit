@@ -70,6 +70,16 @@ WTF_DECLARE_CF_MUTABLE_TYPE_TRAIT(CFData, CFMutableData);
 WTF_DECLARE_CF_MUTABLE_TYPE_TRAIT(CFDictionary, CFMutableDictionary);
 WTF_DECLARE_CF_MUTABLE_TYPE_TRAIT(CFString, CFMutableString);
 
+#if USE(CG)
+#include <CoreGraphics/CGColor.h>
+#include <CoreGraphics/CGImage.h>
+#include <CoreGraphics/CGPath.h>
+WTF_DECLARE_CF_TYPE_TRAIT(CGColor);
+WTF_DECLARE_CF_TYPE_TRAIT(CGImage);
+WTF_DECLARE_CF_TYPE_TRAIT(CGPath);
+WTF_DECLARE_CF_MUTABLE_TYPE_TRAIT(CGPath, CGMutablePath);
+#endif
+
 namespace WTF {
 
 namespace detail {

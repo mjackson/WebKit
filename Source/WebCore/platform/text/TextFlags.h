@@ -379,7 +379,7 @@ enum class FontOpticalSizing : bool {
 WTF::TextStream& operator<<(WTF::TextStream&, FontOpticalSizing);
 
 // https://www.microsoft.com/typography/otspec/fvar.htm#VAT
-enum class FontStyleAxis : uint8_t {
+enum class FontStyleAxis : bool {
     slnt,
     ital
 };

@@ -32,6 +32,8 @@
 // - select between the headers generated using built-in or custom build
 //   actions on different SDK versions
 
+#include <wtf/Platform.h>
+
 // If Swift function parameters or return types depend on C++ types, the
 // relevant headers must be included here. rdar://165068038
 #include "APIArray.h"
@@ -43,6 +45,10 @@
 
 #ifdef __OBJC__
 #include "WKUIDelegatePrivate.h"
+#endif
+
+#if USE(APPLE_INTERNAL_SDK)
+#include <WebKitAdditions/WebKit-Swift-Additions.h>
 #endif
 
 // rdar://165192318

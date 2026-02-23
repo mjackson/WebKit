@@ -60,7 +60,7 @@ void RemoteGraphicsContextGL::copyTextureFromVideoFrame(WebKit::SharedVideoFrame
         return;
     }
     texture = m_objectNames.get(texture);
-    bool result = protectedContext()->copyTextureFromVideoFrame(*videoFrame, texture, target, level, internalFormat, format, type, premultiplyAlpha, flipY);
+    bool result = protect(m_context)->copyTextureFromVideoFrame(*videoFrame, texture, target, level, internalFormat, format, type, premultiplyAlpha, flipY);
     completionHandler(result);
 }
 

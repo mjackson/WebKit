@@ -64,10 +64,10 @@ public:
         return adoptRef(*new DeviceMotionEvent);
     }
 
-    std::optional<Acceleration> acceleration() const;
-    std::optional<Acceleration> accelerationIncludingGravity() const;
-    std::optional<RotationRate> rotationRate() const;
-    std::optional<double> interval() const;
+    std::optional<Acceleration> NODELETE acceleration() const;
+    std::optional<Acceleration> NODELETE accelerationIncludingGravity() const;
+    std::optional<RotationRate> NODELETE rotationRate() const;
+    std::optional<double> NODELETE interval() const;
 
     void initDeviceMotionEvent(const AtomString& type, bool bubbles, bool cancelable, std::optional<Acceleration>&&, std::optional<Acceleration>&&, std::optional<RotationRate>&&, std::optional<double>);
 

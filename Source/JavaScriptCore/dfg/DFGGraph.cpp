@@ -1865,8 +1865,7 @@ MethodOfGettingAValueProfile Graph::methodOfGettingAValueProfileFor(Node* curren
                 OpcodeID opcodeID = instruction->opcodeID();
                 switch (opcodeID) {
                 case op_tail_call:
-                case op_tail_call_varargs:
-                case op_tail_call_forward_arguments: {
+                case op_tail_call_varargs: {
                     InlineCallFrame* inlineCallFrame = node->origin.semantic.inlineCallFrame();
                     if (!inlineCallFrame)
                         return { }; // TailCall in the outermost function.

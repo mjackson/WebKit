@@ -111,7 +111,7 @@ protected:
     unsigned short m_buttons { 0 };
     Vector<PlatformMouseEvent> m_coalescedEvents;
     Vector<PlatformMouseEvent> m_predictedEvents;
-    MouseEventInputSource m_inputSource { MouseEventInputSource::Hardware };
+    MouseEventInputSource m_inputSource { MouseEventInputSource::UserDriven };
 #if PLATFORM(MAC)
     int m_eventNumber { 0 };
     int m_menuTypeForEvent { 0 };
