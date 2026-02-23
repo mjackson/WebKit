@@ -98,11 +98,6 @@ public:
         return false;
     }
 
-    bool isAsyncFrameWithoutCodeBlock() const
-    {
-        return isAsyncFrame() && !codeBlock();
-    }
-
 #if USE(BUN_JSC_ADDITIONS)
     bool isAsyncFrame() const
     {
@@ -111,6 +106,11 @@ public:
         return false;
     }
 #endif
+
+    bool isAsyncFrameWithoutCodeBlock() const
+    {
+        return isAsyncFrame() && !codeBlock();
+    }
 
     LineColumn computeLineAndColumn() const;
     String functionName(VM&) const;
