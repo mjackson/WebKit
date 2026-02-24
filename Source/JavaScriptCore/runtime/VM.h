@@ -1139,13 +1139,13 @@ public:
     const ErrorInfoFunctionJSValue& onComputeErrorInfoJSValue() const { return m_onComputeErrorInfoJSValue; }
     ErrorInfoFunctionJSValue& onComputeErrorInfoJSValue() { return m_onComputeErrorInfoJSValue; }
     
-    const WTF::Function<void(VM&, SourceProvider*, LineColumn&, String*)>& computeLineColumnWithSourcemap() const { return m_computeLineColumnWithSourcemap; }
-    WTF::Function<void(VM&, SourceProvider*, LineColumn&, String*)>& computeLineColumnWithSourcemap() { return m_computeLineColumnWithSourcemap; }
+    const WTF::Function<void(VM&, SourceProvider*, LineColumn&, String&)>& computeLineColumnWithSourcemap() const { return m_computeLineColumnWithSourcemap; }
+    WTF::Function<void(VM&, SourceProvider*, LineColumn&, String&)>& computeLineColumnWithSourcemap() { return m_computeLineColumnWithSourcemap; }
 
     void setOnAppendStackTrace(StackTraceAppenderFunction&& function) { m_onAppendStackTrace = WTF::move(function); }
     void setOnComputeErrorInfo(ErrorInfoFunction&& function) { m_onComputeErrorInfo = WTF::move(function); }
     void setOnComputeErrorInfoJSValue(ErrorInfoFunctionJSValue&& function) { m_onComputeErrorInfoJSValue = WTF::move(function); }
-    void setComputeLineColumnWithSourcemap(WTF::Function<void(VM&, SourceProvider*, LineColumn&, String*)>&& function) { m_computeLineColumnWithSourcemap = WTF::move(function); }
+    void setComputeLineColumnWithSourcemap(WTF::Function<void(VM&, SourceProvider*, LineColumn&, String&)>&& function) { m_computeLineColumnWithSourcemap = WTF::move(function); }
 #endif
     
     template<typename Func>
@@ -1364,7 +1364,7 @@ private:
     ErrorInfoFunction m_onComputeErrorInfo;
     ErrorInfoFunctionJSValue m_onComputeErrorInfoJSValue;
     StackTraceAppenderFunction m_onAppendStackTrace;
-    WTF::Function<void(VM&, SourceProvider*, LineColumn&, String*)> m_computeLineColumnWithSourcemap;
+    WTF::Function<void(VM&, SourceProvider*, LineColumn&, String&)> m_computeLineColumnWithSourcemap;
 #endif
     uintptr_t m_currentWeakRefVersion { 0 };
 
