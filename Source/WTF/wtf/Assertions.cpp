@@ -655,7 +655,13 @@ void WTFInitializeLogChannelStatesFromString(WTFLogChannel* channels[], size_t c
 
 #if USE(BUN_JSC_ADDITIONS)
 
-extern "C" void __attribute__((__noreturn__)) Bun__panic(const char* message, size_t length);
+#if COMPILER(MSVC)
+extern "C" void Bun__panicFallback(const char*, size_t) { CRASH(); }
+extern "C" void Bun__panic(const char* message, size_t length);
+#pragma comment(linker, "/alternatename:Bun__panic=Bun__panicFallback")
+#else
+extern "C" __attribute__((__weak__)) void Bun__panic(const char* message, size_t length) { CRASH(); }
+#endif
 
 void bunPanicFromCrash(const char* file, int line, const char* function)
 {
@@ -664,6 +670,7 @@ void bunPanicFromCrash(const char* file, int line, const char* function)
     if (len < 0 || len >= static_cast<int>(sizeof(buf)))
         len = sizeof(buf) - 1;
     Bun__panic(buf, static_cast<size_t>(len));
+    CRASH();
 }
 
 #endif // USE(BUN_JSC_ADDITIONS)

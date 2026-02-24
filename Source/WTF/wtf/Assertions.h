@@ -1010,6 +1010,10 @@ inline void compilerFenceForCrash()
     asm volatile("" ::: "memory");
 }
 
+#define PP_THIRD_ARG(a,b,c,...) c
+#define VA_OPT_SUPPORTED_I(...) PP_THIRD_ARG(__VA_OPT__(,),true,false,)
+#define VA_OPT_SUPPORTED VA_OPT_SUPPORTED_I(?)
+
 #ifndef CRASH_WITH_INFO
 
 #if USE(BUN_JSC_ADDITIONS)
@@ -1021,10 +1025,6 @@ WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH void bunPanicFromCrash(const char* fil
     } while (false)
 
 #else
-
-#define PP_THIRD_ARG(a,b,c,...) c
-#define VA_OPT_SUPPORTED_I(...) PP_THIRD_ARG(__VA_OPT__(,),true,false,)
-#define VA_OPT_SUPPORTED VA_OPT_SUPPORTED_I(?)
 
 // This is useful if you are going to stuff data into registers before crashing, like the
 // crashWithInfo functions below.
