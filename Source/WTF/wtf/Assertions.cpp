@@ -653,6 +653,21 @@ void WTFInitializeLogChannelStatesFromString(WTFLogChannel* channels[], size_t c
 
 } // extern "C"
 
+#if USE(BUN_JSC_ADDITIONS)
+
+extern "C" void __attribute__((__noreturn__)) Bun__panic(const char* message, size_t length);
+
+void bunPanicFromCrash(const char* file, int line, const char* function)
+{
+    char buf[1024];
+    int len = snprintf(buf, sizeof(buf), "RELEASE_ASSERT in %s at %s:%d", function, file, line);
+    if (len < 0 || len >= static_cast<int>(sizeof(buf)))
+        len = sizeof(buf) - 1;
+    Bun__panic(buf, static_cast<size_t>(len));
+}
+
+#endif // USE(BUN_JSC_ADDITIONS)
+
 #if !ASAN_ENABLED && (OS(DARWIN) || PLATFORM(PLAYSTATION)) && (CPU(X86_64) || CPU(ARM64))
 
 void WTFCrashWithInfoImpl(int, const char*, const char*, uint64_t reason, uint64_t misc1, uint64_t misc2, uint64_t misc3, uint64_t misc4, uint64_t misc5, uint64_t misc6)

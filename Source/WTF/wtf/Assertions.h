@@ -1012,6 +1012,16 @@ inline void compilerFenceForCrash()
 
 #ifndef CRASH_WITH_INFO
 
+#if USE(BUN_JSC_ADDITIONS)
+
+WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH void bunPanicFromCrash(const char* file, int line, const char* function);
+
+#define CRASH_WITH_INFO(...) do { \
+        bunPanicFromCrash(__FILE__, __LINE__, WTF_PRETTY_FUNCTION); \
+    } while (false)
+
+#else
+
 #define PP_THIRD_ARG(a,b,c,...) c
 #define VA_OPT_SUPPORTED_I(...) PP_THIRD_ARG(__VA_OPT__(,),true,false,)
 #define VA_OPT_SUPPORTED VA_OPT_SUPPORTED_I(?)
@@ -1031,6 +1041,8 @@ inline void compilerFenceForCrash()
         WTFCrashWithInfo(__LINE__, __FILE__, WTF_PRETTY_FUNCTION __VA_OPT__(,) __VA_ARGS__); \
     } while (false)
 #endif
+
+#endif // USE(BUN_JSC_ADDITIONS)
 #endif // CRASH_WITH_INFO
 
 #ifndef CRASH_WITH_SECURITY_IMPLICATION_AND_INFO
