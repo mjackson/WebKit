@@ -1109,7 +1109,10 @@ Ref<JSON::Value> SamplingProfiler::stackTracesAsJSON()
 #if USE(BUN_JSC_ADDITIONS)
             auto& fn = m_vm.computeLineColumnWithSourcemap();
             if (fn) {
-                fn(m_vm, provider, sourceMappedLineColumn);
+                String remappedURL;
+                fn(m_vm, provider, sourceMappedLineColumn, remappedURL);
+                if (!remappedURL.isEmpty())
+                    result->setString("sourceURL"_s, remappedURL);
             }
 #endif
         }
@@ -1132,7 +1135,8 @@ Ref<JSON::Value> SamplingProfiler::stackTracesAsJSON()
 #if USE(BUN_JSC_ADDITIONS)
                 auto& fn = m_vm.computeLineColumnWithSourcemap();
                 if (fn) {
-                    fn(m_vm, provider, sourceMappedLineColumn);
+                    String inlinerRemappedURL;
+                    fn(m_vm, provider, sourceMappedLineColumn, inlinerRemappedURL);
                 }
 #endif
             }
