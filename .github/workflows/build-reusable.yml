@@ -182,6 +182,20 @@ jobs:
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: "Release"
             RELEASE_FLAGS: "-O3 -DNDEBUG=1"
+          - lto_flag: "-flto=full  -fwhole-program-vtables -fforce-emit-vtables"
+            label: bun-webkit-linux-amd64-baseline-lto
+            os: linux-x64-gh
+            package_json_arch: "x64"
+            CMAKE_BUILD_TYPE: "Release"
+            RELEASE_FLAGS: "-O3 -DNDEBUG=1"
+            MARCH_FLAG: "-march=nehalem"
+          - lto_flag: ""
+            label: bun-webkit-linux-amd64-baseline
+            os: linux-x64-gh
+            package_json_arch: "x64"
+            CMAKE_BUILD_TYPE: "Release"
+            RELEASE_FLAGS: "-O3 -DNDEBUG=1"
+            MARCH_FLAG: "-march=nehalem"
           - lto_flag: ""
             label: bun-webkit-linux-amd64-asan
             os: linux-x64-gh
@@ -218,8 +232,8 @@ jobs:
           rm -rf ${{runner.temp}}/bun-webkit ${{runner.temp}}/bun-webkit.tar.gz
           if [ "${{matrix.package_json_arch}}" = "arm64" ]; then
             export MARCH_FLAG="-march=armv8-a+crc -mtune=ampere1"
-          elif [ "${{matrix.package_json_arch}}" = "x64" ]; then
-            export MARCH_FLAG="-march=nehalem"
+          else
+            export MARCH_FLAG="${{ matrix.MARCH_FLAG || '-march=haswell' }}"
           fi
           WEBKIT_RELEASE_TYPE=${{matrix.CMAKE_BUILD_TYPE}} CPU="native" cpu=native LTO_FLAG="${{matrix.lto_flag}}" temp=${{runner.temp}} ENABLE_SANITIZERS="${{matrix.ENABLE_SANITIZERS}}" bash release.sh
           cd ${{runner.temp}}
@@ -248,6 +262,12 @@ jobs:
             package_json_arch: "x64"
             label: bun-webkit-windows-amd64-debug
             platform: x64
+          - runner: windows
+            build-type: Release
+            package_json_arch: "x64"
+            label: bun-webkit-windows-amd64-baseline
+            platform: x64
+            baseline: true
           - runner: windows-11-arm
             build-type: Release
             package_json_arch: "arm64"
@@ -312,7 +332,8 @@ jobs:
           $env:GITHUB_SHA = "${{ inputs.build_ref }}"
           $env:PACKAGE_JSON_ARCH = "${{matrix.package_json_arch}}"
           $env:GITHUB_REPOSITORY = "${{ github.repository }}"
-          ./windows-release.ps1 -Platform ${{matrix.platform}}
+          $baselineArg = if ("${{ matrix.baseline }}" -eq "true") { @("-Baseline") } else { @() }
+          ./windows-release.ps1 -Platform ${{matrix.platform}} @baselineArg
       - uses: actions/upload-artifact@v4
         with:
           name: ${{matrix.label}}
@@ -354,6 +375,18 @@ jobs:
             os: linux-x64-gh
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: "MinSizeRel"
+          - lto_flag: "-flto=full -fwhole-program-vtables -fforce-emit-vtables"
+            label: bun-webkit-linux-amd64-musl-baseline-lto
+            os: linux-x64-gh
+            package_json_arch: "x64"
+            CMAKE_BUILD_TYPE: "MinSizeRel"
+            MARCH_FLAG: "-march=nehalem"
+          - lto_flag: ""
+            label: bun-webkit-linux-amd64-musl-baseline
+            os: linux-x64-gh
+            package_json_arch: "x64"
+            CMAKE_BUILD_TYPE: "MinSizeRel"
+            MARCH_FLAG: "-march=nehalem"
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
@@ -373,8 +406,8 @@ jobs:
           rm -rf ${{runner.temp}}/bun-webkit ${{runner.temp}}/bun-webkit.tar.gz
           if [ "${{matrix.package_json_arch}}" = "arm64" ]; then
             export MARCH_FLAG="-march=armv8-a+crc -mtune=ampere1"
-          elif [ "${{matrix.package_json_arch}}" = "x64" ]; then
-            export MARCH_FLAG="-march=nehalem"
+          else
+            export MARCH_FLAG="${{ matrix.MARCH_FLAG || '-march=haswell' }}"
           fi
           WEBKIT_RELEASE_TYPE=${{matrix.CMAKE_BUILD_TYPE}} CPU="native" cpu=native LTO_FLAG="${{matrix.lto_flag}}" temp=${{runner.temp}} bash musl-release.sh
           cd ${{runner.temp}}
@@ -479,8 +512,20 @@ jobs:
           path: ${{runner.temp}}/bun-webkit-linux-arm64-lto
       - uses: actions/download-artifact@v4
         with:
+          name: bun-webkit-linux-amd64-baseline
+          path: ${{runner.temp}}/bun-webkit-linux-amd64-baseline
+      - uses: actions/download-artifact@v4
+        with:
+          name: bun-webkit-linux-amd64-baseline-lto
+          path: ${{runner.temp}}/bun-webkit-linux-amd64-baseline-lto
+      - uses: actions/download-artifact@v4
+        with:
           name: bun-webkit-windows-amd64
           path: ${{runner.temp}}/bun-webkit-windows-amd64
+      - uses: actions/download-artifact@v4
+        with:
+          name: bun-webkit-windows-amd64-baseline
+          path: ${{runner.temp}}/bun-webkit-windows-amd64-baseline
       - uses: actions/download-artifact@v4
         with:
           name: bun-webkit-windows-amd64-debug
@@ -517,6 +562,14 @@ jobs:
         with:
           name: bun-webkit-linux-arm64-musl-lto
           path: ${{runner.temp}}/bun-webkit-linux-arm64-musl-lto
+      - uses: actions/download-artifact@v4
+        with:
+          name: bun-webkit-linux-amd64-musl-baseline
+          path: ${{runner.temp}}/bun-webkit-linux-amd64-musl-baseline
+      - uses: actions/download-artifact@v4
+        with:
+          name: bun-webkit-linux-amd64-musl-baseline-lto
+          path: ${{runner.temp}}/bun-webkit-linux-amd64-musl-baseline-lto
 
       - name: Rename files
         run: |
@@ -541,9 +594,14 @@ jobs:
           mv ${{runner.temp}}/bun-webkit-macos-amd64-debug/bun-webkit.tar.gz ./out/bun-webkit-macos-amd64-debug.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-amd64-lto/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64-lto.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-arm64-lto/bun-webkit.tar.gz ./out/bun-webkit-linux-arm64-lto.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-amd64-baseline/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64-baseline.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-amd64-baseline-lto/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64-baseline-lto.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-amd64-musl-lto/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64-musl-lto.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-arm64-musl-lto/bun-webkit.tar.gz ./out/bun-webkit-linux-arm64-musl-lto.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-amd64-musl-baseline/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64-musl-baseline.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-amd64-musl-baseline-lto/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64-musl-baseline-lto.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-amd64/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64.tar.gz
+          mv ${{runner.temp}}/bun-webkit-windows-amd64-baseline/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64-baseline.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-amd64-debug/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64-debug.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-arm64/bun-webkit.tar.gz ./out/bun-webkit-windows-arm64.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-arm64-debug/bun-webkit.tar.gz ./out/bun-webkit-windows-arm64-debug.tar.gz
@@ -568,6 +626,8 @@ jobs:
             ./out/bun-webkit-linux-arm64.tar.gz
             ./out/bun-webkit-linux-amd64-lto.tar.gz
             ./out/bun-webkit-linux-arm64-lto.tar.gz
+            ./out/bun-webkit-linux-amd64-baseline.tar.gz
+            ./out/bun-webkit-linux-amd64-baseline-lto.tar.gz
             ./out/bun-webkit-linux-amd64-asan.tar.gz
             ./out/bun-webkit-linux-arm64-asan.tar.gz
             ./out/bun-webkit-linux-amd64-debug.tar.gz
@@ -583,6 +643,8 @@ jobs:
             ./out/bun-webkit-linux-arm64-musl.tar.gz
             ./out/bun-webkit-linux-amd64-musl-lto.tar.gz
             ./out/bun-webkit-linux-arm64-musl-lto.tar.gz
+            ./out/bun-webkit-linux-amd64-musl-baseline.tar.gz
+            ./out/bun-webkit-linux-amd64-musl-baseline-lto.tar.gz
             ./out/bun-webkit-linux-amd64-musl-debug.tar.gz
             ./out/bun-webkit-linux-arm64-musl-debug.tar.gz
 
@@ -602,6 +664,7 @@ jobs:
           tag_name: ${{ inputs.release_tag }}
           files: |
             ./out/bun-webkit-windows-amd64.tar.gz
+            ./out/bun-webkit-windows-amd64-baseline.tar.gz
             ./out/bun-webkit-windows-amd64-debug.tar.gz
             ./out/bun-webkit-windows-arm64.tar.gz
             ./out/bun-webkit-windows-arm64-debug.tar.gz
