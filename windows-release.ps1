@@ -1,6 +1,8 @@
 param(
     [ValidateSet("x64", "ARM64")]
-    [string]$Platform = "x64"
+    [string]$Platform = "x64",
+
+    [switch]$Baseline
 )
 $ErrorActionPreference = "Stop"
 
@@ -41,6 +43,15 @@ clang-cl.exe --version
 $env:CC = "clang-cl"
 $env:CXX = "clang-cl"
 
+if ($Platform -eq "ARM64") {
+    $MarchFlag = "/clang:-march=armv8-a+crc /clang:-mtune=ampere1"
+} elseif ($Baseline) {
+    $MarchFlag = "/clang:-march=nehalem"
+} else {
+    $MarchFlag = "/clang:-march=haswell"
+}
+Write-Host ":: WebKit codegen floor: $MarchFlag"
+
 $output = if ($env:WEBKIT_OUTPUT_DIR) { $env:WEBKIT_OUTPUT_DIR } else { "bun-webkit" }
 $WebKitBuild = if ($env:WEBKIT_BUILD_DIR) { $env:WEBKIT_BUILD_DIR } else { "WebKitBuild" }
 $CMAKE_BUILD_TYPE = if ($env:CMAKE_BUILD_TYPE) { $env:CMAKE_BUILD_TYPE } else { "Release" }
@@ -52,7 +63,7 @@ $ICU_STATIC_LIBRARY = Join-Path $ICU_STATIC_ROOT "lib"
 $ICU_STATIC_INCLUDE_DIR = Join-Path $ICU_STATIC_ROOT "include"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-& "$ScriptDir/build-icu.ps1" -Platform $Platform -BuildType $CMAKE_BUILD_TYPE -OutputDir $ICU_STATIC_ROOT
+& "$ScriptDir/build-icu.ps1" -Platform $Platform -BuildType $CMAKE_BUILD_TYPE -OutputDir $ICU_STATIC_ROOT -Baseline:$Baseline
 if ($LASTEXITCODE -ne 0) { throw "build-icu.ps1 failed with exit code $LASTEXITCODE" }
 
 Write-Host ":: Configuring WebKit"
@@ -108,10 +119,10 @@ cmake -S . -B $WebKitBuild `
     "-DCMAKE_C_COMPILER=${ClangPath}" `
     "-DCMAKE_CXX_COMPILER=${ClangPath}" `
     "-DCMAKE_LINKER=${LldLinkPath}" `
-    "-DCMAKE_C_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /DU_STATIC_IMPLEMENTATION ${ARM64SehWorkaround}" `
-    "-DCMAKE_CXX_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /DU_STATIC_IMPLEMENTATION /clang:-fno-c++-static-destructors ${ARM64SehWorkaround}" `
-    "-DCMAKE_C_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 /DU_STATIC_IMPLEMENTATION ${ARM64SehWorkaround}" `
-    "-DCMAKE_CXX_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 /DU_STATIC_IMPLEMENTATION /clang:-fno-c++-static-destructors ${ARM64SehWorkaround}" `
+    "-DCMAKE_C_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /DU_STATIC_IMPLEMENTATION ${MarchFlag} ${ARM64SehWorkaround}" `
+    "-DCMAKE_CXX_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /DU_STATIC_IMPLEMENTATION ${MarchFlag} /clang:-fno-c++-static-destructors ${ARM64SehWorkaround}" `
+    "-DCMAKE_C_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 /DU_STATIC_IMPLEMENTATION ${MarchFlag} ${ARM64SehWorkaround}" `
+    "-DCMAKE_CXX_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 /DU_STATIC_IMPLEMENTATION ${MarchFlag} /clang:-fno-c++-static-destructors ${ARM64SehWorkaround}" `
     -DENABLE_REMOTE_INSPECTOR=ON `
     "-DCMAKE_MSVC_RUNTIME_LIBRARY=${CmakeMsvcRuntimeLibrary}" `
     -G Ninja

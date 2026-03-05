@@ -16,7 +16,9 @@ param(
     [ValidateSet("Release", "Debug")]
     [string]$BuildType = "Release",
 
-    [string]$OutputDir = ""
+    [string]$OutputDir = "",
+
+    [switch]$Baseline
 )
 
 $ErrorActionPreference = "Stop"
@@ -73,6 +75,12 @@ if (-not (Test-Path $ICU_SOURCE_DIR)) {
     if ($LASTEXITCODE -ne 0) { throw "tar failed with exit code $LASTEXITCODE" }
 }
 
+if ($Platform -eq "x64") {
+    $ArchFlag = if ($Baseline) { "/arch:SSE2" } else { "/arch:AVX2" }
+} else {
+    $ArchFlag = ""
+}
+
 # --- Function to patch vcxproj files for static library build with /MT ---
 function Patch-IcuVcxProj {
     param(
@@ -104,6 +112,10 @@ function Patch-IcuVcxProj {
     # Add U_STATIC_IMPLEMENTATION
     if ($content -notmatch 'U_STATIC_IMPLEMENTATION') {
         $content = $content -replace '(<PreprocessorDefinitions>)', '$1U_STATIC_IMPLEMENTATION;'
+    }
+
+    if ($ArchFlag) {
+        $content = $content -replace '(<ClCompile>)', "`$1`n      <AdditionalOptions>$ArchFlag %(AdditionalOptions)</AdditionalOptions>"
     }
 
     # Disable /GL - lld-link cannot read LTCG object files
