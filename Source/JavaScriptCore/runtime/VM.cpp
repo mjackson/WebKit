@@ -1096,28 +1096,25 @@ size_t VM::updateSoftReservedZoneSize(size_t softReservedZoneSize)
 #if OS(WINDOWS)
 // On Windows the reserved stack space consists of committed memory, a guard page, and uncommitted memory,
 // where the guard page is a barrier between committed and uncommitted memory.
+// When data from the guard page is read or written, the guard page is moved, and memory is committed.
+// This is how the system grows the stack.
 // When using the C stack on Windows we need to precommit the needed stack space.
 // Otherwise we might crash later if we access uncommitted stack memory.
 // This can happen if we allocate stack space larger than the page guard size (4K).
+// The system does not get the chance to move the guard page, and commit more memory,
+// and we crash if uncommitted memory is accessed.
 // The MSVC compiler fixes this by inserting a call to the _chkstk() function,
 // when needed, see http://support.microsoft.com/kb/100775.
-// We use VirtualAlloc to explicitly commit the pages instead of relying on the
-// guard page mechanism, which can fail if the guard page has been consumed by
-// another thread or security software.
+// By touching every page up to the stack limit with a dummy operation,
+// we force the system to move the guard page, and commit memory.
 
 static void preCommitStackMemory(void* stackLimit)
 {
-    char* base = reinterpret_cast<char*>(stackLimit);
-    char* current = reinterpret_cast<char*>(&stackLimit);
-    if (current <= base)
-        return;
-    SIZE_T size = current - base;
-    for (unsigned attempt = 0; attempt < 3; ++attempt) {
-        if (VirtualAlloc(base, size, MEM_COMMIT, PAGE_READWRITE))
-            return;
+    const int pageSize = 4096;
+    for (volatile char* p = reinterpret_cast<char*>(&stackLimit); p > stackLimit; p -= pageSize) {
+        char ch = *p;
+        *p = ch;
     }
-    RELEASE_ASSERT_RESOURCE_AVAILABLE(false, MemoryExhaustion,
-        "preCommitStackMemory: VirtualAlloc MEM_COMMIT failed");
 }
 #endif
 
