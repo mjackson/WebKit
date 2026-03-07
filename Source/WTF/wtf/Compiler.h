@@ -675,6 +675,14 @@
 #define WTF_UNSAFE_BUFFER_USAGE
 #endif
 
+/* WTF_THREAD_LOCAL_ALWAYS_DESTROY - ensures thread_local destructors run even under -fno-c++-static-destructors */
+
+#if COMPILER(CLANG) && COMPILER_HAS_CPP_ATTRIBUTE(clang::always_destroy)
+#define WTF_THREAD_LOCAL_ALWAYS_DESTROY [[clang::always_destroy]]
+#else
+#define WTF_THREAD_LOCAL_ALWAYS_DESTROY
+#endif
+
 /* WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE */
 
 #define WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN \

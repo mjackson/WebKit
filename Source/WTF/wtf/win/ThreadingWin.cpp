@@ -281,7 +281,7 @@ struct Thread::ThreadHolder {
     RefPtr<Thread> thread;
 };
 
-thread_local static Thread::ThreadHolder s_threadHolder;
+WTF_THREAD_LOCAL_ALWAYS_DESTROY thread_local static Thread::ThreadHolder s_threadHolder;
 
 Thread* Thread::currentMayBeNull()
 {
