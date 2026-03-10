@@ -332,8 +332,8 @@ jobs:
           $env:GITHUB_SHA = "${{ inputs.build_ref }}"
           $env:PACKAGE_JSON_ARCH = "${{matrix.package_json_arch}}"
           $env:GITHUB_REPOSITORY = "${{ github.repository }}"
-          $baselineArg = if ("${{ matrix.baseline }}" -eq "true") { @("-Baseline") } else { @() }
-          ./windows-release.ps1 -Platform ${{matrix.platform}} @baselineArg
+          $Baseline = "${{ matrix.baseline }}" -eq "true"
+          ./windows-release.ps1 -Platform ${{matrix.platform}} -Baseline:$Baseline
       - uses: actions/upload-artifact@v4
         with:
           name: ${{matrix.label}}
