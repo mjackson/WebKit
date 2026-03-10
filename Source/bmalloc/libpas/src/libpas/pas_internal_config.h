@@ -152,7 +152,9 @@
 
 #define PAS_NUM_BASELINE_ALLOCATORS      32u
 
-#define PAS_MAX_OBJECTS_PER_PAGE         2048
+/* Must be >= max(page_size >> min_align_shift) across all segregated configs.
+   Utility heap uses PAS_INTERNAL_MIN_ALIGN_SHIFT (3) with the small page. */
+#define PAS_MAX_OBJECTS_PER_PAGE         (PAS_SMALL_PAGE_DEFAULT_SIZE >> PAS_INTERNAL_MIN_ALIGN_SHIFT)
 
 #define PAS_MPROTECT_DECOMMITTED         PAS_ENABLE_TESTING
 
