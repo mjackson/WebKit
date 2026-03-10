@@ -177,7 +177,7 @@ The LOL (Lowered-Overhead Lightweight) JIT, a new JIT tier being developed betwe
 
 ### LLVM Toolchain Upgraded to 21.1.8
 
-The LLVM toolchain used for building was upgraded from 19.1.7 to 21.1.8. A compatibility shim (`LibcxxHashMemoryShim.cpp`) was added to provide the `std::__hash_memory` symbol on macOS, which LLVM 21's libc++ moved from an inline definition to an external symbol that the macOS system libc++ doesn't export.
+The LLVM toolchain used for building was upgraded from 19.1.7 to 21.1.8.
 
 - [`7bc2f97e2835`](https://github.com/nicowilliams/WebKit/commit/7bc2f97e2835)
 
