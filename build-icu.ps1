@@ -76,10 +76,13 @@ if (-not (Test-Path $ICU_SOURCE_DIR)) {
 }
 
 if ($Platform -eq "x64") {
-    $ArchFlag = if ($Baseline) { "/arch:SSE2" } else { "/arch:AVX2" }
+    $ArchFlag = if ($Baseline) { "/clang:-march=nehalem" } else { "/clang:-march=haswell" }
 } else {
     $ArchFlag = ""
 }
+
+# ClangCL for stage 2 so -march= limits codegen (MSVC /arch:SSE2 is a no-op on x64).
+$ToolsetArg = if ($Platform -eq "x64") { @("/p:PlatformToolset=ClangCL") } else { @() }
 
 # --- Function to patch vcxproj files for static library build with /MT ---
 function Patch-IcuVcxProj {
@@ -235,6 +238,7 @@ foreach ($target in @("common", "i18n")) {
         "/v:minimal"
     )
 
+    $buildArgs += $ToolsetArg
     & $msbuildPath $buildArgs
 
     if ($LASTEXITCODE -ne 0) {
