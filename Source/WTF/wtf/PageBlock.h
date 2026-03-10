@@ -47,14 +47,13 @@ namespace WTF {
 // On Linux, Power systems normally use 64 KiB pages.
 //
 // aarch64 systems seem to be all over the place. Most Linux distros use 4 KiB, but RHEL uses
-// 64 KiB. Since we cannot know the page size at compile time on Linux, use 64 KiB as the ceiling
-// for Linux ARM64 to support all possible page size configurations (4 KiB, 16 KiB, 64 KiB).
-// USE(64KB_PAGE_BLOCK) allows overriding this on other architectures too.
+// 64 KiB. Linux on Apple Silicon uses 16KiB for best performance, so use that for Linux on
+// aarch64 by default. USE(64KB_PAGE_BLOCK) allows overriding this.
 //
 // Use 64 KiB for any unknown CPUs to be conservative.
-#if OS(DARWIN) || PLATFORM(PLAYSTATION) || CPU(MIPS) || CPU(MIPS64) || CPU(LOONGARCH64)
+#if OS(DARWIN) || PLATFORM(PLAYSTATION) || CPU(MIPS) || CPU(MIPS64) || CPU(LOONGARCH64) || (OS(LINUX) && CPU(ARM64) && !USE(64KB_PAGE_BLOCK))
 constexpr size_t CeilingOnPageSize = 16 * KB;
-#elif USE(64KB_PAGE_BLOCK) || (OS(LINUX) && CPU(ARM64)) || CPU(PPC) || CPU(PPC64) || CPU(PPC64LE) || CPU(UNKNOWN)
+#elif USE(64KB_PAGE_BLOCK) || CPU(PPC) || CPU(PPC64) || CPU(PPC64LE) || CPU(UNKNOWN)
 constexpr size_t CeilingOnPageSize = 64 * KB;
 #elif OS(WINDOWS) || CPU(X86) || CPU(X86_64) || CPU(ARM) || CPU(ARM64) || CPU(RISCV64)
 constexpr size_t CeilingOnPageSize = 4 * KB;
