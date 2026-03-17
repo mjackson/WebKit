@@ -47,7 +47,13 @@ PAS_BEGIN_EXTERN_C;
 #define JIT_SMALL_PAGE_SIZE 16384u
 #define JIT_SMALL_GRANULE_SIZE 16384u
 #endif
+#if PAS_ARM64 && PAS_OS(LINUX)
+/* granule_size >> min_align_shift must be < 254 (use_count is uint8_t with 255 = DECOMMITTED).
+   64K >> 8 = 256 overflows; 64K >> 9 = 128 is safe. Matches PAS_MIN_MEDIUM_ALIGN_SHIFT. */
+#define JIT_MEDIUM_BITFIT_MIN_ALIGN_SHIFT 9u
+#else
 #define JIT_MEDIUM_BITFIT_MIN_ALIGN_SHIFT 8u
+#endif
 #define JIT_MEDIUM_BITFIT_MIN_ALIGN (1u << JIT_MEDIUM_BITFIT_MIN_ALIGN_SHIFT)
 #if PAS_ARM64 && PAS_OS(LINUX)
 #define JIT_MEDIUM_PAGE_SIZE 262144u
