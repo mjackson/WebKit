@@ -454,6 +454,10 @@
 #define BUSE_PRECOMPUTED_CONSTANTS_VMPAGE16K 1
 #endif
 
+#if !defined(BUSE_PRECOMPUTED_CONSTANTS_VMPAGE64K)
+#define BUSE_PRECOMPUTED_CONSTANTS_VMPAGE64K 1
+#endif
+
 /* We only export the mallocSize and mallocGoodSize APIs if they're supported by the SystemHeap allocator (currently only Darwin) and the current bmalloc allocator (currently only libpas). */
 #if BUSE(LIBPAS) && BOS(DARWIN)
 #define BENABLE_MALLOC_SIZE 1

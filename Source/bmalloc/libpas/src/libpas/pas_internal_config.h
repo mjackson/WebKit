@@ -35,22 +35,43 @@
 #define PAS_USE_MARGE_BITFIT_OVERRIDE         true
 
 /* The OS may have a smaller page size. That's OK. */
+/* On Linux ARM64, kernels may be configured with 64 KiB pages (e.g. RHEL, Oracle Linux).
+   All page and granule sizes must be at least as large as the system page size, so use
+   64 KiB minimums on Linux ARM64 to support all possible kernel page configurations. */
+#if PAS_ARM64 && PAS_OS(LINUX)
+#define PAS_SMALL_PAGE_DEFAULT_SHIFT     16
+#else
 #define PAS_SMALL_PAGE_DEFAULT_SHIFT     14
+#endif
 #define PAS_SMALL_PAGE_DEFAULT_SIZE      ((size_t)1 << PAS_SMALL_PAGE_DEFAULT_SHIFT)
 
+#if PAS_ARM64 && PAS_OS(LINUX)
+#define PAS_SMALL_BITFIT_PAGE_DEFAULT_SHIFT   16
+#else
 #define PAS_SMALL_BITFIT_PAGE_DEFAULT_SHIFT   14
+#endif
 #define PAS_SMALL_BITFIT_PAGE_DEFAULT_SIZE    ((size_t)1 << PAS_SMALL_BITFIT_PAGE_DEFAULT_SHIFT)
 
+#if PAS_ARM64 && PAS_OS(LINUX)
+#define PAS_MEDIUM_PAGE_DEFAULT_SHIFT    18
+#else
 #define PAS_MEDIUM_PAGE_DEFAULT_SHIFT    17
+#endif
 #define PAS_MEDIUM_PAGE_DEFAULT_SIZE     ((size_t)1 << PAS_MEDIUM_PAGE_DEFAULT_SHIFT)
 
+#if PAS_ARM64 && PAS_OS(LINUX)
 #define PAS_MEDIUM_BITFIT_PAGE_DEFAULT_SHIFT    19
+#else
+#define PAS_MEDIUM_BITFIT_PAGE_DEFAULT_SHIFT    19
+#endif
 #define PAS_MEDIUM_BITFIT_PAGE_DEFAULT_SIZE     ((size_t)1 << PAS_MEDIUM_BITFIT_PAGE_DEFAULT_SHIFT)
 
 #define PAS_MARGE_PAGE_DEFAULT_SHIFT     22
 #define PAS_MARGE_PAGE_DEFAULT_SIZE      ((size_t)1 << PAS_MARGE_PAGE_DEFAULT_SHIFT)
 
-#if PAS_ARM64 || PAS_PLATFORM(PLAYSTATION)
+#if PAS_ARM64 && PAS_OS(LINUX)
+#define PAS_GRANULE_DEFAULT_SHIFT        16
+#elif PAS_ARM64 || PAS_PLATFORM(PLAYSTATION)
 #define PAS_GRANULE_DEFAULT_SHIFT        14
 #else
 #define PAS_GRANULE_DEFAULT_SHIFT        12
@@ -131,7 +152,9 @@
 
 #define PAS_NUM_BASELINE_ALLOCATORS      32u
 
-#define PAS_MAX_OBJECTS_PER_PAGE         2048
+/* Must be >= max(page_size >> min_align_shift) across all segregated configs.
+   Utility heap uses PAS_INTERNAL_MIN_ALIGN_SHIFT (3) with the small page. */
+#define PAS_MAX_OBJECTS_PER_PAGE         (PAS_SMALL_PAGE_DEFAULT_SIZE >> PAS_INTERNAL_MIN_ALIGN_SHIFT)
 
 #define PAS_MPROTECT_DECOMMITTED         PAS_ENABLE_TESTING
 
