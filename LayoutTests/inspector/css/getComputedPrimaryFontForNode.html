@@ -103,13 +103,13 @@ function test()
 
     addTestCase({
         name: "CSS.getComputedPrimaryFontForNode.WebfontCJK1",
-        description: "Get the primary font 'Ahem' for the node '#webfont-cjk-test-1'.",
+        description: "Get the primary font 'Helvetica' for the node '#webfont-cjk-test-1'.",
         async setup() {
             return loadFontFace("normal normal 12px WebFontWithCJK", "\u00A5Yen", "TestPage-WebfontCJK1Loaded");
         },
         selector: "#webfont-cjk-test-1",
         computedFontHandler(font) {
-            InspectorTest.expectEqual(font.name, "Ahem", "Name should be 'Ahem'.");
+            InspectorTest.expectEqual(font.name, "Helvetica", "Name should be 'Helvetica'.");
         }
     });
 

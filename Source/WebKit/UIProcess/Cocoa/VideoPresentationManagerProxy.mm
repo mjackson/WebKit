@@ -480,14 +480,14 @@ void VideoPresentationModelContext::fullscreenMayReturnToInline()
 void VideoPresentationModelContext::didEnterExternalPlayback()
 {
     ALWAYS_LOG_IF_POSSIBLE(LOGIDENTIFIER);
-    if (RefPtr manager = m_manager.get())
+    if (auto* manager = m_manager.get())
         manager->didEnterExternalPlayback(m_contextId);
 }
 
 void VideoPresentationModelContext::didExitExternalPlayback()
 {
     ALWAYS_LOG_IF_POSSIBLE(LOGIDENTIFIER);
-    if (RefPtr manager = m_manager.get())
+    if (auto* manager = m_manager.get())
         manager->didExitExternalPlayback(m_contextId);
 }
 #endif
@@ -552,10 +552,10 @@ void VideoPresentationModelContext::setTextTrackRepresentationBounds(const IntRe
 }
 
 #if ENABLE(MEDIA_CONTROLS_CONTEXT_MENUS)
-void VideoPresentationModelContext::requestShowCaptionDisplaySettingsPreview()
+void VideoPresentationModelContext::requestShowCaptionDisplaySettingsPreview(const String& profileID)
 {
     if (RefPtr manager = m_manager.get())
-        manager->requestShowCaptionDisplaySettingsPreview(m_contextId);
+        manager->requestShowCaptionDisplaySettingsPreview(m_contextId, profileID);
 }
 
 void VideoPresentationModelContext::requestHideCaptionDisplaySettingsPreview()
@@ -1138,12 +1138,12 @@ void VideoPresentationManagerProxy::setPlayerIdentifier(PlaybackSessionContextId
 
 void VideoPresentationManagerProxy::audioSessionCategoryChanged(PlaybackSessionContextIdentifier contextId, WebCore::AudioSessionCategory category, WebCore::AudioSessionMode mode, WebCore::RouteSharingPolicy policy)
 {
-    protect(ensureModel(contextId))->audioSessionCategoryChanged(category, mode, policy);
+    ensureModel(contextId)->audioSessionCategoryChanged(category, mode, policy);
 }
 
 void VideoPresentationManagerProxy::routingContextUIDChanged(PlaybackSessionContextIdentifier contextId, const String& routingContextUID)
 {
-    protect(ensureModel(contextId))->routingContextUIDChanged(routingContextUID);
+    ensureModel(contextId)->routingContextUIDChanged(routingContextUID);
 }
 
 void VideoPresentationManagerProxy::setHasVideo(PlaybackSessionContextIdentifier contextId, bool hasVideo)
@@ -1376,9 +1376,10 @@ void VideoPresentationManagerProxy::performCaptionDisplaySettingsAction(Playback
     });
 }
 
-void VideoPresentationManagerProxy::requestShowCaptionDisplaySettingsPreview(PlaybackSessionContextIdentifier contextId)
+void VideoPresentationManagerProxy::requestShowCaptionDisplaySettingsPreview(PlaybackSessionContextIdentifier contextId, const String& profileID)
 {
-    performCaptionDisplaySettingsAction(contextId, [](WebPageProxy& page, const FrameInfoData& frameInfo, WebCore::HTMLMediaElementIdentifier htmlMediaElementIdentifier) {
+    performCaptionDisplaySettingsAction(contextId, [profileID](WebPageProxy& page, const FrameInfoData& frameInfo, WebCore::HTMLMediaElementIdentifier htmlMediaElementIdentifier) {
+        page.setCaptionDisplaySettingsPreviewProfileID(frameInfo, profileID);
         page.showCaptionDisplaySettingsPreview(frameInfo, htmlMediaElementIdentifier);
     });
 }
@@ -1386,6 +1387,7 @@ void VideoPresentationManagerProxy::requestShowCaptionDisplaySettingsPreview(Pla
 void VideoPresentationManagerProxy::requestHideCaptionDisplaySettingsPreview(PlaybackSessionContextIdentifier contextId)
 {
     performCaptionDisplaySettingsAction(contextId, [](WebPageProxy& page, const FrameInfoData& frameInfo, WebCore::HTMLMediaElementIdentifier htmlMediaElementIdentifier) {
+        page.setCaptionDisplaySettingsPreviewProfileID(frameInfo, emptyString());
         page.hideCaptionDisplaySettingsPreview(frameInfo, htmlMediaElementIdentifier);
     });
 }

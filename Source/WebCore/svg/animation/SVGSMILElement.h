@@ -50,8 +50,8 @@ public:
 
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) override;
     void svgAttributeChanged(const QualifiedName&) override;
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) override;
-    void removedFromAncestor(RemovalType, ContainerNode&) override;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) override;
+    void removingSteps(RemovalType, ContainerNode&) override;
     
     virtual bool hasValidAttributeType() const = 0;
     virtual bool hasValidAttributeName() const;
@@ -60,7 +60,7 @@ public:
     SMILTimeContainer* timeContainer() { return m_timeContainer; }
 
     SVGElement* targetElement() const { return m_targetElement; }
-    const QualifiedName& attributeName() const { return m_attributeName; }
+    const QualifiedName& attributeName() const LIFETIME_BOUND { return m_attributeName; }
 
     void beginByLinkActivation();
 
@@ -84,7 +84,7 @@ public:
 
     void seekToIntervalCorrespondingToTime(SMILTime elapsed);
     bool progress(SMILTime elapsed, SVGSMILElement& firstAnimation, bool seekToTime);
-    SMILTime nextProgressTime() const;
+    SMILTime NODELETE nextProgressTime() const;
 
     void reset();
 
@@ -92,7 +92,7 @@ public:
     static SMILTime parseOffsetValue(StringView);
 
     bool isContributing(SMILTime elapsed) const;
-    bool isFrozen() const;
+    bool NODELETE isFrozen() const;
 
     unsigned documentOrderIndex() const { return m_documentOrderIndex; }
     void setDocumentOrderIndex(unsigned index) { m_documentOrderIndex = index; }
@@ -118,7 +118,7 @@ protected:
     virtual void setTargetElement(SVGElement*);
     virtual void setAttributeName(const QualifiedName&);
 
-    void didFinishInsertingNode() override;
+    void postConnectionSteps() override;
 
     enum BeginOrEnd { Begin, End };
 

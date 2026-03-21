@@ -39,7 +39,7 @@ namespace WebCore {
 
 SystemFontDatabaseCoreText& SystemFontDatabaseCoreText::forCurrentThread()
 {
-    return FontCache::forCurrentThread()->systemFontDatabaseCoreText();
+    return FontCache::forCurrentThread().systemFontDatabaseCoreText();
 }
 
 SystemFontDatabase& SystemFontDatabase::singleton()
@@ -84,7 +84,7 @@ RetainPtr<CTFontRef> SystemFontDatabaseCoreText::createSystemDesignFont(SystemFo
 RetainPtr<CTFontRef> SystemFontDatabaseCoreText::createTextStyleFont(const CascadeListParameters& parameters)
 {
     RetainPtr<CFStringRef> localeString = parameters.locale.isEmpty() ? nullptr : parameters.locale.string().createCFString();
-    auto descriptor = adoptCF(CTFontDescriptorCreateWithTextStyle(parameters.fontName.string().createCFString().get(), contentSizeCategory(), localeString.get()));
+    auto descriptor = adoptCF(CTFontDescriptorCreateWithTextStyle(parameters.fontName.string().createCFString().get(), protect(contentSizeCategory()).get(), localeString.get()));
     // FIXME: Use createFontByApplyingWeightWidthItalicsAndFallbackBehavior().
     CTFontSymbolicTraits traits = (parameters.weight >= kCTFontWeightSemibold ? kCTFontTraitBold : 0)
         | (parameters.width >= kCTFontWidthSemiExpanded ? kCTFontTraitExpanded : 0)
@@ -203,7 +203,7 @@ static CGFloat mapWeight(FontSelectionValue weight)
     return kCTFontWeightBlack;
 }
 
-static CGFloat mapWidth(FontSelectionValue width)
+static CGFloat NODELETE mapWidth(FontSelectionValue width)
 {
     struct PiecewisePoint {
         FontSelectionValue input;
@@ -377,7 +377,7 @@ static inline FontSelectionValue cssWeightOfSystemFontDescriptor(CTFontDescripto
     return FontSelectionValue(normalizeCTWeight(result));
 }
 
-static CTFontTextStylePlatform fontPlatform()
+static CTFontTextStylePlatform NODELETE fontPlatform()
 {
 #if PLATFORM(VISION)
     if (PAL::currentUserInterfaceIdiomIsVision())
@@ -400,7 +400,7 @@ auto SystemFontDatabase::platformSystemFontShorthandInfo(FontShorthand fontShort
 
     auto interrogateTextStyleShorthandItem = [] (CFStringRef textStyle) {
         CGFloat weight = 0;
-        float size = CTFontDescriptorGetTextStyleSize(textStyle, contentSizeCategory(), fontPlatform(), &weight, nullptr);
+        float size = CTFontDescriptorGetTextStyleSize(textStyle, protect(contentSizeCategory()).get(), fontPlatform(), &weight, nullptr);
         auto cssWeight = normalizeCTWeight(weight);
         return SystemFontShorthandInfo { textStyle, size, FontSelectionValue(cssWeight) };
     };

@@ -73,6 +73,8 @@ public:
 
     PropertyCascade(const MatchResult&, IncludedProperties&&, const HashSet<AnimatableCSSProperty>* = nullptr, const StyleProperties* positionTryFallbackProperties = nullptr);
     PropertyCascade(const PropertyCascade&, Origin, std::optional<ScopeOrdinal> rollbackScope = { }, std::optional<CascadeLayerPriority> maximumCascadeLayerPriorityForRollback = { });
+    enum RevertRuleTag { RevertRule };
+    PropertyCascade(const PropertyCascade&, RevertRuleTag);
 
     ~PropertyCascade();
 
@@ -89,22 +91,22 @@ public:
     bool isEmpty() const { return m_propertyIsPresent.isEmpty() && !m_seenLogicalGroupPropertyCount; }
 
     bool hasNormalProperty(CSSPropertyID) const;
-    const Property& normalProperty(CSSPropertyID) const;
+    const Property& normalProperty(CSSPropertyID) const LIFETIME_BOUND;
 
     bool hasLogicalGroupProperty(CSSPropertyID) const;
-    const Property& logicalGroupProperty(CSSPropertyID) const;
-    const Property* lastPropertyResolvingLogicalPropertyPair(CSSPropertyID, WritingMode) const;
+    const Property& logicalGroupProperty(CSSPropertyID) const LIFETIME_BOUND;
+    const Property* lastPropertyResolvingLogicalPropertyPair(CSSPropertyID, WritingMode) const LIFETIME_BOUND;
 
     bool hasCustomProperty(const AtomString&) const;
-    const Property& customProperty(const AtomString&) const;
+    const Property& customProperty(const AtomString&) const LIFETIME_BOUND;
 
-    std::span<const CSSPropertyID> logicalGroupPropertyIDs() const;
-    const HashMap<AtomString, Property>& customProperties() const { return m_customProperties; }
+    std::span<const CSSPropertyID> logicalGroupPropertyIDs() const LIFETIME_BOUND;
+    const HashMap<AtomString, Property>& customProperties() const LIFETIME_BOUND { return m_customProperties; }
 
     const HashSet<AnimatableCSSProperty> overriddenAnimatedProperties() const;
 
-    PropertyBitSet& propertyIsPresent() { return m_propertyIsPresent; }
-    const PropertyBitSet& propertyIsPresent() const { return m_propertyIsPresent; }
+    PropertyBitSet& propertyIsPresent() LIFETIME_BOUND { return m_propertyIsPresent; }
+    const PropertyBitSet& propertyIsPresent() const LIFETIME_BOUND { return m_propertyIsPresent; }
 
     bool applyLowPriorityOnly() const { return !m_includedProperties.ids.isEmpty(); }
 
@@ -118,10 +120,11 @@ private:
 
     void set(CSSPropertyID, CSSValue&, const MatchedProperties&, Origin);
     void setLogicalGroupProperty(CSSPropertyID, CSSValue&, const MatchedProperties&, Origin);
-    static void setPropertyInternal(Property&, CSSPropertyID, CSSValue&, const MatchedProperties&, Origin);
+    static void NODELETE setPropertyInternal(Property&, CSSPropertyID, CSSValue&, const MatchedProperties&, Origin);
+    void setDelayingForRuleRollback(CSSPropertyID, CSSValue&, const MatchedProperties&, Origin);
 
-    bool hasProperty(CSSPropertyID, const CSSValue&);
-    bool mayOverrideExistingProperty(CSSPropertyID, const CSSValue&);
+    bool NODELETE hasProperty(CSSPropertyID, const CSSValue&);
+    bool NODELETE mayOverrideExistingProperty(CSSPropertyID, const CSSValue&);
 
     unsigned logicalGroupPropertyIndex(CSSPropertyID) const;
     void setLogicalGroupPropertyIndex(CSSPropertyID, unsigned);
@@ -132,6 +135,7 @@ private:
     const Origin m_maximumOrigin;
     const std::optional<ScopeOrdinal> m_rollbackScope;
     const std::optional<CascadeLayerPriority> m_maximumCascadeLayerPriorityForRollback;
+    const unsigned m_ruleRollbackDepth { 0 };
 
     struct AnimationLayer {
         AnimationLayer(const HashSet<AnimatableCSSProperty>&);
@@ -144,6 +148,13 @@ private:
     };
     std::optional<AnimationLayer> m_animationLayer;
     std::optional<MatchedProperties> m_positionTryFallbackProperties;
+
+    struct DelayedRollbackProperty {
+        CSSValue& value;
+        const MatchedProperties& properties;
+        Origin origin;
+    };
+    HashMap<std::pair<unsigned, AtomString>, Deque<DelayedRollbackProperty>> m_delayedRollbackProperties;
 
     // The CSSPropertyID enum is sorted like this:
     // 1. CSSPropertyInvalid and CSSPropertyCustom.

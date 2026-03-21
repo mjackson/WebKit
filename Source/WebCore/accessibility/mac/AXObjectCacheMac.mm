@@ -109,7 +109,7 @@ typedef CF_ENUM(UInt32, AXTextSelectionGranularity)
 
 #endif // AXTextStateChangeDefined
 
-static AXTextStateChangeType platformChangeTypeForWebCoreChangeType(WebCore::AXTextStateChangeType changeType)
+static AXTextStateChangeType NODELETE platformChangeTypeForWebCoreChangeType(WebCore::AXTextStateChangeType changeType)
 {
     switch (changeType) {
     case WebCore::AXTextStateChangeType::Unknown:
@@ -125,7 +125,7 @@ static AXTextStateChangeType platformChangeTypeForWebCoreChangeType(WebCore::AXT
     }
 }
 
-static AXTextEditType platformEditTypeForWebCoreEditType(WebCore::AXTextEditType changeType)
+static AXTextEditType NODELETE platformEditTypeForWebCoreEditType(WebCore::AXTextEditType changeType)
 {
     switch (changeType) {
     case WebCore::AXTextEditType::Unknown:
@@ -149,7 +149,7 @@ static AXTextEditType platformEditTypeForWebCoreEditType(WebCore::AXTextEditType
     }
 }
 
-static AXTextSelectionDirection platformDirectionForWebCoreDirection(WebCore::AXTextSelectionDirection direction)
+static AXTextSelectionDirection NODELETE platformDirectionForWebCoreDirection(WebCore::AXTextSelectionDirection direction)
 {
     switch (direction) {
     case WebCore::AXTextSelectionDirection::Unknown:
@@ -167,7 +167,7 @@ static AXTextSelectionDirection platformDirectionForWebCoreDirection(WebCore::AX
     }
 }
 
-static AXTextSelectionGranularity platformGranularityForWebCoreGranularity(WebCore::AXTextSelectionGranularity granularity)
+static AXTextSelectionGranularity NODELETE platformGranularityForWebCoreGranularity(WebCore::AXTextSelectionGranularity granularity)
 {
     switch (granularity) {
     case WebCore::AXTextSelectionGranularity::Unknown:
@@ -705,7 +705,12 @@ void AXObjectCache::platformHandleFocusedUIElementChanged(AccessibilityObject*, 
     if (!rootWebArea)
         return;
 
-    [rootWebArea->wrapper() accessibilityPostedNotification:NSAccessibilityFocusChangedNotification userInfo:nil];
+    callOnMainThread([webArea = rootWebArea] {
+        // Do not post focus-changed notifications to layout tests synchronously. Otherwise JS event
+        // handlers could dirty style / layout in the middle of contexts where we expect clean style
+        // and layout, e.g. AXObjectCache::performDeferredCacheUpdate.
+        [webArea->wrapper() accessibilityPostedNotification:NSAccessibilityFocusChangedNotification userInfo:nil];
+    });
 }
 
 void AXObjectCache::handleScrolledToAnchor(const Node&)
@@ -725,11 +730,13 @@ void AXObjectCache::platformPerformDeferredCacheUpdate()
     m_deferredUnsortedObjects.clear();
 }
 
-static bool isTestAXClientType(AXClientType client)
+static bool NODELETE isTestAXClientType(AXClientType client)
 {
     return client == kAXClientTypeWebKitTesting || client == kAXClientTypeXCTest;
 }
 
+// FIXME: We should inline this function, otherwise we probably aren't
+// benefiting much from the unlikely annotation.
 bool AXObjectCache::clientIsInTestMode()
 {
     if (isTestAXClientType(_AXGetClientForCurrentRequestUntrusted())) [[unlikely]]

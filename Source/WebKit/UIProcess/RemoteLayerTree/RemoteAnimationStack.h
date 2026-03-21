@@ -47,7 +47,7 @@ namespace WebKit {
 
 using RemoteAnimations = Vector<Ref<RemoteAnimation>>;
 
-class RemoteAnimationStack final : public RefCounted<RemoteAnimationStack> {
+class RemoteAnimationStack final : public ThreadSafeRefCounted<RemoteAnimationStack> {
     WTF_MAKE_TZONE_ALLOCATED(RemoteAnimationStack);
 public:
     static Ref<RemoteAnimationStack> create(RemoteAnimations&&, WebCore::AcceleratedEffectValues&&, WebCore::FloatRect);

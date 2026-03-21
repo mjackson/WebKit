@@ -31,8 +31,9 @@
 #include <wtf/Platform.h>
 #if PLATFORM(COCOA)
 
-#include "AXCoreObject.h"
-#include "AttributedString.h"
+#include <WebCore/AXAnnouncementTypes.h>
+#include <WebCore/AXCoreObject.h>
+#include <WebCore/AttributedString.h>
 #include <wtf/HashMap.h>
 #include <wtf/text/WTFString.h>
 
@@ -40,29 +41,6 @@ namespace WebCore {
 
 class AccessibilityObject;
 class AXObjectCache;
-enum class LiveRegionStatus : uint8_t;
-
-enum class LiveRegionRelevant : uint8_t {
-    Additions = 1 << 0,
-    Removals  = 1 << 1,
-    Text      = 1 << 2,
-    All       = 1 << 3
-};
-
-struct LiveRegionObject {
-    AXID objectID;
-    String text;
-    String language;
-    HashSet<AXID> descendants; // For atomic regions only, to track additions/removals of descendants.
-};
-
-struct LiveRegionSnapshot {
-    Vector<LiveRegionObject> objects;
-    LiveRegionStatus liveRegionStatus { LiveRegionStatus::Off };
-    OptionSet<LiveRegionRelevant> liveRegionRelevant { { LiveRegionRelevant::Additions, LiveRegionRelevant::Text } };
-};
-
-enum class AnnouncementContents : bool { All, Changes };
 
 class AXLiveRegionManager {
     WTF_MAKE_NONCOPYABLE(AXLiveRegionManager);

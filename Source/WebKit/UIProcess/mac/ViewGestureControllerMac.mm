@@ -254,27 +254,27 @@ void ViewGestureController::didCollectGeometryForSmartMagnificationGesture(Float
     m_lastMagnificationGestureWasSmartMagnification = true;
 }
 
-bool ViewGestureController::PendingSwipeTracker::scrollEventCanStartSwipe(NSEvent *event)
+bool ViewGestureController::PendingSwipeTracker::scrollEventCanStartSwipe(NativeWebWheelEvent event)
 {
-    return event.phase == NSEventPhaseBegan;
+    return event.phase() == WebWheelEvent::Phase::Began && event.nativeEvent();
 }
 
-bool ViewGestureController::PendingSwipeTracker::scrollEventCanEndSwipe(NSEvent *event)
+bool ViewGestureController::PendingSwipeTracker::scrollEventCanEndSwipe(NativeWebWheelEvent event)
 {
-    return event.phase == NSEventPhaseEnded;
+    return event.phase() == WebWheelEvent::Phase::Ended;
 }
 
-bool ViewGestureController::PendingSwipeTracker::scrollEventCanInfluenceSwipe(NSEvent *event)
+bool ViewGestureController::PendingSwipeTracker::scrollEventCanInfluenceSwipe(NativeWebWheelEvent event)
 {
-    return event.hasPreciseScrollingDeltas && [NSEvent isSwipeTrackingFromScrollEventsEnabled];
+    return event.hasPreciseScrollingDeltas() && [NSEvent isSwipeTrackingFromScrollEventsEnabled];
 }
 
-FloatSize ViewGestureController::PendingSwipeTracker::scrollEventGetScrollingDeltas(NSEvent *event)
+FloatSize ViewGestureController::PendingSwipeTracker::scrollEventGetScrollingDeltas(NativeWebWheelEvent event)
 {
-    return FloatSize(event.scrollingDeltaX, event.scrollingDeltaY);
+    return event.delta();
 }
 
-bool ViewGestureController::handleScrollWheelEvent(NSEvent *event)
+bool ViewGestureController::handleScrollWheelEvent(NativeWebWheelEvent event)
 {
     if (m_activeGestureType != ViewGestureType::None)
         return false;
@@ -294,7 +294,7 @@ void ViewGestureController::trackSwipeGesture(PlatformScrollEvent event, SwipeDi
     m_swipeCancellationTracker = swipeCancellationTracker;
 
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    [event trackSwipeEventWithOptions:NSEventSwipeTrackingConsumeMouseEvents dampenAmountThresholdMin:minProgress max:maxProgress usingHandler:^(CGFloat progress, NSEventPhase phase, BOOL isComplete, BOOL *stop) {
+    [protect(event.nativeEvent()) trackSwipeEventWithOptions:NSEventSwipeTrackingConsumeMouseEvents dampenAmountThresholdMin:minProgress max:maxProgress usingHandler:^(CGFloat progress, NSEventPhase phase, BOOL isComplete, BOOL *stop) {
         if ([swipeCancellationTracker isCancelled]) {
             *stop = YES;
             return;
@@ -446,7 +446,7 @@ void ViewGestureController::beginSwipeGesture(WebBackForwardListItem* targetItem
     RetainPtr backgroundColor = CGColorGetConstantColor(kCGColorWhite);
     if (RefPtr snapshot = targetItem->snapshot()) {
         if (shouldUseSnapshotForSize(*snapshot, swipeArea.size(), obscuredContentInsets))
-            [m_swipeSnapshotLayer setContents:snapshot->asProtectedLayerContents().get()];
+            [m_swipeSnapshotLayer setContents:protect(snapshot->asLayerContents()).get()];
 
         Color coreColor = snapshot->backgroundColor();
         if (coreColor.isValid())
@@ -704,10 +704,7 @@ std::optional<WebBackForwardList> ViewGestureController::backForwardListForNavig
 
 WebBackForwardList* ViewGestureController::backForwardListForNavigation() const
 {
-    if (RefPtr page = m_webPageProxy.get())
-        return &page->backForwardList();
-
-    return nullptr;
+    return m_webPageProxy ? &m_webPageProxy->backForwardList() : nullptr;
 }
 
 #endif

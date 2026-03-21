@@ -31,6 +31,8 @@
 #import <pal/avfoundation/MediaTimeAVFoundation.h>
 #import <wtf/TZoneMallocInlines.h>
 
+#import <pal/cf/CoreMediaSoftLink.h>
+
 #define FOR_EACH_READONLY_KEY_PATH(Macro) \
     Macro(timeRange, TimeRange, MediaTimeRange) \
     Macro(ready, Ready, bool) \
@@ -53,7 +55,7 @@
 \
 
 #define ADD_OBSERVER(KeyPath, SetterSuffix, Type) \
-    [_mediaSource addObserver:self forKeyPath:@#KeyPath options:0 context:WebMediaSourceObserverContext]; \
+    [_mediaSource addObserver:self forKeyPath:@#KeyPath options:NSKeyValueObservingOptionInitial context:WebMediaSourceObserverContext]; \
 \
 
 #define REMOVE_OBSERVER(KeyPath, SetterSuffix, Type) \
@@ -92,6 +94,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface NSObject (Staging_169033633)
 @property (nonatomic) CMTime currentPlaybackPosition;
+@property (nonatomic) CMTime currentValue;
 @end
 
 static void* WebMediaSourceObserverContext = &WebMediaSourceObserverContext;
@@ -125,9 +128,14 @@ static void* WebMediaSourceObserverContext = &WebMediaSourceObserverContext;
 - (void)setMediaSource:(AVMediaSource * _Nullable)mediaSource
 {
     FOR_EACH_KEY_PATH(REMOVE_OBSERVER)
+    REMOVE_OBSERVER(currentPlaybackPosition, CurrentPlaybackPosition, CMTime)
+    REMOVE_OBSERVER(currentValue, CurrentValue, CMTime)
+
     _mediaSource = mediaSource;
+
     FOR_EACH_KEY_PATH(ADD_OBSERVER)
-    FOR_EACH_KEY_PATH(NOTIFY_CLIENT)
+    ADD_OBSERVER(currentPlaybackPosition, CurrentPlaybackPosition, CMTime)
+    ADD_OBSERVER(currentValue, CurrentValue, CMTime)
 }
 
 - (void)observeValueForKeyPath:(nullable NSString *)keyPath ofObject:(nullable id)object change:(nullable NSDictionary *)change context:(nullable void*)context

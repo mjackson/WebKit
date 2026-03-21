@@ -25,8 +25,8 @@
 
 #pragma once
 
-#include <WebCore/CryptoAlgorithmAesKeyParamsInit.h>
-#include <WebCore/CryptoAlgorithmParameters.h>
+#include "CryptoAlgorithmAesKeyParamsInit.h"
+#include "CryptoAlgorithmParameters.h"
 
 namespace WebCore {
 

@@ -157,12 +157,6 @@ auto toImpl(T t) -> ImplType*
         return downcast<ImplType>(API::Object::unwrap(static_cast<void*>(const_cast<typename std::remove_const<typename std::remove_pointer<T>::type>::type*>(t))));
 }
 
-template<typename T, typename ImplType = typename APITypeInfo<T>::ImplType>
-auto toProtectedImpl(T t) -> RefPtr<ImplType>
-{
-    return toImpl<T>(t);
-}
-
 template<typename ImplType, typename APIType = typename ImplTypeInfo<ImplType>::APIType>
 class ProxyingRefPtr {
 public:
@@ -217,14 +211,14 @@ inline String toWTFString(WKStringRef stringRef)
 {
     if (!stringRef)
         return String();
-    return toProtectedImpl(stringRef)->string();
+    return protect(toImpl(stringRef))->string();
 }
 
 inline String toWTFString(WKURLRef urlRef)
 {
     if (!urlRef)
         return String();
-    return toProtectedImpl(urlRef)->string();
+    return toImpl(urlRef)->string();
 }
 
 inline ProxyingRefPtr<API::Error> toAPI(const WebCore::ResourceError& error)

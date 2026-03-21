@@ -62,12 +62,11 @@ public:
     void unregisterScrollbar(Scrollbar&) override;
 
     static NSScrollerImp *scrollerImpForScrollbar(Scrollbar&);
-    static RetainPtr<NSScrollerImp> protectedScrollerImpForScrollbar(Scrollbar&);
 
     void setPaintCharacteristicsForScrollbar(Scrollbar&);
 
-    static bool isCurrentlyDrawingIntoLayer();
-    static void setIsCurrentlyDrawingIntoLayer(bool);
+    static bool NODELETE isCurrentlyDrawingIntoLayer();
+    static void NODELETE setIsCurrentlyDrawingIntoLayer(bool);
 
     void didCreateScrollerImp(Scrollbar&) override;
     bool isLayoutDirectionRTL(Scrollbar&);
@@ -92,7 +91,7 @@ protected:
     
     ScrollbarButtonPressAction handleMousePressEvent(Scrollbar&, const PlatformMouseEvent&, ScrollbarPart) override;
     bool shouldDragDocumentInsteadOfThumb(Scrollbar&, const PlatformMouseEvent&) override;
-    int scrollbarPartToHIPressedState(ScrollbarPart);
+    int NODELETE scrollbarPartToHIPressedState(ScrollbarPart);
 };
 
 }

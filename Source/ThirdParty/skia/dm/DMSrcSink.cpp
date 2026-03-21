@@ -170,11 +170,6 @@ GMSrc::GMSrc(skiagm::GMFactory factory) : fFactory(factory) {}
 
 Result GMSrc::draw(SkCanvas* canvas, GraphiteTestContext* testContext) const {
     std::unique_ptr<skiagm::GM> gm(fFactory());
-    if (gm->isBazelOnly()) {
-        // We skip Bazel-only GMs because they might overlap with existing DM functionality. See
-        // comments in the skiagm::GM::isBazelOnly function declaration for context.
-        return Result(Result::Status::Skip, SkString("Bazel-only GM"));
-    }
     SkString msg;
 
     skiagm::DrawResult gpuSetupResult = gm->gpuSetup(canvas, &msg, testContext);
@@ -2215,11 +2210,6 @@ Result GraphiteSink::draw(const Src& src,
                           SkWStream* dstStream,
                           SkString* log) const {
     skiatest::graphite::TestOptions options = fOptions;
-    // If we've copied context options from an external source we can't trust that the
-    // priv pointer is still in scope, so assume it should be NULL and set our own up.
-    SkASSERT(!options.fContextOptions.fOptionsPriv);
-    skgpu::graphite::ContextOptionsPriv optionsPriv;
-    options.fContextOptions.fOptionsPriv = &optionsPriv;
 
     // We don't expect the src to mess with the more esoteric options
     SkDEBUGCODE(auto cache = options.fContextOptions.fPersistentPipelineStorage);
@@ -2538,11 +2528,6 @@ Result GraphitePrecompileTestingSink::draw(const Src& src,
 
     {
         TestOptions options = fOptions;
-        // If we've copied context options from an external source we can't trust that the
-        // priv pointer is still in scope, so assume it should be NULL and set our own up.
-        SkASSERT(!options.fContextOptions.fOptionsPriv);
-        ContextOptionsPriv optionsPriv;
-        options.fContextOptions.fOptionsPriv = &optionsPriv;
 
         // We don't expect the src to mess with the more esoteric options
         SkDEBUGCODE(auto cache = options.fContextOptions.fPersistentPipelineStorage);

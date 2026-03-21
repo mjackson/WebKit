@@ -27,8 +27,8 @@
 
 #if ENABLE(WEBASSEMBLY)
 
-#include "IteratorOperations.h"
-#include "WasmModule.h"
+#include <JavaScriptCore/IteratorOperations.h>
+#include <JavaScriptCore/WasmModule.h>
 #include <wtf/text/WTFString.h>
 
 namespace JSC {
@@ -44,8 +44,8 @@ public:
     // Create an instance if `optionsObject` is not a nullptr, or return a `nullopt`.
     static std::optional<WebAssemblyCompileOptions> tryCreate(JSGlobalObject*, JSObject* optionsObject);
 
-    const std::optional<String>& importedStringConstants() const { return m_importedStringConstants; }
-    const Vector<String>& qualifiedBuiltinSetNames() const { return m_qualifiedBuiltinSetNames; }
+    const std::optional<String>& importedStringConstants() const LIFETIME_BOUND { return m_importedStringConstants; }
+    const Vector<String>& qualifiedBuiltinSetNames() const LIFETIME_BOUND { return m_qualifiedBuiltinSetNames; }
 
     // Validate the options in the context of the given module as specified in
     // https://webassembly.github.io/js-string-builtins/js-api/#validate-builtins-and-imported-string-for-a-webassembly-module.

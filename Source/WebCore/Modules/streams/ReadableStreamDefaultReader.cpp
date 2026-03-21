@@ -26,6 +26,7 @@
 #include "config.h"
 #include "ReadableStreamDefaultReader.h"
 
+#include "JSDOMConvertAny.h"
 #include "JSDOMPromise.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSReadableStreamDefaultReader.h"
@@ -154,9 +155,12 @@ void ReadableStreamDefaultReader::read(JSDOMGlobalObject& globalObject, Ref<Read
 // https://streams.spec.whatwg.org/#default-reader-release-lock
 ExceptionOr<void> ReadableStreamDefaultReader::releaseLock(JSDOMGlobalObject& globalObject)
 {
+    if (!m_stream)
+        return { };
+
     if (RefPtr internalReader = this->internalDefaultReader()) {
         auto result = internalReader->releaseLock();
-        if (!result.hasException() && m_stream) {
+        if (!result.hasException()) {
             RefPtr stream = std::exchange(m_stream, { });
             stream->setDefaultReader(nullptr);
             stream = nullptr;
@@ -173,6 +177,9 @@ ExceptionOr<void> ReadableStreamDefaultReader::releaseLock(JSDOMGlobalObject& gl
 ExceptionOr<void> ReadableStreamDefaultReader::setup(JSDOMGlobalObject& globalObject)
 {
     RefPtr stream = m_stream;
+
+    if (!stream)
+        return Exception { ExceptionCode::TypeError, "stream is undefined"_s };
 
     if (stream->isLocked())
         return Exception { ExceptionCode::TypeError, "ReadableStream is locked"_s };
@@ -200,6 +207,8 @@ void ReadableStreamDefaultReader::genericRelease(JSDOMGlobalObject& globalObject
 
     ASSERT(stream);
     ASSERT(stream->defaultReader() == this);
+    if (!stream) [[unlikely]]
+        return;
 
     if (stream->state() == ReadableStream::State::Readable)
         Ref { m_closedDeferred }->reject(Exception { ExceptionCode::TypeError, "releasing stream"_s }, RejectAsHandled::Yes);
@@ -210,7 +219,7 @@ void ReadableStreamDefaultReader::genericRelease(JSDOMGlobalObject& globalObject
         m_closedPromise = WTF::move(promise);
     }
 
-    if (RefPtr controller = m_stream->controller())
+    if (RefPtr controller = stream->controller())
         controller->runReleaseSteps();
 
     stream->setDefaultReader(nullptr);
@@ -244,6 +253,11 @@ Ref<DOMPromise> ReadableStreamDefaultReader::genericCancel(JSDOMGlobalObject& gl
 
     ASSERT(stream);
     ASSERT(stream->defaultReader() == this);
+    if (!stream) [[unlikely]] {
+        auto [promise, deferred] = createPromiseAndWrapper(globalObject);
+        deferred->reject(Exception { ExceptionCode::TypeError, "no stream"_s });
+        return promise;
+    }
 
     return stream->cancel(globalObject, value);
 }
@@ -347,7 +361,7 @@ JSC::JSValue JSReadableStreamDefaultReader::read(JSC::JSGlobalObject& globalObje
     RefPtr internalDefaultReader = wrapped().internalDefaultReader();
     if (!internalDefaultReader) {
         return callPromiseFunction(globalObject, callFrame, [this](auto& globalObject, auto&, auto&& promise) {
-            protect(wrapped())->readForBindings(globalObject, WTF::move(promise));
+            wrapped().readForBindings(globalObject, WTF::move(promise));
         });
     }
 
@@ -358,7 +372,7 @@ JSC::JSValue JSReadableStreamDefaultReader::closed(JSC::JSGlobalObject& globalOb
 {
     RefPtr internalDefaultReader = wrapped().internalDefaultReader();
     if (!internalDefaultReader)
-        return protect(wrapped())->closedPromise().promise();
+        return wrapped().closedPromise().promise();
 
     return internalDefaultReader->closedForBindings(globalObject);
 }
@@ -382,19 +396,19 @@ bool JSReadableStreamDefaultReaderOwner::isReachableFromOpaqueRoots(JSC::Handle<
 }
 
 template<typename Visitor>
-void ReadableStreamDefaultReader::visitAdditionalChildren(Visitor& visitor)
+void ReadableStreamDefaultReader::visitAdditionalChildrenInGCThread(Visitor& visitor)
 {
     if (m_stream)
-        SUPPRESS_UNCOUNTED_ARG m_stream->visitAdditionalChildren(visitor);
+        SUPPRESS_UNCOUNTED_ARG m_stream->visitAdditionalChildrenInGCThread(visitor);
 }
 
 template<typename Visitor>
-void JSReadableStreamDefaultReader::visitAdditionalChildren(Visitor& visitor)
+void JSReadableStreamDefaultReader::visitAdditionalChildrenInGCThread(Visitor& visitor)
 {
     // Do not ref `wrapped()` here since this function may get called on a GC thread.
-    SUPPRESS_UNCOUNTED_ARG wrapped().visitAdditionalChildren(visitor);
+    wrapped().visitAdditionalChildrenInGCThread(visitor);
 }
 
-DEFINE_VISIT_ADDITIONAL_CHILDREN(JSReadableStreamDefaultReader);
+DEFINE_VISIT_ADDITIONAL_CHILDREN_IN_GC_THREAD(JSReadableStreamDefaultReader);
 
 } // namespace WebCore

@@ -174,7 +174,7 @@ public:
     void clearMode(HTMLMediaElementEnums::VideoFullscreenMode, VideoPresentationModel::ShouldNotifyMediaElement);
     bool hasMode(HTMLMediaElementEnums::VideoFullscreenMode mode) const { return m_currentMode.hasMode(mode); }
     WEBCORE_EXPORT UIViewController *presentingViewController();
-    UIViewController *fullscreenViewController() const { return m_viewController.get(); }
+    UIViewController *fullscreenViewController() const LIFETIME_BOUND { return m_viewController.get(); }
     WEBCORE_EXPORT virtual bool pictureInPictureWasStartedWhenEnteringBackground() const = 0;
 
     WEBCORE_EXPORT std::optional<MediaPlayerIdentifier> playerIdentifier() const;
@@ -261,6 +261,7 @@ protected:
     virtual bool willRenderToLayer() const = 0;
     virtual void transferVideoViewToFullscreen() { }
     WEBCORE_EXPORT virtual void returnVideoView();
+    WEBCORE_EXPORT virtual bool shouldCreateWindow() const;
 
 #if PLATFORM(WATCHOS)
     bool m_waitingForPreparedToExit { false };

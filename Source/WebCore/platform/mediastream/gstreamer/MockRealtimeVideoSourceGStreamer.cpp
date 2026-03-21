@@ -138,8 +138,14 @@ void MockRealtimeVideoSourceGStreamer::updateSampleBuffer()
         return;
 
     // Mock GstDevice is an appsrc, see webkitMockDeviceCreateElement().
-    ASSERT(GST_IS_APP_SRC(m_capturer->source()));
-    gst_app_src_push_sample(GST_APP_SRC_CAST(m_capturer->source()), videoFrame->sample());
+    auto appSrc = m_capturer->source();
+    if (!appSrc || !GST_IS_APP_SRC(appSrc.get())) {
+        GST_WARNING("AppSrc not available, capture source may have changed");
+        return;
+    }
+
+    const auto& sample = videoFrame->sample();
+    gst_app_src_push_sample(GST_APP_SRC_CAST(appSrc.get()), sample.get());
 }
 
 void MockRealtimeVideoSourceGStreamer::setSizeFrameRateAndZoom(const VideoPresetConstraints& constraints)

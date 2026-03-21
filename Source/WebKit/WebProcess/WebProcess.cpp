@@ -147,6 +147,7 @@
 #include <WebCore/SharedWorkerThreadProxy.h>
 #include <WebCore/UserGestureIndicator.h>
 #include <WebCore/WebKitJSHandle.h>
+#include <WebCore/WorkerGlobalScope.h>
 #include <algorithm>
 #include <pal/Logging.h>
 #include <wtf/CallbackAggregator.h>
@@ -755,7 +756,7 @@ void WebProcess::initializeWebProcess(WebProcessCreationParameters&& parameters,
     m_shouldInitializeAccessibility = parameters.shouldInitializeAccessibility;
 #endif
 
-#if ENABLE(WEBASSEMBLY_DEBUGGER) && ENABLE(REMOTE_INSPECTOR)
+#if ENABLE(WEBASSEMBLY_DEBUGGER) && ENABLE(REMOTE_INSPECTOR) && CPU(ARM64)
     if (JSC::Options::enableWasmDebugger()) [[unlikely]] {
         bool success = JSC::Wasm::DebugServer::singleton().startRWI([](const String& response) {
             return WebKit::WebProcess::singleton().send(Messages::WebProcessProxy::SendWasmDebuggerResponse(response), 0);
@@ -1183,15 +1184,11 @@ void WebProcess::removeWebFrame(FrameIdentifier frameID, WebPage* page)
     page->send(Messages::WebPageProxy::DidDestroyFrame(frameID));
 }
 
-WebPageGroupProxy* WebProcess::webPageGroup(WebPageGroupData&& pageGroupData)
+WebPageGroupProxy& WebProcess::webPageGroup(WebPageGroupData&& pageGroupData)
 {
-    auto result = m_pageGroupMap.add(pageGroupData.pageGroupID, nullptr);
-    if (result.isNewEntry) {
-        ASSERT(!result.iterator->value);
-        result.iterator->value = WebPageGroupProxy::create(WTF::move(pageGroupData));
-    }
-
-    return result.iterator->value.get();
+    return m_pageGroupMap.ensure(pageGroupData.pageGroupID, [&] {
+        return WebPageGroupProxy::create(WTF::move(pageGroupData));
+    }).iterator->value;
 }
 
 std::optional<WebCore::UserGestureTokenIdentifier> WebProcess::userGestureTokenIdentifier(std::optional<PageIdentifier> pageID, RefPtr<UserGestureToken> token)
@@ -1402,14 +1399,12 @@ NetworkProcessConnection& WebProcess::ensureNetworkProcessConnection()
             for (auto& webPage : m_pageMap.values())
                 webPage->synchronizeCORSDisablingPatternsWithNetworkProcess();
         });
+
+        if (std::exchange(m_needsIDBConnectionRefreshForWorkers, false))
+            refreshIDBConnectionForWorkers();
     }
     
     return *m_networkProcessConnection;
-}
-
-Ref<NetworkProcessConnection> WebProcess::ensureProtectedNetworkProcessConnection()
-{
-    return ensureNetworkProcessConnection();
 }
 
 void WebProcess::logDiagnosticMessageForNetworkProcessCrash()
@@ -1456,7 +1451,7 @@ void WebProcess::networkProcessConnectionClosed(NetworkProcessConnection* connec
         
         if (RefPtr existingIDBConnectionToServer = connection->existingIDBConnectionToServer()) {
             ASSERT_UNUSED(existingIDBConnectionToServer, idbConnection.get() == &existingIDBConnectionToServer->coreConnectionToServer());
-            corePage->clearIDBConnection();
+            corePage->clearIDBConnectionOnAllDocuments();
         }
     }
 
@@ -1503,6 +1498,14 @@ void WebProcess::networkProcessConnectionClosed(NetworkProcessConnection* connec
     }
 }
 
+void WebProcess::refreshIDBConnectionForWorkers()
+{
+    for (auto& page : m_pageMap.values()) {
+        if (RefPtr corePage = page->corePage())
+            corePage->refreshIDBConnectionForWorkers();
+    }
+}
+
 WebFileSystemStorageConnection& WebProcess::fileSystemStorageConnection()
 {
     if (!m_fileSystemStorageConnection)
@@ -1539,11 +1542,6 @@ GPUProcessConnection& WebProcess::ensureGPUProcessConnection()
             page->gpuProcessConnectionDidBecomeAvailable(Ref { *m_gpuProcessConnection });
     }
     return *m_gpuProcessConnection;
-}
-
-Ref<GPUProcessConnection> WebProcess::ensureProtectedGPUProcessConnection()
-{
-    return ensureGPUProcessConnection();
 }
 
 Seconds WebProcess::gpuProcessTimeoutDuration() const
@@ -2375,7 +2373,7 @@ void WebProcess::setAppBadge(WebCore::Frame* frame, const WebCore::SecurityOrigi
 
     RefPtr protectedFrame = frame;
     if (frame) {
-        if (auto webFrame = WebFrame::fromCoreFrame(*frame))
+        if (RefPtr webFrame = WebFrame::fromCoreFrame(*frame))
             webFrame->setAppBadge(origin, badge);
     } else
         protect(parentProcessConnection())->send(Messages::WebProcessProxy::SetAppBadgeFromWorker(origin, badge), 0);
@@ -2524,11 +2522,11 @@ void WebProcess::setUseGPUProcessForMedia(bool useGPUProcessForMedia)
 #if PLATFORM(COCOA)
     if (useGPUProcessForMedia) {
         SystemBatteryStatusTestingOverrides::singleton().setConfigurationChangedCallback([this, protectedThis = Ref { *this }] (bool forceUpdate) {
-            ensureProtectedGPUProcessConnection()->updateMediaConfiguration(forceUpdate);
+            protect(ensureGPUProcessConnection())->updateMediaConfiguration(forceUpdate);
         });
 #if ENABLE(VP9)
         VP9TestingOverrides::singleton().setConfigurationChangedCallback([this, protectedThis = Ref { *this }] (bool forceUpdate) {
-            ensureProtectedGPUProcessConnection()->updateMediaConfiguration(forceUpdate);
+            protect(ensureGPUProcessConnection())->updateMediaConfiguration(forceUpdate);
         });
 #endif
     } else {
@@ -2667,7 +2665,7 @@ bool WebProcess::requiresScriptTrackingPrivacyProtections(const URL& url, const 
 
 bool WebProcess::shouldAllowScriptAccess(const URL& url, const SecurityOrigin& topOrigin, ScriptTrackingPrivacyCategory category) const
 {
-    return m_scriptTrackingPrivacyFilter && m_scriptTrackingPrivacyFilter->shouldAllowAccess(url, topOrigin, category);
+    return !m_scriptTrackingPrivacyFilter || m_scriptTrackingPrivacyFilter->shouldAllowAccess(url, topOrigin, category);
 }
 
 bool WebProcess::requiresConsistentPrivacyQuirkForDomain(const URL& url) const

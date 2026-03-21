@@ -61,8 +61,8 @@ public:
 
     void onNetworksChanged(const Vector<RTCNetwork>&, const RTCNetwork::IPAddress&, const RTCNetwork::IPAddress&);
 
-    const RTCNetwork::IPAddress& ipv4() const;
-    const RTCNetwork::IPAddress& ipv6()  const;
+    const RTCNetwork::IPAddress& ipv4() const LIFETIME_BOUND;
+    const RTCNetwork::IPAddress& ipv6()  const LIFETIME_BOUND;
 
     void NODELETE ref();
     void deref();

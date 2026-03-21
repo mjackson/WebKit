@@ -56,7 +56,7 @@ WKURLRequestRef WKDownloadCopyRequest(WKDownloadRef download)
 
 void WKDownloadCancel(WKDownloadRef download, const void* functionContext, WKDownloadCancelCallback callback)
 {
-    return toProtectedImpl(download)->cancel([functionContext, callback](auto* resumeData) {
+    return protect(toImpl(download))->cancel([functionContext, callback](auto* resumeData) {
         if (callback)
             callback(toAPI(resumeData), functionContext);
     });
@@ -64,7 +64,7 @@ void WKDownloadCancel(WKDownloadRef download, const void* functionContext, WKDow
 
 WKPageRef WKDownloadGetOriginatingPage(WKDownloadRef download)
 {
-    RefPtr originatingPage = toProtectedImpl(download)->originatingPage();
+    RefPtr originatingPage = toImpl(download)->originatingPage();
     return toAPI(originatingPage.get());
 }
 
@@ -148,5 +148,5 @@ void WKDownloadSetClient(WKDownloadRef download, WKDownloadClientBase* client)
         }
     };
 
-    toProtectedImpl(download)->setClient(adoptRef(*new DownloadClient(client)));
+    protect(toImpl(download))->setClient(adoptRef(*new DownloadClient(client)));
 }

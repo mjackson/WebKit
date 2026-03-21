@@ -38,7 +38,7 @@ namespace WebCore {
 
 class WeakPtrImplWithEventTargetData;
 
-// A CachedResourceHandle alone does not prevent the underlying CachedResource
+// A RefPtr alone does not prevent the underlying CachedResource
 // from purging its data buffer. This class holds a client until this class is
 // destroyed in order to guarantee that the data buffer will not be purged.
 class LoadableNonModuleScriptBase : public LoadableScript, protected CachedResourceClient {
@@ -57,11 +57,10 @@ public:
 
     Document* document() { return m_weakDocument.get(); }
     CachedScript& cachedScript() { return *m_cachedScript; }
-    CachedResourceHandle<CachedScript> protectedCachedScript() { return cachedScript(); }
 
     bool load(Document&, const URL&);
     bool isAsync() const { return m_isAsync; }
-    const AtomString& integrity() const { return m_integrity; }
+    const AtomString& integrity() const LIFETIME_BOUND { return m_integrity; }
 
 protected:
     LoadableNonModuleScriptBase(const AtomString& nonce, const AtomString& integrity, ReferrerPolicy, RequestPriority, const AtomString& crossOriginMode, const AtomString& charset, const AtomString& initiatorType, bool isInUserAgentShadowTree, bool isAsync);

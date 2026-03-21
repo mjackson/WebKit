@@ -42,6 +42,7 @@
 #include "WebProcessProxy.h"
 #include <WebCore/PlatformDisplay.h>
 #include <WebCore/PlatformEvent.h>
+#include <WebCore/SelectionType.h>
 #include <wtf/CallbackAggregator.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/glib/Sandbox.h>
@@ -74,7 +75,7 @@ void WebPageProxy::didUpdateEditorState(const EditorState&, const EditorState& n
 {
     if (newEditorState.shouldIgnoreSelectionChanges)
         return;
-    if (newEditorState.selectionIsRange)
+    if (newEditorState.selectionType == WebCore::SelectionType::Range)
         WebPasteboardProxy::singleton().setPrimarySelectionOwner(focusedFrame());
     if (RefPtr pageClient = this->pageClient())
         pageClient->selectionDidChange();

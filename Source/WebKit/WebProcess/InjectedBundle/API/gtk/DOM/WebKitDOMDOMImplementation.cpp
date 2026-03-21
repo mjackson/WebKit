@@ -69,7 +69,9 @@ WebKitDOMDOMImplementation* wrapDOMImplementation(WebCore::DOMImplementation* co
 
 } // namespace WebKit
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GTK port
 G_DEFINE_TYPE(WebKitDOMDOMImplementation, webkit_dom_dom_implementation, WEBKIT_DOM_TYPE_OBJECT)
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 static void webkit_dom_dom_implementation_finalize(GObject* object)
 {

@@ -52,7 +52,7 @@ struct CSSPrimitiveValueResolverBase {
 
     static RefPtr<CSSPrimitiveValue> resolve(CSS::Calc auto value, CSSPropertyParserOptions = { })
     {
-        return CSSPrimitiveValue::create(value.protectedCalc());
+        return CSSPrimitiveValue::create(protect(value.calcValue()));
     }
 
     static RefPtr<CSSPrimitiveValue> resolve(CSS::Numeric auto value, CSSPropertyParserOptions options = { })

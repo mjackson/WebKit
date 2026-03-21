@@ -66,6 +66,9 @@
 #include "NetworkSessionCocoa.h"
 #include "WebPrivacyHelpers.h"
 #endif
+#if USE(CF)
+#include <wtf/cf/VectorCF.h>
+#endif
 #if USE(SOUP)
 #include "NetworkSessionSoup.h"
 #endif
@@ -107,9 +110,17 @@ NetworkStorageSession* NetworkSession::networkStorageSession() const
 
 static Ref<PCM::ManagerInterface> managerOrProxy(NetworkSession& networkSession, NetworkProcess& networkProcess, const NetworkSessionCreationParameters& parameters)
 {
+#if PLATFORM(COCOA)
+    ApplicationBundleIdentifierOrAuditToken applicationBundleIdentifier = parameters.sourceApplicationBundleIdentifier;
+    if (auto data = networkProcess.sourceApplicationAuditData(); data && parameters.sourceApplicationBundleIdentifier.isEmpty())
+        applicationBundleIdentifier = makeVector(data.get());
+#else
+    ApplicationBundleIdentifierOrAuditToken applicationBundleIdentifier = String();
+#endif
+
     if (!parameters.pcmMachServiceName.isEmpty() && !networkSession.sessionID().isEphemeral())
         return PCM::ManagerProxy::create(parameters.pcmMachServiceName, networkSession);
-    return PrivateClickMeasurementManager::create(makeUniqueRef<PCM::ClientImpl>(networkSession, networkProcess), parameters.resourceLoadStatisticsParameters.directory);
+    return PrivateClickMeasurementManager::create(makeUniqueRef<PCM::ClientImpl>(networkSession, networkProcess), parameters.resourceLoadStatisticsParameters.directory, applicationBundleIdentifier);
 }
 
 static Ref<NetworkStorageManager> createNetworkStorageManager(NetworkProcess& networkProcess, const NetworkSessionCreationParameters& parameters)
@@ -254,9 +265,7 @@ void NetworkSession::invalidateAndCancel()
     });
     if (RefPtr resourceLoadStatistics = m_resourceLoadStatistics)
         resourceLoadStatistics->invalidateAndCancel();
-#if ASSERT_ENABLED
     m_isInvalidated = true;
-#endif
 
     if (m_cache) {
         auto networkCacheDirectory = m_cache->storageDirectory();
@@ -775,11 +784,6 @@ SWServer& NetworkSession::ensureSWServer()
     return *m_swServer;
 }
 
-Ref<SWServer> NetworkSession::ensureProtectedSWServer()
-{
-    return ensureSWServer();
-}
-
 bool NetworkSession::hasServiceWorkerDatabasePath() const
 {
     return m_serviceWorkerInfo && !m_serviceWorkerInfo->databasePath.isEmpty();
@@ -801,7 +805,7 @@ void NetworkSession::setEmulatedConditions(std::optional<int64_t>&& bytesPerSeco
 }
 #endif // ENABLE(INSPECTOR_NETWORK_THROTTLING)
 
-static double connectionTimesMovingAverage(const Deque<Seconds, 25>& connectionTimes)
+static double NODELETE connectionTimesMovingAverage(const Deque<Seconds, 25>& connectionTimes)
 {
     constexpr double alphaSmoothing { 0.75 };
     // EWMA:
@@ -902,39 +906,34 @@ BackgroundFetchStoreImpl& NetworkSession::ensureBackgroundFetchStore()
     return *m_backgroundFetchStore;
 }
 
-Ref<BackgroundFetchStoreImpl> NetworkSession::ensureProtectedBackgroundFetchStore()
-{
-    return ensureBackgroundFetchStore();
-}
-
 void NetworkSession::getAllBackgroundFetchIdentifiers(CompletionHandler<void(Vector<String>&&)>&& callback)
 {
-    ensureProtectedBackgroundFetchStore()->getAllBackgroundFetchIdentifiers(WTF::move(callback));
+    protect(ensureBackgroundFetchStore())->getAllBackgroundFetchIdentifiers(WTF::move(callback));
 }
 
 void NetworkSession::getBackgroundFetchState(const String& identifier, CompletionHandler<void(std::optional<BackgroundFetchState>&&)>&& callback)
 {
-    ensureProtectedBackgroundFetchStore()->getBackgroundFetchState(identifier, WTF::move(callback));
+    protect(ensureBackgroundFetchStore())->getBackgroundFetchState(identifier, WTF::move(callback));
 }
 
 void NetworkSession::abortBackgroundFetch(const String& identifier, CompletionHandler<void()>&& callback)
 {
-    ensureProtectedBackgroundFetchStore()->abortBackgroundFetch(identifier, WTF::move(callback));
+    protect(ensureBackgroundFetchStore())->abortBackgroundFetch(identifier, WTF::move(callback));
 }
 
 void NetworkSession::pauseBackgroundFetch(const String& identifier, CompletionHandler<void()>&& callback)
 {
-    ensureProtectedBackgroundFetchStore()->pauseBackgroundFetch(identifier, WTF::move(callback));
+    protect(ensureBackgroundFetchStore())->pauseBackgroundFetch(identifier, WTF::move(callback));
 }
 
 void NetworkSession::resumeBackgroundFetch(const String& identifier, CompletionHandler<void()>&& callback)
 {
-    ensureProtectedBackgroundFetchStore()->resumeBackgroundFetch(identifier, WTF::move(callback));
+    protect(ensureBackgroundFetchStore())->resumeBackgroundFetch(identifier, WTF::move(callback));
 }
 
 void NetworkSession::clickBackgroundFetch(const String& identifier, CompletionHandler<void()>&& callback)
 {
-    ensureProtectedBackgroundFetchStore()->clickBackgroundFetch(identifier, WTF::move(callback));
+    protect(ensureBackgroundFetchStore())->clickBackgroundFetch(identifier, WTF::move(callback));
 }
 
 void NetworkSession::setInspectionForServiceWorkersAllowed(bool inspectable)

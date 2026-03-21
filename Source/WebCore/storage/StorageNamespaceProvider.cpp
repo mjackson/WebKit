@@ -54,9 +54,9 @@ Ref<StorageArea> StorageNamespaceProvider::localStorageArea(Document& document)
 
     RefPtr<StorageNamespace> storageNamespace;
     if (document.canAccessResource(ScriptExecutionContext::ResourceType::LocalStorage) == ScriptExecutionContext::HasResourceAccess::DefaultForThirdParty)
-        storageNamespace = transientLocalStorageNamespace(protect(document.topOrigin()).get(), protect(document.page())->sessionID());
+        storageNamespace = transientLocalStorageNamespace(protect(document.topOrigin()).get(), document.page()->sessionID());
     else
-        storageNamespace = localStorageNamespace(protect(document.page())->sessionID());
+        storageNamespace = localStorageNamespace(document.page()->sessionID());
 
     return storageNamespace->storageArea(protect(document.securityOrigin()).get());
 }
@@ -81,12 +81,12 @@ StorageNamespace& StorageNamespaceProvider::localStorageNamespace(PAL::SessionID
 
 StorageNamespace& StorageNamespaceProvider::transientLocalStorageNamespace(SecurityOrigin& securityOrigin, PAL::SessionID sessionID)
 {
-    auto& slot = m_transientLocalStorageNamespaces.add(securityOrigin.data(), nullptr).iterator->value;
-    if (!slot)
-        slot = createTransientLocalStorageNamespace(securityOrigin, localStorageDatabaseQuotaInBytes, sessionID);
+    auto& slot = m_transientLocalStorageNamespaces.ensure(securityOrigin.data(), [&] {
+        return createTransientLocalStorageNamespace(securityOrigin, localStorageDatabaseQuotaInBytes, sessionID);
+    }).iterator->value;
 
     ASSERT(slot->sessionID() == sessionID);
-    return *slot;
+    return slot;
 }
 
 void StorageNamespaceProvider::setSessionIDForTesting(PAL::SessionID newSessionID)

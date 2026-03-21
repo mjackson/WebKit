@@ -63,6 +63,10 @@ DECLARE_SYSTEM_HEADER
 #import <AppKit/NSTextSelectionManager.h>
 #endif
 
+#if HAVE(LIQUID_GLASS)
+#import <AppKit/NSGlassEffectView_Private.h>
+#endif
+
 #else
 
 @interface NSInspectorBar : NSObject
@@ -193,6 +197,20 @@ typedef NS_ENUM(NSInteger, NSScrollPocketEdge) {
 
 @end
 
+#if HAVE(LIQUID_GLASS)
+
+typedef NS_ENUM(NSInteger, _NSGlassEffectViewAdaptiveAppearance) {
+    _NSGlassEffectViewAdaptiveAppearanceAutomatic,
+    _NSGlassEffectViewAdaptiveAppearanceOff,
+    _NSGlassEffectViewAdaptiveAppearanceOn,
+} NS_REFINED_FOR_SWIFT;
+
+@interface NSGlassEffectView (SPI)
+@property _NSGlassEffectViewAdaptiveAppearance _adaptiveAppearance;
+@end
+
+#endif
+
 #endif
 
 @interface NSPopover (IPI)
@@ -224,21 +242,8 @@ typedef void (^NSWindowSnapshotReadinessHandler) (void);
 
 NS_HEADER_AUDIT_BEGIN(nullability, sendability)
 
-@protocol NSTextSelectionManagerDelegateForWebKit_Staging <NSObject>
-
-- (BOOL)isTextSelectedAtPoint:(NSPoint)point;
-- (void)moveInsertionCursorToPoint:(NSPoint)point;
-- (void)handleClickAtPoint:(NSPoint)point clickCount:(NSUInteger)clickCount;
-- (void)showContextMenuAtPoint:(NSPoint)point;
-- (void)dragSelectionWithGesture:(NSGestureRecognizer *)gesture completionHandler:(void(^)(NSDraggingSession*))completionHandler;
-- (void)beginRangeSelectionAtPoint:(NSPoint)point withGranularity:(NSTextSelectionGranularity)granularity;
-- (void)continueRangeSelectionAtPoint:(NSPoint)point;
-- (void)endRangeSelectionAtPoint:(NSPoint)point;
-
-@end
-
 @interface NSTextSelectionManager (WebKit_SPI)
-@property (weak) id <NSTextSelectionManagerDelegateForWebKit_Staging> _webkitDelegate;
+@property (weak) id /* <NSTextSelectionManagerDelegate> */ _webkitDelegate;
 @end
 
 NS_HEADER_AUDIT_END(nullability, sendability)

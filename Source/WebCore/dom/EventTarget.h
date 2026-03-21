@@ -76,8 +76,8 @@ public:
 // Do not make WeakPtrImplWithEventTargetData a derived class of DefaultWeakPtrImpl to catch the bug which uses incorrect impl class.
 class WeakPtrImplWithEventTargetData final : public WTF::WeakPtrImplBase<WeakPtrImplWithEventTargetData> {
 public:
-    EventTargetData& eventTargetData() { return m_eventTargetData; }
-    const EventTargetData& eventTargetData() const { return m_eventTargetData; }
+    EventTargetData& eventTargetData() LIFETIME_BOUND { return m_eventTargetData; }
+    const EventTargetData& eventTargetData() const LIFETIME_BOUND { return m_eventTargetData; }
 
     template<typename T> WeakPtrImplWithEventTargetData(T* ptr) : WTF::WeakPtrImplBase<WeakPtrImplWithEventTargetData>(ptr) { }
 
@@ -124,16 +124,16 @@ public:
     bool hasEventListeners(const AtomString& eventType) const;
     bool hasAnyEventListeners(Vector<AtomString> eventTypes) const;
     bool hasCapturingEventListeners(const AtomString& eventType);
-    bool hasActiveEventListeners(const AtomString& eventType) const;
+    bool NODELETE hasActiveEventListeners(const AtomString& eventType) const;
 
     Vector<AtomString> eventTypes() const;
-    const EventListenerVector& eventListeners(const AtomString& eventType);
+    const EventListenerVector& NODELETE eventListeners(const AtomString& eventType);
 
     enum class EventInvokePhase { Capturing, Bubbling };
     void fireEventListeners(Event&, EventInvokePhase);
 
     template<typename Visitor>
-    inline void visitJSEventListeners(Visitor&);
+    inline void visitJSEventListenersInGCThread(Visitor&);
     void invalidateJSEventListeners(JSC::JSObject*);
 
     inline const EventTargetData* eventTargetData() const;
@@ -191,7 +191,7 @@ protected:
         HasPendingResources = 1 << 15,
     };
 
-    EventTargetData& ensureEventTargetData();
+    EventTargetData& ensureEventTargetData() LIFETIME_BOUND;
 
     virtual void eventListenersDidChange() { }
 

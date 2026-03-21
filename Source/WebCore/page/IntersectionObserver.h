@@ -32,6 +32,7 @@
 #include "IntersectionObserverMarginBox.h"
 #include "ReducedResolutionSeconds.h"
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
+#include <wtf/WeakListHashSet.h>
 #include <wtf/WeakPtr.h>
 #include <wtf/text/WTFString.h>
 
@@ -82,16 +83,23 @@ public:
 
     ~IntersectionObserver();
 
+    // Local: root is in the same process as the observer.
+    // Remote: root is in different process as the observer.
+    // Only situation where this applies is an observer created in a cross-site frame,
+    // where the top document and frame is of different origin.
+    enum class Type : bool { Local, Remote };
+    Type type() const { return m_type; }
+
     Document* NODELETE trackingDocument() const;
 
     ContainerNode* root() const { return m_root.get(); }
     String rootMargin() const;
     String scrollMargin() const;
-    const IntersectionObserverMarginBox& rootMarginBox() const { return m_rootMargin; }
-    const IntersectionObserverMarginBox& scrollMarginBox() const { return m_scrollMargin; }
-    const Vector<double>& thresholds() const { return m_thresholds; }
-    const Vector<WeakPtr<Element, WeakPtrImplWithEventTargetData>>& observationTargets() const { return m_observationTargets; }
-    bool hasObservationTargets() const { return m_observationTargets.size(); }
+    const IntersectionObserverMarginBox& rootMarginBox() const LIFETIME_BOUND { return m_rootMargin; }
+    const IntersectionObserverMarginBox& scrollMarginBox() const LIFETIME_BOUND { return m_scrollMargin; }
+    const Vector<double>& thresholds() const LIFETIME_BOUND { return m_thresholds; }
+    const WeakListHashSet<Element, WeakPtrImplWithEventTargetData>& observationTargets() const LIFETIME_BOUND { return m_observationTargets; }
+    bool hasObservationTargets() const { return !m_observationTargets.isEmptyIgnoringNullReferences(); }
     bool isObserving(const Element&) const;
 
     void observe(Element&);
@@ -115,7 +123,7 @@ public:
     void appendQueuedEntry(Ref<IntersectionObserverEntry>&&);
     void notify();
 
-    IntersectionObserverCallback* callbackConcurrently() { return m_callback.get(); }
+    IntersectionObserverCallback& callbackConcurrently() { return m_callback; }
     bool isReachableFromOpaqueRoots(JSC::AbstractSlotVisitor&) const;
 
 private:
@@ -139,13 +147,15 @@ private:
     enum class ApplyRootMargin : bool { No, Yes };
     IntersectionObservationState computeIntersectionState(const IntersectionObserverRegistration&, FrameView&, Element& target, ApplyRootMargin) const;
 
+    Type m_type { Type::Local };
+
     WeakPtr<Document, WeakPtrImplWithEventTargetData> m_implicitRootDocument;
     WeakPtr<ContainerNode, WeakPtrImplWithEventTargetData> m_root;
     IntersectionObserverMarginBox m_rootMargin;
     IntersectionObserverMarginBox m_scrollMargin;
     Vector<double> m_thresholds;
-    RefPtr<IntersectionObserverCallback> m_callback;
-    Vector<WeakPtr<Element, WeakPtrImplWithEventTargetData>> m_observationTargets;
+    const Ref<IntersectionObserverCallback> m_callback;
+    WeakListHashSet<Element, WeakPtrImplWithEventTargetData> m_observationTargets;
     Vector<GCReachableRef<Element>> m_pendingTargets;
     Vector<Ref<IntersectionObserverEntry>> m_queuedEntries;
     Vector<GCReachableRef<Element>> m_targetsWaitingForFirstObservation;

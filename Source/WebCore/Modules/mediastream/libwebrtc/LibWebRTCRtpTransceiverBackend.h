@@ -44,7 +44,7 @@ public:
     {
     }
 
-    std::unique_ptr<LibWebRTCRtpReceiverBackend> createReceiverBackend();
+    UniqueRef<LibWebRTCRtpReceiverBackend> createReceiverBackend();
     Ref<LibWebRTCRtpSenderBackend> createSenderBackend(LibWebRTCPeerConnectionBackend&, LibWebRTCRtpSenderBackend::Source&&);
 
     webrtc::RtpTransceiverInterface* rtcTransceiver() { return m_rtcTransceiver.ptr(); }
@@ -58,7 +58,7 @@ private:
     String mid() final;
     void stop() final;
     bool stopped() const final;
-    ExceptionOr<void> setCodecPreferences(const Vector<RTCRtpCodecCapability>&) final;
+    ExceptionOr<void> setCodecPreferences(const Vector<RTCRtpCodec>&) final;
 
     const Ref<webrtc::RtpTransceiverInterface> m_rtcTransceiver;
 };

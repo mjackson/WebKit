@@ -85,9 +85,9 @@ private:
     void createProjectionLayer(WebCore::WebGPU::TextureFormat, std::optional<WebCore::WebGPU::TextureFormat>, WebCore::WebGPU::TextureUsageFlags, double, WebGPUIdentifier);
     void getViewSubImage(WebGPUIdentifier projectionLayerIdentifier, WebGPUIdentifier);
 
-    Ref<WebCore::WebGPU::XRBinding> m_backing;
+    const Ref<WebCore::WebGPU::XRBinding> m_backing;
     WeakRef<WebGPU::ObjectHeap> m_objectHeap;
-    Ref<IPC::StreamServerConnection> m_streamConnection;
+    const Ref<IPC::StreamServerConnection> m_streamConnection;
     ThreadSafeWeakPtr<GPUConnectionToWebProcess> m_gpuConnectionToWebProcess;
     WebGPUIdentifier m_identifier;
     WeakRef<RemoteGPU> m_gpu;

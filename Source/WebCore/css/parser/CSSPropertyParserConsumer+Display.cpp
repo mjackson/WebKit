@@ -103,7 +103,7 @@ consteval DisplayOutsideInsideMap NODELETE makeDisplayOutsideInsideMap()
 constexpr auto displayOutsideInsideMap = makeDisplayOutsideInsideMap();
 
 template<DisplayOutside outside, DisplayInside inside>
-constexpr RefPtr<CSSValue> mappedDisplayValue()
+RefPtr<CSSValue> mappedDisplayValue()
 {
     static constexpr auto result = displayOutsideInsideMap[outside][inside];
 

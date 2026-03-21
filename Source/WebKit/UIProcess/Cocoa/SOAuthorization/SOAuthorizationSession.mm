@@ -191,7 +191,8 @@ void SOAuthorizationSession::start()
         AUTHORIZATIONSESSION_RELEASE_LOG_WITH_THIS(protectedThis, "start: Receive SOAuthorizationHints (error=%ld)", error ? error.code : 0);
 
         if (error || !authorizationHints) {
-            AUTHORIZATIONSESSION_RELEASE_LOG_WITH_THIS(protectedThis, "start (getAuthorizationHintsWithURL completion handler): Returning early due to error or lack of hints.");
+            AUTHORIZATIONSESSION_RELEASE_LOG_WITH_THIS(protectedThis, "start (getAuthorizationHintsWithURL completion handler): Falling back to web path due to error or lack of hints.");
+            protectedThis->fallBackToWebPath();
             return;
         }
 
@@ -227,9 +228,13 @@ void SOAuthorizationSession::continueStartAfterDecidePolicy(const SOAuthorizatio
     }
 
     AUTHORIZATIONSESSION_RELEASE_LOG("continueStartAfterDecidePolicy: Receive SOAuthorizationLoadPolicy::Allow");
+    beginAuthorizationIfReady();
+}
 
+void SOAuthorizationSession::beginAuthorizationIfReady()
+{
     if (!m_soAuthorization || !m_page || !m_navigationAction) {
-        AUTHORIZATIONSESSION_RELEASE_LOG("continueStartAfterGetAuthorizationHints: Early return m_soAuthorization=%d, m_page=%p, navigationAction=%p.", !!m_soAuthorization, page(), navigationAction());
+        AUTHORIZATIONSESSION_RELEASE_LOG("beginAuthorizationIfReady: Early return m_soAuthorization=%d, m_page=%p, navigationAction=%p.", !!m_soAuthorization, page(), navigationAction());
         return;
     }
 
@@ -270,7 +275,7 @@ void SOAuthorizationSession::continueStartAfterDecidePolicy(const SOAuthorizatio
 #endif
 
     RetainPtr nsRequest = m_navigationAction->request().nsURLRequest(WebCore::HTTPBodyUpdatePolicy::UpdateHTTPBody);
-    AUTHORIZATIONSESSION_RELEASE_LOG("continueStartAfterGetAuthorizationHints: Beginning authorization with AppSSO.");
+    AUTHORIZATIONSESSION_RELEASE_LOG("beginAuthorizationIfReady: Beginning authorization with AppSSO.");
     [m_soAuthorization beginAuthorizationWithURL:retainPtr(nsRequest.get().URL).get() httpHeaders:retainPtr(nsRequest.get().allHTTPHeaderFields).get() httpBody:retainPtr(nsRequest.get().HTTPBody).get()];
 }
 

@@ -30,6 +30,7 @@
 #include "DocumentMarkerController.h"
 #include "Editor.h"
 #include "EventRegion.h"
+#include "FontCascadeInlines.h"
 #include "GraphicsContext.h"
 #include "HTMLAnchorElement.h"
 #include "InlineIteratorBoxInlines.h"
@@ -38,6 +39,7 @@
 #include "InlineTextBoxStyle.h"
 #include "LineSelection.h"
 #include "PaintInfo.h"
+#include "PaintInfoInlines.h"
 #include "RenderBlock.h"
 #include "RenderBoxModelObjectInlines.h"
 #include "RenderCombineText.h"
@@ -259,7 +261,7 @@ void TextBoxPainter::paint()
 #endif
             if (m_containsComposition && !m_compositionWithCustomUnderlines)
                 return true;
-            if (CheckedPtr markers = m_document->markersIfExists(); markers && markers->hasMarkers())
+            if (auto* markers = m_document->markersIfExists(); markers && markers->hasMarkers())
                 return true;
             if (m_document->hasHighlight())
                 return true;
@@ -402,7 +404,7 @@ void TextBoxPainter::paintForegroundAndDecorations()
             return true;
         if (shouldPaintSelectionForeground)
             return true;
-        if (CheckedPtr markers = m_document->markersIfExists(); markers && markers->hasMarkers())
+        if (auto* markers = m_document->markersIfExists(); markers && markers->hasMarkers())
             return true;
         if (m_document->hasHighlight())
             return true;
@@ -438,6 +440,8 @@ void TextBoxPainter::paintForegroundAndDecorations()
             auto markedTextsForTransparentContent = MarkedText::collectForDraggedAndTransparentContent(DocumentMarkerType::TransparentContent, m_renderer, m_selectableRange);
             if (!markedTextsForTransparentContent.isEmpty())
                 markedTexts.appendVector(WTF::move(markedTextsForTransparentContent));
+
+            markedTexts.appendVector(MarkedText::collectForDictationStreamingOpacity(m_renderer, m_selectableRange));
         }
     }
     // The selection marked text acts as a placeholder when computing the marked texts for the gaps...
@@ -628,6 +632,19 @@ void TextBoxPainter::paintBackgroundFillForRange(unsigned startOffset, unsigned 
     context.fillRect(backgroundRect, color);
 }
 
+static bool isTransparent(const StyledMarkedText& markedText)
+{
+    switch (markedText.type) {
+    case MarkedText::Type::DraggedContent:
+    case MarkedText::Type::TransparentContent:
+    case MarkedText::Type::DictationStreamingOpacity:
+        return true;
+
+    default:
+        return false;
+    }
+}
+
 void TextBoxPainter::paintForeground(const StyledMarkedText& markedText)
 {
     if (markedText.startOffset >= markedText.endOffset)
@@ -654,7 +671,7 @@ void TextBoxPainter::paintForeground(const StyledMarkedText& markedText)
         m_isCombinedText ? &downcast<RenderCombineText>(m_renderer.get()) : nullptr
     };
 
-    bool isTransparentMarkedText = markedText.type == MarkedText::Type::DraggedContent || markedText.type == MarkedText::Type::TransparentContent;
+    bool isTransparentMarkedText = isTransparent(markedText);
     GraphicsContextStateSaver stateSaver(context, markedText.style.textStyles.strokeWidth > 0 || isTransparentMarkedText);
     if (isTransparentMarkedText)
         context.setAlpha(markedText.style.alpha);
@@ -716,7 +733,7 @@ TextDecorationPainter TextBoxPainter::createDecorationPainter(const StyledMarked
     // Note that if the text is truncated, we let the thing being painted in the truncation
     // draw its own decoration.
     GraphicsContextStateSaver stateSaver { context, false };
-    bool isTransparentContent = markedText.type == MarkedText::Type::DraggedContent || markedText.type == MarkedText::Type::TransparentContent;
+    bool isTransparentContent = isTransparent(markedText);
     if (isTransparentContent || !clipOutRect.isEmpty()) {
         stateSaver.save();
         if (isTransparentContent)
@@ -759,7 +776,7 @@ static inline Style::TextDecorationLine computedTextDecorationType(const RenderS
     return textDecorations;
 }
 
-static inline const RenderStyle& decoratingBoxStyleForInlineBox(const InlineIterator::InlineBox& inlineBox, bool isFirstLine)
+static inline CheckedRef<const RenderStyle> decoratingBoxStyleForInlineBox(const InlineIterator::InlineBox& inlineBox, bool isFirstLine)
 {
     if (!inlineBox.isRootInlineBox())
         return inlineBox.style();
@@ -786,40 +803,42 @@ static inline bool isDecoratingBoxForBackground(const InlineIterator::InlineBox&
         || (inlineBox.isRootInlineBox() && styleToUse.textDecorationLineInEffect().containsAny({ Style::TextDecorationLine::Flag::Underline, Style::TextDecorationLine::Flag::Overline }));
 }
 
-void TextBoxPainter::collectDecoratingBoxesForBackgroundPainting(DecoratingBoxList& decoratingBoxList, const InlineIterator::TextBoxIterator& textBox, FloatPoint textBoxLocation, const TextDecorationPainter::Styles& overrideDecorationStyle)
+void TextBoxPainter::collectDecoratingBoxesForBackgroundPainting(DecoratingBoxList& decoratingBoxList, const InlineIterator::TextBoxIterator& textBox, const FloatRect& textBoxRect, const TextDecorationPainter::Styles& overrideDecorationStyle)
 {
-    auto ancestorInlineBox = textBox->parentInlineBox();
-    if (!ancestorInlineBox) {
+    auto parentInlineBox = textBox->parentInlineBox();
+    if (!parentInlineBox) {
         ASSERT_NOT_REACHED();
         return;
     }
 
-    if (ancestorInlineBox->isRootInlineBox()) {
-        decoratingBoxList.append({ ancestorInlineBox, decoratingBoxStyleForInlineBox(*ancestorInlineBox, m_isFirstLine), overrideDecorationStyle, textBoxLocation });
+    auto textBoxLocation = textBoxRect.location();
+    auto decorationWidth = textBoxRect.width();
+    if (parentInlineBox->isRootInlineBox()) {
+        decoratingBoxList.append({ parentInlineBox, decoratingBoxStyleForInlineBox(*parentInlineBox, m_isFirstLine), overrideDecorationStyle, textBoxLocation, decorationWidth });
         return;
     }
 
     if (writingMode().isLineInverted()) {
         // FIXME: underlineOffsetForTextBoxPainting returns incorrect value for vertical-lr.
-        decoratingBoxList.append({ ancestorInlineBox, m_style.get(), overrideDecorationStyle, textBoxLocation });
+        decoratingBoxList.append({ parentInlineBox, m_style.get(), overrideDecorationStyle, textBoxLocation, decorationWidth });
         return;
     }
 
-    enum UseOverriderDecorationStyle : bool { No, Yes };
-    auto appendIfIsDecoratingBoxForBackground = [&] (auto& inlineBox, auto useOverriderDecorationStyle) {
-        auto& style = decoratingBoxStyleForInlineBox(*inlineBox, m_isFirstLine);
+    auto appendIfIsDecoratingBoxForBackground = [&] (auto& inlineBox) {
+        CheckedRef style = decoratingBoxStyleForInlineBox(*inlineBox, m_isFirstLine);
+        auto computedDecorationStyle = TextDecorationPainter::stylesForRenderer(inlineBox->renderer(), style->textDecorationLineInEffect(), m_isFirstLine);
+        auto isParentInlineBox = &inlineBox == &parentInlineBox;
 
-        auto computedDecorationStyle = [&] {
-            return TextDecorationPainter::stylesForRenderer(inlineBox->renderer(), style.textDecorationLineInEffect(), m_isFirstLine);
-        };
-        if (!isDecoratingBoxForBackground(*inlineBox, style)) {
-            // Some cases even non-decoration boxes may have some decoration pieces coming from the marked text (e.g. highlight).
-            if (useOverriderDecorationStyle == UseOverriderDecorationStyle::No || overrideDecorationStyle == computedDecorationStyle())
-                return;
+        if (inlineBox->isRubyBase()) {
+            decorationWidth = inlineBox->logicalWidth();
+            writingMode().isHorizontal() ? textBoxLocation.setX(m_paintOffset.x() + inlineBox->logicalLeft()) : textBoxLocation.setX(textBoxLocation.x() - (textBox->logicalLeft() - inlineBox->logicalLeft()));
         }
 
+        // Some cases even non-decoration boxes may have some decoration pieces coming from the marked text (e.g. highlight).
+        if (!isDecoratingBoxForBackground(*inlineBox, style) && (!isParentInlineBox || overrideDecorationStyle == computedDecorationStyle))
+            return;
+
         auto decoratingBoxLocation = textBoxLocation;
-        auto parentInlineBox = textBox->parentInlineBox();
         // Normally text box top is aligned with the parent inline box top (i.e. textBox->logicalTop() == parentInlineBox->logicalTop()) but when inline box sides are trimmed (see: text-box property)
         // inline box gets an offset while text box does not.
         if (&inlineBox->renderer() != &parentInlineBox->renderer()) {
@@ -828,19 +847,22 @@ void TextBoxPainter::collectDecoratingBoxesForBackgroundPainting(DecoratingBoxLi
             decoratingBoxLocation.moveBy(FloatPoint { 0.f, decoratingBoxContentBoxTop - parentInlineBoxContentBoxTop + snap(textBoxEdgeAdjustmentForUnderline(parentInlineBox->style()), m_renderer) });
         } else
             decoratingBoxLocation.moveBy(FloatPoint { 0.f, snap(textBoxEdgeAdjustmentForUnderline(inlineBox->style()), m_renderer) });
-        auto& decorationStyleToUse = useOverriderDecorationStyle == UseOverriderDecorationStyle::Yes ? overrideDecorationStyle : computedDecorationStyle();
-        decoratingBoxList.append({ inlineBox, style, decorationStyleToUse, decoratingBoxLocation });
+
+        decoratingBoxList.append({
+            inlineBox,
+            style,
+            isParentInlineBox ? overrideDecorationStyle : computedDecorationStyle,
+            decoratingBoxLocation,
+            decorationWidth
+        });
     };
 
     // FIXME: Figure out if the decoration styles coming from the styled marked text should be used only on the closest inline box (direct parent).
-    appendIfIsDecoratingBoxForBackground(ancestorInlineBox, UseOverriderDecorationStyle::Yes);
-    while (!ancestorInlineBox->isRootInlineBox()) {
-        ancestorInlineBox = ancestorInlineBox->parentInlineBox();
-        if (!ancestorInlineBox) {
-            ASSERT_NOT_REACHED();
+    appendIfIsDecoratingBoxForBackground(parentInlineBox);
+    for (auto ancestorInlineBox = parentInlineBox->parentInlineBox(); ancestorInlineBox; ancestorInlineBox = ancestorInlineBox->parentInlineBox()) {
+        appendIfIsDecoratingBoxForBackground(ancestorInlineBox);
+        if (ancestorInlineBox->isRootInlineBox())
             break;
-        }
-        appendIfIsDecoratingBoxForBackground(ancestorInlineBox, UseOverriderDecorationStyle::No);
     }
 }
 
@@ -853,7 +875,7 @@ void TextBoxPainter::paintBackgroundDecorations(TextDecorationPainter& decoratio
 
     auto textBox = makeIterator();
     auto decoratingBoxList = DecoratingBoxList { };
-    collectDecoratingBoxesForBackgroundPainting(decoratingBoxList, textBox, textBoxPaintRect.location(), markedText.style.textDecorationStyles);
+    collectDecoratingBoxesForBackgroundPainting(decoratingBoxList, textBox, textBoxPaintRect, markedText.style.textDecorationStyles);
 
     for (auto& decoratingBox : decoratingBoxList | std::views::reverse) {
         auto computedTextDecorationType = WebCore::computedTextDecorationType(decoratingBox.style.get(), decoratingBox.textDecorationStyles);
@@ -879,7 +901,7 @@ void TextBoxPainter::paintBackgroundDecorations(TextDecorationPainter& decoratio
             return TextDecorationPainter::BackgroundDecorationGeometry {
                 textOriginFromPaintRect(textBoxPaintRect),
                 decoratingBox.location,
-                textBoxPaintRect.width(),
+                decoratingBox.contentWidth,
                 textDecorationThickness,
                 underlineOffset(),
                 overlineOffset(),
@@ -896,7 +918,7 @@ void TextBoxPainter::paintBackgroundDecorations(TextDecorationPainter& decoratio
         m_paintInfo.context().concatCTM(rotation(m_paintRect, RotationDirection::Counterclockwise));
 }
 
-static const RenderStyle& decoratingBoxStyle(const InlineIterator::TextBoxIterator& textBox)
+static CheckedRef<const RenderStyle> decoratingBoxStyle(const InlineIterator::TextBoxIterator& textBox)
 {
     if (auto parentInlineBox = textBox->parentInlineBox())
         return parentInlineBox->style();
@@ -907,9 +929,9 @@ static const RenderStyle& decoratingBoxStyle(const InlineIterator::TextBoxIterat
 void TextBoxPainter::paintForegroundDecorations(TextDecorationPainter& decorationPainter, const StyledMarkedText& markedText, const FloatRect& textBoxPaintRect)
 {
     auto textBox = makeIterator();
-    auto& styleForDecoration = decoratingBoxStyle(textBox);
+    CheckedRef styleForDecoration = decoratingBoxStyle(textBox);
     auto computedTextDecorationType = [&] {
-        auto textDecorations = styleForDecoration.textDecorationLineInEffect();
+        auto textDecorations = styleForDecoration->textDecorationLineInEffect();
         textDecorations.addOrReplaceIfNotNone(TextDecorationPainter::textDecorationsInEffectForStyle(markedText.style.textDecorationStyles));
         return textDecorations;
     }();
@@ -927,7 +949,7 @@ void TextBoxPainter::paintForegroundDecorations(TextDecorationPainter& decoratio
         , textBoxPaintRect.width()
         , textDecorationThickness
         , linethroughCenter
-        , wavyStrokeParameters(styleForDecoration.computedFontSize()) }, markedText.style.textDecorationStyles);
+        , wavyStrokeParameters(styleForDecoration->computedFontSize()) }, markedText.style.textDecorationStyles);
 
     if (m_isCombinedText)
         m_paintInfo.context().concatCTM(rotation(m_paintRect, RotationDirection::Counterclockwise));
@@ -965,7 +987,7 @@ enum class TrimSide : bool {
     Right,
 };
 
-static CornerRadii trimRadii(const CornerRadii& radii, TrimSide trimSide)
+static CornerRadii NODELETE trimRadii(const CornerRadii& radii, TrimSide trimSide)
 {
     switch (trimSide) {
     case TrimSide::Left:
@@ -996,7 +1018,7 @@ static FloatRect snapRectToDevicePixelsInDirection(const FloatRect& rect, float 
 }
 
 enum class TextBoxFragmentLocationWithinLayoutBox : uint8_t { First = 1 << 0, Last = 1 << 1 };
-static OptionSet<TextBoxFragmentLocationWithinLayoutBox> textBoxFragmentLocationWithinLayoutBox(const InlineIterator::BoxModernPath& textBox)
+static OptionSet<TextBoxFragmentLocationWithinLayoutBox> NODELETE textBoxFragmentLocationWithinLayoutBox(const InlineIterator::BoxModernPath& textBox)
 {
     OptionSet<TextBoxFragmentLocationWithinLayoutBox> location;
     if (textBox.box().isFirstForLayoutBox())
@@ -1143,7 +1165,7 @@ void TextBoxPainter::paintCompositionUnderlines()
     }
 }
 
-static inline void mirrorRTLSegment(float logicalWidth, TextDirection direction, float& start, float width)
+static inline void NODELETE mirrorRTLSegment(float logicalWidth, TextDirection direction, float& start, float width)
 {
     if (direction == TextDirection::LTR)
         return;
@@ -1207,14 +1229,14 @@ static void removeMarkersPaintedByTextDecorationPainter(const RenderText& render
     }
 }
 
-static std::optional<MarkedText> markedTextForTextDecorationLineSpellingError(const RenderText& renderer)
+static std::optional<MarkedText> NODELETE markedTextForTextDecorationLineSpellingError(const RenderText& renderer)
 {
     if (!renderer.style().textDecorationLineInEffect().isSpellingError())
         return std::nullopt;
     return std::make_optional<MarkedText>({ 0, static_cast<unsigned>(renderer.length()), MarkedText::Type::SpellingError });
 }
 
-static std::optional<MarkedText> markedTextForTextDecorationLineGrammarError(const RenderText& renderer)
+static std::optional<MarkedText> NODELETE markedTextForTextDecorationLineGrammarError(const RenderText& renderer)
 {
     if (!renderer.style().textDecorationLineInEffect().isGrammarError())
         return std::nullopt;
@@ -1240,6 +1262,7 @@ void TextBoxPainter::paintPlatformDocumentMarkers()
     // the other marked texts when being subdivided so that they do not get painted.
     Vector<MarkedText> allMarkedTexts;
     allMarkedTexts.appendVector(transparentContentMarkedTexts);
+    allMarkedTexts.appendVector(MarkedText::collectForDictationStreamingOpacity(m_renderer, m_selectableRange));
     allMarkedTexts.appendVector(markedTexts);
     if (textDecorationLineSpellingErrorAsMarkedText)
         allMarkedTexts.append(*textDecorationLineSpellingErrorAsMarkedText);
@@ -1250,6 +1273,7 @@ void TextBoxPainter::paintPlatformDocumentMarkers()
         switch (markedText.type) {
         case MarkedText::Type::DraggedContent:
         case MarkedText::Type::TransparentContent:
+        case MarkedText::Type::DictationStreamingOpacity:
             continue;
 
         default:

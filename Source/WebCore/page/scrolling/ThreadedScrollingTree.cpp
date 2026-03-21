@@ -185,13 +185,13 @@ void ThreadedScrollingTree::didCommitTreeOnScrollingThread()
     }
 }
 
-bool ThreadedScrollingTree::scrollingTreeNodeRequestsScroll(ScrollingNodeID nodeID, const RequestedScrollData& request)
+RequestsScrollHandling ThreadedScrollingTree::scrollingTreeNodeRequestsScroll(ScrollingNodeID nodeID, const RequestedScrollData& request)
 {
-    if (request.animated == ScrollIsAnimated::Yes) {
+    if (isAnimatedUpdate(request.requestType)) {
         m_nodesWithPendingScrollAnimations.set(nodeID, request);
-        return true;
+        return RequestsScrollHandling::Handled;
     }
-    return false;
+    return RequestsScrollHandling::Unhandled;
 }
 
 bool ThreadedScrollingTree::scrollingTreeNodeRequestsKeyboardScroll(ScrollingNodeID nodeID, const RequestedKeyboardScrollData& request)
@@ -258,10 +258,11 @@ void ThreadedScrollingTree::scrollingTreeNodeDidScroll(ScrollingTreeScrollingNod
     auto scrollUpdate = ScrollUpdate {
         .nodeID = node.scrollingNodeID(),
         .scrollPosition = scrollPosition,
-        .layoutViewportOrigin = layoutViewportOrigin,
-        .updateType = ScrollUpdateType::PositionUpdate,
-        .updateLayerPositionAction = scrollingLayerPositionAction,
-        .responseIdentifier = { }
+        .data = ScrollUpdateData {
+            .updateType = ScrollUpdateType::PositionUpdate,
+            .updateLayerPositionAction = scrollingLayerPositionAction,
+            .layoutViewportOrigin = layoutViewportOrigin,
+        },
     };
 
     if (RunLoop::isMain()) {
@@ -273,7 +274,29 @@ void ThreadedScrollingTree::scrollingTreeNodeDidScroll(ScrollingTreeScrollingNod
     addPendingScrollUpdateWithDeferReason(WTF::move(scrollUpdate), WheelEventTestMonitor::DeferReason::ScrollingThreadSyncNeeded);
 }
 
-void ThreadedScrollingTree::scrollingTreeNodeScrollUpdated(ScrollingTreeScrollingNode& node, const ScrollUpdateType& scrollUpdateType)
+void ThreadedScrollingTree::didHandleScrollRequestForNode(ScrollingNodeID nodeID, ScrollRequestType requestType, FloatPoint scrollPosition, ShouldFireScrollEnd shouldFireScrollEnd, Markable<ScrollRequestIdentifier>)
+{
+    RefPtr scrollingCoordinator = m_scrollingCoordinator;
+    if (!scrollingCoordinator)
+        return;
+
+    auto scrollUpdate = ScrollUpdate {
+        .nodeID = nodeID,
+        .scrollPosition = scrollPosition,
+        .shouldFireScrollEnd = shouldFireScrollEnd,
+        .data = ScrollRequestResponseData {
+            .requestType = requestType
+        },
+    };
+    if (RunLoop::isMain()) {
+        scrollingCoordinator->applyScrollUpdate(WTF::move(scrollUpdate));
+        return;
+    }
+
+    addPendingScrollUpdate(WTF::move(scrollUpdate));
+}
+
+void ThreadedScrollingTree::scrollingTreeNodeScrollUpdated(ScrollingTreeScrollingNode& node, ScrollUpdateType scrollUpdateType)
 {
     RefPtr scrollingCoordinator = m_scrollingCoordinator;
     if (!scrollingCoordinator)
@@ -284,10 +307,9 @@ void ThreadedScrollingTree::scrollingTreeNodeScrollUpdated(ScrollingTreeScrollin
     auto scrollUpdate = ScrollUpdate {
         .nodeID = node.scrollingNodeID(),
         .scrollPosition = { },
-        .layoutViewportOrigin = { },
-        .updateType = scrollUpdateType,
-        .updateLayerPositionAction = ScrollingLayerPositionAction::Sync,
-        .responseIdentifier = { }
+        .data = ScrollUpdateData {
+            .updateType = scrollUpdateType
+        }
     };
 
     if (RunLoop::isMain()) {

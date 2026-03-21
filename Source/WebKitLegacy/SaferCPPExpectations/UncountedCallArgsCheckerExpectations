@@ -4,7 +4,6 @@ Storage/StorageAreaSync.cpp
 Storage/StorageNamespaceImpl.cpp
 Storage/StorageThread.cpp
 Storage/WebStorageNamespaceProvider.cpp
-WebCoreSupport/PageStorageSessionProvider.h
 WebCoreSupport/PingHandle.h
 WebCoreSupport/SocketStreamHandleImpl.cpp
 WebCoreSupport/SocketStreamHandleImplCFNet.cpp

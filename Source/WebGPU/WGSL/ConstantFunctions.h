@@ -1333,7 +1333,12 @@ CONSTANT_FUNCTION(Normalize)
     return constantDivide(resultType, { arg, length });
 }
 
-BINARY_OPERATION(Pow, Float, WRAP_STD(pow))
+BINARY_OPERATION(Pow, Float, [&]<typename T>(T base, T exp) -> ConstantResult {
+    if (base < 0)
+        return makeUnexpected(makeString("pow called with negative base ("_s, String::number(base), ")"_s));
+    auto result = std::pow(base, exp);
+    return { { T(result) } };
+});
 
 UNARY_OPERATION(QuantizeToF16, F32, [&](float arg) -> ConstantResult {
     UNUSED_PARAM(resultType);
@@ -1435,10 +1440,12 @@ UNARY_OPERATION(Sign, Number, [&]<typename T>(T e) -> T {
     return result;
 })
 
-TERNARY_OPERATION(Smoothstep, Float, [&](auto low, auto high, auto x) {
+TERNARY_OPERATION(Smoothstep, Float, [&]<typename T>(T low, T high, T x) -> ConstantResult {
+    if (low == high)
+        return makeUnexpected(makeString("smoothstep called with low ("_s, String::number(low), ") equal high ("_s, String::number(high), ")"_s));
     auto e = (x - low) / (high - low);
     auto t = std::min(std::max(e, static_cast<decltype(e)>(0)), static_cast<decltype(e)>(1));
-    return t * t * (3.0 - 2.0 * t);
+    return { { t * t * (3.0 - 2.0 * t) } };
 })
 
 UNARY_OPERATION(Sqrt, Float, WRAP_STD(sqrt))
@@ -1798,6 +1805,18 @@ VALIDATION_FUNCTION(Clamp)
         CALL(any, Any, nullptr, { gt });
         if (any.toBool())
             return { makeString("clamp called with low ("_s, *arguments[1], ") greater than high ("_s, *arguments[2], ")"_s) };
+    }
+
+    return std::nullopt;
+}
+
+VALIDATION_FUNCTION(Smoothstep)
+{
+    if (arguments[0] && arguments[1]) {
+        CALL(equal, Equal, nullptr, { *arguments[0], *arguments[1] });
+        CALL(any, Any, nullptr, { equal });
+        if (any.toBool())
+            return { makeString("smoothstep called with low ("_s, *arguments[0], ") equal high ("_s, *arguments[1], ")"_s) };
     }
 
     return std::nullopt;

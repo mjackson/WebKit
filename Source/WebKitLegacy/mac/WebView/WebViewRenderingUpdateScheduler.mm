@@ -50,7 +50,7 @@ WebViewRenderingUpdateScheduler::WebViewRenderingUpdateScheduler(WebView* webVie
         // However if the flush is rescheduled from the callback it may get pushed past it, to the next cycle.
         WebThreadLock();
 #endif
-        CheckedPtr checkedThis = weakThis.get();
+        CheckedPtr checkedThis = weakThis;
         if (!checkedThis)
             return;
         checkedThis->renderingUpdateRunLoopObserverCallback();
@@ -60,7 +60,7 @@ WebViewRenderingUpdateScheduler::WebViewRenderingUpdateScheduler(WebView* webVie
 #if PLATFORM(IOS_FAMILY)
         WebThreadLock();
 #endif
-        CheckedPtr checkedThis = weakThis.get();
+        CheckedPtr checkedThis = weakThis;
         if (!checkedThis)
             return;
         checkedThis->postRenderingUpdateCallback();

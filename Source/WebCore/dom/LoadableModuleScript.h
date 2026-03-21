@@ -25,8 +25,8 @@
 
 #pragma once
 
-#include <WebCore/LoadableScript.h>
-#include <WebCore/LoadableScriptError.h>
+#include "LoadableScript.h"
+#include "LoadableScriptError.h"
 #include <wtf/TypeCasts.h>
 
 namespace WebCore {
@@ -57,7 +57,7 @@ public:
 
     UniquedStringImpl* moduleKey() const { return m_moduleKey.get(); }
 
-    ModuleFetchParameters& parameters() { return m_parameters.get(); }
+    ModuleFetchParameters& parameters() const LIFETIME_BOUND { return m_parameters.get(); }
 
 private:
     LoadableModuleScript(IsInline, const AtomString& nonce, const AtomString& integrity, ReferrerPolicy, RequestPriority, const AtomString& crossOriginMode, const AtomString& charset, const AtomString& initiatorType, bool isInUserAgentShadowTree);

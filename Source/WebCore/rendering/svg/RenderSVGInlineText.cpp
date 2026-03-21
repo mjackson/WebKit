@@ -29,6 +29,7 @@
 #include "DocumentInlines.h"
 #include "FloatConversion.h"
 #include "FloatQuad.h"
+#include "FontCascadeInlines.h"
 #include "InlineIteratorSVGTextBox.h"
 #include "InlineRunAndOffset.h"
 #include "LegacyRenderSVGRoot.h"

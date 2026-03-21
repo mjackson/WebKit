@@ -52,10 +52,10 @@ public:
     virtual void addModule(const String& moduleURL, WorkletOptions&&, DOMPromiseDeferred<void>&&);
 
     void finishPendingTasks(WorkletPendingTasks&);
-    Document* document();
+    Document* NODELETE document();
 
-    const Vector<Ref<WorkletGlobalScopeProxy>>& proxies() const { return m_proxies; }
-    const String& identifier() const { return m_identifier; }
+    const Vector<Ref<WorkletGlobalScopeProxy>>& proxies() const LIFETIME_BOUND { return m_proxies; }
+    const String& identifier() const LIFETIME_BOUND { return m_identifier; }
 
     virtual bool isAudioWorklet() const { return false; }
 

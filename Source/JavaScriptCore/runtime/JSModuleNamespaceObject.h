@@ -72,7 +72,7 @@ public:
 
     inline static Structure* createStructure(VM&, JSGlobalObject*, JSValue);
 
-    AbstractModuleRecord* moduleRecord() { return m_moduleRecord.get(); }
+    AbstractModuleRecord* moduleRecord() LIFETIME_BOUND { return m_moduleRecord.get(); }
 
 #if USE(BUN_JSC_ADDITIONS)
     WTF::TriState m_hasESModuleMarker = WTF::TriState::Indeterminate;

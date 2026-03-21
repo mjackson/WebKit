@@ -157,6 +157,7 @@ class Color;
 - (CGRect)elementRectFromSelector:(NSString *)selector;
 - (CGPoint)elementMidpointFromSelector:(NSString *)selector;
 - (_WKJSHandle *)querySelector:(NSString *)selector frame:(WKFrameInfo *)frame world:(WKContentWorld *)world;
+- (void)visitUnsafeSite;
 @end
 
 #endif // __cplusplus
@@ -232,6 +233,7 @@ class Color;
 @property (nonatomic, readonly) NSString *textForSpeakSelection;
 - (_WKActivatedElementInfo *)activatedElementAtPosition:(CGPoint)position;
 - (void)evaluateJavaScriptAndWaitForInputSessionToChange:(NSString *)script;
+- (void)evaluateJavaScriptAndWaitForInputSessionToChange:(NSString *)script inFrame:(WKFrameInfo *)frame;
 - (WKContentView *)wkContentView;
 - (void)setZoomScaleSimulatingUserTriggeredZoom:(CGFloat)zoomScale;
 @end
@@ -251,6 +253,7 @@ class Color;
 - (void)sendClickAtPoint:(NSPoint)pointInWindow;
 - (void)rightClickAtPoint:(NSPoint)pointInWindow;
 - (void)wheelEventAtPoint:(CGPoint)pointInWindow wheelDelta:(CGSize)delta;
+- (void)wheelEventAtPoint:(CGPoint)pointInWindow wheelDelta:(CGSize)delta phase:(CGScrollPhase)phase momentumPhase:(CGMomentumScrollPhase)momentumPhase;
 - (BOOL)acceptsFirstMouseAtPoint:(NSPoint)pointInWindow;
 - (NSWindow *)hostWindow;
 - (void)typeCharacter:(char)character modifiers:(NSEventModifierFlags)modifiers;

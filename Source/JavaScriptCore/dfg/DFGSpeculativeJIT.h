@@ -38,8 +38,8 @@
 #include "DFGSilentRegisterSavePlan.h"
 #include "JITMathIC.h"
 #include "JITOperations.h"
+#include "PropertyInlineCache.h"
 #include "SpillRegistersMode.h"
-#include "StructureStubInfo.h"
 #include "ValueRecovery.h"
 #include "VirtualRegister.h"
 #include <wtf/TZoneMalloc.h>
@@ -322,7 +322,7 @@ public:
         use(nodeUse.node());
     }
     
-    RegisterSetBuilder usedRegisters();
+    RegisterSet usedRegisters();
     
     bool masqueradesAsUndefinedWatchpointSetIsStillValid()
     {
@@ -370,9 +370,9 @@ public:
     void silentSpillImpl(const SilentRegisterSavePlan&);
     void silentFillImpl(const SilentRegisterSavePlan&);
 
-    RegisterSetBuilder spilledRegsForSilentSpillPlans(const auto& plans)
+    RegisterSet spilledRegsForSilentSpillPlans(const auto& plans)
     {
-        RegisterSetBuilder usedRegisters;
+        RegisterSet usedRegisters;
         for (auto& plan : plans)
             usedRegisters.add(plan.reg(), IgnoreVectors);
         return usedRegisters;
@@ -714,12 +714,12 @@ public:
     void cachedPutById(Node*, CodeOrigin, GPRReg baseGPR, JSValueRegs valueRegs, CacheableIdentifier, AccessType);
     void cachedGetByIdWithThis(Node*, CodeOrigin, JSValueRegs baseRegs, JSValueRegs thisRegs, JSValueRegs resultRegs, CacheableIdentifier, bool needsBaseAndThisCellCheck);
 #elif USE(JSVALUE32_64)
-    void cachedGetById(Node*, CodeOrigin, JSValueRegs base, JSValueRegs result, GPRReg stubInfoGPR, GPRReg scratchGPR, CacheableIdentifier, JITCompiler::Jump slowPathTarget, SpillRegistersMode, AccessType);
-    void cachedPutById(Node*, CodeOrigin, GPRReg baseGPR, JSValueRegs valueRegs, GPRReg stubInfoGPR, GPRReg scratchGPR, GPRReg scratch2GPR, CacheableIdentifier, AccessType, JITCompiler::Jump slowPathTarget = JITCompiler::Jump(), SpillRegistersMode = NeedToSpill);
-    void cachedGetById(Node*, CodeOrigin, GPRReg baseGPR, GPRReg resultGPR, GPRReg stubInfoGPR, GPRReg scratchGPR, CacheableIdentifier, JITCompiler::Jump slowPathTarget, SpillRegistersMode, AccessType);
-    void cachedGetByIdWithThis(Node*, CodeOrigin, GPRReg baseGPR, GPRReg thisGPR, GPRReg resultGPR, GPRReg stubInfoGPR, GPRReg scratchGPR, CacheableIdentifier, const JITCompiler::JumpList& slowPathTarget = JITCompiler::JumpList());
-    void cachedGetById(Node*, CodeOrigin, GPRReg baseTagGPROrNone, GPRReg basePayloadGPR, GPRReg resultTagGPR, GPRReg resultPayloadGPR, GPRReg stubInfoGPR, GPRReg scratchGPR, CacheableIdentifier, JITCompiler::Jump slowPathTarget, SpillRegistersMode, AccessType);
-    void cachedGetByIdWithThis(Node*, CodeOrigin, GPRReg baseTagGPROrNone, GPRReg basePayloadGPR, GPRReg thisTagGPROrNone, GPRReg thisPayloadGPR, GPRReg resultTagGPR, GPRReg resultPayloadGPR, GPRReg stubInfoGPR, GPRReg scratchGPR, CacheableIdentifier, const JITCompiler::JumpList& slowPathTarget = JITCompiler::JumpList());
+    void cachedGetById(Node*, CodeOrigin, JSValueRegs base, JSValueRegs result, GPRReg propertyCacheGPR, GPRReg scratchGPR, CacheableIdentifier, JITCompiler::Jump slowPathTarget, SpillRegistersMode, AccessType);
+    void cachedPutById(Node*, CodeOrigin, GPRReg baseGPR, JSValueRegs valueRegs, GPRReg propertyCacheGPR, GPRReg scratchGPR, GPRReg scratch2GPR, CacheableIdentifier, AccessType, JITCompiler::Jump slowPathTarget = JITCompiler::Jump(), SpillRegistersMode = NeedToSpill);
+    void cachedGetById(Node*, CodeOrigin, GPRReg baseGPR, GPRReg resultGPR, GPRReg propertyCacheGPR, GPRReg scratchGPR, CacheableIdentifier, JITCompiler::Jump slowPathTarget, SpillRegistersMode, AccessType);
+    void cachedGetByIdWithThis(Node*, CodeOrigin, GPRReg baseGPR, GPRReg thisGPR, GPRReg resultGPR, GPRReg propertyCacheGPR, GPRReg scratchGPR, CacheableIdentifier, const JITCompiler::JumpList& slowPathTarget = JITCompiler::JumpList());
+    void cachedGetById(Node*, CodeOrigin, GPRReg baseTagGPROrNone, GPRReg basePayloadGPR, GPRReg resultTagGPR, GPRReg resultPayloadGPR, GPRReg propertyCacheGPR, GPRReg scratchGPR, CacheableIdentifier, JITCompiler::Jump slowPathTarget, SpillRegistersMode, AccessType);
+    void cachedGetByIdWithThis(Node*, CodeOrigin, GPRReg baseTagGPROrNone, GPRReg basePayloadGPR, GPRReg thisTagGPROrNone, GPRReg thisPayloadGPR, GPRReg resultTagGPR, GPRReg resultPayloadGPR, GPRReg propertyCacheGPR, GPRReg scratchGPR, CacheableIdentifier, const JITCompiler::JumpList& slowPathTarget = JITCompiler::JumpList());
     void compileGetByIdFlush(Node*, AccessType);
     void compilePutByIdFlush(Node*);
     void compileInstanceOfForCells(Node*, JSValueRegs, JSValueRegs, GPRReg, GPRReg, Jump);
@@ -756,6 +756,7 @@ public:
 
     void compileIsCellWithType(Node*);
     void compileIsTypedArrayView(Node*);
+    void compileArrayIsArray(Node*);
 
     void emitCall(Node*);
 
@@ -1083,7 +1084,7 @@ public:
         }
 
         if (exceptionReg != InvalidGPRReg) {
-            RegisterSetBuilder spilledRegs = spilledRegsForSilentSpillPlans(plans);
+            RegisterSet spilledRegs = spilledRegsForSilentSpillPlans(plans);
             if constexpr (std::same_as<GPRReg, ResultRegType> || std::same_as<JSValueRegs, ResultRegType>) {
                 spilledRegs.add(GPRInfo::returnValueGPR, IgnoreVectors);
                 spilledRegs.add(result, IgnoreVectors);
@@ -1097,13 +1098,13 @@ public:
                 (addRegIfNeeded(spilledRegs, otherSpilledRegs), ...);
             }
 
-            if (spilledRegs.buildAndValidate().contains(exceptionReg, IgnoreVectors)) {
+            if (spilledRegs.contains(exceptionReg, IgnoreVectors)) {
                 // It would be nice if we could do m_gprs.tryAllocate() but we're possibly on a slow path and register allocation state is
                 // probably garbage.
-                constexpr RegisterSetBuilder registersInBank = decltype(m_gprs)::registersInBank();
+                constexpr RegisterSet registersInBank = decltype(m_gprs)::registersInBank();
                 // Move to a non-constexpr local so we can call exclude.
-                RegisterSetBuilder possibleRegisters = registersInBank;
-                RegisterSet freeRegs = possibleRegisters.exclude(spilledRegs).buildAndValidate();
+                RegisterSet possibleRegisters = registersInBank;
+                RegisterSet freeRegs = possibleRegisters.exclude(spilledRegs);
                 auto iter = freeRegs.begin();
                 if (iter != freeRegs.end()) {
                     move(exceptionReg, iter.gpr());
@@ -1396,6 +1397,7 @@ public:
 
     void compileSymbolEquality(Node*);
     void compileHeapBigIntEquality(Node*);
+    void compileHeapBigIntCompare(Node*, RelationalCondition);
     void compilePeepHoleSymbolEquality(Node*, Node* branchNode);
 #if USE(JSVALUE64)
     void compileNeitherDoubleNorHeapBigIntToNotDoubleStrictEquality(Node*, Edge neitherDoubleNorHeapBigInt, Edge notDouble);
@@ -1804,6 +1806,7 @@ public:
     void compilePromiseResolve(Node*);
     void compilePromiseReject(Node*);
     void compilePromiseThen(Node*);
+    void compilePerformPromiseThen(Node*);
 
     template<typename JSClass, typename Operation>
     void compileCreateInternalFieldObject(Node*, Operation);

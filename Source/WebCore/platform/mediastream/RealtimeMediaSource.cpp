@@ -80,7 +80,7 @@ struct VideoFrameAdaptor {
 #endif
 };
 
-static RealtimeMediaSource::Type toSourceType(CaptureDevice::DeviceType type)
+static RealtimeMediaSource::Type NODELETE toSourceType(CaptureDevice::DeviceType type)
 {
     switch (type) {
     case CaptureDevice::DeviceType::Microphone:
@@ -248,6 +248,7 @@ void RealtimeMediaSource::notifySettingsDidChangeObservers(OptionSet<RealtimeMed
 {
     ASSERT(isMainThread());
 
+    ++m_settingsCapabilitiesUpdateCount;
     settingsDidChange(flags);
 
     if (m_pendingSettingsDidChangeNotification)
@@ -824,7 +825,7 @@ void RealtimeMediaSource::setSizeFrameRateAndZoom(const VideoPresetConstraints& 
         setZoom(*constraints.zoom);
 }
 
-static bool booleanSettingFromConstraint(const BooleanConstraint& boolConstraint)
+static bool NODELETE booleanSettingFromConstraint(const BooleanConstraint& boolConstraint)
 {
     bool setting = true;
     boolConstraint.getExact(setting) || boolConstraint.getIdeal(setting);

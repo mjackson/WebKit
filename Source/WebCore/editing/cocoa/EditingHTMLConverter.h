@@ -25,8 +25,11 @@
 
 #import <WebCore/AttributedString.h>
 #import <WebCore/SimpleRange.h>
+#import <wtf/WeakHashSet.h>
 
 namespace WebCore {
+
+class Node;
 
 enum class TextIteratorBehavior : uint16_t;
 
@@ -43,7 +46,7 @@ enum class IncludedElement : uint8_t {
     TextLists = 1 << 4,
 };
 
-WEBCORE_EXPORT AttributedString editingAttributedString(const SimpleRange&, OptionSet<IncludedElement> = { IncludedElement::Images });
+WEBCORE_EXPORT AttributedString editingAttributedString(const SimpleRange&, OptionSet<IncludedElement> = { IncludedElement::Images }, const WeakHashSet<Node, WeakPtrImplWithEventTargetData>& clientPreservedNodes = { });
 WEBCORE_EXPORT AttributedString editingAttributedStringReplacingNoBreakSpace(const SimpleRange&, OptionSet<TextIteratorBehavior>, OptionSet<IncludedElement>);
 
 } // namespace WebCore

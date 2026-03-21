@@ -64,6 +64,8 @@ public:
 
     void clear();
 
+    void whenEmpty(Function<void()>&&);
+
 private:
     NetworkSendQueue(ScriptExecutionContext&, WriteString&&, WriteRawData&&, ProcessError&&);
 
@@ -75,6 +77,7 @@ private:
     WriteString m_writeString;
     WriteRawData m_writeRawData;
     ProcessError m_processError;
+    Function<void()> m_emptyCallback;
 };
 
 } // namespace WebCore

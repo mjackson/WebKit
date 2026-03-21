@@ -21,7 +21,7 @@
 
 #pragma once
 
-#include <WebCore/RenderBoxModelObject.h>
+#include "RenderBoxModelObject.h"
 #include <wtf/Platform.h>
 
 namespace WebCore {

@@ -56,18 +56,18 @@ BUG_SERVER_URL = 'https://bugs.webkit.org/'
 COMMITS_INFO_URL = 'https://commits.webkit.org/'
 S3URL = 'https://s3-us-west-2.amazonaws.com/'
 S3_BUCKET = f'ews-archives.webkit{custom_suffix}.org'
-S3_RESULTS_URL = f'https://ews-build{custom_suffix}.s3-us-west-2.amazonaws.com/'
+S3_RESULTS_URL = load_password('S3_RESULTS_URL', default=f'https://ews-build{custom_suffix}.s3-us-west-2.amazonaws.com/')
 CURRENT_HOSTNAME = socket.gethostname().strip()
 EWS_BUILD_HOSTNAMES = load_password('EWS_BUILD_HOSTNAMES', default=['ews-build.webkit.org', 'ews-build'])
 TESTING_ENVIRONMENT_HOSTNAMES = ['ews-build.webkit-uat.org', 'ews-build-uat', 'ews-build.webkit-dev.org', 'ews-build-dev']
-EWS_URL = load_password('EWS_BUILD_HOSTNAMES', default='https://ews.webkit.org/')
+EWS_URL = load_password('EWS_URL', default='https://ews.webkit.org/')
 RESULTS_DB_URL = 'https://results.webkit.org/'
 RESULTS_SERVER_API_KEY = 'RESULTS_SERVER_API_KEY'
 WithProperties = properties.WithProperties
 Interpolate = properties.Interpolate
 GITHUB_URL = 'https://github.com/'
 # First project is treated as the default
-GITHUB_PROJECTS = ['WebKit/WebKit', 'WebKit/WebKit-security']
+GITHUB_PROJECTS = load_password('GITHUB_PROJECTS', default=['WebKit/WebKit', 'WebKit/WebKit-security'])
 CANONICAL_GITHUB_PROJECT = 'WebKit/WebKit'
 HASH_LENGTH_TO_DISPLAY = 8
 DEFAULT_BRANCH = 'main'
@@ -81,8 +81,10 @@ SCAN_BUILD_OUTPUT_DIR = 'scan-build-output'
 LLVM_DIR = 'llvm-project'
 STATIC_ANALYSIS_ARCHIVE_PATH = '/tmp/static-analysis.zip'
 SHOULD_FILTER_LOGS = load_password('SHOULD_FILTER_LOGS', default=True)
-SHOULD_LOAD_CONTRIBUTORS_FROM_NETWORK = load_password('SHOULD_FILTER_LOGS', default=True)
+SHOULD_LOAD_CONTRIBUTORS_FROM_NETWORK = load_password('SHOULD_LOAD_CONTRIBUTORS_FROM_NETWORK', default=True)
 SUFFIX_WITHOUT_CHANGE = '-without-change'
+USE_S3 = load_password('USE_S3', default=True)
+USE_GITHUB_PROJECTS_FOR_HOOKS = load_password('USE_GITHUB_PROJECTS_FOR_HOOKS', default=True)
 
 if CURRENT_HOSTNAME in EWS_BUILD_HOSTNAMES:
     CURRENT_HOSTNAME = 'ews-build.webkit.org'
@@ -655,7 +657,7 @@ class ConfigureBuild(buildstep.BuildStep, AddToLogMixin):
     description = ['configuring build']
     descriptionDone = ['Configured build']
 
-    def __init__(self, platform, configuration, architectures, buildOnly, triggers, remotes, additionalArguments, triggered_by=None, rebuild_without_change_on_builder=False):
+    def __init__(self, platform, configuration, architectures, buildOnly, triggers, remotes, additionalArguments, triggered_by=None, rebuild_without_change_on_builder=False, deployment_target=None):
         super().__init__()
         self.platform = platform
         if platform != 'jsc-only':
@@ -669,6 +671,7 @@ class ConfigureBuild(buildstep.BuildStep, AddToLogMixin):
         self.remotes = remotes
         self.additionalArguments = additionalArguments
         self.rebuild_without_change_on_builder = rebuild_without_change_on_builder
+        self.deployment_target = deployment_target
 
     @defer.inlineCallbacks
     def run(self):
@@ -693,6 +696,8 @@ class ConfigureBuild(buildstep.BuildStep, AddToLogMixin):
             self.setProperty('additionalArguments', self.additionalArguments, 'config.json')
         if self.rebuild_without_change_on_builder:
             self.setProperty('rebuild_without_change_on_builder', self.rebuild_without_change_on_builder, 'config.json')
+        if self.deployment_target:
+            self.setProperty('deployment_target', self.deployment_target, 'config.json')
 
         self.add_patch_id_url()
         yield self.add_pr_details()
@@ -1010,8 +1015,12 @@ class InstallHooks(steps.ShellSequence):
         ]
         source = self.getProperty('github.head.repo.full_name', None)
         project = self.getProperty('project', None)
-        if project in GITHUB_PROJECTS and source:
-            install_hooks_command += ['--level', 'github.com:{}={}'.format(source, GITHUB_PROJECTS.index(project))]
+
+        if USE_GITHUB_PROJECTS_FOR_HOOKS:
+            if project in GITHUB_PROJECTS and source:
+                install_hooks_command += ['--level', 'github.com:{}={}'.format(source, GITHUB_PROJECTS.index(project))]
+        else:
+            install_hooks_command += ['--level', 'github.com:{}={}'.format(source, 2)]
 
         self.commands = []
         for command in [
@@ -1324,6 +1333,8 @@ class CheckChangeRelevance(AnalyzeChange):
         re.compile(rb'Tools/Scripts/compare-static-analysis-results', re.IGNORECASE),
         re.compile(rb'Tools/Scripts/generate-dirty-files', re.IGNORECASE),
         re.compile(rb'Tools/CISupport/Shared/download-and-install-build-tools', re.IGNORECASE),
+        re.compile(rb'Tools/CISupport/safer-cpp-llvm-version', re.IGNORECASE),
+        re.compile(rb'Tools/CISupport/safer-cpp-swift-version', re.IGNORECASE)
     ]
 
     group_to_paths_mapping = {
@@ -2305,16 +2316,28 @@ class DetermineLabelOwner(buildstep.BuildStep, GitHubMixin, AddToLogMixin):
         query_body = '{repository(owner:"%s", name:"%s") { pullRequest(number: %s) {timelineItems(itemTypes: LABELED_EVENT, last: 5) {nodes {... on LabeledEvent {actor { login } label { name } createdAt } } } } } }' % (owner, name, pr_number)
         query = {'query': query_body}
 
-        response = yield self.query_graph_ql(query)
-        if 'errors' in response:
-            yield self._addToLog('stdio', response['errors'][0]['message'])
-            return defer.returnValue(FAILURE)
-        if response:
-            yield self._addToLog('stdio', 'Retrieved labels.\n')
-            label_events = response['data']['repository']['pullRequest']['timelineItems']['nodes']
-        else:
-            yield self._addToLog('stdio', 'Failed to retrieve label author.\n')
-            return defer.returnValue(FAILURE)
+        retry = 3
+        for attempt in range(retry + 1):
+            try:
+                response = yield self.query_graph_ql(query)
+                if not response:
+                    yield self._addToLog('stdio', 'Failed to retrieve label author.\n')
+                elif 'errors' in response:
+                    yield self._addToLog('stdio', response['errors'][0]['message'])
+                else:
+                    yield self._addToLog('stdio', 'Retrieved labels.\n')
+                    label_events = response['data']['repository']['pullRequest']['timelineItems']['nodes']
+                    break
+            except Exception as e:
+                yield self._addToLog('stdio', f'Failed to retrieve label author: {e}\n')
+
+            if attempt >= retry:
+                yield self._addToLog('stdio', 'Failed to determine label owner.\n')
+                self.build.addStepsAfterCurrentStep([RemoveLabelsFromPullRequest(alwaysRun=True)])
+                return defer.returnValue(FAILURE)
+            wait_for = (attempt + 1) * 15
+            yield self._addToLog('stdio', f'\nBacking off for {wait_for} seconds before retrying.\n')
+            yield task.deferLater(reactor, wait_for, lambda: None)
 
         owner = None
         label = builder_name.lower()
@@ -2341,7 +2364,7 @@ class DetermineLabelOwner(buildstep.BuildStep, GitHubMixin, AddToLogMixin):
         if self.results == SUCCESS:
             return {'step': f"Owner of PR {self.getProperty('github.number')} determined to be {self.getProperty('owners')[0]}\n"}
         elif self.results == FAILURE:
-            return {'step': f"Unable to determine owner of PR {self.getProperty('github.number')}\n"}
+            return {'step': f"Unable to determine owner of PR {self.getProperty('github.number')}\n", 'build': 'Unexpected issue with GitHub API, please try again by re-adding the merge-queue label on the PR\n'}
 
 
 class SetCommitQueueMinusFlagOnPatch(buildstep.BuildStep, BugzillaMixin):
@@ -2951,6 +2974,7 @@ class Trigger(trigger.Trigger):
         properties_to_pass['retry_count'] = properties.Property('retry_count', default=0)
         properties_to_pass['os_version_builder'] = properties.Property('os_version', default='')
         properties_to_pass['xcode_version_builder'] = properties.Property('xcode_version', default='')
+        properties_to_pass['deployment_target_builder'] = properties.Property('deployment_target')
         properties_to_pass['parent_buildnumber'] = properties.Property('buildnumber')
         properties_to_pass['parent_builderid'] = properties.Property('builderid')
         properties_to_pass['rebuild_without_change_on_builder'] = properties.Property('rebuild_without_change_on_builder', default=False)
@@ -3363,6 +3387,9 @@ class CompileWebKit(shell.Compile, AddToLogMixin, ShellMixin):
                 # this much faster than full debug info, and crash logs still have line numbers.
                 # Some projects (namely lldbWebKitTester) require full debug info, and may override this.
                 build_command += ['DEBUG_INFORMATION_FORMAT=dwarf-with-dsym', 'CLANG_DEBUG_INFORMATION_LEVEL=$(WK_OVERRIDE_DEBUG_INFORMATION_LEVEL:default=line-tables-only)']
+            deployment_target = self.getProperty('deployment_target')
+            if deployment_target and platform == 'mac':
+                build_command += [f'MACOSX_DEPLOYMENT_TARGET={deployment_target}']
 
         build_command += customBuildFlag(platform, self.getProperty('fullPlatform'))
 
@@ -3391,20 +3418,19 @@ class CompileWebKit(shell.Compile, AddToLogMixin, ShellMixin):
         self.build.buildFinished([MSG_FOR_EXCESSIVE_LOGS], FAILURE)
 
     def follow_up_steps(self):
-        if self.getProperty('platform') in self.APPLE_PLATFORMS and CURRENT_HOSTNAME in EWS_BUILD_HOSTNAMES + TESTING_ENVIRONMENT_HOSTNAMES:
-            if SHOULD_FILTER_LOGS is True:
-                return [
-                    GenerateS3URL(
-                        f"{self.getProperty('fullPlatform')}-{self.getProperty('archForUpload')}-{self.getProperty('configuration')}-{self.name}",
-                        extension='txt',
-                        additions=f'{self.build.number}',
-                        content_type='text/plain',
-                    ), UploadFileToS3(
-                        'build-log.txt',
-                        links={self.name: 'Full build log'},
-                        content_type='text/plain',
-                    )
-                ]
+        if self.getProperty('platform') in self.APPLE_PLATFORMS and USE_S3 and SHOULD_FILTER_LOGS and CURRENT_HOSTNAME in EWS_BUILD_HOSTNAMES + TESTING_ENVIRONMENT_HOSTNAMES:
+            return [
+                GenerateS3URL(
+                    f"{self.getProperty('fullPlatform')}-{self.getProperty('archForUpload')}-{self.getProperty('configuration')}-{self.name}",
+                    extension='txt',
+                    additions=f'{self.build.number}',
+                    content_type='text/plain',
+                ), UploadFileToS3(
+                    'build-log.txt',
+                    links={self.name: 'Full build log'},
+                    content_type='text/plain',
+                )
+            ]
         return []
 
     def evaluateCommand(self, cmd):
@@ -3426,13 +3452,12 @@ class CompileWebKit(shell.Compile, AddToLogMixin, ShellMixin):
             triggers = self.getProperty('triggers', None)
             if triggers or not self.skipUpload:
                 steps_to_add += [ArchiveBuiltProduct()]
-                if CURRENT_HOSTNAME in EWS_BUILD_HOSTNAMES + TESTING_ENVIRONMENT_HOSTNAMES:
+                if USE_S3 and CURRENT_HOSTNAME in EWS_BUILD_HOSTNAMES + TESTING_ENVIRONMENT_HOSTNAMES:
                     steps_to_add.extend([
                         GenerateS3URL(f"{self.getProperty('fullPlatform')}-{self.getProperty('archForUpload')}-{self.getProperty('configuration')}"),
                         UploadFileToS3(f"WebKitBuild/{self.getProperty('configuration')}.zip", links={self.name: 'Archive'}),
                     ])
                 else:
-                    # S3 might not be configured on local instances, achieve similar functionality without S3.
                     steps_to_add.extend([UploadBuiltProduct()])
                 if triggers:
                     steps_to_add.append(Trigger(
@@ -3446,6 +3471,7 @@ class CompileWebKit(shell.Compile, AddToLogMixin, ShellMixin):
                             RevertAppliedChanges(),
                             ValidateChange(verifyBugClosed=False, addURLs=False),
                             CompileWebKitWithoutChange(),
+                            ArchiveBuiltProduct(),
                             GenerateS3URL(f"{self.getProperty('fullPlatform')}-{self.getProperty('archForUpload')}-{self.getProperty('configuration')}{SUFFIX_WITHOUT_CHANGE}"),
                             UploadFileToS3(f"WebKitBuild/{self.getProperty('configuration')}.zip", links={self.name: 'Archive without change'}),
                         ])
@@ -4172,8 +4198,11 @@ class RunWebKitTests(shell.Test, AddToLogMixin, ShellMixin):
         platform = self.getProperty('platform')
         self.command += customBuildFlag(platform, self.getProperty('fullPlatform'))
 
-        if self.getProperty('use-dump-render-tree', False):
-            self.command += ['--dump-render-tree']
+        driver = self.getProperty('layout-test-driver', None)
+        if driver == 'DumpRenderTree':
+            self.command += ['-1']
+        elif driver == 'WebKitTestRunner':
+            self.command += ['-2']
 
         self.command += ['--results-directory', self.resultDirectory]
         self.command += ['--debug-rwt-logging']
@@ -4294,9 +4323,10 @@ class RunWebKitTests(shell.Test, AddToLogMixin, ShellMixin):
         if style and style in ['debug', 'release']:
             configuration['style'] = style
 
-        if self.getProperty('use-dump-render-tree', False):
+        driver = self.getProperty('layout-test-driver', None)
+        if driver == 'DumpRenderTree':
             configuration['flavor'] = 'wk1'
-        else:
+        elif driver == 'WebKitTestRunner':
             configuration['flavor'] = 'wk2'
 
         yield self._addToLog(self.results_db_log_name, f'Checking Results database for failing tests. Identifier: {identifier}, configuration: {configuration}')
@@ -4443,7 +4473,9 @@ class RunWebKitTestsInStressMode(RunWebKitTests):
 
     def setLayoutTestCommand(self):
         if self.layout_test_class == RunWebKit1Tests:
-            self.setProperty('use-dump-render-tree', True)
+            self.setProperty('layout-test-driver', 'DumpRenderTree')
+        else:
+            self.setProperty('layout-test-driver', 'WebKitTestRunner')
         RunWebKitTests.setLayoutTestCommand(self)
 
         self.command += ['--iterations', self.num_iterations]
@@ -4474,6 +4506,7 @@ class RunWebKitTestsInStressMode(RunWebKitTests):
             self.descriptionDone = message
             self.build.results = SUCCESS
             self.setProperty('build_summary', message)
+            self.setProperty('stress_mode_passed', True)
         else:
             self.setProperty('build_summary', self.FAILURE_MSG_IN_STRESS_MODE)
             steps_to_add += [
@@ -4492,6 +4525,31 @@ class RunWebKitTestsInStressGuardmallocMode(RunWebKitTestsInStressMode):
     name = 'run-layout-tests-in-guard-malloc-stress-mode'
     suffix = 'guard-malloc'
     ENABLE_GUARD_MALLOC = True
+
+
+class RunWebKitTestsInSiteIsolationMode(RunWebKitTestsInStressMode):
+    name = 'run-layout-tests-in-site-isolation'
+    suffix = 'site-isolation'
+    FAILURE_MSG_IN_STRESS_MODE = 'Found test failures in site isolation mode'
+
+    def __init__(self, layout_test_class=RunWebKitTests):
+        self.layout_test_class = layout_test_class
+        RunWebKitTests.__init__(self)
+
+    def setLayoutTestCommand(self):
+        if self.layout_test_class == RunWebKit1Tests:
+            self.setProperty('layout-test-driver', 'DumpRenderTree')
+        else:
+            self.setProperty('layout-test-driver', 'WebKitTestRunner')
+        RunWebKitTests.setLayoutTestCommand(self)
+
+        self.command += ['--site-isolation']
+        modified_tests = self.getProperty('modified_tests')
+        if modified_tests:
+            self.command += modified_tests
+
+    def doStepIf(self, step):
+        return self.getProperty('modified_tests', False) and self.getProperty('stress_mode_passed', False)
 
 
 class ReRunWebKitTests(RunWebKitTests):
@@ -4996,7 +5054,7 @@ class AnalyzeLayoutTestsResults(buildstep.BuildStep, BugzillaMixin, GitHubMixin)
 class RunWebKit1Tests(RunWebKitTests):
     @defer.inlineCallbacks
     def run(self):
-        self.setProperty('use-dump-render-tree', True)
+        self.setProperty('layout-test-driver', 'DumpRenderTree')
         rc = yield RunWebKitTests.run(self)
         defer.returnValue(rc)
 
@@ -5496,7 +5554,7 @@ class UploadFileToS3(shell.ShellCommand, AddToLogMixin):
         return defer.returnValue(rc)
 
     def doStepIf(self, step):
-        return CURRENT_HOSTNAME in EWS_BUILD_HOSTNAMES + TESTING_ENVIRONMENT_HOSTNAMES
+        return USE_S3 and CURRENT_HOSTNAME in EWS_BUILD_HOSTNAMES + TESTING_ENVIRONMENT_HOSTNAMES
 
     def getResultSummary(self):
         if self.results == FAILURE:
@@ -5559,7 +5617,7 @@ class GenerateS3URL(master.MasterShellCommand):
         return results == SUCCESS
 
     def doStepIf(self, step):
-        return CURRENT_HOSTNAME in EWS_BUILD_HOSTNAMES + TESTING_ENVIRONMENT_HOSTNAMES
+        return USE_S3 and CURRENT_HOSTNAME in EWS_BUILD_HOSTNAMES + TESTING_ENVIRONMENT_HOSTNAMES
 
     def getResultSummary(self):
         if self.results == FAILURE:
@@ -5598,7 +5656,7 @@ class TransferToS3(master.MasterShellCommand):
         defer.returnValue(rc)
 
     def doStepIf(self, step):
-        return CURRENT_HOSTNAME in EWS_BUILD_HOSTNAMES + TESTING_ENVIRONMENT_HOSTNAMES
+        return USE_S3 and CURRENT_HOSTNAME in EWS_BUILD_HOSTNAMES + TESTING_ENVIRONMENT_HOSTNAMES
 
     def hideStepIf(self, results, step):
         return results == SUCCESS and self.getProperty('sensitive', False)
@@ -5630,6 +5688,11 @@ class DownloadBuiltProduct(shell.ShellCommand):
 
     @defer.inlineCallbacks
     def run(self):
+        # Skip S3 if USE_S3 is False
+        if not USE_S3:
+            self.build.addStepsAfterCurrentStep([DownloadBuiltProductFromMaster()])
+            return defer.returnValue(SKIPPED)
+
         # Only try to download from S3 on the official deployments <https://webkit.org/b/230006>
         if CURRENT_HOSTNAME not in (EWS_BUILD_HOSTNAMES + TESTING_ENVIRONMENT_HOSTNAMES):
             self.build.addStepsAfterCurrentStep([DownloadBuiltProductFromMaster()])
@@ -5818,7 +5881,7 @@ class RunAPITests(shell.Test, AddToLogMixin, ShellMixin):
             second_results_failing_tests = set(self.getProperty('second_run_failures', set()))
             list_failed_tests_with_change = sorted(first_results_failing_tests.union(second_results_failing_tests))
             if list_failed_tests_with_change:
-                self.command = self.command + list_failed_tests_with_change
+                self.command = self.command + [quote(t) for t in list_failed_tests_with_change]
         if SHOULD_FILTER_LOGS is True:
             self.command = self.shell_command(' '.join(self.command) + ' > logs.txt 2>&1 ; ret=$? ; grep "Ran " logs.txt ; exit $ret')
 
@@ -6659,17 +6722,32 @@ class PrintConfiguration(steps.ShellSequence, ShellMixin):
         self.setProperty('os_version', os_version)
         self.setProperty('os_name', os_name)
         self.setProperty('xcode_version', xcode_version)
+
+        deployment_target_builder = self.getProperty('deployment_target_builder')
         os_version_builder = self.getProperty('os_version_builder', '')
         xcode_version_builder = self.getProperty('xcode_version_builder', '')
-        os_major_version_mismatch = os_version and os_version_builder and (os_version.split('.')[:2] != os_version_builder.split('.')[:2])
-        xcode_version_mismatch = xcode_version and xcode_version_builder and (xcode_version != xcode_version_builder)
 
-        if os_major_version_mismatch or xcode_version_mismatch:
-            message = f'Error: OS/SDK version mismatch, please inform an admin.'
-            detailed_message = message + f' Builder: OS={os_version_builder}, Xcode={xcode_version_builder}; Tester: OS={os_version}, Xcode={xcode_version}'
-            print(f'\n{detailed_message}')
-            self.build.stopBuild(reason=detailed_message, results=FAILURE)
-            self.build.buildFinished([message], FAILURE)
+        os_major, os_minor = os_version.split('.')[:2] if '.' in os_version else (os_version, '0')
+        if deployment_target_builder:
+            # Compare the builder's deployment target with the machine's OS
+            # version.
+            dt_major, dt_minor = deployment_target_builder.split('.')[:2]
+            if dt_major != os_major or dt_minor > os_minor:
+                message = f'Error: Builder deploys to {deployment_target_builder}, but this machine is running {os_version}'
+                details = message + ('\nPossible configuration issue. Either this machine should be upgraded to the '
+                                     'deployment OS or newer, or the build configuration should change to target the '
+                                     'intended testing OS.')
+                self.build.stopBuild(reason=details, results=FAILURE)
+                self.build.buildFinished([message], FAILURE)
+        elif os_version_builder and xcode_version_builder:
+            ob_major, ob_minor = os_version_builder.split('.')[:2]
+            xb_major, xb_minor = xcode_version_builder.split('.')[:2]
+            xc_major, xc_minor = xcode_version.split('.')[:2]
+            if (os_major, os_minor) != (ob_major, ob_minor) or (xc_major, xc_minor) != (xb_major, xb_minor):
+                message = f'Error: OS/SDK version mismatch, please inform an admin.'
+                detailed_message = message + f' Builder: OS={os_version_builder}, Xcode={xcode_version_builder}; Tester: OS={os_version}, Xcode={xcode_version}'
+                self.build.stopBuild(reason=detailed_message, results=FAILURE)
+                self.build.buildFinished([message], FAILURE)
 
     def getResultSummary(self):
         if self.results not in [SUCCESS, WARNINGS, EXCEPTION]:
@@ -7692,7 +7770,7 @@ class BuildSwift(steps.ShellSequence, ShellMixin):
             self.build.buildFinished(['Failed to set up swift, retrying update'], RETRY)
         else:
             self.setProperty('swift_toolchain_rebuilt', True)
-            steps_to_add += [InstallSwiftToolchain()]
+            steps_to_add += [InstallSwiftToolchain(), CleanBuild()]
 
         self.build.addStepsAfterCurrentStep(steps_to_add)
 
@@ -7729,12 +7807,8 @@ class ScanBuild(steps.ShellSequence, ShellMixin):
         self.commands = []
 
         build_command = f"Tools/Scripts/build-and-analyze --output-dir {os.path.join(self.getProperty('builddir'), f'build/{self.output_directory}')} --configuration {self.build.getProperty('configuration')} --only-smart-pointers "
-        if self.getProperty('platform', '').lower() == 'ios':
-            sdkroot = 'iphonesimulator'
-            build_command += f'--toolchains={SWIFT_TOOLCHAIN_BUNDLE_IDENTIFIER} --swift-conditions=SWIFT_WEBKIT_TOOLCHAIN '
-        else:
-            sdkroot = 'macosx'
-            build_command += f"--analyzer-path={os.path.join(self.getProperty('builddir'), 'llvm-project/build/bin/clang')} --preprocessor-additions=CLANG_WEBKIT_BRANCH=1 "
+        sdkroot = 'iphonesimulator' if self.getProperty('platform', '').lower() == 'ios' else 'macosx'
+        build_command += f'--toolchains={SWIFT_TOOLCHAIN_BUNDLE_IDENTIFIER} --swift-conditions=SWIFT_WEBKIT_TOOLCHAIN '
         build_command += f'--scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot={sdkroot} '
         if SHOULD_FILTER_LOGS is True:
             build_command += '2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt'
@@ -8417,6 +8491,7 @@ class DisplaySaferCPPResults(buildstep.BuildStep, AddToLogMixin):
     NUM_TO_DISPLAY = 10
     UPDATE_COMMAND = 'Tools/Scripts/update-safer-cpp-expectations -p {project}'
     CHECKER_ARGS = '--{checker} {files}'
+    PLATFORM_ARGS = '--platform {platform}'
 
     def __init___(self, **kwargs):
         super().__init__(logEnviron=False, **kwargs)
@@ -8458,6 +8533,8 @@ class DisplaySaferCPPResults(buildstep.BuildStep, AddToLogMixin):
                     file_str = '\n'.join((sorted(files)))
                     log_content += f'=> {checker}\n\n{file_str}\n\n'
                     command += ' ' + self.CHECKER_ARGS.format(checker=checker, files=' '.join(files))
+            if self.formattedPlatform:
+                command += ' ' + self.PLATFORM_ARGS.format(platform=self.formattedPlatform)
             if log_content:
                 yield self._addToLog(f'{project}-unexpected-{type}', log_content)
                 is_log += 1
@@ -8478,7 +8555,7 @@ class DisplaySaferCPPResults(buildstep.BuildStep, AddToLogMixin):
         results_link = self.resultDirectoryURL() + SCAN_BUILD_OUTPUT_DIR + "/new-results.html"
         build_link = f'{self.master.config.buildbotURL}#/builders/{self.build._builderid}/builds/{self.build.number}'
         formatted_build_link = f'[#{self.getProperty("buildnumber", "")}]({build_link})'
-        comment = f'### Safer C++ Build {formatted_build_link} ({commit_url})\n'
+        comment = f'### {self.formattedPlatform} Safer C++ Build {formatted_build_link} ({commit_url})\n'
 
         if num_failures:
             issue_comment = f" with {num_issues} issue{'s' if num_issues > 1 else ''}" if num_issues else ''
@@ -8490,10 +8567,19 @@ class DisplaySaferCPPResults(buildstep.BuildStep, AddToLogMixin):
             pluralCommand = 's' if len(commands_for_comment) > 1 else ''
             comment += f'\n:warning: Found {num_passes} fixed file{pluralSuffix}! Please update expectations in `Source/[Project]/SaferCPPExpectations` by running the following command{pluralCommand} and update your {self.change_type}:\n'
             comment += '\n'.join([f"- `{c}`" for c in commands_for_comment])
+        if not self.formattedPlatform:
+            comment += '\nUnable to find associated platform. See build for details.'
 
         self.setProperty('comment_text', comment)
-        # FIXME: Add merging blocked upon failure after initial deployment period
-        self.build.addStepsAfterCurrentStep([LeaveComment(), SetBuildSummary()])
+        self.build.addStepsAfterCurrentStep([LeaveComment(), BlockPullRequest(), SetBuildSummary()])
+
+    @property
+    def formattedPlatform(self):
+        if self.getProperty('platform', '').lower() == 'ios':
+            return 'iOS'
+        elif self.getProperty('platform', '').lower() == 'mac':
+            return 'macOS'
+        return ''
 
     @property
     def change_type(self):

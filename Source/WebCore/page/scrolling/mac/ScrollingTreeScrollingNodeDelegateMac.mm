@@ -224,6 +224,11 @@ void ScrollingTreeScrollingNodeDelegateMac::startRubberBandSnapBack()
     m_scrollController.startRubberBandSnapBack();
 }
 
+void ScrollingTreeScrollingNodeDelegateMac::rubberBandTargetOffsetDidChange()
+{
+    m_scrollController.rubberBandTargetOffsetDidChange();
+}
+
 #if HAVE(RUBBER_BANDING)
 std::optional<RubberbandingState> ScrollingTreeScrollingNodeDelegateMac::captureRubberbandingState() const
 {

@@ -35,6 +35,7 @@
 #include "EventSender.h"
 #include "FloatConversion.h"
 #include "LocalFrameView.h"
+#include "NameValidation.h"
 #include "NodeName.h"
 #include "Page.h"
 #include "SMILTimeContainer.h"
@@ -214,7 +215,7 @@ bool SVGSMILElement::hasPresentationalHintsForAttribute(const QualifiedName& nam
 
 inline QualifiedName SVGSMILElement::constructAttributeName() const
 {
-    auto parseResult = Document::parseQualifiedName(attributeWithoutSynchronization(SVGNames::attributeNameAttr));
+    auto parseResult = NameValidation::parseQualifiedAttributeName(attributeWithoutSynchronization(SVGNames::attributeNameAttr));
     if (parseResult.hasException())
         return anyQName();
 
@@ -257,11 +258,11 @@ void SVGSMILElement::reset()
     resolveFirstInterval();
 }
 
-Node::InsertedIntoAncestorResult SVGSMILElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps SVGSMILElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    SVGElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    SVGElement::insertionSteps(insertionType, parentOfInsertedTree);
     if (!insertionType.connectedToDocument)
-        return InsertedIntoAncestorResult::Done;
+        return NeedsPostConnectionSteps::No;
 
     // Verify we are not in <use> instance tree.
     ASSERT(!isInShadowTree() || !is<SVGUseElement>(shadowHost()));
@@ -270,10 +271,10 @@ Node::InsertedIntoAncestorResult SVGSMILElement::insertedIntoAncestor(InsertionT
 
     RefPtr owner = ownerSVGElement();
     if (!owner)
-        return InsertedIntoAncestorResult::Done;
+        return NeedsPostConnectionSteps::No;
 
     m_timeContainer = owner->timeContainer();
-    protect(timeContainer())->setDocumentOrderIndexesDirty();
+    timeContainer()->setDocumentOrderIndexesDirty();
 
     // "If no attribute is present, the default begin value (an offset-value of 0) must be evaluated."
     if (!hasAttributeWithoutSynchronization(SVGNames::beginAttr))
@@ -285,16 +286,16 @@ Node::InsertedIntoAncestorResult SVGSMILElement::insertedIntoAncestor(InsertionT
     if (RefPtr timeContainer = m_timeContainer)
         timeContainer->notifyIntervalsChanged();
 
-    return InsertedIntoAncestorResult::NeedsPostInsertionCallback;
+    return NeedsPostConnectionSteps::Yes;
 }
 
-void SVGSMILElement::didFinishInsertingNode()
+void SVGSMILElement::postConnectionSteps()
 {
-    SVGElement::didFinishInsertingNode();
+    SVGElement::postConnectionSteps();
     buildPendingResource();
 }
 
-void SVGSMILElement::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+void SVGSMILElement::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
     if (removalType.disconnectedFromDocument) {
         clearResourceReferences();
@@ -305,7 +306,7 @@ void SVGSMILElement::removedFromAncestor(RemovalType removalType, ContainerNode&
         m_timeContainer = nullptr;
     }
 
-    SVGElement::removedFromAncestor(removalType, oldParentOfRemovedTree);
+    SVGElement::removingSteps(removalType, oldParentOfRemovedTree);
 }
 
 bool SVGSMILElement::hasValidAttributeName() const
@@ -1253,7 +1254,7 @@ void SVGSMILElement::dispatchPendingEvent(SMILEventSender* eventSender, const At
 } // namespace WebCore
 
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::ConditionEventListener)
-    static bool isType(const WebCore::EventListener& listener)
+    static bool NODELETE isType(const WebCore::EventListener& listener)
     {
         return listener.type() == WebCore::EventListener::ConditionEventListenerType;
     }

@@ -28,6 +28,7 @@
 #include "FloatSize.h"
 #include "FontCascade.h"
 #include "FontCascadeInlines.h"
+#include "FontInlines.h"
 #include "GlyphBuffer.h"
 #include "RenderBlock.h"
 #include "RenderText.h"
@@ -580,7 +581,6 @@ void ComplexTextController::advance(unsigned offset, GlyphBuffer* glyphBuffer, G
 
     if (offset < m_currentCharacter) {
         m_runWidthSoFar = 0;
-        m_numGlyphsSoFar = 0;
         m_currentRun = 0;
         m_glyphInCurrentRun = 0;
         m_characterInCurrentGlyph = 0;
@@ -598,7 +598,7 @@ void ComplexTextController::advance(unsigned offset, GlyphBuffer* glyphBuffer, G
         unsigned glyphCount = complexTextRun->glyphCount();
         unsigned glyphIndexIntoCurrentRun = ltr ? m_glyphInCurrentRun : glyphCount - 1 - m_glyphInCurrentRun;
         unsigned glyphIndexIntoComplexTextController = indexOfLeftmostGlyphInCurrentRun + glyphIndexIntoCurrentRun;
-        if (fallbackFonts && &complexTextRun->font() != m_fontCascade->primaryFont().ptr())
+        if (fallbackFonts && &complexTextRun->font() != &m_fontCascade->primaryFont())
             fallbackFonts->add(protect(complexTextRun->font()));
 
         // We must store the initial advance for the first glyph we are going to draw.
@@ -655,7 +655,6 @@ void ComplexTextController::advance(unsigned offset, GlyphBuffer* glyphBuffer, G
             if (glyphEndOffset + complexTextRun->stringLocation() > m_currentCharacter)
                 return;
 
-            m_numGlyphsSoFar++;
             m_glyphInCurrentRun++;
             m_characterInCurrentGlyph = 0;
             if (ltr) {
@@ -671,7 +670,7 @@ void ComplexTextController::advance(unsigned offset, GlyphBuffer* glyphBuffer, G
     }
 }
 
-static inline std::pair<bool, bool> expansionLocation(bool ideograph, bool treatAsSpace, bool ltr, bool isAfterExpansion, bool forbidLeftExpansion, bool forbidRightExpansion, bool forceLeftExpansion, bool forceRightExpansion)
+static inline std::pair<bool, bool> NODELETE expansionLocation(bool ideograph, bool treatAsSpace, bool ltr, bool isAfterExpansion, bool forbidLeftExpansion, bool forbidRightExpansion, bool forceLeftExpansion, bool forceRightExpansion)
 {
     bool expandLeft = ideograph;
     bool expandRight = ideograph;

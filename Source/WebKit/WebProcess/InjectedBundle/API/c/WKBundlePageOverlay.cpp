@@ -184,7 +184,7 @@ private:
         if (!m_accessibilityClient.client().copyAccessibilityAttributeValue)
             return false;
         auto wkType = m_accessibilityClient.client().copyAccessibilityAttributeValue(toAPI(&pageOverlay), WebKit::toCopiedAPI(attribute), WKPointCreate(WKPointMake(parameter.x(), parameter.y())), m_accessibilityClient.client().base.clientInfo);
-        if (WebKit::toProtectedImpl(wkType)->type() != API::String::APIType)
+        if (protect(WebKit::toImpl(wkType))->type() != API::String::APIType)
             return false;
         value = WebKit::toWTFString(static_cast<WKStringRef>(wkType));
         return true;
@@ -195,7 +195,7 @@ private:
         if (!m_accessibilityClient.client().copyAccessibilityAttributeValue)
             return false;
         auto wkType = m_accessibilityClient.client().copyAccessibilityAttributeValue(toAPI(&pageOverlay), WebKit::toCopiedAPI(attribute), WKPointCreate(WKPointMake(parameter.x(), parameter.y())), m_accessibilityClient.client().base.clientInfo);
-        if (WebKit::toProtectedImpl(wkType)->type() != API::Boolean::APIType)
+        if (protect(WebKit::toImpl(wkType))->type() != API::Boolean::APIType)
             return false;
         value = WKBooleanGetValue(static_cast<WKBooleanRef>(wkType));
         return true;
@@ -212,7 +212,7 @@ private:
         names.reserveInitialCapacity(count);
         for (size_t k = 0; k < count; k++) {
             WKTypeRef item = WKArrayGetItemAtIndex(wkNames, k);
-            if (WebKit::toProtectedImpl(item)->type() == API::String::APIType)
+            if (protect(WebKit::toImpl(item))->type() == API::String::APIType)
                 names.append(WebKit::toWTFString(static_cast<WKStringRef>(item)));
         }
         names.shrinkToFit();
@@ -245,7 +245,7 @@ void WKBundlePageOverlaySetAccessibilityClient(WKBundlePageOverlayRef bundlePage
 
 void WKBundlePageOverlaySetNeedsDisplay(WKBundlePageOverlayRef bundlePageOverlayRef, WKRect rect)
 {
-    WebKit::toProtectedImpl(bundlePageOverlayRef)->setNeedsDisplay(enclosingIntRect(WebKit::toFloatRect(rect)));
+    protect(WebKit::toImpl(bundlePageOverlayRef))->setNeedsDisplay(enclosingIntRect(WebKit::toFloatRect(rect)));
 }
 
 float WKBundlePageOverlayFractionFadedIn(WKBundlePageOverlayRef)
@@ -259,5 +259,5 @@ float WKBundlePageOverlayFractionFadedIn(WKBundlePageOverlayRef)
 
 void WKBundlePageOverlayClear(WKBundlePageOverlayRef bundlePageOverlayRef)
 {
-    WebKit::toProtectedImpl(bundlePageOverlayRef)->clear();
+    protect(WebKit::toImpl(bundlePageOverlayRef))->clear();
 }

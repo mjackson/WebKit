@@ -49,6 +49,7 @@
 #include "LocalFrameView.h"
 #include "Logging.h"
 #include "Navigation.h"
+#include "NavigationScheduler.h"
 #include "Page.h"
 #include "ProcessSwapDisposition.h"
 #include "ScrollingCoordinator.h"
@@ -63,19 +64,19 @@ namespace WebCore {
 
 static inline void addVisitedLink(Page& page, const URL& url)
 {
-    page.protectedVisitedLinkStore()->addVisitedLink(page, computeSharedStringHash(url.string()));
+    protect(page.visitedLinkStore())->addVisitedLink(page, computeSharedStringHash(url.string()));
 }
 
 static inline bool canRecordHistoryForFrame(const LocalFrame& frame)
 {
-    RefPtr page = frame.page();
+    auto* page = frame.page();
     if (!page)
         return false;
 
     if (!page->usesEphemeralSession())
         return true;
 
-    if (RefPtr document = frame.document())
+    if (auto* document = frame.document())
         return document->settings().allowPrivacySensitiveOperationsInNonPersistentDataStores();
 
     return false;
@@ -200,6 +201,7 @@ void HistoryController::restoreScrollPositionAndViewState()
 
 void HistoryController::updateBackForwardListForFragmentScroll()
 {
+    m_frame->navigationScheduler().adjustPendingHistoryNavigationForNewBackForwardEntry();
     updateBackForwardListClippedAtTarget(false);
 }
 
@@ -310,7 +312,7 @@ void HistoryController::invalidateCurrentItemCachedPage()
 
 bool HistoryController::shouldStopLoadingForHistoryItem(HistoryItem& targetItem) const
 {
-    RefPtr currentItem = m_currentItem;
+    auto* currentItem = m_currentItem.get();
     if (!currentItem)
         return false;
 
@@ -704,7 +706,7 @@ void HistoryController::recursiveUpdateForCommit()
     // For each frame that already had the content the item requested (based on
     // (a matching URL and frame tree snapshot), just restore the scroll position.
     // Save form state (works from currentItem, since m_frameLoadComplete is true)
-    if (m_currentItem && itemsAreClones(*protect(currentItem()), protect(provisionalItem()).get())) {
+    if (m_currentItem && itemsAreClones(*currentItem(), provisionalItem())) {
         ASSERT(m_frameLoadComplete);
         saveDocumentState();
         saveScrollPositionAndViewStateToItem(protect(currentItem()).get());
@@ -909,7 +911,7 @@ Ref<HistoryItem> HistoryController::createItemTree(HistoryItemClient& client, Lo
         // we should copy the documentSequenceNumber over to the newly create
         // item.  Non-target items are just clones, and they should therefore
         // preserve the same itemSequenceNumber.
-        if (RefPtr previousItem = m_previousItem) {
+        if (auto* previousItem = m_previousItem.get()) {
             if (m_frame.ptr() != &targetFrame)
                 item->setItemSequenceNumber(previousItem->itemSequenceNumber());
             item->setDocumentSequenceNumber(previousItem->documentSequenceNumber());
@@ -1071,16 +1073,17 @@ void HistoryController::pushState(RefPtr<SerializedScriptValue>&& stateObject, c
 
     LOG(History, "HistoryController %p pushState: Adding top item %p, setting url of current item %p to %s, scrollRestoration is %s", this, topItem.ptr(), m_currentItem.get(), urlString.ascii().data(), topItem->shouldRestoreScrollPosition() ? "auto" : "manual");
 
+    m_frame->navigationScheduler().adjustPendingHistoryNavigationForNewBackForwardEntry();
     protect(page->backForward())->addItem(WTF::move(topItem));
+
+    if (document && document->settings().navigationAPIEnabled())
+        protect(protect(document->window())->navigation())->updateForNavigation(*currentItem, NavigationNavigationType::Push);
 
     if (!canRecordHistoryForFrame(frame))
         return;
 
     addVisitedLink(*page, URL({ }, urlString));
     protect(frame->loader().client())->updateGlobalHistory();
-
-    if (document && document->settings().navigationAPIEnabled())
-        protect(protect(document->window())->navigation())->updateForNavigation(*currentItem, NavigationNavigationType::Push);
 }
 
 void HistoryController::updateBackForwardListForReplaceState(RefPtr<SerializedScriptValue>&& stateObject, const String& urlString)
@@ -1110,16 +1113,17 @@ void HistoryController::replaceState(RefPtr<SerializedScriptValue>&& stateObject
     Ref frame = m_frame.get();
     RefPtr page = frame->page();
     ASSERT(page);
-    if (!canRecordHistoryForFrame(frame))
-        return;
-
-    addVisitedLink(*page, URL({ }, urlString));
-    protect(frame->loader().client())->updateGlobalHistory();
 
     if (RefPtr document = frame->document(); document && document->settings().navigationAPIEnabled()) {
         currentItem->setNavigationAPIStateObject(nullptr);
         protect(protect(document->window())->navigation())->updateForNavigation(*currentItem, NavigationNavigationType::Replace);
     }
+
+    if (!canRecordHistoryForFrame(frame))
+        return;
+
+    addVisitedLink(*page, URL({ }, urlString));
+    protect(frame->loader().client())->updateGlobalHistory();
 }
 
 void HistoryController::replaceCurrentItem(RefPtr<HistoryItem>&& item)

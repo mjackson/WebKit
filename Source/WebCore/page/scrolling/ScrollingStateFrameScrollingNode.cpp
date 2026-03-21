@@ -52,7 +52,7 @@ ScrollingStateFrameScrollingNode::ScrollingStateFrameScrollingNode(
 #if ENABLE(SCROLLING_THREAD)
     OptionSet<SynchronousScrollingReason> synchronousScrollingReasons,
 #endif
-    RequestedScrollData&& requestedScrollData,
+    ScrollRequestData&& requestedScrollData,
     FloatScrollSnapOffsetsInfo&& snapOffsetsInfo,
     std::optional<unsigned> currentHorizontalSnapPointIndex,
     std::optional<unsigned> currentVerticalSnapPointIndex,

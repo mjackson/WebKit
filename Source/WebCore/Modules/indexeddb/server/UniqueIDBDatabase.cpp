@@ -1372,7 +1372,7 @@ void UniqueIDBDatabase::connectionClosedFromServer(UniqueIDBDatabaseConnection& 
     ASSERT(!isMainThread());
     LOG(IndexedDB, "UniqueIDBDatabase::connectionClosedFromServer - %s (%" PRIu64 ")", connection.openRequestIdentifier().loggingString().utf8().data(), connection.identifier().toUInt64());
 
-    connection.protectedConnectionToClient()->didCloseFromServer(connection, IDBError::userDeleteError());
+    protect(connection.connectionToClient())->didCloseFromServer(connection, IDBError::userDeleteError());
 
     m_openDatabaseConnections.remove(&connection);
 }
@@ -1639,7 +1639,7 @@ std::optional<IDBDatabaseNameAndVersion> UniqueIDBDatabase::nameAndVersion() con
     if (!m_backingStore)
         return std::nullopt;
 
-    RefPtr versionChangeTransaction = m_versionChangeTransaction;
+    auto* versionChangeTransaction = m_versionChangeTransaction.get();
     if (versionChangeTransaction) {
         if (auto databaseInfo = versionChangeTransaction->originalDatabaseInfo()) {
             // The database is newly created.

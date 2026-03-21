@@ -275,7 +275,7 @@ static void pas_page_malloc_zero_fill_latch_if_madv_zero_is_supported(void)
 
     size = PAS_SMALL_PAGE_DEFAULT_SIZE;
     base = mmap(NULL, PAS_SMALL_PAGE_DEFAULT_SIZE, PROT_NONE, MAP_PRIVATE | MAP_ANON | PAS_NORESERVE, PAS_VM_TAG, 0);
-    PAS_ASSERT(base);
+    PAS_ASSERT(base, (uintptr_t)base);
 
     int rc = madvise(base, size, MADV_ZERO);
     if (rc)
@@ -321,7 +321,7 @@ void pas_page_malloc_zero_fill(void* base, size_t size)
     PAS_PROFILE(ZERO_FILL_PAGE, base, size, flags, tag);
     PAS_MTE_HANDLE(ZERO_FILL_PAGE, base, size, flags, tag);
     result_ptr = mmap(base, size, PROT_READ | PROT_WRITE, flags, tag, 0);
-    PAS_ASSERT(result_ptr == base);
+    PAS_ASSERT(result_ptr == base, (uintptr_t)result_ptr, (uintptr_t)base);
 #endif /* PAS_OS(WINDOWS) */
 }
 

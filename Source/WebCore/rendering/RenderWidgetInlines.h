@@ -25,8 +25,8 @@
 
 #pragma once
 
-#include <WebCore/RenderObjectNode.h>
-#include <WebCore/RenderWidget.h>
+#include "RenderObjectNode.h"
+#include "RenderWidget.h"
 
 namespace WebCore {
 

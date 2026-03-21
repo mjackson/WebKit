@@ -47,7 +47,6 @@ class CoordinatedPlatformLayerBuffer;
 class CoordinatedTileBuffer;
 class GraphicsLayerCoordinated;
 class NativeImage;
-class TextureMapper;
 class TextureMapperLayer;
 
 #if USE(SKIA)
@@ -88,7 +87,7 @@ public:
     virtual ~CoordinatedPlatformLayer();
 
     PlatformLayerIdentifier id() const { return m_id; }
-    Lock& lock() { return m_lock; }
+    Lock& lock() LIFETIME_BOUND { return m_lock; }
 
     Client& client() const { ASSERT(m_client); return *m_client; }
     void invalidateClient();
@@ -184,7 +183,7 @@ public:
     void updateContents(bool affectedByTransformAnimation);
     void updateBackingStore();
 
-    void flushCompositingState(const OptionSet<CompositionReason>&, TextureMapper&);
+    void flushCompositingState(const OptionSet<CompositionReason>&);
 
     bool hasPendingTilesCreation() const { return m_pendingTilesCreation; }
     bool isCompositionRequiredOrOngoing() const;

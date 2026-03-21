@@ -53,8 +53,8 @@ private:
     AudioProcessingEvent(RefPtr<AudioBuffer>&& inputBuffer, RefPtr<AudioBuffer>&& outputBuffer, double playbackTime);
     AudioProcessingEvent(const AtomString&, AudioProcessingEventInit&&);
 
-    RefPtr<AudioBuffer> m_inputBuffer;
-    RefPtr<AudioBuffer> m_outputBuffer;
+    const RefPtr<AudioBuffer> m_inputBuffer;
+    const RefPtr<AudioBuffer> m_outputBuffer;
     double m_playbackTime;
 };
 

@@ -71,6 +71,11 @@ enum class PseudoElementType : uint8_t {
     ViewTransitionOld,
     ViewTransitionNew,
 
+    // Special: This is only used for getComputedStyle(), and primarily in the event there's no
+    // concrete backing element and we have to look up the matching style rules. It is also limited
+    // to non-prefixed parts.
+    UserAgentPartFallback,
+
     // Internal:
     WebKitScrollbarThumb,
     WebKitScrollbarButton,
@@ -159,9 +164,18 @@ enum class BorderStyle : uint8_t {
     Double
 };
 
-inline bool isVisibleBorderStyle(BorderStyle value)
+constexpr bool isVisibleBorderStyle(BorderStyle value)
 {
     return value > BorderStyle::Hidden;
+}
+
+constexpr BorderStyle collapsedBorderStyle(BorderStyle style)
+{
+    if (style == BorderStyle::Outset)
+        return BorderStyle::Groove;
+    if (style == BorderStyle::Inset)
+        return BorderStyle::Ridge;
+    return style;
 }
 
 enum class BorderPrecedence : uint8_t {
@@ -235,6 +249,13 @@ enum class Overflow : uint8_t {
     PagedX,
     PagedY
 };
+
+constexpr bool isNonVisibleOverflow(Overflow overflow)
+{
+    return overflow == Overflow::Hidden
+        || overflow == Overflow::Scroll
+        || overflow == Overflow::Clip;
+}
 
 enum class Clear : uint8_t {
     None,
@@ -878,12 +899,6 @@ enum class CSSBoxType : uint8_t {
     ViewBox
 };
 
-enum class VisualBox : uint8_t {
-    BorderBox,
-    ContentBox,
-    PaddingBox
-};
-
 enum class ScrollSnapStrictness : bool {
     Proximity,
     Mandatory
@@ -1238,6 +1253,5 @@ WTF::TextStream& operator<<(WTF::TextStream&, MaskType);
 WTF::TextStream& operator<<(WTF::TextStream&, ShapeRendering);
 WTF::TextStream& operator<<(WTF::TextStream&, TextAnchor);
 WTF::TextStream& operator<<(WTF::TextStream&, VectorEffect);
-WTF::TextStream& operator<<(WTF::TextStream&, VisualBox);
 
 } // namespace WebCore

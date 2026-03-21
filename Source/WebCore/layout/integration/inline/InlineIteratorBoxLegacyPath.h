@@ -46,6 +46,7 @@ public:
     bool isText() const { return m_inlineBox->isInlineTextBox(); }
     bool isInlineBox() const { return m_inlineBox->isInlineFlowBox(); }
     bool isRootInlineBox() const { return m_inlineBox->isRootInlineBox(); }
+    bool isRubyBase() const { return false; }
     bool isBlockLevelBox() const { return false; }
     bool isAtomicInlineBox() const { return renderer().isBlockLevelReplacedOrAtomicInline(); }
 
@@ -64,7 +65,7 @@ public:
     size_t lineIndex() const
     {
         size_t precedingLines = 0;
-        for (CheckedPtr rootBox = rootInlineBox().prevRootBox(); rootBox; rootBox = rootBox->prevRootBox())
+        for (auto* rootBox = rootInlineBox().prevRootBox(); rootBox; rootBox = rootBox->prevRootBox())
             ++precedingLines;
         return precedingLines;
     }
@@ -97,7 +98,7 @@ public:
         return m_inlineBox->root().blockFlow();
     }
 
-    const RenderStyle& style() const
+    CheckedRef<const RenderStyle> style() const
     {
         return m_inlineBox->lineStyle();
     }

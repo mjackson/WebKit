@@ -80,7 +80,7 @@ private:
     const Identifier* m_name;
     int m_scopeDepth;
     const Ref<Label> m_breakTarget;
-    RefPtr<Label> m_continueTarget;
+    const RefPtr<Label> m_continueTarget;
 };
 
 } // namespace JSC

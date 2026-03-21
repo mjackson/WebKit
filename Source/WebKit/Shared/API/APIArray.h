@@ -29,7 +29,7 @@
 #include "APIObject.h"
 #include <ranges>
 #include <wtf/Forward.h>
-#include <wtf/RetainReleaseSwift.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/Vector.h>
 
 namespace API {
@@ -53,8 +53,8 @@ public:
     Object* at(size_t i) const { return m_elements[i].get(); }
     size_t size() const { return m_elements.size(); }
 
-    const Vector<RefPtr<Object>>& elements() const { return m_elements; }
-    Vector<RefPtr<Object>>& elements() { return m_elements; }
+    const Vector<RefPtr<Object>>& elements() const LIFETIME_BOUND { return m_elements; }
+    Vector<RefPtr<Object>>& elements() LIFETIME_BOUND { return m_elements; }
 
     template<typename T>
     decltype(auto) elementsOfType() const
@@ -96,12 +96,12 @@ using RefAPIArray = Ref<Array>;
 
 inline void refArray(API::Array* WTF_NONNULL obj)
 {
-    WTF::ref(obj);
+    obj->ref();
 }
 
 inline void derefArray(API::Array* WTF_NONNULL obj)
 {
-    WTF::deref(obj);
+    obj->deref();
 }
 
 SPECIALIZE_TYPE_TRAITS_API_OBJECT(Array);

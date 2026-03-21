@@ -58,7 +58,7 @@ public:
 
     JS_EXPORT_PRIVATE InjectedScriptBase& operator=(const InjectedScriptBase&);
 
-    const String& name() const { return m_name; }
+    const String& name() const LIFETIME_BOUND { return m_name; }
     bool hasNoValue() const { return !m_injectedScriptObject.get(); }
     JSC::JSGlobalObject* globalObject() const { return m_globalObject; }
 
@@ -67,7 +67,6 @@ protected:
     InjectedScriptBase(const String& name, JSC::JSGlobalObject*, JSC::JSObject*, InspectorEnvironment*);
 
     InspectorEnvironment& inspectorEnvironment() const { return *m_environment; }
-    CheckedRef<InspectorEnvironment> checkedInspectorEnvironment() const { return inspectorEnvironment(); }
 
     bool hasAccessToInspectedScriptState() const;
 

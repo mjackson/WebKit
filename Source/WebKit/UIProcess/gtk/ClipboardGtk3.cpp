@@ -36,6 +36,7 @@
 #include <WebCore/SharedBuffer.h>
 #include <gtk/gtk.h>
 #include <wtf/SetForScope.h>
+#include <wtf/glib/GSpanExtras.h>
 #include <wtf/glib/GUniquePtr.h>
 
 namespace WebKit {
@@ -81,9 +82,9 @@ void Clipboard::formats(CompletionHandler<void(Vector<String>&&)>&& completionHa
         std::unique_ptr<FormatsAsyncData> data(static_cast<FormatsAsyncData*>(userData));
 
         Vector<String> result;
-        for (int i = 0; i < atomsCount; ++i) {
-            GUniquePtr<char> atom(gdk_atom_name(atoms[i]));
-            result.append(String::fromUTF8(atom.get()));
+        for (auto* atom : unsafeMakeSpan<GdkAtom>(atoms, atomsCount)) {
+            GUniquePtr<char> atomName(gdk_atom_name(atom));
+            result.append(String::fromUTF8(atomName.get()));
         }
         data->completionHandler(WTF::move(result));
     }, new FormatsAsyncData(WTF::move(completionHandler)));
@@ -124,8 +125,8 @@ void Clipboard::readFilePaths(CompletionHandler<void(Vector<String>&&)>&& comple
     gtk_clipboard_request_uris(m_clipboard, [](GtkClipboard*, char** uris, gpointer userData) {
         std::unique_ptr<ReadFilePathsAsyncData> data(static_cast<ReadFilePathsAsyncData*>(userData));
         Vector<String> result;
-        for (unsigned i = 0; uris && uris[i]; ++i) {
-            GUniquePtr<gchar> filename(g_filename_from_uri(uris[i], nullptr, nullptr));
+        for (const auto* uri : span(uris)) {
+            GUniquePtr<gchar> filename(g_filename_from_uri(uri, nullptr, nullptr));
             if (filename)
                 result.append(String::fromUTF8(filename.get()));
         }
@@ -169,7 +170,7 @@ void Clipboard::readBuffer(const char* format, CompletionHandler<void(Ref<WebCor
         std::unique_ptr<ReadBufferAsyncData> data(static_cast<ReadBufferAsyncData*>(userData));
         int contentsLength;
         const auto* contents = gtk_selection_data_get_data_with_length(selection, &contentsLength);
-        data->completionHandler(WebCore::SharedBuffer::create(std::span { contents, static_cast<size_t>(std::max(0, contentsLength)) }));
+        data->completionHandler(WebCore::SharedBuffer::create(unsafeMakeSpan(contents, static_cast<size_t>(std::max(0, contentsLength)))));
     }, new ReadBufferAsyncData(WTF::move(completionHandler)));
 }
 

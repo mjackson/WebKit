@@ -25,8 +25,8 @@
 
 #pragma once
 
-#include <WebCore/CryptoAlgorithmParameters.h>
-#include <WebCore/CryptoAlgorithmRsaPssParamsInit.h>
+#include "CryptoAlgorithmParameters.h"
+#include "CryptoAlgorithmRsaPssParamsInit.h"
 
 namespace WebCore {
 

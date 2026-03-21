@@ -42,7 +42,7 @@ public:
     void adopted() { m_refCountDebugger.adopted(); }
     void relaxAdoptionRequirement() { m_refCountDebugger.relaxAdoptionRequirement(); }
     void disableThreadingChecks() { m_refCountDebugger.disableThreadingChecks(); }
-    RefCountDebugger& refCountDebugger() { return m_refCountDebugger; }
+    RefCountDebugger& refCountDebugger() LIFETIME_BOUND { return m_refCountDebugger; }
 
 protected:
     RefCountedBase() = default;
@@ -87,18 +87,6 @@ protected:
     RefCounted() = default;
     ~RefCounted() = default;
 } SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT;
-
-template<typename T>
-inline void ref(T* obj)
-{
-    obj->ref();
-}
-
-template<typename T>
-inline void deref(T* obj)
-{
-    obj->deref();
-}
 
 inline void adopted(RefCountedBase* object)
 {

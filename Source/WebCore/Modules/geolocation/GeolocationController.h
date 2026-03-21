@@ -65,7 +65,6 @@ public:
 
     WEBCORE_EXPORT static ASCIILiteral supplementName();
     static GeolocationController* from(Page* page) { return downcast<GeolocationController>(Supplement<Page>::from(page, supplementName())); }
-    static CheckedPtr<GeolocationController> checkedFrom(Page* page) { return from(page); }
 
     void revokeAuthorizationToken(const String&);
 

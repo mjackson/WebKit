@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2008-2026 Apple Inc. All rights reserved.
  * Copyright (C) 2013 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -85,7 +85,7 @@ void SMILTimeContainer::notifyIntervalsChanged()
 
 Seconds SMILTimeContainer::animationFrameDelay() const
 {
-    RefPtr page = m_ownerSVGElement->document().page();
+    auto* page = m_ownerSVGElement->document().page();
     if (!page)
         return SMILAnimationFrameDelay;
     return (page->isLowPowerModeEnabled() || page->isAggressiveThermalMitigationEnabled()) ? SMILAnimationFrameThrottledDelay : SMILAnimationFrameDelay;
@@ -220,7 +220,7 @@ void SMILTimeContainer::updateDocumentOrderIndexes()
 {
     unsigned timingElementCount = 0;
 
-    for (Ref smilElement : descendantsOfType<SVGSMILElement>(Ref { m_ownerSVGElement.get() }))
+    for (Ref smilElement : descendantsOfType<SVGSMILElement>(m_ownerSVGElement.get()))
         smilElement->setDocumentOrderIndex(timingElementCount++);
 
     m_documentOrderIndexesDirty = false;
@@ -292,7 +292,7 @@ void SMILTimeContainer::updateAnimations(SMILTime elapsed, bool seekToTime)
             // Results are accumulated to the first animation that animates and contributes to a particular element/attribute pair.
             if (!firstAnimation) {
                 if (!animation->hasValidAttributeType())
-                    return;
+                    continue;
                 firstAnimation = animation.copyRef();
             }
 

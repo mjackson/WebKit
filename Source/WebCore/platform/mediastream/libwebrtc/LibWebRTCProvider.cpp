@@ -105,7 +105,7 @@ public:
     {
     }
 
-    void setDisableNonLocalhostConnections(bool disableNonLocalhostConnections) { m_disableNonLocalhostConnections = disableNonLocalhostConnections; }
+    void NODELETE setDisableNonLocalhostConnections(bool disableNonLocalhostConnections) { m_disableNonLocalhostConnections = disableNonLocalhostConnections; }
 
     std::unique_ptr<webrtc::AsyncPacketSocket> CreateUdpSocket(const webrtc::Environment& env, const webrtc::SocketAddress& address, uint16_t minPort, uint16_t maxPort) final
     {
@@ -145,13 +145,13 @@ static void doReleaseLogging(webrtc::LoggingSeverity severity, const char* messa
     UNUSED_PARAM(message);
 #else
     if (severity == webrtc::LS_ERROR)
-        RELEASE_LOG_ERROR_FORWARDABLE_UNSAFE_ARGS(WebRTC, LIBWEBRTC_LOG_ERROR, message);
+        RELEASE_LOG_ERROR_FORWARDABLE_UNSAFE_ARGS(WebRTC, LibWebRtcLogError, message);
     else
-        RELEASE_LOG_FORWARDABLE_UNSAFE_ARGS(WebRTC, LIBWEBRTC_LOG_MESSAGE, message);
+        RELEASE_LOG_FORWARDABLE_UNSAFE_ARGS(WebRTC, LibWebRtcLogMessage, message);
 #endif
 }
 
-static webrtc::LoggingSeverity computeLogLevel(WTFLogLevel level)
+static webrtc::LoggingSeverity NODELETE computeLogLevel(WTFLogLevel level)
 {
 #if !RELEASE_LOG_DISABLED
     switch (level) {
@@ -332,7 +332,7 @@ private:
     {
         if (!m_useL4S || trial != "WebRTC-RFC8888CongestionControlFeedback")
             return "";
-        return "Enabled,force_send:true";
+        return "Enabled";
     }
 
     bool m_useL4S { false };
@@ -485,7 +485,7 @@ static inline RTCRtpCapabilities toRTCRtpCapabilities(const webrtc::RtpCapabilit
         String sdpFmtpLine;
         if (sdpFmtpLineBuilder.length())
             sdpFmtpLine = sdpFmtpLineBuilder.toString();
-        return RTCRtpCodecCapability { fromStdString(codec.mime_type()), static_cast<uint32_t>(codec.clock_rate ? *codec.clock_rate : 0), codec.num_channels, WTF::move(sdpFmtpLine) };
+        return RTCRtpCodec { fromStdString(codec.mime_type()), static_cast<uint32_t>(codec.clock_rate ? *codec.clock_rate : 0), codec.num_channels, WTF::move(sdpFmtpLine) };
 
     });
 

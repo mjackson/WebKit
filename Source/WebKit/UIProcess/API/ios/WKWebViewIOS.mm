@@ -118,6 +118,14 @@
 #import <UIKit/UITraitCollection.h>
 #endif
 
+#if ENABLE(BACK_FORWARD_LIST_SWIFT)
+#include "WebKit-Swift.h"
+#endif
+
+#if PLATFORM(VISION)
+#import "RealitySystemSupportSPI.h"
+#endif
+
 #import <pal/ios/ManagedConfigurationSoftLink.h>
 
 #define FORWARD_ACTION_TO_WKCONTENTVIEW(_action) \
@@ -131,6 +139,7 @@
 
 static const Seconds delayBeforeNoVisibleContentsRectsLogging = 1_s;
 static const Seconds delayBeforeNoCommitsLogging = 5_s;
+static constexpr Seconds delayBeforeUpdatingVisibleContentRectsWhenChangingObscuredInsetsInteractively = 100_ms;
 static const unsigned highlightMargin = 5;
 
 static WebCore::IntDegrees deviceOrientationForUIInterfaceOrientation(UIInterfaceOrientation orientation)
@@ -214,12 +223,20 @@ static WebCore::IntDegrees deviceOrientationForUIInterfaceOrientation(UIInterfac
     [_scrollView setBaseScrollViewDelegate:self];
     [_scrollView setBouncesZoom:YES];
 
+#if HAVE(UISCROLLVIEW_DECELERATION_TRACKING_BEHAVIOR)
+    if (_page && protect(_page->preferences())->scrollViewAdaptiveDecelerationTrackingEnabled()) [[unlikely]] {
+        if ([_scrollView respondsToSelector:@selector(_setDecelerationTrackingBehavior:)])
+            [_scrollView _setDecelerationTrackingBehavior:_UIScrollViewDecelerationTrackingBehaviorAdaptive];
+    } else
+#endif
+    {
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-    if ([_scrollView respondsToSelector:@selector(_setAvoidsJumpOnInterruptedBounce:)]) {
-        [_scrollView setTracksImmediatelyWhileDecelerating:NO];
-        [_scrollView _setAvoidsJumpOnInterruptedBounce:YES];
-    }
+        if ([_scrollView respondsToSelector:@selector(_setAvoidsJumpOnInterruptedBounce:)]) {
+            [_scrollView setTracksImmediatelyWhileDecelerating:NO];
+            [_scrollView _setAvoidsJumpOnInterruptedBounce:YES];
+        }
 ALLOW_DEPRECATED_DECLARATIONS_END
+    }
 
     _scrollViewDefaultAllowedTouchTypes = [_scrollView panGestureRecognizer].allowedTouchTypes;
 
@@ -861,6 +878,10 @@ static WebCore::Color scrollViewBackgroundColor(WKWebView *webView, AllowPageBac
 
 #if ENABLE(TEXT_EXTRACTION_FILTER)
     [self _clearTextExtractionFilterCache];
+#endif
+
+#if ENABLE(WRITING_TOOLS)
+    [self _clearWritingToolsPreservedNodes];
 #endif
 
     if (_gestureController)
@@ -2701,7 +2722,29 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
 - (void)_scheduleForcedVisibleContentRectUpdate
 {
     _alwaysSendNextVisibleContentRectUpdate = YES;
+    [self _cancelPendingVisibleContentRectUpdateTimer];
     [self _scheduleVisibleContentRectUpdate];
+}
+
+- (void)_cancelPendingVisibleContentRectUpdateTimer
+{
+    if (!_pendingInteractiveObscuredInsetsChangeTimer)
+        return;
+
+    _pendingInteractiveObscuredInsetsChangeTimer->stop();
+    _pendingInteractiveObscuredInsetsChangeTimer = nullptr;
+}
+
+- (void)_scheduleVisibleContentRectUpdateWithDelay:(Seconds)delay
+{
+    if (_pendingInteractiveObscuredInsetsChangeTimer && _pendingInteractiveObscuredInsetsChangeTimer->isActive())
+        return;
+
+    _perProcessState.didDeferUpdateVisibleContentRectsForAnyReason = YES;
+    _pendingInteractiveObscuredInsetsChangeTimer = RunLoop::mainSingleton().dispatchAfter(delay, [retainedSelf = retainPtr(self)] {
+        retainedSelf->_pendingInteractiveObscuredInsetsChangeTimer = nullptr;
+        [retainedSelf _scheduleVisibleContentRectUpdate];
+    });
 }
 
 - (BOOL)_isInStableState:(UIScrollView *)scrollView
@@ -2967,6 +3010,19 @@ static bool scrollViewCanScroll(UIScrollView *scrollView)
         return;
     }
 
+    if (_isChangingObscuredInsetsInteractively) {
+        auto timeSinceLastUpdate = timeNow - _timeOfLastVisibleContentRectUpdate;
+        if (timeSinceLastUpdate < delayBeforeUpdatingVisibleContentRectsWhenChangingObscuredInsetsInteractively) {
+            auto delay = delayBeforeUpdatingVisibleContentRectsWhenChangingObscuredInsetsInteractively - timeSinceLastUpdate;
+            [self _scheduleVisibleContentRectUpdateWithDelay:delay];
+
+            // Reposition fixed/sticky layers even though the full update to WebContent is throttled.
+            // Without taking this step, fixed or sticky elements will freeze in position and then visibly jump when WebContent updates.
+            [self _updateViewportRelativeLayersOutOfBand];
+            return;
+        }
+    }
+
     [self _updateScrollViewContentInsetsIfNecessary];
 
     auto visibleContentRectUpdateInfo = [self _createVisibleContentRectUpdate];
@@ -2998,6 +3054,17 @@ static bool scrollViewCanScroll(UIScrollView *scrollView)
     _timeOfLastVisibleContentRectUpdate = timeNow;
     if (!_timeOfFirstVisibleContentRectUpdateWithPendingCommit)
         _timeOfFirstVisibleContentRectUpdateWithPendingCommit = timeNow;
+}
+
+- (void)_updateViewportRelativeLayersOutOfBand
+{
+    // Reposition fixed/sticky layers even when visible content rect updates are deferred.
+    [self _updateScrollViewContentInsetsIfNecessary];
+    if (auto info = [self _createVisibleContentRectUpdate]) {
+        _page->updateVisibleContentRectsLocally(*info);
+        auto layoutViewport = _page->unconstrainedLayoutViewportRect();
+        _page->adjustLayersForLayoutViewport(_page->unobscuredContentRect().location(), layoutViewport, _page->displayedContentScale());
+    }
 }
 
 - (void)_didStartProvisionalLoadForMainFrame
@@ -4326,6 +4393,7 @@ static bool isLockdownModeWarningNeeded()
 {
     ASSERT(_isChangingObscuredInsetsInteractively);
     _isChangingObscuredInsetsInteractively = NO;
+    [self _cancelPendingVisibleContentRectUpdateTimer];
     [self _scheduleVisibleContentRectUpdate];
 }
 
@@ -4521,6 +4589,8 @@ static bool isLockdownModeWarningNeeded()
 #if HAVE(LIQUID_GLASS)
     [self _updateFixedColorExtensionViewFrames];
 #endif
+
+    [self _updateViewportRelativeLayersOutOfBand];
 }
 
 - (void)_endAnimatedResize

@@ -60,7 +60,7 @@ public:
 
     WEBCORE_EXPORT HitTestResult& operator=(const HitTestResult&);
 
-    WEBCORE_EXPORT void NODELETE setInnerNode(Node*);
+    WEBCORE_EXPORT void setInnerNode(Node*);
     Node* innerNode() const { return m_innerNode.get(); }
 
     void setInnerNonSharedNode(Node*);
@@ -86,22 +86,22 @@ public:
     bool isRectBasedTest() const { return m_hitTestLocation.isRectBasedTest(); }
 
     // The hit-tested point in the coordinates of the main frame.
-    const LayoutPoint& pointInMainFrame() const { return m_hitTestLocation.point(); }
+    const LayoutPoint& pointInMainFrame() const LIFETIME_BOUND { return m_hitTestLocation.point(); }
     IntPoint roundedPointInMainFrame() const { return roundedIntPoint(pointInMainFrame()); }
 
     // The hit-tested point in the coordinates of the innerNode frame, the frame containing innerNode.
     const LayoutPoint pointInInnerNodeFrame() const { return LayoutPoint(m_doublePointInInnerNodeFrame); }
-    const DoublePoint& doublePointInInnerNodeFrame() const { return m_doublePointInInnerNodeFrame; }
+    const DoublePoint& doublePointInInnerNodeFrame() const LIFETIME_BOUND { return m_doublePointInInnerNodeFrame; }
     IntPoint roundedPointInInnerNodeFrame() const { return roundedIntPoint(pointInInnerNodeFrame()); }
     WEBCORE_EXPORT LocalFrame* NODELETE innerNodeFrame() const;
 
     // The hit-tested point in the coordinates of the inner node.
-    const LayoutPoint& localPoint() const { return m_localPoint; }
+    const LayoutPoint& localPoint() const LIFETIME_BOUND { return m_localPoint; }
     void NODELETE setLocalPoint(const LayoutPoint&);
 
-    WEBCORE_EXPORT void NODELETE setToNonUserAgentShadowAncestor();
+    WEBCORE_EXPORT void setToNonUserAgentShadowAncestor();
 
-    const HitTestLocation& hitTestLocation() const { return m_hitTestLocation; }
+    const HitTestLocation& hitTestLocation() const LIFETIME_BOUND { return m_hitTestLocation; }
 
     WEBCORE_EXPORT LocalFrame* NODELETE frame() const;
     WEBCORE_EXPORT RefPtr<Frame> targetFrame() const;
@@ -142,7 +142,7 @@ public:
     void toggleMediaPlayState() const;
     WEBCORE_EXPORT bool NODELETE hasMediaElement() const;
     WEBCORE_EXPORT bool mediaHasAudio() const;
-    WEBCORE_EXPORT bool NODELETE mediaIsVideo() const;
+    WEBCORE_EXPORT bool mediaIsVideo() const;
     bool mediaMuted() const;
     void toggleMediaMuteState() const;
     bool mediaSupportsPictureInPicture() const;
@@ -165,7 +165,7 @@ public:
     // If m_listBasedTestResult is 0 then set it to a new NodeSet. Return *m_listBasedTestResult. Lazy allocation makes
     // sense because the NodeSet is seldom necessary, and it's somewhat expensive to allocate and initialize. This method does
     // the same thing as mutableListBasedTestResult(), but here the return value is const.
-    WEBCORE_EXPORT const NodeSet& listBasedTestResult() const;
+    WEBCORE_EXPORT const NodeSet& listBasedTestResult() const LIFETIME_BOUND;
 
     Vector<String> dictationAlternatives() const;
 
@@ -173,7 +173,7 @@ public:
     WEBCORE_EXPORT Element* targetElement() const;
 
 private:
-    NodeSet& mutableListBasedTestResult(); // See above.
+    NodeSet& mutableListBasedTestResult() LIFETIME_BOUND; // See above.
 
     template<typename RectType> HitTestProgress addNodeToListBasedTestResultCommon(Node*, const HitTestRequest&, const HitTestLocation&, const RectType&);
 

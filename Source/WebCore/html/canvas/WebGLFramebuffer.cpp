@@ -122,18 +122,23 @@ static bool entryHasObject(const WebGLFramebuffer::AttachmentEntry& entry)
         });
 }
 
-RefPtr<WebGLFramebuffer> WebGLFramebuffer::create(WebGLRenderingContextBase& context)
+Ref<WebGLFramebuffer> WebGLFramebuffer::createLost()
 {
-    auto object = context.graphicsContextGL()->createFramebuffer();
+    return adoptRef(*new WebGLFramebuffer { });
+}
+
+Ref<WebGLFramebuffer> WebGLFramebuffer::create(WebGLRenderingContextBase& context)
+{
+    auto object = protect(context.graphicsContextGL())->createFramebuffer();
     if (!object)
-        return nullptr;
+        return createLost();
     return adoptRef(*new WebGLFramebuffer { context, object, Type::Plain });
 }
 
 #if ENABLE(WEBXR)
 RefPtr<WebGLFramebuffer> WebGLFramebuffer::createOpaque(WebGLRenderingContextBase& context)
 {
-    auto object = context.graphicsContextGL()->createFramebuffer();
+    auto object = protect(context.graphicsContextGL())->createFramebuffer();
     if (!object)
         return nullptr;
     return adoptRef(*new WebGLFramebuffer { context, object, Type::Opaque });
@@ -149,6 +154,13 @@ WebGLFramebuffer::WebGLFramebuffer(WebGLRenderingContextBase& context, PlatformG
     UNUSED_PARAM(type);
 }
 
+WebGLFramebuffer::WebGLFramebuffer()
+#if ENABLE(WEBXR)
+    : m_isOpaque(false)
+#endif
+{
+}
+
 WebGLFramebuffer::~WebGLFramebuffer()
 {
     if (!context())
@@ -161,7 +173,6 @@ void WebGLFramebuffer::setAttachmentForBoundFramebuffer(GCGLenum target, GCGLenu
 {
     ASSERT(object());
     ASSERT(isBound(target));
-    auto attachmentCount = m_attachments.size();
     RefPtr gl = graphicsContextGL();
     if (attachment == GraphicsContextGL::DEPTH_STENCIL_ATTACHMENT && context()->isWebGL2()) {
         setAttachmentInternal(GraphicsContextGL::STENCIL_ATTACHMENT, entry);
@@ -170,12 +181,6 @@ void WebGLFramebuffer::setAttachmentForBoundFramebuffer(GCGLenum target, GCGLenu
     }
     setAttachmentInternal(attachment, entry);
     entryContextSetAttachment(entry, gl.get(), target, attachment);
-
-    // Apply immediately if bound for drawing; otherwise defer until next bind.
-    if (attachmentCount != m_attachments.size() && updateFilteredDrawBuffers(false)) {
-        if (target == GraphicsContextGL::DRAW_FRAMEBUFFER || target == GraphicsContextGL::FRAMEBUFFER)
-            applyFilteredDrawBuffers();
-    }
 }
 
 std::optional<WebGLFramebuffer::AttachmentObject> WebGLFramebuffer::getAttachmentObject(GCGLenum attachment) const
@@ -193,7 +198,6 @@ void WebGLFramebuffer::removeAttachmentFromBoundFramebuffer(const AbstractLocker
     ASSERT(isBound(target));
     if (!object())
         return;
-    auto attachmentCount = m_attachments.size();
     bool checkMore = true;
     RefPtr gl = graphicsContextGL();
     do {
@@ -210,10 +214,6 @@ void WebGLFramebuffer::removeAttachmentFromBoundFramebuffer(const AbstractLocker
             break;
         }
     } while (checkMore);
-    if (attachmentCount != m_attachments.size() && updateFilteredDrawBuffers(false)) {
-        if (target == GraphicsContextGL::DRAW_FRAMEBUFFER || target == GraphicsContextGL::FRAMEBUFFER)
-            applyFilteredDrawBuffers();
-    }
 }
 
 void WebGLFramebuffer::deleteObjectImpl(const AbstractLocker& locker, GraphicsContextGL* context3d, PlatformGLObject object)
@@ -229,51 +229,16 @@ bool WebGLFramebuffer::isBound(GCGLenum target) const
     return context()->getFramebufferBinding(target) == this;
 }
 
-void WebGLFramebuffer::applyFilteredDrawBuffers()
-{
-    if (!m_drawBufferStatePendingSync)
-        return;
-    m_drawBufferStatePendingSync = false;
-    RefPtr context = this->context();
-    if (context->isWebGL2())
-        context->graphicsContextGL()->drawBuffers(m_filteredDrawBuffers);
-    else if (context->m_webglDrawBuffers)
-        context->graphicsContextGL()->drawBuffersEXT(m_filteredDrawBuffers);
-}
-
 void WebGLFramebuffer::drawBuffers(const Vector<GCGLenum>& bufs)
 {
     m_drawBuffers = bufs;
-    m_filteredDrawBuffers.resize(m_drawBuffers.size());
-    for (auto& buffer : m_filteredDrawBuffers)
-        buffer = GraphicsContextGL::NONE;
-    updateFilteredDrawBuffers(true);
-    applyFilteredDrawBuffers();
-}
-
-bool WebGLFramebuffer::updateFilteredDrawBuffers(bool force)
-{
+    // ANGLE handles filtering of draw buffers for unattached color attachments internally,
+    // so we pass the user-specified buffers directly.
     RefPtr context = this->context();
-    if (!context->isWebGL2() && !context->m_webglDrawBuffers)
-        return false;
-    bool changed = force;
-    // This filtering works around graphics driver bugs on macOS.
-    for (size_t i = 0; i < m_drawBuffers.size(); ++i) {
-        if (m_drawBuffers[i] != GraphicsContextGL::NONE && m_attachments.contains(m_drawBuffers[i])) {
-            if (m_filteredDrawBuffers[i] != m_drawBuffers[i]) {
-                m_filteredDrawBuffers[i] = m_drawBuffers[i];
-                changed = true;
-            }
-        } else {
-            if (m_filteredDrawBuffers[i] != GraphicsContextGL::NONE) {
-                m_filteredDrawBuffers[i] = GraphicsContextGL::NONE;
-                changed = true;
-            }
-        }
-    }
-    if (changed)
-        m_drawBufferStatePendingSync = true;
-    return changed;
+    if (context->isWebGL2())
+        protect(context->graphicsContextGL())->drawBuffers(m_drawBuffers);
+    else if (context->m_webglDrawBuffers)
+        protect(context->graphicsContextGL())->drawBuffersEXT(m_drawBuffers);
 }
 
 GCGLenum WebGLFramebuffer::getDrawBuffer(GCGLenum drawBuffer)

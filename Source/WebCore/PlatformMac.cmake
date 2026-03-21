@@ -297,7 +297,6 @@ list(APPEND WebCore_SOURCES
     platform/graphics/cg/ImageBufferCGBackend.cpp
     platform/graphics/cg/ImageBufferCGBitmapBackend.cpp
     platform/graphics/cg/ImageBufferIOSurfaceBackend.cpp
-    platform/graphics/cg/ImageBufferUtilitiesCG.cpp
     platform/graphics/cg/ImageDecoderCG.cpp
     platform/graphics/cg/IntPointCG.cpp
     platform/graphics/cg/IntRectCG.cpp
@@ -402,28 +401,28 @@ list(APPEND WebCore_SOURCES
     platform/network/cf/NetworkStorageSessionCFNet.cpp
     platform/network/cf/ResourceRequestCFNet.cpp
 
+    platform/network/cocoa/AuthenticationCocoa.mm
+    platform/network/cocoa/BlobDataFileReferenceCocoa.mm
     platform/network/cocoa/CookieCocoa.mm
+    platform/network/cocoa/CookieStorageCocoa.mm
     platform/network/cocoa/CookieStorageObserver.mm
     platform/network/cocoa/CredentialCocoa.mm
+    platform/network/cocoa/CredentialStorageCocoa.mm
+    platform/network/cocoa/FormDataStreamCocoa.mm
     platform/network/cocoa/NetworkLoadMetrics.mm
     platform/network/cocoa/NetworkStorageSessionCocoa.mm
     platform/network/cocoa/ProtectionSpaceCocoa.mm
+    platform/network/cocoa/ResourceErrorCocoa.mm
+    platform/network/cocoa/ResourceHandleCocoa.mm
     platform/network/cocoa/ResourceRequestCocoa.mm
     platform/network/cocoa/ResourceResponseCocoa.mm
+    platform/network/cocoa/SynchronousLoaderClient.mm
+    platform/network/cocoa/UTIUtilities.mm
     platform/network/cocoa/WebCoreNSURLSession.mm
+    platform/network/cocoa/WebCoreResourceHandleAsOperationQueueDelegate.mm
+    platform/network/cocoa/WebCoreURLResponse.mm
 
-    platform/network/mac/AuthenticationMac.mm
-    platform/network/mac/BlobDataFileReferenceMac.mm
-    platform/network/mac/CookieStorageMac.mm
-    platform/network/mac/CredentialStorageMac.mm
-    platform/network/mac/FormDataStreamMac.mm
     platform/network/mac/NetworkStateNotifierMac.cpp
-    platform/network/mac/ResourceErrorMac.mm
-    platform/network/mac/ResourceHandleMac.mm
-    platform/network/mac/SynchronousLoaderClient.mm
-    platform/network/mac/UTIUtilities.mm
-    platform/network/mac/WebCoreResourceHandleAsOperationQueueDelegate.mm
-    platform/network/mac/WebCoreURLResponse.mm
 
     platform/text/cocoa/LocaleCocoa.mm
 
@@ -658,7 +657,6 @@ list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/graphics/cg/ImageBufferCGBackend.h
     platform/graphics/cg/ImageBufferCGBitmapBackend.h
     platform/graphics/cg/ImageBufferIOSurfaceBackend.h
-    platform/graphics/cg/ImageBufferUtilitiesCG.h
     platform/graphics/cg/PDFDocumentImage.h
     platform/graphics/cg/UTIRegistry.h
 
@@ -744,16 +742,15 @@ list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/network/cf/ResourceRequestCFNet.h
     platform/network/cf/ResourceResponse.h
 
+    platform/network/cocoa/AuthenticationCocoa.h
     platform/network/cocoa/CookieStorageObserver.h
     platform/network/cocoa/CredentialCocoa.h
+    platform/network/cocoa/FormDataStreamCocoa.h
     platform/network/cocoa/HTTPCookieAcceptPolicyCocoa.h
     platform/network/cocoa/ProtectionSpaceCocoa.h
+    platform/network/cocoa/UTIUtilities.h
     platform/network/cocoa/WebCoreNSURLSession.h
-
-    platform/network/mac/AuthenticationMac.h
-    platform/network/mac/FormDataStreamMac.h
-    platform/network/mac/UTIUtilities.h
-    platform/network/mac/WebCoreURLResponse.h
+    platform/network/cocoa/WebCoreURLResponse.h
 
     rendering/cocoa/RenderThemeCocoa.h
 

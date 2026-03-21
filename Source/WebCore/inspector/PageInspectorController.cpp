@@ -469,7 +469,7 @@ bool PageInspectorController::canAccessInspectedScriptState(JSC::JSGlobalObject*
     if (!inspectedWindow)
         return false;
 
-    return BindingSecurity::shouldAllowAccessToDOMWindow(lexicalGlobalObject, inspectedWindow->protectedWrapped(), DoNotReportSecurityError);
+    return BindingSecurity::shouldAllowAccessToDOMWindow(lexicalGlobalObject, protect(inspectedWindow->wrapped()), DoNotReportSecurityError);
 }
 
 InspectorFunctionCallHandler PageInspectorController::functionCallHandler() const

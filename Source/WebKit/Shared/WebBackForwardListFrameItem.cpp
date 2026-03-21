@@ -91,6 +91,13 @@ WebBackForwardListFrameItem* WebBackForwardListFrameItem::childItemForFrameID(Fr
     return nullptr;
 }
 
+WebBackForwardListFrameItem* WebBackForwardListFrameItem::childItemAtIndex(uint64_t index)
+{
+    if (index >= m_children.size())
+        return nullptr;
+    return m_children[index].ptr();
+}
+
 WebBackForwardListItem* WebBackForwardListFrameItem::backForwardListItem() const
 {
     return m_backForwardListItem.get();
@@ -143,10 +150,16 @@ void WebBackForwardListFrameItem::updateFrameID(FrameIdentifier newFrameID)
     m_frameState->frameID = newFrameID;
 }
 
-Ref<FrameState> WebBackForwardListFrameItem::copyFrameStateWithChildren()
+Ref<FrameState> WebBackForwardListFrameItem::copyFrameState()
 {
     Ref frameState = protect(this->frameState())->copy();
     ASSERT(frameState->children.isEmpty());
+    return frameState;
+}
+
+Ref<FrameState> WebBackForwardListFrameItem::copyFrameStateWithChildren()
+{
+    Ref frameState = copyFrameState();
     for (auto& child : m_children)
         frameState->children.append(child->copyFrameStateWithChildren());
     return frameState;
@@ -158,7 +171,7 @@ bool WebBackForwardListFrameItem::sharesAncestor(WebBackForwardListFrameItem& fr
     for (RefPtr currentAncestor = m_parent.get(); currentAncestor; currentAncestor = currentAncestor->m_parent.get())
         currentAncestors.add(currentAncestor->m_identifier);
 
-    for (RefPtr frameItemAncestor = frameItem.m_parent.get(); frameItemAncestor; frameItemAncestor = frameItemAncestor->m_parent.get()) {
+    for (auto* frameItemAncestor = frameItem.m_parent.get(); frameItemAncestor; frameItemAncestor = frameItemAncestor->m_parent.get()) {
         if (currentAncestors.contains(frameItemAncestor->m_identifier))
             return true;
     }

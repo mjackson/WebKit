@@ -73,7 +73,7 @@ public:
         return adoptRef(*new NetworkCORSPreflightChecker(networkProcess, networkResourceLoader, WTF::move(parameters), shouldCaptureExtraNetworkLoadMetrics, WTF::move(completionCallback)));
     }
     ~NetworkCORSPreflightChecker();
-    const WebCore::ResourceRequest& originalRequest() const { return m_parameters.originalRequest; }
+    const WebCore::ResourceRequest& originalRequest() const LIFETIME_BOUND { return m_parameters.originalRequest; }
 
     void startPreflight();
 

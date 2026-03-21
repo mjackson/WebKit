@@ -100,7 +100,7 @@ public:
     }
     virtual ~NetworkResourceLoader();
 
-    const WebCore::ResourceRequest& originalRequest() const { return m_parameters.request; }
+    const WebCore::ResourceRequest& originalRequest() const LIFETIME_BOUND { return m_parameters.request; }
 
     NetworkLoad* networkLoad() const { return m_networkLoad.get(); }
 
@@ -115,7 +115,7 @@ public:
     void continueWillSendRequest(WebCore::ResourceRequest&&, bool isAllowedToAskUserForCredentials, CompletionHandler<void(WebCore::ResourceRequest&&)>&&);
 
     void setResponse(WebCore::ResourceResponse&& response) { m_response = WTF::move(response); }
-    const WebCore::ResourceResponse& response() const { return m_response; }
+    const WebCore::ResourceResponse& response() const LIFETIME_BOUND { return m_response; }
 
     NetworkConnectionToWebProcess& connectionToWebProcess() const { return m_connection; }
     PAL::SessionID sessionID() const { return m_connection->sessionID(); }
@@ -123,9 +123,9 @@ public:
     WebCore::FrameIdentifier frameID() const { return m_parameters.webFrameID; }
     WebCore::PageIdentifier pageID() const { return m_parameters.webPageID; }
     WebPageProxyIdentifier webPageProxyID() const { return m_parameters.webPageProxyID; }
-    const NetworkResourceLoadParameters& parameters() const { return m_parameters; }
+    const NetworkResourceLoadParameters& parameters() const LIFETIME_BOUND { return m_parameters; }
     NetworkResourceLoadIdentifier identifier() const { return m_resourceLoadID; }
-    const URL& firstResponseURL() const { return m_firstResponseURL; }
+    const URL& firstResponseURL() const LIFETIME_BOUND { return m_firstResponseURL; }
 
     NetworkCache::GlobalFrameID globalFrameID() { return { webPageProxyID(), pageID(), frameID() }; }
 
@@ -168,11 +168,11 @@ public:
     void startWithServiceWorker();
     void serviceWorkerDidNotHandle(ServiceWorkerFetchTask*);
     void setServiceWorkerRegistration(WebCore::SWServerRegistration& serviceWorkerRegistration) { m_serviceWorkerRegistration = serviceWorkerRegistration; }
-    void setWorkerStart(MonotonicTime);
+    void NODELETE setWorkerStart(MonotonicTime);
 
-    void setWorkerRouterEvaluationStart(MonotonicTime);
-    void setWorkerCacheLookupStart(MonotonicTime);
-    void setWorkerMatchedRouterSource(WebCore::RouterSourceEnum);
+    void NODELETE setWorkerRouterEvaluationStart(MonotonicTime);
+    void NODELETE setWorkerCacheLookupStart(MonotonicTime);
+    void NODELETE setWorkerMatchedRouterSource(WebCore::RouterSourceEnum);
     void NODELETE setWorkerFinalRouterSource(WebCore::RouterSourceEnum);
 
     std::optional<WebCore::ResourceError> doCrossOriginOpenerHandlingOfResponse(const WebCore::ResourceResponse&);

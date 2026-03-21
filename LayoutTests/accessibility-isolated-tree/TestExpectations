@@ -63,3 +63,8 @@ accessibility/mac/text-operation/text-operation-replace-across-multiple-fields.h
 accessibility/textarea-insertion-point-line-number.html [ Failure ]
 
 accessibility/mac/html5-input-number.html [ Timeout ]
+
+# Regressions from ENABLE(ACCESSIBILITY_LOCAL_FRAME).
+accessibility/scroll-to-global-point-main-window.html [ Failure ]
+accessibility/scroll-to-make-visible-iframe-offscreen.html [ Timeout ]
+

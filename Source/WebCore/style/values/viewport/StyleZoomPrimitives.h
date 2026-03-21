@@ -39,7 +39,10 @@ struct ZoomNeeded { };
 struct ZoomFactor {
     float value;
 
-    constexpr explicit ZoomFactor(float v) : value(v) { }
+    constexpr explicit ZoomFactor(float v) : value { v } { }
+
+    // Special zoom factor to use when zoom has already been applied to a value.
+    static constexpr ZoomFactor none() { return ZoomFactor { 1 }; }
 };
 
 // Map from computed style values (which take zoom into account) to web-exposed values, which are zoom-independent.

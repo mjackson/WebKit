@@ -99,6 +99,7 @@ public:
     virtual HostingContext hostingContext() const { return { }; }
     virtual WebCore::FloatSize videoLayerSize() const { return { }; }
     virtual void notifyVideoLayerSizeChanged(Function<void(const MediaTime&, FloatSize)>&&) { }
+    virtual void setVideoLayerSize(const FloatSize&) { }
     virtual void setVideoLayerSizeFenced(const FloatSize&, WTF::MachSendRightAnnotated&&) { }
 };
 
@@ -142,7 +143,7 @@ public:
     virtual void setPreferences(VideoRendererPreferences) { }
     virtual void setHasProtectedVideoContent(bool) { }
 
-    virtual TrackIdentifier addTrack(TrackType) = 0;
+    virtual std::optional<TrackIdentifier> addTrack(TrackType) = 0;
     virtual void removeTrack(TrackIdentifier) = 0;
 
     virtual void enqueueSample(TrackIdentifier, Ref<MediaSample>&&, std::optional<MediaTime> = std::nullopt) = 0;

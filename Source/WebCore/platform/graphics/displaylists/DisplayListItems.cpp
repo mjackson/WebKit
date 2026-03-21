@@ -83,9 +83,9 @@ void Scale::dump(TextStream& ts, OptionSet<AsTextFlag>) const
     ts.dumpProperty("size"_s, amount());
 }
 
-void SetCTM::apply(GraphicsContext& context) const
+void SetCTM::apply(GraphicsContext& context, const AffineTransform& baseTransform) const
 {
-    context.setCTM(m_transform);
+    context.setCTM(baseTransform * m_transform);
 }
 
 void SetCTM::dump(TextStream& ts, OptionSet<AsTextFlag>) const

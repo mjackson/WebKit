@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2022 Apple Inc. All rights reserved.
+# Copyright (C) 2018-2026 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -46,12 +46,11 @@ class Buildbot():
         'ios-wk2': 'ios-sim',
         'ios-wk2-wpt': 'ios-sim',
         'api-mac': 'mac',
-        'api-mac-debug': 'mac',
         'mac-wk1': 'mac',
         'mac-wk2': 'mac',
         'mac-intel-wk2': 'mac',
         'mac-wk2-stress': 'mac',
-        'mac-debug-wk1': 'mac-debug',
+        'api-mac-debug': 'mac-AS-debug',
         'mac-AS-debug-wk2': 'mac-AS-debug',
         'api-gtk': 'gtk',
         'gtk-wk2': 'gtk',
@@ -59,7 +58,7 @@ class Buildbot():
         'wpe-wk2': 'wpe',
         'win-tests': 'win',
         'jsc-armv7-tests': 'jsc-armv7',
-        'vision-sim': 'vision-wk2',
+        'vision-wk2': 'vision-sim',
     }
 
     @classmethod

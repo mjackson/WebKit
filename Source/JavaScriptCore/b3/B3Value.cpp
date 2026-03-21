@@ -778,8 +778,15 @@ Effects Value::effects() const
     case VectorExtaddPairwise:
     case VectorMulSat:
     case VectorSwizzle:
+    case VectorUnzipEven:
+    case VectorUnzipOdd:
+    case VectorZipLower:
+    case VectorZipHigher:
+    case VectorTransposeEven:
+    case VectorTransposeOdd:
+    case VectorReverse:
+    case VectorExtractPair:
     case VectorMulByElement:
-    case VectorShiftByVector:
     case VectorRelaxedSwizzle:
     case VectorRelaxedMAdd:
     case VectorRelaxedNMAdd:
@@ -1051,6 +1058,7 @@ ValueKey Value::key() const
         return ValueKey(kind(), type(), as<SIMDValue>()->simdInfo(), child(0));
     case VectorExtractLane:
     case VectorDupElement:
+    case VectorReverse:
         numChildrenForKind(kind(), 1);
         return ValueKey(kind(), type(), as<SIMDValue>()->simdInfo(), child(0), as<SIMDValue>()->immediate());
     case VectorEqual:
@@ -1085,12 +1093,18 @@ ValueKey Value::key() const
     case VectorShr:
     case VectorMulSat:
     case VectorAvgRound:
-    case VectorShiftByVector:
     case VectorRelaxedSwizzle:
+    case VectorUnzipEven:
+    case VectorUnzipOdd:
+    case VectorZipLower:
+    case VectorZipHigher:
+    case VectorTransposeEven:
+    case VectorTransposeOdd:
         numChildrenForKind(kind(), 2);
         return ValueKey(kind(), type(), as<SIMDValue>()->simdInfo(), child(0), child(1));
     case VectorReplaceLane:
     case VectorMulByElement:
+    case VectorExtractPair:
         numChildrenForKind(kind(), 2);
         return ValueKey(kind(), type(), as<SIMDValue>()->simdInfo(), child(0), child(1), as<SIMDValue>()->immediate());
     case VectorRelaxedMAdd:

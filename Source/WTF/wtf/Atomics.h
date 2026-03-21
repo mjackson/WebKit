@@ -320,7 +320,7 @@ inline void dependentLoadLoadFence() { loadLoadFence(); }
 template<typename T>
 inline T opaque(T value)
 {
-    asm ("" : "+r"(value) ::);
+    asm volatile("" : "+r"(value) ::);
     return value;
 }
 

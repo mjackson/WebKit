@@ -102,7 +102,7 @@ NetworkLoad::~NetworkLoad()
     ASSERT(RunLoop::isMain());
     if (RefPtr scheduler = m_scheduler.get())
         scheduler->unschedule(*this);
-    if (RefPtr task = m_task)
+    if (auto* task = m_task.get())
         task->clearClient();
 }
 
@@ -115,7 +115,7 @@ void NetworkLoad::cancel()
 static inline void updateRequest(ResourceRequest& currentRequest, const ResourceRequest& newRequest)
 {
 #if PLATFORM(COCOA)
-    currentRequest.updateFromDelegatePreservingOldProperties(newRequest.protectedNSURLRequest(HTTPBodyUpdatePolicy::DoNotUpdateHTTPBody).get());
+    currentRequest.updateFromDelegatePreservingOldProperties(RetainPtr { newRequest.nsURLRequest(HTTPBodyUpdatePolicy::DoNotUpdateHTTPBody) }.get());
 #else
     currentRequest.updateFromDelegatePreservingOldProperties(newRequest);
 #endif
@@ -162,7 +162,7 @@ void NetworkLoad::convertTaskToDownload(PendingDownload& pendingDownload, const 
 
 void NetworkLoad::setPendingDownloadID(DownloadID downloadID)
 {
-    if (RefPtr task = m_task)
+    if (auto* task = m_task.get())
         task->setPendingDownloadID(downloadID);
 }
 
@@ -176,7 +176,7 @@ void NetworkLoad::setSuggestedFilename(const String& suggestedName)
 
 void NetworkLoad::setPendingDownload(PendingDownload& pendingDownload)
 {
-    if (RefPtr task = m_task)
+    if (auto* task = m_task.get())
         task->setPendingDownload(pendingDownload);
 }
 
@@ -186,7 +186,7 @@ void NetworkLoad::willPerformHTTPRedirection(ResourceResponse&& redirectResponse
     ASSERT(RunLoop::isMain());
 
     if (!m_networkProcess->ftpEnabled() && request.url().protocolIsInFTPFamily()) {
-        Ref { *m_task }->clearClient();
+        m_task->clearClient();
         m_task = nullptr;
         WebCore::NetworkLoadMetrics emptyMetrics;
         didCompleteWithError(ResourceError { errorDomainWebKitInternal, 0, url(), "FTP URLs are disabled"_s, ResourceError::Type::AccessControl }, emptyMetrics);
@@ -380,7 +380,7 @@ String NetworkLoad::attributedBundleIdentifier(WebPageProxyIdentifier pageID)
 
 size_t NetworkLoad::bytesTransferredOverNetwork() const
 {
-    if (RefPtr task = m_task)
+    if (auto* task = m_task.get())
         return task->bytesTransferredOverNetwork();
     return 0;
 }

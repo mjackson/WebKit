@@ -230,7 +230,7 @@ void ChildChangeInvalidation::invalidateForHasAfterMutation()
     }
 }
 
-static bool needsDescendantTraversal(const RuleFeatureSet& features)
+static bool NODELETE needsDescendantTraversal(const RuleFeatureSet& features)
 {
     return features.usesMatchElement(MatchElement::HasNonSubject)
         || features.usesMatchElement(MatchElement::HasScopeBreaking)
@@ -266,25 +266,25 @@ void ChildChangeInvalidation::traverseAddedElements(Function&& function)
     if (!m_childChange.isInsertion())
         return;
 
-    RefPtr newElement = [&] {
-        auto* previous = m_childChange.previousSiblingElement;
-        auto* candidate = previous ? ElementTraversal::nextSibling(*previous) : ElementTraversal::firstChild(parentElement());
-        if (candidate == m_childChange.nextSiblingElement)
-            candidate = nullptr;
-        return candidate;
-    }();
+    auto callFunctionOnInclusiveDescendants = [&](Element& element) {
+        function(element);
 
-    if (!newElement)
-        return;
+        auto& features = parentElement().styleResolver().ruleSets().features();
+        if (!needsDescendantTraversal(features))
+            return;
 
-    function(*newElement);
+        for (Ref descendant : descendantsOfType<Element>(element))
+            function(descendant);
+    };
 
-    auto& features = parentElement().styleResolver().ruleSets().features();
-    if (!needsDescendantTraversal(features))
-        return;
-
-    for (Ref descendant : descendantsOfType<Element>(*newElement))
-        function(descendant);
+    if (RefPtr newElement = m_childChange.siblingChanged)
+        callFunctionOnInclusiveDescendants(*newElement);
+    else if (auto* children = m_childChange.insertedChildren) {
+        for (Ref node : *children) {
+            if (auto* element = dynamicDowncast<Element>(node.get()))
+                callFunctionOnInclusiveDescendants(*element);
+        }
+    }
 }
 
 template<typename Function>

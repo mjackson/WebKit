@@ -25,11 +25,11 @@
 
 #pragma once
 
-#include <WebCore/CachedResourceClient.h>
-#include <WebCore/CachedResourceHandle.h>
-#include <WebCore/FetchOptionsDestination.h>
-#include <WebCore/ResourceLoaderOptions.h>
-#include <WebCore/ResourceRequest.h>
+#include "CachedResourceClient.h"
+#include "CachedResourceHandle.h"
+#include "FetchOptionsDestination.h"
+#include "ResourceLoaderOptions.h"
+#include "ResourceRequest.h"
 #include <wtf/FastMalloc.h>
 #include <wtf/RefCounted.h>
 #include <wtf/URL.h>
@@ -58,7 +58,7 @@ public:
 private:
     LoadableSpeculationRules(Document&, const URL&);
 
-    CachedResourceHandle<CachedScript> requestSpeculationRules(Document&, const URL& sourceURL);
+    RefPtr<CachedScript> requestSpeculationRules(Document&, const URL& sourceURL);
 
     CachedResourceHandle<CachedScript> m_cachedScript;
     WeakPtr<Document, WeakPtrImplWithEventTargetData> m_document;

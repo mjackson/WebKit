@@ -290,10 +290,9 @@ void ResourceLoader::setDefersLoading(bool defers)
 
 FrameLoader* ResourceLoader::frameLoader() const
 {
-    RefPtr frame = m_frame.get();
-    if (!frame)
-        return nullptr;
-    return &frame->loader();
+    if (m_frame)
+        return &m_frame->loader();
+    return nullptr;
 }
 
 void ResourceLoader::loadDataURL()
@@ -409,8 +408,9 @@ void ResourceLoader::willSendRequestInternal(ResourceRequest&& request, const Re
     RefPtr documentLoader = m_documentLoader;
     if (!redirectResponse.isNull() && frameLoader && page && userContentProvider && documentLoader) {
         auto results = userContentProvider->processContentRuleListsForLoad(*page, request.url(), m_resourceType, *documentLoader, redirectResponse.url());
+        bool shouldBlock = results.shouldBlock();
         ContentExtensions::applyResultsToRequest(WTF::move(results), page.get(), request);
-        if (results.shouldBlock()) {
+        if (shouldBlock) {
             RESOURCELOADER_RELEASE_LOG("willSendRequestInternal: resource load canceled because of content blocker");
             didFail(blockedByContentBlockerError());
             completionHandler({ });
@@ -491,7 +491,7 @@ void ResourceLoader::willSendRequestInternal(ResourceRequest&& request, const Re
         }
     }
 
-    RESOURCELOADER_RELEASE_LOG_FORWARDABLE(RESOURCELOADER_WILLSENDREQUESTINTERNAL);
+    RESOURCELOADER_RELEASE_LOG_FORWARDABLE(ResourceLoaderWillSendRequestInternal);
     completionHandler(WTF::move(request));
 }
 
@@ -589,7 +589,7 @@ void ResourceLoader::didReceiveResponse(ResourceResponse&& r, CompletionHandler<
     }
 
     if (r.wasPrivateRelayed() && frame) {
-        if (RefPtr document = frame->document()) {
+        if (auto* document = frame->document()) {
             if (!document->wasPrivateRelayed())
                 document->setWasPrivateRelayed(true);
         }
@@ -833,7 +833,7 @@ bool ResourceLoader::shouldUseCredentialStorage()
         return false;
 
     RefPtr frame = m_frame.get();
-    if (RefPtr page = frame ? frame->page() : nullptr) {
+    if (auto* page = frame ? frame->page() : nullptr) {
         if (!page->canUseCredentialStorage())
             return false;
     }
@@ -960,8 +960,8 @@ LocalFrame* ResourceLoader::frame() const
 #if ENABLE(CONTENT_EXTENSIONS)
 ResourceMonitor* ResourceLoader::resourceMonitorIfExists()
 {
-    RefPtr frame = m_frame;
-    if (RefPtr document = frame ? frame->document() : nullptr)
+    auto* frame = m_frame.get();
+    if (auto* document = frame ? frame->document() : nullptr)
         return document->resourceMonitorIfExists();
     return nullptr;
 }

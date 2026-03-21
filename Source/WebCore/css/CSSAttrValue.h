@@ -50,7 +50,7 @@ private:
     }
 
     String m_attributeName;
-    RefPtr<CSSValue> m_fallback;
+    const RefPtr<CSSValue> m_fallback;
 };
 
 } // namespace WebCore

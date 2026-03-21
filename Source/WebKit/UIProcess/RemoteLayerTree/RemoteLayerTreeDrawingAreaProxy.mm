@@ -352,7 +352,8 @@ void RemoteLayerTreeDrawingAreaProxy::commitLayerTree(IPC::Connection& connectio
     __block Vector<MachSendRight, 16> sendRights;
     for (auto& transaction : bundle.transactions) {
         // commitLayerTreeTransaction consumes the incoming buffers, so we need to grab them first.
-        for (auto& [layerID, properties] : CheckedRef { transaction.first }->changedLayerProperties()) {
+        CheckedRef removeLayerTreeTransaction = transaction.first;
+        for (auto& [layerID, properties] : removeLayerTreeTransaction->changedLayerProperties()) {
             auto* backingStoreProperties = properties->backingStoreOrProperties.properties.get();
             if (!backingStoreProperties)
                 continue;
@@ -466,7 +467,7 @@ void RemoteLayerTreeDrawingAreaProxy::commitLayerTreeTransaction(IPC::Connection
         return;
 
     {
-        std::optional<RequestedScrollData> requestedScroll;
+        ScrollRequestData requestedScroll;
         CheckedRef scrollingCoordinatorProxy = *page->scrollingCoordinatorProxy();
 
         auto commitLayerAndScrollingTrees = [&] {
@@ -493,13 +494,25 @@ void RemoteLayerTreeDrawingAreaProxy::commitLayerTreeTransaction(IPC::Connection
         didCommitLayerTree(connection, layerTreeTransaction, scrollingTreeTransaction, mainFrameData, transactionID);
 
         scrollingCoordinatorProxy->applyScrollingTreeLayerPositionsAfterCommit();
+
+#if ENABLE(SCROLL_STRETCH_NOTIFICATIONS)
+        if (mainFrameData && !layerTreeTransaction.remoteContextHostedIdentifier()) {
+            if (RefPtr pageClient = page->pageClient()) {
+                auto scrollPosition = scrollingCoordinatorProxy->currentMainFrameScrollPosition();
+                auto scrollOrigin = scrollingCoordinatorProxy->scrollOrigin();
+                auto topScrollStretch = std::max(0.0f, -scrollOrigin.y() - scrollPosition.y());
+                pageClient->topScrollStretchDidChange(topScrollStretch);
+            }
+        }
+#endif
+
 #if PLATFORM(IOS_FAMILY)
         page->adjustLayersForLayoutViewport(page->unobscuredContentRect().location(), page->unconstrainedLayoutViewportRect(), page->displayedContentScale());
 #endif
         // Handle requested scroll position updates from the scrolling tree transaction after didCommitLayerTree()
         // has updated the view size based on the content size.
-        if (requestedScroll)
-            scrollingCoordinatorProxy->adjustMainFrameDelegatedScrollPosition(WTF::move(*requestedScroll));
+        if (requestedScroll.size())
+            scrollingCoordinatorProxy->adjustMainFrameDelegatedScrollPosition(WTF::move(requestedScroll));
 
 #if ENABLE(OVERLAY_REGIONS_IN_EVENT_REGION)
         if (layerTreeTransaction.changedLayerProperties().size() || layerTreeTransaction.destroyedLayers().size())
@@ -822,7 +835,7 @@ void RemoteLayerTreeDrawingAreaProxy::didRefreshDisplay(IPC::Connection* connect
     if (maybePauseDisplayRefreshCallbacks())
         return;
 
-    if (RefPtr page = this->page())
+    if (auto* page = this->page())
         page->didUpdateActivityState();
 }
 

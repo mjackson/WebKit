@@ -42,7 +42,7 @@
 
 - (NSData *)data
 {
-    if (auto messageData = self._protectedMessage->data())
+    if (auto messageData = protect(*_message)->data())
         return toNSData(*messageData).autorelease();
 
     return nil;
@@ -59,11 +59,6 @@
 }
 
 - (API::Object&)_apiObject
-{
-    return *_message;
-}
-
-- (Ref<API::WebPushMessage>)_protectedMessage
 {
     return *_message;
 }

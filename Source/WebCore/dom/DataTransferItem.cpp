@@ -112,20 +112,20 @@ void DataTransferItem::getAsString(Document& document, RefPtr<StringCallback>&& 
     callback->scheduleCallback(document, dataTransfer->getDataForItem(document, m_type));
 }
 
-RefPtr<File> DataTransferItem::getAsFile() const
+File* DataTransferItem::getAsFile() const
 {
     if (!m_list || !m_list->dataTransfer().canReadData())
         return nullptr;
-    return m_file.copyRef();
+    return m_file;
 }
 
 RefPtr<FileSystemEntry> DataTransferItem::getAsEntry(ScriptExecutionContext& context) const
 {
-    auto file = getAsFile();
+    RefPtr file = getAsFile();
     if (!file)
         return nullptr;
 
-    return DOMFileSystem::createEntryForFile(context, *file);
+    return DOMFileSystem::createEntryForFile(context, file.releaseNonNull());
 }
 
 } // namespace WebCore

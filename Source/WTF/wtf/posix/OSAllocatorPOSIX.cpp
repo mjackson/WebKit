@@ -27,6 +27,7 @@
 #include <wtf/OSAllocator.h>
 
 #include <errno.h>
+#include <mutex>
 #include <sys/mman.h>
 #include <wtf/Assertions.h>
 #include <wtf/DataLog.h>
@@ -339,6 +340,39 @@ void OSAllocator::protect(void* address, size_t bytes, bool readable, bool writa
         dataLogLn("mprotect failed: ", safeStrerror(errno).data());
         RELEASE_ASSERT_NOT_REACHED();
     }
+}
+
+void OSAllocator::zeroFill(void* base, size_t size)
+{
+    ASSERT(isPageAligned(base));
+    ASSERT(isPageAligned(size));
+
+#if defined(MADV_ZERO) && OS(DARWIN)
+    static std::once_flag onceKey;
+    static bool madvZeroSupported = false;
+    std::call_once(onceKey,
+        [&] {
+            size_t size = pageSize();
+            void* base = mmap(nullptr, size, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1, 0);
+            RELEASE_ASSERT(base && base != MAP_FAILED);
+
+            int rc = madvise(base, size, MADV_ZERO);
+            if (rc)
+                madvZeroSupported = (errno != ENOTSUP);
+            else
+                madvZeroSupported = true;
+
+            munmap(base, size);
+        });
+    if (madvZeroSupported) {
+        int rc = madvise(base, size, MADV_ZERO);
+        if (rc != -1)
+            return;
+    }
+#endif
+
+    void* result = mmap(base, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_FIXED, -1, 0);
+    RELEASE_ASSERT(result != MAP_FAILED);
 }
 
 } // namespace WTF

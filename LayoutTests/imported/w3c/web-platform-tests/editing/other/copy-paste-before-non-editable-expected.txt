@@ -1,0 +1,5 @@
+Select and paste something (like plain text) into the middle of this text node. This is a contentEditable=false after the paste, the contentEditable=false and everything after it, should not get lost.
+
+
+FAIL Copy pasting in editable area should not lose data in non-editable area promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
+

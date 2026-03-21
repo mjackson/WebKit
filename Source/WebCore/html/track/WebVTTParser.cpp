@@ -332,7 +332,7 @@ bool WebVTTParser::checkAndCreateRegion(StringView line)
     // zero or more U+0020 SPACE characters or U+0009 CHARACTER TABULATION
     // (tab) characters expected other than these characters it is invalid.
     if (line.startsWith("REGION"_s) && line.substring(regionIdentifierLength).containsOnly<isASCIIWhitespace>()) {
-        m_currentRegion = VTTRegion::create(protectedDocument().get());
+        m_currentRegion = VTTRegion::create(protect(m_document).get());
         return true;
     }
     return false;
@@ -419,11 +419,6 @@ bool WebVTTParser::checkAndStoreStyleSheet(StringView line)
         m_styleSheets.append(sanitizedStyleSheetBuilder.toString());
 
     return true;
-}
-
-Ref<Document> WebVTTParser::protectedDocument() const
-{
-    return m_document.get();
 }
 
 WebVTTParser::ParseState WebVTTParser::collectCueId(const String& line)

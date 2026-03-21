@@ -25,11 +25,12 @@
 
 #pragma once
 
-#include <WebCore/FreeSpaceScenario.h>
-#include <WebCore/GridTypeAliases.h>
+#include "GridTypeAliases.h"
 #include <WebCore/LayoutIntegrationUtils.h>
 #include <WebCore/LayoutState.h>
-#include <WebCore/LayoutUnit.h>
+#include <WebCore/StyleGapGutter.h>
+#include <WebCore/StyleGridTemplateList.h>
+#include <WebCore/StyleGridTrackSizes.h>
 #include <wtf/CheckedRef.h>
 
 namespace WebCore {
@@ -41,6 +42,7 @@ class PlacedGridItem;
 class UnplacedGridItem;
 
 struct GridAreaLines;
+struct GridLayoutConstraints;
 struct UnplacedGridItems;
 struct UsedTrackSizes;
 
@@ -68,60 +70,6 @@ struct GridDefinition {
     GridAutoFlowOptions autoFlowOptions;
 };
 
-// Strong type representing constraints for a single axis (inline or block).
-// Encapsulates the free space scenario and container size constraints.
-struct AxisConstraint {
-    static AxisConstraint minContent(std::optional<LayoutUnit> containerMinSize = std::nullopt, std::optional<LayoutUnit> containerMaxSize = std::nullopt)
-    {
-        return AxisConstraint(FreeSpaceScenario::MinContent, 0_lu, containerMinSize, containerMaxSize);
-    }
-
-    static AxisConstraint maxContent(std::optional<LayoutUnit> containerMinSize = std::nullopt, std::optional<LayoutUnit> containerMaxSize = std::nullopt)
-    {
-        return AxisConstraint(FreeSpaceScenario::MaxContent, 0_lu, containerMinSize, containerMaxSize);
-    }
-
-    static AxisConstraint definite(LayoutUnit space, std::optional<LayoutUnit> containerMinSize = std::nullopt, std::optional<LayoutUnit> containerMaxSize = std::nullopt)
-    {
-        return AxisConstraint(FreeSpaceScenario::Definite, space, containerMinSize, containerMaxSize);
-    }
-
-    FreeSpaceScenario scenario() const { return m_scenario; }
-
-    // Returns available space for Definite constraints.
-    // Caller must check scenario() first - only valid when scenario() == FreeSpaceScenario::Definite.
-    LayoutUnit availableSpace() const
-    {
-        ASSERT(m_scenario == FreeSpaceScenario::Definite);
-        return m_space;
-    }
-
-    // Container size constraints (orthogonal to constraint scenario)
-    std::optional<LayoutUnit> containerMinimumSize() const { return m_containerMinimumSize; }
-    std::optional<LayoutUnit> containerMaximumSize() const { return m_containerMaximumSize; }
-
-private:
-    AxisConstraint(FreeSpaceScenario scenario, LayoutUnit space, std::optional<LayoutUnit> containerMinSize, std::optional<LayoutUnit> containerMaxSize)
-        : m_scenario(scenario)
-        , m_space(space)
-        , m_containerMinimumSize(containerMinSize)
-        , m_containerMaximumSize(containerMaxSize)
-    {
-        // Dissallow negative available space for Definite scenario.
-        ASSERT(scenario != FreeSpaceScenario::Definite || space >= 0_lu);
-    }
-
-    FreeSpaceScenario m_scenario;
-    LayoutUnit m_space; // Only valid when m_scenario == Definite
-    std::optional<LayoutUnit> m_containerMinimumSize;
-    std::optional<LayoutUnit> m_containerMaximumSize;
-};
-
-struct GridLayoutConstraints {
-    AxisConstraint inlineAxis;
-    AxisConstraint blockAxis;
-};
-
 class GridFormattingContext {
     WTF_MAKE_TZONE_ALLOCATED(GridFormattingContext);
 public:
@@ -141,20 +89,38 @@ public:
 
     const ElementBox& root() const { return m_gridBox; }
 
-    const IntegrationUtils& integrationUtils() const { return m_integrationUtils; }
+    const IntegrationUtils& integrationUtils() const LIFETIME_BOUND { return m_integrationUtils; }
 
-    const BoxGeometry& geometryForGridItem(const ElementBox&) const;
+    const BoxGeometry& geometryForGridItem(const ElementBox&) const LIFETIME_BOUND;
 
     const Style::ZoomFactor zoomFactor() const { return m_gridBox->style().usedZoomForLength(); }
 
     const WritingMode writingMode() const { return m_gridBox->style().writingMode(); }
 
+    // FIXME: This is only here because the integration code needs to know the
+    // row gap to update RenderGrid. We should figure out a way to do that and remove
+    // this from the public API.
+    static LayoutUnit usedGapValue(const Style::GapGutter& gap)
+    {
+        if (gap.isNormal())
+            return { };
+
+        // Only handle fixed length gaps for now
+        if (auto fixedGap = gap.tryFixed())
+            return Style::evaluate<LayoutUnit>(*fixedGap, 0_lu, Style::ZoomNeeded { });
+
+        ASSERT_NOT_REACHED();
+        return { };
+    }
+
 private:
     UnplacedGridItems constructUnplacedGridItems() const;
 
-    const LayoutState& layoutState() const { return m_globalLayoutState; }
-    BoxGeometry& geometryForGridItem(const ElementBox&);
+    const LayoutState& layoutState() const LIFETIME_BOUND { return m_globalLayoutState; }
+    BoxGeometry& geometryForGridItem(const ElementBox&) LIFETIME_BOUND;
     void setGridItemGeometries(const GridItemRects&);
+
+    const RenderStyle& gridContainerStyle() const LIFETIME_BOUND { return m_gridBox->style(); }
 
     const CheckedRef<const ElementBox> m_gridBox;
     const CheckedRef<LayoutState> m_globalLayoutState;

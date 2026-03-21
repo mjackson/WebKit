@@ -30,8 +30,8 @@
 
 #pragma once
 
-#include <WebCore/AnimationUtilities.h>
-#include <WebCore/WebAnimationTypes.h>
+#include "AnimationUtilities.h"
+#include "WebAnimationTypes.h"
 
 namespace WebCore::Style::Interpolation {
 

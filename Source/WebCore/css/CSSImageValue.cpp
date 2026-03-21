@@ -133,7 +133,7 @@ CachedImage* CSSImageValue::loadImage(CachedResourceLoader& loader, const Resour
         else
             request.setInitiatorType(m_initiatorType);
         if (options.mode == FetchOptions::Mode::Cors)
-            request.updateForAccessControl(*loader.document());
+            request.updateForAccessControl(*protect(loader.document()));
         m_cachedImage = loader.requestImage(WTF::move(request)).value_or(nullptr);
         for (RefPtr<CSSImageValue> imageValue = this; (imageValue = imageValue->m_unresolvedValue.get()); )
             imageValue->m_cachedImage = m_cachedImage;
@@ -143,7 +143,10 @@ CachedImage* CSSImageValue::loadImage(CachedResourceLoader& loader, const Resour
 
 bool CSSImageValue::customTraverseSubresources(NOESCAPE const Function<bool(const CachedResource&)>& handler) const
 {
-    return m_cachedImage && *m_cachedImage && handler(**m_cachedImage);
+    if (!m_cachedImage)
+        return false;
+    RefPtr cachedImage = m_cachedImage->get();
+    return cachedImage && handler(*cachedImage);
 }
 
 bool CSSImageValue::customMayDependOnBaseURL() const
@@ -172,7 +175,10 @@ Ref<DeprecatedCSSOMValue> CSSImageValue::createDeprecatedCSSOMWrapper(CSSStyleDe
 
 bool CSSImageValue::knownToBeOpaque(const RenderElement& renderer) const
 {
-    return m_cachedImage.value_or(nullptr) && (**m_cachedImage).currentFrameKnownToBeOpaque(&renderer);
+    if (!m_cachedImage)
+        return false;
+    RefPtr cacheImage = m_cachedImage->get();
+    return cacheImage && cacheImage->currentFrameKnownToBeOpaque(&renderer);
 }
 
 } // namespace WebCore

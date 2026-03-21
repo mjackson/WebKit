@@ -88,6 +88,11 @@ void MeshImpl::setCameraDistance(float distance)
     m_backing->setCameraDistance(distance);
 }
 
+void MeshImpl::setBackgroundColor(const WebModel::Float3& color)
+{
+    m_backing->setBackgroundColor(color);
+}
+
 void MeshImpl::play(bool play)
 {
     m_backing->play(play);
@@ -104,6 +109,12 @@ Vector<MachSendRight> MeshImpl::ioSurfaceHandles()
     return m_renderBuffers.map([](const auto& renderBuffer) {
         return renderBuffer->createSendRight();
     });
+}
+
+void MeshImpl::updateRenderBuffers(WebModel::ResizeMeshDescriptor&& descriptor)
+{
+    m_backing->updateRenderBuffers(descriptor);
+    m_renderBuffers = WTF::move(descriptor.renderBuffers);
 }
 #endif
 

@@ -32,6 +32,7 @@
 #include "Document.h"
 #include "EventNames.h"
 #include "HTMLVideoElement.h"
+#include "JSDOMConvertInterface.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSPictureInPictureWindow.h"
 #include "Logging.h"
@@ -62,7 +63,7 @@ HTMLVideoElementPictureInPicture::HTMLVideoElementPictureInPicture(HTMLVideoElem
 HTMLVideoElementPictureInPicture::~HTMLVideoElementPictureInPicture()
 {
     ALWAYS_LOG(LOGIDENTIFIER);
-    if (RefPtr videoElement = m_videoElement.ptr())
+    if (auto* videoElement = m_videoElement.ptr())
         videoElement->setPictureInPictureObserver(nullptr);
 }
 
@@ -83,11 +84,6 @@ HTMLVideoElementPictureInPicture& HTMLVideoElementPictureInPicture::from(HTMLVid
         provideTo(&videoElement, supplementName(), WTF::move(newSupplement));
     }
     return *downcast<HTMLVideoElementPictureInPicture>(Supplement<HTMLVideoElement>::from(&videoElement, supplementName()));
-}
-
-Ref<HTMLVideoElementPictureInPicture> HTMLVideoElementPictureInPicture::protectedFrom(HTMLVideoElement& videoElement)
-{
-    return from(videoElement);
 }
 
 void HTMLVideoElementPictureInPicture::providePictureInPictureTo(HTMLVideoElement& videoElement)

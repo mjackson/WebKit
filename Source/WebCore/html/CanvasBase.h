@@ -71,7 +71,7 @@ public:
 
     virtual unsigned width() const { return m_size.width(); }
     virtual unsigned height() const { return m_size.height(); }
-    const IntSize& size() const { return m_size; }
+    const IntSize& size() const LIFETIME_BOUND { return m_size; }
     virtual void setSizeForControllingContext(IntSize) = 0;
 
     RefPtr<ImageBuffer> makeRenderingResultsAvailable(ShouldApplyPostProcessingToDirtyRect = ShouldApplyPostProcessingToDirtyRect::Yes);
@@ -82,7 +82,6 @@ public:
 
     virtual SecurityOrigin* securityOrigin() const { return nullptr; }
     ScriptExecutionContext* scriptExecutionContext() const { return canvasBaseScriptExecutionContext();  }
-    RefPtr<ScriptExecutionContext> protectedScriptExecutionContext() const;
 
     virtual CanvasRenderingContext* renderingContext() const = 0;
 
@@ -130,7 +129,6 @@ protected:
     explicit CanvasBase(IntSize, ScriptExecutionContext&);
 
     virtual ScriptExecutionContext* canvasBaseScriptExecutionContext() const = 0;
-    RefPtr<ScriptExecutionContext> protectedCanvasBaseScriptExecutionContext() const;
     virtual std::unique_ptr<CSSParserContext> createCSSParserContext() const = 0;
 
     void setSize(const IntSize&);
@@ -163,7 +161,7 @@ private:
 WebCoreOpaqueRoot NODELETE root(CanvasBase*);
 
 
-inline const CSSParserContext& CanvasBase::cssParserContext() const
+inline const CSSParserContext& CanvasBase::cssParserContext() const LIFETIME_BOUND
 {
     if (!m_cssParserContext) [[unlikely]]
         m_cssParserContext = createCSSParserContext();

@@ -38,6 +38,7 @@
 #include <unicode/uloc.h>
 #include <unicode/uscript.h>
 #include <wtf/DateMath.h>
+#include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/StringBuffer.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/unicode/icu/ICUHelpers.h>
@@ -47,8 +48,10 @@
 #include <hb.h>
 #endif
 
-
 namespace WebCore {
+
+WTF_MAKE_TZONE_ALLOCATED_IMPL(LocaleICU);
+
 using namespace icu;
 
 std::unique_ptr<Locale> Locale::create(const AtomString& locale)

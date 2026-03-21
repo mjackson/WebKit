@@ -136,10 +136,6 @@ using Mock = WebCore::MockWebAuthenticationConfiguration;
 namespace {
 
 static id<NFReaderSessionDelegate> globalNFReaderSessionDelegate;
-static RetainPtr<id<NFReaderSessionDelegate>> protectedGlobalNFReaderSessionDelegate()
-{
-    return globalNFReaderSessionDelegate;
-}
 
 static WeakPtr<MockNfcService>& NODELETE weakGlobalNfcService()
 {
@@ -277,7 +273,7 @@ void MockNfcService::detectTags() const
             [tags addObject:adoptNS([[WKMockNFTag alloc] initWithType:NFTagTypeGeneric4A tagID:toNSDataNoCopy(std::span { tagID2 }, FreeWhenDone::No).get()]).get()];
 
         auto readerSession = adoptNS([allocNFReaderSessionInstance() initWithUIType:NFReaderSessionUINone]);
-        [protectedGlobalNFReaderSessionDelegate() readerSession:readerSession.get() didDetectTags:tags.get()];
+        [protect(globalNFReaderSessionDelegate) readerSession:readerSession.get() didDetectTags:tags.get()];
     });
     dispatch_async(globalDispatchQueueSingleton(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), callback.get());
 #endif // HAVE(NEAR_FIELD)

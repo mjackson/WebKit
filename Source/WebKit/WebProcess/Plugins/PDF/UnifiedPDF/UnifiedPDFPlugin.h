@@ -99,7 +99,6 @@ public:
     RepaintRequirements finishAnnotationTracking(PDFAnnotation* annotationUnderMouse, WebEventType, WebMouseEventButton);
 
     PDFAnnotation *trackedAnnotation() const { return m_trackedAnnotation.get(); }
-    RetainPtr<PDFAnnotation> protectedTrackedAnnotation() const { return m_trackedAnnotation; }
     bool NODELETE isBeingHovered() const;
 
 private:
@@ -234,7 +233,7 @@ public:
 
     bool shouldSizeToFitContent() const final;
 
-    static WebCore::ViewportConfiguration::Parameters viewportParameters();
+    static WebCore::ViewportConfiguration::Parameters NODELETE viewportParameters();
 
     bool hasSelection() const;
 
@@ -262,7 +261,7 @@ private:
     PDFDataDetectorOverlayController& dataDetectorOverlayController() { return *m_dataDetectorOverlayController; }
 #endif
 
-    const PDFDocumentLayout& documentLayout() const { return m_documentLayout; }
+    const PDFDocumentLayout& documentLayout() const LIFETIME_BOUND { return m_documentLayout; }
 
     double scaleForActualSize() const;
     double initialScale() const;
@@ -292,8 +291,8 @@ private:
     // Scale normalization is used to map the internal "scale factor" to the exposed scaleFactor()/setPageScaleFactor()
     // so that scale factor 1 shows at "Actual Size".
     void computeNormalizationFactor();
-    double fromNormalizedScaleFactor(double) const;
-    double toNormalizedScaleFactor(double) const;
+    double NODELETE fromNormalizedScaleFactor(double) const;
+    double NODELETE toNormalizedScaleFactor(double) const;
 
     void didBeginMagnificationGesture() override;
     void didEndMagnificationGesture() override;
@@ -423,7 +422,6 @@ private:
     void unfreezeCursorAfterSelectionDragIfNeeded();
     void stopTrackingSelection();
     void setCurrentSelection(RetainPtr<PDFSelection>&&);
-    RetainPtr<PDFSelection> protectedCurrentSelection() const;
     void repaintOnSelectionChange(ActiveStateChangeReason, PDFSelection *previousSelection = nil);
     void showOrHideSelectionLayerAsNecessary();
 
@@ -633,15 +631,16 @@ private:
     std::tuple<URL, WebCore::FloatRect, RefPtr<WebCore::TextIndicator>> linkDataAtPoint(WebCore::FloatPoint pointInRootView) final;
     std::optional<WebCore::FloatRect> highlightRectForTapAtPoint(WebCore::FloatPoint pointInRootView) const final;
     CursorContext cursorContext(WebCore::FloatPoint pointInRootView) const final;
-#if PLATFORM(IOS_FAMILY)
     void setSelectionRange(WebCore::FloatPoint pointInRootView, WebCore::TextGranularity) final;
     SelectionWasFlipped moveSelectionEndpoint(WebCore::FloatPoint pointInRootView, SelectionEndpoint) final;
     SelectionEndpoint extendInitialSelection(WebCore::FloatPoint pointInRootView, WebCore::TextGranularity) final;
-    bool platformPopulateEditorStateIfNeeded(EditorState&) const final;
+#if PLATFORM(IOS_FAMILY)
     DocumentEditingContext documentEditingContext(DocumentEditingContextRequest&&) const final;
-    void resetInitialSelection();
 #endif
+    void resetInitialSelection();
 #endif // ENABLE(TWO_PHASE_CLICKS)
+
+    bool platformPopulateEditorStateIfNeeded(EditorState&) const final;
 
 #if HAVE(PDFDOCUMENT_SELECTION_WITH_GRANULARITY)
     PDFSelection *selectionAtPoint(WebCore::FloatPoint pointInPage, PDFPage *, WebCore::TextGranularity) const;
@@ -719,10 +718,8 @@ private:
     RefPtr<PDFDataDetectorOverlayController> m_dataDetectorOverlayController;
 #endif
 
-#if PLATFORM(IOS_FAMILY)
     RetainPtr<PDFSelection> m_initialSelection;
     PageAndPoint m_initialSelectionStart;
-#endif
 
     RefPtr<WebCore::ShadowRoot> m_shadowRoot;
 

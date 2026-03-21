@@ -208,14 +208,14 @@ public:
         AsQuotation = 1 << 2,
     };
 
-    WEBCORE_EXPORT EditorClient* client() const;
+    WEBCORE_EXPORT EditorClient* NODELETE client() const;
     WEBCORE_EXPORT TextCheckerClient* textChecker() const;
 
     CompositeEditCommand* lastEditCommand() { return m_lastEditCommand.get(); }
 
     Document& document() const { return m_document; }
 
-    WEBCORE_EXPORT void ref() const;
+    WEBCORE_EXPORT void NODELETE ref() const;
     WEBCORE_EXPORT void deref() const;
 
     void handleKeyboardEvent(KeyboardEvent&);
@@ -236,7 +236,7 @@ public:
     WEBCORE_EXPORT bool canCopy() const;
     WEBCORE_EXPORT bool canDelete() const;
     WEBCORE_EXPORT bool canSmartCopyOrDelete();
-    bool shouldSmartDelete();
+    bool NODELETE shouldSmartDelete();
     bool canCopyFont() const;
 
     enum class FromMenuOrKeyBinding : bool { No, Yes };
@@ -449,11 +449,11 @@ public:
     unsigned compositionStart() const { return m_compositionStart; }
     unsigned compositionEnd() const { return m_compositionEnd; }
     bool compositionUsesCustomUnderlines() const { return !m_customCompositionUnderlines.isEmpty(); }
-    const Vector<CompositionUnderline>& customCompositionUnderlines() const { return m_customCompositionUnderlines; }
+    const Vector<CompositionUnderline>& customCompositionUnderlines() const LIFETIME_BOUND { return m_customCompositionUnderlines; }
     bool compositionUsesCustomHighlights() const { return !m_customCompositionHighlights.isEmpty(); }
-    const Vector<CompositionHighlight>& customCompositionHighlights() const { return m_customCompositionHighlights; }
+    const Vector<CompositionHighlight>& customCompositionHighlights() const LIFETIME_BOUND { return m_customCompositionHighlights; }
     bool compositionUsesCustomAnnotations() const { return !m_customCompositionAnnotations.isEmpty(); }
-    const HashMap<String, Vector<CharacterRange>>& customCompositionAnnotations() const { return m_customCompositionAnnotations; }
+    const HashMap<String, Vector<CharacterRange>>& customCompositionAnnotations() const LIFETIME_BOUND { return m_customCompositionAnnotations; }
 
     // FIXME: This should be a page-level concept (i.e. on EditorClient) instead of on the Editor, which
     // is a frame-specific concept, because executing an editing command can run JavaScript that can do
@@ -469,10 +469,10 @@ public:
 
     VisibleSelection selectionForCommand(Event*);
 
-    PAL::KillRing& killRing() const { return m_killRing; }
+    PAL::KillRing& killRing() const LIFETIME_BOUND { return m_killRing; }
     SpellChecker& spellChecker() const { return m_spellChecker; }
 
-    EditingBehavior behavior() const;
+    EditingBehavior NODELETE behavior() const;
 
     WEBCORE_EXPORT std::optional<SimpleRange> selectedRange();
 
@@ -511,7 +511,7 @@ public:
 
     WEBCORE_EXPORT std::optional<SimpleRange> rangeOfString(const String&, const std::optional<SimpleRange>& searchRange, FindOptions);
 
-    const VisibleSelection& mark() const; // Mark, to be used as emacs uses it.
+    const VisibleSelection& mark() const LIFETIME_BOUND; // Mark, to be used as emacs uses it.
     void setMark(const VisibleSelection&);
 
     void computeAndSetTypingStyle(EditingStyle& , EditAction = EditAction::Unspecified);
@@ -607,7 +607,7 @@ public:
     static RefPtr<SharedBuffer> dataInRTFDFormat(NSAttributedString *);
     static RefPtr<SharedBuffer> dataInRTFFormat(NSAttributedString *);
 
-    static bool writingSuggestionsSupportsSuffix();
+    static bool NODELETE writingSuggestionsSupportsSuffix();
 #endif
 
 #if PLATFORM(MAC)
@@ -624,7 +624,7 @@ public:
 
 #if ENABLE(TELEPHONE_NUMBER_DETECTION) && PLATFORM(MAC)
     void scanSelectionForTelephoneNumbers();
-    const Vector<SimpleRange>& detectedTelephoneNumberRanges() const { return m_detectedTelephoneNumberRanges; }
+    const Vector<SimpleRange>& detectedTelephoneNumberRanges() const LIFETIME_BOUND { return m_detectedTelephoneNumberRanges; }
 #endif
 
     WEBCORE_EXPORT String stringForCandidateRequest() const;
@@ -660,11 +660,11 @@ public:
 
     WEBCORE_EXPORT Node* nodeBeforeWritingSuggestions() const;
     Element* writingSuggestionsContainerElement() const;
-    WritingSuggestionData* writingSuggestionData() const { return m_writingSuggestionData.get(); }
+    WritingSuggestionData* writingSuggestionData() const LIFETIME_BOUND { return m_writingSuggestionData.get(); }
     bool isInsertingTextForWritingSuggestion() const { return m_isInsertingTextForWritingSuggestion; }
 
     RenderInline* NODELETE writingSuggestionRenderer() const;
-    void setWritingSuggestionRenderer(RenderInline&);
+    void NODELETE setWritingSuggestionRenderer(RenderInline&);
 
     WEBCORE_EXPORT void closeTyping();
 

@@ -222,7 +222,9 @@ void EventDispatcher::gestureEvent(FrameIdentifier frameID, PageIdentifier pageI
 TouchEventData::TouchEventData(WebCore::FrameIdentifier frameID, const WebTouchEvent& event, CompletionHandler<void(bool, std::optional<RemoteWebTouchEvent>)>&& completionHandler)
     : frameID(frameID)
     , event(event)
-    , completionHandler(WTF::move(completionHandler)) { }
+{
+    completionHandlers.append(WTF::move(completionHandler));
+}
 
 TouchEventData::TouchEventData(TouchEventData&&) = default;
 
@@ -260,7 +262,10 @@ void EventDispatcher::touchEvent(PageIdentifier pageID, FrameIdentifier frameID,
                 auto touchEventWithCoalescedEvents = touchEvent;
                 touchEventWithCoalescedEvents.setCoalescedEvents(coalescedEvents);
 
-                queuedEvents->last() = { frameID, touchEventWithCoalescedEvents, WTF::move(completionHandler) };
+                // Preserve coalesced completion handlers so their state transitions are not lost.
+                queuedEvents->last().frameID = frameID;
+                queuedEvents->last().event = touchEventWithCoalescedEvents;
+                queuedEvents->last().completionHandlers.append(WTF::move(completionHandler));
             } else
                 queuedEvents->append({ frameID, touchEvent, WTF::move(completionHandler) });
         }
@@ -288,8 +293,10 @@ void EventDispatcher::dispatchTouchEvents()
         if (RefPtr webPage = WebProcess::singleton().webPage(slot.key))
             webPage->dispatchAsynchronousTouchEvents(WTF::move(slot.value));
         else {
-            for (auto& data : slot.value.get())
-                data.completionHandler(false, std::nullopt);
+            for (auto& data : slot.value.get()) {
+                for (auto& completionHandler : data.completionHandlers)
+                    completionHandler(false, std::nullopt);
+            }
             ASSERT_NOT_REACHED();
         }
     }

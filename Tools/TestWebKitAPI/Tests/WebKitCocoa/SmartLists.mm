@@ -96,10 +96,10 @@ static RetainPtr<NSMenu> invokeContextMenu(TestWKWebView *webView)
 
 #endif // PLATFORM(MAC)
 
-static void runTest(NSString *input, NSString *expectedHTML, NSString *expectedSelectionPath, NSInteger selectionOffset, NSString *stylesheet = nil)
+static void runTest(NSString *input, NSString *expectedHTML, NSString *expectedSelectionPath, NSInteger selectionOffset, NSString *stylesheet = nil, bool isRTL = false)
 {
     RetainPtr expectedSelection = [SmartListsTestSelectionConfiguration caretSelectionWithPath:expectedSelectionPath offset:selectionOffset];
-    RetainPtr configuration = [[SmartListsTestConfiguration alloc] initWithExpectedHTML:expectedHTML expectedSelection:expectedSelection.get() input:input stylesheet:stylesheet];
+    RetainPtr configuration = adoptNS([[SmartListsTestConfiguration alloc] initWithExpectedHTML:expectedHTML expectedSelection:expectedSelection.get() input:input stylesheet:stylesheet isRTL:isRTL]);
 
     __block bool finished = false;
     __block RetainPtr<SmartListsTestResult> result;
@@ -353,6 +353,30 @@ TEST(SmartLists, InsertingSpaceAfterLargeNumberDoesNotGenerateOrderedList)
     runTest(input, expectedHTML.createNSString().get(), @"//body/text()", input.length);
 }
 
+TEST(SmartLists, InsertingDifferentListStylesDoesNotMergeLists)
+{
+    auto dashMarker = WTF::makeString(WTF::Unicode::emDash, WTF::Unicode::noBreakSpace, WTF::Unicode::noBreakSpace);
+
+    static constexpr auto expectedHTMLTemplate = R"""(
+    <body contenteditable="">
+        <ul style="list-style-type: disc;" class="Apple-disc-list" webkitsmartlistmarker="*">
+            <li>A</li>
+            <li>B</li>
+            <li>C</li>
+            <li>D</li>
+        </ul>
+        <div>
+            <ul class="Apple-dash-list" style="list-style-type: '<DASH_MARKER>';" webkitsmartlistmarker="-">
+                <li>A</li>
+            </ul>
+        </div>
+    </body>)"""_s;
+
+    RetainPtr expectedHTML = WTF::makeStringByReplacingAll(expectedHTMLTemplate, "<DASH_MARKER>"_s, dashMarker).createNSString();
+
+    runTest(@"* A\nB\nC\n\n* D\n\n- A", expectedHTML.get(), @"//body/div/ul/li[1]/text()", @"A".length);
+}
+
 TEST(SmartLists, InsertingListMergesWithPreviousListIfPossible)
 {
     static constexpr auto expectedHTML = R"""(
@@ -503,6 +527,17 @@ TEST(SmartLists, GeneratedSmartListsHaveAssociatedClassNames)
     RetainPtr expectedHTML = WTF::makeStringByReplacingAll(expectedHTMLTemplate, "<DASH_MARKER>"_s, dashMarker).createNSString();
 
     runTest(@"* A\n\n1. B\n\n- C", expectedHTML.get(), @"//body/div/div/ul/li/text()", 1, css.createNSString().get());
+}
+
+TEST(SmartLists, OrderedSmartListWithRTL)
+{
+    RetainPtr expectedHTML = @"<body dir=\"rtl\" contenteditable=\"\">"
+    "<ol start=\"1\" style=\"list-style-type: decimal;\" class=\"Apple-decimal-list\" webkitsmartlistmarker=\"1.\">"
+        "<li>تفاحة</li>"
+    "</ol>"
+    "</body>";
+
+    runTest(@"1. تفاحة", expectedHTML.get(), @"//body/ol/li[1]/text()", @"تفاحة".length, nullptr, true);
 }
 
 #endif // ENABLE_SWIFTUI

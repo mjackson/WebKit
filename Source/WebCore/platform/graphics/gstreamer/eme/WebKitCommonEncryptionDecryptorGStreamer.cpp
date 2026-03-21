@@ -44,7 +44,9 @@ class CDMProxyDecryptionClientImplementation final : public WebCore::CDMProxyDec
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(CDMProxyDecryptionClientImplementation);
 public:
     CDMProxyDecryptionClientImplementation(WebKitMediaCommonEncryptionDecrypt* decryptor)
-        : m_decryptor(decryptor) { }
+        : m_decryptor(decryptor)
+    {
+    }
     virtual bool isAborting()
     {
         return webKitMediaCommonEncryptionDecryptIsAborting(m_decryptor);
@@ -83,6 +85,7 @@ static gboolean acceptCaps(GstBaseTransform*, GstPadDirection, GstCaps*);
 static GstFlowReturn transformInPlace(GstBaseTransform*, GstBuffer*);
 static gboolean sinkEventHandler(GstBaseTransform*, GstEvent*);
 static void setContext(GstElement*, GstContext*);
+static bool isCDMProxyAvailable(WebKitMediaCommonEncryptionDecrypt* self);
 
 GST_DEBUG_CATEGORY(webkit_media_common_encryption_decrypt_debug_category);
 #define GST_CAT_DEFAULT webkit_media_common_encryption_decrypt_debug_category
@@ -172,14 +175,19 @@ static GstCaps* transformCaps(GstBaseTransform* base, GstPadDirection direction,
                 gst_structure_remove_fields(outgoingStructure.get(), "base-profile", "codec_data", "height", "framerate", "level", "pixel-aspect-ratio", "profile", "rate", "width", nullptr);
 
                 auto name = WebCore::gstStructureGetName(incomingStructure);
-                gst_structure_set(outgoingStructure.get(), "protection-system", G_TYPE_STRING, klass->protectionSystemId(self).characters(),
-                    "original-media-type", G_TYPE_STRING, name.utf8() , nullptr);
+                gst_structure_set(outgoingStructure.get(), "original-media-type", G_TYPE_STRING, name.utf8(), nullptr);
+                if (!isCDMProxyAvailable(self)) {
+                    GST_WARNING_OBJECT(base, "CDM proxy is not available yet, transformed caps might be inaccurate.");
+                    gst_structure_set_name(outgoingStructure.get(), "application/x-cenc");
+                } else {
+                    gst_structure_set(outgoingStructure.get(), "protection-system", G_TYPE_STRING, klass->protectionSystemId(self).characters(), nullptr);
 
-                // GST_PROTECTION_UNSPECIFIED_SYSTEM_ID was added in the GStreamer
-                // developement git master which will ship as version 1.16.0.
-                gst_structure_set_name(outgoingStructure.get(),
-                    WebCore::GStreamerEMEUtilities::isUnspecifiedUUID(klass->protectionSystemId(self))
-                    ? "application/x-webm-enc" : "application/x-cenc");
+                    // GST_PROTECTION_UNSPECIFIED_SYSTEM_ID was added in the GStreamer
+                    // developement git master which will ship as version 1.16.0.
+                    gst_structure_set_name(outgoingStructure.get(),
+                        WebCore::GStreamerEMEUtilities::isUnspecifiedUUID(klass->protectionSystemId(self))
+                        ? "application/x-webm-enc" : "application/x-cenc");
+                }
             }
         }
 
@@ -501,7 +509,8 @@ bool webKitMediaCommonEncryptionDecryptIsAborting(WebKitMediaCommonEncryptionDec
 WeakPtr<WebCore::CDMProxyDecryptionClient> webKitMediaCommonEncryptionDecryptGetCDMProxyDecryptionClient(WebKitMediaCommonEncryptionDecrypt* self)
 {
     WebKitMediaCommonEncryptionDecryptPrivate* priv = WEBKIT_MEDIA_CENC_DECRYPT_GET_PRIVATE(self);
-    return *priv->cdmProxyDecryptionClientImplementation;
+    // FXIME: We should not need EnableWeakPtrThreadingAssertions::No here. This is likely indicative of a bug.
+    return WeakPtr { *priv->cdmProxyDecryptionClientImplementation, EnableWeakPtrThreadingAssertions::No };
 }
 
 static GstStateChangeReturn changeState(GstElement* element, GstStateChange transition)

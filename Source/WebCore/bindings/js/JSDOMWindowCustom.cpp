@@ -75,17 +75,17 @@ static JSC_DECLARE_CUSTOM_GETTER(jsDOMWindow_webkit);
 #endif
 
 template<typename Visitor>
-void JSDOMWindow::visitAdditionalChildren(Visitor& visitor)
+void JSDOMWindow::visitAdditionalChildrenInGCThread(Visitor& visitor)
 {
     SUPPRESS_UNCOUNTED_ARG addWebCoreOpaqueRoot(visitor, wrapped());
 
-    // Normally JSEventTargetCustom.cpp's JSEventTarget::visitAdditionalChildren() would call this. But
+    // Normally JSEventTargetCustom.cpp's JSEventTarget::visitAdditionalChildrenInGCThread() would call this. But
     // even though DOMWindow is an EventTarget, JSDOMWindow does not subclass JSEventTarget, so we need
     // to do this here.
-    SUPPRESS_UNCOUNTED_ARG wrapped().visitJSEventListeners(visitor);
+    SUPPRESS_UNCOUNTED_ARG wrapped().visitJSEventListenersInGCThread(visitor);
 }
 
-DEFINE_VISIT_ADDITIONAL_CHILDREN(JSDOMWindow);
+DEFINE_VISIT_ADDITIONAL_CHILDREN_IN_GC_THREAD(JSDOMWindow);
 
 #if ENABLE(USER_MESSAGE_HANDLERS)
 JSC_DEFINE_CUSTOM_GETTER(jsDOMWindow_webkit, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
@@ -94,7 +94,7 @@ JSC_DEFINE_CUSTOM_GETTER(jsDOMWindow_webkit, (JSGlobalObject* lexicalGlobalObjec
     auto* castedThis = toJSDOMGlobalObject<JSDOMWindow>(vm, JSValue::decode(thisValue));
     if (!BindingSecurity::shouldAllowAccessToDOMWindow(lexicalGlobalObject, protect(castedThis->wrapped())))
         return JSValue::encode(jsUndefined());
-    RefPtr localDOMWindow = dynamicDowncast<LocalDOMWindow>(protect(castedThis->wrapped()));
+    RefPtr localDOMWindow = dynamicDowncast<LocalDOMWindow>(castedThis->wrapped());
     if (!localDOMWindow)
         return JSValue::encode(jsUndefined());
     RefPtr webkitNamespace = localDOMWindow->webkitNamespace();
@@ -458,7 +458,7 @@ JSValue JSDOMWindow::getPrototype(JSObject* object, JSGlobalObject* lexicalGloba
     return Base::getPrototype(object, lexicalGlobalObject);
 }
 
-bool JSDOMWindow::preventExtensions(JSObject*, JSGlobalObject*)
+bool NODELETE JSDOMWindow::preventExtensions(JSObject*, JSGlobalObject*)
 {
     return false;
 }
@@ -498,7 +498,7 @@ inline void DialogHandler::dialogCreated(DOMWindow& dialog)
     if (!localDOMWindow)
         return;
     VM& vm = m_globalObject.vm();
-    m_frame = localDOMWindow->localFrame();
+    m_frame = localDOMWindow->frame();
     RefPtr frame = m_frame.get();
 
     // FIXME: This looks like a leak between the normal world and an isolated
@@ -604,11 +604,11 @@ JSValue JSDOMWindow::queueMicrotask(JSGlobalObject& lexicalGlobalObject, CallFra
     auto* globalObject = asObject(functionValue)->globalObject();
 
     scope.release();
-    globalObjectMethodTable()->queueMicrotaskToEventLoop(*this, JSC::QueuedTask { nullptr, JSC::InternalMicrotask::InvokeFunctionJob, 0, globalObject, functionValue });
+    queueMicrotaskToEventLoop(*this, JSC::QueuedTask { nullptr, JSC::InternalMicrotask::InvokeFunctionJob, 0, globalObject, functionValue });
     return jsUndefined();
 }
 
-DOMWindow* JSDOMWindow::toWrapped(VM&, JSValue value)
+DOMWindow* NODELETE JSDOMWindow::toWrapped(VM&, JSValue value)
 {
     if (!value.isObject())
         return nullptr;
@@ -637,17 +637,17 @@ void JSDOMWindow::setOpener(JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSVal
     createDataProperty(&lexicalGlobalObject, builtinNames(lexicalGlobalObject.vm()).openerPublicName(), value, shouldThrow);
 }
 
-JSValue JSDOMWindow::self(JSC::JSGlobalObject&) const
+JSValue NODELETE JSDOMWindow::self(JSC::JSGlobalObject&) const
 {
     return globalThis();
 }
 
-JSValue JSDOMWindow::window(JSC::JSGlobalObject&) const
+JSValue NODELETE JSDOMWindow::window(JSC::JSGlobalObject&) const
 {
     return globalThis();
 }
 
-JSValue JSDOMWindow::frames(JSC::JSGlobalObject&) const
+JSValue NODELETE JSDOMWindow::frames(JSC::JSGlobalObject&) const
 {
     return globalThis();
 }

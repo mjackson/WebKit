@@ -113,8 +113,6 @@ private:
     ASCIILiteral logClassName() const override { return "CoreAudioCaptureSource"_s; }
 #endif
 
-    Ref<CoreAudioCaptureUnit> protectedUnit();
-    Ref<const CoreAudioCaptureUnit> protectedUnit() const;
 
     uint32_t m_captureDeviceID { 0 };
     Ref<CoreAudioCaptureUnit> m_unit;

@@ -102,9 +102,9 @@ private:
     void prepareForDisplay(uint32_t frameIndex, CompletionHandler<void(bool)>&&);
     void updateContentsHeadroom(float);
 
-    Ref<WebCore::WebGPU::CompositorIntegration> m_backing;
+    const Ref<WebCore::WebGPU::CompositorIntegration> m_backing;
     WeakRef<WebGPU::ObjectHeap> m_objectHeap;
-    Ref<IPC::StreamServerConnection> m_streamConnection;
+    const Ref<IPC::StreamServerConnection> m_streamConnection;
     WeakRef<RemoteGPU> m_gpu;
     WebGPUIdentifier m_identifier;
 };

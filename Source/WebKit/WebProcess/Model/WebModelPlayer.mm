@@ -117,7 +117,11 @@ private:
     WTF::MachSendRight m_displayBuffer;
     const float m_contentsScale;
     bool m_isOpaque;
+#if ENABLE(PIXEL_FORMAT_RGBA16F)
+    WebCore::ContentsFormat m_contentsFormat { WebCore::ContentsFormat::RGBA16F };
+#else
     WebCore::ContentsFormat m_contentsFormat { WebCore::ContentsFormat::RGBA8 };
+#endif
 };
 
 Ref<WebModelPlayer> WebModelPlayer::create(WebCore::Page& page, WebCore::ModelPlayerClient& client)
@@ -253,11 +257,13 @@ void WebModelPlayer::load(WebCore::Model& modelSource, WebCore::LayoutSize size)
     if (!window)
         return;
 
-    RefPtr gpu = window->protectedNavigator()->gpu();
+    RefPtr gpu = protect(window->navigator())->gpu();
     if (!gpu)
         return;
 
     size.scale(document->deviceScaleFactor());
+    m_currentPixelSize = WebCore::IntSize(size.width().toUnsigned(), size.height().toUnsigned());
+
     WebModel::ImageAsset diffuseTexture {
         .data = loadData(adoptCF(static_cast<CFStringRef>(@"modelDefaultDiffuseData"))),
         .width = 64,
@@ -285,7 +291,7 @@ void WebModelPlayer::load(WebCore::Model& modelSource, WebCore::LayoutSize size)
         .swizzle = { }
     };
 
-    m_currentModel = static_cast<RemoteGPUProxy&>(gpu->backing()).createModelBacking(size.width().toUnsigned(), size.height().toUnsigned(), diffuseTexture, specularTexture, [protectedThis = Ref { *this }] (Vector<MachSendRight>&& surfaceHandles) {
+    m_currentModel = static_cast<RemoteGPUProxy&>(gpu->backing()).createModelBacking(m_currentPixelSize.width(), m_currentPixelSize.height(), diffuseTexture, specularTexture, [protectedThis = Ref { *this }] (Vector<MachSendRight>&& surfaceHandles) {
         if (surfaceHandles.size())
             protectedThis->m_displayBuffers = WTF::move(surfaceHandles);
     });
@@ -304,6 +310,8 @@ void WebModelPlayer::load(WebCore::Model& modelSource, WebCore::LayoutSize size)
 
             if (RefPtr client = protectedThis->m_client.get(); client && !protectedThis->m_didFinishLoading) {
                 protectedThis->m_didFinishLoading = true;
+                [protectedThis->m_modelLoader setLoop:protectedThis->m_isLooping];
+
                 client->didFinishLoading(protectedThis.get());
                 auto [simdCenter, simdExtents] = model->getCenterAndExtents();
                 client->didUpdateBoundingBox(protectedThis.get(), WebCore::FloatPoint3D(simdCenter.x, simdCenter.y, simdCenter.z), WebCore::FloatPoint3D(simdExtents.x, simdExtents.y, simdExtents.z));
@@ -353,9 +361,38 @@ void WebModelPlayer::notifyEntityTransformUpdated()
     client->didUpdateEntityTransform(*this, WebCore::TransformationMatrix(static_cast<simd_float4x4>(scaledTransform)));
 }
 
-void WebModelPlayer::sizeDidChange(WebCore::LayoutSize layoutSize)
+void WebModelPlayer::sizeDidChange(WebCore::LayoutSize size)
 {
-    m_currentScale = static_cast<float>(layoutSize.minDimension());
+    RefPtr currentModel = m_currentModel;
+    if (!currentModel)
+        return;
+
+    RefPtr corePage = m_page.get();
+    if (!corePage)
+        return;
+    RefPtr document = corePage->localTopDocument();
+    if (!document)
+        return;
+
+    size.scale(document->deviceScaleFactor());
+    auto newPixelSize = WebCore::IntSize(size.width().toUnsigned(), size.height().toUnsigned());
+    if (newPixelSize == m_currentPixelSize)
+        return;
+
+    m_currentPixelSize = newPixelSize;
+
+    currentModel->sizeDidChange(newPixelSize.width(), newPixelSize.height(), [protectedThis = Ref { *this }](Vector<MachSendRight>&& newBuffers) {
+        if (newBuffers.isEmpty())
+            return;
+
+        protectedThis->m_displayBuffers = WTF::move(newBuffers);
+        protectedThis->m_currentTexture = 0;
+        if (protectedThis->m_contentsDisplayDelegate)
+            RefPtr { protectedThis->m_contentsDisplayDelegate }->setDisplayBuffer(*protectedThis->displayBuffer());
+    });
+
+    m_currentScale = static_cast<float>(size.minDimension());
+    notifyEntityTransformUpdated();
 }
 
 void WebModelPlayer::enterFullscreen()
@@ -464,9 +501,17 @@ WebCore::ModelPlayerIdentifier WebModelPlayer::identifier() const
     return m_id;
 }
 
-void WebModelPlayer::configureGraphicsLayer(WebCore::GraphicsLayer& graphicsLayer, WebCore::ModelPlayerGraphicsLayerConfiguration&&)
+void WebModelPlayer::configureGraphicsLayer(WebCore::GraphicsLayer& graphicsLayer, WebCore::ModelPlayerGraphicsLayerConfiguration&& configuration)
 {
     graphicsLayer.setContentsDisplayDelegate(contentsDisplayDelegate(), WebCore::GraphicsLayer::ContentsLayerPurpose::Canvas);
+    if (RefPtr currentModel = m_currentModel) {
+        auto backgroundColor = configuration.backgroundColor;
+        if (backgroundColor.isValid()) {
+            auto opaqueColor = backgroundColor.opaqueColor();
+            auto [r, g, b, _a] = opaqueColor.toResolvedColorComponentsInColorSpace(WebCore::ColorSpace::LinearSRGB);
+            currentModel->setBackgroundColor(simd_make_float3(r, g, b));
+        }
+    }
 }
 
 const MachSendRight* WebModelPlayer::displayBuffer() const
@@ -525,10 +570,12 @@ void WebModelPlayer::update()
     simulate(elapsedTime);
 
     auto timeDelta = paused() ? 0.f : (m_playbackRate * elapsedTime);
-    if (!m_isLooping && [m_modelLoader currentTime] > [m_modelLoader duration])
-        timeDelta = 0.f;
 
     [m_modelLoader update:timeDelta];
+
+    if (!m_isLooping && !paused() && [m_modelLoader currentTime] >= [m_modelLoader duration])
+        m_pauseState = PauseState::Paused;
+
     if (m_didFinishLoading) {
         if (RefPtr currentModel = m_currentModel)
             currentModel->render();
@@ -557,6 +604,8 @@ bool WebModelPlayer::supportsTransform(WebCore::TransformationMatrix transformat
 void WebModelPlayer::play(bool playing)
 {
     if (RefPtr model = m_currentModel) {
+        if (playing && !m_isLooping && [m_modelLoader currentTime] >= [m_modelLoader duration])
+            [m_modelLoader setCurrentTime:0];
         model->play(playing);
         m_pauseState = playing ? PauseState::Playing : PauseState::Paused;
     }
@@ -568,6 +617,7 @@ void WebModelPlayer::setLoop(bool loop)
         return;
 
     m_isLooping = loop;
+    [m_modelLoader setLoop:loop];
 }
 
 void WebModelPlayer::setAutoplay(bool autoplay)
@@ -588,6 +638,18 @@ void WebModelPlayer::setPaused(bool paused, CompletionHandler<void(bool succeede
 bool WebModelPlayer::paused() const
 {
     return m_pauseState != PauseState::Playing;
+}
+
+Seconds WebModelPlayer::currentTime() const
+{
+    return Seconds([m_modelLoader currentTime]);
+}
+
+void WebModelPlayer::setCurrentTime(Seconds currentTime, CompletionHandler<void()>&& completion)
+{
+    double clamped = std::clamp(currentTime.seconds(), 0.0, duration());
+    [m_modelLoader setCurrentTime:clamped];
+    completion();
 }
 
 std::optional<WebCore::TransformationMatrix> WebModelPlayer::entityTransform() const

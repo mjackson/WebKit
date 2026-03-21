@@ -31,6 +31,7 @@
 #include "HTMLNames.h"
 #include "HitTestResult.h"
 #include "PaintInfo.h"
+#include "PaintInfoInlines.h"
 #include "RenderBoxInlines.h"
 #include "RenderBoxModelObjectInlines.h"
 #include "RenderElementInlines.h"
@@ -138,7 +139,11 @@ void RenderTableRow::didInsertTableCell(RenderTableCell& child, RenderObject* be
     // Generated content can result in us having a null section so make sure to null check our parent.
     if (auto* section = this->section()) {
         section->addCell(&child, this);
-        if (beforeChild || nextRow())
+        // rowspan=0 means "span all remaining rows," but during initial construction rows are
+        // inserted one at a time, so calculateRowSpanForRowspanZero()'s render tree walk will
+        // undercount. Force a full cell recalc so the span is resolved correctly at layout time
+        // once all rows are present in the render tree.
+        if (beforeChild || nextRow() || child.hasRowSpanZero())
             section->setNeedsCellRecalc();
     }
     if (auto* table = this->table())
@@ -242,6 +247,11 @@ void RenderTableRow::paintOutlineForRowIfNeeded(PaintInfo& paintInfo, const Layo
 void RenderTableRow::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
 {
     ASSERT(hasSelfPaintingLayer());
+
+    if (paintInfo.phase == PaintPhase::Accessibility) {
+        if (auto* context = paintInfo.accessibilityRegionContext())
+            context->takeBounds(*this, paintOffset + location());
+    }
 
     paintOutlineForRowIfNeeded(paintInfo, paintOffset);
     for (RenderTableCell* cell = firstCell(); cell; cell = cell->nextCell()) {

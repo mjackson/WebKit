@@ -37,6 +37,7 @@
 #include "DocumentView.h"
 #include "EventHandler.h"
 #include "FocusController.h"
+#include "FontCascadeInlines.h"
 #include "FrameSelection.h"
 #include "GraphicsContext.h"
 #include "HTMLNames.h"

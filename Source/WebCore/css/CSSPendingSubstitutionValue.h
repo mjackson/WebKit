@@ -38,18 +38,13 @@ class CSSProperty;
 
 class CSSPendingSubstitutionValue final : public CSSValue {
 public:
-    static Ref<CSSPendingSubstitutionValue> create(CSSPropertyID shorthandPropertyId, Ref<CSSVariableReferenceValue>&& shorthandValue)
-    {
-        return adoptRef(*new CSSPendingSubstitutionValue(shorthandPropertyId, WTF::move(shorthandValue)));
-    }
+    static Ref<CSSPendingSubstitutionValue> create(CSSPropertyID shorthandPropertyId, Ref<CSSVariableReferenceValue>&&);
 
     CSSVariableReferenceValue& shorthandValue() const { return m_shorthandValue; }
     CSSPropertyID shorthandPropertyId() const { return m_shorthandPropertyId; }
 
     bool equals(const CSSPendingSubstitutionValue& other) const { return m_shorthandValue.ptr() == other.m_shorthandValue.ptr(); }
     static String customCSSText(const CSS::SerializationContext&) { return emptyString(); }
-
-    RefPtr<CSSValue> resolveValue(Style::Builder&, CSSPropertyID) const;
 
     IterationStatus customVisitChildren(NOESCAPE const Function<IterationStatus(CSSValue&)>& func) const
     {
@@ -59,12 +54,9 @@ public:
     }
 
 private:
-    CSSPendingSubstitutionValue(CSSPropertyID shorthandPropertyId, Ref<CSSVariableReferenceValue>&& shorthandValue)
-        : CSSValue(ClassType::PendingSubstitutionValue)
-        , m_shorthandPropertyId(shorthandPropertyId)
-        , m_shorthandValue(WTF::move(shorthandValue))
-    {
-    }
+    friend class Style::SubstitutionResolver;
+
+    CSSPendingSubstitutionValue(CSSPropertyID shorthandPropertyId, Ref<CSSVariableReferenceValue>&&);
 
     const CSSPropertyID m_shorthandPropertyId;
     const Ref<CSSVariableReferenceValue> m_shorthandValue;

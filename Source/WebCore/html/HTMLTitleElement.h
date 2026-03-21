@@ -36,15 +36,15 @@ public:
     WEBCORE_EXPORT String text() const;
     WEBCORE_EXPORT void setText(String&&);
 
-    const StringWithDirection& textWithDirection() const { return m_title; }
+    const StringWithDirection& textWithDirection() const LIFETIME_BOUND { return m_title; }
 
-    void didFinishInsertingNode() final;
+    void postConnectionSteps() final;
 
 private:
     HTMLTitleElement(const QualifiedName&, Document&);
 
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) final;
-    void removedFromAncestor(RemovalType, ContainerNode&) final;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) final;
+    void removingSteps(RemovalType, ContainerNode&) final;
     void childrenChanged(const ChildChange&) final;
 
     StringWithDirection computedTextWithDirection();

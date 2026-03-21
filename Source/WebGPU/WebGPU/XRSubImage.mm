@@ -153,7 +153,7 @@ RefPtr<XRSubImage> XRBinding::getViewSubImage(XRProjectionLayer& projectionLayer
 
 #pragma mark WGPU Stubs
 
-void wgpuXRSubImageReference(WGPUXRSubImage subImage)
+void NODELETE wgpuXRSubImageReference(WGPUXRSubImage subImage)
 {
     WebGPU::fromAPI(subImage).ref();
 }
@@ -165,10 +165,10 @@ void wgpuXRSubImageRelease(WGPUXRSubImage subImage)
 
 WGPUTexture wgpuXRSubImageGetColorTexture(WGPUXRSubImage subImage)
 {
-    return WebGPU::protectedFromAPI(subImage)->colorTexture();
+    return protect(WebGPU::fromAPI(subImage))->colorTexture();
 }
 
 WGPUTexture wgpuXRSubImageGetDepthStencilTexture(WGPUXRSubImage subImage)
 {
-    return WebGPU::protectedFromAPI(subImage)->depthTexture();
+    return protect(WebGPU::fromAPI(subImage))->depthTexture();
 }

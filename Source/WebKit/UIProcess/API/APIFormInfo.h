@@ -42,9 +42,9 @@ public:
 
     API::FrameInfo* NODELETE targetFrame() const;
     API::FrameInfo* NODELETE sourceFrame() const;
-    const WTF::URL& NODELETE submissionURL() const;
-    const WTF::String& NODELETE httpMethod() const;
-    const Vector<std::pair<WTF::String, WTF::String>>& NODELETE formValues() const;
+    const WTF::URL& NODELETE submissionURL() const LIFETIME_BOUND;
+    const WTF::String& NODELETE httpMethod() const LIFETIME_BOUND;
+    const Vector<std::pair<WTF::String, WTF::String>>& NODELETE formValues() const LIFETIME_BOUND;
 
 private:
     FormInfo(API::FrameInfo&, API::FrameInfo& sourceFrame, const WTF::URL& submissionURL, const WTF::String& httpMethod, const Vector<std::pair<WTF::String, WTF::String>>& formValues);

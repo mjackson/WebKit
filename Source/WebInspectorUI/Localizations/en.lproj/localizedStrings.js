@@ -189,6 +189,8 @@ localizedStrings["Allow media capture on insecure sites"] = "Allow media capture
 localizedStrings["Allow page to clear Console"] = "Allow page to clear Console";
 /* Label for checkbox that controls whether network throttling functionality is enabled. */
 localizedStrings["Allow throttling"] = "Allow throttling";
+/* Label for alpha color component of CSS color. */
+localizedStrings["Alpha @ Color Picker"] = "Alpha";
 localizedStrings["Also defer evaluating breakpoint conditions, ignore counts, and actions until execution has continued outside of the related script instead of at the breakpoint\u2019s location."] = "Also defer evaluating breakpoint conditions, ignore counts, and actions until execution has continued outside of the related script instead of at the breakpoint\u2019s location.";
 /* Property title for `font-variant-alternates`. */
 localizedStrings["Alternate Glyphs @ Font Details Sidebar Property"] = "Alternate Glyphs";
@@ -255,6 +257,7 @@ localizedStrings["Average: %s"] = "Average: %s";
 localizedStrings["Axis value outside of supported range: %s – %s"] = "Axis value outside of supported range: %s – %s";
 localizedStrings["BMP"] = "BMP";
 localizedStrings["Back (%s)"] = "Back (%s)";
+localizedStrings["Background Color"] = "Background Color";
 localizedStrings["Backtrace"] = "Backtrace";
 /* Label for navigation item that controls what badges are shown in the main DOM tree. */
 localizedStrings["Badges @ Elements Tab"] = "Badges";
@@ -281,6 +284,8 @@ localizedStrings["Block @ Local Override Type"] = "Block";
 localizedStrings["Block Request URL"] = "Block Request URL";
 localizedStrings["Block URL with %s error"] = "Block URL with %s error";
 localizedStrings["Block Variables"] = "Block Variables";
+/* Label for blue color component of CSS color. */
+localizedStrings["Blue @ Color Picker"] = "Blue";
 /* Input label for the blur radius of a CSS box shadow */
 localizedStrings["Blur @ Box Shadow Editor"] = "Blur";
 localizedStrings["Body:"] = "Body:";
@@ -464,6 +469,8 @@ localizedStrings["Continuation Frame"] = "Continuation Frame";
 localizedStrings["Continue script execution (%s or %s)"] = "Continue script execution (%s or %s)";
 localizedStrings["Continue to Here"] = "Continue to Here";
 localizedStrings["Continue without automatically stopping"] = "Continue without automatically stopping";
+/* Label for contrast ratio section in Color Picker */
+localizedStrings["Contrast @ Color Picker"] = "Contrast";
 localizedStrings["Controls"] = "Controls";
 localizedStrings["Convert to Display-P3"] = "Convert to Display-P3";
 localizedStrings["Convert to sRGB"] = "Convert to sRGB";
@@ -833,6 +840,8 @@ localizedStrings["Frames"] = "Frames";
 localizedStrings["Frames %d \u2013 %d"] = "Frames %d \u2013 %d";
 /* Title for list of HTML subframe JavaScript execution contexts */
 localizedStrings["Frames @ Execution Context Picker"] = "Frames";
+/* Title for list of site-isolated frame JavaScript execution contexts */
+localizedStrings["Frame Targets"] = "Frame Targets";
 /* Title for Frames row in Media Sidebar */
 localizedStrings["Frames @ Media Sidebar Frame Count"] = "Frames";
 localizedStrings["Full Garbage Collection"] = "Full Garbage Collection";
@@ -862,6 +871,8 @@ localizedStrings["Go to variable"] = "Go to variable";
 localizedStrings["Grammar"] = "Grammar";
 /* Name of Graphics Tab */
 localizedStrings["Graphics Tab Name"] = "Graphics";
+/* Label for green color component of CSS color. */
+localizedStrings["Green @ Color Picker"] = "Green";
 /* CSS Grid layout section name */
 localizedStrings["Grid @ Elements details sidebar"] = "Grid";
 localizedStrings["Group"] = "Group";
@@ -910,6 +921,8 @@ localizedStrings["Historical @ Font Details Sidebar Property Value"] = "Historic
 /* Property value for `font-variant-alternates: historical-forms`. */
 localizedStrings["Historical Forms @ Font Details Sidebar Property Value"] = "Historical Forms";
 localizedStrings["Host"] = "Host";
+/* Label for hue color component of CSS color. */
+localizedStrings["Hue @ Color Picker"] = "Hue";
 localizedStrings["ICO"] = "ICO";
 localizedStrings["IP"] = "IP";
 localizedStrings["IP Address"] = "IP Address";
@@ -1009,6 +1022,8 @@ localizedStrings["Ligatures @ Font Details Sidebar Property"] = "Ligatures";
 localizedStrings["Light @ Settings General Appearance"] = "Light";
 /* Label for the light color scheme preference. */
 localizedStrings["Light @ User Preferences Overrides"] = "Light";
+/* Label for lightness color component of CSS color. */
+localizedStrings["Lightness @ Color Picker"] = "Lightness";
 localizedStrings["Limit syntax highlighting on long lines of code"] = "Limit syntax highlighting on long lines of code";
 localizedStrings["Line %d"] = "Line %d";
 localizedStrings["Line %d:%d"] = "Line %d:%d";
@@ -1310,6 +1325,7 @@ localizedStrings["Power Efficient Playback"] = "Power Efficient Playback";
 localizedStrings["Prefer Shorthands"] = "Prefer Shorthands";
 localizedStrings["Prefer indent using:"] = "Prefer indent using:";
 localizedStrings["Preserve Log"] = "Preserve Log";
+localizedStrings["Preserve Requests @ Network Tab"] = "Preserve Requests";
 localizedStrings["Press %s to create a new audit."] = "Press %s to create a new audit.";
 localizedStrings["Press %s to enable audits."] = "Press %s to enable audits.";
 localizedStrings["Press %s to import an audit or a result."] = "Press %s to import an audit or a result.";
@@ -1383,6 +1399,8 @@ localizedStrings["Recording Type Offscreen Canvas WebGL"] = "WebGL (Offscreen)";
 localizedStrings["Recording Type Offscreen Canvas WebGL2"] = "WebGL2 (Offscreen)";
 localizedStrings["Recording Warning: %s"] = "Recording Warning: %s";
 localizedStrings["Recordings"] = "Recordings";
+/* Label for red color component of CSS color. */
+localizedStrings["Red @ Color Picker"] = "Red";
 localizedStrings["Redirect"] = "Redirect";
 localizedStrings["Redirect Response"] = "Redirect Response";
 localizedStrings["Redirects"] = "Redirects";
@@ -1491,6 +1509,8 @@ localizedStrings["SVG"] = "SVG";
 /* Title for Sample Rate row in Media Sidebar */
 localizedStrings["Sample Rate @ Media Sidebar"] = "Sample Rate";
 localizedStrings["Samples"] = "Samples";
+/* Label for saturation color component of CSS color. */
+localizedStrings["Saturation @ Color Picker"] = "Saturation";
 localizedStrings["Save %d"] = "Save %d";
 localizedStrings["Save File"] = "Save File";
 localizedStrings["Save Image"] = "Save Image";
@@ -1749,6 +1769,7 @@ localizedStrings["Template Content"] = "Template Content";
 /* Dropdown option inside the popover used to creating an audit test case. */
 localizedStrings["Test Case @ Audit Tab Navigation Sidebar"] = "Test Case";
 localizedStrings["Text"] = "Text";
+localizedStrings["Text Color"] = "Text Color";
 localizedStrings["Text Frame"] = "Text Frame";
 localizedStrings["Text Node"] = "Text Node";
 localizedStrings["The Inspector Bootstrap Script is guaranteed to be the first script evaluated in any page, as well as any sub-frames."] = "The Inspector Bootstrap Script is guaranteed to be the first script evaluated in any page, as well as any sub-frames.";
@@ -1891,7 +1912,6 @@ localizedStrings["Update Font"] = "Update Font";
 localizedStrings["Update Image"] = "Update Image";
 localizedStrings["Update Local Override"] = "Update Local Override";
 localizedStrings["Usage: %s"] = "Usage: %s";
-localizedStrings["Use case sensitive autocomplete"] = "Use case sensitive autocomplete";
 localizedStrings["Use default media styles"] = "Use default media styles";
 localizedStrings["Use fuzzy matching for CSS code completion"] = "Use fuzzy matching for CSS code completion";
 localizedStrings["Use mock capture devices"] = "Use mock capture devices";
@@ -1944,6 +1964,14 @@ localizedStrings["Warning: "] = "Warning: ";
 localizedStrings["Warnings"] = "Warnings";
 localizedStrings["Watch Expressions"] = "Watch Expressions";
 localizedStrings["Waterfall"] = "Waterfall";
+/* Tooltip for AA contrast line in color picker */
+localizedStrings["WCAG AA minimum contrast (4.5:1) @ Tooltip for AA contrast line in color picker"] = "WCAG AA minimum contrast (4.5:1)";
+/* Tooltip for AA contrast line in color picker for large text */
+localizedStrings["WCAG AA minimum contrast for large text (3:1) @ Tooltip for AA contrast line in color picker"] = "WCAG AA minimum contrast for large text (3:1)";
+/* Tooltip for AAA contrast line in color picker */
+localizedStrings["WCAG AAA enhanced contrast (7:1) @ Tooltip for AAA contrast line in color picker"] = "WCAG AAA enhanced contrast (7:1)";
+/* Tooltip for AAA contrast line in color picker for large text */
+localizedStrings["WCAG AAA enhanced contrast for large text (4.5:1) @ Tooltip for AAA contrast line in color picker"] = "WCAG AAA enhanced contrast for large text (4.5:1)";
 localizedStrings["Web Animation"] = "Web Animation";
 /* Section title for the JavaScript backtrace of the creation of a web animation */
 localizedStrings["Web Animation Backtrace Title"] = "Backtrace";
@@ -2141,3 +2169,5 @@ localizedStrings["unsupported version"] = "unsupported version";
 localizedStrings["value"] = "value";
 /* Placeholder text in an editable field for the value of a HTTP header */
 localizedStrings["value @ Local Override Popover New Headers Data Grid Item"] = "value";
+/* Separator between foreground and background colors in contrast info */
+localizedStrings["vs @ Color Picker Contrast"] = "vs";

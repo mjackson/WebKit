@@ -71,6 +71,7 @@
 
 #if PLATFORM(COCOA)
 #include "DataDetection.h"
+#include <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
 #endif
 
 namespace WebCore {
@@ -368,7 +369,7 @@ bool HTMLAnchorElement::isSystemPreviewLink()
         return false;
 
     if (auto* child = firstElementChild()) {
-        if (is<HTMLImageElement>(child) || is<HTMLPictureElement>(child)) {
+        if (isAnyOf<HTMLImageElement, HTMLPictureElement>(child)) {
             auto numChildren = childElementCount();
             // FIXME: We've documented that it should be the only child, but some early demos have two children.
             return numChildren == 1 || numChildren == 2;
@@ -672,7 +673,7 @@ bool HTMLAnchorElement::willRespondToMouseClickEventsWithEditability(Editability
     return isLink() || HTMLElement::willRespondToMouseClickEventsWithEditability(editability);
 }
 
-static auto& rootEditableElementMap()
+static auto& NODELETE rootEditableElementMap()
 {
     static NeverDestroyed<WeakHashMap<HTMLAnchorElement, WeakPtr<Element, WeakPtrImplWithEventTargetData>, WeakPtrImplWithEventTargetData>> map;
     return map.get();
@@ -714,18 +715,18 @@ ReferrerPolicy HTMLAnchorElement::referrerPolicy() const
     return parseReferrerPolicy(attributeWithoutSynchronization(referrerpolicyAttr), ReferrerPolicySource::ReferrerPolicyAttribute).value_or(ReferrerPolicy::EmptyString);
 }
 
-Node::InsertedIntoAncestorResult HTMLAnchorElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps HTMLAnchorElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    HTMLElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    HTMLElement::insertionSteps(insertionType, parentOfInsertedTree);
     protect(document())->processInternalResourceLinks(this);
-    if (document().settings().speculationRulesPrefetchEnabled())
-        return InsertedIntoAncestorResult::NeedsPostInsertionCallback;
-    return InsertedIntoAncestorResult::Done;
+    if (insertionType.connectedToDocument && document().settings().speculationRulesPrefetchEnabled())
+        return NeedsPostConnectionSteps::Yes;
+    return NeedsPostConnectionSteps::No;
 }
 
-void HTMLAnchorElement::didFinishInsertingNode()
+void HTMLAnchorElement::postConnectionSteps()
 {
-    HTMLElement::didFinishInsertingNode();
+    HTMLElement::postConnectionSteps();
     checkForSpeculationRules();
 }
 

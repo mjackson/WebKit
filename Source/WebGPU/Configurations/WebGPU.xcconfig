@@ -112,15 +112,15 @@ ENABLE_WEBGPU_SWIFT[sdk=macosx*26.1*] = ;
 ENABLE_WEBGPU_SWIFT[sdk=macosx*14*] = ;
 ENABLE_WEBGPU_SWIFT[sdk=macosx*15*] = ;
 
-ENABLE_WEBGPU_SWIFT[sdk=iphoneos*] = ENABLE_WEBGPU_SWIFT;
-ENABLE_WEBGPU_SWIFT[sdk=iphoneos*26.0*] = ;
-ENABLE_WEBGPU_SWIFT[sdk=iphoneos*26.1*] = ;
-ENABLE_WEBGPU_SWIFT[sdk=iphoneos*26.2*] = ;
-ENABLE_WEBGPU_SWIFT[sdk=iphoneos*26.3*] = ;
+ENABLE_WEBGPU_SWIFT[sdk=iphone*] = ENABLE_WEBGPU_SWIFT;
+ENABLE_WEBGPU_SWIFT[sdk=iphone*26.0*] = ;
+ENABLE_WEBGPU_SWIFT[sdk=iphone*26.1*] = ;
+ENABLE_WEBGPU_SWIFT[sdk=iphone*26.2*] = ;
+ENABLE_WEBGPU_SWIFT[sdk=iphone*26.3*] = ;
 
-// FIXME: Support WebGPU swift in iOS simulator builds once the underlying
-// modules issue is fixed (https://bugs.webkit.org/show_bug.cgi?id=300146).
-ENABLE_WEBGPU_SWIFT[sdk=iphonesimulator*] = ;
+// WebGPU has a problem on iOS simulator on older SDKs
+// (https://bugs.webkit.org/show_bug.cgi?id=300146).
+ENABLE_WEBGPU_SWIFT[sdk=iphonesimulator26*] = ;
 
 ENABLE_WEBGPU_SWIFT[sdk=xros*] = ENABLE_WEBGPU_SWIFT;
 ENABLE_WEBGPU_SWIFT[sdk=xros*26.0*] = ;
@@ -130,7 +130,7 @@ ENABLE_WEBGPU_SWIFT[sdk=xros*26.3*] = ;
 
 ENABLE_WEBGPU_SWIFT[sdk=appletvos*] = ;
 
-ENABLE_WEBGPU_SWIFT[sdk=watchos*] = ;
+ENABLE_WEBGPU_SWIFT[sdk=watch*] = ;
 
 SWIFT_OBJC_INTERFACE_HEADER_NAME = WebGPUSwift-Generated.h;
 SWIFT_VERSION = 6.0;
@@ -138,9 +138,6 @@ SWIFT_INSTALL_OBJC_HEADER = NO;
 SWIFT_OBJC_INTEROP_MODE = $(WK_SWIFT_OBJC_INTEROP_MODE_$(ENABLE_WEBGPU_SWIFT))
 WK_SWIFT_OBJC_INTEROP_MODE_ENABLE_WEBGPU_SWIFT = objcxx;
 SWIFT_LIBRARY_LEVEL = spi;
-
-// FIXME: reenable this once rdar://154887575 lands
-// SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES
 
 // FIXME: broaden SafeInteropWrappers to all of WebKit; rdar://159439903
 OTHER_SWIFT_FLAGS = $(inherited) @$(BUILT_PRODUCTS_DIR)/DerivedSources/WebGPU/platform-enabled-swift-args.$(arch).resp -Xcc -std=c++2b -Xcc -D__WEBGPU__ -Xcc -DUCHAR_TYPE=char16_t -enable-experimental-feature SafeInteropWrappers -enable-experimental-feature LifetimeDependence -Xcc -fvisibility=hidden -no-verify-emitted-module-interface;

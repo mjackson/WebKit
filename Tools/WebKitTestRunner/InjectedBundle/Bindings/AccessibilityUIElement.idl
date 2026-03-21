@@ -51,6 +51,8 @@ interface AccessibilityUIElement {
     readonly attribute DOMString computedRoleString;
     readonly attribute DOMString title;
     readonly attribute DOMString description;
+    readonly attribute DOMString debugDescription;
+    readonly attribute DOMString rawRoleForTesting;
     readonly attribute DOMString language;
     readonly attribute DOMString helpText;
     readonly attribute DOMString valueDescription;
@@ -65,7 +67,7 @@ interface AccessibilityUIElement {
     readonly attribute long insertionPointLineNumber;
     readonly attribute DOMString selectedText;
     readonly attribute DOMString selectedTextRange;
-    readonly attribute DOMString intersectionWithSelectionRange;
+    readonly attribute AccessibilityTextMarkerRange intersectionWithSelectionRange;
     readonly attribute DOMString textInputMarkedRange;
 
     DOMString stringDescriptionOfAttributeValue(DOMString attr);
@@ -127,6 +129,7 @@ interface AccessibilityUIElement {
     readonly attribute boolean isLastItemInSuggestion;
     readonly attribute boolean isRemoteFrame;
     readonly attribute boolean isRemotePlatformElement;
+    readonly attribute boolean isFrameGeometryInitialized;
 
     readonly attribute long pageX;
     readonly attribute long pageY;
@@ -227,6 +230,7 @@ interface AccessibilityUIElement {
     boolean attributedStringRangeIsMisspelled(unsigned long location, unsigned long length);
     unsigned long uiElementCountForSearchPredicate(AccessibilityUIElement startElement, boolean isDirectionNext, object searchKey, DOMString searchText, boolean visibleOnly, boolean immediateDescendantsOnly);
     AccessibilityUIElement uiElementForSearchPredicate(AccessibilityUIElement startElement, boolean isDirectionNext, object searchKey, DOMString searchText, boolean visibleOnly, boolean immediateDescendantsOnly);
+    object uiElementsForSearchPredicate(AccessibilityUIElement startElement, boolean isDirectionNext, object searchKey, DOMString searchText, boolean visibleOnly, boolean immediateDescendantsOnly, unsigned long resultsLimit);
     DOMString selectTextWithCriteria(DOMString ambiguityResolution, object searchStrings, DOMString replacementString, DOMString activity);
     object searchTextWithCriteria(object searchStrings, DOMString startFrom, DOMString direction);
     object performTextOperation(DOMString operationType, object markerRanges, object replacementStrings, boolean shouldSmartReplace);

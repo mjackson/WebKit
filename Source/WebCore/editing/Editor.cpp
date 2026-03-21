@@ -70,6 +70,7 @@
 #include "File.h"
 #include "FocusController.h"
 #include "FontAttributes.h"
+#include "FontCascadeInlines.h"
 #include "FrameDestructionObserverInlines.h"
 #include "FrameInlines.h"
 #include "FrameLoader.h"
@@ -138,6 +139,7 @@
 #include "TextCheckingHelper.h"
 #include "TextEvent.h"
 #include "TextIterator.h"
+#include "TextNodeTraversal.h"
 #include "TextPlaceholderElement.h"
 #include "TypingCommand.h"
 #include "UserTypingGestureIndicator.h"
@@ -867,7 +869,7 @@ bool Editor::hasBidiSelection() const
     ScriptDisallowedScope::InMainThread scriptDisallowedScope;
 
     if (CheckedPtr renderBlockFlow = ancestorsOfType<RenderBlockFlow>(*startNode->renderer()).first())
-        return !renderBlockFlow->style().isLeftToRightDirection() || renderBlockFlow->containsNonZeroBidiLevel();
+        return !renderBlockFlow->style().writingMode().deprecatedIsLeftToRightDirection() || renderBlockFlow->containsNonZeroBidiLevel();
     return false;
 }
 
@@ -1143,7 +1145,7 @@ static void notifyTextFromControls(Element* startRoot, Element* endRoot, bool wa
         endingTextControl->didEditInnerTextValue(wasUserEdit);
 }
 
-static inline bool shouldRemoveAutocorrectionIndicator(bool shouldConsiderApplyingAutocorrection, bool autocorrectionWasApplied, bool isAutocompletion)
+static inline bool NODELETE shouldRemoveAutocorrectionIndicator(bool shouldConsiderApplyingAutocorrection, bool autocorrectionWasApplied, bool isAutocompletion)
 {
 #if HAVE(AUTOCORRECTION_ENHANCEMENTS)
     bool shouldRemoveIndicator = shouldConsiderApplyingAutocorrection && !autocorrectionWasApplied;
@@ -1189,7 +1191,7 @@ static inline bool didApplyAutocorrection(Document& document, AlternativeTextCon
 #endif
 }
 
-static inline void adjustMarkerTypesToRemoveForWordsAffectedByEditing(OptionSet<DocumentMarkerType>& markerTypes)
+static inline void NODELETE adjustMarkerTypesToRemoveForWordsAffectedByEditing(OptionSet<DocumentMarkerType>& markerTypes)
 {
 #if HAVE(AUTOCORRECTION_ENHANCEMENTS) && PLATFORM(IOS_FAMILY)
     markerTypes.remove(DocumentMarkerType::CorrectionIndicator);
@@ -1256,7 +1258,7 @@ void Editor::appliedEditing(CompositeEditCommand& command)
     VisibleSelection newSelection(command.endingSelection());
 
     bool wasUserEdit = [&command] {
-        RefPtr typingCommand = dynamicDowncast<TypingCommand>(command);
+        auto* typingCommand = dynamicDowncast<TypingCommand>(command);
         return !typingCommand || !typingCommand->triggeringEventIsUntrusted();
     }();
     notifyTextFromControls(composition->startingRootEditableElement(), composition->endingRootEditableElement(), wasUserEdit);
@@ -2346,7 +2348,7 @@ String Editor::compositionText() const
     if (!m_compositionNode)
         return { };
 
-    return protect(compositionNode())->data().substring(m_compositionStart, m_compositionEnd - m_compositionStart);
+    return compositionNode()->data().substring(m_compositionStart, m_compositionEnd - m_compositionStart);
 }
 
 bool Editor::hasDeadKeyComposition() const
@@ -3273,7 +3275,7 @@ void Editor::markAllMisspellingsAndBadGrammarInRanges(OptionSet<TextCheckingType
 #endif
 }
 
-static bool isAutomaticTextReplacementType(TextCheckingType type)
+static bool NODELETE isAutomaticTextReplacementType(TextCheckingType type)
 {
     switch (type) {
     case TextCheckingType::None:
@@ -3884,7 +3886,7 @@ RefPtr<TextPlaceholderElement> Editor::insertTextPlaceholder(const IntSize& size
 
     document->selection().addCaretVisibilitySuppressionReason(CaretVisibilitySuppressionReason::TextPlaceholderIsShowing);
 
-    document->selection().setSelection(VisibleSelection { positionInParentBeforeNode(placeholder.ptr()) }, FrameSelection::defaultSetSelectionOptions(UserTriggered::Yes));
+    document->selection().setSelection(VisibleSelection { positionInParentBeforeNode(placeholder) }, FrameSelection::defaultSetSelectionOptions(UserTriggered::Yes));
 
 #if ENABLE(WRITING_TOOLS)
     // For Writing Tools, we need the snapshot of the last inserted placeholder.
@@ -3903,7 +3905,7 @@ void Editor::removeTextPlaceholder(TextPlaceholderElement& placeholder)
 
     // Save off state so that we can set the text insertion position to just before the placeholder element after removal.
     RefPtr savedRootEditableElement { placeholder.rootEditableElement() };
-    auto savedPositionBeforePlaceholder = positionInParentBeforeNode(&placeholder);
+    auto savedPositionBeforePlaceholder = positionInParentBeforeNode(placeholder);
 
     // FIXME: Save the current selection if it has changed since the placeholder was inserted
     // and restore it after text insertion.
@@ -4042,7 +4044,10 @@ std::optional<SimpleRange> Editor::findString(const String& target, FindOptions 
         document->updateLayoutIgnorePendingStylesheets({ LayoutOptions::TreatContentVisibilityAutoAsVisible, LayoutOptions::TreatRevealedWhenFoundAsVisible });
         Style::PostResolutionCallbackDisabler disabler(document);
         VisibleSelection selection = document->selection().selection();
-        resultRange = rangeOfString(target, selection.firstRange(), options);
+        auto referenceRange = selection.firstRange();
+        if (!referenceRange || referenceRange->collapsed())
+            referenceRange = selection.range();
+        resultRange = rangeOfString(target, referenceRange, options);
     }
 
     if (!resultRange)
@@ -4106,7 +4111,10 @@ std::optional<SimpleRange> Editor::rangeOfString(const String& target, const std
     // If we started in the reference range and the found range exactly matches the reference range, find again.
     // Build a selection with the found range to remove collapsed whitespace.
     // Compare ranges instead of selection objects to ignore the way that the current selection was made.
-    if (startInReferenceRange && VisibleSelection(resultRange).toNormalizedRange() == referenceRange) {
+    auto resultSelection = VisibleSelection(resultRange);
+    auto normalizedRange = resultSelection.toNormalizedRange();
+    auto resultRangeForComparison = !normalizedRange || normalizedRange->collapsed() ? resultSelection.range() : normalizedRange;
+    if (startInReferenceRange && resultRangeForComparison == referenceRange) {
         searchRange = makeRangeSelectingNodeContents(document);
         start(searchRange, options) = end(*referenceRange, options);
         if (shadowTreeRoot)
@@ -4309,7 +4317,7 @@ void Editor::scanSelectionForTelephoneNumbers()
     
     auto notifyController = makeScopeExit([&] {
         if (RefPtr page = document().page())
-            page->protectedServicesOverlayController()->selectedTelephoneNumberRangesChanged();
+            protect(page->servicesOverlayController())->selectedTelephoneNumberRangesChanged();
     });
 
     auto selection = document().selection().selection();
@@ -4504,7 +4512,7 @@ OptionSet<TextCheckingType> Editor::resolveTextCheckingTypeMask(const Node& root
 {
 #if USE(AUTOMATIC_TEXT_REPLACEMENT) && !PLATFORM(IOS_FAMILY)
     bool onlyAllowsTextReplacement = false;
-    if (RefPtr host = dynamicDowncast<HTMLInputElement>(rootEditableElement.shadowHost()))
+    if (auto* host = dynamicDowncast<HTMLInputElement>(rootEditableElement.shadowHost()))
         onlyAllowsTextReplacement = host->isSpellcheckDisabledExceptTextReplacement();
     if (onlyAllowsTextReplacement)
         textCheckingOptions = textCheckingOptions & TextCheckingType::Replacement;
@@ -4622,7 +4630,7 @@ static Vector<TextList> editableTextListsAtPositionInDescendingOrder(const Posit
         if (!ancestor->renderer())
             continue;
 
-        if (is<HTMLUListElement>(ancestor) || is<HTMLOListElement>(ancestor))
+        if (isAnyOf<HTMLUListElement, HTMLOListElement>(ancestor))
             enclosingLists.append(WTF::move(ancestor));
     }
 
@@ -4719,12 +4727,12 @@ FontAttributes Editor::fontAttributesAtSelectionStart()
         break;
     case Style::TextAlign::Start:
         if (style->hasExplicitlySetDirection())
-            attributes.horizontalAlignment = style->isLeftToRightDirection() ? FontAttributes::HorizontalAlignment::Left : FontAttributes::HorizontalAlignment::Right;
+            attributes.horizontalAlignment = style->writingMode().deprecatedIsLeftToRightDirection() ? FontAttributes::HorizontalAlignment::Left : FontAttributes::HorizontalAlignment::Right;
         else
             attributes.horizontalAlignment = FontAttributes::HorizontalAlignment::Natural;
         break;
     case Style::TextAlign::End:
-        attributes.horizontalAlignment = style->isLeftToRightDirection() ? FontAttributes::HorizontalAlignment::Right : FontAttributes::HorizontalAlignment::Left;
+        attributes.horizontalAlignment = style->writingMode().deprecatedIsLeftToRightDirection() ? FontAttributes::HorizontalAlignment::Right : FontAttributes::HorizontalAlignment::Left;
         break;
     }
 
@@ -4805,7 +4813,7 @@ void Editor::registerAttachmentIdentifier(const String& identifier, const Attach
         if (!renderer)
             return std::nullopt;
 
-        auto* cachedImage = renderer->cachedImage();
+        RefPtr cachedImage = renderer->cachedImage();
         if (!cachedImage || cachedImage->errorOccurred())
             return std::nullopt;
 
@@ -4942,7 +4950,7 @@ std::optional<SimpleRange> Editor::adjustedSelectionRange()
     // FIXME: Why do we need to adjust the selection to include the anchor tag it's in? Whoever wrote this code originally forgot to leave us a comment explaining the rationale.
     auto range = selectedRange();
     if (range) {
-        if (RefPtr enclosingAnchor = enclosingElementWithTag(firstPositionInNode(commonInclusiveAncestor<ComposedTree>(*range)), HTMLNames::aTag)) {
+        if (RefPtr enclosingAnchor = enclosingElementWithTag(firstPositionInNode(*commonInclusiveAncestor<ComposedTree>(*range)), HTMLNames::aTag)) {
             if (firstPositionInOrBeforeNode(range->start.container.ptr()) >= makeDeprecatedLegacyPosition(range->start))
                 range->start = makeBoundaryPointBeforeNodeContents(*enclosingAnchor);
         }
@@ -4999,7 +5007,7 @@ RefPtr<Font> Editor::fontForSelection(bool& hasMultipleFonts)
             if (!style)
                 return nullptr;
             ScriptDisallowedScope::InMainThread scriptDisallowedScope;
-            font = const_cast<Font*>(style->fontCascade().primaryFont().ptr());
+            font = const_cast<Font*>(&style->fontCascade().primaryFont());
         }
 
         if (nodeToRemove)
@@ -5024,6 +5032,9 @@ RefPtr<Font> Editor::fontForSelection(bool& hasMultipleFonts)
     for (Ref node : intersectingNodes(*range)) {
         CheckedPtr renderer = node->renderer();
         if (!renderer)
+            continue;
+        // The font of intermediate nodes that don't affect the rendering of text are not necessary to report, so limit to only such nodes.
+        if (!node->isTextNode() && !renderer->isBR() && !TextNodeTraversal::firstChild(node))
             continue;
         Ref primaryFont = renderer->style().fontCascade().primaryFont();
         if (!font)

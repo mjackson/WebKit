@@ -411,7 +411,7 @@ CString String::ascii() const
 
     size_t characterBufferIndex = 0;
     for (auto character : characters)
-        characterBuffer[characterBufferIndex++] = character && (character < 0x20 || character > 0x7f) ? '?' : character;
+        characterBuffer[characterBufferIndex++] = character && (character < 0x20 || character > 0x7f) ? '?' : static_cast<char>(character);
 
     return result;
 }
@@ -595,7 +595,9 @@ Vector<char> asciiDebug(String& string);
 
 void String::show() const
 {
-    dataLogF("%s\n", asciiDebug(impl()).span().data());
+    auto ascii = asciiDebug(impl());
+    auto span = ascii.span();
+    dataLogF("%.*s\n", static_cast<int>(span.size()), span.data());
 }
 
 String* string(const char* s)

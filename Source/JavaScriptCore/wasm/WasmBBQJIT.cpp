@@ -43,6 +43,7 @@
 #include "JSWebAssemblyStruct.h"
 #include "MacroAssembler.h"
 #include "RegisterSet.h"
+#include "WasmAddressType.h"
 #include "WasmBBQDisassembler.h"
 #include "WasmBaselineData.h"
 #include "WasmCallProfile.h"
@@ -669,16 +670,16 @@ BBQJIT::BBQJIT(CompilationContext& compilationContext, const TypeDefinition& sig
     , m_pcToCodeOriginMapBuilder(Options::useSamplingProfiler())
     , m_profile(module.createMergedProfile(profiledCallee))
 {
-    RegisterSetBuilder gprSetBuilder = RegisterSetBuilder::allGPRs();
-    gprSetBuilder.exclude(RegisterSetBuilder::specialRegisters());
-    gprSetBuilder.exclude(RegisterSetBuilder::macroClobberedGPRs());
-    gprSetBuilder.exclude(RegisterSetBuilder::wasmPinnedRegisters());
-    gprSetBuilder.exclude(RegisterSetBuilder::bbqCalleeSaveRegisters());
+    RegisterSet gprSetBuilder = RegisterSet::allGPRs();
+    gprSetBuilder.exclude(RegisterSet::specialRegisters());
+    gprSetBuilder.exclude(RegisterSet::macroClobberedGPRs());
+    gprSetBuilder.exclude(RegisterSet::wasmPinnedRegisters());
+    gprSetBuilder.exclude(RegisterSet::bbqCalleeSaveRegisters());
     // FIXME: handle callee-saved registers better.
-    gprSetBuilder.exclude(RegisterSetBuilder::vmCalleeSaveRegisters());
+    gprSetBuilder.exclude(RegisterSet::vmCalleeSaveRegisters());
 
-    RegisterSetBuilder fprSetBuilder = RegisterSetBuilder::allFPRs();
-    RegisterSetBuilder::macroClobberedFPRs().forEach([&](Reg reg) {
+    RegisterSet fprSetBuilder = RegisterSet::allFPRs();
+    RegisterSet::macroClobberedFPRs().forEach([&](Reg reg) {
         fprSetBuilder.remove(reg);
     });
 #if USE(JSVALUE32_64) && CPU(ARM_NEON)
@@ -687,12 +688,12 @@ BBQJIT::BBQJIT(CompilationContext& compilationContext, const TypeDefinition& sig
         fprSetBuilder.remove(reg);
 #endif
     // TODO: handle callee-saved registers better.
-    RegisterSetBuilder::vmCalleeSaveRegisters().forEach([&](Reg reg) {
+    RegisterSet::vmCalleeSaveRegisters().forEach([&](Reg reg) {
         fprSetBuilder.remove(reg);
     });
 
-    RegisterSetBuilder callerSaveGprs = gprSetBuilder;
-    RegisterSetBuilder callerSaveFprs = fprSetBuilder;
+    RegisterSet callerSaveGprs = gprSetBuilder;
+    RegisterSet callerSaveFprs = fprSetBuilder;
 
     gprSetBuilder.remove(wasmScratchGPR);
 #if USE(JSVALUE32_64)
@@ -701,11 +702,11 @@ BBQJIT::BBQJIT(CompilationContext& compilationContext, const TypeDefinition& sig
     fprSetBuilder.remove(wasmScratchFPR);
 
     ASCIILiteral logPrefix = Options::verboseBBQJITAllocation() ? "BBQ"_s : ASCIILiteral();
-    m_gprAllocator.initialize(gprSetBuilder.buildAndValidate(), logPrefix);
-    m_fprAllocator.initialize(fprSetBuilder.buildAndValidate(), logPrefix);
-    m_callerSaveGPRs = callerSaveGprs.buildAndValidate();
-    m_callerSaveFPRs = callerSaveFprs.buildAndValidate();
-    m_callerSaves = callerSaveGprs.merge(callerSaveFprs).buildAndValidate();
+    m_gprAllocator.initialize(gprSetBuilder, logPrefix);
+    m_fprAllocator.initialize(fprSetBuilder, logPrefix);
+    m_callerSaveGPRs = callerSaveGprs;
+    m_callerSaveFPRs = callerSaveFprs;
+    m_callerSaves = callerSaveGprs.merge(callerSaveFprs);
 
     if (shouldDumpDisassemblyFor(CompilationMode::BBQMode)) [[unlikely]] {
         m_disassembler = makeUnique<BBQDisassembler>();
@@ -1101,7 +1102,7 @@ Address BBQJIT::materializePointer(Location pointerLocation, uint32_t uoffset)
 [[nodiscard]] PartialResult BBQJIT::addGrowMemory(Value delta, Value& result)
 {
     Vector<Value, 8> arguments = { instanceValue(), delta };
-    result = topValue(m_info.theOnlyMemory().addressType());
+    result = topValue(m_info.theOnlyMemory().addressType().asTypeKind());
     emitCCall(&operationGrowMemory, arguments, result);
     restoreWebAssemblyGlobalState();
 
@@ -1834,34 +1835,43 @@ void BBQJIT::pushArrayNewFromSegment(ArraySegmentOperation operation, uint32_t t
         LOG_INSTRUCTION("Select", condition, lhs, lhsLocation, rhs, rhsLocation, RESULT(result));
         LOG_INDENT();
 
-        bool inverted = false;
+        TypeKind type = lhs.type();
+        if (!lhs.isConst() && !rhs.isConst() && type != TypeKind::V128) {
+            consume(condition);
+            if (type == TypeKind::F32 || type == TypeKind::F64)
+                m_jit.moveDoubleConditionallyTest32(ResultCondition::NonZero, conditionLocation.asGPR(), conditionLocation.asGPR(), lhsLocation.asFPR(), rhsLocation.asFPR(), resultLocation.asFPR());
+            else
+                m_jit.moveConditionallyTest32(ResultCondition::NonZero, conditionLocation.asGPR(), conditionLocation.asGPR(), lhsLocation.asGPR(), rhsLocation.asGPR(), resultLocation.asGPR());
+        } else {
+            bool inverted = false;
 
-        // If the operands or the result alias, we want the matching one to be on top.
-        if (rhsLocation == resultLocation) {
-            std::swap(lhs, rhs);
-            std::swap(lhsLocation, rhsLocation);
-            inverted = true;
+            // If the operands or the result alias, we want the matching one to be on top.
+            if (rhsLocation == resultLocation) {
+                std::swap(lhs, rhs);
+                std::swap(lhsLocation, rhsLocation);
+                inverted = true;
+            }
+
+            // If the condition location and the result alias, we want to make sure the condition is
+            // preserved no matter what.
+            if (conditionLocation == resultLocation) {
+                m_jit.move(conditionLocation.asGPR(), wasmScratchGPR);
+                conditionLocation = Location::fromGPR(wasmScratchGPR);
+            }
+
+            // Kind of gross isel, but it should handle all use/def aliasing cases correctly.
+            if (lhs.isConst())
+                emitMoveConst(lhs, resultLocation);
+            else
+                emitMove(lhs.type(), lhsLocation, resultLocation);
+            Jump ifZero = m_jit.branchTest32(inverted ? ResultCondition::Zero : ResultCondition::NonZero, conditionLocation.asGPR(), conditionLocation.asGPR());
+            consume(condition);
+            if (rhs.isConst())
+                emitMoveConst(rhs, resultLocation);
+            else
+                emitMove(rhs.type(), rhsLocation, resultLocation);
+            ifZero.link(&m_jit);
         }
-
-        // If the condition location and the result alias, we want to make sure the condition is
-        // preserved no matter what.
-        if (conditionLocation == resultLocation) {
-            m_jit.move(conditionLocation.asGPR(), wasmScratchGPR);
-            conditionLocation = Location::fromGPR(wasmScratchGPR);
-        }
-
-        // Kind of gross isel, but it should handle all use/def aliasing cases correctly.
-        if (lhs.isConst())
-            emitMoveConst(lhs, resultLocation);
-        else
-            emitMove(lhs.type(), lhsLocation, resultLocation);
-        Jump ifZero = m_jit.branchTest32(inverted ? ResultCondition::Zero : ResultCondition::NonZero, conditionLocation.asGPR(), conditionLocation.asGPR());
-        consume(condition);
-        if (rhs.isConst())
-            emitMoveConst(rhs, resultLocation);
-        else
-            emitMove(rhs.type(), rhsLocation, resultLocation);
-        ifZero.link(&m_jit);
 
         LOG_DEDENT();
     }
@@ -2979,8 +2989,15 @@ PartialResult BBQJIT::addI32Extend8S(Value operand, Value& result)
             } else {
                 bool signBit = std::bit_cast<uint32_t>(rhs.asF32()) & 0x80000000u;
                 m_jit.absFloat(lhsLocation.asFPR(), resultLocation.asFPR());
-                if (signBit)
+                if (signBit) {
+#if CPU(X86_64)
+                    m_jit.moveFloatTo32(resultLocation.asFPR(), wasmScratchGPR);
+                    m_jit.xor32(TrustedImm32(std::bit_cast<uint32_t>(static_cast<float>(-0.0))), wasmScratchGPR);
+                    m_jit.move32ToFloat(wasmScratchGPR, resultLocation.asFPR());
+#else
                     m_jit.negateFloat(resultLocation.asFPR(), resultLocation.asFPR());
+#endif
+                }
             }
         )
     )
@@ -4520,8 +4537,8 @@ void BBQJIT::emitTailCall(FunctionSpaceIndex functionIndexSpace, const TypeDefin
 void BBQJIT::emitIndirectCall(const char* opcode, unsigned callProfileIndex, const Value& callee, GPRReg importableFunction, const TypeDefinition& signature, ArgumentList& arguments, ResultList& results)
 {
     ASSERT(importableFunction == GPRInfo::nonPreservedNonArgumentGPR1);
-    ASSERT(!RegisterSetBuilder::argumentGPRs().contains(importableFunction, IgnoreVectors));
-    ASSERT(!RegisterSetBuilder::argumentGPRs().contains(wasmScratchGPR, IgnoreVectors));
+    ASSERT(!RegisterSet::argumentGPRs().contains(importableFunction, IgnoreVectors));
+    ASSERT(!RegisterSet::argumentGPRs().contains(wasmScratchGPR, IgnoreVectors));
 
     const auto& callingConvention = wasmCallingConvention();
     CallInformation wasmCalleeInfo = callingConvention.callInformationFor(signature, CallRole::Caller);
@@ -4599,8 +4616,8 @@ void BBQJIT::emitIndirectCall(const char* opcode, unsigned callProfileIndex, con
 
 void BBQJIT::emitIndirectTailCall(const char* opcode, const Value& callee, GPRReg importableFunction, const TypeDefinition& signature, ArgumentList& arguments)
 {
-    ASSERT(!RegisterSetBuilder::argumentGPRs().contains(importableFunction, IgnoreVectors));
-    ASSERT(!RegisterSetBuilder::argumentGPRs().contains(wasmScratchGPR, IgnoreVectors));
+    ASSERT(!RegisterSet::argumentGPRs().contains(importableFunction, IgnoreVectors));
+    ASSERT(!RegisterSet::argumentGPRs().contains(wasmScratchGPR, IgnoreVectors));
 
     m_jit.loadPtr(CCallHelpers::Address(importableFunction, WasmToWasmImportableFunction::offsetOfBoxedCallee()), wasmScratchGPR);
     m_jit.storeWasmCalleeToCalleeCallFrame(wasmScratchGPR);

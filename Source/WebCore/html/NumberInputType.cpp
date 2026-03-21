@@ -54,6 +54,7 @@
 #include <wtf/ASCIICType.h>
 #include <wtf/MathExtras.h>
 #include <wtf/TZoneMallocInlines.h>
+#include <wtf/unicode/CharacterNames.h>
 
 namespace WebCore {
 
@@ -379,7 +380,7 @@ static bool NODELETE hasTwoSignChars(const String& string)
     return false;
 }
 
-static bool hasDecimalSeparator(const String& string)
+static bool NODELETE hasDecimalSeparator(const String& string)
 {
     return string.find('.') != notFound;
 }
@@ -399,25 +400,56 @@ void NumberInputType::handleBeforeTextInsertedEvent(BeforeTextInsertedEvent& eve
     auto normalizedText = normalizeFullWidthNumberChars(event.text()).get();
     LOG(Editing, "normalizeFullWidthNumberChars() -> [%s]", normalizedText.utf8().data());
 
-    auto localizedText = protect(element())->locale().convertFromLocalizedNumber(normalizedText);
+    ASSERT(element());
+    Ref element = *this->element();
+    CheckedRef locale = element->locale();
+    auto& localizedSeparator = locale->localizedDecimalSeparator();
+
+    String updatedEventText;
+    bool displayedTextUsesNonPeriodDecimalSeparator = false;
+
+    if (localizedSeparator == "."_s) {
+        const auto localizedText = locale->convertFromLocalizedNumber(normalizedText);
+        updatedEventText = stripInvalidNumberCharacters(localizedText).get();
+    } else {
+        // In some locales where the decimal separator is not typically a period,
+        // a period may still be used as the decimal separator in certain contexts.
+        // For this reason, we allow both. If both are present in the inserted text,
+        // use whichever comes last since the first instances may be group separators.
+        const auto lastPeriodPosition = normalizedText.reverseFind('.');
+        const auto lastLocalizedSeparatorPosition = normalizedText.reverseFind(localizedSeparator);
+
+        displayedTextUsesNonPeriodDecimalSeparator = lastLocalizedSeparatorPosition != notFound
+            && (lastPeriodPosition == notFound || lastLocalizedSeparatorPosition > lastPeriodPosition);
+
+        if (displayedTextUsesNonPeriodDecimalSeparator) {
+            const auto withoutPeriods = makeStringByReplacingAll(normalizedText, "."_s, emptyString());
+            updatedEventText = makeStringByReplacingAll(withoutPeriods, localizedSeparator, "."_s);
+        } else
+            updatedEventText = makeStringByReplacingAll(normalizedText, localizedSeparator, emptyString());
+    }
 
     // If the cleaned up text doesn't match input text, don't insert partial input
     // since it could be an incorrect paste.
-    auto updatedEventText = stripInvalidNumberCharacters(localizedText).get();
+    updatedEventText = stripInvalidNumberCharacters(updatedEventText).get();
     LOG(Editing, "stripInvalidNumberCharacters() -> [%s]", updatedEventText.utf8().data());
 
     // Get left and right of cursor
-    ASSERT(element());
-    Ref element = *this->element();
-
     auto originalValue = element->innerTextValue();
     auto selectionStart = element->selectionStart();
     auto selectionEnd = element->selectionEnd();
 
+    // The inner text value may contain either '.' or the localized decimal
+    // separator. Replace the localized separator with '.' so validation
+    // works correctly for all locales.
     auto leftHalf = originalValue.substring(0, selectionStart);
+    auto rightHalf = originalValue.substring(selectionEnd);
+    if (localizedSeparator != "."_s) {
+        leftHalf = makeStringByReplacingAll(leftHalf, localizedSeparator, "."_s);
+        rightHalf = makeStringByReplacingAll(rightHalf, localizedSeparator, "."_s);
+    }
     LOG(Editing, "leftHalf after length=%u", leftHalf.length());
 
-    auto rightHalf = originalValue.substring(selectionEnd);
     LOG(Editing, "rightHalf after length=%u", rightHalf.length());
 
     // Process 1 char at a time
@@ -530,7 +562,8 @@ void NumberInputType::handleBeforeTextInsertedEvent(BeforeTextInsertedEvent& eve
         finalEventText.append(character);
     }
     LOG(Editing, "finalEventText: [%s]", finalEventText.toString().utf8().data());
-    event.setText(finalEventText.toString());
+    const auto displayedText = displayedTextUsesNonPeriodDecimalSeparator ? locale->localizeNumberCharacters(finalEventText.toString()) : finalEventText.toString();
+    event.setText(displayedText);
 }
 
 String NumberInputType::localizeValue(const String& proposedValue) const
@@ -541,7 +574,7 @@ String NumberInputType::localizeValue(const String& proposedValue) const
     if (proposedValue.find(isE) != notFound)
         return proposedValue;
     ASSERT(element());
-    return protect(element())->locale().convertToLocalizedNumber(proposedValue);
+    return protect(protect(element())->locale())->convertToLocalizedNumber(proposedValue);
 }
 
 String NumberInputType::visibleValue() const
@@ -558,7 +591,7 @@ String NumberInputType::convertFromVisibleValue(const String& visibleValue) cons
     if (visibleValue.find(isE) != notFound)
         return visibleValue;
     ASSERT(element());
-    return protect(element())->locale().convertFromLocalizedNumber(visibleValue);
+    return protect(protect(element())->locale())->convertFromLocalizedNumber(visibleValue);
 }
 
 ValueOrReference<String> NumberInputType::sanitizeValue(const String& proposedValue LIFETIME_BOUND) const

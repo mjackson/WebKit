@@ -178,27 +178,7 @@ void enableMiniMode(bool forceMiniMode)
     pas_physical_page_sharing_pool_balancing_enabled = true;
     pas_physical_page_sharing_pool_balancing_enabled_for_utility = true;
 
-    // Switch to bitfit allocation for anything that isn't isoheaped.
-    bmalloc_intrinsic_runtime_config.base.max_segregated_object_size = 0;
-    bmalloc_primitive_runtime_config.base.max_segregated_object_size = 0;
-    bmalloc_intrinsic_runtime_config.base.max_bitfit_object_size = UINT_MAX;
-    bmalloc_primitive_runtime_config.base.max_bitfit_object_size = UINT_MAX;
-
-    // If large-object delegation is enabled, we don't want to override that
-    // just because we've entered mini-mode.
-    // One way we could get around that would be to leave the bitfit object
-    // size limits the way they are. However, in cases where the bitfit
-    // size-limit had previously been constrained for performance, e.g. by
-    // setting them to 0, we do want enableMiniMode to be able to re-expand
-    // them.
-    // So we take the object-delegation path to be a special case and make
-    // sure to re-apply after performing the above expansion.
-    PAS_IGNORE_WARNINGS_BEGIN("unreachable-code");
-#if defined(PAS_MTE_USE_LARGE_OBJECT_DELEGATION)
-    if (PAS_MTE_USE_LARGE_OBJECT_DELEGATION)
-        pas_mte_force_nontaggable_user_allocations_into_large_heap();
-#endif // defined(PAS_MTE_USE_LARGE_OBJECT_DELEGATION)
-    PAS_IGNORE_WARNINGS_END;
+    pas_bmalloc_force_allocations_into_bitfit_heaps_where_available();
 #else
     BUNUSED_PARAM(forceMiniMode);
 #endif // BENABLE(LIBPAS)

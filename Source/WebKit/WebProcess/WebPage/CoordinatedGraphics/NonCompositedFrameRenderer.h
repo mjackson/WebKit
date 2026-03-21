@@ -52,6 +52,7 @@ private:
 #endif
 
     void addDirtyRect(const WebCore::IntRect&);
+    void finishRenderingUpdate();
     void frameComplete();
 
     // FrameRenderer
@@ -80,7 +81,8 @@ private:
     const WeakRef<WebPage> m_webPage;
     Ref<AcceleratedSurface> m_surface;
     std::unique_ptr<WebCore::GLContext> m_context;
-    bool m_canRenderNextFrame { true };
+    bool m_pendingNotifyFrame { false };
+    bool m_isWaitingForFrameComplete { false };
     bool m_shouldRenderFollowupFrame { false };
 #if ENABLE(DAMAGE_TRACKING)
     std::optional<WebCore::Damage> m_frameDamage;

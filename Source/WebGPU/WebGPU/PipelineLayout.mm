@@ -58,7 +58,7 @@ Ref<PipelineLayout> Device::createPipelineLayout(const WGPUPipelineLayoutDescrip
                 return PipelineLayout::createInvalid(*this);
         }
         Vector<Ref<BindGroupLayout>> bindGroupLayouts(descriptorBindGroupLayouts.size(), [&](size_t i) {
-            return Ref<BindGroupLayout> { WebGPU::protectedFromAPI(descriptorBindGroupLayouts[i]) };
+            return Ref<BindGroupLayout> { protect(WebGPU::fromAPI(descriptorBindGroupLayouts[i])) };
         });
         ShaderStage stages[] = { ShaderStage::Vertex, ShaderStage::Fragment, ShaderStage::Compute };
         for (ShaderStage shaderStage : stages) {
@@ -209,11 +209,6 @@ BindGroupLayout* PipelineLayout::optionalBindGroupLayout(size_t i) const
         return (*m_bindGroupLayouts)[i].ptr();
 
     return nullptr;
-}
-
-RefPtr<BindGroupLayout> PipelineLayout::protectedOptionalBindGroupLayout(size_t i) const
-{
-    return optionalBindGroupLayout(i);
 }
 
 void PipelineLayout::makeInvalid()
@@ -372,7 +367,7 @@ NSString* PipelineLayout::errorValidatingBindGroupCompatibility(const PipelineLa
 
 #pragma mark WGPU Stubs
 
-void wgpuPipelineLayoutReference(WGPUPipelineLayout pipelineLayout)
+void NODELETE wgpuPipelineLayoutReference(WGPUPipelineLayout pipelineLayout)
 {
     WebGPU::fromAPI(pipelineLayout).ref();
 }
@@ -384,5 +379,5 @@ void wgpuPipelineLayoutRelease(WGPUPipelineLayout pipelineLayout)
 
 void wgpuPipelineLayoutSetLabel(WGPUPipelineLayout pipelineLayout, const char* label)
 {
-    WebGPU::protectedFromAPI(pipelineLayout)->setLabel(WebGPU::fromAPI(label));
+    protect(WebGPU::fromAPI(pipelineLayout))->setLabel(WebGPU::fromAPI(label));
 }

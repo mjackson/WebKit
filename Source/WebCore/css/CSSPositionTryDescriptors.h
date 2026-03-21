@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include <WebCore/PropertySetCSSDescriptors.h>
+#include "PropertySetCSSDescriptors.h"
 
 namespace WebCore {
 

@@ -365,7 +365,7 @@ enum class CompoundSelectorFlag {
     HasPseudoElementForRightmostCompound = 1 << 0,
 };
 
-static OptionSet<CompoundSelectorFlag> extractCompoundFlags(const MutableCSSSelector& simpleSelector, CSSParserMode parserMode)
+static OptionSet<CompoundSelectorFlag> NODELETE extractCompoundFlags(const MutableCSSSelector& simpleSelector, CSSParserMode parserMode)
 {
     if (simpleSelector.match() != CSSSelector::Match::PseudoElement)
         return { };
@@ -551,15 +551,23 @@ static bool NODELETE isPseudoClassValidAfterPseudoElement(CSSSelector::PseudoCla
     }
 }
 
-static bool NODELETE isTreeAbidingPseudoElement(CSSSelector::PseudoElement pseudoElement)
+static bool isTreeAbidingPseudoElement(const MutableCSSSelector& simpleSelector)
 {
-    switch (pseudoElement) {
-    // FIXME: This list should also include ::placeholder and ::file-selector-button
+    if (simpleSelector.match() != CSSSelector::Match::PseudoElement)
+        return false;
+
+    switch (simpleSelector.pseudoElement()) {
     case CSSSelector::PseudoElement::Before:
     case CSSSelector::PseudoElement::After:
     case CSSSelector::PseudoElement::Marker:
     case CSSSelector::PseudoElement::Backdrop:
+    case CSSSelector::PseudoElement::Picker:
+    case CSSSelector::PseudoElement::PickerIcon:
         return true;
+    case CSSSelector::PseudoElement::UserAgentPart:
+        return simpleSelector.value() == UserAgentParts::detailsContent()
+            || simpleSelector.value() == UserAgentParts::fileSelectorButton()
+            || simpleSelector.value() == UserAgentParts::placeholder();
     default:
         return false;
     }
@@ -567,7 +575,8 @@ static bool NODELETE isTreeAbidingPseudoElement(CSSSelector::PseudoElement pseud
 
 static bool isSimpleSelectorValidAfterPseudoElement(const MutableCSSSelector& simpleSelector, const MutableCSSSelector& compoundPseudoElement)
 {
-    if (compoundPseudoElement.pseudoElement() == CSSSelector::PseudoElement::UserAgentPart && compoundPseudoElement.value() == UserAgentParts::detailsContent()) {
+    if (compoundPseudoElement.pseudoElement() == CSSSelector::PseudoElement::Picker
+        || (compoundPseudoElement.pseudoElement() == CSSSelector::PseudoElement::UserAgentPart && compoundPseudoElement.value() == UserAgentParts::detailsContent())) {
         if (simpleSelector.match() == CSSSelector::Match::PseudoElement)
             return true;
     }
@@ -576,7 +585,7 @@ static bool isSimpleSelectorValidAfterPseudoElement(const MutableCSSSelector& si
             return true;
     }
     if (compoundPseudoElement.pseudoElement() == CSSSelector::PseudoElement::Slotted) {
-        if (simpleSelector.match() == CSSSelector::Match::PseudoElement && isTreeAbidingPseudoElement(simpleSelector.pseudoElement()))
+        if (isTreeAbidingPseudoElement(simpleSelector))
             return true;
     }
     if (simpleSelector.match() != CSSSelector::Match::PseudoClass)
@@ -585,7 +594,7 @@ static bool isSimpleSelectorValidAfterPseudoElement(const MutableCSSSelector& si
     return isPseudoClassValidAfterPseudoElement(simpleSelector.pseudoClass(), compoundPseudoElement.pseudoElement());
 }
 
-static bool atEndIgnoringWhitespace(CSSParserTokenRange range)
+static bool NODELETE atEndIgnoringWhitespace(CSSParserTokenRange range)
 {
     range.consumeWhitespace();
     return range.atEnd();
@@ -799,6 +808,16 @@ std::unique_ptr<MutableCSSSelector> CSSSelectorParser::consumeAttribute(CSSParse
     return selector;
 }
 
+static AtomString consumePickerArgument(CSSParserTokenRange& block)
+{
+    auto& ident = block.consumeIncludingWhitespace();
+    if (ident.type() != IdentToken || !block.atEnd())
+        return nullAtom();
+    if (ident.value() != "select"_s)
+        return nullAtom();
+    return ident.value().toAtomString();
+}
+
 std::unique_ptr<MutableCSSSelector> CSSSelectorParser::consumePseudo(CSSParserTokenRange& range)
 {
     ASSERT(range.peek().type() == ColonToken);
@@ -993,12 +1012,8 @@ std::unique_ptr<MutableCSSSelector> CSSSelectorParser::consumePseudo(CSSParserTo
         }
 
         case CSSSelector::PseudoElement::Picker: {
-            auto& ident = block.consumeIncludingWhitespace();
-            if (ident.type() != IdentToken || !block.atEnd())
-                return nullptr;
-
-            auto argument = ident.value().toAtomString();
-            if (argument != "select"_s)
+            auto argument = consumePickerArgument(block);
+            if (argument.isNull())
                 return nullptr;
 
             selector->setStringList({ { argument } });
@@ -1315,7 +1330,7 @@ std::unique_ptr<MutableCSSSelector> CSSSelectorParser::splitCompoundAtImplicitSh
     bool isSlotted = splitAfter->precedingInComplexSelector()->match() == CSSSelector::Match::PseudoElement && splitAfter->precedingInComplexSelector()->pseudoElement() == CSSSelector::PseudoElement::Slotted;
 
     std::unique_ptr<MutableCSSSelector> secondCompound;
-    if (isUASheetBehavior(context.mode) || isPart) {
+    if (isUASheetBehavior(context.mode) || isPart || isSlotted) {
         // FIXME: https://bugs.webkit.org/show_bug.cgi?id=161747
         // We have to recur, since we have rules in media controls like video::a::b. This should not be allowed, and
         // we should remove this recursion once those rules are gone.
@@ -1443,7 +1458,7 @@ CSSSelectorList CSSSelectorParser::resolveNestingParent(const CSSSelectorList& n
     return CSSSelectorList { WTF::move(result) };
 }
 
-static std::optional<Style::PseudoElementIdentifier> pseudoElementIdentifierFor(CSSSelectorPseudoElement selectorPseudoElement)
+static std::optional<Style::PseudoElementIdentifier> NODELETE pseudoElementIdentifierFor(CSSSelectorPseudoElement selectorPseudoElement)
 {
     auto type = CSSSelector::stylePseudoElementTypeFor(selectorPseudoElement);
     if (!type)
@@ -1453,7 +1468,7 @@ static std::optional<Style::PseudoElementIdentifier> pseudoElementIdentifierFor(
 
 // FIXME: It's probably worth investigating if more logic can be shared with
 // CSSSelectorParser::consumePseudo(), though note that the requirements are subtly different.
-std::pair<bool, std::optional<Style::PseudoElementIdentifier>> CSSSelectorParser::parsePseudoElement(const String& input, const CSSSelectorParserContext& context)
+std::optional<Style::PseudoElementIdentifier> CSSSelectorParser::parsePseudoElement(const String& input, const CSSSelectorParserContext& context)
 {
     auto tokenizer = CSSTokenizer { input };
     auto range = tokenizer.tokenRange();
@@ -1468,7 +1483,7 @@ std::pair<bool, std::optional<Style::PseudoElementIdentifier>> CSSSelectorParser
         if (!pseudoClassOrElement.compatibilityPseudoElement)
             return { };
         ASSERT(CSSSelector::isPseudoElementEnabled(*pseudoClassOrElement.compatibilityPseudoElement, token.value(), context));
-        return { true, pseudoElementIdentifierFor(*pseudoClassOrElement.compatibilityPseudoElement) };
+        return pseudoElementIdentifierFor(*pseudoClassOrElement.compatibilityPseudoElement);
     }
     if (token.type() != ColonToken)
         return { };
@@ -1481,8 +1496,14 @@ std::pair<bool, std::optional<Style::PseudoElementIdentifier>> CSSSelectorParser
     if (token.type() == IdentToken) {
         range.consume();
         if (!range.atEnd() || CSSSelector::pseudoElementRequiresArgument(*pseudoElement))
-            return { };
-        return { true, pseudoElementIdentifierFor(*pseudoElement) };
+            return std::nullopt;
+        if (auto pseudoElementIdentifier = pseudoElementIdentifierFor(*pseudoElement))
+            return pseudoElementIdentifier;
+        // Reject non-standard user agent part pseudo-elements here as we never supported these in
+        // getComputedStyle() and there's no reason to start now.
+        if (*pseudoElement == CSSSelector::PseudoElement::UserAgentPart && !token.value().startsWith('-'))
+            return { Style::PseudoElementIdentifier { PseudoElementType::UserAgentPartFallback, token.value().toAtomString() } };
+        return std::nullopt;
     }
     ASSERT(token.type() == FunctionToken);
     auto block = range.consumeBlock();
@@ -1494,7 +1515,7 @@ std::pair<bool, std::optional<Style::PseudoElementIdentifier>> CSSSelectorParser
         auto& ident = block.consumeIncludingWhitespace();
         if (ident.type() != IdentToken || !block.atEnd())
             return { };
-        return { true, Style::PseudoElementIdentifier { PseudoElementType::Highlight, ident.value().toAtomString() } };
+        return { Style::PseudoElementIdentifier { PseudoElementType::Highlight, ident.value().toAtomString() } };
     }
     case CSSSelector::PseudoElement::ViewTransitionGroup:
     case CSSSelector::PseudoElement::ViewTransitionImagePair:
@@ -1503,7 +1524,13 @@ std::pair<bool, std::optional<Style::PseudoElementIdentifier>> CSSSelectorParser
         auto& ident = block.consumeIncludingWhitespace();
         if (ident.type() != IdentToken || !isValidCustomIdentifier(ident.id()) || !block.atEnd())
             return { };
-        return { true, Style::PseudoElementIdentifier { *CSSSelector::stylePseudoElementTypeFor(*pseudoElement), ident.value().toAtomString() } };
+        return { Style::PseudoElementIdentifier { *CSSSelector::stylePseudoElementTypeFor(*pseudoElement), ident.value().toAtomString() } };
+    }
+    case CSSSelector::PseudoElement::Picker: {
+        auto argument = consumePickerArgument(block);
+        if (argument.isNull())
+            return { };
+        return { Style::PseudoElementIdentifier { PseudoElementType::UserAgentPartFallback, AtomString { makeString("picker("_s, argument, ')') } } };
     }
     default:
         return { };

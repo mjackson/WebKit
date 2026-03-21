@@ -25,13 +25,18 @@
 
 WI.ColorPicker = class ColorPicker extends WI.Object
 {
-    constructor({preventChangingColorFormats, colorVariables} = {})
+    constructor({preventChangingColorFormats, colorVariables, contrastInfo} = {})
     {
         super();
 
         this._preventChangingColorFormats = !!preventChangingColorFormats;
+        this._contrastInfo = contrastInfo || null;
 
         this._colorSquare = new WI.ColorSquare(this, 200);
+        if (this._contrastInfo?.contrastColor) {
+            this._colorSquare.contrastColor = this._contrastInfo.contrastColor;
+            this._colorSquare.isLargeText = !!this._contrastInfo.isLargeText;
+        }
 
         this._hueSlider = new WI.Slider;
         this._hueSlider.delegate = this;
@@ -92,6 +97,10 @@ WI.ColorPicker = class ColorPicker extends WI.Object
             colorInputsWrapperElement.appendChild(pickColorElement);
         }
 
+        this._contrastInfoElement = null;
+        if (this._contrastInfo?.contrastColor)
+            this._createContrastInfoSection();
+
         this._opacity = 0;
         this._opacityPattern = "url(Images/Checkers.svg)";
 
@@ -103,7 +112,7 @@ WI.ColorPicker = class ColorPicker extends WI.Object
 
             let swatchesTitle = variableColorSwatchesContainer.appendChild(document.createElement("h2"));
             swatchesTitle.textContent = WI.UIString("Variables", "Variables @ Color Picker", "Title of swatches section in Color Picker");
-            
+
             let variableColorSwatchesListElement = variableColorSwatchesContainer.appendChild(document.createElement("ul"));
             let sortedColorVariables = WI.ColorPicker.sortColorVariables(colorVariables);
 
@@ -236,6 +245,7 @@ WI.ColorPicker = class ColorPicker extends WI.Object
             return;
 
         this._opacity = opacity;
+        this._colorSquare.opacity = opacity;
         this._updateColor();
     }
 
@@ -253,6 +263,7 @@ WI.ColorPicker = class ColorPicker extends WI.Object
         this._color = color;
 
         this._colorSquare.tintedColor = this._color;
+        this._colorSquare.opacity = this._color.alpha;
 
         this._hueSlider.value = this._color.hsl[0] / 360;
 
@@ -261,6 +272,7 @@ WI.ColorPicker = class ColorPicker extends WI.Object
 
         this._showColorComponentInputs();
         this._updateColorGamut();
+        this._updateContrastInfo();
 
         this._dontUpdateColor = false;
     }
@@ -318,6 +330,7 @@ WI.ColorPicker = class ColorPicker extends WI.Object
         this.dispatchEventToListeners(WI.ColorPicker.Event.ColorChanged, {color: this._color});
 
         this._updateColorGamut();
+        this._updateContrastInfo();
     }
 
     _updateOpacitySlider()
@@ -337,6 +350,18 @@ WI.ColorPicker = class ColorPicker extends WI.Object
         this._element.classList.toggle("gamut-p3", this._color.gamut === WI.Color.Gamut.DisplayP3);
     }
 
+    _needsAlphaColorInput()
+    {
+        switch (this._color.format) {
+        case WI.Color.Format.RGBA:
+        case WI.Color.Format.HSLA:
+        case WI.Color.Format.HEXAlpha:
+        case WI.Color.Format.ShortHEXAlpha:
+            return true;
+        }
+        return false;
+    }
+
     _createColorInputsIfNeeded()
     {
         let hasAlpha = this._color.alpha !== 1;
@@ -349,19 +374,17 @@ WI.ColorPicker = class ColorPicker extends WI.Object
         this._colorInputs = [];
         this._colorInputsContainerElement.removeChildren();
 
-        let createColorInput = (label, {max, step, units} = {}) => {
-            let containerElement = this._colorInputsContainerElement.createChild("div");
-            containerElement.append(label);
+        let createColorInput = (label, title, {max, step} = {}) => {
+            let labelElement = this._colorInputsContainerElement.createChild("label");
+            labelElement.title = title;
+            labelElement.textContent = label;
 
-            let numberInputElement = containerElement.createChild("input");
+            let numberInputElement = labelElement.createChild("input");
             numberInputElement.type = "number";
             numberInputElement.min = 0;
             numberInputElement.max = max;
             numberInputElement.step = step || 1;
             this._colorInputs.push(numberInputElement);
-
-            if (units && units.length)
-                containerElement.append(units);
         };
 
         switch (this._color.format) {
@@ -372,22 +395,22 @@ WI.ColorPicker = class ColorPicker extends WI.Object
         case WI.Color.Format.HEXAlpha:
         case WI.Color.Format.ShortHEXAlpha:
         case WI.Color.Format.Keyword:
-            createColorInput("R", {max: 255});
-            createColorInput("G", {max: 255});
-            createColorInput("B", {max: 255});
+            createColorInput("R", WI.UIString("Red", "Red @ Color Picker", "Label for red color component of CSS color."), {max: 255});
+            createColorInput("G", WI.UIString("Green", "Green @ Color Picker", "Label for green color component of CSS color."), {max: 255});
+            createColorInput("B", WI.UIString("Blue", "Blue @ Color Picker", "Label for blue color component of CSS color."), {max: 255});
             break;
 
         case WI.Color.Format.HSL:
         case WI.Color.Format.HSLA:
-            createColorInput("H", {max: 360});
-            createColorInput("S", {max: 100, units: "%"});
-            createColorInput("L", {max: 100, units: "%"});
+            createColorInput("H", WI.UIString("Hue", "Hue @ Color Picker", "Label for hue color component of CSS color."), {max: 360});
+            createColorInput("S", WI.UIString("Saturation", "Saturation @ Color Picker", "Label for saturation color component of CSS color."), {max: 100});
+            createColorInput("L", WI.UIString("Lightness", "Lightness @ Color Picker", "Label for lightness color component of CSS color."), {max: 100});
             break;
 
         case WI.Color.Format.ColorFunction:
-            createColorInput("R", {max: 1, step: 0.01});
-            createColorInput("G", {max: 1, step: 0.01});
-            createColorInput("B", {max: 1, step: 0.01});
+            createColorInput("R", WI.UIString("Red", "Red @ Color Picker", "Label for red color component of CSS color."), {max: 1, step: 0.01});
+            createColorInput("G", WI.UIString("Green", "Green @ Color Picker", "Label for green color component of CSS color."), {max: 1, step: 0.01});
+            createColorInput("B", WI.UIString("Blue", "Blue @ Color Picker", "Label for blue color component of CSS color."), {max: 1, step: 0.01});
             break;
 
         default:
@@ -395,13 +418,8 @@ WI.ColorPicker = class ColorPicker extends WI.Object
             return;
         }
 
-        if (this._color.alpha !== 1
-            || this._color.format === WI.Color.Format.RGBA
-            || this._color.format === WI.Color.Format.HSLA
-            || this._color.format === WI.Color.Format.HEXAlpha
-            || this._color.format === WI.Color.Format.ShortHEXAlpha) {
-            createColorInput("A", {max: 1, step: 0.01});
-        }
+        if (this._color.alpha !== 1 || this._needsAlphaColorInput())
+            createColorInput("A", WI.UIString("Alpha", "Alpha @ Color Picker", "Label for alpha color component of CSS color."), {max: 1, step: 0.01});
     }
 
     _showColorComponentInputs()
@@ -433,7 +451,7 @@ WI.ColorPicker = class ColorPicker extends WI.Object
             console.error(`Unknown color format: ${this._color.format}`);
         }
 
-        if (this._color.alpha !== 1)
+        if (this._color.alpha !== 1 || this._needsAlphaColorInput())
             components.push(this._color.alpha);
 
         console.assert(this._colorInputs.length === components.length);
@@ -492,6 +510,58 @@ WI.ColorPicker = class ColorPicker extends WI.Object
                 this._updateColorGamut();
                 this.dispatchEventToListeners(WI.ColorPicker.Event.ColorChanged, {color: this._color});
             });
+        }
+    }
+
+    _createContrastInfoSection()
+    {
+        this._contrastInfoElement = this._element.appendChild(document.createElement("div"));
+        this._contrastInfoElement.classList.add("contrast-info");
+
+        let labelElement = this._contrastInfoElement.appendChild(document.createElement("span"));
+        labelElement.classList.add("contrast-label");
+        labelElement.textContent = WI.UIString("Contrast", "Contrast @ Color Picker", "Label for contrast ratio section in Color Picker");
+
+        this._contrastRatioElement = this._contrastInfoElement.appendChild(document.createElement("span"));
+        this._contrastRatioElement.classList.add("contrast-ratio");
+
+        this._complianceBadgeElement = this._contrastInfoElement.appendChild(document.createElement("span"));
+        this._complianceBadgeElement.classList.add("compliance-badge");
+
+        let separatorElement = this._contrastInfoElement.appendChild(document.createElement("span"));
+        separatorElement.classList.add("contrast-separator");
+        separatorElement.textContent = WI.UIString("vs", "vs @ Color Picker Contrast", "Separator between foreground and background colors in contrast info");
+
+        let swatchTooltip = this._contrastInfo.isBackgroundColor ? WI.UIString("Text Color") : WI.UIString("Background Color");
+        let contrastSwatch = new WI.InlineSwatch(WI.InlineSwatch.Type.Color, this._contrastInfo.contrastColor, {readOnly: true, tooltip: swatchTooltip});
+        this._contrastInfoElement.appendChild(contrastSwatch.element);
+    }
+
+    _updateContrastInfo()
+    {
+        if (!this._contrastInfo?.contrastColor || !this._contrastInfoElement)
+            return;
+
+        let effectiveForeground = this._color.blendOverBackground(this._contrastInfo.contrastColor);
+
+        let ratio = effectiveForeground.contrastRatio(this._contrastInfo.contrastColor);
+        let isLargeText = !!this._contrastInfo.isLargeText;
+        let compliance = WI.Color.contrastComplianceForRatio(ratio, {isLargeText});
+
+        this._contrastRatioElement.textContent = ratio.toFixed(2) + ":1";
+
+        this._complianceBadgeElement.textContent = compliance;
+        this._complianceBadgeElement.className = "compliance-badge";
+        switch (compliance) {
+        case WI.Color.ContrastCompliance.AAA:
+            this._complianceBadgeElement.classList.add("contrast-aaa");
+            break;
+        case WI.Color.ContrastCompliance.AA:
+            this._complianceBadgeElement.classList.add("contrast-aa");
+            break;
+        case WI.Color.ContrastCompliance.Fail:
+            this._complianceBadgeElement.classList.add("contrast-fail");
+            break;
         }
     }
 };

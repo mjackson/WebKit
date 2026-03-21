@@ -21,16 +21,16 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-internal import Metal
+import Metal
 import WebKit
 
-#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 9) && (os(macOS) || (os(iOS) && canImport(SwiftUI, _version: "8.0.36"))) && canImport(_USDKit_RealityKit) && !os(visionOS)
-@_weakLinked @_spi(UsdLoaderAPI) internal import _USDKit_RealityKit
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 11) && compiler(>=6.2)
+@_weakLinked @_spi(UsdLoaderAPI) import _USDKit_RealityKit
 @_spi(RealityCoreRendererAPI) import RealityKit
-@_weakLinked internal import USDKit
-@_weakLinked @_spi(SwiftAPI) internal import DirectResource
-@_weakLinked internal import _USDKit_RealityKit
-@_weakLinked internal import ShaderGraph
+@_weakLinked import USDKit
+@_weakLinked @_spi(SwiftAPI) import DirectResource
+@_weakLinked import _USDKit_RealityKit
+@_weakLinked import ShaderGraph
 #endif
 
 @objc
@@ -156,36 +156,36 @@ extension WKBridgeSkinningData {
 @objc
 @implementation
 extension WKBridgeBlendShapeData {
-    let weights: Data
-    let positionOffsets: [Data]
-    let normalOffsets: [Data]
+    let weightsData: Data
+    let positionOffsetsData: [Data]
+    let normalOffsetsData: [Data]
 
     init(
         weights: Data,
         positionOffsets: [Data],
         normalOffsets: [Data]
     ) {
-        self.weights = weights
-        self.positionOffsets = positionOffsets
-        self.normalOffsets = normalOffsets
+        self.weightsData = weights
+        self.positionOffsetsData = positionOffsets
+        self.normalOffsetsData = normalOffsets
     }
 }
 
 @objc
 @implementation
 extension WKBridgeRenormalizationData {
-    let vertexIndicesPerTriangle: Data
-    let vertexAdjacencies: Data
-    let vertexAdjacencyEndIndices: Data
+    let vertexIndicesPerTriangleData: Data
+    let vertexAdjacenciesData: Data
+    let vertexAdjacencyEndIndicesData: Data
 
     init(
         vertexIndicesPerTriangle: Data,
         vertexAdjacencies: Data,
         vertexAdjacencyEndIndices: Data
     ) {
-        self.vertexIndicesPerTriangle = vertexIndicesPerTriangle
-        self.vertexAdjacencies = vertexAdjacencies
-        self.vertexAdjacencyEndIndices = vertexAdjacencyEndIndices
+        self.vertexIndicesPerTriangleData = vertexIndicesPerTriangle
+        self.vertexAdjacenciesData = vertexAdjacencies
+        self.vertexAdjacencyEndIndicesData = vertexAdjacencyEndIndices
     }
 }
 
@@ -246,45 +246,82 @@ extension WKBridgeUpdateMesh {
     }
 }
 
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 11) && compiler(>=6.2)
+func decodeValues<T>(from data: Data) -> [T] {
+    let stride = MemoryLayout<T>.stride
+
+    guard data.count > 0, data.count % stride == 0 else {
+        return []
+    }
+
+    return unsafe data.withUnsafeBytes { rawBufferPointer in
+        guard let baseAddress = rawBufferPointer.baseAddress else {
+            return []
+        }
+
+        let count = rawBufferPointer.count / stride
+        let pointer = unsafe baseAddress.assumingMemoryBound(to: T.self)
+        return (0..<count).map { unsafe pointer[$0] }
+    }
+}
+
+extension WKBridgeBlendShapeData {
+    var weights: [Float] {
+        decodeValues(from: weightsData)
+    }
+
+    var positionOffsets: [[SIMD3<Float>]] {
+        positionOffsetsData.enumerated()
+            .compactMap { index, data in
+                let values: [SIMD3<Float>] = decodeValues(from: data)
+                if values.isEmpty && data.count > 0 {
+                    assertionFailure(
+                        "positionOffsets[\(index)] data size (\(data.count)) is not a multiple of SIMD3<Float> stride (\(MemoryLayout<SIMD3<Float>>.stride))"
+                    )
+                    return nil
+                }
+                return values
+            }
+    }
+
+    var normalOffsets: [[SIMD3<Float>]] {
+        normalOffsetsData.enumerated()
+            .compactMap { index, data in
+                let values: [SIMD3<Float>] = decodeValues(from: data)
+                if values.isEmpty && data.count > 0 {
+                    assertionFailure(
+                        "normalOffsets[\(index)] data size (\(data.count)) is not a multiple of SIMD3<Float> stride (\(MemoryLayout<SIMD3<Float>>.stride))"
+                    )
+                    return nil
+                }
+                return values
+            }
+    }
+}
+
+extension WKBridgeRenormalizationData {
+    var vertexIndicesPerTriangle: [UInt32] { decodeValues(from: vertexIndicesPerTriangleData) }
+    var vertexAdjacencies: [UInt32] { decodeValues(from: vertexAdjacenciesData) }
+    var vertexAdjacencyEndIndices: [UInt32] { decodeValues(from: vertexAdjacencyEndIndicesData) }
+}
+
 extension WKBridgeUpdateMesh {
     var instanceTransforms: [simd_float4x4] {
-        guard let data = instanceTransformsData else {
+        guard let data = instanceTransformsData, instanceTransformsCount > 0 else {
             return []
         }
 
-        guard instanceTransformsCount > 0 else {
-            return []
-        }
-
-        let matrixSize = MemoryLayout<simd_float4x4>.stride
-        let expectedSize = matrixSize * instanceTransformsCount
+        let expectedSize = MemoryLayout<simd_float4x4>.stride * instanceTransformsCount
 
         guard data.count >= expectedSize else {
             assertionFailure("instanceTransforms data size (\(data.count)) is less than expected (\(expectedSize))")
             return []
         }
 
-        #if compiler(>=6.2)
-        return unsafe data.withUnsafeBytes { rawBufferPointer in
-            guard let baseAddress = rawBufferPointer.baseAddress else {
-                return []
-            }
-
-            let matrices = unsafe baseAddress.assumingMemoryBound(to: simd_float4x4.self)
-            return (0..<instanceTransformsCount).map { unsafe matrices[$0] }
-        }
-        #else
-        return data.withUnsafeBytes { rawBufferPointer in
-            guard let baseAddress = rawBufferPointer.baseAddress else {
-                return []
-            }
-
-            let matrices = baseAddress.assumingMemoryBound(to: simd_float4x4.self)
-            return (0..<instanceTransformsCount).map { matrices[$0] }
-        }
-        #endif
+        return decodeValues(from: data.prefix(expectedSize))
     }
 }
+#endif
 
 @objc
 @implementation
@@ -348,343 +385,16 @@ extension WKBridgeUpdateTexture {
 
 @objc
 @implementation
-extension WKBridgeTypeReference {
-    let moduleName: String
-    let name: String
-    let typeDefIndex: Int
-
-    init(module: String, name: String, typeDefIndex: Int) {
-        self.moduleName = module
-        self.name = name
-        self.typeDefIndex = typeDefIndex
-    }
-}
-
-@objc
-@implementation
-extension WKBridgeFunctionReference {
-    let moduleName: String
-    let functionIndex: Int
-
-    init(
-        moduleName: String,
-        functionIndex: Int
-    ) {
-        self.moduleName = moduleName
-        self.functionIndex = functionIndex
-    }
-}
-
-@objc
-@implementation
-extension WKBridgeModule {
-    let name: String
-    let imports: [WKBridgeModuleReference]
-    let typeDefinitions: [WKBridgeTypeDefinition]
-    let functions: [WKBridgeFunction]
-    let graphs: [WKBridgeModuleGraph]
-
-    init(
-        name: String,
-        imports: [WKBridgeModuleReference] = [],
-        typeDefinitions: [WKBridgeTypeDefinition] = [],
-        functions: [WKBridgeFunction] = [],
-        graphs: [WKBridgeModuleGraph] = []
-    ) {
-        self.name = name
-        self.imports = imports
-        self.typeDefinitions = typeDefinitions
-        self.functions = functions
-        self.graphs = graphs
-    }
-}
-
-@objc
-@implementation
-extension WKBridgeModuleReference {
-    let module: WKBridgeModule
-    let name: String
-    let imports: [WKBridgeModuleReference]
-    let typeDefinitions: [WKBridgeTypeDefinition]
-    let functions: [WKBridgeFunction]
-
-    init(module: WKBridgeModule) {
-        self.module = module
-        self.name = module.name
-        self.imports = module.imports
-        self.typeDefinitions = module.typeDefinitions
-        self.functions = module.functions
-    }
-}
-
-@objc
-@implementation
-extension WKBridgeStructMember {
-    let name: String
-    let type: WKBridgeTypeReference
-
-    init(name: String, type: WKBridgeTypeReference) {
-        self.name = name
-        self.type = type
-    }
-}
-
-@objc
-@implementation
-extension WKBridgeEnumCase {
-    let name: String
-    let value: Int
-
-    init(name: String, value: Int) {
-        self.name = name
-        self.value = value
-    }
-}
-
-@objc
-@implementation
-extension WKBridgeTypeDefinition {
-    let name: String
-    let typeReference: WKBridgeTypeReference
-    let structureType: WKBridgeTypeStructure
-    let structMembers: [WKBridgeStructMember]?
-    let enumCases: [WKBridgeEnumCase]?
-
-    init(
-        name: String,
-        typeReference: WKBridgeTypeReference,
-        structureType: WKBridgeTypeStructure,
-        structMembers: [WKBridgeStructMember]?,
-        enumCases: [WKBridgeEnumCase]?
-    ) {
-        self.name = name
-        self.typeReference = typeReference
-        self.structureType = structureType
-        self.structMembers = structMembers
-        self.enumCases = enumCases
-    }
-}
-
-@objc
-@implementation
-extension WKBridgeFunctionArgument {
-    let name: String
-    let type: WKBridgeTypeReference
-
-    init(name: String, type: WKBridgeTypeReference) {
-        self.name = name
-        self.type = type
-    }
-}
-
-@objc
-@implementation
-extension WKBridgeFunction {
-    let name: String
-    let arguments: [WKBridgeFunctionArgument]
-    let returnType: WKBridgeTypeReference
-    let functionReference: WKBridgeFunctionReference
-    let kind: WKBridgeFunctionKind
-    let kindName: String
-
-    init(
-        name: String,
-        arguments: [WKBridgeFunctionArgument],
-        returnType: WKBridgeTypeReference,
-        functionReference: WKBridgeFunctionReference,
-        kind: WKBridgeFunctionKind,
-        kindName: String
-    ) {
-        self.name = name
-        self.arguments = arguments
-        self.returnType = returnType
-        self.functionReference = functionReference
-        self.kind = kind
-        self.kindName = kindName
-    }
-}
-
-@objc
-@implementation
-extension WKBridgeNodeID {
-    let value: Int
-
-    init(value: Int) {
-        self.value = value
-    }
-}
-
-@objc
-@implementation
-extension WKBridgeFunctionCall {
-    let type: WKBridgeFunctionCallType
-    let name: String?
-    let reference: WKBridgeFunctionReference?
-
-    init(name: String) {
-        self.type = .name
-        self.name = name
-        self.reference = nil
-    }
-
-    init(reference: WKBridgeFunctionReference) {
-        self.type = .reference
-        self.name = nil
-        self.reference = reference
-    }
-}
-
-@objc
-@implementation
-extension WKBridgeNodeInstruction {
-    let type: WKBridgeNodeInstructionType
-    let functionCall: WKBridgeFunctionCall?
-    let constantName: String?
-    let literal: WKBridgeLiteral?
-    let argumentName: String?
-    let elementType: WKBridgeTypeReference?
-    let elementName: String?
-
-    init(functionCall: WKBridgeFunctionCall) {
-        self.functionCall = functionCall
-        self.type = .functionCall
-
-        self.constantName = nil
-        self.literal = nil
-        self.argumentName = nil
-        self.elementType = nil
-        self.elementName = nil
-    }
-    init(functionConstant: String, literal: WKBridgeLiteral) {
-        self.constantName = functionConstant
-        self.literal = literal
-        self.type = .functionConstant
-
-        self.functionCall = nil
-        self.argumentName = nil
-        self.elementType = nil
-        self.elementName = nil
-    }
-    init(literal: WKBridgeLiteral) {
-        self.literal = literal
-        self.type = .literal
-
-        self.functionCall = nil
-        self.constantName = nil
-        self.argumentName = nil
-        self.elementType = nil
-        self.elementName = nil
-    }
-    init(argument: String) {
-        self.argumentName = argument
-        self.type = .argument
-
-        self.functionCall = nil
-        self.constantName = nil
-        self.literal = nil
-        self.elementType = nil
-        self.elementName = nil
-    }
-    init(elementType: WKBridgeTypeReference, elementName: String) {
-        self.elementType = elementType
-        self.elementName = elementName
-        self.type = .element
-
-        self.functionCall = nil
-        self.constantName = nil
-        self.literal = nil
-        self.argumentName = nil
-    }
-}
-
-@objc
-@implementation
-extension WKBridgeArgumentError {
-    let message: String
-    let argument: WKBridgeFunctionArgument
-
-    init(message: String, argument: WKBridgeFunctionArgument) {
-        self.message = message
-        self.argument = argument
-    }
-}
-
-@objc
-@implementation
-extension WKBridgeNode {
-    let nodeID: WKBridgeNodeID
-    let instruction: WKBridgeNodeInstruction
-
-    init(
-        identifier: WKBridgeNodeID,
-        instruction: WKBridgeNodeInstruction
-    ) {
-        self.nodeID = identifier
-        self.instruction = instruction
-    }
-}
-
-@objc
-@implementation
-extension WKBridgeGraphEdge {
-    let source: WKBridgeNodeID
-    let destination: WKBridgeNodeID
-    let argument: String
-
-    init(
-        source: WKBridgeNodeID,
-        destination: WKBridgeNodeID,
-        argument: String
-    ) {
-        self.source = source
-        self.destination = destination
-        self.argument = argument
-    }
-}
-
-@objc
-@implementation
-extension WKBridgeModuleGraph {
-    let functionReference: WKBridgeFunctionReference
-    let name: String
-    let arguments: [WKBridgeFunctionArgument]
-    let returnType: WKBridgeTypeReference
-    let nodes: [WKBridgeNode]
-    let edges: [WKBridgeGraphEdge]
-    let index: Int
-
-    init(index: Int, function: WKBridgeFunction) {
-        self.index = index
-        self.functionReference = function.functionReference
-        self.name = function.name
-        self.arguments = function.arguments
-        self.returnType = function.returnType
-        self.nodes = []
-        self.edges = []
-    }
-}
-
-@objc
-@implementation
 extension WKBridgeUpdateMaterial {
-    let materialGraph: Data?
+    let materialGraph: WKBridgeMaterialGraph?
     let identifier: String
-    let geometryModifierFunctionReference: WKBridgeFunctionReference?
-    let surfaceShaderFunctionReference: WKBridgeFunctionReference?
-    let shaderGraphModule: WKBridgeModule?
 
     init(
-        materialGraph: Data?,
+        materialGraph: WKBridgeMaterialGraph?,
         identifier: String,
-        geometryModifierFunctionReference: WKBridgeFunctionReference?,
-        surfaceShaderFunctionReference: WKBridgeFunctionReference?,
-        shaderGraphModule: WKBridgeModule?
     ) {
         self.materialGraph = materialGraph
         self.identifier = identifier
-        self.geometryModifierFunctionReference = geometryModifierFunctionReference
-        self.surfaceShaderFunctionReference = surfaceShaderFunctionReference
-        self.shaderGraphModule = shaderGraphModule
     }
 }
 
@@ -693,13 +403,22 @@ extension WKBridgeUpdateMaterial {
 extension WKBridgeInputOutput {
     let type: WKBridgeDataType
     let name: String
+    let semanticType: WKBridgeDataType
+    let hasSemanticType: Bool
+    let defaultValue: WKBridgeConstantContainer?
 
     init(
         type: WKBridgeDataType,
-        name: String
+        name: String,
+        semanticType: WKBridgeDataType,
+        hasSemanticType: Bool,
+        defaultValue: WKBridgeConstantContainer?
     ) {
         self.type = type
         self.name = name
+        self.semanticType = semanticType
+        self.hasSemanticType = hasSemanticType
+        self.defaultValue = defaultValue
     }
 }
 
@@ -739,21 +458,21 @@ extension WKBridgeBuiltin {
 @objc
 @implementation
 extension WKBridgeEdge {
-    let upstreamNodeIndex: Int
-    let downstreamNodeIndex: Int
-    let upstreamOutputName: String
-    let downstreamInputName: String
+    let outputNode: String
+    let outputPort: String
+    let inputNode: String
+    let inputPort: String
 
     init(
-        upstreamNodeIndex: Int,
-        downstreamNodeIndex: Int,
-        upstreamOutputName: String,
-        downstreamInputName: String
+        outputNode: String,
+        outputPort: String,
+        inputNode: String,
+        inputPort: String
     ) {
-        self.upstreamNodeIndex = upstreamNodeIndex
-        self.downstreamNodeIndex = downstreamNodeIndex
-        self.upstreamOutputName = upstreamOutputName
-        self.downstreamInputName = downstreamInputName
+        self.outputNode = outputNode
+        self.outputPort = outputPort
+        self.inputNode = inputNode
+        self.inputPort = inputPort
     }
 }
 
@@ -762,12 +481,14 @@ extension WKBridgeEdge {
 extension WKBridgeValueString {
     let number: NSNumber
     let string: String
+    let isString: Bool
 
     init(
         string: String
     ) {
         self.number = NSNumber(value: 0)
         self.string = string
+        self.isString = true
     }
 
     init(
@@ -775,48 +496,62 @@ extension WKBridgeValueString {
     ) {
         self.number = number
         self.string = ""
+        self.isString = false
     }
 }
 
 @objc
 @implementation
-extension WKBridgeLiteralArchive {
-    let type: WKBridgeLiteralType
-    let data: [NSNumber]
+extension WKBridgeNode {
+    let bridgeNodeType: WKBridgeNodeType
+    let builtin: WKBridgeBuiltin?
+    let constant: WKBridgeConstantContainer?
 
     init(
-        type: WKBridgeLiteralType,
-        data: [NSNumber]
+        bridgeNodeType: WKBridgeNodeType,
+        builtin: WKBridgeBuiltin,
+        constant: WKBridgeConstantContainer
     ) {
-        self.type = type
-        self.data = data
+        self.bridgeNodeType = bridgeNodeType
+        self.builtin = builtin
+        self.constant = constant
     }
 }
 
 @objc
 @implementation
-extension WKBridgeLiteral {
-    let type: WKBridgeLiteralType
-    let archive: WKBridgeLiteralArchive
+extension WKBridgeMaterialGraph {
+    let nodes: [WKBridgeNode]
+    let edges: [WKBridgeEdge]
+    let arguments: WKBridgeNode
+    let results: WKBridgeNode
+    let inputs: [WKBridgeInputOutput]
+    let outputs: [WKBridgeInputOutput]
 
-    init(type: WKBridgeLiteralType, data: [NSNumber]) {
-        self.type = type
-        self.archive = .init(type: type, data: data)
+    init(
+        nodes: [WKBridgeNode],
+        edges: [WKBridgeEdge],
+        arguments: WKBridgeNode,
+        results: WKBridgeNode,
+        inputs: [WKBridgeInputOutput],
+        outputs: [WKBridgeInputOutput]
+    ) {
+        self.nodes = nodes
+        self.edges = edges
+        self.arguments = arguments
+        self.results = results
+        self.inputs = inputs
+        self.outputs = outputs
     }
 }
 
-#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 9) && (os(macOS) || (os(iOS) && canImport(SwiftUI, _version: "8.0.36"))) && canImport(_USDKit_RealityKit) && !os(visionOS)
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 11) && compiler(>=6.2)
 
 internal func toData<T>(_ input: [T]) -> Data {
-    #if compiler(>=6.2)
+    // FIXME: (rdar://164559261) understand/document/remove unsafety
     unsafe input.withUnsafeBytes { bufferPointer in
-        Data(bufferPointer)
+        unsafe Data(bufferPointer)
     }
-    #else
-    input.withUnsafeBytes { bufferPointer in
-        Data(bufferPointer)
-    }
-    #endif
 }
 
 private func toDataArray<T>(_ input: [[T]]) -> [Data] {
@@ -891,7 +626,6 @@ extension WKBridgeSkinningData {
             return []
         }
 
-        #if compiler(>=6.2)
         return unsafe data.withUnsafeBytes { rawBufferPointer in
             guard let baseAddress = rawBufferPointer.baseAddress else {
                 return []
@@ -900,16 +634,6 @@ extension WKBridgeSkinningData {
             let matrices = unsafe baseAddress.assumingMemoryBound(to: simd_float4x4.self)
             return (0..<jointTransformsCount).map { unsafe matrices[$0] }
         }
-        #else
-        return data.withUnsafeBytes { rawBufferPointer in
-            guard let baseAddress = rawBufferPointer.baseAddress else {
-                return []
-            }
-
-            let matrices = baseAddress.assumingMemoryBound(to: simd_float4x4.self)
-            return (0..<jointTransformsCount).map { matrices[$0] }
-        }
-        #endif
     }
 
     var inverseBindPoses: [simd_float4x4] {
@@ -930,7 +654,6 @@ extension WKBridgeSkinningData {
             return []
         }
 
-        #if compiler(>=6.2)
         return unsafe data.withUnsafeBytes { rawBufferPointer in
             guard let baseAddress = rawBufferPointer.baseAddress else {
                 return []
@@ -939,16 +662,6 @@ extension WKBridgeSkinningData {
             let matrices = unsafe baseAddress.assumingMemoryBound(to: simd_float4x4.self)
             return (0..<inverseBindPosesCount).map { unsafe matrices[$0] }
         }
-        #else
-        return data.withUnsafeBytes { rawBufferPointer in
-            guard let baseAddress = rawBufferPointer.baseAddress else {
-                return []
-            }
-
-            let matrices = baseAddress.assumingMemoryBound(to: simd_float4x4.self)
-            return (0..<inverseBindPosesCount).map { matrices[$0] }
-        }
-        #endif
     }
 
     var influenceJointIndices: [UInt32] {
@@ -969,7 +682,6 @@ extension WKBridgeSkinningData {
             return []
         }
 
-        #if compiler(>=6.2)
         return unsafe data.withUnsafeBytes { rawBufferPointer in
             guard let baseAddress = rawBufferPointer.baseAddress else {
                 return []
@@ -978,16 +690,6 @@ extension WKBridgeSkinningData {
             let matrices = unsafe baseAddress.assumingMemoryBound(to: UInt32.self)
             return (0..<influenceJointIndicesCount).map { unsafe matrices[$0] }
         }
-        #else
-        return data.withUnsafeBytes { rawBufferPointer in
-            guard let baseAddress = rawBufferPointer.baseAddress else {
-                return []
-            }
-
-            let matrices = baseAddress.assumingMemoryBound(to: UInt32.self)
-            return (0..<influenceJointIndicesCount).map { matrices[$0] }
-        }
-        #endif
     }
 
     var influenceWeights: [Float] {

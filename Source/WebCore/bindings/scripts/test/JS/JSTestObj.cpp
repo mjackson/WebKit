@@ -6469,7 +6469,7 @@ JSC_DEFINE_CUSTOM_SETTER(setJSTestObj_customAttr, (JSGlobalObject* lexicalGlobal
 static inline JSValue jsTestObj_onfooGetter(JSGlobalObject& lexicalGlobalObject, JSTestObj& thisObject)
 {
     UNUSED_PARAM(lexicalGlobalObject);
-    return eventHandlerAttribute(protect(thisObject.wrapped()), eventNames().fooEvent, protectedWorldForDOMObject(thisObject));
+    return eventHandlerAttribute(protect(thisObject.wrapped()), eventNames().fooEvent, protect(worldForDOMObject(thisObject)));
 }
 
 JSC_DEFINE_CUSTOM_GETTER(jsTestObj_onfoo, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName attributeName))
@@ -6496,7 +6496,7 @@ JSC_DEFINE_CUSTOM_SETTER(setJSTestObj_onfoo, (JSGlobalObject* lexicalGlobalObjec
 static inline JSValue jsTestObj_onwebkitfooGetter(JSGlobalObject& lexicalGlobalObject, JSTestObj& thisObject)
 {
     UNUSED_PARAM(lexicalGlobalObject);
-    return eventHandlerAttribute(protect(thisObject.wrapped()), eventNames().fooEvent, protectedWorldForDOMObject(thisObject));
+    return eventHandlerAttribute(protect(thisObject.wrapped()), eventNames().fooEvent, protect(worldForDOMObject(thisObject)));
 }
 
 JSC_DEFINE_CUSTOM_GETTER(jsTestObj_onwebkitfoo, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName attributeName))

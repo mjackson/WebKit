@@ -54,7 +54,7 @@ private:
 class SVGTests {
     WTF_MAKE_NONCOPYABLE(SVGTests);
 public:
-    static bool hasExtension(const String&);
+    static bool NODELETE hasExtension(const String&);
     using PropertyRegistry = SVGPropertyOwnerRegistry<SVGTests>;
 
     static void addSupportedAttributes(MemoryCompactLookupOnlyRobinHoodHashSet<QualifiedName>&);
@@ -75,8 +75,6 @@ protected:
     SVGTests(SVGElement* contextElement);
 
 private:
-    Ref<SVGElement> protectedContextElement() const;
-
     WeakRef<SVGElement, WeakPtrImplWithEventTargetData> m_contextElement;
 };
 

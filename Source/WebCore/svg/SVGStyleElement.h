@@ -43,8 +43,8 @@ private:
     SVGStyleElement(const QualifiedName&, Document&, bool createdByParser);
 
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) final;
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) final;
-    void removedFromAncestor(RemovalType, ContainerNode&) final;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) final;
+    void removingSteps(RemovalType, ContainerNode&) final;
     void childrenChanged(const ChildChange&) final;
 
     bool rendererIsNeeded(const RenderStyle&) final { return false; }
@@ -55,12 +55,10 @@ private:
     bool isLoading() const { return m_styleSheetOwner.isLoading(); }
     bool sheetLoaded() final { return m_styleSheetOwner.sheetLoaded(*this); }
     void startLoadingDynamicSheet() final { m_styleSheetOwner.startLoadingDynamicSheet(*this); }
-    Timer* loadEventTimer() final { return &m_loadEventTimer; }
 
     String title() const final;
 
     InlineStyleSheetOwner m_styleSheetOwner;
-    Timer m_loadEventTimer;
 };
 
 } // namespace WebCore

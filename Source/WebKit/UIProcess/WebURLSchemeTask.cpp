@@ -244,7 +244,7 @@ void WebURLSchemeTask::stop()
 NSURLRequest *WebURLSchemeTask::nsRequest() const
 {
     Locker locker { m_requestLock };
-    return m_request.protectedNSURLRequest(WebCore::HTTPBodyUpdatePolicy::UpdateHTTPBody).autorelease();
+    return RetainPtr { m_request.nsURLRequest(WebCore::HTTPBodyUpdatePolicy::UpdateHTTPBody) }.autorelease();
 }
 #endif
 

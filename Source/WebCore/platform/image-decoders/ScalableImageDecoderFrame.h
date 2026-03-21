@@ -50,14 +50,14 @@ public:
     bool initialize(const ImageBackingStore&);
     bool initialize(const IntSize&, bool premultiplyAlpha);
 
-    void setDecodingStatus(DecodingStatus);
-    DecodingStatus decodingStatus() const;
+    void NODELETE setDecodingStatus(DecodingStatus);
+    DecodingStatus NODELETE decodingStatus() const;
 
     bool isInvalid() const { return m_decodingStatus == DecodingStatus::Invalid; }
     bool isPartial() const { return m_decodingStatus == DecodingStatus::Partial; }
     bool isComplete() const { return m_decodingStatus == DecodingStatus::Complete; }
 
-    IntSize size() const;
+    IntSize NODELETE size() const;
 
     enum class DisposalMethod { Unspecified, DoNotDispose, RestoreToBackground, RestoreToPrevious };
     void setDisposalMethod(DisposalMethod method) { m_disposalMethod = method; }
@@ -73,7 +73,7 @@ public:
     bool hasAlpha() const { return !hasMetadata() || m_hasAlpha; }
     bool hasMetadata() const { return !size().isEmpty(); }
 
-    ImageBackingStore* backingStore() const { return m_backingStore ? m_backingStore.get() : nullptr; }
+    ImageBackingStore* backingStore() const LIFETIME_BOUND { return m_backingStore ? m_backingStore.get() : nullptr; }
     bool hasBackingStore() const { return backingStore(); }
 
 private:

@@ -46,7 +46,7 @@ public:
     String referrerPolicyForBindings() const;
     ReferrerPolicy referrerPolicy() const final;
 
-    String srcdoc() const;
+    String NODELETE srcdoc() const;
     ExceptionOr<void> setSrcdoc(Variant<Ref<TrustedHTML>, String>&&, SubstituteData::SessionHistoryVisibility = SubstituteData::SessionHistoryVisibility::Visible);
     SubstituteData::SessionHistoryVisibility srcdocSessionHistoryVisibility() const { return m_srcdocSessionHistoryVisibility; };
 
@@ -62,7 +62,7 @@ public:
 #endif
 
 #if ENABLE(CONTENT_EXTENSIONS)
-    const URL& initiatorSourceURL() const { return m_initiatorSourceURL; }
+    const URL& initiatorSourceURL() const LIFETIME_BOUND { return m_initiatorSourceURL; }
     void setInitiatorSourceURL(URL&& url) { m_initiatorSourceURL = WTF::move(url); }
 #endif
 

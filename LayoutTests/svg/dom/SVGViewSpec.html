@@ -75,8 +75,8 @@ function continueTesting() {
 
     debug("");
     debug("Check viewTarget value");
-    shouldBeEqualToString("currentView.viewTargetString", "blub");
-    shouldBeNull("currentView.viewTarget"); // There's no element named 'blub' in the tree.
+    shouldBeUndefined("currentView.viewTargetString");
+    shouldBeUndefined("currentView.viewTarget");
 
     debug("");
     debug("Check zoomAndPan value");

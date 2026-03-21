@@ -212,12 +212,12 @@ public:
     void copyTexImage2D(GCGLenum target, GCGLint level, GCGLenum internalformat, GCGLint x, GCGLint y, GCGLsizei width, GCGLsizei height, GCGLint border);
     void copyTexSubImage2D(GCGLenum target, GCGLint level, GCGLint xoffset, GCGLint yoffset, GCGLint x, GCGLint y, GCGLsizei width, GCGLsizei height);
 
-    RefPtr<WebGLBuffer> createBuffer();
-    RefPtr<WebGLFramebuffer> createFramebuffer();
-    RefPtr<WebGLProgram> createProgram();
-    RefPtr<WebGLRenderbuffer> createRenderbuffer();
+    Ref<WebGLBuffer> createBuffer();
+    Ref<WebGLFramebuffer> createFramebuffer();
+    Ref<WebGLProgram> createProgram();
+    Ref<WebGLRenderbuffer> createRenderbuffer();
     RefPtr<WebGLShader> createShader(GCGLenum type);
-    RefPtr<WebGLTexture> createTexture();
+    Ref<WebGLTexture> createTexture();
 
     void cullFace(GCGLenum mode);
 
@@ -433,7 +433,7 @@ public:
     using SimulatedEventForTesting = GraphicsContextGL::SimulatedEventForTesting;
     WEBCORE_EXPORT void simulateEventForTesting(SimulatedEventForTesting);
 
-    RefPtr<GraphicsContextGL> graphicsContextGL() const { return m_context; }
+    GraphicsContextGL* graphicsContextGL() const { return m_context; }
 
     RefPtr<GraphicsLayerContentsDisplayDelegate> layerContentsDisplayDelegate() override;
 
@@ -479,18 +479,18 @@ public:
     // currently latched into the context - without traversing all of
     // the latched objects to find the current one, which would be
     // prohibitively expensive.
-    Lock& NODELETE objectGraphLock() WTF_RETURNS_LOCK(m_objectGraphLock);
+    Lock& NODELETE objectGraphLock() LIFETIME_BOUND WTF_RETURNS_LOCK(m_objectGraphLock);
 
     // Returns the ordinal number of when the context was last active (drew, read pixels).
     uint64_t activeOrdinal() const { return m_activeOrdinal; }
 
     using PixelStoreParameters = GraphicsContextGL::PixelStoreParameters;
-    const PixelStoreParameters& pixelStorePackParameters() const { return m_packParameters; }
-    const PixelStoreParameters& unpackPixelStoreParameters() const { return m_unpackParameters; };
+    const PixelStoreParameters& pixelStorePackParameters() const LIFETIME_BOUND { return m_packParameters; }
+    const PixelStoreParameters& unpackPixelStoreParameters() const LIFETIME_BOUND { return m_unpackParameters; };
 
     bool isOpaque() const final;
 
-    WeakPtr<WebGLRenderingContextBase> createRefForContextObject();
+    WeakPtr<WebGLRenderingContextBase> NODELETE createRefForContextObject();
 
     bool compositingResultsNeedUpdating() const final { return m_compositingResultsNeedUpdating; }
     void prepareForDisplay() final;
@@ -1097,7 +1097,7 @@ GCGLboolean WebGLRenderingContextBase::validateIsWebGLObject(const T* object) co
 
 WebCoreOpaqueRoot NODELETE root(WebGLRenderingContextBase*);
 
-WebCoreOpaqueRoot root(const WebGLExtension<WebGLRenderingContextBase>*);
+WebCoreOpaqueRoot NODELETE root(const WebGLExtension<WebGLRenderingContextBase>*);
 
 } // namespace WebCore
 

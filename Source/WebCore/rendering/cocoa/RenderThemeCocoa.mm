@@ -329,7 +329,7 @@ void RenderThemeCocoa::adjustApplePayButtonStyle(RenderStyle& style, const Eleme
     style.setMinHeight(Style::MinimumSize::Fixed { applePayButtonMinimumHeight });
 
     if (!style.hasExplicitlySetBorderRadius()) {
-        auto radius = Style::LengthPercentage<CSS::Nonnegative>::Dimension { static_cast<float>(PKApplePayButtonDefaultCornerRadius) };
+        auto radius = Style::LengthPercentage<CSS::NonnegativeUnzoomed>::Dimension { static_cast<float>(PKApplePayButtonDefaultCornerRadius) };
         style.setBorderRadius({ radius, radius });
     }
 }
@@ -399,6 +399,12 @@ static const String& macOSInlineMediaControlsStyleSheet()
         "    border-radius: var(--inline-controls-border-radius);"
         "    transform: translateY(calc(var(--inline-controls-inside-margin) + 2));"
         "}"
+        ".media-controls.mac.inline:not(.audio)"
+        ":not(.uses-ltr-user-interface-layout-direction) .volume-slider-container {"
+        "    left: calc(var(--inline-controls-inside-margin) * 1);"
+        "    right: auto;"
+        "    flex-direction: row-reverse;"
+        "}"
         ".media-controls.mac.inline:not(.audio) .volume-slider-container > .background-tint {"
         "    top: 0;"
         "    left: var(--inline-controls-inside-margin);"
@@ -419,11 +425,21 @@ static const String& macOSInlineMediaControlsStyleSheet()
         ".media-controls.mac.inline:not(.audio) .volume-slider-container > .slider {"
         "    width: 135px;"
         "}"
+        ".media-controls.mac.inline:not(.audio)"
+        ":not(.uses-ltr-user-interface-layout-direction) .volume-slider-container > .slider {"
+        "    transform: scaleX(-1);"
+        "}"
         ".media-controls.mac.inline:not(.audio) .volume-slider-container button[class*=\"mute\"],"
         ".media-controls.mac.inline:not(.audio) .volume-slider-container .button.mute {"
         "    position: relative !important;"
         "    transform: scale(0.8);"
         "    margin-left: 2px"
+        "}"
+        ".media-controls.mac.inline:not(.audio)"
+        ":not(.uses-ltr-user-interface-layout-direction) .volume-slider-container button[class*=\"mute\"],"
+        ".media-controls.mac.inline:not(.audio)"
+        ":not(.uses-ltr-user-interface-layout-direction) .volume-slider-container .button.mute {"
+        "    margin-left: 0;"
         "}"
         ":host(video.media-document.audio) .media-controls.mac.inline,"
         ".media-controls.mac.inline:not(.audio) * {"
@@ -565,6 +581,10 @@ static const String& macOSFullscreenMediaControlsStyleSheet()
         "    position: relative !important;"
         "    left: auto !important;"
         "}"
+        ".media-controls.mac.fullscreen:not(.uses-ltr-user-interface-layout-direction) .buttons-container.left .mute.bar{"
+        "    position: relative !important;"
+        "    left: auto !important;"
+        "}"
         ".media-controls.mac.fullscreen .buttons-container.left {"
         "    top: 22.4px;"
         "    height: 16px;"
@@ -572,6 +592,9 @@ static const String& macOSFullscreenMediaControlsStyleSheet()
         "    display: flex;"
         "    gap: 0.5em;"
         "    left: 15.5px"
+        "}"
+        ".media-controls.mac.fullscreen:not(.uses-ltr-user-interface-layout-direction) .buttons-container.left {"
+        "    left: 15.5px !important;"
         "}"
         ".media-controls.mac.fullscreen .buttons-container.center {"
         "    left: 50%;"
@@ -3494,7 +3517,7 @@ bool RenderThemeCocoa::adjustSliderThumbSizeForVectorBasedControls(RenderStyle& 
     const auto usedZoom = usedZoomForComputedStyle(style);
 
     // Enforce a 24x16 size (16x24 in vertical mode) if no size is provided.
-    if (style.width().isIntrinsicOrLegacyIntrinsicOrAuto() || style.height().isAuto()) {
+    if (style.width().isSizingKeywordOrAuto() || style.height().isAuto()) {
         style.setWidth(Style::PreferredSize::Fixed { sliderThumbWidthForLayout * usedZoom });
         style.setHeight(Style::PreferredSize::Fixed { sliderThumbHeightForLayout * usedZoom });
     }
@@ -3871,19 +3894,26 @@ bool RenderThemeCocoa::paintSearchFieldResultsButtonForVectorBasedControls(const
     return paintSearchFieldDecorationPartForVectorBasedControls(box, paintInfo, rect);
 }
 
+static void setLogicalWidthForSwitch(RenderStyle& style, float usedZoom)
+{
+#if ENABLE(AX_ZOOM_ADJUSTMENTS)
+    setLogicalWidthForSwitchWithZoomAdjustments(style, logicalRefreshedSwitchWidth, usedZoom);
+#elif PLATFORM(VISION)
+    style.setLogicalWidth(Style::PreferredSize::Fixed { logicalSwitchWidth * usedZoom });
+#else
+    style.setLogicalWidth(Style::PreferredSize::Fixed { logicalRefreshedSwitchWidth * usedZoom });
+#endif
+}
+
 bool RenderThemeCocoa::adjustSwitchStyleForVectorBasedControls(RenderStyle& style, const Element* element) const
 {
     if (!formControlRefreshEnabled(element))
         return false;
 
     // FIXME: Deduplicate sizing with the generic code somehow.
-    if (style.width().isIntrinsicOrLegacyIntrinsicOrAuto() || style.height().isIntrinsicOrLegacyIntrinsicOrAuto()) {
+    if (style.width().isSizingKeywordOrAuto() || style.height().isSizingKeywordOrAuto()) {
         auto usedZoom = usedZoomForComputedStyle(style);
-#if PLATFORM(VISION)
-        style.setLogicalWidth(Style::PreferredSize::Fixed { logicalSwitchWidth * usedZoom });
-#else
-        style.setLogicalWidth(Style::PreferredSize::Fixed { logicalRefreshedSwitchWidth * usedZoom });
-#endif
+        setLogicalWidthForSwitch(style, usedZoom);
         style.setLogicalHeight(Style::PreferredSize::Fixed { logicalSwitchHeight * usedZoom });
     }
 

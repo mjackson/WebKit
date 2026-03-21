@@ -28,6 +28,7 @@
 #include "Identifier.h"
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
+#include <wtf/InlineMap.h>
 #include <wtf/IteratorRange.h>
 #include <wtf/PackedRefPtr.h>
 #include <wtf/TZoneMalloc.h>
@@ -51,6 +52,7 @@ public:
     ALWAYS_INLINE bool isPrivateMethod() const { return m_bits & IsPrivateMethod; }
     ALWAYS_INLINE bool isPrivateSetter() const { return m_bits & IsPrivateSetter; }
     ALWAYS_INLINE bool isPrivateGetter() const { return m_bits & IsPrivateGetter; }
+    ALWAYS_INLINE bool isUsing() const { return m_bits & IsUsing; }
 
     ALWAYS_INLINE void setIsCaptured() { m_bits |= IsCaptured; }
     ALWAYS_INLINE void setIsConst() { m_bits |= IsConst; }
@@ -67,6 +69,7 @@ public:
     ALWAYS_INLINE void setIsPrivateMethod() { m_bits |= IsPrivateMethod; }
     ALWAYS_INLINE void setIsPrivateSetter() { m_bits |= IsPrivateSetter; }
     ALWAYS_INLINE void setIsPrivateGetter() { m_bits |= IsPrivateGetter; }
+    ALWAYS_INLINE void setIsUsing() { m_bits |= IsUsing; }
 
     ALWAYS_INLINE void clearIsVar() { m_bits &= ~IsVar; }
 
@@ -93,6 +96,7 @@ private:
         IsPrivateGetter = 1 << 12,
         IsPrivateSetter = 1 << 13,
         IsFunctionDeclaration = 1 << 14,
+        IsUsing = 1 << 15,
     };
     uint16_t m_bits { 0 };
 };
@@ -142,8 +146,12 @@ typedef UncheckedKeyHashMap<PackedRefPtr<UniquedStringImpl>, PrivateNameEntry, I
 
 class VariableEnvironment {
     WTF_MAKE_TZONE_ALLOCATED(VariableEnvironment);
+
+public:
+    static constexpr unsigned inlineMapCapacity = 9;
+
 private:
-    typedef UncheckedKeyHashMap<PackedRefPtr<UniquedStringImpl>, VariableEnvironmentEntry, IdentifierRepHash, HashTraits<RefPtr<UniquedStringImpl>>, VariableEnvironmentEntryHashTraits> Map;
+    typedef InlineMap<PackedRefPtr<UniquedStringImpl>, VariableEnvironmentEntry, inlineMapCapacity, IdentifierRepHash, HashTraits<RefPtr<UniquedStringImpl>>, VariableEnvironmentEntryHashTraits> Map;
 
 public:
 
@@ -151,12 +159,14 @@ public:
     VariableEnvironment(VariableEnvironment&& other)
         : m_map(WTF::move(other.m_map))
         , m_isEverythingCaptured(other.m_isEverythingCaptured)
+        , m_hasAwaitUsingDeclaration(other.m_hasAwaitUsingDeclaration)
         , m_rareData(WTF::move(other.m_rareData))
     {
     }
     VariableEnvironment(const VariableEnvironment& other)
         : m_map(other.m_map)
         , m_isEverythingCaptured(other.m_isEverythingCaptured)
+        , m_hasAwaitUsingDeclaration(other.m_hasAwaitUsingDeclaration)
         , m_rareData(other.m_rareData ? WTF::makeUnique<VariableEnvironment::RareData>(*other.m_rareData) : nullptr)
     {
     }
@@ -194,6 +204,25 @@ public:
     void markVariableAsExported(const UniquedStringImpl* identifier);
 
     bool isEverythingCaptured() const { return m_isEverythingCaptured; }
+    bool hasUsingDeclaration() const
+    {
+        for (auto& pair : m_map) {
+            if (pair.value.isUsing())
+                return true;
+        }
+        return false;
+    }
+    unsigned usingDeclarationCount() const
+    {
+        unsigned count = 0;
+        for (auto& pair : m_map) {
+            if (pair.value.isUsing())
+                count++;
+        }
+        return count;
+    }
+    bool hasAwaitUsingDeclaration() const { return m_hasAwaitUsingDeclaration; }
+    void setHasAwaitUsingDeclaration() { m_hasAwaitUsingDeclaration = true; }
     bool isEmpty() const { return !m_map.size() && !privateNamesSize(); }
 
     using PrivateNamesRange = WTF::IteratorRange<PrivateNameEnvironment::iterator>;
@@ -319,6 +348,7 @@ private:
 
     Map m_map;
     bool m_isEverythingCaptured { false };
+    bool m_hasAwaitUsingDeclaration { false };
 
     PrivateNameEntry& getOrAddPrivateName(UniquedStringImpl* impl)
     {

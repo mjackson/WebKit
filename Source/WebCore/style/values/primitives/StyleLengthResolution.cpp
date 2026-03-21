@@ -32,7 +32,7 @@
 #include "ContainerQueryEvaluator.h"
 #include "Document.h"
 #include "Element.h"
-#include "FontCascade.h"
+#include "FontCascadeInlines.h"
 #include "FontCascadeDescription.h"
 #include "FontMetrics.h"
 #include "NodeRenderStyle.h"
@@ -41,6 +41,7 @@
 #include "RenderStyle.h"
 #include "RenderStyle+GettersInlines.h"
 #include "RenderView.h"
+#include "StyleLineHeight.h"
 #include "StylePrimitiveNumericTypes+Conversions.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 
@@ -57,10 +58,10 @@ static double adjustValueForPageZoom(double dimension, const CSSToLengthConversi
     if (!renderView || !style || !evaluationTimeZoomEnabled(*style))
         return dimension;
 
-    return dimension / renderView->zoomFactor();
+    return dimension / renderView->pageZoomFactor();
 }
 
-static double lengthOfViewportPhysicalAxisForLogicalAxis(LogicalBoxAxis logicalAxis, const FloatSize& size, const RenderStyle* style)
+static double NODELETE lengthOfViewportPhysicalAxisForLogicalAxis(LogicalBoxAxis logicalAxis, const FloatSize& size, const RenderStyle* style)
 {
     if (!style)
         return 0;
@@ -77,7 +78,7 @@ static double lengthOfViewportPhysicalAxisForLogicalAxis(LogicalBoxAxis logicalA
 
 static double lengthOfViewportPhysicalAxisForLogicalAxis(LogicalBoxAxis logicalAxis, const FloatSize& size, const RenderView& renderView)
 {
-    RefPtr rootElement = renderView.document().documentElement();
+    auto* rootElement = renderView.document().documentElement();
     if (!rootElement)
         return 0;
 
@@ -309,13 +310,11 @@ double computeNonCalcLengthDouble(double value, CSS::LengthUnit lengthUnit, cons
         if (conversionData.computingLineHeight() || conversionData.computingFontSize()) {
             // Try to get the parent's computed line-height, or fall back to the initial line-height of this element's font spacing.
             value *= conversionData.parentStyle() ? conversionData.parentStyle()->computedLineHeight() : conversionData.fontCascadeForFontUnits().metricsOfPrimaryFont().intLineSpacing();
-        } else if (auto fixedLineHeight = conversionData.style()->lineHeight().tryFixed()) {
-            // We can't use computedLineHeightForFontUnits if the line height is fixed since
-            // that will apply the usedZoomFactor. We probably should refactor it so that
-            // does not happen and we don't have to special case this scenario.
-            value *= Style::evaluate<LayoutUnit>(*fixedLineHeight, Style::ZoomFactor { conversionData.zoom() }).toFloat();
-        } else
-            value *= conversionData.computedLineHeightForFontUnits();
+        } else {
+            auto* style = conversionData.style();
+            Style::LineHeightEvaluationContext context { style->computedFontSize(), style->metricsOfPrimaryFont().lineSpacing() };
+            value *= Style::evaluate<float>(style->lineHeight(), context, Style::ZoomFactor { conversionData.zoom() });
+        }
         break;
 
     // MARK: "root font dependent" resolution
@@ -330,11 +329,13 @@ double computeNonCalcLengthDouble(double value, CSS::LengthUnit lengthUnit, cons
         break;
 
     case Rlh:
-        if (conversionData.rootStyle()) {
+        if (auto* rootStyle = conversionData.rootStyle()) {
             if (conversionData.computingLineHeight() || conversionData.computingFontSize())
-                value *= conversionData.rootStyle()->computeLineHeight(conversionData.rootStyle()->specifiedLineHeight());
-            else
-                value *= conversionData.rootStyle()->computedLineHeight();
+                value *= Style::evaluate<float>(rootStyle->specifiedLineHeight(), Style::LineHeightEvaluationContext { rootStyle->computedFontSize(), rootStyle->metricsOfPrimaryFont().lineSpacing() }, rootStyle->usedZoomForLength());
+            else {
+                Style::LineHeightEvaluationContext context { rootStyle->computedFontSize(), rootStyle->metricsOfPrimaryFont().lineSpacing() };
+                value *= Style::evaluate<float>(rootStyle->lineHeight(), context, Style::ZoomFactor { conversionData.zoom() });
+            }
         }
         break;
 

@@ -63,7 +63,7 @@ public:
     ~MemoryObjectStore();
 
     void transactionFinished(MemoryBackingStoreTransaction&);
-    void writeTransactionStarted(MemoryBackingStoreTransaction&);
+    void NODELETE writeTransactionStarted(MemoryBackingStoreTransaction&);
     void writeTransactionFinished(MemoryBackingStoreTransaction&);
     void transactionAborted(MemoryBackingStoreTransaction&);
     MemoryBackingStoreTransaction* NODELETE writeTransaction();
@@ -94,12 +94,12 @@ public:
 
     void getAllRecords(const IDBKeyRangeData&, std::optional<uint32_t> count, IndexedDB::GetAllType, IDBGetAllResult&) const;
 
-    const IDBObjectStoreInfo& info() const { return m_info; }
-    IDBObjectStoreInfo& info() { return m_info; }
+    const IDBObjectStoreInfo& info() const LIFETIME_BOUND { return m_info; }
+    IDBObjectStoreInfo& info() LIFETIME_BOUND { return m_info; }
 
     MemoryObjectStoreCursor* maybeOpenCursor(const IDBCursorInfo&, MemoryBackingStoreTransaction&);
 
-    IDBKeyDataSet* orderedKeys() { return m_orderedKeys.get(); }
+    IDBKeyDataSet* orderedKeys() LIFETIME_BOUND { return m_orderedKeys.get(); }
 
     MemoryIndex* indexForIdentifier(IDBIndexIdentifier);
 

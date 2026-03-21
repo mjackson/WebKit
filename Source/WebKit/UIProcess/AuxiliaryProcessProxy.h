@@ -37,8 +37,8 @@
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
 #include <wtf/ProcessID.h>
-#include <wtf/RetainReleaseSwift.h>
 #include <wtf/Seconds.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/SystemTracing.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/ThreadSafeRefCounted.h>
@@ -225,7 +225,7 @@ public:
 #endif
 
 #if ENABLE(EXTENSION_CAPABILITIES)
-    ExtensionCapabilityGrantMap& extensionCapabilityGrants() { return m_extensionCapabilityGrants; }
+    ExtensionCapabilityGrantMap& extensionCapabilityGrants() LIFETIME_BOUND { return m_extensionCapabilityGrants; }
 #endif
 
 #if PLATFORM(COCOA)
@@ -404,10 +404,10 @@ inline AuxiliaryProcessProxy::State AuxiliaryProcessProxy::state() const
 
 inline void refAuxiliaryProcessProxy(WebKit::AuxiliaryProcessProxy* WTF_NONNULL obj)
 {
-    WTF::ref(obj);
+    obj->ref();
 }
 
 inline void derefAuxiliaryProcessProxy(WebKit::AuxiliaryProcessProxy* WTF_NONNULL obj)
 {
-    WTF::deref(obj);
+    obj->deref();
 }

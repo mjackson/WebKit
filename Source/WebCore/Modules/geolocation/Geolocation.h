@@ -72,7 +72,7 @@ public:
     void clearWatch(int watchID);
 
     WEBCORE_EXPORT void setIsAllowed(bool, const String& authorizationToken);
-    const String& authorizationToken() const { return m_authorizationToken; }
+    const String& authorizationToken() const LIFETIME_BOUND { return m_authorizationToken; }
     WEBCORE_EXPORT void resetIsAllowed();
     bool isAllowed() const { return m_allowGeolocation == AllowGeolocation::Yes; }
 
@@ -83,7 +83,7 @@ public:
     bool shouldBlockGeolocationRequests();
 
     Navigator* NODELETE navigator();
-    WEBCORE_EXPORT LocalFrame* frame() const;
+    WEBCORE_EXPORT LocalFrame* NODELETE frame() const;
 
 private:
     explicit Geolocation(Navigator&);

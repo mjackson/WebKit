@@ -56,11 +56,6 @@
 
 @implementation WKRemoteWebInspectorUIProxyObjCAdapter
 
-- (RefPtr<WebKit::RemoteWebInspectorUIProxy>)protectedInspectorProxy
-{
-    return _inspectorProxy.get();
-}
-
 - (NSRect)window:(NSWindow *)window willPositionSheet:(NSWindow *)sheet usingRect:(NSRect)rect
 {
     if (_inspectorProxy)
@@ -80,17 +75,17 @@
 
 - (void)inspectorWKWebViewDidBecomeActive:(WKInspectorViewController *)inspectorViewController
 {
-    self.protectedInspectorProxy->didBecomeActive();
+    protect(_inspectorProxy)->didBecomeActive();
 }
 
 - (void)inspectorViewControllerInspectorDidCrash:(WKInspectorViewController *)inspectorViewController
 {
-    self.protectedInspectorProxy->closeFromCrash();
+    protect(_inspectorProxy)->closeFromCrash();
 }
 
 - (BOOL)inspectorViewControllerInspectorIsUnderTest:(WKInspectorViewController *)inspectorViewController
 {
-    return self.protectedInspectorProxy->isUnderTest();
+    return _inspectorProxy->isUnderTest();
 }
 
 - (BOOL)inspectorViewControllerInspectorIsHorizontallyAttached:(WKInspectorViewController *)inspectorViewController
@@ -237,7 +232,7 @@ void RemoteWebInspectorUIProxy::platformSetForcedAppearance(InspectorFrontendCli
 
 void RemoteWebInspectorUIProxy::platformStartWindowDrag()
 {
-    protect(webView()).get()._protectedPage->startWindowDrag();
+    protect(*protect(webView()).get()._page)->startWindowDrag();
 }
 
 void RemoteWebInspectorUIProxy::platformOpenURLExternally(const String& url)

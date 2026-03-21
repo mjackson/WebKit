@@ -34,6 +34,7 @@
 #include "HTMLOListElement.h"
 #include "HTMLUListElement.h"
 #include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "RenderObject.h"
 
 namespace WebCore {

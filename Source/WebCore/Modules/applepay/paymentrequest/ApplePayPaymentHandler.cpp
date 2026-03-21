@@ -54,7 +54,8 @@
 #include "JSApplePayPayment.h"
 #include "JSApplePayPaymentMethod.h"
 #include "JSApplePayRequest.h"
-#include "JSDOMConvert.h"
+#include "JSDOMConvertInterface.h"
+#include "JSDOMConvertSequences.h"
 #include "LinkIconCollector.h"
 #include "LocalFrame.h"
 #include "MerchantValidationEvent.h"
@@ -78,7 +79,7 @@
 
 namespace WebCore {
 
-static inline PaymentCoordinator& paymentCoordinator(Document& document)
+static inline PaymentCoordinator& NODELETE paymentCoordinator(Document& document)
 {
     ASSERT(document.page());
     return document.page()->paymentCoordinator();
@@ -148,17 +149,7 @@ Document& ApplePayPaymentHandler::document() const
     return downcast<Document>(*scriptExecutionContext());
 }
 
-Ref<Document> ApplePayPaymentHandler::protectedDocument() const
-{
-    return document();
-}
-
 PaymentCoordinator& ApplePayPaymentHandler::paymentCoordinator() const
-{
-    return WebCore::paymentCoordinator(document());
-}
-
-Ref<PaymentCoordinator> ApplePayPaymentHandler::protectedPaymentCoordinator() const
 {
     return WebCore::paymentCoordinator(document());
 }
@@ -340,12 +331,12 @@ ExceptionOr<void> ApplePayPaymentHandler::show(Document& document)
 
 void ApplePayPaymentHandler::hide()
 {
-    protectedPaymentCoordinator()->abortPaymentSession();
+    protect(paymentCoordinator())->abortPaymentSession();
 }
 
 void ApplePayPaymentHandler::canMakePayment(Document&, Function<void(bool)>&& completionHandler)
 {
-    completionHandler(protectedPaymentCoordinator()->canMakePayments());
+    completionHandler(protect(paymentCoordinator())->canMakePayments());
 }
 
 ExceptionOr<Vector<ApplePayShippingMethod>> ApplePayPaymentHandler::computeShippingMethods() const
@@ -591,7 +582,7 @@ ExceptionOr<std::optional<std::tuple<PaymentDetailsModifier, ApplePayModifier>>>
     if (!details.modifiers)
         return { std::nullopt };
 
-    auto& lexicalGlobalObject = *protectedDocument()->globalObject();
+    auto& lexicalGlobalObject = *protect(document())->globalObject();
 
     auto& serializedModifierData = m_paymentRequest->serializedModifierData();
     ASSERT(details.modifiers->size() == serializedModifierData.size());
@@ -605,14 +596,11 @@ ExceptionOr<std::optional<std::tuple<PaymentDetailsModifier, ApplePayModifier>>>
         if (serializedModifierData[i].isEmpty())
             continue;
 
+        JSC::JSLockHolder lock(&lexicalGlobalObject);
         auto scope = DECLARE_THROW_SCOPE(lexicalGlobalObject.vm());
-        JSC::JSValue data;
-        {
-            JSC::JSLockHolder lock(&lexicalGlobalObject);
-            data = JSONParse(&lexicalGlobalObject, serializedModifierData[i]);
-            if (scope.exception())
-                return Exception(ExceptionCode::ExistingExceptionError);
-        }
+        auto data = JSONParse(&lexicalGlobalObject, serializedModifierData[i]);
+        if (scope.exception())
+            return Exception(ExceptionCode::ExistingExceptionError);
 
         auto applePayModifierConversionResult = convertDictionary<ApplePayModifier>(lexicalGlobalObject, WTF::move(data));
         if (applePayModifierConversionResult.hasException(scope))
@@ -672,7 +660,7 @@ ExceptionOr<void> ApplePayPaymentHandler::merchantValidationCompleted(JSC::JSVal
         return Exception { ExceptionCode::TypeError };
 
     String errorMessage;
-    auto merchantSession = PaymentMerchantSession::fromJS(*protectedDocument()->globalObject(), asObject(merchantSessionValue), errorMessage);
+    auto merchantSession = PaymentMerchantSession::fromJS(*protect(document())->globalObject(), asObject(merchantSessionValue), errorMessage);
     if (!merchantSession)
         return Exception { ExceptionCode::TypeError, WTF::move(errorMessage) };
 
@@ -730,7 +718,7 @@ ExceptionOr<void> ApplePayPaymentHandler::shippingAddressUpdated(Vector<Ref<Appl
 #endif
     }
 
-    protectedPaymentCoordinator()->completeShippingContactSelection(WTF::move(update));
+    protect(paymentCoordinator())->completeShippingContactSelection(WTF::move(update));
     return { };
 }
 
@@ -780,7 +768,7 @@ ExceptionOr<void> ApplePayPaymentHandler::shippingOptionUpdated()
 #endif
     }
 
-    protectedPaymentCoordinator()->completeShippingMethodSelection(WTF::move(update));
+    protect(paymentCoordinator())->completeShippingMethodSelection(WTF::move(update));
     return { };
 }
 
@@ -830,7 +818,7 @@ ExceptionOr<void> ApplePayPaymentHandler::paymentMethodUpdated(Vector<Ref<AppleP
 #endif
         }
 
-        protectedPaymentCoordinator()->completeCouponCodeChange(WTF::move(update));
+        protect(paymentCoordinator())->completeCouponCodeChange(WTF::move(update));
         return { };
     }
 #endif // ENABLE(APPLE_PAY_COUPON_CODE)
@@ -883,7 +871,7 @@ ExceptionOr<void> ApplePayPaymentHandler::paymentMethodUpdated(Vector<Ref<AppleP
 #endif
     }
 
-    protectedPaymentCoordinator()->completePaymentMethodSelection(WTF::move(update));
+    protect(paymentCoordinator())->completePaymentMethodSelection(WTF::move(update));
     return { };
 }
 
@@ -929,6 +917,7 @@ ExceptionOr<void> ApplePayPaymentHandler::complete(Document& document, std::opti
     }
 
     if (!serializedData.isEmpty()) {
+        JSC::JSLockHolder lock(document.globalObject());
         auto throwScope = DECLARE_THROW_SCOPE(document.vm());
 
         auto parsedData = JSONParse(document.globalObject(), WTF::move(serializedData));
@@ -952,7 +941,7 @@ ExceptionOr<void> ApplePayPaymentHandler::complete(Document& document, std::opti
     }
 
     ASSERT(authorizationResult.isFinalState());
-    protectedPaymentCoordinator()->completePaymentSession(WTF::move(authorizationResult));
+    protect(paymentCoordinator())->completePaymentSession(WTF::move(authorizationResult));
     return { };
 }
 

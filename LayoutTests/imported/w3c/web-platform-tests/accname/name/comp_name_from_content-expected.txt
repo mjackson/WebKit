@@ -24,6 +24,20 @@ label
 
 label
 
+alt counter with ::before
+
+label
+label
+
+label
+
+multiple alt counters with varying increments
+
+alpha beta gamma
+alpha beta gamma
+
+alpha beta gamma
+
 simple with ::before
 
 label
@@ -202,6 +216,12 @@ PASS aria link name from content, block
 PASS button name from content
 PASS heading name from content
 PASS link name from content
+FAIL button with alt counter on ::before assert_equals: <button data-expectedlabel="5051 label" data-testname="button with alt counter on ::before" class="ex alt-counter">label</button> expected "5051 label" but got "label"
+FAIL heading with alt counter on ::before assert_equals: <h3 data-expectedlabel="5051 label" data-testname="heading with alt counter on ::before" class="ex alt-counter">label</h3> expected "5051 label" but got "label"
+FAIL link with alt counter on ::before assert_equals: <a href="#" data-expectedlabel="5051 label" data-testname="link with alt counter on ::before" class="ex alt-counter">label</a> expected "5051 label" but got "label"
+FAIL button with multiple alt counters and counter increments assert_equals: <button data-expectedlabel="11 alpha 13 beta 14 gamma" data-testname="button with multiple alt counters and counter increments" class="ex multi-alt-counter"><span>alpha</span> <span>beta</span> <span>gamma</span></button> expected "11 alpha 13 beta 14 gamma" but got "alpha beta gamma"
+FAIL heading with multiple alt counters and counter increments assert_equals: <h3 data-expectedlabel="11 alpha 13 beta 14 gamma" data-testname="heading with multiple alt counters and counter increments" class="ex multi-alt-counter"><span>alpha</span> <span>beta</span> <span>gamma</span></h3> expected "11 alpha 13 beta 14 gamma" but got "alpha beta gamma"
+FAIL link with multiple alt counters and counter increments assert_equals: <a href="#" data-expectedlabel="11 alpha 13 beta 14 gamma" data-testname="link with multiple alt counters and counter increments" class="ex multi-alt-counter"><span>alpha</span> <span>beta</span> <span>gamma</span></a> expected "11 alpha 13 beta 14 gamma" but got "alpha beta gamma"
 PASS button name from content with ::before
 PASS heading name from content with ::before
 PASS link name from content with ::before

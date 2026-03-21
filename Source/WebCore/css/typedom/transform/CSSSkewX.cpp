@@ -70,7 +70,7 @@ ExceptionOr<Ref<CSSSkewX>> CSSSkewX::create(Ref<const CSSFunctionValue> cssFunct
     return CSSSkewX::create(numericValue.releaseNonNull());
 }
 
-CSSSkewX::CSSSkewX(Ref<CSSNumericValue> ax)
+CSSSkewX::CSSSkewX(Ref<CSSNumericValue>&& ax)
     : CSSTransformComponent(Is2D::Yes)
     , m_ax(WTF::move(ax))
 {

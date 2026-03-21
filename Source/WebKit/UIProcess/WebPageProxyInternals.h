@@ -33,6 +33,7 @@
 #include "LayerTreeContext.h"
 #include "PDFDisplayMode.h"
 #include "PageLoadState.h"
+#include "ProcessActivityGroup.h"
 #include "ProcessThrottler.h"
 #include "ScrollingAccelerationCurve.h"
 #include "TextManipulationParameters.h"
@@ -137,7 +138,7 @@ public:
             didVisitDomain(WebCore::RegistrableDomain(url));
     }
 
-    const ListHashSet<WebCore::RegistrableDomain>& visitedDomains() const
+    const ListHashSet<WebCore::RegistrableDomain>& visitedDomains() const LIFETIME_BOUND
     {
         return m_visitedDomains;
     }
@@ -229,6 +230,7 @@ struct WebPageProxy::Internals final : WebPopupMenuProxy::Client
 #if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
     , WebCore::WebMediaSessionManagerClient
 #endif
+    , ProcessActivityGroupContext
 {
     WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(WebPageProxy);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(Internals);
@@ -247,6 +249,7 @@ public:
         WebPaymentCoordinatorProxy::Client::setDidBeginCheckedPtrDeletion();
 #endif
         WebColorPickerClient::setDidBeginCheckedPtrDeletion();
+        ProcessActivityGroupContext::setDidBeginCheckedPtrDeletion();
     }
 
 #if PLATFORM(MACCATALYST)
@@ -265,6 +268,7 @@ public:
     WebCore::LayoutSize baseLayoutViewportSize;
     std::optional<WebCore::FontAttributes> cachedFontAttributesAtSelectionStart;
     Vector<Function<void()>> callbackHandlersAfterProcessingPendingMouseEvents;
+    Vector<Function<void()>> callbackHandlersAfterProcessingPendingKeyEvents;
     WebCore::FloatSize defaultUnobscuredSize;
     EditorState editorState;
     WebCore::IntSize fixedLayoutSize;
@@ -302,6 +306,9 @@ public:
     WebCore::IntSize sizeToContentAutoSizeMaximumSize;
     WebCore::Color themeColor;
     WebCore::FloatBoxExtent obscuredContentInsets;
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+    bool hasBannerViewOverlay { false };
+#endif
 #if PLATFORM(MAC)
     std::optional<WebCore::FloatBoxExtent> pendingObscuredContentInsets;
 #endif
@@ -458,7 +465,7 @@ public:
     explicit Internals(WebPageProxy&, std::optional<WebCore::SecurityOriginData>);
 
 #if ENABLE(SPEECH_SYNTHESIS)
-    SpeechSynthesisData& speechSynthesisData();
+    SpeechSynthesisData& speechSynthesisData() LIFETIME_BOUND;
 #endif
 
     // WebPopupMenuProxy::Client
@@ -528,6 +535,8 @@ public:
     bool alwaysOnLoggingAllowed() const final { return protect(page)->isAlwaysOnLoggingAllowed(); }
     RetainPtr<CocoaView> platformView() const final;
 #endif
+
+    Vector<Ref<WebProcessProxy>> activityTargets() final;
 
     std::optional<WebCore::SecurityOriginData> openerOrigin;
 };

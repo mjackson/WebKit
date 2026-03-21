@@ -33,7 +33,7 @@
 #include <wtf/Noncopyable.h>
 #include <wtf/RefCounted.h>
 #include <wtf/RefPtr.h>
-#include <wtf/RetainReleaseSwift.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/ThreadSafeRefCounted.h>
 
 #if PLATFORM(COCOA)
@@ -329,20 +329,12 @@ using RefPtrAPIObject = RefPtr<Object>;
 
 inline void refObject(API::Object* WTF_NONNULL obj)
 {
-#if DELEGATE_REF_COUNTING_TO_COCOA
     obj->ref();
-#else
-    WTF::ref(obj);
-#endif
 }
 
 inline void derefObject(API::Object* WTF_NONNULL obj)
 {
-#if DELEGATE_REF_COUNTING_TO_COCOA
     obj->deref();
-#else
-    WTF::deref(obj);
-#endif
 }
 
 #undef DELEGATE_REF_COUNTING_TO_COCOA

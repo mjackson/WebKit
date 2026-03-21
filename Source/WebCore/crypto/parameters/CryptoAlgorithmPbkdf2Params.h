@@ -25,11 +25,11 @@
 
 #pragma once
 
+#include "BufferSource.h"
+#include "CryptoAlgorithmParameters.h"
+#include "CryptoAlgorithmPbkdf2ParamsInit.h"
 #include <JavaScriptCore/JSObject.h>
 #include <JavaScriptCore/Strong.h>
-#include <WebCore/BufferSource.h>
-#include <WebCore/CryptoAlgorithmParameters.h>
-#include <WebCore/CryptoAlgorithmPbkdf2ParamsInit.h>
 #include <wtf/Vector.h>
 
 namespace WebCore {
@@ -57,7 +57,7 @@ public:
     {
     }
 
-    const Vector<uint8_t>& saltVector() const
+    const Vector<uint8_t>& saltVector() const LIFETIME_BOUND
     {
         if (!m_saltVector.isEmpty() || !salt || !salt->byteLength())
             return m_saltVector;

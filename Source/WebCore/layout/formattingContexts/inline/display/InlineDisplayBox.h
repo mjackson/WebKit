@@ -103,6 +103,7 @@ struct Box {
     bool isInlineBox() const { return isNonRootInlineBox() || isRootInlineBox(); }
     bool isNonRootInlineBox() const { return m_type == Type::NonRootInlineBox; }
     bool isRootInlineBox() const { return m_type == Type::RootInlineBox; }
+    bool isRubyBase() const { return isNonRootInlineBox() && layoutBox().isRubyBase(); }
     bool isGenericInlineLevelBox() const { return m_type == Type::GenericInlineLevelBox; }
     bool isInlineLevelBox() const { return isAtomicInlineBox() || isLineBreakBox() || isInlineBox() || isGenericInlineLevelBox(); }
     bool isBlockLevelBox() const { return m_type == Type::BlockLevelBox; }
@@ -115,12 +116,12 @@ struct Box {
     bool hasContent() const { return m_hasContent; }
     inline bool isVisible() const;
     // Inline boxes around blocks are visible to hit testing but don't paint.
-    bool isVisibleIgnoringUsedVisibility() const { return !isFullyTruncated() && style().visibility() == Visibility::Visible; }
+    inline bool isVisibleIgnoringUsedVisibility() const; // Defined in InlineDisplayBoxInlines.h
     bool isFullyTruncated() const { return m_isFullyTruncated; } 
 
-    const FloatRect& visualRectIgnoringBlockDirection() const { return m_unflippedVisualRect; }
+    const FloatRect& visualRectIgnoringBlockDirection() const LIFETIME_BOUND { return m_unflippedVisualRect; }
     static FloatRect visibleRectIgnoringBlockDirection(const Box&, const FloatRect& visibleLineRect);
-    const FloatRect& inkOverflow() const { return m_inkOverflow; }
+    const FloatRect& inkOverflow() const LIFETIME_BOUND { return m_inkOverflow; }
 
     float top() const { return visualRectIgnoringBlockDirection().y(); }
     float bottom() const { return visualRectIgnoringBlockDirection().maxY(); }
@@ -144,8 +145,8 @@ struct Box {
     void setHasContent() { m_hasContent = true; }
     void setIsFullyTruncated() { m_isFullyTruncated = true; }
 
-    Text& text() { ASSERT(isTextOrSoftLineBreak()); return m_text; }
-    const Text& text() const { ASSERT(isTextOrSoftLineBreak()); return m_text; }
+    Text& text() LIFETIME_BOUND { ASSERT(isTextOrSoftLineBreak()); return m_text; }
+    const Text& text() const LIFETIME_BOUND { ASSERT(isTextOrSoftLineBreak()); return m_text; }
 
     struct Expansion {
         ExpansionBehavior behavior { ExpansionBehavior::defaultBehavior() };
@@ -155,7 +156,7 @@ struct Box {
     Expansion expansion() const { return { m_expansionBehavior, m_horizontalExpansion }; }
 
     const Layout::Box& layoutBox() const { return m_layoutBox; }
-    const RenderStyle& style() const { return isFirstFormattedLine() ? layoutBox().firstLineStyle() : layoutBox().style(); }
+    const RenderStyle& style() const LIFETIME_BOUND { return isFirstFormattedLine() ? layoutBox().firstLineStyle() : layoutBox().style(); }
     WritingMode writingMode() const { return style().writingMode(); }
 
     void moveToLine(unsigned lineIndex) { m_lineIndex = lineIndex; }

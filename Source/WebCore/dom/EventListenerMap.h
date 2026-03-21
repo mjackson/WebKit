@@ -35,6 +35,7 @@
 #include <WebCore/PlatformExportMacros.h>
 #include <WebCore/RegisteredEventListener.h>
 #include <atomic>
+#include <limits>
 #include <memory>
 #include <wtf/Assertions.h>
 #include <wtf/CheckedArithmetic.h>
@@ -83,8 +84,17 @@ public:
     template<typename CallbackType>
     void enumerateEventListenerTypes(NOESCAPE const CallbackType& callback) const
     {
-        for (auto& entry : m_entries)
-            callback(entry.first, entry.second.size());
+        for (auto& entry : m_entries) {
+            uint32_t capturingCount = 0;
+            uint32_t bubblingCount = 0;
+            for (auto& listener : entry.second) {
+                if (listener->useCapture())
+                    ++capturingCount;
+                else
+                    ++bubblingCount;
+            }
+            callback(entry.first, std::min<uint32_t>(capturingCount, std::numeric_limits<uint16_t>::max()), std::min<uint32_t>(bubblingCount, std::numeric_limits<uint16_t>::max()));
+        }
     }
 
     template<typename CallbackType>
@@ -100,8 +110,8 @@ public:
     void removeFirstEventListenerCreatedFromMarkup(const AtomString& eventType);
     void copyEventListenersNotCreatedFromMarkupToTarget(EventTarget*);
     
-    template<typename Visitor> void visitJSEventListeners(Visitor&);
-    Lock& lock() { return m_lock; }
+    template<typename Visitor> void visitJSEventListenersInGCThread(Visitor&);
+    Lock& lock() LIFETIME_BOUND { return m_lock; }
 
 private:
     void releaseAssertOrSetThreadUID()
@@ -126,12 +136,12 @@ private:
 };
 
 template<typename Visitor>
-void EventListenerMap::visitJSEventListeners(Visitor& visitor)
+void EventListenerMap::visitJSEventListenersInGCThread(Visitor& visitor)
 {
     Locker locker { m_lock };
     for (auto& entry : m_entries) {
         for (auto& eventListener : entry.second)
-            eventListener->callback().visitJSFunction(visitor);
+            eventListener->callback().visitJSFunctionInGCThread(visitor);
     }
 }
 

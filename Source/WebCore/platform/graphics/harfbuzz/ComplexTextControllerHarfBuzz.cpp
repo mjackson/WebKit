@@ -27,7 +27,7 @@
 #include "ComplexTextController.h"
 
 #include "CairoUtilities.h"
-#include "FontCascade.h"
+#include "FontCascadeInlines.h"
 #include "FontFeatureValues.h"
 #include "FontTaggedSettings.h"
 #include "HbUniquePtr.h"

@@ -126,6 +126,10 @@ public:
         ASSERT(get());
     }
 
+    template<typename X, typename Y, typename Z> CheckedPtr(const WeakPtr<X, Y, Z>& o) requires std::is_convertible_v<X*, T*>
+        : CheckedPtr(o.get())
+    { }
+
     CheckedPtr(HashTableDeletedValueType)
         : m_ptr(PtrTraits::hashTableDeletedValue())
     { }
@@ -215,6 +219,9 @@ private:
     typename PtrTraits::StorageType m_ptr;
 };
 
+template<typename X, typename Y, typename Z> CheckedPtr(WeakPtr<X, Y, Z>&) -> CheckedPtr<X>;
+template<typename X, typename Y, typename Z> CheckedPtr(const WeakPtr<X, Y, Z>&) -> CheckedPtr<X>;
+
 template <typename T, typename PtrTraits>
 struct GetPtrHelper<CheckedPtr<T, PtrTraits>> {
     using PtrType = T*;
@@ -241,6 +248,12 @@ ALWAYS_INLINE CLANG_POINTER_CONVERSION CheckedPtr<T, PtrTraits> protect(const Ch
     return ptr;
 }
 
+template<typename T, typename PtrTraits>
+CheckedPtr<T, PtrTraits> protect(CheckedPtr<T, PtrTraits>&&)
+{
+    static_assert(WTF::unreachableForType<T>, "Calling protect() on an rvalue is unnecessary; the caller already owns the value.");
+}
+
 template<typename T, typename Deleter, typename PtrTraits = RawPtrTraits<T>>
     requires (HasCheckedPtrMemberFunctions<T>::value && !HasRefPtrMemberFunctions<T>::value)
 ALWAYS_INLINE CLANG_POINTER_CONVERSION CheckedPtr<T, PtrTraits> protect(const std::unique_ptr<T, Deleter>& ptr)
@@ -258,6 +271,18 @@ template<typename ExpectedType, typename ArgType, typename ArgPtrTraits>
 inline bool is(const CheckedPtr<ArgType, ArgPtrTraits>& source)
 {
     return is<ExpectedType>(source.get());
+}
+
+template<typename... ExpectedTypes, typename ArgType, typename ArgPtrTraits>
+inline bool isAnyOf(CheckedPtr<ArgType, ArgPtrTraits>& source)
+{
+    return is<ExpectedTypes...>(source.get());
+}
+
+template<typename... ExpectedTypes, typename ArgType, typename ArgPtrTraits>
+inline bool isAnyOf(const CheckedPtr<ArgType, ArgPtrTraits>& source)
+{
+    return isAnyOf<ExpectedTypes...>(source.get());
 }
 
 template<typename ExpectedType, typename ArgType, typename ArgPtrTraits>

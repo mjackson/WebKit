@@ -109,7 +109,6 @@ public:
 
 #if !RELEASE_LOG_DISABLED
     virtual const Logger& logger() const = 0;
-    Ref<const Logger> protectedLogger() const { return logger(); }
     virtual uint64_t logIdentifier() const = 0;
 #endif
 
@@ -119,7 +118,7 @@ protected:
 
 inline bool PlatformMediaSessionClient::isRemoteSessionClientProxy() const { return false; }
 
-PlatformMediaSessionClient& emptyPlatformMediaSessionClient();
+PlatformMediaSessionClient& NODELETE emptyPlatformMediaSessionClient();
 
 class WEBCORE_EXPORT PlatformMediaSessionInterface
     : public RefCountedAndCanMakeWeakPtr<PlatformMediaSessionInterface>
@@ -249,7 +248,6 @@ public:
 
 #if !RELEASE_LOG_DISABLED
     virtual const Logger& logger() const = 0;
-    Ref<const Logger> protectedLogger() const { return logger(); }
     virtual uint64_t logIdentifier() const = 0;
     virtual ASCIILiteral logClassName() const = 0;
     virtual WTFLogChannel& logChannel() const = 0;

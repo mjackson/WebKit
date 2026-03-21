@@ -48,7 +48,7 @@ function touchBytes(len)
     const array = new Uint8Array(len);
     for (let i = 0; i < len; i += 4096)
         array[i] = Math.random() * 256;
-    return array.reduce((accumulator, element) => accumulator + element, 0);
+    return array.fill(42);
 }
 </script>
 )HTML"_s;
@@ -72,7 +72,6 @@ function touchBytes(len)
 }
 
 @end
-
 TEST(MemoryFootprintThreshold, TestDelegateMethod)
 {
     TestWebKitAPI::HTTPServer server({

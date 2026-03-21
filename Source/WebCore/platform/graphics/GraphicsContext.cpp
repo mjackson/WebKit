@@ -575,10 +575,12 @@ void GraphicsContext::drawDisplayList(const DisplayList::DisplayList& displayLis
 
 void GraphicsContext::drawDisplayList(const DisplayList::DisplayList& displayList, ControlFactory& controlFactory)
 {
+    AffineTransform baseTransform = getCTM();
+
     // FIXME: ControlFactory should be property of the context and not passed this way here.
     // Currently this mutates each ControlPart which is unsuitable for display lists.
     for (auto& item : displayList.items())
-        applyItem(*this, controlFactory, item);
+        applyItem(*this, baseTransform, controlFactory, item);
 }
 
 FloatRect GraphicsContext::computeUnderlineBoundsForText(const FloatRect& rect, bool printing)

@@ -327,13 +327,13 @@ public:
     virtual std::tuple<URL, WebCore::FloatRect, RefPtr<WebCore::TextIndicator>> linkDataAtPoint(WebCore::FloatPoint /* pointInRootView */) { return { }; }
     virtual std::optional<WebCore::FloatRect> highlightRectForTapAtPoint(WebCore::FloatPoint /* pointInRootView */) const { return std::nullopt; }
     virtual CursorContext cursorContext(WebCore::FloatPoint /* pointInRootView */) const { return { }; }
-#if PLATFORM(IOS_FAMILY)
     virtual void setSelectionRange(WebCore::FloatPoint /* pointInRootView */, WebCore::TextGranularity) { }
     virtual SelectionWasFlipped moveSelectionEndpoint(WebCore::FloatPoint /* pointInRootView */, SelectionEndpoint);
     virtual SelectionEndpoint extendInitialSelection(WebCore::FloatPoint /* pointInRootView */, WebCore::TextGranularity);
+#if PLATFORM(IOS_FAMILY)
     virtual DocumentEditingContext documentEditingContext(DocumentEditingContextRequest&&) const;
 #endif
-#endif
+#endif // ENABLE(TWO_PHASE_CLICKS)
 
 #if ENABLE(TWO_PHASE_CLICKS)
     virtual void handleSyntheticClick(WebCore::PlatformMouseEvent&&) { }
@@ -466,10 +466,10 @@ protected:
 
     String annotationStyle() const;
 
-    static NSString *htmlPasteboardType();
-    static NSString *rtfPasteboardType();
-    static NSString *stringPasteboardType();
-    static NSString *urlPasteboardType();
+    static NSString *NODELETE htmlPasteboardType();
+    static NSString *NODELETE rtfPasteboardType();
+    static NSString *NODELETE stringPasteboardType();
+    static NSString *NODELETE urlPasteboardType();
 
 #if PLATFORM(MAC)
     void writeStringToFindPasteboard(const String&) const;

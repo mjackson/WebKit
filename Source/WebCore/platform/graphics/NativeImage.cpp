@@ -74,7 +74,7 @@ bool NativeImage::hasHDRContent() const
     return colorSpace().usesITUR_2100TF();
 }
 
-void NativeImage::replacePlatformImage(PlatformImagePtr&& platformImage)
+void NativeImage::replacePlatformImage(PlatformImagePtr&& platformImage) const
 {
     ASSERT(platformImage);
     m_platformImage = WTF::move(platformImage);
@@ -82,7 +82,7 @@ void NativeImage::replacePlatformImage(PlatformImagePtr&& platformImage)
 }
 
 #if !USE(CG)
-void NativeImage::computeHeadroom()
+void NativeImage::computeHeadroom() const
 {
 }
 #endif

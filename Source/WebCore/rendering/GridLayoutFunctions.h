@@ -34,11 +34,13 @@ namespace Style {
 enum class GridTrackSizingDirection : bool;
 class GridTrackBreadth;
 struct GridTrackFitContentLength;
+struct GridTrackSize;
 }
 
 class GridSpan;
 class RenderElement;
 class RenderGrid;
+class RenderStyle;
 
 enum class ItemPosition : uint8_t;
 
@@ -73,13 +75,13 @@ bool isAspectRatioBlockSizeDependentGridItem(const RenderBox&);
 Style::GridTrackSizingDirection NODELETE flowAwareDirectionForGridItem(const RenderGrid&, const RenderBox&, Style::GridTrackSizingDirection);
 Style::GridTrackSizingDirection NODELETE flowAwareDirectionForParent(const RenderGrid&, const RenderElement& parent, Style::GridTrackSizingDirection);
 std::optional<RenderBox::GridAreaSize> overridingContainingBlockContentSizeForGridItem(const RenderBox&, Style::GridTrackSizingDirection);
-bool hasRelativeOrIntrinsicSizeForGridItem(const RenderBox& gridItem, Style::GridTrackSizingDirection);
+bool NODELETE hasRelativeOrKeywordOrAutoSizeForGridItem(const RenderBox& gridItem, Style::GridTrackSizingDirection);
 
 bool NODELETE isFlippedDirection(const RenderGrid&, Style::GridTrackSizingDirection);
 bool NODELETE isSubgridReversedDirection(const RenderGrid&, Style::GridTrackSizingDirection outerDirection, const RenderGrid& subgrid);
 ExtraMarginsFromSubgrids extraMarginForSubgridAncestors(Style::GridTrackSizingDirection, const RenderBox& gridItem);
 
-unsigned alignmentContextForBaselineAlignment(const GridSpan&, const ItemPosition& alignment);
+unsigned NODELETE alignmentContextForBaselineAlignment(const GridSpan&, const ItemPosition& alignment);
 
 bool NODELETE hasAutoMarginsInColumnAxis(const RenderBox&, WritingMode parentWritingMode);
 bool NODELETE hasAutoMarginsInRowAxis(const RenderBox&, WritingMode parentWritingMode);
@@ -94,7 +96,9 @@ void updateAutoMarginsInRowAxisIfNeeded(RenderBox&, WritingMode);
 void updateAutoMarginsInColumnAxisIfNeeded(RenderBox&, WritingMode);
 
 bool NODELETE isRelativeGridTrackBreadthAsAuto(const Style::GridTrackFitContentLength&, std::optional<LayoutUnit> availableSpace);
-bool isRelativeGridTrackBreadthAsAuto(const Style::GridTrackBreadth&, std::optional<LayoutUnit> availableSpace);
+bool NODELETE isRelativeGridTrackBreadthAsAuto(const Style::GridTrackBreadth&, std::optional<LayoutUnit> availableSpace);
+
+const Style::GridTrackSize& rawGridTrackSize(const RenderStyle&, Style::GridTrackSizingDirection, unsigned translatedIndex, unsigned autoRepeatTracksCount, unsigned explicitGridStart);
 
 } // namespace GridLayoutFunctions
 

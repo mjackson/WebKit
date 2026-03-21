@@ -179,7 +179,7 @@ bool ElementData::isEquivalent(const ElementData* other) const
     return true;
 }
 
-Attribute* UniqueElementData::findAttributeByName(const QualifiedName& name)
+Attribute* NODELETE UniqueElementData::findAttributeByName(const QualifiedName& name)
 {
     for (auto& attribute : m_attributeVector) {
         if (attribute.name().matches(name))

@@ -53,17 +53,16 @@ class RemoteFrame final : public Frame {
 public:
     using ClientCreator = CompletionHandler<UniqueRef<RemoteFrameClient>(RemoteFrame&)>;
     WEBCORE_EXPORT static Ref<RemoteFrame> createMainFrame(Page&, ClientCreator&&, FrameIdentifier, Frame* opener, Ref<FrameTreeSyncData>&&);
-    WEBCORE_EXPORT static Ref<RemoteFrame> createSubframe(Page&, ClientCreator&&, FrameIdentifier, Frame& parent, Frame* opener, Ref<FrameTreeSyncData>&&, AddToFrameTree);
-    WEBCORE_EXPORT static Ref<RemoteFrame> createSubframeWithContentsInAnotherProcess(Page&, ClientCreator&&, FrameIdentifier, HTMLFrameOwnerElement&, std::optional<LayerHostingContextIdentifier>, Ref<FrameTreeSyncData>&&);
+    WEBCORE_EXPORT static Ref<RemoteFrame> createSubframe(Page&, ClientCreator&&, FrameIdentifier, Frame& parent, Frame* opener, std::optional<LayerHostingContextIdentifier>, Ref<FrameTreeSyncData>&&, AddToFrameTree);
     ~RemoteFrame();
 
     RemoteDOMWindow& NODELETE window() const;
 
-    const RemoteFrameClient& client() const { return m_client.get(); }
-    RemoteFrameClient& client() { return m_client.get(); }
+    const RemoteFrameClient& client() const LIFETIME_BOUND { return m_client.get(); }
+    RemoteFrameClient& client() LIFETIME_BOUND { return m_client.get(); }
 
     RemoteFrameView* view() const { return m_view.get(); }
-    WEBCORE_EXPORT void NODELETE setView(RefPtr<RemoteFrameView>&&);
+    WEBCORE_EXPORT void setView(RefPtr<RemoteFrameView>&&);
 
     Markable<LayerHostingContextIdentifier> layerHostingContextIdentifier() const { return m_layerHostingContextIdentifier; }
 
@@ -108,11 +107,12 @@ private:
     SecurityOrigin* NODELETE frameDocumentSecurityOrigin() const final;
     std::optional<DocumentSecurityPolicy> NODELETE frameDocumentSecurityPolicy() const final;
     String NODELETE frameURLProtocol() const final;
+    float usedZoomForChild(const Frame&) const final;
 
     FrameView* NODELETE virtualView() const final;
     void disconnectView() final;
     DOMWindow* NODELETE virtualWindow() const final;
-    FrameLoaderClient& NODELETE loaderClient() final;
+    FrameLoaderClient& NODELETE loaderClient() LIFETIME_BOUND final;
     void reinitializeDocumentSecurityContext() final { }
 
     const Ref<RemoteDOMWindow> m_window;

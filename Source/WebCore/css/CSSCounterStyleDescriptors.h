@@ -159,12 +159,13 @@ struct CSSCounterStyleDescriptors {
     bool m_isExtendedResolved { false };
 };
 
-CSSCounterStyleDescriptors::Ranges rangeFromCSSValue(Ref<CSSValue>);
-CSSCounterStyleDescriptors::AdditiveSymbols additiveSymbolsFromCSSValue(Ref<CSSValue>);
-CSSCounterStyleDescriptors::Pad padFromCSSValue(Ref<CSSValue>);
-CSSCounterStyleDescriptors::NegativeSymbols negativeSymbolsFromCSSValue(Ref<CSSValue>);
-CSSCounterStyleDescriptors::Symbol symbolFromCSSValue(RefPtr<CSSValue>);
-Vector<CSSCounterStyleDescriptors::Symbol> symbolsFromCSSValue(Ref<CSSValue>);
-CSSCounterStyleDescriptors::Name fallbackNameFromCSSValue(Ref<CSSValue>);
-CSSCounterStyleDescriptors::SystemData extractSystemDataFromCSSValue(RefPtr<CSSValue>, CSSCounterStyleDescriptors::System);
+CSSCounterStyleDescriptors::Ranges rangeFromCSSValue(const CSSValue&);
+CSSCounterStyleDescriptors::AdditiveSymbols additiveSymbolsFromCSSValue(const CSSValue&);
+CSSCounterStyleDescriptors::Pad padFromCSSValue(const CSSValue&);
+CSSCounterStyleDescriptors::NegativeSymbols negativeSymbolsFromCSSValue(const CSSValue&);
+CSSCounterStyleDescriptors::Symbol symbolFromCSSValue(const CSSValue*);
+Vector<CSSCounterStyleDescriptors::Symbol> symbolsFromCSSValue(const CSSValue&);
+CSSCounterStyleDescriptors::Name fallbackNameFromCSSValue(const CSSValue&);
+CSSCounterStyleDescriptors::SystemData extractSystemDataFromCSSValue(const CSSValue*, CSSCounterStyleDescriptors::System);
+
 } // namespace WebCore

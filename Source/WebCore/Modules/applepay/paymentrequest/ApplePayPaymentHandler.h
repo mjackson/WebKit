@@ -59,9 +59,7 @@ private:
     explicit ApplePayPaymentHandler(Document&, const PaymentRequest::MethodIdentifier&, PaymentRequest&);
 
     Document& NODELETE document() const;
-    Ref<Document> NODELETE protectedDocument() const;
     PaymentCoordinator& NODELETE paymentCoordinator() const;
-    Ref<PaymentCoordinator> NODELETE protectedPaymentCoordinator() const;
 
     ExceptionOr<Vector<ApplePayShippingMethod>> computeShippingMethods() const;
     ExceptionOr<std::tuple<ApplePayLineItem, Vector<ApplePayLineItem>>> computeTotalAndLineItems() const;

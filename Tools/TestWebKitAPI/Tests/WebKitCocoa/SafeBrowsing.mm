@@ -30,6 +30,7 @@
 #import "ClassMethodSwizzler.h"
 #import "HTTPServer.h"
 #import "PlatformUtilities.h"
+#import "SafeBrowsingTestUtilities.h"
 #import "Test.h"
 #import "TestNavigationDelegate.h"
 #import "TestResourceLoadDelegate.h"
@@ -130,115 +131,6 @@ static size_t modalCount;
         _onPrompt(prompt, defaultText, completionHandler);
     else
         completionHandler(@"test");
-}
-
-@end
-
-@interface TestServiceLookupResult : NSObject {
-    RetainPtr<NSString> _provider;
-    BOOL _isPhishing;
-    BOOL _isMalware;
-    BOOL _isUnwantedSoftware;
-}
-@end
-
-@implementation TestServiceLookupResult
-
-+ (instancetype)resultWithProvider:(RetainPtr<NSString>&&)provider phishing:(BOOL)phishing malware:(BOOL)malware unwantedSoftware:(BOOL)unwantedSoftware
-{
-    auto result = adoptNS([[TestServiceLookupResult alloc] init]);
-    if (!result)
-        return nil;
-
-    result->_provider = WTF::move(provider);
-    result->_isPhishing = phishing;
-    result->_isMalware = malware;
-    result->_isUnwantedSoftware = unwantedSoftware;
-
-    return result.autorelease();
-}
-
-- (NSString *)provider
-{
-    return _provider.get();
-}
-
-- (BOOL)isPhishing
-{
-    return _isPhishing;
-}
-
-- (BOOL)isMalware
-{
-    return _isMalware;
-}
-
-- (BOOL)isUnwantedSoftware
-{
-    return _isUnwantedSoftware;
-}
-
-- (NSString *)malwareDetailsBaseURLString
-{
-    return @"test://";
-}
-
-- (NSURL *)learnMoreURL
-{
-    return [NSURL URLWithString:@"test://"];
-}
-
-- (NSString *)reportAnErrorBaseURLString
-{
-    return @"test://";
-}
-
-- (NSString *)localizedProviderDisplayName
-{
-    return @"test display name";
-}
-
-@end
-
-@interface TestLookupResult : NSObject {
-    RetainPtr<NSArray> _results;
-}
-@end
-
-@implementation TestLookupResult
-
-+ (instancetype)resultWithResults:(RetainPtr<NSArray<TestServiceLookupResult *>>&&)results
-{
-    auto result = adoptNS([[TestLookupResult alloc] init]);
-    if (!result)
-        return nil;
-    
-    result->_results = WTF::move(results);
-    
-    return result.autorelease();
-}
-
-- (NSArray<TestServiceLookupResult *> *)serviceLookupResults
-{
-    return _results.get();
-}
-
-@end
-
-@interface TestLookupContext : NSObject
-@end
-
-@implementation TestLookupContext
-
-+ (TestLookupContext *)sharedLookupContext
-{
-    static TestLookupContext *context = [[TestLookupContext alloc] init];
-    return context;
-}
-
-- (void)lookUpURL:(NSURL *)URL completionHandler:(void (^)(TestLookupResult *, NSError *))completionHandler
-{
-    completionHandler([TestLookupResult resultWithResults:@[[TestServiceLookupResult resultWithProvider:@"SSBProviderApple" phishing:YES malware:NO unwantedSoftware:NO]]], nil);
 }
 
 @end
@@ -359,11 +251,6 @@ TEST(SafeBrowsing, GoBackAfterRestoreFromSessionState)
     EXPECT_TRUE([list.currentItem.URL.path hasSuffix:@"/simple.html"]);
 }
 
-template<typename ViewType> void visitUnsafeSite(ViewType *view)
-{
-    [view performSelector:NSSelectorFromString(@"clickedOnLink:") withObject:[NSURL URLWithString:@"WKVisitUnsafeWebsiteSentinel"]];
-}
-
 TEST(SafeBrowsing, VisitUnsafeWebsite)
 {
     auto webView = safeBrowsingView();
@@ -376,7 +263,7 @@ TEST(SafeBrowsing, VisitUnsafeWebsite)
     checkTitleAndClick(warning.subviews.firstObject.subviews[4], "Show Details");
     EXPECT_EQ(warning.subviews.count, 2ull);
     EXPECT_FALSE(committedNavigation);
-    visitUnsafeSite(warning);
+    [webView visitUnsafeSite];
     EXPECT_WK_STREQ([webView title], "");
     TestWebKitAPI::Util::run(&committedNavigation);
 }
@@ -412,7 +299,7 @@ TEST(SafeBrowsing, ShowWarningSPI)
     EXPECT_FALSE(shouldContinueValue);
 
     showWarning();
-    [[webView _safeBrowsingWarning] performSelector:NSSelectorFromString(@"clickedOnLink:") withObject:[WKWebView _visitUnsafeWebsiteSentinel]];
+    [webView visitUnsafeSite];
     TestWebKitAPI::Util::run(&completionHandlerCalled);
     EXPECT_TRUE(shouldContinueValue);
 }
@@ -456,7 +343,7 @@ TEST(SafeBrowsing, URLObservation)
 #if !PLATFORM(MAC)
         [[webView _safeBrowsingWarning] didMoveToWindow];
 #endif
-        visitUnsafeSite([webView _safeBrowsingWarning]);
+        [webView visitUnsafeSite];
         EXPECT_TRUE(!![webView _safeBrowsingWarning]);
         while ([webView _safeBrowsingWarning])
             TestWebKitAPI::Util::spinRunLoop();
@@ -492,7 +379,7 @@ TEST(SafeBrowsing, URLObservation)
     {
         auto webView = webViewWithWarning();
         checkURLs({ simpleURL, simple2URL });
-        visitUnsafeSite([webView _safeBrowsingWarning]);
+        [webView visitUnsafeSite];
         TestWebKitAPI::Util::spinRunLoop(5);
         checkURLs({ simpleURL, simple2URL });
         [webView removeObserver:observer.get() forKeyPath:@"URL"];
@@ -614,32 +501,9 @@ TEST(SafeBrowsing, MissingFramework)
     [webView synchronouslyLoadTestPageNamed:@"simple"];
 }
 
-static Seconds delayDuration;
-
-@interface DelayedLookupContext : NSObject
-@end
-
-@implementation DelayedLookupContext
-
-+ (DelayedLookupContext *)sharedLookupContext
-{
-    static DelayedLookupContext *context = [[DelayedLookupContext alloc] init];
-    return context;
-}
-
-- (void)lookUpURL:(NSURL *)URL completionHandler:(void (^)(TestLookupResult *, NSError *))completionHandler
-{
-    BOOL phishing = ![URL isEqual:resourceURL(@"simple2")] && ![[URL path] isEqual:@"/safe"];
-    RunLoop::mainSingleton().dispatchAfter(delayDuration, [completionHandler = makeBlockPtr(completionHandler), phishing] {
-        completionHandler.get()([TestLookupResult resultWithResults:@[[TestServiceLookupResult resultWithProvider:@"SSBProviderApple" phishing:phishing malware:NO unwantedSoftware:NO]]], nil);
-    });
-}
-
-@end
-
 TEST(SafeBrowsing, HangTimeout)
 {
-    delayDuration = 1000_s;
+    DelayedLookupContext.delayDuration = 1000_s;
     TestWebKitAPI::HTTPServer server({
         { "/test"_s, { "test"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
@@ -660,7 +524,7 @@ TEST(SafeBrowsing, HangTimeout)
 
 TEST(SafeBrowsing, PostResponse)
 {
-    delayDuration = 25_ms;
+    DelayedLookupContext.delayDuration = 25_ms;
     TestWebKitAPI::HTTPServer server({
         { "/test"_s, { "test"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
@@ -682,7 +546,7 @@ TEST(SafeBrowsing, PostResponse)
 
 TEST(SafeBrowsing, PostResponseIframe)
 {
-    delayDuration = 25_ms;
+    DelayedLookupContext.delayDuration = 25_ms;
     ClassMethodSwizzler swizzler(getSSBLookupContextClassSingleton(), @selector(sharedLookupContext), [DelayedLookupContext methodForSelector:@selector(sharedLookupContext)]);
 
     auto delegate = adoptNS([TestNavigationDelegate new]);
@@ -742,7 +606,7 @@ TEST(SafeBrowsing, PreresponseSafeBrowsingWarning)
 
 TEST(SafeBrowsing, PostResponseServerSideRedirect)
 {
-    delayDuration = 2_ms;
+    DelayedLookupContext.delayDuration = 2_ms;
     TestWebKitAPI::HTTPServer server({
         { "/safe"_s, { 301, { { "Location"_s, "/redirectTarget"_s } } } },
         { "/redirectTarget"_s, { "hi"_s } },
@@ -837,7 +701,7 @@ TEST(SafeBrowsing, MultipleRedirectsLastPhishing)
 
 TEST(SafeBrowsing, PostResponseInjectedBundleSkipsDecidePolicyForResponse)
 {
-    delayDuration = 25_ms;
+    DelayedLookupContext.delayDuration = 25_ms;
     TestWebKitAPI::HTTPServer server({
         { "/test"_s, { "test"_s } },
     });
@@ -859,7 +723,7 @@ TEST(SafeBrowsing, PostResponseInjectedBundleSkipsDecidePolicyForResponse)
 
 TEST(SafeBrowsing, PostTimeout)
 {
-    delayDuration = 100_ms;
+    DelayedLookupContext.delayDuration = 100_ms;
     TestWebKitAPI::HTTPServer server({
         { "/test"_s, { "test"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
@@ -946,7 +810,7 @@ TEST(SafeBrowsing, ModalShownImmediatelyWhenNoCheck)
 
 TEST(SafeBrowsing, ModalDeferredDuringCheck)
 {
-    delayDuration = 50_ms;
+    DelayedLookupContext.delayDuration = 50_ms;
     TestWebKitAPI::HTTPServer server({
         { "/malicious"_s, { "<html><body><script>alert('deferred')</script><h1>Test</h1></body></html>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
@@ -978,7 +842,7 @@ TEST(SafeBrowsing, ModalDeferredDuringCheck)
 
     EXPECT_FALSE(alertShown);
 
-    visitUnsafeSite([webView _safeBrowsingWarning]);
+    [webView visitUnsafeSite];
 
     TestWebKitAPI::Util::run(&alertShown);
     EXPECT_TRUE(alertShown);
@@ -986,7 +850,7 @@ TEST(SafeBrowsing, ModalDeferredDuringCheck)
 
 TEST(SafeBrowsing, DeferredModalShownWhenProceedingThroughWarning)
 {
-    delayDuration = 50_ms;
+    DelayedLookupContext.delayDuration = 50_ms;
     TestWebKitAPI::HTTPServer server({
         { "/malicious"_s, { "<html><body onload='alert(\"proceed test\")'><h1>Test</h1></body></html>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
@@ -1021,7 +885,7 @@ TEST(SafeBrowsing, DeferredModalShownWhenProceedingThroughWarning)
 
     EXPECT_FALSE(alertCalled);
 
-    visitUnsafeSite([webView _safeBrowsingWarning]);
+    [webView visitUnsafeSite];
 
     TestWebKitAPI::Util::run(&alertCalled);
     EXPECT_TRUE(alertCalled);
@@ -1030,7 +894,7 @@ TEST(SafeBrowsing, DeferredModalShownWhenProceedingThroughWarning)
 
 TEST(SafeBrowsing, DeferredModalSuppressedWhenGoingBack)
 {
-    delayDuration = 50_ms;
+    DelayedLookupContext.delayDuration = 50_ms;
     TestWebKitAPI::HTTPServer server({
         { "/malicious"_s, { "<html><body onload='alert(\"should not show\")'><h1>Phishing</h1></body></html>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
@@ -1075,7 +939,7 @@ TEST(SafeBrowsing, DeferredModalSuppressedWhenGoingBack)
 
 TEST(SafeBrowsing, MultipleDeferredModalsShownInOrder)
 {
-    delayDuration = 50_ms;
+    DelayedLookupContext.delayDuration = 50_ms;
     TestWebKitAPI::HTTPServer server({
         { "/malicious"_s, { "<html><body onload='test()'><script>function test() { alert('first'); alert('second'); alert('third'); }</script></body></html>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
@@ -1109,7 +973,7 @@ TEST(SafeBrowsing, MultipleDeferredModalsShownInOrder)
     EXPECT_EQ(modalMessages.size(), 0u);
 
     modalCount = 0;
-    visitUnsafeSite([webView _safeBrowsingWarning]);
+    [webView visitUnsafeSite];
 
     while (modalCount < 3)
         TestWebKitAPI::Util::spinRunLoop();
@@ -1122,7 +986,7 @@ TEST(SafeBrowsing, MultipleDeferredModalsShownInOrder)
 
 TEST(SafeBrowsing, DeferredModalsClearedOnNavigation)
 {
-    delayDuration = 50_ms;
+    DelayedLookupContext.delayDuration = 50_ms;
     TestWebKitAPI::HTTPServer server({
         { "/malicious"_s, { "<html><body onload='alert(\"deferred\")'><h1>Test</h1></body></html>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
@@ -1192,7 +1056,7 @@ TEST(SafeBrowsing, ModalShownWhenCheckCompletesClean)
 
 TEST(SafeBrowsing, AllModalTypesProperlyDeferred)
 {
-    delayDuration = 50_ms;
+    DelayedLookupContext.delayDuration = 50_ms;
     TestWebKitAPI::HTTPServer server({
         { "/malicious"_s, { "<html><body onload='test()'><script>function test() { alert('test alert'); confirm('test confirm'); prompt('test prompt', 'default'); }</script></body></html>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
@@ -1234,7 +1098,7 @@ TEST(SafeBrowsing, AllModalTypesProperlyDeferred)
     EXPECT_EQ(modalTypes.size(), 0u);
 
     modalCount = 0;
-    visitUnsafeSite([webView _safeBrowsingWarning]);
+    [webView visitUnsafeSite];
 
     while (modalCount < 3)
         TestWebKitAPI::Util::spinRunLoop();

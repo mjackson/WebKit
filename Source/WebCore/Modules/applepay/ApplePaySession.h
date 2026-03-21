@@ -101,7 +101,7 @@ public:
     ExceptionOr<void> completePaymentMethodSelection(ApplePayLineItem&& newTotal, Vector<ApplePayLineItem>&& newLineItems);
     ExceptionOr<void> completePayment(unsigned short status);
 
-    const ApplePaySessionPaymentRequest& paymentRequest() const { return m_paymentRequest; }
+    const ApplePaySessionPaymentRequest& paymentRequest() const LIFETIME_BOUND { return m_paymentRequest; }
 
 private:
     ApplePaySession(Document&, unsigned version, ApplePaySessionPaymentRequest&&);
@@ -130,7 +130,6 @@ private:
     void didCancelPaymentSession(PaymentSessionError&&) override;
 
     PaymentCoordinator& NODELETE paymentCoordinator() const;
-    Ref<PaymentCoordinator> NODELETE protectedPaymentCoordinator() const;
 
     bool NODELETE canBegin() const;
     bool NODELETE canAbort() const;

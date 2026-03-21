@@ -38,6 +38,7 @@
 #include "RenderView.h"
 #include "StyleChange.h"
 #include <wtf/TZoneMallocInlines.h>
+#include <wtf/unicode/CharacterNames.h>
 
 namespace WebCore {
 

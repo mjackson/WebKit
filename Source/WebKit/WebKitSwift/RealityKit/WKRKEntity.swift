@@ -40,12 +40,12 @@ extension WKRKEntity {
     @nonobjc
     private let entity: Entity
 
-    weak var delegate: WKRKEntityDelegate?
+    weak var delegate: (any WKRKEntityDelegate)?
 
     @nonobjc
     private var animationPlaybackController: AnimationPlaybackController? = nil
     @nonobjc
-    private var animationFinishedSubscription: Cancellable?
+    private var animationFinishedSubscription: (any Cancellable)?
     @nonobjc
     private var backingDuration: TimeInterval? = nil
     @nonobjc
@@ -80,7 +80,7 @@ extension WKRKEntity {
             let loadedEntity = try await Entity(from: data, options: loadOptions)
             return WKRKEntity(loadedEntity)
         } catch {
-            Logger.realityKitEntity.error("Failed to load entity from data")
+            Logger.realityKitEntity.error("Failed to load entity from data: \(error)")
             return nil
         }
         #else
@@ -394,20 +394,6 @@ extension WKRKEntity {
         entity.components[ImageBasedLightReceiverComponent.self] = nil
         #endif
     }
-
-    #if ENABLE_MODEL_ELEMENT_IMMERSIVE
-    func ensureSceneUnderstanding() {
-        applySceneUnderstandingComponentRecursively(to: entity)
-    }
-
-    @nonobjc
-    private final func applySceneUnderstandingComponentRecursively(to entity: Entity) {
-        entity.components[SceneUnderstandingComponent.self] = .init(entityType: .meshChunk)
-        for child in entity.children {
-            applySceneUnderstandingComponentRecursively(to: child)
-        }
-    }
-    #endif
 
     private func animationPlaybackStateDidUpdate() {
         delegate?.entityAnimationPlaybackStateDidUpdate?(self)

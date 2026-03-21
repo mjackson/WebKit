@@ -14,7 +14,6 @@ animateTransform
 set
 circle
 clipPath
-cursor  JSInterfaceName=SVGElement
 defs
 desc
 ellipse

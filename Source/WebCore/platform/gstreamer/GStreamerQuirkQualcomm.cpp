@@ -70,6 +70,15 @@ bool GStreamerQuirkQualcomm::isVideoCapsGLCompatible(const GRefPtr<GstCaps>& cap
     return !gst_caps_features_contains(gst_caps_get_features(caps.get(), 0), "memory:GBM");
 }
 
+std::optional<bool> GStreamerQuirkQualcomm::isHardwareAccelerated(GstElementFactory* factory)
+{
+    auto view = StringView::fromLatin1(GST_OBJECT_NAME(factory));
+    if (view.startsWith("qtic2vdec"_s))
+        return true;
+
+    return std::nullopt;
+}
+
 #undef GST_CAT_DEFAULT
 
 } // namespace WebCore

@@ -69,7 +69,7 @@ public:
     static Ref<HTMLInputElement> create(const QualifiedName&, Document&, HTMLFormElement*, bool createdByParser);
     virtual ~HTMLInputElement();
 
-    WEBCORE_EXPORT bool alpha();
+    WEBCORE_EXPORT bool NODELETE alpha();
     bool checked() const { return m_isChecked; }
     WEBCORE_EXPORT void setChecked(bool, WasSetByJavaScript = WasSetByJavaScript::Yes);
     String colorSpace();
@@ -135,11 +135,11 @@ public:
     std::optional<Decimal> findClosestTickMarkValue(const Decimal&);
     std::optional<double> listOptionValueAsDouble(const HTMLOptionElement&);
 
-    bool isPresentingAttachedView() const;
+    bool NODELETE isPresentingAttachedView() const;
 
     RefPtr<InputType> NODELETE inputType() const;
 
-    bool isSteppable() const; // stepUp()/stepDown() for user-interaction.
+    bool NODELETE isSteppable() const; // stepUp()/stepDown() for user-interaction.
     WEBCORE_EXPORT bool NODELETE isTextButton() const;
     bool NODELETE isRadioButton() const;
     WEBCORE_EXPORT bool isTextField() const final;
@@ -174,7 +174,7 @@ public:
 
     bool isDevolvableWidget() const override;
 
-    DateComponentsType dateType() const;
+    DateComponentsType NODELETE dateType() const;
 
     HTMLElement* containerElement() const;
 
@@ -244,7 +244,7 @@ public:
 
     unsigned effectiveMaxLength() const;
 
-    WEBCORE_EXPORT bool multiple() const;
+    WEBCORE_EXPORT bool NODELETE multiple() const;
 
     // AutoFill.
     using AutofillButtonType = WebCore::AutoFillButtonType;
@@ -275,8 +275,8 @@ public:
     bool receiveDroppedFiles(const DragData&);
 #endif
 
-    Icon* icon() const;
-    String displayString() const;
+    Icon* NODELETE icon() const;
+    String NODELETE displayString() const;
 
     // These functions are used for rendering the input active during a drag-and-drop operation.
     bool canReceiveDroppedFiles() const { return m_canReceiveDroppedFiles; }
@@ -302,7 +302,7 @@ public:
     bool isTextFormControlMouseFocusable() const;
     bool valueAttributeWasUpdatedAfterParsing() const { return m_valueAttributeWasUpdatedAfterParsing; }
 
-    bool hasCustomFocusLogic() const final;
+    bool NODELETE hasCustomFocusLogic() const final;
 
     void cacheSelectionInResponseToSetValue(int caretOffset) { cacheSelection(caretOffset, caretOffset, SelectionHasNoDirection); }
 
@@ -338,7 +338,6 @@ public:
 
     HTMLImageLoader* imageLoader() { return m_imageLoader.get(); }
     HTMLImageLoader& ensureImageLoader();
-    Ref<HTMLImageLoader> ensureProtectedImageLoader();
 
     void capsLockStateMayHaveChanged();
 
@@ -352,9 +351,9 @@ public:
     bool hasEverBeenPasswordField() const { return m_hasEverBeenPasswordField; }
 
     float switchAnimationVisuallyOnProgress() const;
-    bool isSwitchVisuallyOn() const;
+    bool NODELETE isSwitchVisuallyOn() const;
     float switchAnimationHeldProgress() const;
-    bool isSwitchHeld() const;
+    bool NODELETE isSwitchHeld() const;
 
     void initializeInputTypeAfterParsingOrCloning();
 
@@ -375,9 +374,9 @@ private:
 
     void willChangeForm() final;
     void didChangeForm() final;
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) final;
-    void didFinishInsertingNode() final;
-    void removedFromAncestor(RemovalType, ContainerNode&) final;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) final;
+    void postConnectionSteps() final;
+    void removingSteps(RemovalType, ContainerNode&) final;
     void didMoveToNewDocument(Document& oldDocument, Document& newDocument) final;
 
     int defaultTabIndex() const final;
@@ -418,7 +417,7 @@ private:
 
     void reset() final;
 
-    bool isURLAttribute(const Attribute&) const final;
+    bool NODELETE isURLAttribute(const Attribute&) const final;
     bool isInRange() const final;
     bool isOutOfRange() const final;
 
@@ -427,14 +426,14 @@ private:
 
     void addSubresourceAttributeURLs(ListHashSet<URL>&) const final;
 
-    bool needsSuspensionCallback();
+    bool NODELETE needsSuspensionCallback();
     void registerForSuspensionCallbackIfNeeded();
     void unregisterForSuspensionCallbackIfNeeded();
 
     bool supportsReadOnly() const final;
     bool supportsMinLength() const { return isTextType(); }
     bool supportsMaxLength() const { return isTextType(); }
-    bool tooShort(StringView, NeedsToCheckDirtyFlag) const;
+    bool NODELETE tooShort(StringView, NeedsToCheckDirtyFlag) const;
     bool tooLong(StringView, NeedsToCheckDirtyFlag) const;
 
     bool supportsPlaceholder() const final;
@@ -443,8 +442,8 @@ private:
     void handleFocusEvent(Node* oldFocusedNode, FocusDirection) final;
     void handleBlurEvent() final;
 
-    bool isOptionalFormControl() const final { return !isRequiredFormControl(); }
-    bool isRequiredFormControl() const final;
+    bool NODELETE isOptionalFormControl() const final { return !isRequiredFormControl(); }
+    bool NODELETE isRequiredFormControl() const final;
     bool computeWillValidate() const final;
     void requiredStateChanged() final;
 

@@ -99,13 +99,13 @@ public:
 
     WebCore::PlatformLayerIdentifier layerID() const { return m_layerID; }
 
-    const WebCore::EventRegion& eventRegion() const { return m_eventRegion; }
+    const WebCore::EventRegion& eventRegion() const LIFETIME_BOUND { return m_eventRegion; }
     void setEventRegion(const WebCore::EventRegion&);
 
     // Non-ancestor scroller that controls positioning of the layer.
     std::optional<WebCore::PlatformLayerIdentifier> actingScrollContainerID() const { return m_actingScrollContainerID.asOptional(); }
     // Ancestor scrollers that don't affect positioning of the layer.
-    const Vector<WebCore::PlatformLayerIdentifier>& stationaryScrollContainerIDs() const { return m_stationaryScrollContainerIDs; }
+    const Vector<WebCore::PlatformLayerIdentifier>& stationaryScrollContainerIDs() const LIFETIME_BOUND { return m_stationaryScrollContainerIDs; }
 
     void setActingScrollContainerID(std::optional<WebCore::PlatformLayerIdentifier> value) { m_actingScrollContainerID = value; }
     void setStationaryScrollContainerIDs(Vector<WebCore::PlatformLayerIdentifier>&& value) { m_stationaryScrollContainerIDs = WTF::move(value); }

@@ -33,7 +33,6 @@ namespace WebCore {
 namespace Layout {
 
 inline bool Box::isRuby() const { return style().display() == Style::DisplayType::InlineRuby; }
-inline bool Box::isRubyBase() const { return style().display() == Style::DisplayType::RubyBase; }
 inline bool Box::isRubyInlineBox() const { return isRuby() || isRubyBase(); }
 inline bool Box::isTableCaption() const { return style().display() == Style::DisplayType::TableCaption; }
 inline bool Box::isTableHeader() const { return style().display() == Style::DisplayType::TableHeaderGroup; }

@@ -33,11 +33,12 @@
 
 #include "CairoUtilities.h"
 #include "Font.h"
-#include "FontCascade.h"
+#include "FontCascadeInlines.h"
 #include <cairo-ft.h>
 #include <cairo.h>
 #include <fontconfig/fcfreetype.h>
 #include <wtf/text/CharacterProperties.h>
+#include <wtf/unicode/CharacterNames.h>
 
 namespace WebCore {
 

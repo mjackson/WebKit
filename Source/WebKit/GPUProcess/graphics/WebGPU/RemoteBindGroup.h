@@ -81,9 +81,9 @@ private:
     void destruct();
     void updateExternalTextures(WebGPUIdentifier, CompletionHandler<void(bool)>&&);
 
-    Ref<WebCore::WebGPU::BindGroup> m_backing;
+    const Ref<WebCore::WebGPU::BindGroup> m_backing;
     WeakRef<WebGPU::ObjectHeap> m_objectHeap;
-    Ref<IPC::StreamServerConnection> m_streamConnection;
+    const Ref<IPC::StreamServerConnection> m_streamConnection;
     WeakRef<RemoteGPU> m_gpu;
     WebGPUIdentifier m_identifier;
 };

@@ -266,8 +266,8 @@ Ref<JSON::Object> WebExtensionLocalization::predefinedMessages()
         return object;
     };
 
-    if (m_locale && !m_localeString.isEmpty()) {
-        if (m_locale->defaultWritingDirection() == WebCore::Locale::WritingDirection::LeftToRight) {
+    if (CheckedPtr locale = m_locale.get(); locale && !m_localeString.isEmpty()) {
+        if (locale->defaultWritingDirection() == WebCore::Locale::WritingDirection::LeftToRight) {
             predefinedMessages->setObject(predefinedMessageLanguageDirection, createMessageKey(predefinedMessageValueLeftToRight));
             predefinedMessages->setObject(predefinedMessageLanguageDirectionReversed, createMessageKey(predefinedMessageValueRightToLeft));
             predefinedMessages->setObject(predefinedMessageTextLeadingEdge, createMessageKey(predefinedMessageValueTextEdgeLeft));

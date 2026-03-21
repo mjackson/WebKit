@@ -27,6 +27,7 @@
 #include "LayoutTreeBuilder.h"
 
 #include "CachedImage.h"
+#include "FontCascadeInlines.h"
 #include "HTMLNames.h"
 #include "HTMLParserIdioms.h"
 #include "HTMLTableCellElement.h"

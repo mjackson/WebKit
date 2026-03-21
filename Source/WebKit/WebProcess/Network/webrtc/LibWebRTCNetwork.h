@@ -53,7 +53,7 @@ public:
     void networkProcessCrashed() final;
     void setAsActive() final;
 
-    WebRTCMonitor& monitor() { return m_webNetworkMonitor; }
+    WebRTCMonitor& monitor() LIFETIME_BOUND { return m_webNetworkMonitor; }
     LibWebRTCSocketFactory& socketFactory() { return m_socketFactory; }
 
     void disableNonLocalhostConnections() { socketFactory().disableNonLocalhostConnections(); }

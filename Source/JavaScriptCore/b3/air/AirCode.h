@@ -189,7 +189,7 @@ public:
     // Note that this is not the same thing as proc().numEntrypoints(). This value here may be zero
     // until we lower EntrySwitch.
     unsigned numEntrypoints() const { return m_entrypoints.size(); }
-    const Vector<FrequentedBlock>& entrypoints() const { return m_entrypoints; }
+    const Vector<FrequentedBlock>& entrypoints() const LIFETIME_BOUND { return m_entrypoints; }
     const FrequentedBlock& entrypoint(unsigned index) const { return m_entrypoints[index]; }
     bool isEntrypoint(BasicBlock*) const;
     // Note: It is only valid to call this function after LowerEntrySwitch.
@@ -243,7 +243,7 @@ public:
     RegisterAtOffsetList calleeSaveRegisterAtOffsetList() const;
     
     // This just tells you what the callee saves are.
-    RegisterSetBuilder calleeSaveRegisters() const { return m_calleeSaveRegisters; }
+    RegisterSet calleeSaveRegisters() const { return m_calleeSaveRegisters; }
 
     // Recomputes predecessors and deletes unreachable blocks.
     JS_EXPORT_PRIVATE void resetReachability();
@@ -256,7 +256,7 @@ public:
 
     // This is used by phases that optimize the block list. You shouldn't use this unless you really know
     // what you're doing.
-    Vector<std::unique_ptr<BasicBlock>>& blockList() { return m_blocks; }
+    Vector<std::unique_ptr<BasicBlock>>& blockList() LIFETIME_BOUND { return m_blocks; }
 
     // Finds the smallest index' such that at(index') != null and index' >= index.
     JS_EXPORT_PRIVATE unsigned findFirstBlockIndex(unsigned index) const;
@@ -304,11 +304,11 @@ public:
     iterator begin() const LIFETIME_BOUND { return iterator(*this, 0); }
     iterator end() const LIFETIME_BOUND { return iterator(*this, size()); }
 
-    const SparseCollection<StackSlot>& stackSlots() const { return m_stackSlots; }
-    SparseCollection<StackSlot>& stackSlots() { return m_stackSlots; }
+    const SparseCollection<StackSlot>& stackSlots() const LIFETIME_BOUND { return m_stackSlots; }
+    SparseCollection<StackSlot>& stackSlots() LIFETIME_BOUND { return m_stackSlots; }
 
-    const SparseCollection<Special>& specials() const { return m_specials; }
-    SparseCollection<Special>& specials() { return m_specials; }
+    const SparseCollection<Special>& specials() const LIFETIME_BOUND { return m_specials; }
+    SparseCollection<Special>& specials() LIFETIME_BOUND { return m_specials; }
 
     void addFastTmp(Tmp);
 
@@ -352,7 +352,7 @@ public:
         m_disassembler = WTF::move(disassembler);
         forcePreservationOfB3Origins();
     }
-    Disassembler* disassembler() { return m_disassembler.get(); }
+    Disassembler* disassembler() LIFETIME_BOUND { return m_disassembler.get(); }
 
     RegisterSet mutableGPRs();
     ScalarRegisterSet pinnedRegisters() const { return m_pinnedRegs; }
@@ -396,7 +396,7 @@ private:
     Vector<std::unique_ptr<BasicBlock>> m_blocks;
     SparseCollection<Special> m_specials;
     std::unique_ptr<CFG> m_cfg;
-    SmallSet<Tmp, DefaultHash<Tmp>, 2> m_fastTmps;
+    SmallSet<Tmp, DefaultHash<Tmp>, HashTraits<Tmp>, 2> m_fastTmps;
     CCallSpecial* m_cCallSpecial { nullptr };
     unsigned m_numGPTmps { 0 };
     unsigned m_numFPTmps { 0 };
@@ -407,7 +407,7 @@ private:
     bool m_preserveB3Origins { true };
     bool m_forceIRC { false };
     RegisterAtOffsetList m_uncorrectedCalleeSaveRegisterAtOffsetList;
-    RegisterSetBuilder m_calleeSaveRegisters;
+    RegisterSet m_calleeSaveRegisters;
     StackSlot* m_calleeSaveStackSlot { nullptr };
     Vector<FrequentedBlock> m_entrypoints; // This is empty until after lowerEntrySwitch().
     Vector<MacroAssembler::Label> m_entrypointLabels; // This is empty until code generation.

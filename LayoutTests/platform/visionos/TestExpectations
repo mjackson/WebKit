@@ -90,6 +90,9 @@ http/tests/iframe-monitor [ Pass ]
 
 media/modern-media-controls/visionos-inline-media-controls [ Pass ]
 
+http/tests/pdf [ Pass ]
+pdf [ Pass ]
+
 ###################################################################################################
 ### START OF Legitimate failures (due to platform behavioral differences)
 
@@ -118,6 +121,10 @@ imported/w3c/web-platform-tests/webxr/light-estimation [ Skip ]
 http/tests/digital-credentials/ [ Skip ]
 http/wpt/identity/ [ Skip ]
 imported/w3c/web-platform-tests/digital-credentials/ [ Skip ]
+
+# webkit.org/b/308506 UnifiedPDFPlugin on iOS should receive full annotations support
+pdf/annotations [ Skip ]
+pdf/pdf-in-iframe-with-text-annotation.html [ Skip ]
 
 ### END OF Legitimate failures
 ###################################################################################################
@@ -201,6 +208,9 @@ platform/visionos/transforms/separated-video.html [ Failure ]
 
 ###################################################################################################
 ### START OF Flaky tests
+
+# webkit.org/b/309297 overlay-region/clipping.html
+overlay-region/full-page-horizontal.html [ Pass Failure ]
 
 # webkit.org/b/305613 overlay-region/clipping.html
 overlay-region/clipping.html [ Pass Failure ]

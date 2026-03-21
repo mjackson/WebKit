@@ -40,13 +40,6 @@
 #import "CoreVideoSoftLink.h"
 #import <pal/cf/CoreMediaSoftLink.h>
 
-// Equivalent to WTF_DECLARE_CF_TYPE_TRAIT(CMSampleBuffer);
-// Needed due to requirement of specifying the PAL namespace.
-template <>
-struct WTF::CFTypeTrait<CMSampleBufferRef> {
-    static inline CFTypeID typeID(void) { return PAL::CMSampleBufferGetTypeID(); }
-};
-
 namespace WebCore {
 
 MediaSampleAVFObjC::MediaSampleAVFObjC(RetainPtr<CMSampleBufferRef>&& sample)

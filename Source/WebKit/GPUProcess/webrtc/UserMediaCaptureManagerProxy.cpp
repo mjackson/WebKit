@@ -605,7 +605,7 @@ void UserMediaCaptureManagerProxy::createMediaSourceForCaptureDeviceWithConstrai
     ASSERT(!m_proxies.contains(id));
     Ref connection = m_connectionProxy->connection();
     RefPtr remoteVideoFrameObjectHeap = shouldUseGPUProcessRemoteFrames ? m_connectionProxy->remoteVideoFrameObjectHeap() : nullptr;
-    auto proxy = UserMediaCaptureManagerProxySourceProxy::create(id, WTF::move(connection), ProcessIdentity { m_connectionProxy->resourceOwner() }, WTF::move(source), WTF::move(remoteVideoFrameObjectHeap));
+    auto proxy = UserMediaCaptureManagerProxySourceProxy::create(id, WTF::move(connection), m_connectionProxy->resourceOwner(), WTF::move(source), WTF::move(remoteVideoFrameObjectHeap));
 
 #if PLATFORM(IOS_FAMILY)
     proxy->setProvidePresentingApplicationPIDFunction([weakThis = WeakPtr { *this }, pageIdentifier] {
@@ -685,7 +685,7 @@ void UserMediaCaptureManagerProxy::removeSource(RealtimeMediaSourceIdentifier id
     Ref source = iterator->value->source();
     m_proxies.remove(iterator);
 
-    for (Ref proxy : m_proxies.values()) {
+    for (auto& proxy : m_proxies.values()) {
         if (proxy->isUsingSource(source))
             return;
     }
@@ -757,7 +757,7 @@ void UserMediaCaptureManagerProxy::clone(RealtimeMediaSourceIdentifier clonedID,
 
         Ref connection = m_connectionProxy->connection();
         RefPtr remoteVideoFrameObjectHeap = m_connectionProxy->remoteVideoFrameObjectHeap();
-        auto cloneProxy = UserMediaCaptureManagerProxySourceProxy::create(newSourceID, WTF::move(connection), ProcessIdentity { m_connectionProxy->resourceOwner() }, WTF::move(sourceClone), WTF::move(remoteVideoFrameObjectHeap));
+        auto cloneProxy = UserMediaCaptureManagerProxySourceProxy::create(newSourceID, WTF::move(connection), m_connectionProxy->resourceOwner(), WTF::move(sourceClone), WTF::move(remoteVideoFrameObjectHeap));
         cloneProxy->copySettings(*proxy);
 #if PLATFORM(IOS_FAMILY)
         cloneProxy->setProvidePresentingApplicationPIDFunction([weakThis = WeakPtr { *this }, pageIdentifier] {

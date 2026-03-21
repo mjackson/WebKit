@@ -237,23 +237,23 @@ void HTMLObjectElement::updateWidget(CreatePlugins createPlugins)
         renderFallbackContent();
 }
 
-Node::InsertedIntoAncestorResult HTMLObjectElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps HTMLObjectElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    HTMLPlugInElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    HTMLPlugInElement::insertionSteps(insertionType, parentOfInsertedTree);
     FormListedElement::elementInsertedIntoAncestor(*this, insertionType);
     if (!insertionType.connectedToDocument)
-        return InsertedIntoAncestorResult::Done;
-    return InsertedIntoAncestorResult::NeedsPostInsertionCallback;
+        return NeedsPostConnectionSteps::No;
+    return NeedsPostConnectionSteps::Yes;
 }
 
-void HTMLObjectElement::didFinishInsertingNode()
+void HTMLObjectElement::postConnectionSteps()
 {
     resetFormOwner();
 }
 
-void HTMLObjectElement::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+void HTMLObjectElement::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
-    HTMLPlugInElement::removedFromAncestor(removalType, oldParentOfRemovedTree);
+    HTMLPlugInElement::removingSteps(removalType, oldParentOfRemovedTree);
     FormListedElement::elementRemovedFromAncestor(*this, removalType);
 }
 
@@ -297,7 +297,7 @@ void HTMLObjectElement::renderFallbackContent()
     // Before we give up and use fallback content, check to see if this is a MIME type issue.
     RefPtr loader = imageLoader();
     if (loader && loader->image() && loader->image()->status() != CachedResource::LoadError) {
-        m_serviceType = loader->image()->response().mimeType();
+        m_serviceType = protect(loader->image())->response().mimeType();
         if (!isImageType()) {
             // If we don't think we have an image type anymore, then clear the image from the loader.
             loader->clearImage();

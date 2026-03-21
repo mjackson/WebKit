@@ -40,7 +40,7 @@ class SVGAnimatedAngleOrientAnimator final : public SVGAnimatedPropertyPairAnima
     using Base::Base;
 
 public:
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedAngle>& animated1, Ref<SVGAnimatedOrientType>& animated2, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedAngle>& animated1, const Ref<SVGAnimatedOrientType>& animated2, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
     {
         return adoptRef(*new SVGAnimatedAngleOrientAnimator(attributeName, animated1, animated2, animationMode, calcMode, isAccumulated, isAdditive));
     }
@@ -116,7 +116,7 @@ class SVGAnimatedIntegerPairAnimator final : public SVGAnimatedPropertyPairAnima
     using Base::Base;
 
 public:
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedInteger>& animated1, Ref<SVGAnimatedInteger>& animated2, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedInteger>& animated1, const Ref<SVGAnimatedInteger>& animated2, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
     {
         return adoptRef(*new SVGAnimatedIntegerPairAnimator(attributeName, animated1, animated2, animationMode, calcMode, isAccumulated, isAdditive));
     }
@@ -162,7 +162,7 @@ class SVGAnimatedNumberPairAnimator final : public SVGAnimatedPropertyPairAnimat
     using Base::Base;
 
 public:
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedNumber>& animated1, Ref<SVGAnimatedNumber>& animated2, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedNumber>& animated1, const Ref<SVGAnimatedNumber>& animated2, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
     {
         return adoptRef(*new SVGAnimatedNumberPairAnimator(attributeName, animated1, animated2, animationMode, calcMode, isAccumulated, isAdditive));
     }

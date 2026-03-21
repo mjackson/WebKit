@@ -32,7 +32,7 @@
 #import "CompletionHandlerCallChecker.h"
 #import "WebPageProxy.h"
 #import "_WKDataTaskDelegate.h"
-#import <WebCore/AuthenticationMac.h>
+#import <WebCore/AuthenticationCocoa.h>
 #import <WebCore/Credential.h>
 #import <WebCore/ResourceRequest.h>
 #import <WebCore/WebCoreObjCExtras.h>
@@ -59,7 +59,7 @@ private:
         if (!delegate || !m_respondsToDidReceiveAuthenticationChallenge)
             return completionHandler(WebKit::AuthenticationChallengeDisposition::RejectProtectionSpaceAndContinue, { });
         auto checker = WebKit::CompletionHandlerCallChecker::create(delegate.get(), @selector(dataTask:didReceiveAuthenticationChallenge:completionHandler:));
-        [delegate dataTask:protect(wrapper(task)).get() didReceiveAuthenticationChallenge:protectedMac(challenge).get() completionHandler:makeBlockPtr([checker = WTF::move(checker), completionHandler = WTF::move(completionHandler)](NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential) mutable {
+        [delegate dataTask:protect(wrapper(task)).get() didReceiveAuthenticationChallenge:protect(mac(challenge)).get() completionHandler:makeBlockPtr([checker = WTF::move(checker), completionHandler = WTF::move(completionHandler)](NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential) mutable {
             if (checker->completionHandlerHasBeenCalled())
                 return;
             checker->didCallCompletionHandler();

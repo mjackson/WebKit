@@ -42,10 +42,10 @@ public:
 
     ~FrameTree();
 
-    const AtomString& specifiedName() const { return m_specifiedName; }
+    const AtomString& specifiedName() const LIFETIME_BOUND { return m_specifiedName; }
     WEBCORE_EXPORT AtomString uniqueName() const;
-    WEBCORE_EXPORT void NODELETE setSpecifiedName(const AtomString&);
-    WEBCORE_EXPORT void NODELETE clearName();
+    WEBCORE_EXPORT void setSpecifiedName(const AtomString&);
+    WEBCORE_EXPORT void clearName();
     WEBCORE_EXPORT Frame* NODELETE parent() const;
 
     Frame* nextSibling() const { return m_nextSibling.get(); }
@@ -77,7 +77,7 @@ public:
 
     Frame* NODELETE child(unsigned index) const;
     Frame* NODELETE childBySpecifiedName(const AtomString& name) const;
-    Frame* NODELETE descendantByFrameID(FrameIdentifier) const;
+    WEBCORE_EXPORT Frame* NODELETE descendantByFrameID(FrameIdentifier) const;
     WEBCORE_EXPORT RefPtr<Frame> findByUniqueName(const AtomString&, Frame& activeFrame) const;
     WEBCORE_EXPORT RefPtr<Frame> findBySpecifiedName(const AtomString&, Frame& activeFrame) const;
     WEBCORE_EXPORT unsigned NODELETE childCount() const;

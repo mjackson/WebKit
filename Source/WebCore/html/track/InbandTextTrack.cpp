@@ -83,12 +83,7 @@ void InbandTextTrack::setPrivate(InbandTextTrackPrivate& trackPrivate)
 
     setModeInternal(mode());
     updateKindFromPrivate();
-    setId(protectedPrivate()->id());
-}
-
-Ref<InbandTextTrackPrivate> InbandTextTrack::protectedPrivate() const
-{
-    return m_private;
+    setId(protect(m_private)->id());
 }
 
 void InbandTextTrack::setMode(Mode mode)
@@ -113,47 +108,47 @@ static inline InbandTextTrackPrivate::Mode NODELETE toPrivate(TextTrack::Mode mo
 
 void InbandTextTrack::setModeInternal(Mode mode)
 {
-    protectedPrivate()->setMode(toPrivate(mode));
+    protect(m_private)->setMode(toPrivate(mode));
 }
 
 bool InbandTextTrack::isClosedCaptions() const
 {
-    return protectedPrivate()->isClosedCaptions();
+    return protect(m_private)->isClosedCaptions();
 }
 
 bool InbandTextTrack::isSDH() const
 {
-    return protectedPrivate()->isSDH();
+    return protect(m_private)->isSDH();
 }
 
 bool InbandTextTrack::containsOnlyForcedSubtitles() const
 {
-    return protectedPrivate()->containsOnlyForcedSubtitles();
+    return protect(m_private)->containsOnlyForcedSubtitles();
 }
 
 bool InbandTextTrack::isMainProgramContent() const
 {
-    return protectedPrivate()->isMainProgramContent();
+    return protect(m_private)->isMainProgramContent();
 }
 
 bool InbandTextTrack::isEasyToRead() const
 {
-    return protectedPrivate()->isEasyToRead();
+    return protect(m_private)->isEasyToRead();
 }
 
 bool InbandTextTrack::isDefault() const
 {
-    return protectedPrivate()->isDefault();
+    return protect(m_private)->isDefault();
 }
 
 size_t InbandTextTrack::inbandTrackIndex()
 {
-    return protectedPrivate()->trackIndex();
+    return protect(m_private)->trackIndex();
 }
 
 String InbandTextTrack::inBandMetadataTrackDispatchType() const
 {
-    return protectedPrivate()->inBandMetadataTrackDispatchType();
+    return protect(m_private)->inBandMetadataTrackDispatchType();
 }
 
 void InbandTextTrack::idChanged(TrackID id)
@@ -180,7 +175,7 @@ void InbandTextTrack::willRemove()
 
 void InbandTextTrack::updateKindFromPrivate()
 {
-    switch (protectedPrivate()->kind()) {
+    switch (protect(m_private)->kind()) {
     case InbandTextTrackPrivate::Kind::Subtitles:
         setKind(Kind::Subtitles);
         return;
@@ -207,14 +202,14 @@ void InbandTextTrack::updateKindFromPrivate()
 
 MediaTime InbandTextTrack::startTimeVariance() const
 {
-    return protectedPrivate()->startTimeVariance();
+    return protect(m_private)->startTimeVariance();
 }
 
 #if !RELEASE_LOG_DISABLED
 void InbandTextTrack::setLogger(const Logger& logger, uint64_t logIdentifier)
 {
     TextTrack::setLogger(logger, logIdentifier);
-    protectedPrivate()->setLogger(logger, this->logIdentifier());
+    protect(m_private)->setLogger(logger, this->logIdentifier());
 }
 #endif
 

@@ -337,7 +337,7 @@ bool PageConfiguration::lockdownModeEnabled() const
 
 bool PageConfiguration::isEnhancedSecurityEnabled() const
 {
-    if (RefPtr policies = m_data.defaultWebsitePolicies.getIfExists())
+    if (auto* policies = m_data.defaultWebsitePolicies.getIfExists())
         return policies->isEnhancedSecurityEnabled();
     return false;
 }
@@ -360,8 +360,6 @@ void PageConfiguration::setDelaysWebProcessLaunchUntilFirstLoad(bool delaysWebPr
 
 bool PageConfiguration::delaysWebProcessLaunchUntilFirstLoad() const
 {
-    if (protect(preferences())->siteIsolationEnabled())
-        return true;
     if (RefPtr processPool = m_data.processPool.getIfExists(); processPool && isInspectorProcessPool(*processPool)) {
         // Never delay process launch for inspector pages as inspector pages do not know how to transition from a terminated process.
         RELEASE_LOG(Process, "%p - PageConfiguration::delaysWebProcessLaunchUntilFirstLoad() -> false because of WebInspector pool", this);
@@ -382,7 +380,7 @@ bool PageConfiguration::delaysWebProcessLaunchUntilFirstLoad() const
 
 bool PageConfiguration::isLockdownModeExplicitlySet() const
 {
-    if (RefPtr policies = m_data.defaultWebsitePolicies.getIfExists())
+    if (auto* policies = m_data.defaultWebsitePolicies.getIfExists())
         return policies->isLockdownModeExplicitlySet();
     return false;
 }

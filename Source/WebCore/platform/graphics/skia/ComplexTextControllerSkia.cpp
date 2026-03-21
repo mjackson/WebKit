@@ -25,11 +25,12 @@
 #include "config.h"
 #include "ComplexTextController.h"
 
-#include "FontCascade.h"
+#include "FontCascadeInlines.h"
 #include "FontFeatureValues.h"
 #include "FontTaggedSettings.h"
 #include "HbUniquePtr.h"
 #include "SurrogatePairAwareTextIterator.h"
+#include "TextRun.h"
 #include "text/TextFlags.h"
 #include <hb-icu.h>
 #include <hb-ot.h>

@@ -26,7 +26,7 @@
 #include "config.h"
 #include "InlineTextBoxStyle.h"
 
-#include "FontCascade.h"
+#include "FontCascadeInlines.h"
 #include "HTMLAnchorElement.h"
 #include "HTMLNames.h"
 #include "InlineIteratorBoxInlines.h"
@@ -51,7 +51,7 @@ struct UnderlineOffsetArguments {
     std::optional<TextUnderlinePositionUnder> textUnderlinePositionUnder { };
 };
 
-static bool isAncestorAndWithinBlock(const RenderInline& ancestor, const RenderObject* child)
+static bool NODELETE isAncestorAndWithinBlock(const RenderInline& ancestor, const RenderObject* child)
 {
     const RenderObject* object = child;
     while (object && (!object->isRenderBlock() || object->isInline())) {
@@ -69,13 +69,14 @@ static float minLogicalTopForTextDecorationLineUnder(const InlineIterator::LineB
         if (run->renderer().isOutOfFlowPositioned())
             continue; // Positioned placeholders don't affect calculations.
 
-        if (!run->style().textDecorationLineInEffect().hasUnderline())
+        CheckedRef runStyle = run->style();
+        if (!runStyle->textDecorationLineInEffect().hasUnderline())
             continue; // If the text decoration isn't in effect on the child, then it must be outside of |decoratingBoxRendererForUnderline|'s hierarchy.
 
         if (auto* renderInline = dynamicDowncast<RenderInline>(decoratingBoxRendererForUnderline); renderInline && !isAncestorAndWithinBlock(*renderInline, &run->renderer()))
             continue;
 
-        if (run->isText() || run->style().textDecorationSkipInk() == TextDecorationSkipInk::None)
+        if (run->isText() || runStyle->textDecorationSkipInk() == TextDecorationSkipInk::None)
             minLogicalTop = std::min<float>(minLogicalTop, run->logicalTop());
     }
     return minLogicalTop;
@@ -88,13 +89,14 @@ static float maxLogicalBottomForTextDecorationLineUnder(const InlineIterator::Li
         if (run->renderer().isOutOfFlowPositioned())
             continue; // Positioned placeholders don't affect calculations.
 
-        if (!run->style().textDecorationLineInEffect().hasUnderline())
+        CheckedRef runStyle = run->style();
+        if (!runStyle->textDecorationLineInEffect().hasUnderline())
             continue; // If the text decoration isn't in effect on the child, then it must be outside of |decoratingBoxRendererForUnderline|'s hierarchy.
 
         if (auto* renderInline = dynamicDowncast<RenderInline>(decoratingBoxRendererForUnderline); renderInline && !isAncestorAndWithinBlock(*renderInline, &run->renderer()))
             continue;
 
-        if (run->isText() || run->style().textDecorationSkipInk() == TextDecorationSkipInk::None)
+        if (run->isText() || runStyle->textDecorationSkipInk() == TextDecorationSkipInk::None)
             maxLogicalBottom = std::max<float>(maxLogicalBottom, run->logicalBottom());
     }
     return maxLogicalBottom;

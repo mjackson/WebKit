@@ -54,8 +54,8 @@ public:
 
     constexpr MediaPlatformType platformType() const final { return MediaPlatformType::AVFObjC; }
 
-    const CAAudioStreamDescription& description() const;
-    CMSampleBufferRef sampleBuffer() const;
+    const CAAudioStreamDescription& description() const LIFETIME_BOUND;
+    CMSampleBufferRef NODELETE sampleBuffer() const;
 
 private:
     friend class PlatformRawAudioData;

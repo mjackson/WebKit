@@ -26,9 +26,9 @@
 
 #pragma once
 
-#include <WebCore/ModelPlayer.h>
-#include <WebCore/ModelPlayerClient.h>
-#include <WebCore/ModelPlayerIdentifier.h>
+#include "ModelPlayer.h"
+#include "ModelPlayerClient.h"
+#include "ModelPlayerIdentifier.h"
 #include <wtf/Forward.h>
 #include <wtf/Platform.h>
 #include <wtf/WeakPtr.h>

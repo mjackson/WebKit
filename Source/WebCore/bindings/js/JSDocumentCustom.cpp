@@ -22,7 +22,8 @@
 
 #include "FrameDestructionObserverInlines.h"
 #include "JSCSSStyleSheet.h"
-#include "JSDOMConvert.h"
+#include "JSDOMConvertInterface.h"
+#include "JSDOMConvertSequences.h"
 #include "JSDOMGlobalObjectInlines.h"
 #include "JSDOMWindowCustom.h"
 #include "JSHTMLDocument.h"
@@ -88,13 +89,13 @@ void JSDocument::setAdoptedStyleSheets(JSC::JSGlobalObject& lexicalGlobalObject,
 }
 
 template<typename Visitor>
-void JSDocument::visitAdditionalChildren(Visitor& visitor)
+void JSDocument::visitAdditionalChildrenInGCThread(Visitor& visitor)
 {
     // This may get called on a GC thread so we cannot ref this object.
     SUPPRESS_UNCOUNTED_ARG addWebCoreOpaqueRoot(visitor, static_cast<ScriptExecutionContext&>(wrapped()));
 }
 
-DEFINE_VISIT_ADDITIONAL_CHILDREN(JSDocument);
+DEFINE_VISIT_ADDITIONAL_CHILDREN_IN_GC_THREAD(JSDocument);
 
 void JSDocument::analyzeHeap(JSCell* cell, HeapAnalyzer& analyzer)
 {

@@ -204,13 +204,22 @@ bool BackForwardListState::isEqualForTesting(const BackForwardListState& other) 
         return false;
 
     for (size_t i = 0; i < items.size(); ++i) {
-        Ref item = items[i];
-        Ref otherItem = other.items[i];
-        if (!item->isEqualForTesting(otherItem.get()))
+        if (!items[i].isEqualForTesting(other.items[i]))
             return false;
     }
 
     if (currentIndex != other.currentIndex)
+        return false;
+
+    return true;
+}
+
+bool BackForwardListItemState::isEqualForTesting(const BackForwardListItemState& other) const
+{
+    if (!protect(frameState)->isEqualForTesting(protect(other.frameState).get()))
+        return false;
+
+    if (navigatedFrameID != other.navigatedFrameID)
         return false;
 
     return true;
@@ -237,8 +246,8 @@ bool FrameState::isEqualForTesting(const FrameState& other) const
         return false;
 
     for (size_t i = 0; i < children.size(); ++i) {
-        Ref child = children[i];
-        Ref otherChild = other.children[i];
+        auto& child = children[i];
+        auto& otherChild = other.children[i];
         if (!child->isEqualForTesting(otherChild.get()))
             return false;
     }

@@ -231,7 +231,7 @@ void QuerySet::createContainersIfNeeded()
 
 #pragma mark WGPU Stubs
 
-void wgpuQuerySetReference(WGPUQuerySet querySet)
+void NODELETE wgpuQuerySetReference(WGPUQuerySet querySet)
 {
     WebGPU::fromAPI(querySet).ref();
 }
@@ -243,20 +243,20 @@ void wgpuQuerySetRelease(WGPUQuerySet querySet)
 
 void wgpuQuerySetDestroy(WGPUQuerySet querySet)
 {
-    WebGPU::protectedFromAPI(querySet)->destroy();
+    protect(WebGPU::fromAPI(querySet))->destroy();
 }
 
 void wgpuQuerySetSetLabel(WGPUQuerySet querySet, const char* label)
 {
-    WebGPU::protectedFromAPI(querySet)->setLabel(WebGPU::fromAPI(label));
+    protect(WebGPU::fromAPI(querySet))->setLabel(WebGPU::fromAPI(label));
 }
 
 uint32_t wgpuQuerySetGetCount(WGPUQuerySet querySet)
 {
-    return WebGPU::protectedFromAPI(querySet)->count();
+    return protect(WebGPU::fromAPI(querySet))->count();
 }
 
 WGPUQueryType wgpuQuerySetGetType(WGPUQuerySet querySet)
 {
-    return WebGPU::protectedFromAPI(querySet)->type();
+    return protect(WebGPU::fromAPI(querySet))->type();
 }

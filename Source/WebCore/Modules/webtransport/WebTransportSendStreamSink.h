@@ -25,7 +25,9 @@
 
 #pragma once
 
-#include <WebCore/WritableStreamSink.h>
+#include "WritableStreamSink.h"
+#include <wtf/Ref.h>
+#include <wtf/WeakPtr.h>
 
 namespace WebCore {
 

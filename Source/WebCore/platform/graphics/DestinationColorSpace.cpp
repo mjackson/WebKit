@@ -249,7 +249,7 @@ TextStream& operator<<(TextStream& ts, const DestinationColorSpace& colorSpace)
         ts << "ExtendedRec2020"_s;
 #endif
 #if USE(CG)
-    else if (RetainPtr description = adoptCF(CGColorSpaceCopyICCProfileDescription(colorSpace.protectedPlatformColorSpace().get())))
+    else if (RetainPtr description = adoptCF(CGColorSpaceCopyICCProfileDescription(protect(colorSpace.platformColorSpace()).get())))
         ts << String(description.get());
 #endif
 

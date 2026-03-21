@@ -84,12 +84,12 @@ IGNORE_WARNINGS_END
 
 - (NSURLRequest *)request
 {
-    return _download->_download->request().protectedNSURLRequest(WebCore::HTTPBodyUpdatePolicy::DoNotUpdateHTTPBody).autorelease();
+    return protect(_download->_download->request().nsURLRequest(WebCore::HTTPBodyUpdatePolicy::DoNotUpdateHTTPBody)).autorelease();
 }
 
 - (WKWebView *)originatingWebView
 {
-    RefPtr page = Ref { *_download->_download }->originatingPage();
+    RefPtr page = _download->_download->originatingPage();
     return page ? page->cocoaView().autorelease() : nil;
 }
 

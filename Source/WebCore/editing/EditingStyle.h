@@ -111,7 +111,7 @@ public:
     MutableStyleProperties* style() const { return m_mutableStyle.get(); }
     Ref<MutableStyleProperties> styleWithResolvedTextDecorations() const;
     std::optional<WritingDirection> textDirection() const;
-    bool isEmpty() const;
+    bool NODELETE isEmpty() const;
     void setStyle(RefPtr<MutableStyleProperties>&&);
     void overrideWithStyle(const StyleProperties&);
     void overrideTypingStyleAt(const EditingStyle&, const Position&);
@@ -222,9 +222,9 @@ public:
     bool applyFontFace() const { return m_applyFontFace.length() > 0; }
     bool applyFontSize() const { return m_applyFontSize.length() > 0; }
 
-    const AtomString& fontColor() { return m_applyFontColor; }
-    const AtomString& fontFace() { return m_applyFontFace; }
-    const AtomString& fontSize() { return m_applyFontSize; }
+    const AtomString& fontColor() const LIFETIME_BOUND { return m_applyFontColor; }
+    const AtomString& fontFace() const LIFETIME_BOUND { return m_applyFontFace; }
+    const AtomString& fontSize() const LIFETIME_BOUND { return m_applyFontSize; }
 
     bool operator==(const StyleChange&);
 

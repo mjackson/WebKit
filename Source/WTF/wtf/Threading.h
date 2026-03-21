@@ -162,7 +162,7 @@ public:
     static Thread& currentSingleton();
 
     // Set of all WTF::Thread created threads.
-    WTF_EXPORT_PRIVATE static ThreadSafeWeakHashSet<Thread>& allThreads();
+    WTF_EXPORT_PRIVATE static ThreadSafeWeakHashSet<Thread>& NODELETE allThreads();
 
     WTF_EXPORT_PRIVATE unsigned numberOfThreadGroups();
 
@@ -192,7 +192,7 @@ public:
         std::array<void*, s_maxKeys> m_slots { };
     };
 
-    SpecificStorage& specificStorage() { return m_specificStorage; };
+    SpecificStorage& specificStorage() LIFETIME_BOUND { return m_specificStorage; };
 
     struct ThreadHolder;
 #endif

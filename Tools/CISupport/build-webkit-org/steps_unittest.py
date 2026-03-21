@@ -1900,7 +1900,7 @@ class TestCheckIfNeededUpdateCrossTargetImageSteps(BuildStepMixinAdditions, unit
         return self.tear_down_test_build_step()
 
     def setUpPropertiesForTest(self):
-        self.setProperty('fullPlatform', 'wpe')
+        self.setProperty('fullPlatform', 'wpe-rpi4-64bits-mesa')
         self.setProperty('configuration', 'release')
         self.setProperty('buildername', 'WPE-Linux-RPi4-64bits-Mesa-Release-Perf-Build')
         self.setProperty('archive_revision', '265300@main')
@@ -2269,7 +2269,8 @@ exit 1''')
 
 class TestScanBuild(BuildStepMixinAdditions, unittest.TestCase):
     WORK_DIR = 'wkdir'
-    EXPECTED_BUILD_COMMAND = ['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'Tools/Scripts/build-and-analyze --output-dir wkdir/build/{SCAN_BUILD_OUTPUT_DIR} --configuration release --only-smart-pointers --analyzer-path=wkdir/llvm-project/build/bin/clang --preprocessor-additions=CLANG_WEBKIT_BRANCH=1 --scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=macosx 2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt']
+    EXPECTED_BUILD_COMMAND = ['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'Tools/Scripts/build-and-analyze --output-dir wkdir/build/{SCAN_BUILD_OUTPUT_DIR} --configuration release --only-smart-pointers --toolchains=org.webkit.swift --swift-conditions=SWIFT_WEBKIT_TOOLCHAIN --scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=macosx 2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt']
+    EXPECTED_IOS_BUILD_COMMAND = ['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'Tools/Scripts/build-and-analyze --output-dir wkdir/build/{SCAN_BUILD_OUTPUT_DIR} --configuration release --only-smart-pointers --toolchains=org.webkit.swift --swift-conditions=SWIFT_WEBKIT_TOOLCHAIN --scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=iphonesimulator 2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt']
 
     def setUp(self):
         return self.setup_test_build_step()
@@ -2303,7 +2304,7 @@ class TestScanBuild(BuildStepMixinAdditions, unittest.TestCase):
         self.configureStep()
         self.setProperty('builddir', self.WORK_DIR)
         self.setProperty('configuration', 'release')
-        self.setProperty('fullPlatform', 'mac-sonoma')
+        self.setProperty('fullPlatform', 'mac-tahoe')
         self.setProperty('architecture', 'arm64')
         next_steps = []
         self.patch(self.build, 'addStepsAfterCurrentStep', lambda s: next_steps.extend(s))
@@ -2323,7 +2324,7 @@ class TestScanBuild(BuildStepMixinAdditions, unittest.TestCase):
         rc = self.run_step()
         self.assertEqual(
             [
-                GenerateS3URL('mac-sonoma-arm64-release-scan-build', extension='txt', content_type='text/plain', additions='13'),
+                GenerateS3URL('mac-tahoe-arm64-release-scan-build', extension='txt', content_type='text/plain', additions='13'),
                 UploadFileToS3('build-log.txt', links={'scan-build': 'Full build log'}, content_type='text/plain'),
                 ParseStaticAnalyzerResults(),
                 FindUnexpectedStaticAnalyzerResults(),
@@ -2365,14 +2366,13 @@ class TestScanBuild(BuildStepMixinAdditions, unittest.TestCase):
         next_steps = []
         self.patch(self.build, 'addStepsAfterCurrentStep', lambda s: next_steps.extend(s))
 
-        expected_build_command = ['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'Tools/Scripts/build-and-analyze --output-dir wkdir/build/{SCAN_BUILD_OUTPUT_DIR} --configuration release --only-smart-pointers --toolchains={SWIFT_TOOLCHAIN_BUNDLE_IDENTIFIER} --swift-conditions=SWIFT_WEBKIT_TOOLCHAIN --scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=iphonesimulator 2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt']
         self.expectRemoteCommands(
             ExpectShell(workdir=self.WORK_DIR,
                         command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'/bin/rm -rf wkdir/build/{SCAN_BUILD_OUTPUT_DIR}'],
                         timeout=2 * 60 * 60)
             .exit(0),
             ExpectShell(workdir=self.WORK_DIR,
-                        command=expected_build_command,
+                        command=self.EXPECTED_IOS_BUILD_COMMAND,
                         timeout=2 * 60 * 60)
             .log('stdio', stdout='ANALYZE SUCCEEDED No issues found.\n')
             .exit(0)
@@ -2732,6 +2732,7 @@ class TestBuildSwift(BuildStepMixinAdditions, unittest.TestCase):
         self.setup_step(BuildSwift())
         self.setProperty('architecture', 'arm64')
         self.setProperty('builddir', 'webkit')
+        self.setProperty('fullPlatform', 'mac-tahoe')
         self.setProperty('canonical_swift_tag', 'swift-6.0.3-RELEASE')
 
     def expectedShellCommand(self):

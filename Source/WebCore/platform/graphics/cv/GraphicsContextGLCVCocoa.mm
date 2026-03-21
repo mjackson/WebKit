@@ -148,7 +148,7 @@ enum class TransferFunctionCV {
     kITU_R_2020,
 };
 
-static PixelRange pixelRangeFromPixelFormat(OSType pixelFormat)
+static PixelRange NODELETE pixelRangeFromPixelFormat(OSType pixelFormat)
 {
     switch (pixelFormat) {
     case kCVPixelFormatType_4444AYpCbCr8:
@@ -188,11 +188,11 @@ static TransferFunctionCV transferFunctionFromString(CFStringRef string)
         return TransferFunctionCV::kITU_R_601_4;
     if (CFEqual(string, kCVImageBufferYCbCrMatrix_SMPTE_240M_1995))
         return TransferFunctionCV::kSMPTE_240M_1995;
-    if (canLoad_CoreVideo_kCVImageBufferYCbCrMatrix_DCI_P3() && CFEqual(string, kCVImageBufferYCbCrMatrix_DCI_P3))
+    if (CFEqual(string, kCVImageBufferYCbCrMatrix_DCI_P3))
         return TransferFunctionCV::kDCI_P3;
-    if (canLoad_CoreVideo_kCVImageBufferYCbCrMatrix_P3_D65() && CFEqual(string, kCVImageBufferYCbCrMatrix_P3_D65))
+    if (CFEqual(string, kCVImageBufferYCbCrMatrix_P3_D65))
         return TransferFunctionCV::kP3_D65;
-    if (canLoad_CoreVideo_kCVImageBufferYCbCrMatrix_ITU_R_2020() && CFEqual(string, kCVImageBufferYCbCrMatrix_ITU_R_2020))
+    if (CFEqual(string, kCVImageBufferYCbCrMatrix_ITU_R_2020))
         return TransferFunctionCV::kITU_R_2020;
     return TransferFunctionCV::Unknown;
 }
@@ -221,12 +221,12 @@ struct GLfloatColor {
     {
     }
 
-    static constexpr GLfloat abs(GLfloat value)
+    static constexpr GLfloat NODELETE abs(GLfloat value)
     {
         return value >= 0 ? value : -value;
     }
 
-    constexpr bool isApproximatelyEqualTo(const GLfloatColor& color, GLfloat maxDelta) const
+    constexpr bool NODELETE isApproximatelyEqualTo(const GLfloatColor& color, GLfloat maxDelta) const
     {
         return abs(rgb.r - color.rgb.r) < abs(maxDelta)
             && abs(rgb.g - color.rgb.g) < abs(maxDelta)

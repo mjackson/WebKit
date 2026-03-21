@@ -139,7 +139,7 @@ public:
     WEBCORE_EXPORT bool isNull() const;
     WEBCORE_EXPORT bool isEmpty() const;
     
-    WEBCORE_EXPORT const URL& url() const;
+    WEBCORE_EXPORT const URL& url() const LIFETIME_BOUND;
     WEBCORE_EXPORT void setURL(URL&&, bool didFilterLinkDecoration = false);
 
     void redirectAsGETIfNeeded(const ResourceRequestBase &, const ResourceResponse&);
@@ -156,7 +156,7 @@ public:
     WEBCORE_EXPORT void setTimeoutInterval(double);
     WEBCORE_EXPORT void resetTimeoutInterval();
     
-    WEBCORE_EXPORT const URL& firstPartyForCookies() const;
+    WEBCORE_EXPORT const URL& firstPartyForCookies() const LIFETIME_BOUND;
     WEBCORE_EXPORT void setFirstPartyForCookies(const URL&);
 
     WEBCORE_EXPORT bool isThirdParty() const;
@@ -173,10 +173,10 @@ public:
     WEBCORE_EXPORT bool isTopSite() const; // Whether this request is for a top-level navigation.
     WEBCORE_EXPORT void setIsTopSite(bool);
 
-    WEBCORE_EXPORT const String& httpMethod() const;
+    WEBCORE_EXPORT const String& httpMethod() const LIFETIME_BOUND;
     WEBCORE_EXPORT void setHTTPMethod(const String& httpMethod);
     
-    WEBCORE_EXPORT const HTTPHeaderMap& httpHeaderFields() const;
+    WEBCORE_EXPORT const HTTPHeaderMap& httpHeaderFields() const LIFETIME_BOUND;
     WEBCORE_EXPORT void setHTTPHeaderFields(HTTPHeaderMap);
 
     WEBCORE_EXPORT String httpHeaderField(StringView name) const;
@@ -223,11 +223,11 @@ public:
 
     WEBCORE_EXPORT void clearPurpose();
 
-    const Vector<String>& responseContentDispositionEncodingFallbackArray() const { return m_requestData.m_responseContentDispositionEncodingFallbackArray; }
+    const Vector<String>& responseContentDispositionEncodingFallbackArray() const LIFETIME_BOUND { return m_requestData.m_responseContentDispositionEncodingFallbackArray; }
     WEBCORE_EXPORT void setResponseContentDispositionEncodingFallbackArray(const String& encoding1, const String& encoding2 = String(), const String& encoding3 = String());
     void setResponseContentDispositionEncodingFallbackArray(const Vector<String>& array) { m_requestData.m_responseContentDispositionEncodingFallbackArray = array; }
 
-    WEBCORE_EXPORT RefPtr<FormData> httpBody() const;
+    WEBCORE_EXPORT FormData* httpBody() const;
     WEBCORE_EXPORT bool hasUpload() const;
     WEBCORE_EXPORT void setHTTPBody(RefPtr<FormData>&&);
     
@@ -240,7 +240,7 @@ public:
     WEBCORE_EXPORT void setPriority(ResourceLoadPriority);
 
     WEBCORE_EXPORT static String partitionName(const String& domain);
-    const String& cachePartition() const { return m_cachePartition; }
+    const String& cachePartition() const LIFETIME_BOUND { return m_cachePartition; }
     WEBCORE_EXPORT void setCachePartition(const String&);
     void setDomainForCachePartition(const String& domain) { setCachePartition(partitionName(domain)); }
 
@@ -262,7 +262,7 @@ public:
     void setInitiatorIdentifier(const String& identifier) { m_initiatorIdentifier = identifier; }
 
     // Additional information for the Inspector to be able to identify the node that initiated this request.
-    const std::optional<int>& inspectorInitiatorNodeIdentifier() const { return m_inspectorInitiatorNodeIdentifier; }
+    const std::optional<int>& inspectorInitiatorNodeIdentifier() const LIFETIME_BOUND { return m_inspectorInitiatorNodeIdentifier; }
     void setInspectorInitiatorNodeIdentifier(int inspectorInitiatorNodeIdentifier) { m_inspectorInitiatorNodeIdentifier = inspectorInitiatorNodeIdentifier; }
 
 #if !PLATFORM(COCOA) && !USE(SOUP)
@@ -275,7 +275,7 @@ public:
     void upgradeInsecureRequestIfNeeded(ShouldUpgradeLocalhostAndIPAddress, const std::optional<uint16_t>&);
 
     WEBCORE_EXPORT static double defaultTimeoutInterval(); // May return 0 when using platform default.
-    WEBCORE_EXPORT static void setDefaultTimeoutInterval(double);
+    WEBCORE_EXPORT static void NODELETE setDefaultTimeoutInterval(double);
 
     WEBCORE_EXPORT static bool equal(const ResourceRequest&, const ResourceRequest&);
 
@@ -289,13 +289,13 @@ public:
     WEBCORE_EXPORT void setUseAdvancedPrivacyProtections(bool);
 
     bool didFilterLinkDecoration() const { return m_requestData.m_didFilterLinkDecoration; }
-    WEBCORE_EXPORT void setDidFilterLinkDecoration(bool);
+    WEBCORE_EXPORT void NODELETE setDidFilterLinkDecoration(bool);
 
     bool isPrivateTokenUsageByThirdPartyAllowed() const { return m_requestData.m_isPrivateTokenUsageByThirdPartyAllowed; }
-    void setIsPrivateTokenUsageByThirdPartyAllowed(bool);
+    void NODELETE setIsPrivateTokenUsageByThirdPartyAllowed(bool);
 
     bool wasSchemeOptimisticallyUpgraded() const { return m_requestData.m_wasSchemeOptimisticallyUpgraded; }
-    void setWasSchemeOptimisticallyUpgraded(bool);
+    void NODELETE setWasSchemeOptimisticallyUpgraded(bool);
 
 protected:
     // Used when ResourceRequest is initialized from a platform representation of the request
@@ -338,7 +338,7 @@ protected:
     bool m_hiddenFromInspector : 1;
 
 private:
-    const ResourceRequest& asResourceRequest() const;
+    const ResourceRequest& NODELETE asResourceRequest() const;
 
     WEBCORE_EXPORT static double s_defaultTimeoutInterval;
 };

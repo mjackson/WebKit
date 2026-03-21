@@ -43,9 +43,8 @@ enum class WebKit::TextAlignment : uint8_t {
 
 struct WebKit::EditorState {
     WebKit::EditorStateIdentifier identifier;
+    WebCore::SelectionType selectionType;
     bool shouldIgnoreSelectionChanges;
-    bool selectionIsNone;
-    bool selectionIsRange;
     bool selectionIsRangeInsideImageOverlay;
     bool selectionIsRangeInAutoFilledAndViewableField;
     bool isContentEditable;

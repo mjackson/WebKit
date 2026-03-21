@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -578,7 +578,7 @@ HashSet<WebCore::RegistrableDomain> WebsiteDataStore::platformAdditionalDomainsW
 }
 #endif
 
-static WebsiteDataStore::ProcessAccessType computeNetworkProcessAccessTypeForDataFetch(OptionSet<WebsiteDataType> dataTypes, bool isNonPersistentStore)
+static WebsiteDataStore::ProcessAccessType NODELETE computeNetworkProcessAccessTypeForDataFetch(OptionSet<WebsiteDataType> dataTypes, bool isNonPersistentStore)
 {
     for (auto dataType : dataTypes) {
         if (WebsiteData::ownerProcess(dataType) == WebsiteDataProcessType::Network)
@@ -770,7 +770,7 @@ private:
     }
 
     if (dataTypes.contains(WebsiteDataType::DeviceIdHashSalt)) {
-        ensureProtectedDeviceIdHashSaltStorage()->getDeviceIdHashSaltOrigins([callbackAggregator](auto&& origins) {
+        protect(ensureDeviceIdHashSaltStorage())->getDeviceIdHashSaltOrigins([callbackAggregator](auto&& origins) {
             WebsiteData websiteData;
             websiteData.entries = WTF::map(origins, [](auto& origin) {
                 return WebsiteData::Entry { origin, WebsiteDataType::DeviceIdHashSalt, 0 };
@@ -804,7 +804,7 @@ private:
 
 #if ENABLE(ENCRYPTED_MEDIA)
     if (dataTypes.contains(WebsiteDataType::MediaKeys)) {
-        ensureProtectedMediaKeysHashSaltStorage()->getDeviceIdHashSaltOrigins([callbackAggregator](auto&& origins) {
+        protect(ensureMediaKeysHashSaltStorage())->getDeviceIdHashSaltOrigins([callbackAggregator](auto&& origins) {
             WebsiteData websiteData;
             websiteData.entries = WTF::map(origins, [](auto& origin) {
                 return WebsiteData::Entry { origin, WebsiteDataType::MediaKeys, 0 };
@@ -847,7 +847,7 @@ void WebsiteDataStore::fetchDataForRegistrableDomains(OptionSet<WebsiteDataType>
     });
 }
 
-static WebsiteDataStore::ProcessAccessType computeNetworkProcessAccessTypeForDataRemoval(OptionSet<WebsiteDataType> dataTypes, bool isNonPersistentStore)
+static WebsiteDataStore::ProcessAccessType NODELETE computeNetworkProcessAccessTypeForDataRemoval(OptionSet<WebsiteDataType> dataTypes, bool isNonPersistentStore)
 {
     auto processAccessType = WebsiteDataStore::ProcessAccessType::None;
     for (auto dataType : dataTypes) {
@@ -957,11 +957,11 @@ void WebsiteDataStore::removeData(OptionSet<WebsiteDataType> dataTypes, WallTime
     removeDataInNetworkProcess(networkProcessAccessType, dataTypes, modifiedSince, [callbackAggregator] { });
 
     if (dataTypes.contains(WebsiteDataType::DeviceIdHashSalt) || (dataTypes.contains(WebsiteDataType::Cookies)))
-        ensureProtectedDeviceIdHashSaltStorage()->deleteDeviceIdHashSaltOriginsModifiedSince(modifiedSince, [callbackAggregator] { });
+        protect(ensureDeviceIdHashSaltStorage())->deleteDeviceIdHashSaltOriginsModifiedSince(modifiedSince, [callbackAggregator] { });
 
 #if ENABLE(ENCRYPTED_MEDIA)
     if (dataTypes.contains(WebsiteDataType::MediaKeys) || (dataTypes.contains(WebsiteDataType::Cookies)))
-        ensureProtectedMediaKeysHashSaltStorage()->deleteDeviceIdHashSaltOriginsModifiedSince(modifiedSince, [callbackAggregator] { });
+        protect(ensureMediaKeysHashSaltStorage())->deleteDeviceIdHashSaltOriginsModifiedSince(modifiedSince, [callbackAggregator] { });
 #endif
 
     if (dataTypes.contains(WebsiteDataType::MediaKeys) && isPersistent()) {
@@ -1055,11 +1055,11 @@ void WebsiteDataStore::removeData(OptionSet<WebsiteDataType> dataTypes, const Ve
     }
 
     if (dataTypes.contains(WebsiteDataType::DeviceIdHashSalt) || (dataTypes.contains(WebsiteDataType::Cookies)))
-        ensureProtectedDeviceIdHashSaltStorage()->deleteDeviceIdHashSaltForOrigins(origins, [callbackAggregator] { });
+        protect(ensureDeviceIdHashSaltStorage())->deleteDeviceIdHashSaltForOrigins(origins, [callbackAggregator] { });
 
 #if ENABLE(ENCRYPTED_MEDIA)
     if (dataTypes.contains(WebsiteDataType::MediaKeys) || (dataTypes.contains(WebsiteDataType::Cookies)))
-        ensureProtectedMediaKeysHashSaltStorage()->deleteDeviceIdHashSaltForOrigins(origins, [callbackAggregator] { });
+        protect(ensureMediaKeysHashSaltStorage())->deleteDeviceIdHashSaltForOrigins(origins, [callbackAggregator] { });
 #endif
 
     if (dataTypes.contains(WebsiteDataType::MediaKeys) && isPersistent()) {
@@ -1098,11 +1098,6 @@ DeviceIdHashSaltStorage& WebsiteDataStore::ensureDeviceIdHashSaltStorage()
     return *m_deviceIdHashSaltStorage;
 }
 
-Ref<DeviceIdHashSaltStorage> WebsiteDataStore::ensureProtectedDeviceIdHashSaltStorage()
-{
-    return ensureDeviceIdHashSaltStorage();
-}
-
 #if ENABLE(ENCRYPTED_MEDIA)
 DeviceIdHashSaltStorage& WebsiteDataStore::ensureMediaKeysHashSaltStorage()
 {
@@ -1110,11 +1105,6 @@ DeviceIdHashSaltStorage& WebsiteDataStore::ensureMediaKeysHashSaltStorage()
         lazyInitialize(m_mediaKeysHashSaltStorage, DeviceIdHashSaltStorage::create(isPersistent() ? m_configuration->mediaKeysHashSaltsStorageDirectory() : String()));
 
     return *m_mediaKeysHashSaltStorage;
-}
-
-Ref<DeviceIdHashSaltStorage> WebsiteDataStore::ensureProtectedMediaKeysHashSaltStorage()
-{
-    return ensureMediaKeysHashSaltStorage();
 }
 #endif
 
@@ -1743,12 +1733,12 @@ void WebsiteDataStore::resetCacheMaxAgeCapForPrevalentResources(CompletionHandle
     protect(networkProcess())->resetCacheMaxAgeCapForPrevalentResources(m_sessionID, WTF::move(completionHandler));
 }
 
-HashSet<RefPtr<WebProcessPool>> WebsiteDataStore::processPools(size_t limit) const
+HashSet<Ref<WebProcessPool>> WebsiteDataStore::processPools(size_t limit) const
 {
-    HashSet<RefPtr<WebProcessPool>> processPools;
+    HashSet<Ref<WebProcessPool>> processPools;
     for (Ref process : processes()) {
         if (RefPtr processPool = process->processPoolIfExists()) {
-            processPools.add(WTF::move(processPool));
+            processPools.add(processPool.releaseNonNull());
             if (processPools.size() == limit)
                 break;
         }
@@ -1766,7 +1756,7 @@ HashSet<RefPtr<WebProcessPool>> WebsiteDataStore::processPools(size_t limit) con
     return processPools;
 }
 
-HashSet<RefPtr<WebProcessPool>> WebsiteDataStore::ensureProcessPools() const
+HashSet<Ref<WebProcessPool>> WebsiteDataStore::ensureProcessPools() const
 {
     auto processPools = this->processPools();
     if (processPools.isEmpty())
@@ -1945,7 +1935,7 @@ void WebsiteDataStore::setTrackingPreventionEnabled(bool enabled)
     if (RefPtr networkProcessProxy = m_networkProcess)
         networkProcessProxy->send(Messages::NetworkProcess::SetTrackingPreventionEnabled(m_sessionID, enabled), 0);
 
-    for (RefPtr processPool : processPools())
+    for (Ref processPool : processPools())
         processPool->sendToAllProcessesForSession(Messages::WebProcess::SetTrackingPreventionEnabled(enabled), m_sessionID);
 }
 
@@ -2038,7 +2028,7 @@ void WebsiteDataStore::logTestingEvent(const String& event)
 void WebsiteDataStore::clearResourceLoadStatisticsInWebProcesses(CompletionHandler<void()>&& callback)
 {
     if (trackingPreventionEnabled()) {
-        for (RefPtr processPool : processPools())
+        for (Ref processPool : processPools())
             processPool->sendToAllProcessesForSession(Messages::WebProcess::ClearResourceLoadStatistics(), m_sessionID);
     }
     callback();
@@ -2535,6 +2525,11 @@ void WebsiteDataStore::originDirectoryForTesting(WebCore::ClientOrigin&& origin,
     protect(networkProcess())->websiteDataOriginDirectoryForTesting(m_sessionID, WTF::move(origin), type, WTF::move(completionHandler));
 }
 
+void WebsiteDataStore::lastPageLoadNetworkActivityCompletionCodeForTesting(WebCore::PageIdentifier pageID, CompletionHandler<void(std::optional<NetworkActivityTracker::CompletionCode>)>&& completionHandler)
+{
+    protect(networkProcess())->lastPageLoadNetworkActivityCompletionCodeForTesting(m_sessionID, pageID, WTF::move(completionHandler));
+}
+
 #if ENABLE(APP_BOUND_DOMAINS)
 void WebsiteDataStore::hasAppBoundSession(CompletionHandler<void(bool)>&& completionHandler) const
 {
@@ -2663,7 +2658,7 @@ void WebsiteDataStore::openWindowFromServiceWorker(const String& urlString, cons
             return;
         }
 
-        if (!protect(newPage->pageLoadState())->isLoading()) {
+        if (!newPage->pageLoadState().isLoading()) {
             RELEASE_LOG(Loading, "The WKWebView provided in response to a ServiceWorker openWindow request was not in the loading state");
             callback(std::nullopt);
             return;

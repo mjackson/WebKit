@@ -26,8 +26,9 @@
 #import "ComplexTextController.h"
 
 #import "FontCache.h"
-#import "FontCascade.h"
+#import "FontCascadeInlines.h"
 #import "Logging.h"
+#import "SimpleFontDataCoreText.h"
 #import <CoreText/CoreText.h>
 #import <pal/spi/cf/CoreTextSPI.h>
 #import <wtf/SoftLinking.h>
@@ -140,7 +141,7 @@ struct ProviderInfo {
     RetainPtr<CFDictionaryRef> attributes;
 };
 
-static const UniChar* provideStringAndAttributes(CFIndex stringIndex, CFIndex* charCount, CFDictionaryRef* attributes, void* refCon)
+static const UniChar* NODELETE provideStringAndAttributes(CFIndex stringIndex, CFIndex* charCount, CFDictionaryRef* attributes, void* refCon)
 {
     ProviderInfo* info = static_cast<struct ProviderInfo*>(refCon);
     if (stringIndex < 0 || static_cast<size_t>(stringIndex) >= info->characters.size())
@@ -178,7 +179,7 @@ void ComplexTextController::collectComplexTextRunsForCharacters(std::span<const 
 {
     if (!font) {
         // Create a run of missing glyphs from the primary font.
-        m_complexTextRuns.append(ComplexTextRun::create(m_fontCascade->primaryFont(), characters, stringLocation, 0, characters.size(), m_run->ltr()));
+        m_complexTextRuns.append(ComplexTextRun::create(protect(m_fontCascade->primaryFont()), characters, stringLocation, 0, characters.size(), m_run->ltr()));
         return;
     }
 
@@ -195,11 +196,11 @@ void ComplexTextController::collectComplexTextRunsForCharacters(std::span<const 
         effectiveFont = m_fontCascade->fallbackRangesAt(0).fontForCharacter(baseCharacter);
         if (!effectiveFont)
             effectiveFont = &m_fontCascade->fallbackRangesAt(0).fontForFirstRange();
-        stringAttributes = adoptCF(CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, effectiveFont->getCFStringAttributes(m_fontCascade->enableKerning(), effectiveFont->platformData().orientation(), m_fontCascade->fontDescription().computedLocale()).get()));
+        stringAttributes = adoptCF(CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, getCFStringAttributes(*effectiveFont, m_fontCascade->enableKerning(), effectiveFont->platformData().orientation(), m_fontCascade->fontDescription().computedLocale()).get()));
         // We don't know which font should be used to render this grapheme cluster, so enable CoreText's fallback mechanism by using the CTFont which doesn't have CoreText's fallback disabled.
         CFDictionarySetValue(const_cast<CFMutableDictionaryRef>(stringAttributes.get()), kCTFontAttributeName, effectiveFont->platformData().ctFont());
     } else
-        stringAttributes = effectiveFont->getCFStringAttributes(m_fontCascade->enableKerning(), effectiveFont->platformData().orientation(), m_fontCascade->fontDescription().computedLocale());
+        stringAttributes = getCFStringAttributes(*effectiveFont, m_fontCascade->enableKerning(), effectiveFont->platformData().orientation(), m_fontCascade->fontDescription().computedLocale());
 
     RetainPtr<CTLineRef> line;
 
@@ -272,17 +273,17 @@ void ComplexTextController::collectComplexTextRunsForCharacters(std::span<const 
                 if (!runFont) {
                     RetainPtr fontName = adoptCF(CTFontCopyPostScriptName(runCTFont.get()));
                     if (CFEqual(fontName.get(), CFSTR("LastResort"))) {
-                        m_complexTextRuns.append(ComplexTextRun::create(m_fontCascade->primaryFont(), characters, stringLocation, runRange.location, runRange.location + runRange.length, m_run->ltr()));
+                        m_complexTextRuns.append(ComplexTextRun::create(protect(m_fontCascade->primaryFont()), characters, stringLocation, runRange.location, runRange.location + runRange.length, m_run->ltr()));
                         continue;
                     }
                     FontPlatformData runFontPlatformData(runCTFont.get(), CTFontGetSize(runCTFont.get()));
-                    runFont = FontCache::forCurrentThread()->fontForPlatformData(runFontPlatformData).ptr();
+                    runFont = protect(FontCache::forCurrentThread())->fontForPlatformData(runFontPlatformData).ptr();
                 }
-                if (m_fallbackFonts && runFont != m_fontCascade->primaryFont().ptr())
+                if (m_fallbackFonts && runFont != &m_fontCascade->primaryFont())
                     m_fallbackFonts->add(*runFont);
             }
         }
-        if (m_fallbackFonts && runFont != m_fontCascade->primaryFont().ptr())
+        if (m_fallbackFonts && runFont != &m_fontCascade->primaryFont())
             m_fallbackFonts->add(*effectiveFont);
 
         LOG_WITH_STREAM(TextShaping, stream << "Run " << r << ":");

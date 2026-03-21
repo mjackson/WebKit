@@ -52,7 +52,7 @@
 
 - (id)initWithDocument:(WKDOMDocument *)document
 {
-    return [self _initWithImpl:WebCore::Range::create(*WebKit::toProtectedWebCoreDocument(document)).ptr()];
+    return [self _initWithImpl:WebCore::Range::create(*protect(WebKit::toWebCoreDocument(document))).ptr()];
 }
 
 - (void)dealloc
@@ -86,14 +86,14 @@
 {
     if (!node)
         return;
-    protect(*_impl)->selectNode(*WebKit::toProtectedWebCoreNode(node));
+    protect(*_impl)->selectNode(*protect(WebKit::toWebCoreNode(node)));
 }
 
 - (void)selectNodeContents:(WKDOMNode *)node
 {
     if (!node)
         return;
-    protect(*_impl)->selectNodeContents(*WebKit::toProtectedWebCoreNode(node));
+    protect(*_impl)->selectNodeContents(*protect(WebKit::toWebCoreNode(node)));
 }
 
 - (WKDOMNode *)startContainer

@@ -101,9 +101,9 @@ protected:
 
     bool NODELETE validationMessageShadowTreeContains(const Node&) const;
 
-    void insertedIntoAncestor(Node::InsertionType, ContainerNode&);
-    void didFinishInsertingNode();
-    void removedFromAncestor(Node::RemovalType, ContainerNode&);
+    void insertionSteps(Node::InsertionType, ContainerNode&);
+    void postConnectionSteps();
+    void removingSteps(Node::RemovalType, ContainerNode&);
     void parseAttribute(const QualifiedName&, const AtomString&);
     void parseDisabledAttribute(const AtomString&);
     void parseReadOnlyAttribute(const AtomString&);

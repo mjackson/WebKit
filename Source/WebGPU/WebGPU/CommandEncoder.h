@@ -35,7 +35,7 @@
 #import <wtf/Function.h>
 #import <wtf/Ref.h>
 #import <wtf/RefCountedAndCanMakeWeakPtr.h>
-#import <wtf/RetainReleaseSwift.h>
+#import <wtf/SwiftBridging.h>
 #import <wtf/SwiftCXXThunk.h>
 #import <wtf/TZoneMalloc.h>
 #import <wtf/TaggedPtr.h>
@@ -47,7 +47,7 @@ IGNORE_CLANG_WARNINGS_BEGIN("nullability-completeness")
 @interface TextureAndClearColor : NSObject
 - (instancetype)initWithTexture:(id<MTLTexture> _Nonnull)texture NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
-@property (nonatomic) id<MTLTexture> texture;
+@property (nonatomic, nonnull) id<MTLTexture> texture;
 @property (nonatomic) MTLClearColor clearColor;
 @property (nonatomic) NSUInteger depthPlane;
 @end
@@ -106,7 +106,6 @@ public:
     void setLabel(String&&);
 
     Device& device() const { return m_device; }
-    Ref<Device> protectedDevice() const { return m_device; }
 
     bool isValid() const { return m_commandBuffer; }
     void lock(bool);
@@ -139,7 +138,7 @@ public:
     void addTexture(id<MTLTexture>);
     void addTexture(const Texture&);
     void addSampler(const Sampler&);
-    id<MTLCommandBuffer> _Nullable commandBuffer() const;
+    id<MTLCommandBuffer> _Nullable NODELETE commandBuffer() const;
     void setExistingEncoder(id<MTLCommandEncoder>);
     void generateInvalidEncoderStateError();
     bool validateClearBuffer(const Buffer&, uint64_t offset, uint64_t size);
@@ -164,7 +163,7 @@ private:
     CommandEncoder(id<MTLCommandBuffer>, Device&, uint64_t uniqueId);
     CommandEncoder(Device&);
 
-    bool validatePopDebugGroup() const;
+    bool NODELETE validatePopDebugGroup() const;
 
     NSString * _Nullable validateFinishError() const;
     NSString * _Nullable errorValidatingCopyBufferToBuffer(const Buffer& source, uint64_t sourceOffset, const Buffer& destination, uint64_t destinationOffset, uint64_t size);
@@ -177,7 +176,6 @@ private:
     void trackEncoder(TrackedResourceContainer&);
 
     void discardCommandBuffer();
-    RefPtr<CommandBuffer> protectedCachedCommandBuffer() const { return m_cachedCommandBuffer.get(); }
     void retainTimestampsForOneUpdateLoop();
 
     id<MTLCommandBuffer> _Nullable m_commandBuffer { nil };
@@ -220,12 +218,12 @@ private:
 
 inline void refCommandEncoder(WebGPU::CommandEncoder* obj)
 {
-    WTF::ref(obj);
+    obj->ref();
 }
 
 inline void derefCommandEncoder(WebGPU::CommandEncoder* obj)
 {
-    WTF::deref(obj);
+    obj->deref();
 }
 
 IGNORE_CLANG_WARNINGS_END

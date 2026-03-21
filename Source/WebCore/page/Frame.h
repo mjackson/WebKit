@@ -81,7 +81,7 @@ public:
     const WindowProxy& windowProxy() const { return m_windowProxy; }
 
     DOMWindow* window() const { return virtualWindow(); }
-    FrameTree& tree() const { return m_treeNode; }
+    FrameTree& tree() const LIFETIME_BOUND { return m_treeNode; }
     WEBCORE_EXPORT std::optional<uint64_t> indexInFrameTreeSiblings() const;
     WEBCORE_EXPORT Vector<uint64_t> pathToFrame() const;
     FrameIdentifier frameID() const { return m_frameID; }
@@ -110,7 +110,7 @@ public:
     inline HTMLFrameOwnerElement* ownerElement() const; // Defined in FrameInlines.h.
 
     WEBCORE_EXPORT void disconnectOwnerElement();
-    NavigationScheduler& navigationScheduler() const { return m_navigationScheduler.get(); }
+    NavigationScheduler& navigationScheduler() const LIFETIME_BOUND { return m_navigationScheduler.get(); }
     WEBCORE_EXPORT void takeWindowProxyAndOpenerFrom(Frame&);
 
     virtual void frameDetached() = 0;
@@ -146,7 +146,7 @@ public:
 
     void stopForBackForwardCache();
 
-    WEBCORE_EXPORT void NODELETE updateFrameTreeSyncData(Ref<FrameTreeSyncData>&&);
+    WEBCORE_EXPORT void updateFrameTreeSyncData(Ref<FrameTreeSyncData>&&);
     WEBCORE_EXPORT void updateFrameTreeSyncData(const FrameTreeSyncSerializationData&);
 
     virtual bool frameCanCreatePaymentSession() const;
@@ -155,10 +155,16 @@ public:
     WEBCORE_EXPORT virtual std::optional<DocumentSecurityPolicy> frameDocumentSecurityPolicy() const = 0;
     WEBCORE_EXPORT virtual String frameURLProtocol() const = 0;
 
+    // Scale factor of this frame with respect to the container.
+    WEBCORE_EXPORT float frameScaleFactor() const;
+
+    // Scale factor of a child frame with respect to this frame.
+    virtual float usedZoomForChild(const Frame&) const = 0;
+
     WEBCORE_EXPORT virtual void setPrinting(bool printing, FloatSize pageSize, FloatSize originalPageSize, float maximumShrinkRatio, AdjustViewSize, NotifyUIProcess = NotifyUIProcess::Yes);
 
     WEBCORE_EXPORT bool NODELETE isPrinting() const;
-    WEBCORE_EXPORT RefPtr<Frame> parent() const;
+    WEBCORE_EXPORT RefPtr<Frame> NODELETE parent() const;
 
 protected:
     Frame(Page&, FrameIdentifier, FrameType, HTMLFrameOwnerElement*, Frame* parent, Frame* opener, Ref<FrameTreeSyncData>&&, AddToFrameTree = AddToFrameTree::Yes);

@@ -98,7 +98,7 @@ root
                 <button>Update Status</button>
             </div>
             <textarea uid=…>This is a text box</textarea>
-            <div uid=… role='textbox'> contenteditable
+            <div uid=… role='textbox' contenteditable>
                 <sub>
                     WebKit home page:
                     <a>webkit.org</a>

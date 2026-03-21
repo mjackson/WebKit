@@ -372,7 +372,7 @@ void ScrollerPairMac::ensureOnMainThreadWithProtectedThis(Function<void(Scroller
 
 void ScrollerPairMac::mouseEnteredContentArea()
 {
-    LOG_WITH_STREAM(OverlayScrollbars, stream << "ScrollerPairMac for [" << protectedNode()->scrollingNodeID() << "] mouseEnteredContentArea");
+    LOG_WITH_STREAM(OverlayScrollbars, stream << "ScrollerPairMac for [" << protect(m_scrollingNode)->scrollingNodeID() << "] mouseEnteredContentArea");
 
     ensureOnMainThreadWithProtectedThis([](auto& scrollerPair) {
         if ([scrollerPair.m_scrollerImpPair overlayScrollerStateIsLocked])
@@ -385,7 +385,7 @@ void ScrollerPairMac::mouseEnteredContentArea()
 void ScrollerPairMac::mouseExitedContentArea()
 {
     m_mouseInContentArea = false;
-    LOG_WITH_STREAM(OverlayScrollbars, stream << "ScrollerPairMac for [" << protectedNode()->scrollingNodeID() << "] mouseExitedContentArea");
+    LOG_WITH_STREAM(OverlayScrollbars, stream << "ScrollerPairMac for [" << protect(m_scrollingNode)->scrollingNodeID() << "] mouseExitedContentArea");
 
     ensureOnMainThreadWithProtectedThis([](auto& scrollerPair) {
         if ([scrollerPair.m_scrollerImpPair overlayScrollerStateIsLocked])

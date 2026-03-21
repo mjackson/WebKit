@@ -40,7 +40,7 @@
 namespace WebCore {
 namespace Layout {
 
-static bool isQuirkContainer(const ElementBox& layoutBox)
+static bool NODELETE isQuirkContainer(const ElementBox& layoutBox)
 {
     return layoutBox.isBodyBox() || layoutBox.isDocumentBox() || layoutBox.isTableCell();
 }
@@ -50,7 +50,7 @@ BlockFormattingQuirks::BlockFormattingQuirks(const BlockFormattingContext& block
 {
 }
 
-static bool needsStretching(const ElementBox& layoutBox)
+static bool NODELETE needsStretching(const ElementBox& layoutBox)
 {
     ASSERT(layoutBox.isInFlow());
     // In quirks mode, in-flow body and html stretch to the initial containing block (height: auto only).
@@ -111,12 +111,12 @@ bool BlockFormattingQuirks::shouldIgnoreCollapsedQuirkMargin(const ElementBox& l
 }
 
 enum class VerticalMargin { Before, After };
-static inline bool hasQuirkMarginToCollapse(const ElementBox& layoutBox, VerticalMargin verticalMargin)
+static inline bool NODELETE hasQuirkMarginToCollapse(const ElementBox& layoutBox, VerticalMargin verticalMargin)
 {
     if (!layoutBox.isInFlow())
         return false;
-    CheckedRef style = layoutBox.style();
-    return (verticalMargin == VerticalMargin::Before && style->marginBefore().hasQuirk()) || (verticalMargin == VerticalMargin::After && style->marginAfter().hasQuirk());
+    auto& style = layoutBox.style();
+    return (verticalMargin == VerticalMargin::Before && style.marginBefore().hasQuirk()) || (verticalMargin == VerticalMargin::After && style.marginAfter().hasQuirk());
 }
 
 bool BlockFormattingQuirks::shouldCollapseMarginBeforeWithParentMarginBefore(const ElementBox& layoutBox)

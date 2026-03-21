@@ -89,14 +89,12 @@ DOMCache<WebCore::Range*, __unsafe_unretained WKDOMRange *>& NODELETE WKDOMRange
 // -- Node and classes derived from Node. --
 
 WebCore::Node* toWebCoreNode(WKDOMNode *);
-RefPtr<WebCore::Node> toProtectedWebCoreNode(WKDOMNode *);
 WKDOMNode *toWKDOMNode(WebCore::Node*);
 
 WebCore::Element* toWebCoreElement(WKDOMElement *);
 WKDOMElement *toWKDOMElement(WebCore::Element*);
 
 WebCore::Document* toWebCoreDocument(WKDOMDocument *);
-RefPtr<WebCore::Document> toProtectedWebCoreDocument(WKDOMDocument *);
 WKDOMDocument *toWKDOMDocument(WebCore::Document*);
 
 WebCore::Text* toWebCoreText(WKDOMText *);
@@ -105,7 +103,6 @@ WKDOMText *toWKDOMText(WebCore::Text*);
 // -- Range. --
 
 WebCore::Range* toWebCoreRange(WKDOMRange *);
-RefPtr<WebCore::Range> toProtectedWebCoreRange(WKDOMRange *);
 WKDOMRange *toWKDOMRange(WebCore::Range*);
 
 } // namespace WebKit

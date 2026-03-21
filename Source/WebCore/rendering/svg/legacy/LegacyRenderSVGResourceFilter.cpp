@@ -80,8 +80,8 @@ auto LegacyRenderSVGResourceFilter::applyResource(RenderElement& renderer, const
 
     LOG(Filters, "LegacyRenderSVGResourceFilter %p applyResource renderer %p", this, &renderer);
 
-    if (m_rendererFilterDataMap.contains(renderer)) {
-        FilterData* filterData = m_rendererFilterDataMap.get(renderer);
+    if (auto it = m_rendererFilterDataMap.find(renderer); it != m_rendererFilterDataMap.end()) {
+        FilterData* filterData = it->value.get();
         if (filterData->state == FilterData::PaintingSource || filterData->state == FilterData::Applying) {
             filterData->state = FilterData::CycleDetected;
             return { }; // Already built, or we're in a cycle, or we're marked for removal. Regardless, just do nothing more now.

@@ -32,7 +32,6 @@
 #include "RenderSVGResourceGradient.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGStopElement.h"
-#include "SVGTransformable.h"
 #include "StyleResolver.h"
 #include <wtf/NeverDestroyed.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -64,7 +63,7 @@ void SVGGradientElement::attributeChanged(const QualifiedName& name, const AtomS
         break;
     }
     case AttributeNames::gradientTransformAttr:
-        Ref { m_gradientTransform }->baseVal()->parse(newValue);
+        m_gradientTransform->baseVal()->parse(newValue);
         break;
     case AttributeNames::spreadMethodAttr: {
         auto propertyValue = SVGPropertyTraits<SVGSpreadMethodType>::fromString(*this, newValue);

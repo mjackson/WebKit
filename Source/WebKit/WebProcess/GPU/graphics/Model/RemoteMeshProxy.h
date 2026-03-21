@@ -82,12 +82,18 @@ private:
     {
         return protect(root().streamClientConnection())->send(WTF::move(message), backing());
     }
+    template<typename T, typename C>
+    [[nodiscard]] std::optional<IPC::StreamClientConnection::AsyncReplyID> sendWithAsyncReply(T&& message, C&& completionHandler)
+    {
+        return protect(root().streamClientConnection())->sendWithAsyncReply(WTF::move(message), WTF::move(completionHandler), backing());
+    }
 
     void update(const WebModel::UpdateMeshDescriptor&) final;
     void updateTexture(const WebModel::UpdateTextureDescriptor&) final;
     void updateMaterial(const WebModel::UpdateMaterialDescriptor&) final;
 #if PLATFORM(COCOA)
     std::pair<simd_float4, simd_float4> getCenterAndExtents() const final;
+    void sizeDidChange(unsigned, unsigned, CompletionHandler<void(Vector<MachSendRight>&&)>&&) final;
 #endif
     void play(bool) final;
 
@@ -101,6 +107,7 @@ private:
     bool supportsTransform(const WebCore::TransformationMatrix&) const final;
     void setScale(float) final;
     void setCameraDistance(float) final;
+    void setBackgroundColor(const WebModel::Float3&) final;
     void setStageMode(WebCore::StageModeOperation) final;
 #if ENABLE(GPU_PROCESS_MODEL)
     void setRotation(float yaw, float pitch, float roll) final;

@@ -91,9 +91,6 @@ public:
     bool isEmpty() const;
     bool definitelySingleLine() const;
     WEBCORE_EXPORT PlatformPathPtr platformPath() const;
-#if USE(CG)
-    WEBCORE_EXPORT RetainPtr<CGPathRef> protectedPlatformPath() const;
-#endif
 
     const PathSegment* singleSegmentIfExists() const { return asSingle(); }
     WEBCORE_EXPORT const Vector<PathSegment>* segmentsIfExists() const;
@@ -120,17 +117,13 @@ public:
 
 private:
     PlatformPathImpl& ensurePlatformPathImpl();
-    Ref<PlatformPathImpl> ensureProtectedPlatformPathImpl();
     PathImpl& setImpl(Ref<PathImpl>&&);
     WEBCORE_EXPORT PathImpl& ensureImpl();
-    WEBCORE_EXPORT Ref<PathImpl> ensureProtectedImpl();
 
     PathSegment* asSingle() { return std::get_if<PathSegment>(&m_data); }
     const PathSegment* asSingle() const { return std::get_if<PathSegment>(&m_data); }
 
     PathImpl* asImpl();
-    RefPtr<PathImpl> asProtectedImpl();
-    RefPtr<const PathImpl> asProtectedImpl() const;
 
     std::optional<FloatPoint> initialMoveToPoint() const;
 
@@ -154,7 +147,7 @@ inline void Path::moveTo(const FloatPoint& point)
     if (isEmpty())
         m_data = PathSegment(PathMoveTo { point });
     else
-        ensureProtectedImpl()->add(PathMoveTo { point });
+        protect(ensureImpl())->add(PathMoveTo { point });
 }
 
 inline void Path::addLineTo(const FloatPoint& point)
@@ -162,7 +155,7 @@ inline void Path::addLineTo(const FloatPoint& point)
     if (auto initial = initialMoveToPoint())
         m_data = PathSegment(PathDataLine { *initial, point });
     else
-        ensureProtectedImpl()->add(PathLineTo { point });
+        protect(ensureImpl())->add(PathLineTo { point });
 }
 
 inline void Path::addQuadCurveTo(const FloatPoint& controlPoint, const FloatPoint& endPoint)
@@ -170,7 +163,7 @@ inline void Path::addQuadCurveTo(const FloatPoint& controlPoint, const FloatPoin
     if (auto initial = initialMoveToPoint())
         m_data = PathSegment(PathDataQuadCurve { *initial, controlPoint, endPoint });
     else
-        ensureProtectedImpl()->add(PathQuadCurveTo { controlPoint, endPoint });
+        protect(ensureImpl())->add(PathQuadCurveTo { controlPoint, endPoint });
 }
 
 inline void Path::addBezierCurveTo(const FloatPoint& controlPoint1, const FloatPoint& controlPoint2, const FloatPoint& endPoint)
@@ -178,7 +171,7 @@ inline void Path::addBezierCurveTo(const FloatPoint& controlPoint1, const FloatP
     if (auto initial = initialMoveToPoint())
         m_data = PathSegment(PathDataBezierCurve { *initial, controlPoint1, controlPoint2, endPoint });
     else
-        ensureProtectedImpl()->add(PathBezierCurveTo { controlPoint1, controlPoint2, endPoint });
+        protect(ensureImpl())->add(PathBezierCurveTo { controlPoint1, controlPoint2, endPoint });
 }
 
 inline void Path::addArcTo(const FloatPoint& point1, const FloatPoint& point2, float radius)
@@ -186,7 +179,7 @@ inline void Path::addArcTo(const FloatPoint& point1, const FloatPoint& point2, f
     if (auto initial = initialMoveToPoint())
         m_data = PathSegment(PathDataArc { *initial, point1, point2, radius });
     else
-        ensureProtectedImpl()->add(PathArcTo { point1, point2, radius });
+        protect(ensureImpl())->add(PathArcTo { point1, point2, radius });
 }
 
 inline void Path::addArc(const FloatPoint& point, float radius, float startAngle, float endAngle, RotationDirection direction)
@@ -200,7 +193,7 @@ inline void Path::addArc(const FloatPoint& point, float radius, float startAngle
     if (isEmpty())
         m_data = PathSegment(PathArc { point, radius, startAngle, endAngle, direction });
     else
-        ensureProtectedImpl()->add(PathArc { point, radius, startAngle, endAngle, direction });
+        protect(ensureImpl())->add(PathArc { point, radius, startAngle, endAngle, direction });
 }
 
 inline void Path::addEllipse(const FloatPoint& point, float radiusX, float radiusY, float rotation, float startAngle, float endAngle, RotationDirection direction)
@@ -208,7 +201,7 @@ inline void Path::addEllipse(const FloatPoint& point, float radiusX, float radiu
     if (isEmpty())
         m_data = PathSegment(PathEllipse { point, radiusX, radiusY, rotation, startAngle, endAngle, direction });
     else
-        ensureProtectedImpl()->add(PathEllipse { point, radiusX, radiusY, rotation, startAngle, endAngle, direction });
+        protect(ensureImpl())->add(PathEllipse { point, radiusX, radiusY, rotation, startAngle, endAngle, direction });
 }
 
 inline void Path::addEllipseInRect(const FloatRect& rect)
@@ -216,7 +209,7 @@ inline void Path::addEllipseInRect(const FloatRect& rect)
     if (isEmpty())
         m_data = PathSegment(PathEllipseInRect { rect });
     else
-        ensureProtectedImpl()->add(PathEllipseInRect { rect });
+        protect(ensureImpl())->add(PathEllipseInRect { rect });
 }
 
 inline void Path::addRect(const FloatRect& rect)
@@ -224,7 +217,7 @@ inline void Path::addRect(const FloatRect& rect)
     if (isEmpty())
         m_data = PathSegment(PathRect { rect });
     else
-        ensureProtectedImpl()->add(PathRect { rect });
+        protect(ensureImpl())->add(PathRect { rect });
 }
 
 inline void Path::closeSubpath()
@@ -240,7 +233,7 @@ inline void Path::closeSubpath()
         if (std::holds_alternative<PathCloseSubpath>(*data))
             return;
     }
-    auto impl = ensureProtectedImpl();
+    Ref impl = ensureImpl();
     if (impl->isClosed())
         return;
     impl->add(PathCloseSubpath { });
@@ -254,7 +247,7 @@ inline FloatPoint Path::currentPoint() const
         FloatPoint lastMoveToPoint;
         return segment->calculateEndPoint({ }, lastMoveToPoint);
     }
-    return asProtectedImpl()->currentPoint();
+    return protect(asImpl())->currentPoint();
 }
 
 inline std::optional<FloatPoint> Path::initialMoveToPoint() const

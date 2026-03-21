@@ -66,7 +66,7 @@ public:
     void ref() const final { WebCore::SourceBufferPrivateClient::ref(); }
     void deref() const final { WebCore::SourceBufferPrivateClient::deref(); }
 
-    void setMediaPlayer(RemoteMediaPlayerProxy&);
+    void NODELETE setMediaPlayer(RemoteMediaPlayerProxy&);
 
     std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const;
 
@@ -129,7 +129,7 @@ private:
 
     ThreadSafeWeakPtr<GPUConnectionToWebProcess> m_connectionToWebProcess;
     RemoteSourceBufferIdentifier m_identifier;
-    Ref<WebCore::SourceBufferPrivate> m_sourceBufferPrivate;
+    const Ref<WebCore::SourceBufferPrivate> m_sourceBufferPrivate;
     WeakPtr<RemoteMediaPlayerProxy> m_remoteMediaPlayerProxy;
 
     StdUnorderedMap<TrackID, Ref<WebCore::MediaDescription>> m_mediaDescriptions;

@@ -78,24 +78,13 @@ bool doesGC(Graph& graph, Node* node)
     case PhantomLocal:
     case SetArgumentDefinitely:
     case SetArgumentMaybe:
-    case ArithBitNot:
-    case ArithBitAnd:
-    case ArithBitOr:
-    case ArithBitXor:
-    case ArithBitLShift:
-    case ArithBitRShift:
     case ArithBitURShift:
     case ValueToInt32:
     case UInt32ToNumber:
     case DoubleAsInt32:
-    case ArithAdd:
     case ArithClz32:
-    case ArithSub:
     case ArithNegate:
-    case ArithMul:
     case ArithIMul:
-    case ArithDiv:
-    case ArithMod:
     case ArithAbs:
     case ArithMin:
     case ArithMax:
@@ -280,6 +269,17 @@ bool doesGC(Graph& graph, Node* node)
     case NumberIsNaN:
     case NumberIsFinite:
     case NumberIsSafeInteger:
+    case ArithBitNot:
+    case ArithBitAnd:
+    case ArithBitOr:
+    case ArithBitXor:
+    case ArithBitLShift:
+    case ArithBitRShift:
+    case ArithAdd:
+    case ArithSub:
+    case ArithMul:
+    case ArithDiv:
+    case ArithMod:
         return false;
 
 #if ASSERT_ENABLED
@@ -490,6 +490,8 @@ bool doesGC(Graph& graph, Node* node)
     case PromiseResolve:
     case PromiseReject:
     case PromiseThen:
+    case PerformPromiseThen:
+    case ArrayIsArray:
 #else // not ASSERT_ENABLED
     // See comment at the top for why the default for all nodes should be to
     // return true.
@@ -534,14 +536,13 @@ bool doesGC(Graph& graph, Node* node)
     case CompareLessEq:
     case CompareGreater:
     case CompareGreaterEq:
-        // FIXME: Add AnyBigIntUse and HeapBigIntUse specific optimizations in DFG / FTL code generation and ensure it does not perform GC.
-        // https://bugs.webkit.org/show_bug.cgi?id=210923
         if (node->isBinaryUseKind(Int32Use)
 #if USE(JSVALUE64)
             || node->isBinaryUseKind(Int52RepUse)
 #endif
             || node->isBinaryUseKind(DoubleRepUse)
             || node->isBinaryUseKind(BigInt32Use)
+            || node->isBinaryUseKind(HeapBigIntUse)
             || node->isBinaryUseKind(StringIdentUse)
             )
             return false;
@@ -564,6 +565,7 @@ bool doesGC(Graph& graph, Node* node)
             || node->isBinaryUseKind(DoubleRepUse)
             || node->isBinaryUseKind(SymbolUse)
             || node->isSymmetricBinaryUseKind(SymbolUse, UntypedUse)
+            || node->isBinaryUseKind(HeapBigIntUse)
             || node->isBinaryUseKind(StringIdentUse)
             || node->isSymmetricBinaryUseKind(ObjectUse, UntypedUse)
             || node->isBinaryUseKind(ObjectUse)

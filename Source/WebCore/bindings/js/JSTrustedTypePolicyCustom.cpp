@@ -31,25 +31,11 @@
 namespace WebCore {
 
 template<typename Visitor>
-void JSTrustedTypePolicy::visitAdditionalChildren(Visitor& visitor)
+void JSTrustedTypePolicy::visitAdditionalChildrenInGCThread(Visitor& visitor)
 {
-    SUPPRESS_UNCOUNTED_LOCAL CreateHTMLCallback* createHTML = nullptr;
-    SUPPRESS_UNCOUNTED_LOCAL CreateScriptCallback* createScript = nullptr;
-    SUPPRESS_UNCOUNTED_LOCAL CreateScriptURLCallback* createScriptURL = nullptr;
-    {
-        Locker locker { wrapped().lock() };
-        createHTML = wrapped().options().createHTML.get();
-        createScript = wrapped().options().createScript.get();
-        createScriptURL = wrapped().options().createScriptURL.get();
-    }
-    if (createHTML)
-        SUPPRESS_UNCOUNTED_ARG createHTML->visitJSFunction(visitor);
-    if (createScript)
-        SUPPRESS_UNCOUNTED_ARG createScript->visitJSFunction(visitor);
-    if (createScriptURL)
-        SUPPRESS_UNCOUNTED_ARG createScriptURL->visitJSFunction(visitor);
+    wrapped().visitAdditionalChildrenInGCThread(visitor);
 }
 
-DEFINE_VISIT_ADDITIONAL_CHILDREN(JSTrustedTypePolicy);
+DEFINE_VISIT_ADDITIONAL_CHILDREN_IN_GC_THREAD(JSTrustedTypePolicy);
 
 } // namespace WebCore

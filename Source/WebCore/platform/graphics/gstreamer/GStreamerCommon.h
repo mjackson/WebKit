@@ -224,7 +224,6 @@ class GstMappedFrame {
 
 public:
     GstMappedFrame(GstMappedFrame&&);
-    GstMappedFrame(GstBuffer*, const GstVideoInfo*, GstMapFlags);
     GstMappedFrame(const GRefPtr<GstSample>&, GstMapFlags);
 
     ~GstMappedFrame();
@@ -243,6 +242,7 @@ public:
     int format() const;
     std::span<uint8_t> planeData(uint32_t) const;
     int planeStride(uint32_t) const;
+    size_t planeHeight(uint32_t) const;
 
     bool isValid() const { return m_frame.buffer; }
     explicit operator bool() const { return m_frame.buffer; }
@@ -257,6 +257,8 @@ public:
 
 private:
     GstVideoFrame m_frame;
+    GstVideoAlignment m_alignment;
+    std::array<size_t, GST_VIDEO_MAX_PLANES> m_planeSizes { };
 };
 
 class GstMappedAudioBuffer {
@@ -289,7 +291,7 @@ bool isGStreamerPluginAvailable(ASCIILiteral name);
 bool gstElementFactoryEquals(GstElement*, ASCIILiteral name);
 
 GstElement* createAutoAudioSink(const String& role);
-GstElement* createPlatformAudioSink(const String& role);
+GstElement* createPlatformAudioSink(const String& role, const String& deviceId = { }, const GRefPtr<GstDevice>& = { });
 
 bool webkitGstSetElementStateSynchronously(GstElement*, GstState, Function<bool(GstMessage*)>&& = [](GstMessage*) -> bool {
     return true;
@@ -383,6 +385,9 @@ bool setGstElementGLContext(GstElement*, ASCIILiteral contextType);
 GstStateChangeReturn gstElementLockAndSetState(GstElement*, GstState);
 
 GRefPtr<GstElement> createVideoConvertScaleElement(const String& name = emptyString());
+
+void dumpBinToDotFile(GstBin*, const String&, GstDebugGraphDetails = GST_DEBUG_GRAPH_SHOW_ALL);
+void dumpBinToDotFile(const GRefPtr<GstElement>&, const String&, GstDebugGraphDetails = GST_DEBUG_GRAPH_SHOW_ALL);
 
 } // namespace WebCore
 
@@ -494,6 +499,8 @@ GstBuffer* gst_buffer_new_memdup(gconstpointer data, gsize size);
 #if !GST_CHECK_VERSION(1, 28, 0)
 void gst_pad_probe_info_set_buffer(GstPadProbeInfo*, GstBuffer*);
 void gst_pad_probe_info_set_event(GstPadProbeInfo*, GstEvent*);
+#define gst_state_get_name gst_element_state_get_name
+#define gst_state_change_return_get_name gst_element_state_change_return_get_name
 #endif
 
 #endif // USE(GSTREAMER)

@@ -48,6 +48,7 @@
 #import "LayoutRect.h"
 #import "LocalFrameInlines.h"
 #import "LocalizedStrings.h"
+#import "Logging.h"
 #import "Page.h"
 #import "RenderTextControl.h"
 #import "RenderView.h"
@@ -297,6 +298,7 @@ NSArray *makeNSArray(const WebCore::AXCoreObject::AccessibilityChildrenVector& c
 - (void)attachIsolatedObject:(AXIsolatedObject&)newObject
 {
     AX_ASSERT(!isMainThread());
+    // FIXME: Can hit this almost 100% of the time on google.com with ENABLE(ACCESSIBILITY_LOCAL_FRAME).
     AX_ASSERT(!m_isolatedObject || m_isolatedObject->objectID() == newObject.objectID());
 
     m_isolatedObject = newObject;

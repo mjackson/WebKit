@@ -123,6 +123,9 @@ public:
         if (sampleSize > srcDimension) {
             return 1;
         }
+        if (sampleSize == 0) {
+            return 0;
+        }
         return srcDimension / sampleSize;
     }
 
@@ -330,6 +333,11 @@ public:
                 return &SkPackARGB_as_BGRA;
             }
         }
+    }
+
+    static sk_sp<const SkData> GetEncodedData(const SkCodec* codec) {
+        SkASSERT(codec);
+        return codec->getEncodedData();
     }
 };
 

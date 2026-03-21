@@ -27,6 +27,7 @@ import argparse
 import itertools
 import json
 import os
+import re
 import subprocess
 import sys
 import textwrap
@@ -38,7 +39,7 @@ COMMON_KNOWN_KEY_TYPES = {
     'argument': [str],
     'comment': [str],
     'conditional': [str],
-    'settings-flag': [str, list],
+    'settings-flag': [str],
     'status': [str],
 }
 
@@ -629,17 +630,40 @@ class CSSSelectorInlinesGenerator:
     def format_enablement_condition(self, settings_flag, is_internal):
         conditions = []
         if settings_flag is not None:
-            flags = settings_flag if isinstance(settings_flag, list) else [settings_flag]
-            for flag in flags:
-                if flag.startswith('DeprecatedGlobalSettings::'):
-                    conditions.append(f'{flag}()')
-                else:
-                    conditions.append(f'context.{flag}')
+            conditions.append(self.format_settings_flag(settings_flag))
 
         if is_internal:
             conditions.append('isUASheetBehavior(context.mode)')
 
         return ' && '.join(conditions)
+
+    def format_settings_flag(self, settings_flag):
+        parts = re.split(r' (\&\&|\|\|) ', settings_flag)
+
+        # parts is e.g. ['flagA', '&&', 'flagB', '||', 'flagC']
+        result = self.format_single_flag(parts[0])
+        for i in range(1, len(parts), 2):
+            operator = parts[i]
+            flag = parts[i + 1]
+            result += f' {operator} {self.format_single_flag(flag)}'
+        if len(parts) > 1:
+            result = f'({result})'
+        return result
+
+    def format_single_flag(self, flag):
+        flag = flag.strip()
+        negated = flag.startswith('!')
+        if negated:
+            flag = flag[1:]
+
+        if flag.startswith('DeprecatedGlobalSettings::'):
+            formatted = f'{flag}()'
+        else:
+            formatted = f'context.{flag}'
+
+        if negated:
+            return f'!{formatted}'
+        return formatted
 
     def write_is_pseudo_class_enabled(self, writer, values):
         writer.write_block("""
@@ -720,7 +744,7 @@ class CSSSelectorInlinesGenerator:
                     writer.write(f'#if {conditional}')
 
                 with writer.indent(), writer.indent():
-                    if ' && ' in enablement_condition:
+                    if ' && ' in enablement_condition or ' || ' in enablement_condition:
                         enablement_condition = f'({enablement_condition})'
 
                     writer.write(f'if (!{enablement_condition} && equalLettersIgnoringASCIICase(name, "{pseudo_name}"_s))')

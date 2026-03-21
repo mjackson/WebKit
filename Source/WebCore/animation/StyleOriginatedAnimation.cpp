@@ -393,7 +393,7 @@ void StyleOriginatedAnimation::enqueueDOMEvent(const AtomString& eventType, WebA
         return;
 
     auto scheduledTimelineTime = [&]() -> std::optional<Seconds> {
-        if (RefPtr documentTimeline = dynamicDowncast<DocumentTimeline>(timeline())) {
+        if (auto* documentTimeline = dynamicDowncast<DocumentTimeline>(timeline())) {
             ASSERT(scheduledEffectTime.time());
             if (auto scheduledAnimationTime = convertAnimationTimeToTimelineTime(*scheduledEffectTime.time()))
                 return documentTimeline->convertTimelineTimeToOriginRelativeTime(*scheduledAnimationTime);

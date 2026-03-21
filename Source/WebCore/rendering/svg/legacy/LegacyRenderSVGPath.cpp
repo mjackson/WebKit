@@ -208,11 +208,11 @@ void LegacyRenderSVGPath::strokeZeroLengthSubpaths(GraphicsContext& context) con
 static inline LegacyRenderSVGResourceMarker* NODELETE markerForType(SVGMarkerType type, LegacyRenderSVGResourceMarker* markerStart, LegacyRenderSVGResourceMarker* markerMid, LegacyRenderSVGResourceMarker* markerEnd)
 {
     switch (type) {
-    case StartMarker:
+    case SVGMarkerType::Start:
         return markerStart;
-    case MidMarker:
+    case SVGMarkerType::Middle:
         return markerMid;
-    case EndMarker:
+    case SVGMarkerType::End:
         return markerEnd;
     }
 
@@ -309,6 +309,8 @@ bool LegacyRenderSVGPath::isRenderingDisabled() const
 
 void LegacyRenderSVGPath::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
 {
+    if (oldStyle && oldStyle->hasMarkers() && !style().hasMarkers())
+        m_markerPositions.clear();
     if (RefPtr pathElement = dynamicDowncast<SVGPathElement>(graphicsElement())) {
         if (!oldStyle || style().d() != oldStyle->d())
             pathElement->pathDidChange();

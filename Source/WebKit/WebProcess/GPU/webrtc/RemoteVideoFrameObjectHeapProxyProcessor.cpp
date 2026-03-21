@@ -33,8 +33,8 @@
 #include "RemoteVideoFrameObjectHeapProxyProcessorMessages.h"
 #include "RemoteVideoFrameProxy.h"
 #include "WebProcess.h"
+#include <WebCore/CVUtilities.h>
 #include <WebCore/NativeImage.h>
-#include <WebCore/PixelBufferConformerCV.h>
 
 namespace WebKit {
 
@@ -171,8 +171,8 @@ RefPtr<NativeImage> RemoteVideoFrameObjectHeapProxyProcessor::getNativeImage(con
 
     m_conversionSemaphore.wait();
 
-    auto pixelBuffer = WTF::move(m_convertedBuffer);
-    return pixelBuffer ? NativeImage::create(PixelBufferConformerCV::imageFrom32BGRAPixelBuffer(WTF::move(pixelBuffer), destinationColorSpace.protectedPlatformColorSpace().get())) : nullptr;
+    RetainPtr pixelBuffer = std::exchange(m_convertedBuffer, { });
+    return pixelBuffer ? NativeImage::create(createImageFrom32BGRAPixelBuffer(WTF::move(pixelBuffer), RetainPtr { destinationColorSpace.platformColorSpace() }.get())) : nullptr;
 }
 
 }

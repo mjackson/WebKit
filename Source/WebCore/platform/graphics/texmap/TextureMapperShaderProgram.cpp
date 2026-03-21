@@ -194,12 +194,7 @@ static const char* vertexTemplateCommon =
         GLSL_DIRECTIVE(extension GL_EXT_YUV_target : require) \
         GLSL_DIRECTIVE(define SamplerExternalOESYUVType __samplerExternal2DY2YEXT) \
     GLSL_DIRECTIVE(else) \
-        GLSL_DIRECTIVE(if __VERSION__ >= 300) \
-            GLSL_DIRECTIVE(extension GL_OES_EGL_image_external_essl3 : require) \
-        GLSL_DIRECTIVE(else) \
-            GLSL_DIRECTIVE(extension GL_OES_EGL_image_external : require) \
-        GLSL_DIRECTIVE(endif) \
-        GLSL_DIRECTIVE(define SamplerExternalOESYUVType samplerExternalOES) \
+        GLSL_DIRECTIVE(define SamplerExternalOESYUVType sampler2D) \
     GLSL_DIRECTIVE(endif)
 // clang-format on
 

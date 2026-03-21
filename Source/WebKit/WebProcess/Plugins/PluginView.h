@@ -91,7 +91,7 @@ public:
     void layerHostingStrategyDidChange() final;
 
     WebCore::HTMLPlugInElement& pluginElement() const { return m_pluginElement; }
-    const URL& mainResourceURL() const { return m_mainResourceURL; }
+    const URL& mainResourceURL() const LIFETIME_BOUND { return m_mainResourceURL; }
 
     void didBeginMagnificationGesture();
     void didEndMagnificationGesture();
@@ -106,10 +106,10 @@ public:
     CursorContext cursorContext(WebCore::FloatPoint pointInRootView) const;
     void handleSyntheticClick(WebCore::PlatformMouseEvent&&);
     void clearSelection();
-#if PLATFORM(IOS_FAMILY)
     void setSelectionRange(WebCore::FloatPoint pointInRootView, WebCore::TextGranularity);
     SelectionWasFlipped moveSelectionEndpoint(WebCore::FloatPoint pointInRootView, SelectionEndpoint);
     SelectionEndpoint extendInitialSelection(WebCore::FloatPoint pointInRootView, WebCore::TextGranularity);
+#if PLATFORM(IOS_FAMILY)
     DocumentEditingContext documentEditingContext(DocumentEditingContextRequest&&) const;
 #endif
 #endif
@@ -118,7 +118,7 @@ public:
 
     void obscuredContentInsetsDidChange();
 
-    void webPageDestroyed();
+    void NODELETE webPageDestroyed();
 
     bool handleEditingCommand(const String& commandName, const String& argument);
     bool isEditingCommandEnabled(const String& commandName);

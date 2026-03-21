@@ -209,9 +209,4 @@ HTMLTableCellElement* HTMLTableCellElement::cellAbove() const
     return downcast<HTMLTableCellElement>(cellAboveRenderer->element());
 }
 
-RefPtr<HTMLTableCellElement> HTMLTableCellElement::protectedCellAbove() const
-{
-    return cellAbove();
-}
-
 } // namespace WebCore

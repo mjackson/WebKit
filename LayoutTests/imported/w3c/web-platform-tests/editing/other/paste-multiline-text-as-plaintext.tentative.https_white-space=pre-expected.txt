@@ -1,0 +1,6 @@
+abc
+def
+ghi
+
+FAIL Inserting multiline text shouldn't be split to multiple Text nodes unless using br elements promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
+

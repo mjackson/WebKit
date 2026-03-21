@@ -27,6 +27,7 @@
 #pragma once
 
 #include "CSSPrimitiveKeywordList.h"
+#include "FontCascadeInlines.h"
 #include "InlineLevelBox.h"
 #include "LayoutBoxInlines.h"
 #include "RenderStyle+GettersInlines.h"

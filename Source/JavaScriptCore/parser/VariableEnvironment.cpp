@@ -98,7 +98,8 @@ bool VariableEnvironment::captures(UniquedStringImpl* identifier) const
 void VariableEnvironment::swap(VariableEnvironment& other)
 {
     m_map.swap(other.m_map);
-    m_isEverythingCaptured = other.m_isEverythingCaptured;
+    std::swap(m_isEverythingCaptured, other.m_isEverythingCaptured);
+    std::swap(m_hasAwaitUsingDeclaration, other.m_hasAwaitUsingDeclaration);
     m_rareData.swap(other.m_rareData);
 }
 

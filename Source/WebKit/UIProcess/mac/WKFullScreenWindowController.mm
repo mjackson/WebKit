@@ -190,7 +190,6 @@ enum FullScreenState : NSInteger {
 @interface WKFullScreenWindowController (Private) <NSAnimationDelegate>
 - (void)_replaceView:(NSView *)view with:(NSView *)otherView;
 - (WebKit::WebFullScreenManagerProxy *)_manager;
-- (RefPtr<WebKit::WebFullScreenManagerProxy>)_protectedManager;
 - (void)_startEnterFullScreenAnimationWithDuration:(NSTimeInterval)duration;
 - (void)_startExitFullScreenAnimationWithDuration:(NSTimeInterval)duration;
 @end
@@ -919,12 +918,6 @@ static RetainPtr<CGImageRef> takeWindowSnapshot(CGSWindowID windowID, bool captu
 #pragma mark Internal Interface
 
 - (WebKit::WebFullScreenManagerProxy*)_manager
-{
-    RefPtr page = _page.get();
-    return page ? page->fullScreenManager() : nullptr;
-}
-
-- (RefPtr<WebKit::WebFullScreenManagerProxy>)_protectedManager
 {
     RefPtr page = _page.get();
     return page ? page->fullScreenManager() : nullptr;

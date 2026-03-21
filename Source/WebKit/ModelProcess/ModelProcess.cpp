@@ -67,6 +67,11 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(ModelProcess);
 // work in the ModelProcess.
 constexpr Seconds minimumLifetimeBeforeIdleExit { 5_s };
 
+Ref<ModelProcess> ModelProcess::create(AuxiliaryProcessInitializationParameters&& parameters)
+{
+    return adoptRef(*new ModelProcess(WTF::move(parameters)));
+}
+
 ModelProcess::ModelProcess(AuxiliaryProcessInitializationParameters&& parameters)
     : m_idleExitTimer(*this, &ModelProcess::tryExitIfUnused)
 {

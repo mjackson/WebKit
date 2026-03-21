@@ -23,30 +23,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// https://tc39.es/proposal-explicit-resource-management/#sec-getdisposemethod
-@linkTimeConstant
-function getAsyncDisposableMethod(value)
-{
-    'use strict';
-
-    var method = value.@@asyncDispose;
-
-    if (!@isCallable(method))
-        @throwTypeError("@@asyncDispose must be callable");
-
-    if (@isUndefinedOrNull(method))
-        return @undefined;
-
-    return () => {
-        try {
-            method.@call(value);
-        } catch (e) {
-            return @promiseReject(@Promise, e);
-        }
-        return @promiseResolve(@Promise, @undefined);
-    };
-}
-
 // https://tc39.es/proposal-explicit-resource-management/#sec-createdisposableresource
 @linkTimeConstant
 function createDisposableResource(value, isAsync /* , method */)
@@ -60,17 +36,10 @@ function createDisposableResource(value, isAsync /* , method */)
         else {
             if (!@isObject(value))
                 @throwTypeError("Disposable value must be an object");
-            if (isAsync) {
-                method = @getAsyncDisposableMethod(value);
-                if (method === @undefined)
-                    @throwTypeError("@@asyncDispose must not be an undefined");
-            } else {
-                method = value.@@dispose;
-                if (!@isCallable(method))
-                    @throwTypeError("@@dispose must be callable");
-                if (@isUndefinedOrNull(method))
-                    @throwTypeError("@@dispose must not be an undefined");
-            }
+            if (isAsync)
+                method = @getAsyncDisposeMethod(value);
+            else
+                method = @getDisposeMethod(value);
         }
     } else {
         method = @argument(2);
@@ -79,6 +48,65 @@ function createDisposableResource(value, isAsync /* , method */)
     }
 
     return { value, method };
+}
+
+@linkTimeConstant
+function createSuppressedError(error, suppressed)
+{
+    'use strict';
+    return new @SuppressedError(error, suppressed);
+}
+
+// https://tc39.es/proposal-explicit-resource-management/#sec-getdisposemethod
+@linkTimeConstant
+function getDisposeMethod(value)
+{
+    'use strict';
+
+    if (@isUndefinedOrNull(value))
+        return @undefined;
+    if (!@isObject(value))
+        @throwTypeError("Disposable value must be an object, null, or undefined");
+    var method = value.@@dispose;
+    if (@isUndefinedOrNull(method))
+        @throwTypeError("@@dispose must not be undefined or null");
+    if (!@isCallable(method))
+        @throwTypeError("@@dispose must be callable");
+    return method;
+}
+
+// https://tc39.es/proposal-explicit-resource-management/#sec-getdisposemethod (async-dispose hint)
+@linkTimeConstant
+function getAsyncDisposeMethod(value)
+{
+    'use strict';
+
+    if (@isUndefinedOrNull(value))
+        return @undefined;
+    if (!@isObject(value))
+        @throwTypeError("Disposable value must be an object, null, or undefined");
+
+    var method = value.@@asyncDispose;
+    if (@isUndefinedOrNull(method)) {
+        method = value.@@dispose;
+        if (@isUndefinedOrNull(method))
+            @throwTypeError("@@asyncDispose and @@dispose must not be undefined or null");
+        if (!@isCallable(method))
+            @throwTypeError("@@dispose must be callable");
+        var syncMethod = method;
+        var receiver = value;
+        return function () {
+            try {
+                syncMethod.@call(receiver);
+            } catch (e) {
+                return @promiseReject(@Promise, e);
+            }
+            return @promiseResolve(@Promise, @undefined);
+        };
+    }
+    if (!@isCallable(method))
+        @throwTypeError("@@asyncDispose must be callable");
+    return method;
 }
 
 // https://tc39.es/proposal-explicit-resource-management/#sec-adddisposableresource
@@ -91,7 +119,7 @@ function addDisposableResource(disposeCapability, value, isAsync /* , method */)
 
     var resource;
     if (@argumentCount() < 4) {
-        if (@isUndefinedOrNull(value))
+        if (@isUndefinedOrNull(value) && !isAsync)
             return;
         resource = @createDisposableResource(value, isAsync);
     } else {

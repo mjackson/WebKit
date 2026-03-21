@@ -53,6 +53,7 @@ typedef NS_ENUM(NSInteger, _WKTextExtractionOutputFormat) {
     _WKTextExtractionOutputFormatHTML,
     _WKTextExtractionOutputFormatMarkdown,
     _WKTextExtractionOutputFormatJSON,
+    _WKTextExtractionOutputFormatPlainText,
 } WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA));
 
 #define WK_TEXT_EXTRACTION_HAS_EVENT_LISTENER_CATEGORIES 1
@@ -86,7 +87,15 @@ typedef NS_ENUM(NSInteger, _WKTextExtractionWordLimitPolicy) {
 WK_CLASS_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA))
 @interface _WKTextExtractionConfiguration : NSObject
 
-@property (nonatomic, class, copy, readonly) _WKTextExtractionConfiguration *configurationForVisibleTextOnly NS_SWIFT_NAME(visibleTextOnly);
+@property (nonatomic, class, copy, readonly) _WKTextExtractionConfiguration *configurationForVisibleTextOnly WK_API_DEPRECATED_WITH_REPLACEMENT("_WKTextExtractionOutputFormatPlainText", macos(WK_MAC_TBA, WK_MAC_TBA), ios(WK_IOS_TBA, WK_IOS_TBA), visionos(WK_XROS_TBA, WK_XROS_TBA)) NS_SWIFT_NAME(visibleTextOnly);
+
+/*!
+ Disables all optional metadata in the extraction output: URLs, bounding rects,
+ node identifiers, event listeners, and accessibility attributes.
+ The output format and other structural configuration (e.g. `targetRect`, `targetNode`)
+ are left unchanged. Individual flags can still be re-enabled after calling this method.
+ */
+- (void)configureForMinimalOutput;
 
 /*!
  Output format to use when collating extracted elements into the final text output.
@@ -113,6 +122,12 @@ WK_CLASS_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA))
  The default value is `YES`.
  */
 @property (nonatomic) BOOL includeRects;
+
+/*!
+ Include options for `select` elements in text extraction output.
+ The default value is `YES`.
+ */
+@property (nonatomic) BOOL includeSelectOptions;
 
 /*!
  Policy determining which nodes should be uniquely identified in the output.
@@ -151,7 +166,7 @@ WK_CLASS_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA))
 
 /*!
  Include context around password fields, including those outside of `targetRect`.
- The default value is `false`.
+ The default value is `NO`.
  */
 @property (nonatomic) BOOL includeOffscreenPasswordFields;
 
@@ -248,6 +263,18 @@ WK_CLASS_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA))
  At least one of `nodeIdentifier` or `searchText` must be specified.
  */
 - (void)requestJSHandleForNodeIdentifier:(nullable NSString *)nodeIdentifier searchText:(nullable NSString *)searchText completionHandler:(void (^)(_WKJSHandle * _Nullable))completionHandler;
+
+/*!
+ Asynchronously map a node identifier string (corresponding to a `uid` in
+ text extraction output) to a corresponding JS handle to an appropriately-sized
+ container element. If the element matching the node identifier and/or search
+ text is too small, traverses ancestors until it finds a container that meets a
+ minimum size threshold.
+ @param nodeIdentifier  The ID of the node to extract, or the ID of the node to search if `searchText` is additionally specified.
+ @param searchText      Rendered text to search inside the document or node corresponding to `nodeIdentifier`. The resulting element will fully contain this text.
+ At least one of `nodeIdentifier` or `searchText` must be specified.
+ */
+- (void)requestContainerJSHandleForNodeIdentifier:(nullable NSString *)nodeIdentifier searchText:(nullable NSString *)searchText completionHandler:(void (^)(_WKJSHandle * _Nullable))completionHandler;
 
 @end
 

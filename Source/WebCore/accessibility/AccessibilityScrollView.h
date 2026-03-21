@@ -25,9 +25,10 @@
 
 #pragma once
 
-#include "AXRemoteFrame.h"
-#include "AccessibilityObject.h"
-#include "ScrollView.h"
+#include <WebCore/AXObjectCache.h>
+#include <WebCore/AXRemoteFrame.h>
+#include <WebCore/AccessibilityObject.h>
+#include <WebCore/ScrollView.h>
 
 namespace WebCore {
 
@@ -53,13 +54,22 @@ public:
     String ownerDebugDescription() const;
     String extraDebugInfo() const final;
 
+    AccessibilityObject* parentObject() const final;
 #if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
     AccessibilityObject* crossFrameParentObject() const final;
     AccessibilityObject* crossFrameChildObject() const final;
 
+    // Returns the screen position and transform for this frame.
+    // Reads from the AXObjectCache's cached value, populated asynchronously via IPC.
+    // On first access when cache is empty, fires an async requestFrameScreenPosition.
+    FrameGeometry frameGeometry() const;
+    IntPoint frameScreenPosition() const final { return frameGeometry().screenPosition; }
+    AffineTransform frameScreenTransform() const final { return frameGeometry().screenTransform; }
+
+    bool isFrameGeometryInitialized() const final;
+
     void setInheritedFrameState(InheritedFrameState);
-    const InheritedFrameState& inheritedFrameState() const { return m_inheritedFrameState; }
-    bool isAXHidden() const final;
+    const InheritedFrameState& inheritedFrameState() const LIFETIME_BOUND { return m_inheritedFrameState; }
     bool isARIAHidden() const final;
     void updateHostedFrameInheritedState();
 
@@ -99,14 +109,14 @@ private:
     bool isFocused() const final;
     void addLocalFrameChild();
     void addRemoteFrameChild();
+    const AccessibilityScrollView* frameRootScrollView() const;
 
     Document* document() const final;
     LocalFrameView* documentFrameView() const final;
     LayoutRect elementRect() const final;
     LayoutRect boundingBoxRect() const final { return elementRect(); }
-    AccessibilityObject* parentObject() const final;
-    RefPtr<AccessibilityObject> protectedHorizontalScrollbar() const { return m_horizontalScrollbar; }
-    RefPtr<AccessibilityObject> protectedVerticalScrollbar() const { return m_verticalScrollbar; }
+    AccessibilityObject* horizontalScrollbar() const { return m_horizontalScrollbar.get(); }
+    AccessibilityObject* verticalScrollbar() const { return m_verticalScrollbar.get(); }
     HTMLFrameOwnerElement* frameOwnerElement() const { return m_frameOwnerElement; }
 
     AccessibilityObject* firstChild() const final { return webAreaObject(); }

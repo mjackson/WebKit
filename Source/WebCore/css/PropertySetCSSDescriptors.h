@@ -81,7 +81,7 @@ protected:
     virtual ExceptionOr<void> setPropertyInternal(CSSPropertyID, const String& value, IsImportant);
 
     CSSParserContext cssParserContext() const;
-    Ref<MutableStyleProperties> NODELETE protectedPropertySet() const;
+    MutableStyleProperties& propertySet() const { return m_propertySet; }
 
     WeakPtr<CSSRule> m_parentRule;
     HashMap<CSSValue*, WeakPtr<DeprecatedCSSOMValue>> m_cssomValueWrappers;

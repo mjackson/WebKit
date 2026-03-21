@@ -447,6 +447,7 @@ set(WebKit_SERIALIZATION_IN_FILES
 
     ModelProcess/ModelProcessCreationParameters.serialization.in
 
+    NetworkProcess/NetworkActivityTracker.serialization.in
     NetworkProcess/NetworkProcessCreationParameters.serialization.in
     NetworkProcess/NetworkResourceLoadParameters.serialization.in
     NetworkProcess/NetworkSessionCreationParameters.serialization.in
@@ -922,6 +923,12 @@ macro(GENERATE_IDL_BINDINGS _output_source _inputs)
         MAIN_DEPENDENCY ${WEBCORE_DIR}/bindings/scripts/generate-bindings-all.pl
         DEPENDS
             ${_input_files}
+           "${WEBCORE_DIR}/bindings/scripts/CodeGenerator.pm"
+           "${WEBCORE_DIR}/bindings/scripts/generate-bindings.pl"
+           "${WEBCORE_DIR}/bindings/scripts/IDLParser.pm"
+           "${WEBKIT_DIR}/WebProcess/Extensions/Bindings/Scripts/CodeGeneratorExtensions.pm"
+           "${WEBKIT_DIR}/WebProcess/Extensions/Bindings/Scripts/GenerateImports.pl"
+           "${WEBKIT_DIR}/WebProcess/Extensions/Bindings/Scripts/IDLAttributes.json"
         COMMAND ${PERL_EXECUTABLE} -I "${WEBKIT_DIR}/WebProcess/Extensions/Bindings/Scripts" ${WEBCORE_DIR}/bindings/scripts/generate-bindings.pl --outputDir . --generator Extensions --idlAttributesFile "${WEBKIT_DIR}/WebProcess/Extensions/Bindings/Scripts/IDLAttributes.json" --idlFileNamesList WebExtensionIDLFileNamesList.txt ${_input_files}
         WORKING_DIRECTORY ${WebKit_DERIVED_SOURCES_DIR}
         VERBATIM

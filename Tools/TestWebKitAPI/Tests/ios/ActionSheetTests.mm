@@ -27,6 +27,7 @@
 
 #if PLATFORM(IOS_FAMILY) && !PLATFORM(MACCATALYST)
 
+#import "InstanceMethodSwizzler.h"
 #import "PlatformUtilities.h"
 #import "Test.h"
 #import "TestCocoa.h"
@@ -43,10 +44,12 @@
 #import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/_WKActivatedElementInfo.h>
 #import <WebKit/_WKElementAction.h>
+#import <pal/spi/ios/ManagedConfigurationSPI.h>
 #import <wtf/BlockPtr.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/SoftLinking.h>
 #import <wtf/darwin/DispatchExtras.h>
+#import <pal/ios/ManagedConfigurationSoftLink.h>
 
 @interface ActionSheetObserver : NSObject<WKUIDelegatePrivate>
 @property (nonatomic) BlockPtr<NSArray *(_WKActivatedElementInfo *, NSArray *)> presentationHandler;
@@ -65,6 +68,47 @@
     return _dataDetectionContextHandler ? _dataDetectionContextHandler() : @{ };
 }
 
+@end
+
+@interface MockManagedPageURL : NSObject
+@end
+
+@implementation MockManagedPageURL
+- (BOOL)isURLManaged:(NSURL *)url
+{
+    return [url.lastPathComponent isEqualToString:@"image-and-contenteditable.html"]
+        || [url.lastPathComponent isEqualToString:@"image-in-link-and-input.html"];
+}
+@end
+
+@interface MockManagedImageURL : NSObject
+@end
+
+@implementation MockManagedImageURL
+- (BOOL)isURLManaged:(NSURL *)url
+{
+    return [url.lastPathComponent isEqualToString:@"icon.png"];
+}
+@end
+
+@interface MockTCCGranted : NSObject
+@end
+
+@implementation MockTCCGranted
+- (BOOL)_isPhotoLibraryAccessDenied
+{
+    return NO;
+}
+@end
+
+@interface MockTCCDenied : NSObject
+@end
+
+@implementation MockTCCDenied
+- (BOOL)_isPhotoLibraryAccessDenied
+{
+    return YES;
+}
 @end
 
 #if ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
@@ -470,6 +514,90 @@ TEST(ActionSheetTests, PlayPauseAnimationSheetActionsNotPresentByDefault)
     TestWebKitAPI::Util::run(&done);
 }
 #endif // ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
+
+static bool defaultActionsContainSaveImage(TestWKWebView *webView, ActionSheetObserver *observer, CGPoint location)
+{
+    __block bool done = false;
+    __block bool containsSaveImage = false;
+    [observer setPresentationHandler:^(_WKActivatedElementInfo *element, NSArray *actions) {
+        for (_WKElementAction *action in actions) {
+            if (action.type == _WKElementActionTypeSaveImage) {
+                containsSaveImage = true;
+                break;
+            }
+        }
+        done = true;
+        return @[ ];
+    }];
+    [webView _simulateLongPressActionAtLocation:location];
+    TestWebKitAPI::Util::run(&done);
+    return containsSaveImage;
+}
+
+static bool saveImageActionIsPresent(NSString *testPageName, CGPoint longPressLocation, Class managedURLMockClass = nil, Class tccResultMockClass = MockTCCGranted.class)
+{
+    auto tccSwizzler = InstanceMethodSwizzler {
+        NSClassFromString(@"WKActionSheetAssistant"),
+        @selector(_isPhotoLibraryAccessDenied),
+        [tccResultMockClass instanceMethodForSelector:@selector(_isPhotoLibraryAccessDenied)]
+    };
+
+    std::optional<InstanceMethodSwizzler> managedConfigSwizzler;
+    if (managedURLMockClass) {
+        managedConfigSwizzler.emplace(
+            PAL::getMCProfileConnectionClassSingleton(),
+            @selector(isURLManaged:),
+            [managedURLMockClass instanceMethodForSelector:@selector(isURLManaged:)]
+        );
+    }
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr observer = adoptNS([[ActionSheetObserver alloc] init]);
+    [webView setUIDelegate:observer.get()];
+    [webView synchronouslyLoadTestPageNamed:testPageName];
+
+    return defaultActionsContainSaveImage(webView.get(), observer.get(), longPressLocation);
+}
+
+TEST(ActionSheetTests, SaveImageActionIsPresent)
+{
+    EXPECT_TRUE(saveImageActionIsPresent(@"image-and-contenteditable", CGPointMake(100, 100)));
+}
+
+TEST(ActionSheetTests, SaveImageActionIsExcludedWhenTCCIsDenied)
+{
+    EXPECT_FALSE(saveImageActionIsPresent(@"image-and-contenteditable", CGPointMake(100, 100), nil, MockTCCDenied.class));
+}
+
+TEST(ActionSheetTests, SaveImageActionIsExcludedWhenPageURLIsManaged)
+{
+    EXPECT_FALSE(saveImageActionIsPresent(@"image-and-contenteditable", CGPointMake(100, 100), MockManagedPageURL.class));
+}
+
+TEST(ActionSheetTests, SaveImageActionIsExcludedWhenImageURLIsManaged)
+{
+    EXPECT_FALSE(saveImageActionIsPresent(@"image-and-contenteditable", CGPointMake(100, 100), MockManagedImageURL.class));
+}
+
+TEST(ActionSheetTests, LinkedImageSaveImageActionIsPresent)
+{
+    EXPECT_TRUE(saveImageActionIsPresent(@"image-in-link-and-input", CGPointMake(100, 50)));
+}
+
+TEST(ActionSheetTests, LinkedImageSaveImageActionIsExcludedWhenTCCIsDenied)
+{
+    EXPECT_FALSE(saveImageActionIsPresent(@"image-in-link-and-input", CGPointMake(100, 50), nil, MockTCCDenied.class));
+}
+
+TEST(ActionSheetTests, LinkedImageSaveImageActionIsExcludedWhenPageURLIsManaged)
+{
+    EXPECT_FALSE(saveImageActionIsPresent(@"image-in-link-and-input", CGPointMake(100, 50), MockManagedPageURL.class));
+}
+
+TEST(ActionSheetTests, LinkedImageSaveImageActionIsExcludedWhenImageURLIsManaged)
+{
+    EXPECT_FALSE(saveImageActionIsPresent(@"image-in-link-and-input", CGPointMake(100, 50), MockManagedImageURL.class));
+}
 
 } // namespace TestWebKitAPI
 

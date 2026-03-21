@@ -544,6 +544,11 @@ static void dumpUIView(TextStream& ts, UIView *view, bool traverse)
 #endif
 }
 
+- (BOOL)_hasPendingVisibleContentRectUpdateTimerForTesting
+{
+    return _pendingInteractiveObscuredInsetsChangeTimer && _pendingInteractiveObscuredInsetsChangeTimer->isActive();
+}
+
 @end
 
 #endif // PLATFORM(IOS_FAMILY)

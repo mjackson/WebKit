@@ -184,7 +184,7 @@ protected:
 
     virtual void elementDetached() { }
 
-    RefPtr<MediaSourcePrivate> NODELETE protectedPrivate() const;
+    MediaSourcePrivate* mediaSourcePrivate() const { return m_private; }
 
     WeakPtr<HTMLMediaElement> m_mediaElement;
     bool m_detachable { false };

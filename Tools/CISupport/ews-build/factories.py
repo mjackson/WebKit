@@ -33,9 +33,9 @@ class Factory(factory.BuildFactory):
     branches = None
     requiresUserValidation = False
 
-    def __init__(self, platform, configuration=None, architectures=None, buildOnly=True, triggers=None, triggered_by=None, remotes=None, additionalArguments=None, checkRelevance=False, rebuild_without_change_on_builder=False, **kwargs):
+    def __init__(self, platform, configuration=None, architectures=None, buildOnly=True, triggers=None, triggered_by=None, remotes=None, additionalArguments=None, checkRelevance=False, rebuild_without_change_on_builder=False, deployment_target=None, **kwargs):
         factory.BuildFactory.__init__(self)
-        self.addStep(ConfigureBuild(platform=platform, configuration=configuration, architectures=architectures, buildOnly=buildOnly, triggers=triggers, triggered_by=triggered_by, remotes=remotes, additionalArguments=additionalArguments, rebuild_without_change_on_builder=rebuild_without_change_on_builder))
+        self.addStep(ConfigureBuild(platform=platform, configuration=configuration, architectures=architectures, buildOnly=buildOnly, triggers=triggers, triggered_by=triggered_by, remotes=remotes, additionalArguments=additionalArguments, rebuild_without_change_on_builder=rebuild_without_change_on_builder, deployment_target=deployment_target))
         if checkRelevance:
             self.addStep(CheckChangeRelevance())
         self.addStep(ValidateChange(branches=self.branches))
@@ -101,15 +101,12 @@ class SaferCPPStaticAnalyzerFactory(factory.BuildFactory):
         self.addStep(GetLLVMVersion())
         self.addStep(PrintClangVersion())
         self.addStep(CheckOutLLVMProject())
-        if platform.startswith('ios'):
-            self.addStep(GetSwiftTagName())
-            self.addStep(PrintSwiftVersion())
-            self.addStep(CheckOutSwiftProject())
-            self.addStep(UpdateSwiftCheckouts())
-            self.addStep(BuildSwift())
-            self.addStep(InstallMetalToolchain())
-        else:
-            self.addStep(UpdateClang())
+        self.addStep(GetSwiftTagName())
+        self.addStep(PrintSwiftVersion())
+        self.addStep(CheckOutSwiftProject())
+        self.addStep(UpdateSwiftCheckouts())
+        self.addStep(BuildSwift())
+        self.addStep(InstallMetalToolchain())
         self.addStep(FindModifiedSaferCPPExpectations())
         self.addStep(ScanBuild())
 
@@ -139,8 +136,8 @@ class WebKitPyFactory(Factory):
 class BuildFactory(Factory):
     skipUpload = False
 
-    def __init__(self, platform, configuration=None, architectures=None, triggers=None, additionalArguments=None, checkRelevance=False, rebuild_without_change_on_builder=False, **kwargs):
-        Factory.__init__(self, platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, triggers=triggers, additionalArguments=additionalArguments, checkRelevance=checkRelevance, rebuild_without_change_on_builder=rebuild_without_change_on_builder)
+    def __init__(self, platform, configuration=None, architectures=None, triggers=None, additionalArguments=None, checkRelevance=False, rebuild_without_change_on_builder=False, deployment_target=None, **kwargs):
+        Factory.__init__(self, platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, triggers=triggers, additionalArguments=additionalArguments, checkRelevance=checkRelevance, rebuild_without_change_on_builder=rebuild_without_change_on_builder, deployment_target=deployment_target)
         self.addStep(KillOldProcesses())
         if platform == 'gtk':
             self.addStep(InstallGtkDependencies())
@@ -192,6 +189,7 @@ class StressTestFactory(TestFactory):
         self.getProduct()
         self.addStep(WaitForCrashCollection())
         self.addStep(RunWebKitTestsInStressMode())
+        self.addStep(RunWebKitTestsInSiteIsolationMode())
         self.addStep(TriggerCrashLogSubmission())
         self.addStep(SetBuildSummary())
 
@@ -348,9 +346,9 @@ class ServicesFactory(Factory):
 
 
 class CommitQueueFactory(factory.BuildFactory):
-    def __init__(self, platform, configuration=None, architectures=None, additionalArguments=None, **kwargs):
+    def __init__(self, platform, configuration=None, architectures=None, additionalArguments=None, deployment_target=None, **kwargs):
         factory.BuildFactory.__init__(self)
-        self.addStep(ConfigureBuild(platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, triggers=None, remotes=None, additionalArguments=additionalArguments))
+        self.addStep(ConfigureBuild(platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, triggers=None, remotes=None, additionalArguments=additionalArguments, deployment_target=deployment_target))
         self.addStep(ValidateChange(verifycqplus=True))
         self.addStep(ValidateCommitterAndReviewer())
         self.addStep(PrintConfiguration())
@@ -382,9 +380,9 @@ class CommitQueueFactory(factory.BuildFactory):
 
 
 class MergeQueueFactoryBase(factory.BuildFactory):
-    def __init__(self, platform, configuration=None, architectures=None, additionalArguments=None, **kwargs):
+    def __init__(self, platform, configuration=None, architectures=None, additionalArguments=None, deployment_target=None, **kwargs):
         super(MergeQueueFactoryBase, self).__init__()
-        self.addStep(ConfigureBuild(platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, triggers=None, remotes=None, additionalArguments=additionalArguments))
+        self.addStep(ConfigureBuild(platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, triggers=None, remotes=None, additionalArguments=additionalArguments, deployment_target=deployment_target))
         self.addStep(ValidateChange(verifyMergeQueue=True, verifyNoDraftForMergeQueue=True, enableSkipEWSLabel=False))
         self.addStep(DetermineLabelOwner())
         self.addStep(ValidateCommitterAndReviewer())

@@ -80,12 +80,12 @@ public:
     FloatSize alignmentOffset() const { return m_alignmentOffset; }
     void setAlignmentOffset(FloatSize offset) { m_alignmentOffset = offset; }
 
-    WEBCORE_EXPORT FloatPoint viewportRelativeLayerPosition(const FloatRect& viewportRect) const;
+    WEBCORE_EXPORT FloatPoint NODELETE viewportRelativeLayerPosition(const FloatRect& viewportRect) const;
 
-    const FloatRect& viewportRectAtLastLayout() const { return m_viewportRectAtLastLayout; }
+    const FloatRect& viewportRectAtLastLayout() const LIFETIME_BOUND { return m_viewportRectAtLastLayout; }
     void setViewportRectAtLastLayout(const FloatRect& rect) { m_viewportRectAtLastLayout = rect; }
 
-    const FloatPoint& layerPositionAtLastLayout() const { return m_layerPositionAtLastLayout; }
+    const FloatPoint& layerPositionAtLastLayout() const LIFETIME_BOUND { return m_layerPositionAtLastLayout; }
     void setLayerPositionAtLastLayout(FloatPoint position) { m_layerPositionAtLastLayout = position; }
 
     friend bool operator==(const ViewportConstraints&, const ViewportConstraints&) = default;
@@ -147,14 +147,14 @@ public:
 
     FloatSize computeStickyOffset(const FloatRect& constrainingRect) const;
 
-    const FloatSize& anchorLayerOffsetAtLastLayout() const { return m_anchorLayerOffsetAtLastLayout; }
+    const FloatSize& anchorLayerOffsetAtLastLayout() const LIFETIME_BOUND { return m_anchorLayerOffsetAtLastLayout; }
     void setAnchorLayerOffsetAtLastLayout(FloatSize offset) { m_anchorLayerOffsetAtLastLayout = offset; }
 
     const FloatSize stickyOffsetAtLastLayout() const { return m_stickyOffsetAtLastLayout; }
     void setStickyOffsetAtLastLayout(FloatSize offset) { m_stickyOffsetAtLastLayout = offset; }
 
     WEBCORE_EXPORT FloatPoint anchorLayerPositionForConstrainingRect(const FloatRect& constrainingRect) const;
-    FloatPoint anchorLayerPositionAtLastLayout() const;
+    FloatPoint NODELETE anchorLayerPositionAtLastLayout() const;
 
     float leftOffset() const { return m_leftOffset; }
     float rightOffset() const { return m_rightOffset; }

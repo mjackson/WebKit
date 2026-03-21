@@ -83,7 +83,7 @@ void PresentationContextIOSurface::renderBuffersWereRecreated(NSArray<IOSurface 
 void PresentationContextIOSurface::onSubmittedWorkScheduled(Function<void()>&& completionHandler)
 {
     if (m_device)
-        m_device->protectedQueue()->onSubmittedWorkScheduled(WTF::move(completionHandler));
+        m_device->getQueue()->onSubmittedWorkScheduled(WTF::move(completionHandler));
     else
         completionHandler();
 }

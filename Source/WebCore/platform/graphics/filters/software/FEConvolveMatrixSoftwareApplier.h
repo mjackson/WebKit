@@ -27,7 +27,6 @@
 #include "IntPoint.h"
 #include "IntSize.h"
 #include "PixelBuffer.h"
-#include <JavaScriptCore/TypedArrayAdaptersForwardDeclarations.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
 
@@ -61,10 +60,10 @@ private:
         Vector<float> kernelMatrix;
     };
 
-    static inline uint8_t clampRGBAValue(float channel, uint8_t max = 255);
+    static inline uint8_t NODELETE clampRGBAValue(float channel, uint8_t max = 255);
     static inline void setDestinationPixels(const PixelBuffer& sourcePixelBuffer, PixelBuffer& destinationPixelBuffer, int& pixel, std::span<float> totals, float divisor, float bias, bool preserveAlphaValues);
 
-    static inline int getPixelValue(const PaintingData&, int x, int y);
+    static inline int NODELETE getPixelValue(const PaintingData&, int x, int y);
 
     static inline void setInteriorPixels(PaintingData&, int clipRight, int clipBottom, int yStart, int yEnd);
     static inline void setOuterPixels(PaintingData&, int x1, int y1, int x2, int y2);

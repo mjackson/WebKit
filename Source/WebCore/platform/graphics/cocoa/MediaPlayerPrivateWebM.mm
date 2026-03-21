@@ -104,9 +104,16 @@ MediaPlayerPrivateWebM::MediaPlayerPrivateWebM(MediaPlayer& player)
     , m_rendererSeekRequest(NativePromiseRequest::create())
     , m_playerIdentifier(MediaPlayerIdentifier::generate())
     , m_renderer(createRenderer(*this, player.clientIdentifier(), m_playerIdentifier))
+    , m_runningQueue(hasPlatformStrategies() && platformStrategies()->mediaStrategy()->hasRemoteRendererFor(MediaPlayerMediaEngineIdentifier::CocoaWebM) ? m_appendQueue.get() : WorkQueue::mainSingleton())
 {
     ALWAYS_LOG(LOGIDENTIFIER);
     m_parser->setLogger(m_logger, m_logIdentifier);
+    m_parser->setCallOnClientThreadCallback([runningQueue = m_runningQueue](auto&& function) {
+        if (runningQueue->isCurrent())
+            function();
+        else
+            runningQueue->dispatch(WTF::move(function));
+    });
     m_parser->setDidParseInitializationDataCallback([weakThis = ThreadSafeWeakPtr { *this }, this] (InitializationSegment&& segment) {
         if (RefPtr protectedThis = weakThis.get())
             didParseInitializationData(WTF::move(segment));
@@ -123,7 +130,10 @@ MediaPlayerPrivateWebM::MediaPlayerPrivateWebM(MediaPlayer& player)
 #endif
 }
 
-MediaPlayerPrivateWebM::~MediaPlayerPrivateWebM()
+// Destructor runs on main thread (DestructionThread::Main). At this point all running-queue
+// work has drained, so accessing running-queue-guarded members is safe at runtime even though
+// the static analyzer cannot prove it.
+MediaPlayerPrivateWebM::~MediaPlayerPrivateWebM() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
 {
     ALWAYS_LOG(LOGIDENTIFIER);
 
@@ -149,7 +159,7 @@ void MediaPlayerPrivateWebM::getSupportedTypes(HashSet<String>& types)
 
 MediaPlayer::SupportsType MediaPlayerPrivateWebM::supportsType(const MediaEngineSupportParameters& parameters)
 {
-    if (parameters.isMediaSource || parameters.isMediaStream || parameters.requiresRemotePlayback)
+    if (parameters.platformType != PlatformMediaDecodingType::FileOrHLS || parameters.requiresRemotePlayback)
         return MediaPlayer::SupportsType::IsNotSupported;
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
@@ -163,16 +173,18 @@ MediaPlayer::SupportsType MediaPlayerPrivateWebM::supportsType(const MediaEngine
 
 void MediaPlayerPrivateWebM::setPreload(MediaPlayer::Preload preload)
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER, " - ", static_cast<int>(preload));
-    if (preload == std::exchange(m_preload, preload))
+    if (preload == m_preload.exchange(preload))
         return;
     doPreload();
 }
 
 void MediaPlayerPrivateWebM::doPreload()
 {
+    assertIsMainThread();
     if (m_assetURL.isEmpty() || m_networkState >= MediaPlayerNetworkState::FormatError) {
-        INFO_LOG(LOGIDENTIFIER, " - hasURL = ", static_cast<int>(m_assetURL.isEmpty()), " networkState = ", static_cast<int>(m_networkState));
+        INFO_LOG(LOGIDENTIFIER, " - hasURL = ", static_cast<int>(m_assetURL.isEmpty()), " networkState = ", static_cast<int>(m_networkState.load()));
         return;
     }
 
@@ -197,13 +209,19 @@ void MediaPlayerPrivateWebM::doPreload()
     }
 
     if (m_preload > MediaPlayer::Preload::MetaData) {
-        for (auto it = m_readyForMoreSamplesMap.begin(); it != m_readyForMoreSamplesMap.end(); ++it)
-            notifyClientWhenReadyForMoreSamples(it->first);
+        ensureOnRunningQueue([weakThis = ThreadSafeWeakPtr { *this }] {
+            if (RefPtr protectedThis = weakThis.get()) {
+                assertIsCurrent(protectedThis->runningQueue());
+                for (auto& [trackId, ignored] : protectedThis->m_readyForMoreSamplesMap)
+                    protectedThis->notifyClientWhenReadyForMoreSamples(trackId);
+            }
+        });
     }
 }
 
 void MediaPlayerPrivateWebM::load(const URL& url, const LoadOptions& options)
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER);
 
     setReadyState(MediaPlayer::ReadyState::HaveNothing);
@@ -217,13 +235,12 @@ void MediaPlayerPrivateWebM::load(const URL& url, const LoadOptions& options)
     m_renderer->notifyWhenErrorOccurs([weakThis = ThreadSafeWeakPtr { *this }](PlatformMediaError error) {
         ensureOnMainThread([weakThis, error] {
             if (RefPtr protectedThis = weakThis.get()) {
-                protectedThis->m_errored = true;
                 if (RefPtr player = protectedThis->m_player.get(); player && error == PlatformMediaError::IPCError) {
+                    protectedThis->m_errored = true;
                     player->reloadAndResumePlaybackIfNeeded();
                     return;
                 }
-                protectedThis->setNetworkState(MediaPlayer::NetworkState::DecodeError);
-                protectedThis->setReadyState(MediaPlayer::ReadyState::HaveNothing);
+                protectedThis->errorOccurred();
             }
         });
     });
@@ -236,10 +253,12 @@ void MediaPlayerPrivateWebM::load(const URL& url, const LoadOptions& options)
     });
 
     m_renderer->notifyWhenRequiresFlushToResume([weakThis = ThreadSafeWeakPtr { *this }] {
-        ensureOnMainThread([weakThis] {
-            if (RefPtr protectedThis = weakThis.get())
-                protectedThis->setLayerRequiresFlush();
-        });
+        if (RefPtr protectedThis = weakThis.get()) {
+            protectedThis->ensureOnRunningQueue([weakThis] {
+                if (RefPtr protectedThis = weakThis.get())
+                    protectedThis->setLayerRequiresFlush();
+            });
+        }
     });
 
     m_renderer->notifyRenderingModeChanged([weakThis = ThreadSafeWeakPtr { *this }] {
@@ -295,11 +314,13 @@ void MediaPlayerPrivateWebM::load(const URL& url, const LoadOptions& options)
 
 bool MediaPlayerPrivateWebM::needsResourceClient() const
 {
+    assertIsMainThread();
     return !m_resourceClient && m_needsResourceClient;
 }
 
 bool MediaPlayerPrivateWebM::createResourceClientIfNeeded()
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER);
 
     ASSERT(needsResourceClient());
@@ -328,6 +349,7 @@ bool MediaPlayerPrivateWebM::createResourceClientIfNeeded()
 #if ENABLE(MEDIA_SOURCE)
 void MediaPlayerPrivateWebM::load(const URL&, const LoadOptions&, MediaSourcePrivateClient&)
 {
+    assertIsMainThread();
     ERROR_LOG(LOGIDENTIFIER, "tried to load as mediasource");
 
     setNetworkState(MediaPlayer::NetworkState::FormatError);
@@ -337,6 +359,7 @@ void MediaPlayerPrivateWebM::load(const URL&, const LoadOptions&, MediaSourcePri
 #if ENABLE(MEDIA_STREAM)
 void MediaPlayerPrivateWebM::load(MediaStreamPrivate&)
 {
+    assertIsMainThread();
     ERROR_LOG(LOGIDENTIFIER, "tried to load as mediastream");
 
     setNetworkState(MediaPlayer::NetworkState::FormatError);
@@ -345,7 +368,8 @@ void MediaPlayerPrivateWebM::load(MediaStreamPrivate&)
 
 void MediaPlayerPrivateWebM::dataLengthReceived(size_t length)
 {
-    callOnMainThread([protectedThis = Ref { *this }, length] {
+    ensureOnMainThread([protectedThis = Ref { *this }, length] {
+        assertIsMainThread();
         protectedThis->m_contentLength = length;
     });
 }
@@ -354,15 +378,20 @@ void MediaPlayerPrivateWebM::dataReceived(const SharedBuffer& buffer)
 {
     ALWAYS_LOG(LOGIDENTIFIER, "data length = ", buffer.size());
 
-    callOnMainThread([protectedThis = Ref { *this }, this, size = buffer.size()] {
-        setNetworkState(MediaPlayer::NetworkState::Loading);
-        m_pendingAppends++;
-        m_contentReceived += size;
+    ensureOnMainThread([protectedThis = Ref { *this }, size = buffer.size()] {
+        assertIsMainThread();
+        protectedThis->m_contentReceived += size;
+    });
+
+    ensureOnRunningQueue([protectedThis = Ref { *this }] {
+        assertIsCurrent(protectedThis->runningQueue());
+        protectedThis->setNetworkState(MediaPlayer::NetworkState::Loading);
+        protectedThis->m_pendingAppends++;
     });
 
     invokeAsync(m_appendQueue, [buffer = Ref { buffer }, parser = m_parser]() mutable {
         return MediaPromise::createAndSettle(parser->appendData(WTF::move(buffer)));
-    })->whenSettled(RunLoop::mainSingleton(), [weakThis = ThreadSafeWeakPtr { *this }](auto&& result) {
+    })->whenSettled(m_runningQueue, [weakThis = ThreadSafeWeakPtr { *this }](auto&& result) {
         if (RefPtr protectedThis = weakThis.get())
             protectedThis->appendCompleted(!!result);
     });
@@ -371,7 +400,7 @@ void MediaPlayerPrivateWebM::dataReceived(const SharedBuffer& buffer)
 void MediaPlayerPrivateWebM::loadFailed(const ResourceError& error)
 {
     ERROR_LOG(LOGIDENTIFIER, "resource failed to load with code ", error.errorCode());
-    callOnMainThread([protectedThis = Ref { *this }] {
+    ensureOnMainThread([protectedThis = Ref { *this }] {
         protectedThis->setNetworkState(MediaPlayer::NetworkState::NetworkError);
     });
 }
@@ -379,7 +408,8 @@ void MediaPlayerPrivateWebM::loadFailed(const ResourceError& error)
 void MediaPlayerPrivateWebM::loadFinished()
 {
     ALWAYS_LOG(LOGIDENTIFIER);
-    callOnMainThread([protectedThis = Ref { *this }] {
+    ensureOnRunningQueue([protectedThis = Ref { *this }] {
+        assertIsCurrent(protectedThis->runningQueue());
         protectedThis->m_loadFinished = true;
         protectedThis->maybeFinishLoading();
     });
@@ -387,6 +417,7 @@ void MediaPlayerPrivateWebM::loadFinished()
 
 void MediaPlayerPrivateWebM::cancelLoad()
 {
+    assertIsMainThread();
     if (RefPtr resourceClient = m_resourceClient) {
         resourceClient->stop();
         m_resourceClient = nullptr;
@@ -400,18 +431,21 @@ PlatformLayer* MediaPlayerPrivateWebM::platformLayer() const
 
 void MediaPlayerPrivateWebM::prepareToPlay()
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER);
     setPreload(MediaPlayer::Preload::Auto);
 }
 
 void MediaPlayerPrivateWebM::play()
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER);
     playInternal();
 }
 
 void MediaPlayerPrivateWebM::pause()
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER);
     m_renderer->pause();
 }
@@ -423,6 +457,7 @@ bool MediaPlayerPrivateWebM::paused() const
 
 bool MediaPlayerPrivateWebM::playAtHostTime(const MonotonicTime& hostTime)
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER);
     playInternal(hostTime);
     return true;
@@ -430,6 +465,7 @@ bool MediaPlayerPrivateWebM::playAtHostTime(const MonotonicTime& hostTime)
 
 bool MediaPlayerPrivateWebM::pauseAtHostTime(const MonotonicTime& hostTime)
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER);
     m_renderer->pause(hostTime);
     return true;
@@ -437,20 +473,28 @@ bool MediaPlayerPrivateWebM::pauseAtHostTime(const MonotonicTime& hostTime)
 
 void MediaPlayerPrivateWebM::playInternal(std::optional<MonotonicTime> hostTime)
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER);
-    flushVideoIfNeeded();
-
-    m_renderer->play(hostTime);
-
-    if (!shouldBePlaying())
-        return;
-
-    if (currentTime() >= duration())
-        seekToTarget(SeekTarget::zero());
+    ensureOnRunningQueue([weakThis = ThreadSafeWeakPtr { *this }, hostTime] {
+        RefPtr protectedThis = weakThis.get();
+        if (!protectedThis)
+            return;
+        protectedThis->flushVideoIfNeeded();
+        protectedThis->m_renderer->play(hostTime);
+        if (!protectedThis->shouldBePlaying())
+            return;
+        if (protectedThis->currentTime() >= protectedThis->durationOnRunningQueue()) {
+            ensureOnMainThread([weakThis] {
+                if (RefPtr protectedThis = weakThis.get())
+                    protectedThis->seekToTarget(SeekTarget::zero());
+            });
+        }
+    });
 }
 
 bool MediaPlayerPrivateWebM::performTaskAtTime(Function<void(const MediaTime&)>&& task, const MediaTime& time)
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER, time);
 
     m_renderer->performTaskAtTime(time, [task = WTF::move(task)](const MediaTime& time) mutable {
@@ -463,6 +507,7 @@ bool MediaPlayerPrivateWebM::performTaskAtTime(Function<void(const MediaTime&)>&
 
 void MediaPlayerPrivateWebM::audioOutputDeviceChanged()
 {
+    assertIsMainThread();
 #if HAVE(AUDIO_OUTPUT_DEVICE_UNIQUE_ID)
     if (RefPtr player = m_player.get())
         m_renderer->setOutputDeviceId(player->audioOutputDeviceId());
@@ -476,6 +521,7 @@ bool MediaPlayerPrivateWebM::timeIsProgressing() const
 
 void MediaPlayerPrivateWebM::setPageIsVisible(bool visible)
 {
+    assertIsMainThread();
     if (m_visible == visible)
         return;
 
@@ -493,11 +539,49 @@ MediaTime MediaPlayerPrivateWebM::currentTime() const
     return m_renderer->currentTime();
 }
 
+MediaTime MediaPlayerPrivateWebM::duration() const
+{
+    assertIsMainThread();
+    return m_durationMainThread;
+}
+
+MediaTime MediaPlayerPrivateWebM::durationOnRunningQueue() const
+{
+    assertIsCurrent(runningQueue());
+    return m_duration;
+}
+
+FloatSize MediaPlayerPrivateWebM::naturalSize() const
+{
+    assertIsMainThread();
+    return m_naturalSize;
+}
+
+double MediaPlayerPrivateWebM::rate() const
+{
+    assertIsMainThread();
+    return m_rate;
+}
+
+bool MediaPlayerPrivateWebM::hasAvailableVideoFrame() const
+{
+    assertIsMainThread();
+    return m_hasAvailableVideoFrame;
+}
+
+std::optional<VideoFrameMetadata> MediaPlayerPrivateWebM::videoFrameMetadata()
+{
+    assertIsMainThread();
+    return std::exchange(m_videoFrameMetadata, { });
+}
+
 void MediaPlayerPrivateWebM::seekToTarget(const SeekTarget& target)
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER, "time = ", target.time, ", negativeThreshold = ", target.negativeThreshold, ", positiveThreshold = ", target.positiveThreshold);
 
     m_pendingSeek = target;
+    m_hasPendingSeek = true;
 
     if (m_seekTimer.isActive())
         m_seekTimer.stop();
@@ -506,30 +590,38 @@ void MediaPlayerPrivateWebM::seekToTarget(const SeekTarget& target)
 
 void MediaPlayerPrivateWebM::seekInternal()
 {
+    assertIsMainThread();
     if (!m_pendingSeek)
         return;
 
     ALWAYS_LOG(LOGIDENTIFIER, m_pendingSeek->time);
 
-    auto pendingSeek = std::exchange(m_pendingSeek, { }).value();
-    m_lastSeekTime = pendingSeek.time;
+    auto seekTarget = std::exchange(m_pendingSeek, { }).value();
+    m_hasPendingSeek = false;
 
-    cancelPendingSeek();
-
-    m_seeking = true;
-
-    m_renderer->prepareToSeek();
-
-    waitForTimeBuffered(m_lastSeekTime)->whenSettled(RunLoop::mainSingleton(), [weakThis = ThreadSafeWeakPtr { *this }, seekTime = m_lastSeekTime](auto&& result) {
+    ensureOnRunningQueue([weakThis = ThreadSafeWeakPtr { *this }, seekTarget] {
         RefPtr protectedThis = weakThis.get();
-        if (!result || !protectedThis)
-            return; // seek cancelled.
+        if (!protectedThis)
+            return;
 
-        return protectedThis->startSeek(seekTime);
+        assertIsCurrent(protectedThis->runningQueue());
+        auto seekTime = seekTarget.time;
+        protectedThis->m_lastSeekTime = seekTime;
+        protectedThis->cancelPendingSeek();
+        protectedThis->m_seeking = true;
+        protectedThis->m_renderer->prepareToSeek();
+
+        protectedThis->waitForTimeBuffered(seekTime)->whenSettled(protectedThis->m_runningQueue, [weakThis, seekTime](auto&& result) {
+            RefPtr protectedThis = weakThis.get();
+            if (!result || !protectedThis)
+                return; // seek cancelled.
+
+            return protectedThis->startSeek(seekTime);
+        });
     });
 }
 
-void MediaPlayerPrivateWebM::cancelPendingSeek()
+void MediaPlayerPrivateWebM::cancelPendingSeek() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
 {
     if (m_rendererSeekRequest->hasCallback())
         m_rendererSeekRequest->disconnect();
@@ -539,7 +631,9 @@ void MediaPlayerPrivateWebM::cancelPendingSeek()
 
 void MediaPlayerPrivateWebM::startSeek(const MediaTime& seekTime)
 {
-    m_renderer->seekTo(seekTime)->whenSettled(RunLoop::mainSingleton(), [weakThis = ThreadSafeWeakPtr { *this }, seekTime](auto&& result) {
+    assertIsCurrent(runningQueue());
+    ALWAYS_LOG(LOGIDENTIFIER, seekTime);
+    m_renderer->seekTo(seekTime)->whenSettled(m_runningQueue, [weakThis = ThreadSafeWeakPtr { *this }, seekTime](auto&& result) {
         if (!result && result.error() != PlatformMediaError::RequiresFlushToResume)
             return; // cancelled.
 
@@ -562,20 +656,26 @@ void MediaPlayerPrivateWebM::startSeek(const MediaTime& seekTime)
 
 void MediaPlayerPrivateWebM::completeSeek(const MediaTime& seekedTime)
 {
+    assertIsCurrent(runningQueue());
     ALWAYS_LOG(LOGIDENTIFIER, "");
 
     m_seeking = false;
 
     monitorReadyState();
 
-    if (RefPtr player = m_player.get()) {
-        player->seeked(seekedTime);
-        player->timeChanged();
-    }
+    ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }, seekedTime] {
+        if (RefPtr protectedThis = weakThis.get()) {
+            if (RefPtr player = protectedThis->m_player.get()) {
+                player->seeked(seekedTime);
+                player->timeChanged();
+            }
+        }
+    });
 }
 
 Ref<GenericPromise> MediaPlayerPrivateWebM::waitForTimeBuffered(const MediaTime& time)
 {
+    assertIsCurrent(runningQueue());
     ASSERT(!m_waitForTimeBufferedPromise);
 
     if (m_buffered.containWithEpsilon(time, timeFudgeFactor())) {
@@ -583,16 +683,29 @@ Ref<GenericPromise> MediaPlayerPrivateWebM::waitForTimeBuffered(const MediaTime&
         return GenericPromise::createAndResolve();
     }
 
-    setReadyState(MediaPlayer::ReadyState::HaveMetadata);
+    ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }] {
+        if (RefPtr protectedThis = weakThis.get())
+            protectedThis->setReadyState(MediaPlayer::ReadyState::HaveMetadata);
+    });
 
     ALWAYS_LOG(LOGIDENTIFIER, "buffered doesn't contain seektime waiting");
     m_waitForTimeBufferedPromise.emplace();
     return m_waitForTimeBufferedPromise->promise();
 }
 
+void MediaPlayerPrivateWebM::resolveWaitForTimeBufferedPromiseIfPossible()
+{
+    assertIsCurrent(runningQueue());
+    if (!m_waitForTimeBufferedPromise || !m_buffered.containWithEpsilon(m_lastSeekTime, timeFudgeFactor()))
+        return;
+    ALWAYS_LOG(LOGIDENTIFIER, "can continue seeking data is now buffered");
+    m_waitForTimeBufferedPromise->resolve();
+    m_waitForTimeBufferedPromise.reset();
+}
+
 bool MediaPlayerPrivateWebM::seeking() const
 {
-    return m_pendingSeek || m_seeking;
+    return m_hasPendingSeek || m_seeking;
 }
 
 bool MediaPlayerPrivateWebM::shouldBePlaying() const
@@ -602,6 +715,7 @@ bool MediaPlayerPrivateWebM::shouldBePlaying() const
 
 void MediaPlayerPrivateWebM::setRateDouble(double rate)
 {
+    assertIsMainThread();
     if (rate == m_rate)
         return;
 
@@ -620,34 +734,45 @@ double MediaPlayerPrivateWebM::effectiveRate() const
 
 void MediaPlayerPrivateWebM::setVolume(float volume)
 {
+    assertIsMainThread();
     m_renderer->setVolume(volume);
 }
 
 void MediaPlayerPrivateWebM::setMuted(bool muted)
 {
+    assertIsMainThread();
     m_renderer->setMuted(muted);
 }
 
-const PlatformTimeRanges& MediaPlayerPrivateWebM::buffered() const
+const PlatformTimeRanges& MediaPlayerPrivateWebM::buffered() const WTF_IGNORES_THREAD_SAFETY_ANALYSIS
 {
-    return m_buffered;
+    assertIsMainThread();
+    return m_bufferedMainThread;
 }
 
 void MediaPlayerPrivateWebM::setBufferedRanges(PlatformTimeRanges timeRanges)
 {
+    assertIsCurrent(runningQueue());
     if (m_buffered == timeRanges)
         return;
     m_buffered = WTF::move(timeRanges);
-    if (RefPtr player = m_player.get()) {
-        player->bufferedTimeRangesChanged();
-        player->seekableTimeRangesChanged();
-    }
+    ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }, bufferedCopy = m_buffered] mutable {
+        assertIsMainThread();
+        if (RefPtr protectedThis = weakThis.get()) {
+            protectedThis->m_bufferedMainThread = WTF::move(bufferedCopy);
+            if (RefPtr player = protectedThis->m_player.get()) {
+                player->bufferedTimeRangesChanged();
+                player->seekableTimeRangesChanged();
+            }
+        }
+    });
 
     monitorReadyState();
 }
 
 void MediaPlayerPrivateWebM::updateBufferedFromTrackBuffers(bool ended)
 {
+    assertIsCurrent(runningQueue());
     MediaTime highestEndTime = MediaTime::negativeInfiniteTime();
     for (auto& pair : m_trackBufferMap) {
         auto& trackBuffer = pair.second;
@@ -683,6 +808,8 @@ void MediaPlayerPrivateWebM::updateBufferedFromTrackBuffers(bool ended)
 
 void MediaPlayerPrivateWebM::updateDurationFromTrackBuffers()
 {
+    assertIsCurrent(runningQueue());
+    ASSERT(m_loadFinished);
     MediaTime highestEndTime = MediaTime::zeroTime();
     for (auto& pair : m_trackBufferMap) {
         auto& trackBuffer = pair.second;
@@ -702,17 +829,20 @@ void MediaPlayerPrivateWebM::setLoadingProgresssed(bool loadingProgressed)
 
 bool MediaPlayerPrivateWebM::didLoadingProgress() const
 {
-    return std::exchange(m_loadingProgressed, false);
+    assertIsMainThread();
+    return m_loadingProgressed.exchange(false);
 }
 
 RefPtr<NativeImage> MediaPlayerPrivateWebM::nativeImageForCurrentTime()
 {
+    assertIsMainThread();
     updateLastImage();
     return m_lastImage;
 }
 
 bool MediaPlayerPrivateWebM::updateLastVideoFrame()
 {
+    assertIsMainThread();
     RefPtr videoFrame = m_renderer->currentVideoFrame();
     if (!videoFrame)
         return false;
@@ -724,6 +854,7 @@ bool MediaPlayerPrivateWebM::updateLastVideoFrame()
 
 bool MediaPlayerPrivateWebM::updateLastImage()
 {
+    assertIsMainThread();
     if (m_isGatheringVideoFrameMetadata) {
         auto metrics = m_renderer->videoPlaybackQualityMetrics();
         auto sampleCount = metrics ? metrics->displayCompositedVideoFrames : 0;
@@ -737,16 +868,19 @@ bool MediaPlayerPrivateWebM::updateLastImage()
 
 void MediaPlayerPrivateWebM::paint(GraphicsContext& context, const FloatRect& rect)
 {
+    assertIsMainThread();
     paintCurrentFrameInContext(context, rect);
 }
 
 void MediaPlayerPrivateWebM::paintCurrentFrameInContext(GraphicsContext& context, const FloatRect& outputRect)
 {
+    assertIsMainThread();
     m_renderer->paintCurrentVideoFrameInContext(context, outputRect);
 }
 
 RefPtr<VideoFrame> MediaPlayerPrivateWebM::videoFrameForCurrentTime()
 {
+    assertIsMainThread();
     if (!m_isGatheringVideoFrameMetadata)
         updateLastVideoFrame();
     return m_lastVideoFrame;
@@ -754,6 +888,7 @@ RefPtr<VideoFrame> MediaPlayerPrivateWebM::videoFrameForCurrentTime()
 
 DestinationColorSpace MediaPlayerPrivateWebM::colorSpace()
 {
+    assertIsMainThread();
     updateLastImage();
     RefPtr lastImage = m_lastImage;
     return lastImage ? lastImage->colorSpace() : DestinationColorSpace::SRGB();
@@ -761,11 +896,13 @@ DestinationColorSpace MediaPlayerPrivateWebM::colorSpace()
 
 Ref<MediaPlayer::BitmapImagePromise> MediaPlayerPrivateWebM::bitmapImageForCurrentTime()
 {
+    assertIsMainThread();
     return m_renderer->currentBitmapImage();
 }
 
 void MediaPlayerPrivateWebM::setNaturalSize(FloatSize size)
 {
+    assertIsMainThread();
     auto oldSize = m_naturalSize;
     m_naturalSize = size;
     if (oldSize != m_naturalSize) {
@@ -777,6 +914,7 @@ void MediaPlayerPrivateWebM::setNaturalSize(FloatSize size)
 
 void MediaPlayerPrivateWebM::effectiveRateChanged()
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER, effectiveRate());
     if (RefPtr player = m_player.get())
         player->rateChanged();
@@ -784,6 +922,7 @@ void MediaPlayerPrivateWebM::effectiveRateChanged()
 
 void MediaPlayerPrivateWebM::setHasAudio(bool hasAudio)
 {
+    assertIsCurrent(runningQueue());
     if (hasAudio == m_hasAudio)
         return;
 
@@ -793,6 +932,7 @@ void MediaPlayerPrivateWebM::setHasAudio(bool hasAudio)
 
 void MediaPlayerPrivateWebM::setHasVideo(bool hasVideo)
 {
+    assertIsCurrent(runningQueue());
     if (hasVideo == m_hasVideo)
         return;
 
@@ -802,6 +942,7 @@ void MediaPlayerPrivateWebM::setHasVideo(bool hasVideo)
 
 void MediaPlayerPrivateWebM::setHasAvailableVideoFrame(bool hasAvailableVideoFrame)
 {
+    assertIsMainThread();
     if (m_hasAvailableVideoFrame == hasAvailableVideoFrame)
         return;
 
@@ -829,6 +970,7 @@ void MediaPlayerPrivateWebM::setHasAvailableVideoFrame(bool hasAvailableVideoFra
 
 void MediaPlayerPrivateWebM::setDuration(MediaTime duration)
 {
+    assertIsCurrent(runningQueue());
     if (duration == m_duration)
         return;
 
@@ -843,8 +985,17 @@ void MediaPlayerPrivateWebM::setDuration(MediaTime duration)
     });
 
     m_duration = WTF::move(duration);
-    if (RefPtr player = m_player.get())
-        player->durationChanged();
+    ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }, durationCopy = m_duration] {
+        assertIsMainThread();
+        if (RefPtr protectedThis = weakThis.get()) {
+            protectedThis->m_durationMainThread = durationCopy;
+            if (RefPtr player = protectedThis->m_player.get())
+                player->durationChanged();
+        }
+    });
+
+    if (m_readyState < MediaPlayerReadyState::HaveMetadata)
+        return;
 
     monitorReadyState();
 }
@@ -856,12 +1007,17 @@ void MediaPlayerPrivateWebM::setNetworkState(MediaPlayer::NetworkState state)
 
     ALWAYS_LOG(LOGIDENTIFIER, state);
     m_networkState = state;
-    if (RefPtr player = m_player.get())
-        player->networkStateChanged();
+    ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }] {
+        if (RefPtr protectedThis = weakThis.get()) {
+            if (RefPtr player = protectedThis->m_player.get())
+                player->networkStateChanged();
+        }
+    });
 }
 
 void MediaPlayerPrivateWebM::setReadyState(MediaPlayer::ReadyState state)
 {
+    assertIsMainThread();
     if (state == m_readyState)
         return;
 
@@ -879,12 +1035,27 @@ void MediaPlayerPrivateWebM::setReadyState(MediaPlayer::ReadyState state)
 
 void MediaPlayerPrivateWebM::characteristicsChanged()
 {
-    if (RefPtr player = m_player.get())
-        player->characteristicChanged();
+    ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }] {
+        if (RefPtr protectedThis = weakThis.get()) {
+            if (RefPtr player = protectedThis->m_player.get())
+                player->characteristicChanged();
+        }
+    });
+}
+
+void MediaPlayerPrivateWebM::errorOccurred()
+{
+    m_errored = true;
+    setNetworkState(MediaPlayer::NetworkState::DecodeError);
+    ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }] {
+        if (RefPtr protectedThis = weakThis.get())
+            protectedThis->setReadyState(MediaPlayer::ReadyState::HaveNothing);
+    });
 }
 
 void MediaPlayerPrivateWebM::setPreservesPitch(bool preservesPitch)
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER, preservesPitch);
     if (RefPtr player = m_player.get())
         m_renderer->setPreservesPitchAndCorrectionAlgorithm(preservesPitch, player->pitchCorrectionAlgorithm());
@@ -892,37 +1063,44 @@ void MediaPlayerPrivateWebM::setPreservesPitch(bool preservesPitch)
 
 void MediaPlayerPrivateWebM::setPresentationSize(const IntSize& newSize)
 {
+    assertIsMainThread();
     m_renderer->setPresentationSize(newSize);
 }
 
 void MediaPlayerPrivateWebM::acceleratedRenderingStateChanged()
 {
+    assertIsMainThread();
     RefPtr player = m_player.get();
     m_renderer->renderingCanBeAcceleratedChanged(player ? player->renderingCanBeAccelerated() : false);
 }
 
 RetainPtr<PlatformLayer> MediaPlayerPrivateWebM::createVideoFullscreenLayer()
 {
+    assertIsMainThread();
     return adoptNS([[CALayer alloc] init]);
 }
 
 void MediaPlayerPrivateWebM::setVideoFullscreenLayer(PlatformLayer *videoFullscreenLayer, WTF::Function<void()>&& completionHandler)
 {
+    assertIsMainThread();
     m_renderer->setVideoFullscreenLayer(videoFullscreenLayer, WTF::move(completionHandler));
 }
 
 void MediaPlayerPrivateWebM::setVideoFullscreenFrame(const FloatRect& frame)
 {
+    assertIsMainThread();
     m_renderer->setVideoFullscreenFrame(frame);
 }
 
 void MediaPlayerPrivateWebM::syncTextTrackBounds()
 {
+    assertIsMainThread();
     m_renderer->syncTextTrackBounds();
 }
 
 void MediaPlayerPrivateWebM::setTextTrackRepresentation(TextTrackRepresentation* representation)
 {
+    assertIsMainThread();
     m_renderer->setTextTrackRepresentation(representation);
 }
 
@@ -935,12 +1113,14 @@ String MediaPlayerPrivateWebM::engineDescription() const
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
 void MediaPlayerPrivateWebM::setWirelessPlaybackTarget(Ref<MediaPlaybackTarget>&& target)
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER);
     m_playbackTarget = WTF::move(target);
 }
 
 void MediaPlayerPrivateWebM::setShouldPlayToPlaybackTarget(bool shouldPlayToTarget)
 {
+    assertIsMainThread();
     if (shouldPlayToTarget == m_shouldPlayToTarget)
         return;
 
@@ -953,6 +1133,7 @@ void MediaPlayerPrivateWebM::setShouldPlayToPlaybackTarget(bool shouldPlayToTarg
 
 bool MediaPlayerPrivateWebM::isCurrentPlaybackTargetWireless() const
 {
+    assertIsMainThread();
     RefPtr playbackTarget = m_playbackTarget;
     if (!playbackTarget)
         return false;
@@ -965,6 +1146,7 @@ bool MediaPlayerPrivateWebM::isCurrentPlaybackTargetWireless() const
 
 void MediaPlayerPrivateWebM::enqueueSample(Ref<MediaSample>&& sample, TrackID trackId)
 {
+    assertIsCurrent(runningQueue());
     auto logSiteIdentifier = LOGIDENTIFIER;
     DEBUG_LOG(logSiteIdentifier, "track ID = ", trackId, ", sample = ", sample.get());
 
@@ -999,14 +1181,19 @@ void MediaPlayerPrivateWebM::enqueueSample(Ref<MediaSample>&& sample, TrackID tr
         return;
     }
 
-    if (m_readyState < MediaPlayer::ReadyState::HaveEnoughData && !m_enabledVideoTrackID)
-        setReadyState(MediaPlayer::ReadyState::HaveEnoughData);
+    if (m_readyState < MediaPlayer::ReadyState::HaveEnoughData && !m_enabledVideoTrackID) {
+        ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }] {
+            if (RefPtr protectedThis = weakThis.get())
+                protectedThis->setReadyState(MediaPlayer::ReadyState::HaveEnoughData);
+        });
+    }
 
     m_renderer->enqueueSample(trackIdentifierFor(trackId), WTF::move(sample));
 }
 
 void MediaPlayerPrivateWebM::reenqueSamples(TrackID trackId, NeedsFlush needsFlush)
 {
+    assertIsCurrent(runningQueue());
     auto it = m_trackBufferMap.find(trackId);
     if (it == m_trackBufferMap.end())
         return;
@@ -1017,6 +1204,7 @@ void MediaPlayerPrivateWebM::reenqueSamples(TrackID trackId, NeedsFlush needsFlu
 
 void MediaPlayerPrivateWebM::reenqueueMediaForTime(const MediaTime& time)
 {
+    assertIsCurrent(runningQueue());
     for (auto& trackBufferPair : m_trackBufferMap) {
         TrackBuffer& trackBuffer = trackBufferPair.second;
         auto trackId = trackBufferPair.first;
@@ -1026,6 +1214,7 @@ void MediaPlayerPrivateWebM::reenqueueMediaForTime(const MediaTime& time)
 
 void MediaPlayerPrivateWebM::reenqueueMediaForTime(TrackBuffer& trackBuffer, TrackID trackId, const MediaTime& time, NeedsFlush needsFlush)
 {
+    assertIsCurrent(runningQueue());
     if (needsFlush == NeedsFlush::Yes)
         m_renderer->flushTrack(trackIdentifierFor(trackId));
 
@@ -1035,6 +1224,7 @@ void MediaPlayerPrivateWebM::reenqueueMediaForTime(TrackBuffer& trackBuffer, Tra
 
 void MediaPlayerPrivateWebM::notifyClientWhenReadyForMoreSamples(TrackID trackId)
 {
+    assertIsCurrent(runningQueue());
     if (m_requestReadyForMoreSamplesSetMap[trackId])
         return;
     m_requestReadyForMoreSamplesSetMap[trackId] = true;
@@ -1042,7 +1232,7 @@ void MediaPlayerPrivateWebM::notifyClientWhenReadyForMoreSamples(TrackID trackId
     auto trackIdentifier = maybeTrackIdentifierFor(trackId);
     if (!trackIdentifier)
         return; // track hasn't been enabled yet.
-    m_renderer->requestMediaDataWhenReady(*trackIdentifier)->whenSettled(RunLoop::mainSingleton(), [weakThis = ThreadSafeWeakPtr { *this }, trackId](auto&& result) {
+    m_renderer->requestMediaDataWhenReady(*trackIdentifier)->whenSettled(m_runningQueue, [weakThis = ThreadSafeWeakPtr { *this }, trackId](auto&& result) {
         if (RefPtr protectedThis = weakThis.get(); protectedThis && result)
             protectedThis->didBecomeReadyForMoreSamples(trackId);
     });
@@ -1050,12 +1240,14 @@ void MediaPlayerPrivateWebM::notifyClientWhenReadyForMoreSamples(TrackID trackId
 
 bool MediaPlayerPrivateWebM::isReadyForMoreSamples(TrackID trackId)
 {
+    assertIsCurrent(runningQueue());
     auto trackIdentifier = maybeTrackIdentifierFor(trackId);
     return trackIdentifier && m_renderer->isReadyForMoreSamples(*trackIdentifier);
 }
 
 void MediaPlayerPrivateWebM::didBecomeReadyForMoreSamples(TrackID trackId)
 {
+    assertIsCurrent(runningQueue());
     INFO_LOG(LOGIDENTIFIER, trackId);
 
     m_requestReadyForMoreSamplesSetMap[trackId] = false;
@@ -1065,31 +1257,30 @@ void MediaPlayerPrivateWebM::didBecomeReadyForMoreSamples(TrackID trackId)
 
 void MediaPlayerPrivateWebM::appendCompleted(bool success)
 {
-    assertIsMainThread();
+    assertIsCurrent(runningQueue());
 
     ASSERT(m_pendingAppends > 0);
     m_pendingAppends--;
     INFO_LOG(LOGIDENTIFIER, "pending appends = ", m_pendingAppends, " success = ", success);
     setLoadingProgresssed(true);
-    m_errored |= !success;
+    m_errored = m_errored || !success;
     if (!m_errored)
         updateBufferedFromTrackBuffers(m_loadFinished && !m_pendingAppends);
-
-    if (m_waitForTimeBufferedPromise && m_buffered.containWithEpsilon(m_lastSeekTime, timeFudgeFactor())) {
-        ALWAYS_LOG(LOGIDENTIFIER, "can continue seeking data is now buffered");
-        m_waitForTimeBufferedPromise->resolve();
-        m_waitForTimeBufferedPromise.reset();
-    }
+    resolveWaitForTimeBufferedPromiseIfPossible();
     maybeFinishLoading();
 }
 
 void MediaPlayerPrivateWebM::maybeFinishLoading()
 {
+    assertIsCurrent(runningQueue());
     if (m_loadFinished && !m_pendingAppends) {
         if (!m_hasVideo && !m_hasAudio) {
             ERROR_LOG(LOGIDENTIFIER, "could not load audio or video tracks");
             setNetworkState(MediaPlayer::NetworkState::FormatError);
-            setReadyState(MediaPlayer::ReadyState::HaveNothing);
+            ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }] {
+                if (RefPtr protectedThis = weakThis.get())
+                    protectedThis->setReadyState(MediaPlayer::ReadyState::HaveNothing);
+            });
             return;
         }
         if (m_errored) {
@@ -1105,12 +1296,14 @@ void MediaPlayerPrivateWebM::maybeFinishLoading()
 
 void MediaPlayerPrivateWebM::provideMediaData(TrackID trackId)
 {
+    assertIsCurrent(runningQueue());
     if (auto it = m_trackBufferMap.find(trackId); it != m_trackBufferMap.end())
         provideMediaData(it->second, trackId);
 }
 
 void MediaPlayerPrivateWebM::provideMediaData(TrackBuffer& trackBuffer, TrackID trackId)
 {
+    assertIsCurrent(runningQueue());
     if (m_errored)
         return;
 
@@ -1140,6 +1333,7 @@ void MediaPlayerPrivateWebM::provideMediaData(TrackBuffer& trackBuffer, TrackID 
 
 void MediaPlayerPrivateWebM::trackDidChangeSelected(VideoTrackPrivate& track, bool selected)
 {
+    assertIsCurrent(runningQueue());
     auto trackId = track.id();
 
     if (!m_trackBufferMap.contains(trackId))
@@ -1148,9 +1342,15 @@ void MediaPlayerPrivateWebM::trackDidChangeSelected(VideoTrackPrivate& track, bo
     ALWAYS_LOG(LOGIDENTIFIER, "video trackID = ", trackId, ", selected = ", selected);
 
     if (selected) {
+        auto trackIdentifier = m_renderer->addTrack(TrackType::Video);
+        if (!trackIdentifier) {
+            ERROR_LOG(LOGIDENTIFIER, "failed to add video track");
+            errorOccurred();
+            return;
+        }
         m_enabledVideoTrackID = trackId;
         m_readyForMoreSamplesMap[trackId] = true;
-        m_trackIdentifiers.emplace(trackId, m_renderer->addTrack(TrackType::Video));
+        m_trackIdentifiers.emplace(trackId, *trackIdentifier);
         return;
     }
 
@@ -1165,6 +1365,7 @@ void MediaPlayerPrivateWebM::trackDidChangeSelected(VideoTrackPrivate& track, bo
 
 void MediaPlayerPrivateWebM::trackDidChangeEnabled(AudioTrackPrivate& track, bool enabled)
 {
+    assertIsCurrent(runningQueue());
     auto trackId = track.id();
 
     if (!m_trackBufferMap.contains(trackId))
@@ -1174,16 +1375,23 @@ void MediaPlayerPrivateWebM::trackDidChangeEnabled(AudioTrackPrivate& track, boo
 
     if (enabled) {
         auto trackIdentifier = m_renderer->addTrack(TrackType::Audio);
-        m_trackIdentifiers.emplace(trackId, trackIdentifier);
+        if (!trackIdentifier) {
+            ERROR_LOG(LOGIDENTIFIER, "failed to add audio track");
+            errorOccurred();
+            return;
+        }
+        m_trackIdentifiers.emplace(trackId, *trackIdentifier);
         if (!m_errored) {
             m_readyForMoreSamplesMap[trackId] = true;
             characteristicsChanged();
         }
-        m_renderer->notifyTrackNeedsReenqueuing(trackIdentifier, [weakThis = ThreadSafeWeakPtr { *this }, trackId](TrackIdentifier, const MediaTime&) {
-            ensureOnMainThread([weakThis, trackId] {
-                if (RefPtr protectedThis = weakThis.get())
-                    protectedThis->reenqueSamples(trackId, NeedsFlush::No);
-            });
+        m_renderer->notifyTrackNeedsReenqueuing(*trackIdentifier, [weakThis = ThreadSafeWeakPtr { *this }, trackId](TrackIdentifier, const MediaTime&) {
+            if (RefPtr protectedThis = weakThis.get()) {
+                protectedThis->ensureOnRunningQueue([weakThis, trackId] {
+                    if (RefPtr protectedThis = weakThis.get())
+                        protectedThis->reenqueSamples(trackId, NeedsFlush::No);
+                });
+            }
         });
         return;
     }
@@ -1195,14 +1403,18 @@ void MediaPlayerPrivateWebM::trackDidChangeEnabled(AudioTrackPrivate& track, boo
 
 void MediaPlayerPrivateWebM::didParseInitializationData(InitializationSegment&& segment)
 {
+    assertIsCurrent(runningQueue());
     ALWAYS_LOG(LOGIDENTIFIER);
 
-    if (m_preload == MediaPlayer::Preload::MetaData && !m_loadFinished)
-        cancelLoad();
+    if (m_preload == MediaPlayer::Preload::MetaData && !m_loadFinished) {
+        ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }] {
+            if (RefPtr protectedThis = weakThis.get())
+                protectedThis->cancelLoad();
+        });
+    }
 
     clearTracks();
 
-    RefPtr player = m_player.get();
     for (auto videoTrackInfo : segment.videoTracks) {
         if (videoTrackInfo.track) {
             // FIXME: Use downcast instead.
@@ -1220,25 +1432,31 @@ void MediaPlayerPrivateWebM::didParseInitializationData(InitializationSegment&& 
                 if (!protectedThis)
                     return;
 
-                auto videoTrackSelectedChanged = [weakThis, trackRef = Ref { track }, selected] {
-                    if (RefPtr protectedThis = weakThis.get())
-                        protectedThis->trackDidChangeSelected(trackRef, selected);
-                };
-
                 if (!protectedThis->m_processingInitializationSegment) {
-                    videoTrackSelectedChanged();
+                    protectedThis->ensureOnRunningQueue([weakThis, trackRef = Ref { track }, selected] {
+                        if (RefPtr protectedThis = weakThis.get())
+                            protectedThis->trackDidChangeSelected(trackRef, selected);
+                    });
                     return;
                 }
             });
 
             if (m_videoTracks.isEmpty()) {
-                setNaturalSize({ float(track->width()), float(track->height()) });
+                FloatSize size { float(track->width()), float(track->height()) };
+                ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }, size] {
+                    if (RefPtr protectedThis = weakThis.get())
+                        protectedThis->setNaturalSize(size);
+                });
                 track->setSelected(true);
             }
 
             m_videoTracks.append(track);
-            if (player)
-                player->addVideoTrack(*track);
+            ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }, trackRef = Ref { *track }] {
+                if (RefPtr protectedThis = weakThis.get()) {
+                    if (RefPtr player = protectedThis->m_player.get())
+                        player->addVideoTrack(trackRef.get());
+                }
+            });
         }
     }
 
@@ -1253,13 +1471,11 @@ void MediaPlayerPrivateWebM::didParseInitializationData(InitializationSegment&& 
                 if (!protectedThis)
                     return;
 
-                auto audioTrackEnabledChanged = [weakThis, trackRef = Ref { track }, enabled] {
-                    if (RefPtr protectedThis = weakThis.get())
-                        protectedThis->trackDidChangeEnabled(trackRef, enabled);
-                };
-
                 if (!protectedThis->m_processingInitializationSegment) {
-                    audioTrackEnabledChanged();
+                    protectedThis->ensureOnRunningQueue([weakThis, trackRef = Ref { track }, enabled] {
+                        if (RefPtr protectedThis = weakThis.get())
+                            protectedThis->trackDidChangeEnabled(trackRef, enabled);
+                    });
                     return;
                 }
             });
@@ -1268,21 +1484,27 @@ void MediaPlayerPrivateWebM::didParseInitializationData(InitializationSegment&& 
                 track->setEnabled(true);
 
             m_audioTracks.append(track);
-            if (player)
-                player->addAudioTrack(*track);
+            ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }, trackRef = Ref { *track }] {
+                if (RefPtr protectedThis = weakThis.get()) {
+                    if (RefPtr player = protectedThis->m_player.get())
+                        player->addAudioTrack(trackRef.get());
+                }
+            });
         }
     }
 
-    setReadyState(MediaPlayer::ReadyState::HaveMetadata);
-
     if (segment.duration.isValid())
         setDuration(WTF::move(segment.duration));
-    else
-        setDuration(MediaTime::positiveInfiniteTime());
+
+    ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }] {
+        if (RefPtr protectedThis = weakThis.get())
+            protectedThis->setReadyState(MediaPlayer::ReadyState::HaveMetadata);
+    });
 }
 
 void MediaPlayerPrivateWebM::didProvideMediaDataForTrackId(Ref<MediaSampleAVFObjC>&& sample, TrackID trackId, const String& mediaType)
 {
+    assertIsCurrent(runningQueue());
     UNUSED_PARAM(mediaType);
 
     auto it = m_trackBufferMap.find(trackId);
@@ -1291,6 +1513,15 @@ void MediaPlayerPrivateWebM::didProvideMediaDataForTrackId(Ref<MediaSampleAVFObj
     TrackBuffer& trackBuffer = it->second;
 
     trackBuffer.addSample(sample);
+
+    // appendCompleted() fires only once per network buffer, so if the file is delivered in large
+    // chunks (or a single chunk), the seek promise would not be checked until all samples in that
+    // chunk are demuxed. Instead, check eagerly here: if this track's buffered range now covers
+    // the seek time, recompute the full intersection and potentially resolve the promise early.
+    if (m_waitForTimeBufferedPromise && trackBuffer.buffered().containWithEpsilon(m_lastSeekTime, timeFudgeFactor())) {
+        updateBufferedFromTrackBuffers(false);
+        resolveWaitForTimeBufferedPromiseIfPossible();
+    }
 
     if (m_preload <= MediaPlayer::Preload::MetaData) {
         m_readyForMoreSamplesMap[trackId] = true;
@@ -1303,13 +1534,18 @@ void MediaPlayerPrivateWebM::didProvideMediaDataForTrackId(Ref<MediaSampleAVFObj
 
 void MediaPlayerPrivateWebM::flush()
 {
+    assertIsCurrent(runningQueue());
     m_renderer->flush();
-    setHasAvailableVideoFrame(false);
+    ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }] {
+        if (RefPtr protectedThis = weakThis.get())
+            protectedThis->setHasAvailableVideoFrame(false);
+    });
     setAllTracksForReenqueuing();
 }
 
 void MediaPlayerPrivateWebM::setAllTracksForReenqueuing()
 {
+    assertIsCurrent(runningQueue());
     for (auto& trackBufferPair : m_trackBufferMap) {
         TrackBuffer& trackBuffer = trackBufferPair.second;
         trackBuffer.setNeedsReenqueueing(true);
@@ -1318,6 +1554,7 @@ void MediaPlayerPrivateWebM::setAllTracksForReenqueuing()
 
 void MediaPlayerPrivateWebM::setTrackForReenqueuing(TrackID trackId)
 {
+    assertIsCurrent(runningQueue());
     if (auto it = m_trackBufferMap.find(trackId); it != m_trackBufferMap.end()) {
         TrackBuffer& trackBuffer = it->second;
         trackBuffer.setNeedsReenqueueing(true);
@@ -1326,6 +1563,7 @@ void MediaPlayerPrivateWebM::setTrackForReenqueuing(TrackID trackId)
 
 void MediaPlayerPrivateWebM::flushVideoIfNeeded()
 {
+    assertIsCurrent(runningQueue());
     ALWAYS_LOG(LOGIDENTIFIER, "layerRequiresFlush: ", m_layerRequiresFlush);
     if (!m_layerRequiresFlush)
         return;
@@ -1338,37 +1576,46 @@ void MediaPlayerPrivateWebM::flushVideoIfNeeded()
 
 void MediaPlayerPrivateWebM::addTrackBuffer(TrackID trackId, RefPtr<MediaDescription>&& description)
 {
+    assertIsCurrent(runningQueue());
     ASSERT(!m_trackBufferMap.contains(trackId));
 
     setHasAudio(m_hasAudio || description->isAudio());
     setHasVideo(m_hasVideo || description->isVideo());
 
     auto trackBuffer = TrackBuffer::create(WTF::move(description), discontinuityTolerance);
-    trackBuffer->setLogger(protectedLogger(), logIdentifier());
+    trackBuffer->setLogger(protect(logger()), logIdentifier());
     m_trackBufferMap.try_emplace(trackId, WTF::move(trackBuffer));
     m_requestReadyForMoreSamplesSetMap[trackId] = false;
 }
 
-void MediaPlayerPrivateWebM::clearTracks()
+void MediaPlayerPrivateWebM::clearTracks() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
 {
-    RefPtr player = m_player.get();
     for (auto& track : m_videoTracks) {
         track->setSelectedChangedCallback(nullptr);
-        if (player)
-            player->removeVideoTrack(*track);
+        ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }, trackRef = Ref { *track }] {
+            if (RefPtr protectedThis = weakThis.get()) {
+                if (RefPtr player = protectedThis->m_player.get())
+                    player->removeVideoTrack(trackRef.get());
+            }
+        });
     }
     m_videoTracks.clear();
 
     for (auto& track : m_audioTracks) {
         track->setEnabledChangedCallback(nullptr);
-        if (player)
-            player->removeAudioTrack(*track);
+        ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }, trackRef = Ref { *track }] {
+            if (RefPtr protectedThis = weakThis.get()) {
+                if (RefPtr player = protectedThis->m_player.get())
+                    player->removeAudioTrack(trackRef.get());
+            }
+        });
     }
     m_audioTracks.clear();
 }
 
 void MediaPlayerPrivateWebM::startVideoFrameMetadataGathering()
 {
+    assertIsMainThread();
     m_isGatheringVideoFrameMetadata = true;
     m_renderer->notifyWhenHasAvailableVideoFrame([weakThis = ThreadSafeWeakPtr { *this }](const MediaTime& presentationTime, double displayTime) {
         ensureOnMainThread([weakThis, presentationTime, displayTime] {
@@ -1380,6 +1627,7 @@ void MediaPlayerPrivateWebM::startVideoFrameMetadataGathering()
 
 void MediaPlayerPrivateWebM::stopVideoFrameMetadataGathering()
 {
+    assertIsMainThread();
     m_isGatheringVideoFrameMetadata = false;
     m_videoFrameMetadata = { };
     m_renderer->notifyWhenHasAvailableVideoFrame(nullptr);
@@ -1387,6 +1635,7 @@ void MediaPlayerPrivateWebM::stopVideoFrameMetadataGathering()
 
 void MediaPlayerPrivateWebM::checkNewVideoFrameMetadata(const MediaTime& presentationTime, double displayTime)
 {
+    assertIsMainThread();
     RefPtr player = m_player.get();
     if (!player)
         return;
@@ -1417,6 +1666,7 @@ void MediaPlayerPrivateWebM::checkNewVideoFrameMetadata(const MediaTime& present
 
 void MediaPlayerPrivateWebM::setResourceOwner(const ProcessIdentity& resourceOwner)
 {
+    assertIsMainThread();
     m_renderer->setResourceOwner(resourceOwner);
 }
 
@@ -1467,42 +1717,50 @@ bool MediaPlayerPrivateWebM::isAvailable()
 
 bool MediaPlayerPrivateWebM::isEnabledVideoTrackID(TrackID trackID) const
 {
+    assertIsCurrent(runningQueue());
     return m_enabledVideoTrackID && *m_enabledVideoTrackID == trackID;
 }
 
 bool MediaPlayerPrivateWebM::hasSelectedVideo() const
 {
+    assertIsCurrent(runningQueue());
     return !!m_enabledVideoTrackID;
 }
 
 void MediaPlayerPrivateWebM::setShouldDisableHDR(bool shouldDisable)
 {
+    assertIsMainThread();
     m_renderer->setShouldDisableHDR(shouldDisable);
 }
 
 void MediaPlayerPrivateWebM::setPlatformDynamicRangeLimit(PlatformDynamicRangeLimit platformDynamicRangeLimit)
 {
+    assertIsMainThread();
     m_renderer->setPlatformDynamicRangeLimit(platformDynamicRangeLimit);
 }
 
 void MediaPlayerPrivateWebM::playerContentBoxRectChanged(const LayoutRect& newRect)
 {
+    assertIsMainThread();
     m_renderer->contentBoxRectChanged(newRect);
 }
 
 void MediaPlayerPrivateWebM::setShouldMaintainAspectRatio(bool shouldMaintainAspectRatio)
 {
+    assertIsMainThread();
     m_renderer->setShouldMaintainAspectRatio(shouldMaintainAspectRatio);
 }
 
 #if HAVE(SPATIAL_TRACKING_LABEL)
 String MediaPlayerPrivateWebM::defaultSpatialTrackingLabel() const
 {
+    assertIsMainThread();
     return m_defaultSpatialTrackingLabel;
 }
 
 void MediaPlayerPrivateWebM::setDefaultSpatialTrackingLabel(const String& defaultSpatialTrackingLabel)
 {
+    assertIsMainThread();
     if (m_defaultSpatialTrackingLabel == defaultSpatialTrackingLabel)
         return;
     m_defaultSpatialTrackingLabel = defaultSpatialTrackingLabel;
@@ -1511,11 +1769,13 @@ void MediaPlayerPrivateWebM::setDefaultSpatialTrackingLabel(const String& defaul
 
 String MediaPlayerPrivateWebM::spatialTrackingLabel() const
 {
+    assertIsMainThread();
     return m_spatialTrackingLabel;
 }
 
 void MediaPlayerPrivateWebM::setSpatialTrackingLabel(const String& spatialTrackingLabel)
 {
+    assertIsMainThread();
     if (m_spatialTrackingLabel == spatialTrackingLabel)
         return;
     m_spatialTrackingLabel = spatialTrackingLabel;
@@ -1524,6 +1784,7 @@ void MediaPlayerPrivateWebM::setSpatialTrackingLabel(const String& spatialTracki
 
 void MediaPlayerPrivateWebM::updateSpatialTrackingLabel()
 {
+    assertIsMainThread();
 #if HAVE(SPATIAL_AUDIO_EXPERIENCE)
     RefPtr player = m_player.get();
     m_renderer->setSpatialTrackingInfo(player && player->prefersSpatialAudioExperience(), player ? player->soundStageSize() : MediaPlayer::SoundStageSize::Auto, player ? player->sceneIdentifier() : emptyString(), m_defaultSpatialTrackingLabel, m_spatialTrackingLabel);
@@ -1536,6 +1797,7 @@ void MediaPlayerPrivateWebM::updateSpatialTrackingLabel()
 #if ENABLE(LINEAR_MEDIA_PLAYER)
 void MediaPlayerPrivateWebM::setVideoTarget(const PlatformVideoTarget& videoTarget)
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER, !!videoTarget);
     m_renderer->setVideoTarget(videoTarget);
 }
@@ -1544,6 +1806,7 @@ void MediaPlayerPrivateWebM::setVideoTarget(const PlatformVideoTarget& videoTarg
 #if PLATFORM(IOS_FAMILY)
 void MediaPlayerPrivateWebM::sceneIdentifierDidChange()
 {
+    assertIsMainThread();
 #if HAVE(SPATIAL_TRACKING_LABEL)
     updateSpatialTrackingLabel();
 #endif
@@ -1551,6 +1814,7 @@ void MediaPlayerPrivateWebM::sceneIdentifierDidChange()
 
 void MediaPlayerPrivateWebM::applicationWillResignActive()
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER);
     m_renderer->applicationWillResignActive();
     m_applicationIsActive = false;
@@ -1558,19 +1822,25 @@ void MediaPlayerPrivateWebM::applicationWillResignActive()
 
 void MediaPlayerPrivateWebM::applicationDidBecomeActive()
 {
+    assertIsMainThread();
     ALWAYS_LOG(LOGIDENTIFIER);
     m_applicationIsActive = true;
-    flushVideoIfNeeded();
+    ensureOnRunningQueue([weakThis = ThreadSafeWeakPtr { *this }] {
+        if (RefPtr protectedThis = weakThis.get())
+            protectedThis->flushVideoIfNeeded();
+    });
 }
 #endif
 
 void MediaPlayerPrivateWebM::isInFullscreenOrPictureInPictureChanged(bool isInFullscreenOrPictureInPicture)
 {
+    assertIsMainThread();
     m_renderer->isInFullscreenOrPictureInPictureChanged(isInFullscreenOrPictureInPicture);
 }
 
 AudioVideoRenderer::TrackIdentifier MediaPlayerPrivateWebM::trackIdentifierFor(TrackID trackID) const
 {
+    assertIsCurrent(runningQueue());
     auto it = m_trackIdentifiers.find(trackID);
     ASSERT(it != m_trackIdentifiers.end());
     return it->second;
@@ -1578,6 +1848,7 @@ AudioVideoRenderer::TrackIdentifier MediaPlayerPrivateWebM::trackIdentifierFor(T
 
 std::optional<AudioVideoRenderer::TrackIdentifier> MediaPlayerPrivateWebM::maybeTrackIdentifierFor(TrackID trackID) const
 {
+    assertIsCurrent(runningQueue());
     if (auto it = m_trackIdentifiers.find(trackID); it != m_trackIdentifiers.end())
         return it->second;
     return { };
@@ -1585,41 +1856,57 @@ std::optional<AudioVideoRenderer::TrackIdentifier> MediaPlayerPrivateWebM::maybe
 
 void MediaPlayerPrivateWebM::setLayerRequiresFlush()
 {
+    assertIsCurrent(runningQueue());
     ALWAYS_LOG(LOGIDENTIFIER);
     m_layerRequiresFlush = true;
 #if PLATFORM(IOS_FAMILY)
-    if (m_applicationIsActive)
-        flushVideoIfNeeded();
-#else
-    flushVideoIfNeeded();
+    if (!m_applicationIsActive)
+        return;
 #endif
+    flushVideoIfNeeded();
 }
 
 std::optional<VideoPlaybackQualityMetrics> MediaPlayerPrivateWebM::videoPlaybackQualityMetrics()
 {
+    assertIsMainThread();
     return m_renderer->videoPlaybackQualityMetrics();
 }
 
 WebCore::HostingContext MediaPlayerPrivateWebM::hostingContext() const
 {
+    assertIsMainThread();
     return m_renderer->hostingContext();
 }
 
 void MediaPlayerPrivateWebM::setVideoLayerSizeFenced(const WebCore::FloatSize& size, WTF::MachSendRightAnnotated&& sendRightAnnotated)
 {
+    assertIsMainThread();
     m_renderer->setVideoLayerSizeFenced(size, WTF::move(sendRightAnnotated));
 }
 
 void MediaPlayerPrivateWebM::monitorReadyState()
 {
+    assertIsCurrent(runningQueue());
     if (!m_buffered.length())
         return;
     // If we have data up to 3s ahead, we can assume that we can play without interruption.
     constexpr double kHaveEnoughDataThreshold = 3;
     auto currentTime = this->currentTime();
-    MediaTime aheadTime = std::min(duration(), currentTime + MediaTime::createWithDouble(kHaveEnoughDataThreshold));
+    MediaTime aheadTime = std::min(durationOnRunningQueue(), currentTime + MediaTime::createWithDouble(kHaveEnoughDataThreshold));
     PlatformTimeRanges neededBufferedRange { currentTime, std::max(currentTime, aheadTime) };
-    setReadyState(m_buffered.containWithEpsilon(neededBufferedRange, MediaTime(2002, 24000)) ? MediaPlayer::ReadyState::HaveEnoughData : MediaPlayer::ReadyState::HaveFutureData);
+    auto newState = m_buffered.containWithEpsilon(neededBufferedRange, MediaTime(2002, 24000)) ? MediaPlayer::ReadyState::HaveEnoughData : MediaPlayer::ReadyState::HaveFutureData;
+    ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }, newState] {
+        if (RefPtr protectedThis = weakThis.get())
+            protectedThis->setReadyState(newState);
+    });
+}
+
+void MediaPlayerPrivateWebM::ensureOnRunningQueue(Function<void()>&& function)
+{
+    if (runningQueue().isCurrent())
+        function();
+    else
+        runningQueue().dispatch(WTF::move(function));
 }
 
 } // namespace WebCore

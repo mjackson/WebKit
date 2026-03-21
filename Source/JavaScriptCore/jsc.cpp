@@ -383,6 +383,7 @@ static JSC_DECLARE_HOST_FUNCTION(functionGenerateHeapSnapshot);
 static JSC_DECLARE_HOST_FUNCTION(functionGenerateHeapSnapshotForGCDebugging);
 static JSC_DECLARE_HOST_FUNCTION(functionResetSuperSamplerState);
 static JSC_DECLARE_HOST_FUNCTION(functionEnsureArrayStorage);
+static JSC_DECLARE_HOST_FUNCTION(functionCreateNoopNativeFunctionWithCapture);
 #if ENABLE(SAMPLING_PROFILER)
 static JSC_DECLARE_HOST_FUNCTION(functionStartSamplingProfiler);
 static JSC_DECLARE_HOST_FUNCTION(functionSamplingProfilerStackTraces);
@@ -491,7 +492,6 @@ public:
     String m_profilerOutput;
     String m_uncaughtExceptionName;
     bool m_interactive { false };
-    bool m_dump { false };
     bool m_module { false };
     bool m_exitCode { false };
     bool m_destroyVM { false };
@@ -756,6 +756,7 @@ private:
         addFunction(vm, "generateHeapSnapshotForGCDebugging"_s, functionGenerateHeapSnapshotForGCDebugging, 0);
         addFunction(vm, "resetSuperSamplerState"_s, functionResetSuperSamplerState, 0);
         addFunction(vm, "ensureArrayStorage"_s, functionEnsureArrayStorage, 0);
+        addFunction(vm, "createNoopNativeFunctionWithCapture"_s, functionCreateNoopNativeFunctionWithCapture, 1);
 #if ENABLE(SAMPLING_PROFILER)
         addFunction(vm, "startSamplingProfiler"_s, functionStartSamplingProfiler, 0);
         addFunction(vm, "samplingProfilerStackTraces"_s, functionSamplingProfilerStackTraces, 0);
@@ -968,7 +969,6 @@ const GlobalObjectMethodTable GlobalObject::s_globalObjectMethodTable = {
     &shellSupportsRichSourceInfo,
     &shouldInterruptScript,
     &javaScriptRuntimeFlags,
-    &queueMicrotaskToEventLoop,
     &shouldInterruptScriptBeforeTimeout,
     &moduleLoaderImportModule,
     &moduleLoaderResolve,
@@ -1066,7 +1066,7 @@ static URL currentWorkingDirectory()
 // FIXME: We may wish to support module specifiers beginning with a (back)slash on Windows. We could either:
 // - align with V8 and SM:  treat '/foo' as './foo'
 // - align with PowerShell: treat '/foo' as 'C:/foo'
-static bool isAbsolutePath(StringView path)
+static bool NODELETE isAbsolutePath(StringView path)
 {
 #if OS(WINDOWS)
     // Just look for local drives like C:\.
@@ -1116,7 +1116,7 @@ JSInternalPromise* GlobalObject::moduleLoaderImportModule(JSGlobalObject* global
         return promise;
     };
 
-    auto referrer = sourceOrigin.url();
+    auto& referrer = sourceOrigin.url();
     auto specifier = moduleNameValue->value(globalObject);
     RETURN_IF_EXCEPTION(scope, promise->rejectWithCaughtException(globalObject, scope));
 
@@ -1503,7 +1503,7 @@ JSInternalPromise* GlobalObject::moduleLoaderFetch(JSGlobalObject* globalObject,
         auto source = SourceCode(WebAssemblySourceProvider::create(WTF::move(buffer), SourceOrigin { moduleURL }, WTF::move(moduleKey)));
         auto sourceCode = JSSourceCode::create(vm, WTF::move(source));
         scope.release();
-        promise->resolve(globalObject, sourceCode);
+        promise->resolve(globalObject, vm, sourceCode);
         return promise;
     }
 #endif
@@ -1512,13 +1512,13 @@ JSInternalPromise* GlobalObject::moduleLoaderFetch(JSGlobalObject* globalObject,
         auto source = SourceCode(StringSourceProvider::create(stringFromUTF(buffer), SourceOrigin { moduleURL }, WTF::move(moduleKey), SourceTaintedOrigin::Untainted, TextPosition(), SourceProviderSourceType::JSON));
         auto sourceCode = JSSourceCode::create(vm, WTF::move(source));
         scope.release();
-        promise->resolve(globalObject, sourceCode);
+        promise->resolve(globalObject, vm, sourceCode);
         return promise;
     }
 
     auto sourceCode = JSSourceCode::create(vm, jscSource(stringFromUTF(buffer), SourceOrigin { moduleURL }, WTF::move(moduleKey), TextPosition(), SourceProviderSourceType::Module));
     scope.release();
-    promise->resolve(globalObject, sourceCode);
+    promise->resolve(globalObject, vm, sourceCode);
     return promise;
 }
 
@@ -2675,9 +2675,9 @@ JSC_DEFINE_HOST_FUNCTION(functionDollarAgentReceiveBroadcast, (JSGlobalObject* g
             auto handler = [&vm, jsMemory](Wasm::Memory::GrowSuccess, PageCount oldPageCount, PageCount newPageCount) { jsMemory->growSuccessCallback(vm, oldPageCount, newPageCount); };
             RefPtr<Wasm::Memory> memory;
             if (auto shared = std::get<RefPtr<SharedArrayBufferContents>>(WTF::move(content)))
-                memory = Wasm::Memory::create(shared.releaseNonNull(), WTF::move(handler));
+                memory = Wasm::Memory::create(shared.releaseNonNull(), jsMemory->memory().addressType(), WTF::move(handler));
             else
-                memory = Wasm::Memory::createZeroSized(MemorySharingMode::Shared, WTF::move(handler));
+                memory = Wasm::Memory::createZeroSized(MemorySharingMode::Shared, jsMemory->memory().addressType(), WTF::move(handler));
             jsMemory->adopt(memory.releaseNonNull());
             return jsMemory;
         }
@@ -3282,6 +3282,19 @@ JSC_DEFINE_HOST_FUNCTION(functionEnsureArrayStorage, (JSGlobalObject* globalObje
     return JSValue::encode(jsUndefined());
 }
 
+JSC_DEFINE_HOST_FUNCTION(functionCreateNoopNativeFunctionWithCapture, (JSGlobalObject* globalObject, CallFrame* callFrame))
+{
+    VM& vm = globalObject->vm();
+
+    JSValue arg0 = callFrame->argument(0);
+
+    auto function = JSNativeStdFunction::create(vm, globalObject, 0, { }, [arg0](JSGlobalObject*, CallFrame*) {
+        return JSValue::encode(arg0);
+    }, arg0);
+
+    return JSValue::encode(function);
+}
+
 #if ENABLE(SAMPLING_PROFILER)
 JSC_DEFINE_HOST_FUNCTION(functionStartSamplingProfiler, (JSGlobalObject* globalObject, CallFrame*))
 {
@@ -3849,8 +3862,6 @@ static void checkException(GlobalObject* globalObject, bool isLastFile, bool has
 
     if (!options.m_uncaughtExceptionName || !isLastFile) {
         success = success && (!hasException || options.m_ignoreUncaughtExceptions);
-        if (options.m_dump && !hasException)
-            printf("End: %s\n", value.toWTFString(globalObject).utf8().data());
         if (hasException && !options.m_ignoreUncaughtExceptions)
             dumpException(globalObject, value);
     } else
@@ -4041,7 +4052,7 @@ static void runInteractive(GlobalObject* globalObject)
 [[noreturn]] static void printUsageStatement(bool help = false)
 {
     fprintf(stderr, "Usage: jsc [options] [files] [-- arguments]\n");
-    fprintf(stderr, "  -d         Dumps bytecode\n");
+    fprintf(stderr, "  -d         Dumps bytecode and disassembly\n");
     fprintf(stderr, "  -s         Synchronous compilation (equivalent to `--useConcurrentJIT=0`)\n");
     fprintf(stderr, "  -e         Evaluate argument as script code\n");
     fprintf(stderr, "  -f         Specifies a source file (deprecated)\n");
@@ -4182,7 +4193,8 @@ void CommandLine::parseArguments(int argc, char** argv, int start)
             continue;
         }
         if (!strcmp(arg, "-d")) {
-            m_dump = true;
+            Options::dumpGeneratedBytecodes() = true;
+            Options::dumpDisassembly() = true;
             continue;
         }
         if (!strcmp(arg, "-s")) {
@@ -4451,7 +4463,7 @@ int runJSC(const CommandLine& options, bool isWorker, const Func& func)
             globalObject = GlobalObject::create(vm, GlobalObject::createStructure(vm, jsNull()), options.m_arguments);
             globalObject->setInspectable(options.m_inspectable);
 
-#if ENABLE(WEBASSEMBLY_DEBUGGER)
+#if ENABLE(WEBASSEMBLY_DEBUGGER) && CPU(ARM64)
             if (Options::enableWasmDebugger()) [[unlikely]]
                 Wasm::DebugServer::singleton().start();
 #endif
@@ -4596,8 +4608,6 @@ int jscmain(int argc, char** argv)
     {
         Options::AllowUnfinalizedAccessScope scope;
         processConfigFile(Options::configFile(), "jsc");
-        if (mainCommandLine->m_dump)
-            Options::dumpGeneratedBytecodes() = true;
     }
 
     JSC::initialize();

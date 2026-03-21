@@ -106,7 +106,10 @@ struct WebPageTransferableTests {
         #expect(actualURL == URL(string: "about:blank"))
     }
 
-    @Test(arguments: [UTType.png, UTType.image])
+    @Test(
+        .disabled("Fails in EWS due to incorrect scaleFactor"),
+        arguments: [UTType.png, UTType.image]
+    )
     func exportToImage(type: UTType) async throws {
         let defaultFrame = CGRect(x: 0, y: 0, width: 1024, height: 768)
 

@@ -26,27 +26,14 @@
 #include <WebCore/FontPlatformData.h>
 #include <WebCore/GlyphBuffer.h>
 #include <WebCore/GlyphMetricsMap.h>
-#include <WebCore/GlyphPage.h>
 #include <WebCore/RenderingResourceIdentifier.h>
 #include <WebCore/TrustedFonts.h>
 #include <wtf/BitVector.h>
-#include <wtf/Hasher.h>
 #include <wtf/Platform.h>
 #include <wtf/WeakPtr.h>
-#include <wtf/text/StringHash.h>
 
 #if PLATFORM(COCOA)
-#include <CoreFoundation/CoreFoundation.h>
 #include <pal/cf/OTSVGTable.h>
-#include <wtf/RetainPtr.h>
-#endif
-
-#if ENABLE(MATHML)
-#include <WebCore/OpenTypeMathData.h>
-#endif
-
-#if ENABLE(OPENTYPE_VERTICAL)
-#include "OpenTypeVerticalData.h"
 #endif
 
 #if PLATFORM(WIN)
@@ -68,6 +55,12 @@ namespace WebCore {
 class FontCache;
 class FontDescription;
 class GlyphPage;
+#if ENABLE(MATHML)
+class OpenTypeMathData;
+#endif
+#if ENABLE(OPENTYPE_VERTICAL)
+class OpenTypeVerticalData;
+#endif
 
 struct GlyphData;
 #if ENABLE(MULTI_REPRESENTATION_HEIC)
@@ -118,12 +111,12 @@ public:
 
     static Ref<Font> createSystemFallbackFontPlaceholder() { return adoptRef(*new Font(IsSystemFallbackFontPlaceholder::Yes)); }
     bool isSystemFontFallbackPlaceholder() const { return m_isSystemFontFallbackPlaceholder; }
-    const FontPlatformData& platformData() const { return m_platformData; }
+    const FontPlatformData& platformData() const LIFETIME_BOUND { return m_platformData; }
 #if ENABLE(MATHML)
     const OpenTypeMathData* mathData() const;
 #endif
 #if ENABLE(OPENTYPE_VERTICAL)
-    const OpenTypeVerticalData* verticalData() const { return m_verticalData.get(); }
+    inline const OpenTypeVerticalData* verticalData() const;
 #endif
 
     WEBCORE_EXPORT RenderingResourceIdentifier renderingResourceIdentifier() const;
@@ -153,11 +146,6 @@ public:
         return const_cast<Font*>(this);
     }
 
-    RefPtr<const Font> protectedVariantFont(const FontDescription& description, FontVariant variant) const
-    {
-        return variantFont(description, variant);
-    }
-
     bool variantCapsSupportedForSynthesis(FontVariantCaps) const;
 
     const Font& verticalRightOrientationFont() const;
@@ -167,7 +155,7 @@ public:
     bool hasVerticalGlyphs() const { return m_hasVerticalGlyphs; }
     bool isTextOrientationFallback() const { return m_attributes.isTextOrientationFallback == IsOrientationFallback::Yes; }
 
-    const FontMetrics& fontMetrics() const { return m_fontMetrics; }
+    const FontMetrics& fontMetrics() const LIFETIME_BOUND { return m_fontMetrics; }
     float sizePerUnit() const { return platformData().size() / (fontMetrics().unitsPerEm() ? fontMetrics().unitsPerEm() : 1); }
 
     float maxCharWidth() const { return m_maxCharWidth; }
@@ -197,7 +185,7 @@ public:
 
     Path pathForGlyph(Glyph) const;
 
-    float spaceWidth(SyntheticBoldInclusion SyntheticBoldInclusion = SyntheticBoldInclusion::Incorporate) const
+    float NODELETE spaceWidth(SyntheticBoldInclusion SyntheticBoldInclusion = SyntheticBoldInclusion::Incorporate) const
     {
         return m_spaceWidth + (SyntheticBoldInclusion == SyntheticBoldInclusion::Incorporate ? syntheticBoldOffset() : 0);
     }
@@ -235,8 +223,6 @@ public:
 #endif
 #if USE(CORE_TEXT)
     CTFontRef ctFont() const { return m_platformData.ctFont(); }
-    RetainPtr<CTFontRef> protectedCTFont() const { return ctFont(); }
-    RetainPtr<CFDictionaryRef> getCFStringAttributes(bool enableKerning, FontOrientation, const AtomString& locale) const;
     bool supportsSmallCaps() const;
     bool supportsAllSmallCaps() const;
     bool supportsPetiteCaps() const;
@@ -265,14 +251,14 @@ public:
     WEBCORE_EXPORT std::optional<InstalledFont> toSerializableInstalledFont() const;
 #endif
 #if PLATFORM(WIN)
-    SCRIPT_CACHE* scriptCache() const { return &m_scriptCache; }
+    SCRIPT_CACHE* scriptCache() const LIFETIME_BOUND { return &m_scriptCache; }
 #endif
 
     void setIsUsedInSystemFallbackFontCache() { m_isUsedInSystemFallbackFontCache = true; }
     bool isUsedInSystemFallbackFontCache() const { return m_isUsedInSystemFallbackFontCache; }
 
     using Attributes = FontInternalAttributes;
-    const Attributes& attributes() const { return m_attributes; }
+    const Attributes& attributes() const LIFETIME_BOUND { return m_attributes; }
 
     ColorGlyphType colorGlyphType(Glyph) const;
 
@@ -434,101 +420,6 @@ private:
 #if PLATFORM(IOS_FAMILY)
 bool fontFamilyShouldNotBeUsedForArabic(CFStringRef);
 #endif
-
-ALWAYS_INLINE FloatRect Font::boundsForGlyph(Glyph glyph) const
-{
-    if (isZeroWidthSpaceGlyph(glyph))
-        return FloatRect();
-
-    FloatRect bounds;
-    if (m_glyphToBoundsMap) {
-        bounds = m_glyphToBoundsMap->metricsForGlyph(glyph);
-        if (bounds.width() != cGlyphSizeUnknown)
-            return bounds;
-    }
-
-    bounds = platformBoundsForGlyph(glyph);
-    if (!m_glyphToBoundsMap)
-        m_glyphToBoundsMap = makeUnique<GlyphMetricsMap<FloatRect>>();
-    m_glyphToBoundsMap->setMetricsForGlyph(glyph, bounds);
-    return bounds;
-}
-
-#if USE(CORE_TEXT) || USE(SKIA)
-ALWAYS_INLINE Vector<FloatRect, Font::inlineGlyphRunCapacity> Font::boundsForGlyphs(std::span<const Glyph> glyphs) const
-{
-    const auto glyphCount = glyphs.size();
-    if (!glyphCount) [[unlikely]]
-        return { };
-
-    if (glyphCount == 1) [[unlikely]]
-        return { boundsForGlyph(glyphs[0]) };
-
-    Vector<Glyph, inlineGlyphRunCapacity> glyphsNeedingMeasurement;
-    Vector<size_t, inlineGlyphRunCapacity> positionsNeedingMeasurement;
-
-    Vector<FloatRect, inlineGlyphRunCapacity> glyphBounds(glyphCount, FloatRect());
-    for (size_t glyphIndex = 0; glyphIndex < glyphCount; ++glyphIndex) {
-        const auto& glyph = glyphs[glyphIndex];
-        if (isZeroWidthSpaceGlyph(glyph))
-            continue;
-
-        if (m_glyphToBoundsMap) {
-            auto bounds = m_glyphToBoundsMap->metricsForGlyph(glyph);
-            if (bounds.width() != cGlyphSizeUnknown) {
-                glyphBounds[glyphIndex] = bounds;
-                continue;
-            }
-        }
-
-        glyphsNeedingMeasurement.append(glyph);
-        positionsNeedingMeasurement.append(glyphIndex);
-    }
-
-    if (glyphsNeedingMeasurement.isEmpty())
-        return glyphBounds;
-
-    if (!m_glyphToBoundsMap)
-        m_glyphToBoundsMap = makeUnique<GlyphMetricsMap<FloatRect>>();
-
-    auto measuredBounds = platformBoundsForGlyphs(glyphsNeedingMeasurement);
-
-    size_t index = 0;
-    for (auto& bounds : measuredBounds) {
-        const auto measuredGlyph = glyphsNeedingMeasurement[index];
-        const auto measuredGlyphPosition = positionsNeedingMeasurement[index];
-
-        m_glyphToBoundsMap->setMetricsForGlyph(measuredGlyph, bounds);
-        glyphBounds[measuredGlyphPosition] = bounds;
-        ++index;
-    }
-    return glyphBounds;
-}
-#endif
-
-ALWAYS_INLINE float Font::widthForGlyph(Glyph glyph, SyntheticBoldInclusion SyntheticBoldInclusion) const
-{
-    // The optimization of returning 0 for the zero-width-space glyph is incorrect for the LastResort font,
-    // used in place of the actual font when isLoading() is true on both macOS and iOS.
-    // The zero-width-space glyph in that font does not have a width of zero and, further, that glyph is used
-    // for many other characters and must not be zero width when used for them.
-    if (isZeroWidthSpaceGlyph(glyph) && !isInterstitial())
-        return 0;
-
-    float width = m_glyphToWidthMap.metricsForGlyph(glyph);
-    if (width != cGlyphSizeUnknown)
-        return width + (SyntheticBoldInclusion == SyntheticBoldInclusion::Incorporate ? syntheticBoldOffset() : 0);
-
-#if ENABLE(OPENTYPE_VERTICAL)
-    if (m_verticalData)
-        width = m_verticalData->advanceHeight(this, glyph);
-    else
-#endif
-        width = platformWidthForGlyph(glyph);
-
-    m_glyphToWidthMap.setMetricsForGlyph(glyph, width);
-    return width + (SyntheticBoldInclusion == SyntheticBoldInclusion::Incorporate ? syntheticBoldOffset() : 0);
-}
 
 #if !LOG_DISABLED
 WEBCORE_EXPORT TextStream& operator<<(TextStream&, const Font&);

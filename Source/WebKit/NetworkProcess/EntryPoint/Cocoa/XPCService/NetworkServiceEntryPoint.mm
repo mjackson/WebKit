@@ -43,7 +43,7 @@ public:
 template<>
 void initializeAuxiliaryProcess<NetworkProcess>(AuxiliaryProcessInitializationParameters&& parameters)
 {
-    static NeverDestroyed<NetworkProcess> networkProcess(WTF::move(parameters));
+    static NeverDestroyed<Ref<NetworkProcess>> networkProcess = NetworkProcess::create(WTF::move(parameters));
 }
 
 } // namespace WebKit

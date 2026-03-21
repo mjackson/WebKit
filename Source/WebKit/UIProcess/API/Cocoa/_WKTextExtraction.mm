@@ -26,7 +26,6 @@
 #import "config.h"
 #import "_WKTextExtractionInternal.h"
 
-#import "Logging.h"
 #import "WKJSHandleInternal.h"
 #import "WKWebViewInternal.h"
 #import <WebKit/WKError.h>
@@ -42,32 +41,44 @@
 
 - (instancetype)init
 {
-    return [self _initForOnlyVisibleText:NO];
-}
-
-+ (instancetype)configurationForVisibleTextOnly
-{
-    return adoptNS([[self alloc] _initForOnlyVisibleText:YES]).autorelease();
-}
-
-- (instancetype)_initForOnlyVisibleText:(BOOL)onlyVisibleText
-{
     if (!(self = [super init]))
         return nil;
 
     _dataDetectorTypes = _WKTextExtractionDataDetectorNone;
     _filterOptions = _WKTextExtractionFilterAll;
-    _includeURLs = !onlyVisibleText;
-    _includeRects = !onlyVisibleText;
-    _nodeIdentifierInclusion = onlyVisibleText ? _WKTextExtractionNodeIdentifierInclusionNone : _WKTextExtractionNodeIdentifierInclusionInteractive;
-    _eventListenerCategories = onlyVisibleText ? _WKTextExtractionEventListenerCategoryNone : _WKTextExtractionEventListenerCategoryAll;
-    _includeAccessibilityAttributes = !onlyVisibleText;
+    _includeURLs = YES;
+    _includeRects = YES;
+    _includeSelectOptions = YES;
+    _nodeIdentifierInclusion = _WKTextExtractionNodeIdentifierInclusionInteractive;
+    _eventListenerCategories = _WKTextExtractionEventListenerCategoryAll;
+    _includeAccessibilityAttributes = YES;
     _includeTextInAutoFilledControls = NO;
-    _onlyIncludeVisibleText = onlyVisibleText;
     _targetRect = CGRectNull;
     _maxWordsPerParagraph = NSUIntegerMax;
     _maxWordsPerParagraphPolicy = _WKTextExtractionWordLimitPolicyAlways;
     return self;
+}
+
++ (instancetype)configurationForVisibleTextOnly
+{
+    RetainPtr configuration = adoptNS([[self alloc] init]);
+    [configuration configureForMinimalOutput];
+    [configuration setOutputFormat:_WKTextExtractionOutputFormatPlainText];
+    return configuration.autorelease();
+}
+
+- (void)configureForMinimalOutput
+{
+    _outputFormat = _WKTextExtractionOutputFormatPlainText;
+    _includeURLs = NO;
+    _includeRects = NO;
+    _includeSelectOptions = NO;
+    _nodeIdentifierInclusion = _WKTextExtractionNodeIdentifierInclusionNone;
+    _eventListenerCategories = _WKTextExtractionEventListenerCategoryNone;
+    _includeAccessibilityAttributes = NO;
+    _includeTextInAutoFilledControls = NO;
+    _includeOffscreenPasswordFields = NO;
+    _includeSelectOptions = NO;
 }
 
 - (_WKJSHandle *)targetNode
@@ -125,34 +136,6 @@
     _replacementStrings = adoptNS([replacementStrings copy]);
 }
 
-#define ENSURE_VALID_TEXT_ONLY_CONFIGURATION(value) do { \
-    if (_onlyIncludeVisibleText && value) { \
-        RELEASE_LOG_ERROR(TextExtraction, "%{public}s ignored for text-only %{public}@", __PRETTY_FUNCTION__, [self class]); \
-        return; \
-    } \
-} while (0)
-
-- (void)setIncludeURLs:(BOOL)value
-{
-    ENSURE_VALID_TEXT_ONLY_CONFIGURATION(value);
-
-    _includeURLs = value;
-}
-
-- (void)setIncludeRects:(BOOL)value
-{
-    ENSURE_VALID_TEXT_ONLY_CONFIGURATION(value);
-
-    _includeRects = value;
-}
-
-- (void)setNodeIdentifierInclusion:(_WKTextExtractionNodeIdentifierInclusion)value
-{
-    ENSURE_VALID_TEXT_ONLY_CONFIGURATION(value);
-
-    _nodeIdentifierInclusion = value;
-}
-
 - (BOOL)includeEventListeners
 {
     return _eventListenerCategories != _WKTextExtractionEventListenerCategoryNone;
@@ -160,47 +143,8 @@
 
 - (void)setIncludeEventListeners:(BOOL)value
 {
-    ENSURE_VALID_TEXT_ONLY_CONFIGURATION(value);
-
     _eventListenerCategories = value ? _WKTextExtractionEventListenerCategoryAll : _WKTextExtractionEventListenerCategoryNone;
 }
-
-- (void)setEventListenerCategories:(_WKTextExtractionEventListenerCategory)value
-{
-    ENSURE_VALID_TEXT_ONLY_CONFIGURATION(value);
-
-    _eventListenerCategories = value;
-}
-
-- (void)setIncludeAccessibilityAttributes:(BOOL)value
-{
-    ENSURE_VALID_TEXT_ONLY_CONFIGURATION(value);
-
-    _includeAccessibilityAttributes = value;
-}
-
-- (void)setIncludeTextInAutoFilledControls:(BOOL)value
-{
-    ENSURE_VALID_TEXT_ONLY_CONFIGURATION(value);
-
-    _includeTextInAutoFilledControls = value;
-}
-
-- (void)setOutputFormat:(_WKTextExtractionOutputFormat)outputFormat
-{
-    ENSURE_VALID_TEXT_ONLY_CONFIGURATION(outputFormat != _WKTextExtractionOutputFormatTextTree);
-
-    _outputFormat = outputFormat;
-}
-
-- (void)setShortenURLs:(BOOL)value
-{
-    ENSURE_VALID_TEXT_ONLY_CONFIGURATION(value);
-
-    _shortenURLs = value;
-}
-
-#undef ENSURE_VALID_TEXT_ONLY_CONFIGURATION
 
 @end
 
@@ -238,6 +182,15 @@
         return completionHandler(nil);
 
     [webView _requestJSHandleForNodeIdentifier:nodeIdentifier searchText:searchText completionHandler:completionHandler];
+}
+
+- (void)requestContainerJSHandleForNodeIdentifier:(NSString *)nodeIdentifier searchText:(NSString *)searchText completionHandler:(void (^)(_WKJSHandle *))completionHandler
+{
+    RetainPtr webView = _webView;
+    if (!webView)
+        return completionHandler(nil);
+
+    [webView _requestContainerJSHandleForNodeIdentifier:nodeIdentifier searchText:searchText completionHandler:completionHandler];
 }
 
 @end

@@ -24,7 +24,6 @@
 
 #pragma once
 
-#include "LocalFrameView.h"
 #include "ParserContentPolicy.h"
 #include "PendingScriptClient.h"
 #include "ScriptableDocumentParser.h"
@@ -53,7 +52,7 @@ public:
     static Ref<XMLParserContext> createStringParser(xmlSAXHandlerPtr, void* userData);
     XMLParserContext() = delete;
     ~XMLParserContext();
-    xmlParserCtxtPtr context() const { return m_context; }
+    xmlParserCtxtPtr context() const LIFETIME_BOUND { return m_context; }
 
 private:
     XMLParserContext(xmlParserCtxtPtr context)
@@ -115,9 +114,12 @@ private:
 
     void notifyFinished(PendingScript&) final;
 
+    bool hasScriptsWaitingForStylesheets() const final;
+    void executeScriptsWaitingForStylesheets() final;
+
     void end();
 
-    void pauseParsing();
+    void NODELETE pauseParsing();
     void resumeParsing();
 
     bool appendFragmentSource(const String&);
@@ -154,8 +156,6 @@ private:
     void doWrite(const String&);
     void doEnd();
 
-    RefPtr<Text> protectedLeafTextNode() const { return m_leafTextNode; }
-
     xmlParserCtxtPtr context() const { return m_context ? m_context->context() : nullptr; };
 
     IsInFrameView m_isInFrameView { IsInFrameView::No };
@@ -183,6 +183,7 @@ private:
     std::unique_ptr<XMLErrors> m_xmlErrors;
 
     RefPtr<PendingScript> m_pendingScript;
+    RefPtr<PendingScript> m_scriptWaitingForStylesheets;
     TextPosition m_scriptStartPosition;
 
     bool m_parsingFragment { false };

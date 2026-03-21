@@ -73,10 +73,11 @@ public:
     String toString() const { return href(); }
 
     Ref<DOMStringList> ancestorOrigins() const;
+    DOMStringList* cachedAncestorOrigins() const { return m_ancestorOrigins.get(); }
 
     DOMWindow* window() { return m_window.get(); }
 
-    const URL& url() const;
+    const URL& url() const LIFETIME_BOUND;
 
 private:
     explicit Location(DOMWindow&);
@@ -84,8 +85,9 @@ private:
     ExceptionOr<void> setLocation(LocalDOMWindow& incumbentWindow, LocalDOMWindow& firstWindow, const String&);
 
     Frame* NODELETE frame();
-    const Frame* frame() const;
+    const Frame* NODELETE frame() const;
 
+    mutable RefPtr<DOMStringList> m_ancestorOrigins;
     WeakPtr<DOMWindow, WeakPtrImplWithEventTargetData> m_window;
 };
 

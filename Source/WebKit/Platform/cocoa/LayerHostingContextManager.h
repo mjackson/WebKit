@@ -49,6 +49,7 @@ public:
 
     void requestHostingContext(LayerHostingContextCallback&&);
     std::optional<WebCore::HostingContext> createHostingContextIfNeeded(const PlatformLayerContainer&, bool canShowWhileLocked);
+    void setVideoLayerSize(const WebCore::FloatSize&);
     void setVideoLayerSizeFenced(const WebCore::FloatSize&, WTF::MachSendRightAnnotated&&, NOESCAPE CompletionHandler<void()>&& postCommitAction);
     WebCore::FloatSize videoLayerSize() const { return m_videoLayerSize; }
     void setVideoLayerSizeIfPossible();

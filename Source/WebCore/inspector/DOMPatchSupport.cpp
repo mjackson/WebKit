@@ -417,7 +417,7 @@ std::unique_ptr<DOMPatchSupport::Digest> DOMPatchSupport::createDigest(Node& nod
     addStringToSHA1(sha1, node.nodeName());
     addStringToSHA1(sha1, node.nodeValue());
 
-    if (node.nodeType() == Node::ELEMENT_NODE) {
+    if (node.nodeType() == NodeType::Element) {
         RefPtr child = node.firstChild();
         while (child) {
             std::unique_ptr<Digest> childInfo = createDigest(*child, unusedNodesMap);

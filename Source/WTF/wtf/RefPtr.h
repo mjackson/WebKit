@@ -282,6 +282,12 @@ ALWAYS_INLINE CLANG_POINTER_CONVERSION RefPtr<T, PtrTraits, RefDerefTraits> prot
     return ptr.copyRef();
 }
 
+template<typename T, typename PtrTraits, typename RefDerefTraits>
+RefPtr<T, PtrTraits, RefDerefTraits> protect(RefPtr<T, PtrTraits, RefDerefTraits>&&)
+{
+    static_assert(WTF::unreachableForType<T>, "Calling protect() on an rvalue is unnecessary; the caller already owns the value.");
+}
+
 template<typename T, typename U = RawPtrTraits<T>, typename V = DefaultRefDerefTraits<T>, typename X, typename Y, typename Z>
 inline RefPtr<T, U, V> upcast(const RefPtr<X, Y, Z>& p)
 {
@@ -324,6 +330,12 @@ template<typename ExpectedType, typename ArgType, typename PtrTraits, typename R
 inline bool is(const RefPtr<ArgType, PtrTraits, RefDerefTraits>& source)
 {
     return is<ExpectedType>(source.get());
+}
+
+template<typename... ExpectedTypes, typename ArgType, typename PtrTraits, typename RefDerefTraits>
+inline bool isAnyOf(const RefPtr<ArgType, PtrTraits, RefDerefTraits>& source)
+{
+    return isAnyOf<ExpectedTypes...>(source.get());
 }
 
 template<typename Target, typename Source, typename PtrTraits, typename RefDerefTraits>

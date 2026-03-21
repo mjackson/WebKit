@@ -2,6 +2,7 @@
 //@ skip if $buildType == "debug" or $memoryLimited
 //@ $skipModes << "wasm-no-jit".to_sym
 //@ $skipModes << "wasm-no-wasm-jit".to_sym
+//@ $skipModes << "wasm-collect-continuously".to_sym
 // Too slow without JIT
 
 function instantiate(moduleBase64, importObject) {

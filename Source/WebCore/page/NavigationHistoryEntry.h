@@ -25,11 +25,11 @@
 
 #pragma once
 
-#include <WebCore/ActiveDOMObject.h>
-#include <WebCore/EventTarget.h>
-#include <WebCore/EventTargetInterfaces.h>
-#include <WebCore/ReferrerPolicy.h>
-#include <WebCore/ScriptExecutionContextIdentifier.h>
+#include "ActiveDOMObject.h"
+#include "EventTarget.h"
+#include "EventTargetInterfaces.h"
+#include "ReferrerPolicy.h"
+#include "ScriptExecutionContextIdentifier.h"
 #include <wtf/RefCounted.h>
 
 namespace JSC {
@@ -56,7 +56,7 @@ public:
     void deref() const final { RefCounted::deref(); }
     USING_CAN_MAKE_WEAKPTR(EventTarget);
 
-    const String& url() const;
+    const String& url() const LIFETIME_BOUND;
     String key() const;
     String id() const;
     uint64_t index() const;

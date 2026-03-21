@@ -62,6 +62,7 @@ set(TestWTF_SOURCES
     Tests/WTF/Hasher.cpp
     Tests/WTF/HexNumber.cpp
     Tests/WTF/IndexSparseSet.cpp
+    Tests/WTF/InlineMap.cpp
     Tests/WTF/Int128.cpp
     Tests/WTF/IntegerToStringConversion.cpp
     Tests/WTF/IntervalSet.cpp
@@ -106,6 +107,7 @@ set(TestWTF_SOURCES
     Tests/WTF/SaturatedArithmeticOperations.cpp
     Tests/WTF/Scope.cpp
     Tests/WTF/ScopedLambda.cpp
+    Tests/WTF/SegmentedVector.cpp
     Tests/WTF/SentinelLinkedList.cpp
     Tests/WTF/SetForScope.cpp
     Tests/WTF/Signals.cpp
@@ -208,6 +210,7 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/GridPosition.cpp
         Tests/WebCore/HTMLParserIdioms.cpp
         Tests/WebCore/HTTPParsers.cpp
+        Tests/WebCore/IDBSerializationTest.cpp
         Tests/WebCore/ImageBufferTests.cpp
         Tests/WebCore/IntPointTests.cpp
         Tests/WebCore/IntRectTests.cpp

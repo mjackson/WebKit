@@ -47,6 +47,8 @@ class TextStream;
 
 namespace WebCore {
 
+enum class ForTextEmphasis : bool;
+
 class FontPlatformData;
 class FontSelector;
 class GraphicsContext;
@@ -64,12 +66,17 @@ struct GlyphOverflow {
     bool computeBounds { false };
 };
 
+struct GlyphGeometryCacheEntry {
+    Markable<float> width;
+    Markable<GlyphOverflow> glyphOverflow;
+};
+
 namespace ShapedTextCacheDefaults {
 // This is tuned for Canvas text operations (fillText, strokeText)
 static constexpr int initialInterval = -3; // Cache immediately, no countdown
 static constexpr int minInterval = -3; // After a hit, cache the next 3 attempts
 static constexpr int maxInterval = -3; // Never ramp up sampling, stay aggressive
-static constexpr unsigned maxSize = 500000; // Same as default cache size
+static constexpr unsigned maxSize = 3000; // Shaped text entries are large due to GlyphBuffer
 static constexpr unsigned maxTextLength = 128; // Larger than default to cache longer canvas text
 }
 
@@ -113,19 +120,19 @@ public:
     bool isFixedPitch(const FontCascadeDescription&, FontSelector*);
 
     bool canTakeFixedPitchFastContentMeasuring(const FontCascadeDescription&, FontSelector*);
+    TriState NODELETE cachedCanTakeFixedPitchFastContentMeasuring() const
+    {
+        return m_canTakeFixedPitchFastContentMeasuring;
+    }
 
     bool isLoadingCustomFonts() const;
 
     // FIXME: It should be possible to combine fontSelectorVersion and generation.
     unsigned generation() const { return m_generation; }
 
-    struct GlyphGeometryCacheEntry {
-        Markable<float> width;
-        Markable<GlyphOverflow> glyphOverflow;
-    };
     using GlyphGeometryCache = TextMeasurementCache<GlyphGeometryCacheEntry>;
-    GlyphGeometryCache& glyphGeometryCache() { return m_glyphGeometryCache; }
-    const GlyphGeometryCache& glyphGeometryCache() const { return m_glyphGeometryCache; }
+    GlyphGeometryCache& glyphGeometryCache() LIFETIME_BOUND { return m_glyphGeometryCache; }
+    const GlyphGeometryCache& glyphGeometryCache() const LIFETIME_BOUND { return m_glyphGeometryCache; }
 
     using ShapedTextCache = TextMeasurementCache<
         CachedTextShapingResult,
@@ -135,12 +142,13 @@ public:
         ShapedTextCacheDefaults::maxSize,
         ShapedTextCacheDefaults::maxTextLength
     >;
-    ShapedTextCache& shapedTextCache() { return m_shapedTextCache; }
-    const ShapedTextCache& shapedTextCache() const { return m_shapedTextCache; }
+    ShapedTextCache& shapedTextCache() LIFETIME_BOUND { return m_shapedTextCache; }
+    const ShapedTextCache& shapedTextCache() const LIFETIME_BOUND { return m_shapedTextCache; }
 
-    const TextShapingResult* getOrCreateCachedShapedText(const TextRun&, const FontCascade&);
+    const TextShapingResult* getOrCreateCachedShapedText(const TextRun&, const FontCascade&, unsigned from, std::optional<unsigned> to, ForTextEmphasis);
 
     const Font& primaryFont(const FontCascadeDescription&, FontSelector*);
+    const Font* NODELETE cachedPrimaryFont() const { return m_cachedPrimaryFont.get(); }
     WEBCORE_EXPORT const FontRanges& realizeFallbackRangesAt(const FontCascadeDescription&, FontSelector*, unsigned fallbackIndex);
 
     void pruneSystemFallbacks();
@@ -165,7 +173,7 @@ private:
 
         GlyphData glyphDataForCharacter(char32_t);
 
-        void setSingleFontPage(RefPtr<GlyphPage>&&);
+        void NODELETE setSingleFontPage(RefPtr<GlyphPage>&&);
         void setGlyphDataForCharacter(char32_t, GlyphData);
 
         bool isNull() const { return !m_singleFont && !m_mixedFont; }
@@ -213,11 +221,14 @@ inline const Font& FontCascadeFonts::primaryFont(const FontCascadeDescription& d
 {
     ASSERT(m_thread ? m_thread->ptr() == &Thread::currentSingleton() : isMainThread());
     if (!m_cachedPrimaryFont) {
+        // CSS Fonts 4 §5.2: "The first available font [...] is defined to be the first font for which
+        // the character U+0020 (space) is not excluded by a unicode-range [...]. Note: it does not
+        // matter whether that font actually has a glyph for the space character."
         auto& primaryRanges = realizeFallbackRangesAt(description, fontSelector, 0);
         m_cachedPrimaryFont = primaryRanges.glyphDataForCharacter(' ', ExternalResourceDownloadPolicy::Allow).font.get();
-        if (!m_cachedPrimaryFont)
+        if (!m_cachedPrimaryFont && primaryRanges.hasRangeContaining(' '))
             m_cachedPrimaryFont = primaryRanges.rangeAt(0).font(ExternalResourceDownloadPolicy::Allow);
-        else if (m_cachedPrimaryFont->isInterstitial()) {
+        if (!m_cachedPrimaryFont || m_cachedPrimaryFont->isInterstitial()) {
             for (unsigned index = 1; ; ++index) {
                 auto& localRanges = realizeFallbackRangesAt(description, fontSelector, index);
                 if (localRanges.isNull())
@@ -229,6 +240,9 @@ inline const Font& FontCascadeFonts::primaryFont(const FontCascadeDescription& d
                 }
             }
         }
+        // Last resort: all cascade fonts are loading or unavailable.
+        if (!m_cachedPrimaryFont)
+            m_cachedPrimaryFont = realizeFallbackRangesAt(description, fontSelector, 0).rangeAt(0).font(ExternalResourceDownloadPolicy::Forbid);
     }
     ASSERT(m_cachedPrimaryFont);
     return *m_cachedPrimaryFont;

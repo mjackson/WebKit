@@ -154,7 +154,7 @@ class LabelReference
         # For historical reasons a LabelReference may reference a label which is neither
         # extern nor global, in which case it should act as a LocalLabelReference.
         # See https://bugs.webkit.org/show_bug.cgi?id=131205.
-        if extern? || label.global?
+        if externOrGlobal?
             Assembler.externOrGlobalLabelReference(name[1..-1])
         else
             Assembler.localLabelReference(name[1..-1])

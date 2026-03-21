@@ -80,7 +80,7 @@ public:
     }
     virtual ~VideoPresentationInterfaceContext();
 
-    LayerHostingContext* layerHostingContext() { return m_layerHostingContext.get(); }
+    LayerHostingContext* layerHostingContext() LIFETIME_BOUND { return m_layerHostingContext.get(); }
     void setLayerHostingContext(std::unique_ptr<LayerHostingContext>&&);
 
     enum class AnimationType { None, IntoFullscreen, FromFullscreen };

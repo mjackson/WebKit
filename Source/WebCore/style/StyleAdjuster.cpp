@@ -72,6 +72,7 @@
 #include "StylableInlines.h"
 #include "StyleContainmentCheckerInlines.h"
 #include "StyleComputedStyle+InitialInlines.h"
+#include "StyleFontSizeFunctions.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "StyleSelfAlignmentData.h"
 #include "StyleTextDecorationLine.h"
@@ -116,7 +117,7 @@ static void addIntrinsicMargins(RenderStyle& style)
 
     // FIXME: Using width/height alone and not also dealing with min-width/max-width is flawed.
     // FIXME: Using "hasQuirk" to decide the margin wasn't set is kind of lame.
-    if (style.width().isIntrinsicOrLegacyIntrinsicOrAuto()) {
+    if (style.width().isSizingKeywordOrAuto()) {
         if (style.marginLeft().hasQuirk())
             style.setMarginLeft(intrinsicMargin);
         if (style.marginRight().hasQuirk())
@@ -151,7 +152,7 @@ static bool shouldInheritTextDecorationsInEffect(const RenderStyle& style, const
     }();
 
     // Outermost <svg> roots are considered to be atomic inline-level.
-    if (RefPtr svgElement = dynamicDowncast<SVGElement>(element); svgElement && svgElement->isOutermostSVGSVGElement())
+    if (auto* svgElement = dynamicDowncast<SVGElement>(element); svgElement && svgElement->isOutermostSVGSVGElement())
         return false;
 
     // There is no other good way to prevent decorations from affecting user agent shadow trees.
@@ -173,7 +174,7 @@ static bool shouldInheritTextDecorationsInEffect(const RenderStyle& style, const
     return true;
 }
 
-static bool isScrollableOverflow(Overflow overflow)
+static bool NODELETE isScrollableOverflow(Overflow overflow)
 {
     return overflow == Overflow::Scroll || overflow == Overflow::Auto;
 }
@@ -320,12 +321,12 @@ OptionSet<EventListenerRegionType> Adjuster::computeEventListenerRegionTypes(con
     return types;
 }
 
-static bool isOverflowClipOrVisible(Overflow overflow)
+static bool NODELETE isOverflowClipOrVisible(Overflow overflow)
 {
     return overflow == Overflow::Clip || overflow == Overflow::Visible;
 }
 
-static bool shouldInlinifyForRuby(const RenderStyle& style, const RenderStyle& parentBoxStyle)
+static bool NODELETE shouldInlinifyForRuby(const RenderStyle& style, const RenderStyle& parentBoxStyle)
 {
     auto parentDisplay = parentBoxStyle.display();
     auto hasRubyParent = parentDisplay == DisplayType::InlineRuby
@@ -336,7 +337,7 @@ static bool shouldInlinifyForRuby(const RenderStyle& style, const RenderStyle& p
     return hasRubyParent && !style.hasOutOfFlowPosition() && style.floating() == Float::None;
 }
 
-static bool hasUnsupportedRubyDisplay(Display display, const Element* element, const Document& document)
+static bool NODELETE hasUnsupportedRubyDisplay(Display display, const Element* element, const Document& document)
 {
     if (document.settings().cssRubyDisplayTypesInAuthorStylesEnabled())
         return false;
@@ -358,7 +359,7 @@ static bool hasUnsupportedRubyDisplay(Display display, const Element* element, c
 }
 
 // https://drafts.csswg.org/css-ruby-1/#bidi
-static UnicodeBidi forceBidiIsolationForRuby(UnicodeBidi unicodeBidi)
+static UnicodeBidi NODELETE forceBidiIsolationForRuby(UnicodeBidi unicodeBidi)
 {
     switch (unicodeBidi) {
     case UnicodeBidi::Normal:
@@ -545,7 +546,7 @@ void Adjuster::adjust(RenderStyle& style) const
         // of the value of the position property, with one exception: as for boxes in CSS 2.1, outer ‘svg’ elements
         // must be positioned for z-index to apply to them.
         if (element && element->document().settings().layerBasedSVGEngineEnabled()) {
-            if (RefPtr svgElement = dynamicDowncast<SVGElement>(*element); svgElement && svgElement->isOutermostSVGSVGElement())
+            if (auto* svgElement = dynamicDowncast<SVGElement>(*element); svgElement && svgElement->isOutermostSVGSVGElement())
                 return element->renderer() && element->renderer()->style().position() == PositionType::Static;
 
             return false;
@@ -802,7 +803,7 @@ void Adjuster::adjust(RenderStyle& style) const
     adjustForSiteSpecificQuirks(style);
 }
 
-static bool hasEffectiveDisplayNoneForDisplayContents(const Element& element)
+static bool NODELETE hasEffectiveDisplayNoneForDisplayContents(const Element& element)
 {
     using namespace ElementNames;
 
@@ -901,8 +902,19 @@ void Adjuster::adjustSVGElementStyle(RenderStyle& style, const SVGElement& svgEl
 
     // (Legacy)RenderSVGRoot handles zooming for the whole SVG subtree, so foreignObject content should
     // not be scaled again.
-    if (svgElement.hasTagName(SVGNames::foreignObjectTag))
+    if (svgElement.hasTagName(SVGNames::foreignObjectTag)) {
         style.setUsedZoom(evaluate<float>(ComputedStyle::initialZoom()));
+
+        // The font's computed size may have been inherited from the HTML tree with CSS zoom
+        // already applied. Since we just reset usedZoom for foreignObject, recompute the font's
+        // computed size from the specified size without zoom (useSVGZoomRules=true), so that
+        // children inherit the correct (unzoomed) computed size. The SVG root transform handles
+        // the zoom scaling, consistent with other SVG content.
+        auto fontDescription = style.fontDescription();
+        auto computedFontSize = computedFontSizeFromSpecifiedSize(fontDescription.specifiedSize(), fontDescription.isAbsoluteSize(), /*useSVGZoomRules=*/true, style.computedStyle(), svgElement.document());
+        fontDescription.setComputedSize(computedFontSize.size, computedFontSize.usedZoomFactor);
+        style.setFontDescription(WTF::move(fontDescription));
+    }
 
     // SVG text layout code expects us to be a block-level style element.
     // While in theory any block level element would work (flex, grid etc), since we construct RenderBlockFlow for both foreign object and svg text,
@@ -990,6 +1002,17 @@ void Adjuster::adjustForSiteSpecificQuirks(RenderStyle& style) const
             style.setDisplayMaintainingOriginalDisplay(DisplayType::None);
     }
 
+    // zillow.com rdar://171279940
+    // FIXME(309831): Remove after rdar://172303198 is implemented.
+    if (documentQuirks.needsZillowFloorplanMarginQuirk()) {
+        if (m_element->hasTagName(imgTag)) {
+            if (RefPtr parent = m_element->parentElement(); parent && parent->idForStyleResolution() == "floorplan_panel"_s) {
+                style.setMarginLeft(CSS::Keyword::Auto { });
+                style.setMarginRight(CSS::Keyword::Auto { });
+            }
+        }
+    }
+
 #if PLATFORM(IOS_FAMILY)
     if (documentQuirks.needsGoogleMapsScrollingQuirk()) {
         static MainThreadNeverDestroyed<const AtomString> className("PUtLdf"_s);
@@ -1052,7 +1075,9 @@ void Adjuster::adjustForSiteSpecificQuirks(RenderStyle& style) const
         //     animation-fill-mode: none, forwards;
         //     animation-name: menu-grow-left, menu-fade-in;
         auto menuGrowLeftAnimation = Style::Animation { { ScopedName { "menu-grow-left"_s } } };
+        menuGrowLeftAnimation.setDelay(0_css_s);
         menuGrowLeftAnimation.setDuration(.18_css_s);
+        menuGrowLeftAnimation.setFillMode(AnimationFillMode::None);
 
         auto menuFadeInAnimation = Style::Animation { { ScopedName { "menu-fade-in"_s } } };
         menuFadeInAnimation.setDelay(.06_css_s);
@@ -1060,8 +1085,8 @@ void Adjuster::adjustForSiteSpecificQuirks(RenderStyle& style) const
         menuFadeInAnimation.setFillMode(AnimationFillMode::Forwards);
 
         auto& animations = style.ensureAnimations();
-        animations.append(WTF::move(menuGrowLeftAnimation));
-        animations.append(WTF::move(menuFadeInAnimation));
+        animations = Style::Animations { WTF::move(menuGrowLeftAnimation), WTF::move(menuFadeInAnimation) };
+        animations.prepareForUse();
     }
 
 #if PLATFORM(IOS_FAMILY)
@@ -1199,7 +1224,7 @@ std::unique_ptr<RenderStyle> Adjuster::restoreUsedDocumentElementStyleToComputed
 }
 
 #if ENABLE(TEXT_AUTOSIZING)
-static bool hasTextChild(const Element& element)
+static bool NODELETE hasTextChild(const Element& element)
 {
     for (auto* child = element.firstChild(); child; child = child->nextSibling()) {
         if (is<Text>(child))

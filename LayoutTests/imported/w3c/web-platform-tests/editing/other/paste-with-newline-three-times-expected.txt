@@ -1,0 +1,4 @@
+
+
+FAIL Pasting three times content with a newline at the end, the insertion caret keeps positioned at the end. promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
+

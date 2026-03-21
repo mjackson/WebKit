@@ -30,7 +30,7 @@
 #include "Cursor.h"
 #include "EventHandler.h"
 #include "EventNames.h"
-#include "FontCascade.h"
+#include "FontCascadeInlines.h"
 #include "FontSelector.h"
 #include "GraphicsContext.h"
 #include "HTMLEmbedElement.h"

@@ -193,8 +193,7 @@ void ScrollableArea::scrollToPositionWithAnimation(const FloatPoint& position, c
     if (position == scrollPosition())
         return;
 
-    auto previousScrollType = currentScrollType();
-    setCurrentScrollType(options.type);
+    auto scrollTypeScope = ScrollTypeScope(*this, options.type);
 
     bool startedAnimation = requestScrollToPosition(roundedIntPoint(position), { ScrollType::Programmatic, options.clamping, ScrollIsAnimated::Yes, options.snapPointSelectionMethod, options.originalScrollDelta });
     if (!startedAnimation)
@@ -202,8 +201,6 @@ void ScrollableArea::scrollToPositionWithAnimation(const FloatPoint& position, c
 
     if (startedAnimation)
         setScrollAnimationStatus(ScrollAnimationStatus::Animating);
-
-    setCurrentScrollType(previousScrollType);
 }
 
 void ScrollableArea::scrollToOffsetWithoutAnimation(const FloatPoint& offset, ScrollClamping clamping)
@@ -670,9 +667,10 @@ void ScrollableArea::resnapAfterLayout()
     if (correctedOffset != currentOffset) {
         LOG_WITH_STREAM(ScrollSnap, stream << "ScrollableArea::resnapAfterLayout - adjusting scroll position from " << currentOffset << " to " << correctedOffset << " for snap point at index " << currentVerticalSnapPointIndex());
         auto position = scrollPositionFromOffset(correctedOffset);
-        if (scrollAnimationStatus() == ScrollAnimationStatus::NotAnimating)
+        if (scrollAnimationStatus() == ScrollAnimationStatus::NotAnimating) {
+            auto scrollTypeScope = ScrollTypeScope(*this, ScrollType::Programmatic);
             scrollToOffsetWithoutAnimation(correctedOffset);
-        else
+        } else
             scrollAnimator->retargetRunningAnimation(position);
     }
 }
@@ -1076,8 +1074,8 @@ ScrollbarRevealBehaviorScope::ScrollbarRevealBehaviorScope(ScrollableArea& scrol
 
 ScrollbarRevealBehaviorScope::~ScrollbarRevealBehaviorScope()
 {
-    CheckedRef scrollableArea = m_scrollableArea.get();
-    scrollableArea->setScrollbarRevealBehavior(m_oldBehavior);
+    auto& scrollableArea = m_scrollableArea.get();
+    scrollableArea.setScrollbarRevealBehavior(m_oldBehavior);
 }
 
 // MARK: -
@@ -1097,6 +1095,30 @@ ScrollAnchoringSuppressionScope::~ScrollAnchoringSuppressionScope()
 
     if (CheckedPtr controller = scrollableArea->scrollAnchoringController())
         controller->stopSuppressingScrollAnchoring();
+}
+
+// MARK: -
+
+ScrollTypeScope::ScrollTypeScope(ScrollableArea& scrollableArea, ScrollType newType)
+    : m_scrollableArea(scrollableArea)
+    , m_oldScrollType(scrollableArea.currentScrollType())
+{
+    scrollableArea.setCurrentScrollType(newType);
+}
+
+ScrollTypeScope::~ScrollTypeScope()
+{
+    restore();
+}
+
+void ScrollTypeScope::restore()
+{
+    if (!m_oldScrollType)
+        return;
+
+    auto& scrollableArea = m_scrollableArea.get();
+    scrollableArea.setCurrentScrollType(*m_oldScrollType);
+    m_oldScrollType = { };
 }
 
 } // namespace WebCore

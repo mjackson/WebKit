@@ -37,7 +37,7 @@ namespace WebKit::WebGPU {
 
 std::optional<ImageCopyTexture> ConvertToBackingContext::convertToBacking(const WebCore::WebGPU::ImageCopyTexture& imageCopyTexture)
 {
-    auto texture = convertToBacking(imageCopyTexture.protectedTexture().get());
+    auto texture = convertToBacking(protect(imageCopyTexture.texture).get());
 
     std::optional<Origin3D> origin;
     if (imageCopyTexture.origin) {

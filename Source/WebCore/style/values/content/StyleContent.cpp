@@ -151,7 +151,7 @@ auto CSSValueConversion<Content>::operator()(BuilderState& state, const CSSValue
 
 Ref<CSSValue> CSSValueCreation<Content::Counter>::operator()(CSSValuePool& pool, const RenderStyle& style, const Content::Counter& value)
 {
-    return CSSCounterValue::create(value.identifier, value.separator, createCSSValue(pool, style, value.style));
+    return CSSCounterValue::create(AtomString { value.identifier }, AtomString { value.separator }, createCSSValue(pool, style, value.style));
 }
 
 } // namespace Style

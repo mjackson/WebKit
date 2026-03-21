@@ -24,6 +24,8 @@
 
 #include "Document.h"
 #include "Element.h"
+#include "Event.h"
+#include "EventNames.h"
 #include "SVGElement.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGUseElement.h"
@@ -49,7 +51,9 @@ SVGURIReference::SVGURIReference(SVGElement* contextElement)
 
 bool SVGURIReference::isKnownAttribute(const QualifiedName& attributeName)
 {
-    return PropertyRegistry::isKnownAttribute(attributeName);
+    auto result = attributeName.matches(SVGNames::hrefAttr) || attributeName.matches(XLinkNames::hrefAttr);
+    ASSERT(result == PropertyRegistry::isKnownAttribute(attributeName));
+    return result;
 }
 
 SVGElement& SVGURIReference::contextElement() const
@@ -158,7 +162,7 @@ void SVGURIReference::dispatchLoadEvent()
     setHaveFiredLoadEvent(true);
     ASSERT(contextElement().haveLoadedRequiredResources());
 
-    contextElement().sendLoadEventIfPossible();
+    protect(contextElement())->dispatchEvent(Event::create(eventNames().loadEvent, Event::CanBubble::No, Event::IsCancelable::No));
 }
 
 }

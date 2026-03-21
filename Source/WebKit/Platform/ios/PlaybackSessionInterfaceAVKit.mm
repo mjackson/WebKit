@@ -153,14 +153,14 @@ void PlaybackSessionInterfaceAVKit::volumeChanged(double volume)
 
 void PlaybackSessionInterfaceAVKit::startObservingNowPlayingMetadata()
 {
-    if (m_playbackSessionModel)
-        m_playbackSessionModel->addNowPlayingMetadataObserver(m_nowPlayingMetadataObserver);
+    if (CheckedPtr model = m_playbackSessionModel.get())
+        model->addNowPlayingMetadataObserver(m_nowPlayingMetadataObserver);
 }
 
 void PlaybackSessionInterfaceAVKit::stopObservingNowPlayingMetadata()
 {
-    if (m_playbackSessionModel)
-        m_playbackSessionModel->removeNowPlayingMetadataObserver(m_nowPlayingMetadataObserver);
+    if (CheckedPtr model = m_playbackSessionModel.get())
+        model->removeNowPlayingMetadataObserver(m_nowPlayingMetadataObserver);
 }
 
 void PlaybackSessionInterfaceAVKit::nowPlayingMetadataChanged(const WebCore::NowPlayingMetadata& metadata)

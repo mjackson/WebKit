@@ -353,7 +353,7 @@ namespace JSC { namespace DFG {
     macro(RegExpTest, NodeResultJS | NodeMustGenerate) \
     macro(RegExpTestInline, NodeResultJS | NodeMustGenerate) \
     macro(RegExpMatchFast, NodeResultJS | NodeMustGenerate) \
-    macro(RegExpMatchFastGlobal, NodeResultJS) \
+    macro(RegExpMatchFastGlobal, NodeResultJS | NodeMustGenerate) \
     macro(RegExpSearch, NodeResultInt32 | NodeMustGenerate) \
     macro(GetRegExpFlag, NodeResultBoolean) \
     macro(StringReplace, NodeResultJS | NodeMustGenerate) \
@@ -458,6 +458,7 @@ namespace JSC { namespace DFG {
     macro(MatchStructure, NodeMustGenerate | NodeResultBoolean) \
     \
     macro(IsCellWithType, NodeResultBoolean) \
+    macro(ArrayIsArray, NodeMustGenerate | NodeResultBoolean) \
     macro(IsEmpty, NodeResultBoolean) \
     macro(IsEmptyStorage, NodeResultBoolean) \
     macro(HasStructureWithFlags, NodeResultBoolean) \
@@ -594,7 +595,7 @@ namespace JSC { namespace DFG {
     macro(MapStorageOrSentinel, NodeResultJS) /* If the map storage is not materialized, return the sentinel. */ \
     macro(MapIterationNext, NodeResultJS) \
     macro(MapIterationEntry, NodeResultJS) \
-    macro(MapIterationEntryKey, NodeResultInt32) \
+    macro(MapIterationEntryKey, NodeResultJS) \
     macro(MapIterationEntryValue, NodeResultJS) \
     macro(MapOrSetSize, NodeResultInt32) \
     macro(SetAdd, NodeMustGenerate) \
@@ -647,6 +648,7 @@ namespace JSC { namespace DFG {
     macro(PromiseResolve, NodeMustGenerate | NodeResultJS) \
     macro(PromiseReject, NodeMustGenerate | NodeResultJS) \
     macro(PromiseThen, NodeMustGenerate | NodeResultJS) \
+    macro(PerformPromiseThen, NodeMustGenerate | NodeHasVarArgs) \
 
 
 // This enum generates a monotonically increasing id for all Node types,

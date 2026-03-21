@@ -254,7 +254,7 @@ inline const AtomString& nullAtom() { SUPPRESS_MEMORY_UNSAFE_CAST return *reinte
 inline const AtomString& emptyAtom() { SUPPRESS_MEMORY_UNSAFE_CAST return *reinterpret_cast<const AtomString*>(&emptyAtomData); }
 
 inline AtomString::AtomString(ASCIILiteral literal)
-    : m_string(literal.length() ? AtomStringImpl::add(literal) : Ref { *emptyAtom().impl() })
+    : m_string(literal.isNull() ? RefPtr<AtomStringImpl> { } : literal.length() ? AtomStringImpl::add(literal) : Ref { *emptyAtom().impl() })
 {
 }
 

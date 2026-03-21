@@ -66,8 +66,6 @@ public:
 #else
     PlatformColorSpaceValue platformColorSpace() const { return m_platformColorSpace.get(); }
 #endif
-    PlatformColorSpace protectedPlatformColorSpace() const { return platformColorSpace(); }
-
     PlatformColorSpace serializableColorSpace() const { return m_platformColorSpace; }
 
     WEBCORE_EXPORT std::optional<DestinationColorSpace> asRGB() const;

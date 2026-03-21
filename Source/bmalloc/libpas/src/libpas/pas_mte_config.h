@@ -68,6 +68,7 @@
 
 typedef uint64_t Slot;
 
+PAS_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN;
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -75,13 +76,13 @@ extern Slot g_config[];
 #ifdef __cplusplus
 }
 #endif
+PAS_ALLOW_UNSAFE_BUFFER_USAGE_END;
 
 #define PAS_MTE_ENABLE_FLAG 0
 #define PAS_MTE_MODE_BITS 1
-#define PAS_MTE_TAGGING_RATE 2
-#define PAS_MTE_MEDIUM_TAGGING_ENABLE_FLAG 3
-#define PAS_MTE_LOCKDOWN_MODE_FLAG 4
-#define PAS_MTE_HARDENED_FLAG 5
+#define PAS_MTE_MEDIUM_TAGGING_ENABLE_FLAG 2
+#define PAS_MTE_LOCKDOWN_MODE_FLAG 3
+#define PAS_MTE_HARDENED_FLAG 4
 
 // Must be kept in sync with the offsets in WTFConfig.h:ReservedConfigByteOffset
 #define PAS_MTE_CONFIG_RESERVED_BYTE_OFFSET 2
@@ -103,20 +104,27 @@ extern Slot g_config[];
 
 #define PAS_MTE_SHOULD_STORE_TAG 1
 
-#ifndef PAS_USE_COMPACT_ONLY_HEAP
 /*
- * The reason we make TZone compact-only heaps reliant on runtime PAS_MTE
- * enablement, and not the general compact-only heap, is that lumping all
- * non-compact objects into the same heap is a security regression for TZone,
- * but not a security regression for the general bmalloc heap where we already
- * expect all allocations to come out of the same singular intrinsic heap.
- * By avoiding checking PAS_USE_MTE, we save an additional check in the malloc
- * fast path for ordinary allocations, while the corresponding check for TZone
- * heaps only occurs during heap selection - it's not as significant.
+ * This setting would force all non-compact TZone allocations into a single bucket.
+ * Normally this would be a security regression, as it effectively bypasses the
+ * iso-heap mechanism that TZone relies on for its security guarantees.
+ * Normally, this would be a security regression, as it effectively removes the
+ * randomness at the heart of the TZone security feature by putting all classes
+ * from the same TZone into a single iso-heap.
+
+ * However, MTE provides the same security benefits as TZone, and as such it's
+ * OK to bypass TZone for objects we know will be MTE-tagged.
+ * Presently, the main reason for doing so would be performance, but as MTE
+ * is currently (c. 2026) only enabled in non-performant processes, there's no
+ * reason to have it on. If it is re-enabled it should be set to PAS_USE_MTE
+ * so as to preserve the security properties of non-MTE processes.
+ *
+ * Astute observers may notice that in bmalloc we do the converse, i.e. allocating
+ * always-compact objects from a single heap-ref. This is OK since in that heap,
+ * we already expect all allocations to come out of the same singular intrinsic
+ * heap.
  */
-#define PAS_USE_COMPACT_ONLY_HEAP 1
-#define PAS_USE_COMPACT_ONLY_TZONE_HEAP PAS_USE_MTE
-#endif
+#define PAS_BYPASS_TZONE_FOR_NONCOMPACT_OBJECTS 0
 
 #define PAS_MTE_FEATURE_RETAG_ON_SCAVENGE 0
 #define PAS_MTE_FEATURE_LOG_ON_TAG 1
@@ -126,8 +134,11 @@ extern Slot g_config[];
 #define PAS_MTE_FEATURE_ADJACENT_TAG_EXCLUSION 5
 #define PAS_MTE_FEATURE_ASSERT_ADJACENT_TAGS_ARE_DISJOINT 6
 
+// FIXME: rdar://171662605
+#define PAS_WORKAROUND_RDAR_171662605_UNCONDITIONAL_TAG_ON_ALLOC (1)
+
 #define PAS_MTE_FEATURE_FORCED(feature) (0)
-#define PAS_MTE_FEATURE_HARDENED_FORCED(feature) (feature == PAS_MTE_FEATURE_ADJACENT_TAG_EXCLUSION)
+#define PAS_MTE_FEATURE_HARDENED_FORCED(feature) (feature == PAS_MTE_FEATURE_ADJACENT_TAG_EXCLUSION || feature == PAS_MTE_FEATURE_RETAG_ON_SCAVENGE)
 #define PAS_MTE_FEATURE_DEBUG_FORCED(feature) (feature == PAS_MTE_FEATURE_ASSERT_ADJACENT_TAGS_ARE_DISJOINT || feature == PAS_MTE_FEATURE_RETAG_ON_SCAVENGE)
 
 #define PAS_MTE_FEATURE_FORCED_IN_RELEASE_BUILD(feature) \
@@ -189,6 +200,7 @@ extern Slot g_config[];
 #define PAS_MTE_CHECK_TAG_AND_SET_TCO(ptr) do { (void)ptr; } while (0)
 #define PAS_MTE_SET_TCO_UNCHECKED do { } while (0)
 #define PAS_MTE_CLEAR_TCO do { } while (0)
+#define PAS_BYPASS_TZONE_FOR_NONCOMPACT_OBJECTS 0
 #endif // PAS_ENABLE_MTE
 
 #ifdef __cplusplus
@@ -196,6 +208,7 @@ extern "C" {
 #endif
 void pas_mte_ensure_initialized(void);
 void pas_mte_force_nontaggable_user_allocations_into_large_heap(void);
+void pas_bmalloc_force_allocations_into_bitfit_heaps_where_available(void);
 #ifdef __cplusplus
 }
 #endif

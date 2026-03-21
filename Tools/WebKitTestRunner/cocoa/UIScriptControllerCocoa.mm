@@ -398,6 +398,7 @@ RetainPtr<_WKTextExtractionConfiguration> createTextExtractionConfiguration(WKWe
     RetainPtr configuration = adoptNS([_WKTextExtractionConfiguration new]);
     [configuration setIncludeRects:options && options->includeRects];
     [configuration setIncludeURLs:options && options->includeURLs];
+    [configuration setIncludeSelectOptions:options && options->includeSelectOptions];
     [configuration setShortenURLs:options && options->shortenURLs];
     [configuration setNodeIdentifierInclusion:^{
         if (!options)

@@ -44,7 +44,7 @@ public:
         completionHandler(success);
     }
 
-    const String& keySystem() const { return m_keySystem; }
+    const String& keySystem() const LIFETIME_BOUND { return m_keySystem; }
 
 private:
     MediaKeySystemPermissionRequest(const String& keySystem, CompletionHandler<void(bool)>&& completionHandler)

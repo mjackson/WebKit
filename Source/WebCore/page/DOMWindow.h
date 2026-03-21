@@ -103,7 +103,7 @@ class DOMWindow : public RefCounted<DOMWindow>, public EventTarget {
 public:
     virtual ~DOMWindow();
 
-    const GlobalWindowIdentifier& identifier() const { return m_identifier; }
+    const GlobalWindowIdentifier& identifier() const LIFETIME_BOUND { return m_identifier; }
     virtual Frame* NODELETE frame() const = 0;
 
     enum class DOMWindowType : bool { Local, Remote };
@@ -229,9 +229,9 @@ public:
     bool isCurrentlyDisplayedInFrame() const;
     void printErrorMessage(const String&) const;
     String crossDomainAccessErrorMessage(const LocalDOMWindow& activeWindow, IncludeTargetOrigin);
+    bool isInsecureScriptAccess(const LocalDOMWindow& activeWindow, const String& urlString);
 
 protected:
-    bool isInsecureScriptAccess(const LocalDOMWindow& activeWindow, const String& urlString);
     bool passesSetLocationSecurityChecks(const LocalDOMWindow& activeWindow, const URL& completedURL, CanNavigateState& navigationState);
     explicit DOMWindow(GlobalWindowIdentifier&&, DOMWindowType);
 

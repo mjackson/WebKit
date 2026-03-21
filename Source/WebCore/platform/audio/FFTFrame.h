@@ -42,7 +42,7 @@
 #include <memory>
 #include <wtf/Forward.h>
 #include <wtf/TZoneMalloc.h>
-#include <wtf/UniqueArray.h>
+#include <wtf/Vector.h>
 
 namespace WebCore {
 
@@ -59,19 +59,19 @@ public:
     FFTFrame(const FFTFrame& frame);
     ~FFTFrame();
 
-    static void initialize();
+    static void NODELETE initialize();
     void doFFT(std::span<const float> data);
     void doInverseFFT(std::span<float> data);
     void multiply(const FFTFrame& frame); // multiplies ourself with frame : effectively operator*=()
     void scaleFFT(float factor);
 
-    AudioFloatArray& realData() { return m_realData; }
-    AudioFloatArray& imagData() { return m_imagData; }
-    const AudioFloatArray& realData() const { return m_realData; }
-    const AudioFloatArray& imagData() const { return m_imagData; }
+    AudioFloatArray& realData() LIFETIME_BOUND { return m_realData; }
+    AudioFloatArray& imagData() LIFETIME_BOUND { return m_imagData; }
+    const AudioFloatArray& realData() const LIFETIME_BOUND { return m_realData; }
+    const AudioFloatArray& imagData() const LIFETIME_BOUND { return m_imagData; }
 
-    static int minFFTSize();
-    static int maxFFTSize();
+    static int NODELETE minFFTSize();
+    static int NODELETE maxFFTSize();
 
     void print(); // for debugging
 
@@ -95,7 +95,7 @@ private:
     void interpolateFrequencyComponents(const FFTFrame& frame1, const FFTFrame& frame2, double x);
 
 #if USE(ACCELERATE)
-    DSPSplitComplex& dspSplitComplex() { return m_frame; }
+    DSPSplitComplex& dspSplitComplex() LIFETIME_BOUND { return m_frame; }
     DSPSplitComplex dspSplitComplex() const { return m_frame; }
 
     static FFTSetup fftSetupForSize(unsigned fftSize);
@@ -108,7 +108,7 @@ private:
 #if USE(GSTREAMER)
     GUniquePtr<GstFFTF32> m_fft;
     GUniquePtr<GstFFTF32> m_inverseFft;
-    UniqueArray<GstFFTF32Complex> m_complexData;
+    Vector<GstFFTF32Complex> m_complexData;
 #endif // USE(GSTREAMER)
 
     AudioFloatArray m_realData;

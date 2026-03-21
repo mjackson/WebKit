@@ -35,13 +35,13 @@
 namespace WebKit {
 using namespace WebCore;
 
-Ref<WebColorPickerGtk> WebColorPickerGtk::create(WebPageProxy& page, const Color& initialColor, const IntRect& rect)
+Ref<WebColorPickerGtk> WebColorPickerGtk::create(WebPageProxy& page, const Color& initialColor, const IntRect& rect, std::optional<WebCore::FrameIdentifier> frameID)
 {
-    return adoptRef(*new WebColorPickerGtk(page, initialColor, rect));
+    return adoptRef(*new WebColorPickerGtk(page, initialColor, rect, frameID));
 }
 
-WebColorPickerGtk::WebColorPickerGtk(WebPageProxy& page, const Color& initialColor, const IntRect&)
-    : WebColorPicker(&page.colorPickerClient())
+WebColorPickerGtk::WebColorPickerGtk(WebPageProxy& page, const Color& initialColor, const IntRect&, std::optional<WebCore::FrameIdentifier> frameID)
+    : WebColorPicker(&page.colorPickerClient(), frameID)
     , m_initialColor(colorToGdkRGBA(initialColor))
     , m_webView(page.viewWidget())
     , m_colorChooser(nullptr)
@@ -85,7 +85,7 @@ void WebColorPickerGtk::colorChooserDialogResponseCallback(GtkColorChooser*, int
     colorPicker->endPicker();
 }
 
-void WebColorPickerGtk::showColorPicker(const Color& color)
+void WebColorPickerGtk::showColorPicker(const Color& color, const IntRect&)
 {
     if (!client())
         return;

@@ -629,6 +629,9 @@ JSC_DEFINE_HOST_FUNCTION(setProtoFuncDifference, (JSGlobalObject* globalObject, 
                 RETURN_IF_EXCEPTION(scope, { });
             }
 
+            if (!nextResult.isObject()) [[unlikely]]
+                return throwVMTypeError(globalObject, scope, "Iterator result interface is not an object."_s);
+
             JSValue doneValue = nextResult.get(globalObject, vm.propertyNames->done);
             RETURN_IF_EXCEPTION(scope, { });
 
@@ -760,6 +763,9 @@ JSC_DEFINE_HOST_FUNCTION(setProtoFuncSymmetricDifference, (JSGlobalObject* globa
             nextResult = call(globalObject, nextMethod, nextCallData, keysResult, nextArgs);
             RETURN_IF_EXCEPTION(scope, { });
         }
+
+        if (!nextResult.isObject()) [[unlikely]]
+            return throwVMTypeError(globalObject, scope, "Iterator result interface is not an object."_s);
 
         JSValue doneValue = nextResult.get(globalObject, vm.propertyNames->done);
         RETURN_IF_EXCEPTION(scope, { });
@@ -975,6 +981,9 @@ JSC_DEFINE_HOST_FUNCTION(setProtoFuncIsSupersetOf, (JSGlobalObject* globalObject
             RETURN_IF_EXCEPTION(scope, { });
         }
 
+        if (!nextResult.isObject()) [[unlikely]]
+            return throwVMTypeError(globalObject, scope, "Iterator result interface is not an object."_s);
+
         JSValue doneValue = nextResult.get(globalObject, vm.propertyNames->done);
         RETURN_IF_EXCEPTION(scope, { });
 
@@ -1146,6 +1155,9 @@ JSC_DEFINE_HOST_FUNCTION(setProtoFuncIsDisjointFrom, (JSGlobalObject* globalObje
                 nextResult = call(globalObject, nextMethod, nextCallData, keysResult, nextArgs);
                 RETURN_IF_EXCEPTION(scope, { });
             }
+
+            if (!nextResult.isObject()) [[unlikely]]
+                return throwVMTypeError(globalObject, scope, "Iterator result interface is not an object."_s);
 
             JSValue doneValue = nextResult.get(globalObject, vm.propertyNames->done);
             RETURN_IF_EXCEPTION(scope, { });

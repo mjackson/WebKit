@@ -49,7 +49,7 @@ namespace WebCore {
 
 static NavigatorGamepad& navigatorGamepadFromDOMWindow(LocalDOMWindow& window)
 {
-    return NavigatorGamepad::from(window.protectedNavigator().get());
+    return NavigatorGamepad::from(protect(window.navigator()).get());
 }
 
 GamepadManager& GamepadManager::singleton()

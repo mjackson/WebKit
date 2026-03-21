@@ -38,6 +38,8 @@
 #include "HTMLVideoElement.h"
 #include "ImageBitmap.h"
 #include "ImageBuffer.h"
+#include "JSDOMConvertDictionary.h"
+#include "JSDOMConvertSequences.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSPlaneLayout.h"
 #include "NativeImage.h"
@@ -66,7 +68,7 @@ static MediaTime timestampToMediaTime(int64_t timestamp)
     return MediaTime::createWithDouble(Seconds::fromMicroseconds(timestamp).value());
 }
 
-static int64_t mediaTimeToTimestamp(MediaTime mediaTime)
+static int64_t NODELETE mediaTimeToTimestamp(MediaTime mediaTime)
 {
     return Seconds(mediaTime.toDouble()).microseconds();
 }

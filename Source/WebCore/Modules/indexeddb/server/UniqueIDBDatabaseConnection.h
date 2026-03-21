@@ -51,11 +51,10 @@ public:
 
     WEBCORE_EXPORT ~UniqueIDBDatabaseConnection();
 
-    const IDBResourceIdentifier& openRequestIdentifier() { return m_openRequestIdentifier; }
+    const IDBResourceIdentifier& openRequestIdentifier() LIFETIME_BOUND { return m_openRequestIdentifier; }
     UniqueIDBDatabase* database() { return m_database.get(); }
     UniqueIDBDatabaseManager* NODELETE manager();
     IDBConnectionToClient& connectionToClient() { return m_connectionToClient; }
-    Ref<IDBConnectionToClient> NODELETE protectedConnectionToClient();
 
     WEBCORE_EXPORT void NODELETE connectionPendingCloseFromClient();
     WEBCORE_EXPORT void connectionClosedFromClient();

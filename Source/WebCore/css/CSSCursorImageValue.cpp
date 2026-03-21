@@ -25,10 +25,6 @@
 
 #include "CSSImageSetValue.h"
 #include "CSSImageValue.h"
-#include "SVGCursorElement.h"
-#include "SVGElementTypeHelpers.h"
-#include "SVGLengthContext.h"
-#include "SVGURIReference.h"
 #include "StyleBuilderState.h"
 #include "StyleCursorImage.h"
 #include <wtf/MathExtras.h>

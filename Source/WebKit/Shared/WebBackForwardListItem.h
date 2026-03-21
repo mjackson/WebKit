@@ -32,7 +32,6 @@
 #include "WebsiteDataStore.h"
 #include <wtf/CheckedPtr.h>
 #include <wtf/Ref.h>
-#include <wtf/RetainReleaseSwift.h>
 #include <wtf/SwiftBridging.h>
 #include <wtf/WeakPtr.h>
 #include <wtf/text/WTFString.h>
@@ -61,20 +60,20 @@ public:
 
     BrowsingContextGroup* browsingContextGroup() const { return m_browsingContextGroup.get(); }
 
-    Ref<FrameState> navigatedFrameState() const;
-    Ref<FrameState> mainFrameState() const;
+    const FrameState& mainFrameState() const;
+    Ref<FrameState> copyMainFrameState() const;
+    Ref<FrameState> copyMainFrameStateWithChildren() const;
 
-    const String& NODELETE originalURL() const;
-    const String& NODELETE url() const;
-    const String& NODELETE title() const;
-    bool wasCreatedByJSWithoutUserInteraction() const;
+    const String& NODELETE originalURL() const LIFETIME_BOUND;
+    const String& NODELETE url() const LIFETIME_BOUND;
+    const String& NODELETE title() const LIFETIME_BOUND;
+    bool NODELETE wasCreatedByJSWithoutUserInteraction() const;
 
-    const URL& resourceDirectoryURL() const { return m_resourceDirectoryURL; }
+    const URL& resourceDirectoryURL() const LIFETIME_BOUND { return m_resourceDirectoryURL; }
     void setResourceDirectoryURL(URL&& url) { m_resourceDirectoryURL = WTF::move(url); }
     RefPtr<WebsiteDataStore> dataStoreForWebArchive() const { return m_dataStoreForWebArchive; }
     void setDataStoreForWebArchive(WebsiteDataStore* dataStore) { m_dataStoreForWebArchive = dataStore; }
 
-    bool itemIsInSameDocument(const WebBackForwardListItem&) const;
     bool itemIsClone(const WebBackForwardListItem&);
 
 #if PLATFORM(COCOA) || PLATFORM(GTK) || PLATFORM(WPE)
@@ -90,7 +89,7 @@ public:
 
     std::optional<WebCore::FrameIdentifier> navigatedFrameID() const { return m_navigatedFrameID; }
 
-    WebBackForwardListFrameItem& navigatedFrameItem() const;
+    WebBackForwardListFrameItem& NODELETE navigatedFrameItem() const;
 
     // rdar://168057355
     WebBackForwardListFrameItem* WTF_NONNULL mainFrameItemPtrForSwift() const SWIFT_NAME(mainFrameItem()) { return &mainFrameItem(); }
@@ -127,7 +126,7 @@ private:
     RefPtr<ViewSnapshot> m_snapshot;
 #endif
     EnhancedSecurity m_enhancedSecurity { EnhancedSecurity::Disabled };
-} SWIFT_SHARED_REFERENCE(refBackForwardListItem, derefBackForwardListItem);
+} SWIFT_SHARED_REFERENCE(refBackForwardListItem, derefBackForwardListItem) SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT;
 
 typedef Vector<Ref<WebBackForwardListItem>> BackForwardListItemVector;
 
@@ -143,12 +142,12 @@ inline API::Object* WTF_NONNULL toAPIObject(WebBackForwardListItem* WTF_NONNULL 
 
 inline void refBackForwardListItem(WebKit::WebBackForwardListItem* WTF_NONNULL obj)
 {
-    WTF::ref(obj);
+    obj->ref();
 }
 
 inline void derefBackForwardListItem(WebKit::WebBackForwardListItem* WTF_NONNULL obj)
 {
-    WTF::deref(obj);
+    obj->deref();
 }
 
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebKit::WebBackForwardListItem)

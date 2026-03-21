@@ -233,6 +233,48 @@ TEST(FocusWebView, MultipleFrames)
     EXPECT_WK_STREQ([uiDelegate waitForAlert], "https://apple.com focused");
 }
 
+// Regression test for rdar://172564611
+TEST(FocusWebView, FocusNavigationIntoFrameWithNestedRemoteFrame)
+{
+    auto mainHTML = "<body>"
+        "<input id='mainInput'>"
+        "<iframe id='outerFrame' src='https://webkit.org/outerframe'></iframe>"
+        "</body>"_s;
+
+    // This frame begins with a cross-origin nested iframe (a RemoteFrame from webkit.org's
+    // process perspective), followed by a local input. The crash triggers when focus navigation
+    // enters this frame and the first focusable candidate is the nested RemoteFrame.
+    auto outerFrameHTML = "<body>"
+        "<iframe src='https://apple.com/innerframe'></iframe>"
+        "<input id='outerInput'>"
+        "<script>document.getElementById('outerInput').addEventListener('focusin', () => alert('outerInput focused'));</script>"
+        "</body>"_s;
+
+    auto innerFrameHTML = "<body><input id='innerInput'></body>"_s;
+
+    HTTPServer server({
+        { "/main"_s, { mainHTML } },
+        { "/outerframe"_s, { outerFrameHTML } },
+        { "/innerframe"_s, { innerFrameHTML } },
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    RetainPtr configuration = server.httpsProxyConfiguration();
+    [[configuration preferences] _setSiteIsolationEnabled:YES];
+
+    auto [webView, navigationDelegate, uiDelegate] = makeWebViewAndDelegates(WTF::move(configuration));
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/main"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    [webView evaluateJavaScript:@""
+        "document.getElementById('mainInput').addEventListener('focusin', () => alert('mainInput focused'));"
+        "document.getElementById('mainInput').focus();" completionHandler:nil];
+    EXPECT_WK_STREQ([uiDelegate waitForAlert], "mainInput focused");
+
+    [webView typeCharacter:'\t'];
+    EXPECT_WK_STREQ([uiDelegate waitForAlert], "outerInput focused");
+}
+
 TEST(FocusWebView, DoNotFocusWebViewWhenUnparented)
 {
     auto *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];

@@ -36,7 +36,11 @@ class IOSDevicePort(EmbeddedDevicePort, IOSPort):
     DEFAULT_ARCHITECTURE = 'arm64'
     VERSION_FALLBACK_ORDER = ['ios-7', 'ios-8', 'ios-9', 'ios-10']
 
-    SDK = apple_additions().get_sdk('iphoneos') if apple_additions() else 'iphoneos'
+    _DEFAULT_SDK = 'iphoneos'
+
+    @property
+    def SDK(self):
+        return apple_additions().get_sdk(self._DEFAULT_SDK) if apple_additions() else self._DEFAULT_SDK
 
     def _is_device_platform_match(self, device):
         return device.platform.is_ios()

@@ -57,7 +57,7 @@ public:
     SQLiteIDBTransaction(SQLiteIDBBackingStore&, const IDBTransactionInfo&);
     ~SQLiteIDBTransaction();
 
-    const IDBResourceIdentifier& transactionIdentifier() const { return m_info.identifier(); }
+    const IDBResourceIdentifier& transactionIdentifier() const LIFETIME_BOUND { return m_info.identifier(); }
 
     IDBError begin(SQLiteDatabase&);
     IDBError commit();
@@ -75,7 +75,7 @@ public:
     bool NODELETE inProgressOrReadOnly() const;
 
     SQLiteDatabase* NODELETE sqliteDatabase() const;
-    SQLiteTransaction* sqliteTransaction() const { return m_sqliteTransaction.get(); }
+    SQLiteTransaction* sqliteTransaction() const LIFETIME_BOUND { return m_sqliteTransaction.get(); }
     SQLiteIDBBackingStore& backingStore() { return m_backingStore.get(); }
 
     void addBlobFile(const String& temporaryPath, const String& storedFilename);

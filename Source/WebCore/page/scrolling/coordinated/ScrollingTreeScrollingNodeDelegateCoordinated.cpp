@@ -52,6 +52,11 @@ ScrollingTreeScrollingNodeDelegateCoordinated::ScrollingTreeScrollingNodeDelegat
 
 ScrollingTreeScrollingNodeDelegateCoordinated::~ScrollingTreeScrollingNodeDelegateCoordinated() = default;
 
+FloatPoint ScrollingTreeScrollingNodeDelegateCoordinated::adjustedScrollPosition(const FloatPoint& position) const
+{
+    return position;
+}
+
 void ScrollingTreeScrollingNodeDelegateCoordinated::updateVisibleLengths()
 {
     m_scrollController.contentsSizeChanged();
@@ -123,6 +128,11 @@ void ScrollingTreeScrollingNodeDelegateCoordinated::updateFromStateNode(const Sc
         float scrollbarOpacity = scrollingStateNode.scrollbarOpacity();
         horizontalScroller->setOpacity(scrollbarOpacity);
         verticalScroller->setOpacity(scrollbarOpacity);
+    }
+
+    if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollbarColor)) {
+        horizontalScroller->setScrollbarColor(scrollingStateNode.scrollbarColor());
+        verticalScroller->setScrollbarColor(scrollingStateNode.scrollbarColor());
     }
 
     ThreadedScrollingTreeScrollingNodeDelegate::updateFromStateNode(scrollingStateNode);

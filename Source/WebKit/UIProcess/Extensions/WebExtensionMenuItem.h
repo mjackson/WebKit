@@ -80,9 +80,9 @@ public:
 
     static NSArray *matchingPlatformMenuItems(const MenuItemVector&, const WebExtensionMenuItemContextParameters&, size_t limit = 0);
 
-    bool operator==(const WebExtensionMenuItem&) const;
+    bool NODELETE operator==(const WebExtensionMenuItem&) const;
 
-    WebExtensionMenuItemParameters minimalParameters() const;
+    WebExtensionMenuItemParameters NODELETE minimalParameters() const;
 
     WebExtensionContext* NODELETE extensionContext() const;
 
@@ -91,8 +91,8 @@ public:
     void update(const WebExtensionMenuItemParameters&);
 
     WebExtensionMenuItemType type() const { return m_type; }
-    const String& identifier() const { return m_identifier; }
-    const String& title() const { return m_title; }
+    const String& identifier() const LIFETIME_BOUND { return m_identifier; }
+    const String& title() const LIFETIME_BOUND { return m_title; }
 
     WebExtensionCommand* command() const { return m_command.get(); }
 
@@ -106,12 +106,12 @@ public:
     bool isEnabled() const { return m_enabled; }
     bool isVisible() const { return m_visible; }
 
-    const WebExtension::MatchPatternSet& documentPatterns() const { return m_documentPatterns; }
-    const WebExtension::MatchPatternSet& targetPatterns() const { return m_targetPatterns; }
+    const WebExtension::MatchPatternSet& documentPatterns() const LIFETIME_BOUND { return m_documentPatterns; }
+    const WebExtension::MatchPatternSet& targetPatterns() const LIFETIME_BOUND { return m_targetPatterns; }
     OptionSet<WebExtensionMenuItemContextType> contexts() const { return m_contexts; }
 
     WebExtensionMenuItem* parentMenuItem() const { return m_parentMenuItem.get(); }
-    const MenuItemVector& submenuItems() const { return m_submenuItems; }
+    const MenuItemVector& submenuItems() const LIFETIME_BOUND { return m_submenuItems; }
 
     void addSubmenuItem(WebExtensionMenuItem&);
     void removeSubmenuItem(WebExtensionMenuItem&);

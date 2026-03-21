@@ -52,7 +52,6 @@ public:
     const String& NODELETE name() const;
     ExceptionOr<void> setName(const String&);
     IDBObjectStore& NODELETE objectStore();
-    Ref<IDBObjectStore> NODELETE protectedObjectStore();
     const IDBKeyPath& NODELETE keyPath() const;
     bool NODELETE unique() const;
     bool NODELETE multiEntry() const;
@@ -77,7 +76,7 @@ public:
     ExceptionOr<Ref<IDBRequest>> getAllKeys(RefPtr<IDBKeyRange>&&, std::optional<uint32_t> count);
     ExceptionOr<Ref<IDBRequest>> getAllKeys(JSC::JSGlobalObject&, JSC::JSValue key, std::optional<uint32_t> count);
 
-    const IDBIndexInfo& info() const { return m_info; }
+    const IDBIndexInfo& info() const LIFETIME_BOUND { return m_info; }
 
     void NODELETE markAsDeleted();
     bool isDeleted() const { return m_deleted; }
@@ -112,6 +111,6 @@ private:
     const CheckedRef<IDBObjectStore> m_objectStore;
 };
 
-WebCoreOpaqueRoot root(IDBIndex*);
+WebCoreOpaqueRoot NODELETE root(IDBIndex*);
 
 } // namespace WebCore

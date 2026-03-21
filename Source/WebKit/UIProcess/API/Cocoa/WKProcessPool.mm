@@ -78,7 +78,7 @@
 @end
 
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-static RetainPtr<WKProcessPool>& sharedProcessPool()
+static RetainPtr<WKProcessPool>& NODELETE sharedProcessPool()
 {
     static NeverDestroyed<RetainPtr<WKProcessPool>> sharedProcessPool;
     return sharedProcessPool;
@@ -249,7 +249,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 
 - (id)_objectForBundleParameter:(NSString *)parameter
 {
-    return [protect(protect(*_processPool)->bundleParameters()) objectForKey:parameter];
+    return [protect((*_processPool).bundleParameters()) objectForKey:parameter];
 }
 
 - (void)_setObject:(id <NSCopying, NSSecureCoding>)object forBundleParameter:(NSString *)parameter
@@ -266,9 +266,9 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 
     Ref processPool = *_processPool;
     if (copy)
-        [processPool->ensureProtectedBundleParameters() setObject:copy.get() forKey:parameter];
+        [protect(processPool->ensureBundleParameters()) setObject:copy.get() forKey:parameter];
     else
-        [processPool->ensureProtectedBundleParameters() removeObjectForKey:parameter];
+        [protect(processPool->ensureBundleParameters()) removeObjectForKey:parameter];
 
     RetainPtr<NSData> data = keyedArchiver.get().encodedData;
     processPool->sendToAllProcesses(Messages::WebProcess::SetInjectedBundleParameter(parameter, span(data.get())));
@@ -287,7 +287,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
     }
 
     Ref processPool = *_processPool;
-    [processPool->ensureProtectedBundleParameters() setValuesForKeysWithDictionary:copy.get()];
+    [protect(processPool->ensureBundleParameters()) setValuesForKeysWithDictionary:copy.get()];
 
     RetainPtr<NSData> data = keyedArchiver.get().encodedData;
     processPool->sendToAllProcesses(Messages::WebProcess::SetInjectedBundleParameters(span(data.get())));
@@ -370,7 +370,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 
 - (void)_clearSupportedPlugins
 {
-    protect(*_processPool)->clearSupportedPlugins();
+    (*_processPool).clearSupportedPlugins();
 }
 
 - (void)_terminateServiceWorkers
@@ -481,6 +481,11 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
     return count;
 }
 
+- (NSUInteger)_prewarmedProcessCountLimit
+{
+    return protect(*_processPool)->prewarmedProcessCountLimit();
+}
+
 - (size_t)_webPageContentProcessCount
 {
     auto result = _processPool->processes().size();
@@ -547,6 +552,11 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
     IPC::Connection::setShouldCrashOnMessageCheckFailure(true);
 }
 
++ (void)_forceUseSharedMemoryForSendingForTesting:(BOOL)force
+{
+    IPC::Connection::setForceUseSharedMemoryForSendingForTesting(force);
+}
+
 + (void)_setLinkedOnOrAfterEverything
 {
     enableAllSDKAlignedBehaviors();
@@ -584,14 +594,14 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 
 + (BOOL)_isMetalDebugDeviceEnabledInGPUProcessForTesting
 {
-    if (RefPtr gpuProcess = WebKit::GPUProcessProxy::singletonIfCreated())
+    if (auto* gpuProcess = WebKit::GPUProcessProxy::singletonIfCreated())
         return gpuProcess->isMetalDebugDeviceEnabledForTesting();
     return WebKit::GPUProcessProxy::isMetalDebugDeviceEnabledInNewGPUProcessesForTesting();
 }
 
 + (BOOL)_isMetalShaderValidationEnabledInGPUProcessForTesting
 {
-    if (RefPtr gpuProcess = WebKit::GPUProcessProxy::singletonIfCreated())
+    if (auto* gpuProcess = WebKit::GPUProcessProxy::singletonIfCreated())
         return gpuProcess->isMetalShaderValidationEnabledForTesting();
     return WebKit::GPUProcessProxy::isMetalShaderValidationEnabledInNewGPUProcessesForTesting();
 }

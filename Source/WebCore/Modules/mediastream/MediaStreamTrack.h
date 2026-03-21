@@ -33,8 +33,9 @@
 #include <WebCore/Blob.h>
 #include <WebCore/EventTarget.h>
 #include <WebCore/EventTargetInterfaces.h>
+#include <WebCore/Exception.h>
 #include <WebCore/IDLTypes.h>
-#include <WebCore/JSDOMPromiseDeferred.h>
+#include <WebCore/JSDOMPromiseDeferredForward.h>
 #include <WebCore/MediaProducer.h>
 #include <WebCore/MediaStreamTrackDataHolder.h>
 #include <WebCore/MediaStreamTrackPrivate.h>
@@ -146,13 +147,12 @@ public:
     using PhotoSettingsPromise = NativePromise<PhotoSettings, Exception>;
     Ref<PhotoSettingsPromise> getPhotoSettings();
 
-    const MediaTrackConstraints& getConstraints() const { return m_constraints; }
+    const MediaTrackConstraints& getConstraints() const LIFETIME_BOUND { return m_constraints; }
     void setConstraints(MediaTrackConstraints&& constraints) { m_constraints = WTF::move(constraints); }
 
     void applyConstraints(const std::optional<MediaTrackConstraints>&, DOMPromiseDeferred<void>&&);
 
     RealtimeMediaSource& source() const { return m_private->source(); }
-    Ref<RealtimeMediaSource> protectedSource() const { return source(); }
     RealtimeMediaSource& sourceForProcessor() const { return m_private->sourceForProcessor(); }
     MediaStreamTrackPrivate& privateTrack() { return m_private.get(); }
     const MediaStreamTrackPrivate& privateTrack() const { return m_private.get(); }
@@ -188,7 +188,7 @@ public:
     UniqueRef<MediaStreamTrackDataHolder> detach();
 
     void setMediaStreamId(const String& id) { m_mediaStreamId = id; }
-    const String& mediaStreamId() const { return m_mediaStreamId; }
+    const String& mediaStreamId() const LIFETIME_BOUND { return m_mediaStreamId; }
 
     ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
 

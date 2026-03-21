@@ -89,13 +89,13 @@ private:
     explicit DOMSelection(LocalDOMWindow&);
 
     // FIXME: Change LocalDOMWindowProperty::frame to return RefPtr and then delete this.
-    RefPtr<LocalFrame> frame() const;
+    RefPtr<LocalFrame> NODELETE frame() const;
     std::optional<SimpleRange> range() const;
 
     Position anchorPosition() const;
     Position focusPosition() const;
 
-    RefPtr<Node> shadowAdjustedNode(const Position&) const;
+    Node* NODELETE shadowAdjustedNode(const Position&) const;
     unsigned shadowAdjustedOffset(const Position&) const;
 };
 

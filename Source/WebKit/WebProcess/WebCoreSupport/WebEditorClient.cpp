@@ -80,13 +80,13 @@ bool WebEditorClient::shouldDeleteRange(const std::optional<SimpleRange>& range)
 
 bool WebEditorClient::smartInsertDeleteEnabled()
 {
-    RefPtr page = m_page.get();
+    auto* page = m_page.get();
     return page && page->isSmartInsertDeleteEnabled();
 }
 
 bool WebEditorClient::isSelectTrailingWhitespaceEnabled() const
 {
-    RefPtr page = m_page.get();
+    auto* page = m_page.get();
     return page && page->isSelectTrailingWhitespaceEnabled();
 }
 
@@ -454,7 +454,7 @@ void WebEditorClient::textFieldDidEndEditing(Element& element)
     if (!inputElement)
         return;
 
-    auto webFrame = WebFrame::fromCoreFrame(*protect(protect(element.document())->frame()));
+    RefPtr webFrame = WebFrame::fromCoreFrame(*protect(protect(element.document())->frame()));
     ASSERT(webFrame);
 
     if (RefPtr page = m_page.get())
@@ -469,7 +469,7 @@ void WebEditorClient::textDidChangeInTextField(Element& element)
 
     bool initiatedByUserTyping = UserTypingGestureIndicator::processingUserTypingGesture() && UserTypingGestureIndicator::focusedElementAtGestureStart() == inputElement;
 
-    auto webFrame = WebFrame::fromCoreFrame(*protect(protect(element.document())->frame()));
+    RefPtr webFrame = WebFrame::fromCoreFrame(*protect(protect(element.document())->frame()));
     ASSERT(webFrame);
 
     if (RefPtr page = m_page.get())
@@ -485,7 +485,7 @@ void WebEditorClient::textDidChangeInTextArea(Element& element)
     if (!textAreaElement)
         return;
 
-    auto webFrame = WebFrame::fromCoreFrame(*protect(protect(element.document())->frame()));
+    RefPtr webFrame = WebFrame::fromCoreFrame(*protect(protect(element.document())->frame()));
     ASSERT(webFrame);
 
     if (RefPtr page = m_page.get())
@@ -509,10 +509,10 @@ void WebEditorClient::subFrameScrollPositionChanged()
 
 #if PLATFORM(COCOA)
 
-bool WebEditorClient::shouldAllowSingleClickToChangeSelection(WebCore::Node& targetNode, const WebCore::VisibleSelection& newSelection) const
+bool WebEditorClient::shouldAllowSingleClickToChangeSelection(WebCore::Node& targetNode, const WebCore::VisibleSelection& newSelection, WebCore::MouseEventInputSource inputSource) const
 {
     RefPtr page = m_page.get();
-    return page && page->shouldAllowSingleClickToChangeSelection(targetNode, newSelection);
+    return page && page->shouldAllowSingleClickToChangeSelection(targetNode, newSelection, inputSource);
 }
 
 #endif // PLATFORM(COCOA)
@@ -572,7 +572,7 @@ bool WebEditorClient::doTextFieldCommandFromEvent(Element& element, KeyboardEven
     if (!getActionTypeForKeyEvent(event, actionType))
         return false;
 
-    auto webFrame = WebFrame::fromCoreFrame(*protect(protect(element.document())->frame()));
+    RefPtr webFrame = WebFrame::fromCoreFrame(*protect(protect(element.document())->frame()));
     ASSERT(webFrame);
 
     RefPtr page = m_page.get();
@@ -585,7 +585,7 @@ void WebEditorClient::textWillBeDeletedInTextField(Element& element)
     if (!inputElement)
         return;
 
-    auto webFrame = WebFrame::fromCoreFrame(*protect(protect(element.document())->frame()));
+    RefPtr webFrame = WebFrame::fromCoreFrame(*protect(protect(element.document())->frame()));
     ASSERT(webFrame);
 
     if (RefPtr page = m_page.get())
@@ -722,13 +722,13 @@ void WebEditorClient::requestExtendedCheckingOfString(TextCheckingRequest& reque
 
 void WebEditorClient::willChangeSelectionForAccessibility()
 {
-    if (RefPtr page = m_page.get())
+    if (auto* page = m_page.get())
         page->willChangeSelectionForAccessibility();
 }
 
 void WebEditorClient::didChangeSelectionForAccessibility()
 {
-    if (RefPtr page = m_page.get())
+    if (auto* page = m_page.get())
         page->didChangeSelectionForAccessibility();
 }
 

@@ -144,6 +144,9 @@ struct MobileDocumentRequest;
 
 struct NodeIdentifierType;
 using NodeIdentifier = ObjectIdentifier<NodeIdentifierType>;
+
+struct FrameIdentifierType;
+using FrameIdentifier = ObjectIdentifier<FrameIdentifierType>;
 } // namespace WebCore
 
 namespace WebKit {
@@ -186,6 +189,7 @@ enum class PreferSolidColorHardPocketReason : uint8_t {
 @class WKTextExtractionItem;
 @class WKWebViewContentProviderRegistry;
 @class _WKFrameHandle;
+@class _WKJSHandle;
 @class _WKWarningView;
 
 #if ENABLE(WEB_AUTHN)
@@ -350,6 +354,8 @@ struct PerWebProcessState {
     NSUInteger _partialIntelligenceTextAnimationCount;
     BOOL _writingToolsTextReplacementsFinished;
     BOOL _activeWritingToolsSessionIsForProofreadingReview;
+
+    RetainPtr<NSMutableArray<_WKJSHandle *>> _writingToolsPreservedNodes;
 #endif
 
 #if ENABLE(SCREEN_TIME)
@@ -371,6 +377,7 @@ struct PerWebProcessState {
 #if HAVE(NSVIEW_CORNER_CONFIGURATION)
     WebCore::CornerRadii _lastViewCornerRadii;
 #endif
+    NSSize _lastContentSize;
 #endif // PLATFORM(MAC)
 
 #if PLATFORM(IOS_FAMILY)
@@ -457,6 +464,10 @@ struct PerWebProcessState {
     BOOL _didScrollSinceLastTimerFire;
     BOOL _needsScrollend;
 
+#if PLATFORM(IOS_FAMILY)
+    RefPtr<RunLoop::DispatchTimer> _pendingInteractiveObscuredInsetsChangeTimer;
+#endif
+
     // This value tracks the current adjustment added to the bottom inset due to the keyboard sliding out from the bottom
     // when computing obscured content insets. This is used when updating the visible content rects where we should not
     // include this adjustment.
@@ -536,6 +547,7 @@ struct PerWebProcessState {
 
 #if ENABLE(TEXT_EXTRACTION_FILTER)
     HashMap<unsigned /* string hash */, TextValidationMapValue> _textValidationCache;
+    std::optional<HashSet<String>> _textExtractionRecognizedWords;
 #endif
     RefPtr<WebKit::TextExtractionURLCache> _textExtractionURLCache;
 
@@ -592,6 +604,8 @@ struct PerWebProcessState {
 - (void)_addTextAnimationForAnimationID:(NSUUID *)uuid withData:(const WebCore::TextAnimationData&)styleData;
 - (void)_removeTextAnimationForAnimationID:(NSUUID *)uuid;
 
+- (void)_clearWritingToolsPreservedNodes;
+
 #endif
 
 - (void)_internalDoAfterNextPresentationUpdate:(void (^)(void))updateBlock withoutWaitingForPainting:(BOOL)withoutWaitingForPainting withoutWaitingForAnimatedResize:(BOOL)withoutWaitingForAnimatedResize;
@@ -646,26 +660,22 @@ struct PerWebProcessState {
 #endif
 #endif
 
+#if ENABLE(MANAGED_UIREFRESHCONTROL_APPEARANCE)
+- (void)_updateRefreshControlAppearance;
+#endif
+
 - (void)_updateFixedContainerEdges:(const WebCore::FixedContainerEdges&)edges;
 - (void)_updateScrollGeometryWithContentOffset:(CGPoint)contentOffset contentSize:(CGSize)contentSize;
 
 #if ENABLE(SCROLL_STRETCH_NOTIFICATIONS)
-- (void)_topScrollStretchDidChange:(NSUInteger)topScrollStretch;
+- (void)_topScrollStretchDidChange:(CGFloat)topScrollStretch;
 #endif
 
 - (WKPageRef)_pageForTesting;
 - (NakedPtr<WebKit::WebPageProxy>)_page;
 - (RefPtr<WebKit::WebPageProxy>)_protectedPage;
 #if PLATFORM(MAC)
-- (WebKit::WebViewImpl * _Null_unspecified)_impl;
-#endif
-#if ENABLE(SCREEN_TIME)
-- (nullable STWebpageController *)_screenTimeWebpageController;
-#if PLATFORM(MAC)
-- (nullable NSVisualEffectView *)_screenTimeBlurredSnapshot;
-#else
-- (nullable UIVisualEffectView *)_screenTimeBlurredSnapshot;
-#endif
+- (nullable WebKit::WebViewImpl *)_impl;
 #endif
 
 #if ENABLE(PDF_PAGE_NUMBER_INDICATOR)
@@ -715,6 +725,7 @@ struct PerWebProcessState {
 #endif
 
 - (void)_requestJSHandleForNodeIdentifier:(NSString *)nodeIdentifier searchText:(NSString *)searchText completionHandler:(void (^)(_WKJSHandle * _Nullable))completionHandler;
+- (void)_requestContainerJSHandleForNodeIdentifier:(NSString *)nodeIdentifier searchText:(NSString *)searchText completionHandler:(void (^)(_WKJSHandle * _Nullable))completionHandler;
 
 #if !__has_feature(modules) || WK_SUPPORTS_SWIFT_OBJCXX_INTEROP
 
@@ -763,6 +774,17 @@ WebCore::CocoaColor *sampledFixedPositionContentColor(const WebCore::FixedContai
 - (BOOL)_isPotentialTapInProgress;
 - (void)_disableDoubleTapGesturesDuringTapIfNecessary:(WebKit::TapIdentifier)requestID;
 - (void)_handleSmartMagnificationInformationForPotentialTap:(WebKit::TapIdentifier)requestID renderRect:(const WebCore::FloatRect&)renderRect fitEntireRect:(BOOL)fitEntireRect viewportMinimumScale:(double)viewportMinimumScale viewportMaximumScale:(double)viewportMaximumScale nodeIsRootLevel:(BOOL)nodeIsRootLevel nodeIsPluginElement:(BOOL)nodeIsPluginElement;
+@end
+
+#endif
+
+#if ENABLE(PDF_HUD)
+
+@interface WKWebView (WKPDFHUD)
+- (void)_pdfZoomIn:(WebKit::PDFPluginIdentifier)pluginIdentifier frameIdentifier:(WebCore::FrameIdentifier)frameIdentifier;
+- (void)_pdfZoomOut:(WebKit::PDFPluginIdentifier)pluginIdentifier frameIdentifier:(WebCore::FrameIdentifier)frameIdentifier;
+- (void)_pdfOpenWithPreview:(WebKit::PDFPluginIdentifier)pluginIdentifier frameIdentifier:(WebCore::FrameIdentifier)frameIdentifier;
+- (void)_pdfSaveToPDF:(WebKit::PDFPluginIdentifier)pluginIdentifier frameIdentifier:(WebCore::FrameIdentifier)frameIdentifier;
 @end
 
 #endif

@@ -71,15 +71,16 @@ public:
     }
 
 #if USE(GBM)
-    static Ref<BitmapTexture> create(EGLImage image, OptionSet<Flags> flags = { })
+    static Ref<BitmapTexture> create(EGLImage image, const IntSize& size, OptionSet<Flags> flags = { })
     {
-        return adoptRef(*new BitmapTexture(image, flags));
+        return adoptRef(*new BitmapTexture(image, size, flags));
     }
 #endif
 
     WEBCORE_EXPORT ~BitmapTexture();
 
     const IntSize& size() const { return m_size; };
+    size_t sizeInBytes() const;
     OptionSet<Flags> flags() const { return m_flags; }
     bool isOpaque() const { return !m_flags.contains(Flags::SupportsAlpha); }
 
@@ -95,19 +96,17 @@ public:
     void swapTexture(BitmapTexture&);
     void reset(const IntSize&, OptionSet<Flags> = { });
 
-    int numberOfBytes() const { return size().width() * size().height() * 32 >> 3; }
-
     RefPtr<const FilterOperation> filterOperation() const { return m_filterOperation; }
     void setFilterOperation(RefPtr<const FilterOperation>&& filterOperation) { m_filterOperation = WTF::move(filterOperation); }
 
-    ClipStack& clipStack() { return m_clipStack; }
+    ClipStack& clipStack() LIFETIME_BOUND { return m_clipStack; }
 
     void copyFromExternalTexture(GLuint sourceTextureID, const IntRect& targetRect, const IntSize& sourceOffset);
 
     OptionSet<TextureMapperFlags> colorConvertFlags() const;
 
 #if USE(GBM)
-    MemoryMappedGPUBuffer* memoryMappedGPUBuffer() const { return m_memoryMappedGPUBuffer.get(); }
+    MemoryMappedGPUBuffer* memoryMappedGPUBuffer() const LIFETIME_BOUND { return m_memoryMappedGPUBuffer.get(); }
     IntSize allocatedSize() const;
 #else
     IntSize allocatedSize() const { return m_size; }
@@ -116,7 +115,7 @@ public:
 private:
     BitmapTexture(const IntSize&, OptionSet<Flags>);
 #if USE(GBM)
-    BitmapTexture(EGLImage, OptionSet<Flags>);
+    BitmapTexture(EGLImage, const IntSize&, OptionSet<Flags>);
 #endif
 
     void clearIfNeeded();

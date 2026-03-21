@@ -41,8 +41,8 @@ InheritedData::InheritedData()
     , specifiedLineHeight(ComputedStyle::initialLineHeight())
 #endif
     , fontData(FontData::create())
-    , color(ComputedStyle::initialColor())
-    , visitedLinkColor(ComputedStyle::initialColor())
+    , color(WebCore::Color::black)
+    , visitedLinkColor(WebCore::Color::black)
 {
 }
 

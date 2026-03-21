@@ -107,13 +107,13 @@ private:
     Vector<AtomString> filterEffectInputsNames() const override { return { AtomString { in1() }, AtomString { in2() } }; }
     RefPtr<FilterEffect> createFilterEffect(const FilterEffectVector&, const GraphicsContext& destinationContext) const override;
 
-    Ref<SVGAnimatedString> m_in1 { SVGAnimatedString::create(this) };
-    Ref<SVGAnimatedString> m_in2 { SVGAnimatedString::create(this) };
-    Ref<SVGAnimatedEnumeration> m_svgOperator { SVGAnimatedEnumeration::create(this, CompositeOperationType::FECOMPOSITE_OPERATOR_OVER) };
-    Ref<SVGAnimatedNumber> m_k1 { SVGAnimatedNumber::create(this) };
-    Ref<SVGAnimatedNumber> m_k2 { SVGAnimatedNumber::create(this) };
-    Ref<SVGAnimatedNumber> m_k3 { SVGAnimatedNumber::create(this) };
-    Ref<SVGAnimatedNumber> m_k4 { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedString> m_in1 { SVGAnimatedString::create(this) };
+    const Ref<SVGAnimatedString> m_in2 { SVGAnimatedString::create(this) };
+    const Ref<SVGAnimatedEnumeration> m_svgOperator { SVGAnimatedEnumeration::create(this, CompositeOperationType::FECOMPOSITE_OPERATOR_OVER) };
+    const Ref<SVGAnimatedNumber> m_k1 { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedNumber> m_k2 { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedNumber> m_k3 { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedNumber> m_k4 { SVGAnimatedNumber::create(this) };
 };
 
 } // namespace WebCore

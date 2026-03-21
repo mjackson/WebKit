@@ -25,10 +25,10 @@
 
 #pragma once
 
+#include "CryptoAlgorithmHmacKeyParamsInit.h"
+#include "CryptoAlgorithmParameters.h"
 #include <JavaScriptCore/JSObject.h>
 #include <JavaScriptCore/Strong.h>
-#include <WebCore/CryptoAlgorithmHmacKeyParamsInit.h>
-#include <WebCore/CryptoAlgorithmParameters.h>
 
 namespace WebCore {
 

@@ -111,7 +111,7 @@ void LegacyWebPageDebuggable::setIndicating(bool indicating)
 {
     callOnMainThreadAndWait([this, protectedThis = Ref { *this }, indicating] {
         if (RefPtr page = m_page)
-            page->protectedInspectorController()->setIndicating(indicating);
+            protect(page->inspectorController())->setIndicating(indicating);
     });
 }
 

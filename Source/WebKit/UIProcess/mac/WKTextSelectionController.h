@@ -29,7 +29,7 @@
 
 #if HAVE(APPKIT_GESTURES_SUPPORT)
 
-#import "AppKitSPI.h"
+#import <AppKit/AppKit.h>
 
 @class WKWebView;
 
@@ -46,17 +46,21 @@ NS_SWIFT_UI_ACTOR
 
 @end
 
-@interface WKTextSelectionController (NSTextSelectionManagerDelegate) <NSTextSelectionManagerDelegateForWebKit_Staging>
+@interface WKTextSelectionController (NSTextSelectionManagerDelegate)
+
+@property (nonatomic, readonly) NSRect insertionCursorRect;
+@property (nonatomic, readonly) BOOL selectionIsInsertionPoint;
 
 - (BOOL)isTextSelectedAtPoint:(NSPoint)point;
-- (void)moveInsertionCursorToPoint:(NSPoint)point;
-- (void)handleClickAtPoint:(NSPoint)point; // FIXME: Remove this declaration and its definition when possible.
-- (void)handleClickAtPoint:(NSPoint)point clickCount:(NSUInteger)clickCount;
 - (void)showContextMenuAtPoint:(NSPoint)point;
-- (void)dragSelectionWithGesture:(NSGestureRecognizer *)gesture completionHandler:(void(^)(NSDraggingSession*))completionHandler;
+
+- (void)dragSelectionWithGesture:(NSGestureRecognizer *)gesture completionHandler:(void(^)(NSDraggingSession *))completionHandler;
+
 - (void)beginRangeSelectionAtPoint:(NSPoint)point withGranularity:(NSTextSelectionGranularity)granularity;
 - (void)continueRangeSelectionAtPoint:(NSPoint)point;
 - (void)endRangeSelectionAtPoint:(NSPoint)point;
+
+- (void)moveInsertionCursorToPoint:(NSPoint)point placeAtWordBoundary:(BOOL)wordBoundary completionHandler:(void(^)(BOOL))completionHandler;
 
 @end
 

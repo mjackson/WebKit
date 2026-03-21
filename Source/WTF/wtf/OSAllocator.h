@@ -88,6 +88,8 @@ public:
 
     WTF_EXPORT_PRIVATE static void protect(void*, size_t, bool readable, bool writable);
     WTF_EXPORT_PRIVATE static bool tryProtect(void*, size_t, bool readable, bool writable);
+
+    WTF_EXPORT_PRIVATE static void zeroFill(void* base, size_t);
 };
 
 inline void* OSAllocator::reserveAndCommit(size_t reserveSize, size_t commitSize, Usage usage, void* address, bool writable, bool executable, bool jitCageEnabled)

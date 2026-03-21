@@ -27,21 +27,24 @@
 #include "WebPageInspectorController.h"
 
 #include "APIUIClient.h"
+#include "FrameInspectorTarget.h"
 #include "FrameInspectorTargetProxy.h"
 #include "InspectorBrowserAgent.h"
 #include "PageInspectorTarget.h"
 #include "PageInspectorTargetProxy.h"
+#include "ProvisionalFrameProxy.h"
 #include "ProvisionalPageProxy.h"
 #include "WebFrameProxy.h"
 #include "WebPageInspectorAgentBase.h"
 #include "WebPageProxy.h"
-#include "WebProcess/Inspector/FrameInspectorTarget.h"
+#include "WebProcessProxy.h"
 #include "WebsiteDataStore.h"
 #include <JavaScriptCore/InspectorAgentBase.h>
 #include <JavaScriptCore/InspectorBackendDispatcher.h>
 #include <JavaScriptCore/InspectorBackendDispatchers.h>
 #include <JavaScriptCore/InspectorFrontendRouter.h>
 #include <JavaScriptCore/InspectorTargetAgent.h>
+#include <wtf/Assertions.h>
 #include <wtf/HashMap.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -52,6 +55,16 @@ using namespace Inspector;
 static String getTargetID(const ProvisionalPageProxy& provisionalPage)
 {
     return PageInspectorTarget::toTargetID(provisionalPage.webPageID());
+}
+
+static String getTargetID(const WebFrameProxy& frame)
+{
+    return FrameInspectorTarget::toTargetID(frame.frameID(), frame.process().coreProcessIdentifier());
+}
+
+static String getTargetID(const ProvisionalFrameProxy& provisionalFrame)
+{
+    return FrameInspectorTarget::toTargetID(provisionalFrame.frame().frameID(), provisionalFrame.process().coreProcessIdentifier());
 }
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebPageInspectorController);
@@ -166,6 +179,15 @@ void WebPageInspectorController::setIndicating(bool indicating)
 
 void WebPageInspectorController::sendMessageToInspectorFrontend(const String& targetId, const String& message)
 {
+    if (!m_targets.contains(targetId)) {
+        // FIXME <https://webkit.org/b/308182>: This assertion is currently relaxed under site isolation.
+        // More fine-tuning is needed around reporting provisional frame targets' destruction.
+        if (shouldManageFrameTargets())
+            return;
+
+        ASSERT_NOT_REACHED_WITH_MESSAGE("Sending a message from an untracked target to the frontend.");
+    }
+
     protect(m_targetAgent)->sendMessageFromTargetToFrontend(targetId, message);
 }
 
@@ -206,25 +228,72 @@ void WebPageInspectorController::didCommitProvisionalPage(WebCore::PageIdentifie
     newTarget->didCommitProvisionalTarget();
     targetAgent->didCommitProvisionalTarget(oldID, newID);
 
-    // We've disconnected from the old page and will not receive any message from it, so
-    // we destroy everything but the new target here.
-    // FIXME: <https://webkit.org/b/202937> do not destroy targets that belong to the committed page.
+    // Update target list to only include targets from the committed page.
     for (auto& target : m_targets.values())
         targetAgent->targetDestroyed(*target);
     m_targets.clear();
     m_targets.set(newTarget->identifier(), WTF::move(newTarget));
+
+    if (shouldManageFrameTargets()) {
+        // WebFrameProxies are structurally preserved across page navigation rather than destroyed and recreated,
+        // so no didCreateFrame/willDestroyFrame callbacks fire for them. Recreate the frame targets here.
+        //
+        // (Frame target ids include the process id, which changes across a cross-origin navigation,
+        // so surviving frames need to surface as new targets to the frontend.)
+        for (RefPtr frame = m_inspectedPage->mainFrame(); frame; frame = frame->traverseNext().frame)
+            didCreateFrame(*frame);
+    }
 }
 
 void WebPageInspectorController::didCreateFrame(WebFrameProxy& frame)
 {
-    if (protect(protect(m_inspectedPage)->preferences())->siteIsolationEnabled())
-        addTarget(FrameInspectorTargetProxy::create(frame, FrameInspectorTarget::toTargetID(frame.frameID())));
+    if (!shouldManageFrameTargets())
+        return;
+
+    addTarget(FrameInspectorTargetProxy::create(frame, getTargetID(frame)));
 }
 
 void WebPageInspectorController::willDestroyFrame(const WebFrameProxy& frame)
 {
-    if (protect(protect(m_inspectedPage)->preferences())->siteIsolationEnabled())
-        removeTarget(FrameInspectorTarget::toTargetID(frame.frameID()));
+    if (!shouldManageFrameTargets())
+        return;
+
+    removeTarget(getTargetID(frame));
+}
+
+void WebPageInspectorController::didCreateProvisionalFrame(ProvisionalFrameProxy& provisionalFrame)
+{
+    if (!shouldManageFrameTargets())
+        return;
+
+    addTarget(FrameInspectorTargetProxy::create(provisionalFrame, getTargetID(provisionalFrame)));
+}
+
+void WebPageInspectorController::willDestroyProvisionalFrame(const ProvisionalFrameProxy& provisionalFrame)
+{
+    if (!shouldManageFrameTargets())
+        return;
+
+    removeTarget(getTargetID(provisionalFrame));
+}
+
+void WebPageInspectorController::didCommitProvisionalFrame(WebFrameProxy& frame, WebCore::ProcessIdentifier oldProcessID, WebCore::ProcessIdentifier newProcessID)
+{
+    if (!shouldManageFrameTargets())
+        return;
+
+    WebCore::FrameIdentifier frameID = frame.frameID();
+    String oldTargetID = FrameInspectorTarget::toTargetID(frameID, oldProcessID);
+    String newTargetID = FrameInspectorTarget::toTargetID(frameID, newProcessID);
+
+    CheckedPtr targetAgent = m_targetAgent;
+    CheckedPtr newTarget = m_targets.get(newTargetID);
+    ASSERT(newTarget);
+    newTarget->didCommitProvisionalTarget();
+    targetAgent->didCommitProvisionalTarget(oldTargetID, newTargetID);
+
+    if (auto oldTarget = m_targets.take(oldTargetID))
+        targetAgent->targetDestroyed(protect(*oldTarget));
 }
 
 InspectorBrowserAgent* WebPageInspectorController::enabledBrowserAgent() const
@@ -266,6 +335,11 @@ void WebPageInspectorController::removeTarget(const String& targetId)
         return;
     protect(m_targetAgent)->targetDestroyed(CheckedRef { *it->value });
     m_targets.remove(it);
+}
+
+bool WebPageInspectorController::shouldManageFrameTargets() const
+{
+    return protect(protect(m_inspectedPage)->preferences())->siteIsolationEnabled();
 }
 
 void WebPageInspectorController::setEnabledBrowserAgent(InspectorBrowserAgent* agent)

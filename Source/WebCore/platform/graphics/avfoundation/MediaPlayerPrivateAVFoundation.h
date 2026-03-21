@@ -27,10 +27,9 @@
 
 #if ENABLE(VIDEO) && USE(AVFOUNDATION)
 
-#include "FloatSize.h"
-#include "InbandTextTrackPrivateAVF.h"
-#include "MediaPlayerPrivate.h"
-#include "Timer.h"
+#include <WebCore/FloatSize.h>
+#include <WebCore/MediaPlayerPrivate.h>
+#include <WebCore/Timer.h>
 #include <wtf/Deque.h>
 #include <wtf/Function.h>
 #include <wtf/Lock.h>
@@ -152,7 +151,6 @@ public:
 
 #if !RELEASE_LOG_DISABLED
     const Logger& logger() const final { return m_logger.get(); }
-    Ref<const Logger> protectedLogger() const { return logger(); }
     ASCIILiteral logClassName() const override { return "MediaPlayerPrivateAVFoundation"_s; }
     uint64_t logIdentifier() const final { return m_logIdentifier; }
     WTFLogChannel& logChannel() const final;
@@ -300,7 +298,7 @@ protected:
 
     bool metaDataAvailable() const { return m_readyState >= MediaPlayer::ReadyState::HaveMetadata; }
     MediaTime maxTimeLoaded() const;
-    bool isReadyForVideoSetup() const;
+    bool NODELETE isReadyForVideoSetup() const;
     virtual void setUpVideoRendering();
     virtual void tearDownVideoRendering();
     virtual bool haveBeenAskedToPaint() const { return false; }
@@ -308,9 +306,9 @@ protected:
 
     void mainThreadCallback();
     
-    void invalidateCachedDuration();
+    void NODELETE invalidateCachedDuration();
 
-    const String& assetURL() const { return m_assetURL.string(); }
+    const String& assetURL() const LIFETIME_BOUND { return m_assetURL.string(); }
 
     RefPtr<MediaPlayer> player() const { return m_player.get(); }
 
@@ -324,7 +322,7 @@ protected:
     Vector<RefPtr<InbandTextTrackPrivateAVF>> m_textTracks;
 
     void setResolvedURL(URL&&);
-    const URL& resolvedURL() const { return m_resolvedURL; }
+    const URL& resolvedURL() const LIFETIME_BOUND { return m_resolvedURL; }
 
     void setNeedsRenderingModeChanged();
     void renderingModeChanged();

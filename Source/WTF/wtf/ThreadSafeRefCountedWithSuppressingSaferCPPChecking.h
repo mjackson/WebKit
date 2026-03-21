@@ -42,7 +42,7 @@ class WTF_EMPTY_BASE_CLASS ThreadSafeRefCountedWithSuppressingSaferCPPCheckingBa
 public:
     void refSuppressingSaferCPPChecking() const
     {
-        m_refCountDebugger.willRef(m_refCount, RefCountIsThreadSafe::Yes);
+        m_refCountDebugger.willRef(m_refCount);
         ++m_refCount;
     }
 
@@ -53,7 +53,7 @@ public:
     void adopted() { m_refCountDebugger.adopted(); }
     void relaxAdoptionRequirement() { m_refCountDebugger.relaxAdoptionRequirement(); }
     void disableThreadingChecks() { m_refCountDebugger.disableThreadingChecks(); }
-    RefCountDebugger& refCountDebugger() { return m_refCountDebugger; }
+    ThreadSafeRefCountDebugger& refCountDebugger() LIFETIME_BOUND { return m_refCountDebugger; }
 
 protected:
     ThreadSafeRefCountedWithSuppressingSaferCPPCheckingBase()
@@ -73,7 +73,7 @@ protected:
     // Returns true if the pointer should be freed.
     bool derefBase() const
     {
-        m_refCountDebugger.willDeref(m_refCount, RefCountIsThreadSafe::Yes);
+        m_refCountDebugger.willDeref(m_refCount);
 
         if (!--m_refCount) [[unlikely]] {
             m_refCountDebugger.willDelete();
@@ -87,7 +87,7 @@ protected:
 
 private:
     mutable std::atomic<uint32_t> m_refCount { 1 };
-    NO_UNIQUE_ADDRESS RefCountDebugger m_refCountDebugger;
+    NO_UNIQUE_ADDRESS ThreadSafeRefCountDebugger m_refCountDebugger;
 };
 
 template<class T, DestructionThread destructionThread = DestructionThread::Any> class ThreadSafeRefCountedWithSuppressingSaferCPPChecking : public ThreadSafeRefCountedWithSuppressingSaferCPPCheckingBase {

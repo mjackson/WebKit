@@ -82,11 +82,12 @@ public:
 
     enum class CanDelayNodeDeletion : uint8_t { No, Yes, Unknown };
     struct ChildChange {
-        enum class Type : uint8_t { ElementInserted, ElementRemoved, TextInserted, TextRemoved, TextChanged, AllChildrenRemoved, NonContentsChildRemoved, NonContentsChildInserted, AllChildrenReplaced };
+        enum class Type : uint8_t { ElementInserted, ElementRemoved, ElementAndTextInserted, TextInserted, TextRemoved, TextChanged, AllChildrenRemoved, NonContentsChildRemoved, NonContentsChildInserted, AllChildrenReplaced };
         enum class Source : uint8_t { Parser, API, Clone };
         enum class AffectsElements : uint8_t { Unknown, No, Yes };
 
         ChildChange::Type type;
+        const NodeVector* const insertedChildren;
         // Making these raw pointers RefPtr leads to a Speedometer 3 regression.
         SUPPRESS_UNCOUNTED_MEMBER Element* siblingChanged;
         SUPPRESS_UNCOUNTED_MEMBER Element* previousSiblingElement;
@@ -99,6 +100,7 @@ public:
         {
             switch (type) {
             case ChildChange::Type::ElementInserted:
+            case ChildChange::Type::ElementAndTextInserted:
             case ChildChange::Type::TextInserted:
             case ChildChange::Type::NonContentsChildInserted:
             case ChildChange::Type::AllChildrenReplaced:

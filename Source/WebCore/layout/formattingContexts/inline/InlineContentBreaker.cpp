@@ -33,22 +33,23 @@
 #include "LayoutElementBox.h"
 #include "RenderStyle+GettersInlines.h"
 #include "TextUtil.h"
+#include <wtf/unicode/CharacterNames.h>
 
 namespace WebCore {
 namespace Layout {
 
-static inline bool hasLeadingTextContent(const InlineContentBreaker::ContinuousContent& continuousContent)
+static inline bool NODELETE hasLeadingTextContent(const InlineContentBreaker::ContinuousContent& continuousContent)
 {
     for (auto& run : continuousContent.runs()) {
         auto& inlineItem = run.inlineItem;
-        if (inlineItem.isInlineBoxStartOrEnd() || inlineItem.isOpaque())
+        if (inlineItem.isInlineBoxStartOrEnd() || inlineItem.isOutOfFlow())
             continue;
         return inlineItem.isText();
     }
     return false;
 }
 
-static inline std::optional<size_t> nextTextRunIndex(const InlineContentBreaker::ContinuousContent::RunList& runs, size_t startIndex)
+static inline std::optional<size_t> NODELETE nextTextRunIndex(const InlineContentBreaker::ContinuousContent::RunList& runs, size_t startIndex)
 {
     for (auto index = startIndex + 1; index < runs.size(); ++index) {
         if (runs[index].inlineItem.isText())
@@ -65,7 +66,7 @@ static inline bool isWhitespaceOnlyContent(const InlineContentBreaker::Continuou
     auto hasWhitespace = false;
     for (auto& run : continuousContent.runs()) {
         auto& inlineItem = run.inlineItem;
-        if (inlineItem.isInlineBoxStartOrEnd() || inlineItem.isOpaque())
+        if (inlineItem.isInlineBoxStartOrEnd() || inlineItem.isOutOfFlow())
             continue;
         auto isWhitespace = [&] {
             auto* textItem = dynamicDowncast<InlineTextItem>(inlineItem);
@@ -78,12 +79,12 @@ static inline bool isWhitespaceOnlyContent(const InlineContentBreaker::Continuou
     return hasWhitespace;
 }
 
-static inline bool isNonContentRunsOnly(const InlineContentBreaker::ContinuousContent& continuousContent)
+static inline bool NODELETE isNonContentRunsOnly(const InlineContentBreaker::ContinuousContent& continuousContent)
 {
     // <span></span> <- non content runs.
     for (auto& run : continuousContent.runs()) {
         auto& inlineItem = run.inlineItem;
-        if (inlineItem.isInlineBoxStartOrEnd() || inlineItem.isOpaque())
+        if (inlineItem.isInlineBoxStartOrEnd() || inlineItem.isOutOfFlow())
             continue;
         if (auto* inlineTextItem = dynamicDowncast<InlineTextItem>(inlineItem); inlineTextItem && inlineTextItem->isEmpty())
             continue;
@@ -92,7 +93,7 @@ static inline bool isNonContentRunsOnly(const InlineContentBreaker::ContinuousCo
     return true;
 }
 
-static inline std::optional<size_t> firstTextRunIndex(const InlineContentBreaker::ContinuousContent::RunList& continuousContentRuns)
+static inline std::optional<size_t> NODELETE firstTextRunIndex(const InlineContentBreaker::ContinuousContent::RunList& continuousContentRuns)
 {
     for (size_t index = 0; index < continuousContentRuns.size(); ++index) {
         if (continuousContentRuns[index].inlineItem.isText())
@@ -197,7 +198,7 @@ InlineContentBreaker::Result InlineContentBreaker::processOverflowingContent(con
                             return { };
                         for (auto runIndex = leadingTextRunIndex + 1; runIndex < runs.size(); ++runIndex) {
                             auto& inlineItem = runs[runIndex].inlineItem;
-                            if (inlineItem.isOpaque())
+                            if (inlineItem.isOutOfFlow())
                                 continue;
                             if (!inlineItem.isInlineBoxEnd())
                                 return runIndex - 1;
@@ -244,11 +245,11 @@ InlineContentBreaker::Result InlineContentBreaker::processOverflowingContent(con
         // e.g. <div style="white-space: nowrap">no wrap<div style="display: inline-block; white-space: normal">yes wrap</div></div>.
         // While the inline-block has pre-wrap which allows wrapping (for its own content), the content lives in a nowrap context.
         auto& runs = continuousContent.runs();
-        CheckedRef overflowingBox = runs[overflowingRunIndex].inlineItem.layoutBox();
-        CheckedRef styleToUse = overflowingBox->isInlineBox() ? overflowingBox->style() : overflowingBox->parent().style();
+        auto& overflowingBox = runs[overflowingRunIndex].inlineItem.layoutBox();
+        auto& styleToUse = overflowingBox.isInlineBox() ? overflowingBox.style() : overflowingBox.parent().style();
         auto isWrappingAllowed = TextUtil::isWrappingAllowed(styleToUse);
         for (auto index = overflowingRunIndex; !isWrappingAllowed && index--;) {
-            CheckedRef styleToUse = runs[index].inlineItem.layoutBox().parent().style();
+            auto& styleToUse = runs[index].inlineItem.layoutBox().parent().style();
             isWrappingAllowed = TextUtil::isWrappingAllowed(styleToUse);
         }
         return isWrappingAllowed;
@@ -289,7 +290,7 @@ std::optional<InlineContentBreaker::Result> InlineContentBreaker::simplifiedMini
     return Result { !lineStatus.trailingSoftHyphenWidth ? Result::Action::Wrap : Result::Action::RevertToLastNonOverflowingWrapOpportunity, IsEndOfLine::Yes };
 }
 
-static std::optional<size_t> findTrailingRunIndexBeforeBreakableRun(const InlineContentBreaker::ContinuousContent::RunList& runs, size_t breakableRunIndex)
+static std::optional<size_t> NODELETE findTrailingRunIndexBeforeBreakableRun(const InlineContentBreaker::ContinuousContent::RunList& runs, size_t breakableRunIndex)
 {
     // When the breaking position is at the beginning of the run, the trailing run is the previous one.
     if (!breakableRunIndex)
@@ -297,22 +298,22 @@ static std::optional<size_t> findTrailingRunIndexBeforeBreakableRun(const Inline
     // Try not break content at inline box boundary
     // e.g. <span>fits</span><span>overflows</span>
     // when the text "overflows" completely overflows, let's break the content right before the '<span>'.
-    auto lastOpaqueItemIndex = std::optional<size_t> { };
+    auto lastOutOfFlowItemIndex = std::optional<size_t> { };
     for (auto trailingCandidateIndex = breakableRunIndex; trailingCandidateIndex--;) {
         auto& inlineItem = runs[trailingCandidateIndex].inlineItem;
-        if (inlineItem.isOpaque()) {
-            lastOpaqueItemIndex = trailingCandidateIndex;
+        if (inlineItem.isOutOfFlow()) {
+            lastOutOfFlowItemIndex = trailingCandidateIndex;
             continue;
         }
         auto isAtInlineBox = inlineItem.isInlineBoxStart();
         if (!isAtInlineBox)
-            return lastOpaqueItemIndex.value_or(trailingCandidateIndex);
-        lastOpaqueItemIndex = { };
+            return lastOutOfFlowItemIndex.value_or(trailingCandidateIndex);
+        lastOutOfFlowItemIndex = { };
     }
     return { };
 }
 
-static bool isBreakableRun(const InlineContentBreaker::ContinuousContent::Run& run)
+static bool NODELETE isBreakableRun(const InlineContentBreaker::ContinuousContent::Run& run)
 {
     if (!run.inlineItem.isText()) {
         // Can't break horizontal spacing -> e.g. <span style="padding-right: 100px;">textcontent</span>, if the [inline box end] is the overflown inline item
@@ -410,17 +411,17 @@ static std::optional<TextUtil::WordBreakLeft> midWordBreak(const InlineContentBr
     return TextUtil::WordBreakLeft { right - left, TextUtil::width(inlineTextItem, textRun.style.fontCascade(), left, right, runLogicalLeft) };
 }
 
-static size_t limitBeforeValue(const RenderStyle& style)
+static size_t NODELETE limitBeforeValue(const RenderStyle& style)
 {
     return style.hyphenateLimitBefore().tryValue().value_or(0).value;
 }
 
-static size_t limitAfterValue(const RenderStyle& style)
+static size_t NODELETE limitAfterValue(const RenderStyle& style)
 {
     return style.hyphenateLimitAfter().tryValue().value_or(0).value;
 }
 
-static inline bool hasEnoughContentForHyphenation(size_t contentLength, const RenderStyle& style)
+static inline bool NODELETE hasEnoughContentForHyphenation(size_t contentLength, const RenderStyle& style)
 {
     return limitBeforeValue(style) + limitAfterValue(style) <= contentLength;
 }
@@ -624,7 +625,7 @@ std::optional<InlineContentBreaker::PartialRun> InlineContentBreaker::tryBreakin
 std::optional<InlineContentBreaker::OverflowingTextContent::BreakingPosition> InlineContentBreaker::tryBreakingOverflowingRun(const LineStatus& lineStatus, const ContinuousContent::RunList& runs, size_t overflowingRunIndex, InlineLayoutUnit nonOverflowingContentWidth) const
 {
     auto overflowingRun = runs[overflowingRunIndex];
-    ASSERT(!overflowingRun.inlineItem.isOpaque());
+    ASSERT(!overflowingRun.inlineItem.isOutOfFlow());
     if (!isBreakableRun(overflowingRun))
         return { };
 
@@ -732,7 +733,7 @@ std::optional<InlineContentBreaker::OverflowingTextContent::BreakingPosition> In
     for (size_t index = 0; index < runs.size(); ++index) {
         auto& inlineItem = runs[index].inlineItem;
         // FIXME: Maybe content across inline boxes should be hyphenated as well.
-        if (inlineItem.isOpaque())
+        if (inlineItem.isOutOfFlow())
             continue;
         if (!inlineItem.style().fontCascadeEqual(style.get()))
             return { };
@@ -769,7 +770,7 @@ std::optional<InlineContentBreaker::OverflowingTextContent::BreakingPosition> In
     size_t hyphenatedRunIndex = 0;
     for (; hyphenatedRunIndex <= overflowingRunIndex; ++hyphenatedRunIndex) {
         auto& inlineItem = runs[hyphenatedRunIndex].inlineItem;
-        if (inlineItem.isOpaque())
+        if (inlineItem.isOutOfFlow())
             continue;
         auto& inlineTextItem = downcast<InlineTextItem>(inlineItem);
         if (inlineTextItem.length() >= hyphenLocationWithinInlineTextItem)
@@ -804,7 +805,7 @@ InlineContentBreaker::OverflowingTextContent InlineContentBreaker::processOverfl
     auto overflowingRunIndex = runs.size(); 
     for (size_t index = 0; index < runs.size(); ++index) {
         auto& run = runs[index];
-        if (run.inlineItem.isOpaque())
+        if (run.inlineItem.isOutOfFlow())
             continue;
         auto runLogicalWidth = run.spaceRequired();
         if (nonOverflowingContentWidth + runLogicalWidth > lineStatus.availableWidth) {
@@ -917,7 +918,7 @@ void InlineContentBreaker::ContinuousContent::resetTrailingTrimmableContent()
 
 void InlineContentBreaker::ContinuousContent::append(const InlineItem& inlineItem, const RenderStyle& style, InlineLayoutUnit logicalWidth, InlineLayoutUnit textSpacingAdjustment)
 {
-    ASSERT(inlineItem.isAtomicInlineBox() || inlineItem.isInlineBoxStartOrEnd() || inlineItem.isOpaque() || inlineItem.isBlock());
+    ASSERT(inlineItem.isAtomicInlineBox() || inlineItem.isInlineBoxStartOrEnd() || inlineItem.isOutOfFlow() || inlineItem.isBlock());
     m_isTextOnlyContent = false;
     m_hasTrailingWordSeparator = m_hasTrailingWordSeparator && !inlineItem.isAtomicInlineBox();
     appendToRunList(inlineItem, style, { }, logicalWidth, textSpacingAdjustment);

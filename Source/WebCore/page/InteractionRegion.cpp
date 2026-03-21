@@ -144,7 +144,7 @@ static bool hasInteractiveCursorType(Element& element)
         || cursorType == CursorType::VerticalText;
 }
 
-static bool shouldAllowElement(const Element& element)
+static bool NODELETE shouldAllowElement(const Element& element)
 {
     if (is<HTMLFieldSetElement>(element))
         return false;
@@ -557,7 +557,7 @@ std::optional<InteractionRegion> interactionRegionForRenderedRegion(const Render
 
     if (auto basicShapePath = style->clipPath().tryBasicShape(); !hasRotationOrShear && originalElement && basicShapePath) {
         auto size = boundingSize(regionRenderer, transform);
-        auto path = Style::tryPath(*basicShapePath, TransformOperationData(FloatRect(FloatPoint(), size)));
+        auto path = Style::tryPath(*basicShapePath, TransformOperationData(FloatRect(FloatPoint(), size)), style->usedZoomForLength());
 
         if (path && !clipOffset.isZero())
             path->translate(clipOffset);
@@ -588,7 +588,7 @@ std::optional<InteractionRegion> interactionRegionForRenderedRegion(const Render
         FloatSize size = svgSVGElement->currentViewportSizeExcludingZoom();
         auto viewBoxTransform = svgSVGElement->viewBoxToViewTransform(size.width(), size.height());
 
-        auto shapeBoundingBox = shapeElement->getBBox(SVGLocatable::DisallowStyleUpdate);
+        auto shapeBoundingBox = shapeElement->getBBox(DisallowStyleUpdate);
         path.transform(viewBoxTransform);
         shapeBoundingBox = viewBoxTransform.mapRect(shapeBoundingBox);
 

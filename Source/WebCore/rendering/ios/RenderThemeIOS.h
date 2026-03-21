@@ -141,6 +141,8 @@ public:
 
     Color platformAnnotationHighlightBackgroundColor(OptionSet<StyleColorOptions>) const final;
 
+    Color platformTextSearchHighlightColor(OptionSet<StyleColorOptions>) const final;
+
 #if ENABLE(CSS_TAP_HIGHLIGHT_COLOR)
     Color platformTapHighlightColor() const final { return SRGBA<uint8_t> { 26, 26, 26, 77 } ; }
 #endif

@@ -55,14 +55,23 @@ void RemoteFrameView::setFrameRect(const IntRect& newRect)
 
 LayoutRect RemoteFrameView::layoutViewportRect() const
 {
-    ASSERT_NOT_REACHED();
-    return { };
+    return m_frame->frameTreeSyncData().frameLayoutViewportRect;
 }
 
-std::optional<LayoutRect> RemoteFrameView::visibleRectOfChild(const Frame&) const
+std::optional<LayoutRect> RemoteFrameView::visibleRectOfChild(const Frame& child) const
 {
-    ASSERT_NOT_REACHED();
-    return { };
+    auto maybeInfo = m_frame->frameTreeSyncData().childrenFrameLayoutInfo.getOptional(child.frameID());
+    return maybeInfo.and_then([] (auto& info) {
+        return info.visibleRectInParent;
+    });
+}
+
+bool RemoteFrameView::ownerElementOfChildFrameUsesDarkAppearance(const Frame& child) const
+{
+    auto maybeInfo = m_frame->frameTreeSyncData().childrenFrameLayoutInfo.getOptional(child.frameID());
+    return maybeInfo.transform([] (auto& info) {
+        return info.useDarkAppearance;
+    }).value_or(false);
 }
 
 // FIXME: Implement all the stubs below.

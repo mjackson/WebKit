@@ -30,7 +30,7 @@
 
 #import "NetworkStorageSessionMap.h"
 #import <Foundation/NSURLAuthenticationChallenge.h>
-#import <WebCore/AuthenticationMac.h>
+#import <WebCore/AuthenticationCocoa.h>
 #import <WebCore/Credential.h>
 #import <WebCore/CredentialStorage.h>
 #import <WebCore/NetworkStorageSession.h>

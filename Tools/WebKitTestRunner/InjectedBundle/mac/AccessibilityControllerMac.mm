@@ -32,6 +32,7 @@
 
 #import "AccessibilityCommonCocoa.h"
 #import "AccessibilityNotificationHandler.h"
+#import "AccessibilityUIElementClientMac.h"
 #import "InjectedBundle.h"
 #import "InjectedBundlePage.h"
 #import "JSBasics.h"
@@ -79,6 +80,10 @@ bool AccessibilityController::addNotificationListener(JSContextRef context, JSVa
     if (m_globalNotificationHandler)
         return false;
 
+    // Ensure the accessibility tree is built before we start observing
+    // notifications, otherwise notifications may never be posted.
+    _WKAccessibilityRootObjectForTesting(WKBundleFrameForJavaScriptContext(context));
+
     m_globalNotificationHandler = adoptNS([[AccessibilityNotificationHandler alloc] initWithContext:context]);
     [m_globalNotificationHandler.get() setCallback:functionCallback];
     [m_globalNotificationHandler.get() startObserving];
@@ -123,6 +128,25 @@ static id findAccessibleObjectById(id obj, NSString *idAttribute)
     return nil;
 }
 
+static RefPtr<AccessibilityUIElement> findElementByIdRecursive(AccessibilityUIElement* element, const String& targetId)
+{
+    if (!element || !element->isValid())
+        return nullptr;
+
+    if (JSRetainPtr<JSStringRef> domId = element->domIdentifier()) {
+        if (toWTFString(domId.get()) == targetId)
+            return element;
+    }
+
+    unsigned count = element->childrenCount();
+    for (unsigned i = 0; i < count; i++) {
+        if (RefPtr<AccessibilityUIElement> found = findElementByIdRecursive(element->childAtIndex(i).get(), targetId))
+            return found;
+    }
+
+    return nullptr;
+}
+
 void AccessibilityController::injectAccessibilityPreference(JSStringRef domain, JSStringRef key, JSStringRef value)
 {
     auto page = InjectedBundle::singleton().page()->page();
@@ -134,6 +158,11 @@ void AccessibilityController::injectAccessibilityPreference(JSStringRef domain, 
 
 RefPtr<AccessibilityUIElement> AccessibilityController::accessibleElementById(JSContextRef context, JSStringRef idAttribute)
 {
+    if (m_enableClientAccessibilityMode) {
+        auto root = AccessibilityUIElementClientMac::createForUIProcess();
+        return findElementByIdRecursive(root.ptr(), toWTFString(idAttribute));
+    }
+
     PlatformUIElement root = static_cast<PlatformUIElement>(_WKAccessibilityRootObjectForTesting(WKBundleFrameForJavaScriptContext(context)));
 
     NSString *attributeName = [NSString stringWithJSStringRef:idAttribute];

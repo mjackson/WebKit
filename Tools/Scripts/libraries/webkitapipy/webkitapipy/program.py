@@ -72,6 +72,8 @@ ALLOWED_SYMBOL_GLOBS = (
     '_$s*7SwiftUI*',
     # rdar://79109142
     '__swift_FORCE_LOAD_$_*',
+    # Swift stdlib emits calls to this libSystem symbol in OS version checks.
+    '__availability_version_check',
 )
 
 # TBDs from the active SDK whose symbols are treated as implicitly available.
@@ -297,7 +299,7 @@ def main(argv: Optional[list[str]] = None):
         with db:
             db.add_allowlist(use_input(path))
     if args.defines:
-        db.add_defines(args.defines)
+        db.add_conditions({d: 1 for d in args.defines})
 
     if program_additions:
         reporter = program_additions.configure_reporter(args, db)

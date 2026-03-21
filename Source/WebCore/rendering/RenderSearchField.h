@@ -61,7 +61,7 @@ private:
     Visibility visibilityForCancelButton() const;
     const AtomString& autosaveName() const;
 
-    RefPtr<SearchPopupMenu> protectedSearchPopup() const { return m_searchPopup; };
+    SearchPopupMenu* searchPopup() const { return m_searchPopup.get(); }
 
     HTMLElement* resultsButtonElement() const;
     HTMLElement* cancelButtonElement() const;

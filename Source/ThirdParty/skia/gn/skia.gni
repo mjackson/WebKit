@@ -105,6 +105,20 @@ declare_args() {
   }
 
   skia_build_rust_targets = false
+
+  # PartitionAlloc is Chrome's memory allocator.
+  #
+  # This is useful to:
+  # - Align Skia benchmark results closer with in-browser behavior.
+  # - Expand UAFs vulnerabilities protection to Skia's internal pointers.
+  #
+  # While GCC is supported, it lacks CI coverage to catch regressions.
+  # Therefore, we disable it by default on GCC builds.
+  #
+  # TODO(b/351867706): Re-enable. One Android test reaches PA_NOTREACHED() at
+  # the moment.
+  skia_use_partition_alloc = false
+  skia_partition_alloc_dir = "//third_party/externals/partition_alloc"
 }
 
 declare_args() {
@@ -162,11 +176,6 @@ declare_args() {
 
   # libgrapheme sources
   skia_libgrapheme_third_party_dir = "//third_party/libgrapheme"
-}
-
-declare_args() {
-  # Deprecated. TODO(kjlubick, egdaniel) Remove after updating graphite/Android
-  skia_use_backup_vma = skia_use_vma && skia_use_vulkan
 }
 
 assert(!skia_use_dawn || skia_enable_graphite)  # Dawn is Graphite-only

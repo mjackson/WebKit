@@ -80,9 +80,9 @@ Code::Code(Procedure& proc)
             Vector<Reg> volatileRegs;
             Vector<Reg> fullCalleeSaveRegs;
             Vector<Reg> calleeSaveRegs;
-            RegisterSetBuilder all = bank == GP ? RegisterSetBuilder::allGPRs() : RegisterSetBuilder::allFPRs();
-            all.exclude(RegisterSetBuilder::stackRegisters());
-            all.exclude(RegisterSetBuilder::reservedHardwareRegisters());
+            RegisterSet all = bank == GP ? RegisterSet::allGPRs() : RegisterSet::allFPRs();
+            all.exclude(RegisterSet::stackRegisters());
+            all.exclude(RegisterSet::reservedHardwareRegisters());
 #if CPU(ARM)
             // FIXME https://bugs.webkit.org/show_bug.cgi?id=243888
             // Unfortunately, the extra registers provided by the neon/vfpv3
@@ -102,8 +102,8 @@ Code::Code(Procedure& proc)
             // ARM-only.
             all.remove(MacroAssembler::addressTempRegister);
 #endif // CPU(ARM)
-            auto calleeSave = RegisterSetBuilder::calleeSaveRegisters();
-            all.buildAndValidate().forEach(
+            auto calleeSave = RegisterSet::calleeSaveRegisters();
+            all.forEach(
                 [&] (Reg reg) {
                     if (!calleeSave.contains(reg, IgnoreVectors))
                         volatileRegs.append(reg);
@@ -173,9 +173,9 @@ void Code::pinRegister(Reg reg)
 
 RegisterSet Code::mutableGPRs()
 {
-    RegisterSetBuilder result = m_mutableRegs.toRegisterSet();
-    result.filter(RegisterSetBuilder::allGPRs());
-    return result.buildAndValidate();
+    RegisterSet result = m_mutableRegs.toRegisterSet();
+    result.filter(RegisterSet::allGPRs());
+    return result;
 }
 
 bool Code::needsUsedRegisters() const

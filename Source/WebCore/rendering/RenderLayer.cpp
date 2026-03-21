@@ -174,12 +174,12 @@ using namespace HTMLNames;
 class ClipRects : public RefCounted<ClipRects> {
     WTF_MAKE_TZONE_ALLOCATED_INLINE(ClipRects);
 public:
-    static Ref<ClipRects> create()
+    static Ref<ClipRects> NODELETE create()
     {
         return adoptRef(*new ClipRects);
     }
 
-    static Ref<ClipRects> create(const ClipRects& other)
+    static Ref<ClipRects> NODELETE create(const ClipRects& other)
     {
         return adoptRef(*new ClipRects(other));
     }
@@ -192,7 +192,7 @@ public:
         m_fixed = false;
     }
 
-    const ClipRect& overflowClipRect() const { return m_overflowClipRect; }
+    const ClipRect& NODELETE overflowClipRect() const { return m_overflowClipRect; }
     void NODELETE setOverflowClipRect(const ClipRect& clipRect) { m_overflowClipRect = clipRect; }
 
     const ClipRect& NODELETE fixedClipRect() const { return m_fixedClipRect; }
@@ -206,7 +206,7 @@ public:
 
     void NODELETE setOverflowClipRectAffectedByRadius() { m_overflowClipRect.setAffectedByRadius(true); }
 
-    bool operator==(const ClipRects& other) const
+    bool NODELETE operator==(const ClipRects& other) const
     {
         return m_overflowClipRect == other.overflowClipRect()
             && m_fixedClipRect == other.fixedClipRect()
@@ -214,7 +214,7 @@ public:
             && m_fixed == other.fixed();
     }
 
-    ClipRects& operator=(const ClipRects& other)
+    ClipRects& NODELETE operator=(const ClipRects& other)
     {
         m_overflowClipRect = other.overflowClipRect();
         m_fixedClipRect = other.fixedClipRect();
@@ -1453,7 +1453,7 @@ void RenderLayer::dirtyAncestorChainHasSelfPaintingLayerDescendantStatus()
 
 void RenderLayer::setAncestorChainHasViewportConstrainedDescendant()
 {
-    for (CheckedPtr layer = this; layer; layer = layer->parent()) {
+    for (auto* layer = this; layer; layer = layer->parent()) {
         if (!layer->m_hasViewportConstrainedDescendantStatusDirty && layer->m_hasViewportConstrainedDescendant)
             break;
 
@@ -1464,7 +1464,7 @@ void RenderLayer::setAncestorChainHasViewportConstrainedDescendant()
 
 void RenderLayer::dirtyAncestorChainHasViewportConstrainedDescendantStatus()
 {
-    for (CheckedPtr layer = this; layer; layer = layer->parent()) {
+    for (auto* layer = this; layer; layer = layer->parent()) {
         if (layer->m_hasViewportConstrainedDescendantStatusDirty)
             break;
 
@@ -2282,7 +2282,9 @@ FloatPoint RenderLayer::perspectiveOrigin() const
 {
     if (!renderer().hasTransformRelatedProperty())
         return { };
-    return Style::evaluate<FloatPoint>(renderer().style().perspectiveOrigin(), renderer().transformReferenceBoxRect(renderer().style()).size(), Style::ZoomNeeded { });
+
+    CheckedRef style = renderer().style();
+    return Style::evaluate<FloatPoint>(style->perspectiveOrigin(), renderer().transformReferenceBoxRect(style).size(), style->usedZoomForLength());
 }
 
 static inline bool isContainerForPositioned(RenderLayer& layer, PositionType position, bool establishesTopLayer)
@@ -3473,12 +3475,12 @@ bool RenderLayer::setupFontSubpixelQuantization(GraphicsContext& context, bool& 
         return false;
 
     bool documentScrollsOnMainThread = [&]() {
-        auto& frameView = renderer().view().frameView();
+        CheckedRef frameView = renderer().view().frameView();
 #if ENABLE(ASYNC_SCROLLING)
         if (RefPtr scrollingCoordinator = page().scrollingCoordinator())
             return scrollingCoordinator->shouldUpdateScrollLayerPositionSynchronously(frameView);
 #endif
-        if (frameView.isScrollableOrRubberbandable())
+        if (frameView->isScrollableOrRubberbandable())
             return true;
 
         return false;
@@ -3502,7 +3504,7 @@ std::pair<Path, WindRule> RenderLayer::computeClipPath(const LayoutSize& offsetF
         [&](const Style::BasicShapePath& clipPath) -> std::pair<Path, WindRule> {
             auto referenceBoxRect = referenceBoxRectForClipPath(clipPath.referenceBox(), offsetFromRoot, rootRelativeBoundsForNonBoxes);
             auto snappedReferenceBoxRect = snapRectToDevicePixelsIfNeeded(referenceBoxRect, renderer());
-            return { Style::path(clipPath.shape(), snappedReferenceBoxRect), Style::windRule(clipPath.shape()) };
+            return { Style::path(clipPath.shape(), snappedReferenceBoxRect, style.usedZoomForLength()), Style::windRule(clipPath.shape()) };
         },
         [&](const Style::BoxPath& clipPath) -> std::pair<Path, WindRule> {
             CheckedPtr box = dynamicDowncast<RenderBox>(renderer());
@@ -3733,28 +3735,6 @@ void RenderLayer::paintLayerContents(GraphicsContext& context, const LayerPainti
         && !isCollectingAccessibilityRegion
         && !shouldSkipNonFixedTopDocumentContent();
 
-    bool shouldPaintOutline = [&]() {
-        if (!isSelfPaintingLayer)
-            return false;
-
-        if (!shouldPaintContent)
-            return false;
-
-        if (isPaintingOverlayScrollbars || isCollectingEventRegion || isCollectingAccessibilityRegion)
-            return false;
-
-        // For the current layer, the outline has been painted by the primary GraphicsLayer.
-        if (localPaintFlags.contains(PaintLayerFlag::PaintingOverflowContentsRoot))
-            return false;
-
-        // Paint outlines in the background phase for a scroll container so that they don't scroll with the content.
-        // FIXME: inset outlines will have the wrong z-ordering with scrolled content. See also webkit.org/b/249457.
-        if (localPaintFlags.contains(PaintLayerFlag::PaintingOverflowContainer))
-            return isPaintingCompositedBackground;
-
-        return isPaintingCompositedForeground;
-    }();
-
     bool shouldPaintNegativeZIndexChildren = [&]() {
         if (localPaintFlags.contains(PaintLayerFlag::PaintingOverflowContainer))
             return false;
@@ -3899,6 +3879,32 @@ void RenderLayer::paintLayerContents(GraphicsContext& context, const LayerPainti
 
         if (filterContext)
             localPaintingInfo.paintBehavior.add(PaintBehavior::DontShowVisitedLinks);
+        else if (hasFailedFilterForSVGRenderer()) {
+            shouldPaintContent = false;
+            isPaintingCompositedForeground = false;
+        }
+
+        bool shouldPaintOutline = [&]() {
+            if (!isSelfPaintingLayer)
+                return false;
+
+            if (!shouldPaintContent)
+                return false;
+
+            if (isPaintingOverlayScrollbars || isCollectingEventRegion || isCollectingAccessibilityRegion)
+                return false;
+
+            // For the current layer, the outline has been painted by the primary GraphicsLayer.
+            if (localPaintFlags.contains(PaintLayerFlag::PaintingOverflowContentsRoot))
+                return false;
+
+            // Paint outlines in the background phase for a scroll container so that they don't scroll with the content.
+            // FIXME: inset outlines will have the wrong z-ordering with scrolled content. See also webkit.org/b/249457.
+            if (localPaintFlags.contains(PaintLayerFlag::PaintingOverflowContainer))
+                return isPaintingCompositedBackground;
+
+            return isPaintingCompositedForeground;
+        }();
 
         // If this layer's renderer is a child of the subtreePaintRoot, we render unconditionally, which
         // is done by passing a nil subtreePaintRoot down to our renderer (as if no subtreePaintRoot was ever set).
@@ -4500,15 +4506,15 @@ bool RenderLayer::hitTest(const HitTestRequest& request, const HitTestLocation& 
     LayoutRect hitTestArea = renderer().view().documentRect();
     if (!request.ignoreClipping()) {
         const auto& settings = renderer().settings();
+        CheckedRef frameView = renderer().view().frameView();
         if (settings.visualViewportEnabled() && settings.clientCoordinatesRelativeToLayoutViewport()) {
-            auto& frameView = renderer().view().frameView();
-            LayoutRect absoluteLayoutViewportRect = frameView.layoutViewportRect();
-            auto scaleFactor = frameView.frame().frameScaleFactor();
+            LayoutRect absoluteLayoutViewportRect = frameView->layoutViewportRect();
+            auto scaleFactor = frameView->frame().frameScaleFactor();
             if (scaleFactor > 1)
                 absoluteLayoutViewportRect.scale(scaleFactor);
             hitTestArea.intersect(absoluteLayoutViewportRect);
         } else
-            hitTestArea.intersect(renderer().view().frameView().visibleContentRect(ScrollableArea::LegacyIOSDocumentVisibleRect));
+            hitTestArea.intersect(frameView->visibleContentRect(ScrollableArea::LegacyIOSDocumentVisibleRect));
     }
 
     auto insideLayer = hitTestLayer(this, nullptr, request, result, hitTestArea, hitTestLocation, false);
@@ -4553,7 +4559,7 @@ Vector<RenderLayer*> RenderLayer::topLayerRenderLayers(const RenderView& renderV
         if (!renderer)
             continue;
 
-        auto backdropRenderer = renderer->backdropRenderer();
+        auto backdropRenderer = renderer->pseudoElementRenderer(PseudoElementType::Backdrop);
         if (backdropRenderer && backdropRenderer->hasLayer() && backdropRenderer->layer()->parent())
             layers.append(backdropRenderer->layer());
 
@@ -5568,9 +5574,9 @@ LayoutRect RenderLayer::localBoundingBox(OptionSet<CalculateLayerBoundsFlag> fla
             // If the root layer becomes composited (e.g. because some descendant with negative z-index is composited),
             // then it has to be big enough to cover the viewport in order to display the background. This is akin
             // to the code in RenderBox::paintRootBoxFillLayers().
-            auto& frameView = renderer().view().frameView();
-            result.setWidth(std::max(result.width(), frameView.contentsWidth() - result.x()));
-            result.setHeight(std::max(result.height(), frameView.contentsHeight() - result.y()));
+            CheckedRef frameView = renderer().view().frameView();
+            result.setWidth(std::max(result.width(), frameView->contentsWidth() - result.x()));
+            result.setHeight(std::max(result.height(), frameView->contentsHeight() - result.y()));
         }
     }
     return result;
@@ -6492,6 +6498,12 @@ IntOutsets RenderLayer::filterOutsets() const
     return renderer().style().filter().calculateOutsets(renderer().style().usedZoomForLength());
 }
 
+void RenderLayer::clearFilters()
+{
+    if (m_filters)
+        m_filters->clearFilter();
+}
+
 static RenderLayer* parentLayerCrossFrame(const RenderLayer& layer)
 {
     if (auto* parent = layer.parent())
@@ -6635,6 +6647,23 @@ bool RenderLayer::invalidateEventRegion(EventRegionInvalidationReason reason)
     UNUSED_PARAM(reason);
     return false;
 #endif
+}
+
+bool RenderLayer::hasFailedFilterForSVGRenderer() const
+{
+    // Per the SVG spec, if a filter is referenced but cannot be applied (non-existent
+    // reference, empty filter, etc.), the element must not be rendered — the filter
+    // produces transparent black, making the element invisible. The CSS Filter Effects
+    // spec differs — a failed filter means "no effect" (painted normally). Therefore
+    // treat SVG renderers differently, obeying to the SVG rules.
+    if (!m_filters || m_filters->filter() || !renderer().isSVGLayerAwareRenderer() || !renderer().style().filter().isReferenceFilter())
+        return false;
+    return WTF::switchOn(renderer().style().filter().first(),
+        [&](const Style::FilterReference& reference) {
+            return ReferencedSVGResources::referencedFilterElement(renderer().treeScopeForSVGReferences(), reference) != nullptr;
+        },
+        [&](const auto&) { return false; }
+    );
 }
 
 TextStream& operator<<(WTF::TextStream& ts, ClipRectsType clipRectsType)

@@ -193,11 +193,6 @@ JSDOMWindow::JSDOMWindow(VM& vm, Structure* structure, Ref<DOMWindow>&& impl, JS
 {
 }
 
-Ref<DOMWindow> JSDOMWindow::protectedWrapped() const
-{
-    return wrapped();
-}
-
 static_assert(!std::is_base_of<ActiveDOMObject, DOMWindow>::value, "Interface is not marked as [ActiveDOMObject] even though implementation class subclasses ActiveDOMObject.");
 
 void JSDOMWindow::finishCreation(VM& vm, JSWindowProxy* proxy)

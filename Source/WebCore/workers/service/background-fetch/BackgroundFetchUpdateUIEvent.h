@@ -26,7 +26,7 @@
 #pragma once
 
 #include "BackgroundFetchEvent.h"
-#include "JSDOMPromiseDeferred.h"
+#include "JSDOMPromiseDeferredForward.h"
 
 namespace WebCore {
 
@@ -40,7 +40,7 @@ public:
 
     ~BackgroundFetchUpdateUIEvent();
 
-    void updateUI(BackgroundFetchUIOptions&&, DOMPromiseDeferred<void>&&);
+    void NODELETE updateUI(BackgroundFetchUIOptions&&, DOMPromiseDeferred<void>&&);
 
 private:
     BackgroundFetchUpdateUIEvent(const AtomString&, ExtendableEventInit&&, Ref<BackgroundFetchRegistration>&&, IsTrusted);

@@ -134,8 +134,8 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
             fastFree(m_body.data());
     }
 
-    const Vector<Attachment>& attachments() const { return m_attachments; }
-    MessageInfo& messageInfo() { return m_messageInfo; }
+    const Vector<Attachment>& attachments() const LIFETIME_BOUND { return m_attachments; }
+    MessageInfo& messageInfo() LIFETIME_BOUND { return m_messageInfo; }
 
     std::span<uint8_t> body() const { return m_body; }
     size_t bodySize() const  { return m_messageInfo.bodySize(); }

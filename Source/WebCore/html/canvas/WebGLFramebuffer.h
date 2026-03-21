@@ -53,7 +53,8 @@ class WebGLFramebuffer final : public WebGLObject {
 public:
     virtual ~WebGLFramebuffer();
 
-    static RefPtr<WebGLFramebuffer> create(WebGLRenderingContextBase&);
+    static Ref<WebGLFramebuffer> createLost();
+    static Ref<WebGLFramebuffer> create(WebGLRenderingContextBase&);
 #if ENABLE(WEBXR)
     static RefPtr<WebGLFramebuffer> createOpaque(WebGLRenderingContextBase&);
 #endif
@@ -84,11 +85,8 @@ public:
 
     void didBind() { m_hasEverBeenBound = true; }
 
-    // Wrapper for drawBuffersEXT/drawBuffersARB to work around a driver bug.
+    // Set draw buffers for this framebuffer. ANGLE handles filtering internally.
     void drawBuffers(const Vector<GCGLenum>& bufs);
-
-    // Apply m_filteredDrawBuffers to GL state if pending sync is needed.
-    void applyFilteredDrawBuffers();
 
     GCGLenum NODELETE getDrawBuffer(GCGLenum);
 
@@ -114,6 +112,7 @@ private:
 #endif
     };
     WebGLFramebuffer(WebGLRenderingContextBase&, PlatformGLObject, Type);
+    WebGLFramebuffer();
 
     void deleteObjectImpl(const AbstractLocker&, GraphicsContextGL*, PlatformGLObject) override;
 
@@ -121,10 +120,7 @@ private:
     void removeAttachmentFromBoundFramebuffer(const AbstractLocker&, GCGLenum target, GCGLenum attachment);
 
     // Check if the framebuffer is currently bound to the given target.
-    bool isBound(GCGLenum target) const;
-
-    // Update m_filteredDrawBuffers based on current attachments. Returns true if changed.
-    bool updateFilteredDrawBuffers(bool force);
+    bool NODELETE isBound(GCGLenum target) const;
 
     void setAttachmentInternal(GCGLenum attachment, AttachmentEntry);
     // If a given attachment point for the currently bound framebuffer is not
@@ -139,8 +135,6 @@ private:
     HashMap<GCGLenum, AttachmentEntry> m_attachments;
     bool m_hasEverBeenBound { false };
     Vector<GCGLenum> m_drawBuffers;
-    Vector<GCGLenum> m_filteredDrawBuffers;
-    bool m_drawBufferStatePendingSync { false };
 #if ENABLE(WEBXR)
     const bool m_isOpaque;
     bool m_insideWebXRRAF { false };

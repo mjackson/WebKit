@@ -116,7 +116,7 @@ public:
     // This asserts that URL argument is a JavaScript URL.
     void executeJavaScriptURL(const URL&, const NavigationAction&, bool& didReplaceDocument);
 
-    static uint64_t scriptExecutionCount();
+    static uint64_t NODELETE scriptExecutionCount();
 
     static void initializeMainThread();
 
@@ -137,7 +137,7 @@ public:
     void setWebAssemblyEnabled(bool, const String& errorMessage = String());
     void setTrustedTypesEnforcement(JSC::TrustedTypesEnforcement);
 
-    static bool canAccessFromCurrentOrigin(LocalFrame*, Document& accessingDocument);
+    static bool canAccessFromCurrentOrigin(Frame*, Document& accessingDocument);
     WEBCORE_EXPORT bool canExecuteScripts(ReasonForCallingCanExecuteScripts, DOMWrapperWorld* = nullptr);
 
     void setPaused(bool b) { m_paused = b; }
@@ -188,10 +188,8 @@ private:
 
     void disconnectPlatformScriptObjects();
 
-    WEBCORE_EXPORT WindowProxy& windowProxy();
+    WEBCORE_EXPORT WindowProxy& NODELETE windowProxy();
     WEBCORE_EXPORT JSWindowProxy& jsWindowProxy(DOMWrapperWorld&);
-
-    Ref<LocalFrame> protectedFrame() const;
 
     WeakRef<LocalFrame> m_frame;
     const URL* m_sourceURL { nullptr };

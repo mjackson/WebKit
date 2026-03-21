@@ -1,0 +1,5 @@
+copyMe
+
+
+FAIL The data transfer on input event with insertFromPaste type should not be null on contenteditable elements but null on textarea or input elements. promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
+

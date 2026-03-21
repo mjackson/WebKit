@@ -47,12 +47,12 @@ namespace WebCore {
 
 using namespace HTMLNames;
 
-static bool isListOrIndentBlockquote(const Node& node)
+static bool NODELETE isListOrIndentBlockquote(const Node& node)
 {
     return node.hasTagName(ulTag) || node.hasTagName(olTag) || node.hasTagName(blockquoteTag);
 }
 
-IndentOutdentCommand::IndentOutdentCommand(Ref<Document>&& document, EIndentType typeOfAction)
+IndentOutdentCommand::IndentOutdentCommand(Ref<Document>&& document, IndentType typeOfAction)
     : ApplyBlockElementCommand(WTF::move(document), blockquoteTag, "margin: 0 0 0 40px; border: none; padding: 0px;"_s)
     , m_typeOfAction(typeOfAction)
 {
@@ -124,7 +124,7 @@ void IndentOutdentCommand::indentIntoBlockquote(const Position& start, const Pos
             removeNode(*targetBlockquote);
             return;
         }
-        startOfContents = positionInParentAfterNode(targetBlockquote.get());
+        startOfContents = positionInParentAfterNode(*targetBlockquote);
     }
     
     if (startOfContents.deepEquivalent().containerNode() && !startOfContents.deepEquivalent().containerNode()->isDescendantOf(outerBlock.get()) && startOfContents.deepEquivalent().containerNode()->parentNode() != outerBlock->parentNode())
@@ -153,11 +153,11 @@ void IndentOutdentCommand::outdentParagraph()
     }
     
     // The selection is inside a blockquote i.e. enclosingNode is a blockquote
-    VisiblePosition positionInEnclosingBlock = VisiblePosition(firstPositionInNode(enclosingNode.get()));
+    VisiblePosition positionInEnclosingBlock = VisiblePosition(firstPositionInNode(*enclosingNode));
     // If the blockquote is inline, the start of the enclosing block coincides with
     // positionInEnclosingBlock.
     VisiblePosition startOfEnclosingBlock = (enclosingNode->renderer() && enclosingNode->renderer()->isInline()) ? positionInEnclosingBlock : startOfBlock(positionInEnclosingBlock);
-    VisiblePosition lastPositionInEnclosingBlock = VisiblePosition(lastPositionInNode(enclosingNode.get()));
+    VisiblePosition lastPositionInEnclosingBlock = VisiblePosition(lastPositionInNode(*enclosingNode));
     VisiblePosition endOfEnclosingBlock = endOfBlock(lastPositionInEnclosingBlock);
     if (visibleStartOfParagraph == startOfEnclosingBlock &&
         visibleEndOfParagraph == endOfEnclosingBlock) {
@@ -209,7 +209,7 @@ void IndentOutdentCommand::outdentParagraph()
     auto visibleEndOfParagraphToMove = endOfParagraph(visibleEndOfParagraph);
     if (visibleStartOfParagraphToMove.isNull() || visibleEndOfParagraphToMove.isNull())
         return;
-    moveParagraph(visibleStartOfParagraphToMove, visibleEndOfParagraphToMove, positionBeforeNode(placeholder.ptr()), true);
+    moveParagraph(visibleStartOfParagraphToMove, visibleEndOfParagraphToMove, positionBeforeNode(placeholder), true);
 }
 
 // FIXME: We should merge this function with ApplyBlockElementCommand::formatSelection
@@ -257,7 +257,7 @@ void IndentOutdentCommand::outdentRegion(const VisiblePosition& startOfSelection
 
 void IndentOutdentCommand::formatSelection(const VisiblePosition& startOfSelection, const VisiblePosition& endOfSelection)
 {
-    if (m_typeOfAction == Indent)
+    if (m_typeOfAction == IndentType::Indent)
         ApplyBlockElementCommand::formatSelection(startOfSelection, endOfSelection);
     else
         outdentRegion(startOfSelection, endOfSelection);

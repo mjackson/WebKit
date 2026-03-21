@@ -194,7 +194,7 @@ public:
     // Returns true only after the audio thread has been started and then shutdown.
     bool isAudioThreadFinished() const { return m_isAudioThreadFinished; }
 
-    RecursiveLock& graphLock() const { return m_graphLock; }
+    RecursiveLock& graphLock() const LIFETIME_BOUND { return m_graphLock; }
 
     // Returns true if this thread owns the context's lock.
     bool isGraphOwner() const { return m_graphLock.isOwner(); }
@@ -235,12 +235,12 @@ public:
 
     virtual void lazyInitialize();
 
-    static bool isSupportedSampleRate(float sampleRate);
+    static bool NODELETE isSupportedSampleRate(float sampleRate);
 
     PeriodicWave& periodicWave(OscillatorType);
 
     void addAudioParamDescriptors(const String& processorName, Vector<AudioParamDescriptor>&&);
-    const MemoryCompactRobinHoodHashMap<String, Vector<AudioParamDescriptor>>& parameterDescriptorMap() const { return m_parameterDescriptorMap; }
+    const MemoryCompactRobinHoodHashMap<String, Vector<AudioParamDescriptor>>& parameterDescriptorMap() const LIFETIME_BOUND { return m_parameterDescriptorMap; }
 
     OptionSet<NoiseInjectionPolicy> noiseInjectionPolicies() const { return m_noiseInjectionPolicies; }
 
@@ -263,7 +263,7 @@ protected:
 
 protected:
     // Only accessed when the graph lock is held.
-    const Vector<AudioConnectionRef<AudioNode>>& referencedSourceNodes() const { return m_referencedSourceNodes; }
+    const Vector<AudioConnectionRef<AudioNode>>& referencedSourceNodes() const LIFETIME_BOUND { return m_referencedSourceNodes; }
 
 private:
     void scheduleNodeDeletion();

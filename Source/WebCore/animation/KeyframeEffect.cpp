@@ -55,7 +55,6 @@
 #include "InspectorInstrumentation.h"
 #include "JSCompositeOperation.h"
 #include "JSCompositeOperationOrAuto.h"
-#include "JSDOMConvert.h"
 #include "JSKeyframeEffect.h"
 #include "KeyframeEffectStack.h"
 #include "LocalFrameView.h"
@@ -832,6 +831,7 @@ KeyframeEffect::KeyframeEffect(Element* target, const std::optional<Style::Pseud
     : m_target(target)
     , m_pseudoElementIdentifier(pseudoElementIdentifier)
 {
+    ASSERT(!pseudoElementIdentifier || pseudoElementIdentifier->type != PseudoElementType::UserAgentPartFallback);
     if (m_target)
         m_document = m_target->document();
 }
@@ -1085,7 +1085,7 @@ ExceptionOr<void> KeyframeEffect::setBindingsKeyframes(JSGlobalObject& lexicalGl
 {
     auto retVal = setKeyframes(lexicalGlobalObject, document, WTF::move(keyframesInput));
     if (!retVal.hasException()) {
-        if (RefPtr cssAnimation = dynamicDowncast<CSSAnimation>(animation()))
+        if (auto* cssAnimation = dynamicDowncast<CSSAnimation>(animation()))
             cssAnimation->effectKeyframesWereSetUsingBindings();
     }
     return retVal;
@@ -1489,8 +1489,8 @@ void KeyframeEffect::updateIsAssociatedWithProgressBasedTimeline()
     auto wasAssociatedWithProgressBasedTimeline = m_isAssociatedWithProgressBasedTimeline;
 
     m_isAssociatedWithProgressBasedTimeline = [&] {
-        if (RefPtr animation = this->animation()) {
-            if (RefPtr timeline = animation->timeline())
+        if (auto* animation = this->animation()) {
+            if (auto* timeline = animation->timeline())
                 return timeline->isProgressBased();
         }
         return false;
@@ -1753,7 +1753,7 @@ void KeyframeEffect::computeAcceleratedPropertiesState()
         m_acceleratedPropertiesState = AcceleratedProperties::All;
 }
 
-static bool isLinearTimingFunctionWithPoints(const TimingFunction* timingFunction)
+static bool NODELETE isLinearTimingFunctionWithPoints(const TimingFunction* timingFunction)
 {
     auto* linearTimingFunction = dynamicDowncast<LinearTimingFunction>(timingFunction);
     return linearTimingFunction && !linearTimingFunction->points().isEmpty();
@@ -2230,8 +2230,9 @@ std::optional<KeyframeEffect::RecomputationReason> KeyframeEffect::recomputeKeyf
     }();
 
     auto usesAnchorFunctions = m_blendingKeyframes.usesAnchorFunctions();
+    auto hasPropertiesWithRevert = m_blendingKeyframes.hasPropertiesWithRevertRuleOrLayer();
 
-    if (logicalPropertyChanged || fontSizeChanged() || fontWeightChanged() || cssVariableChanged() || hasPropertyExplicitlySetToInherit() || propertySetToCurrentColorChanged() || usesAnchorFunctions) {
+    if (logicalPropertyChanged || fontSizeChanged() || fontWeightChanged() || cssVariableChanged() || hasPropertyExplicitlySetToInherit() || propertySetToCurrentColorChanged() || usesAnchorFunctions || hasPropertiesWithRevert) {
         switch (m_animationType) {
         case WebAnimationType::CSSTransition:
             ASSERT_NOT_REACHED();
@@ -2296,7 +2297,7 @@ void KeyframeEffect::wasRemovedFromEffectStack()
             // to allow the finished promise callback to observe the final animation state (e.g., layer tree).
             // Only immediately stop animations removed mid-flight.
             if (RefPtr context = animation->scriptExecutionContext()) {
-                context->eventLoop().queueMicrotask([protectedThis = Ref { *this }] {
+                context->eventLoop().queueMicrotask(context->vm(), [protectedThis = Ref { *this }] {
                     protectedThis->applyPendingAcceleratedActions();
                 });
             }
@@ -2761,7 +2762,7 @@ CompositeOperation KeyframeEffect::bindingsComposite() const
 void KeyframeEffect::setBindingsComposite(CompositeOperation compositeOperation)
 {
     setComposite(compositeOperation);
-    if (RefPtr cssAnimation = dynamicDowncast<CSSAnimation>(animation()))
+    if (auto* cssAnimation = dynamicDowncast<CSSAnimation>(animation()))
         cssAnimation->effectCompositeOperationWasSetUsingBindings();
 }
 
@@ -3164,10 +3165,10 @@ KeyframeEffect::StackMembershipMutationScope::~StackMembershipMutationScope()
 bool KeyframeEffect::canHaveAcceleratedRepresentation() const
 {
     if (RefPtr document = this->document()) {
-        Ref settings = document->settings();
-        if (m_isAssociatedWithProgressBasedTimeline && settings->threadedScrollDrivenAnimationsEnabled())
+        auto& settings = document->settings();
+        if (m_isAssociatedWithProgressBasedTimeline && settings.threadedScrollDrivenAnimationsEnabled())
             return true;
-        if (!m_isAssociatedWithProgressBasedTimeline && settings->threadedTimeBasedAnimationsEnabled())
+        if (!m_isAssociatedWithProgressBasedTimeline && settings.threadedTimeBasedAnimationsEnabled())
             return true;
     }
 

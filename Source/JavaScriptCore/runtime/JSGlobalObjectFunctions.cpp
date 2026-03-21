@@ -56,9 +56,6 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
 
-const ASCIILiteral ObjectProtoCalledOnNullOrUndefinedError { "Object.prototype.__proto__ called on null or undefined"_s };
-const ASCIILiteral RestrictedPropertyAccessError { "'arguments', 'callee', and 'caller' cannot be accessed in this context."_s };
-
 template<typename CharacterType>
 static JSValue encode(JSGlobalObject* globalObject, const WTF::BitSet<256>& doNotEscape, std::span<const CharacterType> characters)
 {
@@ -824,7 +821,7 @@ JSC_DEFINE_HOST_FUNCTION(globalFuncImportModule, (JSGlobalObject* globalObject, 
         auto result = internalPromise->result();
         promise->fulfill(vm, globalObject, result);
     } else {
-        promise->resolve(globalObject, internalPromise);
+        promise->resolve(globalObject, vm, internalPromise);
     }
 
     return JSValue::encode(promise);

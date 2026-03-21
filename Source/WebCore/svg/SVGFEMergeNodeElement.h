@@ -46,7 +46,7 @@ private:
 
     bool rendererIsNeeded(const RenderStyle&) final { return false; }
 
-    Ref<SVGAnimatedString> m_in1 { SVGAnimatedString::create(this) };
+    const Ref<SVGAnimatedString> m_in1 { SVGAnimatedString::create(this) };
 };
 
 } // namespace WebCore

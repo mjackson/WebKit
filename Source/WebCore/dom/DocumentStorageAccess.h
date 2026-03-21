@@ -99,7 +99,6 @@ private:
     void enableTemporaryTimeUserGesture();
     void consumeTemporaryTimeUserGesture();
 
-    Ref<Document> NODELETE protectedDocument() const;
 
     std::unique_ptr<UserGestureIndicator> m_temporaryUserGesture;
     

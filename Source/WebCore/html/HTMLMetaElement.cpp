@@ -131,22 +131,22 @@ void HTMLMetaElement::attributeChanged(const QualifiedName& name, const AtomStri
     }
 }
 
-Node::InsertedIntoAncestorResult HTMLMetaElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps HTMLMetaElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    HTMLElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    HTMLElement::insertionSteps(insertionType, parentOfInsertedTree);
     if (insertionType.connectedToDocument)
-        return InsertedIntoAncestorResult::NeedsPostInsertionCallback;
-    return InsertedIntoAncestorResult::Done;
+        return NeedsPostConnectionSteps::Yes;
+    return NeedsPostConnectionSteps::No;
 }
 
-void HTMLMetaElement::didFinishInsertingNode()
+void HTMLMetaElement::postConnectionSteps()
 {
     process();
 }
 
-void HTMLMetaElement::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+void HTMLMetaElement::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
-    HTMLElement::removedFromAncestor(removalType, oldParentOfRemovedTree);
+    HTMLElement::removingSteps(removalType, oldParentOfRemovedTree);
 
     if (removalType.disconnectedFromDocument && equalLettersIgnoringASCIICase(name(), "theme-color"_s))
         protect(oldParentOfRemovedTree.document())->metaElementThemeColorChanged(*this);
@@ -182,7 +182,7 @@ void HTMLMetaElement::process(const AtomString& oldValue)
     // tree (changing a meta tag while it's not in the tree shouldn't have any effect
     // on the document)
     if (!httpEquivValue.isNull())
-        document->processMetaHttpEquiv(httpEquivValue, contentValue, isDescendantOf(protect(document->head()).get()));
+        document->processMetaHttpEquiv(httpEquivValue, contentValue, isDescendantOf(document->head()));
     
     if (nameValue.isNull())
         return;

@@ -43,8 +43,8 @@ public:
 private:
     PushSubscriptionChangeEvent(const AtomString&, ExtendableEventInit&&, RefPtr<PushSubscription>&& newSubscription, RefPtr<PushSubscription>&& oldSubscription, IsTrusted);
 
-    RefPtr<PushSubscription> m_newSubscription;
-    RefPtr<PushSubscription> m_oldSubscription;
+    const RefPtr<PushSubscription> m_newSubscription;
+    const RefPtr<PushSubscription> m_oldSubscription;
 };
 
 } // namespace WebCore

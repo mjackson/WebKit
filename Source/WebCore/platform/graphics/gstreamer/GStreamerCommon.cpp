@@ -122,6 +122,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(GstMappedFrame);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebCoreLogObserver);
 
 static GstClockTime s_webkitGstInitTime;
+static bool s_isGstDebugDotFilesSupportEnabled;
 
 [[nodiscard]] GstPad* webkitGstGhostPadFromStaticTemplate(GstStaticPadTemplate* staticPadTemplate, CStringView name, GstPad* target)
 {
@@ -429,6 +430,10 @@ bool ensureGStreamerInitializedNonWebProcess()
     static std::once_flag onceFlag;
     static bool isGStreamerInitialized;
     std::call_once(onceFlag, [] {
+#if OS(ANDROID)
+        gst_registry_fork_set_enabled(FALSE);
+#endif
+
         GUniqueOutPtr<GError> error;
         isGStreamerInitialized = gst_init_check(nullptr, nullptr, &error.outPtr());
         ASSERT_WITH_MESSAGE(isGStreamerInitialized, "GStreamer initialization failed: %s", error ? error->message : "unknown error occurred");
@@ -447,6 +452,10 @@ bool ensureGStreamerInitialized()
     static bool isGStreamerInitialized;
     std::call_once(onceFlag, [] {
         isGStreamerInitialized = false;
+
+#if OS(ANDROID)
+        gst_registry_fork_set_enabled(FALSE);
+#endif
 
         // USE_PLAYBIN3 is dangerous for us because its potential sneaky effect
         // is to register the playbin3 element under the playbin namespace. We
@@ -474,6 +483,11 @@ bool ensureGStreamerInitialized()
         g_strfreev(argv);
         GST_DEBUG_CATEGORY_INIT(webkit_gst_common_debug, "webkitcommon", 0, "WebKit Common utilities");
 
+#ifndef GST_DISABLE_GST_DEBUG
+        s_isGstDebugDotFilesSupportEnabled = g_getenv("GST_DEBUG_DUMP_DOT_DIR");
+#else
+        s_isGstDebugDotFilesSupportEnabled = false;
+#endif
         if (isFastMallocEnabled()) {
             auto disableFastMalloc = CStringView::unsafeFromUTF8(getenv("WEBKIT_GST_DISABLE_FAST_MALLOC"));
             if (!disableFastMalloc || disableFastMalloc == "0"_s)
@@ -595,6 +609,12 @@ void registerWebKitGStreamerElements()
             if (auto vaapiPlugin = adoptGRef(gst_registry_find_plugin(registry, "vaapi")))
                 gst_registry_remove_plugin(registry, vaapiPlugin.get());
         }
+
+        // Disable the pipewire device provider, usually the pulseaudio and v4l2 device providers would
+        // be preferred anyway and pipewiresink is currently prone to deadlocks:
+        // https://gitlab.freedesktop.org/pipewire/pipewire/-/issues/5171
+        if (auto pipewireDeviceProviderFactory = adoptGRef(gst_device_provider_factory_find("pipewiredeviceprovider")))
+            gst_plugin_feature_set_rank(GST_PLUGIN_FEATURE_CAST(pipewireDeviceProviderFactory.get()), GST_RANK_NONE);
 
         // Make sure the quirks are created as early as possible.
         [[maybe_unused]] auto& quirksManager = GStreamerQuirksManager::singleton();
@@ -811,12 +831,8 @@ GstMappedFrame::GstMappedFrame(GstMappedFrame&& other)
 {
     std::swap(m_frame, other.m_frame);
     other.m_frame.buffer = nullptr;
-}
-
-GstMappedFrame::GstMappedFrame(GstBuffer* buffer, const GstVideoInfo* info, GstMapFlags flags)
-{
-    // This cast can be removed once the GStreamer minimum version is raised to 1.20
-    gst_video_frame_map(&m_frame, const_cast<GstVideoInfo*>(info), buffer, flags);
+    std::swap(m_alignment, other.m_alignment);
+    std::swap(m_planeSizes, other.m_planeSizes);
 }
 
 GstMappedFrame::GstMappedFrame(const GRefPtr<GstSample>& sample, GstMapFlags flags)
@@ -825,7 +841,11 @@ GstMappedFrame::GstMappedFrame(const GRefPtr<GstSample>& sample, GstMapFlags fla
     if (!gst_video_info_from_caps(&info, gst_sample_get_caps(sample.get())))
         return;
 
-    gst_video_frame_map(&m_frame, &info, gst_sample_get_buffer(sample.get()), flags);
+    if (!gst_video_frame_map(&m_frame, &info, gst_sample_get_buffer(sample.get()), flags))
+        return;
+
+    gst_video_alignment_reset(&m_alignment);
+    gst_video_info_align_full(&info, &m_alignment, m_planeSizes.data());
 }
 
 GstMappedFrame::~GstMappedFrame()
@@ -894,7 +914,7 @@ std::span<uint8_t> GstMappedFrame::planeData(uint32_t planeIndex) const
     WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN; // GLib port
     auto data = reinterpret_cast<uint8_t*>(GST_VIDEO_FRAME_PLANE_DATA(&m_frame, planeIndex));
     WTF_ALLOW_UNSAFE_BUFFER_USAGE_END;
-    return unsafeMakeSpan(data, height() * planeStride(planeIndex));
+    return unsafeMakeSpan(data, planeHeight(planeIndex) * planeStride(planeIndex));
 }
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN; // GLib port
@@ -902,6 +922,12 @@ int GstMappedFrame::planeStride(uint32_t planeIndex) const
 {
     RELEASE_ASSERT(isValid());
     return GST_VIDEO_FRAME_PLANE_STRIDE(&m_frame, planeIndex);
+}
+
+size_t GstMappedFrame::planeHeight(uint32_t planeIndex) const
+{
+    RELEASE_ASSERT(isValid());
+    return GST_VIDEO_INFO_PLANE_HEIGHT(&m_frame.info, planeIndex, m_planeSizes.data());
 }
 
 #if USE(GSTREAMER_GL)
@@ -1041,7 +1067,7 @@ WEBKIT_DEFINE_ASYNC_DATA_STRUCT(AsyncPipelineDumpData)
 static void dumpPipeline(const GRefPtr<GstElement>& pipeline, String&& dotFileName, AsynchronousPipelineDumping asynchronousPipelineDumping)
 {
     if (asynchronousPipelineDumping == AsynchronousPipelineDumping::No) {
-        GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN_CAST(pipeline.get()), GST_DEBUG_GRAPH_SHOW_ALL, dotFileName.utf8().data());
+        dumpBinToDotFile(pipeline, dotFileName);
         return;
     }
 
@@ -1049,7 +1075,7 @@ static void dumpPipeline(const GRefPtr<GstElement>& pipeline, String&& dotFileNa
     data->dotFileName = WTF::move(dotFileName);
     gst_element_call_async(pipeline.get(), reinterpret_cast<GstElementCallAsyncFunc>(+[](GstElement* pipeline, gpointer userData) {
         auto data = reinterpret_cast<AsyncPipelineDumpData*>(userData);
-        GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN_CAST(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, data->dotFileName.utf8().data());
+        dumpBinToDotFile(GST_BIN_CAST(pipeline), data->dotFileName);
     }), data, reinterpret_cast<GDestroyNotify>(destroyAsyncPipelineDumpData));
 }
 
@@ -1071,6 +1097,9 @@ void connectSimpleBusMessageCallback(GstElement* pipeline, Function<void(GstMess
         switch (GST_MESSAGE_TYPE(message)) {
         case GST_MESSAGE_ERROR: {
             GST_ERROR_OBJECT(pipeline.get(), "Got message: %" GST_PTR_FORMAT, message);
+            if (!s_isGstDebugDotFilesSupportEnabled)
+                break;
+
             auto dotFileName = makeString(unsafeSpan(GST_OBJECT_NAME(pipeline.get())), "_error"_s);
             dumpPipeline(pipeline, WTF::move(dotFileName), data->asynchronousPipelineDumping);
             break;
@@ -1084,10 +1113,12 @@ void connectSimpleBusMessageCallback(GstElement* pipeline, Function<void(GstMess
             GstState pending;
             gst_message_parse_state_changed(message, &oldState, &newState, &pending);
 
-            GST_INFO_OBJECT(pipeline.get(), "State changed (old: %s, new: %s, pending: %s)", gst_element_state_get_name(oldState),
-                gst_element_state_get_name(newState), gst_element_state_get_name(pending));
+            GST_INFO_OBJECT(pipeline.get(), "State changed (old: %s, new: %s, pending: %s)", gst_state_get_name(oldState),
+                gst_state_get_name(newState), gst_state_get_name(pending));
+            if (!s_isGstDebugDotFilesSupportEnabled)
+                break;
 
-            auto dotFileName = makeString(unsafeSpan(GST_OBJECT_NAME(pipeline.get())), '_', unsafeSpan(gst_element_state_get_name(oldState)), '_', unsafeSpan(gst_element_state_get_name(newState)));
+            auto dotFileName = makeString(unsafeSpan(GST_OBJECT_NAME(pipeline.get())), '_', unsafeSpan(gst_state_get_name(oldState)), '_', unsafeSpan(gst_state_get_name(newState)));
             dumpPipeline(pipeline, WTF::move(dotFileName), data->asynchronousPipelineDumping);
             break;
         }
@@ -1097,8 +1128,7 @@ void connectSimpleBusMessageCallback(GstElement* pipeline, Function<void(GstMess
             // This can happen if the latency of live elements changes, or
             // for one reason or another a new live element is added or
             // removed from the pipeline.
-            gst_element_call_async(pipeline.get(), reinterpret_cast<GstElementCallAsyncFunc>(+[](GstElement* pipeline, gpointer userData) {
-                UNUSED_PARAM(userData);
+            gst_element_call_async(pipeline.get(), reinterpret_cast<GstElementCallAsyncFunc>(+[](GstElement* pipeline, gpointer) {
                 gst_bin_recalculate_latency(GST_BIN_CAST(pipeline));
             }), nullptr, nullptr);
             break;
@@ -1150,21 +1180,25 @@ IGNORE_WARNINGS_END
             g_object_set(object, "client-name", clientName.ascii().data(), nullptr);
         }
     }), role.isolatedCopy().releaseImpl().leakRef(), static_cast<GClosureNotify>([](gpointer userData, GClosure*) {
-        reinterpret_cast<StringImpl*>(userData)->deref();
+        if (auto* roleImpl = reinterpret_cast<StringImpl*>(userData))
+            roleImpl->deref();
     }), static_cast<GConnectFlags>(0));
     ASSERT(g_object_is_floating(audioSink));
     return audioSink;
 }
 
-GstElement* /* (transfer floating) */ createPlatformAudioSink(const String& role)
+GstElement* /* (transfer floating) */ createPlatformAudioSink(const String& role, const String& deviceId, const GRefPtr<GstDevice>& device)
 {
-    GstElement* audioSink = webkitAudioSinkNew(role);
+    GstElement* audioSink = webkitAudioSinkNew(role, deviceId, device);
     if (!audioSink) {
         // This means the WebKit audio sink configuration failed. It can happen for the following reasons:
         // - audio mixing was not requested using the WEBKIT_GST_ENABLE_AUDIO_MIXER
         // - audio mixing was requested using the WEBKIT_GST_ENABLE_AUDIO_MIXER but the audio mixer
         //   runtime requirements are not fullfilled.
-        audioSink = createAutoAudioSink(role);
+        if (device)
+            audioSink = gst_device_create_element(device.get(), "audio-output-sink");
+        else
+            audioSink = createAutoAudioSink(role);
     }
 
     return audioSink;
@@ -1172,7 +1206,7 @@ GstElement* /* (transfer floating) */ createPlatformAudioSink(const String& role
 
 bool webkitGstSetElementStateSynchronously(GstElement* pipeline, GstState targetState, Function<bool(GstMessage*)>&& messageHandler)
 {
-    GST_DEBUG_OBJECT(pipeline, "Setting state to %s", gst_element_state_get_name(targetState));
+    GST_DEBUG_OBJECT(pipeline, "Setting state to %s", gst_state_get_name(targetState));
 
     GstState currentState;
     auto result = gst_element_get_state(pipeline, &currentState, nullptr, 10);
@@ -1192,7 +1226,7 @@ bool webkitGstSetElementStateSynchronously(GstElement* pipeline, GstState target
 #else
         GstState currentState;
         auto result = gst_element_get_state(pipeline, &currentState, nullptr, 0);
-        GST_DEBUG_OBJECT(pipeline, "Task finished, result: %s, target state reached: %s", gst_element_state_change_return_get_name(result), boolForPrinting(currentState == targetState));
+        GST_DEBUG_OBJECT(pipeline, "Task finished, result: %s, target state reached: %s", gst_state_change_return_get_name(result), boolForPrinting(currentState == targetState));
 #endif
     });
 
@@ -2239,6 +2273,24 @@ GRefPtr<GstElement> createVideoConvertScaleElement(const String& name)
     pad = adoptGRef(gst_element_get_static_pad(videoConvert, "src"));
     gst_element_add_pad(bin.get(), gst_ghost_pad_new("src", pad.get()));
     return bin;
+}
+
+void dumpBinToDotFile(GstBin* bin, const String& filename, GstDebugGraphDetails details)
+{
+    if (!s_isGstDebugDotFilesSupportEnabled)
+        return;
+
+    if (!bin) [[unlikely]]
+        return;
+
+    auto sanitizedFilename = makeStringByReplacingAll(filename, '/', '-');
+    GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(bin, details, sanitizedFilename.utf8().data());
+}
+
+void dumpBinToDotFile(const GRefPtr<GstElement>& element, const String& filename, GstDebugGraphDetails details)
+{
+    ASSERT(GST_IS_BIN(element.get()));
+    dumpBinToDotFile(GST_BIN_CAST(element.get()), filename, details);
 }
 
 #undef GST_CAT_DEFAULT

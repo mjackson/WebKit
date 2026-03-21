@@ -34,7 +34,7 @@
 #include "DocumentView.h"
 #include "FocusController.h"
 #include "FontCache.h"
-#include "FontCascade.h"
+#include "FontCascadeInlines.h"
 #include "FrameSelection.h"
 #include "GeometryUtilities.h"
 #include "GraphicsContext.h"
@@ -163,7 +163,7 @@ RenderImage::RenderImage(Type type, Element& element, RenderStyle&& style, Optio
 {
     updateAltText();
 #if ENABLE(SERVICE_CONTROLS)
-    if (RefPtr image = dynamicDowncast<HTMLImageElement>(element))
+    if (auto* image = dynamicDowncast<HTMLImageElement>(element))
         m_hasShadowControls = image->isImageMenuEnabled();
 #endif
 #if ENABLE(SPATIAL_IMAGE_CONTROLS)
@@ -341,7 +341,7 @@ void RenderImage::imageChanged(WrappedImagePtr newImage, const IntRect* rect)
     if (CheckedPtr cache = document().existingAXObjectCache())
         cache->deferRecomputeIsIgnoredIfNeeded(element());
 
-    if (auto* image = cachedImage(); image && image->currentFrameIsComplete(this)) {
+    if (RefPtr image = cachedImage(); image && image->currentFrameIsComplete(this)) {
         if (auto styleable = Styleable::fromRenderer(*this))
             protect(document())->didLoadImage(protect(styleable->element).get(), image);
     }
@@ -363,7 +363,7 @@ void RenderImage::updateInnerContentRect()
 
     if (!containerSize.isEmpty()) {
         URL imageSourceURL;
-        if (auto* imageElement = dynamicDowncast<HTMLImageElement>(element()))
+        if (RefPtr imageElement = dynamicDowncast<HTMLImageElement>(element()))
             imageSourceURL = imageElement->currentURL();
         imageResource().setContainerContext(containerSize, imageSourceURL);
     }
@@ -455,7 +455,7 @@ bool RenderImage::isShowingAltText() const
 
 bool RenderImage::isDimensionlessSVG() const
 {
-    auto* cachedImage = this->cachedImage();
+    RefPtr cachedImage = this->cachedImage();
     if (!cachedImage)
         return false;
     RefPtr svgImage = dynamicDowncast<SVGImage>(cachedImage->image());
@@ -476,7 +476,7 @@ bool RenderImage::shouldDisplayBrokenImageIcon() const
 // See: https://github.com/w3c/csswg-drafts/issues/11236#issuecomment-2718502765
 bool RenderImage::shouldRespectZeroIntrinsicWidth() const
 {
-    auto* cachedImage = this->cachedImage();
+    RefPtr cachedImage = this->cachedImage();
     if (!cachedImage)
         return false;
     if (RefPtr svgImage = dynamicDowncast<SVGImage>(cachedImage->image())) {
@@ -518,7 +518,7 @@ void RenderImage::paintIncompleteImageOutline(PaintInfo& paintInfo, LayoutPoint 
 
 static bool isDeferredImage(Element* element)
 {
-    RefPtr image = dynamicDowncast<HTMLImageElement>(element);
+    auto* image = dynamicDowncast<HTMLImageElement>(element);
     return image && image->isDeferred();
 }
 
@@ -928,6 +928,16 @@ void RenderImage::layout()
 
     if (hasShadowContent())
         layoutShadowContent(oldSize);
+
+    if (contentBoxRect().size().width() == oldSize.width())
+        return;
+
+    // https://html.spec.whatwg.org/multipage/images.html#relevant-mutations
+    // "If the element allows auto-sizes: ... its concrete object size width changes"
+    if (RefPtr imageElement = dynamicDowncast<HTMLImageElement>(element())) {
+        if (imageElement->hasAutoSizes() && imageElement->isLazyLoadable())
+            imageElement->scheduleAutoSizesResolution();
+    }
 }
 
 FloatSize RenderImage::computeIntrinsicSize() const
@@ -970,7 +980,7 @@ bool RenderImage::shouldInvalidatePreferredWidths() const
 
 RenderBox* RenderImage::embeddedContentBox() const
 {
-    if (auto* cachedImage = this->cachedImage()) {
+    if (RefPtr cachedImage = this->cachedImage()) {
         if (RefPtr image = dynamicDowncast<SVGImage>(cachedImage->image()))
             return image->embeddedContentBox();
     }

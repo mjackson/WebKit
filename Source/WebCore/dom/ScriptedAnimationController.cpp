@@ -74,7 +74,7 @@ Seconds ScriptedAnimationController::interval() const
 
 Seconds ScriptedAnimationController::preferredScriptedAnimationInterval() const
 {
-    RefPtr page = this->page();
+    auto* page = this->page();
     if (!page)
         return FullSpeedAnimationInterval;
 
@@ -132,7 +132,7 @@ void ScriptedAnimationController::cancelCallback(CallbackId callbackId)
     });
 
     if (cancelled && m_document)
-        InspectorInstrumentation::didCancelAnimationFrame(*protectedDocument(), callbackId);
+        InspectorInstrumentation::didCancelAnimationFrame(*protect(m_document), callbackId);
 }
 
 void ScriptedAnimationController::serviceRequestAnimationFrameCallbacks(ReducedResolutionSeconds timestamp)
@@ -193,9 +193,5 @@ void ScriptedAnimationController::scheduleAnimation()
         page->scheduleRenderingUpdate(RenderingUpdateStep::AnimationFrameCallbacks);
 }
 
-RefPtr<Document> ScriptedAnimationController::protectedDocument()
-{
-    return m_document.get();
-}
 
 }

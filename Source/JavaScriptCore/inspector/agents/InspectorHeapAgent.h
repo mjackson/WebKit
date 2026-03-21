@@ -78,8 +78,6 @@ protected:
 
     virtual void dispatchGarbageCollectedEvent(Protocol::Heap::GarbageCollection::Type, Seconds startTime, Seconds endTime);
 
-    CheckedRef<InspectorEnvironment> checkedEnvironment() { return m_environment.get(); }
-
 private:
     std::optional<JSC::HeapSnapshotNode> nodeForHeapObjectIdentifier(Protocol::ErrorString&, unsigned heapObjectIdentifier);
 

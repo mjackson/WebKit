@@ -61,7 +61,7 @@ public:
         return adoptRef(*new CachedBytecode(CachePayload::makePayloadWithDestructor(data, WTF::move(destructor)), WTF::move(leafExecutables)));
     }
 
-    LeafExecutableMap& leafExecutables() { return m_leafExecutables; }
+    LeafExecutableMap& leafExecutables() LIFETIME_BOUND { return m_leafExecutables; }
 
     JS_EXPORT_PRIVATE void addGlobalUpdate(Ref<CachedBytecode>);
     JS_EXPORT_PRIVATE void addFunctionUpdate(const UnlinkedFunctionExecutable*, CodeSpecializationKind, Ref<CachedBytecode>);

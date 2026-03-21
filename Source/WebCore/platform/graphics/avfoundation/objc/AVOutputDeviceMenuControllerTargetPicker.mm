@@ -189,7 +189,7 @@ AVOutputContext * AVOutputDeviceMenuControllerTargetPicker::outputContext()
         return;
 
     callOnMainThread([self, protectedSelf = retainPtr(self), keyPath = retainPtr(keyPath)] {
-        CheckedPtr callback = m_callback.get();
+        CheckedPtr callback = m_callback;
         if (!callback)
             return;
 

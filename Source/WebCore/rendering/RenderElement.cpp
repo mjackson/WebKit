@@ -107,6 +107,7 @@
 #include "StyleScope.h"
 #include "Styleable.h"
 #include "TextAutoSizing.h"
+#include "TextManipulationController.h"
 #include "ViewTransition.h"
 #include <wtf/MathExtras.h>
 #include <wtf/StackStats.h>
@@ -550,12 +551,12 @@ bool RenderElement::repaintBeforeStyleChange(Style::Difference diff, const Rende
     }
 
     if (shouldRepaintBeforeStyleChange == RequiredRepaint::RendererOnly) {
-        if (isOutOfFlowPositioned() && protect(downcast<RenderLayerModelObject>(*this).layer())->isSelfPaintingLayer()) {
+        if (isOutOfFlowPositioned() && downcast<RenderLayerModelObject>(*this).layer()->isSelfPaintingLayer()) {
             if (oldStyle.usedVisibility() == Visibility::Hidden) {
                 // Repaint on hidden renderer is a no-op.
                 return false;
             }
-            if (auto cachedClippedOverflowRect = protect(downcast<RenderLayerModelObject>(*this).layer())->cachedClippedOverflowRect()) {
+            if (auto cachedClippedOverflowRect = downcast<RenderLayerModelObject>(*this).layer()->cachedClippedOverflowRect()) {
                 repaintUsingContainer(containerForRepaint().renderer.get(), *cachedClippedOverflowRect);
                 return true;
             }
@@ -825,9 +826,9 @@ void RenderElement::moveLayers(RenderLayer& newParent)
 
 RenderLayer* RenderElement::layerParent() const
 {
-    ASSERT_IMPLIES(isInTopLayerOrBackdrop(style(), protect(element()).get()), hasLayer());
+    ASSERT_IMPLIES(isInTopLayerOrBackdrop(style(), element()), hasLayer());
 
-    if (hasLayer() && isInTopLayerOrBackdrop(style(), protect(element()).get()))
+    if (hasLayer() && isInTopLayerOrBackdrop(style(), element()))
         return view().layer();
 
     return parent()->enclosingLayer();
@@ -1034,9 +1035,9 @@ void RenderElement::styleWillChange(Style::Difference diff, const RenderStyle& n
     bool hasOutline = newStyle.hasOutline();
     if (hadOutline != hasOutline) {
         if (hasOutline)
-            protect(view())->incrementRendersWithOutline();
+            view().incrementRendersWithOutline();
         else
-            protect(view())->decrementRendersWithOutline();
+            view().decrementRendersWithOutline();
     }
 
     bool newStyleSlowScroll = false;
@@ -1067,6 +1068,13 @@ inline void RenderCounter::rendererStyleChanged(RenderElement& renderer, const R
 
 void RenderElement::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
 {
+    RefPtr protectedElement = element();
+    if (protectedElement && protectedElement->shouldNotifyTextManipulationControllerIfDisplayed() && !isSkippedContent()) {
+        protectedElement->clearShouldNotifyTextManipulationControllerIfDisplayed();
+        if (auto* textManipulationController = document().textManipulationControllerIfExists())
+            textManipulationController->didAddOrCreateRendererForNode(*protectedElement);
+    }
+
     auto registerImages = [this](auto* style, auto* oldStyle) {
         if (!style && !oldStyle)
             return;
@@ -1121,7 +1129,7 @@ void RenderElement::styleDidChange(Style::Difference diff, const RenderStyle* ol
 
 #if !PLATFORM(IOS_FAMILY)
     if (oldStyle && oldStyle->cursor() != style().cursor())
-        protect(frame())->eventHandler().scheduleCursorUpdate();
+        frame().eventHandler().scheduleCursorUpdate();
 #endif
 
     bool hadOutlineAuto = oldStyle && oldStyle->outlineStyle() == OutlineStyle::Auto;
@@ -1145,7 +1153,7 @@ void RenderElement::styleDidChange(Style::Difference diff, const RenderStyle* ol
                     }
                 }
             }
-            return renderer.view().frameView().scrollAnchoringController();
+            return protect(renderer.view().frameView())->scrollAnchoringController();
         };
 
         // https://drafts.csswg.org/css-scroll-anchoring/#suppression-triggers
@@ -1254,7 +1262,7 @@ void RenderElement::willBeDestroyed()
         unregisterImages(m_style);
 
         if (style().hasOutline())
-            protect(view())->decrementRendersWithOutline();
+            view().decrementRendersWithOutline();
 
         if (auto* firstLineStyle = style().getCachedPseudoStyle({ PseudoElementType::FirstLine }))
             unregisterImages(*firstLineStyle);
@@ -1522,8 +1530,11 @@ bool RenderElement::repaintAfterLayoutIfNeeded(SingleThreadWeakPtr<const RenderL
     // It's not really correct to do math here with oldOutlineBoundsRect/newOutlineBoundsRect and local shadow/radius values, since
     // oldOutlineBoundsRect/newOutlineBoundsRect are in the coordinate space of the repaint container, and have been mapped through ancestor transforms.
 
-    const RenderStyle& outlineStyle = outlineStyleForRepaint();
+    auto& outlineStyle = outlineStyleForRepaint();
+
     auto& style = this->style();
+    auto zoom = style.usedZoomForLength();
+
     auto outlineWidth = LayoutUnit { outlineStyle.usedOutlineSize() };
     auto insetShadowExtent = Style::shadowInsetExtent(style.boxShadow(), style.usedZoomForLength());
     auto sizeDelta = LayoutSize { absoluteValue(newOutlineBoundsRect.width() - oldOutlineBoundsRect.width()), absoluteValue(newOutlineBoundsRect.height() - oldOutlineBoundsRect.height()) };
@@ -1539,8 +1550,8 @@ bool RenderElement::repaintAfterLayoutIfNeeded(SingleThreadWeakPtr<const RenderL
                 auto borderBoxWidth = renderBox->width();
                 return std::max({
                     renderBox->borderRight(),
-                    Style::evaluate<LayoutUnit>(style.borderTopRightRadius().width(), borderBoxWidth, Style::ZoomNeeded { }),
-                    Style::evaluate<LayoutUnit>(style.borderBottomRightRadius().width(), borderBoxWidth, Style::ZoomNeeded { }),
+                    Style::evaluate<LayoutUnit>(style.borderTopRightRadius().width(), borderBoxWidth, zoom),
+                    Style::evaluate<LayoutUnit>(style.borderBottomRightRadius().width(), borderBoxWidth, zoom),
                 });
             };
             auto outlineRightInsetExtent = [&] -> LayoutUnit {
@@ -1583,8 +1594,8 @@ bool RenderElement::repaintAfterLayoutIfNeeded(SingleThreadWeakPtr<const RenderL
                 auto borderBoxHeight = renderBox->height();
                 return std::max({
                     renderBox->borderBottom(),
-                    Style::evaluate<LayoutUnit>(style.borderBottomLeftRadius().height(), borderBoxHeight, Style::ZoomNeeded { }),
-                    Style::evaluate<LayoutUnit>(style.borderBottomRightRadius().height(), borderBoxHeight, Style::ZoomNeeded { }),
+                    Style::evaluate<LayoutUnit>(style.borderBottomLeftRadius().height(), borderBoxHeight, zoom),
+                    Style::evaluate<LayoutUnit>(style.borderBottomRightRadius().height(), borderBoxHeight, zoom),
                 });
             };
             auto outlineBottomInsetExtent = [&] -> LayoutUnit {
@@ -1868,9 +1879,9 @@ std::unique_ptr<RenderStyle> RenderElement::getUncachedPseudoStyle(const Style::
 
 RenderElement* RenderElement::rendererForPseudoStyleAcrossShadowBoundary() const
 {
-    if (RefPtr root = element()->containingShadowRoot()) {
+    if (auto* root = element()->containingShadowRoot()) {
         if (root->mode() == ShadowRootMode::UserAgent) {
-            RefPtr currentElement = element()->shadowHost();
+            auto* currentElement = element()->shadowHost();
             // When an element has display: contents, this element doesn't have a renderer
             // and its children will render as children of the parent element.
             while (currentElement && currentElement->hasDisplayContents())
@@ -2269,8 +2280,8 @@ RenderBoxModelObject* RenderElement::offsetParent() const
     float currZoom = style().usedZoom();
     CheckedPtr current = parent();
     while (current && (!current->element() || (!current->isBody() && !(isFixedPositioned() ? current->canContainFixedPositionObjects() : current->canContainAbsolutelyPositionedObjects())))) {
-        RefPtr element = current->element();
-        if (!skipTables && element && (is<HTMLTableElement>(*element) || is<HTMLTableCellElement>(*element)))
+        auto* element = current->element();
+        if (!skipTables && isAnyOf<HTMLTableElement, HTMLTableCellElement>(element))
             break;
 
         float newZoom = current->style().usedZoom();
@@ -2442,6 +2453,11 @@ void RenderElement::updateReferencedSVGResources()
         clearReferencedSVGResources();
 }
 
+bool RenderElement::addReferencedSVGResourceIfNeeded(SVGElement& targetElement, const AtomString& targetID)
+{
+    return ensureReferencedSVGResources().addReferencedSVGResourceIfNeeded(targetElement, targetID);
+}
+
 void RenderElement::repaintRendererOrClientsOfReferencedSVGResources() const
 {
     auto* enclosingResourceContainer = lineageOfType<RenderSVGResourceContainer>(*this).first();
@@ -2582,14 +2598,26 @@ std::unique_ptr<RenderStyle> RenderElement::animatedStyle()
     return result;
 }
 
-SingleThreadWeakPtr<RenderBlockFlow> RenderElement::backdropRenderer() const
+static constexpr size_t pseudoElementRendererIndex(PseudoElementType type)
 {
-    return hasRareData() ? rareData().backdropRenderer : nullptr;
+    switch (type) {
+    case PseudoElementType::Backdrop:   return 0;
+    case PseudoElementType::Checkmark:  return 1;
+    case PseudoElementType::PickerIcon: return 2;
+    default: WTF_UNREACHABLE();
+    }
 }
 
-void RenderElement::setBackdropRenderer(RenderBlockFlow& renderer)
+SingleThreadWeakPtr<RenderBlockFlow> RenderElement::pseudoElementRenderer(PseudoElementType type) const
 {
-    ensureRareData().backdropRenderer = renderer;
+    if (!hasRareData())
+        return nullptr;
+    return rareData().pseudoElementRenderers[pseudoElementRendererIndex(type)];
+}
+
+void RenderElement::setPseudoElementRenderer(PseudoElementType type, RenderBlockFlow& renderer)
+{
+    ensureRareData().pseudoElementRenderers[pseudoElementRendererIndex(type)] = renderer;
 }
 
 Overflow RenderElement::effectiveOverflowX() const

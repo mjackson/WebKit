@@ -28,7 +28,7 @@
 
 #if PLATFORM(COCOA)
 
-#import "FormDataStreamMac.h"
+#import "FormDataStreamCocoa.h"
 #import "HTTPHeaderNames.h"
 #import "RegistrableDomain.h"
 #import "ResourceRequestCFNet.h"
@@ -99,11 +99,6 @@ NSURLRequest *ResourceRequest::nsURLRequest(HTTPBodyUpdatePolicy bodyPolicy) con
     return m_nsRequest.get();
 }
 
-RetainPtr<NSURLRequest> ResourceRequest::protectedNSURLRequest(HTTPBodyUpdatePolicy bodyPolicy) const
-{
-    return nsURLRequest(bodyPolicy);
-}
-
 ResourceRequestPlatformData ResourceRequest::getResourceRequestPlatformData() const
 {
     RELEASE_ASSERT(m_httpBody || m_nsRequest);
@@ -142,10 +137,10 @@ ResourceRequestPlatformData ResourceRequest::getResourceRequestPlatformData() co
 
 CFURLRequestRef ResourceRequest::cfURLRequest(HTTPBodyUpdatePolicy bodyPolicy) const
 {
-    return [protectedNSURLRequest(bodyPolicy) _CFURLRequest];
+    return [protect(nsURLRequest(bodyPolicy)) _CFURLRequest];
 }
 
-static inline ResourceRequestCachePolicy fromPlatformRequestCachePolicy(NSURLRequestCachePolicy policy)
+static inline ResourceRequestCachePolicy NODELETE fromPlatformRequestCachePolicy(NSURLRequestCachePolicy policy)
 {
     switch (policy) {
     case NSURLRequestUseProtocolCachePolicy:
@@ -159,7 +154,7 @@ static inline ResourceRequestCachePolicy fromPlatformRequestCachePolicy(NSURLReq
     }
 }
 
-static inline NSURLRequestCachePolicy toPlatformRequestCachePolicy(ResourceRequestCachePolicy policy)
+static inline NSURLRequestCachePolicy NODELETE toPlatformRequestCachePolicy(ResourceRequestCachePolicy policy)
 {
     switch (policy) {
     case ResourceRequestCachePolicy::UseProtocolCachePolicy:
@@ -360,7 +355,7 @@ void ResourceRequest::doUpdatePlatformHTTPBody()
 
     configureRequestWithData(nsRequest.get(), m_requestData);
 
-    auto formData = httpBody();
+    RefPtr formData = httpBody();
     if (formData && !formData->isEmpty())
         WebCore::setHTTPBody(nsRequest.get(), WTF::move(formData));
 

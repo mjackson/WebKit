@@ -157,28 +157,28 @@ bridge/objc/objc_instance.mm @nonARC @no-unify
 bridge/objc/objc_runtime.mm @nonARC @no-unify
 bridge/objc/objc_utility.mm @nonARC @no-unify
 crypto/cocoa/CommonCryptoDERUtilities.cpp
-crypto/cocoa/CryptoAlgorithmAESCBCMac.cpp
-crypto/cocoa/CryptoAlgorithmAESCFBMac.cpp
-crypto/cocoa/CryptoAlgorithmAESCTRMac.cpp
-crypto/cocoa/CryptoAlgorithmAESGCMMac.cpp
-crypto/cocoa/CryptoAlgorithmAESKWMac.cpp
-crypto/cocoa/CryptoAlgorithmECDHMac.cpp
-crypto/cocoa/CryptoAlgorithmECDSAMac.cpp
+crypto/cocoa/CryptoAlgorithmAESCBCCocoa.cpp
+crypto/cocoa/CryptoAlgorithmAESCFBCocoa.cpp
+crypto/cocoa/CryptoAlgorithmAESCTRCocoa.cpp
+crypto/cocoa/CryptoAlgorithmAESGCMCocoa.cpp
+crypto/cocoa/CryptoAlgorithmAESKWCocoa.cpp
+crypto/cocoa/CryptoAlgorithmECDHCocoa.cpp
+crypto/cocoa/CryptoAlgorithmECDSACocoa.cpp
 crypto/cocoa/CryptoAlgorithmEd25519Cocoa.cpp
-crypto/cocoa/CryptoAlgorithmHKDFMac.cpp
-crypto/cocoa/CryptoAlgorithmHMACMac.cpp
-crypto/cocoa/CryptoAlgorithmPBKDF2Mac.cpp
-crypto/cocoa/CryptoAlgorithmRSASSA_PKCS1_v1_5Mac.cpp
-crypto/cocoa/CryptoAlgorithmRSA_OAEPMac.cpp
-crypto/cocoa/CryptoAlgorithmRSA_PSSMac.cpp
-crypto/cocoa/CryptoAlgorithmRegistryMac.cpp
+crypto/cocoa/CryptoAlgorithmHKDFCocoa.cpp
+crypto/cocoa/CryptoAlgorithmHMACCocoa.cpp
+crypto/cocoa/CryptoAlgorithmPBKDF2Cocoa.cpp
+crypto/cocoa/CryptoAlgorithmRSASSA_PKCS1_v1_5Cocoa.cpp
+crypto/cocoa/CryptoAlgorithmRSA_OAEPCocoa.cpp
+crypto/cocoa/CryptoAlgorithmRSA_PSSCocoa.cpp
+crypto/cocoa/CryptoAlgorithmRegistryCocoa.cpp
 crypto/cocoa/CryptoAlgorithmX25519Cocoa.cpp
-crypto/cocoa/CryptoKeyECMac.cpp
+crypto/cocoa/CryptoKeyCocoa.cpp
+crypto/cocoa/CryptoKeyECCocoa.cpp
 crypto/cocoa/CryptoKeyOKPCocoa.cpp
-crypto/cocoa/CryptoKeyMac.cpp
-crypto/cocoa/CryptoKeyRSAMac.cpp
+crypto/cocoa/CryptoKeyRSACocoa.cpp
 crypto/cocoa/CryptoUtilitiesCocoa.cpp
-crypto/cocoa/SerializedCryptoKeyWrapMac.mm @nonARC
+crypto/cocoa/SerializedCryptoKeyWrapCocoa.mm @nonARC
 crypto/CommonCryptoUtilities.cpp
 dom/DataTransferMac.mm @nonARC
 dom/ios/MouseEventIOS.cpp
@@ -268,7 +268,7 @@ platform/audio/AudioSession.cpp
 platform/audio/cocoa/AudioDecoderCocoa.cpp
 platform/audio/cocoa/AudioDestinationCocoa.cpp
 platform/audio/cocoa/AudioEncoderCocoa.cpp
-platform/audio/cocoa/AudioFileReaderCocoa.cpp
+platform/audio/cocoa/AudioFileReaderCocoa.mm @nonARC
 platform/audio/cocoa/AudioOutputUnitAdaptor.cpp
 platform/audio/cocoa/AudioSampleBufferList.cpp
 platform/audio/cocoa/AudioSampleBufferConverter.mm @nonARC
@@ -287,12 +287,14 @@ platform/audio/ios/MediaDeviceRoute.mm @nonARC @no-unify
 platform/audio/ios/MediaDeviceRouteController.mm @nonARC
 platform/audio/ios/MediaSessionHelperIOS.mm @nonARC @no-unify
 platform/audio/ios/MediaSessionManagerIOS.mm @nonARC @no-unify
+platform/audio/ios/SpatialAudioPlaybackHelperIOS.mm @nonARC @no-unify
 platform/audio/mac/AudioBusMac.mm @nonARC
 platform/audio/mac/AudioOutputUnitAdaptorMac.cpp
 platform/audio/mac/AudioHardwareListenerMac.cpp
 platform/audio/mac/AudioSessionMac.mm @nonARC
 platform/audio/mac/FFTFrameMac.cpp
 platform/audio/mac/SharedRoutingArbitrator.mm @nonARC
+platform/audio/mac/SpatialAudioPlaybackHelperMac.cpp
 platform/cf/KeyedDecoderCF.cpp
 platform/cf/KeyedEncoderCF.cpp
 platform/cf/MainThreadSharedTimerCF.cpp
@@ -429,7 +431,6 @@ platform/graphics/cg/ImageBufferCGBackend.cpp
 platform/graphics/cg/ImageBufferCGBitmapBackend.cpp
 platform/graphics/cg/ImageBufferCGPDFDocumentBackend.cpp
 platform/graphics/cg/ImageBufferIOSurfaceBackend.cpp
-platform/graphics/cg/ImageBufferUtilitiesCG.cpp
 platform/graphics/cg/ImageDecoderCG.cpp
 platform/graphics/cg/ImageUtilitiesCG.cpp
 platform/graphics/cg/IntPointCG.cpp
@@ -440,6 +441,7 @@ platform/graphics/cg/PDFDocumentImage.cpp
 platform/graphics/cg/PathCG.cpp
 platform/graphics/cg/PatternCG.cpp
 platform/graphics/cg/ShareableBitmapCG.mm @nonARC @no-unify
+platform/graphics/cg/ShareableSpatialImage.cpp @no-unify
 platform/graphics/cg/TransformationMatrixCG.cpp
 platform/graphics/cg/UTIRegistry.mm @nonARC
 platform/graphics/cocoa/AV1UtilitiesCocoa.mm @nonARC @no-unify
@@ -697,30 +699,30 @@ platform/network/cf/DNSResolveQueueCFNet.cpp
 platform/network/cf/FormDataStreamCFNet.mm @nonARC
 platform/network/cf/NetworkStorageSessionCFNet.cpp
 platform/network/cf/ResourceRequestCFNet.cpp
+platform/network/cocoa/AuthenticationCocoa.mm @nonARC
+platform/network/cocoa/BlobDataFileReferenceCocoa.mm @nonARC
 platform/network/cocoa/CertificateInfoCocoa.mm @nonARC
 platform/network/cocoa/CookieCocoa.mm @nonARC
+platform/network/cocoa/CookieStorageCocoa.mm @nonARC
 platform/network/cocoa/CookieStorageObserver.mm @nonARC
 platform/network/cocoa/CredentialCocoa.mm @nonARC
+platform/network/cocoa/CredentialStorageCocoa.mm @nonARC
+platform/network/cocoa/FormDataStreamCocoa.mm @nonARC
 platform/network/cocoa/NetworkLoadMetrics.mm @nonARC
 platform/network/cocoa/NetworkStorageSessionCocoa.mm @nonARC
 platform/network/cocoa/ProtectionSpaceCocoa.mm @nonARC
 platform/network/cocoa/RangeResponseGenerator.mm @nonARC
 platform/network/cocoa/ResourceRequestCocoa.mm @nonARC
+platform/network/cocoa/ResourceErrorCocoa.mm @nonARC
+platform/network/cocoa/ResourceHandleCocoa.mm @nonARC
 platform/network/cocoa/ResourceResponseCocoa.mm @nonARC @no-unify // Unsafe to unify until rdar://problem/48853137 is resolved
+platform/network/cocoa/SynchronousLoaderClient.mm @nonARC
+platform/network/cocoa/UTIUtilities.mm @nonARC
 platform/network/cocoa/WebCoreNSURLSession.mm @nonARC @no-unify
+platform/network/cocoa/WebCoreURLResponse.mm @nonARC
 platform/network/ios/NetworkStateNotifierIOS.mm @nonARC
 platform/network/ios/WebCoreURLResponseIOS.mm @nonARC
-platform/network/mac/AuthenticationMac.mm @nonARC
-platform/network/mac/BlobDataFileReferenceMac.mm @nonARC
-platform/network/mac/CookieStorageMac.mm @nonARC
-platform/network/mac/CredentialStorageMac.mm @nonARC
-platform/network/mac/FormDataStreamMac.mm @nonARC
 platform/network/mac/NetworkStateNotifierMac.cpp
-platform/network/mac/ResourceErrorMac.mm @nonARC
-platform/network/mac/ResourceHandleMac.mm @nonARC
-platform/network/mac/SynchronousLoaderClient.mm @nonARC
-platform/network/mac/UTIUtilities.mm @nonARC
-platform/network/mac/WebCoreURLResponse.mm @nonARC
 platform/text/cf/HyphenationCF.cpp
 platform/text/cocoa/LocaleCocoa.mm @nonARC
 platform/text/cocoa/LocalizedDateCache.mm @nonARC

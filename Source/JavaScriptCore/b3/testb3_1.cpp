@@ -350,6 +350,7 @@ void run(const TestConfig* config)
     RUN(testIToDReducedToIToF32Arg());
     RUN_UNARY(testInt52RoundTripUnary, int32Operands());
     RUN(testInt52RoundTripBinary());
+    RUN(testTruncSShrAddUnalignedConstant());
 
 #if !CPU(ARM)
     RUN_UNARY(testCheckAddRemoveCheckWithSExt8, int8Operands());
@@ -1132,16 +1133,39 @@ void run(const TestConfig* config)
         RUN(testVectorExtractLane0Double());
         RUN(testVectorMulHigh());
         RUN(testVectorMulLow());
+        RUN(testVectorDotProductSplatOne());
         RUN_UNARY(testVectorXorOrAllOnesConstantToVectorAndXor, v128Operands());
         RUN_UNARY(testVectorXorAndAllOnesConstantToVectorOrXor, v128Operands());
         RUN_BINARY(testVectorOrConstants, v128Operands(), v128Operands());
         RUN_BINARY(testVectorAndConstants, v128Operands(), v128Operands());
         RUN_BINARY(testVectorXorConstants, v128Operands(), v128Operands());
         RUN_BINARY(testVectorAndConstantConstant, v128Operands(), v128Operands());
-        if (isARM64()) {
-            RUN(testVectorFmulByElementFloat());
-            RUN(testVectorFmulByElementDouble());
-        }
+        RUN(testVectorFmulByElementFloat());
+        RUN(testVectorFmulByElementDouble());
+        RUN(testVectorXorRotateRight64());
+        RUN(testVectorXor3());
+        RUN(testVectorTransposeEven());
+        RUN(testVectorTransposeOdd());
+        RUN(testVectorShlImmediate());
+        RUN(testVectorShrImmediate());
+        RUN(testVectorUnzipEven());
+        RUN(testVectorUnzipOdd());
+        RUN(testVectorZipLower());
+        RUN(testVectorZipHigher());
+        RUN(testVectorReverse());
+        RUN(testVectorShlByOne());
+        RUN(testVectorSwizzleToUnzipEven());
+        RUN(testVectorSwizzleBinaryToUnzipOdd());
+        RUN(testVectorSwizzleBinaryCanonical());
+        RUN(testVectorSwizzleUnaryCanonical());
+        RUN(testVectorExtractPair());
+        RUN(testVectorSwizzleBinaryToEXT());
+        RUN(testVectorSwizzleUnaryToEXT());
+        RUN(testVectorCanonicalSameInputFolding());
+        RUN(testVectorSwizzleToDupElement());
+        RUN(testVectorSwizzleComposition());
+        RUN(testVectorSwizzleUnaryComposition());
+        RUN(testVectorSwizzleCompositionMultiUse());
         RUN(testMulHigh32());
         RUN(testMulHigh64());
         RUN(testUMulHigh32());

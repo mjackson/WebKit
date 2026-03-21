@@ -58,7 +58,7 @@ static void didCreatePage(WKBundleRef bundle, WKBundlePageRef page, const void* 
     RetainPtr principalClassInstance = plugInController->_principalClassInstance.get();
 
     if ([principalClassInstance respondsToSelector:@selector(webProcessPlugIn:didCreateBrowserContextController:)])
-        [principalClassInstance webProcessPlugIn:plugInController didCreateBrowserContextController:protect(wrapper(*WebKit::toProtectedImpl(page))).get()];
+        [principalClassInstance webProcessPlugIn:plugInController didCreateBrowserContextController:protect(wrapper(*protect(WebKit::toImpl(page)))).get()];
 }
 
 static void willDestroyPage(WKBundleRef bundle, WKBundlePageRef page, const void* clientInfo)
@@ -67,7 +67,7 @@ static void willDestroyPage(WKBundleRef bundle, WKBundlePageRef page, const void
     RetainPtr principalClassInstance = plugInController->_principalClassInstance.get();
 
     if ([principalClassInstance respondsToSelector:@selector(webProcessPlugIn:willDestroyBrowserContextController:)])
-        [principalClassInstance webProcessPlugIn:plugInController willDestroyBrowserContextController:protect(wrapper(*WebKit::toProtectedImpl(page))).get()];
+        [principalClassInstance webProcessPlugIn:plugInController willDestroyBrowserContextController:protect(wrapper(*protect(WebKit::toImpl(page)))).get()];
 }
 
 static void setUpBundleClient(WKWebProcessPlugInController *plugInController, WebKit::InjectedBundle& bundle)

@@ -119,6 +119,9 @@
             "comment": "For scrollbar styling.",
             "status": "non-standard"
         },
+        "even-less-good": {
+            "settings-flag": "cssAppearanceBaseEnabled"
+        },
         "first-child": {},
         "first-of-type": {},
         "focus": {},
@@ -197,6 +200,9 @@
         "open": {
             "settings-flag": "openPseudoClassEnabled"
         },
+        "optimum": {
+            "settings-flag": "cssAppearanceBaseEnabled"
+        },
         "optional": {},
         "out-of-range": {},
         "past": {
@@ -236,6 +242,9 @@
         "start": {
             "comment": "For scrollbar styling.",
             "status": "non-standard"
+        },
+        "suboptimum": {
+            "settings-flag": "cssAppearanceBaseEnabled"
         },
         "target": {},
         "user-invalid": {},
@@ -517,7 +526,7 @@
             "supports-single-colon-for-compatibility": true
         },
         "checkmark": {
-            "settings-flag": "cssAppearanceBaseEnabled"
+            "settings-flag": "htmlEnhancedSelectEnabled || cssAppearanceBaseEnabled"
         },
         "cue": {
             "argument": "optional",
@@ -554,7 +563,7 @@
         },
         "picker": {
             "argument": "required",
-            "settings-flag": ["htmlEnhancedSelectEnabled", "cssPickerPseudoElementEnabled"]
+            "settings-flag": "htmlEnhancedSelectEnabled && cssPickerPseudoElementEnabled"
         },
         "picker-icon": {
             "settings-flag": "htmlEnhancedSelectEnabled"
@@ -566,20 +575,24 @@
             "user-agent-part": true
         },
         "selection": {},
+        "slider-fill": {
+            "settings-flag": "cssAppearanceBaseEnabled",
+            "user-agent-part": true
+        },
+        "slider-thumb": {
+            "settings-flag": "cssAppearanceBaseEnabled",
+            "user-agent-part": true
+        },
+        "slider-track": {
+            "settings-flag": "cssAppearanceBaseEnabled",
+            "user-agent-part": true
+        },
         "slotted": {
             "argument": "required"
         },
         "spelling-error": {},
         "target-text": {
             "settings-flag": "targetTextPseudoElementEnabled"
-        },
-        "thumb": {
-            "settings-flag": "cssAppearanceBaseEnabled",
-            "user-agent-part": true
-        },
-        "track": {
-            "settings-flag": "cssAppearanceBaseEnabled",
-            "user-agent-part": true
         },
         "view-transition": {
             "settings-flag": "viewTransitionsEnabled"

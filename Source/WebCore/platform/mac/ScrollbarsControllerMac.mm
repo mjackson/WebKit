@@ -837,7 +837,7 @@ void ScrollbarsControllerMac::didAddVerticalScrollbar(Scrollbar* scrollbar)
 
     [painter setDelegate:m_verticalScrollerImpDelegate.get()];
     if (RefPtr layer = protect(scrollbar->scrollableArea())->layerForVerticalScrollbar())
-        [painter setLayer:layer->protectedPlatformLayer().get()];
+        [painter setLayer:protect(layer->platformLayer()).get()];
 
     [m_scrollerImpPair setVerticalScrollerImp:painter.get()];
     if (scrollableArea().inLiveResize())
@@ -869,7 +869,7 @@ void ScrollbarsControllerMac::didAddHorizontalScrollbar(Scrollbar* scrollbar)
 
     [painter setDelegate:m_horizontalScrollerImpDelegate.get()];
     if (RefPtr layer = protect(scrollbar->scrollableArea())->layerForHorizontalScrollbar())
-        [painter setLayer:layer->protectedPlatformLayer().get()];
+        [painter setLayer:protect(layer->platformLayer()).get()];
 
     [m_scrollerImpPair setHorizontalScrollerImp:painter.get()];
     if (scrollableArea().inLiveResize())
@@ -962,7 +962,7 @@ void ScrollbarsControllerMac::updateScrollerImps()
         RetainPtr<NSScrollerImp> oldVerticalPainter = [m_scrollerImpPair verticalScrollerImp];
         RefPtr verticalScrollbarMac = dynamicDowncast<ScrollbarMac>(verticalScrollbar);
         verticalScrollbarMac->createScrollerImp(oldVerticalPainter.get());
-        [m_scrollerImpPair setVerticalScrollerImp:verticalScrollbarMac->protectedScrollerImp().get()];
+        [m_scrollerImpPair setVerticalScrollerImp:protect(verticalScrollbarMac->scrollerImp()).get()];
     }
 
     RefPtr horizontalScrollbar = scrollableArea->horizontalScrollbar();
@@ -972,7 +972,7 @@ void ScrollbarsControllerMac::updateScrollerImps()
         RetainPtr<NSScrollerImp> oldHorizontalPainter = [m_scrollerImpPair horizontalScrollerImp];
         RefPtr horizontalScrollbarMac = dynamicDowncast<ScrollbarMac>(horizontalScrollbar);
         horizontalScrollbarMac->createScrollerImp(oldHorizontalPainter.get());
-        [m_scrollerImpPair setHorizontalScrollerImp:horizontalScrollbarMac->protectedScrollerImp().get()];
+        [m_scrollerImpPair setHorizontalScrollerImp:protect(horizontalScrollbarMac->scrollerImp()).get()];
     }
 }
 

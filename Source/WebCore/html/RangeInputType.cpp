@@ -149,7 +149,7 @@ void RangeInputType::handleMouseDownEvent(MouseEvent& event)
         return;
 
     ASSERT(element->shadowRoot());
-    if (targetNode != element.ptr() && !targetNode->isDescendantOf(protect(element->userAgentShadowRoot()).get()))
+    if (targetNode != element.ptr() && !targetNode->isDescendantOf(element->userAgentShadowRoot()))
         return;
     Ref thumb = typedSliderThumbElement();
     if (targetNode == thumb.ptr())
@@ -166,7 +166,7 @@ void RangeInputType::handleTouchEvent(TouchEvent& event)
         return;
 
 #if ENABLE(IOS_TOUCH_EVENTS)
-    protectedTypedSliderThumbElement()->handleTouchEvent(event);
+    protect(typedSliderThumbElement())->handleTouchEvent(event);
 #else
 
     if (element()->isDisabledFormControl())
@@ -180,7 +180,7 @@ void RangeInputType::handleTouchEvent(TouchEvent& event)
     RefPtr<TouchList> touches = event.targetTouches();
     if (touches->length() == 1) {
         auto touchPoint = touches->item(0)->absoluteLocation();
-        protectedTypedSliderThumbElement()->setPositionFromPoint(LayoutPoint(touchPoint));
+        protect(typedSliderThumbElement())->setPositionFromPoint(LayoutPoint(touchPoint));
         event.setDefaultHandled();
     }
 #endif // ENABLE(IOS_TOUCH_EVENTS)
@@ -191,7 +191,7 @@ void RangeInputType::disabledStateChanged()
 {
     if (!hasCreatedShadowSubtree())
         return;
-    protectedTypedSliderThumbElement()->hostDisabledStateChanged();
+    protect(typedSliderThumbElement())->hostDisabledStateChanged();
 }
 
 auto RangeInputType::handleKeydownEvent(KeyboardEvent& event) -> ShouldCallBaseEventHandler
@@ -215,7 +215,7 @@ auto RangeInputType::handleKeydownEvent(KeyboardEvent& event) -> ShouldCallBaseE
     const Decimal bigStep = std::max((stepRange.maximum() - stepRange.minimum()) / 10, step);
 
     bool isVertical = false;
-    if (CheckedPtr renderer = element->renderer())
+    if (auto* renderer = element->renderer())
         isVertical = renderer->style().usedAppearance() == StyleAppearance::SliderVertical;
 
     Decimal newValue;
@@ -283,7 +283,7 @@ HTMLElement* RangeInputType::sliderTrackElement() const
     if (!hasCreatedShadowSubtree())
         return nullptr;
 
-    RefPtr root = protect(element())->userAgentShadowRoot();
+    RefPtr root = element()->userAgentShadowRoot();
     ASSERT(root);
     ASSERT(is<SliderContainerElement>(root->firstChild())); // container
     ASSERT(root->firstChild()->firstChild()); // track
@@ -301,11 +301,6 @@ SliderThumbElement& RangeInputType::typedSliderThumbElement() const
     ASSERT(sliderTrackElement()->firstChild()); // thumb
 
     return downcast<SliderThumbElement>(*sliderTrackElement()->firstChild());
-}
-
-Ref<SliderThumbElement> RangeInputType::protectedTypedSliderThumbElement() const
-{
-    return typedSliderThumbElement();
 }
 
 HTMLElement* RangeInputType::sliderThumbElement() const
@@ -351,7 +346,7 @@ void RangeInputType::attributeChanged(const QualifiedName& name)
                 element->setValue(element->value());
         }
         if (hasCreatedShadowSubtree())
-            protectedTypedSliderThumbElement()->setPositionFromValue();
+            protect(typedSliderThumbElement())->setPositionFromValue();
         break;
     default:
         break;
@@ -366,13 +361,11 @@ void RangeInputType::setValue(const String& value, bool valueChanged, TextFieldE
     if (!valueChanged)
         return;
 
-    if (eventBehavior == DispatchNoEvent) {
-        ASSERT(element());
-        element()->setTextAsOfLastFormControlChangeEvent(String(value));
-    }
+    if (eventBehavior == DispatchNoEvent)
+        protect(element())->setTextAsOfLastFormControlChangeEvent(String(value));
 
     if (hasCreatedShadowSubtree())
-        protectedTypedSliderThumbElement()->setPositionFromValue();
+        protect(typedSliderThumbElement())->setPositionFromValue();
 }
 
 ValueOrReference<String> RangeInputType::fallbackValue() const

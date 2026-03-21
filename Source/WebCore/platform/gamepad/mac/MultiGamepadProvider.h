@@ -40,7 +40,7 @@ class MultiGamepadProvider : public GamepadProvider, public GamepadProviderClien
 public:
     virtual ~MultiGamepadProvider() = default;
 
-    WEBCORE_EXPORT static MultiGamepadProvider& singleton();
+    WEBCORE_EXPORT static MultiGamepadProvider& NODELETE singleton();
 
     // Do nothing since this is a singleton.
     void ref() const final { }
@@ -51,7 +51,7 @@ public:
     // GamepadProvider
     void startMonitoringGamepads(GamepadProviderClient&) final;
     void stopMonitoringGamepads(GamepadProviderClient&) final;
-    const Vector<WeakPtr<PlatformGamepad>>& platformGamepads() final { return m_gamepadVector; }
+    const Vector<WeakPtr<PlatformGamepad>>& platformGamepads() LIFETIME_BOUND final { return m_gamepadVector; }
     bool isMockGamepadProvider() const { return false; }
     void playEffect(unsigned gamepadIndex, const String& gamepadID, GamepadHapticEffectType, const GamepadEffectParameters&, CompletionHandler<void(bool)>&&) final;
     void stopEffects(unsigned gamepadIndex, const String& gamepadID, CompletionHandler<void()>&&) final;

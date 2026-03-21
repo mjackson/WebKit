@@ -42,7 +42,8 @@
 #include "CSSPropertyParserState.h"
 #include "CSSToLengthConversionData.h"
 #include "CSSTokenizer.h"
-#include "FontCascade.h"
+#include "FontCascadeInlines.h"
+#include "FontSelector.h"
 #include "MediaQueryEvaluator.h"
 #include "MediaQueryParser.h"
 #include "MediaQueryParserContext.h"
@@ -57,7 +58,8 @@ namespace WebCore {
 SizesAttributeParser::SizesAttributeParser(const String& attribute, const Document& document)
     : m_document(document)
 {
-    m_result = parse(CSSTokenizer(attribute).tokenRange(), CSSParserContext(document));
+    if (!attribute.isEmpty())
+        m_result = parse(CSSTokenizer(attribute).tokenRange(), CSSParserContext(document));
 }
 
 float SizesAttributeParser::effectiveSize()
@@ -77,6 +79,22 @@ float SizesAttributeParser::effectiveSizeDefaultValue()
 
 std::optional<float> SizesAttributeParser::parse(CSSParserTokenRange tokens, const CSSParserContext& context)
 {
+    // https://html.spec.whatwg.org/multipage/images.html#parsing-a-sizes-attribute
+    auto savedTokens = tokens;
+    tokens.consumeWhitespace();
+    if (tokens.peek().type() == IdentToken && equalLettersIgnoringASCIICase(tokens.peek().value(), "auto"_s)) {
+        tokens.consume();
+        tokens.consumeWhitespace();
+        if (tokens.atEnd() || tokens.peek().type() == CommaToken) {
+            m_isAuto = true;
+            if (!tokens.atEnd())
+                tokens.consume();
+            return parse(tokens, context);
+        }
+        tokens = savedTokens;
+    } else
+        tokens = savedTokens;
+
     // Split on a comma token and parse the result tokens as (media-condition, length) pairs
     while (!tokens.atEnd()) {
         auto mediaConditionStart = tokens;
@@ -234,14 +252,9 @@ bool SizesAttributeParser::mediaConditionMatches(const MQ::MediaQuery& mediaCond
     return MQ::MediaQueryEvaluator { screenAtom(), document, style.ptr() }.evaluate(mediaCondition);
 }
 
-Ref<const Document> SizesAttributeParser::protectedDocument() const
-{
-    return m_document.get();
-}
-
 std::optional<CSSToLengthConversionData> SizesAttributeParser::conversionData() const
 {
-    CheckedPtr renderer = protectedDocument()->renderView();
+    CheckedPtr renderer = document().renderView();
     if (!renderer)
         return std::nullopt;
     CheckedRef style = renderer->style();

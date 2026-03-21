@@ -584,6 +584,7 @@ Modules/webxr/XRWebGLSubImage.cpp
 accessibility/AXAttributeCacheScope.cpp
 accessibility/AXComputedObjectAttributeCache.cpp
 accessibility/AXCoreObject.cpp
+accessibility/AXCrossProcessSearch.cpp
 accessibility/AXGeometryManager.cpp
 accessibility/AXLiveRegionManager.cpp
 accessibility/AXLocalFrame.cpp
@@ -688,6 +689,7 @@ bindings/js/JSDOMBindingSecurity.cpp
 bindings/js/JSDOMBuiltinConstructorBase.cpp
 bindings/js/JSDOMConstructorBase.cpp
 bindings/js/JSDOMConstructorWithDocument.cpp
+bindings/js/JSDOMConvertBoolean.cpp
 bindings/js/JSDOMConvertDate.cpp
 bindings/js/JSDOMConvertNumbers.cpp
 bindings/js/JSDOMConvertStrings.cpp
@@ -796,6 +798,7 @@ bindings/js/JSWorkerNavigatorCustom.cpp
 bindings/js/JSWorkletGlobalScopeBase.cpp
 bindings/js/JSXMLHttpRequestCustom.cpp
 bindings/js/JSXPathResultCustom.cpp
+bindings/js/ModuleScriptLoader.cpp
 bindings/js/ReadableStreamDefaultController.cpp
 bindings/js/ScheduledAction.cpp
 bindings/js/ScriptCachedFrameData.cpp
@@ -1320,6 +1323,7 @@ dom/MutationObserverInterestGroup.cpp
 dom/MutationObserverRegistration.cpp
 dom/MutationRecord.cpp
 dom/NameNodeList.cpp
+dom/NameValidation.cpp
 dom/NamedNodeMap.cpp
 dom/NativeNodeFilter.cpp
 dom/Node.cpp
@@ -1358,6 +1362,7 @@ dom/ScriptedAnimationController.cpp
 dom/SecurityContext.cpp
 dom/SecurityOriginPolicy.cpp
 dom/SecurityPolicyViolationEvent.cpp
+dom/SelectionType.cpp
 dom/SelectorQuery.cpp
 dom/SerializedNode.cpp
 dom/ShadowRoot.cpp
@@ -1453,6 +1458,7 @@ editing/InsertNestedListCommand.cpp
 editing/InsertNodeBeforeCommand.cpp
 editing/InsertParagraphSeparatorCommand.cpp
 editing/InsertTextCommand.cpp
+editing/ICUSearcher.cpp
 editing/MarkupAccumulator.cpp
 editing/MergeIdenticalElementsCommand.cpp
 editing/ModifySelectionListLevel.cpp
@@ -1805,7 +1811,6 @@ html/shadow/DateTimeFieldElements.cpp
 html/shadow/DateTimeNumericFieldElement.cpp
 html/shadow/DateTimeSymbolicFieldElement.cpp
 html/shadow/MediaControlTextTrackContainerElement.cpp
-html/shadow/ProgressShadowElement.cpp
 html/shadow/SelectFallbackButtonElement.cpp
 html/shadow/SelectPopoverElement.cpp
 html/shadow/SliderThumbElement.cpp
@@ -1904,6 +1909,7 @@ inspector/agents/page/PageNetworkAgent.cpp
 inspector/agents/page/PageRuntimeAgent.cpp
 inspector/agents/page/PageTimelineAgent.cpp
 inspector/agents/page/PageWorkerAgent.cpp
+inspector/agents/frame/FrameRuntimeAgent.cpp
 inspector/agents/worker/ServiceWorkerAgent.cpp
 inspector/agents/worker/WorkerAuditAgent.cpp
 inspector/agents/worker/WorkerCanvasAgent.cpp
@@ -2567,6 +2573,7 @@ platform/graphics/ImageFrameWorkQueue.cpp
 platform/graphics/ImagePaintingOptions.cpp
 platform/graphics/ImageResolution.cpp
 platform/graphics/ImageSource.cpp
+platform/graphics/ImageUtilities.cpp
 platform/graphics/InbandGenericCue.cpp
 platform/graphics/IntPoint.cpp
 platform/graphics/IntRect.cpp
@@ -2850,6 +2857,7 @@ rendering/RenderGridLayoutState.cpp
 rendering/GridMasonryLayout.cpp
 rendering/GridTrackSizingAlgorithm.cpp
 rendering/HitTestLocation.cpp
+rendering/HitTestRequest.cpp
 rendering/HitTestResult.cpp
 rendering/HitTestingTransformState.cpp
 rendering/ImageQualityController.cpp
@@ -3117,6 +3125,7 @@ style/PageRuleCollector.cpp
 style/PropertyAllowlist.cpp
 style/PropertyCascade.cpp
 style/PseudoClassChangeInvalidation.cpp
+style/PseudoElementUtilities.cpp
 style/ResolvedScopedName.cpp
 style/RuleData.cpp
 style/RuleFeature.cpp
@@ -3145,6 +3154,7 @@ style/StyleResolver.cpp
 style/StyleScope.cpp
 style/StyleScopeRuleSets.cpp
 style/StyleSheetContentsCache.cpp
+style/StyleSubstitutionResolver.cpp
 style/StyleTransformResolver.cpp
 style/StyleTreeResolver.cpp
 style/StyleUpdate.cpp
@@ -3437,7 +3447,6 @@ svg/SVGAnimationElement.cpp
 svg/SVGCircleElement.cpp
 svg/SVGClipPathElement.cpp
 svg/SVGComponentTransferFunctionElement.cpp
-svg/SVGCursorElement.cpp
 svg/SVGDefsElement.cpp
 svg/SVGDescElement.cpp
 svg/SVGDocument.cpp
@@ -3495,7 +3504,6 @@ svg/SVGLengthList.cpp
 svg/SVGLengthValue.cpp
 svg/SVGLineElement.cpp
 svg/SVGLinearGradientElement.cpp
-svg/SVGLocatable.cpp
 svg/SVGMPathElement.cpp
 svg/SVGMarkerElement.cpp
 svg/SVGMaskElement.cpp
@@ -3544,7 +3552,6 @@ svg/SVGTitleElement.cpp
 svg/SVGToOTFFontConversion.cpp
 svg/SVGTransformDistance.cpp
 svg/SVGTransformList.cpp
-svg/SVGTransformable.cpp
 svg/SVGURIReference.cpp
 svg/SVGUnknownElement.cpp
 svg/SVGUseElement.cpp
@@ -4732,7 +4739,7 @@ JSRTCPeerConnectionState.cpp
 JSRTCPriorityType.cpp
 JSRTCRtcpParameters.cpp
 JSRTCRtpCapabilities.cpp
-JSRTCRtpCodecCapability.cpp
+JSRTCRtpCodec.cpp
 JSRTCRtpCodecParameters.cpp
 JSRTCRtpContributingSource.cpp
 JSRTCRtpEncodingParameters.cpp

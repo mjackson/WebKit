@@ -47,7 +47,7 @@ protected:
     void collectPresentationalHintsForAttribute(const QualifiedName&, const AtomString&, MutableStyleProperties&) override;
 
 private:
-    bool isHTMLTablePartElement() const final { return true; }
+    bool NODELETE isHTMLTablePartElement() const final { return true; }
 };
 
 } // namespace WebCore

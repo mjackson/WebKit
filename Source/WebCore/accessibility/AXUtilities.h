@@ -55,24 +55,27 @@ RefPtr<ContainerNode> composedParentIgnoringDocumentFragments(const Node&);
 RefPtr<ContainerNode> composedParentIgnoringDocumentFragments(const Node*);
 
 // Returns NodeName and not ElementName because it's impossible to forward declare ElementName.
-NodeName elementName(Node*);
-NodeName elementName(Node&);
+NodeName NODELETE elementName(Node*);
+NodeName NODELETE elementName(Node&);
 
 RenderImage* toSimpleImage(RenderObject&);
 
 // Returns true if the element has an attribute that will result in an accname being computed.
 // https://www.w3.org/TR/accname-1.2/
 bool hasAccNameAttribute(Element&);
+// Like hasAccNameAttribute, but only checks ARIA attributes (aria-label, aria-labelledby,
+// aria-describedby, aria-description), not the HTML title attribute.
+bool hasARIAAccNameAttribute(Element&);
 
 bool isNodeFocused(Node&);
 
 bool needsLayoutOrStyleRecalc(const Document&);
 
-bool isRenderHidden(const RenderStyle*);
+bool NODELETE isRenderHidden(const RenderStyle*);
 // Checks both CSS display properties, and CSS visibility properties.
-bool isRenderHidden(const RenderStyle&);
+bool NODELETE isRenderHidden(const RenderStyle&);
 // Only checks CSS visibility properties.
-bool isVisibilityHidden(const RenderStyle&);
+bool NODELETE isVisibilityHidden(const RenderStyle&);
 const RenderStyle* safeStyleFrom(Element&);
 
 WTF::TextStream& operator<<(WTF::TextStream&, AXNotification);
@@ -84,6 +87,6 @@ String roleToString(AccessibilityRole);
 
 std::optional<CursorType> cursorTypeFrom(const StyleProperties&);
 
-RefPtr<Node> lastNode(const FixedVector<AXID>&, AXObjectCache&);
+RefPtr<Node> lastNonAriaHiddenNode(const FixedVector<AXID>&, AXObjectCache&);
 
 } // WebCore

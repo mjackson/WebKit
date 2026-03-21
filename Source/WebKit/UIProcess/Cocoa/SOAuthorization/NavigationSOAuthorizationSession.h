@@ -34,12 +34,11 @@
 
 namespace WebKit {
 
-// When the WebView, owner of the page, is not in the window, the session will then pause
-// and later resume after the WebView being moved into the window.
-// The reason to apply the above rule to the whole session instead of UI session only is UI
-// can be shown out of process, in which case WebKit will not even get notified.
-// FSM: Idle => isInWindow => Active => Completed
-//      Idle => !isInWindow => Waiting => become isInWindow => Active => Completed
+// When the WebView, owner of the page, is not in the window, the session will proceed
+// through authorization hints and policy decision, then pause before beginning authorization.
+// It will resume after the WebView is moved into the window.
+// FSM: Idle => start() => Active => decidePolicyForSOAuthorizationLoad => isInWindow => beginAuthorization => Completed
+//      Idle => start() => Active => decidePolicyForSOAuthorizationLoad => !isInWindow => Waiting => become isInWindow => beginAuthorization => Completed
 class NavigationSOAuthorizationSession : public SOAuthorizationSession, private WebViewDidMoveToWindowObserver {
 public:
     ~NavigationSOAuthorizationSession();
@@ -57,6 +56,7 @@ protected:
 private:
     // SOAuthorizationSession
     void shouldStartInternal() final;
+    void beginAuthorizationIfReady() final;
 
     // WebViewDidMoveToWindowObserver
     void webViewDidMoveToWindow() final;

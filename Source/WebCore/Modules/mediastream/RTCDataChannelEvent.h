@@ -27,8 +27,8 @@
 
 #if ENABLE(WEB_RTC)
 
-#include <WebCore/Event.h>
-#include <WebCore/RTCDataChannel.h>
+#include "Event.h"
+#include "RTCDataChannel.h"
 #include <wtf/text/AtomString.h>
 
 namespace WebCore {

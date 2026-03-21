@@ -49,9 +49,9 @@ public:
 
     void append(const String& name, const String& value);
     void remove(const String& name, const String& value = { });
-    String get(const String& name) const;
+    String NODELETE get(const String& name) const;
     Vector<String> getAll(const String& name) const;
-    bool has(const String& name, const String& value = { }) const;
+    bool NODELETE has(const String& name, const String& value = { }) const;
     void set(const String& name, const String& value);
     String toString() const;
     void updateFromAssociatedURL();
@@ -69,7 +69,7 @@ public:
     Iterator createIterator(ScriptExecutionContext*) { return Iterator { *this }; }
 
 private:
-    const Vector<KeyValuePair<String, String>>& pairs() const { return m_pairs; }
+    const Vector<KeyValuePair<String, String>>& pairs() const LIFETIME_BOUND { return m_pairs; }
     URLSearchParams(const String&, DOMURL*);
     URLSearchParams(const Vector<KeyValuePair<String, String>>&);
     void updateURL();

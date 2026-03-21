@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <WebCore/HTMLElement.h>
+#include "HTMLElement.h"
 
 namespace WebCore {
 
@@ -42,9 +42,9 @@ public:
 private:
     explicit HTMLSelectedContentElement(Document&);
 
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) final;
-    void didFinishInsertingNode() final;
-    void removedFromAncestor(RemovalType, ContainerNode&) final;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) final;
+    void postConnectionSteps() final;
+    void removingSteps(RemovalType, ContainerNode&) final;
 
     bool m_isDisabled { false };
     WeakPtr<HTMLSelectElement, WeakPtrImplWithEventTargetData> m_owningSelect;

@@ -414,7 +414,7 @@ TEST(TLSVersion, Subresource)
     EXPECT_FALSE([webView _negotiatedLegacyTLS]);
 
     [webView goBack];
-    [delegate waitForDidFinishNavigation];
+    [observer waitUntilNegotiatedLegacyTLSChanged];
     EXPECT_TRUE([webView _negotiatedLegacyTLS]);
 
     [webView removeObserver:observer.get() forKeyPath:@"_negotiatedLegacyTLS"];

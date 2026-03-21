@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <WebCore/CSSValueList.h>
+#include "CSSValueList.h"
 
 namespace WebCore {
 

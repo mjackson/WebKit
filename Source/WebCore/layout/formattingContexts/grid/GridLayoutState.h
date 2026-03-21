@@ -25,16 +25,19 @@
 
 #pragma once
 
+#include "GridLayoutConstraints.h"
+#include "StyleContentAlignmentData.h"
+
 namespace WebCore {
 namespace Layout {
-
-struct GridLayoutConstraints;
 
 struct GridLayoutState {
     const GridLayoutConstraints gridLayoutConstraints;
     const GridDefinition gridDefinition;
     const StyleContentAlignmentData usedJustifyContent;
     const StyleContentAlignmentData usedAlignContent;
+    const LayoutUnit usedColumnGap;
+    const LayoutUnit usedRowGap;
 };
 
 } // namespace Layout

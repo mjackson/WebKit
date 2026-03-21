@@ -1416,7 +1416,20 @@ class Instruction
         when "bfiq"
             $asm.puts "bfi #{operands[3].arm64Operand(:quad)}, #{operands[0].arm64Operand(:quad)}, #{operands[1].value}, #{operands[2].value}"
         when "pcrtoaddr"
-            $asm.puts "adr #{operands[1].arm64Operand(:quad)}, #{operands[0].value}"
+            labelRef = operands[0]
+            register = operands[1].arm64Operand(:quad)
+            if labelRef.externOrGlobal?
+                $asm.putStr("#if OS(DARWIN)")
+                $asm.puts "adrp #{register}, #{labelRef.asmLabel}@PAGE"
+                $asm.puts "add #{register}, #{register}, #{labelRef.asmLabel}@PAGEOFF"
+                $asm.putStr("#else")
+                $asm.puts "adrp #{register}, #{labelRef.asmLabel}"
+                $asm.puts "add #{register}, #{register}, :lo12:#{labelRef.asmLabel}"
+                $asm.putStr("#endif")
+            else
+                $asm.puts "adr #{register}, #{labelRef.value}"
+            end
+
         when "globaladdr"
             uid = $asm.newUID
 

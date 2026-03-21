@@ -50,10 +50,10 @@ namespace WebKit {
 using TextExtractionVersion = unsigned;
 
 enum class TextExtractionOptionFlag : uint8_t {
-    IncludeURLs     = 1 << 0,
-    IncludeRects    = 1 << 1,
-    OnlyIncludeText = 1 << 2,
-    ShortenURLs     = 1 << 3,
+    IncludeURLs          = 1 << 0,
+    IncludeRects         = 1 << 1,
+    ShortenURLs          = 1 << 2,
+    IncludeSelectOptions = 1 << 3,
 };
 
 enum class TextExtractionOutputFormat : uint8_t {
@@ -61,6 +61,7 @@ enum class TextExtractionOutputFormat : uint8_t {
     HTMLMarkup,
     Markdown,
     MinifiedJSON,
+    PlainText,
 };
 
 using TextExtractionOptionFlags = OptionSet<TextExtractionOptionFlag>;
@@ -74,18 +75,20 @@ struct TextExtractionOptions {
         , nativeMenuItems(WTF::move(other.nativeMenuItems))
         , replacementStrings(WTF::move(other.replacementStrings))
         , version(other.version)
+        , maxWordsPerParagraph(other.maxWordsPerParagraph)
         , flags(other.flags)
         , outputFormat(other.outputFormat)
         , urlCache(WTF::move(other.urlCache))
     {
     }
 
-    TextExtractionOptions(WebCore::FrameIdentifier&& mainFrameIdentifier, Vector<TextExtractionFilterCallback>&& filters, Vector<String>&& items, HashMap<String, String>&& replacementStrings, std::optional<TextExtractionVersion> version, TextExtractionOptionFlags flags, TextExtractionOutputFormat outputFormat, TextExtractionURLCache* urlCache = nullptr)
+    TextExtractionOptions(WebCore::FrameIdentifier&& mainFrameIdentifier, Vector<TextExtractionFilterCallback>&& filters, Vector<String>&& items, HashMap<String, String>&& replacementStrings, std::optional<TextExtractionVersion> version, TextExtractionOptionFlags flags, TextExtractionOutputFormat outputFormat, TextExtractionURLCache* urlCache = nullptr, std::optional<uint64_t> maxWordsPerParagraph = std::nullopt)
         : mainFrameIdentifier(WTF::move(mainFrameIdentifier))
         , filterCallbacks(WTF::move(filters))
         , nativeMenuItems(WTF::move(items))
         , replacementStrings(WTF::move(replacementStrings))
         , version(version)
+        , maxWordsPerParagraph(maxWordsPerParagraph)
         , flags(flags)
         , outputFormat(outputFormat)
         , urlCache(urlCache)
@@ -97,6 +100,7 @@ struct TextExtractionOptions {
     Vector<String> nativeMenuItems;
     HashMap<String, String> replacementStrings;
     std::optional<TextExtractionVersion> version;
+    std::optional<uint64_t> maxWordsPerParagraph;
     TextExtractionOptionFlags flags;
     TextExtractionOutputFormat outputFormat { TextExtractionOutputFormat::TextTree };
     RefPtr<TextExtractionURLCache> urlCache;

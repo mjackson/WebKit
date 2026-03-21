@@ -342,7 +342,11 @@ Value BBQJIT::instanceValue()
 
 [[nodiscard]] PartialResult BBQJIT::load(LoadOpType loadOp, Value pointer, Value& result, uint64_t uoffset)
 {
-    if (sumOverflows<uint32_t>(uoffset, sizeOfLoadOp(loadOp))) [[unlikely]] {
+    bool offsetAndSizeOverflows = m_info.theOnlyMemory().isMemory64()
+        ? sumOverflows<uint64_t>(uoffset, sizeOfLoadOp(loadOp))
+        : sumOverflows<uint32_t>(uoffset, sizeOfLoadOp(loadOp));
+
+    if (offsetAndSizeOverflows) [[unlikely]] {
         // FIXME: Same issue as in AirIRGenerator::load(): https://bugs.webkit.org/show_bug.cgi?id=166435
         emitThrowException(ExceptionType::OutOfBoundsMemoryAccess);
         consume(pointer);
@@ -435,7 +439,11 @@ Value BBQJIT::instanceValue()
 [[nodiscard]] PartialResult BBQJIT::store(StoreOpType storeOp, Value pointer, Value value, uint64_t uoffset)
 {
     Location valueLocation = locationOf(value);
-    if (sumOverflows<uint32_t>(uoffset, sizeOfStoreOp(storeOp))) [[unlikely]] {
+    bool offsetAndSizeOverflows = m_info.theOnlyMemory().isMemory64()
+        ? sumOverflows<uint64_t>(uoffset, sizeOfStoreOp(storeOp))
+        : sumOverflows<uint32_t>(uoffset, sizeOfStoreOp(storeOp));
+
+    if (offsetAndSizeOverflows) [[unlikely]] {
         // FIXME: Same issue as in AirIRGenerator::load(): https://bugs.webkit.org/show_bug.cgi?id=166435
         emitThrowException(ExceptionType::OutOfBoundsMemoryAccess);
         consume(pointer);
@@ -3518,17 +3526,29 @@ void NODELETE BBQJIT::notifyFunctionUsesSIMD()
     LOG_INSTRUCTION("Vector", op, src, srcLocation, shift, shiftLocation, RESULT(result));
 
 #if CPU(ARM64)
-    m_jit.and32(Imm32(mask), shiftLocation.asGPR(), wasmScratchGPR);
-    if (op == SIMDLaneOperation::Shr) {
-        // ARM64 doesn't have a version of this instruction for right shift. Instead, if the input to
-        // left shift is negative, it's a right shift by the absolute value of that amount.
-        m_jit.neg32(wasmScratchGPR);
+    if (shift.isConst()) {
+        int32_t shiftImm = shift.asI32() & mask;
+        if (!shiftImm)
+            m_jit.moveVector(srcLocation.asFPR(), resultLocation.asFPR());
+        else if (op == SIMDLaneOperation::Shl)
+            m_jit.vectorShl8(info, srcLocation.asFPR(), TrustedImm32(shiftImm), resultLocation.asFPR());
+        else if (info.signMode == SIMDSignMode::Signed)
+            m_jit.vectorSshr8(info, srcLocation.asFPR(), TrustedImm32(shiftImm), resultLocation.asFPR());
+        else
+            m_jit.vectorUshr8(info, srcLocation.asFPR(), TrustedImm32(shiftImm), resultLocation.asFPR());
+    } else {
+        m_jit.and32(Imm32(mask), shiftLocation.asGPR(), wasmScratchGPR);
+        if (op == SIMDLaneOperation::Shr) {
+            // ARM64 doesn't have a version of this instruction for right shift. Instead, if the input to
+            // left shift is negative, it's a right shift by the absolute value of that amount.
+            m_jit.neg32(wasmScratchGPR);
+        }
+        m_jit.vectorSplatInt8(wasmScratchGPR, wasmScratchFPR);
+        if (info.signMode == SIMDSignMode::Signed)
+            m_jit.vectorSshl(info, srcLocation.asFPR(), wasmScratchFPR, resultLocation.asFPR());
+        else
+            m_jit.vectorUshl(info, srcLocation.asFPR(), wasmScratchFPR, resultLocation.asFPR());
     }
-    m_jit.vectorSplatInt8(wasmScratchGPR, wasmScratchFPR);
-    if (info.signMode == SIMDSignMode::Signed)
-        m_jit.vectorSshl(info, srcLocation.asFPR(), wasmScratchFPR, resultLocation.asFPR());
-    else
-        m_jit.vectorUshl(info, srcLocation.asFPR(), wasmScratchFPR, resultLocation.asFPR());
 #else
     ASSERT(isX86());
     m_jit.move(shiftLocation.asGPR(), wasmScratchGPR);
@@ -3819,7 +3839,7 @@ void BBQJIT::materializeVectorConstant(v128_t value, Location result)
     m_jit.move128ToVector(value, result.asFPR());
 }
 
-[[nodiscard]] ExpressionType BBQJIT::addConstant(v128_t value)
+[[nodiscard]] ExpressionType BBQJIT::addSIMDConstant(v128_t value)
 {
     // We currently don't track constant Values for V128s, since folding them seems like a lot of work that might not be worth it.
     // Maybe we can look into this eventually?
@@ -3832,7 +3852,7 @@ void BBQJIT::materializeVectorConstant(v128_t value, Location result)
 
 // SIMD generated
 
-[[nodiscard]] PartialResult BBQJIT::addExtractLane(SIMDInfo info, uint8_t lane, Value value, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addSIMDExtractLane(SIMDInfo info, uint8_t lane, Value value, Value& result)
 {
     Location valueLocation = loadIfNecessary(value);
     consume(value);
@@ -3848,7 +3868,7 @@ void BBQJIT::materializeVectorConstant(v128_t value, Location result)
     return { };
 }
 
-[[nodiscard]] PartialResult BBQJIT::addReplaceLane(SIMDInfo info, uint8_t lane, ExpressionType vector, ExpressionType scalar, ExpressionType& result)
+[[nodiscard]] PartialResult BBQJIT::addSIMDReplaceLane(SIMDInfo info, uint8_t lane, ExpressionType vector, ExpressionType scalar, ExpressionType& result)
 {
     Location vectorLocation = loadIfNecessary(vector);
     Location scalarLocation;
@@ -3934,7 +3954,7 @@ void BBQJIT::materializeVectorConstant(v128_t value, Location result)
 
             if (info.lane == SIMDLane::i8x16) {
                 m_jit.vectorExtractPair(SIMDInfo { SIMDLane::i8x16, SIMDSignMode::None }, TrustedImm32(8), scratches.fpr(0), scratches.fpr(0), wasmScratchFPR);
-                m_jit.vectorZipUpper(SIMDInfo { SIMDLane::i8x16, SIMDSignMode::None }, scratches.fpr(0), wasmScratchFPR, scratches.fpr(0));
+                m_jit.vectorZipLower(SIMDInfo { SIMDLane::i8x16, SIMDSignMode::None }, scratches.fpr(0), wasmScratchFPR, scratches.fpr(0));
                 info.lane = SIMDLane::i16x8;
             }
 

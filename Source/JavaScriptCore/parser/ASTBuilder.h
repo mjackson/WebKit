@@ -388,6 +388,8 @@ public:
             metadata->setEcmaName(ident);
         } else if (rhs->isClassExprNode())
             static_cast<ClassExprNode*>(rhs)->setEcmaName(ident);
+        if (assignmentContext == AssignmentContext::AwaitUsingDeclarationStatement)
+            usesAwait();
         AssignResolveNode* node = new (m_parserArena) AssignResolveNode(location, ident, rhs, assignmentContext);
         setExceptionLocation(node, start, divot, end);
         return node;
@@ -1067,6 +1069,8 @@ public:
 
     BindingPattern createBindingLocation(const JSTokenLocation&, const Identifier& boundProperty, const JSTextPosition& start, const JSTextPosition& end, AssignmentContext context)
     {
+        if (context == AssignmentContext::AwaitUsingDeclarationStatement)
+            usesAwait();
         return new (m_parserArena) BindingNode(boundProperty, start, end, context);
     }
 

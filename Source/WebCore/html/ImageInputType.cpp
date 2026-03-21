@@ -125,7 +125,7 @@ void ImageInputType::attributeChanged(const QualifiedName& name)
     } else if (name == srcAttr) {
         if (RefPtr element = this->element()) {
             if (element->renderer())
-                element->ensureProtectedImageLoader()->updateFromElementIgnoringPreviousError();
+                protect(element->ensureImageLoader())->updateFromElementIgnoringPreviousError();
         }
     }
     BaseButtonInputType::attributeChanged(name);
@@ -188,7 +188,7 @@ unsigned ImageInputType::height() const
     // If the image is available, use its height.
     RefPtr imageLoader = element->imageLoader();
     if (imageLoader && imageLoader->image())
-        return imageLoader->image()->imageSizeForRenderer(renderer.get(), 1).height().toUnsigned();
+        return protect(imageLoader->image())->imageSizeForRenderer(renderer.get(), 1).height().toUnsigned();
 
     return 0;
 }
@@ -211,7 +211,7 @@ unsigned ImageInputType::width() const
     // If the image is available, use its width.
     RefPtr imageLoader = element->imageLoader();
     if (imageLoader && imageLoader->image())
-        return imageLoader->image()->imageSizeForRenderer(renderer.get(), 1).width().toUnsigned();
+        return protect(imageLoader->image())->imageSizeForRenderer(renderer.get(), 1).width().toUnsigned();
 
     return 0;
 }

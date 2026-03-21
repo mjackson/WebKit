@@ -215,7 +215,6 @@ TestWebKitAPI.AffineTransform
 TestWebKitAPI.AnimatedResize
 TestWebKitAPI.AnimationFrameRate
 TestWebKitAPI.ApduTest
-TestWebKitAPI.AppHighlights
 TestWebKitAPI.AppleLanguagesTest
 TestWebKitAPI.ApplePay
 TestWebKitAPI.ApplicationManifestParserTest
@@ -232,7 +231,6 @@ TestWebKitAPI.AudioStreamDescriptionCocoa/EachSampleTypeTest/1
 TestWebKitAPI.AudioStreamDescriptionCocoa/EachSampleTypeTest/2
 TestWebKitAPI.AudioStreamDescriptionCocoa/EachSampleTypeTest/3
 TestWebKitAPI.AutocorrectionTests
-TestWebKitAPI.Badging
 TestWebKitAPI.BifurcatedGraphicsContextTests
 TestWebKitAPI.CARingBufferTest
 TestWebKitAPI.CBORReaderTest
@@ -242,7 +240,6 @@ TestWebKitAPI.CSSParser
 TestWebKitAPI.CSSParserFastPaths
 TestWebKitAPI.CSSPropertyParser
 TestWebKitAPI.CSSTokenizerTest
-TestWebKitAPI.CSSViewportUnits
 TestWebKitAPI.CTAPRequestTest
 TestWebKitAPI.CTAPResponseTest
 TestWebKitAPI.CancelLoading
@@ -267,7 +264,6 @@ TestWebKitAPI.DatabaseTracker
 TestWebKitAPI.DateInputTests
 TestWebKitAPI.Decimal
 TestWebKitAPI.DeviceOrientation
-TestWebKitAPI.DeviceScaleFactorOnBack
 TestWebKitAPI.DisableAutomaticSpellingCorrection
 TestWebKitAPI.DisplayListRecorderTest/DisplayListRecorderResultStateTest/0
 TestWebKitAPI.DisplayListRecorderTest/DisplayListRecorderResultStateTest/1
@@ -313,7 +309,6 @@ TestWebKitAPI.GridPositionTest
 TestWebKitAPI.HTTPHeaderField
 TestWebKitAPI.HTTPHeaderMap
 TestWebKitAPI.HTTPParsers
-TestWebKitAPI.HistoryDelegate
 TestWebKitAPI.HysteresisActivity
 TestWebKitAPI.IOSurfacePoolTest
 TestWebKitAPI.IOSurfaceTest
@@ -365,7 +360,6 @@ TestWebKitAPI.PAL
 TestWebKitAPI.PDFSnapshot
 TestWebKitAPI.ParsedContentType
 TestWebKitAPI.Path
-TestWebKitAPI.PermissionsAPI
 TestWebKitAPI.PlatformCAAnimation
 TestWebKitAPI.PlatformDynamicRangeLimit
 TestWebKitAPI.PreferredContentMode
@@ -390,7 +384,6 @@ TestWebKitAPI.SOAuthorizationPopUp
 TestWebKitAPI.STUNMessageParsing
 TestWebKitAPI.SVGImageCasts
 TestWebKitAPI.SampleMapTest
-TestWebKitAPI.ScrollbarTests
 TestWebKitAPI.ScrollbarWidthCrash
 TestWebKitAPI.ScrollingCoordinatorTests
 TestWebKitAPI.SecurityOriginTest
@@ -441,7 +434,6 @@ TestWebKitAPI.WKPreferencesPrivate
 TestWebKitAPI.WKProcessPoolConfiguration
 TestWebKitAPI.WKScrollGeometry
 TestWebKitAPI.WKScrollViewTests
-TestWebKitAPI.WKUserContentController
 TestWebKitAPI.WKWebExtension
 TestWebKitAPI.WKWebExtensionAPIAlarms
 TestWebKitAPI.WKWebExtensionAPICommands

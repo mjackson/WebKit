@@ -56,6 +56,7 @@
 #include "NodeInlines.h"
 #include "NodeName.h"
 #include "NodeTraversal.h"
+#include "Page.h"
 #include "PlatformMouseEvent.h"
 #include "RenderBoxInlines.h"
 #include "RenderElementStyleInlines.h"
@@ -306,11 +307,21 @@ ImageCandidate HTMLImageElement::bestFitSourceFromPictureElement()
         if (!result)
             continue;
 
-        SizesAttributeParser sizesParser(source->attributeWithoutSynchronization(sizesAttr).string(), document.get());
+        // Per the spec, if the source has no sizes attribute, use the img's sizes attribute.
+        auto& sourceSizesAttr = source->attributeWithoutSynchronization(sizesAttr);
+        auto sizesString = sourceSizesAttr.isNull() ? attributeWithoutSynchronization(sizesAttr).string() : sourceSizesAttr.string();
+        SizesAttributeParser sizesParser(sizesString, document.get());
 
         m_dynamicMediaQueryResults.appendVector(sizesParser.dynamicMediaQueryResults());
 
-        auto sourceSize = sizesParser.effectiveSize();
+        float sourceSize;
+        if (sizesParser.isAuto() && isLazyLoadable()) {
+            if (auto layoutWidth = autoSizesLayoutWidth())
+                sourceSize = *layoutWidth;
+            else
+                sourceSize = sizesParser.effectiveSize();
+        } else
+            sourceSize = sizesParser.effectiveSize();
 
         candidate = bestFitSourceForImageAttributes(document->deviceScaleFactor(), nullAtom(), srcset, sourceSize, [&](auto& candidate) {
             return m_imageLoader->shouldIgnoreCandidateWhenLoadingFromArchive(candidate);
@@ -371,7 +382,14 @@ void HTMLImageElement::selectImageSource(RelevantMutation relevantMutation)
             // If we don't have a <picture> or didn't find a source, then we use our own attributes.
             SizesAttributeParser sizesParser(attributeWithoutSynchronization(sizesAttr).string(), document.get());
             m_dynamicMediaQueryResults.appendVector(sizesParser.dynamicMediaQueryResults());
-            auto sourceSize = sizesParser.effectiveSize();
+            float sourceSize;
+            if (sizesParser.isAuto() && isLazyLoadable()) {
+                if (auto layoutWidth = autoSizesLayoutWidth())
+                    sourceSize = *layoutWidth;
+                else
+                    sourceSize = sizesParser.effectiveSize();
+            } else
+                sourceSize = sizesParser.effectiveSize();
             candidate = bestFitSourceForImageAttributes(document->deviceScaleFactor(), srcAttribute, srcsetAttribute, sourceSize, [&](auto& candidate) {
                 return m_imageLoader->shouldIgnoreCandidateWhenLoadingFromArchive(candidate);
             });
@@ -387,6 +405,28 @@ void HTMLImageElement::selectImageSource(RelevantMutation relevantMutation)
 bool HTMLImageElement::hasLazyLoadableAttributeValue(StringView attributeValue)
 {
     return equalLettersIgnoringASCIICase(attributeValue, "lazy"_s);
+}
+
+bool HTMLImageElement::hasAutoSizesAttributeValue(StringView attributeValue)
+{
+    return attributeValue.startsWithIgnoringASCIICase("auto"_s) && (attributeValue.length() == 4 || attributeValue[4] == ',');
+}
+
+bool HTMLImageElement::hasAutoSizes() const
+{
+    return hasAutoSizesAttributeValue(attributeWithoutSynchronization(sizesAttr));
+}
+
+void HTMLImageElement::scheduleAutoSizesResolution()
+{
+    ASSERT(hasAutoSizes());
+    // Defer source selection to avoid mutating the render tree during layout.
+    protect(protect(document())->eventLoop())->queueTask(TaskSource::DOMManipulation, [weakThis = WeakPtr { *this }] {
+        RefPtr protectedThis = weakThis.get();
+        if (!protectedThis)
+            return;
+        protectedThis->selectImageSource(RelevantMutation::No);
+    });
 }
 
 void HTMLImageElement::attributeChanged(const QualifiedName& name, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason attributeModificationReason)
@@ -462,7 +502,17 @@ void HTMLImageElement::attributeChanged(const QualifiedName& name, const AtomStr
 
 void HTMLImageElement::loadDeferredImage()
 {
+    if (hasAutoSizes())
+        selectImageSource(RelevantMutation::No);
     m_imageLoader->loadDeferredImage();
+}
+
+std::optional<float> HTMLImageElement::autoSizesLayoutWidth() const
+{
+    CheckedPtr box = renderBox();
+    if (!box)
+        return { };
+    return box->contentBoxWidth().toFloat();
 }
 
 const AtomString& HTMLImageElement::altText() const
@@ -526,7 +576,7 @@ void HTMLImageElement::didAttachRenderers()
         renderImage->setImageSizeForAltText();
 }
 
-Node::InsertedIntoAncestorResult HTMLImageElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps HTMLImageElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
     FormAssociatedElement::elementInsertedIntoAncestor(*this, insertionType);
     if (!form())
@@ -534,7 +584,7 @@ Node::InsertedIntoAncestorResult HTMLImageElement::insertedIntoAncestor(Insertio
 
     // Insert needs to complete first, before we start updating the loader. Loader dispatches events which could result
     // in callbacks back to this node.
-    Node::InsertedIntoAncestorResult insertNotificationRequest = HTMLElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    Node::NeedsPostConnectionSteps insertNotificationRequest = HTMLElement::insertionSteps(insertionType, parentOfInsertedTree);
 
     if (insertionType.treeScopeChanged && !m_parsedUsemap.isNull())
         protect(treeScope())->addImageElementByUsemap(m_parsedUsemap, *this);
@@ -555,7 +605,7 @@ Node::InsertedIntoAncestorResult HTMLImageElement::insertedIntoAncestor(Insertio
     return insertNotificationRequest;
 }
 
-void HTMLImageElement::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+void HTMLImageElement::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
     if (removalType.treeScopeChanged && !m_parsedUsemap.isNull())
         protect(oldParentOfRemovedTree.treeScope())->removeImageElementByUsemap(m_parsedUsemap, *this);
@@ -566,7 +616,7 @@ void HTMLImageElement::removedFromAncestor(RemovalType removalType, ContainerNod
         selectImageSource(RelevantMutation::Yes);
     }
 
-    HTMLElement::removedFromAncestor(removalType, oldParentOfRemovedTree);
+    HTMLElement::removingSteps(removalType, oldParentOfRemovedTree);
     FormAssociatedElement::elementRemovedFromAncestor(*this, removalType);
 }
 
@@ -592,8 +642,8 @@ unsigned HTMLImageElement::width()
             return optionalWidth.value();
 
         // if the image is available, use its width
-        if (m_imageLoader->image())
-            return m_imageLoader->image()->imageSizeForRenderer(nullptr, 1.0f).width().toUnsigned();
+        if (RefPtr image = m_imageLoader->image())
+            return image->imageSizeForRenderer(nullptr, 1.0f).width().toUnsigned();
     }
 
     CheckedPtr box = renderBox();
@@ -615,8 +665,8 @@ unsigned HTMLImageElement::height()
             return optionalHeight.value();
 
         // if the image is available, use its height
-        if (m_imageLoader->image())
-            return m_imageLoader->image()->imageSizeForRenderer(nullptr, 1.0f).height().toUnsigned();
+        if (RefPtr image = m_imageLoader->image())
+            return image->imageSizeForRenderer(nullptr, 1.0f).height().toUnsigned();
     }
 
     CheckedPtr box = renderBox();
@@ -628,10 +678,11 @@ unsigned HTMLImageElement::height()
 
 float HTMLImageElement::effectiveImageDevicePixelRatio() const
 {
-    if (!m_imageLoader->image())
+    RefPtr cachedImage = m_imageLoader->image();
+    if (!cachedImage)
         return 1.0f;
 
-    RefPtr image = m_imageLoader->image()->image();
+    RefPtr image = cachedImage->image();
     if (image && image->drawsSVGImage())
         return 1.0f;
 
@@ -640,18 +691,14 @@ float HTMLImageElement::effectiveImageDevicePixelRatio() const
 
 unsigned HTMLImageElement::naturalWidth() const
 {
-    if (!m_imageLoader->image())
-        return 0;
-
-    return m_imageLoader->image()->unclampedImageSizeForRenderer(protect(renderer()).get(), effectiveImageDevicePixelRatio()).width().toUnsigned();
+    RefPtr image = m_imageLoader->image();
+    return image ? image->unclampedImageSizeForRenderer(protect(renderer()).get(), effectiveImageDevicePixelRatio()).width().toUnsigned() : 0;
 }
 
 unsigned HTMLImageElement::naturalHeight() const
 {
-    if (!m_imageLoader->image())
-        return 0;
-
-    return m_imageLoader->image()->unclampedImageSizeForRenderer(protect(renderer()).get(), effectiveImageDevicePixelRatio()).height().toUnsigned();
+    RefPtr image = m_imageLoader->image();
+    return image ? image->unclampedImageSizeForRenderer(protect(renderer()).get(), effectiveImageDevicePixelRatio()).height().toUnsigned() : 0;
 }
 
 bool HTMLImageElement::isURLAttribute(const Attribute& attribute) const
@@ -813,8 +860,8 @@ void HTMLImageElement::didMoveToNewDocument(Document& oldDocument, Document& new
     ActiveDOMObject::didMoveToNewDocument(newDocument);
     oldDocument.removeDynamicMediaQueryDependentImage(*this);
 
-    selectImageSource(RelevantMutation::No);
     m_imageLoader->elementDidMoveToNewDocument(oldDocument);
+    selectImageSource(RelevantMutation::No);
     HTMLElement::didMoveToNewDocument(oldDocument, newDocument);
     if (RefPtr element = pictureElement())
         element->sourcesChanged();
@@ -848,7 +895,7 @@ bool HTMLImageElement::allowsOrientationOverride() const
 
 Image* HTMLImageElement::image() const
 {
-    if (auto* cachedImage = this->cachedImage())
+    if (RefPtr cachedImage = this->cachedImage())
         return cachedImage->image();
     return nullptr;
 }
@@ -1053,7 +1100,7 @@ bool HTMLImageElement::originClean(const SecurityOrigin& origin) const
 {
     UNUSED_PARAM(origin);
 
-    auto* cachedImage = this->cachedImage();
+    RefPtr cachedImage = this->cachedImage();
     if (!cachedImage)
         return true;
 

@@ -25,6 +25,7 @@
 #include "Document.h"
 #include "ElementInlines.h"
 #include "Event.h"
+#include "EventTargetInlines.h"
 #include "NodeInlines.h"
 #include "ScriptElement.h"
 #include <wtf/TZoneMallocInlines.h>
@@ -37,14 +38,15 @@ inline SVGScriptElement::SVGScriptElement(const QualifiedName& tagName, Document
     : SVGElement(tagName, document, makeUniqueRef<PropertyRegistry>(*this))
     , SVGURIReference(this)
     , ScriptElement(*this, wasInsertedByParser, alreadyStarted)
-    , m_loadEventTimer(*this, &SVGElement::loadEventTimerFired)
 {
     ASSERT(hasTagName(SVGNames::scriptTag));
 }
 
-Ref<SVGScriptElement> SVGScriptElement::create(const QualifiedName& tagName, Document& document, bool insertedByParser)
+Ref<SVGScriptElement> SVGScriptElement::create(const QualifiedName& tagName, Document& document, bool wasInsertedByParser, bool alreadyStarted)
 {
-    return adoptRef(*new SVGScriptElement(tagName, document, insertedByParser, false));
+    Ref scriptElement = adoptRef(*new SVGScriptElement(tagName, document, wasInsertedByParser, alreadyStarted));
+    scriptElement->suspendIfNeeded();
+    return scriptElement;
 }
 
 void SVGScriptElement::attributeChanged(const QualifiedName& name, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason attributeModificationReason)
@@ -78,16 +80,16 @@ void SVGScriptElement::svgAttributeChanged(const QualifiedName& attrName)
     SVGElement::svgAttributeChanged(attrName);
 }
 
-Node::InsertedIntoAncestorResult SVGScriptElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps SVGScriptElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    auto result1 = SVGElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
-    auto result2 = ScriptElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
-    return result1 == InsertedIntoAncestorResult::NeedsPostInsertionCallback ? result1 : result2;
+    auto result1 = SVGElement::insertionSteps(insertionType, parentOfInsertedTree);
+    auto result2 = ScriptElement::insertionSteps(insertionType, parentOfInsertedTree);
+    return result1 == NeedsPostConnectionSteps::Yes ? result1 : result2;
 }
 
-void SVGScriptElement::didFinishInsertingNode()
+void SVGScriptElement::postConnectionSteps()
 {
-    ScriptElement::didFinishInsertingNode();
+    ScriptElement::postConnectionSteps();
 }
 
 void SVGScriptElement::childrenChanged(const ChildChange& change)
@@ -102,6 +104,11 @@ void SVGScriptElement::finishParsingChildren()
     ScriptElement::finishParsingChildren();
 }
 
+bool SVGScriptElement::isURLAttribute(const Attribute& attribute) const
+{
+    return SVGURIReference::isKnownAttribute(attribute.name()) || SVGElement::isURLAttribute(attribute);
+}
+
 void SVGScriptElement::addSubresourceAttributeURLs(ListHashSet<URL>& urls) const
 {
     SVGElement::addSubresourceAttributeURLs(urls);
@@ -110,13 +117,32 @@ void SVGScriptElement::addSubresourceAttributeURLs(ListHashSet<URL>& urls) const
 }
 Ref<Element> SVGScriptElement::cloneElementWithoutAttributesAndChildren(Document& document, CustomElementRegistry*) const
 {
-    return adoptRef(*new SVGScriptElement(tagQName(), document, false, alreadyStarted()));
+    return SVGScriptElement::create(tagQName(), document, false, alreadyStarted());
+}
+
+void SVGScriptElement::dispatchLoadEvent()
+{
+    // Keep the JS wrapper alive until the end of this method.
+    Ref wrapperProtector = makePendingActivity(*this);
+
+    SVGURIReference::dispatchLoadEvent();
 }
 
 void SVGScriptElement::dispatchErrorEvent()
 {
     setErrorOccurred(true);
     ScriptElement::dispatchErrorEvent();
+}
+
+void SVGScriptElement::didMoveToNewDocument(Document& oldDocument, Document& newDocument)
+{
+    SVGElement::didMoveToNewDocument(oldDocument, newDocument);
+    ScriptElement::didMoveToNewDocument(newDocument);
+}
+
+void SVGScriptElement::eventListenersDidChange()
+{
+    setHasRelevantLoadEventsListener(hasEventListeners(eventNames().errorEvent) || hasEventListeners(eventNames().loadEvent));
 }
 
 }

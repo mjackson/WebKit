@@ -73,6 +73,7 @@ struct State {
     int thumbLength { 0 };
     IntRect frameRect;
     double opacity { 1 };
+    std::optional<ScrollbarColor> scrollbarColor;
 };
 
 void paint(GraphicsContext&, const IntRect&, const State&);

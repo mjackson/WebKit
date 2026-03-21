@@ -66,7 +66,7 @@ private:
         ASSERT(m_type->is<FunctionSignature>());
     }
 
-    Ref<const TypeDefinition> m_type;
+    const Ref<const TypeDefinition> m_type;
 };
 
 } } // namespace JSC::Wasm

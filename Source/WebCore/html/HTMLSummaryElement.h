@@ -40,7 +40,7 @@ private:
 
     void defaultEventHandler(Event&) final;
 
-    bool hasCustomFocusLogic() const final { return true; }
+    bool NODELETE hasCustomFocusLogic() const final { return true; }
 
     RefPtr<HTMLDetailsElement> detailsElement() const;
 

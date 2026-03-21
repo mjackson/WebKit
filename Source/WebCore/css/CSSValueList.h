@@ -62,7 +62,7 @@ public:
     iterator end() const LIFETIME_BOUND { return { this, size() }; }
 
     bool hasValue(CSSValue&) const;
-    bool hasValue(CSSValueID) const;
+    bool NODELETE hasValue(CSSValueID) const;
 
     void serializeItems(StringBuilder&, const CSS::SerializationContext&) const;
     String serializeItems(const CSS::SerializationContext&) const;
@@ -80,7 +80,6 @@ public:
     // Consider removing these functions and having callers use size() and operator[] instead.
     unsigned length() const { return size(); }
     const CSSValue* item(unsigned index) const LIFETIME_BOUND { return index < size() ? &(*this)[index] : nullptr; }
-    RefPtr<const CSSValue> protectedItem(unsigned index) const { return item(index); }
     const CSSValue* itemWithoutBoundsCheck(unsigned index) const LIFETIME_BOUND { return &(*this)[index]; }
 
     IterationStatus customVisitChildren(NOESCAPE const Function<IterationStatus(CSSValue&)>&) const;
@@ -110,18 +109,18 @@ public:
     static Ref<CSSValueList> create(char16_t separator, CSSValueListBuilder);
 
     static Ref<CSSValueList> createCommaSeparated(CSSValueListBuilder);
-    static Ref<CSSValueList> createCommaSeparated(Ref<CSSValue>); // FIXME: Upgrade callers to not use a list at all.
+    static Ref<CSSValueList> NODELETE createCommaSeparated(Ref<CSSValue>); // FIXME: Upgrade callers to not use a list at all.
 
     static Ref<CSSValueList> createSpaceSeparated(CSSValueListBuilder);
-    static Ref<CSSValueList> createSpaceSeparated(); // FIXME: Get rid of the caller that needs to create an empty list.
-    static Ref<CSSValueList> createSpaceSeparated(Ref<CSSValue>); // FIXME: Upgrade callers to not use a list at all.
-    static Ref<CSSValueList> createSpaceSeparated(Ref<CSSValue>, Ref<CSSValue>);
-    static Ref<CSSValueList> createSpaceSeparated(Ref<CSSValue>, Ref<CSSValue>, Ref<CSSValue>);
-    static Ref<CSSValueList> createSpaceSeparated(Ref<CSSValue>, Ref<CSSValue>, Ref<CSSValue>, Ref<CSSValue>);
+    static Ref<CSSValueList> NODELETE createSpaceSeparated(); // FIXME: Get rid of the caller that needs to create an empty list.
+    static Ref<CSSValueList> NODELETE createSpaceSeparated(Ref<CSSValue>); // FIXME: Upgrade callers to not use a list at all.
+    static Ref<CSSValueList> NODELETE createSpaceSeparated(Ref<CSSValue>, Ref<CSSValue>);
+    static Ref<CSSValueList> NODELETE createSpaceSeparated(Ref<CSSValue>, Ref<CSSValue>, Ref<CSSValue>);
+    static Ref<CSSValueList> NODELETE createSpaceSeparated(Ref<CSSValue>, Ref<CSSValue>, Ref<CSSValue>, Ref<CSSValue>);
 
     static Ref<CSSValueList> createSlashSeparated(CSSValueListBuilder);
-    static Ref<CSSValueList> createSlashSeparated(Ref<CSSValue>); // FIXME: Upgrade callers to not use a list at all.
-    static Ref<CSSValueList> createSlashSeparated(Ref<CSSValue>, Ref<CSSValue>);
+    static Ref<CSSValueList> NODELETE createSlashSeparated(Ref<CSSValue>); // FIXME: Upgrade callers to not use a list at all.
+    static Ref<CSSValueList> NODELETE createSlashSeparated(Ref<CSSValue>, Ref<CSSValue>);
 
     String customCSSText(const CSS::SerializationContext&) const;
     bool equals(const CSSValueList&) const;

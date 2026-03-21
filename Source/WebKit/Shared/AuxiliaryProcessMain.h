@@ -88,7 +88,7 @@ public:
 
     void initializeAuxiliaryProcess(AuxiliaryProcessInitializationParameters&& parameters) override
     {
-        m_process = adoptRef(new AuxiliaryProcessType(WTF::move(parameters)));
+        m_process = AuxiliaryProcessType::create(WTF::move(parameters));
     }
 
 protected:

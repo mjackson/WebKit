@@ -135,10 +135,10 @@ void DateTimeLocalInputType::setupLayoutParameters(DateTimeEditElement::LayoutPa
     layoutParameters.shouldHaveMillisecondField = shouldHaveMillisecondField(date);
 
     if (layoutParameters.shouldHaveMillisecondField || shouldHaveSecondField(date)) {
-        layoutParameters.dateTimeFormat = layoutParameters.locale.dateTimeFormatWithSeconds();
+        layoutParameters.dateTimeFormat = layoutParameters.locale->dateTimeFormatWithSeconds();
         layoutParameters.fallbackDateTimeFormat = "yyyy-MM-dd'T'HH:mm:ss"_s;
     } else {
-        layoutParameters.dateTimeFormat = layoutParameters.locale.dateTimeFormatWithoutSeconds();
+        layoutParameters.dateTimeFormat = layoutParameters.locale->dateTimeFormatWithoutSeconds();
         layoutParameters.fallbackDateTimeFormat = "yyyy-MM-dd'T'HH:mm"_s;
     }
 }

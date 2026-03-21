@@ -36,7 +36,7 @@
 namespace WebCore {
 namespace Layout {
 
-static bool isBoxEligibleForNonLineBuilderMinimumWidth(const ElementBox& box)
+static bool NODELETE isBoxEligibleForNonLineBuilderMinimumWidth(const ElementBox& box)
 {
     // Note that hanging trailing content needs line builder (combination of wrapping is allowed but whitespace is preserved).
     auto& style = box.style();
@@ -52,7 +52,7 @@ static bool isContentEligibleForNonLineBuilderMaximumWidth(const ElementBox& roo
     return inlineTextItem && !inlineTextItem->isWhitespace();
 }
 
-static bool isSubtreeEligibleForNonLineBuilderMinimumWidth(const ElementBox& root)
+static bool NODELETE isSubtreeEligibleForNonLineBuilderMinimumWidth(const ElementBox& root)
 {
     auto isSimpleBreakableContent = isBoxEligibleForNonLineBuilderMinimumWidth(root);
     for (auto* child = root.firstChild(); child && isSimpleBreakableContent; child = child->nextSibling()) {
@@ -67,12 +67,33 @@ static bool isSubtreeEligibleForNonLineBuilderMinimumWidth(const ElementBox& roo
     return isSimpleBreakableContent;
 }
 
-static bool isContentEligibleForNonLineBuilderMinimumWidth(const ElementBox& rootBox, bool mayUseSimplifiedTextOnlyInlineLayout)
+static bool NODELETE isContentEligibleForNonLineBuilderMinimumWidth(const ElementBox& rootBox, const InlineContentCache::InlineItems& inlineItems, bool mayUseSimplifiedTextOnlyInlineLayout)
 {
-    return (mayUseSimplifiedTextOnlyInlineLayout && isBoxEligibleForNonLineBuilderMinimumWidth(rootBox)) || (!mayUseSimplifiedTextOnlyInlineLayout && isSubtreeEligibleForNonLineBuilderMinimumWidth(rootBox));
+    auto isEligible = (mayUseSimplifiedTextOnlyInlineLayout && isBoxEligibleForNonLineBuilderMinimumWidth(rootBox)) || (!mayUseSimplifiedTextOnlyInlineLayout && isSubtreeEligibleForNonLineBuilderMinimumWidth(rootBox));
+    if (!isEligible || !mayUseSimplifiedTextOnlyInlineLayout || !inlineItems.hasInlineBoxes())
+        return isEligible;
+
+    // Text only content in range e.g. <span>text content</span> or <span><span>text content</span></span>. Check if enclosing inline box is eligible.
+    auto& inlineItemList = inlineItems.content();
+    auto inlineBoxIndex = std::optional<size_t> { };
+    for (size_t index = 0; index < inlineItemList.size(); ++index) {
+        auto& inlineItem = inlineItemList[index];
+        if (inlineItem.isInlineBoxStart()) {
+            inlineBoxIndex = index;
+            continue;
+        }
+
+        if (inlineItem.isText() && inlineBoxIndex)
+            return isBoxEligibleForNonLineBuilderMinimumWidth(downcast<ElementBox>(inlineItemList[*inlineBoxIndex].layoutBox()));
+
+        // This is unexpected content. We should always find inline box(es) followed by text content.
+        break;
+    }
+    ASSERT_NOT_REACHED();
+    return false;
 }
 
-static bool mayUseContentWidthBetweenLineBreaksAsMaximumSize(const ElementBox& rootBox, const InlineItemList& inlineItemList)
+static bool NODELETE mayUseContentWidthBetweenLineBreaksAsMaximumSize(const ElementBox& rootBox, const InlineItemList& inlineItemList)
 {
     if (!TextUtil::shouldPreserveSpacesAndTabs(rootBox))
         return false;
@@ -126,19 +147,16 @@ IntrinsicWidthHandler::IntrinsicWidthHandler(InlineFormattingContext& inlineForm
 
 InlineLayoutUnit IntrinsicWidthHandler::minimumContentSize()
 {
-    auto minimumContentSize = InlineLayoutUnit { };
+    if (isContentEligibleForNonLineBuilderMinimumWidth(formattingContextRoot(), m_inlineItems, m_mayUseSimplifiedTextOnlyInlineLayoutInRange))
+        return simplifiedMinimumWidth(formattingContextRoot());
 
-    if (isContentEligibleForNonLineBuilderMinimumWidth(formattingContextRoot(), m_mayUseSimplifiedTextOnlyInlineLayoutInRange))
-        minimumContentSize = simplifiedMinimumWidth(formattingContextRoot());
-    else if (m_mayUseSimplifiedTextOnlyInlineLayoutInRange) {
+    if (m_mayUseSimplifiedTextOnlyInlineLayoutInRange) {
         auto simplifiedLineBuilder = TextOnlySimpleLineBuilder { formattingContext(), lineBuilerRoot(), { }, inlineItemList() };
-        minimumContentSize = computedIntrinsicWidthForConstraint(IntrinsicWidthMode::Minimum, simplifiedLineBuilder, MayCacheLayoutResult::No);
-    } else {
-        auto lineBuilder = LineBuilder { formattingContext(), { }, inlineItemList() };
-        minimumContentSize = computedIntrinsicWidthForConstraint(IntrinsicWidthMode::Minimum, lineBuilder, MayCacheLayoutResult::No);
+        return computedIntrinsicWidthForConstraint(IntrinsicWidthMode::Minimum, simplifiedLineBuilder, MayCacheLayoutResult::No);
     }
 
-    return minimumContentSize;
+    auto lineBuilder = LineBuilder { formattingContext(), { }, inlineItemList() };
+    return computedIntrinsicWidthForConstraint(IntrinsicWidthMode::Minimum, lineBuilder, MayCacheLayoutResult::No);
 }
 
 InlineLayoutUnit IntrinsicWidthHandler::maximumContentSize()

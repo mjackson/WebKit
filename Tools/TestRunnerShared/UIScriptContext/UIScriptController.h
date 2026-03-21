@@ -62,6 +62,7 @@ struct TextExtractionTestOptions {
     bool clipToBounds { false };
     bool includeRects { false };
     bool includeURLs { false };
+    bool includeSelectOptions { false };
     bool shortenURLs { false };
     JSRetainPtr<JSStringRef> nodeIdentifierInclusion;
     JSValueRef eventListenerCategories { nullptr };
@@ -216,6 +217,7 @@ public:
     // Touches
 
     virtual void touchDownAtPoint(long, long, long, JSValueRef) { notImplemented(); }
+    virtual void touchDownAtPointWithMajorRadius(long, long, float, float, JSValueRef) { notImplemented(); }
     virtual void liftUpAtPoint(long, long, long, JSValueRef) { notImplemented(); }
     virtual void singleTapAtPoint(long, long, JSValueRef) { notImplemented(); }
     virtual void singleTapAtPointWithModifiers(long, long, JSValueRef, JSValueRef) { notImplemented(); }
@@ -335,6 +337,7 @@ public:
     virtual JSObjectRef inputViewBounds() const { notImplemented(); return nullptr; }
     virtual void activateDataListSuggestion(unsigned, JSValueRef) { notImplemented(); }
     virtual void setSelectedColorForColorPicker(double, double, double) { notImplemented(); }
+    virtual bool isShowingColorPicker() const { notImplemented(); return false; }
     virtual void setAppAccentColor(unsigned short, unsigned short, unsigned short) { notImplemented(); }
 
     // Find in Page

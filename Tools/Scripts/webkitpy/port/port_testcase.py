@@ -51,6 +51,7 @@ from webkitpy.port.server_process_mock import MockServerProcess
 from webkitpy.layout_tests.controllers.layout_test_runner import TestShard
 from webkitpy.layout_tests.servers import http_server_base
 from webkitpy.tool.mocktool import MockOptions
+from webkitpy.thirdparty.mock import patch
 
 from webkitpy.test.markers import slow, xfail
 
@@ -83,6 +84,10 @@ def bind_mock_apple_additions():
     from webkitpy.common.version_name_map import PUBLIC_TABLE, VersionNameMap
 
     class MockAppleAdditions(object):
+
+        @staticmethod
+        def get_sdk(sdk_name):
+            return sdk_name
 
         @staticmethod
         def layout_tests_path():
@@ -336,17 +341,18 @@ class PortTestCase(unittest.TestCase):
         self.assertEqual(self.proc.cmd, [port._path_to_image_diff(), "--difference"])
 
         # Now test the case of using JHBuild wrapper.
-        port._filesystem.maybe_make_directory(port.path_from_webkit_base('WebKitBuild', 'Dependencies%s' % port.port_name.upper()))
-        self.assertTrue(port._should_use_jhbuild())
+        with patch('os.environ', {'WEBKIT_JHBUILD': '1'}):
+            port._filesystem.maybe_make_directory(port.path_from_webkit_base('WebKitBuild', 'Dependencies%s' % port.port_name.upper()))
+            self.assertTrue(port._should_use_jhbuild())
 
-        self.assertEqual(port.diff_image(b'foo', b'bar'), ImageDiffResult(passed=False, diff_image=b'image1', difference=90.0, tolerance=0.1, fuzzy_data=result_fuzzy_data))
-        self.assertEqual(self.proc.cmd, port._jhbuild_wrapper + [port._path_to_image_diff(), "--difference"])
+            self.assertEqual(port.diff_image(b'foo', b'bar'), ImageDiffResult(passed=False, diff_image=b'image1', difference=90.0, tolerance=0.1, fuzzy_data=result_fuzzy_data))
+            self.assertEqual(self.proc.cmd, port._jhbuild_wrapper + [port._path_to_image_diff(), "--difference"])
 
-        self.assertEqual(port.diff_image(b'foo', b'bar', tolerance=None), ImageDiffResult(passed=False, diff_image=b'image1', difference=90.0, tolerance=0.1, fuzzy_data=result_fuzzy_data))
-        self.assertEqual(self.proc.cmd, port._jhbuild_wrapper + [port._path_to_image_diff(), "--difference"])
+            self.assertEqual(port.diff_image(b'foo', b'bar', tolerance=None), ImageDiffResult(passed=False, diff_image=b'image1', difference=90.0, tolerance=0.1, fuzzy_data=result_fuzzy_data))
+            self.assertEqual(self.proc.cmd, port._jhbuild_wrapper + [port._path_to_image_diff(), "--difference"])
 
-        self.assertEqual(port.diff_image(b'foo', b'bar', tolerance=0), ImageDiffResult(passed=False, diff_image=b'image1', difference=90.0, fuzzy_data=result_fuzzy_data))
-        self.assertEqual(self.proc.cmd, port._jhbuild_wrapper + [port._path_to_image_diff(), "--difference"])
+            self.assertEqual(port.diff_image(b'foo', b'bar', tolerance=0), ImageDiffResult(passed=False, diff_image=b'image1', difference=90.0, fuzzy_data=result_fuzzy_data))
+            self.assertEqual(self.proc.cmd, port._jhbuild_wrapper + [port._path_to_image_diff(), "--difference"])
 
         port.clean_up_test_run()
         self.assertTrue(self.proc.stopped)

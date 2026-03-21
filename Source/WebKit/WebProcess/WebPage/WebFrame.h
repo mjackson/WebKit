@@ -130,7 +130,7 @@ public:
     WebPage* page() const;
 
     static WebFrame* webFrame(std::optional<WebCore::FrameIdentifier>);
-    static RefPtr<WebFrame> fromCoreFrame(const WebCore::Frame&);
+    static WebFrame* NODELETE fromCoreFrame(const WebCore::Frame&);
     WebCore::LocalFrame* NODELETE coreLocalFrame() const;
     WebCore::RemoteFrame* NODELETE coreRemoteFrame() const;
     WebCore::Frame* NODELETE coreFrame() const;
@@ -292,6 +292,7 @@ public:
     void describeTextExtractionInteraction(WebCore::TextExtraction::Interaction&&, CompletionHandler<void(WebCore::TextExtraction::InteractionDescription&&)>&&);
     void takeSnapshotOfExtractedText(WebCore::TextExtraction::ExtractedText&&, CompletionHandler<void(RefPtr<WebCore::TextIndicator>&&)>&&);
     void requestJSHandleForExtractedText(WebCore::TextExtraction::ExtractedText&&, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&&);
+    void requestContainerJSHandleForExtractedText(WebCore::TextExtraction::ExtractedText&&, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&&);
 
     void getSelectorPathsForNode(JSHandleInfo&&, CompletionHandler<void(Vector<HashSet<String>>&&)>&&);
     void getNodeForSelectorPaths(Vector<HashSet<String>>&&, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&&);
@@ -313,6 +314,8 @@ private:
     void findFocusableElementContinuingFromFrame(WebCore::FocusDirection, WebCore::FrameIdentifier, const WebCore::FocusEventData&, WebCore::ShouldFocusElement);
 
     CheckedRef<FrameInspectorTarget> ensureInspectorTarget();
+
+    void setHistoryItemForBackForwardNavigation(const FrameState&);
 
     WeakPtr<WebCore::Frame> m_coreFrame;
     WeakPtr<WebPage> m_page;

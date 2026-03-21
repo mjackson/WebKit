@@ -160,7 +160,7 @@ public:
         SecondaryBack
     };
 
-    const WebCore::Region& dirtyRegion() { return m_dirtyRegion; }
+    const WebCore::Region& dirtyRegion() LIFETIME_BOUND { return m_dirtyRegion; }
     bool hasEmptyDirtyRegion() const { return m_dirtyRegion.isEmpty() || m_parameters.size.isEmpty(); }
 
     MonotonicTime lastDisplayTime() const { return m_lastDisplayTime; }
@@ -179,7 +179,7 @@ public:
     void markFrontBufferVolatileForTesting();
 
 protected:
-    RemoteLayerBackingStoreCollection* NODELETE backingStoreCollection() const;
+    RemoteLayerBackingStoreCollection* NODELETE backingStoreCollection() const LIFETIME_BOUND;
 
     void drawInContext(WebCore::GraphicsContext&);
 
@@ -225,7 +225,7 @@ public:
 
     void applyBackingStoreToNode(RemoteLayerTreeNode&, bool replayDynamicContentScalingDisplayListsIntoBackingStore, UIView* hostingView);
 
-    const std::optional<ImageBufferBackendHandle>& bufferHandle() const { return m_bufferHandle; };
+    const std::optional<ImageBufferBackendHandle>& bufferHandle() const LIFETIME_BOUND { return m_bufferHandle; };
 
     struct LayerContentsBufferInfo {
         RetainPtr<id> buffer;

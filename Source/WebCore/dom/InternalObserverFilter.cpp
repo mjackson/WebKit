@@ -105,11 +105,11 @@ private:
         JSC::Exception* previousException = nullptr;
         {
             auto catchScope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
-            auto result = protectedPredicate()->invokeRethrowingException(value, m_idx);
+            auto result = protect(m_predicate)->invokeRethrowingException(value, m_idx);
             previousException = catchScope.exception();
             if (previousException) {
                 catchScope.clearException();
-                protectedSubscriber()->error(previousException->value());
+                protect(m_subscriber)->error(previousException->value());
                 return;
             }
 
@@ -120,28 +120,25 @@ private:
         m_idx += 1;
 
         if (matches)
-            protectedSubscriber()->next(value);
+            protect(m_subscriber)->next(value);
     }
 
     void error(JSC::JSValue value) final
     {
-        protectedSubscriber()->error(value);
+        protect(m_subscriber)->error(value);
     }
 
     void complete() final
     {
         InternalObserver::complete();
-        protectedSubscriber()->complete();
+        protect(m_subscriber)->complete();
     }
 
-    void visitAdditionalChildren(JSC::AbstractSlotVisitor& visitor) const final
+    void visitAdditionalChildrenInGCThread(JSC::AbstractSlotVisitor& visitor) const final
     {
-        m_subscriber->visitAdditionalChildren(visitor);
-        m_predicate->visitJSFunction(visitor);
+        m_subscriber->visitAdditionalChildrenInGCThread(visitor);
+        m_predicate->visitJSFunctionInGCThread(visitor);
     }
-
-    Ref<Subscriber> NODELETE protectedSubscriber() const { return m_subscriber; }
-    Ref<PredicateCallback> NODELETE protectedPredicate() const { return m_predicate; }
 
     InternalObserverFilter(ScriptExecutionContext& context, Ref<Subscriber> subscriber, Ref<PredicateCallback> predicate)
         : InternalObserver(context)

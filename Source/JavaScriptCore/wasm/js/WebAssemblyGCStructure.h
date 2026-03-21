@@ -84,8 +84,8 @@ private:
     WebAssemblyGCStructure(VM&, JSGlobalObject*, const TypeInfo&, const ClassInfo*, Ref<const Wasm::TypeDefinition>&& unexpandedType, Ref<const Wasm::TypeDefinition>&& expandedType, Ref<const Wasm::RTT>&&);
     WebAssemblyGCStructure(VM&, WebAssemblyGCStructure* previous);
 
-    Ref<const Wasm::RTT> m_rtt;
-    Ref<const Wasm::TypeDefinition> m_type;
+    const Ref<const Wasm::RTT> m_rtt;
+    const Ref<const Wasm::TypeDefinition> m_type;
     WebAssemblyGCStructureTypeDependencies m_typeDependencies;
 };
 

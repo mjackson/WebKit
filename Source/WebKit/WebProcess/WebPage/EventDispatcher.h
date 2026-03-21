@@ -78,7 +78,7 @@ struct TouchEventData {
 
     WebCore::FrameIdentifier frameID;
     WebTouchEvent event;
-    CompletionHandler<void(bool, std::optional<RemoteWebTouchEvent>)> completionHandler;
+    Vector<CompletionHandler<void(bool, std::optional<RemoteWebTouchEvent>)>> completionHandlers;
 };
 #endif
 

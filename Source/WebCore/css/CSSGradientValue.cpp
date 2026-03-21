@@ -26,6 +26,9 @@
 #include "config.h"
 #include "CSSGradientValue.h"
 
+#include "CSSColorInlines.h"
+#include "CSSGradientInlines.h"
+
 #include "CSSPrimitiveNumericTypes+CSSValueVisitation.h"
 #include "CSSPrimitiveNumericTypes+Serialization.h"
 #include "ColorInterpolation.h"
@@ -46,7 +49,7 @@ template<typename CSSType> static bool styleImageIsUncacheable(const CSSType& va
 }
 
 template<> struct StyleImageIsUncacheable<GradientColorInterpolationMethod> {
-    constexpr bool operator()(const auto&) { return false; }
+    constexpr bool NODELETE operator()(const auto&) { return false; }
 };
 
 template<> struct StyleImageIsUncacheable<Color> {
@@ -54,7 +57,7 @@ template<> struct StyleImageIsUncacheable<Color> {
 };
 
 template<CSSValueID C> struct StyleImageIsUncacheable<Constant<C>> {
-    constexpr bool operator()(const auto&) { return false; }
+    constexpr bool NODELETE operator()(const auto&) { return false; }
 };
 
 template<UnitEnum CSSType> struct StyleImageIsUncacheable<CSSType> {
@@ -66,7 +69,7 @@ template<NumericRaw CSSType> struct StyleImageIsUncacheable<CSSType> {
 };
 
 template<Calc CSSType> struct StyleImageIsUncacheable<CSSType> {
-    constexpr bool operator()(const auto& value) { return value.protectedCalc()->requiresConversionData(); }
+    constexpr bool operator()(const auto& value) { return value.calcValue().requiresConversionData(); }
 };
 
 template<OptionalLike CSSType> struct StyleImageIsUncacheable<CSSType> {

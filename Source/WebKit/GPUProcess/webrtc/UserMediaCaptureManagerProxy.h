@@ -68,7 +68,7 @@ public:
         virtual bool willStartCapture(WebCore::CaptureDevice::DeviceType, WebCore::PageIdentifier) const = 0;
         virtual Logger& logger() = 0;
         virtual bool setCaptureAttributionString() { return true; }
-        virtual const WebCore::ProcessIdentity& resourceOwner() const = 0;
+        virtual WebCore::ProcessIdentity resourceOwner() const = 0;
 #if ENABLE(APP_PRIVACY_REPORT)
         virtual void setTCCIdentity() { }
 #endif

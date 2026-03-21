@@ -49,7 +49,7 @@ public:
 
     virtual ~AccessibilityUIElementMac();
 
-    PlatformUIElement platformUIElement() override { return m_element.getAutoreleased(); }
+    PlatformUIElement platformUIElement() override { return m_element.get(); }
 
     bool isEqual(AccessibilityUIElement* otherElement) override;
     JSRetainPtr<JSStringRef> domIdentifier() const override;
@@ -115,6 +115,8 @@ public:
     JSRetainPtr<JSStringRef> computedRoleString() override;
     JSRetainPtr<JSStringRef> title() override;
     JSRetainPtr<JSStringRef> description() override;
+    JSRetainPtr<JSStringRef> debugDescription() override;
+    JSRetainPtr<JSStringRef> rawRoleForTesting() override;
     JSRetainPtr<JSStringRef> language() override;
     JSRetainPtr<JSStringRef> stringValue() override;
     JSRetainPtr<JSStringRef> dateValue() override;
@@ -140,7 +142,7 @@ public:
     unsigned numberOfCharacters() const override;
     int insertionPointLineNumber() override;
     JSRetainPtr<JSStringRef> selectedTextRange() override;
-    JSRetainPtr<JSStringRef> intersectionWithSelectionRange() override;
+    RefPtr<AccessibilityTextMarkerRange> intersectionWithSelectionRange() override;
     JSRetainPtr<JSStringRef> textInputMarkedRange() const override;
     bool isAtomicLiveRegion() const override;
     bool isBusy() const override;
@@ -245,6 +247,7 @@ public:
     bool attributedStringRangeIsMisspelled(unsigned location, unsigned length) override;
     unsigned uiElementCountForSearchPredicate(JSContextRef, AccessibilityUIElement* startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly) override;
     RefPtr<AccessibilityUIElement> uiElementForSearchPredicate(JSContextRef, AccessibilityUIElement* startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly) override;
+    JSValueRef uiElementsForSearchPredicate(JSContextRef, AccessibilityUIElement* startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly, unsigned resultsLimit) override;
     JSRetainPtr<JSStringRef> selectTextWithCriteria(JSContextRef, JSStringRef ambiguityResolution, JSValueRef searchStrings, JSStringRef replacementString, JSStringRef activity) override;
     JSValueRef searchTextWithCriteria(JSContextRef, JSValueRef searchStrings, JSStringRef startFrom, JSStringRef direction) override;
     JSValueRef performTextOperation(JSContextRef, JSStringRef operationType, JSValueRef markerRanges, JSValueRef replacementStrings, bool shouldSmartReplace) override;
@@ -335,6 +338,7 @@ public:
     bool isLastItemInSuggestion() const override;
     bool isRemoteFrame() const override;
     bool isRemotePlatformElement() const final;
+    bool isFrameGeometryInitialized() const final;
 
 private:
     AccessibilityUIElementMac(PlatformUIElement);
@@ -350,7 +354,7 @@ private:
     double numberAttributeValueNS(NSString *attribute) const;
     bool isAttributeSettableNS(NSString *) const;
 
-    WeakObjCPtr<id> m_element;
+    RetainPtr<id> m_element;
     RetainPtr<id> m_notificationHandler;
 
     void getLinkedUIElements(Vector<RefPtr<AccessibilityUIElement> >&);

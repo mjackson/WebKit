@@ -247,15 +247,15 @@ public:
 
     std::optional<MediaSessionGroupIdentifier> mediaSessionGroupIdentifier() const final;
 
-    WEBCORE_EXPORT bool NODELETE isActiveNowPlayingSession() const;
+    WEBCORE_EXPORT bool isActiveNowPlayingSession() const;
 
 // DOM API
 // error state
     WEBCORE_EXPORT MediaError* NODELETE error() const;
 
-    const URL& currentSrc() const { return m_currentSrc; }
+    const URL& currentSrc() const LIFETIME_BOUND { return m_currentSrc; }
 
-    const std::optional<MediaProvider>& srcObject() const { return m_mediaProvider; }
+    const std::optional<MediaProvider>& srcObject() const LIFETIME_BOUND { return m_mediaProvider; }
     void setSrcObject(std::optional<MediaProvider>&&);
 
     WEBCORE_EXPORT String crossOrigin() const;
@@ -309,9 +309,9 @@ public:
     double seekableTimeRangesLastModifiedTime() const;
     double liveUpdateInterval() const;
     WEBCORE_EXPORT bool ended() const;
-    bool autoplay() const;
+    bool NODELETE autoplay() const;
     bool isAutoplaying() const { return m_autoplaying; }
-    bool loop() const;
+    bool NODELETE loop() const;
     void setLoop(bool b);
 
     void play(DOMPromiseDeferred<void>&&);
@@ -514,7 +514,7 @@ public:
     bool taintsOrigin(const SecurityOrigin&) const;
     
     WEBCORE_EXPORT bool isFullscreen() const override;
-    bool isInFullscreenOrPictureInPicture() const;
+    WEBCORE_EXPORT bool isInFullscreenOrPictureInPicture() const;
     bool isStandardFullscreen() const;
     void toggleStandardFullscreenState();
 
@@ -529,6 +529,7 @@ public:
 
 #if ENABLE(FULLSCREEN_API)
     void documentFullscreenChanged(bool isChildOfElementFullscreen);
+    WEBCORE_EXPORT bool isChildOfElementFullscreen() const;
 #endif
 
     bool hasClosedCaptions() const override;
@@ -539,7 +540,7 @@ public:
     void sourceWasAdded(HTMLSourceElement&);
 
     // Media cache management.
-    WEBCORE_EXPORT static void NODELETE setMediaCacheDirectory(const String&);
+    WEBCORE_EXPORT static void setMediaCacheDirectory(const String&);
     WEBCORE_EXPORT static const String& NODELETE mediaCacheDirectory();
     WEBCORE_EXPORT static HashSet<SecurityOriginData> originsInMediaCache(const String&);
     WEBCORE_EXPORT static void clearMediaCache(const String&, WallTime modifiedSince = { });
@@ -629,7 +630,6 @@ public:
 
 #if !RELEASE_LOG_DISABLED
     const Logger& logger() const final { return m_logger.get(); }
-    using PlatformMediaSessionClient::protectedLogger;
     uint64_t logIdentifier() const final { return m_logIdentifier; }
     ASCIILiteral logClassName() const final { return "HTMLMediaElement"_s; }
     WTFLogChannel& logChannel() const final;
@@ -688,7 +688,6 @@ public:
     TextTrackCue* cueBeingSpoken() const { return m_cueBeingSpoken.get(); }
 #if ENABLE(SPEECH_SYNTHESIS)
     WEBCORE_EXPORT SpeechSynthesis& speechSynthesis();
-    Ref<SpeechSynthesis> protectedSpeechSynthesis();
 #endif
 
     bool hasSource() const { return hasCurrentSrc() || srcObject(); }
@@ -745,7 +744,7 @@ protected:
 
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) override;
     void finishParsingChildren() override;
-    bool isURLAttribute(const Attribute&) const override;
+    bool NODELETE isURLAttribute(const Attribute&) const override;
     void willAttachRenderers() override;
     void didAttachRenderers() override;
     void willDetachRenderers() override;
@@ -816,9 +815,9 @@ private:
     bool supportsFocus() const override;
     bool rendererIsNeeded(const RenderStyle&) override;
     bool childShouldCreateRenderer(const Node&) const override;
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) override;
-    void didFinishInsertingNode() override;
-    void removedFromAncestor(RemovalType, ContainerNode&) override;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) override;
+    void postConnectionSteps() override;
+    void removingSteps(RemovalType, ContainerNode&) override;
     void didRecalcStyle(OptionSet<Style::Change>) override;
     bool canStartSelection() const override { return false; } 
     bool isInteractiveContent() const override;
@@ -885,7 +884,7 @@ private:
     CachedResourceLoader* mediaPlayerCachedResourceLoader() const override;
     Ref<PlatformMediaResourceLoader> mediaPlayerCreateResourceLoader() override;
     bool mediaPlayerShouldUsePersistentCache() const override;
-    const String& mediaPlayerMediaCacheDirectory() const override;
+    String mediaPlayerMediaCacheDirectory() const override;
 
     void mediaPlayerActiveSourceBuffersChanged() override;
 
@@ -1025,7 +1024,7 @@ private:
 
     void mediaCanStart(Document&) final;
 
-    void invalidateOfficialPlaybackPosition();
+    void NODELETE invalidateOfficialPlaybackPosition();
 
     void configureMediaControls();
 
@@ -1156,7 +1155,7 @@ private:
     void updatePlayerDynamicRangeLimit() const;
 
     bool NODELETE shouldLogWatchtimeEvent() const;
-    bool isWatchtimeTimerActive() const;
+    bool NODELETE isWatchtimeTimerActive() const;
     void startWatchtimeTimer();
     void pauseWatchtimeTimer();
     void fireAndRestartWatchtimeTimer();

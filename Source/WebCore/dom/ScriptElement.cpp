@@ -82,7 +82,8 @@ namespace WebCore {
 static const auto maxUserGesturePropagationTime = 1_s;
 
 ScriptElement::ScriptElement(Element& element, bool parserInserted, bool alreadyStarted)
-    : m_element(element)
+    : ActiveDOMObject(element.document())
+    , m_element(element)
     , m_parserInserted(parserInserted ? ParserInserted::Yes : ParserInserted::No)
     , m_alreadyStarted(alreadyStarted)
     , m_forceAsync(!parserInserted)
@@ -98,7 +99,7 @@ ScriptElement::ScriptElement(Element& element, bool parserInserted, bool already
     }
 }
 
-void ScriptElement::didFinishInsertingNode()
+void ScriptElement::postConnectionSteps()
 {
     if (m_parserInserted == ParserInserted::No)
         prepareScript(); // FIXME: Provide a real starting line number here.
@@ -134,6 +135,9 @@ void ScriptElement::handleAsyncAttribute()
 
 void ScriptElement::dispatchErrorEvent()
 {
+    // Keep the JS wrapper alive until the end of this method.
+    Ref wrapperProtector = makePendingActivity(*this);
+
     protect(element())->dispatchEvent(Event::create(eventNames().errorEvent, Event::CanBubble::No, Event::IsCancelable::No));
 }
 
@@ -297,8 +301,8 @@ bool ScriptElement::prepareScript(const TextPosition& scriptStartPosition)
     case ScriptType::SpeculationRules: {
         // If the element has a source attribute, queue a task to fire an event named error at the element, and return.
         if (hasSourceAttribute()) {
-            protect(protect(element->document())->eventLoop())->queueTask(TaskSource::DOMManipulation, [protectedThis = Ref { *this }] {
-                protectedThis->dispatchErrorEvent();
+            queueTaskKeepingObjectAlive(*this, TaskSource::DOMManipulation, [](auto& element) {
+                element.dispatchErrorEvent();
             });
             return false;
         }
@@ -387,8 +391,8 @@ bool ScriptElement::requestClassicScript(const String& sourceURL)
     if (m_loadableScript)
         return true;
 
-    document->eventLoop().queueTask(TaskSource::DOMManipulation, [protectedThis = Ref { *this }] {
-        protectedThis->dispatchErrorEvent();
+    queueTaskKeepingObjectAlive(*this, TaskSource::DOMManipulation, [](auto& element) {
+        element.dispatchErrorEvent();
     });
     return false;
 }
@@ -638,19 +642,9 @@ void ScriptElement::setTrustedScriptText(const String& text)
     m_trustedScriptText = text;
 }
 
-void ScriptElement::ref() const
-{
-    element().ref();
-}
-
-void ScriptElement::deref() const
-{
-    element().deref();
-}
-
 bool isScriptElement(Node& node)
 {
-    return is<HTMLScriptElement>(node) || is<SVGScriptElement>(node);
+    return isAnyOf<HTMLScriptElement, SVGScriptElement>(node);
 }
 
 ScriptElement* dynamicDowncastScriptElement(Element& element)
@@ -716,7 +710,7 @@ void ScriptElement::unregisterSpeculationRules()
     if (!document->settings().speculationRulesPrefetchEnabled())
         return;
 
-    auto removedURLs = document->speculationRules()->unregisterSpeculationRules(element);
+    auto removedURLs = protect(document->speculationRules())->unregisterSpeculationRules(element);
 
     // Remove prefetched resources that were initiated by the removed rules.
     if (RefPtr frame = document->frame()) {
@@ -726,6 +720,15 @@ void ScriptElement::unregisterSpeculationRules()
     }
 
     document->considerSpeculationRules();
+}
+
+bool ScriptElement::virtualHasPendingActivity() const
+{
+    if (!m_hasRelevantLoadEventsListener)
+        return false;
+    if (!loadableScript())
+        return false;
+    return !haveFiredLoadEvent();
 }
 
 }

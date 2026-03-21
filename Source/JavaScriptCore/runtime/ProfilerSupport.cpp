@@ -37,6 +37,7 @@
 #include <wtf/StringPrintStream.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>
+#include <wtf/threads/BinarySemaphore.h>
 
 #if OS(LINUX)
 #include <sys/mman.h>
@@ -91,6 +92,10 @@ ProfilerSupport::ProfilerSupport()
         RELEASE_ASSERT(marker != MAP_FAILED);
 #endif
     }
+
+    std::atexit([] {
+        ProfilerSupport::barrierSync();
+    });
 }
 
 uint32_t ProfilerSupport::getCurrentThreadID()
@@ -212,6 +217,15 @@ void ProfilerSupport::dumpIonGraphFunction(const String& functionName, Ref<JSON:
     RELEASE_ASSERT(handle);
     handle.write(WTF::asByteSpan(string.utf8().span()));
     handle.flush();
+}
+
+void ProfilerSupport::barrierSync()
+{
+    BinarySemaphore semaphore;
+    singleton().queue().dispatch([&semaphore] {
+        semaphore.signal();
+    });
+    semaphore.wait();
 }
 
 } // namespace JSC

@@ -31,6 +31,7 @@
 #include "Exception.h"
 #include "ExceptionCode.h"
 #include "InternalObserver.h"
+#include "JSDOMConvertAny.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSValueInWrappedObject.h"
 #include "Observable.h"
@@ -69,13 +70,13 @@ private:
         JSC::JSLockHolder lock(vm);
         auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
 
-        auto result = protectedCallback()->invokeRethrowingException(m_accumulator.getValue(), value, m_index++);
+        auto result = protect(m_callback)->invokeRethrowingException(m_accumulator.getValue(), value, m_index++);
 
         JSC::Exception* exception = scope.exception();
         if (exception) [[unlikely]] {
             scope.clearException();
             auto value = exception->value();
-            protectedPromise()->reject<IDLAny>(value);
+            protect(m_promise)->reject<IDLAny>(value);
             Ref { m_signal }->signalAbort(value);
         }
 
@@ -85,7 +86,7 @@ private:
 
     void error(JSC::JSValue value) final
     {
-        protectedPromise()->reject<IDLAny>(value);
+        protect(m_promise)->reject<IDLAny>(value);
     }
 
     void complete() final
@@ -93,21 +94,18 @@ private:
         InternalObserver::complete();
 
         if (!m_accumulator) [[unlikely]] {
-            protectedPromise()->reject(Exception { ExceptionCode::TypeError, "No inital value for Observable with no values"_s });
+            protect(m_promise)->reject(Exception { ExceptionCode::TypeError, "No inital value for Observable with no values"_s });
             return;
         }
 
-        protectedPromise()->resolve<IDLAny>(m_accumulator.getValue());
+        protect(m_promise)->resolve<IDLAny>(m_accumulator.getValue());
     }
 
-    void visitAdditionalChildren(JSC::AbstractSlotVisitor& visitor) const final
+    void visitAdditionalChildrenInGCThread(JSC::AbstractSlotVisitor& visitor) const final
     {
-        m_callback->visitJSFunction(visitor);
-        m_accumulator.visit(visitor);
+        m_callback->visitJSFunctionInGCThread(visitor);
+        m_accumulator.visitInGCThread(visitor);
     }
-
-    Ref<DeferredPromise> NODELETE protectedPromise() const { return m_promise; }
-    Ref<ReducerCallback> NODELETE protectedCallback() const { return m_callback; }
 
     InternalObserverReduce(ScriptExecutionContext& context, Ref<AbortSignal>&& signal, Ref<ReducerCallback>&& callback, JSC::JSValue initialValue, Ref<DeferredPromise>&& promise)
         : InternalObserver(context)

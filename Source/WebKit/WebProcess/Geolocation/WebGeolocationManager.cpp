@@ -158,7 +158,7 @@ void WebGeolocationManager::didChangePosition(const WebCore::RegistrableDomain& 
     if (auto it = m_pageSets.find(registrableDomain); it != m_pageSets.end()) {
         for (auto& page : copyToVector(it->value.pageSet)) {
             if (RefPtr corePage = page->corePage())
-                GeolocationController::checkedFrom(corePage.get())->positionChanged(position);
+                protect(GeolocationController::from(corePage))->positionChanged(position);
         }
     }
 #else
@@ -176,7 +176,7 @@ void WebGeolocationManager::didFailToDeterminePosition(const WebCore::Registrabl
 
         for (auto& page : copyToVector(it->value.pageSet)) {
             if (RefPtr corePage = page->corePage())
-                GeolocationController::checkedFrom(corePage.get())->errorOccurred(error.get());
+                protect(GeolocationController::from(corePage))->errorOccurred(error.get());
         }
     }
 #else

@@ -89,7 +89,7 @@ private:
 
     void setLabel(String&&);
 
-    Ref<WebCore::WebGPU::Texture> m_backing;
+    const Ref<WebCore::WebGPU::Texture> m_backing;
     WeakRef<WebGPU::ObjectHeap> m_objectHeap;
     const Ref<IPC::StreamServerConnection> m_streamConnection;
     WebGPUIdentifier m_identifier;

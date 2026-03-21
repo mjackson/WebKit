@@ -30,6 +30,7 @@
 #if PLATFORM(COCOA)
 
 #import "AXObjectCacheInlines.h"
+#import "FontCascadeInlines.h"
 #import "TextIterator.h"
 #import "WebAccessibilityObjectWrapperBase.h"
 #import <wtf/cocoa/TypeCastsCocoa.h>
@@ -187,7 +188,7 @@ RetainPtr<NSAttributedString> AccessibilityObject::attributedStringForRange(cons
 
 RetainPtr<CTFontRef> fontFrom(const RenderStyle& style)
 {
-    return style.fontCascade().primaryFont()->ctFont();
+    return style.fontCascade().primaryFont().ctFont();
 }
 
 Color textColorFrom(const RenderStyle& style)

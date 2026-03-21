@@ -898,7 +898,7 @@ void WebCoreNSURLSessionDataTaskClient::loadFinished(PlatformMediaResource& reso
             return;
         }
         // A nil return from requestResource means the load was cancelled by a delegate client
-        [self _resource:nil loadFinishedWithError:ResourceError(ResourceError::Type::Cancellation).protectedNSError().get() metrics: { }];
+        [self _resource:nil loadFinishedWithError:protect(ResourceError(ResourceError::Type::Cancellation).nsError()).get() metrics: { }];
     });
 }
 
@@ -1006,7 +1006,7 @@ void WebCoreNSURLSessionDataTaskClient::loadFinished(PlatformMediaResource& reso
     ASSERT_UNUSED(resource, !resource || resource == self.resource || !self.resource);
     RetainPtr<WebCoreNSURLSession> strongSession { self.session };
     [strongSession task:self addSecurityOrigin:SecurityOrigin::create(response.url())];
-    [strongSession addDelegateOperation:[strongSelf = retainPtr(self), response = response.protectedNSURLResponse(), request = request.isolatedCopy(), completionHandler = WTF::move(completionHandler), targetDispatcher = _targetDispatcher] () mutable {
+    [strongSession addDelegateOperation:[strongSelf = retainPtr(self), response = protect(response.nsURLResponse()), request = request.isolatedCopy(), completionHandler = WTF::move(completionHandler), targetDispatcher = _targetDispatcher] () mutable {
         if (![response isKindOfClass:[NSHTTPURLResponse class]]) {
             ASSERT_NOT_REACHED();
             targetDispatcher->dispatch([request = WTF::move(request), completionHandler = WTF::move(completionHandler)] () mutable {
@@ -1022,7 +1022,7 @@ void WebCoreNSURLSessionDataTaskClient::loadFinished(PlatformMediaResource& reso
                     completionHandler(WTF::move(request));
                 });
             });
-            [dataDelegate URLSession:(NSURLSession *)retainPtr(strongSelf.get().session).get() task:(NSURLSessionTask *)strongSelf.get() willPerformHTTPRedirection:(NSHTTPURLResponse *)response.get() newRequest:request.protectedNSURLRequest(HTTPBodyUpdatePolicy::DoNotUpdateHTTPBody).get() completionHandler:completionHandlerBlock.get()];
+            [dataDelegate URLSession:(NSURLSession *)retainPtr(strongSelf.get().session).get() task:(NSURLSessionTask *)strongSelf.get() willPerformHTTPRedirection:(NSHTTPURLResponse *)response.get() newRequest:protect(request.nsURLRequest(HTTPBodyUpdatePolicy::DoNotUpdateHTTPBody)).get() completionHandler:completionHandlerBlock.get()];
         } else {
             targetDispatcher->dispatch([request = WTF::move(request), completionHandler = WTF::move(completionHandler)] () mutable {
                 completionHandler(WTF::move(request));
@@ -1061,13 +1061,13 @@ void WebCoreNSURLSessionDataTaskClient::loadFinished(PlatformMediaResource& reso
 - (void)resource:(PlatformMediaResource*)resource accessControlCheckFailedWithError:(const ResourceError&)error
 {
     assertIsCurrent(*_targetDispatcher);
-    [self _resource:resource loadFinishedWithError:error.protectedNSError().get() metrics:NetworkLoadMetrics { }];
+    [self _resource:resource loadFinishedWithError:protect(error.nsError()).get() metrics:NetworkLoadMetrics { }];
 }
 
 - (void)resource:(PlatformMediaResource*)resource loadFailedWithError:(const ResourceError&)error
 {
     assertIsCurrent(*_targetDispatcher);
-    [self _resource:resource loadFinishedWithError:error.protectedNSError().get() metrics:NetworkLoadMetrics { }];
+    [self _resource:resource loadFinishedWithError:protect(error.nsError()).get() metrics:NetworkLoadMetrics { }];
 }
 
 - (void)resourceFinished:(PlatformMediaResource*)resource metrics:(const NetworkLoadMetrics&)metrics

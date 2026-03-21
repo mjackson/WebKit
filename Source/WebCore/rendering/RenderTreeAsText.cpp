@@ -139,7 +139,7 @@ static String getTagName(Node* n)
 {
     if (n->isDocumentNode())
         return ""_s;
-    if (n->nodeType() == Node::COMMENT_NODE)
+    if (n->nodeType() == NodeType::Comment)
         return "COMMENT"_s;
     return n->nodeName();
 }
@@ -530,9 +530,7 @@ static inline void writeSVGRenderer(TextStream& ts, const RenderObject& renderer
 void write(TextStream& ts, const RenderObject& renderer, OptionSet<RenderAsTextFlag> behavior)
 {
 
-    if (is<LegacyRenderSVGShape>(renderer) || is<RenderSVGGradientStop>(renderer) || is<LegacyRenderSVGResourceContainer>(renderer)
-        || is<LegacyRenderSVGContainer>(renderer) || is<LegacyRenderSVGRoot>(renderer) || is<RenderSVGText>(renderer)
-        || is<RenderSVGInlineText>(renderer) || is<LegacyRenderSVGImage>(renderer)) {
+    if (isAnyOf<LegacyRenderSVGShape, RenderSVGGradientStop, LegacyRenderSVGResourceContainer, LegacyRenderSVGContainer, LegacyRenderSVGRoot, RenderSVGText, RenderSVGInlineText, LegacyRenderSVGImage>(renderer)) {
         writeSVGRenderer(ts, renderer, behavior);
         return;
     }
@@ -556,7 +554,7 @@ void write(TextStream& ts, const RenderObject& renderer, OptionSet<RenderAsTextF
     if (auto* renderWidget = dynamicDowncast<RenderWidget>(renderer); renderWidget && renderWidget->widget() && is<FrameView>(renderWidget->widget()))
         dynamicDowncast<FrameView>(renderWidget->widget())->writeRenderTreeAsText(ts, behavior);
 
-    if (is<RenderSVGModelObject>(renderer) || is<RenderSVGRoot>(renderer))
+    if (isAnyOf<RenderSVGModelObject, RenderSVGRoot>(renderer))
         writeResources(ts, renderer, behavior);
 }
 

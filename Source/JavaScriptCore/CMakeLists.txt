@@ -6,10 +6,12 @@ list(APPEND JavaScriptCore_UNIFIED_SOURCE_LIST_FILES
 
 set(JavaScriptCore_INCLUDE_DIRECTORIES
     "${JavaScriptCore_FRAMEWORK_HEADERS_DIR}"
+    "${JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS_DIR}"
 )
 
 set(JavaScriptCore_PRIVATE_INCLUDE_DIRECTORIES
     "${CMAKE_BINARY_DIR}"
+    "${JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS_DIR}/JavaScriptCore"
     "${JAVASCRIPTCORE_DIR}"
     "${JAVASCRIPTCORE_DIR}/API"
     "${JAVASCRIPTCORE_DIR}/assembler"
@@ -398,9 +400,10 @@ set(LLIntSettingsExtractor_SOURCES
 
 set(LLIntSettingsExtractor_PRIVATE_INCLUDE_DIRECTORIES
     $<TARGET_PROPERTY:JavaScriptCore,INCLUDE_DIRECTORIES>
+    "${JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS_DIR}/JavaScriptCore"
 )
 set(LLIntSettingsExtractor_FRAMEWORKS ${JavaScriptCore_FRAMEWORKS})
-set(LLIntSettingsExtractor_DEPENDENCIES JavaScriptCore_CopyHeaders)
+set(LLIntSettingsExtractor_DEPENDENCIES JavaScriptCore_CopyHeaders JavaScriptCore_CopyPrivateHeaders)
 WEBKIT_EXECUTABLE(LLIntSettingsExtractor)
 set_target_properties(LLIntSettingsExtractor PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -418,9 +421,10 @@ set(LLIntOffsetsExtractor_SOURCES
 
 set(LLIntOffsetsExtractor_PRIVATE_INCLUDE_DIRECTORIES
     $<TARGET_PROPERTY:JavaScriptCore,INCLUDE_DIRECTORIES>
+    "${JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS_DIR}/JavaScriptCore"
 )
 set(LLIntOffsetsExtractor_FRAMEWORKS ${JavaScriptCore_FRAMEWORKS})
-set(LLIntOffsetsExtractor_DEPENDENCIES JavaScriptCore_CopyHeaders JSCBuiltins)
+set(LLIntOffsetsExtractor_DEPENDENCIES JavaScriptCore_CopyHeaders JavaScriptCore_CopyPrivateHeaders JSCBuiltins)
 WEBKIT_EXECUTABLE(LLIntOffsetsExtractor)
 set_target_properties(LLIntOffsetsExtractor PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -721,9 +725,9 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     bytecode/SourceID.h
     bytecode/SpeculatedType.h
     bytecode/StructureSet.h
-    bytecode/StructureStubClearingWatchpoint.h
-    bytecode/StructureStubInfo.h
-    bytecode/StubInfoSummary.h
+    bytecode/PropertyInlineCache.h
+    bytecode/PropertyInlineCacheClearingWatchpoint.h
+    bytecode/PropertyInlineCacheSummary.h
     bytecode/SuperSampler.h
     bytecode/TerminatedCodeOrigin.h
     bytecode/ToThisStatus.h
@@ -978,6 +982,8 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     interpreter/EntryFrame.h
     interpreter/FrameTracers.h
     interpreter/Interpreter.h
+    interpreter/MicrotaskCall.h
+    interpreter/MicrotaskCallInlines.h
     interpreter/ProtoCallFrame.h
     interpreter/ProtoCallFrameInlines.h
     interpreter/Register.h
@@ -1177,6 +1183,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/ConstructData.h
     runtime/ConstructorKind.h
     runtime/ControlFlowProfiler.h
+    runtime/CrossTaskToken.h
     runtime/CustomGetterSetter.h
     runtime/CustomGetterSetterInlines.h
     runtime/DOMAnnotation.h
@@ -1368,6 +1375,10 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSCellButterflyInlines.h
     runtime/JSCellInlines.h
     runtime/JSCJSValueCellInlines.h
+    runtime/JSCJSValueInlines.h
+    runtime/JSPIContext.h
+    runtime/JSPIContextInlines.h
+    runtime/JSCPtrTag.h
     runtime/JSCustomGetterFunction.h
     runtime/JSCustomGetterFunctionInlines.h
     runtime/JSCustomSetterFunction.h
@@ -1515,6 +1526,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/MapIteratorPrototypeInlines.h
     runtime/MapPrototype.h
     runtime/MapPrototypeInlines.h
+    runtime/MarkedVector.h
     runtime/MatchResult.h
     runtime/MathCommon.h
     runtime/MathObject.h
@@ -1775,6 +1787,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     tools/VMInspector.h
     tools/VMInspectorInlines.h
 
+    wasm/WasmAddressType.h
     wasm/WasmBBQDisassembler.h
     wasm/WasmBBQJIT.h
     wasm/WasmBBQJIT64.h
@@ -1922,14 +1935,14 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     API/JSWeakValue.h
 
     jit/JIT.h
-    bytecode/StructureStubInfo.h
+    bytecode/PropertyInlineCache.h
     bytecode/AccessCase.h
     bytecode/ObjectPropertyConditionSet.h
     bytecode/PolyProtoAccessChain.h
-    bytecode/StructureStubClearingWatchpoint.h
+    bytecode/PropertyInlineCacheClearingWatchpoint.h
     bytecode/AdaptiveInferredPropertyValueWatchpointBase.h
     bytecode/InlineCacheCompiler.h
-    bytecode/StubInfoSummary.h
+    bytecode/PropertyInlineCacheSummary.h
     runtime/CommonSlowPaths.h
     runtime/DirectArguments.h
     runtime/ScopedArguments.h
@@ -2142,12 +2155,11 @@ WEBKIT_COPY_FILES(JavaScriptCore_CopyHeaders
     FLATTENED
 )
 
-WEBKIT_COPY_FILES(JavaScriptCore_CopyPrivateHeaders
+WEBKIT_SYMLINK_FILES(JavaScriptCore_CopyPrivateHeaders
     DESTINATION ${JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS_DIR}/JavaScriptCore
     FILES ${JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS}
     FLATTENED
 )
-add_dependencies(JavaScriptCore_CopyPrivateHeaders Bytecodes JSCBuiltins)
 
 # For static JSC builds, ensure headers are always copied as part of the default build
 if (ENABLE_STATIC_JSC)

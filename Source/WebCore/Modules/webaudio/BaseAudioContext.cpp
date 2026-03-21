@@ -67,6 +67,7 @@
 #include "IIRFilterNode.h"
 #include "IIRFilterOptions.h"
 #include "JSAudioBuffer.h"
+#include "JSDOMConvertInterface.h"
 #include "JSDOMPromiseDeferred.h"
 #include "LocalFrame.h"
 #include "Logging.h"
@@ -1009,11 +1010,11 @@ RefPtr<MediaSessionManagerInterface> BaseAudioContext::mediaSessionManager() con
 
 RefPtr<MediaSessionManagerInterface> BaseAudioContext::mediaSessionManagerIfExists() const
 {
-    RefPtr document = this->document();
+    auto* document = this->document();
     if (!document)
         return nullptr;
 
-    RefPtr page = document->page();
+    auto* page = document->page();
     if (!page)
         return nullptr;
 

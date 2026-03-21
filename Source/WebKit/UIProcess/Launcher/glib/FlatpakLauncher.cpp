@@ -30,14 +30,13 @@
 
 #include <gio/gio.h>
 #include <wtf/FileSystem.h>
+#include <wtf/glib/GSpanExtras.h>
 #include <wtf/glib/GUniquePtr.h>
 #include <wtf/glib/Sandbox.h>
 
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GTK/WPE port
-
 namespace WebKit {
 
-GRefPtr<GSubprocess> flatpakSpawn(GSubprocessLauncher* launcher, const WebKit::ProcessLauncher::LaunchOptions& launchOptions, char** argv, int childProcessSocket, GError** error)
+GRefPtr<GSubprocess> flatpakSpawn(GSubprocessLauncher* launcher, const WebKit::ProcessLauncher::LaunchOptions& launchOptions, Vector<char*>& argv, int childProcessSocket, GError** error)
 {
     ASSERT(launcher);
 
@@ -97,24 +96,21 @@ GRefPtr<GSubprocess> flatpakSpawn(GSubprocessLauncher* launcher, const WebKit::P
 
     // We need to pass our full environment to the subprocess.
     GUniquePtr<char*> environ(g_get_environ());
-    for (char** variable = environ.get(); variable && *variable; variable++) {
-        GUniquePtr<char> arg(g_strconcat("--env=", *variable, nullptr));
+    for (auto* variable : span(environ)) {
+        GUniquePtr<char> arg(g_strconcat("--env=", variable, nullptr));
         flatpakArgs.append(arg.get());
     }
 
-    char** newArgv = g_newa(char*, g_strv_length(argv) + flatpakArgs.size() + 1);
+    Vector<char*> newArgv(argv.size() + flatpakArgs.size());
     size_t i = 0;
 
     for (const auto& arg : flatpakArgs)
         newArgv[i++] = const_cast<char*>(arg.data());
-    for (size_t x = 0; argv[x]; x++)
-        newArgv[i++] = argv[x];
-    newArgv[i++] = nullptr;
+    for (const auto& arg : argv)
+        newArgv[i++] = arg;
 
-    return adoptGRef(g_subprocess_launcher_spawnv(launcher, newArgv, error));
+    return adoptGRef(g_subprocess_launcher_spawnv(launcher, newArgv.span().data(), error));
 }
-
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 };
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,6 +27,7 @@
 
 #include "EnhancedSecurity.h"
 #include "FrameInfoData.h"
+#include "NetworkActivityTracker.h"
 #include "NetworkSessionCreationParameters.h"
 #include "WebDeviceOrientationAndMotionAccessController.h"
 #include "WebFramePolicyListenerProxy.h"
@@ -50,7 +51,7 @@
 #include <wtf/RefCounted.h>
 #include <wtf/RefCounter.h>
 #include <wtf/RefPtr.h>
-#include <wtf/RetainReleaseSwift.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/UniqueRef.h>
 #include <wtf/WeakHashSet.h>
 #include <wtf/WeakPtr.h>
@@ -131,7 +132,7 @@ public:
     static WebsiteDataStore& defaultDataStore();
     static bool NODELETE defaultDataStoreExists();
     static void deleteDefaultDataStoreForTesting();
-    static RefPtr<WebsiteDataStore> existingDataStoreForIdentifier(const WTF::UUID&);
+    static RefPtr<WebsiteDataStore> NODELETE existingDataStoreForIdentifier(const WTF::UUID&);
     
     static Ref<WebsiteDataStore> createNonPersistent();
     static Ref<WebsiteDataStore> create(Ref<WebsiteDataStoreConfiguration>&&, PAL::SessionID);
@@ -160,7 +161,7 @@ public:
     void registerProcess(WebProcessProxy&);
     void unregisterProcess(WebProcessProxy&);
     
-    const WeakHashSet<WebProcessProxy>& processes() const { return m_processes; }
+    const WeakHashSet<WebProcessProxy>& processes() const LIFETIME_BOUND { return m_processes; }
 
     enum class ShouldRetryOnFailure : bool { No, Yes };
     void getNetworkProcessConnection(WebProcessProxy&, CompletionHandler<void(NetworkProcessConnectionInfo&&)>&&, ShouldRetryOnFailure = ShouldRetryOnFailure::Yes);
@@ -297,7 +298,7 @@ public:
     void removeScreenTimeDataWithInterval(WallTime);
 #endif
 
-    static void setCachedProcessSuspensionDelayForTesting(Seconds);
+    static void NODELETE setCachedProcessSuspensionDelayForTesting(Seconds);
 
 #if !PLATFORM(COCOA)
     void allowSpecificHTTPSCertificateForHost(const WebCore::CertificateInfo&, const String& host);
@@ -305,11 +306,9 @@ public:
     void allowTLSCertificateChainForLocalPCMTesting(const WebCore::CertificateInfo&);
 
     DeviceIdHashSaltStorage& ensureDeviceIdHashSaltStorage();
-    Ref<DeviceIdHashSaltStorage> ensureProtectedDeviceIdHashSaltStorage();
 
 #if ENABLE(ENCRYPTED_MEDIA)
     DeviceIdHashSaltStorage& ensureMediaKeysHashSaltStorage();
-    Ref<DeviceIdHashSaltStorage> ensureProtectedMediaKeysHashSaltStorage();
 #endif
 
     WebsiteDataStoreParameters parameters();
@@ -325,7 +324,7 @@ public:
 
 #if USE(CURL)
     void setNetworkProxySettings(WebCore::CurlProxySettings&&);
-    const WebCore::CurlProxySettings& networkProxySettings() const { return m_proxySettings; }
+    const WebCore::CurlProxySettings& networkProxySettings() const LIFETIME_BOUND { return m_proxySettings; }
 #endif
 
 #if USE(SOUP)
@@ -334,7 +333,7 @@ public:
     void setIgnoreTLSErrors(bool);
     bool ignoreTLSErrors() const { return m_ignoreTLSErrors; }
     void setNetworkProxySettings(WebCore::SoupNetworkProxySettings&&);
-    const WebCore::SoupNetworkProxySettings& networkProxySettings() const { return m_networkProxySettings; }
+    const WebCore::SoupNetworkProxySettings& networkProxySettings() const LIFETIME_BOUND { return m_networkProxySettings; }
     void setCookiePersistentStorage(const String&, SoupCookiePersistentStorageType);
     void setHTTPCookieAcceptPolicy(WebCore::HTTPCookieAcceptPolicy);
 #endif
@@ -361,6 +360,7 @@ public:
 
     void renameOriginInWebsiteData(WebCore::SecurityOriginData&&, WebCore::SecurityOriginData&&, OptionSet<WebsiteDataType>, CompletionHandler<void()>&&);
     void originDirectoryForTesting(WebCore::ClientOrigin&&, OptionSet<WebsiteDataType>, CompletionHandler<void(const String&)>&&);
+    void lastPageLoadNetworkActivityCompletionCodeForTesting(WebCore::PageIdentifier, CompletionHandler<void(std::optional<NetworkActivityTracker::CompletionCode>)>&&);
 
     bool networkProcessHasEntitlementForTesting(const String&);
 
@@ -418,7 +418,7 @@ public:
     }
     static std::optional<double> defaultOriginQuotaRatio();
     static std::optional<double> defaultTotalQuotaRatio();
-    static UnifiedOriginStorageLevel defaultUnifiedOriginStorageLevel();
+    static UnifiedOriginStorageLevel NODELETE defaultUnifiedOriginStorageLevel();
 
 #if USE(GLIB)
     static const String& defaultBaseCacheDirectory();
@@ -475,7 +475,7 @@ public:
 
     void updateServiceWorkerInspectability();
 
-    HashSet<RefPtr<WebProcessPool>> processPools(size_t limit = std::numeric_limits<size_t>::max()) const;
+    HashSet<Ref<WebProcessPool>> processPools(size_t limit = std::numeric_limits<size_t>::max()) const;
 
     void setServiceWorkerOverridePreferences(WebPreferences* preferences) { m_serviceWorkerOverridePreferences = preferences; }
     WebPreferences* serviceWorkerOverridePreferences() const { return m_serviceWorkerOverridePreferences.get(); }
@@ -503,7 +503,7 @@ public:
     bool operator==(const WebsiteDataStore& other) const { return (m_sessionID == other.sessionID()); }
     void resolveDirectoriesAsynchronously();
 
-    const HashSet<URL>& persistedSiteURLs() const { return m_persistedSiteURLs; }
+    const HashSet<URL>& persistedSiteURLs() const LIFETIME_BOUND { return m_persistedSiteURLs; }
     void setPersistedSiteURLs(HashSet<URL>&&);
 
     void getAppBadgeForTesting(CompletionHandler<void(std::optional<uint64_t>)>&&);
@@ -541,7 +541,7 @@ private:
     void fetchDataAndApply(OptionSet<WebsiteDataType>, OptionSet<WebsiteDataFetchOption>, Ref<WorkQueue>&&, Function<void(Vector<WebsiteDataRecord>)>&& apply);
 
     void platformInitialize();
-    void platformDestroy();
+    void NODELETE platformDestroy();
     void platformSetNetworkParameters(WebsiteDataStoreParameters&);
     void removeRecentSearches(WallTime, CompletionHandler<void()>&&);
 
@@ -557,7 +557,7 @@ private:
     void createHandleFromResolvedPathIfPossible(const String& resolvedPath, SandboxExtension::Handle&, SandboxExtension::Type = SandboxExtension::Type::ReadWrite);
 
     // Will create a temporary process pool is none exists yet.
-    HashSet<RefPtr<WebProcessPool>> ensureProcessPools() const;
+    HashSet<Ref<WebProcessPool>> ensureProcessPools() const;
 
     static Vector<WebCore::SecurityOriginData> mediaKeysStorageOrigins(const String& mediaKeysStorageDirectory);
     static void removeMediaKeysStorage(const String& mediaKeysStorageDirectory, WallTime modifiedSince);
@@ -575,7 +575,7 @@ private:
 #endif
 
 #if ENABLE(MANAGED_DOMAINS)
-    static const HashSet<WebCore::RegistrableDomain>* managedDomainsIfInitialized();
+    static const HashSet<WebCore::RegistrableDomain>* NODELETE managedDomainsIfInitialized();
     static void forwardManagedDomainsToITPIfInitialized(CompletionHandler<void()>&&);
     void setManagedDomainsForITP(const HashSet<WebCore::RegistrableDomain>&, CompletionHandler<void()>&&);
 #endif
@@ -697,18 +697,18 @@ private:
 
     RemoveDataTaskCounter m_removeDataTaskCounter;
     uint64_t m_cookiesVersion { 0 };
-} SWIFT_SHARED_REFERENCE(refDataStore, derefDataStore);
+} SWIFT_SHARED_REFERENCE(refDataStore, derefDataStore) SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT;
 
 }
 
 inline void refDataStore(WebKit::WebsiteDataStore* WTF_NONNULL obj)
 {
-    WTF::ref(obj);
+    obj->ref();
 }
 
 inline void derefDataStore(WebKit::WebsiteDataStore* WTF_NONNULL obj)
 {
-    WTF::deref(obj);
+    obj->deref();
 }
 
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebKit::WebsiteDataStore)

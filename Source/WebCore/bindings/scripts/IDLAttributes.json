@@ -67,6 +67,9 @@
         "CheckSecurityForNode": {
             "contextsAllowed": ["attribute", "operation"]
         },
+        "CheckSecurityForNodeWithFrameOwner": {
+            "contextsAllowed": ["attribute", "operation"]
+        },
         "Clamp": {
             "contextsAllowed": ["type"],
             "standard": {
@@ -93,7 +96,7 @@
             "values": ["*"]
         },
         "ConstantsEnum": {
-            "contextsAllowed": ["interface"],
+            "contextsAllowed": ["interface", "constant"],
             "values": ["*"]
         },
         "ContextAllowsMediaDevices": {
@@ -165,7 +168,7 @@
             "supportsConjunction": true
         },
         "DoNotCheckConstants": {
-            "contextsAllowed": ["interface"]
+            "contextsAllowed": ["interface", "constant"]
         },
         "DoNotCheckSecurity": {
             "contextsAllowed": ["attribute", "operation"]

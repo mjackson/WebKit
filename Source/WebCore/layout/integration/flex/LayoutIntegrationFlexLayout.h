@@ -51,15 +51,15 @@ public:
     ~FlexLayout();
 
     void updateFormattingContexGeometries();
-    void updateStyle(const RenderBlock&, const RenderStyle& oldStyle);
+    void NODELETE updateStyle(const RenderBlock&, const RenderStyle& oldStyle);
 
     std::pair<LayoutUnit, LayoutUnit> computeIntrinsicWidthConstraints();
 
     void layout();
-    void paint(PaintInfo&, const LayoutPoint& paintOffset);
-    bool hitTest(const HitTestRequest&, HitTestResult&, const HitTestLocation&, const LayoutPoint& accumulatedOffset, HitTestAction);
+    void NODELETE paint(PaintInfo&, const LayoutPoint& paintOffset);
+    bool NODELETE hitTest(const HitTestRequest&, HitTestResult&, const HitTestLocation&, const LayoutPoint& accumulatedOffset, HitTestAction);
 
-    void collectOverflow();
+    void NODELETE collectOverflow();
     LayoutUnit contentBoxLogicalHeight() const;
 
 private:
@@ -71,8 +71,8 @@ private:
     const RenderFlexibleBox& flexBoxRenderer() const { return downcast<RenderFlexibleBox>(*m_flexBox->rendererForIntegration()); }
     RenderFlexibleBox& flexBoxRenderer() { return downcast<RenderFlexibleBox>(*m_flexBox->rendererForIntegration()); }
 
-    Layout::LayoutState& layoutState() { return *m_layoutState; }
-    const Layout::LayoutState& layoutState() const { return *m_layoutState; }
+    Layout::LayoutState& layoutState() LIFETIME_BOUND { return *m_layoutState; }
+    const Layout::LayoutState& layoutState() const LIFETIME_BOUND { return *m_layoutState; }
 
     CheckedPtr<Layout::ElementBox> m_flexBox;
     WeakPtr<Layout::LayoutState> m_layoutState;

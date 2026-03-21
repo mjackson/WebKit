@@ -39,29 +39,3 @@ extension Comparable {
         min(max(self, limits.lowerBound), limits.upperBound)
     }
 }
-
-extension CGPoint {
-    /// Returns the euclidean distance between this point and `point`.
-    ///
-    /// - Parameter point: A point to compute the distance to.
-    /// - Returns: The distance between this point and `point`.
-    func distance(to point: CGPoint) -> Double {
-        let distanceSquared = (x - point.x) * (x - point.x) + (y - point.y) * (y - point.y)
-        return distanceSquared.squareRoot()
-    }
-}
-
-extension CGRect {
-    /// Determines the closest distance between this rect and `point` using whichever edge is nearest.
-    ///
-    /// - Parameter point: A point to compute the distance to.
-    /// - Returns: The closest distance between this rect and `point`. If `point` is contained within this rect, `0` is returned.
-    func distance(to point: CGPoint) -> Double {
-        // Clamp the point coordinates to the rectangle's bounds
-        let closestX = point.x.clamped(to: minX...maxX)
-        let closestY = point.y.clamped(to: minY...maxY)
-
-        let closestPoint = CGPoint(x: closestX, y: closestY)
-        return point.distance(to: closestPoint)
-    }
-}

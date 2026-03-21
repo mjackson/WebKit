@@ -546,7 +546,7 @@ void TrackBuffer::setLogger(const Logger& newLogger, uint64_t newLogIdentifier)
 
 WTFLogChannel& TrackBuffer::logChannel() const
 {
-    return JOIN_LOG_CHANNEL_WITH_PREFIX(LOG_CHANNEL_PREFIX, Media);
+    return JOIN_LOG_CHANNEL_WITH_PREFIX(LOG_CHANNEL_PREFIX, MediaSource);
 }
 #endif
 

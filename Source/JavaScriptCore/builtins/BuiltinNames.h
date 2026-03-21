@@ -147,6 +147,7 @@ namespace JSC {
     macro(hasInstanceBoundFunction) \
     macro(instanceOf) \
     macro(isArraySlow) \
+    macro(isArray) \
     macro(sameValue) \
     macro(regExpCreate) \
     macro(isRegExp) \

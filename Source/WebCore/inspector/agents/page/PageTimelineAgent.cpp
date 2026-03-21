@@ -31,6 +31,7 @@
 #include "DocumentView.h"
 #include "FrameSnapshotting.h"
 #include "ImageBuffer.h"
+#include "ImageUtilities.h"
 #include "InspectorBackendClient.h"
 #include "InstrumentingAgents.h"
 #include "Page.h"
@@ -42,7 +43,7 @@
 
 #if PLATFORM(IOS_FAMILY)
 #include "WebCoreThreadInternal.h"
-#include <wtf/RuntimeApplicationChecks.h>
+#include <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
 #endif
 
 #if PLATFORM(COCOA)
@@ -261,7 +262,7 @@ void PageTimelineAgent::didPaint(RenderObject& renderer, const LayoutRect& clipR
 
     ASSERT(entry->type == TimelineRecordType::Paint);
 
-    auto clipQuadInRootView = renderer.view().frameView().contentsToRootView(renderer.localToAbsoluteQuad({ clipRect }));
+    auto clipQuadInRootView = protect(renderer.view().frameView())->contentsToRootView(renderer.localToAbsoluteQuad({ clipRect }));
     entry->data = TimelineRecordFactory::createPaintData(clipQuadInRootView);
 
     didCompleteCurrentRecord(TimelineRecordType::Paint);
@@ -269,6 +270,9 @@ void PageTimelineAgent::didPaint(RenderObject& renderer, const LayoutRect& clipR
 
 void PageTimelineAgent::mainFrameStartedLoading()
 {
+    if (tracking())
+        return;
+
     if (!m_autoCaptureEnabled)
         return;
 
@@ -336,8 +340,8 @@ void PageTimelineAgent::captureScreenshot()
     if (!localMainFrameView)
         return;
 
-    if (auto snapshot = snapshotFrameRect(*localMainFrame, localMainFrameView->unobscuredContentRect(), { { }, PixelFormat::BGRA8, DestinationColorSpace::SRGB() })) {
-        auto snapshotRecord = TimelineRecordFactory::createScreenshotData(snapshot->toDataURL("image/png"_s));
+    if (RefPtr snapshot = snapshotFrameRect(*localMainFrame, localMainFrameView->unobscuredContentRect(), { { }, PixelFormat::BGRA8, DestinationColorSpace::SRGB() })) {
+        Ref snapshotRecord = TimelineRecordFactory::createScreenshotData(encodeDataURL(WTF::move(snapshot), "image/png"_s));
         pushCurrentRecord(WTF::move(snapshotRecord), TimelineRecordType::Screenshot, false, snapshotStartTime);
         didCompleteCurrentRecord(TimelineRecordType::Screenshot);
     }

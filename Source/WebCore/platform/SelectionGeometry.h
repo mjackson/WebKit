@@ -29,6 +29,7 @@
 #include <WebCore/IntRect.h>
 #include <WebCore/WritingMode.h>
 #include <optional>
+#include <wtf/SwiftBridging.h>
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {
@@ -47,7 +48,7 @@ public:
     ~SelectionGeometry() = default;
 
     FloatQuad quad() const { return m_quad; }
-    WEBCORE_EXPORT void setQuad(const FloatQuad&);
+    WEBCORE_EXPORT void NODELETE setQuad(const FloatQuad&);
 
     WEBCORE_EXPORT IntRect rect() const;
     WEBCORE_EXPORT void setRect(const IntRect&);
@@ -93,7 +94,7 @@ public:
     void setBehavior(SelectionRenderingBehavior behavior) { m_behavior = behavior; }
     void setSeparateFromPreviousLine(bool separate) { m_separateFromPreviousLine = separate; }
 
-    WEBCORE_EXPORT void move(float x, float y);
+    WEBCORE_EXPORT void NODELETE move(float x, float y);
 
 private:
     FloatQuad m_quad;
@@ -114,7 +115,7 @@ private:
     int m_pageNumber { 0 };
 
     mutable std::optional<IntRect> m_cachedEnclosingRect;
-};
+} SWIFT_ESCAPABLE;
 
 WEBCORE_EXPORT WTF::TextStream& operator<<(WTF::TextStream&, const SelectionGeometry&);
 

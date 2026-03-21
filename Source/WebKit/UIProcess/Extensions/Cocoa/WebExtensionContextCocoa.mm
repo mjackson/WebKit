@@ -1004,7 +1004,7 @@ RefPtr<WebExtensionTab> WebExtensionContext::getCurrentTab(WebPageProxyIdentifie
     // Search open inspectors.
     for (auto [inspector, tab] : openInspectors()) {
         Ref protectedInspector = inspector;
-        if (protect(protectedInspector->inspectorPage())->identifier() == webPageProxyIdentifier) {
+        if (protectedInspector->inspectorPage()->identifier() == webPageProxyIdentifier) {
             if (includeExtensionViews == IncludeExtensionViews::No)
                 return nullptr;
 
@@ -2196,7 +2196,7 @@ Vector<WebExtensionContext::PageIdentifierTuple> WebExtensionContext::inspectorP
         auto windowIdentifier = window ? std::optional(window->identifier()) : std::nullopt;
 
         Ref protectedInspector = inspector;
-        result.append({ protect(protectedInspector->inspectorPage())->webPageIDInMainFrameProcess(), tabIdentifier, windowIdentifier });
+        result.append({ protectedInspector->inspectorPage()->webPageIDInMainFrameProcess(), tabIdentifier, windowIdentifier });
     }
 
     return result;
@@ -2447,8 +2447,14 @@ void WebExtensionContext::loadBackgroundWebView()
     Ref backgroundPage = *m_backgroundWebView.get()._page;
     Ref backgroundProcess = backgroundPage->siteIsolatedProcess();
 
+    bool siteIsolationEnabled = protect(backgroundPage->preferences())->siteIsolationEnabled();
+    constexpr ASCIILiteral activityName = "Web Extension background content"_s;
+
     // Use foreground activity to keep background content responsive to events.
-    m_backgroundWebViewActivity = protect(backgroundProcess->throttler())->foregroundActivity("Web Extension background content"_s);
+    if (siteIsolationEnabled)
+        m_backgroundWebViewActivity = protect(backgroundPage->activityGroupContext())->foregroundProcessActivityGroup(activityName);
+    else
+        m_backgroundWebViewActivity = protect(backgroundProcess->throttler())->foregroundActivity(activityName);
 
     if (!protect(extension())->backgroundContentIsServiceWorker()) {
         backgroundProcess->send(Messages::WebExtensionContextProxy::SetBackgroundPageIdentifier(backgroundPage->webPageIDInMainFrameProcess()), identifier());
@@ -2475,7 +2481,7 @@ void WebExtensionContext::unloadBackgroundWebView()
 
     m_backgroundContentIsLoaded = false;
     m_unloadBackgroundWebViewTimer = nullptr;
-    m_backgroundWebViewActivity = nullptr;
+    m_backgroundWebViewActivity = { };
 
     [m_backgroundWebView _close];
     m_backgroundWebView = nil;
@@ -2814,7 +2820,7 @@ RefPtr<API::InspectorExtension> WebExtensionContext::inspectorExtension(WebPageP
 
     for (auto [inspector, tab] : openInspectors()) {
         Ref protectedInspector = inspector;
-        if (protect(protectedInspector->inspectorPage())->identifier() == webPageProxyIdentifier) {
+        if (protectedInspector->inspectorPage()->identifier() == webPageProxyIdentifier) {
             const auto& inspectorContext = m_inspectorContextMap.get(inspector);
             return inspectorContext.extension;
         }
@@ -2999,16 +3005,23 @@ void WebExtensionContext::loadInspectorBackgroundPage(WebInspectorUIProxy& inspe
         Ref inspectorExtension = result.value();
         inspectorExtension->setClient(makeUniqueRef<InspectorExtensionClient>(inspectorExtension, *this));
 
-        Ref process = inspectorBackgroundWebView._page->legacyMainFrameProcess();
-
         // Use foreground activity to keep background content responsive to events.
-        Ref inspectorBackgroundWebViewActivity = protect(process->throttler())->foregroundActivity("Web Extension Inspector background content"_s);
+        Ref inspectorPage = *inspectorBackgroundWebView._page;
+        Ref process = inspectorPage->legacyMainFrameProcess();
+
+        Variant<std::monostate, Ref<ProcessThrottlerActivity>, Ref<ProcessActivityGroup>> inspectorBackgroundWebViewActivity;
+        constexpr ASCIILiteral activityName = "Web Extension Inspector background content"_s;
+
+        if (siteIsolationEnabled)
+            inspectorBackgroundWebViewActivity = protect(inspectorPage->activityGroupContext())->foregroundProcessActivityGroup(activityName);
+        else
+            inspectorBackgroundWebViewActivity = protect(process->throttler())->foregroundActivity(activityName);
 
         InspectorContext inspectorContext {
             tab->identifier(),
             inspectorExtension.ptr(),
             inspectorBackgroundWebView,
-            inspectorBackgroundWebViewActivity.ptr()
+            WTF::move(inspectorBackgroundWebViewActivity)
         };
 
         m_inspectorContextMap.set(inspector.get(), WTF::move(inspectorContext));

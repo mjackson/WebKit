@@ -105,6 +105,10 @@ public:
     static Ref<PointerEvent> create(const AtomString& type, const PlatformTouchEvent&, const Vector<Ref<PointerEvent>>& coalescedEvents, const Vector<Ref<PointerEvent>>& predictedEvents, unsigned touchIndex, bool isPrimary, Ref<WindowProxy>&&, const DoublePoint& touchDelta = { });
 #endif
 
+#if ENABLE(TOUCH_EVENTS) && (PLATFORM(WPE) || PLATFORM(GTK))
+    static unsigned pointerIdForTouchPoint(const PlatformTouchPoint&);
+#endif
+
     virtual ~PointerEvent();
 
     PointerID pointerId() const { return m_pointerId; }

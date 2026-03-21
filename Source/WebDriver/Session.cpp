@@ -1847,6 +1847,22 @@ void Session::getElementCSSValue(const String& elementID, const String& cssPrope
     });
 }
 
+bool Session::clearBrowsingContextsOnError(const CommandResult& result)
+{
+    switch (result.errorCode()) {
+    case CommandResult::ErrorCode::NoSuchWindow:
+        m_toplevelBrowsingContext = std::nullopt;
+        m_currentBrowsingContext = std::nullopt;
+        m_currentParentBrowsingContext = std::nullopt;
+        return true;
+    case CommandResult::ErrorCode::NoSuchFrame:
+        m_currentBrowsingContext = std::nullopt;
+        return true;
+    default:
+        return false;
+    }
+}
+
 void Session::waitForNavigationToComplete(Function<void(CommandResult&&)>&& completionHandler)
 {
     if (!m_currentBrowsingContext) {
@@ -1854,33 +1870,37 @@ void Session::waitForNavigationToComplete(Function<void(CommandResult&&)>&& comp
         return;
     }
 
-    auto parameters = JSON::Object::create();
-    parameters->setString("browsingContextHandle"_s, uncheckedTopLevelBrowsingContext());
-    if (m_currentBrowsingContext)
-        parameters->setString("frameHandle"_s, m_currentBrowsingContext.value());
-    parameters->setDouble("pageLoadTimeout"_s, m_pageLoadTimeout);
-    if (auto pageLoadStrategy = pageLoadStrategyString())
-        parameters->setString("pageLoadStrategy"_s, pageLoadStrategy.value());
-    m_host->sendCommandToBackend("waitForNavigationToComplete"_s, WTF::move(parameters), [this, protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler)](SessionHost::CommandResponse&& response) {
+    auto resolveParameters = JSON::Object::create();
+    resolveParameters->setString("browsingContextHandle"_s, uncheckedTopLevelBrowsingContext());
+    resolveParameters->setString("frameHandle"_s, m_currentBrowsingContext.value());
+    m_host->sendCommandToBackend("resolveBrowsingContext"_s, WTF::move(resolveParameters), [this, protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler)](SessionHost::CommandResponse&& response) mutable {
         if (response.isError) {
             auto result = CommandResult::fail(WTF::move(response.responseObject));
-            switch (result.errorCode()) {
-            case CommandResult::ErrorCode::NoSuchWindow:
-                // Window was closed, reset the top level browsing context and ignore the error.
-                m_toplevelBrowsingContext = std::nullopt;
-                m_currentBrowsingContext = std::nullopt;
-                m_currentParentBrowsingContext = std::nullopt;
-                break;
-            case CommandResult::ErrorCode::NoSuchFrame:
-                // Navigation destroyed the current frame, reset the current browsing context and ignore the error.
-                m_currentBrowsingContext = std::nullopt;
-                break;
-            default:
+            if (!clearBrowsingContextsOnError(result)) {
                 completionHandler(WTF::move(result));
                 return;
             }
+            completionHandler(CommandResult::success());
+            return;
         }
-        completionHandler(CommandResult::success());
+
+        auto parameters = JSON::Object::create();
+        parameters->setString("browsingContextHandle"_s, uncheckedTopLevelBrowsingContext());
+        if (m_currentBrowsingContext)
+            parameters->setString("frameHandle"_s, m_currentBrowsingContext.value());
+        parameters->setDouble("pageLoadTimeout"_s, m_pageLoadTimeout);
+        if (auto pageLoadStrategy = pageLoadStrategyString())
+            parameters->setString("pageLoadStrategy"_s, pageLoadStrategy.value());
+        m_host->sendCommandToBackend("waitForNavigationToComplete"_s, WTF::move(parameters), [this, protectedThis, completionHandler = WTF::move(completionHandler)](SessionHost::CommandResponse&& response) {
+            if (response.isError) {
+                auto result = CommandResult::fail(WTF::move(response.responseObject));
+                if (!clearBrowsingContextsOnError(result)) {
+                    completionHandler(WTF::move(result));
+                    return;
+                }
+            }
+            completionHandler(CommandResult::success());
+        });
     });
 }
 

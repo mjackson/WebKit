@@ -40,6 +40,7 @@
 #include "DocumentPage.h"
 #include "EventLoop.h"
 #include "EventNames.h"
+#include "JSDOMConvertBoolean.h"
 #include "JSMediaKeyStatusMap.h"
 #include "Logging.h"
 #include "MediaKeyMessageEvent.h"
@@ -762,7 +763,7 @@ void MediaKeySession::sessionIdChanged(const String& sessionId)
 
 PlatformDisplayID MediaKeySession::displayID()
 {
-    RefPtr document = downcast<Document>(scriptExecutionContext());
+    auto* document = downcast<Document>(scriptExecutionContext());
     if (!document)
         return 0;
 

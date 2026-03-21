@@ -87,9 +87,7 @@ public:
     void start(IDBFactory*, SecurityOrigin*, const String& databaseName);
     virtual void execute(IDBDatabase&) = 0;
     virtual BackendDispatcher::CallbackBase& requestCallback() = 0;
-    Ref<BackendDispatcher::CallbackBase> protectedRequestCallback() { return requestCallback(); }
-    ScriptExecutionContext* context() const { return m_context.get(); }
-    RefPtr<ScriptExecutionContext> protectedContext() const { return context(); }
+    ScriptExecutionContext* NODELETE context() const { return m_context.get(); }
 private:
     WeakPtr<ScriptExecutionContext> m_context;
 };
@@ -104,7 +102,7 @@ public:
     void handleEvent(ScriptExecutionContext&, Event& event) final
     {
         if (event.type() != eventNames().successEvent) {
-            m_executableWithDatabase->protectedRequestCallback()->sendFailure("Unexpected event type."_s);
+            protect(m_executableWithDatabase->requestCallback())->sendFailure("Unexpected event type."_s);
             return;
         }
 
@@ -112,13 +110,13 @@ public:
 
         auto result = request->result();
         if (result.hasException()) {
-            m_executableWithDatabase->protectedRequestCallback()->sendFailure("Could not get result in callback."_s);
+            protect(m_executableWithDatabase->requestCallback())->sendFailure("Could not get result in callback."_s);
             return;
         }
 
         auto resultValue = result.releaseReturnValue();
         if (!std::holds_alternative<Ref<IDBDatabase>>(resultValue)) {
-            m_executableWithDatabase->protectedRequestCallback()->sendFailure("Unexpected result type."_s);
+            protect(m_executableWithDatabase->requestCallback())->sendFailure("Unexpected result type."_s);
             return;
         }
 
@@ -137,13 +135,13 @@ private:
 void ExecutableWithDatabase::start(IDBFactory* idbFactory, SecurityOrigin*, const String& databaseName)
 {
     if (!context()) {
-        protectedRequestCallback()->sendFailure("Could not open database."_s);
+        protect(requestCallback())->sendFailure("Could not open database."_s);
         return;
     }
 
-    auto result = idbFactory->open(*protectedContext(), databaseName, std::nullopt);
+    auto result = idbFactory->open(*protect(context()), databaseName, std::nullopt);
     if (result.hasException()) {
-        protectedRequestCallback()->sendFailure("Could not open database."_s);
+        protect(requestCallback())->sendFailure("Could not open database."_s);
         return;
     }
 
@@ -514,11 +512,6 @@ InspectorIndexedDBAgent::InspectorIndexedDBAgent(PageAgentContext& context)
 
 InspectorIndexedDBAgent::~InspectorIndexedDBAgent() = default;
 
-Ref<Page> InspectorIndexedDBAgent::protectedInspectedPage() const
-{
-    return m_inspectedPage.get();
-}
-
 void InspectorIndexedDBAgent::didCreateFrontendAndBackend()
 {
 }
@@ -586,7 +579,7 @@ static bool getDocumentAndIDBFactoryFromFrameOrSendFailure(LocalFrame* frame, Do
     
 void InspectorIndexedDBAgent::requestDatabaseNames(const String& securityOrigin, Ref<RequestDatabaseNamesCallback>&& callback)
 {
-    RefPtr frame = ResourceUtilities::findFrameWithSecurityOrigin(protectedInspectedPage(), securityOrigin);
+    RefPtr frame = ResourceUtilities::findFrameWithSecurityOrigin(protect(inspectedPage()), securityOrigin);
     Document* document;
     IDBFactory* idbFactory;
     if (!getDocumentAndIDBFactoryFromFrameOrSendFailure(frame.get(), document, idbFactory, callback))
@@ -606,7 +599,7 @@ void InspectorIndexedDBAgent::requestDatabaseNames(const String& securityOrigin,
 
 void InspectorIndexedDBAgent::requestDatabase(const String& securityOrigin, const String& databaseName, Ref<RequestDatabaseCallback>&& callback)
 {
-    RefPtr frame = ResourceUtilities::findFrameWithSecurityOrigin(protectedInspectedPage(), securityOrigin);
+    RefPtr frame = ResourceUtilities::findFrameWithSecurityOrigin(protect(inspectedPage()), securityOrigin);
     Document* document;
     IDBFactory* idbFactory;
     if (!getDocumentAndIDBFactoryFromFrameOrSendFailure(frame.get(), document, idbFactory, callback))
@@ -618,7 +611,7 @@ void InspectorIndexedDBAgent::requestDatabase(const String& securityOrigin, cons
 
 void InspectorIndexedDBAgent::requestData(const String& securityOrigin, const String& databaseName, const String& objectStoreName, const String& indexName, int skipCount, int pageSize, RefPtr<JSON::Object>&& keyRange, Ref<RequestDataCallback>&& callback)
 {
-    RefPtr frame = ResourceUtilities::findFrameWithSecurityOrigin(protectedInspectedPage(), securityOrigin);
+    RefPtr frame = ResourceUtilities::findFrameWithSecurityOrigin(protect(inspectedPage()), securityOrigin);
     Document* document;
     IDBFactory* idbFactory;
     if (!getDocumentAndIDBFactoryFromFrameOrSendFailure(frame.get(), document, idbFactory, callback))
@@ -723,7 +716,7 @@ private:
 
 void InspectorIndexedDBAgent::clearObjectStore(const String& securityOrigin, const String& databaseName, const String& objectStoreName, Ref<ClearObjectStoreCallback>&& callback)
 {
-    RefPtr frame = ResourceUtilities::findFrameWithSecurityOrigin(protectedInspectedPage(), securityOrigin);
+    RefPtr frame = ResourceUtilities::findFrameWithSecurityOrigin(protect(inspectedPage()), securityOrigin);
     Document* document;
     IDBFactory* idbFactory;
     if (!getDocumentAndIDBFactoryFromFrameOrSendFailure(frame.get(), document, idbFactory, callback))

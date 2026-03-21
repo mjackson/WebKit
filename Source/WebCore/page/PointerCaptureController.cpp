@@ -40,6 +40,7 @@
 #include "Page.h"
 #include "PointerEvent.h"
 #include "Quirks.h"
+#include "Settings.h"
 #include <algorithm>
 #include <ranges>
 #include <wtf/CheckedArithmetic.h>
@@ -495,6 +496,8 @@ void PointerCaptureController::pointerEventWillBeDispatched(const PointerEvent& 
         setPointerCapture(&element, event.pointerId());
     }
     element.document().handlePopoverLightDismiss(event, element);
+    if (element.document().settings().closedbyAttributeEnabled())
+        element.document().handleDialogLightDismiss(event, element);
 }
 
 auto PointerCaptureController::ensureCapturingDataForPointerEvent(const PointerEvent& event) -> Ref<CapturingData>

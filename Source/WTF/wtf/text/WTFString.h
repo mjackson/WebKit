@@ -140,7 +140,7 @@ public:
     char16_t operator[](unsigned index) const { return characterAt(index); }
 
     WTF_EXPORT_PRIVATE static String NODELETE number(int);
-    WTF_EXPORT_PRIVATE static String number(unsigned);
+    WTF_EXPORT_PRIVATE static String NODELETE number(unsigned);
     WTF_EXPORT_PRIVATE static String number(long);
     WTF_EXPORT_PRIVATE static String number(unsigned long);
     WTF_EXPORT_PRIVATE static String number(long long);
@@ -177,7 +177,7 @@ public:
     WTF_EXPORT_PRIVATE Expected<Vector<char16_t>, UTF8ConversionError> charactersWithNullTermination() const;
     WTF_EXPORT_PRIVATE Expected<Vector<char16_t>, UTF8ConversionError> charactersWithoutNullTermination() const;
 
-    WTF_EXPORT_PRIVATE char32_t characterStartingAt(unsigned) const;
+    WTF_EXPORT_PRIVATE char32_t NODELETE characterStartingAt(unsigned) const;
 
     bool contains(char16_t character) const { return find(character) != notFound; }
     bool contains(ASCIILiteral literal) const { return find(literal) != notFound; }

@@ -42,13 +42,13 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(RemoteMediaSessionHelperProxy);
 RemoteMediaSessionHelperProxy::RemoteMediaSessionHelperProxy(GPUConnectionToWebProcess& gpuConnection)
     : m_gpuConnection(gpuConnection)
 {
-    MediaSessionHelper::protectedSharedHelper()->addClient(*this);
+    protect(MediaSessionHelper::sharedHelper())->addClient(*this);
 }
 
 RemoteMediaSessionHelperProxy::~RemoteMediaSessionHelperProxy()
 {
     stopMonitoringWirelessRoutes();
-    MediaSessionHelper::protectedSharedHelper()->removeClient(*this);
+    protect(MediaSessionHelper::sharedHelper())->removeClient(*this);
 }
 
 void RemoteMediaSessionHelperProxy::ref() const
@@ -75,7 +75,7 @@ void RemoteMediaSessionHelperProxy::startMonitoringWirelessRoutes()
         return;
 
     m_isMonitoringWirelessRoutes = true;
-    MediaSessionHelper::protectedSharedHelper()->startMonitoringWirelessRoutes();
+    protect(MediaSessionHelper::sharedHelper())->startMonitoringWirelessRoutes();
 }
 
 void RemoteMediaSessionHelperProxy::stopMonitoringWirelessRoutes()
@@ -84,7 +84,7 @@ void RemoteMediaSessionHelperProxy::stopMonitoringWirelessRoutes()
         return;
 
     m_isMonitoringWirelessRoutes = false;
-    MediaSessionHelper::protectedSharedHelper()->stopMonitoringWirelessRoutes();
+    protect(MediaSessionHelper::sharedHelper())->stopMonitoringWirelessRoutes();
 }
 
 void RemoteMediaSessionHelperProxy::uiApplicationWillEnterForeground(SuspendedUnderLock suspendedUnderLock)
@@ -133,12 +133,6 @@ void RemoteMediaSessionHelperProxy::activeVideoRouteDidChange(SupportsAirPlayVid
 {
     if (RefPtr connection = m_gpuConnection.get())
         connection->connection().send(Messages::RemoteMediaSessionHelper::ActiveVideoRouteDidChange(supportsAirPlayVideo, MediaPlaybackTargetContextSerialized { target.get() }), { });
-}
-
-void RemoteMediaSessionHelperProxy::activeAudioRouteSupportsSpatialPlaybackDidChange(SupportsSpatialAudioPlayback supportsSpatialPlayback)
-{
-    if (RefPtr connection = m_gpuConnection.get())
-        connection->connection().send(Messages::RemoteMediaSessionHelper::ActiveAudioRouteSupportsSpatialPlaybackDidChange(supportsSpatialPlayback), { });
 }
 
 std::optional<SharedPreferencesForWebProcess> RemoteMediaSessionHelperProxy::sharedPreferencesForWebProcess() const

@@ -140,7 +140,7 @@ private:
 
         Type type() const { return m_type; }
         bool resize(const WebCore::IntSize&);
-        const WebCore::IntSize& size() const { return m_size; }
+        const WebCore::IntSize& size() const LIFETIME_BOUND { return m_size; }
         RenderTarget* nextTarget();
         void releaseTarget(uint64_t, UnixFileDescriptor&& releaseFence);
         void reset();

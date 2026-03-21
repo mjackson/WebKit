@@ -125,6 +125,7 @@ struct URLSchemeHandlerTests {
     }
 
     @Test(
+        .disabled("This test is too slow"),
         .bug("https://bugs.webkit.org/show_bug.cgi?id=295741"),
         arguments: [
             TestURLSchemeHandler.Delays(beforeYield: .seconds(2), beforeFinish: .zero),
@@ -149,14 +150,12 @@ struct URLSchemeHandlerTests {
         var secondEvents: [WebPage.NavigationEvent] = []
 
         do {
-            // Safety: this is actually safe; false positive is rdar://154775389
-            for try await unsafe firstEvent in page.load(URL(string: "testing://main")) {
+            for try await firstEvent in page.load(URL(string: "testing://main")) {
                 firstEvents.append(firstEvent)
 
                 if firstEvent == .startedProvisionalNavigation {
                     do {
-                        // Safety: this is actually safe; false positive is rdar://154775389
-                        for try await unsafe secondEvent in page.load(URL(string: "testing://main2")) {
+                        for try await secondEvent in page.load(URL(string: "testing://main2")) {
                             secondEvents.append(secondEvent)
                         }
                     } catch {

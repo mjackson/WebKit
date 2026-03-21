@@ -257,7 +257,7 @@ void CachedImage::computeIntrinsicDimensions(const RenderElement* renderer, floa
 {
     // In case of an SVG resource, we should return the container size.
     if (isRenderSVGResource(renderer)) {
-        FloatSize size = floorSizeToDevicePixels(LayoutSize(m_containerSize), renderer ? renderer->document().deviceScaleFactor() : 1);
+        FloatSize size = floorSizeToDevicePixels(LayoutSize(m_containerSize), renderer ? protect(renderer->document())->deviceScaleFactor() : 1);
         intrinsicWidth = size.width();
         intrinsicHeight = size.height();
         intrinsicRatio = size;

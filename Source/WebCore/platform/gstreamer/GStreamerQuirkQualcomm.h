@@ -34,6 +34,9 @@ public:
     [[nodiscard]] GRefPtr<GstCaps> videoSinkGLCapsFormat() const final { return m_glCaps; }
     bool isVideoCapsGLCompatible(const GRefPtr<GstCaps>&) const final;
 
+    std::optional<bool> isHardwareAccelerated(GstElementFactory*) final;
+    unsigned getAdditionalPlaybinFlags() const final { return getGstPlayFlag("text") | getGstPlayFlag("native-video"); }
+
 private:
     mutable GRefPtr<GstCaps> m_glCaps;
 };

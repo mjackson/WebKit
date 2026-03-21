@@ -37,7 +37,7 @@ class CSSPositionTryDescriptors;
 
 class StyleRulePositionTry final : public StyleRuleBase {
 public:
-    static Ref<StyleRulePositionTry> create(AtomString&& name, Ref<StyleProperties>&&);
+    static Ref<StyleRulePositionTry> NODELETE create(AtomString&& name, Ref<StyleProperties>&&);
 
     Ref<StyleRulePositionTry> copy() const { return adoptRef(*new StyleRulePositionTry(*this)); }
 
@@ -64,7 +64,7 @@ public:
     String cssText() const;
     void reattach(StyleRuleBase&);
 
-    Ref<StyleRulePositionTry> protectedPositionTryRule() const { return m_positionTryRule; }
+    StyleRulePositionTry& positionTryRule() const { return m_positionTryRule; }
 
     WEBCORE_EXPORT AtomString NODELETE name() const;
     WEBCORE_EXPORT CSSPositionTryDescriptors& style();

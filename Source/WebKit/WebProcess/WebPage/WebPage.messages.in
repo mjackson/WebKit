@@ -48,6 +48,10 @@ messages -> WebPage WantsAsyncDispatchMessage {
 
     [DeferSendingIfSuspended] SetShouldSuppressHDR(bool shouldSuppressHDR)
 
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+    SetHasBannerViewOverlay(bool hasBannerViewOverlay)
+#endif
+
     SetUnderlayColor(WebCore::Color color)
     SetUnderPageBackgroundColorOverride(WebCore::Color underPageBackgroundColorOverride)
 
@@ -380,7 +384,7 @@ messages -> WebPage WantsAsyncDispatchMessage {
     PerformDragOperation(std::optional<WebCore::FrameIdentifier> frameID, WebCore::DragData dragData, WebKit::SandboxExtensionHandle sandboxExtensionHandle, Vector<WebKit::SandboxExtensionHandle> sandboxExtensionsForUpload) -> (WebKit::DragOperationResult dragOperationResult)
 #endif
 #if ENABLE(DRAG_SUPPORT)
-    DidStartDrag()
+    DidStartDrag(std::optional<WebCore::FrameIdentifier> frameID)
     DragEnded(std::optional<WebCore::FrameIdentifier> frameID, WebCore::IntPoint clientPosition, WebCore::IntPoint globalPosition, OptionSet<WebCore::DragOperation> dragOperationMask) -> (struct std::optional<WebCore::RemoteUserInputEventData> remoteUserInputEventData)
     DragCancelled()
 #endif
@@ -542,8 +546,13 @@ messages -> WebPage WantsAsyncDispatchMessage {
     UpdateRemotePageAccessibilityOffset(WebCore::FrameIdentifier frameID, WebCore::IntPoint offset);
 #if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
     UpdateRemotePageAccessibilityInheritedState(WebCore::FrameIdentifier frameID, struct WebCore::InheritedFrameState state);
+    UpdateRemotePageAccessibilityScreenPosition(WebCore::FrameIdentifier frameID, struct WebCore::FrameGeometry geometry);
 #endif
     ResolveAccessibilityHitTestForTesting(WebCore::FrameIdentifier frameID, WebCore::IntPoint point) -> (String result)
+#if PLATFORM(MAC)
+    PerformAccessibilitySearchInRemoteFrame(WebCore::FrameIdentifier frameID, struct WebCore::AccessibilitySearchCriteriaIPC criteria) -> (Vector<WebCore::AccessibilityRemoteToken> results)
+    ContinueAccessibilitySearchInParentFrame(WebCore::FrameIdentifier childFrameID, struct WebCore::AccessibilitySearchCriteriaIPC criteria) -> (Vector<WebCore::AccessibilityRemoteToken> results)
+#endif
     EnableAccessibility()
 
 #if PLATFORM(MAC)
@@ -576,6 +585,8 @@ messages -> WebPage WantsAsyncDispatchMessage {
     AddDictationAlternative(String text, WebCore::DictationContext context) -> (bool success) Async
     DictationAlternativesAtSelection() -> (Vector<WebCore::DictationContext> contexts) Async
     ClearDictationAlternatives(Vector<WebCore::DictationContext> contexts)
+    SetDictationStreamingOpacity(String hypothesisText, struct WebCore::CharacterRange streamingRangeInHypothesis, float opacity)
+    ClearDictationStreamingOpacity()
 
     HasMarkedText() -> (bool hasMarkedText)
     GetMarkedRangeAsync() -> (struct WebKit::EditingRange range)
@@ -867,7 +878,7 @@ messages -> WebPage WantsAsyncDispatchMessage {
 #endif
 
 #if ENABLE(WRITING_TOOLS)
-    WillBeginWritingToolsSession(std::optional<WebCore::WritingTools::Session> session) -> (Vector<WebCore::WritingTools::Context> contexts)
+    WillBeginWritingToolsSession(std::optional<WebCore::WritingTools::Session> session, Vector<WebCore::JSHandleIdentifier> preservedNodeIdentifiers) -> (Vector<WebCore::WritingTools::Context> contexts)
 
     DidBeginWritingToolsSession(struct WebCore::WritingTools::Session session, Vector<WebCore::WritingTools::Context> contexts)
 
@@ -949,6 +960,7 @@ messages -> WebPage WantsAsyncDispatchMessage {
 #endif
 
 #if ENABLE(VIDEO)
+    SetCaptionDisplaySettingsPreviewProfileID(String profileID)
     ShowCaptionDisplaySettingsPreview(WebCore::MediaPlayerClientIdentifier identifier)
     HideCaptionDisplaySettingsPreview(WebCore::MediaPlayerClientIdentifier identifier)
 #endif
@@ -956,4 +968,6 @@ messages -> WebPage WantsAsyncDispatchMessage {
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
     ExitImmersive()
 #endif
+
+    UpdateRemoteIntersectionObservers();
 }

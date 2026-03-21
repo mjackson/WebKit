@@ -20,11 +20,11 @@
 
 #pragma once
 
+#include "CryptoAlgorithmParameters.h"
+#include "CryptoAlgorithmX25519ParamsInit.h"
+#include "CryptoKey.h"
 #include <JavaScriptCore/JSObject.h>
 #include <JavaScriptCore/Strong.h>
-#include <WebCore/CryptoAlgorithmParameters.h>
-#include <WebCore/CryptoAlgorithmX25519ParamsInit.h>
-#include <WebCore/CryptoKey.h>
 
 namespace WebCore {
 

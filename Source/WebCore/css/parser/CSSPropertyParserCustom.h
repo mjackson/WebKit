@@ -606,6 +606,7 @@ inline bool PropertyParserCustom::consumeFlexShorthand(CSSParserTokenRange& rang
         case CSSValueMaxContent:
         case CSSValueWebkitMaxContent:
         case CSSValueWebkitFillAvailable:
+        case CSSValueStretch:
         case CSSValueFitContent:
         case CSSValueWebkitFitContent:
             return true;

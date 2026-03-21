@@ -28,6 +28,7 @@
 
 #include "FormattingContextBoxIterator.h"
 #include "GridFormattingContext.h"
+#include "GridLayoutConstraints.h"
 #include "GridLayoutUtils.h"
 #include "LayoutIntegrationBoxGeometryUpdater.h"
 #include "LayoutIntegrationBoxTreeUpdater.h"
@@ -145,7 +146,8 @@ void GridLayout::updateGridItemRenderers()
 {
     for (CheckedRef layoutBox : formattingContextBoxes(gridBox())) {
         CheckedRef renderer = downcast<RenderBox>(*layoutBox->rendererForIntegration());
-        auto& gridItemGeometry = CheckedRef { layoutState() }->geometryForBox(layoutBox);
+        CheckedRef layoutState = this->layoutState();
+        auto& gridItemGeometry = layoutState->geometryForBox(layoutBox);
         auto borderBoxRect = Layout::BoxGeometry::borderBoxRect(gridItemGeometry);
 
         renderer->setLocation(borderBoxRect.topLeft());
@@ -166,9 +168,9 @@ void GridLayout::updateFormattingContextRootRenderer(const Layout::GridLayoutCon
     currentGrid.setNeedsItemsPlacement(false);
     OrderIteratorPopulator orderIteratorPopulator(currentGrid.orderIterator());
 
-    if (layoutConstraints.blockAxis.scenario() != Layout::FreeSpaceScenario::Definite) {
+    if (layoutConstraints.blockAxis.scenario() != Layout::AxisConstraint::FreeSpaceScenario::Definite) {
         auto& rowSizes = usedTrackSizes.rowSizes;
-        auto usedRowGutter = Layout::GridLayoutUtils::computeGapValue(renderGrid->style().rowGap());
+        auto usedRowGutter = Layout::GridFormattingContext::usedGapValue(renderGrid->style().rowGap());
         auto blockContentSize = std::reduce(rowSizes.begin(), rowSizes.end()) + Layout::GridLayoutUtils::totalGuttersSize(rowSizes.size(), usedRowGutter);
         renderGrid->setHeight(blockContentSize);
     }

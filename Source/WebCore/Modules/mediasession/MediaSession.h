@@ -95,7 +95,7 @@ public:
 
     void callActionHandler(const MediaSessionActionDetails&, DOMPromiseDeferred<void>&&);
 
-    template <typename Visitor> void visitActionHandlers(Visitor&) const;
+    template <typename Visitor> void visitActionHandlersInGCThread(Visitor&) const;
 
     ExceptionOr<void> setPositionState(std::optional<MediaPositionState>&&);
     std::optional<MediaPositionState> positionState() const { return m_positionState; }
@@ -114,7 +114,7 @@ public:
 #endif
 
 #if ENABLE(MEDIA_SESSION_PLAYLIST)
-    const Vector<Ref<MediaMetadata>>& playlist() const { return m_playlist; }
+    const Vector<Ref<MediaMetadata>>& playlist() const LIFETIME_BOUND { return m_playlist; }
     ExceptionOr<void> setPlaylist(ScriptExecutionContext&, Vector<Ref<MediaMetadata>>&&);
 #endif
 
@@ -186,7 +186,7 @@ private:
     std::optional<MediaSessionGroupIdentifier> mediaSessionGroupIdentifier() const final;
 
     WeakPtr<Navigator> m_navigator;
-    Ref<PlatformMediaSession> m_platformSession;
+    const Ref<PlatformMediaSession> m_platformSession;
     RefPtr<MediaMetadata> m_metadata;
     RefPtr<MediaMetadata> m_defaultMetadata;
     MediaSessionPlaybackState m_playbackState { MediaSessionPlaybackState::None };
@@ -221,12 +221,12 @@ inline bool MediaSession::hasActiveActionHandlers() const
 }
 
 template <typename Visitor>
-void MediaSession::visitActionHandlers(Visitor& visitor) const
+void MediaSession::visitActionHandlersInGCThread(Visitor& visitor) const
 {
     Locker lock { m_actionHandlersLock };
     for (auto& actionHandler : m_actionHandlers) {
         // We are not ref'ing here as this function may get called from a GC thread.
-        SUPPRESS_UNCOUNTED_ARG actionHandler.value->visitJSFunction(visitor);
+        SUPPRESS_UNCOUNTED_ARG actionHandler.value->visitJSFunctionInGCThread(visitor);
     }
 }
 

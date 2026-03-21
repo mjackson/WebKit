@@ -40,9 +40,10 @@
 #include "TextIterator.h"
 #include "VisibleUnits.h"
 #include <wtf/CheckedArithmetic.h>
-#include <wtf/text/MakeString.h>
-#include <wtf/TZoneMallocInlines.h>
 #include <wtf/Scope.h>
+#include <wtf/TZoneMallocInlines.h>
+#include <wtf/text/MakeString.h>
+#include <wtf/unicode/CharacterNames.h>
 
 namespace WebCore {
 

@@ -56,7 +56,7 @@ public:
     RefPtr<CSSValue> toCSSValue() const final;
 
 private:
-    CSSSkew(Ref<CSSNumericValue> ax, Ref<CSSNumericValue> ay);
+    CSSSkew(Ref<CSSNumericValue>&& ax, Ref<CSSNumericValue>&& ay);
 
     Ref<CSSNumericValue> m_ax;
     Ref<CSSNumericValue> m_ay;

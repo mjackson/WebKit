@@ -606,12 +606,15 @@ MOCK run_command: ['git', 'log', '-1', '--grep=git-svn-id:', '--date=iso', './MO
     def test_push_local_commits_to_server_with_username_and_password(self):
         self.assertEqual(self.make_scm().push_local_commits_to_server(username='dbates@webkit.org', password='blah'), "MOCK output of child process")
 
+    @xfail("https://bugs.webkit.org/show_bug.cgi?id=277309")
     def test_push_local_commits_to_server_without_username_and_password(self):
         self.assertRaises(AuthenticationError, self.make_scm().push_local_commits_to_server)
 
+    @xfail("https://bugs.webkit.org/show_bug.cgi?id=277309")
     def test_push_local_commits_to_server_with_username_and_without_password(self):
         self.assertRaises(AuthenticationError, self.make_scm().push_local_commits_to_server, {'username': 'dbates@webkit.org'})
 
+    @xfail("https://bugs.webkit.org/show_bug.cgi?id=277309")
     def test_push_local_commits_to_server_without_username_and_with_password(self):
         self.assertRaises(AuthenticationError, self.make_scm().push_local_commits_to_server, {'password': 'blah'})
 

@@ -59,9 +59,10 @@ static bool NODELETE isValidConstantName(const CSSParserToken& token)
 static bool isValidVariableReference(CSSParserTokenRange, const CSSParserContext&);
 static bool isValidConstantReference(CSSParserTokenRange, const CSSParserContext&);
 static bool isValidDashedFunction(CSSParserTokenRange, const CSSParserContext&);
+static bool isValidAttrReference(CSSParserTokenRange, const CSSParserContext&);
 
 struct ClassifyBlockResult {
-    bool hasReferences { false };
+    bool hasSubstitutionFunctions { false };
     bool hasTopLevelBraceBlockMixedWithOtherValues { false };
     bool hasEmptyTopLevelBraceBlock { false };
 };
@@ -118,20 +119,26 @@ static std::optional<ClassifyBlockResult> classifyBlock(CSSParserTokenRange rang
             if (token.functionId() == CSSValueVar) {
                 if (!isValidVariableReference(block, parserContext))
                     return { };
-                result.hasReferences = true;
+                result.hasSubstitutionFunctions = true;
                 continue;
             }
             if (token.functionId() == CSSValueEnv) {
                 if (!isValidConstantReference(block, parserContext))
                     return { };
-                result.hasReferences = true;
+                result.hasSubstitutionFunctions = true;
+                continue;
+            }
+            if (token.functionId() == CSSValueAttr && parserContext.cssAttrSubstitutionFunctionEnabled) {
+                if (!isValidAttrReference(block, parserContext))
+                    return { };
+                result.hasSubstitutionFunctions = true;
                 continue;
             }
             if (token.type() == FunctionToken && isCustomPropertyName(token.value()) && parserContext.propertySettings.cssFunctionAtRuleEnabled) {
                 // https://drafts.csswg.org/css-mixins/#typedef-dashed-function
                 if (!isValidDashedFunction(block, parserContext))
                     return { };
-                result.hasReferences = true;
+                result.hasSubstitutionFunctions = true;
                 continue;
             }
             stack.push(ClassifyBlockState {
@@ -227,6 +234,33 @@ bool isValidDashedFunction(CSSParserTokenRange range, const CSSParserContext& pa
     return true;
 }
 
+// https://drafts.csswg.org/css-values-5/#funcdef-attr
+// <attr()>    = attr( <attr-name> <attr-type>? , <declaration-value>?)
+// <attr-name> = [ <ident-token> '|' ]? <ident-token>
+// <attr-type> = type( <syntax> ) | string | <attr-unit>
+bool isValidAttrReference(CSSParserTokenRange range, const CSSParserContext& parserContext)
+{
+    range.consumeWhitespace();
+
+    // Consume <attr-name>.
+    if (range.peek().type() != IdentToken)
+        return false;
+    range.consumeIncludingWhitespace();
+
+    if (range.atEnd())
+        return true;
+
+    // FIXME: Add support for <attr-type>.
+
+    // Consume optional comma and fallback <declaration-value>.
+    if (!CSSPropertyParserHelpers::consumeCommaIncludingWhitespace(range))
+        return false;
+    if (range.atEnd())
+        return true;
+
+    return !!classifyBlock(range, parserContext);
+}
+
 struct VariableType {
     std::optional<CSSWideKeyword> cssWideKeyword { };
     ClassifyBlockResult classifyBlockResult { };
@@ -258,7 +292,7 @@ bool CSSVariableParser::containsValidVariableReferences(CSSParserTokenRange rang
     if (!type)
         return false;
 
-    return type->classifyBlockResult.hasReferences && !type->classifyBlockResult.hasTopLevelBraceBlockMixedWithOtherValues;
+    return type->classifyBlockResult.hasSubstitutionFunctions && !type->classifyBlockResult.hasTopLevelBraceBlockMixedWithOtherValues;
 }
 
 RefPtr<CSSCustomPropertyValue> CSSVariableParser::parseDeclarationValue(const AtomString& variableName, CSSParserTokenRange range, const CSSParserContext& parserContext)
@@ -270,7 +304,7 @@ RefPtr<CSSCustomPropertyValue> CSSVariableParser::parseDeclarationValue(const At
     if (type->cssWideKeyword)
         return CSSCustomPropertyValue::createWithCSSWideKeyword(variableName, *type->cssWideKeyword);
 
-    if (type->classifyBlockResult.hasReferences)
+    if (type->classifyBlockResult.hasSubstitutionFunctions)
         return CSSCustomPropertyValue::createUnresolved(variableName, CSSVariableReferenceValue::create(range, parserContext));
 
     return CSSCustomPropertyValue::createSyntaxAll(variableName, CSSVariableData::create(range, parserContext));
@@ -280,7 +314,7 @@ RefPtr<const Style::CustomProperty> CSSVariableParser::parseInitialValueForUnive
 {
     auto type = classifyVariableRange(range, strictCSSParserContext());
 
-    if (!type || type->cssWideKeyword || type->classifyBlockResult.hasReferences)
+    if (!type || type->cssWideKeyword || type->classifyBlockResult.hasSubstitutionFunctions)
         return nullptr;
 
     return Style::CustomProperty::createForVariableData(variableName, CSSVariableData::create(range));

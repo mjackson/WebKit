@@ -42,8 +42,8 @@ public:
 
     UserScript(WebCore::UserScript, API::ContentWorld&);
 
-    WebCore::UserScript& userScript() { return m_userScript; }
-    const WebCore::UserScript& userScript() const { return m_userScript; }
+    WebCore::UserScript& userScript() LIFETIME_BOUND { return m_userScript; }
+    const WebCore::UserScript& userScript() const LIFETIME_BOUND { return m_userScript; }
 
     ContentWorld& contentWorld() { return m_world; }
     const ContentWorld& contentWorld() const { return m_world; }

@@ -49,12 +49,12 @@ WKPageConfigurationRef WKPageConfigurationCreate()
 
 WKContextRef WKPageConfigurationGetContext(WKPageConfigurationRef configuration)
 {
-    return toAPI(protect(toProtectedImpl(configuration)->processPool()).get());
+    return toAPI(protect(protect(toImpl(configuration))->processPool()).get());
 }
 
 void WKPageConfigurationSetContext(WKPageConfigurationRef configuration, WKContextRef context)
 {
-    toProtectedImpl(configuration)->setProcessPool(toProtectedImpl(context));
+    protect(toImpl(configuration))->setProcessPool(protect(toImpl(context)));
 }
 
 WKPageGroupRef WKPageConfigurationGetPageGroup(WKPageConfigurationRef)
@@ -68,75 +68,75 @@ void WKPageConfigurationSetPageGroup(WKPageConfigurationRef, WKPageGroupRef)
 
 WKUserContentControllerRef WKPageConfigurationGetUserContentController(WKPageConfigurationRef configuration)
 {
-    return toAPI(protect(toProtectedImpl(configuration)->userContentController()).get());
+    return toAPI(protect(protect(toImpl(configuration))->userContentController()).get());
 }
 
 void WKPageConfigurationSetUserContentController(WKPageConfigurationRef configuration, WKUserContentControllerRef userContentController)
 {
-    toProtectedImpl(configuration)->setUserContentController(toProtectedImpl(userContentController));
+    protect(toImpl(configuration))->setUserContentController(protect(toImpl(userContentController)));
 }
 
 WKPreferencesRef WKPageConfigurationGetPreferences(WKPageConfigurationRef configuration)
 {
-    return toAPI(protect(toProtectedImpl(configuration)->preferences()).get());
+    return toAPI(protect(protect(toImpl(configuration))->preferences()).get());
 }
 
 void WKPageConfigurationSetPreferences(WKPageConfigurationRef configuration, WKPreferencesRef preferences)
 {
-    toProtectedImpl(configuration)->setPreferences(toProtectedImpl(preferences));
+    protect(toImpl(configuration))->setPreferences(protect(toImpl(preferences)));
 }
 
 WKPageRef WKPageConfigurationGetRelatedPage(WKPageConfigurationRef configuration)
 {
-    return toAPI(protect(toProtectedImpl(configuration)->relatedPage()).get());
+    return toAPI(protect(toImpl(configuration)->relatedPage()).get());
 }
 
 void WKPageConfigurationSetRelatedPage(WKPageConfigurationRef configuration, WKPageRef relatedPage)
 {
-    toProtectedImpl(configuration)->setRelatedPage(toProtectedImpl(relatedPage));
+    toImpl(configuration)->setRelatedPage(protect(toImpl(relatedPage)));
 }
 
 WKWebsiteDataStoreRef WKPageConfigurationGetWebsiteDataStore(WKPageConfigurationRef configuration)
 {
-    return toAPI(protect(toProtectedImpl(configuration)->websiteDataStore()).get());
+    return toAPI(protect(protect(toImpl(configuration))->websiteDataStore()).get());
 }
 
 void WKPageConfigurationSetWebsiteDataStore(WKPageConfigurationRef configuration, WKWebsiteDataStoreRef websiteDataStore)
 {
-    toProtectedImpl(configuration)->setWebsiteDataStore(toProtectedImpl(websiteDataStore));
+    protect(toImpl(configuration))->setWebsiteDataStore(protect(toImpl(websiteDataStore)));
 }
 
 void WKPageConfigurationSetInitialCapitalizationEnabled(WKPageConfigurationRef configuration, bool enabled)
 {
-    toProtectedImpl(configuration)->setInitialCapitalizationEnabled(enabled);
+    toImpl(configuration)->setInitialCapitalizationEnabled(enabled);
 }
 
 void WKPageConfigurationSetBackgroundCPULimit(WKPageConfigurationRef configuration, double cpuLimit)
 {
-    toProtectedImpl(configuration)->setCPULimit(cpuLimit);
+    toImpl(configuration)->setCPULimit(cpuLimit);
 }
 
 void WKPageConfigurationSetAllowTestOnlyIPC(WKPageConfigurationRef configuration, bool allowTestOnlyIPC)
 {
-    toProtectedImpl(configuration)->setAllowTestOnlyIPC(allowTestOnlyIPC);
+    toImpl(configuration)->setAllowTestOnlyIPC(allowTestOnlyIPC);
 }
 
 void WKPageConfigurationSetShouldSendConsoleLogsToUIProcessForTesting(WKPageConfigurationRef configuration, bool should)
 {
-    toProtectedImpl(configuration)->setShouldSendConsoleLogsToUIProcessForTesting(should);
+    toImpl(configuration)->setShouldSendConsoleLogsToUIProcessForTesting(should);
 }
 
 void WKPageConfigurationSetPortsForUpgradingInsecureSchemeForTesting(WKPageConfigurationRef configuration, uint16_t upgradeFromInsecurePort, uint16_t upgradeToSecurePort)
 {
-    toProtectedImpl(configuration)->setPortsForUpgradingInsecureSchemeForTesting(upgradeFromInsecurePort, upgradeToSecurePort);
+    toImpl(configuration)->setPortsForUpgradingInsecureSchemeForTesting(upgradeFromInsecurePort, upgradeToSecurePort);
 }
 
 WKWebsitePoliciesRef WKPageConfigurationGetDefaultWebsitePolicies(WKPageConfigurationRef configuration)
 {
-    return toAPI(protect(toProtectedImpl(configuration)->defaultWebsitePolicies()).get());
+    return toAPI(protect(protect(toImpl(configuration))->defaultWebsitePolicies()).get());
 }
 
 void WKPageConfigurationSetDefaultWebsitePolicies(WKPageConfigurationRef configuration, WKWebsitePoliciesRef policies)
 {
-    toProtectedImpl(configuration)->setDefaultWebsitePolicies(toProtectedImpl(policies));
+    protect(toImpl(configuration))->setDefaultWebsitePolicies(protect(toImpl(policies)));
 }

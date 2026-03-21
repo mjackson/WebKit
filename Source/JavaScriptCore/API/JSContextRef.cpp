@@ -449,7 +449,7 @@ void JSGlobalContextSetDebuggerRunLoop(JSGlobalContextRef ctx, CFRunLoopRef runL
     VM& vm = globalObject->vm();
     JSLockHolder lock(vm);
 
-    globalObject->protectedInspectorDebuggable()->setTargetRunLoop(runLoop);
+    protect(globalObject->inspectorDebuggable())->setTargetRunLoop(runLoop);
 #else
     UNUSED_PARAM(ctx);
     UNUSED_PARAM(runLoop);

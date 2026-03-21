@@ -30,6 +30,7 @@
 #include "CSSPrimitiveValueMappings.h"
 #include "CSSProperty.h"
 #include "CSSValueList.h"
+#include "Document.h"
 #include "DocumentView.h"
 #include "ElementInlines.h"
 #include "HTMLImageElement.h"
@@ -40,6 +41,7 @@
 #include "RenderImage.h"
 #include "RenderStyleConstants.h"
 #include "RenderTreeBuilder.h"
+#include "SpaceSplitString.h"
 #include "StylePropertiesInlines.h"
 #include <wtf/CheckedPtr.h>
 #include <wtf/RefPtr.h>
@@ -80,7 +82,7 @@ const RenderStyle* safeStyleFrom(Element& element)
     return RenderTreeBuilder::current() ? element.existingComputedStyle() : element.computedStyle();
 }
 
-bool hasAccNameAttribute(Element& element)
+bool hasARIAAccNameAttribute(Element& element)
 {
     auto trimmed = [&] (const auto& attribute) {
         const auto& value = element.attributeWithDefaultARIA(attribute);
@@ -90,14 +92,58 @@ bool hasAccNameAttribute(Element& element)
         return copy.trim(isASCIIWhitespace);
     };
 
-    // Avoid calculating the actual description here (e.g. resolving aria-labelledby), as it's expensive.
-    // The spec is generally permissive in allowing user agents to not ensure complete validity of these attributes.
-    // For example, https://w3c.github.io/svg-aam/#include_elements:
-    // "It has an ‘aria-labelledby’ attribute or ‘aria-describedby’ attribute containing valid IDREF tokens. User agents MAY include elements with these attributes without checking for validity."
-    if (trimmed(aria_labelAttr).length() || trimmed(aria_labelledbyAttr).length() || trimmed(aria_labeledbyAttr).length() || trimmed(aria_descriptionAttr).length() || trimmed(aria_describedbyAttr).length())
+    // Check aria-label first - it's the simplest check.
+    if (trimmed(aria_labelAttr).length())
         return true;
 
-    return element.attributeWithoutSynchronization(titleAttr).length();
+    // Check aria-description - just need non-empty, non-whitespace.
+    if (trimmed(aria_descriptionAttr).length())
+        return true;
+
+    // For aria-labelledby/aria-describedby, we need to validate that the referenced IDs
+    // actually exist and have text content. Per HTML-AAM, if aria-labelledby references
+    // non-existing elements, empty elements, or elements with only whitespace text,
+    // it should not provide an accessible name.
+    auto hasValidIdRef = [&] (const auto& attribute) {
+        const auto& value = element.attributeWithDefaultARIA(attribute);
+        if (value.isEmpty())
+            return false;
+
+        SpaceSplitString ids(value, SpaceSplitString::ShouldFoldCase::No);
+        if (ids.isEmpty())
+            return false;
+
+        Ref document = element.document();
+        for (auto& id : ids) {
+            if (RefPtr referencedElement = document->getElementById(id)) {
+                String elementText = referencedElement->textContent();
+                if (!elementText.isEmpty() && !elementText.containsOnly<isASCIIWhitespace>())
+                    return true;
+            }
+        }
+        return false;
+    };
+
+    if (hasValidIdRef(aria_labelledbyAttr) || hasValidIdRef(aria_labeledbyAttr) || hasValidIdRef(aria_describedbyAttr))
+        return true;
+
+    return false;
+}
+
+bool hasAccNameAttribute(Element& element)
+{
+    if (hasARIAAccNameAttribute(element))
+        return true;
+
+    // For title, check that it's not whitespace-only.
+    const auto& titleValue = element.attributeWithoutSynchronization(titleAttr);
+    if (!titleValue.isEmpty()) {
+        auto titleCopy = titleValue.string();
+        if (!titleCopy.trim(isASCIIWhitespace).isEmpty())
+            return true;
+    }
+
+    return false;
 }
 
 RenderImage* toSimpleImage(RenderObject& renderer)
@@ -474,7 +520,7 @@ String roleToString(AccessibilityRole role)
 bool needsLayoutOrStyleRecalc(const Document& document)
 {
     if (RefPtr frameView = document.view()) {
-        if (frameView->needsLayout() || protect(frameView->layoutContext())->isLayoutPending())
+        if (frameView->needsLayout() || frameView->layoutContext().isLayoutPending())
             return true;
     }
     return document.hasPendingStyleRecalc();
@@ -484,10 +530,10 @@ std::optional<CursorType> cursorTypeFrom(const StyleProperties& properties)
 {
     for (auto property : properties) {
         if (property.id() == CSSPropertyCursor) {
-            if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(property.value()))
+            if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(property.value()))
                 return fromCSSValue<CursorType>(*primitiveValue);
-            if (RefPtr valueList = dynamicDowncast<CSSValueList>(property.value()); valueList && valueList->size() >= 2) {
-                if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>((*valueList)[valueList->size() - 1]))
+            if (auto* valueList = dynamicDowncast<CSSValueList>(property.value()); valueList && valueList->size() >= 2) {
+                if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>((*valueList)[valueList->size() - 1]))
                     return fromCSSValue<CursorType>(*primitiveValue);
             }
         }
@@ -495,15 +541,15 @@ std::optional<CursorType> cursorTypeFrom(const StyleProperties& properties)
     return std::nullopt;
 }
 
-RefPtr<Node> lastNode(const FixedVector<AXID>& axIDs, AXObjectCache& cache)
+RefPtr<Node> lastNonAriaHiddenNode(const FixedVector<AXID>& axIDs, AXObjectCache& cache)
 {
     AX_ASSERT(isMainThread());
 
     for (auto axID = axIDs.rbegin(); axID != axIDs.rend(); ++axID) {
-        if (RefPtr object = cache.objectForID(*axID)) {
-            if (RefPtr node = object->node())
-                return node;
-        }
+        RefPtr object = cache.objectForID(*axID);
+        RefPtr node = object ? object->node() : nullptr;
+        if (node && !object->isAXHidden())
+            return node;
     }
     return nullptr;
 }

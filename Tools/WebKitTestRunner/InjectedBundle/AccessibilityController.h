@@ -86,6 +86,7 @@ public:
     bool removeNotificationListener();
     void injectAccessibilityPreference(JSStringRef domain, JSStringRef key, JSStringRef value);
 
+    void printToStderr(JSStringRef) const;
     // Here for consistency with DRT. Not implemented because they don't do anything on the Mac.
     void logFocusEvents() { }
     void logValueChangeEvents() { }

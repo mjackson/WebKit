@@ -312,6 +312,11 @@ ModelProcessModelPlayerProxy::~ModelProcessModelPlayerProxy()
 
     [m_stageModeInteractionDriver removeInteractionContainerFromSceneOrParent];
 
+#if HAVE(RESYNC_MEMORY_PRESSURE)
+    if (auto* syncManager = REServiceLocatorGetNetworkSyncManager(REEngineGetServiceLocator(REEngineGetShared())))
+        RENetworkSyncManagerRelieveMemoryPressure(syncManager, 0);
+#endif
+
     RELEASE_LOG(ModelElement, "%p - ModelProcessModelPlayerProxy deallocated id=%" PRIu64, this, m_id.toUInt64());
 
     ASSERT(gObjectCountForTesting > 0);
@@ -514,8 +519,13 @@ static CGFloat effectivePointsPerMeter(CALayer *caLayer)
     return defaultPointsPerMeter;
 }
 
-static RESRT modelStandardizedTransformSRT(RESRT originalSRT)
+RESRT ModelProcessModelPlayerProxy::modelStandardizedTransformSRT(RESRT originalSRT)
 {
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    if (m_immersivePresentation)
+        return originalSRT;
+#endif
+
     constexpr float defaultScaleFactor = 0.36f;
 
     originalSRT.scale *= defaultScaleFactor;
@@ -524,8 +534,13 @@ static RESRT modelStandardizedTransformSRT(RESRT originalSRT)
     return originalSRT;
 }
 
-static RESRT modelLocalizedTransformSRT(RESRT originalSRT)
+RESRT ModelProcessModelPlayerProxy::modelLocalizedTransformSRT(RESRT originalSRT)
 {
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    if (m_immersivePresentation)
+        return originalSRT;
+#endif
+
     constexpr float defaultScaleFactor = 0.36f;
 
     originalSRT.scale /= defaultScaleFactor;
@@ -1078,11 +1093,9 @@ void ModelProcessModelPlayerProxy::ensureImmersivePresentation(CompletionHandler
         if (!protectedThis)
             return completion(std::nullopt);
 
-        RetainPtr entity = protectedThis->m_modelRKEntity;
-        if (loaded && entity) {
-            [entity ensureSceneUnderstanding];
+        if (loaded)
             completion(protectedThis->layerHostingContextIdentifier().value());
-        } else {
+        else {
             protectedThis->setImmersivePresentation(false);
             completion(std::nullopt);
         }

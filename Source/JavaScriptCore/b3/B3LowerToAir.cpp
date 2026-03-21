@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2015-2026 Apple Inc. All rights reserved.
- * Copyright (C) 2014 the V8 project authors. All rights reserved.
+ * Copyright (C) 2014-2026 the V8 project authors. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -77,6 +77,7 @@
 #include "B3Variable.h"
 #include "B3VariableValue.h"
 #include "B3WasmAddressValue.h"
+#include "SIMDShuffle.h"
 #include <wtf/IndexMap.h>
 #include <wtf/IndexSet.h>
 #include <wtf/StdLibExtras.h>
@@ -4797,7 +4798,6 @@ private:
         }
 
         case B3::VectorDupElement: {
-            ASSERT(isARM64());
             SIMDValue* value = m_value->as<SIMDValue>();
             auto lane = value->simdLane();
             append(GET_SIMD_OPCODE(lane, Air::VectorDupElement), Arg::imm(value->immediate()), tmp(value->child(0)), tmp(value));
@@ -4820,13 +4820,6 @@ private:
                 RELEASE_ASSERT_NOT_REACHED();
             }
             append(op, tmp(value->child(0)), tmp(value->child(1)), Arg::imm(value->immediate()), tmp(value));
-            return;
-        }
-
-        case B3::VectorShiftByVector: {
-            ASSERT(isARM64());
-            SIMDValue* value = m_value->as<SIMDValue>();
-            append(value->signMode() == SIMDSignMode::Signed ? VectorSshl : VectorUshl, Arg::simdInfo(value->simdInfo()), tmp(value->child(0)), tmp(value->child(1)), tmp(value));
             return;
         }
 
@@ -4893,19 +4886,46 @@ private:
 
         case B3::VectorShr:
         case B3::VectorShl: {
-            ASSERT(!isARM64()); // In ARM64, they are macro.
             SIMDValue* value = m_value->as<SIMDValue>();
             SIMDLane lane = value->simdLane();
 
             int32_t mask = (elementByteSize(lane) * CHAR_BIT) - 1;
 
-            auto v = tmp(value->child(0));
-            auto shift = tmp(value->child(1));
+            if constexpr (isARM64()) {
+                auto v = tmp(value->child(0));
 
-            Tmp shiftAmount = m_code.newTmp(B3::GP);
-            Tmp shiftVector = m_code.newTmp(B3::FP);
+                if (value->child(1)->hasInt32()) {
+                    int32_t shiftImm = value->child(1)->asInt32() & mask;
+                    if (!shiftImm) {
+                        append(Air::MoveVector, v, tmp(value));
+                        return;
+                    }
+                    if (value->opcode() == VectorShl)
+                        append(VectorShl8, Arg::simdInfo(value->simdInfo()), v, Arg::imm(shiftImm), tmp(value));
+                    else
+                        append(value->signMode() == SIMDSignMode::Signed ? VectorSshr8 : VectorUshr8, Arg::simdInfo(value->simdInfo()), v, Arg::imm(shiftImm), tmp(value));
+                    return;
+                }
+
+                auto shift = tmp(value->child(1));
+                Tmp shiftAmount = m_code.newTmp(B3::GP);
+                Tmp shiftVector = m_code.newTmp(B3::FP);
+
+                append(And32, Arg::bitImm(mask), shift, shiftAmount);
+                if (value->opcode() == VectorShr)
+                    append(Neg32, shiftAmount);
+                append(VectorSplatInt8, shiftAmount, shiftVector);
+                append(value->signMode() == SIMDSignMode::Signed ? VectorSshl : VectorUshl, Arg::simdInfo(value->simdInfo()), v, shiftVector, tmp(value));
+                return;
+            }
 
             if constexpr (isX86()) {
+                auto v = tmp(value->child(0));
+                auto shift = tmp(value->child(1));
+
+                Tmp shiftAmount = m_code.newTmp(B3::GP);
+                Tmp shiftVector = m_code.newTmp(B3::FP);
+
                 append(Move, shift, shiftAmount);
                 append(And32, Arg::imm(mask), shiftAmount);
                 if (value->opcode() == VectorShr && value->signMode() == SIMDSignMode::Signed && value->simdLane() == SIMDLane::i64x2) {
@@ -5026,12 +5046,153 @@ private:
         case B3::VectorAndnot:
             emitSIMDBinaryOp(Air::VectorAndnot);
             return;
-        case B3::VectorOr:
+        case B3::VectorOr: {
+#if CPU(ARM64)
+            // Try to match XAR (XOR-and-rotate-right) pattern for i64x2.
+            // Pattern: VectorOr(VectorShl(x, constK), VectorShr(x, constK))
+            // or VectorOr(VectorAdd(x, x), VectorShr(x, constK)) after strength reduction.
+            // When x = VectorXor(a, b), emit XAR(a, b, rotateRight).
+            if (isARM64_SHA3()) {
+                Value* left = m_value->child(0);
+                Value* right = m_value->child(1);
+
+                auto tryMatchXAR = [&]() -> bool {
+                    // Each child of VectorOr should be either:
+                    // - VectorShl:i64x2(x, constK) — a left shift by constant
+                    // - VectorShr:i64x2(x, constK) — a right shift by constant
+                    // - VectorAdd:i64x2(x, x) — equivalent to shl-by-1 (from strength reduction)
+                    // We need one left-shift and one right-shift on the same value x,
+                    // with shift amounts summing to 64.
+
+                    struct ShiftInfo {
+                        Value* shiftedValue { nullptr };
+                        int8_t amount { 0 }; // positive = left shift, negative = right shift
+                    };
+
+                    auto extractShift = [&](Value* v) -> std::optional<ShiftInfo> {
+                        if (v->opcode() == B3::VectorShl && v->as<SIMDValue>()->simdLane() == SIMDLane::i64x2 && v->child(1)->hasInt32())
+                            return ShiftInfo { v->child(0), static_cast<int8_t>(v->child(1)->asInt32()) };
+
+                        if (v->opcode() == B3::VectorShr && v->as<SIMDValue>()->simdLane() == SIMDLane::i64x2 && v->child(1)->hasInt32())
+                            return ShiftInfo { v->child(0), static_cast<int8_t>(-v->child(1)->asInt32()) };
+
+                        // We lowered left-shift by 1 to VectorAdd(x, x)
+                        if (v->opcode() == B3::VectorAdd && v->as<SIMDValue>()->simdLane() == SIMDLane::i64x2
+                            && v->child(0) == v->child(1)) {
+                            return ShiftInfo { v->child(0), 1 };
+                        }
+
+                        return std::nullopt;
+                    };
+
+                    auto leftInfo = extractShift(left);
+                    auto rightInfo = extractShift(right);
+                    if (!leftInfo || !rightInfo)
+                        return false;
+
+                    // Both shifts must operate on the same value.
+                    if (leftInfo->shiftedValue != rightInfo->shiftedValue)
+                        return false;
+                    Value* shiftedValue = leftInfo->shiftedValue;
+
+                    int8_t leftAmount = leftInfo->amount;
+                    int8_t rightAmount = rightInfo->amount;
+
+                    // For a rotate-right by n: one shift is positive (64-n), the other is negative (-n).
+                    // Try both orderings since VectorOr is commutative.
+                    int32_t rotateRight = 0;
+                    if (rightAmount < 0 && leftAmount > 0) {
+                        rotateRight = -rightAmount;
+                        if (rotateRight < 1 || rotateRight > 63 || leftAmount != 64 - rotateRight)
+                            return false;
+                    } else if (leftAmount < 0 && rightAmount > 0) {
+                        rotateRight = -leftAmount;
+                        if (rotateRight < 1 || rotateRight > 63 || rightAmount != 64 - rotateRight)
+                            return false;
+                    } else
+                        return false;
+
+                    // Both ops must be foldable (single-use).
+                    if (!canBeInternal(left) || !canBeInternal(right))
+                        return false;
+
+                    // Check if the shifted value is VectorXor(a, b) that we can fold.
+                    // The XOR's use count depends on how the shifts reference it:
+                    // - VectorShl/VectorShr(xor, const) adds 1 use
+                    // - VectorAdd(xor, xor) adds 2 uses (both children reference xor)
+                    unsigned expectedXorUses = 0;
+                    expectedXorUses += (left->opcode() == B3::VectorAdd) ? 2 : 1;
+                    expectedXorUses += (right->opcode() == B3::VectorAdd) ? 2 : 1;
+
+                    if (shiftedValue->opcode() == B3::VectorXor
+                        && m_useCounts.numUses(shiftedValue) == expectedXorUses
+                        && !m_valueToTmp[shiftedValue]) {
+                        commitInternal(left);
+                        commitInternal(right);
+                        commitInternal(shiftedValue);
+                        append(Air::VectorXorRotateRight64, tmp(shiftedValue->child(0)), tmp(shiftedValue->child(1)), Arg::imm(rotateRight), tmp(m_value));
+                        return true;
+                    }
+
+                    return false;
+                };
+
+                if (tryMatchXAR())
+                    return;
+            }
+#endif
             emitSIMDBinaryOp(Air::VectorOr);
             return;
-        case B3::VectorXor:
+        }
+        case B3::VectorXor: {
+#if CPU(ARM64)
+            // VectorXor(VectorXor(a, b), c) → EOR3(a, b, c)
+            // VectorXor(a, VectorXor(b, c)) → EOR3(b, c, a)
+            if (isARM64_SHA3()) {
+                for (unsigned childIdx = 0; childIdx < 2; ++childIdx) {
+                    Value* inner = m_value->child(childIdx);
+                    Value* other = m_value->child(1 - childIdx);
+                    if (inner->opcode() == B3::VectorXor && canBeInternal(inner)) {
+                        commitInternal(inner);
+                        append(Air::VectorXor3, tmp(inner->child(0)), tmp(inner->child(1)), tmp(other), tmp(m_value));
+                        return;
+                    }
+                }
+            }
+#endif
             emitSIMDBinaryOp(Air::VectorXor);
             return;
+        }
+        case B3::VectorUnzipEven:
+            emitSIMDBinaryOp(Air::VectorUnzipEven);
+            return;
+        case B3::VectorUnzipOdd:
+            emitSIMDBinaryOp(Air::VectorUnzipOdd);
+            return;
+        case B3::VectorZipLower:
+            emitSIMDBinaryOp(Air::VectorZipLower);
+            return;
+        case B3::VectorZipHigher:
+            emitSIMDBinaryOp(Air::VectorZipHigher);
+            return;
+        case B3::VectorTransposeEven:
+            emitSIMDBinaryOp(Air::VectorTransposeEven);
+            return;
+        case B3::VectorTransposeOdd:
+            emitSIMDBinaryOp(Air::VectorTransposeOdd);
+            return;
+        case B3::VectorReverse: {
+            SIMDValue* value = m_value->as<SIMDValue>();
+            unsigned groupSize = value->immediate();
+            append(Air::VectorReverse, Arg::simdInfo(value->simdInfo()), Arg::imm(groupSize), tmp(value->child(0)), tmp(value));
+            return;
+        }
+        case B3::VectorExtractPair: {
+            SIMDValue* value = m_value->as<SIMDValue>();
+            SIMDInfo info { SIMDLane::i8x16, SIMDSignMode::None };
+            append(Air::VectorExtractPair, Arg::simdInfo(info), Arg::imm(value->immediate()), tmp(value->child(0)), tmp(value->child(1)), tmp(value));
+            return;
+        }
         case B3::VectorNot:
             emitSIMDUnaryOp(Air::VectorNot);
             return;
@@ -5160,25 +5321,27 @@ private:
             }
             emitSIMDMonomorphicBinaryOp(Air::VectorMulSat);
             return;
-        case B3::VectorSwizzle:
-            if (m_value->numChildren() == 2)
+        case B3::VectorSwizzle: {
+            if (m_value->numChildren() == 2) {
                 emitSIMDMonomorphicBinaryOp(Air::VectorSwizzle);
-            else {
-                ASSERT(isARM64());
-                ASSERT(m_value->numChildren() == 3);
-#if CPU(ARM64)
-                // The tbl instruction requires these values to be adjacent.
-                Tmp a(ARM64Registers::q30);
-                Tmp b(ARM64Registers::q31);
-#else
-                Tmp a;
-                Tmp b;
-#endif
-                append(Air::MoveVector, tmp(m_value->child(0)), a);
-                append(Air::MoveVector, tmp(m_value->child(1)), b);
-                append(Air::VectorSwizzle2, a, b, tmp(m_value->child(2)), tmp(m_value));
+                return;
             }
+
+            ASSERT(isARM64());
+            ASSERT(m_value->numChildren() == 3);
+#if CPU(ARM64)
+            // The tbl instruction requires these values to be adjacent.
+            Tmp a(ARM64Registers::q30);
+            Tmp b(ARM64Registers::q31);
+#else
+            Tmp a;
+            Tmp b;
+#endif
+            append(Air::MoveVector, tmp(m_value->child(0)), a);
+            append(Air::MoveVector, tmp(m_value->child(1)), b);
+            append(Air::VectorSwizzle2, a, b, tmp(m_value->child(2)), tmp(m_value));
             return;
+        }
 
         case B3::VectorRelaxedSwizzle:
             emitSIMDMonomorphicBinaryOp(Air::VectorSwizzle);

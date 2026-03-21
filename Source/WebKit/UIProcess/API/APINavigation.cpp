@@ -42,8 +42,6 @@ namespace API {
 using namespace WebCore;
 using namespace WebKit;
 
-static constexpr Seconds navigationActivityTimeout { 30_s };
-
 SubstituteData::SubstituteData(Vector<uint8_t>&& content, const ResourceResponse& response, WebCore::SubstituteData::SessionHistoryVisibility sessionHistoryVisibility)
     : SubstituteData(WTF::move(content), response.mimeType(), response.textEncodingName(), response.url().string(), nullptr, sessionHistoryVisibility)
 {
@@ -53,7 +51,6 @@ SubstituteData::SubstituteData(Vector<uint8_t>&& content, const ResourceResponse
 Navigation::Navigation(WebCore::ProcessIdentifier processID)
     : m_navigationID(WebCore::NavigationIdentifier::generate())
     , m_processID(processID)
-    , m_clientNavigationActivity(ProcessThrottler::TimedActivity::create(navigationActivityTimeout))
 {
 }
 
@@ -61,7 +58,6 @@ Navigation::Navigation(WebCore::ProcessIdentifier processID, RefPtr<WebBackForwa
     : m_navigationID(WebCore::NavigationIdentifier::generate())
     , m_processID(processID)
     , m_reloadItem(WTF::move(currentAndTargetItem))
-    , m_clientNavigationActivity(ProcessThrottler::TimedActivity::create(navigationActivityTimeout))
 {
 }
 
@@ -72,19 +68,17 @@ Navigation::Navigation(WebCore::ProcessIdentifier processID, WebCore::ResourceRe
     , m_currentRequest(m_originalRequest)
     , m_redirectChain { m_originalRequest.url() }
     , m_fromItem(WTF::move(fromItem))
-    , m_clientNavigationActivity(ProcessThrottler::TimedActivity::create(navigationActivityTimeout))
 {
 }
 
 Navigation::Navigation(WebCore::ProcessIdentifier processID, Ref<WebBackForwardListFrameItem>&& targetFrameItem, RefPtr<WebBackForwardListItem>&& fromItem, FrameLoadType backForwardFrameLoadType)
     : m_navigationID(WebCore::NavigationIdentifier::generate())
     , m_processID(processID)
-    , m_originalRequest(WTF::URL { protect(targetFrameItem->mainFrame())->url() })
+    , m_originalRequest(WTF::URL { targetFrameItem->mainFrame()->url() })
     , m_currentRequest(m_originalRequest)
     , m_targetFrameItem(WTF::move(targetFrameItem))
     , m_fromItem(WTF::move(fromItem))
     , m_backForwardFrameLoadType(backForwardFrameLoadType)
-    , m_clientNavigationActivity(ProcessThrottler::TimedActivity::create(navigationActivityTimeout))
 {
 }
 
@@ -183,6 +177,8 @@ RefPtr<WebKit::BrowsingWarning> Navigation::safeBrowsingWarning()
 
 void Navigation::setSafeBrowsingWarning(RefPtr<WebKit::BrowsingWarning>&& safeBrowsingWarning)
 {
+    if (safeBrowsingWarning)
+        m_hadSafeBrowsingWarning = true;
     m_safeBrowsingWarning = WTF::move(safeBrowsingWarning);
 }
 
@@ -214,6 +210,14 @@ WTF::String Navigation::loggingString() const
 void Navigation::setHasStorageForCurrentSite(bool hasStorageForCurrentSite)
 {
     m_hasStorageForCurrentSite = hasStorageForCurrentSite;
+}
+
+unsigned Navigation::processActivityGroupSizeForTesting() const
+{
+    if (!std::holds_alternative<Ref<WebKit::ProcessActivityGroup>>(m_clientNavigationActivity))
+        return 0;
+
+    return std::get<Ref<WebKit::ProcessActivityGroup>>(m_clientNavigationActivity)->processActivityGroupSizeForTesting();
 }
 
 } // namespace API

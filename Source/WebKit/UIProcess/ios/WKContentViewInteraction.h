@@ -72,6 +72,7 @@
 #import <WebCore/FloatQuad.h>
 #import <WebCore/MediaControlsContextMenuItem.h>
 #import <WebCore/PointerID.h>
+#import <WebCore/SelectionType.h>
 #import <WebCore/TextGranularity.h>
 #import <pal/spi/cocoa/WritingToolsSPI.h>
 #import <pal/spi/ios/BrowserEngineKitSPI.h>
@@ -278,10 +279,9 @@ enum class TargetedPreviewPositioning : uint8_t {
 using InputViewUpdateDeferralSources = OptionSet<InputViewUpdateDeferralSource>;
 
 struct WKSelectionDrawingInfo {
-    enum class SelectionType : bool { None, Range };
     WKSelectionDrawingInfo();
     explicit WKSelectionDrawingInfo(const EditorState&);
-    SelectionType type { SelectionType::None };
+    WebCore::SelectionType type { WebCore::SelectionType::None };
     WebCore::IntRect caretRect;
     WebCore::Color caretColor;
     Vector<WebCore::SelectionGeometry> selectionGeometries;

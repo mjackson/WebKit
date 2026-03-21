@@ -31,6 +31,7 @@
 #include <wtf/TZoneMalloc.h>
 
 OBJC_CLASS WKSExperienceController;
+OBJC_CLASS WKExperienceControllerDelegate;
 
 namespace WebKit {
 
@@ -42,12 +43,16 @@ public:
     static Ref<VideoPresentationInterfaceAVKit> create(WebCore::PlaybackSessionInterfaceIOS&);
     ~VideoPresentationInterfaceAVKit();
 
+    void didToggleCaptionStylePreviewID(const String&);
+
 #if !RELEASE_LOG_DISABLED
     ASCIILiteral logClassName() const { return "VideoPresentationInterfaceAVKit"_s; };
 #endif
 
 private:
     VideoPresentationInterfaceAVKit(WebCore::PlaybackSessionInterfaceIOS&);
+
+    WebAVPlayerLayer *fullscreenPlayerLayer();
 
     // VideoPresentationInterfaceIOS overrides
     bool pictureInPictureWasStartedWhenEnteringBackground() const final { return false; }
@@ -71,16 +76,17 @@ private:
     bool isExternalPlaybackActive() const final { return false; }
     bool willRenderToLayer() const final { return false; }
     AVPlayerViewController *avPlayerViewController() const final { return nullptr; }
-    CALayer *captionsLayer() final { return nullptr; }
-    void setupCaptionsLayer(CALayer *, const WebCore::FloatSize&) final { }
 #if ENABLE(LINEAR_MEDIA_PLAYER)
     WKSPlayableViewControllerHost *playableViewController() final { return nullptr; }
 #endif
     void setSpatialImmersive(bool) final { }
     void transferVideoViewToFullscreen() final { }
     void returnVideoView() final { }
+    bool shouldCreateWindow() const final { return false; }
 
     RetainPtr<WKSExperienceController> m_experienceController;
+    RetainPtr<WKExperienceControllerDelegate> m_experienceControllerDelegate;
+    RetainPtr<WebAVPlayerLayerView> m_fullscreenPlayerLayerView;
 };
 
 } // namespace WebKit

@@ -21,20 +21,13 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 9) && (os(macOS) || (os(iOS) && canImport(SwiftUI, _version: "8.0.36"))) && canImport(_USDKit_RealityKit) && !os(visionOS)
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 11) && compiler(>=6.2)
 
-internal import QuartzCore
-@_weakLinked internal import USDKit
-@_weakLinked @_spi(UsdLoaderAPI) internal import _USDKit_RealityKit
+import QuartzCore
+@_weakLinked import USDKit
+@_weakLinked @_spi(UsdLoaderAPI) import _USDKit_RealityKit
 @_spi(RealityCoreRendererAPI) @_spi(Private) import RealityKit
 import simd
-
-extension RealityCoreRenderer._Proto_LowLevelGlobalConstantsEncoder_v1 {
-    @_silgen_name(
-        "$s19RealityCoreRenderer40_Proto_LowLevelGlobalConstantsEncoder_v1C6encode2to10byteOffsetys14MutableRawSpanVz_SitAA01_d1_efc6Error_J0VYKF"
-    )
-    fileprivate func encode(to mutableSpan: inout MutableRawSpan, byteOffset: Int) throws(_Proto_LowLevelRendererError_v1)
-}
 
 internal struct CameraTransform {
     var rotation: simd_quatf
@@ -42,17 +35,22 @@ internal struct CameraTransform {
     var scale: simd_float3
 }
 
-nonisolated class Renderer {
-    let device: MTLDevice
-    let commandQueue: MTLCommandQueue
-    var renderContext: _Proto_LowLevelRenderContext_v1?
-    var globalConstants: _Proto_LowLevelBufferSpan_v1?
-    var globalConstantsEncoder: _Proto_LowLevelGlobalConstantsEncoder_v1?
-    var renderWorkload: _Proto_LowLevelCameraRenderWorkload_v1?
-    var cameraPose: _Proto_Pose_v1
+class Renderer {
+    let device: any MTLDevice
+    let commandQueue: any MTLCommandQueue
+    var renderContext: (any _Proto_LowLevelRenderContext_v1)?
+    var renderer: _Proto_LowLevelRenderer_v1?
+    var renderTargetDescriptor: _Proto_LowLevelRenderTarget_v1.Descriptor {
+        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
+        // swift-format-ignore: NeverForceUnwrap
+        renderer!.renderTargetDescriptor
+    }
+    var pose: _Proto_Pose_v1
     var modelDistance: Float = 1.0
+    var clearColor: MTLClearColor = .init(red: 1, green: 1, blue: 1, alpha: 1)
+    let memoryOwner: task_id_token_t
 
-    init(device: MTLDevice) throws {
+    init(device: any MTLDevice, memoryOwner: task_id_token_t) throws {
         guard let commandQueue = device.makeCommandQueue() else {
             fatalError("Failed to create command queue.")
         }
@@ -60,61 +58,46 @@ nonisolated class Renderer {
 
         self.device = device
         self.commandQueue = commandQueue
-        self.cameraPose = .init(translation: [0, 0, 1], rotation: .init(ix: 0, iy: 0, iz: 0, r: 1))
-
-        prevTime = CACurrentMediaTime()
+        self.pose = .init(translation: [0, 0, 1], rotation: .init(ix: 0, iy: 0, iz: 0, r: 1))
+        self.memoryOwner = memoryOwner
     }
 
-    func createMaterialCompiler(renderTargetDescriptor: _Proto_LowLevelRenderTarget_v1.Descriptor) async throws {
+    func createMaterialCompiler(colorPixelFormat: MTLPixelFormat, rasterSampleCount: Int, colorSpace: CGColorSpace? = nil) async throws {
+        #if canImport(RealityCoreRenderer, _version: 12)
         var configuration = _Proto_LowLevelRenderContextStandaloneConfiguration_v1(device: device)
+        configuration.memoryOwner = self.memoryOwner
+        #else
+        var configuration = _Proto_LowLevelRenderContextStandaloneConfiguration_v1(device: device)
+        #endif
         configuration.residencySetBehavior = _Proto_LowLevelRenderContextStandaloneConfiguration_v1.ResidencySetBehavior.disable
         let renderContext = try await _Proto_makeLowLevelRenderContextStandalone_v1(configuration: configuration)
 
-        let globalConstantsSize = (_Proto_LowLevelGlobalConstantsEncoder_v1.encodedLength + 15) / 16 * 16
-        let globalConstantsBuffer = try renderContext.makeBufferResource(descriptor: .init(capacity: globalConstantsSize, sizeMultiple: 1))
-        let globalConstants = try _Proto_LowLevelBufferSpan_v1(buffer: globalConstantsBuffer, offset: 0, size: globalConstantsSize)
-
-        let meshInstances = try renderContext.makeMeshInstanceArray(renderTargets: [renderTargetDescriptor], count: 0)
-
-        let renderWorkload = try _Proto_LowLevelCameraRenderWorkload_v1(
-            renderContext: renderContext,
-            renderTargetDescriptor: renderTargetDescriptor,
-            camera: .mono(
-                pose: .init(
-                    translation: .zero,
-                    rotation: .init(ix: 0, iy: 0, iz: 0, r: 1)
-                ),
-                projection: .perspective(
-                    fovYRadians: 90 * .pi / 180,
-                    aspectRatio: 1,
-                    nearZ: 0.01,
-                    farZ: 1
-                )
+        let renderer = try await _Proto_LowLevelRenderer_v1(
+            configuration: .init(
+                output: .init(colorPixelFormat: colorPixelFormat),
+                rasterSampleCount: rasterSampleCount,
+                enableTonemap: false,
+                enableColorMatch: colorSpace != nil,
+                hasTransparentContent: false
             ),
-            meshInstances: meshInstances,
-            globalConstants: globalConstants
+            renderContext: renderContext
         )
-        self.globalConstantsEncoder = renderWorkload.makeGlobalConstantsEncoder()
         self.renderContext = renderContext
-        self.renderWorkload = renderWorkload
-        self.globalConstants = globalConstants
+        self.renderer = renderer
     }
-
-    var prevTime: CFTimeInterval = 0
 
     func render(
         meshInstances: _Proto_LowLevelMeshInstanceArray_v1,
-        texture: MTLTexture
+        texture: any MTLTexture
     ) throws {
-        guard let renderWorkload else {
+        guard let renderer else {
             return
         }
 
         let time = CACurrentMediaTime()
-        try updateGlobalConstants(time: Float(time))
 
         let aspect = Float(texture.width) / Float(texture.height)
-        let projection = _Proto_LowLevelCamera_v1.Projection.perspective(
+        let projection = _Proto_LowLevelRenderer_v1.Camera.Projection.perspective(
             fovYRadians: 90 * .pi / 180,
             aspectRatio: aspect,
             nearZ: modelDistance * 0.01,
@@ -122,44 +105,34 @@ nonisolated class Renderer {
             reverseZ: true
         )
 
-        let target: _Proto_LowLevelRenderTarget_v1 = .texture(color: texture, sampleCount: 4)
-        renderWorkload.camera = .mono(pose: cameraPose, projection: projection)
-        renderWorkload.camera.clearColor = .init(red: 0.0, green: 0.0, blue: 0.0, alpha: 0.0)
-        try renderWorkload.setMeshInstances(meshInstances)
+        renderer.cameras[0].pose = pose
+        renderer.cameras[0].projection = projection
+        renderer.output.clearColor = clearColor
+        renderer.output.color = .init(texture: texture)
+        renderer.meshInstances = meshInstances
 
         guard let renderCommandBuffer = commandQueue.makeCommandBuffer() else {
             fatalError("Failed to make command buffer")
         }
         renderCommandBuffer.label = "Render Camera"
-        try renderWorkload.render(for: renderCommandBuffer, target: target)
+        try renderer.render(for: renderCommandBuffer)
         renderCommandBuffer.commit()
-
-        prevTime = time
-    }
-
-    private func updateGlobalConstants(time: Float) throws(_Proto_LowLevelRendererError_v1) {
-        guard let globalConstantsEncoder else {
-            fatalError("globalConstantsEncoder is nil")
-        }
-        guard let globalConstants else {
-            fatalError("globalConstants is nil")
-        }
-        globalConstantsEncoder.setTime(time)
-        try globalConstants.buffer.replace { mutableSpan throws(_Proto_LowLevelRendererError_v1) in
-            try globalConstantsEncoder.encode(to: &mutableSpan, byteOffset: globalConstants.offset)
-        }
     }
 
     internal func setCameraDistance(_ distance: Float) {
         modelDistance = distance
-        cameraPose = .init(
+        pose = .init(
             translation: [0, 0, distance],
             rotation: simd_quatf(angle: 0, axis: [0, 0, 1]),
         )
     }
 
+    internal func setBackgroundColor(_ color: simd_float3) {
+        clearColor = MTLClearColor(red: Double(color.x), green: Double(color.y), blue: Double(color.z), alpha: 1)
+    }
+
     internal func setCameraTransform(_ transform: CameraTransform) {
-        cameraPose = .init(
+        pose = .init(
             translation: transform.translation,
             rotation: transform.rotation,
         )

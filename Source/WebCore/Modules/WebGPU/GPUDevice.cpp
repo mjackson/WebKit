@@ -63,6 +63,7 @@
 #include "GPUTextureFormat.h"
 #include "GPUUncapturedErrorEvent.h"
 #include "HTMLVideoElement.h"
+#include "JSDOMConvertInterface.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSGPUComputePipeline.h"
 #include "JSGPUDeviceLostInfo.h"
@@ -687,9 +688,13 @@ bool GPUDevice::addEventListener(const AtomString& eventType, Ref<EventListener>
     auto result = EventTarget::addEventListener(eventType, WTF::move(eventListener), options);
 #if PLATFORM(COCOA)
     if (eventType == WebCore::eventNames().uncapturederrorEvent) {
-        m_backing->resolveUncapturedErrorEvent([eventType, weakThis = WeakPtr { *this }](bool hasUncapturedError, std::optional<WebGPU::Error>&& error) {
+        m_backing->resolveUncapturedErrorEvent([eventType, pendingActivity = makePendingActivity(*this), weakThis = WeakPtr { *this }](bool hasUncapturedError, std::optional<WebGPU::Error>&& error) {
             RefPtr protectedThis = weakThis.get();
             if (!protectedThis || !hasUncapturedError)
+                return;
+
+            RefPtr context = protectedThis->scriptExecutionContext();
+            if (!context)
                 return;
 
             queueTaskToDispatchEvent(*protectedThis, TaskSource::WebGPU, GPUUncapturedErrorEvent::create(WebCore::eventNames().uncapturederrorEvent, GPUUncapturedErrorEventInit { .error = createGPUErrorFromWebGPUError(error) }));

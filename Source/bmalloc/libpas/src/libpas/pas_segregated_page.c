@@ -91,7 +91,7 @@ pas_lock* pas_segregated_page_switch_lock_slow(
 {
     static const bool verbose = PAS_SHOULD_LOG(PAS_LOG_SEGREGATED_HEAPS);
 
-    PAS_ASSERT(held_lock != page_lock);
+    PAS_ASSERT(held_lock != page_lock, (uintptr_t)held_lock, (uintptr_t)page_lock);
 
     for (;;) {
         if (verbose) {

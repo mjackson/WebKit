@@ -124,7 +124,7 @@ String animatedPropertyIDAsString(AnimatedProperty property)
 }
 
 using RepaintMap = HashMap<const GraphicsLayer*, Vector<FloatRect>>;
-static RepaintMap& repaintRectMap()
+static RepaintMap& NODELETE repaintRectMap()
 {
     static NeverDestroyed<RepaintMap> map;
     return map;
@@ -808,7 +808,7 @@ void GraphicsLayer::setZPosition(float position)
     m_zPosition = position;
 }
 
-static inline const FilterOperations& filterOperationsAt(const GraphicsLayerKeyframeValueList& valueList, size_t index)
+static inline const FilterOperations& NODELETE filterOperationsAt(const GraphicsLayerKeyframeValueList& valueList, size_t index)
 {
     return downcast<GraphicsLayerFilterAnimationValue>(valueList.at(index)).value();
 }
@@ -1165,14 +1165,6 @@ String GraphicsLayer::layerTreeAsText(OptionSet<LayerTreeAsTextOptions> options,
     dumpLayer(ts, options);
     return ts.release();
 }
-
-#if PLATFORM(COCOA)
-RetainPtr<CALayer> GraphicsLayer::protectedPlatformLayer() const
-{
-    // FIXME: CALayer.h is included but static analysis is still warning.
-    SUPPRESS_FORWARD_DECL_ARG return platformLayer();
-}
-#endif
 
 } // namespace WebCore
 

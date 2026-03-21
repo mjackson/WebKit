@@ -60,7 +60,7 @@ public:
     int minLength() const { return m_minLength; }
     ExceptionOr<void> setMinLength(int);
 
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) override;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) override;
 
     // The derived class should return true if placeholder processing is needed.
     bool isPlaceholderVisible() const { return m_isPlaceholderVisible; }
@@ -105,8 +105,8 @@ public:
     virtual bool dirAutoUsesValue() const = 0;
 
     bool selectionChanged(bool shouldFireSelectEvent);
-    WEBCORE_EXPORT bool lastChangeWasUserEdit() const;
-    bool wasEverChangedByUserEdit() const;
+    WEBCORE_EXPORT bool NODELETE lastChangeWasUserEdit() const;
+    bool NODELETE wasEverChangedByUserEdit() const;
     void setInnerTextValue(String&&);
     String innerTextValue() const;
 
@@ -157,7 +157,7 @@ protected:
 private:
     TextFieldSelectionDirection cachedSelectionDirection() const { return static_cast<TextFieldSelectionDirection>(m_cachedSelectionDirection); }
 
-    bool isTextFormControlElement() const final { return true; }
+    bool NODELETE isTextFormControlElement() const final { return true; }
 
     void dispatchFocusEvent(RefPtr<Element>&& oldFocusedElement, const FocusOptions&) final;
     void dispatchBlurEvent(RefPtr<Element>&& newFocusedElement) final;

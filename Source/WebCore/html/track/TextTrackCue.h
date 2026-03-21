@@ -79,10 +79,9 @@ public:
     void didMoveToNewDocument(Document&);
 
     TextTrack* NODELETE track() const;
-    RefPtr<TextTrack> NODELETE protectedTrack() const;
     void setTrack(TextTrack*);
 
-    const AtomString& id() const { return m_id; }
+    const AtomString& id() const LIFETIME_BOUND { return m_id; }
     void setId(const AtomString&);
 
     double startTime() const { return startMediaTime().toDouble(); }
@@ -144,7 +143,6 @@ protected:
     TextTrackCue(Document&, const MediaTime& start, const MediaTime& end);
 
     Document* document() const;
-    RefPtr<Document> protectedDocument() const;
 
     virtual void toJSON(JSON::Object&) const;
 

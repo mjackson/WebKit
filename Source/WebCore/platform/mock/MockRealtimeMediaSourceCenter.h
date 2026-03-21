@@ -38,10 +38,10 @@ namespace WebCore {
 
 class MockRealtimeMediaSourceCenter {
 public:
-    WEBCORE_EXPORT static MockRealtimeMediaSourceCenter& singleton();
+    WEBCORE_EXPORT static MockRealtimeMediaSourceCenter& NODELETE singleton();
 
     WEBCORE_EXPORT static void setMockRealtimeMediaSourceCenterEnabled(bool);
-    WEBCORE_EXPORT static bool mockRealtimeMediaSourceCenterEnabled();
+    WEBCORE_EXPORT static bool NODELETE mockRealtimeMediaSourceCenterEnabled();
 
     WEBCORE_EXPORT static void setDevices(Vector<MockMediaDevice>&&);
     WEBCORE_EXPORT static void addDevice(const MockMediaDevice&);
@@ -65,17 +65,17 @@ public:
     static std::optional<MockMediaDevice> mockMicrophoneFromDeviceID(uint32_t);
     static std::optional<CaptureDevice> captureDeviceWithPersistentID(CaptureDevice::DeviceType, const String&);
 
-    CaptureDeviceManager& audioCaptureDeviceManager() { return m_audioCaptureDeviceManager; }
-    CaptureDeviceManager& videoCaptureDeviceManager() { return m_videoCaptureDeviceManager; }
-    DisplayCaptureManager& displayCaptureDeviceManager() { return m_displayCaptureDeviceManager; }
+    CaptureDeviceManager& audioCaptureDeviceManager() LIFETIME_BOUND { return m_audioCaptureDeviceManager; }
+    CaptureDeviceManager& videoCaptureDeviceManager() LIFETIME_BOUND { return m_videoCaptureDeviceManager; }
+    DisplayCaptureManager& displayCaptureDeviceManager() LIFETIME_BOUND { return m_displayCaptureDeviceManager; }
 
 private:
     MockRealtimeMediaSourceCenter() = default;
     friend NeverDestroyed<MockRealtimeMediaSourceCenter>;
 
     AudioCaptureFactory& audioCaptureFactory();
-    VideoCaptureFactory& videoCaptureFactory();
-    DisplayCaptureFactory& displayCaptureFactory();
+    VideoCaptureFactory& NODELETE videoCaptureFactory();
+    DisplayCaptureFactory& NODELETE displayCaptureFactory();
 
     class MockAudioCaptureDeviceManager final : public CaptureDeviceManager {
     private:

@@ -90,6 +90,7 @@ public:
     Inspector::Protocol::ErrorStringOr<void> setExtraHTTPHeaders(Ref<JSON::Object>&&) final;
     Inspector::Protocol::ErrorStringOr<std::tuple<String, bool /* base64Encoded */>> getResponseBody(const Inspector::Protocol::Network::RequestId&) final;
     Inspector::Protocol::ErrorStringOr<void> setResourceCachingDisabled(bool) final;
+    Inspector::Protocol::ErrorStringOr<void> setClearResourceDataOnNavigate(bool) final;
     void loadResource(const Inspector::Protocol::Network::FrameId&, const String& url, Ref<LoadResourceCallback>&&) final;
     Inspector::Protocol::ErrorStringOr<String> getSerializedCertificate(const Inspector::Protocol::Network::RequestId&) final;
     Inspector::Protocol::ErrorStringOr<Ref<Inspector::Protocol::Runtime::RemoteObject>> resolveWebSocket(const Inspector::Protocol::Network::RequestId&, const String& objectGroup) final;
@@ -106,7 +107,7 @@ public:
 #endif
 
     // InspectorInstrumentation
-    void willRecalculateStyle();
+    void NODELETE willRecalculateStyle();
     void didRecalculateStyle();
     void willSendRequest(ResourceLoaderIdentifier, DocumentLoader*, ResourceRequest&, const ResourceResponse& redirectResponse, const CachedResource*, ResourceLoader*);
     void willSendRequestOfType(ResourceLoaderIdentifier, DocumentLoader*, ResourceRequest&, InspectorInstrumentation::LoadType);
@@ -116,8 +117,8 @@ public:
     void didFailLoading(ResourceLoaderIdentifier, DocumentLoader*, const ResourceError&);
     void didLoadResourceFromMemoryCache(DocumentLoader*, CachedResource&);
     void didReceiveThreadableLoaderResponse(ResourceLoaderIdentifier, DocumentThreadableLoader&);
-    void willLoadXHRSynchronously();
-    void didLoadXHRSynchronously();
+    void NODELETE willLoadXHRSynchronously();
+    void NODELETE didLoadXHRSynchronously();
     void didReceiveScriptResponse(ResourceLoaderIdentifier);
     void willDestroyCachedResource(CachedResource&);
     void didCreateWebSocket(WebSocketChannelIdentifier, const URL& requestURL);
@@ -190,6 +191,7 @@ private:
     bool m_enabled { false };
     bool m_loadingXHRSynchronously { false };
     bool m_interceptionEnabled { false };
+    bool m_clearResourceDataOnNavigate { true };
 };
 
 } // namespace WebCore

@@ -60,6 +60,7 @@
 #include "LLIntExceptions.h"
 #include "LLIntPrototypeLoadAdaptiveStructureWatchpoint.h"
 #include "LLIntThunks.h"
+#include "MaxFrameExtentForSlowPathCall.h"
 #include "ObjectConstructor.h"
 #include "ObjectPropertyConditionSet.h"
 #include "ProtoCallFrameInlines.h"
@@ -328,7 +329,7 @@ LLINT_SLOW_PATH_DECL(trace)
 
     CodeBlock* codeBlock = callFrame->codeBlock();
     OpcodeID opcodeID = pc->opcodeID();
-    dataLogF("<%p> %p / %p: executing bc#%zu, %s, pc = %p\n",
+    SAFE_DATALOGF("<%p> %p / %p: executing bc#%zu, %s, pc = %p\n",
             &Thread::currentSingleton(),
             codeBlock,
             callFrame,
@@ -2530,13 +2531,11 @@ static ALWAYS_INLINE int numberOfStackPaddingSlotsWithExtraSlots(CodeBlock* code
 static ALWAYS_INLINE int arityCheckFor(VM& vm, CallFrame* callFrame, CodeBlock* newCodeBlock)
 {
     ASSERT(callFrame->argumentCountIncludingThis() < static_cast<unsigned>(newCodeBlock->numParameters()));
-    int padding = numberOfStackPaddingSlotsWithExtraSlots(newCodeBlock, callFrame->argumentCountIncludingThis());
-
-    Register* newStack = callFrame->registers() - WTF::roundUpToMultipleOf(stackAlignmentRegisters(), padding);
-
-    if (!vm.ensureJSStackCapacityFor(newStack)) [[unlikely]]
+    int slotsToAdd = numberOfStackPaddingSlotsWithExtraSlots(newCodeBlock, callFrame->argumentCountIncludingThis());
+    Register* newStackPointer = callFrame->registers() - WTF::roundUpToMultipleOf(stackAlignmentRegisters(), slotsToAdd) - newCodeBlock->numCalleeLocals() - maxFrameExtentForSlowPathCallInRegisters;
+    if (!vm.ensureJSStackCapacityFor(newStackPointer)) [[unlikely]]
         return -1;
-    return padding;
+    return slotsToAdd;
 }
 
 LLINT_SLOW_PATH_DECL(slow_path_arityCheck)

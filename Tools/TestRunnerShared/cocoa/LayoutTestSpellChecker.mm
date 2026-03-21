@@ -321,9 +321,11 @@ static const char *stringForCorrectionResponse(NSCorrectionResponse correctionRe
 
 - (void)requestProofreadingReviewOfString:(NSString *)stringToCheck range:(NSRange)range language:(NSString *)language options:(NSDictionary<NSString *, id> *)options completionHandler:(void (^)(NSArray<NSTextCheckingResult *> *results))completionHandler
 {
-    if (RetainPtr overrideResult = [_results objectForKey:stringToCheck])
+    if (RetainPtr overrideResult = [_results objectForKey:stringToCheck]) {
         completionHandler(overrideResult.get());
-    return [super requestProofreadingReviewOfString:stringToCheck range:range language:language options:options completionHandler:completionHandler];
+        return;
+    }
+    [super requestProofreadingReviewOfString:stringToCheck range:range language:language options:options completionHandler:completionHandler];
 }
 
 static NSDictionary *swizzledGrammarDetailsForString(id, SEL, NSString *stringToCheck, NSRange range, NSString *language)

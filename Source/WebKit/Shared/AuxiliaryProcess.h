@@ -101,7 +101,7 @@ public:
 
     IPC::Connection* parentProcessConnection() const { return m_connection.get(); }
 
-    IPC::MessageReceiverMap& messageReceiverMap() { return m_messageReceiverMap; }
+    IPC::MessageReceiverMap& messageReceiverMap() LIFETIME_BOUND { return m_messageReceiverMap; }
 
 #if PLATFORM(COCOA)
     static bool isSystemWebKit();
@@ -202,7 +202,7 @@ private:
 
     bool m_isInShutDown { false };
 
-    RefPtr<IPC::Connection> m_connection;
+    const RefPtr<IPC::Connection> m_connection;
     IPC::MessageReceiverMap m_messageReceiverMap;
 
     UserActivity m_processSuppressionDisabled;

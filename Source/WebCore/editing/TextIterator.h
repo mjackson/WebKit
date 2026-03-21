@@ -58,7 +58,6 @@ WEBCORE_EXPORT SimpleRange findPlainText(const SimpleRange&, const String&, Find
 WEBCORE_EXPORT SimpleRange findClosestPlainText(const SimpleRange&, const String&, FindOptions, uint64_t targetCharacterOffset);
 WEBCORE_EXPORT Vector<SimpleRange> findAllPlainText(const SimpleRange&, const String&, FindOptions, unsigned limit);
 WEBCORE_EXPORT bool containsPlainText(const String& document, const String&, FindOptions); // Lets us use the search algorithm on a string.
-WEBCORE_EXPORT String foldQuoteMarks(const String&);
 
 // FIXME: Move this somewhere else in the editing directory. It doesn't belong in the header with TextIterator.
 bool isRendererReplacedElement(RenderObject*, TextIteratorBehaviors = { });
@@ -68,8 +67,8 @@ bool isRendererReplacedElement(RenderObject*, TextIteratorBehaviors = { });
 class BitStack {
 public:
     void push(bool);
-    void pop();
-    bool top() const;
+    void NODELETE pop();
+    bool NODELETE top() const;
 
 private:
     unsigned m_size { 0 };
@@ -112,7 +111,7 @@ public:
     WEBCORE_EXPORT SimpleRange range() const;
     WEBCORE_EXPORT Node* node() const;
 
-    const TextIteratorCopyableText& copyableText() const { ASSERT(!atEnd()); return m_copyableText; }
+    const TextIteratorCopyableText& copyableText() const LIFETIME_BOUND { ASSERT(!atEnd()); return m_copyableText; }
     void appendTextToStringBuilder(StringBuilder& builder) const { copyableText().appendToStringBuilder(builder); }
 
 #if ENABLE(TREE_DEBUGGING)
@@ -124,7 +123,7 @@ private:
     void init();
     void exitNode(Node*);
     bool shouldRepresentNodeOffsetZero();
-    bool shouldEmitSpaceBeforeAndAfterNode(Node&);
+    bool NODELETE shouldEmitSpaceBeforeAndAfterNode(Node&);
     void representNodeOffsetZero();
     bool handleTextNode();
     bool handleReplacedElement();
@@ -202,7 +201,7 @@ public:
 private:
     void exitNode();
     bool handleTextNode();
-    RenderText* handleFirstLetter(int& startOffset, int& offsetInNode);
+    CheckedPtr<RenderText> handleFirstLetter(int& startOffset, int& offsetInNode);
     bool handleReplacedElement();
     bool handleNonTextNode();
     void emitCharacter(char16_t, RefPtr<Node>&&, int startOffset, int endOffset);
@@ -291,7 +290,7 @@ public:
     bool atEnd() const { return !m_didLookAhead && m_underlyingIterator.atEnd(); }
     void advance();
 
-    StringView text() const LIFETIME_BOUND;
+    StringView NODELETE text() const LIFETIME_BOUND;
 
 private:
     TextIterator m_underlyingIterator;

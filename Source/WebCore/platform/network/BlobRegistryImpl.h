@@ -56,7 +56,6 @@ public:
     virtual ~BlobRegistryImpl();
 
     BlobData* blobDataFromURL(const URL&, const std::optional<SecurityOriginData>& topOrigin = std::nullopt) const;
-    RefPtr<BlobData> protectedBlobDataFromURL(const URL&, const std::optional<SecurityOriginData>& topOrigin = std::nullopt) const;
 
     Ref<ResourceHandle> createResourceHandle(const ResourceRequest&, ResourceHandleClient*);
 

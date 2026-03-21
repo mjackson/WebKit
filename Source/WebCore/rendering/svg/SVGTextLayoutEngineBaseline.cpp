@@ -22,6 +22,7 @@
 #include "config.h"
 #include "SVGTextLayoutEngineBaseline.h"
 
+#include "FontCascadeInlines.h"
 #include "NodeInlines.h"
 #include "RenderElementInlines.h"
 #include "RenderSVGInlineText.h"

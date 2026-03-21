@@ -30,7 +30,7 @@
 #include "CachedResourceClientWalker.h"
 #include "CachedResourceLoader.h"
 #include "Font.h"
-#include "FontCascade.h"
+#include "FontCascadeInlines.h"
 #include "FrameLoader.h"
 #include "FrameLoaderTypes.h"
 #include "ImageAdapter.h"
@@ -217,7 +217,7 @@ void CachedImage::switchClientsToRevalidatedResource()
         for (auto& request : m_pendingContainerContextRequests)
             switchContainerContextRequests.set(request.key, request.value);
         CachedResource::switchClientsToRevalidatedResource();
-        CachedResourceHandle revalidatedCachedImage = downcast<CachedImage>(*resourceToRevalidate());
+        RefPtr revalidatedCachedImage = downcast<CachedImage>(*resourceToRevalidate());
         for (auto& request : switchContainerContextRequests)
             revalidatedCachedImage->setContainerContextForClient(request.key, request.value.containerSize, request.value.containerZoom, request.value.imageURL);
         return;
@@ -315,10 +315,8 @@ FloatSize CachedImage::imageSizeForRenderer(const RenderElement* renderer, SizeT
         return { };
 
 #if ENABLE(MULTI_REPRESENTATION_HEIC)
-    if (CheckedPtr renderImage = dynamicDowncast<RenderImage>(renderer); renderImage && renderImage->isMultiRepresentationHEIC()) {
-        auto metrics = renderImage->style().fontCascade().primaryFont()->metricsForMultiRepresentationHEIC();
-        return metrics.size();
-    }
+    if (CheckedPtr renderImage = dynamicDowncast<RenderImage>(renderer); renderImage && renderImage->isMultiRepresentationHEIC())
+        return renderImage->style().fontCascade().primaryFont().metricsForMultiRepresentationHEIC().size();
 #endif
 
     if (image->drawsSVGImage() && sizeType == UsedSize)
@@ -420,25 +418,25 @@ CachedImage::CachedImageObserver::CachedImageObserver(CachedImage& image)
 
 void CachedImage::CachedImageObserver::encodedDataStatusChanged(const Image& image, EncodedDataStatus status)
 {
-    for (CachedResourceHandle cachedImage : m_cachedImages)
+    for (RefPtr cachedImage : m_cachedImages)
         cachedImage->encodedDataStatusChanged(image, status);
 }
 
 void CachedImage::CachedImageObserver::decodedSizeChanged(const Image& image, long long delta)
 {
-    for (CachedResourceHandle cachedImage : m_cachedImages)
+    for (RefPtr cachedImage : m_cachedImages)
         cachedImage->decodedSizeChanged(image, delta);
 }
 
 void CachedImage::CachedImageObserver::didDraw(const Image& image)
 {
-    for (CachedResourceHandle cachedImage : m_cachedImages)
+    for (RefPtr cachedImage : m_cachedImages)
         cachedImage->didDraw(image);
 }
 
 bool CachedImage::CachedImageObserver::canDestroyDecodedData(const Image& image) const
 {
-    for (CachedResourceHandle cachedImage : m_cachedImages) {
+    for (RefPtr cachedImage : m_cachedImages) {
         if (&image != cachedImage->image())
             continue;
         if (!cachedImage->canDestroyDecodedData(image))
@@ -449,25 +447,25 @@ bool CachedImage::CachedImageObserver::canDestroyDecodedData(const Image& image)
 
 void CachedImage::CachedImageObserver::imageFrameAvailable(const Image& image, ImageAnimatingState animatingState, const IntRect* changeRect, DecodingStatus decodingStatus)
 {
-    for (CachedResourceHandle cachedImage : m_cachedImages)
+    for (RefPtr cachedImage : m_cachedImages)
         cachedImage->imageFrameAvailable(image, animatingState, changeRect, decodingStatus);
 }
 
 void CachedImage::CachedImageObserver::changedInRect(const Image& image, const IntRect* rect)
 {
-    for (CachedResourceHandle cachedImage : m_cachedImages)
+    for (RefPtr cachedImage : m_cachedImages)
         cachedImage->changedInRect(image, rect);
 }
 
 void CachedImage::CachedImageObserver::imageContentChanged(const Image& image)
 {
-    for (CachedResourceHandle cachedImage : m_cachedImages)
+    for (RefPtr cachedImage : m_cachedImages)
         cachedImage->imageContentChanged(image);
 }
 
 void CachedImage::CachedImageObserver::scheduleRenderingUpdate(const Image& image)
 {
-    for (CachedResourceHandle cachedImage : m_cachedImages)
+    for (RefPtr cachedImage : m_cachedImages)
         cachedImage->scheduleRenderingUpdate(image);
 }
 
@@ -478,7 +476,7 @@ bool CachedImage::CachedImageObserver::allowsAnimation(const Image& image) const
     if (!Image::systemAllowsAnimationControls())
         return true;
 
-    for (CachedResourceHandle cachedImage : m_cachedImages) {
+    for (RefPtr cachedImage : m_cachedImages) {
         if (cachedImage->allowsAnimation(image))
             return true;
     }
@@ -507,7 +505,7 @@ inline void CachedImage::clearImage()
 
 void CachedImage::updateBufferInternal(const FragmentedSharedBuffer& data)
 {
-    CachedResourceHandle protectedThis { *this };
+    RefPtr protectedThis { *this };
     m_data = const_cast<FragmentedSharedBuffer*>(&data);
     setEncodedSize(m_data->size());
     createImage();

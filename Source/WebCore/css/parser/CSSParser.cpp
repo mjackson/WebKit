@@ -334,7 +334,7 @@ void CSSParser::parseStyleSheetForInspector(const String& string, const CSSParse
     styleSheet.setHasSyntacticallyValidCSSHeader(firstRuleValid);
 }
 
-static CSSParser::AllowedRules computeNewAllowedRules(CSSParser::AllowedRules allowedRules, StyleRuleBase* rule)
+static CSSParser::AllowedRules NODELETE computeNewAllowedRules(CSSParser::AllowedRules allowedRules, StyleRuleBase* rule)
 {
     if (!rule || allowedRules == CSSParser::AllowedRules::FontFeatureValuesRules || allowedRules == CSSParser::AllowedRules::KeyframeRules || allowedRules == CSSParser::AllowedRules::NoRules)
         return allowedRules;
@@ -691,11 +691,6 @@ Ref<StyleRuleBase> CSSParser::createNestedDeclarationsRule()
     return StyleRuleNestedDeclarations::create(WTF::move(properties));
 }
 
-RefPtr<StyleSheetContents> CSSParser::protectedStyleSheet() const
-{
-    return m_styleSheet;
-}
-
 Vector<Ref<StyleRuleBase>> CSSParser::consumeNestedGroupRules(CSSParserTokenRange block)
 {
     NestingLevelIncrementer incrementer { m_ruleListNestingLevel };
@@ -788,7 +783,7 @@ RefPtr<StyleRuleFontFace> CSSParser::consumeFontFaceRule(CSSParserTokenRange pre
 
 // The associated number represents the maximum number of allowed values for this font-feature-values type.
 // No value means unlimited (for styleset).
-static std::pair<FontFeatureValuesType, std::optional<unsigned>> fontFeatureValuesTypeMappings(CSSAtRuleID id)
+static std::pair<FontFeatureValuesType, std::optional<unsigned>> NODELETE fontFeatureValuesTypeMappings(CSSAtRuleID id)
 {
     switch (id) {
     case CSSAtRuleStyleset:
@@ -1025,7 +1020,7 @@ RefPtr<StyleRuleKeyframes> CSSParser::consumeKeyframesRule(CSSParserTokenRange p
 
 RefPtr<StyleRulePage> CSSParser::consumePageRule(CSSParserTokenRange prelude, CSSParserTokenRange block)
 {
-    auto selectorList = parsePageSelector(prelude, protectedStyleSheet().get());
+    auto selectorList = parsePageSelector(prelude, protect(styleSheet()).get());
     if (selectorList.isEmpty())
         return nullptr; // Parse error, invalid @page selector
 
@@ -1226,7 +1221,7 @@ RefPtr<StyleRuleScope> CSSParser::consumeScopeRule(CSSParserTokenRange prelude, 
                 auto selectorListRange = selectorListRangeStart.rangeUntil(prelude);
 
                 // Parse the selector list range
-                auto mutableSelectorList = parseMutableCSSSelectorList(selectorListRange, m_context, protectedStyleSheet().get(), ancestorRuleType, CSSParserEnum::IsForgiving::No, CSSSelectorParser::DisallowPseudoElement::Yes);
+                auto mutableSelectorList = parseMutableCSSSelectorList(selectorListRange, m_context, protect(styleSheet()).get(), ancestorRuleType, CSSParserEnum::IsForgiving::No, CSSSelectorParser::DisallowPseudoElement::Yes);
                 if (mutableSelectorList.isEmpty())
                     return false;
 
@@ -1268,7 +1263,7 @@ RefPtr<StyleRuleScope> CSSParser::consumeScopeRule(CSSParserTokenRange prelude, 
     auto rules = consumeNestedGroupRules(block);
     m_ancestorRuleTypeStack.removeLast();
     Ref rule = StyleRuleScope::create(WTF::move(scopeStart), WTF::move(scopeEnd), WTF::move(rules));
-    if (RefPtr styleSheet = m_styleSheet)
+    if (auto* styleSheet = m_styleSheet.get())
         rule->setStyleSheetContents(*styleSheet);
     return rule;
 }
@@ -1515,7 +1510,7 @@ RefPtr<StyleRuleBase> CSSParser::consumeStyleRule(CSSParserTokenRange prelude, C
         return nullptr;
 
     auto preludeCopyForInspector = prelude;
-    auto mutableSelectorList = parseMutableCSSSelectorList(prelude, m_context, protectedStyleSheet().get(), lastAncestorRuleType(), CSSParserEnum::IsForgiving::No, CSSSelectorParser::DisallowPseudoElement::No);
+    auto mutableSelectorList = parseMutableCSSSelectorList(prelude, m_context, protect(styleSheet()).get(), lastAncestorRuleType(), CSSParserEnum::IsForgiving::No, CSSSelectorParser::DisallowPseudoElement::No);
 
     if (mutableSelectorList.isEmpty())
         return nullptr; // Parse error, invalid selector list
@@ -1754,7 +1749,7 @@ IsImportant CSSParser::consumeTrailingImportantAndWhitespace(CSSParserTokenRange
 }
 
 // Check if a CSS rule type does not allow declarations with !important.
-static bool ruleDoesNotAllowImportant(StyleRuleType type)
+static bool NODELETE ruleDoesNotAllowImportant(StyleRuleType type)
 {
     return type == StyleRuleType::CounterStyle
         || type == StyleRuleType::FontFace

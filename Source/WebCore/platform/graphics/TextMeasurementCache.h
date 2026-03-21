@@ -36,6 +36,7 @@
 #include <wtf/text/StringCommon.h>
 #include <wtf/text/StringImpl.h>
 #include <wtf/text/WYHash.h>
+#include <wtf/unicode/CharacterNames.h>
 
 namespace WebCore {
 
@@ -87,7 +88,7 @@ private:
             m_hashAndLength = WYHash::computeHashAndMaskTop8Bits(std::span<const char16_t> { m_characters }.first(s_capacity)) | (length << 24);
         }
 
-        const char16_t* characters() const { return m_characters.data(); }
+        const char16_t* characters() const LIFETIME_BOUND { return m_characters.data(); }
         unsigned length() const { return m_hashAndLength >> 24; }
         unsigned hash() const { return m_hashAndLength & 0x00ffffffU; }
 
@@ -158,8 +159,8 @@ public:
         // Word spacing and letter spacing can change the width of a word.
         if (shapingContext.hasWordSpacingOrLetterSpacing)
             return nullptr;
-        // If we allow tabs and a tab occurs inside a word, the width of the word varies based on its position on the line.
-        if (run.allowTabs())
+        // If a tab occurs inside a word, the width of the word varies based on its position on the line.
+        if (run.allowTabs() && run.text().contains(tabCharacter))
             return nullptr;
         // width calculation with text-spacing depends on context of adjacent characters.
         if (shapingContext.hasTextSpacing && invalidateCacheForTextSpacing(run))

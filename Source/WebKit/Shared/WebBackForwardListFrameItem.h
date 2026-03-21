@@ -29,7 +29,7 @@
 #include <WebCore/BackForwardItemIdentifier.h>
 #include <WebCore/FrameIdentifier.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
-#include <wtf/RetainReleaseSwift.h>
+#include <wtf/SwiftBridging.h>
 
 namespace WebKit {
 
@@ -41,16 +41,17 @@ public:
     static Ref<WebBackForwardListFrameItem> create(WebBackForwardListItem&, WebBackForwardListFrameItem* parentItem, Ref<FrameState>&&);
     ~WebBackForwardListFrameItem();
 
-    static WebBackForwardListFrameItem* itemForID(WebCore::BackForwardItemIdentifier, WebCore::BackForwardFrameItemIdentifier);
+    static WebBackForwardListFrameItem* NODELETE itemForID(WebCore::BackForwardItemIdentifier, WebCore::BackForwardFrameItemIdentifier);
 
     FrameState& frameState() const { return m_frameState; }
     void setFrameState(Ref<FrameState>&&);
 
+    Ref<FrameState> copyFrameState();
     Ref<FrameState> copyFrameStateWithChildren();
 
     std::optional<WebCore::FrameIdentifier> NODELETE frameID() const;
     WebCore::BackForwardFrameItemIdentifier identifier() const { return m_identifier; }
-    const String& NODELETE url() const;
+    const String& NODELETE url() const LIFETIME_BOUND;
 
     WebBackForwardListFrameItem* parent() const { return m_parent; }
     void setParent(WebBackForwardListFrameItem* parent) { m_parent = parent; }
@@ -59,15 +60,16 @@ public:
     Ref<WebBackForwardListFrameItem> rootFrame();
     Ref<WebBackForwardListFrameItem> mainFrame();
     WebBackForwardListFrameItem* NODELETE childItemForFrameID(WebCore::FrameIdentifier);
+    WebBackForwardListFrameItem* NODELETE childItemAtIndex(uint64_t);
 
-    WebBackForwardListItem* backForwardListItem() const;
+    WebBackForwardListItem* NODELETE backForwardListItem() const;
 
     void setChild(Ref<FrameState>&&);
     void clearChildren() { m_children.clear(); }
 
-    void updateFrameID(WebCore::FrameIdentifier);
+    void NODELETE updateFrameID(WebCore::FrameIdentifier);
 
-    void setWasRestoredFromSession();
+    void NODELETE setWasRestoredFromSession();
 
     String loggingString();
 
@@ -90,10 +92,10 @@ private:
 
 inline void refWebBackForwardListFrameItem(WebKit::WebBackForwardListFrameItem* obj)
 {
-    WTF::ref(obj);
+    obj->ref();
 }
 
 inline void derefWebBackForwardListFrameItem(WebKit::WebBackForwardListFrameItem* obj)
 {
-    WTF::deref(obj);
+    obj->deref();
 }

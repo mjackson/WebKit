@@ -655,11 +655,6 @@ PlatformPlaybackSessionInterface& PlaybackSessionManagerProxy::ensureInterface(P
     return std::get<1>(ensureModelAndInterface(contextId)).get();
 }
 
-Ref<PlatformPlaybackSessionInterface> PlaybackSessionManagerProxy::ensureProtectedInterface(PlaybackSessionContextIdentifier contextId)
-{
-    return ensureInterface(contextId);
-}
-
 void PlaybackSessionManagerProxy::addClientForContext(PlaybackSessionContextIdentifier contextId)
 {
     m_clientCounts.add(contextId);
@@ -670,7 +665,7 @@ void PlaybackSessionManagerProxy::removeClientForContext(PlaybackSessionContextI
     if (!m_clientCounts.remove(contextId))
         return;
 
-    ensureProtectedInterface(contextId)->invalidate();
+    protect(ensureInterface(contextId))->invalidate();
     m_contextMap.remove(contextId);
 }
 
@@ -686,7 +681,7 @@ void PlaybackSessionManagerProxy::setUpPlaybackControlsManagerWithID(PlaybackSes
 
     m_controlsManagerContextId = contextId;
     m_controlsManagerContextIsVideo = isVideo;
-    ensureProtectedInterface(*m_controlsManagerContextId)->ensureControlsManager();
+    protect(ensureInterface(*m_controlsManagerContextId))->ensureControlsManager();
     addClientForContext(*m_controlsManagerContextId);
 
     if (RefPtr page = m_page.get())
@@ -1031,7 +1026,7 @@ void PlaybackSessionManagerProxy::setVideoReceiverEndpoint(PlaybackSessionContex
     }
     WebCore::ProcessIdentifier processIdentifier = process->coreProcessIdentifier();
 
-    Ref gpuProcess = process->processPool().ensureProtectedGPUProcess();
+    Ref gpuProcess = process->processPool().ensureGPUProcess();
     Ref connection = gpuProcess->connection();
     OSObjectPtr<xpc_connection_t> xpcConnection = connection->xpcConnection();
     if (!xpcConnection)
@@ -1071,7 +1066,7 @@ void PlaybackSessionManagerProxy::swapVideoReceiverEndpoints(PlaybackSessionCont
     }
     WebCore::ProcessIdentifier processIdentifier = process->coreProcessIdentifier();
 
-    Ref gpuProcess = process->processPool().ensureProtectedGPUProcess();
+    Ref gpuProcess = process->processPool().ensureGPUProcess();
     Ref connection = gpuProcess->connection();
     OSObjectPtr<xpc_connection_t> xpcConnection = connection->xpcConnection();
     if (!xpcConnection)

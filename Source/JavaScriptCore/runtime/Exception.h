@@ -61,7 +61,7 @@ public:
     }
 
     JSValue value() const { return m_value.get(); }
-    const Vector<StackFrame>& stack() const { return m_stack; }
+    const Vector<StackFrame>& stack() const LIFETIME_BOUND { return m_stack; }
     static size_t estimatedSize(JSCell*, VM&);
 
     bool didNotifyInspectorOfThrow() const { return m_didNotifyInspectorOfThrow; }

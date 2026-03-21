@@ -531,10 +531,11 @@ void webkit_download_set_destination(WebKitDownload* download, const gchar* dest
 #if ENABLE(2022_GLIB_API)
     g_return_if_fail(g_path_is_absolute(destination));
 #else
-    g_return_if_fail(g_str_has_prefix(destination, "file://") || g_path_is_absolute(destination));
+    auto isFileURI = startsWith(CStringView::unsafeFromUTF8(destination).span(), "file://"_s);
+    g_return_if_fail(isFileURI || g_path_is_absolute(destination));
 
     GUniquePtr<char> destinationPath;
-    if (g_str_has_prefix(destination, "file://")) {
+    if (isFileURI) {
         download->priv->destinationURI.reset(g_strdup(destination));
         destinationPath.reset(g_filename_from_uri(destination, nullptr, nullptr));
         destination = destinationPath.get();
@@ -624,7 +625,9 @@ gdouble webkit_download_get_estimated_progress(WebKitDownload* download)
     if (!contentLength)
         return 0;
 
-    return static_cast<gdouble>(priv->currentSize) / static_cast<gdouble>(contentLength);
+    // We cannot trust that the Content-Length will be correct. If current size
+    // exceeds Content-Length, our estimate will just be 1.0.
+    return std::min(static_cast<gdouble>(priv->currentSize) / static_cast<gdouble>(contentLength), 1.0);
 }
 
 /**

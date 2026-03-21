@@ -103,7 +103,7 @@ void SystemHeap::scavenge()
 
 void SystemHeap::dump()
 {
-    constexpr bool verbose = true;
+    constexpr bool verbose = false;
     malloc_zone_print(m_zone, verbose);
 }
 
@@ -413,4 +413,3 @@ void pas_system_heap_free(void* ptr)
 #endif // BUSE(LIBPAS) -> so end of !BUSE(LIBPAS)
 
 #endif // BENABLE(LIBPAS)
-

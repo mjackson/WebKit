@@ -35,7 +35,7 @@ public:
     static Ref<SerializedNode> create(WebCore::SerializedNode&& serializedNode) { return adoptRef(*new SerializedNode(WTF::move(serializedNode))); }
     virtual ~SerializedNode();
 
-    const WebCore::SerializedNode& coreSerializedNode() const { return m_serializedNode; }
+    const WebCore::SerializedNode& coreSerializedNode() const LIFETIME_BOUND { return m_serializedNode; }
 
 private:
     SerializedNode(WebCore::SerializedNode&&);

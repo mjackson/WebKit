@@ -42,7 +42,7 @@ CallFrameShuffler::CallFrameShuffler(CCallHelpers& jit, const CallFrameShuffleDa
     , m_alignedNewFrameSize(CallFrame::headerSizeInRegisters
         + roundArgumentCountToAlignFrame(data.args.size()))
     , m_frameDelta(m_alignedNewFrameSize - m_alignedOldFrameSize)
-    , m_lockedRegisters(RegisterSetBuilder::allRegisters().buildScalarRegisterSet())
+    , m_lockedRegisters(RegisterSet::allRegisters().toScalarRegisterSet())
     , m_numPassedArgs(data.numPassedArgs)
     , m_numParameters(data.numParameters)
 {
@@ -53,8 +53,8 @@ CallFrameShuffler::CallFrameShuffler(CCallHelpers& jit, const CallFrameShuffleDa
         m_lockedRegisters.remove(FPRInfo::toRegister(i));
 
     // ... as well as the callee saved registers
-    for (Reg r : RegisterSetBuilder::vmCalleeSaveRegisters()) {
-        if (RegisterSetBuilder::vmCalleeSaveRegisters().contains(r, IgnoreVectors))
+    for (Reg r : RegisterSet::vmCalleeSaveRegisters()) {
+        if (RegisterSet::vmCalleeSaveRegisters().contains(r, IgnoreVectors))
             m_lockedRegisters.remove(r);
     }
 

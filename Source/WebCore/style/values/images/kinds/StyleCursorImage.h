@@ -27,14 +27,11 @@
 
 #include "StyleMultiImage.h"
 #include <wtf/TZoneMalloc.h>
-#include <wtf/WeakHashSet.h>
 
 namespace WebCore {
 
 class CSSValue;
 class Document;
-class WeakPtrImplWithEventTargetData;
-class SVGCursorElement;
 
 namespace Style {
 
@@ -51,9 +48,6 @@ public:
 
     bool usesDataProtocol() const final;
 
-    void cursorElementRemoved(SVGCursorElement&);
-    void cursorElementChanged(SVGCursorElement&);
-
     std::optional<IntPoint> hotSpot() const { return m_hotSpot; }
 
 private:
@@ -64,12 +58,9 @@ private:
     Ref<CSSValue> computedStyleValue(const RenderStyle&) const final;
     ImageWithScale selectBestFitImage(const Document&) final;
 
-    RefPtr<SVGCursorElement> updateCursorElement(const Document&);
-
-    Ref<Image> m_image;
+    const Ref<Image> m_image;
     std::optional<IntPoint> m_hotSpot;
     URL m_originalURL;
-    WeakHashSet<SVGCursorElement, WeakPtrImplWithEventTargetData> m_cursorElements;
 };
 
 } // namespace Style

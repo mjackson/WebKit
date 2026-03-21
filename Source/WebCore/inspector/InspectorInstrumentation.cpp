@@ -78,6 +78,7 @@
 #include "WebSocketFrame.h"
 #include "WorkerInspectorController.h"
 #include "WorkerOrWorkletGlobalScope.h"
+#include "agents/frame/FrameRuntimeAgent.h"
 #include <JavaScriptCore/ConsoleMessage.h>
 #include <JavaScriptCore/ConsoleTypes.h>
 #include <JavaScriptCore/InspectorDebuggerAgent.h>
@@ -107,6 +108,13 @@ void InspectorInstrumentation::didClearWindowObjectInWorldImpl(InstrumentingAgen
 {
     if (auto* pageDebuggerAgent = instrumentingAgents.enabledPageDebuggerAgent())
         pageDebuggerAgent->didClearWindowObjectInWorld(frame, world);
+
+    if (auto* frameRuntimeAgent = frame.inspectorController().instrumentingAgents().enabledFrameRuntimeAgent()) {
+        frameRuntimeAgent->didClearWindowObjectInWorld(world);
+        if (CheckedPtr pageAgent = instrumentingAgents.enabledPageAgent())
+            pageAgent->didClearWindowObjectInWorld(frame, world);
+        return;
+    }
 
     if (auto* pageRuntimeAgent = instrumentingAgents.enabledPageRuntimeAgent())
         pageRuntimeAgent->didClearWindowObjectInWorld(frame, world);
@@ -897,7 +905,7 @@ void InspectorInstrumentation::interceptResponseImpl(InstrumentingAgents& instru
 }
 
 // JavaScriptCore InspectorDebuggerAgent should know Console MessageTypes.
-static bool isConsoleAssertMessage(MessageSource source, MessageType type)
+static bool NODELETE isConsoleAssertMessage(MessageSource source, MessageType type)
 {
     return source == MessageSource::ConsoleAPI && type == MessageType::Assert;
 }
@@ -1368,8 +1376,8 @@ InstrumentingAgents* InspectorInstrumentation::instrumentingAgents(ScriptExecuti
 {
     // Using RefPtr makes us hit the m_inRemovedLastRefFunction assert.
     if (WeakPtr document = dynamicDowncast<Document>(context))
-        return instrumentingAgents(protect(document->page()).get());
-    if (RefPtr workerOrWorkletGlobal = dynamicDowncast<WorkerOrWorkletGlobalScope>(context))
+        return instrumentingAgents(document->page());
+    if (auto* workerOrWorkletGlobal = dynamicDowncast<WorkerOrWorkletGlobalScope>(context))
         return &instrumentingAgents(*workerOrWorkletGlobal);
     return nullptr;
 }

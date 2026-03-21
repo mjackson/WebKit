@@ -50,11 +50,38 @@ public:
     }
 
 private:
-    SimulatedMouseEvent(const AtomString& eventType, RefPtr<WindowProxy>&& view, RefPtr<Event>&& underlyingEvent, Element& target, SimulatedClickSource source)
-        : MouseEvent(EventInterfaceType::MouseEvent, eventType, CanBubble::Yes, IsCancelable::Yes, IsComposed::Yes,
-            underlyingEvent ? underlyingEvent->timeStamp() : MonotonicTime::now(), WTF::move(view), /* detail */ 0,
-            { }, { }, 0, 0, modifiersFromUnderlyingEvent(underlyingEvent), MouseButton::Left, 0, nullptr, 0, SyntheticClickType::NoTap, { }, { }, IsSimulated::Yes,
-            source == SimulatedClickSource::UserAgent ? IsTrusted::Yes : IsTrusted::No)
+    SimulatedMouseEvent(
+        const AtomString& eventType,
+        RefPtr<WindowProxy>&& view,
+        RefPtr<Event>&& underlyingEvent,
+        Element& target,
+        SimulatedClickSource source
+    )
+        : MouseEvent(
+            EventInterfaceType::MouseEvent,
+            eventType,
+            CanBubble::Yes,
+            IsCancelable::Yes,
+            IsComposed::Yes,
+            underlyingEvent ? underlyingEvent->timeStamp() : MonotonicTime::now(),
+            WTF::move(view),
+            /* detail */ 0,
+            { },
+            { },
+            0,
+            0,
+            modifiersFromUnderlyingEvent(underlyingEvent),
+            MouseButton::Left,
+            0,
+            nullptr,
+            0,
+            SyntheticClickType::NoTap,
+            { },
+            { },
+            std::nullopt,
+            IsSimulated::Yes,
+            source == SimulatedClickSource::UserAgent ? IsTrusted::Yes : IsTrusted::No
+        )
     {
         setUnderlyingEvent(underlyingEvent.get());
 

@@ -990,7 +990,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
                 break;
             }
 
-            setNonCellTypeForNode(node, 
+            setNonCellTypeForNode(node,
                 typeOfDoubleSum(
                     forNode(node->child1()).m_type, forNode(node->child2()).m_type));
             break;
@@ -1078,7 +1078,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
                 setConstant(node, jsDoubleNumber(left.asNumber() - right.asNumber()));
                 break;
             }
-            setNonCellTypeForNode(node, 
+            setNonCellTypeForNode(node,
                 typeOfDoubleDifference(
                     forNode(node->child1()).m_type, forNode(node->child2()).m_type));
             break;
@@ -1277,7 +1277,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
                 break;
             }
 
-            setNonCellTypeForNode(node, 
+            setNonCellTypeForNode(node,
                 typeOfDoubleProduct(
                     forNode(node->child1()).m_type, forNode(node->child2()).m_type));
             break;
@@ -2065,6 +2065,42 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
             didFoldClobberWorld();
             setConstant(node, jsBoolean(std::isnan(value.asNumber())));
             break;
+        }
+        clobberWorld();
+        setNonCellTypeForNode(node, SpecBoolean);
+        break;
+    }
+
+    case ArrayIsArray: {
+        AbstractValue& child = forNode(node->child1());
+        if (JSValue v = child.value()) {
+            if (!v.isCell()) {
+                didFoldClobberWorld();
+                setConstant(node, jsBoolean(false));
+                break;
+            }
+            JSType type = v.asCell()->type();
+            if (type == ArrayType || type == DerivedArrayType) {
+                didFoldClobberWorld();
+                setConstant(node, jsBoolean(true));
+                break;
+            }
+            if (type != ProxyObjectType) {
+                didFoldClobberWorld();
+                setConstant(node, jsBoolean(false));
+                break;
+            }
+        } else {
+            if (!(child.m_type & (SpecArray | SpecDerivedArray | SpecProxyObject))) {
+                didFoldClobberWorld();
+                setConstant(node, jsBoolean(false));
+                break;
+            }
+            if (!(child.m_type & ~(SpecArray | SpecDerivedArray))) {
+                didFoldClobberWorld();
+                setConstant(node, jsBoolean(true));
+                break;
+            }
         }
         clobberWorld();
         setNonCellTypeForNode(node, SpecBoolean);
@@ -4439,7 +4475,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
             GetByStatus status = GetByStatus::computeFor(m_graph.globalObjectFor(node->origin.semantic), value.m_structure.toStructureSet(), identifier);
             if (status.isSimple()) {
                 if (status.numVariants() == 1) {
-                    auto variant = status[0];
+                    auto& variant = status[0];
                     if (!variant.conditionSet().isEmpty()) {
                         ASSERT(variant.structureSet().size() == 1);
                         auto attempToFold = [&] {
@@ -5877,6 +5913,10 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         setTypeForNode(node, SpecObject);
         break;
     }
+
+    case PerformPromiseThen:
+        clobberWorld();
+        break;
 
     case Unreachable:
         // It may be that during a previous run of AI we proved that something was unreachable, but

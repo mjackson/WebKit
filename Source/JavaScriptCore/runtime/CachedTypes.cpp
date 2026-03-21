@@ -43,6 +43,7 @@
 #include "UnlinkedModuleProgramCodeBlock.h"
 #include "UnlinkedProgramCodeBlock.h"
 #include <wtf/FileHandle.h>
+#include <wtf/InlineMap.h>
 #include <wtf/MallocPtr.h>
 #include <wtf/MallocSpan.h>
 #include <wtf/Packed.h>
@@ -701,6 +702,35 @@ private:
 template<typename Key, typename Value, typename HashArg = DefaultHash<SourceType<Key>>, typename KeyTraitsArg = HashTraits<SourceType<Key>>, typename MappedTraitsArg = HashTraits<SourceType<Value>>>
 using CachedMemoryCompactLookupOnlyRobinHoodHashMap = CachedHashMap<Key, Value, HashArg, KeyTraitsArg, MappedTraitsArg, WTF::MemoryCompactLookupOnlyRobinHoodHashTableTraits>;
 
+template<typename Key, typename Value, unsigned Capacity, typename HashArg = DefaultHash<SourceType<Key>>, typename KeyTraitsArg = HashTraits<SourceType<Key>>, typename MappedTraitsArg = HashTraits<SourceType<Value>>>
+class CachedInlineMap : public VariableLengthObject<InlineMap<SourceType<Key>, SourceType<Value>, Capacity, HashArg, KeyTraitsArg, MappedTraitsArg>> {
+
+    using Map = InlineMap<SourceType<Key>, SourceType<Value>, Capacity, HashArg, KeyTraitsArg, MappedTraitsArg>;
+
+public:
+
+    void encode(Encoder& encoder, const Map& map)
+    {
+        SourceType<decltype(m_entries)> entriesVector(map.size());
+        unsigned i = 0;
+        for (const auto& it : map)
+            entriesVector[i++] = { it.key, it.value };
+        m_entries.encode(encoder, entriesVector);
+    }
+
+    void decode(Decoder& decoder, Map& map) const
+    {
+        SourceType<decltype(m_entries)> decodedEntries;
+        m_entries.decode(decoder, decodedEntries);
+        map.reserveInitialCapacity(decodedEntries.size());
+        for (const auto& pair : decodedEntries)
+            map.add(pair.first, pair.second);
+    }
+
+private:
+    CachedVector<CachedPair<Key, Value>> m_entries;
+};
+
 template<typename T>
 class CachedUniquedStringImplBase : public VariableLengthObject<T> {
 public:
@@ -756,9 +786,9 @@ public:
             if (m_isRegistered) {
                 String str(buffer);
                 if (m_isPrivate)
-                    symbol = static_cast<SymbolImpl*>(&vm.checkedPrivateSymbolRegistry()->symbolForKey(str).leakRef());
+                    symbol = static_cast<SymbolImpl*>(&protect(vm.privateSymbolRegistry())->symbolForKey(str).leakRef());
                 else
-                    symbol = static_cast<SymbolImpl*>(&vm.checkedSymbolRegistry()->symbolForKey(str).leakRef());
+                    symbol = static_cast<SymbolImpl*>(&protect(vm.symbolRegistry())->symbolForKey(str).leakRef());
             } else if (m_isWellKnownSymbol)
                 symbol = vm.propertyNames->builtinNames().lookUpWellKnownSymbol(buffer);
             else
@@ -1072,6 +1102,7 @@ public:
     void encode(Encoder& encoder, const VariableEnvironment& env)
     {
         m_isEverythingCaptured = env.m_isEverythingCaptured;
+        m_hasAwaitUsingDeclaration = env.m_hasAwaitUsingDeclaration;
         m_map.encode(encoder, env.m_map);
         m_rareData.encode(encoder, env.m_rareData.get());
     }
@@ -1079,6 +1110,7 @@ public:
     void decode(Decoder& decoder, VariableEnvironment& env) const
     {
         env.m_isEverythingCaptured = m_isEverythingCaptured;
+        env.m_hasAwaitUsingDeclaration = m_hasAwaitUsingDeclaration;
         m_map.decode(decoder, env.m_map);
         if (!m_rareData.isEmpty()) {
             env.m_rareData = WTF::makeUnique<VariableEnvironment::RareData>();
@@ -1088,7 +1120,8 @@ public:
 
 private:
     bool m_isEverythingCaptured;
-    CachedHashMap<CachedRefPtr<CachedUniquedStringImpl, UniquedStringImpl, WTF::PackedPtrTraits<UniquedStringImpl>>, VariableEnvironmentEntry, IdentifierRepHash, HashTraits<RefPtr<UniquedStringImpl>>, VariableEnvironmentEntryHashTraits> m_map;
+    bool m_hasAwaitUsingDeclaration;
+    CachedInlineMap<CachedRefPtr<CachedUniquedStringImpl, UniquedStringImpl, WTF::PackedPtrTraits<UniquedStringImpl>>, VariableEnvironmentEntry, VariableEnvironment::inlineMapCapacity, IdentifierRepHash, HashTraits<RefPtr<UniquedStringImpl>>, VariableEnvironmentEntryHashTraits> m_map;
     CachedPtr<CachedVariableEnvironmentRareData> m_rareData;
 };
 

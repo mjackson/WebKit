@@ -274,7 +274,7 @@ void RenderMathMLBlock::adjustLayoutForBorderAndPadding()
 {
     setLogicalWidth(logicalWidth() + borderAndPaddingLogicalWidth());
     setLogicalHeight(logicalHeight() + borderAndPaddingLogicalHeight());
-    shiftInFlowChildren(style().isLeftToRightDirection() ? borderAndPaddingStart() : borderAndPaddingEnd(), borderAndPaddingBefore());
+    shiftInFlowChildren(style().writingMode().deprecatedIsLeftToRightDirection() ? borderAndPaddingStart() : borderAndPaddingEnd(), borderAndPaddingBefore());
 }
 
 RenderMathMLBlock::SizeAppliedToMathContent RenderMathMLBlock::sizeAppliedToMathContent(LayoutPhase phase)
@@ -327,7 +327,7 @@ LayoutUnit RenderMathMLBlock::applySizeToMathContent(LayoutPhase phase, const Si
         auto oldWidth = logicalWidth();
         if (isMathContentCentered()) {
             inlineShift = (*sizes.logicalWidth - oldWidth) / 2;
-        } else if (!style().isLeftToRightDirection())
+        } else if (!style().writingMode().deprecatedIsLeftToRightDirection())
             inlineShift = *sizes.logicalWidth - oldWidth;
         setLogicalWidth(*sizes.logicalWidth);
     }

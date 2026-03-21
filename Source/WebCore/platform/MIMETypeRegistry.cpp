@@ -43,7 +43,7 @@
 #include <wtf/text/MakeString.h>
 
 #if USE(CG)
-#include "ImageBufferUtilitiesCG.h"
+#include "ImageUtilities.h"
 #include "UTIRegistry.h"
 #include "UTIUtilities.h"
 #include <ImageIO/ImageIO.h>
@@ -696,7 +696,7 @@ bool MIMETypeRegistry::isSupportedModelMIMEType(const String& mimeType)
 }
 
 // FIXME: Not great that CURL needs this concept; other platforms do not.
-static String normalizedImageMIMEType(const String& mimeType)
+static String NODELETE normalizedImageMIMEType(const String& mimeType)
 {
 #if USE(CURL)
     // FIXME: Since this is only used in isSupportedImageMIMEType, we should consider removing the non-image types below.

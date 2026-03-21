@@ -77,7 +77,7 @@ Ref<ImmutableStyleProperties> ImmutableStyleProperties::createDeduplicating(std:
         Hasher hasher;
         add(hasher, mode);
         for (auto& property : properties) {
-            if (!property.value()->addHash(hasher))
+            if (!protect(property.value())->addHash(hasher))
                 return 0u;
             add(hasher, property.id(), property.isImportant());
         }

@@ -25,8 +25,8 @@
 
 #pragma once
 
-#include <WebCore/BorderValue.h>
-#include <WebCore/LayoutUnit.h>
+#include "BorderValue.h"
+#include "LayoutUnit.h"
 
 namespace WebCore {
 
@@ -51,7 +51,7 @@ public:
     LayoutUnit width() const { return isVisibleBorderStyle(style()) ? m_width : 0_lu; }
     BorderStyle style() const { return static_cast<BorderStyle>(m_style); }
     bool exists() const { return precedence() != BorderPrecedence::Off; }
-    const Color& color() const { return m_color; }
+    const Color& color() const LIFETIME_BOUND { return m_color; }
     bool isTransparent() const { return m_transparent; }
     BorderPrecedence precedence() const { return static_cast<BorderPrecedence>(m_precedence); }
 

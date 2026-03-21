@@ -203,7 +203,7 @@ RetainPtr<CGColorRef> cachedCGColor(const Color& color)
 
 RetainPtr<CGColorRef> createCGColorInDestinationStandardRange(const Color& color, const DestinationColorSpace& colorSpace)
 {
-    auto clampingSpace = CGColorSpaceIsWideGamutRGB(colorSpace.protectedPlatformColorSpace().get()) ? ColorSpace::DisplayP3 : ColorSpace::SRGB;
+    auto clampingSpace = CGColorSpaceIsWideGamutRGB(protect(colorSpace.platformColorSpace()).get()) ? ColorSpace::DisplayP3 : ColorSpace::SRGB;
     auto [r, g, b, a] = color.toResolvedColorComponentsInColorSpace(clampingSpace);
 
     std::array<CGFloat, 4> sourceComponents { r, g, b, a };
@@ -234,7 +234,7 @@ ColorComponents<float, 4> platformConvertColorComponents(ColorSpace inputColorSp
     std::array<CGFloat, 4> sourceComponents { c1, c2, c3, c4 };
     std::array<CGFloat, 4> destinationComponents { };
 
-    auto transform = adoptCF(CGColorTransformCreate(outputColorSpace.protectedPlatformColorSpace().get(), nullptr));
+    auto transform = adoptCF(CGColorTransformCreate(protect(outputColorSpace.platformColorSpace()).get(), nullptr));
     auto result = CGColorTransformConvertColorComponents(transform.get(), cgInputColorSpace, kCGRenderingIntentDefault, sourceComponents.data(), destinationComponents.data());
     ASSERT_UNUSED(result, result);
     // CGColorTransformConvertColorComponents doesn't copy over any alpha component.

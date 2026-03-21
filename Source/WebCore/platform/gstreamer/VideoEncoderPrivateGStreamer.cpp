@@ -145,7 +145,9 @@ enum EncoderId {
     Vp9,
     Av1,
     VaapiAv1,
-    SvtAv1
+    SvtAv1,
+    QualcommH264,
+    QualcommH265,
 };
 
 class Encoders {
@@ -409,7 +411,7 @@ static bool videoEncoderSetEncoder(WebKitVideoEncoder* self, EncoderId encoderId
     }
 
     gst_bin_sync_children_states(bin);
-    GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(bin, GST_DEBUG_GRAPH_SHOW_ALL, "configured-encoder");
+    dumpBinToDotFile(bin, "configured-encoder"_s);
     videoEncoderSetBitrate(self, priv->bitrate);
     return true;
 }
@@ -1024,6 +1026,37 @@ static void webkit_video_encoder_class_init(WebKitVideoEncoderClass* klass)
                 break;
             };
         });
+
+    Encoders::registerEncoder(QualcommH264, "qtic2venc"_s, "h264parse"_s, "video/x-h264"_s, "video/x-h264,alignment=au,stream-format=avc"_s, [](WebKitVideoEncoder* self) {
+        g_object_set(self->priv->parser.get(), "config-interval", 1, nullptr);
+    }, "target-bitrate"_s, setBitrateBitPerSec, "min-force-key-unit-interval"_s, [](GstElement* element, BitrateMode bitrateMode) {
+        ASCIILiteral controlRate;
+        switch (bitrateMode) {
+        case CONSTANT_BITRATE_MODE:
+            controlRate = "constant"_s;
+            break;
+        case VARIABLE_BITRATE_MODE:
+            // Variable bitrate, constant framerate.
+            controlRate = "VBR-CFR"_s;
+            break;
+        };
+        gst_util_set_object_arg(G_OBJECT(element), "control-rate", controlRate.characters());
+    }, [](GstElement*, LatencyMode) { });
+
+    Encoders::registerEncoder(QualcommH265, "qtic2venc"_s, "h265parse"_s, "video/x-h265"_s, "video/x-h265,alignment=au,stream-format=hvc1"_s, [](WebKitVideoEncoder*) {
+    }, "target-bitrate"_s, setBitrateBitPerSec, "min-force-key-unit-interval"_s, [](GstElement* element, BitrateMode bitrateMode) {
+        ASCIILiteral controlRate;
+        switch (bitrateMode) {
+        case CONSTANT_BITRATE_MODE:
+            controlRate = "constant"_s;
+            break;
+        case VARIABLE_BITRATE_MODE:
+            // Variable bitrate, constant framerate.
+            controlRate = "VBR-CFR"_s;
+            break;
+        };
+        gst_util_set_object_arg(G_OBJECT(element), "control-rate", controlRate.characters());
+    }, [](GstElement*, LatencyMode) { });
 
     auto srcPadTemplateCaps = createSrcPadTemplateCaps();
     gst_element_class_add_pad_template(elementClass, gst_pad_template_new("src", GST_PAD_SRC, GST_PAD_ALWAYS, srcPadTemplateCaps.get()));

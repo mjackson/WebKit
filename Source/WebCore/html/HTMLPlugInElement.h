@@ -73,15 +73,15 @@ public:
 #endif
     bool willRespondToMouseClickEventsWithEditability(Editability) const final;
 
-    WEBCORE_EXPORT void NODELETE pluginDestroyedWithPendingPDFTestCallback(RefPtr<VoidCallback>&&);
+    WEBCORE_EXPORT void pluginDestroyedWithPendingPDFTestCallback(RefPtr<VoidCallback>&&);
     WEBCORE_EXPORT RefPtr<VoidCallback> NODELETE takePendingPDFTestCallback();
 
     RenderEmbeddedObject* NODELETE renderEmbeddedObject() const;
 
     virtual void updateWidget(CreatePlugins) = 0;
 
-    const String& serviceType() const { return m_serviceType; }
-    const String& url() const { return m_url; }
+    const String& serviceType() const LIFETIME_BOUND { return m_serviceType; }
+    const String& url() const LIFETIME_BOUND { return m_url; }
 
     bool needsWidgetUpdate() const { return m_needsWidgetUpdate; }
     void setNeedsWidgetUpdate(bool needsWidgetUpdate) { m_needsWidgetUpdate = needsWidgetUpdate; }
@@ -98,8 +98,8 @@ protected:
 
     virtual bool useFallbackContent() const { return false; }
 
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode& parentOfInsertedTree) override;
-    void removedFromAncestor(RemovalType, ContainerNode& oldParentOfRemovedTree) override;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode& parentOfInsertedTree) override;
+    void removingSteps(RemovalType, ContainerNode& oldParentOfRemovedTree) override;
 
     void defaultEventHandler(Event&) final;
 

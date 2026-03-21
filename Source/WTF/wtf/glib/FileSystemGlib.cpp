@@ -63,13 +63,11 @@ String filenameForDisplay(const String& string)
 #if OS(LINUX)
 CString currentExecutablePath()
 {
-    static char readLinkBuffer[PATH_MAX];
-    ssize_t result = readlink("/proc/self/exe", readLinkBuffer, PATH_MAX);
+    static std::array<char, PATH_MAX> readLinkBuffer;
+    ssize_t result = readlink("/proc/self/exe", readLinkBuffer.data(), readLinkBuffer.size());
     if (result == -1)
         return { };
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // Linux port
-    return CString(std::span { readLinkBuffer, static_cast<size_t>(result) });
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+    return CString(unsafeMakeSpan(readLinkBuffer.data(), static_cast<size_t>(result)));
 }
 #elif OS(HURD)
 CString currentExecutablePath()

@@ -690,7 +690,7 @@ RefPtr<LegacyWebArchive> LegacyWebArchive::createInternal(Node& node, const Arch
     Vector<Ref<Node>> nodeList;
     String markupString = serializeFragment(node, SerializedNodes::SubtreeIncludingNode, &nodeList, ResolveURLs::No, std::nullopt, SerializeShadowRoots::AllForInterchange, { }, options.markupExclusionRules);
     auto nodeType = node.nodeType();
-    if (nodeType != Node::DOCUMENT_NODE && nodeType != Node::DOCUMENT_TYPE_NODE)
+    if (nodeType != NodeType::Document && nodeType != NodeType::DocumentType)
         markupString = makeString(documentTypeString(node.document()), markupString);
 
     return createInternal(markupString, options, *frame, WTF::move(nodeList), frameFilter);
@@ -773,7 +773,7 @@ RefPtr<LegacyWebArchive> LegacyWebArchive::createInternal(const String& markupSt
                 if (!resource) {
                     ResourceRequest request(URL { subresourceURL });
                     request.setDomainForCachePartition(frame.document()->domainForCachePartition());
-                    if (auto* cachedResource = MemoryCache::singleton().resourceForRequest(request, frame.page()->sessionID()))
+                    if (RefPtr cachedResource = MemoryCache::singleton().resourceForRequest(request, frame.page()->sessionID()))
                         resource = ArchiveResource::create(cachedResource->resourceBuffer(), subresourceURL, cachedResource->response());
                 }
 

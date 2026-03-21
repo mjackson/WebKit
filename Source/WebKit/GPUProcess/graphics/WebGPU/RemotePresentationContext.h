@@ -86,9 +86,9 @@ private:
 
     void getCurrentTexture(WebGPUIdentifier, uint32_t frameIndex);
 
-    Ref<WebCore::WebGPU::PresentationContext> m_backing;
+    const Ref<WebCore::WebGPU::PresentationContext> m_backing;
     WeakRef<WebGPU::ObjectHeap> m_objectHeap;
-    Ref<IPC::StreamServerConnection> m_streamConnection;
+    const Ref<IPC::StreamServerConnection> m_streamConnection;
     WebGPUIdentifier m_identifier;
     ThreadSafeWeakPtr<GPUConnectionToWebProcess> m_gpuConnectionToWebProcess;
     WeakRef<RemoteGPU> m_gpu;

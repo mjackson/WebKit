@@ -62,7 +62,7 @@ template<typename Numeric, CSS::PrimitiveKeyword... Ks> struct LengthWrapperBase
     static constexpr bool SupportsMinIntrinsic = Keywords::isValidKeyword(CSS::Keyword::MinIntrinsic { });
     static constexpr bool SupportsMinContent = Keywords::isValidKeyword(CSS::Keyword::MinContent { });
     static constexpr bool SupportsMaxContent = Keywords::isValidKeyword(CSS::Keyword::MaxContent { });
-    static constexpr bool SupportsWebkitFillAvailable = Keywords::isValidKeyword(CSS::Keyword::WebkitFillAvailable { });
+    static constexpr bool SupportsStretch = Keywords::isValidKeyword(CSS::Keyword::Stretch { });
     static constexpr bool SupportsFitContent = Keywords::isValidKeyword(CSS::Keyword::FitContent { });
     static constexpr bool SupportsContent = Keywords::isValidKeyword(CSS::Keyword::Content { });
     static constexpr bool SupportsNone = Keywords::isValidKeyword(CSS::Keyword::None { });
@@ -72,7 +72,10 @@ template<typename Numeric, CSS::PrimitiveKeyword... Ks> struct LengthWrapperBase
     LengthWrapperBase(Fixed fixed) : m_value(indexForFixed, fixed.unresolvedValue()) { }
     LengthWrapperBase(Fixed fixed, bool hasQuirk) : m_value(indexForFixed, fixed.unresolvedValue(), hasQuirk) { }
     LengthWrapperBase(Percentage percent) : m_value(indexForPercentage, percent.value) { }
-    LengthWrapperBase(Calc&& calc) : m_value(indexForCalc, calc.protectedCalculation()) { }
+    LengthWrapperBase(Calc&& calc)
+        : m_value(indexForCalc, protect(calc.calculation()))
+    {
+    }
     LengthWrapperBase(Specified&& specified) : m_value(toData(specified)) { }
     LengthWrapperBase(const Specified& specified) : m_value(toData(specified)) { }
 
@@ -169,7 +172,7 @@ private:
                 return LengthWrapperData { indexForPercentage, percentage.value };
             },
             [](const Calc& calc) {
-                return LengthWrapperData { indexForCalc, calc.protectedCalculation() };
+                return LengthWrapperData { indexForCalc, protect(calc.calculation()) };
             }
         );
     }

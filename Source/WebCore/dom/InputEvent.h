@@ -25,8 +25,8 @@
 
 #pragma once
 
-#include <WebCore/StaticRange.h>
-#include <WebCore/UIEvent.h>
+#include "StaticRange.h"
+#include "UIEvent.h"
 
 namespace WebCore {
 
@@ -54,10 +54,10 @@ public:
         return adoptRef(*new InputEvent(type, initializer));
     }
 
-    const String& inputType() const { return m_inputType; }
-    const String& data() const { return m_data; }
+    const String& inputType() const LIFETIME_BOUND { return m_inputType; }
+    const String& data() const LIFETIME_BOUND { return m_data; }
     DataTransfer* NODELETE dataTransfer() const;
-    const Vector<Ref<StaticRange>>& getTargetRanges() { return m_targetRanges; }
+    const Vector<Ref<StaticRange>>& getTargetRanges() LIFETIME_BOUND { return m_targetRanges; }
     bool isInputMethodComposing() const { return m_isInputMethodComposing; }
 
 private:

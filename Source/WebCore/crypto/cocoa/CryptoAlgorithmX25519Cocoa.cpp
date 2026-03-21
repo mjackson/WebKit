@@ -24,29 +24,21 @@
 #include <pal/PALSwift.h>
 #include <pal/spi/cocoa/CoreCryptoSPI.h>
 
-#if !defined(CLANG_WEBKIT_BRANCH)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
 #include "PALSwift-Generated.h"
 #pragma clang diagnostic pop
-#endif // !defined(CLANG_WEBKIT_BRANCH)
 
 namespace WebCore {
 
 static std::optional<Vector<uint8_t>> deriveBitsCryptoKit(const Vector<uint8_t>& baseKey, const Vector<uint8_t>& publicKey)
 {
-#if !defined(CLANG_WEBKIT_BRANCH)
     if (baseKey.size() != ed25519KeySize || publicKey.size() != ed25519KeySize)
         return std::nullopt;
     auto rv = pal::EdKey::deriveBits(pal::EdKeyAgreementAlgorithm::x25519(), baseKey.span(), publicKey.span());
     if (rv.errorCode != Cpp::ErrorCodes::Success)
         return std::nullopt;
     return WTF::move(rv.result);
-#else
-    UNUSED_PARAM(baseKey);
-    UNUSED_PARAM(publicKey);
-    RELEASE_ASSERT_NOT_REACHED_WITH_MESSAGE("CLANG_WEBKIT_BRANCH");
-#endif
 }
 
 std::optional<Vector<uint8_t>> CryptoAlgorithmX25519::platformDeriveBits(const CryptoKeyOKP& baseKey, const CryptoKeyOKP& publicKey)

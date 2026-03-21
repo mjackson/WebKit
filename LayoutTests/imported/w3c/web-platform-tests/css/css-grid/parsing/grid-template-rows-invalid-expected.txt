@@ -38,4 +38,7 @@ PASS e.style['grid-template-rows'] = "min-content repeat(auto-fill, fit-content(
 PASS e.style['grid-template-rows'] = "max-content repeat(auto-fill, fit-content(200px)) max-content" should not set the property value
 PASS e.style['grid-template-rows'] = "fit-content(200px) repeat(auto-fill, fit-content(200px)) fit-content(200px)" should not set the property value
 PASS e.style['grid-template-rows'] = "fit-content(200px) repeat(auto-fill, fit-content(200px)) repeat(5, fit-content(200px))" should not set the property value
+PASS e.style['grid-template-rows'] = "repeat(auto-fill, minmax(fit-content(200px), fit-content(300px)))" should not set the property value
+PASS e.style['grid-template-rows'] = "repeat(auto-fill, minmax(fit-content(200px), auto))" should not set the property value
+PASS e.style['grid-template-rows'] = "repeat(auto-fill, minmax(max-content, fit-content(200px)))" should not set the property value
 

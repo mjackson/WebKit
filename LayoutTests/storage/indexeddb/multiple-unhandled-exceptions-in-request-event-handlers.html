@@ -11,8 +11,10 @@
                throw new Error("One unhandled exception");
            });
            countRequest.addEventListener('success', ev => {
-               testRunner?.notifyDone();
                throw new Error("Two unhandled exceptions.");
+           });
+           countRequest.addEventListener('success', ev => {
+               testRunner?.notifyDone();
            });
        }
        await (async () => {

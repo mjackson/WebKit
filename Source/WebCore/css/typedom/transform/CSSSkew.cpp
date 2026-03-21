@@ -80,7 +80,7 @@ ExceptionOr<Ref<CSSSkew>> CSSSkew::create(Ref<const CSSFunctionValue> cssFunctio
     return CSSSkew::create(components[0], CSSNumericFactory::deg(0));
 }
 
-CSSSkew::CSSSkew(Ref<CSSNumericValue> ax, Ref<CSSNumericValue> ay)
+CSSSkew::CSSSkew(Ref<CSSNumericValue>&& ax, Ref<CSSNumericValue>&& ay)
     : CSSTransformComponent(Is2D::Yes)
     , m_ax(WTF::move(ax))
     , m_ay(WTF::move(ay))

@@ -88,7 +88,8 @@ symbols = [
     "FPFontCreateMemorySafeFontsFromData",
 ]
 
-[[staging]]
+[[temporary-usage]]
+cleanup = "rdar://171200085"
 symbols = [
     "MACaptionAppearanceCopyPreviewText",
 ]

@@ -42,6 +42,7 @@ namespace WebCore {
 
 class MediaDeviceRoute;
 class MediaPlaybackTarget;
+class MediaPlaybackTargetWirelessPlayback;
 
 class MediaPlayerPrivateWirelessPlayback final
     : public MediaPlayerPrivateInterface
@@ -65,6 +66,7 @@ private:
 
     explicit MediaPlayerPrivateWirelessPlayback(MediaPlayer&);
 
+    MediaPlaybackTargetWirelessPlayback* wirelessPlaybackTarget() const;
     MediaDeviceRoute* route() const;
 
     void updateURLIfNeeded();
@@ -74,7 +76,7 @@ private:
 
     // MediaPlayerPrivateInterface
     constexpr MediaPlayerType mediaPlayerType() const final { return MediaPlayerType::WirelessPlayback; }
-    void load(const String&) final;
+    void load(const URL&, const LoadOptions&) final;
 #if ENABLE(MEDIA_SOURCE)
     void load(const URL&, const LoadOptions&, MediaSourcePrivateClient&) final { }
 #endif
@@ -82,23 +84,21 @@ private:
     void load(MediaStreamPrivate&) final { }
 #endif
     void cancelLoad() final { }
-    void play() final { }
-    void pause() final { }
+    void play() final;
+    void pause() final;
     FloatSize naturalSize() const final { return { }; }
-    bool hasVideo() const final { return false; }
-    bool hasAudio() const final { return false; }
+    bool hasVideo() const final { return true; }
+    bool hasAudio() const final;
     void setPageIsVisible(bool) final { }
-    void seekToTarget(const SeekTarget&) final { }
+    void seekToTarget(const SeekTarget&) final;
     bool seeking() const final { return false; }
-    bool paused() const final { return true; }
+    bool paused() const final;
     MediaPlayer::NetworkState networkState() const final { return m_networkState; }
     MediaPlayer::ReadyState readyState() const final { return m_readyState; }
-    const PlatformTimeRanges& buffered() const final { return m_buffered; }
-    bool didLoadingProgress() const final { return false; }
+    const PlatformTimeRanges& buffered() const LIFETIME_BOUND final { return m_buffered; }
+    bool didLoadingProgress() const final { return m_didLoadingProgress; }
     void paint(GraphicsContext&, const FloatRect&) final { }
     DestinationColorSpace colorSpace() final { return DestinationColorSpace::SRGB(); }
-
-#if ENABLE(WIRELESS_PLAYBACK_TARGET)
     static OptionSet<MediaPlaybackTargetType> playbackTargetTypes();
     String wirelessPlaybackTargetName() const final;
     MediaPlayer::WirelessPlaybackTargetType wirelessPlaybackTargetType() const final;
@@ -108,11 +108,24 @@ private:
     bool isCurrentPlaybackTargetWireless() const final;
     void setWirelessPlaybackTarget(Ref<MediaPlaybackTarget>&&) final;
     void setShouldPlayToPlaybackTarget(bool) final;
-#endif
+    MediaTime startTime() const final;
+    MediaTime duration() const final;
+    MediaTime currentTime() const final;
+    MediaTime maxTimeSeekable() const final;
+    MediaTime minTimeSeekable() const final;
+    bool setCurrentTimeDidChangeCallback(MediaPlayer::CurrentTimeDidChangeCallback&&) final;
+    void setRate(float) final;
+    double rate() const final;
+    void setVolume(float) final { }
+    float volume() const final { return 0; }
+    void setMuted(bool) final { }
+    String engineDescription() const final;
 
     // MediaDeviceRouteClient
+    void timeRangeDidChange(MediaDeviceRoute&) final;
     void readyDidChange(MediaDeviceRoute&) final;
     void playbackErrorDidChange(MediaDeviceRoute&) final;
+    void currentPlaybackPositionDidChange(MediaDeviceRoute&) final;
 
 #if !RELEASE_LOG_DISABLED
     // LoggerHelper
@@ -122,16 +135,19 @@ private:
     uint64_t logIdentifier() const final { return m_logIdentifier; }
 #endif
 
+    enum class ShouldPlayToTarget : uint8_t { Unknown, No, Yes };
+
     ThreadSafeWeakPtr<MediaPlayer> m_player;
     PlatformTimeRanges m_buffered;
     URL m_url;
     MediaPlayer::NetworkState m_networkState { MediaPlayer::NetworkState::Empty };
     MediaPlayer::ReadyState m_readyState { MediaPlayer::ReadyState::HaveNothing };
-#if ENABLE(WIRELESS_PLAYBACK_TARGET)
+    bool m_didLoadingProgress { false };
     bool m_allowsWirelessVideoPlayback { true };
-    bool m_shouldPlayToTarget { false };
+    ShouldPlayToTarget m_shouldPlayToTarget { ShouldPlayToTarget::Unknown };
     RefPtr<MediaPlaybackTarget> m_playbackTarget;
-#endif
+    MediaPlayer::CurrentTimeDidChangeCallback m_currentTimeDidChangeCallback;
+    std::optional<SeekTarget> m_pendingSeekTarget;
 #if !RELEASE_LOG_DISABLED
     const Ref<const Logger> m_logger;
     const uint64_t m_logIdentifier;

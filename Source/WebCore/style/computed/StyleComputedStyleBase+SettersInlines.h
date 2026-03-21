@@ -228,7 +228,7 @@ inline void ComputedStyleBase::setPseudoElementIdentifier(std::optional<PseudoEl
 {
     if (identifier) {
         m_nonInheritedFlags.pseudoElementType = std::to_underlying(identifier->type) + 1;
-        SET_NESTED(m_nonInheritedData, rareData, pseudoElementNameArgument, WTF::move(identifier->nameArgument));
+        SET_NESTED(m_nonInheritedData, rareData, pseudoElementNameArgument, WTF::move(identifier->nameOrPart));
     } else {
         m_nonInheritedFlags.pseudoElementType = 0;
         SET_NESTED(m_nonInheritedData, rareData, pseudoElementNameArgument, nullAtom());
@@ -240,11 +240,6 @@ inline void ComputedStyleBase::setPseudoElementIdentifier(std::optional<PseudoEl
 inline void ComputedStyleBase::setEvaluationTimeZoomEnabled(bool value)
 {
     SET(m_inheritedRareData, evaluationTimeZoomEnabled, value);
-}
-
-inline void ComputedStyleBase::setDeviceScaleFactor(float value)
-{
-    SET(m_inheritedRareData, deviceScaleFactor, value);
 }
 
 inline void ComputedStyleBase::setUseSVGZoomRulesForLength(bool value)

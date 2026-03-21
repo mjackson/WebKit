@@ -41,7 +41,10 @@
 #include "ImageBitmap.h"
 #include "ImageBitmapRenderingContext.h"
 #include "ImageData.h"
+#include "ImageUtilities.h"
 #include "JSBlob.h"
+#include "JSDOMConvertDictionary.h"
+#include "JSDOMConvertInterface.h"
 #include "JSDOMPromiseDeferred.h"
 #include "MIMETypeRegistry.h"
 #include "OffscreenCanvasRenderingContext2D.h"
@@ -172,39 +175,6 @@ void OffscreenCanvas::didUpdateSizeProperties(bool sizeChanged)
     scheduleCommitToPlaceholderCanvas();
 }
 
-#if ENABLE(WEBGL)
-static bool NODELETE requiresAcceleratedCompositingForWebGL()
-{
-#if PLATFORM(GTK) || PLATFORM(WIN)
-    return false;
-#else
-    return true;
-#endif
-}
-
-static bool NODELETE shouldEnableWebGL(const SettingsValues& settings, bool isWorker)
-{
-    if (!settings.webGLEnabled)
-        return false;
-
-    if (!settings.allowWebGLInWorkers)
-        return false;
-
-#if PLATFORM(IOS_FAMILY) || PLATFORM(MAC)
-    if (isWorker && !settings.useGPUProcessForWebGLEnabled)
-        return false;
-#else
-    UNUSED_PARAM(isWorker);
-#endif
-
-    if (!requiresAcceleratedCompositingForWebGL())
-        return true;
-
-    return settings.acceleratedCompositingEnabled;
-}
-
-#endif // ENABLE(WEBGL)
-
 ExceptionOr<std::optional<OffscreenRenderingContext>> OffscreenCanvas::getContext(JSC::JSGlobalObject& state, RenderingContextType contextType, FixedVector<JSC::Strong<JSC::Unknown>>&& arguments)
 {
     if (m_detached)
@@ -250,7 +220,7 @@ ExceptionOr<std::optional<OffscreenRenderingContext>> OffscreenCanvas::getContex
                     m_context = GPUCanvasContext::create(*this, *gpu, nullptr);
             } else if (RefPtr document = dynamicDowncast<Document>(scriptExecutionContext)) {
                 if (RefPtr window = document->window()) {
-                    if (RefPtr gpu = window->protectedNavigator()->gpu())
+                    if (RefPtr gpu = protect(window->navigator())->gpu())
                         m_context = GPUCanvasContext::create(*this, *gpu, document.get());
                 }
             }
@@ -271,8 +241,11 @@ ExceptionOr<std::optional<OffscreenRenderingContext>> OffscreenCanvas::getContex
                 return Exception { ExceptionCode::ExistingExceptionError };
 
             RefPtr scriptExecutionContext = this->scriptExecutionContext();
-            if (shouldEnableWebGL(scriptExecutionContext->settingsValues(), is<WorkerGlobalScope>(scriptExecutionContext)))
-                m_context = WebGLRenderingContextBase::create(*this, attributes.releaseReturnValue(), webGLVersion);
+            if (scriptExecutionContext) {
+                auto& settings = scriptExecutionContext->settingsValues();
+                if (settings.webGLEnabled && (!is<WorkerGlobalScope>(scriptExecutionContext) || settings.allowWebGLInWorkers))
+                    m_context = WebGLRenderingContextBase::create(*this, attributes.releaseReturnValue(), webGLVersion);
+            }
         }
         if (webGLVersion == WebGLVersion::WebGL1) {
             if (RefPtr context = dynamicDowncast<WebGLRenderingContext>(m_context.get()))
@@ -309,7 +282,7 @@ static String toEncodingMimeType(const String& mimeType)
     return mimeType.convertToASCIILowercase();
 }
 
-static std::optional<double> qualityFromDouble(double qualityNumber)
+static std::optional<double> NODELETE qualityFromDouble(double qualityNumber)
 {
     if (!(qualityNumber >= 0 && qualityNumber <= 1))
         return std::nullopt;
@@ -336,28 +309,16 @@ void OffscreenCanvas::convertToBlob(ImageEncodeOptions&& options, Ref<DeferredPr
     auto quality = qualityFromDouble(options.quality);
 
     RefPtr context = canvasBaseScriptExecutionContext();
-    if (context && context->requiresScriptTrackingPrivacyProtection(ScriptTrackingPrivacyCategory::Canvas)) {
-        RefPtr buffer = createImageForNoiseInjection();
-        auto blobData = buffer->toData(encodingMIMEType, quality);
-        if (blobData.isEmpty())
-            promise->reject(ExceptionCode::EncodingError);
-        else
-            promise->resolveWithNewlyCreated<IDLInterface<Blob>>(Blob::create(context.get(), WTF::move(blobData), encodingMIMEType));
-        return;
-    }
+    Vector<uint8_t> blobData;
+    if (context && context->requiresScriptTrackingPrivacyProtection(ScriptTrackingPrivacyCategory::Canvas))
+        blobData = encodeData(createImageForNoiseInjection(), encodingMIMEType, quality);
+    else
+        blobData = encodeData(makeRenderingResultsAvailable(), encodingMIMEType, quality);
 
-    RefPtr buffer = makeRenderingResultsAvailable();
-    if (!buffer) {
-        promise->reject(ExceptionCode::InvalidStateError);
-        return;
-    }
-
-    Vector<uint8_t> blobData = buffer->toData(encodingMIMEType, quality);
     if (blobData.isEmpty()) {
         promise->reject(ExceptionCode::EncodingError);
         return;
     }
-
     Ref<Blob> blob = Blob::create(context.get(), WTF::move(blobData), encodingMIMEType);
     promise->resolveWithNewlyCreated<IDLInterface<Blob>>(WTF::move(blob));
 }

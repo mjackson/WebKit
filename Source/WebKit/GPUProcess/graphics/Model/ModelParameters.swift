@@ -21,15 +21,15 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 9) && (os(macOS) || (os(iOS) && canImport(SwiftUI, _version: "8.0.36"))) && canImport(_USDKit_RealityKit) && !os(visionOS)
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 11) && compiler(>=6.2)
 
-@_weakLinked internal import USDKit
-@_weakLinked @_spi(UsdLoaderAPI) internal import _USDKit_RealityKit
+@_weakLinked import USDKit
+@_weakLinked @_spi(UsdLoaderAPI) import _USDKit_RealityKit
 @_spi(RealityCoreRendererAPI) import RealityKit
 
-nonisolated func makeParameters(
-    for function: _Proto_LowLevelMaterialResource_v1.Function,
-    renderContext: _Proto_LowLevelRenderContext_v1,
+func makeParameters(
+    for function: any _Proto_LowLevelMaterialResource_v1.Function,
+    renderContext: any _Proto_LowLevelRenderContext_v1,
     buffers: [_Proto_LowLevelBufferSpan_v1] = [],
     textures: [_Proto_LowLevelTextureResource_v1] = []
 ) throws -> _Proto_LowLevelArgumentTable_v1? {
@@ -43,9 +43,9 @@ nonisolated func makeParameters(
     )
 }
 
-nonisolated func makeParameters(
+func makeParameters(
     for material: _Proto_LowLevelMaterialResource_v1,
-    renderContext: _Proto_LowLevelRenderContext_v1,
+    renderContext: any _Proto_LowLevelRenderContext_v1,
     geometryBuffers: [_Proto_LowLevelBufferSpan_v1] = [],
     geometryTextures: [_Proto_LowLevelTextureResource_v1] = [],
     surfaceBuffers: [_Proto_LowLevelBufferSpan_v1] = [],

@@ -61,14 +61,14 @@ public:
     }
 #endif
 
-    const URL& url() const { return m_url; }
-    const String& title() const { return m_title; }
-    const String& warning() const { return m_warning; }
+    const URL& url() const LIFETIME_BOUND { return m_url; }
+    const String& title() const LIFETIME_BOUND { return m_title; }
+    const String& warning() const LIFETIME_BOUND { return m_warning; }
     bool forMainFrameNavigation() const { return m_forMainFrameNavigation; }
 #if PLATFORM(COCOA)
     RetainPtr<NSAttributedString> details() const { return m_details; }
 #endif
-    const Data& data() const { return m_data; }
+    const Data& data() const LIFETIME_BOUND { return m_data; }
 
     static RetainPtr<NSURL> visitUnsafeWebsiteSentinel();
     static RetainPtr<NSURL> confirmMalwareSentinel();

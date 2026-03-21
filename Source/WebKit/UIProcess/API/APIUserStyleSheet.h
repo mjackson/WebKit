@@ -42,7 +42,7 @@ public:
 
     UserStyleSheet(WebCore::UserStyleSheet, API::ContentWorld&);
 
-    const WebCore::UserStyleSheet& userStyleSheet() const { return m_userStyleSheet; }
+    const WebCore::UserStyleSheet& userStyleSheet() const LIFETIME_BOUND { return m_userStyleSheet; }
 
     ContentWorld& contentWorld() { return m_world; }
     const ContentWorld& contentWorld() const { return m_world; }

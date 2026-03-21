@@ -32,6 +32,7 @@
 #include "InspectorInstrumentation.h"
 #include "KeyframeEffectStack.h"
 #include "PseudoElement.h"
+#include "PseudoElementUtilitiesInlines.h"
 #include "RenderCounter.h"
 #include "RenderDescendantIterator.h"
 #include "RenderElementInlines.h"
@@ -266,7 +267,7 @@ void RenderTreeUpdater::GeneratedContent::updateBeforeOrAfterPseudoElement(Eleme
 void RenderTreeUpdater::GeneratedContent::updateBackdropRenderer(RenderElement& renderer, Style::DifferenceResult minimalStyleDifference)
 {
     auto destroyBackdropIfNeeded = [&renderer, this]() {
-        if (WeakPtr backdropRenderer = renderer.backdropRenderer())
+        if (WeakPtr backdropRenderer = renderer.pseudoElementRenderer(PseudoElementType::Backdrop))
             m_updater.m_builder.destroy(*backdropRenderer);
     };
 
@@ -283,12 +284,12 @@ void RenderTreeUpdater::GeneratedContent::updateBackdropRenderer(RenderElement& 
     }
 
     auto newStyle = RenderStyle::clone(*style);
-    if (auto backdropRenderer = renderer.backdropRenderer())
+    if (auto backdropRenderer = renderer.pseudoElementRenderer(PseudoElementType::Backdrop))
         backdropRenderer->setStyle(WTF::move(newStyle), minimalStyleDifference);
     else {
         auto newBackdropRenderer = WebCore::createRenderer<RenderBlockFlow>(RenderObject::Type::BlockFlow, renderer.document(), WTF::move(newStyle));
         newBackdropRenderer->initializeStyle();
-        renderer.setBackdropRenderer(*newBackdropRenderer.get());
+        renderer.setPseudoElementRenderer(PseudoElementType::Backdrop, *newBackdropRenderer.get());
         m_updater.m_builder.attach(renderer.view(), WTF::move(newBackdropRenderer));
     }
 }
@@ -299,7 +300,7 @@ bool RenderTreeUpdater::GeneratedContent::needsPseudoElement(const RenderStyle* 
         return false;
     if (!m_updater.renderTreePosition().parent().canHaveGeneratedChildren())
         return false;
-    if (!pseudoElementRendererIsNeeded(style))
+    if (!Style::pseudoElementRendererIsNeeded(*style))
         return false;
     return true;
 }

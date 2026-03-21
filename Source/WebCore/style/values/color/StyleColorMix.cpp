@@ -117,12 +117,12 @@ bool containsCurrentColor(const ColorMix& colorMix)
 
 namespace ColorMixSerializationDetails {
 
-static bool sumTo100Percent(const ColorMix::Component::Percentage& a, const ColorMix::Component::Percentage& b)
+static bool NODELETE sumTo100Percent(const ColorMix::Component::Percentage& a, const ColorMix::Component::Percentage& b)
 {
     return a.value + b.value == 100.0;
 }
 
-static std::optional<ColorMix::Component::Percentage> subtractFrom100Percent(const ColorMix::Component::Percentage& percentage)
+static std::optional<ColorMix::Component::Percentage> NODELETE subtractFrom100Percent(const ColorMix::Component::Percentage& percentage)
 {
     return ColorMix::Component::Percentage { 100.0 - percentage.value };
 }

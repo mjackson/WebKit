@@ -324,15 +324,15 @@ public:
     }
 
 
-    void addUsedRegistersTo(bool isSIMDContext, RegisterSetBuilder&) const;
+    void addUsedRegistersTo(bool isSIMDContext, RegisterSet&) const;
     
-    RegisterSetBuilder usedRegisters(bool isSIMDContext) const;
+    RegisterSet usedRegisters(bool isSIMDContext) const;
 
     // Get the used registers for a vector of ValueReps.
     template<typename VectorType>
-    static RegisterSetBuilder usedRegisters(bool isSIMDContext, const VectorType& vector)
+    static RegisterSet usedRegisters(bool isSIMDContext, const VectorType& vector)
     {
-        RegisterSetBuilder result;
+        RegisterSet result;
         for (const ValueRep& value : vector)
             value.addUsedRegistersTo(isSIMDContext, result);
         return result;

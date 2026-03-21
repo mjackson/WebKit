@@ -67,16 +67,17 @@ namespace WebCore {
 
 const std::optional<const Styleable> Styleable::fromRenderer(const RenderElement& renderer)
 {
-    if (!renderer.style().pseudoElementType()) {
-        if (RefPtr element = renderer.element())
+    auto pseudoElementType = renderer.style().pseudoElementType();
+    if (!pseudoElementType) {
+        if (auto* element = renderer.element())
             return fromElement(*element);
         return { };
     }
 
-    switch (*renderer.style().pseudoElementType()) {
+    switch (*pseudoElementType) {
     case PseudoElementType::Backdrop:
         for (auto& topLayerElement : renderer.document().topLayerElements()) {
-            if (topLayerElement->renderer() && topLayerElement->renderer()->backdropRenderer() == &renderer)
+            if (topLayerElement->renderer() && topLayerElement->renderer()->pseudoElementRenderer(PseudoElementType::Backdrop) == &renderer)
                 return Styleable(topLayerElement.get(), Style::PseudoElementIdentifier { PseudoElementType::Backdrop });
         }
         break;
@@ -90,12 +91,12 @@ const std::optional<const Styleable> Styleable::fromRenderer(const RenderElement
         }
         break;
     }
+    case PseudoElementType::Checkmark:
     case PseudoElementType::PickerIcon: {
-        /* FIXME: Optimize this to avoid the full ancestor walk. */
         auto* ancestor = renderer.parent();
         while (ancestor) {
-            if (ancestor->element())
-                return Styleable(*ancestor->element(), Style::PseudoElementIdentifier { PseudoElementType::PickerIcon });
+            if (ancestor->element() && ancestor->pseudoElementRenderer(*pseudoElementType) == &renderer)
+                return Styleable(*ancestor->element(), Style::PseudoElementIdentifier { *pseudoElementType });
             ancestor = ancestor->parent();
         }
         break;
@@ -104,16 +105,16 @@ const std::optional<const Styleable> Styleable::fromRenderer(const RenderElement
     case PseudoElementType::ViewTransitionImagePair:
     case PseudoElementType::ViewTransitionNew:
     case PseudoElementType::ViewTransitionOld:
-        if (RefPtr documentElement = renderer.document().documentElement())
+        if (auto* documentElement = renderer.document().documentElement())
             return Styleable(*documentElement, renderer.style().pseudoElementIdentifier());
         break;
     case PseudoElementType::ViewTransition:
-        if (RefPtr documentElement = renderer.document().documentElement())
+        if (auto* documentElement = renderer.document().documentElement())
             return Styleable(*documentElement, Style::PseudoElementIdentifier { PseudoElementType::ViewTransition });
         break;
     case PseudoElementType::After:
     case PseudoElementType::Before:
-        if (RefPtr element = renderer.element())
+        if (auto* element = renderer.element())
             return fromElement(*element);
         break;
     default:
@@ -134,8 +135,10 @@ RenderElement* Styleable::renderer() const
             return afterPseudoElement->renderer();
         break;
     case PseudoElementType::Backdrop:
+    case PseudoElementType::Checkmark:
+    case PseudoElementType::PickerIcon:
         if (auto* hostRenderer = element.renderer())
-            return hostRenderer->backdropRenderer().get();
+            return hostRenderer->pseudoElementRenderer(pseudoElementIdentifier->type).get();
         break;
     case PseudoElementType::Before:
         if (auto* beforePseudoElement = element.beforePseudoElement())
@@ -146,14 +149,6 @@ RenderElement* Styleable::renderer() const
             auto* markerRenderer = renderListItem->markerRenderer();
             if (markerRenderer && !markerRenderer->style().hasUsedContentNone())
                 return markerRenderer;
-        }
-        break;
-    case PseudoElementType::PickerIcon:
-        if (!element.renderer())
-            return nullptr;
-        for (CheckedRef child : childrenOfType<RenderElement>(*element.renderer())) {
-            if (child->style().pseudoElementType() == PseudoElementType::PickerIcon)
-                return child.ptr();
         }
         break;
     case PseudoElementType::ViewTransition:
@@ -170,7 +165,7 @@ RenderElement* Styleable::renderer() const
             return nullptr;
 
         // Find the right ::view-transition-group().
-        WeakPtr correctGroup = element.renderer()->view().viewTransitionGroupForName(pseudoElementIdentifier->nameArgument);
+        WeakPtr correctGroup = element.renderer()->view().viewTransitionGroupForName(pseudoElementIdentifier->nameOrPart);
         if (!correctGroup)
             return nullptr;
 
@@ -179,7 +174,7 @@ RenderElement* Styleable::renderer() const
             return correctGroup.get();
 
         // Go through all descendants until we find the relevant pseudo element otherwise.
-        for (auto& descendant : descendantsOfType<RenderBox>(CheckedRef { *correctGroup }.get())) {
+        for (auto& descendant : descendantsOfType<RenderBox>(*correctGroup)) {
             if (descendant.style().pseudoElementType() == pseudoElementIdentifier->type)
                 return &descendant;
         }
@@ -317,7 +312,7 @@ void Styleable::animationWasRemoved(WebAnimation& animation) const
 void Styleable::elementWasRemoved() const
 {
     cancelStyleOriginatedAnimations();
-    if (CheckedPtr styleOriginatedTimelinesController = protect(element.document())->styleOriginatedTimelinesController())
+    if (CheckedPtr styleOriginatedTimelinesController = element.document().styleOriginatedTimelinesController())
         styleOriginatedTimelinesController->styleableWasRemoved(*this);
 }
 
@@ -339,11 +334,11 @@ void Styleable::cancelStyleOriginatedAnimations() const
     // It is important we don't cancel style-originated animations when entering the page cache
     // since any JS wrapper that is kept alive in the page cache could be associated with an animation
     // that itself has not been kept alive (or rather canceled) when entering the page cache.
-    if (protect(element.document())->backForwardCacheState() != Document::NotInBackForwardCache)
+    if (element.document().backForwardCacheState() != Document::NotInBackForwardCache)
         return;
 
     cancelStyleOriginatedAnimations({ });
-    if (CheckedPtr styleOriginatedTimelinesController = protect(element.document())->styleOriginatedTimelinesController())
+    if (CheckedPtr styleOriginatedTimelinesController = element.document().styleOriginatedTimelinesController())
         styleOriginatedTimelinesController->unregisterNamedTimelinesAssociatedWithElement(*this);
 }
 
@@ -584,7 +579,7 @@ static void updateCSSTransitionsForStyleableAndProperty(const Styleable& styleab
     RefPtr animation = keyframeEffect ? keyframeEffect->animation() : nullptr;
 
     bool isDeclarative = false;
-    if (RefPtr styleOriginatedAnimation = dynamicDowncast<StyleOriginatedAnimation>(animation.get())) {
+    if (auto* styleOriginatedAnimation = dynamicDowncast<StyleOriginatedAnimation>(animation.get())) {
         if (auto owningElement = styleOriginatedAnimation->owningElement())
             isDeclarative = *owningElement == styleable;
     }

@@ -75,7 +75,6 @@ public:
     const std::optional<IDBKeyPath>& NODELETE keyPath() const;
     Ref<DOMStringList> indexNames() const;
     IDBTransaction& NODELETE transaction();
-    Ref<IDBTransaction> NODELETE protectedTransaction();
     bool NODELETE autoIncrement() const;
 
     struct IndexParameters {
@@ -111,7 +110,7 @@ public:
     void NODELETE markAsDeleted();
     bool isDeleted() const { return m_deleted; }
 
-    const IDBObjectStoreInfo& info() const { return m_info; }
+    const IDBObjectStoreInfo& info() const LIFETIME_BOUND { return m_info; }
 
     void rollbackForVersionChangeAbort();
 
@@ -119,7 +118,7 @@ public:
     void NODELETE ref() const final;
     void deref() const final;
 
-    template<typename Visitor> void visitReferencedIndexesConcurrently(Visitor&) const;
+    template<typename Visitor> void visitReferencedIndexesInGCThread(Visitor&) const;
     void renameReferencedIndex(IDBIndex&, const String& newName);
 
 private:

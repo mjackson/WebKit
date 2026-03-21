@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <WebCore/CSSCounterStyle.h>
+#include "CSSCounterStyle.h"
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
 #include <wtf/text/AtomStringHash.h>
@@ -60,7 +60,7 @@ public:
     bool hasAuthorCounterStyles() const { return !m_authorCounterStyles.isEmpty(); }
     void clearAuthorCounterStyles();
 
-    bool operator==(const CSSCounterStyleRegistry&) const;
+    bool NODELETE operator==(const CSSCounterStyleRegistry&) const;
 
 private:
     static CounterStyleMap& NODELETE userAgentCounterStyles();

@@ -84,7 +84,7 @@ void MockMediaPlayerMediaSource::getSupportedTypes(HashSet<String>& supportedTyp
 
 MediaPlayer::SupportsType MockMediaPlayerMediaSource::supportsType(const MediaEngineSupportParameters& parameters)
 {
-    if (!parameters.isMediaSource)
+    if (parameters.platformType != PlatformMediaDecodingType::MediaSource)
         return MediaPlayer::SupportsType::IsNotSupported;
 
     auto containerType = parameters.type.containerType().convertToASCIILowercase();
@@ -250,21 +250,17 @@ MediaTime MockMediaPlayerMediaSource::duration() const
     return mediaSourcePrivate ? mediaSourcePrivate->duration() : MediaTime::zeroTime();
 }
 
-RefPtr<MockMediaSourcePrivate> MockMediaPlayerMediaSource::protectedMediaSourcePrivate()
-{
-    return m_mediaSourcePrivate;
-}
 
 void MockMediaPlayerMediaSource::seekToTarget(const SeekTarget& target)
 {
     m_lastSeekTarget = target;
-    protectedMediaSourcePrivate()->waitForTarget(target)->whenSettled(RunLoop::currentSingleton(), [weakThis = WeakPtr { this }](auto&& result) {
+    protect(m_mediaSourcePrivate)->waitForTarget(target)->whenSettled(RunLoop::currentSingleton(), [weakThis = WeakPtr { this }](auto&& result) {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis || !result)
             return;
 
         const auto seekTime = *result;
-        protectedThis->protectedMediaSourcePrivate()->seekToTime(seekTime);
+        protect(protectedThis->m_mediaSourcePrivate)->seekToTime(seekTime);
         protectedThis->m_lastSeekTarget.reset();
         protectedThis->m_currentTime = seekTime;
 
@@ -320,7 +316,7 @@ void MockMediaPlayerMediaSource::setNetworkState(MediaPlayer::NetworkState netwo
 
 std::optional<VideoPlaybackQualityMetrics> MockMediaPlayerMediaSource::videoPlaybackQualityMetrics()
 {
-    RefPtr mediaSourcePrivate = m_mediaSourcePrivate;
+    auto* mediaSourcePrivate = m_mediaSourcePrivate.get();
     return mediaSourcePrivate ? mediaSourcePrivate->videoPlaybackQualityMetrics() : std::nullopt;
 }
 

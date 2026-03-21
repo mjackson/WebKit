@@ -200,7 +200,7 @@ void PageClientImpl::makeFirstResponder()
     [retainPtr([m_view.get() window]) makeFirstResponder:m_view.get().get()];
 }
     
-bool PageClientImpl::isViewVisible(NSView *view, NSWindow *viewWindow)
+bool PageClientImpl::isViewVisible(NSView *view, NSWindow *viewWindow) const
 {
     auto windowIsOccluded = [&]()->bool {
         return m_impl && m_impl->windowOcclusionDetectionEnabled() && (viewWindow.occlusionState & NSWindowOcclusionStateVisible) != NSWindowOcclusionStateVisible;
@@ -290,7 +290,7 @@ void PageClientImpl::pageClosed()
 
 void PageClientImpl::scrollingCoordinatorWasCreated()
 {
-    protect(m_impl)->scrollingCoordinatorWasCreated();
+    m_impl->scrollingCoordinatorWasCreated();
 }
 
 void PageClientImpl::didRelaunchProcess()
@@ -321,6 +321,10 @@ void PageClientImpl::didCommitLoadForMainFrame(const String&, bool)
 
 #if ENABLE(TEXT_EXTRACTION_FILTER)
     [webView() _clearTextExtractionFilterCache];
+#endif
+
+#if ENABLE(WRITING_TOOLS)
+    [webView() _clearWritingToolsPreservedNodes];
 #endif
 
 #if ENABLE(SYSTEM_TEXT_EXTRACTION)
@@ -413,6 +417,11 @@ void PageClientImpl::removeAllPDFHUDs()
     protect(m_impl)->removeAllPDFHUDs();
 }
 
+void PageClientImpl::showPDFHUD(PDFPluginIdentifier identifier)
+{
+    protect(m_impl)->showPDFHUD(identifier);
+}
+
 void PageClientImpl::clearAllEditCommands()
 {
     protect(m_impl)->clearAllEditCommands();
@@ -430,10 +439,10 @@ void PageClientImpl::executeUndoRedo(UndoOrRedo undoOrRedo)
     return undoOrRedo == UndoOrRedo::Undo ? [undoManager undo] : [undoManager redo];
 }
 
-void PageClientImpl::startDrag(const WebCore::DragItem& item, ShareableBitmap::Handle&& image, const std::optional<WebCore::NodeIdentifier>& nodeID)
+void PageClientImpl::startDrag(const WebCore::DragItem& item, ShareableBitmap::Handle&& image, const std::optional<WebCore::NodeIdentifier>& nodeID, const std::optional<WebCore::FrameIdentifier>& frameID)
 {
     UNUSED_PARAM(nodeID);
-    protect(m_impl)->startDrag(item, WTF::move(image));
+    protect(m_impl)->startDrag(item, WTF::move(image), frameID);
 }
 
 void PageClientImpl::setPromisedDataForImage(const String& pasteboardName, Ref<FragmentedSharedBuffer>&& imageBuffer, const String& filename, const String& extension, const String& title, const String& url, const String& visibleURL, RefPtr<FragmentedSharedBuffer>&& archiveBuffer, const String& originIdentifier)
@@ -565,9 +574,9 @@ void PageClientImpl::didDismissContextMenu()
 
 #endif // ENABLE(CONTEXT_MENUS)
 
-RefPtr<WebColorPicker> PageClientImpl::createColorPicker(WebPageProxy& page, const WebCore::Color& initialColor, const WebCore::IntRect& rect, ColorControlSupportsAlpha supportsAlpha, Vector<WebCore::Color>&& suggestions)
+RefPtr<WebColorPicker> PageClientImpl::createColorPicker(WebPageProxy& page, const WebCore::Color& initialColor, const WebCore::IntRect& rect, ColorControlSupportsAlpha supportsAlpha, Vector<WebCore::Color>&& suggestions, std::optional<WebCore::FrameIdentifier> frameID)
 {
-    return WebColorPickerMac::create(protect(page.colorPickerClient()).ptr(), initialColor, rect, supportsAlpha, WTF::move(suggestions), m_view.get().get());
+    return WebColorPickerMac::create(protect(page.colorPickerClient()).ptr(), initialColor, rect, supportsAlpha, WTF::move(suggestions), m_view.get().get(), frameID);
 }
 
 RefPtr<WebDataListSuggestionsDropdown> PageClientImpl::createDataListSuggestionsDropdown(WebPageProxy& page)
@@ -704,7 +713,7 @@ void PageClientImpl::dismissDigitalCredentialsPicker(WTF::CompletionHandler<void
 void PageClientImpl::wheelEventWasNotHandledByWebCore(const NativeWebWheelEvent& event)
 {
     if (RefPtr gestureController = m_impl->gestureController())
-        gestureController->wheelEventWasNotHandledByWebCore(RetainPtr { event.nativeEvent() }.get());
+        gestureController->wheelEventWasNotHandledByWebCore(event);
 }
 
 #if ENABLE(MAC_GESTURE_EVENTS)
@@ -806,13 +815,12 @@ void PageClientImpl::scrollingNodeScrollViewDidScroll(WebCore::ScrollingNodeID)
     protect(m_impl)->suppressContentRelativeChildViews(WebViewImpl::ContentRelativeChildViewsSuppressionType::TemporarilyRemove);
 }
 
-void PageClientImpl::didCommitMainFrameData(const MainFrameData& mainFrameData)
-{
-    PageClientImplCocoa::didCommitMainFrameData(mainFrameData);
 #if ENABLE(SCROLL_STRETCH_NOTIFICATIONS)
-    [webView() _topScrollStretchDidChange:mainFrameData.topScrollStretch];
-#endif
+void PageClientImpl::topScrollStretchDidChange(CGFloat topScrollStretch)
+{
+    [webView() _topScrollStretchDidChange:topScrollStretch];
 }
+#endif
 
 void PageClientImpl::willBeginViewGesture()
 {
@@ -1101,7 +1109,7 @@ bool PageClientImpl::effectiveAppearanceIsDark() const
 
 bool PageClientImpl::effectiveUserInterfaceLevelIsElevated() const
 {
-    return protect(m_impl)->effectiveUserInterfaceLevelIsElevated();
+    return m_impl->effectiveUserInterfaceLevelIsElevated();
 }
 
 bool PageClientImpl::useFormSemanticContext() const
@@ -1207,7 +1215,7 @@ void PageClientImpl::cancelTextRecognitionForVideoInElementFullscreen()
 void PageClientImpl::didChangeLocalInspectorAttachment()
 {
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
-    m_impl->updateScrollPocket();
+    protect(m_impl)->updateScrollPocket();
 #endif
 }
 

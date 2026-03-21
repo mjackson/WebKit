@@ -41,15 +41,15 @@ bool isRootDomNode(Node* node)
 String stringValue(Node& node)
 {
     switch (node.nodeType()) {
-        case Node::ATTRIBUTE_NODE:
-        case Node::PROCESSING_INSTRUCTION_NODE:
-        case Node::COMMENT_NODE:
-        case Node::TEXT_NODE:
-        case Node::CDATA_SECTION_NODE:
-            return node.nodeValue();
-        default:
-            if (isRootDomNode(&node) || node.isElementNode())
-                return TextNodeTraversal::contentsAsString(node);
+    case NodeType::Attribute:
+    case NodeType::ProcessingInstruction:
+    case NodeType::Comment:
+    case NodeType::Text:
+    case NodeType::CDATASection:
+        return node.nodeValue();
+    default:
+        if (isRootDomNode(&node) || node.isElementNode())
+            return TextNodeTraversal::contentsAsString(node);
     }
     return String();
 }
@@ -57,17 +57,17 @@ String stringValue(Node& node)
 bool isValidContextNode(Node& node)
 {
     switch (node.nodeType()) {
-        case Node::ATTRIBUTE_NODE:
-        case Node::CDATA_SECTION_NODE:
-        case Node::COMMENT_NODE:
-        case Node::DOCUMENT_NODE:
-        case Node::ELEMENT_NODE:
-        case Node::PROCESSING_INSTRUCTION_NODE:
-        case Node::TEXT_NODE:
-            return true;
-        case Node::DOCUMENT_FRAGMENT_NODE:
-        case Node::DOCUMENT_TYPE_NODE:
-            return false;
+    case NodeType::Attribute:
+    case NodeType::CDATASection:
+    case NodeType::Comment:
+    case NodeType::Document:
+    case NodeType::Element:
+    case NodeType::ProcessingInstruction:
+    case NodeType::Text:
+        return true;
+    case NodeType::DocumentFragment:
+    case NodeType::DocumentType:
+        return false;
     }
     ASSERT_NOT_REACHED();
     return false;

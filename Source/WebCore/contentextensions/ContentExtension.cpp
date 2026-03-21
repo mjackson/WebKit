@@ -106,7 +106,7 @@ void ContentExtension::compileGlobalDisplayNoneStyleSheet()
 
     m_globalDisplayNoneStyleSheet = StyleSheetContents::create(contentExtensionCSSParserContext());
     m_globalDisplayNoneStyleSheet->setIsUserStyleSheet(true);
-    if (!m_globalDisplayNoneStyleSheet->parseString(css.toString()))
+    if (!protect(m_globalDisplayNoneStyleSheet)->parseString(css.toString()))
         m_globalDisplayNoneStyleSheet = nullptr;
 
     // These actions don't need to be applied individually any more. They will all be applied to every page as a precompiled style sheet.

@@ -418,9 +418,8 @@ std::optional<Ref<RTCCertificate>> generateCertificate(Ref<SecurityOrigin>&& ori
 
     switch (info.type) {
     case PeerConnectionBackend::CertificateInformation::Type::ECDSAP256: {
-        WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN;
-        privateKey.reset(EVP_EC_gen("prime256v1"));
-        WTF_ALLOW_UNSAFE_BUFFER_USAGE_END;
+        char curveName[] = "prime256v1";
+        privateKey.reset(EVP_PKEY_Q_keygen(nullptr, nullptr, "EC", curveName));
         if (!privateKey)
             return { };
         break;
@@ -746,15 +745,8 @@ void forEachTransceiver(const GRefPtr<GstElement>& webrtcBin, Function<bool(GRef
     GRefPtr<GArray> transceivers;
     g_signal_emit_by_name(webrtcBin.get(), "get-transceivers", &transceivers.outPtr());
 
-    if (!transceivers || !transceivers->len)
-        return;
-
-    for (unsigned index = 0; index < transceivers->len; index++) {
-        WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN; // GLib port
-        GRefPtr current = g_array_index(transceivers.get(), GstWebRTCRTPTransceiver*, index);
-        WTF_ALLOW_UNSAFE_BUFFER_USAGE_END;
-
-        if (function(WTF::move(current)))
+    for (auto* transceiver : span<GstWebRTCRTPTransceiver*>(transceivers)) {
+        if (function(transceiver))
             break;
     }
 }
@@ -915,11 +907,10 @@ SDPStringBuilder::SDPStringBuilder(const GstSDPMessage* sdp)
 
             m_stringBuilder.append("t="_s, unsafeSpan(time->start), ' ', unsafeSpan(time->stop), CRLF);
             if (time->repeat) {
-                WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN; // GLib port
-                m_stringBuilder.append("r="_s, unsafeSpan(g_array_index(time->repeat, char*, 0)));
-                for (unsigned ii = 1; ii < time->repeat->len; ii++)
-                    m_stringBuilder.append(' ', unsafeSpan(g_array_index(time->repeat, char*, ii)));
-                WTF_ALLOW_UNSAFE_BUFFER_USAGE_END;
+                auto repeatSpan = span<char*>(time->repeat);
+                m_stringBuilder.append("r="_s, unsafeSpan(consume(repeatSpan)));
+                for (const auto* repeat : repeatSpan)
+                    m_stringBuilder.append(' ', unsafeSpan(repeat));
                 m_stringBuilder.append(CRLF);
             }
         }

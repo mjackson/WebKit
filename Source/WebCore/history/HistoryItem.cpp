@@ -371,7 +371,6 @@ bool HistoryItem::shouldDoSameDocumentNavigationTo(HistoryItem& otherItem) const
     if (m_itemID == otherItem.itemID())
         return false;
 
-    // The following logic must be kept in sync with WebKit::WebBackForwardListItem::itemIsInSameDocument().
     return documentSequenceNumber() == otherItem.documentSequenceNumber();
 }
 

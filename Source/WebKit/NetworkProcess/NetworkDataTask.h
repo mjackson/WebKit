@@ -124,16 +124,16 @@ public:
         ASSERT(!m_pendingDownloadID);
         m_pendingDownloadID = downloadID;
     }
-    void setPendingDownload(PendingDownload&);
+    void NODELETE setPendingDownload(PendingDownload&);
 
     virtual void setPendingDownloadLocation(const String& filename, SandboxExtension::Handle&&, bool /*allowOverwrite*/) { m_pendingDownloadLocation = filename; }
-    const String& pendingDownloadLocation() const { return m_pendingDownloadLocation; }
+    const String& pendingDownloadLocation() const LIFETIME_BOUND { return m_pendingDownloadLocation; }
     bool isDownload() const { return !!m_pendingDownloadID; }
 
-    const WebCore::ResourceRequest& firstRequest() const { return m_firstRequest; }
+    const WebCore::ResourceRequest& firstRequest() const LIFETIME_BOUND { return m_firstRequest; }
     virtual String suggestedFilename() const { return String(); }
     void setSuggestedFilename(const String& suggestedName) { m_suggestedFilename = suggestedName; }
-    const String& partition() { return m_partition; }
+    const String& partition() LIFETIME_BOUND { return m_partition; }
 
     bool isTopLevelNavigation() const { return m_dataTaskIsForMainFrameNavigation; }
 

@@ -66,9 +66,11 @@ static Color adjustColorForVisibilityOnBackground(const Color& textColor, const 
     if (textColorIsLegibleAgainstBackgroundColor(textColor, backgroundColor))
         return textColor;
 
-    if (textColor.luminance() > 0.5)
-        return textColor.darkened();
-    return textColor.lightened();
+    auto darkened = textColor.darkened();
+    auto lightened = textColor.lightened();
+    if (contrastRatio(darkened, backgroundColor) > contrastRatio(lightened, backgroundColor))
+        return darkened;
+    return lightened;
 }
 
 TextPaintStyle computeTextPaintStyle(const RenderText& renderer, const RenderStyle& lineStyle, const PaintInfo& paintInfo)
@@ -125,7 +127,7 @@ TextPaintStyle computeTextPaintStyle(const RenderText& renderer, const RenderSty
             forceBackgroundToWhite = false;
 
         if (forceBackgroundToWhite) {
-            if (Style::hasAnyBackgroundClipText(protect(renderer.style())->backgroundLayers()))
+            if (Style::hasAnyBackgroundClipText(renderer.style().backgroundLayers()))
                 paintStyle.fillColor = Color::black;
         }
     }

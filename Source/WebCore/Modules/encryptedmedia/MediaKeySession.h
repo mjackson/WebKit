@@ -90,14 +90,14 @@ public:
     using ClosedPromise = DOMPromiseProxy<IDLUndefined>;
     ClosedPromise& closed() { return m_closedPromise.get(); }
 
-    const Vector<std::pair<CDMKeyID, MediaKeyStatus>>& statuses() const { return m_statuses; }
+    const Vector<std::pair<CDMKeyID, MediaKeyStatus>>& statuses() const LIFETIME_BOUND { return m_statuses; }
 
     unsigned internalInstanceSessionObjectRefCount() const { return m_instanceSession->refCount(); }
 
 private:
     MediaKeySession(Document&, WeakPtr<MediaKeys>&&, MediaKeySessionType, bool useDistinctiveIdentifier, Ref<CDM>&&, Ref<CDMInstanceSession>&&);
     void enqueueMessage(MediaKeyMessageType, const SharedBuffer&);
-    void updateExpiration(double);
+    void NODELETE updateExpiration(double);
     void sessionClosed();
     String mediaKeysStorageDirectory() const;
     CDMKeyGroupingStrategy NODELETE keyGroupingStrategy() const;

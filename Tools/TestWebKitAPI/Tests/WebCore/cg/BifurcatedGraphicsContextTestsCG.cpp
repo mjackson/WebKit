@@ -33,8 +33,10 @@
 #include <WebCore/DisplayListItems.h>
 #include <WebCore/DisplayListRecorderImpl.h>
 #include <WebCore/FontCascade.h>
+#include <WebCore/FontSelector.h>
 #include <WebCore/GradientImage.h>
 #include <WebCore/GraphicsContextCG.h>
+#include <WebCore/TextRun.h>
 #include <numbers>
 
 namespace TestWebKitAPI {

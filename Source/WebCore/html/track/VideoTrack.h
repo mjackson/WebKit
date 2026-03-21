@@ -28,8 +28,8 @@
 
 #if ENABLE(VIDEO)
 
-#include <WebCore/TrackBase.h>
-#include <WebCore/VideoTrackPrivateClient.h>
+#include "TrackBase.h"
+#include "VideoTrackPrivateClient.h"
 #include <wtf/TZoneMalloc.h>
 #include <wtf/WeakHashSet.h>
 
@@ -100,8 +100,6 @@ private:
 #if !RELEASE_LOG_DISABLED
     ASCIILiteral logClassName() const final { return "VideoTrack"_s; }
 #endif
-
-    Ref<VideoTrackPrivate> NODELETE protectedPrivate() const;
 
     WeakPtr<VideoTrackList> m_videoTrackList;
     WeakHashSet<VideoTrackClient> m_clients;

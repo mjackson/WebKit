@@ -272,14 +272,14 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(PaymentAuthorizationPresenter);
 void PaymentAuthorizationPresenter::completeMerchantValidation(const WebCore::PaymentMerchantSession& merchantSession)
 {
     ASSERT(platformDelegate());
-    [protectedPlatformDelegate() completeMerchantValidation:merchantSession.pkPaymentMerchantSession().get() error:nil];
+    [protect(platformDelegate()) completeMerchantValidation:merchantSession.pkPaymentMerchantSession().get() error:nil];
 }
 
 void PaymentAuthorizationPresenter::completePaymentMethodSelection(std::optional<WebCore::ApplePayPaymentMethodUpdate>&& update)
 {
     ASSERT(platformDelegate());
     if (!update) {
-        [protectedPlatformDelegate() completePaymentMethodSelection:nil];
+        [protect(platformDelegate()) completePaymentMethodSelection:nil];
         return;
     }
 
@@ -316,7 +316,7 @@ void PaymentAuthorizationPresenter::completePaymentMethodSelection(std::optional
 #if HAVE(PASSKIT_INSTALLMENTS) && ENABLE(APPLE_PAY_INSTALLMENTS)
     [paymentMethodUpdate setInstallmentGroupIdentifier:update->installmentGroupIdentifier.createNSString().get()];
 #endif // HAVE(PASSKIT_INSTALLMENTS) && ENABLE(APPLE_PAY_INSTALLMENTS)
-    [protectedPlatformDelegate() completePaymentMethodSelection:paymentMethodUpdate.get()];
+    [protect(platformDelegate()) completePaymentMethodSelection:paymentMethodUpdate.get()];
 #if HAVE(PASSKIT_DEFERRED_PAYMENTS)
     if (auto& deferredPaymentRequest = update->newDeferredPaymentRequest)
         [paymentMethodUpdate setDeferredPaymentRequest:platformDeferredPaymentRequest(WTF::move(*deferredPaymentRequest)).get()];
@@ -335,19 +335,19 @@ void PaymentAuthorizationPresenter::completePaymentSession(WebCore::ApplePayPaym
 #if HAVE(PASSKIT_PAYMENT_ORDER_DETAILS)
     if (auto orderDetails = WTF::move(result.orderDetails)) {
         auto platformOrderDetails = adoptNS([PAL::allocPKPaymentOrderDetailsInstance() initWithOrderTypeIdentifier:orderDetails->orderTypeIdentifier.createNSString().get() orderIdentifier:orderDetails->orderIdentifier.createNSString().get() webServiceURL:adoptNS([[NSURL alloc] initWithString:orderDetails->webServiceURL.createNSString().get()]).get() authenticationToken:orderDetails->authenticationToken.createNSString().get()]);
-        [protectedPlatformDelegate() completePaymentSession:status errors:errors.get() orderDetails:platformOrderDetails.get()];
+        [protect(platformDelegate()) completePaymentSession:status errors:errors.get() orderDetails:platformOrderDetails.get()];
         return;
     }
 #endif
 
-    [protectedPlatformDelegate() completePaymentSession:status errors:errors.get()];
+    [protect(platformDelegate()) completePaymentSession:status errors:errors.get()];
 }
 
 void PaymentAuthorizationPresenter::completeShippingContactSelection(std::optional<WebCore::ApplePayShippingContactUpdate>&& update)
 {
     ASSERT(platformDelegate());
     if (!update) {
-        [protectedPlatformDelegate() completeShippingContactSelection:nil];
+        [protect(platformDelegate()) completeShippingContactSelection:nil];
         return;
     }
 
@@ -382,14 +382,14 @@ void PaymentAuthorizationPresenter::completeShippingContactSelection(std::option
     if (auto& deferredPaymentRequest = update->newDeferredPaymentRequest)
         [shippingContactUpdate setDeferredPaymentRequest:platformDeferredPaymentRequest(WTF::move(*deferredPaymentRequest)).get()];
 #endif
-    [protectedPlatformDelegate() completeShippingContactSelection:shippingContactUpdate.get()];
+    [protect(platformDelegate()) completeShippingContactSelection:shippingContactUpdate.get()];
 }
 
 void PaymentAuthorizationPresenter::completeShippingMethodSelection(std::optional<WebCore::ApplePayShippingMethodUpdate>&& update)
 {
     ASSERT(platformDelegate());
     if (!update) {
-        [protectedPlatformDelegate() completeShippingMethodSelection:nil];
+        [protect(platformDelegate()) completeShippingMethodSelection:nil];
         return;
     }
 
@@ -417,7 +417,7 @@ void PaymentAuthorizationPresenter::completeShippingMethodSelection(std::optiona
     if (auto& deferredPaymentRequest = update->newDeferredPaymentRequest)
         [shippingMethodUpdate setDeferredPaymentRequest:platformDeferredPaymentRequest(WTF::move(*deferredPaymentRequest)).get()];
 #endif
-    [protectedPlatformDelegate() completeShippingMethodSelection:shippingMethodUpdate.get()];
+    [protect(platformDelegate()) completeShippingMethodSelection:shippingMethodUpdate.get()];
 }
 
 #if HAVE(PASSKIT_COUPON_CODE)
@@ -426,7 +426,7 @@ void PaymentAuthorizationPresenter::completeCouponCodeChange(std::optional<WebCo
 {
     ASSERT(platformDelegate());
     if (!update) {
-        [protectedPlatformDelegate() completeCouponCodeChange:nil];
+        [protect(platformDelegate()) completeCouponCodeChange:nil];
         return;
     }
 
@@ -455,15 +455,10 @@ void PaymentAuthorizationPresenter::completeCouponCodeChange(std::optional<WebCo
     if (auto& deferredPaymentRequest = update->newDeferredPaymentRequest)
         [couponCodeUpdate setDeferredPaymentRequest:platformDeferredPaymentRequest(WTF::move(*deferredPaymentRequest)).get()];
 #endif
-    [protectedPlatformDelegate() completeCouponCodeChange:couponCodeUpdate.get()];
+    [protect(platformDelegate()) completeCouponCodeChange:couponCodeUpdate.get()];
 }
 
 #endif // HAVE(PASSKIT_COUPON_CODE)
-
-RetainPtr<WKPaymentAuthorizationDelegate> PaymentAuthorizationPresenter::protectedPlatformDelegate()
-{
-    return platformDelegate();
-}
 
 } // namespace WebKit
 

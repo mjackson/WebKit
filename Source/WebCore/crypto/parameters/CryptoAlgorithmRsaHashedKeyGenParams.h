@@ -25,10 +25,10 @@
 
 #pragma once
 
+#include "CryptoAlgorithmRsaHashedKeyGenParamsInit.h"
+#include "CryptoAlgorithmRsaKeyGenParams.h"
 #include <JavaScriptCore/JSObject.h>
 #include <JavaScriptCore/Strong.h>
-#include <WebCore/CryptoAlgorithmRsaHashedKeyGenParamsInit.h>
-#include <WebCore/CryptoAlgorithmRsaKeyGenParams.h>
 
 namespace WebCore {
 

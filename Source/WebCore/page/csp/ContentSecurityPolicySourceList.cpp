@@ -41,7 +41,7 @@
 
 namespace WebCore {
 
-static bool isCSPDirectiveName(StringView name)
+static bool NODELETE isCSPDirectiveName(StringView name)
 {
     return equalIgnoringASCIICase(name, ContentSecurityPolicyDirectiveNames::baseURI)
         || equalIgnoringASCIICase(name, ContentSecurityPolicyDirectiveNames::connectSrc)
@@ -132,8 +132,7 @@ bool ContentSecurityPolicySourceList::matches(const URL& url, bool didReceiveRed
     if (m_allowStar && isProtocolAllowedByStar(url))
         return true;
 
-    if (m_allowSelf && m_policy->urlMatchesSelf(url, equalIgnoringASCIICase(m_directiveName, ContentSecurityPolicyDirectiveNames::frameSrc)
-))
+    if (m_allowSelf && m_policy->urlMatchesSelf(url))
         return true;
 
     for (auto& entry : m_list) {
@@ -180,7 +179,7 @@ static bool schemeIsInHttpFamily(StringView scheme)
     return equalLettersIgnoringASCIICase(scheme, "https"_s) || equalLettersIgnoringASCIICase(scheme, "http"_s);
 }
 
-static bool isRestrictedDirectiveForMode(const String& directive, ContentSecurityPolicyModeForExtension mode)
+static bool NODELETE isRestrictedDirectiveForMode(const String& directive, ContentSecurityPolicyModeForExtension mode)
 {
     switch (mode) {
     case ContentSecurityPolicyModeForExtension::None:
@@ -226,7 +225,7 @@ bool ContentSecurityPolicySourceList::isValidSourceForExtensionMode(const Conten
     return true;
 }
 
-static bool extensionModeAllowsKeywordsForDirective(ContentSecurityPolicyModeForExtension mode, const String& directiveName)
+static bool NODELETE extensionModeAllowsKeywordsForDirective(ContentSecurityPolicyModeForExtension mode, const String& directiveName)
 {
     return mode != ContentSecurityPolicyModeForExtension::ManifestV3 || !isRestrictedDirectiveForMode(directiveName, mode);
 }

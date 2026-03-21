@@ -524,6 +524,13 @@ static void dumpCALayer(TextStream& ts, CALayer *layer, bool traverse)
     });
 }
 
+- (void)_doAfterProcessingAllPendingKeyEvents:(dispatch_block_t)action
+{
+    _page->doAfterProcessingAllPendingKeyEvents([action = makeBlockPtr(action)] {
+        action();
+    });
+}
+
 + (void)_setApplicationBundleIdentifier:(NSString *)bundleIdentifier
 {
     setApplicationBundleIdentifierOverride(String(bundleIdentifier));
@@ -1113,6 +1120,28 @@ static void dumpCALayer(TextStream& ts, CALayer *layer, bool traverse)
 #endif
 }
 
+- (void)_startMonitoringWheelEventsForTesting:(void(^)(void))completionHandler
+{
+    RefPtr pageForTesting = _page->pageForTesting();
+    if (!pageForTesting)
+        return completionHandler();
+
+    pageForTesting->startMonitoringWheelEventsForTesting([completionHandler = makeBlockPtr(completionHandler)] {
+        completionHandler();
+    });
+}
+
+- (void)_waitForWheelEventsToCompleteForTesting:(void(^)(void))completionHandler
+{
+    RefPtr pageForTesting = _page->pageForTesting();
+    if (!pageForTesting)
+        return completionHandler();
+
+    pageForTesting->waitForWheelEventsToCompleteForTesting([completionHandler = makeBlockPtr(completionHandler)] {
+        completionHandler();
+    });
+}
+
 - (unsigned)_forwardedLogsCountForTesting
 {
 #if ENABLE(LOGD_BLOCKING_IN_WEBCONTENT)
@@ -1268,6 +1297,32 @@ static void dumpCALayer(TextStream& ts, CALayer *layer, bool traverse)
 - (bool)_displayLinkWantsHighFrameRate
 {
     return downcast<WebKit::RemoteLayerTreeDrawingAreaProxy>(protect(_page->drawingArea()))->displayLinkWantsHighFrameRateForTesting();
+}
+
+- (void)_lastPageLoadNetworkActivityCompletionCodeForTesting:(void(^)(NSNumber * _Nullable))completionHandler
+{
+    auto completionHandlerCopy = makeBlockPtr(completionHandler);
+    protect(protect(_page->websiteDataStore())->networkProcess())->lastPageLoadNetworkActivityCompletionCodeForTesting(_page->sessionID(), _page->webPageIDInMainFrameProcess(), [completionHandlerCopy = WTF::move(completionHandlerCopy)](std::optional<WebKit::NetworkActivityTracker::CompletionCode> code) {
+        completionHandlerCopy(code ? @(static_cast<uint8_t>(*code)) : nil);
+    });
+}
+
+- (STWebpageController *)_screenTimeWebpageController
+{
+#if ENABLE(SCREEN_TIME)
+    return _screenTimeWebpageController.get();
+#else
+    return nil;
+#endif
+}
+
+- (_WKPlatformVisualEffectView *)_screenTimeBlurredSnapshot
+{
+#if ENABLE(SCREEN_TIME)
+    return _screenTimeBlurredSnapshot.get();
+#else
+    return nil;
+#endif
 }
 
 @end

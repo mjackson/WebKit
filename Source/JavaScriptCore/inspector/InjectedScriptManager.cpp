@@ -173,7 +173,7 @@ InjectedScript InjectedScriptManager::injectedScriptFor(JSGlobalObject* globalOb
             return it1->value;
     }
 
-    if (!checkedInspectorEnvironment()->canAccessInspectedScriptState(globalObject))
+    if (!protect(inspectorEnvironment())->canAccessInspectedScriptState(globalObject))
         return InjectedScript();
 
     int id = injectedScriptIdFor(globalObject);

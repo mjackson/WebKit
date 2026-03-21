@@ -52,14 +52,14 @@ void paint(GraphicsContext& graphicsContext, const IntRect& damageRect, const St
     if (!opacity)
         return;
 
-    SRGBA<uint8_t> scrollbarBackgroundColor;
+    Color scrollbarBackgroundColor;
     SRGBA<uint8_t> scrollbarBorderColor;
     SRGBA<uint8_t> overlayThumbBorderColor;
     SRGBA<uint8_t> overlayTroughBorderColor;
-    SRGBA<uint8_t> overlayTroughColor;
-    SRGBA<uint8_t> thumbHoveredColor;
-    SRGBA<uint8_t> thumbPressedColor;
-    SRGBA<uint8_t> thumbColor;
+    Color overlayTroughColor;
+    Color thumbHoveredColor;
+    Color thumbPressedColor;
+    Color thumbColor;
 
     if (scrollbar.useDarkAppearanceForScrollbars) {
         scrollbarBackgroundColor = scrollbarBackgroundColorDark;
@@ -79,6 +79,15 @@ void paint(GraphicsContext& graphicsContext, const IntRect& damageRect, const St
         thumbHoveredColor = thumbHoveredColorLight;
         thumbPressedColor = thumbPressedColorLight;
         thumbColor = thumbColorLight;
+    }
+
+    // Override with CSS scrollbar-color values if specified.
+    if (scrollbar.scrollbarColor) {
+        scrollbarBackgroundColor = scrollbar.scrollbarColor->trackColor;
+        overlayTroughColor = scrollbar.scrollbarColor->trackColor;
+        thumbColor = scrollbar.scrollbarColor->thumbColor;
+        thumbHoveredColor = scrollbar.scrollbarColor->thumbColor.lightened();
+        thumbPressedColor = scrollbar.scrollbarColor->thumbColor.darkened();
     }
 
     GraphicsContextStateSaver stateSaver(graphicsContext);

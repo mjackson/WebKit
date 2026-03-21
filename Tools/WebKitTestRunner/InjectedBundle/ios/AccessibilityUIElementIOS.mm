@@ -137,6 +137,7 @@ typedef void (*AXPostedNotificationCallback)(id element, NSString* notification,
 - (BOOL)accessibilityIsFirstItemInSuggestion;
 - (BOOL)accessibilityIsLastItemInSuggestion;
 - (BOOL)accessibilityIsMarkAnnotation;
+- (BOOL)_accessibilityIsFrameGeometryInitialized;
 
 // TextMarker related
 - (NSArray *)textMarkerRange;
@@ -893,6 +894,21 @@ RefPtr<AccessibilityUIElement> AccessibilityUIElementIOS::uiElementForSearchPred
     return nullptr;
 }
 
+JSValueRef AccessibilityUIElementIOS::uiElementsForSearchPredicate(JSContextRef context, AccessibilityUIElement* startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly, unsigned resultsLimit)
+{
+    NSDictionary *parameter = searchPredicateForSearchCriteria(context, startElement, nullptr, isDirectionNext, resultsLimit, searchKey, searchText, visibleOnly, immediateDescendantsOnly);
+    id searchResults = [m_element accessibilityFindMatchingObjects:parameter];
+    if (![searchResults isKindOfClass:[NSArray class]])
+        return nullptr;
+
+    Vector<RefPtr<AccessibilityUIElement>> elements;
+    for (id result in searchResults) {
+        if ([result isAccessibilityElement])
+            elements.append(AccessibilityUIElement::create(result));
+    }
+    return makeJSArray(context, elements);
+}
+
 JSRetainPtr<JSStringRef> AccessibilityUIElementIOS::selectTextWithCriteria(JSContextRef, JSStringRef ambiguityResolution, JSValueRef searchStrings, JSStringRef replacementString, JSStringRef activity)
 {
     return nullptr;
@@ -1063,7 +1079,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElementIOS::selectedTextRange()
     return [rangeDescription createJSStringRef];
 }
 
-JSRetainPtr<JSStringRef> AccessibilityUIElementIOS::intersectionWithSelectionRange()
+RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElementIOS::intersectionWithSelectionRange()
 {
     return nullptr;
 }
@@ -1628,6 +1644,11 @@ bool AccessibilityUIElementIOS::isLastItemInSuggestion() const
 bool AccessibilityUIElementIOS::isMarkAnnotation() const
 {
     return [m_element accessibilityIsMarkAnnotation];
+}
+
+bool AccessibilityUIElementIOS::isFrameGeometryInitialized() const
+{
+    return [m_element _accessibilityIsFrameGeometryInitialized];
 }
 
 } // namespace WTR

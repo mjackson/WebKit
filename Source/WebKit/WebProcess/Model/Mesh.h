@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <wtf/CompletionHandler.h>
 #include <wtf/Ref.h>
 #include <wtf/RefCounted.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
@@ -36,15 +37,19 @@
 #include <wtf/MachSendRight.h>
 #endif
 
+namespace WebModel {
+struct ResizeMeshDescriptor;
+}
+
 namespace WebCore {
 class TransformationMatrix;
 enum class StageModeOperation : bool;
 }
 
 namespace WebModel {
+struct Float3;
 struct Float4x4;
 struct ImageAsset;
-struct MaterialDescriptor;
 struct MeshDescriptor;
 struct TextureDescriptor;
 struct UpdateMaterialDescriptor;
@@ -75,6 +80,7 @@ public:
     virtual bool supportsTransform(const WebCore::TransformationMatrix&) const { return false; }
     virtual void setScale(float) { }
     virtual void setCameraDistance(float) = 0;
+    virtual void setBackgroundColor(const WebModel::Float3&) { }
     virtual void setStageMode(WebCore::StageModeOperation) { }
     virtual void setRotation(float, float = 0.f, float = 0.f) { }
     virtual void play(bool) = 0;
@@ -84,6 +90,8 @@ public:
 #if PLATFORM(COCOA)
     virtual std::optional<WebModel::Float4x4> entityTransform() const = 0;
     virtual Vector<MachSendRight> ioSurfaceHandles() { return { }; }
+    virtual void updateRenderBuffers(WebModel::ResizeMeshDescriptor&&) { }
+    virtual void sizeDidChange(unsigned, unsigned, CompletionHandler<void(Vector<MachSendRight>&&)>&& callback) { callback({ }); }
     virtual std::pair<simd_float4, simd_float4> getCenterAndExtents() const { return std::make_pair(simd_make_float4(0.f), simd_make_float4(0.f)); }
 #endif
 

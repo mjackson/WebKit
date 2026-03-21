@@ -35,7 +35,7 @@
 #import <wtf/RangeSet.h>
 #import <wtf/Ref.h>
 #import <wtf/RefCountedAndCanMakeWeakPtr.h>
-#import <wtf/RetainReleaseSwift.h>
+#import <wtf/SwiftBridging.h>
 #import <wtf/TZoneMalloc.h>
 #import <wtf/Vector.h>
 #import <wtf/WeakHashSet.h>
@@ -74,18 +74,18 @@ public:
     void destroy();
     void setLabel(String&&);
 
-    bool isValid() const;
+    bool NODELETE isValid() const;
 
-    void setOverrideLocation(QuerySet& otherQuerySet, uint32_t beginningOfPassIndex, uint32_t endOfPassIndex);
+    void NODELETE setOverrideLocation(QuerySet& otherQuerySet, uint32_t beginningOfPassIndex, uint32_t endOfPassIndex);
 
     Device& device() const { return m_device; }
     uint32_t count() const { return m_count; }
     WGPUQueryType type() const { return m_type; }
     id<MTLBuffer> visibilityBuffer() const { return m_visibilityBuffer; }
-    CounterSampleBuffer counterSampleBufferWithOffset() const;
+    CounterSampleBuffer NODELETE counterSampleBufferWithOffset() const;
 
     void setCommandEncoder(CommandEncoder&) const;
-    bool isDestroyed() const;
+    bool NODELETE isDestroyed() const;
     static void destroyQuerySet(const QuerySet&);
     static CounterSampleBuffer counterSampleBufferWithOffsetForDevice(size_t, const Device&);
     static void createContainersIfNeeded();
@@ -124,10 +124,10 @@ private:
 
 inline void refQuerySet(WebGPU::QuerySet* obj)
 {
-    WTF::ref(obj);
+    obj->ref();
 }
 
 inline void derefQuerySet(WebGPU::QuerySet* obj)
 {
-    WTF::deref(obj);
+    obj->deref();
 }

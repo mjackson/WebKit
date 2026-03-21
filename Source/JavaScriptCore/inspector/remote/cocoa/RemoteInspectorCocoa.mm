@@ -533,7 +533,7 @@ RetainPtr<NSDictionary> RemoteInspector::listingForInspectionTarget(const Remote
         [listing setObject:identifierForPID(presentingApplicationPID.value()).get() forKey:WIRHostApplicationIdentifierKey];
 
     if (RefPtr connectionToTarget = m_targetConnectionMap.get(target.targetIdentifier()))
-        [listing setObject:connectionToTarget->protectedConnectionIdentifier().get() forKey:WIRConnectionIdentifierKey];
+        [listing setObject:protect(connectionToTarget->connectionIdentifier()).get() forKey:WIRConnectionIdentifierKey];
 
     if (target.hasLocalDebugger())
         [listing setObject:@YES forKey:WIRHasLocalDebuggerKey];
@@ -561,7 +561,7 @@ RetainPtr<NSDictionary> RemoteInspector::listingForAutomationTarget(const Remote
     }
 
     if (RefPtr connectionToTarget = m_targetConnectionMap.get(target.targetIdentifier()))
-        [listing setObject:connectionToTarget->protectedConnectionIdentifier().get() forKey:WIRConnectionIdentifierKey];
+        [listing setObject:protect(connectionToTarget->connectionIdentifier()).get() forKey:WIRConnectionIdentifierKey];
 
     return listing;
 }
@@ -707,7 +707,7 @@ void RemoteInspector::receivedDidCloseMessage(NSDictionary *userInfo)
     if (!connectionToTarget)
         return;
 
-    if (![connectionIdentifier isEqualToString:connectionToTarget->protectedConnectionIdentifier().get()])
+    if (![connectionIdentifier isEqualToString:protect(connectionToTarget->connectionIdentifier()).get()])
         return;
 
     connectionToTarget->close();
@@ -796,7 +796,7 @@ void RemoteInspector::receivedConnectionDiedMessage(NSDictionary *userInfo)
     auto it = m_targetConnectionMap.begin();
     auto end = m_targetConnectionMap.end();
     for (; it != end; ++it) {
-        if ([connectionIdentifier isEqualToString:RefPtr { it->value }->protectedConnectionIdentifier().get()])
+        if ([connectionIdentifier isEqualToString:protect(RefPtr { it->value }->connectionIdentifier()).get()])
             break;
     }
 

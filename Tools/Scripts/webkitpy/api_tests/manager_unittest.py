@@ -51,3 +51,15 @@ A.
         ]
         got_tests = Manager._test_list_from_output(gtest_list_tests_output)
         self.assertEqual(expected_tests, got_tests)
+
+    def test_is_exact_test_name(self):
+        self.assertTrue(Manager._is_exact_test_name('WebKit.MouseMoveOverElementWithClosedWebView'))
+        self.assertTrue(Manager._is_exact_test_name('TestWebKitAPI.WebKit.MouseMoveOverElementWithClosedWebView'))
+        self.assertTrue(Manager._is_exact_test_name('Misc/ValueParametrizedTest.ValueParametrizedTestsSupported/CatRed'))
+        self.assertFalse(Manager._is_exact_test_name('WebKit.*'))
+        self.assertFalse(Manager._is_exact_test_name('WebKit'))
+        self.assertFalse(Manager._is_exact_test_name('*'))
+        self.assertFalse(Manager._is_exact_test_name(''))
+        # Binary.Suite (only 2 parts) still passes _is_exact_test_name;
+        # _try_collect_exact_tests handles the binary prefix check separately
+        self.assertTrue(Manager._is_exact_test_name('TestWebKitAPI.SmartLists'))

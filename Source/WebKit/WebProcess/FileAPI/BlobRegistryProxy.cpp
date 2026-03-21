@@ -105,7 +105,7 @@ unsigned long long BlobRegistryProxy::blobSize(const URL& url)
 
 void BlobRegistryProxy::writeBlobsToTemporaryFilesForIndexedDB(const Vector<String>& blobURLs, CompletionHandler<void(Vector<String>&& filePaths)>&& completionHandler)
 {
-    WebProcess::singleton().ensureProtectedNetworkProcessConnection()->writeBlobsToTemporaryFilesForIndexedDB(blobURLs, WTF::move(completionHandler));
+    protect(WebProcess::singleton().ensureNetworkProcessConnection())->writeBlobsToTemporaryFilesForIndexedDB(blobURLs, WTF::move(completionHandler));
 }
 
 }

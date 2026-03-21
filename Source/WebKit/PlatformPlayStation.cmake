@@ -86,6 +86,7 @@ list(APPEND WebKit_SOURCES
     UIProcess/playstation/PageClientImpl.cpp
     UIProcess/playstation/PlayStationWebView.cpp
     UIProcess/playstation/WebPageProxyPlayStation.cpp
+    UIProcess/playstation/WebPreferencesPlayStation.cpp
     UIProcess/playstation/WebProcessPoolPlayStation.cpp
 
     WebProcess/GPU/media/playstation/VideoLayerRemotePlayStation.cpp

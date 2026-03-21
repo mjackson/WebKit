@@ -95,6 +95,13 @@ public:
     unsigned decodeCountForTesting() const { return m_source->decodeCountForTesting(); }
     unsigned blankDrawCountForTesting() const { return m_source->blankDrawCountForTesting(); }
 
+#if ENABLE(SPATIAL_IMAGE_DETECTION)
+    bool isSpatial() const final { return m_source->isSpatial(); }
+    std::optional<unsigned> spatialLeftEyeFrameIndex() const { return m_source->spatialLeftEyeFrameIndex(); }
+    std::optional<unsigned> spatialRightEyeFrameIndex() const { return m_source->spatialRightEyeFrameIndex(); }
+    std::optional<SpatialImageEyeProperties> spatialEyePropertiesAtIndex(unsigned index) const { return m_source->spatialEyePropertiesAtIndex(index); }
+#endif
+
 private:
     BitmapImage(ImageObserver*, AlphaOption, GammaAndColorProfileOption);
     BitmapImage(Ref<NativeImage>&&);
@@ -122,12 +129,7 @@ private:
     std::optional<Color> singlePixelSolidColor() const final { return m_source->singlePixelSolidColor(); }
 
 #if ENABLE(QUICKLOOK_FULLSCREEN)
-    bool shouldUseQuickLookForFullscreen() const final { return m_source->shouldUseQuickLookForFullscreen(); }
     bool isPanorama() const final { return m_source->isPanorama(); }
-#endif
-
-#if ENABLE(SPATIAL_IMAGE_DETECTION)
-    bool isSpatial() const final { return m_source->isSpatial(); }
 #endif
 
 #if ENABLE(SPATIAL_IMAGE_CONTROLS)
@@ -146,7 +148,7 @@ private:
 
     void dump(WTF::TextStream&) const final;
 
-    Ref<ImageSource> m_source;
+    const Ref<ImageSource> m_source;
 };
 
 } // namespace WebCore

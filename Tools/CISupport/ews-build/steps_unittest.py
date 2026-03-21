@@ -145,6 +145,9 @@ class BuildStepMixinAdditions(BuildStepMixin, TestReactorMixin):
     def tear_down_test_build_step(self):
         shutil.rmtree(self._temp_directory)
 
+    def fakeStopBuild(self, reason, results):
+        pass
+
     def fakeBuildFinished(self, text, results):
         self.build.text = text
         self.build.results = results
@@ -158,6 +161,7 @@ class BuildStepMixinAdditions(BuildStepMixin, TestReactorMixin):
         self.build.terminate = False
         self.build.stopped = False
         self.build.executedSteps = self.executedSteps
+        self.build.stopBuild = self.fakeStopBuild
         self.build.buildFinished = self.fakeBuildFinished
         self._expected_added_urls = []
         self._expected_sources = None
@@ -1291,6 +1295,24 @@ class TestCompileWebKit(BuildStepMixinAdditions, unittest.TestCase):
         self.expect_outcome(result=SUCCESS, state_string='Compiled WebKit')
         return self.run_step()
 
+    def test_success_deployment_target(self):
+        self.setup_step(CompileWebKit())
+        self.setProperty('platform', 'mac')
+        self.setProperty('fullPlatform', 'mac-sequoia')
+        self.setProperty('configuration', 'release')
+        self.setProperty('architecture', 'arm64')
+        self.setProperty('deployment_target', '15.4')
+        self.expectRemoteCommands(
+            ExpectShell(workdir='wkdir',
+                        timeout=3600,
+                        log_environ=False,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'perl Tools/Scripts/build-webkit --release --architecture "arm64" -hideShellScriptEnvironment WK_VALIDATE_DEPENDENCIES=YES MACOSX_DEPLOYMENT_TARGET=15.4 2>&1 | perl Tools/Scripts/filter-build-webkit -logfile build-log.txt'],
+                        )
+            .exit(0),
+        )
+        self.expect_outcome(result=SUCCESS, state_string='Compiled WebKit')
+        return self.run_step()
+
     def test_success_gtk(self):
         self.setup_step(CompileWebKit())
         self.setProperty('platform', 'gtk')
@@ -1594,6 +1616,7 @@ class TestRunJavaScriptCoreTests(BuildStepMixinAdditions, unittest.TestCase):
         self.setup_step(RunJavaScriptCoreTests())
         self.prefix = RunJavaScriptCoreTests.prefix
         self.command_extra = RunJavaScriptCoreTests.command_extra
+        RunJavaScriptCoreTests.filter_failures_using_results_db = lambda self, stress_test_failures, binary_failures: ''
         if platform:
             self.setProperty('platform', platform)
         if fullPlatform:
@@ -2381,7 +2404,7 @@ class TestRunWebKitTestsInStressMode(BuildStepMixinAdditions, unittest.TestCase)
                         logfiles={'json': self.jsonFileName},
                         log_environ=False,
                         timeout=19800,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release --dump-render-tree --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 10 --skipped always --iterations 100 test1 test2 2>&1 | Tools/Scripts/filter-test-logs layout'],
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release -1 --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 10 --skipped always --iterations 100 test1 test2 2>&1 | Tools/Scripts/filter-test-logs layout'],
                         )
             .exit(0),
         )
@@ -2398,7 +2421,7 @@ class TestRunWebKitTestsInStressMode(BuildStepMixinAdditions, unittest.TestCase)
                         logfiles={'json': self.jsonFileName},
                         log_environ=False,
                         timeout=19800,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 10 --skipped always --iterations 100 test 2>&1 | Tools/Scripts/filter-test-logs layout'],
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release -2 --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 10 --skipped always --iterations 100 test 2>&1 | Tools/Scripts/filter-test-logs layout'],
                         )
             .log('stdio', stdout='9 failures found.')
             .exit(2),
@@ -2418,7 +2441,7 @@ class TestRunWebKitTestsInStressMode(BuildStepMixinAdditions, unittest.TestCase)
                         logfiles={'json': self.jsonFileName},
                         log_environ=False,
                         timeout=19800,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 10 --skipped always --iterations 100 test1 test2 2>&1 | Tools/Scripts/filter-test-logs layout'],
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release -2 --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 10 --skipped always --iterations 100 test1 test2 2>&1 | Tools/Scripts/filter-test-logs layout'],
                         )
             .exit(0),
         )
@@ -2436,7 +2459,7 @@ class TestRunWebKitTestsInStressMode(BuildStepMixinAdditions, unittest.TestCase)
                         logfiles={'json': self.jsonFileName},
                         log_environ=False,
                         timeout=19800,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 10 --skipped always --iterations 100 test1 test2 2>&1 | Tools/Scripts/filter-test-logs layout'],
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release -2 --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 10 --skipped always --iterations 100 test1 test2 2>&1 | Tools/Scripts/filter-test-logs layout'],
                         )
             .exit(0),
         )
@@ -2468,7 +2491,7 @@ class TestRunWebKitTestsInStressGuardmallocMode(BuildStepMixinAdditions, unittes
                         logfiles={'json': self.jsonFileName},
                         log_environ=False,
                         timeout=19800,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 10 --skipped always --guard-malloc --iterations 100 test1 test2 2>&1 | Tools/Scripts/filter-test-logs layout'],
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release -2 --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 10 --skipped always --guard-malloc --iterations 100 test1 test2 2>&1 | Tools/Scripts/filter-test-logs layout'],
                         )
             .exit(0),
         )
@@ -2485,7 +2508,7 @@ class TestRunWebKitTestsInStressGuardmallocMode(BuildStepMixinAdditions, unittes
                         logfiles={'json': self.jsonFileName},
                         log_environ=False,
                         timeout=19800,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 10 --skipped always --guard-malloc --iterations 100 test 2>&1 | Tools/Scripts/filter-test-logs layout'],
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release -2 --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 10 --skipped always --guard-malloc --iterations 100 test 2>&1 | Tools/Scripts/filter-test-logs layout'],
                         )
             .log('stdio', stdout='9 failures found.')
             .exit(2),
@@ -2494,6 +2517,90 @@ class TestRunWebKitTestsInStressGuardmallocMode(BuildStepMixinAdditions, unittes
         rc = self.run_step()
         self.expect_property('build_summary', 'Found test failures in stress mode')
         return rc
+
+
+class TestRunWebKitTestsInSiteIsolationMode(BuildStepMixinAdditions, unittest.TestCase):
+    def setUp(self):
+        self.longMessage = True
+        self.jsonFileName = 'layout-test-results/full_results.json'
+        return self.setup_test_build_step()
+
+    def tearDown(self):
+        return self.tear_down_test_build_step()
+
+    def configureStep(self):
+        self.setup_step(RunWebKitTestsInSiteIsolationMode())
+        self.property_exceed_failure_limit = 'first_results_exceed_failure_limit'
+        self.property_failures = 'first_run_failures'
+
+    def test_success(self):
+        self.configureStep()
+        self.setProperty('fullPlatform', 'ios-simulator')
+        self.setProperty('configuration', 'release')
+        self.setProperty('modified_tests', ['test1', 'test2'])
+        self.setProperty('stress_mode_passed', True)
+        self.expectRemoteCommands(
+            ExpectShell(workdir='wkdir',
+                        logfiles={'json': self.jsonFileName},
+                        log_environ=False,
+                        timeout=19800,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release -2 --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 10 --skipped always --site-isolation test1 test2 2>&1 | Tools/Scripts/filter-test-logs layout'],
+                        )
+            .exit(0),
+        )
+        self.expect_outcome(result=SUCCESS, state_string='Passed layout tests')
+        rc = self.run_step()
+        self.expect_property('build_summary', 'Passed layout tests')
+        return rc
+
+    def test_success_wk1(self):
+        self.setup_step(RunWebKitTestsInSiteIsolationMode(layout_test_class=RunWebKit1Tests))
+        self.property_exceed_failure_limit = 'first_results_exceed_failure_limit'
+        self.property_failures = 'first_run_failures'
+        self.setProperty('fullPlatform', 'ios-simulator')
+        self.setProperty('configuration', 'release')
+        self.setProperty('modified_tests', ['test1', 'test2'])
+        self.setProperty('stress_mode_passed', True)
+        self.expectRemoteCommands(
+            ExpectShell(workdir='wkdir',
+                        logfiles={'json': self.jsonFileName},
+                        log_environ=False,
+                        timeout=19800,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release -1 --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 10 --skipped always --site-isolation test1 test2 2>&1 | Tools/Scripts/filter-test-logs layout'],
+                        )
+            .exit(0),
+        )
+        self.expect_outcome(result=SUCCESS, state_string='Passed layout tests')
+        return self.run_step()
+
+    def test_failure(self):
+        self.configureStep()
+        self.setProperty('fullPlatform', 'ios-simulator')
+        self.setProperty('configuration', 'release')
+        self.setProperty('modified_tests', ['test'])
+        self.setProperty('stress_mode_passed', True)
+        self.expectRemoteCommands(
+            ExpectShell(workdir='wkdir',
+                        logfiles={'json': self.jsonFileName},
+                        log_environ=False,
+                        timeout=19800,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release -2 --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 10 --skipped always --site-isolation test 2>&1 | Tools/Scripts/filter-test-logs layout'],
+                        )
+            .log('stdio', stdout='9 failures found.')
+            .exit(2),
+        )
+        self.expect_outcome(result=FAILURE, state_string='layout-tests (failure)')
+        rc = self.run_step()
+        self.expect_property('build_summary', 'Found test failures in site isolation mode')
+        return rc
+
+    def test_skipped_if_stress_mode_not_passed(self):
+        self.configureStep()
+        self.setProperty('fullPlatform', 'ios-simulator')
+        self.setProperty('configuration', 'release')
+        self.setProperty('modified_tests', ['test1', 'test2'])
+        self.expect_outcome(result=SKIPPED)
+        return self.run_step()
 
 
 class TestRunWebKitTestsWithoutChange(BuildStepMixinAdditions, unittest.TestCase):
@@ -2652,7 +2759,7 @@ class TestRunWebKit1Tests(BuildStepMixinAdditions, unittest.TestCase):
                         logfiles={'json': self.jsonFileName},
                         log_environ=False,
                         timeout=19800,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --debug --dump-render-tree --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 60 --skip-failing-tests 2>&1 | Tools/Scripts/filter-test-logs layout'],
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --debug -1 --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 60 --skip-failing-tests 2>&1 | Tools/Scripts/filter-test-logs layout'],
                         )
             .exit(0),
         )
@@ -2668,7 +2775,7 @@ class TestRunWebKit1Tests(BuildStepMixinAdditions, unittest.TestCase):
                         logfiles={'json': self.jsonFileName},
                         log_environ=False,
                         timeout=19800,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release --dump-render-tree --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 60 --skip-failing-tests 2>&1 | Tools/Scripts/filter-test-logs layout'],
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'python3 Tools/Scripts/run-webkit-tests --no-build --no-show-results --no-new-test-results --clobber-old-results --release -1 --results-directory layout-test-results --debug-rwt-logging --exit-after-n-failures 60 --skip-failing-tests 2>&1 | Tools/Scripts/filter-test-logs layout'],
                         )
             .log('stdio', stdout='9 failures found.')
             .exit(2),
@@ -4529,6 +4636,18 @@ class TestCheckChangeRelevance(BuildStepMixinAdditions, unittest.TestCase):
         return rc
 
     @expectedFailure
+    def test_relevant_safer_cpp_pull_request(self):
+        file_names = ['Tools/CISupport/safer-cpp-llvm-version', 'Tools/CISupport/safer-cpp-swift-version']
+        self.setup_step(CheckChangeRelevance())
+        self.setProperty('buildername', 'Safer-CPP-Checks-EWS')
+        self.setProperty('github.number', 1234)
+        for file_name in file_names:
+            CheckChangeRelevance._get_patch = lambda x: file_name
+            self.expect_outcome(result=SUCCESS, state_string='Pull request contains relevant changes')
+            rc = self.run_step()
+        return rc
+
+    @expectedFailure
     def test_relevant_bindings_tests_patch(self):
         file_names = ['Source/WebCore', 'Tools']
         self.setup_step(CheckChangeRelevance())
@@ -5649,6 +5768,40 @@ All tests successfully passed!
         self.expect_outcome(result=SUCCESS, state_string='run-api-tests-without-change')
         return self.run_step()
 
+    def test_special_characters_in_test_name(self):
+        self.setup_step(RunAPITestsWithoutChange())
+        self.setProperty('fullPlatform', 'mac-catalina')
+        self.setProperty('platform', 'mac')
+        self.setProperty('configuration', 'release')
+        self.setProperty('buildername', 'API-Tests-macOS-EWS')
+        self.setProperty('buildnumber', '11525')
+        self.setProperty('workername', 'ews155')
+        self.setProperty('first_run_failures', ['suite.test1(foo:)', 'suite.test2'])
+        self.setProperty('second_run_failures', ['suite.test1(foo:)', 'suite.test3'])
+
+        self.expectRemoteCommands(
+            ExpectShell(workdir='wkdir',
+                        log_environ=False,
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'python3 Tools/Scripts/run-api-tests --timestamps --no-build --release --verbose --json-output={self.jsonFileName} \'suite.test1(foo:)\' suite.test2 suite.test3 > logs.txt 2>&1 ; ret=$? ; grep "Ran " logs.txt ; exit $ret'],
+                        logfiles={'json': self.jsonFileName},
+                        timeout=3 * 60 * 60
+                        )
+            .log('stdio', stdout='''...
+worker/0 TestWTF.WTF_Variant.OperatorAmpersand Passed
+worker/0 TestWTF.WTF_Variant.Ref Passed
+worker/0 TestWTF.WTF_Variant.RefPtr Passed
+worker/0 TestWTF.WTF_Variant.RetainPtr Passed
+worker/0 TestWTF.WTF_Variant.VisitorUsingMakeVisitor Passed
+worker/0 TestWTF.WTF_Variant.VisitorUsingSwitchOn Passed
+Ran 1888 tests of 1888 with 1888 successful
+------------------------------
+All tests successfully passed!
+''')
+            .exit(0),
+        )
+        self.expect_outcome(result=SUCCESS, state_string='run-api-tests-without-change')
+        return self.run_step()
+
     def test_one_failure(self):
         self.setup_step(RunAPITestsWithoutChange())
         self.setProperty('fullPlatform', 'mac-catalina')
@@ -5974,12 +6127,7 @@ class TestPrintConfiguration(BuildStepMixinAdditions, unittest.TestCase):
     def tearDown(self):
         return self.tear_down_test_build_step()
 
-    def test_success_mac(self):
-        self.setup_step(PrintConfiguration())
-        self.setProperty('buildername', 'macOS-Sequoia-Release-WK2-Tests-EWS')
-        self.setProperty('platform', 'mac-sequoia')
-
-        self.expectRemoteCommands(
+    mac_remote_commands = [
             ExpectShell(command=['hostname'], workdir='wkdir', timeout=60, log_environ=False).exit(0)
             .log('stdio', stdout='ews150.apple.com'),
             ExpectShell(command=['df', '-hl'], workdir='wkdir', timeout=60, log_environ=False).exit(0)
@@ -5990,39 +6138,35 @@ class TestPrintConfiguration(BuildStepMixinAdditions, unittest.TestCase):
             ExpectShell(command=['date'], workdir='wkdir', timeout=60, log_environ=False).exit(0)
             .log('stdio', stdout='Tue Apr  9 15:30:52 PDT 2019'),
             ExpectShell(command=['sw_vers'], workdir='wkdir', timeout=60, log_environ=False).exit(0)
-            .log('stdio', stdout='''ProductName:	macOS
-ProductVersion:	15.0
-BuildVersion:	24A335'''),
+            .log('stdio', stdout='''\
+ProductName:		macOS
+ProductVersion:		15.7.3
+BuildVersion:		24G419
+'''),
             ExpectShell(command=['system_profiler', 'SPSoftwareDataType', 'SPHardwareDataType'], workdir='wkdir', timeout=60, log_environ=False).exit(0)
             .log('stdio', stdout='Configuration version: Software: System Software Overview: System Version: macOS 11.4 (20F71) Kernel Version: Darwin 20.5.0 Boot Volume: Macintosh HD Boot Mode: Normal Computer Name: bot1020 User Name: WebKit Build Worker (buildbot) Secure Virtual Memory: Enabled System Integrity Protection: Enabled Time since boot: 27 seconds Hardware: Hardware Overview: Model Name: Mac mini Model Identifier: Macmini8,1 Processor Name: 6-Core Intel Core i7 Processor Speed: 3.2 GHz Number of Processors: 1 Total Number of Cores: 6 L2 Cache (per Core): 256 KB L3 Cache: 12 MB Hyper-Threading Technology: Enabled Memory: 32 GB System Firmware Version: 1554.120.19.0.0 (iBridge: 18.16.14663.0.0,0) Serial Number (system): C07DXXXXXXXX Hardware UUID: F724DE6E-706A-5A54-8D16-000000000000 Provisioning UDID: E724DE6E-006A-5A54-8D16-000000000000 Activation Lock Status: Disabled Xcode 12.5 Build version 12E262'),
             ExpectShell(command=['cat', '/usr/share/zoneinfo/+VERSION'], workdir='wkdir', timeout=60, log_environ=False).exit(0),
             ExpectShell(command=['xcodebuild', '-sdk', '-version'], workdir='wkdir', timeout=60, log_environ=False)
-            .log('stdio', stdout='''MacOSX15.sdk - macOS 15.0 (macosx15.0)
-SDKVersion: 15.0
-Path: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.sdk
-PlatformVersion: 15.0
+            .log('stdio', stdout='''\
+MacOSX26.2.sdk - macOS 26.2 (macosx26.2)
+SDKVersion: 26.2
+Path: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk
+PlatformVersion: 26.2
 PlatformPath: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform
-BuildID: E7931D9A-726E-11EF-B57C-DCEFEEF80074
-ProductBuildVersion: 24A336
-ProductCopyright: 1983-2024 Apple Inc.
+BuildID: 05A94E40-D000-11F0-8431-777054EDFE1B
+ProductBuildVersion: 25C57
+ProductCopyright: 1983-2025 Apple Inc.
 ProductName: macOS
-ProductUserVisibleVersion: 15.0
-ProductVersion: 15.0
-iOSSupportVersion: 18.0
+ProductUserVisibleVersion: 26.2
+ProductVersion: 26.2
+iOSSupportVersion: 26.2
 
-Xcode 16.0
-Build version 16A242d''')
+Xcode 26.2
+Build version 17C52''')
             .exit(0),
-        )
-        self.expect_outcome(result=SUCCESS, state_string='OS: Sequoia (15.0), Xcode: 16.0')
-        return self.run_step()
+    ]
 
-    def test_success_ios_simulator(self):
-        self.setup_step(PrintConfiguration())
-        self.setProperty('buildername', 'Apple-iOS-17-Simulator-Release-WK2-Tests')
-        self.setProperty('platform', 'ios-simulator-17')
-
-        self.expectRemoteCommands(
+    ios_remote_commands = [
             ExpectShell(command=['hostname'], workdir='wkdir', timeout=60, log_environ=False).exit(0)
             .log('stdio', stdout='ews152.apple.com'),
             ExpectShell(command=['df', '-hl'], workdir='wkdir', timeout=60, log_environ=False).exit(0)
@@ -6054,9 +6198,70 @@ ProductVersion: 17.5
 Xcode 15.4
 Build version 15F31d''')
             .exit(0),
-        )
+    ]
+
+    def test_success_mac(self):
+        self.setup_step(PrintConfiguration())
+        self.setProperty('buildername', 'macOS-Sequoia-Release-WK2-Tests-EWS')
+        self.setProperty('platform', 'mac-sequoia')
+
+        self.expectRemoteCommands(*self.mac_remote_commands)
+        self.expect_outcome(result=SUCCESS, state_string='OS: Sequoia (15.7.3), Xcode: 26.2')
+        return self.run_step()
+
+    @defer.inlineCallbacks
+    def test_failure_deployment_target_different_major_version(self):
+        self.setup_step(PrintConfiguration())
+        self.setProperty('buildername', 'macOS-Sequoia-Release-WK2-Tests')
+        self.setProperty('platform', 'mac-sequoia')
+        self.setProperty('deployment_target_builder', '14.0')
+
+        self.expectRemoteCommands(*self.mac_remote_commands)
+
+        # Configuration step will have completed successfully but stopped the
+        # build with a cancellation text.
+        self.expect_outcome(result=SUCCESS, state_string='OS: Sequoia (15.7.3), Xcode: 26.2')
+        rc = yield self.run_step()
+        self.assertEqual(self.build.results, FAILURE)
+        self.assertIn('Error: Builder deploys to 14.0, but this machine is running 15.7.3', self.build.text)
+        return rc
+
+    def test_success_deployment_target_earlier_minor_release(self):
+        self.setup_step(PrintConfiguration())
+        self.setProperty('buildername', 'macOS-Sequoia-Release-WK2-Tests')
+        self.setProperty('platform', 'mac-sequoia')
+        self.setProperty('deployment_target_builder', '15.4')
+
+        self.expectRemoteCommands(*self.mac_remote_commands)
+        self.expect_outcome(result=SUCCESS, state_string='OS: Sequoia (15.7.3), Xcode: 26.2')
+        return self.run_step()
+
+    def test_success_ios_simulator(self):
+        self.setup_step(PrintConfiguration())
+        self.setProperty('buildername', 'Apple-iOS-17-Simulator-Release-WK2-Tests')
+        self.setProperty('platform', 'ios-simulator-17')
+
+        self.expectRemoteCommands(*self.ios_remote_commands)
         self.expect_outcome(result=SUCCESS, state_string='OS: Sonoma (14.5), Xcode: 15.4')
         return self.run_step()
+
+    @defer.inlineCallbacks
+    def test_failure_ios_version_mismatch(self):
+        self.setup_step(PrintConfiguration())
+        self.setProperty('buildername', 'Apple-iOS-17-Simulator-Release-WK2-Tests')
+        self.setProperty('platform', 'ios-simulator-17')
+        self.setProperty('os_version_builder', '26.0')
+        self.setProperty('xcode_version_builder', '26.0')
+
+        self.expectRemoteCommands(*self.ios_remote_commands)
+
+        # Configuration step will have completed successfully but stopped the
+        # build with a cancellation text.
+        self.expect_outcome(result=SUCCESS, state_string='OS: Sonoma (14.5), Xcode: 15.4')
+        rc = yield self.run_step()
+        self.assertEqual(self.build.results, FAILURE)
+        self.assertIn('Error: OS/SDK version mismatch, please inform an admin.', self.build.text)
+        return rc
 
     def test_success_webkitpy(self):
         self.setup_step(PrintConfiguration())
@@ -7307,6 +7512,49 @@ class TestDetermineLabelOwner(BuildStepMixinAdditions, unittest.TestCase):
         GitHubMixin.query_graph_ql = lambda self, query: response
         self.expect_outcome(result=FAILURE, state_string="Unable to determine owner of PR 17518\n")
         self.run_step()
+
+    @classmethod
+    def mock_sleep(cls):
+        return patch('twisted.internet.task.deferLater', lambda *_, **__: None)
+
+    @defer.inlineCallbacks
+    def test_github_api_returns_none(self):
+        with self.mock_sleep():
+            self.setup_step(DetermineLabelOwner())
+            self.setProperty('github.number', 17518)
+            self.setProperty('buildername', 'Merge-Queue')
+            GitHubMixin.query_graph_ql = lambda self, query: None
+            next_steps = []
+            self.patch(self.build, 'addStepsAfterCurrentStep', lambda s: next_steps.extend(s))
+            self.expect_outcome(result=FAILURE, state_string='Unable to determine owner of PR 17518\n')
+            yield self.run_step()
+            self.assertTrue(any(isinstance(step, RemoveLabelsFromPullRequest) for step in next_steps))
+
+    @defer.inlineCallbacks
+    def test_github_api_returns_false(self):
+        with self.mock_sleep():
+            self.setup_step(DetermineLabelOwner())
+            self.setProperty('github.number', 17518)
+            self.setProperty('buildername', 'Merge-Queue')
+            GitHubMixin.query_graph_ql = lambda self, query: False
+            next_steps = []
+            self.patch(self.build, 'addStepsAfterCurrentStep', lambda s: next_steps.extend(s))
+            self.expect_outcome(result=FAILURE, state_string='Unable to determine owner of PR 17518\n')
+            yield self.run_step()
+            self.assertTrue(any(isinstance(step, RemoveLabelsFromPullRequest) for step in next_steps))
+
+    @defer.inlineCallbacks
+    def test_graphql_errors_response(self):
+        with self.mock_sleep():
+            self.setup_step(DetermineLabelOwner())
+            self.setProperty('github.number', 17518)
+            self.setProperty('buildername', 'Merge-Queue')
+            GitHubMixin.query_graph_ql = lambda self, query: {'errors': [{'message': 'API rate limit exceeded'}]}
+            next_steps = []
+            self.patch(self.build, 'addStepsAfterCurrentStep', lambda s: next_steps.extend(s))
+            self.expect_outcome(result=FAILURE, state_string='Unable to determine owner of PR 17518\n')
+            yield self.run_step()
+            self.assertTrue(any(isinstance(step, RemoveLabelsFromPullRequest) for step in next_steps))
 
 
 class TestDetermineLandedIdentifier(BuildStepMixinAdditions, unittest.TestCase):
@@ -9523,6 +9771,7 @@ class TestBuildSwift(BuildStepMixinAdditions, unittest.TestCase):
         self.setup_step(BuildSwift())
         self.setProperty('archForUpload', 'arm64')
         self.setProperty('builddir', 'webkit')
+        self.setProperty('fullPlatform', 'mac-tahoe')
         self.setProperty('canonical_swift_tag', 'swift-6.0.3-RELEASE')
 
     def expectedShellCommand(self):
@@ -9676,7 +9925,7 @@ class TestBuildSwift(BuildStepMixinAdditions, unittest.TestCase):
 
 class TestScanBuild(BuildStepMixinAdditions, unittest.TestCase):
     WORK_DIR = 'wkdir'
-    EXPECTED_BUILD_COMMAND = ['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'Tools/Scripts/build-and-analyze --output-dir wkdir/build/{SCAN_BUILD_OUTPUT_DIR} --configuration release --only-smart-pointers --analyzer-path=wkdir/llvm-project/build/bin/clang --preprocessor-additions=CLANG_WEBKIT_BRANCH=1 --scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=macosx 2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt']
+    EXPECTED_BUILD_COMMAND = ['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'Tools/Scripts/build-and-analyze --output-dir wkdir/build/{SCAN_BUILD_OUTPUT_DIR} --configuration release --only-smart-pointers --toolchains=org.webkit.swift --swift-conditions=SWIFT_WEBKIT_TOOLCHAIN --scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=macosx 2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt']
     EXPECTED_IOS_BUILD_COMMAND = ['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'Tools/Scripts/build-and-analyze --output-dir wkdir/build/{SCAN_BUILD_OUTPUT_DIR} --configuration release --only-smart-pointers --toolchains=org.webkit.swift --swift-conditions=SWIFT_WEBKIT_TOOLCHAIN --scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=iphonesimulator 2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt']
 
     def setUp(self):
@@ -9689,7 +9938,7 @@ class TestScanBuild(BuildStepMixinAdditions, unittest.TestCase):
         self.setup_step(ScanBuild())
         self.setProperty('configuration', 'release')
         self.setProperty('builddir', self.WORK_DIR)
-        self.setProperty('fullPlatform', 'mac')
+        self.setProperty('fullPlatform', 'mac-tahoe')
         self.setProperty('architecture', 'arm64')
 
     @expectedFailure
@@ -9712,7 +9961,7 @@ class TestScanBuild(BuildStepMixinAdditions, unittest.TestCase):
         self.expect_outcome(result=FAILURE, state_string='Failed to build and analyze WebKit')
         rc = self.run_step()
         expected_steps = [
-            GenerateS3URL('mac-arm64-release-scan-build', extension='txt', content_type='text/plain'),
+            GenerateS3URL('mac-tahoe-arm64-release-scan-build', extension='txt', content_type='text/plain'),
             UploadFileToS3('build-log.txt', links={'scan-build': 'Full build log'}, content_type='text/plain'),
             ValidateChange(verifyBugClosed=False, addURLs=False),
             RevertAppliedChanges(exclude=['new*', 'scan-build-output*']),
@@ -9803,7 +10052,7 @@ class TestScanBuild(BuildStepMixinAdditions, unittest.TestCase):
 
 class TestScanBuildWithoutChange(BuildStepMixinAdditions, unittest.TestCase):
     WORK_DIR = 'wkdir'
-    EXPECTED_BUILD_COMMAND = ['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'Tools/Scripts/build-and-analyze --output-dir wkdir/build/{SCAN_BUILD_OUTPUT_DIR}-baseline --configuration release --only-smart-pointers --analyzer-path=wkdir/llvm-project/build/bin/clang --preprocessor-additions=CLANG_WEBKIT_BRANCH=1 --scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=macosx 2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt']
+    EXPECTED_BUILD_COMMAND = ['/bin/bash', '--posix', '-o', 'pipefail', '-c', f'Tools/Scripts/build-and-analyze --output-dir wkdir/build/{SCAN_BUILD_OUTPUT_DIR}-baseline --configuration release --only-smart-pointers --toolchains=org.webkit.swift --swift-conditions=SWIFT_WEBKIT_TOOLCHAIN --scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=macosx 2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt']
 
     def setUp(self):
         self.maxDiff = None
@@ -9817,7 +10066,7 @@ class TestScanBuildWithoutChange(BuildStepMixinAdditions, unittest.TestCase):
         self.setup_step(ScanBuildWithoutChange(analyze_safercpp_results=analyze_safercpp_results))
         self.setProperty('configuration', 'release')
         self.setProperty('builddir', self.WORK_DIR)
-        self.setProperty('fullPlatform', 'mac')
+        self.setProperty('fullPlatform', 'mac-tahoe')
         self.setProperty('architecture', 'arm64')
 
     @expectedFailure
@@ -9840,7 +10089,7 @@ class TestScanBuildWithoutChange(BuildStepMixinAdditions, unittest.TestCase):
         self.expect_outcome(result=FAILURE, state_string='Failed to build and analyze WebKit')
         rc = self.run_step()
         expected_steps = [
-            GenerateS3URL('mac-arm64-release-scan-build-without-change', extension='txt', content_type='text/plain'),
+            GenerateS3URL('mac-tahoe-arm64-release-scan-build-without-change', extension='txt', content_type='text/plain'),
             UploadFileToS3('build-log.txt', links={'scan-build-without-change': 'Full build log'}, content_type='text/plain'),
         ]
         self.assertEqual(expected_steps, next_steps)
@@ -10179,6 +10428,7 @@ class TestFindUnexpectedStaticAnalyzerResults(BuildStepMixinAdditions, unittest.
     def test_changed_expectations_no_match(self):
         self.configureStep(True)
         FindUnexpectedStaticAnalyzerResults.decode_results_data = lambda self: {'passes': {'WebCore': {'NoUncountedMemberChecker': ['css/ShorthandSerializer.cpp']}}, 'failures': {'WebCore': {'NoUncountedMemberChecker': ['inspector/agents/worker/WorkerWorkerAgent.h']}}}
+        FindUnexpectedStaticAnalyzerResults.filter_results_using_results_db = lambda self, logText: False
         self.setProperty('user_removed_tests', [])
         self.setProperty('user_added_tests', ['WebCore/css/ShorthandSerializer.cpp/NoUncountedMemberChecker'])
         next_steps = []
@@ -10350,7 +10600,9 @@ class TestGenerateSaferCPPResultsIndex(BuildStepMixinAdditions, unittest.TestCas
 
 
 class TestDisplaySaferCPPResults(BuildStepMixinAdditions, unittest.TestCase):
-    HEADER = '### Safer C++ Build [#123](http://localhost:8080/#/builders/1/builds/13) (https://github.com/WebKit/WebKit/commit/7e4dc83588490a785f71acac4724e4e43a705077)\n'
+    HEADER = 'Safer C++ Build [#123](http://localhost:8080/#/builders/1/builds/13) (https://github.com/WebKit/WebKit/commit/7e4dc83588490a785f71acac4724e4e43a705077)\n'
+    IOS_HEADER = '### iOS ' + HEADER
+    MACOS_HEADER = '### macOS ' + HEADER
 
     def setUp(self):
         return self.setup_test_build_step()
@@ -10408,12 +10660,29 @@ class TestDisplaySaferCPPResults(BuildStepMixinAdditions, unittest.TestCase):
 
         self.expect_outcome(result=SUCCESS, state_string='Ignored 10 pre-existing failures')
         rc = self.run_step()
-        self.expect_property('build_summary', 'Ignored 10 pre-existing failures')
-        self.expect_property('comment_text', None)
+        self.assertEqual(self.getProperty('build_summary'), 'Ignored 10 pre-existing failures')
+        self.assertEqual(self.getProperty('comment_text'), None)
         self.assertEqual([], next_steps)
         return rc
 
     def test_success_only_fixes(self):
+        self.configureStep()
+        self.setProperty('num_passing_files', 1)
+        self.setProperty('platform', 'ios')
+        next_steps = []
+        self.patch(self.build, 'addStepsAfterCurrentStep', lambda s: next_steps.extend(s))
+
+        self.expect_outcome(result=SUCCESS, state_string='Found 1 fixed file: File17.cpp')
+        rc = self.run_step()
+        self.assertEqual(self.getProperty('passes'), ['File17.cpp'])
+        expected_comment = self.IOS_HEADER + "\n:warning: Found 1 fixed file! Please update expectations in `Source/[Project]/SaferCPPExpectations` by running the following command and update your pull request:\n"
+        expected_comment += "- `Tools/Scripts/update-safer-cpp-expectations -p WebKit --RefCntblBaseVirtualDtor File17.cpp --platform iOS`"
+        self.assertEqual(self.getProperty('build_summary'), 'Found 1 fixed file: File17.cpp')
+        self.assertEqual(self.getProperty('comment_text'), expected_comment)
+        self.assertEqual([LeaveComment(), BlockPullRequest(), SetBuildSummary()], next_steps)
+        return rc
+
+    def test_success_no_platform(self):
         self.configureStep()
         self.setProperty('num_passing_files', 1)
         next_steps = []
@@ -10421,28 +10690,30 @@ class TestDisplaySaferCPPResults(BuildStepMixinAdditions, unittest.TestCase):
 
         self.expect_outcome(result=SUCCESS, state_string='Found 1 fixed file: File17.cpp')
         rc = self.run_step()
-        self.expect_property('passes', ['File17.cpp'])
-        expected_comment = self.HEADER + "\n:warning: Found 1 fixed file! Please update expectations in `Source/[Project]/SaferCPPExpectations` by running the following command and update your pull request:\n"
+        self.assertEqual(self.getProperty('passes'), ['File17.cpp'])
+        expected_comment = '###  ' + self.HEADER + "\n:warning: Found 1 fixed file! Please update expectations in `Source/[Project]/SaferCPPExpectations` by running the following command and update your pull request:\n"
         expected_comment += "- `Tools/Scripts/update-safer-cpp-expectations -p WebKit --RefCntblBaseVirtualDtor File17.cpp`"
-        self.expect_property('comment_text', expected_comment)
-        self.expect_property('build_summary', 'Found 1 fixed file: File17.cpp')
-        self.assertEqual([LeaveComment(), SetBuildSummary()], next_steps)
+        expected_comment += '\nUnable to find associated platform. See build for details.'
+        self.assertEqual(self.getProperty('build_summary'), 'Found 1 fixed file: File17.cpp')
+        self.assertEqual(self.getProperty('comment_text'), expected_comment)
+        self.assertEqual([LeaveComment(), BlockPullRequest(), SetBuildSummary()], next_steps)
         return rc
 
     def test_failure_new_failures(self):
         self.configureStep()
         self.setProperty('num_unexpected_issues', 10)
         self.setProperty('num_failing_files', 1)
+        self.setProperty('platform', 'mac')
         next_steps = []
         self.patch(self.build, 'addStepsAfterCurrentStep', lambda s: next_steps.extend(s))
 
         self.expect_outcome(result=FAILURE, state_string='Found 10 new failures in File1.cpp')
         rc = self.run_step()
-        expected_comment = self.HEADER + ":x: Found [1 failing file with 10 issues](https://ews-build.s3-us-west-2.amazonaws.com/None/None-123/scan-build-output/new-results.html). "
+        expected_comment = self.MACOS_HEADER + ":x: Found [1 failing file with 10 issues](https://ews-build.s3-us-west-2.amazonaws.com/None/None-123/scan-build-output/new-results.html). "
         expected_comment += "Please address these issues before landing. See [WebKit Guidelines for Safer C++ Programming](https://github.com/WebKit/WebKit/wiki/Safer-CPP-Guidelines).\n(cc @rniwa)\n"
-        self.expect_property('comment_text', expected_comment)
-        self.expect_property('build_finish_summary', 'Found 10 new failures in File1.cpp')
-        self.assertEqual([LeaveComment(), SetBuildSummary()], next_steps)
+        self.assertEqual(self.getProperty('comment_text'), expected_comment)
+        self.assertEqual(self.getProperty('build_finish_summary'), 'Found 10 new failures in File1.cpp')
+        self.assertEqual([LeaveComment(), BlockPullRequest(), SetBuildSummary()], next_steps)
         return rc
 
     def test_failure_mixed(self):
@@ -10450,18 +10721,19 @@ class TestDisplaySaferCPPResults(BuildStepMixinAdditions, unittest.TestCase):
         self.setProperty('num_unexpected_issues', 10)
         self.setProperty('num_passing_files', 1)
         self.setProperty('num_failing_files', 1)
+        self.setProperty('platform', 'mac')
         next_steps = []
         self.patch(self.build, 'addStepsAfterCurrentStep', lambda s: next_steps.extend(s))
 
         self.expect_outcome(result=FAILURE, state_string='Found 10 new failures in File1.cpp and found 1 fixed file: File17.cpp')
         rc = self.run_step()
-        expected_comment = self.HEADER + ":x: Found [1 failing file with 10 issues](https://ews-build.s3-us-west-2.amazonaws.com/None/None-123/scan-build-output/new-results.html). "
+        expected_comment = self.MACOS_HEADER + ":x: Found [1 failing file with 10 issues](https://ews-build.s3-us-west-2.amazonaws.com/None/None-123/scan-build-output/new-results.html). "
         expected_comment += "Please address these issues before landing. See [WebKit Guidelines for Safer C++ Programming](https://github.com/WebKit/WebKit/wiki/Safer-CPP-Guidelines).\n(cc @rniwa)\n"
         expected_comment += "\n:warning: Found 1 fixed file! Please update expectations in `Source/[Project]/SaferCPPExpectations` by running the following command and update your pull request:\n"
-        expected_comment += '- `Tools/Scripts/update-safer-cpp-expectations -p WebKit --RefCntblBaseVirtualDtor File17.cpp`'
-        self.expect_property('comment_text', expected_comment)
-        self.expect_property('build_finish_summary', 'Found 10 new failures in File1.cpp')
-        self.assertEqual([LeaveComment(), SetBuildSummary()], next_steps)
+        expected_comment += '- `Tools/Scripts/update-safer-cpp-expectations -p WebKit --RefCntblBaseVirtualDtor File17.cpp --platform macOS`'
+        self.assertEqual(self.getProperty('comment_text'), expected_comment)
+        self.assertEqual(self.getProperty('build_finish_summary'), 'Found 10 new failures in File1.cpp')
+        self.assertEqual([LeaveComment(), BlockPullRequest(), SetBuildSummary()], next_steps)
 
 
 class TestCheckParentBuildStatus(BuildStepMixinAdditions, unittest.TestCase):
@@ -10590,8 +10862,7 @@ class TestTrigger(BuildStepMixinAdditions, unittest.TestCase):
         self.assertIn('architecture', props)
         self.assertIn('codebase', props)
         self.assertIn('retry_count', props)
-        self.assertIn('os_version_builder', props)
-        self.assertIn('xcode_version_builder', props)
+        self.assertIn('deployment_target_builder', props)
         self.assertIn('ews_revision', props)
         self.assertIn('parent_buildnumber', props)
         self.assertIn('parent_builderid', props)

@@ -1,5 +1,7 @@
-PASS clickError is ""
-PASS clickCount.textContent is "1"
+PASS firstClickError is ""
+PASS secondClickError is ""
+PASS clickCount1.textContent is "1"
+PASS clickCount2.textContent is "1"
 PASS textInputError is ""
 PASS textField.value is "bar"
 PASS selectMenuItemError is ""
@@ -24,11 +26,15 @@ PASS disabledSelect.value is "Beta"
 PASS successfullyParsed is true
 
 TEST COMPLETE
-Test  Disabled
+Test
+1
+
+Disabled
 Subject
 
 Hello world.
 
+Hello World: more options  Hello World
 1
 
 Foo bar

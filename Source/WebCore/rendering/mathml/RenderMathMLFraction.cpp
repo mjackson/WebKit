@@ -30,6 +30,7 @@
 
 #if ENABLE(MATHML)
 
+#include "FontCascadeInlines.h"
 #include "GraphicsContext.h"
 #include "MathMLFractionElement.h"
 #include "PaintInfo.h"
@@ -293,16 +294,18 @@ void RenderMathMLFraction::paint(PaintInfo& info, const LayoutPoint& paintOffset
         return;
 
     LayoutUnit borderAndPaddingLeft = writingMode().isBidiLTR() ? borderAndPaddingStart() : borderAndPaddingEnd();
-    auto adjustedPaintOffset = roundPointToDevicePixels(paintOffset + location() + LayoutPoint(borderAndPaddingLeft, borderAndPaddingBefore() + fractionAscent() - mathAxisHeight()), document().deviceScaleFactor());
+    LayoutUnit barX = borderAndPaddingLeft;
+    LayoutUnit barY = borderAndPaddingBefore() + fractionAscent() - mathAxisHeight() - thickness / 2;
+    LayoutUnit barWidth = logicalWidth() - borderAndPaddingLogicalWidth();
+
+    auto barOrigin = roundPointToDevicePixels(paintOffset + location() + LayoutPoint(barX, barY), document().deviceScaleFactor());
+    auto barEnd = roundPointToDevicePixels(paintOffset + location() + LayoutPoint(barX + barWidth, barY + thickness), document().deviceScaleFactor());
 
     GraphicsContextStateSaver stateSaver(info.context());
 
-    info.context().setStrokeThickness(thickness);
-    info.context().setStrokeStyle(StrokeStyle::SolidStroke);
-    info.context().setStrokeColor(style().visitedDependentColorApplyingColorFilter());
     // MathML Core says the fraction bar takes the full width of the content box.
-    auto endPoint = roundPointToDevicePixels({ adjustedPaintOffset.x() + logicalWidth() - borderAndPaddingLogicalWidth(), adjustedPaintOffset.y() }, document().deviceScaleFactor());
-    info.context().drawLine(adjustedPaintOffset, endPoint);
+    info.context().setFillColor(style().visitedDependentColorApplyingColorFilter());
+    info.context().fillRect({ barOrigin, barEnd });
 }
 
 std::optional<LayoutUnit> RenderMathMLFraction::firstLineBaseline() const

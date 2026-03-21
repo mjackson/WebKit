@@ -33,6 +33,7 @@
 
 namespace WebCore {
 
+class Frame;
 class LocalFrame;
 class SecurityOrigin;
 
@@ -64,7 +65,8 @@ public:
     SecurityOriginData(WTF::HashTableDeletedValueType)
         : m_data { Tuple { WTF::HashTableDeletedValue, { }, { } } } { }
     
-    WEBCORE_EXPORT static SecurityOriginData fromFrame(LocalFrame*);
+    WEBCORE_EXPORT static SecurityOriginData fromLocalFrame(LocalFrame*);
+    WEBCORE_EXPORT static SecurityOriginData fromFrame(const Frame&);
     WEBCORE_EXPORT static SecurityOriginData fromURL(const URL&);
     WEBCORE_EXPORT static SecurityOriginData fromURLWithoutStrictOpaqueness(const URL&);
 
@@ -78,7 +80,7 @@ public:
     // FIXME <rdar://9018386>: We should be sending more state across the wire than just the protocol,
     // host, and port.
 
-    const String& protocol() const
+    const String& protocol() const LIFETIME_BOUND
     {
         return switchOn(m_data, [] (const Tuple& tuple) -> const String& {
             return tuple.protocol;
@@ -86,7 +88,7 @@ public:
             return emptyString();
         });
     }
-    const String& host() const
+    const String& host() const LIFETIME_BOUND
     {
         return switchOn(m_data, [] (const Tuple& tuple) -> const String&  {
             return tuple.host;
@@ -160,7 +162,7 @@ public:
 
     WEBCORE_EXPORT static bool shouldTreatAsOpaqueOrigin(const URL&);
     
-    const Variant<Tuple, ProcessQualified<OpaqueOriginIdentifier>>& data() const { return m_data; }
+    const Variant<Tuple, ProcessQualified<OpaqueOriginIdentifier>>& data() const LIFETIME_BOUND { return m_data; }
 private:
     Variant<Tuple, ProcessQualified<OpaqueOriginIdentifier>> m_data;
 };

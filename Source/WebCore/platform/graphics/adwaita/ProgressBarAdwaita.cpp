@@ -30,6 +30,7 @@
 
 #include "GraphicsContextStateSaver.h"
 #include "ProgressBarPart.h"
+#include <wtf/MonotonicTime.h>
 
 #if USE(THEME_ADWAITA)
 

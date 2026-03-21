@@ -93,6 +93,9 @@ void PageClientImplCocoa::underPageBackgroundColorDidChange()
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
     [webView _updateTopScrollPocketCaptureColor];
 #endif
+#if ENABLE(MANAGED_UIREFRESHCONTROL_APPEARANCE)
+    [webView _updateRefreshControlAppearance];
+#endif
 }
 
 void PageClientImplCocoa::sampledPageTopColorWillChange()

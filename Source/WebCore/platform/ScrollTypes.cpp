@@ -212,6 +212,7 @@ TextStream& operator<<(TextStream& ts, ScrollPositionChangeOptions options)
     ts.dumpProperty("animated"_s, options.animated == ScrollIsAnimated::Yes);
     ts.dumpProperty("snap point selection method"_s, options.snapPointSelectionMethod);
     ts.dumpProperty("original scroll delta"_s, options.originalScrollDelta ? *options.originalScrollDelta : FloatSize());
+    ts.dumpProperty("interrupts animation"_s, options.interruptsAnimation == ScrollInterruptsAnimation::Yes);
 
     return ts;
 }

@@ -54,10 +54,10 @@ public:
 
     WebCore::RectEdges<bool> offsetEdges() const { return m_info.offsetEdges; }
 
-    const WTF::String& renderedText() const { return m_info.renderedText; }
-    const WTF::String& searchableText() const { return m_info.searchableText; }
-    const WTF::String& screenReaderText() const { return m_info.screenReaderText; }
-    const Vector<Vector<WTF::String>>& selectors() const { return m_info.selectors; }
+    const WTF::String& renderedText() const LIFETIME_BOUND { return m_info.renderedText; }
+    const WTF::String& searchableText() const LIFETIME_BOUND { return m_info.searchableText; }
+    const WTF::String& screenReaderText() const LIFETIME_BOUND { return m_info.screenReaderText; }
+    const Vector<Vector<WTF::String>>& selectors() const LIFETIME_BOUND { return m_info.selectors; }
     WebCore::PositionType positionType() const { return m_info.positionType; }
     WebCore::FloatRect boundsInRootView() const { return m_info.boundsInRootView; }
     WebCore::FloatRect boundsInWebView() const;
@@ -70,7 +70,7 @@ public:
     bool hasLargeReplacedDescendant() const { return m_info.hasLargeReplacedDescendant; }
     bool hasAudibleMedia() const { return m_info.hasAudibleMedia; }
 
-    const HashSet<WTF::URL>& mediaAndLinkURLs() const { return m_info.mediaAndLinkURLs; }
+    const HashSet<WTF::URL>& mediaAndLinkURLs() const LIFETIME_BOUND { return m_info.mediaAndLinkURLs; }
 
     void childFrames(CompletionHandler<void(Vector<Ref<FrameTreeNode>>&&)>&&) const;
 

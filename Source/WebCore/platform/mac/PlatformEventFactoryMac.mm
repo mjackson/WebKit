@@ -46,7 +46,7 @@ namespace WebCore {
 
 NSPoint globalPoint(const NSPoint& windowPoint, NSWindow *window)
 {
-    return flipScreenPoint([window convertPointToScreen:windowPoint], protectedScreen(window).get());
+    return flipScreenPoint([window convertPointToScreen:windowPoint], protect(screen(window)).get());
 }
 
 NSPoint globalPointForEvent(NSEvent *event)
@@ -206,7 +206,7 @@ int clickCountForEvent(NSEvent *event)
     }
 }
 
-static PlatformWheelEventPhase phaseFromNSEventPhase(NSEventPhase eventPhase)
+static PlatformWheelEventPhase NODELETE phaseFromNSEventPhase(NSEventPhase eventPhase)
 {
     switch (eventPhase) {
     case NSEventPhaseNone:

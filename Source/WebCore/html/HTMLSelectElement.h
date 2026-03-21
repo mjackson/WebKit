@@ -101,7 +101,7 @@ public:
     void setRecalcListItems();
     void updateListItemSelectedStates(AllowStyleInvalidation = AllowStyleInvalidation::Yes);
 
-    WEBCORE_EXPORT const Vector<WeakPtr<HTMLElement, WeakPtrImplWithEventTargetData>>& listItems() const;
+    WEBCORE_EXPORT const Vector<WeakPtr<HTMLElement, WeakPtrImplWithEventTargetData>>& listItems() const LIFETIME_BOUND;
 
     void accessKeySetSelectedIndex(int);
 
@@ -194,7 +194,7 @@ public:
     };
     NavigationKeyIdentifiers pickerNavigationKeyIdentifiers() const;
     int computeNavigationIndex(const String& keyIdentifier, int currentListIndex, NavigationKeyIdentifiers) const;
-    void focusOptionAtIndex(int listIndex);
+    void focusOptionAtIndex(int listIndex, std::optional<bool> focusVisible = std::nullopt);
     int typeAheadMatchIndex(KeyboardEvent&);
 
 protected:
@@ -206,7 +206,7 @@ private:
     int defaultTabIndex() const final;
     bool isKeyboardFocusable(const FocusEventData&) const final;
     bool isMouseFocusable() const final;
-    bool hasCustomFocusLogic() const final { return true; }
+    bool NODELETE hasCustomFocusLogic() const final { return true; }
 
     void dispatchFocusEvent(RefPtr<Element>&& oldFocusedElement, const FocusOptions&) final;
     void dispatchBlurEvent(RefPtr<Element>&& newFocusedElement) final;
@@ -244,8 +244,8 @@ private:
     void typeAheadFind(KeyboardEvent&);
     void saveLastSelection();
 
-    bool isOptionalFormControl() const final { return !isRequiredFormControl(); }
-    bool isRequiredFormControl() const final;
+    bool NODELETE isOptionalFormControl() const final { return !isRequiredFormControl(); }
+    bool NODELETE isRequiredFormControl() const final;
 
     bool hasPlaceholderLabelOption() const;
 
@@ -281,7 +281,7 @@ private:
     void didAddUserAgentShadowRoot(ShadowRoot&) final;
 
     void showPickerInternal();
-    void openPickerForUserInteraction();
+    void openPickerForUserInteraction(std::optional<bool> focusVisible = std::nullopt);
 
     // TypeAheadDataSource functions.
     int indexOfSelectedOption() const final;

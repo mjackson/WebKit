@@ -59,8 +59,8 @@
 #include <wtf/OptionSet.h>
 #include <wtf/Ref.h>
 #include <wtf/RefPtr.h>
-#include <wtf/RetainReleaseSwift.h>
 #include <wtf/RunLoop.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/ThreadAssertions.h>
 #include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/ThreadSafetyAnalysis.h>
@@ -555,6 +555,10 @@ public:
     static bool NODELETE shouldCrashOnMessageCheckFailure();
     static void NODELETE setShouldCrashOnMessageCheckFailure(bool);
 
+#if PLATFORM(COCOA)
+    static void NODELETE setForceUseSharedMemoryForSendingForTesting(bool);
+#endif
+
 #if ENABLE(IPC_TESTING_API)
     bool hasErrorString() const { return !m_errorString.isNull(); }
     void setErrorString(ASCIILiteral error)
@@ -608,7 +612,7 @@ private:
     void processIncomingSyncReply(UniqueRef<Decoder>);
 
     bool canSendOutgoingMessages() const;
-    bool platformCanSendOutgoingMessages() const;
+    bool NODELETE platformCanSendOutgoingMessages() const;
     void sendOutgoingMessages();
     bool sendOutgoingMessage(UniqueRef<Encoder>&&);
     void connectionDidClose();
@@ -627,12 +631,15 @@ private:
     size_t incomingMessagesDispatchingBatchSize() const;
     CompletionHandler<void(Connection*, std::unique_ptr<Decoder>&&)> takeAsyncReplyHandlerWithDispatcherWithLockHeld(AsyncReplyID);
 
-    Timeout timeoutRespectingIgnoreTimeoutsForTesting(Timeout) const;
+    Timeout NODELETE timeoutRespectingIgnoreTimeoutsForTesting(Timeout) const;
 
     Error sendMessageImpl(UniqueRef<Encoder>&&, OptionSet<SendOption> sendOptions, std::optional<Thread::QOS> = std::nullopt);
 
 #if PLATFORM(COCOA)
-    bool sendMessage(std::unique_ptr<MachMessage>);
+    enum class SendMessageResult : uint8_t { Success, Failure, MessageTooLarge };
+    enum class IsRetryDueToLargeSize : bool { No, Yes };
+    SendMessageResult sendMessage(std::unique_ptr<MachMessage>&, IsRetryDueToLargeSize = IsRetryDueToLargeSize::No);
+    bool retrySendMessageWithSharedMemory(std::unique_ptr<MachMessage> failedMessage, UniqueRef<Encoder>&);
 #endif
     template<typename F>
     void dispatchToClient(F&& clientRunLoopTask) WTF_EXCLUDES_LOCK(m_incomingMessagesLock);
@@ -822,7 +829,7 @@ private:
         void open(Function<void()>&&);
         void close();
 
-        OVERLAPPED& state() { return m_state; }
+        OVERLAPPED& state() LIFETIME_BOUND { return m_state; }
 
     private:
         static void WINAPI callback(void*, BOOLEAN);
@@ -1156,10 +1163,10 @@ inline void markCurrentlyDispatchedMessageAsInvalid(const RefPtr<Connection>& co
 
 inline void refConnection(IPC::Connection* WTF_NONNULL obj)
 {
-    WTF::ref(obj);
+    obj->ref();
 }
 
 inline void derefConnection(IPC::Connection* WTF_NONNULL obj)
 {
-    WTF::deref(obj);
+    obj->deref();
 }

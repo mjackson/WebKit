@@ -31,6 +31,7 @@
 #include "config.h"
 #include "CSSToLengthConversionData.h"
 
+#include "DocumentView.h"
 #include "FloatSize.h"
 #include "RenderStyle+GettersInlines.h"
 #include "RenderView.h"
@@ -83,15 +84,6 @@ const FontCascade& CSSToLengthConversionData::fontCascadeForFontUnits() const
     return style()->fontCascade();
 }
 
-float CSSToLengthConversionData::computedLineHeightForFontUnits() const
-{
-    if (computingFontSize()) {
-        ASSERT(parentStyle());
-        return parentStyle()->computedLineHeight();
-    }
-    ASSERT(style());
-    return style()->computedLineHeight();
-}
 
 float CSSToLengthConversionData::zoom() const
 {
@@ -151,7 +143,7 @@ void CSSToLengthConversionData::setUsesContainerUnits() const
 bool CSSToLengthConversionData::evaluationTimeZoomEnabled() const
 {
     ASSERT(m_style);
-    return CheckedPtr { m_style }->evaluationTimeZoomEnabled();
+    return m_style->evaluationTimeZoomEnabled();
 }
 
 } // namespace WebCore

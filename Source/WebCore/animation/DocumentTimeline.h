@@ -25,10 +25,10 @@
 
 #pragma once
 
-#include <WebCore/AnimationFrameRate.h>
-#include <WebCore/AnimationTimeline.h>
-#include <WebCore/DocumentTimelineOptions.h>
-#include <WebCore/Timer.h>
+#include "AnimationFrameRate.h"
+#include "AnimationTimeline.h"
+#include "DocumentTimelineOptions.h"
+#include "Timer.h"
 #include <wtf/Ref.h>
 #include <wtf/WeakPtr.h>
 
@@ -80,12 +80,12 @@ public:
     WEBCORE_EXPORT Seconds animationInterval() const;
     void suspendAnimations() override;
     void resumeAnimations() override;
-    WEBCORE_EXPORT unsigned numberOfActiveAnimationsForTesting() const;
-    WEBCORE_EXPORT unsigned numberOfAnimationTimelineInvalidationsForTesting() const;
+    WEBCORE_EXPORT unsigned NODELETE numberOfActiveAnimationsForTesting() const;
+    WEBCORE_EXPORT unsigned NODELETE numberOfAnimationTimelineInvalidationsForTesting() const;
 
-    Seconds convertTimelineTimeToOriginRelativeTime(Seconds) const;
+    Seconds NODELETE convertTimelineTimeToOriginRelativeTime(Seconds) const;
 
-    std::optional<FramesPerSecond> maximumFrameRate() const;
+    std::optional<FramesPerSecond> NODELETE maximumFrameRate() const;
 
 #if ENABLE(THREADED_ANIMATIONS)
     void scheduleAcceleratedEffectStackUpdate();

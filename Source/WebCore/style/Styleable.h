@@ -83,7 +83,7 @@ struct Styleable {
     bool isRunningAcceleratedTransformRelatedAnimation() const;
     bool hasRunningAcceleratedAnimations() const;
 
-    bool capturedInViewTransition() const;
+    bool NODELETE capturedInViewTransition() const;
     void setCapturedInViewTransition(AtomString);
 
     KeyframeEffectStack* keyframeEffectStack() const
@@ -202,7 +202,7 @@ public:
     {
         m_element = nullptr;
         m_pseudoElementIdentifier = Style::PseudoElementIdentifier();
-        m_pseudoElementIdentifier->nameArgument = name;
+        m_pseudoElementIdentifier->nameOrPart = name;
     }
 
     explicit operator bool() const { return !!m_element; }
@@ -242,7 +242,7 @@ struct WeakStyleableHashTraits : HashTraits<WeakStyleable> {
     static constexpr bool hasIsWeakNullValueFunction = true;
     static bool isWeakNullValue(const WeakStyleable& value) { return !value; }
     static void constructDeletedValue(WeakStyleable& slot) { slot = { AtomString { WTF::HashTableDeletedValue } }; }
-    static bool isDeletedValue(const WeakStyleable& value) { return !value.element() && value.pseudoElementIdentifier() && value.pseudoElementIdentifier()->nameArgument.isHashTableDeletedValue(); }
+    static bool isDeletedValue(const WeakStyleable& value) { return !value.element() && value.pseudoElementIdentifier() && value.pseudoElementIdentifier()->nameOrPart.isHashTableDeletedValue(); }
 };
 
 struct WeakStyleableHash {

@@ -32,5 +32,18 @@
 
     attribute DOMString deviceName;
     attribute boolean ready;
+    attribute boolean playing;
     attribute boolean hasPlaybackError;
+    attribute float playbackRate;
+    attribute float currentPlaybackPosition;
+    attribute MockMediaDeviceRouteTimeRange timeRange;
+};
+
+[
+    Conditional=WIRELESS_PLAYBACK_MEDIA_PLAYER,
+    JSGenerateToJSObject,
+    JSGenerateToNativeObject,
+] dictionary MockMediaDeviceRouteTimeRange {
+    required double start;
+    required double duration;
 };

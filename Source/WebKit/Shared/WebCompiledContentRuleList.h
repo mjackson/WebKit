@@ -38,7 +38,7 @@ public:
     static RefPtr<WebCompiledContentRuleList> create(WebCompiledContentRuleListData&&);
     virtual ~WebCompiledContentRuleList();
 
-    const WebCompiledContentRuleListData& data() const { return m_data; }
+    const WebCompiledContentRuleListData& data() const LIFETIME_BOUND { return m_data; }
 
 private:
     WebCompiledContentRuleList(WebCompiledContentRuleListData&&);

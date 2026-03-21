@@ -70,8 +70,6 @@ private:
     void flushProgressEvent();
     void dispatchEventWhenPossible(Event&);
 
-    Ref<XMLHttpRequest> protectedTarget();
-
     // Weak reference to our XMLHttpRequest object as it is the one holding us.
     WeakRef<XMLHttpRequest, WeakPtrImplWithEventTargetData> m_target;
 

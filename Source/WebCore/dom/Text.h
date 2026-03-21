@@ -36,7 +36,7 @@ public:
 
     static Ref<Text> create(Document& document, String&& data)
     {
-        return adoptRef(*new Text(document, WTF::move(data), TEXT_NODE, { }));
+        return adoptRef(*new Text(document, WTF::move(data), NodeType::Text, { }));
     }
     static Ref<Text> createEditingText(Document&, String&&);
 

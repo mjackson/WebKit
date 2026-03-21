@@ -44,11 +44,11 @@ public:
     void ref() const final { CharacterData::ref(); }
     void deref() const final { CharacterData::deref(); }
 
-    const String& target() const { return m_target; }
+    const String& target() const LIFETIME_BOUND { return m_target; }
 
     void setCreatedByParser(bool createdByParser) { m_createdByParser = createdByParser; }
 
-    const String& localHref() const { return m_localHref; }
+    const String& localHref() const LIFETIME_BOUND { return m_localHref; }
     StyleSheet* sheet() const { return m_sheet.get(); }
 
     bool isCSS() const { return m_isCSS; }
@@ -64,9 +64,9 @@ private:
     Ref<Node> cloneNodeInternal(Document&, CloningOperation, CustomElementRegistry*) const override;
     SerializedNode serializeNode(CloningOperation) const override;
 
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) override;
-    void didFinishInsertingNode() override;
-    void removedFromAncestor(RemovalType, ContainerNode&) override;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) override;
+    void postConnectionSteps() override;
+    void removingSteps(RemovalType, ContainerNode&) override;
 
     void checkStyleSheet();
     void setCSSStyleSheet(const String& href, const URL& baseURL, ASCIILiteral charset, const CachedCSSStyleSheet*) override;
@@ -99,5 +99,5 @@ private:
 } // namespace WebCore
 
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::ProcessingInstruction)
-    static bool isType(const WebCore::Node& node) { return node.nodeType() == WebCore::Node::PROCESSING_INSTRUCTION_NODE; }
+    static bool isType(const WebCore::Node& node) { return node.nodeType() == WebCore::NodeType::ProcessingInstruction; }
 SPECIALIZE_TYPE_TRAITS_END()

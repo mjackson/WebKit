@@ -116,7 +116,7 @@ public:
     void setVideoFullscreenFrame(const FloatRect&) final;
 
 #if ENABLE(PICTURE_IN_PICTURE_API)
-    void setPictureInPictureObserver(PictureInPictureObserver*);
+    void NODELETE setPictureInPictureObserver(PictureInPictureObserver*);
 #endif
 #endif
 
@@ -163,7 +163,7 @@ private:
     bool isVideo() const final { return true; }
     bool hasVideo() const final { return player() && protect(player())->hasVideo(); }
     bool supportsFullscreen(HTMLMediaElementEnums::VideoFullscreenMode) const final;
-    bool isURLAttribute(const Attribute&) const final;
+    bool NODELETE isURLAttribute(const Attribute&) const final;
     const AtomString& imageSourceURL() const final;
 
     void didMoveToNewDocument(Document& oldDocument, Document& newDocument) final;

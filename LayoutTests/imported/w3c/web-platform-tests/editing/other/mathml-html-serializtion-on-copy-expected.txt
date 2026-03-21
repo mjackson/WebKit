@@ -1,0 +1,14 @@
+x
++
+1
+a
+2
+b
+1
+1
+2
+x
+text	string
+
+FAIL MathML elements should preserve structure and content during copy-paste promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
+

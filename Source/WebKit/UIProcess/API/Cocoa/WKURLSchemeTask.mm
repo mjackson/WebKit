@@ -103,7 +103,7 @@ static void raiseExceptionIfNecessary(WebKit::WebURLSchemeTask::ExceptionType ex
 {
     auto function = [strongSelf = retainPtr(self), self, response = retainPtr(response), request = retainPtr(request), handler = makeBlockPtr(completionHandler)] () mutable {
         return protect(*_urlSchemeTask)->willPerformRedirection(response.get(), request.get(), [handler = WTF::move(handler)] (WebCore::ResourceRequest&& actualNewRequest) {
-            handler.get()(actualNewRequest.protectedNSURLRequest(WebCore::HTTPBodyUpdatePolicy::UpdateHTTPBody).get());
+            handler.get()(protect(actualNewRequest.nsURLRequest(WebCore::HTTPBodyUpdatePolicy::UpdateHTTPBody)).get());
         });
     };
 

@@ -196,7 +196,6 @@ add_library(Skia STATIC
     src/core/SkPathRaw.cpp
     src/core/SkPathRawShapes.cpp
     src/core/SkPathUtils.cpp
-    src/core/SkPath_pathdata.cpp
     src/core/SkPath_serial.cpp
     src/core/SkPicture.cpp
     src/core/SkPictureData.cpp
@@ -793,7 +792,6 @@ add_library(Skia STATIC
     src/opts/SkOpts_lasx.cpp
 
     src/ports/SkGlobalInitialization_default.cpp
-    src/ports/SkImageGenerator_skia.cpp
     src/ports/SkMemory_malloc.cpp
     src/ports/SkOSFile_stdio.cpp
 
@@ -808,9 +806,9 @@ add_library(Skia STATIC
 
 if (WIN32)
     target_sources(Skia PRIVATE
-        src/ports/SkDebug_win.cpp
         src/ports/SkFontHost_win.cpp
         src/ports/SkFontMgr_win_dw.cpp
+        src/ports/SkLog_win.cpp
         src/ports/SkOSFile_win.cpp
         src/ports/SkScalerContext_win_dw.cpp
         src/ports/SkTypeface_win_dw.cpp
@@ -820,7 +818,6 @@ if (WIN32)
     )
 else ()
     target_sources(Skia PRIVATE
-        src/ports/SkDebug_stdio.cpp
         src/ports/SkFontHost_FreeType.cpp
         src/ports/SkFontHost_FreeType_common.cpp
         src/ports/SkOSFile_posix.cpp
@@ -830,9 +827,9 @@ else ()
 
     if (ANDROID)
         target_sources(Skia PRIVATE
-            src/ports/SkDebug_android.cpp
             src/ports/SkFontMgr_android.cpp
             src/ports/SkFontMgr_android_parser.cpp
+            src/ports/SkLog_android.cpp
         )
         target_link_libraries(Skia PRIVATE EXPAT::EXPAT android log)
     else ()
@@ -841,6 +838,7 @@ else ()
             src/ports/SkFontConfigInterface_direct.cpp
             src/ports/SkFontConfigInterface_direct_factory.cpp
             src/ports/SkFontMgr_fontconfig.cpp
+            src/ports/SkLog_stdio.cpp
         )
         target_link_libraries(Skia PRIVATE Fontconfig::Fontconfig)
     endif ()

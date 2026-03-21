@@ -93,7 +93,7 @@ public:
     WebPage& webPage() const { return m_webPage; }
     CoordinatedSceneState& sceneState() const { return m_sceneState.get(); }
 
-    const LayerTreeContext& layerTreeContext() const { return m_layerTreeContext; }
+    const LayerTreeContext& layerTreeContext() const LIFETIME_BOUND { return m_layerTreeContext; }
     void setLayerTreeStateIsFrozen(bool);
 
     void scheduleRenderingUpdate();
@@ -143,7 +143,7 @@ private:
 #if USE(CAIRO)
     WebCore::Cairo::PaintingEngine& NODELETE paintingEngine() override;
 #elif USE(SKIA)
-    WebCore::SkiaPaintingEngine& paintingEngine() const override { return *m_skiaPaintingEngine.get(); }
+    WebCore::SkiaPaintingEngine& paintingEngine() const LIFETIME_BOUND override { return *m_skiaPaintingEngine.get(); }
 #endif
     Ref<WebCore::CoordinatedImageBackingStore> imageBackingStore(Ref<WebCore::NativeImage>&&) override;
 

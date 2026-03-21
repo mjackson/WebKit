@@ -45,7 +45,7 @@ public:
 template<>
 void initializeAuxiliaryProcess<ModelProcess>(AuxiliaryProcessInitializationParameters&& parameters)
 {
-    static NeverDestroyed<ModelProcess> modelProcess(WTF::move(parameters));
+    static NeverDestroyed<Ref<ModelProcess>> modelProcess = ModelProcess::create(WTF::move(parameters));
 }
 
 } // namespace WebKit

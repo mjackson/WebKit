@@ -83,7 +83,7 @@ public:
 
     GRefPtr<GstSample> downloadSample(std::optional<GstVideoFormat> = { });
 
-    GstSample* sample() const { return m_sample.get(); }
+    const GRefPtr<GstSample>& sample() const LIFETIME_BOUND { return m_sample; }
 
     RefPtr<ImageGStreamer> convertToImage();
 
@@ -105,7 +105,7 @@ public:
 #if USE(GBM) && GST_CHECK_VERSION(1, 24, 0)
     RefPtr<DMABufBuffer> getDMABuf();
 #endif
-    const GstVideoInfo& info() const { return m_info.info; }
+    const GstVideoInfo& info() const LIFETIME_BOUND { return m_info.info; }
     std::optional<DMABufFormat> dmaBufFormat() const { return m_info.dmaBufFormat; }
 
     VideoFrameContentHint contentHint() const;

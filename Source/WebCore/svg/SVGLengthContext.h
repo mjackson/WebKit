@@ -20,9 +20,9 @@
 
 #pragma once
 
-#include <WebCore/FloatRect.h>
-#include <WebCore/SVGLengthValue.h>
-#include <WebCore/SVGUnitTypes.h>
+#include "FloatRect.h"
+#include "SVGLengthValue.h"
+#include "SVGUnitTypes.h"
 
 namespace WebCore {
 
@@ -83,7 +83,7 @@ public:
 private:
     ExceptionOr<float> convertValueFromUserUnitsToPercentage(float value, SVGLengthMode) const;
     ExceptionOr<float> convertValueFromPercentageToUserUnits(float value, SVGLengthMode) const;
-    static float convertValueFromPercentageToUserUnits(float value, SVGLengthMode, FloatSize);
+    static float NODELETE convertValueFromPercentageToUserUnits(float value, SVGLengthMode, FloatSize);
 
     ExceptionOr<float> convertValueFromUserUnitsToEXS(float) const;
     ExceptionOr<float> convertValueFromEXSToUserUnits(float) const;
@@ -93,7 +93,6 @@ private:
     float removeZoomFromFontOrRootFontRelativeLength(float value, CSS::LengthUnit) const;
 
     std::optional<CSSToLengthConversionData> cssConversionData() const;
-    RefPtr<const SVGElement> NODELETE protectedContext() const;
 
     template<typename SizeType> float valueForSizeType(const SizeType&, Style::ZoomFactor usedZoom, SVGLengthMode = SVGLengthMode::Other) requires (SizeType::Fixed::zoomOptions == CSS::RangeZoomOptions::Unzoomed || SizeType::Calc::range.zoomOptions == CSS::RangeZoomOptions::Unzoomed);
     template<typename SizeType> float valueForSizeType(const SizeType&, Style::ZoomNeeded, SVGLengthMode = SVGLengthMode::Other);

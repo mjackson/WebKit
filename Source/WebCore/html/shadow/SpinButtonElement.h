@@ -84,7 +84,7 @@ private:
     SpinButtonElement(Document&, SpinButtonOwner&);
 
     void willDetachRenderers() final;
-    bool isSpinButtonElement() const final { return true; }
+    bool NODELETE isSpinButtonElement() const final { return true; }
     bool isDisabledFormControl() const final;
     bool matchesReadWritePseudoClass() const final;
     void defaultEventHandler(Event&) final;

@@ -25,18 +25,18 @@
 
 #pragma once
 
-#include <WebCore/DigitalCredentialsRequestData.h>
-#include <WebCore/Document.h>
-#include <WebCore/ExceptionOr.h>
-#include <WebCore/ISO18013DocumentRequest.h>
+#include "DigitalCredentialsRequestData.h"
+#include "Document.h"
+#include "ExceptionOr.h"
+#include "ISO18013DocumentRequest.h"
 
 #if ENABLE(ISO18013_DOCUMENT_REQUEST_INFO)
-#include <WebCore/DigitalCredentialsMobileDocumentRequestDataWithRequestInfo.h>
-#include <WebCore/ISO18013DocumentRequestInfo.h>
+#include "DigitalCredentialsMobileDocumentRequestDataWithRequestInfo.h"
+#include "ISO18013DocumentRequestInfo.h"
 #endif // ENABLE(ISO18013_DOCUMENT_REQUEST_INFO)
 
-#include <WebCore/SecurityOriginData.h>
-#include <WebCore/ValidatedMobileDocumentRequest.h>
+#include "SecurityOriginData.h"
+#include "ValidatedMobileDocumentRequest.h"
 #include <wtf/text/WTFString.h>
 
 namespace WebCore {

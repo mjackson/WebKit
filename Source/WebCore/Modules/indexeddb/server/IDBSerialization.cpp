@@ -323,7 +323,7 @@ RefPtr<SharedBuffer> serializeIDBKeyData(const IDBKeyData& key)
         if (!readLittleEndian(data, length))
             return false;
 
-        if (data.size() < length * 2)
+        if (data.size() < static_cast<size_t>(length) * 2)
             return false;
 
         Vector<char16_t> buffer;
@@ -351,7 +351,7 @@ RefPtr<SharedBuffer> serializeIDBKeyData(const IDBKeyData& key)
             return false;
 
         size_t size = static_cast<size_t>(size64);
-        Vector<uint8_t> dataVector(data);
+        Vector<uint8_t> dataVector(data.first(size));
         skip(data, size);
 
         result.setBinaryValue(ThreadSafeDataBuffer::create(WTF::move(dataVector)));

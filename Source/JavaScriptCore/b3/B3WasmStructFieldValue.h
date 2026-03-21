@@ -63,7 +63,7 @@ protected:
     {
     }
 
-    Ref<const Wasm::RTT> m_rtt;
+    const Ref<const Wasm::RTT> m_rtt;
     SUPPRESS_UNCOUNTED_MEMBER const Wasm::StructType* m_structType;
     Wasm::StructFieldCount m_fieldIndex;
     uint64_t m_fieldHeapKey;

@@ -82,13 +82,13 @@ void InspectorNodeFinder::searchUsingDOMTreeTraversal(Node& parentNode)
     // Manual plain text search.
     for (RefPtr node = &parentNode; node; node = NodeTraversal::next(*node, &parentNode)) {
         switch (node->nodeType()) {
-        case Node::TEXT_NODE:
-        case Node::COMMENT_NODE:
-        case Node::CDATA_SECTION_NODE:
+        case NodeType::Text:
+        case NodeType::Comment:
+        case NodeType::CDATASection:
             if (checkContains(node->nodeValue(), m_query))
                 m_results.add(node);
             break;
-        case Node::ELEMENT_NODE:
+        case NodeType::Element:
             if (matchesElement(downcast<Element>(*node)))
                 m_results.add(node);
             if (RefPtr frameOwner = dynamicDowncast<HTMLFrameOwnerElement>(*node))

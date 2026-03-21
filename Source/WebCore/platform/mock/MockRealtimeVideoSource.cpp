@@ -34,8 +34,9 @@
 #if ENABLE(MEDIA_STREAM)
 #include "CaptureDevice.h"
 #include "FillLightMode.h"
+#include "FontSelector.h"
 #include "GraphicsContext.h"
-#include "ImageBuffer.h"
+#include "ImageUtilities.h"
 #include "IntRect.h"
 #include "Logging.h"
 #include "MediaConstraints.h"
@@ -43,6 +44,7 @@
 #include "NotImplemented.h"
 #include "PlatformLayer.h"
 #include "RealtimeMediaSourceSettings.h"
+#include "TextRun.h"
 #include "ThreadGlobalData.h"
 #include "VideoFrame.h"
 #include <algorithm>
@@ -78,7 +80,7 @@ CaptureSourceOrError MockRealtimeVideoSource::create(String&& deviceID, AtomStri
 }
 #endif
 
-static ThreadSafeWeakHashSet<MockRealtimeVideoSource>& allMockRealtimeVideoSource()
+static ThreadSafeWeakHashSet<MockRealtimeVideoSource>& NODELETE allMockRealtimeVideoSource()
 {
     static NeverDestroyed<ThreadSafeWeakHashSet<MockRealtimeVideoSource>> videoSources;
     return videoSources;
@@ -271,7 +273,7 @@ auto MockRealtimeVideoSource::takePhotoInternal(PhotoSettings&&) -> Ref<TakePhot
 
     return invokeAsync(m_runLoop, [this, protectedThis = Ref { *this }] () mutable {
         if (auto currentImage = generatePhoto())
-            return TakePhotoNativePromise::createAndResolve(std::make_pair(ImageBuffer::toData(*currentImage, "image/png"_s), "image/png"_s));
+            return TakePhotoNativePromise::createAndResolve(std::make_pair(encodeData(WTF::move(currentImage), "image/png"_s, std::nullopt), "image/png"_s));
         return TakePhotoNativePromise::createAndReject("Failed to capture photo"_s);
     });
 }

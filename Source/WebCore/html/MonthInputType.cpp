@@ -155,7 +155,7 @@ String MonthInputType::formatDateTimeFieldsState(const DateTimeFieldsState& stat
 
 void MonthInputType::setupLayoutParameters(DateTimeEditElement::LayoutParameters& layoutParameters, const DateComponents&) const
 {
-    layoutParameters.dateTimeFormat = layoutParameters.locale.shortMonthFormat();
+    layoutParameters.dateTimeFormat = layoutParameters.locale->shortMonthFormat();
     layoutParameters.fallbackDateTimeFormat = "yyyy-MM"_s;
 }
 

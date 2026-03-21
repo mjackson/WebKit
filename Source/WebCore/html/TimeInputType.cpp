@@ -141,10 +141,10 @@ void TimeInputType::setupLayoutParameters(DateTimeEditElement::LayoutParameters&
     layoutParameters.shouldHaveMillisecondField = shouldHaveMillisecondField(date);
 
     if (layoutParameters.shouldHaveMillisecondField || shouldHaveSecondField(date)) {
-        layoutParameters.dateTimeFormat = layoutParameters.locale.timeFormat();
+        layoutParameters.dateTimeFormat = layoutParameters.locale->timeFormat();
         layoutParameters.fallbackDateTimeFormat = "HH:mm:ss"_s;
     } else {
-        layoutParameters.dateTimeFormat = layoutParameters.locale.shortTimeFormat();
+        layoutParameters.dateTimeFormat = layoutParameters.locale->shortTimeFormat();
         layoutParameters.fallbackDateTimeFormat = "HH:mm"_s;
     }
 }

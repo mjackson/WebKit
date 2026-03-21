@@ -376,7 +376,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'builtins-generator-tests',
             'trigger-crash-log-submission'
         ],
-        'Apple-Sequoia-Safer-CPP-Checks': [
+        'Apple-Tahoe-Safer-CPP-Checks': [
             'configure-build',
             'configuration',
             'clean-and-update-working-directory',
@@ -391,7 +391,12 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'get-llvm-version',
             'print-clang-version',
             'checkout-llvm-project',
-            'update-clang',
+            'get-swift-tag-name',
+            'print-swift-version',
+            'checkout-swift-project',
+            'update-swift-checkouts',
+            'build-swift',
+            'install-metal-toolchain',
             'scan-build'
         ],
         'Apple-Sequoia-Release-Build': [

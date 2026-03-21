@@ -169,8 +169,8 @@ void WorkerOrWorkletScriptController::addTimerSetNotification(JSC::JSRunLoopTime
         timer->addTimerSetNotification(callback);
     };
 
-    processTimer(m_vm->heap.protectedFullActivityCallback().get());
-    processTimer(m_vm->heap.protectedEdenActivityCallback().get());
+    processTimer(protect(m_vm->heap.fullActivityCallback()).get());
+    processTimer(protect(m_vm->heap.edenActivityCallback()).get());
     processTimer(m_vm->deferredWorkTimer.ptr());
 }
 
@@ -182,8 +182,8 @@ void WorkerOrWorkletScriptController::removeTimerSetNotification(JSC::JSRunLoopT
         timer->removeTimerSetNotification(callback);
     };
 
-    processTimer(m_vm->heap.protectedFullActivityCallback().get());
-    processTimer(m_vm->heap.protectedEdenActivityCallback().get());
+    processTimer(protect(m_vm->heap.fullActivityCallback()).get());
+    processTimer(protect(m_vm->heap.edenActivityCallback()).get());
     processTimer(m_vm->deferredWorkTimer.ptr());
 }
 
@@ -264,7 +264,7 @@ void WorkerOrWorkletScriptController::evaluate(const ScriptSourceCode& sourceCod
     }
 
     if (returnedException) {
-        if (globalScope->canIncludeErrorDetails(sourceCode.cachedScript(), sourceCode.url().string())) {
+        if (globalScope->canIncludeErrorDetails(protect(sourceCode.cachedScript()), sourceCode.url().string())) {
             // FIXME: It's not great that this can run arbitrary code to string-ify the value of the exception.
             // Do we need to do anything to handle that properly, if it, say, raises another exception?
             if (returnedExceptionMessage)
@@ -414,10 +414,11 @@ bool WorkerOrWorkletScriptController::loadModuleSynchronously(WorkerScriptFetche
     }
 
     RefPtr globalScope = m_globalScope.get();
-    globalScope->eventLoop().performMicrotaskCheckpoint();
+    globalScope->eventLoop().performMicrotaskCheckpoint(*m_vm);
 
     // Drive RunLoop until we get either of "Worker is terminated", "Loading is done", or "Loading is failed".
-    WorkerRunLoop& runLoop = globalScope->workerOrWorkletThread()->runLoop();
+    RefPtr workerOrWorkletThread = globalScope->workerOrWorkletThread();
+    auto& runLoop = workerOrWorkletThread->runLoop();
 
     // We do not want to receive messages that are not related to asynchronous resource loading.
     // Otherwise, a worker discards some messages from the main thread here in a racy way.
@@ -433,7 +434,7 @@ bool WorkerOrWorkletScriptController::loadModuleSynchronously(WorkerScriptFetche
     while ((!protector->isLoaded() && !protector->wasCanceled()) && success) {
         success = runLoop.runInMode(globalScope.get(), taskMode, allowEventLoopTasks);
         if (success)
-            globalScope->eventLoop().performMicrotaskCheckpoint();
+            globalScope->eventLoop().performMicrotaskCheckpoint(*m_vm);
     }
 
     return success;
@@ -458,7 +459,7 @@ void WorkerOrWorkletScriptController::linkAndEvaluateModule(WorkerScriptFetcher&
     }
 
     if (returnedException) {
-        if (protect(globalScope())->canIncludeErrorDetails(sourceCode.cachedScript(), sourceCode.url().string())) {
+        if (protect(globalScope())->canIncludeErrorDetails(protect(sourceCode.cachedScript()), sourceCode.url().string())) {
             // FIXME: It's not great that this can run arbitrary code to string-ify the value of the exception.
             // Do we need to do anything to handle that properly, if it, say, raises another exception?
             if (returnedExceptionMessage)
@@ -587,7 +588,7 @@ void WorkerOrWorkletScriptController::loadAndEvaluateModule(const URL& moduleURL
 
         promise->then(&globalObject, &fulfillHandler, &rejectHandler);
     }
-    globalScope->eventLoop().performMicrotaskCheckpoint();
+    globalScope->eventLoop().performMicrotaskCheckpoint(*m_vm);
 }
 
 template<typename JSGlobalScopePrototype, typename JSGlobalScope, typename GlobalScope>
@@ -624,7 +625,12 @@ void WorkerOrWorkletScriptController::initScriptWithSubclass()
 
     m_consoleClient = makeUnique<WorkerConsoleClient>(*globalScope);
     m_globalScopeWrapper->setConsoleClient(*m_consoleClient);
-    globalScope->setMicrotaskGlobalObject(m_globalScopeWrapper.get());
+    // Worklet global scopes previously routed microtasks to the VM's default queue
+    // We preserve this behavior because AudioWorkletGlobalScope relies on DrainMicrotaskDelayScope to batch
+    // microtask draining between render quanta, which only controls the VM's default
+    // queue, not the event loop's queue.
+    if (!is<WorkletGlobalScope>(m_globalScope))
+        globalScope->addMicrotaskGlobalObject(m_globalScopeWrapper.get());
 }
 
 void WorkerOrWorkletScriptController::initScript()

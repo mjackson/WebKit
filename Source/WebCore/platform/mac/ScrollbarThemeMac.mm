@@ -57,7 +57,7 @@ namespace WebCore {
 
 using ScrollbarSet = HashSet<SingleThreadWeakRef<Scrollbar>>;
 
-static ScrollbarSet& scrollbarMap()
+static ScrollbarSet& NODELETE scrollbarMap()
 {
     static NeverDestroyed<ScrollbarSet> instances;
     return instances;
@@ -171,11 +171,6 @@ NSScrollerImp *ScrollbarThemeMac::scrollerImpForScrollbar(Scrollbar& scrollbar)
     return nil;
 }
 
-RetainPtr<NSScrollerImp> ScrollbarThemeMac::protectedScrollerImpForScrollbar(Scrollbar& scrollbar)
-{
-    return scrollerImpForScrollbar(scrollbar);
-}
-
 bool ScrollbarThemeMac::isLayoutDirectionRTL(Scrollbar& scrollbar)
 {
 #if PLATFORM(MAC)
@@ -270,7 +265,7 @@ ScrollbarButtonsPlacement ScrollbarThemeMac::buttonsPlacement() const
     return gButtonPlacement;
 }
 
-inline constexpr unsigned scrollbarWidthToIndex(ScrollbarWidth scrollbarWidth)
+inline constexpr unsigned NODELETE scrollbarWidthToIndex(ScrollbarWidth scrollbarWidth)
 {
     switch (scrollbarWidth) {
     case ScrollbarWidth::Auto:
@@ -301,7 +296,7 @@ bool ScrollbarThemeMac::hasThumb(Scrollbar& scrollbar)
              scrollbar.height()) >= minLengthForThumb;
 }
 
-static IntRect buttonRepaintRect(const IntRect& buttonRect, ScrollbarOrientation orientation, ScrollbarWidth widthStyle, bool start)
+static IntRect NODELETE buttonRepaintRect(const IntRect& buttonRect, ScrollbarOrientation orientation, ScrollbarWidth widthStyle, bool start)
 {
     ASSERT(gButtonPlacement != ScrollbarButtonsNone);
 
@@ -433,13 +428,13 @@ int ScrollbarThemeMac::minimumThumbLength(Scrollbar& scrollbar)
 {
     if (scrollbar.shouldRegisterScrollbar()) {
         BEGIN_BLOCK_OBJC_EXCEPTIONS
-        return [protectedScrollerImpForScrollbar(scrollbar) knobMinLength];
+        return [protect(scrollerImpForScrollbar(scrollbar)) knobMinLength];
         END_BLOCK_OBJC_EXCEPTIONS
     } else
         return scrollbar.minimumThumbLength();
 }
 
-static bool shouldCenterOnThumb(const PlatformMouseEvent& evt)
+static bool NODELETE shouldCenterOnThumb(const PlatformMouseEvent& evt)
 {
     if (evt.button() != MouseButton::Left)
         return false;
@@ -494,7 +489,7 @@ int ScrollbarThemeMac::scrollbarPartToHIPressedState(ScrollbarPart part)
 void ScrollbarThemeMac::updateEnabledState(Scrollbar& scrollbar)
 {
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    [protectedScrollerImpForScrollbar(scrollbar) setEnabled:scrollbar.enabled()];
+    [protect(scrollerImpForScrollbar(scrollbar)) setEnabled:scrollbar.enabled()];
     END_BLOCK_OBJC_EXCEPTIONS
 }
 

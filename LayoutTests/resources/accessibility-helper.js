@@ -275,6 +275,12 @@ function waitFor(condition)
     });
 }
 
+async function waitForFrameGeometryReady() {
+    await waitFor(() => {
+        return accessibilityController.rootElement.isFrameGeometryInitialized;
+    });
+}
+
 async function waitForElementById(id) {
     let element;
     await waitFor(() => {

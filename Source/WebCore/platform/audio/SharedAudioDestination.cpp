@@ -271,13 +271,13 @@ void SharedAudioDestination::start(Function<void(Function<void()>&&)>&& dispatch
     }
 
     setIsPlaying(true);
-    protectedOutputAdapter()->addRenderer(*this, WTF::move(completionHandler));
+    protect(m_outputAdapter)->addRenderer(*this, WTF::move(completionHandler));
 }
 
 void SharedAudioDestination::stop(CompletionHandler<void(bool)>&& completionHandler)
 {
     setIsPlaying(false);
-    protectedOutputAdapter()->removeRenderer(*this, WTF::move(completionHandler));
+    protect(m_outputAdapter)->removeRenderer(*this, WTF::move(completionHandler));
 
     {
         Locker locker { m_dispatchToRenderThreadLock };
@@ -292,7 +292,7 @@ unsigned SharedAudioDestination::framesPerBuffer() const
 
 MediaTime SharedAudioDestination::outputLatency() const
 {
-    return protectedOutputAdapter()->outputLatency();
+    return protect(m_outputAdapter)->outputLatency();
 }
 
 void SharedAudioDestination::setIsPlaying(bool isPlaying)
@@ -346,13 +346,13 @@ private:
 
 void SharedAudioDestination::setSceneIdentifier(const String& identifier)
 {
-    if (protectedOutputAdapter()->sceneIdentifier() == identifier)
+    if (protect(m_outputAdapter)->sceneIdentifier() == identifier)
         return;
 
     // We need to re-create the outputAdapter when the sceneIdentifier
     // changes, as the adapter may be shared with other destinations
     // whose sceneIdentifier is _not_ changing.
-    auto ensureFunction = protectedOutputAdapter()->takeEnsureFunction();
+    auto ensureFunction = protect(m_outputAdapter)->takeEnsureFunction();
     ASSERT(ensureFunction);
     if (!ensureFunction)
         return;
@@ -360,7 +360,7 @@ void SharedAudioDestination::setSceneIdentifier(const String& identifier)
     bool wasPlaying = isPlaying();
 
     if (wasPlaying)
-        protectedOutputAdapter()->removeRenderer(*this, [] (bool) { });
+        protect(m_outputAdapter)->removeRenderer(*this, [] (bool) { });
 
     m_outputAdapter = SharedAudioDestinationAdapter::ensureAdapter({
         NullAudioIOCallback::singleton(),
@@ -374,14 +374,10 @@ void SharedAudioDestination::setSceneIdentifier(const String& identifier)
     }, WTF::move(ensureFunction));
 
     if (wasPlaying)
-        protectedOutputAdapter()->addRenderer(*this, [] (bool) { });
+        protect(m_outputAdapter)->addRenderer(*this, [] (bool) { });
 }
 #endif
 
-Ref<SharedAudioDestinationAdapter> SharedAudioDestination::protectedOutputAdapter() const
-{
-    return m_outputAdapter;
-}
 
 } // namespace WebCore
 

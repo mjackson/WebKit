@@ -35,7 +35,7 @@ namespace WebCore {
 class CSSImageSetOptionValue final : public CSSValue {
 public:
     static Ref<CSSImageSetOptionValue> create(Ref<CSSValue>&&);
-    static Ref<CSSImageSetOptionValue> create(Ref<CSSValue>&&, Ref<CSSPrimitiveValue>&&);
+    static Ref<CSSImageSetOptionValue> NODELETE create(Ref<CSSValue>&&, Ref<CSSPrimitiveValue>&&);
     static Ref<CSSImageSetOptionValue> create(Ref<CSSValue>&&, Ref<CSSPrimitiveValue>&&, String);
 
     bool equals(const CSSImageSetOptionValue&) const;

@@ -26,6 +26,7 @@
 #include "config.h"
 #include "InlineIteratorSVGTextBox.h"
 
+#include "FontCascadeInlines.h"
 #include "LayoutIntegrationLineLayout.h"
 #include "RenderSVGText.h"
 #include "SVGInlineTextBox.h"

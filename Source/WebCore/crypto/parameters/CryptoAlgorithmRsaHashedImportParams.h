@@ -25,10 +25,10 @@
 
 #pragma once
 
+#include "CryptoAlgorithmParameters.h"
+#include "CryptoAlgorithmRsaHashedImportParamsInit.h"
 #include <JavaScriptCore/JSObject.h>
 #include <JavaScriptCore/Strong.h>
-#include <WebCore/CryptoAlgorithmParameters.h>
-#include <WebCore/CryptoAlgorithmRsaHashedImportParamsInit.h>
 
 namespace WebCore {
 

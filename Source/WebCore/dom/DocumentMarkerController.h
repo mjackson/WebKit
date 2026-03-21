@@ -68,6 +68,8 @@ public:
     WEBCORE_EXPORT bool addMarker(Node&, DocumentMarker&&);
     void addDraggedContentMarker(const SimpleRange&);
     WEBCORE_EXPORT void addTransparentContentMarker(const SimpleRange&, WTF::UUID);
+    WEBCORE_EXPORT void addDictationStreamingOpacityMarker(const SimpleRange&, float opacity);
+    WEBCORE_EXPORT void removeAllDictationStreamingOpacityMarkers();
 
     void copyMarkers(Node& source, OffsetRange, Node& destination);
     bool hasMarkers() const;
@@ -130,7 +132,6 @@ private:
     void fadeAnimationTimerFired();
     void writingToolsTextSuggestionAnimationTimerFired();
 
-    Ref<Document> NODELETE protectedDocument() const;
 
     MarkerMap m_markers;
     // Provide a quick way to determine whether a particular marker type is absent without going through the map.
@@ -150,7 +151,7 @@ WEBCORE_EXPORT void DocumentMarkerController::forEach<DocumentMarkerController::
 
 WEBCORE_EXPORT void addMarker(const SimpleRange&, DocumentMarkerType, const DocumentMarker::Data& = { });
 void addMarker(Node&, unsigned startOffset, unsigned length, DocumentMarkerType, DocumentMarker::Data&& = { });
-void removeMarkers(const SimpleRange&, OptionSet<DocumentMarkerType> = DocumentMarker::allMarkers(), RemovePartiallyOverlappingMarker = RemovePartiallyOverlappingMarker::No);
+WEBCORE_EXPORT void removeMarkers(const SimpleRange&, OptionSet<DocumentMarkerType> = DocumentMarker::allMarkers(), RemovePartiallyOverlappingMarker = RemovePartiallyOverlappingMarker::No);
 
 WEBCORE_EXPORT SimpleRange makeSimpleRange(Node&, const DocumentMarker&);
 

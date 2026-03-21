@@ -29,6 +29,7 @@
 #include "HTMLLinkElement.h"
 #include "HTMLStyleElement.h"
 #include "JSCSSStyleSheet.h"
+#include "JSDOMConvertInterface.h"
 #include "JSDOMPromiseDeferred.h"
 #include "Logging.h"
 #include "MediaList.h"
@@ -83,10 +84,8 @@ static bool isAcceptableCSSStyleSheetParent(Node* parentNode)
     // Only these nodes can be parents of StyleSheets, and they need to call clearOwnerNode() when moved out of document.
     return !parentNode
         || parentNode->isDocumentNode()
-        || is<HTMLLinkElement>(*parentNode)
-        || is<HTMLStyleElement>(*parentNode)
-        || is<SVGStyleElement>(*parentNode)
-        || parentNode->nodeType() == Node::PROCESSING_INSTRUCTION_NODE;
+        || isAnyOf<HTMLLinkElement, HTMLStyleElement, SVGStyleElement>(*parentNode)
+        || parentNode->nodeType() == NodeType::ProcessingInstruction;
 }
 #endif // ASSERT_ENABLED
 
@@ -469,7 +468,7 @@ MediaList* CSSStyleSheet::media() const
 
 CSSStyleSheet* CSSStyleSheet::parentStyleSheet() const 
 { 
-    RefPtr ownerRule = m_ownerRule.get();
+    auto* ownerRule = m_ownerRule.get();
     return ownerRule ? ownerRule->parentStyleSheet() : nullptr;
 }
 
@@ -594,11 +593,6 @@ void CSSStyleSheet::removeAdoptingTreeScope(ContainerNode& treeScope)
     ASSERT(is<Document>(treeScope) || is<ShadowRoot>(treeScope));
     m_adoptingTreeScopes.remove(treeScope);
     styleScopeFor(treeScope).didChangeStyleSheetContents();
-}
-
-Ref<StyleSheetContents> CSSStyleSheet::protectedContents()
-{
-    return m_contents;
 }
 
 void CSSStyleSheet::getChildStyleSheets(HashSet<Ref<CSSStyleSheet>>& childStyleSheets)

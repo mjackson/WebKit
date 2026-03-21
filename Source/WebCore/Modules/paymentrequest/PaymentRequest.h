@@ -73,7 +73,7 @@ public:
 
     const String& NODELETE id() const;
     PaymentAddress* shippingAddress() const { return m_shippingAddress.get(); }
-    const String& shippingOption() const { return m_shippingOption; }
+    const String& shippingOption() const LIFETIME_BOUND { return m_shippingOption; }
     std::optional<PaymentShippingType> NODELETE shippingType() const;
 
     enum class State {
@@ -91,9 +91,9 @@ public:
 
     State state() const { return m_state; }
 
-    const PaymentOptions& paymentOptions() const { return m_options; }
-    const PaymentDetailsInit& paymentDetails() const { return m_details; }
-    const Vector<String>& serializedModifierData() const { return m_serializedModifierData; }
+    const PaymentOptions& paymentOptions() const LIFETIME_BOUND { return m_options; }
+    const PaymentDetailsInit& paymentDetails() const LIFETIME_BOUND { return m_details; }
+    const Vector<String>& serializedModifierData() const LIFETIME_BOUND { return m_serializedModifierData; }
 
     void shippingAddressChanged(Ref<PaymentAddress>&&);
     void shippingOptionChanged(const String& shippingOption);
@@ -137,7 +137,6 @@ private:
     // EventTarget
     enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::PaymentRequest; }
     ScriptExecutionContext* NODELETE scriptExecutionContext() const final;
-    RefPtr<ScriptExecutionContext> protectedScriptExecutionContext() const;
     bool isPaymentRequest() const final { return true; }
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }

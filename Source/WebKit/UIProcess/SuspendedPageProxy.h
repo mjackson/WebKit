@@ -77,7 +77,7 @@ public:
 
     WebBackForwardCache& NODELETE backForwardCache() const;
 
-    WebPageProxyMessageReceiverRegistration& messageReceiverRegistration() { return m_messageReceiverRegistration; }
+    WebPageProxyMessageReceiverRegistration& messageReceiverRegistration() LIFETIME_BOUND { return m_messageReceiverRegistration; }
 
     bool NODELETE pageIsClosedOrClosing() const;
 
@@ -143,10 +143,10 @@ private:
 
 inline void refSuspendedPageProxy(WebKit::SuspendedPageProxy* WTF_NONNULL obj)
 {
-    WTF::ref(obj);
+    obj->ref();
 }
 
 inline void derefSuspendedPageProxy(WebKit::SuspendedPageProxy* WTF_NONNULL obj)
 {
-    WTF::deref(obj);
+    obj->deref();
 }

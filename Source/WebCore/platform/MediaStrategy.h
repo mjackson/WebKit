@@ -34,6 +34,7 @@
 #include <WebCore/MediaPlayerIdentifier.h>
 #include <WebCore/NativeImage.h>
 #include <WebCore/NowPlayingManager.h>
+#include <WebCore/PlatformMediaDecodingType.h>
 #include <wtf/BitSet.h>
 #include <wtf/CheckedRef.h>
 #include <wtf/CompletionHandler.h>
@@ -45,6 +46,7 @@ class AudioDestination;
 class AudioIOCallback;
 class AudioVideoRenderer;
 class CDMFactory;
+class ContentType;
 class NowPlayingManager;
 class VideoFrame;
 
@@ -59,20 +61,21 @@ public:
 #endif
 #if ENABLE(VIDEO)
     virtual RefPtr<AudioVideoRenderer> createAudioVideoRenderer(WTF::LoggerHelper*, HTMLMediaElementIdentifier, MediaPlayerIdentifier) const;
-    bool hasRemoteRendererFor(MediaPlayerMediaEngineIdentifier) const;
-    void enableRemoteRenderer(MediaPlayerMediaEngineIdentifier, bool);
+    bool NODELETE hasRemoteRendererFor(MediaPlayerMediaEngineIdentifier) const;
+    void NODELETE enableRemoteRenderer(MediaPlayerMediaEngineIdentifier, bool);
 #endif
     virtual std::unique_ptr<NowPlayingManager> createNowPlayingManager() const;
     void resetMediaEngines();
     virtual bool hasThreadSafeMediaSourceSupport() const;
 #if ENABLE(MEDIA_SOURCE)
     virtual void enableMockMediaSource();
-    bool mockMediaSourceEnabled() const;
+    bool NODELETE mockMediaSourceEnabled() const;
     static void addMockMediaSourceEngine();
 #endif
 
 #if ENABLE(VIDEO)
     virtual void nativeImageFromVideoFrame(const VideoFrame&, CompletionHandler<void(std::optional<RefPtr<NativeImage>>&&)>&&);
+    virtual bool canDecodeExtendedType(PlatformMediaDecodingType, const ContentType&) { return false; }
 #endif
 
     virtual bool enableWebMMediaPlayer() const { return true; }

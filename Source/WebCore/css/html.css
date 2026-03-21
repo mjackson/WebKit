@@ -381,7 +381,7 @@ button {
 }
 
 ::-internal-writing-suggestions {
-    color: color-mix(in srgb, currentColor 50%, transparent);
+    color: color-mix(currentColor 50%, transparent);
 }
 
 input, textarea, select, button {
@@ -754,7 +754,7 @@ input::placeholder {
 }
 
 input:disabled, textarea:disabled {
-    color: color-mix(in hsl, CanvasText 66%, Canvas);
+    color: color-mix(CanvasText 66%, Canvas);
 }
 
 input:is([type="hidden"], [type="image"], [type="file"]) {
@@ -1076,33 +1076,33 @@ select:-internal-uses-menulist {
 select:-internal-uses-menulist:enabled:hover {
 #if defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY
 #if defined(WTF_PLATFORM_VISION) && WTF_PLATFORM_VISION
-    background-color: -internal-auto-base(rgba(0, 0, 0, 0.04), color-mix(in lab, currentColor 10%, transparent));
+    background-color: -internal-auto-base(rgba(0, 0, 0, 0.04), color-mix(currentColor 10%, transparent));
 #else
-    background-color: -internal-auto-base(-apple-system-opaque-secondary-fill, color-mix(in lab, currentColor 10%, transparent));
+    background-color: -internal-auto-base(-apple-system-opaque-secondary-fill, color-mix(currentColor 10%, transparent));
 #endif /* defined(WTF_PLATFORM_VISION) && WTF_PLATFORM_VISION */
 #else
-    background-color: -internal-auto-base(Canvas, color-mix(in lab, currentColor 10%, transparent));
+    background-color: -internal-auto-base(Canvas, color-mix(currentColor 10%, transparent));
 #endif /* defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY */
 }
 
 select:-internal-uses-menulist:enabled:active {
 #if defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY
 #if defined(WTF_PLATFORM_VISION) && WTF_PLATFORM_VISION
-    background-color: -internal-auto-base(rgba(0, 0, 0, 0.04), color-mix(in lab, currentColor 20%, transparent));
+    background-color: -internal-auto-base(rgba(0, 0, 0, 0.04), color-mix(currentColor 20%, transparent));
 #else
-    background-color: -internal-auto-base(-apple-system-opaque-secondary-fill, color-mix(in lab, currentColor 20%, transparent));
+    background-color: -internal-auto-base(-apple-system-opaque-secondary-fill, color-mix(currentColor 20%, transparent));
 #endif /* defined(WTF_PLATFORM_VISION) && WTF_PLATFORM_VISION */
 #else
-    background-color: -internal-auto-base(Canvas, color-mix(in lab, currentColor 20%, transparent));
+    background-color: -internal-auto-base(Canvas, color-mix(currentColor 20%, transparent));
 #endif /* defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY */
 }
 
 select:-internal-uses-menulist:disabled {
 #if defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY
     background-color: -internal-auto-base(-apple-system-opaque-secondary-fill-disabled, transparent);
-    color: -internal-auto-base(-apple-system-tertiary-label, color-mix(in lab, currentColor 50%, transparent));
+    color: -internal-auto-base(-apple-system-tertiary-label, color-mix(currentColor 50%, transparent));
 #else
-    color: -internal-auto-base(GrayText, color-mix(in lab, currentColor 50%, transparent));
+    color: -internal-auto-base(GrayText, color-mix(currentColor 50%, transparent));
 #endif
 }
 
@@ -1122,12 +1122,11 @@ select:not(:-internal-uses-menulist):enabled {
 
 select:not([multiple]):-internal-uses-menulist > button:first-child {
     all: unset;
-    /* FIXME: add display: contents; once it works as expected */
+    display: contents;
 }
 
 select::picker-icon {
-    /* FIXME: Switch to disclosure-open counter once it works */
-    content: "\25BC" / "";
+    content: counter(fake-counter-name, disclosure-open);
     display: block;
     margin-inline-start: auto;
 }
@@ -1175,15 +1174,15 @@ select option {
 }
 
 select option:enabled:hover {
-    background-color: color-mix(in lab, currentColor 10%, transparent);
+    background-color: color-mix(currentColor 10%, transparent);
 }
 
 select option:enabled:active {
-    background-color: color-mix(in lab, currentColor 20%, transparent);
+    background-color: color-mix(currentColor 20%, transparent);
 }
 
 select option:disabled {
-    color: color-mix(in lab, currentColor 50%, transparent);
+    color: color-mix(currentColor 50%, transparent);
 }
 
 select option::checkmark {
@@ -1195,6 +1194,7 @@ select option:not(:checked)::checkmark {
 }
 
 select optgroup {
+    display: block;
     font-weight: bolder;
 }
 
@@ -1482,6 +1482,12 @@ bdo, bdo[dir] {
 
 slot {
     display: contents;
+}
+
+/* https://html.spec.whatwg.org/multipage/rendering.html#img-contain-size */
+img:is([sizes="auto" i], [sizes^="auto," i]) {
+    contain: size !important;
+    contain-intrinsic-size: 300px 150px;
 }
 
 #if defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY

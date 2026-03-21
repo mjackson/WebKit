@@ -66,7 +66,6 @@ public:
     RemoteLayerTreeNode* rootNode() const { return m_rootNode.get(); }
 
     CALayer *layerForID(std::optional<WebCore::PlatformLayerIdentifier>) const;
-    RetainPtr<CALayer> protectedLayerForID(std::optional<WebCore::PlatformLayerIdentifier>) const;
     CALayer *NODELETE rootLayer() const;
 
     RemoteLayerTreeDrawingAreaProxy& NODELETE drawingArea() const;
@@ -79,7 +78,7 @@ public:
     bool isDebugLayerTreeHost() const { return m_isDebugLayerTreeHost; }
 
     typedef HashMap<WebCore::PlatformLayerIdentifier, RetainPtr<WKAnimationDelegate>> LayerAnimationDelegateMap;
-    LayerAnimationDelegateMap& animationDelegates() { return m_animationDelegates; }
+    LayerAnimationDelegateMap& animationDelegates() LIFETIME_BOUND { return m_animationDelegates; }
 
     void animationDidStart(std::optional<WebCore::PlatformLayerIdentifier>, CAAnimation *, MonotonicTime startTime);
     void animationDidEnd(std::optional<WebCore::PlatformLayerIdentifier>, CAAnimation *);
@@ -91,7 +90,7 @@ public:
     RefPtr<const RemoteAnimationStack> animationStackForNodeWithIDForTesting(WebCore::PlatformLayerIdentifier) const;
 #endif
 
-    void detachFromDrawingArea();
+    void NODELETE detachFromDrawingArea();
     void clearLayers();
 
     // Detach the root layer; it will be reattached upon the next incoming commit.

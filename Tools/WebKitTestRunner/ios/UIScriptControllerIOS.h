@@ -64,6 +64,7 @@ private:
     void simulateAccessibilitySettingsChangeNotification(JSValueRef) override;
     double zoomScale() const override;
     void touchDownAtPoint(long x, long y, long touchCount, JSValueRef) override;
+    void touchDownAtPointWithMajorRadius(long x, long y, float majorRadius, float majorRadiusTolerance, JSValueRef) override;
     void liftUpAtPoint(long x, long y, long touchCount, JSValueRef) override;
     void singleTapAtPoint(long x, long y, JSValueRef) override;
     void singleTapAtPointWithModifiers(long x, long y, JSValueRef modifierArray, JSValueRef) override;
@@ -145,6 +146,7 @@ private:
     bool isShowingDataListSuggestions() const override;
     void activateDataListSuggestion(unsigned, JSValueRef) override;
     void setSelectedColorForColorPicker(double, double, double) override;
+    bool isShowingColorPicker() const override;
     void setKeyboardInputModeIdentifier(JSStringRef) override;
     void setFocusStartsInputSessionPolicy(JSStringRef) override;
     void toggleCapsLock(JSValueRef) override;

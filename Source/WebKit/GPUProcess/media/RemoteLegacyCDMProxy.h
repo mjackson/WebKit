@@ -71,7 +71,7 @@ private:
 
     WeakPtr<RemoteLegacyCDMFactoryProxy> m_factory;
     Markable<WebCore::MediaPlayerIdentifier> m_playerId;
-    Ref<WebCore::LegacyCDM> m_cdm;
+    const Ref<WebCore::LegacyCDM> m_cdm;
 };
 
 }

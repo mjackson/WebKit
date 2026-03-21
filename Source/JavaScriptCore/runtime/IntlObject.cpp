@@ -649,7 +649,7 @@ String intlStringOption(JSGlobalObject* globalObject, JSObject* options, Propert
         String stringValue = value.toWTFString(globalObject);
         RETURN_IF_EXCEPTION(scope, String());
 
-        if (values.size() && std::find(values.begin(), values.end(), stringValue) == values.end()) {
+        if (values.size() && std::ranges::find(values, stringValue) == values.end()) {
             throwException(globalObject, scope, createRangeError(globalObject, notFound));
             return { };
         }
@@ -863,26 +863,87 @@ String defaultLocale(JSGlobalObject* globalObject)
     return "en"_s;
 }
 
-String removeUnicodeLocaleExtension(const String& locale)
+String removeUnicodeLocaleExtension(StringView locale)
 {
-    Vector<String> parts = locale.split('-');
     StringBuilder builder;
-    size_t partsSize = parts.size();
     bool atPrivate = false;
-    if (partsSize > 0)
-        builder.append(parts[0]);
-    for (size_t p = 1; p < partsSize; ++p) {
-        if (parts[p] == "x"_s)
+    auto subtags = locale.split('-');
+    auto cursor = subtags.begin();
+    auto end = subtags.end();
+
+    if (cursor == end)
+        return String();
+    builder.append(*cursor);
+    ++cursor;
+
+    while (cursor != end) {
+        auto part = *cursor;
+        if (part.length() == 1 && part[0] == 'x')
             atPrivate = true;
-        if (!atPrivate && parts[p] == "u"_s && p + 1 < partsSize) {
+        if (!atPrivate && part.length() == 1 && part[0] == 'u') {
             // Skip the u- and anything that follows until another singleton.
-            // While the next part is part of the unicode extension, skip it.
-            while (p + 1 < partsSize && parts[p + 1].length() > 1)
-                ++p;
-        } else {
-            builder.append('-', parts[p]);
+            ++cursor;
+            while (cursor != end && (*cursor).length() > 1)
+                ++cursor;
+            continue;
+        }
+        builder.append('-', part);
+        ++cursor;
+    }
+    return builder.toString();
+}
+
+// Extracts non-Unicode BCP 47 extensions from a language tag. Returns a string
+// containing extensions with singletons other than 'u' (Unicode) and 't'
+// (Transform), which ICU handles as multi-character keywords that
+// uloc_toLanguageTag can convert. Non-Unicode extensions like -a- and -x-
+// become single-character ICU keywords that some ICU versions cannot convert
+// back to BCP 47, so they must be preserved separately.
+// e.g. "en-a-foo-u-ca-gregory-x-bar" -> "-a-foo-x-bar"
+//      "en-u-co-phonebk" -> String() (only Unicode extension)
+//      "en-x-private" -> "-x-private"
+String extractNonUnicodeBCP47Extensions(StringView locale)
+{
+    StringBuilder builder;
+    bool atPrivate = false;
+    auto subtags = locale.split('-');
+    auto cursor = subtags.begin();
+    auto end = subtags.end();
+
+    // Skip the language subtag.
+    if (cursor == end)
+        return String();
+    ++cursor;
+
+    while (cursor != end) {
+        auto part = *cursor;
+        if (part.length() != 1) {
+            ++cursor;
+            continue;
+        }
+
+        auto singleton = part[0];
+        if (singleton == 'x')
+            atPrivate = true;
+
+        // Skip Unicode (u) and Transform (t) extensions — handled by ICU keywords.
+        if (!atPrivate && (singleton == 'u' || singleton == 't')) {
+            ++cursor;
+            while (cursor != end && (*cursor).length() > 1)
+                ++cursor;
+            continue;
+        }
+
+        // Collect this extension (or private use) and its subtags.
+        builder.append('-', part);
+        ++cursor;
+        while (cursor != end && (atPrivate || (*cursor).length() > 1)) {
+            builder.append('-', *cursor);
+            ++cursor;
         }
     }
+    if (builder.isEmpty())
+        return String();
     return builder.toString();
 }
 
@@ -1080,28 +1141,25 @@ Vector<String> numberingSystemsForLocale(const String& locale)
         availableNumberingSystems.construct();
         ASSERT(availableNumberingSystems->isEmpty());
         UErrorCode status = U_ZERO_ERROR;
-        UEnumeration* numberingSystemNames = unumsys_openAvailableNames(&status);
+        auto numberingSystemNames = std::unique_ptr<UEnumeration, ICUDeleter<uenum_close>>(unumsys_openAvailableNames(&status));
         ASSERT(U_SUCCESS(status));
 
         int32_t resultLength;
         // Numbering system names are always ASCII, so use char[].
-        while (const char* result = uenum_next(numberingSystemNames, &resultLength, &status)) {
+        while (const char* result = uenum_next(numberingSystemNames.get(), &resultLength, &status)) {
             ASSERT(U_SUCCESS(status));
-            auto numsys = unumsys_openByName(result, &status);
+            auto numsys = std::unique_ptr<UNumberingSystem, ICUDeleter<unumsys_close>>(unumsys_openByName(result, &status));
             ASSERT(U_SUCCESS(status));
             // Only support algorithmic if it is the default fot the locale, handled below.
-            if (!unumsys_isAlgorithmic(numsys))
+            if (!unumsys_isAlgorithmic(numsys.get()))
                 availableNumberingSystems->append(String(StringImpl::createStaticStringImpl({ result, static_cast<size_t>(resultLength) })));
-            unumsys_close(numsys);
         }
-        uenum_close(numberingSystemNames);
     });
 
     UErrorCode status = U_ZERO_ERROR;
-    UNumberingSystem* defaultSystem = unumsys_open(locale.utf8().data(), &status);
+    auto defaultSystem = std::unique_ptr<UNumberingSystem, ICUDeleter<unumsys_close>>(unumsys_open(locale.utf8().data(), &status));
     ASSERT(U_SUCCESS(status));
-    auto defaultSystemName = String::fromLatin1(unumsys_getName(defaultSystem));
-    unumsys_close(defaultSystem);
+    auto defaultSystemName = String::fromLatin1(unumsys_getName(defaultSystem.get()));
 
     Vector<String> numberingSystems({ defaultSystemName });
     numberingSystems.appendVector(availableNumberingSystems.get());

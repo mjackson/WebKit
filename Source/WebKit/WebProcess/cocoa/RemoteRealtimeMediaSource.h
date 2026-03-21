@@ -68,13 +68,13 @@ protected:
     RemoteRealtimeMediaSource(RemoteRealtimeMediaSourceProxy&&, WebCore::MediaDeviceHashSalts&&, UserMediaCaptureManager&, std::optional<WebCore::PageIdentifier>);
     void createRemoteMediaSource();
 
-    RemoteRealtimeMediaSourceProxy& proxy() { return m_proxy; }
+    RemoteRealtimeMediaSourceProxy& proxy() LIFETIME_BOUND { return m_proxy; }
     inline UserMediaCaptureManager& manager(); // Defined in RemoteRealtimeMediaSourceInlines.h.
 
     void setCapabilities(WebCore::RealtimeMediaSourceCapabilities&&);
 
-    const WebCore::RealtimeMediaSourceSettings& settings() final { return m_settings; }
-    const WebCore::RealtimeMediaSourceCapabilities& capabilities() final { return m_capabilities; }
+    const WebCore::RealtimeMediaSourceSettings& settings() LIFETIME_BOUND final { return m_settings; }
+    const WebCore::RealtimeMediaSourceCapabilities& capabilities() LIFETIME_BOUND final { return m_capabilities; }
 
     Ref<TakePhotoNativePromise> takePhoto(WebCore::PhotoSettings&&) final;
     Ref<PhotoCapabilitiesNativePromise> getPhotoCapabilities() final;

@@ -95,9 +95,9 @@ public:
     TextTrackList& textTracks();
     TextTrackList* textTracksIfExists() const { return m_textTracks.get(); }
 
-    double appendWindowStart() const;
+    double NODELETE appendWindowStart() const;
     ExceptionOr<void> setAppendWindowStart(double);
-    double appendWindowEnd() const;
+    double NODELETE appendWindowEnd() const;
     ExceptionOr<void> setAppendWindowEnd(double);
 
     ExceptionOr<void> appendBuffer(const BufferSource&);
@@ -106,7 +106,7 @@ public:
     ExceptionOr<void> remove(const MediaTime&, const MediaTime&);
     ExceptionOr<void> changeType(const String&);
 
-    const PlatformTimeRanges& bufferedInternal() const { return m_buffered->ranges(); }
+    const PlatformTimeRanges& bufferedInternal() const LIFETIME_BOUND { return m_buffered->ranges(); }
 
     void abortIfUpdating();
     void removedFromMediaSource();
@@ -211,7 +211,6 @@ private:
     bool hasAudio() const;
 
     void rangeRemoval(const MediaTime&, const MediaTime&);
-    RefPtr<MediaSource> NODELETE protectedSource() const;
 
     friend class Internals;
     using SamplesPromise = NativePromise<Vector<String>, PlatformMediaError>;

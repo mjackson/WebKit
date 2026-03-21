@@ -111,7 +111,7 @@ public:
 #endif
 
     bool requiresFullscreenForVideoPlayback() const;
-    WEBCORE_EXPORT bool NODELETE allowsPictureInPicture() const;
+    WEBCORE_EXPORT bool allowsPictureInPicture() const;
     MediaPlayer::Preload effectivePreloadForElement() const;
     bool allowsAutomaticMediaDataLoading() const;
 

@@ -143,13 +143,13 @@ constexpr NSUInteger maximumReadOnlyAccessPaths = 2;
     return s_cache.get().get();
 }
 
-static RetainPtr<WKWebViewConfiguration>& globalConfiguration()
+static RetainPtr<WKWebViewConfiguration>& NODELETE globalConfiguration()
 {
     static NeverDestroyed<RetainPtr<WKWebViewConfiguration>> configuration;
     return configuration;
 }
 
-static RetainPtr<NSString>& sourceApplicationBundleIdentifier()
+static RetainPtr<NSString>& NODELETE sourceApplicationBundleIdentifier()
 {
     static NeverDestroyed<RetainPtr<NSString>> identifier;
     return identifier;
@@ -500,7 +500,7 @@ static NSMutableArray<NSURL *> *readOnlyAccessPathsSingleton()
 
         contentNavigation = loadWebContent(webView.get());
         if (!finished)
-            attributedStringActivity = protect(protect([webView _protectedPage]->legacyMainFrameProcess())->throttler())->foregroundActivity("NSAttributedString serialization"_s);
+            attributedStringActivity = protect(protect(protect(*[webView _page])->legacyMainFrameProcess())->throttler())->foregroundActivity("NSAttributedString serialization"_s);
 
         ASSERT(contentNavigation);
         ASSERT(webView.get().loading);

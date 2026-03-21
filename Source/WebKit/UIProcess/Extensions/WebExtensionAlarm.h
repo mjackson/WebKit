@@ -58,9 +58,9 @@ public:
         schedule();
     }
 
-    const WebExtensionAlarmParameters& parameters() const { return m_parameters; }
+    const WebExtensionAlarmParameters& parameters() const LIFETIME_BOUND { return m_parameters; }
 
-    const String& name() const { return m_parameters.name; }
+    const String& name() const LIFETIME_BOUND { return m_parameters.name; }
     Seconds initialInterval() const { return m_parameters.initialInterval; }
     Seconds repeatInterval() const { return m_parameters.repeatInterval; }
     MonotonicTime nextScheduledTime() const { return m_parameters.nextScheduledTime; }

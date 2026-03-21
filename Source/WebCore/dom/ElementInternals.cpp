@@ -123,7 +123,7 @@ ExceptionOr<RefPtr<NodeList>> ElementInternals::labels()
 
 FormAssociatedCustomElement* ElementInternals::elementAsFormAssociatedCustom() const
 {
-    if (RefPtr element = dynamicDowncast<HTMLMaybeFormAssociatedCustomElement>(m_element.get()))
+    if (auto* element = dynamicDowncast<HTMLMaybeFormAssociatedCustomElement>(m_element.get()))
         return element->formAssociatedCustomElementForElementInternals();
     return nullptr;
 }

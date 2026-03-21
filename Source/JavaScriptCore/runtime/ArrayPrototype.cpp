@@ -1436,7 +1436,7 @@ static JSArray* concatAppendOne(JSGlobalObject* globalObject, VM& vm, JSArray* f
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     ASSERT(!isJSArray(second));
-    ASSERT(!shouldUseSlowPut(first->indexingType()));
+    ASSERT(!first->mayInterceptIndexedAccesses());
     Butterfly* firstButterfly = first->butterfly();
     unsigned firstArraySize = firstButterfly->publicLength();
 
@@ -1552,8 +1552,6 @@ static JSArray* concatAppendArray(JSGlobalObject* globalObject, VM& vm, JSArray*
         throwOutOfMemoryError(globalObject, scope);
         return { };
     }
-
-    DeferGC deferGC(vm);
     auto* butterfly = Butterfly::fromBase(memory, 0, 0);
     butterfly->setVectorLength(vectorLength);
     butterfly->setPublicLength(resultSize);
@@ -1604,7 +1602,7 @@ JSC_DEFINE_HOST_FUNCTION(arrayProtoFuncConcat, (JSGlobalObject* globalObject, Ca
                 // This code assumes that neither array has set Symbol.isConcatSpreadable. If the first array
                 // has indexed accessors then one of those accessors might change the value of Symbol.isConcatSpreadable
                 // on the second argument.
-                if (!shouldUseSlowPut(firstArray->indexingType())) [[likely]] {
+                if (!firstArray->mayInterceptIndexedAccesses()) [[likely]] {
                     if (!argumentValue.isObject()) {
                         auto* result = concatAppendOne(globalObject, vm, firstArray, argumentValue);
                         RETURN_IF_EXCEPTION(scope, { });
@@ -1993,7 +1991,7 @@ JSC_DEFINE_HOST_FUNCTION(arrayProtoFuncCopyWithin, (JSGlobalObject* globalObject
     RETURN_IF_EXCEPTION(scope, { });
 
     if (finalIndex < from)
-        return JSValue::encode(thisValue);
+        return JSValue::encode(thisObject);
 
     ASSERT(to <= length);
     ASSERT(from <= length);
@@ -2130,9 +2128,9 @@ static uint64_t flatIntoArray(JSGlobalObject* globalObject, JSObject* target, JS
         if (!element)
             continue;
 
-        bool elementIsArray = isArray(globalObject, element);
+        bool elementIsArray = depth > 0 && isArray(globalObject, element);
         RETURN_IF_EXCEPTION(scope, { });
-        if (depth > 0 && elementIsArray) {
+        if (elementIsArray) {
             uint64_t newDepth = depth - 1;
             if (depth == std::numeric_limits<uint64_t>::max()) [[unlikely]]
                 newDepth = depth;

@@ -551,7 +551,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseConstructorFuncAll, (JSGlobalObject* globalObjec
     globalContext->setRemainingElementsCount(vm, jsNumber(count));
     if (!count) {
         scope.release();
-        promise->resolve(globalObject, values);
+        promise->resolve(globalObject, vm, values);
         if (scope.exception()) [[unlikely]] {
             callReject();
             return JSValue::encode(promise);
@@ -590,7 +590,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseAllFulfillFunction, (JSGlobalObject* globalObjec
     globalContext->setRemainingElementsCount(vm, jsNumber(count));
     if (!count) {
         scope.release();
-        promise->resolve(globalObject, values);
+        promise->resolve(globalObject, vm, values);
     }
 
     return JSValue::encode(jsUndefined());
@@ -878,7 +878,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseConstructorFuncAllSettled, (JSGlobalObject* glob
     globalContext->setRemainingElementsCount(vm, jsNumber(count));
     if (!count) {
         scope.release();
-        promise->resolve(globalObject, values);
+        promise->resolve(globalObject, vm, values);
         if (scope.exception()) [[unlikely]] {
             callReject();
             return JSValue::encode(promise);
@@ -926,7 +926,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseAllSettledFulfillFunction, (JSGlobalObject* glob
     globalContext->setRemainingElementsCount(vm, jsNumber(count));
     if (!count) {
         scope.release();
-        promise->resolve(globalObject, values);
+        promise->resolve(globalObject, vm, values);
     }
 
     return JSValue::encode(jsUndefined());
@@ -970,7 +970,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseAllSettledRejectFunction, (JSGlobalObject* globa
     globalContext->setRemainingElementsCount(vm, jsNumber(count));
     if (!count) {
         scope.release();
-        promise->resolve(globalObject, values);
+        promise->resolve(globalObject, vm, values);
     }
 
     return JSValue::encode(jsUndefined());

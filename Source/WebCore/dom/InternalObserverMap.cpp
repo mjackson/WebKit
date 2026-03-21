@@ -103,40 +103,37 @@ private:
         JSC::Exception* previousException = nullptr;
         {
             auto catchScope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
-            auto result = protectedMapper()->invokeRethrowingException(value, m_idx);
+            auto result = protect(m_mapper)->invokeRethrowingException(value, m_idx);
             previousException = catchScope.exception();
             if (previousException) {
                 catchScope.clearException();
-                protectedSubscriber()->error(previousException->value());
+                protect(m_subscriber)->error(previousException->value());
                 return;
             }
 
             m_idx += 1;
 
             if (result.type() == CallbackResultType::Success)
-                protectedSubscriber()->next(result.releaseReturnValue());
+                protect(m_subscriber)->next(result.releaseReturnValue());
         }
     }
 
     void error(JSC::JSValue value) final
     {
-        protectedSubscriber()->error(value);
+        protect(m_subscriber)->error(value);
     }
 
     void complete() final
     {
         InternalObserver::complete();
-        protectedSubscriber()->complete();
+        protect(m_subscriber)->complete();
     }
 
-    void visitAdditionalChildren(JSC::AbstractSlotVisitor& visitor) const final
+    void visitAdditionalChildrenInGCThread(JSC::AbstractSlotVisitor& visitor) const final
     {
-        m_subscriber->visitAdditionalChildren(visitor);
-        m_mapper->visitJSFunction(visitor);
+        m_subscriber->visitAdditionalChildrenInGCThread(visitor);
+        m_mapper->visitJSFunctionInGCThread(visitor);
     }
-
-    Ref<Subscriber> NODELETE protectedSubscriber() const { return m_subscriber; }
-    Ref<MapperCallback> NODELETE protectedMapper() const { return m_mapper; }
 
     InternalObserverMap(ScriptExecutionContext& context, Ref<Subscriber> subscriber, Ref<MapperCallback> mapper)
         : InternalObserver(context)

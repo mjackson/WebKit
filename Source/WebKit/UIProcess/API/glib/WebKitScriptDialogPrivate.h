@@ -20,6 +20,7 @@
 #pragma once
 
 #include "WebKitScriptDialog.h"
+#include <wtf/Function.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/WTFString.h>
 

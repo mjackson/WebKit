@@ -70,6 +70,8 @@ public:
 
     static void dumpIonGraphFunction(const String& functionName, Ref<JSON::Object>&&);
 
+    static void barrierSync();
+
     static uint32_t getCurrentThreadID();
 
 private:

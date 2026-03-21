@@ -130,11 +130,6 @@ CaptionUserPreferences& PageGroup::ensureCaptionPreferences()
 
     return *m_captionPreferences;
 }
-
-Ref<CaptionUserPreferences> PageGroup::ensureProtectedCaptionPreferences()
-{
-    return ensureCaptionPreferences();
-}
 #endif
 
 } // namespace WebCore

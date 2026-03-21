@@ -38,7 +38,9 @@
 #include "FileReaderLoader.h"
 #include "GraphicsContext.h"
 #include "ImageBuffer.h"
+#include "ImageUtilities.h"
 #include "JSBlob.h"
+#include "JSDOMConvertInterface.h"
 #include "JSDOMPromise.h"
 #include "JSDOMPromiseDeferred.h"
 #include "LocalFrame.h"
@@ -56,7 +58,7 @@ static Document* documentFromClipboard(const Clipboard* clipboard)
     if (!clipboard)
         return nullptr;
 
-    RefPtr frame = clipboard->frame();
+    auto* frame = clipboard->frame();
     return frame ? frame->document() : nullptr;
 }
 
@@ -332,7 +334,7 @@ void ClipboardItemBindingsDataSource::ClipboardItemTypeLoader::sanitizeDataIfNee
         }
 
         imageBuffer->context().drawImage(bitmapImage.get(), FloatPoint::zero());
-        m_data = { SharedBuffer::create(imageBuffer->toData("image/png"_s)) };
+        m_data = { SharedBuffer::create(encodeData(WTF::move(imageBuffer), "image/png"_s)) };
     }
 }
 

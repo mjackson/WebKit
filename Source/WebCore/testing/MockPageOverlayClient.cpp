@@ -50,11 +50,11 @@ MockPageOverlayClient::MockPageOverlayClient() = default;
 
 Ref<MockPageOverlay> MockPageOverlayClient::installOverlay(Page& page, PageOverlay::OverlayType overlayType)
 {
-    auto overlay = PageOverlay::create(*this, overlayType);
+    Ref overlay = PageOverlay::create(*this, overlayType);
     page.pageOverlayController().installPageOverlay(overlay, PageOverlay::FadeMode::DoNotFade);
 
-    auto mockOverlay = MockPageOverlay::create(overlay.ptr());
-    m_overlays.add(mockOverlay.ptr());
+    Ref mockOverlay = MockPageOverlay::create(overlay.ptr());
+    m_overlays.add(mockOverlay);
 
     return mockOverlay;
 }

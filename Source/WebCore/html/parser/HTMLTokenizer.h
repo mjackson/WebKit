@@ -172,14 +172,14 @@ private:
     bool commitToCompleteEndTag(SegmentedString&);
 
     void appendToTemporaryBuffer(char16_t);
-    bool temporaryBufferIs(ASCIILiteral);
+    bool NODELETE temporaryBufferIs(ASCIILiteral);
 
     // Sometimes we speculatively consume input characters and we don't know whether they represent
     // end tags or RCDATA, etc. These functions help manage these state.
     bool NODELETE inEndTagBufferingState() const;
     void appendToPossibleEndTag(char16_t);
     void saveEndTagNameIfNeeded();
-    bool isAppropriateEndTag() const;
+    bool NODELETE isAppropriateEndTag() const;
 
     bool NODELETE haveBufferedCharacterToken() const;
 
@@ -222,8 +222,8 @@ public:
 
     operator bool() const;
 
-    HTMLToken& operator*() const;
-    HTMLToken* operator->() const;
+    HTMLToken& operator*() const LIFETIME_BOUND;
+    HTMLToken* operator->() const LIFETIME_BOUND;
 
 private:
     friend class HTMLTokenizer;

@@ -59,7 +59,7 @@ protected:
     virtual void destroyStatements() = 0;
     virtual String getDomainStringFromDomainID(unsigned) const = 0;
     virtual bool needsUpdatedSchema() = 0;
-    virtual const MemoryCompactLookupOnlyRobinHoodHashMap<String, TableAndIndexPair>& expectedTableAndIndexQueries() = 0;
+    virtual const MemoryCompactLookupOnlyRobinHoodHashMap<String, TableAndIndexPair>& expectedTableAndIndexQueries() LIFETIME_BOUND = 0;
     virtual std::span<const ASCIILiteral> sortedTables() = 0;
     TableAndIndexPair currentTableAndIndexQueries(const String&);
     String stripIndexQueryToMatchStoredValue(const char* originalQuery);

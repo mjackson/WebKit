@@ -27,15 +27,18 @@
 
 #import "HTTPServer.h"
 #import "PlatformUtilities.h"
+#import "SiteIsolationUtilities.h"
 #import "TestCocoa.h"
 #import "TestNavigationDelegate.h"
 #import "TestUIDelegate.h"
 #import "TestWKWebView.h"
 #import <WebKit/WKFrameInfoPrivate.h>
+#import <WebKit/WKPreferencesPrivate.h>
 #import <WebKit/WKProcessPoolPrivate.h>
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/WKWebpagePreferencesPrivate.h>
+#import <WebKit/_WKFeature.h>
 #import <WebKit/_WKProcessPoolConfiguration.h>
 #import <wtf/Vector.h>
 
@@ -165,9 +168,17 @@ TEST(EnhancedSecurity, PSONToEnhancedSecurity)
     [webView loadRequest:[NSURLRequest requestWithURL:url2]];
     TestWebKitAPI::Util::run(&finishedNavigation);
 
-    EXPECT_EQ(true, isEnhancedSecurityEnabled(webView.get()));
-    EXPECT_STREQ("security", [webView _webContentProcessVariantForFrame:nil].UTF8String);
-    EXPECT_NE(pid1, [webView _webProcessIdentifier]);
+    // Under Site Isolation, navigation has to reuse existing site process in BCG,
+    // so navigation inherits enhanced security state of that process.
+    if (isSiteIsolationEnabled(webView.get())) {
+        EXPECT_FALSE(isEnhancedSecurityEnabled(webView.get()));
+        EXPECT_STREQ("standard", [webView _webContentProcessVariantForFrame:nil].UTF8String);
+        EXPECT_EQ(pid1, [webView _webProcessIdentifier]);
+    } else {
+        EXPECT_TRUE(isEnhancedSecurityEnabled(webView.get()));
+        EXPECT_STREQ("security", [webView _webContentProcessVariantForFrame:nil].UTF8String);
+        EXPECT_NE(pid1, [webView _webProcessIdentifier]);
+    }
 }
 
 TEST(EnhancedSecurity, PSONToEnhancedSecuritySamePage)
@@ -203,9 +214,17 @@ TEST(EnhancedSecurity, PSONToEnhancedSecuritySamePage)
     [webView loadRequest:[NSURLRequest requestWithURL:url2]];
     TestWebKitAPI::Util::run(&finishedNavigation);
 
-    EXPECT_EQ(true, isEnhancedSecurityEnabled(webView.get()));
-    EXPECT_STREQ("security", [webView _webContentProcessVariantForFrame:nil].UTF8String);
-    EXPECT_NE(pid1, [webView _webProcessIdentifier]);
+    // Under Site Isolation, navigation has to reuse existing site process in BCG,
+    // so navigation inherits enhanced security state of that process.
+    if (isSiteIsolationEnabled(webView.get())) {
+        EXPECT_FALSE(isEnhancedSecurityEnabled(webView.get()));
+        EXPECT_STREQ("standard", [webView _webContentProcessVariantForFrame:nil].UTF8String);
+        EXPECT_EQ(pid1, [webView _webProcessIdentifier]);
+    } else {
+        EXPECT_TRUE(isEnhancedSecurityEnabled(webView.get()));
+        EXPECT_STREQ("security", [webView _webContentProcessVariantForFrame:nil].UTF8String);
+        EXPECT_NE(pid1, [webView _webProcessIdentifier]);
+    }
 }
 
 static RetainPtr<_WKProcessPoolConfiguration> psonProcessPoolConfiguration()
@@ -490,7 +509,11 @@ TEST(EnhancedSecurity, EnhancedSecurityNavigationStaysEnabledAfterSubFrameNaviga
 
     EXPECT_EQ(true, isEnhancedSecurityEnabled(webView.get()));
     EXPECT_STREQ("security", [webView _webContentProcessVariantForFrame:nil].UTF8String);
-    EXPECT_STREQ("security", [webView _webContentProcessVariantForFrame:[webView firstChildFrame]._handle].UTF8String);
+    // Without Site Isolation, cross-site frame must be loaded in the same process as main frame,
+    // so process variant cannot change; with Site Isolation, cross-site frame is put in a
+    // different process, and that process can have different variant.
+    auto frameProcessVariant = isSiteIsolationEnabled(webView.get()) ? "standard" : "security";
+    EXPECT_STREQ(frameProcessVariant, [webView _webContentProcessVariantForFrame:[webView firstChildFrame]._handle].UTF8String);
 
 }
 
@@ -542,7 +565,6 @@ TEST(EnhancedSecurity, EnhancedSecurityNavigationStaysDisabledAfterSubFrameNavig
 
 TEST(EnhancedSecurity, EnhancedSecurityNavigationStaysDisabledAfterSubFrameNavigationRequestEnabledCrossOrigin)
 {
-
     HTTPServer server({
         { "/example"_s, { "<iframe id='webkit_frame' src='https://example.com/webkit'></iframe>"_s } },
         { "/example_subframe"_s, { "<script>alert('done')</script>"_s } },
@@ -582,7 +604,11 @@ TEST(EnhancedSecurity, EnhancedSecurityNavigationStaysDisabledAfterSubFrameNavig
 
     EXPECT_EQ(false, isEnhancedSecurityEnabled(webView.get()));
     EXPECT_STREQ("standard", [webView _webContentProcessVariantForFrame:nil].UTF8String);
-    EXPECT_STREQ("standard", [webView _webContentProcessVariantForFrame:[webView firstChildFrame]._handle].UTF8String);
+    // Without Site Isolation, cross-site frame must be loaded in the same process as main frame,
+    // so process variant cannot change; with Site Isolation, cross-site frame is put in a
+    // different process, and that process can have different variant.
+    auto frameProcessVariant = isSiteIsolationEnabled(webView.get()) ? "security" : "standard";
+    EXPECT_STREQ(frameProcessVariant, [webView _webContentProcessVariantForFrame:[webView firstChildFrame]._handle].UTF8String);
 }
 
 TEST(EnhancedSecurity, WindowOpenWithNoopenerFromEnhancedSecurityPage)
@@ -751,15 +777,10 @@ TEST(EnhancedSecurity, WindowOpenNoopenerFromStandardWithEnhancedSecurityViaDele
     __block RetainPtr<TestNavigationDelegate> openedDelegate;
     auto uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().createWebViewWithConfiguration = ^(WKWebViewConfiguration *configuration, WKNavigationAction *, WKWindowFeatures *) {
+        configuration.defaultWebpagePreferences._enhancedSecurityEnabled = YES;
         openedWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
         openedDelegate = adoptNS([TestNavigationDelegate new]);
         [openedDelegate allowAnyTLSCertificate];
-
-        openedDelegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^completionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
-            preferences._enhancedSecurityEnabled = YES;
-            completionHandler(WKNavigationActionPolicyAllow, preferences);
-        };
-
         [openedWebView setNavigationDelegate:openedDelegate.get()];
         return openedWebView.get();
     };
@@ -817,15 +838,10 @@ TEST(EnhancedSecurity, WindowOpenNoopenerFromEnhancedSecurityWithStandardViaDele
     __block RetainPtr<TestNavigationDelegate> openedDelegate;
     auto uiDelegate = adoptNS([TestUIDelegate new]);
     uiDelegate.get().createWebViewWithConfiguration = ^(WKWebViewConfiguration *configuration, WKNavigationAction *, WKWindowFeatures *) {
+        configuration.defaultWebpagePreferences._enhancedSecurityEnabled = NO;
         openedWebView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
         openedDelegate = adoptNS([TestNavigationDelegate new]);
         [openedDelegate allowAnyTLSCertificate];
-
-        openedDelegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^completionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
-            preferences._enhancedSecurityEnabled = NO;
-            completionHandler(WKNavigationActionPolicyAllow, preferences);
-        };
-
         [openedWebView setNavigationDelegate:openedDelegate.get()];
         return openedWebView.get();
     };
@@ -981,6 +997,26 @@ TEST(EnhancedSecurity, SystemLockdownModeEnablesEnhancedSecurityWhenMaximizeComp
     EXPECT_STREQ("security", [webView _webContentProcessVariantForFrame:nil].UTF8String);
 
     [WKProcessPool _clearCaptivePortalModeEnabledGloballyForTesting];
+}
+
+TEST(EnhancedSecurity, ForceDisabledOverridesSecurityRestrictionMode)
+{
+    RetainPtr webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    webViewConfiguration.get().defaultWebpagePreferences.securityRestrictionMode = WKSecurityRestrictionModeMaximizeCompatibility;
+
+    for (_WKFeature *feature in [WKPreferences _features]) {
+        if ([feature.key isEqualToString:@"EnhancedSecurityForceDisabled"])
+            [webViewConfiguration.get().preferences _setEnabled:YES forFeature:feature];
+    }
+
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
+    [webView loadRequest:[NSURLRequest requestWithURL:url]];
+    [webView _test_waitForDidFinishNavigation];
+
+    EXPECT_EQ(false, isEnhancedSecurityEnabled(webView.get()));
+    NSString *processVariant = [webView _webContentProcessVariantForFrame:nil];
+    EXPECT_STREQ("standard", processVariant.UTF8String);
 }
 
 #endif

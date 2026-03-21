@@ -491,7 +491,7 @@ public:
     [[nodiscard]] PartialResult addSIMDLoadExtend(SIMDLaneOperation, ExpressionType pointer, uint32_t offset, ExpressionType& result);
     [[nodiscard]] PartialResult addSIMDLoadPad(SIMDLaneOperation, ExpressionType pointer, uint32_t offset, ExpressionType& result);
 
-    [[nodiscard]] ExpressionType addConstant(v128_t value)
+    [[nodiscard]] ExpressionType addSIMDConstant(v128_t value)
     {
         return push(constant(B3::V128, value));
     }
@@ -505,7 +505,7 @@ public:
     B3::Opcode b3Op = B3::Oops; \
     if (false) { }
 
-    auto addExtractLane(SIMDInfo info, uint8_t lane, ExpressionType v, ExpressionType& result) -> PartialResult
+    auto addSIMDExtractLane(SIMDInfo info, uint8_t lane, ExpressionType v, ExpressionType& result) -> PartialResult
     {
         result = push(m_currentBlock->appendNew<SIMDValue>(m_proc, origin(), B3::VectorExtractLane, toB3Type(simdScalarType(info.lane)), info,
             lane,
@@ -513,7 +513,7 @@ public:
         return { };
     }
 
-    auto addReplaceLane(SIMDInfo info, uint8_t lane, ExpressionType v, ExpressionType s, ExpressionType& result) -> PartialResult
+    auto addSIMDReplaceLane(SIMDInfo info, uint8_t lane, ExpressionType v, ExpressionType s, ExpressionType& result) -> PartialResult
     {
         result = push(m_currentBlock->appendNew<SIMDValue>(m_proc, origin(), B3::VectorReplaceLane, B3::V128, info,
             lane,
@@ -1138,7 +1138,7 @@ void OMGIRGenerator::restoreWasmContextInstance(BasicBlock* block, Value* arg)
     effects.writesPinned = true;
     effects.reads = B3::HeapRange::top();
     patchpoint->effects = effects;
-    patchpoint->clobberLate(RegisterSetBuilder(GPRInfo::wasmContextInstancePointer));
+    patchpoint->clobberLate(RegisterSet(GPRInfo::wasmContextInstancePointer));
     patchpoint->append(arg, ValueRep::SomeRegister);
     patchpoint->setGenerator([](CCallHelpers& jit, const StackmapGenerationParams& param) {
         jit.move(param[0].gpr(), GPRInfo::wasmContextInstancePointer);
@@ -1324,7 +1324,7 @@ OMGIRGenerator::OMGIRGenerator(AbstractHeapRepository& heaps, CompilationContext
         B3::PatchpointValue* stackOverflowCheck = m_currentBlock->appendNew<B3::PatchpointValue>(m_proc, Void, Origin());
         stackOverflowCheck->appendSomeRegister(instanceValue());
         stackOverflowCheck->appendSomeRegister(framePointer());
-        stackOverflowCheck->clobber(RegisterSetBuilder::macroClobberedGPRs());
+        stackOverflowCheck->clobber(RegisterSet::macroClobberedGPRs());
         stackOverflowCheck->numGPScratchRegisters = 0;
         stackOverflowCheck->setGenerator([=, this] (CCallHelpers& jit, const B3::StackmapGenerationParams& params) {
             ASSERT(m_proc.frameSize() == params.proc().frameSize());
@@ -1346,7 +1346,7 @@ OMGIRGenerator::OMGIRGenerator(AbstractHeapRepository& heaps, CompilationContext
                     params.addLatePath(
                         [=](CCallHelpers& jit) {
                             failure.link(jit);
-                            int32_t stackSpace = WTF::roundUpToMultipleOf<stackAlignmentBytes()>(RegisterSetBuilder::calleeSaveRegisters().numberOfSetRegisters() * sizeof(Register));
+                            int32_t stackSpace = WTF::roundUpToMultipleOf<stackAlignmentBytes()>(RegisterSet::calleeSaveRegisters().numberOfSetRegisters() * sizeof(Register));
                             ASSERT(static_cast<unsigned>(stackSpace) < Options::softReservedZoneSize());
                             jit.addPtr(CCallHelpers::TrustedImm32(-stackSpace), GPRInfo::callFrameRegister, MacroAssembler::stackPointerRegister);
                             jit.move(CCallHelpers::TrustedImm32(static_cast<uint32_t>(ExceptionType::StackOverflow)), GPRInfo::argumentGPR1);
@@ -1400,7 +1400,7 @@ void OMGIRGenerator::reloadMemoryRegistersFromInstance(const MemoryInformation& 
         RegisterSet clobbers;
         clobbers.add(GPRInfo::wasmBaseMemoryPointer, IgnoreVectors);
         clobbers.add(GPRInfo::wasmBoundsCheckingSizeRegister, IgnoreVectors);
-        clobbers.merge(RegisterSetBuilder::macroClobberedGPRs());
+        clobbers.merge(RegisterSet::macroClobberedGPRs());
 
         B3::PatchpointValue* patchpoint = block->appendNew<B3::PatchpointValue>(m_proc, B3::Void, origin());
         Effects effects = Effects::none();
@@ -1847,8 +1847,8 @@ auto OMGIRGenerator::emitIndirectCall(Value* calleeInstance, Value* calleeCode, 
         patchpoint->effects.writesPinned = true;
         // We pessimistically assume we're calling something with BoundsChecking memory.
         // FIXME: We shouldn't have to do this: https://bugs.webkit.org/show_bug.cgi?id=172181
-        patchpoint->clobber(RegisterSetBuilder::wasmPinnedRegisters());
-        patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+        patchpoint->clobber(RegisterSet::wasmPinnedRegisters());
+        patchpoint->clobber(RegisterSet::macroClobberedGPRs());
         patchpoint->append(calleeInstance, ValueRep::SomeRegister);
         patchpoint->numGPScratchRegisters = 1;
 
@@ -1905,7 +1905,7 @@ auto OMGIRGenerator::emitIndirectCall(Value* calleeInstance, Value* calleeCode, 
     // because the wasm->wasm thunk unconditionally overrides the size registers.
     // FIXME: We should not have to do this, but the wasm->wasm stub assumes it can
     // use all the pinned registers as scratch: https://bugs.webkit.org/show_bug.cgi?id=172181
-    patchpoint->clobberLate(RegisterSetBuilder::wasmPinnedRegisters());
+    patchpoint->clobberLate(RegisterSet::wasmPinnedRegisters());
 
     unsigned patchArgsIndex = patchpoint->reps().size();
     patchpoint->append(calleeCode, ValueRep::SomeRegister);
@@ -2238,55 +2238,7 @@ auto OMGIRGenerator::setGlobal(uint32_t index, ExpressionType value) -> PartialR
             m_heaps.decorateMemory(&m_heaps.WasmGlobalValue_owner, cell);
             cell->setControlDependent(false);
 
-            Value* cellState = m_currentBlock->appendNew<MemoryValue>(m_proc, Load8Z, Int32, origin(), cell, safeCast<int32_t>(JSCell::cellStateOffset()));
-            m_heaps.decorateMemory(&m_heaps.JSCell_cellState, cellState);
-
-            auto* vm = vmValue();
-            Value* threshold = m_currentBlock->appendNew<MemoryValue>(m_proc, Load, Int32, origin(), vm, safeCast<int32_t>(VM::offsetOfHeapBarrierThreshold()));
-            m_heaps.decorateMemory(&m_heaps.VM_heap_barrierThreshold, threshold);
-
-            BasicBlock* fenceCheckPath = m_proc.addBlock();
-            BasicBlock* fencePath = m_proc.addBlock();
-            BasicBlock* doSlowPath = m_proc.addBlock();
-            BasicBlock* continuation = m_proc.addBlock();
-
-            m_currentBlock->appendNewControlValue(m_proc, B3::Branch, origin(),
-                m_currentBlock->appendNew<Value>(m_proc, Above, origin(), cellState, threshold),
-                FrequentedBlock(continuation), FrequentedBlock(fenceCheckPath, FrequencyClass::Rare));
-            fenceCheckPath->addPredecessor(m_currentBlock);
-            continuation->addPredecessor(m_currentBlock);
-            m_currentBlock = fenceCheckPath;
-
-            Value* shouldFence = m_currentBlock->appendNew<MemoryValue>(m_proc, Load8Z, Int32, origin(), vm, safeCast<int32_t>(VM::offsetOfHeapMutatorShouldBeFenced()));
-            m_heaps.decorateMemory(&m_heaps.VM_heap_mutatorShouldBeFenced, shouldFence);
-
-            m_currentBlock->appendNewControlValue(m_proc, B3::Branch, origin(),
-                shouldFence,
-                FrequentedBlock(fencePath), FrequentedBlock(doSlowPath));
-            fencePath->addPredecessor(m_currentBlock);
-            doSlowPath->addPredecessor(m_currentBlock);
-            m_currentBlock = fencePath;
-
-            B3::PatchpointValue* doFence = m_currentBlock->appendNew<B3::PatchpointValue>(m_proc, B3::Void, origin());
-            doFence->setGenerator([] (CCallHelpers& jit, const B3::StackmapGenerationParams&) {
-                jit.memoryFence();
-            });
-
-            Value* cellStateLoadAfterFence = m_currentBlock->appendNew<MemoryValue>(m_proc, Load8Z, Int32, origin(), cell, safeCast<int32_t>(JSCell::cellStateOffset()));
-            m_heaps.decorateMemory(&m_heaps.JSCell_cellState, cellStateLoadAfterFence);
-
-            m_currentBlock->appendNewControlValue(m_proc, B3::Branch, origin(),
-                m_currentBlock->appendNew<Value>(m_proc, Above, origin(), cellStateLoadAfterFence, constant(Int32, blackThreshold)),
-                FrequentedBlock(continuation), FrequentedBlock(doSlowPath, FrequencyClass::Rare));
-            doSlowPath->addPredecessor(m_currentBlock);
-            continuation->addPredecessor(m_currentBlock);
-            m_currentBlock = doSlowPath;
-
-            callWasmOperation(m_currentBlock, B3::Void, operationWasmWriteBarrierSlowPath, cell, vm);
-            m_currentBlock->appendNewControlValue(m_proc, Jump, origin(), continuation);
-
-            continuation->addPredecessor(m_currentBlock);
-            m_currentBlock = continuation;
+            emitWriteBarrier(cell);
         }
         break;
     }
@@ -2308,32 +2260,20 @@ inline void OMGIRGenerator::emitWriteBarrier(Value* cell)
     Value* threshold = m_currentBlock->appendNew<MemoryValue>(m_proc, Load, Int32, origin(), vm, safeCast<int32_t>(VM::offsetOfHeapBarrierThreshold()));
     m_heaps.decorateMemory(&m_heaps.VM_heap_barrierThreshold, threshold);
 
-    BasicBlock* fenceCheckPath = m_proc.addBlock();
-    BasicBlock* fencePath = m_proc.addBlock();
+    BasicBlock* recheckPath = m_proc.addBlock();
     BasicBlock* doSlowPath = m_proc.addBlock();
     BasicBlock* continuation = m_proc.addBlock();
 
     m_currentBlock->appendNewControlValue(m_proc, B3::Branch, origin(),
         m_currentBlock->appendNew<Value>(m_proc, Above, origin(), cellState, threshold),
-        FrequentedBlock(continuation), FrequentedBlock(fenceCheckPath, FrequencyClass::Rare));
-    fenceCheckPath->addPredecessor(m_currentBlock);
+        FrequentedBlock(continuation), FrequentedBlock(recheckPath, FrequencyClass::Rare));
+    recheckPath->addPredecessor(m_currentBlock);
     continuation->addPredecessor(m_currentBlock);
-    m_currentBlock = fenceCheckPath;
+    m_currentBlock = recheckPath;
 
-    Value* shouldFence = m_currentBlock->appendNew<MemoryValue>(m_proc, Load8Z, Int32, origin(), vm, safeCast<int32_t>(VM::offsetOfHeapMutatorShouldBeFenced()));
-    m_heaps.decorateMemory(&m_heaps.VM_heap_mutatorShouldBeFenced, shouldFence);
-
-    m_currentBlock->appendNewControlValue(m_proc, B3::Branch, origin(),
-        shouldFence,
-        FrequentedBlock(fencePath), FrequentedBlock(doSlowPath));
-    fencePath->addPredecessor(m_currentBlock);
-    doSlowPath->addPredecessor(m_currentBlock);
-    m_currentBlock = fencePath;
-
-    B3::PatchpointValue* doFence = m_currentBlock->appendNew<B3::PatchpointValue>(m_proc, B3::Void, origin());
-    doFence->setGenerator([] (CCallHelpers& jit, const B3::StackmapGenerationParams&) {
-        jit.memoryFence();
-    });
+    auto* fence = m_currentBlock->appendNew<FenceValue>(m_proc, origin());
+    m_heaps.decorateFenceRead(&m_heaps.root, fence);
+    m_heaps.decorateFenceWrite(&m_heaps.JSCell_cellState, fence);
 
     Value* cellStateLoadAfterFence = m_currentBlock->appendNew<MemoryValue>(m_proc, Load8Z, Int32, origin(), cell, safeCast<int32_t>(JSCell::cellStateOffset()));
     m_heaps.decorateMemory(&m_heaps.JSCell_cellState, cellStateLoadAfterFence);
@@ -2345,7 +2285,9 @@ inline void OMGIRGenerator::emitWriteBarrier(Value* cell)
     continuation->addPredecessor(m_currentBlock);
     m_currentBlock = doSlowPath;
 
-    callWasmOperation(m_currentBlock, B3::Void, operationWasmWriteBarrierSlowPath, cell, vm);
+    Value* call = callWasmOperation(m_currentBlock, B3::Void, operationWasmWriteBarrierSlowPath, cell, vm);
+    m_heaps.decorateCCallRead(&m_heaps.root, call);
+    m_heaps.decorateCCallWrite(&m_heaps.JSCell_cellState, call);
     m_currentBlock->appendNewControlValue(m_proc, Jump, origin(), continuation);
 
     continuation->addPredecessor(m_currentBlock);
@@ -3145,7 +3087,7 @@ auto OMGIRGenerator::truncSaturated(Ext1OpType op, ExpressionType argVar, Expres
             patchpoint->append(signBitConstant, ValueRep::SomeRegister);
             patchpoint->numFPScratchRegisters = 1;
         }
-        patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+        patchpoint->clobber(RegisterSet::macroClobberedGPRs());
     }
     patchpoint->setGenerator([=] (CCallHelpers& jit, const StackmapGenerationParams& params) {
         switch (op) {
@@ -3418,7 +3360,7 @@ auto OMGIRGenerator::addArrayNewDefault(uint32_t typeIndex, ExpressionType size,
     if (isRefType(elementType.unpacked()))
         initValue = m_currentBlock->appendNew<WasmConstRefValue>(m_proc, origin(), JSValue::encode(jsNull()));
     else if (elementType.elementSize() == 16)
-        initValue = m_currentBlock->appendNew<Const128Value>(m_proc, origin(), v128_t { });
+        initValue = constant(V128, v128_t { });
     else if (elementType.elementSize() <= 4)
         initValue = constant(Int32, 0);
     else
@@ -3895,9 +3837,12 @@ auto OMGIRGenerator::addStructNewDefault(uint32_t typeIndex, ExpressionType& res
 
     for (StructFieldCount i = 0; i < structType.fieldCount(); ++i) {
         Value* initValue;
-        if (Wasm::isRefType(structType.field(i).type))
+        auto fieldType = structType.field(i).type;
+        if (Wasm::isRefType(fieldType))
             initValue = m_currentBlock->appendNew<WasmConstRefValue>(m_proc, origin(), JSValue::encode(jsNull()));
-        else if (typeSizeInBytes(structType.field(i).type) <= 4)
+        else if (typeSizeInBytes(fieldType) == 16)
+            initValue = constant(V128, v128_t { });
+        else if (typeSizeInBytes(fieldType) <= 4)
             initValue = constant(Int32, 0);
         else
             initValue = constant(Int64, 0);
@@ -4051,7 +3996,7 @@ Value* OMGIRGenerator::allocateWasmGCHeapCell(Value* allocator, BasicBlock* slow
     auto* patchpoint = m_currentBlock->appendNew<B3::PatchpointValue>(m_proc, pointerType(), origin());
     if (isARM64()) {
         // emitAllocateWithNonNullAllocator uses the scratch registers on ARM.
-        patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+        patchpoint->clobber(RegisterSet::macroClobberedGPRs());
     }
     patchpoint->effects.terminal = true;
     patchpoint->appendSomeRegisterWithClobber(allocator);
@@ -5010,7 +4955,7 @@ auto OMGIRGenerator::addThrow(unsigned exceptionIndex, ArgumentList& args, Stack
         offset += arg.value().type().isVector() ?  2 : 1;
     }
     m_maxNumJSCallArguments = std::max(m_maxNumJSCallArguments, offset);
-    patch->clobber(RegisterSetBuilder::registersToSaveForJSCall(m_proc.usesSIMD() ? RegisterSetBuilder::allRegisters() : RegisterSetBuilder::allScalarRegisters()));
+    patch->clobber(RegisterSet::registersToSaveForJSCall(m_proc.usesSIMD() ? RegisterSet::allRegisters() : RegisterSet::allScalarRegisters()));
     auto handle = preparePatchpointForExceptions(m_currentBlock, patch);
     patch->setGenerator([this, exceptionIndex, handle = WTF::move(handle), origin = this->origin()] (CCallHelpers& jit, const B3::StackmapGenerationParams& params) {
         AllowMacroScratchRegisterUsage allowScratch(jit);
@@ -5034,7 +4979,7 @@ auto OMGIRGenerator::addThrow(unsigned exceptionIndex, ArgumentList& args, Stack
 
     advanceCallSiteIndex();
     PatchpointValue* patch = m_proc.add<PatchpointValue>(B3::Void, origin(), cloningForbidden(Patchpoint));
-    patch->clobber(RegisterSetBuilder::registersToSaveForJSCall(m_proc.usesSIMD() ? RegisterSetBuilder::allRegisters() : RegisterSetBuilder::allScalarRegisters()));
+    patch->clobber(RegisterSet::registersToSaveForJSCall(m_proc.usesSIMD() ? RegisterSet::allRegisters() : RegisterSet::allScalarRegisters()));
     patch->effects.terminal = true;
     patch->append(instanceValue(), ValueRep::reg(GPRInfo::argumentGPR0));
     patch->append(exception , ValueRep::reg(GPRInfo::argumentGPR1));
@@ -5056,7 +5001,7 @@ auto OMGIRGenerator::addRethrow(unsigned, ControlType& data) -> PartialResult
 
     advanceCallSiteIndex();
     PatchpointValue* patch = m_proc.add<PatchpointValue>(B3::Void, origin(), cloningForbidden(Patchpoint));
-    patch->clobber(RegisterSetBuilder::registersToSaveForJSCall(m_proc.usesSIMD() ? RegisterSetBuilder::allRegisters() : RegisterSetBuilder::allScalarRegisters()));
+    patch->clobber(RegisterSet::registersToSaveForJSCall(m_proc.usesSIMD() ? RegisterSet::allRegisters() : RegisterSet::allScalarRegisters()));
     patch->effects.terminal = true;
     patch->append(instanceValue(), ValueRep::reg(GPRInfo::argumentGPR0));
     patch->append(get(data.exception()), ValueRep::reg(GPRInfo::argumentGPR1));
@@ -5289,8 +5234,8 @@ auto OMGIRGenerator::createCallPatchpoint(BasicBlock* block, const TypeDefinitio
     PatchpointValue* patchpoint = m_proc.add<PatchpointValue>(returnType, origin());
     patchpoint->effects.writesPinned = true;
     patchpoint->effects.readsPinned = true;
-    patchpoint->clobberEarly(RegisterSetBuilder::macroClobberedGPRs());
-    patchpoint->clobberLate(RegisterSetBuilder::registersToSaveForJSCall(m_proc.usesSIMD() ? RegisterSetBuilder::allRegisters() : RegisterSetBuilder::allScalarRegisters()));
+    patchpoint->clobberEarly(RegisterSet::macroClobberedGPRs());
+    patchpoint->clobberLate(RegisterSet::registersToSaveForJSCall(m_proc.usesSIMD() ? RegisterSet::allRegisters() : RegisterSet::allScalarRegisters()));
     patchpoint->appendVector(constrainedPatchArgs);
     auto handle = preparePatchpointForExceptions(block, patchpoint);
     const Vector<ArgumentLocation, 1>& constrainedResultLocations = wasmCalleeInfo.results;
@@ -5343,10 +5288,14 @@ static inline void prepareForTailCallImpl(unsigned functionIndex, CCallHelpers& 
 
     RegisterAtOffsetList calleeSaves = params.code().calleeSaveRegisterAtOffsetList();
 
-    // Be careful not to clobber this below.
-    // We also need to make sure that we preserve this if it is used by the patchpoint body.
     AllowMacroScratchRegisterUsage allowScratch(jit);
     auto tmp = jit.scratchRegister();
+
+#if CPU(X86_64)
+    // On x64, the scratch register may alias one of the inputs and needs special saving.
+    //
+    // Be careful not to clobber this below.
+    // We also need to make sure that we preserve this if it is used by the patchpoint body.
     bool tmpNeedsSaving = false;
     int tmpSpillOffsetRelativeToOriginalSP = 0;
 
@@ -5378,6 +5327,30 @@ static inline void prepareForTailCallImpl(unsigned functionIndex, CCallHelpers& 
         tmpSpillOffsetRelativeToOriginalSP = allocateSpill(WidthPtr);
         jit.storePtr(tmp, CCallHelpers::Address(MacroAssembler::stackPointerRegister, tmpSpillOffsetRelativeToOriginalSP));
     }
+#else
+    constexpr bool tmpNeedsSaving = false;
+    constexpr int tmpSpillOffsetRelativeToOriginalSP = 0;
+
+    // Set up a valid frame so that we can clobber this one.
+    jit.emitRestore(calleeSaves);
+
+#if ASSERT_ENABLED
+    for (unsigned i = 0; i < params.size(); ++i) {
+        auto arg = params[i];
+        if (arg.isGPR()) {
+            ASSERT(!calleeSaves.find(arg.gpr()));
+            ASSERT(arg.gpr() != tmp);
+            continue;
+        }
+        if (arg.isFPR()) {
+            ASSERT(!calleeSaves.find(arg.fpr()));
+            continue;
+        }
+    }
+
+    ASSERT(!calleeSaves.find(tmp));
+#endif // ASSERT_ENABLED
+#endif // CPU(X86_64)
 
 #if ASSERT_ENABLED
     // Let's make sure we never rely on these slots, so we can use them for scratch in the future.
@@ -5508,7 +5481,7 @@ static inline void prepareForTailCallImpl(unsigned functionIndex, CCallHelpers& 
             continue;
         }
 
-        auto saveSrc = [tmp, tmpNeedsSaving, tmpSpillOffsetRelativeToOriginalSP, dstType, &allocateSpill, &jit, &fpOffsetToSPOffset](ValueRep src) -> std::tuple<int, Width> {
+        auto saveSrc = [=, &allocateSpill, &jit, &fpOffsetToSPOffset](ValueRep src) -> std::tuple<int, Width> {
             int srcOffset = 0;
             if (tmpNeedsSaving && src.isGPR() && src.gpr() == tmp) {
                 // Before tmp may have been clobbered, it was spilled to tmpSpill.
@@ -5518,10 +5491,15 @@ static inline void prepareForTailCallImpl(unsigned functionIndex, CCallHelpers& 
                 jit.storePtr(src.gpr(), CCallHelpers::Address(MacroAssembler::stackPointerRegister, srcOffset));
             } else if (src.isFPR()) {
                 srcOffset = allocateSpill(dstType.width());
-                if (dstType.width() <= Width::Width64)
-                    jit.storeDouble(src.fpr(), CCallHelpers::Address(MacroAssembler::stackPointerRegister, srcOffset));
-                else
-                    jit.storeVector(src.fpr(), CCallHelpers::Address(MacroAssembler::stackPointerRegister, srcOffset));
+                auto dst = CCallHelpers::Address(MacroAssembler::stackPointerRegister, srcOffset);
+                if (dstType == Types::F32)
+                    jit.storeFloat(src.fpr(), dst);
+                else if (dstType == Types::F64)
+                    jit.storeDouble(src.fpr(), dst);
+                else {
+                    ASSERT(dstType == Types::V128);
+                    jit.storeVector(src.fpr(), dst);
+                }
             } else if (src.isConstant()) {
                 if (toB3Type(dstType).kind() == Float) {
                     srcOffset = allocateSpill(Width32);
@@ -5640,9 +5618,11 @@ static inline void prepareForTailCallImpl(unsigned functionIndex, CCallHelpers& 
     if (tmpNeedsSaving)
         jit.loadPtr(CCallHelpers::Address(MacroAssembler::stackPointerRegister, tmpSpillOffsetRelativeToOriginalSP), tmp);
 
-    // Nothing after restoring tmp can use the scratch register since it might clobber an input.
     {
+#if CPU(X86_64)
+        // On x64, nothing after restoring tmp can use the scratch register since it might clobber an input.
         DisallowMacroScratchRegisterUsage disallowScratch(jit);
+#endif
 
         jit.addPtr(MacroAssembler::TrustedImm32(newSPAtPrologueOffsetFromSP), MacroAssembler::stackPointerRegister);
 
@@ -5753,8 +5733,8 @@ auto OMGIRGenerator::createTailCallPatchpoint(BasicBlock* block, const TypeDefin
     const Checked<int32_t> newFPOffsetFromFP = offsetOfFirstSlotFromFP + offsetOfNewFPFromFirstSlot;
     m_tailCallStackOffsetFromFP = std::min(m_tailCallStackOffsetFromFP, newFPOffsetFromFP);
 
-    RegisterSet scratchRegisters = RegisterSetBuilder::macroClobberedGPRs();
-    RegisterSet forbiddenArgumentRegisters = RegisterSetBuilder::calleeSaveRegisters().merge(scratchRegisters);
+    RegisterSet scratchRegisters = RegisterSet::macroClobberedGPRs();
+    RegisterSet forbiddenArgumentRegisters = RegisterSet::calleeSaveRegisters().merge(scratchRegisters);
 
     ASSERT(wasmCalleeInfoAsCallee.params.size() == tmpArgSourceLocations.size());
 #if ASSERT_ENABLED
@@ -5790,11 +5770,11 @@ auto OMGIRGenerator::createTailCallPatchpoint(BasicBlock* block, const TypeDefin
     patchpoint->effects.readsPinned = true;
     patchpoint->effects.writesPinned = true;
 
-    RegisterSetBuilder clobbers;
-    clobbers.merge(RegisterSetBuilder::calleeSaveRegisters());
-    clobbers.exclude(RegisterSetBuilder::stackRegisters());
+    RegisterSet clobbers;
+    clobbers.merge(RegisterSet::calleeSaveRegisters());
+    clobbers.exclude(RegisterSet::stackRegisters());
     patchpoint->clobberEarly(WTF::move(clobbers));
-    patchpoint->clobberLate(RegisterSetBuilder::macroClobberedGPRs());
+    patchpoint->clobberLate(RegisterSet::macroClobberedGPRs());
     patchpoint->appendVector(WTF::move(patchArgs));
     // See prepareForTailCallImpl for the heart of this patchpoint.
     block->append(patchpoint);
@@ -5940,7 +5920,7 @@ auto OMGIRGenerator::emitDirectCall(unsigned callProfileIndex, FunctionSpaceInde
             // We need to clobber all potential pinned registers since we might be leaving the instance.
             // We pessimistically assume we could be calling to something that is bounds checking.
             // FIXME: We shouldn't have to do this: https://bugs.webkit.org/show_bug.cgi?id=172181
-            patchpoint->clobberLate(RegisterSetBuilder::wasmPinnedRegisters());
+            patchpoint->clobberLate(RegisterSet::wasmPinnedRegisters());
             patchArgsIndex += m_proc.resultCount(patchpoint->type());
             patchpoint->setGenerator([this, patchArgsIndex, handle, isTailCallRootCaller, tailCallStackOffsetFromFP, prepareForCall](CCallHelpers& jit, const B3::StackmapGenerationParams& params) {
                 AllowMacroScratchRegisterUsage allowScratch(jit);
@@ -6036,12 +6016,12 @@ auto OMGIRGenerator::emitDirectCall(unsigned callProfileIndex, FunctionSpaceInde
     // We need to clobber the size register since the IPInt always bounds checks
     // FIXME(wasm-multimemory): is this the right way to handle a memoryCount of 0?
     if (useSignalingMemory() || (m_info.memoryCount() && m_info.theOnlyMemory().isShared()))
-        patchpoint->clobberLate(RegisterSetBuilder { GPRInfo::wasmBoundsCheckingSizeRegister });
+        patchpoint->clobberLate(RegisterSet { GPRInfo::wasmBoundsCheckingSizeRegister });
 
     fillCallResults(patchpoint, signature, results);
 
     if (m_info.callCanClobberInstance(functionIndexSpace)) {
-        patchpoint->clobberLate(RegisterSetBuilder::wasmPinnedRegisters());
+        patchpoint->clobberLate(RegisterSet::wasmPinnedRegisters());
         restoreWebAssemblyGlobalState(m_info.memories, instanceValue(), m_currentBlock);
     }
 
@@ -6078,7 +6058,7 @@ auto OMGIRGenerator::tryInliningPolymorphicCalls(unsigned callProfileIndex, Valu
         m_currentBlock = calleeCheck;
         ValueResults fastValues;
         Value* isSameCallee = m_currentBlock->appendNew<Value>(m_proc, Equal, origin(), calleeCallee, constant(pointerType(), std::bit_cast<uintptr_t>(CalleeBits::boxNativeCallee(&const_cast<IPIntCallee&>(callee)))));
-        m_currentBlock->appendNewControlValue(m_proc, Branch, origin(), isSameCallee, FrequentedBlock(directCall), FrequentedBlock(nextCase));
+        m_currentBlock->appendNewControlValue(m_proc, Branch, origin(), isSameCallee, FrequentedBlock(directCall), FrequentedBlock(nextCase, nextCase == slowCase ? FrequencyClass::Rare : FrequencyClass::Normal));
         directCall->addPredecessor(m_currentBlock);
         nextCase->addPredecessor(m_currentBlock);
 
@@ -6752,7 +6732,7 @@ auto OMGIRGenerator::addF64ConvertUI64(ExpressionType argVar, ExpressionType& re
     PatchpointValue* patchpoint = m_currentBlock->appendNew<PatchpointValue>(m_proc, Double, origin());
     if (isX86())
         patchpoint->numGPScratchRegisters = 1;
-    patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+    patchpoint->clobber(RegisterSet::macroClobberedGPRs());
     patchpoint->append(ConstrainedValue(arg, ValueRep::SomeRegister));
     patchpoint->setGenerator([=] (CCallHelpers& jit, const StackmapGenerationParams& params) {
         AllowMacroScratchRegisterUsage allowScratch(jit);
@@ -6773,7 +6753,7 @@ auto OMGIRGenerator::addF32ConvertUI64(ExpressionType argVar, ExpressionType& re
     PatchpointValue* patchpoint = m_currentBlock->appendNew<PatchpointValue>(m_proc, Float, origin());
     if (isX86())
         patchpoint->numGPScratchRegisters = 1;
-    patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+    patchpoint->clobber(RegisterSet::macroClobberedGPRs());
     patchpoint->append(ConstrainedValue(arg, ValueRep::SomeRegister));
     patchpoint->setGenerator([=] (CCallHelpers& jit, const StackmapGenerationParams& params) {
         AllowMacroScratchRegisterUsage allowScratch(jit);
@@ -6957,7 +6937,7 @@ auto OMGIRGenerator::addI64TruncUF64(ExpressionType argVar, ExpressionType& resu
         patchpoint->append(signBitConstant, ValueRep::SomeRegister);
         patchpoint->numFPScratchRegisters = 1;
     }
-    patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+    patchpoint->clobber(RegisterSet::macroClobberedGPRs());
     patchpoint->setGenerator([=] (CCallHelpers& jit, const StackmapGenerationParams& params) {
         AllowMacroScratchRegisterUsage allowScratch(jit);
         FPRReg scratch = InvalidFPRReg;
@@ -7023,7 +7003,7 @@ auto OMGIRGenerator::addI64TruncUF32(ExpressionType argVar, ExpressionType& resu
         patchpoint->append(signBitConstant, ValueRep::SomeRegister);
         patchpoint->numFPScratchRegisters = 1;
     }
-    patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+    patchpoint->clobber(RegisterSet::macroClobberedGPRs());
     patchpoint->setGenerator([=] (CCallHelpers& jit, const StackmapGenerationParams& params) {
         AllowMacroScratchRegisterUsage allowScratch(jit);
         FPRReg scratch = InvalidFPRReg;

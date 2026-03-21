@@ -281,6 +281,7 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node, bool igno
     case IsConstructor:
     case IsCellWithType:
     case IsTypedArrayView:
+    case ArrayIsArray:
     case HasStructureWithFlags:
     case TypeOf:
     case ToBoolean:
@@ -788,6 +789,7 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node, bool igno
     case PromiseResolve:
     case PromiseReject:
     case PromiseThen:
+    case PerformPromiseThen:
     case SetAdd:
     case MapSet:
     case MapOrSetDelete:

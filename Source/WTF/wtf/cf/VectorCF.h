@@ -121,7 +121,7 @@ template<typename CollectionType, typename MapFunctionType> RetainPtr<CFMutableA
 {
     auto array = adoptCF(CFArrayCreateMutable(nullptr, Checked<CFIndex>(std::size(collection)), &kCFTypeArrayCallBacks));
     for (auto&& element : collection)
-        addUnlessNil(array.get(), getPtr(std::invoke(std::forward<MapFunctionType>(function), std::forward<decltype(element)>(element))));
+        addUnlessNil(array.get(), getPtr(std::invoke(function, std::forward<decltype(element)>(element))));
     return array;
 }
 

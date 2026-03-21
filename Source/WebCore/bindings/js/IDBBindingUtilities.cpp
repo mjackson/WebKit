@@ -84,7 +84,7 @@ static bool get(JSGlobalObject& lexicalGlobalObject, JSValue object, const Strin
     }
     if (obj->inherits<JSBlob>() && (keyPathElement == "size"_s || keyPathElement == "type"_s)) {
         if (keyPathElement == "size"_s) {
-            result = jsNumber(protect(jsCast<JSBlob*>(obj)->wrapped())->size());
+            result = jsNumber(jsCast<JSBlob*>(obj)->wrapped().size());
             return true;
         }
         if (keyPathElement == "type"_s) {
@@ -120,7 +120,7 @@ static bool get(JSGlobalObject& lexicalGlobalObject, JSValue object, const Strin
     return true;
 }
 
-static bool canSet(JSValue object, const String& keyPathElement)
+static bool NODELETE canSet(JSValue object, const String& keyPathElement)
 {
     UNUSED_PARAM(keyPathElement);
     return object.isObject();

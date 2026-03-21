@@ -148,19 +148,19 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     const CSSSelector* NODELETE lastInCompound() const;
     const CSSSelector* NODELETE precedingInCompound() const;
 
-    const QualifiedName& tagQName() const;
-    const AtomString& tagLowercaseLocalName() const;
+    const QualifiedName& tagQName() const LIFETIME_BOUND;
+    const AtomString& tagLowercaseLocalName() const LIFETIME_BOUND;
 
-    const AtomString& value() const;
-    const AtomString& serializingValue() const;
-    const QualifiedName& attribute() const;
-    const AtomString& argument() const { return m_hasRareData ? m_data.rareData->argument : nullAtom(); }
+    const AtomString& value() const LIFETIME_BOUND;
+    const AtomString& serializingValue() const LIFETIME_BOUND;
+    const QualifiedName& attribute() const LIFETIME_BOUND;
+    const AtomString& argument() const LIFETIME_BOUND { return m_hasRareData ? m_data.rareData->argument : nullAtom(); }
     bool attributeValueMatchingIsCaseInsensitive() const;
-    const FixedVector<int>* integerList() const { return m_hasRareData ? std::get_if<FixedVector<int>>(&m_data.rareData->argumentList) : nullptr; }
-    const FixedVector<AtomString>* stringList() const { return m_hasRareData ? std::get_if<FixedVector<AtomString>>(&m_data.rareData->argumentList) : nullptr; }
-    const FixedVector<PossiblyQuotedIdentifier>* langList() const { return m_hasRareData ? std::get_if<FixedVector<PossiblyQuotedIdentifier>>(&m_data.rareData->argumentList) : nullptr; }
-    const CSSSelectorList* selectorList() const { return m_hasRareData ? m_data.rareData->selectorList.get() : nullptr; }
-    CSSSelectorList* selectorList() { return m_hasRareData ? m_data.rareData->selectorList.get() : nullptr; }
+    const FixedVector<int>* integerList() const LIFETIME_BOUND { return m_hasRareData ? std::get_if<FixedVector<int>>(&m_data.rareData->argumentList) : nullptr; }
+    const FixedVector<AtomString>* stringList() const LIFETIME_BOUND { return m_hasRareData ? std::get_if<FixedVector<AtomString>>(&m_data.rareData->argumentList) : nullptr; }
+    const FixedVector<PossiblyQuotedIdentifier>* langList() const LIFETIME_BOUND { return m_hasRareData ? std::get_if<FixedVector<PossiblyQuotedIdentifier>>(&m_data.rareData->argumentList) : nullptr; }
+    const CSSSelectorList* selectorList() const LIFETIME_BOUND { return m_hasRareData ? m_data.rareData->selectorList.get() : nullptr; }
+    CSSSelectorList* selectorList() LIFETIME_BOUND { return m_hasRareData ? m_data.rareData->selectorList.get() : nullptr; }
 
     bool NODELETE matchNth(int count) const;
     int NODELETE nthA() const;
@@ -248,7 +248,7 @@ private:
 
         bool equals(const RareData&) const;
 
-        bool matchNth(int count);
+        bool NODELETE matchNth(int count);
 
         // For quirks mode, class and id are case-insensitive. In the case where uppercase
         // letters are used in quirks mode, |m_matchingValue| holds the lowercase class/id
@@ -278,14 +278,14 @@ private:
     } m_data;
 };
 
-bool complexSelectorCanMatchPseudoElement(const CSSSelector&);
+bool NODELETE complexSelectorCanMatchPseudoElement(const CSSSelector&);
 bool complexSelectorMatchesElementBackedPseudoElement(const CSSSelector&);
 
 // In the AllowNonElementBackedPseudoElements mode `.foo::before` and `.foo` compare equal.
 enum class ComplexSelectorsEqualMode : bool { Full, IgnoreNonElementBackedPseudoElements };
 bool complexSelectorsEqual(const CSSSelector&, const CSSSelector&, ComplexSelectorsEqualMode = ComplexSelectorsEqualMode::Full);
 
-void addComplexSelector(Hasher&, const CSSSelector&, ComplexSelectorsEqualMode = ComplexSelectorsEqualMode::Full);
+void NODELETE addComplexSelector(Hasher&, const CSSSelector&, ComplexSelectorsEqualMode = ComplexSelectorsEqualMode::Full);
 
 inline bool operator==(const PossiblyQuotedIdentifier& a, const AtomString& b) { return a.identifier == b; }
 

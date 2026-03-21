@@ -47,6 +47,14 @@ struct WKAppPrivacyReportTestingData {
     BOOL didPerformSoftUpdate;
 };
 
+@class STWebpageController;
+
+#if TARGET_OS_IPHONE
+typedef UIVisualEffectView _WKPlatformVisualEffectView;
+#else
+typedef NSVisualEffectView _WKPlatformVisualEffectView;
+#endif
+
 @class _WKNowPlayingMetadata;
 @protocol _WKMediaSessionCoordinator;
 
@@ -101,6 +109,9 @@ struct WKAppPrivacyReportTestingData {
 - (void)_didDismissContactPicker;
 - (void)_dismissContactPickerWithContacts:(NSArray *)contacts;
 
+- (STWebpageController *)_screenTimeWebpageController;
+- (_WKPlatformVisualEffectView *)_screenTimeBlurredSnapshot;
+
 - (void)_getRenderTreeAsStringWithCompletionHandler:(NS_SWIFT_UI_ACTOR void (^)(NSString * NS_NULLABLE_RESULT, NSError * _Nullable error))completionHandler WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA));
 
 @property (nonatomic, setter=_setScrollingUpdatesDisabledForTesting:) BOOL _scrollingUpdatesDisabledForTesting;
@@ -118,6 +129,7 @@ struct WKAppPrivacyReportTestingData {
 - (void)_setThrottleStateForTesting:(int)type;
 
 - (void)_doAfterProcessingAllPendingMouseEvents:(dispatch_block_t)action;
+- (void)_doAfterProcessingAllPendingKeyEvents:(dispatch_block_t)action;
 
 + (void)_setApplicationBundleIdentifier:(NSString *)bundleIdentifier;
 + (void)_clearApplicationBundleIdentifierTestingOverride;
@@ -176,6 +188,9 @@ struct WKAppPrivacyReportTestingData {
 #endif
 - (void)_cancelFixedColorExtensionFadeAnimationsForTesting;
 
+- (void)_startMonitoringWheelEventsForTesting:(void(^)(void))completionHandler;
+- (void)_waitForWheelEventsToCompleteForTesting:(void(^)(void))completionHandler;
+
 - (unsigned)_forwardedLogsCountForTesting;
 - (bool)_receivedLogsDuringLaunchForTesting;
 
@@ -188,6 +203,8 @@ struct WKAppPrivacyReportTestingData {
 - (NSString *)_progressBasedTimelinesForScrollingNodeID:(uint64_t)scrollingNodeID processID:(uint64_t)processID;
 #endif
 - (bool)_displayLinkWantsHighFrameRate;
+
+- (void)_lastPageLoadNetworkActivityCompletionCodeForTesting:(void(^)(NSNumber * _Nullable completionCode))completionHandler;
 
 @end
 

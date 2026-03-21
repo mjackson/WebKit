@@ -82,9 +82,11 @@ ARIAActionsSupportEnabled:
 
 AVExperienceControllerFullscreenEnabled:
   type: bool
-  status: unstable
+  status: internal
   category: media
   getter: isAVExperienceControllerFullscreenEnabled
+  webcoreGetter: isAVExperienceControllerFullscreenEnabled
+  defaultsOverridable: true
   humanReadableName: "AVExperienceController Fullscreen"
   humanReadableDescription: "Enable fullscreen video via AVExperienceController"
   condition: HAVE(AVEXPERIENCECONTROLLER)
@@ -92,7 +94,7 @@ AVExperienceControllerFullscreenEnabled:
     WebCore:
       default: false
     WebKit:
-      default: false
+      default: true
     WebKitLegacy:
       default: false
 
@@ -890,20 +892,6 @@ BlobFileAccessEnforcementEnabled:
       "PLATFORM(COCOA)": true
       default: false
 
-BlockFontServiceInWebContentSandbox:
-  type: bool
-  status: internal
-  category: networking
-  humanReadableName: "Block Font service in the WebContent sandbox"
-  humanReadableDescription: "Block Font service in the WebContent sandbox"
-  webcoreBinding: none
-  condition: HAVE(SANDBOX_STATE_FLAGS) && PLATFORM(MAC)
-  exposed: [ WebKit ]
-  defaultValue:
-    WebKit:
-      "ENABLE(REMOVE_XPC_AND_MACH_SANDBOX_EXTENSIONS_IN_WEBCONTENT)": true
-      default: false
-
 BlockIOKitInWebContentSandbox:
   type: bool
   status: internal
@@ -954,20 +942,6 @@ BlockMobileAssetInWebContentSandbox:
   humanReadableDescription: "Block MobileAsset service in the WebContent sandbox"
   webcoreBinding: none
   condition: HAVE(SANDBOX_STATE_FLAGS)
-  exposed: [ WebKit ]
-  defaultValue:
-    WebKit:
-      "ENABLE(REMOVE_XPC_AND_MACH_SANDBOX_EXTENSIONS_IN_WEBCONTENT)": true
-      default: false
-
-BlockMobileGestaltInWebContentSandbox:
-  type: bool
-  status: internal
-  category: networking
-  humanReadableName: "Block MobileGestalt service in the WebContent sandbox"
-  humanReadableDescription: "Block MobileGestalt service in the WebContent sandbox"
-  webcoreBinding: none
-  condition: HAVE(SANDBOX_STATE_FLAGS) && PLATFORM(IOS)
   exposed: [ WebKit ]
   defaultValue:
     WebKit:
@@ -1094,6 +1068,20 @@ CSSAppearanceBaseEnabled:
   category: css
   humanReadableName: "CSS appearance: base"
   humanReadableDescription: "Enable base value for CSS appearance"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+
+CSSAttrSubstitutionFunctionEnabled:
+  type: bool
+  category: css
+  status: testable
+  humanReadableName: "CSS attr() substitution function"
+  humanReadableDescription: "Enable CSS Values 5 attr() arbitrary substitution function"
   defaultValue:
     WebKitLegacy:
       default: false
@@ -1403,17 +1391,17 @@ CSSRubyDisplayTypesInAuthorStylesEnabled:
 
 CSSScrollAnchoringEnabled:
   type: bool
-  status: stable
+  status: preview
   category: css
   humanReadableName: "CSS Scroll Anchoring"
   humanReadableDescription: "Enable CSS Scroll Anchoring"
   defaultValue:
     WebKitLegacy:
-      default: true
+      default: false
     WebKit:
-      default: true
+      default: false
     WebCore:
-      default: true
+      default: false
 
 CSSScrollbarColorEnabled:
   type: bool
@@ -1880,6 +1868,20 @@ CloseWatcherEnabled:
   category: html
   humanReadableName: "Close Watcher API"
   humanReadableDescription: "Enable Close Watcher API"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+
+ClosedbyAttributeEnabled:
+  type: bool
+  status: testable
+  category: html
+  humanReadableName: "HTML closedby attribute"
+  humanReadableDescription: "Enable HTML closedby attribute support"
   defaultValue:
     WebKitLegacy:
       default: false
@@ -2731,6 +2733,21 @@ EncryptedMediaAPIEnabled:
   sharedPreferenceForWebProcess: true
   mediaPlaybackRelated: true
 
+EnhancedSecurityForceDisabled:
+  type: bool
+  status: internal
+  category: security
+  defaultsOverridable: true
+  humanReadableName: "Force disable Enhanced Security"
+  humanReadableDescription: "Disables Enhanced Security for all navigations"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+
 EnhancedSecurityHeuristicsEnabled:
   type: bool
   status: stable
@@ -2817,10 +2834,6 @@ EnumeratingVisibleNetworkInterfacesEnabled:
     WebKit:
       default: true
 
-# Before this feature is enabled on other platforms, there needs to be a look at
-# form controls. See the following bugzillas:
-# https://bugs.webkit.org/show_bug.cgi?id=301556
-# https://bugs.webkit.org/show_bug.cgi?id=301555
 EvaluationTimeZoomEnabled:
   category: css
   type: bool
@@ -2829,14 +2842,11 @@ EvaluationTimeZoomEnabled:
   humanReadableDescription: "Enables used zoom value to be applied during layout and avoid applying at style-build time"
   defaultValue:
     WebKitLegacy:
-      "PLATFORM(COCOA)": true
-      default: false
+      default: true
     WebKit:
-      "PLATFORM(COCOA)": true
-      default: false
+      default: true
     WebCore:
-      "PLATFORM(COCOA)": true
-      default: false
+      default: true
 
 EventHandlerDrivenSmoothKeyboardScrollingEnabled:
   type: bool
@@ -7154,6 +7164,18 @@ ScrollToTextFragmentMarkingEnabled:
     WebCore:
       default: true
 
+ScrollViewAdaptiveDecelerationTrackingEnabled:
+  type: bool
+  status: internal
+  humanReadableName: "Adaptive Deceleration Tracking"
+  humanReadableDescription: "Use adaptive deceleration tracking behavior for scroll views"
+  webcoreBinding: none
+  exposed: [ WebKit ]
+  condition: HAVE(UISCROLLVIEW_DECELERATION_TRACKING_BEHAVIOR)
+  defaultValue:
+    WebKit:
+      default: false
+
 ScrollendEventEnabled:
   type: bool
   status: stable
@@ -8004,17 +8026,17 @@ StorageBlockingPolicy:
 
 SubpixelInlineLayoutEnabled:
   type: bool
-  status: preview
+  status: stable
   category: css
   humanReadableName: "Subpixels in inline layout (in block direction)"
   humanReadableDescription: "Subpixels in line layout (in block direction)"
   defaultValue:
     WebKitLegacy:
-      default: false
+      default: true
     WebKit:
-      default: false
+      default: true
     WebCore:
-      default: false
+      default: true
 
 SupportHDRCompositorTonemappingEnabled:
   type: bool
@@ -8754,15 +8776,11 @@ UseGPUProcessForWebGLEnabled:
   status: internal
   humanReadableName: "GPU Process: WebGL"
   humanReadableDescription: "Process all WebGL operations in GPU Process"
+  webcoreBinding: none
   condition: ENABLE(GPU_PROCESS) && ENABLE(WEBGL)
+  exposed: [ WebKit ]
   defaultValue:
-    WebKitLegacy:
-      default: false
     WebKit:
-      "ENABLE(GPU_PROCESS_BY_DEFAULT) && ENABLE(GPU_PROCESS_WEBGL_BY_DEFAULT)": true
-      "USE(GRAPHICS_LAYER_WC)": true
-      default: false
-    WebCore:
       "ENABLE(GPU_PROCESS_BY_DEFAULT) && ENABLE(GPU_PROCESS_WEBGL_BY_DEFAULT)": true
       "USE(GRAPHICS_LAYER_WC)": true
       default: false
@@ -8848,6 +8866,20 @@ UseSystemAppearance:
   type: bool
   status: embedder
   webcoreOnChange: useSystemAppearanceChanged
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+
+UseUIProcessForBackForwardItemLoading:
+  type: bool
+  status: unstable
+  exposed: [ WebKit ]
+  humanReadableName: "Use UIProcess for Back/Forward Item Loading"
+  humanReadableDescription: "Enable UIProcess-side BackForwardListFrameItem lookup for child frames during Back/Forward navigation"
   defaultValue:
     WebKitLegacy:
       default: false
@@ -9436,7 +9468,7 @@ WebContentRestrictionsAskToEnabled:
     WebKitLegacy:
       default: false
     WebKit:
-      default: false
+      default: defaultWebContentRestrictionsAskToEnabled()
     WebCore:
       default: false
   sharedPreferenceForWebProcess: true
@@ -10017,11 +10049,9 @@ WebTransportEnabled:
     WebKitLegacy:
       default: false
     WebKit:
-      "HAVE(COMPLETE_WEB_TRANSPORT)": true
-      default: false
+      default: true
     WebCore:
-      "HAVE(COMPLETE_WEB_TRANSPORT)": true
-      default: false
+      default: true
   sharedPreferenceForWebProcess: true
   richJavaScript: true
   disableInLockdownMode: true

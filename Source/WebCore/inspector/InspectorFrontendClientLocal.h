@@ -147,7 +147,7 @@ private:
     friend class FrontendMenuProvider;
     std::optional<bool> evaluationResultToBoolean(InspectorFrontendAPIDispatcher::EvaluationResult);
 
-    RefPtr<PageInspectorController> protectedInspectedPageController() const;
+    PageInspectorController* NODELETE inspectedPageController() const;
 
     WeakPtr<PageInspectorController> m_inspectedPageController;
     WeakPtr<Page> m_frontendPage;

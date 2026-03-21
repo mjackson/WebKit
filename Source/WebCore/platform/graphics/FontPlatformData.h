@@ -314,8 +314,8 @@ public:
         {
         }
 
-        const String& name() const { return m_name; }
-        const String& tag() const { return m_tag; }
+        const String& name() const LIFETIME_BOUND { return m_name; }
+        const String& tag() const LIFETIME_BOUND { return m_tag; }
         float defaultValue() const { return m_defaultValue; }
         float minimumValue() const { return m_minimumValue; }
         float maximumValue() const { return m_maximumValue; }
@@ -383,14 +383,11 @@ public:
     bool hasCustomTracking() const { return isSystemFont(); }
 
     CTFontRef ctFont() const { return m_font.get(); }
-    RetainPtr<CTFontRef> protectedCTFont() const { return ctFont(); }
 #endif
 
 #if PLATFORM(COCOA)
     bool isSystemFont() const { return m_isSystemFont; }
 #endif
-
-    bool hasVariations() const { return m_hasVariations; }
 
     bool isFixedPitch() const;
     float size() const { return m_size; }
@@ -408,10 +405,10 @@ public:
 #if USE(CAIRO)
     cairo_scaled_font_t* scaledFont() const { return m_scaledFont.get(); }
 #elif USE(SKIA)
-    const SkFont& skFont() const { return m_font; }
+    const SkFont& skFont() const LIFETIME_BOUND { return m_font; }
     SkiaHarfBuzzFont* skiaHarfBuzzFont() const { return m_hbFont.get(); }
     hb_font_t* hbFont() const;
-    const Vector<hb_feature_t>& features() const { return m_features; }
+    const Vector<hb_feature_t>& features() const LIFETIME_BOUND { return m_features; }
     static bool skiaTypefaceHasAnySupportedColorTable(const SkTypeface&);
 #endif
 
@@ -456,7 +453,7 @@ public:
     }
 
     RefPtr<SharedBuffer> openTypeTable(uint32_t table) const;
-    RefPtr<SharedBuffer> platformOpenTypeTable(uint32_t table) const;
+    RefPtr<SharedBuffer> NODELETE platformOpenTypeTable(uint32_t table) const;
 
     String description() const;
 
@@ -468,7 +465,7 @@ public:
 #endif
     };
 
-    WEBCORE_EXPORT const CreationData* creationData() const;
+    WEBCORE_EXPORT const CreationData* NODELETE creationData() const;
     const FontCustomPlatformData* customPlatformData() const
     {
         return m_customPlatformData.get();
@@ -532,7 +529,6 @@ private:
 #if PLATFORM(COCOA)
     bool m_isSystemFont { false };
 #endif
-    bool m_hasVariations { false };
     // The values above are common to all ports
 
 #if PLATFORM(IOS_FAMILY)

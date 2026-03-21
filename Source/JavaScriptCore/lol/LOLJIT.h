@@ -335,8 +335,8 @@ private:
 
     void silentSpill(auto& allocator, const auto& allocations)
     {
-        ScalarRegisterSet uses = RegisterSetBuilder::fromIterable(allocations.uses).buildScalarRegisterSet();
-        ScalarRegisterSet defs = RegisterSetBuilder::fromIterable(allocations.defs).buildScalarRegisterSet();
+        ScalarRegisterSet uses = RegisterSet::fromIterable(allocations.uses).toScalarRegisterSet();
+        ScalarRegisterSet defs = RegisterSet::fromIterable(allocations.defs).toScalarRegisterSet();
         JIT_COMMENT(*this, "Silent spilling");
         for (Reg reg : allocator.allocatedRegisters()) {
             GPRReg gpr = reg.gpr();

@@ -59,6 +59,11 @@ template<LengthWrapperBaseDerived T> struct CSSValueConversion<T> {
                 result = T { keyword };
                 return true;
             }
+        } else if constexpr (std::same_as<K, CSS::Keyword::Stretch>) {
+            if (valueID == CSSValueWebkitFillAvailable) {
+                result = T { keyword };
+                return true;
+            }
         }
 
         return false;

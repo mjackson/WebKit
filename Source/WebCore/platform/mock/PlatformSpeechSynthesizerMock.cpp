@@ -25,7 +25,9 @@
 
 #include "config.h"
 #include "PlatformSpeechSynthesizerMock.h"
+
 #include "PlatformSpeechSynthesisUtterance.h"
+#include <wtf/MainThread.h>
 
 #if ENABLE(SPEECH_SYNTHESIS)
 
@@ -82,8 +84,13 @@ void PlatformSpeechSynthesizerMock::cancel()
         return;
 
     m_speakingFinishedTimer.stop();
+
+    // Schedule the error callback asynchronously to simulate platform behavior
+    // This allows new utterances to be queued before the callback fires.
     RefPtr utterance = std::exchange(m_utterance, nullptr);
-    client().speakingErrorOccurred(*utterance);
+    callOnMainThread([protectedThis = Ref { *this }, utterance]() {
+        protectedThis->client().speakingErrorOccurred(*utterance);
+    });
 }
 
 void PlatformSpeechSynthesizerMock::pause()

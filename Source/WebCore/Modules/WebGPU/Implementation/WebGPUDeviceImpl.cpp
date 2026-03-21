@@ -276,7 +276,7 @@ RefPtr<BindGroup> DeviceImpl::createBindGroup(const BindGroupDescriptor& descrip
 
     WGPUBindGroupDescriptor backingDescriptor {
         .label = label.data(),
-        .layout = convertToBackingContext->convertToBacking(descriptor.protectedLayout().get()),
+        .layout = convertToBackingContext->convertToBacking(protect(descriptor.layout).get()),
         .entryCount = backingEntries.size(),
         .entries = backingEntries.size() ? backingEntries.span().data() : nullptr,
     };
@@ -300,7 +300,7 @@ RefPtr<ShaderModule> DeviceImpl::createShaderModule(const ShaderModuleDescriptor
         const auto& hint = descriptor.hints[i].value;
         hintsEntries.append(WGPUShaderModuleCompilationHint {
             .entryPoint = entryPoints[i].data(),
-            .layout = convertToBackingContext->convertToBacking(hint.protectedPipelineLayout().get())
+            .layout = convertToBackingContext->convertToBacking(protect(hint.pipelineLayout).get())
         });
     }
 
@@ -341,7 +341,7 @@ static auto convertToBacking(const ComputePipelineDescriptor& descriptor, Conver
 
     WGPUComputePipelineDescriptor backingDescriptor {
         .label = label.data(),
-        .layout = descriptor.layout ? convertToBackingContext.convertToBacking(*descriptor.protectedLayout().get()) : nullptr,
+        .layout = descriptor.layout ? convertToBackingContext.convertToBacking(*protect(descriptor.layout)) : nullptr,
         .compute = WGPUProgrammableStageDescriptor {
             .module = convertToBackingContext.convertToBacking(protect(descriptor.compute.module).get()),
             .entryPoint = entryPoint ? entryPoint->data() : nullptr,
@@ -506,7 +506,7 @@ static auto convertToBacking(const RenderPipelineDescriptor& descriptor, Convert
 
     WGPURenderPipelineDescriptor backingDescriptor {
         .label = label.data(),
-        .layout = descriptor.layout ? convertToBackingContext.convertToBacking(*descriptor.protectedLayout()) : nullptr,
+        .layout = descriptor.layout ? convertToBackingContext.convertToBacking(*protect(descriptor.layout)) : nullptr,
         .vertex = {
             .module = convertToBackingContext.convertToBacking(protect(descriptor.vertex.module).get()),
             .entryPoint = vertexEntryPoint ? vertexEntryPoint->data() : nullptr,

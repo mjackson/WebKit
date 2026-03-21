@@ -44,9 +44,7 @@ width expected 16 but got 0
 FAIL .item 9 assert_equals:
 <div class="item center" data-expected-width="16" data-expected-height="32"></div>
 width expected 16 but got 0
-FAIL .item 10 assert_equals:
-<div class="item normal" data-expected-width="24" data-expected-height="48"></div>
-width expected 24 but got 0
+PASS .item 10
 PASS .item 11
 PASS .item 12
 PASS .item 13

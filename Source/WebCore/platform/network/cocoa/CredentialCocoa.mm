@@ -28,7 +28,7 @@
 
 namespace WebCore {
 
-static NSURLCredentialPersistence toNSURLCredentialPersistence(CredentialPersistence persistence)
+static NSURLCredentialPersistence NODELETE toNSURLCredentialPersistence(CredentialPersistence persistence)
 {
     switch (persistence) {
     case CredentialPersistence::None:
@@ -43,7 +43,7 @@ static NSURLCredentialPersistence toNSURLCredentialPersistence(CredentialPersist
     return NSURLCredentialPersistenceNone;
 }
 
-static CredentialPersistence toCredentialPersistence(NSURLCredentialPersistence persistence)
+static CredentialPersistence NODELETE toCredentialPersistence(NSURLCredentialPersistence persistence)
 {
     switch (persistence) {
     case NSURLCredentialPersistenceNone:
@@ -96,11 +96,6 @@ NSURLCredential *Credential::nsCredential() const
     return m_nsCredential.get();
 }
 
-RetainPtr<NSURLCredential> Credential::protectedNSCredential() const
-{
-    return nsCredential();
-}
-
 bool Credential::isEmpty() const
 {
     if (m_nsCredential)
@@ -119,7 +114,7 @@ bool Credential::platformCompare(const Credential& a, const Credential& b)
     if (!a.m_nsCredential && !b.m_nsCredential)
         return true;
 
-    return [a.protectedNSCredential() isEqual:b.protectedNSCredential().get()];
+    return [protect(a.nsCredential()) isEqual:protect(b.nsCredential()).get()];
 }
 
 bool Credential::encodingRequiresPlatformData(NSURLCredential *credential)

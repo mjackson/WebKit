@@ -130,11 +130,12 @@ public:
     void willDestroyGLContext();
     void willRenderFrame(const WebCore::IntSize&);
     void didRenderFrame();
+    void sendFrame();
     void clear(const OptionSet<WebCore::CompositionReason>&);
 
 #if ENABLE(DAMAGE_TRACKING)
     void setFrameDamage(WebCore::Damage&&);
-    const std::optional<WebCore::Damage>& frameDamage() const { return m_frameDamage; }
+    const std::optional<WebCore::Damage>& frameDamage() const LIFETIME_BOUND { return m_frameDamage; }
     const std::optional<WebCore::Damage>& renderTargetDamage();
 #endif
 
@@ -172,14 +173,15 @@ private:
 #endif
 
         virtual void willRenderFrame() { }
-        virtual void didRenderFrame(Vector<WebCore::IntRect, 1>&&) { }
+        virtual void didRenderFrame() { }
+        virtual void sendFrame(Vector<WebCore::IntRect, 1>&&) { };
 
         virtual void sync(bool) { }
         virtual void setReleaseFenceFD(UnixFileDescriptor&&) { }
 
 #if ENABLE(DAMAGE_TRACKING)
         void setDamage(WebCore::Damage&& damage) { m_damage = WTF::move(damage); }
-        const std::optional<WebCore::Damage>& damage() { return m_damage; }
+        const std::optional<WebCore::Damage>& damage() LIFETIME_BOUND { return m_damage; }
         void addDamage(const std::optional<WebCore::Damage>&);
 #endif
 
@@ -213,7 +215,7 @@ private:
 #endif
 
         void willRenderFrame() override;
-        void didRenderFrame(Vector<WebCore::IntRect, 1>&&) override;
+        void sendFrame(Vector<WebCore::IntRect, 1>&&) override;
 
         virtual bool supportsExplicitSync() const = 0;
         void sync(bool) override;
@@ -293,7 +295,7 @@ private:
 
     private:
         bool supportsExplicitSync() const override { return false; }
-        void didRenderFrame(Vector<WebCore::IntRect, 1>&&) override;
+        void didRenderFrame() override;
 
         unsigned m_colorBuffer { 0 };
         const Ref<WebCore::ShareableBitmap> m_bitmap;
@@ -310,7 +312,7 @@ private:
 #endif
 
     private:
-        void didRenderFrame(Vector<WebCore::IntRect, 1>&&) override;
+        void sendFrame(Vector<WebCore::IntRect, 1>&&) override;
 
         WebCore::IntSize m_initialSize;
         const Ref<WebCore::ShareableBitmap> m_bitmap;
@@ -341,7 +343,7 @@ private:
 
     private:
         void willRenderFrame() override;
-        void didRenderFrame(Vector<WebCore::IntRect, 1>&&) override;
+        void didRenderFrame() override;
 
         struct wpe_renderer_backend_egl_target* m_backend { nullptr };
     };
@@ -369,7 +371,8 @@ private:
 
         Type type() const { return m_type; }
         bool resize(const WebCore::IntSize&);
-        const WebCore::IntSize& size() const { return m_size; }
+        bool handleBufferFormatChangeIfNeeded();
+        const WebCore::IntSize& size() const LIFETIME_BOUND { return m_size; }
         RenderTarget* nextTarget();
         void releaseTarget(uint64_t, UnixFileDescriptor&& releaseFence);
         void reset();
@@ -400,6 +403,7 @@ private:
         WebCore::IntSize m_size;
         Vector<std::unique_ptr<RenderTarget>, s_maximumBuffers> m_freeTargets;
         Vector<std::unique_ptr<RenderTarget>, s_maximumBuffers> m_lockedTargets;
+        bool m_initialTargetsCreated { false };
 #if (PLATFORM(GTK) || ENABLE(WPE_PLATFORM)) && (USE(GBM) || OS(ANDROID))
         Lock m_bufferFormatLock;
         BufferFormat m_bufferFormat WTF_GUARDED_BY_LOCK(m_bufferFormatLock);
@@ -419,6 +423,7 @@ private:
     WebCore::IntSize m_size;
     SwapChain m_swapChain;
     RenderTarget* m_target { nullptr };
+    Vector<std::pair<RenderTarget*, Vector<WebCore::IntRect, 1>>, 1> m_pendingFrameNotifyTargets;
     bool m_isVisible { false };
     bool m_useExplicitSync { false };
     std::atomic<ColorComponents> m_backgroundColor { white };

@@ -31,6 +31,7 @@
 #include "Exception.h"
 #include "ExceptionCode.h"
 #include "InternalObserver.h"
+#include "JSDOMConvertAny.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSValueInWrappedObject.h"
 #include "Observable.h"
@@ -59,7 +60,7 @@ private:
 
     void error(JSC::JSValue value) final
     {
-        protectedPromise()->reject<IDLAny>(value);
+        protect(m_promise)->reject<IDLAny>(value);
     }
 
     void complete() final
@@ -67,17 +68,15 @@ private:
         InternalObserver::complete();
 
         if (!m_lastValue) [[unlikely]]
-            return protectedPromise()->reject(Exception { ExceptionCode::RangeError, "No values in Observable"_s });
+            return protect(m_promise)->reject(Exception { ExceptionCode::RangeError, "No values in Observable"_s });
 
-        protectedPromise()->resolve<IDLAny>(m_lastValue.getValue());
+        protect(m_promise)->resolve<IDLAny>(m_lastValue.getValue());
     }
 
-    void visitAdditionalChildren(JSC::AbstractSlotVisitor& visitor) const final
+    void visitAdditionalChildrenInGCThread(JSC::AbstractSlotVisitor& visitor) const final
     {
-        m_lastValue.visit(visitor);
+        m_lastValue.visitInGCThread(visitor);
     }
-
-    Ref<DeferredPromise> NODELETE protectedPromise() const { return m_promise; }
 
     InternalObserverLast(ScriptExecutionContext& context, Ref<DeferredPromise>&& promise)
         : InternalObserver(context)

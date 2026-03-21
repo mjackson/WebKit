@@ -26,6 +26,7 @@
 #pragma once
 
 #include "MessageReceiver.h"
+#include "NativeWebWheelEvent.h"
 #include "SameDocumentNavigationType.h"
 #include "WebPageProxyIdentifier.h"
 #include <WebCore/BoxExtents.h>
@@ -81,7 +82,8 @@ class Navigation;
 }
 
 #if PLATFORM(MAC)
-typedef NSEvent* PlatformScrollEvent;
+typedef WebKit::NativeWebWheelEvent PlatformScrollEvent;
+typedef NSEvent *PlatformMagnificationEvent;
 #elif PLATFORM(GTK)
 typedef struct {
     WebCore::FloatSize delta;
@@ -159,13 +161,13 @@ public:
 #endif
 
 #if PLATFORM(MAC)
-    void handleMagnificationGestureEvent(PlatformScrollEvent, WebCore::FloatPoint origin);
+    void handleMagnificationGestureEvent(PlatformMagnificationEvent, WebCore::FloatPoint origin);
     void handleSmartMagnificationGesture(WebCore::FloatPoint gestureLocationInViewCoordinates);
 
-    void gestureEventWasNotHandledByWebCore(PlatformScrollEvent, WebCore::FloatPoint origin);
+    void gestureEventWasNotHandledByWebCore(PlatformMagnificationEvent, WebCore::FloatPoint origin);
 
     void setCustomSwipeViews(Vector<RetainPtr<NSView>> views) { m_customSwipeViews = WTF::move(views); }
-    const WebCore::FloatBoxExtent& customSwipeViewsObscuredContentInsets() const { return m_customSwipeViewsObscuredContentInsets; }
+    const WebCore::FloatBoxExtent& customSwipeViewsObscuredContentInsets() const LIFETIME_BOUND { return m_customSwipeViewsObscuredContentInsets; }
     void setCustomSwipeViewsObscuredContentInsets(WebCore::FloatBoxExtent&& insets) { m_customSwipeViewsObscuredContentInsets = WTF::move(insets); }
     WebCore::FloatRect windowRelativeBoundsForCustomSwipeViews() const;
     void setDidMoveSwipeSnapshotCallback(BlockPtr<void (CGRect)>&& callback) { m_didMoveSwipeSnapshotCallback = WTF::move(callback); }
@@ -182,7 +184,7 @@ public:
     void endMagnification();
 #endif
 
-    void setAlternateBackForwardListSourcePage(WebPageProxy*);
+    void NODELETE setAlternateBackForwardListSourcePage(WebPageProxy*);
 
     bool canSwipeInDirection(SwipeDirection, DeferToConflictingGestures) const;
 
@@ -228,7 +230,7 @@ private:
     // IPC::MessageReceiver.
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&) override;
 
-    static ViewGestureController* controllerForGesture(WebPageProxyIdentifier, GestureID);
+    static ViewGestureController* NODELETE controllerForGesture(WebPageProxyIdentifier, GestureID);
 
     static GestureID NODELETE takeNextGestureID();
     void willBeginGesture(ViewGestureType);
@@ -239,7 +241,7 @@ private:
 
 #if PLATFORM(COCOA)
 #if ENABLE(BACK_FORWARD_LIST_SWIFT)
-    std::optional<WebBackForwardList> backForwardListForNavigation() const;
+    std::optional<WebBackForwardList> NODELETE backForwardListForNavigation() const;
 #else
     WebBackForwardList* backForwardListForNavigation() const;
 #endif
@@ -311,7 +313,7 @@ private:
 
     void endMagnificationGesture();
 
-    WebCore::FloatPoint scaledMagnificationOrigin(WebCore::FloatPoint origin, double scale);
+    WebCore::FloatPoint NODELETE scaledMagnificationOrigin(WebCore::FloatPoint origin, double scale);
 
     void startSwipeGesture(PlatformScrollEvent, SwipeDirection);
     void trackSwipeGesture(PlatformScrollEvent, SwipeDirection, RefPtr<WebBackForwardListItem>);
@@ -341,7 +343,7 @@ private:
         bool handleEvent(PlatformScrollEvent);
         void eventWasNotHandledByWebCore(PlatformScrollEvent);
 
-        void reset(ASCIILiteral resetReasonForLogging);
+        void NODELETE reset(ASCIILiteral resetReasonForLogging);
 
         bool shouldIgnorePinnedState() { return m_shouldIgnorePinnedState; }
         void setShouldIgnorePinnedState(bool ignore) { m_shouldIgnorePinnedState = ignore; }

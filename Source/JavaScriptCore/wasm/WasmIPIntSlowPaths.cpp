@@ -568,6 +568,7 @@ WASM_IPINT_EXTERN_CPP_DECL(table_grow, IPIntStackEntry* sp, TableGrowMetadata* m
 
 WASM_IPINT_EXTERN_CPP_DECL(memory_grow, int64_t delta)
 {
+    WasmSlowPathWithoutCallFrameTracer tracer(instance->vm());
     WASM_RETURN_TWO(reinterpret_cast<void*>(Wasm::growMemory(instance, delta)), 0);
 }
 

@@ -97,6 +97,9 @@ public:
     void backForwardAddItemShared(IPC::Connection&, Ref<FrameState>&&, LoadedWebArchive);
     void backForwardGoToItemShared(WebCore::BackForwardItemIdentifier, CompletionHandler<void(const WebBackForwardListCounts&)>&&);
 
+    FrameState* findFrameStateInItem(WebCore::BackForwardItemIdentifier, WebCore::FrameIdentifier, uint64_t);
+    void updateFrameIdentifier(WebCore::FrameIdentifier oldFrameID, WebCore::FrameIdentifier newFrameID);
+
     String loggingString();
 
 private:
@@ -105,11 +108,9 @@ private:
     void addItem(Ref<WebBackForwardListItem>&&);
     void addChildItem(WebCore::FrameIdentifier, Ref<FrameState>&&);
     void didRemoveItem(WebBackForwardListItem&);
-    const BackForwardListItemVector& entries() const { return m_entries; }
+    const BackForwardListItemVector& entries() const LIFETIME_BOUND { return m_entries; }
     WebBackForwardListCounts NODELETE counts() const;
     Ref<FrameState> completeFrameStateForNavigation(Ref<FrameState>&&);
-
-    void updateAllFrameIDs(WebCore::FrameIdentifier oldFrameID, WebCore::FrameIdentifier newFrameID);
 
     // IPC messages
     void backForwardAddItem(IPC::Connection&, Ref<FrameState>&&);
@@ -121,8 +122,6 @@ private:
     void backForwardItemAtIndex(int32_t index, WebCore::FrameIdentifier, CompletionHandler<void(RefPtr<FrameState>&&)>&&);
     void backForwardListContainsItem(WebCore::BackForwardItemIdentifier, CompletionHandler<void(bool)>&&);
     void backForwardListCounts(CompletionHandler<void(WebBackForwardListCounts&&)>&&);
-    void shouldGoToBackForwardListItem(WebCore::BackForwardItemIdentifier, bool inBackForwardCache, CompletionHandler<void(WebCore::ShouldGoToHistoryItem)>&&);
-    void shouldGoToBackForwardListItemSync(WebCore::BackForwardItemIdentifier, CompletionHandler<void(WebCore::ShouldGoToHistoryItem)>&&);
 
     WeakPtr<WebPageProxy> m_page;
     BackForwardListItemVector m_entries;

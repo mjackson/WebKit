@@ -150,13 +150,13 @@ void Step::evaluate(Node& context, NodeSet& nodes) const
 }
 
 #if ASSERT_ENABLED
-static inline Node::NodeType primaryNodeType(Step::Axis axis)
+static inline NodeType primaryNodeType(Step::Axis axis)
 {
     switch (axis) {
         case Step::AttributeAxis:
-            return Node::ATTRIBUTE_NODE;
+            return NodeType::Attribute;
         default:
-            return Node::ELEMENT_NODE;
+            return NodeType::Element;
     }
 }
 #endif // ASSERT_ENABLED
@@ -166,12 +166,12 @@ inline bool nodeMatchesBasicTest(Node& node, Step::Axis axis, const Step::NodeTe
 {
     switch (nodeTest.m_kind) {
         case Step::NodeTest::TextNodeTest:
-            return node.nodeType() == Node::TEXT_NODE || node.nodeType() == Node::CDATA_SECTION_NODE;
+            return node.nodeType() == NodeType::Text || node.nodeType() == NodeType::CDATASection;
         case Step::NodeTest::CommentNodeTest:
-            return node.nodeType() == Node::COMMENT_NODE;
+            return node.nodeType() == NodeType::Comment;
         case Step::NodeTest::ProcessingInstructionNodeTest: {
             const AtomString& name = nodeTest.m_data;
-            return node.nodeType() == Node::PROCESSING_INSTRUCTION_NODE && (name.isEmpty() || node.nodeName() == name);
+            return node.nodeType() == NodeType::ProcessingInstruction && (name.isEmpty() || node.nodeName() == name);
         }
         case Step::NodeTest::AnyNodeTest:
             return true;
@@ -202,8 +202,8 @@ inline bool nodeMatchesBasicTest(Node& node, Step::Axis axis, const Step::NodeTe
             ASSERT(axis != Step::NamespaceAxis);
 
             // For other axes, the principal node type is element.
-            ASSERT(primaryNodeType(axis) == Node::ELEMENT_NODE);
-            RefPtr element = dynamicDowncast<Element>(node);
+            ASSERT(primaryNodeType(axis) == NodeType::Element);
+            auto* element = dynamicDowncast<Element>(node);
             if (!element)
                 return false;
 
@@ -334,7 +334,7 @@ void Step::nodesInAxis(Node& context, NodeSet& nodes) const
             return;
         case PrecedingAxis: {
             RefPtr<Node> node;
-            if (RefPtr attr = dynamicDowncast<Attr>(context)) {
+            if (auto* attr = dynamicDowncast<Attr>(context)) {
                 node = attr->ownerElement();
                 if (!node)
                     return;

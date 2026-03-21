@@ -30,6 +30,7 @@
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 #include <bmalloc/GigacageConfig.h>
+#include <cstddef>
 #include <wtf/Assertions.h>
 #include <wtf/Atomics.h>
 #include <wtf/ExportMacros.h>
@@ -45,7 +46,6 @@ extern "C" WTF_EXPORT_PRIVATE Slot g_config[];
 
 constexpr size_t reservedSlotsForExecutableAllocator = 2;
 constexpr size_t reservedSlotsForMTEConfiguration = 2;
-constexpr size_t reservedSlotsForAllocationProfiling = 2;
 
 enum ReservedConfigByteOffset {
     ReservedByteForExecutableAllocator0 = 0,
@@ -53,12 +53,10 @@ enum ReservedConfigByteOffset {
     // The MTE offsets must be kept in sync with pas_mte_config.h
     ReservedByteForMTEEnablement,
     ReservedByteForMTEExtendedConfiguration,
-    ReservedByteForAllocationProfiling,
-    ReservedByteForAllocationProfilingMode,
     NumberOfReservedConfigBytes
 };
 
-static_assert(NumberOfReservedConfigBytes <= sizeof(Slot) * (reservedSlotsForExecutableAllocator + reservedSlotsForMTEConfiguration + reservedSlotsForAllocationProfiling));
+static_assert(NumberOfReservedConfigBytes <= sizeof(Slot) * (reservedSlotsForExecutableAllocator + reservedSlotsForMTEConfiguration));
 
 } // namespace WebConfig
 

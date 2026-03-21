@@ -536,6 +536,19 @@ WI.Color = class Color
         return Number.constrain(Math.round(value), 0, 255);
     }
 
+    static contrastComplianceForRatio(ratio, {isLargeText} = {})
+    {
+        let aaaThreshold = isLargeText ? WI.Color.ContrastThreshold.AA : WI.Color.ContrastThreshold.AAA;
+        if (ratio >= aaaThreshold)
+            return WI.Color.ContrastCompliance.AAA;
+
+        let aaThreshold = isLargeText ? WI.Color.ContrastThreshold.AALargeText : WI.Color.ContrastThreshold.AA;
+        if (ratio >= aaThreshold)
+            return WI.Color.ContrastCompliance.AA;
+
+        return WI.Color.ContrastCompliance.Fail;
+    }
+
     // Public
 
     nextFormat(format)
@@ -919,6 +932,53 @@ WI.Color = class Color
             hex = "0" + hex;
         return hex;
     }
+
+    // https://www.w3.org/TR/WCAG20/#relativeluminancedef
+    relativeLuminance()
+    {
+        let [r, g, b] = WI.Color._toLinearLight(this.normalizedRGB);
+        return (0.2126729 * r) + (0.7151522 * g) + (0.0721750 * b);
+    }
+
+    contrastRatio(other)
+    {
+        console.assert(other instanceof WI.Color, other);
+
+        let l1 = this.relativeLuminance();
+        let l2 = other.relativeLuminance();
+
+        if (l1 < l2)
+            [l1, l2] = [l2, l1];
+
+        return (l1 + 0.05) / (l2 + 0.05);
+    }
+
+    contrastCompliance(other, {isLargeText} = {})
+    {
+        let ratio = this.contrastRatio(other);
+        return WI.Color.contrastComplianceForRatio(ratio, {isLargeText});
+    }
+
+    blendOverBackground(backgroundColor)
+    {
+        console.assert(backgroundColor instanceof WI.Color, backgroundColor);
+
+        if (this.alpha === 1)
+            return this.copy();
+
+        let foregroundRGB = this.normalizedRGB;
+        let backgroundRGB = backgroundColor.normalizedRGB;
+        let alpha = this.alpha;
+
+        let blendedRGB = [
+            (foregroundRGB[0] * alpha) + (backgroundRGB[0] * (1 - alpha)),
+            (foregroundRGB[1] * alpha) + (backgroundRGB[1] * (1 - alpha)),
+            (foregroundRGB[2] * alpha) + (backgroundRGB[2] * (1 - alpha)),
+        ];
+
+        return new WI.Color(WI.Color.Format.ColorFunction, blendedRGB, this.gamut);
+    }
+
 };
 
 WI.Color.Format = {
@@ -948,6 +1008,18 @@ WI.Color.FunctionNames = new Set([
     "color",
     "color-mix",
 ]);
+
+WI.Color.ContrastThreshold = {
+    AAA: 7,
+    AA: 4.5,
+    AALargeText: 3,
+};
+
+WI.Color.ContrastCompliance = {
+    AAA: "AAA",
+    AA: "AA",
+    Fail: "Fail",
+};
 
 WI.Color.Keywords = {
     "aliceblue": [240, 248, 255, 1],

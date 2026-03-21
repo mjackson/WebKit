@@ -95,6 +95,12 @@
         _didFinishNavigation(webView, navigation);
 }
 
+- (void)_webView:(WKWebView *)webView didFinishLoadWithRequest:(NSURLRequest *)request inFrame:(WKFrameInfo *)frame
+{
+    if (_didFinishLoadWithRequestInFrame)
+        _didFinishLoadWithRequestInFrame(webView, request, frame);
+}
+
 - (void)_webView:(WKWebView *)webView navigation:(WKNavigation *)navigation didSameDocumentNavigation:(_WKSameDocumentNavigationType)navigationType
 {
     if (_didSameDocumentNavigation)
@@ -169,6 +175,21 @@
     TestWebKitAPI::Util::run(&finished);
 
     self.didFinishNavigation = nil;
+}
+
+- (void)waitForDidFinishLoadInSubframe
+{
+    EXPECT_FALSE(self.didFinishLoadWithRequestInFrame);
+
+    __block bool finished = false;
+    self.didFinishLoadWithRequestInFrame = ^(WKWebView *, NSURLRequest *, WKFrameInfo *frame) {
+        if (!frame.isMainFrame)
+            finished = true;
+    };
+
+    TestWebKitAPI::Util::run(&finished);
+
+    self.didFinishLoadWithRequestInFrame = nil;
 }
 
 - (void)waitForDidSameDocumentNavigation

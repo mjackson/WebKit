@@ -1,0 +1,55 @@
+<script src="../../../inspector/resources/inspector-test.js"></script>
+
+<script>
+    function test() {
+        let suite = InspectorTest.createAsyncSuite("SiteIsolation.Target.CrossOriginPageNavigation");
+
+        suite.addTestCase({
+            name: "SiteIsolation.Target.CrossOriginPageNavigation.FrameTargetLifetime",
+            description: "On cross-origin page navigation, frame targets are destroyed and created as appropriate.",
+            async test() {
+                async function logDocumentURLs(targets) {
+                    let urls = await Promise.all(targets.map(async function (target) {
+                        let { result } = await target.RuntimeAgent.evaluate.invoke({
+                            expression: "document.location.href",
+                            objectGroup: "test",
+                            returnByValue: true,
+                        });
+                        return result.value;
+                    }));
+                    InspectorTest.log(urls.sort().join("\n"));
+                }
+
+                let oldFrameTargets = WI.targets.filter((t) => t.type === WI.TargetType.Frame);
+                InspectorTest.expectEqual(oldFrameTargets.length, 3, "Should have main, middle, and leaf frame targets before navigation.");
+                InspectorTest.log("Frame URLs before navigation:");
+                await logDocumentURLs(oldFrameTargets);
+
+                InspectorTest.log("Navigating cross-origin...");
+                InspectorTest.deferOutputUntilTestPageIsReloaded();
+                // FIXME <https://webkit.org/b/309922>: Address the unrelated console error that shows up
+                // during this navigation.
+                InspectorTest.evaluateInPage(`location.hostname = "localhost";`);
+
+                // Wait for the log from leaf-iframe to ensure all loading has completed.
+                await WI.consoleManager.awaitEvent(WI.ConsoleManager.Event.MessageAdded);
+
+                let newFrameTargets = WI.targets.filter((t) => t.type === WI.TargetType.Frame);
+                InspectorTest.expectEqual(newFrameTargets.length, 3, "Should have main, middle, and leaf frame targets after navigation.");
+                InspectorTest.log("Frame URLs after navigation:");
+                await logDocumentURLs(newFrameTargets);
+
+                let oldIds = oldFrameTargets.map((t) => t.identifier);
+                let targetsHaveNewIds = newFrameTargets.every((t) => !oldIds.includes(t.identifier));
+                InspectorTest.expectThat(targetsHaveNewIds, "Frame targets should be new despite the same page structure.");
+            },
+        });
+
+        suite.runTestCasesAndFinish();
+    }
+</script>
+
+<body onload="runTest()">
+    <p>Test that frame targets are properly destroyed and created during a cross-origin page navigation.</p>
+    <iframe src="resources/middle-iframe.html"></iframe>
+</body>

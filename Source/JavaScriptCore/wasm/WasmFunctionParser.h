@@ -101,7 +101,7 @@ struct FunctionParserTypes {
         Type type() const { return m_type; }
         void setType(Type type) { m_type = type; }
 
-        ExpressionType& value() { return m_value; }
+        ExpressionType& value() LIFETIME_BOUND { return m_value; }
         ExpressionType value() const { return m_value; }
         operator ExpressionType() const { return m_value; }
 
@@ -165,8 +165,8 @@ public:
     const Type& typeOfLocal(uint32_t localIndex) const { return m_locals[localIndex]; }
     bool unreachableBlocks() const { return m_unreachableBlocks; }
 
-    ControlStack& controlStack() { return m_controlStack; }
-    Stack& expressionStack() { return m_expressionStack; }
+    ControlStack& controlStack() LIFETIME_BOUND { return m_controlStack; }
+    Stack& expressionStack() LIFETIME_BOUND { return m_expressionStack; }
 
     ControlEntry& resolveControlRef(ControlRef ref) { return m_controlStack[ref.m_index]; }
 
@@ -385,7 +385,7 @@ private:
     Stack m_expressionStack;
     ControlStack m_controlStack;
     Vector<Type, 16> m_locals;
-    Ref<const TypeDefinition> m_signature;
+    const Ref<const TypeDefinition> m_signature;
     const ModuleInformation& m_info;
 
     Vector<uint32_t> m_localInitStack;
@@ -1021,7 +1021,7 @@ auto FunctionParser<Context>::simd(SIMDLaneOperation op, SIMDLane lane, SIMDSign
             return { };
 
         if (Context::tierSupportsSIMD()) {
-            m_expressionStack.constructAndAppend(Types::V128, m_context.addConstant(constant));
+            m_expressionStack.constructAndAppend(Types::V128, m_context.addSIMDConstant(constant));
             return { };
         }
         return pushUnreachable(Types::V128);
@@ -1304,7 +1304,7 @@ auto FunctionParser<Context>::simd(SIMDLaneOperation op, SIMDLane lane, SIMDSign
 
         if (Context::tierSupportsSIMD()) {
             ExpressionType result;
-            WASM_TRY_ADD_TO_CONTEXT(addExtractLane(SIMDInfo { lane, signMode }, laneIdx, v, result));
+            WASM_TRY_ADD_TO_CONTEXT(addSIMDExtractLane(SIMDInfo { lane, signMode }, laneIdx, v, result));
             m_expressionStack.constructAndAppend(simdScalarType(lane), result);
             return { };
         }
@@ -1326,7 +1326,7 @@ auto FunctionParser<Context>::simd(SIMDLaneOperation op, SIMDLane lane, SIMDSign
 
         if (Context::tierSupportsSIMD()) {
             ExpressionType result;
-            WASM_TRY_ADD_TO_CONTEXT(addReplaceLane(SIMDInfo { lane, signMode }, laneIdx, v, s, result));
+            WASM_TRY_ADD_TO_CONTEXT(addSIMDReplaceLane(SIMDInfo { lane, signMode }, laneIdx, v, s, result));
             m_expressionStack.constructAndAppend(Types::V128, result);
             return { };
         }
@@ -3833,6 +3833,7 @@ auto FunctionParser<Context>::parseUnreachableExpression() -> PartialResult
         WASM_VALIDATOR_FAIL_IF(!ControlType::isIf(data.controlData), "else block isn't associated to an if");
         WASM_TRY_ADD_TO_CONTEXT(addElseToUnreachable(data.controlData));
         m_expressionStack = WTF::move(data.elseBlockStack);
+        resetLocalInitStackToHeight(data.localInitStackHeight);
         return { };
     }
 
@@ -3861,6 +3862,7 @@ auto FunctionParser<Context>::parseUnreachableExpression() -> PartialResult
                 m_context.notifyFunctionUsesSIMD();
             m_expressionStack.constructAndAppend(argumentType, results[i]);
         }
+        resetLocalInitStackToHeight(data.localInitStackHeight);
         return { };
     }
 
@@ -3873,6 +3875,7 @@ auto FunctionParser<Context>::parseUnreachableExpression() -> PartialResult
         m_expressionStack = { };
         WASM_VALIDATOR_FAIL_IF(!isTryOrCatch(data.controlData), "catch block isn't associated to a try");
         WASM_TRY_ADD_TO_CONTEXT(addCatchAllToUnreachable(data.controlData));
+        resetLocalInitStackToHeight(data.localInitStackHeight);
         return { };
     }
 
@@ -3893,6 +3896,7 @@ auto FunctionParser<Context>::parseUnreachableExpression() -> PartialResult
             Stack emptyStack;
             WASM_TRY_ADD_TO_CONTEXT(addEndToUnreachable(controlEntry, emptyStack));
             m_expressionStack.swap(controlEntry.enclosedExpressionStack);
+            resetLocalInitStackToHeight(controlEntry.localInitStackHeight);
         }
         m_unreachableBlocks--;
         return { };
@@ -3912,6 +3916,8 @@ auto FunctionParser<Context>::parseUnreachableExpression() -> PartialResult
             }
 
             m_expressionStack.swap(data.enclosedExpressionStack);
+            if (!ControlType::isTopLevel(data.controlData))
+                resetLocalInitStackToHeight(data.localInitStackHeight);
         }
         m_unreachableBlocks--;
         return { };

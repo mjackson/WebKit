@@ -152,20 +152,20 @@ const AtomString& MediaControlsHost::mediaControlsContainerClassName() const
 
 Vector<Ref<TextTrack>> MediaControlsHost::sortedTrackListForMenu(TextTrackList& trackList)
 {
-    RefPtr page = protectedMediaElement()->document().page();
+    RefPtr page = m_mediaElement->document().page();
     if (!page)
         return { };
 
-    return protect(page->group())->ensureProtectedCaptionPreferences()->sortedTrackListForMenu(&trackList, { TextTrack::Kind::Subtitles, TextTrack::Kind::Captions, TextTrack::Kind::Descriptions });
+    return protect(protect(page->group())->ensureCaptionPreferences())->sortedTrackListForMenu(&trackList, { TextTrack::Kind::Subtitles, TextTrack::Kind::Captions, TextTrack::Kind::Descriptions });
 }
 
 Vector<Ref<AudioTrack>> MediaControlsHost::sortedTrackListForMenu(AudioTrackList& trackList)
 {
-    RefPtr page = protectedMediaElement()->document().page();
+    RefPtr page = m_mediaElement->document().page();
     if (!page)
         return { };
 
-    return protect(page->group())->ensureProtectedCaptionPreferences()->sortedTrackListForMenu(&trackList);
+    return protect(protect(page->group())->ensureCaptionPreferences())->sortedTrackListForMenu(&trackList);
 }
 
 String MediaControlsHost::displayNameForTrack(const std::optional<TextOrAudioTrack>& track)
@@ -173,7 +173,7 @@ String MediaControlsHost::displayNameForTrack(const std::optional<TextOrAudioTra
     if (!track)
         return emptyString();
 
-    RefPtr page = protectedMediaElement()->document().page();
+    RefPtr page = m_mediaElement->document().page();
     if (!page)
         return emptyString();
 
@@ -199,11 +199,11 @@ TextTrack& MediaControlsHost::captionMenuOnItem()
 
 AtomString MediaControlsHost::captionDisplayMode() const
 {
-    RefPtr page = protectedMediaElement()->document().page();
+    RefPtr page = m_mediaElement->document().page();
     if (!page)
         return emptyAtom();
 
-    switch (protect(page->group())->ensureProtectedCaptionPreferences()->captionDisplayMode()) {
+    switch (protect(protect(page->group())->ensureCaptionPreferences())->captionDisplayMode()) {
     case CaptionUserPreferences::CaptionDisplayMode::Automatic:
         return automaticKeyword();
     case CaptionUserPreferences::CaptionDisplayMode::ForcedOnly:
@@ -220,7 +220,7 @@ AtomString MediaControlsHost::captionDisplayMode() const
 
 void MediaControlsHost::setSelectedTextTrack(TextTrack* track)
 {
-    protectedMediaElement()->setSelectedTextTrack(track);
+    protect(m_mediaElement)->setSelectedTextTrack(track);
 }
 
 MediaControlTextTrackContainerElement* MediaControlsHost::ensureTextTrackContainer()
@@ -289,43 +289,43 @@ void MediaControlsHost::updateCaptionDisplaySizes(ForceUpdate force)
 
 bool MediaControlsHost::allowsInlineMediaPlayback() const
 {
-    return !protect(protectedMediaElement()->mediaSession())->requiresFullscreenForVideoPlayback();
+    return !protect(protect(m_mediaElement)->mediaSession())->requiresFullscreenForVideoPlayback();
 }
 
 bool MediaControlsHost::supportsFullscreen() const
 {
-    return protectedMediaElement()->supportsFullscreen(HTMLMediaElementEnums::VideoFullscreenModeStandard);
+    return protect(m_mediaElement)->supportsFullscreen(HTMLMediaElementEnums::VideoFullscreenModeStandard);
 }
 
 bool MediaControlsHost::isVideoLayerInline() const
 {
-    return protectedMediaElement()->isVideoLayerInline();
+    return m_mediaElement->isVideoLayerInline();
 }
 
 bool MediaControlsHost::isInMediaDocument() const
 {
-    return protectedMediaElement()->document().isMediaDocument();
+    return m_mediaElement->document().isMediaDocument();
 }
 
 bool MediaControlsHost::userGestureRequired() const
 {
-    return !protect(protectedMediaElement()->mediaSession())->playbackStateChangePermitted(MediaPlaybackState::Playing);
+    return !protect(protect(m_mediaElement)->mediaSession())->playbackStateChangePermitted(MediaPlaybackState::Playing);
 }
 
 bool MediaControlsHost::shouldForceControlsDisplay() const
 {
-    return protectedMediaElement()->shouldForceControlsDisplay();
+    return protect(m_mediaElement)->shouldForceControlsDisplay();
 }
 
 bool MediaControlsHost::supportsSeeking() const
 {
-    return protectedMediaElement()->supportsSeeking();
+    return protect(m_mediaElement)->supportsSeeking();
 }
 
 bool MediaControlsHost::inWindowFullscreen() const
 {
 #if ENABLE(VIDEO_PRESENTATION_MODE)
-    if (RefPtr videoElement = dynamicDowncast<HTMLVideoElement>(m_mediaElement.get()))
+    if (auto* videoElement = dynamicDowncast<HTMLVideoElement>(m_mediaElement.get()))
         return videoElement->webkitPresentationMode() == HTMLVideoElement::VideoPresentationMode::InWindow;
 #endif
     return false;
@@ -340,13 +340,22 @@ bool MediaControlsHost::supportsRewind() const
 
 bool MediaControlsHost::needsChromeMediaControlsPseudoElement() const
 {
-    return protect(protectedMediaElement()->document())->quirks().needsChromeMediaControlsPseudoElement();
+    return protect(m_mediaElement->document())->quirks().needsChromeMediaControlsPseudoElement();
 }
 
 bool MediaControlsHost::isMediaControlsMacInlineSizeSpecsEnabled() const
 {
 #if HAVE(MATERIAL_HOSTING)
-    return protectedMediaElement()->document().settings().mediaControlsMacInlineSizeSpecsEnabled();
+    return protect(m_mediaElement)->document().settings().mediaControlsMacInlineSizeSpecsEnabled();
+#else
+    return false;
+#endif
+}
+
+bool MediaControlsHost::isAVExperienceControllerFullscreenEnabled() const
+{
+#if HAVE(AVEXPERIENCECONTROLLER)
+    return protect(m_mediaElement)->document().settings().isAVExperienceControllerFullscreenEnabled();
 #else
     return false;
 #endif
@@ -355,7 +364,7 @@ bool MediaControlsHost::isMediaControlsMacInlineSizeSpecsEnabled() const
 String MediaControlsHost::externalDeviceDisplayName() const
 {
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
-    RefPtr player = protectedMediaElement()->player();
+    RefPtr player = m_mediaElement->player();
     if (!player) {
         LOG(Media, "MediaControlsHost::externalDeviceDisplayName - returning \"\" because player is NULL");
         return emptyString();
@@ -374,7 +383,7 @@ auto MediaControlsHost::externalDeviceType() const -> DeviceType
 #if !ENABLE(WIRELESS_PLAYBACK_TARGET)
     return DeviceType::None;
 #else
-    RefPtr player = protectedMediaElement()->player();
+    RefPtr player = m_mediaElement->player();
     if (!player) {
         LOG(Media, "MediaControlsHost::externalDeviceType - returning \"none\" because player is NULL");
         return DeviceType::None;
@@ -396,12 +405,12 @@ auto MediaControlsHost::externalDeviceType() const -> DeviceType
 
 bool MediaControlsHost::controlsDependOnPageScaleFactor() const
 {
-    return protectedMediaElement()->mediaControlsDependOnPageScaleFactor();
+    return m_mediaElement->mediaControlsDependOnPageScaleFactor();
 }
 
 void MediaControlsHost::setControlsDependOnPageScaleFactor(bool value)
 {
-    protectedMediaElement()->setMediaControlsDependOnPageScaleFactor(value);
+    protect(m_mediaElement)->setMediaControlsDependOnPageScaleFactor(value);
 }
 
 String MediaControlsHost::generateUUID()
@@ -411,7 +420,7 @@ String MediaControlsHost::generateUUID()
 
 Vector<String, 2> MediaControlsHost::shadowRootStyleSheets() const
 {
-    return RenderTheme::singleton().mediaControlsStyleSheets(protectedMediaElement());
+    return RenderTheme::singleton().mediaControlsStyleSheets(protect(m_mediaElement));
 }
 
 String MediaControlsHost::base64StringForIconNameAndType(const String& iconName, const String& iconType)
@@ -893,12 +902,12 @@ void MediaControlsHost::hideCaptionDisplaySettingsPreview()
 
 auto MediaControlsHost::sourceType() const -> std::optional<SourceType>
 {
-    return protectedMediaElement()->sourceType();
+    return protect(m_mediaElement)->sourceType();
 }
 
 bool MediaControlsHost::needsCaptionVisibilityInFullscreenAndPictureInPictureQuirk() const
 {
-    return protect(protectedMediaElement()->document())->quirks().ensureCaptionVisibilityInFullscreenAndPictureInPicture();
+    return protect(m_mediaElement->document())->quirks().ensureCaptionVisibilityInFullscreenAndPictureInPicture();
 }
 
 void MediaControlsHost::handleCaptionVisibilityInFullscreenAndPictureInPictureQuirk()
@@ -911,7 +920,7 @@ void MediaControlsHost::handleCaptionVisibilityInFullscreenAndPictureInPictureQu
     if (!textTrackContainer)
         return;
 
-    if (protectedMediaElement()->isInFullscreenOrPictureInPicture())
+    if (protect(m_mediaElement)->isInFullscreenOrPictureInPicture())
         textTrackContainer->setInlineStyleProperty(CSSPropertyVisibility, CSSValueVisible);
     else
         textTrackContainer->setInlineStyleProperty(CSSPropertyVisibility, CSSValueInherit);
@@ -950,7 +959,7 @@ void MediaControlsHost::savePreviouslySelectedTextTrackIfNecessary()
         }
     }
 
-    switch (protect(page->group())->ensureProtectedCaptionPreferences()->captionDisplayMode()) {
+    switch (protect(protect(page->group())->ensureCaptionPreferences())->captionDisplayMode()) {
     case CaptionUserPreferences::CaptionDisplayMode::Automatic:
         m_previouslySelectedTextTrack = TextTrack::captionMenuAutomaticItemSingleton();
         return;
@@ -971,7 +980,7 @@ void MediaControlsHost::restorePreviouslySelectedTextTrackIfNecessary()
     if (!previouslySelectedTextTrack)
         return;
 
-    RefPtr textTracks = protectedMediaElement()->textTracks();
+    RefPtr textTracks = m_mediaElement->textTracks();
     for (unsigned i = 0; textTracks && i < textTracks->length(); ++i) {
         RefPtr textTrack = textTracks->item(i);
         ASSERT(textTrack);
@@ -988,11 +997,11 @@ void MediaControlsHost::restorePreviouslySelectedTextTrackIfNecessary()
 #if ENABLE(MEDIA_SESSION)
 RefPtr<MediaSession> MediaControlsHost::mediaSession() const
 {
-    RefPtr window = protectedMediaElement()->document().window();
+    RefPtr window = m_mediaElement->document().window();
     if (!window)
         return { };
 
-    return NavigatorMediaSession::mediaSessionIfExists(window->protectedNavigator());
+    return NavigatorMediaSession::mediaSessionIfExists(protect(window->navigator()));
 }
 
 void MediaControlsHost::ensureMediaSessionObserver()
@@ -1006,18 +1015,13 @@ void MediaControlsHost::ensureMediaSessionObserver()
 
 void MediaControlsHost::metadataChanged(const RefPtr<MediaMetadata>&)
 {
-    RefPtr shadowRoot = protectedMediaElement()->userAgentShadowRoot();
+    RefPtr shadowRoot = m_mediaElement->userAgentShadowRoot();
     if (!shadowRoot)
         return;
 
     shadowRoot->dispatchEvent(Event::create(eventNames().webkitmediasessionmetadatachangedEvent, Event::CanBubble::No, Event::IsCancelable::No));
 }
 #endif // ENABLE(MEDIA_SESSION)
-
-Ref<HTMLMediaElement> MediaControlsHost::protectedMediaElement() const
-{
-    return m_mediaElement.get();
-}
 
 } // namespace WebCore
 

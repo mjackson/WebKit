@@ -25,8 +25,8 @@
 
 #pragma once
 
-#include <WebCore/CSSGradient.h>
-#include <WebCore/StyleImage.h>
+#include "CSSGradient.h"
+#include "StyleImage.h"
 
 namespace WebCore {
 

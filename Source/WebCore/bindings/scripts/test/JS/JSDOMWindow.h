@@ -63,8 +63,6 @@ public:
         return static_cast<DOMWindow&>(Base::wrapped());
     }
 
-    Ref<DOMWindow> protectedWrapped() const;
-
 public:
     static constexpr unsigned StructureFlags = Base::StructureFlags | JSC::HasStaticPropertyTable | JSC::ImplementsHasInstance | JSC::ImplementsDefaultHasInstance;
 protected:

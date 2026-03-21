@@ -73,7 +73,7 @@ FloatBoxExtent FrameView::obscuredContentInsets(InsetType type) const
     if (!frame->isMainFrame())
         return { };
 
-    if (RefPtr page = frame->page())
+    if (auto* page = frame->page())
         return page->obscuredContentInsets();
 
     return { };
@@ -172,8 +172,9 @@ IntRect FrameView::scrollableAreaBoundingBox(bool*) const
 
 HostWindow* FrameView::hostWindow() const
 {
-    RefPtr page = frame().page();
-    return page ? &page->chrome() : nullptr;
+    if (auto* page = frame().page())
+        return &page->chrome();
+    return nullptr;
 }
 
 void FrameView::scrollbarStyleChanged(ScrollbarStyle newStyle, bool forceUpdate)
@@ -280,6 +281,47 @@ FloatRect FrameView::convertFromContainingViewToRenderer(const RenderElement* re
     auto rect = viewToContents(viewRect);
 
     return renderer->absoluteToLocalQuad(rect).boundingBox();
+}
+
+// MARK: -
+
+FloatPoint FrameView::absoluteToLayoutViewportPoint(FloatPoint p) const
+{
+    Ref frame = this->frame();
+
+    ASSERT(frame->settings().visualViewportEnabled());
+    p.scale(1 / frame->frameScaleFactor());
+    p.moveBy(-layoutViewportRect().location());
+    return p;
+}
+
+FloatPoint FrameView::layoutViewportToAbsolutePoint(FloatPoint p) const
+{
+    Ref frame = this->frame();
+
+    ASSERT(frame->settings().visualViewportEnabled());
+    p.moveBy(layoutViewportRect().location());
+    return p.scaled(frame->frameScaleFactor());
+}
+
+FloatRect FrameView::layoutViewportToAbsoluteRect(FloatRect rect) const
+{
+    Ref frame = this->frame();
+
+    ASSERT(frame->settings().visualViewportEnabled());
+    rect.moveBy(layoutViewportRect().location());
+    rect.scale(frame->frameScaleFactor());
+    return rect;
+}
+
+FloatRect FrameView::absoluteToLayoutViewportRect(FloatRect rect) const
+{
+    Ref frame = this->frame();
+
+    ASSERT(frame->settings().visualViewportEnabled());
+    rect.scale(1 / frame->frameScaleFactor());
+    rect.moveBy(-layoutViewportRect().location());
+    return rect;
 }
 
 // MARK: -

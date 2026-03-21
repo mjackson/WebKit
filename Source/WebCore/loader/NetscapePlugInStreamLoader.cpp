@@ -197,6 +197,12 @@ void NetscapePlugInStreamLoader::notifyDone()
 
     if (RefPtr documentLoader = this->documentLoader())
         documentLoader->removePlugInStreamLoader(*this);
+
+    // Prevent double removal from DocumentLoader::m_plugInStreamLoaders.
+    // This can happen when re-entrant IPC during a sync print operation
+    // triggers layout that destroys the PluginView, causing stream
+    // cancellation while didFinishLoading is still on the stack.
+    m_isInitialized = false;
 }
 
 

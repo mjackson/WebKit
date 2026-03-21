@@ -177,12 +177,12 @@ ValueOrException ScriptController::evaluateInWorld(const ScriptSourceCode& sourc
             evaluateIgnoringException({ WTF::move(script), JSC::SourceTaintedOrigin::Untainted });
     }
 
-    InspectorInstrumentation::willEvaluateScript(protectedFrame(), sourceURL.string(), sourceCode.startLine(), sourceCode.startColumn());
+    InspectorInstrumentation::willEvaluateScript(protect(m_frame), sourceURL.string(), sourceCode.startLine(), sourceCode.startColumn());
 
     NakedPtr<JSC::Exception> evaluationException;
     JSValue returnValue = JSExecState::profiledEvaluate(&globalObject, JSC::ProfilingReason::Other, jsSourceCode, &proxy, evaluationException);
 
-    InspectorInstrumentation::didEvaluateScript(protectedFrame());
+    InspectorInstrumentation::didEvaluateScript(protect(m_frame));
 
     std::optional<ExceptionDetails> optionalDetails;
     if (evaluationException) {
@@ -285,16 +285,16 @@ JSC::JSValue ScriptController::evaluateModule(const URL& sourceURL, AbstractModu
 #endif
     if (isWasmModule) {
         // FIXME: Provide better inspector support for Wasm scripts.
-        InspectorInstrumentation::willEvaluateScript(protectedFrame(), sourceURL.string(), 1, 1);
+        InspectorInstrumentation::willEvaluateScript(protect(m_frame), sourceURL.string(), 1, 1);
     } else if (moduleRecord.inherits<JSC::SyntheticModuleRecord>())
         InspectorInstrumentation::willEvaluateScript(frame.get(), sourceURL.string(), 1, 1);
     else {
         auto* jsModuleRecord = jsCast<JSModuleRecord*>(&moduleRecord);
         const auto& jsSourceCode = jsModuleRecord->sourceCode();
-        InspectorInstrumentation::willEvaluateScript(protectedFrame(), sourceURL.string(), jsSourceCode.firstLine().oneBasedInt(), jsSourceCode.startColumn().oneBasedInt());
+        InspectorInstrumentation::willEvaluateScript(protect(m_frame), sourceURL.string(), jsSourceCode.firstLine().oneBasedInt(), jsSourceCode.startColumn().oneBasedInt());
     }
     auto returnValue = moduleRecord.evaluate(&lexicalGlobalObject, awaitedValue, resumeMode);
-    InspectorInstrumentation::didEvaluateScript(protectedFrame());
+    InspectorInstrumentation::didEvaluateScript(protect(m_frame));
 
     return returnValue;
 }
@@ -327,8 +327,7 @@ void ScriptController::initScriptForWindowProxy(JSWindowProxy& windowProxy)
 
     if (RefPtr document = m_frame->document()) {
         protect(document->contentSecurityPolicy())->didCreateWindowProxy(windowProxy);
-        if (world->isNormal())
-            document->setMicrotaskGlobalObject(windowProxy.window());
+        document->addMicrotaskGlobalObject(windowProxy.window());
     }
 
     if (RefPtr page = m_frame->page()) {
@@ -336,13 +335,9 @@ void ScriptController::initScriptForWindowProxy(JSWindowProxy& windowProxy)
         windowProxy.window()->setProfileGroup(page->group().identifier());
     }
 
-    protectedFrame()->loader().dispatchDidClearWindowObjectInWorld(world);
+    m_frame->loader().dispatchDidClearWindowObjectInWorld(world);
 }
 
-Ref<LocalFrame> ScriptController::protectedFrame() const
-{
-    return m_frame;
-}
 
 static Identifier jsValueToModuleKey(JSGlobalObject* lexicalGlobalObject, JSValue value)
 {
@@ -447,7 +442,7 @@ WindowProxy& ScriptController::windowProxy()
 
 JSWindowProxy& ScriptController::jsWindowProxy(DOMWrapperWorld& world)
 {
-    auto* jsWindowProxy = protect(protectedFrame()->windowProxy())->jsWindowProxy(world);
+    auto* jsWindowProxy = m_frame->windowProxy().jsWindowProxy(world);
     ASSERT_WITH_MESSAGE(jsWindowProxy, "The JSWindowProxy can only be null if the frame has been destroyed");
     return *jsWindowProxy;
 }
@@ -488,14 +483,13 @@ void ScriptController::setTrustedTypesEnforcement(JSC::TrustedTypesEnforcement e
     proxy->window()->setTrustedTypesEnforcement(enforcement);
 }
 
-bool ScriptController::canAccessFromCurrentOrigin(LocalFrame* frame, Document& accessingDocument)
+bool ScriptController::canAccessFromCurrentOrigin(Frame* frame, Document& accessingDocument)
 {
     auto* lexicalGlobalObject = JSExecState::currentState();
 
     // If the current lexicalGlobalObject is null we should use the accessing document for the security check.
     if (!lexicalGlobalObject) {
-        RefPtr targetDocument = frame ? frame->document() : nullptr;
-        return targetDocument && protect(accessingDocument.securityOrigin())->isSameOriginDomain(protect(targetDocument->securityOrigin()));
+        return frame && frame->frameDocumentSecurityOrigin() && protect(accessingDocument.securityOrigin())->isSameOriginDomain(*protect(frame->frameDocumentSecurityOrigin()));
     }
 
     return BindingSecurity::shouldAllowAccessToFrame(lexicalGlobalObject, frame);
@@ -503,9 +497,12 @@ bool ScriptController::canAccessFromCurrentOrigin(LocalFrame* frame, Document& a
 
 void ScriptController::updateDocument()
 {
+    RefPtr document = m_frame->document();
     for (auto& jsWindowProxy : protect(windowProxy())->jsWindowProxiesAsVector()) {
         JSLockHolder lock(jsWindowProxy->world().vm());
         jsCast<JSDOMWindow*>(jsWindowProxy->window())->updateDocument();
+        if (document)
+            document->addMicrotaskGlobalObject(jsWindowProxy->window());
     }
 }
 
@@ -549,7 +546,7 @@ void ScriptController::collectIsolatedContexts(Vector<std::pair<JSC::JSGlobalObj
 {
     for (auto& jsWindowProxy : protect(windowProxy())->jsWindowProxiesAsVector()) {
         auto* lexicalGlobalObject = jsWindowProxy->window();
-        RefPtr origin = protect(downcast<LocalDOMWindow>(protect(jsWindowProxy->wrapped()))->document())->securityOrigin();
+        RefPtr origin = downcast<LocalDOMWindow>(jsWindowProxy->wrapped()).document()->securityOrigin();
         result.append(std::make_pair(lexicalGlobalObject, WTF::move(origin)));
     }
 }
@@ -713,7 +710,7 @@ ValueOrException ScriptController::callInWorld(RunJavaScriptParameters&& paramet
     Ref protector { m_frame.get() };
     SetForScope sourceURLScope(m_sourceURL, &sourceURL);
 
-    InspectorInstrumentation::willEvaluateScript(protectedFrame(), sourceURL.string(), sourceCode.startLine(), sourceCode.startColumn());
+    InspectorInstrumentation::willEvaluateScript(protect(m_frame), sourceURL.string(), sourceCode.startLine(), sourceCode.startColumn());
 
     NakedPtr<JSC::Exception> evaluationException;
     std::optional<ExceptionDetails> optionalDetails;
@@ -740,7 +737,7 @@ ValueOrException ScriptController::callInWorld(RunJavaScriptParameters&& paramet
         returnValue = JSExecState::profiledCall(&globalObject, JSC::ProfilingReason::Other, functionObject, callData, &proxy, markedArguments, evaluationException);
     } while (false);
 
-    InspectorInstrumentation::didEvaluateScript(protectedFrame());
+    InspectorInstrumentation::didEvaluateScript(protect(m_frame));
 
     if (evaluationException && !optionalDetails) {
         ExceptionDetails details;
@@ -913,7 +910,7 @@ void ScriptController::executeJavaScriptURL(const URL& url, const NavigationActi
     //        synchronously can cause crashes:
     //        http://bugs.webkit.org/show_bug.cgi?id=16782
     if (action.shouldReplaceDocumentIfJavaScriptURL() == ReplaceDocumentIfJavaScriptURL) {
-        RefPtr documentLoader = protect(m_frame->document())->loader();
+        RefPtr documentLoader = m_frame->document()->loader();
 
         // We're still in a frame, so there should be a DocumentLoader.
         ASSERT(documentLoader);
@@ -995,7 +992,7 @@ bool ScriptController::registerSpeculationRules(Node& sourceNode, const ScriptSo
     if (!document || !document->settings().speculationRulesPrefetchEnabled())
         return false;
 
-    return document->speculationRules()->parseSpeculationRules(sourceNode, sourceCode.source(), baseURL, document->url());
+    return protect(document->speculationRules())->parseSpeculationRules(sourceNode, sourceCode.source(), baseURL, document->url());
 }
 
 } // namespace WebCore

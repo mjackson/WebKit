@@ -58,7 +58,7 @@ public:
 
     static constexpr ASCIILiteral urlScheme() { return "x-apple-content-filter"_s; }
 
-    WEBCORE_EXPORT void NODELETE startFilteringMainResource(const URL&);
+    WEBCORE_EXPORT void startFilteringMainResource(const URL&);
     void startFilteringMainResource(CachedRawResource&);
     WEBCORE_EXPORT void stopFilteringMainResource();
 
@@ -74,7 +74,7 @@ public:
     bool willHandleProvisionalLoadFailure(const ResourceError&) const;
     WEBCORE_EXPORT void handleProvisionalLoadFailure(const ResourceError&);
 
-    const ResourceError& blockedError() const { return m_blockedError; }
+    const ResourceError& blockedError() const LIFETIME_BOUND { return m_blockedError; }
     void setBlockedError(const ResourceError& error) { m_blockedError = error; }
     bool isAllowed() const { return m_state == State::Allowed; }
     bool responseReceived() const { return m_responseReceived; }

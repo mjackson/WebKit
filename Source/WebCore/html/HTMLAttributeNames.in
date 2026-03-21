@@ -87,6 +87,7 @@ axis
 background
 behavior
 bgcolor
+bottommargin
 blocking
 border
 bordercolor
@@ -103,6 +104,7 @@ cite
 class
 classid
 clear
+closedby
 code
 codebase
 codetype
@@ -386,6 +388,7 @@ required
 results
 rev
 reversed
+rightmargin
 role
 rows
 rowspan

@@ -82,8 +82,11 @@ void RemoteScrollingTree::scrollingTreeNodeDidScroll(ScrollingTreeScrollingNode&
     auto scrollUpdate = ScrollUpdate {
         .nodeID = node.scrollingNodeID(),
         .scrollPosition = node.currentScrollPosition(),
-        .layoutViewportOrigin = layoutViewportOrigin,
-        .updateLayerPositionAction = scrollingLayerPositionAction,
+        .data = ScrollUpdateData {
+            .updateType = ScrollUpdateType::PositionUpdate,
+            .updateLayerPositionAction = scrollingLayerPositionAction,
+            .layoutViewportOrigin = layoutViewportOrigin,
+        }
     };
     addPendingScrollUpdate(WTF::move(scrollUpdate));
 }
@@ -95,8 +98,9 @@ void RemoteScrollingTree::scrollingTreeNodeDidStopAnimatedScroll(ScrollingTreeSc
     auto scrollUpdate = ScrollUpdate {
         .nodeID = node.scrollingNodeID(),
         .scrollPosition = { },
-        .layoutViewportOrigin = { },
-        .updateType = ScrollUpdateType::AnimatedScrollDidEnd,
+        .data = ScrollUpdateData {
+            .updateType = ScrollUpdateType::AnimatedScrollDidEnd
+        }
     };
     addPendingScrollUpdate(WTF::move(scrollUpdate));
 }
@@ -108,19 +112,20 @@ void RemoteScrollingTree::scrollingTreeNodeDidStopWheelEventScroll(WebCore::Scro
     auto scrollUpdate = ScrollUpdate {
         .nodeID = node.scrollingNodeID(),
         .scrollPosition = { },
-        .layoutViewportOrigin = { },
-        .updateType = ScrollUpdateType::WheelEventScrollDidEnd,
+        .data = ScrollUpdateData {
+            .updateType = ScrollUpdateType::WheelEventScrollDidEnd,
+        }
     };
     addPendingScrollUpdate(WTF::move(scrollUpdate));
 }
 
-bool RemoteScrollingTree::scrollingTreeNodeRequestsScroll(ScrollingNodeID nodeID, const RequestedScrollData& request)
+RequestsScrollHandling RemoteScrollingTree::scrollingTreeNodeRequestsScroll(ScrollingNodeID nodeID, const RequestedScrollData& request)
 {
     ASSERT(isMainRunLoop());
 
     CheckedPtr scrollingCoordinatorProxy = m_scrollingCoordinatorProxy.get();
     if (!scrollingCoordinatorProxy)
-        return false;
+        return RequestsScrollHandling::Unhandled;
 
     return scrollingCoordinatorProxy->scrollingTreeNodeRequestsScroll(nodeID, request);
 }
@@ -136,28 +141,17 @@ bool RemoteScrollingTree::scrollingTreeNodeRequestsKeyboardScroll(ScrollingNodeI
     return scrollingCoordinatorProxy->scrollingTreeNodeRequestsKeyboardScroll(nodeID, request);
 }
 
-void RemoteScrollingTree::didHandleScrollRequestForNode(ScrollingNodeID nodeID, FloatPoint scrollPosition, ScrollRequestIdentifier requestIdentifier)
+void RemoteScrollingTree::didHandleScrollRequestForNode(ScrollingNodeID nodeID, ScrollRequestType requestType, FloatPoint scrollPosition, ShouldFireScrollEnd shouldFireScrollEnd, Markable<ScrollRequestIdentifier> requestIdentifier)
 {
+    ASSERT(requestIdentifier);
     auto scrollUpdate = ScrollUpdate {
         .nodeID = nodeID,
         .scrollPosition = scrollPosition,
-        .layoutViewportOrigin = { },
-        .updateType = ScrollUpdateType::ScrollRequestResponse,
-        .updateLayerPositionAction = ScrollingLayerPositionAction::Set,
-        .responseIdentifier = requestIdentifier
-    };
-    addPendingScrollUpdate(WTF::move(scrollUpdate));
-}
-
-void RemoteScrollingTree::scrollingTreeNodeDidStopProgrammaticScroll(ScrollingTreeScrollingNode& node)
-{
-    ASSERT(isMainRunLoop());
-
-    auto scrollUpdate = ScrollUpdate {
-        .nodeID = node.scrollingNodeID(),
-        .scrollPosition = { },
-        .layoutViewportOrigin = { },
-        .updateType = ScrollUpdateType::ProgrammaticScrollDidEnd,
+        .shouldFireScrollEnd = shouldFireScrollEnd,
+        .data = ScrollRequestResponseData {
+            .requestType = requestType,
+            .responseIdentifier = *requestIdentifier
+        },
     };
     addPendingScrollUpdate(WTF::move(scrollUpdate));
 }
@@ -262,7 +256,7 @@ void RemoteScrollingTree::reportExposedUnfilledArea(MonotonicTime time, unsigned
 {
     ASSERT(isMainRunLoop());
 
-    CheckedPtr scrollingCoordinatorProxy = m_scrollingCoordinatorProxy.get();
+    auto* scrollingCoordinatorProxy = m_scrollingCoordinatorProxy.get();
     if (!scrollingCoordinatorProxy)
         return;
 

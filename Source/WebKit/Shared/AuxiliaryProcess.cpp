@@ -85,7 +85,7 @@ void AuxiliaryProcess::initialize(AuxiliaryProcessInitializationParameters&& par
 {
     TraceScope traceScope(ProcessInitializeStart, ProcessInitializeEnd);
 
-    WTF::RefCountDebugger::enableThreadingChecksGlobally();
+    WTF::RefCountDebuggerBase::enableThreadingChecksGlobally();
 
 #if PLATFORM(COCOA)
     // On Cocoa platforms, setAuxiliaryProcessType() is called in XPCServiceInitializer().
@@ -117,7 +117,7 @@ void AuxiliaryProcess::initialize(AuxiliaryProcessInitializationParameters&& par
     WebPageProxyIdentifier::enableGenerationProtection();
 
     Ref connection = IPC::Connection::createClientConnection(WTF::move(parameters.connectionIdentifier));
-    m_connection = connection.ptr();
+    lazyInitialize(m_connection, connection.copyRef());
     initializeConnection(connection.ptr());
     connection->open(*this);
 }

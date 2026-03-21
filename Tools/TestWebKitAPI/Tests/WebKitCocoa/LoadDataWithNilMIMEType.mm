@@ -36,3 +36,14 @@ TEST(WebKit, LoadDataWithNilMIMEType)
     [webView loadData:[@"test" dataUsingEncoding:NSUTF8StringEncoding] MIMEType:mimeType characterEncodingName:@"UTF-8" baseURL:[NSURL URLWithString:@"about:blank"]];
     [webView _test_waitForDidFinishNavigation];
 }
+
+TEST(WebKit, LoadHTMLStringWithFragmentInBaseURL)
+{
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSZeroRect]);
+
+    [webView loadHTMLString:@"<body>first</body>" baseURL:[NSURL URLWithString:@"http://example.test/#test"]];
+    [webView _test_waitForDidFinishNavigation];
+
+    [webView loadHTMLString:@"<body>second</body>" baseURL:[NSURL URLWithString:@"http://example.test/#test"]];
+    [webView _test_waitForDidFinishNavigation];
+}

@@ -39,7 +39,7 @@ namespace WebCore {
 
 String DeprecatedCSSOMPrimitiveValue::cssText() const
 {
-    return protectedValue()->cssText(CSS::defaultSerializationContext());
+    return protect(value())->cssText(CSS::defaultSerializationContext());
 }
 
 unsigned short DeprecatedCSSOMPrimitiveValue::primitiveType() const

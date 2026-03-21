@@ -65,8 +65,6 @@ public:
     void evaluateForTestInFrontend(const String& script);
 
 private:
-    CheckedRef<InspectorEnvironment> checkedEnvironment() { return m_environment.get(); }
-
     WeakRef<InspectorEnvironment> m_environment;
     const UniqueRef<InspectorFrontendDispatcher> m_frontendDispatcher;
     const Ref<InspectorBackendDispatcher> m_backendDispatcher;

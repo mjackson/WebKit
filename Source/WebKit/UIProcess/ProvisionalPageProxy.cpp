@@ -126,16 +126,17 @@ ProvisionalPageProxy::ProvisionalPageProxy(WebPageProxy& page, Ref<FrameProcess>
         ASSERT(&suspendedPage->process() == process.ptr());
         suspendedPage->unsuspend();
         m_mainFrame = suspendedPage->mainFrame();
+        m_mainFrame->updateReferrerPolicy(ReferrerPolicy::EmptyString);
         m_needsMainFrameObserver = true;
-    } else if (m_shouldReuseMainFrame)
+    } else if (m_shouldReuseMainFrame) {
         m_mainFrame = page.mainFrame();
-    else {
-        Ref mainFrame = WebFrameProxy::create(page, m_frameProcess, generateFrameIdentifier(), previousMainFrame->effectiveSandboxFlags(), previousMainFrame->effectiveReferrerPolicy(), previousMainFrame->scrollingMode(), nullptr, IsMainFrame::Yes);
+        m_mainFrame->updateReferrerPolicy(ReferrerPolicy::EmptyString);
+    } else {
+        // Passing previous frame's url to restore the main frame's committed URL
+        // as some clients may rely on it until the next load is committed.
+        Ref mainFrame = WebFrameProxy::create(page, m_frameProcess, generateFrameIdentifier(), previousMainFrame->effectiveSandboxFlags(), ReferrerPolicy::EmptyString, previousMainFrame->scrollingMode(), nullptr, nullptr, IsMainFrame::Yes, previousMainFrame->url());
         m_mainFrame = mainFrame.copyRef();
-
         m_needsMainFrameObserver = true;
-        // Restore the main frame's committed URL as some clients may rely on it until the next load is committed.
-        mainFrame->frameLoadState().setURL(URL { previousMainFrame->url() });
         previousMainFrame->transferNavigationCallbackToFrame(mainFrame);
     }
 
@@ -364,7 +365,7 @@ void ProvisionalPageProxy::goToBackForwardItem(API::Navigation& navigation, WebB
 
     SandboxExtension::Handle sandboxExtensionHandle;
     URL itemURL { item.url() };
-    Ref frameState = navigation.targetFrameItem() ? navigation.targetFrameItem()->copyFrameStateWithChildren() : item.mainFrameState();
+    Ref frameState = copyFrameStateForBackForwardNavigation(navigation, item);
     page->maybeInitializeSandboxExtensionHandle(process, itemURL, item.resourceDirectoryURL(), true, [
         weakThis = WeakPtr { *this },
         itemURL,
@@ -391,6 +392,16 @@ void ProvisionalPageProxy::goToBackForwardItem(API::Navigation& navigation, WebB
 
         protect(protectedThis->process())->startResponsivenessTimer();
     });
+}
+
+Ref<FrameState> ProvisionalPageProxy::copyFrameStateForBackForwardNavigation(API::Navigation& navigation, WebBackForwardListItem& item) const
+{
+    Ref frameItem = navigation.targetFrameItem() ? *navigation.targetFrameItem() : item.mainFrameItem();
+    if (RefPtr page = m_page.get()) {
+        if (protect(page->preferences())->useUIProcessForBackForwardItemLoading())
+            return frameItem->copyFrameState();
+    }
+    return frameItem->copyFrameStateWithChildren();
 }
 
 inline bool ProvisionalPageProxy::validateInput(FrameIdentifier frameID, const std::optional<WebCore::NavigationIdentifier>& navigationID)
@@ -448,6 +459,7 @@ void ProvisionalPageProxy::didFailProvisionalLoadForFrame(FrameInfoData&& frameI
     if (!page)
         return;
 
+    m_didFailProvisionalLoad = true;
     // Make sure the Page's main frame's expectedURL gets cleared since we updated it in didStartProvisionalLoad.
     // When site isolation is enabled, we use the same WebFrameProxy so we don't need this duplicate call.
     // didFailProvisionalLoadForFrameShared will call didFailProvisionalLoad on the same main frame.
@@ -705,6 +717,9 @@ void ProvisionalPageProxy::didReceiveMessage(IPC::Connection& connection, IPC::D
         || decoder.messageName() == Messages::WebPageProxy::DidSendRequestForResource::name()
         || decoder.messageName() == Messages::WebPageProxy::DidReceiveResponseForResource::name()
 #endif
+#if ENABLE(CONTENT_EXTENSIONS)
+        || decoder.messageName() == Messages::WebPageProxy::ContentRuleListNotification::name()
+#endif
         )
     {
         if (RefPtr page = m_page.get())
@@ -877,6 +892,12 @@ bool ProvisionalPageProxy::sendMessage(UniqueRef<IPC::Encoder>&& encoder, Option
 bool ProvisionalPageProxy::sendMessageWithAsyncReply(UniqueRef<IPC::Encoder>&& encoder, AsyncReplyHandler handler, OptionSet<IPC::SendOption> sendOptions)
 {
     return protect(process())->sendMessage(WTF::move(encoder), sendOptions, WTF::move(handler));
+}
+
+void ProvisionalPageProxy::updateFrameProcess()
+{
+    if (auto mainFrame = m_mainFrame)
+        m_frameProcess = mainFrame->frameProcess();
 }
 
 } // namespace WebKit

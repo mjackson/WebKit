@@ -26,6 +26,7 @@
 
 #include <WebCore/EventTarget.h>
 #include <WebCore/NodeIdentifier.h>
+#include <WebCore/NodeType.h>
 #include <WebCore/PlatformExportMacros.h>
 #include <WebCore/RenderStyleConstants.h>
 #include <WebCore/StyleValidity.h>
@@ -126,22 +127,6 @@ public:
     // This opts the entire Node family tree into being allocated in the BuiltinTypeDescriptor TZone category.
     static constexpr bool usesBuiltinTypeDescriptorTZoneCategory = true;
 
-    enum NodeType {
-        ELEMENT_NODE = 1,
-        ATTRIBUTE_NODE = 2,
-        TEXT_NODE = 3,
-        CDATA_SECTION_NODE = 4,
-        PROCESSING_INSTRUCTION_NODE = 7,
-        COMMENT_NODE = 8,
-        DOCUMENT_NODE = 9,
-        DOCUMENT_TYPE_NODE = 10,
-        DOCUMENT_FRAGMENT_NODE = 11,
-    };
-    enum DeprecatedNodeType {
-        ENTITY_REFERENCE_NODE = 5,
-        ENTITY_NODE = 6,
-        NOTATION_NODE = 12,
-    };
     enum DocumentPosition {
         DOCUMENT_POSITION_EQUIVALENT = 0x00,
         DOCUMENT_POSITION_DISCONNECTED = 0x01,
@@ -264,9 +249,9 @@ public:
     virtual bool isHTMLFrameOwnerElement() const { return false; }
     virtual bool isPluginElement() const { return false; }
 
-    bool isDocumentNode() const { return nodeType() == DOCUMENT_NODE; }
+    bool isDocumentNode() const { return nodeType() == NodeType::Document; }
     bool isTreeScope() const { return isDocumentNode() || isShadowRoot(); }
-    bool isDocumentFragment() const { return nodeType() == DOCUMENT_FRAGMENT_NODE; }
+    bool isDocumentFragment() const { return nodeType() == NodeType::DocumentFragment; }
     bool isShadowRoot() const { return isDocumentFragment() && hasTypeFlag(TypeFlag::IsShadowRootOrFormControlElement); }
     inline bool isUserAgentShadowRoot() const; // Defined in NodeInlines.h
 
@@ -278,20 +263,17 @@ public:
     bool hasShadowRootContainingSlots() const { return hasEventTargetFlag(EventTargetFlag::HasShadowRootContainingSlots); }
     void setHasShadowRootContainingSlots(bool flag) { setEventTargetFlag(EventTargetFlag::HasShadowRootContainingSlots, flag); }
 
-    bool hasShadowRoot() const { return hasStateFlag(StateFlag::HasShadowRoot); }
-    void setHasShadowRoot(bool flag) { setStateFlag(StateFlag::HasShadowRoot, flag); }
-
     bool needsSVGRendererUpdate() const { return hasStateFlag(StateFlag::NeedsSVGRendererUpdate); }
     void setNeedsSVGRendererUpdate(bool flag) { setStateFlag(StateFlag::NeedsSVGRendererUpdate, flag); }
 
     // If this node is in a shadow tree, returns its shadow host. Otherwise, returns null.
     WEBCORE_EXPORT Element* NODELETE shadowHost() const;
     ShadowRoot* NODELETE containingShadowRoot() const;
-    inline ShadowRoot* shadowRoot() const; // Defined in ElementRareData.h
+    inline ShadowRoot* shadowRoot() const; // Defined in Element.h.
     bool isClosedShadowHidden(const Node&) const;
 
-    HTMLSlotElement* assignedSlot() const;
-    HTMLSlotElement* assignedSlotForBindings() const;
+    HTMLSlotElement* NODELETE assignedSlot() const;
+    HTMLSlotElement* NODELETE assignedSlotForBindings() const;
     HTMLSlotElement* NODELETE manuallyAssignedSlot() const;
     void setManuallyAssignedSlot(HTMLSlotElement*);
 
@@ -322,9 +304,9 @@ public:
     Node* NODELETE nonBoundaryShadowTreeRootNode();
 
     // Node's parent or shadow tree host.
-    inline ContainerNode* parentOrShadowHostNode() const; // Defined in NodeInlines.h
-    ContainerNode* parentInComposedTree() const;
-    WEBCORE_EXPORT Element* parentElementInComposedTree() const;
+    inline ContainerNode* NODELETE parentOrShadowHostNode() const; // Defined in NodeInlines.h
+    ContainerNode* NODELETE parentInComposedTree() const;
+    WEBCORE_EXPORT Element* NODELETE parentElementInComposedTree() const;
     Element* NODELETE parentOrShadowHostElement() const;
     inline void setParentNode(ContainerNode*);
     inline Node& NODELETE rootNode() const;
@@ -339,7 +321,7 @@ public:
     inline WebCoreOpaqueRoot opaqueRoot() const;
     WebCoreOpaqueRoot NODELETE traverseToOpaqueRoot() const;
 
-    void queueTaskKeepingThisNodeAlive(TaskSource, Function<void ()>&&);
+    template<typename T, typename Task> static void queueTaskKeepingNodeAlive(T&, TaskSource, Task&&);
     void queueTaskToDispatchEvent(TaskSource, Ref<Event>&&);
 
     // Use when it's guaranteed to that shadowHost is null.
@@ -357,7 +339,7 @@ public:
     void NODELETE setUsesEffectiveTextDirection(bool);
 
     // Returns the enclosing event parent Element (or self) that, when clicked, would trigger a navigation.
-    WEBCORE_EXPORT Element* enclosingLinkEventParentOrSelf();
+    WEBCORE_EXPORT Element* NODELETE enclosingLinkEventParentOrSelf();
 
     // These low-level calls give the caller responsibility for maintaining the integrity of the tree.
     void setPreviousSibling(Node* previous) { m_previousSibling = previous; }
@@ -459,10 +441,10 @@ public:
     // https://dom.spec.whatwg.org/#in-a-document-tree
     bool isInDocumentTree() const { return isConnected() && !isInShadowTree(); }
 
-    bool isDocumentTypeNode() const { return nodeType() == DOCUMENT_TYPE_NODE; }
+    bool isDocumentTypeNode() const { return nodeType() == NodeType::DocumentType; }
     virtual bool NODELETE childTypeAllowed(NodeType) const { return false; }
-    inline unsigned countChildNodes() const;
-    inline unsigned length() const;
+    inline unsigned NODELETE countChildNodes() const;
+    inline unsigned NODELETE length() const;
     inline Node* traverseToChildAt(unsigned) const;
 
     ExceptionOr<void> checkSetPrefix(const AtomString& prefix);
@@ -487,7 +469,7 @@ public:
     ALWAYS_INLINE bool isShadowIncludingInclusiveAncestorOf(const Node& other) const { return this == &other || other.isShadowIncludingDescendantOf(*this); }
     ALWAYS_INLINE bool isShadowIncludingInclusiveAncestorOf(const Node* other) const { return other && isShadowIncludingInclusiveAncestorOf(*other); }
 
-    bool isComposedTreeDescendantOf(const Node&) const;
+    bool NODELETE isComposedTreeDescendantOf(const Node&) const;
 
     // Whether or not a selection can be started in this object
     virtual bool canStartSelection() const;
@@ -514,24 +496,25 @@ public:
     WEBCORE_EXPORT const RenderStyle* computedStyle();
     virtual const RenderStyle* computedStyle(const std::optional<Style::PseudoElementIdentifier>&);
 
-    enum class InsertedIntoAncestorResult {
-        Done,
-        NeedsPostInsertionCallback,
-    };
+    enum class NeedsPostConnectionSteps : bool { No, Yes };
     struct InsertionType {
         bool connectedToDocument { false };
         bool treeScopeChanged { false };
     };
+    // https://dom.spec.whatwg.org/#concept-node-insert-ext
     // Called *after* this node or its ancestor is inserted into a new parent (may or may not be a part of document) by scripts or parser.
-    // insertedInto **MUST NOT** invoke scripts. Return NeedsPostInsertionCallback and implement didFinishInsertingNode instead to run scripts.
-    virtual InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode& parentOfInsertedTree);
-    virtual void didFinishInsertingNode() { }
+    // insertionSteps **MUST NOT** invoke scripts. Return NeedsPostConnectionSteps and implement postConnectionSteps instead to run scripts.
+    virtual NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode& parentOfInsertedTree);
+
+    // https://dom.spec.whatwg.org/#concept-node-post-connection-ext
+    virtual void postConnectionSteps() { }
 
     struct RemovalType {
         bool disconnectedFromDocument { false };
         bool treeScopeChanged { false };
     };
-    virtual void removedFromAncestor(RemovalType, ContainerNode& oldParentOfRemovedTree);
+    // https://dom.spec.whatwg.org/#concept-node-remove-ext
+    virtual void removingSteps(RemovalType, ContainerNode& oldParentOfRemovedTree);
 
     virtual String description() const;
     virtual String debugDescription() const;
@@ -630,7 +613,7 @@ public:
     void setContainsSelectionEndPoint(bool value) { setStateFlag(StateFlag::ContainsSelectionEndPoint, value); }
 
     WEBCORE_EXPORT NodeIdentifier nodeIdentifier() const;
-    WEBCORE_EXPORT static Node* fromIdentifier(NodeIdentifier);
+    WEBCORE_EXPORT static Node* NODELETE fromIdentifier(NodeIdentifier);
 
 protected:
     enum class TypeFlag : uint16_t {
@@ -649,7 +632,7 @@ protected:
     };
     static constexpr auto typeFlagBitCount = 12;
 
-    static uint16_t constructBitFieldsFromNodeTypeAndFlags(NodeType type, OptionSet<TypeFlag> flags) { return (type << typeFlagBitCount) | flags.toRaw(); }
+    static uint16_t constructBitFieldsFromNodeTypeAndFlags(NodeType type, OptionSet<TypeFlag> flags) { return (std::to_underlying(type) << typeFlagBitCount) | flags.toRaw(); }
     static NodeType nodeTypeFromBitFields(uint16_t bitFields) { return static_cast<NodeType>((bitFields >> typeFlagBitCount) & 0xf); }
     // Don't bother masking with (1 << typeFlagBitCount) - 1 since OptionSet tolerates the upper 4-bits being used for other purposes.
     bool hasTypeFlag(TypeFlag flag) const { return OptionSet<TypeFlag>::fromRaw(m_typeBitFields).contains(flag); }
@@ -680,7 +663,7 @@ protected:
         InLargestContentfulPaintTextContentSet = 1 << 20,
         DidMutateSubtreeAfterSetInnerHTML = 1 << 21,
         WasParsedWithFastPath = 1 << 22,
-        HasShadowRoot = 1 << 23,
+        ShouldNotifyTextManipulationControllerIfDisplayed = 1 << 23,
         // 8 bits free.
     };
 
@@ -776,7 +759,7 @@ protected:
     virtual void addCandidateSubresourceURLs(ListHashSet<URL>&) const { }
 
     bool hasRareData() const { return !!m_rareDataWithBitfields.pointer(); }
-    NodeRareData* rareData() const { return m_rareDataWithBitfields.pointer(); }
+    NodeRareData* rareData() const LIFETIME_BOUND { return m_rareDataWithBitfields.pointer(); }
     NodeRareData& ensureRareData();
     void clearRareData();
 
@@ -877,7 +860,7 @@ inline void Node::applyRefDuringDestructionCheck() const
 #if ASSERT_ENABLED
     if (!deletionHasBegun())
         return;
-    WTF::RefCountDebugger::logRefDuringDestruction(this);
+    WTF::RefCountDebuggerBase::logRefDuringDestruction(this);
 #endif
 }
 

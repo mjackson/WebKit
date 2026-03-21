@@ -28,13 +28,13 @@
               (bounds 400.00 300.00)
               (children 1
                 (GraphicsLayer
-                  (bounds 2802.00 302.00)
+                  (bounds 5002.00 302.00)
                   (usingTiledLayer 1)
                   (contentsOpaque 1)
                   (drawsContent 1)
                   (mask layer)
                     (GraphicsLayer
-                      (bounds 2802.00 302.00)
+                      (bounds 5002.00 302.00)
                       (usingTiledLayer 1)
                       (drawsContent 1)
                       (tile cache coverage 0, 0 512 x 302)
@@ -85,13 +85,13 @@
               (bounds 400.00 300.00)
               (children 1
                 (GraphicsLayer
-                  (bounds 2802.00 302.00)
+                  (bounds 5002.00 302.00)
                   (usingTiledLayer 1)
                   (contentsOpaque 1)
                   (drawsContent 1)
                   (mask layer)
                     (GraphicsLayer
-                      (bounds 2802.00 302.00)
+                      (bounds 5002.00 302.00)
                       (usingTiledLayer 1)
                       (drawsContent 1)
                       (tile cache coverage 0, 0 512 x 302)

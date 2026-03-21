@@ -30,7 +30,7 @@
 
 namespace WebCore {
 
-CSSReflectValue::CSSReflectValue(CSSValueID direction, Ref<CSSValue> offset, RefPtr<CSSValue> mask)
+CSSReflectValue::CSSReflectValue(CSSValueID direction, Ref<CSSValue>&& offset, RefPtr<CSSValue>&& mask)
     : CSSValue(ClassType::Reflect)
     , m_direction(direction)
     , m_offset(WTF::move(offset))
@@ -38,7 +38,7 @@ CSSReflectValue::CSSReflectValue(CSSValueID direction, Ref<CSSValue> offset, Ref
 {
 }
 
-Ref<CSSReflectValue> CSSReflectValue::create(CSSValueID direction, Ref<CSSValue> offset, RefPtr<CSSValue> mask)
+Ref<CSSReflectValue> CSSReflectValue::create(CSSValueID direction, Ref<CSSValue>&& offset, RefPtr<CSSValue>&& mask)
 {
     return adoptRef(*new CSSReflectValue(direction, WTF::move(offset), WTF::move(mask)));
 }

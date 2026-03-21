@@ -28,7 +28,7 @@
 #include <wtf/Platform.h>
 #if PLATFORM(MAC)
 
-#include <WebCore/Scrollbar.h>
+#include "Scrollbar.h"
 
 OBJC_CLASS NSScrollerImp;
 
@@ -39,8 +39,7 @@ public:
     ScrollbarMac(ScrollableArea&, ScrollbarOrientation, ScrollbarWidth);
     ~ScrollbarMac() { }
 
-    NSScrollerImp* scrollerImp() const;
-    RetainPtr<NSScrollerImp> protectedScrollerImp() const;
+    NSScrollerImp* NODELETE scrollerImp() const;
     void createScrollerImp(NSScrollerImp* oldScrollerImp = nullptr);
     bool isMacScrollbar() const override { return true; }
 

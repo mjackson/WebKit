@@ -52,7 +52,8 @@ class WebGLShader;
 
 class WebGLProgram final : public WebGLObject, public ContextDestructionObserver {
 public:
-    static RefPtr<WebGLProgram> create(WebGLRenderingContextBase&);
+    static Ref<WebGLProgram> createLost(WebGLRenderingContextBase&);
+    static Ref<WebGLProgram> create(WebGLRenderingContextBase&);
     virtual ~WebGLProgram();
 
     // ContextDestructionObserver.
@@ -67,7 +68,7 @@ public:
     bool linkStatus();
     std::span<const GCGLAttribActiveInfo> activeAttribs() LIFETIME_BOUND;
     const HashMap<String, int>& attribLocations() LIFETIME_BOUND;
-    std::span<const GCGLUniformActiveInfo> activeUniforms();
+    std::span<const GCGLUniformActiveInfo> activeUniforms() LIFETIME_BOUND;
     const HashMap<String, int>& uniformLocations() LIFETIME_BOUND;
     const HashMap<String, unsigned>& uniformIndices() LIFETIME_BOUND;
     int requiredTransformFeedbackBufferCount();
@@ -98,6 +99,7 @@ public:
 
 private:
     WebGLProgram(WebGLRenderingContextBase&, PlatformGLObject);
+    WebGLProgram(WebGLRenderingContextBase&);
 
     void deleteObjectImpl(const AbstractLocker&, GraphicsContextGL*, PlatformGLObject) override;
 

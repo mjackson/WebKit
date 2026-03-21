@@ -140,11 +140,6 @@ IDBTransaction& IDBObjectStore::transaction()
     return m_transaction.get();
 }
 
-Ref<IDBTransaction> IDBObjectStore::protectedTransaction()
-{
-    return transaction();
-}
-
 bool IDBObjectStore::autoIncrement() const
 {
     ASSERT(canCurrentThreadAccessThreadLocalData(m_transaction->database().originThread()));
@@ -745,7 +740,7 @@ void IDBObjectStore::rollbackForVersionChangeAbort()
 }
 
 template<typename Visitor>
-void IDBObjectStore::visitReferencedIndexesConcurrently(Visitor& visitor) const
+void IDBObjectStore::visitReferencedIndexesInGCThread(Visitor& visitor) const
 {
     Locker locker { m_referencedIndexLock };
     for (auto& index : m_referencedIndexes.values()) {
@@ -758,8 +753,8 @@ void IDBObjectStore::visitReferencedIndexesConcurrently(Visitor& visitor) const
     }
 }
 
-template void IDBObjectStore::visitReferencedIndexesConcurrently(AbstractSlotVisitor&) const;
-template void IDBObjectStore::visitReferencedIndexesConcurrently(SlotVisitor&) const;
+template void IDBObjectStore::visitReferencedIndexesInGCThread(AbstractSlotVisitor&) const;
+template void IDBObjectStore::visitReferencedIndexesInGCThread(SlotVisitor&) const;
 
 void IDBObjectStore::renameReferencedIndex(IDBIndex& index, const String& newName)
 {

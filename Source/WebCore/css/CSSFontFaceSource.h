@@ -89,7 +89,7 @@ private:
 
     void NODELETE setStatus(Status);
 
-    Ref<CSSFontFace> NODELETE protectedCSSFontFace() const;
+    CSSFontFace& cssFontFace() const { return m_owningCSSFontFace.get(); }
 
     RefPtr<FontCustomPlatformData> loadCustomFont(SharedBuffer&, DownloadableBinaryFontTrustedTypes);
 

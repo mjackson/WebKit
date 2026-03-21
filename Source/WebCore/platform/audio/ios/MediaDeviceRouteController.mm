@@ -26,9 +26,13 @@
 #import "config.h"
 #import "MediaDeviceRouteController.h"
 
+#import "MediaStrategy.h"
+#import "PlatformStrategies.h"
+
 #if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
 
 #import "MediaDeviceRoute.h"
+#import "MediaSessionHelperIOS.h"
 #import "MediaStrategy.h"
 #import "PlatformStrategies.h"
 #import <WebKitAdditions/MediaDeviceRouteControllerAdditions.mm>
@@ -96,11 +100,13 @@ bool MediaDeviceRouteController::deactivateRoute(WebMediaDevicePlatformRoute *pl
     return true;
 }
 
-} // namespace WebCore
+void MediaDeviceRouteController::deactivateAllRoutes()
+{
+    m_activeRoutes.clear();
 
-#endif // ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
-
-namespace WebCore {
+    if (RefPtr client = m_client.get())
+        client->activeRoutesDidChange(*this);
+}
 
 static bool& mockMediaDeviceRouteControllerEnabledValue()
 {
@@ -110,17 +116,21 @@ static bool& mockMediaDeviceRouteControllerEnabledValue()
 
 void setMockMediaDeviceRouteControllerEnabled(bool isEnabled)
 {
+    MediaDeviceRouteController::singleton().deactivateAllRoutes();
+    MediaDeviceRouteController::singleton().setClient(isEnabled ? &MediaSessionHelper::sharedHelper() : nullptr);
+
     if (mockMediaDeviceRouteControllerEnabledValue() == isEnabled)
         return;
 
     mockMediaDeviceRouteControllerEnabledValue() = isEnabled;
-#if ENABLE(VIDEO)
     platformStrategies()->mediaStrategy()->resetMediaEngines();
-#endif
 }
+
 bool mockMediaDeviceRouteControllerEnabled()
 {
     return mockMediaDeviceRouteControllerEnabledValue();
 }
 
 } // namespace WebCore
+
+#endif // ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)

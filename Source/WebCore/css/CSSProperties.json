@@ -396,10 +396,10 @@
                 "color-property": true,
                 "color-property-traits-color-custom": true,
                 "color-property-traits-visited-link-color-custom": true,
-                "style-builder-custom": "Value",
+                "style-builder-custom": "Initial|Value",
                 "style-extractor-custom": true,
                 "fast-path-inherited": true,
-                "computed-style-initial-custom": true,
+                "skip-computed-style-initial": true,
                 "computed-style-getter-custom": true,
                 "computed-style-getter-exported": true,
                 "computed-style-getter-inline": false,
@@ -2473,10 +2473,7 @@
                 "auto",
                 "min-content",
                 "max-content",
-                {
-                    "value": "stretch",
-                    "status": "unimplemented"
-                },
+                "stretch",
                 "fit-content",
                 {
                     "value": "contain",
@@ -4912,10 +4909,7 @@
                 "auto",
                 "min-content",
                 "max-content",
-                {
-                    "value": "stretch",
-                    "status": "unimplemented"
-                },
+                "stretch",
                 "fit-content",
                 {
                     "value": "contain",
@@ -5034,10 +5028,7 @@
                 "auto",
                 "min-content",
                 "max-content",
-                {
-                    "value": "stretch",
-                    "status": "unimplemented"
-                },
+                "stretch",
                 "fit-content",
                 {
                     "value": "contain",
@@ -6369,10 +6360,7 @@
                 "none",
                 "min-content",
                 "max-content",
-                {
-                    "value": "stretch",
-                    "status": "unimplemented"
-                },
+                "stretch",
                 "fit-content",
                 {
                     "value": "contain",
@@ -6426,10 +6414,7 @@
                 "none",
                 "min-content",
                 "max-content",
-                {
-                    "value": "stretch",
-                    "status": "unimplemented"
-                },
+                "stretch",
                 "fit-content",
                 {
                     "value": "contain",
@@ -6484,10 +6469,7 @@
                 "none",
                 "min-content",
                 "max-content",
-                {
-                    "value": "stretch",
-                    "status": "unimplemented"
-                },
+                "stretch",
                 "fit-content",
                 {
                     "value": "contain",
@@ -6563,10 +6545,7 @@
                 "none",
                 "min-content",
                 "max-content",
-                {
-                    "value": "stretch",
-                    "status": "unimplemented"
-                },
+                "stretch",
                 "fit-content",
                 {
                     "value": "contain",
@@ -6621,10 +6600,7 @@
                 "auto",
                 "min-content",
                 "max-content",
-                {
-                    "value": "stretch",
-                    "status": "unimplemented"
-                },
+                "stretch",
                 "fit-content",
                 {
                     "value": "contain",
@@ -6678,10 +6654,7 @@
                 "auto",
                 "min-content",
                 "max-content",
-                {
-                    "value": "stretch",
-                    "status": "unimplemented"
-                },
+                "stretch",
                 "fit-content",
                 {
                     "value": "contain",
@@ -6736,10 +6709,7 @@
                 "auto",
                 "min-content",
                 "max-content",
-                {
-                    "value": "stretch",
-                    "status": "unimplemented"
-                },
+                "stretch",
                 "fit-content",
                 {
                     "value": "contain",
@@ -6793,10 +6763,7 @@
                 "auto",
                 "min-content",
                 "max-content",
-                {
-                    "value": "stretch",
-                    "status": "unimplemented"
-                },
+                "stretch",
                 "fit-content",
                 {
                     "value": "contain",
@@ -7310,7 +7277,7 @@
             }
         },
         "overflow-clip-margin": {
-            "animation-type": "not animatable",
+            "animation-type": "discrete",
             "animation-type-comment": "FIXME: Current spec animation type is 'see prose'",
             "inherited": false,
             "initial": "0px",
@@ -8947,10 +8914,7 @@
                 "auto",
                 "min-content",
                 "max-content",
-                {
-                    "value": "stretch",
-                    "status": "unimplemented"
-                },
+                "stretch",
                 "fit-content",
                 {
                     "value": "contain",
@@ -10318,10 +10282,7 @@
                 "content",
                 "min-content",
                 "max-content",
-                {
-                    "value": "stretch",
-                    "status": "unimplemented"
-                },
+                "stretch",
                 "fit-content",
                 {
                     "value": "contain",
@@ -14270,7 +14231,7 @@
             }
         },
         "<width-or-height-keyword>": {
-            "grammar":  "intrinsic | min-intrinsic | min-content | -webkit-min-content | max-content | -webkit-max-content | -webkit-fill-available | fit-content | -webkit-fit-content"
+            "grammar":  "stretch | intrinsic | min-intrinsic | min-content | -webkit-min-content | max-content | -webkit-max-content | -webkit-fill-available | fit-content | -webkit-fit-content"
         },
         "<width-or-height>": {
             "grammar":  "auto | <width-or-height-keyword> | <length-percentage [0,inf] anchor-size=allowed>",

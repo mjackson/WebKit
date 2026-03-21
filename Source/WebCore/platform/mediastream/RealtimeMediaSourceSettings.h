@@ -80,7 +80,7 @@ public:
 
     static constexpr OptionSet<Flag> allFlags() { return { Width, Height, FrameRate, FacingMode, Volume, SampleRate, SampleSize, EchoCancellation, DeviceId, GroupId, Label, DisplaySurface, LogicalSurface, WhiteBalanceMode, Zoom, Torch, BackgroundBlur, PowerEfficient }; }
 
-    WEBCORE_EXPORT OptionSet<RealtimeMediaSourceSettings::Flag> difference(const RealtimeMediaSourceSettings&) const;
+    WEBCORE_EXPORT OptionSet<RealtimeMediaSourceSettings::Flag> NODELETE difference(const RealtimeMediaSourceSettings&) const;
 
     RealtimeMediaSourceSettings() = default;
     RealtimeMediaSourceSettings(uint32_t width, uint32_t height, float frameRate, VideoFacingMode facingMode, double volume, uint32_t sampleRate, uint32_t sampleSize, bool echoCancellation, String&& deviceId, String&& groupId, String&& label, DisplaySurfaceType displaySurface, bool logicalSurface, MeteringMode whiteBalanceMode, double zoom, bool torch, bool backgroundBlur, bool powerEfficient, RealtimeMediaSourceSupportedConstraints&& supportedConstraints)
@@ -141,11 +141,11 @@ public:
     void setEchoCancellation(bool echoCancellation) { m_echoCancellation = echoCancellation; }
 
     bool supportsDeviceId() const { return m_supportedConstraints.supportsDeviceId(); }
-    const String& deviceId() const { return m_deviceId; }
+    const String& deviceId() const LIFETIME_BOUND { return m_deviceId; }
     void setDeviceId(const String& deviceId) { m_deviceId = deviceId; }
 
     bool supportsGroupId() const { return m_supportedConstraints.supportsGroupId(); }
-    const String& groupId() const { return m_groupId; }
+    const String& groupId() const LIFETIME_BOUND { return m_groupId; }
     void setGroupId(const String& groupId) { m_groupId = groupId; }
 
     bool supportsDisplaySurface() const { return m_supportedConstraints.supportsDisplaySurface(); }
@@ -176,10 +176,10 @@ public:
     bool powerEfficient() const { return m_powerEfficient; }
     void setPowerEfficient(bool value) { m_powerEfficient = value; }
 
-    const RealtimeMediaSourceSupportedConstraints& supportedConstraints() const { return m_supportedConstraints; }
+    const RealtimeMediaSourceSupportedConstraints& supportedConstraints() const LIFETIME_BOUND { return m_supportedConstraints; }
     void setSupportedConstraints(const RealtimeMediaSourceSupportedConstraints& supportedConstraints) { m_supportedConstraints = supportedConstraints; }
 
-    const String& label() const { return m_label; }
+    const String& label() const LIFETIME_BOUND { return m_label; }
     void setLabel(const String& label) { m_label = label; }
 
     static String convertFlagsToString(const OptionSet<RealtimeMediaSourceSettings::Flag>);

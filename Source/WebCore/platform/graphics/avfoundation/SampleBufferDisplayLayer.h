@@ -50,6 +50,7 @@ class SampleBufferDisplayLayerClient : public AbstractRefCountedAndCanMakeWeakPt
 public:
     virtual ~SampleBufferDisplayLayerClient() = default;
     virtual void sampleBufferDisplayLayerStatusDidFail() = 0;
+    virtual void updateVideoFrameCounters(uint64_t, uint64_t) = 0;
 #if PLATFORM(IOS_FAMILY)
     virtual bool canShowWhileLocked() const = 0;
 #endif
@@ -59,7 +60,7 @@ class SampleBufferDisplayLayer : public ThreadSafeRefCountedAndCanMakeThreadSafe
 public:
     WEBCORE_EXPORT static RefPtr<SampleBufferDisplayLayer> create(SampleBufferDisplayLayerClient&);
     using LayerCreator = RefPtr<SampleBufferDisplayLayer> (*)(SampleBufferDisplayLayerClient&);
-    WEBCORE_EXPORT static void setCreator(LayerCreator);
+    WEBCORE_EXPORT static void NODELETE setCreator(LayerCreator);
 
     virtual ~SampleBufferDisplayLayer() = default;
 

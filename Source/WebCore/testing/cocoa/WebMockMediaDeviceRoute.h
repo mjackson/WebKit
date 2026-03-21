@@ -32,7 +32,7 @@
 typedef NS_ENUM(NSInteger, WebMockMediaDeviceRouteErrorCode) {
     WebMockMediaDeviceRouteErrorCodeInvalidState,
     WebMockMediaDeviceRouteErrorCodeUnsupportedURL,
-    WebMockMediaDeviceRouteErrorPlaybackError,
+    WebMockMediaDeviceRouteErrorCodePlaybackError,
 };
 
 namespace WebCore {
@@ -48,6 +48,7 @@ extern NSErrorDomain const WebMockMediaDeviceRouteErrorDomain;
 @property (copy) NSString *routeDisplayName;
 @property (nonatomic, getter=isReady) BOOL ready;
 @property (nonatomic, strong, nullable) NSError *playbackError;
+@property (nonatomic) CMTimeRange timeRange;
 @end
 
 NS_ASSUME_NONNULL_END

@@ -84,6 +84,15 @@ public:
 
     void shrinkToFit() { m_ranges.shrinkToFit(); }
 
+    bool hasRangeContaining(char32_t character) const
+    {
+        for (auto& range : m_ranges) {
+            if (range.from() <= character && character <= range.to())
+                return true;
+        }
+        return false;
+    }
+
     WEBCORE_EXPORT GlyphData glyphDataForCharacter(char32_t, ExternalResourceDownloadPolicy) const;
     WEBCORE_EXPORT const Font* fontForCharacter(char32_t) const;
     WEBCORE_EXPORT const Font& fontForFirstRange() const;

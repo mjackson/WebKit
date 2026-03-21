@@ -27,6 +27,7 @@
 
 #import "TestCocoa.h"
 #import "TestWKWebView.h"
+#import "UserInterfaceSwizzler.h"
 #import "Utilities.h"
 #import <WebCore/Color.h>
 #import <WebKit/WKPreferencesPrivate.h>
@@ -37,6 +38,14 @@
 #import <wtf/Function.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/text/StringBuilder.h>
+
+#if PLATFORM(IOS) || PLATFORM(MACCATALYST) || PLATFORM(VISION)
+#import "IOSMouseEventTestHarness.h"
+#endif
+
+#if USE(APPLE_INTERNAL_SDK)
+#import <WebKitAdditions/SampledPageTopColorAdditionsBefore.mm>
+#endif
 
 #define EXPECT_IN_RANGE(actual, min, max) \
     EXPECT_GE(actual, min); \
@@ -82,6 +91,8 @@
 
 @end
 
+namespace TestWebKitAPI {
+
 static RetainPtr<TestWKWebView> createWebViewWithSampledPageTopColorMaxDifference(double sampledPageTopColorMaxDifference, double sampledPageTopColorMinHeight = 0)
 {
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
@@ -125,6 +136,10 @@ static String createHTMLGradientWithColorStops(String&& direction, Vector<String
     gradientBuilder.append(")\">Test"_s);
     return gradientBuilder.toString();
 }
+
+#if USE(APPLE_INTERNAL_SDK)
+#import <WebKitAdditions/SampledPageTopColorAdditionsAfter.mm>
+#endif
 
 TEST(SampledPageTopColor, ZeroMaxDifference)
 {
@@ -511,4 +526,278 @@ TEST(SampledPageTopColor, TopColorExtensionWhenRubberBanding)
     EXPECT_EQ(colorExtensionViewHeight(), 100.f);
 }
 
+TEST(SampledPageTopColor, TopColorExtensionGrowsDuringRubberBandingWithoutSampledPageTopColor)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+
+    auto insets = UIEdgeInsetsMake(75, 0, 0, 0);
+    auto insetSize = UIEdgeInsetsInsetRect([webView bounds], insets).size;
+    [webView _setObscuredInsets:insets];
+    RetainPtr scrollView = [webView scrollView];
+    [scrollView setContentInsetAdjustmentBehavior:UIScrollViewContentInsetAdjustmentNever];
+    [scrollView setContentInset:insets];
+    [webView _overrideLayoutParametersWithMinimumLayoutSize:insetSize minimumUnobscuredSizeOverride:insetSize maximumUnobscuredSizeOverride:insetSize];
+
+    [webView synchronouslyLoadTestPageNamed:@"top-fixed-element"];
+    [webView waitForNextPresentationUpdate];
+
+    RetainPtr topColorExtension = [webView _colorExtensionViewForTesting:UIRectEdgeTop];
+    EXPECT_NOT_NULL(topColorExtension.get());
+
+    auto colorExtensionViewHeight = [topColorExtension] {
+        return CGRectGetHeight([topColorExtension bounds]);
+    };
+
+    EXPECT_EQ(colorExtensionViewHeight(), 75.f);
+
+    {
+        auto components = CGColorGetComponents([topColorExtension layer].backgroundColor);
+        EXPECT_IN_RANGE(components[0], 0.99, 1.01);
+        EXPECT_IN_RANGE(components[1], 0.38, 0.39);
+        EXPECT_IN_RANGE(components[2], 0.27, 0.28);
+    }
+
+    [scrollView setContentOffset:CGPointMake(0, -100) animated:NO];
+    [webView waitForNextPresentationUpdate];
+
+    EXPECT_EQ(colorExtensionViewHeight(), 100.f);
+
+    {
+        auto components = CGColorGetComponents([topColorExtension layer].backgroundColor);
+        EXPECT_IN_RANGE(components[0], 0.99, 1.01);
+        EXPECT_IN_RANGE(components[1], 0.38, 0.39);
+        EXPECT_IN_RANGE(components[2], 0.27, 0.28);
+    }
+}
+
+TEST(SampledPageTopColor, TopColorExtensionHeightIncreasesWithRubberBandAmount)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+
+    auto insets = UIEdgeInsetsMake(75, 0, 0, 0);
+    auto insetSize = UIEdgeInsetsInsetRect([webView bounds], insets).size;
+    [webView _setObscuredInsets:insets];
+    RetainPtr scrollView = [webView scrollView];
+    [scrollView setContentInsetAdjustmentBehavior:UIScrollViewContentInsetAdjustmentNever];
+    [scrollView setContentInset:insets];
+    [webView _overrideLayoutParametersWithMinimumLayoutSize:insetSize minimumUnobscuredSizeOverride:insetSize maximumUnobscuredSizeOverride:insetSize];
+
+    [webView synchronouslyLoadTestPageNamed:@"top-fixed-element"];
+    [webView waitForNextPresentationUpdate];
+
+    RetainPtr topColorExtension = [webView _colorExtensionViewForTesting:UIRectEdgeTop];
+
+    auto colorExtensionViewHeight = [topColorExtension] {
+        return CGRectGetHeight([topColorExtension bounds]);
+    };
+
+    EXPECT_EQ(colorExtensionViewHeight(), 75.f);
+
+    [scrollView setContentOffset:CGPointMake(0, -100) animated:NO];
+    [webView waitForNextPresentationUpdate];
+    EXPECT_EQ(colorExtensionViewHeight(), 100.f);
+
+    [scrollView setContentOffset:CGPointMake(0, -150) animated:NO];
+    [webView waitForNextPresentationUpdate];
+    EXPECT_EQ(colorExtensionViewHeight(), 150.f);
+
+    [scrollView setContentOffset:CGPointMake(0, -75) animated:NO];
+    [webView waitForNextPresentationUpdate];
+    EXPECT_EQ(colorExtensionViewHeight(), 75.f);
+}
+
 #endif // PLATFORM(IOS_FAMILY) && ENABLE(CONTENT_INSET_BACKGROUND_FILL)
+
+#if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
+
+static void checkColorComponents(CGColorRef color, double minRed, double maxRed, double minGreen, double maxGreen, double minBlue, double maxBlue)
+{
+    auto components = CGColorGetComponents(color);
+    EXPECT_IN_RANGE(components[0], minRed, maxRed);
+    EXPECT_IN_RANGE(components[1], minGreen, maxGreen);
+    EXPECT_IN_RANGE(components[2], minBlue, maxBlue);
+}
+
+static void expectTomato(CGColorRef color)
+{
+    checkColorComponents(color, 0.99, 1.01, 0.38, 0.39, 0.27, 0.28);
+}
+
+static void expectBlue(CGColorRef color)
+{
+    checkColorComponents(color, -0.01, 0.01, -0.01, 0.01, 0.99, 1.01);
+}
+
+TEST(SampledPageTopColor, TopScrollStretchingDoesNotPreventTopEdgeSampling)
+{
+#if PLATFORM(IOS_FAMILY)
+    IPadUserInterfaceSwizzler iPadUserInterface;
+#endif
+
+    RetainPtr webView = createWebViewWithSampledPageTopColorMaxDifference(5);
+#if PLATFORM(MAC)
+    [webView _setTopContentInset:75];
+#else
+    auto insets = UIEdgeInsetsMake(75, 0, 0, 0);
+    auto insetSize = UIEdgeInsetsInsetRect([webView bounds], insets).size;
+    [webView _setObscuredInsets:insets];
+
+    RetainPtr scrollView = [webView scrollView];
+    [scrollView setContentInsetAdjustmentBehavior:UIScrollViewContentInsetAdjustmentNever];
+    [scrollView setContentInset:insets];
+    [webView _overrideLayoutParametersWithMinimumLayoutSize:insetSize minimumUnobscuredSizeOverride:insetSize maximumUnobscuredSizeOverride:insetSize];
+#endif
+
+    // Part one: check the initial sample.
+    [webView synchronouslyLoadTestPageNamed:@"top-fixed-element"];
+    [webView waitForNextPresentationUpdate];
+
+    expectTomato([webView _sampledTopFixedPositionContentColor].CGColor);
+
+    // Part two: scroll above the top of the page and change the header color. Verify the sample updates to match.
+#if PLATFORM(MAC)
+    {
+        __block bool done = false;
+        [webView _startMonitoringWheelEventsForTesting:^{
+            done = true;
+        }];
+        TestWebKitAPI::Util::run(&done);
+    }
+    [webView waitForNextPresentationUpdate];
+
+    [webView wheelEventAtPoint:NSMakePoint(400, 300) wheelDelta:CGSizeMake(0, 1) phase:kCGScrollPhaseBegan momentumPhase:kCGMomentumScrollPhaseNone];
+    [webView wheelEventAtPoint:NSMakePoint(400, 300) wheelDelta:CGSizeMake(0, 100) phase:kCGScrollPhaseChanged momentumPhase:kCGMomentumScrollPhaseNone];
+    [webView wheelEventAtPoint:NSMakePoint(400, 300) wheelDelta:CGSizeMake(0, 0) phase:kCGScrollPhaseEnded momentumPhase:kCGMomentumScrollPhaseNone];
+
+    {
+        __block bool done = false;
+        [webView _waitForWheelEventsToCompleteForTesting:^{
+            done = true;
+        }];
+        TestWebKitAPI::Util::run(&done);
+    }
+    [webView waitForNextPresentationUpdate];
+#else
+    auto contentInsetTop = [scrollView contentInset].top;
+
+    [scrollView setContentOffset:CGPointMake(0, -150)];
+    [webView waitForNextVisibleContentRectUpdate];
+    [scrollView setContentOffset:CGPointMake(0, -contentInsetTop)];
+    [webView waitForNextVisibleContentRectUpdate];
+    [webView waitForNextPresentationUpdate];
+#endif
+
+    {
+        bool done = false;
+        RetainPtr topColorObserver = adoptNS([[TestKVOWrapper alloc] initWithObservable:webView.get() keyPath:@"_sampledTopFixedPositionContentColor" callback:[&] {
+            done = true;
+        }]);
+
+        [webView objectByEvaluatingJavaScript:@"document.querySelector('header').style.backgroundColor = 'blue'"];
+        TestWebKitAPI::Util::run(&done);
+    }
+
+    EXPECT_TRUE([webView _fixedContainerEdges] & _WKRectEdgeTop);
+    expectBlue([webView _sampledTopFixedPositionContentColor].CGColor);
+
+    // Part three: scroll below the top of the page and change the header color. Verify that the sample does NOT update.
+#if PLATFORM(MAC)
+    [webView wheelEventAtPoint:NSMakePoint(400, 300) wheelDelta:CGSizeMake(0, -1) phase:kCGScrollPhaseBegan momentumPhase:kCGMomentumScrollPhaseNone];
+    [webView wheelEventAtPoint:NSMakePoint(400, 300) wheelDelta:CGSizeMake(0, -30) phase:kCGScrollPhaseChanged momentumPhase:kCGMomentumScrollPhaseNone];
+    [webView wheelEventAtPoint:NSMakePoint(400, 300) wheelDelta:CGSizeMake(0, 0) phase:kCGScrollPhaseEnded momentumPhase:kCGMomentumScrollPhaseNone];
+
+    {
+        __block bool done = false;
+        [webView _waitForWheelEventsToCompleteForTesting:^{
+            done = true;
+        }];
+        TestWebKitAPI::Util::run(&done);
+    }
+    [webView waitForNextPresentationUpdate];
+#else
+    [scrollView setContentOffset:CGPointMake(0, -contentInsetTop + 30)];
+    [webView waitForNextVisibleContentRectUpdate];
+    [webView waitForNextPresentationUpdate];
+#endif
+
+    {
+        bool colorUpdated = false;
+        RetainPtr colorObserver = adoptNS([[TestKVOWrapper alloc] initWithObservable:webView.get() keyPath:@"_sampledTopFixedPositionContentColor" callback:[&] {
+            colorUpdated = true;
+        }]);
+
+        [webView objectByEvaluatingJavaScript:@"document.querySelector('header').style.backgroundColor = 'green'"];
+        [webView waitForNextPresentationUpdate];
+        [webView waitForNextPresentationUpdate];
+
+        EXPECT_FALSE(colorUpdated);
+        expectBlue([webView _sampledTopFixedPositionContentColor].CGColor);
+    }
+}
+
+#endif
+
+#if ENABLE(CONTENT_INSET_BACKGROUND_FILL) && (PLATFORM(MAC) || PLATFORM(IOS) || PLATFORM(MACCATALYST) || PLATFORM(VISION))
+
+TEST(SampledPageTopColor, ForcedUserGestureFromJSInjectionDoesNotPreventTopEdgeSampling)
+{
+#if PLATFORM(IOS_FAMILY)
+    IPadUserInterfaceSwizzler iPadUserInterface;
+#endif
+    RetainPtr webView = createWebViewWithSampledPageTopColorMaxDifference(5);
+
+#if PLATFORM(IOS_FAMILY)
+    auto insets = UIEdgeInsetsMake(75, 0, 0, 0);
+    auto insetSize = UIEdgeInsetsInsetRect([webView bounds], insets).size;
+    [webView _setObscuredInsets:insets];
+    RetainPtr scrollView = [webView scrollView];
+    [scrollView setContentInsetAdjustmentBehavior:UIScrollViewContentInsetAdjustmentNever];
+    [scrollView setContentInset:insets];
+    [webView _overrideLayoutParametersWithMinimumLayoutSize:insetSize minimumUnobscuredSizeOverride:insetSize maximumUnobscuredSizeOverride:insetSize];
+#else
+    [webView _setTopContentInset:75];
+#endif
+
+    [webView synchronouslyLoadTestPageNamed:@"top-fixed-element"];
+    [webView waitForNextPresentationUpdate];
+
+    expectTomato([webView _sampledTopFixedPositionContentColor].CGColor);
+
+    [webView objectByEvaluatingJavaScriptWithUserGesture:@"'injected'"];
+
+    bool done = false;
+    RetainPtr topColorObserver = adoptNS([[TestKVOWrapper alloc] initWithObservable:webView.get() keyPath:@"_sampledTopFixedPositionContentColor" callback:[&] {
+        done = true;
+    }]);
+
+    [webView objectByEvaluatingJavaScript:@"document.querySelector('header').style.backgroundColor = 'blue'"];
+    TestWebKitAPI::Util::run(&done);
+    EXPECT_TRUE([webView _fixedContainerEdges] & _WKRectEdgeTop);
+
+    expectBlue([webView _sampledTopFixedPositionContentColor].CGColor);
+
+    // Now make sure actual user interaction *does* prevent top edge sampling still.
+    [webView objectByEvaluatingJavaScript:@"var btn = document.createElement('button'); btn.id = 'changeColor'; btn.textContent = 'Change'; btn.style.cssText = 'position: absolute; top: 200px; left: 50px'; btn.onclick = function() { document.querySelector('header').style.backgroundColor = 'yellow'; }; document.body.appendChild(btn); void(0)"];
+    [webView waitForNextPresentationUpdate];
+
+    id buttonRect = [webView objectByEvaluatingJavaScript:@"var r = document.getElementById('changeColor').getBoundingClientRect(); ({left: r.left, top: r.top, width: r.width, height: r.height})"];
+    CGFloat buttonX = [buttonRect[@"left"] floatValue] + [buttonRect[@"width"] floatValue] / 2;
+    CGFloat buttonY = [buttonRect[@"top"] floatValue] + [buttonRect[@"height"] floatValue] / 2;
+#if PLATFORM(IOS_FAMILY)
+    {
+        TestWebKitAPI::MouseEventTestHarness testHarness { webView.get() };
+        testHarness.mouseMove(buttonX, buttonY);
+        testHarness.mouseDown();
+        testHarness.mouseUp();
+    }
+#else
+    [webView sendClickAtPoint:NSMakePoint(buttonX, [webView frame].size.height - buttonY)];
+#endif
+    [webView waitForNextPresentationUpdate];
+
+    expectBlue([webView _sampledTopFixedPositionContentColor].CGColor);
+}
+
+#endif
+
+}

@@ -74,16 +74,16 @@ Ref<HTMLButtonElement> HTMLButtonElement::create(Document& document)
     return adoptRef(*new HTMLButtonElement(buttonTag, document, nullptr));
 }
 
-Node::InsertedIntoAncestorResult HTMLButtonElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps HTMLButtonElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    auto result = HTMLFormControlElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    auto result = HTMLFormControlElement::insertionSteps(insertionType, parentOfInsertedTree);
     computeType(attributeWithoutSynchronization(HTMLNames::typeAttr));
     return result;
 }
 
-void HTMLButtonElement::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+void HTMLButtonElement::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
-    HTMLFormControlElement::removedFromAncestor(removalType, oldParentOfRemovedTree);
+    HTMLFormControlElement::removingSteps(removalType, oldParentOfRemovedTree);
     computeType(attributeWithoutSynchronization(HTMLNames::typeAttr));
 }
 

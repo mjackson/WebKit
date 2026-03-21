@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include <WebCore/Color.h>
 #include <WebCore/StyleAppleInvertLightnessFunction.h>
 #include <WebCore/StyleBrightnessFunction.h>
 #include <WebCore/StyleContrastFunction.h>

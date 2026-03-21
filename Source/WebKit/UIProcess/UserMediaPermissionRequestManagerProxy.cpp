@@ -73,7 +73,7 @@ static const MediaProducerMediaStateFlags activeCaptureMask { MediaProducerMedia
 #endif
 
 #if ENABLE(MEDIA_STREAM)
-static WeakHashSet<UserMediaPermissionRequestManagerProxy>& proxies()
+static WeakHashSet<UserMediaPermissionRequestManagerProxy>& NODELETE proxies()
 {
     static NeverDestroyed<WeakHashSet<UserMediaPermissionRequestManagerProxy>> set;
     return set;
@@ -314,7 +314,7 @@ void UserMediaPermissionRequestManagerProxy::grantRequest(UserMediaPermissionReq
 
     Ref userMediaDocumentSecurityOrigin = request.userMediaDocumentSecurityOrigin();
     Ref topLevelDocumentSecurityOrigin = request.topLevelDocumentSecurityOrigin();
-    protect(page->websiteDataStore())->ensureProtectedDeviceIdHashSaltStorage()->deviceIdHashSaltForOrigin(userMediaDocumentSecurityOrigin, topLevelDocumentSecurityOrigin, [weakThis = WeakPtr { *this }, request = protect(request)](String&&) mutable {
+    protect(protect(page->websiteDataStore())->ensureDeviceIdHashSaltStorage())->deviceIdHashSaltForOrigin(userMediaDocumentSecurityOrigin, topLevelDocumentSecurityOrigin, [weakThis = WeakPtr { *this }, request = protect(request)](String&&) mutable {
         if (RefPtr protectedThis = weakThis.get())
             protectedThis->finishGrantingRequest(request);
     });
@@ -672,7 +672,7 @@ void UserMediaPermissionRequestManagerProxy::processUserMediaPermissionRequest()
 
     Ref userMediaDocumentSecurityOrigin = m_currentUserMediaRequest->userMediaDocumentSecurityOrigin();
     Ref topLevelDocumentSecurityOrigin = m_currentUserMediaRequest->topLevelDocumentSecurityOrigin();
-    protect(page->websiteDataStore())->ensureProtectedDeviceIdHashSaltStorage()->deviceIdHashSaltForOrigin(userMediaDocumentSecurityOrigin, topLevelDocumentSecurityOrigin, [weakThis = WeakPtr { *this }, request = m_currentUserMediaRequest] (String&& deviceIDHashSalt) mutable {
+    protect(protect(page->websiteDataStore())->ensureDeviceIdHashSaltStorage())->deviceIdHashSaltForOrigin(userMediaDocumentSecurityOrigin, topLevelDocumentSecurityOrigin, [weakThis = WeakPtr { *this }, request = m_currentUserMediaRequest] (String&& deviceIDHashSalt) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
@@ -807,7 +807,7 @@ void UserMediaPermissionRequestManagerProxy::decidePolicyForUserMediaPermissionR
     // If page navigated, there is no need to call the page client for authorization.
     RefPtr webFrame = WebFrameProxy::webFrame(currentUserMediaRequest->frameID());
     RefPtr page = m_page.get();
-    if (!webFrame || !page || !protocolHostAndPortAreEqual(URL(protect(page->pageLoadState())->activeURL()), currentUserMediaRequest->topLevelDocumentSecurityOrigin().data().toURL())) {
+    if (!webFrame || !page || !protocolHostAndPortAreEqual(URL(page->pageLoadState().activeURL()), currentUserMediaRequest->topLevelDocumentSecurityOrigin().data().toURL())) {
         denyRequest(*currentUserMediaRequest, UserMediaPermissionRequestProxy::UserMediaAccessDenialReason::NoConstraints);
         return;
     }
@@ -822,7 +822,7 @@ void UserMediaPermissionRequestManagerProxy::checkUserMediaPermissionForSpeechRe
 {
     RefPtr page = m_page.get();
     RefPtr frame = WebFrameProxy::webFrame(frameInfo.frameID);
-    if (!page || !frame || !protocolHostAndPortAreEqual(URL(protect(page->pageLoadState())->activeURL()), topOrigin.data().toURL())) {
+    if (!page || !frame || !protocolHostAndPortAreEqual(URL(page->pageLoadState().activeURL()), topOrigin.data().toURL())) {
         completionHandler(false);
         return;
     }
@@ -854,7 +854,7 @@ bool UserMediaPermissionRequestManagerProxy::shouldChangeDeniedToPromptForCamera
     if (!page)
         return false;
 
-    if (!protocolHostAndPortAreEqual(URL(protect(page->pageLoadState())->activeURL()), origin.topOrigin.toURL()))
+    if (!protocolHostAndPortAreEqual(URL(page->pageLoadState().activeURL()), origin.topOrigin.toURL()))
         return true;
 
     return std::ranges::none_of(m_deniedRequests, [](auto& request) { return request.isVideoDenied; })
@@ -868,7 +868,7 @@ bool UserMediaPermissionRequestManagerProxy::shouldChangeDeniedToPromptForMicrop
     if (!page)
         return false;
 
-    if (!protocolHostAndPortAreEqual(URL(protect(page->pageLoadState())->activeURL()), origin.topOrigin.toURL()))
+    if (!protocolHostAndPortAreEqual(URL(page->pageLoadState().activeURL()), origin.topOrigin.toURL()))
         return true;
 
     return std::ranges::none_of(m_deniedRequests, [](auto& request) { return request.isAudioDenied; })
@@ -929,7 +929,7 @@ void UserMediaPermissionRequestManagerProxy::getUserMediaPermissionInfo(FrameIde
 {
     RefPtr page = m_page.get();
     RefPtr webFrame = WebFrameProxy::webFrame(frameID);
-    if (!page || !webFrame || !protocolHostAndPortAreEqual(URL(protect(page->pageLoadState())->activeURL()), topLevelDocumentOrigin->data().toURL())) {
+    if (!page || !webFrame || !protocolHostAndPortAreEqual(URL(page->pageLoadState().activeURL()), topLevelDocumentOrigin->data().toURL())) {
         handler(PermissionState::Prompt, PermissionState::Prompt);
         return;
     }
@@ -1082,7 +1082,7 @@ void UserMediaPermissionRequestManagerProxy::enumerateMediaDevicesForFrame(Frame
         protectedThis->m_pendingDeviceRequests.add(requestID);
 
         callCompletionHandler.release();
-        protect(page->websiteDataStore())->ensureProtectedDeviceIdHashSaltStorage()->deviceIdHashSaltForOrigin(userMediaDocumentOrigin, topLevelDocumentOrigin, [weakThis = WTF::move(weakThis), requestID, frameID, userMediaDocumentOrigin, topLevelDocumentOrigin, cameraState, microphoneState, completionHandler = WTF::move(completionHandler)](String&& deviceIDHashSalt) mutable {
+        protect(protect(page->websiteDataStore())->ensureDeviceIdHashSaltStorage())->deviceIdHashSaltForOrigin(userMediaDocumentOrigin, topLevelDocumentOrigin, [weakThis = WTF::move(weakThis), requestID, frameID, userMediaDocumentOrigin, topLevelDocumentOrigin, cameraState, microphoneState, completionHandler = WTF::move(completionHandler)](String&& deviceIDHashSalt) mutable {
             auto callCompletionHandler = makeScopeExit([&completionHandler] {
                 completionHandler({ }, { });
             });
@@ -1153,10 +1153,10 @@ void UserMediaPermissionRequestManagerProxy::syncWithWebCorePrefs() const
 
 #if ENABLE(GPU_PROCESS)
     if (preferences->captureAudioInGPUProcessEnabled() && preferences->useMicrophoneMuteStatusAPI())
-        protect(page->legacyMainFrameProcess().processPool())->ensureProtectedGPUProcess()->enableMicrophoneMuteStatusAPI();
+        protect(protect(page->legacyMainFrameProcess().processPool())->ensureGPUProcess())->enableMicrophoneMuteStatusAPI();
 
     if (preferences->captureAudioInGPUProcessEnabled() || preferences->captureVideoInGPUProcessEnabled())
-        protect(page->legacyMainFrameProcess().processPool())->ensureProtectedGPUProcess()->setUseMockCaptureDevices(mockDevicesEnabled);
+        protect(protect(page->legacyMainFrameProcess().processPool())->ensureGPUProcess())->setUseMockCaptureDevices(mockDevicesEnabled);
 #endif
 
     if (MockRealtimeMediaSourceCenter::mockRealtimeMediaSourceCenterEnabled() == mockDevicesEnabled)

@@ -32,6 +32,7 @@
 #import "InjectedBundle.h"
 #import <JavaScriptCore/JSRetainPtr.h>
 #import <JavaScriptCore/JSStringRef.h>
+#import <JavaScriptCore/JSValueRef.h>
 #import <JavaScriptCore/OpaqueJSString.h>
 #import <WebKit/WKBundle.h>
 #import <WebKit/WKBundlePrivate.h>
@@ -72,6 +73,25 @@ static WKRetainPtr<WKStringRef> axCopyAttributeValueAsString(uint64_t elementTok
     return adoptWK(static_cast<WKStringRef>(returnData));
 }
 
+static std::optional<uint64_t> axCopyAttributeValueAsElementToken(uint64_t elementToken, const char* attributeName)
+{
+    WKRetainPtr dictionary = adoptWK(WKMutableDictionaryCreate());
+    setValue(dictionary, "elementToken", elementToken);
+    setValue(dictionary, "attributeName", attributeName);
+
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    WKTypeRef returnData = nullptr;
+    WKBundlePostSynchronousMessage(InjectedBundle::singleton().bundle(), toWK("AXCopyAttributeValueAsElement").get(), dictionary.get(), &returnData);
+    ALLOW_DEPRECATED_DECLARATIONS_END
+
+    if (!returnData || WKGetTypeID(returnData) != WKUInt64GetTypeID())
+        return std::nullopt;
+
+    uint64_t token = WKUInt64GetValue(static_cast<WKUInt64Ref>(returnData));
+    WKRelease(returnData);
+    return token;
+}
+
 static WKRetainPtr<WKArrayRef> axCopyAttributeValueAsElementArray(uint64_t elementToken, const char* attributeName)
 {
     WKRetainPtr dictionary = adoptWK(WKMutableDictionaryCreate());
@@ -104,6 +124,25 @@ static std::optional<double> axCopyAttributeValueAsNumber(uint64_t elementToken,
         return std::nullopt;
 
     double value = WKDoubleGetValue(static_cast<WKDoubleRef>(returnData));
+    WKRelease(returnData);
+    return value;
+}
+
+static std::optional<bool> axCopyAttributeValueAsBoolean(uint64_t elementToken, const char* attributeName)
+{
+    WKRetainPtr dictionary = adoptWK(WKMutableDictionaryCreate());
+    setValue(dictionary, "elementToken", elementToken);
+    setValue(dictionary, "attributeName", attributeName);
+
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    WKTypeRef returnData = nullptr;
+    WKBundlePostSynchronousMessage(InjectedBundle::singleton().bundle(), toWK("AXCopyAttributeValueAsBoolean").get(), dictionary.get(), &returnData);
+    ALLOW_DEPRECATED_DECLARATIONS_END
+
+    if (!returnData || WKGetTypeID(returnData) != WKBooleanGetTypeID())
+        return std::nullopt;
+
+    bool value = WKBooleanGetValue(static_cast<WKBooleanRef>(returnData));
     WKRelease(returnData);
     return value;
 }
@@ -228,9 +267,24 @@ JSRetainPtr<JSStringRef> AccessibilityUIElementClientMac::description()
     return getStringAttribute("AXDescription");
 }
 
+JSRetainPtr<JSStringRef> AccessibilityUIElementClientMac::debugDescription()
+{
+    return getStringAttribute("_AXDebugDescription");
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElementClientMac::rawRoleForTesting()
+{
+    return getStringAttribute("_AXRawRoleForTesting");
+}
+
 JSRetainPtr<JSStringRef> AccessibilityUIElementClientMac::stringValue()
 {
     return getStringAttribute("AXValue");
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElementClientMac::domIdentifier() const
+{
+    return getStringAttribute("AXDOMIdentifier");
 }
 
 double AccessibilityUIElementClientMac::getNumberAttribute(const char* attributeName) const
@@ -327,6 +381,17 @@ Vector<RefPtr<AccessibilityUIElement>> AccessibilityUIElementClientMac::getChild
     return result;
 }
 
+RefPtr<AccessibilityUIElement> AccessibilityUIElementClientMac::parentElement()
+{
+    std::optional token = axCopyAttributeValueAsElementToken(m_elementToken, "AXParent");
+    return token ? create(*token).ptr() : nullptr;
+}
+
+bool AccessibilityUIElementClientMac::isIgnored() const
+{
+    return axCopyAttributeValueAsBoolean(m_elementToken, "_AXIsIgnoredForTesting").value_or(false);
+}
+
 unsigned AccessibilityUIElementClientMac::childrenCount()
 {
     return getChildren().size();
@@ -336,6 +401,59 @@ RefPtr<AccessibilityUIElement> AccessibilityUIElementClientMac::childAtIndex(uns
 {
     Vector children = getChildrenInRange(index, 1);
     return children.size() == 1 ? children[0] : nullptr;
+}
+
+JSValueRef AccessibilityUIElementClientMac::uiElementsForSearchPredicate(JSContextRef context, AccessibilityUIElement* startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly, unsigned resultsLimit)
+{
+    if (!isValid())
+        return nullptr;
+
+    WKRetainPtr dictionary = adoptWK(WKMutableDictionaryCreate());
+    WTR::setValue(dictionary, "elementToken", m_elementToken);
+
+    uint64_t startElementToken = 0;
+    if (startElement) {
+        // In client mode, all elements are AccessibilityUIElementClientMac.
+        startElementToken = static_cast<AccessibilityUIElementClientMac*>(startElement)->m_elementToken;
+    }
+    WTR::setValue(dictionary, "startElementToken", startElementToken);
+
+    WTR::setValue(dictionary, "isDirectionNext", isDirectionNext);
+    WTR::setValue(dictionary, "resultsLimit", static_cast<uint64_t>(resultsLimit));
+    WTR::setValue(dictionary, "visibleOnly", visibleOnly);
+    WTR::setValue(dictionary, "immediateDescendantsOnly", immediateDescendantsOnly);
+
+    if (searchKey && JSValueIsString(context, searchKey)) {
+        JSRetainPtr<JSStringRef> jsStr(Adopt, JSValueToStringCopy(context, searchKey, nullptr));
+        WTR::setValue(dictionary, "searchKey", jsStr.get());
+    }
+
+    if (searchText && JSStringGetLength(searchText))
+        WTR::setValue(dictionary, "searchText", searchText);
+
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    WKTypeRef returnData = nullptr;
+    WKBundlePostSynchronousMessage(InjectedBundle::singleton().bundle(), toWK("AXSearchPredicate").get(), dictionary.get(), &returnData);
+    ALLOW_DEPRECATED_DECLARATIONS_END
+
+    if (!returnData || WKGetTypeID(returnData) != WKArrayGetTypeID())
+        return nullptr;
+
+    WKArrayRef resultArray = static_cast<WKArrayRef>(returnData);
+    size_t count = WKArrayGetSize(resultArray);
+
+    Vector<RefPtr<AccessibilityUIElement>> elements;
+    elements.reserveInitialCapacity(count);
+    for (size_t i = 0; i < count; i++) {
+        WKTypeRef item = WKArrayGetItemAtIndex(resultArray, i);
+        if (WKGetTypeID(item) == WKUInt64GetTypeID()) {
+            uint64_t childToken = WKUInt64GetValue(static_cast<WKUInt64Ref>(item));
+            elements.append(AccessibilityUIElementClientMac::create(childToken));
+        }
+    }
+
+    WKRelease(returnData);
+    return makeJSArray(context, elements);
 }
 
 } // namespace WTR

@@ -37,13 +37,18 @@ NS_ASSUME_NONNULL_BEGIN
 
 NSErrorDomain const WebMockMediaDeviceRouteErrorDomain = @"WebMockMediaDeviceRouteErrorDomain";
 
+@interface WebMockMediaDeviceRoute (Staging_169033633)
+@property (nonatomic) CMTime currentPlaybackPosition;
+@property (nonatomic) CMTime currentValue;
+@end
+
 @implementation WebMockMediaDeviceRoute {
     RefPtr<WebCore::MockMediaDeviceRouteURLCallback> _urlCallback;
     RefPtr<WebCore::DOMPromise> _urlPromise;
+    CMTime _currentPlaybackPosition;
 }
 
 @synthesize timeRange;
-@synthesize currentValue;
 @synthesize segments;
 @synthesize currentSegment;
 @synthesize seekableTimeRanges;
@@ -66,6 +71,28 @@ NSErrorDomain const WebMockMediaDeviceRouteErrorDomain = @"WebMockMediaDeviceRou
 @synthesize metadata;
 @synthesize routeDisplayName;
 
+- (CMTime)currentPlaybackPosition
+{
+    return _currentPlaybackPosition;
+}
+
+- (void)setCurrentPlaybackPosition:(CMTime)currentPlaybackPosition
+{
+    _currentPlaybackPosition = currentPlaybackPosition;
+}
+
+ALLOW_DEPRECATED_IMPLEMENTATIONS_BEGIN
+- (CMTime)currentValue
+{
+    return self.currentPlaybackPosition;
+}
+
+- (void)setCurrentValue:(CMTime)currentValue
+{
+    self.currentPlaybackPosition = currentValue;
+}
+ALLOW_DEPRECATED_IMPLEMENTATIONS_END
+
 - (WebCore::MockMediaDeviceRouteURLCallback* _Nullable)urlCallback
 {
     return _urlCallback.get();
@@ -81,7 +108,11 @@ NSErrorDomain const WebMockMediaDeviceRouteErrorDomain = @"WebMockMediaDeviceRou
     if (!_urlCallback)
         return completionHandler([NSError errorWithDomain:WebMockMediaDeviceRouteErrorDomain code:WebMockMediaDeviceRouteErrorCodeInvalidState userInfo:nil], nil);
 
-    _urlPromise = _urlCallback->invoke(url.absoluteString).releaseReturnValue();
+    auto result = _urlCallback->invoke(url.absoluteString);
+    if (result.type() != WebCore::CallbackResultType::Success)
+        return completionHandler([NSError errorWithDomain:WebMockMediaDeviceRouteErrorDomain code:WebMockMediaDeviceRouteErrorCodeInvalidState userInfo:nil], nil);
+
+    _urlPromise = result.releaseReturnValue();
     _urlPromise->whenSettled([weakSelf = WeakObjCPtr { self }, completionHandler = makeBlockPtr(completionHandler)]() {
         RetainPtr strongSelf = weakSelf.get();
         if (!strongSelf)

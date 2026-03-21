@@ -36,6 +36,7 @@ namespace WebCore {
 struct RubberbandingState {
     FloatSize initialVelocity;
     FloatSize initialOverscroll;
+    FloatSize targetOverscroll;
 
     MonotonicTime animationStartTime;
     MonotonicTime captureTime;

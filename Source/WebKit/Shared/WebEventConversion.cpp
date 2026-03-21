@@ -90,6 +90,18 @@ WebCore::MouseEventInputSource platform(WebMouseEventInputSource source)
     }
 }
 
+WebMouseEventInputSource kit(WebCore::MouseEventInputSource source)
+{
+    switch (source) {
+    case WebCore::MouseEventInputSource::UserDriven:
+        return WebMouseEventInputSource::UserDriven;
+    case WebCore::MouseEventInputSource::Automation:
+        return WebMouseEventInputSource::Automation;
+    default:
+        RELEASE_ASSERT_NOT_REACHED();
+    }
+}
+
 WebCore::PlatformEvent::Type platform(WebEventType type)
 {
     switch (type) {

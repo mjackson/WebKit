@@ -45,25 +45,25 @@ CSSFunctionValue::CSSFunctionValue(CSSValueID name)
 {
 }
 
-CSSFunctionValue::CSSFunctionValue(CSSValueID name, Ref<CSSValue> argument)
+CSSFunctionValue::CSSFunctionValue(CSSValueID name, Ref<CSSValue>&& argument)
     : CSSValueContainingVector(ClassType::Function, CommaSeparator, WTF::move(argument))
     , m_name(name)
 {
 }
 
-CSSFunctionValue::CSSFunctionValue(CSSValueID name, Ref<CSSValue> argument1, Ref<CSSValue> argument2)
+CSSFunctionValue::CSSFunctionValue(CSSValueID name, Ref<CSSValue>&& argument1, Ref<CSSValue>&& argument2)
     : CSSValueContainingVector(ClassType::Function, CommaSeparator, WTF::move(argument1), WTF::move(argument2))
     , m_name(name)
 {
 }
 
-CSSFunctionValue::CSSFunctionValue(CSSValueID name, Ref<CSSValue> argument1, Ref<CSSValue> argument2, Ref<CSSValue> argument3)
+CSSFunctionValue::CSSFunctionValue(CSSValueID name, Ref<CSSValue>&& argument1, Ref<CSSValue>&& argument2, Ref<CSSValue>&& argument3)
     : CSSValueContainingVector(ClassType::Function, CommaSeparator, WTF::move(argument1), WTF::move(argument2), WTF::move(argument3))
     , m_name(name)
 {
 }
 
-CSSFunctionValue::CSSFunctionValue(CSSValueID name, Ref<CSSValue> argument1, Ref<CSSValue> argument2, Ref<CSSValue> argument3, Ref<CSSValue> argument4)
+CSSFunctionValue::CSSFunctionValue(CSSValueID name, Ref<CSSValue>&& argument1, Ref<CSSValue>&& argument2, Ref<CSSValue>&& argument3, Ref<CSSValue>&& argument4)
     : CSSValueContainingVector(ClassType::Function, CommaSeparator, WTF::move(argument1), WTF::move(argument2), WTF::move(argument3), WTF::move(argument4))
     , m_name(name)
 {
@@ -79,22 +79,22 @@ Ref<CSSFunctionValue> CSSFunctionValue::create(CSSValueID name)
     return adoptRef(*new CSSFunctionValue(name));
 }
 
-Ref<CSSFunctionValue> CSSFunctionValue::create(CSSValueID name, Ref<CSSValue> argument)
+Ref<CSSFunctionValue> CSSFunctionValue::create(CSSValueID name, Ref<CSSValue>&& argument)
 {
     return adoptRef(*new CSSFunctionValue(name, WTF::move(argument)));
 }
 
-Ref<CSSFunctionValue> CSSFunctionValue::create(CSSValueID name, Ref<CSSValue> argument1, Ref<CSSValue> argument2)
+Ref<CSSFunctionValue> CSSFunctionValue::create(CSSValueID name, Ref<CSSValue>&& argument1, Ref<CSSValue>&& argument2)
 {
     return adoptRef(*new CSSFunctionValue(name, WTF::move(argument1), WTF::move(argument2)));
 }
 
-Ref<CSSFunctionValue> CSSFunctionValue::create(CSSValueID name, Ref<CSSValue> argument1, Ref<CSSValue> argument2, Ref<CSSValue> argument3)
+Ref<CSSFunctionValue> CSSFunctionValue::create(CSSValueID name, Ref<CSSValue>&& argument1, Ref<CSSValue>&& argument2, Ref<CSSValue>&& argument3)
 {
     return adoptRef(*new CSSFunctionValue(name, WTF::move(argument1), WTF::move(argument2), WTF::move(argument3)));
 }
 
-Ref<CSSFunctionValue> CSSFunctionValue::create(CSSValueID name, Ref<CSSValue> argument1, Ref<CSSValue> argument2, Ref<CSSValue> argument3, Ref<CSSValue> argument4)
+Ref<CSSFunctionValue> CSSFunctionValue::create(CSSValueID name, Ref<CSSValue>&& argument1, Ref<CSSValue>&& argument2, Ref<CSSValue>&& argument3, Ref<CSSValue>&& argument4)
 {
     return adoptRef(*new CSSFunctionValue(name, WTF::move(argument1), WTF::move(argument2), WTF::move(argument3), WTF::move(argument4)));
 }

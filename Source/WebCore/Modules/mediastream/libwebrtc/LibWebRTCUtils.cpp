@@ -107,7 +107,7 @@ static inline double NODELETE toWebRTCBitRatePriority(RTCPriorityType priority)
     RELEASE_ASSERT_NOT_REACHED();
 }
 
-static inline RTCPriorityType fromWebRTCBitRatePriority(double priority)
+static inline RTCPriorityType NODELETE fromWebRTCBitRatePriority(double priority)
 {
     if (priority < 0.7)
         return RTCPriorityType::VeryLow;
@@ -118,6 +118,38 @@ static inline RTCPriorityType fromWebRTCBitRatePriority(double priority)
     return RTCPriorityType::High;
 }
 
+static String toFMTPLine(const webrtc::RtpCodec rtcCodec)
+{
+    if (rtcCodec.parameters.empty())
+        return { };
+
+    bool isFirst = true;
+    StringBuilder stringBuilder;
+    for (auto& parameter : rtcCodec.parameters) {
+        if (isFirst)
+            isFirst = false;
+        else
+            stringBuilder.append(";"_s);
+
+        if (!parameter.first.empty()) {
+            stringBuilder.append(fromStdString(parameter.first));
+            stringBuilder.append("="_s);
+        }
+        stringBuilder.append(fromStdString(parameter.second));
+    }
+    return stringBuilder.toString();
+}
+
+static inline RTCRtpCodec toRTCRtpCodec(const webrtc::RtpCodec rtcCodec)
+{
+    return {
+        .mimeType = fromStdString(rtcCodec.mime_type()),
+        .clockRate = static_cast<unsigned long>(rtcCodec.clock_rate.value_or(0)),
+        .channels = rtcCodec.num_channels ? std::make_optional(static_cast<unsigned short>(*rtcCodec.num_channels)) : std::nullopt,
+        .sdpFmtpLine = toFMTPLine(rtcCodec)
+    };
+}
+
 static inline RTCRtpEncodingParameters toRTCEncodingParameters(const webrtc::RtpEncodingParameters& rtcParameters)
 {
     RTCRtpEncodingParameters parameters;
@@ -126,6 +158,8 @@ static inline RTCRtpEncodingParameters toRTCEncodingParameters(const webrtc::Rtp
         parameters.ssrc = *rtcParameters.ssrc;
 
     parameters.active = rtcParameters.active;
+    if (rtcParameters.codec)
+        parameters.codec = toRTCRtpCodec(*rtcParameters.codec);
     if (rtcParameters.max_bitrate_bps)
         parameters.maxBitrate = *rtcParameters.max_bitrate_bps;
     if (rtcParameters.max_framerate)
@@ -140,7 +174,32 @@ static inline RTCRtpEncodingParameters toRTCEncodingParameters(const webrtc::Rtp
     return parameters;
 }
 
-static inline webrtc::RtpEncodingParameters fromRTCEncodingParameters(const RTCRtpEncodingParameters& parameters)
+static inline webrtc::RtpCodec fromRTCRtpCodec(const RTCRtpCodec& codec, webrtc::MediaType type)
+{
+    // FIXME: We should throw an OperationError exception.
+    if (codec.mimeType.length() < 7)
+        return { };
+
+    webrtc::RtpCodec rtcCodec;
+    rtcCodec.name = StringView(codec.mimeType).substring(6).utf8().toStdString();
+    rtcCodec.kind = type;
+    if (codec.clockRate)
+        rtcCodec.clock_rate = static_cast<int>(codec.clockRate);
+    if (codec.channels)
+        rtcCodec.num_channels = static_cast<int>(*codec.channels);
+
+    for (auto parameter : StringView(codec.sdpFmtpLine).split(';')) {
+        auto position = parameter.find('=');
+        if (position != notFound)
+            rtcCodec.parameters.emplace(parameter.left(position).utf8().data(), parameter.substring(position + 1).utf8().data());
+        else
+            rtcCodec.parameters.emplace("", parameter.utf8().data());
+    }
+
+    return rtcCodec;
+}
+
+static inline webrtc::RtpEncodingParameters fromRTCEncodingParameters(const RTCRtpEncodingParameters& parameters, webrtc::MediaType type)
 {
     webrtc::RtpEncodingParameters rtcParameters;
 
@@ -148,6 +207,8 @@ static inline webrtc::RtpEncodingParameters fromRTCEncodingParameters(const RTCR
         rtcParameters.ssrc = parameters.ssrc;
 
     rtcParameters.active = parameters.active;
+    if (parameters.codec)
+        rtcParameters.codec = fromRTCRtpCodec(*parameters.codec, type);
     if (parameters.maxBitrate)
         rtcParameters.max_bitrate_bps = parameters.maxBitrate;
     if (parameters.maxFramerate)
@@ -186,29 +247,10 @@ static inline webrtc::RtpExtension fromRTCHeaderExtensionParameters(const RTCRtp
 
 static inline RTCRtpCodecParameters toRTCCodecParameters(const webrtc::RtpCodecParameters& rtcParameters)
 {
-    RTCRtpCodecParameters parameters;
-
-    parameters.payloadType = rtcParameters.payload_type;
-    parameters.mimeType = fromStdString(rtcParameters.mime_type());
-    if (rtcParameters.clock_rate)
-        parameters.clockRate = *rtcParameters.clock_rate;
-    if (rtcParameters.num_channels)
-        parameters.channels = *rtcParameters.num_channels;
-
-    StringBuilder sdpFmtpLineBuilder;
-    sdpFmtpLineBuilder.append("a=fmtp:"_s, parameters.payloadType, ' ');
-
-    bool isFirst = true;
-    for (auto& keyValue : rtcParameters.parameters) {
-        if (!isFirst)
-            sdpFmtpLineBuilder.append(';');
-        else
-            isFirst = false;
-        sdpFmtpLineBuilder.append(std::span { keyValue.first }, '=', std::span { keyValue.second });
-    }
-    parameters.sdpFmtpLine = sdpFmtpLineBuilder.toString();
-
-    return parameters;
+    return {
+        toRTCRtpCodec(rtcParameters),
+        static_cast<unsigned short>(rtcParameters.payload_type)
+    };
 }
 
 RTCRtpParameters toRTCRtpParameters(const webrtc::RtpParameters& rtcParameters)
@@ -252,7 +294,7 @@ RTCRtpSendParameters toRTCRtpSendParameters(const webrtc::RtpParameters& rtcPara
     return parameters;
 }
 
-void updateRTCRtpSendParameters(const RTCRtpSendParameters& parameters, webrtc::RtpParameters& rtcParameters)
+void updateRTCRtpSendParameters(const RTCRtpSendParameters& parameters, webrtc::RtpParameters& rtcParameters, webrtc::MediaType mediaType)
 {
     rtcParameters.transaction_id = parameters.transactionId.utf8().data();
 
@@ -274,6 +316,10 @@ void updateRTCRtpSendParameters(const RTCRtpSendParameters& parameters, webrtc::
         rtcParameters.encodings[i].bitrate_priority = toWebRTCBitRatePriority(parameters.encodings[i].priority);
         if (parameters.encodings[i].networkPriority)
             rtcParameters.encodings[i].network_priority = fromRTCPriorityType(*parameters.encodings[i].networkPriority);
+        if (parameters.encodings[i].codec)
+            rtcParameters.encodings[i].codec = fromRTCRtpCodec(*parameters.encodings[i].codec, mediaType);
+        else
+            rtcParameters.encodings[i].codec = { };
     }
 
     rtcParameters.header_extensions.clear();
@@ -313,8 +359,9 @@ RTCRtpTransceiverDirection toRTCRtpTransceiverDirection(webrtc::RtpTransceiverDi
     case webrtc::RtpTransceiverDirection::kRecvOnly:
         return RTCRtpTransceiverDirection::Recvonly;
     case webrtc::RtpTransceiverDirection::kInactive:
-    case webrtc::RtpTransceiverDirection::kStopped:
         return RTCRtpTransceiverDirection::Inactive;
+    case webrtc::RtpTransceiverDirection::kStopped:
+        return RTCRtpTransceiverDirection::Stopped;
     };
 
     RELEASE_ASSERT_NOT_REACHED();
@@ -331,6 +378,8 @@ webrtc::RtpTransceiverDirection fromRTCRtpTransceiverDirection(RTCRtpTransceiver
         return webrtc::RtpTransceiverDirection::kRecvOnly;
     case RTCRtpTransceiverDirection::Inactive:
         return webrtc::RtpTransceiverDirection::kInactive;
+    case RTCRtpTransceiverDirection::Stopped:
+        return webrtc::RtpTransceiverDirection::kStopped;
     };
 
     RELEASE_ASSERT_NOT_REACHED();
@@ -345,10 +394,10 @@ webrtc::RtpTransceiverInit fromRtpTransceiverInit(const RTCRtpTransceiverInit& i
 
     if (type == webrtc::MediaType::AUDIO) {
         if (!init.sendEncodings.isEmpty())
-            rtcInit.send_encodings.push_back(fromRTCEncodingParameters(init.sendEncodings[0]));
+            rtcInit.send_encodings.push_back(fromRTCEncodingParameters(init.sendEncodings[0], type));
     } else {
         for (auto& encoding : init.sendEncodings)
-            rtcInit.send_encodings.push_back(fromRTCEncodingParameters(encoding));
+            rtcInit.send_encodings.push_back(fromRTCEncodingParameters(encoding, type));
     }
     return rtcInit;
 }

@@ -36,7 +36,6 @@
 #include "HTMLNames.h"
 #include "HTMLTableCellElement.h"
 #include "HTMLTableRowElement.h"
-#include "HTMLTableSectionElement.h"
 #include "LayoutScope.h"
 #include "PaintInfo.h"
 #include "RenderBoxInlines.h"
@@ -152,25 +151,19 @@ unsigned RenderTableCell::parseRowSpanFromDOM() const
     return 1;
 }
 
-unsigned RenderTableCell::calculateRowSpanForRowspanZero() const
+unsigned RenderTableCell::calculateRowSpanForRowSpanZero() const
 {
     // Handle rowspan="0" which means "span all remaining rows in the row group"
     // Per HTML spec: https://html.spec.whatwg.org/multipage/tables.html#attr-tdth-rowspan
-    //
-    // We use the DOM to count total rows because during grid construction (recalcCells),
-    // the DOM structure is complete even though the grid is still being built.
-
     if (CheckedPtr renderSection = this->section()) {
-        if (RefPtr sectionElement = dynamicDowncast<HTMLTableSectionElement>(renderSection->element())) {
-            unsigned totalRows = sectionElement->numRows();
-            unsigned currentRow = this->rowIndex();
-
-            if (currentRow < totalRows)
-                return totalRows - currentRow;
-        }
+        unsigned totalRows = 0;
+        for (CheckedPtr<RenderTableRow> row = renderSection->firstRow(); row; row = row->nextRow())
+            ++totalRows;
+        unsigned currentRow = this->rowIndex();
+        if (currentRow < totalRows)
+            return totalRows - currentRow;
     }
-
-    // Fallback: couldn't get section or DOM count
+    // Fallback: couldn't get section
     return 1;
 }
 
@@ -1394,7 +1387,7 @@ public:
     {
     }
     
-    void addBorder(const CollapsedBorderValue& borderValue, BoxSide borderSide, bool shouldPaint,
+    void NODELETE addBorder(const CollapsedBorderValue& borderValue, BoxSide borderSide, bool shouldPaint,
         LayoutUnit x1, LayoutUnit y1, LayoutUnit x2, LayoutUnit y2, BorderStyle borderStyle)
     {
         if (borderValue.exists() && shouldPaint) {
@@ -1609,7 +1602,52 @@ void RenderTableCell::paintBackgroundsBehindCell(PaintInfo& paintInfo, LayoutPoi
         fillRect.moveBy(backgroundPaintOffset);
     } else
         fillRect = LayoutRect { adjustedPaintOffset, size() };
+
+    // When painting a cell's own background with collapsed borders, inset the
+    // fill rect at the table's outer edges to match this cell's collapsed
+    // border extent. The cell's allocated width includes space for the maximum
+    // collapsed border inner halves across all cells in the same column. If
+    // this cell has narrower borders at the table edge, its background should
+    // not paint into that extra space. Interior column edges are not adjusted
+    // so that cell backgrounds remain continuous across the row.
+    if (backgroundObject == this && tableElt->collapseBorders()) {
+        bool isFirstColumn = !tableElt->colToEffCol(col());
+        bool isLastColumn = tableElt->colToEffCol(col() + colSpan() - 1) == tableElt->numEffCols() - 1;
+
+        LayoutUnit leftInset;
+        LayoutUnit rightInset;
+
+        if (isFirstColumn || isLastColumn) {
+            LayoutUnit cellLeftHalf = isFirstColumn ? borderHalfLeft(false) : 0_lu;
+            LayoutUnit cellRightHalf = isLastColumn ? borderHalfRight(false) : 0_lu;
+            LayoutUnit maxLeftHalf = cellLeftHalf;
+            LayoutUnit maxRightHalf = cellRightHalf;
+
+            for (auto* cell = tableElt->cellAbove(this); cell; cell = tableElt->cellAbove(cell)) {
+                if (isFirstColumn)
+                    maxLeftHalf = std::max(maxLeftHalf, cell->borderHalfLeft(false));
+                if (isLastColumn)
+                    maxRightHalf = std::max(maxRightHalf, cell->borderHalfRight(false));
+            }
+            for (auto* cell = tableElt->cellBelow(this); cell; cell = tableElt->cellBelow(cell)) {
+                if (isFirstColumn)
+                    maxLeftHalf = std::max(maxLeftHalf, cell->borderHalfLeft(false));
+                if (isLastColumn)
+                    maxRightHalf = std::max(maxRightHalf, cell->borderHalfRight(false));
+            }
+
+            leftInset = maxLeftHalf - cellLeftHalf;
+            rightInset = maxRightHalf - cellRightHalf;
+        }
+
+        if (leftInset || rightInset) {
+            fillRect.shiftXEdgeBy(leftInset);
+            fillRect.shiftMaxXEdgeBy(-rightInset);
+        }
+    }
+
     auto compositeOp = document().compositeOperatorForBackgroundColor(color, *this);
+
     BackgroundPainter painter { *this, paintInfo };
 
     bool hasBackgroundClipText = false;
@@ -1622,7 +1660,7 @@ void RenderTableCell::paintBackgroundsBehindCell(PaintInfo& paintInfo, LayoutPoi
         painter.setOverrideClip(FillBox::BorderBox);
         painter.setOverrideOrigin(FillBox::BorderBox);
     }
-    painter.paintFillLayers(color, bgLayers, fillRect, BleedAvoidance::None, compositeOp, backgroundObject);
+    painter.paintFillLayers(color, bgLayers, style.usedZoomForLength(), fillRect, BleedAvoidance::None, compositeOp, backgroundObject);
 }
 
 void RenderTableCell::paintBoxDecorations(PaintInfo& paintInfo, const LayoutPoint& paintOffset)

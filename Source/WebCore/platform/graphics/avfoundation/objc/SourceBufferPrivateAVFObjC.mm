@@ -228,7 +228,7 @@ bool SourceBufferPrivateAVFObjC::precheckInitializationSegment(const Initializat
 
     if (!mediaContentTypesRequiringHardwareSupport.isEmpty()) {
         for (auto& info : segment.videoTracks) {
-            auto codec = FourCC::fromString(Ref { *info.description }->codec());
+            auto codec = FourCC::fromString(info.description->codec());
             if (!codec)
                 continue;
             if (!codecsMeetHardwareDecodeRequirements({ { *codec } }, mediaContentTypesRequiringHardwareSupport))
@@ -374,7 +374,7 @@ void SourceBufferPrivateAVFObjC::didProvideContentKeyRequestInitializationDataFo
 #endif
 
 #if ENABLE(ENCRYPTED_MEDIA) && HAVE(AVCONTENTKEYSESSION)
-    protectedRenderer()->setInitData(initData)->whenSettled(m_dispatcher, [weakThis = ThreadSafeWeakPtr { *this }, initData = WTF::move(initData)](auto&& result) {
+    protect(renderer())->setInitData(initData)->whenSettled(m_dispatcher, [weakThis = ThreadSafeWeakPtr { *this }, initData = WTF::move(initData)](auto&& result) {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
@@ -478,7 +478,7 @@ void SourceBufferPrivateAVFObjC::destroyRendererTracks()
     ALWAYS_LOG(LOGIDENTIFIER);
 
     for (auto& pair : m_trackIdentifiers) {
-        protectedRenderer()->removeTrack(pair.second);
+        protect(renderer())->removeTrack(pair.second);
     }
     m_trackIdentifiers.clear();
 }
@@ -508,10 +508,17 @@ void SourceBufferPrivateAVFObjC::videoTrackDidChangeSelected(TrackID trackId, bo
     if (selected) {
         if (m_enabledVideoTrackID == trackId)
             return;
+        auto trackIdentifier = protect(renderer())->addTrack(TrackInfo::TrackType::Video);
+        if (!trackIdentifier) {
+            ERROR_LOG(LOGIDENTIFIER, "failed to add video track");
+            if (RefPtr mediaSource = downcast<MediaSourcePrivateAVFObjC>(m_mediaSource.get()))
+                mediaSource->failedToCreateRenderer(MediaSourcePrivateClient::RendererType::Video);
+            return;
+        }
         if (m_enabledVideoTrackID)
             removeTrackID(*m_enabledVideoTrackID);
         m_enabledVideoTrackID = trackId;
-        m_trackIdentifiers.emplace(trackId, protectedRenderer()->addTrack(TrackInfo::TrackType::Video));
+        m_trackIdentifiers.emplace(trackId, *trackIdentifier);
     }
 
     if (!selected && isEnabledVideoTrackID(trackId)) {
@@ -537,12 +544,17 @@ void SourceBufferPrivateAVFObjC::audioTrackDidChangeEnabled(TrackID trackId, boo
         return;
     }
 
-    if (auto trackIdentifier = trackIdentifierFor(trackId))
+    if (auto existingTrackIdentifier = trackIdentifierFor(trackId))
         return;
-    TrackIdentifier trackIdentifier = protectedRenderer()->addTrack(TrackInfo::TrackType::Audio);
-    // FIXME: check if error has been set here.
-    m_trackIdentifiers.emplace(trackId, trackIdentifier);
-    protectedRenderer()->notifyTrackNeedsReenqueuing(trackIdentifier, [weakThis = ThreadSafeWeakPtr { *this }, trackId](TrackIdentifier, const MediaTime&) {
+    auto trackIdentifier = protect(renderer())->addTrack(TrackInfo::TrackType::Audio);
+    if (!trackIdentifier) {
+        ERROR_LOG(LOGIDENTIFIER, "failed to add audio track");
+        if (RefPtr mediaSource = downcast<MediaSourcePrivateAVFObjC>(m_mediaSource.get()))
+            mediaSource->failedToCreateRenderer(MediaSourcePrivateClient::RendererType::Audio);
+        return;
+    }
+    m_trackIdentifiers.emplace(trackId, *trackIdentifier);
+    protect(renderer())->notifyTrackNeedsReenqueuing(*trackIdentifier, [weakThis = ThreadSafeWeakPtr { *this }, trackId](TrackIdentifier, const MediaTime&) {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
@@ -551,7 +563,7 @@ void SourceBufferPrivateAVFObjC::audioTrackDidChangeEnabled(TrackID trackId, boo
         });
     });
 
-    callOnMainThreadWithPlayer([trackIdentifier](auto& player) {
+    callOnMainThreadWithPlayer([trackIdentifier = *trackIdentifier](auto& player) {
         player.addAudioTrack(trackIdentifier);
     });
 }
@@ -583,7 +595,7 @@ void SourceBufferPrivateAVFObjC::flush()
     assertIsCurrent(m_dispatcher.get());
 
     for (auto pair : m_trackIdentifiers)
-        protectedRenderer()->flushTrack(pair.second);
+        protect(renderer())->flushTrack(pair.second);
 }
 
 void SourceBufferPrivateAVFObjC::flush(TrackID trackId)
@@ -592,7 +604,7 @@ void SourceBufferPrivateAVFObjC::flush(TrackID trackId)
     DEBUG_LOG(LOGIDENTIFIER, trackId);
 
     if (auto trackIdentifier = trackIdentifierFor(trackId))
-        protectedRenderer()->flushTrack(*trackIdentifier);
+        protect(renderer())->flushTrack(*trackIdentifier);
 }
 
 void SourceBufferPrivateAVFObjC::flushAndReenqueueVideo()
@@ -622,7 +634,7 @@ void SourceBufferPrivateAVFObjC::removeTrackID(TrackID trackID)
     assertIsCurrent(m_dispatcher.get());
 
     if (auto trackIdentifier = trackIdentifierFor(trackID)) {
-        protectedRenderer()->removeTrack(*trackIdentifier);
+        protect(renderer())->removeTrack(*trackIdentifier);
         m_trackIdentifiers.erase(trackID);
 
         if (!m_audioTracks.contains(trackID))
@@ -668,13 +680,13 @@ void SourceBufferPrivateAVFObjC::enqueueSample(Ref<MediaSampleAVFObjC>&& sample,
     auto mediaType = PAL::CMFormatDescriptionGetMediaType(formatDescription);
 
     if (auto trackIdentifier = trackIdentifierFor(trackId))
-        protectedRenderer()->enqueueSample(*trackIdentifier, sample, mediaType == kCMMediaType_Video ? minimumUpcomingPresentationTimeForTrackID(trackId) : std::optional<MediaTime> { });
+        protect(renderer())->enqueueSample(*trackIdentifier, sample, mediaType == kCMMediaType_Video ? minimumUpcomingPresentationTimeForTrackID(trackId) : std::optional<MediaTime> { });
 }
 
 bool SourceBufferPrivateAVFObjC::isReadyForMoreSamples(TrackID trackId)
 {
     if (auto trackIdentifier = trackIdentifierFor(trackId))
-        return protectedRenderer()->isReadyForMoreSamples(*trackIdentifier);
+        return protect(renderer())->isReadyForMoreSamples(*trackIdentifier);
 
     return false;
 }
@@ -703,7 +715,7 @@ void SourceBufferPrivateAVFObjC::didBecomeReadyForMoreSamples(TrackID trackId)
 void SourceBufferPrivateAVFObjC::notifyClientWhenReadyForMoreSamples(TrackID trackId)
 {
     if (auto trackIdentifier = trackIdentifierFor(trackId)) {
-        protectedRenderer()->requestMediaDataWhenReady(*trackIdentifier)->whenSettled(m_dispatcher, [weakThis = ThreadSafeWeakPtr { *this }, trackId](auto&& result) {
+        protect(renderer())->requestMediaDataWhenReady(*trackIdentifier)->whenSettled(m_dispatcher, [weakThis = ThreadSafeWeakPtr { *this }, trackId](auto&& result) {
             if (RefPtr protectedThis = weakThis.get(); protectedThis && result)
                 protectedThis->didBecomeReadyForMoreSamples(trackId);
         });
@@ -719,7 +731,7 @@ void SourceBufferPrivateAVFObjC::setMinimumUpcomingPresentationTime(TrackID trac
 {
     ASSERT_UNUSED(canSetMinimumUpcomingPresentationTime(trackId), trackId);
     if (auto trackIdentifier = trackIdentifierFor(trackId))
-        protectedRenderer()->expectMinimumUpcomingPresentationTime(presentationTime);
+        protect(renderer())->expectMinimumUpcomingPresentationTime(presentationTime);
 }
 
 bool SourceBufferPrivateAVFObjC::canSwitchToType(const ContentType& contentType)
@@ -727,9 +739,10 @@ bool SourceBufferPrivateAVFObjC::canSwitchToType(const ContentType& contentType)
     ASSERT(isOnCreationThread());
     ALWAYS_LOG(LOGIDENTIFIER, contentType);
 
-    MediaEngineSupportParameters parameters;
-    parameters.isMediaSource = true;
-    parameters.type = contentType;
+    MediaEngineSupportParameters parameters {
+        .platformType = PlatformMediaDecodingType::MediaSource,
+        .type = contentType
+    };
     if (MediaPlayerPrivateMediaSourceAVFObjC::supportsTypeAndCodecs(parameters) == MediaPlayer::SupportsType::IsNotSupported)
         return false;
     RefPtr parser = SourceBufferParser::create(contentType, m_configuration);
@@ -779,7 +792,7 @@ void SourceBufferPrivateAVFObjC::configureParser(SourceBufferParser& parser)
             protectedThis->didProvideContentKeyRequestInitializationDataForTrackID(WTF::move(initData), trackID);
     });
 
-    if (RefPtr webmParser = dynamicDowncast<SourceBufferParserWebM>(parser); webmParser && m_configuration.supportsLimitedMatroska)
+    if (auto* webmParser = dynamicDowncast<SourceBufferParserWebM>(parser); webmParser && m_configuration.supportsLimitedMatroska)
         webmParser->allowLimitedMatroska();
 
 #if !RELEASE_LOG_DISABLED
@@ -801,10 +814,10 @@ bool SourceBufferPrivateAVFObjC::isEnabledVideoTrackID(TrackID trackID) const
     return m_enabledVideoTrackID && *m_enabledVideoTrackID == trackID;
 }
 
-RefPtr<AudioVideoRenderer> SourceBufferPrivateAVFObjC::protectedRenderer() const
+AudioVideoRenderer& SourceBufferPrivateAVFObjC::renderer() const
 {
     assertIsCurrent(m_dispatcher.get());
-    return m_renderer;
+    return *m_renderer;
 }
 
 #if !RELEASE_LOG_DISABLED

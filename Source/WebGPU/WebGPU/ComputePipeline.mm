@@ -88,11 +88,11 @@ static std::pair<Ref<ComputePipeline>, NSString*> returnInvalidComputePipeline(W
 
 std::pair<Ref<ComputePipeline>, NSString*> Device::createComputePipeline(const WGPUComputePipelineDescriptor& descriptor, bool isAsync)
 {
-    auto shaderModule = WebGPU::protectedFromAPI(descriptor.compute.module);
+    Ref shaderModule = WebGPU::fromAPI(descriptor.compute.module);
     if (!shaderModule->isValid() || &shaderModule->device() != this || !descriptor.layout)
         return returnInvalidComputePipeline(*this, isAsync);
 
-    Ref pipelineLayout = WebGPU::protectedFromAPI(descriptor.layout);
+    Ref pipelineLayout = WebGPU::fromAPI(descriptor.layout);
     if (!isValidToUseWithDevice(pipelineLayout.get(), *this))
         return returnInvalidComputePipeline(*this, isAsync, @"GPUDevice.createComputePipeline: Pipeline layout is invalid");
 
@@ -229,7 +229,7 @@ const BufferBindingSizesForBindGroup* ComputePipeline::minimumBufferSizes(uint32
 
 #pragma mark WGPU Stubs
 
-void wgpuComputePipelineReference(WGPUComputePipeline computePipeline)
+void NODELETE wgpuComputePipelineReference(WGPUComputePipeline computePipeline)
 {
     WebGPU::fromAPI(computePipeline).ref();
 }
@@ -241,10 +241,10 @@ void wgpuComputePipelineRelease(WGPUComputePipeline computePipeline)
 
 WGPUBindGroupLayout wgpuComputePipelineGetBindGroupLayout(WGPUComputePipeline computePipeline, uint32_t groupIndex)
 {
-    return WebGPU::releaseToAPI(WebGPU::protectedFromAPI(computePipeline)->getBindGroupLayout(groupIndex));
+    return WebGPU::releaseToAPI(protect(WebGPU::fromAPI(computePipeline))->getBindGroupLayout(groupIndex));
 }
 
 void wgpuComputePipelineSetLabel(WGPUComputePipeline computePipeline, const char* label)
 {
-    WebGPU::protectedFromAPI(computePipeline)->setLabel(WebGPU::fromAPI(label));
+    protect(WebGPU::fromAPI(computePipeline))->setLabel(WebGPU::fromAPI(label));
 }

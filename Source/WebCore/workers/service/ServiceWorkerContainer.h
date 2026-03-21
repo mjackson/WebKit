@@ -100,7 +100,7 @@ public:
     void getNotifications(const URL&, const String&, DOMPromiseDeferred<IDLSequence<IDLInterface<Notification>>>&&);
 #endif
 
-    ServiceWorkerJob* job(ServiceWorkerJobIdentifier);
+    ServiceWorkerJob* NODELETE job(ServiceWorkerJobIdentifier);
 
     void startMessages();
 
@@ -144,7 +144,6 @@ private:
     ScriptExecutionContext* context() final { return scriptExecutionContext(); }
 
     SWClientConnection& ensureSWClientConnection();
-    Ref<SWClientConnection> ensureProtectedSWClientConnection();
 
     ScriptExecutionContext* scriptExecutionContext() const final;
     enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::ServiceWorkerContainer; }

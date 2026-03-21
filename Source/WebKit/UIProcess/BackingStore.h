@@ -63,7 +63,7 @@ public:
     BackingStore(const WebCore::IntSize&, float deviceScaleFactor);
     ~BackingStore();
 
-    const WebCore::IntSize& size() const { return m_size; }
+    const WebCore::IntSize& size() const LIFETIME_BOUND { return m_size; }
     float deviceScaleFactor() const { return m_deviceScaleFactor; }
 
     void paint(PlatformPaintContextPtr, const WebCore::IntRect&);

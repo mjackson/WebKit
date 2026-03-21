@@ -89,7 +89,6 @@ public:
     LocalFrameView* frameViewForScrollingNode(LocalFrame& localMainFrame, std::optional<ScrollingNodeID>) const;
 
     WEBCORE_EXPORT ScrollingStateTree& ensureScrollingStateTreeForRootFrameID(FrameIdentifier);
-    WEBCORE_EXPORT CheckedRef<ScrollingStateTree> ensureCheckedScrollingStateTreeForRootFrameID(FrameIdentifier);
     const ScrollingStateTree* existingScrollingStateTreeForRootFrameID(std::optional<FrameIdentifier>) const;
     ScrollingStateTree* stateTreeForNodeID(std::optional<ScrollingNodeID>) const;
     std::unique_ptr<ScrollingStateTree> commitTreeStateForRootFrameID(FrameIdentifier, LayerRepresentation::Type);
@@ -100,7 +99,7 @@ protected:
     WEBCORE_EXPORT AsyncScrollingCoordinator(Page*);
 
     void setScrollingTree(Ref<ScrollingTree>&& scrollingTree) { m_scrollingTree = WTF::move(scrollingTree); }
-    const SmallMap<FrameIdentifier, UniqueRef<ScrollingStateTree>>& scrollingStateTrees() const { return m_scrollingStateTrees; }
+    const SmallMap<FrameIdentifier, UniqueRef<ScrollingStateTree>>& scrollingStateTrees() const LIFETIME_BOUND { return m_scrollingStateTrees; }
 
     RefPtr<ScrollingTree> releaseScrollingTree() { return WTF::move(m_scrollingTree); }
 
@@ -160,7 +159,7 @@ private:
     WEBCORE_EXPORT void setRelatedOverflowScrollingNodes(ScrollingNodeID, Vector<ScrollingNodeID>&&) override;
 
     using LayoutViewportOriginOrOverrideRect = Variant<std::optional<FloatPoint>, std::optional<FloatRect>>;
-    WEBCORE_EXPORT void reconcileScrollingState(LocalFrameView&, const FloatPoint&, const LayoutViewportOriginOrOverrideRect&, ScrollType, ViewportRectStability, ScrollingLayerPositionAction);
+    WEBCORE_EXPORT void reconcileScrollingState(LocalFrameView&, const FloatPoint&, const LayoutViewportOriginOrOverrideRect&, ScrollType, ViewportRectStability, ScrollingLayerPositionAction) override;
     void reconcileScrollPosition(LocalFrameView&, ScrollingLayerPositionAction);
 
     WEBCORE_EXPORT void scrollBySimulatingWheelEventForTesting(ScrollingNodeID, FloatSize) final;
@@ -188,7 +187,7 @@ private:
     void updateEventTrackingRegions(FrameIdentifier rootFrameID);
     
     void applyScrollPositionUpdate(ScrollUpdate&&, ScrollType, ViewportRectStability);
-    void updateScrollPositionAfterAsyncScroll(ScrollUpdate&&, ScrollType, ViewportRectStability);
+    void updateScrollPositionAfterAsyncScroll(ScrollingNodeID, FloatPoint, std::optional<FloatPoint> layoutViewportOrigin, ScrollingLayerPositionAction, ScrollType, ViewportRectStability);
     void animatedScrollWillStartForNode(ScrollingNodeID);
     void animatedScrollDidEndForNode(ScrollingNodeID);
     void wheelEventScrollWillStartForNode(ScrollingNodeID);

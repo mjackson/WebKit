@@ -28,7 +28,6 @@ middlebottom
             (GraphicsLayer
               (offsetFromRenderer width=0 height=100)
               (bounds 149.00 2086.00)
-              (usingTiledLayer 1)
               (drawsContent 1)
             )
           )

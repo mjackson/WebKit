@@ -1698,7 +1698,7 @@ private:
                         auto convertToFulfilledPromise = [&](Node* node) {
                             auto* promise = m_insertionSet.insertNode(indexInBlock, SpecPromiseObject, NewInternalFieldObject, node->origin, OpInfo(m_graph.registerStructure(globalObject->promiseStructure())));
                             m_insertionSet.insertNode(indexInBlock, SpecNone, ExitOK, node->origin);
-                            m_insertionSet.insertNode(indexInBlock, SpecNone, PutInternalField, node->origin, OpInfo(static_cast<uint32_t>(JSPromise::Field::Flags)), Edge(promise, KnownCellUse), Edge(m_insertionSet.insertConstant(indexInBlock, node->origin, jsNumber(JSPromise::isFirstResolvingFunctionCalledFlag | static_cast<uint32_t>(JSPromise::Status::Fulfilled)))));
+                            m_insertionSet.insertNode(indexInBlock, SpecNone, PutInternalField, node->origin, OpInfo(static_cast<uint32_t>(JSPromise::Field::Flags)), Edge(promise, KnownCellUse), Edge(m_insertionSet.insertConstant(indexInBlock, node->origin, jsNumber(JSPromise::isFirstResolvingFunctionCalledFlag | static_cast<int32_t>(JSPromise::Status::Fulfilled)))));
                             m_insertionSet.insertNode(indexInBlock, SpecNone, ExitOK, node->origin);
                             m_insertionSet.insertNode(indexInBlock, SpecNone, PutInternalField, node->origin, OpInfo(static_cast<uint32_t>(JSPromise::Field::ReactionsOrResult)), Edge(promise, KnownCellUse), node->child2());
                             m_insertionSet.insertNode(indexInBlock, SpecNone, ExitOK, node->origin);
@@ -1743,6 +1743,40 @@ private:
                             }
                         }
                         break;
+                    }
+                }
+                break;
+            }
+
+            case PromiseThen: {
+                JSGlobalObject* globalObject = m_graph.globalObjectFor(node->origin.semantic);
+                auto& promise = m_state.forNode(node->child1());
+                if (promise.isType(SpecPromiseObject)) {
+                    auto& structureSet = promise.m_structure;
+                    if (structureSet.isFinite()) {
+                        if (auto structure = structureSet.onlyStructure()) {
+                            if (structure.get() == globalObject->promiseStructure()) {
+                                if (m_graph.isWatchingPromiseSpeciesWatchpoint(node)) {
+                                    m_interpreter.execute(indexInBlock);
+                                    alreadyHandled = true;
+
+                                    auto* resultPromise = m_insertionSet.insertNode(indexInBlock, SpecPromiseObject, NewInternalFieldObject, node->origin, OpInfo(m_graph.registerStructure(globalObject->promiseStructure())));
+                                    m_insertionSet.insertNode(indexInBlock, SpecNone, ExitOK, node->origin);
+
+                                    unsigned firstChild = m_graph.m_varArgChildren.size();
+                                    m_graph.m_varArgChildren.append(Edge(node->child1().node(), KnownCellUse));
+                                    m_graph.m_varArgChildren.append(node->child2());
+                                    m_graph.m_varArgChildren.append(node->child3());
+                                    m_graph.m_varArgChildren.append(Edge(resultPromise, KnownCellUse));
+                                    m_insertionSet.insertNode(indexInBlock, SpecNone, PerformPromiseThen, node->origin, AdjacencyList(AdjacencyList::Variable, firstChild, 4));
+                                    m_insertionSet.insertNode(indexInBlock, SpecNone, ExitOK, node->origin);
+
+                                    node->convertToIdentityOn(resultPromise);
+                                    changed = true;
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
                 break;

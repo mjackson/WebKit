@@ -114,16 +114,16 @@ public:
 
     Document& NODELETE document();
     const Document& NODELETE document() const;
-    const Settings& settings() const;
+    const Settings& NODELETE settings() const;
 
     ScopeType scopeType() const { return m_scopeType; }
 
     void appendAuthorStyleSheets(std::span<const Ref<CSSStyleSheet>>);
 
-    ScopeRuleSets& ruleSets() { return m_ruleSets; }
-    const ScopeRuleSets& ruleSets() const { return m_ruleSets; }
+    ScopeRuleSets& ruleSets() LIFETIME_BOUND { return m_ruleSets; }
+    const ScopeRuleSets& ruleSets() const LIFETIME_BOUND { return m_ruleSets; }
 
-    const MQ::MediaQueryEvaluator& mediaQueryEvaluator() const { return m_mediaQueryEvaluator; }
+    const MQ::MediaQueryEvaluator& mediaQueryEvaluator() const LIFETIME_BOUND { return m_mediaQueryEvaluator; }
 
     void addCurrentSVGFontFaceRules();
 
@@ -146,10 +146,10 @@ public:
     bool hasSelectorForId(const AtomString&) const;
     bool hasSelectorForAttribute(const Element&, const AtomString&) const;
 
-    bool hasViewportDependentMediaQueries() const;
+    bool NODELETE hasViewportDependentMediaQueries() const;
     std::optional<DynamicMediaQueryEvaluationChanges> evaluateDynamicMediaQueries();
 
-    static KeyframesRuleMap& userAgentKeyframes();
+    static KeyframesRuleMap& NODELETE userAgentKeyframes();
     static void addUserAgentKeyframeStyle(Ref<StyleRuleKeyframes>&&);
     void addKeyframeStyle(Ref<StyleRuleKeyframes>&&);
     Vector<Ref<StyleRuleKeyframe>> keyframeRulesForName(const AtomString&, const TimingFunction*) const;
@@ -157,7 +157,7 @@ public:
     const CustomFunctionRegistry* NODELETE customFunctionRegistry() const;
     CustomFunctionRegistry& ensureCustomFunctionRegistry();
 
-    RefPtr<StyleRuleViewTransition> viewTransitionRule() const;
+    RefPtr<StyleRuleViewTransition> NODELETE viewTransitionRule() const;
 
     bool usesFirstLineRules() const { return m_ruleSets.features().usesFirstLineRules; }
     bool usesFirstLetterRules() const { return m_ruleSets.features().usesFirstLetterRules; }
@@ -166,12 +166,12 @@ public:
     void invalidateMatchedDeclarationsCache();
     void clearCachedDeclarationsAffectedByViewportUnits();
 
-    InspectorCSSOMWrappers& inspectorCSSOMWrappers() { return m_inspectorCSSOMWrappers; }
+    InspectorCSSOMWrappers& inspectorCSSOMWrappers() LIFETIME_BOUND { return m_inspectorCSSOMWrappers; }
 
     bool isSharedBetweenShadowTrees() const { return m_isSharedBetweenShadowTrees; }
     void setSharedBetweenShadowTrees() { m_isSharedBetweenShadowTrees = true; }
 
-    const RenderStyle* rootDefaultStyle() const { return m_rootDefaultStyle.get(); }
+    const RenderStyle* rootDefaultStyle() const LIFETIME_BOUND { return m_rootDefaultStyle.get(); }
 
 private:
     Resolver(Document&, ScopeType);
@@ -180,7 +180,7 @@ private:
     class State;
 
     State initializeStateAndStyle(const Element&, const ResolutionContext&, std::unique_ptr<RenderStyle>&& initialStyle = { });
-    BuilderContext builderContext(State&) const;
+    BuilderContext NODELETE builderContext(State&) const;
 
     void applyMatchedProperties(State&, const MatchResult&, PropertyCascade::IncludedProperties&&);
     void setGlobalStateAfterApplyingProperties(const BuilderState&);

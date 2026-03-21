@@ -73,6 +73,7 @@
 #import "WebProcess.h"
 #import "WebTouchEvent.h"
 #import <CoreText/CTFont.h>
+#import <WebCore/AXObjectCache.h>
 #import <WebCore/AXRemoteTokenIOS.h>
 #import <WebCore/AccessibilityObject.h>
 #import <WebCore/Autofill.h>
@@ -103,11 +104,11 @@
 #import <WebCore/EventTargetInlines.h>
 #import <WebCore/File.h>
 #import <WebCore/FloatQuad.h>
-#import <WebCore/FrameDestructionObserverInlines.h>
 #import <WebCore/FocusController.h>
 #import <WebCore/FocusControllerTypes.h>
 #import <WebCore/FontCache.h>
 #import <WebCore/FontCacheCoreText.h>
+#import <WebCore/FrameDestructionObserverInlines.h>
 #import <WebCore/GeometryUtilities.h>
 #import <WebCore/GraphicsLayer.h>
 #import <WebCore/HTMLAreaElement.h>
@@ -133,6 +134,7 @@
 #import <WebCore/HistoryItem.h>
 #import <WebCore/HitTestResult.h>
 #import <WebCore/HitTestSource.h>
+#import <WebCore/ICUSearcher.h>
 #import <WebCore/Image.h>
 #import <WebCore/ImageOverlay.h>
 #import <WebCore/InputMode.h>
@@ -310,10 +312,13 @@ static void computeEditableRootHasContentAndPlainText(const VisibleSelection& se
     if (!root || editingIgnoresContent(*root))
         return;
 
-    auto startInEditableRoot = firstPositionInNode(root);
+    auto startInEditableRoot = firstPositionInNode(*root);
     data.hasContent = root->hasChildNodes() && !isEndOfEditableOrNonEditableContent(startInEditableRoot);
     if (data.hasContent) {
-        auto range = makeSimpleRange(VisiblePosition { startInEditableRoot }, VisiblePosition { lastPositionInNode(root) });
+        auto range = makeSimpleRange(
+            VisiblePosition { startInEditableRoot },
+            VisiblePosition { lastPositionInNode(*root) }
+        );
         data.hasPlainText = range && hasAnyPlainText(*range);
     }
 }
@@ -711,7 +716,12 @@ void WebPage::getSelectionContext(CompletionHandler<void(const String&, const St
     
 void WebPage::updateRemotePageAccessibilityOffset(WebCore::FrameIdentifier, WebCore::IntPoint offset)
 {
+#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+    // With local frame support, position data is sent from the UI process in frameScreenPosition.
+    UNUSED_PARAM(offset);
+#else
     [protect(accessibilityRemoteObject()) setRemoteFrameOffset:offset];
+#endif
 }
 
 static RetainPtr<NSDictionary> createAccessibillityTokenDictionary(WebCore::AccessibilityRemoteToken elementToken)
@@ -1273,14 +1283,14 @@ static std::optional<SimpleRange> expandForImageOverlay(const SimpleRange& range
 
     for (auto start = expandedStart; insideImageOverlay(start); start = start.previous()) {
         if (RefPtr container = start.deepEquivalent().containerNode(); is<Text>(container)) {
-            expandedStart = firstPositionInNode(container.get()).downstream();
+            expandedStart = firstPositionInNode(*container).downstream();
             break;
         }
     }
 
     for (auto end = expandedEnd; insideImageOverlay(end); end = end.next()) {
         if (RefPtr container = end.deepEquivalent().containerNode(); is<Text>(container)) {
-            expandedEnd = lastPositionInNode(container.get()).upstream();
+            expandedEnd = lastPositionInNode(*container).upstream();
             break;
         }
     }
@@ -2208,24 +2218,19 @@ void WebPage::replaceDictatedText(const String& oldText, const String& newText)
 
     if (frame->selection().isNone())
         return;
-    
+
     if (frame->selection().isRange()) {
         protect(frame->editor())->deleteSelectionWithSmartDelete(false);
         return;
     }
-    VisiblePosition position = frame->selection().selection().start();
-    for (auto i = numGraphemeClusters(oldText); i; --i)
-        position = position.previous();
-    if (position.isNull())
-        position = startOfDocument(protect(frame->document()));
-    auto range = makeSimpleRange(position, frame->selection().selection().start());
 
-    if (plainTextForContext(range) != oldText)
+    auto range = findDictatedTextRangeBeforeCursor(*frame, oldText);
+    if (!range)
         return;
 
     // We don't want to notify the client that the selection has changed until we are done inserting the new text.
     IgnoreSelectionChangeForScope ignoreSelectionChanges { *frame };
-    protect(frame->selection())->setSelectedRange(range, Affinity::Upstream, WebCore::FrameSelection::ShouldCloseTyping::Yes);
+    protect(frame->selection())->setSelectedRange(*range, Affinity::Upstream, WebCore::FrameSelection::ShouldCloseTyping::Yes);
     protect(frame->editor())->insertText(newText, 0);
 }
 
@@ -2581,7 +2586,7 @@ void WebPage::performActionOnElement(uint32_t action, const String& authorizatio
         CheckedPtr renderImage = dynamicDowncast<RenderImage>(*element->renderer());
         if (!renderImage)
             return;
-        auto* cachedImage = renderImage->cachedImage();
+        RefPtr cachedImage = renderImage->cachedImage();
         if (!cachedImage)
             return;
         RefPtr<FragmentedSharedBuffer> buffer = cachedImage->resourceBuffer();
@@ -3778,29 +3783,14 @@ void WebPage::updateVisibleContentRects(const VisibleContentRectUpdateInfo& visi
             viewportStability = ViewportRectStability::Unstable;
             layerAction = ScrollingLayerPositionAction::SetApproximate;
         }
-
-        auto mainFrameScrollingNodeID = frameView->scrollingNodeID();
-        if (!mainFrameScrollingNodeID) {
-            ASSERT_NOT_REACHED();
-            return;
-        }
-
-        auto scrollUpdate = ScrollUpdate {
-            .nodeID = *mainFrameScrollingNodeID,
-            .scrollPosition = scrollPosition,
-            .layoutViewportOrigin = visibleContentRectUpdateInfo.layoutViewportRect().location(),
-            .updateLayerPositionAction = layerAction,
-        };
-
-        // We don't actually know that these are user scrolls; we get here for all kinds of state changes.
-        scrollingCoordinator->applyScrollUpdate(WTF::move(scrollUpdate), ScrollType::User, viewportStability);
-
+        scrollingCoordinator->reconcileScrollingState(*frameView, scrollPosition, visibleContentRectUpdateInfo.layoutViewportRect(), ScrollType::User, viewportStability, layerAction);
         if (visibleContentRectUpdateInfo.needsScrollend() && frameView->scrollingNodeID()) {
             auto scrollUpdate = ScrollUpdate {
                 .nodeID = *frameView->scrollingNodeID(),
                 .scrollPosition = { },
-                .layoutViewportOrigin = { },
-                .updateType = ScrollUpdateType::WheelEventScrollDidEnd,
+                .data = ScrollUpdateData {
+                    .updateType = ScrollUpdateType::WheelEventScrollDidEnd,
+                }
             };
             scrollingCoordinator->applyScrollUpdate(WTF::move(scrollUpdate), ScrollType::User);
         }
@@ -3922,15 +3912,23 @@ void WebPage::dispatchAsynchronousTouchEvents(UniqueRef<EventDispatcher::TouchEv
 {
     for (auto& touchEventData : queue.get()) {
         auto handleTouchEventResult = dispatchTouchEvent(touchEventData.frameID, touchEventData.event);
-        if (auto& completionHandler = touchEventData.completionHandler)
-            completionHandler(handleTouchEventResult.value_or(false), transformEventIfNecessary(handleTouchEventResult, WTF::move(touchEventData.event)));
+        bool handled = handleTouchEventResult.value_or(false);
+
+        // Invoke coalesced-away completion handlers first. These events were never
+        // dispatched to JS, but their handlers must still be invoked so that state
+        // transitions they carry (e.g. m_touchMovePreventionState) are resolved.
+        for (auto&& completionHandler : touchEventData.completionHandlers | std::views::take(touchEventData.completionHandlers.size() - 1))
+            completionHandler(handled, std::nullopt);
+
+        // The last handler corresponds to the event that was actually dispatched.
+        touchEventData.completionHandlers.last()(handled, transformEventIfNecessary(handleTouchEventResult, WTF::move(touchEventData.event)));
     }
 }
 
 void WebPage::cancelAsynchronousTouchEvents(UniqueRef<EventDispatcher::TouchEventQueue>&& queue)
 {
     for (auto& touchEventData : queue.get()) {
-        if (auto& completionHandler = touchEventData.completionHandler)
+        for (auto& completionHandler : touchEventData.completionHandlers)
             completionHandler(true, std::nullopt);
     }
 }

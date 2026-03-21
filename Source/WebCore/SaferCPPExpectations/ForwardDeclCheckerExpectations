@@ -27,7 +27,6 @@ accessibility/AccessibilityObject.cpp
 bindings/js/GarbageCollectionController.cpp
 bindings/js/JSLocationCustom.cpp
 bindings/js/JSPaintRenderingContext2DCustom.cpp
-css/CSSStyleProperties.h
 css/CSSToLengthConversionData.h
 css/StyleSheetContents.cpp
 css/StyleSheetContents.h
@@ -38,7 +37,6 @@ dom/Node.h
 editing/Editor.h
 html/HTMLMediaElement.cpp
 html/canvas/PlaceholderRenderingContext.cpp
-html/shadow/DateTimeEditElement.h
 inspector/InspectorStyleSheet.h
 inspector/InstrumentingAgents.h
 inspector/PageInspectorController.h
@@ -47,15 +45,12 @@ inspector/agents/InspectorPageAgent.h
 layout/formattingContexts/inline/InlineFormattingContext.h
 layout/formattingContexts/inline/InlineItemsBuilder.cpp
 layout/formattingContexts/inline/InlineLine.h
-layout/integration/inline/LayoutIntegrationLineLayout.h
-layout/layouttree/LayoutElementBox.h
 [ iOS ] page/cocoa/ContentChangeObserver.h
 [ Mac ] page/mac/ImageOverlayControllerMac.mm
 [ Mac ] page/mac/ServicesOverlayController.mm
 page/scrolling/ScrollingStateNode.h
 [ Mac ] page/scrolling/ScrollingStateScrollingNode.cpp
 platform/PODRedBlackTree.h
-platform/Scrollbar.h
 platform/cocoa/TelephoneNumberDetectorCocoa.cpp
 platform/graphics/ImageBufferContextSwitcher.h
 platform/graphics/ca/PlatformCALayer.h
@@ -63,7 +58,6 @@ platform/graphics/ca/TileController.cpp
 [ iOS ] platform/ios/DeviceMotionClientIOS.h
 [ iOS ] platform/ios/LegacyTileCache.h
 platform/mediastream/libwebrtc/LibWebRTCDav1dDecoder.cpp
-rendering/MarkedText.h
 rendering/RenderLayerBacking.cpp
 rendering/RenderLayerCompositor.cpp
 rendering/RenderTextLineBoxes.h

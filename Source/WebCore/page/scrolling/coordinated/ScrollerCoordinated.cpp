@@ -157,6 +157,13 @@ void ScrollerCoordinated::setOpacity(float opacity)
     m_needsUpdate = true;
 }
 
+void ScrollerCoordinated::setScrollbarColor(const std::optional<ScrollbarColor>& scrollbarColor)
+{
+    Locker locker { m_lock };
+    m_state.scrollbarColor = scrollbarColor;
+    m_needsUpdate = true;
+}
+
 void ScrollerCoordinated::setScrollbarLayoutDirection(UserInterfaceLayoutDirection direction)
 {
     Locker locker { m_lock };

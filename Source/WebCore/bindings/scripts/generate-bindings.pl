@@ -79,6 +79,38 @@ if (!$outputHeadersDirectory) {
     $outputHeadersDirectory = $outputDirectory;
 }
 
+# Parse supplemental dependencies and IDL attributes once, shared across all files.
+my %supplementalDependencies;
+if ($supplementalDependencyFile) {
+    # The format of a supplemental dependency file:
+    #
+    # DOMWindow.idl P.idl Q.idl R.idl
+    # Document.idl S.idl
+    # Event.idl
+    # ...
+    #
+    # The above indicates that DOMWindow.idl is supplemented by P.idl, Q.idl and R.idl,
+    # Document.idl is supplemented by S.idl, and Event.idl is supplemented by no IDLs.
+    open FH, "< $supplementalDependencyFile" or die "Cannot open $supplementalDependencyFile\n";
+    while (my $line = <FH>) {
+        my ($idlFile, @followingIdlFiles) = split(/\s+/, $line);
+        $supplementalDependencies{fileparse($idlFile)} = [sort @followingIdlFiles] if $idlFile;
+    }
+    close FH;
+}
+
+my $idlAttributes;
+{
+    local $INPUT_RECORD_SEPARATOR;
+    open(JSON, "<", $idlAttributesFile) or die "Couldn't open $idlAttributesFile: $!";
+    my $input = <JSON>;
+    close(JSON);
+
+    my $jsonDecoder = JSON::PP->new->utf8;
+    my $jsonHashRef = $jsonDecoder->decode($input);
+    $idlAttributes = $jsonHashRef->{attributes};
+}
+
 generateBindings($_) for (@ARGV);
 
 sub generateBindings
@@ -90,38 +122,6 @@ sub generateBindings
         print "$generator: $targetIdlFile\n";
     }
     my $targetInterfaceName = fileparse($targetIdlFile, ".idl");
-
-    my $idlFound = 0;
-    my %supplementalDependencies;
-    if ($supplementalDependencyFile) {
-        # The format of a supplemental dependency file:
-        #
-        # DOMWindow.idl P.idl Q.idl R.idl
-        # Document.idl S.idl
-        # Event.idl
-        # ...
-        #
-        # The above indicates that DOMWindow.idl is supplemented by P.idl, Q.idl and R.idl,
-        # Document.idl is supplemented by S.idl, and Event.idl is supplemented by no IDLs.
-        open FH, "< $supplementalDependencyFile" or die "Cannot open $supplementalDependencyFile\n";
-        while (my $line = <FH>) {
-            my ($idlFile, @followingIdlFiles) = split(/\s+/, $line);
-            $supplementalDependencies{fileparse($idlFile)} = [sort @followingIdlFiles] if $idlFile;
-        }
-        close FH;
-    }
-
-    my $input;
-    {
-        local $INPUT_RECORD_SEPARATOR;
-        open(JSON, "<", $idlAttributesFile) or die "Couldn't open $idlAttributesFile: $!";
-        $input = <JSON>;
-        close(JSON);
-    }
-
-    my $jsonDecoder = JSON::PP->new->utf8;
-    my $jsonHashRef = $jsonDecoder->decode($input);
-    my $idlAttributes = $jsonHashRef->{attributes};
 
     # Parse the target IDL file.
     my $targetParser = IDLParser->new(!$verbose);

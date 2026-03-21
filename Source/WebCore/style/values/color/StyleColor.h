@@ -145,12 +145,12 @@ public:
     static const Color& currentColor();
 
     bool containsCurrentColor() const;
-    bool isCurrentColor() const;
-    bool isColorMix() const;
-    bool isContrastColor() const;
-    bool isRelativeColor() const;
+    bool NODELETE isCurrentColor() const;
+    bool NODELETE isColorMix() const;
+    bool NODELETE isContrastColor() const;
+    bool NODELETE isRelativeColor() const;
 
-    bool isResolvedColor() const;
+    bool NODELETE isResolvedColor() const;
     const WebCore::Color& resolvedColor() const;
 
     WEBCORE_EXPORT WebCore::Color resolveColor(const WebCore::Color& currentColor) const;
@@ -209,7 +209,7 @@ template<> struct CSSValueCreation<Color> {
 
 template<> struct Blending<Color> {
     auto equals(const Color&, const Color&, const RenderStyle&, const RenderStyle&) -> bool;
-    auto canBlend(const Color&, const Color&) -> bool;
+    bool NODELETE canBlend(const Color&, const Color&);
     constexpr auto requiresInterpolationForAccumulativeIteration(const Color&, const Color&) -> bool { return true; }
     auto blend(const Color&, const Color&, const RenderStyle&, const RenderStyle&, const BlendingContext&) -> Color;
 };

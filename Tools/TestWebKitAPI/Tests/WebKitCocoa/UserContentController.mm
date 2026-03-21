@@ -1306,12 +1306,7 @@ TEST(WKUserContentController, DidAssociateFormControls)
     EXPECT_WK_STREQ([webView _test_waitForAlert], "pass [object HTMLInputElement]");
 }
 
-// FIXME when webkit.org/b/304021 is resolved.
-#if PLATFORM(MAC)
-TEST(WKUserContentController, DISABLED_DidAssociateFormControlsFromShadowTree)
-#else
 TEST(WKUserContentController, DidAssociateFormControlsFromShadowTree)
-#endif
 {
     RetainPtr webView = adoptNS([TestWKWebView new]);
     RetainPtr configuration = adoptNS([WKContentWorldConfiguration new]);
@@ -1337,8 +1332,7 @@ TEST(WKUserContentController, DidAssociateFormControlsFromShadowTree)
         "}"
         "</script>"
         "<button onclick='addPasswordFieldToForm()'>Add Password Field</button>";
-    [webView synchronouslyLoadHTMLString:html];
-
+    [webView loadHTMLString:html baseURL:nil];
     EXPECT_WK_STREQ([webView _test_waitForAlert], "pass [object HTMLFormElement]");
     [webView evaluateJavaScript:@"addPasswordFieldToForm()" completionHandler:nil];
     EXPECT_WK_STREQ([webView _test_waitForAlert], "pass [object HTMLInputElement]");
@@ -1399,6 +1393,32 @@ TEST(WKUserContentController, BeforeBlurEvent)
 
     [webView evaluateJavaScript:@"shadowRoot.querySelector('#text2').focus()" completionHandler:nil];
     EXPECT_WK_STREQ([webView _test_waitForAlert], "blur-pass");
+}
+
+TEST(WKUserContentController, FocusedElementRemovedEvent)
+{
+    RetainPtr webView = adoptNS([TestWKWebView new]);
+    RetainPtr configuration = adoptNS([WKContentWorldConfiguration new]);
+    configuration.get().autofillScriptingEnabled = YES;
+    RetainPtr autofillWorld = [WKContentWorld worldWithConfiguration:configuration.get()];
+    NSString *pageWorldJS = @"document.querySelector('input').addEventListener('webkitfocusedelementdisconnected', () => mainWorldResult.textContent = 'FAIL')";
+    NSString *autofillWorldJS = @"document.querySelector('input').addEventListener('webkitfocusedelementdisconnected', () => autofillWorldResult.textContent = 'PASS')";
+    RetainPtr pageWorldScript = adoptNS([[WKUserScript alloc] initWithSource:pageWorldJS injectionTime:WKUserScriptInjectionTimeAtDocumentEnd forMainFrameOnly:YES]);
+    RetainPtr autofillWorldScript = adoptNS([[WKUserScript alloc] initWithSource:autofillWorldJS injectionTime:WKUserScriptInjectionTimeAtDocumentEnd forMainFrameOnly:YES inContentWorld:autofillWorld.get()]);
+    RetainPtr<WKUserContentController> userContentController = [webView configuration].userContentController;
+    [userContentController addUserScript:pageWorldScript.get()];
+    [userContentController addUserScript:autofillWorldScript.get()];
+
+    [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><input><div id=mainWorldResult>PASS</div><div id=autofillWorldResult>FAIL</div><script>document.querySelector('input').focus()</script>"];
+
+    [webView waitForNextPresentationUpdate];
+
+    [webView objectByEvaluatingJavaScript:@"document.querySelector('input').remove();"];
+
+    [webView waitForNextPresentationUpdate];
+
+    EXPECT_WK_STREQ([webView stringByEvaluatingJavaScript:@"mainWorldResult.textContent;"], "PASS");
+    EXPECT_WK_STREQ([webView stringByEvaluatingJavaScript:@"autofillWorldResult.textContent;"], "PASS");
 }
 
 #if WK_HAVE_C_SPI

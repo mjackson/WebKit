@@ -35,7 +35,6 @@ DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(InheritedRareData);
 
 InheritedRareData::InheritedRareData()
     : usedZoom(1.0f)
-    , deviceScaleFactor(1.0f)
     , textStrokeWidth(ComputedStyle::initialTextStrokeWidth())
     , textStrokeColor(ComputedStyle::initialTextStrokeColor())
     , textFillColor(ComputedStyle::initialTextFillColor())
@@ -131,7 +130,7 @@ InheritedRareData::InheritedRareData()
     , autoRevealsWhenFound(false)
     , insideDefaultButton(false)
     , insideSubmitButton(false)
-    , evaluationTimeZoomEnabled(false)
+    , evaluationTimeZoomEnabled(true)
 #if HAVE(CORE_MATERIAL)
     , usedAppleVisualEffectForSubtree(static_cast<unsigned>(AppleVisualEffect::None))
 #endif
@@ -141,7 +140,6 @@ InheritedRareData::InheritedRareData()
 inline InheritedRareData::InheritedRareData(const InheritedRareData& o)
     : RefCounted<InheritedRareData>()
     , usedZoom(o.usedZoom)
-    , deviceScaleFactor(o.deviceScaleFactor)
     , textStrokeWidth(o.textStrokeWidth)
     , textStrokeColor(o.textStrokeColor)
     , textFillColor(o.textFillColor)
@@ -353,7 +351,6 @@ bool InheritedRareData::operator==(const InheritedRareData& o) const
         && listStyleType == o.listStyleType
         && blockEllipsis == o.blockEllipsis
         && evaluationTimeZoomEnabled == o.evaluationTimeZoomEnabled
-        && deviceScaleFactor == o.deviceScaleFactor
         && mathDepth == o.mathDepth;
 }
 
@@ -363,7 +360,6 @@ void InheritedRareData::dumpDifferences(TextStream& ts, const InheritedRareData&
     customProperties->dumpDifferences(ts, other.customProperties);
 
     LOG_IF_DIFFERENT(usedZoom);
-    LOG_IF_DIFFERENT(deviceScaleFactor);
 
     LOG_IF_DIFFERENT(listStyleImage);
 
@@ -410,7 +406,6 @@ void InheritedRareData::dumpDifferences(TextStream& ts, const InheritedRareData&
     LOG_IF_DIFFERENT_WITH_CAST(NBSPMode, nbspMode);
     LOG_IF_DIFFERENT_WITH_CAST(LineBreak, lineBreak);
     LOG_IF_DIFFERENT_WITH_CAST(UserSelect, userSelect);
-    LOG_IF_DIFFERENT_WITH_CAST(ColorSpace, colorSpace);
 
     LOG_IF_DIFFERENT_WITH_FROM_RAW(SpeakAs, speakAs);
 

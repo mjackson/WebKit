@@ -31,13 +31,15 @@
 messages -> RemoteMesh Stream {
     void SetLabel(String label)
     void Destruct()
-    void Update(struct WebModel::UpdateMeshDescriptor descriptor)
+    void Update(struct WebModel::UpdateMeshDescriptor descriptor) -> (bool success)
     void Render()
-    void UpdateTexture(struct WebModel::UpdateTextureDescriptor descriptor)
-    void UpdateMaterial(struct WebModel::UpdateMaterialDescriptor descriptor)
+    void UpdateTexture(struct WebModel::UpdateTextureDescriptor descriptor) -> (bool success)
+    void UpdateMaterial(struct WebModel::UpdateMaterialDescriptor descriptor) -> (bool success)
     void UpdateTransform(struct WebModel::Float4x4 transform)
     void SetCameraDistance(float distance)
+    void SetBackgroundColor(struct WebModel::Float3 color)
     void Play(bool playing)
     void SetEnvironmentMap(struct WebModel::ImageAsset imageAsset)
+    void UpdateRenderBuffers(unsigned width, unsigned height) -> (Vector<MachSendRight> renderBuffers) NotStreamEncodableReply
 }
 #endif

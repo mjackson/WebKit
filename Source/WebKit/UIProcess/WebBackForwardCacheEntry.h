@@ -72,10 +72,10 @@ private:
 
 inline void refWebBackForwardCacheEntry(WebKit::WebBackForwardCacheEntry* WTF_NONNULL obj)
 {
-    WTF::ref(obj);
+    obj->ref();
 }
 
 inline void derefWebBackForwardCacheEntry(WebKit::WebBackForwardCacheEntry* WTF_NONNULL obj)
 {
-    WTF::deref(obj);
+    obj->deref();
 }

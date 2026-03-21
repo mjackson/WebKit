@@ -56,7 +56,7 @@ enum class TextCheckingType : uint8_t {
 
 #if PLATFORM(MAC)
 typedef uint64_t NSTextCheckingTypes;
-WEBCORE_EXPORT NSTextCheckingTypes nsTextCheckingTypes(OptionSet<TextCheckingType>);
+WEBCORE_EXPORT NSTextCheckingTypes NODELETE nsTextCheckingTypes(OptionSet<TextCheckingType>);
 #endif
 
 enum class TextCheckingProcessType : bool {
@@ -114,7 +114,7 @@ public:
     }
 
     std::optional<TextCheckingRequestIdentifier> identifier() const { return m_identifier; }
-    const String& text() const { return m_text; }
+    const String& text() const LIFETIME_BOUND { return m_text; }
     OptionSet<TextCheckingType> checkingTypes() const { return m_checkingTypes; }
     TextCheckingProcessType processType() const { return m_processType; }
 

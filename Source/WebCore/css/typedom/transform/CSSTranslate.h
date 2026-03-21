@@ -55,7 +55,7 @@ public:
     RefPtr<CSSValue> toCSSValue() const final;
 
 private:
-    CSSTranslate(CSSTransformComponent::Is2D, Ref<CSSNumericValue>, Ref<CSSNumericValue>, Ref<CSSNumericValue>);
+    CSSTranslate(CSSTransformComponent::Is2D, Ref<CSSNumericValue>&&, Ref<CSSNumericValue>&&, Ref<CSSNumericValue>&&);
 
     CSSTransformType transformType() const final { return CSSTransformType::Translate; }
 

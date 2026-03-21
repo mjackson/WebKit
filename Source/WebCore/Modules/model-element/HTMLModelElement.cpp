@@ -29,6 +29,7 @@
 
 #if ENABLE(MODEL_ELEMENT)
 
+#include "AbortSignal.h"
 #include "ContainerNodeInlines.h"
 #include "DOMMatrixReadOnly.h"
 #include "DOMPointReadOnly.h"
@@ -50,6 +51,8 @@
 #include "HTMLNames.h"
 #include "HTMLParserIdioms.h"
 #include "HTMLSourceElement.h"
+#include "JSDOMConvertBoolean.h"
+#include "JSDOMConvertNumbers.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSEventTarget.h"
 #include "JSHTMLModelElement.h"
@@ -103,6 +106,23 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(HTMLModelElement);
 
 static const Seconds reloadModelDelay { 1_s };
 
+#if ENABLE(TOUCH_EVENTS)
+class HTMLModelElementEventListener final : public EventListener {
+public:
+    static Ref<HTMLModelElementEventListener> create()
+    {
+        return adoptRef(*new HTMLModelElementEventListener());
+    }
+
+    void handleEvent(ScriptExecutionContext&, Event&) override { }
+
+private:
+    explicit HTMLModelElementEventListener()
+        : EventListener(EventListener::CPPEventListenerType)
+    { }
+};
+#endif
+
 HTMLModelElement::HTMLModelElement(const QualifiedName& tagName, Document& document)
     : HTMLElement(tagName, document, { TypeFlag::HasCustomStyleResolveCallbacks, TypeFlag::HasDidMoveToNewDocument })
     , ActiveDOMObject(document)
@@ -122,10 +142,8 @@ HTMLModelElement::HTMLModelElement(const QualifiedName& tagName, Document& docum
 
 HTMLModelElement::~HTMLModelElement()
 {
-    if (m_resource) {
-        m_resource->removeClient(*this);
-        m_resource = nullptr;
-    }
+    if (RefPtr resource = std::exchange(m_resource, nullptr))
+        resource->removeClient(*this);
 
 #if ENABLE(MODEL_ELEMENT_ENVIRONMENT_MAP)
     if (m_environmentMapResource) {
@@ -235,10 +253,8 @@ void HTMLModelElement::setSourceURL(const URL& url)
     m_dataComplete = false;
     m_model = nullptr;
 
-    if (m_resource) {
-        m_resource->removeClient(*this);
-        m_resource = nullptr;
-    }
+    if (RefPtr resource = std::exchange(m_resource, nullptr))
+        resource->removeClient(*this);
 
     deleteModelPlayer();
 
@@ -378,7 +394,7 @@ void HTMLModelElement::didConvertModelData(ModelPlayer& modelPlayer, Ref<SharedB
 
     RELEASE_LOG(ModelElement, "%p - HTMLModelElement::didConvertModelData: Received converted model data, size=%zu mimeType=%s", this, convertedData->size(), convertedMIMEType.utf8().data());
 
-    m_model = Model::create(WTF::move(convertedData), convertedMIMEType, m_sourceURL, true /* isConverted */);
+    m_model = Model::create(WTF::move(convertedData), String { convertedMIMEType }, m_sourceURL, true /* isConverted */);
     m_dataMemoryCost.store(m_model->data()->size(), std::memory_order_relaxed);
     reportExtraMemoryCost();
 }
@@ -527,7 +543,7 @@ void HTMLModelElement::createModelPlayer()
 #endif
 
     if (!m_modelPlayerProvider)
-        m_modelPlayerProvider = protect(document().page())->modelPlayerProvider();
+        m_modelPlayerProvider = document().page()->modelPlayerProvider();
     if (RefPtr modelPlayerProvider = m_modelPlayerProvider.get()) {
         modelPlayer = modelPlayerProvider->createModelPlayer(*this);
         m_modelPlayer = modelPlayer.copyRef();
@@ -638,7 +654,7 @@ void HTMLModelElement::reloadModelPlayer()
     ASSERT(animationState && transformState);
 
     if (!m_modelPlayerProvider)
-        m_modelPlayerProvider = protect(protect(document())->page())->modelPlayerProvider();
+        m_modelPlayerProvider = document().page()->modelPlayerProvider();
     if (RefPtr modelPlayerProvider = m_modelPlayerProvider.get()) {
         modelPlayer = modelPlayerProvider->createModelPlayer(*this);
         m_modelPlayer = modelPlayer.copyRef();
@@ -824,7 +840,7 @@ void HTMLModelElement::enterFullscreen()
 
 bool HTMLModelElement::supportsDragging() const
 {
-    RefPtr modelPlayer = m_modelPlayer;
+    auto* modelPlayer = m_modelPlayer.get();
     if (!modelPlayer)
         return true;
 
@@ -850,7 +866,7 @@ void HTMLModelElement::attributeChanged(const QualifiedName& name, const AtomStr
     if (name == srcAttr)
         sourcesChanged();
     else if (name == interactiveAttr) {
-        if (RefPtr modelPlayer = m_modelPlayer)
+        if (auto* modelPlayer = m_modelPlayer.get())
             modelPlayer->setInteractionEnabled(isInteractive());
     }
 #if ENABLE(MODEL_ELEMENT_ANIMATIONS_CONTROL)
@@ -1109,8 +1125,27 @@ WebCore::StageModeOperation HTMLModelElement::stageMode() const
 
 void HTMLModelElement::updateStageMode()
 {
+    auto mode = stageMode();
     if (m_modelPlayer)
-        m_modelPlayer->setStageMode(stageMode());
+        m_modelPlayer->setStageMode(mode);
+
+#if ENABLE(TOUCH_EVENTS)
+    if (!m_eventListener)
+        m_eventListener = HTMLModelElementEventListener::create();
+
+    if (mode == WebCore::StageModeOperation::Orbit) {
+        addEventListener(eventNames().touchstartEvent, *m_eventListener, { });
+        addEventListener(eventNames().touchmoveEvent, *m_eventListener, { });
+        addEventListener(eventNames().touchendEvent, *m_eventListener, { });
+        document().didAddTouchEventHandler(*this);
+    } else {
+        removeEventListener(eventNames().touchstartEvent, *m_eventListener, { });
+        removeEventListener(eventNames().touchmoveEvent, *m_eventListener, { });
+        removeEventListener(eventNames().touchendEvent, *m_eventListener, { });
+        document().didRemoveTouchEventHandler(*this);
+    }
+
+#endif
 }
 
 #endif
@@ -1251,14 +1286,15 @@ bool HTMLModelElement::shouldDeferLoading() const
 void HTMLModelElement::modelResourceFinished()
 {
     auto invalidateResourceHandleAndUpdateRenderer = [&] {
-        m_resource->removeClient(*this);
+        protect(m_resource)->removeClient(*this);
         m_resource = nullptr;
 
         if (CheckedPtr renderer = this->renderer())
             renderer->updateFromElement();
     };
 
-    if (m_resource->loadFailedOrCanceled()) {
+    RefPtr resource = m_resource;
+    if (resource->loadFailedOrCanceled()) {
         m_data.reset();
 
         ActiveDOMObject::queueTaskToDispatchEvent(*this, TaskSource::DOMManipulation, Event::create(eventNames().errorEvent, Event::CanBubble::No, Event::IsCancelable::No));
@@ -1273,7 +1309,7 @@ void HTMLModelElement::modelResourceFinished()
 
     m_dataComplete = true;
     m_dataMemoryCost.store(m_data.size(), std::memory_order_relaxed);
-    m_model = Model::create(m_data.takeBufferAsContiguous().get(), m_resource->mimeType(), m_resource->url());
+    m_model = Model::create(m_data.takeBufferAsContiguous().get(), resource->mimeType(), resource->url());
 
     ActiveDOMObject::queueTaskToDispatchEvent(*this, TaskSource::DOMManipulation, Event::create(eventNames().loadEvent, Event::CanBubble::No, Event::IsCancelable::No));
 
@@ -1661,9 +1697,9 @@ bool HTMLModelElement::isURLAttribute(const Attribute& attribute) const
         || HTMLElement::isURLAttribute(attribute);
 }
 
-Node::InsertedIntoAncestorResult HTMLModelElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps HTMLModelElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    auto insertResult = HTMLElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    auto insertResult = HTMLElement::insertionSteps(insertionType, parentOfInsertedTree);
 
     if (insertionType.connectedToDocument) {
         Ref document = this->document();
@@ -1671,16 +1707,16 @@ Node::InsertedIntoAncestorResult HTMLModelElement::insertedIntoAncestor(Insertio
 #if ENABLE(MODEL_PROCESS)
         document->incrementModelElementCount();
 #endif
-        m_modelPlayerProvider = protect(document->page())->modelPlayerProvider();
+        m_modelPlayerProvider = document->page()->modelPlayerProvider();
         LazyLoadModelObserver::observe(*this);
     }
 
     return insertResult;
 }
 
-void HTMLModelElement::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+void HTMLModelElement::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
-    HTMLElement::removedFromAncestor(removalType, oldParentOfRemovedTree);
+    HTMLElement::removingSteps(removalType, oldParentOfRemovedTree);
 
     if (removalType.disconnectedFromDocument) {
         Ref document = this->document();
@@ -1752,7 +1788,7 @@ void HTMLModelElement::sourceRequestResource()
     m_data.empty();
 
     m_resource = resource.value();
-    m_resource->addClient(*this);
+    protect(m_resource)->addClient(*this);
 }
 
 void HTMLModelElement::viewportIntersectionChanged(bool isIntersecting)

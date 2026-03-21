@@ -25,8 +25,8 @@
 
 #pragma once
 
-#include "AXObjectCache.h"
-#include "AccessibilityMockObject.h"
+#include <WebCore/AXObjectCache.h>
+#include <WebCore/AccessibilityMockObject.h>
 
 namespace WebCore {
 
@@ -40,9 +40,8 @@ public:
     void initializePlatformElementWithRemoteToken(AccessibilityRemoteToken, int);
     AccessibilityRemoteToken generateRemoteToken() const;
     RetainPtr<id> remoteFramePlatformElement() const final { return m_remoteFramePlatformElement; }
-    pid_t remoteFrameProcessIdentifier() const final { return m_processIdentifier; }
-    pid_t processIdentifier() const { return m_processIdentifier; }
-    std::optional<FrameIdentifier> frameID() const { return m_frameID; }
+    pid_t remoteFramePID() const final { return m_processIdentifier; }
+    std::optional<FrameIdentifier> remoteFrameID() const final { return m_frameID; }
     void setFrameID(FrameIdentifier frameID) { m_frameID = frameID; }
 #endif
 

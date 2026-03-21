@@ -25,9 +25,9 @@
 
 #pragma once
 
-#include <WebCore/BufferSource.h>
-#include <WebCore/CryptoAlgorithmParameters.h>
-#include <WebCore/CryptoAlgorithmRsaOaepParamsInit.h>
+#include "BufferSource.h"
+#include "CryptoAlgorithmParameters.h"
+#include "CryptoAlgorithmRsaOaepParamsInit.h"
 #include <wtf/Vector.h>
 
 namespace WebCore {
@@ -51,7 +51,7 @@ public:
 
     Class parametersClass() const final { return Class::RsaOaepParams; }
 
-    const Vector<uint8_t>& labelVector() const
+    const Vector<uint8_t>& labelVector() const LIFETIME_BOUND
     {
         if (!m_labelVector.isEmpty() || !label)
             return m_labelVector;

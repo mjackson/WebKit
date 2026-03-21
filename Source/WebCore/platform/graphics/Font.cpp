@@ -30,6 +30,8 @@
 #include "config.h"
 #include "Font.h"
 
+#include "FontInlines.h"
+
 #if PLATFORM(COCOA)
 #include <pal/spi/cf/CoreTextSPI.h>
 #endif
@@ -38,7 +40,13 @@
 #include "FontCache.h"
 #include "FontCascade.h"
 #include "FontCustomPlatformData.h"
+#include "GlyphPage.h"
 #include "SharedBuffer.h"
+
+#if ENABLE(MATHML)
+#include "OpenTypeMathData.h"
+#endif
+
 #include <wtf/MathExtras.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -98,7 +106,7 @@ Font::Font(const FontPlatformData& platformData, Origin origin, IsInterstitial i
     platformCharWidthInit();
 #if ENABLE(OPENTYPE_VERTICAL)
     if (platformData.orientation() == FontOrientation::Vertical && orientationFallback == IsOrientationFallback::No) {
-        m_verticalData = FontCache::forCurrentThread()->verticalData(platformData);
+        m_verticalData = FontCache::forCurrentThread().verticalData(platformData);
         m_hasVerticalGlyphs = m_verticalData.get() && m_verticalData->hasVerticalMetrics();
     }
 #endif
@@ -212,7 +220,7 @@ static bool fillGlyphPage(GlyphPage& pageToFill, std::span<const char16_t> buffe
     return hasGlyphs;
 }
 
-static std::optional<size_t> codePointSupportIndex(char32_t codePoint)
+static std::optional<size_t> NODELETE codePointSupportIndex(char32_t codePoint)
 {
     // FIXME: Consider reordering these so the most common ones are at the front.
     // Doing this could cause the BitVector to fit inside inline storage and therefore
@@ -419,11 +427,9 @@ static RefPtr<GlyphPage> createAndFillGlyphPage(unsigned pageNumber, const Font&
 
 const GlyphPage* Font::glyphPage(unsigned pageNumber) const
 {
-    auto addResult = m_glyphPages.add(pageNumber, nullptr);
-    if (addResult.isNewEntry)
-        addResult.iterator->value = createAndFillGlyphPage(pageNumber, *this);
-
-    return addResult.iterator->value.get();
+    return m_glyphPages.ensure(pageNumber, [&] {
+        return createAndFillGlyphPage(pageNumber, *this);
+    }).iterator->value.get();
 }
 
 Glyph Font::glyphForCharacter(char32_t character) const

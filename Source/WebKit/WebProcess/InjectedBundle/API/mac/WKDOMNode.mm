@@ -64,7 +64,7 @@
     if (!node)
         return;
 
-    protect(*_impl)->insertBefore(*WebKit::toProtectedWebCoreNode(node).get(), WebKit::toProtectedWebCoreNode(refNode).get());
+    protect(*_impl)->insertBefore(*protect(WebKit::toWebCoreNode(node)), protect(WebKit::toWebCoreNode(refNode)));
 }
 
 - (void)appendChild:(WKDOMNode *)node
@@ -72,7 +72,7 @@
     if (!node)
         return;
 
-    protect(*_impl)->appendChild(*WebKit::toProtectedWebCoreNode(node).get());
+    protect(*_impl)->appendChild(*protect(WebKit::toWebCoreNode(node)));
 }
 
 - (void)removeChild:(WKDOMNode *)node
@@ -80,7 +80,7 @@
     if (!node)
         return;
 
-    protect(*_impl)->removeChild(*WebKit::toProtectedWebCoreNode(node).get());
+    protect(*_impl)->removeChild(*protect(WebKit::toWebCoreNode(node)));
 }
 
 - (WKDOMDocument *)document

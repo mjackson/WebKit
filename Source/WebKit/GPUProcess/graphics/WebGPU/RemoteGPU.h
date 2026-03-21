@@ -58,8 +58,10 @@ class Connection;
 }
 
 namespace WebCore {
+class IOSurface;
 class MediaPlayer;
 class NativeImage;
+class ProcessIdentity;
 class VideoFrame;
 }
 
@@ -96,6 +98,8 @@ public:
 
     void paintNativeImageToImageBuffer(WebCore::NativeImage&, WebCore::RenderingResourceIdentifier);
     RefPtr<GPUConnectionToWebProcess> gpuConnectionToWebProcess() const;
+
+    static Vector<UniqueRef<WebCore::IOSurface>> createRenderBuffers(unsigned width, unsigned height, const WebCore::ProcessIdentity&);
 
 private:
     friend class WebGPU::ObjectHeap;

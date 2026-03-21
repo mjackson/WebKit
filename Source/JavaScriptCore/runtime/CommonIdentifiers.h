@@ -439,6 +439,7 @@ namespace JSC {
         const Identifier useStrictIdentifier;
         const Identifier timesIdentifier;
         const Identifier negativeOneIdentifier;
+        const Identifier usingIdentifier;
     private:
         std::unique_ptr<BuiltinNames> m_builtinNames;
 

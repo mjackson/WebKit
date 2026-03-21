@@ -51,7 +51,6 @@ bool MockMediaDeviceRouteController::enabled() const
 
 void MockMediaDeviceRouteController::setEnabled(bool enabled)
 {
-    MediaDeviceRouteController::singleton().setClient(enabled ? &MediaSessionHelper::sharedHelper() : nullptr);
     setMockMediaDeviceRouteControllerEnabled(enabled);
 }
 

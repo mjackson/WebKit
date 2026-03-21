@@ -124,13 +124,8 @@ bool LibWebRTCRtpSenderBackend::replaceTrack(RTCRtpSender& sender, MediaStreamTr
         });
     }
 
-    protectedPeerConnectionBackend()->setSenderSourceFromTrack(*this, *track);
+    protect(m_peerConnectionBackend)->setSenderSourceFromTrack(*this, *track);
     return true;
-}
-
-RefPtr<LibWebRTCPeerConnectionBackend> LibWebRTCRtpSenderBackend::protectedPeerConnectionBackend() const
-{
-    return m_peerConnectionBackend.get();
 }
 
 RTCRtpSendParameters LibWebRTCRtpSenderBackend::getParameters() const
@@ -142,7 +137,7 @@ RTCRtpSendParameters LibWebRTCRtpSenderBackend::getParameters() const
     return toRTCRtpSendParameters(*m_currentParameters);
 }
 
-static bool validateModifiedParameters(const RTCRtpSendParameters& newParameters, const RTCRtpSendParameters& oldParameters)
+static bool NODELETE validateModifiedParameters(const RTCRtpSendParameters& newParameters, const RTCRtpSendParameters& oldParameters)
 {
     if (oldParameters.transactionId != newParameters.transactionId)
         return false;
@@ -209,7 +204,7 @@ void LibWebRTCRtpSenderBackend::setParameters(const RTCRtpSendParameters& parame
     }
 
     auto rtcParameters = *std::exchange(m_currentParameters, std::nullopt);
-    updateRTCRtpSendParameters(parameters, rtcParameters);
+    updateRTCRtpSendParameters(parameters, rtcParameters, m_rtcSender->media_type());
 
     auto error = m_rtcSender->SetParameters(rtcParameters);
     if (!error.ok()) {

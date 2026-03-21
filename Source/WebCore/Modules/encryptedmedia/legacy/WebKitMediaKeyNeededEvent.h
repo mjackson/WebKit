@@ -57,7 +57,7 @@ private:
     WebKitMediaKeyNeededEvent(const AtomString& type, Uint8Array* initData);
     WebKitMediaKeyNeededEvent(const AtomString& type, Init&&, IsTrusted);
 
-    RefPtr<Uint8Array> m_initData;
+    const RefPtr<Uint8Array> m_initData;
 };
 
 } // namespace WebCore

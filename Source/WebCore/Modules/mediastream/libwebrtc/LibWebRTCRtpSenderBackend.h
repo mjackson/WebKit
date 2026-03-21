@@ -58,7 +58,6 @@ public:
 
     void setRTCSender(RefPtr<webrtc::RtpSenderInterface>&& rtcSender) { m_rtcSender = WTF::move(rtcSender); }
     webrtc::RtpSenderInterface* rtcSender() { return m_rtcSender.get(); }
-    RefPtr<webrtc::RtpSenderInterface> protectedRTCSender() { return m_rtcSender; }
 
     RealtimeOutgoingVideoSource* videoSource();
     void clearSource() { setSource(nullptr); }
@@ -82,8 +81,6 @@ private:
     void startSource();
     void stopSource();
     bool hasSource() const;
-
-    RefPtr<LibWebRTCPeerConnectionBackend> NODELETE protectedPeerConnectionBackend() const;
 
     WeakPtr<LibWebRTCPeerConnectionBackend> m_peerConnectionBackend;
     RefPtr<webrtc::RtpSenderInterface> m_rtcSender;

@@ -63,15 +63,10 @@ RefPtr<Element> CommandEvent::source() const
     if (!m_source)
         return nullptr;
 
-    if (RefPtr target = dynamicDowncast<Node>(currentTarget())) {
-        Ref treeScope = target->treeScope();
-        Ref node = treeScope->retargetToScope(*m_source);
-        return downcast<Element>(node);
-    }
+    if (RefPtr target = dynamicDowncast<Node>(currentTarget()))
+        return downcast<Element>(target->treeScope().retargetToScope(*m_source));
 
-    Ref treeScope = m_source->treeScope().documentScope();
-    Ref node = treeScope->retargetToScope(*m_source);
-    return downcast<Element>(node);
+    return downcast<Element>(m_source->treeScope().documentScope().retargetToScope(*m_source));
 }
 
 } // namespace WebCore

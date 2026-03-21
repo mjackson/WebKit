@@ -31,6 +31,7 @@
 #if ENABLE(MATHML)
 
 #include "MathMLElement.h"
+#include "FontInlines.h"
 #include "MathMLNames.h"
 #include "MathMLTokenElement.h"
 #include "PaintInfo.h"
@@ -195,7 +196,7 @@ void RenderMathMLToken::paint(PaintInfo& info, const LayoutPoint& paintOffset)
         return;
 
     GraphicsContextStateSaver stateSaver(info.context());
-    info.context().setFillColor(style().visitedDependentColorApplyingColorFilter());
+    info.context().setFillColor(style().visitedDependentTextFillColorApplyingColorFilter());
 
     auto glyphAscent = settings().subpixelInlineLayoutEnabled() ? -mathVariantGlyph.font->boundsForGlyph(mathVariantGlyph.glyph).y() : roundf(-mathVariantGlyph.font->boundsForGlyph(mathVariantGlyph.glyph).y());
     // FIXME: If we're just drawing a single glyph, why do we need to compute an advance?

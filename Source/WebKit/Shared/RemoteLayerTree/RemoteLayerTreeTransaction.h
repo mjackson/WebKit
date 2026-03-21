@@ -147,14 +147,14 @@ public:
     
     bool NODELETE hasAnyLayerChanges() const;
 
-    const Vector<LayerCreationProperties>& createdLayers() const { return m_createdLayers; }
-    const Vector<WebCore::PlatformLayerIdentifier>& destroyedLayers() const { return m_destroyedLayerIDs; }
-    const Vector<WebCore::PlatformLayerIdentifier>& layerIDsWithNewlyUnreachableBackingStore() const { return m_layerIDsWithNewlyUnreachableBackingStore; }
+    const Vector<LayerCreationProperties>& createdLayers() const LIFETIME_BOUND { return m_createdLayers; }
+    const Vector<WebCore::PlatformLayerIdentifier>& destroyedLayers() const LIFETIME_BOUND { return m_destroyedLayerIDs; }
+    const Vector<WebCore::PlatformLayerIdentifier>& layerIDsWithNewlyUnreachableBackingStore() const LIFETIME_BOUND { return m_layerIDsWithNewlyUnreachableBackingStore; }
 
-    HashSet<Ref<PlatformCALayerRemote>>& NODELETE changedLayers();
+    HashSet<Ref<PlatformCALayerRemote>>& NODELETE changedLayers() LIFETIME_BOUND;
 
-    const LayerPropertiesMap& NODELETE changedLayerProperties() const;
-    LayerPropertiesMap& changedLayerProperties();
+    const LayerPropertiesMap& NODELETE changedLayerProperties() const LIFETIME_BOUND;
+    LayerPropertiesMap& NODELETE changedLayerProperties() LIFETIME_BOUND;
 
     void setRemoteContextHostedIdentifier(Markable<WebCore::LayerHostingContextIdentifier> identifier) { m_remoteContextHostedIdentifier = identifier; }
     Markable<WebCore::LayerHostingContextIdentifier> remoteContextHostedIdentifier() const { return m_remoteContextHostedIdentifier; }
@@ -172,7 +172,7 @@ public:
     void setScrollPosition(WebCore::IntPoint p) { m_scrollPosition = p; }
 
 #if ENABLE(THREADED_ANIMATIONS)
-    const WebCore::AcceleratedTimelinesUpdate& timelinesUpdate() const { return m_timelinesUpdate; }
+    const WebCore::AcceleratedTimelinesUpdate& timelinesUpdate() const LIFETIME_BOUND { return m_timelinesUpdate; }
     void setTimelinesUpdate(WebCore::AcceleratedTimelinesUpdate&& timelinesUpdate) { m_timelinesUpdate = WTF::move(timelinesUpdate); }
 #endif
 

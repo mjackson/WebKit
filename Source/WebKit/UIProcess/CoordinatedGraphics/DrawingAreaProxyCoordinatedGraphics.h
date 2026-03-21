@@ -59,7 +59,7 @@ public:
 #endif
 
     bool isInAcceleratedCompositingMode() const { return !m_layerTreeContext.isEmpty(); }
-    const LayerTreeContext& layerTreeContext() const { return m_layerTreeContext; }
+    const LayerTreeContext& layerTreeContext() const LIFETIME_BOUND { return m_layerTreeContext; }
 
     void dispatchAfterEnsuringDrawing(CompletionHandler<void()>&&);
 

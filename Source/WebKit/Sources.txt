@@ -421,6 +421,7 @@ UIProcess/ModelElementController.cpp
 UIProcess/OverrideLanguages.cpp
 UIProcess/PageClient.cpp
 UIProcess/PageLoadState.cpp
+UIProcess/ProcessActivityGroup.cpp
 UIProcess/ProcessAssertion.cpp
 UIProcess/ProcessThrottler.cpp
 UIProcess/ProvisionalFrameProxy.cpp
@@ -933,6 +934,7 @@ WebProcess/WebCoreSupport/WebWorkerClient.cpp
 
 WebProcess/WebPage/DrawingArea.cpp
 WebProcess/WebPage/EventDispatcher.cpp
+WebProcess/WebPage/FindIndicator.cpp
 WebProcess/WebPage/FindController.cpp
 WebProcess/WebPage/IPCTestingAPI.cpp
 WebProcess/WebPage/MomentumEventDispatcher.cpp

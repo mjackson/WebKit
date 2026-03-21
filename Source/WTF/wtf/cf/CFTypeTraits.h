@@ -46,6 +46,14 @@ struct WTF::CFTypeTrait<ClassName##Ref> { \
     static inline CFTypeID typeID() { return ClassName##GetTypeID(); } \
 };
 
+// Macro for CF types that don't have a GetTypeID function but are still CF types.
+// This enables IsCFType and protect() but dynamic_cf_cast / checked_cf_cast will not work.
+#define WTF_DECLARE_CF_TYPE_TRAIT_WITHOUT_TYPE_ID(ClassName) \
+template <> \
+struct WTF::CFTypeTrait<ClassName##Ref> { \
+    static inline CFTypeID typeID() { RELEASE_ASSERT_NOT_REACHED(); } \
+};
+
 #define WTF_DECLARE_CF_MUTABLE_TYPE_TRAIT(ClassName, MutableClassName) \
 template <> \
 struct WTF::CFTypeTrait<MutableClassName##Ref> { \
@@ -57,6 +65,7 @@ WTF_DECLARE_CF_TYPE_TRAIT(CFArray);
 WTF_DECLARE_CF_TYPE_TRAIT(CFBoolean);
 WTF_DECLARE_CF_TYPE_TRAIT(CFData);
 WTF_DECLARE_CF_TYPE_TRAIT(CFDictionary);
+WTF_DECLARE_CF_TYPE_TRAIT(CFError);
 WTF_DECLARE_CF_TYPE_TRAIT(CFNumber);
 WTF_DECLARE_CF_TYPE_TRAIT(CFRunLoop);
 WTF_DECLARE_CF_TYPE_TRAIT(CFRunLoopSource);

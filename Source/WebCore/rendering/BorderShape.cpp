@@ -60,7 +60,7 @@ BorderShape BorderShape::shapeForBorderRect(const RenderStyle& style, const Layo
     };
 
     if (style.border().hasBorderRadius()) {
-        auto radii = Style::evaluate<LayoutRoundedRectRadii>(style.borderRadii(), borderRect.size(), Style::ZoomNeeded { });
+        auto radii = Style::evaluate<LayoutRoundedRectRadii>(style.borderRadii(), borderRect.size(), style.usedZoomForLength());
         radii.scale(calcBorderRadiiConstraintScaleFor(borderRect, radii));
 
         if (!closedEdges.top()) {
@@ -100,7 +100,7 @@ BorderShape BorderShape::shapeForOutsetRect(const RenderStyle& style, const Layo
     };
 
     if (style.border().hasBorderRadius()) {
-        auto radii = Style::evaluate<LayoutRoundedRectRadii>(style.borderRadii(), borderRect.size(), Style::ZoomNeeded { });
+        auto radii = Style::evaluate<LayoutRoundedRectRadii>(style.borderRadii(), borderRect.size(), style.usedZoomForLength());
 
         auto leftOutset = std::max(borderRect.x() - outlineBoxRect.x(), 0_lu);
         auto topOutset = std::max(borderRect.y() - outlineBoxRect.y(), 0_lu);
@@ -139,7 +139,7 @@ BorderShape BorderShape::shapeForOutsetRect(const RenderStyle& style, const Layo
 BorderShape BorderShape::shapeForInsetRect(const RenderStyle& style, const LayoutRect& borderRect, const LayoutRect& insetRect)
 {
     if (style.border().hasBorderRadius()) {
-        auto radii = Style::evaluate<LayoutRoundedRectRadii>(style.borderRadii(), borderRect.size(), Style::ZoomNeeded { });
+        auto radii = Style::evaluate<LayoutRoundedRectRadii>(style.borderRadii(), borderRect.size(), style.usedZoomForLength());
 
         auto leftInset = std::max(insetRect.x() - borderRect.x(), 0_lu);
         auto topInset = std::max(insetRect.y()- borderRect.y(), 0_lu);

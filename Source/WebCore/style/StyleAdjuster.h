@@ -55,8 +55,8 @@ public:
     void adjustAnimatedStyle(RenderStyle&, OptionSet<AnimationImpact>) const;
 
     static void adjustVisibilityForPseudoElement(RenderStyle&, const Element& host);
-    static void adjustFirstLetterStyle(RenderStyle&);
-    static void adjustFirstLineStyle(RenderStyle&);
+    static void NODELETE adjustFirstLetterStyle(RenderStyle&);
+    static void NODELETE adjustFirstLineStyle(RenderStyle&);
     static void adjustSVGElementStyle(RenderStyle&, const SVGElement&);
     static bool adjustEventListenerRegionTypesForRootStyle(RenderStyle&, const Document&);
     static void adjustColumnStylesForPaginationMode(RenderStyle&, PaginationMode);
@@ -76,7 +76,7 @@ public:
 #endif
 
 private:
-    void adjustDisplayContentsStyle(RenderStyle&) const;
+    void NODELETE adjustDisplayContentsStyle(RenderStyle&) const;
     void adjustForSiteSpecificQuirks(RenderStyle&) const;
 
     void adjustThemeStyle(RenderStyle&, const RenderStyle& parentStyle) const;

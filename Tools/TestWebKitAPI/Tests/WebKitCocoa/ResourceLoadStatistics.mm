@@ -91,12 +91,8 @@ static void ensureITPFileIsCreated()
     [dataStore _setResourceLoadStatisticsEnabled:NO];
 }
 
-// FIXME when rdar://109481486 is resolved rdar://134535336
-#if PLATFORM(IOS) || PLATFORM(VISION) || PLATFORM(MAC)
+// FIXME when rdar://172325390 is resolved
 TEST(ResourceLoadStatistics, DISABLED_GrandfatherCallback)
-#else
-TEST(ResourceLoadStatistics, GrandfatherCallback)
-#endif
 {
     auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     dataStoreConfiguration.get().pcmMachServiceName = nil;
@@ -893,18 +889,12 @@ TEST(ResourceLoadStatistics, GetResourceLoadStatisticsDataSummary)
     TestWebKitAPI::Util::run(&doneFlag);
 }
 
-// rdar://134535336
-#if PLATFORM(IOS) || PLATFORM(MAC)
-TEST(ResourceLoadStatistics, DISABLED_MigrateDataFromIncorrectCreateTableSchema)
-#else
 TEST(ResourceLoadStatistics, MigrateDataFromIncorrectCreateTableSchema)
-#endif
 {
     auto *sharedProcessPool = [WKProcessPool _sharedProcessPool];
 
     auto defaultFileManager = [NSFileManager defaultManager];
-    auto *dataStore = [WKWebsiteDataStore defaultDataStore];
-    NSURL *itpRootURL = [[dataStore _configuration] _resourceLoadStatisticsDirectory];
+    NSURL *itpRootURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:@"MigrateDataFromIncorrectCreateTableSchemaTest"] isDirectory:YES];
     NSURL *fileURL = [itpRootURL URLByAppendingPathComponent:@"observations.db"];
     [defaultFileManager removeItemAtPath:itpRootURL.path error:nil];
     EXPECT_FALSE([defaultFileManager fileExistsAtPath:itpRootURL.path]);
@@ -917,17 +907,28 @@ TEST(ResourceLoadStatistics, MigrateDataFromIncorrectCreateTableSchema)
     [defaultFileManager copyItemAtPath:newFileURL.path toPath:fileURL.path error:nil];
     EXPECT_TRUE([defaultFileManager fileExistsAtPath:fileURL.path]);
 
+    auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    dataStoreConfiguration.get()._resourceLoadStatisticsDirectory = itpRootURL;
+    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration setProcessPool: sharedProcessPool];
-    configuration.get().websiteDataStore = dataStore;
+    configuration.get().websiteDataStore = dataStore.get();
 
     // We need an active NetworkProcess to perform ResourceLoadStatistics operations.
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [dataStore _setResourceLoadStatisticsEnabled:YES];
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]]];
+    [webView loadHTMLString:@"" baseURL:[NSURL URLWithString:@"http://webkit.org"]];
+    [webView _test_waitForDidFinishNavigation];
 
     __block bool doneFlag = false;
+    [dataStore _setThirdPartyCookieBlockingMode:YES onlyOnSitesWithoutUserInteraction:NO completionHandler:^{
+        doneFlag = true;
+    }];
+    TestWebKitAPI::Util::run(&doneFlag);
+
     // Check that the pre-seeded data is in the new database after migrating.
+    doneFlag = false;
     [dataStore _isRegisteredAsSubresourceUnderFirstParty:[NSURL URLWithString:@"http://apple.com"] thirdParty:[NSURL URLWithString:@"http://webkit.org"] completionHandler: ^(BOOL isRegistered) {
         EXPECT_TRUE(isRegistered);
         doneFlag = true;
@@ -1204,12 +1205,6 @@ TEST(ResourceLoadStatistics, BackForwardPerPageData)
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"resource-load-statistics"];
 
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-
-    // FIXME: Page cache is currently disabled under site isolation; see rdar://161762363.
-    // This test relies on the backforward cache. Once it is enabled in site isolation, remove this early return.
-    if (isSiteIsolationEnabled(webView.get()))
-        return;
-
     [webView setNavigationDelegate:delegate.get()];
 
     static bool doneFlag = false;
@@ -2424,4 +2419,70 @@ TEST(ResourceLoadStatistics, StorageAccessGrantMultipleSubFrameDomains)
     EXPECT_WK_STREQ([uiDelegate waitForAlert], @"true");
     EXPECT_FALSE(didSendSite2CookieHeader);
     didSendSite2CookieHeader = false;
+}
+
+// Verify that hasStorageAccess calls its completionHandler even when the ITP
+// database cannot be opened. Before the fix for rdar://171987676 the handler
+// was dropped, which caused the JS promise to never settle.
+TEST(ResourceLoadStatistics, HasStorageAccessWithDatabaseError)
+{
+    using namespace TestWebKitAPI;
+
+    // Create a temp directory where observations.db is itself a *directory*,
+    // which makes SQLiteDatabase::open() fail while the store object still
+    // gets created. This forces ensureResourceStatisticsForRegistrableDomain
+    // to return std::nullopt, exercising the error‐return path.
+    auto *defaultFileManager = [NSFileManager defaultManager];
+    NSURL *itpRootURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:@"HasStorageAccessWithDatabaseErrorTest"] isDirectory:YES];
+    [defaultFileManager removeItemAtPath:itpRootURL.path error:nil];
+    [defaultFileManager createDirectoryAtURL:[itpRootURL URLByAppendingPathComponent:@"observations.db"] withIntermediateDirectories:YES attributes:nil error:nil];
+
+    HTTPServer httpServer({
+        { "/"_s, { "<body></body>"_s } },
+        { "/has-access"_s, { "<body><script>document.hasStorageAccess().then((result) => alert(result ? 'true' : 'false'), (error) => alert('error'));</script></body>"_s } },
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    storeConfiguration.get().httpsProxy = [NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", httpServer.port()]];
+    storeConfiguration.get()._resourceLoadStatisticsDirectory = itpRootURL;
+
+    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    [dataStore _setResourceLoadStatisticsEnabled:YES];
+
+    // Wait for the ResourceLoadStatisticsStore to be created on the
+    // background queue. Without this synchronization point the store
+    // may still be null when hasStorageAccess is called, which would
+    // bypass the error path we want to exercise.
+    __block bool done = false;
+    [dataStore _clearResourceLoadStatistics:^(void) {
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [configuration setWebsiteDataStore:dataStore.get()];
+
+    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    [navigationDelegate allowAnyTLSCertificate];
+    [webView setNavigationDelegate:navigationDelegate.get()];
+    [webView setUIDelegate:uiDelegate.get()];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://site1.example/"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    done = false;
+    [webView evaluateJavaScript:@"let iframe = document.createElement('iframe'); iframe.src = 'https://site2.example/has-access'; document.body.appendChild(iframe); true" completionHandler:^(id value, NSError *error) {
+        EXPECT_NULL(error);
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+
+    // Without the fix the completionHandler is dropped and this alert never
+    // arrives, causing the test to time out.
+    EXPECT_WK_STREQ([uiDelegate waitForAlert], @"false");
+
+    [defaultFileManager removeItemAtPath:itpRootURL.path error:nil];
 }

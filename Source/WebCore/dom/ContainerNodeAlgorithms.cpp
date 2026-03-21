@@ -51,8 +51,8 @@ static void notifyNodeInsertedIntoDocument(ContainerNode& parentOfInsertedTree, 
     ASSERT(!node.isConnected());
 
     for (RefPtr currentNode = node; currentNode; currentNode = NodeTraversal::next(*currentNode, &node)) {
-        auto result = currentNode->insertedIntoAncestor(Node::InsertionType { /* connectedToDocument */ true, treeScopeChange == TreeScopeChange::Changed }, parentOfInsertedTree);
-        if (result == Node::InsertedIntoAncestorResult::NeedsPostInsertionCallback)
+        auto result = currentNode->insertionSteps(Node::InsertionType { /* connectedToDocument */ true, treeScopeChange == TreeScopeChange::Changed }, parentOfInsertedTree);
+        if (result == Node::NeedsPostConnectionSteps::Yes)
             postInsertionNotificationTargets.append(*currentNode);
         if (RefPtr root = currentNode->shadowRoot())
             notifyNodeInsertedIntoDocument(parentOfInsertedTree, *root, TreeScopeChange::DidNotChange, postInsertionNotificationTargets);
@@ -65,7 +65,7 @@ static void notifyNodeInsertedIntoTree(ContainerNode& parentOfInsertedTree, Node
     ASSERT(!node.isConnected());
 
     for (RefPtr currentNode = node; currentNode; currentNode = NodeTraversal::next(*currentNode, &node)) {
-        auto result = currentNode->insertedIntoAncestor(Node::InsertionType { /* connectedToDocument */ false, treeScopeChange == TreeScopeChange::Changed }, parentOfInsertedTree);
+        auto result = currentNode->insertionSteps(Node::InsertionType { /* connectedToDocument */ false, treeScopeChange == TreeScopeChange::Changed }, parentOfInsertedTree);
         UNUSED_PARAM(result);
         if (RefPtr root = currentNode->shadowRoot())
             notifyNodeInsertedIntoTree(parentOfInsertedTree, *root, TreeScopeChange::DidNotChange);
@@ -78,10 +78,10 @@ void notifyChildNodeInserted(ContainerNode& parentOfInsertedTree, Node& node, No
 {
     ASSERT(ScriptDisallowedScope::InMainThread::hasDisallowedScope());
 
-    InspectorInstrumentation::didInsertDOMNode(node.document(), node);
-
-    Ref protectDocument { node.document() };
+    Ref document { node.document() };
     Ref protectNode { node };
+
+    InspectorInstrumentation::didInsertDOMNode(document, node);
 
     // Tree scope has changed if the container node into which "node" is inserted is in a document or a shadow root.
     auto treeScopeChange = parentOfInsertedTree.isInTreeScope() ? TreeScopeChange::Changed : TreeScopeChange::DidNotChange;
@@ -114,7 +114,7 @@ static RemovedSubtreeResult notifyNodeRemovedFromDocument(ContainerNode& oldPare
     unsigned subTreeSize = 0;
     for (RefPtr currentNode = node; currentNode; currentNode = NodeTraversal::next(*currentNode)) {
         ++subTreeSize;
-        currentNode->removedFromAncestor(Node::RemovalType { /* disconnectedFromDocument */ true, treeScopeChange == TreeScopeChange::Changed }, oldParentOfRemovedTree);
+        currentNode->removingSteps(Node::RemovalType { /* disconnectedFromDocument */ true, treeScopeChange == TreeScopeChange::Changed }, oldParentOfRemovedTree);
         updateCanDelayNodeDeletion(canDelayNodeDeletion, AsyncNodeDeletionQueue::canNodeBeDeletedAsync(node));
         updateObservability(observability, observabilityOfRemovedNode(*currentNode));
         if (RefPtr root = currentNode->shadowRoot()) {
@@ -136,7 +136,7 @@ static RemovedSubtreeResult notifyNodeRemovedFromTree(ContainerNode& oldParentOf
     RemovedSubtreeObservability observability = RemovedSubtreeObservability::NotObservable;
     for (RefPtr currentNode = node; currentNode; currentNode = NodeTraversal::next(*currentNode)) {
         ++subTreeSize;
-        currentNode->removedFromAncestor(Node::RemovalType { /* disconnectedFromDocument */ false, treeScopeChange == TreeScopeChange::Changed }, oldParentOfRemovedTree);
+        currentNode->removingSteps(Node::RemovalType { /* disconnectedFromDocument */ false, treeScopeChange == TreeScopeChange::Changed }, oldParentOfRemovedTree);
         updateCanDelayNodeDeletion(canDelayNodeDeletion, AsyncNodeDeletionQueue::canNodeBeDeletedAsync(node));
         updateObservability(observability, observabilityOfRemovedNode(*currentNode));
         if (RefPtr root = currentNode->shadowRoot()) {

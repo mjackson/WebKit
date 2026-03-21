@@ -128,11 +128,6 @@ static Ref<CSSVariableData> variableDataForPositiveDuration(Seconds durationInSe
     return CSSVariableData::create(tokenRange);
 }
 
-Ref<Document> ConstantPropertyMap::protectedDocument() const
-{
-    return m_document.get();
-}
-
 void ConstantPropertyMap::updateConstantsForSafeAreaInsets()
 {
     RefPtr page = m_document->page();
@@ -146,7 +141,7 @@ void ConstantPropertyMap::updateConstantsForSafeAreaInsets()
 void ConstantPropertyMap::didChangeSafeAreaInsets()
 {
     updateConstantsForSafeAreaInsets();
-    protectedDocument()->invalidateMatchedPropertiesCacheAndForceStyleRecalc();
+    protect(m_document)->invalidateMatchedPropertiesCacheAndForceStyleRecalc();
 }
 
 void ConstantPropertyMap::updateConstantsForFullscreen()
@@ -165,13 +160,13 @@ void ConstantPropertyMap::updateConstantsForFullscreen()
 void ConstantPropertyMap::didChangeFullscreenInsets()
 {
     updateConstantsForFullscreen();
-    protectedDocument()->invalidateMatchedPropertiesCacheAndForceStyleRecalc();
+    protect(m_document)->invalidateMatchedPropertiesCacheAndForceStyleRecalc();
 }
 
 void ConstantPropertyMap::setFullscreenAutoHideDuration(Seconds duration)
 {
     setValueForProperty(ConstantProperty::FullscreenAutoHideDuration, variableDataForPositiveDuration(duration));
-    protectedDocument()->invalidateMatchedPropertiesCacheAndForceStyleRecalc();
+    protect(m_document)->invalidateMatchedPropertiesCacheAndForceStyleRecalc();
 }
 
 }

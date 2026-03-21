@@ -74,7 +74,7 @@ public:
     void setElementArrayBuffer(const AbstractLocker&, WebGLBuffer*);
 
     void NODELETE setVertexAttribEnabled(int index, bool flag);
-    const VertexAttribState& getVertexAttribState(int index) { return m_vertexAttribState[index]; }
+    const VertexAttribState& getVertexAttribState(int index) LIFETIME_BOUND { return m_vertexAttribState[index]; }
     void setVertexAttribState(const AbstractLocker&, GCGLuint, GCGLsizei, GCGLint, GCGLenum, GCGLboolean, GCGLsizei, GCGLintptr, bool, WebGLBuffer*);
     bool hasArrayBuffer(WebGLBuffer* buffer) { return m_vertexAttribState.containsIf([&](auto& item) { return item.bufferBinding == buffer; }); }
     void unbindBuffer(const AbstractLocker&, WebGLBuffer&);
@@ -93,9 +93,11 @@ public:
 
 protected:
     WebGLVertexArrayObjectBase(WebGLRenderingContextBase&, PlatformGLObject, Type);
+    WebGLVertexArrayObjectBase();
+
     void deleteObjectImpl(const AbstractLocker&, GraphicsContextGL*, PlatformGLObject) override = 0;
 
-    Type m_type;
+    const Type m_type;
     bool m_hasEverBeenBound { false };
     WebGLBindingPoint<WebGLBuffer, GraphicsContextGL::ELEMENT_ARRAY_BUFFER> m_boundElementArrayBuffer;
     Vector<VertexAttribState> m_vertexAttribState;

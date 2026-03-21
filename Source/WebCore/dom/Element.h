@@ -81,6 +81,7 @@ class PseudoElement;
 class RenderStyle;
 class RenderTreePosition;
 class Settings;
+class ShadowRoot;
 class SpaceSplitString;
 class StylePropertyMap;
 class StylePropertyMapReadOnly;
@@ -217,7 +218,7 @@ public:
 
     // Call this to get the value of an attribute that is known not to be the style
     // attribute or one of the SVG animatable attributes.
-    inline bool hasAttributeWithoutSynchronization(const QualifiedName&) const;
+    inline bool NODELETE hasAttributeWithoutSynchronization(const QualifiedName&) const;
     inline const AtomString& attributeWithoutSynchronization(const QualifiedName&) const;
     inline const AtomString& attributeWithDefaultARIA(const QualifiedName&) const;
     inline String attributeTrimmedWithDefaultARIA(const QualifiedName&) const;
@@ -275,7 +276,6 @@ public:
     WEBCORE_EXPORT ExceptionOr<void> setAttribute(const AtomString& qualifiedName, const AtomString& value);
     ExceptionOr<void> setAttribute(const AtomString& qualifiedName, const TrustedTypeOrString& value);
     unsigned validateAttributeIndex(unsigned index, const QualifiedName& qname) const;
-    static ExceptionOr<QualifiedName> parseAttributeName(const AtomString& namespaceURI, const AtomString& qualifiedName);
     WEBCORE_EXPORT ExceptionOr<void> setAttributeNS(const AtomString& namespaceURI, const AtomString& qualifiedName, const AtomString& value);
     ExceptionOr<void> setAttributeNS(const AtomString& namespaceURI, const AtomString& qualifiedName, const TrustedTypeOrString& value);
 
@@ -293,12 +293,12 @@ public:
 
     // Internal methods that assume the existence of attribute storage, one should use hasAttributes()
     // before calling them.
-    inline std::span<const Attribute> attributes() const;
-    inline unsigned attributeCount() const;
-    inline const Attribute& attributeAt(unsigned index) const;
-    inline const Attribute* findAttributeByName(const QualifiedName&) const;
-    inline unsigned findAttributeIndexByName(const QualifiedName&) const;
-    inline unsigned findAttributeIndexByName(const AtomString&, bool shouldIgnoreAttributeCase) const;
+    inline std::span<const Attribute> NODELETE attributes() const;
+    inline unsigned NODELETE attributeCount() const;
+    inline const Attribute& NODELETE attributeAt(unsigned index) const;
+    inline const Attribute* NODELETE findAttributeByName(const QualifiedName&) const;
+    inline unsigned NODELETE findAttributeIndexByName(const QualifiedName&) const;
+    inline unsigned NODELETE findAttributeIndexByName(const AtomString&, bool shouldIgnoreAttributeCase) const;
 
     bool checkVisibility(const CheckVisibilityOptions&);
 
@@ -369,12 +369,12 @@ public:
     WEBCORE_EXPORT ExceptionOr<RefPtr<Attr>> setAttributeNodeNS(Attr&);
     WEBCORE_EXPORT ExceptionOr<Ref<Attr>> removeAttributeNode(Attr&);
 
-    RefPtr<Attr> attrIfExists(const QualifiedName&);
+    RefPtr<Attr> NODELETE attrIfExists(const QualifiedName&);
     Ref<Attr> ensureAttr(const QualifiedName&);
 
     const Vector<Ref<Attr>>& NODELETE attrNodeList();
 
-    const QualifiedName& tagQName() const { return m_tagName; }
+    const QualifiedName& tagQName() const LIFETIME_BOUND { return m_tagName; }
 #if ENABLE(JIT)
     static constexpr ptrdiff_t tagQNameMemoryOffset() { return OBJECT_OFFSETOF(Element, m_tagName); }
 #endif
@@ -386,11 +386,11 @@ public:
 
     bool hasLocalName(const AtomString& other) const { return m_tagName.localName() == other; }
 
-    const AtomString& NODELETE localName() const final { return m_tagName.localName(); }
-    const AtomString& NODELETE prefix() const final { return m_tagName.prefix(); }
-    const AtomString& NODELETE namespaceURI() const final { return m_tagName.namespaceURI(); }
+    const AtomString& NODELETE localName() const LIFETIME_BOUND final { return m_tagName.localName(); }
+    const AtomString& NODELETE prefix() const LIFETIME_BOUND final { return m_tagName.prefix(); }
+    const AtomString& NODELETE namespaceURI() const LIFETIME_BOUND final { return m_tagName.namespaceURI(); }
 
-    const AtomString& localNameLowercase() const { return m_tagName.localNameLowercase(); }
+    const AtomString& localNameLowercase() const LIFETIME_BOUND { return m_tagName.localNameLowercase(); }
 
     ElementName elementName() const { return m_tagName.nodeName(); }
     Namespace nodeNamespace() const { return m_tagName.nodeNamespace(); }
@@ -450,7 +450,7 @@ public:
     virtual bool rendererIsNeeded(const RenderStyle&);
     virtual bool isReplaced(const RenderStyle* = nullptr) const { return false; }
 
-    inline ShadowRoot* shadowRoot() const; // Defined in ElementRareData.h
+    inline ShadowRoot* shadowRoot() const;
     RefPtr<ShadowRoot> shadowRootForBindings(JSC::JSGlobalObject&) const;
     RefPtr<ShadowRoot> NODELETE openOrClosedShadowRoot() const;
     RefPtr<Element> resolveReferenceTarget() const;
@@ -466,7 +466,6 @@ public:
 
     WEBCORE_EXPORT ShadowRoot* NODELETE userAgentShadowRoot() const;
     WEBCORE_EXPORT ShadowRoot& ensureUserAgentShadowRoot();
-    Ref<ShadowRoot> ensureProtectedUserAgentShadowRoot();
     WEBCORE_EXPORT ShadowRoot& createUserAgentShadowRoot();
 
     void setIsDefinedCustomElement(JSCustomElementInterface&);
@@ -514,7 +513,7 @@ public:
 
     virtual bool shouldUseInputMethod();
 
-    virtual int tabIndexForBindings() const;
+    WEBCORE_EXPORT int tabIndexForBindings() const;
     WEBCORE_EXPORT void setTabIndexForBindings(int);
 
     // Used by the HTMLElement and SVGElement IDLs.
@@ -572,12 +571,12 @@ public:
 
     virtual bool accessKeyAction(bool /*sendToAnyEvent*/) { return false; }
 
-    virtual bool isURLAttribute(const Attribute&) const { return false; }
-    virtual bool attributeContainsURL(const Attribute& attribute) const { return isURLAttribute(attribute); }
+    virtual bool NODELETE isURLAttribute(const Attribute&) const { return false; }
+    virtual bool NODELETE attributeContainsURL(const Attribute& attribute) const { return isURLAttribute(attribute); }
     String resolveURLStringIfNeeded(const String& urlString, ResolveURLs = ResolveURLs::Yes, const URL& base = URL()) const;
     virtual String completeURLsInAttributeValue(const URL& base, const Attribute&, ResolveURLs = ResolveURLs::Yes) const;
     virtual Attribute replaceURLsInAttributeValue(const Attribute&, const CSS::SerializationContext&) const;
-    virtual bool isHTMLContentAttribute(const Attribute&) const { return false; }
+    virtual bool NODELETE isHTMLContentAttribute(const Attribute&) const { return false; }
 
     WEBCORE_EXPORT URL getURLAttribute(const QualifiedName&) const;
     inline URL getURLAttributeForBindings(const QualifiedName&) const;
@@ -611,7 +610,7 @@ public:
 
     virtual String title() const;
 
-    WEBCORE_EXPORT const AtomString& userAgentPart() const;
+    WEBCORE_EXPORT const AtomString& NODELETE userAgentPart() const;
     WEBCORE_EXPORT void setUserAgentPart(const AtomString&);
 
     // Use Document::registerForDocumentActivationCallbacks() to subscribe to these
@@ -663,18 +662,18 @@ public:
     virtual bool NODELETE isFormListedElement() const { return false; }
     virtual bool NODELETE isValidatedFormListedElement() const { return false; }
     virtual bool NODELETE isMaybeFormAssociatedCustomElement() const { return false; }
-    virtual bool isSpinButtonElement() const { return false; }
-    virtual bool isTextFormControlElement() const { return false; }
-    virtual bool isTextField() const { return false; }
-    virtual bool isTextPlaceholderElement() const { return false; }
-    virtual bool isOptionalFormControl() const { return false; }
-    virtual bool isRequiredFormControl() const { return false; }
+    virtual bool NODELETE isSpinButtonElement() const { return false; }
+    virtual bool NODELETE isTextFormControlElement() const { return false; }
+    virtual bool NODELETE isTextField() const { return false; }
+    virtual bool NODELETE isTextPlaceholderElement() const { return false; }
+    virtual bool NODELETE isOptionalFormControl() const { return false; }
+    virtual bool NODELETE isRequiredFormControl() const { return false; }
+    virtual bool NODELETE isSliderContainerElement() const { return false; }
+    virtual bool NODELETE isSliderThumbElement() const { return false; }
+    virtual bool NODELETE isHTMLTablePartElement() const { return false; }
+
     virtual bool isInRange() const { return false; }
     virtual bool isOutOfRange() const { return false; }
-    virtual bool isUploadButton() const { return false; }
-    virtual bool isSliderContainerElement() const { return false; }
-    virtual bool isSliderThumbElement() const { return false; }
-    virtual bool isHTMLTablePartElement() const { return false; }
 
     virtual bool isDevolvableWidget() const { return false; }
 
@@ -686,33 +685,33 @@ public:
 
     virtual bool childShouldCreateRenderer(const Node&) const;
 
-    KeyframeEffectStack* keyframeEffectStack(const std::optional<Style::PseudoElementIdentifier>&) const;
-    KeyframeEffectStack& ensureKeyframeEffectStack(const std::optional<Style::PseudoElementIdentifier>&);
-    bool hasKeyframeEffects(const std::optional<Style::PseudoElementIdentifier>&) const;
+    KeyframeEffectStack* NODELETE keyframeEffectStack(const std::optional<Style::PseudoElementIdentifier>&) const LIFETIME_BOUND;
+    KeyframeEffectStack& ensureKeyframeEffectStack(const std::optional<Style::PseudoElementIdentifier>&) LIFETIME_BOUND;
+    bool NODELETE hasKeyframeEffects(const std::optional<Style::PseudoElementIdentifier>&) const;
     bool NODELETE mayHaveKeyframeEffects() const;
 
-    const AnimationCollection* animations(const std::optional<Style::PseudoElementIdentifier>&) const;
+    const AnimationCollection* NODELETE animations(const std::optional<Style::PseudoElementIdentifier>&) const LIFETIME_BOUND;
     bool hasCompletedTransitionForProperty(const std::optional<Style::PseudoElementIdentifier>&, const AnimatableCSSProperty&) const;
     bool hasRunningTransitionForProperty(const std::optional<Style::PseudoElementIdentifier>&, const AnimatableCSSProperty&) const;
-    bool hasRunningTransitions(const std::optional<Style::PseudoElementIdentifier>&) const;
-    AnimationCollection& ensureAnimations(const std::optional<Style::PseudoElementIdentifier>&);
+    bool NODELETE hasRunningTransitions(const std::optional<Style::PseudoElementIdentifier>&) const;
+    AnimationCollection& ensureAnimations(const std::optional<Style::PseudoElementIdentifier>&) LIFETIME_BOUND;
 
-    const AnimatableCSSPropertyToTransitionMap* completedTransitionsByProperty(const std::optional<Style::PseudoElementIdentifier>&) const;
-    const AnimatableCSSPropertyToTransitionMap* runningTransitionsByProperty(const std::optional<Style::PseudoElementIdentifier>&) const;
+    const AnimatableCSSPropertyToTransitionMap* NODELETE completedTransitionsByProperty(const std::optional<Style::PseudoElementIdentifier>&) const LIFETIME_BOUND;
+    const AnimatableCSSPropertyToTransitionMap* NODELETE runningTransitionsByProperty(const std::optional<Style::PseudoElementIdentifier>&) const LIFETIME_BOUND;
 
-    AnimatableCSSPropertyToTransitionMap& ensureCompletedTransitionsByProperty(const std::optional<Style::PseudoElementIdentifier>&);
-    AnimatableCSSPropertyToTransitionMap& ensureRunningTransitionsByProperty(const std::optional<Style::PseudoElementIdentifier>&);
-    CSSAnimationCollection& animationsCreatedByMarkup(const std::optional<Style::PseudoElementIdentifier>&);
+    AnimatableCSSPropertyToTransitionMap& ensureCompletedTransitionsByProperty(const std::optional<Style::PseudoElementIdentifier>&) LIFETIME_BOUND;
+    AnimatableCSSPropertyToTransitionMap& ensureRunningTransitionsByProperty(const std::optional<Style::PseudoElementIdentifier>&) LIFETIME_BOUND;
+    CSSAnimationCollection& animationsCreatedByMarkup(const std::optional<Style::PseudoElementIdentifier>&) LIFETIME_BOUND;
     void setAnimationsCreatedByMarkup(const std::optional<Style::PseudoElementIdentifier>&, CSSAnimationCollection&&);
 
-    const RenderStyle* lastStyleChangeEventStyle(const std::optional<Style::PseudoElementIdentifier>&) const;
+    const RenderStyle* NODELETE lastStyleChangeEventStyle(const std::optional<Style::PseudoElementIdentifier>&) const LIFETIME_BOUND;
     void setLastStyleChangeEventStyle(const std::optional<Style::PseudoElementIdentifier>&, std::unique_ptr<const RenderStyle>&&);
-    bool hasPropertiesOverridenAfterAnimation(const std::optional<Style::PseudoElementIdentifier>&) const;
+    bool NODELETE hasPropertiesOverridenAfterAnimation(const std::optional<Style::PseudoElementIdentifier>&) const;
     void setHasPropertiesOverridenAfterAnimation(const std::optional<Style::PseudoElementIdentifier>&, bool);
 
     void cssAnimationsDidUpdate(const std::optional<Style::PseudoElementIdentifier>&);
     void keyframesRuleDidChange(const std::optional<Style::PseudoElementIdentifier>&);
-    bool hasPendingKeyframesUpdate(const std::optional<Style::PseudoElementIdentifier>&) const;
+    bool NODELETE hasPendingKeyframesUpdate(const std::optional<Style::PseudoElementIdentifier>&) const;
     // FIXME: do we need a counter style didChange here? (rdar://103018993).
 
     bool isLink() const { return hasStateFlag(StateFlag::IsLink); }
@@ -729,8 +728,8 @@ public:
     virtual void requestFullscreen(FullscreenOptions&&, RefPtr<DeferredPromise>&&);
 #endif
 
-    PopoverData* NODELETE popoverData() const;
-    PopoverData& ensurePopoverData();
+    PopoverData* NODELETE popoverData() const LIFETIME_BOUND;
+    PopoverData& ensurePopoverData() LIFETIME_BOUND;
     void clearPopoverData();
     bool NODELETE isPopoverShowing() const;
     PopoverState NODELETE popoverState() const;
@@ -750,7 +749,7 @@ public:
     WEBCORE_EXPORT void requestPointerLock();
 #endif
 
-    OptionSet<VisibilityAdjustment> visibilityAdjustment() const;
+    OptionSet<VisibilityAdjustment> NODELETE visibilityAdjustment() const;
     void setVisibilityAdjustment(OptionSet<VisibilityAdjustment>);
     bool isInVisibilityAdjustmentSubtree() const;
 
@@ -779,6 +778,7 @@ public:
     void dispatchFocusOutEventIfNeeded(RefPtr<Element>&& newFocusedElement);
     virtual void dispatchFocusEvent(RefPtr<Element>&& oldFocusedElement, const FocusOptions&);
     virtual void dispatchBlurEvent(RefPtr<Element>&& newFocusedElement);
+    void enqueueFocusedElementDisconnectedEvent();
     void dispatchWebKitImageReadyEventForTesting();
 
     WEBCORE_EXPORT bool dispatchMouseForceWillBegin();
@@ -796,9 +796,9 @@ public:
 
     LayoutRect absoluteEventHandlerBounds(bool& includesFixedPositionElements) override;
 
-    const RenderStyle* existingComputedStyle() const;
-    WEBCORE_EXPORT const RenderStyle* renderOrDisplayContentsStyle() const;
-    WEBCORE_EXPORT const RenderStyle* renderOrDisplayContentsStyle(const std::optional<Style::PseudoElementIdentifier>&) const;
+    const RenderStyle* existingComputedStyle() const LIFETIME_BOUND;
+    WEBCORE_EXPORT const RenderStyle* renderOrDisplayContentsStyle() const LIFETIME_BOUND;
+    WEBCORE_EXPORT const RenderStyle* renderOrDisplayContentsStyle(const std::optional<Style::PseudoElementIdentifier>&) const LIFETIME_BOUND;
 
     void clearBeforePseudoElement();
     void clearAfterPseudoElement();
@@ -859,14 +859,14 @@ public:
     using ContainerNode::setAttributeEventListener;
     void setAttributeEventListener(const AtomString& eventType, const QualifiedName& attributeName, const AtomString& value);
 
-    virtual IntersectionObserverData& ensureIntersectionObserverData();
-    virtual IntersectionObserverData* NODELETE intersectionObserverDataIfExists() const;
+    virtual IntersectionObserverData& ensureIntersectionObserverData() LIFETIME_BOUND;
+    virtual IntersectionObserverData* NODELETE intersectionObserverDataIfExists() const LIFETIME_BOUND;
 
-    ResizeObserverData& ensureResizeObserverData();
-    ResizeObserverData* NODELETE resizeObserverDataIfExists() const;
+    ResizeObserverData& ensureResizeObserverData() LIFETIME_BOUND;
+    ResizeObserverData* NODELETE resizeObserverDataIfExists() const LIFETIME_BOUND;
 
-    ElementLargestContentfulPaintData& ensureLargestContentfulPaintData();
-    ElementLargestContentfulPaintData* NODELETE largestContentfulPaintDataIfExists() const;
+    ElementLargestContentfulPaintData& ensureLargestContentfulPaintData() LIFETIME_BOUND;
+    ElementLargestContentfulPaintData* NODELETE largestContentfulPaintDataIfExists() const LIFETIME_BOUND;
 
     std::optional<LayoutUnit> NODELETE lastRememberedLogicalWidth() const;
     std::optional<LayoutUnit> NODELETE lastRememberedLogicalHeight() const;
@@ -891,8 +891,8 @@ public:
 
     StylePropertyMapReadOnly& computedStyleMap();
 
-    ExplicitlySetAttrElementsMap& explicitlySetAttrElementsMap();
-    ExplicitlySetAttrElementsMap* NODELETE explicitlySetAttrElementsMapIfExists() const;
+    ExplicitlySetAttrElementsMap& explicitlySetAttrElementsMap() LIFETIME_BOUND;
+    ExplicitlySetAttrElementsMap* NODELETE explicitlySetAttrElementsMapIfExists() const LIFETIME_BOUND;
 
     bool NODELETE isRelevantToUser() const;
 
@@ -908,7 +908,7 @@ public:
     void updateEffectiveTextDirection();
     void updateEffectiveTextDirectionIfNeeded();
 
-    AtomString viewTransitionCapturedName(const std::optional<Style::PseudoElementIdentifier>&) const;
+    AtomString NODELETE viewTransitionCapturedName(const std::optional<Style::PseudoElementIdentifier>&) const;
     void setViewTransitionCapturedName(const std::optional<Style::PseudoElementIdentifier>&, AtomString);
 
     double lookupCSSRandomBaseValue(const std::optional<Style::PseudoElementIdentifier>&, const CSSCalc::RandomCachingKey&) const;
@@ -916,11 +916,14 @@ public:
 
     void addShadowRoot(Ref<ShadowRoot>&&);
 
+    bool shouldNotifyTextManipulationControllerIfDisplayed() const;
+    void clearShouldNotifyTextManipulationControllerIfDisplayed();
+
 protected:
     Element(const QualifiedName&, Document&, OptionSet<TypeFlag>);
 
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) override;
-    void removedFromAncestor(RemovalType, ContainerNode&) override;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) override;
+    void removingSteps(RemovalType, ContainerNode&) override;
     void childrenChanged(const ChildChange&) override;
     void removeAllEventListeners() override;
 
@@ -1013,22 +1016,22 @@ private:
     void cloneShadowTreeIfPossible(Element& newHost) const;
     virtual Ref<Element> cloneElementWithoutAttributesAndChildren(Document&, CustomElementRegistry*) const;
 
-    inline void removeShadowRoot(); // Defined in ElementRareData.h.
+    inline void removeShadowRoot();
     void removeShadowRootSlow(ShadowRoot&);
 
     enum class ResolveComputedStyleMode : uint8_t { Normal, RenderedOnly, Editability };
     const RenderStyle* resolveComputedStyle(ResolveComputedStyleMode = ResolveComputedStyleMode::Normal);
-    const RenderStyle& resolvePseudoElementStyle(const Style::PseudoElementIdentifier&);
+    const RenderStyle* resolvePseudoElementStyle(const Style::PseudoElementIdentifier&);
 
     unsigned NODELETE rareDataChildIndex() const;
 
     void createUniqueElementData();
 
-    inline ElementRareData* elementRareData() const;
-    ElementRareData& ensureElementRareData();
+    inline ElementRareData* elementRareData() const LIFETIME_BOUND;
+    ElementRareData& ensureElementRareData() LIFETIME_BOUND;
 
-    ElementAnimationRareData* animationRareData(const std::optional<Style::PseudoElementIdentifier>&) const;
-    ElementAnimationRareData& ensureAnimationRareData(const std::optional<Style::PseudoElementIdentifier>&);
+    ElementAnimationRareData* NODELETE animationRareData(const std::optional<Style::PseudoElementIdentifier>&) const LIFETIME_BOUND;
+    ElementAnimationRareData& ensureAnimationRareData(const std::optional<Style::PseudoElementIdentifier>&) LIFETIME_BOUND;
 
     virtual int defaultTabIndex() const;
 
@@ -1070,6 +1073,7 @@ private:
 
     QualifiedName m_tagName;
     RefPtr<ElementData> m_elementData;
+    RefPtr<ShadowRoot> m_shadowRoot;
 };
 
 inline void Element::setSavedLayerScrollPosition(const ScrollPosition& position)
@@ -1111,6 +1115,16 @@ void invalidateForSiblingCombinators(Element* sibling);
 inline bool isInTopLayerOrBackdrop(const RenderStyle&, const Element*);
 
 WEBCORE_EXPORT WTF::TextStream& operator<<(WTF::TextStream&, ContentRelevancy);
+
+inline ShadowRoot* Node::shadowRoot() const
+{
+    return is<Element>(*this) ? uncheckedDowncast<Element>(*this).shadowRoot() : nullptr;
+}
+
+inline ShadowRoot* Element::shadowRoot() const
+{
+    return m_shadowRoot.get();
+}
 
 } // namespace WebCore
 

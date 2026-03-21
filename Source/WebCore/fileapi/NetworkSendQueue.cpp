@@ -91,6 +91,16 @@ void NetworkSendQueue::clear()
     m_queue.clear();
 }
 
+void NetworkSendQueue::whenEmpty(Function<void()>&& callback)
+{
+    if (m_queue.isEmpty()) {
+        callback();
+        return;
+    }
+
+    m_emptyCallback = WTF::move(callback);
+}
+
 void NetworkSendQueue::processMessages()
 {
     while (!m_queue.isEmpty()) {
@@ -118,6 +128,8 @@ void NetworkSendQueue::processMessages()
         m_queue.removeFirst();
     }
 
+    if (auto callback = std::exchange(m_emptyCallback, { }))
+        callback();
 }
 
 } // namespace WebCore

@@ -25,15 +25,15 @@
 
 #pragma once
 
-#include <WebCore/EventNames.h>
-#include <WebCore/EventTarget.h>
-#include <WebCore/EventTargetInterfaces.h>
-#include <WebCore/IDBActiveDOMObject.h>
-#include <WebCore/IDBConnectionProxy.h>
-#include <WebCore/IDBDatabaseConnectionIdentifier.h>
-#include <WebCore/IDBDatabaseInfo.h>
-#include <WebCore/IDBKeyPath.h>
-#include <WebCore/IDBTransactionMode.h>
+#include "EventNames.h"
+#include "EventTarget.h"
+#include "EventTargetInterfaces.h"
+#include "IDBActiveDOMObject.h"
+#include "IDBConnectionProxy.h"
+#include "IDBDatabaseConnectionIdentifier.h"
+#include "IDBDatabaseInfo.h"
+#include "IDBKeyPath.h"
+#include "IDBTransactionMode.h"
 #include <wtf/ThreadSafeWeakPtr.h>
 
 namespace WebCore {
@@ -87,7 +87,7 @@ public:
     void ref() const final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::ref(); }
     void deref() const final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::deref(); }
 
-    IDBDatabaseInfo& info() { return m_info; }
+    IDBDatabaseInfo& info() LIFETIME_BOUND { return m_info; }
     IDBDatabaseConnectionIdentifier databaseConnectionIdentifier() const { return m_databaseConnectionIdentifier; }
     std::optional<ScriptExecutionContextIdentifier> scriptExecutionContextIdentifier() const;
 
@@ -125,8 +125,6 @@ private:
     void stop() final;
 
     void maybeCloseInServer();
-
-    RefPtr<IDBTransaction> NODELETE protectedVersionChangeTransaction() const;
 
     const Ref<IDBClient::IDBConnectionProxy> m_connectionProxy;
     IDBDatabaseInfo m_info;

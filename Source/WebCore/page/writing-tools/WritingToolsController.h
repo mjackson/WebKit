@@ -32,6 +32,7 @@
 #import "WritingToolsTypes.h"
 #import <wtf/CheckedPtr.h>
 #import <wtf/TZoneMalloc.h>
+#import <wtf/WeakHashSet.h>
 #import <wtf/WeakPtr.h>
 
 namespace WebCore {
@@ -56,7 +57,7 @@ class WritingToolsController final : public CanMakeWeakPtr<WritingToolsControlle
 public:
     explicit WritingToolsController(Page&);
 
-    void willBeginWritingToolsSession(const std::optional<WritingTools::Session>&, CompletionHandler<void(const Vector<WritingTools::Context>&)>&&);
+    void willBeginWritingToolsSession(const std::optional<WritingTools::Session>&, WeakHashSet<Node, WeakPtrImplWithEventTargetData>&&, CompletionHandler<void(const Vector<WritingTools::Context>&)>&&);
 
     void didBeginWritingToolsSession(const WritingTools::Session&, const Vector<WritingTools::Context>&);
 
@@ -223,6 +224,7 @@ private:
 
     WeakPtr<Page> m_page;
     std::unique_ptr<State> m_state;
+    WeakHashSet<Node, WeakPtrImplWithEventTargetData> m_clientPreservedNodes;
 };
 
 } // namespace WebKit

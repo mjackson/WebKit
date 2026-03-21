@@ -102,9 +102,9 @@ private:
 #endif
     void NODELETE endFrame();
 
-    Ref<WebCore::WebGPU::XRProjectionLayer> m_backing;
+    const Ref<WebCore::WebGPU::XRProjectionLayer> m_backing;
     WeakRef<WebGPU::ObjectHeap> m_objectHeap;
-    Ref<IPC::StreamServerConnection> m_streamConnection;
+    const Ref<IPC::StreamServerConnection> m_streamConnection;
     WebGPUIdentifier m_identifier;
     WeakRef<RemoteGPU> m_gpu;
 };

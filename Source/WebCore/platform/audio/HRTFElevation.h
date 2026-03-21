@@ -64,8 +64,8 @@ public:
     static std::unique_ptr<HRTFElevation> createByInterpolatingSlices(HRTFElevation* hrtfElevation1, HRTFElevation* hrtfElevation2, float x, float sampleRate);
 
     // Returns the list of left or right ear HRTFKernels for all the azimuths going from 0 to 360 degrees.
-    HRTFKernelList* kernelListL() { return m_kernelListL.get(); }
-    HRTFKernelList* kernelListR() { return m_kernelListR.get(); }
+    HRTFKernelList* kernelListL() LIFETIME_BOUND { return m_kernelListL.get(); }
+    HRTFKernelList* kernelListR() LIFETIME_BOUND { return m_kernelListR.get(); }
 
     double elevationAngle() const { return m_elevationAngle; }
     unsigned numberOfAzimuths() const { return NumberOfTotalAzimuths; }
@@ -73,7 +73,7 @@ public:
     
     // Returns the left and right kernels for the given azimuth index.
     // The interpolated delays based on azimuthBlend: 0 -> 1 are returned in frameDelayL and frameDelayR.
-    void getKernelsFromAzimuth(double azimuthBlend, unsigned azimuthIndex, HRTFKernel* &kernelL, HRTFKernel* &kernelR, double& frameDelayL, double& frameDelayR);
+    void NODELETE getKernelsFromAzimuth(double azimuthBlend, unsigned azimuthIndex, HRTFKernel* &kernelL, HRTFKernel* &kernelR, double& frameDelayL, double& frameDelayR);
     
     // Spacing, in degrees, between every azimuth loaded from resource.
     static constexpr unsigned AzimuthSpacing { 15 };
@@ -95,8 +95,8 @@ public:
                                                     RefPtr<HRTFKernel>& kernelL, RefPtr<HRTFKernel>& kernelR);
 
 private:
-    std::unique_ptr<HRTFKernelList> m_kernelListL;
-    std::unique_ptr<HRTFKernelList> m_kernelListR;
+    const std::unique_ptr<HRTFKernelList> m_kernelListL;
+    const std::unique_ptr<HRTFKernelList> m_kernelListR;
     double m_elevationAngle;
     float m_sampleRate;
 };

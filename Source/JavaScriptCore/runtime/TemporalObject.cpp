@@ -370,7 +370,7 @@ std::tuple<TemporalUnit, TemporalUnit, RoundingMode, double> extractDifferenceOp
     if (std::holds_alternative<std::optional<TemporalUnit>>(largestUnitMaybeAuto)) {
         auto largestUnitOptional = std::get<std::optional<TemporalUnit>>(largestUnitMaybeAuto);
         if (largestUnitOptional) {
-            if (disallowedUnitsList.size() && std::find(disallowedUnitsList.begin(), disallowedUnitsList.end(), largestUnitOptional.value()) != disallowedUnitsList.end()) [[unlikely]] {
+            if (disallowedUnitsList.size() && std::ranges::find(disallowedUnitsList, largestUnitOptional.value()) != disallowedUnitsList.end()) [[unlikely]] {
                 throwRangeError(globalObject, scope, "largestUnit is a disallowed unit"_s);
                 return { };
             }
@@ -382,7 +382,7 @@ std::tuple<TemporalUnit, TemporalUnit, RoundingMode, double> extractDifferenceOp
 
     auto smallestUnit = smallestUnitOptional.value_or(fallbackSmallestUnit);
 
-    if (disallowedUnitsList.size() && std::find(disallowedUnitsList.begin(), disallowedUnitsList.end(), smallestUnit) != disallowedUnitsList.end()) [[unlikely]] {
+    if (disallowedUnitsList.size() && std::ranges::find(disallowedUnitsList, smallestUnit) != disallowedUnitsList.end()) [[unlikely]] {
         throwRangeError(globalObject, scope, "smallestUnit is a disallowed unit"_s);
         return { };
     }
@@ -455,7 +455,7 @@ PrecisionData secondsStringPrecision(JSGlobalObject* globalObject, JSObject* opt
     auto smallestUnit = std::get<std::optional<TemporalUnit>>(smallestUnitMaybeAuto);
 
     auto disallowedUnits = { TemporalUnit::Year, TemporalUnit::Month, TemporalUnit::Week, TemporalUnit::Day, TemporalUnit::Hour };
-    if (disallowedUnits.size() && std::find(disallowedUnits.begin(), disallowedUnits.end(), smallestUnit) != disallowedUnits.end()) {
+    if (disallowedUnits.size() && std::ranges::find(disallowedUnits, smallestUnit) != disallowedUnits.end()) {
         throwRangeError(globalObject, scope, "smallestUnit is a disallowed unit"_s);
         return { };
     }

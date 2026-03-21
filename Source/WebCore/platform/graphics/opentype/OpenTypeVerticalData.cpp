@@ -29,6 +29,7 @@
 
 #include "FloatRect.h"
 #include "Font.h"
+#include "FontInlines.h"
 #include "GlyphPage.h"
 #include "OpenTypeTypes.h"
 #include "SharedBuffer.h"

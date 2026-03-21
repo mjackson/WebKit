@@ -30,7 +30,7 @@ layer at (19,144) size 241x25
     RenderText {#text} at (0,0) size 13x25
       text run at (0,0) width 13: "0"
 layer at (8,101) size 263x37
-  RenderTextControl {INPUT} at (0,0) size 263x37 [color=color(srgb 0.341176 0.341176 0.341176)] [bgcolor=#FFFFFF] [border: (1px solid #3C3C4399)]
+  RenderTextControl {INPUT} at (0,0) size 263x37 [color=oklab(0.34 0 0)] [bgcolor=#FFFFFF] [border: (1px solid #3C3C4399)]
 layer at (19,107) size 241x25
   RenderBlock {DIV} at (11,6) size 241x25
     RenderText {#text} at (0,0) size 13x25

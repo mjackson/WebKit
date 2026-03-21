@@ -45,7 +45,8 @@ public:
     static Ref<VideoTrackConfiguration> create(VideoTrackConfigurationInit&& init) { return adoptRef(*new VideoTrackConfiguration(WTF::move(init))); }
     static Ref<VideoTrackConfiguration> create() { return adoptRef(*new VideoTrackConfiguration()); }
 
-    void setState(const VideoTrackConfigurationInit&);
+    enum class StateChanged : bool { No, Yes };
+    StateChanged updateState(const VideoTrackConfigurationInit&);
 
     String codec() const { return m_state.codec; }
     void setCodec(String);

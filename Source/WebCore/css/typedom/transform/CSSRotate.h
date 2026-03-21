@@ -60,7 +60,7 @@ public:
     RefPtr<CSSValue> toCSSValue() const final;
     
 private:
-    CSSRotate(CSSTransformComponent::Is2D, Ref<CSSNumericValue>, Ref<CSSNumericValue>, Ref<CSSNumericValue>, Ref<CSSNumericValue>);
+    CSSRotate(CSSTransformComponent::Is2D, Ref<CSSNumericValue>&&, Ref<CSSNumericValue>&&, Ref<CSSNumericValue>&&, Ref<CSSNumericValue>&&);
     
     Ref<CSSNumericValue> m_x;
     Ref<CSSNumericValue> m_y;

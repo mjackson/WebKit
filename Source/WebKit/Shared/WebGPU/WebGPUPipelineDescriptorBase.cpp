@@ -43,7 +43,7 @@ std::optional<PipelineDescriptorBase> ConvertToBackingContext::convertToBacking(
 
     std::optional<WebGPUIdentifier> layout;
     if (pipelineDescriptorBase.layout) {
-        layout = convertToBacking(*pipelineDescriptorBase.protectedLayout().get());
+        layout = convertToBacking(*protect(pipelineDescriptorBase.layout));
         if (!layout)
             return std::nullopt;
     }

@@ -74,7 +74,6 @@ public:
     const Element* elementForContainerUnitResolution() const { return m_elementForContainerUnitResolution.get(); }
 
     const FontCascade& NODELETE fontCascadeForFontUnits() const;
-    float computedLineHeightForFontUnits() const;
 
     FloatSize defaultViewportFactor() const;
     FloatSize smallViewportFactor() const;

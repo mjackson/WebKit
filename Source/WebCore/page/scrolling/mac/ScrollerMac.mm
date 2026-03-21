@@ -316,6 +316,7 @@ ScrollerMac::ScrollerMac(ScrollerPairMac& pair, ScrollbarOrientation orientation
 
 ScrollerMac::~ScrollerMac()
 {
+    [m_scrollerImpDelegate invalidate];
 }
 
 void ScrollerMac::attach()
@@ -475,7 +476,7 @@ void ScrollerMac::visibilityChanged(bool isVisible)
     m_isVisible = isVisible;
 
     RefPtr pair = m_pair.get();
-    if (RefPtr node = pair->protectedNode())
+    if (RefPtr node = pair->node())
         node->scrollbarVisibilityDidChange(m_orientation, isVisible);
 }
 
@@ -486,7 +487,7 @@ void ScrollerMac::updateMinimumKnobLength(int minimumKnobLength)
     m_minimumKnobLength = minimumKnobLength;
 
     RefPtr pair = m_pair.get();
-    if (RefPtr node = pair->protectedNode())
+    if (RefPtr node = pair->node())
         node->scrollbarMinimumThumbLengthDidChange(m_orientation, m_minimumKnobLength);
 }
 

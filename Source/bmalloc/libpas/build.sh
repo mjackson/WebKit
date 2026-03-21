@@ -22,7 +22,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-. common.sh
+. ./common.sh
 
 build_variant_xcodebuild() {
     variant=$1
@@ -86,7 +86,7 @@ build_variant_cmake() {
 
     echo $extra_cmake_options
 
-    cmake -DCMAKE_BUILD_TYPE=$config -DCMAKE_C_FLAGS=$extra_cmake_options -DCMAKE_CXX_FLAGS=$extra_cmake_options -B $build_dir
+    cmake -DCMAKE_BUILD_TYPE=$config -DCMAKE_C_FLAGS=$extra_cmake_options -DCMAKE_CXX_FLAGS=$extra_cmake_options -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B $build_dir
     cmake --build $build_dir --parallel
 }
 

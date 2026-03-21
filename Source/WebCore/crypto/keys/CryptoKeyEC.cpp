@@ -33,12 +33,10 @@
 
 #if OS(DARWIN) && !PLATFORM(GTK)
 #include <pal/PALSwift.h>
-#if !defined(CLANG_WEBKIT_BRANCH)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
 #include "PALSwift-Generated.h"
 #pragma clang diagnostic pop
-#endif // !defined(CLANG_WEBKIT_BRANCH)
 #endif
 
 namespace WebCore {
@@ -47,7 +45,7 @@ static const ASCIILiteral P256 { "P-256"_s };
 static const ASCIILiteral P384 { "P-384"_s };
 static const ASCIILiteral P521 { "P-521"_s };
 
-static std::optional<CryptoKeyEC::NamedCurve> toNamedCurve(const String& curve)
+static std::optional<CryptoKeyEC::NamedCurve> NODELETE toNamedCurve(const String& curve)
 {
     if (curve == P256)
         return CryptoKeyEC::NamedCurve::P256;

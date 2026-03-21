@@ -1116,10 +1116,8 @@ static bool shouldForwardWheelEvent(WebKitWebViewBase* webViewBase, GdkEvent* ev
             // The last entry in the history is the current event time, so ignore that.
             if (length > 0)
                 length--;
-            for (unsigned i = 0; i < length; i++) {
-                WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GTK port
-                auto oldTime = history.get()[i].time;
-                WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+            for (const auto& item : unsafeMakeSpan(history.get(), length)) {
+                auto oldTime = item.time;
                 webViewBase->priv->wheelEventsToPropagate.removeAllMatching([&oldTime] (GRefPtr<GdkEvent>& current) {
                     return gdk_event_get_time(current.get()) == oldTime;
                 });
@@ -1817,7 +1815,7 @@ static void appendTouchEvent(GtkWidget* webViewBase, Vector<WebPlatformTouchPoin
     gdk_event_get_root_coords(event, &xRoot, &yRoot);
 
     uint32_t identifier = GPOINTER_TO_UINT(gdk_event_get_event_sequence(event));
-    touchPoints.append(WebPlatformTouchPoint(identifier, state, IntPoint(xRoot, yRoot), IntPoint(x, y)));
+    touchPoints.append(WebPlatformTouchPoint(identifier, state, DoublePoint(xRoot, yRoot), DoublePoint(x, y)));
 }
 
 static inline WebPlatformTouchPoint::State touchPointStateForEvents(GdkEvent* current, GdkEvent* event)

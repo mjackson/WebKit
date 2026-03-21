@@ -28,6 +28,7 @@
 #include "CoordinatedPlatformLayerBufferVideo.h"
 
 #if USE(COORDINATED_GRAPHICS) && ENABLE(VIDEO) && USE(GSTREAMER)
+#include "BitmapTexturePool.h"
 #include "CoordinatedPlatformLayerBufferExternalOES.h"
 #include "CoordinatedPlatformLayerBufferRGB.h"
 #include "CoordinatedPlatformLayerBufferYUV.h"
@@ -84,7 +85,8 @@ std::unique_ptr<CoordinatedPlatformLayerBuffer> CoordinatedPlatformLayerBufferVi
 
 std::unique_ptr<CoordinatedPlatformLayerBuffer> CoordinatedPlatformLayerBufferVideo::createBufferIfNeeded(bool gstGLEnabled)
 {
-    auto buffer = gst_sample_get_buffer(m_videoFrame->sample());
+    const auto& sample = m_videoFrame->sample();
+    auto buffer = gst_sample_get_buffer(sample.get());
     auto memory = gst_buffer_peek_memory(buffer, 0);
 
 #if USE(GBM)
@@ -115,7 +117,7 @@ std::unique_ptr<CoordinatedPlatformLayerBuffer> CoordinatedPlatformLayerBufferVi
     // When not having a texture, we map the frame here and upload the pixels to a texture in the
     // compositor thread, in paintToTextureMapper(), which also allows us to use the texture mapper
     // bitmap texture pool.
-    m_mappedVideoFrame.emplace(GstMappedFrame(buffer, &m_videoFrame->info(), GST_MAP_READ));
+    m_mappedVideoFrame.emplace(GstMappedFrame(sample, GST_MAP_READ));
     if (!*m_mappedVideoFrame) {
         // If mapping failed, clear the GstMappedFrame holder.
         m_mappedVideoFrame = std::nullopt;
@@ -144,9 +146,8 @@ std::unique_ptr<CoordinatedPlatformLayerBuffer> CoordinatedPlatformLayerBufferVi
 #if USE(GSTREAMER_GL)
 std::unique_ptr<CoordinatedPlatformLayerBuffer> CoordinatedPlatformLayerBufferVideo::createBufferFromGLMemory()
 {
-    auto buffer = gst_sample_get_buffer(m_videoFrame->sample());
-    auto videoInfo = m_videoFrame->info();
-    m_mappedVideoFrame.emplace(GstMappedFrame(buffer, &videoInfo, static_cast<GstMapFlags>(GST_MAP_READ | GST_MAP_GL)));
+    const auto& sample = m_videoFrame->sample();
+    m_mappedVideoFrame.emplace(GstMappedFrame(sample, static_cast<GstMapFlags>(GST_MAP_READ | GST_MAP_GL)));
     if (!*m_mappedVideoFrame) {
         // If mapping failed, clear the GstMappedFrame holder.
         m_mappedVideoFrame = std::nullopt;
@@ -156,6 +157,7 @@ std::unique_ptr<CoordinatedPlatformLayerBuffer> CoordinatedPlatformLayerBufferVi
     if (GST_VIDEO_INFO_HAS_ALPHA(m_mappedVideoFrame->info()))
         m_flags.add({ TextureMapperFlags::ShouldBlend, TextureMapperFlags::ShouldPremultiply });
 
+    auto buffer = gst_sample_get_buffer(sample.get());
     auto textureTarget = gst_gl_memory_get_texture_target(GST_GL_MEMORY_CAST(gst_buffer_peek_memory(buffer, 0)));
     if (textureTarget == GST_GL_TEXTURE_TARGET_EXTERNAL_OES)
         return CoordinatedPlatformLayerBufferExternalOES::create(m_mappedVideoFrame->textureID(0), m_size, m_flags, nullptr);
@@ -220,7 +222,7 @@ void CoordinatedPlatformLayerBufferVideo::paintToTextureMapper(TextureMapper& te
             OptionSet<BitmapTexture::Flags> textureFlags;
             if (GST_VIDEO_INFO_HAS_ALPHA(m_mappedVideoFrame->info()))
                 textureFlags.add(BitmapTexture::Flags::SupportsAlpha);
-            auto texture = textureMapper.acquireTextureFromPool(m_size, textureFlags);
+            auto texture = BitmapTexturePool::singleton().acquireTexture(m_size, textureFlags);
 
             auto* meta = gst_buffer_get_video_gl_texture_upload_meta(m_mappedVideoFrame->get()->buffer);
             if (meta && meta->n_textures == 1) {

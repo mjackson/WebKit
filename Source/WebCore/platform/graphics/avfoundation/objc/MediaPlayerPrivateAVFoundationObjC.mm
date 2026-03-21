@@ -423,7 +423,7 @@ void MediaPlayerPrivateAVFoundationObjC::clearMediaCacheForOrigins(const String&
 
 MediaPlayerPrivateAVFoundationObjC::MediaPlayerPrivateAVFoundationObjC(MediaPlayer& player)
     : MediaPlayerPrivateAVFoundation(player)
-    , m_videoLayerManager(makeUniqueRef<VideoLayerManagerObjC>(protectedLogger(), logIdentifier()))
+    , m_videoLayerManager(makeUniqueRef<VideoLayerManagerObjC>(protect(logger()), logIdentifier()))
     , m_objcObserver(adoptNS([[WebCoreAVFMovieObserver alloc] initWithPlayer:*this]))
     , m_loaderDelegate(adoptNS([[WebCoreAVFLoaderDelegate alloc] initWithPlayer:*this]))
     , m_cachedItemStatus(MediaPlayerAVPlayerItemStatusDoesNotExist)
@@ -905,15 +905,14 @@ void MediaPlayerPrivateAVFoundationObjC::createAVAssetForURL(const URL& url, Ret
     if (!identifier.isEmpty())
         [options setObject:identifier.createNSString().get() forKey:AVURLAssetClientBundleIdentifierKey];
 #endif
-    if (PAL::canLoad_AVFoundation_AVAssetPrefersSandboxedParsingOptionKey())
-        [options setObject:@YES forKey:AVAssetPrefersSandboxedParsingOptionKey];
+    [options setObject:@YES forKey:AVAssetPrefersSandboxedParsingOptionKey];
 
     if (player->inPrivateBrowsingMode() && PAL::canLoad_AVFoundation_AVURLAssetDoNotLogURLsKey())
         [options setObject:@YES forKey:AVURLAssetDoNotLogURLsKey];
 
     auto type = player->contentMIMEType();
 
-    if (PAL::canLoad_AVFoundation_AVURLAssetOutOfBandMIMETypeKey() && !type.isEmpty() && !player->contentMIMETypeWasInferredFromExtension()) {
+    if (!type.isEmpty() && !player->contentMIMETypeWasInferredFromExtension()) {
         // FIXME: Remove that check once AVFoundation allows it (rdar://163119790). This should also not be restricted to blobs.
         if (type == "application/ogg"_s && url.protocolIsBlob())
             type = "audio/ogg"_s;
@@ -1232,12 +1231,6 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
     [m_avPlayerItem addOutput:m_metadataOutput];
 }
 
-#if ENABLE(ENCRYPTED_MEDIA) && HAVE(AVCONTENTKEYSESSION)
-RefPtr<CDMInstanceFairPlayStreamingAVFObjC> MediaPlayerPrivateAVFoundationObjC::protectedCDMInstance() const
-{
-    return m_cdmInstance;
-}
-#endif
 
 void MediaPlayerPrivateAVFoundationObjC::checkPlayability()
 {
@@ -1650,6 +1643,8 @@ void MediaPlayerPrivateAVFoundationObjC::setVolume(float volume)
         return;
     m_volume = volume;
 
+    updateIsAudible();
+
     if (!m_avPlayer)
         return;
 
@@ -1705,7 +1700,6 @@ void MediaPlayerPrivateAVFoundationObjC::setPlayerRate(double rate, std::optiona
     } else
         [m_avPlayer setRate:rate];
 
-    m_cachedTimeControlStatus = [m_avPlayer timeControlStatus];
     setShouldObserveTimeControlStatus(true);
 
     m_wallClockAtCachedCurrentTime = std::nullopt;
@@ -2069,14 +2063,8 @@ static bool keySystemIsSupported(const String& keySystem)
 
 MediaPlayer::SupportsType MediaPlayerPrivateAVFoundationObjC::supportsTypeAndCodecs(const MediaEngineSupportParameters& parameters)
 {
-#if ENABLE(MEDIA_SOURCE)
-    if (parameters.isMediaSource)
+    if (parameters.platformType != PlatformMediaDecodingType::FileOrHLS)
         return MediaPlayer::SupportsType::IsNotSupported;
-#endif
-#if ENABLE(MEDIA_STREAM)
-    if (parameters.isMediaStream)
-        return MediaPlayer::SupportsType::IsNotSupported;
-#endif
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
     if (parameters.playbackTargetType != MediaPlaybackTargetType::None && !playbackTargetTypes().contains(parameters.playbackTargetType))
         return MediaPlayer::SupportsType::IsNotSupported;
@@ -2187,7 +2175,7 @@ bool MediaPlayerPrivateAVFoundationObjC::shouldWaitForLoadingOfResource(AVAssetR
 
         RetainPtr keyURIData = [keyURI.createNSString() dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
         m_keyID = SharedBuffer::create(keyURIData.get());
-        player->initializationDataEncountered("skd"_s, protectedKeyID()->tryCreateArrayBuffer());
+        player->initializationDataEncountered("skd"_s, protect(m_keyID)->tryCreateArrayBuffer());
         setWaitingForKey(true);
 #endif
 
@@ -2300,6 +2288,18 @@ void MediaPlayerPrivateAVFoundationObjC::updateIsAudible()
     bool isAudible = hasAudio() && !m_muted && m_volume;
     if (m_isAudible == isAudible)
         return;
+
+    // Only change the state of suppressesAudioRendering and
+    // participatesInAudioSession when playback is paused, to
+    // avoid the reconfiguring of video playback that AVFoundation
+    // performs when these properties are changed. However,
+    // ignore this check if becoming audible to ensure audio
+    // rendering starts immediately. This method will be called
+    // again by timeControlStatusDidChange().
+    if (!isAudible && m_cachedTimeControlStatus == AVPlayerTimeControlStatusPlaying)
+        return;
+
+    ALWAYS_LOG(LOGIDENTIFIER, isAudible);
     m_isAudible = isAudible;
 
     if (!m_avPlayer)
@@ -3014,7 +3014,7 @@ void MediaPlayerPrivateAVFoundationObjC::cdmInstanceAttached(CDMInstance& instan
         return;
 
     if (m_cdmInstance)
-        cdmInstanceDetached(*protectedCDMInstance());
+        cdmInstanceDetached(*protect(m_cdmInstance));
 
     m_cdmInstance = fpsInstance;
 #else
@@ -3038,7 +3038,7 @@ void MediaPlayerPrivateAVFoundationObjC::attemptToDecryptWithInstance(CDMInstanc
     if (!m_keyID || !m_cdmInstance)
         return;
 
-    RefPtr instanceSession = protectedCDMInstance()->sessionForKeyIDs(Vector<Ref<SharedBuffer>>::from(*protectedKeyID()));
+    RefPtr instanceSession = protect(m_cdmInstance)->sessionForKeyIDs(Vector<Ref<SharedBuffer>>::from(*protect(m_keyID)));
     if (!instanceSession)
         return;
 
@@ -3926,6 +3926,7 @@ void MediaPlayerPrivateAVFoundationObjC::timeControlStatusDidChange(int timeCont
 
     m_cachedTimeControlStatus = timeControlStatus;
     rateChanged();
+    updateIsAudible();
     m_wallClockAtCachedCurrentTime = std::nullopt;
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)

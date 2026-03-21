@@ -42,7 +42,7 @@ CSSCounterValue::CSSCounterValue(AtomString&& identifier, AtomString&& separator
 {
 }
 
-Ref<CSSCounterValue> CSSCounterValue::create(AtomString identifier, AtomString separator, Ref<CSSValue> counterStyle)
+Ref<CSSCounterValue> CSSCounterValue::create(AtomString&& identifier, AtomString&& separator, Ref<CSSValue>&& counterStyle)
 {
     return adoptRef(*new CSSCounterValue(WTF::move(identifier), WTF::move(separator), WTF::move(counterStyle)));
 }

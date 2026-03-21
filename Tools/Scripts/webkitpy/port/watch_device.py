@@ -35,7 +35,11 @@ class WatchDevicePort(EmbeddedDevicePort, WatchPort):
     ARCHITECTURES = ['armv7k', 'arm64e', 'arm64_32']
     DEFAULT_ARCHITECTURE = 'armv7k'
 
-    SDK = apple_additions().get_sdk('watchos') if apple_additions() else 'watchos'
+    _DEFAULT_SDK = 'watchos'
+
+    @property
+    def SDK(self):
+        return apple_additions().get_sdk(self._DEFAULT_SDK) if apple_additions() else self._DEFAULT_SDK
 
     def _is_device_platform_match(self, device):
         return device.platform.is_watchos()

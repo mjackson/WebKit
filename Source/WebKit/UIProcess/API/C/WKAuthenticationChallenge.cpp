@@ -46,12 +46,12 @@ WKAuthenticationDecisionListenerRef WKAuthenticationChallengeGetDecisionListener
 
 WKProtectionSpaceRef WKAuthenticationChallengeGetProtectionSpace(WKAuthenticationChallengeRef challenge)
 {
-    return toAPI(protect(toProtectedImpl(challenge)->protectionSpace()).get());
+    return toAPI(protect(protect(toImpl(challenge))->protectionSpace()).get());
 }
 
 WKCredentialRef WKAuthenticationChallengeGetProposedCredential(WKAuthenticationChallengeRef challenge)
 {
-    return toAPI(protect(toProtectedImpl(challenge)->proposedCredential()).get());
+    return toAPI(protect(protect(toImpl(challenge))->proposedCredential()).get());
 }
 
 int WKAuthenticationChallengeGetPreviousFailureCount(WKAuthenticationChallengeRef challenge)

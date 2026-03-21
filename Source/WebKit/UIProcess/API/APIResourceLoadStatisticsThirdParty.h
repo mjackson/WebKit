@@ -45,8 +45,8 @@ public:
         RELEASE_ASSERT(RunLoop::isMain());
     }
 
-    const WTF::String& thirdPartyDomain() const { return m_thirdPartyData.thirdPartyDomain.string(); }
-    const Vector<WebKit::ITPThirdPartyDataForSpecificFirstParty>& underFirstParties() const { return m_thirdPartyData.underFirstParties; }
+    const WTF::String& thirdPartyDomain() const LIFETIME_BOUND { return m_thirdPartyData.thirdPartyDomain.string(); }
+    const Vector<WebKit::ITPThirdPartyDataForSpecificFirstParty>& underFirstParties() const LIFETIME_BOUND { return m_thirdPartyData.underFirstParties; }
 
 private:
     explicit ResourceLoadStatisticsThirdParty(WebKit::ITPThirdPartyData&& thirdPartyData)

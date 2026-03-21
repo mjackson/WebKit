@@ -50,7 +50,6 @@ public:
 
 private:
     Image* findImageForRenderer(const RenderObject*) const;
-    RefPtr<SVGImage> protectedSVGImage() const;
 
     using ImageForContainerMap = HashMap<const CachedImageClient*, Ref<SVGImageForContainer>>;
 

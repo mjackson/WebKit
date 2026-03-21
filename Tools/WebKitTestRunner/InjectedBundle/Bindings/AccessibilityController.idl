@@ -47,6 +47,7 @@ interface AccessibilityController {
     boolean addNotificationListener(object functionCallback);
     boolean removeNotificationListener();
 
+    undefined printToStderr(DOMString message);
     undefined logFocusEvents();
     undefined logValueChangeEvents();
     undefined logScrollingStartEvents();

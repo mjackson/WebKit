@@ -200,7 +200,7 @@ Ref<XRProjectionLayer> XRBinding::createXRProjectionLayer(WGPUTextureFormat colo
 
 #pragma mark WGPU Stubs
 
-void wgpuXRProjectionLayerReference(WGPUXRProjectionLayer projectionLayer)
+void NODELETE wgpuXRProjectionLayerReference(WGPUXRProjectionLayer projectionLayer)
 {
     WebGPU::fromAPI(projectionLayer).ref();
 }
@@ -212,5 +212,5 @@ void wgpuXRProjectionLayerRelease(WGPUXRProjectionLayer projectionLayer)
 
 void wgpuXRProjectionLayerStartFrame(WGPUXRProjectionLayer layer, size_t frameIndex, WTF::MachSendRight&& colorBuffer, WTF::MachSendRight&& depthBuffer, WTF::MachSendRight&& completionSyncEvent, size_t reusableTextureIndex, unsigned screenWidth, unsigned screenHeight, Vector<float>&& horizontalSamplesLeft, Vector<float>&& horizontalSamplesRight, Vector<float>&& verticalSamples)
 {
-    WebGPU::protectedFromAPI(layer)->startFrame(frameIndex, WTF::move(colorBuffer), WTF::move(depthBuffer), WTF::move(completionSyncEvent), reusableTextureIndex, screenWidth, screenHeight, WTF::move(horizontalSamplesLeft), WTF::move(horizontalSamplesRight), WTF::move(verticalSamples));
+    protect(WebGPU::fromAPI(layer))->startFrame(frameIndex, WTF::move(colorBuffer), WTF::move(depthBuffer), WTF::move(completionSyncEvent), reusableTextureIndex, screenWidth, screenHeight, WTF::move(horizontalSamplesLeft), WTF::move(horizontalSamplesRight), WTF::move(verticalSamples));
 }

@@ -212,15 +212,6 @@ CoreAudioCaptureSource::CoreAudioCaptureSource(const CaptureDevice& device, uint
     initializeVolume(unit->volume());
 }
 
-Ref<CoreAudioCaptureUnit> CoreAudioCaptureSource::protectedUnit()
-{
-    return m_unit;
-}
-
-Ref<const CoreAudioCaptureUnit> CoreAudioCaptureSource::protectedUnit() const
-{
-    return m_unit;
-}
 
 void CoreAudioCaptureSource::initializeToStartProducingData()
 {
@@ -256,21 +247,21 @@ void CoreAudioCaptureSource::initializeToStartProducingData()
 
 CoreAudioCaptureSource::~CoreAudioCaptureSource()
 {
-    protectedUnit()->removeClient(*this);
+    protect(m_unit)->removeClient(*this);
 }
 
 void CoreAudioCaptureSource::startProducingData()
 {
     m_canResumeAfterInterruption = true;
     initializeToStartProducingData();
-    protectedUnit()->startProducingData();
+    protect(m_unit)->startProducingData();
     m_currentSettings = { };
 }
 
 void CoreAudioCaptureSource::stopProducingData()
 {
     ALWAYS_LOG_IF(loggerPtr(), LOGIDENTIFIER);
-    protectedUnit()->stopProducingData();
+    protect(m_unit)->stopProducingData();
 }
 
 void CoreAudioCaptureSource::endProducingData()
@@ -351,35 +342,35 @@ void CoreAudioCaptureSource::settingsDidChange(OptionSet<RealtimeMediaSourceSett
         changeAudioUnit();
         return;
 #else
-        protectedUnit()->setEnableEchoCancellation(echoCancellation());
+        protect(m_unit)->setEnableEchoCancellation(echoCancellation());
         shouldReconfigure = true;
 #endif
     }
     if (settings.contains(RealtimeMediaSourceSettings::Flag::SampleRate)) {
-        protectedUnit()->setSampleRate(sampleRate());
+        m_unit->setSampleRate(sampleRate());
         shouldReconfigure = true;
     }
     if (shouldReconfigure)
-        protectedUnit()->reconfigure();
+        protect(m_unit)->reconfigure();
 
     m_currentSettings = std::nullopt;
 }
 
 bool CoreAudioCaptureSource::interrupted() const
 {
-    return protectedUnit()->isSuspended() || RealtimeMediaSource::interrupted();
+    return m_unit->isSuspended() || RealtimeMediaSource::interrupted();
 }
 
 void CoreAudioCaptureSource::delaySamples(Seconds seconds)
 {
-    protectedUnit()->delaySamples(seconds);
+    protect(m_unit)->delaySamples(seconds);
 }
 
 #if PLATFORM(IOS_FAMILY)
 void CoreAudioCaptureSource::setIsInBackground(bool value)
 {
     if (isProducingData())
-        protectedUnit()->setIsInBackground(value);
+        protect(m_unit)->setIsInBackground(value);
 }
 #endif
 

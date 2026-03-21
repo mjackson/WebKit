@@ -183,8 +183,8 @@ UsedTrackSizes GridFormattingContext::layout(GridLayoutConstraints layoutConstra
     // size for the purpose of laying out the grid and its items.
     // This is evaluated per-axis: percentages in column tracks depend on inline-axis constraints,
     // and percentages in row tracks depend on block-axis constraints.
-    auto inlineAxisDependsOnTracks = layoutConstraints.inlineAxis.scenario() != FreeSpaceScenario::Definite;
-    auto blockAxisDependsOnTracks = layoutConstraints.blockAxis.scenario() != FreeSpaceScenario::Definite;
+    auto inlineAxisDependsOnTracks = layoutConstraints.inlineAxis.scenario() != AxisConstraint::FreeSpaceScenario::Definite;
+    auto blockAxisDependsOnTracks = layoutConstraints.blockAxis.scenario() != AxisConstraint::FreeSpaceScenario::Definite;
 
     auto gridTemplateColumns = inlineAxisDependsOnTracks ? gridTemplateListWithPercentagesConvertedToAuto(gridStyle->gridTemplateColumns()) : gridStyle->gridTemplateColumns();
     auto gridTemplateRows = blockAxisDependsOnTracks ? gridTemplateListWithPercentagesConvertedToAuto(gridStyle->gridTemplateRows()) : gridStyle->gridTemplateRows();
@@ -194,7 +194,7 @@ UsedTrackSizes GridFormattingContext::layout(GridLayoutConstraints layoutConstra
     auto usedJustifyContent = gridStyle->justifyContent().resolve();
     auto usedAlignContent = gridStyle->alignContent().resolve();
 
-    GridLayoutState layoutState { layoutConstraints, gridDefinition, usedJustifyContent, usedAlignContent };
+    GridLayoutState layoutState { layoutConstraints, gridDefinition, usedJustifyContent, usedAlignContent, usedGapValue(gridStyle->columnGap()), usedGapValue(gridStyle->rowGap()) };
 
     auto [ usedTrackSizes, gridItemRects ] = GridLayout { *this }.layout(unplacedGridItems, layoutState);
 
@@ -202,15 +202,10 @@ UsedTrackSizes GridFormattingContext::layout(GridLayoutConstraints layoutConstra
     // Here we translate it to the coordinate space of the grid.
     auto mapGridItemLocationsToGrid = [&] {
 
-        // Compute gap values for columns and rows.
-        // For now, we handle fixed gaps only (not percentages or calc).
-        auto columnGap = GridLayoutUtils::computeGapValue(gridStyle->columnGap());
-        auto rowGap = GridLayoutUtils::computeGapValue(gridStyle->rowGap());
-
         for (auto& gridItemRect : gridItemRects) {
             auto& lineNumbersForGridArea = gridItemRect.lineNumbersForGridArea;
-            auto columnPosition = GridLayoutUtils::computeGridLinePosition(lineNumbersForGridArea.columnStartLine, usedTrackSizes.columnSizes, columnGap);
-            auto rowPosition = GridLayoutUtils::computeGridLinePosition(lineNumbersForGridArea.rowStartLine, usedTrackSizes.rowSizes, rowGap);
+            auto columnPosition = GridLayoutUtils::computeGridLinePosition(lineNumbersForGridArea.columnStartLine, usedTrackSizes.columnSizes, layoutState.usedColumnGap);
+            auto rowPosition = GridLayoutUtils::computeGridLinePosition(lineNumbersForGridArea.rowStartLine, usedTrackSizes.rowSizes, layoutState.usedRowGap);
 
             gridItemRect.borderBoxRect.moveBy({ columnPosition, rowPosition });
         }
@@ -226,28 +221,10 @@ PlacedGridItems GridFormattingContext::constructPlacedGridItems(const GridAreas&
     placedGridItems.reserveInitialCapacity(gridAreas.size());
     CheckedRef formattingContextStyle = root().style();
     for (auto [ unplacedGridItem, gridAreaLines ] : gridAreas) {
-
-        CheckedRef gridItemStyle = unplacedGridItem.m_layoutBox->style();
-
-        ComputedSizes inlineAxisSizes {
-            gridItemStyle->width(),
-            gridItemStyle->minWidth(),
-            gridItemStyle->maxWidth(),
-            gridItemStyle->marginLeft(),
-            gridItemStyle->marginRight()
-        };
-
-        ComputedSizes blockAxisSizes {
-            gridItemStyle->height(),
-            gridItemStyle->minHeight(),
-            gridItemStyle->maxHeight(),
-            gridItemStyle->marginTop(),
-            gridItemStyle->marginBottom()
-        };
-
-        auto& boxGeometry = geometryForGridItem(unplacedGridItem.m_layoutBox);
-        placedGridItems.constructAndAppend(unplacedGridItem, gridAreaLines, inlineAxisSizes, blockAxisSizes, boxGeometry.horizontalBorderAndPadding(), boxGeometry.verticalBorderAndPadding(),
-            gridItemStyle->justifySelf().resolve(formattingContextStyle.ptr()), gridItemStyle->alignSelf().resolve(formattingContextStyle.ptr()), gridItemStyle->writingMode(), gridItemStyle->usedZoomForLength());
+        CheckedRef gridItem = unplacedGridItem.m_layoutBox;
+        CheckedRef gridContainerStyle = this->gridContainerStyle();
+        auto& boxGeometry = geometryForGridItem(gridItem);
+        placedGridItems.constructAndAppend(gridItem, gridAreaLines, boxGeometry, gridContainerStyle);
     }
     return placedGridItems;
 }
@@ -312,12 +289,15 @@ GridFormattingContext::IntrinsicWidths GridFormattingContext::computeIntrinsicWi
     auto usedJustifyContent = gridStyle->justifyContent().resolve();
     auto usedAlignContent = gridStyle->alignContent().resolve();
 
+    auto usedColumnGap = usedGapValue(gridStyle->columnGap());
+    auto usedRowGap = usedGapValue(gridStyle->rowGap());
+
     // Compute min-content width by running the full grid sizing algorithm with MinContent scenario
     GridLayoutConstraints minContentConstraints {
         .inlineAxis = AxisConstraint::minContent(),
         .blockAxis = AxisConstraint::minContent()
     };
-    GridLayoutState minContentLayoutState { minContentConstraints, gridDefinition, usedJustifyContent, usedAlignContent };
+    GridLayoutState minContentLayoutState { minContentConstraints, gridDefinition, usedJustifyContent, usedAlignContent, usedColumnGap, usedRowGap };
     auto [minContentTrackSizes, minContentGridItemRects] = GridLayout { *this }.layout(unplacedGridItems, minContentLayoutState);
     UNUSED_PARAM(minContentGridItemRects);
 
@@ -326,18 +306,16 @@ GridFormattingContext::IntrinsicWidths GridFormattingContext::computeIntrinsicWi
         .inlineAxis = AxisConstraint::maxContent(),
         .blockAxis = AxisConstraint::maxContent()
     };
-    GridLayoutState maxContentLayoutState { maxContentConstraints, gridDefinition, usedJustifyContent, usedAlignContent };
+    GridLayoutState maxContentLayoutState { maxContentConstraints, gridDefinition, usedJustifyContent, usedAlignContent, usedColumnGap, usedRowGap };
     auto [maxContentTrackSizes, maxContentGridItemRects] = GridLayout { *this }.layout(unplacedGridItemsForMaxContent, maxContentLayoutState);
     UNUSED_PARAM(maxContentGridItemRects);
 
     // Sum track sizes and add gaps
-    auto columnsGap = GridLayoutUtils::computeGapValue(gridStyle->columnGap());
-
     auto computeIntrinsicWidth = [&](const TrackSizes& trackSizes) -> LayoutUnit {
         auto sumOfTrackSizes = 0_lu;
         for (auto trackSize : trackSizes)
             sumOfTrackSizes += trackSize;
-        auto totalGutters = trackSizes.size() > 1 ? columnsGap * LayoutUnit(trackSizes.size() - 1) : 0_lu;
+        auto totalGutters = trackSizes.size() > 1 ? usedColumnGap * LayoutUnit(trackSizes.size() - 1) : 0_lu;
         return sumOfTrackSizes + totalGutters;
     };
 

@@ -1,0 +1,4 @@
+copy this
+
+FAIL This tests for a bug in ReplaceSelectionCommand where styles are lost during paste. promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
+

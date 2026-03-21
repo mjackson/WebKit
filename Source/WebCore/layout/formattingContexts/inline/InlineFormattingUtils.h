@@ -41,7 +41,7 @@ class InlineFormattingUtils {
 public:
     InlineFormattingUtils(const InlineFormattingContext&);
 
-    InlineLayoutUnit logicalTopForNextLine(const LineLayoutResult&, const InlineRect& lineLogicalRect, const FloatingContext&, const BlockLayoutState::MarginState&) const;
+    InlineLayoutUnit logicalTopForNextLine(const LineLayoutResult&, const InlineRect& lineLogicalRect, const FloatingContext&) const;
 
     enum class IsIntrinsicWidthMode : bool { No, Yes };
     enum class LineEndsWithLineBreak : bool { No, Yes };
@@ -53,7 +53,7 @@ public:
 
     FloatingContext::Constraints floatConstraintsForLine(InlineLayoutUnit lineLogicalTop, InlineLayoutUnit contentLogicalHeight, const FloatingContext&) const;
 
-    static InlineRect flipVisualRectToLogicalForWritingMode(const InlineRect& visualRect, WritingMode);
+    static InlineRect NODELETE flipVisualRectToLogicalForWritingMode(const InlineRect& visualRect, WritingMode);
 
     static InlineLayoutUnit horizontalAlignmentOffset(const RenderStyle& rootStyle, InlineLayoutUnit contentLogicalRight, InlineLayoutUnit lineLogicalRight, InlineLayoutUnit hangingTrailingWidth, bool isLastLineOrLineEndsWithForcedLineBreak, std::optional<TextDirection> inlineBaseDirectionOverride = std::nullopt);
 
@@ -65,18 +65,18 @@ public:
 
     static std::pair<InlineLayoutUnit, InlineLayoutUnit> textEmphasisForInlineBox(const Box&, const ElementBox& rootBox);
 
-    static LineEndingTruncationPolicy lineEndingTruncationPolicy(const RenderStyle& rootStyle, size_t numberOfContentfulLines, std::optional<size_t> numberOfVisibleLinesAllowed, bool currentLineIsContentful);
+    static LineEndingTruncationPolicy NODELETE lineEndingTruncationPolicy(const RenderStyle& rootStyle, size_t numberOfContentfulLines, std::optional<size_t> numberOfVisibleLinesAllowed, bool currentLineIsContentful);
 
     static std::optional<LineLayoutResult::InlineContentEnding> inlineContentEnding(const Line::Result&);
 
-    bool shouldDiscardRemainingContentInBlockDirection() const;
+    bool NODELETE shouldDiscardRemainingContentInBlockDirection() const;
 
     enum class SnapDirection : uint8_t { Floor, Ceil, Round };
     static InlineLayoutUnit snapToInt(InlineLayoutUnit, const InlineLevelBox&, SnapDirection = SnapDirection::Round);
     static InlineLayoutUnit snapToInt(InlineLayoutUnit, const Box&, SnapDirection = SnapDirection::Round);
 
-    static InlineLayoutUnit ascent(const FontMetrics&, FontBaseline, const InlineLevelBox&);
-    static InlineLayoutUnit descent(const FontMetrics&, FontBaseline, const InlineLevelBox&);
+    static InlineLayoutUnit NODELETE ascent(const FontMetrics&, FontBaseline, const InlineLevelBox&);
+    static InlineLayoutUnit NODELETE descent(const FontMetrics&, FontBaseline, const InlineLevelBox&);
 
     static InlineLayoutUnit ascent(const FontMetrics&, FontBaseline, const Box&);
     static InlineLayoutUnit descent(const FontMetrics&, FontBaseline, const Box&);
@@ -84,7 +84,7 @@ public:
 private:
     bool isAtSoftWrapOpportunity(const InlineItem& previous, const InlineItem& next) const;
 
-    const InlineFormattingContext& formattingContext() const { return m_inlineFormattingContext; }
+    const InlineFormattingContext& formattingContext() const LIFETIME_BOUND { return m_inlineFormattingContext; }
 
 private:
     const InlineFormattingContext& m_inlineFormattingContext;

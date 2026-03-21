@@ -103,7 +103,7 @@ DOMNode *kit(Node* value)
 - (unsigned short)nodeType
 {
     JSMainThreadNullState state;
-    return unwrap(*self).nodeType();
+    return std::to_underlying(unwrap(*self).nodeType());
 }
 
 - (DOMNode *)parentNode

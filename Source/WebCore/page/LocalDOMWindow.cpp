@@ -86,6 +86,10 @@
 #include "IdleRequestOptions.h"
 #include "InputEvent.h"
 #include "InspectorInstrumentation.h"
+#include "JSDOMConvertBoolean.h"
+#include "JSDOMConvertEnumeration.h"
+#include "JSDOMConvertInterface.h"
+#include "JSDOMConvertNullable.h"
 #include "JSDOMExceptionHandling.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSDOMWindowBase.h"
@@ -113,6 +117,7 @@
 #include "PerformanceNavigationTiming.h"
 #include "PermissionsPolicy.h"
 #include "PlatformStrategies.h"
+#include "PseudoElementUtilities.h"
 #include "PushManager.h"
 #include "PushStrategy.h"
 #include "RemoteFrame.h"
@@ -190,7 +195,7 @@ using namespace Inspector;
 
 static constexpr Seconds defaultTransientActivationDuration { 5_s };
 
-static WeakHashSet<LocalDOMWindow, WeakPtrImplWithEventTargetData>& windowsInterestedInStorageEvents()
+static WeakHashSet<LocalDOMWindow, WeakPtrImplWithEventTargetData>& NODELETE windowsInterestedInStorageEvents()
 {
     static MainThreadNeverDestroyed<WeakHashSet<LocalDOMWindow, WeakPtrImplWithEventTargetData>> set;
     return set;
@@ -270,7 +275,7 @@ static void removeAllBeforeUnloadEventListeners(LocalDOMWindow* domWindow)
 static bool allowsBeforeUnloadListeners(LocalDOMWindow* window)
 {
     ASSERT_ARG(window, window);
-    RefPtr frame = window->frame();
+    auto* frame = window->frame();
     if (!frame)
         return false;
     if (!frame->page())
@@ -297,7 +302,7 @@ bool LocalDOMWindow::dispatchAllPendingBeforeUnloadEvents()
         if (!set.contains(window.ptr()))
             continue;
 
-        RefPtr frame = window->localFrame();
+        RefPtr frame = window->frame();
         if (!frame)
             continue;
 
@@ -391,7 +396,7 @@ FloatRect LocalDOMWindow::adjustWindowRect(Page& page, const FloatRect& pendingC
 
 bool LocalDOMWindow::allowPopUp(LocalFrame& firstFrame)
 {
-    if (RefPtr documentLoader = firstFrame.loader().documentLoader()) {
+    if (auto* documentLoader = firstFrame.loader().documentLoader()) {
         // If pop-up policy was set during navigation, use it. If not, use the global settings.
         PopUpPolicy popUpPolicy = documentLoader->popUpPolicy();
         if (popUpPolicy == PopUpPolicy::Allow)
@@ -407,15 +412,15 @@ bool LocalDOMWindow::allowPopUp(LocalFrame& firstFrame)
 
 bool LocalDOMWindow::allowPopUp()
 {
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     return frame && allowPopUp(*frame);
 }
 
 bool LocalDOMWindow::canShowModalDialog(const LocalFrame& frame)
 {
     // Override support for layout testing purposes.
-    if (RefPtr document = frame.document()) {
-        if (RefPtr window = document->window()) {
+    if (auto* document = frame.document()) {
+        if (auto* window = document->window()) {
             if (window->m_canShowModalDialogOverride)
                 return window->m_canShowModalDialogOverride.value();
         }
@@ -455,10 +460,17 @@ void LocalDOMWindow::didSecureTransitionTo(Document& document)
     observeContext(&document);
 
     if (auto* eventTargetData = this->eventTargetData()) {
-        eventTargetData->eventListenerMap.enumerateEventListenerTypes([&](auto& eventType, unsigned count) {
-            if (oldDocument)
-                oldDocument->didRemoveEventListenersOfType(eventType, count);
-            document.didAddEventListenersOfType(eventType, count);
+        eventTargetData->eventListenerMap.enumerateEventListenerTypes([&](auto& eventType, uint16_t capturingCount, uint16_t bubblingCount) {
+            if (capturingCount) {
+                if (oldDocument)
+                    oldDocument->didRemoveEventListenersOfType(eventType, Document::IsCapture::Yes, capturingCount);
+                document.didAddEventListenersOfType(eventType, Document::IsCapture::Yes, capturingCount);
+            }
+            if (bubblingCount) {
+                if (oldDocument)
+                    oldDocument->didRemoveEventListenersOfType(eventType, Document::IsCapture::No, bubblingCount);
+                document.didAddEventListenersOfType(eventType, Document::IsCapture::No, bubblingCount);
+            }
         });
     }
 
@@ -565,7 +577,7 @@ void LocalDOMWindow::willDetachDocumentFromFrame()
     windowsInterestedInStorageEvents().remove(*this);
 
     JSDOMWindowBase::fireFrameClearedWatchpointsForWindow(this);
-    InspectorInstrumentation::frameWindowDiscarded(*protect(localFrame()), this);
+    InspectorInstrumentation::frameWindowDiscarded(*protect(frame()), this);
 }
 
 #if ENABLE(GAMEPAD)
@@ -605,6 +617,12 @@ void LocalDOMWindow::resetUnlessSuspendedForDocumentSuspension()
 
 void LocalDOMWindow::suspendForBackForwardCache()
 {
+    // Without this, entries queued just before navigation would have their
+    // duration computed after restoration:
+    if (m_performanceEventTimingCandidates.size())
+        LOG_WITH_STREAM(PerformanceTimeline, stream << "Dispatching event timing entries before suspending to back-forward cache.");
+    finalizeAndQueueEventTimingEntries();
+
     SetForScope isSuspendingObservers(m_isSuspendingObservers, true);
     RELEASE_ASSERT(frame());
 
@@ -655,7 +673,7 @@ static ExceptionOr<SelectorQuery&> selectorQueryInFrame(LocalFrame* frame, const
 
 ExceptionOr<Ref<NodeList>> LocalDOMWindow::collectMatchingElementsInFlatTree(Node& scope, const String& selectors)
 {
-    auto queryOrException = selectorQueryInFrame(localFrame(), selectors);
+    auto queryOrException = selectorQueryInFrame(frame(), selectors);
     if (queryOrException.hasException())
         return queryOrException.releaseException();
 
@@ -676,7 +694,7 @@ ExceptionOr<Ref<NodeList>> LocalDOMWindow::collectMatchingElementsInFlatTree(Nod
 
 ExceptionOr<RefPtr<Element>> LocalDOMWindow::matchingElementInFlatTree(Node& scope, const String& selectors)
 {
-    auto queryOrException = selectorQueryInFrame(localFrame(), selectors);
+    auto queryOrException = selectorQueryInFrame(frame(), selectors);
     if (queryOrException.hasException())
         return queryOrException.releaseException();
 
@@ -697,7 +715,7 @@ ExceptionOr<RefPtr<Element>> LocalDOMWindow::matchingElementInFlatTree(Node& sco
 #if ENABLE(ORIENTATION_EVENTS)
 IntDegrees LocalDOMWindow::orientation() const
 {
-    auto* frame = localFrame();
+    auto* frame = this->frame();
     if (!frame)
         return 0;
     return frame->orientation();
@@ -723,11 +741,6 @@ Navigation& LocalDOMWindow::navigation()
     if (!m_navigation)
         m_navigation = Navigation::create(*this);
     return *m_navigation;
-}
-
-Ref<Navigation> LocalDOMWindow::protectedNavigation()
-{
-    return navigation();
 }
 
 Crypto& LocalDOMWindow::crypto() const
@@ -789,11 +802,6 @@ Navigator& LocalDOMWindow::navigator()
     return *m_navigator;
 }
 
-Ref<Navigator> LocalDOMWindow::protectedNavigator()
-{
-    return navigator();
-}
-
 Performance& LocalDOMWindow::performance() const
 {
     if (!m_performance) {
@@ -842,7 +850,7 @@ bool LocalDOMWindow::shouldHaveWebKitNamespaceForWorld(DOMWrapperWorld& world, J
     if (jsCast<JSDOMGlobalObject*>(globalObject)->allowsJSHandleCreation())
         return true;
 
-    RefPtr frame = this->localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return false;
 
@@ -868,7 +876,7 @@ WebKitNamespace* LocalDOMWindow::webkitNamespace()
 {
     if (!isCurrentlyDisplayedInFrame())
         return nullptr;
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return nullptr;
     RefPtr userContentProvider = frame->userContentProvider();
@@ -954,7 +962,7 @@ void LocalDOMWindow::processPostMessage(JSC::JSGlobalObject& lexicalGlobalObject
     if (InspectorInstrumentation::consoleAgentEnabled(document.get()))
         stackTrace = createScriptCallStack(JSExecState::currentState());
 
-    auto postMessageIdentifier = InspectorInstrumentation::willPostMessage(*localFrame());
+    auto postMessageIdentifier = InspectorInstrumentation::willPostMessage(*frame());
 
     auto userGestureToForward = UserGestureIndicator::currentUserGesture();
 
@@ -963,7 +971,7 @@ void LocalDOMWindow::processPostMessage(JSC::JSGlobalObject& lexicalGlobalObject
             return;
 
         RefPtr document = this->document();
-        Ref frame = *localFrame();
+        Ref frame = *this->frame();
         if (targetOrigin) {
             // Check target origin now since the target document may have changed since the timer was scheduled.
             if (!targetOrigin->isSameSchemeHostPort(protect(document->securityOrigin()))) {
@@ -1003,7 +1011,7 @@ void LocalDOMWindow::processPostMessage(JSC::JSGlobalObject& lexicalGlobalObject
         InspectorInstrumentation::didDispatchPostMessage(frame, postMessageIdentifier);
     });
 
-    InspectorInstrumentation::didPostMessage(*protect(localFrame()), postMessageIdentifier, lexicalGlobalObject);
+    InspectorInstrumentation::didPostMessage(*protect(frame()), postMessageIdentifier, lexicalGlobalObject);
 }
 
 ExceptionOr<void> LocalDOMWindow::postMessage(JSC::JSGlobalObject& lexicalGlobalObject, LocalDOMWindow& incumbentWindow, JSC::JSValue messageValue, WindowPostMessageOptions&& options)
@@ -1062,7 +1070,7 @@ DOMSelection* LocalDOMWindow::getSelection()
 
 HTMLFrameOwnerElement* LocalDOMWindow::frameElement() const
 {
-    RefPtr frame = this->frame();
+    auto* frame = this->frame();
     if (!frame)
         return nullptr;
 
@@ -1077,14 +1085,14 @@ void LocalDOMWindow::focus(LocalDOMWindow& incumbentWindow)
         if (!openerFrame || openerFrame == frame || incumbentWindow.frame() != openerFrame)
             return false;
 
-        RefPtr page = openerFrame->page();
+        auto* page = openerFrame->page();
         return page && page->isVisibleAndActive();
     }());
 }
 
 void LocalDOMWindow::focus(bool allowFocus)
 {
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return;
 
@@ -1111,7 +1119,7 @@ void LocalDOMWindow::focus(bool allowFocus)
 
 void LocalDOMWindow::blur()
 {
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return;
 
@@ -1139,7 +1147,7 @@ void LocalDOMWindow::closePage()
 
 void LocalDOMWindow::print()
 {
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return;
 
@@ -1155,7 +1163,7 @@ void LocalDOMWindow::print()
     if (page->isControlledByAutomation())
         return;
 
-    if (RefPtr loader = frame->loader().activeDocumentLoader(); loader && loader->isLoading()) {
+    if (auto* loader = frame->loader().activeDocumentLoader(); loader && loader->isLoading()) {
         m_shouldPrintWhenFinishedLoading = true;
         return;
     }
@@ -1165,7 +1173,7 @@ void LocalDOMWindow::print()
 
 void LocalDOMWindow::stop()
 {
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return;
 
@@ -1177,7 +1185,7 @@ void LocalDOMWindow::stop()
 
 void LocalDOMWindow::alert(const String& message)
 {
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return;
 
@@ -1206,7 +1214,7 @@ void LocalDOMWindow::alert(const String& message)
 
 bool LocalDOMWindow::confirmForBindings(const String& message)
 {
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return false;
 
@@ -1235,7 +1243,7 @@ bool LocalDOMWindow::confirmForBindings(const String& message)
 
 String LocalDOMWindow::prompt(const String& message, const String& defaultValue)
 {
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return String();
 
@@ -1282,7 +1290,7 @@ bool LocalDOMWindow::find(const String& string, bool caseSensitive, bool backwar
         options.add(FindOption::CaseInsensitive);
     if (wrap)
         options.add(FindOption::WrapAround);
-    return localFrame()->editor().findString(string, options).has_value();
+    return frame()->editor().findString(string, options).has_value();
 }
 
 bool LocalDOMWindow::offscreenBuffering() const
@@ -1292,7 +1300,7 @@ bool LocalDOMWindow::offscreenBuffering() const
 
 int LocalDOMWindow::outerHeight() const
 {
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return 0;
 
@@ -1320,7 +1328,7 @@ int LocalDOMWindow::outerHeight() const
 
 int LocalDOMWindow::outerWidth() const
 {
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return 0;
 
@@ -1355,7 +1363,7 @@ int LocalDOMWindow::innerHeight() const
     if (RefPtr ownerElement = frameElement())
         protect(ownerElement->document())->updateLayoutIfDimensionsOutOfDate(*ownerElement, { DimensionsCheck::Height });
 
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return 0;
     
@@ -1375,7 +1383,7 @@ int LocalDOMWindow::innerWidth() const
     if (RefPtr ownerElement = frameElement())
         protect(ownerElement->document())->updateLayoutIfDimensionsOutOfDate(*ownerElement, { DimensionsCheck::Width });
 
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return 0;
 
@@ -1388,7 +1396,7 @@ int LocalDOMWindow::innerWidth() const
 
 int LocalDOMWindow::screenX() const
 {
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return 0;
 
@@ -1401,7 +1409,7 @@ int LocalDOMWindow::screenX() const
 
 int LocalDOMWindow::screenY() const
 {
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return 0;
 
@@ -1414,7 +1422,7 @@ int LocalDOMWindow::screenY() const
 
 int LocalDOMWindow::scrollX() const
 {
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return 0;
 
@@ -1429,7 +1437,7 @@ int LocalDOMWindow::scrollX() const
     protect(frame->document())->updateLayoutIgnorePendingStylesheets();
 
     // Layout may have affected the current frame:
-    RefPtr frameAfterLayout = localFrame();
+    RefPtr frameAfterLayout = this->frame();
     if (!frameAfterLayout)
         return 0;
 
@@ -1442,7 +1450,7 @@ int LocalDOMWindow::scrollX() const
 
 int LocalDOMWindow::scrollY() const
 {
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return 0;
 
@@ -1457,7 +1465,7 @@ int LocalDOMWindow::scrollY() const
     protect(frame->document())->updateLayoutIgnorePendingStylesheets();
 
     // Layout may have affected the current frame:
-    RefPtr frameAfterLayout = localFrame();
+    RefPtr frameAfterLayout = this->frame();
     if (!frameAfterLayout)
         return 0;
 
@@ -1473,12 +1481,12 @@ unsigned LocalDOMWindow::length() const
     if (!isCurrentlyDisplayedInFrame())
         return 0;
 
-    return protect(localFrame())->tree().scopedChildCount();
+    return frame()->tree().scopedChildCount();
 }
 
 AtomString LocalDOMWindow::name() const
 {
-    RefPtr frame = localFrame();
+    auto* frame = this->frame();
     if (!frame)
         return nullAtom();
 
@@ -1487,7 +1495,7 @@ AtomString LocalDOMWindow::name() const
 
 void LocalDOMWindow::setName(const AtomString& string)
 {
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return;
 
@@ -1502,7 +1510,7 @@ void LocalDOMWindow::setStatus(const String& string)
 
 void LocalDOMWindow::disownOpener()
 {
-    if (RefPtr frame = localFrame())
+    if (RefPtr frame = this->frame())
         frame->disownOpener(Frame::NotifyUIProcess::Yes);
 }
 
@@ -1559,11 +1567,11 @@ bool LocalDOMWindow::consumeTransientActivation()
     if (!hasTransientActivation())
         return false;
 
-    for (RefPtr<Frame> frame = this->frame() ? &this->frame()->tree().top() : nullptr; frame; frame = frame->tree().traverseNext()) {
-        RefPtr localFrame = dynamicDowncast<LocalFrame>(frame.get());
+    for (auto* frame = this->frame() ? &this->frame()->tree().top() : nullptr; frame; frame = frame->tree().traverseNext()) {
+        auto* localFrame = dynamicDowncast<LocalFrame>(frame);
         if (!localFrame)
             continue;
-        if (RefPtr window = localFrame->window())
+        if (auto* window = localFrame->window())
             window->consumeLastActivationIfNecessary();
     }
 
@@ -1582,11 +1590,11 @@ bool LocalDOMWindow::consumeHistoryActionUserActivation()
     if (!hasHistoryActionActivation())
         return false;
 
-    for (RefPtr<Frame> frame = this->frame() ? &this->frame()->tree().top() : nullptr; frame; frame = frame->tree().traverseNext()) {
-        RefPtr localFrame = dynamicDowncast<LocalFrame>(frame.get());
+    for (auto* frame = this->frame() ? &this->frame()->tree().top() : nullptr; frame; frame = frame->tree().traverseNext()) {
+        auto* localFrame = dynamicDowncast<LocalFrame>(frame);
         if (!localFrame)
             continue;
-        if (RefPtr window = localFrame->window())
+        if (auto* window = localFrame->window())
             window->m_lastHistoryActionActivationTimestamp = window->m_lastActivationTimestamp;
     }
 
@@ -1615,11 +1623,11 @@ void LocalDOMWindow::notifyActivated(MonotonicTime activationTime)
     if (frame()->settings().closeWatcherEnabled())
         closeWatcherManager().notifyAboutUserActivation();
 
-    for (RefPtr ancestor = frame() ? frame()->tree().parent() : nullptr; ancestor; ancestor = ancestor->tree().parent()) {
-        RefPtr localAncestor = dynamicDowncast<LocalFrame>(ancestor.get());
+    for (auto* ancestor = frame() ? frame()->tree().parent() : nullptr; ancestor; ancestor = ancestor->tree().parent()) {
+        auto* localAncestor = dynamicDowncast<LocalFrame>(ancestor);
         if (!localAncestor)
             continue;
-        if (RefPtr window = localAncestor->window())
+        if (auto* window = localAncestor->window())
             window->setLastActivationTimestamp(activationTime);
     }
 
@@ -1656,11 +1664,10 @@ Ref<CSSStyleDeclaration> LocalDOMWindow::getComputedStyle(Element& element, cons
     if (!pseudoElt.startsWith(':'))
         return CSSComputedStyleDeclaration::create(element, std::nullopt);
 
-    // FIXME: This does not work for pseudo-elements that take arguments (webkit.org/b/264103).
-    auto [pseudoElementIsParsable, pseudoElementIdentifier] = CSSSelectorParser::parsePseudoElement(pseudoElt, CSSSelectorParserContext { protect(element.document()) });
-    if (!pseudoElementIsParsable)
+    auto resolved = Style::resolveComputedPseudoElement(element, pseudoElt);
+    if (!resolved.element)
         return CSSComputedStyleDeclaration::createEmpty(element);
-    return CSSComputedStyleDeclaration::create(element, pseudoElementIdentifier);
+    return CSSComputedStyleDeclaration::create(resolved.element.releaseNonNull(), resolved.identifier);
 }
 
 RefPtr<CSSRuleList> LocalDOMWindow::getMatchedCSSRules(Element* element, const String& pseudoElement, bool authorOnly) const
@@ -1668,24 +1675,25 @@ RefPtr<CSSRuleList> LocalDOMWindow::getMatchedCSSRules(Element* element, const S
     if (!isCurrentlyDisplayedInFrame())
         return nullptr;
 
-    // FIXME: This parser context won't get the right settings without a document.
-    auto parserContext = document() ? CSSSelectorParserContext { *protect(document()) } : CSSSelectorParserContext { CSSParserContext { HTMLStandardMode } };
-    auto [pseudoElementIsParsable, pseudoElementIdentifier] = CSSSelectorParser::parsePseudoElement(pseudoElement, parserContext);
-    if (!(pseudoElementIsParsable || (pseudoElementIdentifier && !pseudoElementIdentifier->nameArgument.isNull())) && !pseudoElement.isEmpty())
+    Ref document = *this->document();
+    auto pseudoElementIdentifier = CSSSelectorParser::parsePseudoElement(pseudoElement, CSSSelectorParserContext { document });
+    // Reject new features, such as ::highlight(name) and ::file-selector-button.
+    if (pseudoElementIdentifier && !pseudoElementIdentifier->nameOrPart.isNull())
+        pseudoElementIdentifier = std::nullopt;
+    if (!pseudoElementIdentifier && !pseudoElement.isEmpty())
         return nullptr;
 
-    RefPtr frame = localFrame();
-    protect(frame->document())->styleScope().flushPendingUpdate();
+    document->styleScope().flushPendingUpdate();
 
     unsigned rulesToInclude = Style::Resolver::AuthorCSSRules;
     if (!authorOnly)
         rulesToInclude |= Style::Resolver::UAAndUserCSSRules;
 
-    auto matchedRules = frame->document()->styleScope().resolver().pseudoStyleRulesForElement(element, pseudoElementIdentifier, rulesToInclude);
+    auto matchedRules = document->styleScope().resolver().pseudoStyleRulesForElement(element, pseudoElementIdentifier, rulesToInclude);
     if (matchedRules.isEmpty())
         return nullptr;
 
-    bool allowCrossOrigin = frame->settings().crossOriginCheckInGetMatchedCSSRulesDisabled();
+    bool allowCrossOrigin = document->settings().crossOriginCheckInGetMatchedCSSRulesDisabled();
 
     auto ruleList = StaticCSSRuleList::create();
     for (auto& rule : matchedRules) {
@@ -1742,20 +1750,11 @@ double LocalDOMWindow::devicePixelRatio() const
     if (!page)
         return 0.0;
 
-    auto frameScaleRatio = [&] {
-        float frameScale = 1.0f;
-        if (auto* localFrame = dynamicDowncast<LocalFrame>(frame.get())) {
-            frameScale = localFrame->frameScaleFactor();
-            // Page zoom applies to all frames synchronously, so include it in devicePixelRatio
-            // for both main frame and iframes. frameScaleFactor() doesn't include page zoom
-            // since page zoom is applied globally for rendering.
-            float pageZoom = localFrame->pageZoomFactor();
-            frameScale *= pageZoom;
-        }
-        return frameScale;
-    };
-
-    return page->deviceScaleFactor() * frameScaleRatio();
+    // Page zoom applies to all frames synchronously, so include it in devicePixelRatio
+    // for both main frame and iframes. frameScaleFactor() doesn't include page zoom
+    // since page zoom is applied globally for rendering.
+    auto frameScaleRatio = frame->frameScaleFactor() * frame->pageZoomFactor();
+    return page->deviceScaleFactor() * frameScaleRatio;
 }
 
 void LocalDOMWindow::scrollBy(double x, double y) const
@@ -1770,7 +1769,7 @@ void LocalDOMWindow::scrollBy(const ScrollToOptions& options) const
 
     protect(document())->updateLayoutIgnorePendingStylesheets();
 
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return;
 
@@ -1795,7 +1794,7 @@ void LocalDOMWindow::scrollTo(const ScrollToOptions& options, ScrollClamping cla
     if (!isCurrentlyDisplayedInFrame())
         return;
 
-    RefPtr view = localFrame()->view();
+    RefPtr view = frame()->view();
     if (!view)
         return;
 
@@ -1824,7 +1823,7 @@ void LocalDOMWindow::scrollTo(const ScrollToOptions& options, ScrollClamping cla
 
 bool LocalDOMWindow::allowedToChangeWindowGeometry() const
 {
-    RefPtr frame = localFrame();
+    auto* frame = this->frame();
     if (!frame)
         return false;
     if (!frame->page())
@@ -2040,7 +2039,7 @@ bool LocalDOMWindow::addEventListener(const AtomString& eventType, Ref<EventList
     auto& eventNames = WebCore::eventNames();
     auto typeInfo = eventNames.typeInfoForEvent(eventType);
     if (document) {
-        document->didAddEventListenersOfType(eventType);
+        document->didAddEventListenersOfType(eventType, options.capture ? Document::IsCapture::Yes : Document::IsCapture::No);
         if (typeInfo.isInCategory(EventCategory::Wheel)) {
             document->didAddWheelEventHandler(*document);
             document->invalidateEventListenerRegions();
@@ -2273,7 +2272,7 @@ void LocalDOMWindow::incrementScrollEventListenersCount()
 {
     RefPtr document = this->document();
     if (++m_scrollEventListenerCount == 1 && document->isTopDocument()) {
-        if (RefPtr frame = localFrame(); frame && frame->page())
+        if (RefPtr frame = this->frame(); frame && frame->page())
             protect(frame->page())->chrome().client().setNeedsScrollNotifications(*frame, true);
     }
 }
@@ -2282,7 +2281,7 @@ void LocalDOMWindow::decrementScrollEventListenersCount()
 {
     RefPtr document = this->document();
     if (!--m_scrollEventListenerCount && document->isTopDocument()) {
-        if (RefPtr frame = localFrame(); frame && frame->page() && document->backForwardCacheState() == Document::NotInBackForwardCache)
+        if (RefPtr frame = this->frame(); frame && frame->page() && document->backForwardCacheState() == Document::NotInBackForwardCache)
             protect(frame->page())->chrome().client().setNeedsScrollNotifications(*frame, false);
     }
 }
@@ -2307,7 +2306,7 @@ bool LocalDOMWindow::removeEventListener(const AtomString& eventType, EventListe
     auto& eventNames = WebCore::eventNames();
     auto typeInfo = eventNames.typeInfoForEvent(eventType);
     if (document) {
-        document->didRemoveEventListenersOfType(eventType);
+        document->didRemoveEventListenersOfType(eventType, options.capture ? Document::IsCapture::Yes : Document::IsCapture::No);
         if (typeInfo.isInCategory(EventCategory::Wheel)) {
             document->didRemoveWheelEventHandler(*document);
             document->invalidateEventListenerRegions();
@@ -2372,7 +2371,7 @@ void LocalDOMWindow::languagesChanged()
 {
     // https://html.spec.whatwg.org/multipage/system-state.html#dom-navigator-languages
     if (RefPtr document = this->document())
-        document->queueTaskToDispatchEventOnWindow(TaskSource::DOMManipulation, Event::create(eventNames().languagechangeEvent, Event::CanBubble::No, Event::IsCancelable::No));
+        document->queueTaskToDispatchEventOnWindow(*this, TaskSource::DOMManipulation, Event::create(eventNames().languagechangeEvent, Event::CanBubble::No, Event::IsCancelable::No));
 }
 
 void LocalDOMWindow::dispatchLoadEvent()
@@ -2381,7 +2380,7 @@ void LocalDOMWindow::dispatchLoadEvent()
     // as a side effect of what event handling code does.
     Ref protectedThis { *this };
     RefPtr document = this->document();
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     RefPtr protectedLoader = frame ? frame->loader().documentLoader() : nullptr;
     bool shouldMarkLoadEventTimes = protectedLoader && !protectedLoader->timing().loadEventStart();
 
@@ -2404,10 +2403,10 @@ void LocalDOMWindow::dispatchLoadEvent()
     }
 
     // Send a separate load event to the element that owns this frame.
-    if (RefPtr frame = localFrame())
+    if (RefPtr frame = this->frame())
         frame->dispatchLoadEventToParent();
 
-    InspectorInstrumentation::loadEventFired(protect(localFrame()).get());
+    InspectorInstrumentation::loadEventFired(protect(this->frame()).get());
 }
 
 void LocalDOMWindow::dispatchEvent(Event& event, EventTarget* target)
@@ -2436,7 +2435,7 @@ void LocalDOMWindow::dispatchEvent(Event& event, EventTarget* target)
     // events dispatched to the window object are guaranteed to flow through this function.
     // But the instrumentation prevents us from calling EventDispatcher::dispatchEvent here.
     if (InspectorInstrumentation::hasFrontends()) [[unlikely]] {
-        protectedFrame = localFrame();
+        protectedFrame = this->frame();
         hasListenersForEvent = hasEventListeners(event.type());
         if (hasListenersForEvent)
             InspectorInstrumentation::willDispatchEventOnWindow(protectedFrame.get(), event);
@@ -2500,7 +2499,7 @@ void LocalDOMWindow::finishedLoading()
 {
     if (m_shouldPrintWhenFinishedLoading) {
         m_shouldPrintWhenFinishedLoading = false;
-        if (RefPtr loader = localFrame()->loader().activeDocumentLoader(); !loader || loader->mainDocumentError().isNull())
+        if (RefPtr loader = frame()->loader().activeDocumentLoader(); !loader || loader->mainDocumentError().isNull())
             print();
     }
 }
@@ -2651,7 +2650,7 @@ void LocalDOMWindow::queueEventTimingCandidateForDispatch(PerformanceEventTiming
     page->scheduleRenderingUpdate(RenderingUpdateStep::EventTiming);
 }
 
-PerformanceEventTimingCandidate LocalDOMWindow::initializeEventTimingEntry(Event& event, EventType type)
+PerformanceEventTimingCandidate LocalDOMWindow::initializeEventTiming(Event& event, EventType type)
 {
     auto startTime = performance().relativeTimeFromTimeOriginInReducedResolutionSeconds(event.timeStamp());
     auto processingStart = performance().nowInReducedResolutionSeconds();
@@ -2679,8 +2678,9 @@ PerformanceEventTimingCandidate LocalDOMWindow::initializeEventTimingEntry(Event
     };
 }
 
-void LocalDOMWindow::finalizeEventTimingEntry(PerformanceEventTimingCandidate& entry, const Event& event, EventType type)
+void LocalDOMWindow::markEndOfProcessingForEventTiming(PerformanceEventTimingCandidate& entry, const Event& event, EventType type)
 {
+    // Maps to "Finalize event timing" in the spec.
     auto processingEnd = performance().nowInReducedResolutionSeconds();
     entry.processingEnd = processingEnd;
     entry.target = event.target();
@@ -2748,8 +2748,9 @@ void LocalDOMWindow::finalizeEventTimingEntry(PerformanceEventTimingCandidate& e
     }
 }
 
-void LocalDOMWindow::dispatchPendingEventTimingEntries()
+void LocalDOMWindow::finalizeAndQueueEventTimingEntries()
 {
+    // Maps to "Dispatch pending Event Timing entries" in the spec.
     auto renderingTime = performance().nowInReducedResolutionSeconds();
     if (m_pendingPointerDown && !m_pendingPointerDown->duration)
         m_pendingPointerDown->duration = std::max(renderingTime - m_pendingPointerDown->startTime, Seconds::fromMilliseconds(1));
@@ -2792,7 +2793,7 @@ void LocalDOMWindow::setLocation(LocalDOMWindow& activeWindow, const URL& comple
     RefPtr localParent = dynamicDowncast<LocalFrame>(frame->tree().parent());
     // If the loader for activeWindow's frame (browsing context) has no outgoing referrer, set its outgoing referrer
     // to the URL of its parent frame's Document.
-    if (RefPtr activeFrame = activeWindow.localFrame(); activeFrame && activeFrame->loader().outgoingReferrer().isEmpty() && localParent)
+    if (RefPtr activeFrame = activeWindow.frame(); activeFrame && activeFrame->loader().outgoingReferrer().isEmpty() && localParent)
         activeFrame->loader().setOutgoingReferrer(protect(document())->completeURL(localParent->document()->url().strippedForUseAsReferrer().string));
 
     // We want a new history item if we are processing a user gesture.
@@ -2851,7 +2852,7 @@ ExceptionOr<RefPtr<Frame>> LocalDOMWindow::createWindow(const String& urlString,
 
     if (!noopener) {
         ASSERT(!newFrame->opener() || newFrame->opener() == &openerFrame);
-        if (RefPtr page = newFrame->page())
+        if (auto* page = newFrame->page())
             page->setOpenedByDOMWithOpener(true);
     }
 
@@ -2863,10 +2864,11 @@ ExceptionOr<RefPtr<Frame>> LocalDOMWindow::createWindow(const String& urlString,
         }
     }
 
-    RefPtr localNewFrame = dynamicDowncast<LocalFrame>(newFrame);
-    if (localNewFrame && protect(localNewFrame->document()->window())->isInsecureScriptAccess(activeWindow, completedURL.string()))
+    RefPtr window = newFrame->window();
+    if (window && window->isInsecureScriptAccess(activeWindow, completedURL.string()))
         return noopener ? RefPtr<Frame> { nullptr } : newFrame;
 
+    RefPtr localNewFrame = dynamicDowncast<LocalFrame>(newFrame);
     if (prepareDialogFunction && localNewFrame)
         prepareDialogFunction(*protect(localNewFrame->document()->window()));
 
@@ -2908,7 +2910,7 @@ ExceptionOr<RefPtr<WindowProxy>> LocalDOMWindow::open(LocalDOMWindow& activeWind
     if (!activeDocument)
         return RefPtr<WindowProxy> { nullptr };
 
-    RefPtr firstFrame = firstWindow.localFrame();
+    RefPtr firstFrame = firstWindow.frame();
     if (!firstFrame)
         return RefPtr<WindowProxy> { nullptr };
 
@@ -2928,7 +2930,7 @@ ExceptionOr<RefPtr<WindowProxy>> LocalDOMWindow::open(LocalDOMWindow& activeWind
     }
 #endif
 
-    RefPtr frame = this->localFrame();
+    RefPtr frame = this->frame();
     if (!frame)
         return RefPtr<WindowProxy> { nullptr };
 
@@ -2951,7 +2953,7 @@ ExceptionOr<RefPtr<WindowProxy>> LocalDOMWindow::open(LocalDOMWindow& activeWind
         targetFrame = frame->tree().top();
     else if (isParentTargetFrameName(frameName)) {
         if (RefPtr parent = frame->tree().parent())
-            targetFrame = parent.get();
+            targetFrame = parent;
         else
             targetFrame = frame;
     }
@@ -2961,8 +2963,7 @@ ExceptionOr<RefPtr<WindowProxy>> LocalDOMWindow::open(LocalDOMWindow& activeWind
 
         URL completedURL = protect(firstFrame->document())->completeURL(urlString);
 
-        RefPtr localTargetFrame = dynamicDowncast<LocalFrame>(targetFrame.get());
-        if (localTargetFrame && protect(localTargetFrame->document()->window())->isInsecureScriptAccess(activeWindow, completedURL.string()))
+        if (protect(targetFrame->window())->isInsecureScriptAccess(activeWindow, completedURL.string()))
             return &targetFrame->windowProxy();
 
         if (urlString.isEmpty())
@@ -2993,11 +2994,11 @@ void LocalDOMWindow::showModalDialog(const String& urlString, const String& dial
         return;
     if (!activeWindow.frame())
         return;
-    RefPtr firstFrame = firstWindow.localFrame();
+    RefPtr firstFrame = firstWindow.frame();
     if (!firstFrame)
         return;
 
-    RefPtr frame = localFrame();
+    RefPtr frame = this->frame();
     RefPtr page = frame->page();
     if (!page)
         return;
@@ -3029,12 +3030,7 @@ void LocalDOMWindow::disableSuddenTermination()
         page->chrome().disableSuddenTermination();
 }
 
-Frame* LocalDOMWindow::frame() const
-{
-    return localFrame();
-}
-
-LocalFrame* LocalDOMWindow::localFrame() const
+LocalFrame* LocalDOMWindow::frame() const
 {
     auto* document = this->document();
     return document ? document->frame() : nullptr;
@@ -3074,7 +3070,7 @@ PushManager& LocalDOMWindow::pushManager()
 
 static URL toScope(LocalDOMWindow& window)
 {
-    if (RefPtr frame = window.localFrame()) {
+    if (RefPtr frame = window.frame()) {
         if (RefPtr document = frame->document())
             return URL { document->url().protocolHostAndPort() };
     }

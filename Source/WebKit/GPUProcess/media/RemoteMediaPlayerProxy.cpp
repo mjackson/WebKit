@@ -226,7 +226,7 @@ void RemoteMediaPlayerProxy::loadMediaSource(URL&& url, const MediaPlayer::LoadO
     player->load(url, options, *protect(m_mediaSourceProxy));
 
     if (reattached)
-        protect(m_mediaSourceProxy)->setMediaPlayers(*this, player->protectedPlayerPrivate().get());
+        protect(m_mediaSourceProxy)->setMediaPlayers(*this, protect(player->playerPrivate()));
     getConfiguration(configuration);
     completionHandler(WTF::move(configuration));
 }
@@ -551,7 +551,7 @@ void RemoteMediaPlayerProxy::mediaPlayerGetRawCookies(const URL& url, WebCore::M
 }
 #endif
 
-const String& RemoteMediaPlayerProxy::mediaPlayerMediaCacheDirectory() const
+String RemoteMediaPlayerProxy::mediaPlayerMediaCacheDirectory() const
 {
     RefPtr manager = m_manager.get();
     ASSERT(manager && manager->gpuConnectionToWebProcess());
@@ -865,7 +865,7 @@ void RemoteMediaPlayerProxy::setWirelessPlaybackTarget(MediaPlaybackTargetContex
 MediaPlaybackTargetType RemoteMediaPlayerProxy::playbackTargetType() const
 {
 #if PLATFORM(IOS_FAMILY)
-    if (RefPtr playbackTarget = MediaSessionHelper::protectedSharedHelper()->playbackTarget())
+    if (RefPtr playbackTarget = protect(MediaSessionHelper::sharedHelper())->playbackTarget())
         return playbackTarget->type();
 #endif
     return MediaPlaybackTargetType::None;

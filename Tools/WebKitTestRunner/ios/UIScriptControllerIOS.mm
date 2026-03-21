@@ -337,6 +337,18 @@ void UIScriptControllerIOS::touchDownAtPoint(long x, long y, long touchCount, JS
     }).get()];
 }
 
+void UIScriptControllerIOS::touchDownAtPointWithMajorRadius(long x, long y, float majorRadius, float majorRadiusTolerance, JSValueRef callback)
+{
+    unsigned callbackID = m_context->prepareForAsyncTask(callback, CallbackTypeNonPersistent);
+
+    auto location = globalToContentCoordinates(webView(), x, y);
+    [[HIDEventGenerator sharedHIDEventGenerator] touchDown:location majorRadius:majorRadius majorRadiusTolerance:majorRadiusTolerance completionBlock:makeBlockPtr([this, protectedThis = Ref { *this }, callbackID] {
+        if (!m_context)
+            return;
+        m_context->asyncTaskComplete(callbackID);
+    }).get()];
+}
+
 void UIScriptControllerIOS::liftUpAtPoint(long x, long y, long touchCount, JSValueRef callback)
 {
     unsigned callbackID = m_context->prepareForAsyncTask(callback, CallbackTypeNonPersistent);
@@ -1452,6 +1464,12 @@ void UIScriptControllerIOS::setSelectedColorForColorPicker(double red, double gr
 {
     UIColor *color = [UIColor colorWithRed:red green:green blue:blue alpha:1.0f];
     [webView() setSelectedColorForColorPicker:color];
+}
+
+bool UIScriptControllerIOS::isShowingColorPicker() const
+{
+    RetainPtr<UIViewController> presentedViewController = webView().window.rootViewController.presentedViewController;
+    return [presentedViewController.get() isKindOfClass:[UIColorPickerViewController class]];
 }
 
 void UIScriptControllerIOS::setKeyboardInputModeIdentifier(JSStringRef identifier)

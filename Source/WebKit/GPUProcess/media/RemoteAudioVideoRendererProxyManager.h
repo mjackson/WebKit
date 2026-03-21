@@ -173,13 +173,14 @@ private:
     RefPtr<WebCore::AudioVideoRenderer> createRenderer();
     RefPtr<WebCore::AudioVideoRenderer> rendererFor(RemoteAudioVideoRendererIdentifier) const;
     RemoteAudioVideoRendererState stateFor(RemoteAudioVideoRendererIdentifier) const;
-    RendererContext& contextFor(RemoteAudioVideoRendererIdentifier);
+    RendererContext& NODELETE contextFor(RemoteAudioVideoRendererIdentifier);
     void rendereringModeChanged(RemoteAudioVideoRendererIdentifier);
     using LayerHostingContextCallback = CompletionHandler<void(WebCore::HostingContext)>;
     void requestHostingContext(RemoteAudioVideoRendererIdentifier, LayerHostingContextCallback&&);
     WebCore::MediaSampleConverter& converterFor(RendererContext&, TrackIdentifier);
 
 #if PLATFORM(COCOA)
+    void setVideoLayerSize(RemoteAudioVideoRendererIdentifier, const WebCore::FloatSize&);
     void setVideoLayerSizeFenced(RemoteAudioVideoRendererIdentifier, const WebCore::FloatSize&, WTF::MachSendRightAnnotated&&);
 #endif
 

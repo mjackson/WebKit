@@ -15,30 +15,24 @@ Modules/webaudio/PannerNode.cpp
 Modules/webaudio/ScriptProcessorNode.cpp
 Modules/webaudio/StereoPannerNode.cpp
 [ iOS ] Modules/webdatabase/DatabaseTracker.cpp
-[ Mac ] accessibility/AccessibilityNodeObject.cpp
 [ iOS ] accessibility/AccessibilityNodeObject.cpp
-[ Mac ] accessibility/AccessibilityObject.cpp
+accessibility/AccessibilityObject.cpp
 [ iOS ] accessibility/ios/AccessibilityObjectIOS.mm
 [ iOS ] accessibility/ios/WebAccessibilityObjectWrapperIOS.mm
 [ iOS ] bindings/js/CommonVM.cpp
 bindings/js/JSAbortSignalCustom.cpp
-bindings/js/JSAudioWorkletProcessorCustom.cpp
 bindings/js/JSCSSRuleListCustom.cpp
 bindings/js/JSCSSStyleDeclarationCustom.cpp
 bindings/js/JSCustomElementInterface.cpp
 bindings/js/JSCustomElementRegistryCustom.cpp
-bindings/js/JSDOMAbstractOperations.h
 bindings/js/JSDOMBindingSecurity.cpp
 bindings/js/JSDOMGlobalObject.cpp
 bindings/js/JSDOMWindowBase.cpp
-bindings/js/JSDOMWindowProperties.cpp
 bindings/js/JSErrorHandler.cpp
-bindings/js/JSHTMLAllCollectionCustom.cpp
 bindings/js/JSHTMLElementCustom.cpp
 bindings/js/JSHistoryCustom.cpp
 bindings/js/JSIDBCursorCustom.cpp
 bindings/js/JSIDBRequestCustom.cpp
-bindings/js/JSIntersectionObserverCustom.cpp
 bindings/js/JSLazyEventListener.cpp
 bindings/js/JSLocationCustom.cpp
 bindings/js/JSMessagePortCustom.cpp
@@ -48,40 +42,32 @@ bindings/js/JSObservableArray.cpp
 bindings/js/JSPluginElementFunctions.cpp
 bindings/js/JSPopStateEventCustom.cpp
 bindings/js/JSResizeObserverCustom.cpp
-bindings/js/JSStylePropertyMapReadOnlyCustom.cpp
 bindings/js/JSSubscriberCustom.cpp
 bindings/js/JSTextTrackCueCustom.cpp
 bindings/js/ScriptCachedFrameData.cpp
 bindings/js/ScriptModuleLoader.cpp
 bindings/js/StructuredClone.cpp
-[ Mac ] css/CSSStyleSheet.cpp
+css/CSSStyleSheet.cpp
 css/SelectorChecker.cpp
 css/ShorthandSerializer.cpp
-[ Mac ] dom/Document.cpp
-[ iOS ] dom/Document.cpp
-dom/Node.cpp
 dom/Position.cpp
-[ Mac ] dom/Range.cpp
+dom/Range.cpp
 dom/SpaceSplitString.cpp
-[ Mac ] editing/DeleteSelectionCommand.cpp
-[ Mac ] editing/TextCheckingHelper.cpp
+editing/DeleteSelectionCommand.cpp
+editing/TextCheckingHelper.cpp
 [ iOS ] editing/ios/DictationCommandIOS.cpp
 [ iOS ] editing/ios/EditorIOS.mm
 [ iOS ] html/HTMLAnchorElement.cpp
-[ Mac ] html/HTMLEmbedElement.cpp
-[ Mac ] html/HTMLFormElement.cpp
+html/HTMLFormElement.cpp
 [ iOS ] html/HTMLImageElement.cpp
 [ iOS ] html/HTMLImageLoader.cpp
-[ Mac ] html/HTMLMediaElement.cpp
-[ Mac ] html/HTMLOptionElement.cpp
+html/HTMLMediaElement.cpp
+html/HTMLOptionElement.cpp
 [ iOS ] html/HTMLPictureElement.cpp
-[ Mac ] html/HTMLSelectElement.cpp
-[ Mac ] html/HTMLTableRowElement.cpp
-[ Mac ] html/MediaElementSession.cpp
-[ Mac ] html/OffscreenCanvas.cpp
+html/OffscreenCanvas.cpp
 html/canvas/CanvasRenderingContext2DBase.cpp
 inspector/InspectorAuditAccessibilityObject.cpp
-[ Mac ] inspector/InspectorNodeFinder.cpp
+inspector/InspectorNodeFinder.cpp
 inspector/agents/InspectorAnimationAgent.cpp
 inspector/agents/InspectorCSSAgent.cpp
 inspector/agents/InspectorCanvasAgent.cpp
@@ -93,38 +79,33 @@ inspector/agents/page/PageNetworkAgent.cpp
 [ iOS ] loader/cache/CachedRawResource.cpp
 page/EventHandler.cpp
 page/FocusController.cpp
-[ Mac ] page/InteractionRegion.cpp
-[ Mac ] page/IntersectionObserver.cpp
+page/InteractionRegion.cpp
+page/IntersectionObserver.cpp
 [ iOS ] page/LocalDOMWindow.cpp
-[ Mac ] page/LocalFrameView.cpp
 [ iOS ] page/LocalFrameView.cpp
+page/PointerCaptureController.cpp
 [ iOS ] page/Quirks.cpp
 [ iOS ] page/cocoa/ContentChangeObserver.cpp
 [ iOS ] page/ios/EventHandlerIOS.mm
 [ iOS ] page/ios/FrameIOS.mm
 [ Mac ] page/mac/ServicesOverlayController.mm
 [ iOS ] page/scrolling/AsyncScrollingCoordinator.cpp
-[ Mac ] page/scrolling/ScrollingTreeOverflowScrollProxyNode.cpp
-[ Mac ] page/scrolling/ScrollingTreePositionedNode.cpp
 [ iOS ] platform/PreviewConverter.cpp
 [ iOS ] platform/audio/ios/AudioSessionIOS.mm
 [ iOS ] platform/audio/ios/MediaSessionManagerIOS.mm
-[ Mac ] platform/graphics/avfoundation/objc/CDMInstanceFairPlayStreamingAVFObjC.mm
+platform/graphics/avfoundation/objc/CDMInstanceFairPlayStreamingAVFObjC.mm
 platform/graphics/filters/software/FEMorphologySoftwareApplier.cpp
 [ iOS ] platform/ios/DragImageIOS.mm
 [ iOS ] platform/ios/WebVideoFullscreenControllerAVKit.mm
-[ Mac ] rendering/RenderBox.cpp
 rendering/RenderCounter.cpp
-[ Mac ] rendering/RenderImage.cpp
 [ iOS ] rendering/RenderImage.cpp
 rendering/RenderLayer.cpp
 [ iOS ] rendering/RenderLayerCompositor.cpp
 [ iOS ] rendering/RenderSelectFallbackButton.cpp
 rendering/RenderTreeAsText.cpp
-[ iOS ] rendering/cocoa/RenderThemeCocoa.mm
+rendering/cocoa/RenderThemeCocoa.mm
 [ iOS ] rendering/ios/RenderThemeIOS.mm
-[ Mac ] rendering/svg/legacy/LegacyRenderSVGTransformableContainer.cpp
-style/ElementRuleCollector.cpp
+rendering/svg/legacy/LegacyRenderSVGTransformableContainer.cpp
 style/MatchResultCache.cpp
 style/PageRuleCollector.cpp
 style/RuleSetBuilder.cpp
@@ -134,7 +115,7 @@ style/StyleDifference.cpp
 style/StyleExtractorCustom.h
 style/StyleInvalidationFunctions.h
 style/StyleRelations.cpp
-[ Mac ] style/StyleScope.cpp
+style/StyleScope.cpp
 [ iOS ] style/StyleScopeRuleSets.cpp
 style/UserAgentStyle.cpp
 style/computed/StyleComputedStyleBase+SettersInlines.h
@@ -143,5 +124,5 @@ svg/SVGClipPathElement.cpp
 svg/SVGUseElement.cpp
 testing/Internals.cpp
 testing/LegacyMockCDM.cpp
-[ Mac ] workers/service/ServiceWorkerContainer.cpp
-[ Mac ] xml/XSLImportRule.cpp
+workers/service/ServiceWorkerContainer.cpp
+xml/XSLImportRule.cpp

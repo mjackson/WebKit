@@ -71,10 +71,10 @@ private:
     const RenderBlock& rootRenderer() const { return m_rootRenderer; }
     RenderBlock& rootRenderer() { return m_rootRenderer; }
 
-    const Layout::ElementBox& rootLayoutBox() const;
+    const Layout::ElementBox& NODELETE rootLayoutBox() const;
     Layout::ElementBox& rootLayoutBox();
 
-    Layout::InitialContainingBlock& initialContainingBlock();
+    Layout::InitialContainingBlock& NODELETE initialContainingBlock();
 
     static UniqueRef<Layout::Box> createLayoutBox(RenderObject&);
     static void adjustStyleIfNeeded(const RenderElement&, RenderStyle&, RenderStyle* firstLineStyle);

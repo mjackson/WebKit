@@ -37,6 +37,9 @@ class GLDisplay;
 
 namespace WebKit {
 
+#if ENABLE(WEBXR_HIT_TEST)
+class OpenXRHitTestManager;
+#endif
 class OpenXRInput;
 class OpenXRLayer;
 class OpenXRSwapchain;
@@ -137,6 +140,10 @@ private:
     XrSpace m_floorSpace { XR_NULL_HANDLE };
 
     PlatformXR::LayerHandle m_nextLayerHandle { 1 };
+
+#if ENABLE(WEBXR_HIT_TEST)
+    std::unique_ptr<OpenXRHitTestManager> m_hitTestManager;
+#endif
 };
 
 } // namespace WebKit

@@ -23,10 +23,10 @@
 
 #if ENABLE_SWIFTUI
 
-internal import SwiftUI
-internal import os
+import SwiftUI
+import os
 @_spi(CrossImportOverlay) import WebKit
-internal import WebKit_Private.WKPreferencesPrivate
+import WebKit_Private.WKPreferencesPrivate
 
 extension Logger {
     fileprivate static let webView = Logger(subsystem: "com.apple.WebKit", category: "SwiftUIWebView")
@@ -57,6 +57,10 @@ struct WebViewRepresentable {
     func updatePlatformView(_ platformView: CocoaWebViewAdapter, context: Context) {
         let webView = page.backingWebView
         let environment = context.environment
+
+        #if ENABLE_WEBVIEW_ADDITIONAL_SETUP
+        performAdditionalPlatformViewUpdates(context: context)
+        #endif
 
         #if os(iOS)
         platformView.extrinsicSafeAreaInsets = safeAreaInsets
@@ -164,9 +168,15 @@ final class WebViewCoordinator {
     }
 
     var configuration: WebViewRepresentable
+    #if ENABLE_WEBVIEW_ADDITIONAL_SETUP
+    var additionalInformation: Information?
+    #endif
 
     func update(_ view: CocoaWebViewAdapter, configuration: WebViewRepresentable, context: WebViewRepresentable.Context) {
         self.configuration = configuration
+        #if ENABLE_WEBVIEW_ADDITIONAL_SETUP
+        performAdditionalCoordinatorUpdates(context: context)
+        #endif
 
         #if canImport(SwiftUI, _version: "7.0.57")
         updateFindInteraction(view, context: context)

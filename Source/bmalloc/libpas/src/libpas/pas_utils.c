@@ -81,6 +81,17 @@
 
 #if PAS_OS(DARWIN) && PAS_VA_OPT_SUPPORTED
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+PAS_NEVER_INLINE PAS_NO_RETURN void pas_crash_with_info_impl0(uint64_t reason)
+{
+    register uint64_t reasonGPR __asm__(CRASH_GPR0) = reason;
+    __asm__ volatile (PAS_FATAL_CRASH_INST : : "r"(reasonGPR));
+    __builtin_unreachable();
+}
+
 PAS_NEVER_INLINE PAS_NO_RETURN void pas_crash_with_info_impl1(uint64_t reason, uint64_t misc1)
 {
     register uint64_t reasonGPR __asm__(CRASH_GPR0) = reason;
@@ -143,6 +154,11 @@ PAS_NEVER_INLINE PAS_NO_RETURN void pas_crash_with_info_impl6(uint64_t reason, u
     __asm__ volatile (PAS_FATAL_CRASH_INST : : "r"(reasonGPR), "r"(misc1GPR), "r"(misc2GPR), "r"(misc3GPR), "r"(misc4GPR), "r"(misc5GPR), "r"(misc6GPR));
     __builtin_unreachable();
 }
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif /* PAS_OS(DARWIN) && PAS_VA_OPT_SUPPORTED */
 

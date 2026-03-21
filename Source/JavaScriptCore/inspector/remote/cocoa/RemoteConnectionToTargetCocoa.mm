@@ -138,11 +138,6 @@ NSString *RemoteConnectionToTarget::connectionIdentifier() const
     return adoptNS([m_connectionIdentifier copy]).autorelease();
 }
 
-RetainPtr<NSString> RemoteConnectionToTarget::protectedConnectionIdentifier() const
-{
-    return connectionIdentifier();
-}
-
 NSString *RemoteConnectionToTarget::destination() const
 {
     return adoptNS([m_destination copy]).autorelease();

@@ -25,12 +25,14 @@
 
 #pragma once
 
+#include <WebCore/FrameIdentifier.h>
 #include <wtf/CheckedPtr.h>
 #include <wtf/Ref.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
 
 namespace WebCore {
 class Color;
+class IntRect;
 }
 
 namespace WebKit {
@@ -61,15 +63,18 @@ public:
 
     virtual void endPicker();
     virtual void setSelectedColor(const WebCore::Color&);
-    virtual void showColorPicker(const WebCore::Color&);
+    virtual void showColorPicker(const WebCore::Color&, const WebCore::IntRect&);
+
+    std::optional<WebCore::FrameIdentifier> frameID() const { return m_frameID; }
 
 protected:
-    explicit WebColorPicker(Client*);
+    explicit WebColorPicker(Client*, std::optional<WebCore::FrameIdentifier> = std::nullopt);
 
     Client* client() const { return m_client.get(); }
 
 private:
     CheckedPtr<Client> m_client;
+    std::optional<WebCore::FrameIdentifier> m_frameID;
 };
 
 } // namespace WebKit

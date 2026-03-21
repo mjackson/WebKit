@@ -349,11 +349,6 @@ NSView *Widget::platformWidget() const
     return m_widget.get();
 }
 
-RetainPtr<NSView> Widget::protectedPlatformWidget() const
-{
-    return platformWidget();
-}
-
 void Widget::setPlatformWidget(NSView *widget)
 {
     if (widget == m_widget)

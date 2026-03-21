@@ -97,7 +97,7 @@ private:
     void NODELETE dispatchDidReachLayoutMilestone(OptionSet<LayoutMilestone>) final;
     void NODELETE dispatchDidReachVisuallyNonEmptyState() final;
 
-    LocalFrame* NODELETE dispatchCreatePage(const NavigationAction&, NewFrameOpenerPolicy) final;
+    LocalFrame* NODELETE dispatchCreatePage(const NavigationAction&, NewFrameOpenerPolicy, const String&) final;
     void NODELETE dispatchShow() final;
 
     void NODELETE dispatchDecidePolicyForResponse(const ResourceResponse&, const ResourceRequest&, const String&, FramePolicyFunction&&) final;
@@ -164,6 +164,7 @@ private:
     ShouldGoToHistoryItem NODELETE shouldGoToHistoryItem(HistoryItem&, IsSameDocumentNavigation) const final;
     bool NODELETE supportsAsyncShouldGoToHistoryItem() const final;
     void NODELETE shouldGoToHistoryItemAsync(HistoryItem&, CompletionHandler<void(ShouldGoToHistoryItem)>&&) const final;
+    void NODELETE dispatchGoToBackForwardItemAtIndex(int steps, FrameLoadType) final;
 
     void NODELETE saveViewStateToItem(HistoryItem&) final;
     bool NODELETE canCachePage() const final;

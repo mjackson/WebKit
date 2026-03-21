@@ -24,9 +24,9 @@
 
 #pragma once
 
-#include <WebCore/CachedImage.h>
-#include <WebCore/CachedResourceHandle.h>
-#include <WebCore/StyleImage.h>
+#include "CachedImage.h"
+#include "CachedResourceHandle.h"
+#include "StyleImage.h"
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {

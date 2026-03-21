@@ -84,9 +84,9 @@ public:
 
     ~Scope();
 
-    const Vector<Ref<CSSStyleSheet>>& activeStyleSheets() const { return m_activeStyleSheets; }
+    const Vector<Ref<CSSStyleSheet>>& activeStyleSheets() const LIFETIME_BOUND { return m_activeStyleSheets; }
 
-    const Vector<Ref<StyleSheet>>& styleSheetsForStyleSheetList();
+    const Vector<Ref<StyleSheet>>& styleSheetsForStyleSheetList() LIFETIME_BOUND;
     const Vector<Ref<CSSStyleSheet>> activeStyleSheetsForInspector();
 
     void addStyleSheetCandidateNode(Node&, bool createdByParser);
@@ -98,12 +98,12 @@ public:
     void removePendingSheet(const Element&);
     void addPendingSheet(const ProcessingInstruction&);
     void removePendingSheet(const ProcessingInstruction&);
-    bool hasPendingSheets() const;
-    bool hasPendingSheetsBeforeBody() const;
-    bool hasPendingSheetsInBody() const;
-    bool hasPendingSheet(const Element&) const;
-    bool hasPendingSheetInBody(const Element&) const;
-    bool hasPendingSheet(const ProcessingInstruction&) const;
+    bool NODELETE hasPendingSheets() const;
+    bool NODELETE hasPendingSheetsBeforeBody() const;
+    bool NODELETE hasPendingSheetsInBody() const;
+    bool NODELETE hasPendingSheet(const Element&) const;
+    bool NODELETE hasPendingSheetInBody(const Element&) const;
+    bool NODELETE hasPendingSheet(const ProcessingInstruction&) const;
 
     bool usesStyleBasedEditability() const { return m_usesStyleBasedEditability; }
     bool usesHasPseudoClass() const { return m_usesHasPseudoClass; }
@@ -144,7 +144,7 @@ public:
 
     void clearViewTransitionStyles();
 
-    MatchResultCache& matchResultCache();
+    MatchResultCache& matchResultCache() LIFETIME_BOUND;
 
     const Document& document() const { return m_document; }
     Document& document() { return m_document; }
@@ -167,13 +167,13 @@ public:
     };
     bool invalidateForLayoutDependencies(LayoutDependencyUpdateContext&);
 
-    const CustomPropertyRegistry& customPropertyRegistry() const { return m_customPropertyRegistry.get(); }
-    CustomPropertyRegistry& customPropertyRegistry() { return m_customPropertyRegistry.get(); }
-    const CSSCounterStyleRegistry& counterStyleRegistry() const { return m_counterStyleRegistry.get(); }
-    CSSCounterStyleRegistry& counterStyleRegistry() { return m_counterStyleRegistry.get(); }
+    const CustomPropertyRegistry& customPropertyRegistry() const LIFETIME_BOUND { return m_customPropertyRegistry.get(); }
+    CustomPropertyRegistry& customPropertyRegistry() LIFETIME_BOUND { return m_customPropertyRegistry.get(); }
+    const CSSCounterStyleRegistry& counterStyleRegistry() const LIFETIME_BOUND { return m_counterStyleRegistry.get(); }
+    CSSCounterStyleRegistry& counterStyleRegistry() LIFETIME_BOUND { return m_counterStyleRegistry.get(); }
 
-    AnchorPositionedToAnchorMap& anchorPositionedToAnchorMap() { return m_anchorPositionedToAnchorMap; }
-    const AnchorPositionedToAnchorMap& anchorPositionedToAnchorMap() const { return m_anchorPositionedToAnchorMap; }
+    AnchorPositionedToAnchorMap& anchorPositionedToAnchorMap() LIFETIME_BOUND { return m_anchorPositionedToAnchorMap; }
+    const AnchorPositionedToAnchorMap& anchorPositionedToAnchorMap() const LIFETIME_BOUND { return m_anchorPositionedToAnchorMap; }
     void updateAnchorPositioningStateAfterStyleResolution();
 
     std::optional<size_t> lastSuccessfulPositionOptionIndexFor(const Styleable&);
@@ -183,8 +183,8 @@ public:
     bool invalidateForAnchorDependencies(LayoutDependencyUpdateContext&);
 
 private:
-    Scope& documentScope();
-    bool isForUserAgentShadowTree() const;
+    Scope& NODELETE documentScope();
+    bool NODELETE isForUserAgentShadowTree() const;
 
     void didRemovePendingStylesheet();
 

@@ -64,7 +64,7 @@ static const AtomString& summarySlotName()
 class DetailsSlotAssignment final : public NamedSlotAssignment {
 private:
     void hostChildElementDidChange(const Element&, ShadowRoot&) override;
-    const AtomString& slotNameForHostChild(const Node&) const override;
+    const AtomString& NODELETE slotNameForHostChild(const Node&) const override;
 };
 
 void DetailsSlotAssignment::hostChildElementDidChange(const Element& childElement, ShadowRoot& shadowRoot)
@@ -82,7 +82,7 @@ void DetailsSlotAssignment::hostChildElementDidChange(const Element& childElemen
         didChangeSlot(NamedSlotAssignment::defaultSlotName(), shadowRoot);
 }
 
-const AtomString& DetailsSlotAssignment::slotNameForHostChild(const Node& child) const
+SUPPRESS_NODELETE const AtomString& NODELETE DetailsSlotAssignment::slotNameForHostChild(const Node& child) const
 {
     Ref details = downcast<HTMLDetailsElement>(*child.parentNode());
 
@@ -151,7 +151,7 @@ bool HTMLDetailsElement::isActiveSummary(const HTMLSummaryElement& summary) cons
     if (summary.parentNode() != this)
         return false;
 
-    RefPtr slot = protect(shadowRoot())->findAssignedSlot(summary);
+    RefPtr slot = shadowRoot()->findAssignedSlot(summary);
     return slot && slot == summarySlot.get();
 }
 
@@ -187,24 +187,33 @@ void HTMLDetailsElement::attributeChanged(const QualifiedName& name, const AtomS
                 queueDetailsToggleEventTask(ToggleState::Open, ToggleState::Closed);
             }
         }
-    } else
+    } else if (name == nameAttr)
         ensureDetailsExclusivityAfterMutation();
 }
 
-Node::InsertedIntoAncestorResult HTMLDetailsElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps HTMLDetailsElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    HTMLElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    HTMLElement::insertionSteps(insertionType, parentOfInsertedTree);
+
+    m_shouldCloseElementAfterInsertion = shouldClose();
+
     if (!insertionType.connectedToDocument)
-        return InsertedIntoAncestorResult::Done;
-    return InsertedIntoAncestorResult::NeedsPostInsertionCallback;
+        return NeedsPostConnectionSteps::No;
+    return NeedsPostConnectionSteps::Yes;
 }
 
-void HTMLDetailsElement::didFinishInsertingNode()
+void HTMLDetailsElement::postConnectionSteps()
 {
-    ensureDetailsExclusivityAfterMutation();
+    // FIXME: Spec makes this DOM mutation synchronously in "insertion steps"
+    // but our current model of insertionSteps is not compatible with that.
+    if (hasAttributeWithoutSynchronization(openAttr) && m_shouldCloseElementAfterInsertion) {
+        ShouldNotFireMutationEventsScope scope(document());
+        toggleOpen();
+    }
+    m_shouldCloseElementAfterInsertion = false;
 }
 
-Vector<Ref<HTMLDetailsElement>> HTMLDetailsElement::otherElementsInNameGroup()
+Vector<Ref<HTMLDetailsElement>> HTMLDetailsElement::otherElementsInNameGroup() const
 {
     Vector<Ref<HTMLDetailsElement>> otherElementsInNameGroup;
     const auto& detailElementName = attributeWithoutSynchronization(nameAttr);
@@ -217,15 +226,22 @@ Vector<Ref<HTMLDetailsElement>> HTMLDetailsElement::otherElementsInNameGroup()
 
 void HTMLDetailsElement::ensureDetailsExclusivityAfterMutation()
 {
-    if (hasAttributeWithoutSynchronization(openAttr) && !attributeWithoutSynchronization(nameAttr).isEmpty()) {
-        ShouldNotFireMutationEventsScope scope(document());
-        for (auto& otherDetailsElement : otherElementsInNameGroup()) {
-            if (otherDetailsElement->hasAttributeWithoutSynchronization(openAttr)) {
-                toggleOpen();
-                break;
-            }
+    if (!shouldClose())
+        return;
+    ShouldNotFireMutationEventsScope scope(document());
+    toggleOpen();
+}
+
+bool HTMLDetailsElement::shouldClose() const
+{
+    const auto& detailElementName = attributeWithoutSynchronization(nameAttr);
+    if (hasAttributeWithoutSynchronization(openAttr) && !detailElementName.isEmpty()) {
+        for (auto& otherElement : otherElementsInNameGroup()) {
+            if (otherElement->hasAttributeWithoutSynchronization(openAttr))
+                return true;
         }
     }
+    return false;
 }
 
 void HTMLDetailsElement::toggleOpen()

@@ -32,10 +32,6 @@
 #include "CachedImage.h"
 #include "FloatSize.h"
 #include "RenderElement.h"
-#include "SVGCursorElement.h"
-#include "SVGElementTypeHelpers.h"
-#include "SVGLengthContext.h"
-#include "SVGURIReference.h"
 #include "StyleBuilderState.h"
 #include "StyleCachedImage.h"
 #include "StyleImageSet.h"
@@ -72,11 +68,7 @@ CursorImage::CursorImage(Ref<Image>&& image, std::optional<IntPoint> hotSpot, UR
 {
 }
 
-CursorImage::~CursorImage()
-{
-    for (Ref element : m_cursorElements)
-        element->removeClient(*this);
-}
+CursorImage::~CursorImage() = default;
 
 bool CursorImage::operator==(const Image& other) const
 {
@@ -108,53 +100,7 @@ ImageWithScale CursorImage::selectBestFitImage(const Document& document)
     if (RefPtr imageSet = dynamicDowncast<ImageSet>(m_image.get()))
         return imageSet->selectBestFitImage(document);
 
-    if (RefPtr cachedImage = dynamicDowncast<CachedImage>(m_image.get())) {
-        if (RefPtr cursorElement = updateCursorElement(document)) {
-            auto existingImageURL = cachedImage->url().resolved;
-            auto updatedImageURL = document.completeURL(cursorElement->href());
-
-            if (existingImageURL != updatedImageURL) {
-                auto styleURL = URL { .resolved = updatedImageURL, .modifiers = { } };
-                m_image = CachedImage::create(styleURL, CSSImageValue::create(WTF::move(updatedImageURL)));
-            }
-        }
-    }
-
     return { m_image.ptr(), 1, String() };
-}
-
-RefPtr<SVGCursorElement> CursorImage::updateCursorElement(const Document& document)
-{
-    RefPtr cursorElement = dynamicDowncast<SVGCursorElement>(SVGURIReference::targetElementFromIRIString(m_originalURL.resolved.string(), document).element);
-    if (!cursorElement)
-        return nullptr;
-
-    // FIXME: Not right to keep old cursor elements as clients. The new one should replace the old, not join it in a set.
-    if (m_cursorElements.add(*cursorElement).isNewEntry) {
-        cursorElementChanged(*cursorElement);
-        cursorElement->addClient(*this);
-    }
-    return cursorElement;
-}
-
-void CursorImage::cursorElementRemoved(SVGCursorElement& cursorElement)
-{
-    // FIXME: Not right to stay a client of a cursor element until the element is destroyed. We'd want to stop being a client once it's no longer a valid target, like when it's disconnected.
-    m_cursorElements.remove(cursorElement);
-}
-
-void CursorImage::cursorElementChanged(SVGCursorElement& cursorElement)
-{
-    // FIXME: Seems wrong that changing an old cursor element, one that that is no longer the target, changes the hot spot.
-    // FIXME: This will override a hot spot that was specified in CSS, which is probably incorrect.
-    // FIXME: Should we clamp from float to int instead of just casting here?
-    SVGLengthContext lengthContext(nullptr);
-    m_hotSpot = IntPoint {
-        static_cast<int>(std::round(cursorElement.x().value(lengthContext))),
-        static_cast<int>(std::round(cursorElement.y().value(lengthContext)))
-    };
-
-    // FIXME: Why doesn't this funtion check for a change to the href of the cursor element? Why would we dynamically track changes to x/y but not href?
 }
 
 void CursorImage::setContainerContextForRenderer(const RenderElement& renderer, const FloatSize& containerSize, float containerZoom, const WTF::URL& url)

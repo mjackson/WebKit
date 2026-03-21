@@ -163,7 +163,7 @@ SpeechRecognitionRealtimeMediaSourceManager::SpeechRecognitionRealtimeMediaSourc
 
 SpeechRecognitionRealtimeMediaSourceManager::~SpeechRecognitionRealtimeMediaSourceManager()
 {
-    CheckedRef { m_process.get() }->removeMessageReceiver(*this);
+    CheckedRef { m_process }->removeMessageReceiver(*this);
 }
 
 IPC::Connection& SpeechRecognitionRealtimeMediaSourceManager::connection() const

@@ -57,7 +57,7 @@ public:
     static inline FloatSize rotateShadowOffset(const SpaceSeparatedPoint<Style::Length<CSS::AllUnzoomed>>& offset, WritingMode, const Style::ZoomFactor&);
 
 protected:
-    auto& textBox() const { return m_textBox; }
+    auto& textBox() const LIFETIME_BOUND { return m_textBox; }
     InlineIterator::TextBoxIterator makeIterator() const;
 
     void paintBackgroundFill();
@@ -94,9 +94,10 @@ protected:
         const CheckedRef<const RenderStyle> style;
         TextDecorationPainter::Styles textDecorationStyles;
         FloatPoint location;
+        float contentWidth { 0.f };
     };
     using DecoratingBoxList = Vector<DecoratingBox>;
-    void collectDecoratingBoxesForBackgroundPainting(DecoratingBoxList&, const InlineIterator::TextBoxIterator&, FloatPoint textBoxLocation, const TextDecorationPainter::Styles&);
+    void collectDecoratingBoxesForBackgroundPainting(DecoratingBoxList&, const InlineIterator::TextBoxIterator&, const FloatRect& textBoxRect, const TextDecorationPainter::Styles&);
 
     // FIXME: We could just talk to the display box directly.
     const InlineIterator::BoxModernPath m_textBox;

@@ -263,10 +263,10 @@ public:
 
     unsigned backingStoreBytesPerPixel() const override;
 
-    void setClonedLayer(const PlatformCALayer*);
+    void NODELETE setClonedLayer(const PlatformCALayer*);
 
-    LayerProperties& properties() { return m_properties; }
-    const LayerProperties& properties() const { return m_properties; }
+    LayerProperties& properties() LIFETIME_BOUND { return m_properties; }
+    const LayerProperties& properties() const LIFETIME_BOUND { return m_properties; }
 
     void didCommit();
 

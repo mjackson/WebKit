@@ -227,7 +227,8 @@ void BidiBrowsingContextAgent::getTree(const BrowsingContext& optionalRoot, std:
 
     Vector<Ref<WebPageProxy>> pagesToProcess;
 
-    for (Ref process : protect(session->processPool())->processes()) {
+    RefPtr processPool = session->processPool();
+    for (Ref process : processPool->processes()) {
         for (Ref page : process->pages()) {
             if (!page->isControlledByAutomation())
                 continue;

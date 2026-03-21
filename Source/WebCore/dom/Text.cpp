@@ -47,7 +47,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(Text);
 
 Ref<Text> Text::createEditingText(Document& document, String&& data)
 {
-    auto node = adoptRef(*new Text(document, WTF::move(data), TEXT_NODE, { TypeFlag::IsPseudoElementOrSpecialInternalNode }));
+    auto node = adoptRef(*new Text(document, WTF::move(data), NodeType::Text, { TypeFlag::IsPseudoElementOrSpecialInternalNode }));
     ASSERT(node->isEditingText());
     return node;
 }

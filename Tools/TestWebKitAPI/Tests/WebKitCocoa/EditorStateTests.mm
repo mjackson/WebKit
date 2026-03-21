@@ -40,6 +40,10 @@
 #import "UIKitSPIForTesting.h"
 #endif
 
+#if PLATFORM(MAC)
+#import "AppKitSPI.h"
+#endif
+
 static void* const SelectionAttributesObservationContext = (void*)&SelectionAttributesObservationContext;
 
 @interface SelectionChangeObserver : NSObject
@@ -656,8 +660,10 @@ TEST(EditorStateTests, UnionRectInVisibleSelectedRangeAndDocumentVisibleRect)
     EXPECT_FALSE(NSIsEmptyRect([webView unionRectInVisibleSelectedRange]));
     EXPECT_FALSE(isInView([webView unionRectInVisibleSelectedRange]));
 
+    auto countBeforeClearingSelection = didUpdateSelectionCount;
     [webView stringByEvaluatingJavaScript:@"getSelection().removeAllRanges()"];
     [webView waitForNextPresentationUpdate];
+    EXPECT_GT(didUpdateSelectionCount, countBeforeClearingSelection);
     EXPECT_TRUE(NSIsEmptyRect([webView unionRectInVisibleSelectedRange]));
 }
 
@@ -695,6 +701,12 @@ TEST(EditorStateTests, UnionRectInVisibleSelectedRangeForEditableCaretSelection)
     EXPECT_GT(caretRect.origin.y, 0);
     EXPECT_TRUE(NSPointInRect(caretRect.origin, [webView documentVisibleRect]));
     EXPECT_GT(didUpdateSelectionCount, 0u);
+
+    auto countBeforeClearingSelection = didUpdateSelectionCount;
+    [webView stringByEvaluatingJavaScript:@"getSelection().removeAllRanges()"];
+    [webView waitForNextPresentationUpdate];
+    EXPECT_GT(didUpdateSelectionCount, countBeforeClearingSelection);
+    EXPECT_TRUE(NSIsEmptyRect([webView unionRectInVisibleSelectedRange]));
 }
 
 TEST(EditorStateTests, UnionRectInVisibleSelectedRangeForNonEditableRangeSelection)
@@ -728,6 +740,21 @@ TEST(EditorStateTests, UnionRectInVisibleSelectedRangeForNonEditableRangeSelecti
     EXPECT_FALSE(NSIsEmptyRect(selectionRect));
     EXPECT_TRUE(NSContainsRect([webView documentVisibleRect], selectionRect));
     EXPECT_GT(didUpdateSelectionCount, 0u);
+
+    __block RetainPtr<NSAttributedString> attributedSubstring;
+    __block bool gotAttributedSubstring = false;
+    [(id<NSTextInputClient_Async>)webView.get() attributedSubstringForProposedRange:NSMakeRange(0, NSUIntegerMax) completionHandler:^(NSAttributedString *string, NSRange actualRange) {
+        attributedSubstring = string;
+        gotAttributedSubstring = true;
+    }];
+    TestWebKitAPI::Util::run(&gotAttributedSubstring);
+    EXPECT_TRUE([[attributedSubstring string] containsString:@"Hello world"]);
+
+    auto countBeforeClearingSelection = didUpdateSelectionCount;
+    [webView stringByEvaluatingJavaScript:@"getSelection().removeAllRanges()"];
+    [webView waitForNextPresentationUpdate];
+    EXPECT_GT(didUpdateSelectionCount, countBeforeClearingSelection);
+    EXPECT_TRUE(NSIsEmptyRect([webView unionRectInVisibleSelectedRange]));
 }
 
 #endif // PLATFORM(MAC)

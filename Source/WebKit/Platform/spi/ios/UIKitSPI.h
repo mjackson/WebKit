@@ -1081,6 +1081,18 @@ extern void _UIApplicationCatalystRequestViewServiceIdiomAndScaleFactor(UIUserIn
 @property (nonatomic, copy) id badgeValue;
 @end
 
+#if HAVE(UISCROLLVIEW_DECELERATION_TRACKING_BEHAVIOR)
+
+typedef NS_ENUM(NSInteger, _UIScrollViewDecelerationTrackingBehavior) {
+    _UIScrollViewDecelerationTrackingBehaviorAdaptive  = 2
+};
+
+@interface UIScrollView (Staging_55353291)
+@property (nonatomic, setter=_setDecelerationTrackingBehavior:, getter=_decelerationTrackingBehavior) _UIScrollViewDecelerationTrackingBehavior _decelerationTrackingBehavior;
+@end
+
+#endif
+
 @protocol _UIClickInteractionDriverDelegate;
 @protocol _UIClickInteractionDriving <NSObject>
 @property (nonatomic, weak) id <_UIClickInteractionDriverDelegate> delegate;
@@ -1406,6 +1418,7 @@ typedef NS_ENUM(NSUInteger, _UIScrollDeviceCategory) {
 
 @interface UIScrollView ()
 @property (nonatomic, setter=_setUseVisionAlternateScrollIndicatorRendering:) BOOL _useVisionAlternateScrollIndicatorRendering;
+@property (readonly) NSString *_lookToScrollGroupName;
 @end
 
 #endif // PLATFORM(VISION)

@@ -39,7 +39,8 @@
 #include "CommonVM.h"
 #include "JSAudioWorkletProcessor.h"
 #include "JSAudioWorkletProcessorConstructor.h"
-#include "JSDOMConvert.h"
+#include "JSDOMConvertDictionary.h"
+#include "JSDOMConvertSequences.h"
 #include "SerializedScriptValue.h"
 #include "WebCoreOpaqueRootInlines.h"
 #include <JavaScriptCore/JSLock.h>
@@ -173,7 +174,7 @@ RefPtr<AudioWorkletProcessor> AudioWorkletGlobalScope::createProcessor(const Str
     if (!jsProcessor)
         return nullptr;
 
-    m_processors.add(protect(jsProcessor->wrapped()).get());
+    m_processors.add(jsProcessor->wrapped());
     return &jsProcessor->wrapped();
 }
 
@@ -220,7 +221,7 @@ void AudioWorkletGlobalScope::processorIsNoLongerNeeded(AudioWorkletProcessor& p
     m_processors.remove(processor);
 }
 
-void AudioWorkletGlobalScope::visitProcessors(JSC::AbstractSlotVisitor& visitor)
+void AudioWorkletGlobalScope::visitProcessorsInGCThread(JSC::AbstractSlotVisitor& visitor)
 {
     m_processors.forEach([&](auto& processor) {
         addWebCoreOpaqueRoot(visitor, processor);

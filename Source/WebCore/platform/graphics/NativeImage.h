@@ -71,13 +71,13 @@ public:
     std::optional<Color> singlePixelSolidColor() const;
     WEBCORE_EXPORT virtual DestinationColorSpace colorSpace() const;
     WEBCORE_EXPORT bool hasHDRContent() const;
-    WEBCORE_EXPORT Headroom headroom() const;
+    WEBCORE_EXPORT Headroom NODELETE headroom() const;
 
     void clearSubimages();
 
-    WEBCORE_EXPORT void replacePlatformImage(PlatformImagePtr&&);
+    WEBCORE_EXPORT void replacePlatformImage(PlatformImagePtr&&) const;
 
-#if USE(COORDINATED_GRAPHICS)
+#if USE(SKIA) || USE(COORDINATED_GRAPHICS)
     uint64_t uniqueID() const;
 #endif
 
@@ -85,7 +85,7 @@ public:
     GrDirectContext* grContext() const { return m_grContext; }
 #endif
 
-    void addObserver(WeakRef<RenderingResourceObserver>&& observer)
+    void addObserver(WeakRef<RenderingResourceObserver>&& observer) const
     {
         m_observers.add(WTF::move(observer));
     }
@@ -102,7 +102,7 @@ protected:
     WEBCORE_EXPORT NativeImage(PlatformImagePtr&&);
 #endif
 
-    void computeHeadroom();
+    void computeHeadroom() const;
 
     mutable PlatformImagePtr m_platformImage;
     mutable Headroom m_headroom { Headroom::None };

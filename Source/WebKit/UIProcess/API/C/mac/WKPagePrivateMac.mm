@@ -96,7 +96,7 @@
 
 - (BOOL)_webProcessIsResponsive
 {
-    return protect(protect(*_page)->legacyMainFrameProcess())->isResponsive();
+    return (*_page).legacyMainFrameProcess().isResponsive();
 }
 
 - (double)estimatedProgress
@@ -124,7 +124,7 @@ id <_WKObservablePageState> WKPageCreateObservableState(WKPageRef pageRef)
 _WKRemoteObjectRegistry *WKPageGetObjectRegistry(WKPageRef pageRef)
 {
 #if PLATFORM(MAC)
-    return WebKit::toProtectedImpl(pageRef)->remoteObjectRegistry();
+    return protect(WebKit::toImpl(pageRef))->remoteObjectRegistry();
 #else
     return nil;
 #endif
@@ -132,29 +132,29 @@ _WKRemoteObjectRegistry *WKPageGetObjectRegistry(WKPageRef pageRef)
 
 bool WKPageIsURLKnownHSTSHost(WKPageRef page, WKURLRef url)
 {
-    return protect(WebKit::toProtectedImpl(page)->configuration().processPool())->isURLKnownHSTSHost(WebKit::toImpl(url)->string());
+    return protect(protect(WebKit::toImpl(page))->configuration().processPool())->isURLKnownHSTSHost(WebKit::toImpl(url)->string());
 }
 
 WKNavigation *WKPageLoadURLRequestReturningNavigation(WKPageRef pageRef, WKURLRequestRef urlRequestRef)
 {
     auto resourceRequest = WebKit::toImpl(urlRequestRef)->resourceRequest();
-    return WebKit::wrapper(WebKit::toProtectedImpl(pageRef)->loadRequest(WTF::move(resourceRequest))).autorelease();
+    return WebKit::wrapper(protect(WebKit::toImpl(pageRef))->loadRequest(WTF::move(resourceRequest))).autorelease();
 }
 
 WKNavigation *WKPageLoadFileReturningNavigation(WKPageRef pageRef, WKURLRef fileURL, WKURLRef resourceDirectoryURL)
 {
-    return WebKit::wrapper(WebKit::toProtectedImpl(pageRef)->loadFile(WebKit::toWTFString(fileURL), WebKit::toWTFString(resourceDirectoryURL))).autorelease();
+    return WebKit::wrapper(protect(WebKit::toImpl(pageRef))->loadFile(WebKit::toWTFString(fileURL), WebKit::toWTFString(resourceDirectoryURL))).autorelease();
 }
 
 WKWebView *WKPageGetWebView(WKPageRef page)
 {
-    return page ? WebKit::toProtectedImpl(page)->cocoaView().autorelease() : nil;
+    return page ? protect(WebKit::toImpl(page))->cocoaView().autorelease() : nil;
 }
 
 #if PLATFORM(MAC)
 bool WKPageIsPlayingVideoInPictureInPicture(WKPageRef pageRef)
 {
-    return WebKit::toProtectedImpl(pageRef)->isPlayingVideoInPictureInPicture();
+    return protect(WebKit::toImpl(pageRef))->isPlayingVideoInPictureInPicture();
 }
 #endif
 
@@ -177,7 +177,7 @@ id <_WKFullscreenDelegate> WKPageGetFullscreenDelegate(WKPageRef page)
 NSDictionary *WKPageGetAccessibilityWebProcessDebugInfo(WKPageRef pageRef)
 {
 #if PLATFORM(MAC)
-    return WebKit::toProtectedImpl(pageRef)->getAccessibilityWebProcessDebugInfo();
+    return protect(WebKit::toImpl(pageRef))->getAccessibilityWebProcessDebugInfo();
 #else
     return nil;
 #endif
@@ -186,7 +186,7 @@ NSDictionary *WKPageGetAccessibilityWebProcessDebugInfo(WKPageRef pageRef)
 NSArray *WKPageGetAccessibilityWebProcessDebugInfoForAllProcesses(WKPageRef pageRef)
 {
 #if PLATFORM(MAC)
-    return WebKit::toProtectedImpl(pageRef)->getAccessibilityWebProcessDebugInfoForAllProcesses();
+    return protect(WebKit::toImpl(pageRef))->getAccessibilityWebProcessDebugInfoForAllProcesses();
 #else
     return nil;
 #endif
@@ -195,6 +195,6 @@ NSArray *WKPageGetAccessibilityWebProcessDebugInfoForAllProcesses(WKPageRef page
 void WKPageAccessibilityClearIsolatedTree(WKPageRef pageRef)
 {
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-    WebKit::toProtectedImpl(pageRef)->clearAccessibilityIsolatedTree();
+    protect(WebKit::toImpl(pageRef))->clearAccessibilityIsolatedTree();
 #endif
 }

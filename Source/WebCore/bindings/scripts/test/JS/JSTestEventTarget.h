@@ -74,8 +74,6 @@ public:
         return static_cast<TestEventTarget&>(Base::wrapped());
     }
 
-    Ref<TestEventTarget> protectedWrapped() const;
-
 public:
     static constexpr unsigned StructureFlags = Base::StructureFlags | JSC::GetOwnPropertySlotIsImpureForPropertyAbsence | JSC::InterceptsGetOwnPropertySlotByIndexEvenWhenLengthIsNotZero | JSC::MasqueradesAsUndefined | JSC::OverridesGetOwnPropertyNames | JSC::OverridesGetOwnPropertySlot | JSC::OverridesPut;
 protected:

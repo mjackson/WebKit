@@ -49,14 +49,9 @@ Ref<RemoteFrame> RemoteFrame::createMainFrame(Page& page, ClientCreator&& client
     return adoptRef(*new RemoteFrame(page, WTF::move(clientCreator), identifier, nullptr, nullptr, std::nullopt, opener, WTF::move(frameTreeSyncData)));
 }
 
-Ref<RemoteFrame> RemoteFrame::createSubframe(Page& page, ClientCreator&& clientCreator, FrameIdentifier identifier, Frame& parent, Frame* opener, Ref<FrameTreeSyncData>&& frameTreeSyncData, AddToFrameTree addToFrameTree)
+Ref<RemoteFrame> RemoteFrame::createSubframe(Page& page, ClientCreator&& clientCreator, FrameIdentifier identifier, Frame& parent, Frame* opener, std::optional<LayerHostingContextIdentifier> layerHostingContextIdentifier, Ref<FrameTreeSyncData>&& frameTreeSyncData, AddToFrameTree addToFrameTree)
 {
-    return adoptRef(*new RemoteFrame(page, WTF::move(clientCreator), identifier, nullptr, &parent, std::nullopt, opener, WTF::move(frameTreeSyncData), addToFrameTree));
-}
-
-Ref<RemoteFrame> RemoteFrame::createSubframeWithContentsInAnotherProcess(Page& page, ClientCreator&& clientCreator, FrameIdentifier identifier, HTMLFrameOwnerElement& ownerElement, std::optional<LayerHostingContextIdentifier> layerHostingContextIdentifier, Ref<FrameTreeSyncData>&& frameTreeSyncData)
-{
-    return adoptRef(*new RemoteFrame(page, WTF::move(clientCreator), identifier, &ownerElement, ownerElement.document().frame(), layerHostingContextIdentifier, nullptr, WTF::move(frameTreeSyncData), AddToFrameTree::No));
+    return adoptRef(*new RemoteFrame(page, WTF::move(clientCreator), identifier, nullptr, &parent, layerHostingContextIdentifier, opener, WTF::move(frameTreeSyncData), addToFrameTree));
 }
 
 RemoteFrame::RemoteFrame(Page& page, ClientCreator&& clientCreator, FrameIdentifier frameID, HTMLFrameOwnerElement* ownerElement, Frame* parent, Markable<LayerHostingContextIdentifier> layerHostingContextIdentifier, Frame* opener, Ref<FrameTreeSyncData>&& frameTreeSyncData, AddToFrameTree addToFrameTree)
@@ -218,6 +213,12 @@ const SecurityOrigin& RemoteFrame::frameDocumentSecurityOriginOrOpaque() const
 AutoplayPolicy RemoteFrame::autoplayPolicy() const
 {
     return m_autoplayPolicy;
+}
+
+float RemoteFrame::usedZoomForChild(const Frame& child) const
+{
+    auto maybeInfo = frameTreeSyncData().childrenFrameLayoutInfo.getOptional(child.frameID());
+    return maybeInfo.transform([] (auto& info) { return info.usedZoom; }).value_or(1.0);
 }
 
 String RemoteFrame::debugDescription() const

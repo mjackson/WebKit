@@ -145,8 +145,9 @@ void RemoteMeshProxy::update(const WebModel::UpdateMeshDescriptor& descriptor)
     if (boundingBoxChanged)
         setCameraDistance(std::max(extents.x, extents.y) * .5f);
 
-    auto sendResult = send(Messages::RemoteMesh::Update(descriptor));
-    UNUSED_PARAM(sendResult);
+    auto sendResult = sendWithAsyncReply(Messages::RemoteMesh::Update(descriptor), [](auto) mutable {
+    });
+    UNUSED_VARIABLE(sendResult);
     if (boundingBoxChanged)
         setStageMode(m_stageMode);
 
@@ -176,8 +177,9 @@ void RemoteMeshProxy::setLabelInternal(const String& label)
 void RemoteMeshProxy::updateTexture(const WebModel::UpdateTextureDescriptor& descriptor)
 {
 #if ENABLE(GPU_PROCESS_MODEL)
-    auto sendResult = send(Messages::RemoteMesh::UpdateTexture(descriptor));
-    UNUSED_PARAM(sendResult);
+    auto sendResult = sendWithAsyncReply(Messages::RemoteMesh::UpdateTexture(descriptor), [](auto) mutable {
+    });
+    UNUSED_VARIABLE(sendResult);
 #else
     UNUSED_PARAM(descriptor);
 #endif
@@ -186,8 +188,9 @@ void RemoteMeshProxy::updateTexture(const WebModel::UpdateTextureDescriptor& des
 void RemoteMeshProxy::updateMaterial(const WebModel::UpdateMaterialDescriptor& descriptor)
 {
 #if ENABLE(GPU_PROCESS_MODEL)
-    auto sendResult = send(Messages::RemoteMesh::UpdateMaterial(descriptor));
-    UNUSED_PARAM(sendResult);
+    auto sendResult = sendWithAsyncReply(Messages::RemoteMesh::UpdateMaterial(descriptor), [](auto) mutable {
+    });
+    UNUSED_VARIABLE(sendResult);
 #else
     UNUSED_PARAM(descriptor);
 #endif
@@ -239,6 +242,18 @@ void RemoteMeshProxy::setEnvironmentMap(const WebModel::ImageAsset& imageAsset)
 }
 
 #if PLATFORM(COCOA)
+void RemoteMeshProxy::sizeDidChange(unsigned width, unsigned height, CompletionHandler<void(Vector<MachSendRight>&&)>&& callback)
+{
+#if ENABLE(GPU_PROCESS_MODEL)
+    auto sendResult = sendWithAsyncReply(Messages::RemoteMesh::UpdateRenderBuffers(width, height), WTF::move(callback));
+    UNUSED_PARAM(sendResult);
+#else
+    UNUSED_PARAM(width);
+    UNUSED_PARAM(height);
+    callback({ });
+#endif
+}
+
 std::optional<WebModel::Float4x4> RemoteMeshProxy::entityTransform() const
 {
     return m_transform;
@@ -256,6 +271,16 @@ void RemoteMeshProxy::setCameraDistance(float distance)
     m_cameraDistance = distance;
 #else
     UNUSED_PARAM(distance);
+#endif
+}
+
+void RemoteMeshProxy::setBackgroundColor(const WebModel::Float3& color)
+{
+#if ENABLE(GPU_PROCESS_MODEL)
+    auto sendResult = send(Messages::RemoteMesh::SetBackgroundColor(color));
+    UNUSED_PARAM(sendResult);
+#else
+    UNUSED_PARAM(color);
 #endif
 }
 

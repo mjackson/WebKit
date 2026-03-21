@@ -45,7 +45,7 @@ public:
     Vector<Ref<Element>> assignedElements(const AssignedNodesOptions&) const;
 
     void assign(FixedVector<ElementOrText>&&);
-    const Vector<WeakPtr<Node, WeakPtrImplWithEventTargetData>>& manuallyAssignedNodes() const { return m_manuallyAssignedNodes; }
+    const Vector<WeakPtr<Node, WeakPtrImplWithEventTargetData>>& manuallyAssignedNodes() const LIFETIME_BOUND { return m_manuallyAssignedNodes; }
     void removeManuallyAssignedNode(Node&);
 
     void enqueueSlotChangeEvent();
@@ -59,11 +59,11 @@ public:
 private:
     HTMLSlotElement(const QualifiedName&, Document&);
 
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) final;
-    void removedFromAncestor(RemovalType, ContainerNode&) final;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) final;
+    void removingSteps(RemovalType, ContainerNode&) final;
     void childrenChanged(const ChildChange&) final;
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) final;
-    void didFinishInsertingNode() final;
+    void postConnectionSteps() final;
 
     bool m_inSignalSlotList { false };
     bool m_isInInsertedIntoAncestor { false };

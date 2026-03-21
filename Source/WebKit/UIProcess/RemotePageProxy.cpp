@@ -70,9 +70,7 @@
 #endif
 
 // FIXME: https://bugs.webkit.org/show_bug.cgi?id=306415
-#if ENABLE(BACK_FORWARD_LIST_SWIFT)
 #include "WebKit-Swift.h"
-#endif
 
 namespace WebKit {
 
@@ -95,8 +93,6 @@ RemotePageProxy::RemotePageProxy(WebPageProxy& page, WebProcessProxy& process, c
     else
         m_messageReceiverRegistration.startReceivingMessages(m_process, m_webPageID, *this, page.backForwardListMessageReceiver());
 
-    m_process->addRemotePageProxy(*this);
-
     RefPtr protectedPage = m_page.get();
     if (!protectedPage)
         return;
@@ -107,6 +103,10 @@ RemotePageProxy::RemotePageProxy(WebPageProxy& page, WebProcessProxy& process, c
     if (protectedPage->preferences().backgroundWebContentRunningBoardThrottlingEnabled())
         m_process->setRunningBoardThrottlingEnabled();
 #endif
+
+    m_process->addRemotePageProxy(*this);
+
+    protectedPage->didCreateRemotePage(*this);
 }
 
 void RemotePageProxy::disconnect()
@@ -159,7 +159,7 @@ void RemotePageProxy::injectPageIntoNewProcess()
     m_videoPresentationManager = RemotePageVideoPresentationManagerProxy::create(pageID(), m_process, protect(page->videoPresentationManager()));
 #endif
 #if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)
-    m_webDeviceOrientationUpdateProvider = RemotePageWebDeviceOrientationUpdateProviderProxy::create(pageID(), m_process, protect(page->webDeviceOrientationUpdateProviderProxy()));
+    m_webDeviceOrientationUpdateProvider = RemotePageWebDeviceOrientationUpdateProviderProxy::create(pageID(), m_process, page->webDeviceOrientationUpdateProviderProxy());
 #endif
 #if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
     m_playbackSessionManager = RemotePagePlaybackSessionManagerProxy::create(pageID(), protect(page->playbackSessionManager()), m_process);
@@ -202,6 +202,8 @@ RemotePageProxy::~RemotePageProxy()
     RefPtr page = m_page.get();
     if (!page)
         return;
+
+    page->willDestroyRemotePage(*this);
 
     if (RefPtr client = page->pageClient())
         client->didStopUsingProcessForSiteIsolation(m_process);

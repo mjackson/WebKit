@@ -57,15 +57,15 @@ public:
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
 
-    const Vector<Item>& items() const { return m_items; }
-    const PAL::TextEncoding& encoding() const { return m_encoding; }
+    const Vector<Item>& items() const LIFETIME_BOUND { return m_items; }
+    const PAL::TextEncoding& encoding() const LIFETIME_BOUND { return m_encoding; }
 
     void append(const String& name, const String& value);
     void append(const String& name, Blob&, const String& filename = { });
     void remove(const String& name);
     std::optional<FormDataEntryValue> get(const String& name);
     Vector<FormDataEntryValue> getAll(const String& name);
-    bool has(const String& name);
+    bool NODELETE has(const String& name);
     void set(const String& name, const String& value);
     void set(const String& name, Blob&, const String& filename = { });
     Ref<DOMFormData> clone() const;

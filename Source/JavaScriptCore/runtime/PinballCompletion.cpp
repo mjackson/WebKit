@@ -31,8 +31,10 @@
 #include "CallFrame.h"
 #include "EvacuatedStack.h"
 #include "Exception.h"
+#include "JSPIContextInlines.h"
 #include "JSPromise.h"
-#include "JSWebAssemblyException.h"
+#include "PinballHandlerContext.h"
+#include "StackAlignment.h"
 #include "TopExceptionScope.h"
 
 #include <wtf/StdLibExtras.h>
@@ -252,7 +254,7 @@ UCPURegister pinballHandlerFulfillFunctionContinue(PinballHandlerContext* contex
     JSPromise* resultPromise = pinball->resultPromise();
     if (!scope.exception()) {
         JSValue arg = JSValue::decode(context->arguments[0]);
-        resultPromise->resolve(context->globalObject, arg);
+        resultPromise->resolve(context->globalObject, vm, arg);
     } else {
         resultPromise->reject(vm, context->globalObject, scope.exception());
         scope.clearException();
@@ -292,7 +294,7 @@ void pinballHandlerFinishReject(PinballHandlerContext* context)
 
     if (!scope.exception()) {
         JSValue arg = JSValue::decode(context->arguments[0]);
-        resultPromise->resolve(context->globalObject, arg);
+        resultPromise->resolve(context->globalObject, vm, arg);
     } else {
         resultPromise->reject(vm, context->globalObject, scope.exception());
         scope.clearException();

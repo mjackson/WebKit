@@ -73,6 +73,11 @@ void ScrollingTreeFrameScrollingNodeMac::startRubberBandSnapBack()
     delegate().startRubberBandSnapBack();
 }
 
+void ScrollingTreeFrameScrollingNodeMac::rubberBandTargetOffsetDidChange()
+{
+    delegate().rubberBandTargetOffsetDidChange();
+}
+
 void ScrollingTreeFrameScrollingNodeMac::willBeDestroyed()
 {
     delegate().nodeWillBeDestroyed();

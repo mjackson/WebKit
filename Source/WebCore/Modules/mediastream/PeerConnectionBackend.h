@@ -213,7 +213,7 @@ public:
     };
     static void generateCertificate(Document&, const CertificateInformation&, DOMPromiseDeferred<IDLInterface<RTCCertificate>>&&);
 
-    virtual void collectTransceivers() { };
+    virtual void collectTransceivers(Vector<Ref<RTCRtpTransceiver>>&&) { };
 
     ScriptExecutionContext* context() const;
 
@@ -275,7 +275,6 @@ private:
     virtual void doStop() = 0;
 
 protected:
-    Ref<RTCPeerConnection> NODELETE protectedPeerConnection() const;
     WeakRef<RTCPeerConnection, WeakPtrImplWithEventTargetData> m_peerConnection;
 
 private:

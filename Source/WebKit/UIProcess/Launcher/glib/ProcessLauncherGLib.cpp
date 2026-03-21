@@ -106,16 +106,12 @@ void ProcessLauncher::launchProcess()
 
 #if USE(LIBWPE) && !ENABLE(BUBBLEWRAP_SANDBOX)
     if (ProcessProviderLibWPE::singleton().isEnabled()) {
-        WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GTK/WPE port
-        unsigned nargs = 3;
-        char** argv = g_newa(char*, nargs);
-        unsigned i = 0;
-        argv[i++] = processIdentifier.get();
-        argv[i++] = webkitSocket.get();
-        argv[i++] = nullptr;
-        WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+        std::array<char*, 3> argv = {
+            processIdentifier.get(),
+            webkitSocket.get(),
+        };
 
-        m_processID = ProcessProviderLibWPE::singleton().launchProcess(m_launchOptions, argv, webkitSocketPair.client.value());
+        m_processID = ProcessProviderLibWPE::singleton().launchProcess(m_launchOptions, argv.data(), webkitSocketPair.client.value());
         if (m_processID <= -1)
             g_error("Unable to spawn a new child process");
 
@@ -148,7 +144,7 @@ void ProcessLauncher::launchProcess()
     }
 
     realExecutablePath = FileSystem::fileSystemRepresentation(executablePath);
-    unsigned nargs = 5; // size of the argv array for g_spawn_async()
+    unsigned nargs = 4; // size of the argv array for g_spawn_async()
 
 #if ENABLE(DEVELOPER_MODE)
     Vector<CString> prefixArgs;
@@ -165,9 +161,7 @@ void ProcessLauncher::launchProcess()
     }
 #endif
 
-    WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GTK/WPE port
-
-    char** argv = g_newa(char*, nargs);
+    Vector<char*> argv(nargs);
     unsigned i = 0;
 #if ENABLE(DEVELOPER_MODE)
     // If there's a prefix command, put it before the rest of the args.
@@ -182,8 +176,6 @@ void ProcessLauncher::launchProcess()
         argv[i++] = const_cast<char*>("--configure-jsc-for-testing");
 #endif
     argv[i++] = nullptr;
-
-    WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
     // Warning: we want GIO to be able to spawn with posix_spawn() rather than fork()/exec(), in
     // order to better accommodate applications that use a huge amount of memory or address space
@@ -228,7 +220,7 @@ void ProcessLauncher::launchProcess()
 #endif // ENABLE(BUBBLEWRAP_SANDBOX)
     else
 #endif // OS(LINUX)
-        process = adoptGRef(g_subprocess_launcher_spawnv(launcher.get(), argv, &error.outPtr()));
+        process = adoptGRef(g_subprocess_launcher_spawnv(launcher.get(), argv.span().data(), &error.outPtr()));
 
     if (!process.get())
         g_error("Unable to spawn a new child process: %s", error->message);

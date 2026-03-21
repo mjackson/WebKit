@@ -194,7 +194,7 @@ public:
         struct Bun__WTFTimer;
 #endif
 
-        const ASCIILiteral& description() const { return m_description; }
+        ASCIILiteral description() const { return m_description; }
 
     private:
         WTF_EXPORT_PRIVATE void start(Seconds interval, bool repeat);
@@ -282,7 +282,7 @@ public:
         requires (!WTF::HasThreadSafeWeakPtrFunctions<TimerFiredClass>::value && WTF::HasWeakPtrFunctions<TimerFiredClass>::value && !WTF::HasRefPtrMemberFunctions<TimerFiredClass>::value && WTF::HasCheckedPtrMemberFunctions<TimerFiredClass>::value)
         Timer(Ref<RunLoop>&& runLoop, ASCIILiteral description, TimerFiredClass* object, void (TimerFiredClass::*function)())
             : Timer(WTF::move(runLoop), description, [weakObject = WeakPtr { *object }, function] {
-                if (CheckedPtr object = weakObject.get())
+                if (CheckedPtr object = weakObject)
                     (object.get()->*function)();
             })
         {

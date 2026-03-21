@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <WebCore/StyleGridPosition.h>
+#include "StyleGridPosition.h"
 
 namespace WebCore {
 namespace Layout {
@@ -38,26 +38,26 @@ public:
     UnplacedGridItem(const ElementBox&, Style::GridPosition columnStart, Style::GridPosition columnEnd, Style::GridPosition rowStart, Style::GridPosition rowEnd);
     UnplacedGridItem(WTF::HashTableEmptyValueType);
 
-    bool operator==(const UnplacedGridItem& other) const;
+    bool NODELETE operator==(const UnplacedGridItem& other) const;
 
     bool isHashTableDeletedValue() const { return m_layoutBox.isHashTableDeletedValue(); }
     bool isHashTableEmptyValue() const { return m_layoutBox.isHashTableEmptyValue(); }
     static constexpr bool safeToCompareToHashTableEmptyOrDeletedValue = true;
 
-    size_t normalizedColumnStart() const;
-    size_t normalizedColumnEnd() const;
-    size_t normalizedRowStart() const;
-    size_t normalizedRowEnd() const;
+    size_t NODELETE normalizedColumnStart() const;
+    size_t NODELETE normalizedColumnEnd() const;
+    size_t NODELETE normalizedRowStart() const;
+    size_t NODELETE normalizedRowEnd() const;
 
-    bool hasDefiniteRowPosition() const;
-    bool hasDefiniteColumnPosition() const;
-    bool hasAutoColumnPosition() const;
-    bool hasAutoRowPosition() const;
+    bool NODELETE hasDefiniteRowPosition() const;
+    bool NODELETE hasDefiniteColumnPosition() const;
+    bool NODELETE hasAutoColumnPosition() const;
+    bool NODELETE hasAutoRowPosition() const;
     size_t columnSpanSize() const;
-    size_t rowSpanSize() const;
+    size_t NODELETE rowSpanSize() const;
 
-    std::pair<size_t, size_t> normalizedRowStartEnd() const;
-    std::pair<size_t, size_t> normalizedColumnStartEnd() const;
+    std::pair<size_t, size_t> NODELETE normalizedRowStartEnd() const;
+    std::pair<size_t, size_t> NODELETE normalizedColumnStartEnd() const;
 
 private:
     CheckedRef<const ElementBox> m_layoutBox;
@@ -72,15 +72,15 @@ private:
     // into these helper functions to make them 0-index. For example, grid-column-start: 1
     // and grid-column-end: 2 would make to [0, 1] and place the grid item into
     // Grid[rowIndex][0].
-    int explicitColumnStart() const;
-    int explicitColumnEnd() const;
-    int explicitRowStart() const;
-    int explicitRowEnd() const;
+    int NODELETE explicitColumnStart() const;
+    int NODELETE explicitColumnEnd() const;
+    int NODELETE explicitRowStart() const;
+    int NODELETE explicitRowEnd() const;
 
     std::pair<int, int> definiteRowStartEnd() const;
     std::pair<int, int> definiteColumnStartEnd() const;
 
-    void applyGridOffsets(size_t rowOffset, size_t columnOffset);
+    void NODELETE applyGridOffsets(size_t rowOffset, size_t columnOffset);
 
     // Offsets applied to normalize negative grid positions to non-negative matrix indices.
     size_t m_rowNormalizationOffset { 0 };

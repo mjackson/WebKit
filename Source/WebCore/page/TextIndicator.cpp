@@ -61,12 +61,19 @@ namespace WebCore {
 
 static bool initializeIndicator(TextIndicatorData&, LocalFrame&, const SimpleRange&, FloatSize margin, bool indicatesCurrentSelection);
 
+TextIndicator::TextIndicator() = default;
+
 TextIndicator::TextIndicator(const TextIndicatorData& data)
     : m_data(data)
 {
 }
 
 TextIndicator::~TextIndicator() = default;
+
+Ref<TextIndicator> TextIndicator::create()
+{
+    return adoptRef(*new TextIndicator());
+}
 
 Ref<TextIndicator> TextIndicator::create(const TextIndicatorData& data)
 {
@@ -81,7 +88,7 @@ RefPtr<TextIndicator> TextIndicator::createWithRange(const SimpleRange& range, O
             Ref indicatorNode = commonAncestor.releaseNonNull();
 
             for (Ref ancestorElement : ancestorsOfType<Element>(indicatorNode)) {
-                if (CheckedPtr renderer = ancestorElement->renderer(); renderer && protect(renderer->style())->usedUserSelect() == UserSelect::All)
+                if (CheckedPtr renderer = ancestorElement->renderer(); renderer && renderer->style().usedUserSelect() == UserSelect::All)
                     indicatorNode = ancestorElement;
             }
 
@@ -100,7 +107,7 @@ RefPtr<TextIndicator> TextIndicator::createWithRange(const SimpleRange& range, O
     auto rangeIndicatesCurrentSelection = [document](const SimpleRange& range) {
         auto selectionRange = document->selection().selection().toNormalizedRange();
         auto normalizedRange = VisibleSelection(range).toNormalizedRange();
-        return selectionRange && selectionRange == normalizedRange;
+        return selectionRange && !selectionRange->collapsed() && selectionRange == normalizedRange;
     };
 
     bool indicatesCurrentSelection = rangeIndicatesCurrentSelection(rangeToUse);

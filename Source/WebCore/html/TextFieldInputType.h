@@ -68,13 +68,13 @@ protected:
     HTMLElement* NODELETE autoFillButtonElement() const final;
     HTMLElement* NODELETE dataListButtonElement() const final;
 
-    virtual bool NODELETE needsContainer() const;
+    virtual bool needsContainer() const { return false; }
     void createShadowSubtree() override;
     void removeShadowSubtree() override;
     void attributeChanged(const QualifiedName&) override;
     void disabledStateChanged() final;
     void readOnlyStateChanged() final;
-    bool supportsReadOnly() const final;
+    bool supportsReadOnly() const final { return true; }
     void handleFocusEvent(Node* oldFocusedNode, FocusDirection) final;
     void handleBlurEvent() final;
     void setValue(const String&, bool valueChanged, TextFieldEventBehavior, TextControlSetValueSelection) override;
@@ -92,7 +92,7 @@ private:
     void forwardEvent(Event&) final;
     bool shouldSubmitImplicitly(Event&) final;
     RenderPtr<RenderElement> createInputRenderer(RenderStyle&&) override;
-    bool shouldUseInputMethod() const override;
+    bool shouldUseInputMethod() const override { return true; }
     bool shouldRespectListAttribute() override;
     HTMLElement* NODELETE placeholderElement() const final;
     void updatePlaceholderText() final;
@@ -121,8 +121,9 @@ private:
     void createAutoFillButton(AutoFillButtonType);
 
     void createDataListDropdownIndicator();
-    bool isPresentingAttachedView() const final;
-    bool isFocusingWithDataListDropdown() const final;
+    bool isPresentingAttachedView() const final { return m_popupIsVisible; }
+    void setPopupIsVisible(bool);
+    bool isFocusingWithDataListDropdown() const final { return m_isFocusingWithDataListDropdown; }
     void dataListMayHaveChanged() final;
     void displaySuggestions(DataListSuggestionActivationType);
     void closeSuggestions();
@@ -132,11 +133,13 @@ private:
     // DataListSuggestionsClient
     IntRect elementRectInRootViewCoordinates() const final;
     Vector<DataListSuggestion> suggestions() final;
+    std::optional<FrameIdentifier> rootFrameID() const final;
     void didSelectDataListOption(const String&) final;
     void didCloseSuggestions() final;
 
     void dataListButtonElementWasClicked() final;
     bool m_isFocusingWithDataListDropdown { false };
+    bool m_popupIsVisible { false };
     RefPtr<DataListButtonElement> m_dataListDropdownIndicator;
 
     std::pair<String, Vector<DataListSuggestion>> m_cachedSuggestions;

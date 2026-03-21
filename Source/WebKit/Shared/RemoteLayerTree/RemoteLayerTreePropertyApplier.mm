@@ -462,11 +462,11 @@ void RemoteLayerTreePropertyApplier::applyPropertiesToLayer(CALayer *layer, Remo
         Path path;
         if (properties.shapeRoundedRect)
             path.addRoundedRect(*properties.shapeRoundedRect);
-        dynamic_objc_cast<CAShapeLayer>(layer).path = path.protectedPlatformPath().get();
+        dynamic_objc_cast<CAShapeLayer>(layer).path = protect(path.platformPath()).get();
     }
 
     if (properties.changedProperties & LayerChange::ShapePathChanged)
-        dynamic_objc_cast<CAShapeLayer>(layer).path = properties.shapePath.protectedPlatformPath().get();
+        dynamic_objc_cast<CAShapeLayer>(layer).path = protect(properties.shapePath.platformPath()).get();
 
     if (properties.changedProperties & LayerChange::MinificationFilterChanged)
         layer.minificationFilter = toCAFilterType(properties.minificationFilter).get();
@@ -570,7 +570,7 @@ void RemoteLayerTreePropertyApplier::applyPropertiesToLayer(CALayer *layer, Remo
 
     if (properties.changedProperties & LayerChange::ShadowPathChanged) {
         BEGIN_BLOCK_OBJC_EXCEPTIONS
-        [layer setShadowPath:properties.shadowPath.protectedPlatformPath().get()];
+        [layer setShadowPath:protect(properties.shadowPath.platformPath()).get()];
         END_BLOCK_OBJC_EXCEPTIONS
     }
 }

@@ -31,8 +31,8 @@
 
 #pragma once
 
-#include <WebCore/GCReachableRef.h>
-#include <WebCore/MutationObserverOptions.h>
+#include "GCReachableRef.h"
+#include "MutationObserverOptions.h"
 #include <wtf/Forward.h>
 #include <wtf/HashSet.h>
 #include <wtf/TZoneMalloc.h>

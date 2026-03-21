@@ -44,11 +44,9 @@
 #include "ElementTraversal.h"
 #include "EventDispatcher.h"
 #include "EventHandler.h"
-#include "EventLoop.h"
 #include "EventNames.h"
 #include "EventTargetInlines.h"
 #include "FrameInlines.h"
-#include "GCReachableRef.h"
 #include "HTMLAreaElement.h"
 #include "HTMLBodyElement.h"
 #include "HTMLDialogElement.h"
@@ -65,6 +63,7 @@
 #include "Logging.h"
 #include "MouseEventTypes.h"
 #include "MutationEvent.h"
+#include "NameValidation.h"
 #include "NodeName.h"
 #include "NodeRareDataInlines.h"
 #include "NodeRenderStyle.h"
@@ -141,9 +140,9 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(SameSizeAsNode);
 static_assert(sizeof(Node) == sizeof(SameSizeAsNode), "Node should stay small");
 
 #if DUMP_NODE_STATISTICS
-static WeakHashSet<Node>& liveNodeSet()
+static WeakHashSet<Node, WeakPtrImplWithEventTargetData>& liveNodeSet()
 {
-    static NeverDestroyed<WeakHashSet<Node>> liveNodes;
+    static NeverDestroyed<WeakHashSet<Node, WeakPtrImplWithEventTargetData>> liveNodes;
     return liveNodes;
 }
 
@@ -172,8 +171,6 @@ static ASCIILiteral stringForRareDataUseType(NodeRareData::UseType useType)
         return "Dataset"_s;
     case NodeRareData::UseType::ClassList:
         return "ClassList"_s;
-    case NodeRareData::UseType::ShadowRoot:
-        return "ShadowRoot"_s;
     case NodeRareData::UseType::CustomElementReactionQueue:
         return "CustomElementReactionQueue"_s;
     case NodeRareData::UseType::CustomElementDefaultARIA:
@@ -204,8 +201,12 @@ static ASCIILiteral stringForRareDataUseType(NodeRareData::UseType useType)
         return "ExplicitlySetAttrElementsMap"_s;
     case NodeRareData::UseType::Popover:
         return "Popover"_s;
+    case NodeRareData::UseType::CustomStateSet:
+        return "CustomStateSet"_s;
     case NodeRareData::UseType::UserInfo:
         return "UserInfo"_s;
+    case NodeRareData::UseType::InvokedPopover:
+        return "InvokedPopover"_s;
     }
     return { };
 }
@@ -262,62 +263,62 @@ void Node::dumpStatistics()
         }
 
         switch (node.nodeType()) {
-            case ELEMENT_NODE: {
-                ++elementNodes;
+        case NodeType::Element: {
+            ++elementNodes;
 
-                // Tag stats
-                Element& element = uncheckedDowncast<Element>(node);
-                HashMap<String, size_t>::AddResult result = perTagCount.add(element.tagName(), 1);
-                if (!result.isNewEntry)
-                    result.iterator->value++;
+            // Tag stats
+            Element& element = uncheckedDowncast<Element>(node);
+            HashMap<String, size_t>::AddResult result = perTagCount.add(element.tagName(), 1);
+            if (!result.isNewEntry)
+                result.iterator->value++;
 
-                if (const ElementData* elementData = element.elementData()) {
-                    unsigned length = elementData->length();
-                    attributes += length;
-                    ++elementsWithAttributeStorage;
-                    for (unsigned i = 0; i < length; ++i) {
-                        const Attribute& attr = elementData->attributeAt(i);
-                        if (element.attrIfExists(attr.name()))
-                            ++attributesWithAttr;
-                    }
+            if (const ElementData* elementData = element.elementData()) {
+                unsigned length = elementData->length();
+                attributes += length;
+                ++elementsWithAttributeStorage;
+                for (unsigned i = 0; i < length; ++i) {
+                    const Attribute& attr = elementData->attributeAt(i);
+                    if (element.attrIfExists(attr.name()))
+                        ++attributesWithAttr;
                 }
-                break;
             }
-            case ATTRIBUTE_NODE: {
-                ++attrNodes;
-                break;
-            }
-            case TEXT_NODE: {
-                ++textNodes;
-                break;
-            }
-            case CDATA_SECTION_NODE: {
-                ++cdataNodes;
-                break;
-            }
-            case PROCESSING_INSTRUCTION_NODE: {
-                ++piNodes;
-                break;
-            }
-            case COMMENT_NODE: {
-                ++commentNodes;
-                break;
-            }
-            case DOCUMENT_NODE: {
-                ++documentNodes;
-                break;
-            }
-            case DOCUMENT_TYPE_NODE: {
-                ++docTypeNodes;
-                break;
-            }
-            case DOCUMENT_FRAGMENT_NODE: {
-                if (node.isShadowRoot())
-                    ++shadowRootNodes;
-                else
-                    ++fragmentNodes;
-                break;
-            }
+            break;
+        }
+        case NodeType::Attribute: {
+            ++attrNodes;
+            break;
+        }
+        case NodeType::Text: {
+            ++textNodes;
+            break;
+        }
+        case NodeType::CDATASection: {
+            ++cdataNodes;
+            break;
+        }
+        case NodeType::ProcessingInstruction: {
+            ++piNodes;
+            break;
+        }
+        case NodeType::Comment: {
+            ++commentNodes;
+            break;
+        }
+        case NodeType::Document: {
+            ++documentNodes;
+            break;
+        }
+        case NodeType::DocumentType: {
+            ++docTypeNodes;
+            break;
+        }
+        case NodeType::DocumentFragment: {
+            if (node.isShadowRoot())
+                ++shadowRootNodes;
+            else
+                ++fragmentNodes;
+            break;
+        }
         }
     }
 
@@ -393,9 +394,9 @@ Node::Node(Document& document, NodeType type, OptionSet<TypeFlag> flags)
 #endif
 }
 
-static HashMap<WeakRef<Node, WeakPtrImplWithEventTargetData>, NodeIdentifier>& NODELETE nodeIdentifiersMap()
+static HashMap<WeakPtr<Node, WeakPtrImplWithEventTargetData>, NodeIdentifier>& NODELETE nodeIdentifiersMap()
 {
-    static MainThreadNeverDestroyed<HashMap<WeakRef<Node, WeakPtrImplWithEventTargetData>, NodeIdentifier>> map;
+    static MainThreadNeverDestroyed<HashMap<WeakPtr<Node, WeakPtrImplWithEventTargetData>, NodeIdentifier>> map;
     return map;
 }
 
@@ -442,7 +443,7 @@ Node::~Node()
 
 #if ASSERT_ENABLED
     if (m_refCountAndParentBit != s_refCountIncrement)
-        WTF::RefCountDebugger::printRefDuringDestructionLogAndCrash(this);
+        WTF::RefCountDebuggerBase::printRefDuringDestructionLogAndCrash(this);
 #endif
     RELEASE_ASSERT(m_refCountAndParentBit == s_refCountIncrement);
 }
@@ -567,7 +568,7 @@ static HashSet<Ref<Node>> nodeSetPreTransformedFromNodeOrStringVector(const Fixe
     return nodeSet;
 }
 
-static RefPtr<Node> firstPrecedingSiblingNotInNodeSet(Node& context, const HashSet<Ref<Node>>& nodeSet)
+static RefPtr<Node> NODELETE firstPrecedingSiblingNotInNodeSet(Node& context, const HashSet<Ref<Node>>& nodeSet)
 {
     for (auto* sibling = context.previousSibling(); sibling; sibling = sibling->previousSibling()) {
         if (!nodeSet.contains(*sibling))
@@ -576,7 +577,7 @@ static RefPtr<Node> firstPrecedingSiblingNotInNodeSet(Node& context, const HashS
     return nullptr;
 }
 
-static RefPtr<Node> firstFollowingSiblingNotInNodeSet(Node& context, const HashSet<Ref<Node>>& nodeSet)
+static RefPtr<Node> NODELETE firstFollowingSiblingNotInNodeSet(Node& context, const HashSet<Ref<Node>>& nodeSet)
 {
     for (auto* sibling = context.nextSibling(); sibling; sibling = sibling->nextSibling()) {
         if (!nodeSet.contains(*sibling))
@@ -737,7 +738,7 @@ ExceptionOr<void> Node::normalize()
         if (node == this)
             break;
 
-        if (node->nodeType() != TEXT_NODE) {
+        if (node->nodeType() != NodeType::Text) {
             node = NodeTraversal::nextPostOrder(*node);
             continue;
         }
@@ -754,7 +755,7 @@ ExceptionOr<void> Node::normalize()
 
         // Merge text nodes.
         while (RefPtr nextSibling = node->nextSibling()) {
-            if (nextSibling->nodeType() != TEXT_NODE)
+            if (nextSibling->nodeType() != NodeType::Text)
                 break;
             Ref nextText = uncheckedDowncast<Text>(nextSibling.releaseNonNull());
 
@@ -841,7 +842,7 @@ void Node::inspect()
         page->inspectorController().inspect(this);
 }
 
-static Node::Editability computeEditabilityFromComputedStyle(const RenderStyle& style, Node::UserSelectAllTreatment treatment, PageIsEditable pageIsEditable)
+static Node::Editability NODELETE computeEditabilityFromComputedStyle(const RenderStyle& style, Node::UserSelectAllTreatment treatment, PageIsEditable pageIsEditable)
 {
     // Ideally we'd call ASSERT(!needsStyleRecalc()) here, but
     // ContainerNode::setFocus() calls invalidateStyleForSubtree(), so the assertion
@@ -1022,7 +1023,7 @@ unsigned Node::computeNodeIndex() const
 }
 
 template<unsigned type>
-bool shouldInvalidateNodeListCachesForAttr(std::span<const unsigned, numNodeListInvalidationTypes> nodeListCounts, const QualifiedName& attrName)
+bool NODELETE shouldInvalidateNodeListCachesForAttr(std::span<const unsigned, numNodeListInvalidationTypes> nodeListCounts, const QualifiedName& attrName)
 {
     if constexpr (type >= numNodeListInvalidationTypes)
         return false;
@@ -1143,7 +1144,7 @@ ExceptionOr<void> Node::checkSetPrefix(const AtomString& prefix)
     // Perform error checking as required by spec for setting Node.prefix. Used by
     // Element::setPrefix() and Attr::setPrefix()
 
-    if (!prefix.isEmpty() && !Document::isValidName(prefix))
+    if (!prefix.isEmpty() && !NameValidation::isValidNamespacePrefix(prefix))
         return Exception { ExceptionCode::InvalidCharacterError };
 
     // FIXME: Raise NamespaceError if prefix is malformed per the Namespaces in XML specification.
@@ -1270,11 +1271,11 @@ bool Node::canStartSelection() const
         return true;
 
     if (renderer()) {
-        const CheckedRef style = renderer()->style();
+        const auto& style = renderer()->style();
 
         // We allow selections to begin within an element that has -webkit-user-select: none set,
         // but if the element is draggable then dragging should take priority over selection.
-        if (style->userDrag() == UserDrag::Element && style->usedUserSelect() == UserSelect::None)
+        if (style.userDrag() == UserDrag::Element && style.usedUserSelect() == UserSelect::None)
             return false;
     }
     return parentOrShadowHostNode() ? parentOrShadowHostNode()->canStartSelection() : true;
@@ -1334,16 +1335,16 @@ static inline ShadowRoot* NODELETE parentShadowRoot(const Node& node)
     return nullptr;
 }
 
-HTMLSlotElement* Node::assignedSlot() const
+HTMLSlotElement* NODELETE Node::assignedSlot() const
 {
-    if (RefPtr shadowRoot = parentShadowRoot(*this))
+    if (auto* shadowRoot = parentShadowRoot(*this))
         return shadowRoot->findAssignedSlot(*this);
     return nullptr;
 }
 
-HTMLSlotElement* Node::assignedSlotForBindings() const
+HTMLSlotElement* NODELETE Node::assignedSlotForBindings() const
 {
-    RefPtr shadowRoot = parentShadowRoot(*this);
+    auto* shadowRoot = parentShadowRoot(*this);
     if (shadowRoot && shadowRoot->mode() == ShadowRootMode::Open)
         return shadowRoot->findAssignedSlot(*this);
     return nullptr;
@@ -1478,21 +1479,14 @@ Node& Node::getRootNode(const GetRootNodeOptions& options) const
     return options.composed ? shadowIncludingRoot() : rootNode();
 }
 
-void Node::queueTaskKeepingThisNodeAlive(TaskSource source, Function<void ()>&& task)
-{
-    document().eventLoop().queueTask(source, [protectedThis = GCReachableRef(*this), task = WTF::move(task)] () {
-        task();
-    });
-}
-
 void Node::queueTaskToDispatchEvent(TaskSource source, Ref<Event>&& event)
 {
-    queueTaskKeepingThisNodeAlive(source, [protectedThis = Ref { *this }, event = WTF::move(event)]() {
-        protectedThis->dispatchEvent(event);
+    queueTaskKeepingNodeAlive(*this, source, [event = WTF::move(event)](Node& node) {
+        node.dispatchEvent(event);
     });
 }
 
-Node::InsertedIntoAncestorResult Node::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps Node::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
     ASSERT(!containsSelectionEndPoint());
     if (insertionType.connectedToDocument)
@@ -1502,10 +1496,10 @@ Node::InsertedIntoAncestorResult Node::insertedIntoAncestor(InsertionType insert
 
     invalidateStyle(Style::Validity::SubtreeInvalid, Style::InvalidationMode::InsertedIntoAncestor);
 
-    return InsertedIntoAncestorResult::Done;
+    return NeedsPostConnectionSteps::No;
 }
 
-void Node::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+void Node::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
     ASSERT(!containsSelectionEndPoint());
     if (removalType.disconnectedFromDocument)
@@ -1554,7 +1548,7 @@ bool Node::isEqualNode(Node* other) const
         return false;
     
     switch (nodeType) {
-    case Node::DOCUMENT_TYPE_NODE: {
+    case NodeType::DocumentType: {
         auto& thisDocType = uncheckedDowncast<DocumentType>(*this);
         auto& otherDocType = uncheckedDowncast<DocumentType>(*other);
         if (thisDocType.name() != otherDocType.name())
@@ -1565,7 +1559,7 @@ bool Node::isEqualNode(Node* other) const
             return false;
         break;
         }
-    case Node::ELEMENT_NODE: {
+    case NodeType::Element: {
         auto& thisElement = uncheckedDowncast<Element>(*this);
         auto& otherElement = uncheckedDowncast<Element>(*other);
         if (thisElement.tagQName() != otherElement.tagQName())
@@ -1574,7 +1568,7 @@ bool Node::isEqualNode(Node* other) const
             return false;
         break;
         }
-    case Node::PROCESSING_INSTRUCTION_NODE: {
+    case NodeType::ProcessingInstruction: {
         auto& thisProcessingInstruction = uncheckedDowncast<ProcessingInstruction>(*this);
         auto& otherProcessingInstruction = uncheckedDowncast<ProcessingInstruction>(*other);
         if (thisProcessingInstruction.target() != otherProcessingInstruction.target())
@@ -1583,16 +1577,16 @@ bool Node::isEqualNode(Node* other) const
             return false;
         break;
         }
-    case Node::CDATA_SECTION_NODE:
-    case Node::TEXT_NODE:
-    case Node::COMMENT_NODE: {
+    case NodeType::CDATASection:
+    case NodeType::Text:
+    case NodeType::Comment: {
         auto& thisCharacterData = uncheckedDowncast<CharacterData>(*this);
         auto& otherCharacterData = uncheckedDowncast<CharacterData>(*other);
         if (thisCharacterData.data() != otherCharacterData.data())
             return false;
         break;
         }
-    case Node::ATTRIBUTE_NODE: {
+    case NodeType::Attribute: {
         auto& thisAttribute = uncheckedDowncast<Attr>(*this);
         auto& otherAttribute = uncheckedDowncast<Attr>(*other);
         if (thisAttribute.qualifiedName() != otherAttribute.qualifiedName())
@@ -1601,8 +1595,8 @@ bool Node::isEqualNode(Node* other) const
             return false;
         break;
         }
-    case Node::DOCUMENT_NODE:
-    case Node::DOCUMENT_FRAGMENT_NODE:
+    case NodeType::Document:
+    case NodeType::DocumentFragment:
         break;
     }
 
@@ -1627,7 +1621,7 @@ bool Node::isEqualNode(Node* other) const
 static const AtomString& locateDefaultNamespace(const Node& node, const AtomString& prefix)
 {
     switch (node.nodeType()) {
-    case Node::ELEMENT_NODE: {
+    case NodeType::Element: {
         if (prefix == xmlAtom())
             return XMLNames::xmlNamespaceURI.get();
         if (prefix == xmlnsAtom())
@@ -1652,14 +1646,14 @@ static const AtomString& locateDefaultNamespace(const Node& node, const AtomStri
         SUPPRESS_UNCHECKED_LOCAL auto* parent = node.parentElement();
         return parent ? locateDefaultNamespace(*parent, prefix) : nullAtom();
     }
-    case Node::DOCUMENT_NODE:
+    case NodeType::Document:
         if (RefPtr documentElement = uncheckedDowncast<Document>(node).documentElement())
             return locateDefaultNamespace(*documentElement, prefix);
         return nullAtom();
-    case Node::DOCUMENT_TYPE_NODE:
-    case Node::DOCUMENT_FRAGMENT_NODE:
+    case NodeType::DocumentType:
+    case NodeType::DocumentFragment:
         return nullAtom();
-    case Node::ATTRIBUTE_NODE:
+    case NodeType::Attribute:
         if (RefPtr ownerElement = uncheckedDowncast<Attr>(node).ownerElement())
             return locateDefaultNamespace(*ownerElement, prefix);
         return nullAtom();
@@ -1707,16 +1701,16 @@ const AtomString& Node::lookupPrefix(const AtomString& namespaceURI) const
         return nullAtom();
     
     switch (nodeType()) {
-    case ELEMENT_NODE:
+    case NodeType::Element:
         return locateNamespacePrefix(uncheckedDowncast<Element>(*this), namespaceURI);
-    case DOCUMENT_NODE:
+    case NodeType::Document:
         if (RefPtr documentElement = uncheckedDowncast<Document>(*this).documentElement())
             return locateNamespacePrefix(*documentElement, namespaceURI);
         return nullAtom();
-    case DOCUMENT_FRAGMENT_NODE:
-    case DOCUMENT_TYPE_NODE:
+    case NodeType::DocumentFragment:
+    case NodeType::DocumentType:
         return nullAtom();
-    case ATTRIBUTE_NODE:
+    case NodeType::Attribute:
         if (RefPtr ownerElement = uncheckedDowncast<Attr>(*this).ownerElement())
             return locateNamespacePrefix(*ownerElement, namespaceURI);
         return nullAtom();
@@ -1730,41 +1724,41 @@ const AtomString& Node::lookupPrefix(const AtomString& namespaceURI) const
 static void appendTextContent(const Node* node, bool convertBRsToNewlines, bool& isNullString, StringBuilder& content)
 {
     switch (node->nodeType()) {
-    case Node::TEXT_NODE:
-    case Node::CDATA_SECTION_NODE:
-    case Node::COMMENT_NODE:
+    case NodeType::Text:
+    case NodeType::CDATASection:
+    case NodeType::Comment:
         isNullString = false;
         content.append(uncheckedDowncast<CharacterData>(*node).data());
         break;
 
-    case Node::PROCESSING_INSTRUCTION_NODE:
+    case NodeType::ProcessingInstruction:
         isNullString = false;
         content.append(uncheckedDowncast<ProcessingInstruction>(*node).data());
         break;
     
-    case Node::ATTRIBUTE_NODE:
+    case NodeType::Attribute:
         isNullString = false;
         content.append(uncheckedDowncast<Attr>(*node).value());
         break;
 
-    case Node::ELEMENT_NODE:
+    case NodeType::Element:
         if (node->hasTagName(brTag) && convertBRsToNewlines) {
             isNullString = false;
             content.append('\n');
             break;
         }
         [[fallthrough]];
-    case Node::DOCUMENT_FRAGMENT_NODE:
+    case NodeType::DocumentFragment:
         isNullString = false;
         for (RefPtr child = node->firstChild(); child; child = child->nextSibling()) {
-            if (child->nodeType() == Node::COMMENT_NODE || child->nodeType() == Node::PROCESSING_INSTRUCTION_NODE)
+            if (child->nodeType() == NodeType::Comment || child->nodeType() == NodeType::ProcessingInstruction)
                 continue;
             appendTextContent(child.get(), convertBRsToNewlines, isNullString, content);
         }
         break;
 
-    case Node::DOCUMENT_NODE:
-    case Node::DOCUMENT_TYPE_NODE:
+    case NodeType::Document:
+    case NodeType::DocumentType:
         break;
     }
 }
@@ -1780,18 +1774,18 @@ String Node::textContent(bool convertBRsToNewlines) const
 ExceptionOr<void> Node::setTextContent(String&& text)
 {
     switch (nodeType()) {
-    case ATTRIBUTE_NODE:
-    case TEXT_NODE:
-    case CDATA_SECTION_NODE:
-    case COMMENT_NODE:
-    case PROCESSING_INSTRUCTION_NODE:
+    case NodeType::Attribute:
+    case NodeType::Text:
+    case NodeType::CDATASection:
+    case NodeType::Comment:
+    case NodeType::ProcessingInstruction:
         return setNodeValue(WTF::move(text));
-    case ELEMENT_NODE:
-    case DOCUMENT_FRAGMENT_NODE:
+    case NodeType::Element:
+    case NodeType::DocumentFragment:
         uncheckedDowncast<ContainerNode>(*this).stringReplaceAll(WTF::move(text));
         return { };
-    case DOCUMENT_NODE:
-    case DOCUMENT_TYPE_NODE:
+    case NodeType::Document:
+    case NodeType::DocumentType:
         // Do nothing.
         return { };
     }
@@ -1980,7 +1974,7 @@ void Node::showNodePathForThis() const
         }
 
         switch (node->nodeType()) {
-        case ELEMENT_NODE: {
+        case NodeType::Element: {
             SAFE_FPRINTF(stderr, "/%s", node->nodeName().utf8());
 
             const Element& element = uncheckedDowncast<Element>(*node);
@@ -1999,10 +1993,10 @@ void Node::showNodePathForThis() const
                 SAFE_FPRINTF(stderr, "[@id=\"%s\"]", idattr.string().utf8());
             break;
         }
-        case TEXT_NODE:
+        case NodeType::Text:
             fprintf(stderr, "/text()");
             break;
-        case ATTRIBUTE_NODE:
+        case NodeType::Attribute:
             SAFE_FPRINTF(stderr, "/@%s", node->nodeName().utf8());
             break;
         default:
@@ -2337,10 +2331,17 @@ void Node::moveNodeToNewDocumentSlowCase(Document& oldDocument, Document& newDoc
 #endif
 
         auto& eventNames = WebCore::eventNames();
-        enumerateEventListenerTypes([&](auto& eventType, unsigned count) {
-            oldDocument.didRemoveEventListenersOfType(eventType, count);
-            newDocument.didAddEventListenersOfType(eventType, count);
+        enumerateEventListenerTypes([&](auto& eventType, uint16_t capturingCount, uint16_t bubblingCount) {
+            if (capturingCount) {
+                oldDocument.didRemoveEventListenersOfType(eventType, Document::IsCapture::Yes, capturingCount);
+                newDocument.didAddEventListenersOfType(eventType, Document::IsCapture::Yes, capturingCount);
+            }
+            if (bubblingCount) {
+                oldDocument.didRemoveEventListenersOfType(eventType, Document::IsCapture::No, bubblingCount);
+                newDocument.didAddEventListenersOfType(eventType, Document::IsCapture::No, bubblingCount);
+            }
 
+            unsigned count = capturingCount + bubblingCount;
             auto typeInfo = eventNames.typeInfoForEvent(eventType);
             if (typeInfo.isInCategory(EventCategory::Wheel))
                 numWheelEventHandlers += count;
@@ -2405,7 +2406,7 @@ static inline bool tryAddEventListener(Node* targetNode, const AtomString& event
         return false;
 
     Ref document = targetNode->document();
-    document->didAddEventListenersOfType(eventType);
+    document->didAddEventListenersOfType(eventType, options.capture ? Document::IsCapture::Yes : Document::IsCapture::No);
 
     auto& eventNames = WebCore::eventNames();
     auto typeInfo = eventNames.typeInfoForEvent(eventType);
@@ -2461,10 +2462,10 @@ bool Node::addEventListener(const AtomString& eventType, Ref<EventListener>&& li
     return tryAddEventListener(this, eventType, WTF::move(listener), options);
 }
 
-static inline bool didRemoveEventListenerOfType(Node& targetNode, const AtomString& eventType)
+static inline bool didRemoveEventListenerOfType(Node& targetNode, const AtomString& eventType, Document::IsCapture isCapture)
 {
     Ref document = targetNode.document();
-    document->didRemoveEventListenersOfType(eventType);
+    document->didRemoveEventListenersOfType(eventType, isCapture);
 
     // FIXME: Notify Document that the listener has vanished. We need to keep track of a number of
     // listeners for each type, not just a bool - see https://bugs.webkit.org/show_bug.cgi?id=33861
@@ -2514,16 +2515,18 @@ bool Node::removeEventListener(const AtomString& eventType, EventListener& liste
 {
     if (!EventTarget::removeEventListener(eventType, listener, options))
         return false;
-    didRemoveEventListenerOfType(*this, eventType);
+    didRemoveEventListenerOfType(*this, eventType, options.capture ? Document::IsCapture::Yes : Document::IsCapture::No);
     return true;
 }
 
 void Node::removeAllEventListeners()
 {
     EventTarget::removeAllEventListeners();
-    enumerateEventListenerTypes([&](const AtomString& type, unsigned count) {
-        for (unsigned i = 0; i < count; ++i)
-            didRemoveEventListenerOfType(*this, type);
+    enumerateEventListenerTypes([&](const AtomString& type, uint16_t capturingCount, uint16_t bubblingCount) {
+        for (uint16_t i = 0; i < capturingCount; ++i)
+            didRemoveEventListenerOfType(*this, type, Document::IsCapture::Yes);
+        for (uint16_t i = 0; i < bubblingCount; ++i)
+            didRemoveEventListenerOfType(*this, type, Document::IsCapture::No);
     });
 }
 
@@ -3125,7 +3128,7 @@ Node* Node::fromIdentifier(NodeIdentifier identifier)
 {
     for (auto& [node, nodeIdentifier] : nodeIdentifiersMap()) {
         if (nodeIdentifier == identifier)
-            return node.ptr();
+            return node.get();
     }
     return nullptr;
 }

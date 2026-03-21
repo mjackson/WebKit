@@ -51,7 +51,7 @@ private:
     RenderPtr<RenderElement> createElementRenderer(RenderStyle&&, const RenderTreePosition&) final;
     bool rendererIsNeeded(const RenderStyle&) final;
 
-    Ref<SVGAnimatedNumber> m_offset { SVGAnimatedNumber::create(this, 0) };
+    const Ref<SVGAnimatedNumber> m_offset { SVGAnimatedNumber::create(this, 0) };
 };
 
 } // namespace WebCore

@@ -147,7 +147,7 @@ void NonCompositedFrameRenderer::sizeDidChange()
     resetFrameDamage();
     addDirtyRect(m_webPage->bounds());
 #endif
-    if (m_canRenderNextFrame)
+    if (canUpdateRendering())
         updateRendering();
     else
         scheduleRenderingUpdate();
@@ -155,12 +155,12 @@ void NonCompositedFrameRenderer::sizeDidChange()
 
 void NonCompositedFrameRenderer::scheduleRenderingUpdate()
 {
-    WTFEmitSignpost(this, NonCompositedScheduleRenderingUpdate, "canRenderNextFrame %s", m_canRenderNextFrame ? "yes" : "no");
+    WTFEmitSignpost(this, NonCompositedScheduleRenderingUpdate, "canRenderNextFrame %s", canUpdateRendering() ? "yes" : "no");
 
     if (m_layerTreeStateIsFrozen || m_isSuspended || m_webPage->size().isEmpty())
         return;
 
-    if (!m_canRenderNextFrame) {
+    if (!canUpdateRendering()) {
         m_shouldRenderFollowupFrame = true;
         return;
     }
@@ -170,7 +170,7 @@ void NonCompositedFrameRenderer::scheduleRenderingUpdate()
 
 bool NonCompositedFrameRenderer::canUpdateRendering() const
 {
-    return m_canRenderNextFrame;
+    return !m_pendingNotifyFrame;
 }
 
 void NonCompositedFrameRenderer::updateRendering()
@@ -252,18 +252,26 @@ void NonCompositedFrameRenderer::updateRendering()
         }
     }
 
-    m_canRenderNextFrame = false;
     m_surface->didRenderFrame();
-
-    if (RefPtr drawingArea = webPage->drawingArea())
-        drawingArea->dispatchPendingCallbacksAfterEnsuringDrawing();
-
     webPage->didUpdateRendering();
 
-    if (drawingArea)
+    if (drawingArea) {
         drawingArea->didCompleteRenderingUpdateDisplay();
+        drawingArea->dispatchPendingCallbacksAfterEnsuringDrawing();
+    }
 
     WTFEndSignpost(this, NonCompositedRenderingUpdate);
+
+    if (m_isWaitingForFrameComplete)
+        m_pendingNotifyFrame = true;
+    else
+        finishRenderingUpdate();
+}
+
+void NonCompositedFrameRenderer::finishRenderingUpdate()
+{
+    m_isWaitingForFrameComplete = true;
+    m_surface->sendFrame();
 
     if (m_forcedRepaintAsyncCallback)
         m_forcedRepaintAsyncCallback();
@@ -273,7 +281,12 @@ void NonCompositedFrameRenderer::frameComplete()
 {
     WTFEmitSignpost(this, FrameComplete);
 
-    m_canRenderNextFrame = true;
+    m_isWaitingForFrameComplete = false;
+
+    bool pendingNotifyFrame = std::exchange(m_pendingNotifyFrame, false);
+    if (pendingNotifyFrame)
+        finishRenderingUpdate();
+
     bool shouldRenderFollowupFrame = std::exchange(m_shouldRenderFollowupFrame, false);
     if (!m_isSuspended && !m_layerTreeStateIsFrozen && shouldRenderFollowupFrame)
         scheduleRenderingUpdateRunLoopObserver();
@@ -281,6 +294,10 @@ void NonCompositedFrameRenderer::frameComplete()
 
 void NonCompositedFrameRenderer::updateRenderingWithForcedRepaint()
 {
+    if (!canUpdateRendering() || m_isUpdatingRendering)
+        return;
+
+    protect(m_webPage)->corePage()->forceRepaintAllFrames();
     addDirtyRect(m_webPage->bounds());
     updateRendering();
 }

@@ -113,11 +113,6 @@ IDBObjectStore& IDBIndex::objectStore()
     return m_objectStore;
 }
 
-Ref<IDBObjectStore> IDBIndex::protectedObjectStore()
-{
-    return objectStore();
-}
-
 const IDBKeyPath& IDBIndex::keyPath() const
 {
     ASSERT(canCurrentThreadAccessThreadLocalData(m_objectStore->transaction().database().originThread()));

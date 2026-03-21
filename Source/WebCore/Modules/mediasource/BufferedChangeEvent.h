@@ -60,8 +60,8 @@ private:
     BufferedChangeEvent(RefPtr<TimeRanges>&& added, RefPtr<TimeRanges>&& removed);
     BufferedChangeEvent(const AtomString& type, Init&&);
 
-    RefPtr<TimeRanges> m_added;
-    RefPtr<TimeRanges> m_removed;
+    const RefPtr<TimeRanges> m_added;
+    const RefPtr<TimeRanges> m_removed;
 };
 
 } // namespace WebCore

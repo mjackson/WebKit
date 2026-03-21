@@ -35,10 +35,9 @@ public:
     static std::unique_ptr<OpenXRHitTestManager> create(XrInstance, XrSystemId, XrSession);
     OpenXRHitTestManager(XrInstance, XrSystemId, XrSession);
     ~OpenXRHitTestManager();
-    Vector<PlatformXR::FrameData::HitTestResult> requestHitTest(const PlatformXR::Ray&, XrSpace, XrTime);
+    Vector<PlatformXR::FrameData::HitTestResult> requestHitTest(XrSession, const PlatformXR::Ray&, XrSpace, XrTime);
 
 private:
-    XrSession m_session { XR_NULL_HANDLE };
 #if defined(XR_ANDROID_trackables)
     Vector<XrTrackableTrackerANDROID> m_trackableTrackers;
 #endif

@@ -32,7 +32,6 @@
 #include "ContextDestructionObserverInlines.h"
 #include "DocumentPage.h"
 #include "JSApplePayAMSUIRequest.h"
-#include "JSDOMConvert.h"
 #include "Page.h"
 
 namespace WebCore {
@@ -74,7 +73,7 @@ bool ApplePayAMSUIPaymentHandler::handlesIdentifier(const PaymentRequest::Method
 
 bool ApplePayAMSUIPaymentHandler::hasActiveSession(Document& document)
 {
-    RefPtr page = document.page();
+    auto* page = document.page();
     return page && page->hasActiveApplePayAMSUISession();
 }
 

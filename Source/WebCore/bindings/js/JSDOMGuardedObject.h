@@ -25,14 +25,14 @@
 
 #pragma once
 
-#include <JavaScriptCore/HeapInlines.h>
-#include <JavaScriptCore/JSCell.h>
-#include <JavaScriptCore/SlotVisitorInlines.h>
-#include <JavaScriptCore/StrongInlines.h>
+#include <JavaScriptCore/JSCast.h>
+#include <JavaScriptCore/WeakInlines.h>
 #include <WebCore/ActiveDOMCallback.h>
-#include <WebCore/JSDOMGlobalObject.h>
+#include <wtf/RefCounted.h>
 
 namespace WebCore {
+
+class JSDOMGlobalObject;
 
 class WEBCORE_EXPORT DOMGuardedObject : public RefCounted<DOMGuardedObject>, public ActiveDOMCallback {
 public:
@@ -44,10 +44,10 @@ public:
 
     bool isSuspended() const { return !m_guarded || !canInvokeCallback(); } // The wrapper world has gone away or active DOM objects have been suspended.
 
-    template<typename Visitor> void visitAggregate(Visitor& visitor) { visitor.append(m_guarded); }
+    template<typename Visitor> void visitAggregateInGCThread(Visitor& visitor) { visitor.append(m_guarded); }
 
     JSC::JSValue guardedObject() const { return m_guarded.get(); }
-    JSDOMGlobalObject* globalObject() const { return m_globalObject.get(); }
+    JSDOMGlobalObject* NODELETE globalObject() const;
 
     void clear();
 

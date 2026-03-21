@@ -29,6 +29,7 @@
 #ifndef WindowMessageBroadcaster_h
 #define WindowMessageBroadcaster_h
 
+#include <windows.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 #include <wtf/Noncopyable.h>
@@ -53,7 +54,7 @@ namespace WebCore {
 
         void addListener(WindowMessageListener*);
         void removeListener(WindowMessageListener*);
-        const ListenerSet& listeners() const { return m_listeners; }
+        const ListenerSet& listeners() const LIFETIME_BOUND { return m_listeners; }
 
         void destroy();
         void unsubclassWindow();

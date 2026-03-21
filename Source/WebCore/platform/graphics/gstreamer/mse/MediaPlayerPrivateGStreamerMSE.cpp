@@ -201,7 +201,7 @@ void MediaPlayerPrivateGStreamerMSE::checkPlayingConsistency()
         return;
 
     if ((state == GST_STATE_PLAYING && m_playbackRatePausedState == PlaybackRatePausedState::Playing) || (state == GST_STATE_PAUSED && m_playbackRatePausedState == PlaybackRatePausedState::ManuallyPaused)) {
-        GST_DEBUG_OBJECT(pipeline(), "Notifying MediaPlayer of pipeline state change to %s", gst_element_state_get_name(state));
+        GST_DEBUG_OBJECT(pipeline(), "Notifying MediaPlayer of pipeline state change to %s", gst_state_get_name(state));
         player->playbackStateChanged();
     }
 }
@@ -574,7 +574,7 @@ void MediaPlayerPrivateGStreamerMSE::emitStreams(const Vector<RefPtr<MediaSource
         if (!uniqueTracks.containsIf([&track](const auto& current) { return track->id() == current->id(); })) {
             uniqueTracks.append(track);
 
-            if (track->type() != TrackPrivateBaseGStreamer::Text)
+            if (track->type() != GStreamerTrackType::Text)
                 playbackTracks.append(track);
             else
                 GST_DEBUG("Ignoring text track with id %" PRIu64, track->id());
@@ -624,7 +624,7 @@ void MediaPlayerPrivateGStreamerMSE::getSupportedTypes(HashSet<String>& types)
 MediaPlayer::SupportsType MediaPlayerPrivateGStreamerMSE::supportsType(const MediaEngineSupportParameters& parameters)
 {
     MediaPlayer::SupportsType result = MediaPlayer::SupportsType::IsNotSupported;
-    if (!parameters.isMediaSource)
+    if (parameters.platformType != PlatformMediaDecodingType::MediaSource)
         return result;
 
     if (!ensureGStreamerInitialized())

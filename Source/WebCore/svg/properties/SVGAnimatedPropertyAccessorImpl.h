@@ -38,7 +38,7 @@ class SVGAnimatedAngleAccessor final : public SVGAnimatedPropertyAccessor<OwnerT
 
 public:
     using Base::Base;
-    template<Ref<SVGAnimatedAngle> OwnerType::*property>
+    template<auto property>
     constexpr static const SVGMemberAccessor<OwnerType>& singleton() { return Base::template singleton<SVGAnimatedAngleAccessor, property>(); }
 };
 
@@ -49,7 +49,7 @@ class SVGAnimatedBooleanAccessor final : public SVGAnimatedPropertyAccessor<Owne
 
 public:
     using Base::Base;
-    template<Ref<SVGAnimatedBoolean> OwnerType::*property>
+    template<auto property>
     constexpr static const SVGMemberAccessor<OwnerType>& singleton() { return Base::template singleton<SVGAnimatedBooleanAccessor, property>(); }
 
 private:
@@ -71,7 +71,7 @@ class SVGAnimatedEnumerationAccessor final : public SVGAnimatedPropertyAccessor<
 
 public:
     using Base::Base;
-    template<Ref<SVGAnimatedEnumeration> OwnerType::*property>
+    template<auto property>
     constexpr static const SVGMemberAccessor<OwnerType>& singleton() { return Base::template singleton<SVGAnimatedEnumerationAccessor, property>(); }
 
 private:
@@ -93,7 +93,7 @@ class SVGAnimatedIntegerAccessor final : public SVGAnimatedPropertyAccessor<Owne
 public:
     using Base::Base;
     using Base::property;
-    template<Ref<SVGAnimatedInteger> OwnerType::*property>
+    template<auto property>
     constexpr static const SVGMemberAccessor<OwnerType>& singleton() { return Base::template singleton<SVGAnimatedIntegerAccessor, property>(); }
 
 private:
@@ -115,7 +115,7 @@ class SVGAnimatedLengthAccessor final : public SVGAnimatedPropertyAccessor<Owner
 
 public:
     using Base::Base;
-    template<Ref<SVGAnimatedLength> OwnerType::*property>
+    template<auto property>
     constexpr static const SVGMemberAccessor<OwnerType>& singleton() { return Base::template singleton<SVGAnimatedLengthAccessor, property>(); }
 
 private:
@@ -140,7 +140,7 @@ class SVGAnimatedLengthListAccessor final : public SVGAnimatedPropertyAccessor<O
 
 public:
     using Base::Base;
-    template<Ref<SVGAnimatedLengthList> OwnerType::*property>
+    template<auto property>
     constexpr static const SVGMemberAccessor<OwnerType>& singleton() { return Base::template singleton<SVGAnimatedLengthListAccessor, property>(); }
 
 private:
@@ -162,7 +162,7 @@ class SVGAnimatedNumberAccessor final : public SVGAnimatedPropertyAccessor<Owner
 public:
     using Base::Base;
     using Base::property;
-    template<Ref<SVGAnimatedNumber> OwnerType::*property>
+    template<auto property>
     constexpr static const SVGMemberAccessor<OwnerType>& singleton() { return Base::template singleton<SVGAnimatedNumberAccessor, property>(); }
 
 private:
@@ -184,7 +184,7 @@ class SVGAnimatedNumberListAccessor final : public SVGAnimatedPropertyAccessor<O
 
 public:
     using Base::Base;
-    template<Ref<SVGAnimatedNumberList> OwnerType::*property>
+    template<auto property>
     constexpr static const SVGMemberAccessor<OwnerType>& singleton() { return Base::template singleton<SVGAnimatedNumberListAccessor, property>(); }
 
 private:
@@ -206,7 +206,7 @@ class SVGAnimatedPathSegListAccessor final : public SVGAnimatedPropertyAccessor<
 
 public:
     using Base::Base;
-    template<Ref<SVGAnimatedPathSegList> OwnerType::*property>
+    template<auto property>
     constexpr static const SVGMemberAccessor<OwnerType>& singleton() { return Base::template singleton<SVGAnimatedPathSegListAccessor, property>(); }
 
 private:
@@ -228,7 +228,7 @@ class SVGAnimatedPointListAccessor final : public SVGAnimatedPropertyAccessor<Ow
 
 public:
     using Base::Base;
-    template<Ref<SVGAnimatedPointList> OwnerType::*property>
+    template<auto property>
     constexpr static const SVGMemberAccessor<OwnerType>& singleton() { return Base::template singleton<SVGAnimatedPointListAccessor, property>(); }
 
 private:
@@ -249,7 +249,7 @@ class SVGAnimatedOrientTypeAccessor final : public SVGAnimatedPropertyAccessor<O
 
 public:
     using Base::Base;
-    template<Ref<SVGAnimatedOrientType> OwnerType::*property>
+    template<auto property>
     constexpr static const SVGMemberAccessor<OwnerType>& singleton() {return Base::template singleton<SVGAnimatedOrientTypeAccessor, property>(); }
 };
 
@@ -260,7 +260,7 @@ class SVGAnimatedPreserveAspectRatioAccessor final : public SVGAnimatedPropertyA
 
 public:
     using Base::Base;
-    template<Ref<SVGAnimatedPreserveAspectRatio> OwnerType::*property>
+    template<auto property>
     constexpr static const SVGMemberAccessor<OwnerType>& singleton() { return Base::template singleton<SVGAnimatedPreserveAspectRatioAccessor, property>(); }
 
 private:
@@ -282,7 +282,7 @@ class SVGAnimatedRectAccessor final : public SVGAnimatedPropertyAccessor<OwnerTy
 
 public:
     using Base::Base;
-    template<Ref<SVGAnimatedRect> OwnerType::*property>
+    template<auto property>
     constexpr static const SVGMemberAccessor<OwnerType>& singleton() { return Base::template singleton<SVGAnimatedRectAccessor, property>(); }
 
 private:
@@ -304,7 +304,7 @@ class SVGAnimatedStringAccessor final : public SVGAnimatedPropertyAccessor<Owner
 
 public:
     using Base::Base;
-    template<Ref<SVGAnimatedString> OwnerType::*property>
+    template<auto property>
     constexpr static const SVGMemberAccessor<OwnerType>& singleton() { return Base::template singleton<SVGAnimatedStringAccessor, property>(); }
 
 private:
@@ -326,7 +326,7 @@ class SVGAnimatedTransformListAccessor final : public SVGAnimatedPropertyAccesso
 
 public:
     using Base::Base;
-    template<Ref<SVGAnimatedTransformList> OwnerType::*property>
+    template<auto property>
     constexpr static const SVGMemberAccessor<OwnerType>& singleton() { return Base::template singleton<SVGAnimatedTransformListAccessor, property>(); }
 
 private:

@@ -2,7 +2,7 @@
  * Copyright (C) 1999 Lars Knoll (knoll@kde.org)
  *           (C) 1999 Antti Koivisto (koivisto@kde.org)
  *           (C) 2000 Dirk Mueller (mueller@kde.org)
- * Copyright (C) 2004-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2004-2026 Apple Inc. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -27,6 +27,7 @@
 
 namespace WebCore {
     
+class HTMLDivElement;
 class HTMLSelectElement;
 
 class HTMLOptGroupElement final : public HTMLElement {
@@ -40,16 +41,22 @@ public:
     
     WEBCORE_EXPORT String groupLabelText() const;
 
+    void legendChildAdded();
+    void legendChildRemoved();
+
+    void updateUserAgentShadowTree() final;
+
 private:
     HTMLOptGroupElement(const QualifiedName&, Document&);
 
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) final;
-    void removedFromAncestor(RemovalType, ContainerNode& oldParentOfRemovedTree) final;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) final;
+    void removingSteps(RemovalType, ContainerNode& oldParentOfRemovedTree) final;
 
     const AtomString& formControlType() const;
     bool isFocusable() const final;
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) final;
-    bool rendererIsNeeded(const RenderStyle&) final;
+
+    void didAddUserAgentShadowRoot(ShadowRoot&) final;
 
     void childrenChanged(const ChildChange&) final;
 
@@ -57,8 +64,13 @@ private:
 
     void recalcSelectOptions();
 
+    void invalidateShadowTree();
+
     bool m_isDisabled { false };
+    bool m_shadowTreeNeedsUpdate { false };
+    unsigned m_legendChildCount { 0 };
     WeakPtr<HTMLSelectElement, WeakPtrImplWithEventTargetData> m_ownerSelect;
+    WeakPtr<HTMLDivElement, WeakPtrImplWithEventTargetData> m_labelContainer;
 };
 
 } // namespace WebCore

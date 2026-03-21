@@ -121,6 +121,9 @@ WTF_EXTERN_C_END
 typedef struct CF_BRIDGED_TYPE(id) __DDHighlight *DDHighlightRef;
 typedef NSUInteger DDHighlightStyle;
 
+#include <wtf/cf/CFTypeTraits.h>
+WTF_DECLARE_CF_TYPE_TRAIT_WITHOUT_TYPE_ID(DDHighlight);
+
 #if !HAVE(DATA_DETECTORS_MAC_ACTION)
 
 @interface DDAction : NSObject

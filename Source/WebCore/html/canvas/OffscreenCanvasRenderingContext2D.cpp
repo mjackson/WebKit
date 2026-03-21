@@ -43,6 +43,7 @@
 #include "ScriptExecutionContext.h"
 #include "StyleResolveForFont.h"
 #include "TextMetrics.h"
+#include "TextRun.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {

@@ -236,6 +236,7 @@ public:
     // Search methods
     unsigned uiElementCountForSearchPredicate(JSContextRef, AccessibilityUIElement* startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly) override;
     RefPtr<AccessibilityUIElement> uiElementForSearchPredicate(JSContextRef, AccessibilityUIElement* startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly) override;
+    JSValueRef uiElementsForSearchPredicate(JSContextRef, AccessibilityUIElement* startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly, unsigned resultsLimit) override;
     JSRetainPtr<JSStringRef> selectTextWithCriteria(JSContextRef, JSStringRef ambiguityResolution, JSValueRef searchStrings, JSStringRef replacementString, JSStringRef activity) override;
 
     // Table attribute methods
@@ -264,7 +265,7 @@ public:
     void scrollToMakeVisibleWithSubFocus(int x, int y, int width, int height) override;
 
     // Selection methods
-    JSRetainPtr<JSStringRef> intersectionWithSelectionRange() override;
+    RefPtr<AccessibilityTextMarkerRange> intersectionWithSelectionRange() override;
     bool setSelectedTextMarkerRange(AccessibilityTextMarkerRange*) override;
     bool setSelectedTextRange(unsigned location, unsigned length) override;
     JSRetainPtr<JSStringRef> textInputMarkedRange() const override;
@@ -306,6 +307,7 @@ public:
     bool isFirstItemInSuggestion() const override;
     bool isLastItemInSuggestion() const override;
     bool isMarkAnnotation() const override;
+    bool isFrameGeometryInitialized() const override;
 
     // Text input
     bool insertText(JSStringRef) override;

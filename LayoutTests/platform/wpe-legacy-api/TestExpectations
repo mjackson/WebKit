@@ -82,7 +82,6 @@ imported/w3c/web-platform-tests/css/css-view-transitions/pseudo-with-classes-mis
 imported/w3c/web-platform-tests/css/css-view-transitions/pseudo-with-classes-mismatch-wildcard.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-view-transitions/window-resize-aborts-transition.html [ Failure ]
 imported/w3c/web-platform-tests/css/css-view-transitions/window-resize-aborts-transition-before-ready.html [ Failure ]
-webkit.org/b/307586 imported/w3c/web-platform-tests/css/css-view-transitions/no-raf-while-render-blocked.html [ Failure ]
 
 # Path with marker failures
 svg/W3C-SVG-1.1/painting-marker-03-f.svg [ Failure ]
@@ -98,8 +97,9 @@ webkit.org/b/188509 fast/dom/Window/window-resize-update-scrollbars.html [ Timeo
 # Doesn't support removeViewFromWindow()
 media/no-fullscreen-when-hidden.html [ Skip ]
 
-platform/glib/damage/basic-propagation-002-non-composited.html [ Crash ]
-platform/glib/non-compositing/simple-dom.html [ Crash ]
+# Non composited mode is not supposed to work with legacy WPE API
+platform/glib/damage/basic-propagation-002-non-composited.html [ Skip ]
+platform/glib/non-compositing/ [ Skip ]
 
 #//////////////////////////////////////////////////////////////////////////////////////////
 # End of Triaged Expectations

@@ -590,7 +590,7 @@ set(WebCore_NON_SVG_IDL_FILES
     Modules/mediastream/RTCPriorityType.idl
     Modules/mediastream/RTCRtcpParameters.idl
     Modules/mediastream/RTCRtpCapabilities.idl
-    Modules/mediastream/RTCRtpCodecCapability.idl
+    Modules/mediastream/RTCRtpCodec.idl
     Modules/mediastream/RTCRtpCodecParameters.idl
     Modules/mediastream/RTCRtpCodingParameters.idl
     Modules/mediastream/RTCRtpContributingSource.idl
@@ -2620,11 +2620,13 @@ set(MODERN_MEDIA_CONTROLS_SCRIPTS
     "${WEBCORE_DIR}/Modules/modern-media-controls/controls/macos-layout-traits.js"
     "${WEBCORE_DIR}/Modules/modern-media-controls/controls/placard.js"
     "${WEBCORE_DIR}/Modules/modern-media-controls/controls/airplay-placard.js"
+    "${WEBCORE_DIR}/Modules/modern-media-controls/controls/fullscreen-placard.js"
     "${WEBCORE_DIR}/Modules/modern-media-controls/controls/invalid-placard.js"
     "${WEBCORE_DIR}/Modules/modern-media-controls/controls/pip-placard.js"
     "${WEBCORE_DIR}/Modules/modern-media-controls/controls/watchos-activity-indicator.js"
     "${WEBCORE_DIR}/Modules/modern-media-controls/controls/watchos-media-controls.js"
     "${WEBCORE_DIR}/Modules/modern-media-controls/controls/watchos-layout-traits.js"
+    "${WEBCORE_DIR}/Modules/modern-media-controls/controls/tvos-media-controls.js"
     "${WEBCORE_DIR}/Modules/modern-media-controls/controls/adwaita-inline-media-controls.js"
     "${WEBCORE_DIR}/Modules/modern-media-controls/controls/adwaita-fullscreen-media-controls.js"
     "${WEBCORE_DIR}/Modules/modern-media-controls/controls/adwaita-layout-traits.js"

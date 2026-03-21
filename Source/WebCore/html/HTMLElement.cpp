@@ -82,6 +82,7 @@
 #include "NodeName.h"
 #include "NodeTraversal.h"
 #include "PopoverData.h"
+#include "Position.h"
 #include "PseudoClassChangeInvalidation.h"
 #include "RenderElement.h"
 #include "ScriptController.h"
@@ -408,19 +409,19 @@ void HTMLElement::attributeChanged(const QualifiedName& name, const AtomString& 
         setAttributeEventListener(eventName, name, newValue);
 }
 
-Node::InsertedIntoAncestorResult HTMLElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps HTMLElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    auto result = StyledElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    auto result = StyledElement::insertionSteps(insertionType, parentOfInsertedTree);
     hideNonce();
     return result;
 }
 
-void HTMLElement::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+void HTMLElement::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
     if (popoverData())
         hidePopoverInternal(FocusPreviousElement::No, FireEvents::No);
 
-    StyledElement::removedFromAncestor(removalType, oldParentOfRemovedTree);
+    StyledElement::removingSteps(removalType, oldParentOfRemovedTree);
 }
 
 static Ref<DocumentFragment> textToFragment(Document& document, const String& text)
@@ -808,6 +809,16 @@ void HTMLElement::addHTMLPixelsToStyle(MutableStyleProperties& style, CSSPropert
     addHTMLLengthToStyle(style, propertyID, value, AllowPercentage::No, UseCSSPXAsUnitType::Yes, IsMultiLength::No);
 }
 
+// https://html.spec.whatwg.org/multipage/rendering.html#maps-to-the-pixel-length-property
+// Uses rules for parsing non-negative integers: strips whitespace, integer-only, no fractions or percent.
+void HTMLElement::addHTMLPixelLengthToStyle(MutableStyleProperties& style, CSSPropertyID propertyID, StringView value)
+{
+    auto result = parseHTMLNonNegativeInteger(value);
+    if (!result)
+        return;
+    addPropertyToPresentationalHintStyle(style, propertyID, result.value(), CSSUnitType::CSS_PX);
+}
+
 // This is specific to <marquee> attributes, including pixel and CSS_NUMBER values.
 void HTMLElement::addHTMLNumberToStyle(MutableStyleProperties& style, CSSPropertyID propertyID, StringView value)
 {
@@ -907,13 +918,7 @@ bool HTMLElement::willRespondToMouseClickEventsWithEditability(Editability edita
 
 bool HTMLElement::canBeActuallyDisabled() const
 {
-    if (is<HTMLButtonElement>(*this)
-        || is<HTMLInputElement>(*this)
-        || is<HTMLSelectElement>(*this)
-        || is<HTMLTextAreaElement>(*this)
-        || is<HTMLOptGroupElement>(*this)
-        || is<HTMLOptionElement>(*this)
-        || is<HTMLFieldSetElement>(*this))
+    if (isAnyOf<HTMLButtonElement, HTMLInputElement, HTMLSelectElement, HTMLTextAreaElement, HTMLOptGroupElement, HTMLOptionElement, HTMLFieldSetElement>(*this))
         return true;
     auto* customElement = dynamicDowncast<HTMLMaybeFormAssociatedCustomElement>(*this);
     return customElement && customElement->isFormAssociatedCustomElement();
@@ -1029,10 +1034,40 @@ void HTMLElement::setHidden(const std::optional<Variant<bool, double, String>>& 
     });
 }
 
+
+// Determines if two nodes share the same nearest out-of-flow positioned ancestor.
+static bool haveSameOutOfFlowAncestor(const Node& anchorNode, const Node& targetNode)
+{
+    const CheckedPtr anchorRenderer = anchorNode.renderer();
+    const CheckedPtr targetRenderer = targetNode.renderer();
+    if (!anchorRenderer || !targetRenderer)
+        return true;
+
+    auto nearestOutOfFlowAncestor = [](CheckedPtr<RenderObject> renderer) -> CheckedPtr<RenderObject> {
+        while (renderer) {
+            if (renderer->isOutOfFlowPositioned())
+                return renderer;
+            renderer = renderer->containingBlock();
+        }
+        return nullptr;
+    };
+
+    CheckedPtr anchorOutOfFlowAncestor = nearestOutOfFlowAncestor(anchorRenderer);
+    CheckedPtr targetOutOfFlowAncestor = nearestOutOfFlowAncestor(targetRenderer);
+    return targetOutOfFlowAncestor == anchorOutOfFlowAncestor;
+}
+
 bool HTMLElement::shouldExtendSelectionToTargetNode(const Node& targetNode, const VisibleSelection& selectionBeforeUpdate)
 {
     if (auto range = selectionBeforeUpdate.range(); range && ImageOverlay::isInsideOverlay(*range))
         return ImageOverlay::isOverlayText(targetNode);
+
+    if (Position::nodeIsUserSelectNone(&targetNode)) {
+        if (RefPtr anchorNode = selectionBeforeUpdate.anchor().anchorNode()) {
+            // Don't extend selection to a user-select: none node if they are not in the same flow.
+            return haveSameOutOfFlowAncestor(*anchorNode, targetNode);
+        }
+    }
 
     return true;
 }
@@ -1264,7 +1299,7 @@ ExceptionOr<void> HTMLElement::hidePopoverInternal(FocusPreviousElement focusPre
 
     Ref document = this->document();
     if (RefPtr element = popoverData()->previouslyFocusedElement()) {
-        if (focusPreviousElement == FocusPreviousElement::Yes && isShadowIncludingInclusiveAncestorOf(protect(document->focusedElement()).get())) {
+        if (focusPreviousElement == FocusPreviousElement::Yes && isShadowIncludingInclusiveAncestorOf(document->focusedElement())) {
             FocusOptions options;
             options.preventScroll = true;
             element->focus(options);

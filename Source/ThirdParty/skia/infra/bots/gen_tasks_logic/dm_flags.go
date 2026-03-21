@@ -531,6 +531,14 @@ func (b *TaskBuilder) dmFlags(internalHardwareLabel string) {
 					// b/425434638 - PaintParamsKeyTest failing on Release Dawn_Vulkan
 					skip(ALL, "test", ALL, "PaintParamsKeyTest")
 
+					// b/485161482 - Compute_SampledTexture fails with an access violation
+					if b.GPU("IntelIris540") {
+						skip(ALL, "test", ALL, "Compute_SampledTexture")
+						skip(ALL, "test", ALL, "Compute_StorageTextureMultipleComputeSteps")
+						skip(ALL, "test", ALL, "Compute_ReadOnlyStorageBuffer")
+						skip(ALL, "test", ALL, "Compute_StorageTextureReadAndWrite")
+					}
+
 					if b.ExtraConfig("TSAN") {
 						// The TSAN_Graphite_Dawn_Vulkan job goes off into space on this test
 						skip(ALL, "test", ALL, "BigImageTest_Graphite")
@@ -593,11 +601,14 @@ func (b *TaskBuilder) dmFlags(internalHardwareLabel string) {
 					}
 
 					if b.MatchOs("Win11") &&
-						(b.GPU("RTX3060") || b.GPU("GTX1660") || b.GPU("IntelIrisXe")) {
-						// These 3 GPUs are failing this test on Win11 (b/462240488)
+						b.GPU("RTX3060", "GTX1660", "IntelIrisXe", "IntelUHDGraphics770", "IntelIris540") {
+						// These GPUs are failing this test on Win11 (b/462240488)
 						skip(ALL, "test", ALL, "PersistentPipelineStorageTest")
 					}
-					if b.MatchOs("Win11") && b.GPU("IntelIrisXe") {
+					if b.MatchOs("Win11") && b.GPU("IntelIris540") {
+						skip(ALL, "test", ALL, "NotifyInUseTestLayer") // b/485241813
+					}
+					if b.MatchOs("Win11") && b.GPU("IntelIrisXe", "IntelUHDGraphics770") {
 						// skbug.com/470073298
 						skip(ALL, "gm", ALL, "ycbcrimage")
 					}
@@ -613,7 +624,10 @@ func (b *TaskBuilder) dmFlags(internalHardwareLabel string) {
 					skip(ALL, "test", ALL, "SkRuntimeBlender_Ganesh")
 				}
 			}
-
+			if b.GPU("IntelUHDGraphics770") && b.Os("Win11") && b.ExtraConfig("Vulkan") {
+				// skbug.com/40045530
+				skip(ALL, "test", ALL, "VkYCbcrSampler_DrawImageWithYcbcrSampler")
+			}
 		}
 
 		// ANGLE bot *only* runs the angle ES3 configs
@@ -1137,7 +1151,7 @@ func (b *TaskBuilder) dmFlags(internalHardwareLabel string) {
 		skip(ALL, "image", "gen_platf", "rle4-height-negative.bmp")
 	}
 
-	if b.MatchOs("Mac14") {
+	if b.MatchOs("Mac14", "Mac15") {
 		// These images are very large
 		skip(ALL, "image", "gen_platf", "rgb24largepal.bmp")
 		skip(ALL, "image", "gen_platf", "pal8oversizepal.bmp")
@@ -1617,6 +1631,11 @@ func (b *TaskBuilder) dmFlags(internalHardwareLabel string) {
 		// HWASAN adds tag bytes to pointers. That's incompatible with this test -- it compares
 		// pointers from unrelated stack frames to check that RP isn't growing the stack.
 		skip(ALL, "test", ALL, "SkRasterPipeline_stack_rewind")
+
+		if b.MatchGpu("Adreno618") && b.ExtraConfig("Vulkan") && b.ExtraConfig("Graphite") {
+			// b/485830988
+			skip(ALL, "test", ALL, "SkSLMatrixToVectorCast_Graphite")
+		}
 	}
 
 	if b.MatchOs("Mac") && b.GPU("IntelHD6000") {

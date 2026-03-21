@@ -33,7 +33,7 @@
 #import <wtf/HashMap.h>
 #import <wtf/Ref.h>
 #import <wtf/RefCounted.h>
-#import <wtf/RetainReleaseSwift.h>
+#import <wtf/SwiftBridging.h>
 #import <wtf/TZoneMalloc.h>
 #import <wtf/Vector.h>
 #import <wtf/WeakPtr.h>
@@ -79,21 +79,18 @@ public:
 
     Device& device() const { return m_device; }
 
-    bool isValid() const;
-    id<MTLComputeCommandEncoder> computeCommandEncoder() const;
+    bool NODELETE isValid() const;
+    id<MTLComputeCommandEncoder> NODELETE computeCommandEncoder() const;
 
 private:
     ComputePassEncoder(id<MTLComputeCommandEncoder>, const WGPUComputePassDescriptor&, CommandEncoder&, Device&);
     ComputePassEncoder(CommandEncoder&, Device&, NSString*);
 
-    bool validatePopDebugGroup() const;
+    bool NODELETE validatePopDebugGroup() const;
 
     void makeInvalid(NSString* = nil);
     void executePreDispatchCommands(const Buffer* = nullptr);
     id<MTLBuffer> runPredispatchIndirectCallValidation(const Buffer&, uint64_t);
-
-    Ref<CommandEncoder> protectedParentEncoder() { return m_parentEncoder; }
-    Ref<Device> protectedDevice() const { return m_device; }
 
     id<MTLComputeCommandEncoder> m_computeCommandEncoder { nil };
 
@@ -118,10 +115,10 @@ private:
 
 inline void refComputePassEncoder(WebGPU::ComputePassEncoder* obj)
 {
-    WTF::ref(obj);
+    obj->ref();
 }
 
 inline void derefComputePassEncoder(WebGPU::ComputePassEncoder* obj)
 {
-    WTF::deref(obj);
+    obj->deref();
 }

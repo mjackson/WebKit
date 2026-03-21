@@ -55,7 +55,6 @@ public:
 
     WebCore::Element* element() const { return m_element.get(); }
     PDFAnnotation *annotation() const { return m_annotation.get(); }
-    RetainPtr<PDFAnnotation> protectedAnnotation() const { return m_annotation; }
     PDFPluginBase* plugin() const { return m_plugin.get(); }
 
     virtual void updateGeometry();

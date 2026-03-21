@@ -31,6 +31,11 @@
 #import "WebMockMediaDeviceRoute.h"
 #import <wtf/TZoneMallocInlines.h>
 
+@interface NSObject (Staging_169033633)
+@property (nonatomic) CMTime currentPlaybackPosition;
+@property (nonatomic) CMTime currentValue;
+@end
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(MockMediaDeviceRoute);
@@ -75,6 +80,16 @@ void MockMediaDeviceRoute::setReady(bool ready)
     [m_platformRoute setReady:ready];
 }
 
+bool MockMediaDeviceRoute::playing() const
+{
+    return [m_platformRoute isPlaying];
+}
+
+void MockMediaDeviceRoute::setPlaying(bool playing)
+{
+    [m_platformRoute setPlaying:playing];
+}
+
 bool MockMediaDeviceRoute::hasPlaybackError() const
 {
     return !![m_platformRoute playbackError];
@@ -82,8 +97,49 @@ bool MockMediaDeviceRoute::hasPlaybackError() const
 
 void MockMediaDeviceRoute::setHasPlaybackError(bool)
 {
-    RetainPtr error = [NSError errorWithDomain:WebMockMediaDeviceRouteErrorDomain code:WebMockMediaDeviceRouteErrorPlaybackError userInfo:nil];
+    RetainPtr error = [NSError errorWithDomain:WebMockMediaDeviceRouteErrorDomain code:WebMockMediaDeviceRouteErrorCodePlaybackError userInfo:nil];
     [m_platformRoute setPlaybackError:error.get()];
+}
+
+float MockMediaDeviceRoute::playbackRate() const
+{
+    return [m_platformRoute playbackSpeed];
+}
+
+void MockMediaDeviceRoute::setPlaybackRate(float playbackRate)
+{
+    [m_platformRoute setPlaybackSpeed:playbackRate];
+}
+
+float MockMediaDeviceRoute::currentPlaybackPosition() const
+{
+    if ([m_platformRoute respondsToSelector:@selector(currentPlaybackPosition)])
+        return CMTimeGetSeconds([m_platformRoute currentPlaybackPosition]);
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    return CMTimeGetSeconds([m_platformRoute currentValue]);
+ALLOW_DEPRECATED_DECLARATIONS_END
+}
+
+void MockMediaDeviceRoute::setCurrentPlaybackPosition(float currentPlaybackPosition)
+{
+    if ([m_platformRoute respondsToSelector:@selector(setCurrentPlaybackPosition:)])
+        return [m_platformRoute setCurrentPlaybackPosition:CMTimeMakeWithSeconds(currentPlaybackPosition, 1000)];
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    [m_platformRoute setCurrentValue:CMTimeMakeWithSeconds(currentPlaybackPosition, 1000)];
+ALLOW_DEPRECATED_DECLARATIONS_END
+}
+
+MockMediaDeviceRoute::TimeRange MockMediaDeviceRoute::timeRange() const
+{
+    CMTimeRange platformTimeRange = [m_platformRoute timeRange];
+    return { CMTimeGetSeconds(platformTimeRange.start), CMTimeGetSeconds(platformTimeRange.duration) };
+}
+
+void MockMediaDeviceRoute::setTimeRange(const MockMediaDeviceRoute::TimeRange& timeRange)
+{
+    CMTime start = CMTimeMakeWithSeconds(timeRange.start, 1000);
+    CMTime duration = CMTimeMakeWithSeconds(timeRange.duration, 1000);
+    [m_platformRoute setTimeRange:CMTimeRangeMake(start, duration)];
 }
 
 } // namespace WebCore

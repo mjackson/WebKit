@@ -409,7 +409,7 @@ template<typename> struct Shadows;
 
 using Animations = CoordinatedValueList<Animation>;
 using BackgroundLayers = CoordinatedValueList<BackgroundLayer>;
-using BorderRadiusValue = MinimallySerializingSpaceSeparatedSize<LengthPercentage<CSS::Nonnegative>>;
+using BorderRadiusValue = MinimallySerializingSpaceSeparatedSize<LengthPercentage<CSS::NonnegativeUnzoomed>>;
 using BoxShadows = Shadows<BoxShadow>;
 using FlexGrow = Number<CSS::Nonnegative, float>;
 using FlexShrink = Number<CSS::Nonnegative, float>;
@@ -431,7 +431,7 @@ using TextShadows = Shadows<TextShadow>;
 using TransformOriginX = PositionX;
 using TransformOriginXY = Position;
 using TransformOriginY = PositionY;
-using TransformOriginZ = Length<>;
+using TransformOriginZ = Length<CSS::AllUnzoomed>;
 using Transitions = CoordinatedValueList<Transition>;
 using ViewTimelines = CoordinatedValueList<ViewTimeline>;
 using WebkitBorderSpacing = Length<CSS::NonnegativeUnzoomed>;
@@ -568,33 +568,33 @@ public:
 #if ENABLE(TEXT_AUTOSIZING)
     // MARK: - Text Autosizing
 
-    AutosizeStatus autosizeStatus() const;
-    void setAutosizeStatus(AutosizeStatus);
+    AutosizeStatus NODELETE autosizeStatus() const;
+    void NODELETE setAutosizeStatus(AutosizeStatus);
 
 #endif
 
     // MARK: - Pseudo element/style
 
     inline std::optional<PseudoElementType> pseudoElementType() const;
-    const AtomString& pseudoElementNameArgument() const;
+    const AtomString& pseudoElementNameArgument() const LIFETIME_BOUND;
 
-    std::optional<PseudoElementIdentifier> pseudoElementIdentifier() const;
+    std::optional<PseudoElementIdentifier> NODELETE pseudoElementIdentifier() const;
     void setPseudoElementIdentifier(std::optional<PseudoElementIdentifier>&&);
 
     inline bool hasAnyPublicPseudoStyles() const;
     inline bool hasPseudoStyle(PseudoElementType) const;
     inline void setHasPseudoStyles(EnumSet<PseudoElementType>);
 
-    RenderStyle* getCachedPseudoStyle(const PseudoElementIdentifier&) const;
+    RenderStyle* NODELETE getCachedPseudoStyle(const PseudoElementIdentifier&) const;
     RenderStyle* addCachedPseudoStyle(std::unique_ptr<RenderStyle>);
 
     bool hasCachedPseudoStyles() const { return !m_cachedPseudoStyles.isEmpty(); }
-    const PseudoStyleCache& cachedPseudoStyles() const { return m_cachedPseudoStyles; }
+    const PseudoStyleCache& cachedPseudoStyles() const LIFETIME_BOUND { return m_cachedPseudoStyles; }
 
     // MARK: - Custom properties
 
-    inline const CustomPropertyData& inheritedCustomProperties() const;
-    inline const CustomPropertyData& nonInheritedCustomProperties() const;
+    inline const CustomPropertyData& inheritedCustomProperties() const LIFETIME_BOUND;
+    inline const CustomPropertyData& nonInheritedCustomProperties() const LIFETIME_BOUND;
     const CustomProperty* customPropertyValue(const AtomString&) const;
     void setCustomPropertyValue(Ref<const CustomProperty>&&, bool isInherited);
     bool customPropertyValueEqual(const ComputedStyleBase&, const AtomString&) const;
@@ -610,9 +610,6 @@ public:
     inline bool evaluationTimeZoomEnabled() const;
     inline void setEvaluationTimeZoomEnabled(bool);
 
-    inline float deviceScaleFactor() const;
-    inline void setDeviceScaleFactor(float);
-
     inline bool useSVGZoomRulesForLength() const;
     inline void setUseSVGZoomRulesForLength(bool);
 
@@ -627,16 +624,16 @@ public:
     WEBCORE_EXPORT FontCascade& mutableFontCascadeWithoutUpdate();
     void setFontCascade(FontCascade&&);
 
-    WEBCORE_EXPORT const FontCascadeDescription& fontDescription() const;
+    WEBCORE_EXPORT const FontCascadeDescription& NODELETE fontDescription() const;
     WEBCORE_EXPORT FontCascadeDescription& mutableFontDescriptionWithoutUpdate();
     WEBCORE_EXPORT void setFontDescription(FontCascadeDescription&&);
     bool setFontDescriptionWithoutUpdate(FontCascadeDescription&&);
 
-    WEBCORE_EXPORT const FontMetrics& metricsOfPrimaryFont() const;
-    std::pair<FontOrientation, NonCJKGlyphOrientation> fontAndGlyphOrientation();
-    float computedFontSize() const;
+    WEBCORE_EXPORT const FontMetrics& metricsOfPrimaryFont() const LIFETIME_BOUND;
+    std::pair<FontOrientation, NonCJKGlyphOrientation> NODELETE fontAndGlyphOrientation();
+    float NODELETE computedFontSize() const;
     inline WebkitLocale computedLocale() const;
-    const LineHeight& specifiedLineHeight() const;
+    const LineHeight& NODELETE specifiedLineHeight() const;
 #if ENABLE(TEXT_AUTOSIZING)
     void setSpecifiedLineHeight(LineHeight&&);
 #endif
@@ -654,7 +651,7 @@ public:
 
     // MARK: - Used Counter Directives
 
-    const CounterDirectiveMap& usedCounterDirectives() const;
+    const CounterDirectiveMap& NODELETE usedCounterDirectives() const;
     void updateUsedCounterIncrementDirectives();
     void updateUsedCounterResetDirectives();
     void updateUsedCounterSetDirectives();
@@ -668,44 +665,38 @@ public:
         return m_inheritedFlags.writingMode;
     }
 
-    // FIXME: *Deprecated* Deprecated due to confusion between physical inline directions and bidi / line-relative directions.
-    bool isLeftToRightDirection() const
-    {
-        return writingMode().isBidiLTR();
-    }
-
     // MARK: - Aggregates
 
-    inline Animations& ensureAnimations();
-    inline BackgroundLayers& ensureBackgroundLayers();
-    inline MaskLayers& ensureMaskLayers();
-    inline Transitions& ensureTransitions();
-    inline ScrollTimelines& ensureScrollTimelines();
-    inline ViewTimelines& ensureViewTimelines();
+    inline Animations& ensureAnimations() LIFETIME_BOUND;
+    inline BackgroundLayers& ensureBackgroundLayers() LIFETIME_BOUND;
+    inline MaskLayers& ensureMaskLayers() LIFETIME_BOUND;
+    inline Transitions& ensureTransitions() LIFETIME_BOUND;
+    inline ScrollTimelines& ensureScrollTimelines() LIFETIME_BOUND;
+    inline ViewTimelines& ensureViewTimelines() LIFETIME_BOUND;
 
-    inline const BorderData& border() const;
-    inline const BorderValue& borderBottom() const;
-    inline const BorderValue& borderLeft() const;
-    inline const BorderValue& borderRight() const;
-    inline const BorderValue& borderTop() const;
-    inline const BorderValue& columnRule() const;
-    inline const OutlineValue& outline() const;
-    inline const Animations& animations() const;
-    inline const BackgroundLayers& backgroundLayers() const;
-    inline const BorderImage& borderImage() const;
-    inline const BorderRadius& borderRadii() const;
-    inline const InsetBox& insetBox() const;
-    inline const MarginBox& marginBox() const;
-    inline const MaskBorder& maskBorder() const;
-    inline const MaskLayers& maskLayers() const;
-    inline const PaddingBox& paddingBox() const;
-    inline const PerspectiveOrigin& perspectiveOrigin() const;
-    inline const ScrollMarginBox& scrollMarginBox() const;
-    inline const ScrollPaddingBox& scrollPaddingBox() const;
-    inline const ScrollTimelines& scrollTimelines() const;
-    inline const TransformOrigin& transformOrigin() const;
-    inline const Transitions& transitions() const;
-    inline const ViewTimelines& viewTimelines() const;
+    inline const BorderData& border() const LIFETIME_BOUND;
+    inline const BorderValue& borderBottom() const LIFETIME_BOUND;
+    inline const BorderValue& borderLeft() const LIFETIME_BOUND;
+    inline const BorderValue& borderRight() const LIFETIME_BOUND;
+    inline const BorderValue& borderTop() const LIFETIME_BOUND;
+    inline const BorderValue& columnRule() const LIFETIME_BOUND;
+    inline const OutlineValue& outline() const LIFETIME_BOUND;
+    inline const Animations& animations() const LIFETIME_BOUND;
+    inline const BackgroundLayers& backgroundLayers() const LIFETIME_BOUND;
+    inline const BorderImage& borderImage() const LIFETIME_BOUND;
+    inline const BorderRadius& borderRadii() const LIFETIME_BOUND;
+    inline const InsetBox& insetBox() const LIFETIME_BOUND;
+    inline const MarginBox& marginBox() const LIFETIME_BOUND;
+    inline const MaskBorder& maskBorder() const LIFETIME_BOUND;
+    inline const MaskLayers& maskLayers() const LIFETIME_BOUND;
+    inline const PaddingBox& paddingBox() const LIFETIME_BOUND;
+    inline const PerspectiveOrigin& perspectiveOrigin() const LIFETIME_BOUND;
+    inline const ScrollMarginBox& scrollMarginBox() const LIFETIME_BOUND;
+    inline const ScrollPaddingBox& scrollPaddingBox() const LIFETIME_BOUND;
+    inline const ScrollTimelines& scrollTimelines() const LIFETIME_BOUND;
+    inline const TransformOrigin& transformOrigin() const LIFETIME_BOUND;
+    inline const Transitions& transitions() const LIFETIME_BOUND;
+    inline const ViewTimelines& viewTimelines() const LIFETIME_BOUND;
 
     inline void setBackgroundLayers(BackgroundLayers&&);
     inline void setBorderImage(BorderImage&&);
@@ -728,7 +719,7 @@ public:
     inline CursorType cursorType() const;
 
     // `@page size`
-    inline const PageSize& pageSize() const;
+    inline const PageSize& pageSize() const LIFETIME_BOUND;
     inline void setPageSize(PageSize&&);
 
     struct NonInheritedFlags {
@@ -836,14 +827,14 @@ protected:
 
     ComputedStyleBase(ComputedStyleBase&, ComputedStyleBase&&);
 
-    const NonInheritedFlags& nonInheritedFlags() const { return m_nonInheritedFlags; }
-    const NonInheritedData& nonInheritedData() const { return m_nonInheritedData; }
+    const NonInheritedFlags& nonInheritedFlags() const LIFETIME_BOUND { return m_nonInheritedFlags; }
+    const NonInheritedData& nonInheritedData() const LIFETIME_BOUND { return m_nonInheritedData; }
 
-    const InheritedFlags& inheritedFlags() const { return m_inheritedFlags; }
-    const InheritedData& inheritedData() const { return m_inheritedData; }
-    const InheritedRareData& inheritedRareData() const { return m_inheritedRareData; }
+    const InheritedFlags& inheritedFlags() const LIFETIME_BOUND { return m_inheritedFlags; }
+    const InheritedData& inheritedData() const LIFETIME_BOUND { return m_inheritedData; }
+    const InheritedRareData& inheritedRareData() const LIFETIME_BOUND { return m_inheritedRareData; }
 
-    const SVGData& svgData() const { return m_svgData; }
+    const SVGData& svgData() const LIFETIME_BOUND { return m_svgData; }
 
     // Non-inherited and inherited flags
     NonInheritedFlags m_nonInheritedFlags;

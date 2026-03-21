@@ -43,7 +43,7 @@ void InitializeWebKit2()
     WTF::initializeMainThread();
     WebCore::initializeCommonAtomStrings();
 
-    WTF::RefCountDebugger::enableThreadingChecksGlobally();
+    WTF::RefCountDebuggerBase::enableThreadingChecksGlobally();
 
     WebCore::populateJITOperations();
 }

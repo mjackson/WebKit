@@ -26,7 +26,7 @@
 #import "config.h"
 #import "ResourceLoadDelegate.h"
 
-#import <WebCore/AuthenticationMac.h>
+#import <WebCore/AuthenticationCocoa.h>
 #import "AuthenticationChallengeProxy.h"
 #import "WKNSURLAuthenticationChallenge.h"
 #import "_WKResourceLoadDelegate.h"
@@ -112,7 +112,7 @@ void ResourceLoadDelegate::ResourceLoadClient::didReceiveChallenge(WebKit::Resou
     if (!delegate)
         return;
 
-    [delegate webView:m_resourceLoadDelegate->m_webView.get().get() resourceLoad:wrapper(API::ResourceLoadInfo::create(WTF::move(loadInfo))).get() didReceiveChallenge:protectedMac(challenge).get()];
+    [delegate webView:m_resourceLoadDelegate->m_webView.get().get() resourceLoad:wrapper(API::ResourceLoadInfo::create(WTF::move(loadInfo))).get() didReceiveChallenge:protect(mac(challenge)).get()];
 }
 
 void ResourceLoadDelegate::ResourceLoadClient::didReceiveResponse(WebKit::ResourceLoadInfo&& loadInfo, WebCore::ResourceResponse&& response) const

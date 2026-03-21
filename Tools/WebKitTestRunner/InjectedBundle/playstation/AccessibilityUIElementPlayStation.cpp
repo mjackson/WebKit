@@ -594,6 +594,12 @@ RefPtr<AccessibilityUIElement> AccessibilityUIElementPlayStation::uiElementForSe
     return nullptr;
 }
 
+JSValueRef AccessibilityUIElementPlayStation::uiElementsForSearchPredicate(JSContextRef, AccessibilityUIElement*, bool, JSValueRef, JSStringRef, bool, bool, unsigned)
+{
+    notImplemented();
+    return nullptr;
+}
+
 JSRetainPtr<JSStringRef> AccessibilityUIElementPlayStation::selectTextWithCriteria(JSContextRef, JSStringRef, JSValueRef, JSStringRef, JSStringRef)
 {
     notImplemented();
@@ -690,7 +696,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElementPlayStation::selectedTextRange()
     return nullptr;
 }
 
-JSRetainPtr<JSStringRef> AccessibilityUIElementPlayStation::intersectionWithSelectionRange()
+RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElementPlayStation::intersectionWithSelectionRange()
 {
     notImplemented();
     return nullptr;

@@ -99,7 +99,7 @@ Node* Range::commonAncestorContainer() const
 void Range::updateAssociatedSelection()
 {
     if (m_isAssociatedWithSelection)
-        protect(m_ownerDocument)->selection().updateFromAssociatedLiveRange();
+        m_ownerDocument->selection().updateFromAssociatedLiveRange();
 }
 
 void Range::updateAssociatedHighlight()
@@ -285,7 +285,7 @@ static inline Node* NODELETE highestAncestorUnderCommonRoot(Node* node, Node* co
     return node;
 }
 
-static inline Node* childOfCommonRootBeforeOffset(Node* container, unsigned offset, Node* commonRoot)
+static inline Node* NODELETE childOfCommonRootBeforeOffset(Node* container, unsigned offset, Node* commonRoot)
 {
     ASSERT(container);
     ASSERT(commonRoot);
@@ -340,8 +340,8 @@ ExceptionOr<RefPtr<DocumentFragment>> Range::processContents(ActionType action)
         RangeBoundaryPoint originalEnd(m_end);
 
         // what is the highest node that partially selects the start / end of the range?
-        RefPtr partialStart = highestAncestorUnderCommonRoot(protect(originalStart.container()).ptr(), commonRoot.get());
-        RefPtr partialEnd = highestAncestorUnderCommonRoot(protect(originalEnd.container()).ptr(), commonRoot.get());
+        RefPtr partialStart = highestAncestorUnderCommonRoot(&originalStart.container(), commonRoot.get());
+        RefPtr partialEnd = highestAncestorUnderCommonRoot(&originalEnd.container(), commonRoot.get());
 
         // Start and end containers are different.
         // There are three possibilities here:
@@ -382,10 +382,10 @@ ExceptionOr<RefPtr<DocumentFragment>> Range::processContents(ActionType action)
         }
 
         // delete all children of commonRoot between the start and end container
-        RefPtr processStart = childOfCommonRootBeforeOffset(protect(originalStart.container()).ptr(), originalStart.offset(), commonRoot.get());
+        RefPtr processStart = childOfCommonRootBeforeOffset(&originalStart.container(), originalStart.offset(), commonRoot.get());
         if (processStart && &originalStart.container() != commonRoot) // processStart contains nodes before m_start.
             processStart = processStart->nextSibling();
-        RefPtr processEnd = childOfCommonRootBeforeOffset(protect(originalEnd.container()).ptr(), originalEnd.offset(), commonRoot.get());
+        RefPtr processEnd = childOfCommonRootBeforeOffset(&originalEnd.container(), originalEnd.offset(), commonRoot.get());
 
         // Collapse the range, making sure that the result is not within a node that was partially selected.
         if (action == Extract || action == Delete) {
@@ -463,9 +463,9 @@ static ExceptionOr<RefPtr<Node>> processContentsBetweenOffsets(Range::ActionType
     RefPtr<Node> result;
 
     switch (container->nodeType()) {
-    case Node::TEXT_NODE:
-    case Node::CDATA_SECTION_NODE:
-    case Node::COMMENT_NODE: {
+    case NodeType::Text:
+    case NodeType::CDATASection:
+    case NodeType::Comment: {
         auto& dataNode = uncheckedDowncast<CharacterData>(*container);
         endOffset = std::min(endOffset, dataNode.length());
         startOffset = std::min(startOffset, endOffset);
@@ -489,7 +489,7 @@ static ExceptionOr<RefPtr<Node>> processContentsBetweenOffsets(Range::ActionType
         }
         break;
     }
-    case Node::PROCESSING_INSTRUCTION_NODE: {
+    case NodeType::ProcessingInstruction: {
         auto& instruction = uncheckedDowncast<ProcessingInstruction>(*container);
         endOffset = std::min(endOffset, instruction.data().length());
         startOffset = std::min(startOffset, endOffset);
@@ -510,11 +510,11 @@ static ExceptionOr<RefPtr<Node>> processContentsBetweenOffsets(Range::ActionType
         }
         break;
     }
-    case Node::ELEMENT_NODE:
-    case Node::ATTRIBUTE_NODE:
-    case Node::DOCUMENT_NODE:
-    case Node::DOCUMENT_TYPE_NODE:
-    case Node::DOCUMENT_FRAGMENT_NODE:
+    case NodeType::Element:
+    case NodeType::Attribute:
+    case NodeType::Document:
+    case NodeType::DocumentType:
+    case NodeType::DocumentFragment:
         // FIXME: Should we assert that some nodes never appear here?
         if (action == Range::Extract || action == Range::Clone) {
             if (fragment)
@@ -664,7 +664,7 @@ ExceptionOr<void> Range::insertNode(Ref<Node>&& node)
 {
     auto startContainerNodeType = startContainer().nodeType();
 
-    if (startContainerNodeType == Node::COMMENT_NODE || startContainerNodeType == Node::PROCESSING_INSTRUCTION_NODE)
+    if (startContainerNodeType == NodeType::Comment || startContainerNodeType == NodeType::ProcessingInstruction)
         return Exception { ExceptionCode::HierarchyRequestError };
     RefPtr startContainerText = dynamicDowncast<Text>(startContainer());
     if (startContainerText && !startContainer().parentNode())
@@ -697,7 +697,7 @@ ExceptionOr<void> Range::insertNode(Ref<Node>&& node)
         return removeResult.releaseException();
 
     unsigned newOffset = referenceNode ? referenceNode->computeNodeIndex() : parent->countChildNodes();
-    if (RefPtr fragment = dynamicDowncast<DocumentFragment>(node.get()))
+    if (auto* fragment = dynamicDowncast<DocumentFragment>(node.get()))
         newOffset += fragment->countChildNodes();
     else
         ++newOffset;
@@ -735,7 +735,7 @@ ExceptionOr<Ref<DocumentFragment>> Range::createContextualFragment(Variant<Ref<T
         return stringValueHolder.releaseException();
 
     RefPtr<Element> element;
-    if (is<Document>(node) || is<DocumentFragment>(node))
+    if (isAnyOf<Document, DocumentFragment>(node))
         element = nullptr;
     else if (auto* maybeElement = dynamicDowncast<Element>(node.ptr()))
         element = maybeElement;
@@ -749,19 +749,19 @@ ExceptionOr<Ref<DocumentFragment>> Range::createContextualFragment(Variant<Ref<T
 ExceptionOr<RefPtr<Node>> Range::checkNodeOffsetPair(Node& node, unsigned offset)
 {
     switch (node.nodeType()) {
-    case Node::DOCUMENT_TYPE_NODE:
+    case NodeType::DocumentType:
         return Exception { ExceptionCode::InvalidNodeTypeError };
-    case Node::CDATA_SECTION_NODE:
-    case Node::COMMENT_NODE:
-    case Node::TEXT_NODE:
-    case Node::PROCESSING_INSTRUCTION_NODE:
+    case NodeType::CDATASection:
+    case NodeType::Comment:
+    case NodeType::Text:
+    case NodeType::ProcessingInstruction:
         if (offset > uncheckedDowncast<CharacterData>(node).length())
             return Exception { ExceptionCode::IndexSizeError };
         return nullptr;
-    case Node::ATTRIBUTE_NODE:
-    case Node::DOCUMENT_FRAGMENT_NODE:
-    case Node::DOCUMENT_NODE:
-    case Node::ELEMENT_NODE:
+    case NodeType::Attribute:
+    case NodeType::DocumentFragment:
+    case NodeType::Document:
+    case NodeType::Element:
         if (!offset)
             return nullptr;
         RefPtr childBefore = node.traverseToChildAt(offset - 1);
@@ -845,17 +845,17 @@ ExceptionOr<void> Range::surroundContents(Node& newParent)
 
     // Step 2: If newParent is a Document, DocumentType, or DocumentFragment node, then throw an InvalidNodeTypeError.
     switch (newParent.nodeType()) {
-        case Node::ATTRIBUTE_NODE:
-        case Node::DOCUMENT_FRAGMENT_NODE:
-        case Node::DOCUMENT_NODE:
-        case Node::DOCUMENT_TYPE_NODE:
-            return Exception { ExceptionCode::InvalidNodeTypeError };
-        case Node::CDATA_SECTION_NODE:
-        case Node::COMMENT_NODE:
-        case Node::ELEMENT_NODE:
-        case Node::PROCESSING_INSTRUCTION_NODE:
-        case Node::TEXT_NODE:
-            break;
+    case NodeType::Attribute:
+    case NodeType::DocumentFragment:
+    case NodeType::Document:
+    case NodeType::DocumentType:
+        return Exception { ExceptionCode::InvalidNodeTypeError };
+    case NodeType::CDATASection:
+    case NodeType::Comment:
+    case NodeType::Element:
+    case NodeType::ProcessingInstruction:
+    case NodeType::Text:
+        break;
     }
 
     // Step 3: Let fragment be the result of extracting context object.
@@ -896,7 +896,7 @@ String Range::debugDescription() const
 }
 #endif
 
-static inline void boundaryNodeChildrenChanged(RangeBoundaryPoint& boundary, ContainerNode& container)
+static inline void NODELETE boundaryNodeChildrenChanged(RangeBoundaryPoint& boundary, ContainerNode& container)
 {
     if (boundary.childBefore() && &boundary.container() == &container)
         boundary.invalidateOffset();
@@ -928,7 +928,7 @@ static inline void boundaryNodeWillBeRemoved(RangeBoundaryPoint& boundary, Node&
 {
     if (boundary.childBefore() == &nodeToBeRemoved)
         boundary.childBeforeWillBeRemoved();
-    else if (nodeToBeRemoved.contains(protect(boundary.container()).ptr()))
+    else if (nodeToBeRemoved.contains(&boundary.container()))
         boundary.setToBeforeNode(nodeToBeRemoved);
 }
 
@@ -1152,7 +1152,7 @@ RefPtr<Range> createLiveRange(const std::optional<SimpleRange>& range)
     return createLiveRange(*range);
 }
 
-void Range::visitNodesConcurrently(JSC::AbstractSlotVisitor& visitor) const
+void Range::visitNodesInGCThread(JSC::AbstractSlotVisitor& visitor) const
 {
     addWebCoreOpaqueRoot(visitor, m_start.container());
     addWebCoreOpaqueRoot(visitor, m_end.container());

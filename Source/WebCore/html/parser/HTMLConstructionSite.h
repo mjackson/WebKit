@@ -153,20 +153,22 @@ public:
 
     bool inQuirksMode() { return m_inQuirksMode; }
 
+    bool hasReachedMaxDOMTreeDepth() const { return m_hasReachedMaxDOMTreeDepth; }
+
     bool isEmpty() const { return !m_openElements.stackDepth(); }
     Element& currentElement() const { return m_openElements.top(); }
     ContainerNode& currentNode() const { return m_openElements.topNode(); }
     ElementName currentElementName() const { return m_openElements.topElementName(); }
-    HTMLStackItem& currentStackItem() const { return m_openElements.topStackItem(); }
-    HTMLStackItem* oneBelowTop() const { return m_openElements.oneBelowTop(); }
+    HTMLStackItem& currentStackItem() const LIFETIME_BOUND { return m_openElements.topStackItem(); }
+    HTMLStackItem* oneBelowTop() const LIFETIME_BOUND { return m_openElements.oneBelowTop(); }
     TreeScope& treeScopeForCurrentNode();
     Document& ownerDocumentForCurrentNode();
-    HTMLElementStack& openElements() const { return m_openElements; }
-    HTMLFormattingElementList& activeFormattingElements() const { return m_activeFormattingElements; }
+    HTMLElementStack& openElements() const LIFETIME_BOUND { return m_openElements; }
+    HTMLFormattingElementList& activeFormattingElements() const LIFETIME_BOUND { return m_activeFormattingElements; }
     bool currentIsRootNode() { return &m_openElements.topNode() == &m_openElements.rootNode(); }
 
     Element& head() const { return m_head.element(); }
-    HTMLStackItem& headStackItem() { return m_head; }
+    HTMLStackItem& headStackItem() LIFETIME_BOUND { return m_head; }
 
     void setForm(HTMLFormElement*);
     HTMLFormElement* form() const { return m_form.get(); }
@@ -189,7 +191,7 @@ public:
         SetForScope<bool> m_redirectAttachToFosterParentChange;
     };
 
-    static bool isFormattingTag(TagName);
+    static bool NODELETE isFormattingTag(TagName);
 
 private:
     Document& document() const { return m_document; }
@@ -211,9 +213,6 @@ private:
 
     void mergeAttributesFromTokenIntoElement(AtomHTMLToken&&, Element&);
     void dispatchDocumentElementAvailableIfNeeded();
-
-    Ref<Document> NODELETE protectedDocument() const;
-    Ref<ContainerNode> NODELETE protectedAttachmentRoot() const;
 
     // m_head has to be destroyed after destroying CheckedRef of m_document and m_attachmentRoot
     HTMLStackItem m_head;
@@ -244,6 +243,11 @@ private:
     unsigned m_maximumDOMTreeDepth;
 
     bool m_inQuirksMode;
+
+    bool m_hasReachedMaxDOMTreeDepth { false };
+
+    std::unique_ptr<StringBuilder> m_textNodeBuffer;
+    RefPtr<Text> m_currentTextNode;
 };
 
 } // namespace WebCore

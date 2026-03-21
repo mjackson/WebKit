@@ -77,7 +77,7 @@ static std::span<const uint8_t> copyToCVPixelBufferPlane(CVPixelBufferRef pixelB
     return source;
 }
 
-static vImage_Buffer makeVImageBuffer8888(std::span<uint8_t> data, size_t width, size_t height, size_t rowBytes)
+static vImage_Buffer NODELETE makeVImageBuffer8888(std::span<uint8_t> data, size_t width, size_t height, size_t rowBytes)
 {
     constexpr size_t bytesPerPixel = 4;
     size_t minRowBytes = 0;
@@ -432,17 +432,17 @@ void VideoFrame::copyTo(std::span<uint8_t> span, VideoPixelFormat format, Vector
 {
     // FIXME: We should get the pixel buffer and copy the bytes asynchronously.
     if (format == VideoPixelFormat::NV12) {
-        callback(copyNV12(span, computedPlaneLayout[0], computedPlaneLayout[1], this->protectedPixelBuffer().get()));
+        callback(copyNV12(span, computedPlaneLayout[0], computedPlaneLayout[1], protect(this->pixelBuffer()).get()));
         return;
     }
 
     if (format == VideoPixelFormat::I420) {
-        callback(copyI420OrI420A(span, computedPlaneLayout[0], computedPlaneLayout[1], computedPlaneLayout[2], nullptr, this->protectedPixelBuffer().get()));
+        callback(copyI420OrI420A(span, computedPlaneLayout[0], computedPlaneLayout[1], computedPlaneLayout[2], nullptr, protect(this->pixelBuffer()).get()));
         return;
     }
 
     if (format == VideoPixelFormat::I420A) {
-        callback(copyI420OrI420A(span, computedPlaneLayout[0], computedPlaneLayout[1], computedPlaneLayout[2], &computedPlaneLayout[3], this->protectedPixelBuffer().get()));
+        callback(copyI420OrI420A(span, computedPlaneLayout[0], computedPlaneLayout[1], computedPlaneLayout[2], &computedPlaneLayout[3], protect(this->pixelBuffer()).get()));
         return;
     }
 
@@ -450,7 +450,7 @@ void VideoFrame::copyTo(std::span<uint8_t> span, VideoPixelFormat format, Vector
         ComputedPlaneLayout planeLayout;
         if (!computedPlaneLayout.isEmpty())
             planeLayout = computedPlaneLayout[0];
-        auto planeLayouts = copyRGBData(span, planeLayout, this->protectedPixelBuffer().get(), [](std::span<uint8_t> destination, std::span<const uint8_t> source) {
+        auto planeLayouts = copyRGBData(span, planeLayout, protect(this->pixelBuffer()).get(), [](std::span<uint8_t> destination, std::span<const uint8_t> source) {
             ASSERT(!(source.size() % 4));
             auto pixelCount = source.size() / 4;
             size_t i = 0;
@@ -472,7 +472,7 @@ void VideoFrame::copyTo(std::span<uint8_t> span, VideoPixelFormat format, Vector
         if (!computedPlaneLayout.isEmpty())
             planeLayout = computedPlaneLayout[0];
 
-        auto planeLayouts = copyRGBData(span, planeLayout, this->protectedPixelBuffer().get(), [](std::span<uint8_t> destination, std::span<const uint8_t> source) {
+        auto planeLayouts = copyRGBData(span, planeLayout, protect(this->pixelBuffer()).get(), [](std::span<uint8_t> destination, std::span<const uint8_t> source) {
             memcpySpan(destination, source);
         });
         callback(WTF::move(planeLayouts));
@@ -484,8 +484,12 @@ void VideoFrame::copyTo(std::span<uint8_t> span, VideoPixelFormat format, Vector
 
 RefPtr<NativeImage> VideoFrame::copyNativeImage() const
 {
-    auto conformer = makeUnique<PixelBufferConformerCV>(kCVPixelFormatType_32BGRA);
-    return NativeImage::create(conformer->createImageFromPixelBuffer(protectedPixelBuffer().get()));
+    RetainPtr source = pixelBuffer();
+    RetainPtr bgraSource = ImageTransferSessionVT::convertPixelBuffer(source.get(), kCVPixelFormatType_32BGRA);
+    if (!bgraSource)
+        return nullptr;
+    RetainPtr colorSpace = createCGColorSpaceForCVPixelBuffer(source.get());
+    return NativeImage::create(createImageFrom32BGRAPixelBuffer(WTF::move(bgraSource), colorSpace.get()));
 }
 
 Ref<VideoFrameCV> VideoFrameCV::create(CMSampleBufferRef sampleBuffer, bool isMirrored, Rotation rotation)

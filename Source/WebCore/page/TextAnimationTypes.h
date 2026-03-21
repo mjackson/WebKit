@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <wtf/Markable.h>
 #include <wtf/UUID.h>
 
 namespace WebCore {

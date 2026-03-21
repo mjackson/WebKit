@@ -180,6 +180,13 @@ TEST(WKNavigation, UserAgentAndAccept)
     TestWebKitAPI::Util::run(&done);
 }
 
+struct ExpectedStrings {
+    const char* callback;
+    const char* frameRequest;
+    const char* frameSecurityOriginHost;
+    const char* request;
+};
+
 @interface FrameNavigationDelegate : NSObject <WKNavigationDelegate>
 - (void)waitForNavigations:(size_t)count;
 - (void)clearState;
@@ -193,6 +200,23 @@ TEST(WKNavigation, UserAgentAndAccept)
     RetainPtr<NSMutableArray<WKFrameInfo *>> _frames;
     RetainPtr<NSMutableArray<NSString *>> _callbacks;
     size_t _navigationCount;
+}
+
+- (void)validateCallbacks:(const Vector<ExpectedStrings>&)expectedVector
+{
+    EXPECT_EQ(_requests.get().count, expectedVector.size());
+    EXPECT_EQ(_frames.get().count, expectedVector.size());
+    EXPECT_EQ(_callbacks.get().count, expectedVector.size());
+
+    auto validateCallback = [] (NSString *callback, WKFrameInfo *frame, NSURLRequest *request, const ExpectedStrings& expected) {
+        EXPECT_WK_STREQ(callback, expected.callback);
+        EXPECT_WK_STREQ(frame.request.URL.absoluteString, expected.frameRequest);
+        EXPECT_WK_STREQ(frame.securityOrigin.host, expected.frameSecurityOriginHost);
+        EXPECT_WK_STREQ(request.URL.absoluteString, expected.request);
+    };
+
+    for (size_t i = 0; i < expectedVector.size(); ++i)
+        validateCallback(_callbacks.get()[i], _frames.get()[i], _requests.get()[i], expectedVector[i]);
 }
 
 - (void)waitForNavigations:(size_t)expectedNavigationCount
@@ -276,6 +300,11 @@ TEST(WKNavigation, UserAgentAndAccept)
     _navigationCount++;
 }
 
+- (void)webView:(WKWebView *)webView didReceiveAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition, NSURLCredential *))completionHandler
+{
+    completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
+}
+
 @end
 
 TEST(WKNavigation, Frames)
@@ -307,13 +336,6 @@ TEST(WKNavigation, Frames)
     webView.get().navigationDelegate = delegate.get();
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"frame://host1/"]]];
     [delegate waitForNavigations:3];
-
-    struct ExpectedStrings {
-        const char* callback;
-        const char* frameRequest;
-        const char* frameSecurityOriginHost;
-        const char* request;
-    };
 
     auto checkCallbacks = [delegate] (Vector<ExpectedStrings> expectedVector) {
         NSArray<NSURLRequest *> *requests = delegate.get().requests;
@@ -382,8 +404,7 @@ TEST(WKNavigation, Frames)
     [delegate clearState];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"frame://host4/"]]];
     [delegate waitForNavigations:1];
-
-    checkCallbacks({
+    [delegate validateCallbacks: {
         {
             "start provisional",
             "frame://host1/",
@@ -400,7 +421,122 @@ TEST(WKNavigation, Frames)
             "host4",
             "frame://host4/"
         }
-    });
+    }];
+}
+
+TEST(WKNavigation, FramesWithHTTPSNavigation)
+{
+    TestWebKitAPI::HTTPServer server({
+        { "/main"_s, { "<iframe src='https://frame.com/navigate'></iframe>"_s } },
+        { "/navigate"_s, { "<script>function navigate() { window.location='https://frame2.com/frame' }</script><body onload='navigate()'></body>"_s } },
+        { "/frame"_s, { "hi"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
+
+    RetainPtr configuration = server.httpsProxyConfiguration();
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([FrameNavigationDelegate new]);
+    webView.get().navigationDelegate = delegate.get();
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/main"]]];
+
+    // Three navigation completions: main-frame finish, frame.com/navigate finish, and frame2.com/frame finish.
+    [delegate waitForNavigations:3];
+    [delegate validateCallbacks: {
+        {
+            "start provisional",
+            "",
+            "",
+            "https://example.com/main"
+        }, {
+            "commit",
+            "https://example.com/main",
+            "example.com",
+            "https://example.com/main"
+        }, {
+            "start provisional",
+            "",
+            "example.com",
+            "https://frame.com/navigate"
+        }, {
+            "commit",
+            "https://frame.com/navigate",
+            "frame.com",
+            "https://frame.com/navigate"
+        }, {
+            "finish",
+            "https://frame.com/navigate",
+            "frame.com",
+            "https://frame.com/navigate"
+        }, {
+            "finish",
+            "https://example.com/main",
+            "example.com",
+            "https://example.com/main"
+        }, {
+            "start provisional",
+            "https://frame.com/navigate",
+            "frame.com",
+            "https://frame2.com/frame"
+        }, {
+            "commit",
+            "https://frame2.com/frame",
+            "frame2.com",
+            "https://frame2.com/frame"
+        }, {
+            "finish",
+            "https://frame2.com/frame",
+            "frame2.com",
+            "https://frame2.com/frame"
+        }
+    }];
+}
+
+TEST(WKNavigation, FramesWithLoadingError)
+{
+    TestWebKitAPI::HTTPServer server({
+        { "/main"_s, { "<iframe src='frameswitherror://frame'></iframe>"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::HttpsProxy);
+
+    RetainPtr configuration = server.httpsProxyConfiguration();
+    RetainPtr schemeHandler = adoptNS([TestURLSchemeHandler new]);
+    [schemeHandler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
+        [task didFailWithError:[NSError errorWithDomain:@"testErrorDomain" code:42 userInfo:nil]];
+    }];
+    [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"frameswitherror"];
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([FrameNavigationDelegate new]);
+    [webView setNavigationDelegate:delegate.get()];
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/main"]]];
+
+    // Two navigation completions: main-frame finish, frame.com/frame finish.
+    [delegate waitForNavigations:2];
+    [delegate validateCallbacks: {
+        {
+            "start provisional",
+            "",
+            "",
+            "https://example.com/main"
+        }, {
+            "commit",
+            "https://example.com/main",
+            "example.com",
+            "https://example.com/main"
+        }, {
+            "start provisional",
+            "",
+            "example.com",
+            "frameswitherror://frame"
+        }, {
+            "fail provisional",
+            "",
+            "example.com",
+            "frameswitherror://frame"
+        }, {
+            "finish",
+            "https://example.com/main",
+            "example.com",
+            "https://example.com/main"
+        }
+    }];
 }
 
 @interface DidFailProvisionalNavigationDelegate : NSObject <WKNavigationDelegate>
@@ -713,7 +849,8 @@ static bool navigationComplete;
     EXPECT_STREQ(item.URL.absoluteString.UTF8String, expectedURL);
     EXPECT_TRUE(item.title == nil);
     EXPECT_STREQ(item.initialURL.absoluteString.UTF8String, expectedURL);
-    EXPECT_TRUE(inPageCache);
+    // FIXME: Remove once the back-forward cache is enabled for site isolation: rdar://161762363.
+    EXPECT_EQ(inPageCache, isUsingBackForwardCache(webView));
     isDone = true;
 }
 - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation
@@ -725,10 +862,6 @@ static bool navigationComplete;
 TEST(WKNavigation, WillGoToBackForwardListItem)
 {
     auto webView = adoptNS([[WKWebView alloc] init]);
-    // FIXME: Page cache is currently disabled under site isolation; see rdar://161762363.
-    if (isSiteIsolationEnabled(webView.get()))
-        return;
-
     auto delegate = adoptNS([[BackForwardDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]]];
@@ -756,7 +889,8 @@ static bool didRejectNavigation = false;
 {
     EXPECT_EQ(item, _targetItem);
     EXPECT_TRUE(item.title == nil);
-    EXPECT_TRUE(willUseInstantBack);
+    // FIXME: Remove once the back-forward cache is enabled for site isolation: rdar://161762363.
+    EXPECT_EQ(willUseInstantBack, isUsingBackForwardCache(webView));
 
     completionHandler(_allowNavigation);
     if (!_allowNavigation)
@@ -789,7 +923,8 @@ static bool didRejectNavigation = false;
 {
     EXPECT_EQ(item, _targetItem);
     EXPECT_TRUE(item.title == nil);
-    EXPECT_TRUE(inPageCache);
+    // FIXME: Remove once the back-forward cache is enabled for site isolation: rdar://161762363.
+    EXPECT_EQ(inPageCache, isUsingBackForwardCache(webView));
 
     completionHandler(_allowNavigation);
     if (!_allowNavigation)
@@ -805,12 +940,6 @@ static bool didRejectNavigation = false;
 TEST(WKNavigation, ShouldGoToBackForwardListItem)
 {
     auto webView = adoptNS([[WKWebView alloc] init]);
-
-    // FIXME: Page cache is currently disabled under site isolation; see rdar://161762363.
-    // This test relies on the back forward cache. Once it is enabled, remove this early return.
-    if (isSiteIsolationEnabled(webView.get()))
-        return;
-
     navigationComplete = false;
     auto delegate = adoptNS([[BackForwardDelegateWithShouldGo alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
@@ -5043,4 +5172,110 @@ TEST(WKNavigation, AllowResourceLoadFromBlockedPortWithCustomScheme)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://site.example/page1"]]];
     EXPECT_WK_STREQ([uiDelegate waitForAlert], "This resource was loaded");
     EXPECT_EQ(requestsSchemeHandled, 2u);
+}
+
+TEST(Navigation, FormResubmited)
+{
+    using namespace TestWebKitAPI;
+    std::optional<bool> requestHadSecFetchSiteCrossOrigin { false };
+    bool didReceiveForm { false };
+    auto httpsServer = HTTPServer(HTTPServer::UseCoroutines::Yes, [&](Connection connection) -> ConnectionTask {
+        while (1) {
+            auto request = co_await connection.awaitableReceiveHTTPRequest();
+            auto path = HTTPServer::parsePath(request);
+
+            if (path == "/main.html"_s) {
+                co_await connection.awaitableSend(HTTPResponse({ { "Content-Type"_s, "text/html"_s } }, ""
+                    "<html><body>"
+                    "<form action='https://example1.com/submit' method='POST' id='form'>"
+                    "  <input type='text' id='name' name='name' value='value'/>"
+                    "  <input type='submit'/>"
+                    "</form>"
+                    "<script>"
+                    "window.didSubmit = false;"
+                    "onload = () => alert('Ready');"
+                    "function submitForm()"
+                    "{"
+                    "  form.submit();"
+                    "}"
+                    "</script>"
+                    "</body></html>"_s).serialize());
+                continue;
+            }
+
+            if (path == "/submit"_s) {
+                didReceiveForm = true;
+                requestHadSecFetchSiteCrossOrigin = contains(request.span(), "Sec-Fetch-Site: cross-site"_span);
+                if (requestHadSecFetchSiteCrossOrigin) {
+                    co_await connection.awaitableSend(HTTPResponse({ 403, { }, ""_s }).serialize());
+                    continue;
+                }
+
+                co_await connection.awaitableSend(HTTPResponse({ { "Content-Type"_s, "text/html"_s } }, ""
+                    "<html><body>"
+                    "<script>"
+                    "window.didSubmit = true;"
+                    "</script>"
+                    "</body></html>"_s).serialize());
+                continue;
+            }
+
+            EXPECT_FALSE(true);
+        }
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    [storeConfiguration setProxyConfiguration:@{
+        (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
+        (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
+    }];
+    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    [configuration setWebsiteDataStore:dataStore.get()];
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    auto navDelegate = adoptNS([TestNavigationDelegate new]);
+    [navDelegate allowAnyTLSCertificate];
+
+    __block bool didCommitNavigation = false;
+    navDelegate.get().didCommitNavigation = ^(WKWebView *, WKNavigation *) {
+        didCommitNavigation = true;
+    };
+
+    [webView setNavigationDelegate:navDelegate.get()];
+    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    [webView setUIDelegate:uiDelegate.get()];
+
+    // Load main page from same origin as form submission
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example1.com/main.html"]]];
+    EXPECT_WK_STREQ([uiDelegate waitForAlert], "Ready");
+
+    // Submit form - same origin.
+    didReceiveForm = false;
+    requestHadSecFetchSiteCrossOrigin = { };
+    [webView evaluateJavaScript:@"submitForm();" completionHandler:nil];
+    TestWebKitAPI::Util::run(&didReceiveForm);
+    EXPECT_FALSE(requestHadSecFetchSiteCrossOrigin.value_or(true));
+
+    // Load main page from different origin as form submission
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example2.com/main.html"]]];
+    EXPECT_WK_STREQ([uiDelegate waitForAlert], "Ready");
+
+    // Submit form - cross origin
+    didReceiveForm = false;
+    didCommitNavigation = false;
+    requestHadSecFetchSiteCrossOrigin = { };
+    [webView evaluateJavaScript:@"submitForm();" completionHandler:nil];
+    TestWebKitAPI::Util::run(&didCommitNavigation);
+
+    EXPECT_TRUE(didReceiveForm);
+    EXPECT_TRUE(requestHadSecFetchSiteCrossOrigin.value_or(false));
+
+    // Submit form via reload - cross origin
+    didReceiveForm = false;
+    requestHadSecFetchSiteCrossOrigin = { };
+    [webView reload];
+    TestWebKitAPI::Util::run(&didReceiveForm);
+
+    EXPECT_TRUE(requestHadSecFetchSiteCrossOrigin.value_or(false));
 }

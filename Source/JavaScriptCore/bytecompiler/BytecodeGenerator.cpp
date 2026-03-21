@@ -4657,6 +4657,249 @@ void BytecodeGenerator::emitTryWithFinallyThatDoesNotShadowException(FinallyCont
     }
 }
 
+void BytecodeGenerator::emitPrepareDisposable(RegisterID* value, const JSTextPosition& divot, bool isAsync)
+{
+    auto& usingScope = currentUsingScope();
+    ASSERT(usingScope.nextSlot < usingScope.slots.size());
+    auto& slot = usingScope.slots[usingScope.nextSlot++];
+    slot.isAsync = isAsync;
+    move(slot.value.get(), value);
+
+    RefPtr<RegisterID> getDisposeMethodFunc = moveLinkTimeConstant(nullptr, isAsync ? LinkTimeConstant::getAsyncDisposeMethod : LinkTimeConstant::getDisposeMethod);
+    CallArguments args(*this, nullptr, 1);
+    emitLoad(args.thisRegister(), jsUndefined());
+    move(args.argumentRegister(0), value);
+    emitCall(slot.method.get(), getDisposeMethodFunc.get(), NoExpectedFunction, args, divot, divot, divot, DebuggableCall::No);
+
+    // Mark reached only after method lookup succeeds; if the above call threw, reached stays
+    // false so the finally block skips this slot entirely (spec: no resource record is added).
+    if (isAsync) {
+        ASSERT(usingScope.hasAwaitUsing);
+        ASSERT(slot.reached);
+        emitLoad(slot.reached.get(), jsBoolean(true));
+    }
+}
+
+void BytecodeGenerator::emitUsingBodyScope(unsigned usingCount, bool hasAwaitUsing, const ScopedLambda<void(BytecodeGenerator&)>& emitBody)
+{
+    ASSERT(!hasAwaitUsing || isAsyncFunctionParseMode(parseMode()) || isModuleParseMode(parseMode()));
+
+    // Pre-allocate slots and initialize method registers to undefined BEFORE the try block.
+    // This ensures that if an initializer throws, the method register has a known value (undefined)
+    // so the finally block can safely check it.
+    m_usingScopeStack.append(UsingScope { });
+    auto& usingScope = currentUsingScope();
+    usingScope.hasAwaitUsing = hasAwaitUsing;
+    for (unsigned i = 0; i < usingCount; i++) {
+        RefPtr<RegisterID> valueCopy = newTemporary();
+        RefPtr<RegisterID> method = newTemporary();
+        RefPtr<RegisterID> reached;
+        emitLoad(valueCopy.get(), jsUndefined());
+        emitLoad(method.get(), jsUndefined());
+        if (hasAwaitUsing) {
+            reached = newTemporary();
+            emitLoad(reached.get(), jsBoolean(false));
+        }
+        usingScope.slots.append({ valueCopy, method, reached, false });
+    }
+
+    RefPtr<RegisterID> thrownValue = newTemporary();
+    emitLoad(thrownValue.get(), jsUndefined());
+
+    Ref<Label> finallyLabel = newLabel();
+    FinallyContext finallyContext(*this, finallyLabel.get());
+    pushFinallyControlFlowScope(finallyContext);
+
+    Ref<Label> tryStartLabel = newEmittedLabel();
+    TryData* tryData = pushTry(tryStartLabel.get(), *finallyContext.finallyLabel(), HandlerType::SynthesizedFinally);
+    emitBody(*this);
+    Ref<Label> tryEndLabel = newEmittedLabel();
+    popTry(tryData, tryEndLabel.get());
+
+    // Finally block: unrolled dispose calls in reverse order.
+    {
+        Ref<Label> done = newLabel();
+
+        emitLabel(*finallyContext.finallyLabel());
+        emitOutOfLineExceptionHandler(finallyContext.completionValueRegister(), thrownValue.get(), finallyContext.completionTypeRegister(), tryData);
+
+        RefPtr<RegisterID> pendingError = newTemporary();
+        RefPtr<RegisterID> hasError = newTemporary();
+        RefPtr<RegisterID> disposeThrew = newTemporary();
+        emitLoad(pendingError.get(), jsUndefined());
+        emitLoad(hasError.get(), jsBoolean(false));
+        emitLoad(disposeThrew.get(), jsBoolean(false));
+
+        // If body threw, seed pendingError with the thrown value.
+        {
+            Ref<Label> afterInit = newLabel();
+            emitJumpIfFalse(emitEqualityOp<OpStricteq>(newTemporary(), finallyContext.completionTypeRegister(), emitLoad(nullptr, CompletionType::Throw)), afterInit.get());
+            move(pendingError.get(), thrownValue.get());
+            emitLoad(hasError.get(), jsBoolean(true));
+            emitLabel(afterInit.get());
+        }
+
+        JSTextPosition divot(m_scopeNode->firstLine(), m_scopeNode->startOffset(), m_scopeNode->lineStartOffset());
+
+        // Async disposal state (per DisposeResources spec): needsAwait / hasAwaited.
+        // Only allocated when this scope contains at least one await using declaration.
+        RefPtr<RegisterID> needsAwait;
+        RefPtr<RegisterID> hasAwaited;
+        if (hasAwaitUsing) {
+            needsAwait = newTemporary();
+            hasAwaited = newTemporary();
+            emitLoad(needsAwait.get(), jsBoolean(false));
+            emitLoad(hasAwaited.get(), jsBoolean(false));
+        }
+
+        // Shared temporaries for the catch handler (one pair is enough across all slots).
+        RefPtr<RegisterID> caughtException = newTemporary();
+        RefPtr<RegisterID> caughtValue = newTemporary();
+        RefPtr<RegisterID> createSuppressedErrorFunc = newTemporary();
+
+        auto emitSuppressedErrorCatch = [&](TryData* trySlotData, Label& catchLabel) {
+            emitLabel(catchLabel);
+            emitOutOfLineExceptionHandler(caughtException.get(), caughtValue.get(), nullptr, trySlotData);
+
+            Ref<Label> afterCatch = newLabel();
+            Ref<Label> firstError = newLabel();
+            emitJumpIfFalse(hasError.get(), firstError.get());
+
+            moveLinkTimeConstant(createSuppressedErrorFunc.get(), LinkTimeConstant::createSuppressedError);
+            CallArguments seArgs(*this, nullptr, 2);
+            emitLoad(seArgs.thisRegister(), jsUndefined());
+            move(seArgs.argumentRegister(0), caughtValue.get());
+            move(seArgs.argumentRegister(1), pendingError.get());
+            emitCall(pendingError.get(), createSuppressedErrorFunc.get(), NoExpectedFunction, seArgs, divot, divot, divot, DebuggableCall::No);
+            emitJump(afterCatch.get());
+
+            emitLabel(firstError.get());
+            move(pendingError.get(), caughtValue.get());
+            emitLoad(hasError.get(), jsBoolean(true));
+
+            emitLabel(afterCatch.get());
+            emitLoad(disposeThrew.get(), jsBoolean(true));
+        };
+
+        auto emitAwaitUndefined = [&]() {
+            RefPtr<RegisterID> tmp = newTemporary();
+            emitLoad(tmp.get(), jsUndefined());
+            emitAwait(tmp.get(), tmp.get(), divot);
+        };
+
+        // Dispose each resource in reverse declaration order.
+        // Track whether we've processed an async slot so far: needsAwait can only become
+        // true after an async slot's null-value case, so Step 3.d before the first async
+        // slot in disposal order is always dead and can be elided at compile time.
+        bool sawAsyncSlotInDisposalOrder = false;
+        for (auto& slot : usingScope.slots | std::views::reverse) {
+            Ref<Label> skipSlot = newLabel();
+
+            if (slot.isAsync) {
+                sawAsyncSlotInDisposalOrder = true;
+                // Async disposal slot.
+                // If the declaration was never reached (reached == false), skip entirely
+                // without setting needsAwait; the spec only adds a resource record on evaluation.
+                emitJumpIfFalse(slot.reached.get(), skipSlot.get());
+
+                Ref<Label> methodDefined = newLabel();
+                emitJumpIfFalse(emitIsUndefined(newTemporary(), slot.method.get()), methodDefined.get());
+
+                // method is undefined (await using x = null/undefined).
+                // Per DisposeResources step 3.f: set needsAwait to true, no call.
+                emitLoad(needsAwait.get(), jsBoolean(true));
+                emitJump(skipSlot.get());
+
+                // method is defined: call it and Await the result.
+                emitLabel(methodDefined.get());
+                Ref<Label> catchLabel = newLabel();
+                Ref<Label> trySlotStart = newEmittedLabel();
+                TryData* trySlotData = pushTry(trySlotStart.get(), catchLabel.get(), HandlerType::SynthesizedCatch);
+
+                RefPtr<RegisterID> result = newTemporary();
+                CallArguments disposeArgs(*this, nullptr, 0);
+                move(disposeArgs.thisRegister(), slot.value.get());
+                emitCall(result.get(), slot.method.get(), NoExpectedFunction, disposeArgs, divot, divot, divot, DebuggableCall::No);
+
+                // Set hasAwaited before Await: emitAwait throws on rejection, but a rejected
+                // Await still implies a microtask boundary has occurred.
+                emitLoad(hasAwaited.get(), jsBoolean(true));
+                emitAwait(result.get(), result.get(), divot);
+
+                Ref<Label> trySlotEnd = newEmittedLabel();
+                popTry(trySlotData, trySlotEnd.get());
+                emitJump(skipSlot.get());
+
+                emitSuppressedErrorCatch(trySlotData, catchLabel.get());
+            } else {
+                // Sync disposal slot.
+                // Per DisposeResources step 3.d: if needsAwait && !hasAwaited, Await(undefined) first.
+                // Only emit if an async slot was already processed (otherwise needsAwait is provably false).
+                if (sawAsyncSlotInDisposalOrder) {
+                    Ref<Label> skipAwaitCheck = newLabel();
+                    emitJumpIfFalse(needsAwait.get(), skipAwaitCheck.get());
+                    emitJumpIfTrue(hasAwaited.get(), skipAwaitCheck.get());
+                    emitAwaitUndefined();
+                    emitLoad(needsAwait.get(), jsBoolean(false));
+                    emitLabel(skipAwaitCheck.get());
+                }
+
+                emitJumpIfTrue(emitIsUndefined(newTemporary(), slot.method.get()), skipSlot.get());
+
+                Ref<Label> catchLabel = newLabel();
+                Ref<Label> trySlotStart = newEmittedLabel();
+                TryData* trySlotData = pushTry(trySlotStart.get(), catchLabel.get(), HandlerType::SynthesizedCatch);
+
+                CallArguments disposeArgs(*this, nullptr, 0);
+                move(disposeArgs.thisRegister(), slot.value.get());
+                emitCallIgnoreResult(newTemporary(), slot.method.get(), NoExpectedFunction, disposeArgs, divot, divot, divot, DebuggableCall::No);
+
+                Ref<Label> trySlotEnd = newEmittedLabel();
+                popTry(trySlotData, trySlotEnd.get());
+                emitJump(skipSlot.get());
+
+                emitSuppressedErrorCatch(trySlotData, catchLabel.get());
+            }
+
+            emitLabel(skipSlot.get());
+        }
+
+        // Per DisposeResources step 6: trailing Await(undefined) if needsAwait && !hasAwaited.
+        // If the first-declared slot is sync, its Step 3.d (above) already consumed any pending
+        // needsAwait, so this trailing check is provably dead and elided.
+        if (hasAwaitUsing && usingScope.slots[0].isAsync) {
+            Ref<Label> skipFinalAwait = newLabel();
+            emitJumpIfFalse(needsAwait.get(), skipFinalAwait.get());
+            emitJumpIfTrue(hasAwaited.get(), skipFinalAwait.get());
+            emitAwaitUndefined();
+            emitLabel(skipFinalAwait.get());
+        }
+
+        // If any dispose threw, throw the pending error (which may be a SuppressedError chain).
+        // This takes priority over break/continue/return completions.
+        {
+            Ref<Label> afterDisposeCheck = newLabel();
+            emitJumpIfFalse(disposeThrew.get(), afterDisposeCheck.get());
+            emitThrow(pendingError.get());
+            emitLabel(afterDisposeCheck.get());
+        }
+
+        emitFinallyCompletion(finallyContext, done.get());
+        emitLabel(done.get());
+    }
+
+    popFinallyControlFlowScope();
+    m_usingScopeStack.removeLast();
+}
+
+void BytecodeGenerator::emitBodyWithUsingIfNeeded(unsigned usingCount, bool hasAwaitUsing, const ScopedLambda<void(BytecodeGenerator&)>& emitBody)
+{
+    if (usingCount)
+        emitUsingBodyScope(usingCount, hasAwaitUsing, emitBody);
+    else
+        emitBody(*this);
+}
+
 void BytecodeGenerator::emitGenericEnumeration(ThrowableExpressionData* node, ExpressionNode* subjectNode, const ScopedLambda<void(BytecodeGenerator&, RegisterID*)>& callBack, ForOfNode* forLoopNode, RegisterID* forLoopSymbolTable)
 {
     bool isForAwait = forLoopNode && forLoopNode->isForAwait();

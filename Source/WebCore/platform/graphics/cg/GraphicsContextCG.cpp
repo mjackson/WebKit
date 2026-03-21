@@ -43,13 +43,15 @@
 #include "Pattern.h"
 #include "ShadowBlur.h"
 #include "Timer.h"
-#include <pal/cg/CoreGraphicsSoftLink.h>
 #include <pal/spi/cg/CoreGraphicsSPI.h>
 #include <wtf/MathExtras.h>
 #include <wtf/RetainPtr.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/URL.h>
+#include <wtf/ZippedRange.h>
 #include <wtf/text/TextStream.h>
+
+#include <pal/cg/CoreGraphicsSoftLink.h>
 
 namespace WebCore {
 
@@ -82,7 +84,7 @@ static InterpolationQuality coreInterpolationQuality(CGContextRef context)
     return InterpolationQuality::Default;
 }
 
-static CGTextDrawingMode cgTextDrawingMode(TextDrawingModeFlags mode)
+static CGTextDrawingMode NODELETE cgTextDrawingMode(TextDrawingModeFlags mode)
 {
     bool fill = mode.contains(TextDrawingMode::Fill);
     bool stroke = mode.contains(TextDrawingMode::Stroke);
@@ -93,7 +95,7 @@ static CGTextDrawingMode cgTextDrawingMode(TextDrawingModeFlags mode)
     return kCGTextStroke;
 }
 
-static CGBlendMode selectCGBlendMode(CompositeOperator compositeOperator, BlendMode blendMode)
+static CGBlendMode NODELETE selectCGBlendMode(CompositeOperator compositeOperator, BlendMode blendMode)
 {
     switch (blendMode) {
     case BlendMode::Normal:
@@ -266,7 +268,7 @@ void GraphicsContextCG::restore(GraphicsContextState::Purpose purpose)
     m_userToDeviceTransformKnownToBeIdentity = false;
 }
 
-void GraphicsContextCG::drawNativeImage(NativeImage& nativeImage, const FloatRect& destRect, const FloatRect& srcRect, ImagePaintingOptions options)
+void GraphicsContextCG::drawNativeImage(const NativeImage& nativeImage, const FloatRect& destRect, const FloatRect& srcRect, ImagePaintingOptions options)
 {
     auto image = nativeImage.platformImage();
     if (!image)
@@ -445,7 +447,7 @@ static void patternReleaseCallback(void* info)
     callOnMainThread([image = adoptCF(static_cast<CGImageRef>(info))] { });
 }
 
-void GraphicsContextCG::drawPattern(NativeImage& nativeImage, const FloatRect& destRect, const FloatRect& tileRect, const AffineTransform& patternTransform, const FloatPoint& phase, const FloatSize& spacing, ImagePaintingOptions options)
+void GraphicsContextCG::drawPattern(const NativeImage& nativeImage, const FloatRect& destRect, const FloatRect& tileRect, const AffineTransform& patternTransform, const FloatPoint& phase, const FloatSize& spacing, ImagePaintingOptions options)
 {
     if (!patternTransform.isInvertible())
         return;
@@ -665,7 +667,7 @@ void GraphicsContextCG::applyFillPattern()
     CGContextSetFillPattern(cgContext, platformPattern.get(), &patternAlpha);
 }
 
-static inline bool calculateDrawingMode(const GraphicsContext& context, CGPathDrawingMode& mode)
+static inline bool NODELETE calculateDrawingMode(const GraphicsContext& context, CGPathDrawingMode& mode)
 {
     bool shouldFill = context.fillBrush().isVisible();
     bool shouldStroke = context.strokeBrush().isVisible() || (context.strokeStyle() != StrokeStyle::NoStroke);
@@ -1328,7 +1330,7 @@ void GraphicsContextCG::strokeArc(const PathArc& arc)
 {
 #if HAVE(CGCONTEXT_STROKE_ARC)
     CGContextRef context = platformContext();
-    CGContextStrokeArc(context, arc.center.x(), arc.center.y(), arc.radius, arc.startAngle, arc.endAngle, arc.direction == RotationDirection::Clockwise);
+    CGContextStrokeArc(context, arc.center.x(), arc.center.y(), arc.radius, arc.startAngle, arc.endAngle, arc.direction == RotationDirection::Counterclockwise);
 #else
     GraphicsContext::strokeArc(arc);
 #endif

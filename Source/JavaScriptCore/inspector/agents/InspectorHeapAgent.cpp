@@ -69,7 +69,7 @@ Protocol::ErrorStringOr<void> InspectorHeapAgent::enable()
 
     m_enabled = true;
 
-    checkedEnvironment()->vm().heap.addObserver(this);
+    protect(m_environment)->vm().heap.addObserver(this);
 
     return { };
 }
@@ -82,7 +82,7 @@ Protocol::ErrorStringOr<void> InspectorHeapAgent::disable()
     m_enabled = false;
     m_tracking = false;
 
-    checkedEnvironment()->vm().heap.removeObserver(this);
+    protect(m_environment)->vm().heap.removeObserver(this);
 
     clearHeapSnapshots();
 
@@ -91,7 +91,7 @@ Protocol::ErrorStringOr<void> InspectorHeapAgent::disable()
 
 Protocol::ErrorStringOr<void> InspectorHeapAgent::gc()
 {
-    VM& vm = checkedEnvironment()->vm();
+    VM& vm = protect(m_environment)->vm();
     JSLockHolder lock(vm);
     sanitizeStackForVM(vm);
     vm.heap.collectNow(Sync, CollectionScope::Full);
@@ -101,7 +101,7 @@ Protocol::ErrorStringOr<void> InspectorHeapAgent::gc()
 
 Protocol::ErrorStringOr<std::tuple<double, Protocol::Heap::HeapSnapshotData>> InspectorHeapAgent::snapshot()
 {
-    VM& vm = checkedEnvironment()->vm();
+    VM& vm = protect(m_environment)->vm();
     JSLockHolder lock(vm);
 
     HeapSnapshotBuilder snapshotBuilder(vm.ensureHeapProfiler());
@@ -109,7 +109,7 @@ Protocol::ErrorStringOr<std::tuple<double, Protocol::Heap::HeapSnapshotData>> In
 
     snapshotBuilder.buildSnapshot();
 
-    auto timestamp = checkedEnvironment()->executionStopwatch().elapsedTime().seconds();
+    auto timestamp = protect(m_environment)->executionStopwatch().elapsedTime().seconds();
     auto snapshotData = snapshotBuilder.json();
     return { { timestamp, snapshotData } };
 }
@@ -150,7 +150,7 @@ Protocol::ErrorStringOr<void> InspectorHeapAgent::stopTracking()
 
 std::optional<HeapSnapshotNode> InspectorHeapAgent::nodeForHeapObjectIdentifier(Protocol::ErrorString& errorString, unsigned heapObjectIdentifier)
 {
-    HeapProfiler* heapProfiler = checkedEnvironment()->vm().heapProfiler();
+    HeapProfiler* heapProfiler = protect(m_environment)->vm().heapProfiler();
     if (!heapProfiler) {
         errorString = "No heap snapshot"_s;
         return std::nullopt;
@@ -176,7 +176,7 @@ Protocol::ErrorStringOr<std::tuple<String, RefPtr<Protocol::Debugger::FunctionDe
     Protocol::ErrorString errorString;
 
     // Prevent the cell from getting collected as we look it up.
-    VM& vm = checkedEnvironment()->vm();
+    VM& vm = protect(m_environment)->vm();
     JSLockHolder lock(vm);
     DeferGC deferGC(vm);
 
@@ -226,7 +226,7 @@ Protocol::ErrorStringOr<Ref<Protocol::Runtime::RemoteObject>> InspectorHeapAgent
     Protocol::ErrorString errorString;
 
     // Prevent the cell from getting collected as we look it up.
-    VM& vm = checkedEnvironment()->vm();
+    VM& vm = protect(m_environment)->vm();
     JSLockHolder lock(vm);
     DeferGC deferGC(vm);
 
@@ -272,7 +272,7 @@ void InspectorHeapAgent::willGarbageCollect()
     if (!m_enabled)
         return;
 
-    m_gcStartTime = checkedEnvironment()->executionStopwatch().elapsedTime();
+    m_gcStartTime = protect(m_environment)->executionStopwatch().elapsedTime();
 }
 
 void InspectorHeapAgent::didGarbageCollect(CollectionScope scope)
@@ -289,7 +289,7 @@ void InspectorHeapAgent::didGarbageCollect(CollectionScope scope)
 
     // FIXME: Include number of bytes freed by collection.
 
-    Seconds endTime = checkedEnvironment()->executionStopwatch().elapsedTime();
+    Seconds endTime = protect(m_environment)->executionStopwatch().elapsedTime();
     dispatchGarbageCollectedEvent(protocolTypeForHeapOperation(scope), m_gcStartTime, endTime);
 
     m_gcStartTime = Seconds::nan();
@@ -299,7 +299,7 @@ bool InspectorHeapAgent::heapSnapshotBuilderIgnoreNode(const HeapSnapshotBuilder
 {
     if (const Structure* structure = cell->structure()) {
         if (JSGlobalObject* globalObject = structure->globalObject()) {
-            if (!checkedEnvironment()->canAccessInspectedScriptState(globalObject))
+            if (!protect(m_environment)->canAccessInspectedScriptState(globalObject))
                 return true;
         }
     }
@@ -308,7 +308,7 @@ bool InspectorHeapAgent::heapSnapshotBuilderIgnoreNode(const HeapSnapshotBuilder
 
 void InspectorHeapAgent::clearHeapSnapshots()
 {
-    VM& vm = checkedEnvironment()->vm();
+    VM& vm = protect(m_environment)->vm();
     JSLockHolder lock(vm);
 
     if (HeapProfiler* heapProfiler = vm.heapProfiler()) {

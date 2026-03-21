@@ -122,11 +122,11 @@ class WasmCallingConvention {
 public:
     static constexpr unsigned headerSizeInBytes = CallFrame::headerSizeInRegisters * sizeof(Register);
 
-    WasmCallingConvention(Vector<JSValueRegs>&& jsrs, Vector<FPRReg>&& fprs, Vector<GPRReg>&& scratches, RegisterSetBuilder&& calleeSaves)
+    WasmCallingConvention(Vector<JSValueRegs>&& jsrs, Vector<FPRReg>&& fprs, Vector<GPRReg>&& scratches, RegisterSet&& calleeSaves)
         : jsrArgs(WTF::move(jsrs))
         , fprArgs(WTF::move(fprs))
         , prologueScratchGPRs(WTF::move(scratches))
-        , calleeSaveRegisters(calleeSaves.buildAndValidate())
+        , calleeSaveRegisters(calleeSaves)
     { }
 
     WTF_MAKE_NONCOPYABLE(WasmCallingConvention);
@@ -281,7 +281,7 @@ public:
         return { thisArgument, WTF::move(params), WTF::move(results), totalFrameSize, headerSize };
     }
 
-    RegisterSet argumentGPRs() const { return RegisterSetBuilder::argumentGPRs(); }
+    RegisterSet argumentGPRs() const { return RegisterSet::argumentGPRs(); }
 
     const Vector<JSValueRegs> jsrArgs;
     const Vector<FPRReg> fprArgs;
@@ -293,10 +293,10 @@ class JSCallingConvention {
 public:
     static constexpr unsigned headerSizeInBytes = CallFrame::headerSizeInRegisters * sizeof(Register);
 
-    JSCallingConvention(Vector<JSValueRegs>&& gprs, Vector<FPRReg>&& fprs, RegisterSetBuilder&& calleeSaves)
+    JSCallingConvention(Vector<JSValueRegs>&& gprs, Vector<FPRReg>&& fprs, RegisterSet&& calleeSaves)
         : jsrArgs(WTF::move(gprs))
         , fprArgs(WTF::move(fprs))
-        , calleeSaveRegisters(calleeSaves.buildAndValidate())
+        , calleeSaveRegisters(calleeSaves)
     { }
 
     WTF_MAKE_NONCOPYABLE(JSCallingConvention);
@@ -374,11 +374,11 @@ class CCallingConventionArmThumb2 {
 public:
     static constexpr unsigned headerSizeInBytes = 0;
 
-    CCallingConventionArmThumb2(Vector<GPRReg>&& gprs, Vector<FPRReg>&& fprs, Vector<GPRReg>&& scratches, RegisterSetBuilder&& calleeSaves)
+    CCallingConventionArmThumb2(Vector<GPRReg>&& gprs, Vector<FPRReg>&& fprs, Vector<GPRReg>&& scratches, RegisterSet&& calleeSaves)
         : gprArgs(WTF::move(gprs))
         , fprArgs(WTF::move(fprs))
         , prologueScratchGPRs(WTF::move(scratches))
-        , calleeSaveRegisters(calleeSaves.buildAndValidate())
+        , calleeSaveRegisters(calleeSaves)
     { }
 
     WTF_MAKE_NONCOPYABLE(CCallingConventionArmThumb2);

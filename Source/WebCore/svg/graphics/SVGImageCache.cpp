@@ -64,17 +64,12 @@ void SVGImageCache::setContainerContextForClient(const CachedImageClient& client
     FloatSize containerSizeWithoutZoom(containerSize);
     containerSizeWithoutZoom.scale(1 / containerZoom);
 
-    m_imageForContainerMap.set(&client, SVGImageForContainer::create(protectedSVGImage().get(), containerSizeWithoutZoom, containerZoom, imageURL));
+    m_imageForContainerMap.set(&client, SVGImageForContainer::create(protect(m_svgImage).get(), containerSizeWithoutZoom, containerZoom, imageURL));
 }
 
 Image* SVGImageCache::findImageForRenderer(const RenderObject* renderer) const
 {
     return renderer ? m_imageForContainerMap.get(&renderer->cachedImageClient()) : nullptr;
-}
-
-RefPtr<SVGImage> SVGImageCache::protectedSVGImage() const
-{
-    return m_svgImage.get();
 }
 
 FloatSize SVGImageCache::imageSizeForRenderer(const RenderObject* renderer) const

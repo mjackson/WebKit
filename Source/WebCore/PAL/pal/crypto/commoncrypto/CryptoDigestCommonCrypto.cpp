@@ -32,12 +32,10 @@
 #include <span>
 #include <wtf/TZoneMallocInlines.h>
 
-#if !defined(CLANG_WEBKIT_BRANCH)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
 #include "PALSwift-Generated.h"
 #pragma clang diagnostic pop
-#endif // !defined(CLANG_WEBKIT_BRANCH)
 
 namespace PAL {
 
@@ -45,9 +43,7 @@ struct CryptoDigestContext {
     WTF_MAKE_STRUCT_TZONE_ALLOCATED(CryptoDigestContext);
 
     using CCContext = Variant<
-#if !defined(CLANG_WEBKIT_BRANCH)
         std::unique_ptr<pal::Digest>,
-#endif
         std::unique_ptr<CC_SHA1_CTX>,
         std::unique_ptr<CC_SHA256_CTX>,
         std::unique_ptr<CC_SHA512_CTX>
@@ -89,8 +85,6 @@ CryptoDigest::~CryptoDigest()
 {
 }
 
-#if !defined(CLANG_WEBKIT_BRANCH)
-
 static CryptoDigestContext::CCContext createCryptoDigest(CryptoDigest::Algorithm algorithm)
 {
     switch (algorithm) {
@@ -115,27 +109,19 @@ static CryptoDigestContext::CCContext createCryptoDigest(CryptoDigest::Algorithm
     }
 }
 
-#endif
-
 std::unique_ptr<CryptoDigest> CryptoDigest::create(CryptoDigest::Algorithm algorithm)
 {
-#if !defined(CLANG_WEBKIT_BRANCH)
     std::unique_ptr<CryptoDigest> digest = WTF::makeUnique<CryptoDigest>();
     ASSERT(digest->m_context);
     digest->m_context->algorithm = algorithm;
     digest->m_context->ccContext = createCryptoDigest(algorithm);
     return digest;
-#else
-    UNUSED_PARAM(algorithm);
-    RELEASE_ASSERT_NOT_REACHED_WITH_MESSAGE("CLANG_WEBKIT_BRANCH");
-#endif
 }
 
 IGNORE_CLANG_WARNINGS_BEGIN("missing-noreturn")
 
 void CryptoDigest::addBytes(std::span<const uint8_t> input)
 {
-#if !defined(CLANG_WEBKIT_BRANCH)
     switch (m_context->algorithm) {
     case CryptoDigest::Algorithm::SHA_1:
     case CryptoDigest::Algorithm::SHA_256:
@@ -148,17 +134,12 @@ void CryptoDigest::addBytes(std::span<const uint8_t> input)
         CC_SHA256_Update(toSHA256Context(m_context.get()), static_cast<const void*>(input.data()), input.size());
         return;
     }
-#else
-    UNUSED_PARAM(input);
-    RELEASE_ASSERT_NOT_REACHED_WITH_MESSAGE("CLANG_WEBKIT_BRANCH");
-#endif
 }
 
 IGNORE_CLANG_WARNINGS_END
 
 Vector<uint8_t> CryptoDigest::computeHash()
 {
-#if !defined(CLANG_WEBKIT_BRANCH)
     Vector<uint8_t> result;
     switch (m_context->algorithm) {
     case CryptoDigest::Algorithm::SHA_1:
@@ -171,9 +152,6 @@ Vector<uint8_t> CryptoDigest::computeHash()
         break;
     }
     return result;
-#else
-    RELEASE_ASSERT_NOT_REACHED_WITH_MESSAGE("CLANG_WEBKIT_BRANCH");
-#endif
 }
 
 } // namespace PAL

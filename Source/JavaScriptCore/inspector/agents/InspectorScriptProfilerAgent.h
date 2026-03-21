@@ -62,7 +62,6 @@ private:
     void addEvent(Seconds startTime, Seconds endTime, JSC::ProfilingReason);
     void trackingComplete();
     void stopSamplingWhenDisconnecting();
-    CheckedRef<InspectorEnvironment> checkedEnvironment() { return m_environment.get(); }
 
     const UniqueRef<ScriptProfilerFrontendDispatcher> m_frontendDispatcher;
     const Ref<ScriptProfilerBackendDispatcher> m_backendDispatcher;

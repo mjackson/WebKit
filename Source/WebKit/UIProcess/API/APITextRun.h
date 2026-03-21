@@ -41,7 +41,7 @@ public:
         return adoptRef(*new TextRun(page, WTF::move(string), WTF::move(rect)));
     }
 
-    const WTF::String& string() const { return m_string; }
+    const WTF::String& string() const LIFETIME_BOUND { return m_string; }
     WebCore::FloatRect rectInWebView() const;
 
 private:

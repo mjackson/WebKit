@@ -25,6 +25,7 @@
 
 #include "config.h"
 #include "MediaPlayerPrivateGStreamer.h"
+#include "TrackPrivateBaseGStreamer.h"
 
 #if ENABLE(VIDEO) && USE(GSTREAMER)
 
@@ -553,7 +554,7 @@ bool MediaPlayerPrivateGStreamer::paused() const
         && (stateChange == GST_STATE_CHANGE_SUCCESS || stateChange == GST_STATE_CHANGE_NO_PREROLL)) {
         GST_WARNING_OBJECT(pipeline(), "states are not synchronized, player paused %s, pipeline paused %s. Current state is %s with %s pending",
             boolForPrinting(!m_isPipelinePlaying), boolForPrinting(isPipelinePaused),
-            gst_element_state_get_name(state), gst_element_state_get_name(pending));
+            gst_state_get_name(state), gst_state_get_name(pending));
         ASSERT_NOT_REACHED_WITH_MESSAGE("pipeline and player states are not synchronized");
     }
 #else
@@ -711,7 +712,7 @@ void MediaPlayerPrivateGStreamer::seekToTarget(const SeekTarget& inTarget)
     GstState state;
     GstStateChangeReturn getStateResult = gst_element_get_state(m_pipeline.get(), &state, nullptr, 0);
     if (getStateResult == GST_STATE_CHANGE_FAILURE || getStateResult == GST_STATE_CHANGE_NO_PREROLL) {
-        GST_DEBUG_OBJECT(pipeline(), "[Seek] cannot seek, current state change is %s", gst_element_state_change_return_get_name(getStateResult));
+        GST_DEBUG_OBJECT(pipeline(), "[Seek] cannot seek, current state change is %s", gst_state_change_return_get_name(getStateResult));
         return;
     }
 
@@ -1115,7 +1116,7 @@ MediaPlayerPrivateGStreamer::ChangePipelineStateResult MediaPlayerPrivateGStream
     ASSERT(m_pipeline);
 
     if (isPausedByViewport() && newState > GST_STATE_PAUSED) {
-        GST_DEBUG_OBJECT(pipeline(), "Saving state for when player becomes visible: %s", gst_element_state_get_name(newState));
+        GST_DEBUG_OBJECT(pipeline(), "Saving state for when player becomes visible: %s", gst_state_get_name(newState));
         m_stateToRestoreWhenVisible = newState;
         return ChangePipelineStateResult::Ok;
     }
@@ -1127,16 +1128,16 @@ MediaPlayerPrivateGStreamer::ChangePipelineStateResult MediaPlayerPrivateGStream
         return ChangePipelineStateResult::Rejected;
     }
 
-    GST_DEBUG_OBJECT(pipeline(), "Changing state change to %s from %s with %s pending", gst_element_state_get_name(newState),
-        gst_element_state_get_name(currentState), gst_element_state_get_name(pending));
+    GST_DEBUG_OBJECT(pipeline(), "Changing state change to %s from %s with %s pending", gst_state_get_name(newState),
+        gst_state_get_name(currentState), gst_state_get_name(pending));
 
     change = gst_element_set_state(m_pipeline.get(), newState);
-    GST_DEBUG_OBJECT(pipeline(), "Changing state returned %s", gst_element_state_change_return_get_name(change));
+    GST_DEBUG_OBJECT(pipeline(), "Changing state returned %s", gst_state_change_return_get_name(change));
 
     GstState pausedOrPlaying = newState == GST_STATE_PLAYING ? GST_STATE_PAUSED : GST_STATE_PLAYING;
     if (currentState != pausedOrPlaying && change == GST_STATE_CHANGE_FAILURE) {
-        GST_WARNING_OBJECT(pipeline(), "Changing state to %s from %s with %s pending failed", gst_element_state_get_name(newState),
-            gst_element_state_get_name(currentState), gst_element_state_get_name(pending));
+        GST_WARNING_OBJECT(pipeline(), "Changing state to %s from %s with %s pending failed", gst_state_get_name(newState),
+            gst_state_get_name(currentState), gst_state_get_name(pending));
         return ChangePipelineStateResult::Failed;
     }
 
@@ -1207,23 +1208,22 @@ void MediaPlayerPrivateGStreamer::notifyPlayerOfTrack()
 
     ASSERT(m_isLegacyPlaybin);
 
-    using TrackType = TrackPrivateBaseGStreamer::TrackType;
     Variant<TrackIDHashMap<Ref<AudioTrackPrivateGStreamer>>*, TrackIDHashMap<Ref<VideoTrackPrivateGStreamer>>*, TrackIDHashMap<Ref<InbandTextTrackPrivateGStreamer>>*> variantTracks = static_cast<TrackIDHashMap<Ref<TrackPrivateType>>*>(0);
-    auto type(static_cast<TrackType>(variantTracks.index()));
+    auto type(static_cast<GStreamerTrackType>(variantTracks.index()));
     ASCIILiteral typeName;
     bool* hasType;
     switch (type) {
-    case TrackType::Audio:
+    case GStreamerTrackType::Audio:
         typeName = "audio"_s;
         hasType = &m_hasAudio;
         variantTracks = &m_audioTracks;
         break;
-    case TrackType::Video:
+    case GStreamerTrackType::Video:
         typeName = "video"_s;
         hasType = &m_hasVideo;
         variantTracks = &m_videoTracks;
         break;
-    case TrackType::Text:
+    case GStreamerTrackType::Text:
         typeName = "text"_s;
         hasType = nullptr;
         variantTracks = &m_textTracks;
@@ -1234,7 +1234,7 @@ void MediaPlayerPrivateGStreamer::notifyPlayerOfTrack()
     auto& tracks = *std::get<TrackIDHashMap<Ref<TrackPrivateType>>*>(variantTracks);
 
     // Ignore notifications after a EOS. We don't want the tracks to disappear when the video is finished.
-    if (m_isEndReached && (type == TrackType::Audio || type == TrackType::Video))
+    if (m_isEndReached && (type == GStreamerTrackType::Audio || type == GStreamerTrackType::Video))
         return;
 
     unsigned numberOfTracks = 0;
@@ -1249,7 +1249,7 @@ void MediaPlayerPrivateGStreamer::notifyPlayerOfTrack()
         if (oldHasType != *hasType)
             player->characteristicChanged();
 
-        if (*hasType && type == TrackType::Video)
+        if (*hasType && type == GStreamerTrackType::Video)
             player->sizeChanged();
     }
 
@@ -1283,18 +1283,18 @@ void MediaPlayerPrivateGStreamer::notifyPlayerOfTrack()
 
         auto track = TrackPrivateType::create(*this, i, GRefPtr(pad));
         ASSERT(track->streamId() == streamId);
-        if (!track->trackIndex() && (type == TrackType::Audio || type == TrackType::Video))
+        if (!track->trackIndex() && (type == GStreamerTrackType::Audio || type == GStreamerTrackType::Video))
             track->setActive(true);
 
         Variant<AudioTrackPrivate*, VideoTrackPrivate*, InbandTextTrackPrivate*> variantTrack(&track.get());
         switch (variantTrack.index()) {
-        case TrackType::Audio:
+        case GStreamerTrackType::Audio:
             player->addAudioTrack(*std::get<AudioTrackPrivate*>(variantTrack));
             break;
-        case TrackType::Video:
+        case GStreamerTrackType::Video:
             player->addVideoTrack(*std::get<VideoTrackPrivate*>(variantTrack));
             break;
-        case TrackType::Text:
+        case GStreamerTrackType::Text:
             player->addTextTrack(*std::get<InbandTextTrackPrivate*>(variantTrack));
             break;
         }
@@ -1392,7 +1392,7 @@ MediaTime MediaPlayerPrivateGStreamer::platformDuration() const
     if (isMediaStreamPlayer())
         return MediaTime::positiveInfiniteTime();
 
-    GST_TRACE_OBJECT(pipeline(), "errorOccured: %s, pipeline state: %s", boolForPrinting(m_didErrorOccur), gst_element_state_get_name(GST_STATE(m_pipeline.get())));
+    GST_TRACE_OBJECT(pipeline(), "errorOccured: %s, pipeline state: %s", boolForPrinting(m_didErrorOccur), gst_state_get_name(GST_STATE(m_pipeline.get())));
     if (m_didErrorOccur)
         return MediaTime::invalidTime();
 
@@ -1561,40 +1561,20 @@ GstElement* MediaPlayerPrivateGStreamer::createAudioSink()
     if (!player)
         return nullptr;
 
-    // For platform specific audio sinks, they need to be properly upranked so that they get properly autoplugged.
-
+    auto role = player->isVideoPlayer() ? "video"_s : "music"_s;
     GstElement* audioSink = nullptr;
 
 #if ENABLE(MEDIA_STREAM)
     auto deviceId = player->audioOutputDeviceId();
     if (!deviceId.isEmpty()) {
-        GST_DEBUG("createAudioSink: audioOutputDeviceId='%s', attempting device-specific sink", deviceId.utf8().data());
-        if (deviceId == "default"_s) {
-            const auto& devices = GStreamerAudioCaptureDeviceManager::singleton().speakerDevices();
-            if (!devices.isEmpty()) [[likely]] {
-                const auto defaultDeviceIndex = devices.findIf([](const CaptureDevice& device) {
-                    return device.isDefault();
-                });
-                deviceId = defaultDeviceIndex == notFound ? devices.first().persistentId() : devices[defaultDeviceIndex].persistentId();
-                GST_DEBUG("createAudioSink: default device is '%s'", deviceId.utf8().data());
-            }
-        }
-        if (auto captureDevice = GStreamerAudioCaptureDeviceManager::singleton().gstreamerDeviceWithUID(deviceId)) {
-            auto* device = captureDevice->device();
-            audioSink = gst_device_create_element(device, "audio-output-sink");
-            if (audioSink)
-                GST_DEBUG("createAudioSink: created '%s' (type=%s)", GST_ELEMENT_NAME(audioSink), G_OBJECT_TYPE_NAME(audioSink));
-            else
-                GST_WARNING("createAudioSink: gst_device_create_element failed, falling back to platform sink");
-        } else
-            GST_WARNING("createAudioSink: could not find GstDevice for '%s', falling back to platform sink", deviceId.utf8().data());
+        auto [resolvedId, device] = resolveAudioOutputDevice(deviceId);
+        if (device)
+            audioSink = createPlatformAudioSink(role, resolvedId, device);
     }
 #endif
 
-    if (!audioSink) {
-        auto role = player->isVideoPlayer() ? "video"_s : "music"_s;
+    if (!audioSink)
         audioSink = createPlatformAudioSink(role);
-    }
     RELEASE_ASSERT(audioSink);
     if (!audioSink)
         return nullptr;
@@ -1744,7 +1724,7 @@ void MediaPlayerPrivateGStreamer::playbin3SendSelectStreamsIfAppropriate()
     bool haveDifferentStreamIds = (m_wantedAudioStreamId != m_currentAudioStreamId || m_wantedVideoStreamId != m_currentVideoStreamId);
     bool shouldSendSelectStreams = !m_waitingForStreamsSelectedEvent && haveDifferentStreamIds && m_currentState == GST_STATE_PLAYING;
     GST_DEBUG_OBJECT(m_pipeline.get(), "Checking if to send SELECT_STREAMS, m_waitingForStreamsSelectedEvent = %s, haveDifferentStreamIds = %s, m_currentState = %s... shouldSendSelectStreams = %s",
-        boolForPrinting(m_waitingForStreamsSelectedEvent), boolForPrinting(haveDifferentStreamIds), gst_element_state_get_name(m_currentState), boolForPrinting(shouldSendSelectStreams));
+        boolForPrinting(m_waitingForStreamsSelectedEvent), boolForPrinting(haveDifferentStreamIds), gst_state_get_name(m_currentState), boolForPrinting(shouldSendSelectStreams));
     if (!shouldSendSelectStreams)
         return;
 
@@ -2279,7 +2259,7 @@ void MediaPlayerPrivateGStreamer::handleMessage(GstMessage* message)
         if (!messageSourceIsPlaybin || m_isDelayingLoad)
             break;
 
-        GST_DEBUG_OBJECT(pipeline(), "Changed state from %s to %s", gst_element_state_get_name(currentState), gst_element_state_get_name(newState));
+        GST_DEBUG_OBJECT(pipeline(), "Changed state from %s to %s", gst_state_get_name(currentState), gst_state_get_name(newState));
 
         if (!m_isLegacyPlaybin && currentState == GST_STATE_PAUSED && newState == GST_STATE_PLAYING)
             playbin3SendSelectStreamsIfAppropriate();
@@ -2301,7 +2281,7 @@ void MediaPlayerPrivateGStreamer::handleMessage(GstMessage* message)
         gst_element_get_state(m_pipeline.get(), &currentState, nullptr, 250 * GST_NSECOND);
         if (requestedState < currentState) {
             GST_INFO_OBJECT(pipeline(), "Element %s requested state change to %s", GST_MESSAGE_SRC_NAME(message),
-                gst_element_state_get_name(requestedState));
+                gst_state_get_name(requestedState));
             m_requestedState = requestedState;
             if (changePipelineState(requestedState) == ChangePipelineStateResult::Failed)
                 loadingFailed(MediaPlayer::NetworkState::Empty);
@@ -2918,7 +2898,7 @@ void MediaPlayerPrivateGStreamer::updateStates()
     bool shouldUpdatePlaybackState = false;
     switch (getStateResult) {
     case GST_STATE_CHANGE_SUCCESS: {
-        GST_DEBUG_OBJECT(pipeline(), "State: %s, pending: %s", gst_element_state_get_name(m_currentState), gst_element_state_get_name(pending));
+        GST_DEBUG_OBJECT(pipeline(), "State: %s, pending: %s", gst_state_get_name(m_currentState), gst_state_get_name(pending));
 
         // Do nothing if on EOS and state changed to READY to avoid recreating the player
         // on HTMLMediaElement and properly generate the video 'ended' event.
@@ -2998,10 +2978,10 @@ void MediaPlayerPrivateGStreamer::updateStates()
         } else
             m_isPaused = true;
 
-        GST_DEBUG_OBJECT(pipeline(), "Old state: %s, new state: %s (requested: %s)", gst_element_state_get_name(m_oldState), gst_element_state_get_name(m_currentState), gst_element_state_get_name(m_requestedState));
+        GST_DEBUG_OBJECT(pipeline(), "Old state: %s, new state: %s (requested: %s)", gst_state_get_name(m_oldState), gst_state_get_name(m_currentState), gst_state_get_name(m_requestedState));
         if (m_requestedState == GST_STATE_PAUSED && m_currentState == GST_STATE_PAUSED) {
             shouldUpdatePlaybackState = true;
-            GST_INFO_OBJECT(pipeline(), "Requested state change to %s was completed", gst_element_state_get_name(m_currentState));
+            GST_INFO_OBJECT(pipeline(), "Requested state change to %s was completed", gst_state_get_name(m_currentState));
         }
 
         if (player && player->isLooping() && m_oldState == GST_STATE_PAUSED && m_currentState == GST_STATE_PLAYING) {
@@ -3015,14 +2995,14 @@ void MediaPlayerPrivateGStreamer::updateStates()
         // and test timeouts.
         if (stateReallyChanged && (m_oldState != m_currentState) && (m_oldState == GST_STATE_PAUSED && m_currentState == GST_STATE_PLAYING) && !shouldPauseForBuffering
             && !m_isSeeking) {
-            GST_INFO_OBJECT(pipeline(), "Playback state changed from %s to %s. Notifying the media player client", gst_element_state_get_name(m_oldState), gst_element_state_get_name(m_currentState));
+            GST_INFO_OBJECT(pipeline(), "Playback state changed from %s to %s. Notifying the media player client", gst_state_get_name(m_oldState), gst_state_get_name(m_currentState));
             shouldUpdatePlaybackState = true;
         }
 
         break;
     }
     case GST_STATE_CHANGE_ASYNC:
-        GST_DEBUG_OBJECT(pipeline(), "Async: State: %s, pending: %s", gst_element_state_get_name(m_currentState), gst_element_state_get_name(pending));
+        GST_DEBUG_OBJECT(pipeline(), "Async: State: %s, pending: %s", gst_state_get_name(m_currentState), gst_state_get_name(pending));
         // Change in progress.
 
         if (m_currentState == GST_STATE_PAUSED && m_isBuffering) {
@@ -3042,11 +3022,11 @@ void MediaPlayerPrivateGStreamer::updateStates()
 
         break;
     case GST_STATE_CHANGE_FAILURE:
-        GST_DEBUG_OBJECT(pipeline(), "Failure: State: %s, pending: %s", gst_element_state_get_name(m_currentState), gst_element_state_get_name(pending));
+        GST_DEBUG_OBJECT(pipeline(), "Failure: State: %s, pending: %s", gst_state_get_name(m_currentState), gst_state_get_name(pending));
         // Change failed.
         return;
     case GST_STATE_CHANGE_NO_PREROLL:
-        GST_DEBUG_OBJECT(pipeline(), "No preroll: State: %s, pending: %s", gst_element_state_get_name(m_currentState), gst_element_state_get_name(pending));
+        GST_DEBUG_OBJECT(pipeline(), "No preroll: State: %s, pending: %s", gst_state_get_name(m_currentState), gst_state_get_name(pending));
 
         // Live pipelines go in PAUSED without prerolling.
         m_isLiveStream = true;
@@ -3066,7 +3046,7 @@ void MediaPlayerPrivateGStreamer::updateStates()
 
         if (!isMediaStreamPlayer() && m_isLiveStream.value_or(false) && m_readyState < MediaPlayer::ReadyState::HaveEnoughData
             && m_currentState >= GST_STATE_PAUSED) {
-            GST_DEBUG_OBJECT(pipeline(), "live stream reached %s", gst_element_state_get_name(m_currentState));
+            GST_DEBUG_OBJECT(pipeline(), "live stream reached %s", gst_state_get_name(m_currentState));
             m_readyState = MediaPlayer::ReadyState::HaveEnoughData;
             if (player)
                 player->readyStateChanged();
@@ -3302,11 +3282,11 @@ MediaPlayer::SupportsType MediaPlayerPrivateGStreamer::supportsType(const MediaE
     MediaPlayer::SupportsType result = MediaPlayer::SupportsType::IsNotSupported;
 #if ENABLE(MEDIA_SOURCE)
     // MediaPlayerPrivateGStreamerMSE is in charge of mediasource playback, not us.
-    if (parameters.isMediaSource)
+    if (parameters.platformType == PlatformMediaDecodingType::MediaSource)
         return result;
 #endif
 
-    if (parameters.isMediaStream) {
+    if (parameters.platformType == PlatformMediaDecodingType::MediaStream) {
 #if ENABLE(MEDIA_STREAM)
         return MediaPlayer::SupportsType::IsSupported;
 #else
@@ -3504,8 +3484,11 @@ void MediaPlayerPrivateGStreamer::createGSTPlayBin(const URL& url)
     // Let also other listeners subscribe to (application) messages in this bus.
     auto bus = adoptGRef(gst_pipeline_get_bus(GST_PIPELINE(m_pipeline.get())));
     gst_bus_enable_sync_message_emission(bus.get());
-    connectSimpleBusMessageCallback(m_pipeline.get(), [this](GstMessage* message) {
-        handleMessage(message);
+    connectSimpleBusMessageCallback(m_pipeline.get(), [weakThis = ThreadSafeWeakPtr { *this }](GstMessage* message) {
+        RefPtr player = weakThis.get();
+        if (!player)
+            return;
+        player->handleMessage(message);
     });
 
     g_signal_connect_swapped(bus.get(), "sync-message::need-context", G_CALLBACK(+[](MediaPlayerPrivateGStreamer* player, GstMessage* message) {
@@ -4141,14 +4124,14 @@ void MediaPlayerPrivateGStreamer::setVisibleInViewport(bool isVisible)
         }
         m_stateToRestoreWhenVisible = targetState;
         GST_DEBUG_OBJECT(pipeline(), "Media element is muted and not visible in viewport, pausing it to save resources. Will resume afterwards to %s state.",
-            gst_element_state_get_name(m_stateToRestoreWhenVisible));
+            gst_state_get_name(m_stateToRestoreWhenVisible));
         gst_element_set_state(m_pipeline.get(), GST_STATE_PAUSED);
         gst_element_get_state(m_pipeline.get(), &currentState, &pendingState, 0);
-        GST_DEBUG_OBJECT(pipeline(), "Now pipeline is in %s state with %s pending", gst_element_state_get_name(currentState), gst_element_state_get_name(pendingState));
+        GST_DEBUG_OBJECT(pipeline(), "Now pipeline is in %s state with %s pending", gst_state_get_name(currentState), gst_state_get_name(pendingState));
         m_isPipelinePlaying = false;
     } else if (isVisible && isPausedByViewport()) {
         GST_DEBUG_OBJECT(pipeline(), "Element in viewport again, resuming playback via state change to %s.",
-            gst_element_state_get_name(m_stateToRestoreWhenVisible));
+            gst_state_get_name(m_stateToRestoreWhenVisible));
         changePipelineState(m_stateToRestoreWhenVisible);
         m_stateToRestoreWhenVisible = GST_STATE_VOID_PENDING;
     }
@@ -4177,6 +4160,11 @@ void MediaPlayerPrivateGStreamer::paint(GraphicsContext& context, const FloatRec
             return;
 
         sample = m_sample;
+    }
+
+    if (!GST_IS_BUFFER(gst_sample_get_buffer(sample.get()))) {
+        GST_DEBUG_OBJECT(pipeline(), "Cancelling attempt to render sample without buffer");
+        return;
     }
 
     auto caps = gst_sample_get_caps(sample.get());
@@ -4681,9 +4669,12 @@ std::optional<VideoFrameMetadata> MediaPlayerPrivateGStreamer::videoFrameMetadat
     if (m_sampleCount == m_lastVideoFrameMetadataSampleCount)
         return { };
 
+    auto buffer = gst_sample_get_buffer(m_sample.get());
+    if (!GST_IS_BUFFER(buffer))
+        return { };
+
     m_lastVideoFrameMetadataSampleCount = m_sampleCount;
 
-    auto* buffer = gst_sample_get_buffer(m_sample.get());
     auto metadata = webkitGstBufferGetVideoFrameMetadata(buffer);
     auto size = naturalSize();
     metadata.width = size.width();
@@ -4747,13 +4738,37 @@ void MediaPlayerPrivateGStreamer::checkPlayingConsistency()
     }
 }
 
-bool MediaPlayerPrivateGStreamer::applyAudioSinkDevice(GstElement* audioSink, GstDevice* device)
+#if ENABLE(MEDIA_STREAM)
+std::pair<String, GRefPtr<GstDevice>> MediaPlayerPrivateGStreamer::resolveAudioOutputDevice(const String& deviceId)
+{
+    auto resolvedId = deviceId;
+    if (resolvedId == "default"_s) {
+        const auto& devices = GStreamerAudioCaptureDeviceManager::singleton().speakerDevices();
+        if (!devices.isEmpty()) [[likely]] {
+            const auto idx = devices.findIf([](const CaptureDevice& device) {
+                return device.isDefault();
+            });
+            resolvedId = idx == notFound ? devices.first().persistentId() : devices[idx].persistentId();
+        }
+    }
+    GRefPtr<GstDevice> device;
+    if (auto captureDevice = GStreamerAudioCaptureDeviceManager::singleton().gstreamerDeviceWithUID(resolvedId))
+        device = captureDevice->device();
+    return { resolvedId, device };
+}
+#endif
+
+bool MediaPlayerPrivateGStreamer::applyAudioSinkDevice(GstElement* audioSink, const GRefPtr<GstDevice>& device, const String& deviceId)
 {
     bool changed = false;
 
+    // Handle mixer-based audio sink: switch the mixer pipeline.
+    if (WEBKIT_IS_AUDIO_SINK(audioSink))
+        return webkitAudioSinkSetDevice(audioSink, deviceId, device);
+
     if (GST_IS_BIN(audioSink)) {
         for (auto* element : GstIteratorAdaptor<GstElement>(gst_bin_iterate_sinks(GST_BIN_CAST(audioSink)))) {
-            if (applyAudioSinkDevice(element, device))
+            if (applyAudioSinkDevice(element, device, deviceId))
                 changed = true;
         }
         return changed;
@@ -4770,8 +4785,8 @@ bool MediaPlayerPrivateGStreamer::applyAudioSinkDevice(GstElement* audioSink, Gs
 #endif
     }
 
-    changed = !!gst_device_reconfigure_element(device, audioSink);
-    GST_DEBUG_OBJECT(pipeline(), "%s element '%s' with device %s<%p>", changed ? "Reconfigured" : "Skipped", GST_ELEMENT_NAME(audioSink), GST_OBJECT_NAME(device), device);
+    changed = !!gst_device_reconfigure_element(device.get(), audioSink);
+    GST_DEBUG_OBJECT(pipeline(), "%s element '%s' with device %s<%p>.", changed ? "Reconfigured" : "Skipped", GST_ELEMENT_NAME(audioSink), GST_OBJECT_NAME(device.get()), device.get());
     return changed;
 }
 
@@ -4784,31 +4799,27 @@ void MediaPlayerPrivateGStreamer::audioOutputDeviceChanged()
 
     auto* sink = audioSink();
     if (!sink) {
-        GST_DEBUG_OBJECT(pipeline(), "No audio sink, skipping audio output device change");
+        GST_DEBUG_OBJECT(pipeline(), "No audio sink, skipping audio output device change.");
         return;
     }
 
     auto deviceId = player->audioOutputDeviceId();
-    if (deviceId == "default"_s) {
-        const auto& devices = GStreamerAudioCaptureDeviceManager::singleton().speakerDevices();
-        if (!devices.isEmpty()) [[likely]] {
-            const auto defaultDeviceIndex = devices.findIf([](const CaptureDevice& device) {
-                return device.isDefault();
-            });
-            deviceId = (defaultDeviceIndex == notFound) ? devices.first().persistentId() : devices[defaultDeviceIndex].persistentId();
-        }
+    bool changed = false;
+
+    if (deviceId.isEmpty()) {
+        // No device set, route back to default pipeline.
+        changed = applyAudioSinkDevice(sink, { }, { });
+    } else {
+        auto [resolvedId, device] = resolveAudioOutputDevice(deviceId);
+        if (device) {
+            auto deviceName = GMallocString::unsafeAdoptFromUTF8(gst_device_get_display_name(device.get()));
+            GST_DEBUG_OBJECT(pipeline(), "Switching to %s<%p>, output '%s'.", GST_OBJECT_NAME(device.get()), device.get(), deviceName.utf8());
+            changed = applyAudioSinkDevice(sink, device, resolvedId);
+        } else
+            GST_WARNING_OBJECT(pipeline(), "Could not obtain GstDevice for '%s'.", resolvedId.utf8().data());
     }
 
-    bool changed = false;
-    if (auto captureDevice = GStreamerAudioCaptureDeviceManager::singleton().gstreamerDeviceWithUID(deviceId)) {
-        auto* device = captureDevice->device();
-        auto deviceName = GMallocString::unsafeAdoptFromUTF8(gst_device_get_display_name(device));
-        GST_DEBUG_OBJECT(pipeline(), "Switching to %s<%p>, output '%s'", GST_OBJECT_NAME(device), device, deviceName.utf8());
-        changed = applyAudioSinkDevice(sink, device);
-    } else
-        GST_WARNING_OBJECT(pipeline(), "Could not obtain GstDevice for identifier '%s'", deviceId.utf8().data());
-
-    GST_DEBUG_OBJECT(pipeline(), "%s to audio output device '%s'", changed ? "Changed" : "Could not change", deviceId.utf8().data());
+    GST_DEBUG_OBJECT(pipeline(), "%s to audio output device '%s'.", changed ? "Changed" : "Could not change", deviceId.utf8().data());
 #endif
 }
 

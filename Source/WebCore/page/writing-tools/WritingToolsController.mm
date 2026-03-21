@@ -47,6 +47,7 @@
 #import "LocalFrameInlines.h"
 #import "Logging.h"
 #import "NodeRenderStyle.h"
+#import "Page.h"
 #import "RenderStyle+GettersInlines.h"
 #import "RenderedDocumentMarker.h"
 #import "TextAnimationTypes.h"
@@ -215,9 +216,11 @@ WritingToolsController::WritingToolsController(Page& page)
 
 #pragma mark - Delegate methods.
 
-void WritingToolsController::willBeginWritingToolsSession(const std::optional<WritingTools::Session>& session, CompletionHandler<void(const Vector<WritingTools::Context>&)>&& completionHandler)
+void WritingToolsController::willBeginWritingToolsSession(const std::optional<WritingTools::Session>& session, WeakHashSet<Node, WeakPtrImplWithEventTargetData>&& preservedNodes, CompletionHandler<void(const Vector<WritingTools::Context>&)>&& completionHandler)
 {
     RELEASE_LOG(WritingTools, "WritingToolsController::willBeginWritingToolsSession (%s)", session ? session->identifier.toString().utf8().data() : "");
+
+    m_clientPreservedNodes = WTF::move(preservedNodes);
 
     RefPtr document = this->document();
     if (!document) {
@@ -259,7 +262,7 @@ void WritingToolsController::willBeginWritingToolsSession(const std::optional<Wr
 
     auto selectedTextRange = document->selection().selection().firstRange();
 
-    auto attributedStringFromRange = editingAttributedString(*contextRange, allIncludedElements);
+    auto attributedStringFromRange = editingAttributedString(*contextRange, allIncludedElements, m_clientPreservedNodes);
     auto selectedTextCharacterRange = selectedTextRange ? characterRange(*contextRange, *selectedTextRange) : CharacterRange { };
 
     if (attributedStringFromRange.string.isEmpty())
@@ -555,6 +558,7 @@ void WritingToolsController::removeCompositionClearStateDeferralReason()
 
     state = nullptr;
     m_state = nullptr;
+    m_clientPreservedNodes = { };
 }
 
 void WritingToolsController::intelligenceTextAnimationsDidComplete()
@@ -1002,6 +1006,7 @@ template<>
 void WritingToolsController::didEndWritingToolsSession<WritingTools::Session::Type::Proofreading>(bool)
 {
     m_state = nullptr;
+    m_clientPreservedNodes = { };
 }
 
 template<>
@@ -1054,6 +1059,7 @@ void WritingToolsController::didEndWritingToolsSession(const WritingTools::Sessi
     // FIXME: Remove this branch once all composition types use the new effects system.
     if (session.type == WritingTools::Session::Type::Composition && session.compositionType == WritingTools::Session::CompositionType::SmartReply) {
         m_state = nullptr;
+        m_clientPreservedNodes = { };
         return;
     }
 
@@ -1169,7 +1175,7 @@ RefPtr<Document> WritingToolsController::document() const
         return nullptr;
     }
 
-    RefPtr frame = m_page->focusController().focusedOrMainFrame();
+    auto* frame = m_page->focusController().focusedOrMainFrame();
     if (!frame) {
         ASSERT_NOT_REACHED();
         return nullptr;

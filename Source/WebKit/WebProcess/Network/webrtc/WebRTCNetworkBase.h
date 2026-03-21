@@ -50,7 +50,7 @@ public:
     virtual void setAsActive();
     bool isActive() const { return m_isActive; }
 
-    WebMDNSRegister& mdnsRegister() { return m_mdnsRegister; }
+    WebMDNSRegister& mdnsRegister() LIFETIME_BOUND { return m_mdnsRegister; }
 
 private:
     const CheckedRef<WebProcess> m_webProcess;

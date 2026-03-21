@@ -380,7 +380,7 @@ std::optional<InitializationSegmentInfo> RemoteSourceBufferProxy::createInitiali
         RefPtr track = audioTrackInfo.track;
         auto id = track->id();
         remoteMediaPlayerProxy->addRemoteAudioTrackProxy(*track);
-        m_mediaDescriptions.try_emplace(id, *audioTrackInfo.protectedDescription());
+        m_mediaDescriptions.try_emplace(id, *protect(audioTrackInfo.description));
         return InitializationSegmentInfo::TrackInformation { MediaDescriptionInfo(*audioTrackInfo.description), id };
     });
 
@@ -388,7 +388,7 @@ std::optional<InitializationSegmentInfo> RemoteSourceBufferProxy::createInitiali
         RefPtr track = videoTrackInfo.track;
         auto id = track->id();
         remoteMediaPlayerProxy->addRemoteVideoTrackProxy(*track);
-        m_mediaDescriptions.try_emplace(id, *videoTrackInfo.protectedDescription());
+        m_mediaDescriptions.try_emplace(id, *protect(videoTrackInfo.description));
         return InitializationSegmentInfo::TrackInformation { MediaDescriptionInfo(*videoTrackInfo.description), id };
     });
 
@@ -396,7 +396,7 @@ std::optional<InitializationSegmentInfo> RemoteSourceBufferProxy::createInitiali
         RefPtr track = textTrackInfo.track;
         auto id = track->id();
         remoteMediaPlayerProxy->addRemoteTextTrackProxy(*track);
-        m_mediaDescriptions.try_emplace(id, *textTrackInfo.protectedDescription());
+        m_mediaDescriptions.try_emplace(id, *protect(textTrackInfo.description));
         return InitializationSegmentInfo::TrackInformation { MediaDescriptionInfo(*textTrackInfo.description), id };
     });
 

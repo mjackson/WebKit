@@ -88,7 +88,6 @@ const GlobalObjectMethodTable* JSDOMWindowBase::globalObjectMethodTable()
         supportsRichSourceInfo,
         shouldInterruptScript,
         javaScriptRuntimeFlags,
-        queueMicrotaskToEventLoop,
         shouldInterruptScriptBeforeTimeout,
         moduleLoaderImportModule,
         moduleLoaderResolve,
@@ -116,7 +115,7 @@ const GlobalObjectMethodTable* JSDOMWindowBase::globalObjectMethodTable()
     return &table;
 };
 
-JSDOMWindowBase::JSDOMWindowBase(VM& vm, Structure* structure, RefPtr<DOMWindow>&& window, JSWindowProxy* proxy)
+JSDOMWindowBase::JSDOMWindowBase(VM& vm, Structure* structure, Ref<DOMWindow>&& window, JSWindowProxy* proxy)
     : JSDOMGlobalObject(vm, structure, proxy->world(), globalObjectMethodTable())
     , m_wrapped(WTF::move(window))
 {
@@ -124,11 +123,6 @@ JSDOMWindowBase::JSDOMWindowBase(VM& vm, Structure* structure, RefPtr<DOMWindow>
 }
 
 JSDOMWindowBase::~JSDOMWindowBase() = default;
-
-DOMWindow& JSDOMWindowBase::wrapped() const
-{
-    return *m_wrapped;
-}
 
 SUPPRESS_ASAN inline void JSDOMWindowBase::initStaticGlobals(JSC::VM& vm)
 {
@@ -139,7 +133,7 @@ SUPPRESS_ASAN inline void JSDOMWindowBase::initStaticGlobals(JSC::VM& vm)
         GlobalPropertyInfo(builtinNames.windowPublicName(), m_proxy.get(), PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly),
     };
 
-    addStaticGlobals(staticGlobals, std::size(staticGlobals));
+    addStaticGlobals(staticGlobals);
 }
 
 void JSDOMWindowBase::finishCreation(VM& vm, JSWindowProxy* proxy)
@@ -149,10 +143,10 @@ void JSDOMWindowBase::finishCreation(VM& vm, JSWindowProxy* proxy)
 
     initStaticGlobals(vm);
 
-    if (m_wrapped && m_wrapped->frame() && m_wrapped->frame()->settings().needsSiteSpecificQuirks())
+    if (m_wrapped->frame() && m_wrapped->frame()->settings().needsSiteSpecificQuirks())
         setNeedsSiteSpecificQuirks(true);
 
-    if (m_wrapped && ((m_wrapped->frame() && m_wrapped->frame()->settings().showModalDialogEnabled()) || (m_wrapped->documentIfLocal() && m_wrapped->documentIfLocal()->quirks().shouldExposeShowModalDialog())))
+    if ((m_wrapped->frame() && m_wrapped->frame()->settings().showModalDialogEnabled()) || (m_wrapped->documentIfLocal() && m_wrapped->documentIfLocal()->quirks().shouldExposeShowModalDialog()))
         putDirectCustomAccessor(vm, builtinNames(vm).showModalDialogPublicName(), CustomGetterSetter::create(vm, showModalDialogGetter, nullptr), std::to_underlying(PropertyAttribute::CustomValue));
 }
 
@@ -206,7 +200,7 @@ bool JSDOMWindowBase::supportsRichSourceInfo(const JSGlobalObject* object)
     return enabled;
 }
 
-static inline bool shouldInterruptScriptToPreventInfiniteRecursionWhenClosingPage(Page* page)
+static inline bool NODELETE shouldInterruptScriptToPreventInfiniteRecursionWhenClosingPage(Page* page)
 {
     // See <rdar://problem/5479443>. We don't think that page can ever be NULL
     // in this case, but if it is, we've gotten into a lexicalGlobalObject where we may have
@@ -250,63 +244,6 @@ RuntimeFlags JSDOMWindowBase::javaScriptRuntimeFlags(const JSGlobalObject* objec
     if (!frame)
         return RuntimeFlags();
     return frame->settings().javaScriptRuntimeFlags();
-}
-
-class UserGestureInitiatedMicrotaskDispatcher final : public WebCoreMicrotaskDispatcher {
-    WTF_MAKE_COMPACT_TZONE_ALLOCATED(UserGestureInitiatedMicrotaskDispatcher);
-public:
-
-    UserGestureInitiatedMicrotaskDispatcher(EventLoopTaskGroup& group, Ref<UserGestureToken>&& userGestureToken)
-        : WebCoreMicrotaskDispatcher(Type::WebCoreUserGestureIndicator, group)
-        , m_userGestureToken(WTF::move(userGestureToken))
-    {
-    }
-
-    ~UserGestureInitiatedMicrotaskDispatcher() final = default;
-
-    JSC::QueuedTask::Result run(JSC::QueuedTask& task) final
-    {
-        auto runnability = currentRunnability();
-        if (runnability == JSC::QueuedTask::Result::Executed) {
-            UserGestureIndicator gestureIndicator(m_userGestureToken.ptr(), m_userGestureToken->scope(), UserGestureToken::ShouldPropagateToMicroTask::Yes);
-            JSExecState::runTaskWithDebugger(task.globalObject(), task);
-        }
-        return runnability;
-    }
-
-    static Ref<UserGestureInitiatedMicrotaskDispatcher> create(EventLoopTaskGroup& group, Ref<UserGestureToken>&& userGestureToken)
-    {
-        return adoptRef(*new UserGestureInitiatedMicrotaskDispatcher(group, WTF::move(userGestureToken)));
-    }
-
-private:
-    const Ref<UserGestureToken> m_userGestureToken;
-};
-
-WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(UserGestureInitiatedMicrotaskDispatcher);
-
-
-void JSDOMWindowBase::queueMicrotaskToEventLoop(JSGlobalObject& object, QueuedTask&& task)
-{
-    auto& thisObject = *jsCast<JSDOMWindowBase*>(&object);
-
-    CheckedPtr objectScriptExecutionContext = thisObject.scriptExecutionContext();
-    CheckedRef eventLoop = objectScriptExecutionContext->eventLoop();
-    // Propagating media only user gesture for Fetch API's promise chain.
-    auto userGestureToken = UserGestureIndicator::currentUserGestureForMainThread();
-    if (userGestureToken && (!userGestureToken->shouldPropagateToMicroTask() || !objectScriptExecutionContext->settingsValues().userGesturePromisePropagationEnabled))
-        userGestureToken = nullptr;
-
-    if (!userGestureToken) {
-        if (object.debugger()) [[unlikely]]
-            task.setDispatcher(eventLoop->jsMicrotaskDispatcherForDebugger(object.vm(), &object));
-    } else {
-        auto& vm = object.vm();
-        JSC::JSLockHolder locker(vm);
-        task.setDispatcher(JSC::JSMicrotaskDispatcher::create(vm, UserGestureInitiatedMicrotaskDispatcher::create(eventLoop.get(), Ref { *userGestureToken }), &object));
-    }
-
-    eventLoop->queueMicrotask(WTF::move(task));
 }
 
 JSC::JSObject* JSDOMWindowBase::currentScriptExecutionOwner(JSGlobalObject* object)

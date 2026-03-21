@@ -263,10 +263,10 @@ public:
     void NODELETE scrollingCoordinatorWasCreated();
 
     void setDrawsBackground(bool);
-    bool drawsBackground() const;
+    bool NODELETE drawsBackground() const;
     void setBackgroundColor(NSColor *);
     NSColor *backgroundColor() const;
-    bool isOpaque() const;
+    bool NODELETE isOpaque() const;
 
     void setShouldSuppressFirstResponderChanges(bool);
     bool acceptsFirstMouse(NSEvent *);
@@ -282,7 +282,12 @@ public:
     void updatePDFHUDLocation(PDFPluginIdentifier, const WebCore::IntRect&);
     void removePDFHUD(PDFPluginIdentifier);
     void removeAllPDFHUDs();
+    void showPDFHUD(PDFPluginIdentifier);
     RetainPtr<NSSet> pdfHUDs();
+    bool isPointOnPDFHUD(WebCore::FloatPoint locationInView);
+    RetainPtr<NSView> hitTestPDFHUD(WebCore::FloatPoint locationInView);
+
+    bool isViewVisible(NSView *);
 
     void renewGState();
     void setFrameSize(CGSize);
@@ -351,7 +356,7 @@ public:
     void windowDidChangeOcclusionState();
     void windowWillClose();
     void NODELETE windowWillEnterOrExitFullScreen();
-    void NODELETE windowDidEnterOrExitFullScreen();
+    void windowDidEnterOrExitFullScreen();
     void screenDidChangeColorSpace();
     bool shouldDelayWindowOrderingForEvent(NSEvent *);
     bool windowResizeMouseLocationIsInVisibleScrollerThumb(CGPoint);
@@ -384,14 +389,14 @@ public:
     RetainPtr<NSColor> underlayColor() const;
     RetainPtr<NSColor> pageExtendedBackgroundColor() const;
     
-    _WKRectEdge pinnedState();
-    _WKRectEdge rubberBandingEnabled();
-    void setRubberBandingEnabled(_WKRectEdge);
+    _WKRectEdge NODELETE pinnedState();
+    _WKRectEdge NODELETE rubberBandingEnabled();
+    void NODELETE setRubberBandingEnabled(_WKRectEdge);
 
-    bool alwaysBounceVertical();
-    void setAlwaysBounceVertical(bool);
-    bool alwaysBounceHorizontal();
-    void setAlwaysBounceHorizontal(bool);
+    bool NODELETE alwaysBounceVertical();
+    void NODELETE setAlwaysBounceVertical(bool);
+    bool NODELETE alwaysBounceHorizontal();
+    void NODELETE setAlwaysBounceHorizontal(bool);
 
     void setOverlayScrollbarStyle(std::optional<WebCore::ScrollbarOverlayStyle> scrollbarStyle);
     std::optional<WebCore::ScrollbarOverlayStyle> NODELETE overlayScrollbarStyle() const;
@@ -556,15 +561,15 @@ public:
 
     void enterAcceleratedCompositingWithRootLayer(CALayer *);
     void setAcceleratedCompositingRootLayer(CALayer *);
-    CALayer *acceleratedCompositingRootLayer() const { return m_rootLayer.get(); }
+    CALayer *acceleratedCompositingRootLayer() const LIFETIME_BOUND { return m_rootLayer.get(); }
 
     void setThumbnailView(_WKThumbnailView *);
     RetainPtr<_WKThumbnailView> thumbnailView() const { return m_thumbnailView.get(); }
 
     void setHeaderBannerLayer(CALayer *);
-    CALayer *headerBannerLayer() const { return m_headerBannerLayer.get(); }
+    CALayer *headerBannerLayer() const LIFETIME_BOUND { return m_headerBannerLayer.get(); }
     void setFooterBannerLayer(CALayer *);
-    CALayer *footerBannerLayer() const { return m_footerBannerLayer.get(); }
+    CALayer *footerBannerLayer() const LIFETIME_BOUND { return m_footerBannerLayer.get(); }
 
     void setInspectorAttachmentView(NSView *);
     RetainPtr<NSView> inspectorAttachmentView();
@@ -600,7 +605,7 @@ public:
 
     void startWindowDrag();
 
-    void startDrag(const WebCore::DragItem&, WebCore::ShareableBitmap::Handle&& image);
+    void startDrag(const WebCore::DragItem&, WebCore::ShareableBitmap::Handle&& image, const std::optional<WebCore::FrameIdentifier>& = std::nullopt);
     void setFileAndURLTypes(NSString *filename, NSString *extension, NSString *uti, NSString *title, NSString *url, NSString *visibleURL, NSPasteboard *);
     void setPromisedDataForImage(WebCore::Image&, NSString *filename, NSString *extension, NSString *title, NSString *url, NSString *visibleURL, WebCore::FragmentedSharedBuffer* archiveBuffer, NSString *pasteboardName, NSString *pasteboardOrigin);
     void pasteboardChangedOwner(NSPasteboard *);
@@ -615,13 +620,12 @@ public:
     void insertTextPlaceholderWithSize(CGSize, void(^completionHandler)(NSTextPlaceholder *));
     void removeTextPlaceholder(NSTextPlaceholder *, bool willInsertText, void(^completionHandler)());
 
-    _WKWarningView *warningView() { return m_warningView.get(); }
+    _WKWarningView *warningView() LIFETIME_BOUND { return m_warningView.get(); }
 
     ViewGestureController* gestureController() const { return m_gestureController.get(); }
     ViewGestureController& ensureGestureController();
-    Ref<ViewGestureController> ensureProtectedGestureController();
 #if HAVE(APPKIT_GESTURES_SUPPORT)
-    WKAppKitGestureController *appKitGestureController() const { return m_appKitGestureController.get(); }
+    WKAppKitGestureController *appKitGestureController() const LIFETIME_BOUND { return m_appKitGestureController.get(); }
 #endif
     void NODELETE setAllowsBackForwardNavigationGestures(bool);
     bool allowsBackForwardNavigationGestures() const { return m_allowsBackForwardNavigationGestures; }
@@ -662,7 +666,7 @@ public:
     void insertText(id string);
     void insertText(id string, NSRange replacementRange);
     NSTextInputContext *inputContext();
-    NSTextInputContext *inputContextIncludingNonEditable();
+    NSTextInputContext *inputContextForSelectionUpdates();
     void unmarkText();
     void setMarkedText(id string, NSRange selectedRange, NSRange replacementRange);
     NSRange NODELETE selectedRange();
@@ -691,7 +695,7 @@ public:
     NSRect unionRectInVisibleSelectedRangeInScreen() const;
     NSRect documentVisibleRectInScreen() const;
 
-    bool isContentRichlyEditable() const;
+    bool NODELETE isContentRichlyEditable() const;
 
 #if ENABLE(MULTI_REPRESENTATION_HEIC)
     void insertMultiRepresentationHEIC(NSData *, NSString *);
@@ -704,7 +708,7 @@ public:
     void mouseMoved(NSEvent *);
     void mouseDown(NSEvent *, WebMouseEventInputSource);
     void mouseUp(NSEvent *, WebMouseEventInputSource);
-    void mouseDragged(NSEvent *);
+    void mouseDragged(NSEvent *, WebMouseEventInputSource);
     void mouseEntered(NSEvent *);
     void mouseExited(NSEvent *);
     void otherMouseDown(NSEvent *);
@@ -745,8 +749,8 @@ public:
 #if HAVE(TOUCH_BAR)
     NSTouchBar *makeTouchBar();
     void updateTouchBar();
-    NSTouchBar *currentTouchBar() const { return m_currentTouchBar.get(); }
-    NSCandidateListTouchBarItem *candidateListTouchBarItem() const;
+    NSTouchBar *currentTouchBar() const LIFETIME_BOUND { return m_currentTouchBar.get(); }
+    NSCandidateListTouchBarItem *NODELETE candidateListTouchBarItem() const;
 #if ENABLE(WEB_PLAYBACK_CONTROLS_MANAGER)
     WebCore::PlatformPlaybackSessionInterface* playbackSessionInterface() const;
     bool isPictureInPictureActive();
@@ -760,7 +764,7 @@ public:
 #endif
     void nowPlayingMediaTitleAndArtist(void(^completionHandler)(NSString *, NSString *));
 
-    NSTouchBar *textTouchBar() const;
+    NSTouchBar *NODELETE textTouchBar() const;
     void dismissTextTouchBarPopoverItemWithIdentifier(NSString *);
 
     bool clientWantsMediaPlaybackControlsView() const { return m_clientWantsMediaPlaybackControlsView; }
@@ -788,7 +792,7 @@ public:
 
     void requestDOMPasteAccess(WebCore::DOMPasteAccessCategory, WebCore::DOMPasteRequiresInteraction, const WebCore::IntRect&, const String& originIdentifier, CompletionHandler<void(WebCore::DOMPasteAccessResponse)>&&);
     void handleDOMPasteRequestForCategoryWithResult(WebCore::DOMPasteAccessCategory, WebCore::DOMPasteAccessResponse);
-    NSMenu *domPasteMenu() const { return m_domPasteMenu.get(); }
+    NSMenu *domPasteMenu() const LIFETIME_BOUND { return m_domPasteMenu.get(); }
     void hideDOMPasteMenuWithResult(WebCore::DOMPasteAccessResponse);
 
 #if HAVE(TRANSLATION_UI_SERVICES) && ENABLE(CONTEXT_MENUS)
@@ -836,7 +840,7 @@ public:
 
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
     void updateScrollPocket();
-    NSScrollPocket *topScrollPocket() const { return m_topScrollPocket.get(); }
+    NSScrollPocket *topScrollPocket() const LIFETIME_BOUND { return m_topScrollPocket.get(); }
     void registerViewAboveScrollPocket(NSView *);
     void unregisterViewAboveScrollPocket(NSView *);
     void updateScrollPocketVisibilityWhenScrolledToTop();
@@ -848,7 +852,7 @@ public:
 
 #if ENABLE(BANNER_VIEW_OVERLAYS)
     void setBannerView(WKBannerView *);
-    WKBannerView *bannerView() const { return m_bannerView.get(); }
+    WKBannerView *bannerView() const LIFETIME_BOUND { return m_bannerView.get(); }
 
     void applyBannerViewOverlayHeight(CGFloat, bool);
     CGFloat bannerViewHeight() const;
@@ -858,7 +862,7 @@ public:
     void updateBannerViewFrame();
 #endif
 #if ENABLE(SCROLL_STRETCH_NOTIFICATIONS)
-    void topScrollStretchDidChange(uint64_t topScrollStretch);
+    void topScrollStretchDidChange(CGFloat topScrollStretch);
 #endif
 
 #if ENABLE(VIDEO)
@@ -876,7 +880,7 @@ private:
     void updateMediaTouchBar();
 
     bool useMediaPlaybackControlsView() const;
-    bool isRichlyEditableForTouchBar() const;
+    bool NODELETE isRichlyEditableForTouchBar() const;
 
 #if ENABLE(IMAGE_ANALYSIS_ENHANCEMENTS)
     void installImageAnalysisOverlayView(RetainPtr<VKCImageAnalysis>&&);
@@ -941,7 +945,7 @@ private:
     void mouseMovedInternal(NSEvent *);
     void mouseDownInternal(NSEvent *, WebMouseEventInputSource);
     void mouseUpInternal(NSEvent *, WebMouseEventInputSource);
-    void mouseDraggedInternal(NSEvent *);
+    void mouseDraggedInternal(NSEvent *, WebMouseEventInputSource);
 
     void handleProcessSwapOrExit();
 
@@ -971,11 +975,10 @@ private:
 
 #if ENABLE(IMAGE_ANALYSIS)
     CocoaImageAnalyzer* ensureImageAnalyzer();
-    RetainPtr<CocoaImageAnalyzer> ensureProtectedImageAnalyzer();
     int32_t processImageAnalyzerRequest(CocoaImageAnalyzerRequest *, CompletionHandler<void(RetainPtr<CocoaImageAnalysis>&&, NSError *)>&&);
 #endif
 
-    std::optional<EditorState::PostLayoutData> postLayoutDataForContentEditable();
+    std::optional<EditorState::PostLayoutData> NODELETE postLayoutDataForContentEditable();
 
     WeakObjCPtr<WKWebView> m_view;
     const UniqueRef<PageClient> m_pageClient;
@@ -1169,19 +1172,21 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 #endif
 
 #if ENABLE(SCROLL_STRETCH_NOTIFICATIONS)
-    uint64_t m_cachedTopScrollStretch { 0 };
+    CGFloat m_cachedTopScrollStretch { 0 };
 #endif
 
 #if HAVE(INLINE_PREDICTIONS)
     bool m_inlinePredictionsEnabled { false };
 #endif
 
+    bool m_lastEditorStateWasEditableOrRanged { false };
+
     // FIXME: Perhaps merge these types at some point?
 #if HAVE(APPKIT_GESTURES_SUPPORT)
     RetainPtr<WKAppKitGestureController> m_appKitGestureController;
     RetainPtr<WKTextSelectionController> m_textSelectionController;
 #endif
-} SWIFT_UNSAFE_REFERENCE;
+} SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount);
 
 } // namespace WebKit
 

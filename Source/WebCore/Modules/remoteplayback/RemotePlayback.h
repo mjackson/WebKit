@@ -27,10 +27,10 @@
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
 
-#include <WebCore/ActiveDOMObject.h>
-#include <WebCore/EventTarget.h>
-#include <WebCore/EventTargetInterfaces.h>
-#include <WebCore/WebCoreOpaqueRoot.h>
+#include "ActiveDOMObject.h"
+#include "EventTarget.h"
+#include "EventTargetInterfaces.h"
+#include "WebCoreOpaqueRoot.h"
 #include <wtf/HashMap.h>
 #include <wtf/LoggerHelper.h>
 #include <wtf/Ref.h>
@@ -76,7 +76,7 @@ public:
     };
     State state() const { return m_state; }
 
-    void invalidate();
+    void NODELETE invalidate();
 
     WebCoreOpaqueRoot opaqueRootConcurrently() const;
     Node* NODELETE ownerNode() const;

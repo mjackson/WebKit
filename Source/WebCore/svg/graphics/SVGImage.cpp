@@ -35,6 +35,7 @@
 #include "DOMParser.h"
 #include "DocumentInlines.h"
 #include "DocumentLoader.h"
+#include "DocumentPage.h"
 #include "DocumentSVG.h"
 #include "DocumentView.h"
 #include "EditorClient.h"
@@ -97,7 +98,7 @@ RefPtr<SVGSVGElement> SVGImage::rootElement() const
     if (!localMainFrame)
         return nullptr;
 
-    return DocumentSVG::rootElement(*protect(localMainFrame->document()));
+    return DocumentSVG::rootElement(*localMainFrame->document());
 }
 
 bool SVGImage::renderingTaintsOrigin() const
@@ -366,7 +367,7 @@ LocalFrameView* SVGImage::frameView() const
     if (!m_page)
         return nullptr;
 
-    RefPtr localMainFrame = m_page->localMainFrame();
+    auto* localMainFrame = m_page->localMainFrame();
     if (!localMainFrame)
         return nullptr;
 

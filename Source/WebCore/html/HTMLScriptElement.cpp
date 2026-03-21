@@ -46,7 +46,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(HTMLScriptElement);
 using namespace HTMLNames;
 
 inline HTMLScriptElement::HTMLScriptElement(const QualifiedName& tagName, Document& document, bool wasInsertedByParser, bool alreadyStarted)
-    : HTMLElement(tagName, document)
+    : HTMLElement(tagName, document, TypeFlag::HasDidMoveToNewDocument)
     , ScriptElement(*this, wasInsertedByParser, alreadyStarted)
 {
     ASSERT(hasTagName(scriptTag));
@@ -54,7 +54,9 @@ inline HTMLScriptElement::HTMLScriptElement(const QualifiedName& tagName, Docume
 
 Ref<HTMLScriptElement> HTMLScriptElement::create(const QualifiedName& tagName, Document& document, bool wasInsertedByParser, bool alreadyStarted)
 {
-    return adoptRef(*new HTMLScriptElement(tagName, document, wasInsertedByParser, alreadyStarted));
+    Ref scriptElement = adoptRef(*new HTMLScriptElement(tagName, document, wasInsertedByParser, alreadyStarted));
+    scriptElement->suspendIfNeeded();
+    return scriptElement;
 }
 
 bool HTMLScriptElement::isURLAttribute(const Attribute& attribute) const
@@ -74,9 +76,9 @@ void HTMLScriptElement::finishParsingChildren()
     ScriptElement::finishParsingChildren();
 }
 
-void HTMLScriptElement::removedFromAncestor(RemovalType type, ContainerNode& container)
+void HTMLScriptElement::removingSteps(RemovalType type, ContainerNode& container)
 {
-    HTMLElement::removedFromAncestor(type, container);
+    HTMLElement::removingSteps(type, container);
     unblockRendering();
     unregisterSpeculationRules();
 }
@@ -96,15 +98,15 @@ void HTMLScriptElement::attributeChanged(const QualifiedName& name, const AtomSt
         HTMLElement::attributeChanged(name, oldValue, newValue, attributeModificationReason);
 }
 
-Node::InsertedIntoAncestorResult HTMLScriptElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps HTMLScriptElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    HTMLElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
-    return ScriptElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    HTMLElement::insertionSteps(insertionType, parentOfInsertedTree);
+    return ScriptElement::insertionSteps(insertionType, parentOfInsertedTree);
 }
 
-void HTMLScriptElement::didFinishInsertingNode()
+void HTMLScriptElement::postConnectionSteps()
 {
-    ScriptElement::didFinishInsertingNode();
+    ScriptElement::postConnectionSteps();
 }
 
 void HTMLScriptElement::setText(String&& value)
@@ -264,6 +266,9 @@ bool HTMLScriptElement::hasSourceAttribute() const
 
 void HTMLScriptElement::dispatchLoadEvent()
 {
+    // Keep the JS wrapper alive until the end of this method.
+    Ref wrapperProtector = makePendingActivity(*this);
+
     ASSERT(!haveFiredLoadEvent());
     setHaveFiredLoadEvent(true);
 
@@ -287,7 +292,7 @@ bool HTMLScriptElement::isScriptPreventedByAttributes() const
 
 Ref<Element> HTMLScriptElement::cloneElementWithoutAttributesAndChildren(Document& document, CustomElementRegistry*) const
 {
-    return adoptRef(*new HTMLScriptElement(tagQName(), document, false, alreadyStarted()));
+    return HTMLScriptElement::create(tagQName(), document, false, alreadyStarted());
 }
 
 String HTMLScriptElement::referrerPolicyForBindings() const
@@ -308,6 +313,17 @@ String HTMLScriptElement::fetchPriorityForBindings() const
 RequestPriority HTMLScriptElement::fetchPriority() const
 {
     return parseEnumerationFromString<RequestPriority>(attributeWithoutSynchronization(fetchpriorityAttr)).value_or(RequestPriority::Auto);
+}
+
+void HTMLScriptElement::didMoveToNewDocument(Document& oldDocument, Document& newDocument)
+{
+    HTMLElement::didMoveToNewDocument(oldDocument, newDocument);
+    ScriptElement::didMoveToNewDocument(newDocument);
+}
+
+void HTMLScriptElement::eventListenersDidChange()
+{
+    setHasRelevantLoadEventsListener(hasEventListeners(eventNames().errorEvent) || hasEventListeners(eventNames().loadEvent));
 }
 
 }

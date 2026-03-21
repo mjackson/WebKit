@@ -313,12 +313,6 @@ public:
     SkEncodedImageFormat getEncodedFormat() const { return this->onGetEncodedFormat(); }
 
     /**
-     *  Return the underlying encoded data stream. This may be nullptr if the original
-     *  stream could not be duplicated.
-     */
-    virtual std::unique_ptr<SkStream> getEncodedData() const;
-
-    /**
      *  Whether or not the memory passed to getPixels is zero initialized.
      */
     enum ZeroInitialized {
@@ -1085,6 +1079,13 @@ private:
         return kUnimplemented;
     }
 
+    /**
+     *  Checks whether the implementation supports incremental decoding for the given info.
+     *
+     *  Note that onStartIncrementalDecode can stil fail regardless of this result.
+     */
+    virtual bool onSupportsIncrementalDecode(const SkImageInfo&) { return false; }
+
     virtual Result onStartIncrementalDecode(const SkImageInfo& /*dstInfo*/, void*, size_t,
             const Options&) {
         return kUnimplemented;
@@ -1125,6 +1126,12 @@ private:
      *  Only valid during scanline decoding or incremental decoding.
      */
     virtual SkSampler* getSampler(bool /*createIfNecessary*/) { return nullptr; }
+
+    /**
+     *  Return the underlying encoded data. This may be nullptr if the original
+     *  stream could not be duplicated/read.
+     */
+    virtual sk_sp<const SkData> getEncodedData() const;
 
     friend class DM::CodecSrc;  // for fillIncompleteImage
     friend class PNGCodecGM;    // for fillIncompleteImage

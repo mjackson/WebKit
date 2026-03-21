@@ -115,7 +115,6 @@ public:
 
     bool hasByteStreamController() { return !!m_controller; }
     ReadableByteStreamController* controller() { return m_controller.get(); }
-    RefPtr<ReadableByteStreamController> protectedController() { return m_controller.get(); }
 
     void setByobReader(ReadableStreamBYOBReader*);
     ReadableStreamBYOBReader* NODELETE byobReader();
@@ -140,9 +139,9 @@ public:
 
     bool isReachableFromOpaqueRoots() const { return m_isSourceReachableFromOpaqueRoot && m_state == State::Readable; }
     enum class VisitTeedChildren : bool { No, Yes };
-    void visitAdditionalChildren(JSC::AbstractSlotVisitor&, VisitTeedChildren = VisitTeedChildren::No);
+    void visitAdditionalChildrenInGCThread(JSC::AbstractSlotVisitor&, VisitTeedChildren = VisitTeedChildren::No);
     void setTeedBranches(ReadableStream&, ReadableStream&);
-    void setSourceTeedStream(ReadableStream&);
+    void NODELETE setSourceTeedStream(ReadableStream&);
 
     class DependencyToVisit : public AbstractRefCounted {
     public:

@@ -47,13 +47,13 @@ struct PositionAreaValue {
     constexpr PositionAreaSpan blockOrXAxis() const { return m_blockOrXAxis; }
     constexpr PositionAreaSpan inlineOrYAxis() const { return m_inlineOrYAxis; }
 
-    PositionAreaSpan spanForAxis(BoxAxis physicalAxis, WritingMode containerWritingMode, WritingMode selfWritingMode) const;
-    PositionAreaSpan spanForAxis(LogicalBoxAxis logicalAxis, WritingMode containerWritingMode, WritingMode selfWritingMode) const;
+    PositionAreaSpan NODELETE spanForAxis(BoxAxis physicalAxis, WritingMode containerWritingMode, WritingMode selfWritingMode) const;
+    PositionAreaSpan NODELETE spanForAxis(LogicalBoxAxis logicalAxis, WritingMode containerWritingMode, WritingMode selfWritingMode) const;
 
     // Start/end based on container's coordinate-increasing direction (RenderBox coordinates)
-    PositionAreaTrack coordMatchedTrackForAxis(BoxAxis, WritingMode containerWritingMode, WritingMode selfWritingMode) const;
+    PositionAreaTrack NODELETE coordMatchedTrackForAxis(BoxAxis, WritingMode containerWritingMode, WritingMode selfWritingMode) const;
 
-    ItemPosition defaultAlignmentForAxis(BoxAxis, WritingMode containerWritingMode, WritingMode selfWritingMode) const;
+    ItemPosition NODELETE defaultAlignmentForAxis(BoxAxis, WritingMode containerWritingMode, WritingMode selfWritingMode) const;
 
     constexpr bool operator==(const PositionAreaValue&) const = default;
 
@@ -86,7 +86,7 @@ private:
 
 // MARK: - Conversion
 
-template<> struct CSSValueConversion<PositionArea> { auto operator()(BuilderState&, const CSSValue&) -> PositionArea; };
+template<> struct CSSValueConversion<PositionArea> { PositionArea NODELETE operator()(BuilderState&, const CSSValue&); };
 template<> struct CSSValueCreation<PositionAreaValue> { Ref<CSSValue> operator()(CSSValuePool&, const RenderStyle&, const PositionAreaValue&); };
 
 // MARK: - Serialization

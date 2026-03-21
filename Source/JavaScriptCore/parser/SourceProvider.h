@@ -32,15 +32,16 @@
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
-#include "CachedBytecode.h"
-#include "CodeBlockHash.h"
-#include "CodeSpecializationKind.h"
-#include "SourceOrigin.h"
-#include "SourceTaintedOrigin.h"
+#include <JavaScriptCore/CachedBytecode.h>
+#include <JavaScriptCore/CodeBlockHash.h>
+#include <JavaScriptCore/CodeSpecializationKind.h>
+#include <JavaScriptCore/SourceOrigin.h>
+#include <JavaScriptCore/SourceTaintedOrigin.h>
+#include <wtf/Lock.h>
 #include <wtf/RefCounted.h>
 #include <wtf/text/TextPosition.h>
 #include <wtf/text/WTFString.h>
-#include "ArgList.h"
+#include <JavaScriptCore/ArgList.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
@@ -86,14 +87,14 @@ public:
         return source().substring(start, end - start);
     }
 
-    const SourceOrigin& sourceOrigin() const { return m_sourceOrigin; }
+    const SourceOrigin& sourceOrigin() const LIFETIME_BOUND { return m_sourceOrigin; }
 
     // This is NOT the path that should be used for computing relative paths from a script. Use SourceOrigin's URL for that, the values may or may not be the same...
-    const String& sourceURL() const { return m_sourceURL; }
+    const String& sourceURL() const LIFETIME_BOUND { return m_sourceURL; }
     const String& sourceURLStripped();
-    const String& preRedirectURL() const { return m_preRedirectURL; }
-    const String& sourceURLDirective() const { return m_sourceURLDirective; }
-    const String& sourceMappingURLDirective() const { return m_sourceMappingURLDirective; }
+    const String& preRedirectURL() const LIFETIME_BOUND { return m_preRedirectURL; }
+    const String& sourceURLDirective() const LIFETIME_BOUND { return m_sourceURLDirective; }
+    const String& sourceMappingURLDirective() const LIFETIME_BOUND { return m_sourceMappingURLDirective; }
 
     JS_EXPORT_PRIVATE TextPosition startPosition() const { return m_startPosition; }
     JS_EXPORT_PRIVATE SourceProviderSourceType sourceType() const { return m_sourceType; }
@@ -118,6 +119,8 @@ public:
 
     virtual bool isScriptBufferSourceProvider() const { return false; }
 
+    JS_EXPORT_PRIVATE CString sourceCodeDumpFilePath(const CString& dumpDirectory);
+
 private:
     JS_EXPORT_PRIVATE virtual void lockUnderlyingBufferImpl();
     JS_EXPORT_PRIVATE virtual void unlockUnderlyingBufferImpl();
@@ -134,6 +137,10 @@ private:
     TextPosition m_startPosition;
     SourceID m_id { 0 };
     SourceTaintedOrigin m_taintedness;
+
+    std::atomic<bool> m_sourceCodeDumped { false };
+    Lock m_sourceCodeDumpLock;
+    CString m_sourceCodeDumpFilePath WTF_GUARDED_BY_LOCK(m_sourceCodeDumpLock);
 };
 
 DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(StringSourceProvider);

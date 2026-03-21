@@ -53,7 +53,7 @@ Ref<SVGFontFaceUriElement> SVGFontFaceUriElement::create(const QualifiedName& ta
 
 SVGFontFaceUriElement::~SVGFontFaceUriElement()
 {
-    if (CachedResourceHandle cachedFont = m_cachedFont)
+    if (RefPtr cachedFont = m_cachedFont)
         cachedFont->removeClient(*this);
 }
 
@@ -83,10 +83,10 @@ void SVGFontFaceUriElement::childrenChanged(const ChildChange& change)
         grandParent->rebuildFontFace();
 }
 
-Node::InsertedIntoAncestorResult SVGFontFaceUriElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps SVGFontFaceUriElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
     loadFont();
-    return SVGElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    return SVGElement::insertionSteps(insertionType, parentOfInsertedTree);
 }
 
 static bool isSVGFontTarget(const SVGFontFaceUriElement& element)
@@ -97,7 +97,7 @@ static bool isSVGFontTarget(const SVGFontFaceUriElement& element)
 
 void SVGFontFaceUriElement::loadFont()
 {
-    if (CachedResourceHandle cachedFont = m_cachedFont)
+    if (RefPtr cachedFont = m_cachedFont)
         cachedFont->removeClient(*this);
 
     const AtomString& href = getAttribute(SVGNames::hrefAttr, XLinkNames::hrefAttr);
@@ -108,8 +108,11 @@ void SVGFontFaceUriElement::loadFont()
         Ref cachedResourceLoader = document().cachedResourceLoader();
         CachedResourceRequest request(ResourceRequest(document().completeURL(href)), options);
         request.setInitiator(*this);
-        m_cachedFont = cachedResourceLoader->requestFont(WTF::move(request), isSVGFontTarget(*this)).value_or(nullptr);
-        if (CachedResourceHandle cachedFont = m_cachedFont) {
+        if (auto result = cachedResourceLoader->requestFont(WTF::move(request), isSVGFontTarget(*this)))
+            m_cachedFont = WTF::move(result.value());
+        else
+            m_cachedFont = nullptr;
+        if (RefPtr cachedFont = m_cachedFont) {
             cachedFont->addClient(*this);
             cachedFont->beginLoadIfNeeded(cachedResourceLoader);
         }

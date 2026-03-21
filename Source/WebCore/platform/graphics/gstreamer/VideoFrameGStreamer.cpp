@@ -354,6 +354,9 @@ static inline void setBufferFields(GstBuffer* buffer, const MediaTime& presentat
 static MediaTime presentationTimeFromSample(const GRefPtr<GstSample>& sample)
 {
     auto buffer = gst_sample_get_buffer(sample.get());
+    if (!GST_IS_BUFFER(buffer))
+        return MediaTime::invalidTime();
+
     if (GST_BUFFER_PTS_IS_VALID(buffer))
         return fromGstClockTime(GST_BUFFER_PTS(buffer));
 
@@ -487,6 +490,9 @@ VideoFrameGStreamer::VideoFrameGStreamer(GRefPtr<GstSample>&& sample, const Crea
 
     setMemoryTypeFromCaps();
 
+    if (!GST_IS_BUFFER(gst_sample_get_buffer(m_sample.get())))
+        return;
+
     setMetadataAndContentHint(options.timeMetadata, options.contentHint);
 }
 
@@ -552,6 +558,15 @@ static void copyPlane(std::span<uint8_t>& destination, const std::span<uint8_t>&
     uint64_t destinationOffset = spanPlaneLayout.destinationOffset;
     uint64_t rowBytes = spanPlaneLayout.sourceWidthBytes;
     for (size_t rowIndex = 0; rowIndex < spanPlaneLayout.sourceHeight; ++rowIndex) {
+        if (sourceOffset + rowBytes > source.size()) {
+            GST_ERROR("Computed sourceOffset doesn't fit in source plane");
+            return;
+        }
+        if (destinationOffset + rowBytes > destination.size()) {
+            GST_ERROR("Computed destinationOffset doesn't fit in destination plane");
+            return;
+        }
+
         memcpySpan(destination.subspan(destinationOffset, rowBytes), source.subspan(sourceOffset, rowBytes));
         sourceOffset += sourceStride;
         destinationOffset += spanPlaneLayout.destinationStride;
@@ -561,12 +576,29 @@ static void copyPlane(std::span<uint8_t>& destination, const std::span<uint8_t>&
 void VideoFrame::copyTo(std::span<uint8_t> destination, VideoPixelFormat pixelFormat, Vector<ComputedPlaneLayout>&& computedPlaneLayout, CompletionHandler<void(std::optional<Vector<PlaneLayout>>&&)>&& callback)
 {
     ensureVideoFrameDebugCategoryInitialized();
-    GstVideoInfo inputInfo;
-    auto sample = downcast<VideoFrameGStreamer>(*this).sample();
-    auto* inputBuffer = gst_sample_get_buffer(sample);
-    auto* inputCaps = gst_sample_get_caps(sample);
-    gst_video_info_from_caps(&inputInfo, inputCaps);
-    GstMappedFrame inputFrame(inputBuffer, &inputInfo, GST_MAP_READ);
+    auto& self = downcast<VideoFrameGStreamer>(*this);
+
+    GRefPtr<GstSample> inputSample;
+    switch (self.memoryType()) {
+    case VideoFrameGStreamer::MemoryType::Unsupported:
+        callback({ });
+        return;
+    case VideoFrameGStreamer::MemoryType::System:
+        inputSample = self.sample();
+        break;
+    case VideoFrameGStreamer::MemoryType::GL:
+    case VideoFrameGStreamer::MemoryType::DMABuf:
+        inputSample = self.downloadSample();
+        break;
+    }
+
+    if (!inputSample) {
+        GST_ERROR("Input sample is missing");
+        callback({ });
+        return;
+    }
+
+    GstMappedFrame inputFrame(inputSample, GST_MAP_READ);
     if (!inputFrame) {
         GST_WARNING("could not map the input frame");
         ASSERT_NOT_REACHED_WITH_MESSAGE("could not map the input frame");
@@ -647,8 +679,7 @@ void VideoFrame::copyTo(std::span<uint8_t> destination, VideoPixelFormat pixelFo
         ComputedPlaneLayout planeLayout;
         if (!computedPlaneLayout.isEmpty())
             planeLayout = computedPlaneLayout[0];
-        GstMappedBuffer mappedBuffer(inputBuffer, GST_MAP_READ);
-        auto plane = mappedBuffer.mutableSpan<uint8_t>();
+        auto plane = inputFrame.planeData(0);
         auto bytesPerRow = inputFrame.componentStride(0);
         copyPlane(destination, plane, bytesPerRow, planeLayout);
         Vector<PlaneLayout> planeLayouts;
@@ -750,7 +781,9 @@ void VideoFrameGStreamer::setMemoryTypeFromCaps()
     }
 #else
     m_memoryType = MemoryType::Unsupported;
+    return;
 #endif // USE(GSTREAMER_GL)
+    m_memoryType = MemoryType::System;
 }
 
 #if USE(GBM) && GST_CHECK_VERSION(1, 24, 0)

@@ -50,7 +50,7 @@
 #include "DocumentSyncClient.h"
 #include "DocumentType.h"
 #include "DocumentView.h"
-#include "Editing.h"
+#include "EditingInlines.h"
 #include "Editor.h"
 #include "EditorClient.h"
 #include "ElementInlines.h"
@@ -95,6 +95,7 @@
 #include "ProcessWarming.h"
 #include "RemoteFrame.h"
 #include "RenderLayerCompositor.h"
+#include "RenderObjectInlines.h"
 #include "RenderStyle+GettersInlines.h"
 #include "RenderTableCell.h"
 #include "RenderText.h"
@@ -380,6 +381,8 @@ void LocalFrame::frameDetached()
 
 bool LocalFrame::preventsParentFromBeingComplete() const
 {
+    if (loader().isWaitingForAsyncBackForwardNavigation())
+        return true;
     return !loader().isComplete() && (!ownerElement() || !ownerElement()->isLazyLoadObserverActive());
 }
 
@@ -537,7 +540,7 @@ String LocalFrame::searchForLabelsBeforeElement(const Vector<String>& labels, El
         if (is<HTMLFormElement>(*n))
             break;
 
-        if (RefPtr element = dynamicDowncast<Element>(*n); element && element->isValidatedFormListedElement())
+        if (auto* element = dynamicDowncast<Element>(*n); element && element->isValidatedFormListedElement())
             break;
 
         if (n->hasTagName(tdTag) && !startingTableCell)
@@ -747,24 +750,24 @@ FloatSize LocalFrame::resizePageRectsKeepingRatio(const FloatSize& originalSize,
 
 const UserContentProvider* LocalFrame::userContentProvider() const
 {
-    RefPtr document = this->document();
-    if (RefPtr documentLoader = document ? document->loader() : nullptr) {
+    auto* document = this->document();
+    if (auto* documentLoader = document ? document->loader() : nullptr) {
         if (auto* userContentProvider = documentLoader->preferences().userContentProvider.get())
             return userContentProvider;
     }
-    if (RefPtr page = this->page())
+    if (auto* page = this->page())
         return &page->userContentProviderForFrame();
     return nullptr;
 }
 
 UserContentProvider* LocalFrame::userContentProvider()
 {
-    RefPtr document = this->document();
-    if (RefPtr documentLoader = document ? document->loader() : nullptr) {
+    auto* document = this->document();
+    if (auto* documentLoader = document ? document->loader() : nullptr) {
         if (auto* userContentProvider = documentLoader->preferences().userContentProvider.get())
             return userContentProvider;
     }
-    if (RefPtr page = this->page())
+    if (auto* page = this->page())
         return &page->userContentProviderForFrame();
     return nullptr;
 }
@@ -868,7 +871,7 @@ void LocalFrame::clearTimers(LocalFrameView *view, Document *document)
     protect(view->layoutContext())->unscheduleLayout();
     if (CheckedPtr timelines = document->timelinesController())
         timelines->suspendAnimations();
-    protect(view->frame())->eventHandler().stopAutoscrollTimer();
+    view->frame().eventHandler().stopAutoscrollTimer();
 }
 
 void LocalFrame::clearTimers()
@@ -1110,29 +1113,12 @@ void LocalFrame::setPageAndTextZoomFactors(float pageZoomFactor, float textZoomF
     }
 }
 
-float LocalFrame::frameScaleFactor() const
+float LocalFrame::usedZoomForChild(const Frame& child) const
 {
-    RefPtr page = this->page();
+    if (CheckedPtr ownerRenderer = child.ownerRenderer())
+        return ownerRenderer->style().usedZoom();
 
-    if (!page)
-        return 1;
-
-    // https://github.com/w3c/csswg-drafts/issues/9644
-    // Check if this frame's owner element (iframe) has CSS zoom applied.
-    if (!isMainFrame()) {
-        auto rootZoom = rootFrame().pageZoomFactor();
-        if (RefPtr ownerElement = this->ownerElement()) {
-            if (auto* ownerRenderer = ownerElement->renderer())
-                return ownerRenderer->style().usedZoom() / rootZoom;
-        }
-        return rootZoom;
-    }
-
-    // Main frame is scaled with respect to the container.
-    if (page->delegatesScaling())
-        return 1;
-
-    return page->pageScaleFactor();
+    return 1.0;
 }
 
 void LocalFrame::suspendActiveDOMObjectsAndAnimations()
@@ -1177,8 +1163,8 @@ void LocalFrame::resumeActiveDOMObjectsAndAnimations()
 
 void LocalFrame::deviceOrPageScaleFactorChanged()
 {
-    for (RefPtr child = tree().firstChild(); child; child = child->tree().nextSibling()) {
-        if (RefPtr localFrame = dynamicDowncast<LocalFrame>(child.get()))
+    for (auto* child = tree().firstChild(); child; child = child->tree().nextSibling()) {
+        if (auto* localFrame = dynamicDowncast<LocalFrame>(child))
             localFrame->deviceOrPageScaleFactorChanged();
     }
 
@@ -1337,10 +1323,7 @@ void LocalFrame::frameWasDisconnectedFromOwner() const
     if (!m_doc)
         return;
 
-    if (RefPtr window = m_doc->window())
-        window->willDetachDocumentFromFrame();
-
-    protect(document())->detachFromFrame();
+    protect(document())->willBeRemovedFromFrame();
 }
 
 void LocalFrame::storageAccessExceptionReceivedForDomain(const RegistrableDomain& domain)
@@ -1375,7 +1358,7 @@ void LocalFrame::didAccessWindowProxyPropertyViaOpener(WindowProxyProperty prope
     if (m_accessedWindowProxyPropertiesViaOpener.contains(property))
         return;
 
-    auto origin = SecurityOriginData::fromFrame(this);
+    auto origin = SecurityOriginData::fromLocalFrame(this);
     if (origin.isNull() || origin.isOpaque())
         return;
 
@@ -1399,21 +1382,21 @@ void LocalFrame::didAccessWindowProxyPropertyViaOpener(WindowProxyProperty prope
 
 String LocalFrame::customUserAgent() const
 {
-    if (RefPtr documentLoader = loader().activeDocumentLoader())
+    if (auto* documentLoader = loader().activeDocumentLoader())
         return documentLoader->customUserAgent();
     return { };
 }
 
 String LocalFrame::customUserAgentAsSiteSpecificQuirks() const
 {
-    if (RefPtr documentLoader = loader().activeDocumentLoader())
+    if (auto* documentLoader = loader().activeDocumentLoader())
         return documentLoader->customUserAgentAsSiteSpecificQuirks();
     return { };
 }
 
 String LocalFrame::customNavigatorPlatform() const
 {
-    if (RefPtr documentLoader = loader().activeDocumentLoader())
+    if (auto* documentLoader = loader().activeDocumentLoader())
         return documentLoader->customNavigatorPlatform();
     return { };
 }
@@ -1427,7 +1410,7 @@ OptionSet<AdvancedPrivacyProtections> LocalFrame::advancedPrivacyProtections() c
 
 AutoplayPolicy LocalFrame::autoplayPolicy() const
 {
-    if (RefPtr documentLoader = loader().activeDocumentLoader())
+    if (auto* documentLoader = loader().activeDocumentLoader())
         return documentLoader->autoplayPolicy();
     return AutoplayPolicy::Default;
 }
@@ -1435,7 +1418,7 @@ AutoplayPolicy LocalFrame::autoplayPolicy() const
 SandboxFlags LocalFrame::effectiveSandboxFlags() const
 {
     auto effectiveSandboxFlags = m_sandboxFlags;
-    if (RefPtr document = this->document())
+    if (auto* document = this->document())
         effectiveSandboxFlags.add(document->sandboxFlags());
     return effectiveSandboxFlags;
 }

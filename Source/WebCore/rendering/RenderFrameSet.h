@@ -24,6 +24,7 @@
 #pragma once
 
 #include "RenderBox.h"
+#include <utility>
 
 namespace WebCore {
 
@@ -33,7 +34,7 @@ class RenderFrame;
 
 struct HTMLDimensionsListValue;
 
-enum FrameEdge { LeftFrameEdge, RightFrameEdge, TopFrameEdge, BottomFrameEdge };
+enum class FrameEdge : uint8_t { Left, Right, Top, Bottom };
 
 struct FrameEdgeInfo {
     explicit FrameEdgeInfo(bool preventResize = false, bool allowBorder = true)
@@ -42,11 +43,11 @@ struct FrameEdgeInfo {
     {
     }
 
-    bool preventResize(FrameEdge edge) const { return m_preventResize[edge]; }
-    bool allowBorder(FrameEdge edge) const { return m_allowBorder[edge]; }
+    bool preventResize(FrameEdge edge) const { return m_preventResize[std::to_underlying(edge)]; }
+    bool allowBorder(FrameEdge edge) const { return m_allowBorder[std::to_underlying(edge)]; }
 
-    void setPreventResize(FrameEdge edge, bool preventResize) { m_preventResize[edge] = preventResize; }
-    void setAllowBorder(FrameEdge edge, bool allowBorder) { m_allowBorder[edge] = allowBorder; }
+    void setPreventResize(FrameEdge edge, bool preventResize) { m_preventResize[std::to_underlying(edge)] = preventResize; }
+    void setAllowBorder(FrameEdge edge, bool allowBorder) { m_allowBorder[std::to_underlying(edge)] = allowBorder; }
 
 private:
     Vector<bool> m_preventResize;

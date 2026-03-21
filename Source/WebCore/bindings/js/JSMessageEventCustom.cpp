@@ -34,7 +34,10 @@
 
 #include "JSBlob.h"
 #include "JSDOMBinding.h"
-#include "JSDOMConvert.h"
+#include "JSDOMConvertBufferSource.h"
+#include "JSDOMConvertInterface.h"
+#include "JSDOMConvertSequences.h"
+#include "JSDOMConvertStrings.h"
 #include "JSEventTarget.h"
 #include "JSMessagePort.h"
 #include <JavaScriptCore/JSArray.h>
@@ -67,13 +70,13 @@ JSC::JSValue JSMessageEvent::data(JSC::JSGlobalObject& lexicalGlobalObject) cons
 }
 
 template<typename Visitor>
-void JSMessageEvent::visitAdditionalChildren(Visitor& visitor)
+void JSMessageEvent::visitAdditionalChildrenInGCThread(Visitor& visitor)
 {
-    wrapped().jsData().visit(visitor);
-    wrapped().cachedData().visit(visitor);
-    wrapped().cachedPorts().visit(visitor);
+    wrapped().jsData().visitInGCThread(visitor);
+    wrapped().cachedData().visitInGCThread(visitor);
+    wrapped().cachedPorts().visitInGCThread(visitor);
 }
 
-DEFINE_VISIT_ADDITIONAL_CHILDREN(JSMessageEvent);
+DEFINE_VISIT_ADDITIONAL_CHILDREN_IN_GC_THREAD(JSMessageEvent);
 
 } // namespace WebCore

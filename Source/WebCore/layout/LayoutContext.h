@@ -59,8 +59,8 @@ public:
 #endif
 
 private:
-    void layoutFormattingContextSubtree(const ElementBox&);
-    LayoutState& NODELETE layoutState();
+    void NODELETE layoutFormattingContextSubtree(const ElementBox&);
+    LayoutState& NODELETE layoutState() LIFETIME_BOUND;
 
     const CheckedRef<LayoutState> m_layoutState;
 };

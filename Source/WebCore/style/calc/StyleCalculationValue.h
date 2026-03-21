@@ -52,7 +52,7 @@ namespace Calculation {
 class Value : public RefCounted<Value> {
     WTF_DEPRECATED_MAKE_FAST_COMPACT_ALLOCATED(Value);
 public:
-    WEBCORE_EXPORT static Ref<Value> create(CSS::Category, CSS::Range, Tree&&);
+    WEBCORE_EXPORT static Ref<Value> NODELETE create(CSS::Category, CSS::Range, Tree&&);
     WEBCORE_EXPORT ~Value();
 
     double evaluate(double percentResolutionLength, const ZoomFactor& usedZoom) const;
@@ -61,7 +61,7 @@ public:
     CSS::Category category() const { return m_category; }
     CSS::Range range() const { return m_range; }
 
-    const Tree& tree() const { return m_tree; }
+    const Tree& tree() const LIFETIME_BOUND { return m_tree; }
     Tree copyTree() const;
     Child copyRoot() const;
 

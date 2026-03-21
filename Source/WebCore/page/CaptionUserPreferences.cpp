@@ -114,8 +114,8 @@ void CaptionUserPreferences::setCaptionDisplayMode(CaptionUserPreferences::Capti
 
 RefPtr<Page> CaptionUserPreferences::currentPage() const
 {
-    for (Ref page : m_pageGroup->pages())
-        return page;
+    for (auto& page : m_pageGroup->pages())
+        return &page;
     return nullptr;
 }
 
@@ -179,7 +179,7 @@ void CaptionUserPreferences::setUserPrefersTextDescriptions(bool preference)
 
 void CaptionUserPreferences::captionPreferencesChanged()
 {
-    CheckedRef { m_pageGroup.get() }->captionPreferencesChanged();
+    CheckedRef { m_pageGroup }->captionPreferencesChanged();
 }
 
 Vector<String> CaptionUserPreferences::preferredLanguages() const

@@ -151,7 +151,7 @@ void XMLDocumentParser::createLeafTextNode()
     ASSERT(!m_leafTextNode);
     m_leafTextNode = Text::create(protect(m_currentNode->document()), String { emptyString() });
     if (RefPtr currentNode = m_currentNode.get())
-        currentNode->parserAppendChild(*protectedLeafTextNode());
+        currentNode->parserAppendChild(*protect(m_leafTextNode));
 }
 
 bool XMLDocumentParser::updateLeafTextNode()
@@ -162,11 +162,12 @@ bool XMLDocumentParser::updateLeafTextNode()
     if (!m_leafTextNode)
         return true;
 
-    if (isXHTMLDocument())
-        protectedLeafTextNode()->parserAppendData(String::fromUTF8(m_bufferedText.span()));
-    else {
+    if (isXHTMLDocument()) {
+        StringBuilder buffer;
+        protect(m_leafTextNode)->parserAppendData(String::fromUTF8(m_bufferedText.span()), buffer);
+    } else {
         // This operation might fire mutation event, see below.
-        protectedLeafTextNode()->appendData(String::fromUTF8(m_bufferedText.span()));
+        protect(m_leafTextNode)->appendData(String::fromUTF8(m_bufferedText.span()));
     }
     m_bufferedText = { };
 
@@ -179,6 +180,7 @@ bool XMLDocumentParser::updateLeafTextNode()
 
 void XMLDocumentParser::detach()
 {
+    m_scriptWaitingForStylesheets = nullptr;
     clearCurrentNodeStack();
     ScriptableDocumentParser::detach();
 }
@@ -247,6 +249,31 @@ void XMLDocumentParser::notifyFinished(PendingScript& pendingScript)
     pendingScript.clearClient();
 
     pendingScript.element().executePendingScript(pendingScript);
+
+    if (!isDetached() && !m_requestingScript)
+        resumeParsing();
+}
+
+bool XMLDocumentParser::hasScriptsWaitingForStylesheets() const
+{
+    return !!m_scriptWaitingForStylesheets;
+}
+
+void XMLDocumentParser::executeScriptsWaitingForStylesheets()
+{
+    ASSERT(!isDetached());
+
+    RefPtr document = this->document();
+    if (document->styleScope().hasPendingSheets())
+        return;
+
+    ASSERT(m_scriptWaitingForStylesheets);
+
+    RefPtr pendingScript = std::exchange(m_scriptWaitingForStylesheets, nullptr);
+    if (!pendingScript)
+        return;
+
+    pendingScript->element().executePendingScript(*pendingScript);
 
     if (!isDetached() && !m_requestingScript)
         resumeParsing();

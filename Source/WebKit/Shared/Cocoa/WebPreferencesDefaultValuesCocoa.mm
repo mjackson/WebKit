@@ -84,6 +84,13 @@ bool defaultContentChangeObserverEnabled()
 }
 #endif
 
+#if HAVE(WEBCONTENTRESTRICTIONS_ASK_TO)
+bool NODELETE defaultWebContentRestrictionsAskToEnabled()
+{
+    return false;
+}
+#endif
+
 }
 
 #endif // namespace WebKit
@@ -157,7 +164,7 @@ bool defaultRemoveBackgroundEnabled()
 
 #endif // ENABLE(IMAGE_ANALYSIS)
 
-bool defaultTopContentInsetBackgroundCanChangeAfterScrolling()
+SUPPRESS_NODELETE bool defaultTopContentInsetBackgroundCanChangeAfterScrolling()
 {
 #if PLATFORM(IOS_FAMILY)
     return PAL::currentUserInterfaceIdiomIsSmallScreen();
@@ -182,7 +189,7 @@ bool defaultHostedBlurMaterialInMediaControlsEnabled()
 }
 #endif
 
-bool NODELETE defaultIOSurfaceLosslessCompressionEnabled()
+bool defaultIOSurfaceLosslessCompressionEnabled()
 {
 #if HAVE(COREVIDEO_COMPRESSED_PIXEL_FORMAT_TYPES) && HAVE(LOSSLESS_COMPRESSED_IOSURFACE_CG_SUPPORT)
 #define WK_CA_FEATURE_CG_COMPRESSED_IOSURFACES 15

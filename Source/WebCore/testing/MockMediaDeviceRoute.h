@@ -41,6 +41,11 @@ namespace WebCore {
 class MockMediaDeviceRoute : public RefCounted<MockMediaDeviceRoute> {
     WTF_MAKE_TZONE_ALLOCATED(MockMediaDeviceRoute);
 public:
+    struct TimeRange {
+        double start;
+        double duration;
+    };
+
     static Ref<MockMediaDeviceRoute> create();
 
     WebMediaDevicePlatformRoute *platformRoute() const;
@@ -53,8 +58,20 @@ public:
     bool ready() const;
     void setReady(bool);
 
+    bool playing() const;
+    void setPlaying(bool);
+
     bool hasPlaybackError() const;
     void setHasPlaybackError(bool);
+
+    float playbackRate() const;
+    void setPlaybackRate(float);
+
+    float currentPlaybackPosition() const;
+    void setCurrentPlaybackPosition(float);
+
+    TimeRange timeRange() const;
+    void setTimeRange(const TimeRange&);
 
 private:
     MockMediaDeviceRoute();

@@ -79,7 +79,7 @@ public:
 protected:
     AuthenticatorManager();
 
-    RunLoop::Timer& requestTimeOutTimer() { return m_requestTimeOutTimer; }
+    RunLoop::Timer& requestTimeOutTimer() LIFETIME_BOUND { return m_requestTimeOutTimer; }
     void clearStateAsync(); // To void cyclic dependence.
     void clearState();
     void invokePendingCompletionHandler(Respond&&);
@@ -91,7 +91,7 @@ protected:
     void startDiscovery(const TransportSet&);
 
 protected:
-    const Vector<Ref<AuthenticatorTransportService>>& services() const { return m_services; }
+    const Vector<Ref<AuthenticatorTransportService>>& services() const LIFETIME_BOUND { return m_services; }
 
 private:
     enum class Mode {

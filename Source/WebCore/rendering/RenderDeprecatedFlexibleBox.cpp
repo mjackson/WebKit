@@ -55,7 +55,7 @@ public:
         : m_box(parent)
         , m_largestOrdinal(1)
     {
-        if (m_box->style().boxOrient() == BoxOrient::Horizontal && !m_box->style().isLeftToRightDirection())
+        if (m_box->style().boxOrient() == BoxOrient::Horizontal && !m_box->style().writingMode().deprecatedIsLeftToRightDirection())
             m_forward = m_box->style().boxDirection() != BoxDirection::Normal;
         else
             m_forward = m_box->style().boxDirection() == BoxDirection::Normal;
@@ -116,7 +116,7 @@ public:
     }
 
 private:
-    bool notFirstOrdinalValue()
+    bool NODELETE notFirstOrdinalValue()
     {
         unsigned int firstOrdinalValue = m_forward ? 1 : m_largestOrdinal;
         return m_currentOrdinal == firstOrdinalValue && m_currentChild->style().boxOrdinalGroup() != firstOrdinalValue;
@@ -141,7 +141,7 @@ RenderDeprecatedFlexibleBox::RenderDeprecatedFlexibleBox(Element& element, Rende
 
 RenderDeprecatedFlexibleBox::~RenderDeprecatedFlexibleBox() = default;
 
-static LayoutUnit marginWidthForChild(RenderBox* child)
+static LayoutUnit NODELETE marginWidthForChild(RenderBox* child)
 {
     // A margin basically has three types: fixed, percentage, and auto (variable).
     // Auto and percentage margins simply become 0 when computing min/max width.
@@ -161,14 +161,14 @@ static bool NODELETE childDoesNotAffectWidthOrFlexing(RenderObject* child)
     return child->isOutOfFlowPositioned();
 }
 
-static LayoutUnit widthForChild(RenderBox* child)
+static LayoutUnit NODELETE widthForChild(RenderBox* child)
 {
     if (auto overridingLogicalWidth = child->overridingBorderBoxLogicalWidth())
         return *overridingLogicalWidth;
     return child->logicalWidth();
 }
 
-static LayoutUnit heightForChild(RenderBox* child)
+static LayoutUnit NODELETE heightForChild(RenderBox* child)
 {
     if (auto overridingLogicalHeight = child->overridingBorderBoxLogicalHeight())
         return *overridingLogicalHeight;
@@ -317,7 +317,7 @@ bool RenderDeprecatedFlexibleBox::hasClampingAndNoFlexing() const
         return false;
     if (style.overflowX() != Overflow::Hidden || style.overflowY() != Overflow::Hidden)
         return false;
-    if (style.boxAlign() != Style::ComputedStyle::initialBoxAlign() || !style.isLeftToRightDirection())
+    if (style.boxAlign() != Style::ComputedStyle::initialBoxAlign() || !style.writingMode().deprecatedIsLeftToRightDirection())
         return false;
     return true;
 }
@@ -669,8 +669,8 @@ void RenderDeprecatedFlexibleBox::layoutHorizontalBox(RelayoutChildren relayoutC
 
     endAndCommitUpdateScrollInfoAfterLayoutTransaction();
 
-    if (remainingSpace > 0 && ((style().isLeftToRightDirection() && style().boxPack() != BoxPack::Start)
-        || (!style().isLeftToRightDirection() && style().boxPack() != BoxPack::End))) {
+    if (remainingSpace > 0 && ((style().writingMode().deprecatedIsLeftToRightDirection() && style().boxPack() != BoxPack::Start)
+        || (!style().writingMode().deprecatedIsLeftToRightDirection() && style().boxPack() != BoxPack::End))) {
         // Children must be repositioned.
         LayoutUnit offset;
         if (style().boxPack() == BoxPack::Justify) {
@@ -831,13 +831,13 @@ void RenderDeprecatedFlexibleBox::layoutVerticalBox(RelayoutChildren relayoutChi
                 childX += child->marginLeft() + std::max<LayoutUnit>(0, (contentBoxWidth() - (child->width() + child->horizontalMarginExtent())) / 2);
                 break;
             case BoxAlignment::End:
-                if (!style().isLeftToRightDirection())
+                if (!style().writingMode().deprecatedIsLeftToRightDirection())
                     childX += child->marginLeft();
                 else
                     childX += contentBoxWidth() - child->marginRight() - child->width();
                 break;
             default: // BoxAlignment::Start/BoxAlignment::Stretch
-                if (style().isLeftToRightDirection())
+                if (style().writingMode().deprecatedIsLeftToRightDirection())
                     childX += child->marginLeft();
                 else
                     childX += contentBoxWidth() - child->marginRight() - child->width();

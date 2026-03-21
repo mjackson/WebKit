@@ -921,7 +921,7 @@ void testRotateFringeClobber()
     memset(things, 0, sizeof(things));
 
     // Make sure no scratches are available.
-    for (auto reg : RegisterSetBuilder::allGPRs()) {
+    for (auto reg : RegisterSet::allGPRs()) {
         if (reg == GPRInfo::regT0
             || reg == GPRInfo::regT1
             || reg == GPRInfo::regT2
@@ -932,7 +932,7 @@ void testRotateFringeClobber()
             || reg == GPRInfo::regT7
             || reg == GPRInfo::regCS0)
             continue;
-        if (RegisterSetBuilder::specialRegisters().contains(reg, IgnoreVectors))
+        if (RegisterSet::specialRegisters().contains(reg, IgnoreVectors))
             continue;
         code.pinRegister(reg);
     }
@@ -1955,7 +1955,7 @@ void testInvalidateCachedTempRegisters()
 
     // In Patchpoint, Load things[0] -> tmp. This will materialize the address in x17 (dataMemoryRegister).
     B3::PatchpointValue* patchpoint1 = patchPoint1Root->appendNew<B3::PatchpointValue>(proc, B3::Void, B3::Origin());
-    patchpoint1->clobber(RegisterSetBuilder::macroClobberedGPRs());
+    patchpoint1->clobber(RegisterSet::macroClobberedGPRs());
     patchpoint1->setGenerator(
         [=] (CCallHelpers& jit, const B3::StackmapGenerationParams&) {
             AllowMacroScratchRegisterUsage allowScratch(jit);
@@ -1970,7 +1970,7 @@ void testInvalidateCachedTempRegisters()
     // In Patchpoint, Load things[2] -> tmp. This should not reuse the prior contents of x17.
     B3::BasicBlock* patchPoint2Root = proc.addBlock();
     B3::PatchpointValue* patchpoint2 = patchPoint2Root->appendNew<B3::PatchpointValue>(proc, B3::Void, B3::Origin());
-    patchpoint2->clobber(RegisterSetBuilder::macroClobberedGPRs());
+    patchpoint2->clobber(RegisterSet::macroClobberedGPRs());
     patchpoint2->setGenerator(
         [=] (CCallHelpers& jit, const B3::StackmapGenerationParams&) {
             AllowMacroScratchRegisterUsage allowScratch(jit);
@@ -1984,7 +1984,7 @@ void testInvalidateCachedTempRegisters()
     // This will use and cache both x16 (dataMemoryRegister) and x17 (dataTempRegister).
     B3::BasicBlock* patchPoint3Root = proc.addBlock();
     B3::PatchpointValue* patchpoint3 = patchPoint3Root->appendNew<B3::PatchpointValue>(proc, B3::Void, B3::Origin());
-    patchpoint3->clobber(RegisterSetBuilder::macroClobberedGPRs());
+    patchpoint3->clobber(RegisterSet::macroClobberedGPRs());
     patchpoint3->setGenerator(
         [=] (CCallHelpers& jit, const B3::StackmapGenerationParams&) {
             AllowMacroScratchRegisterUsage allowScratch(jit);
@@ -2000,7 +2000,7 @@ void testInvalidateCachedTempRegisters()
     // This should rematerialize both x16 (dataMemoryRegister) and x17 (dataTempRegister).
     B3::BasicBlock* patchPoint4Root = proc.addBlock();
     B3::PatchpointValue* patchpoint4 = patchPoint4Root->appendNew<B3::PatchpointValue>(proc, B3::Void, B3::Origin());
-    patchpoint4->clobber(RegisterSetBuilder::macroClobberedGPRs());
+    patchpoint4->clobber(RegisterSet::macroClobberedGPRs());
     patchpoint4->setGenerator(
         [=] (CCallHelpers& jit, const B3::StackmapGenerationParams&) {
             AllowMacroScratchRegisterUsage allowScratch(jit);
@@ -2030,7 +2030,7 @@ void testArgumentRegPinned()
 
     B3::BasicBlock* b3Root = proc.addBlock();
     B3::PatchpointValue* patchpoint = b3Root->appendNew<B3::PatchpointValue>(proc, B3::Void, B3::Origin());
-    patchpoint->clobber(RegisterSetBuilder(pinned));
+    patchpoint->clobber(RegisterSet(pinned));
     patchpoint->setGenerator(
         [=] (CCallHelpers& jit, const B3::StackmapGenerationParams&) {
             jit.move(CCallHelpers::TrustedImm32(42), pinned);
@@ -2100,7 +2100,7 @@ void testArgumentRegPinned3()
 
     B3::BasicBlock* b3Root = proc.addBlock();
     B3::PatchpointValue* patchpoint = b3Root->appendNew<B3::PatchpointValue>(proc, B3::Void, B3::Origin());
-    patchpoint->clobber(RegisterSetBuilder(pinned));
+    patchpoint->clobber(RegisterSet(pinned));
     patchpoint->setGenerator(
         [=] (CCallHelpers& jit, const B3::StackmapGenerationParams&) {
             jit.move(CCallHelpers::TrustedImm32(42), pinned);
@@ -2220,21 +2220,21 @@ void testElideHandlesEarlyClobber()
 
     BasicBlock* root = code.addBlock();
 
-    const unsigned tmpCount = RegisterSetBuilder::allGPRs().numberOfSetRegisters() * 2;
+    const unsigned tmpCount = RegisterSet::allGPRs().numberOfSetRegisters() * 2;
     Vector<Tmp> tmps(tmpCount);
     for (unsigned i = 0; i < tmpCount; ++i) {
         tmps[i] = code.newTmp(B3::GP);
         root->append(Move, nullptr, Arg::imm(i), tmps[i]);
     }
 
-    RegisterSetBuilder registers = RegisterSetBuilder::allGPRs();
-    registers.exclude(RegisterSetBuilder::reservedHardwareRegisters());
-    registers.exclude(RegisterSetBuilder::stackRegisters());
+    RegisterSet registers = RegisterSet::allGPRs();
+    registers.exclude(RegisterSet::reservedHardwareRegisters());
+    registers.exclude(RegisterSet::stackRegisters());
     Reg firstCalleeSave;
     Reg lastCalleeSave;
     auto* patch = proc.add<B3::PatchpointValue>(B3::Int32, B3::Origin());
     patch->clobberEarly(registers);
-    for (Reg reg : registers.buildAndValidate()) {
+    for (Reg reg : registers) {
         if (!firstCalleeSave)
             firstCalleeSave = reg;
         lastCalleeSave = reg;
@@ -2243,11 +2243,11 @@ void testElideHandlesEarlyClobber()
     patch->earlyClobbered().remove(firstCalleeSave);
     patch->resultConstraints.append({ B3::ValueRep::reg(firstCalleeSave) });
     patch->earlyClobbered().remove(lastCalleeSave);
-    patch->clobber(RegisterSetBuilder(lastCalleeSave));
+    patch->clobber(RegisterSet(lastCalleeSave));
 
     patch->setGenerator([=] (CCallHelpers& jit, const JSC::B3::StackmapGenerationParams&) {
         jit.probeDebug([=] (Probe::Context& context) {
-            for (Reg reg : registers.buildAndValidate())
+            for (Reg reg : registers)
                 context.gpr(reg.gpr()) = 0;
         });
     });
@@ -2270,11 +2270,11 @@ void testElideHandlesEarlyClobber()
 
 void testElideMoveThenRealloc()
 {
-    RegisterSetBuilder registers = RegisterSetBuilder::allGPRs();
-    registers.exclude(RegisterSetBuilder::stackRegisters());
-    registers.exclude(RegisterSetBuilder::reservedHardwareRegisters());
+    RegisterSet registers = RegisterSet::allGPRs();
+    registers.exclude(RegisterSet::stackRegisters());
+    registers.exclude(RegisterSet::reservedHardwareRegisters());
 
-    for (Reg reg : registers.buildAndValidate()) {
+    for (Reg reg : registers) {
         B3::Procedure proc;
         Code& code = proc.code();
 
@@ -2464,8 +2464,6 @@ void testLinearScanSpillRangesEarlyDef()
 #if USE(JSVALUE64)
 void testZDefOfSpillSlotWithOffsetNeedingToBeMaterializedInARegister()
 {
-    if (Options::defaultB3OptLevel() == 2)
-        return;
 
     B3::Procedure proc;
     Code& code = proc.code();
@@ -2498,10 +2496,105 @@ void testZDefOfSpillSlotWithOffsetNeedingToBeMaterializedInARegister()
     CHECK(result == (numberOfLiveTmps * (numberOfLiveTmps - 1)) / 2);
 }
 
+void testStackSlotSharingWithNonInterferingSlots()
+{
+    // O0 uses a simple stack allocator that gives every slot a unique offset — no sharing.
+    // This test verifies the graph coloring stack allocator's sharing, which is used at O1+.
+    if (!Options::defaultB3OptLevel())
+        return;
+
+    B3::Procedure proc;
+    Code& code = proc.code();
+    BasicBlock* root = code.addBlock();
+
+    // "interfering" tmps are live across both phases — they interfere with all other tmps.
+    // "non-interfering" tmps per phase — phase 1 and phase 2 tmps don't interfere with each other.
+    // Choose values large enough to force spilling.
+    unsigned numberOfInterferingTmps = 200;
+    unsigned numberOfNonInterferingTmpsPerPhase = 200;
+
+    // Initialize shared tmps with values 0..numberOfInterferingTmps-1.
+    Vector<Tmp> sharedTmps;
+    Tmp counter = code.newTmp(GP);
+    root->append(Move, nullptr, Arg::imm(0), counter);
+    for (unsigned i = 0; i < numberOfInterferingTmps; ++i) {
+        Tmp tmp = code.newTmp(GP);
+        sharedTmps.append(tmp);
+        root->append(Move, nullptr, counter, tmp);
+        root->append(Add64, nullptr, Arg::imm(1), counter);
+    }
+
+    // Phase 1: create all local tmps first (so they're all simultaneously live), then consume them.
+    Vector<Tmp> phase1Tmps;
+    Tmp result = code.newTmp(GP);
+    Tmp loadResult = code.newTmp(GP);
+    root->append(Move, nullptr, Arg::imm(0), result);
+    for (unsigned i = 0; i < numberOfNonInterferingTmpsPerPhase; ++i) {
+        Tmp tmp = code.newTmp(GP);
+        phase1Tmps.append(tmp);
+        root->append(Move, nullptr, counter, tmp);
+        root->append(Add64, nullptr, Arg::imm(1), counter);
+    }
+    for (auto tmp : phase1Tmps) {
+        root->append(Move, nullptr, tmp, loadResult);
+        root->append(Add64, nullptr, loadResult, result);
+    }
+    // Phase 1 locals are now dead.
+
+    // Phase 2: same pattern — all local tmps live simultaneously, then consumed.
+    Vector<Tmp> phase2Tmps;
+    for (unsigned i = 0; i < numberOfNonInterferingTmpsPerPhase; ++i) {
+        Tmp tmp = code.newTmp(GP);
+        phase2Tmps.append(tmp);
+        root->append(Move, nullptr, counter, tmp);
+        root->append(Add64, nullptr, Arg::imm(1), counter);
+    }
+    for (auto tmp : phase2Tmps) {
+        root->append(Move, nullptr, tmp, loadResult);
+        root->append(Add64, nullptr, loadResult, result);
+    }
+    // Phase 2 locals are now dead.
+
+    // Use all shared tmps — they're still live, proving they interfere with both phases.
+    for (auto tmp : sharedTmps) {
+        root->append(Move, nullptr, tmp, loadResult);
+        root->append(Add64, nullptr, loadResult, result);
+    }
+
+    root->append(Move, nullptr, result, Tmp(GPRInfo::returnValueGPR));
+    root->append(Ret64, nullptr, Tmp(GPRInfo::returnValueGPR));
+
+    // Compile and check correctness.
+    prepareForGeneration(code);
+
+    // Verify frame size reflects sharing: phase 1 and phase 2 non-interfering tmps should share stack space.
+    // Without sharing: need space for numberOfInterferingTmps + 2*numberOfNonInterferingTmpsPerPhase spilled slots.
+    // With sharing: need space for only numberOfInterferingTmps + numberOfNonInterferingTmpsPerPhase spilled slots.
+    // Some tmps will be register-allocated rather than spilled, so account for that.
+    unsigned numGPRs = RegisterSet::allGPRs().numberOfSetRegisters();
+    unsigned minFrameSize = (numberOfInterferingTmps - numGPRs) * 8 + stackAdjustmentForAlignment();
+    // Allow some slack for callee-save slots and helper tmps that may spill.
+    unsigned slackSlots = numGPRs;
+    unsigned maxFrameSizeWithSharing = (numberOfInterferingTmps + numberOfNonInterferingTmpsPerPhase + slackSlots) * 8 + stackAdjustmentForAlignment();
+    CHECK(code.frameSize() >= minFrameSize);
+    CHECK(code.frameSize() <= maxFrameSizeWithSharing);
+
+    // Also verify the computed result is correct (no stack corruption).
+    unsigned total = numberOfInterferingTmps + 2 * numberOfNonInterferingTmpsPerPhase;
+    uint64_t expectedResult = static_cast<uint64_t>(total) * (total - 1) / 2;
+
+    CCallHelpers jit;
+    generate(code, jit);
+    LinkBuffer linkBuffer(jit, nullptr);
+    auto compilation = makeUnique<Compilation>(
+        FINALIZE_CODE(linkBuffer, JITCompilationPtrTag, nullptr, "testair compilation"), proc.releaseByproducts());
+    CHECK(invoke<uint64_t>(*compilation) == expectedResult);
+}
+
 void testEarlyAndLateUseOfSameTmp()
 {
     WeakRandom weakRandom;
-    size_t numTmps = RegisterSetBuilder::allGPRs().numberOfSetRegisters();
+    size_t numTmps = RegisterSet::allGPRs().numberOfSetRegisters();
     int64_t expectedResult = 0;
     for (size_t i = 0; i < numTmps; ++i)
         expectedResult += i;
@@ -2529,9 +2622,9 @@ void testEarlyAndLateUseOfSameTmp()
             B3::PatchpointValue* patchpoint = proc.add<B3::PatchpointValue>(B3::Void, B3::Origin());
             patchpoint->append(dummyValue, B3::ValueRep::SomeRegister);
             patchpoint->append(dummyValue, B3::ValueRep::SomeLateRegister);
-            patchpoint->clobberLate(RegisterSetBuilder::registersToSaveForJSCall(RegisterSetBuilder::allScalarRegisters()));
+            patchpoint->clobberLate(RegisterSet::registersToSaveForJSCall(RegisterSet::allScalarRegisters()));
             patchpoint->setGenerator([=] (CCallHelpers& jit, const B3::StackmapGenerationParams& params) {
-                RELEASE_ASSERT(!RegisterSetBuilder::registersToSaveForJSCall(RegisterSetBuilder::allScalarRegisters()).buildWithLowerBits().contains(params[1].gpr(), IgnoreVectors));
+                RELEASE_ASSERT(!RegisterSet::registersToSaveForJSCall(RegisterSet::allScalarRegisters()).normalizeWidths().contains(params[1].gpr(), IgnoreVectors));
 
                 auto good = jit.branch64(CCallHelpers::Equal, params[1].gpr(), CCallHelpers::TrustedImm32(rand));
                 jit.breakpoint();
@@ -2563,7 +2656,7 @@ void testEarlyAndLateUseOfSameTmp()
 void testEarlyClobberInterference()
 {
     WeakRandom weakRandom;
-    size_t numTmps = RegisterSetBuilder::allGPRs().numberOfSetRegisters();
+    size_t numTmps = RegisterSet::allGPRs().numberOfSetRegisters();
     int64_t expectedResult = 0;
     for (size_t i = 0; i < numTmps; ++i)
         expectedResult += i;
@@ -2590,9 +2683,9 @@ void testEarlyClobberInterference()
 
             B3::PatchpointValue* patchpoint = proc.add<B3::PatchpointValue>(B3::Void, B3::Origin());
             patchpoint->append(dummyValue, B3::ValueRep::SomeRegister);
-            patchpoint->clobberEarly(RegisterSetBuilder::registersToSaveForJSCall(RegisterSetBuilder::allScalarRegisters()));
+            patchpoint->clobberEarly(RegisterSet::registersToSaveForJSCall(RegisterSet::allScalarRegisters()));
             patchpoint->setGenerator([=] (CCallHelpers& jit, const B3::StackmapGenerationParams& params) {
-                RELEASE_ASSERT(!RegisterSetBuilder::registersToSaveForJSCall(RegisterSetBuilder::allScalarRegisters()).buildWithLowerBits().contains(params[0].gpr(), IgnoreVectors));
+                RELEASE_ASSERT(!RegisterSet::registersToSaveForJSCall(RegisterSet::allScalarRegisters()).normalizeWidths().contains(params[0].gpr(), IgnoreVectors));
 
                 auto good = jit.branch64(CCallHelpers::Equal, params[0].gpr(), CCallHelpers::TrustedImm32(rand));
                 jit.breakpoint();
@@ -2981,6 +3074,7 @@ void run(const char* filter)
     RUN(testMulDoubleZeroWithOther());
 
     RUN(testZDefOfSpillSlotWithOffsetNeedingToBeMaterializedInARegister());
+    RUN(testStackSlotSharingWithNonInterferingSlots());
 
     RUN(testEarlyAndLateUseOfSameTmp());
     RUN(testEarlyClobberInterference());

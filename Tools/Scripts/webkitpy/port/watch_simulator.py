@@ -37,7 +37,11 @@ class WatchSimulatorPort(EmbeddedSimulatorPort, WatchPort):
     DEFAULT_ARCHITECTURE = 'i386'
 
     DEFAULT_DEVICE_TYPES = [DeviceType(hardware_family='Apple Watch', hardware_type='Series 9 - 45mm')]
-    SDK = apple_additions().get_sdk('watchsimulator') if apple_additions() else 'watchsimulator'
+    _DEFAULT_SDK = 'watchsimulator'
+
+    @property
+    def SDK(self):
+        return apple_additions().get_sdk(self._DEFAULT_SDK) if apple_additions() else self._DEFAULT_SDK
 
     def architecture(self):
         result = self.get_option('architecture') or self.host.platform.architecture()

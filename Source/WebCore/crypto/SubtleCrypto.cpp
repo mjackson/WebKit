@@ -52,6 +52,9 @@
 #include "JSCryptoAlgorithmParameters.h"
 #include "JSCryptoKey.h"
 #include "JSCryptoKeyPair.h"
+#include "JSDOMConvertBoolean.h"
+#include "JSDOMConvertDictionary.h"
+#include "JSDOMConvertInterface.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSDOMWrapper.h"
 #include "JSEcKeyParams.h"
@@ -70,6 +73,7 @@
 #include "Settings.h"
 #include <JavaScriptCore/ConsoleTypes.h>
 #include <JavaScriptCore/JSONObject.h>
+#include <JavaScriptCore/ObjectConstructor.h>
 #include <wtf/text/WTFString.h>
 
 namespace WebCore {
@@ -430,7 +434,7 @@ static ExceptionOr<std::unique_ptr<CryptoAlgorithmParameters>> normalizeCryptoAl
     RELEASE_ASSERT_NOT_REACHED();
 }
 
-static CryptoKeyUsageBitmap toCryptoKeyUsageBitmap(CryptoKeyUsage usage)
+static CryptoKeyUsageBitmap NODELETE toCryptoKeyUsageBitmap(CryptoKeyUsage usage)
 {
     switch (usage) {
     case CryptoKeyUsage::Encrypt:
@@ -454,7 +458,7 @@ static CryptoKeyUsageBitmap toCryptoKeyUsageBitmap(CryptoKeyUsage usage)
     RELEASE_ASSERT_NOT_REACHED();
 }
 
-static CryptoKeyUsageBitmap toCryptoKeyUsageBitmap(const Vector<CryptoKeyUsage>& usages)
+static CryptoKeyUsageBitmap NODELETE toCryptoKeyUsageBitmap(const Vector<CryptoKeyUsage>& usages)
 {
     CryptoKeyUsageBitmap result = 0;
     // Maybe we shouldn't silently bypass duplicated usages?
@@ -495,7 +499,7 @@ static void rejectWithException(Ref<DeferredPromise>&& passedPromise, ExceptionC
     ASSERT_NOT_REACHED();
 }
 
-static void normalizeJsonWebKey(JsonWebKey& webKey)
+static void NODELETE normalizeJsonWebKey(JsonWebKey& webKey)
 {
     // Maybe we shouldn't silently bypass duplicated usages?
     webKey.usages = webKey.key_ops ? toCryptoKeyUsageBitmap(webKey.key_ops.value()) : 0;
@@ -541,7 +545,7 @@ static Vector<uint8_t> copyToVector(BufferSource&& data)
     return data.span();
 }
 
-static bool isSupportedExportKey(CryptoAlgorithmIdentifier identifier)
+static bool NODELETE isSupportedExportKey(CryptoAlgorithmIdentifier identifier)
 {
     switch (identifier) {
     case CryptoAlgorithmIdentifier::AES_CFB:

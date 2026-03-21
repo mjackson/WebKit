@@ -32,6 +32,8 @@
 #include "DocumentMarkerController.h"
 #include "DocumentView.h"
 #include "FloatQuad.h"
+#include "FontCascadeFonts.h"
+#include "FontCascadeInlines.h"
 #include "Hyphenation.h"
 #include "InlineIteratorBoxInlines.h"
 #include "InlineIteratorLineBoxInlines.h"
@@ -118,7 +120,7 @@ private:
 
 using SecureTextTimerMap = SingleThreadWeakHashMap<RenderText, std::unique_ptr<SecureTextTimer>>;
 
-static SecureTextTimerMap& secureTextTimers()
+static SecureTextTimerMap& NODELETE secureTextTimers()
 {
     static NeverDestroyed<SecureTextTimerMap> map;
     return map.get();

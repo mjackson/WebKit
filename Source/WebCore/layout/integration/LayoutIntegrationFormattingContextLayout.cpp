@@ -130,7 +130,7 @@ static inline void populateIFCWithNewlyPlacedFloats(auto& blockRenderer, auto& p
     }
 }
 
-static inline void updateRenderTreeLegacyLineClamp(auto& inlineLayoutState, auto& renderTreeLayoutState)
+static inline void NODELETE updateRenderTreeLegacyLineClamp(auto& inlineLayoutState, auto& renderTreeLayoutState)
 {
     auto& parentBlockLayoutState = inlineLayoutState.parentBlockLayoutState();
 
@@ -143,7 +143,7 @@ static inline void updateRenderTreeLegacyLineClamp(auto& inlineLayoutState, auto
     renderTreeLayoutState.setLegacyLineClamp(legacyLineClamp);
 }
 
-static inline void udpdateIFCLineClamp(auto& inlineLayoutState, auto& renderTreeLayoutState)
+static inline void NODELETE udpdateIFCLineClamp(auto& inlineLayoutState, auto& renderTreeLayoutState)
 {
     auto& parentBlockLayoutState = inlineLayoutState.parentBlockLayoutState();
 
@@ -187,16 +187,25 @@ void layoutWithFormattingContextForBlockInInline(const Layout::ElementBox& block
         updater.updateBoxGeometryAfterIntegrationLayout(block, rootBlockContainer->contentBoxLogicalWidth());
 
         auto& blockGeometry = layoutState.ensureGeometryForBox(block);
-        auto resolvedMarginBefore = positionAndMargin.childLogicalTop - blockLineLogicalTopLeft.y();
-        blockGeometry.setTopLeft(LayoutPoint { blockGeometry.marginStart(), resolvedMarginBefore });
-        // We don't know what the after margin here is (or if there's any at all) before processing the content after.
-        // FIXME: Check if blockGeometry needs the adjusted margin after value at all.
-        blockGeometry.setVerticalMargin({ resolvedMarginBefore, { } });
+        auto borderBoxTop = LayoutUnit { };
+
+        auto contentOffsetAfterSelfCollapsingBlock = blockRenderer->isSelfCollapsingBlock() ? positionAndMargin.childLogicalTop - positionAndMargin.containerLogicalBottom : 0_lu;
+        if (contentOffsetAfterSelfCollapsingBlock) {
+            // This is where "next line top position" diverges from "current line's bottom".
+            // See the last paragraph at https://www.w3.org/TR/CSS22/box.html#collapsing-margins
+            // Instead of stretching the line box (by setting margin on the box) let's simply offset the box.
+            // In practical terms, this means the starting position of the next line may not align exactly with where the bottom of the block ends.
+            borderBoxTop = contentOffsetAfterSelfCollapsingBlock;
+            blockGeometry.setVerticalMargin({ { }, { } });
+        } else {
+            borderBoxTop = positionAndMargin.childLogicalTop - blockLineLogicalTopLeft.y();
+            blockGeometry.setVerticalMargin({ borderBoxTop, { } });
+        }
+        blockGeometry.setTopLeft(LayoutPoint { blockGeometry.marginStart(), borderBoxTop });
 
         udpdateIFCLineClamp(inlineLayoutState, renderTreeLayoutState);
         populateIFCWithNewlyPlacedFloats(blockRenderer.get(), placedFloats, blockLineLogicalTopLeft);
-        auto contentOffsetAfterSelfCollapsingBlock = blockRenderer->isSelfCollapsingBlock() ? positionAndMargin.containerLogicalBottom - positionAndMargin.childLogicalTop : 0_lu;
-        parentBlockLayoutState.marginState() = Layout::IntegrationUtils::toMarginState(positionAndMargin.marginInfo, contentOffsetAfterSelfCollapsingBlock);
+        parentBlockLayoutState.marginState() = Layout::IntegrationUtils::toMarginState(positionAndMargin.marginInfo);
     };
     updateIFCAfterLayout();
 }

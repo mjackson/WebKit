@@ -29,6 +29,7 @@
 #include "ElementInlines.h"
 #include "HTMLSlotElement.h"
 #include "InspectorInstrumentation.h"
+#include "RenderStyle+GettersInlines.h"
 #include "RenderTreeUpdater.h"
 #include "ShadowRoot.h"
 #include "TypedElementDescendantIteratorInlines.h"
@@ -58,7 +59,7 @@ static const AtomString& NODELETE slotNameFromAttributeValue(const AtomString& v
     return value == nullAtom() ? NamedSlotAssignment::defaultSlotName() : value;
 }
 
-static const AtomString& slotNameFromSlotAttribute(const Node& child)
+static const AtomString& NODELETE slotNameFromSlotAttribute(const Node& child)
 {
     if (is<Text>(child))
         return NamedSlotAssignment::defaultSlotName();
@@ -84,7 +85,7 @@ static HTMLSlotElement* nextSlotElementSkippingSubtree(ContainerNode& startingNo
             return NodeTraversal::nextSkippingChildren(node);
         return NodeTraversal::next(node);
     };
-    for (RefPtr node = nextNode(startingNode); node; node = nextNode(*node)) {
+    for (auto* node = nextNode(startingNode); node; node = nextNode(*node)) {
         if (auto* slotElement = dynamicDowncast<HTMLSlotElement>(*node))
             return slotElement;
     }
@@ -397,7 +398,7 @@ void NamedSlotAssignment::willRemoveAssignedNode(Node& node, ShadowRoot&)
     InspectorInstrumentation::didChangeAssignedSlot(node);
 }
 
-const AtomString& NamedSlotAssignment::slotNameForHostChild(const Node& child) const
+const AtomString& NODELETE NamedSlotAssignment::slotNameForHostChild(const Node& child) const
 {
     return slotNameFromSlotAttribute(child);
 }
@@ -457,11 +458,11 @@ void NamedSlotAssignment::assignToSlot(Node& child, const AtomString& slotName)
 
 HTMLSlotElement* ManualSlotAssignment::findAssignedSlot(const Node& node)
 {
-    RefPtr slot = node.manuallyAssignedSlot();
+    auto* slot = node.manuallyAssignedSlot();
     if (!slot)
         return nullptr;
-    RefPtr containingShadowRoot = slot->containingShadowRoot();
-    return containingShadowRoot && containingShadowRoot->host() == node.parentNode() ? slot.unsafeGet() : nullptr;
+    auto* containingShadowRoot = slot->containingShadowRoot();
+    return containingShadowRoot && containingShadowRoot->host() == node.parentNode() ? slot : nullptr;
 }
 
 static Vector<WeakPtr<Node, WeakPtrImplWithEventTargetData>> effectiveAssignedNodes(ShadowRoot& shadowRoot, const Vector<WeakPtr<Node, WeakPtrImplWithEventTargetData>>& manuallyAssingedNodes)
@@ -493,7 +494,7 @@ void ManualSlotAssignment::renameSlotElement(HTMLSlotElement&, const AtomString&
 void ManualSlotAssignment::addSlotElementByName(const AtomString&, HTMLSlotElement& slot, ShadowRoot& shadowRoot)
 {
     if (!m_slotElementCount)
-        protect(shadowRoot.host())->setHasShadowRootContainingSlots(true);
+        shadowRoot.host()->setHasShadowRootContainingSlots(true);
     ++m_slotElementCount;
     ++m_slottableVersion;
 

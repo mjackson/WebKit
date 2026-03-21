@@ -20,8 +20,8 @@
 
 #pragma once
 
-#include <WebCore/SimpleRange.h>
-#include <WebCore/TextChecking.h>
+#include "SimpleRange.h"
+#include "TextChecking.h"
 
 namespace WebCore {
 
@@ -62,11 +62,11 @@ public:
     bool isCheckingRangeCoveredBy(CharacterRange range) const { return range.location <= checkingStart() && range.location + range.length >= checkingStart() + checkingLength(); }
     bool checkingRangeCovers(CharacterRange range) const { return range.location < checkingEnd() && range.location + range.length > checkingStart(); }
 
-    const SimpleRange& paragraphRange() const;
+    const SimpleRange& paragraphRange() const LIFETIME_BOUND;
 
 private:
     void invalidateParagraphRangeValues();
-    const SimpleRange& offsetAsRange() const;
+    const SimpleRange& offsetAsRange() const LIFETIME_BOUND;
 
     SimpleRange m_checkingRange;
     SimpleRange m_automaticReplacementRange;
@@ -106,7 +106,7 @@ private:
     enum class Operation : bool { FindFirst, MarkAll };
     std::pair<MisspelledWord, std::optional<SimpleRange>> findMisspelledWords(Operation) const; // Returns the first.
     UngrammaticalPhrase findUngrammaticalPhrases(Operation) const; // Returns the first.
-    bool unifiedTextCheckerEnabled() const;
+    bool NODELETE unifiedTextCheckerEnabled() const;
     int findUngrammaticalPhrases(Operation, const Vector<GrammarDetail>&, uint64_t badGrammarPhraseLocation, uint64_t startOffset, uint64_t endOffset) const;
 
     WeakRef<EditorClient> m_client;
@@ -116,7 +116,7 @@ private:
 void checkTextOfParagraph(TextCheckerClient&, StringView, OptionSet<TextCheckingType>, Vector<TextCheckingResult>&, const VisibleSelection& currentSelection);
 
 bool unifiedTextCheckerEnabled(const LocalFrame*);
-bool platformDrivenTextCheckerEnabled();
+bool NODELETE platformDrivenTextCheckerEnabled();
 bool platformOrClientDrivenTextCheckerEnabled();
 
 } // namespace WebCore

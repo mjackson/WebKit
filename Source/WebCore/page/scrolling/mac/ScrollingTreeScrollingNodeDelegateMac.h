@@ -60,6 +60,7 @@ public:
 
     bool isRubberBandInProgress() const;
     void startRubberBandSnapBack();
+    void rubberBandTargetOffsetDidChange();
 
 #if HAVE(RUBBER_BANDING)
     std::optional<RubberbandingState> captureRubberbandingState() const final;

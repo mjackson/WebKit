@@ -87,7 +87,7 @@ AudioVideoRendererAVFObjC::AudioVideoRendererAVFObjC(const Logger& originalLogge
     : m_logger(originalLogger)
     , m_logIdentifier(logSiteIdentifier)
     , m_videoLayerManager(makeUniqueRef<VideoLayerManagerObjC>(originalLogger, logSiteIdentifier))
-    , m_synchronizer([adoptNS(PAL::allocAVSampleBufferRenderSynchronizerInstance()) init])
+    , m_synchronizer(adoptNS([PAL::allocAVSampleBufferRenderSynchronizerInstance() init]))
     , m_listener(WebAVSampleBufferListener::create(*this))
     , m_startupTime(MonotonicTime::now())
 #if ENABLE(ENCRYPTED_MEDIA) && HAVE(AVCONTENTKEYSESSION)
@@ -155,7 +155,7 @@ void AudioVideoRendererAVFObjC::setHasProtectedVideoContent(bool protectedConten
         updateDisplayLayerIfNeeded();
 }
 
-TracksRendererManager::TrackIdentifier AudioVideoRendererAVFObjC::addTrack(TrackType type)
+std::optional<TracksRendererManager::TrackIdentifier> AudioVideoRendererAVFObjC::addTrack(TrackType type)
 {
     auto identifier = TrackIdentifier::generate();
     m_trackTypes.add(identifier, type);
@@ -174,8 +174,7 @@ TracksRendererManager::TrackIdentifier AudioVideoRendererAVFObjC::addTrack(Track
         addAudioRenderer(identifier);
         break;
     default:
-        ASSERT_NOT_REACHED();
-        break;
+        return std::nullopt;
     }
     return identifier;
 }
@@ -277,7 +276,7 @@ bool AudioVideoRendererAVFObjC::isReadyForMoreSamples(TrackIdentifier trackId)
 
     switch (*type) {
     case TrackType::Video:
-        return m_readyToRequestVideoData && isEnabledVideoTrackId(trackId) && protectedVideoRenderer()->isReadyForMoreMediaData();
+        return m_readyToRequestVideoData && isEnabledVideoTrackId(trackId) && protect(m_videoRenderer)->isReadyForMoreMediaData();
     case TrackType::Audio:
         if (!m_readyToRequestAudioData)
             return false;
@@ -856,10 +855,15 @@ PlatformLayer* AudioVideoRendererAVFObjC::platformVideoLayer() const
     return m_videoLayerManager->videoInlineLayer();
 }
 
-void AudioVideoRendererAVFObjC::setVideoLayerSizeFenced(const FloatSize& newSize, WTF::MachSendRightAnnotated&&)
+void AudioVideoRendererAVFObjC::setVideoLayerSize(const FloatSize& newSize)
 {
     if (!layerOrVideoRenderer() && !newSize.isEmpty())
         updateDisplayLayerIfNeeded();
+}
+
+void AudioVideoRendererAVFObjC::setVideoLayerSizeFenced(const FloatSize& newSize, WTF::MachSendRightAnnotated&&)
+{
+    setVideoLayerSize(newSize);
 }
 
 void AudioVideoRendererAVFObjC::setVideoFullscreenLayer(PlatformLayer *videoFullscreenLayer, WTF::Function<void()>&& completionHandler)
@@ -928,7 +932,7 @@ void AudioVideoRendererAVFObjC::addAudioRenderer(TrackIdentifier trackId)
     if (!m_audioTracksMap.add(trackId, AudioTrackProperties()).isNewEntry)
         return;
 
-    RetainPtr renderer = [adoptNS(PAL::allocAVSampleBufferAudioRendererInstance()) init];
+    RetainPtr renderer = adoptNS([PAL::allocAVSampleBufferAudioRendererInstance() init]);
 
     if (!renderer) {
         ERROR_LOG(LOGIDENTIFIER, "-[AVSampleBufferAudioRenderer init] returned nil! bailing!");
@@ -1177,9 +1181,11 @@ void AudioVideoRendererAVFObjC::ensureLayer()
         return;
     }
 
-    m_sampleBufferDisplayLayer = [adoptNS(PAL::allocAVSampleBufferDisplayLayerInstance()) init];
+    m_sampleBufferDisplayLayer = adoptNS([PAL::allocAVSampleBufferDisplayLayerInstance() init]);
     if (!m_sampleBufferDisplayLayer) {
         ERROR_LOG(LOGIDENTIFIER, "-[AVSampleBufferDisplayLayer init] returned nil! bailing!");
+        ASSERT_NOT_REACHED();
+        notifyError(PlatformMediaError::VideoDecodingError);
         return;
     }
     [m_sampleBufferDisplayLayer setName:@"AudioVideoRendererAVFObjC AVSampleBufferDisplayLayer"];
@@ -1220,9 +1226,11 @@ void AudioVideoRendererAVFObjC::ensureVideoRenderer()
 
     ALWAYS_LOG(LOGIDENTIFIER);
 
-    m_sampleBufferVideoRenderer = [adoptNS(PAL::allocAVSampleBufferVideoRendererInstance()) init];
+    m_sampleBufferVideoRenderer = adoptNS([PAL::allocAVSampleBufferVideoRendererInstance() init]);
     if (!m_sampleBufferVideoRenderer) {
         ERROR_LOG(LOGIDENTIFIER, "-[VSampleBufferVideoRenderer init] returned nil! bailing!");
+        ASSERT_NOT_REACHED();
+        notifyError(PlatformMediaError::VideoDecodingError);
         return;
     }
 
@@ -1370,10 +1378,6 @@ void AudioVideoRendererAVFObjC::configureLayerOrVideoRenderer(WebSampleBufferVid
         m_sampleBufferDisplayLayerState = SampleBufferLayerState::AddedToSynchronizer;
 }
 
-RefPtr<VideoMediaSampleRenderer> AudioVideoRendererAVFObjC::protectedVideoRenderer() const
-{
-    return m_videoRenderer;
-}
 
 void AudioVideoRendererAVFObjC::sizeWillChangeAtTime(const MediaTime& time, const FloatSize& size)
 {

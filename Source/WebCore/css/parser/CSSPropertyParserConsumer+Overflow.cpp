@@ -26,6 +26,7 @@
 #include "CSSPropertyParserConsumer+Overflow.h"
 
 #include "CSSParserTokenRange.h"
+#include "CSSPropertyParserConsumer+CSSPrimitiveValueResolver.h"
 #include "CSSPropertyParserState.h"
 #include "CSSPropertyParsing.h"
 #include "CSSValueKeywords.h"

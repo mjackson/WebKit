@@ -73,10 +73,10 @@
 #define HTMLVIDEOELEMENT_RELEASE_LOG(formatString, ...) \
 do { \
     if (willLog(WTFLogLevel::Always)) { \
-        RELEASE_LOG_FORWARDABLE(Media, HTMLVIDEOELEMENT_##formatString, logIdentifier(), ##__VA_ARGS__); \
+        RELEASE_LOG_FORWARDABLE(Media, HTMLVideoElement##formatString, logIdentifier(), ##__VA_ARGS__); \
         if (logger().hasEnabledInspector()) { \
             std::array<char, 1024> buffer { }; \
-            SAFE_SPRINTF(std::span { buffer }, MESSAGE_HTMLVIDEOELEMENT_##formatString, logIdentifier(), ##__VA_ARGS__); \
+            SAFE_SPRINTF(std::span { buffer }, MESSAGE_HTMLVideoElement##formatString, logIdentifier(), ##__VA_ARGS__); \
             logger().toObservers(logChannel(), WTFLogLevel::Always, String::fromUTF8(buffer.data())); \
         } \
     } \
@@ -150,7 +150,7 @@ bool HTMLVideoElement::supportsAcceleratedRendering() const
 
 void HTMLVideoElement::mediaPlayerRenderingModeChanged()
 {
-    HTMLVIDEOELEMENT_RELEASE_LOG(MEDIAPLAYERRENDERINGMODECHANGED);
+    HTMLVIDEOELEMENT_RELEASE_LOG(MediaPlayerRenderingModeChanged);
 
     // Kick off a fake recalcStyle that will update the compositing tree.
     computeAcceleratedRenderingStateAndUpdateMediaPlayer();
@@ -248,6 +248,11 @@ bool HTMLVideoElement::supportsFullscreen(HTMLMediaElementEnums::VideoFullscreen
     if (!player()->supportsFullscreen())
         return false;
 
+#if HAVE(AVEXPERIENCECONTROLLER)
+    if (document().settings().isAVExperienceControllerFullscreenEnabled())
+        return true;
+#endif
+
 #if ENABLE(FULLSCREEN_API)
 #if PLATFORM(IOS_FAMILY)
     // Fullscreen implemented by player.
@@ -296,7 +301,7 @@ unsigned HTMLVideoElement::videoHeight() const
 void HTMLVideoElement::scheduleResizeEvent(const FloatSize& naturalSize)
 {
     m_lastReportedNaturalSize = naturalSize;
-    HTMLVIDEOELEMENT_RELEASE_LOG(SCHEDULERESIZEEVENT, naturalSize.width(), naturalSize.height());
+    HTMLVIDEOELEMENT_RELEASE_LOG(ScheduleResizeEvent, naturalSize.width(), naturalSize.height());
     scheduleEvent(eventNames().resizeEvent);
 }
 
@@ -336,7 +341,7 @@ bool HTMLVideoElement::shouldDisplayPosterImage() const
 
 void HTMLVideoElement::mediaPlayerFirstVideoFrameAvailable()
 {
-    HTMLVIDEOELEMENT_RELEASE_LOG(MEDIAPLAYERFIRSTVIDEOFRAMEAVAILABLE, showPosterFlag());
+    HTMLVIDEOELEMENT_RELEASE_LOG(MediaPlayerFirstVideoFrameAvailable, showPosterFlag());
 
     if (showPosterFlag())
         return;
@@ -848,9 +853,9 @@ void HTMLVideoElement::setVideoFullscreenStandby(bool value)
         return;
 
     if (videoFullscreenStandby())
-        protect(document().page())->chrome().client().enterVideoFullscreenForVideoElement(*this, VideoFullscreenModeNone, true);
+        document().page()->chrome().client().enterVideoFullscreenForVideoElement(*this, VideoFullscreenModeNone, true);
     else {
-        protect(document().page())->chrome().client().exitVideoFullscreenForVideoElement(*this, [this, protectedThis = Ref { *this }](auto success) mutable {
+        document().page()->chrome().client().exitVideoFullscreenForVideoElement(*this, [this, protectedThis = Ref { *this }](auto success) mutable {
             setVideoFullscreenStandbyInternal(!success);
         });
     }

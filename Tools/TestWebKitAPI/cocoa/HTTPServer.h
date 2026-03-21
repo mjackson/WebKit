@@ -30,6 +30,7 @@
 #import <wtf/Forward.h>
 #import <wtf/HashMap.h>
 #import <wtf/RetainPtr.h>
+#import <wtf/ThreadSafeRefCounted.h>
 #import <wtf/cocoa/VectorCocoa.h>
 #import <wtf/text/StringHash.h>
 
@@ -43,7 +44,16 @@ struct HTTPResponse;
 class HTTPServer {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED(HTTPServer);
 public:
-    struct RequestData;
+    struct RequestData : public ThreadSafeRefCounted<RequestData, WTF::DestructionThread::MainRunLoop> {
+        RequestData(std::initializer_list<std::pair<String, HTTPResponse>>);
+
+        size_t requestCount { 0 };
+        HashMap<String, HTTPResponse> requestMap;
+        Vector<Connection> connections;
+        Vector<CoroutineHandle<ConnectionTask::promise_type>> coroutineHandles;
+        String lastRequestCookies;
+    };
+
     enum class Protocol : uint8_t { Http, Https, HttpsWithLegacyTLS, Http2, HttpsProxy, HttpsProxyWithAuthentication };
     using CertificateVerifier = Function<void(sec_protocol_metadata_t, sec_trust_t, sec_protocol_verify_complete_t)>;
 

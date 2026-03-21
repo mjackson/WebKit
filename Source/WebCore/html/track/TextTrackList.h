@@ -49,7 +49,7 @@ public:
     bool isSupportedPropertyIndex(unsigned index) const { return index < length(); }
     unsigned length() const final;
     int getTrackIndex(TextTrack&);
-    int getTrackIndexRelativeToRenderedTracks(TextTrack&);
+    int NODELETE getTrackIndexRelativeToRenderedTracks(TextTrack&);
     bool contains(TrackBase&) const final;
 
     TextTrack* NODELETE item(unsigned index) const;
@@ -61,7 +61,7 @@ public:
     void remove(TrackBase&, bool scheduleEvent = true) final;
 
     void setDuration(MediaTime duration) { m_duration = duration; }
-    const MediaTime& duration() const { return m_duration; }
+    const MediaTime& duration() const LIFETIME_BOUND { return m_duration; }
 
     // EventTarget
     enum EventTargetInterfaceType eventTargetInterface() const final;

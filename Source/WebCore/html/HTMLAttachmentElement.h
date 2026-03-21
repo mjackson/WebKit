@@ -57,7 +57,7 @@ public:
     enum class UpdateDisplayAttributes : bool { No, Yes };
     void setFile(RefPtr<File>&&, UpdateDisplayAttributes = UpdateDisplayAttributes::No);
 
-    const String& uniqueIdentifier() const { return m_uniqueIdentifier; }
+    const String& uniqueIdentifier() const LIFETIME_BOUND { return m_uniqueIdentifier; }
     void setUniqueIdentifier(const String&);
 
     void copyNonAttributePropertiesFromElement(const Element&) final;
@@ -67,20 +67,20 @@ public:
     WEBCORE_EXPORT void updateIconForNarrowLayout(const RefPtr<Image>& icon, const WebCore::FloatSize&);
     WEBCORE_EXPORT void updateIconForWideLayout(Vector<uint8_t>&&);
 
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) final;
-    void removedFromAncestor(RemovalType, ContainerNode&) final;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) final;
+    void removingSteps(RemovalType, ContainerNode&) final;
 
     String ensureUniqueIdentifier();
     AttachmentAssociatedElement* associatedElement() const;
     AttachmentAssociatedElementType associatedElementType() const;
 
-    WEBCORE_EXPORT String attachmentTitle() const;
-    const AtomString& attachmentSubtitle() const;
-    const AtomString& attachmentActionForDisplay() const;
+    WEBCORE_EXPORT String NODELETE attachmentTitle() const;
+    const AtomString& NODELETE attachmentSubtitle() const;
+    const AtomString& NODELETE attachmentActionForDisplay() const;
     String attachmentTitleForDisplay() const;
-    const AtomString& attachmentSubtitleForDisplay() const;
-    WEBCORE_EXPORT String attachmentType() const;
-    String attachmentPath() const;
+    const AtomString& NODELETE attachmentSubtitleForDisplay() const;
+    WEBCORE_EXPORT String NODELETE attachmentType() const;
+    String NODELETE attachmentPath() const;
     RefPtr<Image> icon() const { return m_icon; }
     void requestIconIfNeededWithSize(const FloatSize&);
     void requestWideLayoutIconIfNeeded();

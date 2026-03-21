@@ -35,8 +35,8 @@
 
 namespace JSC { namespace DFG {
 
-JITData::JITData(unsigned stubInfoSize, unsigned poolSize, const JITCode& jitCode, ExitVector&& exits)
-    : Base(stubInfoSize, poolSize)
+JITData::JITData(unsigned propertyCacheSize, unsigned poolSize, const JITCode& jitCode, ExitVector&& exits)
+    : Base(propertyCacheSize, poolSize)
     , m_callLinkInfos(jitCode.m_unlinkedCallLinkInfos.size())
     , m_exits(WTF::move(exits))
 {
@@ -94,9 +94,9 @@ bool JITData::tryInitialize(VM& vm, CodeBlock* codeBlock, const JITCode& jitCode
     m_globalObject = codeBlock->globalObject();
     m_stackOffset = codeBlock->stackPointerOffset() * sizeof(Register);
 
-    for (unsigned index = 0; index < jitCode.m_unlinkedStubInfos.size(); ++index) {
-        const UnlinkedStructureStubInfo& unlinkedStubInfo = jitCode.m_unlinkedStubInfos[index];
-        stubInfo(index).initializeFromDFGUnlinkedStructureStubInfo(codeBlock, unlinkedStubInfo);
+    for (unsigned index = 0; index < jitCode.m_unlinkedPropertyInlineCaches.size(); ++index) {
+        const UnlinkedPropertyInlineCache& unlinkedPropertyCache = jitCode.m_unlinkedPropertyInlineCaches[index];
+        propertyCache(index).initializeFromDFGUnlinkedPropertyInlineCache(codeBlock, unlinkedPropertyCache);
     }
 
     unsigned indexOfWatchpoints = 0;
@@ -269,13 +269,13 @@ void JITCode::reconstruct(CallFrame* callFrame, CodeBlock* codeBlock, CodeOrigin
         result[i] = recoveries[i].recover(callFrame);
 }
 
-RegisterSetBuilder JITCode::liveRegistersToPreserveAtExceptionHandlingCallSite(CodeBlock* codeBlock, CallSiteIndex callSiteIndex)
+RegisterSet JITCode::liveRegistersToPreserveAtExceptionHandlingCallSite(CodeBlock* codeBlock, CallSiteIndex callSiteIndex)
 {
     for (OSRExit& exit : m_osrExit) {
         if (exit.isExceptionHandler() && exit.m_exceptionHandlerCallSiteIndex.bits() == callSiteIndex.bits()) {
             Operands<ValueRecovery> valueRecoveries;
             reconstruct(codeBlock, exit.m_codeOrigin, exit.m_streamIndex, valueRecoveries);
-            RegisterSetBuilder liveAtOSRExit;
+            RegisterSet liveAtOSRExit;
             for (size_t index = 0; index < valueRecoveries.size(); ++index) {
                 const ValueRecovery& recovery = valueRecoveries[index];
                 if (recovery.isInRegisters()) {
@@ -327,7 +327,12 @@ void JITCode::optimizeAfterWarmUp(CodeBlock* codeBlock)
     ASSERT(codeBlock->jitType() == JITType::DFGJIT);
     dataLogLnIf(Options::verboseOSR(), *codeBlock, ": FTL-optimizing after warm-up.");
     CodeBlock* baseline = codeBlock->baselineVersion();
-    codeBlock->dfgJITData()->tierUpCounter().setNewThreshold(baseline->adjustedCounterValue(Options::thresholdForFTLOptimizeAfterWarmUp()), baseline);
+    int32_t threshold = Options::thresholdForFTLOptimizeAfterWarmUp();
+    if (baseline->unlinkedCodeBlock()->isQuickFTLTierUp()) {
+        threshold = static_cast<int32_t>(threshold * Options::quickFTLTierUpThresholdFactor());
+        dataLogLnIf(Options::verboseOSR(), *codeBlock, ": Quick FTL tier-up enabled and code is stable, adjustedThreshold=", threshold, ", finalThreshold=", baseline->adjustedCounterValue(threshold));
+    }
+    codeBlock->dfgJITData()->tierUpCounter().setNewThreshold(baseline->adjustedCounterValue(threshold), baseline);
 }
 
 void JITCode::optimizeSoon(CodeBlock* codeBlock)
@@ -357,6 +362,7 @@ void JITCode::setOptimizationThresholdBasedOnCompilationResult(
     case CompilationResult::CompilationFailed:
         dontOptimizeAnytimeSoon(codeBlock);
         codeBlock->baselineVersion()->m_didFailFTLCompilation = true;
+        codeBlock->didFailFTLCompilation();
         return;
     case CompilationResult::CompilationDeferred:
         optimizeAfterWarmUp(codeBlock);

@@ -48,7 +48,6 @@ public:
     virtual ~RemoteMediaSessionHelper() = default;
 
     IPC::Connection& ensureConnection();
-    Ref<IPC::Connection> ensureProtectedConnection();
 
     using HasAvailableTargets = WebCore::MediaSessionHelperClient::HasAvailableTargets;
     using PlayingToAutomotiveHeadUnit = WebCore::MediaSessionHelperClient::PlayingToAutomotiveHeadUnit;
@@ -71,7 +70,6 @@ private:
 
     // Messages
     void activeVideoRouteDidChange(SupportsAirPlayVideo, MediaPlaybackTargetContextSerialized&&);
-    void activeAudioRouteSupportsSpatialPlaybackDidChange(SupportsSpatialAudioPlayback);
 
     ThreadSafeWeakPtr<GPUProcessConnection> m_gpuProcessConnection;
 };

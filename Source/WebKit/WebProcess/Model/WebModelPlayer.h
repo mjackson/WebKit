@@ -105,6 +105,8 @@ private:
     void setLoop(bool) final;
     void setPaused(bool, CompletionHandler<void(bool succeeded)>&&) final;
     bool paused() const final;
+    Seconds currentTime() const final;
+    void setCurrentTime(Seconds, CompletionHandler<void()>&&) final;
     void play(bool);
     void simulate(float elapsedTime);
     double duration() const final;
@@ -126,6 +128,7 @@ private:
     uint32_t m_currentTexture { 0 };
     WebCore::StageModeOperation m_stageMode { WebCore::StageModeOperation::None };
     float m_currentScale { 1.f };
+    WebCore::IntSize m_currentPixelSize;
     bool m_didFinishLoading { false };
     enum class PauseState {
         None,

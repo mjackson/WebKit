@@ -44,7 +44,7 @@ public:
 private:
     explicit ComputedStylePropertyMapReadOnly(Element&);
 
-    RefPtr<Element> protectedElement() const { return m_element; }
+    Element* element() const { return m_element.get(); }
 
     RefPtr<CSSValue> propertyValue(CSSPropertyID) const final;
     String shorthandPropertySerialization(CSSPropertyID) const final;

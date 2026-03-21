@@ -141,10 +141,10 @@ static RetainPtr<id> makeNSArrayElement(const ApplePayInstallmentItem& item)
     // FIXME: This is a safer cpp false positive.
     SUPPRESS_UNRETAINED_ARG auto installmentItem = adoptNS([PAL::allocPKPaymentInstallmentItemInstance() init]);
     [installmentItem setInstallmentItemType:platformItemType(item.type)];
-    [installmentItem setAmount:toProtectedDecimalNumber(item.amount).get()];
+    [installmentItem setAmount:protect(toDecimalNumber(item.amount)).get()];
     [installmentItem setCurrencyCode:item.currencyCode.createNSString().get()];
     [installmentItem setProgramIdentifier:item.programIdentifier.createNSString().get()];
-    [installmentItem setApr:toProtectedDecimalNumber(item.apr).get()];
+    [installmentItem setApr:protect(toDecimalNumber(item.apr)).get()];
     [installmentItem setProgramTerms:item.programTerms.createNSString().get()];
     return installmentItem;
 }
@@ -189,10 +189,10 @@ static RetainPtr<PKPaymentInstallmentConfiguration> createPlatformConfiguration(
 
     [configuration setFeature:platformFeatureType(coreConfiguration.featureType)];
 
-    [configuration setBindingTotalAmount:toProtectedDecimalNumber(coreConfiguration.bindingTotalAmount).get()];
+    [configuration setBindingTotalAmount:protect(toDecimalNumber(coreConfiguration.bindingTotalAmount)).get()];
     [configuration setCurrencyCode:coreConfiguration.currencyCode.createNSString().get()];
     [configuration setInStorePurchase:coreConfiguration.isInStorePurchase];
-    [configuration setOpenToBuyThresholdAmount:toProtectedDecimalNumber(coreConfiguration.openToBuyThresholdAmount).get()];
+    [configuration setOpenToBuyThresholdAmount:protect(toDecimalNumber(coreConfiguration.openToBuyThresholdAmount)).get()];
 
     RetainPtr merchandisingImageData = adoptNS([[NSData alloc] initWithBase64EncodedString:coreConfiguration.merchandisingImageData.createNSString().get() options:0]);
     [configuration setMerchandisingImageData:merchandisingImageData.get()];

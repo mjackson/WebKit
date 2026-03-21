@@ -25,8 +25,8 @@
 
 #pragma once
 
-#include <WebCore/JSDOMConvertStrings.h>
-#include <WebCore/JSDOMExceptionHandling.h>
+#include "JSDOMConvertStrings.h"
+#include "JSDOMExceptionHandling.h"
 
 namespace WebCore {
 

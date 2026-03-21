@@ -70,6 +70,12 @@
 #include "VideoPresentationManager.h"
 #endif
 
+#if ENABLE(QUICKLOOK_FULLSCREEN)
+#include <WebCore/ImageTypes.h>
+#include <WebCore/ShareableBitmap.h>
+#include <WebCore/ShareableSpatialImage.h>
+#endif
+
 namespace WebKit {
 using namespace WebCore;
 
@@ -195,7 +201,7 @@ void WebFullScreenManager::setPIPStandbyElement(WebCore::HTMLVideoElement* pipSt
 
 bool WebFullScreenManager::supportsFullScreenForElement(const WebCore::Element& element, bool withKeyboard)
 {
-    if (!protect(m_page->corePage())->isDocumentFullscreenEnabled())
+    if (!m_page->corePage()->isDocumentFullscreenEnabled())
         return false;
 
     if (m_inWindowFullScreenMode && &element != m_element)
@@ -259,37 +265,42 @@ FullScreenMediaDetails WebFullScreenManager::getImageMediaDetails(CheckedPtr<Ren
     RefPtr image = cachedImage->image();
     if (!image)
         return { };
-    if (!(image->shouldUseQuickLookForFullscreen() || updating == IsUpdating::Yes))
-        return { };
-
-    auto* buffer = cachedImage->resourceBuffer();
-    if (!buffer)
+    if (!(image->isMaybePanoramic() || image->isSpatial() || updating == IsUpdating::Yes))
         return { };
 
     auto imageSize = image->size();
 
-    auto mimeType = image->mimeType();
-    if (!MIMETypeRegistry::isSupportedImageMIMEType(mimeType))
-        mimeType = MIMETypeRegistry::mimeTypeForExtension(image->filenameExtension());
-    if (!MIMETypeRegistry::isSupportedImageMIMEType(mimeType))
-        mimeType = MIMETypeRegistry::mimeTypeForPath(cachedImage->url().string());
-    if (!MIMETypeRegistry::isSupportedImageMIMEType(mimeType))
+    FullScreenMediaDetails mediaDetails;
+    mediaDetails.type = FullScreenMediaDetails::Type::Image;
+    mediaDetails.mediaDimensions = imageSize;
+
+    if (image->isSpatial()) {
+        RefPtr bitmapImage = dynamicDowncast<BitmapImage>(cachedImage->image());
+        if (bitmapImage) {
+            if (auto spatialImage = ShareableSpatialImage::create(*bitmapImage)) {
+                mediaDetails.imageData = WTF::move(*spatialImage);
+                m_willUseQuickLookForFullscreen = true;
+                return mediaDetails;
+            }
+        }
+    }
+
+    RefPtr nativeImage = image->nativeImage();
+    if (!nativeImage)
         return { };
 
-    auto sharedMemoryBuffer = SharedMemory::copyBuffer(*buffer);
-    if (!sharedMemoryBuffer)
+    RefPtr shareableBitmap = ShareableBitmap::createFromImagePixels(*nativeImage);
+    if (!shareableBitmap)
         return { };
 
-    auto imageResourceHandle = sharedMemoryBuffer->createHandle(SharedMemory::Protection::ReadOnly);
+    auto bitmapHandle = shareableBitmap->createReadOnlyHandle();
+    if (!bitmapHandle)
+        return { };
 
+    mediaDetails.imageData = WTF::move(*bitmapHandle);
     m_willUseQuickLookForFullscreen = true;
 
-    return {
-        FullScreenMediaDetails::Type::Image,
-        imageSize,
-        mimeType,
-        imageResourceHandle
-    };
+    return mediaDetails;
 }
 #endif // ENABLE(QUICKLOOK_FULLSCREEN)
 
@@ -716,7 +727,7 @@ void WebFullScreenManager::didExitFullScreen(CompletionHandler<void()>&& complet
 
     clearElement();
 
-    if (RefPtr localMainFrame = protect(m_page->corePage())->localMainFrame()) {
+    if (RefPtr localMainFrame = m_page->corePage()->localMainFrame()) {
         // Make sure overflow: hidden is unapplied from the root element before restoring.
         RefPtr view = localMainFrame->view();
         view->forceLayout();

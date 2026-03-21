@@ -123,7 +123,7 @@ public:
         });
     }
 
-    const BackingDataType& cachedListData() const { return m_cachedListData; }
+    const BackingDataType& cachedListData() const LIFETIME_BOUND { return m_cachedListData; }
 
 protected:
     friend class NeverDestroyed<DerivedType, MainRunLoopAccessTraits>;
@@ -191,7 +191,7 @@ private:
 
 class ResourceMonitorURLsController {
 public:
-    static ResourceMonitorURLsController& singleton();
+    static ResourceMonitorURLsController& NODELETE singleton();
 
     void prepare(CompletionHandler<void(WKContentRuleList *, bool)>&&);
     void getSource(CompletionHandler<void(String&&)>&&);

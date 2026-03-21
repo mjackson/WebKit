@@ -20,11 +20,11 @@
 
 #pragma once
 
-#include <WebCore/CSSURL.h>
-#include <WebCore/CSSValue.h>
-#include <WebCore/CachedImage.h>
-#include <WebCore/CachedResourceHandle.h>
-#include <WebCore/ResourceLoaderOptions.h>
+#include "CSSURL.h"
+#include "CSSValue.h"
+#include "CachedImage.h"
+#include "CachedResourceHandle.h"
+#include "ResourceLoaderOptions.h"
 #include <wtf/Function.h>
 #include <wtf/Ref.h>
 
@@ -43,7 +43,7 @@ class Image;
 
 class CSSImageValue final : public CSSValue {
 public:
-    static Ref<CSSImageValue> create();
+    static Ref<CSSImageValue> NODELETE create();
     static Ref<CSSImageValue> create(CSS::URL, AtomString initiatorType = { });
     static Ref<CSSImageValue> create(WTF::URL, AtomString initiatorType = { });
     static Ref<CSSImageValue> create(CachedImage&);
@@ -56,7 +56,7 @@ public:
     CachedImage* cachedImage() const { return m_cachedImage ? m_cachedImage.value().get() : nullptr; }
 
     // Take care when using this, and read https://drafts.csswg.org/css-values/#relative-urls
-    const CSS::URL& url() const { return m_location; }
+    const CSS::URL& url() const LIFETIME_BOUND { return m_location; }
 
     String customCSSText(const CSS::SerializationContext&) const;
 

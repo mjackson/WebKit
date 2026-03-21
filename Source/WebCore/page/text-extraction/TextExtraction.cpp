@@ -62,10 +62,12 @@
 #include "HandleUserInputEventResult.h"
 #include "HighlightRegistry.h"
 #include "HitTestResult.h"
+#include "ICUSearcher.h"
 #include "Image.h"
 #include "ImageOverlay.h"
 #include "JSNode.h"
 #include "LocalFrame.h"
+#include "NodeList.h"
 #include "Page.h"
 #include "PlatformKeyboardEvent.h"
 #include "PlatformMouseEvent.h"
@@ -85,6 +87,7 @@
 #include "SimpleRange.h"
 #include "StaticRange.h"
 #include "StringEntropyHelpers.h"
+#include "StyleTextDecorationLine.h"
 #include "Text.h"
 #include "TextIterator.h"
 #include "TypedElementDescendantIteratorInlines.h"
@@ -136,7 +139,7 @@ using TextAndSelectedRangeMap = HashMap<Ref<Text>, TextAndSelectedRange>;
 
 static bool hasEnclosingAutoFilledInput(Node& node)
 {
-    RefPtr input = dynamicDowncast<HTMLInputElement>(node.shadowHost());
+    auto* input = dynamicDowncast<HTMLInputElement>(node.shadowHost());
     if (!input)
         return false;
 
@@ -355,6 +358,9 @@ static inline bool canMerge(const TraversalContext& context, const Item& destina
     if (!std::holds_alternative<TextItemData>(destinationItem.data) || !std::holds_alternative<TextItemData>(sourceItem.data))
         return false;
 
+    if (destinationItem.hasLineThrough != sourceItem.hasLineThrough)
+        return false;
+
     // Don't merge adjacent text runs if they represent two different editable roots.
     auto& destination = std::get<TextItemData>(destinationItem.data);
     auto& source = std::get<TextItemData>(sourceItem.data);
@@ -458,7 +464,7 @@ enum class SkipExtraction : bool {
 
 static bool shouldTreatAsPasswordField(const Element* element)
 {
-    RefPtr input = dynamicDowncast<HTMLInputElement>(element);
+    auto* input = dynamicDowncast<HTMLInputElement>(element);
     return input && input->hasEverBeenPasswordField();
 }
 
@@ -495,6 +501,13 @@ static inline Variant<SkipExtraction, ItemData, URL, Editable> extractItemData(N
 
     if (!element)
         return { SkipExtraction::Self };
+
+    if (element->isInUserAgentShadowTree()) {
+        if (RefPtr input = dynamicDowncast<HTMLInputElement>(element->shadowHost())) {
+            if (element == input->autoFillButtonElement())
+                return { SkipExtraction::SelfAndSubtree };
+        }
+    }
 
     if (element->isLink()) {
         if (auto href = element->attributeWithoutSynchronization(HTMLNames::hrefAttr); !href.isEmpty()) {
@@ -805,7 +818,7 @@ static inline void extractRecursive(Node& node, Item& parentItem, TraversalConte
 
     OptionSet<EventListenerCategory> eventListeners;
     if (auto requestedCategories = context.originalRequest.eventListenerCategories) {
-        node.enumerateEventListenerTypes([&](auto& type, unsigned) {
+        node.enumerateEventListenerTypes([&](auto& type, uint16_t, uint16_t) {
             auto typeInfo = eventNames().typeInfoForEvent(type);
             if (typeInfo.isInCategory(EventCategory::Wheel) && requestedCategories.contains(EventListenerCategory::Wheel))
                 eventListeners.add(EventListenerCategory::Wheel);
@@ -972,6 +985,9 @@ static inline void extractRecursive(Node& node, Item& parentItem, TraversalConte
         context.onlyCollectTextAndLinksCount++;
     }
 
+    if (CheckedPtr renderer = node.renderer(); renderer && item)
+        item->hasLineThrough = renderer->style().textDecorationLineInEffect().hasLineThrough();
+
     ASSERT_IMPLIES(isScrollable, item);
 
     if (isScrollable)
@@ -1074,7 +1090,7 @@ static void pruneEmptyContainersRecursive(Item& item)
     });
 }
 
-static Node* nodeFromJSHandle(JSHandleIdentifier identifier)
+static Node* NODELETE nodeFromJSHandle(JSHandleIdentifier identifier)
 {
     auto* object = WebKitJSHandle::objectForIdentifier(identifier);
     if (!object)
@@ -1105,6 +1121,9 @@ static RefPtr<ContainerNode> findLargeContainerAboveNode(Node& node, FloatSize m
 
     return { };
 }
+
+// FIXME: Consider making this size threshold client-configurable in the future.
+static constexpr FloatSize minimumSizeForLargeContainer { 280, 300 };
 
 #if ENABLE(DATA_DETECTION)
 
@@ -1138,9 +1157,7 @@ static RefPtr<ContainerNode> findContainerNodeForDataDetectorResults(Node& rootN
     if (!commonAncestor)
         return { };
 
-    // FIXME: Consider making this size threshold client-configurable in the future.
-    static constexpr FloatSize minimumSize { 280, 300 };
-    return findLargeContainerAboveNode(*commonAncestor, minimumSize, &rootNode);
+    return findLargeContainerAboveNode(*commonAncestor, minimumSizeForLargeContainer, &rootNode);
 }
 
 #endif // ENABLE(DATA_DETECTION)
@@ -1166,13 +1183,16 @@ Result extractItem(Request&& request, LocalFrame& frame)
         return nodeFromJSHandle(*request.targetNodeHandleIdentifier);
     }();
 
+    bool extractingWithDataDetectors = false;
 #if ENABLE(DATA_DETECTION)
-    if (request.dataDetectorTypes && extractionRootNode)
+    if (request.dataDetectorTypes && extractionRootNode) {
         extractionRootNode = findContainerNodeForDataDetectorResults(*extractionRootNode, request.dataDetectorTypes);
+        extractingWithDataDetectors = true;
+    }
 #endif
 
     if (extractionRootNode)
-        addBoxShadowIfNeeded(*extractionRootNode, "#0088FF"_s);
+        addBoxShadowIfNeeded(*extractionRootNode, extractingWithDataDetectors ? "#0088FF"_s : "#ff8d28"_s);
 
     if (!extractionRootNode)
         return { root, 0 };
@@ -1272,7 +1292,7 @@ struct TokenAndBlockOffset {
     int offset { 0 };
 };
 
-static IntSize reducePrecision(FloatSize size)
+static IntSize NODELETE reducePrecision(FloatSize size)
 {
     static constexpr auto resolution = 10;
     return {
@@ -1320,7 +1340,7 @@ static void extractRenderedTokens(Vector<TokenAndBlockOffset>& tokensAndOffsets,
     };
 
     if (CheckedPtr frameRenderer = dynamicDowncast<RenderIFrame>(*renderer)) {
-        if (RefPtr contentDocument = protect(frameRenderer->iframeElement())->contentDocument())
+        if (RefPtr contentDocument = frameRenderer->iframeElement().contentDocument())
             extractRenderedTokens(tokensAndOffsets, *contentDocument, direction);
         return;
     }
@@ -1363,7 +1383,7 @@ static void extractRenderedTokens(Vector<TokenAndBlockOffset>& tokensAndOffsets,
         }
 
         if (CheckedPtr frameRenderer = dynamicDowncast<RenderIFrame>(descendant)) {
-            if (RefPtr contentDocument = protect(frameRenderer->iframeElement())->contentDocument())
+            if (RefPtr contentDocument = frameRenderer->iframeElement().contentDocument())
                 extractRenderedTokens(tokensAndOffsets, *contentDocument, direction);
             continue;
         }
@@ -1498,22 +1518,93 @@ Vector<std::pair<String, FloatRect>> extractAllTextAndRects(Page& page)
     return extractAllTextAndRectsRecursive(*document);
 }
 
+static std::optional<SimpleRange> searchForClickTarget(Node& container, const String& searchText)
+{
+    if (searchText.isEmpty())
+        return std::nullopt;
+
+    Vector<SimpleRange> candidateRanges;
+    auto remainingRange = makeRangeSelectingNodeContents(container);
+    while (is_lt(treeOrder(remainingRange.start, remainingRange.end))) {
+        auto foundRange = findPlainText(remainingRange, searchText, {
+            FindOption::DoNotRevealSelection,
+            FindOption::DoNotSetSelection,
+            FindOption::CaseInsensitive,
+        });
+
+        if (foundRange.collapsed())
+            break;
+
+        remainingRange.start = foundRange.end;
+        candidateRanges.append(WTF::move(foundRange));
+
+        if (remainingRange.collapsed())
+            break;
+    }
+
+    if (candidateRanges.isEmpty())
+        return std::nullopt;
+
+    if (candidateRanges.size() == 1)
+        return candidateRanges.first();
+
+    bool bestRangeIsExactMatch = false;
+    bool bestRangeIsClickable = false;
+    std::optional<SimpleRange> bestRange;
+
+    for (auto& range : candidateRanges) {
+        RefPtr ancestor = commonInclusiveAncestor<ComposedTree>(range);
+        if (!ancestor)
+            continue;
+
+        RefPtr target = lineageOfType<Element>(*ancestor).first();
+        if (!target)
+            continue;
+
+        bool isClickable = target->willRespondToMouseClickEvents() || target->isLink() || target->isFormListedElement();
+        bool isExactMatch = normalizeText(plainText(makeRangeSelectingNodeContents(*ancestor))) == searchText;
+
+        if (!bestRangeIsClickable && isClickable) {
+            bestRangeIsClickable = true;
+            bestRangeIsExactMatch = isExactMatch;
+            bestRange = range;
+        } else if (!bestRangeIsExactMatch && isExactMatch) {
+            bestRangeIsExactMatch = true;
+            bestRangeIsClickable = isClickable;
+            bestRange = range;
+        }
+
+        if (isExactMatch && isClickable)
+            break;
+    }
+
+    return bestRange;
+}
+
 static std::optional<SimpleRange> searchForText(Node& node, const String& searchText)
 {
     if (searchText.isEmpty())
         return std::nullopt;
 
     auto searchRange = makeRangeSelectingNodeContents(node);
-    auto foundRange = findPlainText(searchRange, searchText, {
+    auto caseSensitiveRange = findPlainText(searchRange, searchText, {
+        FindOption::DoNotRevealSelection,
+        FindOption::DoNotSetSelection,
+    });
+
+    if (!caseSensitiveRange.collapsed())
+        return { WTF::move(caseSensitiveRange) };
+
+    auto caseInsensitiveRange = findPlainText(searchRange, searchText, {
         FindOption::DoNotRevealSelection,
         FindOption::DoNotSetSelection,
         FindOption::CaseInsensitive,
     });
 
-    if (foundRange.collapsed())
-        return { };
+    if (!caseInsensitiveRange.collapsed())
+        return { WTF::move(caseInsensitiveRange) };
 
-    return { WTF::move(foundRange) };
+    return { };
 }
 
 static String invalidNodeIdentifierDescription(std::optional<NodeIdentifier>&& identifier)
@@ -1591,7 +1682,7 @@ static void dispatchSimulatedClick(Node& targetNode, const String& searchText, C
 
     std::optional<FloatRect> targetRectInRootView;
     if (!searchText.isEmpty()) {
-        auto foundRange = searchForText(*element, searchText);
+        auto foundRange = searchForClickTarget(*element, searchText);
         if (!foundRange) {
             // Err on the side of failing, if the text has changed since the interaction was triggered.
             return completion(false, searchTextNotFoundDescription(searchText));
@@ -1620,9 +1711,9 @@ static void dispatchSimulatedClick(Node& targetNode, const String& searchText, C
 
     // Fall back to dispatching a programmatic click.
     if (element->dispatchSimulatedClick(nullptr, SendMouseUpDownEvents))
-        completion(false, "Failed to click (tried falling back to dispatching programmatic click since target could not be hit-tested)"_s);
-    else
         completion(true, { });
+    else
+        completion(false, "Failed to click (tried falling back to dispatching programmatic click since target could not be hit-tested)"_s);
 }
 
 static void dispatchSimulatedClick(NodeIdentifier identifier, const String& searchText, CompletionHandler<void(bool, String&&)>&& completion)
@@ -1662,7 +1753,7 @@ static SelectOptionResult selectOptionByValue(NodeIdentifier identifier, const S
 
 static HTMLElement* documentBodyElement(const LocalFrame& frame)
 {
-    if (RefPtr document = frame.document())
+    if (auto* document = frame.document())
         return document->body();
 
     return nullptr;
@@ -1831,7 +1922,7 @@ static void focusAndInsertText(NodeIdentifier identifier, String&& text, bool re
     if (RefPtr element = dynamicDowncast<Element>(*foundNode); element && element->isTextField())
         elementToFocus = element;
     else if (RefPtr host = foundNode->shadowHost(); host && host->isTextField()) {
-        if (RefPtr formControl = dynamicDowncast<HTMLTextFormControlElement>(host.get()))
+        if (RefPtr formControl = dynamicDowncast<HTMLTextFormControlElement>(host))
             elementToFocus = WTF::move(formControl);
     }
 
@@ -2112,7 +2203,7 @@ static String textDescription(std::optional<NodeIdentifier> identifier, Vector<S
     return textDescription(RefPtr { Node::fromIdentifier(*identifier) }.get(), stringsToValidate);
 }
 
-static String textDescription(LocalFrame& frame, std::optional<NodeIdentifier> identifier, const String& searchText, Vector<String>& stringsToValidate)
+static String textDescription(LocalFrame& frame, std::optional<NodeIdentifier> identifier, const String& searchText, Action action, Vector<String>& stringsToValidate)
 {
     if (!identifier && searchText.isEmpty())
         return { };
@@ -2120,7 +2211,7 @@ static String textDescription(LocalFrame& frame, std::optional<NodeIdentifier> i
     RefPtr target = resolveNodeWithBodyAsFallback(frame, identifier);
     auto searchTextPrefix = emptyString();
     if (!searchText.isEmpty()) {
-        auto range = searchForText(*target, searchText);
+        auto range = action == Action::Click ? searchForClickTarget(*target, searchText) : searchForText(*target, searchText);
         if (!range)
             return { };
 
@@ -2244,7 +2335,7 @@ InteractionDescription interactionDescription(const Interaction& interaction, Lo
         description.append(" at coordinates ("_s, roundedLocation.x(), ", "_s, roundedLocation.y(), ')');
         appendElementString(frame, *location, stringsToValidate);
     } else if (usesSearchText)
-        appendElementString(frame, interaction.nodeIdentifier, interaction.text, stringsToValidate);
+        appendElementString(frame, interaction.nodeIdentifier, interaction.text, interaction.action, stringsToValidate);
     else
         appendElementString(interaction.nodeIdentifier, stringsToValidate);
 
@@ -2272,6 +2363,25 @@ RefPtr<Element> elementForExtractedText(const LocalFrame& frame, ExtractedText&&
 
     RefPtr element = dynamicDowncast<Element>(node);
     return element ? element : RefPtr { node->parentElementInComposedTree() };
+}
+
+RefPtr<Element> containerElementForExtractedText(const LocalFrame& frame, ExtractedText&& extractedText)
+{
+    RefPtr element = elementForExtractedText(frame, WTF::move(extractedText));
+    if (!element)
+        return { };
+
+    RefPtr container = findLargeContainerAboveNode(*element, minimumSizeForLargeContainer);
+    if (!container)
+        return element;
+
+    if (RefPtr containerElement = dynamicDowncast<Element>(container))
+        return containerElement;
+
+    if (RefPtr containerElement = container->parentElementInComposedTree())
+        return containerElement;
+
+    return element;
 }
 
 std::optional<SimpleRange> rangeForExtractedText(const LocalFrame& frame, ExtractedText&& extractedText)

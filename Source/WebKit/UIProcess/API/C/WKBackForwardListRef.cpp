@@ -40,45 +40,45 @@ WKTypeID WKBackForwardListGetTypeID()
 
 WKBackForwardListItemRef WKBackForwardListGetCurrentItem(WKBackForwardListRef listRef)
 {
-    return toAPI(protect(toProtectedImpl(listRef)->currentItem()).get());
+    return toAPI(protect(toImpl(listRef)->currentItem()).get());
 }
 
 WKBackForwardListItemRef WKBackForwardListGetBackItem(WKBackForwardListRef listRef)
 {
-    return toAPI(protect(toProtectedImpl(listRef)->backItem()).get());
+    return toAPI(protect(toImpl(listRef)->backItem()).get());
 }
 
 WKBackForwardListItemRef WKBackForwardListGetForwardItem(WKBackForwardListRef listRef)
 {
-    return toAPI(protect(toProtectedImpl(listRef)->forwardItem()).get());
+    return toAPI(protect(toImpl(listRef)->forwardItem()).get());
 }
 
 WKBackForwardListItemRef WKBackForwardListGetItemAtIndex(WKBackForwardListRef listRef, int index)
 {
-    return toAPI(protect(toProtectedImpl(listRef)->itemAtIndex(index)).get());
+    return toAPI(protect(toImpl(listRef)->itemAtIndex(index)).get());
 }
 
 void WKBackForwardListClear(WKBackForwardListRef listRef)
 {
-    toProtectedImpl(listRef)->clear();
+    protect(toImpl(listRef))->clear();
 }
 
 unsigned WKBackForwardListGetBackListCount(WKBackForwardListRef listRef)
 {
-    return toProtectedImpl(listRef)->backListCount();
+    return toImpl(listRef)->backListCount();
 }
 
 unsigned WKBackForwardListGetForwardListCount(WKBackForwardListRef listRef)
 {
-    return toProtectedImpl(listRef)->forwardListCount();
+    return toImpl(listRef)->forwardListCount();
 }
 
 WKArrayRef WKBackForwardListCopyBackListWithLimit(WKBackForwardListRef listRef, unsigned limit)
 {
-    return toAPILeakingRef(toProtectedImpl(listRef)->backListAsAPIArrayWithLimit(limit));
+    return toAPILeakingRef(protect(toImpl(listRef))->backListAsAPIArrayWithLimit(limit));
 }
 
 WKArrayRef WKBackForwardListCopyForwardListWithLimit(WKBackForwardListRef listRef, unsigned limit)
 {
-    return toAPILeakingRef(toProtectedImpl(listRef)->forwardListAsAPIArrayWithLimit(limit));
+    return toAPILeakingRef(protect(toImpl(listRef))->forwardListAsAPIArrayWithLimit(limit));
 }

@@ -60,6 +60,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong) AVInterfaceMetadata *metadata;
 @property (nonatomic, strong, nullable) CALayer *videoLayer;
 @property (nonatomic) CGSize videoSize;
+@property (nonatomic, strong, nullable) CALayer *captionLayer;
 @end
 
 RetainPtr<AVInterfaceMetadata> createPlatformMetadata(NSString * _Nullable title, NSString * _Nullable subtitle);

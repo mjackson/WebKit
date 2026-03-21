@@ -41,7 +41,7 @@ public:
     InlineLayoutUnit minimumContentSize();
     InlineLayoutUnit maximumContentSize();
 
-    std::optional<LineLayoutResult>& maximumIntrinsicWidthLineContent() { return m_maximumIntrinsicWidthResultForSingleLine; }
+    std::optional<LineLayoutResult>& maximumIntrinsicWidthLineContent() LIFETIME_BOUND { return m_maximumIntrinsicWidthResultForSingleLine; }
 
 private:
     enum class MayCacheLayoutResult : bool { No, Yes };
@@ -49,12 +49,12 @@ private:
     InlineLayoutUnit simplifiedMinimumWidth(const ElementBox& root) const;
     InlineLayoutUnit simplifiedMaximumWidth(MayCacheLayoutResult = MayCacheLayoutResult::No);
 
-    InlineFormattingContext& formattingContext();
-    const InlineFormattingContext& formattingContext() const;
-    const InlineContentCache& formattingState() const;
-    const ElementBox& formattingContextRoot() const;
-    const ElementBox& lineBuilerRoot() const;
-    const InlineItemList& inlineItemList() const { return m_inlineItems.content(); }
+    InlineFormattingContext& NODELETE formattingContext() LIFETIME_BOUND;
+    const InlineFormattingContext& NODELETE formattingContext() const LIFETIME_BOUND;
+    const InlineContentCache& formattingState() const LIFETIME_BOUND;
+    const ElementBox& NODELETE formattingContextRoot() const;
+    const ElementBox& NODELETE lineBuilerRoot() const;
+    const InlineItemList& inlineItemList() const LIFETIME_BOUND { return m_inlineItems.content(); }
 
 private:
     InlineFormattingContext& m_inlineFormattingContext;

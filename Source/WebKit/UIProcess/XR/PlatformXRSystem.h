@@ -29,12 +29,14 @@
 
 #include "MessageReceiver.h"
 #include "PlatformXRCoordinator.h"
+#include "ProcessActivityGroup.h"
 #include "ProcessThrottler.h"
 #include <WebCore/ExceptionData.h>
 #include <WebCore/PlatformXR.h>
 #include <WebCore/SecurityOriginData.h>
 #include <wtf/RefCounted.h>
 #include <wtf/TZoneMalloc.h>
+#include <wtf/Variant.h>
 
 namespace WebCore {
 class SecurityOriginData;
@@ -76,7 +78,7 @@ public:
     };
     void invalidate(InvalidationReason invalidateReason = InvalidationReason::State);
 
-    bool hasActiveSession() const { return !!m_immersiveSessionActivity; }
+    bool hasActiveSession() const;
     void ensureImmersiveSessionActivity();
 
 private:
@@ -130,7 +132,7 @@ private:
     void invalidateImmersiveSessionState(ImmersiveSessionState nextSessionState = ImmersiveSessionState::Idle);
 
     WeakPtr<WebPageProxy> m_page;
-    RefPtr<ProcessThrottler::ForegroundActivity> m_immersiveSessionActivity;
+    Variant<std::monostate, Ref<ProcessThrottler::ForegroundActivity>, Ref<ProcessActivityGroup>> m_immersiveSessionActivity;
 };
 
 } // namespace WebKit

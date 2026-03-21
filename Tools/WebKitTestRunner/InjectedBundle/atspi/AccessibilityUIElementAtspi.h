@@ -114,7 +114,7 @@ public:
     JSRetainPtr<JSStringRef> valueDescription() override;
     int insertionPointLineNumber() override;
     JSRetainPtr<JSStringRef> selectedTextRange() override;
-    JSRetainPtr<JSStringRef> intersectionWithSelectionRange() override;
+    RefPtr<AccessibilityTextMarkerRange> intersectionWithSelectionRange() override;
     JSRetainPtr<JSStringRef> textInputMarkedRange() const override;
     bool isAtomicLiveRegion() const override;
     bool isBusy() const override;
@@ -207,6 +207,7 @@ public:
     bool attributedStringRangeIsMisspelled(unsigned location, unsigned length) override;
     unsigned uiElementCountForSearchPredicate(JSContextRef, AccessibilityUIElement* startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly) override;
     RefPtr<AccessibilityUIElement> uiElementForSearchPredicate(JSContextRef, AccessibilityUIElement* startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly) override;
+    JSValueRef uiElementsForSearchPredicate(JSContextRef, AccessibilityUIElement* startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly, unsigned resultsLimit) override;
     JSRetainPtr<JSStringRef> selectTextWithCriteria(JSContextRef, JSStringRef ambiguityResolution, JSValueRef searchStrings, JSStringRef replacementString, JSStringRef activity) override;
 
     RefPtr<AccessibilityUIElement> cellForColumnAndRow(unsigned column, unsigned row) override;

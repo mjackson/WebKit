@@ -26,6 +26,7 @@
 #import "config.h"
 #import "IOSurface.h"
 
+#import "ColorSpaceCG.h"
 #import "DestinationColorSpace.h"
 #import "HostWindow.h"
 #import "IOSurfacePool.h"
@@ -92,7 +93,7 @@ std::unique_ptr<IOSurface> IOSurface::create(IOSurfacePool* pool, IntSize size, 
         if (auto cachedSurface = pool->takeSurface(size, colorSpace, pixelFormat, useLosslessCompression)) {
             LOG_WITH_STREAM(IOSurface, stream << "IOSurface::create took from pool: " << *cachedSurface);
             if (cachedSurface->name() != name) {
-                IOSurfaceSetValue(cachedSurface->protectedSurface().get(), kIOSurfaceName, surfaceNameToNSString(name).get());
+                IOSurfaceSetValue(protect(cachedSurface->surface()).get(), kIOSurfaceName, surfaceNameToNSString(name).get());
                 cachedSurface->setName(name);
             }
             return cachedSurface;
@@ -150,7 +151,7 @@ void IOSurface::moveToPool(std::unique_ptr<IOSurface>&& surface, IOSurfacePool* 
 
 // MARK: -
 
-static OSType coreVideoFormatFromIOSurfaceFormat(IOSurface::Format format, UseLosslessCompression useLosslessCompression)
+static OSType NODELETE coreVideoFormatFromIOSurfaceFormat(IOSurface::Format format, UseLosslessCompression useLosslessCompression)
 {
     switch (format) {
     case IOSurface::Format::BGRX:
@@ -431,7 +432,7 @@ IOSurface::IOSurface(IOSurfaceRef surface, std::optional<DestinationColorSpace>&
 
 IOSurface::~IOSurface() = default;
 
-static constexpr IntSize fallbackMaxSurfaceDimension()
+static constexpr IntSize NODELETE fallbackMaxSurfaceDimension()
 {
     // Match limits imposed by Core Animation. FIXME: should have API for this <rdar://problem/25454148>
 #if PLATFORM(WATCHOS)
@@ -458,7 +459,7 @@ static IntSize computeMaximumSurfaceSize()
     return maxSize;
 }
 
-static WTF::Atomic<IntSize>& surfaceMaximumSize()
+static WTF::Atomic<IntSize>& NODELETE surfaceMaximumSize()
 {
     static WTF::Atomic<IntSize> maximumSize;
     return maximumSize;
@@ -481,7 +482,7 @@ IntSize IOSurface::maximumSize()
     return size;
 }
 
-static WTF::Atomic<size_t>& surfaceBytesPerRowAlignment()
+static WTF::Atomic<size_t>& NODELETE surfaceBytesPerRowAlignment()
 {
     static WTF::Atomic<size_t> alignment = 0;
     return alignment;
@@ -606,7 +607,7 @@ RetainPtr<CGContextRef> IOSurface::createCompatibleBitmap(unsigned width, unsign
     auto bytesPerRow = roundUpToMultipleOfNonPowerOfTwo(bytesPerRowAlignment(), width * (bitsPerPixel / 8));
 
     ensureColorSpace();
-    return adoptCF(CGBitmapContextCreate(NULL, width, height, configuration.bitsPerComponent, bytesPerRow, m_colorSpace->protectedPlatformColorSpace().get(), configuration.bitmapInfo));
+    return adoptCF(CGBitmapContextCreate(NULL, width, height, configuration.bitsPerComponent, bytesPerRow, protect(m_colorSpace->platformColorSpace()).get(), configuration.bitmapInfo));
 }
 
 RetainPtr<CGContextRef> IOSurface::createPlatformContext(PlatformDisplayID displayID, std::optional<CGImageAlphaInfo> overrideAlphaInfo)
@@ -617,7 +618,7 @@ RetainPtr<CGContextRef> IOSurface::createPlatformContext(PlatformDisplayID displ
     auto bitsPerPixel = configuration.bitsPerComponent * 4;
 
     ensureColorSpace();
-    auto cgContext = adoptCF(CGIOSurfaceContextCreate(m_surface.get(), m_size.width(), m_size.height(), configuration.bitsPerComponent, bitsPerPixel, m_colorSpace->protectedPlatformColorSpace().get(), configuration.bitmapInfo));
+    auto cgContext = adoptCF(CGIOSurfaceContextCreate(m_surface.get(), m_size.width(), m_size.height(), configuration.bitsPerComponent, bitsPerPixel, protect(m_colorSpace->platformColorSpace()).get(), configuration.bitmapInfo));
 
 #if PLATFORM(MAC)
     if (auto displayMask = primaryOpenGLDisplayMask()) {
@@ -645,7 +646,7 @@ std::optional<IOSurface::LockAndContext> IOSurface::createBitmapPlatformContext(
     auto configuration = bitmapConfiguration();
     auto size = this->size();
 
-    auto context = adoptCF(CGBitmapContextCreate(locker->surfaceBaseAddress(), size.width(), size.height(), configuration.bitsPerComponent, bytesPerRow(), colorSpace().protectedPlatformColorSpace().get(), configuration.bitmapInfo));
+    auto context = adoptCF(CGBitmapContextCreate(locker->surfaceBaseAddress(), size.width(), size.height(), configuration.bitsPerComponent, bytesPerRow(), protect(colorSpace().platformColorSpace()).get(), configuration.bitmapInfo));
     if (!context) {
         RELEASE_LOG_ERROR(IOSurface, "IOSurface::createBitmapPlatformContext: Failed to create bitmap context for IOSurface %x (size %d x %d), bitsPerComponent %lu, bytesPerRow %lu", surfaceID(), size.width(), size.height(), configuration.bitsPerComponent, bytesPerRow());
         return std::nullopt;
@@ -800,7 +801,7 @@ void IOSurface::setOwnershipIdentity(IOSurfaceRef surface, const ProcessIdentity
 void IOSurface::setColorSpaceProperty()
 {
     ASSERT(m_colorSpace);
-    auto colorSpaceProperties = adoptCF(CGColorSpaceCopyPropertyList(m_colorSpace->protectedPlatformColorSpace().get()));
+    auto colorSpaceProperties = adoptCF(CGColorSpaceCopyPropertyList(protect(m_colorSpace->platformColorSpace()).get()));
     IOSurfaceSetValue(m_surface.get(), kIOSurfaceColorSpace, colorSpaceProperties.get());
 }
 

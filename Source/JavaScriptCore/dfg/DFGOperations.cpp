@@ -28,6 +28,7 @@
 
 
 #include "ArrayPrototypeInlines.h"
+#include "ArrayConstructor.h"
 #include "ButterflyInlines.h"
 #include "CacheableIdentifierInlines.h"
 #include "ClonedArguments.h"
@@ -1635,7 +1636,7 @@ JSC_DEFINE_JIT_OPERATION(operationResolvePromiseFirstResolving, void, (JSGlobalO
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
     auto scope = DECLARE_THROW_SCOPE(vm);
     JSValue argument = JSValue::decode(encodedArgument);
-    promise->resolve(globalObject, argument);
+    promise->resolve(globalObject, vm, argument);
     OPERATION_RETURN(scope);
 }
 
@@ -1688,6 +1689,14 @@ JSC_DEFINE_JIT_OPERATION(operationPromiseThen, JSObject*, (JSGlobalObject* globa
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
     auto scope = DECLARE_THROW_SCOPE(vm);
     OPERATION_RETURN(scope, promise->then(globalObject, JSValue::decode(onFulfilled), JSValue::decode(onRejected)));
+}
+
+JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationPerformPromiseThen, void, (JSGlobalObject* globalObject, JSPromise* inputPromise, EncodedJSValue onFulfilled, EncodedJSValue onRejected, JSPromise* resultPromise))
+{
+    VM& vm = globalObject->vm();
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    inputPromise->performPromiseThen(vm, globalObject, JSValue::decode(onFulfilled), JSValue::decode(onRejected), resultPromise);
 }
 
 JSC_DEFINE_JIT_OPERATION(operationRegExpTestString, size_t, (JSGlobalObject* globalObject, RegExpObject* regExpObject, JSString* input))
@@ -2640,6 +2649,18 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationIsConstructor, size_t, (JSGlobalObjec
     OPERATION_RETURN(scope, JSValue::decode(value).isConstructor());
 }
 
+JSC_DEFINE_JIT_OPERATION(operationArrayIsArray, size_t, (JSGlobalObject* globalObject, EncodedJSValue encodedValue))
+{
+    VM& vm = globalObject->vm();
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    JSValue value = JSValue::decode(encodedValue);
+    ASSERT(value.isCell() && value.asCell()->type() == ProxyObjectType);
+    OPERATION_RETURN(scope, isArraySlow(globalObject, jsCast<ProxyObject*>(value.asCell())));
+}
+
 JSC_DEFINE_JIT_OPERATION(operationTypeOfObject, JSCell*, (JSGlobalObject* globalObject, JSCell* object))
 {
     VM& vm = globalObject->vm();
@@ -2996,7 +3017,8 @@ JSC_DEFINE_JIT_OPERATION(operationNewRegExpUntyped, JSObject*, (JSGlobalObject* 
     };
 
     JSGlobalObject* regExpGlobalObject = structure->globalObject();
-    OPERATION_RETURN(scope, constructRegExp(regExpGlobalObject, ArgList { args, 2 }, regExpGlobalObject->regExpConstructor()));
+    JSObject* regExpConstructor = regExpGlobalObject->regExpConstructor();
+    OPERATION_RETURN(scope, constructRegExp(regExpGlobalObject, ArgList { args, 2 }, regExpConstructor, regExpConstructor));
 }
 
 JSC_DEFINE_JIT_OPERATION(operationNewRegExpString, JSObject*, (JSGlobalObject* globalObject, Structure* structure, JSString* content, JSString* flags))
@@ -4014,6 +4036,33 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompareStringImplGreaterEq, uintptr_t
     return codePointCompare(a, b) >= 0;
 }
 
+JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompareHeapBigIntLess, uintptr_t, (JSCell* a, JSCell* b))
+{
+    return JSBigInt::compare(jsCast<JSBigInt*>(a), jsCast<JSBigInt*>(b)) == JSBigInt::ComparisonResult::LessThan;
+}
+
+JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompareHeapBigIntLessEq, uintptr_t, (JSCell* a, JSCell* b))
+{
+    auto result = JSBigInt::compare(jsCast<JSBigInt*>(a), jsCast<JSBigInt*>(b));
+    return result == JSBigInt::ComparisonResult::LessThan || result == JSBigInt::ComparisonResult::Equal;
+}
+
+JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompareHeapBigIntGreater, uintptr_t, (JSCell* a, JSCell* b))
+{
+    return JSBigInt::compare(jsCast<JSBigInt*>(a), jsCast<JSBigInt*>(b)) == JSBigInt::ComparisonResult::GreaterThan;
+}
+
+JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompareHeapBigIntGreaterEq, uintptr_t, (JSCell* a, JSCell* b))
+{
+    auto result = JSBigInt::compare(jsCast<JSBigInt*>(a), jsCast<JSBigInt*>(b));
+    return result == JSBigInt::ComparisonResult::GreaterThan || result == JSBigInt::ComparisonResult::Equal;
+}
+
+JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationCompareHeapBigIntEq, uintptr_t, (JSCell* a, JSCell* b))
+{
+    return JSBigInt::equals(jsCast<JSBigInt*>(a), jsCast<JSBigInt*>(b));
+}
+
 JSC_DEFINE_JIT_OPERATION(operationCompareStringLess, uintptr_t, (JSGlobalObject* globalObject, JSString* a, JSString* b))
 {
     VM& vm = globalObject->vm();
@@ -4307,7 +4356,7 @@ JSC_DEFINE_JIT_OPERATION(operationArrayIncludesValueInt32, UCPUStrictInt32, (JSG
 
     JSValue searchElement = JSValue::decode(encodedValue);
 
-    if (searchElement.isUndefined() && containsHole(data, length))
+    if (searchElement.isUndefined() && containsHole(data + index, length - index))
         OPERATION_RETURN(scope, toUCPUStrictInt32(1));
 
     int32_t int32Value = 0;
@@ -4330,7 +4379,10 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationArrayIncludesValueDouble, UCPUStrictI
     const double* data = butterfly->contiguousDouble().data();
     int32_t length = butterfly->publicLength();
 
-    if (searchElement.isUndefined() && containsHole(data, length))
+    if (index >= length)
+        return toUCPUStrictInt32(0);
+
+    if (searchElement.isUndefined() && containsHole(data + index, length - index))
         return toUCPUStrictInt32(1);
     if (!searchElement.isNumber())
         return toUCPUStrictInt32(0);
@@ -4358,7 +4410,7 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationArrayIncludesNonStringIdentityValueCo
         return toUCPUStrictInt32(1);
 
     JSValue searchElementValue = JSValue::decode(searchElement);
-    if (searchElementValue.isUndefined() && containsHole(data, length))
+    if (searchElementValue.isUndefined() && containsHole(data + index, length - index))
         return toUCPUStrictInt32(1);
     return toUCPUStrictInt32(0);
 }

@@ -29,9 +29,11 @@
 #include <WebCore/AXStitchGroup.h>
 #include <WebCore/AXTextRun.h>
 #include <WebCore/AccessibilityRole.h>
+#include <WebCore/AffineTransform.h>
 #include <WebCore/CharacterRange.h>
 #include <WebCore/Color.h>
 #include <WebCore/ColorConversion.h>
+#include <WebCore/FrameIdentifier.h>
 #include <WebCore/HTMLTextFormControlElement.h>
 #include <WebCore/InputType.h>
 #include <WebCore/LayoutRect.h>
@@ -144,7 +146,7 @@ enum class AccessibilityDetachmentType { CacheDestroyed, ElementDestroyed, Eleme
 enum class AccessibilityConversionSpace { Screen, Page };
 
 // FIXME: This should be replaced by AXDirection (or vice versa).
-enum class AccessibilitySearchDirection {
+enum class AccessibilitySearchDirection : uint8_t {
     Next = 1,
     Previous,
 };
@@ -503,6 +505,7 @@ public:
     bool isLink() const { return role() == AccessibilityRole::Link; };
     bool isCode() const { return role() == AccessibilityRole::Code; }
     bool isImage() const { return role() == AccessibilityRole::Image; }
+    bool isInImage() const;
     bool isImageMap() const { return role() == AccessibilityRole::ImageMap; }
     bool isVideo() const { return role() == AccessibilityRole::Video; }
     virtual bool isSecureField() const = 0;
@@ -516,23 +519,23 @@ public:
     ListBoxInterpretation listBoxInterpretation() const;
     bool isListBoxOption() const { return role() == AccessibilityRole::ListBoxOption; }
     virtual bool isAttachment() const = 0;
-    bool isMenuRelated() const;
+    bool NODELETE isMenuRelated() const;
     bool isMenu() const { return role() == AccessibilityRole::Menu; }
     bool isMenuBar() const { return role() == AccessibilityRole::MenuBar; }
-    bool isMenuItem() const;
+    bool NODELETE isMenuItem() const;
     bool isInputImage() const;
     bool isProgressIndicator() const { return role() == AccessibilityRole::ProgressIndicator || role() == AccessibilityRole::Meter; }
     bool isSlider() const { return role() == AccessibilityRole::Slider; }
     bool isControl() const;
     bool isRadioInput() const;
     // lists support (l, ul, ol, dl)
-    bool isList() const;
+    bool NODELETE isList() const;
     virtual bool isDescriptionList() const = 0;
     bool isFileUploadButton() const;
     // Returns true for objects whose role implies interactivity. For example, when a screen
     // reader announces "link", it doesn't need to announce "clickable" or "pressable" — that
     // is implicit in the concept of a link.
-    bool isImplicitlyInteractive() const;
+    bool NODELETE isImplicitlyInteractive() const;
     bool isReplacedElement() const;
 
     virtual std::optional<InputType::Type> inputType() const = 0;
@@ -541,9 +544,9 @@ public:
     virtual bool isTable() const = 0;
     virtual bool isExposableTable() const = 0;
     unsigned tableLevel() const;
-    bool hasGridRole() const;
-    bool hasCellRole() const;
-    bool hasCellOrRowRole() const;
+    bool NODELETE hasGridRole() const;
+    bool NODELETE hasCellRole() const;
+    bool NODELETE hasCellOrRowRole() const;
     bool supportsSelectedRows() const { return hasGridRole(); }
     virtual AccessibilityChildrenVector columns() = 0;
     virtual AccessibilityChildrenVector rows() = 0;
@@ -601,7 +604,7 @@ public:
 
     virtual bool isFieldset() const = 0;
     bool isImageMapLink() const;
-    bool isGroup() const;
+    bool NODELETE isGroup() const;
 #if PLATFORM(MAC)
     bool isEmptyGroup();
 #endif
@@ -615,7 +618,7 @@ public:
     virtual bool isMockObject() const = 0;
     bool isSwitch() const { return role() == AccessibilityRole::Switch; }
     bool isToggleButton() const { return role() == AccessibilityRole::ToggleButton; }
-    bool isTextControl() const;
+    bool NODELETE isTextControl() const;
     virtual bool isEditableWebArea() const = 0;
     virtual bool isNonNativeTextControl() const = 0;
     bool isTabList() const { return role() == AccessibilityRole::TabList; }
@@ -633,11 +636,12 @@ public:
     bool isFrame() const;
 #if PLATFORM(COCOA)
     virtual RetainPtr<id> remoteFramePlatformElement() const = 0;
-    virtual pid_t remoteFrameProcessIdentifier() const = 0;
+    virtual pid_t remoteFramePID() const = 0;
+    virtual std::optional<FrameIdentifier> remoteFrameID() const = 0;
 #endif
     virtual bool hasRemoteFrameChild() const = 0;
 
-    bool isButton() const;
+    bool NODELETE isButton() const;
     bool isMeter() const { return role() == AccessibilityRole::Meter; }
 
     bool isListItem() const { return role() == AccessibilityRole::ListItem; }
@@ -647,6 +651,7 @@ public:
     bool isPopUpButton() const { return role() == AccessibilityRole::PopUpButton; }
     bool isColorWell() const { return role() == AccessibilityRole::ColorWell; }
     bool isSplitter() const { return role() == AccessibilityRole::Splitter; }
+    bool isFocusableSplitter() const { return isSplitter() && canSetFocusAttribute(); }
     bool isToolbar() const { return role() == AccessibilityRole::Toolbar; }
     bool isSummary() const { return role() == AccessibilityRole::Summary; }
     bool isBlockquote() const { return role() == AccessibilityRole::Blockquote; }
@@ -655,7 +660,7 @@ public:
 #endif
     bool isLineBreak() const { return role() == AccessibilityRole::LineBreak; }
 
-    bool isLandmark() const;
+    bool NODELETE isLandmark() const;
     virtual bool isKeyboardFocusable() const = 0;
     virtual bool isOutput() const = 0;
 
@@ -677,6 +682,8 @@ public:
     bool supportsRequiredAttribute() const;
     virtual bool isExpanded() const = 0;
     virtual bool isVisible() const = 0;
+    virtual bool isARIAHidden() const { return false; }
+    bool isAXHidden() const;
     virtual void setIsExpanded(bool) = 0;
     virtual bool supportsCheckedState() const = 0;
 
@@ -715,10 +722,12 @@ public:
     bool canSetExpandedAttribute() const;
 
     virtual Element* element() const = 0;
-    virtual Node* node() const = 0;
+    virtual Node* NODELETE node() const = 0;
     virtual RenderObject* renderer() const = 0;
 
     virtual bool isIgnored() const = 0;
+    // Returns std::nullopt if we don't have a cached ignored value.
+    virtual std::optional<bool> cachedIsIgnored() const = 0;
 
     unsigned blockquoteLevel() const;
     unsigned headingLevel() const;
@@ -740,10 +749,10 @@ public:
     virtual std::optional<AccessibilityChildrenVector> imageOverlayElements() = 0;
     virtual String extendedDescription() const = 0;
 
-    bool supportsActiveDescendant() const;
+    bool NODELETE supportsActiveDescendant() const;
     bool isActiveDescendantOfFocusedContainer() const;
     virtual bool supportsARIAOwns() const = 0;
-    bool supportsARIARoleDescription() const;
+    bool NODELETE supportsARIARoleDescription() const;
 
     // Retrieval of related objects.
     AXCoreObject* activeDescendant() const;
@@ -854,7 +863,13 @@ public:
     AXCoreObject* parentObjectIncludingCrossFrame() const;
     AXCoreObject* parentObjectUnignoredIncludingCrossFrame() const;
 
-    virtual AccessibilityChildrenVector findMatchingObjects(AccessibilitySearchCriteria&&) = 0;
+    // Finds the next or previous sibling that is not ignored. Uses the parent's
+    // children() list, so it works for both live objects and isolated objects.
+    AXCoreObject* nextSiblingUnignored() const;
+    AXCoreObject* previousSiblingUnignored() const;
+
+    // Finds objects within |this| object matching the given search criteria.
+    virtual AccessibilityChildrenVector findMatchingObjectsWithin(AccessibilitySearchCriteria&&);
     virtual bool isDescendantOfRole(AccessibilityRole) const = 0;
     AXCoreObject* selfOrFirstTextDescendant();
 
@@ -976,6 +991,12 @@ public:
     // This is the amount that the RemoteFrame is offset from its containing parent.
     virtual IntPoint remoteFrameOffset() const = 0;
 
+#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+    virtual IntPoint frameScreenPosition() const = 0;
+    virtual AffineTransform frameScreenTransform() const = 0;
+    virtual bool isFrameGeometryInitialized() const { return true; }
+#endif
+
     virtual FloatRect convertFrameToSpace(const FloatRect&, AccessibilityConversionSpace) const = 0;
 #if PLATFORM(COCOA)
     virtual FloatRect convertRectToPlatformSpace(const FloatRect&, AccessibilityConversionSpace) const = 0;
@@ -1047,7 +1068,7 @@ public:
     // which inherently are horizontal or vertical.
     virtual std::optional<AccessibilityOrientation> explicitOrientation() const = 0;
     AccessibilityOrientation orientation() const;
-    std::optional<AccessibilityOrientation> defaultOrientation() const;
+    std::optional<AccessibilityOrientation> NODELETE defaultOrientation() const;
 
     virtual void increment() = 0;
     virtual void decrement() = 0;
@@ -1056,9 +1077,9 @@ public:
     // When it is not, it returns unignored children. After ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
     // is the default, we should rename this function to childrenIncludingIgnored, and all callers
     // should be audited to either use that, or unignoredChildren.
-    virtual const AccessibilityChildrenVector& children(bool updateChildrenIfNeeded = true) = 0;
+    virtual const AccessibilityChildrenVector& children(bool updateChildrenIfNeeded = true) LIFETIME_BOUND = 0;
 
-    const AccessibilityChildrenVector& childrenIncludingIgnored(bool updateChildrenIfNeeded = true)
+    const AccessibilityChildrenVector& childrenIncludingIgnored(bool updateChildrenIfNeeded = true) LIFETIME_BOUND
     {
         return children(updateChildrenIfNeeded);
     };
@@ -1068,7 +1089,7 @@ public:
     AccessibilityChildrenVector unignoredChildren(bool updateChildrenIfNeeded = true);
     bool hasUnignoredChild();
 #else
-    const AccessibilityChildrenVector& unignoredChildren(bool updateChildrenIfNeeded = true) { return children(updateChildrenIfNeeded); }
+    const AccessibilityChildrenVector& unignoredChildren(bool updateChildrenIfNeeded = true) LIFETIME_BOUND { return children(updateChildrenIfNeeded); }
     bool hasUnignoredChild()
     {
         const auto& children = this->children();
@@ -1116,7 +1137,7 @@ public:
     }
 
     RefPtr<AXCoreObject> previousInPreOrder(bool updateChildrenIfNeeded = true, AXCoreObject* stayWithin = nullptr);
-    AXCoreObject* previousSiblingIncludingIgnored(bool updateChildrenIfNeeded);
+    RefPtr<AXCoreObject> previousSiblingIncludingIgnored(bool updateChildrenIfNeeded);
     AXCoreObject* deepestLastChildIncludingIgnored(bool updateChildrenIfNeeded);
 
     void setIndexInParent(unsigned index)
@@ -1149,7 +1170,7 @@ public:
     AccessibilityChildrenVector listboxSelectedChildren();
     AccessibilityChildrenVector selectedRows();
     AccessibilityChildrenVector selectedListItems();
-    bool canHaveSelectedChildren() const;
+    bool NODELETE canHaveSelectedChildren() const;
     AccessibilityChildrenVector selectedChildren();
     virtual void setSelectedChildren(const AccessibilityChildrenVector&) = 0;
     virtual AccessibilityChildrenVector visibleChildren() = 0;
@@ -1290,6 +1311,7 @@ public:
     WEBCORE_EXPORT RetainPtr<id> platformElement() const;
 #endif
     void setWrapper(AccessibilityObjectWrapper* wrapper) { m_wrapper = wrapper; }
+    void setWrapperFrom(const AXCoreObject& other) { m_wrapper = other.m_wrapper; }
     void detachWrapper(AccessibilityDetachmentType);
 
 #if PLATFORM(IOS_FAMILY)
@@ -1811,7 +1833,7 @@ template<typename T, typename U> inline T retrieveAutoreleasedValueFromMainThrea
 }
 #endif
 
-bool inRenderTreeOrStyleUpdate(const Document&);
+bool NODELETE inRenderTreeOrStyleUpdate(const Document&);
 
 using PlatformRoleMap = HashMap<AccessibilityRole, String, DefaultHash<unsigned>, WTF::UnsignedWithZeroKeyHashTraits<unsigned>>;
 
@@ -1918,6 +1940,13 @@ inline AXCoreObject* AXCoreObject::exposedTableAncestor(bool includeSelf) const
 {
     return Accessibility::findAncestor(*this, includeSelf, [] (const auto& object) {
         return object.isExposableTable();
+    });
+}
+
+inline bool AXCoreObject::isInImage() const
+{
+    return Accessibility::findAncestor<AXCoreObject>(*this, /* includeSelf */ false, [] (const AXCoreObject& ancestor) {
+        return ancestor.role() == AccessibilityRole::Image;
     });
 }
 

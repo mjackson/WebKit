@@ -125,7 +125,7 @@ void MutationObserver::disconnect()
     m_records.clear();
     WeakHashSet registrations { m_registrations };
     for (Ref registration : registrations)
-        registration->protectedNode()->unregisterMutationObserver(registration.get());
+        protect(registration->node())->unregisterMutationObserver(registration.get());
 }
 
 void MutationObserver::observationStarted(MutationObserverRegistration& registration)

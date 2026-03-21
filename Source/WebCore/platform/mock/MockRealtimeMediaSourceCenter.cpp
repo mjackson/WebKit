@@ -157,8 +157,6 @@ private:
 #endif
     void whenReady(CompletionHandler<void(CaptureSourceError&&)>&&) final;
 
-    Ref<MockRealtimeVideoSource> protectedSource() const { return m_source; }
-
     void readyTimerFired();
 
     Ref<MockRealtimeVideoSource> m_source;
@@ -183,7 +181,7 @@ bool MockDisplayCapturer::start()
     ASSERT(!m_isRunning);
 
     m_isRunning = true;
-    protectedSource()->start();
+    protect(m_source)->start();
     return true;
 }
 
@@ -192,7 +190,7 @@ void MockDisplayCapturer::stop()
     ASSERT(!m_whenReadyCallback);
 
     m_isRunning = false;
-    protectedSource()->stop();
+    protect(m_source)->stop();
 }
 
 void MockDisplayCapturer::whenReady(CompletionHandler<void(CaptureSourceError&&)>&& callback)
@@ -219,7 +217,7 @@ void MockDisplayCapturer::commitConfiguration(const RealtimeMediaSourceSettings&
 
 DisplayCaptureSourceCocoa::DisplayFrameType MockDisplayCapturer::generateFrame()
 {
-    if (RefPtr imageBuffer = protectedSource()->imageBuffer())
+    if (RefPtr imageBuffer = protect(m_source)->imageBuffer())
         return imageBuffer->copyNativeImage();
     return { };
 }
@@ -297,7 +295,7 @@ public:
     }
 
 #if PLATFORM(COCOA)
-    WeakPtr<MockDisplayCapturer> latestCapturer() { return m_capturer; }
+    WeakPtr<MockDisplayCapturer> NODELETE latestCapturer() { return m_capturer; }
 #endif
 
 private:

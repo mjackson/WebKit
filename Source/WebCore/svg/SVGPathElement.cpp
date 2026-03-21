@@ -45,9 +45,9 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(SVGPathElement);
 
 class PathSegListCache {
 public:
-    static PathSegListCache& singleton();
+    static PathSegListCache& NODELETE singleton();
 
-    std::optional<DataRef<SVGPathByteStream::Data>> get(const AtomString& attributeValue) const;
+    std::optional<DataRef<SVGPathByteStream::Data>> NODELETE get(const AtomString& attributeValue) const;
     void add(const AtomString& attributeValue, DataRef<SVGPathByteStream::Data>);
     void clear();
 
@@ -118,10 +118,10 @@ void SVGPathElement::attributeChanged(const QualifiedName& name, const AtomStrin
     if (name == SVGNames::dAttr) {
         auto& cache = PathSegListCache::singleton();
         if (newValue.isEmpty())
-            Ref { m_pathSegList }->baseVal()->clearByteStreamData();
+            m_pathSegList->baseVal()->clearByteStreamData();
         else if (auto data = cache.get(newValue))
-            Ref { m_pathSegList }->baseVal()->updateByteStreamData(WTF::move(data.value()));
-        else if (Ref { m_pathSegList }->baseVal()->parse(newValue))
+            m_pathSegList->baseVal()->updateByteStreamData(WTF::move(data.value()));
+        else if (m_pathSegList->baseVal()->parse(newValue))
             cache.add(newValue, m_pathSegList->baseVal()->existingPathByteStream().data());
         else
             protect(protect(document())->svgExtensions())->reportError(makeString("Problem parsing d=\""_s, newValue, "\""_s));
@@ -142,10 +142,10 @@ void SVGPathElement::svgAttributeChanged(const QualifiedName& attrName)
         InstanceInvalidationGuard guard(*this);
         invalidateMPathDependencies();
 
-        if (CheckedPtr path = dynamicDowncast<RenderSVGPath>(renderer()))
+        if (auto* path = dynamicDowncast<RenderSVGPath>(renderer()))
             path->setNeedsShapeUpdate();
 
-        if (CheckedPtr path = dynamicDowncast<LegacyRenderSVGPath>(renderer()))
+        if (auto* path = dynamicDowncast<LegacyRenderSVGPath>(renderer()))
             path->setNeedsShapeUpdate();
 
         updateSVGRendererForElementChange();
@@ -168,16 +168,16 @@ void SVGPathElement::invalidateMPathDependencies()
     }
 }
 
-Node::InsertedIntoAncestorResult SVGPathElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps SVGPathElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    auto result = SVGGeometryElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    auto result = SVGGeometryElement::insertionSteps(insertionType, parentOfInsertedTree);
     invalidateMPathDependencies();
     return result;
 }
 
-void SVGPathElement::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+void SVGPathElement::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
-    SVGGeometryElement::removedFromAncestor(removalType, oldParentOfRemovedTree);
+    SVGGeometryElement::removingSteps(removalType, oldParentOfRemovedTree);
     invalidateMPathDependencies();
 }
 
@@ -252,8 +252,9 @@ Path SVGPathElement::path() const
 {
     if (document().settings().cssDPropertyEnabled()) {
         if (CheckedPtr renderer = this->renderer()) {
-            if (auto& pathFunction = renderer->style().d().tryPath())
-                return Style::path(pathFunction->parameters, FloatRect { });
+            CheckedRef style = renderer->style();
+            if (auto& pathFunction = style->d().tryPath())
+                return Style::path(pathFunction->parameters, FloatRect { }, style->usedZoomForLength());
             return { };
         }
     }

@@ -129,15 +129,15 @@ HTMLFormElement::~HTMLFormElement()
         imageElement->formWillBeDestroyed();
 }
 
-Node::InsertedIntoAncestorResult HTMLFormElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps HTMLFormElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    HTMLElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    HTMLElement::insertionSteps(insertionType, parentOfInsertedTree);
     if (insertionType.connectedToDocument)
         document().didAssociateFormControl(*this);
-    return InsertedIntoAncestorResult::Done;
+    return NeedsPostConnectionSteps::No;
 }
 
-void HTMLFormElement::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+void HTMLFormElement::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
     Ref root = traverseToRootNode(); // Do not rely on rootNode() because our IsInTreeScope is outdated.
     auto listedElements = copyListedElementsVector();
@@ -148,7 +148,7 @@ void HTMLFormElement::removedFromAncestor(RemovalType removalType, ContainerNode
     });
     for (auto& imageElement : imageElements)
         imageElement->formOwnerRemovedFromTree(root);
-    HTMLElement::removedFromAncestor(removalType, oldParentOfRemovedTree);
+    HTMLElement::removingSteps(removalType, oldParentOfRemovedTree);
     if (removalType.disconnectedFromDocument)
       m_controlsCollection = nullptr; // Avoid leaks since HTMLCollection has a back Ref to this element.
 }
@@ -157,9 +157,9 @@ unsigned HTMLFormElement::length() const
 {
     unsigned length = 0;
     for (auto& weakElement : m_listedElements) {
-        RefPtr element { weakElement.get() };
+        auto* element = weakElement.get();
         ASSERT(element);
-        RefPtr listedElement = element->asFormListedElement();
+        auto* listedElement = element->asFormListedElement();
         ASSERT(listedElement);
         if (listedElement->isEnumeratable())
             ++length;
@@ -404,7 +404,7 @@ void HTMLFormElement::submit(Event* event, bool processingUserGesture, FormSubmi
     auto shouldLockHistory = processingUserGesture ? LockHistory::No : LockHistory::Yes;
     auto formSubmission = FormSubmission::create(*this, submitter, m_attributes, event, shouldLockHistory, trigger);
 
-    if (!isConnected())
+    if (!formSubmission || !isConnected())
         return;
 
     auto relAttributes = parseFormRelAttributes(getAttribute(HTMLNames::relAttr));
@@ -416,9 +416,9 @@ void HTMLFormElement::submit(Event* event, bool processingUserGesture, FormSubmi
     m_plannedFormSubmission = formSubmission;
 
     if (formSubmission->method() == FormSubmission::Method::Dialog)
-        submitDialog(WTF::move(formSubmission));
+        submitDialog(formSubmission.releaseNonNull());
     else
-        frame->loader().submitForm(WTF::move(formSubmission));
+        frame->loader().submitForm(formSubmission.releaseNonNull());
 
     m_shouldSubmit = false;
     m_isSubmittingOrPreparingForSubmission = false;

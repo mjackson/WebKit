@@ -1089,11 +1089,7 @@ end
     btpnz t3, (constexpr CallLinkInfo::polymorphicCalleeMask), .found
 
 .notfound:
-if ARM64 or ARM64E
     pcrtoaddr _llint_default_call_trampoline, t5
-else
-    leap (_llint_default_call_trampoline), t5
-end
     loadp CallLinkInfo::m_codeBlock[t2], t3
     storep t3, (CodeBlock - CallerFrameAndPCSize)[sp]
     call _llint_default_call_trampoline
@@ -1220,10 +1216,6 @@ if WEBASSEMBLY and (ARM64 or ARM64E or X86_64 or ARMv7)
     unboxWasmCallee(ws0, ws1)
     storep ws0, UnboxedWasmCalleeStackSlot[cfr]
 
-    # on x86, PL will hold the PC relative offset for argumINT, then IB will take over
-    if X86_64
-        initPCRelative(ipint_entry, PL)
-    end
 ipintEntry()
 else
     break
@@ -1657,10 +1649,8 @@ if ARM64E
     pcrtoaddr _exit_implanted_slice, ws0
     tagCodePtr ws0, a0
     move ws0, r0
-elsif ARM64
+else
     pcrtoaddr _exit_implanted_slice, r0
-elsif X86_64
-    leap _exit_implanted_slice, r0
 end
     functionEpilogue()
     ret

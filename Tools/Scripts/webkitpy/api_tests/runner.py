@@ -33,6 +33,19 @@ from webkitpy.port.server_process import ServerProcess, _log as server_process_l
 _log = logging.getLogger(__name__)
 
 
+class _NoisyOutputFilter(logging.Filter):
+    def filter(self, record):
+        msg = record.getMessage()
+        if msg.lstrip().startswith('objc['):
+            return False
+        if 'NSEventConcurrentProcessingEnabled' in msg:
+            return False
+        return True
+
+
+_log.addFilter(_NoisyOutputFilter())
+
+
 def setup_shard(port=None, devices=None, log_limit=None):
     if devices and getattr(port, 'DEVICE_MANAGER', None):
         port.DEVICE_MANAGER.AVAILABLE_DEVICES = devices.get('available_devices', [])
@@ -308,6 +321,8 @@ class _Worker(object):
         result = ''
         for line in output.splitlines():
             if line.lstrip().startswith('objc['):
+                continue
+            if 'NSEventConcurrentProcessingEnabled' in line:
                 continue
             result += line + '\n'
         return result.rstrip()

@@ -24,6 +24,8 @@
 #pragma once
 
 #include <WebCore/ExceptionOr.h>
+#include <WebCore/HTMLFrameOwnerElement.h>
+#include <WebCore/RemoteFrame.h>
 #include <wtf/Forward.h>
 
 namespace JSC {
@@ -34,6 +36,7 @@ class JSGlobalObject;
 namespace WebCore {
 
 class DOMWindow;
+class Frame;
 class LocalDOMWindow;
 class LocalFrame;
 class Node;
@@ -46,6 +49,7 @@ namespace BindingSecurity {
 
 template<typename T> T* checkSecurityForNode(JSC::JSGlobalObject&, T&);
 template<typename T> T* checkSecurityForNode(JSC::JSGlobalObject&, T*);
+template<typename T> T* checkSecurityForNodeWithFrameOwner(JSC::JSGlobalObject&, T*, const HTMLFrameOwnerElement&);
 template<typename T> ExceptionOr<T*> checkSecurityForNode(JSC::JSGlobalObject&, ExceptionOr<T*>&&);
 template<typename T> ExceptionOr<T*> checkSecurityForNode(JSC::JSGlobalObject&, ExceptionOr<T&>&&);
 
@@ -57,8 +61,8 @@ bool shouldAllowAccessToDOMWindow(JSC::JSGlobalObject*, DOMWindow&, SecurityRepo
 bool shouldAllowAccessToDOMWindow(JSC::JSGlobalObject&, DOMWindow&, String& message);
 bool shouldAllowAccessToDOMWindow(JSC::JSGlobalObject*, DOMWindow*, SecurityReportingOption = LogSecurityError);
 bool shouldAllowAccessToDOMWindow(JSC::JSGlobalObject&, DOMWindow*, String& message);
-bool shouldAllowAccessToFrame(JSC::JSGlobalObject*, LocalFrame*, SecurityReportingOption = LogSecurityError);
-bool shouldAllowAccessToFrame(JSC::JSGlobalObject&, LocalFrame&, String& message);
+bool shouldAllowAccessToFrame(JSC::JSGlobalObject*, Frame*, SecurityReportingOption = LogSecurityError);
+bool shouldAllowAccessToFrame(JSC::JSGlobalObject&, Frame&, String& message);
 bool shouldAllowAccessToNode(JSC::JSGlobalObject&, Node*);
 
 }
@@ -71,6 +75,18 @@ template<typename T> inline T* BindingSecurity::checkSecurityForNode(JSC::JSGlob
 template<typename T> inline T* BindingSecurity::checkSecurityForNode(JSC::JSGlobalObject& lexicalGlobalObject, T* node)
 {
     return shouldAllowAccessToNode(lexicalGlobalObject, node) ? node : nullptr;
+}
+
+template<typename T> inline T* BindingSecurity::checkSecurityForNodeWithFrameOwner(JSC::JSGlobalObject& lexicalGlobalObject, T* node, const HTMLFrameOwnerElement& owner)
+{
+    if (node)
+        return shouldAllowAccessToNode(lexicalGlobalObject, node) ? node : nullptr;
+
+    // Perform access check to log cross-origin error if there is one, matching
+    // behavior before Site Isolation.
+    if (RefPtr frame = dynamicDowncast<RemoteFrame>(owner.contentFrame()))
+        shouldAllowAccessToFrame(&lexicalGlobalObject, frame);
+    return nullptr;
 }
 
 template<typename T> inline ExceptionOr<T*> BindingSecurity::checkSecurityForNode(JSC::JSGlobalObject& lexicalGlobalObject, ExceptionOr<T*>&& value)

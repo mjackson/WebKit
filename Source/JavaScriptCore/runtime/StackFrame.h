@@ -65,12 +65,11 @@ public:
     StackFrame(Wasm::IndexOrName, size_t functionIndex);
     StackFrame() = default;
 
-    // @forkChanges - Bun-specific accessor methods for compatibility
-    JSCell* callee() const
+    bool hasLineAndColumnInfo() const
     {
         if (auto* jsFrame = std::get_if<JSFrameData>(&m_frameData))
-            return jsFrame->callee.get();
-        return nullptr;
+            return !!jsFrame->codeBlock;
+        return false;
     }
 
     CodeBlock* codeBlock() const
@@ -80,6 +79,14 @@ public:
         return nullptr;
     }
 
+    JSCell* callee() const
+    {
+        if (auto* jsFrame = std::get_if<JSFrameData>(&m_frameData))
+            return jsFrame->callee.get();
+        return nullptr;
+    }
+
+#if USE(BUN_JSC_ADDITIONS)
     bool isWasmFrame() const
     {
         return std::holds_alternative<WasmFrameData>(m_frameData);
@@ -91,14 +98,6 @@ public:
         return std::get<WasmFrameData>(m_frameData).functionIndexOrName;
     }
 
-    bool hasLineAndColumnInfo() const
-    {
-        if (auto* jsFrame = std::get_if<JSFrameData>(&m_frameData))
-            return !!jsFrame->codeBlock;
-        return false;
-    }
-
-#if USE(BUN_JSC_ADDITIONS)
     bool isAsyncFrame() const
     {
         if (auto* jsFrame = std::get_if<JSFrameData>(&m_frameData))
@@ -109,7 +108,9 @@ public:
 
     bool isAsyncFrameWithoutCodeBlock() const
     {
-        return isAsyncFrame() && !codeBlock();
+        if (auto* jsFrame = std::get_if<JSFrameData>(&m_frameData))
+            return jsFrame->m_isAsyncFrame && !codeBlock();
+        return false;
     }
 
     LineColumn computeLineAndColumn() const;

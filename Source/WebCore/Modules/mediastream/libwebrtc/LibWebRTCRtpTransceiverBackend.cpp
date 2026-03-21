@@ -32,16 +32,16 @@
 #include "LibWebRTCRtpReceiverBackend.h"
 #include "LibWebRTCRtpSenderBackend.h"
 #include "LibWebRTCUtils.h"
-#include "RTCRtpCodecCapability.h"
+#include "RTCRtpCodec.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(LibWebRTCRtpTransceiverBackend);
 
-std::unique_ptr<LibWebRTCRtpReceiverBackend> LibWebRTCRtpTransceiverBackend::createReceiverBackend()
+UniqueRef<LibWebRTCRtpReceiverBackend> LibWebRTCRtpTransceiverBackend::createReceiverBackend()
 {
-    return makeUnique<LibWebRTCRtpReceiverBackend>(toRef(m_rtcTransceiver->receiver()));
+    return makeUniqueRef<LibWebRTCRtpReceiverBackend>(toRef(m_rtcTransceiver->receiver()));
 }
 
 Ref<LibWebRTCRtpSenderBackend> LibWebRTCRtpTransceiverBackend::createSenderBackend(LibWebRTCPeerConnectionBackend& backend, LibWebRTCRtpSenderBackend::Source&& source)
@@ -85,7 +85,7 @@ bool LibWebRTCRtpTransceiverBackend::stopped() const
     return m_rtcTransceiver->stopped();
 }
 
-static inline ExceptionOr<webrtc::RtpCodecCapability> toRtpCodecCapability(const RTCRtpCodecCapability& codec)
+static inline ExceptionOr<webrtc::RtpCodecCapability> toRtpCodecCapability(const RTCRtpCodec& codec)
 {
     webrtc::RtpCodecCapability rtcCodec;
     if (codec.mimeType.startsWithIgnoringASCIICase("video/"_s))
@@ -93,7 +93,7 @@ static inline ExceptionOr<webrtc::RtpCodecCapability> toRtpCodecCapability(const
     else if (codec.mimeType.startsWithIgnoringASCIICase("audio/"_s))
         rtcCodec.kind = webrtc::MediaType::AUDIO;
     else
-        return Exception { ExceptionCode::InvalidModificationError, "RTCRtpCodecCapability bad mimeType"_s };
+        return Exception { ExceptionCode::InvalidModificationError, "RTCRtpCodec bad mimeType"_s };
 
     rtcCodec.name = StringView(codec.mimeType).substring(6).utf8().toStdString();
     rtcCodec.clock_rate = codec.clockRate;
@@ -103,14 +103,14 @@ static inline ExceptionOr<webrtc::RtpCodecCapability> toRtpCodecCapability(const
     for (auto parameter : StringView(codec.sdpFmtpLine).split(';')) {
         auto position = parameter.find('=');
         if (position == notFound)
-            return Exception { ExceptionCode::InvalidModificationError, "RTCRtpCodecCapability sdpFmtLine badly formated"_s };
+            return Exception { ExceptionCode::InvalidModificationError, "RTCRtpCodec sdpFmtLine badly formated"_s };
         rtcCodec.parameters.emplace(parameter.left(position).utf8().data(), parameter.substring(position + 1).utf8().data());
     }
 
     return rtcCodec;
 }
 
-ExceptionOr<void> LibWebRTCRtpTransceiverBackend::setCodecPreferences(const Vector<RTCRtpCodecCapability>& codecs)
+ExceptionOr<void> LibWebRTCRtpTransceiverBackend::setCodecPreferences(const Vector<RTCRtpCodec>& codecs)
 {
     std::vector<webrtc::RtpCodecCapability> rtcCodecs;
     for (auto& codec : codecs) {

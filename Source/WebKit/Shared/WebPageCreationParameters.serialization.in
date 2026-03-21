@@ -80,6 +80,10 @@ enum class WebCore::UserInterfaceLayoutDirection : bool;
 
     WebCore::FloatBoxExtent obscuredContentInsets;
 
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+    bool hasBannerViewOverlay;
+#endif
+
     float mediaVolume;
     WebCore::MediaProducerMutedStateFlags muted;
     bool openedByDOM;
@@ -299,6 +303,7 @@ enum class WebCore::UserInterfaceLayoutDirection : bool;
     bool isPopup;
 
     bool accessibilityEnabled;
+    bool shouldForceSiteIsolationAlwaysOnForTesting;
 }
 
 [Nested] struct WebKit::RemotePageParameters {

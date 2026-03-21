@@ -132,7 +132,7 @@ StyleAppearance RenderTheme::adjustAppearanceForElement(RenderStyle& style, cons
 
     auto appearance = style.usedAppearance();
     if (appearance == StyleAppearance::BaseSelect) {
-        if (is<HTMLSelectElement>(element) || is<SelectPopoverElement>(element)) [[likely]] {
+        if (isAnyOf<HTMLSelectElement, SelectPopoverElement>(element)) [[likely]] {
             style.setUsedAppearance(StyleAppearance::Base);
             return StyleAppearance::Base;
         }
@@ -394,7 +394,7 @@ StyleAppearance RenderTheme::autoAppearanceForElement(RenderStyle& style, const 
     Ref element = *elementPtr;
 
     if (RefPtr input = dynamicDowncast<HTMLInputElement>(element)) {
-        if (input->isTextButton() || input->isUploadButton())
+        if (input->isTextButton())
             return StyleAppearance::Button;
 
         if (input->isSwitch())
@@ -503,10 +503,10 @@ StyleAppearance RenderTheme::autoAppearanceForElement(RenderStyle& style, const 
         if (part == UserAgentParts::webkitColorSwatchWrapper())
             return StyleAppearance::ColorWellSwatchWrapper;
 
-        if (part == UserAgentParts::thumb())
+        if (part == UserAgentParts::sliderThumb())
             return StyleAppearance::SwitchThumb;
 
-        if (part == UserAgentParts::track())
+        if (part == UserAgentParts::sliderTrack())
             return StyleAppearance::SwitchTrack;
     }
 
@@ -554,7 +554,7 @@ static void updateMeterPartForRenderer(MeterPart& meterPart, const RenderMeter& 
     meterPart.setMaximum(element->max());
 }
 
-static void updateProgressBarPartForRenderer(ProgressBarPart& progressBarPart, const RenderProgress& renderProgress)
+static void NODELETE updateProgressBarPartForRenderer(ProgressBarPart& progressBarPart, const RenderProgress& renderProgress)
 {
     progressBarPart.setPosition(renderProgress.position());
     progressBarPart.setAnimationStartTime(renderProgress.animationStartTime().secondsSinceEpoch());
@@ -595,14 +595,15 @@ static void updateSliderTrackPartForRenderer(SliderTrackPart& sliderTrackPart, c
         thumbPosition = (input->valueAsNumber() - minimum) / (maximum - minimum);
 
     Vector<double> tickRatios;
-    if (auto dataList = input->dataList()) {
-
-        for (Ref optionElement : dataList->suggestions()) {
-            auto optionValue = input->listOptionValueAsDouble(optionElement.get());
-            if (!optionValue)
-                continue;
-            double tickRatio = (*optionValue - minimum) / (maximum - minimum);
-            tickRatios.append(tickRatio);
+    if (maximum > minimum) {
+        if (auto dataList = input->dataList()) {
+            for (Ref optionElement : dataList->suggestions()) {
+                auto optionValue = input->listOptionValueAsDouble(optionElement.get());
+                if (!optionValue)
+                    continue;
+                double tickRatio = (*optionValue - minimum) / (maximum - minimum);
+                tickRatios.append(tickRatio);
+            }
         }
     }
 
@@ -614,7 +615,7 @@ static void updateSliderTrackPartForRenderer(SliderTrackPart& sliderTrackPart, c
 
 static void updateSwitchThumbPartForRenderer(SwitchThumbPart& switchThumbPart, const RenderElement& renderer)
 {
-    Ref input = downcast<HTMLInputElement>(*protect(renderer.element())->shadowHost());
+    Ref input = downcast<HTMLInputElement>(*renderer.element()->shadowHost());
     ASSERT(input->isSwitch());
 
     switchThumbPart.setIsOn(input->isSwitchVisuallyOn());
@@ -623,7 +624,7 @@ static void updateSwitchThumbPartForRenderer(SwitchThumbPart& switchThumbPart, c
 
 static void updateSwitchTrackPartForRenderer(SwitchTrackPart& switchTrackPart, const RenderElement& renderer)
 {
-    Ref input = downcast<HTMLInputElement>(*protect(renderer.element())->shadowHost());
+    Ref input = downcast<HTMLInputElement>(*renderer.element()->shadowHost());
     ASSERT(input->isSwitch());
 
     switchTrackPart.setIsOn(input->isSwitchVisuallyOn());
@@ -828,8 +829,8 @@ static const RenderElement* effectiveRendererForAppearance(const RenderObject& r
     if (type == StyleAppearance::SearchFieldCancelButton
         || type == StyleAppearance::SwitchTrack
         || type == StyleAppearance::SwitchThumb) {
-        RefPtr element = renderer->element();
-        RefPtr<Node> input = element->shadowHost();
+        auto* element = renderer->element();
+        auto* input = element->shadowHost();
         if (!input)
             input = element;
 
@@ -1234,7 +1235,7 @@ bool RenderTheme::isWindowActive(const RenderElement& renderer) const
 
 bool RenderTheme::isChecked(const RenderElement& renderer) const
 {
-    RefPtr element = dynamicDowncast<HTMLInputElement>(renderer.element());
+    auto* element = dynamicDowncast<HTMLInputElement>(renderer.element());
     return element && element->matchesCheckedPseudoClass();
 }
 
@@ -1299,7 +1300,7 @@ bool RenderTheme::isHovered(const RenderElement& renderer) const
 
 bool RenderTheme::isSpinUpButtonPartHovered(const RenderElement& renderer) const
 {
-    if (RefPtr spinButton = dynamicDowncast<SpinButtonElement>(renderer.element()))
+    if (auto* spinButton = dynamicDowncast<SpinButtonElement>(renderer.element()))
         return spinButton->upDownState() == SpinButtonElement::Up;
     return false;
 }
@@ -1372,9 +1373,9 @@ Style::MinimumSizePair RenderTheme::minimumControlSize(StyleAppearance appearanc
 
     // Other StyleAppearance types are composed controls with shadow subtree.
     if (appearance == StyleAppearance::Radio || appearance == StyleAppearance::Checkbox) {
-        if (minSize.width().isIntrinsicOrLegacyIntrinsicOrAuto())
+        if (minSize.width().isSizingKeywordOrAuto())
             resultWidth = preferredSize.width().asMinimumSize();
-        if (minSize.height().isIntrinsicOrLegacyIntrinsicOrAuto())
+        if (minSize.height().isSizingKeywordOrAuto())
             resultHeight = preferredSize.height().asMinimumSize();
     }
 

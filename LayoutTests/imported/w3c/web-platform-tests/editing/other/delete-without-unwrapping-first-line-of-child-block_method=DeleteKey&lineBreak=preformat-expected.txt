@@ -1,0 +1,54 @@
+Xdef
+ghi
+
+PASS Delete at abc\\n[\\n<div id="child">]def<br>ghi</div>
+PASS Typing "X" at abc\n[\n<div id="child">]def<br>ghi</div>
+PASS Delete at \\n[abc\\n<div id="child">]def<br>ghi</div>
+PASS Typing "X" at \n[abc\n<div id="child">]def<br>ghi</div>
+PASS Delete at \\n[\\n<div id="child">]def<br>ghi</div>
+PASS Typing "X" at \n[\n<div id="child">]def<br>ghi</div>
+PASS Delete at [\\n\\n<div id="child">]def<br>ghi</div>
+PASS Typing "X" at [\n\n<div id="child">]def<br>ghi</div>
+PASS Delete at [abc\\n\\n<div id="child">]def<br>ghi</div>
+PASS Typing "X" at [abc\n\n<div id="child">]def<br>ghi</div>
+PASS Delete at abc\\n[\\n<div id="child">d]ef<br>ghi</div>
+PASS Typing "X" at abc\n[\n<div id="child">d]ef<br>ghi</div>
+PASS Delete at \\n[abc\\n<div id="child">d]ef<br>ghi</div>
+PASS Typing "X" at \n[abc\n<div id="child">d]ef<br>ghi</div>
+PASS Delete at \\n[\\n<div id="child">d]ef<br>ghi</div>
+PASS Typing "X" at \n[\n<div id="child">d]ef<br>ghi</div>
+PASS Delete at [\\n\\n<div id="child">d]ef<br>ghi</div>
+PASS Typing "X" at [\n\n<div id="child">d]ef<br>ghi</div>
+PASS Delete at [abc\\n\\n<div id="child">d]ef<br>ghi</div>
+PASS Typing "X" at [abc\n\n<div id="child">d]ef<br>ghi</div>
+PASS Delete at abc\\n[]\\n<div id="child">def<br>ghi</div>
+PASS Delete at \\n[]\\n<div id="child">def<br>ghi</div>
+PASS Delete at []\\n<div id="child">def<br>ghi</div>
+PASS Delete at <b>abc\\n[]\\n</b></b><div id="child">def<br>ghi</div>
+PASS Delete at <b>[]\\n</b><div id="child">def<br>ghi</div>
+FAIL getTargetRanges() for Delete at abc\\n[\\n<div id="child">]def<br>ghi</div> should return a range before the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Typing "X" at abc\n[\n<div id="child">]def<br>ghi</div> should return a range ending in the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Delete at \\n[abc\\n<div id="child">]def<br>ghi</div> should return a range before the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Typing "X" at \n[abc\n<div id="child">]def<br>ghi</div> should return a range ending in the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Delete at \\n[\\n<div id="child">]def<br>ghi</div> should return a range before the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Typing "X" at \n[\n<div id="child">]def<br>ghi</div> should return a range ending in the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Delete at [\\n\\n<div id="child">]def<br>ghi</div> should return a range before the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Typing "X" at [\n\n<div id="child">]def<br>ghi</div> should return a range ending in the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Delete at [abc\\n\\n<div id="child">]def<br>ghi</div> should return a range before the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Typing "X" at [abc\n\n<div id="child">]def<br>ghi</div> should return a range ending in the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Delete at abc\\n[\\n<div id="child">d]ef<br>ghi</div> should return a range ends at start of the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Typing "X" at abc\n[\n<div id="child">d]ef<br>ghi</div> should return a range ends at start of the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Delete at \\n[abc\\n<div id="child">d]ef<br>ghi</div> should return a range ends at start of the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Typing "X" at \n[abc\n<div id="child">d]ef<br>ghi</div> should return a range ends at start of the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Delete at \\n[\\n<div id="child">d]ef<br>ghi</div> should return a range ends at start of the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Typing "X" at \n[\n<div id="child">d]ef<br>ghi</div> should return a range ends at start of the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Delete at [\\n\\n<div id="child">d]ef<br>ghi</div> should return a range ends at start of the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Typing "X" at [\n\n<div id="child">d]ef<br>ghi</div> should return a range ends at start of the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Delete at [abc\\n\\n<div id="child">d]ef<br>ghi</div> should return a range ends at start of the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Typing "X" at [abc\n\n<div id="child">d]ef<br>ghi</div> should return a range ends at start of the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Delete at abc\\n[]\\n<div id="child">def<br>ghi</div> should return a range before the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Delete at \\n[]\\n<div id="child">def<br>ghi</div> should return a range before the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Delete at []\\n<div id="child">def<br>ghi</div> should return a range before the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Delete at <b>abc\\n[]\\n</b></b><div id="child">def<br>ghi</div> should return a range before the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+FAIL getTargetRanges() for Delete at <b>[]\\n</b><div id="child">def<br>ghi</div> should return a range before the child <div> EditorTestUtils.getRangeArrayDescription is not a function. (In 'EditorTestUtils.getRangeArrayDescription(expectedTargetRanges)', 'EditorTestUtils.getRangeArrayDescription' is undefined)
+

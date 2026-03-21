@@ -34,7 +34,6 @@
 #import <wtf/CompletionHandler.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/StdLibExtras.h>
-#import <wtf/ThreadSafeRefCounted.h>
 #import <wtf/darwin/DispatchExtras.h>
 #import <wtf/text/Base64.h>
 #import <wtf/text/MakeString.h>
@@ -44,21 +43,18 @@
 
 namespace TestWebKitAPI {
 
-struct HTTPServer::RequestData : public ThreadSafeRefCounted<RequestData, WTF::DestructionThread::MainRunLoop> {
-    RequestData(std::initializer_list<std::pair<String, HTTPResponse>> responses)
-    : requestMap([](std::initializer_list<std::pair<String, HTTPResponse>> list) {
-        HashMap<String, HTTPResponse> map;
-        for (auto& pair : list)
-            map.add(pair.first, pair.second);
-        return map;
-    }(responses)) { }
+static HashMap<String, HTTPResponse> makeRequestMap(std::initializer_list<std::pair<String, HTTPResponse>> responses)
+{
+    HashMap<String, HTTPResponse> map;
+    for (auto& pair : responses)
+        map.add(pair.first, pair.second);
+    return map;
+}
 
-    size_t requestCount { 0 };
-    HashMap<String, HTTPResponse> requestMap;
-    Vector<Connection> connections;
-    Vector<CoroutineHandle<ConnectionTask::promise_type>> coroutineHandles;
-    String lastRequestCookies;
-};
+HTTPServer::RequestData::RequestData(std::initializer_list<std::pair<String, HTTPResponse>> responses)
+    : requestMap { makeRequestMap(responses) }
+{
+}
 
 static RetainPtr<nw_protocol_definition_t> proxyDefinition(HTTPServer::Protocol protocol)
 {

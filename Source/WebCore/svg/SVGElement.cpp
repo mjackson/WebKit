@@ -183,9 +183,9 @@ void SVGElement::reportAttributeParsingError(SVGParsingError error, const Qualif
     ASSERT_NOT_REACHED();
 }
 
-void SVGElement::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+void SVGElement::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
-    StyledElement::removedFromAncestor(removalType, oldParentOfRemovedTree);
+    StyledElement::removingSteps(removalType, oldParentOfRemovedTree);
 
     if (!parentNode()) {
         m_hasRegisteredWithParentForRelativeLengths = false;
@@ -236,7 +236,7 @@ SVGElement* SVGElement::viewportElement(ViewportElementType type) const
     // to determine the "overflow" property. <use> on <symbol> wouldn't work otherwise.
     auto* node = parentNode();
     while (node) {
-        if (is<SVGSVGElement>(*node) || is<SVGImageElement>(*node))
+        if (isAnyOf<SVGSVGElement, SVGImageElement>(*node))
             return dynamicDowncast<SVGElement>(node);
 
         if (type == ViewportElementType::Any && node->hasTagName(SVGNames::symbolTag))
@@ -440,17 +440,6 @@ void SVGElement::sendLoadEventIfPossible()
     dispatchEvent(Event::create(eventNames().loadEvent, Event::CanBubble::No, Event::IsCancelable::No));
 }
 
-void SVGElement::loadEventTimerFired()
-{
-    sendLoadEventIfPossible();
-}
-
-Timer* SVGElement::loadEventTimer()
-{
-    ASSERT_NOT_REACHED();
-    return nullptr;
-}
-
 void SVGElement::finishParsingChildren()
 {
     StyledElement::finishParsingChildren();
@@ -463,7 +452,7 @@ void SVGElement::finishParsingChildren()
     invalidateInstances();
 }
 
-static inline bool isSVGLayerAwareElement(const SVGElement& element)
+static inline bool NODELETE isSVGLayerAwareElement(const SVGElement& element)
 {
     using namespace ElementNames;
 
@@ -695,7 +684,7 @@ const RenderStyle* SVGElement::computedStyle(const std::optional<Style::PseudoEl
         return Element::computedStyle(pseudoElementIdentifier);
 
     const RenderStyle* parentStyle = nullptr;
-    if (RefPtr parent = parentOrShadowHostElement()) {
+    if (auto* parent = parentOrShadowHostElement()) {
         if (auto renderer = parent->renderer())
             parentStyle = &renderer->style();
     }
@@ -1067,9 +1056,9 @@ void SVGElement::svgAttributeChanged(const QualifiedName& attrName)
     }
 }
 
-Node::InsertedIntoAncestorResult SVGElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps SVGElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    StyledElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    StyledElement::insertionSteps(insertionType, parentOfInsertedTree);
 
     if (!m_hasInitializedRelativeLengthsState)
         updateRelativeLengthsInformation();
@@ -1080,13 +1069,13 @@ Node::InsertedIntoAncestorResult SVGElement::insertedIntoAncestor(InsertionType 
 
     if (needsPendingResourceHandling() && insertionType.connectedToDocument && !isInShadowTree()) {
         if (treeScopeForSVGReferences().isIdOfPendingSVGResource(getIdAttribute()))
-            return InsertedIntoAncestorResult::NeedsPostInsertionCallback;
+            return NeedsPostConnectionSteps::Yes;
     }
 
-    return InsertedIntoAncestorResult::Done;
+    return NeedsPostConnectionSteps::No;
 }
 
-void SVGElement::didFinishInsertingNode()
+void SVGElement::postConnectionSteps()
 {
     buildPendingResourcesIfNeeded();
 }

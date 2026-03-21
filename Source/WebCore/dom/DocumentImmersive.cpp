@@ -71,7 +71,7 @@ Element* DocumentImmersive::immersiveElement(Document& document)
     RefPtr documentImmersive = document.immersiveIfExists();
     if (!documentImmersive)
         return nullptr;
-    return document.ancestorElementInThisScope(protect(documentImmersive->immersiveElement()).get());
+    return document.ancestorElementInThisScope(documentImmersive->immersiveElement());
 }
 
 HTMLModelElement* DocumentImmersive::immersiveElement() const

@@ -35,7 +35,7 @@
 
 namespace WebCore {
 
-inline int mapFontWidthVariantToCTFeatureSelector(FontWidthVariant variant)
+inline int NODELETE mapFontWidthVariantToCTFeatureSelector(FontWidthVariant variant)
 {
     switch (variant) {
     case FontWidthVariant::RegularWidth:
@@ -80,8 +80,6 @@ FontPlatformData::FontPlatformData(RetainPtr<CTFontRef>&& font, float size, bool
     m_font = WTF::move(font);
     m_isColorBitmapFont = CTFontGetSymbolicTraits(m_font.get()) & kCTFontColorGlyphsTrait;
     m_isSystemFont = WebCore::isSystemFont(m_font.get());
-    auto variations = adoptCF(checked_cf_cast<CFDictionaryRef>(CTFontCopyAttribute(m_font.get(), kCTFontVariationAttribute)));
-    m_hasVariations = variations && CFDictionaryGetCount(variations.get());
 
 #if PLATFORM(IOS_FAMILY)
     m_isEmoji = CTFontIsAppleColorEmoji(m_font.get());
@@ -185,12 +183,12 @@ RetainPtr<CFTypeRef> FontPlatformData::objectForEqualityCheck(CTFontRef ctFont)
 
 RetainPtr<CFTypeRef> FontPlatformData::objectForEqualityCheck() const
 {
-    return objectForEqualityCheck(protectedCTFont().get());
+    return objectForEqualityCheck(protect(ctFont()).get());
 }
 
 RefPtr<SharedBuffer> FontPlatformData::openTypeTable(uint32_t table) const
 {
-    if (RetainPtr<CFDataRef> data = adoptCF(CTFontCopyTable(protectedCTFont().get(), table, kCTFontTableOptionNoOptions)))
+    if (RetainPtr<CFDataRef> data = adoptCF(CTFontCopyTable(protect(ctFont()).get(), table, kCTFontTableOptionNoOptions)))
         return SharedBuffer::create(data.get());
 
     return platformOpenTypeTable(table);
@@ -259,8 +257,6 @@ FontPlatformData::FontPlatformData(float size, WebCore::FontOrientation&& orient
 {
     m_isColorBitmapFont = CTFontGetSymbolicTraits(m_font.get()) & kCTFontColorGlyphsTrait;
     m_isSystemFont = WebCore::isSystemFont(m_font.get());
-    auto variations = adoptCF(checked_cf_cast<CFDictionaryRef>(CTFontCopyAttribute(m_font.get(), kCTFontVariationAttribute)));
-    m_hasVariations = variations && CFDictionaryGetCount(variations.get());
 #if PLATFORM(IOS_FAMILY)
     m_isEmoji = CTFontIsAppleColorEmoji(m_font.get());
 #endif

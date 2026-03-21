@@ -84,9 +84,7 @@ protected:
 private:
 
     WebCore::MediaPlaybackTargetPicker& targetPicker();
-    CheckedRef<WebCore::MediaPlaybackTargetPicker> checkedTargetPicker();
     WebCore::MediaPlaybackTargetPickerMock& mockPicker();
-    CheckedRef<WebCore::MediaPlaybackTargetPickerMock> checkedMockPicker();
 
     // MediaPlaybackTargetPicker::Client
     void setPlaybackTarget(Ref<WebCore::MediaPlaybackTarget>&&) final;

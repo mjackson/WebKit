@@ -121,16 +121,9 @@ struct ContentView: View {
                 .findNavigator(isPresented: $findNavigatorIsPresented)
                 .task {
                     do {
-                        #if compiler(>=6.2)
-                        // Safety: this is actually safe; false positive is rdar://154775389
-                        for try await unsafe event in viewModel.page.navigations {
-                            print(event)
-                        }
-                        #else
                         for try await event in viewModel.page.navigations {
                             print(event)
                         }
-                        #endif
                     } catch {
                         print(error)
                     }

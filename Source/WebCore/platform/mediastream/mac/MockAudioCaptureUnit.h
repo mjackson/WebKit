@@ -27,7 +27,7 @@
 
 #if ENABLE(MEDIA_STREAM)
 
-#include <WebCore/CoreAudioCaptureUnit.h>
+#include "CoreAudioCaptureUnit.h"
 
 namespace WebCore {
 
@@ -35,7 +35,7 @@ namespace MockAudioCaptureUnit {
 void enable();
 void disable();
 CoreAudioCaptureUnit& singleton();
-void increaseBufferSize();
+void NODELETE increaseBufferSize();
 
 }
 

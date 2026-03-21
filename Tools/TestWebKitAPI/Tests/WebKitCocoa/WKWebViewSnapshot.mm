@@ -33,8 +33,10 @@
 #import "TestWKWebView.h"
 #import <WebCore/Color.h>
 #import <WebKit/WKContentWorldPrivate.h>
+#import <WebKit/WKPreferencesPrivate.h>
 #import <WebKit/WKSnapshotConfigurationPrivate.h>
 #import <WebKit/_WKContentWorldConfiguration.h>
+#import <WebKit/_WKFeature.h>
 #import <WebKit/_WKJSHandle.h>
 #import <wtf/BlockPtr.h>
 #import <wtf/RetainPtr.h>
@@ -806,5 +808,70 @@ TEST(WKWebView, SnapshotNodeByJSHandle)
         EXPECT_NULL(image);
     }
 }
+
+// FIXME: Make this test work on iOS.
+#if PLATFORM(MAC)
+static void enableRemoteSnapshotting(WKWebViewConfiguration *configuration)
+{
+    auto preferences = [configuration preferences];
+    for (_WKFeature *feature in [WKPreferences _features]) {
+        if ([feature.key isEqualToString:@"RemoteSnapshottingEnabled"]) {
+            [preferences _setEnabled:YES forFeature:feature];
+            break;
+        }
+    }
+}
+
+TEST(WKWebView, RemoteSnapshotWithTransform)
+{
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    enableRemoteSnapshotting(configuration.get());
+
+    NSInteger viewWidth = 800;
+    NSInteger viewHeight = 600;
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, viewWidth, viewHeight) configuration:configuration.get()]);
+
+    [webView synchronouslyLoadHTMLString:@"<style> body { margin: 0; } .box { position: relative; width: 100px; height: 50px; } .top { top: 50px; transform: translateY(-100%); border-radius: 50px 50px 0 0; background-color: green; } .bottom { border-radius: 0 0 50px 50px; overflow: hidden; } </style> <body><div class='top box'></div> <div class='bottom box'> <img height='50' width='100' src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAAD0lEQVR4AQEEAPv/AACAAAEEAIEu/TP9AAAAAElFTkSuQmCC'> </div></body>"];
+
+    auto snapshotConfiguration = adoptNS([[WKSnapshotConfiguration alloc] init]);
+    [snapshotConfiguration setRect:NSMakeRect(0, 0, viewWidth, viewHeight)];
+    [snapshotConfiguration setSnapshotWidth:@(viewWidth)];
+
+    isDone = false;
+    [webView takeSnapshotWithConfiguration:snapshotConfiguration.get() completionHandler:^(Util::PlatformImage *snapshotImage, NSError *error) {
+        EXPECT_NULL(error);
+
+        EXPECT_EQ(viewWidth, snapshotImage.size.width);
+
+        auto cgImage = Util::convertToCGImage(snapshotImage);
+        auto colorSpace = adoptCF(CGColorSpaceCreateDeviceRGB());
+
+        uint8_t *rgba = (unsigned char *)calloc(viewWidth * viewHeight * 4, sizeof(unsigned char));
+        auto context = adoptCF(CGBitmapContextCreate(rgba, viewWidth, viewHeight, 8, 4 * viewWidth, colorSpace.get(), static_cast<uint32_t>(kCGImageAlphaPremultipliedLast) | static_cast<uint32_t>(kCGBitmapByteOrder32Big)));
+        CGContextDrawImage(context.get(), CGRectMake(0, 0, viewWidth, viewHeight), cgImage.get());
+
+        void (^verifyPixel)(NSPoint) = ^(NSPoint point) {
+            NSInteger pixelIndex = getPixelIndex(point.x, point.y, viewWidth);
+            EXPECT_EQ(0, rgba[pixelIndex]);
+            EXPECT_EQ(128, rgba[pixelIndex + 1]);
+            EXPECT_EQ(0, rgba[pixelIndex + 2]);
+        };
+
+        void (^verifyPixels)(NSRect) = ^(NSRect rect) {
+            verifyPixel(NSMakePoint(NSMinX(rect), NSMaxY(rect)));
+            verifyPixel(NSMakePoint(NSMaxX(rect), NSMaxY(rect)));
+            verifyPixel(NSMakePoint(NSMinX(rect), NSMinY(rect)));
+            verifyPixel(NSMakePoint(NSMaxX(rect), NSMinY(rect)));
+        };
+
+        verifyPixels(NSMakeRect(30, 30, 40, 40));
+
+        free(rgba);
+        isDone = true;
+    }];
+
+    TestWebKitAPI::Util::run(&isDone);
+}
+#endif
 
 } // namespace TestWebKitAPI

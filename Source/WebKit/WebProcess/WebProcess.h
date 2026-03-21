@@ -246,7 +246,7 @@ public:
     void createWebPage(WebCore::PageIdentifier, WebPageCreationParameters&&);
     Awaitable<unsigned> countWebPagesForTesting();
     void removeWebPage(WebCore::PageIdentifier);
-    WebPage* focusedWebPage() const;
+    WebPage* NODELETE focusedWebPage() const;
     bool hasEverHadAnyWebPages() const { return m_hasEverHadAnyWebPages; }
     bool isBroadcastChannelEnabled() const { return m_isBroadcastChannelEnabled; }
 
@@ -272,11 +272,11 @@ public:
 
     void updateStorageAccessUserAgentStringQuirks(HashMap<WebCore::RegistrableDomain, String>&&);
 
-    WebFrame* webFrame(std::optional<WebCore::FrameIdentifier>) const;
+    WebFrame* NODELETE webFrame(std::optional<WebCore::FrameIdentifier>) const;
     void addWebFrame(WebCore::FrameIdentifier, WebFrame*);
     void removeWebFrame(WebCore::FrameIdentifier, WebPage*);
 
-    WebPageGroupProxy* webPageGroup(WebPageGroupData&&);
+    WebPageGroupProxy& webPageGroup(WebPageGroupData&&);
 
     std::optional<WebCore::UserGestureTokenIdentifier> userGestureTokenIdentifier(std::optional<WebCore::PageIdentifier>, RefPtr<WebCore::UserGestureToken>);
     void userGestureTokenDestroyed(WebCore::PageIdentifier, WebCore::UserGestureToken&);
@@ -284,14 +284,15 @@ public:
     OptionSet<TextCheckerState> textCheckerState() const { return m_textCheckerState; }
     void setTextCheckerState(OptionSet<TextCheckerState>);
 
-    EventDispatcher& eventDispatcher() { return m_eventDispatcher; }
+    EventDispatcher& eventDispatcher() LIFETIME_BOUND { return m_eventDispatcher; }
 
     NetworkProcessConnection& ensureNetworkProcessConnection();
-    Ref<NetworkProcessConnection> ensureProtectedNetworkProcessConnection();
 
     void networkProcessConnectionClosed(NetworkProcessConnection*);
+    void refreshIDBConnectionForWorkers();
+    void setNeedsIDBConnectionRefreshForWorkers() { m_needsIDBConnectionRefreshForWorkers = true; }
     NetworkProcessConnection* existingNetworkProcessConnection() { return m_networkProcessConnection.get(); }
-    WebLoaderStrategy& NODELETE webLoaderStrategy();
+    WebLoaderStrategy& NODELETE webLoaderStrategy() LIFETIME_BOUND;
     WebFileSystemStorageConnection& fileSystemStorageConnection();
 
     RefPtr<WebTransportSession> webTransportSession(WebTransportSessionIdentifier);
@@ -299,7 +300,7 @@ public:
     void removeWebTransportSession(WebTransportSessionIdentifier);
 
     std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const { return m_sharedPreferencesForWebProcess; }
-    const SharedPreferencesForWebProcess& sharedPreferencesForWebProcessValue() const { return m_sharedPreferencesForWebProcess; }
+    const SharedPreferencesForWebProcess& sharedPreferencesForWebProcessValue() const LIFETIME_BOUND { return m_sharedPreferencesForWebProcess; }
     void updateSharedPreferencesForWebProcess(SharedPreferencesForWebProcess sharedPreferencesForWebProcess) { m_sharedPreferencesForWebProcess = WTF::move(sharedPreferencesForWebProcess); }
 
 #if USE(LIBRICE)
@@ -310,10 +311,9 @@ public:
 
 #if ENABLE(GPU_PROCESS)
     GPUProcessConnection& ensureGPUProcessConnection();
-    Ref<GPUProcessConnection> ensureProtectedGPUProcessConnection();
     GPUProcessConnection* existingGPUProcessConnection() { return m_gpuProcessConnection.get(); }
     // Returns timeout duration for GPU process connections. Thread-safe.
-    Seconds gpuProcessTimeoutDuration() const;
+    Seconds NODELETE gpuProcessTimeoutDuration() const;
     void gpuProcessConnectionClosed();
     void gpuProcessConnectionDidBecomeUnresponsive();
 
@@ -355,7 +355,7 @@ public:
 
     void registerStorageAreaMap(StorageAreaMap&);
     void unregisterStorageAreaMap(StorageAreaMap&);
-    WeakPtr<StorageAreaMap> storageAreaMap(StorageAreaMapIdentifier) const;
+    WeakPtr<StorageAreaMap> NODELETE storageAreaMap(StorageAreaMapIdentifier) const;
 
 #if PLATFORM(COCOA)
     RetainPtr<CFDataRef> sourceApplicationAuditData() const;
@@ -368,7 +368,7 @@ public:
     void releaseSystemMallocMemory();
 #endif
 
-    const String& uiProcessBundleIdentifier() const { return m_uiProcessBundleIdentifier; }
+    const String& uiProcessBundleIdentifier() const LIFETIME_BOUND { return m_uiProcessBundleIdentifier; }
 
     void updateActivePages(const String& overrideDisplayName);
     void getActivePagesOriginsForTesting(CompletionHandler<void(Vector<String>&&)>&&);
@@ -399,7 +399,7 @@ public:
 
     void prefetchDNS(const String&);
 
-    WebAutomationSessionProxy* automationSessionProxy() { return m_automationSessionProxy.get(); }
+    WebAutomationSessionProxy* automationSessionProxy() LIFETIME_BOUND { return m_automationSessionProxy.get(); }
 #if ENABLE(MODEL_PROCESS)
     ModelProcessModelPlayerManager& modelProcessModelPlayerManager() { return m_modelProcessModelPlayerManager.get(); }
 #endif
@@ -413,7 +413,7 @@ public:
 #endif
     WebBroadcastChannelRegistry& broadcastChannelRegistry() { return m_broadcastChannelRegistry.get(); }
     WebCookieJar& cookieJar() { return m_cookieJar.get(); }
-    WebSocketChannelManager& webSocketChannelManager() { return m_webSocketChannelManager; }
+    WebSocketChannelManager& webSocketChannelManager() LIFETIME_BOUND { return m_webSocketChannelManager; }
 
 #if PLATFORM(IOS_FAMILY) && !PLATFORM(MACCATALYST)
     float backlightLevel() const { return m_backlightLevel; }
@@ -462,7 +462,7 @@ public:
     void disableURLSchemeCheckInDataDetectors() const;
 
 #if PLATFORM(MAC)
-    void updatePageScreenProperties();
+    void NODELETE updatePageScreenProperties();
 #endif
 
     void NODELETE setChildProcessDebuggabilityEnabled(bool);
@@ -514,9 +514,9 @@ public:
 #endif
 
 #if PLATFORM(GTK) || PLATFORM(WPE)
-    const OptionSet<RendererBufferTransportMode>& rendererBufferTransportMode() const { return m_rendererBufferTransportMode; }
+    const OptionSet<RendererBufferTransportMode>& rendererBufferTransportMode() const LIFETIME_BOUND { return m_rendererBufferTransportMode; }
     void initializePlatformDisplayIfNeeded() const;
-    const OptionSet<AvailableInputDevices>& availableInputDevices() const { return m_availableInputDevices; }
+    const OptionSet<AvailableInputDevices>& availableInputDevices() const LIFETIME_BOUND { return m_availableInputDevices; }
     std::optional<AvailableInputDevices> primaryPointingDevice() const;
     void setAvailableInputDevices(OptionSet<AvailableInputDevices>);
 #endif // PLATFORM(WPE)
@@ -528,7 +528,7 @@ public:
     void updateCachedCookiesEnabled();
     void enableMediaPlayback();
 #if ENABLE(ROUTING_ARBITRATION)
-    AudioSessionRoutingArbitrator* audioSessionRoutingArbitrator() const { return m_routingArbitrator.get(); }
+    AudioSessionRoutingArbitrator* audioSessionRoutingArbitrator() const LIFETIME_BOUND { return m_routingArbitrator.get(); }
 #endif
 
     bool mediaPlaybackEnabled() const { return m_mediaPlaybackEnabled; }
@@ -612,9 +612,9 @@ private:
     void setOptInCookiePartitioningEnabled(bool);
 #endif
 
-    void platformSetCacheModel(CacheModel);
+    void NODELETE platformSetCacheModel(CacheModel);
 
-    void setEnhancedAccessibility(bool);
+    void NODELETE setEnhancedAccessibility(bool);
     void bindAccessibilityFrameWithData(WebCore::FrameIdentifier, std::span<const uint8_t>);
 
     void startMemorySampler(SandboxExtension::Handle&&, const String&, const double);
@@ -652,13 +652,13 @@ private:
     void setInjectedBundleParameter(const String& key, std::span<const uint8_t>);
     void setInjectedBundleParameters(std::span<const uint8_t>);
 
-    bool areAllPagesSuspended() const;
+    bool NODELETE areAllPagesSuspended() const;
 
     void ensureAutomationSessionProxy(const String& sessionIdentifier);
     void destroyAutomationSessionProxy();
 
     void logDiagnosticMessageForNetworkProcessCrash();
-    bool hasVisibleWebPage() const;
+    bool NODELETE hasVisibleWebPage() const;
     void updateCPULimit();
     enum class CPUMonitorUpdateReason { LimitHasChanged, VisibilityHasChanged };
     void updateCPUMonitorState(CPUMonitorUpdateReason);
@@ -775,10 +775,10 @@ private:
     void initializeLogForwarding(const WebProcessCreationParameters&);
 #endif
 
-    bool isProcessBeingCachedForPerformance();
+    bool NODELETE isProcessBeingCachedForPerformance();
 
     HashMap<WebCore::PageIdentifier, Ref<WebPage>> m_pageMap;
-    HashMap<PageGroupIdentifier, RefPtr<WebPageGroupProxy>> m_pageGroupMap;
+    HashMap<PageGroupIdentifier, Ref<WebPageGroupProxy>> m_pageGroupMap;
     const RefPtr<InjectedBundle> m_injectedBundle;
 
     EventDispatcher m_eventDispatcher;
@@ -812,6 +812,7 @@ private:
 
     String m_uiProcessBundleIdentifier;
     RefPtr<NetworkProcessConnection> m_networkProcessConnection;
+    bool m_needsIDBConnectionRefreshForWorkers { false };
     const UniqueRef<WebLoaderStrategy> m_webLoaderStrategy;
     RefPtr<WebFileSystemStorageConnection> m_fileSystemStorageConnection;
 
@@ -915,7 +916,7 @@ private:
 
     HashMap<StorageAreaMapIdentifier, WeakPtr<StorageAreaMap>> m_storageAreaMaps;
 
-    void updateIsBroadcastChannelEnabled();
+    void NODELETE updateIsBroadcastChannelEnabled();
     
     // Prewarmed WebProcesses do not have an associated sessionID yet, which is why this is an optional.
     // By the time the WebProcess gets a WebPage, it is guaranteed to have a sessionID.

@@ -40,6 +40,10 @@
 #include <wtf/WeakRef.h>
 #include <wtf/text/WTFString.h>
 
+namespace JSC {
+class Debugger;
+}
+
 namespace Inspector {
 class BackendDispatcher;
 class FrontendChannel;
@@ -73,7 +77,7 @@ public:
     void decrementCheckedPtrCount() const final { CanMakeCheckedPtr::decrementCheckedPtrCount(); }
     void setDidBeginCheckedPtrDeletion() final { CanMakeCheckedPtr::setDidBeginCheckedPtrDeletion(); }
 
-    WEBCORE_EXPORT void ref() const;
+    WEBCORE_EXPORT void NODELETE ref() const;
     WEBCORE_EXPORT void deref() const;
 
     WEBCORE_EXPORT void connectFrontend(Inspector::FrontendChannel&, bool isAutomaticInspection = false, bool immediatelyPause = false);
@@ -100,6 +104,7 @@ private:
 
     FrameAgentContext frameAgentContext();
     void createConsoleAgent();
+    void createRuntimeAgent();
     void createLazyAgents();
 
     WeakRef<LocalFrame> m_frame;
@@ -108,9 +113,11 @@ private:
     const Ref<Inspector::FrontendRouter> m_frontendRouter;
     const Ref<Inspector::BackendDispatcher> m_backendDispatcher;
     const Ref<WTF::Stopwatch> m_executionStopwatch;
+    std::unique_ptr<JSC::Debugger> m_debugger;
     Inspector::AgentRegistry m_agents;
 
     bool m_didCreateConsoleAgent { false };
+    bool m_didCreateRuntimeAgent { false };
     bool m_didCreateLazyAgents { false };
     WeakPtr<InspectorFrontendClient> m_inspectorFrontendClient;
 };

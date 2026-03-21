@@ -37,7 +37,7 @@
 
 #define MEDIASESSIONMANAGERINTERFACE_RELEASE_LOG(formatString, ...) \
 if (willLog(WTFLogLevel::Always)) { \
-    RELEASE_LOG_FORWARDABLE(Media, MEDIASESSIONMANAGERINTERFACE_##formatString, ##__VA_ARGS__); \
+    RELEASE_LOG_FORWARDABLE(Media, MediaSessionManagerInterface##formatString, ##__VA_ARGS__); \
 } \
 
 namespace WebCore {
@@ -58,7 +58,7 @@ MediaSessionManagerInterface::~MediaSessionManagerInterface()
     m_taskGroup.cancel();
 }
 
-static inline unsigned indexFromMediaType(PlatformMediaSession::MediaType type)
+static inline unsigned NODELETE indexFromMediaType(PlatformMediaSession::MediaType type)
 {
     return static_cast<unsigned>(type);
 }
@@ -487,7 +487,7 @@ void MediaSessionManagerInterface::sessionWillBeginPlayback(PlatformMediaSession
 void MediaSessionManagerInterface::sessionWillEndPlayback(PlatformMediaSessionInterface& pausingSession, DelayCallingUpdateNowPlaying)
 {
 #if ENABLE(VIDEO) || ENABLE(WEB_AUDIO)
-    MEDIASESSIONMANAGERINTERFACE_RELEASE_LOG(SESSIONWILLENDPLAYBACK, pausingSession.logIdentifier());
+    MEDIASESSIONMANAGERINTERFACE_RELEASE_LOG(SessionWillEndPlayback, pausingSession.logIdentifier());
 #endif
 
     auto sessions = this->sessions();
@@ -528,7 +528,7 @@ void MediaSessionManagerInterface::sessionStateChanged(PlatformMediaSessionInter
 
 void MediaSessionManagerInterface::sessionCanProduceAudioChanged()
 {
-    MEDIASESSIONMANAGERINTERFACE_RELEASE_LOG(SESSIONCANPRODUCEAUDIOCHANGED);
+    MEDIASESSIONMANAGERINTERFACE_RELEASE_LOG(SessionCanProduceAudioChanged);
 
     if (m_alreadyScheduledSessionStatedUpdate)
         return;
@@ -557,15 +557,6 @@ void MediaSessionManagerInterface::setIsPlayingToAutomotiveHeadUnit(bool isPlayi
 
     ALWAYS_LOG(LOGIDENTIFIER, isPlayingToAutomotiveHeadUnit);
     m_isPlayingToAutomotiveHeadUnit = isPlayingToAutomotiveHeadUnit;
-}
-
-void MediaSessionManagerInterface::setSupportsSpatialAudioPlayback(bool supportsSpatialAudioPlayback)
-{
-    if (supportsSpatialAudioPlayback == m_supportsSpatialAudioPlayback)
-        return;
-
-    ALWAYS_LOG(LOGIDENTIFIER, supportsSpatialAudioPlayback);
-    m_supportsSpatialAudioPlayback = supportsSpatialAudioPlayback;
 }
 
 void MediaSessionManagerInterface::addAudioCaptureSource(AudioCaptureSource& source)
@@ -644,8 +635,8 @@ void MediaSessionManagerInterface::processSystemDidWake()
 void MediaSessionManagerInterface::addSession(PlatformMediaSessionInterface& session)
 {
 #if !RELEASE_LOG_DISABLED && (ENABLE(VIDEO) || ENABLE(WEB_AUDIO))
-    m_logger->addLogger(session.protectedLogger());
-    MEDIASESSIONMANAGERINTERFACE_RELEASE_LOG(ADDSESSION, session.logIdentifier());
+    m_logger->addLogger(protect(session.logger()));
+    MEDIASESSIONMANAGERINTERFACE_RELEASE_LOG(AddSession, session.logIdentifier());
 #endif
 
 #if ENABLE(VIDEO) || ENABLE(WEB_AUDIO)
@@ -661,14 +652,14 @@ void MediaSessionManagerInterface::removeSession(PlatformMediaSessionInterface& 
     UNUSED_PARAM(session);
 
 #if ENABLE(VIDEO) || ENABLE(WEB_AUDIO)
-    MEDIASESSIONMANAGERINTERFACE_RELEASE_LOG(REMOVESESSION, session.logIdentifier());
+    MEDIASESSIONMANAGERINTERFACE_RELEASE_LOG(RemoveSession, session.logIdentifier());
 #endif
 
     if (hasNoSession() && !activeAudioSessionRequired())
         maybeDeactivateAudioSession();
 
 #if !RELEASE_LOG_DISABLED && (ENABLE(VIDEO) || ENABLE(WEB_AUDIO))
-    m_logger->removeLogger(session.protectedLogger());
+    m_logger->removeLogger(protect(session.logger()));
 #endif
 
     scheduleUpdateSessionState();
@@ -703,7 +694,7 @@ bool MediaSessionManagerInterface::maybeActivateAudioSession()
 {
 #if USE(AUDIO_SESSION)
     if (!activeAudioSessionRequired()) {
-        MEDIASESSIONMANAGERINTERFACE_RELEASE_LOG(MAYBEACTIVATEAUDIOSESSION_ACTIVE_SESSION_NOT_REQUIRED);
+        MEDIASESSIONMANAGERINTERFACE_RELEASE_LOG(MaybeActivateAudioSessionActiveSessionNotRequired);
         return true;
     }
 

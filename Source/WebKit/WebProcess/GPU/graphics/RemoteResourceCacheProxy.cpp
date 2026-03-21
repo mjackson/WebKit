@@ -47,7 +47,7 @@ struct CreateShareableBitmapResult {
 };
 }
 
-static std::optional<CreateShareableBitmapResult> createShareableBitmapForNativeImage(NativeImage& image, const DestinationColorSpace& fallbackColorSpace)
+static std::optional<CreateShareableBitmapResult> createShareableBitmapForNativeImage(const NativeImage& image, const DestinationColorSpace& fallbackColorSpace)
 {
     RefPtr<ShareableBitmap> bitmap;
     PlatformImagePtr platformImage;
@@ -132,7 +132,7 @@ void RemoteResourceCacheProxy::recordFilterUse(Filter& filter)
     }
 }
 
-bool RemoteResourceCacheProxy::recordNativeImageUse(NativeImage& image, const DestinationColorSpace& fallbackColorSpace)
+bool RemoteResourceCacheProxy::recordNativeImageUse(const NativeImage& image, const DestinationColorSpace& fallbackColorSpace)
 {
     if (isMainRunLoop())
         WebProcess::singleton().deferNonVisibleProcessEarlyMemoryCleanupTimer();

@@ -231,9 +231,9 @@ void ThreadedCompositor::updateSceneState()
         m_textureMapper = TextureMapper::create();
 
     auto reasons = OptionSet<CompositionReason>::all();
-    m_sceneState->rootLayer().flushCompositingState(reasons, *m_textureMapper);
+    m_sceneState->rootLayer().flushCompositingState(reasons);
     for (auto& layer : m_sceneState->committedLayers())
-        layer->flushCompositingState(reasons, *m_textureMapper);
+        layer->flushCompositingState(reasons);
 }
 
 void ThreadedCompositor::paintToCurrentGLContext(const TransformationMatrix& matrix, const IntSize& size)
@@ -263,7 +263,8 @@ void ThreadedCompositor::paintToCurrentGLContext(const TransformationMatrix& mat
         if (m_damage.shouldNotifyFrameDamageForTesting && m_layerTreeHost)
             m_layerTreeHost->notifyFrameDamageForTesting(frameDamage.regionForTesting());
 
-        m_surface->setFrameDamage(WTF::move(frameDamage));
+        if (!frameDamage.isEmpty())
+            m_surface->setFrameDamage(WTF::move(frameDamage));
 
         if (m_damage.flags->contains(DamagePropagationFlags::UseForCompositing)) {
             const auto& damageSinceLastSurfaceUse = m_surface->renderTargetDamage();

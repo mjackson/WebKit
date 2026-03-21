@@ -25,9 +25,9 @@
 
 #pragma once
 
-#include <WebCore/BufferSource.h>
-#include <WebCore/CryptoAlgorithmAesCtrParamsInit.h>
-#include <WebCore/CryptoAlgorithmParameters.h>
+#include "BufferSource.h"
+#include "CryptoAlgorithmAesCtrParamsInit.h"
+#include "CryptoAlgorithmParameters.h"
 #include <wtf/Vector.h>
 
 namespace WebCore {
@@ -52,7 +52,7 @@ public:
 
     Class parametersClass() const final { return Class::AesCtrParams; }
 
-    const Vector<uint8_t>& counterVector() const
+    const Vector<uint8_t>& counterVector() const LIFETIME_BOUND
     {
         if (!m_counterVector.isEmpty() || !counter || !counter->byteLength())
             return m_counterVector;

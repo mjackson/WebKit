@@ -145,10 +145,10 @@ public:
 
     bool hasUncommittedLoad() const { return isLoading(m_uncommittedState); }
 
-    const String& provisionalURL() const { return m_committedState.provisionalURL; }
-    const String& url() const { return m_committedState.url; }
-    const WebCore::SecurityOriginData& origin() const { return m_committedState.origin; }
-    const String& unreachableURL() const { return m_committedState.unreachableURL; }
+    const String& provisionalURL() const LIFETIME_BOUND { return m_committedState.provisionalURL; }
+    const String& url() const LIFETIME_BOUND { return m_committedState.url; }
+    const WebCore::SecurityOriginData& origin() const LIFETIME_BOUND { return m_committedState.origin; }
+    const String& unreachableURL() const LIFETIME_BOUND { return m_committedState.unreachableURL; }
 
     String activeURL() const { return activeURL(m_committedState); }
 
@@ -162,12 +162,12 @@ public:
     double NODELETE estimatedProgress() const;
     bool networkRequestsInProgress() const { return m_committedState.networkRequestsInProgress; }
 
-    const WebCore::CertificateInfo& certificateInfo() const { return m_committedState.certificateInfo; }
+    const WebCore::CertificateInfo& certificateInfo() const LIFETIME_BOUND { return m_committedState.certificateInfo; }
 
-    const URL& resourceDirectoryURL() const { return m_committedState.resourceDirectoryURL; }
+    const URL& resourceDirectoryURL() const LIFETIME_BOUND { return m_committedState.resourceDirectoryURL; }
 
-    const String& pendingAPIRequestURL() const { return m_committedState.pendingAPIRequest.url; }
-    const PendingAPIRequest& pendingAPIRequest() const { return m_committedState.pendingAPIRequest; }
+    const String& pendingAPIRequestURL() const LIFETIME_BOUND { return m_committedState.pendingAPIRequest.url; }
+    const PendingAPIRequest& pendingAPIRequest() const LIFETIME_BOUND { return m_committedState.pendingAPIRequest; }
     void setPendingAPIRequest(const Transaction::Token&, PendingAPIRequest&& pendingAPIRequest, const URL& resourceDirectoryPath = { });
     void clearPendingAPIRequest(const Transaction::Token&);
 
@@ -185,7 +185,7 @@ public:
 
     void setUnreachableURL(const Transaction::Token&, const String&);
 
-    const String& NODELETE title() const;
+    const String& NODELETE title() const LIFETIME_BOUND;
     void setTitle(const Transaction::Token&, String&&);
     void setTitleFromBrowsingWarning(const Transaction::Token&, const String&);
 
@@ -196,7 +196,7 @@ public:
     void NODELETE setCanGoForward(const Transaction::Token&, bool);
 
     void NODELETE didStartProgress(const Transaction::Token&);
-    void didChangeProgress(const Transaction::Token&, double);
+    void NODELETE didChangeProgress(const Transaction::Token&, double);
     void NODELETE didFinishProgress(const Transaction::Token&);
     void NODELETE setNetworkRequestsInProgress(const Transaction::Token&, bool);
     void NODELETE setHTTPFallbackInProgress(const Transaction::Token&, bool);
@@ -205,6 +205,9 @@ public:
     void didSwapWebProcesses();
 
     bool committedHasInsecureContent() const { return m_committedState.hasInsecureContent; }
+
+    void NODELETE setHadSafeBrowsingWarning(const Transaction::Token&);
+    bool committedHadSafeBrowsingWarning() const { return m_committedState.hadSafeBrowsingWarning; }
 
     // FIXME: We piggy-back off PageLoadState::Observer so that both WKWebView and WKObservablePageState
     // can listen for changes. Once we get rid of WKObservablePageState these could just be part of API::NavigationClient.
@@ -241,6 +244,7 @@ private:
         bool canGoBack { false };
         bool canGoForward { false };
         bool isHTTPFallbackInProgress { false };
+        bool hadSafeBrowsingWarning { false };
 
         double estimatedProgress { 0 };
         bool networkRequestsInProgress { false };
@@ -253,7 +257,7 @@ private:
     static bool NODELETE isLoading(const Data&);
     static String NODELETE activeURL(const Data&);
     static bool hasOnlySecureContent(const Data&);
-    static double estimatedProgress(const Data&);
+    static double NODELETE estimatedProgress(const Data&);
 
     WebPageProxy& page() const { return m_webPageProxy.get(); }
 

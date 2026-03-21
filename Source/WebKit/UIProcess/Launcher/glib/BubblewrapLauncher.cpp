@@ -32,15 +32,15 @@
 #include <wtf/UniStdExtras.h>
 #include <wtf/glib/Application.h>
 #include <wtf/glib/GRefPtr.h>
+#include <wtf/glib/GSpanExtras.h>
 #include <wtf/glib/GUniquePtr.h>
 #include <wtf/glib/Sandbox.h>
+#include <wtf/text/CStringView.h>
 #include <wtf/text/MakeString.h>
 
 #if PLATFORM(GTK)
 #include "Display.h"
 #endif
-
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GTK/WPE port
 
 #if !defined(MFD_ALLOW_SEALING) && HAVE(LINUX_MEMFD_H)
 #include <linux/memfd.h>
@@ -193,7 +193,7 @@ enum class BindFlags {
     Device,
 };
 
-static void bindSymlinksRealPath(Vector<CString>& args, const String& path, const char* bindOption = "--ro-bind")
+static void bindSymlinksRealPath(Vector<CString>& args, const String& path, const ASCIILiteral bindOption = "--ro-bind"_s)
 {
     auto realPath = FileSystem::realPath(path);
     if (path != realPath) {
@@ -202,28 +202,38 @@ static void bindSymlinksRealPath(Vector<CString>& args, const String& path, cons
     }
 }
 
+static void bindIfExists(Vector<CString>& args, const CStringView& path, BindFlags bindFlags = BindFlags::ReadOnly)
+{
+    const ASCIILiteral bindType = [&] () {
+        switch (bindFlags) {
+        case BindFlags::Device:
+            return "--dev-bind-try"_s;
+        case BindFlags::ReadOnly:
+            return "--ro-bind-try"_s;
+        default:
+            return "--bind-try"_s;
+        }
+    }();
+
+    // Canonicalize the source path, otherwise a symbolic link could
+    // point to a location outside of the namespace.
+    bindSymlinksRealPath(args, path.span(), bindType);
+
+    // As /etc is exposed wholesale, do not layer extraneous bind
+    // directives on top, which could fail in the presence of symbolic
+    // links.
+    if (!startsWith(path.span(), "/etc/"_s)) {
+        auto pathString = CString(path.span());
+        args.appendVector(Vector<CString>({ bindType, pathString, pathString }));
+    }
+}
+
 static void bindIfExists(Vector<CString>& args, const char* path, BindFlags bindFlags = BindFlags::ReadOnly)
 {
     if (!path || path[0] == '\0')
         return;
 
-    const char* bindType;
-    if (bindFlags == BindFlags::Device)
-        bindType = "--dev-bind-try";
-    else if (bindFlags == BindFlags::ReadOnly)
-        bindType = "--ro-bind-try";
-    else
-        bindType = "--bind-try";
-
-    // Canonicalize the source path, otherwise a symbolic link could
-    // point to a location outside of the namespace.
-    bindSymlinksRealPath(args, String::fromUTF8(path), bindType);
-
-    // As /etc is exposed wholesale, do not layer extraneous bind
-    // directives on top, which could fail in the presence of symbolic
-    // links.
-    if (!g_str_has_prefix(path, "/etc/"))
-        args.appendVector(Vector<CString>({ bindType, path, path }));
+    bindIfExists(args, CStringView::unsafeFromUTF8(path), bindFlags);
 }
 
 static void bindDBusSession(Vector<CString>& args, XDGDBusProxy& dbusProxy, bool allowPortals)
@@ -243,16 +253,14 @@ static void bindDBusSession(Vector<CString>& args, XDGDBusProxy& dbusProxy, bool
 #if PLATFORM(X11)
 static void bindX11(Vector<CString>& args)
 {
-    const char* display = g_getenv("DISPLAY");
-    if (display && display[0] == ':' && g_ascii_isdigit(const_cast<char*>(display)[1])) {
-        const char* displayNumber = &display[1];
-        const char* displayNumberEnd = displayNumber;
-        while (g_ascii_isdigit(*displayNumberEnd))
-            displayNumberEnd++;
-
-        GUniquePtr<char> displayString(g_strndup(displayNumber, displayNumberEnd - displayNumber));
-        GUniquePtr<char> x11File(g_strdup_printf("/tmp/.X11-unix/X%s", displayString.get()));
-        bindIfExists(args, x11File.get(), BindFlags::ReadWrite);
+    auto display = String::fromUTF8(g_getenv("DISPLAY"));
+    if (!display.isNull() && display[0] == ':' && isASCIIDigit(display[1])) {
+        auto displayNumberEnd = display.find([](char16_t c) {
+            return !isASCIIDigit(c);
+        }, 1);
+        auto displayString = display.substring(1, displayNumberEnd - 1);
+        auto x11File = makeString("/tmp/.X11-unix/X"_s, displayString);
+        bindIfExists(args, x11File.utf8().data(), BindFlags::ReadWrite);
     }
 
     const char* xauth = g_getenv("XAUTHORITY");
@@ -284,8 +292,9 @@ static void bindPulse(Vector<CString>& args)
     // They can also be set as X11 props but that is getting a bit ridiculous.
     const char* pulseServer = g_getenv("PULSE_SERVER");
     if (pulseServer) {
-        if (g_str_has_prefix(pulseServer, "unix:"))
-            bindIfExists(args, pulseServer + 5, BindFlags::ReadWrite);
+        auto pulseServerString = CStringView::unsafeFromUTF8(pulseServer);
+        if (startsWith(pulseServerString.span(), "unix:"_s))
+            bindIfExists(args, CStringView::fromUTF8(pulseServerString.span().subspan(5)), BindFlags::ReadWrite);
         // else it uses tcp
     } else {
         const char* runtimeDir = g_get_user_runtime_dir();
@@ -349,8 +358,8 @@ static void bindFonts(Vector<CString>& args)
     bindIfExists(args, fontHomeConfigDir.get());
     bindIfExists(args, fontData.get());
     bindIfExists(args, fontHomeData.get());
-    for (auto* dataDir = dataDirs; dataDir && *dataDir; dataDir++) {
-        GUniquePtr<char> fontDataDir(g_build_filename(*dataDir, "fonts", nullptr));
+    for (const auto* dataDir : span(dataDirs)) {
+        GUniquePtr<char> fontDataDir(g_build_filename(dataDir, "fonts", nullptr));
         bindIfExists(args, fontDataDir.get());
     }
     bindIfExists(args, "/var/cache/fontconfig"); // Used by Debian.
@@ -397,8 +406,8 @@ static bool bindPathVar(Vector<CString>& args, const char* varname)
         return false;
 
     GUniquePtr<char*> splitPaths(g_strsplit(pathValue, ":", -1));
-    for (size_t i = 0; splitPaths.get()[i]; ++i)
-        bindIfExists(args, splitPaths.get()[i]);
+    for (const auto* path : span(splitPaths))
+        bindIfExists(args, path);
 
     return true;
 }
@@ -694,10 +703,10 @@ static int setupSeccomp()
     return tmpfd;
 }
 
-static bool shouldUnshareNetwork(ProcessLauncher::ProcessType processType, char** argv)
+static bool shouldUnshareNetwork(ProcessLauncher::ProcessType processType, Vector<char*>& argv)
 {
     // gdbserver requires network access for remote debugging.
-    if (enableDebugPermissions() && g_str_has_suffix(argv[0], "gdbserver"))
+    if (enableDebugPermissions() && endsWith(CStringView::unsafeFromUTF8(argv[0]).span(), "gdbserver"_s))
         return false;
 
     if (remoteInspectorEnabled())
@@ -726,18 +735,20 @@ static bool shouldUnshareNetwork(ProcessLauncher::ProcessType processType, char*
 
 static std::optional<CString> directoryContainingDBusSocket(const char* dbusAddress)
 {
-    if (!dbusAddress || !g_str_has_prefix(dbusAddress, "unix:"))
+    if (!dbusAddress)
         return std::nullopt;
 
-    if (const char* pathStart = strstr(dbusAddress, "path=")) {
+    auto dbusAddressString = StringView::fromLatin1(dbusAddress);
+
+    if (!dbusAddressString.startsWith("unix:"_s))
+        return std::nullopt;
+
+    if (auto pathStart = dbusAddressString.find("path="_s)) {
         pathStart += strlen("path=");
 
-        const char* pathEnd = pathStart;
-        while (*pathEnd && *pathEnd != ',')
-            pathEnd++;
-
-        CString path(std::span { pathStart, pathEnd });
-        GRefPtr<GFile> file = adoptGRef(g_file_new_for_path(path.data()));
+        auto pathEnd = dbusAddressString.find(',', pathStart);
+        auto path = pathEnd == notFound ? dbusAddressString.substring(pathStart) : dbusAddressString.substring(pathStart, pathEnd - pathStart);
+        GRefPtr<GFile> file = adoptGRef(g_file_new_for_path(path.utf8().data()));
         GRefPtr<GFile> parent = adoptGRef(g_file_get_parent(file.get()));
         if (!parent)
             return std::nullopt;
@@ -758,7 +769,7 @@ static void addExtraPaths(const HashMap<CString, SandboxPermission>& paths, Vect
     }
 }
 
-GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const ProcessLauncher::LaunchOptions& launchOptions, XDGDBusProxy& dbusProxy, char** argv, GError **error)
+GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const ProcessLauncher::LaunchOptions& launchOptions, XDGDBusProxy& dbusProxy, Vector<char*>& argv, GError **error)
 {
     ASSERT(launcher);
 
@@ -766,7 +777,7 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
     // requires a lot of access but doesn't execute arbitrary code like
     // the WebProcess where our focus lies.
     if (launchOptions.processType == ProcessLauncher::ProcessType::Network)
-        return adoptGRef(g_subprocess_launcher_spawnv(launcher, argv, error));
+        return adoptGRef(g_subprocess_launcher_spawnv(launcher, argv.span().data(), error));
 
     const char* runDir = g_get_user_runtime_dir();
     Vector<CString> sandboxArgs = {
@@ -824,10 +835,8 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
             "--bind-try", rrOutputDir.get(), rrOutputDir.get(),
         }));
     } else {
-        sandboxArgs.appendVector(Vector<CString>({
-            // In some configurations cross pid namespace debugging has issues.
-            "--unshare-pid",
-        }));
+        // In some configurations cross pid namespace debugging has issues.
+        sandboxArgs.append("--unshare-pid");
     }
 
     addExtraPaths(launchOptions.extraSandboxPaths, sandboxArgs);
@@ -957,14 +966,14 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
 #if ENABLE(DEVELOPER_MODE)
     const char* execDirectory = g_getenv("WEBKIT_EXEC_PATH");
     if (execDirectory) {
-        String parentDir = FileSystem::parentPath(FileSystem::stringFromFileSystemRepresentation(execDirectory));
+        auto parentDir = FileSystem::parentPath(FileSystem::stringFromFileSystemRepresentation(execDirectory));
         bindIfExists(sandboxArgs, parentDir.utf8().data());
     }
 
     CString executablePath = FileSystem::currentExecutablePath();
     if (!executablePath.isNull()) {
         // Our executable is `/foo/bar/bin/Process`, we want `/foo/bar` as a usable prefix
-        String parentDir = FileSystem::parentPath(FileSystem::parentPath(FileSystem::stringFromFileSystemRepresentation(executablePath.data())));
+        auto parentDir = FileSystem::parentPath(FileSystem::parentPath(FileSystem::stringFromFileSystemRepresentation(executablePath.data())));
         bindIfExists(sandboxArgs, parentDir.utf8().data());
     }
 #endif
@@ -985,20 +994,17 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
         "--",
     };
 
-    char** newArgv = g_newa(char*, g_strv_length(argv) + bwrapArgs.size() + 1);
+    Vector<char*> newArgv(bwrapArgs.size() + argv.size());
     size_t i = 0;
 
     for (auto& arg : bwrapArgs)
         newArgv[i++] = const_cast<char*>(arg.data());
-    for (size_t x = 0; argv[x]; x++)
-        newArgv[i++] = argv[x];
-    newArgv[i++] = nullptr;
+    for (auto& arg : argv)
+        newArgv[i++] = arg;
 
-    return adoptGRef(g_subprocess_launcher_spawnv(launcher, newArgv, error));
+    return adoptGRef(g_subprocess_launcher_spawnv(launcher, newArgv.span().data(), error));
 }
 
 };
-
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 #endif // ENABLE(BUBBLEWRAP_SANDBOX)

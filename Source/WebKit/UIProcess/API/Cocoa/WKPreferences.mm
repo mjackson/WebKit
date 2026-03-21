@@ -448,6 +448,16 @@ static _WKStorageBlockingPolicy NODELETE toAPI(WebCore::StorageBlockingPolicy po
     protect(*_preferences)->setTextAutosizingEnabled(enabled);
 }
 
+- (BOOL)_useUIProcessForBackForwardItemLoading
+{
+    return protect(*_preferences)->useUIProcessForBackForwardItemLoading();
+}
+
+- (void)_setUseUIProcessForBackForwardItemLoading:(BOOL)flag
+{
+    protect(*_preferences)->setUseUIProcessForBackForwardItemLoading(flag);
+}
+
 - (BOOL)_developerExtrasEnabled
 {
     return protect(*_preferences)->developerExtrasEnabled();

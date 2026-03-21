@@ -107,7 +107,7 @@ JSValue eventHandlerAttribute(EventTarget& eventTarget, const AtomString& eventT
 }
 
 template<typename Visitor>
-inline void JSEventListener::visitJSFunctionImpl(Visitor& visitor)
+inline void JSEventListener::visitJSFunctionImplInGCThread(Visitor& visitor)
 {
     // If m_wrapper is null, we are not keeping m_jsFunction alive.
     if (!m_wrapper)
@@ -116,8 +116,8 @@ inline void JSEventListener::visitJSFunctionImpl(Visitor& visitor)
     visitor.append(m_jsFunction);
 }
 
-void JSEventListener::visitJSFunction(AbstractSlotVisitor& visitor) { visitJSFunctionImpl(visitor); }
-void JSEventListener::visitJSFunction(SlotVisitor& visitor) { visitJSFunctionImpl(visitor); }
+void JSEventListener::visitJSFunctionInGCThread(AbstractSlotVisitor& visitor) { visitJSFunctionImplInGCThread(visitor); }
+void JSEventListener::visitJSFunctionInGCThread(SlotVisitor& visitor) { visitJSFunctionImplInGCThread(visitor); }
 
 static void handleBeforeUnloadEventReturnValue(BeforeUnloadEvent& event, const String& returnValue)
 {
@@ -163,10 +163,7 @@ void JSEventListener::handleEvent(ScriptExecutionContext& scriptExecutionContext
             if (!protect(scriptExecutionContext.contentSecurityPolicy())->allowInlineEventHandlers(sourceURL().string(), sourcePosition().m_line, code(), element.get()))
                 return;
         }
-        // FIXME: Is this check needed for other contexts?
-        RefPtr frame = dynamicDowncast<LocalFrame>(localDOMWindow->frame());
-        if (!frame)
-            return;
+        Ref frame = *localDOMWindow->frame();
         CheckedRef script = frame->script();
         if (!script->canExecuteScripts(ReasonForCallingCanExecuteScripts::AboutToExecuteScript) || script->isPaused())
             return;

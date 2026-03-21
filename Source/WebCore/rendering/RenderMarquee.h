@@ -83,7 +83,7 @@ private:
 
     void timerFired();
 
-    CheckedRef<RenderLayer> protectedLayer() { return m_layer.get(); }
+    RenderLayer& layer() { return m_layer.get(); }
 
     InlineWeakRef<RenderLayer> m_layer;
     Timer m_timer;

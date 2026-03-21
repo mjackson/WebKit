@@ -329,6 +329,11 @@ enum class ScrollClamping : bool {
     Clamped
 };
 
+enum class ScrollInterruptsAnimation : bool {
+    No,
+    Yes
+};
+
 enum class ScrollBehaviorForFixedElements : bool {
     StickToDocumentBounds,
     StickToViewportBounds
@@ -368,10 +373,11 @@ using ScrollbarControlPartMask = unsigned;
 
 struct ScrollPositionChangeOptions {
     ScrollType type;
-    ScrollClamping clamping = ScrollClamping::Clamped;
-    ScrollIsAnimated animated = ScrollIsAnimated::No;
-    ScrollSnapPointSelectionMethod snapPointSelectionMethod = ScrollSnapPointSelectionMethod::Closest;
-    std::optional<FloatSize> originalScrollDelta = std::nullopt;
+    ScrollClamping clamping { ScrollClamping::Clamped };
+    ScrollIsAnimated animated { ScrollIsAnimated::No };
+    ScrollSnapPointSelectionMethod snapPointSelectionMethod { ScrollSnapPointSelectionMethod::Closest };
+    std::optional<FloatSize> originalScrollDelta { };
+    ScrollInterruptsAnimation interruptsAnimation { ScrollInterruptsAnimation::Yes };
 
     static ScrollPositionChangeOptions createProgrammatic()
     {

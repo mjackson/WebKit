@@ -56,6 +56,7 @@
 #include "DOMMatrix2DInit.h"
 #include "FloatQuad.h"
 #include "FontCascadeFonts.h"
+#include "FontCascadeInlines.h"
 #include "GeometryUtilities.h"
 #include "GlyphBuffer.h"
 #include "Gradient.h"
@@ -263,6 +264,7 @@ CanvasRenderingContext2DBase::CanvasRenderingContext2DBase(CanvasBase& canvas, C
 CanvasRenderingContext2DBase::~CanvasRenderingContext2DBase()
 {
 #if ASSERT_ENABLED
+    m_unrealizedSaveCount = 0;
     size_t restoreCount = m_stateStack.size() - 1;
     for (size_t i = 0; i < restoreCount; ++i)
         restore();
@@ -323,12 +325,12 @@ void CanvasRenderingContext2DBase::reset()
 
 void CanvasRenderingContext2DBase::didUpdateCanvasSizeProperties(bool sizeChanged)
 {
+    m_unrealizedSaveCount = 0;
     size_t restoreCount = m_stateStack.size() - 1;
     for (size_t i = 0; i < restoreCount; ++i)
         restore();
     m_stateStack.first() = State();
     m_path.clear();
-    m_unrealizedSaveCount = 0;
     m_cachedContents.emplace<CachedContentsTransparent>();
     m_hasDeferredOperations = false;
     clearAccumulatedDirtyRect();
@@ -748,7 +750,7 @@ void CanvasRenderingContext2DBase::setShadowColor(const String& colorString)
     applyShadow();
 }
 
-static bool lineDashSequenceIsValid(const Vector<double>& dash)
+static bool NODELETE lineDashSequenceIsValid(const Vector<double>& dash)
 {
     for (size_t i = 0; i < dash.size(); i++) {
         if (!std::isfinite(dash[i]) || dash[i] < 0)
@@ -1079,7 +1081,7 @@ void CanvasRenderingContext2DBase::beginPath()
     m_path.clear();
 }
 
-static bool validateRectForCanvas(double& x, double& y, double& width, double& height)
+static bool NODELETE validateRectForCanvas(double& x, double& y, double& width, double& height)
 {
     if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(width) || !std::isfinite(height))
         return false;
@@ -1576,7 +1578,7 @@ static inline FloatSize size(CSSStyleImageValue& image)
 }
 
 #if ENABLE(WEB_CODECS)
-static inline FloatSize size(const WebCodecsVideoFrame& frame)
+static inline FloatSize NODELETE size(const WebCodecsVideoFrame& frame)
 {
     return FloatSize { static_cast<float>(frame.displayWidth()), static_cast<float>(frame.displayHeight()) };
 }
@@ -2231,7 +2233,7 @@ ExceptionOr<RefPtr<CanvasPattern>> CanvasRenderingContext2DBase::createPattern(C
 
 ExceptionOr<RefPtr<CanvasPattern>> CanvasRenderingContext2DBase::createPattern(HTMLImageElement& imageElement, bool repeatX, bool repeatY)
 {
-    CachedResourceHandle cachedImage = imageElement.cachedImage();
+    RefPtr cachedImage = imageElement.cachedImage();
     
     // If the image loading hasn't started or the image is not complete, it is not fully decodable.
     if (!cachedImage || !imageElement.complete())
@@ -2256,7 +2258,7 @@ ExceptionOr<RefPtr<CanvasPattern>> CanvasRenderingContext2DBase::createPattern(H
 
 ExceptionOr<RefPtr<CanvasPattern>> CanvasRenderingContext2DBase::createPattern(SVGImageElement& imageElement, bool repeatX, bool repeatY)
 {
-    CachedResourceHandle cachedImage = imageElement.cachedImage();
+    RefPtr cachedImage = imageElement.cachedImage();
 
     // The image loading hasn't started.
     if (!cachedImage)
@@ -2881,7 +2883,7 @@ void CanvasRenderingContext2DBase::drawTextUnchecked(const TextRun& textRun, dou
     if (canUseCachedShapedText(textRun)) {
         RefPtr fonts = fontCascade.fonts();
         ASSERT(fonts);
-        cachedShapedText = fonts->getOrCreateCachedShapedText(textRun, fontCascade);
+        cachedShapedText = fonts->getOrCreateCachedShapedText(textRun, fontCascade, 0, std::nullopt, ForTextEmphasis::No);
     }
 
     float fontWidth = cachedShapedText ? cachedShapedText->width : fontCascade.width(textRun);
@@ -3003,12 +3005,8 @@ void CanvasRenderingContext2DBase::drawTextUnchecked(const TextRun& textRun, dou
         clearCanvas();
         drawText(*c, location);
         repaintEntireCanvas = true;
-    } else {
-        auto clipBounds = c->clipBounds();
-        if ((clipBounds.isEmpty() || !clipBounds.intersects(enclosingIntRect(textRect))) && !shouldDrawShadows())
-            return;
+    } else
         drawText(*c, location);
-    }
 
     didDraw(repaintEntireCanvas, targetSwitcher ? targetSwitcher->expandedBounds() : textRect);
 }

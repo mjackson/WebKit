@@ -147,7 +147,7 @@ public:
 private:
     void parse();
     void flushPendingCue();
-    bool hasRequiredFileIdentifier(const String&);
+    bool NODELETE hasRequiredFileIdentifier(const String&);
     ParseState collectCueId(const String&);
     ParseState collectTimingsAndSettings(const String&);
     ParseState collectCueText(const String&);
@@ -166,8 +166,6 @@ private:
     void resetCueValues();
 
     static bool collectTimeStamp(VTTScanner& input, MediaTime& timeStamp);
-
-    Ref<Document> NODELETE protectedDocument() const;
 
     const WeakRef<Document, WeakPtrImplWithEventTargetData> m_document;
     ParseState m_state { Initial };

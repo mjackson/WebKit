@@ -87,7 +87,7 @@ public:
     void clear();
 
     WebCore::PageOverlay* coreOverlay() const { return m_overlay.get(); }
-    Client& client() const { return *m_client; }
+    Client& client() const LIFETIME_BOUND { return *m_client; }
 
 #if PLATFORM(MAC)
     struct ActionContext {

@@ -312,6 +312,7 @@ void SVGAnimateMotionElement::childrenChanged(const ChildChange& change)
         updateAnimationPath();
         break;
     case ChildChange::Type::ElementInserted:
+    case ChildChange::Type::ElementAndTextInserted:
     case ChildChange::Type::TextInserted:
     case ChildChange::Type::TextRemoved:
     case ChildChange::Type::TextChanged:

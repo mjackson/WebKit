@@ -86,7 +86,7 @@ static void registerBlobResourceHandleConstructor()
 Ref<ResourceHandle> BlobRegistryImpl::createResourceHandle(const ResourceRequest& request, ResourceHandleClient* client)
 {
     // This seems like it is only used from WebKitLegacy, so it does not support blob registry partitioning
-    Ref handle = BlobResourceHandle::createAsync(protectedBlobDataFromURL(request.url()).get(), request, client);
+    Ref handle = BlobResourceHandle::createAsync(protect(blobDataFromURL(request.url())), request, client);
     handle->start();
     return handle;
 }
@@ -303,11 +303,6 @@ BlobData* BlobRegistryImpl::blobDataFromURL(const URL& url, const std::optional<
         return nullptr;
     }
     return m_blobs.get(urlKey);
-}
-
-RefPtr<BlobData> BlobRegistryImpl::protectedBlobDataFromURL(const URL& url, const std::optional<SecurityOriginData>& topOrigin) const
-{
-    return blobDataFromURL(url, topOrigin);
 }
 
 String BlobRegistryImpl::blobType(const URL& url)

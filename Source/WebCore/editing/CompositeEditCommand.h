@@ -84,8 +84,8 @@ public:
     void append(SimpleEditCommand&);
     bool wasCreateLinkCommand() const { return m_editAction == EditAction::CreateLink; }
 
-    const VisibleSelection& startingSelection() const { return m_startingSelection; }
-    const VisibleSelection& endingSelection() const { return m_endingSelection; }
+    const VisibleSelection& startingSelection() const LIFETIME_BOUND { return m_startingSelection; }
+    const VisibleSelection& endingSelection() const LIFETIME_BOUND { return m_endingSelection; }
     void setStartingSelection(const VisibleSelection&);
     void setEndingSelection(const VisibleSelection&);
     Element* startingRootEditableElement() const { return m_startingRootEditableElement.get(); }
@@ -101,7 +101,7 @@ private:
 
     String label() const final;
     void didRemoveFromUndoManager() final { }
-    bool areRootEditabledElementsConnected();
+    bool NODELETE areRootEditabledElementsConnected();
 
     const Ref<Document> m_document;
     VisibleSelection m_startingSelection;
@@ -175,7 +175,7 @@ protected:
     void prepareWhitespaceAtPositionForSplit(Position&);
     void replaceCollapsibleWhitespaceWithNonBreakingSpaceIfNeeded(const VisiblePosition&);
     RefPtr<Text> textNodeForRebalance(const Position&) const;
-    bool shouldRebalanceLeadingWhitespaceFor(const String&) const;
+    bool NODELETE shouldRebalanceLeadingWhitespaceFor(const String&) const;
     void removeNodeAttribute(Element&, const QualifiedName& attribute);
     void removeChildrenInRange(Node&, unsigned from, unsigned to);
     virtual void removeNode(Node&, ShouldAssumeContentIsAlwaysEditable = DoNotAssumeContentIsAlwaysEditable);

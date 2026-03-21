@@ -47,21 +47,16 @@ WK_OBJECT_DISABLE_DISABLE_KVC_IVAR_ACCESS;
     if (WebCoreObjCScheduleDeallocateOnMainRunLoop(WKContentWorldConfiguration.class, self))
         return;
 
-    self._protectedWorldConfiguration->API::ContentWorldConfiguration::~ContentWorldConfiguration();
+    protect(*_worldConfiguration)->API::ContentWorldConfiguration::~ContentWorldConfiguration();
 
     [super dealloc];
-}
-
-- (Ref<API::ContentWorldConfiguration>)_protectedWorldConfiguration
-{
-    return *_worldConfiguration;
 }
 
 #pragma mark NSCopying protocol implementation
 
 - (id)copyWithZone:(NSZone *)zone
 {
-    return wrapper(self._protectedWorldConfiguration->copy()).autorelease();
+    return wrapper(protect(*_worldConfiguration)->copy()).autorelease();
 }
 
 #pragma mark NSSecureCoding protocol implementation
@@ -73,7 +68,7 @@ WK_OBJECT_DISABLE_DISABLE_KVC_IVAR_ACCESS;
 
 - (void)encodeWithCoder:(NSCoder *)coder
 {
-    Ref<API::ContentWorldConfiguration> configuration = self._protectedWorldConfiguration;
+    Ref<API::ContentWorldConfiguration> configuration = *_worldConfiguration;
 
     [coder encodeObject:nsStringNilIfEmpty(configuration->name()) forKey:@"name"];
     [coder encodeBool:configuration->allowAccessToClosedShadowRoots() forKey:@"allowAccessToClosedShadowRoots"];
@@ -90,7 +85,7 @@ WK_OBJECT_DISABLE_DISABLE_KVC_IVAR_ACCESS;
     if (!(self = [self init]))
         return nil;
 
-    Ref<API::ContentWorldConfiguration> configuration = self._protectedWorldConfiguration;
+    Ref<API::ContentWorldConfiguration> configuration = *_worldConfiguration;
 
     configuration->setName([coder decodeObjectOfClass:[NSString class] forKey:@"name"]);
     configuration->setAllowAccessToClosedShadowRoots([coder decodeBoolForKey:@"allowAccessToClosedShadowRoots"]);
@@ -113,72 +108,72 @@ WK_OBJECT_DISABLE_DISABLE_KVC_IVAR_ACCESS;
 
 - (BOOL)openClosedShadowRootsEnabled
 {
-    return self._protectedWorldConfiguration->allowAccessToClosedShadowRoots();
+    return _worldConfiguration->allowAccessToClosedShadowRoots();
 }
 
 - (void)setOpenClosedShadowRootsEnabled:(BOOL)allow
 {
-    self._protectedWorldConfiguration->setAllowAccessToClosedShadowRoots(allow);
+    _worldConfiguration->setAllowAccessToClosedShadowRoots(allow);
 }
 
 - (BOOL)autofillScriptingEnabled
 {
-    return self._protectedWorldConfiguration->allowAutofill();
+    return _worldConfiguration->allowAutofill();
 }
 
 - (void)setAutofillScriptingEnabled:(BOOL)enabled
 {
-    self._protectedWorldConfiguration->setAllowAutofill(enabled);
+    _worldConfiguration->setAllowAutofill(enabled);
 }
 
 - (BOOL)elementUserInfoEnabled
 {
-    return self._protectedWorldConfiguration->allowElementUserInfo();
+    return _worldConfiguration->allowElementUserInfo();
 }
 
 - (void)setElementUserInfoEnabled:(BOOL)enabled
 {
-    self._protectedWorldConfiguration->setAllowElementUserInfo(enabled);
+    _worldConfiguration->setAllowElementUserInfo(enabled);
 }
 
 - (BOOL)legacyBuiltinOverridesEnabled
 {
-    return !self._protectedWorldConfiguration->disableLegacyBuiltinOverrides();
+    return !_worldConfiguration->disableLegacyBuiltinOverrides();
 }
 
 - (void)setLegacyBuiltinOverridesEnabled:(BOOL)enabled
 {
-    self._protectedWorldConfiguration->setDisableLegacyBuiltinOverrides(!enabled);
+    _worldConfiguration->setDisableLegacyBuiltinOverrides(!enabled);
 }
 
 - (BOOL)jsHandleCreationEnabled
 {
-    return self._protectedWorldConfiguration->allowJSHandleCreation();
+    return _worldConfiguration->allowJSHandleCreation();
 }
 
 - (void)setJSHandleCreationEnabled:(BOOL)allow
 {
-    self._protectedWorldConfiguration->setAllowJSHandleCreation(allow);
+    _worldConfiguration->setAllowJSHandleCreation(allow);
 }
 
 - (BOOL)isInspectable
 {
-    return self._protectedWorldConfiguration->isInspectable();
+    return _worldConfiguration->isInspectable();
 }
 
 - (void)setInspectable:(BOOL)inspectable
 {
-    self._protectedWorldConfiguration->setInspectable(inspectable);
+    _worldConfiguration->setInspectable(inspectable);
 }
 
 - (BOOL)nodeSerializationEnabled
 {
-    return self._protectedWorldConfiguration->allowNodeSerialization();
+    return _worldConfiguration->allowNodeSerialization();
 }
 
 - (void)setNodeSerializationEnabled:(BOOL)allow
 {
-    self._protectedWorldConfiguration->setAllowNodeSerialization(allow);
+    _worldConfiguration->setAllowNodeSerialization(allow);
 }
 
 @end
@@ -197,62 +192,62 @@ WK_OBJECT_DISABLE_DISABLE_KVC_IVAR_ACCESS;
 
 - (NSString *)name
 {
-    return self._protectedWorldConfiguration->name().createNSString().autorelease();
+    return _worldConfiguration->name().createNSString().autorelease();
 }
 
 - (void)setName:(NSString *)name
 {
-    self._protectedWorldConfiguration->setName(name);
+    protect(*_worldConfiguration)->setName(name);
 }
 
 - (BOOL)allowAccessToClosedShadowRoots
 {
-    return self._protectedWorldConfiguration->allowAccessToClosedShadowRoots();
+    return _worldConfiguration->allowAccessToClosedShadowRoots();
 }
 
 - (void)setAllowAccessToClosedShadowRoots:(BOOL)allow
 {
-    self._protectedWorldConfiguration->setAllowAccessToClosedShadowRoots(allow);
+    _worldConfiguration->setAllowAccessToClosedShadowRoots(allow);
 }
 
 - (BOOL)allowAutofill
 {
-    return self._protectedWorldConfiguration->allowAutofill();
+    return _worldConfiguration->allowAutofill();
 }
 
 - (void)setAllowAutofill:(BOOL)allow
 {
-    self._protectedWorldConfiguration->setAllowAutofill(allow);
+    _worldConfiguration->setAllowAutofill(allow);
 }
 
 - (BOOL)allowElementUserInfo
 {
-    return self._protectedWorldConfiguration->allowElementUserInfo();
+    return _worldConfiguration->allowElementUserInfo();
 }
 
 - (void)setAllowElementUserInfo:(BOOL)allow
 {
-    self._protectedWorldConfiguration->setAllowElementUserInfo(allow);
+    _worldConfiguration->setAllowElementUserInfo(allow);
 }
 
 - (BOOL)disableLegacyBuiltinOverrides
 {
-    return self._protectedWorldConfiguration->disableLegacyBuiltinOverrides();
+    return _worldConfiguration->disableLegacyBuiltinOverrides();
 }
 
 - (void)setDisableLegacyBuiltinOverrides:(BOOL)disable
 {
-    self._protectedWorldConfiguration->setDisableLegacyBuiltinOverrides(disable);
+    _worldConfiguration->setDisableLegacyBuiltinOverrides(disable);
 }
 
 - (BOOL)allowJSHandleCreation
 {
-    return self._protectedWorldConfiguration->allowJSHandleCreation();
+    return _worldConfiguration->allowJSHandleCreation();
 }
 
 - (void)setAllowJSHandleCreation:(BOOL)allow
 {
-    self._protectedWorldConfiguration->setAllowJSHandleCreation(allow);
+    _worldConfiguration->setAllowJSHandleCreation(allow);
 }
 
 - (BOOL)allowNodeSerialization

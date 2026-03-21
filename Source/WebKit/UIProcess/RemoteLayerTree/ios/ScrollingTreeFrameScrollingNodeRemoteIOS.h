@@ -48,7 +48,7 @@ public:
 private:
     ScrollingTreeFrameScrollingNodeRemoteIOS(WebCore::ScrollingTree&, WebCore::ScrollingNodeType, WebCore::ScrollingNodeID);
 
-    ScrollingTreeScrollingNodeDelegateIOS* delegate() const;
+    ScrollingTreeScrollingNodeDelegateIOS* delegate() const LIFETIME_BOUND;
 
     bool isScrollingTreeFrameScrollingNodeIOS() const final { return true; }
 

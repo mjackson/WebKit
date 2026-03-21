@@ -146,7 +146,7 @@ const std::optional<ScrollGranularity> scrollGranularityForKeyboardEvent(const K
 
 float KeyboardScrollingAnimator::scrollDistance(ScrollDirection direction, ScrollGranularity granularity) const
 {
-    CheckedRef scrollableArea = m_scrollableArea.get();
+    CheckedRef scrollableArea = m_scrollableArea;
     RefPtr scrollbar = scrollableArea->scrollbarForDirection(direction);
     if (!scrollbar)
         return false;
@@ -178,7 +178,7 @@ RectEdges<bool> KeyboardScrollingAnimator::scrollingDirections() const
 {
     RectEdges<bool> edges;
 
-    CheckedRef scrollableArea = m_scrollableArea.get();
+    CheckedRef scrollableArea = m_scrollableArea;
     edges.setTop(scrollableArea->allowsVerticalScrolling());
     edges.setBottom(edges.top());
     edges.setLeft(scrollableArea->allowsHorizontalScrolling());
@@ -211,7 +211,7 @@ bool KeyboardScrollingAnimator::beginKeyboardScrollGesture(ScrollDirection direc
     if (!scroll)
         return false;
 
-    CheckedRef scrollableArea = m_scrollableArea.get();
+    CheckedRef scrollableArea = m_scrollableArea;
     if (scrollableArea->isUserScrollInProgress()) {
         m_scrollTriggeringKeyIsPressed = false;
         scrollableArea->endKeyboardScroll(true);

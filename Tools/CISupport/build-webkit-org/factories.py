@@ -31,9 +31,9 @@ class Factory(factory.BuildFactory):
     shouldInstallDependencies = True
     shouldUseCrossTargetImage = False
 
-    def __init__(self, platform, configuration, architectures, buildOnly, additionalArguments, device_model, triggers=None):
+    def __init__(self, platform, configuration, architectures, buildOnly, additionalArguments, device_model, triggers=None, deployment_target=None):
         factory.BuildFactory.__init__(self)
-        self.addStep(ConfigureBuild(platform=platform, configuration=configuration, architecture=' '.join(architectures), buildOnly=buildOnly, additionalArguments=additionalArguments, device_model=device_model, triggers=triggers))
+        self.addStep(ConfigureBuild(platform=platform, configuration=configuration, architecture=' '.join(architectures), buildOnly=buildOnly, additionalArguments=additionalArguments, device_model=device_model, triggers=triggers, deployment_target=deployment_target))
         self.addStep(PrintConfiguration())
         self.addStep(CheckOutSource())
         self.addStep(CheckOutSpecificRevision())
@@ -47,7 +47,7 @@ class Factory(factory.BuildFactory):
         if self.shouldInstallDependencies:
             if platform.startswith("gtk"):
                 self.addStep(InstallGtkDependencies())
-            if platform == "wpe":
+            if platform.startswith("wpe"):
                 self.addStep(InstallWpeDependencies())
 
 
@@ -55,8 +55,8 @@ class BuildFactory(Factory):
     shouldRunJSCBundleStep = False
     shouldRunMiniBrowserBundleStep = False
 
-    def __init__(self, platform, configuration, architectures, triggers=None, additionalArguments=None, device_model=None):
-        Factory.__init__(self, platform, configuration, architectures, True, additionalArguments, device_model, triggers=triggers)
+    def __init__(self, platform, configuration, architectures, triggers=None, additionalArguments=None, device_model=None, deployment_target=None):
+        Factory.__init__(self, platform, configuration, architectures, True, additionalArguments, device_model, triggers=triggers, deployment_target=deployment_target)
 
         if platform.startswith("playstation"):
             self.addStep(CompileWebKit(timeout=2 * 60 * 60))
@@ -306,9 +306,9 @@ class DownloadAndPerfTestFactory(Factory):
             self.addStep(CheckIfNeededUpdateRunningCrossTargetImage())
         self.addStep(DownloadBuiltProduct())
         self.addStep(ExtractBuiltProduct())
-        if platform != "wpe":
+        if not platform.startswith("wpe"):
             self.addStep(RunAndUploadPerfTests())
-        if platform in ["gtk", "wpe"]:
+        if any(platform.startswith(p) for p in ["gtk", "wpe"]):
             self.addStep(RunBenchmarkTests(timeout=2000))
 
 
@@ -320,15 +320,12 @@ class SaferCPPStaticAnalyzerFactory(Factory):
         self.addStep(GetLLVMVersion())
         self.addStep(PrintClangVersion())
         self.addStep(CheckOutLLVMProject())
-        if platform.startswith('ios'):
-            self.addStep(GetSwiftTagName())
-            self.addStep(PrintSwiftVersion())
-            self.addStep(CheckOutSwiftProject())
-            self.addStep(UpdateSwiftCheckouts())
-            self.addStep(BuildSwift())
-            self.addStep(InstallMetalToolchain())
-        else:
-            self.addStep(UpdateClang())
+        self.addStep(GetSwiftTagName())
+        self.addStep(PrintSwiftVersion())
+        self.addStep(CheckOutSwiftProject())
+        self.addStep(UpdateSwiftCheckouts())
+        self.addStep(BuildSwift())
+        self.addStep(InstallMetalToolchain())
         self.addStep(ScanBuild())
 
 

@@ -124,12 +124,12 @@ private:
     bool setFilterEffectAttribute(FilterEffect&, const QualifiedName& attrName) override;
     RefPtr<FilterEffect> createFilterEffect(const FilterEffectVector&, const GraphicsContext& destinationContext) const override;
 
-    Ref<SVGAnimatedNumber> m_baseFrequencyX { SVGAnimatedNumber::create(this) };
-    Ref<SVGAnimatedNumber> m_baseFrequencyY { SVGAnimatedNumber::create(this) };
-    Ref<SVGAnimatedInteger> m_numOctaves { SVGAnimatedInteger::create(this, initialOctavesValue) };
-    Ref<SVGAnimatedNumber> m_seed { SVGAnimatedNumber::create(this) };
-    Ref<SVGAnimatedEnumeration> m_stitchTiles { SVGAnimatedEnumeration::create(this, SVG_STITCHTYPE_NOSTITCH) };
-    Ref<SVGAnimatedEnumeration> m_type { SVGAnimatedEnumeration::create(this, TurbulenceType::Turbulence) };
+    const Ref<SVGAnimatedNumber> m_baseFrequencyX { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedNumber> m_baseFrequencyY { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedInteger> m_numOctaves { SVGAnimatedInteger::create(this, initialOctavesValue) };
+    const Ref<SVGAnimatedNumber> m_seed { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedEnumeration> m_stitchTiles { SVGAnimatedEnumeration::create(this, SVG_STITCHTYPE_NOSTITCH) };
+    const Ref<SVGAnimatedEnumeration> m_type { SVGAnimatedEnumeration::create(this, TurbulenceType::Turbulence) };
 };
 
 } // namespace WebCore

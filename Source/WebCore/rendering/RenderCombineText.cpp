@@ -21,6 +21,8 @@
 #include "config.h"
 #include "RenderCombineText.h"
 
+#include "FontCascadeFonts.h"
+#include "FontCascadeInlines.h"
 #include "RenderBlock.h"
 #include "RenderObjectInlines.h"
 #include "RenderStyle+GettersInlines.h"

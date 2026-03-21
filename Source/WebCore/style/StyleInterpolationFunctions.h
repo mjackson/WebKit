@@ -35,7 +35,6 @@
 #include "ColorBlending.h"
 #include "Document.h"
 #include "FloatConversion.h"
-#include "FontCascade.h"
 #include "FontSelectionAlgorithm.h"
 #include "FontSelectionValueInlines.h"
 #include "FontTaggedSettings.h"

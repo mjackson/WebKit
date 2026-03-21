@@ -63,13 +63,12 @@ public:
 #endif
     );
 #if USE(CG)
-    ShareableBitmapConfiguration(NativeImage&);
+    ShareableBitmapConfiguration(const NativeImage&);
 #endif
 
     IntSize size() const { return m_size; }
     const DestinationColorSpace& colorSpace() const { return m_colorSpace ? *m_colorSpace : DestinationColorSpace::SRGB(); }
     PlatformColorSpaceValue platformColorSpace() const { return colorSpace().platformColorSpace(); }
-    PlatformColorSpace protectedPlatformColorSpace() const { return platformColorSpace(); }
     Headroom headroom() const { return m_headroom; }
     bool isOpaque() const { return m_isOpaque; }
 
@@ -80,7 +79,7 @@ public:
     CGBitmapInfo bitmapInfo() const { return m_bitmapInfo; }
 #endif
 #if USE(SKIA)
-    const SkImageInfo& imageInfo() const { return m_imageInfo; }
+    const SkImageInfo& imageInfo() const LIFETIME_BOUND { return m_imageInfo; }
 #endif
 
     CheckedUint32 sizeInBytes() const { return m_bytesPerRow * m_size.height(); }
@@ -122,7 +121,7 @@ public:
 
     ShareableBitmapHandle& operator=(ShareableBitmapHandle&&) = default;
 
-    SharedMemory::Handle& handle() { return m_handle; }
+    SharedMemory::Handle& handle() LIFETIME_BOUND { return m_handle; }
 
     // Take ownership of the memory for process memory accounting purposes.
     WEBCORE_EXPORT void takeOwnershipOfMemory(MemoryLedger) const;
@@ -149,11 +148,11 @@ public:
 
     // Create a shareable bitmap from a NativeImage.
 #if USE(CG)
-    WEBCORE_EXPORT static RefPtr<ShareableBitmap> createFromImagePixels(NativeImage&);
+    WEBCORE_EXPORT static RefPtr<ShareableBitmap> createFromImagePixels(const NativeImage&);
 #endif
-    WEBCORE_EXPORT static RefPtr<ShareableBitmap> createFromImageDraw(NativeImage&, const DestinationColorSpace&);
-    WEBCORE_EXPORT static RefPtr<ShareableBitmap> createFromImageDraw(NativeImage&, const DestinationColorSpace&, const IntSize&);
-    WEBCORE_EXPORT static RefPtr<ShareableBitmap> createFromImageDraw(NativeImage&, const DestinationColorSpace&, const IntSize& destinationSize, const IntSize& sourceSize);
+    WEBCORE_EXPORT static RefPtr<ShareableBitmap> createFromImageDraw(const NativeImage&, const DestinationColorSpace&);
+    WEBCORE_EXPORT static RefPtr<ShareableBitmap> createFromImageDraw(const NativeImage&, const DestinationColorSpace&, const IntSize&);
+    WEBCORE_EXPORT static RefPtr<ShareableBitmap> createFromImageDraw(const NativeImage&, const DestinationColorSpace&, const IntSize& destinationSize, const IntSize& sourceSize);
 
     // Create a shareable bitmap from a handle.
     WEBCORE_EXPORT static RefPtr<ShareableBitmap> create(Handle&&, SharedMemory::Protection = SharedMemory::Protection::ReadWrite, SharedMemory::CopyOnWrite = defaultCopyOnWrite);
@@ -171,8 +170,8 @@ public:
     IntSize size() const { return m_configuration.size(); }
     IntRect bounds() const { return IntRect(IntPoint(), size()); }
 
-    WEBCORE_EXPORT std::span<const uint8_t> span() const LIFETIME_BOUND;
-    WEBCORE_EXPORT std::span<uint8_t> mutableSpan() LIFETIME_BOUND;
+    WEBCORE_EXPORT std::span<const uint8_t> NODELETE span() const LIFETIME_BOUND;
+    WEBCORE_EXPORT std::span<uint8_t> NODELETE mutableSpan() LIFETIME_BOUND;
     size_t bytesPerRow() const { return m_configuration.bytesPerRow(); }
     size_t sizeInBytes() const { return m_configuration.sizeInBytes(); }
     const DestinationColorSpace& colorSpace() const { return  m_configuration.colorSpace(); }

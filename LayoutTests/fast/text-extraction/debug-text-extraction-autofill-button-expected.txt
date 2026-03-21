@@ -1,0 +1,4 @@
+root
+	input,'text',placeholder='Username'
+	input,'email',placeholder='Email'
+	input,'password',placeholder='Password',secure

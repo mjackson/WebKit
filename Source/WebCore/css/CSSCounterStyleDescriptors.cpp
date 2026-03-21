@@ -45,9 +45,9 @@ static CSSCounterStyleDescriptors::Ranges rangeFromStyleProperties(const StylePr
     return rangeFromCSSValue(ranges.releaseNonNull());
 }
 
-CSSCounterStyleDescriptors::Ranges rangeFromCSSValue(Ref<CSSValue> value)
+CSSCounterStyleDescriptors::Ranges rangeFromCSSValue(const CSSValue& value)
 {
-    auto* list = dynamicDowncast<CSSValueList>(value.get());
+    auto* list = dynamicDowncast<CSSValueList>(value);
     if (!list)
         return { };
     CSSCounterStyleDescriptors::Ranges result;
@@ -68,27 +68,13 @@ CSSCounterStyleDescriptors::Ranges rangeFromCSSValue(Ref<CSSValue> value)
 }
 
 
-static CSSCounterStyleDescriptors::Symbol symbolFromCSSValue(const CSSValue* value)
+CSSCounterStyleDescriptors::Symbol symbolFromCSSValue(const CSSValue* value)
 {
     auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value);
     if (!primitiveValue)
         return { };
 
     return { primitiveValue->isCustomIdent(), primitiveValue->stringValue() };
-}
-
-CSSCounterStyleDescriptors::Symbol symbolFromCSSValue(RefPtr<CSSValue> value)
-{
-    return symbolFromCSSValue(value.get());
-}
-
-static CSSCounterStyleDescriptors::Name nameFromCSSValue(Ref<CSSValue> value)
-{
-    RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(WTF::move(value));
-    if (!primitiveValue)
-        return { };
-
-    return makeAtomString(primitiveValue->stringValue());
 }
 
 static CSSCounterStyleDescriptors::AdditiveSymbols additiveSymbolsFromStyleProperties(const StyleProperties& properties)
@@ -99,10 +85,10 @@ static CSSCounterStyleDescriptors::AdditiveSymbols additiveSymbolsFromStylePrope
     return additiveSymbolsFromCSSValue(value.releaseNonNull());
 }
 
-CSSCounterStyleDescriptors::AdditiveSymbols additiveSymbolsFromCSSValue(Ref<CSSValue> value)
+CSSCounterStyleDescriptors::AdditiveSymbols additiveSymbolsFromCSSValue(const CSSValue& value)
 {
     CSSCounterStyleDescriptors::AdditiveSymbols result;
-    for (Ref additiveSymbol : downcast<CSSValueList>(value.get())) {
+    for (Ref additiveSymbol : downcast<CSSValueList>(value)) {
         Ref pair = downcast<CSSValuePair>(additiveSymbol);
         auto weight = downcast<CSSPrimitiveValue>(pair->first()).resolveAsIntegerDeprecated<unsigned>();
         auto symbol = symbolFromCSSValue(&pair->second());
@@ -119,13 +105,13 @@ static CSSCounterStyleDescriptors::Pad padFromStyleProperties(const StylePropert
     return padFromCSSValue(value.releaseNonNull());
 }
 
-CSSCounterStyleDescriptors::Pad padFromCSSValue(Ref<CSSValue> value)
+CSSCounterStyleDescriptors::Pad padFromCSSValue(const CSSValue& value)
 {
-    auto list = downcast<CSSValueList>(WTF::move(value));
-    ASSERT(list->size() == 2);
-    auto length = downcast<CSSPrimitiveValue>(list.get()[0]).resolveAsIntegerDeprecated();
+    auto& list = downcast<CSSValueList>(value);
+    ASSERT(list.size() == 2);
+    auto length = downcast<CSSPrimitiveValue>(list[0]).resolveAsIntegerDeprecated();
     ASSERT(length >= 0);
-    return { static_cast<unsigned>(std::max(0, length)), symbolFromCSSValue(&list.get()[1]) };
+    return { static_cast<unsigned>(std::max(0, length)), symbolFromCSSValue(&list[1]) };
 }
 
 static CSSCounterStyleDescriptors::NegativeSymbols negativeSymbolsFromStyleProperties(const StyleProperties& properties)
@@ -136,15 +122,15 @@ static CSSCounterStyleDescriptors::NegativeSymbols negativeSymbolsFromStylePrope
     return negativeSymbolsFromCSSValue(negative.releaseNonNull());
 }
 
-CSSCounterStyleDescriptors::NegativeSymbols negativeSymbolsFromCSSValue(Ref<CSSValue> value)
+CSSCounterStyleDescriptors::NegativeSymbols negativeSymbolsFromCSSValue(const CSSValue& value)
 {
     CSSCounterStyleDescriptors::NegativeSymbols result;
-    if (auto list = dynamicDowncast<CSSValueList>(value.get())) {
+    if (auto* list = dynamicDowncast<CSSValueList>(value)) {
         ASSERT(list->size() == 2);
         result.m_prefix = symbolFromCSSValue(list->item(0));
         result.m_suffix = symbolFromCSSValue(list->item(1));
     } else
-        result.m_prefix = symbolFromCSSValue(value.ptr());
+        result.m_prefix = symbolFromCSSValue(&value);
     return result;
 }
 
@@ -156,10 +142,10 @@ static Vector<CSSCounterStyleDescriptors::Symbol> symbolsFromStyleProperties(con
     return symbolsFromCSSValue(symbolsValues.releaseNonNull());
 }
 
-Vector<CSSCounterStyleDescriptors::Symbol> symbolsFromCSSValue(Ref<CSSValue> value)
+Vector<CSSCounterStyleDescriptors::Symbol> symbolsFromCSSValue(const CSSValue& value)
 {
     Vector<CSSCounterStyleDescriptors::Symbol> result;
-    for (Ref symbolValue : downcast<CSSValueList>(value.get())) {
+    for (Ref symbolValue : downcast<CSSValueList>(value)) {
         auto symbol = symbolFromCSSValue(symbolValue.ptr());
         if (!symbol.text.isNull())
             result.append(symbol);
@@ -169,33 +155,37 @@ Vector<CSSCounterStyleDescriptors::Symbol> symbolsFromCSSValue(Ref<CSSValue> val
 
 static CSSCounterStyleDescriptors::Name fallbackNameFromStyleProperties(const StyleProperties& properties)
 {
-    auto fallback = properties.getPropertyCSSValue(CSSPropertyFallback);
+    RefPtr fallback = properties.getPropertyCSSValue(CSSPropertyFallback);
     if (!fallback)
         return "decimal"_s;
-    return fallbackNameFromCSSValue(fallback.releaseNonNull());
+    return fallbackNameFromCSSValue(*fallback);
 }
 
-CSSCounterStyleDescriptors::Name fallbackNameFromCSSValue(Ref<CSSValue> value)
+CSSCounterStyleDescriptors::Name fallbackNameFromCSSValue(const CSSValue& value)
 {
-    return makeAtomString(nameFromCSSValue(WTF::move(value)));
+    auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value);
+    if (!primitiveValue)
+        return { };
+
+    return makeAtomString(primitiveValue->stringValue());
 }
 
 static CSSCounterStyleDescriptors::Symbol prefixFromStyleProperties(const StyleProperties& properties)
 {
-    auto prefix = properties.getPropertyCSSValue(CSSPropertyPrefix);
+    RefPtr prefix = properties.getPropertyCSSValue(CSSPropertyPrefix);
     if (!prefix)
         return { };
-    return symbolFromCSSValue(WTF::move(prefix));
+    return symbolFromCSSValue(prefix);
 }
 
 static CSSCounterStyleDescriptors::Symbol suffixFromStyleProperties(const StyleProperties& properties)
 {
-    auto suffix = properties.getPropertyCSSValue(CSSPropertySuffix);
+    RefPtr suffix = properties.getPropertyCSSValue(CSSPropertySuffix);
     // https://www.w3.org/TR/css-counter-styles-3/#counter-style-suffix
     // ("." full stop followed by a space)
     if (!suffix)
         return { false, ". "_s };
-    return symbolFromCSSValue(WTF::move(suffix));
+    return symbolFromCSSValue(suffix);
 }
 
 static CSSCounterStyleDescriptors::SystemData extractSystemDataFromStyleProperties(const StyleProperties& properties, CSSCounterStyleDescriptors::System system)
@@ -208,7 +198,7 @@ static CSSCounterStyleDescriptors::SystemData extractSystemDataFromStyleProperti
     return extractSystemDataFromCSSValue(WTF::move(systemValue), system);
 }
 
-CSSCounterStyleDescriptors::SystemData extractSystemDataFromCSSValue(RefPtr<CSSValue> systemValue, CSSCounterStyleDescriptors::System system)
+CSSCounterStyleDescriptors::SystemData extractSystemDataFromCSSValue(const CSSValue* systemValue, CSSCounterStyleDescriptors::System system)
 {
     std::pair<CSSCounterStyleDescriptors::Name, int> result { "decimal"_s, 1 };
     if (!systemValue)

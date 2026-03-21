@@ -79,7 +79,7 @@ template<> struct CSSValueConversion<OffsetPosition> { auto operator()(BuilderSt
 // MARK: - Blending
 
 template<> struct Blending<OffsetPosition> {
-    auto canBlend(const OffsetPosition&, const OffsetPosition&) -> bool;
+    bool NODELETE canBlend(const OffsetPosition&, const OffsetPosition&);
     auto requiresInterpolationForAccumulativeIteration(const OffsetPosition&, const OffsetPosition&) -> bool;
     auto blend(const OffsetPosition&, const OffsetPosition&, const BlendingContext&) -> OffsetPosition;
 };
@@ -89,7 +89,7 @@ template<> struct Blending<OffsetPosition> {
 #if ENABLE(THREADED_ANIMATIONS)
 
 template<> struct Evaluation<OffsetPosition, AcceleratedEffectOffsetPosition> {
-    auto operator()(const OffsetPosition&, FloatSize, ZoomNeeded) -> AcceleratedEffectOffsetPosition;
+    auto operator()(const OffsetPosition&, FloatSize, ZoomFactor) -> AcceleratedEffectOffsetPosition;
 };
 
 #endif

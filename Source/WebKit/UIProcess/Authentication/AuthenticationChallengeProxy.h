@@ -61,7 +61,7 @@ public:
     WebProtectionSpace* protectionSpace() const;
 
     AuthenticationDecisionListener& listener() const { return m_listener.get(); }
-    const WebCore::AuthenticationChallenge& core() { return m_coreAuthenticationChallenge; }
+    const WebCore::AuthenticationChallenge& core() LIFETIME_BOUND { return m_coreAuthenticationChallenge; }
 
 private:
     AuthenticationChallengeProxy(WebCore::AuthenticationChallenge&&, AuthenticationChallengeIdentifier, Ref<IPC::Connection>&&, WeakPtrSecKeyProxyStore&&);

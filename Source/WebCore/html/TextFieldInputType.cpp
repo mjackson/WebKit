@@ -36,6 +36,7 @@
 #include "Chrome.h"
 #include "ChromeClient.h"
 #include "ContainerNodeInlines.h"
+#include "CSSSelector.h"
 #include "DOMFormData.h"
 #include "DocumentEventLoop.h"
 #include "DocumentPage.h"
@@ -57,6 +58,7 @@
 #include "LocalizedStrings.h"
 #include "NodeRenderStyle.h"
 #include "PlatformKeyboardEvent.h"
+#include "PseudoClassChangeInvalidation.h"
 #include "RenderLayer.h"
 #include "RenderLayerScrollableArea.h"
 #include "RenderTextControlSingleLine.h"
@@ -96,11 +98,12 @@ TextFieldInputType::~TextFieldInputType()
 bool TextFieldInputType::isKeyboardFocusable(const FocusEventData&) const
 {
     ASSERT(element());
+    Ref element = *this->element();
 #if PLATFORM(IOS_FAMILY)
-    if (element()->isReadOnly())
+    if (element->isReadOnly())
         return false;
 #endif
-    return protect(element())->isTextFormControlFocusable();
+    return element->isTextFormControlFocusable();
 }
 
 bool TextFieldInputType::isMouseFocusable() const
@@ -118,7 +121,7 @@ bool TextFieldInputType::isEmptyValue() const
         return visibleValue().isEmpty();
     }
 
-    for (RefPtr text = TextNodeTraversal::firstWithin(*innerText); text; text = TextNodeTraversal::next(*text, innerText.get())) {
+    for (auto* text = TextNodeTraversal::firstWithin(*innerText); text; text = TextNodeTraversal::next(*text, innerText.get())) {
         if (text->length())
             return false;
     }
@@ -266,7 +269,7 @@ void TextFieldInputType::elementDidBlur()
 
     CheckedPtr innerLayerScrollable = innerLayer->ensureLayerScrollableArea();
 
-    bool isLeftToRightDirection = downcast<RenderTextControlSingleLine>(*renderer).style().isLeftToRightDirection();
+    bool isLeftToRightDirection = downcast<RenderTextControlSingleLine>(*renderer).style().writingMode().deprecatedIsLeftToRightDirection();
     ScrollOffset scrollOffset(isLeftToRightDirection ? 0 : innerLayerScrollable->scrollWidth(), 0);
     innerLayerScrollable->scrollToOffset(scrollOffset);
 
@@ -301,11 +304,6 @@ RenderPtr<RenderElement> TextFieldInputType::createInputRenderer(RenderStyle&& s
     ASSERT(element());
     // FIXME: https://github.com/llvm/llvm-project/pull/142471 Moving style is not unsafe.
     SUPPRESS_UNCOUNTED_ARG return createRenderer<RenderTextControlSingleLine>(RenderObject::Type::TextControlSingleLine, *protect(element()), WTF::move(style));
-}
-
-bool TextFieldInputType::needsContainer() const
-{
-    return false;
 }
 
 bool TextFieldInputType::shouldHaveSpinButton() const
@@ -415,7 +413,7 @@ void TextFieldInputType::removeShadowSubtree()
     m_innerText = nullptr;
     m_placeholder = nullptr;
     m_innerBlock = nullptr;
-    if (RefPtr innerSpinButton = m_innerSpinButton)
+    if (auto* innerSpinButton = m_innerSpinButton.get())
         innerSpinButton->removeSpinButtonOwner();
     m_innerSpinButton = nullptr;
     m_capsLockIndicator = nullptr;
@@ -453,16 +451,6 @@ void TextFieldInputType::readOnlyStateChanged()
         innerSpinButton->releaseCapture();
     capsLockStateMayHaveChanged();
     updateAutoFillButton();
-}
-
-bool TextFieldInputType::supportsReadOnly() const
-{
-    return true;
-}
-
-bool TextFieldInputType::shouldUseInputMethod() const
-{
-    return true;
 }
 
 void TextFieldInputType::createDataListDropdownIndicator()
@@ -934,7 +922,18 @@ IntRect TextFieldInputType::elementRectInRootViewCoordinates() const
     if (!element()->renderer())
         return IntRect();
     Ref element = *this->element();
-    return protect(protect(element->document())->view())->contentsToRootView(protect(element->renderer())->absoluteBoundingBoxRect());
+    return protect(element->document().view())->contentsToRootView(protect(element->renderer())->absoluteBoundingBoxRect());
+}
+
+std::optional<FrameIdentifier> TextFieldInputType::rootFrameID() const
+{
+    RefPtr element = this->element();
+    if (!element)
+        return std::nullopt;
+    RefPtr view = element->document().view();
+    if (!view)
+        return std::nullopt;
+    return view->rootFrameID();
 }
 
 Vector<DataListSuggestion> TextFieldInputType::suggestions()
@@ -986,39 +985,44 @@ void TextFieldInputType::didCloseSuggestions()
     m_cachedSuggestions = { };
     if (RefPtr suggestionPicker = std::exchange(m_suggestionPicker, nullptr))
         suggestionPicker->detach();
+    setPopupIsVisible(false);
     if (CheckedPtr renderer = element()->renderer())
         renderer->repaint();
 }
 
 void TextFieldInputType::displaySuggestions(DataListSuggestionActivationType type)
 {
-    if (element()->isDisabledFormControl() || !element()->renderer())
+    Ref element = *this->element();
+    if (element->isDisabledFormControl() || !element->renderer())
         return;
 
     if (!UserGestureIndicator::processingUserGesture() && !(type == DataListSuggestionActivationType::TextChanged || type == DataListSuggestionActivationType::DataListMayHaveChanged))
         return;
 
-    if (!m_suggestionPicker && suggestions().size() > 0)
+    if (!m_suggestionPicker && suggestions().size() > 0) {
+        setPopupIsVisible(true);
         m_suggestionPicker = chrome()->createDataListSuggestionPicker(*this);
+    }
 
-    if (RefPtr suggestionPicker = m_suggestionPicker)
+    if (RefPtr suggestionPicker = m_suggestionPicker) {
+        setPopupIsVisible(true);
         suggestionPicker->displayWithActivationType(type);
+    }
 }
 
 void TextFieldInputType::closeSuggestions()
 {
     if (RefPtr suggestionPicker = m_suggestionPicker)
         suggestionPicker->close();
+    setPopupIsVisible(false);
 }
 
-bool TextFieldInputType::isPresentingAttachedView() const
+void TextFieldInputType::setPopupIsVisible(bool visible)
 {
-    return !!m_suggestionPicker;
-}
-
-bool TextFieldInputType::isFocusingWithDataListDropdown() const
-{
-    return m_isFocusingWithDataListDropdown;
+    if (m_popupIsVisible == visible || !element())
+        return;
+    Style::PseudoClassChangeInvalidation styleInvalidation(*protect(element()), CSSSelector::PseudoClass::Open, visible);
+    m_popupIsVisible = visible;
 }
 
 } // namespace WebCore

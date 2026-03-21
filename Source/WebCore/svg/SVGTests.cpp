@@ -119,11 +119,6 @@ void SVGTests::addSupportedAttributes(MemoryCompactLookupOnlyRobinHoodHashSet<Qu
     supportedAttributes.add(SVGNames::systemLanguageAttr);
 }
 
-Ref<SVGElement> SVGTests::protectedContextElement() const
-{
-    return m_contextElement;
-}
-
 SVGConditionalProcessingAttributes& SVGTests::conditionalProcessingAttributes()
 {
     Ref contextElement = m_contextElement;
@@ -132,7 +127,7 @@ SVGConditionalProcessingAttributes& SVGTests::conditionalProcessingAttributes()
 
 SVGConditionalProcessingAttributes* SVGTests::conditionalProcessingAttributesIfExists() const
 {
-    return protectedContextElement()->conditionalProcessingAttributesIfExists();
+    return m_contextElement->conditionalProcessingAttributesIfExists();
 }
 
 } // namespace WebCore

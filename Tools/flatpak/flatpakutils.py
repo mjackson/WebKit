@@ -1422,8 +1422,13 @@ def is_sandboxed():
     return os.path.exists("/.flatpak-info")
 
 
+def should_use_flatpak():
+    if os.environ.get('WEBKIT_JHBUILD') == '1':
+        return False
+    return os.environ.get('WEBKIT_FLATPAK') == '1'
+
 def run_in_sandbox_if_available(args):
-    if os.environ.get('WEBKIT_JHBUILD') == '1' or os.environ.get('WEBKIT_BUILD_USE_SYSTEM_LIBRARIES') == '1':
+    if not should_use_flatpak():
         return None
 
     os.environ["FLATPAK_USER_DIR"] = os.environ.get("WEBKIT_FLATPAK_USER_DIR", FLATPAK_USER_DIR_PATH)

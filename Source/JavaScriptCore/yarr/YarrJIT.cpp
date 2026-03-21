@@ -2044,9 +2044,14 @@ class YarrGenerator final : public YarrJITInfo {
             RELEASE_ASSERT(m_regs.regUnicodeInputAndTrail == areCanonicallyEquivalentCanonicalModeArgReg);
             ASSERT(m_decode16BitForBackreferencesWithCalls);
 
-            // Fail matching for dangling surrogates.
-            characterMatchFails.append(m_jit.branch32(MacroAssembler::Equal, character, MacroAssembler::TrustedImm32(errorCodePoint)));
-            characterMatchFails.append(m_jit.branch32(MacroAssembler::Equal, patternCharacter, MacroAssembler::TrustedImm32(errorCodePoint)));
+            // When !m_decodeSurrogatePairs, readCharacter() emits load8/load16
+            // (zero-extended), so the result is always in [0, 0xFFFF] and can
+            // never equal errorCodePoint (-1). Only tryReadUnicodeChar() —
+            // reached when m_decodeSurrogatePairs — can produce errorCodePoint.
+            if (m_decodeSurrogatePairs) {
+                characterMatchFails.append(m_jit.branch32(MacroAssembler::Equal, character, MacroAssembler::TrustedImm32(errorCodePoint)));
+                characterMatchFails.append(m_jit.branch32(MacroAssembler::Equal, patternCharacter, MacroAssembler::TrustedImm32(errorCodePoint)));
+            }
 
             MacroAssembler::JumpList charactersMatch;
             charactersMatch.append(m_jit.branch32(MacroAssembler::Equal, character, patternCharacter));
@@ -2101,7 +2106,7 @@ class YarrGenerator final : public YarrJITInfo {
             m_jit.branch32(MacroAssembler::NotEqual, patternIndex, subpatternEndAddress(subpatternId)).linkTo(loop, &m_jit);
     }
 
-    void generateBackReference(size_t opIndex)
+    void generateBackReference(bool isNamed, size_t opIndex)
     {
         YarrOp& op = m_ops[opIndex];
         PatternTerm* term = op.m_term;
@@ -2114,7 +2119,7 @@ class YarrGenerator final : public YarrJITInfo {
 #endif
 
         unsigned subpatternId = term->backReferenceSubpatternId;
-        unsigned duplicateNamedGroupId = m_pattern.hasDuplicateNamedCaptureGroups() ? m_pattern.m_duplicateNamedGroupForSubpatternId[subpatternId] : 0;
+        unsigned duplicateNamedGroupId = (isNamed && m_pattern.hasDuplicateNamedCaptureGroups()) ? m_pattern.m_duplicateNamedGroupForSubpatternId[subpatternId] : 0;
         unsigned parenthesesFrameLocation = term->frameLocation;
 
         const MacroAssembler::RegisterID characterOrTemp = m_regs.regT0;
@@ -2239,6 +2244,12 @@ class YarrGenerator final : public YarrJITInfo {
             MacroAssembler::JumpList incompleteMatches;
             MacroAssembler::JumpList zeroLengthMatches;
 
+            // Save the initial index before matching so we can restore it
+            // if backtracking fails completely. We reuse the backReferenceSize
+            // frame slot, which is only used by Greedy for storing match size.
+            // beginIndex cannot be used here because it is overwritten on
+            // each reentry iteration for partial match recovery.
+            storeToFrame(m_regs.index, parenthesesFrameLocation + BackTrackInfoBackReference::backReferenceSizeIndex());
             matches.append(m_jit.jump());
 
             defineReentryLabel(op);
@@ -2320,22 +2331,27 @@ class YarrGenerator final : public YarrJITInfo {
             const MacroAssembler::RegisterID matchAmount = m_regs.regT0;
             const MacroAssembler::RegisterID beginIndex = m_regs.regT1;
 
-            failures.append(atEndOfInput());
+            MacroAssembler::JumpList nonGreedyFailures;
+            nonGreedyFailures.append(atEndOfInput());
             loadFromFrame(parenthesesFrameLocation + BackTrackInfoBackReference::matchAmountIndex(), matchAmount);
             if (term->quantityMaxCount != quantifyInfinite)
-                failures.append(m_jit.branch32(MacroAssembler::AboveOrEqual, matchAmount, MacroAssembler::Imm32(term->quantityMaxCount)));
+                nonGreedyFailures.append(m_jit.branch32(MacroAssembler::AboveOrEqual, matchAmount, MacroAssembler::Imm32(term->quantityMaxCount)));
 
             // If the index hasn't advanced past beginIndex and matchAmount > 0,
             // the backreference matched zero-width (undefined or empty capture).
             // Repeating zero-width matches cannot make progress, so fail.
             loadFromFrame(parenthesesFrameLocation + BackTrackInfoBackReference::beginIndex(), beginIndex);
             MacroAssembler::Jump indexAdvanced = m_jit.branch32(MacroAssembler::NotEqual, m_regs.index, beginIndex);
-            failures.append(m_jit.branchTest32(MacroAssembler::NonZero, matchAmount));
+            nonGreedyFailures.append(m_jit.branchTest32(MacroAssembler::NonZero, matchAmount));
             indexAdvanced.link(&m_jit);
 
             m_jit.add32(MacroAssembler::TrustedImm32(1), matchAmount);
             storeToFrame(matchAmount, parenthesesFrameLocation + BackTrackInfoBackReference::matchAmountIndex());
             m_jit.jump(op.m_reentry);
+
+            nonGreedyFailures.link(&m_jit);
+            // Restore the initial index saved before any NonGreedy matching.
+            loadFromFrame(parenthesesFrameLocation + BackTrackInfoBackReference::backReferenceSizeIndex(), m_regs.index);
             break;
         }
         }
@@ -3301,18 +3317,19 @@ class YarrGenerator final : public YarrJITInfo {
             generateAssertionWordBoundary(opIndex);
             break;
 
-        case PatternTerm::Type::ForwardReference:
-            // Forward references always match the empty string (the referenced
-            // group hasn't captured anything yet), so no code needs to be emitted.
+        case PatternTerm::Type::NumberedForwardReference:
+        case PatternTerm::Type::NamedForwardReference:
+            m_failureReason = JITFailureReason::ForwardReference;
             break;
 
         case PatternTerm::Type::ParenthesesSubpattern:
         case PatternTerm::Type::ParentheticalAssertion:
             RELEASE_ASSERT_NOT_REACHED();
 
-        case PatternTerm::Type::BackReference:
+        case PatternTerm::Type::NumberedBackReference:
+        case PatternTerm::Type::NamedBackReference:
 #if ENABLE(YARR_JIT_BACKREFERENCES)
-            generateBackReference(opIndex);
+            generateBackReference(term->type == PatternTerm::Type::NamedBackReference, opIndex);
 #else
             m_failureReason = JITFailureReason::BackReference;
 #endif
@@ -3383,15 +3400,17 @@ class YarrGenerator final : public YarrJITInfo {
             backtrackAssertionWordBoundary(opIndex);
             break;
 
-        case PatternTerm::Type::ForwardReference:
-            // Nothing to backtrack for a forward reference (always matches empty string).
+        case PatternTerm::Type::NumberedForwardReference:
+        case PatternTerm::Type::NamedForwardReference:
+            m_failureReason = JITFailureReason::ForwardReference;
             break;
 
         case PatternTerm::Type::ParenthesesSubpattern:
         case PatternTerm::Type::ParentheticalAssertion:
             RELEASE_ASSERT_NOT_REACHED();
 
-        case PatternTerm::Type::BackReference:
+        case PatternTerm::Type::NumberedBackReference:
+        case PatternTerm::Type::NamedBackReference:
 #if ENABLE(YARR_JIT_BACKREFERENCES)
             backtrackBackReference(opIndex);
 #else
@@ -3486,20 +3505,30 @@ class YarrGenerator final : public YarrJITInfo {
                     if (simdResult) {
                         m_usesSIMD = true;
                         op.m_reentry = simdResult->backtrackTarget;
+
+                        // Scalar loop fell through (out of input). Do not enter the
+                        // body; index would be past length and the body would OOB.
+                        if (!m_pattern.m_body->m_hasFixedSize) {
+                            if (alternative->m_minimumSize) {
+                                m_jit.sub32(m_regs.index, MacroAssembler::Imm32(alternative->m_minimumSize), m_regs.regT0);
+                                setMatchStart(m_regs.regT0);
+                            } else
+                                setMatchStart(m_regs.index);
+                        }
+                        op.m_jumps.append(m_jit.jump());
+
+                        matched.link(&m_jit);
+                        if (!m_pattern.m_body->m_hasFixedSize) {
+                            if (alternative->m_minimumSize) {
+                                m_jit.sub32(m_regs.index, MacroAssembler::Imm32(alternative->m_minimumSize), m_regs.regT0);
+                                setMatchStart(m_regs.regT0);
+                            } else
+                                setMatchStart(m_regs.index);
+                        }
+                        break;
                     }
 
-                    // When SIMD can't run (not enough chars), fall through to pattern matching.
-                    // When SIMD finds a potential match, also continue to pattern matching.
-                    matched.link(&m_jit);
-
-                    // If the pattern size is not fixed, store the start index for use if we match.
-                    if (!m_pattern.m_body->m_hasFixedSize) {
-                        if (alternative->m_minimumSize) {
-                            m_jit.sub32(m_regs.index, MacroAssembler::Imm32(alternative->m_minimumSize), m_regs.regT0);
-                            setMatchStart(m_regs.regT0);
-                        } else
-                            setMatchStart(m_regs.index);
-                    }
+                    ASSERT(matched.empty());
                     break;
                 }
 #endif
@@ -3959,6 +3988,11 @@ class YarrGenerator final : public YarrJITInfo {
 
                 PatternTerm* term = op.m_term;
                 unsigned parenthesesFrameLocation = term->frameLocation;
+
+                // Save the initial index so we can restore it on backtrack.
+                // The beginIndex slot is reused per-iteration for empty match detection,
+                // so we use returnAddressIndex (unused in this single-alt, non-ParenContext path).
+                storeToFrame(m_regs.index, parenthesesFrameLocation + BackTrackInfoParentheses::returnAddressIndex());
 
                 // Initialize the match count to 0.
                 storeToFrame(MacroAssembler::TrustedImm32(0), parenthesesFrameLocation + BackTrackInfoParentheses::matchAmountIndex());
@@ -4782,13 +4816,27 @@ class YarrGenerator final : public YarrJITInfo {
             // For non-capturing FixedCount parentheses, any failure means the entire
             // pattern fails. There's no partial backtracking - we either match
             // exactly N times or we fail completely.
-            case YarrOpCode::ParenthesesSubpatternFixedCountBegin:
+            case YarrOpCode::ParenthesesSubpatternFixedCountBegin: {
                 // Any backtrack to Begin means we failed to match the required count.
-                // First link any pending backtrack state from the content inside,
+                // Link any pending backtrack state from the content inside, restore
+                // the index to the position when we entered the group (since one or
+                // more iterations may have advanced it), clear any nested captures,
                 // then propagate the failure upward.
+                PatternTerm* term = op.m_term;
+                unsigned parenthesesFrameLocation = term->frameLocation;
+
                 m_backtrackingState.link(*this, op);
+
+                loadFromFrame(parenthesesFrameLocation + BackTrackInfoParentheses::returnAddressIndex(), m_regs.index);
+
+                if (shouldRecordSubpatterns() && term->containsAnyCaptures()) {
+                    for (unsigned subpattern = term->parentheses.subpatternId; subpattern <= term->parentheses.lastSubpatternId; subpattern++)
+                        clearSubpattern(subpattern);
+                }
+
                 m_backtrackingState.fallthrough();
                 break;
+            }
             case YarrOpCode::ParenthesesSubpatternFixedCountEnd:
                 // Backtracking into the End means something after the parentheses failed.
                 // For FixedCount, we don't try alternative counts, so just fail.
@@ -5139,6 +5187,16 @@ class YarrGenerator final : public YarrJITInfo {
             }
             case YarrOpCode::ParentheticalAssertionEnd: {
                 // Never backtrack into an assertion; later failures bail to before the begin.
+                // For positive assertions with captures, we must clear the captures before
+                // propagating the backtrack. The assertion matched and set captures, but
+                // something after it failed, so those captures must be reset to undefined.
+                PatternTerm* term = op.m_term;
+                if (!term->invert() && shouldRecordSubpatterns() && term->containsAnyCaptures()) {
+                    m_backtrackingState.link(*this, op);
+                    for (unsigned subpattern = term->parentheses.subpatternId; subpattern <= term->parentheses.lastSubpatternId; subpattern++)
+                        clearSubpattern(subpattern);
+                    m_backtrackingState.fallthrough();
+                }
                 m_backtrackingState.takeBacktracksToJumpList(op.m_jumps, &m_jit);
                 break;
             }
@@ -5566,12 +5624,11 @@ class YarrGenerator final : public YarrJITInfo {
             // Conservatively say any assertions just match.
             return cursor;
 
-        case PatternTerm::Type::BackReference:
+        case PatternTerm::Type::NumberedBackReference:
+        case PatternTerm::Type::NamedBackReference:
+        case PatternTerm::Type::NumberedForwardReference:
+        case PatternTerm::Type::NamedForwardReference:
             return std::nullopt;
-
-        case PatternTerm::Type::ForwardReference:
-            // Forward references always match the empty string, like assertions.
-            return cursor;
 
         case PatternTerm::Type::ParenthesesSubpattern: {
             // Right now, we only support /(...)/ or /(...)?/ case.
@@ -6035,16 +6092,12 @@ class YarrGenerator final : public YarrJITInfo {
         auto scalarLoopHead = m_jit.label();
         MacroAssembler::JumpList failed;
 
-        // Bounds check: need at least (minPatternLength - 1) more characters after current position
-        // Since we load 4 bytes, we need index + baseOffset + 4 <= length (upper bound)
-        // AND index >= -baseOffset (lower bound) when baseOffset is negative
-        int32_t scalarBoundsOffset = 4 + baseOffset;
-        m_jit.add32(MacroAssembler::TrustedImm32(scalarBoundsOffset), m_regs.index, m_regs.regT0);
-        failed.append(m_jit.branch32(MacroAssembler::Above, m_regs.regT0, m_regs.length));
-
-        // Also check lower bound when baseOffset is negative
-        if (baseOffset < 0)
-            failed.append(m_jit.branch32(MacroAssembler::Below, m_regs.index, MacroAssembler::TrustedImm32(-baseOffset)));
+        // Bounds: index <= length keeps the body in range, and also covers
+        // the 4-byte load below since MaskedAlternativeInfo::create guarantees
+        // checkedOffset >= 4. baseOffset (= -checkedOffset) is therefore < 0.
+        ASSERT(baseOffset < 0);
+        failed.append(m_jit.branch32(MacroAssembler::Above, m_regs.index, m_regs.length));
+        failed.append(m_jit.branch32(MacroAssembler::Below, m_regs.index, MacroAssembler::TrustedImm32(-baseOffset)));
 
         // Calculate load address: input + index
         // We incorporate baseOffset into the load address below to save an instruction.
@@ -6073,7 +6126,7 @@ class YarrGenerator final : public YarrJITInfo {
         m_jit.add32(MacroAssembler::TrustedImm32(1), m_regs.index);
         m_jit.jump().linkTo(scalarLoopHead, &m_jit);
 
-        // Not enough characters for scalar pre-filter - fall through to standard regex matching
+        // Scalar loop exhausted. Caller routes this to op.m_jumps.
         failed.link(&m_jit);
 
         // Return both labels:
@@ -6481,7 +6534,7 @@ public:
         , m_compileMode(compileMode)
         , m_decodeSurrogatePairs(m_charSize == CharSize::Char16 && m_pattern.eitherUnicode())
         , m_unicodeIgnoreCase(m_pattern.eitherUnicode() && m_pattern.ignoreCase())
-        , m_decode16BitForBackreferencesWithCalls(m_charSize == CharSize::Char16 && m_pattern.m_containsBackreferences && m_pattern.ignoreCase())
+        , m_decode16BitForBackreferencesWithCalls(m_charSize == CharSize::Char16 && m_pattern.m_containsBackreferences && (m_pattern.ignoreCase() || m_pattern.m_containsModifiers))
         , m_callFrameSizeInBytes(alignCallFrameSizeInBytes(m_pattern.m_body->m_callFrameSize))
         , m_canonicalMode(m_pattern.eitherUnicode() ? CanonicalMode::Unicode : CanonicalMode::UCS2)
 #if ENABLE(YARR_JIT_ALL_PARENS_EXPRESSIONS)
@@ -6505,7 +6558,7 @@ public:
         , m_compileMode(compileMode)
         , m_decodeSurrogatePairs(m_charSize == CharSize::Char16 && m_pattern.eitherUnicode())
         , m_unicodeIgnoreCase(m_pattern.eitherUnicode() && m_pattern.ignoreCase())
-        , m_decode16BitForBackreferencesWithCalls(m_charSize == CharSize::Char16 && m_pattern.m_containsBackreferences && m_pattern.ignoreCase())
+        , m_decode16BitForBackreferencesWithCalls(m_charSize == CharSize::Char16 && m_pattern.m_containsBackreferences && (m_pattern.ignoreCase() || m_pattern.m_containsModifiers))
         , m_callFrameSizeInBytes(alignCallFrameSizeInBytes(m_pattern.m_body->m_callFrameSize))
         , m_canonicalMode(m_pattern.eitherUnicode() ? CanonicalMode::Unicode : CanonicalMode::UCS2)
 #if ENABLE(YARR_JIT_ALL_PARENS_EXPRESSIONS)
@@ -6559,7 +6612,7 @@ public:
                     return true;
 
                 // Back references can cause backtracking
-                if (term.type == PatternTerm::Type::BackReference)
+                if (term.type == PatternTerm::Type::NumberedBackReference || term.type == PatternTerm::Type::NamedBackReference)
                     return true;
                 // ForwardReference always matches empty string - no backtracking needed.
 
@@ -6931,8 +6984,9 @@ public:
                 out.printf("Assert EOL checked-offset:(%u)", op.m_checkedOffset.value());
                 break;
 
-            case PatternTerm::Type::BackReference:
-                out.printf("BackReference pattern #%u checked-offset:(%u)", term->backReferenceSubpatternId, op.m_checkedOffset.value());
+            case PatternTerm::Type::NumberedBackReference:
+            case PatternTerm::Type::NamedBackReference:
+                out.printf("%sBackReference pattern #%u checked-offset:(%u)", term->type == PatternTerm::Type::NumberedBackReference ? "Numbered" : "Named", term->backReferenceSubpatternId, op.m_checkedOffset.value());
                 term->dumpQuantifier(out);
                 break;
 
@@ -6961,8 +7015,9 @@ public:
                 out.printf(".* enclosure checked-offset:(%u)", op.m_checkedOffset.value());
                 break;
 
-            case PatternTerm::Type::ForwardReference:
-                out.printf("ForwardReference checked-offset:(%u)", op.m_checkedOffset.value());
+            case PatternTerm::Type::NumberedForwardReference:
+            case PatternTerm::Type::NamedForwardReference:
+                out.printf("%sForwardReference <not handled> checked-offset:(%u)", term->type == PatternTerm::Type::NumberedForwardReference ? "Numbered" : "Named", op.m_checkedOffset.value());
                 break;
 
             case PatternTerm::Type::ParenthesesSubpattern:
@@ -7328,6 +7383,9 @@ static void dumpCompileFailure(JITFailureReason failure)
         break;
     case JITFailureReason::BackReference:
         dataLog("Can't JIT some patterns containing back references\n");
+        break;
+    case JITFailureReason::ForwardReference:
+        dataLog("Can't JIT some patterns containing forward references\n");
         break;
     case JITFailureReason::Lookbehind:
         dataLog("Can't JIT a pattern containing lookbehinds\n");

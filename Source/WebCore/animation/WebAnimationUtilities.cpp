@@ -117,13 +117,13 @@ static bool compareStyleOriginatedAnimationOwningElementPositionsInDocumentTreeO
     Ref bReferenceElement = b.element;
 
     if (aReferenceElement.ptr() == bReferenceElement.ptr()) {
-        if (isNamedViewTransitionPseudoElement(a.pseudoElementIdentifier) && isNamedViewTransitionPseudoElement(b.pseudoElementIdentifier) && a.pseudoElementIdentifier->nameArgument != b.pseudoElementIdentifier->nameArgument) {
-            RefPtr activeViewTransition = aReferenceElement->document().activeViewTransition();
+        if (isNamedViewTransitionPseudoElement(a.pseudoElementIdentifier) && isNamedViewTransitionPseudoElement(b.pseudoElementIdentifier) && a.pseudoElementIdentifier->nameOrPart != b.pseudoElementIdentifier->nameOrPart) {
+            auto* activeViewTransition = aReferenceElement->document().activeViewTransition();
             ASSERT(activeViewTransition);
             for (auto& key : activeViewTransition->namedElements().keys()) {
-                if (key == a.pseudoElementIdentifier->nameArgument)
+                if (key == a.pseudoElementIdentifier->nameOrPart)
                     return true;
-                if (key == b.pseudoElementIdentifier->nameArgument)
+                if (key == b.pseudoElementIdentifier->nameOrPart)
                     return false;
             }
             return false;
@@ -348,7 +348,7 @@ String pseudoElementIdentifierAsString(const std::optional<Style::PseudoElementI
     case PseudoElementType::GrammarError:
         return grammarError;
     case PseudoElementType::Highlight:
-        return makeString("::highlight"_s, '(', pseudoElementIdentifier->nameArgument, ')');
+        return makeString("::highlight"_s, '(', pseudoElementIdentifier->nameOrPart, ')');
     case PseudoElementType::Marker:
         return marker;
     case PseudoElementType::Selection:
@@ -364,16 +364,17 @@ String pseudoElementIdentifierAsString(const std::optional<Style::PseudoElementI
     case PseudoElementType::ViewTransition:
         return viewTransition;
     case PseudoElementType::ViewTransitionGroup:
-        return makeString("::view-transition-group"_s, '(', pseudoElementIdentifier->nameArgument, ')');
+        return makeString("::view-transition-group"_s, '(', pseudoElementIdentifier->nameOrPart, ')');
     case PseudoElementType::ViewTransitionImagePair:
-        return makeString("::view-transition-image-pair"_s, '(', pseudoElementIdentifier->nameArgument, ')');
+        return makeString("::view-transition-image-pair"_s, '(', pseudoElementIdentifier->nameOrPart, ')');
     case PseudoElementType::ViewTransitionOld:
-        return makeString("::view-transition-old"_s, '(', pseudoElementIdentifier->nameArgument, ')');
+        return makeString("::view-transition-old"_s, '(', pseudoElementIdentifier->nameOrPart, ')');
     case PseudoElementType::ViewTransitionNew:
-        return makeString("::view-transition-new"_s, '(', pseudoElementIdentifier->nameArgument, ')');
+        return makeString("::view-transition-new"_s, '(', pseudoElementIdentifier->nameOrPart, ')');
     case PseudoElementType::WebKitScrollbar:
         return webkitScrollbar;
     default:
+        ASSERT(pseudoElementIdentifier->type != PseudoElementType::UserAgentPartFallback);
         return emptyString();
     }
 }
@@ -383,11 +384,15 @@ std::pair<bool, std::optional<Style::PseudoElementIdentifier>> pseudoElementIden
 {
     // https://drafts.csswg.org/web-animations-1/#dom-keyframeeffect-pseudoelement
     if (pseudoElement.isNull())
-        return { true, std::nullopt };
+        return { true, { } };
 
     // FIXME: We should always have a document for accurate settings.
     auto parserContext = document ? CSSSelectorParserContext { *document } : CSSSelectorParserContext { CSSParserContext { HTMLStandardMode } };
-    return CSSSelectorParser::parsePseudoElement(pseudoElement, parserContext);
+    auto identifier = CSSSelectorParser::parsePseudoElement(pseudoElement, parserContext);
+    // FIXME: Add API support for UserAgentPartFallback pseudo-elements like ::picker(select).
+    if (identifier && identifier->type == PseudoElementType::UserAgentPartFallback)
+        return { true, std::nullopt };
+    return { !!identifier, identifier };
 }
 
 AtomString animatablePropertyAsString(AnimatableCSSProperty property)

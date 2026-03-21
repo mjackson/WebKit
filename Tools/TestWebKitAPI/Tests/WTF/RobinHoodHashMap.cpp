@@ -32,6 +32,7 @@
 #include "RefLogger.h"
 #include "Test.h"
 #include <string>
+#include <wtf/Function.h>
 #include <wtf/Ref.h>
 #include <wtf/RobinHoodHashMap.h>
 #include <wtf/UniqueRef.h>

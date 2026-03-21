@@ -46,7 +46,10 @@ static void registerTestClasses()
 
 void initializeApp()
 {
-    [NSUserDefaults.standardUserDefaults removePersistentDomainForName:@"TestWebKitAPI"];
+    RetainPtr standardDefaults = [NSUserDefaults standardUserDefaults];
+    [standardDefaults removePersistentDomainForName:@"TestWebKitAPI"];
+    [standardDefaults removeObjectForKey:@"WebCoreLogging"];
+    [standardDefaults removeObjectForKey:@"WebKit2Logging"];
 
     // Set up user defaults.
     NSMutableDictionary *argumentDomain = [[NSUserDefaults.standardUserDefaults volatileDomainForName:NSArgumentDomain] mutableCopy];

@@ -78,7 +78,7 @@ void RemoteScrollingCoordinator::scheduleTreeStateCommit()
 
 bool RemoteScrollingCoordinator::coordinatesScrollingForFrameView(const LocalFrameView& frameView) const
 {
-    CheckedPtr renderView = frameView.renderView();
+    auto* renderView = frameView.renderView();
     return renderView && renderView->usesCompositing();
 }
 
@@ -113,7 +113,7 @@ RemoteScrollingCoordinatorTransaction RemoteScrollingCoordinator::buildTransacti
     willCommitTree(rootFrameID);
 
     return {
-        ensureCheckedScrollingStateTreeForRootFrameID(rootFrameID)->commit(LayerRepresentation::PlatformLayerIDRepresentation),
+        protect(ensureScrollingStateTreeForRootFrameID(rootFrameID))->commit(LayerRepresentation::PlatformLayerIDRepresentation),
         std::exchange(m_clearScrollLatchingInNextTransaction, false),
         { },
         RemoteScrollingCoordinatorTransaction::FromDeserialization::No
@@ -124,16 +124,136 @@ void RemoteScrollingCoordinator::willSendScrollPositionRequest(ScrollingNodeID n
 {
     request.identifier = ScrollRequestIdentifier::generate();
     // This may clobber an older one, but that's OK.
-    m_scrollRequestsPendingResponse.set(nodeID, *request.identifier);
+    m_scrollRequestsPendingResponse.set(nodeID, PendingScrollResponseInfo { *request.identifier, false });
 }
 
-// Notification from the UI process that we scrolled.
+/*
+    This logic deals with overlapping scrolling IPC between the UI process and the web process.
+    It's possible to have user scrolls coming from the UI process, while programmatic scrolls
+    go in the other direction; the IPC messages in the two directions can overlap. This code
+    attempts to maintain a coherent scroll position in the web process under these conditions.
+
+    When sending a programmatic scroll to the UI process, we've already updated the web process
+    position synchronously (see AsyncScrollingCoordinator::requestScrollToPosition()). We need
+    to avoid applying a user scroll that overlaps until we're received the programmatic scroll
+    response (otherwise we'll apply a stale position), but we do need to apply its scroll position
+    because it may have been a delta scroll, where the response's scrollPosition reflects the UI
+    process state.
+
+    scrollTo interleaved with user scrolls:
+
+    User scroll        *       *           *
+                      100     110         120   200
+    UI process  --------------------------------------------------
+                        \       \           \   / \
+                         \       \           \ /   \
+                          \       \           /     \
+                           \       \         / \     \
+                           _\|     _\|      /  _\|   _\|
+    Web process --------------------------------------------------
+                            100     110   200  [120]  200
+                                          ^   ignore!
+                                          |
+                                    scrollTo(0, 200)
+
+    scrollBy (including anchor positioning adjustment) interleaved with user scrolls:
+
+    User scroll        *       *           *              *
+                      100     110         120   320      330
+    UI process  --------------------------------------------------
+                        \       \           \   / \        \
+                         \       \           \ /   \        \
+                          \       \           /     \        \
+                           \       \         / \     \        \
+                           _\|     _\|      /  _\|   _\|      _\|
+    Web process --------------------------------------------------
+                            100      110  310  [120]  320      330
+                                          ^   ignore!
+                                          |
+                                    scrollBy(0, 200)
+
+
+    If we have multiple programmatic scrolls in flight, we avoid applying replies to older ones,
+    because they will be stale.
+
+                             200   250
+    UI process  -------------------------------------------------
+                             / \   / \
+                            /   \ /   \
+                           /     /     \
+                          /     / \     \
+                         /     /  _\|   _\|
+    Web process --------------------------------------------------
+                       200   250  [200]  250
+                        ^     ^  ignore!
+                        |     |
+            scrollTo(0, 200)  |
+                       scrollTo(0, 250)
+
+*/
+
 void RemoteScrollingCoordinator::scrollUpdateForNode(ScrollUpdate&& update, CompletionHandler<void()>&& completionHandler)
 {
     LOG_WITH_STREAM(Scrolling, stream << "RemoteScrollingCoordinator::scrollUpdateForNode: " << update);
 
+    auto scopeExit = WTF::makeScopeExit([&] {
+        completionHandler();
+    });
+
+    auto pendingResponseIt = m_scrollRequestsPendingResponse.find(update.nodeID);
+    bool havePendingStateForNode = pendingResponseIt != m_scrollRequestsPendingResponse.end();
+
+    if (std::holds_alternative<ScrollRequestResponseData>(update.data)) {
+        auto& responseData = std::get<ScrollRequestResponseData>(update.data);
+
+        ASSERT(responseData.responseIdentifier);
+        if (!responseData.responseIdentifier)
+            return;
+
+        auto requestIdentifier = *responseData.responseIdentifier;
+
+        // We should at least be waiting for the identifier we've just received back.
+        ASSERT(havePendingStateForNode);
+        if (!havePendingStateForNode)
+            return;
+
+        auto latestPendingIdentifier = *pendingResponseIt->value.identifier;
+        ASSERT(requestIdentifier <= latestPendingIdentifier);
+
+        pendingResponseIt->value.pendingScrollEnd |= (update.shouldFireScrollEnd == ShouldFireScrollEnd::Yes);
+
+        if (latestPendingIdentifier == requestIdentifier) {
+            auto fireScrollEnd = pendingResponseIt->value.pendingScrollEnd ? ShouldFireScrollEnd::Yes : ShouldFireScrollEnd::No;
+            m_scrollRequestsPendingResponse.remove(pendingResponseIt);
+
+            LOG_WITH_STREAM(Scrolling, stream << " identifier " << requestIdentifier << " is the last sent; updating scroll position to " << update.scrollPosition << ". firing scrollend " << (fireScrollEnd == ShouldFireScrollEnd::Yes));
+
+            if (responseData.requestType == ScrollRequestType::PositionUpdate) {
+                auto scrollUpdate = ScrollUpdate {
+                    .nodeID = update.nodeID,
+                    .scrollPosition = update.scrollPosition,
+                    .shouldFireScrollEnd = fireScrollEnd,
+                    .data = ScrollUpdateData {
+                        .updateType = ScrollUpdateType::PositionUpdate,
+                        .updateLayerPositionAction = ScrollingLayerPositionAction::Set,
+                    }
+                };
+                applyScrollUpdate(WTF::move(scrollUpdate), ScrollType::User, ViewportRectStability::Stable);
+            } else if (fireScrollEnd == ShouldFireScrollEnd::Yes) {
+                // This just ensures that the scrollend is fired.
+                applyScrollUpdate(WTF::move(update), ScrollType::User, ViewportRectStability::Stable);
+            }
+        } else
+            LOG_WITH_STREAM(Scrolling, stream << " identifier " << requestIdentifier << " is not the most recent; ignoring (will fire scroll end eventually " << pendingResponseIt->value.pendingScrollEnd << ")");
+        return;
+    }
+
+    if (havePendingStateForNode) {
+        LOG_WITH_STREAM(Scrolling, stream << " waiting for scroll request id " << *pendingResponseIt->value.identifier << "; ignoring scroll update");
+        return;
+    }
+
     applyScrollUpdate(WTF::move(update), ScrollType::User, ViewportRectStability::Stable);
-    completionHandler();
 }
 
 void RemoteScrollingCoordinator::currentSnapPointIndicesChangedForNode(ScrollingNodeID nodeID, std::optional<unsigned> horizontal, std::optional<unsigned> vertical)
@@ -172,19 +292,19 @@ void RemoteScrollingCoordinator::startMonitoringWheelEvents(bool clearLatchingSt
 
 void RemoteScrollingCoordinator::receivedWheelEventWithPhases(WebCore::PlatformWheelEventPhase phase, WebCore::PlatformWheelEventPhase momentumPhase)
 {
-    if (auto monitor = protect(page())->wheelEventTestMonitor())
+    if (auto monitor = page()->wheelEventTestMonitor())
         monitor->receivedWheelEventWithPhases(phase, momentumPhase);
 }
 
 void RemoteScrollingCoordinator::startDeferringScrollingTestCompletionForNode(WebCore::ScrollingNodeID nodeID, OptionSet<WebCore::WheelEventTestMonitor::DeferReason> reason)
 {
-    if (auto monitor = protect(page())->wheelEventTestMonitor())
+    if (auto monitor = page()->wheelEventTestMonitor())
         monitor->deferForReason(nodeID, reason);
 }
 
 void RemoteScrollingCoordinator::stopDeferringScrollingTestCompletionForNode(WebCore::ScrollingNodeID nodeID, OptionSet<WebCore::WheelEventTestMonitor::DeferReason> reason)
 {
-    if (auto monitor = protect(page())->wheelEventTestMonitor())
+    if (auto monitor = page()->wheelEventTestMonitor())
         monitor->removeDeferralForReason(nodeID, reason);
 }
 

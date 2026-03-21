@@ -759,7 +759,7 @@ public:
     void deref() const final { RefCounted::deref(); }
     USING_CAN_MAKE_WEAKPTR(FileReaderLoaderClient);
 
-    static void fetch(ScriptExecutionContext& scriptExecutionContext, RefPtr<Blob>&& blob, ImageBitmapOptions&& options, std::optional<IntRect> rect, ImageBitmap::ImageBitmapCompletionHandler&& completionHandler)
+    static void fetch(ScriptExecutionContext& scriptExecutionContext, Ref<Blob>&& blob, ImageBitmapOptions&& options, std::optional<IntRect> rect, ImageBitmap::ImageBitmapCompletionHandler&& completionHandler)
     {
         if (scriptExecutionContext.activeDOMObjectsAreStopped()) {
             completionHandler(Exception { ExceptionCode::InvalidStateError, "Cannot create ImageBitmap in a document without browsing context"_s });
@@ -777,7 +777,7 @@ public:
     }
 
 private:
-    PendingImageBitmap(ScriptExecutionContext& scriptExecutionContext, RefPtr<Blob>&& blob, ImageBitmapOptions&& options, std::optional<IntRect> rect, ImageBitmap::ImageBitmapCompletionHandler&& completionHandler)
+    PendingImageBitmap(ScriptExecutionContext& scriptExecutionContext, Ref<Blob>&& blob, ImageBitmapOptions&& options, std::optional<IntRect> rect, ImageBitmap::ImageBitmapCompletionHandler&& completionHandler)
         : ActiveDOMObject(&scriptExecutionContext)
         , m_blobLoader(FileReaderLoader::create(FileReaderLoader::ReadAsArrayBuffer, this))
         , m_blob(WTF::move(blob))
@@ -790,7 +790,7 @@ private:
     void start(ScriptExecutionContext& scriptExecutionContext)
     {
         m_pendingActivity = makePendingActivity(*this); // Prevent destruction until the load has finished.
-        m_blobLoader->start(&scriptExecutionContext, *m_blob);
+        m_blobLoader->start(&scriptExecutionContext, m_blob);
     }
 
     // ActiveDOMObject
@@ -830,7 +830,7 @@ private:
     }
 
     const Ref<FileReaderLoader> m_blobLoader;
-    RefPtr<Blob> m_blob;
+    const Ref<Blob> m_blob;
     ImageBitmapOptions m_options;
     std::optional<IntRect> m_rect;
     ImageBitmap::ImageBitmapCompletionHandler m_completionHandler;

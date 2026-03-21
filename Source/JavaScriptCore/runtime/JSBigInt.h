@@ -93,11 +93,6 @@ public:
         return OBJECT_OFFSETOF(JSBigInt, m_length);
     }
 
-    static constexpr size_t offsetOfSign()
-    {
-        return OBJECT_OFFSETOF(JSBigInt, m_sign);
-    }
-
     static constexpr size_t offsetOfData()
     {
         return WTF::roundUpToMultipleOf<alignof(Digit)>(sizeof(JSBigInt));
@@ -107,8 +102,8 @@ public:
 
     JSValue toPrimitive(JSGlobalObject*, PreferredPrimitiveType) const;
 
-    void setSign(bool sign) { m_sign = sign; }
-    bool sign() const { return m_sign; }
+    void setSign(bool sign) { setPerCellBit(sign); }
+    bool sign() const { return perCellBit(); }
 
     unsigned length() const { return m_length; }
 
@@ -538,6 +533,7 @@ private:
     static void multiplyAdd(std::span<const Digit> source, Digit factor, Digit summand, std::span<Digit> result);
     static std::span<Digit> multiplySingle(std::span<const Digit> multiplicand, Digit multiplier, std::span<Digit> result);
     static std::span<Digit> multiplyTextbook(std::span<const Digit> x, std::span<const Digit> y, std::span<Digit> result);
+    static void multiplySpecialLow(std::span<const Digit> x, std::span<const Digit> y, std::span<Digit> result);
     template<size_t N>
     static std::span<Digit, N * 2> multiplyComba(std::span<const Digit, N> x, std::span<const Digit, N> y, std::span<Digit, N * 2> result);
 
@@ -581,6 +577,12 @@ private:
 
     static Digit inplaceAdd(std::span<Digit> z, std::span<const Digit> x);
     static Digit inplaceSub(std::span<Digit> z, std::span<const Digit> x);
+
+    static constexpr unsigned maxCachedModDivisorSize = 32; // 2048-bit divisors on 64-bit
+    static void cachedModMakeInverse(VM&, std::span<const Digit> b);
+    static std::span<const Digit> cachedMod(VM&, std::span<Digit> r, std::span<const Digit>, std::span<const Digit>);
+    static bool greaterThanOrEqual(std::span<const Digit>, std::span<const Digit>);
+
     static std::span<Digit> rightShift(std::span<Digit> z, std::span<const Digit> x, unsigned);
     static std::span<Digit> leftShift(std::span<Digit> z, std::span<const Digit> x, unsigned);
 
@@ -627,9 +629,10 @@ private:
     inline const Digit* dataStorage() const { return std::bit_cast<const Digit*>(std::bit_cast<const uint8_t*>(this) + offsetOfData()); }
     inline Digit* dataStorageUnsafe() { return dataStorage(); }
 
-    const unsigned m_length;
+    void setLength(unsigned length) { m_length = length; }
+
+    unsigned m_length;
     unsigned m_hash { 0 };
-    uint8_t m_sign { false };
 };
 
 inline JSBigInt* asHeapBigInt(JSValue value)

@@ -48,6 +48,7 @@
 
 #import <pal/cf/CoreMediaSoftLink.h>
 #import <pal/cocoa/AVFoundationSoftLink.h>
+#import "CoreVideoSoftLink.h"
 
 using namespace WebCore;
 
@@ -264,12 +265,6 @@ PlatformLayer* LocalSampleBufferDisplayLayer::rootLayer()
     return m_rootLayer.get();
 }
 
-
-RetainPtr<PlatformLayer> LocalSampleBufferDisplayLayer::protectedRootLayer()
-{
-    return rootLayer();
-}
-
 bool LocalSampleBufferDisplayLayer::didFail() const
 {
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
@@ -432,6 +427,27 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     }
     m_frameRateMonitor.update();
 #endif
+
+    auto gatherSampleVideoMetricsIfNeeded = [&] -> RetainPtr<AVVideoPerformanceMetrics> {
+        assertIsCurrent(workQueue());
+
+        auto currentTime = MonotonicTime::now().secondsSinceEpoch();
+        const Seconds maximumPlaybackQualityMetricsSampleTimeDelta = 0.25_s;
+        if (currentTime < m_lastMetricsSampleTime + maximumPlaybackQualityMetricsSampleTimeDelta)
+            return nullptr;
+
+        m_lastMetricsSampleTime = currentTime;
+        return [m_sampleBufferDisplayLayer videoPerformanceMetrics];
+    };
+
+    RetainPtr metrics = gatherSampleVideoMetricsIfNeeded();
+    if (!metrics)
+        return;
+
+    callOnMainThread([client = m_client, totalVideoFrames = metrics.get().totalNumberOfVideoFrames, droppedVideoFrames = metrics.get().numberOfDroppedVideoFrames] {
+        if (RefPtr protectedClient = client.get())
+            protectedClient->updateVideoFrameCounters(totalVideoFrames, droppedVideoFrames);
+    });
 }
 
 #if !RELEASE_LOG_DISABLED
@@ -515,7 +531,7 @@ ALLOW_DEPRECATED_DECLARATIONS_BEGIN
                     return;
                 }
                 auto videoFrame = protectedThis->m_pendingVideoFrameQueue.takeFirst();
-                protectedThis->enqueueBufferInternal(videoFrame->protectedPixelBuffer().get(), videoFrame->presentationTime());
+                protectedThis->enqueueBufferInternal(protect(videoFrame->pixelBuffer()).get(), videoFrame->presentationTime());
             }
         });
     }];

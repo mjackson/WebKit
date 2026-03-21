@@ -45,7 +45,7 @@ class FloatingContext {
 public:
     FloatingContext(const ElementBox& formattingContextRoot, const LayoutState&, const PlacedFloats&);
 
-    const PlacedFloats& placedFloats() const { return m_placedFloats; }
+    const PlacedFloats& placedFloats() const LIFETIME_BOUND { return m_placedFloats; }
 
     LayoutPoint positionForFloat(const Box&, const BoxGeometry&, const HorizontalConstraints&) const;
     LayoutPoint positionForNonFloatingFloatAvoider(const Box&, const BoxGeometry&) const;
@@ -67,15 +67,15 @@ public:
 
     PlacedFloats::Item makeFloatItem(const Box& floatBox, const BoxGeometry&, std::optional<size_t> line = { }) const;
 
-    bool isStartPositioned(const Box& floatBox) const;
+    bool NODELETE isStartPositioned(const Box& floatBox) const;
 
 private:
-    bool isFloatingCandidateStartPositionedInBlockFormattingContext(const Box&) const;
-    Clear clearInBlockFormattingContext(const Box&) const;
+    bool NODELETE isFloatingCandidateStartPositionedInBlockFormattingContext(const Box&) const;
+    Clear NODELETE clearInBlockFormattingContext(const Box&) const;
 
     const ElementBox& root() const { return m_formattingContextRoot; }
     // FIXME: Turn this into an actual geometry cache.
-    const LayoutState& NODELETE containingBlockGeometries() const;
+    const LayoutState& NODELETE containingBlockGeometries() const LIFETIME_BOUND;
 
     void findPositionForFormattingContextRoot(FloatAvoider&, BoxGeometry::HorizontalEdges containingBlockContentBoxEdges) const;
 

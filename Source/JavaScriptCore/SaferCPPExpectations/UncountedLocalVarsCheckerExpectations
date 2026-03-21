@@ -15,10 +15,10 @@ bytecode/InByStatus.cpp
 bytecode/InlineCacheCompiler.cpp
 bytecode/InstanceOfStatus.cpp
 bytecode/PropertyCondition.cpp
+bytecode/PropertyInlineCache.cpp
 bytecode/PutByStatus.cpp
 bytecode/Repatch.cpp
 bytecode/SetPrivateBrandStatus.cpp
-bytecode/StructureStubInfo.cpp
 bytecode/Watchpoint.cpp
 bytecompiler/BytecodeGenerator.cpp
 bytecompiler/BytecodeGeneratorBaseInlines.h
@@ -26,7 +26,6 @@ bytecompiler/NodesCodegen.cpp
 bytecompiler/StaticPropertyAnalyzer.h
 debugger/Debugger.cpp
 dfg/DFGAbstractInterpreterInlines.h
-[ iOS ] dfg/DFGArrayMode.cpp
 dfg/DFGByteCodeParser.cpp
 dfg/DFGClobberize.h
 dfg/DFGCommonData.cpp
@@ -36,7 +35,6 @@ dfg/DFGDesiredIdentifiers.cpp
 dfg/DFGDesiredWatchpoints.cpp
 dfg/DFGFixupPhase.cpp
 dfg/DFGGraph.cpp
-[ iOS ] dfg/DFGJITCode.cpp
 dfg/DFGLazyJSValue.cpp
 dfg/DFGOSREntry.cpp
 dfg/DFGOSRExit.cpp
@@ -60,7 +58,6 @@ ftl/FTLPatchpointExceptionHandle.cpp
 heap/ConservativeRoots.cpp
 heap/JITStubRoutineSet.cpp
 inspector/AsyncStackTrace.cpp
-[ iOS ] inspector/JSJavaScriptCallFrame.cpp
 inspector/ScriptCallStackFactory.cpp
 inspector/agents/InspectorDebuggerAgent.cpp
 inspector/agents/InspectorScriptProfilerAgent.cpp
@@ -78,7 +75,6 @@ parser/Parser.h
 parser/SourceProviderCacheItem.h
 parser/SourceTaintedOrigin.cpp
 profiler/ProfilerDatabase.cpp
-runtime/BrandedStructure.h
 runtime/CachedTypes.cpp
 runtime/DeferredWorkTimer.cpp
 runtime/FileBasedFuzzerAgent.cpp
@@ -87,7 +83,6 @@ runtime/HashMapHelper.h
 runtime/InferredValue.h
 runtime/JSArrayBufferView.cpp
 runtime/JSCJSValue.cpp
-runtime/JSCJSValueInlines.h
 runtime/JSFinalizationRegistry.cpp
 runtime/JSGlobalObject.cpp
 runtime/JSObject.cpp
@@ -106,13 +101,12 @@ runtime/StructureInlines.h
 runtime/SymbolTable.h
 runtime/TypeSet.cpp
 runtime/VMTraps.cpp
-[ iOS ] runtime/WaiterListManager.h
+runtime/WaiterListManager.h
 tools/JSDollarVM.cpp
 wasm/WasmBBQJIT.cpp
 wasm/WasmBBQJIT64.cpp
 wasm/WasmBBQPlan.cpp
 wasm/WasmCallee.cpp
-wasm/WasmConstExprGenerator.cpp
 wasm/WasmFaultSignalHandler.cpp
 [ iOS ] wasm/WasmFormat.h
 wasm/WasmFunctionParser.h

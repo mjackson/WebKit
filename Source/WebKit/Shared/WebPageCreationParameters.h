@@ -163,7 +163,10 @@ struct WebPageCreationParameters {
     double pageZoomFactor { 1 };
 
     WebCore::FloatBoxExtent obscuredContentInsets { };
-    
+
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+    bool hasBannerViewOverlay { false };
+#endif
     float mediaVolume { 0 };
     WebCore::MediaProducerMutedStateFlags muted { };
     bool openedByDOM { false };
@@ -383,6 +386,7 @@ struct WebPageCreationParameters {
     bool isPopup { false };
 
     bool accessibilityEnabled { false };
+    bool shouldForceSiteIsolationAlwaysOnForTesting { false };
 };
 
 } // namespace WebKit

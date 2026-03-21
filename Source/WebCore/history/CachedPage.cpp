@@ -205,7 +205,7 @@ void CachedPage::restoreNavigationAPIHistoryItems(LocalFrame& frame, BackForward
         auto allItems = checkedBackForwardController->allItems(frame.frameID());
         auto filteredItems = Navigation::filterHistoryItemsForNavigationAPI(WTF::move(allItems), *currentItem);
 
-        window->protectedNavigation()->updateForReactivation(WTF::move(filteredItems), *currentItem, previousItem.get());
+        protect(window->navigation())->updateForReactivation(WTF::move(filteredItems), *currentItem, previousItem.get());
     }
 
     for (RefPtr child = frame.tree().firstChild(); child; child = child->tree().nextSibling()) {

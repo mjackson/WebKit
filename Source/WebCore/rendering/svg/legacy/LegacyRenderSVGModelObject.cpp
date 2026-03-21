@@ -32,6 +32,7 @@
 #include "LegacyRenderSVGModelObject.h"
 
 #include "ContainerNodeInlines.h"
+#include "LegacyRenderSVGModelObjectInlines.h"
 #include "LegacyRenderSVGResource.h"
 #include "NodeInlines.h"
 #include "NotImplemented.h"
@@ -41,7 +42,7 @@
 #include "RenderObjectInlines.h"
 #include "RenderView.h"
 #include "SVGElementInlines.h"
-#include "SVGLocatable.h"
+#include "SVGGraphicsElement.h"
 #include "SVGNames.h"
 #include "SVGResourcesCache.h"
 #include "ShadowRoot.h"
@@ -112,7 +113,7 @@ LayoutRect LegacyRenderSVGModelObject::outlineBoundsForRepaint(const RenderLayer
     adjustRectForOutlineAndShadow(*this, box, style().usedZoomForLength());
 
     FloatQuad containerRelativeQuad = localToContainerQuad(FloatRect(box), repaintContainer);
-    return LayoutRect(snapRectToDevicePixels(LayoutRect(containerRelativeQuad.boundingBox()), document().deviceScaleFactor()));
+    return LayoutRect(snapRectToDevicePixels(LayoutRect(containerRelativeQuad.boundingBox()), protect(document())->deviceScaleFactor()));
 }
 
 void LegacyRenderSVGModelObject::boundingRects(Vector<LayoutRect>& rects, const LayoutPoint& accumulatedOffset) const
@@ -161,7 +162,7 @@ static void getElementCTM(SVGElement* element, AffineTransform& transform)
 {
     ASSERT(element);
 
-    RefPtr stopAtElement = SVGLocatable::nearestViewportElement(element);
+    RefPtr stopAtElement = SVGGraphicsElement::nearestViewportElement(element);
     ASSERT(stopAtElement);
 
     AffineTransform localTransform;

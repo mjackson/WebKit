@@ -43,16 +43,15 @@ public:
     FlexFormattingContext(const ElementBox& flexBox, LayoutState&);
 
     void layout(const ConstraintsForFlexContent&);
-    IntrinsicWidthConstraints computedIntrinsicWidthConstraints();
+    IntrinsicWidthConstraints NODELETE computedIntrinsicWidthConstraints();
 
     const ElementBox& root() const { return m_flexBox; }
-    CheckedRef<const ElementBox> checkedRoot() const { return m_flexBox; }
-    const FlexFormattingUtils& formattingUtils() const { return m_flexFormattingUtils; }
+    const FlexFormattingUtils& formattingUtils() const LIFETIME_BOUND { return m_flexFormattingUtils; }
 
-    const BoxGeometry& geometryForFlexItem(const Box&) const;
-    BoxGeometry& geometryForFlexItem(const Box&);
+    const BoxGeometry& geometryForFlexItem(const Box&) const LIFETIME_BOUND;
+    BoxGeometry& geometryForFlexItem(const Box&) LIFETIME_BOUND;
 
-    const IntegrationUtils& integrationUtils() const { return m_integrationUtils; }
+    const IntegrationUtils& integrationUtils() const LIFETIME_BOUND { return m_integrationUtils; }
 
 private:
     FlexLayout::LogicalFlexItems convertFlexItemsToLogicalSpace(const ConstraintsForFlexContent&);

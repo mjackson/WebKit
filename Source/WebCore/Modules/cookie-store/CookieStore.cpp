@@ -41,6 +41,8 @@
 #include "EventTargetInlines.h"
 #include "ExceptionOr.h"
 #include "JSCookieListItem.h"
+#include "JSDOMConvertDictionary.h"
+#include "JSDOMConvertSequences.h"
 #include "JSDOMPromiseDeferred.h"
 #include "PublicSuffixStore.h"
 #include "ScriptExecutionContext.h"
@@ -88,7 +90,6 @@ private:
     void ensureOnMainThread(Function<void(ScriptExecutionContext&)>&&);
     void ensureOnContextThread(Function<void(CookieStore&)>&&);
 
-    RefPtr<CookieStore> NODELETE protectedCookieStore() const { return m_cookieStore; }
     WeakPtr<CookieStore, WeakPtrImplWithEventTargetData> m_cookieStore;
     Markable<ScriptExecutionContextIdentifier> m_contextIdentifier;
 };
@@ -103,7 +104,7 @@ void CookieStore::MainThreadBridge::ensureOnMainThread(Function<void(ScriptExecu
 {
     ASSERT(m_cookieStore);
 
-    RefPtr context = protectedCookieStore()->scriptExecutionContext();
+    RefPtr context = m_cookieStore->scriptExecutionContext();
     if (!context)
         return;
     ASSERT(context->isContextThread());

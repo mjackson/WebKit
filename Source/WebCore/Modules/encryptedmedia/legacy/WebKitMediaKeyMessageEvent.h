@@ -60,7 +60,7 @@ private:
     WebKitMediaKeyMessageEvent(const AtomString& type, Uint8Array* message, const String& destinationURL);
     WebKitMediaKeyMessageEvent(const AtomString& type, Init&&, IsTrusted);
 
-    RefPtr<Uint8Array> m_message;
+    const RefPtr<Uint8Array> m_message;
     String m_destinationURL;
 };
 

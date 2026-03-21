@@ -67,7 +67,6 @@ struct OpenXRCoordinator::RenderState {
 #if ENABLE(WEBXR_HIT_TEST)
     HashMap<PlatformXR::HitTestSource, UniqueRef<PlatformXR::HitTestOptions>> hitTestSources;
     HashMap<PlatformXR::TransientInputHitTestSource, UniqueRef<PlatformXR::TransientInputHitTestOptions>> transientInputHitTestSources;
-    std::unique_ptr<OpenXRHitTestManager> hitTestManager;
 #endif
 };
 
@@ -401,9 +400,9 @@ void OpenXRCoordinator::requestHitTestSource(WebPageProxy& page, const PlatformX
 
             auto copiedOptions = makeUniqueRef<PlatformXR::HitTestOptions>(options);
             active.renderQueue->dispatch([this, renderState = active.renderState, options = WTF::move(copiedOptions), completionHandler = WTF::move(completionHandler)]() mutable {
-                if (!renderState->hitTestManager)
-                    renderState->hitTestManager = OpenXRHitTestManager::create(m_instance, m_systemId, m_session);
-                if (!renderState->hitTestManager) {
+                if (!m_hitTestManager)
+                    m_hitTestManager = OpenXRHitTestManager::create(m_instance, m_systemId, m_session);
+                if (!m_hitTestManager) {
                     callOnMainRunLoop([completionHandler = WTF::move(completionHandler)] mutable {
                         completionHandler(WebCore::Exception { WebCore::ExceptionCode::NotSupportedError });
                     });
@@ -464,9 +463,9 @@ void OpenXRCoordinator::requestTransientInputHitTestSource(WebPageProxy& page, c
 
             auto copiedOptions = makeUniqueRef<PlatformXR::TransientInputHitTestOptions>(options);
             active.renderQueue->dispatch([this, renderState = active.renderState, options = WTF::move(copiedOptions), completionHandler = WTF::move(completionHandler)]() mutable {
-                if (!renderState->hitTestManager)
-                    renderState->hitTestManager = OpenXRHitTestManager::create(m_instance, m_systemId, m_session);
-                if (!renderState->hitTestManager) {
+                if (!m_hitTestManager)
+                    m_hitTestManager = OpenXRHitTestManager::create(m_instance, m_systemId, m_session);
+                if (!m_hitTestManager) {
                     callOnMainRunLoop([completionHandler = WTF::move(completionHandler)] mutable {
                         completionHandler(WebCore::Exception { WebCore::ExceptionCode::NotSupportedError });
                     });
@@ -806,6 +805,9 @@ void OpenXRCoordinator::cleanupSessionAndAssociatedResources()
     m_layers.clear();
     m_views.clear();
     m_input.reset();
+#if ENABLE(WEBXR_HIT_TEST)
+    m_hitTestManager.reset();
+#endif
 
     if (m_session != XR_NULL_HANDLE) {
         CHECK_XRCMD(xrDestroySession(m_session));
@@ -1005,14 +1007,14 @@ PlatformXR::FrameData OpenXRCoordinator::populateFrameData(Box<RenderState> rend
 
 #if ENABLE(WEBXR_HIT_TEST)
     for (auto& pair : renderState->hitTestSources)
-        frameData.hitTestResults.add(pair.key, renderState->hitTestManager->requestHitTest(pair.value->offsetRay, spaceForHitTest(pair.value->nativeOrigin), renderState->frameState.predictedDisplayTime));
+        frameData.hitTestResults.add(pair.key, m_hitTestManager->requestHitTest(m_session, pair.value->offsetRay, spaceForHitTest(pair.value->nativeOrigin), renderState->frameState.predictedDisplayTime));
     for (auto& pair : renderState->transientInputHitTestSources) {
         Vector<PlatformXR::FrameData::TransientInputHitTestResult> results;
         for (const auto& inputSource : m_input->inputSources()) {
             if (inputSource->profiles().contains(pair.value->profile)) {
                 PlatformXR::FrameData::TransientInputHitTestResult result = {
                     inputSource->handle(),
-                    renderState->hitTestManager->requestHitTest(pair.value->offsetRay, inputSource->aimSpace(), renderState->frameState.predictedDisplayTime)
+                    m_hitTestManager->requestHitTest(m_session, pair.value->offsetRay, inputSource->aimSpace(), renderState->frameState.predictedDisplayTime)
                 };
                 results.append(WTF::move(result));
             }

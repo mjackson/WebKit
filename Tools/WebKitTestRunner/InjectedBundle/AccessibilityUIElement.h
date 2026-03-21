@@ -141,6 +141,8 @@ public:
     virtual JSRetainPtr<JSStringRef> computedRoleString();
     virtual JSRetainPtr<JSStringRef> title();
     virtual JSRetainPtr<JSStringRef> description();
+    virtual JSRetainPtr<JSStringRef> debugDescription() { return nullptr; }
+    virtual JSRetainPtr<JSStringRef> rawRoleForTesting() { return nullptr; }
     virtual JSRetainPtr<JSStringRef> language();
     virtual JSRetainPtr<JSStringRef> stringValue();
     virtual JSRetainPtr<JSStringRef> dateValue();
@@ -166,7 +168,7 @@ public:
     virtual unsigned numberOfCharacters() const;
     virtual int insertionPointLineNumber();
     virtual JSRetainPtr<JSStringRef> selectedTextRange();
-    virtual JSRetainPtr<JSStringRef> intersectionWithSelectionRange();
+    virtual RefPtr<AccessibilityTextMarkerRange> intersectionWithSelectionRange();
     virtual JSRetainPtr<JSStringRef> textInputMarkedRange() const;
     virtual bool isAtomicLiveRegion() const;
     virtual bool isBusy() const;
@@ -283,6 +285,7 @@ public:
     virtual bool attributedStringRangeIsMisspelled(unsigned location, unsigned length);
     virtual unsigned uiElementCountForSearchPredicate(JSContextRef, AccessibilityUIElement* startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly);
     virtual RefPtr<AccessibilityUIElement> uiElementForSearchPredicate(JSContextRef, AccessibilityUIElement* startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly);
+    virtual JSValueRef uiElementsForSearchPredicate(JSContextRef, AccessibilityUIElement* startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly, unsigned resultsLimit);
     virtual JSRetainPtr<JSStringRef> selectTextWithCriteria(JSContextRef, JSStringRef ambiguityResolution, JSValueRef searchStrings, JSStringRef replacementString, JSStringRef activity);
     virtual JSValueRef searchTextWithCriteria(JSContextRef, JSValueRef searchStrings, JSStringRef startFrom, JSStringRef direction);
     virtual JSValueRef performTextOperation(JSContextRef, JSStringRef operationType, JSValueRef markerRanges, JSValueRef replacementStrings, bool shouldSmartReplace);
@@ -413,6 +416,7 @@ public:
     virtual bool isRemoteFrame() const;
     // True if the element backing |this| is a platform remote element (e.g. NSAccessibilityRemoteUIElement on macOS).
     virtual bool isRemotePlatformElement() const { return false; }
+    virtual bool isFrameGeometryInitialized() const { return true; }
 
     virtual bool isMarkAnnotation() const;
 protected:

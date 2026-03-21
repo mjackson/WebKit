@@ -23,8 +23,8 @@
 
 #if HAVE_DIGITAL_CREDENTIALS_UI
 
-internal import IdentityDocumentServices
-internal import IdentityDocumentServicesUI
+import IdentityDocumentServices
+import IdentityDocumentServicesUI
 
 extension ISO18013MobileDocumentRequest.ElementInfo {
     init(_ source: WKIdentityDocumentPresentmentMobileDocumentElementInfo) {
@@ -34,12 +34,22 @@ extension ISO18013MobileDocumentRequest.ElementInfo {
 
 extension ISO18013MobileDocumentRequest.DocumentRequest {
     init(_ source: WKIdentityDocumentPresentmentMobileDocumentIndividualDocumentRequest) {
+        #if HAVE_DC_ISSUER_IDENTIFIER_SUPPORT
+        self = .init(
+            documentType: source.documentType,
+            namespaces: source.namespaces.mapValues {
+                $0.mapValues(ISO18013MobileDocumentRequest.ElementInfo.init(_:))
+            },
+            issuerKeyIdentifiers: source.issuerIdentifiers ?? []
+        )
+        #else
         self = .init(
             documentType: source.documentType,
             namespaces: source.namespaces.mapValues {
                 $0.mapValues(ISO18013MobileDocumentRequest.ElementInfo.init(_:))
             }
         )
+        #endif
     }
 }
 

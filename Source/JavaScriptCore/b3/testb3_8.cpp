@@ -997,8 +997,8 @@ void testWasmAddressDoesNotCSE()
 
     PatchpointValue* patchpoint = b->appendNew<PatchpointValue>(proc, Void, Origin());
     patchpoint->effects = Effects::forCall();
-    patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
-    patchpoint->clobber(RegisterSetBuilder(pinnedGPR));
+    patchpoint->clobber(RegisterSet::macroClobberedGPRs());
+    patchpoint->clobber(RegisterSet(pinnedGPR));
     patchpoint->setGenerator(
         [&] (CCallHelpers& jit, const StackmapGenerationParams& params) {
             CHECK(!params.size());
@@ -1092,9 +1092,9 @@ void testStoreAfterClobberExitsSideways()
     proc.pinRegister(pinnedSizeGPR);
 
     // Please don't make me save anything.
-    RegisterSetBuilder csrs;
-    csrs.merge(RegisterSetBuilder::calleeSaveRegisters());
-    csrs.exclude(RegisterSetBuilder::stackRegisters());
+    RegisterSet csrs;
+    csrs.merge(RegisterSet::calleeSaveRegisters());
+    csrs.exclude(RegisterSet::stackRegisters());
 #if CPU(ARM)
     csrs.remove(MacroAssembler::fpTempRegister);
     // FIXME We should allow this to be used. See the note
@@ -1103,7 +1103,7 @@ void testStoreAfterClobberExitsSideways()
     // ARM-only.
     csrs.remove(MacroAssembler::addressTempRegister);
 #endif
-    csrs.buildAndValidate().forEach(
+    csrs.forEach(
         [&] (Reg reg) {
             CHECK(reg != pinnedBaseGPR);
             CHECK(reg != pinnedSizeGPR);
@@ -1282,9 +1282,9 @@ void testStoreAfterClobberExitsSidewaysSuccessor()
     proc.pinRegister(pinnedSizeGPR);
 
     // Please don't make me save anything.
-    RegisterSetBuilder csrs;
-    csrs.merge(RegisterSetBuilder::calleeSaveRegisters());
-    csrs.exclude(RegisterSetBuilder::stackRegisters());
+    RegisterSet csrs;
+    csrs.merge(RegisterSet::calleeSaveRegisters());
+    csrs.exclude(RegisterSet::stackRegisters());
 #if CPU(ARM)
     csrs.remove(MacroAssembler::fpTempRegister);
     // FIXME We should allow this to be used. See the note
@@ -1293,7 +1293,7 @@ void testStoreAfterClobberExitsSidewaysSuccessor()
     // ARM-only.
     csrs.remove(MacroAssembler::addressTempRegister);
 #endif
-    csrs.buildAndValidate().forEach(
+    csrs.forEach(
         [&] (Reg reg) {
             CHECK(reg != pinnedBaseGPR);
             CHECK(reg != pinnedSizeGPR);

@@ -48,7 +48,7 @@ void CustomElementDefaultARIA::setValueForAttribute(const QualifiedName& name, c
 
 static bool isElementVisible(const Element& element, const Element& thisElement)
 {
-    return !element.isConnected() || element.isInDocumentTree() || thisElement.isShadowIncludingDescendantOf(protect(element.rootNode()));
+    return !element.isConnected() || element.isInDocumentTree() || thisElement.isShadowIncludingDescendantOf(element.rootNode());
 }
 
 const AtomString& CustomElementDefaultARIA::valueForAttribute(const Element& thisElement, const QualifiedName& name) const
@@ -60,7 +60,7 @@ const AtomString& CustomElementDefaultARIA::valueForAttribute(const Element& thi
     return WTF::visit(WTF::makeVisitor([&](const AtomString& stringValue) -> const AtomString& {
         return stringValue;
     }, [&](const WeakPtr<Element, WeakPtrImplWithEventTargetData>& weakElementValue) -> const AtomString& {
-        RefPtr elementValue = weakElementValue.get();
+        auto* elementValue = weakElementValue.get();
         if (elementValue && isElementVisible(*elementValue, thisElement))
             return elementValue->attributeWithoutSynchronization(HTMLNames::idAttr);
         return nullAtom();
@@ -93,7 +93,7 @@ RefPtr<Element> CustomElementDefaultARIA::elementForAttribute(const Element& thi
     RefPtr<Element> result;
     WTF::visit(WTF::makeVisitor([&](const AtomString& stringValue) {
         if (thisElement.isInTreeScope())
-            result = thisElement.treeScope().elementByIdResolvingReferenceTarget(stringValue);
+            result = protect(thisElement.treeScope())->elementByIdResolvingReferenceTarget(stringValue);
     }, [&](const WeakPtr<Element, WeakPtrImplWithEventTargetData>& weakElementValue) {
         RefPtr elementValue = weakElementValue.get();
         if (elementValue && isElementVisible(*elementValue, thisElement))

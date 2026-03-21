@@ -39,7 +39,7 @@
               (childrenTransform [1.00 0.00 0.00 0.00] [0.00 1.00 0.00 0.00] [0.00 0.00 1.00 -0.00] [0.00 0.00 0.00 1.00])
               (children 1
                 (GraphicsLayer
-                  (bounds 202.00 2502.00)
+                  (bounds 202.00 5002.00)
                   (usingTiledLayer 1)
                   (contentsOpaque 1)
                   (preserves3D 1)

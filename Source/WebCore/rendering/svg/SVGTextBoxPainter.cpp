@@ -26,6 +26,7 @@
 #include "config.h"
 #include "SVGTextBoxPainter.h"
 
+#include "FontCascadeInlines.h"
 #include "GraphicsContext.h"
 #include "GraphicsContextStateSaver.h"
 #include "LegacyRenderSVGResourceSolidColor.h"
@@ -398,7 +399,7 @@ bool mapStartEndPositionsIntoFragmentCoordinates(unsigned textBoxStart, const SV
     return true;
 }
 
-static inline float positionOffsetForDecoration(Style::TextDecorationLine decoration, const FontMetrics& fontMetrics, float thickness)
+static inline float NODELETE positionOffsetForDecoration(Style::TextDecorationLine decoration, const FontMetrics& fontMetrics, float thickness)
 {
     // FIXME: For SVG Fonts we need to use the attributes defined in the <font-face> if specified.
     // Compatible with Batik/Opera.

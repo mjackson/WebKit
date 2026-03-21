@@ -220,8 +220,8 @@ void fixPartialRegisterStalls(Code& code)
             Inst& inst = block->at(i);
 
             if (hasPartialXmmRegUpdate(inst)) {
-                RegisterSetBuilder defs;
-                RegisterSetBuilder uses;
+                RegisterSet defs;
+                RegisterSet uses;
                 inst.forEachTmp([&] (Tmp& tmp, Arg::Role role, Bank, Width width) {
                     if (tmp.isFPR() && width <= Width64) {
                         if (Arg::isAnyDef(role))
@@ -234,7 +234,7 @@ void fixPartialRegisterStalls(Code& code)
                 // for the value to be resolved anyway.
                 defs.exclude(uses);
 
-                defs.buildWithLowerBits().forEach([&] (Reg reg) {
+                defs.normalizeWidths().forEach([&] (Reg reg) {
                     if (localDistance.distance[MacroAssembler::fpRegisterIndex(reg.fpr())] < minimumSafeDistance)
                         insertionSet.insert(i, MoveDouble, inst.origin, Arg::fpImm64(0), Tmp(reg));
                 });

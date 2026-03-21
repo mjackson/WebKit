@@ -124,7 +124,7 @@ void SpeechRecognitionServer::handleRequest(Ref<WebCore::SpeechRecognitionReques
         } else if (update.type() == WebCore::SpeechRecognitionUpdateType::End) {
             // Do this asynchronously to as synchronous object destruction trips CheckedPtrs.
             callOnMainRunLoop([protectedThis] {
-                protect(protectedThis->m_recognizer)->setInactive();
+                protectedThis->m_recognizer->setInactive();
             });
         }
     }, WTF::move(request));
@@ -190,6 +190,9 @@ void SpeechRecognitionServer::sendUpdate(WebCore::SpeechRecognitionConnectionCli
 
 void SpeechRecognitionServer::sendUpdate(const WebCore::SpeechRecognitionUpdate& update)
 {
+    if (!m_process || !m_process->hasConnection())
+        return;
+
     send(Messages::WebSpeechRecognitionConnection::DidReceiveUpdate(update));
 }
 

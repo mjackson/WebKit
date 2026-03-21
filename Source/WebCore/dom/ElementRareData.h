@@ -41,7 +41,6 @@
 #include "PseudoElementIdentifier.h"
 #include "RenderElement.h"
 #include "ResizeObserver.h"
-#include "ShadowRoot.h"
 #include "SpaceSplitString.h"
 #include "StylePropertyMap.h"
 #include "StylePropertyMapReadOnly.h"
@@ -71,10 +70,6 @@ public:
     void setChildIndex(unsigned index) { m_childIndex = index; }
     static constexpr ptrdiff_t childIndexMemoryOffset() { return OBJECT_OFFSETOF(ElementRareData, m_childIndex); }
 
-    void clearShadowRoot() { m_shadowRoot = nullptr; }
-    ShadowRoot* shadowRoot() const { return m_shadowRoot.get(); }
-    void setShadowRoot(RefPtr<ShadowRoot>&& shadowRoot) { m_shadowRoot = WTF::move(shadowRoot); }
-
     CustomElementReactionQueue* customElementReactionQueue() { return m_customElementReactionQueue.get(); }
     void setCustomElementReactionQueue(std::unique_ptr<CustomElementReactionQueue>&& queue) { m_customElementReactionQueue = WTF::move(queue); }
 
@@ -90,13 +85,13 @@ public:
     String userInfo() const { return m_userInfo; }
     void setUserInfo(String&& userInfo) { m_userInfo = WTF::move(userInfo); }
 
-    RenderStyle* computedStyle() const { return m_computedStyle.get(); }
+    RenderStyle* computedStyle() const LIFETIME_BOUND { return m_computedStyle.get(); }
     void setComputedStyle(std::unique_ptr<RenderStyle>&& computedStyle) { m_computedStyle = WTF::move(computedStyle); }
 
-    RenderStyle* displayContentsOrNoneStyle() const { return m_displayContentsOrNoneStyle.get(); }
+    RenderStyle* displayContentsOrNoneStyle() const LIFETIME_BOUND { return m_displayContentsOrNoneStyle.get(); }
     void setDisplayContentsOrNoneStyle(std::unique_ptr<RenderStyle> style) { m_displayContentsOrNoneStyle = WTF::move(style); }
 
-    const AtomString& effectiveLang() const { return m_effectiveLang; }
+    const AtomString& effectiveLang() const LIFETIME_BOUND { return m_effectiveLang; }
     void setEffectiveLang(const AtomString& lang) { m_effectiveLang = lang; }
 
     DOMTokenList* classList() const { return m_classList.get(); }
@@ -109,8 +104,8 @@ public:
     void setSavedLayerScrollPosition(ScrollPosition position) { m_savedLayerScrollPosition = position; }
 
     bool hasAnimationRareData() const { return !m_animationRareData.isEmpty(); }
-    ElementAnimationRareData* animationRareData(const std::optional<Style::PseudoElementIdentifier>&) const;
-    ElementAnimationRareData& ensureAnimationRareData(const std::optional<Style::PseudoElementIdentifier>&);
+    ElementAnimationRareData* animationRareData(const std::optional<Style::PseudoElementIdentifier>&) const LIFETIME_BOUND;
+    ElementAnimationRareData& ensureAnimationRareData(const std::optional<Style::PseudoElementIdentifier>&) LIFETIME_BOUND;
 
     AtomString viewTransitionCapturedName(const std::optional<Style::PseudoElementIdentifier>&) const;
     void setViewTransitionCapturedName(const std::optional<Style::PseudoElementIdentifier>&, AtomString);
@@ -118,16 +113,16 @@ public:
     DOMTokenList* partList() const { return m_partList.get(); }
     void setPartList(const std::unique_ptr<DOMTokenList>&& partList) { lazyInitialize(m_partList, std::move(partList)); }
 
-    const SpaceSplitString& partNames() const { return m_partNames; }
+    const SpaceSplitString& partNames() const LIFETIME_BOUND { return m_partNames; }
     void setPartNames(SpaceSplitString&& partNames) { m_partNames = WTF::move(partNames); }
 
-    IntersectionObserverData* intersectionObserverData() { return m_intersectionObserverData.get(); }
+    IntersectionObserverData* intersectionObserverData() const LIFETIME_BOUND { return m_intersectionObserverData.get(); }
     void setIntersectionObserverData(std::unique_ptr<IntersectionObserverData>&& data) { m_intersectionObserverData = WTF::move(data); }
 
-    ResizeObserverData* resizeObserverData() { return m_resizeObserverData.get(); }
+    ResizeObserverData* resizeObserverData() const LIFETIME_BOUND { return m_resizeObserverData.get(); }
     void setResizeObserverData(std::unique_ptr<ResizeObserverData>&& data) { m_resizeObserverData = WTF::move(data); }
 
-    ElementLargestContentfulPaintData* largestContentfulPaintData() { return m_largestContentfulPaintData.get(); }
+    ElementLargestContentfulPaintData* largestContentfulPaintData() const LIFETIME_BOUND { return m_largestContentfulPaintData.get(); }
     void setLargestContentfulPaintData(std::unique_ptr<ElementLargestContentfulPaintData>&& data) { m_largestContentfulPaintData = WTF::move(data); }
 
     std::optional<LayoutUnit> lastRememberedLogicalWidth() const { return m_lastRememberedLogicalWidth; }
@@ -137,7 +132,7 @@ public:
     void clearLastRememberedLogicalWidth() { m_lastRememberedLogicalWidth.reset(); }
     void clearLastRememberedLogicalHeight() { m_lastRememberedLogicalHeight.reset(); }
 
-    const AtomString& nonce() const { return m_nonce; }
+    const AtomString& nonce() const LIFETIME_BOUND { return m_nonce; }
     void setNonce(const AtomString& value) { m_nonce = value; }
 
     StylePropertyMap* attributeStyleMap() { return m_attributeStyleMap.get(); }
@@ -146,15 +141,15 @@ public:
     StylePropertyMapReadOnly* computedStyleMap() { return m_computedStyleMap.get(); }
     void setComputedStyleMap(Ref<StylePropertyMapReadOnly>&& map) { m_computedStyleMap = WTF::move(map); }
 
-    ExplicitlySetAttrElementsMap& explicitlySetAttrElementsMap() { return m_explicitlySetAttrElementsMap; }
+    ExplicitlySetAttrElementsMap& explicitlySetAttrElementsMap() LIFETIME_BOUND { return m_explicitlySetAttrElementsMap; }
 
-    PopoverData* popoverData() { return m_popoverData.get(); }
+    PopoverData* popoverData() const LIFETIME_BOUND { return m_popoverData.get(); }
     void setPopoverData(std::unique_ptr<PopoverData>&& popoverData) { m_popoverData = WTF::move(popoverData); }
 
     Element* invokedPopover() const { return m_invokedPopover.get(); }
     void setInvokedPopover(RefPtr<Element>&& element) { m_invokedPopover = WTF::move(element); }
 
-    const std::optional<OptionSet<ContentRelevancy>>& contentRelevancy() const { return m_contentRelevancy; }
+    const std::optional<OptionSet<ContentRelevancy>>& contentRelevancy() const LIFETIME_BOUND { return m_contentRelevancy; }
     void setContentRelevancy(OptionSet<ContentRelevancy>& contentRelevancy) { m_contentRelevancy = contentRelevancy; }
 
     CustomStateSet* customStateSet() { return m_customStateSet.get(); }
@@ -184,8 +179,6 @@ public:
             result.add(UseType::Dataset);
         if (m_classList)
             result.add(UseType::ClassList);
-        if (m_shadowRoot)
-            result.add(UseType::ShadowRoot);
         if (m_customElementReactionQueue)
             result.add(UseType::CustomElementReactionQueue);
         if (m_customElementDefaultARIA)
@@ -218,9 +211,9 @@ public:
             result.add(UseType::Popover);
         if (m_childIndex)
             result.add(UseType::ChildIndex);
-        if (!m_customStateSet.isEmpty())
+        if (m_customStateSet)
             result.add(UseType::CustomStateSet);
-        if (m_userInfo)
+        if (!m_userInfo.isEmpty())
             result.add(UseType::UserInfo);
         if (m_invokedPopover)
             result.add(UseType::InvokedPopover);
@@ -243,7 +236,6 @@ private:
     AtomString m_effectiveLang;
     const std::unique_ptr<DatasetDOMStringMap> m_dataset;
     const std::unique_ptr<DOMTokenList> m_classList;
-    RefPtr<ShadowRoot> m_shadowRoot;
     std::unique_ptr<CustomElementReactionQueue> m_customElementReactionQueue;
     std::unique_ptr<CustomElementDefaultARIA> m_customElementDefaultARIA;
     const std::unique_ptr<FormAssociatedCustomElement> m_formAssociatedCustomElement;
@@ -291,7 +283,6 @@ inline ElementRareData::ElementRareData()
 
 inline ElementRareData::~ElementRareData()
 {
-    ASSERT(!m_shadowRoot);
     ASSERT(!m_beforePseudoElement);
     ASSERT(!m_afterPseudoElement);
 }
@@ -366,24 +357,6 @@ inline ElementRareData* Element::elementRareData() const
 {
     ASSERT_WITH_SECURITY_IMPLICATION(hasRareData());
     return downcast<ElementRareData>(rareData());
-}
-
-inline ShadowRoot* Node::shadowRoot() const
-{
-    return hasShadowRoot() ? downcast<Element>(*this).shadowRoot() : nullptr;
-}
-
-inline ShadowRoot* Element::shadowRoot() const
-{
-    return hasShadowRoot() ? elementRareData()->shadowRoot() : nullptr;
-}
-
-inline void Element::removeShadowRoot()
-{
-    RefPtr shadowRoot = this->shadowRoot();
-    if (!shadowRoot) [[likely]]
-        return;
-    removeShadowRootSlow(*shadowRoot);
 }
 
 } // namespace WebCore

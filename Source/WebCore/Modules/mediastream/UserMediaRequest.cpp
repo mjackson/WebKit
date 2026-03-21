@@ -40,6 +40,7 @@
 #include "ContextDestructionObserverInlines.h"
 #include "DocumentPage.h"
 #include "ExceptionCode.h"
+#include "JSDOMConvertInterface.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSMediaStream.h"
 #include "JSOverconstrainedError.h"
@@ -163,7 +164,7 @@ void UserMediaRequest::allow(CaptureDevice&& audioDevice, CaptureDevice&& videoD
 
     Ref document = downcast<Document>(*scriptExecutionContext());
     RefPtr localWindow = document->window();
-    RefPtr mediaDevices = localWindow ? NavigatorMediaDevices::mediaDevices(localWindow->protectedNavigator()) : nullptr;
+    RefPtr mediaDevices = localWindow ? NavigatorMediaDevices::mediaDevices(protect(localWindow->navigator())) : nullptr;
     if (mediaDevices)
         mediaDevices->willStartMediaCapture(!!audioDevice, !!videoDevice);
 

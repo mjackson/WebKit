@@ -31,6 +31,7 @@
 #include <wtf/HashTraits.h>
 #include <wtf/RawPtrTraits.h>
 #include <wtf/SingleThreadIntegralWrapper.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/TypeTraits.h>
 #include <wtf/UniqueRef.h>
 
@@ -104,6 +105,11 @@ public:
         ASSERT(m_ptr);
     }
 
+    template<typename X, typename WeakPtrImplType>
+    CheckedRef(const WeakRef<X, WeakPtrImplType>& other) requires std::is_convertible_v<X*, T*>
+        : CheckedRef(other.get())
+    { }
+
     CheckedRef(HashTableDeletedValueType) : m_ptr(PtrTraits::hashTableDeletedValue()) { }
     bool isHashTableDeletedValue() const { return PtrTraits::isHashTableDeletedValue(m_ptr); }
 
@@ -114,7 +120,7 @@ public:
     const T* ptrAllowingHashTableEmptyValue() const { ASSERT(m_ptr || isHashTableEmptyValue()); return PtrTraits::unwrap(m_ptr); }
     T* ptrAllowingHashTableEmptyValue() { ASSERT(m_ptr || isHashTableEmptyValue()); return PtrTraits::unwrap(m_ptr); }
 
-    ALWAYS_INLINE T* ptr() const
+    ALWAYS_INLINE T* ptr() const LIFETIME_BOUND
     {
         // In normal execution, a CheckedPtr always points to an object with a non-zero checkedPtrCount().
         // When it detects a dangling pointer, WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR scribbles an object with zeroes and then leaks it.
@@ -123,19 +129,19 @@ public:
         return PtrTraits::unwrap(m_ptr);
     }
 
-    ALWAYS_INLINE T& get() const
+    ALWAYS_INLINE T& get() const LIFETIME_BOUND
     {
         RELEASE_ASSERT(m_ptr);
         return *ptr();
     }
 
-    ALWAYS_INLINE T* operator->() const
+    ALWAYS_INLINE T* operator->() const LIFETIME_BOUND
     {
         RELEASE_ASSERT(m_ptr);
         return ptr();
     }
 
-    ALWAYS_INLINE operator T&() const { return get(); }
+    ALWAYS_INLINE operator T&() const LIFETIME_BOUND { return get(); }
     ALWAYS_INLINE explicit operator bool() const { return ptr(); }
 
     CheckedRef& operator=(T& reference)
@@ -210,6 +216,9 @@ private:
     typename PtrTraits::StorageType m_ptr;
 };
 
+template<typename X, typename WeakPtrImplType> CheckedRef(WeakRef<X, WeakPtrImplType>&) -> CheckedRef<X>;
+template<typename X, typename WeakPtrImplType> CheckedRef(const WeakRef<X, WeakPtrImplType>&) -> CheckedRef<X>;
+
 template <typename T, typename PtrTraits>
 struct GetPtrHelper<CheckedRef<T, PtrTraits>> {
     using PtrType = T*;
@@ -233,6 +242,18 @@ template<typename ExpectedType, typename ArgType, typename ArgPtrTraits>
 inline bool is(const CheckedRef<ArgType, ArgPtrTraits>& source)
 {
     return is<ExpectedType>(source.get());
+}
+
+template<typename... ExpectedTypes, typename ArgType, typename ArgPtrTraits>
+inline bool isAnyOf(CheckedRef<ArgType, ArgPtrTraits>& source)
+{
+    return isAnyOf<ExpectedTypes...>(source.get());
+}
+
+template<typename... ExpectedTypes, typename ArgType, typename ArgPtrTraits>
+inline bool isAnyOf(const CheckedRef<ArgType, ArgPtrTraits>& source)
+{
+    return isAnyOf<ExpectedTypes...>(source.get());
 }
 
 template<typename ExpectedType, typename ArgType, typename ArgPtrTraits>
@@ -282,6 +303,12 @@ template<typename T, typename PtrTraits>
 ALWAYS_INLINE CLANG_POINTER_CONVERSION CheckedRef<T, PtrTraits> protect(const CheckedRef<T, PtrTraits>& reference)
 {
     return reference;
+}
+
+template<typename T, typename PtrTraits>
+CheckedRef<T, PtrTraits> protect(CheckedRef<T, PtrTraits>&&)
+{
+    static_assert(WTF::unreachableForType<T>, "Calling protect() on an rvalue is unnecessary; the caller already owns the value.");
 }
 
 template<typename T, typename PtrTraits = RawPtrTraits<T>>
@@ -375,7 +402,7 @@ private:
 #if ASSERT_ENABLED || ENABLE(SECURITY_ASSERTIONS)
     DeletionFlagType m_didBeginDeletion { false };
 #endif
-};
+} SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT;
 
 template<typename T, DefaultedOperatorEqual defaultedOperatorEqual = DefaultedOperatorEqual::No, CheckedPtrDeleteCheckException deleteException = CheckedPtrDeleteCheckException::No>
 class CanMakeCheckedPtr : public CanMakeCheckedPtrBase<SingleThreadIntegralWrapper<uint32_t>, uint32_t, bool, deleteException> {

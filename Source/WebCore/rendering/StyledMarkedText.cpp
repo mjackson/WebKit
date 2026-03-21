@@ -32,6 +32,7 @@
 #include "RenderStyle+GettersInlines.h"
 #include "RenderText.h"
 #include "RenderTheme.h"
+#include "RenderedDocumentMarker.h"
 
 namespace WebCore {
 
@@ -124,6 +125,10 @@ static StyledMarkedText resolveStyleForMarkedText(const MarkedText& markedText, 
     case MarkedText::Type::TransparentContent:
         style.alpha = 0.0;
         break;
+    case MarkedText::Type::DictationStreamingOpacity:
+        if (auto* marker = markedText.marker)
+            style.alpha = std::get<DocumentMarker::DictationStreamingOpacityData>(marker->data()).opacity;
+        break;
     case MarkedText::Type::Selection: {
         style.textStyles = computeTextSelectionPaintStyle(style.textStyles, renderer, lineStyle, paintInfo, style.textShadow);
 
@@ -133,6 +138,7 @@ static StyledMarkedText resolveStyleForMarkedText(const MarkedText& markedText, 
             style.backgroundColor = selectionBackgroundColor.invertedColorWithAlpha(1.0);
         break;
     }
+    case MarkedText::Type::ActiveTextMatch:
     case MarkedText::Type::TextMatch: {
         // Text matches always use the light system appearance.
 #if PLATFORM(MAC)

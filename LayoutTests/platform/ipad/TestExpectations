@@ -92,8 +92,6 @@ imported/w3c/web-platform-tests/html/user-activation/consumption-sameorigin.html
 imported/w3c/web-platform-tests/html/user-activation/propagation-crossorigin.sub.html [ Failure ]
 imported/w3c/web-platform-tests/html/user-activation/propagation-sameorigin.html  [ Failure ]
 
-webkit.org/b/271712 fast/forms/datalist/datalist-textinput-dynamically-add-options-on-keydown.html [ Timeout ]
-
 # webkit.org/b/269496 [ iOS17 ] fast/forms/datalist/datalist-option-labels.html is a flaky timeout
 fast/forms/datalist/datalist-option-labels.html [ Pass Timeout ]
 
@@ -168,11 +166,6 @@ scrollingcoordinator/ios/fixed-scrolling-with-keyboard.html [ Skip ]
 webkit.org/b/307451 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-keyboard-behavior.optional.html [ Pass Failure ]
 
 # webkit.org/b/307469 4x fast/viewport/iOS tests are constant text failures on iPad
-fast/viewport/ios/viewport-fit-auto-safe-area-inset-change.html [ Failure ]
-fast/viewport/ios/shrink-to-fit-content-responsive-viewport-with-horizontal-overflow.html [ Failure ]
 fast/viewport/ios/shrink-to-fit-content-large-constant-width.html [ Failure ]
-fast/viewport/ios/shrink-to-fit-content-constant-width.html [ Failure ]
-
-webkit.org/b/307477 editing/selection/ios/scrolling-to-focused-element-inside-iframe.html [ Failure ]
 
 webkit.org/b/307488 media/volume-activate-audio-session.html [ Failure ]

@@ -26,10 +26,11 @@
 
 #if ENABLE(MEDIA_RECORDER)
 
-#include <WebCore/CAAudioStreamDescription.h>
-#include <WebCore/MediaRecorderPrivateWriter.h>
-#include <WebCore/SharedBuffer.h>
-#include <WebCore/VideoEncoder.h>
+#include "CAAudioStreamDescription.h"
+#include "MediaRecorderPrivateWriter.h"
+#include "PlatformTimeRanges.h"
+#include "SharedBuffer.h"
+#include "VideoEncoder.h"
 #include <atomic>
 #include <span>
 #include <wtf/Deque.h>
@@ -69,9 +70,9 @@ public:
     void stopRecording();
     void close();
 
-    String mimeType() const;
-    unsigned audioBitRate() const;
-    unsigned videoBitRate() const;
+    String NODELETE mimeType() const;
+    unsigned NODELETE audioBitRate() const;
+    unsigned NODELETE videoBitRate() const;
 
     bool hasAudio() const { return m_hasAudio; }
     bool hasVideo() const { return m_hasVideo; }
@@ -83,7 +84,7 @@ private:
 
     static WorkQueue& queueSingleton();
 
-    Ref<MediaRecorderPrivateWriterListener> listener();
+    Ref<MediaRecorderPrivateWriterListener> NODELETE listener();
 
     class Listener;
     friend class Listener;
@@ -91,9 +92,11 @@ private:
 
     MediaTime lastEnqueuedAudioTime() const { return MediaTime(m_lastEnqueuedAudioTimeUs.load(), 1000000); }
     MediaTime currentTime() const;
+    MediaTime currentTime(const MediaTime&, const MonotonicTime&) const;
     MediaTime currentEndTime() const;
 
     void flushDataBuffer();
+    bool segmentsMustStartWithVideoKeyframe() const;
 
     static void compressedAudioOutputBufferCallback(void*, CMBufferQueueTriggerToken);
 
@@ -109,7 +112,7 @@ private:
     void enqueueCompressedAudioSampleBuffers();
 
     void appendVideoFrame(MediaTime, Ref<VideoFrame>&&);
-    Ref<GenericPromise> encodePendingVideoFrames();
+    Ref<GenericPromise> encodePendingVideoFrames(const MediaTime&);
     void processVideoEncoderActiveConfiguration(const VideoEncoder::Config&, const VideoEncoderActiveConfiguration&);
     void enqueueCompressedVideoFrame(VideoEncoder::EncodedFrame&&);
 
@@ -158,6 +161,8 @@ private:
     std::atomic<size_t> m_currentRingBufferId { 0 };
     std::atomic<int64_t> m_lastEnqueuedAudioTimeUs { 0 };
     std::atomic<int64_t> m_currentAudioTimeUs { 0 };
+    MediaTime m_lastRawAudioSample { MediaTime::invalidTime() };
+    PlatformTimeRanges::Range m_lastEncodedAudioSampleRange WTF_GUARDED_BY_CAPABILITY(queueSingleton()) { MediaTime::negativeInfiniteTime(), MediaTime::negativeInfiniteTime() };
 
     // Audio thread variables.
     std::optional<CAAudioStreamDescription> m_currentStreamDescription;
@@ -195,7 +200,7 @@ private:
     bool m_isPaused WTF_GUARDED_BY_CAPABILITY(queueSingleton()) { false };
     bool m_hasStartedAudibleAudioFrame WTF_GUARDED_BY_CAPABILITY(queueSingleton()) { false };
     bool m_needKeyFrame WTF_GUARDED_BY_CAPABILITY(queueSingleton()) { true };
-    MediaTime m_startSegmentTime WTF_GUARDED_BY_CAPABILITY(queueSingleton()) { MediaTime::zeroTime() };
+    MediaTime m_startLastSegmentTime WTF_GUARDED_BY_CAPABILITY(queueSingleton()) { MediaTime::zeroTime() };
 
     const MediaTime m_minimumSegmentDuration { MediaTime::createWithDouble(1) };
     const MediaTime m_maxGOPDuration { MediaTime::createWithDouble(2) };

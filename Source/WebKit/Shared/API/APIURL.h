@@ -52,7 +52,7 @@ public:
     bool isNull() const { return m_string.isNull(); }
     bool isEmpty() const { return m_string.isEmpty(); }
 
-    const WTF::String& string() const { return m_string; }
+    const WTF::String& string() const LIFETIME_BOUND { return m_string; }
 
     static bool equals(const API::URL& a, const API::URL& b)
     {
@@ -95,7 +95,7 @@ private:
     {
     }
 
-    const WTF::URL& url() const
+    const WTF::URL& url() const LIFETIME_BOUND
     {
         parseURLIfNecessary();
         return *m_parsedURL;

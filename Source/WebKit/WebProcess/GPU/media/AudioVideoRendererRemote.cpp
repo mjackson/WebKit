@@ -473,20 +473,23 @@ void AudioVideoRendererRemote::setHasProtectedVideoContent(bool isProtected)
     });
 }
 
-AudioVideoRendererRemote::TrackIdentifier AudioVideoRendererRemote::addTrack(TrackType type)
+std::optional<AudioVideoRendererRemote::TrackIdentifier> AudioVideoRendererRemote::addTrack(TrackType type)
 {
+    RefPtr gpuProcessConnection = m_gpuProcessConnection.get();
+    if (!isGPURunning() || !gpuProcessConnection)
+        return std::nullopt;
+
     // the sendSync() call requires us to run on the connection's dispatcher, which is the main thread.
     Expected<WebCore::SamplesRendererTrackIdentifier, WebCore::PlatformMediaError> result = makeUnexpected(PlatformMediaError::IPCError);
     callOnMainRunLoopAndWait([&] {
         // FIXME: Uses a new Connection for remote playback, and not the main GPUProcessConnection's one.
-        auto sendResult = m_gpuProcessConnection.get()->connection().sendSync(Messages::RemoteAudioVideoRendererProxyManager::AddTrack(m_identifier, type), 0);
-        if (!sendResult.succeeded()) {
-            ASSERT_NOT_REACHED();
+        auto sendResult = gpuProcessConnection->connection().sendSync(Messages::RemoteAudioVideoRendererProxyManager::AddTrack(m_identifier, type), 0);
+        if (!sendResult.succeeded())
             return;
-        }
         result = std::get<0>(sendResult.takeReply());
-        ASSERT(!!result);
     });
+    if (!result)
+        return std::nullopt;
     return *result;
 }
 
@@ -795,7 +798,7 @@ WebCore::FloatSize AudioVideoRendererRemote::naturalSize() const
 void AudioVideoRendererRemote::setCDMInstance(CDMInstance* instance)
 {
     std::optional<RemoteCDMInstanceIdentifier> identifier;
-    if (RefPtr remoteInstance = dynamicDowncast<RemoteCDMInstance>(instance))
+    if (auto* remoteInstance = dynamicDowncast<RemoteCDMInstance>(instance))
         identifier = remoteInstance->identifier();
 
     ensureOnDispatcherWithConnection([identifier = WTF::move(identifier)](auto& renderer, auto& connection) mutable {
@@ -829,7 +832,7 @@ void AudioVideoRendererRemote::attemptToDecrypt()
 void AudioVideoRendererRemote::setCDMSession(LegacyCDMSession* session)
 {
     std::optional<RemoteLegacyCDMSessionIdentifier> identifier;
-    if (RefPtr remoteSession = dynamicDowncast<RemoteLegacyCDMSession>(session))
+    if (auto* remoteSession = dynamicDowncast<RemoteLegacyCDMSession>(session))
         identifier = remoteSession->identifier();
 
     ensureOnDispatcherWithConnection([identifier = WTF::move(identifier)](auto& renderer, auto& connection) mutable {
@@ -845,6 +848,18 @@ WebCore::FloatSize AudioVideoRendererRemote::videoLayerSize() const
 {
     Locker locker { m_lock };
     return m_videoLayerSize;
+}
+
+void AudioVideoRendererRemote::setVideoLayerSize(const WebCore::FloatSize& size)
+{
+    {
+        Locker locker { m_lock };
+        m_videoLayerSize = size;
+    }
+
+    ensureOnDispatcherWithConnection([size](auto& renderer, auto& connection) mutable {
+        connection.send(Messages::RemoteAudioVideoRendererProxyManager::SetVideoLayerSize(renderer.m_identifier, size), 0);
+    });
 }
 
 void AudioVideoRendererRemote::setVideoLayerSizeFenced(const WebCore::FloatSize& size, WTF::MachSendRightAnnotated&& sendRightAnnotated)

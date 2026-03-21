@@ -82,9 +82,8 @@ private:
 
 #if !RELEASE_LOG_DISABLED
     const Logger& logger() const { return m_logger.get(); }
-    Ref<const Logger> protectedLogger() const { return logger(); }
     ASCIILiteral logClassName() const { return "WebCoreAVFResourceLoader"_s; }
-    WTFLogChannel& logChannel() const;
+    WTFLogChannel& NODELETE logChannel() const;
 #endif
 
     ThreadSafeWeakPtr<MediaPlayerPrivateAVFoundationObjC> m_parent;

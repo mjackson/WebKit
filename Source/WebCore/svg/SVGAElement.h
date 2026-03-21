@@ -41,7 +41,7 @@ public:
     ~SVGAElement();
 
     AtomString target() const final { return AtomString { m_target->currentValue() }; }
-    Ref<SVGAnimatedString>& targetAnimated() { return m_target; }
+    SVGAnimatedString& targetAnimated() { return m_target; }
 
     SharedStringHash visitedLinkHash() const;
 
@@ -62,18 +62,18 @@ private:
     String title() const final;
     void defaultEventHandler(Event&) final;
 
-    bool hasRel(Relation) const;
+    bool NODELETE hasRel(Relation) const;
     
     bool supportsFocus() const final;
     bool isMouseFocusable() const final;
     bool isKeyboardFocusable(const FocusEventData&) const final;
-    bool isURLAttribute(const Attribute&) const final;
+    bool NODELETE isURLAttribute(const Attribute&) const final;
     bool canStartSelection() const final;
     int defaultTabIndex() const final;
 
     bool willRespondToMouseClickEventsWithEditability(Editability) const final;
 
-    Ref<SVGAnimatedString> m_target { SVGAnimatedString::create(this) };
+    const Ref<SVGAnimatedString> m_target { SVGAnimatedString::create(this) };
 
     OptionSet<Relation> m_linkRelations;
 

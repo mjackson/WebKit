@@ -91,6 +91,7 @@ messages -> RemoteAudioVideoRendererProxyManager {
     RequestHostingContext(WebKit::RemoteAudioVideoRendererIdentifier identifier) -> (struct WebCore::HostingContext layerHostingContext)
 
 #if PLATFORM(COCOA)
+    SetVideoLayerSize(WebKit::RemoteAudioVideoRendererIdentifier identifier, WebCore::FloatSize size)
     SetVideoLayerSizeFenced(WebKit::RemoteAudioVideoRendererIdentifier identifier, WebCore::FloatSize size, struct MachSendRightAnnotated sendRightAnnotated)
 #endif
 

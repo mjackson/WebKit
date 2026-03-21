@@ -62,9 +62,9 @@ public:
     void destroy();
     void undestroy();
     void setCommandEncoder(CommandEncoder&) const;
-    bool isDestroyed() const;
+    bool NODELETE isDestroyed() const;
 
-    bool isValid() const;
+    bool NODELETE isValid() const;
     void update(CVPixelBufferRef);
     size_t openCommandEncoderCount() const;
     void updateExternalTextures(id<MTLTexture>, id<MTLTexture>);
@@ -72,8 +72,6 @@ public:
 private:
     ExternalTexture(CVPixelBufferRef, WGPUColorSpace, Device&);
     ExternalTexture(Device&);
-
-    Ref<Device> protectedDevice() const { return m_device; }
 
     RetainPtr<CVPixelBufferRef> m_pixelBuffer;
     WGPUColorSpace m_colorSpace;

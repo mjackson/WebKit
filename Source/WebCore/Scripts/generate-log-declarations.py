@@ -36,7 +36,11 @@ def generate_log_client_declarations_file(log_messages, log_client_declarations_
 
         file.write("#pragma once\n\n")
         for log_message in log_messages:
-            file.write("#define MESSAGE_" + log_message[0] + " " + log_message[1] + "\n")
+            message_name = log_message[0]
+            message_format = log_message[1]
+            file.write("#define MESSAGE_" + message_name + " " + message_format + "\n")
+            message_format_without_public_string_modifier = message_format.replace("%\" PUBLIC_LOG_STRING \"", "%s")
+            file.write("#define MESSAGE_WITHOUT_PUBLIC_STRING_MODIFIER_" + message_name + " " + message_format_without_public_string_modifier + "\n")
 
         file.close()
 
@@ -112,7 +116,7 @@ def get_log_messages(log_messages_input_file):
     log_messages = []
     with open(log_messages_input_file) as input_file:
         input_file_lines = input_file.readlines()
-        identifier_regexp = r'(?P<identifier>[A-Z_0-9]*)'
+        identifier_regexp = r'(?P<identifier>[A-Z_a-z0-9]*)'
         inner_format_string_regexp = r'((\"[\w:;%~\'\-\[\]=,\.\(\)\{\} ]*\")\s*(PRI[A-Za-z0-9]+|PUBLIC_LOG_STRING|PRIVATE_LOG_STRING)?)'
         parameter_list_regexp = r'\((?P<parameter_list>.*)\)'
         log_type_regexp = r'(?P<log_type>DEFAULT|INFO|ERROR|FAULT)'

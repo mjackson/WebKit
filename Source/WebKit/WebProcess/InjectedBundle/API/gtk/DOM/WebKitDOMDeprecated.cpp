@@ -252,7 +252,9 @@ gchar* webkit_dom_node_get_local_name(WebKitDOMNode* self)
     return convertToUTF8String(WebKit::core(self)->localName());
 }
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GTK port
 G_DEFINE_TYPE(WebKitDOMEntityReference, webkit_dom_entity_reference, WEBKIT_DOM_TYPE_NODE)
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 static void webkit_dom_entity_reference_init(WebKitDOMEntityReference*)
 {
@@ -280,7 +282,9 @@ WebKitDOMEntityReference* webkit_dom_document_create_entity_reference(WebKitDOMD
     return nullptr;
 }
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GTK port
 G_DEFINE_TYPE(WebKitDOMHTMLBaseFontElement, webkit_dom_html_base_font_element, WEBKIT_DOM_TYPE_HTML_ELEMENT)
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 static void webkit_dom_html_base_font_element_init(WebKitDOMHTMLBaseFontElement*)
 {

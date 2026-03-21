@@ -25,7 +25,6 @@
 
 #pragma once
 
-#include <WebCore/FontCascade.h>
 #include <WebCore/InlineIteratorBoxLegacyPath.h>
 #include <WebCore/LayoutElementBox.h>
 #include <WebCore/LayoutIntegrationInlineContent.h>
@@ -51,6 +50,7 @@ public:
     bool isText() const { return box().isTextOrSoftLineBreak(); }
     bool isInlineBox() const { return box().isInlineBox(); }
     bool isRootInlineBox() const { return box().isRootInlineBox(); }
+    bool isRubyBase() const { return box().isRubyBase(); }
     // Blocks-in-inline.
     bool isBlockLevelBox() const { return box().isBlockLevelBox(); }
     bool isAtomicInlineBox() const { return box().isAtomicInlineBox(); }
@@ -201,7 +201,7 @@ public:
     {
         auto lineIndex = box().lineIndex();
         bool wasInlineBox = box().isInlineBox();
-        CheckedRef startBox = box().layoutBox();
+        auto& startBox = box().layoutBox();
 
         traverseNextBox();
 
@@ -228,7 +228,7 @@ public:
     {
         ASSERT(box().isInlineBox());
 
-        CheckedRef inlineBox = box().layoutBox();
+        auto& inlineBox = box().layoutBox();
 
         // The next box is the first descendant of this box;
         auto first = *this;
@@ -244,7 +244,7 @@ public:
     {
         ASSERT(box().isInlineBox());
 
-        CheckedRef inlineBox = box().layoutBox();
+        auto& inlineBox = box().layoutBox();
 
         // FIXME: Get the last box index directly from the display box.
         auto last = firstLeafBoxForInlineBox();
@@ -294,7 +294,7 @@ public:
 private:
     bool isWithinInlineBox(const Layout::Box& inlineBox)
     {
-        for (CheckedPtr layoutBox = &box().layoutBox().parent();; layoutBox = &layoutBox->parent()) {
+        for (auto* layoutBox = &box().layoutBox().parent();; layoutBox = &layoutBox->parent()) {
             if (layoutBox == &inlineBox)
                 return true;
             if (!layoutBox->isInlineBox())

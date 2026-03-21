@@ -77,7 +77,7 @@ public:
     WEBCORE_EXPORT void NODELETE ref() const;
     WEBCORE_EXPORT void deref() const;
 
-    Element* focusedElementInScope();
+    Element* NODELETE focusedElementInScope();
     Element* pointerLockElement() const;
 
     void setCustomElementRegistry(RefPtr<CustomElementRegistry>&&);
@@ -103,13 +103,13 @@ public:
     static constexpr ptrdiff_t documentScopeMemoryOffset() { return OBJECT_OFFSETOF(TreeScope, m_documentScope); }
 
     // https://dom.spec.whatwg.org/#retarget
-    Ref<Node> retargetToScope(Node&) const;
+    Ref<Node> NODELETE retargetToScope(Node&) const;
 
     WEBCORE_EXPORT Node* NODELETE ancestorNodeInThisScope(Node*) const;
     WEBCORE_EXPORT Element* NODELETE ancestorElementInThisScope(Element*) const;
 
-    void addImageMap(HTMLMapElement&);
-    void removeImageMap(HTMLMapElement&);
+    void addImageMap(HTMLMapElement&, const AtomString& name, const AtomString& id);
+    void removeImageMap(HTMLMapElement&, const AtomString& name, const AtomString& id);
     RefPtr<HTMLMapElement> getImageMap(const AtomString&) const;
 
     void addImageElementByUsemap(const AtomString&, HTMLImageElement&);
@@ -197,6 +197,6 @@ private:
     std::unique_ptr<SVGResourcesMap> m_svgResourcesMap;
 };
 
-TreeScope* commonTreeScope(Node*, Node*);
+TreeScope* NODELETE commonTreeScope(Node*, Node*);
 
 } // namespace WebCore

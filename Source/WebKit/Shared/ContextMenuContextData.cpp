@@ -29,10 +29,11 @@
 
 #if ENABLE(CONTEXT_MENUS)
 
+#include "WebEventConversion.h"
 #include <WebCore/GraphicsContext.h>
+#include <WebCore/MouseEvent.h>
 
 namespace WebKit {
-using namespace WebCore;
 
 ContextMenuContextData::ContextMenuContextData()
     : m_type(Type::ContextMenu)
@@ -75,6 +76,13 @@ ContextMenuContextData::ContextMenuContextData(const IntPoint& menuLocation, con
     if (auto identifier = context.mediaElementIdentifier())
         setMediaElementIdentifier(*identifier);
 #endif
+
+    if (RefPtr event = dynamicDowncast<WebCore::MouseEvent>(context.event())) {
+        m_inputSource = event->inputSource()
+            .transform([](auto& inputSource) {
+                return kit(inputSource);
+            });
+    }
 }
 
 #if ENABLE(SERVICE_CONTROLS)
@@ -167,6 +175,7 @@ ContextMenuContextData::ContextMenuContextData(WebCore::ContextMenuContext::Type
 #if ENABLE(MEDIA_CONTROLS_CONTEXT_MENUS)
     , std::optional<WebCore::HTMLMediaElementIdentifier> mediaElementIdentifier
 #endif
+    , std::optional<WebMouseEventInputSource> inputSource
 )
     : m_type(type)
     , m_menuLocation(WTF::move(menuLocation))
@@ -188,6 +197,7 @@ ContextMenuContextData::ContextMenuContextData(WebCore::ContextMenuContext::Type
 #if ENABLE(MEDIA_CONTROLS_CONTEXT_MENUS)
     , m_mediaElementIdentifier(WTF::move(mediaElementIdentifier))
 #endif
+    , m_inputSource(inputSource)
 {
 #if ENABLE(SERVICE_CONTROLS)
     if (controlledImageHandle)

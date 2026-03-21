@@ -83,9 +83,9 @@ public:
 
     void submitImplicitly(Event&, bool fromImplicitSubmissionTrigger);
 
-    String name() const;
+    String NODELETE name() const;
 
-    bool noValidate() const;
+    bool NODELETE noValidate() const;
 
     String acceptCharset() const { return m_attributes.acceptCharset(); }
     void setAcceptCharset(const String&);
@@ -109,29 +109,29 @@ public:
     WEBCORE_EXPORT bool checkValidity();
     bool reportValidity();
 
-    RadioButtonGroups& radioButtonGroups() { return m_radioButtonGroups; }
+    RadioButtonGroups& radioButtonGroups() LIFETIME_BOUND { return m_radioButtonGroups; }
 
     WEBCORE_EXPORT const Vector<WeakPtr<HTMLElement, WeakPtrImplWithEventTargetData>>& NODELETE unsafeListedElements() const;
     WEBCORE_EXPORT Vector<Ref<FormListedElement>> copyListedElementsVector() const;
     Vector<Ref<ValidatedFormListedElement>> copyValidatedListedElementsVector() const;
-    const Vector<WeakPtr<HTMLImageElement, WeakPtrImplWithEventTargetData>>& imageElements() const { return m_imageElements; }
+    const Vector<WeakPtr<HTMLImageElement, WeakPtrImplWithEventTargetData>>& imageElements() const LIFETIME_BOUND { return m_imageElements; }
 
     StringPairVector textFieldValues() const;
 
     static HTMLFormElement* findClosestFormAncestor(const Element&);
     
     RefPtr<DOMFormData> constructEntryList(RefPtr<HTMLFormControlElement>&&, Ref<DOMFormData>&&, StringPairVector*);
-    const FormSubmission::Attributes& attributes() const { return m_attributes; }
+    const FormSubmission::Attributes& attributes() const LIFETIME_BOUND { return m_attributes; }
     
 private:
     HTMLFormElement(const QualifiedName&, Document&);
 
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) final;
-    void removedFromAncestor(RemovalType, ContainerNode&) final;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) final;
+    void removingSteps(RemovalType, ContainerNode&) final;
     void finishParsingChildren() final;
 
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) final;
-    bool isURLAttribute(const Attribute&) const final;
+    bool NODELETE isURLAttribute(const Attribute&) const final;
 
     void resumeFromDocumentSuspension() final;
 

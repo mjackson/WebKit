@@ -161,9 +161,6 @@ PASS SVGFEOffsetElement.toString() is "function SVGFEOffsetElement() {\n    [nat
 PASS SVGFESpecularLightingElement.toString() is "function SVGFESpecularLightingElement() {\n    [native code]\n}"
 PASS SVGFETileElement.toString() is "function SVGFETileElement() {\n    [native code]\n}"
 PASS SVGFETurbulenceElement.toString() is "function SVGFETurbulenceElement() {\n    [native code]\n}"
-FAIL SVGCursorElement.toString() should be function SVGCursorElement() {
-    [native code]
-}. Threw exception ReferenceError: Can't find variable: SVGCursorElement
 PASS SVGAElement.toString() is "function SVGAElement() {\n    [native code]\n}"
 PASS SVGViewElement.toString() is "function SVGViewElement() {\n    [native code]\n}"
 PASS SVGScriptElement.toString() is "function SVGScriptElement() {\n    [native code]\n}"

@@ -71,7 +71,7 @@ void DatagramByteSource::receiveDatagram(std::span<const uint8_t> datagram, bool
     }
 
     RefPtr controller = m_controller;
-    auto* globalObject = controller->protectedStream()->globalObject();
+    auto* globalObject = protect(controller->stream())->globalObject();
     if (!globalObject)
         return;
 
@@ -114,7 +114,7 @@ void DatagramByteSource::closeStreamIfPossible()
         return;
 
     RefPtr controller = m_controller;
-    auto* globalObject = controller->protectedStream()->globalObject();
+    auto* globalObject = protect(controller->stream())->globalObject();
     if (!globalObject)
         return;
 
@@ -143,7 +143,7 @@ void DatagramByteSource::closeStream(JSDOMGlobalObject& globalObject, ReadableBy
 void DatagramByteSource::tryEnqueuing(JSC::ArrayBuffer& buffer, ReadableByteStreamController& controller, Ref<DeferredPromise>&& promise, JSDOMGlobalObject* globalObject)
 {
     if (!globalObject) {
-        globalObject = controller.protectedStream()->globalObject();
+        globalObject = protect(controller.stream())->globalObject();
         if (!globalObject) {
             // FIXME: We should probably error.
             promise->resolve();

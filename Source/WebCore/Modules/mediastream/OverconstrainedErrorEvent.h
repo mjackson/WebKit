@@ -69,7 +69,7 @@ private:
     {
     }
 
-    RefPtr<OverconstrainedError> m_error;
+    const RefPtr<OverconstrainedError> m_error;
 };
 
 } // namespace WebCore

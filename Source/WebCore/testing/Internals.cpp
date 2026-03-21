@@ -27,6 +27,7 @@
 #include "config.h"
 #include "Internals.h"
 
+#include "AXCrossProcessSearch.h"
 #include "AXObjectCacheInlines.h"
 #include "AnimationTimeline.h"
 #include "AnimationTimelinesController.h"
@@ -499,7 +500,7 @@ InspectorStubFrontend::InspectorStubFrontend(Page& inspectedPage, LocalFrame& ma
     ASSERT_ARG(frontendWindow, frontendWindow);
 
     frontendPage()->inspectorController().setInspectorFrontendClient(this);
-    inspectedPage.protectedInspectorController()->connectFrontend(*this);
+    protect(inspectedPage.inspectorController())->connectFrontend(*this);
     protect(mainFrame.inspectorController())->connectFrontend(*this);
 }
 
@@ -517,7 +518,7 @@ void InspectorStubFrontend::closeWindow()
     if (RefPtr controller = m_mainFrameInspectorController.get())
         controller->disconnectFrontend(*this);
     if (RefPtr page = inspectedPage())
-        page->protectedInspectorController()->disconnectFrontend(*this);
+        protect(page->inspectorController())->disconnectFrontend(*this);
 
     m_frontendWindow->close();
     m_frontendWindow = nullptr;
@@ -560,6 +561,8 @@ static bool markerTypeFrom(const String& markerType, DocumentMarkerType& result)
 #endif
     else if (equalLettersIgnoringASCIICase(markerType, "transparentcontent"_s))
         result = DocumentMarkerType::TransparentContent;
+    else if (equalLettersIgnoringASCIICase(markerType, "dictationstreamingopacity"_s))
+        result = DocumentMarkerType::DictationStreamingOpacity;
     else
         return false;
 
@@ -580,7 +583,7 @@ static bool markerTypesFrom(const String& markerType, OptionSet<DocumentMarkerTy
     return true;
 }
 
-static RefPtr<PrintContext>& printContextForTesting()
+static RefPtr<PrintContext>& NODELETE printContextForTesting()
 {
     static NeverDestroyed<RefPtr<PrintContext>> context;
     return context;
@@ -624,6 +627,9 @@ void Internals::resetToConsistentState(Page& page)
         page.setHeaderHeight(0);
         page.setFooterHeight(0);
         page.setObscuredContentInsets({ });
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+        page.setHasBannerViewOverlay(false);
+#endif
         mainFrameView->setUseFixedLayout(false);
         mainFrameView->setFixedLayoutSize(IntSize());
         mainFrameView->enableFixedWidthAutoSizeMode(false, { });
@@ -663,6 +669,8 @@ void Internals::resetToConsistentState(Page& page)
 #endif
     AXObjectCache::setEnhancedUserInterfaceAccessibility(false);
     AXObjectCache::disableAccessibility();
+    WebCore::setShouldMockParentSearchResultsForTesting(false);
+    WebCore::setShouldMockChildFrameSearchResultsForTesting(false);
 
     MockPageOverlayClient::singleton().uninstallAllOverlays();
 
@@ -690,6 +698,9 @@ void Internals::resetToConsistentState(Page& page)
 #endif
 
     printContextForTesting() = nullptr;
+
+    MemoryPressureHandler::singleton().endSimulatedMemoryWarning();
+    MemoryPressureHandler::singleton().endSimulatedMemoryPressure();
 
 #if ENABLE(WEB_RTC)
     auto& rtcProvider = page.webRTCProvider();
@@ -750,7 +761,6 @@ void Internals::resetToConsistentState(Page& page)
 #endif
 
 #if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
-    MediaDeviceRouteController::singleton().setClient(nullptr);
     setMockMediaDeviceRouteControllerEnabled(false);
 #endif
 }
@@ -1027,7 +1037,7 @@ bool Internals::isStyleSheetLoadingSubresources(HTMLLinkElement& link)
     return link.sheet() && link.sheet()->contents().isLoadingSubresources();
 }
 
-static ResourceRequestCachePolicy toResourceRequestCachePolicy(Internals::CachePolicy policy)
+static ResourceRequestCachePolicy NODELETE toResourceRequestCachePolicy(Internals::CachePolicy policy)
 {
     switch (policy) {
     case Internals::CachePolicy::UseProtocolCachePolicy:
@@ -1057,7 +1067,7 @@ ExceptionOr<void> Internals::setCanShowModalDialogOverride(bool allow)
     return { };
 }
 
-static ResourceLoadPriority toResourceLoadPriority(Internals::ResourceLoadPriority priority)
+static ResourceLoadPriority NODELETE toResourceLoadPriority(Internals::ResourceLoadPriority priority)
 {
     switch (priority) {
     case Internals::ResourceLoadPriority::ResourceLoadPriorityVeryLow:
@@ -1082,11 +1092,11 @@ void Internals::setOverrideResourceLoadPriority(ResourceLoadPriority priority)
 
 void Internals::setStrictRawResourceValidationPolicyDisabled(bool disabled)
 {
-    if (RefPtr localFrame = frame())
+    if (auto* localFrame = frame())
         localFrame->loader().setStrictRawResourceValidationPolicyDisabledForTesting(disabled);
 }
 
-static Internals::ResourceLoadPriority toInternalsResourceLoadPriority(ResourceLoadPriority priority)
+static Internals::ResourceLoadPriority NODELETE toInternalsResourceLoadPriority(ResourceLoadPriority priority)
 {
     switch (priority) {
     case ResourceLoadPriority::VeryLow:
@@ -2001,7 +2011,7 @@ void Internals::setEnableWebRTCEncryption(bool value)
 
 bool Internals::hasPeerConnectionEnabledServiceClass(const RTCPeerConnection& connection)
 {
-    return connection.protectedBackend()->shouldEnableServiceClass();
+    return protect(connection.backend())->shouldEnableServiceClass();
 }
 #endif // ENABLE(WEB_RTC)
 
@@ -2548,7 +2558,7 @@ void Internals::setAutofilledAndObscured(HTMLInputElement& element, bool enabled
     element.setAutofilledAndObscured(enabled);
 }
 
-static AutoFillButtonType toAutofillButtonType(Internals::AutoFillButtonType type)
+static AutoFillButtonType NODELETE toAutofillButtonType(Internals::AutoFillButtonType type)
 {
     switch (type) {
     case Internals::AutoFillButtonType::None:
@@ -2568,7 +2578,7 @@ static AutoFillButtonType toAutofillButtonType(Internals::AutoFillButtonType typ
     return AutoFillButtonType::None;
 }
 
-static Internals::AutoFillButtonType toInternalsAutofillButtonType(AutoFillButtonType type)
+static Internals::AutoFillButtonType NODELETE toInternalsAutofillButtonType(AutoFillButtonType type)
 {
     switch (type) {
     case AutoFillButtonType::None:
@@ -2910,7 +2920,7 @@ public:
     {
     }
 
-    IterationStatus operator()(StackVisitor& visitor) const
+    IterationStatus NODELETE operator()(StackVisitor& visitor) const
     {
         ++m_iterations;
         if (m_iterations < 2)
@@ -2920,7 +2930,7 @@ public:
         return IterationStatus::Done;
     }
 
-    CodeBlock* codeBlock() const { return m_codeBlock; }
+    CodeBlock* NODELETE codeBlock() const { return m_codeBlock; }
 
 private:
     mutable int m_iterations;
@@ -3035,6 +3045,11 @@ bool Internals::hasWritingToolsTextSuggestionMarker(int from, int length)
 bool Internals::hasTransparentContentMarker(int from, int length)
 {
     return hasMarkerFor(DocumentMarkerType::TransparentContent, from, length);
+}
+
+bool Internals::hasDictationStreamingOpacityMarker(int from, int length)
+{
+    return hasMarkerFor(DocumentMarkerType::DictationStreamingOpacity, from, length);
 }
 
 void Internals::setContinuousSpellCheckingEnabled(bool enabled)
@@ -3425,7 +3440,7 @@ ExceptionOr<bool> Internals::isPageBoxVisible(int pageNumber)
     return document->isPageBoxVisible(pageNumber);
 }
 
-static OptionSet<LayerTreeAsTextOptions> toLayerTreeAsTextOptions(unsigned short flags)
+static OptionSet<LayerTreeAsTextOptions> NODELETE toLayerTreeAsTextOptions(unsigned short flags)
 {
     OptionSet<LayerTreeAsTextOptions> layerTreeFlags;
     if (flags & Internals::LAYER_TREE_INCLUDES_VISIBLE_RECTS)
@@ -3540,6 +3555,15 @@ ExceptionOr<Ref<DOMRect>> Internals::verticalScrollbarFrameRect(Node* node) cons
     return DOMRect::create();
 }
 
+ExceptionOr<Ref<DOMRect>> Internals::scrollCornerRect(Node* node) const
+{
+    auto areaOrException = scrollableAreaForNode(node);
+    if (areaOrException.hasException())
+        return areaOrException.releaseException();
+
+    return DOMRect::create(areaOrException.returnValue()->scrollCornerRect());
+}
+
 ExceptionOr<Internals::ScrollingNodeID> Internals::scrollingNodeIDForNode(Node* node)
 {
     auto areaOrException = scrollableAreaForNode(node);
@@ -3561,7 +3585,7 @@ ExceptionOr<unsigned> Internals::scrollableAreaWidth(Node& node)
     return scrollableArea->contentsSize().width();
 }
 
-static OptionSet<PlatformLayerTreeAsTextFlags> toPlatformLayerTreeFlags(unsigned short flags)
+static OptionSet<PlatformLayerTreeAsTextFlags> NODELETE toPlatformLayerTreeFlags(unsigned short flags)
 {
     OptionSet<PlatformLayerTreeAsTextFlags> platformLayerTreeFlags = { };
     if (flags & Internals::PLATFORM_LAYER_TREE_DEBUG)
@@ -3834,7 +3858,7 @@ ExceptionOr<void> Internals::setElementTracksDisplayListReplay(Element& element,
     return { };
 }
 
-static OptionSet<DisplayList::AsTextFlag> toDisplayListFlags(unsigned short flags)
+static OptionSet<DisplayList::AsTextFlag> NODELETE toDisplayListFlags(unsigned short flags)
 {
     OptionSet<DisplayList::AsTextFlag> displayListFlags;
     if (flags & Internals::DISPLAY_LIST_INCLUDE_PLATFORM_OPERATIONS)
@@ -4576,6 +4600,16 @@ void Internals::forceAXObjectCacheUpdate() const
     }
 }
 
+void Internals::setShouldMockParentSearchResultsForTesting(bool enabled)
+{
+    WebCore::setShouldMockParentSearchResultsForTesting(enabled);
+}
+
+void Internals::setShouldMockChildFrameSearchResultsForTesting(bool enabled)
+{
+    WebCore::setShouldMockChildFrameSearchResultsForTesting(enabled);
+}
+
 void Internals::forceReload(bool endToEnd)
 {
     OptionSet<ReloadOption> reloadOptions;
@@ -4794,6 +4828,13 @@ double Internals::effectiveDynamicRangeLimitValue(const HTMLMediaElement& media)
 {
     return media.computePlayerDynamicRangeLimit().value();
 }
+
+#if ENABLE(FULLSCREEN_API)
+bool Internals::isChildOfElementFullscreen(const HTMLMediaElement& media) const
+{
+    return media.isChildOfElementFullscreen();
+}
+#endif
 
 #endif
 
@@ -5346,7 +5387,7 @@ bool Internals::elementIsBlockingDisplaySleep(const HTMLMediaElement& element) c
 
 bool Internals::isPlayerVisibleInViewport(const HTMLMediaElement& element) const
 {
-    RefPtr player = element.player();
+    auto* player = element.player();
     return player && player->isVisibleInViewport();
 }
 
@@ -5906,7 +5947,7 @@ void Internals::queueMicroTask(int testNumber)
 
     ScriptExecutionContext* context = document;
     auto& eventLoop = context->eventLoop();
-    eventLoop.queueMicrotask([document = Ref { *document }, testNumber]() {
+    eventLoop.queueMicrotask(document->vm(), [document = Ref { *document }, testNumber]() {
         document->addConsoleMessage(MessageSource::JS, MessageLevel::Debug, makeString("MicroTask #"_s, testNumber, " has run."_s));
     });
 }
@@ -6059,6 +6100,21 @@ float Internals::pageMediaVolume()
 
     return page->mediaVolume();
 }
+
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+void Internals::setPageHasBannerViewOverlayForTesting(bool hasBannerViewOverlay)
+{
+    RefPtr document = contextDocument();
+    if (!document)
+        return;
+
+    RefPtr page = document->page();
+    if (!page)
+        return;
+
+    page->setHasBannerViewOverlay(hasBannerViewOverlay);
+}
+#endif
 
 #if !PLATFORM(COCOA)
 
@@ -6391,7 +6447,7 @@ ExceptionOr<void> Internals::queueTaskToQueueMicrotask(Document& document, const
     ScriptExecutionContext& context = document; // This avoids unnecessarily exporting Document::eventLoop.
     context.eventLoop().queueTask(*source, [movedCallback = WTF::move(callback), protectedDocument = Ref { document }]() mutable {
         ScriptExecutionContext& context = protectedDocument.get();
-        context.eventLoop().queueMicrotask([callback = WTF::move(movedCallback)] {
+        context.eventLoop().queueMicrotask(context.vm(), [callback = WTF::move(movedCallback)] {
             callback->invoke();
         });
     });
@@ -6463,7 +6519,7 @@ void Internals::setAsRunningUserScripts(Document& document)
 }
 
 #if ENABLE(WEBGL)
-void Internals::simulateEventForWebGLContext(SimulatedWebGLContextEvent event, WebGLRenderingContext& context)
+void Internals::simulateEventForWebGLContext(SimulatedWebGLContextEvent event, WebGLRenderingContextBase& context)
 {
     WebGLRenderingContext::SimulatedEventForTesting contextEvent;
     switch (event) {
@@ -6480,7 +6536,7 @@ void Internals::simulateEventForWebGLContext(SimulatedWebGLContextEvent event, W
     context.simulateEventForTesting(contextEvent);
 }
 
-Internals::RequestedGPU Internals::requestedGPU(WebGLRenderingContext& context)
+Internals::RequestedGPU Internals::requestedGPU(WebGLRenderingContextBase& context)
 {
     switch (context.creationAttributes().powerPreference) {
     case WebGLPowerPreference::Default:
@@ -7117,8 +7173,8 @@ void Internals::reloadWithoutContentExtensions()
 
 void Internals::disableContentExtensionsChecks()
 {
-    RefPtr frame = this->frame();
-    RefPtr loader = frame ? frame->loader().documentLoader() : nullptr;
+    auto* frame = this->frame();
+    auto* loader = frame ? frame->loader().documentLoader() : nullptr;
     if (loader)
         loader->setContentExtensionEnablement({ ContentExtensionDefaultEnablement::Disabled, { } });
 }
@@ -7841,7 +7897,7 @@ constexpr ASCIILiteral string(std::partial_ordering ordering)
     return "unordered"_s;
 }
 
-constexpr TreeType convertType(Internals::TreeType type)
+constexpr TreeType NODELETE convertType(Internals::TreeType type)
 {
     switch (type) {
     case Internals::Tree:
@@ -8203,7 +8259,7 @@ void Internals::getImageBufferResourceLimits(ImageBufferResourceLimitsPromise&& 
 
 void Internals::setResourceCachingDisabledByWebInspector(bool disabled)
 {
-    RefPtr document = contextDocument();
+    auto* document = contextDocument();
     if (!document || !document->page())
         return;
 
@@ -8240,7 +8296,7 @@ void Internals::setResourceMonitorNetworkUsageThreshold(size_t threshold, double
 
 bool Internals::shouldSkipResourceMonitorThrottling() const
 {
-    if (RefPtr document = contextDocument())
+    if (auto* document = contextDocument())
         return document->shouldSkipResourceMonitorThrottling();
 
     return false;
@@ -8248,7 +8304,7 @@ bool Internals::shouldSkipResourceMonitorThrottling() const
 
 void Internals::setShouldSkipResourceMonitorThrottling(bool flag)
 {
-    if (RefPtr document = contextDocument())
+    if (auto* document = contextDocument())
         document->setShouldSkipResourceMonitorThrottling(flag);
 }
 #endif
@@ -8292,11 +8348,11 @@ RefPtr<MediaSessionManagerInterface> Internals::sessionManager() const
 
 bool Internals::hasMediaSessionManager() const
 {
-    RefPtr document = contextDocument();
+    auto* document = contextDocument();
     if (!document)
         return false;
 
-    RefPtr page = document->page();
+    auto* page = document->page();
     if (!page)
         return false;
 
@@ -8369,7 +8425,7 @@ ExceptionOr<Ref<WritableStream>> Internals::writableStreamFromMessagePort(JSDOMG
 #if ENABLE(MODEL_ELEMENT)
 void Internals::disableModelLoadDelaysForTesting()
 {
-    RefPtr document = contextDocument();
+    auto* document = contextDocument();
     if (!document || !document->page())
         return;
 

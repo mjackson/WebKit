@@ -75,7 +75,7 @@ protected:
     Authenticator();
 
     AuthenticatorObserver* observer() const { return m_observer.get(); }
-    const WebAuthenticationRequestData& requestData() const { return *m_pendingRequestData; }
+    const WebAuthenticationRequestData& requestData() const LIFETIME_BOUND { return *m_pendingRequestData; }
 
     void receiveRespond(AuthenticatorObserverRespond&&) const;
 

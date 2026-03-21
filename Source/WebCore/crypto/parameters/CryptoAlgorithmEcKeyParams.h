@@ -25,8 +25,8 @@
 
 #pragma once
 
-#include <WebCore/CryptoAlgorithmEcKeyParamsInit.h>
-#include <WebCore/CryptoAlgorithmParameters.h>
+#include "CryptoAlgorithmEcKeyParamsInit.h"
+#include "CryptoAlgorithmParameters.h"
 
 namespace WebCore {
 

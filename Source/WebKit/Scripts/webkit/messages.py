@@ -185,6 +185,7 @@ def types_that_must_be_moved():
         'WebKit::AdditionalFonts',
         'WebCore::ShareableBitmapHandle',
         'WebCore::ShareableResourceHandle',
+        'WebCore::ShareableSpatialImage',
         'WebCore::SharedMemory::Handle',
         'WebKit::SharedVideoFrame',
         'WebKit::SharedVideoFrame::Buffer',
@@ -1135,6 +1136,7 @@ def headers_for_type(type, for_implementation_file=False):
         'WallTime': ['<wtf/WallTime.h>'],
         'WebCore::AXDebugInfo': ['<WebCore/AXObjectCache.h>'],
         'WebCore::AccessibilityRemoteToken': ['<WebCore/AXObjectCache.h>'],
+        'WebCore::AccessibilitySearchCriteriaIPC': ['<WebCore/AXSearchManager.h>'],
         'WebCore::AriaNotifyData': ['<WebCore/AXObjectCache.h>'],
         'WebCore::LiveRegionAnnouncementData': ['<WebCore/AXObjectCache.h>'],
         'WebCore::AlternativeTextType': ['<WebCore/AlternativeTextClient.h>'],
@@ -1187,7 +1189,6 @@ def headers_for_type(type, for_implementation_file=False):
         'WebModel::ImageAsset': ['"ModelTypes.h"'],
         'WebModel::ImageAssetSwizzle': ['"ModelTypes.h"'],
         'WebModel::UpdateTextureDescriptor': ['"ModelTypes.h"'],
-        'WebModel::MaterialDescriptor': ['"ModelTypes.h"'],
         'WebModel::UpdateMaterialDescriptor': ['"ModelTypes.h"'],
         'WebModel::MeshPart': ['"ModelTypes.h"'],
         'WebModel::VertexAttributeFormat': ['"ModelTypes.h"'],
@@ -1224,6 +1225,7 @@ def headers_for_type(type, for_implementation_file=False):
         'WebCore::FontSmoothingMode': ['<WebCore/GraphicsTypes.h>'],
         'WebCore::FoundElementInRemoteFrame': ['<WebCore/FocusControllerTypes.h>'],
         'WebCore::FragmentedSharedBuffer': ['<WebCore/SharedBuffer.h>'],
+        'WebCore::FrameGeometry': ['<WebCore/AXObjectCache.h>'],
         'WebCore::FrameIdentifierID': ['"GeneratedSerializers.h"'],
         'WebCore::FrameLoadType': ['<WebCore/FrameLoaderTypes.h>'],
         'WebCore::FrameTreeSyncSerializationData': ['<WebCore/FrameTreeSyncData.h>'],
@@ -1399,7 +1401,6 @@ def headers_for_type(type, for_implementation_file=False):
         'WebCore::StrokeStyle': ['<WebCore/GraphicsTypes.h>'],
         'WebCore::SupportedPluginIdentifier': ['<WebCore/PluginData.h>'],
         'WebCore::SupportsAirPlayVideo': ['<WebCore/MediaSessionHelperIOS.h>'],
-        'WebCore::SupportsSpatialAudioPlayback': ['<WebCore/MediaSessionHelperIOS.h>'],
         'WebCore::SuspendedUnderLock': ['<WebCore/MediaSessionHelperIOS.h>'],
         'WebCore::SWServerConnectionIdentifier': ['<WebCore/ServiceWorkerTypes.h>'],
         'WebCore::TargetedElementAdjustment': ['<WebCore/ElementTargetingTypes.h>'],
@@ -1527,6 +1528,7 @@ def headers_for_type(type, for_implementation_file=False):
         'WebKit::LayerHostingContextID': ['"LayerHostingContext.h"'],
         'WebKit::MediaTimeUpdateData': ['"MediaPlayerPrivateRemote.h"'],
         'WebKit::MessageBatchIdentifier': ['"NetworkConnectionToWebProcess.h"'],
+        'WebKit::NetworkActivityTracker::CompletionCode': ['"NetworkActivityTracker.h"'],
         'WebKit::PageGroupIdentifier': ['"IdentifierTypes.h"'],
         'WebKit::PaymentSetupConfiguration': ['"PaymentSetupConfigurationWebKit.h"'],
         'WebKit::PaymentSetupFeatures': ['"ApplePayPaymentSetupFeaturesWebKit.h"'],
@@ -2082,7 +2084,7 @@ def generate_swift_message_handler(receiver):
         result.append('#if %s\n' % convert_enable_macros_to_swift_syntax(receiver.condition))
     if receiver.swift_receiver_build_enabled_by:
         result.append('#if ENABLE_%s\n' % (receiver.swift_receiver_build_enabled_by))
-    result.append('internal import WebKit_Internal\n')
+    result.append('import WebKit_Internal\n')
     if receiver.condition:
         result.append('#endif\n')
     if receiver.swift_receiver_build_enabled_by:
@@ -2418,7 +2420,7 @@ def generate_message_argument_description_implementation(receivers, receiver_hea
 def generate_modulemap(receiver_headers: list[str]) -> str:
     result = []
 
-    result.append('module WebKit_DerivedSources {')
+    result.append('module WebKit_DerivedSources_IPC {')
 
     all_headers = receiver_headers + ['MessageNames.h', 'GeneratedSerializers.h', 'GeneratedWebKitSecureCoding.h']
     for header in all_headers:

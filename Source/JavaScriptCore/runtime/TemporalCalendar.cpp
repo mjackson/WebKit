@@ -295,16 +295,16 @@ ISO8601::PlainDate TemporalCalendar::isoDateFromFields(JSGlobalObject* globalObj
     }
 
     if (overflow == TemporalOverflow::Constrain)
-        month = std::min<unsigned>(month, 12);
-
-    uint8_t daysInMonth = ISO8601::daysInMonth(year, month);
-    if (overflow == TemporalOverflow::Constrain)
-        day = std::min<unsigned>(day, daysInMonth);
+        month = std::min<double>(month, 12);
 
     if (!(month >= 1 && month <= 12)) [[unlikely]] {
         throwRangeError(globalObject, scope, "month is out of range"_s);
         return { };
     }
+
+    uint8_t daysInMonth = ISO8601::daysInMonth(year, month);
+    if (overflow == TemporalOverflow::Constrain)
+        day = std::min<double>(day, daysInMonth);
 
     if (!(day >= 1 && day <= daysInMonth)) [[unlikely]] {
         throwRangeError(globalObject, scope, "day is out of range"_s);

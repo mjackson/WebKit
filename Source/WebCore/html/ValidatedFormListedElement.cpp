@@ -326,7 +326,7 @@ void ValidatedFormListedElement::parseReadOnlyAttribute(const AtomString& value)
     }
 }
 
-void ValidatedFormListedElement::insertedIntoAncestor(Node::InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+void ValidatedFormListedElement::insertionSteps(Node::InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
     m_isInsideDataList = TriState::Indeterminate;
     updateWillValidateAndValidity();
@@ -336,7 +336,7 @@ void ValidatedFormListedElement::insertedIntoAncestor(Node::InsertionType insert
 
     if (!insertionType.connectedToDocument)
         resetFormOwner();
-    // Need to wait for didFinishInsertingNode to reset form when this element is inserted into a document
+    // Need to wait for postConnectionSteps to reset form when this element is inserted into a document
     // because we rely on TreeScope::getElementById to return the right element.
 }
 
@@ -354,7 +354,7 @@ void ValidatedFormListedElement::syncWithFieldsetAncestors(ContainerNode* insert
         setDisabledInternal(m_disabled, computeIsDisabledByFieldsetAncestor());
 }
 
-void ValidatedFormListedElement::removedFromAncestor(Node::RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+void ValidatedFormListedElement::removingSteps(Node::RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
     Ref element = asHTMLElement();
     bool wasMatchingInvalidPseudoClass = matchesInvalidPseudoClass();
@@ -451,7 +451,7 @@ void ValidatedFormListedElement::updateWillValidateAndValidity()
         hideVisibleValidationMessage();
 }
 
-void ValidatedFormListedElement::didFinishInsertingNode()
+void ValidatedFormListedElement::postConnectionSteps()
 {
     resetFormOwner();
 }

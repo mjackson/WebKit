@@ -1,4 +1,0 @@
-
-FAIL The revert-rule keyword can cross layers assert_true: expected true got false
-FAIL The revert-rule does not unconditionally cross layers assert_true: expected true got false
-

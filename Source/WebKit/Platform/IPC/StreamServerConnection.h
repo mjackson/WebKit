@@ -121,7 +121,7 @@ public:
     template<typename T, typename... Arguments>
     void sendAsyncReply(AsyncReplyID, Arguments&&...);
 
-    Semaphore& clientWaitSemaphore() { return m_clientWaitSemaphore; }
+    Semaphore& clientWaitSemaphore() LIFETIME_BOUND { return m_clientWaitSemaphore; }
 
 private:
     StreamServerConnection(Ref<Connection>, StreamServerConnectionBuffer&&);

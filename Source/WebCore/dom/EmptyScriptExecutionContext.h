@@ -57,7 +57,7 @@ public:
         ASSERT_NOT_REACHED();
         return m_eventLoopTaskGroup;
     }
-    const URL& url() const final { return m_url; }
+    const URL& url() const LIFETIME_BOUND final { return m_url; }
     const URL& cookieURL() const final { return url(); }
     URL completeURL(const String&, ForceUTF8 = ForceUTF8::No) const final { return { }; }
     String userAgent(const URL&) const final { return emptyString(); }
@@ -106,7 +106,7 @@ private:
     void addMessage(MessageSource, MessageLevel, const String&, const String&, unsigned, unsigned, RefPtr<Inspector::ScriptCallStack>&&, JSC::JSGlobalObject* = nullptr, unsigned long = 0) final { }
     void logExceptionToConsole(const String&, const String&, int, int, RefPtr<Inspector::ScriptCallStack>&&) final { }
 
-    const SettingsValues& settingsValues() const final { return m_settingsValues; }
+    const SettingsValues& settingsValues() const LIFETIME_BOUND final { return m_settingsValues; }
 
 #if ENABLE(NOTIFICATIONS)
     NotificationClient* notificationClient() final { return nullptr; }
@@ -119,18 +119,18 @@ private:
             return adoptRef(*new EmptyEventLoop(vm));
         }
 
-        MicrotaskQueue& microtaskQueue() final { return m_queue; }
+        MicrotaskQueue& microtaskQueue() final { return m_queue.get(); }
 
     private:
         explicit EmptyEventLoop(JSC::VM& vm)
-            : m_queue(MicrotaskQueue(vm, *this))
+            : m_queue(MicrotaskQueue::create(vm, *this))
         {
         }
 
         void scheduleToRun() final { ASSERT_NOT_REACHED(); }
         bool isContextThread() const final { return true; }
 
-        MicrotaskQueue m_queue;
+        Ref<MicrotaskQueue> m_queue;
     };
 
     const Ref<JSC::VM> m_vm;

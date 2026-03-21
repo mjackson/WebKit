@@ -49,7 +49,7 @@ public:
         return adoptRef(*new WebURLSchemeTaskProxy(handler, loader, webFrame));
     }
     
-    const WebCore::ResourceRequest& request() const { return m_request; }
+    const WebCore::ResourceRequest& request() const LIFETIME_BOUND { return m_request; }
 
     void startLoading();
     void stopLoading();

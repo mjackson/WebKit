@@ -22,6 +22,7 @@
 #pragma once
 
 #include <JavaScriptCore/Forward.h>
+#include <WebCore/ActiveDOMObject.h>
 #include <WebCore/ContainerNode.h>
 #include <WebCore/ContentSecurityPolicy.h>
 #include <WebCore/LoadableScript.h>
@@ -43,7 +44,7 @@ class Node;
 class PendingScript;
 class ScriptSourceCode;
 
-class ScriptElement {
+class ScriptElement : public ActiveDOMObject {
 public:
     virtual ~ScriptElement() = default;
 
@@ -52,7 +53,7 @@ public:
 
     bool prepareScript(const TextPosition& scriptStartPosition = TextPosition());
 
-    const AtomString& scriptCharset() const { return m_characterEncoding; }
+    const AtomString& scriptCharset() const LIFETIME_BOUND { return m_characterEncoding; }
     WEBCORE_EXPORT String scriptContent() const;
     void executeClassicScript(const ScriptSourceCode&);
     void executeModuleScript(LoadableModuleScript&);
@@ -77,16 +78,16 @@ public:
     bool readyToBeParserExecuted() const { return m_readyToBeParserExecuted; }
     bool willExecuteWhenDocumentFinishedParsing() const { return m_willExecuteWhenDocumentFinishedParsing; }
     bool willExecuteInOrder() const { return m_willExecuteInOrder; }
-    LoadableScript* loadableScript() { return m_loadableScript.get(); }
+    LoadableScript* loadableScript() const { return m_loadableScript.get(); }
 
     ScriptType scriptType() const { return m_scriptType; }
 
     JSC::SourceTaintedOrigin sourceTaintedOrigin() const { return m_taintedOrigin; }
 
-    void NODELETE ref() const;
-    void deref() const;
-
     static std::optional<ScriptType> determineScriptType(const String& typeAttribute, const String& languageAttribute, bool isHTMLDocument = true, bool speculationRulesPrefetchEnabled = false);
+
+    // ActiveDOMObject
+    bool virtualHasPendingActivity() const final;
 
 protected:
     ScriptElement(Element&, bool createdByParser, bool isEvaluated);
@@ -97,15 +98,17 @@ protected:
     bool alreadyStarted() const { return m_alreadyStarted; }
     bool forceAsync() const { return m_forceAsync; }
 
+    void setHasRelevantLoadEventsListener(bool hasListener) { m_hasRelevantLoadEventsListener = hasListener; }
+
     // Helper functions used by our parent classes.
-    Node::InsertedIntoAncestorResult insertedIntoAncestor(Node::InsertionType insertionType, ContainerNode&) const
+    Node::NeedsPostConnectionSteps insertionSteps(Node::InsertionType insertionType, ContainerNode&) const
     {
         if (insertionType.connectedToDocument && m_parserInserted == ParserInserted::No)
-            return Node::InsertedIntoAncestorResult::NeedsPostInsertionCallback;
-        return Node::InsertedIntoAncestorResult::Done;
+            return Node::NeedsPostConnectionSteps::Yes;
+        return Node::NeedsPostConnectionSteps::No;
     }
 
-    void didFinishInsertingNode();
+    void postConnectionSteps();
     void childrenChanged(const ContainerNode::ChildChange&);
     void finishParsingChildren();
     void handleSourceAttribute(const String& sourceURL);
@@ -151,6 +154,7 @@ private:
     bool m_forceAsync : 1;
     bool m_willExecuteInOrder : 1 { false };
     bool m_childrenChangedByAPI : 1 { false };
+    bool m_hasRelevantLoadEventsListener : 1 { false };
     ScriptType m_scriptType : bitWidthOfScriptType { ScriptType::Classic };
     AtomString m_characterEncoding;
     AtomString m_fallbackCharacterEncoding;

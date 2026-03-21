@@ -106,7 +106,7 @@ struct WEBCORE_EXPORT ModifyHeadersAction {
         friend bool operator==(const ModifyHeaderInfo&, const ModifyHeaderInfo&) = default;
         void serialize(Vector<uint8_t>&) const;
         static ModifyHeaderInfo deserialize(std::span<const uint8_t>);
-        static size_t serializedLength(std::span<const uint8_t>);
+        static size_t NODELETE serializedLength(std::span<const uint8_t>);
         void applyToRequest(ResourceRequest&, HashMap<String, ModifyHeadersOperationType>&);
     };
 
@@ -126,6 +126,7 @@ struct WEBCORE_EXPORT ModifyHeadersAction {
     ModifyHeadersAction(EmptyValueTag) : hashTableType(HashTableType::Empty) { }
     ModifyHeadersAction(DeletedValueTag) : hashTableType(HashTableType::Deleted) { }
     bool isDeletedValue() const { return hashTableType == HashTableType::Deleted; }
+    bool isEmptyValue() const { return hashTableType == HashTableType::Empty; }
     static constexpr bool safeToCompareToHashTableEmptyOrDeletedValue = true;
 
     static Expected<ModifyHeadersAction, std::error_code> parse(const JSON::Object&);
@@ -134,7 +135,7 @@ struct WEBCORE_EXPORT ModifyHeadersAction {
     friend bool operator==(const ModifyHeadersAction&, const ModifyHeadersAction&) = default;
     void serialize(Vector<uint8_t>&) const;
     static ModifyHeadersAction deserialize(std::span<const uint8_t>);
-    static size_t serializedLength(std::span<const uint8_t>);
+    static size_t NODELETE serializedLength(std::span<const uint8_t>);
     void applyToRequest(ResourceRequest&, HashMap<String, ModifyHeadersOperationType>&);
 };
 
@@ -170,7 +171,7 @@ struct WEBCORE_EXPORT RedirectAction {
                 friend bool operator==(const QueryKeyValue&, const QueryKeyValue&) = default;
                 void serialize(Vector<uint8_t>&) const;
                 static QueryKeyValue deserialize(std::span<const uint8_t>);
-                static size_t serializedLength(std::span<const uint8_t>);
+                static size_t NODELETE serializedLength(std::span<const uint8_t>);
             };
 
             Vector<QueryKeyValue> addOrReplaceParams;
@@ -182,7 +183,7 @@ struct WEBCORE_EXPORT RedirectAction {
             friend bool operator==(const QueryTransform&, const QueryTransform&) = default;
             void serialize(Vector<uint8_t>&) const;
             static QueryTransform deserialize(std::span<const uint8_t>);
-            static size_t serializedLength(std::span<const uint8_t>);
+            static size_t NODELETE serializedLength(std::span<const uint8_t>);
             void applyToURL(URL&) const;
         };
 
@@ -202,7 +203,7 @@ struct WEBCORE_EXPORT RedirectAction {
         friend bool operator==(const URLTransformAction&, const URLTransformAction&) = default;
         void serialize(Vector<uint8_t>&) const;
         static URLTransformAction deserialize(std::span<const uint8_t>);
-        static size_t serializedLength(std::span<const uint8_t>);
+        static size_t NODELETE serializedLength(std::span<const uint8_t>);
         void applyToURL(URL&) const;
     };
     struct URLAction {
@@ -226,6 +227,7 @@ struct WEBCORE_EXPORT RedirectAction {
     RedirectAction(EmptyValueTag) : hashTableType(HashTableType::Empty) { }
     RedirectAction(DeletedValueTag) : hashTableType(HashTableType::Deleted) { }
     bool isDeletedValue() const { return hashTableType == HashTableType::Deleted; }
+    bool isEmptyValue() const { return hashTableType == HashTableType::Empty; }
     static constexpr bool safeToCompareToHashTableEmptyOrDeletedValue = true;
 
     static Expected<RedirectAction, std::error_code> parse(const JSON::Object&, const String& urlFilter);
@@ -234,7 +236,7 @@ struct WEBCORE_EXPORT RedirectAction {
     friend bool operator==(const RedirectAction&, const RedirectAction&) = default;
     void serialize(Vector<uint8_t>&) const;
     static RedirectAction deserialize(std::span<const uint8_t>);
-    static size_t serializedLength(std::span<const uint8_t>);
+    static size_t NODELETE serializedLength(std::span<const uint8_t>);
     void applyToRequest(ResourceRequest&, const URL&);
     void modifyURL(URL& originalURL, const URL& extensionBaseURL);
 };

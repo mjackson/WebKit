@@ -68,7 +68,7 @@ public:
     void setState(State state) { m_state = state; }
     bool isActivatingOrActive() const;
 
-    const URL& webPageURL() const { return m_webPageURL; }
+    const URL& webPageURL() const LIFETIME_BOUND { return m_webPageURL; }
 
     // ExtensionCapability
     String environmentIdentifier() const final;

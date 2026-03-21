@@ -155,6 +155,8 @@ public:
 private:
     ModelProcessModelPlayerProxy(ModelProcessModelPlayerManagerProxy&, WebCore::ModelPlayerIdentifier, Ref<IPC::Connection>&&, const std::optional<String>&, std::optional<int> debugEntityMemoryLimit);
 
+    RESRT modelStandardizedTransformSRT(RESRT originalSRT);
+    RESRT modelLocalizedTransformSRT(RESRT originalSRT);
     void computeTransform(bool);
     void updateTransform();
     void applyEnvironmentMapDataAndRelease(CompletionHandler<void()>&&);

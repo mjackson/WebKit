@@ -32,6 +32,7 @@
 #include "ExceptionHelpers.h"
 #include "JSFunctionWithFields.h"
 #include "JSObjectInlines.h"
+#include "JSPIContextInlines.h"
 #include "JSPromise.h"
 
 namespace JSC {
@@ -78,7 +79,7 @@ JSC_DEFINE_HOST_FUNCTION(runWebAssemblyPromisingFunction, (JSGlobalObject* globa
         resultPromise->reject(vm, globalObject, exceptionValue);
     } else if (!context.completion) [[likely]] {
         // The call returned without suspending, result is the returned value
-        resultPromise->resolve(globalObject, result);
+        resultPromise->resolve(globalObject, vm, result);
     }
     // If neither of the the above conditions are true, the call was suspended
     // and all the promises involved are fully hooked up to do the right thing.

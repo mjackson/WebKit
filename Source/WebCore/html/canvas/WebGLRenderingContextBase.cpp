@@ -773,7 +773,7 @@ RefPtr<ImageBuffer> WebGLRenderingContextBase::surfaceBufferToImageBuffer(Surfac
     RefPtr scriptExecutionContext = this->scriptExecutionContext();
     if (!scriptExecutionContext)
         return nullptr;
-    auto size = m_defaultFramebuffer->size();
+    auto size = clampedCanvasSize();
     if (size.isEmpty())
         return nullptr;
     RefPtr<ImageBuffer> buffer;
@@ -814,7 +814,7 @@ RefPtr<ByteArrayPixelBuffer> WebGLRenderingContextBase::drawingBufferToPixelBuff
     if (m_attributes.premultipliedAlpha)
         return nullptr;
     clearIfComposited(CallerTypeOther);
-    auto size = m_defaultFramebuffer->size();
+    auto size = clampedCanvasSize();
     if (size.isEmpty())
         return nullptr;
     PixelBufferFormat format { AlphaPremultiplication::Unpremultiplied, PixelFormat::RGBA8, DestinationColorSpace::SRGB() };
@@ -859,10 +859,12 @@ RefPtr<VideoFrame> WebGLRenderingContextBase::surfaceBufferToVideoFrame(SurfaceB
 
 RefPtr<ImageBuffer> WebGLRenderingContextBase::transferToImageBuffer()
 {
+    if (isContextLost())
+        return nullptr;
     RefPtr scriptExecutionContext = this->scriptExecutionContext();
     if (!scriptExecutionContext)
         return nullptr;
-    const auto size = m_defaultFramebuffer->size();
+    auto size = clampedCanvasSize();
     if (size.isEmpty())
         return nullptr;
     RefPtr buffer = createImageBufferForWebGLContextReads(size, *scriptExecutionContext);
@@ -882,8 +884,12 @@ RefPtr<ImageBuffer> WebGLRenderingContextBase::transferToImageBuffer()
 
 void WebGLRenderingContextBase::didUpdateCanvasSizeProperties(bool)
 {
-    if (isContextLost())
+    if (isContextLost()) {
+        m_readDrawingBuffer = nullptr;
+        m_readDisplayBuffer = nullptr;
+        updateMemoryCost();
         return;
+    }
 
     auto newSize = clampedCanvasSize();
     if (newSize == m_defaultFramebuffer->size())
@@ -891,6 +897,7 @@ void WebGLRenderingContextBase::didUpdateCanvasSizeProperties(bool)
 
     m_readDrawingBuffer = nullptr;
     m_readDisplayBuffer = nullptr;
+
     m_defaultFramebuffer->reshape(newSize);
     updateMemoryCost();
 
@@ -1144,35 +1151,35 @@ void WebGLRenderingContextBase::blendColor(GCGLfloat red, GCGLfloat green, GCGLf
 {
     if (isContextLost())
         return;
-    graphicsContextGL()->blendColor(red, green, blue, alpha);
+    protect(graphicsContextGL())->blendColor(red, green, blue, alpha);
 }
 
 void WebGLRenderingContextBase::blendEquation(GCGLenum mode)
 {
     if (isContextLost())
         return;
-    graphicsContextGL()->blendEquation(mode);
+    protect(graphicsContextGL())->blendEquation(mode);
 }
 
 void WebGLRenderingContextBase::blendEquationSeparate(GCGLenum modeRGB, GCGLenum modeAlpha)
 {
     if (isContextLost())
         return;
-    graphicsContextGL()->blendEquationSeparate(modeRGB, modeAlpha);
+    protect(graphicsContextGL())->blendEquationSeparate(modeRGB, modeAlpha);
 }
 
 void WebGLRenderingContextBase::blendFunc(GCGLenum sfactor, GCGLenum dfactor)
 {
     if (isContextLost())
         return;
-    graphicsContextGL()->blendFunc(sfactor, dfactor);
+    protect(graphicsContextGL())->blendFunc(sfactor, dfactor);
 }
 
 void WebGLRenderingContextBase::blendFuncSeparate(GCGLenum srcRGB, GCGLenum dstRGB, GCGLenum srcAlpha, GCGLenum dstAlpha)
 {
     if (isContextLost())
         return;
-    graphicsContextGL()->blendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
+    protect(graphicsContextGL())->blendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
 }
 
 void WebGLRenderingContextBase::bufferData(GCGLenum target, long long size, GCGLenum usage)
@@ -1363,54 +1370,53 @@ void WebGLRenderingContextBase::copyTexSubImage2D(GCGLenum target, GCGLint level
     graphicsContextGL()->copyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
 }
 
-RefPtr<WebGLBuffer> WebGLRenderingContextBase::createBuffer()
+Ref<WebGLBuffer> WebGLRenderingContextBase::createBuffer()
 {
     if (isContextLost())
-        return nullptr;
+        return WebGLBuffer::createLost();
     return WebGLBuffer::create(*this);
 }
 
-RefPtr<WebGLFramebuffer> WebGLRenderingContextBase::createFramebuffer()
+Ref<WebGLFramebuffer> WebGLRenderingContextBase::createFramebuffer()
 {
     if (isContextLost())
-        return nullptr;
+        return WebGLFramebuffer::createLost();
     return WebGLFramebuffer::create(*this);
 }
 
-RefPtr<WebGLTexture> WebGLRenderingContextBase::createTexture()
+Ref<WebGLTexture> WebGLRenderingContextBase::createTexture()
 {
     if (isContextLost())
-        return nullptr;
+        return WebGLTexture::createLost();
     return WebGLTexture::create(*this);
 }
 
-RefPtr<WebGLProgram> WebGLRenderingContextBase::createProgram()
+Ref<WebGLProgram> WebGLRenderingContextBase::createProgram()
 {
-    if (isContextLost())
-        return nullptr;
-    auto program = WebGLProgram::create(*this);
-    if (!program)
-        return nullptr;
-    InspectorInstrumentation::didCreateWebGLProgram(*this, *program);
+    Ref program = [&]() {
+        if (isContextLost())
+            return WebGLProgram::createLost(*this);
+        return WebGLProgram::create(*this);
+    }();
+    InspectorInstrumentation::didCreateWebGLProgram(*this, program);
     return program;
 }
 
-RefPtr<WebGLRenderbuffer> WebGLRenderingContextBase::createRenderbuffer()
+Ref<WebGLRenderbuffer> WebGLRenderingContextBase::createRenderbuffer()
 {
     if (isContextLost())
-        return nullptr;
+        return WebGLRenderbuffer::createLost();
     return WebGLRenderbuffer::create(*this);
 }
 
 RefPtr<WebGLShader> WebGLRenderingContextBase::createShader(GCGLenum type)
 {
-    if (isContextLost())
-        return nullptr;
     if (type != GraphicsContextGL::VERTEX_SHADER && type != GraphicsContextGL::FRAGMENT_SHADER) {
         synthesizeGLError(GraphicsContextGL::INVALID_ENUM, "createShader"_s, "invalid shader type"_s);
         return nullptr;
     }
-
+    if (isContextLost())
+        return WebGLShader::createLost(type);
     return WebGLShader::create(*this, type);
 }
 
@@ -1418,7 +1424,7 @@ void WebGLRenderingContextBase::cullFace(GCGLenum mode)
 {
     if (isContextLost())
         return;
-    graphicsContextGL()->cullFace(mode);
+    protect(graphicsContextGL())->cullFace(mode);
 }
 
 bool WebGLRenderingContextBase::deleteObject(const AbstractLocker& locker, WebGLObject* object)
@@ -1434,7 +1440,7 @@ bool WebGLRenderingContextBase::deleteObject(const AbstractLocker& locker, WebGL
     if (object->object())
         // We need to pass in context here because we want
         // things in this context unbound.
-        object->deleteObject(locker, graphicsContextGL().get());
+        object->deleteObject(locker, protect(graphicsContextGL()));
     return true;
 }
 
@@ -1577,8 +1583,9 @@ void WebGLRenderingContextBase::detachShader(WebGLProgram& program, WebGLShader&
         synthesizeGLError(GraphicsContextGL::INVALID_OPERATION, "detachShader"_s, "shader not attached"_s);
         return;
     }
-    graphicsContextGL()->detachShader(program.object(), shader.object());
-    shader.onDetached(locker, graphicsContextGL().get());
+    RefPtr graphicsContextGL = this->graphicsContextGL();
+    graphicsContextGL->detachShader(program.object(), shader.object());
+    shader.onDetached(locker, graphicsContextGL);
 }
 
 void WebGLRenderingContextBase::disable(GCGLenum cap)
@@ -1589,7 +1596,7 @@ void WebGLRenderingContextBase::disable(GCGLenum cap)
         m_scissorEnabled = false;
     if (cap == GraphicsContextGL::RASTERIZER_DISCARD)
         m_rasterizerDiscardEnabled = false;
-    graphicsContextGL()->disable(cap);
+    protect(graphicsContextGL())->disable(cap);
 }
 
 void WebGLRenderingContextBase::disableVertexAttribArray(GCGLuint index)
@@ -1627,7 +1634,7 @@ void WebGLRenderingContextBase::drawArrays(GCGLenum mode, GCGLint first, GCGLsiz
 
     {
         ScopedInspectorShaderProgramHighlight scopedHighlight { *this };
-        graphicsContextGL()->drawArrays(mode, first, count);
+        protect(graphicsContextGL())->drawArrays(mode, first, count);
     }
 
     markContextChangedAndNotifyCanvasObserver();
@@ -1647,7 +1654,7 @@ void WebGLRenderingContextBase::drawElements(GCGLenum mode, GCGLsizei count, GCG
 
     {
         ScopedInspectorShaderProgramHighlight scopedHighlight { *this };
-        graphicsContextGL()->drawElements(mode, count, type, static_cast<GCGLintptr>(offset));
+        protect(graphicsContextGL())->drawElements(mode, count, type, static_cast<GCGLintptr>(offset));
     }
     markContextChangedAndNotifyCanvasObserver();
 }
@@ -1660,7 +1667,7 @@ void WebGLRenderingContextBase::enable(GCGLenum cap)
         m_scissorEnabled = true;
     if (cap == GraphicsContextGL::RASTERIZER_DISCARD)
         m_rasterizerDiscardEnabled = true;
-    graphicsContextGL()->enable(cap);
+    protect(graphicsContextGL())->enable(cap);
 }
 
 void WebGLRenderingContextBase::enableVertexAttribArray(GCGLuint index)
@@ -1795,7 +1802,7 @@ RefPtr<WebGLActiveInfo> WebGLRenderingContextBase::getActiveUniform(WebGLProgram
         return nullptr;
     }
     auto& info = activeUniforms[index];
-    return WebGLActiveInfo::create(String::fromUTF8(info.name.span()), info.type, info.locations.size());
+    return WebGLActiveInfo::create(String::fromUTF8(info.name.span()), info.type, info.size);
 }
 
 std::optional<Vector<Ref<WebGLShader>>> WebGLRenderingContextBase::getAttachedShaders(WebGLProgram& program)
@@ -2658,7 +2665,8 @@ WebGLAny WebGLRenderingContextBase::getVertexAttrib(GCGLuint index, GCGLenum pna
         return nullptr;
     }
 
-    const WebGLVertexArrayObjectBase::VertexAttribState& state = protect(m_boundVertexArrayObject)->getVertexAttribState(index);
+    RefPtr boundVertexArrayObject = *m_boundVertexArrayObject;
+    const WebGLVertexArrayObjectBase::VertexAttribState& state = boundVertexArrayObject->getVertexAttribState(index);
 
     if ((isWebGL2() || m_angleInstancedArrays) && pname == GraphicsContextGL::VERTEX_ATTRIB_ARRAY_DIVISOR_ANGLE)
         return state.divisor;
@@ -4506,10 +4514,11 @@ void WebGLRenderingContextBase::useProgram(WebGLProgram* program)
     }
 
     if (m_currentProgram != program) {
+        RefPtr graphicsContextGL = this->graphicsContextGL();
         if (RefPtr currentProgram = m_currentProgram)
-            currentProgram->onDetached(locker, graphicsContextGL().get());
+            currentProgram->onDetached(locker, graphicsContextGL);
         m_currentProgram = program;
-        graphicsContextGL()->useProgram(objectOrZero(program));
+        graphicsContextGL->useProgram(objectOrZero(program));
         if (program)
             program->onAttached();
     }
@@ -4744,12 +4753,12 @@ float WebGLRenderingContextBase::getFloatParameter(GCGLenum pname)
 
 int WebGLRenderingContextBase::getIntParameter(GCGLenum pname)
 {
-    return graphicsContextGL()->getInteger(pname);
+    return protect(graphicsContextGL())->getInteger(pname);
 }
 
 unsigned WebGLRenderingContextBase::getUnsignedIntParameter(GCGLenum pname)
 {
-    return graphicsContextGL()->getInteger(pname);
+    return protect(graphicsContextGL())->getInteger(pname);
 }
 
 RefPtr<Float32Array> WebGLRenderingContextBase::getWebGLFloatArrayParameter(GCGLenum pname)
@@ -5377,7 +5386,7 @@ GCGLint WebGLRenderingContextBase::maxColorAttachments()
     if (!supportsDrawBuffers())
         return 0;
     if (!m_maxColorAttachments)
-        m_maxColorAttachments = graphicsContextGL()->getInteger(GraphicsContextGL::MAX_COLOR_ATTACHMENTS_EXT);
+        m_maxColorAttachments = protect(graphicsContextGL())->getInteger(GraphicsContextGL::MAX_COLOR_ATTACHMENTS_EXT);
     return m_maxColorAttachments;
 }
 
@@ -5393,10 +5402,6 @@ void WebGLRenderingContextBase::setFramebuffer(const AbstractLocker&, GCGLenum t
         m_framebufferBinding = buffer;
     auto fbo = buffer ? buffer->object() : m_defaultFramebuffer->object();
     graphicsContextGL()->bindFramebuffer(target, fbo);
-
-    // Apply deferred draw buffer state when binding for drawing.
-    if (buffer && (target == GraphicsContextGL::FRAMEBUFFER || target == GraphicsContextGL::DRAW_FRAMEBUFFER))
-        buffer->applyFilteredDrawBuffers();
 }
 
 bool WebGLRenderingContextBase::supportsDrawBuffers()
@@ -5423,7 +5428,7 @@ void WebGLRenderingContextBase::drawArraysInstanced(GCGLenum mode, GCGLint first
 
     {
         ScopedInspectorShaderProgramHighlight scopedHighlight { *this };
-        graphicsContextGL()->drawArraysInstanced(mode, first, count, primcount);
+        protect(graphicsContextGL())->drawArraysInstanced(mode, first, count, primcount);
     }
 
     markContextChangedAndNotifyCanvasObserver();
@@ -5444,7 +5449,7 @@ void WebGLRenderingContextBase::drawElementsInstanced(GCGLenum mode, GCGLsizei c
 
     {
         ScopedInspectorShaderProgramHighlight scopedHighlight { *this };
-        graphicsContextGL()->drawElementsInstanced(mode, count, type, static_cast<GCGLintptr>(offset), primcount);
+        protect(graphicsContextGL())->drawElementsInstanced(mode, count, type, static_cast<GCGLintptr>(offset), primcount);
     }
 
     markContextChangedAndNotifyCanvasObserver();
@@ -5685,17 +5690,19 @@ void WebGLRenderingContextBase::updateMemoryCost() const
     // Computes only a rough ballpark figure to drive garbage collection.
     size_t newMemoryCost = 0;
     if (m_readDisplayBuffer)
-        newMemoryCost += Ref { *m_readDisplayBuffer }->memoryCost();
+        newMemoryCost += m_readDisplayBuffer->memoryCost();
     if (m_readDrawingBuffer)
-        newMemoryCost += Ref { *m_readDrawingBuffer }->memoryCost();
-    size_t area = m_defaultFramebuffer->size().unclampedArea();
-    size_t bytesPerSample = 4;
-    if (m_attributes.depth)
-        bytesPerSample += 4;
-    else if (m_attributes.stencil)
-        bytesPerSample += 1;
-    size_t samplesPerPixel = m_attributes.antialias ? 4 : 1;
-    newMemoryCost += area * samplesPerPixel * bytesPerSample;
+        newMemoryCost += m_readDrawingBuffer->memoryCost();
+    if (!isContextLost()) {
+        size_t area = m_defaultFramebuffer->size().unclampedArea();
+        size_t bytesPerSample = 4;
+        if (m_attributes.depth)
+            bytesPerSample += 4;
+        else if (m_attributes.stencil)
+            bytesPerSample += 1;
+        size_t samplesPerPixel = m_attributes.antialias ? 4 : 1;
+        newMemoryCost += area * samplesPerPixel * bytesPerSample;
+    }
     CanvasRenderingContext::updateMemoryCost(newMemoryCost);
 }
 

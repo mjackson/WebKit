@@ -752,69 +752,6 @@
     "imported/w3c/web-platform-tests/IndexedDB/database-names-by-origin.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/IndexedDB/idb-binary-key-roundtrip.htm": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/idbcursor-continuePrimaryKey-exception-order.htm": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/idbdatabase_createObjectStore10-1000ends.htm": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/idbdatabase_createObjectStore8-parameters.htm": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/idbindex-multientry-big.htm": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/idbindex-rename.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/idbobjectstore-rename-store.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/interleaved-cursors-large.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/interleaved-cursors-small.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/key-conversion-exceptions.htm": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/key_valid.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/keypath_maxsize.htm": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/large-requests-abort.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/nested-cloning-basic.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/nested-cloning-large-multiple.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/nested-cloning-large.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/nested-cloning-small.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/parallel-cursors-upgrade.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/request-abort-ordering.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/request-event-ordering.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/IndexedDB/writer-starvation.htm": [
-        "slow"
-    ],
     "imported/w3c/web-platform-tests/XMLHttpRequest/progress-events-response-data-gzip.htm": [
         "slow"
     ],
@@ -2024,6 +1961,9 @@
     "imported/w3c/web-platform-tests/css/css-writing-modes/forms/select-multiple-options-visual-order.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/css/cssom-view/element-scroll-promises.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/css/cssom-view/idlharness.html": [
         "slow"
     ],
@@ -2058,6 +1998,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/css/cssom-view/scroll-behavior-subframe-window.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/css/cssom-view/window-scroll-promises.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/css/cssom/idlharness.html": [
@@ -2136,6 +2079,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/dom/nodes/ParentNode-querySelector-All.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/dom/nodes/name-validation.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/dom/ranges/Range-attributes.html": [
@@ -2232,6 +2178,102 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/editing/crashtests/insertparagraph-in-listitem-in-svg-followed-by-collapsible-spaces.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/cloning-attributes-at-splitting-element.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/copy-paste-in-styled-inline-editing-host.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/delete-in-child-of-head.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/delete-in-child-of-html.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/delete-in-last-definition-list-item-when-parent-list-is-editing-host.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/delete-in-last-list-item-when-parent-list-is-editing-host.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/delete-without-unwrapping-first-line-of-child-block.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/editing-around-select-element.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/formatblock-preserving-selection.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/indent-preserving-selection.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/input-in-text-control-which-is-also-editing-host.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/insert-list-preserving-selection.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/insert-paragraph-in-void-element.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/insert-text-in-void-element.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/inserthtml-do-not-preserve-inline-styles.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/insertlinebreak-with-white-space-style.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/insertparagraph-in-child-of-head.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/insertparagraph-in-child-of-html.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/insertparagraph-in-editing-host-cannot-have-div.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/insertparagraph-in-inline-editing-host.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/insertparagraph-in-non-splittable-element.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/insertparagraph-with-white-space-style.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/join-different-white-space-style-left-line-and-right-paragraph.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/join-different-white-space-style-left-paragraph-and-right-line.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/join-different-white-space-style-paragraphs.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/justify-preserving-selection.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/keeping-attributes-at-joining-elements.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/outdent-preserving-selection.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/typing-around-link-element-after-joining-paragraphs.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/typing-around-link-element-at-collapsed-selection.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/typing-around-link-element-at-non-collapsed-selection.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/other/undo-insertparagraph-after-moving-split-nodes.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/editing/run/backcolor.html": [
@@ -3098,6 +3140,9 @@
     "imported/w3c/web-platform-tests/focus/activeelement-after-calling-window-focus.sub.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/geolocation/enabled-by-permission-policy-attribute-redirect-on-load.https.sub.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/html/browsers/browsing-the-web/back-forward-cache/eligibility/dedicated-worker.html": [
         "slow"
     ],
@@ -3956,6 +4001,9 @@
     "imported/w3c/web-platform-tests/html/semantics/forms/the-input-element/show-picker-user-gesture.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select-listbox/select-listbox-home-end-pagedown-pageup.optional.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-dialog-mode-focus.optional.html": [
         "slow"
     ],
@@ -4310,6 +4358,9 @@
     "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/fullscreen-behavior.tentative.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/invalid-element-types.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-audio-behavior.tentative.html": [
         "slow"
     ],
@@ -4320,9 +4371,6 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-details-invalid-behavior.tentative.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-dialog-behavior-request-close.tentative.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-dialog-behavior.html": [
@@ -4341,6 +4389,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-popover-invalid-behavior.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-scroll-behavior.tentative.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-video-behavior.tentative.html": [
@@ -5280,6 +5331,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/payment-request/payment-is-showing.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/payment-request/payment-request-constructor-thcrash.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/picture-in-picture/leave-picture-in-picture.html": [
@@ -6732,6 +6786,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-ondatachannel.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-onicecandidateerror.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-perfect-negotiation-stress-glare-linear.https.html": [

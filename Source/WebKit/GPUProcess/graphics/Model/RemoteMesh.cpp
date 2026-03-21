@@ -79,9 +79,10 @@ void RemoteMesh::setLabel(String&& label)
     m_backing->setLabel(WTF::move(label));
 }
 
-void RemoteMesh::update(const WebModel::UpdateMeshDescriptor& descriptor)
+void RemoteMesh::update(const WebModel::UpdateMeshDescriptor& descriptor, CompletionHandler<void(bool)>&& completionHandler)
 {
     m_backing->update(descriptor);
+    completionHandler(true);
 }
 
 void RemoteMesh::render()
@@ -89,14 +90,16 @@ void RemoteMesh::render()
     m_backing->render();
 }
 
-void RemoteMesh::updateTexture(const WebModel::UpdateTextureDescriptor& descriptor)
+void RemoteMesh::updateTexture(const WebModel::UpdateTextureDescriptor& descriptor, CompletionHandler<void(bool)>&& completionHandler)
 {
     m_backing->updateTexture(descriptor);
+    completionHandler(true);
 }
 
-void RemoteMesh::updateMaterial(const WebModel::UpdateMaterialDescriptor& descriptor)
+void RemoteMesh::updateMaterial(const WebModel::UpdateMaterialDescriptor& descriptor, CompletionHandler<void(bool)>&& completionHandler)
 {
     m_backing->updateMaterial(descriptor);
+    completionHandler(true);
 }
 
 void RemoteMesh::updateTransform(const WebModel::Float4x4& transform)
@@ -109,6 +112,11 @@ void RemoteMesh::setCameraDistance(float distance)
     m_backing->setCameraDistance(distance);
 }
 
+void RemoteMesh::setBackgroundColor(const WebModel::Float3& color)
+{
+    m_backing->setBackgroundColor(color);
+}
+
 void RemoteMesh::play(bool playing)
 {
     m_backing->play(playing);
@@ -117,6 +125,20 @@ void RemoteMesh::play(bool playing)
 void RemoteMesh::setEnvironmentMap(const WebModel::ImageAsset& imageAsset)
 {
     m_backing->setEnvironmentMap(imageAsset);
+}
+
+void RemoteMesh::updateRenderBuffers(unsigned width, unsigned height, CompletionHandler<void(Vector<MachSendRight>&&)>&& completionHandler)
+{
+    auto gpuProcessConnection = m_gpuConnectionToWebProcess.get();
+    if (!gpuProcessConnection) {
+        completionHandler({ });
+        return;
+    }
+
+    auto renderBuffers = RemoteGPU::createRenderBuffers(width, height, gpuProcessConnection->webProcessIdentity());
+    WebModel::ResizeMeshDescriptor descriptor { width, height, WTF::move(renderBuffers) };
+    m_backing->updateRenderBuffers(WTF::move(descriptor));
+    completionHandler(m_backing->ioSurfaceHandles());
 }
 
 } // namespace WebKit

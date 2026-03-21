@@ -77,7 +77,7 @@ public:
     void deref() const final { API::ObjectImpl<API::Object::Type::Download>::deref(); }
 
     DownloadID downloadID() const { return m_downloadID; }
-    const WebCore::ResourceRequest& request() const { return m_request; }
+    const WebCore::ResourceRequest& request() const LIFETIME_BOUND { return m_request; }
     API::Data* legacyResumeData() const { return m_legacyResumeData.get(); }
 
     void cancel(CompletionHandler<void(API::Data*)>&&);
@@ -91,12 +91,12 @@ public:
     WebPageProxy* NODELETE originatingPage() const;
 
     void setRedirectChain(Vector<URL>&& redirectChain) { m_redirectChain = WTF::move(redirectChain); }
-    const Vector<URL>& redirectChain() const { return m_redirectChain; }
+    const Vector<URL>& redirectChain() const LIFETIME_BOUND { return m_redirectChain; }
 
     void setWasUserInitiated(bool value) { m_wasUserInitiated = value; }
     bool wasUserInitiated() const { return m_wasUserInitiated; }
 
-    const String& destinationFilename() const { return m_destinationFilename; }
+    const String& destinationFilename() const LIFETIME_BOUND { return m_destinationFilename; }
     void setDestinationFilename(const String& d) { m_destinationFilename = d; }
 
 #if PLATFORM(COCOA)

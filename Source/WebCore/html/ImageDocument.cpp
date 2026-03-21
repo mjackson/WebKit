@@ -96,7 +96,6 @@ private:
     }
 
     ImageDocument& document() const;
-    Ref<ImageDocument> protectedDocument() const;
 
     void appendBytes(DocumentWriter&, std::span<const uint8_t>) override;
     void finish() override;
@@ -139,10 +138,10 @@ HTMLImageElement* ImageDocument::imageElement() const
 
 LayoutSize ImageDocument::imageSize()
 {
-    RefPtr imageElement = m_imageElement.get();
+    RefPtr imageElement = m_imageElement;
     ASSERT(imageElement);
     updateStyleIfNeeded();
-    CachedResourceHandle cachedImage = imageElement->cachedImage();
+    RefPtr cachedImage = imageElement->cachedImage();
     if (!cachedImage)
         return { };
     return cachedImage->imageSizeForRenderer(protect(imageElement->renderer()).get(), frame() ? frame()->pageZoomFactor() : 1);
@@ -160,7 +159,7 @@ void ImageDocument::updateDuringParsing()
         return;
 
     if (RefPtr buffer = protect(loader())->mainResourceData()) {
-        if (CachedResourceHandle cachedImage = Ref { *m_imageElement }->cachedImage())
+        if (RefPtr cachedImage = m_imageElement->cachedImage())
             cachedImage->updateBuffer(*buffer);
     }
 
@@ -174,8 +173,8 @@ void ImageDocument::finishedParsing()
         return;
     }
 
-    if (RefPtr imageElement = m_imageElement.get(); imageElement && imageElement->cachedImage()) {
-        CachedResourceHandle cachedImage = *imageElement->cachedImage();
+    if (RefPtr imageElement = m_imageElement; imageElement && imageElement->cachedImage()) {
+        RefPtr cachedImage = *imageElement->cachedImage();
         Ref loader = *this->loader();
         RefPtr data = loader->mainResourceData();
 
@@ -213,19 +212,14 @@ inline ImageDocument& NODELETE ImageDocumentParser::document() const
     return downcast<ImageDocument>(*RawDataDocumentParser::document());
 }
 
-inline Ref<ImageDocument> NODELETE ImageDocumentParser::protectedDocument() const
-{
-    return document();
-}
-
 void ImageDocumentParser::appendBytes(DocumentWriter&, std::span<const uint8_t>)
 {
-    protectedDocument()->updateDuringParsing();
+    protect(document())->updateDuringParsing();
 }
 
 void ImageDocumentParser::finish()
 {
-    protectedDocument()->finishedParsing();
+    protect(document())->finishedParsing();
 }
 
 ImageDocument::ImageDocument(LocalFrame& frame, const URL& url)
@@ -273,7 +267,7 @@ void ImageDocument::createDocumentStructure()
         imageElement->setAttribute(styleAttr, "-webkit-user-select:none; display:block; padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);"_s);
     imageElement->setLoadManually(true);
     imageElement->setAttributeWithoutSynchronization(srcAttr, AtomString { url().string() });
-    if (CachedResourceHandle cachedImage = imageElement->cachedImage(); documentLoader && cachedImage)
+    if (RefPtr cachedImage = imageElement->cachedImage(); documentLoader && cachedImage)
         cachedImage->setResponse(ResourceResponse { documentLoader->response() });
     body->appendChild(imageElement);
     imageElement->setLoadManually(false);
@@ -340,7 +334,7 @@ float ImageDocument::scale()
 
 void ImageDocument::resizeImageToFit()
 {
-    RefPtr imageElement = m_imageElement.get();
+    RefPtr imageElement = m_imageElement;
     if (!imageElement)
         return;
 
@@ -358,7 +352,7 @@ void ImageDocument::restoreImageSize()
     if (!m_imageSizeIsKnown)
         return;
 
-    RefPtr imageElement = m_imageElement.get();
+    RefPtr imageElement = m_imageElement;
     if (!imageElement)
         return;
 
@@ -393,7 +387,7 @@ void ImageDocument::didChangeViewSize()
     if (!m_imageSizeIsKnown)
         return;
 
-    RefPtr imageElement = m_imageElement.get();
+    RefPtr imageElement = m_imageElement;
     if (!imageElement)
         return;
 
@@ -456,7 +450,7 @@ void ImageDocument::imageClicked(int x, int y)
 
 void ImageEventListener::handleEvent(ScriptExecutionContext&, Event& event)
 {
-    RefPtr document = m_document.get();
+    RefPtr document = m_document;
     if (auto* mouseEvent = dynamicDowncast<MouseEvent>(event); mouseEvent && isAnyClick(event) && document)
         document->imageClicked(mouseEvent->offsetX(), mouseEvent->offsetY());
 }
@@ -472,16 +466,14 @@ bool ImageEventListener::operator==(const EventListener& other) const
 
 ImageDocumentElement::~ImageDocumentElement()
 {
-    if (RefPtr imageDocument = m_imageDocument.get())
+    if (RefPtr imageDocument = m_imageDocument)
         imageDocument->disconnectImageElement();
 }
 
 void ImageDocumentElement::didMoveToNewDocument(Document& oldDocument, Document& newDocument)
 {
-    if (RefPtr imageDocument = m_imageDocument.get()) {
+    if (RefPtr imageDocument = std::exchange(m_imageDocument, nullptr))
         imageDocument->disconnectImageElement();
-        m_imageDocument = nullptr;
-    }
     HTMLImageElement::didMoveToNewDocument(oldDocument, newDocument);
 }
 

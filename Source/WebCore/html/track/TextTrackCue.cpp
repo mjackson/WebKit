@@ -102,7 +102,7 @@ static inline bool NODELETE isLegalNode(Node& node)
         || node.hasTagName(HTMLNames::rtTag)
         || node.hasTagName(HTMLNames::rubyTag)
         || node.hasTagName(HTMLNames::spanTag)
-        || node.nodeType() == Node::TEXT_NODE;
+        || node.nodeType() == NodeType::Text;
 }
 
 static Exception invalidNodeException(Node& node)
@@ -179,7 +179,7 @@ ExceptionOr<Ref<TextTrackCue>> TextTrackCue::create(Document& document, double s
     if (!cueFragment.firstChild())
         return Exception { ExceptionCode::InvalidNodeTypeError, "Empty cue fragment"_s };
 
-    if (cueFragment.firstChild()->nodeType() == Node::TEXT_NODE)
+    if (cueFragment.firstChild()->nodeType() == NodeType::Text)
         return Exception { ExceptionCode::InvalidNodeTypeError, "Invalid first child"_s };
 
     for (RefPtr node = cueFragment.firstChild(); node; node = node->nextSibling()) {
@@ -247,11 +247,6 @@ Document* TextTrackCue::document() const
     return downcast<Document>(scriptExecutionContext());
 }
 
-RefPtr<Document> TextTrackCue::protectedDocument() const
-{
-    return document();
-}
-
 void TextTrackCue::willChange()
 {
     if (++m_processingCueChanges > 1)
@@ -274,11 +269,6 @@ void TextTrackCue::didChange(bool affectOrder)
 }
 
 TextTrack* TextTrackCue::track() const
-{
-    return m_track.get();
-}
-
-RefPtr<TextTrack> TextTrackCue::protectedTrack() const
 {
     return m_track.get();
 }

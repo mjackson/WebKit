@@ -61,6 +61,10 @@
 #import "WebExtensionController.h"
 #endif
 
+#if HAVE(APPKIT_GESTURES_SUPPORT)
+#import <WebKitAdditions/WKAppKitGestureControllerAdditionsBefore.mm>
+#endif
+
 @interface WKUserDataWrapper : NSObject {
     RefPtr<API::Object> _webUserData;
 }
@@ -230,6 +234,11 @@
 - (void)captionStyleMenuDidClose:(NSMenu *)menu
 {
     protect(*_menuProxy)->captionStyleMenuDidClose();
+}
+
+- (void)captionStyleMenu:(PlatformMenu *)menu setPreviewProfileID:(NSString *)profileID
+{
+    protect(*_menuProxy)->captionStyleMenuSetPreviewProfileID(profileID);
 }
 
 @end
@@ -996,9 +1005,20 @@ void WebContextMenuProxyMac::showContextMenuWithItems(Vector<Ref<WebContextMenuI
         return;
 
     auto webView = m_webView.get();
-    NSPoint menuLocation = [webView convertPoint:m_context.menuLocation() toView:nil];
-    auto event = page->createSyntheticEventForContextMenu(menuLocation);
-    [NSMenu popUpContextMenu:m_menu.get() withEvent:event.get() forView:webView.get()];
+    NSPoint locationInWindowCoordinates = [webView convertPoint:m_context.menuLocation() toView:nil];
+
+    if (m_context.inputSource() == WebMouseEventInputSource::Automation) {
+#if HAVE(APPKIT_GESTURES_SUPPORT)
+        NSPoint locationInScreenCoordinates = [[webView window] convertPointToScreen:locationInWindowCoordinates];
+        RetainPtr screenRelativeContext = [_NSViewMenuContext menuContextWithLocation:locationInScreenCoordinates source:contextMenuRequestSourceForAutomation()];
+        [NSMenu _popUpContextMenu:m_menu.get() withContext:screenRelativeContext.get() forView:webView.get() completionBlock:nil];
+#else
+        RELEASE_ASSERT_NOT_REACHED();
+#endif
+    } else {
+        RetainPtr event = page->createSyntheticEventForContextMenu(locationInWindowCoordinates);
+        [NSMenu popUpContextMenu:m_menu.get() withEvent:event.get() forView:webView.get()];
+    }
 }
 
 void WebContextMenuProxyMac::useContextMenuItems(Vector<Ref<WebContextMenuItem>>&& items)
@@ -1123,6 +1143,11 @@ void WebContextMenuProxyMac::didDismissContextMenu(NSMenu *menu)
 
     if (m_captionStyleMenuController && [m_captionStyleMenuController hasAncestor:menu])
         captionStyleMenuDidClose();
+}
+
+void WebContextMenuProxyMac::captionStyleMenuSetPreviewProfileID(const String& profileID)
+{
+    protect(page())->setCaptionDisplaySettingsPreviewProfileID(m_frameInfo, profileID);
 }
 
 void WebContextMenuProxyMac::captionStyleMenuWillOpen()

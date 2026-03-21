@@ -43,7 +43,7 @@ class GeneratedImage::CachedGeneratedImage {
     WTF_MAKE_TZONE_ALLOCATED_INLINE(CachedGeneratedImage);
 public:
     CachedGeneratedImage(GeneratedImage&, FloatSize, WebCore::GeneratedImage&);
-    WebCore::GeneratedImage& image() const { return m_image; }
+    WebCore::GeneratedImage& NODELETE image() const { return m_image; }
     void puntEvictionTimer() { m_evictionTimer.restart(); }
 
 private:
@@ -121,7 +121,7 @@ FloatSize GeneratedImage::imageSize(const RenderElement* renderer, float multipl
     float height = fixedSize.height() * multiplier;
 
     // Don't let images that have a width/height >= 1 shrink below 1 device pixel when zoomed.
-    float deviceScaleFactor = renderer->document().deviceScaleFactor();
+    float deviceScaleFactor = protect(renderer->document())->deviceScaleFactor();
     if (fixedSize.width() > 0)
         width = std::max<float>(1 / deviceScaleFactor, width);
     if (fixedSize.height() > 0)
@@ -133,7 +133,7 @@ FloatSize GeneratedImage::imageSize(const RenderElement* renderer, float multipl
 void GeneratedImage::computeIntrinsicDimensions(const RenderElement* renderer, float& intrinsicWidth, float& intrinsicHeight, FloatSize& intrinsicRatio)
 {
     // At a zoom level of 1 the image is guaranteed to have a device pixel size.
-    FloatSize size = floorSizeToDevicePixels(LayoutSize(this->imageSize(renderer, 1)), renderer ? renderer->document().deviceScaleFactor() : 1);
+    FloatSize size = floorSizeToDevicePixels(LayoutSize(this->imageSize(renderer, 1)), renderer ? protect(renderer->document())->deviceScaleFactor() : 1);
     intrinsicWidth = size.width();
     intrinsicHeight = size.height();
     intrinsicRatio = size;

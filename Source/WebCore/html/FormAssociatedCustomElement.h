@@ -25,10 +25,10 @@
 
 #pragma once
 
-#include <WebCore/CustomElementFormValue.h>
-#include <WebCore/HTMLMaybeFormAssociatedCustomElement.h>
-#include <WebCore/ValidatedFormListedElement.h>
-#include <WebCore/ValidityStateFlags.h>
+#include "CustomElementFormValue.h"
+#include "HTMLMaybeFormAssociatedCustomElement.h"
+#include "ValidatedFormListedElement.h"
+#include "ValidityStateFlags.h"
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {
@@ -64,7 +64,7 @@ public:
     bool computeValidity() const final;
     bool appendFormData(DOMFormData&) final;
 
-    void willUpgrade();
+    void NODELETE willUpgrade();
     void didUpgrade();
 
     const AtomString& formControlType() const final;

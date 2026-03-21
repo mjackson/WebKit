@@ -46,7 +46,7 @@ CSSImportRule::~CSSImportRule()
     if (m_styleSheetCSSOMWrapper)
         m_styleSheetCSSOMWrapper->clearOwnerRule();
     if (m_mediaCSSOMWrapper)
-        m_mediaCSSOMWrapper->detachFromParent();
+        protect(m_mediaCSSOMWrapper)->detachFromParent();
 }
 
 String CSSImportRule::href() const
@@ -124,7 +124,7 @@ CSSStyleSheet* CSSImportRule::styleSheet() const
         return nullptr;
 
     std::optional<bool> isOriginClean;
-    if (const auto* cachedSheet = m_importRule->cachedCSSStyleSheet())
+    if (auto* cachedSheet = m_importRule->cachedCSSStyleSheet())
         isOriginClean = cachedSheet->isCORSSameOrigin();
 
     if (!m_styleSheetCSSOMWrapper)

@@ -92,30 +92,28 @@ private:
     {
         if (!m_amount)
             return;
-
-        protectedSubscriber()->next(value);
+        Ref subscriber = m_subscriber;
+        subscriber->next(value);
         m_amount -= 1;
         if (!m_amount)
-            protectedSubscriber()->complete();
+            subscriber->complete();
     }
 
     void error(JSC::JSValue value) final
     {
-        protectedSubscriber()->error(value);
+        protect(m_subscriber)->error(value);
     }
 
     void complete() final
     {
         InternalObserver::complete();
-        protectedSubscriber()->complete();
+        protect(m_subscriber)->complete();
     }
 
-    void visitAdditionalChildren(JSC::AbstractSlotVisitor& visitor) const final
+    void visitAdditionalChildrenInGCThread(JSC::AbstractSlotVisitor& visitor) const final
     {
-        m_subscriber->visitAdditionalChildren(visitor);
+        m_subscriber->visitAdditionalChildrenInGCThread(visitor);
     }
-
-    Ref<Subscriber> NODELETE protectedSubscriber() const { return m_subscriber; }
 
     InternalObserverTake(ScriptExecutionContext& context, Ref<Subscriber> subscriber, uint64_t amount)
         : InternalObserver(context)

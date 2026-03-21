@@ -82,7 +82,7 @@ protected:
 
     int32_t m_targetHeapType;
     OptionSet<WasmRefTypeCheckFlag> m_flags;
-    RefPtr<const Wasm::RTT> m_targetRTT;
+    const RefPtr<const Wasm::RTT> m_targetRTT;
 };
 
 } // namespace JSC::B3

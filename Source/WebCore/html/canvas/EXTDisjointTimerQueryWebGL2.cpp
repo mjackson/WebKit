@@ -41,7 +41,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(EXTDisjointTimerQueryWebGL2);
 EXTDisjointTimerQueryWebGL2::EXTDisjointTimerQueryWebGL2(WebGLRenderingContextBase& context)
     : WebGLExtension(context, WebGLExtensionName::EXTDisjointTimerQueryWebGL2)
 {
-    context.graphicsContextGL()->enableExtension(GCGLExtension::EXT_disjoint_timer_query);
+    protect(context.graphicsContextGL())->enableExtension(GCGLExtension::EXT_disjoint_timer_query);
 }
 
 EXTDisjointTimerQueryWebGL2::~EXTDisjointTimerQueryWebGL2() = default;
@@ -74,11 +74,11 @@ void EXTDisjointTimerQueryWebGL2::queryCounterEXT(WebGLQuery& query, GCGLenum ta
 
     query.setTarget(target);
 
-    context->graphicsContextGL()->queryCounterEXT(query.object(), target);
+    protect(context->graphicsContextGL())->queryCounterEXT(query.object(), target);
 
     // A query's result must not be made available until control has returned to the user agent's main loop.
-    protect(protect(context->scriptExecutionContext())->eventLoop())->queueMicrotask([&] {
-        query.makeResultAvailable();
+    protect(protect(context->scriptExecutionContext())->eventLoop())->queueMicrotask(protect(context->scriptExecutionContext())->vm(), [query = Ref { query }] {
+        query->makeResultAvailable();
     });
 }
 

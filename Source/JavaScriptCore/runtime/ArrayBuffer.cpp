@@ -32,6 +32,9 @@
 #include "WaiterListManager.h"
 #include "WeakInlines.h"
 #include <wtf/Gigacage.h>
+#include <wtf/MathExtras.h>
+#include <wtf/OSAllocator.h>
+#include <wtf/PageBlock.h>
 #include <wtf/SafeStrerror.h>
 
 #if ENABLE(WEBASSEMBLY)
@@ -43,6 +46,27 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 namespace JSC {
 namespace ArrayBufferInternal {
 static constexpr bool verbose = false;
+}
+
+static void zeroFill(void* base, size_t size)
+{
+    constexpr size_t largeZeroFillThreshold = 1 * MB;
+    if (size >= largeZeroFillThreshold) {
+        size_t pageSizeValue = WTF::pageSize();
+        uintptr_t begin = reinterpret_cast<uintptr_t>(base);
+        uintptr_t end = begin + size;
+        uintptr_t pageAlignedBegin = roundUpToMultipleOf(pageSizeValue, begin);
+        uintptr_t pageAlignedEnd = roundDownToMultipleOf(pageSizeValue, end);
+        if (pageAlignedEnd > pageAlignedBegin) {
+            if (begin != pageAlignedBegin)
+                memset(base, 0, pageAlignedBegin - begin);
+            OSAllocator::zeroFill(reinterpret_cast<void*>(pageAlignedBegin), pageAlignedEnd - pageAlignedBegin);
+            if (end != pageAlignedEnd)
+                memset(reinterpret_cast<void*>(pageAlignedEnd), 0, end - pageAlignedEnd);
+        } else
+            memset(base, 0, size);
+    } else
+        memset(base, 0, size);
 }
 
 Ref<SharedTask<void(void*)>> ArrayBuffer::primitiveGigacageDestructor()
@@ -561,7 +585,7 @@ Expected<int64_t, GrowFailReason> ArrayBuffer::resize(VM& vm, size_t newByteLeng
         }
 
         if (m_contents.m_sizeInBytes < newByteLength)
-            memset(std::bit_cast<uint8_t*>(data()) + m_contents.m_sizeInBytes, 0, newByteLength - m_contents.m_sizeInBytes);
+            zeroFill(std::bit_cast<uint8_t*>(data()) + m_contents.m_sizeInBytes, newByteLength - m_contents.m_sizeInBytes);
 
         m_contents.m_sizeInBytes = newByteLength;
     }
@@ -652,7 +676,7 @@ Expected<int64_t, GrowFailReason> SharedArrayBufferContents::grow(const Abstract
         memoryHandle->updateSize(desiredSize);
     }
 
-    memset(std::bit_cast<uint8_t*>(data()) + sizeInBytes, 0, newByteLength - sizeInBytes);
+    zeroFill(std::bit_cast<uint8_t*>(data()) + sizeInBytes, newByteLength - sizeInBytes);
 
     updateSize(newByteLength);
 

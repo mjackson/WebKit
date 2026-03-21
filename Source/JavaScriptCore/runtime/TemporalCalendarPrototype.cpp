@@ -188,7 +188,7 @@ JSC_DEFINE_HOST_FUNCTION(temporalCalendarPrototypeFuncDateUntil, (JSGlobalObject
     }
 
     auto disallowedUnits = { TemporalUnit::Hour, TemporalUnit::Minute, TemporalUnit::Second, TemporalUnit::Millisecond, TemporalUnit::Microsecond, TemporalUnit::Nanosecond };
-    if (disallowedUnits.size() && std::find(disallowedUnits.begin(), disallowedUnits.end(), largestUnit) != disallowedUnits.end())
+    if (disallowedUnits.size() && std::ranges::find(disallowedUnits, largestUnit) != disallowedUnits.end())
         return throwVMRangeError(globalObject, scope, "largestUnit is a disallowed unit"_s);
 
     auto result = TemporalCalendar::calendarDateUntil(date1->plainDate(), date2->plainDate(), largestUnit);

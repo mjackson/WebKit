@@ -27,6 +27,7 @@
 
 #include "Chrome.h"
 #include "FloatQuad.h"
+#include "FontCascadeInlines.h"
 #include "FrameSelection.h"
 #include "GraphicsContext.h"
 #include "HitTestResult.h"
@@ -243,18 +244,8 @@ void RenderInline::generateLineBoxRects(GeneratorContext& context) const
             context.addRect({ });
             return;
         }
-        if (inlineBoxRects.size() == 1) {
-            context.addRect(inlineBoxRects.first());
-            return;
-        }
-
-        for (auto inlineBoxRect : inlineBoxRects) {
-            if (!inlineBoxRect.size().isZero()) {
-                // Empty inline boxes may show up for cases where the inline box is fragmented and (usually) in-between line(s)
-                // can't accomodate any content (e.g. due to floats). Let's not report such rectanges to functions like getClientRects.
-                context.addRect(inlineBoxRect);
-            }
-        }
+        for (auto inlineRect : inlineBoxRects)
+            context.addRect(inlineRect);
         return;
     }
     if (auto* curr = firstLegacyInlineBox()) {
@@ -891,7 +882,7 @@ void RenderInline::imageChanged(WrappedImagePtr image, const IntRect*)
     RefPtr styleImage = Style::findLayerUsedImage(style().backgroundLayers(), image, isNonEmpty);
     if (styleImage && isNonEmpty) {
         if (auto styleable = Styleable::fromRenderer(*this))
-            protect(document())->didLoadImage(protect(styleable->element).get(), styleImage->cachedImage());
+            protect(document())->didLoadImage(protect(styleable->element).get(), protect(styleImage->cachedImage()));
     }
 
     // FIXME: We can do better.

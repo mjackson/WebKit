@@ -30,6 +30,7 @@
 
 #if ENABLE(MATHML)
 
+#include "FontCascadeInlines.h"
 #include "MathMLElement.h"
 #include "MathMLScriptsElement.h"
 #include "RenderMathMLBlockInlines.h"

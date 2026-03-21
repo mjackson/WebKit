@@ -218,6 +218,7 @@ std::optional<Style::PseudoElementIdentifier> HitTestResult::pseudoElementIdenti
 
 void HitTestResult::setPseudoElementIdentifier(std::optional<Style::PseudoElementIdentifier> pseudoElementIdentifier)
 {
+    ASSERT(!pseudoElementIdentifier || pseudoElementIdentifier->type != PseudoElementType::UserAgentPartFallback);
     m_pseudoElementIdentifier = pseudoElementIdentifier;
 }
 
@@ -480,11 +481,7 @@ URL HitTestResult::absoluteImageURL() const
         return { };
 
     if (RefPtr element = dynamicDowncast<Element>(*imageNode); element
-        && (is<HTMLEmbedElement>(*element)
-        || is<HTMLImageElement>(*element)
-        || is<HTMLInputElement>(*element)
-        || is<HTMLObjectElement>(*element)
-        || is<SVGImageElement>(*element))) {
+        && isAnyOf<HTMLEmbedElement, HTMLImageElement, HTMLInputElement, HTMLObjectElement, SVGImageElement>(*element)) {
         auto imageURL = imageNode->document().completeURL(element->imageSourceURL());
         if (RefPtr page = imageNode->document().page())
             return page->applyLinkDecorationFiltering(imageURL, LinkDecorationFilteringTrigger::Unspecified);
@@ -617,7 +614,7 @@ void HitTestResult::enterFullscreenForVideo() const
 bool HitTestResult::mediaIsInVideoViewer() const
 {
 #if PLATFORM(MAC) && ENABLE(VIDEO) && ENABLE(VIDEO_PRESENTATION_MODE)
-    if (RefPtr mediaElt = mediaElement())
+    if (auto* mediaElt = mediaElement())
         return is<HTMLVideoElement>(mediaElt) && mediaElt->fullscreenMode() == HTMLMediaElementEnums::VideoFullscreenModeInWindow;
 #endif
     return false;
@@ -659,7 +656,7 @@ bool HitTestResult::mediaLoopEnabled() const
 bool HitTestResult::mediaStatsShowing() const
 {
 #if ENABLE(VIDEO)
-    if (RefPtr mediaElt = mediaElement())
+    if (auto* mediaElt = mediaElement())
         return mediaElt->showingStats();
 #endif
     return false;
@@ -694,7 +691,7 @@ bool HitTestResult::mediaHasAudio() const
 bool HitTestResult::mediaIsVideo() const
 {
 #if ENABLE(VIDEO)
-    if (RefPtr mediaElt = mediaElement())
+    if (auto* mediaElt = mediaElement())
         return is<HTMLVideoElement>(*mediaElt);
 #endif
     return false;
@@ -903,7 +900,7 @@ Vector<String> HitTestResult::dictationAlternatives() const
 
 Element* HitTestResult::targetElement() const
 {
-    for (RefPtr node = m_innerNode.get(); node; node = node->parentInComposedTree()) {
+    for (auto* node = m_innerNode.get(); node; node = node->parentInComposedTree()) {
         if (auto* element = dynamicDowncast<Element>(*node))
             return element;
     }
@@ -940,7 +937,7 @@ bool HitTestResult::mediaSupportsPictureInPicture() const
 bool HitTestResult::mediaIsInPictureInPicture() const
 {
 #if PLATFORM(MAC) && ENABLE(VIDEO) && ENABLE(VIDEO_PRESENTATION_MODE)
-    if (RefPtr mediaElt = mediaElement())
+    if (auto* mediaElt = mediaElement())
         return is<HTMLVideoElement>(mediaElt) && mediaElt->fullscreenMode() == HTMLMediaElementEnums::VideoFullscreenModePictureInPicture;
 #endif
     return false;

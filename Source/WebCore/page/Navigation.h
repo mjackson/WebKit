@@ -28,7 +28,7 @@
 #include "BackForwardItemIdentifier.h"
 #include "EventTarget.h"
 #include "EventTargetInterfaces.h"
-#include "JSDOMPromiseDeferred.h"
+#include "JSDOMPromiseDeferredForward.h"
 #include "LocalDOMWindowProperty.h"
 #include "NavigateEvent.h"
 #include "NavigationHistoryEntry.h"
@@ -58,10 +58,8 @@ using NavigationAPIMethodTrackerIdentifier = ObjectIdentifier<NavigationAPIMetho
 struct NavigationAPIMethodTracker : public RefCounted<NavigationAPIMethodTracker> {
     WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(NavigationAPIMethodTracker);
 
-    static Ref<NavigationAPIMethodTracker> create(Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished, JSC::JSValue&& info, RefPtr<SerializedScriptValue>&& serializedState)
-    {
-        return adoptRef(*new NavigationAPIMethodTracker(WTF::move(committed), WTF::move(finished), WTF::move(info), WTF::move(serializedState)));
-    }
+    static Ref<NavigationAPIMethodTracker> create(Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished, JSC::JSValue&& info, RefPtr<SerializedScriptValue>&& serializedState);
+    ~NavigationAPIMethodTracker();
 
     bool operator==(const NavigationAPIMethodTracker& other) const
     {
@@ -78,14 +76,7 @@ struct NavigationAPIMethodTracker : public RefCounted<NavigationAPIMethodTracker
     Ref<DeferredPromise> finishedPromise;
 
 private:
-    explicit NavigationAPIMethodTracker(Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished, JSC::JSValue&& info, RefPtr<SerializedScriptValue>&& serializedState)
-        : info(info)
-        , serializedState(serializedState)
-        , committedPromise(WTF::move(committed))
-        , finishedPromise(WTF::move(finished))
-        , identifier(NavigationAPIMethodTrackerIdentifier::generate())
-    {
-    }
+    NavigationAPIMethodTracker(Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished, JSC::JSValue&& info, RefPtr<SerializedScriptValue>&& serializedState);
 
     NavigationAPIMethodTrackerIdentifier identifier;
 };
@@ -131,7 +122,7 @@ public:
         RefPtr<DOMPromise> finished;
     };
 
-    const Vector<Ref<NavigationHistoryEntry>>& entries() const;
+    const Vector<Ref<NavigationHistoryEntry>>& entries() const LIFETIME_BOUND;
     NavigationHistoryEntry* currentEntry() const;
     NavigationTransition* transition() { return m_transition.get(); };
     NavigationActivation* activation() { return m_activation.get(); };
@@ -174,7 +165,7 @@ public:
     void rejectFinishedPromise(NavigationAPIMethodTracker*);
     NavigationAPIMethodTracker* upcomingTraverseMethodTracker(const String& key) const;
 
-    void visitAdditionalChildren(JSC::AbstractSlotVisitor&);
+    void visitAdditionalChildrenInGCThread(JSC::AbstractSlotVisitor&);
 
     class AbortHandler : public RefCountedAndCanMakeWeakPtr<AbortHandler> {
     public:
@@ -233,7 +224,7 @@ public:
     };
 
     // Testing support
-    RateLimiter& rateLimiterForTesting() { return m_rateLimiter; }
+    RateLimiter& rateLimiterForTesting() LIFETIME_BOUND { return m_rateLimiter; }
 
     NavigateEvent* ongoingNavigateEvent() { return m_ongoingNavigateEvent.get(); } // This may get called on a GC thread.
     bool hasInterceptedOngoingNavigateEvent() const { return m_ongoingNavigateEvent && m_ongoingNavigateEvent->wasIntercepted(); }

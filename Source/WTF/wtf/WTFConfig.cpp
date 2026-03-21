@@ -195,27 +195,6 @@ void Config::initialize()
 #if USE(LIBPAS) && defined(PAS_MTE_INITIALIZE_IN_WTF_CONFIG)
     PAS_MTE_INITIALIZE_IN_WTF_CONFIG;
 #endif // USE(LIBPAS)
-    const char* useAllocationProfilingRaw = getenv("JSC_useAllocationProfiling");
-    if (useAllocationProfilingRaw) {
-        auto useAllocationProfiling = unsafeSpan(useAllocationProfilingRaw);
-        if (equalLettersIgnoringASCIICase(useAllocationProfiling, "true"_s)
-            || equalLettersIgnoringASCIICase(useAllocationProfiling, "yes"_s)
-            || equal(useAllocationProfiling, "1"_s))
-            reservedConfigBytes[WebConfig::ReservedByteForAllocationProfiling] = 1;
-        else if (equalLettersIgnoringASCIICase(useAllocationProfiling, "false"_s)
-            || equalLettersIgnoringASCIICase(useAllocationProfiling, "no"_s)
-            || equal(useAllocationProfiling, "0"_s))
-            reservedConfigBytes[WebConfig::ReservedByteForAllocationProfiling] = 0;
-
-        const char* useAllocationProfilingModeRaw = getenv("JSC_allocationProfilingMode");
-        if (useAllocationProfilingModeRaw && reservedConfigBytes[WebConfig::ReservedByteForAllocationProfiling] == 1) {
-            unsigned value { 0 };
-            if (sscanf(useAllocationProfilingModeRaw, "%u", &value) == 1) {
-                RELEASE_ASSERT(value <= 0xFF);
-                reservedConfigBytes[WebConfig::ReservedByteForAllocationProfilingMode] = static_cast<uint8_t>(value & 0xFF);
-            }
-        }
-    }
 }
 
 void Config::finalize()

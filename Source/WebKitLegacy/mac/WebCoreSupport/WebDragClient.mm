@@ -78,7 +78,7 @@ WebDragClient::WebDragClient(WebView* webView)
 
 #if PLATFORM(MAC)
 
-static OptionSet<WebCore::DragSourceAction> coreDragSourceActionMask(WebDragSourceAction action)
+static OptionSet<WebCore::DragSourceAction> NODELETE coreDragSourceActionMask(WebDragSourceAction action)
 {
     OptionSet<WebCore::DragSourceAction> result;
 
@@ -94,7 +94,7 @@ static OptionSet<WebCore::DragSourceAction> coreDragSourceActionMask(WebDragSour
     return result;
 }
 
-static WebDragDestinationAction kit(WebCore::DragDestinationAction action)
+static WebDragDestinationAction NODELETE kit(WebCore::DragDestinationAction action)
 {
     switch (action) {
     case WebCore::DragDestinationAction::DHTML:
@@ -150,12 +150,16 @@ void WebDragClient::startDrag(DragItem dragItem, DataTransfer& dataTransfer, Fra
     if (!localFrame)
         return;
 
-    RetainPtr<WebHTMLView> htmlView = (WebHTMLView*)[[kit(localFrame) frameView] documentView];
+    RefPtr<LocalFrame> localMainFrame = localFrame->localMainFrame();
+    if (!localMainFrame)
+        return;
+
+    RetainPtr<WebHTMLView> htmlView = (WebHTMLView*)[[kit(localMainFrame) frameView] documentView];
     if (![htmlView.get() isKindOfClass:[WebHTMLView class]])
         return;
     
-    RetainPtr event = (dragItem.sourceAction && *dragItem.sourceAction == DragSourceAction::Link) ? localFrame->eventHandler().currentNSEvent() : [htmlView.get() _mouseDownEvent];
-    RetainPtr topHTMLView = getTopHTMLView(localFrame);
+    RetainPtr event = (dragItem.sourceAction && *dragItem.sourceAction == DragSourceAction::Link) ? localMainFrame->eventHandler().currentNSEvent() : [htmlView.get() _mouseDownEvent];
+    RetainPtr topHTMLView = getTopHTMLView(localMainFrame);
     RetainPtr<WebHTMLView> topViewProtector = topHTMLView;
     
     [topHTMLView.get() _stopAutoscrollTimer];
@@ -165,7 +169,7 @@ void WebDragClient::startDrag(DragItem dragItem, DataTransfer& dataTransfer, Fra
     RetainPtr sourceHTMLView = htmlView.get();
 
     IntSize size([dragNSImage.get() size]);
-    size.scale(1 / localFrame->page()->deviceScaleFactor());
+    size.scale(1 / localMainFrame->page()->deviceScaleFactor());
     [dragNSImage.get() setSize:size];
 
     id delegate = [m_webView UIDelegate];

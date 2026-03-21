@@ -14,6 +14,7 @@ Property values requiring vendor prefixes:
 None
 ------------------------------------------------------------------------
 List of files:
+/LayoutTests/imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/WEB_FEATURES.yml
 /LayoutTests/imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/select-1-block-size-001-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/select-1-block-size-001-ref-2.html
 /LayoutTests/imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/select-1-block-size-001-ref-expected.html

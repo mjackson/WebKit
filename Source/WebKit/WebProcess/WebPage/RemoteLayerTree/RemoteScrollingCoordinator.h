@@ -111,7 +111,11 @@ private:
     HashSet<WebCore::ScrollingNodeID> m_nodesWithActiveScrollSnap;
     HashSet<WebCore::ScrollingNodeID> m_nodesWithActiveUserScrolls;
 
-    HashMap<WebCore::ScrollingNodeID, WebCore::ScrollRequestIdentifier> m_scrollRequestsPendingResponse;
+    struct PendingScrollResponseInfo {
+        Markable<WebCore::ScrollRequestIdentifier> identifier;
+        bool pendingScrollEnd { false };
+    };
+    HashMap<WebCore::ScrollingNodeID, PendingScrollResponseInfo> m_scrollRequestsPendingResponse;
 
     NodeAndGestureState m_currentWheelGestureInfo;
 

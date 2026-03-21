@@ -71,17 +71,18 @@ public:
 
     void setUsesBackForwardCache(bool value) { m_usesBackForwardCache = value; }
     bool usesBackForwardCache() const { return m_usesBackForwardCache; }
+    static bool defaultUsesWebBackForwardCache();
 
-    const WTF::String& injectedBundlePath() const { return m_injectedBundlePath; }
+    const WTF::String& injectedBundlePath() const LIFETIME_BOUND { return m_injectedBundlePath; }
     void setInjectedBundlePath(const WTF::String& injectedBundlePath) { m_injectedBundlePath = injectedBundlePath; }
 
-    const Vector<WTF::String>& cachePartitionedURLSchemes() { return m_cachePartitionedURLSchemes; }
+    const Vector<WTF::String>& cachePartitionedURLSchemes() LIFETIME_BOUND { return m_cachePartitionedURLSchemes; }
     void setCachePartitionedURLSchemes(Vector<WTF::String>&& cachePartitionedURLSchemes) { m_cachePartitionedURLSchemes = WTF::move(cachePartitionedURLSchemes); }
 
-    const Vector<WTF::String>& alwaysRevalidatedURLSchemes() { return m_alwaysRevalidatedURLSchemes; }
+    const Vector<WTF::String>& alwaysRevalidatedURLSchemes() LIFETIME_BOUND { return m_alwaysRevalidatedURLSchemes; }
     void setAlwaysRevalidatedURLSchemes(Vector<WTF::String>&& alwaysRevalidatedURLSchemes) { m_alwaysRevalidatedURLSchemes = WTF::move(alwaysRevalidatedURLSchemes); }
 
-    const Vector<WTF::String>& additionalReadAccessAllowedPaths() { return m_additionalReadAccessAllowedPaths; }
+    const Vector<WTF::String>& additionalReadAccessAllowedPaths() LIFETIME_BOUND { return m_additionalReadAccessAllowedPaths; }
     void setAdditionalReadAccessAllowedPaths(Vector<WTF::String>&& additionalReadAccessAllowedPaths) { m_additionalReadAccessAllowedPaths = additionalReadAccessAllowedPaths; }
 
     bool fullySynchronousModeIsAllowedForTesting() const { return m_fullySynchronousModeIsAllowedForTesting; }
@@ -132,10 +133,10 @@ public:
     void setProcessSwapsOnNavigationWithinSameNonHTTPFamilyProtocol(bool swaps) { m_processSwapsOnNavigationWithinSameNonHTTPFamilyProtocol = swaps; }
 
 #if PLATFORM(PLAYSTATION)
-    const WTF::String& webProcessPath() const { return m_webProcessPath; }
+    const WTF::String& webProcessPath() const LIFETIME_BOUND { return m_webProcessPath; }
     void setWebProcessPath(const WTF::String& webProcessPath) { m_webProcessPath = webProcessPath; }
 
-    const WTF::String& networkProcessPath() const { return m_networkProcessPath; }
+    const WTF::String& networkProcessPath() const LIFETIME_BOUND { return m_networkProcessPath; }
     void setNetworkProcessPath(const WTF::String& networkProcessPath) { m_networkProcessPath = networkProcessPath; }
 
     int32_t userId() const { return m_userId; }
@@ -144,20 +145,20 @@ public:
 
 #if PLATFORM(GTK) || PLATFORM(WPE)
     void setMemoryPressureHandlerConfiguration(const MemoryPressureHandler::Configuration& configuration) { m_memoryPressureHandlerConfiguration = configuration; }
-    const std::optional<MemoryPressureHandler::Configuration>& memoryPressureHandlerConfiguration() const { return m_memoryPressureHandlerConfiguration; }
+    const std::optional<MemoryPressureHandler::Configuration>& memoryPressureHandlerConfiguration() const LIFETIME_BOUND { return m_memoryPressureHandlerConfiguration; }
 
     bool disableFontHintingForTesting() const { return m_disableFontHintingForTesting; }
     void setDisableFontHintingForTesting(bool override) { m_disableFontHintingForTesting = override; }
 #endif
 
     void setTimeZoneOverride(const WTF::String& timeZoneOverride) { m_timeZoneOverride = timeZoneOverride; }
-    const WTF::String& timeZoneOverride() const { return m_timeZoneOverride; }
+    const WTF::String& timeZoneOverride() const LIFETIME_BOUND { return m_timeZoneOverride; }
 
     void setMemoryFootprintPollIntervalForTesting(Seconds interval) { m_memoryFootprintPollIntervalForTesting = interval; }
     Seconds memoryFootprintPollIntervalForTesting() const { return m_memoryFootprintPollIntervalForTesting; }
 
     void setMemoryFootprintNotificationThresholds(Vector<uint64_t>&& thresholds) { m_memoryFootprintNotificationThresholds = WTF::move(thresholds); }
-    const Vector<uint64_t>& memoryFootprintNotificationThresholds() const { return m_memoryFootprintNotificationThresholds; }
+    const Vector<uint64_t>& memoryFootprintNotificationThresholds() const LIFETIME_BOUND { return m_memoryFootprintNotificationThresholds; }
 
 #if ENABLE(WEB_PROCESS_SUSPENSION_DELAY)
     void setSuspendsWebProcessesAggressivelyOnMemoryPressure(bool enabled) { m_suspendsWebProcessesAggressivelyOnMemoryPressure = enabled; }
@@ -186,7 +187,7 @@ private:
     bool m_processSwapsOnNavigationWithinSameNonHTTPFamilyProtocol { false };
     std::optional<bool> m_isAutomaticProcessWarmingEnabledByClient;
     bool m_usesWebProcessCache { false };
-    bool m_usesBackForwardCache { true };
+    bool m_usesBackForwardCache { defaultUsesWebBackForwardCache() };
     bool m_clientWouldBenefitFromAutomaticProcessPrewarming { false };
     bool m_shouldConfigureJSCForTesting { false };
     bool m_isJITEnabled { true };

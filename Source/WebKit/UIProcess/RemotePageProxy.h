@@ -27,6 +27,7 @@
 
 #include "MessageReceiver.h"
 #include "NavigationActionData.h"
+#include "ProcessActivityGroup.h"
 #include "WebPageProxyMessageReceiverRegistration.h"
 #include "WebProcessProxy.h"
 #include <WebCore/FrameIdentifier.h>
@@ -49,6 +50,7 @@ enum class FrameLoadType : uint8_t;
 enum class HasInsecureContent : bool;
 enum class MediaProducerMediaState : uint32_t;
 enum class MouseEventPolicy : uint8_t;
+enum class ScreenOrientationType : uint8_t;
 
 class CertificateInfo;
 class ResourceResponse;
@@ -100,13 +102,13 @@ public:
     void injectPageIntoNewProcess();
     void processDidTerminate(WebProcessProxy&, ProcessTerminationReason);
 
-    WebPageProxyMessageReceiverRegistration& messageReceiverRegistration() { return m_messageReceiverRegistration; }
+    WebPageProxyMessageReceiverRegistration& messageReceiverRegistration() LIFETIME_BOUND { return m_messageReceiverRegistration; }
 
     WebProcessProxy& process() { return m_process.get(); }
     WebProcessProxy& siteIsolatedProcess() const { return m_process.get(); }
     WebCore::PageIdentifier pageID() const { return m_webPageID; } // FIXME: Remove this in favor of identifierInSiteIsolatedProcess.
     WebCore::PageIdentifier identifierInSiteIsolatedProcess() const { return m_webPageID; }
-    const WebCore::Site& site() const { return m_site; }
+    const WebCore::Site& site() const LIFETIME_BOUND { return m_site; }
 
     WebProcessActivityState& NODELETE processActivityState();
 

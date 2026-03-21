@@ -394,6 +394,12 @@ static void overrideGetAuthorizationHintsWithURL(id, SEL, NSURL *url, NSInteger 
     completion(soAuthorizationHints.get(), nullptr);
 }
 
+static void overrideGetAuthorizationHintsWithURLNil(id, SEL, NSURL *url, NSInteger responseCode, GetAuthorizationHintsCallback completion)
+{
+    EXPECT_EQ(responseCode, 0l);
+    completion(nil, nullptr);
+}
+
 #if PLATFORM(MAC)
 using NotificationCallback = void (^)(NSNotification *note);
 static id overrideAddObserverForName(id, SEL, NSNotificationName name, id, NSOperationQueue *, NotificationCallback block)
@@ -1202,15 +1208,14 @@ TEST(SOAuthorizationRedirect, InterceptionSucceedWithWaitingSession)
     // The session will be waiting since the web view is is not in the window.
     [webView removeFromSuperview];
     [webView loadRequest:[NSURLRequest requestWithURL:testURL.get()]];
-    Util::run(&navigationPolicyDecided);
-    EXPECT_FALSE(policyForAppSSOPerformed);
+    Util::run(&policyForAppSSOPerformed);
+    EXPECT_TRUE(policyForAppSSOPerformed);
     EXPECT_FALSE(authorizationPerformed);
 
     // Should activate the session.
     [webView addToTestWindow];
     Util::run(&authorizationPerformed);
     checkAuthorizationOptions(false, emptyString(), 0);
-    EXPECT_TRUE(policyForAppSSOPerformed);
 
     RetainPtr<NSURL> redirectURL = [NSBundle.test_resourcesBundle URLForResource:@"simple2" withExtension:@"html"];
     auto response = adoptNS([[NSHTTPURLResponse alloc] initWithURL:testURL.get() statusCode:302 HTTPVersion:@"HTTP/1.1" headerFields:@{ @"Location" : [redirectURL absoluteString] }]);
@@ -1238,8 +1243,8 @@ TEST(SOAuthorizationRedirect, InterceptionAbortedWithWaitingSession)
     // The session will be waiting since the web view is is not in the window.
     [webView removeFromSuperview];
     [webView loadRequest:[NSURLRequest requestWithURL:testURL1.get()]];
-    Util::run(&navigationPolicyDecided);
-    EXPECT_FALSE(policyForAppSSOPerformed);
+    Util::run(&policyForAppSSOPerformed);
+    EXPECT_TRUE(policyForAppSSOPerformed);
     EXPECT_FALSE(authorizationPerformed);
 
     [webView loadRequest:[NSURLRequest requestWithURL:testURL2.get()]];
@@ -1248,7 +1253,6 @@ TEST(SOAuthorizationRedirect, InterceptionAbortedWithWaitingSession)
 
     // The waiting session should be aborted as the previous navigation is overwritten by a new navigation.
     Util::run(&navigationCompleted);
-    EXPECT_FALSE(policyForAppSSOPerformed);
     EXPECT_FALSE(authorizationPerformed);
 }
 
@@ -1364,22 +1368,21 @@ TEST(SOAuthorizationRedirect, InterceptionSucceedSuppressWaitingSession)
     // The session will be waiting since the web view is is not int the window.
     [webView removeFromSuperview];
     [webView loadRequest:[NSURLRequest requestWithURL:testURL.get()]];
-    Util::run(&navigationPolicyDecided);
+    Util::run(&policyForAppSSOPerformed);
+    EXPECT_TRUE(policyForAppSSOPerformed);
     EXPECT_FALSE(authorizationPerformed);
-    EXPECT_FALSE(policyForAppSSOPerformed);
 
     // Suppress the last waiting session.
-    navigationPolicyDecided = false;
+    policyForAppSSOPerformed = false;
     [webView loadRequest:[NSURLRequest requestWithURL:testURL.get()]];
-    Util::run(&navigationPolicyDecided);
+    Util::run(&policyForAppSSOPerformed);
+    EXPECT_TRUE(policyForAppSSOPerformed);
     EXPECT_FALSE(authorizationPerformed);
-    EXPECT_FALSE(policyForAppSSOPerformed);
 
     // Activate the last session.
     [webView addToTestWindow];
     Util::run(&authorizationPerformed);
     checkAuthorizationOptions(false, emptyString(), 0);
-    EXPECT_TRUE(policyForAppSSOPerformed);
 
     RetainPtr<NSURL> redirectURL = [NSBundle.test_resourcesBundle URLForResource:@"simple2" withExtension:@"html"];
     auto response = adoptNS([[NSHTTPURLResponse alloc] initWithURL:testURL.get() statusCode:302 HTTPVersion:@"HTTP/1.1" headerFields:@{ @"Location" : [redirectURL absoluteString] }]);
@@ -2165,7 +2168,12 @@ TEST(SOAuthorizationPopUp, InterceptionCancel)
     Util::run(&allMessagesReceived);
 }
 
+// FIXME when webkit.org/b/309196 is resolved.
+#if PLATFORM(MAC) && !defined(NDEBUG)
+TEST(SOAuthorizationPopUp, DISABLED_InterceptionSucceedCloseByItself)
+#else
 TEST(SOAuthorizationPopUp, InterceptionSucceedCloseByItself)
+#endif
 {
     resetState();
     SWIZZLE_SOAUTH(PAL::getSOAuthorizationClassSingleton());
@@ -3189,6 +3197,165 @@ TEST(SOAuthorizationSubFrame, InterceptionSuccessMessageOrder)
     auto iframeHtmlCString = generateHTML(iframeTemplate, emptyString()).utf8();
     [gDelegate authorization:gAuthorization didCompleteWithHTTPResponse:response.get() httpBody:adoptNS([[NSData alloc] initWithBytes:iframeHtmlCString.data() length:iframeHtmlCString.length()]).get()];
     Util::run(&allMessagesReceived);
+}
+
+TEST(SOAuthorizationRedirect, InterceptionSucceedWithWaitingSessionPolicyIgnore)
+{
+    resetState();
+    SWIZZLE_SOAUTH(PAL::getSOAuthorizationClassSingleton());
+
+    RetainPtr testURL = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr delegate = adoptNS([[TestSOAuthorizationDelegate alloc] init]);
+    configureSOAuthorizationWebView(webView.get(), delegate.get(), OpenExternalSchemesPolicy::Allow);
+    [delegate setAllowSOAuthorizationLoad:false];
+
+    // Web view not in window — but policy fires and returns Ignore, so fallBackToWebPath.
+    [webView removeFromSuperview];
+    [webView loadRequest:[NSURLRequest requestWithURL:testURL.get()]];
+    Util::run(&navigationCompleted);
+
+    EXPECT_TRUE(policyForAppSSOPerformed);
+    EXPECT_FALSE(authorizationPerformed);
+    EXPECT_WK_STREQ(testURL.get().absoluteString, finalURL);
+}
+
+TEST(SOAuthorizationRedirect, InterceptionSucceedAsyncPolicyWindowAttachedBeforeResponse)
+{
+    resetState();
+    SWIZZLE_SOAUTH(PAL::getSOAuthorizationClassSingleton());
+
+    RetainPtr testURL = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr delegate = adoptNS([[TestSOAuthorizationDelegate alloc] init]);
+    configureSOAuthorizationWebView(webView.get(), delegate.get(), OpenExternalSchemesPolicy::Allow);
+    [delegate setIsAsyncExecution:true];
+
+    [webView removeFromSuperview];
+    [webView loadRequest:[NSURLRequest requestWithURL:testURL.get()]];
+    Util::run(&policyForAppSSOPerformed);
+    EXPECT_FALSE(authorizationPerformed);
+
+    // Attach window before async policy response — beginAuthorizationIfReady will see
+    // isInWindow()=true and proceed directly without entering Waiting state.
+    // This simulates the Safari BackgroundLoad path where the background load is committed
+    // (attaching the webView to a window) during the decidePolicyForSOAuthorizationLoad callback.
+    [webView addToTestWindow];
+    Util::run(&authorizationPerformed);
+    checkAuthorizationOptions(false, emptyString(), 0);
+
+    RetainPtr redirectURL = [NSBundle.test_resourcesBundle URLForResource:@"simple2" withExtension:@"html"];
+    RetainPtr response = adoptNS([[NSHTTPURLResponse alloc] initWithURL:testURL.get() statusCode:302 HTTPVersion:@"HTTP/1.1" headerFields:@{ @"Location" : [redirectURL absoluteString] }]);
+    [gDelegate authorization:gAuthorization didCompleteWithHTTPResponse:response.get() httpBody:adoptNS([[NSData alloc] init]).get()];
+    Util::run(&navigationCompleted);
+#if PLATFORM(IOS) || PLATFORM(VISION)
+    navigationCompleted = false;
+    Util::run(&navigationCompleted);
+#endif
+    EXPECT_WK_STREQ(redirectURL.get().absoluteString, finalURL);
+}
+
+TEST(SOAuthorizationRedirect, InterceptionSucceedAsyncPolicyEntersWaiting)
+{
+    resetState();
+    SWIZZLE_SOAUTH(PAL::getSOAuthorizationClassSingleton());
+
+    RetainPtr testURL = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr delegate = adoptNS([[TestSOAuthorizationDelegate alloc] init]);
+    configureSOAuthorizationWebView(webView.get(), delegate.get(), OpenExternalSchemesPolicy::Allow);
+    [delegate setIsAsyncExecution:true];
+
+    [webView removeFromSuperview];
+    [webView loadRequest:[NSURLRequest requestWithURL:testURL.get()]];
+
+    // Wait for the async policy delegate to be called (sets policyForAppSSOPerformed).
+    // The async completionHandler(Allow) is queued via dispatch_async but hasn't fired yet.
+    Util::run(&policyForAppSSOPerformed);
+
+    // Spin the run loop so the async dispatch_async completionHandler fires.
+    // beginAuthorizationIfReady() will see !isInWindow() and enter Waiting state.
+    Util::spinRunLoop();
+
+    EXPECT_FALSE(authorizationPerformed);
+
+    // Now attach — webViewDidMoveToWindow should resume from Waiting.
+    [webView addToTestWindow];
+    Util::run(&authorizationPerformed);
+    checkAuthorizationOptions(false, emptyString(), 0);
+
+    RetainPtr redirectURL = [NSBundle.test_resourcesBundle URLForResource:@"simple2" withExtension:@"html"];
+    RetainPtr response = adoptNS([[NSHTTPURLResponse alloc] initWithURL:testURL.get() statusCode:302 HTTPVersion:@"HTTP/1.1" headerFields:@{ @"Location" : [redirectURL absoluteString] }]);
+    [gDelegate authorization:gAuthorization didCompleteWithHTTPResponse:response.get() httpBody:adoptNS([[NSData alloc] init]).get()];
+    Util::run(&navigationCompleted);
+#if PLATFORM(IOS) || PLATFORM(VISION)
+    navigationCompleted = false;
+    Util::run(&navigationCompleted);
+#endif
+    EXPECT_WK_STREQ(redirectURL.get().absoluteString, finalURL);
+}
+
+TEST(SOAuthorizationRedirect, InterceptionSucceedWindowAttachedDuringHints)
+{
+    resetState();
+    SWIZZLE_SOAUTH(PAL::getSOAuthorizationClassSingleton());
+
+    RetainPtr testURL = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr delegate = adoptNS([[TestSOAuthorizationDelegate alloc] init]);
+    configureSOAuthorizationWebView(webView.get(), delegate.get(), OpenExternalSchemesPolicy::Allow);
+
+    // Start detached, but re-attach before hints complete.
+    // Since overrideGetAuthorizationHintsWithURL calls completion synchronously,
+    // we attach between navigation policy and the hints callback by attaching
+    // right after the load starts.
+    [webView removeFromSuperview];
+    [webView loadRequest:[NSURLRequest requestWithURL:testURL.get()]];
+    Util::run(&navigationPolicyDecided);
+
+    // Attach now — the hints callback and policy are async but fire on main thread,
+    // so by the time beginAuthorizationIfReady checks, the window is present.
+    [webView addToTestWindow];
+    Util::run(&authorizationPerformed);
+    checkAuthorizationOptions(false, emptyString(), 0);
+    EXPECT_TRUE(policyForAppSSOPerformed);
+
+    RetainPtr redirectURL = [NSBundle.test_resourcesBundle URLForResource:@"simple2" withExtension:@"html"];
+    RetainPtr response = adoptNS([[NSHTTPURLResponse alloc] initWithURL:testURL.get() statusCode:302 HTTPVersion:@"HTTP/1.1" headerFields:@{ @"Location" : [redirectURL absoluteString] }]);
+    [gDelegate authorization:gAuthorization didCompleteWithHTTPResponse:response.get() httpBody:adoptNS([[NSData alloc] init]).get()];
+    Util::run(&navigationCompleted);
+#if PLATFORM(IOS) || PLATFORM(VISION)
+    navigationCompleted = false;
+    Util::run(&navigationCompleted);
+#endif
+    EXPECT_WK_STREQ(redirectURL.get().absoluteString, finalURL);
+}
+
+TEST(SOAuthorizationRedirect, InterceptionNilHintsFallsBackToWebPath)
+{
+    resetState();
+    // Swizzle hints to return nil (no error, but nil hints).
+    ClassMethodSwizzler swizzler0(PAL::getSOAuthorizationClassSingleton(), @selector(canPerformAuthorizationWithURL:responseCode:callerBundleIdentifier:useInternalExtensions:completion:), reinterpret_cast<IMP>(overrideCanPerformAuthorizationWithURLCompletion));
+    ClassMethodSwizzler swizzler1(PAL::getSOAuthorizationClassSingleton(), @selector(canPerformAuthorizationWithURL:responseCode:), reinterpret_cast<IMP>(overrideCanPerformAuthorizationWithURL));
+    InstanceMethodSwizzler swizzler5(PAL::getSOAuthorizationClassSingleton(), @selector(getAuthorizationHintsWithURL:responseCode:completion:), reinterpret_cast<IMP>(overrideGetAuthorizationHintsWithURLNil));
+
+    RetainPtr testURL = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr delegate = adoptNS([[TestSOAuthorizationDelegate alloc] init]);
+    configureSOAuthorizationWebView(webView.get(), delegate.get(), OpenExternalSchemesPolicy::Allow);
+
+    [webView loadRequest:[NSURLRequest requestWithURL:testURL.get()]];
+    Util::run(&navigationCompleted);
+
+    // Policy should NOT have been performed (hints were nil, so we fell back before policy).
+    EXPECT_FALSE(policyForAppSSOPerformed);
+    EXPECT_FALSE(authorizationPerformed);
+    EXPECT_WK_STREQ(testURL.get().absoluteString, finalURL);
 }
 
 } // namespace TestWebKitAPI

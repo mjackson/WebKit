@@ -532,14 +532,14 @@ static size_t trampolineReservedStackSize()
 static RegisterAtOffsetList usedCalleeSaveRegisters(const Wasm::FunctionSignature& signature)
 {
     // Pessimistically save callee saves in BoundsChecking mode since the IPInt always bounds checks
-    RegisterSetBuilder calleeSaves = RegisterSetBuilder::wasmPinnedRegisters();
+    RegisterSet calleeSaves = RegisterSet::wasmPinnedRegisters();
     // FIXME: Is it really worth considering functions that have void() signature? Are those actually common?
     if (signature.argumentCount() || !signature.returnsVoid()) {
-        RegisterSetBuilder tagCalleeSaves = RegisterSetBuilder::vmCalleeSaveRegisters();
-        tagCalleeSaves.filter(RegisterSetBuilder::runtimeTagRegisters());
+        RegisterSet tagCalleeSaves = RegisterSet::vmCalleeSaveRegisters();
+        tagCalleeSaves.filter(RegisterSet::runtimeTagRegisters());
         calleeSaves.merge(tagCalleeSaves);
     }
-    return RegisterAtOffsetList { calleeSaves.buildAndValidate(), RegisterAtOffsetList::OffsetBaseType::FramePointerBased };
+    return RegisterAtOffsetList { calleeSaves, RegisterAtOffsetList::OffsetBaseType::FramePointerBased };
 }
 
 CodePtr<JSEntryPtrTag> FunctionSignature::jsToWasmICEntrypoint() const
@@ -811,7 +811,7 @@ CodePtr<JSEntryPtrTag> FunctionSignature::jsToWasmICEntrypoint() const
     // FIXME: This assumes we don't have tag registers but we could just rematerialize them here since we already saved them.
     marshallJSResult(jit, *this, wasmCallInfo, savedResultRegisters, exceptionChecks);
 
-    ASSERT(!RegisterSetBuilder::runtimeTagRegisters().contains(GPRInfo::nonPreservedNonReturnGPR, IgnoreVectors));
+    ASSERT(!RegisterSet::runtimeTagRegisters().contains(GPRInfo::nonPreservedNonReturnGPR, IgnoreVectors));
 
     jit.emitRestore(registersToSpill, GPRInfo::callFrameRegister);
     jit.emitFunctionEpilogue();

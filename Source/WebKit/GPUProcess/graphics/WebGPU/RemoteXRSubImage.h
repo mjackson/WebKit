@@ -95,9 +95,9 @@ private:
     void getColorTexture(WebGPUIdentifier);
     void getDepthTexture(WebGPUIdentifier);
 
-    Ref<WebCore::WebGPU::XRSubImage> m_backing;
+    const Ref<WebCore::WebGPU::XRSubImage> m_backing;
     WeakRef<WebGPU::ObjectHeap> m_objectHeap;
-    Ref<IPC::StreamServerConnection> m_streamConnection;
+    const Ref<IPC::StreamServerConnection> m_streamConnection;
     ThreadSafeWeakPtr<GPUConnectionToWebProcess> m_gpuConnectionToWebProcess;
     WebGPUIdentifier m_identifier;
     WeakRef<RemoteGPU> m_gpu;

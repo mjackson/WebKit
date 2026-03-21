@@ -25,9 +25,9 @@
 
 #pragma once
 
-#include <WebCore/BufferSource.h>
-#include <WebCore/CryptoAlgorithmAesGcmParamsInit.h>
-#include <WebCore/CryptoAlgorithmParameters.h>
+#include "BufferSource.h"
+#include "CryptoAlgorithmAesGcmParamsInit.h"
+#include "CryptoAlgorithmParameters.h"
 #include <wtf/Vector.h>
 
 namespace WebCore {
@@ -55,7 +55,7 @@ public:
 
     Class parametersClass() const final { return Class::AesGcmParams; }
 
-    const Vector<uint8_t>& ivVector() const
+    const Vector<uint8_t>& ivVector() const LIFETIME_BOUND
     {
         if (!m_ivVector.isEmpty() || !iv || !iv->byteLength())
             return m_ivVector;
@@ -65,7 +65,7 @@ public:
         return m_ivVector;
     }
 
-    const Vector<uint8_t>& additionalDataVector() const
+    const Vector<uint8_t>& additionalDataVector() const LIFETIME_BOUND
     {
         if (!m_additionalDataVector.isEmpty() || !additionalData)
             return m_additionalDataVector;

@@ -30,10 +30,10 @@
 
 #if ENABLE(ENCRYPTED_MEDIA)
 
-#include <WebCore/CDMInstance.h>
-#include <WebCore/CDMInstanceSession.h>
-#include <WebCore/CDMKeyID.h>
-#include <WebCore/SharedBuffer.h>
+#include "CDMInstance.h"
+#include "CDMInstanceSession.h"
+#include "CDMKeyID.h"
+#include "SharedBuffer.h"
 #include <wtf/BoxPtr.h>
 #include <wtf/CheckedPtr.h>
 #include <wtf/Condition.h>
@@ -75,9 +75,9 @@ public:
 
     bool takeValueIfDifferent(KeyHandleValueVariant&&);
 
-    const KeyIDType& id() const { return m_id; }
-    const KeyHandleValueVariant& value() const { return m_value; }
-    KeyHandleValueVariant& value() { return m_value; }
+    const KeyIDType& id() const LIFETIME_BOUND { return m_id; }
+    const KeyHandleValueVariant& value() const LIFETIME_BOUND { return m_value; }
+    KeyHandleValueVariant& value() LIFETIME_BOUND { return m_value; }
     KeyStatus status() const { return m_status; }
     bool isStatusCurrentlyValid()
     {
@@ -113,7 +113,7 @@ private:
 };
 
 using KeyStoreIDType = unsigned;
-KeyStoreIDType keyStoreBaseNextID();
+KeyStoreIDType NODELETE keyStoreBaseNextID();
 
 template<typename T>
 class KeyStoreBase {

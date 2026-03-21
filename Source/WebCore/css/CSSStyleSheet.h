@@ -97,7 +97,7 @@ public:
     Document* NODELETE constructorDocument() const;
 
     // For CSSRuleList.
-    unsigned length() const;
+    unsigned NODELETE length() const;
     CSSRule* item(unsigned index);
 
     void clearOwnerNode() final;
@@ -109,14 +109,14 @@ public:
 
     void removeAdoptingTreeScope(ContainerNode&);
     void addAdoptingTreeScope(ContainerNode&);
-    const WeakHashSet<ContainerNode, WeakPtrImplWithEventTargetData>& adoptingTreeScopes() const { return m_adoptingTreeScopes; }
+    const WeakHashSet<ContainerNode, WeakPtrImplWithEventTargetData>& adoptingTreeScopes() const LIFETIME_BOUND { return m_adoptingTreeScopes; }
 
     Document* ownerDocument() const;
     CSSStyleSheet& rootStyleSheet();
     const CSSStyleSheet& rootStyleSheet() const;
     Style::Scope* NODELETE styleScope();
 
-    const MQ::MediaQueryList& mediaQueries() const { return m_mediaQueries; }
+    const MQ::MediaQueryList& mediaQueries() const LIFETIME_BOUND { return m_mediaQueries; }
     void setMediaQueries(MQ::MediaQueryList&&);
     void setTitle(const String& title) { m_title = title; }
 
@@ -149,7 +149,6 @@ public:
     void reattachChildRuleCSSOMWrappers();
 
     StyleSheetContents& contents() { return m_contents; }
-    Ref<StyleSheetContents> NODELETE protectedContents();
 
     bool isInline() const { return m_isInlineStylesheet; }
     TextPosition startPosition() const { return m_startPosition; }

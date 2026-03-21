@@ -46,6 +46,7 @@
 #include "HTMLProgressElement.h"
 #include "HTMLSelectElement.h"
 #include "HTMLSlotElement.h"
+#include "KeyframeEffectStack.h"
 #include "LoaderStrategy.h"
 #include "LocalFrame.h"
 #include "MatchResultCache.h"
@@ -70,12 +71,17 @@
 #include "StylePositionTryFallbackTactic.h"
 #include "StyleResolver.h"
 #include "StyleScope.h"
+#include "StyleTreeResolverInlines.h"
 #include "Text.h"
 #include "TypedElementDescendantIteratorInlines.h"
 #include "ViewTransition.h"
 #include "WebAnimationTypes.h"
 #include "WebAnimationUtilities.h"
 #include <ranges>
+
+#if PLATFORM(COCOA)
+#include <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
+#endif
 
 namespace WebCore {
 
@@ -370,9 +376,8 @@ auto TreeResolver::resolveElement(Element& element, const RenderStyle* existingS
         m_document->setTextColor(update.style->visitedDependentColor());
 
     // FIXME: These elements should not change renderer based on appearance property.
-    if (RefPtr input = dynamicDowncast<HTMLInputElement>(element); (input && input->isSearchField())
-        || is<HTMLMeterElement>(element)
-        || is<HTMLProgressElement>(element)) {
+    if (auto* input = dynamicDowncast<HTMLInputElement>(element); (input && input->isSearchField())
+        || isAnyOf<HTMLMeterElement, HTMLProgressElement>(element)) {
         if (existingStyle && update.style->usedAppearance() != existingStyle->usedAppearance()) {
             update.changes.add(Change::Renderer);
             descendantsToResolve = DescendantsToResolve::All;
@@ -450,6 +455,8 @@ auto TreeResolver::resolveElement(Element& element, const RenderStyle* existingS
 
 std::optional<ElementUpdate> TreeResolver::resolvePseudoElement(Element& element, const PseudoElementIdentifier& pseudoElementIdentifier, const ElementUpdate& elementUpdate, IsInDisplayNoneTree isInDisplayNoneTree, const RenderStyle* existingStyle)
 {
+    ASSERT(pseudoElementIdentifier.type != PseudoElementType::UserAgentPartFallback);
+
     if (elementUpdate.style->display() == DisplayType::None)
         return { };
 
@@ -459,28 +466,29 @@ std::optional<ElementUpdate> TreeResolver::resolvePseudoElement(Element& element
         return { };
 
     if (pseudoElementIdentifier.type == PseudoElementType::Checkmark) {
-        // Option elements need to check against the picker for their appearance value.
-        if (RefPtr option = dynamicDowncast<HTMLOptionElement>(element)) {
-            RefPtr select = option->ownerSelectElement();
+        if (auto* option = dynamicDowncast<HTMLOptionElement>(element)) {
+            // Option elements need to check against the picker for their appearance value.
+            auto* select = option->ownerSelectElement();
             if (!select)
                 return { };
-            RefPtr pickerElement = select->pickerPopoverElement();
+            auto* pickerElement = select->pickerPopoverElement();
             if (!pickerElement)
                 return { };
             CheckedPtr pickerStyle = m_update->elementStyle(*pickerElement);
             if (!pickerStyle || pickerStyle->usedAppearance() != StyleAppearance::Base)
                 return { };
-        } else if (elementUpdate.style->usedAppearance() != StyleAppearance::Base)
-            return { };
-
-        if (RefPtr input = dynamicDowncast<HTMLInputElement>(element); !input || !input->isCheckable())
-            return { };
+        } else {
+            if (elementUpdate.style->usedAppearance() != StyleAppearance::Base)
+                return { };
+            if (auto* input = dynamicDowncast<HTMLInputElement>(element); !input || !input->isCheckable())
+                return { };
+        }
     }
 
     if (pseudoElementIdentifier.type == PseudoElementType::PickerIcon) {
         if (elementUpdate.style->usedAppearance() != StyleAppearance::Base)
             return { };
-        if (RefPtr select = dynamicDowncast<HTMLSelectElement>(element); !select || !select->usesMenuList())
+        if (auto* select = dynamicDowncast<HTMLSelectElement>(element); !select || !select->usesMenuList())
             return { };
     }
 
@@ -596,7 +604,7 @@ std::optional<ElementUpdate> TreeResolver::resolveAncestorPseudoElement(Element&
     return createAnimatedElementUpdate(WTF::move(*pseudoElementStyle), { element, pseudoElementIdentifier }, changes, resolutionContext);
 }
 
-static bool isChildInBlockFormattingContext(const RenderStyle& style)
+static bool NODELETE isChildInBlockFormattingContext(const RenderStyle& style)
 {
     // FIXME: Incomplete. There should be shared code with layout for this.
     if (style.display() != DisplayType::BlockFlow && style.display() != DisplayType::BlockFlowListItem)
@@ -715,7 +723,7 @@ ResolutionContext TreeResolver::makeResolutionContextForPseudoElement(const Elem
 {
     auto parentStyle = [&]() -> const RenderStyle* {
         if (auto parentPseudoId = parentPseudoElement(pseudoElementIdentifier.type)) {
-            if (auto* parentPseudoStyle = elementUpdate.style->getCachedPseudoStyle({ *parentPseudoId, (*parentPseudoId == PseudoElementType::ViewTransitionGroup || *parentPseudoId == PseudoElementType::ViewTransitionImagePair) ? pseudoElementIdentifier.nameArgument : nullAtom() }))
+            if (auto* parentPseudoStyle = elementUpdate.style->getCachedPseudoStyle({ *parentPseudoId, (*parentPseudoId == PseudoElementType::ViewTransitionGroup || *parentPseudoId == PseudoElementType::ViewTransitionImagePair) ? pseudoElementIdentifier.nameOrPart : nullAtom() }))
                 return parentPseudoStyle;
         }
         return elementUpdate.style.get();
@@ -822,7 +830,7 @@ ElementUpdate TreeResolver::createAnimatedElementUpdate(ResolvedStyle&& resolved
 
     WeakStyleOriginatedAnimations newStyleOriginatedAnimations;
 
-    auto updateAnimations = [&] {
+    auto updateTransitionsAndTimelines = [&] {
         if (document->backForwardCacheState() != Document::NotInBackForwardCache || document->printing())
             return;
 
@@ -842,12 +850,6 @@ ElementUpdate TreeResolver::createAnimatedElementUpdate(ResolvedStyle&& resolved
             CheckedRef styleOriginatedTimelinesController = protect(element->document())->ensureStyleOriginatedTimelinesController();
             styleOriginatedTimelinesController->updateNamedTimelineMapForTimelineScope(resolvedStyle.style->timelineScope(), styleable);
         }
-
-        // The order in which CSS Transitions and CSS Animations are updated matters since CSS Transitions define the after-change style
-        // to use CSS Animations as defined in the previous style change event. As such, we update CSS Animations after CSS Transitions
-        // such that when CSS Transitions are updated the CSS Animations data is the same as during the previous style change event.
-        if ((oldStyle && !oldStyle->animations().isInitial()) || !resolvedStyle.style->animations().isInitial())
-            styleable.updateCSSAnimations(oldStyle, *resolvedStyle.style, resolutionContext, newStyleOriginatedAnimations, isInDisplayNoneTree);
     };
 
     auto applyAnimations = [&]() -> std::pair<std::unique_ptr<RenderStyle>, OptionSet<AnimationImpact>> {
@@ -907,9 +909,18 @@ ElementUpdate TreeResolver::createAnimatedElementUpdate(ResolvedStyle&& resolved
     if (currentStyle && parent().needsUpdateQueryContainerDependentStyle)
         styleable.queryContainerDidChange();
 
-    // First, we need to make sure that any new CSS animation occuring on this element has a matching WebAnimation
-    // on the document timeline.
-    updateAnimations();
+    // First, update CSS Transitions and timelines (skipped when printing or in back/forward cache).
+    updateTransitionsAndTimelines();
+
+    // CSS Animations must be updated even during printing to reflect the current animation state.
+    // FIXME: CSS Transitions and scroll/view-driven animations may also need to be updated during printing.
+    // The order in which CSS Transitions and CSS Animations are updated matters since CSS Transitions define the after-change style
+    // to use CSS Animations as defined in the previous style change event. As such, we update CSS Animations after CSS Transitions
+    // such that when CSS Transitions are updated the CSS Animations data is the same as during the previous style change event.
+    if (document->backForwardCacheState() == Document::NotInBackForwardCache && !skipAnimationForAnchorPosition) {
+        if ((oldStyle && !oldStyle->animations().isInitial()) || !resolvedStyle.style->animations().isInitial())
+            styleable.updateCSSAnimations(oldStyle, *resolvedStyle.style, resolutionContext, newStyleOriginatedAnimations, isInDisplayNoneTree);
+    }
 
     // Now we can update all Web animations, which will include CSS Animations as well
     // as animations created via the JS API.
@@ -1189,7 +1200,7 @@ auto TreeResolver::determineResolutionType(const Element& element, const RenderS
     return { };
 }
 
-static void clearNeedsStyleResolution(Element& element)
+static void NODELETE clearNeedsStyleResolution(Element& element)
 {
     element.setHasValidStyle();
     if (auto* before = element.beforePseudoElement())
@@ -1206,8 +1217,8 @@ static bool hasLoadingStylesheet(const Style::Scope& styleScope, const Element& 
         return true;
     if (!checkDescendants)
         return false;
-    for (Ref descendant : descendantsOfType<Element>(element)) {
-        if (styleScope.hasPendingSheetInBody(descendant.get()))
+    for (auto& descendant : descendantsOfType<Element>(element)) {
+        if (styleScope.hasPendingSheetInBody(descendant))
             return true;
     };
     return false;
@@ -1288,7 +1299,7 @@ void TreeResolver::resolveComposedTree()
 
         Ref element = Ref { downcast<Element>(node.get()) };
 
-        if (it.depth() > Settings::defaultMaximumRenderTreeDepth) {
+        if (it.depth() > maximumRenderTreeDepth()) {
             resetStyleForNonRenderedDescendants(element.get());
             it.traverseNextSkippingChildren();
             continue;
@@ -1658,8 +1669,8 @@ std::unique_ptr<RenderStyle> TreeResolver::generatePositionOption(const Position
         // "If an at-rule or property defines a name that other CSS constructs can refer to it by, ... it must be defined as a tree-scoped name."
         // https://drafts.csswg.org/css-scoping-1/#shadow-names
         return Style::Scope::resolveTreeScopedReference(styleable.element, *fallback.ruleAndTactics.rule, [](const Style::Scope& scope, const AtomString& name) -> RefPtr<const StyleProperties> {
-            Ref ruleSet = scope.resolverIfExists()->ruleSets().authorStyle();
-            auto rule = ruleSet->positionTryRuleForName(name);
+            auto& ruleSet = scope.resolverIfExists()->ruleSets().authorStyle();
+            auto rule = ruleSet.positionTryRuleForName(name);
             if (!rule)
                 return nullptr;
             return rule->properties();
@@ -1957,13 +1968,27 @@ void TreeResolver::collectChangedAnchorNames(const RenderStyle& newStyle, const 
     }
 }
 
-static Vector<Function<void ()>>& postResolutionCallbackQueue()
+unsigned TreeResolver::maximumRenderTreeDepth()
+{
+    static unsigned maximum = [] {
+#if PLATFORM(IOS)
+        if (WTF::IOSApplication::isMaild()) {
+            static const unsigned maximumMaildRenderTreeDepth = 200;
+            return maximumMaildRenderTreeDepth;
+        }
+#endif
+        return Settings::defaultMaximumRenderTreeDepth;
+    }();
+    return maximum;
+}
+
+static Vector<Function<void ()>>& NODELETE postResolutionCallbackQueue()
 {
     static NeverDestroyed<Vector<Function<void ()>>> vector;
     return vector;
 }
 
-static Vector<Ref<Frame>>& memoryCacheClientCallsResumeQueue()
+static Vector<Ref<Frame>>& NODELETE memoryCacheClientCallsResumeQueue()
 {
     static NeverDestroyed<Vector<Ref<Frame>>> vector;
     return vector;

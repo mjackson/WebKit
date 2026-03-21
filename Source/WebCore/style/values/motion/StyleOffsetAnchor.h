@@ -77,7 +77,7 @@ template<> struct CSSValueConversion<OffsetAnchor> { auto operator()(BuilderStat
 // MARK: - Blending
 
 template<> struct Blending<OffsetAnchor> {
-    auto canBlend(const OffsetAnchor&, const OffsetAnchor&) -> bool;
+    bool NODELETE canBlend(const OffsetAnchor&, const OffsetAnchor&);
     auto requiresInterpolationForAccumulativeIteration(const OffsetAnchor&, const OffsetAnchor&) -> bool;
     auto blend(const OffsetAnchor&, const OffsetAnchor&, const BlendingContext&) -> OffsetAnchor;
 };
@@ -87,7 +87,7 @@ template<> struct Blending<OffsetAnchor> {
 #if ENABLE(THREADED_ANIMATIONS)
 
 template<> struct Evaluation<OffsetAnchor, AcceleratedEffectOffsetAnchor> {
-    auto operator()(const OffsetAnchor&, FloatSize, ZoomNeeded) -> AcceleratedEffectOffsetAnchor;
+    auto operator()(const OffsetAnchor&, FloatSize, ZoomFactor) -> AcceleratedEffectOffsetAnchor;
 };
 
 #endif

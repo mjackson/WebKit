@@ -32,6 +32,7 @@
 #include "APIUserScript.h"
 #include "APIUserStyleSheet.h"
 #include "MessageReceiver.h"
+#include "ProcessActivityGroup.h"
 #include "WebExtension.h"
 #include "WebExtensionAction.h"
 #include "WebExtensionAlarm.h"
@@ -77,6 +78,7 @@
 #include <wtf/RunLoop.h>
 #include <wtf/URLHash.h>
 #include <wtf/UUID.h>
+#include <wtf/Variant.h>
 #include <wtf/Vector.h>
 #include <wtf/WeakHashCountedSet.h>
 #include <wtf/WeakHashMap.h>
@@ -173,7 +175,7 @@ public:
 
     static bool isURLForAnyExtension(const URL&);
 
-    static WebExtensionContext* get(WebExtensionContextIdentifier);
+    static WebExtensionContext* NODELETE get(WebExtensionContextIdentifier);
 
     explicit WebExtensionContext(Ref<WebExtension>&&);
 
@@ -316,7 +318,7 @@ public:
         std::optional<WebExtensionTabIdentifier> tabIdentifier;
         RefPtr<API::InspectorExtension> extension;
         RetainPtr<WKWebView> backgroundWebView;
-        RefPtr<ProcessThrottlerActivity> activity;
+        Variant<std::monostate, Ref<ProcessThrottlerActivity>, Ref<ProcessActivityGroup>> activity;
     };
 #endif
 
@@ -339,7 +341,7 @@ public:
     Vector<Ref<API::Error>> errors();
 
     bool storageIsPersistent() const { return !m_storageDirectory.isEmpty(); }
-    const String& storageDirectory() const { return m_storageDirectory; }
+    const String& storageDirectory() const LIFETIME_BOUND { return m_storageDirectory; }
 
     void invalidateStorage();
 
@@ -354,14 +356,14 @@ public:
     WebExtension& extension() const { return *m_extension; }
     WebExtensionController* extensionController() const { return m_extensionController.get(); }
 
-    const URL& baseURL() const { return m_baseURL; }
+    const URL& baseURL() const LIFETIME_BOUND { return m_baseURL; }
     void setBaseURL(URL&&);
 
     bool isURLForThisExtension(const URL&) const;
 
     bool hasCustomUniqueIdentifier() const { return m_customUniqueIdentifier; }
 
-    const String& uniqueIdentifier() const { return m_uniqueIdentifier; }
+    const String& uniqueIdentifier() const LIFETIME_BOUND { return m_uniqueIdentifier; }
     void setUniqueIdentifier(String&&);
 
     RefPtr<WebExtensionLocalization> localization();
@@ -385,16 +387,16 @@ public:
     URL optionsPageURL() const;
     URL overrideNewTabPageURL() const;
 
-    const PermissionsMap& grantedPermissions();
+    const PermissionsMap& grantedPermissions() LIFETIME_BOUND;
     void setGrantedPermissions(PermissionsMap&&);
 
-    const PermissionsMap& deniedPermissions();
+    const PermissionsMap& deniedPermissions() LIFETIME_BOUND;
     void setDeniedPermissions(PermissionsMap&&);
 
-    const PermissionMatchPatternsMap& grantedPermissionMatchPatterns();
+    const PermissionMatchPatternsMap& grantedPermissionMatchPatterns() LIFETIME_BOUND;
     void setGrantedPermissionMatchPatterns(PermissionMatchPatternsMap&&, EqualityOnly = EqualityOnly::Yes);
 
-    const PermissionMatchPatternsMap& deniedPermissionMatchPatterns();
+    const PermissionMatchPatternsMap& deniedPermissionMatchPatterns() LIFETIME_BOUND;
     void setDeniedPermissionMatchPatterns(PermissionMatchPatternsMap&&, EqualityOnly = EqualityOnly::Yes);
 
     bool requestedOptionalAccessToAllHosts() const { return m_requestedOptionalAccessToAllHosts; }
@@ -541,7 +543,7 @@ public:
 
     NSArray *platformMenuItems(const WebExtensionTab&) const;
 
-    const MenuItemVector& mainMenuItems() const { return m_mainMenuItems; }
+    const MenuItemVector& mainMenuItems() const LIFETIME_BOUND { return m_mainMenuItems; }
     WebExtensionMenuItem* menuItem(const String& identifier) const;
     void performMenuItem(WebExtensionMenuItem&, const WebExtensionMenuItemContextParameters&, UserTriggered = UserTriggered::No);
 
@@ -552,7 +554,7 @@ public:
 #endif
 
     void userGesturePerformed(WebExtensionTab&);
-    bool hasActiveUserGesture(WebExtensionTab&) const;
+    bool NODELETE hasActiveUserGesture(WebExtensionTab&) const;
     void clearUserGesture(WebExtensionTab&);
 
     bool NODELETE inTestingMode() const;
@@ -602,7 +604,7 @@ public:
     // Returns whether or not there are any matched rules after the purge.
     bool purgeMatchedRulesFromBefore(const WallTime&);
 
-    UserStyleSheetVector& dynamicallyInjectedUserStyleSheets() { return m_dynamicallyInjectedUserStyleSheets; };
+    UserStyleSheetVector& dynamicallyInjectedUserStyleSheets() LIFETIME_BOUND { return m_dynamicallyInjectedUserStyleSheets; };
 
     std::optional<WebCore::PageIdentifier> backgroundPageIdentifier() const;
 #if ENABLE(INSPECTOR_EXTENSIONS)
@@ -644,7 +646,7 @@ public:
 
     HashSet<Ref<WebProcessProxy>> processes(EventListenerTypeSet&&, ContentWorldTypeSet&&, Function<bool(WebProcessProxy&, WebPageProxy&, WebFrameProxy&)>&& predicate = nullptr) const;
 
-    const UserContentControllerProxySet& NODELETE userContentControllers() const;
+    const UserContentControllerProxySet& NODELETE userContentControllers() const LIFETIME_BOUND;
 
     template<typename T>
     void sendToProcesses(const WebProcessProxySet&, const T& message) const;
@@ -691,7 +693,7 @@ private:
 
     bool isBackgroundPage(WebCore::FrameIdentifier) const;
     bool isBackgroundPage(WebPageProxyIdentifier) const;
-    bool backgroundContentIsLoaded() const;
+    bool NODELETE backgroundContentIsLoaded() const;
 
     void loadBackgroundWebViewDuringLoad();
     void loadBackgroundWebViewIfNeeded();
@@ -731,7 +733,7 @@ private:
     void unloadInspectorBackgroundPage(WebInspectorUIProxy&);
 
     RefPtr<API::InspectorExtension> inspectorExtension(WebPageProxyIdentifier) const;
-    RefPtr<WebInspectorUIProxy> inspector(const API::InspectorExtension&) const;
+    RefPtr<WebInspectorUIProxy> NODELETE inspector(const API::InspectorExtension&) const;
     HashSet<Ref<WebProcessProxy>> processes(const API::InspectorExtension&) const;
 #endif // ENABLE(INSPECTOR_EXTENSIONS)
 
@@ -1069,7 +1071,7 @@ private:
 
 #if PLATFORM(COCOA)
     RetainPtr<WKWebView> m_backgroundWebView;
-    RefPtr<ProcessThrottlerActivity> m_backgroundWebViewActivity;
+    Variant<std::monostate, Ref<ProcessThrottlerActivity>, Ref<ProcessActivityGroup>> m_backgroundWebViewActivity;
     RetainPtr<_WKWebExtensionContextDelegate> m_delegate;
 #endif
     RefPtr<API::Error> m_backgroundContentLoadError;
@@ -1159,7 +1161,7 @@ private:
     Deque<TestMessage> m_testStartedQueue;
     Deque<TestMessage> m_testFinishedQueue;
 
-    bool hasTestEventListeners(WebExtensionEventListenerType);
+    bool NODELETE hasTestEventListeners(WebExtensionEventListenerType);
     void sendQueuedTestMessagesIfNeeded(WebExtensionEventListenerType);
 #if PLATFORM(COCOA)
     void addTestMessageToQueue(const String& message, id argument, WebExtensionEventListenerType);

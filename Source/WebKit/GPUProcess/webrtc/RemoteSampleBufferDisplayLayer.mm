@@ -79,7 +79,7 @@ void RemoteSampleBufferDisplayLayer::initialize(bool hideRootLayer, IntSize size
             return callback({ });
 
         protectedThis->m_layerHostingContext = LayerHostingContext::create(contextOptions);
-        protectedThis->m_layerHostingContext->setRootLayer(protect(protectedThis->m_sampleBufferDisplayLayer)->protectedRootLayer().get());
+        protectedThis->m_layerHostingContext->setRootLayer(protect(protect(protectedThis->m_sampleBufferDisplayLayer)->rootLayer()).get());
         callback(protectedThis->m_layerHostingContext->hostingContext());
     });
 }
@@ -170,6 +170,11 @@ IPC::Connection* RemoteSampleBufferDisplayLayer::messageSenderConnection() const
 void RemoteSampleBufferDisplayLayer::sampleBufferDisplayLayerStatusDidFail()
 {
     send(Messages::SampleBufferDisplayLayer::SetDidFail { protect(m_sampleBufferDisplayLayer)->didFail() });
+}
+
+void RemoteSampleBufferDisplayLayer::updateVideoFrameCounters(uint64_t totalFrameCount, uint64_t droppedFrameCount)
+{
+    send(Messages::SampleBufferDisplayLayer::UpdateVideoFrameCounters { totalFrameCount,  droppedFrameCount });
 }
 
 void RemoteSampleBufferDisplayLayer::setSharedVideoFrameSemaphore(IPC::Semaphore&& semaphore)

@@ -33,7 +33,7 @@
 #include "BoxLayoutShape.h"
 #include "FloatingObjects.h"
 #include "NullGraphicsContext.h"
-#include "RenderBlockFlow.h"
+#include "RenderBlockFlowInlines.h"
 #include "RenderBoxInlines.h"
 #include "RenderBoxModelObjectInlines.h"
 #include "RenderFragmentContainer.h"
@@ -253,22 +253,23 @@ Ref<const LayoutShape> makeShapeForShapeOutside(const RenderBox& renderer)
     bool isHorizontalWritingMode = containingBlock.isHorizontalWritingMode();
     auto shapeImageThreshold = style.shapeImageThreshold();
     auto& shapeOutside = style.shapeOutside();
+    auto zoom = style.usedZoomForLength();
 
     auto boxSize = computeLogicalBoxSize(renderer, isHorizontalWritingMode);
 
     auto logicalMargin = [&] {
-        auto shapeMargin = Style::evaluate<LayoutUnit>(style.shapeMargin(), containingBlock.contentBoxLogicalWidth(), Style::ZoomNeeded { }).toFloat();
+        auto shapeMargin = Style::evaluate<LayoutUnit>(style.shapeMargin(), containingBlock.contentBoxLogicalWidth(), zoom).toFloat();
         return isnan(shapeMargin) ? 0.0f : shapeMargin;
     }();
 
     return WTF::switchOn(shapeOutside,
         [&](const Style::ShapeOutside::Shape& shape) {
             auto offset = LayoutPoint { logicalLeftOffset(renderer), logicalTopOffset(renderer) };
-            return LayoutShape::createShape(shape, offset, boxSize, writingMode, logicalMargin);
+            return LayoutShape::createShape(shape, offset, boxSize, writingMode, logicalMargin, zoom);
         },
         [&](const Style::ShapeOutside::ShapeAndShapeBox& shapeAndShapeBox) {
             auto offset = LayoutPoint { logicalLeftOffset(renderer), logicalTopOffset(renderer) };
-            return LayoutShape::createShape(shapeAndShapeBox.shape, offset, boxSize, writingMode, logicalMargin);
+            return LayoutShape::createShape(shapeAndShapeBox.shape, offset, boxSize, writingMode, logicalMargin, zoom);
         },
         [&](const Style::ShapeOutside::Image& shapeImage) {
             ASSERT(shapeImage.isValid());
@@ -322,11 +323,11 @@ static inline bool checkShapeImageOrigin(Document& document, const Style::Image&
         return true;
 
     ASSERT(styleImage.cachedImage());
-    CachedImage& cachedImage = *(styleImage.cachedImage());
-    if (cachedImage.isOriginClean(&document.securityOrigin()))
+    Ref cachedImage = *(styleImage.cachedImage());
+    if (cachedImage->isOriginClean(&document.securityOrigin()))
         return true;
 
-    const URL& url = cachedImage.url();
+    const URL& url = cachedImage->url();
     String urlString = url.isNull() ? "''"_s : url.stringCenterEllipsizedToLength();
     document.addConsoleMessage(MessageSource::Security, MessageLevel::Error, makeString("Unsafe attempt to load URL "_s, urlString, '.'));
 

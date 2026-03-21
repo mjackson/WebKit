@@ -27,7 +27,7 @@
 #include "AutosizeStatus.h"
 #include "CSSCustomPropertyValue.h"
 #include "ColorBlending.h"
-#include "FontCascade.h"
+#include "FontCascadeInlines.h"
 #include "FontSelector.h"
 #include "Logging.h"
 #include "Pagination.h"
@@ -223,7 +223,7 @@ const AtomString& RenderStyle::hyphenString() const
             static MainThreadNeverDestroyed<const AtomString> hyphenMinusString(span(hyphenMinus));
             static MainThreadNeverDestroyed<const AtomString> hyphenString(span(hyphen));
 
-            return fontCascade().primaryFont()->glyphForCharacter(hyphen) ? hyphenString : hyphenMinusString;
+            return protect(fontCascade().primaryFont())->glyphForCharacter(hyphen) ? hyphenString : hyphenMinusString;
         },
         [](const AtomString& string) -> const AtomString& {
             return string;

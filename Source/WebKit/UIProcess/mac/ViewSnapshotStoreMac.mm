@@ -98,11 +98,6 @@ id ViewSnapshot::asLayerContents()
     return m_surface->asLayerContents();
 }
 
-RetainPtr<id> ViewSnapshot::asProtectedLayerContents()
-{
-    return asLayerContents();
-}
-
 RetainPtr<CGImageRef> ViewSnapshot::asImageForTesting()
 {
     if (!m_surface)

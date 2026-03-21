@@ -71,8 +71,8 @@ private:
 
     void willRecalcStyle(OptionSet<Style::Change>) final;
 
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) final;
-    void removedFromAncestor(RemovalType, ContainerNode&) final;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) final;
+    void removingSteps(RemovalType, ContainerNode&) final;
 
     FixedVector<HTMLDimensionsListValue> m_rowDimensions;
     FixedVector<HTMLDimensionsListValue> m_colDimensions;

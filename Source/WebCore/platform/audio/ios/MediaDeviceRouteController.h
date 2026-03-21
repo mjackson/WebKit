@@ -65,6 +65,7 @@ public:
 
     WEBCORE_EXPORT bool activateRoute(WebMediaDevicePlatformRoute *);
     WEBCORE_EXPORT bool deactivateRoute(WebMediaDevicePlatformRoute *);
+    WEBCORE_EXPORT void deactivateAllRoutes();
 
 private:
     MediaDeviceRouteController();
@@ -77,11 +78,9 @@ private:
 #endif
 };
 
+WEBCORE_EXPORT void setMockMediaDeviceRouteControllerEnabled(bool);
+WEBCORE_EXPORT bool mockMediaDeviceRouteControllerEnabled();
+
 } // namespace WebCore
 
 #endif // ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
-
-namespace WebCore {
-WEBCORE_EXPORT void setMockMediaDeviceRouteControllerEnabled(bool);
-WEBCORE_EXPORT bool mockMediaDeviceRouteControllerEnabled();
-}

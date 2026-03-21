@@ -316,7 +316,7 @@ void RemoteGraphicsContextProxy::drawImageBuffer(ImageBuffer& imageBuffer, const
     send(Messages::RemoteGraphicsContext::DrawImageBuffer(imageBuffer.renderingResourceIdentifier(), destRect, srcRect, options));
 }
 
-void RemoteGraphicsContextProxy::drawNativeImage(NativeImage& image, const FloatRect& destRect, const FloatRect& srcRect, ImagePaintingOptions options)
+void RemoteGraphicsContextProxy::drawNativeImage(const NativeImage& image, const FloatRect& destRect, const FloatRect& srcRect, ImagePaintingOptions options)
 {
 #if HAVE(SUPPORT_HDR_DISPLAY_APIS)
     auto headroom = options.headroom();
@@ -331,7 +331,7 @@ void RemoteGraphicsContextProxy::drawNativeImage(NativeImage& image, const Float
     ImagePaintingOptions clampedOptions(options, headroom);
 #endif
     appendStateChangeItemIfNecessary();
-    if (!recordResourceUse(image))
+    if (!recordResourceUse(const_cast<NativeImage&>(image)))
         return;
 #if HAVE(SUPPORT_HDR_DISPLAY_APIS)
     send(Messages::RemoteGraphicsContext::DrawNativeImage(image.renderingResourceIdentifier(), destRect, srcRect, clampedOptions));
@@ -357,10 +357,10 @@ void RemoteGraphicsContextProxy::drawSystemImage(SystemImage& systemImage, const
     send(Messages::RemoteGraphicsContext::DrawSystemImage(systemImage, destinationRect));
 }
 
-void RemoteGraphicsContextProxy::drawPattern(NativeImage& image, const FloatRect& destRect, const FloatRect& tileRect, const AffineTransform& patternTransform, const FloatPoint& phase, const FloatSize& spacing, ImagePaintingOptions options)
+void RemoteGraphicsContextProxy::drawPattern(const NativeImage& image, const FloatRect& destRect, const FloatRect& tileRect, const AffineTransform& patternTransform, const FloatPoint& phase, const FloatSize& spacing, ImagePaintingOptions options)
 {
     appendStateChangeItemIfNecessary();
-    if (!recordResourceUse(image))
+    if (!recordResourceUse(const_cast<NativeImage&>(image)))
         return;
     send(Messages::RemoteGraphicsContext::DrawPatternNativeImage(image.renderingResourceIdentifier(), destRect, tileRect, patternTransform, phase, spacing, options));
 }
@@ -655,7 +655,7 @@ void RemoteGraphicsContextProxy::setURLForRect(const URL& link, const FloatRect&
     send(Messages::RemoteGraphicsContext::SetURLForRect(link, destRect));
 }
 
-bool RemoteGraphicsContextProxy::recordResourceUse(NativeImage& image)
+bool RemoteGraphicsContextProxy::recordResourceUse(const NativeImage& image)
 {
     RefPtr renderingBackend = m_renderingBackend.get();
     if (!renderingBackend) [[unlikely]] {

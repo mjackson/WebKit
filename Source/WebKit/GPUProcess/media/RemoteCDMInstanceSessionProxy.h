@@ -88,7 +88,7 @@ private:
     PlatformDisplayID displayID() final { return m_displayID; }
 
     WeakPtr<RemoteCDMProxy> m_cdm;
-    Ref<WebCore::CDMInstanceSession> m_session;
+    const Ref<WebCore::CDMInstanceSession> m_session;
     RemoteCDMInstanceSessionIdentifier m_identifier;
     PlatformDisplayID m_displayID { 0 };
 };

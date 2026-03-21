@@ -43,7 +43,7 @@
 #import <WebCore/DocumentView.h>
 #import <WebCore/DragImage.h>
 #import <WebCore/FocusController.h>
-#import <WebCore/FontCascade.h>
+#import <WebCore/FontCascadeInlines.h>
 #import <WebCore/GeometryUtilities.h>
 #import <WebCore/HTMLDocument.h>
 #import <WebCore/HTMLLinkElement.h>
@@ -266,28 +266,28 @@ IGNORE_WARNINGS_END
 Class kitClass(Node* impl)
 {
     switch (impl->nodeType()) {
-        case Node::ELEMENT_NODE:
-            if (RefPtr htmlElement = dynamicDowncast<HTMLElement>(*impl))
-                return elementClass(htmlElement->tagQName(), [DOMHTMLElement class]);
-            return [DOMElement class];
-        case Node::ATTRIBUTE_NODE:
-            return [DOMAttr class];
-        case Node::TEXT_NODE:
-            return [DOMText class];
-        case Node::CDATA_SECTION_NODE:
-            return [DOMCDATASection class];
-        case Node::PROCESSING_INSTRUCTION_NODE:
-            return [DOMProcessingInstruction class];
-        case Node::COMMENT_NODE:
-            return [DOMComment class];
-        case Node::DOCUMENT_NODE:
-            if (is<HTMLDocument>(impl))
-                return [DOMHTMLDocument class];
-            return [DOMDocument class];
-        case Node::DOCUMENT_TYPE_NODE:
-            return [DOMDocumentType class];
-        case Node::DOCUMENT_FRAGMENT_NODE:
-            return [DOMDocumentFragment class];
+    case NodeType::Element:
+        if (RefPtr htmlElement = dynamicDowncast<HTMLElement>(*impl))
+            return elementClass(htmlElement->tagQName(), [DOMHTMLElement class]);
+        return [DOMElement class];
+    case NodeType::Attribute:
+        return [DOMAttr class];
+    case NodeType::Text:
+        return [DOMText class];
+    case NodeType::CDATASection:
+        return [DOMCDATASection class];
+    case NodeType::ProcessingInstruction:
+        return [DOMProcessingInstruction class];
+    case NodeType::Comment:
+        return [DOMComment class];
+    case NodeType::Document:
+        if (is<HTMLDocument>(impl))
+            return [DOMHTMLDocument class];
+        return [DOMDocument class];
+    case NodeType::DocumentType:
+        return [DOMDocumentType class];
+    case NodeType::DocumentFragment:
+        return [DOMDocumentFragment class];
     }
     ASSERT_NOT_REACHED();
     return nil;
@@ -650,7 +650,7 @@ id <DOMEventTarget> kit(EventTarget* target)
     auto* renderer = core(self)->renderer();
     if (!renderer)
         return nil;
-    return renderer->style().fontCascade().primaryFont()->ctFont();
+    return renderer->style().fontCascade().primaryFont().ctFont();
 }
 
 #if PLATFORM(MAC)

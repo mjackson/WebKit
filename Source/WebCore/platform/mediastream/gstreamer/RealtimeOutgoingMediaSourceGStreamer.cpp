@@ -371,7 +371,7 @@ void RealtimeOutgoingMediaSourceGStreamer::codecPreferencesChanged()
 
     gst_bin_sync_children_states(GST_BIN_CAST(m_bin.get()));
     gst_element_sync_state_with_parent(m_bin.get());
-    GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN_CAST(m_bin.get()), GST_DEBUG_GRAPH_SHOW_ALL, "outgoing-media-new-codec-prefs");
+    dumpBinToDotFile(m_bin, "outgoing-media-new-codec-prefs"_s);
     m_isStopped = false;
 }
 

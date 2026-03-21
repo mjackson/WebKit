@@ -71,13 +71,13 @@ public:
 
     void initialize(
         CodeLocationJump<JSInternalPtrTag> patchableJump, CodeLocationLabel<JSInternalPtrTag> done,
-        CodeLocationLabel<ExceptionHandlerPtrTag> exceptionTarget, const RegisterSetBuilder& usedRegisters,
+        CodeLocationLabel<ExceptionHandlerPtrTag> exceptionTarget, const RegisterSet& usedRegisters,
         CallSiteIndex, RefPtr<Generator>
         );
 
     CodeLocationJump<JSInternalPtrTag> patchableJump() const { return m_patchableJump; }
     CodeLocationLabel<JSInternalPtrTag> done() const { return m_done; }
-    const ScalarRegisterSet& usedRegisters() const { return m_usedRegisters; }
+    const ScalarRegisterSet& usedRegisters() const LIFETIME_BOUND { return m_usedRegisters; }
     CallSiteIndex callSiteIndex() const { return m_callSiteIndex; }
 
     void generate(CodeBlock*);

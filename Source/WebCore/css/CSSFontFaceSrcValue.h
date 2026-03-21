@@ -25,10 +25,10 @@
 
 #pragma once
 
-#include <WebCore/CSSURL.h>
-#include <WebCore/CSSValue.h>
-#include <WebCore/CachedResourceHandle.h>
-#include <WebCore/ResourceLoaderOptions.h>
+#include "CSSURL.h"
+#include "CSSValue.h"
+#include "CachedResourceHandle.h"
+#include "ResourceLoaderOptions.h"
 #include <wtf/Vector.h>
 
 namespace WebCore {
@@ -45,7 +45,7 @@ public:
     ~CSSFontFaceSrcLocalValue();
 
     bool isEmpty() const { return m_fontFaceName.isEmpty(); }
-    const AtomString& fontFaceName() const { return m_fontFaceName; }
+    const AtomString& fontFaceName() const LIFETIME_BOUND { return m_fontFaceName; }
 
     SVGFontFaceElement* NODELETE svgFontFaceElement() const;
     void setSVGFontFaceElement(SVGFontFaceElement&);

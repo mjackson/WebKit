@@ -35,6 +35,7 @@ struct QuirksData {
     bool isBankOfAmerica : 1 { false };
     bool isBing : 1 { false };
     bool isCBSSports : 1 { false };
+    bool isDictionary : 1 { false };
     bool isEA : 1 { false };
     bool isESPN : 1 { false };
     bool isFacebook : 1 { false };
@@ -100,6 +101,7 @@ struct QuirksData {
         NeedsNavigatorUserAgentDataQuirk,
         NeedsNowPlayingFullscreenSwapQuirk,
 #if PLATFORM(IOS_FAMILY)
+        NeedsPauseBeforeFullscreenExitQuirk,
         NeedsPreloadAutoQuirk,
 #endif
 #if PLATFORM(MAC)
@@ -240,9 +242,11 @@ struct QuirksData {
         ShouldAvoidStartingSelectionOnMouseDownOverPointerCursor,
         ShouldAllowNotificationPermissionWithoutUserGesture,
         NeedsInstagramResizingReelsQuirk,
+        NeedsZillowFloorplanMarginQuirk,
 #if PLATFORM(IOS_FAMILY)
         NeedsChromeOSNavigatorUserAgentQuirk,
 #endif
+        ShouldLimitHLSPlaybackRate,
 
         NumberOfQuirks
     };

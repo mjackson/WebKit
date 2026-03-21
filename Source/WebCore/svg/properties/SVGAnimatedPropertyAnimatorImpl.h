@@ -50,7 +50,7 @@ class SVGAnimatedAngleAnimator final : public SVGAnimatedPropertyAnimator<SVGAni
     using Base::Base;
 
 public:
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedAngle>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedAngle>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
     {
         return adoptRef(*new SVGAnimatedAngleAnimator(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive));
     }
@@ -71,7 +71,7 @@ class SVGAnimatedBooleanAnimator final : public SVGAnimatedPropertyAnimator<SVGA
 public:
     using Base::Base;
 
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedBoolean>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedBoolean>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
     {
         return adoptRef(*new SVGAnimatedBooleanAnimator(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive));
     }
@@ -95,7 +95,7 @@ class SVGAnimatedEnumerationAnimator final : public SVGAnimatedPropertyAnimator<
     using Base::m_function;
 
 public:
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedEnumeration>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedEnumeration>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
     {
         return adoptRef(*new SVGAnimatedEnumerationAnimator<EnumType>(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive));
     }
@@ -122,7 +122,7 @@ class SVGAnimatedIntegerAnimator final : public SVGAnimatedPropertyAnimator<SVGA
 public:
     using Base::Base;
 
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedInteger>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedInteger>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
     {
         return adoptRef(*new SVGAnimatedIntegerAnimator(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive));
     }
@@ -141,12 +141,12 @@ class SVGAnimatedLengthAnimator final : public SVGAnimatedPropertyAnimator<SVGAn
     using Base = SVGAnimatedPropertyAnimator<SVGAnimatedLength, SVGAnimationLengthFunction>;
 
 public:
-    SVGAnimatedLengthAnimator(const QualifiedName& attributeName, Ref<SVGAnimatedLength>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive, SVGLengthMode lengthMode)
+    SVGAnimatedLengthAnimator(const QualifiedName& attributeName, const Ref<SVGAnimatedLength>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive, SVGLengthMode lengthMode)
         : Base(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive, lengthMode)
     {
     }
 
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedLength>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive, SVGLengthMode lengthMode)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedLength>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive, SVGLengthMode lengthMode)
     {
         return adoptRef(*new SVGAnimatedLengthAnimator(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive, lengthMode));
     }
@@ -165,12 +165,12 @@ class SVGAnimatedLengthListAnimator final : public SVGAnimatedPropertyAnimator<S
     using Base = SVGAnimatedPropertyAnimator<SVGAnimatedLengthList, SVGAnimationLengthListFunction>;
 
 public:
-    SVGAnimatedLengthListAnimator(const QualifiedName& attributeName, Ref<SVGAnimatedLengthList>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive, SVGLengthMode lengthMode)
+    SVGAnimatedLengthListAnimator(const QualifiedName& attributeName, const Ref<SVGAnimatedLengthList>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive, SVGLengthMode lengthMode)
         : Base(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive, lengthMode)
     {
     }
 
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedLengthList>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive, SVGLengthMode lengthMode)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedLengthList>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive, SVGLengthMode lengthMode)
     {
         return adoptRef(*new SVGAnimatedLengthListAnimator(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive, lengthMode));
     }
@@ -192,7 +192,7 @@ class SVGAnimatedNumberAnimator final : public SVGAnimatedPropertyAnimator<SVGAn
     using Base::Base;
 
 public:
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedNumber>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedNumber>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
     {
         return adoptRef(*new SVGAnimatedNumberAnimator(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive));
     }
@@ -212,7 +212,7 @@ class SVGAnimatedNumberListAnimator final : public SVGAnimatedPropertyAnimator<S
     using Base::Base;
     
 public:
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedNumberList>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedNumberList>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
     {
         return adoptRef(*new SVGAnimatedNumberListAnimator(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive));
     }
@@ -232,7 +232,7 @@ class SVGAnimatedPathSegListAnimator final : public SVGAnimatedPropertyAnimator<
     using Base::Base;
 
 public:
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedPathSegList>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedPathSegList>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
     {
         return adoptRef(*new SVGAnimatedPathSegListAnimator(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive));
     }
@@ -253,7 +253,7 @@ class SVGAnimatedPointListAnimator final : public SVGAnimatedPropertyAnimator<SV
     using Base::Base;
     
 public:
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedPointList>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedPointList>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
     {
         return adoptRef(*new SVGAnimatedPointListAnimator(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive));
     }
@@ -275,7 +275,7 @@ class SVGAnimatedOrientTypeAnimator final : public SVGAnimatedPropertyAnimator<S
     using Base::Base;
 
 public:
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedOrientType>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedOrientType>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
     {
         return adoptRef(*new SVGAnimatedOrientTypeAnimator(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive));
     }
@@ -297,7 +297,7 @@ class SVGAnimatedPreserveAspectRatioAnimator final : public SVGAnimatedPropertyA
     using Base::Base;
 
 public:
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedPreserveAspectRatio>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedPreserveAspectRatio>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
     {
         return adoptRef(*new SVGAnimatedPreserveAspectRatioAnimator(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive));
     }
@@ -319,7 +319,7 @@ class SVGAnimatedRectAnimator final : public SVGAnimatedPropertyAnimator<SVGAnim
 public:
     using Base::Base;
 
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedRect>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedRect>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
     {
         return adoptRef(*new SVGAnimatedRectAnimator(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive));
     }
@@ -339,7 +339,7 @@ class SVGAnimatedStringAnimator final : public SVGAnimatedPropertyAnimator<SVGAn
     using Base::Base;
 
 public:
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedString>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedString>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
     {
         return adoptRef(*new SVGAnimatedStringAnimator(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive));
     }
@@ -382,7 +382,7 @@ class SVGAnimatedTransformListAnimator final : public SVGAnimatedPropertyAnimato
     using Base::Base;
 
 public:
-    static auto create(const QualifiedName& attributeName, Ref<SVGAnimatedTransformList>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
+    static auto create(const QualifiedName& attributeName, const Ref<SVGAnimatedTransformList>& animated, AnimationMode animationMode, CalcMode calcMode, bool isAccumulated, bool isAdditive)
     {
         return adoptRef(*new SVGAnimatedTransformListAnimator(attributeName, animated, animationMode, calcMode, isAccumulated, isAdditive));
     }

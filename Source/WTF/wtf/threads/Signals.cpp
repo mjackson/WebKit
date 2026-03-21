@@ -138,16 +138,7 @@ static void initMachExceptionHandlerThread()
     if (!handlers.addedExceptions)
         return;
 
-    uint16_t flags = MPO_INSERT_SEND_RIGHT;
-
-    // This provisional flag can be removed once macos sonoma is no longer supported
-#ifdef MPO_PROVISIONAL_ID_PROT_OPTOUT
-    flags |= MPO_PROVISIONAL_ID_PROT_OPTOUT;
-#endif
-
-#if CPU(ARM64) && HAVE(HARDENED_MACH_EXCEPTIONS)
-    flags |= MPO_EXCEPTION_PORT;
-#endif
+    uint16_t flags = MPO_INSERT_SEND_RIGHT | MPO_EXCEPTION_PORT;
 
     mach_port_options_t options { };
     options.flags = flags;
@@ -239,7 +230,7 @@ inline ptrauth_generic_signature_t hashThreadState(std::span<const natural_t> so
     }
     const uint32_t* cpsrPtr = reinterpret_cast<const uint32_t*>(&srcSpan[threadStateSizeInPointers - 1]);
     hash = ptrauth_sign_generic_data(static_cast<uint64_t>(*cpsrPtr), hash);
-    
+
     return hash;
 }
 #endif

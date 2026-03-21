@@ -126,7 +126,7 @@ std::optional<SharedVideoFrame::Buffer> SharedVideoFrameWriter::writeBuffer(cons
         return writeBuffer(*webrtcFrame->buffer(), newSemaphoreCallback, newMemoryCallback);
 #endif
 
-    return writeBuffer(frame.protectedPixelBuffer().get(), newSemaphoreCallback, newMemoryCallback);
+    return writeBuffer(protect(frame.pixelBuffer()).get(), newSemaphoreCallback, newMemoryCallback);
 }
 
 std::optional<SharedVideoFrame::Buffer> SharedVideoFrameWriter::writeBuffer(CVPixelBufferRef pixelBuffer, NOESCAPE const Function<void(IPC::Semaphore&)>& newSemaphoreCallback, NOESCAPE const Function<void(SharedMemory::Handle&&)>& newMemoryCallback, bool canUseIOSurface)
@@ -277,7 +277,7 @@ RetainPtr<CVPixelBufferRef> SharedVideoFrameReader::readBuffer(SharedVideoFrame:
             RELEASE_LOG_ERROR(WebRTC, "SharedVideoFrameReader::readBuffer no surface");
             return nullptr;
         }
-        return WebCore::createCVPixelBuffer(surface->protectedSurface().get()).value_or(nullptr);
+        return WebCore::createCVPixelBuffer(protect(surface->surface()).get()).value_or(nullptr);
     }, [this](std::nullptr_t representation) -> RetainPtr<CVPixelBufferRef> {
         return readBufferFromSharedMemory();
     }, [this](IntSize size) -> RetainPtr<CVPixelBufferRef> {

@@ -70,7 +70,7 @@ public:
     static Ref<DragImageLoader> create(DataTransfer&, const Document&);
     void startLoading(CachedResourceHandle<CachedImage>&);
     void stopLoading(CachedResourceHandle<CachedImage>&);
-    void moveToDataTransfer(DataTransfer&);
+    void NODELETE moveToDataTransfer(DataTransfer&);
 
     // CachedResourceClient.
     void ref() const final { RefCounted::ref(); }
@@ -401,7 +401,7 @@ Vector<Ref<File>> DataTransfer::filesFromPasteboardAndItemList(ScriptExecutionCo
     bool itemListContainsItems = false;
     if (m_itemList && m_itemList->hasItems()) {
         for (auto& item : m_itemList->items()) {
-            if (auto file = item->file())
+            if (RefPtr file = item->file())
                 files.append(file.releaseNonNull());
         }
         itemListContainsItems = true;
@@ -782,7 +782,7 @@ void DataTransfer::moveDragState(Ref<DataTransfer>&& other)
     m_dragImage = other->m_dragImage;
     m_dragImageElement = WTF::move(other->m_dragImageElement);
     m_dragImageLoader = WTF::move(other->m_dragImageLoader);
-    if (RefPtr dragImageLoader = m_dragImageLoader)
+    if (auto* dragImageLoader = m_dragImageLoader.get())
         dragImageLoader->moveToDataTransfer(*this);
     m_fileList = WTF::move(other->m_fileList);
 }

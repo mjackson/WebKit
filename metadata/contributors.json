@@ -1935,13 +1935,13 @@
       "emails" : [
          "csaavedra@igalia.com"
       ],
-      "expertise" : "WebKitGTK port, Epiphany developer, HTML Editing",
+      "expertise" : "WebKitGTK, WPE, security",
       "github" : "csaavedra",
       "name" : "Claudio Saavedra",
       "nicks" : [
-         "claudio___"
+         "claudio"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -2940,7 +2940,8 @@
       "name" : "Eri Pazos P\u00e9rez",
       "nicks" : [
          "eri"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -3019,6 +3020,16 @@
       "name" : "Erik Arvidsson",
       "nicks" : [
          "arv"
+      ]
+   },
+   {
+      "emails" : [
+         "e_melone@apple.com"
+      ],
+      "github" : "emelone16",
+      "name" : "Erik Melone",
+      "nicks" : [
+         "emelone"
       ]
    },
    {
@@ -4144,6 +4155,18 @@
    },
    {
       "emails" : [
+         "m.jason.liu@outlook.com",
+         "m.jason.liu@gmail.com",
+         "cgqaq@chromium.org"
+      ],
+      "github" : "cgqaq",
+      "name" : "Jason Leo",
+      "nicks" : [
+         "cgqaq"
+      ]
+   },
+   {
+      "emails" : [
          "jasonliuwebkit@gmail.com"
       ],
       "name" : "Jason Liu",
@@ -4450,6 +4473,18 @@
       "name" : "Joanmarie Diggs",
       "nicks" : [
          "joanie"
+      ]
+   },
+   {
+      "emails" : [
+         "joanne_pan2@apple.com",
+         "jpan0917@gmail.com"
+      ],
+      "github" : "j0pan",
+      "name" : "Joanne Pan",
+      "nicks" : [
+         "jopan",
+         "j0pan"
       ]
    },
    {
@@ -5651,6 +5686,7 @@
          "mjs@apple.com"
       ],
       "expertise" : "JavaScript/ECMAScript, Performance, Security, Basic types and data structures, FastMalloc, DOM Bindings for JavaScript, Core DOM, HTML DOM, JavaScript DOM Bindings, WebKit API (Mac, Win), HTML Editing, Networking, Tools, New Features / Standards Support, General (probably a good backup on most topics even if not specifically an expert)",
+      "github" : "othermaciej",
       "name" : "Maciej Stachowiak",
       "nicks" : [
          "othermaciej",
@@ -8355,6 +8391,17 @@
       "name" : "Utku Uckun",
       "nicks" : [
          "utkuuckun"
+      ]
+   },
+   {
+      "emails" : [
+         "v_rubanova@apple.com"
+      ],
+      "github" : "valrubanova",
+      "name" : "Valeriia Rubanova",
+      "nicks" : [
+         "vrubanova",
+         "valrubanova"
       ]
    },
    {

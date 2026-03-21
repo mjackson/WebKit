@@ -246,11 +246,12 @@ std::optional<bool> GStreamerQuirksManager::isHardwareAccelerated(GstElementFact
         if (!result)
             continue;
 
-        GST_DEBUG("Setting %" GST_PTR_FORMAT " as %s accelerated from quirk %s", factory, quirk->identifier().characters(), *result ? "hardware" : "software");
+        GST_DEBUG("Setting %" GST_PTR_FORMAT " as %s accelerated from quirk %s", factory, *result ? "hardware" : "software",  quirk->identifier().characters());
         return *result;
     }
 
-    return std::nullopt;
+    auto klassStr = CStringView::unsafeFromUTF8(gst_element_factory_get_klass(factory));
+    return contains(klassStr.span(), "Hardware"_s);
 }
 
 bool GStreamerQuirksManager::supportsVideoHolePunchRendering() const

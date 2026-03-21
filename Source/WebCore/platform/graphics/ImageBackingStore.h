@@ -25,11 +25,11 @@
 
 #pragma once
 
-#include <WebCore/Color.h>
-#include <WebCore/IntRect.h>
-#include <WebCore/IntSize.h>
-#include <WebCore/NativeImage.h>
-#include <WebCore/SharedBuffer.h>
+#include "Color.h"
+#include "IntRect.h"
+#include "IntSize.h"
+#include "NativeImage.h"
+#include "SharedBuffer.h"
 #include <wtf/StdLibExtras.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/ParsingUtilities.h>
@@ -84,8 +84,8 @@ public:
         m_frameRect = frameRect;
     }
 
-    const IntSize& size() const { return m_size; }
-    const IntRect& frameRect() const { return m_frameRect; }
+    const IntSize& size() const LIFETIME_BOUND { return m_size; }
+    const IntRect& frameRect() const LIFETIME_BOUND { return m_frameRect; }
 
     void clear()
     {

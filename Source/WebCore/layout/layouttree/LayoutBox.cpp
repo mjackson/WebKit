@@ -369,6 +369,11 @@ bool Box::isInternalTableBox() const
         || isTableColumn();
 }
 
+bool Box::isRubyBase() const
+{
+    return style().display() == Style::DisplayType::RubyBase;
+}
+
 const Box* Box::nextInFlowSibling() const
 {
     auto* nextSibling = this->nextSibling();

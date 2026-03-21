@@ -26,6 +26,8 @@
 #include "ComplexTextController.h"
 #include "DashArray.h"
 #include "Font.h"
+#include "FontCascadeFonts.h"
+#include "FontCascadeInlines.h"
 #include "GlyphBuffer.h"
 #include "GraphicsContext.h"
 #include "LayoutRect.h"
@@ -53,7 +55,7 @@ FontCascade::FontCascade(const FontPlatformData& fontData, FontSmoothingMode fon
     m_fontDescription.setWeight((CTFontGetSymbolicTraits(ctFont.get()) & kCTFontTraitBold) ? boldWeightValue() : normalWeightValue());
 }
 
-static const AffineTransform& rotateLeftTransform()
+static const AffineTransform& NODELETE rotateLeftTransform()
 {
     static constexpr AffineTransform result(0, -1, 1, 0, 0, 0);
     return result;

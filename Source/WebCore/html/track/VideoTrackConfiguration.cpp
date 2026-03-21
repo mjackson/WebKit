@@ -35,14 +35,15 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(VideoTrackConfiguration);
 
-void VideoTrackConfiguration::setState(const VideoTrackConfigurationInit& state)
+auto VideoTrackConfiguration::updateState(const VideoTrackConfigurationInit& state) -> StateChanged
 {
     if (m_state == state && m_colorSpace->state() == m_state.colorSpace)
-        return;
+        return StateChanged::No;
 
     m_state = state;
     m_colorSpace->setState(m_state.colorSpace);
     notifyObservers();
+    return StateChanged::Yes;
 }
 
 void VideoTrackConfiguration::setCodec(String codec)

@@ -58,7 +58,7 @@ private:
     MediaKeyMessageEvent(const AtomString&, const MediaKeyMessageEventInit&, IsTrusted);
 
     MediaKeyMessageType m_messageType;
-    RefPtr<JSC::ArrayBuffer> m_message;
+    const RefPtr<JSC::ArrayBuffer> m_message;
 };
 
 } // namespace WebCore

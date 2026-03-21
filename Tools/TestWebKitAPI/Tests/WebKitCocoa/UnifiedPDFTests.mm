@@ -49,6 +49,7 @@
 #import "WKWebViewForTestingImmediateActions.h"
 #import <WebCore/Color.h>
 #import <WebCore/ColorSerialization.h>
+#import <WebCore/IntPoint.h>
 #import <WebCore/WebEvent.h>
 #import <WebKit/WKNavigationDelegatePrivate.h>
 #import <WebKit/WKPreferencesPrivate.h>
@@ -369,6 +370,46 @@ UNIFIED_PDF_TEST(TextAnnotationHoverEffect)
     [webView waitForNextPresentationUpdate];
     auto colorsAfterHover = [webView sampleColors];
     EXPECT_EQ(colorsBeforeHover, colorsAfterHover);
+}
+
+UNIFIED_PDF_TEST(TextAnnotationBackgroundColorDoesNotAdaptToColorScheme)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 600, 600) configuration:configurationForWebViewTestingUnifiedPDF().get() addToWindow:YES]);
+    RetainPtr request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"textInput" withExtension:@"pdf"]];
+    [webView synchronouslyLoadRequest:request.get()];
+    [[webView window] makeFirstResponder:webView.get()];
+    [[webView window] makeKeyAndOrderFront:nil];
+    [[webView window] orderFrontRegardless];
+
+    auto evaluateAnnotationBackgroundColor = [&webView] {
+        static constexpr WebCore::IntPoint annotationPoint { 200, 200 };
+        [webView mouseMoveToPoint:annotationPoint withFlags:0];
+        [webView sendClickAtPoint:annotationPoint];
+        [webView waitForPendingMouseEvents];
+        [webView waitForNextPresentationUpdate];
+
+        RetainPtr backgroundColor = [webView stringByEvaluatingJavaScript:@"getComputedStyle(document.querySelector('#annotationContainer > input')).backgroundColor"];
+
+        static constexpr WebCore::IntPoint blankPoint { 50, 50 };
+        [webView mouseMoveToPoint:blankPoint withFlags:0];
+        [webView sendClickAtPoint:blankPoint];
+        [webView waitForPendingMouseEvents];
+        [webView waitForNextPresentationUpdate];
+
+        return backgroundColor;
+    };
+
+    [webView forceLightMode];
+    [webView waitForNextPresentationUpdate];
+
+    RetainPtr lightModeColor = evaluateAnnotationBackgroundColor();
+
+    [webView forceDarkMode];
+    [webView waitForNextPresentationUpdate];
+
+    RetainPtr darkModeColor = evaluateAnnotationBackgroundColor();
+
+    EXPECT_WK_STREQ(lightModeColor, darkModeColor);
 }
 
 #endif // PLATFORM(MAC)
@@ -1144,6 +1185,32 @@ UNIFIED_PDF_TEST(ScrollPositionAfterChangeToTwoUpContinuous)
     [webView waitForNextPresentationUpdate];
 
     EXPECT_EQ([webView scrollView].contentOffset, CGPointZero);
+}
+
+UNIFIED_PDF_TEST(PluginScrollViewIsNotHorizontallyScrollableForFullFramePDF)
+{
+    // Use width 391 specifically: for test.pdf (page width 129.6pt, contentWidth 161.6),
+    // the layout scale 391/161.6 produces a scaled width of ~391.000031 in float32,
+    // which expandedIntSize rounds up to 392 — a 1-pixel mismatch that makes the
+    // plugin's UIScrollView horizontally scrollable without the fix.
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 391, 800) configuration:configurationForWebViewTestingUnifiedPDF().get()]);
+    RetainPtr request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"test" withExtension:@"pdf"]];
+    [webView synchronouslyLoadRequest:request.get()];
+
+    __block bool stable = false;
+    [webView _doAfterNextStablePresentationUpdate:^{
+        stable = true;
+    }];
+    TestWebKitAPI::Util::run(&stable);
+
+    RetainPtr childScrollView = dynamic_objc_cast<UIScrollView>([webView wkFirstSubviewWithClass:NSClassFromString(@"WKChildScrollView")]);
+    ASSERT_NOT_NULL(childScrollView);
+
+    CGSize contentSize = [childScrollView contentSize];
+    CGRect bounds = [childScrollView bounds];
+    EXPECT_GT(contentSize.width, 0);
+    EXPECT_GT(bounds.size.width, 0);
+    EXPECT_LE(contentSize.width, bounds.size.width);
 }
 
 #endif // PLATFORM(IOS_FAMILY)

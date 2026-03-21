@@ -38,10 +38,8 @@
 #include "ElementInlines.h"
 #include "ElementTextDirection.h"
 #include "Event.h"
-#include "EventLoop.h"
 #include "EventNames.h"
 #include "FrameSelection.h"
-#include "GCReachableRef.h"
 #include "HTMLBRElement.h"
 #include "HTMLFormElement.h"
 #include "HTMLInputElement.h"
@@ -70,6 +68,10 @@
 #include <wtf/text/MakeString.h>
 #include <wtf/text/StringBuilder.h>
 
+#if PLATFORM(COCOA)
+#include <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
+#endif
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(HTMLTextFormControlElement);
@@ -95,14 +97,14 @@ bool HTMLTextFormControlElement::childShouldCreateRenderer(const Node& child) co
     return hasShadowRootParent(child) && HTMLFormControlElement::childShouldCreateRenderer(child);
 }
 
-Node::InsertedIntoAncestorResult HTMLTextFormControlElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps HTMLTextFormControlElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    InsertedIntoAncestorResult InsertedIntoAncestorResult = HTMLFormControlElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    NeedsPostConnectionSteps NeedsPostConnectionSteps = HTMLFormControlElement::insertionSteps(insertionType, parentOfInsertedTree);
     if (insertionType.connectedToDocument) {
         String initialValue = value();
         setTextAsOfLastFormControlChangeEvent(initialValue.isNull() ? String(emptyString()) : WTF::move(initialValue));
     }
-    return InsertedIntoAncestorResult;
+    return NeedsPostConnectionSteps;
 }
 
 static String pointerTypeFromHitTestRequest(HitTestRequest request)
@@ -353,7 +355,7 @@ bool HTMLTextFormControlElement::setSelectionRange(unsigned start, unsigned end,
         protect(document())->updateLayoutIgnorePendingStylesheets();
 
         // Cache selection if renderer is invisible.
-        if (CheckedPtr renderer = this->renderer()) {
+        if (auto* renderer = this->renderer()) {
             if (renderer->style().visibility() == Visibility::Hidden || !innerText->renderBox() || !innerText->renderBox()->height())
                 return cacheSelection(start, end, direction);
         }
@@ -499,7 +501,7 @@ const AtomString& HTMLTextFormControlElement::selectionDirection() const
 TextFieldSelectionDirection HTMLTextFormControlElement::computeSelectionDirection() const
 {
     ASSERT(isTextField());
-    RefPtr frame { document().frame() };
+    auto* frame = document().frame();
     if (!frame)
         return SelectionHasNoDirection;
 
@@ -594,9 +596,9 @@ void HTMLTextFormControlElement::scheduleSelectionChangeEvent()
         return;
 
     m_hasScheduledSelectionChangeEvent = true;
-    document().eventLoop().queueTask(TaskSource::UserInteraction, [textControl = GCReachableRef { *this }] {
-        textControl->m_hasScheduledSelectionChangeEvent = false;
-        textControl->dispatchEvent(Event::create(eventNames().selectionchangeEvent, Event::CanBubble::Yes, Event::IsCancelable::No));
+    queueTaskKeepingNodeAlive(*this, TaskSource::UserInteraction, [](auto& textControl) {
+        textControl.m_hasScheduledSelectionChangeEvent = false;
+        textControl.dispatchEvent(Event::create(eventNames().selectionchangeEvent, Event::CanBubble::Yes, Event::IsCancelable::No));
     });
 }
 
@@ -752,7 +754,7 @@ static Position positionForIndex(TextControlInnerTextElement* innerText, unsigne
     for (RefPtr<Node> node = innerText; node; node = NodeTraversal::next(*node, innerText)) {
         if (node->hasTagName(brTag)) {
             if (!remainingCharactersToMoveForward)
-                return positionBeforeNode(node.get());
+                return positionBeforeNode(*node);
             remainingCharactersToMoveForward--;
             lastBrOrText = node;
         } else if (auto* text = dynamicDowncast<Text>(*node)) {
@@ -771,7 +773,7 @@ unsigned HTMLTextFormControlElement::indexForPosition(const Position& passedPosi
     if (!innerText || !innerText->contains(passedPosition.anchorNode()) || passedPosition.isNull())
         return 0;
 
-    if (positionBeforeNode(innerText.get()) == passedPosition)
+    if (positionBeforeNode(*innerText) == passedPosition)
         return 0;
 
     unsigned index = 0;
@@ -878,11 +880,11 @@ HTMLTextFormControlElement* enclosingTextFormControl(const Position& position)
         || position.containerNode() || !position.anchorNode()->shadowHost()
         || hasShadowRootParent(*position.anchorNode()));
         
-    RefPtr<Node> container = position.containerNode();
+    auto* container = position.containerNode();
     if (!container)
         return nullptr;
-    RefPtr<Element> ancestor = container->shadowHost();
-    return ancestor && ancestor->isTextField() ? downcast<HTMLTextFormControlElement>(ancestor.get()) : nullptr;
+    auto* ancestor = container->shadowHost();
+    return ancestor && ancestor->isTextField() ? downcast<HTMLTextFormControlElement>(ancestor) : nullptr;
 }
 
 String HTMLTextFormControlElement::directionForFormData() const

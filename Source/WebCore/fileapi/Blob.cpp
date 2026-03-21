@@ -38,6 +38,8 @@
 #include "BlobURL.h"
 #include "ContextDestructionObserverInlines.h"
 #include "File.h"
+#include "JSDOMConvertBufferSource.h"
+#include "JSDOMConvertStrings.h"
 #include "JSDOMPromise.h"
 #include "JSDOMPromiseDeferred.h"
 #include "PolicyContainer.h"
@@ -51,6 +53,7 @@
 #include <wtf/Lock.h>
 #include <wtf/MainThread.h>
 #include <wtf/NeverDestroyed.h>
+#include <wtf/Scope.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/ThreadSafeRefCounted.h>
 #include <wtf/text/CString.h>
@@ -241,7 +244,7 @@ Blob::~Blob()
 {
     ThreadableBlobRegistry::unregisterBlobURL(m_internalURL, std::nullopt);
     while (!m_blobLoaders.isEmpty())
-        RefPtr { (*m_blobLoaders.begin()).get() }->cancel();
+        protect(*m_blobLoaders.begin())->cancel();
 }
 
 Ref<Blob> Blob::slice(long long start, long long end, const String& contentType) const
@@ -435,7 +438,7 @@ ExceptionOr<Ref<ReadableStream>> Blob::stream()
                 return;
 
             RefPtr controller = m_controller.get();
-            auto* globalObject = controller->protectedStream()->globalObject();
+            auto* globalObject = protect(controller->stream())->globalObject();
             if (!globalObject)
                 return;
 
@@ -470,7 +473,7 @@ ExceptionOr<Ref<ReadableStream>> Blob::stream()
             });
 
             if (!globalObject) {
-                globalObject = controller.protectedStream()->globalObject();
+                globalObject = protect(controller.stream())->globalObject();
                 if (!globalObject)
                     return;
             }

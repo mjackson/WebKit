@@ -40,6 +40,8 @@
 #include "DebugPageOverlays.h"
 #include "DocumentPage.h"
 #include "EventRegion.h"
+#include "FontCascade.h"
+#include "FontSelector.h"
 #include "GraphicsContext.h"
 #include "GraphicsLayer.h"
 #include "GraphicsLayerFilterAnimationValue.h"
@@ -140,9 +142,13 @@ CanvasCompositingStrategy canvasCompositingStrategy(const RenderObject& renderer
     if (context->delegatesDisplay())
         return CanvasAsLayerContents;
     if (RefPtr context2D = dynamicDowncast<CanvasRenderingContext2DBase>(context)) {
-        if (context2D->isAccelerated())
+        // If the canvas is accelerated but drawing is not, ensure we get a
+        // standalone layer for the canvas. RenderLayerBacking::createPrimaryGraphicsLayer()
+        // will enable acceleration for that layer, so that we don't incur readback.
+        if (context2D->isAccelerated() && !renderer.view().layer()->compositor().acceleratedDrawingEnabled())
             return CanvasPaintedToLayer;
     }
+
     return CanvasPaintedToEnclosingLayer;
 }
 
@@ -323,7 +329,7 @@ RenderLayerBacking::RenderLayerBacking(RenderLayer& layer)
         if (!documentFullscreen)
             return false;
         RefPtr fullscreenElement = documentFullscreen->fullscreenElement();
-        if (!fullscreenElement || !fullscreenElement->renderer() || fullscreenElement->renderer()->backdropRenderer() != &renderer)
+        if (!fullscreenElement || !fullscreenElement->renderer() || fullscreenElement->renderer()->pseudoElementRenderer(PseudoElementType::Backdrop) != &renderer)
             return false;
 
         auto rendererRect = box->frameRect();
@@ -479,16 +485,16 @@ static TiledBacking::TileCoverage computePageTiledBackingCoverage(const RenderLa
     if (!layer.page().isVisible())
         return TiledBacking::CoverageForVisibleArea;
 
-    auto& frameView = layer.renderer().view().frameView();
+    CheckedRef frameView = layer.renderer().view().frameView();
 
     TiledBacking::TileCoverage tileCoverage = TiledBacking::CoverageForVisibleArea;
-    bool useMinimalTilesDuringLiveResize = frameView.inLiveResize();
-    if (frameView.speculativeTilingEnabled() && !useMinimalTilesDuringLiveResize) {
-        bool clipsToExposedRect = static_cast<bool>(frameView.viewExposedRect());
-        if (frameView.horizontalScrollbarMode() != ScrollbarMode::AlwaysOff || clipsToExposedRect)
+    bool useMinimalTilesDuringLiveResize = frameView->inLiveResize();
+    if (frameView->speculativeTilingEnabled() && !useMinimalTilesDuringLiveResize) {
+        bool clipsToExposedRect = static_cast<bool>(frameView->viewExposedRect());
+        if (frameView->horizontalScrollbarMode() != ScrollbarMode::AlwaysOff || clipsToExposedRect)
             tileCoverage |= TiledBacking::CoverageForHorizontalScrolling;
 
-        if (frameView.verticalScrollbarMode() != ScrollbarMode::AlwaysOff || clipsToExposedRect)
+        if (frameView->verticalScrollbarMode() != ScrollbarMode::AlwaysOff || clipsToExposedRect)
             tileCoverage |= TiledBacking::CoverageForVerticalScrolling;
     }
     return tileCoverage;
@@ -500,10 +506,10 @@ static TiledBacking::TileCoverage computeOverflowTiledBackingCoverage(const Rend
     if (!layer.page().isVisible())
         return TiledBacking::CoverageForVisibleArea;
     
-    auto& frameView = layer.renderer().view().frameView();
+    CheckedRef frameView = layer.renderer().view().frameView();
 
     TiledBacking::TileCoverage tileCoverage = TiledBacking::CoverageForVisibleArea;
-    bool useMinimalTilesDuringLiveResize = frameView.inLiveResize();
+    bool useMinimalTilesDuringLiveResize = frameView->inLiveResize();
     if (!useMinimalTilesDuringLiveResize) {
         if (auto* scrollableArea = layer.scrollableArea()) {
             if (scrollableArea->hasScrollableHorizontalOverflow())
@@ -530,12 +536,12 @@ void RenderLayerBacking::adjustTiledBackingCoverage()
     }
 }
 
-void RenderLayerBacking::setTiledBackingHasMargins(bool hasExtendedBackgroundOnLeftAndRight, bool hasExtendedBackgroundOnTopAndBottom)
+void RenderLayerBacking::setTiledBackingHasMargins(BoxSideSet margins)
 {
     if (!m_isFrameLayerWithTiledBacking)
         return;
 
-    tiledBacking()->setHasMargins(hasExtendedBackgroundOnTopAndBottom, hasExtendedBackgroundOnTopAndBottom, hasExtendedBackgroundOnLeftAndRight, hasExtendedBackgroundOnLeftAndRight);
+    tiledBacking()->setHasMargins(margins.contains(BoxSide::Top), margins.contains(BoxSide::Bottom), margins.contains(BoxSide::Left), margins.contains(BoxSide::Right));
 }
 
 void RenderLayerBacking::updateDebugIndicators(bool showBorder, bool showRepaintCounter)
@@ -1011,7 +1017,7 @@ bool RenderLayerBacking::shouldClipCompositedBounds() const
     return true;
 }
 
-static bool hasNonZeroTransformOrigin(const RenderLayerModelObject& renderer)
+static bool NODELETE hasNonZeroTransformOrigin(const RenderLayerModelObject& renderer)
 {
     auto& style = renderer.style();
     auto fixedTransformOriginX = style.transformOriginX().tryFixed();
@@ -1735,9 +1741,9 @@ void RenderLayerBacking::updateGeometry(const RenderLayer* compositedAncestor)
         FloatPoint backgroundPosition;
         FloatSize backgroundSize = primaryGraphicsLayerRect.size();
         if (backgroundLayerPaintsFixedRootBackground()) {
-            const LocalFrameView& frameView = renderer().view().frameView();
-            backgroundPosition = frameView.scrollPositionForFixedPosition();
-            backgroundSize = frameView.layoutSize();
+            CheckedRef frameView = renderer().view().frameView();
+            backgroundPosition = frameView->scrollPositionForFixedPosition();
+            backgroundSize = frameView->layoutSize();
         } else {
             auto boundingBox = renderer().objectBoundingBox();
             backgroundPosition = boundingBox.location();
@@ -2617,7 +2623,7 @@ void RenderLayerBacking::positionOverflowControlsLayers()
     }
 }
 
-static bool ancestorLayerWillCombineTransform(const RenderLayer* compositingAncestor)
+static bool NODELETE ancestorLayerWillCombineTransform(const RenderLayer* compositingAncestor)
 {
     if (!compositingAncestor)
         return false;
@@ -2928,7 +2934,7 @@ float RenderLayerBacking::compositingOpacity(float rendererOpacity) const
 {
     float finalOpacity = rendererOpacity;
 
-    for (CheckedPtr curr = m_owningLayer.stackingContext(); curr; curr = curr->stackingContext()) {
+    for (auto* curr = m_owningLayer.stackingContext(); curr; curr = curr->stackingContext()) {
         // If we found a compositing layer, we want to compute opacity
         // relative to it. So we can break here.
         if (curr->isComposited())
@@ -3000,7 +3006,7 @@ static bool hasPaintedBoxDecorationsOrBackgroundImage(const RenderElement& rende
     return !canDirectlyCompositeBackgroundBackgroundImage(renderer);
 }
 
-static inline bool hasPerspectiveOrPreserves3D(const RenderStyle& style)
+static inline bool NODELETE hasPerspectiveOrPreserves3D(const RenderStyle& style)
 {
     return !style.perspective().isNone() || style.usedTransformStyle3D() == TransformStyle3D::Preserve3D;
 }
@@ -3069,7 +3075,7 @@ void RenderLayerBacking::updateDirectlyCompositedBackgroundImage(PaintedContents
     auto& backgroundLayer = backgroundLayers.usedFirst();
     auto backgroundBox = LayoutRect { backgroundBoxForSimpleContainerPainting() };
     // FIXME: Absolute paint location is required here.
-    auto geometry = BackgroundPainter::calculateFillLayerImageGeometry(*renderBox(), renderBox(), backgroundLayer, { }, backgroundBox);
+    auto geometry = BackgroundPainter::calculateFillLayerImageGeometry(*renderBox(), renderBox(), backgroundLayer, renderer().style().usedZoomForLength(), { }, backgroundBox);
 
     m_graphicsLayer->setContentsTileSize(geometry.tileSize);
     m_graphicsLayer->setContentsTilePhase(geometry.phase);
@@ -3396,7 +3402,7 @@ bool RenderLayerBacking::isDirectlyCompositedImage() const
         return false;
 #endif
 
-    if (auto* cachedImage = imageRenderer->cachedImage()) {
+    if (RefPtr cachedImage = imageRenderer->cachedImage()) {
         if (!cachedImage->hasImage())
             return false;
 
@@ -3441,7 +3447,7 @@ bool RenderLayerBacking::isUnscaledBitmapOnly() const
         return false;
 
     if (CheckedPtr imageRenderer = dynamicDowncast<RenderImage>(renderer())) {
-        if (auto* cachedImage = imageRenderer->cachedImage()) {
+        if (RefPtr cachedImage = imageRenderer->cachedImage()) {
             if (!cachedImage->hasImage())
                 return false;
 
@@ -3537,7 +3543,7 @@ void RenderLayerBacking::updateImageContents(PaintedContentsInfo& contentsInfo)
     } else {
         auto& imageRenderer = downcast<RenderImage>(renderer());
 
-        auto* cachedImage = imageRenderer.cachedImage();
+        RefPtr cachedImage = imageRenderer.cachedImage();
         if (!cachedImage)
             return;
 
@@ -3723,9 +3729,9 @@ void RenderLayerBacking::setContentsNeedDisplay(GraphicsLayer::ShouldClipToLayer
 
     m_owningLayer.invalidateEventRegion(RenderLayer::EventRegionInvalidationReason::Paint);
 
-    auto& frameView = renderer().view().frameView();
-    if (m_isMainFrameRenderViewLayer && frameView.isTrackingRepaints())
-        frameView.addTrackedRepaintRect(owningLayer().absoluteBoundingBoxForPainting());
+    CheckedRef frameView = renderer().view().frameView();
+    if (m_isMainFrameRenderViewLayer && frameView->isTrackingRepaints())
+        frameView->addTrackedRepaintRect(owningLayer().absoluteBoundingBoxForPainting());
 
     if (m_graphicsLayer && m_graphicsLayer->drawsContent()) {
         // By default, setNeedsDisplay will clip to the size of the GraphicsLayer, which does not include margin tiles.
@@ -3763,9 +3769,9 @@ void RenderLayerBacking::setContentsNeedDisplayInRect(const LayoutRect& r, Graph
     m_owningLayer.invalidateEventRegion(RenderLayer::EventRegionInvalidationReason::Paint);
 
     FloatRect pixelSnappedRectForPainting = snapRectToDevicePixelsIfNeeded(r, renderer());
-    auto& frameView = renderer().view().frameView();
-    if (m_isMainFrameRenderViewLayer && frameView.isTrackingRepaints())
-        frameView.addTrackedRepaintRect(pixelSnappedRectForPainting);
+    CheckedRef frameView = renderer().view().frameView();
+    if (m_isMainFrameRenderViewLayer && frameView->isTrackingRepaints())
+        frameView->addTrackedRepaintRect(pixelSnappedRectForPainting);
 
     if (m_graphicsLayer && m_graphicsLayer->drawsContent()) {
         FloatRect layerDirtyRect = pixelSnappedRectForPainting;

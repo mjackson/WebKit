@@ -81,13 +81,13 @@ public:
     void setIsMediaControls() { m_isMediaControls = true; }
     bool isMediaControls() const { return m_isMediaControls; }
 
-    DOMObjectWrapperMap& wrappers() { return m_wrappers; }
+    DOMObjectWrapperMap& wrappers() LIFETIME_BOUND { return m_wrappers; }
 
     Type type() const { return m_type; }
     bool isNormal() const { return m_type == Type::Normal; }
     bool isUser() const { return m_type == Type::User; }
 
-    const String& name() const { return m_name; }
+    const String& name() const LIFETIME_BOUND { return m_name; }
 
     JSC::VM& vm() const { return m_vm; }
 
@@ -113,16 +113,14 @@ private:
     bool m_isMediaControls : 1 { false };
 };
 
-DOMWrapperWorld& normalWorld(JSC::VM&);
+DOMWrapperWorld& NODELETE normalWorld(JSC::VM&);
 WEBCORE_EXPORT DOMWrapperWorld& mainThreadNormalWorldSingleton();
-inline Ref<DOMWrapperWorld> protectedMainThreadNormalWorld() { return mainThreadNormalWorldSingleton(); }
 
 inline DOMWrapperWorld& debuggerWorldSingleton() { return mainThreadNormalWorldSingleton(); }
 inline DOMWrapperWorld& pluginWorldSingleton() { return mainThreadNormalWorldSingleton(); }
 
 DOMWrapperWorld& currentWorld(JSC::JSGlobalObject&);
 DOMWrapperWorld& worldForDOMObject(JSC::JSObject&);
-Ref<DOMWrapperWorld> protectedWorldForDOMObject(JSC::JSObject&);
 
 // Helper function for code paths that must not share objects across isolated DOM worlds.
 WEBCORE_EXPORT bool isWorldCompatible(JSC::JSGlobalObject&, JSC::JSValue);
@@ -135,11 +133,6 @@ inline DOMWrapperWorld& currentWorld(JSC::JSGlobalObject& lexicalGlobalObject)
 inline DOMWrapperWorld& worldForDOMObject(JSC::JSObject& object)
 {
     return JSC::jsCast<JSDOMGlobalObject*>(object.globalObject())->world();
-}
-
-inline Ref<DOMWrapperWorld> protectedWorldForDOMObject(JSC::JSObject& object)
-{
-    return worldForDOMObject(object);
 }
 
 } // namespace WebCore

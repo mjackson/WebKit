@@ -281,7 +281,7 @@ void Scrollbar::moveThumb(int pos, bool draggingDocument)
         if (m_draggingDocument)
             delta = pos - m_documentDragPos;
         m_draggingDocument = true;
-        CheckedRef scrollableArea = m_scrollableArea.get();
+        CheckedRef scrollableArea = m_scrollableArea;
         FloatPoint currentPosition = scrollableArea->scrollAnimator().currentPosition();
         int destinationPosition = (m_orientation == ScrollbarOrientation::Horizontal ? currentPosition.x() : currentPosition.y()) + delta;
         if (delta > 0)
@@ -403,7 +403,7 @@ bool Scrollbar::mouseUp(const PlatformMouseEvent& mouseEvent)
     m_draggingDocument = false;
     stopTimerIfNeeded();
 
-    CheckedRef scrollableArea = m_scrollableArea.get();
+    CheckedRef scrollableArea = m_scrollableArea;
     scrollableArea->mouseIsDownInScrollbar(this, false);
 
     // m_hoveredPart won't be updated until the next mouseMoved or mouseDown, so we have to hit test
@@ -517,7 +517,7 @@ bool Scrollbar::supportsUpdateOnSecondaryThread() const
     // It's unfortunate that this needs to be done with an ifdef. Ideally there would be a way to feature-detect
     // the necessary support within AppKit.
 #if PLATFORM(MAC) || USE(COORDINATED_GRAPHICS_ASYNC_SCROLLBAR)
-    CheckedRef scrollableArea = m_scrollableArea.get();
+    CheckedRef scrollableArea = m_scrollableArea;
     return !scrollableArea->forceUpdateScrollbarsOnMainThreadForPerformanceTesting()
         && (scrollableArea->hasLayerForVerticalScrollbar() || scrollableArea->hasLayerForHorizontalScrollbar())
         && scrollableArea->usesAsyncScrolling();

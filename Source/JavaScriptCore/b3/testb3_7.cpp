@@ -35,9 +35,9 @@ void testPinRegisters()
 {
     auto go = [&] (bool pin) {
         Procedure proc;
-        RegisterSetBuilder csrs;
-        csrs.merge(RegisterSetBuilder::calleeSaveRegisters());
-        csrs.exclude(RegisterSetBuilder::stackRegisters());
+        RegisterSet csrs;
+        csrs.merge(RegisterSet::calleeSaveRegisters());
+        csrs.exclude(RegisterSet::stackRegisters());
 #if CPU(ARM)
         // FIXME We should allow this to be used. See the note
         // in https://commits.webkit.org/257808@main for more
@@ -46,7 +46,7 @@ void testPinRegisters()
         csrs.remove(MacroAssembler::addressTempRegister);
 #endif // CPU(ARM)
         if (pin) {
-            csrs.buildAndValidate().forEach(
+            csrs.forEach(
                 [&] (Reg reg) {
                     proc.pinRegister(reg);
                 });
@@ -82,7 +82,7 @@ void testPinRegisters()
                 inst.forEachTmpFast(
                     [&] (Air::Tmp tmp) {
                         if (tmp.isReg())
-                            usesCSRs |= csrs.buildAndValidate().contains(tmp.reg(), IgnoreVectors);
+                            usesCSRs |= csrs.contains(tmp.reg(), IgnoreVectors);
                     });
             }
         }
@@ -92,7 +92,7 @@ void testPinRegisters()
             usesCSRs = false;
         }
         for (const RegisterAtOffset& regAtOffset : proc.calleeSaveRegisterAtOffsetList())
-            usesCSRs |= csrs.buildAndValidate().contains(regAtOffset.reg(), IgnoreVectors);
+            usesCSRs |= csrs.contains(regAtOffset.reg(), IgnoreVectors);
         CHECK_EQ(usesCSRs, !pin);
     };
 
@@ -1651,7 +1651,7 @@ void NODELETE testFastTLSLoad()
     BasicBlock* root = proc.addBlock();
 
     PatchpointValue* patchpoint = root->appendNew<PatchpointValue>(proc, pointerType(), Origin());
-    patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+    patchpoint->clobber(RegisterSet::macroClobberedGPRs());
     patchpoint->setGenerator(
         [&] (CCallHelpers& jit, const StackmapGenerationParams& params) {
             AllowMacroScratchRegisterUsage allowScratch(jit);
@@ -1671,7 +1671,7 @@ void NODELETE testFastTLSStore()
     BasicBlock* root = proc.addBlock();
 
     PatchpointValue* patchpoint = root->appendNew<PatchpointValue>(proc, Void, Origin());
-    patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+    patchpoint->clobber(RegisterSet::macroClobberedGPRs());
     patchpoint->numGPScratchRegisters = 1;
     patchpoint->setGenerator(
         [&] (CCallHelpers& jit, const StackmapGenerationParams& params) {
@@ -1815,16 +1815,16 @@ void testShuffleDoesntTrashCalleeSaves()
     BasicBlock* likely = proc.addBlock();
     BasicBlock* unlikely = proc.addBlock();
 
-    auto regs = RegisterSetBuilder::registersToSaveForCCall(RegisterSetBuilder::allScalarRegisters());
+    auto regs = RegisterSet::registersToSaveForCCall(RegisterSet::allScalarRegisters());
 
     unsigned i = 0;
     Vector<Value*> patches;
-    for (Reg reg : regs.buildAndValidate()) {
-        if (RegisterSetBuilder::argumentGPRs().contains(reg, IgnoreVectors) || !reg.isGPR())
+    for (Reg reg : regs) {
+        if (RegisterSet::argumentGPRs().contains(reg, IgnoreVectors) || !reg.isGPR())
             continue;
         ++i;
         PatchpointValue* patchpoint = root->appendNew<PatchpointValue>(proc, Int32, Origin());
-        patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+        patchpoint->clobber(RegisterSet::macroClobberedGPRs());
         patchpoint->resultConstraints = { ValueRep::reg(reg.gpr()) };
         patchpoint->setGenerator(
             [=] (CCallHelpers& jit, const StackmapGenerationParams& params) {
@@ -1844,7 +1844,7 @@ void testShuffleDoesntTrashCalleeSaves()
     Value* arg8 = root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::toArgumentRegister(7 % GPRInfo::numberOfArgumentRegisters));
 
     PatchpointValue* ptr = root->appendNew<PatchpointValue>(proc, pointerType(), Origin());
-    ptr->clobber(RegisterSetBuilder::macroClobberedGPRs());
+    ptr->clobber(RegisterSet::macroClobberedGPRs());
     ptr->resultConstraints = { ValueRep::reg(GPRInfo::regCS0) };
     ptr->appendSomeRegister(arg1);
     ptr->setGenerator(
@@ -1876,7 +1876,7 @@ void testShuffleDoesntTrashCalleeSaves()
         constNumber, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 
     PatchpointValue* voidPatch = unlikely->appendNew<PatchpointValue>(proc, Void, Origin());
-    voidPatch->clobber(RegisterSetBuilder::macroClobberedGPRs());
+    voidPatch->clobber(RegisterSet::macroClobberedGPRs());
     for (Value* v : patches)
         voidPatch->appendSomeRegister(v);
     voidPatch->appendSomeRegister(arg1);
@@ -1924,15 +1924,15 @@ void testReportUsedRegistersLateUseFollowedByEarlyDefDoesNotMarkUseAsDead()
         return;
     BasicBlock* root = proc.addBlock();
 
-    RegisterSetBuilder allRegs = RegisterSetBuilder::allGPRs();
-    allRegs.exclude(RegisterSetBuilder::stackRegisters());
-    allRegs.exclude(RegisterSetBuilder::reservedHardwareRegisters());
+    RegisterSet allRegs = RegisterSet::allGPRs();
+    allRegs.exclude(RegisterSet::stackRegisters());
+    allRegs.exclude(RegisterSet::reservedHardwareRegisters());
 
     {
         // Make every reg 42 (just needs to be a value other than 10).
         Value* const42 = root->appendNew<Const32Value>(proc, Origin(), 42);
         PatchpointValue* patchpoint = root->appendNew<PatchpointValue>(proc, Void, Origin());
-        for (Reg reg : allRegs.buildAndValidate())
+        for (Reg reg : allRegs)
             patchpoint->append(const42, ValueRep::reg(reg));
         patchpoint->setGenerator([&] (CCallHelpers&, const StackmapGenerationParams&) { });
     }
@@ -1940,10 +1940,10 @@ void testReportUsedRegistersLateUseFollowedByEarlyDefDoesNotMarkUseAsDead()
     {
         Value* const10 = root->appendNew<Const32Value>(proc, Origin(), 10);
         PatchpointValue* patchpoint = root->appendNew<PatchpointValue>(proc, Void, Origin());
-        for (Reg reg : allRegs.buildAndValidate())
+        for (Reg reg : allRegs)
             patchpoint->append(const10, ValueRep::lateReg(reg));
         patchpoint->setGenerator([&] (CCallHelpers& jit, const StackmapGenerationParams&) {
-            for (Reg reg : allRegs.buildAndValidate()) {
+            for (Reg reg : allRegs) {
                 auto done = jit.branch32(CCallHelpers::Equal, reg.gpr(), CCallHelpers::TrustedImm32(10));
                 jit.breakpoint();
                 done.link(&jit);
@@ -1955,7 +1955,7 @@ void testReportUsedRegistersLateUseFollowedByEarlyDefDoesNotMarkUseAsDead()
         PatchpointValue* patchpoint = root->appendNew<PatchpointValue>(proc, Int32, Origin());
         patchpoint->resultConstraints = { ValueRep::SomeEarlyRegister };
         patchpoint->setGenerator([&] (CCallHelpers&, const StackmapGenerationParams& params) {
-            RELEASE_ASSERT(allRegs.buildAndValidate().contains(params[0].gpr(), IgnoreVectors));
+            RELEASE_ASSERT(allRegs.contains(params[0].gpr(), IgnoreVectors));
         });
     }
 
@@ -2016,7 +2016,7 @@ static void testSimpleTuplePair(unsigned first, int64_t second)
     BasicBlock* root = proc.addBlock();
 
     PatchpointValue* patchpoint = root->appendNew<PatchpointValue>(proc, proc.addTuple({ Int32, Int64 }), Origin());
-    patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+    patchpoint->clobber(RegisterSet::macroClobberedGPRs());
     patchpoint->resultConstraints = { ValueRep::SomeRegister, ValueRep::SomeRegister };
     patchpoint->setGenerator([&] (CCallHelpers& jit, const StackmapGenerationParams& params) {
         AllowMacroScratchRegisterUsage allowScratch(jit);
@@ -2037,7 +2037,7 @@ static void testSimpleTuplePairUnused(unsigned first, int64_t second)
     BasicBlock* root = proc.addBlock();
 
     PatchpointValue* patchpoint = root->appendNew<PatchpointValue>(proc, proc.addTuple({ Int32, Int64, Double }), Origin());
-    patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+    patchpoint->clobber(RegisterSet::macroClobberedGPRs());
     patchpoint->resultConstraints = { ValueRep::SomeRegister, ValueRep::SomeRegister, ValueRep::SomeRegister };
     patchpoint->setGenerator([&] (CCallHelpers& jit, const StackmapGenerationParams& params) {
         AllowMacroScratchRegisterUsage allowScratch(jit);
@@ -2061,7 +2061,7 @@ static void testSimpleTuplePairStack(unsigned first, int64_t second)
     BasicBlock* root = proc.addBlock();
 
     PatchpointValue* patchpoint = root->appendNew<PatchpointValue>(proc, proc.addTuple({ Int32, Int64 }), Origin());
-    patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+    patchpoint->clobber(RegisterSet::macroClobberedGPRs());
     patchpoint->resultConstraints = { ValueRep::SomeRegister, ValueRep::stackArgument(0) };
     patchpoint->setGenerator([&] (CCallHelpers& jit, const StackmapGenerationParams& params) {
         AllowMacroScratchRegisterUsage allowScratch(jit);
@@ -2141,7 +2141,7 @@ static void tailDupedTuplePair(unsigned first, double second)
 
     Value* test = arguments[0];
     PatchpointValue* patchpoint = root->appendNew<PatchpointValue>(proc, tupleType, Origin());
-    patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+    patchpoint->clobber(RegisterSet::macroClobberedGPRs());
     patchpoint->resultConstraints = { ValueRep::SomeRegister, ValueRep::stackArgument(0) };
     patchpoint->setGenerator([&] (CCallHelpers& jit, const StackmapGenerationParams& params) {
         AllowMacroScratchRegisterUsage allowScratch(jit);
@@ -2203,7 +2203,7 @@ static void tuplePairVariableLoop(unsigned first, uint64_t second)
         Value* first = body->appendNew<ExtractValue>(proc, Origin(), Int32, tuple, 0);
         Value* second = body->appendNew<ExtractValue>(proc, Origin(), Int64, tuple, 1);
         PatchpointValue* patchpoint = body->appendNew<PatchpointValue>(proc, tupleType, Origin());
-        patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+        patchpoint->clobber(RegisterSet::macroClobberedGPRs());
         patchpoint->append({ first, ValueRep::SomeRegister });
         patchpoint->append({ second, ValueRep::SomeRegister });
         patchpoint->resultConstraints = { ValueRep::SomeEarlyRegister, ValueRep::stackArgument(0) };
@@ -2275,7 +2275,7 @@ static void tupleNestedLoop(intptr_t first, double second)
         Value* second = outerLoop->appendNew<ExtractValue>(proc, Origin(), Double, tuple, 1);
         Value* third = outerLoop->appendNew<VariableValue>(proc, B3::Get, Origin(), tookInner);
         PatchpointValue* patchpoint = outerLoop->appendNew<PatchpointValue>(proc, tupleType, Origin());
-        patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+        patchpoint->clobber(RegisterSet::macroClobberedGPRs());
         patchpoint->append({ first, ValueRep::SomeRegisterWithClobber });
         patchpoint->append({ second, ValueRep::SomeRegisterWithClobber });
         patchpoint->append({ third, ValueRep::SomeRegisterWithClobber });
@@ -2297,7 +2297,7 @@ static void tupleNestedLoop(intptr_t first, double second)
         Value* first = innerLoop->appendNew<ExtractValue>(proc, Origin(), Int32, tuple, 0);
         Value* second = innerLoop->appendNew<ExtractValue>(proc, Origin(), Double, tuple, 1);
         PatchpointValue* patchpoint = innerLoop->appendNew<PatchpointValue>(proc, tupleType, Origin());
-        patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+        patchpoint->clobber(RegisterSet::macroClobberedGPRs());
         patchpoint->append({ first, ValueRep::SomeRegisterWithClobber });
         patchpoint->append({ second, ValueRep::SomeRegisterWithClobber });
         patchpoint->resultConstraints = { ValueRep::SomeRegister, ValueRep::SomeRegister, ValueRep::SomeEarlyRegister };
@@ -3127,6 +3127,1423 @@ void testInt52RoundTripBinary()
         for (auto rhs : int32Operands())
             CHECK_EQ(invoke<int32_t>(*code, lhs.value, rhs.value), static_cast<int32_t>(((static_cast<int64_t>(lhs.value) << 12) + (static_cast<int64_t>(rhs.value) << 12)) >> 12));
     }
+}
+
+// Test that Trunc(SShr(Add(@a, unaligned-constant), $12)) produces the correct
+// result when the constant is not 12-bit aligned. This pattern arises from
+// WebAssembly's i32.wrap_i64(i64.shr_s(i64.add(@a, C), 12)) with arbitrary
+// 64-bit values.
+void testTruncSShrAddUnalignedConstant()
+{
+    // Use constant 2048 which is NOT 12-bit aligned (lower 12 bits are non-zero).
+    int64_t constant = 2048;
+
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int64_t>(proc, root);
+    Value* argA = arguments[0];
+    Value* node = root->appendNew<Value>(proc, Add, Origin(), argA, root->appendNew<Const64Value>(proc, Origin(), constant));
+    Value* shifted = root->appendNew<Value>(proc, SShr, Origin(), node, root->appendNew<Const32Value>(proc, Origin(), 12));
+    Value* result = root->appendNew<Value>(proc, Trunc, Origin(), shifted);
+    root->appendNew<Value>(proc, Return, Origin(), result);
+    auto code = compileProc(proc);
+
+    // a=2048, C=2048: (2048+2048)>>12 = 4096>>12 = 1
+    CHECK_EQ(invoke<int32_t>(*code, static_cast<int64_t>(2048)), static_cast<int32_t>((2048LL + constant) >> 12));
+    // a=0
+    CHECK_EQ(invoke<int32_t>(*code, static_cast<int64_t>(0)), static_cast<int32_t>((0LL + constant) >> 12));
+    // a=4095
+    CHECK_EQ(invoke<int32_t>(*code, static_cast<int64_t>(4095)), static_cast<int32_t>((4095LL + constant) >> 12));
+    // a=4096
+    CHECK_EQ(invoke<int32_t>(*code, static_cast<int64_t>(4096)), static_cast<int32_t>((4096LL + constant) >> 12));
+    // Large values
+    CHECK_EQ(invoke<int32_t>(*code, static_cast<int64_t>(100000)), static_cast<int32_t>((100000LL + constant) >> 12));
+    CHECK_EQ(invoke<int32_t>(*code, static_cast<int64_t>(-2048)), static_cast<int32_t>((-2048LL + constant) >> 12));
+}
+
+// Test XOR-and-rotate-right pattern matching for XAR instruction (SHA3).
+// Pattern: VectorOr(VectorShl(VectorXor(a, b), shlConst), VectorShr(VectorXor(a, b), shrConst))
+// Should be folded into a single XAR instruction on ARM64 with SHA3 support.
+void testVectorXorRotateRight64()
+{
+    if constexpr (!isARM64())
+        return;
+    if (!isARM64_SHA3())
+        return;
+
+    // Test various rotation amounts used in BLAKE2b: 32, 24, 16, 63
+    for (int32_t rotateRight : { 1, 16, 24, 32, 63 }) {
+        int32_t shiftLeft = 64 - rotateRight;
+
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<void*>(proc, root);
+
+        Value* address = arguments[0];
+
+        // Load two vectors
+        Value* a = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+        Value* b = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+
+        // XOR
+        Value* xorResult = root->appendNew<SIMDValue>(proc, Origin(), VectorXor, B3::V128, SIMDLane::v128, SIMDSignMode::None, a, b);
+
+        // Shift left
+        Value* shlAmount = root->appendNew<Const32Value>(proc, Origin(), shiftLeft);
+        Value* shlResult = root->appendNew<SIMDValue>(proc, Origin(), VectorShl, B3::V128, SIMDLane::i64x2, SIMDSignMode::Unsigned, xorResult, shlAmount);
+
+        // Shift right
+        Value* shrAmount = root->appendNew<Const32Value>(proc, Origin(), rotateRight);
+        Value* shrResult = root->appendNew<SIMDValue>(proc, Origin(), VectorShr, B3::V128, SIMDLane::i64x2, SIMDSignMode::Unsigned, xorResult, shrAmount);
+
+        // OR = rotate
+        Value* orResult = root->appendNew<SIMDValue>(proc, Origin(), VectorOr, B3::V128, SIMDLane::v128, SIMDSignMode::None, shlResult, shrResult);
+
+        root->appendNew<MemoryValue>(proc, Store, Origin(), orResult, address, static_cast<int32_t>(2 * sizeof(v128_t)));
+        root->appendNewControlValue(proc, Return, Origin());
+
+        auto code = compileProc(proc);
+
+        // Test with known values
+        alignas(16) v128_t vectors[3];
+        vectors[0].u64x2[0] = 0x0123456789ABCDEFULL;
+        vectors[0].u64x2[1] = 0xFEDCBA9876543210ULL;
+        vectors[1].u64x2[0] = 0xFF00FF00FF00FF00ULL;
+        vectors[1].u64x2[1] = 0x00FF00FF00FF00FFULL;
+
+        invoke<void>(*code, vectors);
+
+        // Compute expected: (a XOR b) >>> rotateRight
+        uint64_t xor0 = vectors[0].u64x2[0] ^ vectors[1].u64x2[0];
+        uint64_t xor1 = vectors[0].u64x2[1] ^ vectors[1].u64x2[1];
+        uint64_t expected0 = (xor0 >> rotateRight) | (xor0 << (64 - rotateRight));
+        uint64_t expected1 = (xor1 >> rotateRight) | (xor1 << (64 - rotateRight));
+
+        CHECK(vectors[2].u64x2[0] == expected0);
+        CHECK(vectors[2].u64x2[1] == expected1);
+    }
+}
+
+// Test dot(v, splat(1)) → extadd_pairwise strength reduction.
+// i32x4.dot_i16x8_s(v, {1,1,...}) = i32x4.extadd_pairwise_i16x8_s(v)
+void testVectorDotProductSplatOne()
+{
+    alignas(16) v128_t vectors[3];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* input = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+
+    // Create splat(1) as i16x8
+    v128_t splatOne;
+    splatOne.u64x2[0] = 0x0001000100010001ULL;
+    splatOne.u64x2[1] = 0x0001000100010001ULL;
+    Value* ones = root->appendNew<Const128Value>(proc, Origin(), splatOne);
+
+    // dot_i16x8_s(input, splat(1)) should become extadd_pairwise
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorDotProduct, B3::V128, SIMDLane::i32x4, SIMDSignMode::Signed, input, ones);
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+
+    // Test: input = {3, -2, 5, -7, 100, -100, 0, 1} as i16x8
+    vectors[0].u16x8[0] = 3; vectors[0].u16x8[1] = static_cast<uint16_t>(-2);
+    vectors[0].u16x8[2] = 5; vectors[0].u16x8[3] = static_cast<uint16_t>(-7);
+    vectors[0].u16x8[4] = 100; vectors[0].u16x8[5] = static_cast<uint16_t>(-100);
+    vectors[0].u16x8[6] = 0; vectors[0].u16x8[7] = 1;
+    invoke<void>(*code, vectors);
+
+    // Expected: pairwise sum of adjacent i16 pairs → i32
+    // {3 + (-2), 5 + (-7), 100 + (-100), 0 + 1} = {1, -2, 0, 1}
+    CHECK(vectors[1].u32x4[0] == static_cast<uint32_t>(1));
+    CHECK(vectors[1].u32x4[1] == static_cast<uint32_t>(-2));
+    CHECK(vectors[1].u32x4[2] == static_cast<uint32_t>(0));
+    CHECK(vectors[1].u32x4[3] == static_cast<uint32_t>(1));
+
+    // Also test commuted form: dot(splat(1), v)
+    {
+        Procedure proc2;
+        BasicBlock* root2 = proc2.addBlock();
+        auto args2 = cCallArgumentValues<void*>(proc2, root2);
+        Value* addr = args2[0];
+        Value* inp = root2->appendNew<MemoryValue>(proc2, Load, V128, Origin(), addr);
+        Value* onesVal = root2->appendNew<Const128Value>(proc2, Origin(), splatOne);
+        Value* res = root2->appendNew<SIMDValue>(proc2, Origin(), VectorDotProduct, B3::V128, SIMDLane::i32x4, SIMDSignMode::Signed, onesVal, inp);
+        root2->appendNew<MemoryValue>(proc2, Store, Origin(), res, addr, static_cast<int32_t>(sizeof(v128_t)));
+        root2->appendNewControlValue(proc2, Return, Origin());
+
+        auto code2 = compileProc(proc2);
+        invoke<void>(*code2, vectors);
+        CHECK(vectors[1].u32x4[0] == static_cast<uint32_t>(1));
+        CHECK(vectors[1].u32x4[1] == static_cast<uint32_t>(-2));
+        CHECK(vectors[1].u32x4[2] == static_cast<uint32_t>(0));
+        CHECK(vectors[1].u32x4[3] == static_cast<uint32_t>(1));
+    }
+}
+
+// Test EOR3 (3-way XOR) pattern matching: VectorXor(VectorXor(a, b), c) → EOR3(a, b, c)
+void testVectorXor3()
+{
+    if constexpr (!isARM64())
+        return;
+    if (!isARM64_SHA3())
+        return;
+
+    alignas(16) v128_t vectors[4];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* a = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* b = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+    Value* c = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(2 * sizeof(v128_t)));
+
+    // a ^ b ^ c
+    Value* xorAB = root->appendNew<SIMDValue>(proc, Origin(), VectorXor, B3::V128, SIMDLane::v128, SIMDSignMode::None, a, b);
+    Value* xorABC = root->appendNew<SIMDValue>(proc, Origin(), VectorXor, B3::V128, SIMDLane::v128, SIMDSignMode::None, xorAB, c);
+    root->appendNew<MemoryValue>(proc, Store, Origin(), xorABC, address, static_cast<int32_t>(3 * sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+
+    vectors[0].u64x2[0] = 0x0123456789ABCDEFULL;
+    vectors[0].u64x2[1] = 0xFEDCBA9876543210ULL;
+    vectors[1].u64x2[0] = 0xFF00FF00FF00FF00ULL;
+    vectors[1].u64x2[1] = 0x00FF00FF00FF00FFULL;
+    vectors[2].u64x2[0] = 0xAAAAAAAAAAAAAAAAULL;
+    vectors[2].u64x2[1] = 0x5555555555555555ULL;
+    invoke<void>(*code, vectors);
+
+    CHECK(vectors[3].u64x2[0] == (vectors[0].u64x2[0] ^ vectors[1].u64x2[0] ^ vectors[2].u64x2[0]));
+    CHECK(vectors[3].u64x2[1] == (vectors[0].u64x2[1] ^ vectors[1].u64x2[1] ^ vectors[2].u64x2[1]));
+
+    // Also test commuted form: VectorXor(c, VectorXor(a, b))
+    {
+        Procedure proc2;
+        BasicBlock* root2 = proc2.addBlock();
+        auto args2 = cCallArgumentValues<void*>(proc2, root2);
+        Value* addr = args2[0];
+        Value* va = root2->appendNew<MemoryValue>(proc2, Load, V128, Origin(), addr);
+        Value* vb = root2->appendNew<MemoryValue>(proc2, Load, V128, Origin(), addr, static_cast<int32_t>(sizeof(v128_t)));
+        Value* vc = root2->appendNew<MemoryValue>(proc2, Load, V128, Origin(), addr, static_cast<int32_t>(2 * sizeof(v128_t)));
+        Value* xorAB2 = root2->appendNew<SIMDValue>(proc2, Origin(), VectorXor, B3::V128, SIMDLane::v128, SIMDSignMode::None, va, vb);
+        Value* result = root2->appendNew<SIMDValue>(proc2, Origin(), VectorXor, B3::V128, SIMDLane::v128, SIMDSignMode::None, vc, xorAB2);
+        root2->appendNew<MemoryValue>(proc2, Store, Origin(), result, addr, static_cast<int32_t>(3 * sizeof(v128_t)));
+        root2->appendNewControlValue(proc2, Return, Origin());
+
+        auto code2 = compileProc(proc2);
+        invoke<void>(*code2, vectors);
+        CHECK(vectors[3].u64x2[0] == (vectors[0].u64x2[0] ^ vectors[1].u64x2[0] ^ vectors[2].u64x2[0]));
+        CHECK(vectors[3].u64x2[1] == (vectors[0].u64x2[1] ^ vectors[1].u64x2[1] ^ vectors[2].u64x2[1]));
+    }
+}
+
+// Test VectorUnzipEven/Odd B3 opcodes (reduced from VectorSwizzle in ReduceStrength).
+void testVectorUnzipEven()
+{
+    // UZP1.4S(a, b): extract even 32-bit elements = {a[0], a[2], b[0], b[2]}
+    alignas(16) v128_t vectors[3];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* a = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* b = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorUnzipEven, B3::V128, SIMDLane::i32x4, SIMDSignMode::None, a, b);
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(2 * sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+    vectors[0].u32x4[0] = 0x11; vectors[0].u32x4[1] = 0x22; vectors[0].u32x4[2] = 0x33; vectors[0].u32x4[3] = 0x44;
+    vectors[1].u32x4[0] = 0x55; vectors[1].u32x4[1] = 0x66; vectors[1].u32x4[2] = 0x77; vectors[1].u32x4[3] = 0x88;
+    invoke<void>(*code, vectors);
+    // {a[0], a[2], b[0], b[2]}
+    CHECK(vectors[2].u32x4[0] == 0x11);
+    CHECK(vectors[2].u32x4[1] == 0x33);
+    CHECK(vectors[2].u32x4[2] == 0x55);
+    CHECK(vectors[2].u32x4[3] == 0x77);
+}
+
+void testVectorUnzipOdd()
+{
+    // UZP2.4S(a, b): extract odd 32-bit elements = {a[1], a[3], b[1], b[3]}
+    alignas(16) v128_t vectors[3];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* a = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* b = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorUnzipOdd, B3::V128, SIMDLane::i32x4, SIMDSignMode::None, a, b);
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(2 * sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+    vectors[0].u32x4[0] = 0x11; vectors[0].u32x4[1] = 0x22; vectors[0].u32x4[2] = 0x33; vectors[0].u32x4[3] = 0x44;
+    vectors[1].u32x4[0] = 0x55; vectors[1].u32x4[1] = 0x66; vectors[1].u32x4[2] = 0x77; vectors[1].u32x4[3] = 0x88;
+    invoke<void>(*code, vectors);
+    // {a[1], a[3], b[1], b[3]}
+    CHECK(vectors[2].u32x4[0] == 0x22);
+    CHECK(vectors[2].u32x4[1] == 0x44);
+    CHECK(vectors[2].u32x4[2] == 0x66);
+    CHECK(vectors[2].u32x4[3] == 0x88);
+}
+
+void testVectorZipLower()
+{
+    // ZIP1.4S(a, b): interleave low halves = {a[0], b[0], a[1], b[1]}
+    alignas(16) v128_t vectors[3];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* a = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* b = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorZipLower, B3::V128, SIMDLane::i32x4, SIMDSignMode::None, a, b);
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(2 * sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+    vectors[0].u32x4[0] = 0x11; vectors[0].u32x4[1] = 0x22; vectors[0].u32x4[2] = 0x33; vectors[0].u32x4[3] = 0x44;
+    vectors[1].u32x4[0] = 0x55; vectors[1].u32x4[1] = 0x66; vectors[1].u32x4[2] = 0x77; vectors[1].u32x4[3] = 0x88;
+    invoke<void>(*code, vectors);
+    // {a[0], b[0], a[1], b[1]}
+    CHECK(vectors[2].u32x4[0] == 0x11);
+    CHECK(vectors[2].u32x4[1] == 0x55);
+    CHECK(vectors[2].u32x4[2] == 0x22);
+    CHECK(vectors[2].u32x4[3] == 0x66);
+}
+
+void testVectorZipHigher()
+{
+    // ZIP2.4S(a, b): interleave high halves = {a[2], b[2], a[3], b[3]}
+    alignas(16) v128_t vectors[3];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* a = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* b = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorZipHigher, B3::V128, SIMDLane::i32x4, SIMDSignMode::None, a, b);
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(2 * sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+    vectors[0].u32x4[0] = 0x11; vectors[0].u32x4[1] = 0x22; vectors[0].u32x4[2] = 0x33; vectors[0].u32x4[3] = 0x44;
+    vectors[1].u32x4[0] = 0x55; vectors[1].u32x4[1] = 0x66; vectors[1].u32x4[2] = 0x77; vectors[1].u32x4[3] = 0x88;
+    invoke<void>(*code, vectors);
+    // {a[2], b[2], a[3], b[3]}
+    CHECK(vectors[2].u32x4[0] == 0x33);
+    CHECK(vectors[2].u32x4[1] == 0x77);
+    CHECK(vectors[2].u32x4[2] == 0x44);
+    CHECK(vectors[2].u32x4[3] == 0x88);
+}
+
+void testVectorTransposeEven()
+{
+    // TRN1.4S(a, b): {a[0], b[0], a[2], b[2]}
+    alignas(16) v128_t vectors[3];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* a = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* b = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorTransposeEven, B3::V128, SIMDLane::i32x4, SIMDSignMode::None, a, b);
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(2 * sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+    vectors[0].u32x4[0] = 0x11; vectors[0].u32x4[1] = 0x22; vectors[0].u32x4[2] = 0x33; vectors[0].u32x4[3] = 0x44;
+    vectors[1].u32x4[0] = 0x55; vectors[1].u32x4[1] = 0x66; vectors[1].u32x4[2] = 0x77; vectors[1].u32x4[3] = 0x88;
+    invoke<void>(*code, vectors);
+    CHECK(vectors[2].u32x4[0] == 0x11);
+    CHECK(vectors[2].u32x4[1] == 0x55);
+    CHECK(vectors[2].u32x4[2] == 0x33);
+    CHECK(vectors[2].u32x4[3] == 0x77);
+}
+
+void testVectorTransposeOdd()
+{
+    // TRN2.4S(a, b): {a[1], b[1], a[3], b[3]}
+    alignas(16) v128_t vectors[3];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* a = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* b = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorTransposeOdd, B3::V128, SIMDLane::i32x4, SIMDSignMode::None, a, b);
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(2 * sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+    vectors[0].u32x4[0] = 0x11; vectors[0].u32x4[1] = 0x22; vectors[0].u32x4[2] = 0x33; vectors[0].u32x4[3] = 0x44;
+    vectors[1].u32x4[0] = 0x55; vectors[1].u32x4[1] = 0x66; vectors[1].u32x4[2] = 0x77; vectors[1].u32x4[3] = 0x88;
+    invoke<void>(*code, vectors);
+    CHECK(vectors[2].u32x4[0] == 0x22);
+    CHECK(vectors[2].u32x4[1] == 0x66);
+    CHECK(vectors[2].u32x4[2] == 0x44);
+    CHECK(vectors[2].u32x4[3] == 0x88);
+}
+
+void testVectorReverse()
+{
+    // REV64.4S: reverse pairs of 32-bit elements within 64-bit lanes
+    // {v[1], v[0], v[3], v[2]}
+    alignas(16) v128_t vectors[2];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* input = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorReverse, B3::V128, SIMDLane::i32x4, SIMDSignMode::None, static_cast<uint8_t>(8), input);
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+    vectors[0].u32x4[0] = 0xAA; vectors[0].u32x4[1] = 0xBB; vectors[0].u32x4[2] = 0xCC; vectors[0].u32x4[3] = 0xDD;
+    invoke<void>(*code, vectors);
+    CHECK(vectors[1].u32x4[0] == 0xBB);
+    CHECK(vectors[1].u32x4[1] == 0xAA);
+    CHECK(vectors[1].u32x4[2] == 0xDD);
+    CHECK(vectors[1].u32x4[3] == 0xCC);
+}
+
+// Test that VectorShl(x, 1) is strength-reduced to VectorAdd(x, x).
+void testVectorShlByOne()
+{
+    alignas(16) v128_t vectors[2];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* input = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+
+    // Build VectorShl(input, 1) — will become VectorAdd(input, input) after ReduceStrength.
+    Value* shiftAmount = root->appendNew<Const32Value>(proc, Origin(), 1);
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorShl, B3::V128, SIMDLane::i64x2, SIMDSignMode::Unsigned, input, shiftAmount);
+
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+
+    vectors[0].u64x2[0] = 0x0123456789ABCDEFULL;
+    vectors[0].u64x2[1] = 0x8000000000000001ULL;
+    invoke<void>(*code, vectors);
+    CHECK(vectors[1].u64x2[0] == (0x0123456789ABCDEFULL << 1));
+    CHECK(vectors[1].u64x2[1] == (0x8000000000000001ULL << 1));
+
+    // Test with max value (overflow wraps)
+    vectors[0].u64x2[0] = UINT64_MAX;
+    vectors[0].u64x2[1] = 1;
+    invoke<void>(*code, vectors);
+    CHECK(vectors[1].u64x2[0] == (UINT64_MAX << 1));
+    CHECK(vectors[1].u64x2[1] == 2);
+}
+
+template<typename T>
+static void testVectorShlImmediateForLane(SIMDLane lane, unsigned shift, T inputVal)
+{
+    if constexpr (!isARM64())
+        return;
+
+    alignas(16) v128_t vectors[2];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* input = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* shiftAmount = root->appendNew<Const32Value>(proc, Origin(), shift);
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorShl, B3::V128, lane, SIMDSignMode::Unsigned, input, shiftAmount);
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+
+    constexpr unsigned numLanes = sizeof(v128_t) / sizeof(T);
+    for (unsigned i = 0; i < numLanes; ++i)
+        reinterpret_cast<T*>(&vectors[0])[i] = inputVal;
+    invoke<void>(*code, vectors);
+
+    unsigned bitWidth = sizeof(T) * 8;
+    unsigned maskedShift = shift & (bitWidth - 1);
+    for (unsigned i = 0; i < numLanes; ++i) {
+        T expected = static_cast<T>(inputVal << maskedShift);
+        CHECK(reinterpret_cast<T*>(&vectors[1])[i] == expected);
+    }
+}
+
+void testVectorShlImmediate()
+{
+    if constexpr (!isARM64())
+        return;
+
+    // i8x16
+    testVectorShlImmediateForLane<uint8_t>(SIMDLane::i8x16, 1, static_cast<uint8_t>(0xAB));
+    testVectorShlImmediateForLane<uint8_t>(SIMDLane::i8x16, 4, static_cast<uint8_t>(0x0F));
+    testVectorShlImmediateForLane<uint8_t>(SIMDLane::i8x16, 7, static_cast<uint8_t>(0x01));
+
+    // i16x8
+    testVectorShlImmediateForLane<uint16_t>(SIMDLane::i16x8, 1, static_cast<uint16_t>(0xABCD));
+    testVectorShlImmediateForLane<uint16_t>(SIMDLane::i16x8, 8, static_cast<uint16_t>(0x00FF));
+    testVectorShlImmediateForLane<uint16_t>(SIMDLane::i16x8, 15, static_cast<uint16_t>(0x0001));
+
+    // i32x4
+    testVectorShlImmediateForLane<uint32_t>(SIMDLane::i32x4, 1, 0xDEADBEEFu);
+    testVectorShlImmediateForLane<uint32_t>(SIMDLane::i32x4, 16, 0x0000FFFFu);
+    testVectorShlImmediateForLane<uint32_t>(SIMDLane::i32x4, 31, 0x00000001u);
+
+    // i64x2
+    testVectorShlImmediateForLane<uint64_t>(SIMDLane::i64x2, 1, 0x0123456789ABCDEFull);
+    testVectorShlImmediateForLane<uint64_t>(SIMDLane::i64x2, 32, 0x00000000FFFFFFFFull);
+    testVectorShlImmediateForLane<uint64_t>(SIMDLane::i64x2, 63, 0x0000000000000001ull);
+}
+
+template<typename T, typename SignedT>
+static void testVectorShrImmediateForLane(SIMDLane lane, SIMDSignMode signMode, unsigned shift, T inputVal)
+{
+    if constexpr (!isARM64())
+        return;
+
+    alignas(16) v128_t vectors[2];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* input = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* shiftAmount = root->appendNew<Const32Value>(proc, Origin(), shift);
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorShr, B3::V128, lane, signMode, input, shiftAmount);
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+
+    constexpr unsigned numLanes = sizeof(v128_t) / sizeof(T);
+    for (unsigned i = 0; i < numLanes; ++i)
+        reinterpret_cast<T*>(&vectors[0])[i] = inputVal;
+    invoke<void>(*code, vectors);
+
+    unsigned bitWidth = sizeof(T) * 8;
+    unsigned maskedShift = shift & (bitWidth - 1);
+    for (unsigned i = 0; i < numLanes; ++i) {
+        T expected;
+        if (signMode == SIMDSignMode::Signed)
+            expected = static_cast<T>(static_cast<SignedT>(inputVal) >> maskedShift);
+        else
+            expected = static_cast<T>(inputVal >> maskedShift);
+        CHECK(reinterpret_cast<T*>(&vectors[1])[i] == expected);
+    }
+}
+
+void testVectorShrImmediate()
+{
+    if constexpr (!isARM64())
+        return;
+
+    // i8x16 unsigned
+    testVectorShrImmediateForLane<uint8_t, int8_t>(SIMDLane::i8x16, SIMDSignMode::Unsigned, 1, static_cast<uint8_t>(0xAB));
+    testVectorShrImmediateForLane<uint8_t, int8_t>(SIMDLane::i8x16, SIMDSignMode::Unsigned, 4, static_cast<uint8_t>(0xFF));
+    testVectorShrImmediateForLane<uint8_t, int8_t>(SIMDLane::i8x16, SIMDSignMode::Unsigned, 7, static_cast<uint8_t>(0x80));
+
+    // i8x16 signed
+    testVectorShrImmediateForLane<uint8_t, int8_t>(SIMDLane::i8x16, SIMDSignMode::Signed, 1, static_cast<uint8_t>(0xAB));
+    testVectorShrImmediateForLane<uint8_t, int8_t>(SIMDLane::i8x16, SIMDSignMode::Signed, 4, static_cast<uint8_t>(0xFF));
+    testVectorShrImmediateForLane<uint8_t, int8_t>(SIMDLane::i8x16, SIMDSignMode::Signed, 7, static_cast<uint8_t>(0x80));
+
+    // i16x8 unsigned
+    testVectorShrImmediateForLane<uint16_t, int16_t>(SIMDLane::i16x8, SIMDSignMode::Unsigned, 1, static_cast<uint16_t>(0xABCD));
+    testVectorShrImmediateForLane<uint16_t, int16_t>(SIMDLane::i16x8, SIMDSignMode::Unsigned, 8, static_cast<uint16_t>(0xFF00));
+    testVectorShrImmediateForLane<uint16_t, int16_t>(SIMDLane::i16x8, SIMDSignMode::Unsigned, 15, static_cast<uint16_t>(0x8000));
+
+    // i16x8 signed
+    testVectorShrImmediateForLane<uint16_t, int16_t>(SIMDLane::i16x8, SIMDSignMode::Signed, 1, static_cast<uint16_t>(0xABCD));
+    testVectorShrImmediateForLane<uint16_t, int16_t>(SIMDLane::i16x8, SIMDSignMode::Signed, 8, static_cast<uint16_t>(0xFF00));
+
+    // i32x4 unsigned
+    testVectorShrImmediateForLane<uint32_t, int32_t>(SIMDLane::i32x4, SIMDSignMode::Unsigned, 1, 0xDEADBEEFu);
+    testVectorShrImmediateForLane<uint32_t, int32_t>(SIMDLane::i32x4, SIMDSignMode::Unsigned, 16, 0xFFFF0000u);
+    testVectorShrImmediateForLane<uint32_t, int32_t>(SIMDLane::i32x4, SIMDSignMode::Unsigned, 31, 0x80000000u);
+
+    // i32x4 signed
+    testVectorShrImmediateForLane<uint32_t, int32_t>(SIMDLane::i32x4, SIMDSignMode::Signed, 1, 0xDEADBEEFu);
+    testVectorShrImmediateForLane<uint32_t, int32_t>(SIMDLane::i32x4, SIMDSignMode::Signed, 16, 0xFFFF0000u);
+
+    // i64x2 unsigned
+    testVectorShrImmediateForLane<uint64_t, int64_t>(SIMDLane::i64x2, SIMDSignMode::Unsigned, 1, 0x0123456789ABCDEFull);
+    testVectorShrImmediateForLane<uint64_t, int64_t>(SIMDLane::i64x2, SIMDSignMode::Unsigned, 32, 0xFFFFFFFF00000000ull);
+    testVectorShrImmediateForLane<uint64_t, int64_t>(SIMDLane::i64x2, SIMDSignMode::Unsigned, 63, 0x8000000000000000ull);
+
+    // i64x2 signed
+    testVectorShrImmediateForLane<uint64_t, int64_t>(SIMDLane::i64x2, SIMDSignMode::Signed, 1, 0x8000000000000000ull);
+    testVectorShrImmediateForLane<uint64_t, int64_t>(SIMDLane::i64x2, SIMDSignMode::Signed, 32, 0xFFFFFFFF00000000ull);
+    testVectorShrImmediateForLane<uint64_t, int64_t>(SIMDLane::i64x2, SIMDSignMode::Signed, 63, 0x8000000000000000ull);
+}
+// Helper: build a 3-child (binary) VectorSwizzle with the given byte pattern, verify result.
+static void testBinarySwizzlePattern(const char*, const uint8_t pattern[16], v128_t inputA, v128_t inputB, v128_t expected)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* a = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* b = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+
+    v128_t pat;
+    for (unsigned i = 0; i < 16; ++i)
+        pat.u8x16[i] = pattern[i];
+    Value* patternConst = root->appendNew<Const128Value>(proc, Origin(), pat);
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, a, b, patternConst);
+
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(2 * sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+
+    alignas(16) v128_t vectors[3];
+    vectors[0] = inputA;
+    vectors[1] = inputB;
+    invoke<void>(*code, vectors);
+    CHECK(bitEquals(vectors[2], expected));
+}
+
+// Helper: build a 2-child (unary) VectorSwizzle with the given byte pattern, verify result.
+static void testUnarySwizzlePattern(const char*, const uint8_t pattern[16], v128_t input, v128_t expected)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* inputVal = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+
+    v128_t pat;
+    for (unsigned i = 0; i < 16; ++i)
+        pat.u8x16[i] = pattern[i];
+    Value* patternConst = root->appendNew<Const128Value>(proc, Origin(), pat);
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, inputVal, patternConst);
+
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+
+    alignas(16) v128_t vectors[2];
+    vectors[0] = input;
+    invoke<void>(*code, vectors);
+    CHECK(bitEquals(vectors[1], expected));
+}
+
+// Test strength reduction of unary shuffle → VectorUnzipEven through VectorSwizzle.
+// Pattern: VectorSwizzle(v, {0,1,2,3,8,9,10,11, 0,1,2,3,8,9,10,11}) → VectorUnzipEven(v, v)
+void testVectorSwizzleToUnzipEven()
+{
+    alignas(16) v128_t vectors[2];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* input = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+
+    // UZP1.4S pattern as unary shuffle: extract even 32-bit elements, duplicated
+    v128_t pattern;
+    pattern.u8x16[0] = 0; pattern.u8x16[1] = 1; pattern.u8x16[2] = 2; pattern.u8x16[3] = 3;
+    pattern.u8x16[4] = 8; pattern.u8x16[5] = 9; pattern.u8x16[6] = 10; pattern.u8x16[7] = 11;
+    pattern.u8x16[8] = 0; pattern.u8x16[9] = 1; pattern.u8x16[10] = 2; pattern.u8x16[11] = 3;
+    pattern.u8x16[12] = 8; pattern.u8x16[13] = 9; pattern.u8x16[14] = 10; pattern.u8x16[15] = 11;
+    Value* patternConst = root->appendNew<Const128Value>(proc, Origin(), pattern);
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, input, patternConst);
+
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+
+    vectors[0].u32x4[0] = 0xAA; vectors[0].u32x4[1] = 0xBB; vectors[0].u32x4[2] = 0xCC; vectors[0].u32x4[3] = 0xDD;
+    invoke<void>(*code, vectors);
+    // UZP1.4S(v, v) = {v[0], v[2], v[0], v[2]}
+    CHECK(vectors[1].u32x4[0] == 0xAA);
+    CHECK(vectors[1].u32x4[1] == 0xCC);
+    CHECK(vectors[1].u32x4[2] == 0xAA);
+    CHECK(vectors[1].u32x4[3] == 0xCC);
+}
+
+// Test strength reduction of binary shuffle → VectorUnzipOdd through 3-child VectorSwizzle.
+// Pattern: VectorSwizzle(a, b, {8..15, 24..31}) → VectorUnzipOdd.2D (UZP2)
+void testVectorSwizzleBinaryToUnzipOdd()
+{
+    alignas(16) v128_t vectors[3];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* a = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* b = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+
+    // UZP2.2D pattern: {a[hi64], b[hi64]}
+    v128_t pattern;
+    for (unsigned i = 0; i < 8; ++i) pattern.u8x16[i] = 8 + i;
+    for (unsigned i = 0; i < 8; ++i) pattern.u8x16[8 + i] = 24 + i;
+    Value* patternConst = root->appendNew<Const128Value>(proc, Origin(), pattern);
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, a, b, patternConst);
+
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(2 * sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+
+    vectors[0].u64x2[0] = 0x1111111111111111ULL;
+    vectors[0].u64x2[1] = 0x2222222222222222ULL;
+    vectors[1].u64x2[0] = 0x3333333333333333ULL;
+    vectors[1].u64x2[1] = 0x4444444444444444ULL;
+    invoke<void>(*code, vectors);
+    // {a[hi64], b[hi64]}
+    CHECK(vectors[2].u64x2[0] == 0x2222222222222222ULL);
+    CHECK(vectors[2].u64x2[1] == 0x4444444444444444ULL);
+}
+
+// Test VectorExtractPair B3 opcode directly.
+void testVectorExtractPair()
+{
+    // EXT #4: extract 4 bytes from concatenation
+    {
+        alignas(16) v128_t vectors[3];
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<void*>(proc, root);
+        Value* address = arguments[0];
+        Value* a = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+        Value* b = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+        Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorExtractPair, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, static_cast<uint8_t>(4), a, b);
+        root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(2 * sizeof(v128_t)));
+        root->appendNewControlValue(proc, Return, Origin());
+
+        auto code = compileProc(proc);
+        for (unsigned i = 0; i < 16; ++i) vectors[0].u8x16[i] = i;
+        for (unsigned i = 0; i < 16; ++i) vectors[1].u8x16[i] = 16 + i;
+        invoke<void>(*code, vectors);
+        // EXT #4: {a[4..15], b[0..3]}
+        for (unsigned i = 0; i < 12; ++i)
+            CHECK(vectors[2].u8x16[i] == 4 + i);
+        for (unsigned i = 0; i < 4; ++i)
+            CHECK(vectors[2].u8x16[12 + i] == 16 + i);
+    }
+
+    // EXT #8: extract 8 bytes (common S64x2 swap-halves pattern)
+    {
+        alignas(16) v128_t vectors[3];
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<void*>(proc, root);
+        Value* address = arguments[0];
+        Value* a = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+        Value* b = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+        Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorExtractPair, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, static_cast<uint8_t>(8), a, b);
+        root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(2 * sizeof(v128_t)));
+        root->appendNewControlValue(proc, Return, Origin());
+
+        auto code = compileProc(proc);
+        for (unsigned i = 0; i < 16; ++i) vectors[0].u8x16[i] = i;
+        for (unsigned i = 0; i < 16; ++i) vectors[1].u8x16[i] = 16 + i;
+        invoke<void>(*code, vectors);
+        // EXT #8: {a[8..15], b[0..7]}
+        for (unsigned i = 0; i < 8; ++i)
+            CHECK(vectors[2].u8x16[i] == 8 + i);
+        for (unsigned i = 0; i < 8; ++i)
+            CHECK(vectors[2].u8x16[8 + i] == 16 + i);
+    }
+}
+
+// Test strength reduction of binary shuffle → VectorExtractPair through VectorSwizzle.
+void testVectorSwizzleBinaryToEXT()
+{
+    v128_t a, b;
+    for (unsigned i = 0; i < 16; ++i) a.u8x16[i] = i;
+    for (unsigned i = 0; i < 16; ++i) b.u8x16[i] = 16 + i;
+
+    // EXT #4: {a[4..15], b[0..3]} = byte indices {4,5,...,15, 16,17,18,19}
+    {
+        const uint8_t pat[] = { 4,5,6,7, 8,9,10,11, 12,13,14,15, 16,17,18,19 };
+        v128_t exp;
+        for (unsigned i = 0; i < 12; ++i) exp.u8x16[i] = 4 + i;
+        for (unsigned i = 0; i < 4; ++i) exp.u8x16[12 + i] = 16 + i;
+        testBinarySwizzlePattern("EXT #4", pat, a, b, exp);
+    }
+
+    // EXT #8: {a[8..15], b[0..7]}
+    {
+        const uint8_t pat[] = { 8,9,10,11,12,13,14,15, 16,17,18,19,20,21,22,23 };
+        v128_t exp;
+        for (unsigned i = 0; i < 8; ++i) exp.u8x16[i] = 8 + i;
+        for (unsigned i = 0; i < 8; ++i) exp.u8x16[8 + i] = 16 + i;
+        testBinarySwizzlePattern("EXT #8", pat, a, b, exp);
+    }
+
+    // EXT #1: {a[1..15], b[0]}
+    {
+        const uint8_t pat[] = { 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15, 16 };
+        v128_t exp;
+        for (unsigned i = 0; i < 15; ++i) exp.u8x16[i] = 1 + i;
+        exp.u8x16[15] = 16;
+        testBinarySwizzlePattern("EXT #1", pat, a, b, exp);
+    }
+
+    // EXT #15: {a[15], b[0..14]}
+    {
+        const uint8_t pat[] = { 15, 16,17,18,19,20,21,22,23,24,25,26,27,28,29,30 };
+        v128_t exp;
+        exp.u8x16[0] = 15;
+        for (unsigned i = 0; i < 15; ++i) exp.u8x16[1 + i] = 16 + i;
+        testBinarySwizzlePattern("EXT #15", pat, a, b, exp);
+    }
+
+    // Swapped EXT: indices from child1 first, then child0 = EXT with swapped operands
+    // Pattern {16..23, 0..7} = EXT #0 with swapped operands... actually that's
+    // {b[0..7], a[0..7]} which is UZP1.2D(b, a), not EXT.
+    // Let's test {20,21,...,31, 0,1,...,3} = swapped EXT #4
+    {
+        const uint8_t pat[] = { 20,21,22,23,24,25,26,27,28,29,30,31, 0,1,2,3 };
+        v128_t exp;
+        for (unsigned i = 0; i < 12; ++i) exp.u8x16[i] = 20 + i;
+        for (unsigned i = 0; i < 4; ++i) exp.u8x16[12 + i] = i;
+        testBinarySwizzlePattern("Swapped EXT #4", pat, a, b, exp);
+    }
+}
+
+// Test strength reduction of unary shuffle → VectorExtractPair (S64x2 swap halves).
+void testVectorSwizzleUnaryToEXT()
+{
+    v128_t v;
+    for (unsigned i = 0; i < 16; ++i) v.u8x16[i] = i;
+
+    // Test all 15 rotation offsets (EXT #1 through #15).
+    for (unsigned offset = 1; offset <= 15; ++offset) {
+        uint8_t pat[16];
+        v128_t exp;
+        for (unsigned i = 0; i < 16; ++i) {
+            pat[i] = (offset + i) % 16;
+            exp.u8x16[i] = (offset + i) % 16;
+        }
+        testUnarySwizzlePattern("Unary EXT", pat, v, exp);
+    }
+}
+
+// Test all canonical binary shuffle patterns through VectorSwizzle strength reduction.
+void testVectorSwizzleBinaryCanonical()
+{
+    // Input vectors: a = {0x11, 0x22, 0x33, 0x44} as i32x4, b = {0x55, 0x66, 0x77, 0x88}
+    v128_t a, b;
+    a.u32x4[0] = 0x11; a.u32x4[1] = 0x22; a.u32x4[2] = 0x33; a.u32x4[3] = 0x44;
+    b.u32x4[0] = 0x55; b.u32x4[1] = 0x66; b.u32x4[2] = 0x77; b.u32x4[3] = 0x88;
+
+    // UZP1.4S: {a[0], a[2], b[0], b[2]}
+    {
+        const uint8_t pat[] = { 0,1,2,3, 8,9,10,11, 16,17,18,19, 24,25,26,27 };
+        v128_t exp; exp.u32x4[0] = 0x11; exp.u32x4[1] = 0x33; exp.u32x4[2] = 0x55; exp.u32x4[3] = 0x77;
+        testBinarySwizzlePattern("UZP1.4S", pat, a, b, exp);
+    }
+    // UZP2.4S: {a[1], a[3], b[1], b[3]}
+    {
+        const uint8_t pat[] = { 4,5,6,7, 12,13,14,15, 20,21,22,23, 28,29,30,31 };
+        v128_t exp; exp.u32x4[0] = 0x22; exp.u32x4[1] = 0x44; exp.u32x4[2] = 0x66; exp.u32x4[3] = 0x88;
+        testBinarySwizzlePattern("UZP2.4S", pat, a, b, exp);
+    }
+    // ZIP1.4S: {a[0], b[0], a[1], b[1]}
+    {
+        const uint8_t pat[] = { 0,1,2,3, 16,17,18,19, 4,5,6,7, 20,21,22,23 };
+        v128_t exp; exp.u32x4[0] = 0x11; exp.u32x4[1] = 0x55; exp.u32x4[2] = 0x22; exp.u32x4[3] = 0x66;
+        testBinarySwizzlePattern("ZIP1.4S", pat, a, b, exp);
+    }
+    // ZIP2.4S: {a[2], b[2], a[3], b[3]}
+    {
+        const uint8_t pat[] = { 8,9,10,11, 24,25,26,27, 12,13,14,15, 28,29,30,31 };
+        v128_t exp; exp.u32x4[0] = 0x33; exp.u32x4[1] = 0x77; exp.u32x4[2] = 0x44; exp.u32x4[3] = 0x88;
+        testBinarySwizzlePattern("ZIP2.4S", pat, a, b, exp);
+    }
+    // TRN1.4S: {a[0], b[0], a[2], b[2]}
+    {
+        const uint8_t pat[] = { 0,1,2,3, 16,17,18,19, 8,9,10,11, 24,25,26,27 };
+        v128_t exp; exp.u32x4[0] = 0x11; exp.u32x4[1] = 0x55; exp.u32x4[2] = 0x33; exp.u32x4[3] = 0x77;
+        testBinarySwizzlePattern("TRN1.4S", pat, a, b, exp);
+    }
+    // TRN2.4S: {a[1], b[1], a[3], b[3]}
+    {
+        const uint8_t pat[] = { 4,5,6,7, 20,21,22,23, 12,13,14,15, 28,29,30,31 };
+        v128_t exp; exp.u32x4[0] = 0x22; exp.u32x4[1] = 0x66; exp.u32x4[2] = 0x44; exp.u32x4[3] = 0x88;
+        testBinarySwizzlePattern("TRN2.4S", pat, a, b, exp);
+    }
+    // UZP1.2D: {a[lo64], b[lo64]}
+    {
+        const uint8_t pat[] = { 0,1,2,3,4,5,6,7, 16,17,18,19,20,21,22,23 };
+        v128_t exp; exp.u32x4[0] = 0x11; exp.u32x4[1] = 0x22; exp.u32x4[2] = 0x55; exp.u32x4[3] = 0x66;
+        testBinarySwizzlePattern("UZP1.2D", pat, a, b, exp);
+    }
+    // UZP2.2D: {a[hi64], b[hi64]}
+    {
+        const uint8_t pat[] = { 8,9,10,11,12,13,14,15, 24,25,26,27,28,29,30,31 };
+        v128_t exp; exp.u32x4[0] = 0x33; exp.u32x4[1] = 0x44; exp.u32x4[2] = 0x77; exp.u32x4[3] = 0x88;
+        testBinarySwizzlePattern("UZP2.2D", pat, a, b, exp);
+    }
+
+    // 16-bit (8H) patterns: a16 has 8 distinct u16 values, b16 has 8 more
+    v128_t a16, b16;
+    a16.u16x8[0] = 0x11; a16.u16x8[1] = 0x22; a16.u16x8[2] = 0x33; a16.u16x8[3] = 0x44;
+    a16.u16x8[4] = 0x55; a16.u16x8[5] = 0x66; a16.u16x8[6] = 0x77; a16.u16x8[7] = 0x88;
+    b16.u16x8[0] = 0x99; b16.u16x8[1] = 0xAA; b16.u16x8[2] = 0xBB; b16.u16x8[3] = 0xCC;
+    b16.u16x8[4] = 0xDD; b16.u16x8[5] = 0xEE; b16.u16x8[6] = 0xFF; b16.u16x8[7] = 0x100;
+
+    // UZP1.8H: {a[0],a[2],a[4],a[6], b[0],b[2],b[4],b[6]}
+    {
+        const uint8_t pat[] = { 0,1, 4,5, 8,9, 12,13, 16,17, 20,21, 24,25, 28,29 };
+        v128_t exp;
+        exp.u16x8[0] = 0x11; exp.u16x8[1] = 0x33; exp.u16x8[2] = 0x55; exp.u16x8[3] = 0x77;
+        exp.u16x8[4] = 0x99; exp.u16x8[5] = 0xBB; exp.u16x8[6] = 0xDD; exp.u16x8[7] = 0xFF;
+        testBinarySwizzlePattern("UZP1.8H", pat, a16, b16, exp);
+    }
+    // UZP2.8H: {a[1],a[3],a[5],a[7], b[1],b[3],b[5],b[7]}
+    {
+        const uint8_t pat[] = { 2,3, 6,7, 10,11, 14,15, 18,19, 22,23, 26,27, 30,31 };
+        v128_t exp;
+        exp.u16x8[0] = 0x22; exp.u16x8[1] = 0x44; exp.u16x8[2] = 0x66; exp.u16x8[3] = 0x88;
+        exp.u16x8[4] = 0xAA; exp.u16x8[5] = 0xCC; exp.u16x8[6] = 0xEE; exp.u16x8[7] = 0x100;
+        testBinarySwizzlePattern("UZP2.8H", pat, a16, b16, exp);
+    }
+    // ZIP1.8H: {a[0],b[0],a[1],b[1],a[2],b[2],a[3],b[3]}
+    {
+        const uint8_t pat[] = { 0,1, 16,17, 2,3, 18,19, 4,5, 20,21, 6,7, 22,23 };
+        v128_t exp;
+        exp.u16x8[0] = 0x11; exp.u16x8[1] = 0x99; exp.u16x8[2] = 0x22; exp.u16x8[3] = 0xAA;
+        exp.u16x8[4] = 0x33; exp.u16x8[5] = 0xBB; exp.u16x8[6] = 0x44; exp.u16x8[7] = 0xCC;
+        testBinarySwizzlePattern("ZIP1.8H", pat, a16, b16, exp);
+    }
+    // ZIP2.8H: {a[4],b[4],a[5],b[5],a[6],b[6],a[7],b[7]}
+    {
+        const uint8_t pat[] = { 8,9, 24,25, 10,11, 26,27, 12,13, 28,29, 14,15, 30,31 };
+        v128_t exp;
+        exp.u16x8[0] = 0x55; exp.u16x8[1] = 0xDD; exp.u16x8[2] = 0x66; exp.u16x8[3] = 0xEE;
+        exp.u16x8[4] = 0x77; exp.u16x8[5] = 0xFF; exp.u16x8[6] = 0x88; exp.u16x8[7] = 0x100;
+        testBinarySwizzlePattern("ZIP2.8H", pat, a16, b16, exp);
+    }
+    // TRN1.8H: {a[0],b[0],a[2],b[2],a[4],b[4],a[6],b[6]}
+    {
+        const uint8_t pat[] = { 0,1, 16,17, 4,5, 20,21, 8,9, 24,25, 12,13, 28,29 };
+        v128_t exp;
+        exp.u16x8[0] = 0x11; exp.u16x8[1] = 0x99; exp.u16x8[2] = 0x33; exp.u16x8[3] = 0xBB;
+        exp.u16x8[4] = 0x55; exp.u16x8[5] = 0xDD; exp.u16x8[6] = 0x77; exp.u16x8[7] = 0xFF;
+        testBinarySwizzlePattern("TRN1.8H", pat, a16, b16, exp);
+    }
+    // TRN2.8H: {a[1],b[1],a[3],b[3],a[5],b[5],a[7],b[7]}
+    {
+        const uint8_t pat[] = { 2,3, 18,19, 6,7, 22,23, 10,11, 26,27, 14,15, 30,31 };
+        v128_t exp;
+        exp.u16x8[0] = 0x22; exp.u16x8[1] = 0xAA; exp.u16x8[2] = 0x44; exp.u16x8[3] = 0xCC;
+        exp.u16x8[4] = 0x66; exp.u16x8[5] = 0xEE; exp.u16x8[6] = 0x88; exp.u16x8[7] = 0x100;
+        testBinarySwizzlePattern("TRN2.8H", pat, a16, b16, exp);
+    }
+
+    // 8-bit (16B) patterns: a8 has bytes 0..15, b8 has bytes 16..31
+    v128_t a8, b8;
+    for (unsigned i = 0; i < 16; ++i) a8.u8x16[i] = i;
+    for (unsigned i = 0; i < 16; ++i) b8.u8x16[i] = 16 + i;
+
+    // UZP1.16B: {a[0],a[2],a[4],...,a[14], b[0],b[2],b[4],...,b[14]}
+    {
+        const uint8_t pat[] = { 0,2,4,6,8,10,12,14, 16,18,20,22,24,26,28,30 };
+        v128_t exp;
+        for (unsigned i = 0; i < 8; ++i) exp.u8x16[i] = i * 2;
+        for (unsigned i = 0; i < 8; ++i) exp.u8x16[8 + i] = 16 + i * 2;
+        testBinarySwizzlePattern("UZP1.16B", pat, a8, b8, exp);
+    }
+    // UZP2.16B: {a[1],a[3],a[5],...,a[15], b[1],b[3],b[5],...,b[15]}
+    {
+        const uint8_t pat[] = { 1,3,5,7,9,11,13,15, 17,19,21,23,25,27,29,31 };
+        v128_t exp;
+        for (unsigned i = 0; i < 8; ++i) exp.u8x16[i] = 1 + i * 2;
+        for (unsigned i = 0; i < 8; ++i) exp.u8x16[8 + i] = 17 + i * 2;
+        testBinarySwizzlePattern("UZP2.16B", pat, a8, b8, exp);
+    }
+    // ZIP1.16B: {a[0],b[0],a[1],b[1],a[2],b[2],a[3],b[3],a[4],b[4],a[5],b[5],a[6],b[6],a[7],b[7]}
+    {
+        const uint8_t pat[] = { 0,16, 1,17, 2,18, 3,19, 4,20, 5,21, 6,22, 7,23 };
+        v128_t exp;
+        for (unsigned i = 0; i < 8; ++i) { exp.u8x16[i * 2] = i; exp.u8x16[i * 2 + 1] = 16 + i; }
+        testBinarySwizzlePattern("ZIP1.16B", pat, a8, b8, exp);
+    }
+    // ZIP2.16B: {a[8],b[8],a[9],b[9],...,a[15],b[15]}
+    {
+        const uint8_t pat[] = { 8,24, 9,25, 10,26, 11,27, 12,28, 13,29, 14,30, 15,31 };
+        v128_t exp;
+        for (unsigned i = 0; i < 8; ++i) { exp.u8x16[i * 2] = 8 + i; exp.u8x16[i * 2 + 1] = 24 + i; }
+        testBinarySwizzlePattern("ZIP2.16B", pat, a8, b8, exp);
+    }
+    // TRN1.16B: {a[0],b[0],a[2],b[2],a[4],b[4],...,a[14],b[14]}
+    {
+        const uint8_t pat[] = { 0,16, 2,18, 4,20, 6,22, 8,24, 10,26, 12,28, 14,30 };
+        v128_t exp;
+        for (unsigned i = 0; i < 8; ++i) { exp.u8x16[i * 2] = i * 2; exp.u8x16[i * 2 + 1] = 16 + i * 2; }
+        testBinarySwizzlePattern("TRN1.16B", pat, a8, b8, exp);
+    }
+    // TRN2.16B: {a[1],b[1],a[3],b[3],a[5],b[5],...,a[15],b[15]}
+    {
+        const uint8_t pat[] = { 1,17, 3,19, 5,21, 7,23, 9,25, 11,27, 13,29, 15,31 };
+        v128_t exp;
+        for (unsigned i = 0; i < 8; ++i) { exp.u8x16[i * 2] = 1 + i * 2; exp.u8x16[i * 2 + 1] = 17 + i * 2; }
+        testBinarySwizzlePattern("TRN2.16B", pat, a8, b8, exp);
+    }
+}
+
+// Test all canonical unary shuffle patterns through VectorSwizzle strength reduction.
+void testVectorSwizzleUnaryCanonical()
+{
+    v128_t v;
+    v.u32x4[0] = 0xAA; v.u32x4[1] = 0xBB; v.u32x4[2] = 0xCC; v.u32x4[3] = 0xDD;
+
+    // UZP1.4S(v,v): {v[0], v[2], v[0], v[2]}
+    {
+        const uint8_t pat[] = { 0,1,2,3, 8,9,10,11, 0,1,2,3, 8,9,10,11 };
+        v128_t exp; exp.u32x4[0] = 0xAA; exp.u32x4[1] = 0xCC; exp.u32x4[2] = 0xAA; exp.u32x4[3] = 0xCC;
+        testUnarySwizzlePattern("unary UZP1.4S", pat, v, exp);
+    }
+    // UZP2.4S(v,v): {v[1], v[3], v[1], v[3]}
+    {
+        const uint8_t pat[] = { 4,5,6,7, 12,13,14,15, 4,5,6,7, 12,13,14,15 };
+        v128_t exp; exp.u32x4[0] = 0xBB; exp.u32x4[1] = 0xDD; exp.u32x4[2] = 0xBB; exp.u32x4[3] = 0xDD;
+        testUnarySwizzlePattern("unary UZP2.4S", pat, v, exp);
+    }
+    // ZIP1.4S(v,v): {v[0], v[0], v[1], v[1]}
+    {
+        const uint8_t pat[] = { 0,1,2,3, 0,1,2,3, 4,5,6,7, 4,5,6,7 };
+        v128_t exp; exp.u32x4[0] = 0xAA; exp.u32x4[1] = 0xAA; exp.u32x4[2] = 0xBB; exp.u32x4[3] = 0xBB;
+        testUnarySwizzlePattern("unary ZIP1.4S", pat, v, exp);
+    }
+    // ZIP2.4S(v,v): {v[2], v[2], v[3], v[3]}
+    {
+        const uint8_t pat[] = { 8,9,10,11, 8,9,10,11, 12,13,14,15, 12,13,14,15 };
+        v128_t exp; exp.u32x4[0] = 0xCC; exp.u32x4[1] = 0xCC; exp.u32x4[2] = 0xDD; exp.u32x4[3] = 0xDD;
+        testUnarySwizzlePattern("unary ZIP2.4S", pat, v, exp);
+    }
+    // TRN1.4S(v,v): {v[0], v[0], v[2], v[2]}
+    {
+        const uint8_t pat[] = { 0,1,2,3, 0,1,2,3, 8,9,10,11, 8,9,10,11 };
+        v128_t exp; exp.u32x4[0] = 0xAA; exp.u32x4[1] = 0xAA; exp.u32x4[2] = 0xCC; exp.u32x4[3] = 0xCC;
+        testUnarySwizzlePattern("unary TRN1.4S", pat, v, exp);
+    }
+    // TRN2.4S(v,v): {v[1], v[1], v[3], v[3]}
+    {
+        const uint8_t pat[] = { 4,5,6,7, 4,5,6,7, 12,13,14,15, 12,13,14,15 };
+        v128_t exp; exp.u32x4[0] = 0xBB; exp.u32x4[1] = 0xBB; exp.u32x4[2] = 0xDD; exp.u32x4[3] = 0xDD;
+        testUnarySwizzlePattern("unary TRN2.4S", pat, v, exp);
+    }
+    // REV64.4S: {v[1], v[0], v[3], v[2]}
+    {
+        const uint8_t pat[] = { 4,5,6,7, 0,1,2,3, 12,13,14,15, 8,9,10,11 };
+        v128_t exp; exp.u32x4[0] = 0xBB; exp.u32x4[1] = 0xAA; exp.u32x4[2] = 0xDD; exp.u32x4[3] = 0xCC;
+        testUnarySwizzlePattern("unary REV64.4S", pat, v, exp);
+    }
+
+    // Test 16-bit patterns
+    v128_t v16;
+    v16.u16x8[0] = 0x11; v16.u16x8[1] = 0x22; v16.u16x8[2] = 0x33; v16.u16x8[3] = 0x44;
+    v16.u16x8[4] = 0x55; v16.u16x8[5] = 0x66; v16.u16x8[6] = 0x77; v16.u16x8[7] = 0x88;
+
+    // REV32.8H: swap 16-bit elements within 32-bit groups {v[1],v[0],v[3],v[2],v[5],v[4],v[7],v[6]}
+    {
+        const uint8_t pat[] = { 2,3,0,1, 6,7,4,5, 10,11,8,9, 14,15,12,13 };
+        v128_t exp;
+        exp.u16x8[0] = 0x22; exp.u16x8[1] = 0x11; exp.u16x8[2] = 0x44; exp.u16x8[3] = 0x33;
+        exp.u16x8[4] = 0x66; exp.u16x8[5] = 0x55; exp.u16x8[6] = 0x88; exp.u16x8[7] = 0x77;
+        testUnarySwizzlePattern("unary REV32.8H", pat, v16, exp);
+    }
+
+    // Test 8-bit REV16: swap bytes within 16-bit groups
+    v128_t v8;
+    for (unsigned i = 0; i < 16; ++i)
+        v8.u8x16[i] = i;
+    {
+        const uint8_t pat[] = { 1,0, 3,2, 5,4, 7,6, 9,8, 11,10, 13,12, 15,14 };
+        v128_t exp;
+        for (unsigned i = 0; i < 16; i += 2) { exp.u8x16[i] = i + 1; exp.u8x16[i + 1] = i; }
+        testUnarySwizzlePattern("unary REV16.16B", pat, v8, exp);
+    }
+
+    // UZP1.2D(v,v): {lo64, lo64}
+    {
+        const uint8_t pat[] = { 0,1,2,3,4,5,6,7, 0,1,2,3,4,5,6,7 };
+        v128_t exp;
+        exp.u32x4[0] = 0xAA; exp.u32x4[1] = 0xBB; exp.u32x4[2] = 0xAA; exp.u32x4[3] = 0xBB;
+        testUnarySwizzlePattern("unary UZP1.2D", pat, v, exp);
+    }
+    // UZP2.2D(v,v): {hi64, hi64}
+    {
+        const uint8_t pat[] = { 8,9,10,11,12,13,14,15, 8,9,10,11,12,13,14,15 };
+        v128_t exp;
+        exp.u32x4[0] = 0xCC; exp.u32x4[1] = 0xDD; exp.u32x4[2] = 0xCC; exp.u32x4[3] = 0xDD;
+        testUnarySwizzlePattern("unary UZP2.2D", pat, v, exp);
+    }
+
+    // UZP1.8H(v,v): {v[0],v[2],v[4],v[6], v[0],v[2],v[4],v[6]}
+    {
+        const uint8_t pat[] = { 0,1, 4,5, 8,9, 12,13, 0,1, 4,5, 8,9, 12,13 };
+        v128_t exp;
+        exp.u16x8[0] = 0x11; exp.u16x8[1] = 0x33; exp.u16x8[2] = 0x55; exp.u16x8[3] = 0x77;
+        exp.u16x8[4] = 0x11; exp.u16x8[5] = 0x33; exp.u16x8[6] = 0x55; exp.u16x8[7] = 0x77;
+        testUnarySwizzlePattern("unary UZP1.8H", pat, v16, exp);
+    }
+    // UZP2.8H(v,v): {v[1],v[3],v[5],v[7], v[1],v[3],v[5],v[7]}
+    {
+        const uint8_t pat[] = { 2,3, 6,7, 10,11, 14,15, 2,3, 6,7, 10,11, 14,15 };
+        v128_t exp;
+        exp.u16x8[0] = 0x22; exp.u16x8[1] = 0x44; exp.u16x8[2] = 0x66; exp.u16x8[3] = 0x88;
+        exp.u16x8[4] = 0x22; exp.u16x8[5] = 0x44; exp.u16x8[6] = 0x66; exp.u16x8[7] = 0x88;
+        testUnarySwizzlePattern("unary UZP2.8H", pat, v16, exp);
+    }
+    // ZIP1.8H(v,v): {v[0],v[0],v[1],v[1],v[2],v[2],v[3],v[3]}
+    {
+        const uint8_t pat[] = { 0,1, 0,1, 2,3, 2,3, 4,5, 4,5, 6,7, 6,7 };
+        v128_t exp;
+        exp.u16x8[0] = 0x11; exp.u16x8[1] = 0x11; exp.u16x8[2] = 0x22; exp.u16x8[3] = 0x22;
+        exp.u16x8[4] = 0x33; exp.u16x8[5] = 0x33; exp.u16x8[6] = 0x44; exp.u16x8[7] = 0x44;
+        testUnarySwizzlePattern("unary ZIP1.8H", pat, v16, exp);
+    }
+    // ZIP2.8H(v,v): {v[4],v[4],v[5],v[5],v[6],v[6],v[7],v[7]}
+    {
+        const uint8_t pat[] = { 8,9, 8,9, 10,11, 10,11, 12,13, 12,13, 14,15, 14,15 };
+        v128_t exp;
+        exp.u16x8[0] = 0x55; exp.u16x8[1] = 0x55; exp.u16x8[2] = 0x66; exp.u16x8[3] = 0x66;
+        exp.u16x8[4] = 0x77; exp.u16x8[5] = 0x77; exp.u16x8[6] = 0x88; exp.u16x8[7] = 0x88;
+        testUnarySwizzlePattern("unary ZIP2.8H", pat, v16, exp);
+    }
+    // TRN1.8H(v,v): {v[0],v[0],v[2],v[2],v[4],v[4],v[6],v[6]}
+    {
+        const uint8_t pat[] = { 0,1, 0,1, 4,5, 4,5, 8,9, 8,9, 12,13, 12,13 };
+        v128_t exp;
+        exp.u16x8[0] = 0x11; exp.u16x8[1] = 0x11; exp.u16x8[2] = 0x33; exp.u16x8[3] = 0x33;
+        exp.u16x8[4] = 0x55; exp.u16x8[5] = 0x55; exp.u16x8[6] = 0x77; exp.u16x8[7] = 0x77;
+        testUnarySwizzlePattern("unary TRN1.8H", pat, v16, exp);
+    }
+    // TRN2.8H(v,v): {v[1],v[1],v[3],v[3],v[5],v[5],v[7],v[7]}
+    {
+        const uint8_t pat[] = { 2,3, 2,3, 6,7, 6,7, 10,11, 10,11, 14,15, 14,15 };
+        v128_t exp;
+        exp.u16x8[0] = 0x22; exp.u16x8[1] = 0x22; exp.u16x8[2] = 0x44; exp.u16x8[3] = 0x44;
+        exp.u16x8[4] = 0x66; exp.u16x8[5] = 0x66; exp.u16x8[6] = 0x88; exp.u16x8[7] = 0x88;
+        testUnarySwizzlePattern("unary TRN2.8H", pat, v16, exp);
+    }
+
+    // UZP1.16B(v,v): {v[0],v[2],v[4],...,v[14], v[0],v[2],v[4],...,v[14]}
+    {
+        const uint8_t pat[] = { 0,2,4,6,8,10,12,14, 0,2,4,6,8,10,12,14 };
+        v128_t exp;
+        for (unsigned i = 0; i < 8; ++i) exp.u8x16[i] = i * 2;
+        for (unsigned i = 0; i < 8; ++i) exp.u8x16[8 + i] = i * 2;
+        testUnarySwizzlePattern("unary UZP1.16B", pat, v8, exp);
+    }
+    // UZP2.16B(v,v): {v[1],v[3],v[5],...,v[15], v[1],v[3],v[5],...,v[15]}
+    {
+        const uint8_t pat[] = { 1,3,5,7,9,11,13,15, 1,3,5,7,9,11,13,15 };
+        v128_t exp;
+        for (unsigned i = 0; i < 8; ++i) exp.u8x16[i] = 1 + i * 2;
+        for (unsigned i = 0; i < 8; ++i) exp.u8x16[8 + i] = 1 + i * 2;
+        testUnarySwizzlePattern("unary UZP2.16B", pat, v8, exp);
+    }
+    // ZIP1.16B(v,v): {v[0],v[0],v[1],v[1],...,v[7],v[7]}
+    {
+        const uint8_t pat[] = { 0,0, 1,1, 2,2, 3,3, 4,4, 5,5, 6,6, 7,7 };
+        v128_t exp;
+        for (unsigned i = 0; i < 8; ++i) { exp.u8x16[i * 2] = i; exp.u8x16[i * 2 + 1] = i; }
+        testUnarySwizzlePattern("unary ZIP1.16B", pat, v8, exp);
+    }
+    // ZIP2.16B(v,v): {v[8],v[8],v[9],v[9],...,v[15],v[15]}
+    {
+        const uint8_t pat[] = { 8,8, 9,9, 10,10, 11,11, 12,12, 13,13, 14,14, 15,15 };
+        v128_t exp;
+        for (unsigned i = 0; i < 8; ++i) { exp.u8x16[i * 2] = 8 + i; exp.u8x16[i * 2 + 1] = 8 + i; }
+        testUnarySwizzlePattern("unary ZIP2.16B", pat, v8, exp);
+    }
+    // TRN1.16B(v,v): {v[0],v[0],v[2],v[2],...,v[14],v[14]}
+    {
+        const uint8_t pat[] = { 0,0, 2,2, 4,4, 6,6, 8,8, 10,10, 12,12, 14,14 };
+        v128_t exp;
+        for (unsigned i = 0; i < 8; ++i) { exp.u8x16[i * 2] = i * 2; exp.u8x16[i * 2 + 1] = i * 2; }
+        testUnarySwizzlePattern("unary TRN1.16B", pat, v8, exp);
+    }
+    // TRN2.16B(v,v): {v[1],v[1],v[3],v[3],...,v[15],v[15]}
+    {
+        const uint8_t pat[] = { 1,1, 3,3, 5,5, 7,7, 9,9, 11,11, 13,13, 15,15 };
+        v128_t exp;
+        for (unsigned i = 0; i < 8; ++i) { exp.u8x16[i * 2] = 1 + i * 2; exp.u8x16[i * 2 + 1] = 1 + i * 2; }
+        testUnarySwizzlePattern("unary TRN2.16B", pat, v8, exp);
+    }
+}
+
+// Test VectorDupElement folding: when canonical ops have identical inputs (v, v)
+// and lane is i64x2, they should be folded to VectorDupElement.
+void testVectorCanonicalSameInputFolding()
+{
+    // Helper: build canonical op with same input, verify result equals DUP behavior.
+    auto testSameInputOp = [](B3::Opcode op, SIMDLane lane, uint64_t lo, uint64_t hi, uint64_t expectedLo, uint64_t expectedHi) {
+        alignas(16) v128_t vectors[2];
+        Procedure proc;
+        BasicBlock* root = proc.addBlock();
+        auto arguments = cCallArgumentValues<void*>(proc, root);
+        Value* address = arguments[0];
+        Value* v = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+        Value* result = root->appendNew<SIMDValue>(proc, Origin(), op, B3::V128, lane, SIMDSignMode::None, v, v);
+        root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(sizeof(v128_t)));
+        root->appendNewControlValue(proc, Return, Origin());
+
+        auto code = compileProc(proc);
+        vectors[0].u64x2[0] = lo;
+        vectors[0].u64x2[1] = hi;
+        invoke<void>(*code, vectors);
+        CHECK(vectors[1].u64x2[0] == expectedLo);
+        CHECK(vectors[1].u64x2[1] == expectedHi);
+    };
+
+    uint64_t lo = 0x1111111111111111ULL;
+    uint64_t hi = 0x2222222222222222ULL;
+
+    // All of these with i64x2 and same input should produce DUP behavior:
+    // UZP1.2D(v,v) = {lo, lo}
+    testSameInputOp(VectorUnzipEven, SIMDLane::i64x2, lo, hi, lo, lo);
+    // UZP2.2D(v,v) = {hi, hi}
+    testSameInputOp(VectorUnzipOdd, SIMDLane::i64x2, lo, hi, hi, hi);
+    // ZIP1.2D(v,v) = {lo, lo}
+    testSameInputOp(VectorZipLower, SIMDLane::i64x2, lo, hi, lo, lo);
+    // ZIP2.2D(v,v) = {hi, hi}
+    testSameInputOp(VectorZipHigher, SIMDLane::i64x2, lo, hi, hi, hi);
+    if constexpr (isARM64()) {
+        // TRN1.2D(v,v) = {lo, lo} — ARM64 only
+        testSameInputOp(VectorTransposeEven, SIMDLane::i64x2, lo, hi, lo, lo);
+        // TRN2.2D(v,v) = {hi, hi}
+        testSameInputOp(VectorTransposeOdd, SIMDLane::i64x2, lo, hi, hi, hi);
+    }
+}
+
+// Test that VectorSwizzle DupElement patterns (unary) are correctly detected.
+// These test the path: VectorSwizzle → (ReduceStrength) → VectorDupElement
+void testVectorSwizzleToDupElement()
+{
+    v128_t v;
+    v.u32x4[0] = 0xAA; v.u32x4[1] = 0xBB; v.u32x4[2] = 0xCC; v.u32x4[3] = 0xDD;
+
+    // i64x2 DUP element 0: {lo64, lo64}
+    {
+        const uint8_t pat[] = { 0,1,2,3,4,5,6,7, 0,1,2,3,4,5,6,7 };
+        v128_t exp; exp.u32x4[0] = 0xAA; exp.u32x4[1] = 0xBB; exp.u32x4[2] = 0xAA; exp.u32x4[3] = 0xBB;
+        testUnarySwizzlePattern("DUP.2D element 0", pat, v, exp);
+    }
+    // i64x2 DUP element 1: {hi64, hi64}
+    {
+        const uint8_t pat[] = { 8,9,10,11,12,13,14,15, 8,9,10,11,12,13,14,15 };
+        v128_t exp; exp.u32x4[0] = 0xCC; exp.u32x4[1] = 0xDD; exp.u32x4[2] = 0xCC; exp.u32x4[3] = 0xDD;
+        testUnarySwizzlePattern("DUP.2D element 1", pat, v, exp);
+    }
+    // i32x4 DUP element 0: {v[0], v[0], v[0], v[0]}
+    {
+        const uint8_t pat[] = { 0,1,2,3, 0,1,2,3, 0,1,2,3, 0,1,2,3 };
+        v128_t exp; exp.u32x4[0] = 0xAA; exp.u32x4[1] = 0xAA; exp.u32x4[2] = 0xAA; exp.u32x4[3] = 0xAA;
+        testUnarySwizzlePattern("DUP.4S element 0", pat, v, exp);
+    }
+    // i32x4 DUP element 2: {v[2], v[2], v[2], v[2]}
+    {
+        const uint8_t pat[] = { 8,9,10,11, 8,9,10,11, 8,9,10,11, 8,9,10,11 };
+        v128_t exp; exp.u32x4[0] = 0xCC; exp.u32x4[1] = 0xCC; exp.u32x4[2] = 0xCC; exp.u32x4[3] = 0xCC;
+        testUnarySwizzlePattern("DUP.4S element 2", pat, v, exp);
+    }
+    // i16x8 DUP element 3
+    {
+        v128_t v16;
+        for (unsigned i = 0; i < 8; ++i)
+            v16.u16x8[i] = 0x10 * (i + 1);
+        const uint8_t pat[] = { 6,7, 6,7, 6,7, 6,7, 6,7, 6,7, 6,7, 6,7 };
+        v128_t exp;
+        for (unsigned i = 0; i < 8; ++i)
+            exp.u16x8[i] = 0x40;
+        testUnarySwizzlePattern("DUP.8H element 3", pat, v16, exp);
+    }
+    // i8x16 DUP element 5
+    {
+        v128_t v8;
+        for (unsigned i = 0; i < 16; ++i)
+            v8.u8x16[i] = i + 1;
+        const uint8_t pat[] = { 5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5 };
+        v128_t exp;
+        for (unsigned i = 0; i < 16; ++i)
+            exp.u8x16[i] = 6;
+        testUnarySwizzlePattern("DUP.16B element 5", pat, v8, exp);
+    }
+}
+
+// Test shuffle-of-shuffle composition (ReduceSIMDShuffle).
+// An inner unary shuffle fed into an outer binary shuffle should be composed
+// into a single shuffle.
+void testVectorSwizzleComposition()
+{
+    // Inner: reverse bytes within 32-bit elements (unary pattern)
+    // Outer: take high 64 bits of inner result and low 64 bits of other
+    // Composed: should be a single binary shuffle
+
+    alignas(16) v128_t vectors[3];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* a = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* b = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+
+    // Inner: swap bytes within 32-bit groups of 'a' → {a[3],a[2],a[1],a[0], a[7],a[6],a[5],a[4], ...}
+    v128_t innerPat;
+    for (unsigned i = 0; i < 16; i += 4) {
+        innerPat.u8x16[i] = i + 3;
+        innerPat.u8x16[i + 1] = i + 2;
+        innerPat.u8x16[i + 2] = i + 1;
+        innerPat.u8x16[i + 3] = i;
+    }
+    Value* innerPatConst = root->appendNew<Const128Value>(proc, Origin(), innerPat);
+    Value* innerResult = root->appendNew<SIMDValue>(proc, Origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, a, innerPatConst);
+
+    // Outer: UZP1.2D(b, inner) = {b[lo64], inner[lo64]}
+    v128_t outerPat;
+    for (unsigned i = 0; i < 8; ++i) outerPat.u8x16[i] = i;
+    for (unsigned i = 0; i < 8; ++i) outerPat.u8x16[8 + i] = 16 + i;
+    Value* outerPatConst = root->appendNew<Const128Value>(proc, Origin(), outerPat);
+    Value* result = root->appendNew<SIMDValue>(proc, Origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, b, innerResult, outerPatConst);
+
+    root->appendNew<MemoryValue>(proc, Store, Origin(), result, address, static_cast<int32_t>(2 * sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+    for (unsigned i = 0; i < 16; ++i) vectors[0].u8x16[i] = i;       // a
+    for (unsigned i = 0; i < 16; ++i) vectors[1].u8x16[i] = 0x80 + i; // b
+    invoke<void>(*code, vectors);
+
+    // Expected: {b[0..7], rev32(a)[0..7]} = {b[0..7], a[3],a[2],a[1],a[0],a[7],a[6],a[5],a[4]}
+    for (unsigned i = 0; i < 8; ++i)
+        CHECK(vectors[2].u8x16[i] == 0x80 + i);
+    CHECK(vectors[2].u8x16[8] == 3);
+    CHECK(vectors[2].u8x16[9] == 2);
+    CHECK(vectors[2].u8x16[10] == 1);
+    CHECK(vectors[2].u8x16[11] == 0);
+    CHECK(vectors[2].u8x16[12] == 7);
+    CHECK(vectors[2].u8x16[13] == 6);
+    CHECK(vectors[2].u8x16[14] == 5);
+    CHECK(vectors[2].u8x16[15] == 4);
+}
+
+void testVectorSwizzleUnaryComposition()
+{
+    // Compose two chained unary rotations: EXT4(EXT4(x)) = EXT8(x).
+    // inner = VectorSwizzle(input, rotate4Pattern)
+    // outer = VectorSwizzle(inner, rotate4Pattern)
+    // After composition, this should be a single rotation by 8.
+
+    alignas(16) v128_t vectors[2];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* input = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+
+    // Rotate by 4: {4,5,...,15,0,1,2,3}
+    v128_t rotate4;
+    for (unsigned i = 0; i < 16; ++i)
+        rotate4.u8x16[i] = (4 + i) % 16;
+    Value* rotate4Const = root->appendNew<Const128Value>(proc, Origin(), rotate4);
+
+    Value* inner = root->appendNew<SIMDValue>(proc, Origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, input, rotate4Const);
+    Value* rotate4Const2 = root->appendNew<Const128Value>(proc, Origin(), rotate4);
+    Value* outer = root->appendNew<SIMDValue>(proc, Origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, inner, rotate4Const2);
+
+    root->appendNew<MemoryValue>(proc, Store, Origin(), outer, address, static_cast<int32_t>(sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+    for (unsigned i = 0; i < 16; ++i) vectors[0].u8x16[i] = i;
+    invoke<void>(*code, vectors);
+
+    // Expected: rotation by 8 → {8,9,10,11,12,13,14,15,0,1,2,3,4,5,6,7}
+    for (unsigned i = 0; i < 16; ++i)
+        CHECK(vectors[1].u8x16[i] == ((8 + i) % 16));
+}
+
+void testVectorSwizzleCompositionMultiUse()
+{
+    // Test that composition works when inner has multiple consumers.
+    // inner = VectorSwizzle(src, rev32Pattern)  (used by both outer shuffles)
+    // outer1 = VectorSwizzle(other, inner, concatPattern)
+    // outer2 = VectorSwizzle(inner, other, concatPattern2)
+
+    alignas(16) v128_t vectors[4];
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<void*>(proc, root);
+    Value* address = arguments[0];
+    Value* src = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address);
+    Value* other = root->appendNew<MemoryValue>(proc, Load, V128, Origin(), address, static_cast<int32_t>(sizeof(v128_t)));
+
+    // Inner: reverse bytes within 32-bit groups
+    v128_t innerPat;
+    for (unsigned i = 0; i < 16; i += 4) {
+        innerPat.u8x16[i] = i + 3;
+        innerPat.u8x16[i + 1] = i + 2;
+        innerPat.u8x16[i + 2] = i + 1;
+        innerPat.u8x16[i + 3] = i;
+    }
+    Value* innerPatConst = root->appendNew<Const128Value>(proc, Origin(), innerPat);
+    Value* inner = root->appendNew<SIMDValue>(proc, Origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, src, innerPatConst);
+
+    // outer1 = binary shuffle(other, inner): take lo64 from other, hi64 from inner
+    // Pattern: {0..7 from child0, 24..31 from child1}
+    v128_t outerPat1;
+    for (unsigned i = 0; i < 8; ++i) outerPat1.u8x16[i] = i;         // child0[0..7]
+    for (unsigned i = 0; i < 8; ++i) outerPat1.u8x16[8 + i] = 24 + i; // child1[8..15]
+    Value* outerPatConst1 = root->appendNew<Const128Value>(proc, Origin(), outerPat1);
+    Value* outer1 = root->appendNew<SIMDValue>(proc, Origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, other, inner, outerPatConst1);
+
+    // outer2 = binary shuffle(inner, other): take lo64 from inner, hi64 from other
+    v128_t outerPat2;
+    for (unsigned i = 0; i < 8; ++i) outerPat2.u8x16[i] = i;           // child0[0..7] = inner[0..7]
+    for (unsigned i = 0; i < 8; ++i) outerPat2.u8x16[8 + i] = 24 + i;  // child1[8..15] = other[8..15]
+    Value* outerPatConst2 = root->appendNew<Const128Value>(proc, Origin(), outerPat2);
+    Value* outer2 = root->appendNew<SIMDValue>(proc, Origin(), VectorSwizzle, B3::V128, SIMDLane::i8x16, SIMDSignMode::None, inner, other, outerPatConst2);
+
+    root->appendNew<MemoryValue>(proc, Store, Origin(), outer1, address, static_cast<int32_t>(2 * sizeof(v128_t)));
+    root->appendNew<MemoryValue>(proc, Store, Origin(), outer2, address, static_cast<int32_t>(3 * sizeof(v128_t)));
+    root->appendNewControlValue(proc, Return, Origin());
+
+    auto code = compileProc(proc);
+    for (unsigned i = 0; i < 16; ++i) vectors[0].u8x16[i] = i;        // src
+    for (unsigned i = 0; i < 16; ++i) vectors[1].u8x16[i] = 0x80 + i;  // other
+    invoke<void>(*code, vectors);
+
+    // outer1: {other[0..7], rev32(src)[8..15]}
+    for (unsigned i = 0; i < 8; ++i)
+        CHECK(vectors[2].u8x16[i] == 0x80 + i);
+    // rev32(src)[8..15] = {11,10,9,8, 15,14,13,12}
+    CHECK(vectors[2].u8x16[8] == 11);
+    CHECK(vectors[2].u8x16[9] == 10);
+    CHECK(vectors[2].u8x16[10] == 9);
+    CHECK(vectors[2].u8x16[11] == 8);
+    CHECK(vectors[2].u8x16[12] == 15);
+    CHECK(vectors[2].u8x16[13] == 14);
+    CHECK(vectors[2].u8x16[14] == 13);
+    CHECK(vectors[2].u8x16[15] == 12);
+
+    // outer2: {rev32(src)[0..7], other[8..15]}
+    // rev32(src)[0..7] = {3,2,1,0, 7,6,5,4}
+    CHECK(vectors[3].u8x16[0] == 3);
+    CHECK(vectors[3].u8x16[1] == 2);
+    CHECK(vectors[3].u8x16[2] == 1);
+    CHECK(vectors[3].u8x16[3] == 0);
+    CHECK(vectors[3].u8x16[4] == 7);
+    CHECK(vectors[3].u8x16[5] == 6);
+    CHECK(vectors[3].u8x16[6] == 5);
+    CHECK(vectors[3].u8x16[7] == 4);
+    for (unsigned i = 8; i < 16; ++i)
+        CHECK(vectors[3].u8x16[i] == 0x80 + i);
 }
 
 #endif // ENABLE(B3_JIT)

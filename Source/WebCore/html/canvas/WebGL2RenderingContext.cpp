@@ -1601,7 +1601,7 @@ void WebGL2RenderingContext::drawRangeElements(GCGLenum mode, GCGLuint start, GC
     {
         ScopedInspectorShaderProgramHighlight scopedHighlight { *this };
 
-        graphicsContextGL()->drawRangeElements(mode, start, end, count, type, offset);
+        protect(graphicsContextGL())->drawRangeElements(mode, start, end, count, type, offset);
     }
 
     markContextChangedAndNotifyCanvasObserver();
@@ -1639,7 +1639,7 @@ void WebGL2RenderingContext::drawBuffers(const Vector<GCGLenum>& buffers)
         }
         // Because the backbuffer is simulated on all current WebKit ports, we need to change BACK to COLOR_ATTACHMENT0.
         GCGLenum value[1] { (bufs[0] == GraphicsContextGL::BACK) ? GraphicsContextGL::COLOR_ATTACHMENT0 : GraphicsContextGL::NONE };
-        graphicsContextGL()->drawBuffers(value);
+        protect(graphicsContextGL())->drawBuffers(value);
         setBackDrawBuffer(bufs[0]);
     } else {
         if (n > maxDrawBuffers()) {
@@ -1716,11 +1716,10 @@ void WebGL2RenderingContext::clearBufferfi(GCGLenum buffer, GCGLint drawbuffer, 
     graphicsContextGL()->clearBufferfi(buffer, drawbuffer, depth, stencil);
 }
 
-RefPtr<WebGLQuery> WebGL2RenderingContext::createQuery()
+Ref<WebGLQuery> WebGL2RenderingContext::createQuery()
 {
     if (isContextLost())
-        return nullptr;
-
+        return WebGLQuery::createLost();
     return WebGLQuery::create(*this);
 }
 
@@ -1809,7 +1808,7 @@ void WebGL2RenderingContext::endQuery(GCGLenum target)
     graphicsContextGL()->endQuery(target);
 
     // A query's result must not be made available until control has returned to the user agent's main loop.
-    protect(protect(scriptExecutionContext())->eventLoop())->queueMicrotask([query = WTF::move(m_activeQueries[*activeQueryKey])] {
+    protect(protect(scriptExecutionContext())->eventLoop())->queueMicrotask(protect(scriptExecutionContext())->vm(), [query = WTF::move(m_activeQueries[*activeQueryKey])] {
         query->makeResultAvailable();
     });
 }
@@ -1882,10 +1881,10 @@ WebGLAny WebGL2RenderingContext::getQueryParameter(WebGLQuery& query, GCGLenum p
     return nullptr;
 }
 
-RefPtr<WebGLSampler> WebGL2RenderingContext::createSampler()
+Ref<WebGLSampler> WebGL2RenderingContext::createSampler()
 {
     if (isContextLost())
-        return nullptr;
+        return WebGLSampler::createLost();
     return WebGLSampler::create(*this);
 }
 
@@ -1987,9 +1986,6 @@ WebGLAny WebGL2RenderingContext::getSamplerParameter(WebGLSampler& sampler, GCGL
 
 RefPtr<WebGLSync> WebGL2RenderingContext::fenceSync(GCGLenum condition, GCGLbitfield flags)
 {
-    if (isContextLost())
-        return nullptr;
-
     if (condition != GraphicsContextGL::SYNC_GPU_COMMANDS_COMPLETE) {
         synthesizeGLError(GraphicsContextGL::INVALID_ENUM, "fenceSync"_s, "condition must be SYNC_GPU_COMMANDS_COMPLETE"_s);
         return nullptr;
@@ -1998,9 +1994,7 @@ RefPtr<WebGLSync> WebGL2RenderingContext::fenceSync(GCGLenum condition, GCGLbitf
         synthesizeGLError(GraphicsContextGL::INVALID_VALUE, "fenceSync"_s, "flags must be zero"_s);
         return nullptr;
     }
-    auto sync = WebGLSync::create(*this);
-    if (!sync)
-        return nullptr;
+    Ref sync = WebGLSync::create(*this);
     sync->scheduleAllowCacheUpdate(*this);
     return sync;
 }
@@ -2083,11 +2077,10 @@ WebGLAny WebGL2RenderingContext::getSyncParameter(WebGLSync& sync, GCGLenum pnam
     }
 }
 
-RefPtr<WebGLTransformFeedback> WebGL2RenderingContext::createTransformFeedback()
+Ref<WebGLTransformFeedback> WebGL2RenderingContext::createTransformFeedback()
 {
     if (isContextLost())
-        return nullptr;
-
+        return WebGLTransformFeedback::createLost();
     return WebGLTransformFeedback::create(*this);
 }
 
@@ -2469,7 +2462,7 @@ WebGLAny WebGL2RenderingContext::getActiveUniforms(WebGLProgram& program, const 
     }
     case GraphicsContextGL::UNIFORM_SIZE: {
         return uniformIndices.map([&](GCGLuint index) -> GCGLuint {
-            return activeUniforms[index].locations.size();
+            return activeUniforms[index].size;
         });
     }
     case GraphicsContextGL::UNIFORM_BLOCK_INDEX:
@@ -2559,11 +2552,10 @@ void WebGL2RenderingContext::uniformBlockBinding(WebGLProgram& program, GCGLuint
     graphicsContextGL()->uniformBlockBinding(program.object(), uniformBlockIndex, uniformBlockBinding);
 }
 
-RefPtr<WebGLVertexArrayObject> WebGL2RenderingContext::createVertexArray()
+Ref<WebGLVertexArrayObject> WebGL2RenderingContext::createVertexArray()
 {
     if (isContextLost())
-        return nullptr;
-
+        return WebGLVertexArrayObject::createLost();
     return WebGLVertexArrayObject::create(*this, WebGLVertexArrayObject::Type::User);
 }
 
@@ -2586,11 +2578,11 @@ void WebGL2RenderingContext::deleteVertexArray(WebGLVertexArrayObject* arrayObje
 
     if (!arrayObject->isDefaultObject() && arrayObject == m_boundVertexArrayObject) {
         // The default VAO was removed in OpenGL 3.3 but not from WebGL 2; bind the default for WebGL to use.
-        graphicsContextGL()->bindVertexArray(m_defaultVertexArrayObject->object());
+        protect(graphicsContextGL())->bindVertexArray(m_defaultVertexArrayObject->object());
         setBoundVertexArrayObject(locker, m_defaultVertexArrayObject.get());
     }
 
-    arrayObject->deleteObject(locker, graphicsContextGL().get());
+    arrayObject->deleteObject(locker, protect(graphicsContextGL()));
 }
 
 GCGLboolean WebGL2RenderingContext::isVertexArray(WebGLVertexArrayObject* arrayObject)
@@ -2599,7 +2591,7 @@ GCGLboolean WebGL2RenderingContext::isVertexArray(WebGLVertexArrayObject* arrayO
         return false;
     if (!validateIsWebGLObject(arrayObject))
         return false;
-    return graphicsContextGL()->isVertexArray(arrayObject->object());
+    return protect(graphicsContextGL())->isVertexArray(arrayObject->object());
 }
 
 void WebGL2RenderingContext::bindVertexArray(WebGLVertexArrayObject* arrayObject)
@@ -2861,13 +2853,13 @@ WebGLAny WebGL2RenderingContext::getFramebufferAttachmentParameter(GCGLenum targ
     case GraphicsContextGL::FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE:
     case GraphicsContextGL::FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE:
     case GraphicsContextGL::FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING:
-        return graphicsContextGL()->getFramebufferAttachmentParameteri(target, attachment, pname);
+        return protect(graphicsContextGL())->getFramebufferAttachmentParameteri(target, attachment, pname);
     case GraphicsContextGL::FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE:
         if (attachment == GraphicsContextGL::DEPTH_STENCIL_ATTACHMENT) {
             synthesizeGLError(GraphicsContextGL::INVALID_OPERATION, functionName, "component type cannot be queried for DEPTH_STENCIL_ATTACHMENT"_s);
             return nullptr;
         }
-        return graphicsContextGL()->getFramebufferAttachmentParameteri(target, attachment, pname);
+        return protect(graphicsContextGL())->getFramebufferAttachmentParameteri(target, attachment, pname);
     }
 
     synthesizeGLError(GraphicsContextGL::INVALID_ENUM, functionName, "invalid parameter name"_s);
@@ -2915,7 +2907,7 @@ bool WebGL2RenderingContext::validateNonDefaultFramebufferAttachment(ASCIILitera
 GCGLint WebGL2RenderingContext::maxDrawBuffers()
 {
     if (!m_maxDrawBuffers)
-        m_maxDrawBuffers = graphicsContextGL()->getInteger(GraphicsContextGL::MAX_DRAW_BUFFERS);
+        m_maxDrawBuffers = protect(graphicsContextGL())->getInteger(GraphicsContextGL::MAX_DRAW_BUFFERS);
     return m_maxDrawBuffers;
 }
 
@@ -2923,7 +2915,7 @@ GCGLint WebGL2RenderingContext::maxColorAttachments()
 {
     // DrawBuffers requires MAX_COLOR_ATTACHMENTS == MAX_DRAW_BUFFERS
     if (!m_maxColorAttachments)
-        m_maxColorAttachments = graphicsContextGL()->getInteger(GraphicsContextGL::MAX_DRAW_BUFFERS);
+        m_maxColorAttachments = protect(graphicsContextGL())->getInteger(GraphicsContextGL::MAX_DRAW_BUFFERS);
     return m_maxColorAttachments;
 }
 

@@ -35,6 +35,7 @@
 #include "InterpreterInlines.h"
 #include "JSFunctionWithFields.h"
 #include "JSObjectInlines.h"
+#include "JSPIContext.h"
 #include "JSPromise.h"
 #include "JSWebAssemblySuspendError.h"
 #include "PinballCompletion.h"
@@ -139,7 +140,7 @@ void* runWebAssemblySuspendingFunction(JSGlobalObject* globalObject, CallFrame* 
     if (!promise) {
         // The spec requires us to suspend even if the wrapped function returned a real value.
         promise = JSPromise::create(vm, globalObject->promiseStructure());
-        promise->resolve(globalObject, result);
+        promise->resolve(globalObject, vm, result);
         RETURN_IF_EXCEPTION(scope, { });
     }
 

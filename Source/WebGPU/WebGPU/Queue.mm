@@ -1281,7 +1281,7 @@ id<MTLDevice> Queue::metalDevice() const
 
 #pragma mark WGPU Stubs
 
-void wgpuQueueReference(WGPUQueue queue)
+void NODELETE wgpuQueueReference(WGPUQueue queue)
 {
     WebGPU::fromAPI(queue).ref();
 }
@@ -1293,14 +1293,14 @@ void wgpuQueueRelease(WGPUQueue queue)
 
 void wgpuQueueOnSubmittedWorkDone(WGPUQueue queue, WGPUQueueWorkDoneCallback callback, void* userdata)
 {
-    WebGPU::protectedFromAPI(queue)->onSubmittedWorkDone([callback, userdata](WGPUQueueWorkDoneStatus status) {
+    protect(WebGPU::fromAPI(queue))->onSubmittedWorkDone([callback, userdata](WGPUQueueWorkDoneStatus status) {
         callback(status, userdata);
     });
 }
 
 void wgpuQueueOnSubmittedWorkDoneWithBlock(WGPUQueue queue, WGPUQueueWorkDoneBlockCallback callback)
 {
-    WebGPU::protectedFromAPI(queue)->onSubmittedWorkDone([callback = WebGPU::fromAPI(WTF::move(callback))](WGPUQueueWorkDoneStatus status) {
+    protect(WebGPU::fromAPI(queue))->onSubmittedWorkDone([callback = WebGPU::fromAPI(WTF::move(callback))](WGPUQueueWorkDoneStatus status) {
         callback(status);
     });
 }
@@ -1309,21 +1309,21 @@ void wgpuQueueSubmit(WGPUQueue queue, size_t commandCount, const WGPUCommandBuff
 {
     Vector<Ref<WebGPU::CommandBuffer>> commandsToForward;
     for (auto& command : unsafeMakeSpan(commands, commandCount))
-        commandsToForward.append(WebGPU::protectedFromAPI(command));
-    WebGPU::protectedFromAPI(queue)->submit(WTF::move(commandsToForward));
+        commandsToForward.append(protect(WebGPU::fromAPI(command)));
+    protect(WebGPU::fromAPI(queue))->submit(WTF::move(commandsToForward));
 }
 
 void wgpuQueueWriteBuffer(WGPUQueue queue, WGPUBuffer buffer, uint64_t bufferOffset, std::span<uint8_t> data)
 {
-    WebGPU::protectedFromAPI(queue)->writeBuffer(WebGPU::protectedFromAPI(buffer), bufferOffset, data);
+    protect(WebGPU::fromAPI(queue))->writeBuffer(protect(WebGPU::fromAPI(buffer)), bufferOffset, data);
 }
 
 void wgpuQueueWriteTexture(WGPUQueue queue, const WGPUImageCopyTexture* destination, std::span<uint8_t> data, const WGPUTextureDataLayout* dataLayout, const WGPUExtent3D* writeSize)
 {
-    WebGPU::protectedFromAPI(queue)->writeTexture(*destination, data, *dataLayout, *writeSize);
+    protect(WebGPU::fromAPI(queue))->writeTexture(*destination, data, *dataLayout, *writeSize);
 }
 
 void wgpuQueueSetLabel(WGPUQueue queue, const char* label)
 {
-    WebGPU::protectedFromAPI(queue)->setLabel(WebGPU::fromAPI(label));
+    protect(WebGPU::fromAPI(queue))->setLabel(WebGPU::fromAPI(label));
 }

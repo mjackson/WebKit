@@ -84,7 +84,7 @@ public:
 
     static bool elementMatchesIfIdAttributeMatch(const Element&) { return true; }
     static bool NODELETE elementMatchesIfNameAttributeMatch(const Element&);
-    static bool elementMatches(const Element&, const AtomString&);
+    static bool NODELETE elementMatches(const Element&, const AtomString&);
 
 private:
     WindowNameCollection(Document& document, CollectionType type, const AtomString& name)
@@ -102,8 +102,8 @@ public:
         return adoptRef(*new DocumentNameCollection(document, type, name));
     }
 
-    static bool elementMatchesIfIdAttributeMatch(const Element&);
-    static bool elementMatchesIfNameAttributeMatch(const Element&);
+    static bool NODELETE elementMatchesIfIdAttributeMatch(const Element&);
+    static bool NODELETE elementMatchesIfNameAttributeMatch(const Element&);
 
     // For CachedHTMLCollection.
     bool elementMatches(const Element& element) const { return elementMatches(element, m_name.impl()); }

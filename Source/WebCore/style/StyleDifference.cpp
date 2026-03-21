@@ -25,6 +25,7 @@
 #include "config.h"
 #include "StyleDifference.h"
 
+#include "CSSValuePool.h"
 #include "InlineTextBoxStyle.h"
 #include "RenderStyleConstants.h"
 #include "RenderStyle+GettersInlines.h"
@@ -37,7 +38,7 @@ class DifferenceFunctions final {
 public:
     // MARK: DifferenceResult::Layout
 
-    static bool positionChangeIsMovementOnly(const InsetBox& a, const InsetBox& b, const PreferredSize& width)
+    static bool NODELETE positionChangeIsMovementOnly(const InsetBox& a, const InsetBox& b, const PreferredSize& width)
     {
         // If any unit types are different, then we can't guarantee
         // that this was just a movement.
@@ -56,7 +57,7 @@ public:
             return false;
         // If our width is auto and left or right is specified then this
         // is not just a movement - we need to resize to our container.
-        if ((!a.left().isAuto() || !a.right().isAuto()) && width.isIntrinsicOrLegacyIntrinsicOrAuto())
+        if ((!a.left().isAuto() || !a.right().isAuto()) && width.isSizingKeywordOrAuto())
             return false;
 
         // One of the units is fixed or percent in both directions and stayed
@@ -644,7 +645,7 @@ public:
 
     // MARK: DifferenceResult::Repaint
 
-    static bool requiresPainting(const RenderStyle& style)
+    static bool NODELETE requiresPainting(const RenderStyle& style)
     {
         if (style.usedVisibility() == Visibility::Hidden)
             return false;

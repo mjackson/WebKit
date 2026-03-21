@@ -47,6 +47,7 @@
 #include "DocumentResourceLoader.h"
 #include "DocumentView.h"
 #include "ElementRuleCollector.h"
+#include "FontCascadeInlines.h"
 #include "FrameSelection.h"
 #include "InspectorInstrumentation.h"
 #include "LocalFrame.h"
@@ -101,16 +102,16 @@
 namespace WTF {
 
 struct StyleRuleKeyframeKeyHash {
-    static unsigned hash(const WebCore::StyleRuleKeyframe::Key& p) { return pairIntHash(p.rangeName, p.offset); }
-    static bool equal(const WebCore::StyleRuleKeyframe::Key& a, const WebCore::StyleRuleKeyframe::Key& b) { return a == b; }
+    static unsigned NODELETE hash(const WebCore::StyleRuleKeyframe::Key& p) { return pairIntHash(p.rangeName, p.offset); }
+    static bool NODELETE equal(const WebCore::StyleRuleKeyframe::Key& a, const WebCore::StyleRuleKeyframe::Key& b) { return a == b; }
     static const bool safeToCompareToEmptyOrDeleted = true;
 };
 template<> struct HashTraits<WebCore::StyleRuleKeyframe::Key> : GenericHashTraits<WebCore::StyleRuleKeyframe::Key> {
-    static WebCore::StyleRuleKeyframe::Key emptyValue() { return { WebCore::CSSValueDefault, 0 }; }
-    static bool isEmptyValue(const WebCore::StyleRuleKeyframe::Key& value) { return value.rangeName == WebCore::CSSValueDefault; }
+    static WebCore::StyleRuleKeyframe::Key NODELETE emptyValue() { return { WebCore::CSSValueDefault, 0 }; }
+    static bool NODELETE isEmptyValue(const WebCore::StyleRuleKeyframe::Key& value) { return value.rangeName == WebCore::CSSValueDefault; }
 
-    static void constructDeletedValue(WebCore::StyleRuleKeyframe::Key& slot) { slot.rangeName = WebCore::CSSValueNone; }
-    static bool isDeletedValue(const WebCore::StyleRuleKeyframe::Key& slot) { return slot.rangeName == WebCore::CSSValueNone; }
+    static void NODELETE constructDeletedValue(WebCore::StyleRuleKeyframe::Key& slot) { slot.rangeName = WebCore::CSSValueNone; }
+    static bool NODELETE isDeletedValue(const WebCore::StyleRuleKeyframe::Key& slot) { return slot.rangeName == WebCore::CSSValueNone; }
 };
 template<> struct DefaultHash<WebCore::StyleRuleKeyframe::Key> : StyleRuleKeyframeKeyHash { };
 
@@ -145,10 +146,10 @@ public:
             m_rootElementStyle = document.initialContainingBlockStyle();
     }
 
-    const Element* element() const { return m_element; }
+    const Element* NODELETE element() const { return m_element; }
 
     void setStyle(std::unique_ptr<RenderStyle> style) { m_style = WTF::move(style); }
-    RenderStyle* style() const { return m_style.get(); }
+    RenderStyle* NODELETE style() const { return m_style.get(); }
     std::unique_ptr<RenderStyle> takeStyle() { return WTF::move(m_style); }
 
     void setParentStyle(std::unique_ptr<RenderStyle> parentStyle)
@@ -156,10 +157,10 @@ public:
         m_ownedParentStyle = WTF::move(parentStyle);
         m_parentStyle = m_ownedParentStyle.get();
     }
-    const RenderStyle* parentStyle() const { return m_parentStyle; }
-    const RenderStyle* rootElementStyle() const { return m_rootElementStyle; }
+    const RenderStyle* NODELETE parentStyle() const { return m_parentStyle; }
+    const RenderStyle* NODELETE rootElementStyle() const { return m_rootElementStyle; }
 
-    CheckedPtr<TreeResolutionState> treeResolutionState() { return m_treeResolutionState; }
+    CheckedPtr<TreeResolutionState> NODELETE treeResolutionState() { return m_treeResolutionState; }
 
 private:
     const Element* m_element { };
@@ -208,7 +209,7 @@ void Resolver::initialize()
         document().fontSelector().incrementIsComputingRootStyleFont();
         m_rootDefaultStyle->fontCascade().update(&document().fontSelector());
         m_rootDefaultStyle->fontCascade().primaryFont();
-        protect(document().fontSelector())->decrementIsComputingRootStyleFont();
+        document().fontSelector().decrementIsComputingRootStyleFont();
     }
 
     if (m_rootDefaultStyle && view)
@@ -442,6 +443,8 @@ std::unique_ptr<RenderStyle> Resolver::styleForKeyframe(Element& element, const 
     Adjuster adjuster(document(), *state.parentStyle(), nullptr, !pseudoElementIdentifier ? &element : nullptr);
     adjuster.adjust(*state.style());
 
+    blendingKeyframe.setHasPropertiesWithRevertRuleOrLayer(builder.state().hasRevertRuleOrLayerInKeyframeStyle());
+
     return state.takeStyle();
 }
 
@@ -474,21 +477,21 @@ Vector<Ref<StyleRuleKeyframe>> Resolver::keyframeRulesForName(const AtomString& 
         return Animation::initialCompositeOperation();
     };
 
-    auto timingFunctionForKeyframe = [&](Ref<StyleRuleKeyframe> keyframe) -> RefPtr<const TimingFunction> {
-        if (auto timingFunctionCSSValue = keyframe->properties().getPropertyCSSValue(CSSPropertyAnimationTimingFunction)) {
-            if (auto timingFunction = createTimingFunctionDeprecated(*timingFunctionCSSValue))
-                return timingFunction;
+    auto timingFunctionForKeyframe = [&](Ref<StyleRuleKeyframe> keyframe) -> Ref<const TimingFunction> {
+        if (RefPtr timingFunctionCSSValue = keyframe->properties().getPropertyCSSValue(CSSPropertyAnimationTimingFunction)) {
+            if (RefPtr timingFunction = createTimingFunctionDeprecated(timingFunctionCSSValue.releaseNonNull()))
+                return timingFunction.releaseNonNull();
         }
         if (defaultTimingFunction)
-            return defaultTimingFunction;
-        return &CubicBezierTimingFunction::defaultTimingFunction();
+            return *defaultTimingFunction;
+        return CubicBezierTimingFunction::defaultTimingFunction();
     };
 
-    HashSet<RefPtr<const TimingFunction>> timingFunctions;
-    auto uniqueTimingFunctionForKeyframe = [&](Ref<StyleRuleKeyframe> keyframe) -> RefPtr<const TimingFunction> {
-        auto timingFunction = timingFunctionForKeyframe(keyframe);
-        for (auto existingTimingFunction : timingFunctions) {
-            if (arePointingToEqualData(timingFunction, existingTimingFunction))
+    HashSet<Ref<const TimingFunction>> timingFunctions;
+    auto uniqueTimingFunctionForKeyframe = [&](Ref<StyleRuleKeyframe> keyframe) -> Ref<const TimingFunction> {
+        Ref timingFunction = timingFunctionForKeyframe(keyframe);
+        for (auto& existingTimingFunction : timingFunctions) {
+            if (arePointingToEqualData(timingFunction.ptr(), existingTimingFunction.ptr()))
                 return existingTimingFunction;
         }
         timingFunctions.add(timingFunction);
@@ -498,7 +501,7 @@ Vector<Ref<StyleRuleKeyframe>> Resolver::keyframeRulesForName(const AtomString& 
     Ref keyframesRule = it->value;
     auto* keyframes = &keyframesRule->keyframes();
 
-    using KeyframeUniqueKey = std::tuple<StyleRuleKeyframe::Key, RefPtr<const TimingFunction>, CompositeOperation>;
+    using KeyframeUniqueKey = std::tuple<StyleRuleKeyframe::Key, Ref<const TimingFunction>, CompositeOperation>;
     auto hasDuplicateKeys = [&]() -> bool {
         HashSet<KeyframeUniqueKey> uniqueKeyframeKeys;
         for (auto& keyframe : *keyframes) {
@@ -559,10 +562,10 @@ bool Resolver::keyframeStylesForAnimation(Element& element, const RenderStyle& e
         for (auto& key : keyframeRule->keys()) {
             BlendingKeyframe blendingKeyframe({ Style::convertCSSValueIDToSingleAnimationRangeName(key.rangeName), key.offset }, { nullptr });
             blendingKeyframe.setStyle(styleForKeyframe(element, elementStyle, context, keyframeRule.get(), blendingKeyframe));
-            if (auto timingFunctionCSSValue = keyframeRule->properties().getPropertyCSSValue(CSSPropertyAnimationTimingFunction))
-                blendingKeyframe.setTimingFunction(createTimingFunctionDeprecated(*timingFunctionCSSValue));
-            if (auto compositeOperationCSSValue = keyframeRule->properties().getPropertyCSSValue(CSSPropertyAnimationComposition)) {
-                if (auto compositeOperation = toCompositeOperation(*compositeOperationCSSValue))
+            if (RefPtr timingFunctionCSSValue = keyframeRule->properties().getPropertyCSSValue(CSSPropertyAnimationTimingFunction))
+                blendingKeyframe.setTimingFunction(createTimingFunctionDeprecated(timingFunctionCSSValue.releaseNonNull()));
+            if (RefPtr compositeOperationCSSValue = keyframeRule->properties().getPropertyCSSValue(CSSPropertyAnimationComposition)) {
+                if (auto compositeOperation = toCompositeOperation(compositeOperationCSSValue.releaseNonNull()))
                     blendingKeyframe.setCompositeOperation(*compositeOperation);
             }
             list.insert(WTF::move(blendingKeyframe));

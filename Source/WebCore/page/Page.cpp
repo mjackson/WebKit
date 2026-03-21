@@ -153,6 +153,7 @@
 #include "RTCController.h"
 #include "Range.h"
 #include "RemoteFrame.h"
+#include "RemoteFrameLayoutInfo.h"
 #include "RenderDescendantIterator.h"
 #include "RenderElementInlines.h"
 #include "RenderImage.h"
@@ -212,6 +213,7 @@
 #include "Widget.h"
 #include "WindowEventLoop.h"
 #include "WindowFeatures.h"
+#include "WorkerGlobalScope.h"
 #include "WorkerOrWorkletScriptController.h"
 #include <JavaScriptCore/VM.h>
 #include <ranges>
@@ -492,7 +494,7 @@ Page::Page(PageConfiguration&& pageConfiguration)
 
     protect(pluginInfoProvider())->addPage(*this);
     Ref { m_userContentProvider }->addPage(*this);
-    protectedVisitedLinkStore()->addPage(*this);
+    protect(m_visitedLinkStore)->addPage(*this);
 
     static bool firstTimeInitializationRan = false;
     if (!firstTimeInitializationRan) {
@@ -508,7 +510,7 @@ Page::Page(PageConfiguration&& pageConfiguration)
         MemoryPressureHandler::setPageCount(gNonUtilityPageCount);
     }
 
-    protect(storageNamespaceProvider())->setSessionStorageQuota(m_settings->sessionStorageQuota());
+    storageNamespaceProvider().setSessionStorageQuota(m_settings->sessionStorageQuota());
 
 #if PLATFORM(COCOA)
     platformInitialize();
@@ -563,7 +565,7 @@ Page::~Page()
         scrollingCoordinator->pageDestroyed();
 
 #if ENABLE(RESOURCE_USAGE)
-    if (RefPtr resourceUsageOverlay = m_resourceUsageOverlay)
+    if (auto* resourceUsageOverlay = m_resourceUsageOverlay.get())
         resourceUsageOverlay->detachFromPage();
 #endif
 
@@ -573,7 +575,7 @@ Page::~Page()
 
     protect(pluginInfoProvider())->removePage(*this);
     Ref { m_userContentProvider }->removePage(*this);
-    protectedVisitedLinkStore()->removePage(*this);
+    protect(m_visitedLinkStore)->removePage(*this);
 }
 
 
@@ -605,7 +607,7 @@ uint64_t Page::renderTreeSize() const
 {
     uint64_t total = 0;
     forEachDocument([&] (Document& document) {
-        if (CheckedPtr renderView = document.renderView())
+        if (auto* renderView = document.renderView())
             total += renderView->rendererCount();
     });
     return total;
@@ -630,7 +632,7 @@ void Page::destroyRenderTrees()
 
 OptionSet<DisabledAdaptations> Page::disabledAdaptations() const
 {
-    if (RefPtr localTopDocument = this->localTopDocument())
+    if (auto* localTopDocument = this->localTopDocument())
         return localTopDocument->disabledAdaptations();
     return { };
 }
@@ -961,14 +963,14 @@ void Page::updateTopDocumentSyncData(const DocumentSyncSerializationData& data)
 #if ENABLE(DOM_AUDIO_SESSION)
     case DocumentSyncDataType::AudioSessionType:
 #endif
-        protectedTopDocumentSyncData()->update(data);
+        protect(m_topDocumentSyncData)->update(data);
         break;
     }
 }
 
 void Page::updateTopDocumentSyncData(Ref<DocumentSyncData>&& data)
 {
-    if (RefPtr localFrame = dynamicDowncast<LocalFrame>(m_mainFrame.get())) {
+    if (auto* localFrame = dynamicDowncast<LocalFrame>(m_mainFrame.get())) {
         // Prefer the main LocalFrame document's data, but if the main LocalFrame
         // has no document, accept the remote pushed data.
         if (localFrame->document())
@@ -1105,7 +1107,7 @@ void Page::refreshPlugins(bool reload)
     WeakHashSet<PluginInfoProvider> pluginInfoProviders;
 
     for (auto& page : allPages())
-        pluginInfoProviders.add(protect(Ref { page.get() }->pluginInfoProvider()));
+        pluginInfoProviders.add(protect(page.get().pluginInfoProvider()));
 
     for (Ref pluginInfoProvider : pluginInfoProviders)
         pluginInfoProvider->refresh(reload);
@@ -1116,11 +1118,6 @@ PluginData& Page::pluginData()
     if (!m_pluginData)
         m_pluginData = PluginData::create(*this);
     return *m_pluginData;
-}
-
-Ref<PluginData> Page::protectedPluginData()
-{
-    return pluginData();
 }
 
 void Page::clearPluginData()
@@ -1249,7 +1246,7 @@ auto Page::findTextMatches(const String& target, FindOptions options, unsigned l
         return result;
 
     if (frameWithSelection) {
-        result.indexForSelection = NoMatchAfterUserSelection;
+        result.indexForSelection = std::nullopt;
         auto selectedRange = *frameWithSelection->selection().selection().firstRange();
         if (options.contains(FindOption::Backwards)) {
             for (size_t i = result.ranges.size(); i > 0; --i) {
@@ -1452,6 +1449,14 @@ void Page::unmarkAllTextMatches()
     forEachDocument([] (Document& document) {
         if (CheckedPtr markers = document.markersIfExists())
             markers->removeMarkers(DocumentMarkerType::TextMatch);
+    });
+}
+
+void Page::removeAllActiveTextMatches()
+{
+    forEachDocument([] (Document& document) {
+        if (CheckedPtr markers = document.markersIfExists())
+            markers->removeMarkers(DocumentMarkerType::ActiveTextMatch);
     });
 }
 
@@ -1846,6 +1851,7 @@ void Page::didCommitLoad()
 
     m_hasEverSetVisibilityAdjustment = false;
     m_userHasInteractedSinceLastPageLoad = false;
+    m_userHasInteractedSinceLastPageLoadExcludingForcedUserGestures = false;
 
     m_mainFrameURLFragment = { };
 
@@ -1951,6 +1957,20 @@ void Page::setShouldSuppressScrollbarAnimations(bool suppressAnimations)
     m_suppressScrollbarAnimations = suppressAnimations;
 }
 
+#if ENABLE(BANNER_VIEW_OVERLAYS)
+void Page::setHasBannerViewOverlay(bool hasBannerViewOverlay)
+{
+    if (m_hasBannerViewOverlay == hasBannerViewOverlay)
+        return;
+
+    m_hasBannerViewOverlay = hasBannerViewOverlay;
+
+    RefPtr localMainFrame = this->localMainFrame();
+    if (RefPtr view = localMainFrame ? localMainFrame->view() : nullptr)
+        view->updateExtendBackgroundIfNecessary();
+}
+#endif
+
 void Page::lockAllOverlayScrollbarsToHidden(bool lockOverlayScrollbars)
 {
     RefPtr view = protect(mainFrame())->virtualView();
@@ -2000,9 +2020,9 @@ void Page::setHorizontalScrollElasticity(ScrollElasticity elasticity)
         return;
     
     m_horizontalScrollElasticity = elasticity;
-    
-    RefPtr localMainFrame = this->localMainFrame();
-    if (RefPtr view = localMainFrame ? localMainFrame->view() : nullptr)
+
+    auto* localMainFrame = this->localMainFrame();
+    if (auto* view = localMainFrame ? localMainFrame->view() : nullptr)
         view->setHorizontalScrollElasticity(elasticity);
 }
 
@@ -2151,6 +2171,29 @@ unsigned NODELETE Page::renderingUpdateCount() const
     return m_renderingUpdateCount;
 }
 
+void Page::syncLocalFrameInfoToRemote()
+{
+    forEachLocalFrame([] (LocalFrame& frame) {
+        RefPtr<LocalFrameView> frameView = frame.view();
+
+        frameView->updateLayoutViewportRect();
+
+        {
+            HashMap<FrameIdentifier, RemoteFrameLayoutInfo> childrenFrameLayoutInfo;
+
+            for (RefPtr child = frame.tree().firstChild(); child; child = child->tree().nextSibling()) {
+                auto visibleRect = frameView->visibleRectOfChild(*child.get());
+                float usedZoom = frame.usedZoomForChild(*child);
+                bool useDarkAppearance = frameView->ownerElementOfChildFrameUsesDarkAppearance(*child);
+
+                childrenFrameLayoutInfo.add(child->frameID(), RemoteFrameLayoutInfo { .visibleRectInParent = visibleRect, .usedZoom = usedZoom, .useDarkAppearance = useDarkAppearance });
+            }
+
+            frame.loader().client().broadcastChildrenFrameLayoutInfoToOtherProcesses(childrenFrameLayoutInfo);
+        }
+    });
+}
+
 // https://html.spec.whatwg.org/multipage/webappapis.html#update-the-rendering
 void Page::updateRendering()
 {
@@ -2272,8 +2315,10 @@ void Page::updateRendering()
 
     runProcessingStep(RenderingUpdateStep::FocusFixup, [&] (Document& document) {
         if (RefPtr focusedElement = document.focusedElement()) {
-            if (!focusedElement->isFocusable())
+            if (!focusedElement->isFocusable()) {
                 document.setFocusedElement(nullptr);
+                document.setFocusNavigationStartingNode(focusedElement.get());
+            }
         }
     });
 
@@ -2286,7 +2331,7 @@ void Page::updateRendering()
     });
 
     runProcessingStep(RenderingUpdateStep::IntersectionObservations, [] (Document& document) {
-        document.updateIntersectionObservations();
+        document.updateIntersectionObservers();
     });
 
     runProcessingStep(RenderingUpdateStep::Images, [] (Document& document) {
@@ -2307,7 +2352,7 @@ void Page::updateRendering()
 
     for (auto& document : initialDocuments) {
         if (document && document->window())
-            protect(document->window())->unfreezeNowTimestamp();
+            document->window()->unfreezeNowTimestamp();
     }
 
     m_renderingUpdateRemainingSteps.last().remove(RenderingUpdateStep::WheelEventMonitorCallbacks);
@@ -2441,6 +2486,9 @@ void Page::doAfterUpdateRendering()
     }
 
     computeSampledPageTopColorIfNecessary();
+
+    if (settings().siteIsolationEnabled())
+        syncLocalFrameInfoToRemote();
 }
 
 void Page::finalizeRenderingUpdate(OptionSet<FinalizeRenderingUpdateFlags> flags)
@@ -2559,7 +2607,7 @@ void Page::prioritizeVisibleResources()
             return LoadSchedulingMode::Prioritized;
         
         // Async script execution may generate more resource loads that benefit from prioritization.
-        if (CheckedPtr scriptRunner = localTopDocument->scriptRunnerIfExists(); scriptRunner && scriptRunner->hasPendingScripts())
+        if (auto* scriptRunner = localTopDocument->scriptRunnerIfExists(); scriptRunner && scriptRunner->hasPendingScripts())
             return LoadSchedulingMode::Prioritized;
         
         // We still haven't finished loading the visible resources.
@@ -3094,7 +3142,7 @@ RefPtr<HTMLMediaElement> Page::bestMediaElementForRemoteControls(MediaElementSes
         return !document || &element->document() == document;
     }, purpose);
 
-    if (RefPtr mediaElementSession = dynamicDowncast<MediaElementSession>(selectedSession.get()))
+    if (auto* mediaElementSession = dynamicDowncast<MediaElementSession>(selectedSession.get()))
         return mediaElementSession->element();
 
     return nullptr;
@@ -3371,11 +3419,6 @@ void Page::stopKeyboardScrollAnimation()
             area->stopKeyboardScrollAnimation();
         }
     }
-}
-
-Ref<DocumentSyncData> Page::protectedTopDocumentSyncData() const
-{
-    return m_topDocumentSyncData;
 }
 
 bool NODELETE Page::isVisibleAndActive() const
@@ -3943,11 +3986,6 @@ PluginInfoProvider& Page::pluginInfoProvider()
     return m_pluginInfoProvider;
 }
 
-Ref<UserContentProvider> NODELETE Page::protectedUserContentProviderForFrame()
-{
-    return m_userContentProvider;
-}
-
 void Page::setUserContentProviderForWebKitLegacy(Ref<UserContentProvider>&& userContentProvider)
 {
     Ref { m_userContentProvider }->removePage(*this);
@@ -3962,16 +4000,11 @@ VisitedLinkStore& Page::visitedLinkStore()
     return m_visitedLinkStore;
 }
 
-Ref<VisitedLinkStore> Page::protectedVisitedLinkStore()
-{
-    return m_visitedLinkStore;
-}
-
 void Page::setVisitedLinkStore(Ref<VisitedLinkStore>&& visitedLinkStore)
 {
-    protectedVisitedLinkStore()->removePage(*this);
+    protect(m_visitedLinkStore)->removePage(*this);
     m_visitedLinkStore = WTF::move(visitedLinkStore);
-    protectedVisitedLinkStore()->addPage(*this);
+    protect(m_visitedLinkStore)->addPage(*this);
 
     invalidateStylesForAllLinks();
 }
@@ -4115,11 +4148,11 @@ bool NODELETE Page::isMonitoringWheelEvents() const
 
 void Page::startMonitoringWheelEvents(bool clearLatchingState)
 {
-    ensureProtectedWheelEventTestMonitor()->clearAllTestDeferrals();
+    protect(ensureWheelEventTestMonitor())->clearAllTestDeferrals();
 
 #if ENABLE(WHEEL_EVENT_LATCHING)
     if (clearLatchingState)
-        protectedScrollLatchingController()->clear();
+        protect(scrollLatchingController())->clear();
 #endif
 
     RefPtr localMainFrame = this->localMainFrame();
@@ -4137,11 +4170,6 @@ WheelEventTestMonitor& Page::ensureWheelEventTestMonitor()
         m_wheelEventTestMonitor = adoptRef(new WheelEventTestMonitor(*this));
 
     return *m_wheelEventTestMonitor;
-}
-
-Ref<WheelEventTestMonitor> Page::ensureProtectedWheelEventTestMonitor()
-{
-    return ensureWheelEventTestMonitor();
 }
 
 #if ENABLE(VIDEO)
@@ -4175,6 +4203,19 @@ IDBClient::IDBConnectionToServer* Page::optionalIDBConnection()
 void Page::clearIDBConnection()
 {
     m_idbConnectionToServer = nullptr;
+}
+
+void Page::clearIDBConnectionOnAllDocuments()
+{
+    clearIDBConnection();
+    forEachDocument([](Document& document) {
+        document.clearIDBConnectionProxy();
+    });
+}
+
+void Page::refreshIDBConnectionForWorkers()
+{
+    WorkerGlobalScope::replaceIDBConnectionProxyOnAllWorkers(idbConnection().proxy());
 }
 
 #if ENABLE(RESOURCE_USAGE)
@@ -4324,7 +4365,7 @@ bool Page::useDarkAppearance() const
     if (m_useDarkAppearanceOverride)
         return m_useDarkAppearanceOverride.value();
 
-    if (RefPtr documentLoader = localMainFrame->loader().documentLoader()) {
+    if (auto* documentLoader = localMainFrame->loader().documentLoader()) {
         auto colorSchemePreference = documentLoader->colorSchemePreference();
         if (colorSchemePreference != ColorSchemePreference::NoPreference)
             return colorSchemePreference == ColorSchemePreference::Dark;
@@ -4420,7 +4461,7 @@ LocalFrame* Page::localMainFrame() const
 
 Document* Page::localTopDocument() const
 {
-    if (RefPtr localMainFrame = this->localMainFrame())
+    if (auto* localMainFrame = this->localMainFrame())
         return localMainFrame->document();
     return nullptr;
 }
@@ -4435,7 +4476,7 @@ void Page::didChangeMainDocument(Document* newDocument)
     m_topDocumentSyncData = newDocument ? newDocument->syncData() : DocumentSyncData::create();
 
     if (settings().siteIsolationEnabled())
-        documentSyncClient().broadcastAllDocumentSyncDataToOtherProcesses(protectedTopDocumentSyncData().get());
+        documentSyncClient().broadcastAllDocumentSyncDataToOtherProcesses(protect(m_topDocumentSyncData).get());
 
 #if ENABLE(WEB_RTC)
     m_rtcController->reset(m_shouldEnableICECandidateFilteringByDefault);
@@ -4444,7 +4485,7 @@ void Page::didChangeMainDocument(Document* newDocument)
 
     clearSampledPageTopColor();
 
-    protect(m_elementTargetingController)->didChangeMainDocument(newDocument);
+    m_elementTargetingController->didChangeMainDocument(newDocument);
 
     updateActiveNowPlayingSessionNow();
 }
@@ -4627,10 +4668,6 @@ ScrollLatchingController& Page::scrollLatchingController()
     return *m_scrollLatchingController;
 }
 
-Ref<ScrollLatchingController> Page::protectedScrollLatchingController()
-{
-    return scrollLatchingController();
-}
 #endif // ENABLE(WHEEL_EVENT_LATCHING)
 
 enum class DispatchedOnDocumentEventLoop : bool { No, Yes };
@@ -4988,11 +5025,6 @@ ImageOverlayController& Page::imageOverlayController()
     return *m_imageOverlayController;
 }
 
-Ref<ImageOverlayController> Page::protectedImageOverlayController()
-{
-    return imageOverlayController();
-}
-
 Page* Page::serviceWorkerPage(ScriptExecutionContextIdentifier serviceWorkerPageIdentifier)
 {
     RefPtr serviceWorkerPageDocument = Document::allDocumentsMap().get(serviceWorkerPageIdentifier);
@@ -5006,11 +5038,6 @@ ImageAnalysisQueue& Page::imageAnalysisQueue()
     if (!m_imageAnalysisQueue)
         m_imageAnalysisQueue = ImageAnalysisQueue::create(*this);
     return *m_imageAnalysisQueue;
-}
-
-Ref<ImageAnalysisQueue> Page::protectedImageAnalysisQueue()
-{
-    return imageAnalysisQueue();
 }
 
 void Page::resetImageAnalysisQueue()
@@ -5132,7 +5159,7 @@ void Page::setupForRemoteWorker(const URL& scriptURL, const SecurityOriginData& 
     document->setSiteForCookies(originAsURL);
     document->setFirstPartyForCookies(originAsURL);
 
-    if (RefPtr documentLoader = localMainFrame->loader().documentLoader())
+    if (auto* documentLoader = localMainFrame->loader().documentLoader())
         documentLoader->setAdvancedPrivacyProtections(advancedPrivacyProtections);
 
     if (document->settings().storageBlockingPolicy() != StorageBlockingPolicy::BlockThirdParty)
@@ -5142,6 +5169,15 @@ void Page::setupForRemoteWorker(const URL& scriptURL, const SecurityOriginData& 
 
     if (auto policy = parseReferrerPolicy(referrerPolicy, ReferrerPolicySource::HTTPHeader))
         document->setReferrerPolicy(*policy);
+
+    // Mark the synthetic document's load event as finished so that the
+    // CachedResourceLoader's m_validatedURLs optimization (which avoids
+    // re-fetching resources during initial page load) does not apply. Without
+    // this, worker module fetches to the same URL with different import
+    // attributes (e.g. JSON vs JavaScript) can incorrectly reuse a cached
+    // response from the MemoryCache, because m_validatedURLs bypasses all
+    // freshness and revalidation checks.
+    document->dispatchWindowLoadEvent();
 
     localMainFrame->setDocument(WTF::move(document));
 }
@@ -5375,7 +5411,7 @@ void Page::updateFixedContainerEdges(BoxSideSet sides)
         auto maximumOffset = frameView->maximumScrollOffset();
 
         bool canSampleTopEdge = settings().topContentInsetBackgroundCanChangeAfterScrolling()
-            || (!frameView->wasEverScrolledExplicitlyByUser() && !m_userHasInteractedSinceLastPageLoad)
+            || (!frameView->wasEverScrolledExplicitlyByUserBelowTopEdge() && !m_userHasInteractedSinceLastPageLoadExcludingForcedUserGestures)
             || document->parsing();
 
         if (scrollOffset.y() < minimumOffset.y() || !canSampleTopEdge)
@@ -5522,9 +5558,9 @@ void Page::initializeGamepadAccessForPageLoad()
 #endif // ENABLE(GAMEPAD)
 
 #if ENABLE(WRITING_TOOLS)
-void Page::willBeginWritingToolsSession(const std::optional<WritingTools::Session>& session, CompletionHandler<void(const Vector<WritingTools::Context>&)>&& completionHandler)
+void Page::willBeginWritingToolsSession(const std::optional<WritingTools::Session>& session, WeakHashSet<Node, WeakPtrImplWithEventTargetData>&& preservedNodes, CompletionHandler<void(const Vector<WritingTools::Context>&)>&& completionHandler)
 {
-    m_writingToolsController->willBeginWritingToolsSession(session, WTF::move(completionHandler));
+    m_writingToolsController->willBeginWritingToolsSession(session, WTF::move(preservedNodes), WTF::move(completionHandler));
 }
 
 void Page::didBeginWritingToolsSession(const WritingTools::Session& session, const Vector<WritingTools::Context>& contexts)
@@ -5843,18 +5879,6 @@ bool NODELETE Page::isAlwaysOnLoggingAllowed() const
 {
     return m_sessionID.isAlwaysOnLoggingAllowed() || settings().allowPrivacySensitiveOperationsInNonPersistentDataStores();
 }
-
-Ref<PageInspectorController> NODELETE Page::protectedInspectorController()
-{
-    return m_inspectorController.get();
-}
-
-#if PLATFORM(MAC) && (ENABLE(SERVICE_CONTROLS) || ENABLE(TELEPHONE_NUMBER_DETECTION))
-Ref<ServicesOverlayController> Page::protectedServicesOverlayController()
-{
-    return m_servicesOverlayController.get();
-}
-#endif
 
 ProcessID Page::presentingApplicationPID() const
 {

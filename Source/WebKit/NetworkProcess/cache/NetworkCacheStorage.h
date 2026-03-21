@@ -135,7 +135,7 @@ public:
     String versionPath() const;
     String recordsPathIsolatedCopy() const;
 
-    const Salt& salt() const { return m_salt; }
+    const Salt& salt() const LIFETIME_BOUND { return m_salt; }
 
     ~Storage();
 

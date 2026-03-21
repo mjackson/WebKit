@@ -55,6 +55,13 @@ using namespace HTMLNames;
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(DateTimeEditElement);
 
+DateTimeEditElement::LayoutParameters::LayoutParameters(Locale& locale)
+    : locale(locale)
+{
+}
+
+DateTimeEditElement::LayoutParameters::~LayoutParameters() = default;
+
 class DateTimeEditBuilder final : private DateTimeFormat::TokenHandler {
     WTF_MAKE_NONCOPYABLE(DateTimeEditBuilder);
 
@@ -133,12 +140,12 @@ void DateTimeEditBuilder::visitField(DateTimeFormat::FieldType fieldType, int co
         switch (count) {
         case countForNarrowMonth:
         case countForAbbreviatedMonth: {
-            Ref field = DateTimeSymbolicMonthFieldElement::create(document.get(), m_editElement, fieldType == DateTimeFormat::FieldTypeMonth ? m_parameters.locale.shortMonthLabels() : m_parameters.locale.shortStandAloneMonthLabels());
+            Ref field = DateTimeSymbolicMonthFieldElement::create(document.get(), m_editElement, fieldType == DateTimeFormat::FieldTypeMonth ? m_parameters.locale->shortMonthLabels() : m_parameters.locale->shortStandAloneMonthLabels());
             m_editElement->addField(field);
             return;
         }
         case countForFullMonth: {
-            Ref field = DateTimeSymbolicMonthFieldElement::create(document.get(), m_editElement, fieldType == DateTimeFormat::FieldTypeMonth ? m_parameters.locale.monthLabels() : m_parameters.locale.standAloneMonthLabels());
+            Ref field = DateTimeSymbolicMonthFieldElement::create(document.get(), m_editElement, fieldType == DateTimeFormat::FieldTypeMonth ? m_parameters.locale->monthLabels() : m_parameters.locale->standAloneMonthLabels());
             m_editElement->addField(field);
             return;
         }
@@ -149,7 +156,7 @@ void DateTimeEditBuilder::visitField(DateTimeFormat::FieldType fieldType, int co
     }
 
     case DateTimeFormat::FieldTypePeriod: {
-        m_editElement->addField(DateTimeMeridiemFieldElement::create(document.get(), m_editElement, m_parameters.locale.timeAMPMLabels()));
+        m_editElement->addField(DateTimeMeridiemFieldElement::create(document.get(), m_editElement, m_parameters.locale->timeAMPMLabels()));
         return;
     }
 
@@ -157,7 +164,7 @@ void DateTimeEditBuilder::visitField(DateTimeFormat::FieldType fieldType, int co
         m_editElement->addField(DateTimeSecondFieldElement::create(document.get(), m_editElement));
 
         if (m_parameters.shouldHaveMillisecondField) {
-            visitLiteral(m_parameters.locale.localizedDecimalSeparator());
+            visitLiteral(m_parameters.locale->localizedDecimalSeparator());
             visitField(DateTimeFormat::FieldTypeFractionalSecond, 3);
         }
         return;
@@ -193,7 +200,7 @@ void DateTimeEditBuilder::visitLiteral(const String& text)
         element->setInlineStyleProperty(CSSPropertyMarginInlineEnd, -1, CSSUnitType::CSS_PX);
 
     element->appendChild(Text::create(document.get(), String { text }));
-    m_editElement->protectedFieldsWrapperElement()->appendChild(element);
+    protect(m_editElement->fieldsWrapperElement())->appendChild(element);
 }
 
 DateTimeEditElementEditControlOwner::~DateTimeEditElementEditControlOwner() = default;
@@ -213,17 +220,12 @@ inline Element& DateTimeEditElement::fieldsWrapperElement() const
     return downcast<Element>(*firstChild());
 }
 
-inline Ref<Element> DateTimeEditElement::protectedFieldsWrapperElement() const
-{
-    return fieldsWrapperElement();
-}
-
 void DateTimeEditElement::addField(Ref<DateTimeFieldElement> field)
 {
     if (m_fields.size() == m_fields.capacity())
         return;
     m_fields.append(field);
-    protectedFieldsWrapperElement()->appendChild(field);
+    protect(fieldsWrapperElement())->appendChild(field);
 }
 
 size_t DateTimeEditElement::fieldIndexOf(const DateTimeFieldElement& fieldToFind) const
@@ -392,7 +394,7 @@ bool DateTimeEditElement::isFieldOwnerReadOnly() const
 
 bool DateTimeEditElement::isFieldOwnerHorizontal() const
 {
-    if (CheckedPtr renderer = fieldsWrapperElement().renderer())
+    if (auto* renderer = fieldsWrapperElement().renderer())
         return renderer->isHorizontalWritingMode();
     return true;
 }

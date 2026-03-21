@@ -37,12 +37,12 @@ public:
 
     bool collectGradientAttributes(RadialGradientAttributes&);
 
-    const SVGLengthValue& cx() const { return m_cx->currentValue(); }
-    const SVGLengthValue& cy() const { return m_cy->currentValue(); }
-    const SVGLengthValue& r() const { return m_r->currentValue(); }
-    const SVGLengthValue& fx() const { return m_fx->currentValue(); }
-    const SVGLengthValue& fy() const { return m_fy->currentValue(); }
-    const SVGLengthValue& fr() const { return m_fr->currentValue(); }
+    const SVGLengthValue& cx() const LIFETIME_BOUND { return m_cx->currentValue(); }
+    const SVGLengthValue& cy() const LIFETIME_BOUND { return m_cy->currentValue(); }
+    const SVGLengthValue& r() const LIFETIME_BOUND { return m_r->currentValue(); }
+    const SVGLengthValue& fx() const LIFETIME_BOUND { return m_fx->currentValue(); }
+    const SVGLengthValue& fy() const LIFETIME_BOUND { return m_fy->currentValue(); }
+    const SVGLengthValue& fr() const LIFETIME_BOUND { return m_fr->currentValue(); }
 
     SVGAnimatedLength& cxAnimated() { return m_cx; }
     SVGAnimatedLength& cyAnimated() { return m_cy; }
@@ -64,12 +64,12 @@ private:
     bool selfHasRelativeLengths() const override;
     bool supportsFocus() const final { return false; }
 
-    Ref<SVGAnimatedLength> m_cx { SVGAnimatedLength::create(this, SVGLengthMode::Width, "50%"_s) };
-    Ref<SVGAnimatedLength> m_cy { SVGAnimatedLength::create(this, SVGLengthMode::Height, "50%"_s) };
-    Ref<SVGAnimatedLength> m_r { SVGAnimatedLength::create(this, SVGLengthMode::Other, "50%"_s) };
-    Ref<SVGAnimatedLength> m_fx { SVGAnimatedLength::create(this, SVGLengthMode::Width, "50%"_s) };
-    Ref<SVGAnimatedLength> m_fy { SVGAnimatedLength::create(this, SVGLengthMode::Height, "50%"_s) };
-    Ref<SVGAnimatedLength> m_fr { SVGAnimatedLength::create(this, SVGLengthMode::Other, "0%"_s) };
+    const Ref<SVGAnimatedLength> m_cx { SVGAnimatedLength::create(this, SVGLengthMode::Width, "50%"_s) };
+    const Ref<SVGAnimatedLength> m_cy { SVGAnimatedLength::create(this, SVGLengthMode::Height, "50%"_s) };
+    const Ref<SVGAnimatedLength> m_r { SVGAnimatedLength::create(this, SVGLengthMode::Other, "50%"_s) };
+    const Ref<SVGAnimatedLength> m_fx { SVGAnimatedLength::create(this, SVGLengthMode::Width, "50%"_s) };
+    const Ref<SVGAnimatedLength> m_fy { SVGAnimatedLength::create(this, SVGLengthMode::Height, "50%"_s) };
+    const Ref<SVGAnimatedLength> m_fr { SVGAnimatedLength::create(this, SVGLengthMode::Other, "0%"_s) };
 };
 
 } // namespace WebCore

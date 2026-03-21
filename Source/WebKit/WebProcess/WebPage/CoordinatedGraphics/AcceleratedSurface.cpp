@@ -29,6 +29,7 @@
 #if USE(COORDINATED_GRAPHICS)
 #include "WebPage.h"
 #include "WebProcess.h"
+#include <WebCore/FontRenderOptions.h>
 #include <WebCore/GLContext.h>
 #include <WebCore/GLFence.h>
 #include <WebCore/Page.h>
@@ -196,7 +197,7 @@ AcceleratedSurface::RenderTargetShareableBuffer::~RenderTargetShareableBuffer()
     WebProcess::singleton().parentProcessConnection()->send(Messages::AcceleratedBackingStore::DidDestroyBuffer(m_id), m_surfaceID);
 }
 
-void AcceleratedSurface::RenderTargetShareableBuffer::didRenderFrame(Vector<IntRect, 1>&& damageRects)
+void AcceleratedSurface::RenderTargetShareableBuffer::sendFrame(Vector<WebCore::IntRect, 1>&& damageRects)
 {
     WebProcess::singleton().parentProcessConnection()->send(Messages::AcceleratedBackingStore::Frame(m_id, WTF::move(damageRects), WTF::move(m_renderingFenceFD)), m_surfaceID);
 }
@@ -205,34 +206,35 @@ void AcceleratedSurface::RenderTargetShareableBuffer::didRenderFrame(Vector<IntR
 SkSurface* AcceleratedSurface::RenderTargetShareableBuffer::skiaSurface()
 {
     if (!m_skiaSurface) {
-        auto* skiaGLContext = PlatformDisplay::sharedDisplay().skiaGLContext();
+        auto& display = PlatformDisplay::sharedDisplay();
+        auto* skiaGLContext = display.skiaGLContext();
         if (!skiaGLContext)
             return nullptr;
 
         int stencilBits;
         glGetIntegerv(GL_STENCIL_BITS, &stencilBits);
 
-        const int sampleCount = 0; // 0 == no MSAA.
         GrGLFramebufferInfo fbInfo;
         fbInfo.fFBOID = m_fbo;
         fbInfo.fFormat = GL_RGBA8;
         GrBackendRenderTarget renderTargetSkia = GrBackendRenderTargets::MakeGL(
             m_initialSize.width(),
             m_initialSize.height(),
-            sampleCount,
+            display.msaaSampleCount(),
             stencilBits,
             fbInfo
         );
         if (!skiaGLContext->makeContextCurrent())
             return nullptr;
 
+        SkSurfaceProps properties = FontRenderOptions::singleton().createSurfaceProps();
         auto skiaSurface = SkSurfaces::WrapBackendRenderTarget(
-            PlatformDisplay::sharedDisplay().skiaGrContext(),
+            display.skiaGrContext(),
             renderTargetSkia,
             GrSurfaceOrigin::kTopLeft_GrSurfaceOrigin,
             SkColorType::kRGBA_8888_SkColorType,
             nullptr,
-            nullptr
+            &properties
         );
         if (!skiaSurface)
             return nullptr;
@@ -508,10 +510,9 @@ AcceleratedSurface::RenderTargetSHMImage::~RenderTargetSHMImage()
         glDeleteRenderbuffers(1, &m_colorBuffer);
 }
 
-void AcceleratedSurface::RenderTargetSHMImage::didRenderFrame(Vector<IntRect, 1>&& damageRects)
+void AcceleratedSurface::RenderTargetSHMImage::didRenderFrame()
 {
     glReadPixels(0, 0, m_bitmap->size().width(), m_bitmap->size().height(), GL_BGRA, GL_UNSIGNED_BYTE, m_bitmap->mutableSpan().data());
-    RenderTargetShareableBuffer::didRenderFrame(WTF::move(damageRects));
 }
 
 std::unique_ptr<AcceleratedSurface::RenderTarget> AcceleratedSurface::RenderTargetSHMImageWithoutGL::create(uint64_t surfaceID, const IntSize& size)
@@ -553,7 +554,7 @@ SkSurface* AcceleratedSurface::RenderTargetSHMImageWithoutGL::skiaSurface()
 }
 #endif
 
-void AcceleratedSurface::RenderTargetSHMImageWithoutGL::didRenderFrame(Vector<IntRect, 1>&& damageRects)
+void AcceleratedSurface::RenderTargetSHMImageWithoutGL::sendFrame(Vector<IntRect, 1>&& damageRects)
 {
     WebProcess::singleton().parentProcessConnection()->send(Messages::AcceleratedBackingStore::Frame(m_id, WTF::move(damageRects), UnixFileDescriptor()), m_surfaceID);
 }
@@ -686,7 +687,7 @@ void AcceleratedSurface::RenderTargetWPEBackend::willRenderFrame()
     wpe_renderer_backend_egl_target_frame_will_render(m_backend);
 }
 
-void AcceleratedSurface::RenderTargetWPEBackend::didRenderFrame(Vector<IntRect, 1>&&)
+void AcceleratedSurface::RenderTargetWPEBackend::didRenderFrame()
 {
     wpe_renderer_backend_egl_target_frame_rendered(m_backend);
 }
@@ -828,6 +829,21 @@ bool AcceleratedSurface::SwapChain::resize(const IntSize& size)
     return true;
 }
 
+bool AcceleratedSurface::SwapChain::handleBufferFormatChangeIfNeeded()
+{
+#if (PLATFORM(GTK) || ENABLE(WPE_PLATFORM)) && (USE(GBM) || OS(ANDROID))
+    if (m_type == Type::EGLImage) {
+        Locker locker { m_bufferFormatLock };
+        if (m_bufferFormatChanged) {
+            reset();
+            m_bufferFormatChanged = false;
+            return true;
+        }
+    }
+#endif
+    return false;
+}
+
 std::unique_ptr<AcceleratedSurface::RenderTarget> AcceleratedSurface::SwapChain::createTarget() const
 {
     switch (m_type) {
@@ -864,35 +880,32 @@ AcceleratedSurface::RenderTarget* AcceleratedSurface::SwapChain::nextTarget()
         return m_lockedTargets[0].get();
 #endif
 
-#if (PLATFORM(GTK) || ENABLE(WPE_PLATFORM)) && (USE(GBM) || OS(ANDROID))
-    if (m_type == Type::EGLImage) {
-        Locker locker { m_bufferFormatLock };
-        if (m_bufferFormatChanged) {
-            reset();
-            m_bufferFormatChanged = false;
-        }
-    }
-#endif
-
     if (m_freeTargets.isEmpty()) {
         ASSERT(m_lockedTargets.size() < s_maximumBuffers);
 
-        if (m_lockedTargets.isEmpty()) [[unlikely]] {
-            // Initial setup.
-#if ENABLE(WPE_PLATFORM)
-            WebProcess::singleton().parentProcessConnection()->send(Messages::AcceleratedBackingStore::DidChangeBufferConfiguration(s_initialBuffers), m_surfaceID);
-#endif
-            for (unsigned i = 0; i < s_initialBuffers; ++i)
-                m_freeTargets.append(createTarget());
-        } else {
-            // Additional buffers creted on demand.
-#if ENABLE(WPE_PLATFORM)
-            WebProcess::singleton().parentProcessConnection()->send(Messages::AcceleratedBackingStore::DidChangeBufferConfiguration(m_lockedTargets.size() + 1), m_surfaceID);
-#endif
-            m_lockedTargets.insert(0, createTarget());
-            return m_lockedTargets[0].get();
+        unsigned targetsToCreate = 1;
+        if (!m_initialTargetsCreated) {
+            targetsToCreate = s_initialBuffers;
+            m_initialTargetsCreated = true;
         }
+
+#if ENABLE(WPE_PLATFORM)
+        WebProcess::singleton().parentProcessConnection()->send(Messages::AcceleratedBackingStore::DidChangeBufferConfiguration(m_lockedTargets.size() + targetsToCreate), m_surfaceID);
+#endif
+
+        for (unsigned i = 0; i < targetsToCreate; ++i) {
+            if (auto target = createTarget())
+                m_freeTargets.append(WTF::move(target));
+        }
+
+#if ENABLE(WPE_PLATFORM)
+        if (m_freeTargets.size() != targetsToCreate)
+            WebProcess::singleton().parentProcessConnection()->send(Messages::AcceleratedBackingStore::DidChangeBufferConfiguration(m_lockedTargets.size() + m_freeTargets.size()), m_surfaceID);
+#endif
     }
+
+    if (m_freeTargets.isEmpty())
+        return nullptr;
 
     auto target = m_freeTargets.takeLast();
     m_lockedTargets.insert(0, WTF::move(target));
@@ -923,6 +936,7 @@ void AcceleratedSurface::SwapChain::reset()
 
     m_lockedTargets.clear();
     m_freeTargets.clear();
+    m_initialTargetsCreated = false;
 }
 
 void AcceleratedSurface::SwapChain::releaseUnusedBuffers()
@@ -1051,6 +1065,8 @@ void AcceleratedSurface::willDestroyCompositingRunLoop()
 
 void AcceleratedSurface::willDestroyGLContext()
 {
+    m_pendingFrameNotifyTargets.clear();
+    m_target = nullptr;
     m_swapChain.reset();
 }
 
@@ -1080,6 +1096,13 @@ SkCanvas* AcceleratedSurface::canvas()
 void AcceleratedSurface::willRenderFrame(const IntSize& size)
 {
     bool sizeDidChange = m_swapChain.resize(size);
+    bool bufferFormatChanged = m_swapChain.handleBufferFormatChangeIfNeeded();
+    if (sizeDidChange || bufferFormatChanged) {
+        m_pendingFrameNotifyTargets.clear();
+#if ENABLE(DAMAGE_TRACKING)
+        m_frameDamage = std::nullopt;
+#endif
+    }
 
     m_target = m_swapChain.nextTarget();
     if (m_target)
@@ -1126,23 +1149,31 @@ void AcceleratedSurface::didRenderFrame()
     }
 #endif
 
-    m_target->didRenderFrame(WTF::move(damageRects));
+    m_target->didRenderFrame();
+    m_pendingFrameNotifyTargets.insert(0, { m_target, WTF::move(damageRects) });
+    m_target = nullptr;
+}
+
+void AcceleratedSurface::sendFrame()
+{
+    auto [target, damageRects] = m_pendingFrameNotifyTargets.takeLast();
+    if (!target)
+        return;
+
+    target->sendFrame(WTF::move(damageRects));
 }
 
 #if ENABLE(DAMAGE_TRACKING)
 void AcceleratedSurface::setFrameDamage(Damage&& damage)
 {
-    if (!damage.isEmpty())
-        m_frameDamage = WTF::move(damage);
-    else
-        m_frameDamage = std::nullopt;
+    m_frameDamage = WTF::move(damage);
 }
 
 const std::optional<Damage>& AcceleratedSurface::renderTargetDamage()
 {
     m_swapChain.addDamage(m_frameDamage);
-    ASSERT(m_target);
-    return m_target->damage();
+    static std::optional<Damage> nulloptDamage;
+    return m_target ? m_target->damage() : nulloptDamage;
 }
 #endif
 
@@ -1160,7 +1191,6 @@ void AcceleratedSurface::frameDone()
 {
     if (m_frameCompleteHandler)
         m_frameCompleteHandler();
-    m_target = nullptr;
 }
 
 } // namespace WebKit

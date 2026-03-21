@@ -624,7 +624,7 @@ double AccessibilityUIElement::intValue() const
     return 0;
 }
 
-JSRetainPtr<JSStringRef> AccessibilityUIElement::intersectionWithSelectionRange()
+RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::intersectionWithSelectionRange()
 {
     return nullptr;
 }
@@ -1470,6 +1470,11 @@ unsigned AccessibilityUIElement::uiElementCountForSearchPredicate(OpaqueJSContex
 }
 
 RefPtr<AccessibilityUIElement> AccessibilityUIElement::uiElementForSearchPredicate(OpaqueJSContext const*, WTR::AccessibilityUIElement*, bool, OpaqueJSValue const*, OpaqueJSString*, bool, bool)
+{
+    return nullptr;
+}
+
+JSValueRef AccessibilityUIElement::uiElementsForSearchPredicate(OpaqueJSContext const*, WTR::AccessibilityUIElement*, bool, OpaqueJSValue const*, OpaqueJSString*, bool, bool, unsigned)
 {
     return nullptr;
 }

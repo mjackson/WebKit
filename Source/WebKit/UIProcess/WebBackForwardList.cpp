@@ -49,9 +49,7 @@
 #endif
 
 // FIXME: https://bugs.webkit.org/show_bug.cgi?id=306415
-#if ENABLE(BACK_FORWARD_LIST_SWIFT)
 #include "WebKit-Swift.h"
-#endif
 
 namespace WebKit {
 using namespace WebCore;
@@ -186,7 +184,7 @@ void WebBackForwardList::addChildItem(FrameIdentifier parentFrameID, Ref<FrameSt
     if (!currentItem)
         return;
 
-    RefPtr parentItem = protect(currentItem->mainFrameItem())->childItemForFrameID(parentFrameID);
+    RefPtr parentItem = currentItem->mainFrameItem().childItemForFrameID(parentFrameID);
     if (!parentItem)
         return;
 
@@ -441,7 +439,7 @@ BackForwardListState WebBackForwardList::backForwardListState(WTF::Function<bool
             continue;
         }
 
-        backForwardListState.items.append(entry->mainFrameState());
+        backForwardListState.items.append({ entry->copyMainFrameStateWithChildren(), entry->navigatedFrameID() });
     }
 
     if (backForwardListState.items.isEmpty())
@@ -466,13 +464,11 @@ void WebBackForwardList::restoreFromState(BackForwardListState backForwardListSt
         return;
 
     // FIXME: Enable restoring resourceDirectoryURL.
-    m_entries = WTF::map(WTF::move(backForwardListState.items), [this](auto&& state) {
-        Ref stateCopy = state->copy();
+    m_entries = WTF::map(WTF::move(backForwardListState.items), [this](auto&& itemState) {
+        Ref stateCopy = itemState.frameState->copy();
         setBackForwardItemIdentifiers(stateCopy, BackForwardItemIdentifier::generate());
         m_currentIndex = m_entries.isEmpty() ? std::nullopt : std::optional(m_entries.size() - 1);
-        // FIXME: navigatedFrameID will always be the main frame ID, causing the restored session state to be sent to an incorrect process when going back or forward with site isolation enabled.
-        auto navigatedFrameID = stateCopy->frameID;
-        return WebBackForwardListItem::create(WTF::move(stateCopy), m_page->identifier(), navigatedFrameID);
+        return WebBackForwardListItem::create(WTF::move(stateCopy), m_page->identifier(), itemState.navigatedFrameID);
     });
     m_currentIndex = backForwardListState.currentIndex ? std::optional<size_t>(*backForwardListState.currentIndex) : std::nullopt;
 
@@ -595,7 +591,7 @@ Ref<FrameState> WebBackForwardList::completeFrameStateForNavigation(Ref<FrameSta
     if (!mainFrameItem->childItemForFrameID(*navigatedFrameID))
         return navigatedFrameState;
 
-    Ref frameState = currentItem->mainFrameState();
+    Ref frameState = currentItem->copyMainFrameStateWithChildren();
     setBackForwardItemIdentifier(frameState, *navigatedFrameState->itemID);
     frameState->replaceChildFrameState(WTF::move(navigatedFrameState));
     return frameState;
@@ -641,7 +637,6 @@ void WebBackForwardList::backForwardAddItemShared(IPC::Connection& connection, R
         return;
 
     if (RefPtr webPageProxy = m_page.get()) {
-
         auto navigatedFrameID = navigatedFrameState->frameID;
         Ref item = WebBackForwardListItem::create(completeFrameStateForNavigation(WTF::move(navigatedFrameState)), webPageProxy->identifier(), navigatedFrameID, protect(webPageProxy->browsingContextGroup()).ptr());
         item->setResourceDirectoryURL(webPageProxy->currentResourceDirectoryURL());
@@ -694,11 +689,11 @@ void WebBackForwardList::backForwardUpdateItem(IPC::Connection& connection, Ref<
         auto newFrameID = frameItem->frameID();
 
         if (oldFrameID && newFrameID && oldFrameID != newFrameID)
-            updateAllFrameIDs(*oldFrameID, *newFrameID);
+            updateFrameIdentifier(*oldFrameID, *newFrameID);
     }
 }
 
-void WebBackForwardList::updateAllFrameIDs(FrameIdentifier oldFrameID, FrameIdentifier newFrameID)
+void WebBackForwardList::updateFrameIdentifier(FrameIdentifier oldFrameID, FrameIdentifier newFrameID)
 {
     for (auto& entry : m_entries)
         entry->updateFrameID(oldFrameID, newFrameID);
@@ -725,7 +720,7 @@ void WebBackForwardList::backForwardListContainsItem(WebCore::BackForwardItemIde
 void WebBackForwardList::backForwardGoToItemShared(BackForwardItemIdentifier itemID, CompletionHandler<void(const WebBackForwardListCounts&)>&& completionHandler)
 {
     if (RefPtr webPageProxy = m_page.get())
-        MESSAGE_CHECK_COMPLETION(protect(webPageProxy->legacyMainFrameProcess()), !WebKit::isInspectorPage(*webPageProxy), completionHandler(counts()));
+        MESSAGE_CHECK_COMPLETION(Ref { webPageProxy->legacyMainFrameProcess() }, !WebKit::isInspectorPage(*webPageProxy), completionHandler(counts()));
 
     RefPtr item = itemForID(itemID);
     if (!item)
@@ -738,7 +733,7 @@ void WebBackForwardList::backForwardGoToItemShared(BackForwardItemIdentifier ite
 void WebBackForwardList::backForwardAllItems(FrameIdentifier frameID, CompletionHandler<void(Vector<Ref<FrameState>>&&)>&& completionHandler)
 {
     auto frameItems = WTF::compactMap(entries(), [frameID](const auto& item) -> RefPtr<WebBackForwardListFrameItem> {
-        return protect(item->mainFrameItem())->childItemForFrameID(frameID);
+        return item->mainFrameItem().childItemForFrameID(frameID);
     });
 
     completionHandler(WTF::map(WTF::move(frameItems), [](const auto& frameItem) {
@@ -750,9 +745,9 @@ void WebBackForwardList::backForwardItemAtIndex(int32_t index, FrameIdentifier f
 {
     // FIXME: This should verify that the web process requesting the item hosts the specified frame.
     if (RefPtr item = itemAtIndex(index)) {
-        if (RefPtr frameItem = protect(item->mainFrameItem())->childItemForFrameID(frameID))
+        if (RefPtr frameItem = item->mainFrameItem().childItemForFrameID(frameID))
             return completionHandler(frameItem->copyFrameStateWithChildren());
-        completionHandler(item->mainFrameState());
+        completionHandler(item->copyMainFrameStateWithChildren());
     } else
         completionHandler(nullptr);
 }
@@ -760,6 +755,29 @@ void WebBackForwardList::backForwardItemAtIndex(int32_t index, FrameIdentifier f
 void WebBackForwardList::backForwardListCounts(CompletionHandler<void(WebBackForwardListCounts&&)>&& completionHandler)
 {
     completionHandler(counts());
+}
+
+FrameState* WebBackForwardList::findFrameStateInItem(WebCore::BackForwardItemIdentifier itemID, WebCore::FrameIdentifier parentFrameID, uint64_t childFrameIndex)
+{
+    RefPtr targetItem = itemForID(itemID);
+    if (!targetItem)
+        return nullptr;
+
+    RefPtr parentFrameItem = targetItem->mainFrameItem().childItemForFrameID(parentFrameID);
+    if (!parentFrameItem) {
+        // FIXME: After session restore, the back/forward list's frame identifiers don't match
+        // the current WebView's frames because the original identifiers are unavailable.
+        // Fall back to the mainFrameItem if the parentFrameID isn't found.
+        // This only works correctly for direct children of the main frame; nested frames
+        // (e.g., subframe > nestedframe) will get the wrong FrameState.
+        parentFrameItem = &targetItem->mainFrameItem();
+    }
+
+    RefPtr childFrameItem = parentFrameItem->childItemAtIndex(childFrameIndex);
+    if (!childFrameItem)
+        return nullptr;
+
+    return &childFrameItem->frameState();
 }
 
 String WebBackForwardList::loggingString()
@@ -872,14 +890,14 @@ WebCore::BackForwardItemIdentifier generateBackForwardItemIdentifier()
 }
 
 // rdar://168139823 is the task of doing a productionized version of WebKit Swift logging
-void doLog(const char* WTF_NONNULL msg)
+void doLog(const WTF::String& msg)
 {
-    LOG(BackForward, "%s", msg);
+    LOG(BackForward, "%s", msg.utf8().data());
 }
 
-void doLoadingReleaseLog(const char* WTF_NONNULL msg)
+void doLoadingReleaseLog(const WTF::String& msg)
 {
-    RELEASE_LOG(Loading, "%s", msg);
+    RELEASE_LOG(Loading, "%s", msg.utf8().data());
 }
 // rdar://168139740 is the task of doing a productionized Swift MESSAGE_CHECK
 void messageCheckFailed(Ref<WebKit::WebProcessProxy> process)

@@ -36,7 +36,7 @@ public:
     static Ref<HTMLButtonElement> create(const QualifiedName&, Document&, HTMLFormElement*);
     static Ref<HTMLButtonElement> create(Document&);
     
-    const AtomString& value() const;
+    const AtomString& NODELETE value() const;
     const AtomString& command() const;
 
     RefPtr<Element> commandForElement() const;
@@ -62,8 +62,8 @@ private:
     int defaultTabIndex() const final;
 
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) final;
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode& parentOfInsertedTree) final;
-    void removedFromAncestor(RemovalType, ContainerNode& oldParentOfRemovedTree) final;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode& parentOfInsertedTree) final;
+    void removingSteps(RemovalType, ContainerNode& oldParentOfRemovedTree) final;
     bool hasPresentationalHintsForAttribute(const QualifiedName&) const final;
     void defaultEventHandler(Event&) final;
 
@@ -80,11 +80,11 @@ private:
     bool isActivatedSubmit() const final;
     void setActivatedSubmit(bool flag) final;
 
-    bool isURLAttribute(const Attribute&) const final;
+    bool NODELETE isURLAttribute(const Attribute&) const final;
 
     bool canStartSelection() const final { return false; }
 
-    bool isOptionalFormControl() const final { return true; }
+    bool NODELETE isOptionalFormControl() const final { return true; }
     bool computeWillValidate() const final;
 
     bool isSubmitButton() const final;

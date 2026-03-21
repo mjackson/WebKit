@@ -29,6 +29,7 @@
 #import <WebKit/WKPreferences.h>
 #import <WebKit/WKPreferencesPrivate.h>
 #import <WebKit/WKWebViewConfiguration.h>
+#import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/_WKFeature.h>
 #import <wtf/RetainPtr.h>
 
@@ -42,4 +43,9 @@ bool isSiteIsolationEnabled(WKWebView *webView)
     }
 
     return false;
+}
+
+bool isUsingBackForwardCache(WKWebView *webView)
+{
+    return [webView _isUsingBackForwardCache];
 }

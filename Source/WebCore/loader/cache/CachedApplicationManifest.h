@@ -27,8 +27,8 @@
 
 #if ENABLE(APPLICATION_MANIFEST)
 
-#include <WebCore/ApplicationManifest.h>
-#include <WebCore/CachedResource.h>
+#include "ApplicationManifest.h"
+#include "CachedResource.h"
 
 namespace WebCore {
 

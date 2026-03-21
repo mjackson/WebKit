@@ -95,7 +95,7 @@ RenderTreeUpdater::RenderTreeUpdater(Document& document, Style::PostResolutionCa
 
 RenderTreeUpdater::~RenderTreeUpdater() = default;
 
-static RefPtr<Element> findRenderingAncestor(Node& node)
+static RefPtr<Element> NODELETE findRenderingAncestor(Node& node)
 {
     for (SUPPRESS_UNCOUNTED_LOCAL auto& ancestor : composedTreeAncestors(node)) {
         if (ancestor.renderer())
@@ -255,7 +255,7 @@ void RenderTreeUpdater::updateRenderTree(ContainerNode& root)
 
         if (auto* renderer = node->renderer())
             renderTreePosition().invalidateNextSibling(*renderer);
-        else if (RefPtr element = dynamicDowncast<Element>(node.get()); element && element->hasDisplayContents())
+        else if (auto* element = dynamicDowncast<Element>(node.get()); element && element->hasDisplayContents())
             renderTreePosition().invalidateNextSibling();
 
         if (RefPtr text = dynamicDowncast<Text>(node.get())) {
@@ -658,8 +658,12 @@ void RenderTreeUpdater::updateTextRenderer(Text& text, const Style::TextUpdate* 
     bool needsRenderer = textRendererIsNeeded(text);
 
     if (existingRenderer && textUpdate && textUpdate->inheritedDisplayContentsStyle) {
-        if (existingRenderer->inlineWrapperForDisplayContents() || *textUpdate->inheritedDisplayContentsStyle) {
-            // FIXME: We could update without teardown.
+        auto* existingWrapper = existingRenderer->inlineWrapperForDisplayContents();
+        auto& newStylePtr = *textUpdate->inheritedDisplayContentsStyle;
+        if (existingWrapper && newStylePtr) {
+            // Update wrapper style in place instead of teardown+recreate.
+            existingWrapper->setStyle(RenderStyle::clone(*newStylePtr));
+        } else if (existingWrapper || newStylePtr) {
             tearDownTextRenderer(text, root, m_builder);
             existingRenderer = nullptr;
         }
@@ -789,7 +793,7 @@ static std::optional<DidRepaintAndMarkContainingBlock> repaintAndMarkContainingB
     };
 
     auto repaintBackdropIfApplicable = [&](auto& renderer) {
-        if (auto backdropRenderer = renderer.backdropRenderer())
+        if (auto backdropRenderer = renderer.pseudoElementRenderer(PseudoElementType::Backdrop))
             backdropRenderer->repaint(RenderObject::ForceRepaint::Yes);
     };
 
@@ -929,7 +933,7 @@ void RenderTreeUpdater::tearDownRenderersInternal(Element& root, TeardownType te
                         parent->setNeedsPreferredWidthsUpdate();
                     }
                 }
-                if (auto backdropRenderer = renderer->backdropRenderer())
+                if (auto backdropRenderer = renderer->pseudoElementRenderer(PseudoElementType::Backdrop))
                     builder.destroyAndCleanUpAnonymousWrappers(*backdropRenderer, { });
                 builder.destroyAndCleanUpAnonymousWrappers(*renderer, root.renderer());
                 element->setRenderer(nullptr);

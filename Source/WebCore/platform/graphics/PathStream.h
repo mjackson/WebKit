@@ -25,8 +25,8 @@
 
 #pragma once
 
-#include <WebCore/PathImpl.h>
-#include <WebCore/PathSegment.h>
+#include "PathImpl.h"
+#include "PathSegment.h"
 #include <wtf/DataRef.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/ThreadSafeRefCounted.h>
@@ -60,7 +60,7 @@ public:
     void add(PathContinuousRoundedRect) final;
     void add(PathCloseSubpath) final;
 
-    const Vector<PathSegment>* segmentsIfExists() const final { return &m_segments; }
+    const Vector<PathSegment>* segmentsIfExists() const LIFETIME_BOUND final { return &m_segments; }
     Vector<PathSegment> segments() const final { return m_segments; }
 
     void applySegments(const PathSegmentApplier&) const final;

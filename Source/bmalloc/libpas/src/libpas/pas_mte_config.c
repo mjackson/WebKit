@@ -119,11 +119,11 @@ static void pas_mte_do_initialization(void)
     if (rc == sizeof(info) && info.pbi_flags & PAS_MTE_PROC_FLAG_SEC_ENABLED)
         *enabled_byte = 1;
 
-    if (is_env_true("JSC_useAllocationProfiling") || is_env_true("MTE_overrideEnablementForJavaScriptCore")) {
-        PAS_ASSERT(!(is_env_false("JSC_useAllocationProfiling") || is_env_false("MTE_overrideEnablementForJavaScriptCore")));
+    if (is_env_true("MTE_overrideEnablementForJavaScriptCore")) {
+        PAS_ASSERT(!is_env_false("MTE_overrideEnablementForJavaScriptCore"));
         *enabled_byte = 1;
     }
-    if (is_env_false("JSC_useAllocationProfiling") || is_env_false("MTE_overrideEnablementForJavaScriptCore"))
+    if (is_env_false("MTE_overrideEnablementForJavaScriptCore"))
         *enabled_byte = 0;
 
     if (!*enabled_byte)
@@ -137,25 +137,11 @@ static void pas_mte_do_initialization(void)
         *lockdown_mode_byte = 0;
 
     unsigned mode = 0;
-    if (get_value_if_available(&mode, "JSC_allocationProfilingMode"))
+    if (get_value_if_available(&mode, "MTE_libpasConfig"))
         *mode_byte = (uint8_t)(mode & 0xFF);
 
     const char* name = getprogname();
     bool isWebContentProcess = !strncmp(name, "com.apple.WebKit.WebContent", 27) || !strncmp(name, "jsc", 3);
-
-    unsigned taggingRate = 100;
-    if (isWebContentProcess) {
-        const uint8_t defaultWebContentTaggingRate = 33;
-        taggingRate = defaultWebContentTaggingRate;
-
-        // Debug option to override the WCP tagging rate.
-        get_value_if_available(&taggingRate, "MTE_taggingRateForWebContent");
-    }
-
-    // Debug option to unconditionally override the tagging rate.
-    get_value_if_available(&taggingRate, "MTE_taggingRate");
-
-    PAS_MTE_CONFIG_BYTE(PAS_MTE_TAGGING_RATE) = taggingRate;
 
     if (isWebContentProcess) {
         // For a variety of reasons, a full MTE implementation in the WebContent process is not generally practical.
@@ -176,15 +162,13 @@ static void pas_mte_do_initialization(void)
             pas_mte_force_nontaggable_user_allocations_into_large_heap();
         } else {
             *medium_byte = 0;
+            *hardened_byte = 0;
 #if !PAS_USE_MTE_IN_WEBCONTENT
             // Disable tagging in libpas by default in WebContent process
             *enabled_byte = 0;
 #else
             *enabled_byte = 1;
 #endif
-            *hardened_byte = 0;
-            // FIXME: rdar://159974195
-            bmalloc_common_primitive_heap.is_non_compact_heap = false;
         }
 
 #ifndef NDEBUG
@@ -205,6 +189,26 @@ static void pas_mte_do_initialization(void)
         *medium_byte = 1; // Tag libpas medium objects in privileged processes
         *hardened_byte = 1;
     }
+
+    PAS_IGNORE_WARNINGS_BEGIN("unreachable-code");
+    // Retag-on-scavenge functionally supports both segregated and bitfit heaps.
+    // However, true to the name, for segregated heaps the retag operation only
+    // takes place on the scavenging path.
+    // For bitfit heaps, there is no such path: as such, freed bitfit objects are
+    // immediately retagged. This closes the window where attackers could in
+    // theory exploit a UAF.
+    // As such, when retag-on-scavenge is enabled, we prefer to allocate from
+    // bitfit heaps to exploit this property -- the exception of course being
+    // isoheaps, due to the intrinsic type-unsafety of bitfit heaps.
+    // In practice, for privileged processes this already takes place when WebCore
+    // enables fastMiniMode(), but that enablement takes place later on and as such
+    // can allow for some local-allocators to sneak by. This is not a problem for
+    // mini-mode because a few stray allocations there won't hurt, but for a
+    // security boundary those stray allocations are more of a problem. So we force
+    // this here, prior to the creation of such segregated directories.
+    if (PAS_MTE_FEATURE_ENABLED(PAS_MTE_FEATURE_RETAG_ON_SCAVENGE))
+        pas_bmalloc_force_allocations_into_bitfit_heaps_where_available();
+    PAS_IGNORE_WARNINGS_END;
 }
 
 static bool pas_mte_is_enabled(void)
@@ -215,14 +219,13 @@ static bool pas_mte_is_enabled(void)
     return (rc == sizeof(info) && (info.pbi_flags & PAS_MTE_PROC_FLAG_SEC_ENABLED) && !!*enabledByte);
 }
 
-static void pas_mte_get_config_bytes(uint8_t (*bytes_out)[6])
+static void pas_mte_get_config_bytes(uint8_t (*bytes_out)[5])
 {
     (*bytes_out)[0] = PAS_MTE_CONFIG_BYTE(PAS_MTE_ENABLE_FLAG);
     (*bytes_out)[1] = PAS_MTE_CONFIG_BYTE(PAS_MTE_MODE_BITS);
-    (*bytes_out)[2] = PAS_MTE_CONFIG_BYTE(PAS_MTE_TAGGING_RATE);
-    (*bytes_out)[3] = PAS_MTE_CONFIG_BYTE(PAS_MTE_MEDIUM_TAGGING_ENABLE_FLAG);
-    (*bytes_out)[4] = PAS_MTE_CONFIG_BYTE(PAS_MTE_LOCKDOWN_MODE_FLAG);
-    (*bytes_out)[5] = PAS_MTE_CONFIG_BYTE(PAS_MTE_HARDENED_FLAG);
+    (*bytes_out)[2] = PAS_MTE_CONFIG_BYTE(PAS_MTE_MEDIUM_TAGGING_ENABLE_FLAG);
+    (*bytes_out)[3] = PAS_MTE_CONFIG_BYTE(PAS_MTE_LOCKDOWN_MODE_FLAG);
+    (*bytes_out)[4] = PAS_MTE_CONFIG_BYTE(PAS_MTE_HARDENED_FLAG);
 }
 
 #else // !PAS_ENABLE_MTE
@@ -234,9 +237,9 @@ static PAS_UNUSED bool pas_mte_is_enabled(void)
     return false;
 }
 
-static PAS_UNUSED void pas_mte_get_config_bytes(uint8_t (*bytes_out)[6])
+static PAS_UNUSED void pas_mte_get_config_bytes(uint8_t (*bytes_out)[5])
 {
-    for (int i = 0; i < 6; i++)
+    for (int i = 0; i < 5; i++)
         (*bytes_out)[i] = 0;
 }
 
@@ -258,7 +261,7 @@ static void pas_report_config(void)
     const int pid = getpid();
     const mach_port_t threadno = pthread_mach_thread_np(pthread_self());
 
-    uint8_t mte_conf[6];
+    uint8_t mte_conf[5];
     pas_mte_get_config_bytes(&mte_conf);
 
 #define LOG_FMT_STR_FOR_HEAP_CONFIG(name) "\n\tHeap-Config " #name ":" \
@@ -281,7 +284,7 @@ static void pas_report_config(void)
         "%s(%d,0x%x) malloc: libpas config:"
         "\n\tDeallocation Log (Max Entries, Max Bytes): %zu, %zuB"
         "\n\tScavenger (Period, Deep-Sleep Timeout, Epoch-Delta): %.2fms, %.2fms, %llu"
-        "\n\tMTE (Enabled/Mode-Bits/Tagging-Rate/Medium-Enabled/Lockdown/Hardened): (%u, %u, %u, %u, %u, %u)"
+        "\n\tMTE (Enabled/Mode-Bits/Medium-Enabled/Lockdown/Hardened): (%u, %u, %u, %u, %u)"
 #if PAS_ENABLE_BMALLOC
         "\n\tUsing System Heap: %u"
         LOG_FMT_STR_FOR_HEAP_CONFIG(bmalloc)
@@ -306,7 +309,7 @@ static void pas_report_config(void)
         progname, pid, (int)threadno,
         (size_t)PAS_DEALLOCATION_LOG_SIZE, (size_t)PAS_DEALLOCATION_LOG_MAX_BYTES,
         pas_scavenger_period_in_milliseconds, pas_scavenger_deep_sleep_timeout_in_milliseconds, pas_scavenger_max_epoch_delta,
-        mte_conf[0], mte_conf[1], mte_conf[2], mte_conf[3], mte_conf[4], mte_conf[5],
+        mte_conf[0], mte_conf[1], mte_conf[2], mte_conf[3], mte_conf[4],
 #if PAS_ENABLE_BMALLOC
         pas_system_heap_should_supplant_bmalloc(pas_heap_config_kind_bmalloc),
         LOG_FMT_VARS_FOR_HEAP_CONFIG(bmalloc_heap_config),
@@ -360,6 +363,33 @@ void pas_mte_ensure_initialized(void)
 #endif
 void pas_mte_ensure_initialized(void) { }
 #endif // PAS_OS(DARWIN)
+
+void pas_bmalloc_force_allocations_into_bitfit_heaps_where_available(void)
+{
+#if PAS_ENABLE_BMALLOC
+    // Switch to bitfit allocation for anything that isn't isoheaped.
+    bmalloc_intrinsic_runtime_config.base.max_segregated_object_size = 0;
+    bmalloc_primitive_runtime_config.base.max_segregated_object_size = 0;
+    bmalloc_intrinsic_runtime_config.base.max_bitfit_object_size = UINT_MAX;
+    bmalloc_primitive_runtime_config.base.max_bitfit_object_size = UINT_MAX;
+#endif
+
+    // If large-object delegation is enabled, we don't want to override that
+    // just because we've entered mini-mode.
+    // One way we could get around that would be to leave the bitfit object
+    // size limits the way they are. However, in cases where the bitfit
+    // size-limit had previously been constrained for performance, e.g. by
+    // setting them to 0, we do want enableMiniMode to be able to re-expand
+    // them.
+    // So we take the object-delegation path to be a special case and make
+    // sure to re-apply after performing the above expansion.
+    PAS_IGNORE_WARNINGS_BEGIN("unreachable-code");
+#if defined(PAS_MTE_USE_LARGE_OBJECT_DELEGATION)
+    if (PAS_MTE_USE_LARGE_OBJECT_DELEGATION)
+        pas_mte_force_nontaggable_user_allocations_into_large_heap();
+#endif // defined(PAS_MTE_USE_LARGE_OBJECT_DELEGATION)
+    PAS_IGNORE_WARNINGS_END;
+}
 
 void pas_mte_force_nontaggable_user_allocations_into_large_heap(void)
 {

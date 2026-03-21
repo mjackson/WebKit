@@ -196,7 +196,7 @@ public:
     bool isWeekField() const { return m_type == Type::Week; }
 
     bool isTextButton() const { return textButtonTypes.contains(m_type); }
-    bool isTextField() const { return textFieldTypes.contains(m_type); }
+    bool NODELETE isTextField() const { return textFieldTypes.contains(m_type); }
     bool isTextType() const { return textTypes.contains(m_type); }
 
     bool isCheckable() const { return checkableTypes.contains(m_type); }

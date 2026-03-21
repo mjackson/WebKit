@@ -90,7 +90,7 @@ public:
     void handleIncomingPush(const WebCore::PushSubscriptionSetIdentifier&, WebKit::WebPushMessage&&);
 
 #if PLATFORM(IOS)
-    WebClipCache& ensureWebClipCache();
+    WebClipCache& ensureWebClipCache() LIFETIME_BOUND;
 #endif
 
     // Message handlers

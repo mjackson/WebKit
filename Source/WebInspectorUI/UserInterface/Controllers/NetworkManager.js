@@ -199,7 +199,9 @@ WI.NetworkManager = class NetworkManager extends WI.Object
     {
         if (target.hasDomain("Page")) {
             target.PageAgent.enable();
-            target.PageAgent.getResourceTree(this._processMainFrameResourceTreePayload.bind(this));
+
+            if (!target.isProvisional)
+                target.PageAgent.getResourceTree(this._processMainFrameResourceTreePayload.bind(this));
 
             // COMPATIBILITY (iOS 13.0): Page.setBootstrapScript did not exist yet.
             if (target.hasCommand("Page.setBootstrapScript") && this._bootstrapScript && this._bootstrapScriptEnabledSetting.value)
@@ -212,6 +214,9 @@ WI.NetworkManager = class NetworkManager extends WI.Object
         if (target.hasDomain("Network")) {
             target.NetworkAgent.enable();
             target.NetworkAgent.setResourceCachingDisabled(WI.settings.resourceCachingDisabled.value);
+
+            if (target.hasCommand("Network.setClearResourceDataOnNavigate"))
+                target.NetworkAgent.setClearResourceDataOnNavigate(WI.settings.clearNetworkOnNavigate.value);
 
             // COMPATIBILITY (iOS 13.0): Network.setInterceptionEnabled did not exist.
             if (target.hasCommand("Network.setInterceptionEnabled")) {
@@ -235,6 +240,11 @@ WI.NetworkManager = class NetworkManager extends WI.Object
     {
         this._transitioningPageTarget = true;
         this._waitingForMainFrameResourceTreePayload = true;
+
+        let pageTarget = WI.pageTarget;
+        console.assert(pageTarget && !pageTarget.isProvisional, pageTarget);
+        if (pageTarget.hasDomain("Page"))
+            pageTarget.PageAgent.getResourceTree(this._processMainFrameResourceTreePayload.bind(this));
     }
 
     // Public
@@ -1161,7 +1171,8 @@ WI.NetworkManager = class NetworkManager extends WI.Object
     executionContextCreated(payload)
     {
         let frame = this.frameForIdentifier(payload.frameId);
-        console.assert(frame);
+        // Under site isolation, FrameTargets report their own contexts.
+        // PageTarget should only handle contexts for frames in its own frame tree.
         if (!frame)
             return;
 

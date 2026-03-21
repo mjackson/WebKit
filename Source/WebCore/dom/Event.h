@@ -73,7 +73,7 @@ public:
 
     bool isInitialized() const { return m_isInitialized; }
 
-    const AtomString& type() const { return m_type; }
+    const AtomString& type() const LIFETIME_BOUND { return m_type; }
     void setType(const AtomString& type) { m_type = type; }
 
     enum EventInterfaceType interfaceType() const { return static_cast<enum EventInterfaceType>(m_eventInterface); }
@@ -95,7 +95,7 @@ public:
     DOMHighResTimeStamp timeStampForBindings(ScriptExecutionContext&) const;
     MonotonicTime timeStamp() const { return m_createTime; }
 
-    void setEventPath(const EventPath&);
+    void NODELETE setEventPath(const EventPath&);
     Vector<Ref<EventTarget>> composedPath(JSC::JSGlobalObject&) const;
 
     void stopPropagation() { m_propagationStopped = true; }
@@ -115,7 +115,7 @@ public:
     bool propagationStopped() const { return m_propagationStopped || m_immediatePropagationStopped; }
     bool immediatePropagationStopped() const { return m_immediatePropagationStopped; }
 
-    void resetBeforeDispatch();
+    void NODELETE resetBeforeDispatch();
     void resetAfterDispatch();
 
     bool defaultPrevented() const { return m_wasCanceled; }

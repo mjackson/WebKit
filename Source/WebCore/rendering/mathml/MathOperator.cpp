@@ -29,6 +29,8 @@
 
 #if ENABLE(MATHML)
 
+#include "FontCascadeInlines.h"
+#include "FontInlines.h"
 #include "RenderStyle+GettersInlines.h"
 #include <wtf/StdLibExtras.h>
 
@@ -129,7 +131,7 @@ LayoutUnit MathOperator::stretchSize() const
 bool MathOperator::getGlyph(const RenderStyle& style, char32_t character, GlyphData& glyph) const
 {
     glyph = style.fontCascade().glyphDataForCharacter(character, style.writingMode().isBidiRTL());
-    return glyph.font && glyph.font == style.fontCascade().primaryFont().ptr();
+    return glyph.font && glyph.font == &style.fontCascade().primaryFont();
 }
 
 void MathOperator::setSizeVariant(const GlyphData& sizeVariant)
@@ -151,7 +153,7 @@ static GlyphData glyphDataForCodePointOrFallbackGlyph(const RenderStyle& style, 
     
     if (fallbackGlyph) {
         fallback.glyph = fallbackGlyph;
-        fallback.font = style.fontCascade().primaryFont().ptr();
+        fallback.font = &style.fontCascade().primaryFont();
     }
     
     return fallback;
@@ -692,7 +694,7 @@ void MathOperator::paint(const RenderStyle& style, PaintInfo& info, const Layout
     // Make a copy of the PaintInfo because applyTransform will modify its rect.
     PaintInfo paintInfo(info);
     GraphicsContextStateSaver stateSaver(paintInfo.context());
-    paintInfo.context().setFillColor(style.visitedDependentColorApplyingColorFilter());
+    paintInfo.context().setFillColor(style.visitedDependentTextFillColorApplyingColorFilter());
 
     // For a radical character, we may need some scale transform to stretch it vertically or mirror it.
     if (m_baseCharacter == kRadicalOperator) {

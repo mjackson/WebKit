@@ -1373,6 +1373,7 @@ class _EnumState(object):
         expr_starts_lowercase = r'\s*[a-jl-z]'
         expr_enum_end = r'}\s*(?:[a-zA-Z0-9]+\s*(?:=\s*[a-zA-Z0-9]+)?)?\s*;\s*'
         expr_enum_start = r'\s*(?:enum(?:\s+class)?(?:\s+(?P<identifier>[a-zA-Z0-9]+))?)(?:\s*:\s*(?P<underlying>[a-zA-Z0-9_]+)?)?\s*\{?\s*'
+        expr_capital_with_digits = r'[A-Z][0-9]+$'
 
         def check_case_error(enum_name, value_declaration):
             def is_case_error(enum_name, value_declaration):
@@ -1384,6 +1385,8 @@ class _EnumState(object):
                     if enum_name in _ALLOW_ALL_UPPERCASE_ENUM:
                         return False
                     if len(all_uppercase.group('value')) < 2:
+                        return False
+                    if match(expr_capital_with_digits, all_uppercase.group('value')):
                         return False
                     return not all_uppercase.group('value') in _ALLOW_ABBREVIATION_ENUM_VALUES
                 return match(expr_starts_lowercase, value_declaration)

@@ -55,7 +55,7 @@
                   { "name": "bot185", "platform": "mac-sequoia" },
                   { "name": "bot198", "platform": "mac-sequoia" },
                   { "name": "bot279", "platform": "mac-sequoia" },
-                  { "name": "bot600", "platform": "mac-sequoia" },
+                  { "name": "bot600", "platform": "mac-tahoe" },
                   { "name": "bot614", "platform": "mac-sequoia" },
                   { "name": "bot1021", "platform": "mac-sequoia" },
                   { "name": "bot1025", "platform": "mac-sequoia" },
@@ -191,24 +191,24 @@
                   { "name": "wpe-linux-bot-14", "platform": "wpe" },
                   { "name": "wpe-linux-bot-15", "platform": "wpe" },
                   { "name": "wpe-linux-bot-16", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-17", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-18", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-19", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-20", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-21", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-22", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-23", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-24", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-25", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-26", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-27", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-28", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-29", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-30", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-31", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-32", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-33", "platform": "wpe" },
-                  { "name": "wpe-linux-bot-34", "platform": "wpe" },
+                  { "name": "wpe-linux-bot-17", "platform": "wpe-rpi4-32bits-mesa" },
+                  { "name": "wpe-linux-bot-18", "platform": "wpe-rpi4-64bits-mesa" },
+                  { "name": "wpe-linux-bot-19", "platform": "wpe-rpi4-32bits-mesa" },
+                  { "name": "wpe-linux-bot-20", "platform": "wpe-rpi4-32bits-mesa" },
+                  { "name": "wpe-linux-bot-21", "platform": "wpe-rpi4-32bits-mesa" },
+                  { "name": "wpe-linux-bot-22", "platform": "wpe-rpi4-32bits-mesa" },
+                  { "name": "wpe-linux-bot-23", "platform": "wpe-rpi4-32bits-mesa" },
+                  { "name": "wpe-linux-bot-24", "platform": "wpe-rpi4-32bits-mesa" },
+                  { "name": "wpe-linux-bot-25", "platform": "wpe-rpi4-32bits-mesa" },
+                  { "name": "wpe-linux-bot-26", "platform": "wpe-rpi4-32bits-mesa" },
+                  { "name": "wpe-linux-bot-27", "platform": "wpe-rpi4-64bits-mesa" },
+                  { "name": "wpe-linux-bot-28", "platform": "wpe-rpi4-64bits-mesa" },
+                  { "name": "wpe-linux-bot-29", "platform": "wpe-rpi4-64bits-mesa" },
+                  { "name": "wpe-linux-bot-30", "platform": "wpe-rpi4-64bits-mesa" },
+                  { "name": "wpe-linux-bot-31", "platform": "wpe-rpi4-64bits-mesa" },
+                  { "name": "wpe-linux-bot-32", "platform": "wpe-rpi4-64bits-mesa" },
+                  { "name": "wpe-linux-bot-33", "platform": "wpe-rpi4-64bits-mesa" },
+                  { "name": "wpe-linux-bot-34", "platform": "wpe-rpi4-64bits-mesa" },
                   { "name": "wpe-linux-bot-35", "platform": "wpe" },
                   { "name": "wpe-linux-bot-36", "platform": "wpe" },
                   { "name": "wpe-linux-bot-37", "platform": "wpe" },
@@ -310,12 +310,13 @@
                   "workernames": ["bot258"]
                   },
                   {
-                    "name": "Apple-Sequoia-Safer-CPP-Checks", "factory": "SaferCPPStaticAnalyzerFactory",
-                    "platform": "mac-sequoia", "configuration": "release", "architectures": ["arm64"],
+                    "name": "Apple-Tahoe-Safer-CPP-Checks", "factory": "SaferCPPStaticAnalyzerFactory",
+                    "platform": "mac-tahoe", "configuration": "release", "architectures": ["arm64"],
                     "workernames": ["bot600"]
                   },
                   { "name": "Apple-Sequoia-Release-Build", "factory": "BuildFactory",
                   "platform": "mac-sequoia", "configuration": "release", "architectures": ["x86_64", "arm64"],
+                  "deployment_target": "15.4",
                   "triggers": [
                       "sequoia-release-tests-wk1", "sequoia-release-tests-wk2",
                       "sequoia-release-applesilicon-tests-wk2",
@@ -341,6 +342,7 @@
                   },
                   { "name": "Apple-Sequoia-Debug-Build", "factory": "BuildFactory",
                   "platform": "mac-sequoia", "configuration": "debug", "architectures": ["x86_64", "arm64"],
+                  "deployment_target": "15.4",
                   "triggers": [
                       "sequoia-debug-tests-wk1", "sequoia-debug-tests-wk2",
                       "sequoia-debug-applesilicon-tests-wk2", "sequoia-debug-tests-test262"
@@ -708,26 +710,26 @@
                   },
                   {
                     "name": "WPE-Linux-RPi4-32bits-Mesa-Release-Perf-Build", "factory": "CrossTargetBuildFactory",
-                    "platform": "wpe", "configuration": "release", "architectures": ["armv7"],
+                    "platform": "wpe-rpi4-32bits-mesa", "configuration": "release", "architectures": ["armv7"],
                     "additionalArguments": ["--cross-target=rpi4-32bits-mesa"],
                     "triggers": ["wpe-linux-rpi4-32-mesa-release-perf-tests"],
                     "workernames": ["wpe-linux-bot-17"]
                   },
                   {
                     "name": "WPE-Linux-RPi4-64bits-Mesa-Release-Perf-Build", "factory": "CrossTargetBuildFactory",
-                    "platform": "wpe", "configuration": "release", "architectures": ["arm64"],
+                    "platform": "wpe-rpi4-64bits-mesa", "configuration": "release", "architectures": ["arm64"],
                     "additionalArguments": ["--cross-target=rpi4-64bits-mesa"],
                     "triggers": ["wpe-linux-rpi4-64-mesa-release-perf-tests"],
                     "workernames": ["wpe-linux-bot-18"]
                   },
                   {
                     "name": "WPE-Linux-RPi4-32bits-Mesa-Release-Perf-Tests", "factory": "CrossTargetDownloadAndPerfTestFactory",
-                    "platform": "wpe", "configuration": "release", "architectures": ["armv7"],
+                    "platform": "wpe-rpi4-32bits-mesa", "configuration": "release", "architectures": ["armv7"],
                     "workernames": ["wpe-linux-bot-19", "wpe-linux-bot-20", "wpe-linux-bot-21", "wpe-linux-bot-22", "wpe-linux-bot-23", "wpe-linux-bot-24", "wpe-linux-bot-25", "wpe-linux-bot-26"]
                   },
                   {
                     "name": "WPE-Linux-RPi4-64bits-Mesa-Release-Perf-Tests", "factory": "CrossTargetDownloadAndPerfTestFactory",
-                    "platform": "wpe", "configuration": "release", "architectures": ["arm64"],
+                    "platform": "wpe-rpi4-64bits-mesa", "configuration": "release", "architectures": ["arm64"],
                     "workernames": ["wpe-linux-bot-27", "wpe-linux-bot-28", "wpe-linux-bot-29", "wpe-linux-bot-30", "wpe-linux-bot-31", "wpe-linux-bot-32", "wpe-linux-bot-33", "wpe-linux-bot-34"]
                   },
                   {
@@ -795,7 +797,7 @@
                                      "WPE-Linux-ARM64-bit-Release-Build"]
                   },
                   { "type": "PlatformSpecificScheduler", "platform": "mac-tahoe", "branch": "main", "treeStableTimer": 45.0,
-                  "builderNames": ["Apple-Tahoe-Release-Build", "Apple-Tahoe-Debug-Build", "Apple-Tahoe-LLINT-CLoop-BuildAndTest"]
+                  "builderNames": ["Apple-Tahoe-Release-Build", "Apple-Tahoe-Debug-Build", "Apple-Tahoe-LLINT-CLoop-BuildAndTest", "Apple-Tahoe-Safer-CPP-Checks"]
                   },
                   { "type": "Triggerable", "name": "tahoe-release-tests-wk1",
                   "builderNames": ["Apple-Tahoe-Release-WK1-Tests"]
@@ -837,7 +839,7 @@
                     "builderNames": ["Apple-Tahoe-Release-World-Leaks-Tests"]
                   },
                   { "type": "PlatformSpecificScheduler", "platform": "mac-sequoia", "branch": "main", "treeStableTimer": 45.0,
-                  "builderNames": ["Apple-Sequoia-Release-Build", "Apple-Sequoia-Debug-Build", "Apple-Sequoia-Safer-CPP-Checks", "Apple-Sequoia-AppleSilicon-O3-Debug-JSC-BuildAndTest"]
+                  "builderNames": ["Apple-Sequoia-Release-Build", "Apple-Sequoia-Debug-Build", "Apple-Sequoia-AppleSilicon-O3-Debug-JSC-BuildAndTest"]
                   },
                   { "type": "Triggerable", "name": "sequoia-release-tests-wk1",
                   "builderNames": ["Apple-Sequoia-Release-WK1-Tests"]

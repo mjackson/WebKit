@@ -134,7 +134,7 @@ public:
 
     RegisterSet validRegisters() const { return m_validRegisters; }
     RegisterSet freeRegisters() const { return m_freeRegisters; }
-    RegisterSet allocatedRegisters() const { return RegisterSetBuilder(m_validRegisters).exclude(m_freeRegisters).buildAndValidate(); }
+    RegisterSet allocatedRegisters() const { return RegisterSet(m_validRegisters).exclude(m_freeRegisters); }
     const RegisterBinding& bindingFor(Register reg) const { return m_bindings[reg]; }
     // FIXME: We should really compress this since it's copied by slow paths to know how to restore the correct state.
     RegisterBindings copyBindings() const { return m_bindings; }

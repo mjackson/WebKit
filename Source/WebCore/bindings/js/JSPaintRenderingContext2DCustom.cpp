@@ -33,7 +33,7 @@
 namespace WebCore {
 using namespace JSC;
 
-inline WebCoreOpaqueRoot root(CustomPaintCanvas* canvas)
+inline WebCoreOpaqueRoot NODELETE root(CustomPaintCanvas* canvas)
 {
     return WebCoreOpaqueRoot { canvas };
 }
@@ -48,11 +48,11 @@ bool JSPaintRenderingContext2DOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC:
 }
 
 template<typename Visitor>
-void JSPaintRenderingContext2D::visitAdditionalChildren(Visitor& visitor)
+void JSPaintRenderingContext2D::visitAdditionalChildrenInGCThread(Visitor& visitor)
 {
     addWebCoreOpaqueRoot(visitor, wrapped().canvas());
 }
 
-DEFINE_VISIT_ADDITIONAL_CHILDREN(JSPaintRenderingContext2D);
+DEFINE_VISIT_ADDITIONAL_CHILDREN_IN_GC_THREAD(JSPaintRenderingContext2D);
 
 } // namespace WebCore

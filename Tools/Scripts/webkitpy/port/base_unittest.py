@@ -39,6 +39,7 @@ from webkitpy.common.system.systemhost_mock import MockSystemHost
 from webkitpy.common.host_mock import MockHost
 from webkitpy.port import Port
 from webkitpy.port.test import add_unit_tests_to_mock_filesystem, TestPort
+from webkitpy.thirdparty.mock import patch
 
 from webkitcorepy import OutputCapture
 from webkitscmpy import mocks
@@ -291,7 +292,10 @@ class PortTest(unittest.TestCase):
         self.assertFalse(port._should_use_jhbuild())
         port._filesystem.maybe_make_directory(jhbuild_path)
         self.assertTrue(port._filesystem.isdir(jhbuild_path))
-        self.assertTrue(port._should_use_jhbuild())
+        # false unless WEBKIT_JHBUILD=1 in env
+        self.assertFalse(port._should_use_jhbuild())
+        with patch('os.environ', {'WEBKIT_JHBUILD': '1'}):
+            self.assertTrue(port._should_use_jhbuild())
 
     def test_commits_for_upload(self):
         with mocks.local.Svn(path='/'), mocks.local.Git():

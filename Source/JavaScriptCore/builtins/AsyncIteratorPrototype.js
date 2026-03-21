@@ -46,12 +46,12 @@ function asyncDispose()
         return promise;
     }
 
-    if (returnMethod === @undefined)
+    if (@isUndefinedOrNull(returnMethod))
         @resolvePromiseWithFirstResolvingFunctionCallCheck(promise, @undefined);
     else {
         var result;
         try {
-            result = returnMethod.@call(this);
+            result = returnMethod.@call(this, @undefined);
         } catch (e) {
             @rejectPromiseWithFirstResolvingFunctionCallCheck(promise, e);
             return promise;

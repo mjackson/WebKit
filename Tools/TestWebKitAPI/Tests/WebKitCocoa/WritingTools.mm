@@ -46,11 +46,15 @@
 #import <WebCore/ColorCocoa.h>
 #import <WebCore/FloatRect.h>
 #import <WebCore/IntRect.h>
+#import <WebKit/WKContentWorldPrivate.h>
+#import <WebKit/WKJSHandle.h>
 #import <WebKit/WKMenuItemIdentifiersPrivate.h>
 #import <WebKit/WKWebViewConfigurationPrivate.h>
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/WebKit.h>
+#import <WebKit/_WKContentWorldConfiguration.h>
+#import <WebKit/_WKJSHandle.h>
 #import <WebKit/_WKProcessPoolConfiguration.h>
 #import <WebKit/_WKTextPreview.h>
 #import <pal/spi/cocoa/WritingToolsSPI.h>
@@ -3400,7 +3404,7 @@ TEST(WritingTools, ContextMenuItemsNonEditable)
         if (subItem.isSeparatorItem)
             continue;
 
-        EXPECT_EQ(subItem.enabled, subItem.tag != WTRequestedToolCompose);
+        EXPECT_TRUE(subItem.enabled);
     }
 #endif
 }
@@ -3507,7 +3511,7 @@ TEST(WritingTools, AppMenuNonEditable)
         if (subItem.isSeparatorItem)
             continue;
 
-        EXPECT_EQ([webView validateUserInterfaceItem:subItem], subItem.tag != WTRequestedToolCompose);
+        EXPECT_TRUE([webView validateUserInterfaceItem:subItem]);
     }
 }
 
@@ -4529,6 +4533,57 @@ TEST(WritingToolsContextGeneration, ContextWithStyledContentChildrenInList)
     } };
 
     runContextGenerationTest(html, expected);
+}
+
+TEST(WritingTools, WritingToolsPreservedNodesFromClient)
+{
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p>Hello world</p><div id='myPreservedNode'>Do not rewrite</div><p>Goodbye</p></body>"]);
+    [webView focusDocumentBodyAndSelectAll];
+
+    RetainPtr worldConfiguration = adoptNS([_WKContentWorldConfiguration new]);
+    [worldConfiguration setJSHandleCreationEnabled:YES];
+    RetainPtr world = [WKContentWorld _worldWithConfiguration:worldConfiguration.get()];
+
+    RetainPtr handle = [webView querySelector:@"#myPreservedNode" frame:nil world:world.get()];
+    EXPECT_NOT_NULL(handle);
+
+    [webView _addWritingToolsPreservedNodes:@[ handle.get() ]];
+
+    __block bool finished = false;
+    [[webView writingToolsDelegate] willBeginWritingToolsSession:session.get() requestContexts:^(NSArray<WTContext *> *contexts) {
+        EXPECT_EQ(1UL, contexts.count);
+
+        EXPECT_WK_STREQ(@"Hello world\n\nDo not rewrite\nGoodbye", contexts.firstObject.attributedText.string);
+
+        __block size_t i = 0;
+        [contexts.firstObject.attributedText enumerateAttribute:WTWritingToolsPreservedAttributeName inRange:NSMakeRange(0, [contexts.firstObject.attributedText length]) options:0 usingBlock:^(id value, NSRange attributeRange, BOOL *stop) {
+            switch (i) {
+            case 0: // "Hello world".
+                EXPECT_NULL(value);
+                break;
+
+            case 1: // "Do not rewrite".
+                EXPECT_EQ([value integerValue], 1);
+                break;
+
+            case 2: // "Goodbye".
+                EXPECT_NULL(value);
+                break;
+
+            default:
+                ASSERT_NOT_REACHED();
+                break;
+            }
+
+            ++i;
+        }];
+
+        finished = true;
+    }];
+
+    TestWebKitAPI::Util::run(&finished);
 }
 
 #endif

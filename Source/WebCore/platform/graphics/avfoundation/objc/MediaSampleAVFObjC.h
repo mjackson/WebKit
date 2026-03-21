@@ -68,15 +68,14 @@ public:
     WEBCORE_EXPORT Ref<MediaSample> createNonDisplayingCopy() const override;
 
     CMSampleBufferRef sampleBuffer() const { return m_sample.get(); }
-    RetainPtr<CMSampleBufferRef> protectedSampleBuffer() const { return m_sample; }
 
     bool isHomogeneous() const;
     Vector<Ref<MediaSampleAVFObjC>> divideIntoHomogeneousSamples();
 
 #if ENABLE(ENCRYPTED_MEDIA) && HAVE(AVCONTENTKEYSESSION)
     void setKeyIDs(CDMKeyIDs&& keyIDs) { m_keyIDs = WTF::move(keyIDs); }
-    const CDMKeyIDs& keyIDs() const { return m_keyIDs; }
-    CDMKeyIDs& keyIDs() { return m_keyIDs; }
+    const CDMKeyIDs& keyIDs() const LIFETIME_BOUND { return m_keyIDs; }
+    CDMKeyIDs& keyIDs() LIFETIME_BOUND { return m_keyIDs; }
 #endif
 
     static bool isCMSampleBufferNonDisplaying(CMSampleBufferRef);

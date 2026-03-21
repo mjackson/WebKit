@@ -78,12 +78,12 @@ public:
 
     WEBCORE_EXPORT unsigned naturalWidth() const;
     WEBCORE_EXPORT unsigned naturalHeight() const;
-    const URL& currentURL() const { return m_currentURL; }
+    const URL& currentURL() const LIFETIME_BOUND { return m_currentURL; }
     WEBCORE_EXPORT const AtomString& currentSrc();
 
     bool isServerMap() const;
 
-    const AtomString& altText() const;
+    const AtomString& NODELETE altText() const;
 
     WEBCORE_EXPORT CachedImage* NODELETE cachedImage() const;
 
@@ -139,12 +139,15 @@ public:
 
     AtomString srcsetForBindings() const;
 
-    bool usesSrcsetOrPicture() const;
+    bool NODELETE usesSrcsetOrPicture() const;
 
     enum LoadingValues { Lazy, Eager };
 
     bool isLazyLoadable() const;
     static bool hasLazyLoadableAttributeValue(StringView);
+    bool hasAutoSizes() const;
+    static bool hasAutoSizesAttributeValue(StringView);
+    void scheduleAutoSizesResolution();
 
     bool NODELETE isDeferred() const;
 
@@ -201,8 +204,8 @@ private:
 
     bool canStartSelection() const override;
 
-    bool isURLAttribute(const Attribute&) const override;
-    bool attributeContainsURL(const Attribute&) const override;
+    bool NODELETE isURLAttribute(const Attribute&) const override;
+    bool NODELETE attributeContainsURL(const Attribute&) const override;
     String completeURLsInAttributeValue(const URL& base, const Attribute&, ResolveURLs = ResolveURLs::Yes) const override;
     Attribute replaceURLsInAttributeValue(const Attribute&, const CSS::SerializationContext&) const override;
 
@@ -211,8 +214,8 @@ private:
     void addSubresourceAttributeURLs(ListHashSet<URL>&) const override;
     void addCandidateSubresourceURLs(ListHashSet<URL>&) const override;
 
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) override;
-    void removedFromAncestor(RemovalType, ContainerNode&) override;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) override;
+    void removingSteps(RemovalType, ContainerNode&) override;
 
     bool NODELETE isFormListedElement() const final { return false; }
     FormAssociatedElement* NODELETE asFormAssociatedElement() final { return this; }
@@ -233,6 +236,8 @@ private:
     void selectImageSource(RelevantMutation);
 
     ImageCandidate bestFitSourceFromPictureElement();
+
+    std::optional<float> autoSizesLayoutWidth() const;
 
     void copyNonAttributePropertiesFromElement(const Element&) final;
 

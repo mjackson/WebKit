@@ -542,7 +542,7 @@ void AudioContext::didReceiveRemoteControlCommand(PlatformMediaSession::RemoteCo
 std::optional<MediaSessionGroupIdentifier> AudioContext::mediaSessionGroupIdentifier() const
 {
     RefPtr document = this->document();
-    return document && document->page() ? protect(document->page())->mediaSessionGroupIdentifier() : std::nullopt;
+    return document && document->page() ? document->page()->mediaSessionGroupIdentifier() : std::nullopt;
 }
 
 static bool hasPlayBackAudioSession(Document* document)
@@ -605,14 +605,15 @@ std::optional<NowPlayingInfo> AudioContext::nowPlayingInfo() const
         m_currentIdentifier,
         isPlaying(),
         !page->isVisibleAndActive(),
-        false
+        false,
+        MediaPlayerEnums::VideoFullscreenModeNone
     };
 
     if (page->usesEphemeralSession() && !document->settings().allowPrivacySensitiveOperationsInNonPersistentDataStores())
         return nowPlayingInfo;
 
 #if ENABLE(MEDIA_SESSION)
-    if (RefPtr mediaSession = NavigatorMediaSession::mediaSessionIfExists(window->protectedNavigator()))
+    if (RefPtr mediaSession = NavigatorMediaSession::mediaSessionIfExists(protect(window->navigator())))
         mediaSession->updateNowPlayingInfo(nowPlayingInfo);
 #endif
 
@@ -647,7 +648,7 @@ WeakPtr<PlatformMediaSessionInterface> AudioContext::selectBestMediaSession(cons
 
 bool AudioContext::isSuspended() const
 {
-    RefPtr document = this->document();
+    auto* document = this->document();
     return !document || document->activeDOMObjectsAreSuspended() || document->activeDOMObjectsAreStopped();
 }
 

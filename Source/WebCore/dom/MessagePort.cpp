@@ -145,7 +145,7 @@ MessagePort::~MessagePort()
 
 void MessagePort::entangle()
 {
-    MessagePortChannelProvider::protectedFromContext(*protect(scriptExecutionContext()))->entangleLocalPortInThisProcessToRemote(m_identifier, m_remoteIdentifier);
+    protect(MessagePortChannelProvider::fromContext(*protect(scriptExecutionContext())))->entangleLocalPortInThisProcessToRemote(m_identifier, m_remoteIdentifier);
 }
 
 ExceptionOr<void> MessagePort::postMessage(JSC::JSGlobalObject& globalObject, JSC::JSValue messageValue, StructuredSerializeOptions&& options)
@@ -179,7 +179,7 @@ ExceptionOr<void> MessagePort::postMessage(JSC::JSGlobalObject& globalObject, JS
 
     LOG(MessagePorts, "Actually posting message to port %s (to be received by port %s)", m_identifier.logString().utf8().data(), m_remoteIdentifier.logString().utf8().data());
 
-    MessagePortChannelProvider::protectedFromContext(*protect(scriptExecutionContext()))->postMessageToRemote(WTF::move(message), m_remoteIdentifier);
+    protect(MessagePortChannelProvider::fromContext(*protect(scriptExecutionContext())))->postMessageToRemote(WTF::move(message), m_remoteIdentifier);
     return { };
 }
 
@@ -194,7 +194,7 @@ TransferredMessagePort MessagePort::disentangle()
     m_entangled = false;
 
     Ref context = *scriptExecutionContext();
-    MessagePortChannelProvider::protectedFromContext(context)->messagePortDisentangled(m_identifier);
+    protect(MessagePortChannelProvider::fromContext(context))->messagePortDisentangled(m_identifier);
 
     // We can't receive any messages or generate any events after this, so remove ourselves from the list of active ports.
     context->destroyedMessagePort(*this);
@@ -306,7 +306,7 @@ void MessagePort::dispatchMessages()
         }
     };
 
-    MessagePortChannelProvider::protectedFromContext(*context)->takeAllMessagesForPort(m_identifier, WTF::move(messagesTakenHandler));
+    protect(MessagePortChannelProvider::fromContext(*context))->takeAllMessagesForPort(m_identifier, WTF::move(messagesTakenHandler));
 }
 
 void MessagePort::dispatchEvent(Event& event)

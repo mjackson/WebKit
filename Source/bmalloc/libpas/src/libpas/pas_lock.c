@@ -33,7 +33,7 @@
 #include <mach/thread_switch.h>
 #endif
 
-#if !PAS_PLATFORM(PLAYSTATION) && (PAS_OS(LINUX) || PAS_OS(WINDOWS) || PAS_OS(FREEBSD))
+#if PAS_OS(LINUX) || PAS_OS(WINDOWS) || PAS_OS(FREEBSD)
 
 #if PAS_OS(LINUX)
 #include <linux/futex.h>
@@ -64,6 +64,16 @@ static inline void pas_lock_futex_wait(unsigned* addr, unsigned val)
 static inline void pas_lock_futex_wake(unsigned* addr)
 {
     WakeByAddressSingle(addr);
+}
+#elif PAS_PLATFORM(PLAYSTATION)
+static inline long pas_lock_futex_wait(unsigned* addr, unsigned val)
+{
+    return _umtx_op(addr, UMTX_OP_WAIT_UINT_PRIVATE, val, NULL, NULL, 0);
+}
+
+static inline long pas_lock_futex_wake(unsigned* addr)
+{
+    return _umtx_op(addr, UMTX_OP_WAKE_PRIVATE, 1, NULL, NULL, 0);
 }
 #elif PAS_OS(FREEBSD)
 static inline long pas_lock_futex_wait(unsigned* addr, unsigned val)
@@ -105,6 +115,6 @@ void pas_lock_unlock_slow(pas_lock* lock)
     pas_lock_futex_wake(&lock->futex);
 }
 
-#endif /* !PAS_PLATFORM(PLAYSTATION) && (PAS_OS(LINUX) || PAS_OS(WINDOWS) || PAS_OS(FREEBSD)) */
+#endif /* PAS_OS(LINUX) || PAS_OS(WINDOWS) || PAS_OS(FREEBSD) */
 
 #endif /* LIBPAS_ENABLED */

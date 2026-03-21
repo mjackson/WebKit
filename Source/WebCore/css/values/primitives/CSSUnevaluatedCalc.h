@@ -60,7 +60,8 @@ void unevaluatedCalcDeref(CSSCalc::Value*);
 // will be evaluated to, allowing the processing of calc in generic code.
 
 // Non-generic base type to allow code sharing and out-of-line definitions.
-struct UnevaluatedCalcBase {
+class UnevaluatedCalcBase {
+public:
     UnevaluatedCalcBase(CSSCalc::Value&);
     UnevaluatedCalcBase(Ref<CSSCalc::Value>&&);
 
@@ -70,7 +71,7 @@ struct UnevaluatedCalcBase {
     UnevaluatedCalcBase& operator=(UnevaluatedCalcBase&&);
     ~UnevaluatedCalcBase();
 
-    Ref<CSSCalc::Value> NODELETE protectedCalc() const;
+    CSSCalc::Value& calcValue() const { return m_calc; }
     [[nodiscard]] CSSCalc::Value& NODELETE leakRef();
 
     bool requiresConversionData() const;
@@ -90,7 +91,7 @@ struct UnevaluatedCalcBase {
     bool equal(const UnevaluatedCalcBase&) const;
 
 private:
-    Ref<CSSCalc::Value> calc;
+    Ref<CSSCalc::Value> m_calc;
 };
 
 template<NumericRaw RawType> struct UnevaluatedCalc : UnevaluatedCalcBase {

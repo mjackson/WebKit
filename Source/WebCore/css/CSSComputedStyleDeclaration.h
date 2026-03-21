@@ -73,7 +73,7 @@ private:
     ExceptionOr<void> NODELETE setPropertyInternal(CSSPropertyID, const String& value, IsImportant) final;
     Ref<MutableStyleProperties> copyProperties() const final;
 
-    Ref<Element> protectedElement() const { return m_element; }
+    Element& element() const { return m_element; }
 
     const Settings* NODELETE settings() const final;
     const FixedVector<CSSPropertyID>& exposedComputedCSSPropertyIDs() const;

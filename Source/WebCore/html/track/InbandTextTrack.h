@@ -54,7 +54,6 @@ public:
     String inBandMetadataTrackDispatchType() const override;
 
     void setPrivate(InbandTextTrackPrivate&);
-    Ref<InbandTextTrackPrivate> NODELETE protectedPrivate() const;
 #if !RELEASE_LOG_DISABLED
     void setLogger(const Logger&, uint64_t) final;
 #endif

@@ -15,7 +15,7 @@ bridge/objc/WebScriptObject.mm
 bridge/objc/objc_instance.mm
 bridge/objc/objc_runtime.mm
 bridge/objc/objc_utility.mm
-crypto/cocoa/SerializedCryptoKeyWrapMac.mm
+crypto/cocoa/SerializedCryptoKeyWrapCocoa.mm
 editing/SmartReplaceCF.cpp
 [ iOS ] editing/cocoa/DataDetection.mm
 editing/cocoa/EditingHTMLConverter.mm
@@ -23,7 +23,7 @@ editing/cocoa/FontAttributeChangesCocoa.mm
 editing/cocoa/NodeHTMLConverter.mm
 editing/cocoa/WebContentReaderCocoa.mm
 inspector/agents/page/PageTimelineAgent.cpp
-[ iOS ] page/InteractionRegion.cpp
+page/InteractionRegion.cpp
 page/cocoa/PageCocoa.mm
 page/cocoa/WebTextIndicatorLayer.mm
 [ iOS ] page/ios/EventHandlerIOS.mm
@@ -42,7 +42,7 @@ platform/cf/MainThreadSharedTimerCF.cpp
 platform/cocoa/FileMonitorCocoa.mm
 platform/cocoa/LocalizedStringsCocoa.mm
 platform/cocoa/NetworkExtensionContentFilter.mm
-[ iOS ] platform/cocoa/ParentalControlsURLFilter.mm
+platform/cocoa/ParentalControlsURLFilter.mm
 platform/cocoa/PlatformPasteboardCocoa.mm
 platform/cocoa/SearchPopupMenuCocoa.mm
 platform/cocoa/UserAgentCocoa.mm
@@ -51,7 +51,7 @@ platform/cocoa/WebAVPlayerLayer.mm
 platform/graphics/BitmapImageDescriptor.cpp
 platform/graphics/avfoundation/AVTrackPrivateAVFObjCImpl.mm
 platform/graphics/avfoundation/AudioSourceProviderAVFObjC.mm
-[ iOS ] platform/graphics/avfoundation/FormatDescriptionUtilities.cpp
+platform/graphics/avfoundation/FormatDescriptionUtilities.cpp
 [ Mac ] platform/graphics/avfoundation/objc/AVOutputDeviceMenuControllerTargetPicker.mm
 [ Mac ] platform/graphics/avfoundation/objc/AVRoutePickerViewTargetPicker.mm
 platform/graphics/avfoundation/objc/CDMInstanceFairPlayStreamingAVFObjC.mm
@@ -79,10 +79,8 @@ platform/graphics/cg/ImageBufferIOSurfaceBackend.cpp
 [ iOS ] platform/graphics/cg/PDFDocumentImage.cpp
 platform/graphics/cg/PathCG.cpp
 platform/graphics/cocoa/CMUtilities.mm
-platform/graphics/cocoa/FontCacheCoreText.cpp
 platform/graphics/cocoa/GraphicsContextCocoa.mm
 platform/graphics/cocoa/MediaPlayerPrivateWebM.mm
-platform/graphics/cocoa/SystemFontDatabaseCoreText.cpp
 platform/graphics/cocoa/TextTrackRepresentationCocoa.mm
 platform/graphics/cocoa/VideoMediaSampleRenderer.mm
 platform/graphics/cocoa/WebCoreCALayerExtras.mm
@@ -124,9 +122,9 @@ platform/mediastream/mac/AVVideoCaptureSource.mm
 [ Mac ] platform/mediastream/mac/ScreenCaptureKitCaptureSource.mm
 [ Mac ] platform/mediastream/mac/ScreenCaptureKitSharingSessionManager.mm
 platform/network/cf/DNSResolveQueueCFNet.cpp
-platform/network/mac/ResourceHandleMac.mm
-platform/network/mac/SynchronousLoaderClient.mm
-platform/network/mac/WebCoreResourceHandleAsOperationQueueDelegate.mm
+platform/network/cocoa/ResourceHandleCocoa.mm
+platform/network/cocoa/SynchronousLoaderClient.mm
+platform/network/cocoa/WebCoreResourceHandleAsOperationQueueDelegate.mm
 [ iOS ] platform/text/mac/TextBoundaries.mm
 rendering/AttachmentLayout.mm
 [ iOS ] rendering/ios/RenderThemeIOS.mm

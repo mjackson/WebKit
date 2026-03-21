@@ -41,7 +41,7 @@ public:
     TextDecorationPainter(GraphicsContext&, const FontCascade&, const Style::TextShadows&, const Style::AppleColorFilter&, bool isPrinting, WritingMode);
 
     struct Styles {
-        bool operator==(const Styles&) const;
+        bool NODELETE operator==(const Styles&) const;
 
         struct DecorationStyleAndColor {
             Color color;
@@ -54,7 +54,7 @@ public:
     struct BackgroundDecorationGeometry {
         FloatPoint textOrigin;
         FloatPoint boxOrigin;
-        float textBoxWidth { 0.f };
+        float width { 0.f };
         float textDecorationThickness { 0.f };
         float underlineOffset { 0.f };
         float overlineOffset { 0.f };
@@ -75,7 +75,7 @@ public:
 
     static Color decorationColor(const RenderStyle&, OptionSet<PaintBehavior> paintBehavior = { });
     static Styles stylesForRenderer(const RenderObject&, Style::TextDecorationLine requestedDecorations, bool firstLineStyle = false, OptionSet<PaintBehavior> paintBehavior = { }, std::optional<PseudoElementType> = { });
-    static Style::TextDecorationLine textDecorationsInEffectForStyle(const TextDecorationPainter::Styles&);
+    static Style::TextDecorationLine NODELETE textDecorationsInEffectForStyle(const TextDecorationPainter::Styles&);
 
 private:
     void paintLineThrough(const ForegroundDecorationGeometry&, const Color&, const Styles&);

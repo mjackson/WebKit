@@ -126,8 +126,6 @@ private:
     void didFail(std::optional<uint32_t>&&, String&&) final;
     void didDrain() final;
 
-    RefPtr<WebTransportSession> NODELETE protectedSession();
-
     ListHashSet<Ref<WritableStream>> m_sendStreams;
     ListHashSet<Ref<ReadableStream>> m_receiveStreams;
     const Ref<ReadableStream> m_incomingBidirectionalStreams;

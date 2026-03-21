@@ -306,7 +306,7 @@ private:
         CompilerTimingScope timingScope("Air"_s, "StackAllocator::assign"_s);
 
         // Now we assign stack locations. At its heart this algorithm is just first-fit. For each
-        // StackSlot we just want to find the offsetFromFP that is closest to zero while ensuring no
+        // StackSlot we just want to find the offsetFromFP that is least negative while ensuring no
         // overlap with other StackSlots that this overlaps with.
         Vector<StackSlot*> otherSlots = assignedEscapedStackSlots;
         for (StackSlot* slot : m_code.stackSlots()) {
@@ -318,14 +318,17 @@ private:
                 continue;
             }
 
-            otherSlots.resize(assignedEscapedStackSlots.size());
+            otherSlots.shrink(0);
+            otherSlots.appendVector(assignedEscapedStackSlots);
             for (unsigned otherSlotIndex : m_interference[slot->index()]) {
                 if (isRemappedSlotIndex(otherSlotIndex))
                     continue;
                 StackSlot* otherSlot = m_code.stackSlots()[otherSlotIndex];
-                otherSlots.append(otherSlot);
+                if (otherSlot->offsetFromFP())
+                    otherSlots.append(otherSlot);
             }
 
+            std::ranges::sort(otherSlots, std::ranges::greater { }, &StackSlot::offsetFromFP);
             assign(slot, otherSlots);
         }
     }

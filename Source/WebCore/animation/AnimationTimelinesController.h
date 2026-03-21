@@ -74,7 +74,7 @@ public:
     bool animationsAreSuspended() const { return m_isSuspended; }
 
 #if ENABLE(THREADED_ANIMATIONS)
-    AcceleratedEffectStackUpdater* existingAcceleratedEffectStackUpdater() const { return m_acceleratedEffectStackUpdater.get(); }
+    AcceleratedEffectStackUpdater* existingAcceleratedEffectStackUpdater() const LIFETIME_BOUND { return m_acceleratedEffectStackUpdater.get(); }
     void scheduleAcceleratedEffectStackUpdateForTarget(const Styleable&);
     void runPostRenderingUpdateTasks();
 #endif
@@ -85,11 +85,11 @@ private:
 
     ReducedResolutionSeconds liveCurrentTime() const;
     void cacheCurrentTime(ReducedResolutionSeconds);
-    void clearCachedCurrentTime();
+    void NODELETE clearCachedCurrentTime();
     void processPendingAnimations();
     bool isPendingTimelineAttachment(const WebAnimation&) const;
 
-    Ref<Document> protectedDocument() const { return m_document.get(); }
+    Document& document() const { return m_document; }
 
 #if ENABLE(THREADED_ANIMATIONS)
     std::unique_ptr<AcceleratedEffectStackUpdater> m_acceleratedEffectStackUpdater;

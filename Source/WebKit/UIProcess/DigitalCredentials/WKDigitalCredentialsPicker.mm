@@ -48,6 +48,7 @@
 #import <WebCore/ExceptionData.h>
 #import <WebCore/UnvalidatedDigitalCredentialRequest.h>
 #import <WebCore/ValidatedMobileDocumentRequest.h>
+#import <WebCore/X509SubjectKeyIdentifier.h>
 #import <WebKit/WKIdentityDocumentPresentmentController.h>
 #import <WebKit/WKIdentityDocumentPresentmentError.h>
 #import <WebKit/WKIdentityDocumentPresentmentMobileDocumentRequest.h>
@@ -129,6 +130,21 @@ using WebCore::DigitalCredentialPresentationProtocol;
 
 #pragma mark - Adapter functions
 
+static RetainPtr<NSArray<NSData *>> mapIssuerIdentifiersFromX509Identifiers(const std::optional<WebCore::ISO18013IssuerIdentifiers>& identifiers)
+{
+    if (!identifiers || identifiers->isEmpty())
+        return nil;
+
+    RetainPtr mappedIdentifiers = adoptNS([[NSMutableArray alloc] initWithCapacity:identifiers->size()]);
+
+    for (const auto& identifier : *identifiers) {
+        RetainPtr nsData = toNSData(identifier.data);
+        [mappedIdentifiers addObject:nsData.get()];
+    }
+
+    return mappedIdentifiers;
+}
+
 static RetainPtr<NSArray<WKIdentityDocumentPresentmentMobileDocumentIndividualDocumentRequest *>> mapDocumentRequests(const Vector<WebCore::ISO18013DocumentRequest>& documentRequests)
 {
     RetainPtr<NSMutableArray<WKIdentityDocumentPresentmentMobileDocumentIndividualDocumentRequest *>> mappedDocumentRequests = adoptNS([[NSMutableArray alloc] init]);
@@ -152,7 +168,10 @@ static RetainPtr<NSArray<WKIdentityDocumentPresentmentMobileDocumentIndividualDo
         }
 
         RetainPtr documentType = validatedDocumentRequest.documentType.createNSString();
-        RetainPtr mappedDocumentRequest = adoptNS([WebKit::allocWKIdentityDocumentPresentmentMobileDocumentIndividualDocumentRequestInstance() initWithDocumentType:documentType.get() namespaces:namespaces.get()]);
+
+        RetainPtr issuerIdentifiers = mapIssuerIdentifiersFromX509Identifiers(validatedDocumentRequest.requestInfo ? validatedDocumentRequest.requestInfo->issuerIdentifiers : std::nullopt);
+
+        RetainPtr mappedDocumentRequest = adoptNS([WebKit::allocWKIdentityDocumentPresentmentMobileDocumentIndividualDocumentRequestInstance() initWithDocumentType:documentType.get() namespaces:namespaces.get() issuerIdentifiers:issuerIdentifiers.get()]);
         [mappedDocumentRequests addObject:mappedDocumentRequest.get()];
     }
 

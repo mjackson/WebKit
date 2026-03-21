@@ -29,7 +29,7 @@
 #import <wtf/FastMalloc.h>
 #import <wtf/Ref.h>
 #import <wtf/RefCountedAndCanMakeWeakPtr.h>
-#import <wtf/RetainReleaseSwift.h>
+#import <wtf/SwiftBridging.h>
 #import <wtf/TZoneMalloc.h>
 #import <wtf/WeakPtr.h>
 #import <wtf/threads/BinarySemaphore.h>
@@ -69,7 +69,7 @@ public:
     void setBufferMapCount(int bufferMapCount) { m_bufferMapCount = bufferMapCount; }
     int bufferMapCount() const { return m_bufferMapCount; }
 
-    NSString* lastError() const;
+    NSString* NODELETE lastError() const;
     bool waitForCompletion();
     bool preCommitHandler();
     void postCommitHandler();
@@ -99,10 +99,10 @@ private:
 
 inline void refCommandBuffer(WebGPU::CommandBuffer* obj)
 {
-    WTF::ref(obj);
+    obj->ref();
 }
 
 inline void derefCommandBuffer(WebGPU::CommandBuffer* obj)
 {
-    WTF::deref(obj);
+    obj->deref();
 }

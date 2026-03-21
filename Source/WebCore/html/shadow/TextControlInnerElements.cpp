@@ -87,7 +87,7 @@ RenderPtr<RenderElement> TextControlInnerContainer::createElementRenderer(Render
 
 static inline bool isStrongPasswordTextField(const Element* element)
 {
-    RefPtr inputElement = dynamicDowncast<HTMLInputElement>(element);
+    auto* inputElement = dynamicDowncast<HTMLInputElement>(element);
     return inputElement && inputElement->hasAutofillStrongPasswordButton();
 }
 
@@ -140,7 +140,7 @@ std::optional<Style::UnadjustedStyle> TextControlInnerElement::resolveCustomStyl
     // We don't want the shadow DOM to be editable, so we set this block to read-only in case the input itself is editable.
     newStyle->setUserModify(UserModify::ReadOnly);
 
-    if (isStrongPasswordTextField(shadowHost())) {
+    if (isStrongPasswordTextField(protect(shadowHost()))) {
         newStyle->setFlexShrink(0);
         newStyle->setTextOverflow(TextOverflow::Clip);
         newStyle->setOverflowX(Overflow::Hidden);

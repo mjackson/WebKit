@@ -50,7 +50,7 @@ private:
     bool isValid() const override { return SVGTests::isValid(); }
     bool supportsMarkers() const override { return true; }
 
-    Ref<SVGAnimatedPointList> m_points { SVGAnimatedPointList::create(this) };
+    const Ref<SVGAnimatedPointList> m_points { SVGAnimatedPointList::create(this) };
 };
 
 } // namespace WebCore

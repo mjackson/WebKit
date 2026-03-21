@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2026 Apple Inc. All rights reserved.
  * Copyright (C) 2024 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -120,7 +120,7 @@ void CSSFontFaceSet::ensureLocalFontFacesForFamilyRegistered(const AtomString& f
     if (!owningFontSelector->scriptExecutionContext())
         return;
     auto allowUserInstalledFonts = protect(owningFontSelector->scriptExecutionContext())->settingsValues().shouldAllowUserInstalledFonts ? AllowUserInstalledFonts::Yes : AllowUserInstalledFonts::No;
-    auto capabilities = FontCache::forCurrentThread()->getFontSelectionCapabilitiesInFamily(familyName, allowUserInstalledFonts);
+    auto capabilities = protect(FontCache::forCurrentThread())->getFontSelectionCapabilitiesInFamily(familyName, allowUserInstalledFonts);
     if (capabilities.isEmpty())
         return;
 
@@ -482,8 +482,6 @@ CSSSegmentedFontFace* CSSFontFaceSet::fontFace(FontSelectionRequest request, con
             Ref candidate = familyFontFaces[i];
             if (candidate->status() == CSSFontFace::Status::Failure)
                 continue;
-            if (!isItalic(request.slope) && isItalic(candidate->fontSelectionCapabilities().slope.minimum))
-                continue;
             candidateFontFaces.append(candidate);
         }
 
@@ -491,8 +489,6 @@ CSSSegmentedFontFace* CSSFontFaceSet::fontFace(FontSelectionRequest request, con
         if (localIterator != m_locallyInstalledFacesLookupTable.end()) {
             for (auto& candidate : localIterator->value) {
                 if (candidate->status() == CSSFontFace::Status::Failure)
-                    continue;
-                if (!isItalic(request.slope) && isItalic(candidate->fontSelectionCapabilities().slope.minimum))
                     continue;
                 candidateFontFaces.append(candidate);
             }
@@ -504,7 +500,19 @@ CSSSegmentedFontFace* CSSFontFaceSet::fontFace(FontSelectionRequest request, con
         auto capabilities = candidateFontFaces.map([](auto& face) {
             return face.get().fontSelectionCapabilities();
         });
-        FontSelectionAlgorithm fontSelectionAlgorithm(request, capabilities);
+        FontSelectionAlgorithm fontSelectionAlgorithm(request, WTF::move(capabilities));
+
+        // Per CSS Fonts 5.2.6: Only faces with the best-matching width, style, and weight are eligible
+        // to supply glyphs, even via unicode-range.
+        const auto& eliminated = fontSelectionAlgorithm.eliminatedCapabilities();
+        RELEASE_ASSERT(eliminated.size() == candidateFontFaces.size());
+        size_t eliminatedIndex = 0;
+        candidateFontFaces.removeAllMatching([&](auto&) {
+            return eliminated[eliminatedIndex++];
+        });
+        if (candidateFontFaces.isEmpty())
+            return face;
+
         std::ranges::stable_sort(candidateFontFaces, [&fontSelectionAlgorithm](auto& first, auto& second) {
             auto firstCapabilities = first.get().fontSelectionCapabilities();
             auto secondCapabilities = second.get().fontSelectionCapabilities();

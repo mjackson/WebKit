@@ -79,6 +79,7 @@ private:
     void gpuProcessConnectionDidClose(GPUProcessConnection&) final;
 
     void setDidFail(bool);
+    void updateVideoFrameCounters(uint64_t, uint64_t);
 
     ThreadSafeWeakPtr<GPUProcessConnection> m_gpuProcessConnection;
     WeakPtr<SampleBufferDisplayLayerManager> m_manager;
@@ -90,6 +91,8 @@ private:
 
     SharedVideoFrameWriter m_sharedVideoFrameWriter;
     std::optional<WebCore::HostingContext> m_hostingContext;
+    uint64_t m_totalVideoFrames { 0 };
+    uint64_t m_droppedVideoFrames { 0 };
 };
 
 }

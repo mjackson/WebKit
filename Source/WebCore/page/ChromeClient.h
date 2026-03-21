@@ -151,6 +151,8 @@ struct GraphicsContextGLAttributes;
 #endif
 
 struct AppHighlight;
+struct AccessibilityRemoteToken;
+struct AccessibilitySearchCriteriaIPC;
 struct ApplePayAMSUIRequest;
 struct AriaNotifyData;
 struct CharacterRange;
@@ -290,6 +292,9 @@ public:
     virtual std::optional<IntPoint> screenToRootViewUsingCachedPosition(const IntPoint&, const IntSize&) const { return std::nullopt; }
     virtual IntPoint accessibilityScreenToRootView(const IntPoint&) const = 0;
     virtual IntRect rootViewToAccessibilityScreen(const IntRect&) const = 0;
+#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+    virtual void requestFrameScreenPosition(FrameIdentifier) const { }
+#endif
 #if PLATFORM(IOS_FAMILY)
     virtual void relayAccessibilityNotification(String&&, RetainPtr<NSData>&&) const = 0;
     virtual void relayAriaNotifyNotification(AriaNotifyData&&) const = 0;
@@ -515,7 +520,7 @@ public:
     // Returns true if layer tree updates are disabled.
     virtual bool layerTreeStateIsFrozen() const { return false; }
 
-    WEBCORE_EXPORT virtual RefPtr<ScrollingCoordinator> NODELETE createScrollingCoordinator(Page&) const;
+    WEBCORE_EXPORT virtual RefPtr<ScrollingCoordinator> createScrollingCoordinator(Page&) const;
     WEBCORE_EXPORT virtual void ensureScrollbarsController(Page&, ScrollableArea&, bool update = false) const;
 
     virtual bool canEnterVideoFullscreen(HTMLVideoElement&, HTMLMediaElementEnums::VideoFullscreenMode) const { return false; }
@@ -630,6 +635,12 @@ public:
     virtual void isAnyAnimationAllowedToPlayDidChange(bool /* anyAnimationCanPlay */) { };
 #endif
     virtual void resolveAccessibilityHitTestForTesting(WebCore::FrameIdentifier, const IntPoint&, CompletionHandler<void(String)>&& callback) { callback(""_s); };
+#if PLATFORM(MAC)
+    WEBCORE_EXPORT virtual void performAccessibilitySearchInRemoteFrame(FrameIdentifier, const AccessibilitySearchCriteriaIPC&, CompletionHandler<void(Vector<AccessibilityRemoteToken>&&)>&&);
+    // Called by a child frame to continue a search in its parent frame.
+    // The parent searches from the child frame's position in its tree.
+    WEBCORE_EXPORT virtual void continueAccessibilitySearchFromChildFrame(FrameIdentifier childFrameID, const AccessibilitySearchCriteriaIPC&, CompletionHandler<void(Vector<AccessibilityRemoteToken>&&)>&&);
+#endif
 
     virtual void isPlayingMediaDidChange(MediaProducerMediaStateFlags) { }
     virtual void handleAutoplayEvent(AutoplayEvent, OptionSet<AutoplayEventFlags>) { }
@@ -797,6 +808,8 @@ public:
 #if ENABLE(VIDEO)
     WEBCORE_EXPORT virtual void showCaptionDisplaySettings(HTMLMediaElement&, const ResolvedCaptionDisplaySettingsOptions&, CompletionHandler<void(ExceptionOr<void>)>&&);
 #endif
+
+    virtual void updateRemoteIntersectionObserversInOtherWebProcesses() { }
 
     WEBCORE_EXPORT virtual ~ChromeClient();
 

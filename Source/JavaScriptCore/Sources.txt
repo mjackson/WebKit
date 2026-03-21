@@ -291,9 +291,9 @@ bytecode/SetPrivateBrandVariant.cpp
 bytecode/SharedJITStubSet.cpp
 bytecode/SpeculatedType.cpp
 bytecode/StructureSet.cpp
-bytecode/StructureStubClearingWatchpoint.cpp
-bytecode/StructureStubInfo.cpp
-bytecode/StubInfoSummary.cpp
+bytecode/PropertyInlineCacheClearingWatchpoint.cpp
+bytecode/PropertyInlineCache.cpp
+bytecode/PropertyInlineCacheSummary.cpp
 bytecode/SuperSampler.cpp
 bytecode/ToThisStatus.cpp
 bytecode/TrackedReferences.cpp
@@ -627,6 +627,7 @@ interpreter/CachedCall.cpp
 interpreter/CLoopStack.cpp
 interpreter/CallFrame.cpp
 interpreter/Interpreter.cpp
+interpreter/MicrotaskCall.cpp
 interpreter/ShadowChicken.cpp
 interpreter/StackVisitor.cpp
 
@@ -791,6 +792,7 @@ runtime/ConsoleObject.cpp
 runtime/ConstantMode.cpp
 runtime/ConstructData.cpp
 runtime/ControlFlowProfiler.cpp
+runtime/CrossTaskToken.cpp
 runtime/CustomGetterSetter.cpp
 runtime/DOMAttributeGetterSetter.cpp
 runtime/DataView.cpp
@@ -952,6 +954,7 @@ runtime/JSModuleRecord.cpp
 runtime/JSNativeStdFunction.cpp
 runtime/JSONObject.cpp
 runtime/JSObject.cpp
+runtime/JSPIContext.cpp
 runtime/JSPromise.cpp
 runtime/JSPromiseCombinatorsContext.cpp
 runtime/JSPromiseCombinatorsGlobalContext.cpp
@@ -994,6 +997,7 @@ runtime/Lookup.cpp
 runtime/MapConstructor.cpp
 runtime/MapIteratorPrototype.cpp
 runtime/MapPrototype.cpp
+runtime/MarkedVector.cpp
 runtime/MatchResult.cpp
 runtime/MathCommon.cpp
 runtime/MathObject.cpp
@@ -1153,6 +1157,7 @@ tools/JSDollarVM.cpp
 tools/SourceProfiler.cpp
 tools/VMInspector.cpp
 
+wasm/WasmAddressType.cpp
 wasm/WasmOMGIRGenerator.cpp
 wasm/WasmBBQDisassembler.cpp
 wasm/WasmBBQJIT.cpp @no-unify

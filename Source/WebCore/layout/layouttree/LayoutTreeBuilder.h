@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <WebCore/LayoutElementBox.h>
+#include "LayoutElementBox.h"
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {

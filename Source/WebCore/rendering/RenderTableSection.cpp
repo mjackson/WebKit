@@ -34,6 +34,7 @@
 #include "HTMLNames.h"
 #include "HitTestResult.h"
 #include "PaintInfo.h"
+#include "PaintInfoInlines.h"
 #include "RenderBoxInlines.h"
 #include "RenderBoxModelObjectInlines.h"
 #include "RenderChildIterator.h"
@@ -442,7 +443,7 @@ void RenderTableSection::distributeExtraLogicalHeightToAutoRows(LayoutUnit& extr
 
     LayoutUnit totalLogicalHeightAdded;
     for (unsigned r = 0; r < m_grid.size(); ++r) {
-        if (autoRowsCount > 0 && m_grid[r].logicalHeight.isAuto()) {
+        if (autoRowsCount > 0 && m_grid[r].logicalHeight.isAuto() && m_grid[r].rowRenderer) {
             // Recomputing |extraLogicalHeightForRow| guarantees that we properly ditribute round |extraLogicalHeight|.
             LayoutUnit extraLogicalHeightForRow = extraLogicalHeight / autoRowsCount;
             totalLogicalHeightAdded += extraLogicalHeightForRow;
@@ -486,7 +487,7 @@ LayoutUnit RenderTableSection::distributeExtraLogicalHeightToRows(LayoutUnit ext
     unsigned autoRowsCount = 0;
     int totalPercent = 0;
     for (unsigned r = 0; r < totalRows; r++) {
-        if (m_grid[r].logicalHeight.isAuto())
+        if (m_grid[r].logicalHeight.isAuto() && m_grid[r].rowRenderer)
             ++autoRowsCount;
         else if (auto percentageLogicalHeight = m_grid[r].logicalHeight.tryPercentage())
             totalPercent += percentageLogicalHeight->value;
@@ -683,6 +684,19 @@ void RenderTableSection::layoutRows()
     }
 
     ASSERT(!needsLayout());
+
+    // Distribute any extra height from an explicit section height to the rows before
+    // committing the final logical height.
+    auto distributeExplicitSectionHeightToRows = [&] {
+        auto fixedHeight = style().logicalHeight().tryFixed();
+        if (!fixedHeight)
+            return;
+        LayoutUnit specifiedHeight = Style::evaluate<LayoutUnit>(*fixedHeight, style().usedZoomForLength());
+        if (specifiedHeight <= m_rowPos[numberOfRows])
+            return;
+        distributeExtraLogicalHeightToRows(specifiedHeight - m_rowPos[numberOfRows]);
+    };
+    distributeExplicitSectionHeightToRows();
 
     setLogicalHeight(m_rowPos[numberOfRows]);
 
@@ -1295,6 +1309,16 @@ static BoxSide NODELETE physicalBorderForDirection(const WritingMode writingMode
 
 void RenderTableSection::paintObject(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
 {
+    if (paintInfo.phase == PaintPhase::Accessibility) {
+        if (auto* context = paintInfo.accessibilityRegionContext()) {
+            context->takeBounds(*this, paintOffset);
+            for (auto& rowStruct : m_grid) {
+                if (auto* row = rowStruct.rowRenderer; row && !row->hasSelfPaintingLayer())
+                    context->takeBounds(*row, paintOffset + row->location());
+            }
+        }
+    }
+
     auto localRepaintRect = paintInfo.rect;
     localRepaintRect.moveBy(-paintOffset);
 

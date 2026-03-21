@@ -25,8 +25,9 @@
  */
 
 #include "config.h"
-#include "Font.h"
+#include "SimpleFontDataCoreText.h"
 
+#include "Font.h"
 #include <CoreText/CoreText.h>
 #include <pal/spi/cf/CoreTextSPI.h>
 
@@ -54,13 +55,13 @@ static CFNumberRef zeroValue()
     return zeroValue.get().get();
 }
 
-RetainPtr<CFDictionaryRef> Font::getCFStringAttributes(bool enableKerning, FontOrientation orientation, const AtomString& locale) const
+extern RetainPtr<CFDictionaryRef> getCFStringAttributes(const Font& font, bool enableKerning, FontOrientation orientation, const AtomString& locale)
 {
     std::array<CFTypeRef, 5> keys;
     std::array<CFTypeRef, 5> values;
 
     keys[0] = kCTFontAttributeName;
-    values[0] = platformData().ctFont();
+    values[0] = protect(font)->platformData().ctFont();
     size_t count = 1;
 
     RetainPtr<CFStringRef> localeString;

@@ -4461,6 +4461,18 @@ class NoNonVirtualDestructorsTest(CppStyleTestBase):
             '')
 
         self.assert_lint(
+            '''enum class Type : uint8_t { I32, I64 };''',
+            '')
+
+        self.assert_lint(
+            '''enum class Type : uint8_t { A, B };''',
+            '')
+
+        self.assert_lint(
+            '''enum class Type : uint8_t { A1, B2 };''',
+            '')
+
+        self.assert_lint(
             '''enum { aOne = 1, zTwo = 2 };''',
             'enum members should use InterCaps with an initial capital letter or initial \'k\' for C-style enums.  [readability/enum_casing] [4]')
 

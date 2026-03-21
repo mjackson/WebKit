@@ -98,7 +98,7 @@ void Widget::setFocus(bool focused)
     BEGIN_BLOCK_OBJC_EXCEPTIONS
  
     // Call this even when there is no platformWidget(). WK2 will focus on the widget in the UIProcess.
-    RetainPtr view = [protectedPlatformWidget() _webcore_effectiveFirstResponder];
+    RetainPtr view = [protect(platformWidget()) _webcore_effectiveFirstResponder];
     if (RefPtr page = frame->page())
         page->chrome().focusNSView(view.get());
 
@@ -280,7 +280,7 @@ IntPoint Widget::convertFromRootToContainingWindow(const Widget* rootWidget, Int
         return point;
 
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    return IntPoint([rootWidget->protectedPlatformWidget() convertPoint:point toView:nil]);
+    return IntPoint([protect(rootWidget->platformWidget()) convertPoint:point toView:nil]);
     END_BLOCK_OBJC_EXCEPTIONS
     return point;
 }
@@ -291,7 +291,7 @@ FloatPoint Widget::convertFromRootToContainingWindow(const Widget* rootWidget, F
         return point;
 
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    return [rootWidget->protectedPlatformWidget() convertPoint:point toView:nil];
+    return [protect(rootWidget->platformWidget()) convertPoint:point toView:nil];
     END_BLOCK_OBJC_EXCEPTIONS
     return point;
 }
@@ -302,7 +302,7 @@ IntRect Widget::convertFromRootToContainingWindow(const Widget* rootWidget, cons
         return rect;
 
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    return enclosingIntRect([rootWidget->protectedPlatformWidget() convertRect:rect toView:nil]);
+    return enclosingIntRect([protect(rootWidget->platformWidget()) convertRect:rect toView:nil]);
     END_BLOCK_OBJC_EXCEPTIONS
 
     return rect;
@@ -314,7 +314,7 @@ FloatRect Widget::convertFromRootToContainingWindow(const Widget* rootWidget, co
         return rect;
 
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    return [rootWidget->protectedPlatformWidget() convertRect:rect toView:nil];
+    return [protect(rootWidget->platformWidget()) convertRect:rect toView:nil];
     END_BLOCK_OBJC_EXCEPTIONS
 
     return rect;
@@ -328,7 +328,7 @@ IntPoint Widget::convertFromContainingWindowToRoot(const Widget* rootWidget, Int
         return point;
 
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    return IntPoint([rootWidget->protectedPlatformWidget() convertPoint:point fromView:nil]);
+    return IntPoint([protect(rootWidget->platformWidget()) convertPoint:point fromView:nil]);
     END_BLOCK_OBJC_EXCEPTIONS
 
     return point;
@@ -340,7 +340,7 @@ FloatPoint Widget::convertFromContainingWindowToRoot(const Widget* rootWidget, F
         return point;
 
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    return [rootWidget->protectedPlatformWidget() convertPoint:point fromView:nil];
+    return [protect(rootWidget->platformWidget()) convertPoint:point fromView:nil];
     END_BLOCK_OBJC_EXCEPTIONS
 
     return point;
@@ -352,7 +352,7 @@ DoublePoint Widget::convertFromContainingWindowToRoot(const Widget* rootWidget, 
         return point;
 
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    return [rootWidget->protectedPlatformWidget() convertPoint:point fromView:nil];
+    return [protect(rootWidget->platformWidget()) convertPoint:point fromView:nil];
     END_BLOCK_OBJC_EXCEPTIONS
 
     return point;
@@ -364,7 +364,7 @@ IntRect Widget::convertFromContainingWindowToRoot(const Widget* rootWidget, cons
         return rect;
 
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    return enclosingIntRect([rootWidget->protectedPlatformWidget() convertRect:rect fromView:nil]);
+    return enclosingIntRect([protect(rootWidget->platformWidget()) convertRect:rect fromView:nil]);
     END_BLOCK_OBJC_EXCEPTIONS
 
     return rect;
@@ -376,7 +376,7 @@ FloatRect Widget::convertFromContainingWindowToRoot(const Widget* rootWidget, co
         return rect;
 
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    return [rootWidget->protectedPlatformWidget() convertRect:rect fromView:nil];
+    return [protect(rootWidget->platformWidget()) convertRect:rect fromView:nil];
     END_BLOCK_OBJC_EXCEPTIONS
 
     return rect;
@@ -387,11 +387,6 @@ FloatRect Widget::convertFromContainingWindowToRoot(const Widget* rootWidget, co
 NSView *Widget::platformWidget() const
 {
     return m_widget.get();
-}
-
-RetainPtr<NSView> Widget::protectedPlatformWidget() const
-{
-    return platformWidget();
 }
 
 void Widget::setPlatformWidget(NSView *widget)

@@ -238,7 +238,7 @@ MediaPlayer::SupportsType MediaPlayerPrivateMediaStreamAVFObjC::supportsType(con
         return MediaPlayer::SupportsType::IsNotSupported;
 #endif
 
-    return (parameters.isMediaStream && !parameters.requiresRemotePlayback) ? MediaPlayer::SupportsType::IsSupported : MediaPlayer::SupportsType::IsNotSupported;
+    return (parameters.platformType == PlatformMediaDecodingType::MediaStream && !parameters.requiresRemotePlayback) ? MediaPlayer::SupportsType::IsSupported : MediaPlayer::SupportsType::IsNotSupported;
 }
 
 #pragma mark -
@@ -360,6 +360,20 @@ void MediaPlayerPrivateMediaStreamAVFObjC::sampleBufferDisplayLayerStatusDidFail
 {
     destroyLayers();
     updateLayersAsNeeded();
+}
+
+void MediaPlayerPrivateMediaStreamAVFObjC::updateVideoFrameCounters(uint64_t totalFrameCount, uint64_t droppedFrameCount)
+{
+    m_totalFrameCount = totalFrameCount;
+    m_droppedFrameCount = droppedFrameCount;
+}
+
+std::optional<VideoPlaybackQualityMetrics> MediaPlayerPrivateMediaStreamAVFObjC::videoPlaybackQualityMetrics()
+{
+    return VideoPlaybackQualityMetrics {
+        .totalVideoFrames = static_cast<uint32_t>(m_totalFrameCount),
+        .droppedVideoFrames = static_cast<uint32_t>(m_droppedFrameCount)
+    };
 }
 
 #if PLATFORM(IOS_FAMILY)
@@ -499,10 +513,6 @@ void MediaPlayerPrivateMediaStreamAVFObjC::load(const URL&, const LoadOptions&, 
 }
 #endif
 
-RefPtr<MediaStreamPrivate> MediaPlayerPrivateMediaStreamAVFObjC::protectedMediaStreamPrivate() const
-{
-    return m_mediaStreamPrivate;
-}
 
 void MediaPlayerPrivateMediaStreamAVFObjC::load(MediaStreamPrivate& stream)
 {
@@ -572,7 +582,7 @@ MediaPlayerPrivateMediaStreamAVFObjC::DisplayMode MediaPlayerPrivateMediaStreamA
         return WaitingForFirstImage;
 
     if (playing() && !m_ended) {
-        if (!protectedMediaStreamPrivate()->isProducingData())
+        if (!protect(m_mediaStreamPrivate)->isProducingData())
             return PausedImage;
         return LivePreview;
     }
@@ -812,7 +822,7 @@ void MediaPlayerPrivateMediaStreamAVFObjC::characteristicsChanged()
 {
     SizeChanged sizeChanged = SizeChanged::No;
 
-    IntSize intrinsicSize = protectedMediaStreamPrivate()->intrinsicSize();
+    IntSize intrinsicSize = protect(m_mediaStreamPrivate)->intrinsicSize();
     if (intrinsicSize.isEmpty() || m_intrinsicSize.isEmpty()) {
         if (intrinsicSize.height() != m_intrinsicSize.height() || intrinsicSize.width() != m_intrinsicSize.width()) {
             m_intrinsicSize = intrinsicSize;
@@ -991,7 +1001,7 @@ void MediaPlayerPrivateMediaStreamAVFObjC::checkSelectedVideoTrack()
 
 void MediaPlayerPrivateMediaStreamAVFObjC::updateTracks()
 {
-    auto currentTracks = protectedMediaStreamPrivate()->tracks();
+    auto currentTracks = protect(m_mediaStreamPrivate)->tracks();
 
     auto player = m_player.get();
     if (!player)

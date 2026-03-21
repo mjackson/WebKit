@@ -27,7 +27,6 @@
 #include "config.h"
 #include "ContentSecurityPolicy.h"
 
-#include "BlobURL.h"
 #include "CSPViolationReportBody.h"
 #include "ContentSecurityPolicyClient.h"
 #include "ContentSecurityPolicyDirective.h"
@@ -334,18 +333,14 @@ void ContentSecurityPolicy::setOverrideAllowInlineStyle(bool value)
     m_overrideInlineStyleAllowed = value;
 }
 
-bool ContentSecurityPolicy::urlMatchesSelf(const URL& url, bool forFrameSrc) const
+bool ContentSecurityPolicy::urlMatchesSelf(const URL& url) const
 {
-    // As per https://w3c.github.io/webappsec-csp/#match-url-to-source-expression, we compare the URL origin with the policy origin.
-    // We get origin using https://url.spec.whatwg.org/#concept-url-origin which has specific blob URLs treatment as follow.
-    if (forFrameSrc && url.protocolIsBlob())
-        return m_selfSource->matches(BlobURL::getOriginURL(url));
     return m_selfSource->matches(url);
 }
 
 bool ContentSecurityPolicy::allowContentSecurityPolicySourceStarToMatchAnyProtocol() const
 {
-    if (RefPtr document = dynamicDowncast<Document>(m_scriptExecutionContext.get()))
+    if (auto* document = dynamicDowncast<Document>(m_scriptExecutionContext.get()))
         return document->settings().allowContentSecurityPolicySourceStarToMatchAnyProtocol();
     return false;
 }
@@ -358,7 +353,7 @@ bool ContentSecurityPolicy::allPoliciesWithDispositionAllow(Disposition disposit
     for (auto& policy : m_policies) {
         if (policy->isReportOnly() != isReportOnly)
             continue;
-        if ((policy.get()->*predicate)(std::forward<Args>(args)...))
+        if ((policy.get()->*predicate)(args...))
             return false;
     }
     return true;
@@ -372,7 +367,7 @@ bool ContentSecurityPolicy::allPoliciesWithDispositionAllow(Disposition disposit
     for (auto& policy : m_policies) {
         if (policy->isReportOnly() != isReportOnly)
             continue;
-        if (const ContentSecurityPolicyDirective* violatedDirective = (policy.get()->*predicate)(std::forward<Args>(args)...)) {
+        if (const ContentSecurityPolicyDirective* violatedDirective = (policy.get()->*predicate)(args...)) {
             isAllowed = false;
             callback(*violatedDirective);
         }
@@ -385,7 +380,7 @@ bool ContentSecurityPolicy::allPoliciesAllow(NOESCAPE const ViolatedDirectiveCal
 {
     bool isAllowed = true;
     for (auto& policy : m_policies) {
-        if (const ContentSecurityPolicyDirective* violatedDirective = (policy.get()->*predicate)(std::forward<Args>(args)...)) {
+        if (const ContentSecurityPolicyDirective* violatedDirective = (policy.get()->*predicate)(args...)) {
             if (!violatedDirective->directiveList().isReportOnly())
                 isAllowed = false;
             callback(*violatedDirective);
@@ -1181,7 +1176,7 @@ void ContentSecurityPolicy::upgradeInsecureRequestIfNeeded(URL& url, InsecureReq
     ShouldUpgradeLocalhostAndIPAddress shouldUpgradeLocalhostAndIPAddress = (upgradeRequest || shouldUpgradeLocalhostAndIPAddressInMixedContext) ? ShouldUpgradeLocalhostAndIPAddress::Yes : ShouldUpgradeLocalhostAndIPAddress::No;
     std::optional<uint16_t> upgradePort;
     if (RefPtr document = dynamicDowncast<Document>(scriptExecutionContext.get()); document && document->page()) {
-        auto portsForUpgradingInsecureScheme = protect(document->page())->portsForUpgradingInsecureSchemeForTesting();
+        auto portsForUpgradingInsecureScheme = document->page()->portsForUpgradingInsecureSchemeForTesting();
         if (portsForUpgradingInsecureScheme) {
             if (url.port() == portsForUpgradingInsecureScheme->first)
                 upgradePort = portsForUpgradingInsecureScheme->second;

@@ -41,7 +41,6 @@
 #include "SVGParsingError.h"
 #include "SVGRenderSupport.h"
 #include "SVGStringList.h"
-#include "SVGTransformable.h"
 #include "Settings.h"
 #include <wtf/NeverDestroyed.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -93,7 +92,7 @@ void SVGPatternElement::attributeChanged(const QualifiedName& name, const AtomSt
         break;
     }
     case AttributeNames::patternTransformAttr: {
-        Ref { m_patternTransform }->baseVal()->parse(newValue);
+        m_patternTransform->baseVal()->parse(newValue);
         break;
     }
     case AttributeNames::xAttr:

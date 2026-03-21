@@ -60,7 +60,7 @@ private:
     void recordEnd(JSC::JSGlobalObject*, Ref<Inspector::ScriptArguments>&&) override;
     void screenshot(JSC::JSGlobalObject*, Ref<Inspector::ScriptArguments>&&) override;
 
-    Ref<WorkerOrWorkletGlobalScope> protectedGlobalScope();
+    WorkerOrWorkletGlobalScope& globalScope() { return m_globalScope; }
 
     WeakRef<WorkerOrWorkletGlobalScope> m_globalScope;
 };

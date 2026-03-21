@@ -56,7 +56,7 @@ protected:
 private:
     bool isSVGGeometryElement() const override { return true; }
 
-    Ref<SVGAnimatedNumber> m_pathLength { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedNumber> m_pathLength { SVGAnimatedNumber::create(this) };
 };
 
 } // namespace WebCore

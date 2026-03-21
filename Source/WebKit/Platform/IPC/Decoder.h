@@ -178,14 +178,14 @@ public:
     }
 
 #if !HAVE(WK_SECURE_CODING_NSURLREQUEST)
-    AllowedClassHashSet& allowedClasses() { return m_allowedClasses; }
+    AllowedClassHashSet& allowedClasses() LIFETIME_BOUND { return m_allowedClasses; }
 #endif // !HAVE(WK_SECURE_CODING_NSURLREQUEST)
 #endif // __OBJC__
 
     std::optional<Attachment> takeLastAttachment();
 
     void addIndexOfDecodingFailure(uint32_t indexOfObjectFailingDecoding) { m_indicesOfObjectsFailingDecoding.append(indexOfObjectFailingDecoding); }
-    const Vector<uint32_t>& indicesOfObjectsFailingDecoding() const { return m_indicesOfObjectsFailingDecoding; }
+    const Vector<uint32_t>& indicesOfObjectsFailingDecoding() const LIFETIME_BOUND { return m_indicesOfObjectsFailingDecoding; }
 
 private:
     Decoder(std::span<const uint8_t> buffer, BufferDeallocator&&, Vector<Attachment>&&);

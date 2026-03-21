@@ -60,7 +60,7 @@ public:
     ExceptionOr<void> leave();
     void close();
 
-    String identifier() const { return m_privateCoordinator ? protectedPrivateCoordinator()->identifier() : String(); }
+    String identifier() const { return m_privateCoordinator ? protect(m_privateCoordinator)->identifier() : String(); }
     MediaSessionCoordinatorState state() const { return m_state; }
 
     void seekTo(double, DOMPromiseDeferred<void>&&);
@@ -111,8 +111,6 @@ private:
     static WTFLogChannel& NODELETE logChannel();
     static ASCIILiteral logClassName() { return "MediaSessionCoordinator"_s; }
     bool NODELETE shouldFireEvents() const;
-
-    RefPtr<MediaSessionCoordinatorPrivate> protectedPrivateCoordinator() const { return m_privateCoordinator; }
 
     WeakPtr<MediaSession> m_session;
     RefPtr<MediaSessionCoordinatorPrivate> m_privateCoordinator;

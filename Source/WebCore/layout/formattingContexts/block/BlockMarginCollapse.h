@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <WebCore/MarginTypes.h>
+#include "MarginTypes.h"
 #include <wtf/CheckedRef.h>
 
 namespace WebCore {
@@ -48,12 +48,12 @@ public:
     bool marginBeforeCollapsesWithParentMarginBefore(const ElementBox&) const;
     bool marginBeforeCollapsesWithFirstInFlowChildMarginBefore(const ElementBox&) const;
     bool marginBeforeCollapsesWithParentMarginAfter(const ElementBox&) const;
-    bool marginBeforeCollapsesWithPreviousSiblingMarginAfter(const ElementBox&) const;
+    bool NODELETE marginBeforeCollapsesWithPreviousSiblingMarginAfter(const ElementBox&) const;
 
     bool marginAfterCollapsesWithParentMarginAfter(const ElementBox&) const;
     bool marginAfterCollapsesWithLastInFlowChildMarginAfter(const ElementBox&) const;
     bool marginAfterCollapsesWithParentMarginBefore(const ElementBox&) const;
-    bool marginAfterCollapsesWithNextSiblingMarginBefore(const ElementBox&) const;
+    bool NODELETE marginAfterCollapsesWithNextSiblingMarginBefore(const ElementBox&) const;
     bool marginAfterCollapsesWithSiblingMarginBeforeWithClearance(const ElementBox&) const;
 
     UsedVerticalMargin::PositiveAndNegativePair::Values computedPositiveAndNegativeMargin(UsedVerticalMargin::PositiveAndNegativePair::Values, UsedVerticalMargin::PositiveAndNegativePair::Values) const;
@@ -64,20 +64,20 @@ public:
 
 private:
     enum class MarginType { Before, After };
-    UsedVerticalMargin::PositiveAndNegativePair::Values positiveNegativeValues(const ElementBox&, MarginType) const;
+    UsedVerticalMargin::PositiveAndNegativePair::Values NODELETE positiveNegativeValues(const ElementBox&, MarginType) const;
     UsedVerticalMargin::PositiveAndNegativePair::Values positiveNegativeMarginBefore(const ElementBox&, UsedVerticalMargin::NonCollapsedValues) const;
     UsedVerticalMargin::PositiveAndNegativePair::Values positiveNegativeMarginAfter(const ElementBox&, UsedVerticalMargin::NonCollapsedValues) const;
 
     UsedVerticalMargin::PositiveAndNegativePair::Values precomputedPositiveNegativeMarginBefore(const ElementBox&, UsedVerticalMargin::NonCollapsedValues, const BlockFormattingGeometry&) const;
     UsedVerticalMargin::PositiveAndNegativePair::Values precomputedPositiveNegativeValues(const ElementBox&, const BlockFormattingGeometry&) const;
 
-    std::optional<LayoutUnit> marginValue(UsedVerticalMargin::PositiveAndNegativePair::Values) const;
+    std::optional<LayoutUnit> NODELETE marginValue(UsedVerticalMargin::PositiveAndNegativePair::Values) const;
 
-    bool hasClearance(const ElementBox&) const;
+    bool NODELETE hasClearance(const ElementBox&) const;
 
     bool inQuirksMode() const { return m_inQuirksMode; }
-    const LayoutState& layoutState() const { return m_layoutState; }
-    const BlockFormattingState& formattingState() const { return m_blockFormattingState; }
+    const LayoutState& layoutState() const LIFETIME_BOUND { return m_layoutState; }
+    const BlockFormattingState& formattingState() const LIFETIME_BOUND { return m_blockFormattingState; }
 
     const CheckedRef<const LayoutState> m_layoutState;
     const BlockFormattingState& m_blockFormattingState;

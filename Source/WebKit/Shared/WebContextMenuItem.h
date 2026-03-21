@@ -56,7 +56,7 @@ public:
     API::Object* NODELETE userData() const;
     void setUserData(API::Object*);
 
-    const WebContextMenuItemData& data() { return m_webContextMenuItemData; }
+    const WebContextMenuItemData& data() LIFETIME_BOUND { return m_webContextMenuItemData; }
 
 private:
     WebContextMenuItem(const WebContextMenuItemData&);

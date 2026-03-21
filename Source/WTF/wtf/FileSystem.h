@@ -42,6 +42,10 @@
 #include <wtf/WallTime.h>
 #include <wtf/text/WTFString.h>
 
+#if OS(WINDOWS)
+#include <windows.h>
+#endif
+
 #if USE(CF)
 #include <wtf/RetainPtr.h>
 #endif
@@ -198,8 +202,8 @@ WTF_EXPORT_PRIVATE bool deleteNonEmptyDirectory(const String&);
 
 WTF_EXPORT_PRIVATE String realPath(const String&);
 
-WTF_EXPORT_PRIVATE bool NODELETE isSafeToUseMemoryMapForPath(const String&);
-[[nodiscard]] WTF_EXPORT_PRIVATE bool NODELETE makeSafeToUseMemoryMapForPath(const String&);
+WTF_EXPORT_PRIVATE bool isSafeToUseMemoryMapForPath(const String&);
+[[nodiscard]] WTF_EXPORT_PRIVATE bool makeSafeToUseMemoryMapForPath(const String&);
 
 WTF_EXPORT_PRIVATE std::optional<MappedFileData> mapFile(const String& path, MappedFileMode);
 

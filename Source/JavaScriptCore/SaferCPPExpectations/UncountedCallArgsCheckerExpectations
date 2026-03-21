@@ -3,7 +3,7 @@ API/JSCallbackConstructor.cpp
 API/JSCallbackObject.h
 API/JSCallbackObjectFunctions.h
 API/JSClassRef.cpp
-[ Mac ] API/JSContextRef.cpp
+API/JSContextRef.cpp
 API/JSObjectRef.cpp
 API/JSRetainPtr.h
 API/JSScript.mm
@@ -21,7 +21,6 @@ bytecode/AccessCase.cpp
 bytecode/BytecodeDumper.cpp
 bytecode/CallLinkInfo.cpp
 bytecode/CodeBlock.cpp
-[ iOS ] bytecode/CodeBlock.h
 bytecode/CodeBlockHash.cpp
 bytecode/CodeBlockInlines.h
 bytecode/DirectEvalCodeCache.h
@@ -31,11 +30,11 @@ bytecode/InlineCacheCompiler.cpp
 bytecode/ObjectPropertyConditionSet.cpp
 bytecode/PolyProtoAccessChain.cpp
 bytecode/PropertyCondition.cpp
+bytecode/PropertyInlineCache.cpp
 bytecode/PutByStatus.cpp
 bytecode/Repatch.cpp
 bytecode/SetPrivateBrandStatus.cpp
 bytecode/SharedJITStubSet.h
-bytecode/StructureStubInfo.cpp
 bytecode/UnlinkedFunctionExecutable.cpp
 bytecompiler/BytecodeGenerator.cpp
 bytecompiler/BytecodeGenerator.h
@@ -52,7 +51,6 @@ dfg/DFGJITCompiler.h
 dfg/DFGJITFinalizer.cpp
 dfg/DFGLazyJSValue.cpp
 dfg/DFGLoopUnrollingPhase.cpp
-dfg/DFGNode.cpp
 dfg/DFGOperations.cpp
 dfg/DFGPlan.cpp
 dfg/DFGSpeculativeJIT.cpp
@@ -63,7 +61,7 @@ ftl/FTLCompile.cpp
 ftl/FTLFail.cpp
 ftl/FTLJITFinalizer.cpp
 ftl/FTLLazySlowPath.cpp
-[ Mac ] ftl/FTLLink.cpp
+ftl/FTLLink.cpp
 ftl/FTLLowerDFGToB3.cpp
 ftl/FTLSlowPathCall.cpp
 ftl/FTLState.cpp
@@ -84,14 +82,13 @@ inspector/agents/InspectorAuditAgent.cpp
 inspector/agents/InspectorConsoleAgent.cpp
 inspector/agents/InspectorDebuggerAgent.cpp
 inspector/agents/InspectorHeapAgent.cpp
-[ Mac ] inspector/agents/InspectorRuntimeAgent.cpp
+inspector/agents/InspectorRuntimeAgent.cpp
 inspector/agents/InspectorScriptProfilerAgent.cpp
 inspector/agents/JSGlobalObjectRuntimeAgent.cpp
 jit/BaselineJITPlan.cpp
 jit/ExecutableAllocator.cpp
 jit/GCAwareJITStubRoutine.cpp
 jit/ICStats.cpp
-jit/ICStats.h
 jit/JIT.cpp
 jit/JITSafepoint.cpp
 jit/JITWorklist.cpp
@@ -135,7 +132,6 @@ runtime/JSObject.cpp
 runtime/JSObjectInlines.h
 runtime/JSRunLoopTimer.cpp
 runtime/JSSymbolTableObject.cpp
-runtime/LiteralParser.cpp
 runtime/ModuleProgramExecutable.cpp
 runtime/NativeExecutable.cpp
 runtime/ProgramExecutable.cpp

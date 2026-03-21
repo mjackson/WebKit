@@ -118,7 +118,7 @@ static constexpr std::array<uint8_t, maximumEscapedentityCharacter + 1> entityMa
 static bool elementCannotHaveEndTag(const Node& node)
 {
     using namespace ElementNames;
-    RefPtr element = dynamicDowncast<Element>(node);
+    auto* element = dynamicDowncast<Element>(node);
     if (!element)
         return false;
 
@@ -358,7 +358,7 @@ void MarkupAccumulator::serializeNodesWithNamespaces(Node& targetNode, Serialize
 
 std::pair<String, MarkupAccumulator::IsCreatedByURLReplacement> MarkupAccumulator::resolveURLIfNeeded(const Element& element, const String& urlString) const
 {
-    if (RefPtr link = dynamicDowncast<HTMLLinkElement>(element); link && m_serializationContext) {
+    if (auto* link = dynamicDowncast<HTMLLinkElement>(element); link && m_serializationContext) {
         if (RefPtr cssStyleSheet = link->sheet()) {
             auto replacementURLString = m_serializationContext->replacementURLStringsForCSSStyleSheet.get(*cssStyleSheet);
             if (!replacementURLString.isEmpty())
@@ -425,15 +425,15 @@ void MarkupAccumulator::startAppendingNode(const Node& node, Namespaces* namespa
         if (shadowRoot->isClonable())
             m_markup.append(" shadowrootclonable=\"\""_s);
         bool shouldAppendRegistryAttribute = [&] {
-            Ref document = shadowRoot->document();
-            if (document->usesNullCustomElementRegistry() && shadowRoot->usesNullCustomElementRegistry())
+            auto& document = shadowRoot->document();
+            if (document.usesNullCustomElementRegistry() && shadowRoot->usesNullCustomElementRegistry())
                 return false;
 
-            RefPtr documentRegistry = document->customElementRegistry();
-            RefPtr shadowRegistry = shadowRoot->customElementRegistry();
-            bool documentHasGlobalRegistry = (documentRegistry && !documentRegistry->isScoped()) || document->window();
+            auto* documentRegistry = document.customElementRegistry();
+            auto* shadowRegistry = shadowRoot->customElementRegistry();
+            bool documentHasGlobalRegistry = (documentRegistry && !documentRegistry->isScoped()) || document.window();
             bool shadowHasGlobalRegistry = (shadowRegistry && !shadowRegistry->isScoped())
-                || (!shadowRegistry && !shadowRoot->usesNullCustomElementRegistry() && document->window());
+                || (!shadowRegistry && !shadowRoot->usesNullCustomElementRegistry() && document.window());
             return !(documentHasGlobalRegistry && shadowHasGlobalRegistry);
         }();
         if (shouldAppendRegistryAttribute)
@@ -610,7 +610,7 @@ static void appendDocumentType(StringBuilder& result, const DocumentType& docume
     );
 }
 
-static bool isURLAttributeForElement(const Element& element, const Attribute& attribute)
+static bool NODELETE isURLAttributeForElement(const Element& element, const Attribute& attribute)
 {
     return element.isURLAttribute(attribute) || element.isHTMLContentAttribute(attribute);
 }
@@ -755,7 +755,7 @@ LocalFrame* MarkupAccumulator::frameForAttributeReplacement(const Element& eleme
     if (inXMLFragmentSerialization())
         return nullptr;
 
-    RefPtr frameElement = dynamicDowncast<HTMLFrameElementBase>(element);
+    auto* frameElement = dynamicDowncast<HTMLFrameElementBase>(element);
     if (!frameElement)
         return nullptr;
 
@@ -842,38 +842,38 @@ void MarkupAccumulator::appendNonElementNode(StringBuilder& result, const Node& 
         namespaces->checkConsistency();
 
     switch (node.nodeType()) {
-    case Node::TEXT_NODE:
+    case NodeType::Text:
         appendText(result, uncheckedDowncast<Text>(node));
         break;
-    case Node::COMMENT_NODE:
+    case NodeType::Comment:
         // FIXME: Comment content is not escaped, but that may be OK because XMLSerializer (and possibly other callers) should raise an exception if it includes "-->".
         result.append("<!--"_s, uncheckedDowncast<Comment>(node).data(), "-->"_s);
         break;
-    case Node::DOCUMENT_NODE:
+    case NodeType::Document:
         appendXMLDeclaration(result, uncheckedDowncast<Document>(node));
         break;
-    case Node::DOCUMENT_FRAGMENT_NODE:
+    case NodeType::DocumentFragment:
         break;
-    case Node::DOCUMENT_TYPE_NODE:
+    case NodeType::DocumentType:
         appendDocumentType(result, uncheckedDowncast<DocumentType>(node));
         break;
-    case Node::PROCESSING_INSTRUCTION_NODE: {
+    case NodeType::ProcessingInstruction: {
         auto& instruction = uncheckedDowncast<ProcessingInstruction>(node);
         // FIXME: PI data is not escaped, but XMLSerializer (and possibly other callers) this should raise an exception if it includes "?>".
         result.append("<?"_s, instruction.target(), ' ', instruction.data(), "?>"_s);
         break;
     }
-    case Node::ELEMENT_NODE:
+    case NodeType::Element:
         ASSERT_NOT_REACHED();
         break;
-    case Node::CDATA_SECTION_NODE:
+    case NodeType::CDATASection:
         if (inXMLFragmentSerialization()) {
             // FIXME: CDATA content is not escaped, but XMLSerializer (and possibly other callers) should raise an exception if it includes "]]>".
             result.append("<![CDATA["_s, uncheckedDowncast<CDATASection>(node).data(), "]]>"_s);
         } else
             appendText(result, uncheckedDowncast<Text>(node));
         break;
-    case Node::ATTRIBUTE_NODE:
+    case NodeType::Attribute:
         appendAttributeValue(result, uncheckedDowncast<Attr>(node).value());
         break;
     }

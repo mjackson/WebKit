@@ -157,10 +157,10 @@ public:
     WEBCORE_EXPORT ~IOSurface();
 
     WEBCORE_EXPORT static IntSize maximumSize();
-    WEBCORE_EXPORT static void setMaximumSize(IntSize);
+    WEBCORE_EXPORT static void NODELETE setMaximumSize(IntSize);
 
     WEBCORE_EXPORT static size_t bytesPerRowAlignment();
-    WEBCORE_EXPORT static void setBytesPerRowAlignment(size_t);
+    WEBCORE_EXPORT static void NODELETE setBytesPerRowAlignment(size_t);
 
     WEBCORE_EXPORT WTF::MachSendRight createSendRight() const;
 
@@ -171,7 +171,7 @@ public:
     // Passed in context is the context through which the contents was drawn.
     WEBCORE_EXPORT static RetainPtr<CGImageRef> sinkIntoImage(std::unique_ptr<IOSurface>, RetainPtr<CGContextRef> = nullptr);
 
-    WEBCORE_EXPORT static Name nameForRenderingPurpose(RenderingPurpose);
+    WEBCORE_EXPORT static Name NODELETE nameForRenderingPurpose(RenderingPurpose);
     Name name() const { return m_name; }
 
 #ifdef __OBJC__
@@ -180,7 +180,6 @@ public:
     WEBCORE_EXPORT RetainPtr<id> asCAIOSurfaceLayerContents() const;
 
     IOSurfaceRef surface() const { return m_surface.get(); }
-    RetainPtr<IOSurfaceRef> protectedSurface() const { return surface(); }
 
     WEBCORE_EXPORT RetainPtr<CGContextRef> createPlatformContext(PlatformDisplayID = 0, std::optional<CGImageAlphaInfo> = std::nullopt);
 
@@ -219,7 +218,7 @@ public:
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
     WEBCORE_EXPORT void setContentEDRHeadroom(float);
-    WEBCORE_EXPORT std::optional<float> contentEDRHeadroom() const;
+    WEBCORE_EXPORT std::optional<float> NODELETE contentEDRHeadroom() const;
     WEBCORE_EXPORT void loadContentEDRHeadroom();
 #endif
 
@@ -256,7 +255,7 @@ private:
         size_t bitsPerComponent;
     };
 
-    BitmapConfiguration bitmapConfiguration() const;
+    BitmapConfiguration NODELETE bitmapConfiguration() const;
 
     std::optional<UsedFormat> m_format;
     std::optional<DestinationColorSpace> m_colorSpace;

@@ -260,7 +260,7 @@ String WebPageProxy::stringSelectionForPasteboard()
     if (!hasRunningProcess())
         return { };
 
-    if (!editorState().selectionIsRange)
+    if (editorState().selectionType != WebCore::SelectionType::Range)
         return { };
 
     auto sendResult = protect(legacyMainFrameProcess())->sendSync(Messages::WebPage::GetStringSelectionForPasteboard(), webPageIDInMainFrameProcess(), timeoutForPasteboardSyncIPC);
@@ -273,7 +273,7 @@ RefPtr<WebCore::SharedBuffer> WebPageProxy::dataSelectionForPasteboard(const Str
     if (!hasRunningProcess())
         return nullptr;
 
-    if (!editorState().selectionIsRange)
+    if (editorState().selectionType != WebCore::SelectionType::Range)
         return nullptr;
 
     auto sendResult = protect(legacyMainFrameProcess())->sendSync(Messages::WebPage::GetDataSelectionForPasteboard(pasteboardType), webPageIDInMainFrameProcess(), timeoutForPasteboardSyncIPC);
@@ -402,7 +402,7 @@ void WebPageProxy::executeSavedCommandBySelector(IPC::Connection& connection, co
 
 bool WebPageProxy::shouldDelayWindowOrderingForEvent(const WebKit::WebMouseEvent& event)
 {
-    if (protect(legacyMainFrameProcess())->state() != WebProcessProxy::State::Running)
+    if (legacyMainFrameProcess().state() != WebProcessProxy::State::Running)
         return false;
 
     const Seconds messageTimeout(3);
@@ -683,19 +683,36 @@ void WebPageProxy::showPDFContextMenu(const WebKit::PDFContextMenu& contextMenu,
         [nsMenu insertItem:nsItem.get() atIndex:i];
     }
     RetainPtr window = pageClient->platformWindow();
-    auto location = [window convertRectFromScreen: { contextMenu.point, NSZeroSize }].origin;
-    auto event = createSyntheticEventForContextMenu(location);
 
     RetainPtr<NSView> view = window.get().contentView;
-    [NSMenu popUpContextMenu:nsMenu.get() withEvent:event.get() forView:view.get()];
+    auto locationInWindowCoordinates = [window convertRectFromScreen: { contextMenu.point, NSZeroSize }].origin;
 
-    if (RetainPtr selectedMenuItem = [menuTarget selectedMenuItem]) {
-        NSInteger tag = selectedMenuItem.get().tag;
-        if (contextMenu.openInDefaultViewerTag == tag)
-            pdfOpenWithPreview(identifier, frameID);
-        return completionHandler(tag);
+    auto handleSelectedMenuItem = [this, protectedThis = Ref { *this }, menuTarget, contextMenu, frameID, identifier, completionHandler = WTF::move(completionHandler)] mutable {
+        if (RetainPtr selectedMenuItem = [menuTarget selectedMenuItem]) {
+            NSInteger tag = [selectedMenuItem tag];
+            if (contextMenu.openInDefaultViewerTag == tag)
+                pdfOpenWithPreview(identifier, frameID);
+
+            completionHandler(tag);
+            return;
+        }
+
+        completionHandler(std::nullopt);
+    };
+
+    if (contextMenu.inputSource == WebMouseEventInputSource::Automation) {
+#if HAVE(APPKIT_GESTURES_SUPPORT)
+        NSPoint locationInScreenCoordinates = [window convertPointToScreen:locationInWindowCoordinates];
+        RetainPtr screenRelativeContext = [_NSViewMenuContext menuContextWithLocation:locationInScreenCoordinates source:contextMenuRequestSourceForAutomation()];
+        [NSMenu _popUpContextMenu:nsMenu.get() withContext:screenRelativeContext.get() forView:view.get() completionBlock:makeBlockPtr(WTF::move(handleSelectedMenuItem)).get()];
+#else
+        RELEASE_ASSERT_NOT_REACHED();
+#endif
+    } else {
+        RetainPtr event = createSyntheticEventForContextMenu(locationInWindowCoordinates);
+        [NSMenu popUpContextMenu:nsMenu.get() withEvent:event.get() forView:view.get()];
+        handleSelectedMenuItem();
     }
-    completionHandler(std::nullopt);
 }
 #endif
 
@@ -719,9 +736,9 @@ CGRect WebPageProxy::boundsOfLayerInLayerBackedWindowCoordinates(CALayer *layer)
 
 void WebPageProxy::didUpdateEditorState(const EditorState& oldEditorState, const EditorState& newEditorState)
 {
-    bool couldChangeSecureInputState = newEditorState.isInPasswordField != oldEditorState.isInPasswordField || oldEditorState.selectionIsNone;
+    bool couldChangeSecureInputState = newEditorState.isInPasswordField != oldEditorState.isInPasswordField || oldEditorState.selectionType == WebCore::SelectionType::None;
     // Selection being none is a temporary state when editing. Flipping secure input state too quickly was causing trouble (not fully understood).
-    if (couldChangeSecureInputState && !newEditorState.selectionIsNone) {
+    if (couldChangeSecureInputState && newEditorState.selectionType != WebCore::SelectionType::None) {
         if (RefPtr pageClient = this->pageClient())
             pageClient->updateSecureInputState();
     }
@@ -811,7 +828,7 @@ std::optional<IPC::AsyncReplyID> WebPageProxy::willPerformPasteCommand(DOMPasteA
 
 RetainPtr<NSView> WebPageProxy::Internals::platformView() const
 {
-    RefPtr pageClient = protect(page)->pageClient();
+    RefPtr pageClient = page->pageClient();
     if (!pageClient)
         return nullptr;
     RetainPtr window = pageClient->platformWindow();
@@ -836,6 +853,12 @@ void WebPageProxy::updatePDFHUDLocation(PDFPluginIdentifier identifier, const We
 {
     if (RefPtr pageClient = this->pageClient())
         pageClient->updatePDFHUDLocation(identifier, rect);
+}
+
+void WebPageProxy::showPDFHUD(PDFPluginIdentifier identifier)
+{
+    if (RefPtr pageClient = this->pageClient())
+        pageClient->showPDFHUD(identifier);
 }
 
 void WebPageProxy::pdfZoomIn(PDFPluginIdentifier identifier, WebCore::FrameIdentifier frameID)
@@ -1006,16 +1029,12 @@ bool WebPageProxy::shouldEnableWritingToolsRequestedTool(WebCore::WritingTools::
 {
     WTRequestedTool requestedTool = convertToPlatformRequestedTool(tool);
 
-    if (requestedTool == WTRequestedToolIndex)
+    if (requestedTool == WTRequestedToolIndex || requestedTool == WTRequestedToolCompose)
         return true;
 
     auto& editorState = this->editorState();
-    bool editorStateIsContentEditable = editorState.isContentEditable;
 
-    if (requestedTool == WTRequestedToolCompose)
-        return editorStateIsContentEditable;
-
-    if (editorStateIsContentEditable)
+    if (editorState.isContentEditable)
         return editorState.hasPostLayoutData() && !editorState.postLayoutData->paragraphContextForCandidateRequest.isEmpty();
 
     return true;
@@ -1063,7 +1082,7 @@ void WebPageProxy::handleContextMenuWritingTools(WebCore::WritingTools::Requeste
 
 WebCore::FloatRect WebPageProxy::selectionBoundingRectInRootViewCoordinates() const
 {
-    if (editorState().selectionIsNone)
+    if (editorState().selectionType == WebCore::SelectionType::None)
         return { };
 
     if (!editorState().hasPostLayoutData())

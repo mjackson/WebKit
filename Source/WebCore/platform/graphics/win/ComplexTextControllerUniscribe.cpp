@@ -26,7 +26,7 @@
 #include "ComplexTextController.h"
 
 #include "FontCache.h"
-#include "FontCascade.h"
+#include "FontCascadeInlines.h"
 #include "HWndDC.h"
 #include <usp10.h>
 

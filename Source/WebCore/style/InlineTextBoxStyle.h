@@ -49,7 +49,7 @@ struct WavyStrokeParameters {
     // wider as font size increases.
     float step { 0.f };
 };
-WavyStrokeParameters wavyStrokeParameters(float fontSize);
+WavyStrokeParameters NODELETE wavyStrokeParameters(float fontSize);
 
 struct InkOverflowForDecorations : RectEdges<LayoutUnit> {
     void extendTop(float extendTo)
@@ -70,7 +70,7 @@ struct TextUnderlinePositionUnder {
 };
 InkOverflowForDecorations inkOverflowForDecorations(const RenderStyle&);
 InkOverflowForDecorations inkOverflowForDecorations(const RenderStyle&, TextUnderlinePositionUnder);
-bool isAlignedForUnder(const RenderStyle& decoratingBoxStyle);
+bool NODELETE isAlignedForUnder(const RenderStyle& decoratingBoxStyle);
 
 float underlineOffsetForTextBoxPainting(const InlineIterator::InlineBox&, const RenderStyle&);
 float overlineOffsetForTextBoxPainting(const InlineIterator::InlineBox&, const RenderStyle&);

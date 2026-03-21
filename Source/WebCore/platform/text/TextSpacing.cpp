@@ -28,6 +28,7 @@
 
 #include "Font.h"
 #include <wtf/ASCIICType.h>
+#include <wtf/unicode/CharacterNames.h>
 
 namespace WebCore {
 

@@ -78,7 +78,7 @@ DestinationColorSpace NativeImage::colorSpace() const
     return DestinationColorSpace(CGImageGetColorSpace(m_platformImage.get()));
 }
 
-void NativeImage::computeHeadroom()
+void NativeImage::computeHeadroom() const
 {
 #if HAVE(SUPPORT_HDR_DISPLAY)
     float headroom = CGImageGetContentHeadroom(m_platformImage.get());

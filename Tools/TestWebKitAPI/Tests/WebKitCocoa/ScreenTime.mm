@@ -115,15 +115,6 @@ static void testSuppressUsageRecordingWithDataStore(RetainPtr<WKWebsiteDataStore
 @property (readonly, copy) STWebHistoryProfileIdentifier profileIdentifier;
 @end
 
-@interface WKWebView (Internal)
-- (STWebpageController *)_screenTimeWebpageController;
-#if PLATFORM(MAC)
-- (NSVisualEffectView *) _screenTimeBlurredSnapshot;
-#else
-- (UIVisualEffectView *) _screenTimeBlurredSnapshot;
-#endif
-@end
-
 @interface BlockedStateObserver : NSObject
 - (instancetype)initWithWebView:(TestWKWebView *)webView;
 @end

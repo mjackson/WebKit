@@ -29,10 +29,11 @@
 
 #if ENABLE(WEBASSEMBLY)
 
-#include "ArrayBuffer.h"
-#include "MemoryMode.h"
-#include "PageCount.h"
-#include "WeakGCSet.h"
+#include <JavaScriptCore/ArrayBuffer.h>
+#include <JavaScriptCore/MemoryMode.h>
+#include <JavaScriptCore/PageCount.h>
+#include <JavaScriptCore/WasmAddressType.h>
+#include <JavaScriptCore/WeakGCSet.h>
 
 #include <wtf/CagedPtr.h>
 #include <wtf/Expected.h>
@@ -52,7 +53,6 @@ namespace JSC {
 class LLIntOffsetsExtractor;
 
 namespace Wasm {
-
 class Memory final : public RefCountedAndCanMakeWeakPtr<Memory> {
     WTF_MAKE_NONCOPYABLE(Memory);
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(Memory, JS_EXPORT_PRIVATE);
@@ -65,10 +65,10 @@ public:
     enum GrowSuccess { GrowSuccessTag };
 
     static Ref<Memory> create();
-    JS_EXPORT_PRIVATE static Ref<Memory> create(Ref<BufferMemoryHandle>&&, WTF::Function<void(GrowSuccess, PageCount, PageCount)>&& growSuccessCallback);
-    JS_EXPORT_PRIVATE static Ref<Memory> create(Ref<SharedArrayBufferContents>&&, WTF::Function<void(GrowSuccess, PageCount, PageCount)>&& growSuccessCallback);
-    JS_EXPORT_PRIVATE static Ref<Memory> createZeroSized(MemorySharingMode, WTF::Function<void(GrowSuccess, PageCount, PageCount)>&& growSuccessCallback);
-    static RefPtr<Memory> tryCreate(VM&, PageCount initial, PageCount maximum, MemorySharingMode, std::optional<MemoryMode> desiredMemoryMode, WTF::Function<void(GrowSuccess, PageCount, PageCount)>&& growSuccessCallback);
+    JS_EXPORT_PRIVATE static Ref<Memory> create(Ref<BufferMemoryHandle>&&, AddressType, WTF::Function<void(GrowSuccess, PageCount, PageCount)>&& growSuccessCallback);
+    JS_EXPORT_PRIVATE static Ref<Memory> create(Ref<SharedArrayBufferContents>&&, AddressType, WTF::Function<void(GrowSuccess, PageCount, PageCount)>&& growSuccessCallback);
+    JS_EXPORT_PRIVATE static Ref<Memory> createZeroSized(MemorySharingMode, AddressType, WTF::Function<void(GrowSuccess, PageCount, PageCount)>&& growSuccessCallback);
+    static RefPtr<Memory> tryCreate(VM&, PageCount initial, PageCount maximum, MemorySharingMode, AddressType, std::optional<MemoryMode> desiredMemoryMode, WTF::Function<void(GrowSuccess, PageCount, PageCount)>&& growSuccessCallback);
 
     JS_EXPORT_PRIVATE ~Memory();
 
@@ -82,6 +82,7 @@ public:
     size_t mappedCapacity() const { return m_handle->mappedCapacity(); }
     PageCount initial() const { return m_handle->initial(); }
     PageCount maximum() const { return m_handle->maximum(); }
+    AddressType addressType() const { return m_addressType; }
     BufferMemoryHandle& handle() { return m_handle.get(); }
 
     MemorySharingMode sharingMode() const { return m_handle->sharingMode(); }
@@ -102,15 +103,16 @@ public:
 
 private:
     Memory();
-    Memory(Ref<BufferMemoryHandle>&&, WTF::Function<void(GrowSuccess, PageCount, PageCount)>&& growSuccessCallback);
-    Memory(Ref<BufferMemoryHandle>&&, Ref<SharedArrayBufferContents>&&, WTF::Function<void(GrowSuccess, PageCount, PageCount)>&& growSuccessCallback);
-    Memory(PageCount initial, PageCount maximum, MemorySharingMode, WTF::Function<void(GrowSuccess, PageCount, PageCount)>&& growSuccessCallback);
+    Memory(Ref<BufferMemoryHandle>&&, AddressType, WTF::Function<void(GrowSuccess, PageCount, PageCount)>&& growSuccessCallback);
+    Memory(Ref<BufferMemoryHandle>&&, Ref<SharedArrayBufferContents>&&, AddressType, WTF::Function<void(GrowSuccess, PageCount, PageCount)>&& growSuccessCallback);
+    Memory(PageCount initial, PageCount maximum, MemorySharingMode, AddressType, WTF::Function<void(GrowSuccess, PageCount, PageCount)>&& growSuccessCallback);
 
     Expected<PageCount, GrowFailReason> growShared(VM&, PageCount);
 
     Ref<BufferMemoryHandle> m_handle;
     RefPtr<SharedArrayBufferContents> m_shared;
     WTF::Function<void(GrowSuccess, PageCount, PageCount)> m_growSuccessCallback;
+    AddressType m_addressType;
     // FIXME: If/When merging this into JSWebAssemblyMemory we should just use an unconditionalFinalizer.
 };
 

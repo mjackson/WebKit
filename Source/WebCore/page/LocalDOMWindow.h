@@ -31,6 +31,7 @@
 #include <WebCore/DOMHighResTimeStamp.h>
 #include <WebCore/DOMWindow.h>
 #include <WebCore/EventTargetInterfaces.h>
+#include <WebCore/LocalFrame.h>
 #include <WebCore/PerformanceEventTimingCandidate.h>
 #include <WebCore/PushSubscriptionOwner.h>
 #include <WebCore/Supplementable.h>
@@ -53,7 +54,6 @@ template <typename, ShouldStrongDestructorGrabLock> class Strong;
 namespace WebCore {
 
 class CloseWatcherManager;
-class LocalFrame;
 class SecurityOriginData;
 struct ScrollToOptions;
 struct WindowPostMessageOptions;
@@ -110,8 +110,7 @@ public:
     void suspendForBackForwardCache();
     void resumeFromBackForwardCache();
 
-    WEBCORE_EXPORT Frame* NODELETE frame() const final;
-    WEBCORE_EXPORT LocalFrame* NODELETE localFrame() const;
+    WEBCORE_EXPORT LocalFrame* NODELETE frame() const final;
 
     RefPtr<WebCore::MediaQueryList> matchMedia(const String&);
 
@@ -137,18 +136,17 @@ public:
     BarProp& statusbar();
     BarProp& toolbar();
     WEBCORE_EXPORT Navigator& navigator();
-    WEBCORE_EXPORT Ref<Navigator> protectedNavigator();
     Navigator* optionalNavigator() const { return m_navigator.get(); }
 
     WEBCORE_EXPORT static void NODELETE overrideTransientActivationDurationForTesting(std::optional<Seconds>&&);
     void setLastActivationTimestamp(MonotonicTime lastActivationTimestamp) { m_lastActivationTimestamp = lastActivationTimestamp; }
-    void consumeLastActivationIfNecessary();
+    void NODELETE consumeLastActivationIfNecessary();
     MonotonicTime lastActivationTimestamp() const { return m_lastActivationTimestamp; }
     void notifyActivated(MonotonicTime);
     WEBCORE_EXPORT bool hasTransientActivation() const;
     bool hasStickyActivation() const;
     WEBCORE_EXPORT bool consumeTransientActivation();
-    WEBCORE_EXPORT bool hasHistoryActionActivation() const;
+    WEBCORE_EXPORT bool NODELETE hasHistoryActionActivation() const;
     WEBCORE_EXPORT bool consumeHistoryActionUserActivation();
     WEBCORE_EXPORT static Seconds NODELETE transientActivationDuration();
 
@@ -266,7 +264,7 @@ public:
     // Secure Contexts
     bool isSecureContext() const;
 
-    bool crossOriginIsolated() const;
+    bool NODELETE crossOriginIsolated() const;
 
     // Events
     // EventTarget API
@@ -286,9 +284,9 @@ public:
     void finishedLoading();
 
     // EventTiming API
-    PerformanceEventTimingCandidate initializeEventTimingEntry(Event&, EventType);
-    void finalizeEventTimingEntry(PerformanceEventTimingCandidate&, const Event&, EventType);
-    void dispatchPendingEventTimingEntries();
+    PerformanceEventTimingCandidate initializeEventTiming(Event&, EventType);
+    void markEndOfProcessingForEventTiming(PerformanceEventTimingCandidate&, const Event&, EventType);
+    void finalizeAndQueueEventTimingEntries();
     uint64_t interactionCount() { return m_interactionCount; }
     // Misleading function names that mirror the spec; see https://github.com/w3c/event-timing/issues/158 :
     bool hasDispatchedInputEvent() const { return m_hasDispatchedInputEvent; }
@@ -352,7 +350,6 @@ public:
 
     // Navigation API
     WEBCORE_EXPORT Navigation& navigation();
-    Ref<Navigation> protectedNavigation();
 
     void willDetachDocumentFromFrame();
     void willDestroyCachedFrame();

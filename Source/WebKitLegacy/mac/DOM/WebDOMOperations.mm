@@ -143,8 +143,8 @@ using namespace JSC;
     auto& node = *core(self);
 
     String markupString = serializeFragment(node, SerializedNodes::SubtreeIncludingNode);
-    Node::NodeType nodeType = node.nodeType();
-    if (nodeType != Node::DOCUMENT_NODE && nodeType != Node::DOCUMENT_TYPE_NODE)
+    auto nodeType = node.nodeType();
+    if (nodeType != NodeType::Document && nodeType != NodeType::DocumentType)
         markupString = makeString(documentTypeString(node.document()), markupString);
 
     return markupString.createNSString().autorelease();
@@ -256,7 +256,7 @@ using namespace JSC;
 @end
 
 #if !PLATFORM(IOS_FAMILY)
-static NSEventPhase toNSEventPhase(PlatformWheelEventPhase platformPhase)
+static NSEventPhase NODELETE toNSEventPhase(PlatformWheelEventPhase platformPhase)
 {
     switch (platformPhase) {
     case PlatformWheelEventPhase::None:

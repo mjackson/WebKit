@@ -29,10 +29,14 @@ def maybe_use_container_sdk_root_dir():
     if not sys.platform.startswith('linux'):
         return
 
-    if os.environ.get('WEBKIT_CONTAINER_SDK') != '1':
+    if os.environ.get('WEBKIT_CONTAINER_SDK_INSIDE_MOUNT_NAMESPACE') == '1':
         return
 
-    if os.environ.get('WEBKIT_CONTAINER_SDK_INSIDE_MOUNT_NAMESPACE') == '1':
+    if any(os.environ.get(e) == '1' for e in ('WEBKIT_FLATPAK', 'WEBKIT_JHBUILD')):
+        return
+
+    if os.environ.get('WEBKIT_CONTAINER_SDK') != '1':
+        print('WARNING: Running outside wkdev-sdk container. For proper testing, use https://github.com/Igalia/webkit-container-sdk', file=sys.stderr)
         return
 
     source_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))

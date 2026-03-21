@@ -66,14 +66,14 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtensionController, WebExtensionCont
     if (!(self = [super init]))
         return nil;
 
-    API::Object::constructInWrapper<WebKit::WebExtensionController>(self, configuration._protectedWebExtensionControllerConfiguration->copy());
+    API::Object::constructInWrapper<WebKit::WebExtensionController>(self, protect(*configuration->_webExtensionControllerConfiguration)->copy());
 
     return self;
 }
 
 - (WKWebExtensionControllerConfiguration *)configuration
 {
-    return protect(Ref { *_webExtensionController }->configuration())->copy()->wrapper();
+    return protect(_webExtensionController->configuration())->copy()->wrapper();
 }
 
 - (BOOL)loadExtensionContext:(WKWebExtensionContext *)extensionContext error:(NSError **)outError
@@ -116,7 +116,7 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtensionController, WebExtensionCont
 {
     NSParameterAssert([extension isKindOfClass:WKWebExtension.class]);
 
-    if (auto extensionContext = Ref { *_webExtensionController }->extensionContext(extension._protectedWebExtension))
+    if (auto extensionContext = Ref { *_webExtensionController }->extensionContext(protect(*extension->_webExtension)))
         return extensionContext->wrapper();
     return nil;
 }
@@ -151,7 +151,7 @@ static inline NSSet *toAPI(const HashSet<Ref<T>>& inputSet)
 
 - (NSSet<WKWebExtensionContext *> *)extensionContexts
 {
-    return toAPI(Ref { *_webExtensionController }->extensionContexts());
+    return toAPI(_webExtensionController->extensionContexts());
 }
 
 + (NSSet<WKWebExtensionDataType> *)allExtensionDataTypes
@@ -198,7 +198,7 @@ static inline NSSet *toAPI(const HashSet<Ref<T>>& inputSet)
 {
     NSParameterAssert(newWindow != nil);
 
-    for (auto& context : Ref { *_webExtensionController }->extensionContexts())
+    for (auto& context : _webExtensionController->extensionContexts())
         [context->wrapper() didOpenWindow:newWindow];
 }
 
@@ -206,13 +206,13 @@ static inline NSSet *toAPI(const HashSet<Ref<T>>& inputSet)
 {
     NSParameterAssert(closedWindow != nil);
 
-    for (auto& context : Ref { *_webExtensionController }->extensionContexts())
+    for (auto& context : _webExtensionController->extensionContexts())
         [context->wrapper() didCloseWindow:closedWindow];
 }
 
 - (void)didFocusWindow:(id<WKWebExtensionWindow>)focusedWindow
 {
-    for (auto& context : Ref { *_webExtensionController }->extensionContexts())
+    for (auto& context : _webExtensionController->extensionContexts())
         [context->wrapper() didFocusWindow:focusedWindow];
 }
 
@@ -220,7 +220,7 @@ static inline NSSet *toAPI(const HashSet<Ref<T>>& inputSet)
 {
     NSParameterAssert(newTab != nil);
 
-    for (auto& context : Ref { *_webExtensionController }->extensionContexts())
+    for (auto& context : _webExtensionController->extensionContexts())
         [context->wrapper() didOpenTab:newTab];
 }
 
@@ -228,7 +228,7 @@ static inline NSSet *toAPI(const HashSet<Ref<T>>& inputSet)
 {
     NSParameterAssert(closedTab != nil);
 
-    for (auto& context : Ref { *_webExtensionController }->extensionContexts())
+    for (auto& context : _webExtensionController->extensionContexts())
         [context->wrapper() didCloseTab:closedTab windowIsClosing:windowIsClosing];
 }
 
@@ -236,7 +236,7 @@ static inline NSSet *toAPI(const HashSet<Ref<T>>& inputSet)
 {
     NSParameterAssert(activatedTab != nil);
 
-    for (auto& context : Ref { *_webExtensionController }->extensionContexts())
+    for (auto& context : _webExtensionController->extensionContexts())
         [context->wrapper() didActivateTab:activatedTab previousActiveTab:previousTab];
 }
 
@@ -244,7 +244,7 @@ static inline NSSet *toAPI(const HashSet<Ref<T>>& inputSet)
 {
     NSParameterAssert([selectedTabs isKindOfClass:NSArray.class]);
 
-    for (auto& context : Ref { *_webExtensionController }->extensionContexts())
+    for (auto& context : _webExtensionController->extensionContexts())
         [context->wrapper() didSelectTabs:selectedTabs];
 }
 
@@ -252,7 +252,7 @@ static inline NSSet *toAPI(const HashSet<Ref<T>>& inputSet)
 {
     NSParameterAssert([deselectedTabs isKindOfClass:NSArray.class]);
 
-    for (auto& context : Ref { *_webExtensionController }->extensionContexts())
+    for (auto& context : _webExtensionController->extensionContexts())
         [context->wrapper() didDeselectTabs:deselectedTabs];
 }
 
@@ -260,7 +260,7 @@ static inline NSSet *toAPI(const HashSet<Ref<T>>& inputSet)
 {
     NSParameterAssert(movedTab != nil);
 
-    for (auto& context : Ref { *_webExtensionController }->extensionContexts())
+    for (auto& context : _webExtensionController->extensionContexts())
         [context->wrapper() didMoveTab:movedTab fromIndex:index inWindow:oldWindow];
 }
 
@@ -269,7 +269,7 @@ static inline NSSet *toAPI(const HashSet<Ref<T>>& inputSet)
     NSParameterAssert(oldTab != nil);
     NSParameterAssert(newTab != nil);
 
-    for (auto& context : Ref { *_webExtensionController }->extensionContexts())
+    for (auto& context : _webExtensionController->extensionContexts())
         [context->wrapper() didReplaceTab:oldTab withTab:newTab];
 }
 
@@ -277,7 +277,7 @@ static inline NSSet *toAPI(const HashSet<Ref<T>>& inputSet)
 {
     NSParameterAssert(changedTab != nil);
 
-    for (auto& context : Ref { *_webExtensionController }->extensionContexts())
+    for (auto& context : _webExtensionController->extensionContexts())
         [context->wrapper() didChangeTabProperties:properties forTab:changedTab];
 }
 

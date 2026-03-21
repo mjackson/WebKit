@@ -54,9 +54,9 @@ private:
     IntOutsets outsets(const FloatRect& targetBoundingBox, SVGUnitTypes::SVGUnitType primitiveUnits) const override;
     RefPtr<FilterEffect> createFilterEffect(const FilterEffectVector&, const GraphicsContext& destinationContext) const override;
 
-    Ref<SVGAnimatedString> m_in1 { SVGAnimatedString::create(this) };
-    Ref<SVGAnimatedNumber> m_dx { SVGAnimatedNumber::create(this) };
-    Ref<SVGAnimatedNumber> m_dy { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedString> m_in1 { SVGAnimatedString::create(this) };
+    const Ref<SVGAnimatedNumber> m_dx { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedNumber> m_dy { SVGAnimatedNumber::create(this) };
 };
 
 } // namespace WebCore

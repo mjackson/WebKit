@@ -112,7 +112,7 @@ const Settings* CSSComputedStyleDeclaration::settings() const
 
 const FixedVector<CSSPropertyID>& CSSComputedStyleDeclaration::exposedComputedCSSPropertyIDs() const
 {
-    return protect(protectedElement()->document())->exposedComputedCSSPropertyIDs();
+    return protect(element().document())->exposedComputedCSSPropertyIDs();
 }
 
 String CSSComputedStyleDeclaration::getPropertyValue(CSSPropertyID propertyID) const
@@ -130,7 +130,7 @@ unsigned CSSComputedStyleDeclaration::length() const
 
     Style::Extractor::updateStyleIfNeededForProperty(m_element.get(), CSSPropertyCustom);
 
-    CheckedPtr style = protectedElement()->computedStyle(m_pseudoElementIdentifier);
+    CheckedPtr style = protect(element())->computedStyle(m_pseudoElementIdentifier);
     if (!style)
         return 0;
 
@@ -148,7 +148,7 @@ String CSSComputedStyleDeclaration::item(unsigned i) const
     if (i < exposedComputedCSSPropertyIDs().size())
         return nameString(exposedComputedCSSPropertyIDs().at(i));
 
-    CheckedPtr style = protectedElement()->computedStyle(m_pseudoElementIdentifier);
+    CheckedPtr style = protect(element())->computedStyle(m_pseudoElementIdentifier);
     if (!style)
         return String();
 

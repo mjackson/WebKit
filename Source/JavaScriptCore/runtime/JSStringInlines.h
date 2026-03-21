@@ -407,29 +407,66 @@ inline void JSRopeString::resolveToBuffer(JSString* fiber0, JSString* fiber1, JS
 
                 auto* rope0 = static_cast<const JSRopeString*>(fiber0);
                 auto rope0Length = rope0->length();
-                if (rope0->isSubstring()) {
-                    StringView view0 = *rope0->substringBase()->valueInternal().impl();
-                    unsigned offset = rope0->substringOffset();
-                    view0.substring(offset, rope0Length).getCharacters(buffer);
-                } else
-                    resolveToBuffer(rope0->fiber0(), rope0->fiber1(), rope0->fiber2(), buffer.first(rope0Length), stackLimit);
-
-                // Both ropes are the same fibers! Then we can just copy the previously generated characters.
-                if (fiber0 == fiber1) {
-                    memcpySpan(buffer.subspan(rope0Length, rope0Length), buffer.first(rope0Length));
-                    return;
-                }
-                skip(buffer, rope0Length);
 
                 auto* rope1 = static_cast<const JSRopeString*>(fiber1);
                 auto rope1Length = rope1->length();
+
+                auto rope0Buffer = buffer.first(rope0Length);
+                auto rope1Buffer = buffer.subspan(rope0Length);
+
+                bool rope0Resolved = false;
+                if (rope0->isSubstring()) {
+                    {
+                        StringView view = *rope0->substringBase()->valueInternal().impl();
+                        unsigned offset = rope0->substringOffset();
+                        view.substring(offset, rope0Length).getCharacters(rope0Buffer);
+                    }
+                    if (rope0 == rope1) {
+                        memcpySpan(rope1Buffer, rope0Buffer);
+                        return;
+                    }
+                    rope0Resolved = true;
+                }
+
                 if (rope1->isSubstring()) {
-                    StringView view1 = *rope1->substringBase()->valueInternal().impl();
-                    unsigned offset = rope1->substringOffset();
-                    view1.substring(offset, rope1Length).getCharacters(buffer);
+                    {
+                        StringView view = *rope1->substringBase()->valueInternal().impl();
+                        unsigned offset = rope1->substringOffset();
+                        view.substring(offset, rope1Length).getCharacters(rope1Buffer);
+                    }
+                    if (rope0Resolved)
+                        return;
+                    MUST_TAIL_CALL return resolveToBuffer(rope0->fiber0(), rope0->fiber1(), rope0->fiber2(), rope0Buffer, stackLimit);
+                }
+
+                if (rope0Resolved)
+                    MUST_TAIL_CALL return resolveToBuffer(rope1->fiber0(), rope1->fiber1(), rope1->fiber2(), rope1Buffer, stackLimit);
+
+                // We resolve short rope first. Our heuristic is that longer rope can potentially have deeper nestings.
+                // Thus we would like to resolve that nestings in a tail-call form to avoid deeply nested call stacks.
+                const JSRopeString* shortRope;
+                const JSRopeString* longRope;
+                std::span<CharacterType> shortBuffer;
+                std::span<CharacterType> longBuffer;
+
+                if (rope0Length < rope1Length) {
+                    shortRope = rope0;
+                    longRope = rope1;
+                    shortBuffer = rope0Buffer;
+                    longBuffer = rope1Buffer;
+                } else {
+                    shortRope = rope1;
+                    longRope = rope0;
+                    shortBuffer = rope1Buffer;
+                    longBuffer = rope0Buffer;
+                }
+
+                resolveToBuffer(shortRope->fiber0(), shortRope->fiber1(), shortRope->fiber2(), shortBuffer, stackLimit);
+                if (rope0 == rope1) {
+                    memcpySpan(longBuffer, shortBuffer);
                     return;
                 }
-                MUST_TAIL_CALL return resolveToBuffer(rope1->fiber0(), rope1->fiber1(), rope1->fiber2(), buffer.first(rope1Length), stackLimit);
+                MUST_TAIL_CALL return resolveToBuffer(longRope->fiber0(), longRope->fiber1(), longRope->fiber2(), longBuffer, stackLimit);
             }
 
             auto* rope0 = static_cast<const JSRopeString*>(fiber0);

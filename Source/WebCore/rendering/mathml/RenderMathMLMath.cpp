@@ -55,7 +55,7 @@ void RenderMathMLMath::centerChildren(LayoutUnit contentWidth)
     if (!centerBlockOffset)
         return;
 
-    if (!style().isLeftToRightDirection())
+    if (!style().writingMode().deprecatedIsLeftToRightDirection())
         centerBlockOffset = -centerBlockOffset;
     for (CheckedPtr child = firstInFlowChildBox(); child; child = child->nextInFlowSiblingBox()) {
         auto repaintRect = child->checkForRepaintDuringLayout() ? std::make_optional(child->frameRect()) : std::nullopt;

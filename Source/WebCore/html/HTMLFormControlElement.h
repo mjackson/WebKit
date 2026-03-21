@@ -49,12 +49,12 @@ public:
     bool matchesUserValidPseudoClass() const override { return ValidatedFormListedElement::matchesUserValidPseudoClass(); }
     bool matchesUserInvalidPseudoClass() const override { return ValidatedFormListedElement::matchesUserInvalidPseudoClass(); }
 
-    bool isDisabledFormControl() const override { return isDisabled(); }
+    bool NODELETE isDisabledFormControl() const override { return isDisabled(); }
     bool supportsFocus() const override { return !isDisabled(); }
 
     WEBCORE_EXPORT String formEnctype() const;
     WEBCORE_EXPORT String formMethod() const;
-    bool formNoValidate() const;
+    bool NODELETE formNoValidate() const;
     WEBCORE_EXPORT String formAction() const;
 
     bool formControlValueMatchesRenderer() const { return m_valueMatchesRenderer; }
@@ -90,7 +90,7 @@ public:
 
     WEBCORE_EXPORT String autocomplete() const;
 
-    AutofillMantle autofillMantle() const;
+    AutofillMantle NODELETE autofillMantle() const;
 
     WEBCORE_EXPORT AutofillData autofillData() const;
 
@@ -109,11 +109,11 @@ public:
 protected:
     HTMLFormControlElement(const QualifiedName& tagName, Document&, HTMLFormElement*);
 
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) override;
-    void didFinishInsertingNode() override;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) override;
+    void postConnectionSteps() override;
     void didAttachRenderers() override;
     void didMoveToNewDocument(Document& oldDocument, Document& newDocument) override;
-    void removedFromAncestor(RemovalType, ContainerNode&) override;
+    void removingSteps(RemovalType, ContainerNode&) override;
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) override;
 
     void disabledStateChanged() override;

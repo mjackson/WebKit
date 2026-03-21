@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <WebCore/BoxSides.h>
 #include <WebCore/FloatPoint.h>
 #include <WebCore/FloatPoint3D.h>
 #include <WebCore/GraphicsLayerClient.h>
@@ -82,7 +83,7 @@ public:
     RenderLayer& owningLayer() const { return m_owningLayer; }
 
     // Included layers are non-z-order descendant layers that are painted into this backing.
-    const InlineWeakKeyListHashSet<RenderLayer>& backingSharingLayers() const { return m_backingSharingLayers; }
+    const InlineWeakKeyListHashSet<RenderLayer>& backingSharingLayers() const LIFETIME_BOUND { return m_backingSharingLayers; }
     void setBackingSharingLayers(InlineWeakKeyListHashSet<RenderLayer>&&);
 
     bool hasBackingSharingLayers() const { return !m_backingSharingLayers.isEmptyIgnoringNullReferences(); }
@@ -113,11 +114,11 @@ public:
     GraphicsLayer* clippingLayer() const { return !m_isFrameLayerWithTiledBacking ? m_childContainmentLayer.get() : nullptr; }
 
     bool hasAncestorClippingLayers() const { return !!m_ancestorClippingStack; }
-    LayerAncestorClippingStack* ancestorClippingStack() const { return m_ancestorClippingStack.get(); }
+    LayerAncestorClippingStack* ancestorClippingStack() const LIFETIME_BOUND { return m_ancestorClippingStack.get(); }
     bool updateAncestorClippingStack(Vector<CompositedClipData>&&);
 
     void ensureOverflowControlsHostLayerAncestorClippingStack(const RenderLayer* compositedAncestor);
-    LayerAncestorClippingStack* overflowControlsHostLayerAncestorClippingStack() const { return m_overflowControlsHostLayerAncestorClippingStack.get(); }
+    LayerAncestorClippingStack* overflowControlsHostLayerAncestorClippingStack() const LIFETIME_BOUND { return m_overflowControlsHostLayerAncestorClippingStack.get(); }
 
     GraphicsLayer* contentsContainmentLayer() const { return m_contentsContainmentLayer.get(); }
     GraphicsLayer* viewportAnchorLayer() const { return m_viewportAnchorLayer.get(); }
@@ -197,7 +198,7 @@ public:
     void resumeAnimations();
 
 #if ENABLE(THREADED_ANIMATIONS)
-    const AcceleratedEffectStack* acceleratedEffectStack() const;
+    const AcceleratedEffectStack* NODELETE acceleratedEffectStack() const;
     void updateAcceleratedEffectsAndBaseValues(HashSet<Ref<AcceleratedTimeline>>&);
 #endif
 
@@ -232,7 +233,7 @@ public:
 
     WEBCORE_EXPORT TiledBacking* tiledBacking() const;
     void adjustTiledBackingCoverage();
-    void setTiledBackingHasMargins(bool hasExtendedBackgroundOnLeftAndRight, bool hasExtendedBackgroundOnTopAndBottom);
+    void setTiledBackingHasMargins(BoxSideSet);
     
     void updateDebugIndicators(bool showBorder, bool showRepaintCounter);
 

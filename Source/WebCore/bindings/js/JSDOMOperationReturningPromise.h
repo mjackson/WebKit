@@ -23,8 +23,8 @@
 
 #pragma once
 
-#include <WebCore/JSDOMOperation.h>
-#include <WebCore/JSDOMPromiseDeferred.h>
+#include "JSDOMOperation.h"
+#include "JSDOMPromiseDeferred.h"
 
 namespace WebCore {
 

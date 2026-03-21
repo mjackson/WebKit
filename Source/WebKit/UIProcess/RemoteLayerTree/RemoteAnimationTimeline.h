@@ -46,9 +46,9 @@ public:
     bool isMonotonic() const { return !m_duration; }
     bool isProgressBased() const { return !!m_duration; }
 
-    const WebCore::WebAnimationTime& currentTime() const { return m_currentTime; }
-    const std::optional<WebCore::WebAnimationTime>& duration() const { return m_duration; }
-    const TimelineID& identifier() const { return m_identifier; }
+    const WebCore::WebAnimationTime& currentTime() const LIFETIME_BOUND { return m_currentTime; }
+    const std::optional<WebCore::WebAnimationTime>& duration() const LIFETIME_BOUND { return m_duration; }
+    const TimelineID& identifier() const LIFETIME_BOUND { return m_identifier; }
 
     Ref<JSON::Object> toJSONForTesting() const;
 

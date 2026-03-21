@@ -25,9 +25,9 @@
 
 #pragma once
 
-#include <WebCore/ResourceError.h>
-#include <WebCore/ResourceHandleClient.h>
-#include <WebCore/ResourceResponse.h>
+#include "ResourceError.h"
+#include "ResourceHandleClient.h"
+#include "ResourceResponse.h"
 #include <wtf/Function.h>
 #include <wtf/MessageQueue.h>
 #include <wtf/ThreadSafeRefCounted.h>
@@ -56,9 +56,9 @@ public:
     virtual ~SynchronousLoaderClient();
 
     void setAllowStoredCredentials(bool allow) { m_allowStoredCredentials = allow; }
-    const ResourceResponse& response() const { return m_response; }
-    Vector<uint8_t>& mutableData() { return m_data; }
-    const ResourceError& error() const { return m_error; }
+    const ResourceResponse& response() const LIFETIME_BOUND { return m_response; }
+    Vector<uint8_t>& mutableData() LIFETIME_BOUND { return m_data; }
+    const ResourceError& error() const LIFETIME_BOUND { return m_error; }
     SynchronousLoaderMessageQueue& messageQueue() { return m_messageQueue.get(); }
 
     WEBCORE_EXPORT static ResourceError platformBadResponseError();

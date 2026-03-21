@@ -25,13 +25,13 @@
 #pragma once
 
 #include <WebCore/AdjustViewSize.h>
+#include <WebCore/BoxSides.h>
 #include <WebCore/Color.h>
 #include <WebCore/FrameView.h>
 #include <WebCore/LayoutMilestone.h>
 #include <WebCore/LayoutRect.h>
 #include <WebCore/LocalFrame.h>
 #include <WebCore/LocalFrameViewLayoutContext.h>
-#include <WebCore/Page.h>
 #include <WebCore/Pagination.h>
 #include <WebCore/PaintPhase.h>
 #include <WebCore/RenderPtr.h>
@@ -92,6 +92,8 @@ Pagination::Mode NODELETE paginationModeForRenderStyle(const RenderStyle&);
 
 enum class LayoutViewportConstraint : bool { Unconstrained, ConstrainedToDocumentRect };
 
+using WeakElementEdges = RectEdges<WeakPtr<Element, WeakPtrImplWithEventTargetData>>;
+
 class LocalFrameView final : public FrameView {
     WTF_MAKE_TZONE_ALLOCATED(LocalFrameView);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(LocalFrameView);
@@ -126,8 +128,8 @@ public:
     void setContentsSize(const IntSize&) final;
     void updateContentsSize() final;
 
-    const LocalFrameViewLayoutContext& layoutContext() const { return m_layoutContext; }
-    LocalFrameViewLayoutContext& layoutContext() { return m_layoutContext; }
+    const LocalFrameViewLayoutContext& NODELETE layoutContext() const { return m_layoutContext; }
+    LocalFrameViewLayoutContext& NODELETE layoutContext() { return m_layoutContext; }
 
     WEBCORE_EXPORT bool NODELETE didFirstLayout() const;
 
@@ -211,19 +213,14 @@ public:
     WEBCORE_EXPORT void setTransparent(bool isTransparent);
     
     // True if the FrameView is not transparent, and the base background color is opaque.
-    bool hasOpaqueBackground() const;
+    bool NODELETE hasOpaqueBackground() const;
 
+    WEBCORE_EXPORT void invalidateForBaseBackgroundOrColorSchemeChange();
     WEBCORE_EXPORT Color NODELETE baseBackgroundColor() const;
     WEBCORE_EXPORT void setBaseBackgroundColor(const Color&);
     WEBCORE_EXPORT void updateBackgroundRecursively(const std::optional<Color>& backgroundColor);
 
-    enum ExtendedBackgroundModeFlags {
-        ExtendedBackgroundModeNone          = 0,
-        ExtendedBackgroundModeVertical      = 1 << 0,
-        ExtendedBackgroundModeHorizontal    = 1 << 1,
-        ExtendedBackgroundModeAll           = ExtendedBackgroundModeVertical | ExtendedBackgroundModeHorizontal,
-    };
-    typedef unsigned ExtendedBackgroundMode;
+    using ExtendedBackgroundMode = BoxSideSet;
 
     void updateExtendBackgroundIfNecessary();
     void updateTilesForExtendedBackgroundMode(ExtendedBackgroundMode);
@@ -318,11 +315,13 @@ public:
 
     // These are in document coordinates, unaffected by page scale (but affected by zooming).
     WEBCORE_EXPORT LayoutRect layoutViewportRect() const final;
+    void updateLayoutViewportRect();
     WEBCORE_EXPORT LayoutRect visualViewportRect() const;
 
     LayoutRect layoutViewportRectIncludingObscuredInsets() const;
 
     std::optional<LayoutRect> visibleRectOfChild(const Frame&) const final;
+    bool ownerElementOfChildFrameUsesDarkAppearance(const Frame&) const final;
     
     static LayoutRect visibleDocumentRect(const FloatRect& visibleContentRect, float headerHeight, float footerHeight, const FloatSize& totalContentsSize, float pageScaleFactor);
 
@@ -341,7 +340,7 @@ public:
 #endif
 
     AtomString mediaType() const;
-    WEBCORE_EXPORT void NODELETE setMediaType(const AtomString&);
+    WEBCORE_EXPORT void setMediaType(const AtomString&);
     void adjustMediaTypeForPrinting(bool printing);
 
     void setCannotBlitToWindow();
@@ -352,12 +351,12 @@ public:
     void removeSlowRepaintObject(RenderElement&);
     bool NODELETE hasSlowRepaintObject(const RenderElement& renderer) const;
     bool NODELETE hasSlowRepaintObjects() const;
-    SingleThreadWeakKeyHashSet<RenderElement>* slowRepaintObjects() const { return m_slowRepaintObjects.get(); }
+    SingleThreadWeakKeyHashSet<RenderElement>* slowRepaintObjects() const LIFETIME_BOUND { return m_slowRepaintObjects.get(); }
 
     // Includes fixed- and sticky-position objects.
     void addViewportConstrainedObject(RenderLayerModelObject&);
     void removeViewportConstrainedObject(RenderLayerModelObject&);
-    const SingleThreadWeakHashSet<RenderLayerModelObject>* viewportConstrainedObjects() const { return m_viewportConstrainedObjects.get(); }
+    const SingleThreadWeakHashSet<RenderLayerModelObject>* viewportConstrainedObjects() const LIFETIME_BOUND { return m_viewportConstrainedObjects.get(); }
     WEBCORE_EXPORT bool NODELETE hasViewportConstrainedObjects() const;
     bool hasAnchorPositionedViewportConstrainedObjects() const;
     void NODELETE clearCachedHasAnchorPositionedViewportConstrainedObjects();
@@ -407,6 +406,7 @@ public:
 
     WEBCORE_EXPORT bool NODELETE wasScrolledByUser() const;
     bool wasEverScrolledExplicitlyByUser() const { return m_wasEverScrolledExplicitlyByUser; }
+    bool wasEverScrolledExplicitlyByUserBelowTopEdge() const { return m_wasEverScrolledExplicitlyByUserBelowTopEdge; }
 
     enum class UserScrollType : uint8_t { Explicit, Implicit };
     WEBCORE_EXPORT void setLastUserScrollType(std::optional<UserScrollType>);
@@ -442,7 +442,7 @@ public:
     bool NODELETE isPainting() const;
     bool hasEverPainted() const { return !!m_lastPaintTime; }
     void setLastPaintTime(MonotonicTime lastPaintTime) { m_lastPaintTime = lastPaintTime; }
-    WEBCORE_EXPORT void NODELETE setNodeToDraw(Node*);
+    WEBCORE_EXPORT void setNodeToDraw(Node*);
 
     enum SelectionInSnapshot { IncludeSelection, ExcludeSelection };
     enum CoordinateSpaceForSnapshot { DocumentCoordinates, ViewCoordinates };
@@ -535,7 +535,7 @@ public:
     float absoluteToDocumentScaleFactor(std::optional<float> usedZoom = { }) const;
 
     WEBCORE_EXPORT FloatRect absoluteToDocumentRect(FloatRect, std::optional<float> usedZoom = { }) const;
-    WEBCORE_EXPORT FloatPoint NODELETE absoluteToDocumentPoint(FloatPoint, std::optional<float> usedZoom = { }) const;
+    WEBCORE_EXPORT FloatPoint absoluteToDocumentPoint(FloatPoint, std::optional<float> usedZoom = { }) const;
     WEBCORE_EXPORT DoublePoint absoluteToDocumentPoint(DoublePoint, std::optional<float> usedZoom = { }) const;
 
     FloatRect absoluteToClientRect(FloatRect, std::optional<float> usedZoom = { }) const;
@@ -546,12 +546,6 @@ public:
     DoublePoint documentToClientPoint(DoublePoint) const;
     WEBCORE_EXPORT FloatRect clientToDocumentRect(FloatRect) const;
     WEBCORE_EXPORT FloatPoint clientToDocumentPoint(FloatPoint) const;
-
-    WEBCORE_EXPORT FloatPoint absoluteToLayoutViewportPoint(FloatPoint) const;
-    FloatPoint layoutViewportToAbsolutePoint(FloatPoint) const;
-
-    WEBCORE_EXPORT FloatRect absoluteToLayoutViewportRect(FloatRect) const;
-    FloatRect layoutViewportToAbsoluteRect(FloatRect) const;
 
     // Unlike client coordinates, layout viewport coordinates are affected by page zoom.
     WEBCORE_EXPORT FloatRect clientToLayoutViewportRect(FloatRect) const;
@@ -590,7 +584,7 @@ public:
     WEBCORE_EXPORT void setTracksRepaints(bool);
     bool isTrackingRepaints() const { return m_isTrackingRepaints; }
     WEBCORE_EXPORT void resetTrackedRepaints();
-    const Vector<FloatRect>& trackedRepaintRects() const { return m_trackedRepaintRects; }
+    const Vector<FloatRect>& trackedRepaintRects() const LIFETIME_BOUND { return m_trackedRepaintRects; }
     String trackedRepaintRectsAsText() const;
 
     WEBCORE_EXPORT void NODELETE startTrackingLayoutUpdates();
@@ -604,11 +598,11 @@ public:
     // Returns whether the scrollable area has just been removed.
     WEBCORE_EXPORT bool removeScrollableArea(ScrollableArea*);
     bool NODELETE containsScrollableArea(ScrollableArea*) const;
-    const ScrollableAreaSet* scrollableAreas() const { return m_scrollableAreas.get(); }
+    const ScrollableAreaSet* scrollableAreas() const LIFETIME_BOUND { return m_scrollableAreas.get(); }
     
     void addScrollableAreaForAnimatedScroll(ScrollableArea*);
     void removeScrollableAreaForAnimatedScroll(ScrollableArea*);
-    const ScrollableAreaSet* scrollableAreasForAnimatedScroll() const { return m_scrollableAreasForAnimatedScroll.get(); }
+    const ScrollableAreaSet* scrollableAreasForAnimatedScroll() const LIFETIME_BOUND { return m_scrollableAreasForAnimatedScroll.get(); }
 
     WEBCORE_EXPORT void addChild(Widget&) final;
     WEBCORE_EXPORT void removeChild(Widget&) final;
@@ -626,7 +620,7 @@ public:
     // LocalFrameView. LocalFrameView::pagination() will return m_pagination if it has been set. Otherwise,
     // it will return Page::pagination() since currently there are no callers that need to
     // distinguish between the two.
-    const Pagination& pagination() const;
+    const Pagination& NODELETE pagination() const LIFETIME_BOUND;
     void setPagination(const Pagination&);
 
 #if HAVE(RUBBER_BANDING)
@@ -676,7 +670,7 @@ public:
     void didAddWidgetToRenderTree(Widget&);
     void willRemoveWidgetFromRenderTree(Widget&);
 
-    const HashSet<SingleThreadWeakRef<Widget>>& widgetsInRenderTree() const { return m_widgetsInRenderTree; }
+    const HashSet<SingleThreadWeakRef<Widget>>& widgetsInRenderTree() const LIFETIME_BOUND { return m_widgetsInRenderTree; }
 
     void notifyAllFramesThatContentAreaWillPaint() const;
 
@@ -742,7 +736,7 @@ public:
     // overflow:hidden scrollable areas can participate in anchoring, so they need their own set.
     void addScrollableAreaForScrollAnchoring(ScrollableArea&);
     void removeScrollableAreaForScrollAnchoring(ScrollableArea&);
-    const ScrollableAreaSet* scrollableAreasForScrollAnchoring() const { return m_anchoringScrollableAreas.get(); }
+    const ScrollableAreaSet* scrollableAreasForScrollAnchoring() const LIFETIME_BOUND { return m_anchoringScrollableAreas.get(); }
 
     void dequeueScrollableAreaForScrollAnchoringUpdate(ScrollableArea&);
     void queueScrollableAreaForScrollAnchoringUpdate(ScrollableArea&);
@@ -809,7 +803,7 @@ private:
     bool NODELETE isVerticalDocument() const final;
     bool NODELETE isFlippedDocument() const final;
 
-    void incrementVisuallyNonEmptyCharacterCountSlowCase(const String&);
+    void NODELETE incrementVisuallyNonEmptyCharacterCountSlowCase(const String&);
 
     void reset();
     void init();
@@ -1043,7 +1037,6 @@ private:
     OptionSet<PaintBehavior> m_paintBehavior;
 
     float m_lastUsedZoomFactor { 1 };
-    float m_lastFrameScaleFactor { 1 };
     unsigned m_visuallyNonEmptyCharacterCount { 0 };
     unsigned m_visuallyNonEmptyPixelCount { 0 };
     unsigned m_textRendererCountForVisuallyNonEmptyCharacters { 0 };
@@ -1093,6 +1086,7 @@ private:
 
     std::optional<UserScrollType> m_lastUserScrollType;
     bool m_wasEverScrolledExplicitlyByUser { false };
+    bool m_wasEverScrolledExplicitlyByUserBelowTopEdge { false };
 
     bool m_shouldUpdateWhileOffscreen { true };
     bool m_canHaveScrollbars { true };

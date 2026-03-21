@@ -37,7 +37,7 @@ PASS: Name should be 'Ahem'.
 -- Running test setup.
 PASS: Font should be loaded.
 -- Running test case: CSS.getComputedPrimaryFontForNode.WebfontCJK1
-PASS: Name should be 'Ahem'.
+PASS: Name should be 'Helvetica'.
 
 -- Running test setup.
 PASS: Font should be loaded.

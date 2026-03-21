@@ -40,7 +40,6 @@ public:
     virtual ~HTMLFrameOwnerElement();
 
     Frame* contentFrame() const { return m_contentFrame.get(); }
-    RefPtr<Frame> NODELETE protectedContentFrame() const;
     WEBCORE_EXPORT WindowProxy* NODELETE contentWindow() const;
     WEBCORE_EXPORT Document* NODELETE contentDocument() const;
 

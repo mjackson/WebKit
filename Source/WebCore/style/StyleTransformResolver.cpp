@@ -71,9 +71,11 @@ bool TransformResolver::affectedByTransformOrigin() const
 
 FloatPoint3D TransformResolver::computeTransformOrigin(const ComputedStyle& style, const FloatRect& boundingBox)
 {
+    auto zoom = style.usedZoomForLength();
+
     FloatPoint3D originTranslate;
-    originTranslate.setXY(boundingBox.location() + evaluate<FloatPoint>(style.transformOrigin().xy(), boundingBox.size(), ZoomNeeded { }));
-    originTranslate.setZ(style.transformOriginZ().resolveZoom(ZoomNeeded { }));
+    originTranslate.setXY(boundingBox.location() + evaluate<FloatPoint>(style.transformOrigin().xy(), boundingBox.size(), zoom));
+    originTranslate.setZ(evaluate<float>(style.transformOriginZ(), zoom));
     return originTranslate;
 }
 
@@ -90,7 +92,7 @@ FloatPoint3D TransformResolver::computeTransformOrigin(const FloatRect& bounding
 
 FloatPoint TransformResolver::computePerspectiveOrigin(const ComputedStyle& style, const FloatRect& boundingBox)
 {
-    return boundingBox.location() + evaluate<FloatPoint>(style.perspectiveOrigin(), boundingBox.size(), ZoomNeeded { });
+    return boundingBox.location() + evaluate<FloatPoint>(style.perspectiveOrigin(), boundingBox.size(), style.usedZoomForLength());
 }
 
 FloatPoint TransformResolver::computePerspectiveOrigin(const RenderStyle& style, const FloatRect& boundingBox)
@@ -156,7 +158,7 @@ void TransformResolver::applyCSSTransform(const TransformOperationData& transfor
 
     // 6. Translate and rotate by the transform specified by offset.
     if (options.contains(Option::Offset))
-        applyMotionPathTransform(transformData);
+        applyMotionPathTransform(transformData, m_style->usedZoomForLength());
 
     // 7. Multiply by each of the transform functions in transform from left to right.
     m_style->transform().apply(m_transform, boundingBox.size());
@@ -202,9 +204,9 @@ TransformationMatrix TransformResolver::computeTransform(const RenderStyle& styl
     return computeTransform(computedStyle, transformData, options);
 }
 
-void TransformResolver::applyMotionPathTransform(const TransformOperationData& transformData)
+void TransformResolver::applyMotionPathTransform(const TransformOperationData& transformData, ZoomFactor zoom)
 {
-    auto offsetPath = tryPath(m_style->offsetPath(), transformData);
+    auto offsetPath = tryPath(m_style->offsetPath(), transformData, zoom);
     if (!offsetPath)
         return;
 
@@ -213,10 +215,10 @@ void TransformResolver::applyMotionPathTransform(const TransformOperationData& t
     auto transformOrigin = computeTransformOrigin(boundingBox).xy();
     auto transformBox = m_style->transformBox();
 
-    auto offsetDistance = evaluate<float>(m_style->offsetDistance(), offsetPath->length(), ZoomNeeded { });
+    auto offsetDistance = evaluate<float>(m_style->offsetDistance(), offsetPath->length(), zoom);
     auto offsetAnchor = WTF::switchOn(m_style->offsetAnchor(),
         [&](const Position& position) -> std::optional<FloatPoint> {
-            return evaluate<FloatPoint>(position, boundingBox.size(), ZoomNeeded { });
+            return evaluate<FloatPoint>(position, boundingBox.size(), zoom);
         },
         [&](const CSS::Keyword::Auto&) -> std::optional<FloatPoint> {
             return { };

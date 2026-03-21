@@ -186,10 +186,11 @@ auto ContentExtensionsBackend::actionsForResourceLoad(const ResourceLoadInfo& re
     ASSERT(!(resourceLoadInfo.getResourceFlags() & ActionConditionMask));
     const ResourceFlags flags = resourceLoadInfo.getResourceFlags() | ActionConditionMask;
     Vector<ActionsFromContentRuleList> actionsVector = WTF::compactMap(m_contentExtensions, [&](auto& entry) -> std::optional<ActionsFromContentRuleList> {
-        auto& [identifier, contentExtension] = entry;
+        const String identifier = entry.key;
+        Ref contentExtension = entry.value;
         if (ruleListFilter(identifier) == ShouldSkipRuleList::Yes)
             return std::nullopt;
-        return actionsFromContentRuleList(contentExtension.get(), urlString, resourceLoadInfo, flags);
+        return actionsFromContentRuleList(contentExtension, urlString, resourceLoadInfo, flags);
     });
 
 #if CONTENT_EXTENSIONS_PERFORMANCE_REPORTING

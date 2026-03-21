@@ -63,6 +63,52 @@
 
 #define WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(pageID, fmt, ...) RELEASE_LOG(ViewGestures, "[pageProxyID=%llu] %s: " fmt, pageID, std::source_location::current().function_name(), ##__VA_ARGS__)
 
+@interface WKPanGestureRecognizer : NSPanGestureRecognizer
+
+@end
+
+@implementation WKPanGestureRecognizer {
+    WeakPtr<WebKit::WebPageProxy> _page;
+}
+
+- (instancetype)initWithPage:(WebKit::WebPageProxy&)page target:(id)target action:(SEL)action
+{
+    if (!(self = [super initWithTarget:target action:action]))
+        return nil;
+
+    _page = page;
+
+    return self;
+}
+
+- (BOOL)shouldRecognizeForDelta:(NSPoint)delta
+{
+    RefPtr page = _page.get();
+    if (!page)
+        return NO;
+
+    if (![page->cocoaView() enclosingScrollView])
+        return YES;
+
+    auto pinnedState = page->pinnedStateIncludingAncestorsAtPoint([self locationInView:page->cocoaView().get()]);
+
+    if (std::fabs(delta.x) > std::fabs(delta.y)) {
+        if (delta.x < 0 && pinnedState.right())
+            return NO;
+        if (delta.x > 0 && pinnedState.left())
+            return NO;
+    } else {
+        if (delta.y < 0 && pinnedState.top())
+            return NO;
+        if (delta.y > 0 && pinnedState.bottom())
+            return NO;
+    }
+
+    return YES;
+}
+
+@end
+
 static WebCore::FloatSize translationInView(NSPanGestureRecognizer *gesture, WKWebView *view)
 {
     auto translation = WebCore::toFloatSize(WebCore::FloatPoint { [gesture translationInView:view] });
@@ -112,6 +158,7 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     WeakPtr<WebKit::WebViewImpl> _viewImpl;
 
     RetainPtr<NSPanGestureRecognizer> _panGestureRecognizer;
+    RetainPtr<NSPressGestureRecognizer> _mouseTrackingGestureRecognizer;
     RetainPtr<NSPressGestureRecognizer> _singleClickGestureRecognizer;
     RetainPtr<NSClickGestureRecognizer> _doubleClickGestureRecognizer;
     RetainPtr<NSPressGestureRecognizer> _secondaryClickGestureRecognizer;
@@ -126,7 +173,10 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     std::optional<WebKit::TransactionID> _layerTreeTransactionIdAtLastInteractionStart;
     Markable<WebKit::ClickIdentifier> _latestClickID;
     WebCore::PointerID _commitPotentialClickPointerId;
-    WebCore::FloatPoint _lastInteractionLocation;
+    WebCore::FloatPoint _lastInteractionLocationInWebView;
+
+    bool _mouseTrackingHasSentMouseDown;
+    WebCore::FloatPoint _mouseTrackingStartLocationInWindow;
 }
 
 #if __has_include(<WebKitAdditions/WKAppKitGestureControllerAdditionsImpl.mm>)
@@ -143,22 +193,40 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     _page = page.get();
     _viewImpl = viewImpl.get();
 
-    [self setUpPanGestureRecognizer];
-    [self setUpSingleClickGestureRecognizer];
-    [self setUpDoubleClickGestureRecognizer];
-    [self setUpSecondaryClickGestureRecognizer];
+    [self setUpGestureRecognizers];
     [self addGesturesToWebView];
     [self enableGesturesIfNeeded];
 
     return self;
 }
 
+- (void)setUpGestureRecognizers
+{
+    [self setUpPanGestureRecognizer];
+    [self setUpMouseTrackingGestureRecognizer];
+    [self setUpSingleClickGestureRecognizer];
+    [self setUpDoubleClickGestureRecognizer];
+    [self setUpSecondaryClickGestureRecognizer];
+}
+
 - (void)setUpPanGestureRecognizer
 {
-    _panGestureRecognizer = adoptNS([[NSPanGestureRecognizer alloc] initWithTarget:self action:@selector(panGestureRecognized:)]);
+    RefPtr page = _page.get();
+    if (!page)
+        return;
+
+    _panGestureRecognizer = adoptNS([[WKPanGestureRecognizer alloc] initWithPage:*page target:self action:@selector(panGestureRecognized:)]);
     [self configureForScrolling:_panGestureRecognizer.get()];
     [_panGestureRecognizer setDelegate:self];
     [_panGestureRecognizer setName:@"WKPanGesture"];
+}
+
+- (void)setUpMouseTrackingGestureRecognizer
+{
+    _mouseTrackingGestureRecognizer = adoptNS([[NSPressGestureRecognizer alloc] initWithTarget:self action:@selector(mouseTrackingGestureRecognized:)]);
+    [self configureForMouseTracking:_mouseTrackingGestureRecognizer.get()];
+    [_mouseTrackingGestureRecognizer setDelegate:self];
+    [_mouseTrackingGestureRecognizer setName:@"WKMouseTrackingGesture"];
 }
 
 - (void)setUpSingleClickGestureRecognizer
@@ -196,6 +264,7 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
         return;
 
     [webView addGestureRecognizer:_panGestureRecognizer.get()];
+    [webView addGestureRecognizer:_mouseTrackingGestureRecognizer.get()];
     [webView addGestureRecognizer:_singleClickGestureRecognizer.get()];
     [webView addGestureRecognizer:_doubleClickGestureRecognizer.get()];
     [webView addGestureRecognizer:_secondaryClickGestureRecognizer.get()];
@@ -204,6 +273,7 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
 - (void)enableGesturesIfNeeded
 {
     [self enableGestureIfNeeded:_panGestureRecognizer.get()];
+    [self enableGestureIfNeeded:_mouseTrackingGestureRecognizer.get()];
     [self enableGestureIfNeeded:_singleClickGestureRecognizer.get()];
     [self enableGestureIfNeeded:_doubleClickGestureRecognizer.get()];
     [self enableGestureIfNeeded:_secondaryClickGestureRecognizer.get()];
@@ -249,12 +319,6 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     viewImpl->updateBannerViewForPanGesture([panGesture state]);
 #endif
 
-    // FIXME: Need to supply a real event here.
-    if (viewImpl->allowsBackForwardNavigationGestures() && viewImpl->ensureProtectedGestureController()->handleScrollWheelEvent(nil)) {
-        WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(page->logIdentifier(), "View gesture controller handled gesture");
-        return;
-    }
-
     [self sendWheelEventForGesture:panGesture.get()];
     [self startMomentumIfNeededForGesture:panGesture.get()];
 }
@@ -277,6 +341,19 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
 
     if (_singleClickGestureRecognizer != gesture)
         return;
+
+    // Clicks aren't delivered to NSButton's built-in click gesture
+    // recognizer when a parent view's GR recognizes first, so we
+    // forward the click manually.
+    if (gesture.state == NSGestureRecognizerStateBegan) {
+        WebCore::FloatPoint location { [gesture locationInView:webView.get()] };
+        if (RetainPtr hitView = viewImpl->hitTestPDFHUD(location); hitView && viewImpl->isViewVisible(hitView.get())) {
+            if (RetainPtr hudButton = dynamic_objc_cast<NSButton>(hitView))
+                [hudButton performClick:nil];
+            gesture.state = NSGestureRecognizerStateCancelled;
+            return;
+        }
+    }
 
     switch (gesture.state) {
     case NSGestureRecognizerStateBegan:
@@ -317,7 +394,7 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     viewImpl->dismissContentRelativeChildWindowsWithAnimation(false);
 
     auto magnificationOrigin = [webView convertPoint:[gesture locationInView:nil] fromView:nil];
-    viewImpl->ensureProtectedGestureController()->handleSmartMagnificationGesture(magnificationOrigin);
+    protect(viewImpl->ensureGestureController())->handleSmartMagnificationGesture(magnificationOrigin);
 }
 
 - (void)secondaryClickGestureRecognized:(NSGestureRecognizer *)gesture
@@ -352,6 +429,93 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
     viewImpl->mouseUp(mouseUp.get(), WebKit::WebMouseEventInputSource::Automation);
 }
 
+- (void)mouseTrackingGestureRecognized:(NSGestureRecognizer *)gesture
+{
+    CheckedPtr viewImpl = _viewImpl.get();
+    if (!viewImpl)
+        return;
+
+    RetainPtr webView = viewImpl->view();
+    if (!webView)
+        return;
+
+    RefPtr page = _page.get();
+    if (!page)
+        return;
+
+    if (_mouseTrackingGestureRecognizer != gesture)
+        return;
+
+    if (viewImpl->ignoresAllEvents())
+        return;
+
+ALLOW_NEW_API_WITHOUT_GUARDS_BEGIN
+    auto modifierFlags = [gesture modifierFlags];
+ALLOW_NEW_API_WITHOUT_GUARDS_END
+    WebCore::FloatPoint locationInWindow { [gesture locationInView:nil] };
+    auto windowNumber = viewImpl->windowNumber();
+    auto timestamp = GetCurrentEventTime();
+
+    switch (gesture.state) {
+    case NSGestureRecognizerStateBegan:
+        _mouseTrackingHasSentMouseDown = false;
+        _mouseTrackingStartLocationInWindow = locationInWindow;
+        break;
+
+    case NSGestureRecognizerStateChanged: {
+        if (!_mouseTrackingHasSentMouseDown) {
+            RetainPtr mouseDown = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDown
+                location:_mouseTrackingStartLocationInWindow
+                modifierFlags:modifierFlags
+                timestamp:timestamp
+                windowNumber:windowNumber
+                context:nil
+                eventNumber:0
+                clickCount:1
+                pressure:1.0];
+            viewImpl->mouseDown(mouseDown.get(), WebKit::WebMouseEventInputSource::Automation);
+            _mouseTrackingHasSentMouseDown = true;
+        }
+
+        RetainPtr mouseDragged = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDragged
+            location:locationInWindow
+            modifierFlags:modifierFlags
+            timestamp:timestamp
+            windowNumber:windowNumber
+            context:nil
+            eventNumber:0
+            clickCount:1
+            pressure:1.0];
+        viewImpl->mouseDragged(mouseDragged.get(), WebKit::WebMouseEventInputSource::Automation);
+        break;
+    }
+
+    case NSGestureRecognizerStateEnded: {
+        if (_mouseTrackingHasSentMouseDown) {
+            RetainPtr mouseUp = [NSEvent mouseEventWithType:NSEventTypeLeftMouseUp
+                location:locationInWindow
+                modifierFlags:modifierFlags
+                timestamp:timestamp
+                windowNumber:windowNumber
+                context:nil
+                eventNumber:0
+                clickCount:1
+                pressure:0.0];
+            viewImpl->mouseUp(mouseUp.get(), WebKit::WebMouseEventInputSource::Automation);
+        }
+        [[fallthrough]];
+    }
+
+    case NSGestureRecognizerStateCancelled:
+    case NSGestureRecognizerStateFailed:
+        _mouseTrackingHasSentMouseDown = false;
+        break;
+
+    default:
+        break;
+    }
+}
+
 #pragma mark - Click Handling
 
 - (void)_handleClickBegan:(NSGestureRecognizer *)gesture
@@ -369,7 +533,7 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
         return;
 
     WebCore::FloatPoint position = [gesture locationInView:webView.get()];
-    _lastInteractionLocation = position;
+    _lastInteractionLocationInWebView = position;
 
     if (RefPtr drawingArea = page->drawingArea()) {
         if (RefPtr remoteDrawingArea = dynamicDowncast<WebKit::RemoteLayerTreeDrawingAreaProxy>(*drawingArea))
@@ -557,7 +721,14 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
         momentumEndType
     };
 
-    page->handleNativeWheelEvent(WebKit::NativeWebWheelEvent { wheelEvent });
+    WebKit::NativeWebWheelEvent nativeEvent { wheelEvent };
+
+    if (viewImpl->allowsBackForwardNavigationGestures() && protect(viewImpl->ensureGestureController())->handleScrollWheelEvent(nativeEvent)) {
+        WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(page->logIdentifier(), "View gesture controller handled gesture");
+        return;
+    }
+
+    page->handleNativeWheelEvent(nativeEvent);
 }
 
 #pragma mark - Momentum Handling
@@ -661,6 +832,12 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
 
 #pragma mark - NSGestureRecognizerDelegate
 
+static BOOL isBuiltInScrollViewPanGestureRecognizer(NSGestureRecognizer *recognizer)
+{
+    static Class scrollViewPanGestureClass = NSClassFromString(@"NSScrollViewPanGestureRecognizer");
+    return [recognizer isKindOfClass:scrollViewPanGestureClass];
+}
+
 static inline bool isSamePair(NSGestureRecognizer *a, NSGestureRecognizer *b, NSGestureRecognizer *x, NSGestureRecognizer *y)
 {
     return (a == x && b == y) || (b == x && a == y);
@@ -673,6 +850,17 @@ static inline bool isSamePair(NSGestureRecognizer *a, NSGestureRecognizer *b, NS
     if (isSamePair(gestureRecognizer, otherGestureRecognizer, _singleClickGestureRecognizer.get(), _panGestureRecognizer.get()))
         return YES;
 
+    if (isSamePair(gestureRecognizer, otherGestureRecognizer, _mouseTrackingGestureRecognizer.get(), _singleClickGestureRecognizer.get()))
+        return YES;
+
+    if (isSamePair(gestureRecognizer, otherGestureRecognizer, _mouseTrackingGestureRecognizer.get(), _panGestureRecognizer.get()))
+        return YES;
+
+    if (gestureRecognizer == _singleClickGestureRecognizer
+        && isBuiltInScrollViewPanGestureRecognizer(otherGestureRecognizer)
+        && [otherGestureRecognizer.view isKindOfClass:NSScrollView.class])
+        return YES;
+
     CheckedPtr viewImpl = _viewImpl.get();
     if (!viewImpl)
         return NO;
@@ -681,11 +869,12 @@ static inline bool isSamePair(NSGestureRecognizer *a, NSGestureRecognizer *b, NS
     if (!webView)
         return NO;
 
-    // Allow the single click GR to be simultaneously recognized with any of those from the text selection manager.
-
+    // Allow the single click or mouse tracking GRs to be simultaneously
+    // recognized with any of those from the text selection manager.
     for (NSGestureRecognizer *gestureForFailureRequirements in [[webView textSelectionManager] gesturesForFailureRequirements]) {
-        if ((gestureRecognizer == _singleClickGestureRecognizer && otherGestureRecognizer == gestureForFailureRequirements)
-            || (otherGestureRecognizer == _singleClickGestureRecognizer && gestureRecognizer == gestureForFailureRequirements))
+        if (isSamePair(gestureRecognizer, otherGestureRecognizer, _singleClickGestureRecognizer.get(), gestureForFailureRequirements))
+            return YES;
+        if (isSamePair(gestureRecognizer, otherGestureRecognizer, _mouseTrackingGestureRecognizer.get(), gestureForFailureRequirements))
             return YES;
     }
 
@@ -750,7 +939,7 @@ static inline bool isSamePair(NSGestureRecognizer *a, NSGestureRecognizer *b, NS
 
 - (BOOL)_gestureRecognizer:(NSGestureRecognizer *)preventingGestureRecognizer canPreventGestureRecognizer:(NSGestureRecognizer *)preventedGestureRecognizer
 {
-    bool isOurClickGesture = preventingGestureRecognizer == _singleClickGestureRecognizer || preventingGestureRecognizer == _secondaryClickGestureRecognizer;
+    bool isOurClickGesture = preventingGestureRecognizer == _singleClickGestureRecognizer || preventingGestureRecognizer == _secondaryClickGestureRecognizer || preventingGestureRecognizer == _mouseTrackingGestureRecognizer;
     return !isOurClickGesture || ![self _isScrollOrZoomGestureRecognizer:preventedGestureRecognizer];
 }
 

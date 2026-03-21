@@ -27,7 +27,7 @@
 #include "StyleComputedStyleBase+SettersInlines.h"
 
 #include "AutosizeStatus.h"
-#include "FontCascade.h"
+#include "FontCascadeInlines.h"
 #include "FontSelector.h"
 #include "Logging.h"
 #include "RenderStyle.h"

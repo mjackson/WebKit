@@ -33,14 +33,14 @@ template<typename> class ExceptionOr;
 
 class TimeRanges : public RefCounted<TimeRanges> {
 public:
-    WEBCORE_EXPORT static Ref<TimeRanges> create();
-    WEBCORE_EXPORT static Ref<TimeRanges> create(double start, double end);
-    static Ref<TimeRanges> create(const PlatformTimeRanges&);
+    WEBCORE_EXPORT static Ref<TimeRanges> NODELETE create();
+    WEBCORE_EXPORT static Ref<TimeRanges> NODELETE create(double start, double end);
+    static Ref<TimeRanges> NODELETE create(const PlatformTimeRanges&);
 
     WEBCORE_EXPORT ExceptionOr<double> start(unsigned index) const;
     WEBCORE_EXPORT ExceptionOr<double> end(unsigned index) const;
 
-    WEBCORE_EXPORT Ref<TimeRanges> copy() const;
+    WEBCORE_EXPORT Ref<TimeRanges> NODELETE copy() const;
     void invert();
     WEBCORE_EXPORT void intersectWith(const TimeRanges&);
     void unionWith(const TimeRanges&);
@@ -54,8 +54,8 @@ public:
     WEBCORE_EXPORT double nearest(double time) const;
     double totalDuration() const;
 
-    const PlatformTimeRanges& ranges() const { return m_ranges; }
-    PlatformTimeRanges& ranges() { return m_ranges; }
+    const PlatformTimeRanges& ranges() const LIFETIME_BOUND { return m_ranges; }
+    PlatformTimeRanges& ranges() LIFETIME_BOUND { return m_ranges; }
 
 private:
     WEBCORE_EXPORT TimeRanges();

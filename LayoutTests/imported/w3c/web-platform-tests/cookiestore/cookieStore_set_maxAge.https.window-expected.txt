@@ -1,0 +1,6 @@
+
+PASS cookieStore.set with maxAge set to a positive value
+FAIL cookieStore.set with maxAge set to a negative value assert_equals: expected null but got object "[object Object]"
+FAIL cookieStore.set with maxAge set to zero, cookie change event not dispatched assert_equals: expected null but got object "[object Object]"
+FAIL cookieStore.set fails with both maxAge and expires assert_unreached: Should have rejected: undefined Reached unreachable code
+

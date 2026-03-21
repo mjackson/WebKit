@@ -42,7 +42,11 @@ class IOSSimulatorPort(EmbeddedSimulatorPort, IOSPort):
         DeviceType(hardware_family='iPhone', hardware_type='12'),
         DeviceType(hardware_family='iPad', hardware_type='(9th generation)'),
     ]
-    SDK = apple_additions().get_sdk('iphonesimulator') if apple_additions() else 'iphonesimulator'
+    _DEFAULT_SDK = 'iphonesimulator'
+
+    @property
+    def SDK(self):
+        return apple_additions().get_sdk(self._DEFAULT_SDK) if apple_additions() else self._DEFAULT_SDK
 
     def architecture(self):
         result = self.get_option('architecture') or self.host.platform.architecture()

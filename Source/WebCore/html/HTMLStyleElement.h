@@ -45,7 +45,7 @@ public:
 
     CSSStyleSheet* sheet() const { return m_styleSheetOwner.sheet(); }
 
-    WEBCORE_EXPORT bool NODELETE disabled() const;
+    WEBCORE_EXPORT bool disabled() const;
     WEBCORE_EXPORT void setDisabled(bool);
 
     void dispatchPendingEvent(StyleEventSender*, const AtomString& eventType);
@@ -59,8 +59,8 @@ private:
     HTMLStyleElement(const QualifiedName&, Document&, bool createdByParser);
 
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) final;
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) final;
-    void removedFromAncestor(RemovalType, ContainerNode&) final;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) final;
+    void removingSteps(RemovalType, ContainerNode&) final;
     void childrenChanged(const ChildChange&) final;
 
     bool isLoading() const { return m_styleSheetOwner.isLoading(); }

@@ -195,7 +195,7 @@ RefPtr<HTMLMapElement> TreeScopeOrderedMap::getElementByMapName(const AtomString
 {
     return downcast<HTMLMapElement>(get(key, scope, [] (const AtomString& key, const Element& element) {
         auto* mapElement = dynamicDowncast<HTMLMapElement>(element);
-        return mapElement && mapElement->getName() == key;
+        return mapElement && (mapElement->getName() == key || mapElement->getIdAttribute() == key);
     }));
 }
 

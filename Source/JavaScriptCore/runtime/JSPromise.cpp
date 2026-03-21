@@ -191,33 +191,32 @@ JSPromise* JSPromise::rejectedPromiseWithCaughtException(JSGlobalObject* globalO
     return rejectedPromise(globalObject, exception->value());
 }
 
-void JSPromise::resolve(JSGlobalObject* globalObject, JSValue value)
+void JSPromise::resolve(JSGlobalObject* globalObject, VM& vm, JSValue value)
 {
-    VM& vm = globalObject->vm();
-    uint32_t flags = this->flags();
+    int32_t flags = this->flags();
     ASSERT(!value.inherits<Exception>());
     if (!(flags & isFirstResolvingFunctionCalledFlag)) {
-        internalField(Field::Flags).set(vm, this, jsNumber(flags | isFirstResolvingFunctionCalledFlag));
-        resolvePromise(globalObject, value);
+        internalField(Field::Flags).setWithoutWriteBarrier(jsNumber(static_cast<int32_t>(flags | isFirstResolvingFunctionCalledFlag)));
+        resolvePromise(globalObject, vm, value);
     }
 }
 
 void JSPromise::reject(VM& vm, JSGlobalObject* globalObject, JSValue value)
 {
-    uint32_t flags = this->flags();
+    int32_t flags = this->flags();
     ASSERT(!value.inherits<Exception>());
     if (!(flags & isFirstResolvingFunctionCalledFlag)) {
-        internalField(Field::Flags).set(vm, this, jsNumber(flags | isFirstResolvingFunctionCalledFlag));
+        internalField(Field::Flags).setWithoutWriteBarrier(jsNumber(static_cast<int32_t>(flags | isFirstResolvingFunctionCalledFlag)));
         rejectPromise(vm, globalObject, value);
     }
 }
 
 void JSPromise::fulfill(VM& vm, JSGlobalObject* globalObject, JSValue value)
 {
-    uint32_t flags = this->flags();
+    int32_t flags = this->flags();
     ASSERT(!value.inherits<Exception>());
     if (!(flags & isFirstResolvingFunctionCalledFlag)) {
-        internalField(Field::Flags).set(vm, this, jsNumber(flags | isFirstResolvingFunctionCalledFlag));
+        internalField(Field::Flags).setWithoutWriteBarrier(jsNumber(static_cast<int32_t>(flags | isFirstResolvingFunctionCalledFlag)));
         fulfillPromise(vm, globalObject, value);
     }
 }
@@ -284,33 +283,34 @@ void JSPromise::performPromiseThen(VM& vm, JSGlobalObject* globalObject, JSValue
     switch (status()) {
     case JSPromise::Status::Pending: {
 #if USE(BUN_JSC_ADDITIONS)
-        auto* reaction = JSPromiseReaction::create(vm, promiseOrCapability, onFulfilled, onRejected, context, jsDynamicCast<JSPromiseReaction*>(reactionsOrResult));
+        auto* reaction = JSPromiseReaction::create(vm, promiseOrCapability, onFulfilled, onRejected, context, reactionsOrResult ? jsCast<JSPromiseReaction*>(reactionsOrResult) : nullptr);
 #else
-        auto* reaction = JSPromiseReaction::create(vm, promiseOrCapability, onFulfilled, onRejected, jsUndefined(), jsDynamicCast<JSPromiseReaction*>(reactionsOrResult));
+        auto* reaction = JSPromiseReaction::create(vm, promiseOrCapability, onFulfilled, onRejected, jsUndefined(), reactionsOrResult ? jsCast<JSPromiseReaction*>(reactionsOrResult) : nullptr);
 #endif
         setReactionsOrResult(vm, reaction);
+        markAsHandled();
         break;
     }
     case JSPromise::Status::Rejected: {
         if (!isHandled())
             globalObject->globalObjectMethodTable()->promiseRejectionTracker(globalObject, this, JSPromiseRejectionOperation::Handle);
 #if USE(BUN_JSC_ADDITIONS)
-        globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Rejected), promiseOrCapability, onRejected, reactionsOrResult, context);
+        globalObject->queueMicrotask(vm, InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Rejected), promiseOrCapability, onRejected, reactionsOrResult, context);
 #else
-        globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Rejected), promiseOrCapability, onRejected, reactionsOrResult);
+        globalObject->queueMicrotask(vm, InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Rejected), promiseOrCapability, onRejected, reactionsOrResult);
 #endif
+        markAsHandled();
         break;
     }
     case JSPromise::Status::Fulfilled: {
 #if USE(BUN_JSC_ADDITIONS)
-        globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Fulfilled), promiseOrCapability, onFulfilled, reactionsOrResult, context);
+        globalObject->queueMicrotask(vm, InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Fulfilled), promiseOrCapability, onFulfilled, reactionsOrResult, context);
 #else
-        globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Fulfilled), promiseOrCapability, onFulfilled, reactionsOrResult);
+        globalObject->queueMicrotask(vm, InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Fulfilled), promiseOrCapability, onFulfilled, reactionsOrResult);
 #endif
         break;
     }
     }
-    markAsHandled();
 }
 
 #if USE(BUN_JSC_ADDITIONS)
@@ -338,22 +338,23 @@ void JSPromise::performPromiseThenWithContext(VM& vm, JSGlobalObject* globalObje
     JSValue reactionsOrResult = this->reactionsOrResult();
     switch (status()) {
     case JSPromise::Status::Pending: {
-        auto* reaction = JSPromiseReaction::create(vm, promiseOrCapability, onFulfilled, onRejected, context, jsDynamicCast<JSPromiseReaction*>(reactionsOrResult));
+        auto* reaction = JSPromiseReaction::create(vm, promiseOrCapability, onFulfilled, onRejected, context, reactionsOrResult ? jsCast<JSPromiseReaction*>(reactionsOrResult) : nullptr);
         setReactionsOrResult(vm, reaction);
+        markAsHandled();
         break;
     }
     case JSPromise::Status::Rejected: {
         if (!isHandled())
             globalObject->globalObjectMethodTable()->promiseRejectionTracker(globalObject, this, JSPromiseRejectionOperation::Handle);
-        globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Rejected), promiseOrCapability, onRejected, reactionsOrResult, context);
+        globalObject->queueMicrotask(vm, InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Rejected), promiseOrCapability, onRejected, reactionsOrResult, context);
+        markAsHandled();
         break;
     }
     case JSPromise::Status::Fulfilled: {
-        globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Fulfilled), promiseOrCapability, onFulfilled, reactionsOrResult, context);
+        globalObject->queueMicrotask(vm, InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Fulfilled), promiseOrCapability, onFulfilled, reactionsOrResult, context);
         break;
     }
     }
-    markAsHandled();
 }
 #endif
 
@@ -363,22 +364,23 @@ void JSPromise::performPromiseThenWithInternalMicrotask(VM& vm, JSGlobalObject* 
     switch (status()) {
     case JSPromise::Status::Pending: {
         JSValue encodedTask = jsNumber(static_cast<int32_t>(task));
-        auto* reaction = JSPromiseReaction::create(vm, promise, encodedTask, encodedTask, context, jsDynamicCast<JSPromiseReaction*>(reactionsOrResult));
+        auto* reaction = JSPromiseReaction::create(vm, promise, encodedTask, encodedTask, context, reactionsOrResult ? jsCast<JSPromiseReaction*>(reactionsOrResult) : nullptr);
         setReactionsOrResult(vm, reaction);
+        markAsHandled();
         break;
     }
     case JSPromise::Status::Rejected: {
         if (!isHandled())
             globalObject->globalObjectMethodTable()->promiseRejectionTracker(globalObject, this, JSPromiseRejectionOperation::Handle);
-        globalObject->queueMicrotask(task, static_cast<uint8_t>(Status::Rejected), promise, reactionsOrResult, context);
+        globalObject->queueMicrotask(vm, task, static_cast<uint8_t>(Status::Rejected), promise, reactionsOrResult, context);
+        markAsHandled();
         break;
     }
     case JSPromise::Status::Fulfilled: {
-        globalObject->queueMicrotask(task, static_cast<uint8_t>(Status::Fulfilled), promise, reactionsOrResult, context);
+        globalObject->queueMicrotask(vm, task, static_cast<uint8_t>(Status::Fulfilled), promise, reactionsOrResult, context);
         break;
     }
     }
-    markAsHandled();
 }
 
 bool isDefinitelyNonThenable(JSObject* object, JSGlobalObject* globalObject)
@@ -405,9 +407,9 @@ bool isDefinitelyNonThenable(JSObject* object, JSGlobalObject* globalObject)
 void JSPromise::rejectPromise(VM& vm, JSGlobalObject* globalObject, JSValue argument)
 {
     ASSERT(status() == Status::Pending);
-    uint32_t flags = this->flags();
-    auto* reactions = jsDynamicCast<JSPromiseReaction*>(this->reactionsOrResult());
-    internalField(Field::Flags).set(vm, this, jsNumber(flags | static_cast<uint32_t>(Status::Rejected)));
+    int32_t flags = this->flags();
+    JSValue reactions = this->reactionsOrResult();
+    internalField(Field::Flags).setWithoutWriteBarrier(jsNumber(static_cast<int32_t>(flags | static_cast<uint32_t>(Status::Rejected))));
     internalField(Field::ReactionsOrResult).set(vm, this, argument);
 
     if (!isHandled())
@@ -415,25 +417,24 @@ void JSPromise::rejectPromise(VM& vm, JSGlobalObject* globalObject, JSValue argu
 
     if (!reactions)
         return;
-    triggerPromiseReactions(vm, globalObject, Status::Rejected, reactions, argument);
+    triggerPromiseReactions(vm, globalObject, Status::Rejected, jsCast<JSPromiseReaction*>(reactions), argument);
 }
 
 void JSPromise::fulfillPromise(VM& vm, JSGlobalObject* globalObject, JSValue argument)
 {
     ASSERT(status() == Status::Pending);
-    uint32_t flags = this->flags();
-    auto* reactions = jsDynamicCast<JSPromiseReaction*>(this->reactionsOrResult());
-    internalField(Field::Flags).set(vm, this, jsNumber(flags | static_cast<uint32_t>(Status::Fulfilled)));
+    int32_t flags = this->flags();
+    JSValue reactions = this->reactionsOrResult();
+    internalField(Field::Flags).setWithoutWriteBarrier(jsNumber(static_cast<int32_t>(flags | static_cast<uint32_t>(Status::Fulfilled))));
     internalField(Field::ReactionsOrResult).set(vm, this, argument);
+
     if (!reactions)
         return;
-    triggerPromiseReactions(vm, globalObject, Status::Fulfilled, reactions, argument);
+    triggerPromiseReactions(vm, globalObject, Status::Fulfilled, jsCast<JSPromiseReaction*>(reactions), argument);
 }
 
-void JSPromise::resolvePromise(JSGlobalObject* globalObject, JSValue resolution)
+void JSPromise::resolvePromise(JSGlobalObject* globalObject, VM& vm, JSValue resolution)
 {
-    VM& vm = globalObject->vm();
-
     if (resolution == this) [[unlikely]] {
         Structure* errorStructure = globalObject->errorStructure(ErrorType::TypeError);
         auto* error = ErrorInstance::create(vm, errorStructure, "Cannot resolve a promise with itself"_s, jsUndefined(), nullptr, TypeNothing, ErrorType::TypeError, false);
@@ -452,9 +453,9 @@ void JSPromise::resolvePromise(JSGlobalObject* globalObject, JSValue resolution)
             JSValue asyncContext = jsUndefined();
             if (auto* asyncContextData = globalObject->m_asyncContextData.get())
                 asyncContext = asyncContextData->getInternalField(0);
-            return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJobFast, 0, resolutionObject, this, asyncContext);
+            return globalObject->queueMicrotask(vm, InternalMicrotask::PromiseResolveThenableJobFast, 0, resolutionObject, this, asyncContext);
 #else
-            return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJobFast, 0, resolutionObject, this, jsUndefined());
+            return globalObject->queueMicrotask(vm, InternalMicrotask::PromiseResolveThenableJobFast, 0, resolutionObject, this, jsUndefined());
 #endif
         }
     }
@@ -484,9 +485,9 @@ void JSPromise::resolvePromise(JSGlobalObject* globalObject, JSValue resolution)
     JSValue asyncContext = jsUndefined();
     if (auto* asyncContextData = globalObject->m_asyncContextData.get())
         asyncContext = asyncContextData->getInternalField(0);
-    return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, 0, resolutionObject, then, this, asyncContext);
+    return globalObject->queueMicrotask(vm, InternalMicrotask::PromiseResolveThenableJob, 0, resolutionObject, then, this, asyncContext);
 #else
-    return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, 0, resolutionObject, then, this);
+    return globalObject->queueMicrotask(vm, InternalMicrotask::PromiseResolveThenableJob, 0, resolutionObject, then, this);
 #endif
 }
 
@@ -505,7 +506,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseResolvingFunctionResolve, (JSGlobalObject* globa
     auto* promise = jsCast<JSPromise*>(callee->getField(JSFunctionWithFields::Field::ResolvingPromise));
     JSValue argument = callFrame->argument(0);
 
-    promise->resolvePromise(globalObject, argument);
+    promise->resolvePromise(globalObject, vm, argument);
     return JSValue::encode(jsUndefined());
 }
 
@@ -534,7 +535,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseFirstResolvingFunctionResolve, (JSGlobalObject* 
     auto* promise = jsCast<JSPromise*>(callee->getField(JSFunctionWithFields::Field::FirstResolvingPromise));
     JSValue argument = callFrame->argument(0);
 
-    promise->resolve(globalObject, argument);
+    promise->resolve(globalObject, globalObject->vm(), argument);
     return JSValue::encode(jsUndefined());
 }
 
@@ -563,7 +564,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseResolvingFunctionResolveWithInternalMicrotask, (
     auto* context = jsCast<JSPromiseCombinatorsGlobalContext*>(callee->getField(JSFunctionWithFields::Field::ResolvingWithInternalMicrotaskContext));
     JSValue argument = callFrame->argument(0);
     JSValue onFulfilled = context->promise();
-    JSPromise::resolveWithInternalMicrotask(globalObject, argument, static_cast<InternalMicrotask>(onFulfilled.asInt32()), context->remainingElementsCount());
+    JSPromise::resolveWithInternalMicrotask(globalObject, vm, argument, static_cast<InternalMicrotask>(onFulfilled.asInt32()), context->remainingElementsCount());
     return JSValue::encode(jsUndefined());
 }
 
@@ -582,7 +583,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseResolvingFunctionRejectWithInternalMicrotask, (J
     auto* context = jsCast<JSPromiseCombinatorsGlobalContext*>(callee->getField(JSFunctionWithFields::Field::ResolvingWithInternalMicrotaskContext));
     JSValue argument = callFrame->argument(0);
     JSValue onFulfilled = context->promise();
-    JSPromise::rejectWithInternalMicrotask(globalObject, argument, static_cast<InternalMicrotask>(onFulfilled.asInt32()), context->remainingElementsCount());
+    JSPromise::rejectWithInternalMicrotask(vm, globalObject, argument, static_cast<InternalMicrotask>(onFulfilled.asInt32()), context->remainingElementsCount());
     return JSValue::encode(jsUndefined());
 }
 
@@ -651,8 +652,37 @@ std::tuple<JSFunction*, JSFunction*> JSPromise::createResolvingFunctionsWithInte
 
 void JSPromise::triggerPromiseReactions(VM& vm, JSGlobalObject* globalObject, Status status, JSPromiseReaction* head, JSValue argument)
 {
-    if (!head)
+    bool isResolved = status == JSPromise::Status::Fulfilled;
+
+    auto queue = [&](JSPromiseReaction* reaction) ALWAYS_INLINE_LAMBDA {
+        JSValue promise = reaction->promise();
+        JSValue handler = isResolved ? reaction->onFulfilled() : reaction->onRejected();
+        JSValue context = reaction->context();
+        JSValue arg = argument;
+        InternalMicrotask task = InternalMicrotask::PromiseReactionJob;
+        if (handler.isInt32()) {
+            task = static_cast<InternalMicrotask>(handler.asInt32());
+            handler = arg;
+            arg = context;
+            globalObject->queueMicrotask(vm, task, static_cast<uint8_t>(status), promise, handler, arg);
+            return;
+        }
+#if USE(BUN_JSC_ADDITIONS)
+        if (!context.isUndefinedOrNull()) {
+            globalObject->queueMicrotask(vm, task, static_cast<uint8_t>(status), promise, handler, arg, context);
+            return;
+        }
+#else
+        ASSERT(context.isUndefinedOrNull());
+#endif
+        globalObject->queueMicrotask(vm, task, static_cast<uint8_t>(status), promise, handler, arg);
+    };
+
+    ASSERT(head);
+    if (!head->next()) [[likely]] {
+        queue(head);
         return;
+    }
 
     // Reverse the order of singly-linked-list.
     JSPromiseReaction* previous = nullptr;
@@ -667,35 +697,16 @@ void JSPromise::triggerPromiseReactions(VM& vm, JSGlobalObject* globalObject, St
     }
     head = previous;
 
-    bool isResolved = status == JSPromise::Status::Fulfilled;
     auto* current = head;
-    while (current) {
-        JSValue promise = current->promise();
-        JSValue handler = isResolved ? current->onFulfilled() : current->onRejected();
-        JSValue context = current->context();
-        current = current->next();
-
-        if (handler.isInt32()) {
-            auto task = static_cast<InternalMicrotask>(handler.asInt32());
-            globalObject->queueMicrotask(task, static_cast<uint8_t>(status), promise, argument, context);
-            continue;
-        }
-#if USE(BUN_JSC_ADDITIONS)
-        if (!context.isUndefinedOrNull()) {
-            globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(status), promise, handler, argument, context);
-            continue;
-        }
-#else
-        ASSERT(context.isUndefinedOrNull());
-#endif
-        globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(status), promise, handler, argument);
-    }
+    do {
+        auto* next = current->next();
+        queue(current);
+        current = next;
+    } while (current);
 }
 
-void JSPromise::resolveWithInternalMicrotaskForAsyncAwait(JSGlobalObject* globalObject, JSValue resolution, InternalMicrotask task, JSValue context)
+void JSPromise::resolveWithInternalMicrotaskForAsyncAwait(JSGlobalObject* globalObject, VM& vm, JSValue resolution, InternalMicrotask task, JSValue context)
 {
-    VM& vm = globalObject->vm();
-
 #if USE(BUN_JSC_ADDITIONS)
     // Capture Bun's async context at the point of await and wrap it with the generator context.
     // This allows AsyncFunctionResume and related microtasks to restore the async context when
@@ -712,6 +723,7 @@ void JSPromise::resolveWithInternalMicrotaskForAsyncAwait(JSGlobalObject* global
 #else
 #define BUN_CONTEXT context
 #endif
+
 
     if (resolution.inherits<JSPromise>()) {
         auto* promise = jsCast<JSPromise*>(resolution);
@@ -735,7 +747,7 @@ void JSPromise::resolveWithInternalMicrotaskForAsyncAwait(JSGlobalObject* global
                 error,
                 BUN_CONTEXT,
             } };
-            runInternalMicrotask(globalObject, task, static_cast<uint8_t>(JSPromise::Status::Rejected), arguments);
+            runInternalMicrotask(globalObject, vm, task, static_cast<uint8_t>(JSPromise::Status::Rejected), arguments);
             return;
         }
 
@@ -743,27 +755,25 @@ void JSPromise::resolveWithInternalMicrotaskForAsyncAwait(JSGlobalObject* global
             return promise->performPromiseThenWithInternalMicrotask(vm, globalObject, task, jsUndefined(), BUN_CONTEXT);
     }
 
-    resolveWithInternalMicrotask(globalObject, resolution, task, BUN_CONTEXT);
+    resolveWithInternalMicrotask(globalObject, vm, resolution, task, BUN_CONTEXT);
 
 #undef BUN_CONTEXT
 }
 
-void JSPromise::resolveWithInternalMicrotask(JSGlobalObject* globalObject, JSValue resolution, InternalMicrotask task, JSValue context)
+void JSPromise::resolveWithInternalMicrotask(JSGlobalObject* globalObject, VM& vm, JSValue resolution, InternalMicrotask task, JSValue context)
 {
-    VM& vm = globalObject->vm();
-
     if (!resolution.isObject())
-        return fulfillWithInternalMicrotask(globalObject, resolution, task, context);
+        return fulfillWithInternalMicrotask(vm, globalObject, resolution, task, context);
 
     auto* resolutionObject = asObject(resolution);
     if (resolutionObject->inherits<JSPromise>()) {
         auto* promise = jsCast<JSPromise*>(resolutionObject);
         if (promise->isThenFastAndNonObservable())
-            return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJobWithInternalMicrotaskFast, static_cast<uint8_t>(task), resolutionObject, context, jsUndefined());
+            return globalObject->queueMicrotask(vm, InternalMicrotask::PromiseResolveThenableJobWithInternalMicrotaskFast, static_cast<uint8_t>(task), resolutionObject, context, jsUndefined());
     }
 
     if (isDefinitelyNonThenable(resolutionObject, globalObject))
-        return fulfillWithInternalMicrotask(globalObject, resolution, task, context);
+        return fulfillWithInternalMicrotask(vm, globalObject, resolution, task, context);
 
     JSValue then;
     JSValue error;
@@ -777,22 +787,22 @@ void JSPromise::resolveWithInternalMicrotask(JSGlobalObject* globalObject, JSVal
         }
     }
     if (error) [[unlikely]]
-        return rejectWithInternalMicrotask(globalObject, error, task, context);
+        return rejectWithInternalMicrotask(vm, globalObject, error, task, context);
 
     if (!then.isCallable()) [[likely]]
-        return fulfillWithInternalMicrotask(globalObject, resolution, task, context);
+        return fulfillWithInternalMicrotask(vm, globalObject, resolution, task, context);
 
-    return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJobWithInternalMicrotask, static_cast<uint8_t>(task), resolutionObject, then, context);
+    return globalObject->queueMicrotask(vm, InternalMicrotask::PromiseResolveThenableJobWithInternalMicrotask, static_cast<uint8_t>(task), resolutionObject, then, context);
 }
 
-void JSPromise::rejectWithInternalMicrotask(JSGlobalObject* globalObject, JSValue argument, InternalMicrotask task, JSValue context)
+void JSPromise::rejectWithInternalMicrotask(VM& vm, JSGlobalObject* globalObject, JSValue argument, InternalMicrotask task, JSValue context)
 {
-    globalObject->queueMicrotask(task, static_cast<uint8_t>(Status::Rejected), jsUndefined(), argument, context);
+    globalObject->queueMicrotask(vm, task, static_cast<uint8_t>(Status::Rejected), jsUndefined(), argument, context);
 }
 
-void JSPromise::fulfillWithInternalMicrotask(JSGlobalObject* globalObject, JSValue argument, InternalMicrotask task, JSValue context)
+void JSPromise::fulfillWithInternalMicrotask(VM& vm, JSGlobalObject* globalObject, JSValue argument, InternalMicrotask task, JSValue context)
 {
-    globalObject->queueMicrotask(task, static_cast<uint8_t>(Status::Fulfilled), jsUndefined(), argument, context);
+    globalObject->queueMicrotask(vm, task, static_cast<uint8_t>(Status::Fulfilled), jsUndefined(), argument, context);
 }
 
 bool JSPromise::isThenFastAndNonObservable()
@@ -905,23 +915,29 @@ JSObject* JSPromise::promiseResolve(JSGlobalObject* globalObject, JSObject* cons
     if (argument.inherits<JSPromise>()) {
         auto* promise = jsCast<JSPromise*>(argument);
         if (promiseSpeciesWatchpointIsValid(vm, promise)) [[likely]] {
+#if USE(BUN_JSC_ADDITIONS)
             // For InternalPromise, we can only return the same promise if the constructor
             // matches. This preserves the behavior where Promise.resolve(InternalPromise)
             // creates a new regular Promise, ensuring user-facing APIs return regular Promises.
             if (promise->structure()->classInfoForCells() == JSInternalPromise::info()) {
                 if (constructor != globalObject->internalPromiseConstructor())
                     goto createNewPromise;
+                return promise;
             }
-            return promise;
+#endif
+            if (constructor == promise->globalObject()->promiseConstructor())
+                return promise;
+        } else {
+            auto property = promise->get(globalObject, vm.propertyNames->constructor);
+            RETURN_IF_EXCEPTION(scope, { });
+
+            if (property == constructor)
+                return promise;
         }
-
-        auto property = promise->get(globalObject, vm.propertyNames->constructor);
-        RETURN_IF_EXCEPTION(scope, { });
-
-        if (property == constructor)
-            return promise;
     }
+#if USE(BUN_JSC_ADDITIONS)
 createNewPromise:
+#endif
 
     if (constructor == globalObject->promiseConstructor()) [[likely]] {
         JSPromise* promise = JSPromise::create(vm, globalObject->promiseStructure());
@@ -937,7 +953,7 @@ createNewPromise:
             return promise;
         }
 #endif
-        promise->resolve(globalObject, argument);
+        promise->resolve(globalObject, vm, argument);
         return promise;
     }
 

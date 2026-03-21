@@ -35,13 +35,16 @@
 #include "CSSPropertyParserConsumer+Font.h"
 #include "CSSRegisteredCustomProperty.h"
 #include "CSSValuePair.h"
+#include "CSSValuePool.h"
 #include "DocumentQuirks.h"
 #include "DocumentView.h"
 #include "ElementAncestorIteratorInlines.h"
+#include "FontCascadeInlines.h"
 #include "FontSelectionValueInlines.h"
 #include "FrameDestructionObserverInlines.h"
 #include "HTMLElement.h"
 #include "LocalFrame.h"
+#include "OpenTypeMathData.h"
 #include "SVGElement.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGPathElement.h"
@@ -216,6 +219,7 @@ public:
     static void applyInitialBorderLeftWidth(BuilderState&);
     static void applyInitialOutlineWidth(BuilderState&);
     static void applyInitialColumnRuleWidth(BuilderState&);
+    static void applyInitialColor(BuilderState&);
 
     // Custom handling of value setting only.
     static void applyValueColor(BuilderState&, CSSValue&);
@@ -800,6 +804,25 @@ inline void BuilderCustom::applyValueFontSize(BuilderState& builderState, CSSVal
         return;
 
     builderState.setFontDescriptionFontSize(std::min(maximumAllowedFontSize, size));
+}
+
+// CanvasText is the initial color according to spec.
+// https://www.w3.org/TR/css-color-4/#the-color-property
+inline void BuilderCustom::applyInitialColor(BuilderState& builderState)
+{
+    const CSS::Color initialColor { CSS::KeywordColor { CSSValueCanvastext } };
+
+    if (builderState.applyPropertyToRegularStyle()) {
+        auto styleColor = toStyle(initialColor, builderState, ForVisitedLink::No);
+        builderState.style().setColor(styleColor.resolveColor(builderState.parentStyle().color()));
+    }
+    if (builderState.applyPropertyToVisitedLinkStyle()) {
+        auto styleColor = toStyle(initialColor, builderState, ForVisitedLink::Yes);
+        builderState.style().setVisitedLinkColor(styleColor.resolveColor(builderState.parentStyle().visitedLinkColor()));
+    }
+
+    builderState.style().setDisallowsFastPathInheritance();
+    builderState.style().setHasExplicitlySetColor(builderState.isAuthorOrigin());
 }
 
 // For the color property, "currentcolor" is actually the inherited computed color.

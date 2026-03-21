@@ -27,17 +27,105 @@
 #import "WebKitMesh.h"
 
 #import "ModelTypes.h"
-#import "WebKitSwiftSoftLink.h"
 
+#import <WebCore/IOSurface.h>
+#import <WebCore/ProcessIdentity.h>
 #import <wtf/CheckedArithmetic.h>
 #import <wtf/MathExtras.h>
 #import <wtf/TZoneMallocInlines.h>
 #import <wtf/spi/cocoa/IOSurfaceSPI.h>
 #import <wtf/threads/BinarySemaphore.h>
 
+#import "WebKitSwiftSoftLink.h"
+
 namespace WebModel {
 
 #if ENABLE(GPU_PROCESS_MODEL)
+
+static WKBridgeConstant convert(const Constant constant)
+{
+    switch (constant) {
+    case Constant::kBool:
+        return WKBridgeConstantBool;
+    case Constant::kUchar:
+        return WKBridgeConstantUchar;
+    case Constant::kInt:
+        return WKBridgeConstantInt;
+    case Constant::kUint:
+        return WKBridgeConstantUint;
+    case Constant::kHalf:
+        return WKBridgeConstantHalf;
+    case Constant::kFloat:
+        return WKBridgeConstantFloat;
+    case Constant::kTimecode:
+        return WKBridgeConstantTimecode;
+    case Constant::kString:
+        return WKBridgeConstantString;
+    case Constant::kToken:
+        return WKBridgeConstantToken;
+    case Constant::kAsset:
+        return WKBridgeConstantAsset;
+    case Constant::kMatrix2f:
+        return WKBridgeConstantMatrix2f;
+    case Constant::kMatrix3f:
+        return WKBridgeConstantMatrix3f;
+    case Constant::kMatrix4f:
+        return WKBridgeConstantMatrix4f;
+    case Constant::kQuatf:
+        return WKBridgeConstantQuatf;
+    case Constant::kQuath:
+        return WKBridgeConstantQuath;
+    case Constant::kFloat2:
+        return WKBridgeConstantFloat2;
+    case Constant::kHalf2:
+        return WKBridgeConstantHalf2;
+    case Constant::kInt2:
+        return WKBridgeConstantInt2;
+    case Constant::kFloat3:
+        return WKBridgeConstantFloat3;
+    case Constant::kHalf3:
+        return WKBridgeConstantHalf3;
+    case Constant::kInt3:
+        return WKBridgeConstantInt3;
+    case Constant::kFloat4:
+        return WKBridgeConstantFloat4;
+    case Constant::kHalf4:
+        return WKBridgeConstantHalf4;
+    case Constant::kInt4:
+        return WKBridgeConstantInt4;
+
+    // semantic:
+    case Constant::kPoint3f:
+        return WKBridgeConstantPoint3f;
+    case Constant::kPoint3h:
+        return WKBridgeConstantPoint3h;
+    case Constant::kNormal3f:
+        return WKBridgeConstantNormal3f;
+    case Constant::kNormal3h:
+        return WKBridgeConstantNormal3h;
+    case Constant::kVector3f:
+        return WKBridgeConstantVector3f;
+    case Constant::kVector3h:
+        return WKBridgeConstantVector3h;
+    case Constant::kColor3f:
+        return WKBridgeConstantColor3f;
+    case Constant::kColor3h:
+        return WKBridgeConstantColor3h;
+    case Constant::kColor4f:
+        return WKBridgeConstantColor4f;
+    case Constant::kColor4h:
+        return WKBridgeConstantColor4h;
+    case Constant::kTexCoord2h:
+        return WKBridgeConstantTexCoord2h;
+    case Constant::kTexCoord2f:
+        return WKBridgeConstantTexCoord2f;
+    case Constant::kTexCoord3h:
+        return WKBridgeConstantTexCoord3h;
+    case Constant::kTexCoord3f:
+        return WKBridgeConstantTexCoord3f;
+    }
+}
+
 
 static WKBridgeMeshPart *convert(const MeshPart& part)
 {
@@ -50,7 +138,7 @@ static NSArray<WKBridgeMeshPart *> *convert(const Vector<MeshPart>& parts)
         return nil;
 
     NSMutableArray<WKBridgeMeshPart *> *result = [NSMutableArray array];
-    for (auto& p : parts)
+    for (const auto& p : parts)
         [result addObject:convert(p)];
 
     return result;
@@ -72,7 +160,7 @@ static NSArray<NSData*> *convert(const Vector<Vector<T>>& data)
         return nil;
 
     NSMutableArray<NSData*> *result = [NSMutableArray array];
-    for (auto& v : data) {
+    for (const auto& v : data) {
         if (NSData *d = convert(v))
             [result addObject:d];
     }
@@ -86,7 +174,7 @@ static NSArray<WKBridgeVertexAttributeFormat *> *convert(const Vector<VertexAttr
         return nil;
 
     NSMutableArray<WKBridgeVertexAttributeFormat *> *result = [NSMutableArray array];
-    for (auto& format : formats)
+    for (const auto& format : formats)
         [result addObject:[WebKit::allocWKBridgeVertexAttributeFormatInstance() initWithSemantic:format.semantic format:format.format layoutIndex:format.layoutIndex offset:format.offset]];
 
     return result;
@@ -98,7 +186,7 @@ static NSArray<WKBridgeVertexLayout *> *convert(const Vector<VertexLayout>& layo
         return nil;
 
     NSMutableArray<WKBridgeVertexLayout *> *result = [NSMutableArray array];
-    for (auto& layout : layouts)
+    for (const auto& layout : layouts)
         [result addObject:[WebKit::allocWKBridgeVertexLayoutInstance() initWithBufferIndex:layout.bufferIndex bufferOffset:layout.bufferOffset bufferStride:layout.bufferStride]];
 
     return result;
@@ -123,7 +211,7 @@ static NSArray<NSString *> *convert(const Vector<String>& v)
         return nil;
 
     NSMutableArray<NSString *> *result = [NSMutableArray array];
-    for (auto& s : v)
+    for (const auto& s : v)
         [result addObject:s.createNSString().get()];
 
     return result;
@@ -306,24 +394,194 @@ static WKBridgeImageAsset* convert(const ImageAsset& imageAsset)
     return [WebKit::allocWKBridgeImageAssetInstance() initWithData:convert(imageAsset.data) width:imageAsset.width height:imageAsset.height depth:imageAsset.depth bytesPerPixel:imageAsset.bytesPerPixel ?: texelBlockSize(mtlPixelFormat) textureType:static_cast<MTLTextureType>(imageAsset.textureType) pixelFormat:mtlPixelFormat mipmapLevelCount:imageAsset.mipmapLevelCount arrayLength:imageAsset.arrayLength textureUsage:static_cast<MTLTextureUsage>(imageAsset.textureUsage) swizzle:convert(imageAsset.swizzle)];
 }
 
+static WKBridgeDataType convert(DataType type)
+{
+    switch (type) {
+    case DataType::kBool:
+        return WKBridgeDataTypeBool;
+    case DataType::kUchar:
+        return WKBridgeDataTypeUchar;
+    case DataType::kInt:
+        return WKBridgeDataTypeInt;
+    case DataType::kUint:
+        return WKBridgeDataTypeUint;
+    case DataType::kInt2:
+        return WKBridgeDataTypeInt2;
+    case DataType::kInt3:
+        return WKBridgeDataTypeInt3;
+    case DataType::kInt4:
+        return WKBridgeDataTypeInt4;
+    case DataType::kFloat:
+        return WKBridgeDataTypeFloat;
+    case DataType::kColor3f:
+        return WKBridgeDataTypeColor3f;
+    case DataType::kColor3h:
+        return WKBridgeDataTypeColor3h;
+    case DataType::kColor4f:
+        return WKBridgeDataTypeColor4f;
+    case DataType::kColor4h:
+        return WKBridgeDataTypeColor4h;
+    case DataType::kFloat2:
+        return WKBridgeDataTypeFloat2;
+    case DataType::kFloat3:
+        return WKBridgeDataTypeFloat3;
+    case DataType::kFloat4:
+        return WKBridgeDataTypeFloat4;
+    case DataType::kHalf:
+        return WKBridgeDataTypeHalf;
+    case DataType::kHalf2:
+        return WKBridgeDataTypeHalf2;
+    case DataType::kHalf3:
+        return WKBridgeDataTypeHalf3;
+    case DataType::kHalf4:
+        return WKBridgeDataTypeHalf4;
+    case DataType::kMatrix2f:
+        return WKBridgeDataTypeMatrix2f;
+    case DataType::kMatrix3f:
+        return WKBridgeDataTypeMatrix3f;
+    case DataType::kMatrix4f:
+        return WKBridgeDataTypeMatrix4f;
+    case DataType::kMatrix2h:
+        return WKBridgeDataTypeMatrix2h;
+    case DataType::kMatrix3h:
+        return WKBridgeDataTypeMatrix3h;
+    case DataType::kMatrix4h:
+        return WKBridgeDataTypeMatrix4h;
+    case DataType::kQuat:
+        return WKBridgeDataTypeQuat;
+    case DataType::kSurfaceShader:
+        return WKBridgeDataTypeSurfaceShader;
+    case DataType::kGeometryModifier:
+        return WKBridgeDataTypeGeometryModifier;
+    case DataType::kPostLightingShader:
+        return WKBridgeDataTypePostLightingShader;
+    case DataType::kString:
+        return WKBridgeDataTypeString;
+    case DataType::kToken:
+        return WKBridgeDataTypeToken;
+    case DataType::kAsset:
+        return WKBridgeDataTypeAsset;
+    }
+}
+
+static NSArray<WKBridgeValueString *> *convert(const Vector<Variant<String, double>>& constantValues)
+{
+    NSMutableArray<WKBridgeValueString *> *result = [NSMutableArray array];
+    for (const auto& c : constantValues) {
+        [result addObject:WTF::switchOn(c, [&](const String& s) -> WKBridgeValueString * {
+            return [WebKit::allocWKBridgeValueStringInstance() initWithString:s.createNSString().get()];
+        }, [&] (double d) -> WKBridgeValueString * {
+            return [WebKit::allocWKBridgeValueStringInstance() initWithNumber:[[NSNumber alloc] initWithDouble:d]];
+        })];
+    }
+
+    return result;
+}
+
+static WKBridgeConstantContainer *convert(const ConstantContainer& constant)
+{
+    return [WebKit::allocWKBridgeConstantContainerInstance() initWithConstant:convert(constant.constant) constantValues:convert(constant.constantValues) name:constant.name.createNSString().get()];
+}
+
+static NSArray<WKBridgeInputOutput *> *convert(const Vector<InputOutput>& inputOutputs)
+{
+    NSMutableArray<WKBridgeInputOutput *> *result = [NSMutableArray array];
+    for (const auto& io : inputOutputs) {
+        WKBridgeDataType semanticType = WKBridgeDataTypeAsset;
+        BOOL hasSemanticType = NO;
+        if (io.semanticType) {
+            semanticType = convert(*io.semanticType);
+            hasSemanticType = YES;
+        }
+
+        WKBridgeConstantContainer *defaultValue = nil;
+        if (io.defaultValue)
+            defaultValue = convert(*io.defaultValue);
+
+        [result addObject:[WebKit::allocWKBridgeInputOutputInstance() initWithType:convert(io.type)
+            name:io.name.createNSString().get()
+            semanticType:semanticType
+            hasSemanticType:hasSemanticType
+            defaultValue:defaultValue]];
+    }
+
+    return result;
+}
+
+static NSArray<WKBridgeEdge *> *convert(const Vector<Edge>& edges)
+{
+    NSMutableArray<WKBridgeEdge *> *result = [NSMutableArray array];
+    for (const auto& e : edges) {
+        [result addObject:[WebKit::allocWKBridgeEdgeInstance() initWithOutputNode:e.outputNode.createNSString().get()
+            outputPort:e.outputPort.createNSString().get()
+            inputNode:e.inputNode.createNSString().get()
+            inputPort:e.inputPort.createNSString().get()]];
+    }
+
+    return result;
+}
+
+static WKBridgeNodeType convert(NodeType bridgeNodeType)
+{
+    switch (bridgeNodeType) {
+    case NodeType::Builtin:
+        return WKBridgeNodeTypeBuiltin;
+    case NodeType::Constant:
+        return WKBridgeNodeTypeConstant;
+    case NodeType::Arguments:
+        return WKBridgeNodeTypeArguments;
+    case NodeType::Results:
+        return WKBridgeNodeTypeResults;
+    }
+}
+
+static WKBridgeBuiltin *convert(const Builtin& builtin)
+{
+    return [WebKit::allocWKBridgeBuiltinInstance() initWithDefinition:builtin.definition.createNSString().get() name:builtin.name.createNSString().get()];
+}
+
+static WKBridgeNode *convert(const Node& node)
+{
+    return [WebKit::allocWKBridgeNodeInstance() initWithBridgeNodeType:convert(node.bridgeNodeType) builtin:convert(node.builtin) constant:convert(node.constant)];
+}
+
+static NSArray<WKBridgeNode *> *convert(const Vector<Node>& nodes)
+{
+    NSMutableArray<WKBridgeNode *> *result = [NSMutableArray array];
+    for (const auto& node : nodes)
+        [result addObject:convert(node)];
+    return result;
+}
+
+static WKBridgeMaterialGraph *convert(const MaterialGraph& material)
+{
+    return [WebKit::allocWKBridgeMaterialGraphInstance() initWithNodes:convert(material.nodes) edges:convert(material.edges) arguments:convert(material.arguments) results:convert(material.results) inputs:convert(material.inputs) outputs:convert(material.outputs)];
+}
+
 #endif
 
 } // namespace WebModel
 
 namespace WebKit {
 
+static RetainPtr<NSMutableArray> createMetalTextures(id<MTLDevice> device, const Vector<RetainPtr<IOSurfaceRef>>& ioSurfaces, unsigned width, unsigned height)
+{
+    MTLTextureDescriptor *textureDescriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA16Float width:width height:height mipmapped:NO];
+    RetainPtr textures = adoptNS([[NSMutableArray alloc] init]);
+    for (auto& ioSurface : ioSurfaces)
+        [textures addObject:[device newTextureWithDescriptor:textureDescriptor iosurface:ioSurface.get() plane:0]];
+    return textures;
+}
+
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebMesh);
 
 WebMesh::WebMesh(const WebModelCreateMeshDescriptor& descriptor)
 {
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
-    MTLTextureDescriptor *textureDescriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm_sRGB width:descriptor.width height:descriptor.height mipmapped:NO];
-    m_textures = [NSMutableArray array];
-    for (RetainPtr ioSurface : descriptor.ioSurfaces)
-        [m_textures addObject:[device newTextureWithDescriptor:textureDescriptor iosurface:ioSurface.get() plane:0]];
+    m_textures = createMetalTextures(device, descriptor.ioSurfaces, descriptor.width, descriptor.height);
 
 #if ENABLE(GPU_PROCESS_MODEL)
-    WKBridgeUSDConfiguration *configuration = [WebKit::allocWKBridgeUSDConfigurationInstance() initWithDevice:device];
+    WKBridgeUSDConfiguration *configuration = [WebKit::allocWKBridgeUSDConfigurationInstance() initWithDevice:device memoryOwner:descriptor.processIdentity ? descriptor.processIdentity->taskIdToken() : 0];
     WKBridgeImageAsset *diffuseAsset = WebModel::convert(descriptor.diffuseTexture);
     WKBridgeImageAsset *specularAsset = WebModel::convert(descriptor.specularTexture);
     if (configuration) {
@@ -428,7 +686,7 @@ void WebMesh::updateTexture(const WebModel::UpdateTextureDescriptor& input)
 void WebMesh::updateMaterial(const WebModel::UpdateMaterialDescriptor& originalDescriptor)
 {
 #if ENABLE(GPU_PROCESS_MODEL)
-    WKBridgeUpdateMaterial *descriptor = [WebKit::allocWKBridgeUpdateMaterialInstance() initWithMaterialGraph:WebModel::convert(originalDescriptor.materialGraph) identifier:originalDescriptor.identifier.createNSString().get() geometryModifierFunctionReference:nil surfaceShaderFunctionReference:nil shaderGraphModule:nil];
+    WKBridgeUpdateMaterial *descriptor = [WebKit::allocWKBridgeUpdateMaterialInstance() initWithMaterialGraph:WebModel::convert(originalDescriptor.materialGraph) identifier:originalDescriptor.identifier.createNSString().get()];
     if (!descriptor)
         return;
 
@@ -463,6 +721,15 @@ void WebMesh::setCameraDistance(float distance)
 #endif
 }
 
+void WebMesh::setBackgroundColor(const simd_float3& color)
+{
+#if ENABLE(GPU_PROCESS_MODEL)
+    [m_receiver setBackgroundColor:color];
+#else
+    UNUSED_PARAM(color);
+#endif
+}
+
 void WebMesh::setEnvironmentMap(const WebModel::ImageAsset& imageAsset)
 {
 #if ENABLE(GPU_PROCESS_MODEL)
@@ -478,6 +745,19 @@ void WebMesh::play(bool play)
     [m_receiver setPlaying:play];
 #else
     UNUSED_PARAM(play);
+#endif
+}
+
+void WebMesh::updateRenderBuffers(const WebModel::ResizeMeshDescriptor& descriptor)
+{
+#if ENABLE(GPU_PROCESS_MODEL)
+    auto ioSurfaces = descriptor.renderBuffers.map([](auto& buffer) -> RetainPtr<IOSurfaceRef> {
+        return buffer->surface();
+    });
+    m_textures = createMetalTextures(MTLCreateSystemDefaultDevice(), ioSurfaces, descriptor.width, descriptor.height);
+    m_currentTexture = 0;
+#else
+    UNUSED_PARAM(descriptor);
 #endif
 }
 

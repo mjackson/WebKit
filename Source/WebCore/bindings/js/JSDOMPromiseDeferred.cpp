@@ -29,6 +29,8 @@
 #include "ContextDestructionObserverInlines.h"
 #include "Document.h"
 #include "EventLoop.h"
+#include "JSDOMConvertAny.h"
+#include "JSDOMConvertInterface.h"
 #include "JSDOMExceptionHandling.h"
 #include "JSDOMPromise.h"
 #include "JSExecState.h"
@@ -92,7 +94,7 @@ void DeferredPromise::callFunction(JSGlobalObject& lexicalGlobalObject, ResolveM
             if (shouldSetCurrentState)
                 data.setCurrentState(&lexicalGlobalObject);
 
-            deferred()->resolve(&lexicalGlobalObject, resolution);
+            deferred()->resolve(&lexicalGlobalObject, vm, resolution);
 
             if (shouldSetCurrentState)
                 data.setCurrentState(nullptr);

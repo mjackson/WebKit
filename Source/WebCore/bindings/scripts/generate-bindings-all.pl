@@ -45,9 +45,10 @@ my $preprocessor;
 my $supplementalDependencyFile;
 my @ppExtraOutput;
 my @ppExtraArgs;
-my $numOfJobs = 1;
+my $numOfJobs;
 my $idlAttributesFile;
 my $showProgress;
+my @exclude;
 
 GetOptions('outputDir=s' => \$outputDirectory,
            'idlFilesList=s' => \$idlFilesList,
@@ -62,7 +63,15 @@ GetOptions('outputDir=s' => \$outputDirectory,
            'ppExtraArgs=s@' => \@ppExtraArgs,
            'idlAttributesFile=s' => \$idlAttributesFile,
            'numOfJobs=i' => \$numOfJobs,
+           'exclude=s@' => \@exclude,
            'showProgress' => \$showProgress);
+
+if (!defined $numOfJobs) {
+    $numOfJobs = `sysctl -n hw.activecpu 2>/dev/null` || `nproc 2>/dev/null` || 4;
+    chomp $numOfJobs;
+}
+
+$idlFileNamesList = $idlFilesList if !defined $idlFileNamesList;
 
 $| = 1;
 my @idlFiles;
@@ -70,26 +79,35 @@ open(my $fh, '<', $idlFilesList) or die "Cannot open $idlFilesList";
 @idlFiles = map { CygwinPathIfNeeded(s/\r?\n?$//r) } <$fh>;
 close($fh) or die;
 
+if (@exclude) {
+    my %excluded = map { $_ => 1 } @exclude;
+    @idlFiles = grep { !$excluded{basename($_)} } @idlFiles;
+}
+
 my @ppIDLFiles;
-open($fh, '<', $ppIDLFilesList) or die "Cannot open $ppIDLFilesList";
-@ppIDLFiles = map { CygwinPathIfNeeded(s/\r?\n?$//r) } <$fh>;
-close($fh) or die;
+if ($ppIDLFilesList) {
+    open($fh, '<', $ppIDLFilesList) or die "Cannot open $ppIDLFilesList";
+    @ppIDLFiles = map { CygwinPathIfNeeded(s/\r?\n?$//r) } <$fh>;
+    close($fh) or die;
+}
 
 my %oldSupplements;
 my %newSupplements;
 if ($supplementalDependencyFile) {
-    my @output = ($supplementalDependencyFile, @ppExtraOutput);
-    my @deps = ($ppIDLFilesList, @ppIDLFiles, @generatorDependency);
-    if (needsUpdate(\@output, \@deps)) {
-        readSupplementalDependencyFile($supplementalDependencyFile, \%oldSupplements) if -e $supplementalDependencyFile;
-        my @args = (File::Spec->catfile($scriptDir, 'preprocess-idls.pl'),
-                    '--defines', $defines,
-                    '--idlFileNamesList', $ppIDLFilesList,
-                    '--supplementalDependencyFile', $supplementalDependencyFile,
-                    '--idlAttributesFile', $idlAttributesFile,
-                    @ppExtraArgs);
-        printProgress("Preprocess IDL");
-        executeCommand($perl, @args) == 0 or die;
+    if ($ppIDLFilesList) {
+        my @output = ($supplementalDependencyFile, @ppExtraOutput);
+        my @deps = ($ppIDLFilesList, @ppIDLFiles, @generatorDependency);
+        if (needsUpdate(\@output, \@deps)) {
+            readSupplementalDependencyFile($supplementalDependencyFile, \%oldSupplements) if -e $supplementalDependencyFile;
+            my @args = (File::Spec->catfile($scriptDir, 'preprocess-idls.pl'),
+                        '--defines', $defines,
+                        '--idlFileNamesList', $ppIDLFilesList,
+                        '--supplementalDependencyFile', $supplementalDependencyFile,
+                        '--idlAttributesFile', $idlAttributesFile,
+                        @ppExtraArgs);
+            printProgress("Preprocess IDL");
+            executeCommand($perl, @args) == 0 or die;
+        }
     }
     readSupplementalDependencyFile($supplementalDependencyFile, \%newSupplements);
 }
@@ -98,10 +116,10 @@ my @args = (File::Spec->catfile($scriptDir, 'generate-bindings.pl'),
             '--defines', $defines,
             '--generator', $generator,
             '--outputDir', $outputDirectory,
-            '--preprocessor', $preprocessor,
             '--idlAttributesFile', $idlAttributesFile,
             '--idlFileNamesList', $idlFileNamesList,
             '--write-dependencies');
+push @args, '--preprocessor', $preprocessor if $preprocessor;
 push @args, '--supplementalDependencyFile', $supplementalDependencyFile if $supplementalDependencyFile;
 
 my %directoryCache;

@@ -68,7 +68,7 @@ void RemoteFaceDetectorProxy::detect(const WebCore::NativeImage& image, Completi
         completionHandler({ });
         return;
     }
-    if (!renderingBackend->remoteResourceCacheProxy().recordNativeImageUse(const_cast<WebCore::NativeImage&>(image), WebCore::DestinationColorSpace::SRGB())) {
+    if (!renderingBackend->remoteResourceCacheProxy().recordNativeImageUse(image, WebCore::DestinationColorSpace::SRGB())) {
         completionHandler({ });
         return;
     }

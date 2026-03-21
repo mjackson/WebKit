@@ -67,7 +67,7 @@ enum class RTCPriorityType : uint8_t;
 enum class RTCRtpTransceiverDirection;
 
 RTCRtpParameters toRTCRtpParameters(const webrtc::RtpParameters&);
-void updateRTCRtpSendParameters(const RTCRtpSendParameters&, webrtc::RtpParameters&);
+void updateRTCRtpSendParameters(const RTCRtpSendParameters&, webrtc::RtpParameters&, webrtc::MediaType);
 RTCRtpSendParameters toRTCRtpSendParameters(const webrtc::RtpParameters&);
 webrtc::RtpParameters fromRTCRtpSendParameters(const RTCRtpSendParameters&, const webrtc::RtpParameters& currentParameters);
 
@@ -80,7 +80,7 @@ Exception toException(const webrtc::RTCError&);
 RefPtr<RTCError> toRTCError(const webrtc::RTCError&);
 
 RTCPriorityType toRTCPriorityType(webrtc::PriorityValue);
-RTCPriorityType toRTCPriorityType(webrtc::Priority);
+RTCPriorityType NODELETE toRTCPriorityType(webrtc::Priority);
 webrtc::Priority NODELETE fromRTCPriorityType(RTCPriorityType);
 
 inline String fromStdString(const std::string& value)

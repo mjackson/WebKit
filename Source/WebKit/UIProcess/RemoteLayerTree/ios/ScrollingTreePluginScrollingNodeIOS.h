@@ -45,7 +45,7 @@ public:
 private:
     ScrollingTreePluginScrollingNodeIOS(WebCore::ScrollingTree&, WebCore::ScrollingNodeID);
 
-    ScrollingTreeScrollingNodeDelegateIOS& delegate() const;
+    ScrollingTreeScrollingNodeDelegateIOS& delegate() const LIFETIME_BOUND;
 
     bool isScrollingTreePluginScrollingNodeIOS() const final { return true; }
 

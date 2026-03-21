@@ -119,11 +119,6 @@ Ref<DOMStringList> IDBDatabase::objectStoreNames() const
     return objectStoreNames;
 }
 
-RefPtr<IDBTransaction> IDBDatabase::protectedVersionChangeTransaction() const
-{
-    return m_versionChangeTransaction;
-}
-
 void IDBDatabase::renameObjectStore(IDBObjectStore& objectStore, const String& newName)
 {
     ASSERT(canCurrentThreadAccessThreadLocalData(originThread()));
@@ -132,7 +127,7 @@ void IDBDatabase::renameObjectStore(IDBObjectStore& objectStore, const String& n
 
     m_info.renameObjectStore(objectStore.info().identifier(), newName);
 
-    protectedVersionChangeTransaction()->renameObjectStore(objectStore, newName);
+    protect(m_versionChangeTransaction)->renameObjectStore(objectStore, newName);
 }
 
 void IDBDatabase::renameIndex(IDBIndex& index, const String& newName)
@@ -144,7 +139,7 @@ void IDBDatabase::renameIndex(IDBIndex& index, const String& newName)
 
     m_info.infoForExistingObjectStore(index.objectStore().info().name())->infoForExistingIndex(index.info().identifier())->rename(newName);
 
-    protectedVersionChangeTransaction()->renameIndex(index, newName);
+    protect(m_versionChangeTransaction)->renameIndex(index, newName);
 }
 
 ScriptExecutionContext* IDBDatabase::scriptExecutionContext() const

@@ -12,7 +12,7 @@ bridge/objc/objc_class.mm
 bridge/objc/objc_instance.mm
 bridge/objc/objc_runtime.mm
 bridge/objc/objc_utility.mm
-crypto/cocoa/SerializedCryptoKeyWrapMac.mm
+crypto/cocoa/SerializedCryptoKeyWrapCocoa.mm
 [ iOS ] editing/cocoa/DataDetection.mm
 editing/cocoa/EditingHTMLConverter.mm
 editing/cocoa/NodeHTMLConverter.mm
@@ -30,7 +30,7 @@ platform/cocoa/RemoteCommandListenerCocoa.mm
 platform/cocoa/SerializedPlatformDataCueValue.mm
 platform/cocoa/SystemVersion.mm
 [ iOS ] platform/cocoa/WebAVPlayerLayerView.mm
-[ iOS ] platform/graphics/avfoundation/FormatDescriptionUtilities.cpp
+platform/graphics/avfoundation/FormatDescriptionUtilities.cpp
 [ Mac ] platform/graphics/avfoundation/objc/AVRoutePickerViewTargetPicker.mm
 platform/graphics/avfoundation/objc/CDMInstanceFairPlayStreamingAVFObjC.mm
 platform/graphics/avfoundation/objc/CDMSessionAVContentKeySession.mm
@@ -45,7 +45,6 @@ platform/graphics/cg/ImageDecoderCG.cpp
 [ iOS ] platform/graphics/cg/PDFDocumentImage.cpp
 platform/graphics/cg/PathCG.cpp
 platform/graphics/cocoa/CMUtilities.mm
-platform/graphics/cocoa/FontPlatformDataCocoa.mm
 platform/graphics/cocoa/GraphicsContextCocoa.mm
 [ Mac ] platform/graphics/cocoa/ImageAdapterCocoa.mm
 platform/graphics/cocoa/MediaPlayerPrivateWebM.mm
@@ -84,9 +83,9 @@ platform/mediastream/mac/AVVideoCaptureSource.mm
 platform/mediastream/mac/CoreAudioCaptureUnit.mm
 platform/mediastream/mac/RealtimeIncomingVideoSourceCocoa.mm
 [ iOS ] platform/network/ios/WebCoreURLResponseIOS.mm
-[ iOS ] platform/network/mac/ResourceErrorMac.mm
-platform/network/mac/ResourceHandleMac.mm
-platform/network/mac/WebCoreResourceHandleAsOperationQueueDelegate.mm
+[ iOS ] platform/network/cocoa/ResourceErrorCocoa.mm
+platform/network/cocoa/ResourceHandleCocoa.mm
+platform/network/cocoa/WebCoreResourceHandleAsOperationQueueDelegate.mm
 [ iOS ] platform/text/mac/TextBoundaries.mm
 rendering/AttachmentLayout.mm
 [ iOS ] rendering/ios/RenderThemeIOS.mm

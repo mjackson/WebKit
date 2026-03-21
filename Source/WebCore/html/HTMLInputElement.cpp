@@ -146,11 +146,6 @@ HTMLImageLoader& HTMLInputElement::ensureImageLoader()
     return *m_imageLoader;
 }
 
-Ref<HTMLImageLoader> HTMLInputElement::ensureProtectedImageLoader()
-{
-    return ensureImageLoader();
-}
-
 HTMLInputElement::~HTMLInputElement()
 {
     // Need to remove form association while this is still an HTMLInputElement
@@ -1442,7 +1437,7 @@ static inline bool NODELETE isRFC2616TokenCharacter(char16_t ch)
     return isASCII(ch) && ch > ' ' && ch != '"' && ch != '(' && ch != ')' && ch != ',' && ch != '/' && (ch < ':' || ch > '@') && (ch < '[' || ch > ']') && ch != '{' && ch != '}' && ch != 0x7f;
 }
 
-static bool isValidMIMEType(StringView type)
+static bool NODELETE isValidMIMEType(StringView type)
 {
     size_t slashPosition = type.find('/');
     if (slashPosition == notFound || !slashPosition || slashPosition == type.length() - 1)
@@ -1763,9 +1758,9 @@ void HTMLInputElement::didChangeForm()
     addToRadioButtonGroup();
 }
 
-Node::InsertedIntoAncestorResult HTMLInputElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps HTMLInputElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    auto result = HTMLTextFormControlElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    auto result = HTMLTextFormControlElement::insertionSteps(insertionType, parentOfInsertedTree);
     resetListAttributeTargetObserver();
     if (isRadioButton())
         updateValidity();
@@ -1777,7 +1772,7 @@ Node::InsertedIntoAncestorResult HTMLInputElement::insertedIntoAncestor(Insertio
         addToRadioButtonGroup();
         return result;
     }
-    return InsertedIntoAncestorResult::NeedsPostInsertionCallback;
+    return NeedsPostConnectionSteps::Yes;
 }
 
 void HTMLInputElement::updateUserAgentShadowTree()
@@ -1788,16 +1783,16 @@ void HTMLInputElement::updateUserAgentShadowTree()
     m_inputType->createShadowSubtreeIfNeeded();
 }
 
-void HTMLInputElement::didFinishInsertingNode()
+void HTMLInputElement::postConnectionSteps()
 {
-    HTMLTextFormControlElement::didFinishInsertingNode();
+    HTMLTextFormControlElement::postConnectionSteps();
     if (isInTreeScope() && !form())
         addToRadioButtonGroup();
 }
 
-void HTMLInputElement::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+void HTMLInputElement::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
-    HTMLTextFormControlElement::removedFromAncestor(removalType, oldParentOfRemovedTree);
+    HTMLTextFormControlElement::removingSteps(removalType, oldParentOfRemovedTree);
     if (removalType.treeScopeChanged && isRadioButton())
         oldParentOfRemovedTree.treeScope().radioButtonGroups().removeButton(*this);
     if (removalType.disconnectedFromDocument && !form())

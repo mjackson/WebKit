@@ -82,7 +82,7 @@ static void* kWindowContentLayoutObserverContext = &kWindowContentLayoutObserver
 
 - (WKInspectorRef)inspectorRef
 {
-    return toAPI(self._protectedInspector.get());
+    return toAPI(protect(_inspectorProxy).get());
 }
 
 - (_WKInspector *)inspector
@@ -92,10 +92,6 @@ static void* kWindowContentLayoutObserverContext = &kWindowContentLayoutObserver
     return nil;
 }
 
-- (RefPtr<WebKit::WebInspectorUIProxy>)_protectedInspector
-{
-    return _inspectorProxy.get();
-}
 
 - (instancetype)initWithWebInspectorUIProxy:(WebKit::WebInspectorUIProxy*)inspectorProxy
 {
@@ -792,7 +788,7 @@ void WebInspectorUIProxy::inspectedViewFrameDidChange(CGFloat currentDimension)
 
     auto frameAdjustedForContentLayoutRect = [&](NSRect frameIgnoringContentLayoutRect) {
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
-        bool drawsScrollPocket = inspectedPage->preferences().contentInsetBackgroundFillEnabled() && inspectedPage->pendingOrActualObscuredContentInsets().top();
+        bool drawsScrollPocket = protect(inspectedPage->preferences())->contentInsetBackgroundFillEnabled() && inspectedPage->pendingOrActualObscuredContentInsets().top();
         if (drawsScrollPocket)
             return frameIgnoringContentLayoutRect;
 #endif

@@ -239,6 +239,7 @@ void HTMLConstructionSite::attachLater(Ref<ContainerNode>&& parent, Ref<Node>&& 
     if (m_openElements.stackDepth() >= m_maximumDOMTreeDepth && task.parent->parentNode()) {
         m_openElements.pop();
         task.parent = task.parent->parentNode();
+        m_hasReachedMaxDOMTreeDepth = true;
     }
 
     ASSERT(task.parent);
@@ -285,16 +286,6 @@ HTMLConstructionSite::HTMLConstructionSite(DocumentFragment& fragment, OptionSet
 
 HTMLConstructionSite::~HTMLConstructionSite() = default;
 
-Ref<Document> HTMLConstructionSite::protectedDocument() const
-{
-    return m_document.get();
-}
-
-Ref<ContainerNode> HTMLConstructionSite::protectedAttachmentRoot() const
-{
-    return m_attachmentRoot.get();
-}
-
 void HTMLConstructionSite::setForm(HTMLFormElement* form)
 {
     // This method should only be needed for HTMLTreeBuilder in the fragment case.
@@ -318,9 +309,9 @@ void HTMLConstructionSite::dispatchDocumentElementAvailableIfNeeded()
 
 void HTMLConstructionSite::insertHTMLHtmlStartTagBeforeHTML(AtomHTMLToken&& token)
 {
-    auto element = HTMLHtmlElement::create(protectedDocument());
+    auto element = HTMLHtmlElement::create(protect(m_document));
     setAttributes(element, token, m_parserContentPolicy);
-    attachLater(protectedAttachmentRoot(), element.copyRef());
+    attachLater(protect(m_attachmentRoot), element.copyRef());
     m_openElements.pushHTMLHtmlElement(HTMLStackItem(element.copyRef(), WTF::move(token)));
 
     executeQueuedTasks();
@@ -372,7 +363,7 @@ void HTMLConstructionSite::setDefaultCompatibilityMode()
 void HTMLConstructionSite::setCompatibilityMode(DocumentCompatibilityMode mode)
 {
     m_inQuirksMode = (mode == DocumentCompatibilityMode::QuirksMode);
-    protectedDocument()->setCompatibilityMode(mode);
+    protect(m_document)->setCompatibilityMode(mode);
 }
 
 void HTMLConstructionSite::setCompatibilityModeFromDoctype(const AtomString& name, const String& publicId, const String& systemId)
@@ -471,7 +462,9 @@ void HTMLConstructionSite::setCompatibilityModeFromDoctype(const AtomString& nam
 
 void HTMLConstructionSite::finishedParsing()
 {
-    protectedDocument()->finishedParsing();
+    m_textNodeBuffer = nullptr;
+    m_currentTextNode = nullptr;
+    protect(m_document)->finishedParsing();
 }
 
 void HTMLConstructionSite::insertDoctype(AtomHTMLToken&& token)
@@ -482,7 +475,7 @@ void HTMLConstructionSite::insertDoctype(AtomHTMLToken&& token)
     String systemId = token.systemIdentifier();
 
     Ref document = m_document.get();
-    attachLater(protectedAttachmentRoot(), DocumentType::create(document, token.name(), publicId, systemId));
+    attachLater(protect(m_attachmentRoot), DocumentType::create(document, token.name(), publicId, systemId));
 
     // DOCTYPE nodes are only processed when parsing fragments w/o contextElements, which
     // never occurs.  However, if we ever chose to support such, this code is subtly wrong,
@@ -508,7 +501,7 @@ void HTMLConstructionSite::insertComment(AtomHTMLToken&& token)
 void HTMLConstructionSite::insertCommentOnDocument(AtomHTMLToken&& token)
 {
     ASSERT(token.type() == HTMLToken::Type::Comment);
-    attachLater(protectedAttachmentRoot(), Comment::create(protectedDocument(), WTF::move(token.comment())));
+    attachLater(protect(m_attachmentRoot), Comment::create(protect(m_document), WTF::move(token.comment())));
 }
 
 void HTMLConstructionSite::insertCommentOnHTMLHtmlElement(AtomHTMLToken&& token)
@@ -719,7 +712,14 @@ void HTMLConstructionSite::insertTextNode(const String& characters)
         // FIXME: We're only supposed to append to this text node if it was the last text node inserted by the parser.
         unsigned proposedBreakIndex = std::min(characters.length(), lengthLimit - previousTextChild->length());
         if (unsigned breakIndex = findBreakIndex(characters, 0, proposedBreakIndex)) {
-            previousTextChild->parserAppendData(StringView(characters).left(breakIndex));
+            if (previousTextChild != m_currentTextNode) {
+                if (!m_textNodeBuffer)
+                    m_textNodeBuffer = makeUnique<StringBuilder>();
+                else
+                    m_textNodeBuffer->clear();
+                m_currentTextNode = previousTextChild;
+            }
+            previousTextChild->parserAppendData(StringView(characters).left(breakIndex), *m_textNodeBuffer);
             currentPosition = breakIndex;
         }
     }
@@ -867,7 +867,7 @@ std::tuple<RefPtr<HTMLElement>, RefPtr<JSCustomElementInterface>, RefPtr<CustomE
     // FIXME: This is a hack to connect images to pictures before the image has
     // been inserted into the document. It can be removed once asynchronous image
     // loading is working. When this hack is removed, the assertion just before
-    // the setPictureElement() call in HTMLImageElement::insertedIntoAncestor
+    // the setPictureElement() call in HTMLImageElement::insertionSteps
     // can be simplified.
     if (RefPtr currentPictureElement = dynamicDowncast<HTMLPictureElement>(currentNode())) {
         if (auto* imageElement = dynamicDowncast<HTMLImageElement>(*element))

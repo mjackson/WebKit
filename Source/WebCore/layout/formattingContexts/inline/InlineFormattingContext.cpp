@@ -77,7 +77,7 @@ static size_t estimatedDisplayBoxSize(size_t inlineItemSize)
     return std::min<size_t>(maximumEstimatedDisplayBoxSize, inlineItemSize * 0.6);
 }
 
-static std::optional<InlineItemRange> partialRangeForDamage(const InlineItemList& inlineItemList, const InlineDamage& lineDamage)
+static std::optional<InlineItemRange> NODELETE partialRangeForDamage(const InlineItemList& inlineItemList, const InlineDamage& lineDamage)
 {
     auto layoutStartPosition = lineDamage.layoutStartPosition()->inlineItemPosition;
     if (layoutStartPosition.index >= inlineItemList.size()) {
@@ -92,7 +92,7 @@ static std::optional<InlineItemRange> partialRangeForDamage(const InlineItemList
     return InlineItemRange { layoutStartPosition, { inlineItemList.size(), 0 } };
 }
 
-static bool isEmptyInlineContent(const InlineItemList& inlineItemList)
+static bool NODELETE isEmptyInlineContent(const InlineItemList& inlineItemList)
 {
     // Very common, pseudo before/after empty content.
     if (inlineItemList.size() != 1)
@@ -370,8 +370,7 @@ UniqueRef<InlineLayoutResult> InlineFormattingContext::lineLayout(AbstractLineBu
 
         previousLine = PreviousLine { lineIndex, lineLayoutResult.contentGeometry.trailingOverflowingContentWidth, lineLayoutResult.endsWithLineBreak(), lineLayoutResult.directionality.inlineBaseDirection, WTF::move(lineLayoutResult.floatContent.suspendedFloats) };
         previousLineEnd = lineContentEnd;
-        lineLogicalTop = formattingUtils().logicalTopForNextLine(lineLayoutResult, lineLogicalRect, floatingContext, marginState);
-        marginState.contentOffsetAfterSelfCollapsingBlock = { };
+        lineLogicalTop = formattingUtils().logicalTopForNextLine(lineLayoutResult, lineLogicalRect, floatingContext);
     }
     InlineDisplayLineBuilder::addLegacyLineClampTrailingLinkBoxIfApplicable(*this, inlineLayoutState, layoutResult->displayContent);
     handleAfterSideMargin(marginState, layoutResult->displayContent);
@@ -418,7 +417,7 @@ void InlineFormattingContext::updateLayoutStateWithLineLayoutResult(const LineLa
     }
 
     if (lineLayoutResult.isFirstLast.isLastLineWithInlineContent) {
-        auto logicalTopCandidate = formattingUtils().logicalTopForNextLine(lineLayoutResult, lineLogicalRect, floatingContext, layoutState.parentBlockLayoutState().marginState());
+        auto logicalTopCandidate = formattingUtils().logicalTopForNextLine(lineLayoutResult, lineLogicalRect, floatingContext);
         layoutState.setClearGapAfterLastLine(std::max(0.f, logicalTopCandidate - lineLogicalRect.bottom()));
     }
 
@@ -473,7 +472,7 @@ InlineRect InlineFormattingContext::createDisplayContentForInlineContent(const L
     if (!lineLayoutResult.isBlockContent()) {
         auto isLegacyLineClamp = lineClamp && lineClamp->isLegacy;
         auto truncationPolicy = InlineFormattingUtils::lineEndingTruncationPolicy(root().style(), numberOfLinesWithInlineContent, numberOfVisibleLinesAllowed, lineLayoutResult.hasContentfulInFlowContent());
-        ellipsis = InlineDisplayLineBuilder::applyEllipsisIfNeeded(truncationPolicy, displayLine, boxes, isLegacyLineClamp);
+        ellipsis = InlineDisplayLineBuilder::applyEllipsisIfNeeded(truncationPolicy, displayLine, boxes.mutableSpan(), isLegacyLineClamp);
         if (ellipsis) {
             displayLine.setHasEllipsis();
             auto lineHasLegacyLineClamp = isLegacyLineClamp && truncationPolicy == LineEndingTruncationPolicy::WhenContentOverflowsInBlockDirection;
@@ -498,7 +497,7 @@ void InlineFormattingContext::resetBoxGeometriesForDiscardedContent(const Inline
     auto& inlineItemList = inlineContentCache().inlineItems().content();
     for (auto index = discardedRange.startIndex(); index < discardedRange.endIndex(); ++index) {
         auto& inlineItem = inlineItemList[index];
-        auto hasBoxGeometry = inlineItem.isAtomicInlineBox() || inlineItem.isFloat() || inlineItem.isHardLineBreak() || inlineItem.isInlineBoxStart() || inlineItem.isOpaque();
+        auto hasBoxGeometry = inlineItem.isAtomicInlineBox() || inlineItem.isFloat() || inlineItem.isHardLineBreak() || inlineItem.isInlineBoxStart() || inlineItem.isOutOfFlow();
         if (!hasBoxGeometry)
             continue;
         geometryForBox(inlineItem.layoutBox()).reset();

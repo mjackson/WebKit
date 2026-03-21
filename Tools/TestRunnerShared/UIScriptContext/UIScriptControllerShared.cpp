@@ -74,6 +74,7 @@ TextExtractionTestOptions* toTextExtractionTestOptions(JSContextRef context, JSV
     options.clipToBounds = booleanProperty(context, (JSObjectRef)argument, "clipToBounds", false);
     options.includeRects = booleanProperty(context, (JSObjectRef)argument, "includeRects", false);
     options.includeURLs = booleanProperty(context, (JSObjectRef)argument, "includeURLs", false);
+    options.includeSelectOptions = booleanProperty(context, (JSObjectRef)argument, "includeSelectOptions", false);
     options.shortenURLs = booleanProperty(context, (JSObjectRef)argument, "shortenURLs", false);
     options.eventListenerCategories = [&] -> JSValueRef {
         auto value = property(context, (JSObjectRef)argument, "eventListenerCategories");

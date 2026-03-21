@@ -127,6 +127,11 @@ std::optional<QueryInParens> GenericMediaQueryParser<ConcreteParser>::consumeQue
             auto name = range.peek().value();
             auto functionRange = range.consumeBlock();
             range.consumeWhitespace();
+
+            auto validationRange = functionRange;
+            if (!validationRange.consumeAnyValue())
+                return { };
+
             return GeneralEnclosed { name.toString(), functionRange.serialize() };
         }
     }
@@ -153,6 +158,10 @@ std::optional<QueryInParens> GenericMediaQueryParser<ConcreteParser>::consumeQue
         feature->functionId = functionId;
         return { *feature };
     }
+
+    auto validationRange = originalBlockRange;
+    if (!validationRange.consumeAnyValue())
+        return { };
 
     return GeneralEnclosed { functionId ? nameString(*functionId) : nullAtom(), originalBlockRange.serialize() };
 }

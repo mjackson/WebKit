@@ -93,7 +93,7 @@ static std::optional<NavigationAction::MouseEventData> mouseEventDataForFirstMou
     return { };
 }
 
-static NavigationType navigationType(FrameLoadType frameLoadType, bool isFormSubmission, bool haveEvent)
+static NavigationType NODELETE navigationType(FrameLoadType frameLoadType, bool isFormSubmission, bool haveEvent)
 {
     if (isFormSubmission)
         return NavigationType::FormSubmitted;
@@ -156,11 +156,6 @@ NavigationAction NavigationAction::copyWithShouldOpenExternalURLsPolicy(ShouldOp
     NavigationAction result(*this);
     result.setShouldOpenExternalURLsPolicy(shouldOpenExternalURLsPolicy);
     return result;
-}
-
-void NavigationAction::setTargetBackForwardItem(HistoryItem& item)
-{
-    m_targetBackForwardItemIdentifier = item.itemID();
 }
 
 void NavigationAction::setSourceBackForwardItem(HistoryItem* item)

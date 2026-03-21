@@ -34,6 +34,7 @@
 #include "EventNames.h"
 #include "EventTargetInlines.h"
 #include "FrameDestructionObserverInlines.h"
+#include "JSDOMConvertBoolean.h"
 #include "JSDOMPromise.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSPaymentDetailsUpdate.h"
@@ -67,7 +68,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(PaymentRequest);
 
 // Implements the IsWellFormedCurrencyCode abstract operation from ECMA 402
 // https://tc39.github.io/ecma402/#sec-iswellformedcurrencycode
-static bool isWellFormedCurrencyCode(const String& currency)
+static bool NODELETE isWellFormedCurrencyCode(const String& currency)
 {
     if (currency.length() == 3)
         return currency.containsOnly<isASCIIAlpha>();
@@ -125,7 +126,7 @@ static ExceptionOr<void> checkAndCanonicalizeTotal(PaymentItem& total)
 
 // Implements "validate a standardized payment method identifier"
 // https://www.w3.org/TR/payment-method-id/#validity-0
-static bool isValidStandardizedPaymentMethodIdentifier(StringView identifier)
+static bool NODELETE isValidStandardizedPaymentMethodIdentifier(StringView identifier)
 {
     enum class State {
         Start,
@@ -375,7 +376,12 @@ void PaymentRequest::show(Document& document, RefPtr<DOMPromise>&& detailsPromis
 {
     RefPtr frame = document.frame();
     if (!frame) {
-        promise.reject(Exception { ExceptionCode::AbortError });
+        promise.reject(Exception { ExceptionCode::InvalidStateError, "Document does not have a frame."_s });
+        return;
+    }
+
+    if (!document.isFullyActive()) {
+        promise.reject(Exception { ExceptionCode::InvalidStateError, "Document is not fully active."_s });
         return;
     }
 
@@ -500,11 +506,6 @@ ScriptExecutionContext* PaymentRequest::scriptExecutionContext() const
     return ActiveDOMObject::scriptExecutionContext();
 }
 
-RefPtr<ScriptExecutionContext> PaymentRequest::protectedScriptExecutionContext() const
-{
-    return scriptExecutionContext();
-}
-
 // https://www.w3.org/TR/payment-request/#abort()-method
 void PaymentRequest::abort(AbortPromise&& promise)
 {
@@ -532,6 +533,11 @@ void PaymentRequest::canMakePayment(Document& document, CanMakePaymentPromise&& 
 {
     if (m_state != State::Created) {
         promise.reject(Exception { ExceptionCode::InvalidStateError });
+        return;
+    }
+
+    if (!document.isFullyActive()) {
+        promise.reject(Exception { ExceptionCode::InvalidStateError, "Document is not fully active."_s });
         return;
     }
 
@@ -647,7 +653,7 @@ void PaymentRequest::dispatchAndCheckUpdateEvent(Ref<PaymentRequestUpdateEvent>&
     if (event->didCallUpdateWith())
         return;
 
-    protectedScriptExecutionContext()->addConsoleMessage(JSC::MessageSource::PaymentRequest, JSC::MessageLevel::Warning, makeString("updateWith() should be called synchronously when handling \""_s, event->type(), "\"."_s));
+    protect(scriptExecutionContext())->addConsoleMessage(JSC::MessageSource::PaymentRequest, JSC::MessageLevel::Warning, makeString("updateWith() should be called synchronously when handling \""_s, event->type(), "\"."_s));
 }
 
 void PaymentRequest::settleDetailsPromise(UpdateReason reason)
@@ -744,7 +750,7 @@ void PaymentRequest::accept(const String& methodName, PaymentResponse::DetailsFu
     RefPtr response = m_response;
     bool isRetry = m_response;
     if (!isRetry) {
-        response = PaymentResponse::create(protectedScriptExecutionContext().get(), *this);
+        response = PaymentResponse::create(protect(scriptExecutionContext()).get(), *this);
         m_response = response.copyRef();
         response->setRequestId(m_details.id);
     }
@@ -775,7 +781,7 @@ void PaymentRequest::accept(const String& methodName, PaymentResponse::DetailsFu
     RefPtr response = m_response;
     bool isRetry = m_response;
     if (!isRetry) {
-        response = PaymentResponse::create(protectedScriptExecutionContext().get(), *this);
+        response = PaymentResponse::create(protect(scriptExecutionContext()).get(), *this);
         m_response = response.copyRef();
         response->setRequestId(m_details.id);
     }
@@ -836,7 +842,7 @@ void PaymentRequest::cancel()
 
     if (m_isUpdating) {
         m_isCancelPending = true;
-        protectedScriptExecutionContext()->addConsoleMessage(JSC::MessageSource::PaymentRequest, JSC::MessageLevel::Error, "payment request timed out while waiting for Promise given to show() or updateWith() to settle."_s);
+        protect(scriptExecutionContext())->addConsoleMessage(JSC::MessageSource::PaymentRequest, JSC::MessageLevel::Error, "payment request timed out while waiting for Promise given to show() or updateWith() to settle."_s);
         return;
     }
 

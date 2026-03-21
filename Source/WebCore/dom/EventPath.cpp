@@ -34,6 +34,7 @@
 #include "NodeInlines.h"
 #include "PseudoElement.h"
 #include "ShadowRoot.h"
+#include "SlotAssignment.h"
 #include "TouchEvent.h"
 #include "TreeScopeInlines.h"
 #include <wtf/CheckedPtr.h>
@@ -57,14 +58,14 @@ class RelatedNodeRetargeter {
 public:
     RelatedNodeRetargeter(Ref<Node>&& relatedNode, Node& target);
 
-    Node* currentNode(Node& currentTreeScope);
+    Node* NODELETE currentNode(Node& currentTreeScope);
     void moveToNewTreeScope(TreeScope* previousTreeScope, TreeScope& newTreeScope);
 
 private:
-    Node* nodeInLowestCommonAncestor();
+    Node* NODELETE nodeInLowestCommonAncestor();
     void collectTreeScopes();
 
-    void checkConsistency(Node& currentTarget);
+    void NODELETE checkConsistency(Node& currentTarget);
 
     const Ref<Node> m_relatedNode;
     RefPtr<Node> m_retargetedRelatedNode;
@@ -88,8 +89,8 @@ EventPath::EventPath(Node& originalTarget, Event& event)
 
 void EventPath::buildPath(Node& originalTarget, Event& event)
 {
-    EventContext::Type contextType = [&]() {
-        if (is<MouseEvent>(event) || is<FocusEvent>(event))
+    auto contextType = [&] {
+        if (isAnyOf<MouseEvent, FocusEvent>(event))
             return EventContext::Type::MouseOrFocus;
 #if ENABLE(TOUCH_EVENTS)
         if (is<TouchEvent>(event))
@@ -312,10 +313,10 @@ EventPath::EventPath(EventTarget& target)
 
 static Node* NODELETE moveOutOfAllShadowRoots(Node& startingNode)
 {
-    CheckedPtr node = &startingNode;
+    auto* node = &startingNode;
     while (node && node->isInShadowTree())
         node = downcast<ShadowRoot>(node->rootNode()).host();
-    return node.unsafeGet();
+    return node;
 }
 
 RelatedNodeRetargeter::RelatedNodeRetargeter(Ref<Node>&& relatedNode, Node& target)

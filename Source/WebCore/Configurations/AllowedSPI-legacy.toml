@@ -21,7 +21,7 @@ requires = ["ENABLE_MULTI_REPRESENTATION_HEIC"]
 selectors = [
     { name = "isSystemVoice", class = "?" },
 ]
-requires = ["!SDKDB_HAS_148943382"]
+requires = ["!SDKDB_HAS_164901718"]
 
 [[legacy]]
 classes = [

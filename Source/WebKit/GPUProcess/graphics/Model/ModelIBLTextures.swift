@@ -21,19 +21,19 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 9) && (os(macOS) || (os(iOS) && canImport(SwiftUI, _version: "8.0.36"))) && canImport(_USDKit_RealityKit) && !os(visionOS)
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 11) && compiler(>=6.2)
 
-internal import Metal
-@_weakLinked internal import USDKit
-@_weakLinked @_spi(UsdLoaderAPI) internal import _USDKit_RealityKit
+import Metal
+@_weakLinked import USDKit
+@_weakLinked @_spi(UsdLoaderAPI) import _USDKit_RealityKit
 @_spi(RealityCoreRendererAPI) import RealityKit
 @_spi(RealityCoreTextureProcessingAPI) import RealityKit
 
 class IBLTextures {
     static func loadIBLTextures(
-        renderContext: _Proto_LowLevelRenderContext_v1,
-        diffuseTextureOriginal: MTLTexture,
-        specularTextureOriginal: MTLTexture
+        renderContext: any _Proto_LowLevelRenderContext_v1,
+        diffuseTextureOriginal: any MTLTexture,
+        specularTextureOriginal: any MTLTexture
     ) throws -> (
         diffuse: _Proto_LowLevelTextureResource_v1,
         specular: _Proto_LowLevelTextureResource_v1

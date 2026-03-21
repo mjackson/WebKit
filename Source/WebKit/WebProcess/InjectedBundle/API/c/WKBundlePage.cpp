@@ -85,7 +85,7 @@ WKTypeID WKBundlePageGetTypeID()
 void WKBundlePageSetContextMenuClient(WKBundlePageRef pageRef, WKBundlePageContextMenuClientBase* wkClient)
 {
 #if ENABLE(CONTEXT_MENUS)
-    WebKit::toProtectedImpl(pageRef)->setInjectedBundleContextMenuClient(makeUnique<WebKit::InjectedBundlePageContextMenuClient>(wkClient));
+    protect(WebKit::toImpl(pageRef))->setInjectedBundleContextMenuClient(makeUnique<WebKit::InjectedBundlePageContextMenuClient>(wkClient));
 #else
     UNUSED_PARAM(pageRef);
     UNUSED_PARAM(wkClient);
@@ -94,22 +94,22 @@ void WKBundlePageSetContextMenuClient(WKBundlePageRef pageRef, WKBundlePageConte
 
 void WKBundlePageSetEditorClient(WKBundlePageRef pageRef, WKBundlePageEditorClientBase* wkClient)
 {
-    WebKit::toProtectedImpl(pageRef)->setInjectedBundleEditorClient(wkClient ? makeUnique<WebKit::InjectedBundlePageEditorClient>(*wkClient) : makeUnique<API::InjectedBundle::EditorClient>());
+    protect(WebKit::toImpl(pageRef))->setInjectedBundleEditorClient(wkClient ? makeUnique<WebKit::InjectedBundlePageEditorClient>(*wkClient) : makeUnique<API::InjectedBundle::EditorClient>());
 }
 
 void WKBundlePageSetFormClient(WKBundlePageRef pageRef, WKBundlePageFormClientBase* wkClient)
 {
-    WebKit::toProtectedImpl(pageRef)->setInjectedBundleFormClient(makeUnique<WebKit::InjectedBundlePageFormClient>(wkClient));
+    protect(WebKit::toImpl(pageRef))->setInjectedBundleFormClient(makeUnique<WebKit::InjectedBundlePageFormClient>(wkClient));
 }
 
 void WKBundlePageSetPageLoaderClient(WKBundlePageRef pageRef, WKBundlePageLoaderClientBase* wkClient)
 {
-    WebKit::toProtectedImpl(pageRef)->setInjectedBundlePageLoaderClient(makeUnique<WebKit::InjectedBundlePageLoaderClient>(wkClient));
+    protect(WebKit::toImpl(pageRef))->setInjectedBundlePageLoaderClient(makeUnique<WebKit::InjectedBundlePageLoaderClient>(wkClient));
 }
 
 void WKBundlePageSetResourceLoadClient(WKBundlePageRef pageRef, WKBundlePageResourceLoadClientBase* wkClient)
 {
-    WebKit::toProtectedImpl(pageRef)->setInjectedBundleResourceLoadClient(makeUnique<WebKit::InjectedBundlePageResourceLoadClient>(wkClient));
+    protect(WebKit::toImpl(pageRef))->setInjectedBundleResourceLoadClient(makeUnique<WebKit::InjectedBundlePageResourceLoadClient>(wkClient));
 }
 
 void WKBundlePageSetPolicyClient(WKBundlePageRef, WKBundlePagePolicyClientBase*)
@@ -118,7 +118,7 @@ void WKBundlePageSetPolicyClient(WKBundlePageRef, WKBundlePagePolicyClientBase*)
 
 void WKBundlePageSetUIClient(WKBundlePageRef pageRef, WKBundlePageUIClientBase* wkClient)
 {
-    WebKit::toProtectedImpl(pageRef)->setInjectedBundleUIClient(makeUnique<WebKit::InjectedBundlePageUIClient>(wkClient));
+    protect(WebKit::toImpl(pageRef))->setInjectedBundleUIClient(makeUnique<WebKit::InjectedBundlePageUIClient>(wkClient));
 }
 
 WKBundleFrameRef WKBundlePageGetMainFrame(WKBundlePageRef pageRef)
@@ -134,7 +134,7 @@ WKFrameHandleRef WKBundleFrameCreateFrameHandle(WKBundleFrameRef bundleFrameRef)
 void WKBundlePageClickMenuItem(WKBundlePageRef pageRef, WKContextMenuItemRef item)
 {
 #if ENABLE(CONTEXT_MENUS)
-    protect(WebKit::toProtectedImpl(pageRef)->contextMenu())->itemSelected(WebKit::toImpl(item)->data());
+    protect(protect(WebKit::toImpl(pageRef))->contextMenu())->itemSelected(WebKit::toImpl(item)->data());
 #else
     UNUSED_PARAM(pageRef);
     UNUSED_PARAM(item);
@@ -154,7 +154,7 @@ static Ref<API::Array> contextMenuItems(const WebKit::WebContextMenu& contextMen
 WKArrayRef WKBundlePageCopyContextMenuItems(WKBundlePageRef pageRef)
 {
 #if ENABLE(CONTEXT_MENUS)
-    Ref contextMenu = WebKit::toProtectedImpl(pageRef)->contextMenu();
+    Ref contextMenu = protect(WebKit::toImpl(pageRef))->contextMenu();
     return WebKit::toAPILeakingRef(contextMenuItems(contextMenu.get()));
 #else
     UNUSED_PARAM(pageRef);
@@ -169,7 +169,7 @@ WKArrayRef WKBundlePageCopyContextMenuAtPointInWindow(WKBundlePageRef pageRef, W
     if (!page)
         return nullptr;
 
-    RefPtr contextMenu = WebKit::toProtectedImpl(pageRef)->contextMenuAtPointInWindow(page->mainFrame().frameID(), WebKit::toDoublePoint(point));
+    RefPtr contextMenu = protect(WebKit::toImpl(pageRef))->contextMenuAtPointInWindow(page->mainFrame().frameID(), WebKit::toDoublePoint(point));
     if (!contextMenu)
         return nullptr;
 
@@ -183,7 +183,7 @@ WKArrayRef WKBundlePageCopyContextMenuAtPointInWindow(WKBundlePageRef pageRef, W
 
 void WKBundlePageInsertNewlineInQuotedContent(WKBundlePageRef pageRef)
 {
-    WebKit::toProtectedImpl(pageRef)->insertNewlineInQuotedContent();
+    protect(WebKit::toImpl(pageRef))->insertNewlineInQuotedContent();
 }
 
 void WKAccessibilityTestingInjectPreference(WKBundlePageRef pageRef, WKStringRef domain, WKStringRef key, WKStringRef encodedValue)
@@ -291,37 +291,37 @@ void WKBundlePageSetDefersLoading(WKBundlePageRef, bool)
 WKStringRef WKBundlePageCopyRenderTreeExternalRepresentation(WKBundlePageRef pageRef, RenderTreeExternalRepresentationBehavior options)
 {
     // Convert to webcore options.
-    return WebKit::toCopiedAPI(WebKit::toProtectedImpl(pageRef)->renderTreeExternalRepresentation(options));
+    return WebKit::toCopiedAPI(protect(WebKit::toImpl(pageRef))->renderTreeExternalRepresentation(options));
 }
 
 WKStringRef WKBundlePageCopyRenderTreeExternalRepresentationForPrinting(WKBundlePageRef pageRef)
 {
-    return WebKit::toCopiedAPI(WebKit::toProtectedImpl(pageRef)->renderTreeExternalRepresentationForPrinting());
+    return WebKit::toCopiedAPI(protect(WebKit::toImpl(pageRef))->renderTreeExternalRepresentationForPrinting());
 }
 
 void WKBundlePageClose(WKBundlePageRef pageRef)
 {
-    WebKit::toProtectedImpl(pageRef)->sendClose();
+    protect(WebKit::toImpl(pageRef))->sendClose();
 }
 
 bool WKBundlePageIsClosed(WKBundlePageRef pageRef)
 {
-    return WebKit::toProtectedImpl(pageRef)->isClosed();
+    return WebKit::toImpl(pageRef)->isClosed();
 }
 
 double WKBundlePageGetTextZoomFactor(WKBundlePageRef pageRef)
 {
-    return WebKit::toProtectedImpl(pageRef)->textZoomFactor();
+    return protect(WebKit::toImpl(pageRef))->textZoomFactor();
 }
 
 double WKBundlePageGetPageZoomFactor(WKBundlePageRef pageRef)
 {
-    return WebKit::toProtectedImpl(pageRef)->pageZoomFactor();
+    return protect(WebKit::toImpl(pageRef))->pageZoomFactor();
 }
 
 WKStringRef WKBundlePageDumpHistoryForTesting(WKBundlePageRef page, WKStringRef directory)
 {
-    return WebKit::toCopiedAPI(WebKit::toProtectedImpl(page)->dumpHistoryForTesting(WebKit::toWTFString(directory)));
+    return WebKit::toCopiedAPI(protect(WebKit::toImpl(page))->dumpHistoryForTesting(WebKit::toWTFString(directory)));
 }
 
 WKBundleBackForwardListRef WKBundlePageGetBackForwardList(WKBundlePageRef pageRef)
@@ -356,7 +356,7 @@ void WKBundlePageUninstallPageOverlayWithAnimation(WKBundlePageRef pageRef, WKBu
 void WKBundlePageSetTopOverhangImage(WKBundlePageRef pageRef, WKImageRef imageRef)
 {
 #if PLATFORM(MAC)
-    WebKit::toProtectedImpl(pageRef)->setTopOverhangImage(WebKit::toProtectedImpl(imageRef).get());
+    protect(WebKit::toImpl(pageRef))->setTopOverhangImage(protect(WebKit::toImpl(imageRef)).get());
 #else
     UNUSED_PARAM(pageRef);
     UNUSED_PARAM(imageRef);
@@ -366,7 +366,7 @@ void WKBundlePageSetTopOverhangImage(WKBundlePageRef pageRef, WKImageRef imageRe
 void WKBundlePageSetBottomOverhangImage(WKBundlePageRef pageRef, WKImageRef imageRef)
 {
 #if PLATFORM(MAC)
-    WebKit::toProtectedImpl(pageRef)->setBottomOverhangImage(WebKit::toProtectedImpl(imageRef).get());
+    protect(WebKit::toImpl(pageRef))->setBottomOverhangImage(protect(WebKit::toImpl(imageRef)).get());
 #else
     UNUSED_PARAM(pageRef);
     UNUSED_PARAM(imageRef);
@@ -376,12 +376,12 @@ void WKBundlePageSetBottomOverhangImage(WKBundlePageRef pageRef, WKImageRef imag
 #if !PLATFORM(IOS_FAMILY)
 void WKBundlePageSetHeaderBanner(WKBundlePageRef pageRef, WKBundlePageBannerRef bannerRef)
 {
-    WebKit::toProtectedImpl(pageRef)->setHeaderPageBanner(WebKit::toProtectedImpl(bannerRef).get());
+    protect(WebKit::toImpl(pageRef))->setHeaderPageBanner(protect(WebKit::toImpl(bannerRef)).get());
 }
 
 void WKBundlePageSetFooterBanner(WKBundlePageRef pageRef, WKBundlePageBannerRef bannerRef)
 {
-    WebKit::toProtectedImpl(pageRef)->setFooterPageBanner(WebKit::toProtectedImpl(bannerRef).get());
+    protect(WebKit::toImpl(pageRef))->setFooterPageBanner(protect(WebKit::toImpl(bannerRef)).get());
 }
 #endif // !PLATFORM(IOS_FAMILY)
 
@@ -410,12 +410,12 @@ void WKBundlePageReplaceStringMatches(WKBundlePageRef pageRef, WKArrayRef matchI
         if (RefPtr indexAsObject = matchIndices->at<API::UInt64>(i))
             indices.append(indexAsObject->value());
     }
-    WebKit::toProtectedImpl(pageRef)->replaceStringMatchesFromInjectedBundle(indices, WebKit::toWTFString(replacementText), selectionOnly);
+    protect(WebKit::toImpl(pageRef))->replaceStringMatchesFromInjectedBundle(indices, WebKit::toWTFString(replacementText), selectionOnly);
 }
 
 WKImageRef WKBundlePageCreateSnapshotWithOptions(WKBundlePageRef pageRef, WKRect rect, WKSnapshotOptions options)
 {
-    RefPtr<WebKit::WebImage> webImage = WebKit::toProtectedImpl(pageRef)->scaledSnapshotWithOptions(WebKit::toIntRect(rect), 1, WebKit::toSnapshotOptions(options));
+    RefPtr<WebKit::WebImage> webImage = protect(WebKit::toImpl(pageRef))->scaledSnapshotWithOptions(WebKit::toIntRect(rect), 1, WebKit::toSnapshotOptions(options));
     return toAPILeakingRef(WTF::move(webImage));
 }
 
@@ -423,55 +423,55 @@ WKImageRef WKBundlePageCreateSnapshotInViewCoordinates(WKBundlePageRef pageRef, 
 {
     auto snapshotOptions = WebKit::snapshotOptionsFromImageOptions(options);
     snapshotOptions.add(WebKit::SnapshotOption::InViewCoordinates);
-    RefPtr<WebKit::WebImage> webImage = WebKit::toProtectedImpl(pageRef)->scaledSnapshotWithOptions(WebKit::toIntRect(rect), 1, snapshotOptions);
+    RefPtr<WebKit::WebImage> webImage = protect(WebKit::toImpl(pageRef))->scaledSnapshotWithOptions(WebKit::toIntRect(rect), 1, snapshotOptions);
     return toAPILeakingRef(WTF::move(webImage));
 }
 
 WKImageRef WKBundlePageCreateSnapshotInDocumentCoordinates(WKBundlePageRef pageRef, WKRect rect, WKImageOptions options)
 {
-    RefPtr<WebKit::WebImage> webImage = WebKit::toProtectedImpl(pageRef)->scaledSnapshotWithOptions(WebKit::toIntRect(rect), 1, WebKit::snapshotOptionsFromImageOptions(options));
+    RefPtr<WebKit::WebImage> webImage = protect(WebKit::toImpl(pageRef))->scaledSnapshotWithOptions(WebKit::toIntRect(rect), 1, WebKit::snapshotOptionsFromImageOptions(options));
     return toAPILeakingRef(WTF::move(webImage));
 }
 
 WKImageRef WKBundlePageCreateScaledSnapshotInDocumentCoordinates(WKBundlePageRef pageRef, WKRect rect, double scaleFactor, WKImageOptions options)
 {
-    RefPtr<WebKit::WebImage> webImage = WebKit::toProtectedImpl(pageRef)->scaledSnapshotWithOptions(WebKit::toIntRect(rect), scaleFactor, WebKit::snapshotOptionsFromImageOptions(options));
+    RefPtr<WebKit::WebImage> webImage = protect(WebKit::toImpl(pageRef))->scaledSnapshotWithOptions(WebKit::toIntRect(rect), scaleFactor, WebKit::snapshotOptionsFromImageOptions(options));
     return toAPILeakingRef(WTF::move(webImage));
 }
 
 double WKBundlePageGetBackingScaleFactor(WKBundlePageRef pageRef)
 {
-    return WebKit::toProtectedImpl(pageRef)->deviceScaleFactor();
+    return WebKit::toImpl(pageRef)->deviceScaleFactor();
 }
 
 void WKBundlePageListenForLayoutMilestones(WKBundlePageRef pageRef, WKLayoutMilestones milestones)
 {
-    WebKit::toProtectedImpl(pageRef)->listenForLayoutMilestones(WebKit::toLayoutMilestones(milestones));
+    protect(WebKit::toImpl(pageRef))->listenForLayoutMilestones(WebKit::toLayoutMilestones(milestones));
 }
 
 void WKBundlePageCloseInspectorForTest(WKBundlePageRef page)
 {
-    protect(WebKit::toProtectedImpl(page)->inspector())->close();
+    protect(protect(WebKit::toImpl(page))->inspector())->close();
 }
 
 void WKBundlePageEvaluateScriptInInspectorForTest(WKBundlePageRef page, WKStringRef script)
 {
-    protect(WebKit::toProtectedImpl(page)->inspector())->evaluateScriptForTest(WebKit::toWTFString(script));
+    protect(protect(WebKit::toImpl(page))->inspector())->evaluateScriptForTest(WebKit::toWTFString(script));
 }
 
 void WKBundlePageForceRepaint(WKBundlePageRef page)
 {
-    WebKit::toProtectedImpl(page)->updateRenderingWithForcedRepaintWithoutCallback();
+    protect(WebKit::toImpl(page))->updateRenderingWithForcedRepaintWithoutCallback();
 }
 
 void WKBundlePageFlushPendingEditorStateUpdate(WKBundlePageRef page)
 {
-    WebKit::toProtectedImpl(page)->flushPendingEditorStateUpdate();
+    protect(WebKit::toImpl(page))->flushPendingEditorStateUpdate();
 }
 
 uint64_t WKBundlePageGetRenderTreeSize(WKBundlePageRef pageRef)
 {
-    return WebKit::toProtectedImpl(pageRef)->renderTreeSize();
+    return protect(WebKit::toImpl(pageRef))->renderTreeSize();
 }
 
 // This function should be kept around for compatibility with SafariForWebKitDevelopment.
@@ -492,12 +492,12 @@ void WKBundlePageSetPaintedObjectsCounterThreshold(WKBundlePageRef, uint64_t)
 
 bool WKBundlePageIsTrackingRepaints(WKBundlePageRef pageRef)
 {
-    return WebKit::toProtectedImpl(pageRef)->isTrackingRepaints();
+    return protect(WebKit::toImpl(pageRef))->isTrackingRepaints();
 }
 
 WKArrayRef WKBundlePageCopyTrackedRepaintRects(WKBundlePageRef pageRef)
 {
-    return WebKit::toAPILeakingRef(WebKit::toProtectedImpl(pageRef)->trackedRepaintRects());
+    return WebKit::toAPILeakingRef(protect(WebKit::toImpl(pageRef))->trackedRepaintRects());
 }
 
 void WKBundlePageSetComposition(WKBundlePageRef pageRef, WKStringRef text, int from, int length, bool suppressUnderline, WKArrayRef highlightData, WKArrayRef annotationData)
@@ -544,22 +544,22 @@ void WKBundlePageSetComposition(WKBundlePageRef pageRef, WKStringRef text, int f
         }
     }
 
-    WebKit::toProtectedImpl(pageRef)->setCompositionForTesting(WebKit::toWTFString(text), from, length, suppressUnderline, highlights, annotations);
+    protect(WebKit::toImpl(pageRef))->setCompositionForTesting(WebKit::toWTFString(text), from, length, suppressUnderline, highlights, annotations);
 }
 
 bool WKBundlePageHasComposition(WKBundlePageRef pageRef)
 {
-    return WebKit::toProtectedImpl(pageRef)->hasCompositionForTesting();
+    return protect(WebKit::toImpl(pageRef))->hasCompositionForTesting();
 }
 
 void WKBundlePageConfirmComposition(WKBundlePageRef pageRef)
 {
-    WebKit::toProtectedImpl(pageRef)->confirmCompositionForTesting(String());
+    protect(WebKit::toImpl(pageRef))->confirmCompositionForTesting(String());
 }
 
 void WKBundlePageConfirmCompositionWithText(WKBundlePageRef pageRef, WKStringRef text)
 {
-    WebKit::toProtectedImpl(pageRef)->confirmCompositionForTesting(WebKit::toWTFString(text));
+    protect(WebKit::toImpl(pageRef))->confirmCompositionForTesting(WebKit::toWTFString(text));
 }
 
 void WKBundlePageSetUseDarkAppearance(WKBundlePageRef pageRef, bool useDarkAppearance)
@@ -579,27 +579,27 @@ bool WKBundlePageIsUsingDarkAppearance(WKBundlePageRef pageRef)
 
 bool WKBundlePageCanShowMIMEType(WKBundlePageRef pageRef, WKStringRef mimeTypeRef)
 {
-    return WebKit::toProtectedImpl(pageRef)->canShowMIMEType(WebKit::toWTFString(mimeTypeRef));
+    return protect(WebKit::toImpl(pageRef))->canShowMIMEType(WebKit::toWTFString(mimeTypeRef));
 }
 
 WKRenderingSuppressionToken WKBundlePageExtendIncrementalRenderingSuppression(WKBundlePageRef pageRef)
 {
-    return WebKit::toProtectedImpl(pageRef)->extendIncrementalRenderingSuppression();
+    return protect(WebKit::toImpl(pageRef))->extendIncrementalRenderingSuppression();
 }
 
 void WKBundlePageStopExtendingIncrementalRenderingSuppression(WKBundlePageRef pageRef, WKRenderingSuppressionToken token)
 {
-    WebKit::toProtectedImpl(pageRef)->stopExtendingIncrementalRenderingSuppression(token);
+    protect(WebKit::toImpl(pageRef))->stopExtendingIncrementalRenderingSuppression(token);
 }
 
 bool WKBundlePageIsUsingEphemeralSession(WKBundlePageRef pageRef)
 {
-    return WebKit::toProtectedImpl(pageRef)->usesEphemeralSession();
+    return protect(WebKit::toImpl(pageRef))->usesEphemeralSession();
 }
 
 bool WKBundlePageIsControlledByAutomation(WKBundlePageRef pageRef)
 {
-    return WebKit::toProtectedImpl(pageRef)->isControlledByAutomation();
+    return WebKit::toImpl(pageRef)->isControlledByAutomation();
 }
 
 #if TARGET_OS_IPHONE
@@ -665,23 +665,23 @@ void WKBundlePageCallAfterTasksAndTimers(WKBundlePageRef pageRef, WKBundlePageTe
 
 void WKBundlePageFlushDeferredDidReceiveMouseEventForTesting(WKBundlePageRef page)
 {
-    WebKit::toProtectedImpl(page)->flushDeferredDidReceiveMouseEvent();
+    protect(WebKit::toImpl(page))->flushDeferredDidReceiveMouseEvent();
 }
 
 void WKBundlePagePostMessage(WKBundlePageRef pageRef, WKStringRef messageNameRef, WKTypeRef messageBodyRef)
 {
-    WebKit::toProtectedImpl(pageRef)->postMessage(WebKit::toWTFString(messageNameRef), WebKit::toProtectedImpl(messageBodyRef).get());
+    protect(WebKit::toImpl(pageRef))->postMessage(WebKit::toWTFString(messageNameRef), protect(WebKit::toImpl(messageBodyRef)).get());
 }
 
 void WKBundlePagePostMessageIgnoringFullySynchronousMode(WKBundlePageRef pageRef, WKStringRef messageNameRef, WKTypeRef messageBodyRef)
 {
-    WebKit::toProtectedImpl(pageRef)->postMessageIgnoringFullySynchronousMode(WebKit::toWTFString(messageNameRef), WebKit::toProtectedImpl(messageBodyRef).get());
+    protect(WebKit::toImpl(pageRef))->postMessageIgnoringFullySynchronousMode(WebKit::toWTFString(messageNameRef), protect(WebKit::toImpl(messageBodyRef)).get());
 }
 
 void WKBundlePagePostSynchronousMessageForTesting(WKBundlePageRef pageRef, WKStringRef messageNameRef, WKTypeRef messageBodyRef, WKTypeRef* returnRetainedDataRef)
 {
     RefPtr<API::Object> returnData;
-    WebKit::toProtectedImpl(pageRef)->postSynchronousMessageForTesting(WebKit::toWTFString(messageNameRef), WebKit::toProtectedImpl(messageBodyRef).get(), returnData);
+    protect(WebKit::toImpl(pageRef))->postSynchronousMessageForTesting(WebKit::toWTFString(messageNameRef), protect(WebKit::toImpl(messageBodyRef)).get(), returnData);
     if (returnRetainedDataRef)
         *returnRetainedDataRef = WebKit::toAPILeakingRef(WTF::move(returnData));
 }
@@ -693,27 +693,27 @@ bool WKBundlePageIsSuspended(WKBundlePageRef pageRef)
 
 void WKBundlePageAddUserScript(WKBundlePageRef pageRef, WKStringRef source, _WKUserScriptInjectionTime injectionTime, WKUserContentInjectedFrames injectedFrames)
 {
-    WebKit::toProtectedImpl(pageRef)->addUserScript(WebKit::toWTFString(source), WebKit::InjectedBundleScriptWorld::normalWorldSingleton(), WebKit::toUserContentInjectedFrames(injectedFrames), WebKit::toUserScriptInjectionTime(injectionTime));
+    protect(WebKit::toImpl(pageRef))->addUserScript(WebKit::toWTFString(source), WebKit::InjectedBundleScriptWorld::normalWorldSingleton(), WebKit::toUserContentInjectedFrames(injectedFrames), WebKit::toUserScriptInjectionTime(injectionTime));
 }
 
 void WKBundlePageAddUserScriptInWorld(WKBundlePageRef page, WKStringRef source, WKBundleScriptWorldRef scriptWorld, _WKUserScriptInjectionTime injectionTime, WKUserContentInjectedFrames injectedFrames)
 {
-    WebKit::toProtectedImpl(page)->addUserScript(WebKit::toWTFString(source), *WebKit::toProtectedImpl(scriptWorld), WebKit::toUserContentInjectedFrames(injectedFrames), WebKit::toUserScriptInjectionTime(injectionTime));
+    protect(WebKit::toImpl(page))->addUserScript(WebKit::toWTFString(source), *protect(WebKit::toImpl(scriptWorld)), WebKit::toUserContentInjectedFrames(injectedFrames), WebKit::toUserScriptInjectionTime(injectionTime));
 }
 
 void WKBundlePageAddUserStyleSheet(WKBundlePageRef pageRef, WKStringRef source, WKUserContentInjectedFrames injectedFrames)
 {
-    WebKit::toProtectedImpl(pageRef)->addUserStyleSheet(WebKit::toWTFString(source), WebKit::toUserContentInjectedFrames(injectedFrames));
+    protect(WebKit::toImpl(pageRef))->addUserStyleSheet(WebKit::toWTFString(source), WebKit::toUserContentInjectedFrames(injectedFrames));
 }
 
 void WKBundlePageRemoveAllUserContent(WKBundlePageRef pageRef)
 {
-    WebKit::toProtectedImpl(pageRef)->removeAllUserContent();
+    protect(WebKit::toImpl(pageRef))->removeAllUserContent();
 }
 
 WKStringRef WKBundlePageCopyGroupIdentifier(WKBundlePageRef pageRef)
 {
-    return WebKit::toCopiedAPI(WebKit::toImpl(pageRef)->pageGroup()->identifier());
+    return WebKit::toCopiedAPI(WebKit::toImpl(pageRef)->pageGroup().identifier());
 }
 
 void WKBundlePageSetCaptionDisplayMode(WKBundlePageRef pageRef, WKStringRef mode)
@@ -748,7 +748,7 @@ WKCaptionUserPreferencesTestingModeTokenRef WKBundlePageCreateCaptionUserPrefere
 
 void WKBundlePageLayoutIfNeeded(WKBundlePageRef page)
 {
-    WebKit::toProtectedImpl(page)->layoutIfNeeded();
+    protect(WebKit::toImpl(page))->layoutIfNeeded();
 }
 
 void WKBundlePageSetSkipDecidePolicyForResponseIfPossible(WKBundlePageRef page, bool skip)
@@ -758,5 +758,5 @@ void WKBundlePageSetSkipDecidePolicyForResponseIfPossible(WKBundlePageRef page, 
 
 WKStringRef WKBundlePageCopyFrameTextForTesting(WKBundlePageRef page, bool includeSubframes)
 {
-    return WebKit::toAPILeakingRef(API::String::create(WebKit::toProtectedImpl(page)->frameTextForTestingIncludingSubframes(includeSubframes)));
+    return WebKit::toAPILeakingRef(API::String::create(protect(WebKit::toImpl(page))->frameTextForTestingIncludingSubframes(includeSubframes)));
 }

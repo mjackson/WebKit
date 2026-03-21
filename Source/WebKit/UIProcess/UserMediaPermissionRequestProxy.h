@@ -77,7 +77,7 @@ public:
 
     std::optional<WebCore::UserMediaRequestIdentifier> userMediaID() const { return m_userMediaID; }
     WebCore::FrameIdentifier mainFrameID() const { return m_mainFrameID; }
-    const FrameInfoData& frameInfo() const { return m_frameInfo; }
+    const FrameInfoData& frameInfo() const LIFETIME_BOUND { return m_frameInfo; }
     WebCore::FrameIdentifier frameID() const { return m_frameInfo.frameID; }
 
     WebCore::SecurityOrigin& topLevelDocumentSecurityOrigin() { return m_topLevelDocumentSecurityOrigin.get(); }
@@ -85,12 +85,12 @@ public:
     const WebCore::SecurityOrigin& topLevelDocumentSecurityOrigin() const { return m_topLevelDocumentSecurityOrigin.get(); }
     const WebCore::SecurityOrigin& userMediaDocumentSecurityOrigin() const { return m_userMediaDocumentSecurityOrigin.get(); }
 
-    const WebCore::MediaStreamRequest& userRequest() const { return m_request; }
+    const WebCore::MediaStreamRequest& userRequest() const LIFETIME_BOUND { return m_request; }
 
     WebCore::MediaStreamRequest::Type requestType() const { return m_request.type; }
 
     void setDeviceIdentifierHashSalts(WebCore::MediaDeviceHashSalts&& salts) { m_deviceIdentifierHashSalts = WTF::move(salts); }
-    const WebCore::MediaDeviceHashSalts& deviceIdentifierHashSalts() const { return m_deviceIdentifierHashSalts; }
+    const WebCore::MediaDeviceHashSalts& deviceIdentifierHashSalts() const LIFETIME_BOUND { return m_deviceIdentifierHashSalts; }
 
     WebCore::CaptureDevice audioDevice() const { return m_eligibleAudioDevices.isEmpty() ? WebCore::CaptureDevice { } : m_eligibleAudioDevices[0]; }
     WebCore::CaptureDevice videoDevice() const { return m_eligibleVideoDevices.isEmpty() ? WebCore::CaptureDevice { } : m_eligibleVideoDevices[0]; }

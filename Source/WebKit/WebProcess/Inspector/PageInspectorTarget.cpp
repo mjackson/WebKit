@@ -58,7 +58,7 @@ void PageInspectorTarget::connect(Inspector::FrontendChannel::ConnectionType con
     Ref page = m_page.get();
     m_channel = makeUnique<UIProcessForwardingFrontendChannel>(page, identifier(), connectionType);
     if (RefPtr corePage = page->corePage())
-        corePage->protectedInspectorController()->connectFrontend(*m_channel);
+        protect(corePage->inspectorController())->connectFrontend(*m_channel);
 }
 
 void PageInspectorTarget::disconnect()
@@ -66,14 +66,14 @@ void PageInspectorTarget::disconnect()
     if (!m_channel)
         return;
     if (RefPtr corePage = m_page->corePage())
-        corePage->protectedInspectorController()->disconnectFrontend(*m_channel);
+        protect(corePage->inspectorController())->disconnectFrontend(*m_channel);
     m_channel.reset();
 }
 
 void PageInspectorTarget::sendMessageToTargetBackend(const String& message)
 {
     if (RefPtr corePage = m_page->corePage())
-        corePage->protectedInspectorController()->dispatchMessageFromFrontend(message);
+        protect(corePage->inspectorController())->dispatchMessageFromFrontend(message);
 }
 
 String PageInspectorTarget::toTargetID(WebCore::PageIdentifier pageID)

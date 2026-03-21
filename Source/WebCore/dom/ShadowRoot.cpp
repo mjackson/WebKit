@@ -69,7 +69,7 @@ struct SameSizeAsShadowRoot : public DocumentFragment, public TreeScope {
 };
 
 static_assert(sizeof(ShadowRoot) == sizeof(SameSizeAsShadowRoot), "shadowroot should stay small");
-#if !ASSERT_ENABLED
+#if !ASSERT_ENABLED && ASSERT_WITH_SECURITY_IMPLICATION_DISABLED
 static_assert(sizeof(WeakPtr<Element, WeakPtrImplWithEventTargetData>) == sizeof(void*), "WeakPtr should be same size as raw pointer");
 #endif
 
@@ -128,9 +128,9 @@ ShadowRoot::~ShadowRoot()
     removeDetachedChildren();
 }
 
-Node::InsertedIntoAncestorResult ShadowRoot::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps ShadowRoot::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    DocumentFragment::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    DocumentFragment::insertionSteps(insertionType, parentOfInsertedTree);
     if (!m_hasScopedCustomElementRegistry && usesNullCustomElementRegistry() && !parentOfInsertedTree.usesNullCustomElementRegistry()) {
         if (RefPtr registry = CustomElementRegistry::registryForElement(*host())) {
             clearUsesNullCustomElementRegistry();
@@ -146,12 +146,12 @@ Node::InsertedIntoAncestorResult ShadowRoot::insertedIntoAncestor(InsertionType 
     }
     if (!adoptedStyleSheets().empty() && document().frame())
         protect(styleScope())->didChangeActiveStyleSheetCandidates();
-    return InsertedIntoAncestorResult::Done;
+    return NeedsPostConnectionSteps::No;
 }
 
-void ShadowRoot::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+void ShadowRoot::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
-    DocumentFragment::removedFromAncestor(removalType, oldParentOfRemovedTree);
+    DocumentFragment::removingSteps(removalType, oldParentOfRemovedTree);
     if (removalType.disconnectedFromDocument)
         protect(document())->didRemoveInDocumentShadowRoot(*this);
 }
@@ -166,6 +166,7 @@ void ShadowRoot::childrenChanged(const ChildChange& childChange)
     // FIXME: Avoid always invalidating style just for first-child, etc... as done in Element::childrenChanged.
     switch (childChange.type) {
     case ChildChange::Type::ElementInserted:
+    case ChildChange::Type::ElementAndTextInserted:
     case ChildChange::Type::ElementRemoved:
         m_host->invalidateStyleForSubtreeInternal();
         break;
@@ -318,13 +319,6 @@ void ShadowRoot::removeAllEventListeners()
     DocumentFragment::removeAllEventListeners();
     for (RefPtr node = firstChild(); node; node = NodeTraversal::next(*node))
         node->removeAllEventListeners();
-}
-
-
-HTMLSlotElement* ShadowRoot::findAssignedSlot(const Node& node)
-{
-    ASSERT(node.parentNode() == host());
-    return m_slotAssignment ? m_slotAssignment->findAssignedSlot(node) : nullptr;
 }
 
 void ShadowRoot::renameSlotElement(HTMLSlotElement& slot, const AtomString& oldName, const AtomString& newName)

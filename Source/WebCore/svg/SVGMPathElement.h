@@ -51,11 +51,11 @@ private:
 
     void buildPendingResource() final;
     void clearResourceReferences();
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) final;
-    void removedFromAncestor(RemovalType, ContainerNode&) final;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) final;
+    void removingSteps(RemovalType, ContainerNode&) final;
 
     bool rendererIsNeeded(const RenderStyle&) final { return false; }
-    void didFinishInsertingNode() final;
+    void postConnectionSteps() final;
 };
 
 } // namespace WebCore

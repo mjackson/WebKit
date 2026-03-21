@@ -207,7 +207,7 @@ public:
     bool documentElementIsCaptured() const;
 
     const ViewTransitionTypeSet& types() const { return m_types; }
-    void NODELETE setTypes(Ref<ViewTransitionTypeSet>&&);
+    void setTypes(Ref<ViewTransitionTypeSet>&&);
 
     RenderViewTransitionCapture* viewTransitionNewPseudoForCapturedElement(RenderLayerModelObject&);
 

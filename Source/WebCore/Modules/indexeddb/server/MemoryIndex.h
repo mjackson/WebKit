@@ -65,7 +65,7 @@ public:
 
     ~MemoryIndex();
 
-    const IDBIndexInfo& info() const { return m_info; }
+    const IDBIndexInfo& info() const LIFETIME_BOUND { return m_info; }
 
     void rename(const String& newName) { m_info.rename(newName); }
 
@@ -91,7 +91,7 @@ public:
     void notifyCursorsOfValueChange(const IDBKeyData& indexKey, const IDBKeyData& primaryKey);
     void transactionFinished(MemoryBackingStoreTransaction&);
 
-    void writeTransactionStarted(MemoryBackingStoreTransaction&);
+    void NODELETE writeTransactionStarted(MemoryBackingStoreTransaction&);
     void writeTransactionFinished(MemoryBackingStoreTransaction&);
     void transactionAborted(MemoryBackingStoreTransaction&);
 

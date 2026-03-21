@@ -89,24 +89,24 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtensionContext, WebExtensionContext
     if (!(self = [super init]))
         return nil;
 
-    API::Object::constructInWrapper<WebKit::WebExtensionContext>(self, extension._protectedWebExtension.get());
+    API::Object::constructInWrapper<WebKit::WebExtensionContext>(self, protect(*extension->_webExtension).get());
 
     return self;
 }
 
 - (WKWebExtension *)webExtension
 {
-    return wrapper(protect(Ref { *_webExtensionContext }->extension()).get());
+    return wrapper(protect(_webExtensionContext->extension()).get());
 }
 
 - (WKWebExtensionController *)webExtensionController
 {
-    return wrapper(protect(Ref { *_webExtensionContext }->extensionController()).get());
+    return wrapper(protect(_webExtensionContext->extensionController()).get());
 }
 
 - (BOOL)isLoaded
 {
-    return Ref { *_webExtensionContext }->isLoaded();
+    return _webExtensionContext->isLoaded();
 }
 
 -(NSArray<NSError *> *)errors
@@ -118,7 +118,7 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtensionContext, WebExtensionContext
 
 - (NSURL *)baseURL
 {
-    return Ref { *_webExtensionContext }->baseURL().createNSURL().autorelease();
+    return _webExtensionContext->baseURL().createNSURL().autorelease();
 }
 
 - (void)setBaseURL:(NSURL *)baseURL
@@ -134,7 +134,7 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtensionContext, WebExtensionContext
 
 - (NSString *)uniqueIdentifier
 {
-    return Ref { *_webExtensionContext }->uniqueIdentifier().createNSString().autorelease();
+    return _webExtensionContext->uniqueIdentifier().createNSString().autorelease();
 }
 
 - (void)setUniqueIdentifier:(NSString *)uniqueIdentifier
@@ -146,7 +146,7 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtensionContext, WebExtensionContext
 
 - (BOOL)isInspectable
 {
-    return Ref { *_webExtensionContext }->isInspectable();
+    return _webExtensionContext->isInspectable();
 }
 
 - (void)setInspectable:(BOOL)inspectable
@@ -295,17 +295,17 @@ static inline WebKit::WebExtensionContext::PermissionMatchPatternsMap toImpl(NSD
 
 - (BOOL)hasRequestedOptionalAccessToAllHosts
 {
-    return Ref { *_webExtensionContext }->requestedOptionalAccessToAllHosts();
+    return _webExtensionContext->requestedOptionalAccessToAllHosts();
 }
 
 - (void)setHasRequestedOptionalAccessToAllHosts:(BOOL)requested
 {
-    return Ref { *_webExtensionContext }->setRequestedOptionalAccessToAllHosts(requested);
+    return _webExtensionContext->setRequestedOptionalAccessToAllHosts(requested);
 }
 
 - (BOOL)hasAccessToPrivateData
 {
-    return Ref { *_webExtensionContext }->hasAccessToPrivateData();
+    return _webExtensionContext->hasAccessToPrivateData();
 }
 
 - (void)setHasAccessToPrivateData:(BOOL)hasAccess
@@ -399,7 +399,7 @@ static inline WKWebExtensionContextPermissionStatus NODELETE toAPI(WebKit::WebEx
     }
 }
 
-static inline WebKit::WebExtensionContext::PermissionState toImpl(WKWebExtensionContextPermissionStatus status)
+static inline WebKit::WebExtensionContext::PermissionState NODELETE toImpl(WKWebExtensionContextPermissionStatus status)
 {
     switch (status) {
     case WKWebExtensionContextPermissionStatusDeniedExplicitly:
@@ -496,7 +496,7 @@ static inline WebKit::WebExtensionContext::PermissionState toImpl(WKWebExtension
     NSParameterAssert([pattern isKindOfClass:WKWebExtensionMatchPattern.class]);
 
     Ref extensionContext { *_webExtensionContext };
-    return toAPI(extensionContext->permissionState(pattern._protectedWebExtensionMatchPattern, toImplNullable(tab, extensionContext.get()).get()));
+    return toAPI(extensionContext->permissionState(protect(*pattern->_webExtensionMatchPattern), toImplNullable(tab, extensionContext.get()).get()));
 }
 
 - (void)setPermissionStatus:(WKWebExtensionContextPermissionStatus)status forMatchPattern:(WKWebExtensionMatchPattern *)pattern
@@ -512,7 +512,7 @@ static inline WebKit::WebExtensionContext::PermissionState toImpl(WKWebExtension
     NSParameterAssert(status == WKWebExtensionContextPermissionStatusDeniedExplicitly || status == WKWebExtensionContextPermissionStatusUnknown || status == WKWebExtensionContextPermissionStatusGrantedExplicitly);
     NSParameterAssert([pattern isKindOfClass:WKWebExtensionMatchPattern.class]);
 
-    Ref { *_webExtensionContext }->setPermissionState(toImpl(status), pattern._protectedWebExtensionMatchPattern, toImpl(expirationDate));
+    Ref { *_webExtensionContext }->setPermissionState(toImpl(status), protect(*pattern->_webExtensionMatchPattern), toImpl(expirationDate));
 }
 
 - (BOOL)hasAccessToAllURLs
@@ -539,7 +539,7 @@ static inline WebKit::WebExtensionContext::PermissionState toImpl(WKWebExtension
 
 - (BOOL)hasContentModificationRules
 {
-    return Ref { *_webExtensionContext }->hasContentModificationRules();
+    return _webExtensionContext->hasContentModificationRules();
 }
 
 - (void)loadBackgroundContentWithCompletionHandler:(void (^)(NSError *error))completionHandler
@@ -575,7 +575,7 @@ static inline WebKit::WebExtensionContext::PermissionState toImpl(WKWebExtension
 {
     NSParameterAssert([command isKindOfClass:WKWebExtensionCommand.class]);
 
-    Ref { *_webExtensionContext }->performCommand([command _protectedWebExtensionCommand].get(), WebKit::WebExtensionContext::UserTriggered::Yes);
+    Ref { *_webExtensionContext }->performCommand(protect(*command->_webExtensionCommand).get(), WebKit::WebExtensionContext::UserTriggered::Yes);
 }
 
 - (void)_resetCommands
@@ -797,7 +797,7 @@ static inline WebKit::WebExtensionContext::TabSet toImpl(NSArray<id<WKWebExtensi
     extensionContext->didReplaceTab(toImpl(oldTab, extensionContext.get()), toImpl(newTab, extensionContext.get()));
 }
 
-static inline OptionSet<WebKit::WebExtensionTab::ChangedProperties> toImpl(WKWebExtensionTabChangedProperties properties)
+static inline OptionSet<WebKit::WebExtensionTab::ChangedProperties> NODELETE toImpl(WKWebExtensionTabChangedProperties properties)
 {
     if (properties == WKWebExtensionTabChangedPropertiesNone)
         return { };
@@ -844,29 +844,29 @@ static inline OptionSet<WebKit::WebExtensionTab::ChangedProperties> toImpl(WKWeb
 
 - (WKWebView *)_backgroundWebView
 {
-    return self._protectedWebExtensionContext->backgroundWebView();
+    return _webExtensionContext->backgroundWebView();
 }
 
 - (NSURL *)_backgroundContentURL
 {
-    return self._protectedWebExtensionContext->backgroundContentURL().createNSURL().autorelease();
+    return protect(*_webExtensionContext)->backgroundContentURL().createNSURL().autorelease();
 }
 
 - (void)_sendTestMessage:(NSString *)message withArgument:(id)argument
 {
     NSParameterAssert([message isKindOfClass:NSString.class]);
 
-    self._protectedWebExtensionContext->sendTestMessage(message, argument);
+    protect(*_webExtensionContext)->sendTestMessage(message, argument);
 }
 
 - (void)_sendTestStartedWithArgument:(id)argument
 {
-    self._protectedWebExtensionContext->sendTestStarted(argument);
+    protect(*_webExtensionContext)->sendTestStarted(argument);
 }
 
 - (void)_sendTestFinishedWithArgument:(id)argument
 {
-    self._protectedWebExtensionContext->sendTestFinished(argument);
+    protect(*_webExtensionContext)->sendTestFinished(argument);
 }
 
 #if ENABLE(WK_WEB_EXTENSIONS_SIDEBAR)
@@ -892,11 +892,6 @@ static inline OptionSet<WebKit::WebExtensionTab::ChangedProperties> toImpl(WKWeb
 }
 
 - (WebKit::WebExtensionContext&)_webExtensionContext
-{
-    return *_webExtensionContext;
-}
-
-- (Ref<WebKit::WebExtensionContext>)_protectedWebExtensionContext
 {
     return *_webExtensionContext;
 }

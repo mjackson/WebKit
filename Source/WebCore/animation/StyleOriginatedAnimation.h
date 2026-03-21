@@ -47,7 +47,7 @@ public:
 
     bool isStyleOriginatedAnimation() const final { return true; }
 
-    const std::optional<const Styleable> owningElement() const;
+    const std::optional<const Styleable> NODELETE owningElement() const;
 
     void cancelFromStyle(WebAnimation::Silently = WebAnimation::Silently::No);
 
@@ -56,8 +56,8 @@ public:
     WebAnimation::PlayState bindingsPlayState() const final;
     WebAnimation::ReplaceState bindingsReplaceState() const final;
     bool bindingsPending() const final;
-    WebAnimation::ReadyPromise& bindingsReady() final;
-    WebAnimation::FinishedPromise& bindingsFinished() final;
+    WebAnimation::ReadyPromise& bindingsReady() LIFETIME_BOUND final;
+    WebAnimation::FinishedPromise& bindingsFinished() LIFETIME_BOUND final;
     ExceptionOr<void> bindingsPlay() override;
     ExceptionOr<void> bindingsPause() override;
 

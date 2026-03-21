@@ -40,6 +40,7 @@
 #include "CodeCache.h"
 #include "CommonIdentifiers.h"
 #include "ControlFlowProfiler.h"
+#include "CrossTaskToken.h"
 #include "CustomGetterSetterInlines.h"
 #include "DOMAttributeGetterSetterInlines.h"
 #include "Debugger.h"
@@ -47,9 +48,9 @@
 #include "Disassembler.h"
 #include "DoublePredictionFuzzerAgent.h"
 #include "ErrorInstance.h"
+#include "EvacuatedStack.h"
 #include "EvalCodeBlockInlines.h"
 #include "EvalExecutableInlines.h"
-#include "EvacuatedStack.h"
 #include "Exception.h"
 #include "FTLThunks.h"
 #include "FileBasedFuzzerAgent.h"
@@ -105,6 +106,7 @@
 #include "ProfilerDatabase.h"
 #include "ProgramCodeBlockInlines.h"
 #include "ProgramExecutableInlines.h"
+#include "PropertyInlineCache.h"
 #include "PropertyTableInlines.h"
 #include "RandomizingFuzzerAgent.h"
 #include "RegExpCache.h"
@@ -120,7 +122,6 @@
 #include "StrongInlines.h"
 #include "StructureChainInlines.h"
 #include "StructureInlines.h"
-#include "StructureStubInfo.h"
 #include "SubspaceInlines.h"
 #include "SymbolInlines.h"
 #include "SymbolTableInlines.h"
@@ -273,7 +274,7 @@ VM::VM(VMType vmType, HeapType heapType, WTF::RunLoop* runLoop, bool* success)
     , m_codeCache(makeUnique<CodeCache>())
     , m_intlCache(makeUnique<IntlCache>())
     , m_builtinExecutables(makeUnique<BuiltinExecutables>(*this))
-    , m_defaultMicrotaskQueue(*this)
+    , m_defaultMicrotaskQueue(MicrotaskQueue::create(*this))
     , m_syncWaiter(adoptRef(*new Waiter(this)))
 {
     if (vmCreationShouldCrash || g_jscConfig.vmCreationDisallowed) [[unlikely]]
@@ -523,6 +524,18 @@ void waitForVMDestruction()
 {
     Locker locker { s_destructionLock.write() };
 }
+
+void VM::setCrossTaskToken(RefPtr<CrossTaskToken>&& token)
+{
+    m_crossTaskToken = WTF::move(token);
+}
+
+#if USE(BUN_JSC_ADDITIONS)
+void VM::queueMicrotask(QueuedTask&& task)
+{
+    m_defaultMicrotaskQueue->enqueue(WTF::move(task));
+}
+#endif
 
 VM::~VM()
 {
@@ -1415,35 +1428,23 @@ void VM::drainMicrotasks()
         return;
 
     if (executionForbidden()) [[unlikely]]
-        m_defaultMicrotaskQueue.clear();
+        m_defaultMicrotaskQueue->clear();
     else {
         std::optional<VMEntryScope> entryScope;
-        if (!m_defaultMicrotaskQueue.isEmpty())
+        if (!m_defaultMicrotaskQueue->isEmpty())
             entryScope.emplace(*this, nullptr);
         while (true) {
-            m_defaultMicrotaskQueue.performMicrotaskCheckpoint</* useCallOnEachMicrotask */ true>(*this,
-                [&](QueuedTask& task) ALWAYS_INLINE_LAMBDA {
-                    auto* dispatcher = task.dispatcher();
-                    if (dispatcher->type() == JSMicrotaskDispatcherType) [[unlikely]] {
-                        auto* jsMicrotaskDispatcher = jsCast<JSMicrotaskDispatcher*>(dispatcher);
-                        auto* globalObject = jsMicrotaskDispatcher->globalObject();
-                        entryScope->setGlobalObject(globalObject);
-                        return jsMicrotaskDispatcher->dispatcher()->run(task);
-                    }
-
-                    auto* globalObject = jsCast<JSGlobalObject*>(dispatcher);
-                    entryScope->setGlobalObject(globalObject);
-                    auto catchScope = DECLARE_TOP_EXCEPTION_SCOPE(*this);
-                    runInternalMicrotask(globalObject, task.job(), task.payload(), task.arguments());
-                    catchScope.clearExceptionExceptTermination();
-                    return QueuedTask::Result::Executed;
+            m_defaultMicrotaskQueue->performMicrotaskCheckpoint</* useCallOnEachMicrotask */ true>(*this,
+                [&](JSGlobalObject*, JSGlobalObject* nextGlobalObject) {
+                    if (entryScope && nextGlobalObject)
+                        entryScope->setGlobalObject(nextGlobalObject);
                 });
             if (hasPendingTerminationException()) [[unlikely]]
                 return;
             didExhaustMicrotaskQueue();
             if (hasPendingTerminationException()) [[unlikely]]
                 return;
-            if (m_defaultMicrotaskQueue.isEmpty())
+            if (m_defaultMicrotaskQueue->isEmpty())
                 break;
             if (!entryScope)
                 entryScope.emplace(*this, nullptr);
@@ -1455,7 +1456,7 @@ void VM::drainMicrotasks()
 #if USE(BUN_JSC_ADDITIONS)
 void VM::drainMicrotasksForGlobalObject(JSGlobalObject* globalObject)
 {
-    m_defaultMicrotaskQueue.clearForGlobalObject(globalObject);
+    m_defaultMicrotaskQueue->clearForGlobalObject(globalObject);
 }
 #endif
 
@@ -1915,6 +1916,8 @@ void VM::visitAggregateImpl(Visitor& visitor)
     visitor.append(m_slowCanConstructBoundExecutable);
     visitor.append(lastCachedString);
     visitor.append(heapBigIntConstantOne);
+    visitor.append(m_cachedBigIntDivisor);
+    visitor.append(m_nextCachedBigIntDivisor);
 
     visitor.append(m_promiseResolvingFunctionResolveExecutable);
     visitor.append(m_promiseResolvingFunctionRejectExecutable);
@@ -2066,10 +2069,5 @@ Wasm::DebugState* VM::debugState()
     return m_debugState.get();
 }
 #endif
-
-JSPIContext::~JSPIContext()
-{
-    ASSERT_WITH_MESSAGE(!limitFrame, "JSPIContext is still active when leaving its scope");
-}
 
 } // namespace JSC

@@ -47,6 +47,7 @@ public:
     
     unsigned colSpan() const;
     unsigned rowSpan() const;
+    bool hasRowSpanZero() const;
 
     // Called from HTMLTableCellElement.
     void colSpanOrRowSpanChanged();
@@ -119,10 +120,10 @@ public:
     // Table layout always uses the table's writing mode.
     const WritingMode tableWritingMode() const { return table()->writingMode(); }
 
-    inline const BorderValue& borderAdjoiningTableStart() const;
-    inline const BorderValue& borderAdjoiningTableEnd() const;
-    inline const BorderValue& borderAdjoiningCellBefore(const RenderTableCell&);
-    inline const BorderValue& borderAdjoiningCellAfter(const RenderTableCell&);
+    inline const BorderValue& borderAdjoiningTableStart() const LIFETIME_BOUND;
+    inline const BorderValue& borderAdjoiningTableEnd() const LIFETIME_BOUND;
+    inline const BorderValue& borderAdjoiningCellBefore(const RenderTableCell&) LIFETIME_BOUND;
+    inline const BorderValue& borderAdjoiningCellAfter(const RenderTableCell&) LIFETIME_BOUND;
 
     using RenderBlockFlow::nodeAtPoint;
 #if ASSERT_ENABLED
@@ -203,7 +204,7 @@ private:
 
     unsigned parseRowSpanFromDOM() const;
     unsigned parseColSpanFromDOM() const;
-    unsigned calculateRowSpanForRowspanZero() const;
+    unsigned calculateRowSpanForRowSpanZero() const;
 
     void nextSibling() const = delete;
     void previousSibling() const = delete;
@@ -252,9 +253,14 @@ inline unsigned RenderTableCell::rowSpan() const
     // Handle rowspan="0" which means "span all remaining rows in the row group"
     // Per HTML spec: https://html.spec.whatwg.org/multipage/tables.html#attr-tdth-rowspan
     if (!span)
-        span = calculateRowSpanForRowspanZero();
+        span = calculateRowSpanForRowSpanZero();
 
     return std::min(span, maxRowIndex);
+}
+
+inline bool RenderTableCell::hasRowSpanZero() const
+{
+    return m_hasRowSpan && !parseRowSpanFromDOM();
 }
 
 inline void RenderTableCell::setCol(unsigned column)

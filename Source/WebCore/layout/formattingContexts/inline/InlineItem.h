@@ -46,7 +46,7 @@ public:
         InlineBoxEnd,
         Float,
         Block,
-        Opaque
+        OutOfFlow
     };
     InlineItem(const Box& layoutBox, Type, UBiDiLevel = UBIDI_DEFAULT_LTR);
 
@@ -67,7 +67,7 @@ public:
     bool isInlineBoxStart() const { return type() == Type::InlineBoxStart; }
     bool isInlineBoxEnd() const { return type() == Type::InlineBoxEnd; }
     bool isInlineBoxStartOrEnd() const { return isInlineBoxStart() || isInlineBoxEnd(); }
-    bool isOpaque() const { return type() == Type::Opaque; }
+    bool isOutOfFlow() const { return type() == Type::OutOfFlow; }
     bool isBlock() const { return type() == Type::Block; }
 
 private:
@@ -97,6 +97,8 @@ protected:
     bool m_hasWidth : 1 { false };
     bool m_hasTrailingSoftHyphen : 1 { false };
     bool m_isWordSeparator : 1 { false };
+    uint8_t m_glyphTopOverflow : 5 { 0 };
+    uint8_t m_glyphBottomOverflow : 3 { 0 };
 };
 
 inline InlineItem::InlineItem(const Box& layoutBox, Type type, UBiDiLevel bidiLevel)

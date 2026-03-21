@@ -27,6 +27,7 @@
 #include "DFGDriver.h"
 
 #include "CodeBlock.h"
+#include "DFGCommon.h"
 #include "DFGJITCode.h"
 #include "DFGPlan.h"
 #include "DFGThunks.h"
@@ -48,25 +49,31 @@ unsigned getNumCompilations()
 }
 
 #if ENABLE(DFG_JIT)
-static FunctionAllowlist& ensureGlobalDFGAllowlist()
-{
-    static LazyNeverDestroyed<FunctionAllowlist> dfgAllowlist;
-    static std::once_flag initializeAllowlistFlag;
-    std::call_once(initializeAllowlistFlag, [] {
-        const char* functionAllowlistFile = Options::dfgAllowlist();
-        dfgAllowlist.construct(functionAllowlistFile);
-    });
-    return dfgAllowlist;
-}
-
 static CompilationResult compileImpl(
     VM& vm, CodeBlock* codeBlock, CodeBlock* profiledDFGCodeBlock, JITCompilationMode mode,
     BytecodeIndex osrEntryBytecodeIndex, Operands<std::optional<JSValue>>&& mustHandleValues,
     Ref<DeferredCompilationCallback>&& callback)
 {
-    if (!Options::bytecodeRangeToDFGCompile().isInRange(codeBlock->instructionsSize())
-        || !ensureGlobalDFGAllowlist().contains(codeBlock))
-        return CompilationResult::CompilationFailed;
+    switch (mode) {
+    case JITCompilationMode::DFG:
+    case JITCompilationMode::UnlinkedDFG:
+        if (!Options::bytecodeRangeToDFGCompile().isInRange(codeBlock->instructionsSize()) || !ensureGlobalDFGAllowlist().contains(codeBlock))
+            return CompilationResult::CompilationFailed;
+        break;
+    case JITCompilationMode::FTL:
+    case JITCompilationMode::FTLForOSREntry:
+#if ENABLE(FTL_JIT)
+        if (!Options::bytecodeRangeToFTLCompile().isInRange(codeBlock->instructionsSize()) || !ensureGlobalFTLAllowlist().contains(codeBlock))
+            return CompilationResult::CompilationFailed;
+        break;
+#else
+        [[fallthrough]];
+#endif
+    case JITCompilationMode::Baseline:
+    case JITCompilationMode::InvalidCompilation:
+        RELEASE_ASSERT_NOT_REACHED();
+        break;
+    }
     
     numCompilations++;
     

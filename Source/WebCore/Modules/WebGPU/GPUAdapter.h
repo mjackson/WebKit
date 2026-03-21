@@ -64,9 +64,9 @@ private:
     GPUAdapter(Ref<WebGPU::Adapter>&& backing);
 
     const Ref<WebGPU::Adapter> m_backing;
-    Ref<GPUSupportedFeatures> m_features;
-    Ref<GPUSupportedLimits> m_limits;
-    Ref<GPUAdapterInfo> m_info;
+    const Ref<GPUSupportedFeatures> m_features;
+    const Ref<GPUSupportedLimits> m_limits;
+    const Ref<GPUAdapterInfo> m_info;
 };
 
 }

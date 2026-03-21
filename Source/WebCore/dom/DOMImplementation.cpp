@@ -44,6 +44,7 @@
 #include "MediaDocument.h"
 #include "MediaPlayer.h"
 #include "MediaQueryParser.h"
+#include "NameValidation.h"
 #include "PDFDocument.h"
 #include "ParserContentPolicy.h"
 #include "PluginData.h"
@@ -71,11 +72,6 @@ using namespace HTMLNames;
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(DOMImplementation);
 
-Ref<Document> DOMImplementation::protectedDocument()
-{
-    return m_document.get();
-}
-
 DOMImplementation::DOMImplementation(Document& document)
     : m_document(document)
 {
@@ -83,10 +79,9 @@ DOMImplementation::DOMImplementation(Document& document)
 
 ExceptionOr<Ref<DocumentType>> DOMImplementation::createDocumentType(const AtomString& qualifiedName, const String& publicId, const String& systemId)
 {
-    auto parseResult = Document::parseQualifiedName(qualifiedName);
-    if (parseResult.hasException())
-        return parseResult.releaseException();
-    return DocumentType::create(protectedDocument(), qualifiedName, publicId, systemId);
+    if (!NameValidation::isValidDoctypeName(qualifiedName))
+        return Exception { ExceptionCode::InvalidCharacterError, makeString("Invalid doctype name: '"_s, qualifiedName, '\'') };
+    return DocumentType::create(protect(document()), qualifiedName, publicId, systemId);
 }
 
 static inline Ref<XMLDocument> createXMLDocument(const String& namespaceURI, const Settings& settings)
@@ -201,7 +196,7 @@ Ref<Document> DOMImplementation::createDocument(const String& contentType, Local
 
     // The following is the relatively costly lookup that requires initializing the plug-in database.
     if (frame && frame->page()) {
-        if (protect(frame->page())->protectedPluginData()->supportsWebVisibleMimeType(contentType, PluginData::OnlyApplicationPlugins))
+        if (protect(protect(frame->page())->pluginData())->supportsWebVisibleMimeType(contentType, PluginData::OnlyApplicationPlugins))
             return PluginDocument::create(*frame, url);
     }
 

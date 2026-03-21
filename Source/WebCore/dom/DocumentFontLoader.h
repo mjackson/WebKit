@@ -26,9 +26,9 @@
 
 #pragma once
 
-#include <WebCore/CachedResourceHandle.h>
-#include <WebCore/Document.h>
-#include <WebCore/Timer.h>
+#include "CachedResourceHandle.h"
+#include "Document.h"
+#include "Timer.h"
 #include <wtf/CanMakeWeakPtr.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
@@ -47,7 +47,7 @@ public:
     void NODELETE ref() const;
     void deref() const;
 
-    CachedFont* cachedFont(URL&&, bool, bool, LoadedFromOpaqueSource);
+    RefPtr<CachedFont> cachedFont(URL&&, bool, bool, LoadedFromOpaqueSource);
     void beginLoadingFontSoon(CachedFont&);
 
     void loadPendingFonts();
@@ -58,7 +58,6 @@ public:
 
 private:
     void fontLoadingTimerFired();
-    Ref<Document> protectedDocument() const { return m_document.get(); }
 
     WeakRef<Document, WeakPtrImplWithEventTargetData> m_document;
     Timer m_fontLoadingTimer;

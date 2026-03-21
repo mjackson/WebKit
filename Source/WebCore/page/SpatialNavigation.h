@@ -20,10 +20,10 @@
 
 #pragma once
 
-#include <WebCore/FocusDirection.h>
-#include <WebCore/HTMLFrameOwnerElement.h>
-#include <WebCore/LayoutRect.h>
-#include <WebCore/NodeDocument.h>
+#include "FocusDirection.h"
+#include "HTMLFrameOwnerElement.h"
+#include "LayoutRect.h"
+#include "NodeDocument.h"
 #include <limits>
 
 namespace WebCore {

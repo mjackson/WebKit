@@ -119,11 +119,6 @@ JSPaintWorkletGlobalScope::JSPaintWorkletGlobalScope(VM& vm, Structure* structur
 {
 }
 
-Ref<PaintWorkletGlobalScope> JSPaintWorkletGlobalScope::protectedWrapped() const
-{
-    return wrapped();
-}
-
 static_assert(!std::is_base_of<ActiveDOMObject, PaintWorkletGlobalScope>::value, "Interface is not marked as [ActiveDOMObject] even though implementation class subclasses ActiveDOMObject.");
 
 #if ASSERT_ENABLED

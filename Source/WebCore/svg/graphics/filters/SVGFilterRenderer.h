@@ -46,8 +46,8 @@ public:
 
     SVGUnitTypes::SVGUnitType primitiveUnits() const { return m_primitiveUnits; }
 
-    const SVGFilterExpression& expression() const { return m_expression; }
-    const FilterEffectVector& effects() const { return m_effects; }
+    const SVGFilterExpression& expression() const LIFETIME_BOUND { return m_expression; }
+    const FilterEffectVector& effects() const LIFETIME_BOUND { return m_effects; }
 
     FilterEffectVector effectsOfType(FilterFunction::Type) const final;
 
@@ -58,11 +58,11 @@ public:
     RefPtr<FilterImage> apply(FilterImage* sourceImage, FilterResults&) final;
     FilterStyleVector createFilterStyles(GraphicsContext&, const FilterStyle& sourceStyle) const final;
 
-    static FloatSize calculateResolvedSize(const FloatSize&, const FloatRect& targetBoundingBox, SVGUnitTypes::SVGUnitType primitiveUnits);
+    static FloatSize NODELETE calculateResolvedSize(const FloatSize&, const FloatRect& targetBoundingBox, SVGUnitTypes::SVGUnitType primitiveUnits);
 
     WTF::TextStream& externalRepresentation(WTF::TextStream&, FilterRepresentation) const final;
 
-    WEBCORE_EXPORT static bool isValidSVGFilterExpression(const SVGFilterExpression&, const FilterEffectVector&);
+    WEBCORE_EXPORT static bool NODELETE isValidSVGFilterExpression(const SVGFilterExpression&, const FilterEffectVector&);
 private:
     SVGFilterRenderer(const FilterGeometry&, SVGUnitTypes::SVGUnitType primitiveUnits, std::optional<RenderingResourceIdentifier>);
     SVGFilterRenderer(const FilterGeometry&, SVGUnitTypes::SVGUnitType primitiveUnits, SVGFilterExpression&&, FilterEffectVector&&, std::optional<RenderingResourceIdentifier>);

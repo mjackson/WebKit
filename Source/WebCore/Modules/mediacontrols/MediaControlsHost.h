@@ -110,6 +110,7 @@ public:
     bool supportsRewind() const;
     bool needsChromeMediaControlsPseudoElement() const;
     bool isMediaControlsMacInlineSizeSpecsEnabled() const;
+    bool isAVExperienceControllerFullscreenEnabled() const;
 
     void captionPreferencesChanged();
     enum class ForceUpdate : bool { No, Yes };
@@ -148,8 +149,8 @@ public:
     void ensureMediaSessionObserver();
 #endif
 
-    const JSValueInWrappedObject& controllerWrapper() const { return m_controllerWrapper; }
-    JSValueInWrappedObject& controllerWrapper() { return m_controllerWrapper; }
+    const JSValueInWrappedObject& controllerWrapper() const LIFETIME_BOUND { return m_controllerWrapper; }
+    JSValueInWrappedObject& controllerWrapper() LIFETIME_BOUND { return m_controllerWrapper; }
 
 private:
     void savePreviouslySelectedTextTrackIfNecessary();
@@ -193,8 +194,6 @@ private:
 
     std::pair<Vector<MenuItem>, MenuDataMap> mediaControlsContextMenuItems(String&& optionsJSONString);
 #endif
-
-    Ref<HTMLMediaElement> NODELETE protectedMediaElement() const;
 
     WeakRef<HTMLMediaElement> m_mediaElement;
     RefPtr<MediaControlTextTrackContainerElement> m_textTrackContainer;

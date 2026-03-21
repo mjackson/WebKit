@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <JavaScriptCore/JSCJSValueInlines.h>
 #include <JavaScriptCore/JSGlobalObject.h>
 #include <JavaScriptCore/JSString.h>
 #include <WebCore/IDLTypes.h>

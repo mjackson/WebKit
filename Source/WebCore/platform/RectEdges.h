@@ -219,7 +219,6 @@ inline RectEdges<T>& operator-=(RectEdges<T>& a, const RectEdges<T>& b)
     return a;
 }
 
-
 template<typename T, typename F>
 inline RectEdges<T> blend(const RectEdges<T>& a, const RectEdges<T>& b, F&& functor)
 {
@@ -235,6 +234,15 @@ template<typename T>
 inline RectEdges<T> max(const RectEdges<T>& a, const RectEdges<T>& b)
 {
     return blend(a, b, [](const T& a, const T& b, BoxSide) { return std::max(a, b); });
+}
+
+inline RectEdges<bool> operator&=(RectEdges<bool>& a, const RectEdges<bool>& b)
+{
+    a.setTop(a.top() && b.top());
+    a.setBottom(a.bottom() && b.bottom());
+    a.setLeft(a.left() && b.left());
+    a.setRight(a.right() && b.right());
+    return a;
 }
 
 template<typename T>

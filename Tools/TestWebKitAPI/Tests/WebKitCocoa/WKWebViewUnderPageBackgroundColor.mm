@@ -90,13 +90,13 @@ TEST(WKWebViewUnderPageBackgroundColor, SingleBlendedColor)
 TEST(WKWebViewUnderPageBackgroundColor, MultipleSolidColors)
 {
     auto sRGBColorSpace = adoptCF(CGColorSpaceCreateWithName(kCGColorSpaceSRGB));
-    auto redColor = adoptCF(CGColorCreate(sRGBColorSpace.get(), redColorComponents));
+    auto blueColor = adoptCF(CGColorCreate(sRGBColorSpace.get(), blueColorComponents));
 
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
     EXPECT_TRUE(CGColorEqualToColor([webView underPageBackgroundColor].CGColor, defaultBackgroundColor().get()));
 
     [webView synchronouslyLoadHTMLStringAndWaitUntilAllImmediateChildFramesPaint:@"<style> html { background-color: blue; } body { background-color: red; } </style>"];
-    EXPECT_TRUE(CGColorEqualToColor([webView underPageBackgroundColor].CGColor, redColor.get()));
+    EXPECT_TRUE(CGColorEqualToColor([webView underPageBackgroundColor].CGColor, blueColor.get()));
 }
 
 TEST(WKWebViewUnderPageBackgroundColor, MultipleBlendedColors)
@@ -106,9 +106,9 @@ TEST(WKWebViewUnderPageBackgroundColor, MultipleBlendedColors)
 
     [webView synchronouslyLoadHTMLStringAndWaitUntilAllImmediateChildFramesPaint:@"<style> html { background-color: rgba(255, 0, 0, 0.5); } body { background-color: rgba(0, 0, 255, 0.5); } </style>"];
     auto components = CGColorGetComponents([webView underPageBackgroundColor].CGColor);
-    EXPECT_IN_RANGE(components[0], 0.45, 0.55);
-    EXPECT_IN_RANGE(components[1], 0.2, 0.25);
-    EXPECT_IN_RANGE(components[2], 0.7, 0.75);
+    EXPECT_EQ(components[0], 1);
+    EXPECT_IN_RANGE(components[1], 0.45, 0.55);
+    EXPECT_IN_RANGE(components[2], 0.45, 0.55);
     EXPECT_EQ(components[3], 1);
 }
 

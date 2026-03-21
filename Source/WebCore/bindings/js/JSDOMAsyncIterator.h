@@ -25,15 +25,15 @@
 
 #pragma once
 
+#include "JSDOMConvert.h"
+#include "JSDOMIterator.h"
+#include "JSDOMPromise.h"
+#include "JSDOMPromiseDeferred.h"
 #include <JavaScriptCore/AsyncIteratorPrototype.h>
 #include <JavaScriptCore/IteratorOperations.h>
 #include <JavaScriptCore/JSBoundFunction.h>
 #include <JavaScriptCore/JSPromiseConstructor.h>
 #include <JavaScriptCore/PropertySlot.h>
-#include <WebCore/JSDOMConvert.h>
-#include <WebCore/JSDOMIterator.h>
-#include <WebCore/JSDOMPromise.h>
-#include <WebCore/JSDOMPromiseDeferred.h>
 #include <type_traits>
 #include <wtf/CompletionHandler.h>
 
@@ -258,7 +258,7 @@ JSC::JSPromise* JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::runNextSteps(
     RETURN_IF_EXCEPTION(scope, { });
 
     if (m_isFinished.get()) {
-        promise->resolve(&globalObject, JSC::createIteratorResultObject(&globalObject, JSC::jsUndefined(), true));
+        promise->resolve(&globalObject, vm, JSC::createIteratorResultObject(&globalObject, JSC::jsUndefined(), true));
         RETURN_IF_EXCEPTION(scope, nullptr);
 
         return promise;
@@ -299,7 +299,7 @@ JSC::JSPromise* JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::getNextIterat
 
         auto resultValue = result.releaseReturnValue();
         if (!resultValue) {
-            if (RefPtr isFinished = weakIsFinished.get())
+            if (auto* isFinished = weakIsFinished.get())
                 isFinished->markAsFinished();
 
             return deferred->resolve();
@@ -317,10 +317,10 @@ JSC::JSPromise* JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::getNextIterat
 {
     Ref promise = Ref { *m_iterator }->next(*JSC::jsCast<JSDOMGlobalObject*>(&globalObject));
     promise->whenSettled([weakIterator = WeakPtr { *m_iterator }, weakIsFinished = WeakPtr(m_isFinished)] {
-        RefPtr isFinished = weakIsFinished.get();
+        auto* isFinished = weakIsFinished.get();
         if (!isFinished)
             return;
-        RefPtr iterator = weakIterator.get();
+        auto* iterator = weakIterator.get();
         if (iterator && iterator->isFinished())
             isFinished->markAsFinished();
     });
@@ -457,7 +457,7 @@ JSC::JSPromise* JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::runReturnStep
     RETURN_IF_EXCEPTION(scope, nullptr);
 
     if (m_isFinished.get()) {
-        returnPromise->resolve(&globalObject, JSC::createIteratorResultObject(&globalObject, value, true));
+        returnPromise->resolve(&globalObject, vm, JSC::createIteratorResultObject(&globalObject, value, true));
         RETURN_IF_EXCEPTION(scope, nullptr);
 
         return returnPromise;

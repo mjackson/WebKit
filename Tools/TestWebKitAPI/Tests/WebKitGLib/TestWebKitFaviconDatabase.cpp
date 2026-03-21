@@ -103,8 +103,10 @@ public:
     {
         if (!g_strcmp0(webkit_web_view_get_uri(test->webView()), pageURI)) {
             test->m_faviconURI = faviconURI;
-            if (test->m_waitingForFaviconURI)
+            if (test->m_waitingForFaviconURI) {
+                test->m_waitingForFaviconURI = false;
                 test->quitMainLoop();
+            }
         }
     }
 
@@ -179,13 +181,37 @@ public:
         g_main_loop_run(m_mainLoop);
     }
 
-    void waitUntilFaviconURIChanged()
+    void willWaitForFaviconURIChanged()
+    {
+        m_waitingForFaviconURI = false;
+        m_faviconURI.reset();
+    }
+
+    void waitUntilFaviconURIChangedIfNeeded(unsigned timeoutMilliseconds = 0)
     {
         g_assert_false(m_waitingForFaviconURI);
-        m_faviconURI = CString();
-        m_waitingForFaviconURI = true;
-        g_main_loop_run(m_mainLoop);
-        m_waitingForFaviconURI = false;
+
+        if (m_faviconURI)
+            g_assert_false(m_waitingForFaviconURI);
+        else {
+            m_waitingForFaviconURI = true;
+            if (timeoutMilliseconds) {
+                g_assert_cmpint(m_waitingForFaviconURITimeoutID, ==, 0);
+                m_waitingForFaviconURITimeoutID = g_timeout_add(timeoutMilliseconds, [](void* data) -> gboolean {
+                    auto* test = static_cast<FaviconDatabaseTest*>(data);
+                    test->m_waitingForFaviconURITimeoutID = 0;
+                    test->quitMainLoop();
+                    return G_SOURCE_REMOVE;
+                }, this);
+            }
+            g_main_loop_run(m_mainLoop);
+            g_clear_handle_id(&m_waitingForFaviconURITimeoutID, g_source_remove);
+        }
+
+        if (!timeoutMilliseconds) {
+            g_assert_false(m_waitingForFaviconURI);
+            g_assert_true(m_faviconURI.has_value());
+        }
     }
 
     GRefPtr<WebKitFaviconDatabase> m_database;
@@ -194,11 +220,12 @@ public:
 #else
     cairo_surface_t* m_favicon { nullptr };
 #endif
-    CString m_faviconURI;
+    std::optional<CString> m_faviconURI { std::nullopt };
     GUniqueOutPtr<GError> m_error;
     bool m_faviconNotificationReceived { false };
     bool m_loadFinished { false };
     bool m_waitingForFaviconURI { false };
+    unsigned m_waitingForFaviconURITimeoutID { 0 };
 };
 
 static void serverCallback(SoupServer*, SoupServerMessage* message, const char* path, GHashTable* query, gpointer)
@@ -264,11 +291,15 @@ static void testFaviconDatabaseGetFavicon(FaviconDatabaseTest* test, gconstpoint
 {
     test->open("testFaviconDatabaseGetFavicon");
 
+    test->willWaitForFaviconURIChanged();
+
     test->loadURI(kServer->getURIForPath("/foo").data());
     test->waitUntilLoadFinishedAndFaviconChanged();
     CString faviconURI = kServer->getURIForPath("/icon/favicon.ico");
 
     test->getFaviconForPageURIAndWaitUntilReady(kServer->getURIForPath("/foo").data());
+    test->waitUntilFaviconURIChangedIfNeeded();
+
     g_assert_nonnull(test->m_favicon);
 #if USE(GTK4)
     g_assert_cmpint(gdk_texture_get_width(test->m_favicon.get()), ==, 16);
@@ -277,41 +308,52 @@ static void testFaviconDatabaseGetFavicon(FaviconDatabaseTest* test, gconstpoint
     g_assert_cmpint(cairo_image_surface_get_width(test->m_favicon), ==, 16);
     g_assert_cmpint(cairo_image_surface_get_height(test->m_favicon), ==, 16);
 #endif
-    g_assert_cmpstr(test->m_faviconURI.data(), ==, faviconURI.data());
+    g_assert_true(test->m_faviconURI.has_value());
+    g_assert_cmpstr(test->m_faviconURI->data(), ==, faviconURI.data());
     g_assert_no_error(test->m_error.get());
 
 #if !USE(GTK4)
     // Check that another page with the same favicon returns the same icon.
     cairo_surface_t* favicon = cairo_surface_reference(test->m_favicon);
+    test->willWaitForFaviconURIChanged();
     test->loadURI(kServer->getURIForPath("/bar").data());
     test->waitUntilLoadFinishedAndFaviconChanged();
+    test->waitUntilFaviconURIChangedIfNeeded();
     // favicon changes twice, first to reset it and then when the new icon is loaded.
     if (!test->m_favicon)
         test->waitUntilFaviconChanged();
     test->getFaviconForPageURIAndWaitUntilReady(kServer->getURIForPath("/bar").data());
     g_assert_nonnull(test->m_favicon);
     g_assert_true(test->m_favicon == favicon);
-    g_assert_cmpstr(test->m_faviconURI.data(), ==, faviconURI.data());
+    g_assert_true(test->m_faviconURI.has_value());
+    g_assert_cmpstr(test->m_faviconURI->data(), ==, faviconURI.data());
     g_assert_no_error(test->m_error.get());
     cairo_surface_destroy(favicon);
 #endif
 
+    test->willWaitForFaviconURIChanged();
     faviconURI = kServer->getURIForPath("/favicon.ico");
     test->loadURI(kServer->getURIForPath("/nofavicon").data());
     test->waitUntilLoadFinishedAndFaviconChanged();
-    test->waitUntilFaviconURIChanged();
+
+    // Note that /favicon.icon results in HTTP 404 Not Found, and when an icon
+    // is not loaded, there will be no WebKitFaviconDatabase:favicon-changed signal.
+    test->waitUntilFaviconURIChangedIfNeeded(1000);
+    // Still waiting for the icon that was never fetched...
+    g_assert_true(test->m_waitingForFaviconURI);
+
     test->getFaviconForPageURIAndWaitUntilReady(kServer->getURIForPath("/nofavicon").data());
     g_assert_null(test->m_favicon);
-    g_assert_cmpstr(test->m_faviconURI.data(), ==, faviconURI.data());
+    g_assert_false(test->m_faviconURI.has_value());
     g_assert_error(test->m_error.get(), WEBKIT_FAVICON_DATABASE_ERROR, WEBKIT_FAVICON_DATABASE_ERROR_FAVICON_UNKNOWN);
 
     // Loading an icon that is already in the database should emit
     // WebKitWebView::notify::favicon, but not WebKitFaviconDatabase::icon-changed.
     g_assert_null(webkit_web_view_get_favicon(test->webView()));
-    test->m_faviconURI = { };
+    test->m_faviconURI.reset();
     test->loadURI(kServer->getURIForPath("/foo").data());
     test->waitUntilFaviconChanged();
-    g_assert_true(test->m_faviconURI.isNull());
+    g_assert_false(test->m_faviconURI.has_value());
     g_assert_nonnull(webkit_web_view_get_favicon(test->webView()));
 }
 

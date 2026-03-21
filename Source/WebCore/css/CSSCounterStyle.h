@@ -47,20 +47,20 @@ public:
     }
 
     String text(int, WritingMode);
-    const CSSCounterStyleDescriptors::Name& name() const { return m_descriptors.m_name; }
+    const CSSCounterStyleDescriptors::Name& name() const LIFETIME_BOUND { return m_descriptors.m_name; }
     CSSCounterStyleDescriptors::System system() const { return m_descriptors.m_system; }
-    const CSSCounterStyleDescriptors::NegativeSymbols& negative() const { return m_descriptors.m_negativeSymbols; }
-    const CSSCounterStyleDescriptors::Symbol& prefix() const { return m_descriptors.m_prefix; }
-    const CSSCounterStyleDescriptors::Symbol& suffix() const { return m_descriptors.m_suffix; }
-    const CSSCounterStyleDescriptors::Ranges& ranges() const { return m_descriptors.m_ranges; }
-    const CSSCounterStyleDescriptors::Pad& pad() const { return m_descriptors.m_pad; }
-    const CSSCounterStyleDescriptors::Name& fallbackName() const { return m_descriptors.m_fallbackName; }
-    const Vector<CSSCounterStyleDescriptors::Symbol>& symbols() const { return m_descriptors.m_symbols; }
-    const CSSCounterStyleDescriptors::AdditiveSymbols& additiveSymbols() const { return m_descriptors.m_additiveSymbols; }
+    const CSSCounterStyleDescriptors::NegativeSymbols& negative() const LIFETIME_BOUND { return m_descriptors.m_negativeSymbols; }
+    const CSSCounterStyleDescriptors::Symbol& prefix() const LIFETIME_BOUND { return m_descriptors.m_prefix; }
+    const CSSCounterStyleDescriptors::Symbol& suffix() const LIFETIME_BOUND { return m_descriptors.m_suffix; }
+    const CSSCounterStyleDescriptors::Ranges& ranges() const LIFETIME_BOUND { return m_descriptors.m_ranges; }
+    const CSSCounterStyleDescriptors::Pad& pad() const LIFETIME_BOUND { return m_descriptors.m_pad; }
+    const CSSCounterStyleDescriptors::Name& fallbackName() const LIFETIME_BOUND { return m_descriptors.m_fallbackName; }
+    const Vector<CSSCounterStyleDescriptors::Symbol>& symbols() const LIFETIME_BOUND { return m_descriptors.m_symbols; }
+    const CSSCounterStyleDescriptors::AdditiveSymbols& additiveSymbols() const LIFETIME_BOUND { return m_descriptors.m_additiveSymbols; }
     CSSCounterStyleDescriptors::SpeakAs speakAs() const { return m_descriptors.m_speakAs; }
     const CSSCounterStyleDescriptors::Name extendsName() const { return m_descriptors.m_extendsName; }
     int firstSymbolValueForFixedSystem() const { return m_descriptors.m_fixedSystemFirstSymbolValue; }
-    const OptionSet<CSSCounterStyleDescriptors::ExplicitlySetDescriptors>& explicitlySetDescriptors() const { return m_descriptors.m_explicitlySetDescriptors; }
+    const OptionSet<CSSCounterStyleDescriptors::ExplicitlySetDescriptors>& explicitlySetDescriptors() const LIFETIME_BOUND { return m_descriptors.m_explicitlySetDescriptors; }
 
     void setSystem(CSSCounterStyleDescriptors::System system) { m_descriptors.m_system = system; }
     void setNegative(const CSSCounterStyleDescriptors::NegativeSymbols& negative) { m_descriptors.m_negativeSymbols = negative; }
@@ -74,7 +74,7 @@ public:
     void setSpeakAs(CSSCounterStyleDescriptors::SpeakAs speakAs) { m_descriptors.m_speakAs = speakAs; }
     void setFirstSymbolValueForFixedSystem(int firstSymbolValue) { m_descriptors.m_fixedSystemFirstSymbolValue = firstSymbolValue; }
 
-    void setFallbackReference(Ref<CSSCounterStyle>&&);
+    void NODELETE setFallbackReference(Ref<CSSCounterStyle>&&);
     bool isFallbackUnresolved() { return !m_fallbackReference; }
     bool isExtendsUnresolved() { return !m_descriptors.m_isExtendedResolved; };
     bool isExtendsSystem() const { return system() == CSSCounterStyleDescriptors::System::Extends; }
@@ -100,7 +100,7 @@ private:
     WeakPtr<CSSCounterStyle> fallback() const { return m_fallbackReference; };
     String fallbackText(int, WritingMode);
     // Generates a CSSCounterStyle object as it was defined by a 'decimal' descriptor. It is used as a last-resource in case we can't resolve fallback references.
-    void applyPadSymbols(String&, int) const;
+    bool applyPadSymbols(String&, int) const;
     void applyNegativeSymbols(String&) const;
     // Initial text representation for the counter, before applying pad and/or negative symbols. Suffix and Prefix are also not considered as described by https://www.w3.org/TR/css-counter-styles-3/#counter-styles.
     String initialRepresentation(int, WritingMode) const;

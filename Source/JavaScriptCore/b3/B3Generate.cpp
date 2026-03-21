@@ -84,7 +84,7 @@ void generateToAir(Procedure& procedure)
     
     if (procedure.optLevel() >= 2) {
         reduceDoubleToFloat(procedure);
-        reduceStrength(procedure);
+        reduceStrength(procedure, ReduceStrengthPass::Initial);
         if (Options::useB3HoistLoopInvariantValues())
             hoistLoopInvariantValues(procedure);
         if (eliminateCommonSubexpressions(procedure))
@@ -99,7 +99,7 @@ void generateToAir(Procedure& procedure)
         // https://bugs.webkit.org/show_bug.cgi?id=150507
     } else if (procedure.optLevel() >= 1) {
         // FIXME: Explore better "quick mode" optimizations.
-        reduceStrength(procedure);
+        reduceStrength(procedure, ReduceStrengthPass::Initial);
     }
 
     // This puts the IR in quirks mode.
@@ -107,7 +107,7 @@ void generateToAir(Procedure& procedure)
 
     if (procedure.optLevel() >= 2) {
         optimizeAssociativeExpressionTrees(procedure);
-        reduceStrength(procedure);
+        reduceStrength(procedure, ReduceStrengthPass::Final);
 
         // FIXME: Add more optimizations here.
         // https://bugs.webkit.org/show_bug.cgi?id=150507

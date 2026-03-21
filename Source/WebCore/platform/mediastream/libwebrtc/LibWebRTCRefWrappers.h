@@ -55,6 +55,8 @@ IGNORE_CLANG_WARNINGS_END
 namespace WTF {
 
 template<typename T> struct RTCDefaultRefDerefTraits {
+    static constexpr bool isDefaultImplementation = false;
+
     static ALWAYS_INLINE T* refIfNotNull(T* buffer)
     {
         if (buffer) [[likely]]

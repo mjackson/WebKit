@@ -25,8 +25,8 @@
 
 #pragma once
 
-#include <WebCore/ImageBuffer.h>
-#include <WebCore/RenderReplaced.h>
+#include "ImageBuffer.h"
+#include "RenderReplaced.h"
 
 namespace WebCore {
 

@@ -38,7 +38,7 @@ public:
 
     ~MediaPlaybackTargetSerialized();
 
-    const MediaPlaybackTargetContextSerialized& context() const { return m_context; }
+    const MediaPlaybackTargetContextSerialized& context() const LIFETIME_BOUND { return m_context; }
 
 private:
     explicit MediaPlaybackTargetSerialized(MediaPlaybackTargetContextSerialized&&);

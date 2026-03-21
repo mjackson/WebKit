@@ -70,6 +70,7 @@ template<typename IDLType> class DOMPromiseProxy;
 template<typename IDLType> class DOMPromiseProxyWithResolveCallback;
 template<typename> class ExceptionOr;
 
+class HTMLModelElementEventListener;
 class HTMLModelElement final : public HTMLElement, private CachedRawResourceClient, public ModelPlayerClient, public ActiveDOMObject, public VisibilityChangeClient {
     WTF_MAKE_TZONE_ALLOCATED(HTMLModelElement);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(HTMLModelElement);
@@ -87,7 +88,7 @@ public:
     void visibilityStateChanged() final;
 
     void sourcesChanged();
-    const URL& currentSrc() const { return m_sourceURL; }
+    const URL& currentSrc() const LIFETIME_BOUND { return m_sourceURL; }
     bool complete() const { return m_dataComplete; }
 
     void configureGraphicsLayer(GraphicsLayer&, Color backgroundColor);
@@ -156,7 +157,7 @@ public:
     bool supportsDragging() const;
     bool isDraggableIgnoringAttributes() const final;
 
-    bool isInteractive() const;
+    bool NODELETE isInteractive() const;
 
 #if ENABLE(MODEL_ELEMENT_ANIMATIONS_CONTROL)
     double playbackRate() const { return m_playbackRate; }
@@ -227,7 +228,7 @@ private:
 
     // DOM overrides.
     void didMoveToNewDocument(Document& oldDocument, Document& newDocument) final;
-    bool isURLAttribute(const Attribute&) const final;
+    bool NODELETE isURLAttribute(const Attribute&) const final;
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) final;
 
     // StyledElement
@@ -264,8 +265,8 @@ private:
     bool isVisible() const final;
     void logWarning(ModelPlayer&, const String&) final;
 
-    Node::InsertedIntoAncestorResult insertedIntoAncestor(InsertionType , ContainerNode& parentOfInsertedTree) override;
-    void removedFromAncestor(RemovalType, ContainerNode& oldParentOfRemovedTree) override;
+    Node::NeedsPostConnectionSteps insertionSteps(InsertionType , ContainerNode& parentOfInsertedTree) override;
+    void removingSteps(RemovalType, ContainerNode& oldParentOfRemovedTree) override;
 
     void defaultEventHandler(Event&) final;
     void dragDidStart(WebCore::MouseRelatedEvent&);
@@ -323,6 +324,9 @@ private:
     WeakPtr<ModelPlayerProvider> m_modelPlayerProvider;
     RefPtr<Model> m_model;
     UniqueRef<ReadyPromise> m_readyPromise;
+#if ENABLE(TOUCH_EVENTS)
+    RefPtr<HTMLModelElementEventListener> m_eventListener;
+#endif
     bool m_dataComplete { false };
     bool m_isDragging { false };
     bool m_shouldCreateModelPlayerUponRendererAttachment { false };

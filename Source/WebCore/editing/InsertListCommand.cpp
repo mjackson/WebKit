@@ -111,9 +111,10 @@ bool InsertListCommand::selectionHasListOfType(const VisibleSelection& selection
     return true;
 }
 
-InsertListCommand::InsertListCommand(Ref<Document>&& document, Type type)
+InsertListCommand::InsertListCommand(Ref<Document>&& document, Type type, Style::ListStyleType styleType)
     : CompositeEditCommand(WTF::move(document))
     , m_type(type)
+    , m_listStyleType(styleType)
 {
 }
 
@@ -271,10 +272,10 @@ void InsertListCommand::doApplyForSingleParagraph(bool forceCreateList, const HT
             if (!newList->hasEditableStyle())
                 return;
 
-            RefPtr firstChildInList = enclosingListChild(VisiblePosition(firstPositionInNode(listNode.get())).deepEquivalent().deprecatedNode(), listNode.get());
+            RefPtr firstChildInList = enclosingListChild(VisiblePosition(firstPositionInNode(*listNode)).deepEquivalent().deprecatedNode(), listNode.get());
             RefPtr outerBlock = firstChildInList && isBlockFlowElement(*firstChildInList) ? firstChildInList : listNode.get();
             
-            moveParagraphWithClones(firstPositionInNode(listNode.get()), lastPositionInNode(listNode.get()), newList.get(), outerBlock.get());
+            moveParagraphWithClones(firstPositionInNode(*listNode), lastPositionInNode(*listNode), newList.get(), outerBlock.get());
 
             // Manually remove listNode because moveParagraphWithClones sometimes leaves it behind in the document.
             // See the bug 33668 and editing/execCommand/insert-list-orphaned-item-with-nested-lists.html.
@@ -295,7 +296,7 @@ void InsertListCommand::doApplyForSingleParagraph(bool forceCreateList, const HT
                 setEndingSelection(VisibleSelection(makeContainerOffsetPosition(currentSelection.start),
                     makeContainerOffsetPosition(currentSelection.end)));
             } else
-                setEndingSelection(VisibleSelection(firstPositionInNode(newList.get())));
+                setEndingSelection(VisibleSelection(firstPositionInNode(*newList)));
 
             return;
         }
@@ -318,8 +319,8 @@ void InsertListCommand::unlistifyParagraph(const VisiblePosition& originalStart,
         return;
 
     if (listChildNode->hasTagName(liTag)) {
-        start = firstPositionInNode(listChildNode);
-        end = lastPositionInNode(listChildNode);
+        start = firstPositionInNode(*listChildNode);
+        end = lastPositionInNode(*listChildNode);
         nextListChild = listChildNode->nextSibling();
         previousListChild = listChildNode->previousSibling();
     } else {
@@ -337,13 +338,13 @@ void InsertListCommand::unlistifyParagraph(const VisiblePosition& originalStart,
 
     // When removing a list, we must always create a placeholder to act as a point of insertion
     // for the list content being removed.
-    auto placeholder = HTMLBRElement::create(document());
-    RefPtr<Element> nodeToInsert = placeholder.copyRef();
+    Ref placeholder = HTMLBRElement::create(document());
+    Ref<Element> nodeToInsert = placeholder.copyRef();
     // If the content of the list item will be moved into another list, put it in a list item
     // so that we don't create an orphaned list child.
     if (enclosingList(&listNode)) {
         nodeToInsert = HTMLLIElement::create(document());
-        appendNode(placeholder.copyRef(), *nodeToInsert);
+        appendNode(placeholder.copyRef(), nodeToInsert);
     }
 
     if (nextListChild && previousListChild) {
@@ -355,7 +356,7 @@ void InsertListCommand::unlistifyParagraph(const VisiblePosition& originalStart,
         // listChildNode below in moveParagraphs, previousListChild will be removed along with it if it is 
         // unrendered. But we ought to remove nextListChild too, if it is unrendered.
         splitElement(listNode, *splitTreeToNode(*nextListChild, listNode));
-        insertNodeBefore(nodeToInsert.releaseNonNull(), listNode);
+        insertNodeBefore(WTF::move(nodeToInsert), listNode);
     } else if (nextListChild || listChildNode->parentNode() != &listNode) {
         // Just because listChildNode has no previousListChild doesn't mean there isn't any content
         // in listNode that comes before listChildNode, as listChildNode could have ancestors
@@ -363,15 +364,15 @@ void InsertListCommand::unlistifyParagraph(const VisiblePosition& originalStart,
         // where we're about to move listChildNode to.
         if (RefPtr listChildNodeParentNode { listChildNode->parentNode() }; listChildNodeParentNode && listChildNodeParentNode != &listNode)
             splitElement(listNode, *splitTreeToNode(*listChildNode, listNode).get());
-        insertNodeBefore(nodeToInsert.releaseNonNull(), listNode);
+        insertNodeBefore(WTF::move(nodeToInsert), listNode);
     } else
-        insertNodeAfter(nodeToInsert.releaseNonNull(), listNode);
+        insertNodeAfter(WTF::move(nodeToInsert), listNode);
 
-    VisiblePosition insertionPoint = VisiblePosition(positionBeforeNode(placeholder.ptr()));
+    VisiblePosition insertionPoint = VisiblePosition(positionBeforeNode(placeholder));
     moveParagraphs(start, end, insertionPoint, true);
 }
 
-static RefPtr<HTMLElement> adjacentEnclosingList(const VisiblePosition& pos, const VisiblePosition& adjacentPos, const HTMLQualifiedName& listTag)
+static RefPtr<HTMLElement> adjacentEnclosingList(const VisiblePosition& pos, const VisiblePosition& adjacentPos, const HTMLQualifiedName& listTag, Style::ListStyleType newListStyleType)
 {
     RefPtr listNode = outermostEnclosingList(protect(adjacentPos.deepEquivalent().deprecatedNode()).get());
 
@@ -381,10 +382,13 @@ static RefPtr<HTMLElement> adjacentEnclosingList(const VisiblePosition& pos, con
     RefPtr previousCell = enclosingTableCell(pos.deepEquivalent());
     RefPtr currentCell = enclosingTableCell(adjacentPos.deepEquivalent());
 
+    Style::ListStyleType currentListStyleType = listNode->renderer() ? listNode->renderer()->style().listStyleType() : CSS::Keyword::None { };
+
     if (!listNode->hasTagName(listTag)
         || listNode->contains(pos.deepEquivalent().deprecatedNode())
         || previousCell != currentCell
-        || enclosingList(listNode.get()) != enclosingList(protect(pos.deepEquivalent().deprecatedNode()).get()))
+        || enclosingList(listNode.get()) != enclosingList(protect(pos.deepEquivalent().deprecatedNode()).get())
+        || (currentListStyleType != newListStyleType && newListStyleType != CSS::Keyword::None { }))
         return nullptr;
 
     return listNode;
@@ -404,13 +408,13 @@ RefPtr<HTMLElement> InsertListCommand::listifyParagraph(const VisiblePosition& o
     appendNode(placeholder.copyRef(), listItemElement.copyRef());
 
     // Place list item into adjoining lists.
-    auto previousList = adjacentEnclosingList(start.deepEquivalent(), start.previous(CannotCrossEditingBoundary), listTag);
-    auto nextList = adjacentEnclosingList(start.deepEquivalent(), end.next(CannotCrossEditingBoundary), listTag);
+    auto previousList = adjacentEnclosingList(start.deepEquivalent(), start.previous(CannotCrossEditingBoundary), listTag, m_listStyleType);
+    auto nextList = adjacentEnclosingList(start.deepEquivalent(), end.next(CannotCrossEditingBoundary), listTag, m_listStyleType);
     RefPtr<HTMLElement> listElement;
     if (previousList)
         appendNode(WTF::move(listItemElement), *previousList);
     else if (nextList)
-        insertNodeAt(WTF::move(listItemElement), positionBeforeNode(nextList.get()));
+        insertNodeAt(WTF::move(listItemElement), positionBeforeNode(*nextList));
     else {
         // Create the list.
         listElement = createHTMLElement(document(), listTag);
@@ -423,7 +427,7 @@ RefPtr<HTMLElement> InsertListCommand::listifyParagraph(const VisiblePosition& o
                 // by a br or a '\n', will invalidate start and end. Insert
                 // a placeholder and then recompute start and end.
                 auto blockPlaceholder = insertBlockPlaceholder(start.deepEquivalent());
-                start = positionBeforeNode(blockPlaceholder.get());
+                start = positionBeforeNode(*blockPlaceholder);
                 end = start;
             }
         }
@@ -437,7 +441,7 @@ RefPtr<HTMLElement> InsertListCommand::listifyParagraph(const VisiblePosition& o
         // Also avoid the containing list item.
         RefPtr listChild = enclosingListChild(insertionPos.deprecatedNode());
         if (listChild && listChild->hasTagName(liTag))
-            insertionPos = positionInParentBeforeNode(listChild.get());
+            insertionPos = positionInParentBeforeNode(*listChild);
 
         if (!isEditablePosition(insertionPos))
             return nullptr;
@@ -456,7 +460,7 @@ RefPtr<HTMLElement> InsertListCommand::listifyParagraph(const VisiblePosition& o
     document().updateLayoutIgnorePendingStylesheets();
     start = startOfParagraph(startOfParagraph(start, CanSkipOverEditingBoundary));
     end = endOfParagraph(endOfParagraph(start, CanSkipOverEditingBoundary));
-    moveParagraph(start, end, positionBeforeNode(placeholder.ptr()), true);
+    moveParagraph(start, end, positionBeforeNode(placeholder), true);
 
     if (listElement)
         return mergeWithNeighboringLists(*listElement);

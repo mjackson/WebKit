@@ -119,9 +119,9 @@ public:
 
     ExceptionOr<String> toString() const;
 
-    const TransformationMatrix& transformationMatrix() const { return m_matrix; }
+    const TransformationMatrix& transformationMatrix() const LIFETIME_BOUND { return m_matrix; }
     
-    Ref<DOMMatrix> cloneAsDOMMatrix() const;
+    Ref<DOMMatrix> NODELETE cloneAsDOMMatrix() const;
 
 protected:
     DOMMatrixReadOnly() = default;

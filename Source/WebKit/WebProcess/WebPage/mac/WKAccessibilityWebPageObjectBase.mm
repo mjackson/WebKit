@@ -99,7 +99,7 @@ namespace ax = WebCore::Accessibility;
 // Called directly by Accessibility framework.
 - (id)accessibilityRootObjectWrapper
 {
-    return [self accessibilityRootObjectWrapper:[self protectedFocusedLocalFrame].get()];
+    return [self accessibilityRootObjectWrapper:protect([self focusedLocalFrame]).get()];
 }
 
 - (id)accessibilityRootObjectWrapper:(WebCore::LocalFrame*)frame
@@ -108,7 +108,7 @@ namespace ax = WebCore::Accessibility;
     if (!isMainRunLoop()) {
         if (RefPtr tree = m_isolatedTree.get()) {
             tree->applyPendingChanges();
-            if (RefPtr root = tree->rootNode())
+            if (auto* root = tree->rootNode())
                 return root->wrapper();
         }
     }
@@ -202,7 +202,7 @@ namespace ax = WebCore::Accessibility;
     if (!cache)
         return;
 
-    RefPtr mainFrame = m_page ? Ref { *m_page }->mainFrame() : nullptr;
+    RefPtr mainFrame = m_page ? m_page->mainFrame() : nullptr;
     if (!mainFrame)
         return;
 
@@ -275,7 +275,7 @@ namespace ax = WebCore::Accessibility;
 
 - (id)accessibilityFocusedUIElement
 {
-    return [[self accessibilityRootObjectWrapper:[self protectedFocusedLocalFrame].get()] accessibilityFocusedUIElement];
+    return [[self accessibilityRootObjectWrapper:protect([self focusedLocalFrame]).get()] accessibilityFocusedUIElement];
 }
 
 - (WebCore::LocalFrame *)focusedLocalFrame
@@ -303,11 +303,6 @@ namespace ax = WebCore::Accessibility;
     }
 
     return nullptr;
-}
-
-- (RefPtr<WebCore::LocalFrame>)protectedFocusedLocalFrame
-{
-    return [self focusedLocalFrame];
 }
 
 @end

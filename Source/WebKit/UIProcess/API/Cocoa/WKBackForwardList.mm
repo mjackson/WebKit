@@ -37,20 +37,15 @@
 
 WK_OBJECT_DISABLE_DISABLE_KVC_IVAR_ACCESS;
 
-- (Ref<WebKit::WebBackForwardListWrapper>)_protectedList
-{
-    return *_list;
-}
-
 - (void)dealloc
 {
     if (WebCoreObjCScheduleDeallocateOnMainRunLoop(WKBackForwardList.class, self))
         return;
 
 #if ENABLE(BACK_FORWARD_LIST_SWIFT)
-    self._protectedList->~WebBackForwardListWrapper();
+    protect(*_list)->~WebBackForwardListWrapper();
 #else
-    self._protectedList->~WebBackForwardList();
+    protect(*_list)->~WebBackForwardList();
 #endif
 
     [super dealloc];
@@ -58,32 +53,32 @@ WK_OBJECT_DISABLE_DISABLE_KVC_IVAR_ACCESS;
 
 - (WKBackForwardListItem *)currentItem
 {
-    return WebKit::wrapper(protect(self._protectedList->currentItem()).get());
+    return WebKit::wrapper(protect((*_list).currentItem()).get());
 }
 
 - (WKBackForwardListItem *)backItem
 {
-    return WebKit::wrapper(protect(self._protectedList->backItem()).get());
+    return WebKit::wrapper(protect((*_list).backItem()).get());
 }
 
 - (WKBackForwardListItem *)forwardItem
 {
-    return WebKit::wrapper(protect(self._protectedList->forwardItem()).get());
+    return WebKit::wrapper(protect((*_list).forwardItem()).get());
 }
 
 - (WKBackForwardListItem *)itemAtIndex:(NSInteger)index
 {
-    return WebKit::wrapper(protect(self._protectedList->itemAtIndex(index)).get());
+    return WebKit::wrapper(protect((*_list).itemAtIndex(index)).get());
 }
 
 - (NSArray *)backList
 {
-    return WebKit::wrapper(self._protectedList->backList()).autorelease();
+    return WebKit::wrapper(protect(*_list)->backList()).autorelease();
 }
 
 - (NSArray *)forwardList
 {
-    return WebKit::wrapper(self._protectedList->forwardList()).autorelease();
+    return WebKit::wrapper(protect(*_list)->forwardList()).autorelease();
 }
 
 #pragma mark WKObject protocol implementation
@@ -99,17 +94,17 @@ WK_OBJECT_DISABLE_DISABLE_KVC_IVAR_ACCESS;
 
 - (void)_removeAllItems
 {
-    self._protectedList->removeAllItems();
+    protect(*_list)->removeAllItems();
 }
 
 - (void)_clear
 {
-    self._protectedList->clear();
+    protect(*_list)->clear();
 }
 
 - (NSString *)_loggingStringForTesting
 {
-    return self._protectedList->loggingString().createNSString().autorelease();
+    return protect(*_list)->loggingString().createNSString().autorelease();
 }
 
 @end

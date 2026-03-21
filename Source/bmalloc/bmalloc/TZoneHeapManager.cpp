@@ -627,7 +627,7 @@ BINLINE pas_heap_ref* TZoneHeapManager::heapRefForTZoneType(const TZoneSpecifica
     else
         group = populateGroupBuckets(lock, spec);
 
-    if (spec.allocationMode == CompactAllocationMode::NonCompact && PAS_USE_COMPACT_ONLY_TZONE_HEAP)
+    if (spec.allocationMode == CompactAllocationMode::NonCompact && PAS_BYPASS_TZONE_FOR_NONCOMPACT_OBJECTS)
         return &group->nonCompactBucket.heapref;
 
     unsigned bucket = bucketForKey(spec, group->numberOfBuckets, lock);

@@ -49,7 +49,7 @@ public:
     }
     virtual ~CryptoKeyAES();
 
-    static bool isValidAESAlgorithm(CryptoAlgorithmIdentifier);
+    static bool NODELETE isValidAESAlgorithm(CryptoAlgorithmIdentifier);
 
     static RefPtr<CryptoKeyAES> generate(CryptoAlgorithmIdentifier, size_t lengthBits, bool extractable, CryptoKeyUsageBitmap);
     WEBCORE_EXPORT static RefPtr<CryptoKeyAES> importRaw(CryptoAlgorithmIdentifier, Vector<uint8_t>&& keyData, bool extractable, CryptoKeyUsageBitmap);
@@ -58,7 +58,7 @@ public:
 
     CryptoKeyClass keyClass() const final { return CryptoKeyClass::AES; }
 
-    const Vector<uint8_t>& key() const { return m_key; }
+    const Vector<uint8_t>& key() const LIFETIME_BOUND { return m_key; }
     JsonWebKey exportJwk() const;
 
     static ExceptionOr<std::optional<size_t>> getKeyLength(const CryptoAlgorithmParameters&);

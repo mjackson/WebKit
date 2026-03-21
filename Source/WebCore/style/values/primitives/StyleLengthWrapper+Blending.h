@@ -24,9 +24,9 @@
 
 #pragma once
 
-#include <WebCore/AnimationUtilities.h>
-#include <WebCore/StyleCalculationValue.h>
-#include <WebCore/StyleLengthWrapper.h>
+#include "AnimationUtilities.h"
+#include "StyleCalculationValue.h"
+#include "StyleLengthWrapper.h"
 
 namespace WebCore {
 namespace Style {
@@ -53,7 +53,7 @@ template<typename T> struct LengthWrapperBlendingSupport {
         auto isTooDeepToBlendWithNode = [](const T& value) {
             if (!value.isCalculated())
                 return false;
-            auto treeDepth = computeDepth(protect(value.m_value.calculationValue())->tree());
+            auto treeDepth = computeDepth(value.m_value.calculationValue().tree());
             return treeDepth > maximumBlendTreeDepth;
         };
 

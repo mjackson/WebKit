@@ -89,7 +89,7 @@ public:
     virtual void connectionReceivedEvent(xpc_object_t) = 0;
 #endif
 
-    const CString& machServiceName() const { return m_machServiceName; }
+    const CString& machServiceName() const LIFETIME_BOUND { return m_machServiceName; }
 
 protected:
     explicit ConnectionToMachService(CString&& machServiceName)

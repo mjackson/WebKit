@@ -43,7 +43,7 @@ public:
 
     Ref<ContentWorldConfiguration> copy() const;
 
-    const WTF::String& NODELETE name() const;
+    const WTF::String& NODELETE name() const LIFETIME_BOUND;
     void setName(WTF::String&&);
 
     bool NODELETE allowAccessToClosedShadowRoots() const;
@@ -67,7 +67,7 @@ public:
     bool NODELETE isInspectable() const;
     void NODELETE setInspectable(bool);
 
-    OptionSet<WebKit::ContentWorldOption> optionSet() const;
+    OptionSet<WebKit::ContentWorldOption> NODELETE optionSet() const;
 
 private:
     struct Data {

@@ -88,12 +88,14 @@ public:
     }
 
     // Inform the web process that the scroll position changed (called from the scrolling tree)
-    virtual bool scrollingTreeNodeRequestsScroll(WebCore::ScrollingNodeID, const WebCore::RequestedScrollData&);
+    virtual WebCore::RequestsScrollHandling scrollingTreeNodeRequestsScroll(WebCore::ScrollingNodeID, const WebCore::RequestedScrollData&);
     virtual bool scrollingTreeNodeRequestsKeyboardScroll(WebCore::ScrollingNodeID, const WebCore::RequestedKeyboardScrollData&);
 
     void scrollingThreadAddedPendingUpdate();
 
     WebCore::TrackingType eventTrackingTypeForPoint(WebCore::EventTrackingRegions::EventType, WebCore::IntPoint) const;
+
+    WebCore::RectEdges<bool> pinnedStateIncludingAncestorsAtPoint(WebCore::FloatPoint);
 
     // Called externally when native views move around.
     void viewportChangedViaDelegatedScrolling(const WebCore::FloatPoint& scrollPosition, const WebCore::FloatRect& layoutViewport, double scale);
@@ -111,7 +113,7 @@ public:
 
     std::optional<WebCore::ScrollingNodeID> NODELETE rootScrollingNodeID() const;
 
-    const RemoteLayerTreeHost* layerTreeHost() const;
+    const RemoteLayerTreeHost* NODELETE layerTreeHost() const;
     WebPageProxy& NODELETE webPageProxy() const;
 
     virtual void stickyScrollingTreeNodeBeganSticking(WebCore::ScrollingNodeID);
@@ -120,8 +122,8 @@ public:
     virtual void scrollingTreeNodeWillBeRemoved(WebCore::ScrollingNodeID) { };
 #endif
 
-    std::optional<WebCore::RequestedScrollData> commitScrollingTreeState(IPC::Connection&, const RemoteScrollingCoordinatorTransaction&, std::optional<WebCore::LayerHostingContextIdentifier> = std::nullopt);
-    void adjustMainFrameDelegatedScrollPosition(WebCore::RequestedScrollData&&);
+    WebCore::ScrollRequestData commitScrollingTreeState(IPC::Connection&, const RemoteScrollingCoordinatorTransaction&, std::optional<WebCore::LayerHostingContextIdentifier> = std::nullopt);
+    void adjustMainFrameDelegatedScrollPosition(WebCore::ScrollRequestData&&);
 
     bool hasFixedOrSticky() const;
     bool NODELETE hasScrollableMainFrame() const;
@@ -224,7 +226,7 @@ private:
     const Ref<RemoteScrollingTree> m_scrollingTree;
 
 protected:
-    std::optional<WebCore::RequestedScrollData> m_requestedScroll;
+    WebCore::ScrollRequestData m_scrollRequestData;
     RemoteScrollingUIState m_uiState;
     std::optional<unsigned> m_currentHorizontalSnapPointIndex;
     std::optional<unsigned> m_currentVerticalSnapPointIndex;

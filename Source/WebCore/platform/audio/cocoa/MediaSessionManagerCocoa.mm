@@ -36,20 +36,22 @@
 #import "MediaStrategy.h"
 #import "NowPlayingInfo.h"
 #import "Page.h"
-#import "PlatformMediaConfiguration.h"
 #import "PlatformMediaSession.h"
 #import "PlatformStrategies.h"
 #import "Settings.h"
 #import "SharedBuffer.h"
 #import "VP9UtilitiesCocoa.h"
 #import <pal/SessionID.h>
-#import <pal/spi/cocoa/AudioToolboxSPI.h>
 #import <wtf/BlockObjCExceptions.h>
 #import <wtf/Function.h>
 #import <wtf/MathExtras.h>
 #import <wtf/TZoneMallocInlines.h>
 #import <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
 #import <wtf/darwin/DispatchExtras.h>
+
+#if HAVE(AVEXPERIENCECONTROLLER)
+#import <WebKitAdditions/MediaSessionManagerCocoaAdditions.h>
+#endif
 
 #import "MediaRemoteSoftLink.h"
 #include <pal/cocoa/AVFoundationSoftLink.h>
@@ -62,10 +64,10 @@ static const size_t kLowPowerVideoBufferSize = 4096;
 #define MEDIASESSIONMANAGER_RELEASE_LOG(formatString, ...) \
 do { \
     if (willLog(WTFLogLevel::Always)) { \
-        RELEASE_LOG_FORWARDABLE(Media, MEDIASESSIONMANAGERCOCOA_##formatString, ##__VA_ARGS__); \
+        RELEASE_LOG_FORWARDABLE(Media, MediaSessionManagerCocoa##formatString, ##__VA_ARGS__); \
         if (logger().hasEnabledInspector()) { \
             char buffer[1024] = { 0 }; \
-            SAFE_SPRINTF(std::span { buffer }, MESSAGE_MEDIASESSIONMANAGERCOCOA_##formatString, ##__VA_ARGS__); \
+            SAFE_SPRINTF(std::span { buffer }, MESSAGE_MediaSessionManagerCocoa##formatString, ##__VA_ARGS__); \
             logger().toObservers(logChannel(), WTFLogLevel::Always, String::fromUTF8(buffer)); \
         } \
     } \
@@ -152,7 +154,7 @@ void MediaSessionManagerCocoa::updateSessionState()
         }
     });
 
-    MEDIASESSIONMANAGER_RELEASE_LOG(UPDATESESSIONSTATE, captureCount, audioMediaStreamTrackCount, videoCount, audioCount, videoAudioCount, webAudioCount, domMediaSessionCount);
+    MEDIASESSIONMANAGER_RELEASE_LOG(UpdateSessionState, captureCount, audioMediaStreamTrackCount, videoCount, audioCount, videoAudioCount, webAudioCount, domMediaSessionCount);
 
     Ref sharedSession = AudioSession::singleton();
     if (!m_defaultBufferSize)
@@ -203,7 +205,11 @@ void MediaSessionManagerCocoa::updateSessionState()
     if (mode == AudioSession::Mode::Default && category == AudioSession::CategoryType::PlayAndRecord)
         mode = AudioSession::Mode::VideoChat;
 
+#if HAVE(AVROUTING_FRAMEWORK)
+    RouteSharingPolicy policy = RouteSharingPolicy::LongFormAudio;
+#else
     RouteSharingPolicy policy = (category == AudioSession::CategoryType::MediaPlayback) ? RouteSharingPolicy::LongFormAudio : RouteSharingPolicy::Default;
+#endif
 
     ALWAYS_LOG(LOGIDENTIFIER, "setting category = ", category, ", mode = ", mode, ", policy = ", policy, ", previous category = ", m_previousCategory);
 
@@ -362,13 +368,13 @@ void MediaSessionManagerCocoa::sessionWillEndPlayback(PlatformMediaSessionInterf
 
 void MediaSessionManagerCocoa::clientCharacteristicsChanged(PlatformMediaSessionInterface& session, bool)
 {
-    MEDIASESSIONMANAGER_RELEASE_LOG(CLIENTCHARACTERISTICSCHANGED, session.logIdentifier());
+    MEDIASESSIONMANAGER_RELEASE_LOG(ClientCharacteristicsChanged, session.logIdentifier());
     scheduleSessionStatusUpdate();
 }
 
 void MediaSessionManagerCocoa::sessionCanProduceAudioChanged()
 {
-    MEDIASESSIONMANAGER_RELEASE_LOG(SESSIONCANPRODUCEAUDIOCHANGED);
+    MEDIASESSIONMANAGER_RELEASE_LOG(SessionCanProduceAudioChanged);
     PlatformMediaSessionManager::sessionCanProduceAudioChanged();
     scheduleSessionStatusUpdate();
 }
@@ -573,6 +579,11 @@ bool MediaSessionManagerCocoa::shouldUpdateNowPlaying(const NowPlayingInfo& nowP
         return true;
     }
 
+    if (m_nowPlayingInfo->fullscreenMode != nowPlayingInfo.fullscreenMode) {
+        INFO_LOG(LOGIDENTIFIER, "fullscreenMode changed");
+        return true;
+    }
+
     auto currentTime = nowPlayingInfo.currentTime;
 
     // Always update when currentTime changes while paused.
@@ -725,50 +736,6 @@ void MediaSessionManagerCocoa::audioOutputDeviceChanged()
     updateSessionState();
 }
 
-#if PLATFORM(MAC)
-std::optional<bool> MediaSessionManagerCocoa::supportsSpatialAudioPlaybackForConfiguration(const PlatformMediaConfiguration& configuration)
-{
-    ASSERT(configuration.audio);
-    if (!configuration.audio)
-        return { false };
-
-    auto supportsSpatialAudioPlayback = this->supportsSpatialAudioPlayback();
-    if (supportsSpatialAudioPlayback.has_value())
-        return supportsSpatialAudioPlayback;
-
-    auto calculateSpatialAudioSupport = [](const PlatformMediaConfiguration& configuration) {
-        if (!PAL::canLoad_AudioToolbox_AudioGetDeviceSpatialPreferencesForContentType())
-            return false;
-
-        SpatialAudioPreferences spatialAudioPreferences { };
-        auto contentType = configuration.video ? kAudioSpatialContentType_Audiovisual : kAudioSpatialContentType_AudioOnly;
-
-        if (noErr != PAL::AudioGetDeviceSpatialPreferencesForContentType(nullptr, static_cast<SpatialContentTypeID>(contentType), &spatialAudioPreferences))
-            return false;
-
-        if (!spatialAudioPreferences.spatialAudioSourceCount)
-            return false;
-
-        auto channelCount = configuration.audio->channels.toDouble();
-        if (channelCount <= 0)
-            return true;
-
-        for (auto& source : std::span { spatialAudioPreferences.spatialAudioSources }.first(spatialAudioPreferences.spatialAudioSourceCount)) {
-            if (source == kSpatialAudioSource_Multichannel && channelCount > 2)
-                return true;
-            if (source == kSpatialAudioSource_MonoOrStereo && channelCount >= 1)
-                return true;
-        }
-
-        return false;
-    };
-
-    setSupportsSpatialAudioPlayback(calculateSpatialAudioSupport(configuration));
-
-    return this->supportsSpatialAudioPlayback();
-}
-#endif
-
 #if USE(NOW_PLAYING_ACTIVITY_SUPPRESSION)
 
 static id<MRNowPlayingActivityUIControllable> nowPlayingActivityController()
@@ -779,9 +746,16 @@ static id<MRNowPlayingActivityUIControllable> nowPlayingActivityController()
 
 void MediaSessionManagerCocoa::updateNowPlayingSuppression(const NowPlayingInfo* nowPlayingInfo)
 {
-    if (!nowPlayingInfo || !nowPlayingInfo->isVideo) {
-        RELEASE_LOG(Media, "MediaSessionManagerCocoa::updateNowPlayingSuppression: clearing suppressPresentationOverBundleIdentifiers (hasNowPlayingInfo=%d, isVideo=%d)", !!nowPlayingInfo, nowPlayingInfo && nowPlayingInfo->isVideo);
+    if (!nowPlayingInfo || !nowPlayingInfo->isVideo || nowPlayingInfo->fullscreenMode == MediaPlayerEnums::VideoFullscreenModeStandard) {
+        RELEASE_LOG(Media, "MediaSessionManagerCocoa::updateNowPlayingSuppression: clearing suppressPresentationOverBundleIdentifiers (hasNowPlayingInfo=%d, isVideo=%d, fullscreenMode=%d)", !!nowPlayingInfo, nowPlayingInfo && nowPlayingInfo->isVideo, nowPlayingInfo && nowPlayingInfo->fullscreenMode);
         [nowPlayingActivityController() suppressPresentationOverBundleIdentifiers:nil];
+
+#if HAVE(AVEXPERIENCECONTROLLER)
+        if (nowPlayingInfo && nowPlayingInfo->fullscreenMode == MediaPlayerEnums::VideoFullscreenModeStandard) {
+            RELEASE_LOG(Media, "MediaSessionManagerCocoa::updateNowPlayingSuppression: setting preferred state");
+            [nowPlayingActivityController() setPreferredState:MRNowPlayingActivityUIStateUnsuppressed];
+        }
+#endif
     } else {
         RetainPtr parentApplicationBundleIdentifier = applicationBundleIdentifier().createNSString();
         RetainPtr presentingApplicationBundleIdentifier = nowPlayingInfo->metadata.sourceApplicationIdentifier.createNSString();

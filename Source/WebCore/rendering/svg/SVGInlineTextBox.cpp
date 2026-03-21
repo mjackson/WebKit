@@ -26,6 +26,7 @@
 #include "SVGInlineTextBox.h"
 
 #include "FloatConversion.h"
+#include "FontCascadeInlines.h"
 #include "GraphicsContext.h"
 #include "HitTestResult.h"
 #include "LegacyInlineFlowBox.h"

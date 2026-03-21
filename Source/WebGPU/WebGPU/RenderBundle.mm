@@ -105,7 +105,7 @@ void RenderBundle::updateMinMaxDepths(float minDepth, float maxDepth)
     m_maxDepth = maxDepth;
     std::array<float, 2> twoFloats = { m_minDepth, m_maxDepth };
     for (RenderBundleICBWithResources* icb in m_renderBundlesResources)
-        m_device->protectedQueue()->writeBuffer(icb.fragmentDynamicOffsetsBuffer, 0, asWritableBytes(std::span(twoFloats)));
+        m_device->getQueue()->writeBuffer(icb.fragmentDynamicOffsetsBuffer, 0, asWritableBytes(std::span(twoFloats)));
 }
 
 uint64_t RenderBundle::drawCount() const
@@ -192,7 +192,7 @@ bool RenderBundle::rebindSamplersIfNeeded() const
 
 #pragma mark WGPU Stubs
 
-void wgpuRenderBundleReference(WGPURenderBundle renderBundle)
+void NODELETE wgpuRenderBundleReference(WGPURenderBundle renderBundle)
 {
     WebGPU::fromAPI(renderBundle).ref();
 }
@@ -204,5 +204,5 @@ void wgpuRenderBundleRelease(WGPURenderBundle renderBundle)
 
 void wgpuRenderBundleSetLabel(WGPURenderBundle renderBundle, const char* label)
 {
-    WebGPU::protectedFromAPI(renderBundle)->setLabel(WebGPU::fromAPI(label));
+    protect(WebGPU::fromAPI(renderBundle))->setLabel(WebGPU::fromAPI(label));
 }

@@ -103,11 +103,11 @@ Location& DOMWindow::location()
 
 bool DOMWindow::closed() const
 {
-    RefPtr frame = this->frame();
+    auto* frame = this->frame();
     if (!frame)
         return true;
 
-    RefPtr page = frame->page();
+    auto* page = frame->page();
     return !page || page->isClosing();
 }
 
@@ -151,7 +151,7 @@ void DOMWindow::close()
 
 FrameConsoleClient* DOMWindow::console() const
 {
-    RefPtr frame = dynamicDowncast<LocalFrame>(this->frame());
+    auto* frame = dynamicDowncast<LocalFrame>(this->frame());
     return frame ? &frame->console() : nullptr;
 }
 
@@ -178,7 +178,7 @@ WindowProxy* DOMWindow::opener() const
 
 WindowProxy* DOMWindow::top() const
 {
-    RefPtr frame = this->frame();
+    auto* frame = this->frame();
     if (!frame)
         return nullptr;
 
@@ -190,11 +190,11 @@ WindowProxy* DOMWindow::top() const
 
 WindowProxy* DOMWindow::parent() const
 {
-    RefPtr frame = this->frame();
+    auto* frame = this->frame();
     if (!frame)
         return nullptr;
 
-    RefPtr parentFrame = frame->tree().parent();
+    auto* parentFrame = frame->tree().parent();
     if (parentFrame)
         return &parentFrame->windowProxy();
 
@@ -1022,13 +1022,12 @@ bool DOMWindow::isInsecureScriptAccess(const LocalDOMWindow& activeWindow, const
         if (&activeWindow == this)
             return false;
 
-        // FIXME: The name canAccess seems to be a roundabout way to ask "can execute script".
-        // Can we name the SecurityOrigin function better to make this more clear?
-
-        // This check only makes sense with LocalDOMWindows as RemoteDOMWindows necessarily have different origins
-        RefPtr localDocument = documentIfLocal();
-        if (localDocument && protect(protect(activeWindow.document())->securityOrigin())->isSameOriginDomain(protect(localDocument->securityOrigin())))
-            return false;
+        if (RefPtr frame = this->frame()) {
+            if (RefPtr securityOrigin = frame->frameDocumentSecurityOrigin()) {
+                if (protect(protect(activeWindow.document())->securityOrigin())->isSameOriginDomain(*securityOrigin))
+                    return false;
+            }
+        }
     }
 
     activeWindow.printErrorMessage(crossDomainAccessErrorMessage(activeWindow, IncludeTargetOrigin::Yes));

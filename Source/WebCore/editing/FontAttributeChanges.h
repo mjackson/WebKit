@@ -63,7 +63,7 @@ public:
 
 private:
     friend struct IPC::ArgumentCoder<FontChanges>;
-    const String& platformFontFamilyNameForCSS() const;
+    const String& platformFontFamilyNameForCSS() const LIFETIME_BOUND;
 
     String m_fontName;
     String m_fontFamily;
@@ -87,7 +87,7 @@ public:
     void setFontChanges(const FontChanges& fontChanges) { m_fontChanges = fontChanges; }
 
     WEBCORE_EXPORT Ref<EditingStyle> createEditingStyle() const;
-    WEBCORE_EXPORT EditAction editAction() const;
+    WEBCORE_EXPORT EditAction NODELETE editAction() const;
 
 private:
     friend struct IPC::ArgumentCoder<FontAttributeChanges>;

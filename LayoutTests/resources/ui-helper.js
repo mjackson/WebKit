@@ -369,13 +369,13 @@ window.UIHelper = class UIHelper {
         });
     }
 
-    static activateAt(x, y, modifiers=[])
+    static async activateAt(x, y, modifiers=[])
     {
         if (!this.isWebKit2() || !this.isIOSFamily()) {
-            eventSender.mouseMoveTo(x, y);
-            eventSender.mouseDown(0, modifiers);
-            eventSender.mouseUp(0, modifiers);
-            return Promise.resolve();
+            await eventSender.asyncMouseMoveTo(x, y);
+            await eventSender.asyncMouseDown(0, modifiers);
+            await eventSender.asyncMouseUp(0, modifiers);
+            return;
         }
 
         return new Promise((resolve) => {
@@ -756,6 +756,14 @@ window.UIHelper = class UIHelper {
 
         const x = element.offsetLeft + element.offsetWidth / 2;
         const y = element.offsetTop + element.offsetHeight / 2;
+
+        return this.activateFormControlAtPoint(x, y);
+    }
+
+    static activateFormControlAtPoint(x, y)
+    {
+        if (!this.isWebKit2() || !this.isIOSFamily())
+            return this.activateAt(x, y);
 
         return new Promise(resolve => {
             testRunner.runUIScript(`
@@ -1297,6 +1305,40 @@ window.UIHelper = class UIHelper {
     {
         const selectColorScript = `uiController.setSelectedColorForColorPicker(${red}, ${green}, ${blue})`;
         return new Promise(resolve => testRunner.runUIScript(selectColorScript, resolve));
+    }
+
+    static isShowingColorPicker()
+    {
+        return new Promise(resolve => {
+            testRunner.runUIScript(`(() => {
+                uiController.uiScriptComplete(uiController.isShowingColorPicker);
+            })()`, result => resolve(result === "true"));
+        });
+    }
+
+    static waitForColorPickerToPresent()
+    {
+        if (!this.isWebKit2())
+            return Promise.resolve();
+
+        if (this.isIOSFamily()) {
+            return new Promise(resolve => {
+                testRunner.runUIScript(`
+                    (function() {
+                        if (uiController.isShowingColorPicker)
+                            uiController.uiScriptComplete();
+                        else
+                            uiController.willPresentPopoverCallback = () => uiController.uiScriptComplete();
+                    })()`, resolve);
+            });
+        }
+
+        // macOS: poll for color picker in subview hierarchy.
+        return new Promise(async resolve => {
+            while (!await this.isShowingColorPicker())
+                continue;
+            resolve();
+        });
     }
 
     static enterText(text)

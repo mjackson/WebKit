@@ -205,7 +205,7 @@ public:
     void reportDirectiveAsSourceExpression(const String& directiveName, StringView sourceExpression) const;
     void reportInvalidPathCharacter(const String& directiveName, const String& value, const char) const;
     void reportInvalidSourceExpression(const String& directiveName, const String& source) const;
-    bool urlMatchesSelf(const URL&, bool forFrameSrc) const;
+    bool urlMatchesSelf(const URL&) const;
     bool allowContentSecurityPolicySourceStarToMatchAnyProtocol() const;
 
     // Used by ContentSecurityPolicyDirectiveList
@@ -228,7 +228,7 @@ public:
     }
 
     // Used by ContentSecurityPolicySource
-    const String& selfProtocol() const { return m_selfSourceProtocol; };
+    const String& selfProtocol() const LIFETIME_BOUND { return m_selfSourceProtocol; };
 
     void setUpgradeInsecureRequests(bool);
     bool upgradeInsecureRequests() const { return m_upgradeInsecureRequests; }
@@ -237,7 +237,7 @@ public:
     WEBCORE_EXPORT void upgradeInsecureRequestIfNeeded(ResourceRequest&, InsecureRequestType, AlwaysUpgradeRequest = AlwaysUpgradeRequest::No) const;
     WEBCORE_EXPORT void upgradeInsecureRequestIfNeeded(URL&, InsecureRequestType, AlwaysUpgradeRequest = AlwaysUpgradeRequest::No) const;
 
-    HashSet<SecurityOriginData> takeNavigationRequestsToUpgrade();
+    HashSet<SecurityOriginData> NODELETE takeNavigationRequestsToUpgrade();
     void inheritInsecureNavigationRequestsToUpgradeFromOpener(const ContentSecurityPolicy&);
     void setInsecureNavigationRequestsToUpgrade(HashSet<SecurityOriginData>&&);
 
@@ -250,11 +250,11 @@ public:
 
     bool isHeaderDelivered() const { return m_isHeaderDelivered; }
 
-    const String& evalErrorMessage() const { return m_lastPolicyEvalDisabledErrorMessage; }
-    const String& webAssemblyErrorMessage() const { return m_lastPolicyWebAssemblyDisabledErrorMessage; }
+    const String& evalErrorMessage() const LIFETIME_BOUND { return m_lastPolicyEvalDisabledErrorMessage; }
+    const String& webAssemblyErrorMessage() const LIFETIME_BOUND { return m_lastPolicyWebAssemblyDisabledErrorMessage; }
 
     ContentSecurityPolicyModeForExtension contentSecurityPolicyModeForExtension() const { return m_contentSecurityPolicyModeForExtension; }
-    const HashAlgorithmSetCollection& hashesToReport();
+    const HashAlgorithmSetCollection& hashesToReport() LIFETIME_BOUND;
 
     void setIsReportingToConsoleEnabled(bool value) { m_isReportingToConsoleEnabled = value; }
 

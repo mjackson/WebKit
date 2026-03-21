@@ -26,29 +26,18 @@
 #include "config.h"
 #include "CSSPendingSubstitutionValue.h"
 
-#include "CSSProperty.h"
-#include "CSSPropertyParser.h"
-
 namespace WebCore {
 
-RefPtr<CSSValue> CSSPendingSubstitutionValue::resolveValue(Style::Builder& builder, CSSPropertyID propertyID) const
+Ref<CSSPendingSubstitutionValue> CSSPendingSubstitutionValue::create(CSSPropertyID shorthandPropertyId, Ref<CSSVariableReferenceValue>&& shorthandValue)
 {
-    if (!m_shorthandValue->resolveAndCacheValue(builder, [this](auto data) {
-        ParsedPropertyVector parsedProperties;
-        if (!CSSPropertyParser::parseValue(m_shorthandPropertyId, IsImportant::No, data->tokens(), data->context(), parsedProperties, StyleRuleType::Style)) {
-            m_cachedPropertyValues = { };
-            return;
-        }
-
-        m_cachedPropertyValues = parsedProperties; }))
-        return nullptr;
-
-    for (auto& property : m_cachedPropertyValues) {
-        if (property.id() == propertyID)
-            return property.value();
-    }
-
-    return nullptr;
+    return adoptRef(*new CSSPendingSubstitutionValue(shorthandPropertyId, WTF::move(shorthandValue)));
 }
 
+CSSPendingSubstitutionValue::CSSPendingSubstitutionValue(CSSPropertyID shorthandPropertyId, Ref<CSSVariableReferenceValue>&& shorthandValue)
+    : CSSValue(ClassType::PendingSubstitutionValue)
+    , m_shorthandPropertyId(shorthandPropertyId)
+    , m_shorthandValue(WTF::move(shorthandValue))
+{
 }
+
+} // namespace WebCore

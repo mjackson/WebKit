@@ -656,12 +656,7 @@ static void setupSKAdNetworkTest(Vector<String>& consoleMessages, id<WKNavigatio
 const char* expectedSKAdNetworkConsoleMessage = "Submitting potential install attribution for AdamId: 1234567890, adNetworkRegistrableDomain: destination, impressionId: MTIzNDU2Nzg5MDEyMzQ1Ng, sourceWebRegistrableDomain: example.com, version: 3";
 static NSString *linkToAppStoreHTML = @"<body><a href='https://apps.apple.com/app/id1234567890' id='anchorid' attributiondestination='https://destination/' attributionSourceNonce='MTIzNDU2Nzg5MDEyMzQ1Ng'>anchor</a></body>";
 
-// rdar://129248776
-#if defined(NDEBUG)
-TEST(PrivateClickMeasurement, DISABLED_SKAdNetwork)
-#else
 TEST(PrivateClickMeasurement, SKAdNetwork)
-#endif
 {
     __block Vector<String> consoleMessages;
     auto delegate = adoptNS([TestNavigationDelegate new]);
@@ -679,12 +674,7 @@ TEST(PrivateClickMeasurement, SKAdNetwork)
     EXPECT_WK_STREQ(consoleMessages[0], expectedSKAdNetworkConsoleMessage);
 }
 
-// rdar://129248776
-#if defined(NDEBUG)
-TEST(PrivateClickMeasurement, DISABLED_SKAdNetworkAboutBlank)
-#else
 TEST(PrivateClickMeasurement, SKAdNetworkAboutBlank)
-#endif
 {
     __block Vector<String> consoleMessages;
     auto delegate = adoptNS([TestNavigationDelegate new]);
@@ -711,12 +701,7 @@ TEST(PrivateClickMeasurement, SKAdNetworkAboutBlank)
     EXPECT_WK_STREQ(consoleMessages[0], expectedSKAdNetworkConsoleMessage);
 }
 
-// rdar://129248776
-#if defined(NDEBUG)
-TEST(PrivateClickMeasurement, DISABLED_SKAdNetworkWithoutNavigatingToAppStoreLink)
-#else
 TEST(PrivateClickMeasurement, SKAdNetworkWithoutNavigatingToAppStoreLink)
-#endif
 {
     __block Vector<String> consoleMessages;
     auto delegate = adoptNS([TestNavigationDelegate new]);

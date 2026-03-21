@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2012-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -157,6 +157,8 @@ NetworkConnectionToWebProcess::NetworkConnectionToWebProcess(NetworkProcess& net
 {
     RELEASE_ASSERT(RunLoop::isMain());
 
+    RELEASE_LOG(Process, "%p - NetworkConnectionToWebProcess::NetworkConnectionToWebProcess: Create connection for web process core identifier %" PRIu64, this, webProcessIdentifier.toUInt64());
+
     // Use this flag to force synchronous messages to be treated as asynchronous messages in the WebProcess.
     // Otherwise, the WebProcess would process incoming synchronous IPC while waiting for a synchronous IPC
     // reply from the Network process, which would be unsafe.
@@ -173,7 +175,12 @@ NetworkConnectionToWebProcess::NetworkConnectionToWebProcess(NetworkProcess& net
 #endif
 
     establishSWServerConnection();
+
+    RELEASE_LOG(Process, "%p - NetworkConnectionToWebProcess::NetworkConnectionToWebProcess: Connection for web process core identifier %" PRIu64 " established service worker server connection", this, webProcessIdentifier.toUInt64());
+
     establishSharedWorkerServerConnection();
+
+    RELEASE_LOG(Process, "%p - NetworkConnectionToWebProcess::NetworkConnectionToWebProcess: Connection for web process core identifier %" PRIu64 " established shared worker connection", this, webProcessIdentifier.toUInt64());
 
 #if !PLATFORM(WATCHOS)
     if (!m_sharedPreferencesForWebProcess.webSocketEnabled)
@@ -556,7 +563,7 @@ Vector<Ref<WebCore::BlobDataFileReference>> NetworkConnectionToWebProcess::resol
     auto& blobRegistry = session->blobRegistry();
 
     Vector<Ref<WebCore::BlobDataFileReference>> files;
-    if (auto body = loadParameters.request.httpBody()) {
+    if (RefPtr body = loadParameters.request.httpBody()) {
         for (auto& element : body->elements()) {
             if (auto* blobData = std::get_if<FormDataElement::EncodedBlobData>(&element.data))
                 files.appendVector(blobRegistry.filesInBlob(blobData->url));
@@ -691,7 +698,7 @@ void NetworkConnectionToWebProcess::removeLoadIdentifier(WebCore::ResourceLoader
 
 void NetworkConnectionToWebProcess::pageLoadCompleted(PageIdentifier webPageID)
 {
-    stopAllNetworkActivityTrackingForPage(webPageID);
+    stopAllNetworkActivityTrackingForPage(webPageID, NetworkActivityTracker::CompletionCode::Success);
 }
 
 void NetworkConnectionToWebProcess::browsingContextRemoved(WebPageProxyIdentifier webPageProxyID, PageIdentifier webPageID, FrameIdentifier webFrameID)
@@ -700,6 +707,7 @@ void NetworkConnectionToWebProcess::browsingContextRemoved(WebPageProxyIdentifie
         if (RefPtr cache = session->cache())
             cache->browsingContextRemoved(webPageProxyID, webPageID, webFrameID);
     }
+    m_lastRootActivityCompletionCodesForTesting.remove(webPageID);
 }
 
 void NetworkConnectionToWebProcess::prefetchDNS(const String& hostname)
@@ -1458,6 +1466,7 @@ std::optional<NetworkActivityTracker> NetworkConnectionToWebProcess::startTracki
     auto& newActivityTracker = m_networkActivityTrackers[newActivityIndex];
     newActivityTracker.networkActivity.setParent(m_networkActivityTrackers[rootActivityIndex].networkActivity);
     newActivityTracker.networkActivity.start();
+    newActivityTracker.isTopResource = isTopResource;
 
     return newActivityTracker.networkActivity;
 }
@@ -1468,8 +1477,13 @@ void NetworkConnectionToWebProcess::stopTrackingResourceLoad(WebCore::ResourceLo
     if (itemIndex == notFound)
         return;
 
+    bool isTopResource = m_networkActivityTrackers[itemIndex].isTopResource;
+    auto pageID = m_networkActivityTrackers[itemIndex].pageID;
     m_networkActivityTrackers[itemIndex].networkActivity.complete(code);
     m_networkActivityTrackers.removeAt(itemIndex);
+
+    if (isTopResource && code != NetworkActivityTracker::CompletionCode::Success)
+        stopAllNetworkActivityTrackingForPage(pageID, code);
 }
 
 void NetworkConnectionToWebProcess::stopAllNetworkActivityTracking()
@@ -1478,18 +1492,35 @@ void NetworkConnectionToWebProcess::stopAllNetworkActivityTracking()
         activityTracker.networkActivity.complete(NetworkActivityTracker::CompletionCode::Cancel);
 
     m_networkActivityTrackers.clear();
+    m_lastRootActivityCompletionCodesForTesting.clear();
 }
 
-void NetworkConnectionToWebProcess::stopAllNetworkActivityTrackingForPage(PageIdentifier pageID)
+void NetworkConnectionToWebProcess::stopAllNetworkActivityTrackingForPage(PageIdentifier pageID, NetworkActivityTracker::CompletionCode rootCompletionCode)
 {
     for (auto& activityTracker : m_networkActivityTrackers) {
-        if (activityTracker.pageID == pageID)
-            activityTracker.networkActivity.complete(NetworkActivityTracker::CompletionCode::Cancel);
+        if (activityTracker.pageID == pageID) {
+            auto code = activityTracker.isRootActivity ? rootCompletionCode : NetworkActivityTracker::CompletionCode::Cancel;
+            activityTracker.networkActivity.complete(code);
+            if (activityTracker.isRootActivity)
+                m_lastRootActivityCompletionCodesForTesting.set(pageID, code);
+        }
     }
 
     m_networkActivityTrackers.removeAllMatching([&](const auto& activityTracker) {
         return activityTracker.pageID == pageID;
     });
+
+    // Note: We clear m_lastRootActivityCompletionCodesForTesting in browsingContextRemoved
+    // instead of here so that it exists long enough for the test infrastructure
+    // to read it.
+}
+
+auto NetworkConnectionToWebProcess::lastRootActivityCompletionCodeForTesting(PageIdentifier pageID) const -> std::optional<NetworkActivityTracker::CompletionCode>
+{
+    auto it = m_lastRootActivityCompletionCodesForTesting.find(pageID);
+    if (it == m_lastRootActivityCompletionCodesForTesting.end())
+        return std::nullopt;
+    return it->value;
 }
 
 size_t NetworkConnectionToWebProcess::findRootNetworkActivity(PageIdentifier pageID)
@@ -1644,7 +1675,7 @@ void NetworkConnectionToWebProcess::entangleLocalPortInThisProcessToRemote(const
     m_processEntangledPorts.add(local);
     protect(m_networkProcess->messagePortChannelRegistry())->didEntangleLocalToRemote(local, remote, m_webProcessIdentifier);
 
-    RefPtr channel = protect(m_networkProcess->messagePortChannelRegistry())->existingChannelContainingPort(local);
+    RefPtr channel = m_networkProcess->messagePortChannelRegistry().existingChannelContainingPort(local);
     if (channel && channel->hasAnyMessagesPendingOrInFlight())
         m_connection->send(Messages::NetworkProcessConnection::MessagesAvailableForPort(local), 0);
 }
@@ -1687,7 +1718,7 @@ void NetworkConnectionToWebProcess::postMessageToRemote(MessageWithMessagePorts&
 {
     if (protect(m_networkProcess->messagePortChannelRegistry())->didPostMessageToRemote(WTF::move(message), port)) {
         // Look up the process for that port
-        RefPtr channel = protect(m_networkProcess->messagePortChannelRegistry())->existingChannelContainingPort(port);
+        RefPtr channel = m_networkProcess->messagePortChannelRegistry().existingChannelContainingPort(port);
         ASSERT(channel);
         auto processIdentifier = channel->processForPort(port);
         if (processIdentifier) {

@@ -69,7 +69,7 @@ ExceptionOr<void> FormAssociatedCustomElement::setValidity(ValidityStateFlags va
     m_validityStateFlags = validityStateFlags;
     setCustomValidity(validityStateFlags.isValid() ? emptyString() : WTF::move(message));
 
-    if (validationAnchor && !asProtectedHTMLElement()->isShadowIncludingInclusiveAncestorOf(*validationAnchor))
+    if (validationAnchor && !asHTMLElement().isShadowIncludingInclusiveAncestorOf(*validationAnchor))
         return Exception { ExceptionCode::NotFoundError };
 
     m_validationAnchor = validationAnchor;
@@ -159,14 +159,14 @@ void FormAssociatedCustomElement::reset()
 {
     ASSERT(m_element->isDefinedCustomElement());
     setInteractedWithSinceLastFormSubmitEvent(false);
-    CustomElementReactionQueue::enqueueFormResetCallbackIfNeeded(asProtectedHTMLElement().get());
+    CustomElementReactionQueue::enqueueFormResetCallbackIfNeeded(protect(asHTMLElement()).get());
 }
 
 void FormAssociatedCustomElement::disabledStateChanged()
 {
     ASSERT(m_element->isDefinedCustomElement());
     ValidatedFormListedElement::disabledStateChanged();
-    CustomElementReactionQueue::enqueueFormDisabledCallbackIfNeeded(asProtectedHTMLElement().get(), isDisabled());
+    CustomElementReactionQueue::enqueueFormDisabledCallbackIfNeeded(protect(asHTMLElement()).get(), isDisabled());
 }
 
 void FormAssociatedCustomElement::didChangeForm()
@@ -174,7 +174,7 @@ void FormAssociatedCustomElement::didChangeForm()
     ASSERT(m_element->isDefinedCustomElement());
     ValidatedFormListedElement::didChangeForm();
     if (!belongsToFormThatIsBeingDestroyed())
-        CustomElementReactionQueue::enqueueFormAssociatedCallbackIfNeeded(asProtectedHTMLElement().get(), protect(form()).get());
+        CustomElementReactionQueue::enqueueFormAssociatedCallbackIfNeeded(protect(asHTMLElement()).get(), protect(form()).get());
 }
 
 void FormAssociatedCustomElement::willUpgrade()
@@ -231,7 +231,7 @@ bool FormAssociatedCustomElement::shouldSaveAndRestoreFormControlState() const
 {
     Ref element = asHTMLElement();
     ASSERT(element->reactionQueue());
-    return element->isDefinedCustomElement() && CheckedRef { *element->reactionQueue() }->hasFormStateRestoreCallback();
+    return element->isDefinedCustomElement() && element->reactionQueue()->hasFormStateRestoreCallback();
 }
 
 FormControlState FormAssociatedCustomElement::saveFormControlState() const

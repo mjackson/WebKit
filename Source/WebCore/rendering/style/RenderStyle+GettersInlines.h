@@ -343,11 +343,6 @@ inline bool RenderStyle::evaluationTimeZoomEnabled() const
     return m_computedStyle.evaluationTimeZoomEnabled();
 }
 
-inline float RenderStyle::deviceScaleFactor() const
-{
-    return m_computedStyle.deviceScaleFactor();
-}
-
 inline bool RenderStyle::useSVGZoomRulesForLength() const
 {
     return m_computedStyle.useSVGZoomRulesForLength();
@@ -639,11 +634,6 @@ inline float RenderStyle::computedLineHeight() const
     return m_computedStyle.computedLineHeight();
 }
 
-inline float RenderStyle::computeLineHeight(const Style::LineHeight& lineHeight) const
-{
-    return m_computedStyle.computeLineHeight(lineHeight);
-}
-
 // MARK: - Derived used values
 
 inline UserModify RenderStyle::usedUserModify() const
@@ -817,34 +807,10 @@ constexpr bool RenderStyle::preserveNewline(WhiteSpaceCollapse mode)
     return mode == WhiteSpaceCollapse::Preserve || mode == WhiteSpaceCollapse::PreserveBreaks || mode == WhiteSpaceCollapse::BreakSpaces;
 }
 
-constexpr BorderStyle collapsedBorderStyle(BorderStyle style)
-{
-    if (style == BorderStyle::Outset)
-        return BorderStyle::Groove;
-    if (style == BorderStyle::Inset)
-        return BorderStyle::Ridge;
-    return style;
-}
-
 inline bool RenderStyle::isInterCharacterRubyPosition() const
 {
     auto rubyPosition = this->rubyPosition();
     return rubyPosition == RubyPosition::InterCharacter || rubyPosition == RubyPosition::LegacyInterCharacter;
-}
-
-inline bool isNonVisibleOverflow(Overflow overflow)
-{
-    return overflow == Overflow::Hidden || overflow == Overflow::Scroll || overflow == Overflow::Clip;
-}
-
-inline bool pseudoElementRendererIsNeeded(const RenderStyle* style)
-{
-    return style && style->display() != Style::DisplayType::None && style->content().isData();
-}
-
-inline bool isVisibleToHitTesting(const RenderStyle& style, const HitTestRequest& request)
-{
-    return (request.userTriggered() ? style.usedVisibility() : style.visibility()) == Visibility::Visible;
 }
 
 // MARK: has*() functions
@@ -959,7 +925,7 @@ inline bool RenderStyle::isFixedTableLayout() const
     return tableLayout() == TableLayoutType::Fixed 
         && (logicalWidth().isSpecified() 
             || logicalWidth().isFitContent() 
-            || logicalWidth().isFillAvailable() 
+            || logicalWidth().isStretch()
             || logicalWidth().isMinContent());
 }
 

@@ -100,7 +100,7 @@ VPATH = \
     $(WebKit2)/UIProcess/Network \
     $(WebKit2)/UIProcess/Network/CustomProtocols \
     $(WebKit2)/UIProcess/Notifications \
-    $(WebKit2)/UIProcess/Plugins \
+    $(WebKit2)/UIProcess/PDF \
     $(WebKit2)/UIProcess/RemoteLayerTree \
     $(WebKit2)/UIProcess/Storage \
     $(WebKit2)/UIProcess/UserContent \
@@ -370,6 +370,13 @@ ifeq ($(ENABLE_ADDRESS_SANITIZER),YES)
 	SANITIZE_FLAGS = -fsanitize=address
 endif
 
+# Track SANITIZE_FLAGS changes so .sb files are regenerated when switching
+# between ASan and non-ASan builds. Use $(shell ...) to update the stamp
+# file at Makefile parse time, avoiding .PHONY which would cause Make to
+# always consider the stamp (and its dependents) out of date.
+SANITIZE_FLAGS_STAMP = .sanitize-flags.stamp
+$(shell echo '$(SANITIZE_FLAGS)' | cmp -s - $(SANITIZE_FLAGS_STAMP) || echo '$(SANITIZE_FLAGS)' > $(SANITIZE_FLAGS_STAMP))
+
 WK_CURRENT_ARCH=$(word 1, $(ARCHS))
 TARGET_TRIPLE_FLAGS=-target $(WK_CURRENT_ARCH)-$(LLVM_TARGET_TRIPLE_VENDOR)-$(LLVM_TARGET_TRIPLE_OS_VERSION)$(LLVM_TARGET_TRIPLE_SUFFIX)
 
@@ -485,6 +492,12 @@ NOTIFICATION_ALLOW_LISTS = \
 	grep -o '^[^;]*' $< | $(CC) $(RC_XBS_PREPROCESSOR_FLAG) $(SANITIZE_FLAGS) $(SDK_FLAGS) $(TARGET_TRIPLE_FLAGS) $(SANDBOX_DEFINES) $(TEXT_PREPROCESSOR_FLAGS) $(FRAMEWORK_FLAGS) $(HEADER_FLAGS) $(EXTERNAL_FLAGS) -include "wtf/Platform.h" - > $@.tmp
 	$(WebKit2)/Scripts/compile-sandbox.sh $@.tmp $* $(SDK_NAME) $(SANDBOX_IMPORT_DIR)
 	mv $@.tmp $@
+
+# Only these sandbox profiles use ASAN_ENABLED and need regeneration
+# when SANITIZE_FLAGS changes.
+com.apple.WebKit.GPUProcess.sb : $(SANITIZE_FLAGS_STAMP)
+com.apple.WebKit.NetworkProcess.sb : $(SANITIZE_FLAGS_STAMP)
+com.apple.WebProcess.sb : $(SANITIZE_FLAGS_STAMP)
 
 JSON_RPC_GENERATOR_SCRIPTS = \
 	$(JavaScriptCore_SCRIPTS_DIR)/cpp_generator_templates.py \
@@ -610,6 +623,7 @@ SERIALIZATION_DESCRIPTION_FILES = \
 	GPUProcess/media/TrackPrivateRemoteConfiguration.serialization.in \
 	GPUProcess/media/VideoTrackPrivateRemoteConfiguration.serialization.in \
 	ModelProcess/ModelProcessCreationParameters.serialization.in \
+	NetworkProcess/NetworkActivityTracker.serialization.in \
 	NetworkProcess/NetworkProcessCreationParameters.serialization.in \
 	NetworkProcess/NetworkResourceLoadParameters.serialization.in \
 	NetworkProcess/NetworkSessionCreationParameters.serialization.in \
@@ -786,6 +800,7 @@ SERIALIZATION_DESCRIPTION_FILES = \
 	Shared/SerializedNode.serialization.in \
 	Shared/ServiceWorkerTimingInfo.serialization.in \
 	Shared/SessionState.serialization.in \
+	Shared/ShareableSpatialImage.serialization.in \
 	Shared/SyntheticEditingCommandType.serialization.in \
 	Shared/TextFlags.serialization.in \
 	Shared/TextAnimationTypes.serialization.in \
@@ -1054,7 +1069,9 @@ all : JSWebExtensionAPIUnified.mm $(EXTENSION_INTERFACES:%=JS%.h) $(EXTENSION_IN
 
 ifeq ($(USE_INTERNAL_SDK),YES)
 WEBKIT_ADDITIONS_SWIFT_FILES = \
+	NSGlassEffectView+Extras.swift \
 	UIWindowScene+Extras.swift \
+	WebViewRepresentable+Extras.swift \
 	WKWebView+WKBannerViewOverlay.swift \
 	WKWebView+SystemTextExtraction.swift \
 	WKSExperienceController+Transitions.swift \

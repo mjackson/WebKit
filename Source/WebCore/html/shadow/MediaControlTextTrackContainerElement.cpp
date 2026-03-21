@@ -98,7 +98,7 @@ RenderPtr<RenderElement> MediaControlTextTrackContainerElement::createElementRen
 
 static bool compareCueIntervalForDisplay(const CueInterval& one, const CueInterval& two)
 {
-    return one.data()->isPositionedAbove(two.data());
+    return protect(one.data())->isPositionedAbove(protect(two.data()));
 };
 
 void MediaControlTextTrackContainerElement::updateDisplay()
@@ -168,10 +168,10 @@ void MediaControlTextTrackContainerElement::updateDisplay()
         removeChildren();
 
     activeCues.removeAllMatching([] (CueInterval& cueInterval) {
-        Ref cue = *cueInterval.data();
-        if (!cue->isActive() || !cue->isRenderable())
+        auto& cue = *cueInterval.data();
+        if (!cue.isActive() || !cue.isRenderable())
             return true;
-        RefPtr track = cue->track();
+        auto* track = cue.track();
         return !track || !track->isRendered() || track->mode() == TextTrack::Mode::Disabled;
     });
 
@@ -187,7 +187,7 @@ void MediaControlTextTrackContainerElement::updateDisplay()
         for (auto& interval : activeCues) {
             Ref cue = *interval.data();
 
-            if (cue->protectedTrack()->isSpoken())
+            if (cue->track()->isSpoken())
                 continue;
 
             if (RefPtr vttCue = dynamicDowncast<VTTCue>(cue))
@@ -229,7 +229,7 @@ void MediaControlTextTrackContainerElement::processActiveVTTCue(VTTCue& cue)
 {
     DEBUG_LOG(LOGIDENTIFIER, "adding and positioning cue: \"", cue.text(), "\", start=", cue.startTime(), ", end=", cue.endTime());
 
-    if (RefPtr region = cue.track()->protectedRegions()->getRegionById(cue.regionId())) {
+    if (RefPtr region = protect(protect(cue.track())->regions())->getRegionById(cue.regionId())) {
         // Let region be the WebVTT region whose region identifier
         // matches the text track cue region identifier of cue.
         Ref regionNode = region->getDisplayTree();
@@ -252,14 +252,15 @@ void MediaControlTextTrackContainerElement::processActiveVTTCue(VTTCue& cue)
 
 void MediaControlTextTrackContainerElement::updateActiveCuesFontSize()
 {
-    if (!document().page())
+    RefPtr page = document().page();
+    if (!page)
         return;
 
     RefPtr mediaElement = m_mediaElement.get();
     if (!mediaElement)
         return;
 
-    float fontScale = protect(document().page()->group())->ensureProtectedCaptionPreferences()->captionFontSizeScaleAndImportance(m_fontSizeIsImportant);
+    float fontScale = protect(protect(page->group())->ensureCaptionPreferences())->captionFontSizeScaleAndImportance(m_fontSizeIsImportant);
 
     // Caption fonts are defined as |size vh| units, so there's no need to
     // scale by display size. Since |vh| is a decimal percentage, multiply
@@ -269,7 +270,8 @@ void MediaControlTextTrackContainerElement::updateActiveCuesFontSize()
 
 void MediaControlTextTrackContainerElement::updateTextStrokeStyle()
 {
-    if (!document().page())
+    RefPtr page = document().page();
+    if (!page)
         return;
 
     RefPtr mediaElement = m_mediaElement.get();
@@ -295,7 +297,7 @@ void MediaControlTextTrackContainerElement::updateTextStrokeStyle()
     bool important;
 
     // FIXME: find a way to set this property in the stylesheet like the other user style preferences, see <https://bugs.webkit.org/show_bug.cgi?id=169874>.
-    if (protect(document().page()->group())->ensureProtectedCaptionPreferences()->captionStrokeWidthForFont(m_fontSize, language, strokeWidth, important))
+    if (protect(protect(page->group())->ensureCaptionPreferences())->captionStrokeWidthForFont(m_fontSize, language, strokeWidth, important))
         setInlineStyleProperty(CSSPropertyStrokeWidth, strokeWidth, CSSUnitType::CSS_PX, important ? IsImportant::Yes : IsImportant::No);
 }
 
@@ -387,7 +389,7 @@ void MediaControlTextTrackContainerElement::showCaptionDisplaySettingsPreview()
     // currentMediaTime from updateActiveTextTrackCues(). But since the preview
     // cue is not a real cue with a real TextTrack, it won't be updated by the
     // HTMLMediaElement. Do so here.
-    ensurePreviewCue().updateDisplayTree(MediaTime::zeroTime());
+    protect(ensurePreviewCue())->updateDisplayTree(MediaTime::zeroTime());
 
     m_shouldShowCaptionPreviewCue = true;
     updateDisplay();
@@ -434,7 +436,7 @@ void MediaControlTextTrackContainerElement::captionPreferencesChanged()
 {
     if (RefPtr page = document().page()) {
         if (RefPtr previewCue = m_previewCue) {
-            previewCue->setText(protect(page->group())->ensureProtectedCaptionPreferences()->captionPreviewTitle());
+            previewCue->setText(protect(protect(page->group())->ensureCaptionPreferences())->captionPreviewTitle());
             previewCue->updateDisplayTree(MediaTime::zeroTime());
         }
     }
@@ -459,7 +461,7 @@ void MediaControlTextTrackContainerElement::updateSizes(ForceUpdate force)
     updateActiveCuesFontSize();
     updateTextStrokeStyle();
     for (auto& activeCue : currentlyActiveCues())
-        activeCue.data()->recalculateStyles();
+        protect(activeCue.data())->recalculateStyles();
 
     protect(document->eventLoop())->queueTask(TaskSource::MediaElement, [weakThis = WeakPtr { *this }] () {
         if (weakThis)
@@ -548,12 +550,12 @@ CueList MediaControlTextTrackContainerElement::currentlyActiveCues() const
 VTTCue& MediaControlTextTrackContainerElement::ensurePreviewCue() const
 {
     if (!m_previewTrack) {
-        m_previewTrack = TextTrack::create(nullptr, "Preview Track"_s, emptyAtom(), emptyAtom(), emptyAtom());
+        lazyInitialize(m_previewTrack, TextTrack::create(nullptr, "Preview Track"_s, emptyAtom(), emptyAtom(), emptyAtom()));
         m_previewTrack->setMode(TextTrack::Mode::Showing);
     }
 
     if (!m_previewCue) {
-        m_previewCue = VTTCue::create(protect(document()), 0, 0, { });
+        lazyInitialize(m_previewCue, VTTCue::create(protect(document()), 0, 0, { }));
         m_previewCue->setSnapToLines(false);
         m_previewCue->setLine(25.);
         m_previewCue->setStartTime(MediaTime::zeroTime());
@@ -561,7 +563,7 @@ VTTCue& MediaControlTextTrackContainerElement::ensurePreviewCue() const
         m_previewCue->setIsActive(true);
 
         if (RefPtr page = document().page())
-            m_previewCue->setText(protect(page->group())->ensureProtectedCaptionPreferences()->captionPreviewTitle());
+            m_previewCue->setText(protect(protect(page->group())->ensureCaptionPreferences())->captionPreviewTitle());
 
         m_previewTrack->addCue(*m_previewCue);
     }

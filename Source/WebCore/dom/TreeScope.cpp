@@ -255,7 +255,7 @@ Ref<Node> TreeScope::retargetToScope(Node& node) const
     return nodeInCommonAncestorTreeScope ? *nodeInCommonAncestorTreeScope : node;
 }
 
-Node* TreeScope::ancestorNodeInThisScope(SUPPRESS_UNCHECKED_ARG Node* node) const
+Node* TreeScope::ancestorNodeInThisScope(Node* node) const
 {
     for (; node; node = node->shadowHost()) {
         if (&node->treeScope() == this)
@@ -266,7 +266,7 @@ Node* TreeScope::ancestorNodeInThisScope(SUPPRESS_UNCHECKED_ARG Node* node) cons
     return nullptr;
 }
 
-Element* TreeScope::ancestorElementInThisScope(SUPPRESS_UNCHECKED_ARG Element* element) const
+Element* TreeScope::ancestorElementInThisScope(Element* element) const
 {
     for (; element; element = element->shadowHost()) {
         if (&element->treeScope() == this)
@@ -277,24 +277,28 @@ Element* TreeScope::ancestorElementInThisScope(SUPPRESS_UNCHECKED_ARG Element* e
     return nullptr;
 }
 
-void TreeScope::addImageMap(HTMLMapElement& imageMap)
+void TreeScope::addImageMap(HTMLMapElement& imageMap, const AtomString& name, const AtomString& id)
 {
-    auto name = imageMap.getName();
-    if (name.isNull())
+    if (name.isNull() && id.isNull())
         return;
     if (!m_imageMapsByName)
         m_imageMapsByName = makeUnique<TreeScopeOrderedMap>();
-    m_imageMapsByName->add(name, imageMap, *this);
+
+    if (!name.isNull())
+        m_imageMapsByName->add(name, imageMap, *this);
+    if (!id.isNull() && id != name)
+        m_imageMapsByName->add(id, imageMap, *this);
 }
 
-void TreeScope::removeImageMap(HTMLMapElement& imageMap)
+void TreeScope::removeImageMap(HTMLMapElement& imageMap, const AtomString& name, const AtomString& id)
 {
     if (!m_imageMapsByName)
         return;
-    auto name = imageMap.getName();
-    if (name.isNull())
-        return;
-    m_imageMapsByName->remove(name, imageMap);
+
+    if (!name.isNull())
+        m_imageMapsByName->remove(name, imageMap);
+    if (!id.isNull() && id != name)
+        m_imageMapsByName->remove(id, imageMap);
 }
 
 RefPtr<HTMLMapElement> TreeScope::getImageMap(const AtomString& name) const
@@ -409,7 +413,7 @@ RefPtr<Node> TreeScope::nodeFromPoint(const LayoutPoint& clientPoint, LayoutPoin
 
 RefPtr<Element> TreeScope::elementFromPoint(double clientX, double clientY, HitTestSource source)
 {
-    if (!protect(documentScope())->hasLivingRenderTree())
+    if (!documentScope().hasLivingRenderTree())
         return nullptr;
 
     auto node = nodeFromPoint(LayoutPoint { clientX, clientY }, nullptr, source);
@@ -530,13 +534,13 @@ static Element* NODELETE focusedFrameOwnerElement(Frame* focusedFrame, LocalFram
 
 Element* TreeScope::focusedElementInScope()
 {
-    Ref document = documentScope();
-    RefPtr element = document->focusedElement();
+    auto& document = documentScope();
+    auto* element = document.focusedElement();
 
-    if (!element && document->page())
-        element = focusedFrameOwnerElement(document->page()->focusController().focusedFrame(), document->frame());
+    if (!element && document.page())
+        element = focusedFrameOwnerElement(document.page()->focusController().focusedFrame(), document.frame());
 
-    return ancestorElementInThisScope(element.get());
+    return ancestorElementInThisScope(element);
 }
 
 #if ENABLE(POINTER_LOCK)
@@ -550,12 +554,12 @@ Element* TreeScope::pointerLockElement() const
     RefPtr element = page->pointerLockController().element();
     if (!element || &element->document() != document.ptr())
         return nullptr;
-    return ancestorElementInThisScope(element.get());
+    return ancestorElementInThisScope(element);
 }
 
 #endif
 
-static ALWAYS_INLINE Node* host(TreeScope& treeScope)
+static ALWAYS_INLINE Node* NODELETE host(TreeScope& treeScope)
 {
     if (auto* shadowRoot = dynamicDowncast<ShadowRoot>(treeScope.rootNode()))
         return shadowRoot->host();

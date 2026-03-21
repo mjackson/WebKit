@@ -734,6 +734,11 @@ framework module WebKit_Private [system] {
     export *
   }
 
+  explicit module WKNavigationPrivateForTesting {
+    header "WKNavigationPrivateForTesting.h"
+    export *
+  }
+
   explicit module WKNavigationResponsePrivate {
     header "WKNavigationResponsePrivate.h"
     export *

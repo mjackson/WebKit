@@ -1,0 +1,3 @@
+
+FAIL 'attr(data-foo type(<length>))' as a computed value should serialize as '10px'. assert_equals: 'attr(data-foo type(<length>))' and '10px' should serialize the same in computed values. expected "10px" but got "784px"
+

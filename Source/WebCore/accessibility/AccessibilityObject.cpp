@@ -38,7 +38,6 @@
 #include "AXObjectCacheInlines.h"
 #include "AXObjectRareData.h"
 #include "AXRemoteFrame.h"
-#include "AXSearchManager.h"
 #include "AXTextMarker.h"
 #include "AXUtilities.h"
 #include "AccessibilityMockObject.h"
@@ -564,6 +563,40 @@ FloatRect AccessibilityObject::convertFrameToSpace(const FloatRect& frameRect, A
     RefPtr parentScrollView = parentAccessibilityScrollView ? parentAccessibilityScrollView->scrollView() : nullptr;
 
     auto snappedFrameRect = snappedIntRect(IntRect(frameRect));
+
+#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+    if (conversionSpace == AccessibilityConversionSpace::Screen) {
+        // For screen space, use contentsToView() to adjust for scroll *within* this frame,
+        // then apply the frame's screen transform and position (which account for iframe offsets and viewport scale).
+        if (parentScrollView)
+            snappedFrameRect = parentScrollView->contentsToView(snappedFrameRect);
+
+        RefPtr rootScrollView = dynamicDowncast<AccessibilityScrollView>(ancestorAccessibilityScrollView(true /* includeSelf */));
+        if (!rootScrollView)
+            return snappedFrameRect;
+
+        auto geometry = rootScrollView->frameGeometry();
+
+        auto scaledRect = geometry.screenTransform.mapRect(FloatRect(snappedFrameRect));
+
+        // macOS uses bottom-left origin, non-macOS assumes top-left origin.
+        FloatPoint position = {
+            geometry.screenPosition.x() + scaledRect.x(),
+#if PLATFORM(MAC)
+            geometry.screenPosition.y() - scaledRect.maxY()
+#else
+            geometry.screenPosition.y() + scaledRect.y()
+#endif
+        };
+        return { position, scaledRect.size() };
+    }
+
+    // FIXME: ENABLE(ACCESSIBILITY_LOCAL_FRAME) doesn't support page-relative frame, but this is used for old tests. Remove this once all tests are updated.
+    if (parentScrollView)
+        snappedFrameRect = parentScrollView->contentsToRootView(snappedFrameRect);
+#else
+    // Legacy behavior: contentsToRootView walks up through all frames for local frames.
+    // For remote frames, the caller (e.g., relativeFrame()) adds remoteFrameOffset().
     if (parentScrollView)
         snappedFrameRect = parentScrollView->contentsToRootView(snappedFrameRect);
 
@@ -579,6 +612,7 @@ FloatRect AccessibilityObject::convertFrameToSpace(const FloatRect& frameRect, A
 
         snappedFrameRect = page->chrome().rootViewToAccessibilityScreen(snappedFrameRect);
     }
+#endif // ENABLE(ACCESSIBILITY_LOCAL_FRAME)
 
     return snappedFrameRect;
 }
@@ -586,7 +620,9 @@ FloatRect AccessibilityObject::convertFrameToSpace(const FloatRect& frameRect, A
 FloatRect AccessibilityObject::relativeFrame() const
 {
     auto rect = elementRect();
+#if !ENABLE(ACCESSIBILITY_LOCAL_FRAME)
     rect.moveBy(remoteFrameOffset());
+#endif
     return convertFrameToSpace(rect, AccessibilityConversionSpace::Page);
 }
 
@@ -744,13 +780,12 @@ void AccessibilityObject::resetChildrenIndexInParent() const
     }
 }
 
-AXCoreObject::AccessibilityChildrenVector AccessibilityObject::findMatchingObjects(AccessibilitySearchCriteria&& criteria)
+AXCoreObject::AccessibilityChildrenVector AccessibilityObject::findMatchingObjectsWithin(AccessibilitySearchCriteria&& criteria)
 {
     if (CheckedPtr cache = axObjectCache())
         cache->startCachingComputedObjectAttributesUntilTreeMutates();
 
-    criteria.anchorObject = this;
-    return AXSearchManager().findMatchingObjects(WTF::move(criteria));
+    return AXCoreObject::findMatchingObjectsWithin(WTF::move(criteria));
 }
 
 // Returns the range that is fewer positions away from the reference range.
@@ -831,8 +866,8 @@ std::optional<SimpleRange> AccessibilityObject::simpleRange() const
 
     // |this| is a stitching of multiple objects, so we need to include all of their contents in the range.
     CheckedPtr cache = axObjectCache();
-    if (RefPtr endNode = cache ? lastNode(stitchGroup->members(), *cache) : nullptr) {
-        if (std::optional range = makeSimpleRange(positionBeforeNode(node.get()), positionAfterNode(endNode.get())))
+    if (RefPtr endNode = cache ? lastNonAriaHiddenNode(stitchGroup->members(), *cache) : nullptr) {
+        if (std::optional range = makeSimpleRange(positionBeforeNode(*node), positionAfterNode(*endNode)))
             return range;
     }
     return AXObjectCache::rangeForNodeContents(*node);
@@ -886,14 +921,14 @@ std::optional<BoundaryPoint> AccessibilityObject::lastBoundaryPointContainedInRe
     return lastBoundaryPointContainedInRect(boundaryPoints, startBoundary, rect, midIndex + 1, rightIndex, isFlippedWritingMode);
 }
 
-static IntPoint textStartPoint(const IntRect& rect, bool isFlippedWritingMode)
+static IntPoint NODELETE textStartPoint(const IntRect& rect, bool isFlippedWritingMode)
 {
     if (!isFlippedWritingMode)
         return rect.minXMinYCorner();
     return rect.maxXMinYCorner();
 }
 
-static IntPoint textEndPoint(const IntRect& rect, bool isFlippedWritingMode)
+static IntPoint NODELETE textEndPoint(const IntRect& rect, bool isFlippedWritingMode)
 {
     if (!isFlippedWritingMode)
         return rect.maxXMaxYCorner();
@@ -1142,8 +1177,8 @@ static std::optional<TextOperationRange> textOperationRangeFromRange(const Simpl
     if (!rootEditableElement)
         return std::nullopt;
 
-    auto scopeStart = firstPositionInNode(rootEditableElement.get());
-    auto scopeEnd = lastPositionInNode(rootEditableElement.get());
+    auto scopeStart = firstPositionInNode(*rootEditableElement);
+    auto scopeEnd = lastPositionInNode(*rootEditableElement);
 
     std::optional<SimpleRange> scope = makeSimpleRange(scopeStart, scopeEnd);
     if (!scope)
@@ -1577,7 +1612,7 @@ VisiblePosition AccessibilityObject::visiblePositionForPoint(const IntPoint& poi
         return VisiblePosition();
 
 #if PLATFORM(MAC)
-    auto* frameView = &renderView->frameView();
+    CheckedRef frameView = renderView->frameView();
 #endif
 
     RefPtr<Node> innerNode;
@@ -1891,7 +1926,7 @@ ModelPlayerAccessibilityChildren AccessibilityObject::modelElementChildren()
 #endif
 
 // Finds a RenderListItem parent given a node.
-static RenderListItem* renderListItemContainer(Node* node)
+static RenderListItem* NODELETE renderListItemContainer(Node* node)
 {
     for (; node; node = node->parentNode()) {
         if (auto* listItem = dynamicDowncast<RenderListItem>(node->renderer()))
@@ -1912,7 +1947,7 @@ static StringView lineStartListMarkerText(const RenderListItem* listItem, const 
         return { };
 
     // Only include the list marker if the range includes the line start (where the marker would be), and is in the same line as the marker.
-    if (!isStartOfLine(startVisiblePosition) || !inSameLine(startVisiblePosition, firstPositionInNode(listItem->element())))
+    if (!isStartOfLine(startVisiblePosition) || !inSameLine(startVisiblePosition, firstPositionInNode(*listItem->element())))
         return { };
     return *markerText;
 }
@@ -1961,7 +1996,7 @@ bool AccessibilityObject::shouldCacheStringValue() const
     // Only consider RenderTexts for now.
 
     if (renderer->isAnonymous()) {
-        CheckedPtr parent = renderer ? renderer->parent() : nullptr;
+        auto* parent = renderer ? renderer->parent() : nullptr;
         if (is<PseudoElement>(parent ? parent->element() : nullptr)) {
             // RenderTexts descending from pseudo-elements (e.g. ::before) can have alt text that
             // we don't currently handle via text runs, and thus we must cache the string value.
@@ -2519,12 +2554,12 @@ AccessibilityCurrentState AccessibilityObject::currentState() const
 
 bool AccessibilityObject::isModalDescendant(Node& modalNode) const
 {
-    RefPtr node = this->node();
+    auto* node = this->node();
     // ARIA 1.1 aria-modal, indicates whether an element is modal when displayed.
     // For the decendants of the modal object, they should also be considered as aria-modal=true.
     // Determine descendancy by iterating the composed tree which inherently accounts for shadow roots and slots.
-    for (RefPtr ancestor = node.get(); ancestor; ancestor = ancestor->parentInComposedTree()) {
-        if (ancestor.get() == &modalNode)
+    for (auto* ancestor = node; ancestor; ancestor = ancestor->parentInComposedTree()) {
+        if (ancestor == &modalNode)
             return true;
     }
     return false;
@@ -2912,20 +2947,12 @@ String AccessibilityObject::computedRoleString() const
         return reverseAriaRoleMap().get(std::to_underlying(AccessibilityRole::Presentational));
 
     // We do compute a role string for block elements with author-provided roles.
-    if (ariaRoleAttribute() == AccessibilityRole::TextGroup
-        || role == AccessibilityRole::Footnote
-        || role == AccessibilityRole::GraphicsObject)
+    if (ariaRoleAttribute() == AccessibilityRole::TextGroup || role == AccessibilityRole::Footnote)
         return reverseAriaRoleMap().get(std::to_underlying(AccessibilityRole::Group));
 
     // We do not compute a role string for generic block elements with user-agent assigned roles.
     if (role == AccessibilityRole::TextGroup)
         return emptyString();
-
-    if (role == AccessibilityRole::GraphicsDocument)
-        return reverseAriaRoleMap().get(std::to_underlying(AccessibilityRole::Document));
-
-    if (role == AccessibilityRole::GraphicsSymbol)
-        return reverseAriaRoleMap().get(std::to_underlying(AccessibilityRole::Image));
 
     if (role == AccessibilityRole::HorizontalRule)
         return reverseAriaRoleMap().get(std::to_underlying(AccessibilityRole::Splitter));
@@ -3926,18 +3953,6 @@ bool AccessibilityObject::isARIAHidden() const
     return element && equalLettersIgnoringASCIICase(element->attributeWithDefaultARIA(aria_hiddenAttr), "true"_s);
 }
 
-// ARIA component of hidden definition.
-// https://www.w3.org/TR/wai-aria/#dfn-hidden
-bool AccessibilityObject::isAXHidden() const
-{
-    if (isFocused())
-        return false;
-
-    return Accessibility::findAncestor<AccessibilityObject>(*this, true, [] (const auto& object) {
-        return object.isARIAHidden();
-    }) != nullptr;
-}
-
 bool AccessibilityObject::isShowingValidationMessage() const
 {
     if (RefPtr element = this->element()) {
@@ -4068,6 +4083,19 @@ bool AccessibilityObject::isIgnored() const
     return ignored;
 }
 
+std::optional<bool> AccessibilityObject::cachedIsIgnored() const
+{
+    switch (m_lastKnownIsIgnoredValue) {
+    case AccessibilityObjectInclusion::IgnoreObject:
+        return true;
+    case AccessibilityObjectInclusion::IncludeObject:
+        return false;
+    case AccessibilityObjectInclusion::DefaultBehavior:
+        return std::nullopt;
+    }
+    return std::nullopt;
+}
+
 bool AccessibilityObject::isIgnoredWithoutCache(AXObjectCache* cache) const
 {
     // If we are in the midst of retrieving the current modal node, we only need to consider whether the object
@@ -4128,13 +4156,13 @@ Vector<Ref<Element>> AccessibilityObject::elementsFromAttribute(const QualifiedN
 #if PLATFORM(COCOA)
 bool AccessibilityObject::preventKeyboardDOMEventDispatch() const
 {
-    RefPtr frame = this->frame();
+    auto* frame = this->frame();
     return frame && frame->settings().preventKeyboardDOMEventDispatch();
 }
 
 void AccessibilityObject::setPreventKeyboardDOMEventDispatch(bool on)
 {
-    RefPtr frame = this->frame();
+    auto* frame = this->frame();
     if (!frame)
         return;
     frame->settings().setPreventKeyboardDOMEventDispatch(on);
@@ -4195,6 +4223,7 @@ AXCoreObject::AccessibilityChildrenVector AccessibilityObject::relatedObjects(AX
 bool AccessibilityObject::shouldFocusActiveDescendant() const
 {
     switch (ariaRoleAttribute()) {
+    case AccessibilityRole::ComboBox:
     case AccessibilityRole::Group:
     case AccessibilityRole::ListBox:
     case AccessibilityRole::Menu:

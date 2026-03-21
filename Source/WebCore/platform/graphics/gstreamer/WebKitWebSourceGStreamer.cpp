@@ -400,7 +400,7 @@ static void restartLoaderIfNeeded(WebKitWebSrc* src, DataMutexLocker<WebKitWebSr
         GST_TRACE_OBJECT(src, "download cannot be stopped/restarted");
         return;
     }
-    GST_TRACE_OBJECT(src, "read position %" G_GUINT64_FORMAT ", state %s", members->readPosition, gst_element_state_get_name(GST_STATE(src)));
+    GST_TRACE_OBJECT(src, "read position %" G_GUINT64_FORMAT ", state %s", members->readPosition, gst_state_get_name(GST_STATE(src)));
     if (!members->readPosition || members->readPosition == *members->size || GST_STATE(src) < GST_STATE_PAUSED) {
         GST_TRACE_OBJECT(src, "can't restart download");
         return;

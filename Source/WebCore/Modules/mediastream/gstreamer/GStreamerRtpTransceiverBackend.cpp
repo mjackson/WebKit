@@ -26,7 +26,7 @@
 #include "GStreamerRtpReceiverBackend.h"
 #include "GStreamerRtpSenderBackend.h"
 #include "GStreamerWebRTCUtils.h"
-#include "RTCRtpCodecCapability.h"
+#include "RTCRtpCodec.h"
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/glib/GMallocString.h>
 #include <wtf/glib/GUniquePtr.h>
@@ -62,9 +62,9 @@ GStreamerRtpTransceiverBackend::GStreamerRtpTransceiverBackend(GRefPtr<GstWebRTC
     g_object_set(m_rtcTransceiver.get(), "do-nack", TRUE, nullptr);
 }
 
-std::unique_ptr<GStreamerRtpReceiverBackend> GStreamerRtpTransceiverBackend::createReceiverBackend()
+UniqueRef<GStreamerRtpReceiverBackend> GStreamerRtpTransceiverBackend::createReceiverBackend()
 {
-    return WTF::makeUnique<GStreamerRtpReceiverBackend>(GRefPtr(m_rtcTransceiver));
+    return WTF::makeUniqueRef<GStreamerRtpReceiverBackend>(GRefPtr(m_rtcTransceiver));
 }
 
 Ref<GStreamerRtpSenderBackend> GStreamerRtpTransceiverBackend::createSenderBackend(WeakPtr<GStreamerPeerConnectionBackend>&& backend, GStreamerRtpSenderBackend::Source&& source, GUniquePtr<GstStructure>&& initData)
@@ -120,10 +120,10 @@ bool GStreamerRtpTransceiverBackend::stopped() const
     return m_isStopped;
 }
 
-[[nodiscard]] static inline ExceptionOr<GRefPtr<GstCaps>> toRtpCodecCapability(const RTCRtpCodecCapability& codec, int& dynamicPayloadType, const String& msid)
+[[nodiscard]] static inline ExceptionOr<GRefPtr<GstCaps>> toRtpCodecCapability(const RTCRtpCodec& codec, int& dynamicPayloadType, const String& msid)
 {
     if (!codec.mimeType.startsWith("video/"_s) && !codec.mimeType.startsWith("audio/"_s))
-        return Exception { ExceptionCode::InvalidModificationError, "RTCRtpCodecCapability bad mimeType"_s };
+        return Exception { ExceptionCode::InvalidModificationError, "RTCRtpCodec bad mimeType"_s };
 
     auto components = codec.mimeType.split('/');
     const auto mediaType = components[0];
@@ -156,7 +156,7 @@ bool GStreamerRtpTransceiverBackend::stopped() const
     return caps;
 }
 
-ExceptionOr<void> GStreamerRtpTransceiverBackend::setCodecPreferences(const Vector<RTCRtpCodecCapability>& codecs)
+ExceptionOr<void> GStreamerRtpTransceiverBackend::setCodecPreferences(const Vector<RTCRtpCodec>& codecs)
 {
     GRefPtr<GstCaps> currentCaps;
     g_object_get(m_rtcTransceiver.get(), "codec-preferences", &currentCaps.outPtr(), nullptr);

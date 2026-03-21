@@ -32,6 +32,7 @@
 #include <ranges>
 #include <wtf/MathExtras.h>
 #include <wtf/PriorityQueue.h>
+#include <wtf/unicode/CharacterNames.h>
 
 namespace WebCore {
 namespace Layout {
@@ -56,19 +57,19 @@ static const float textWrapPrettyMaxShrink = 3;
 // We would like 2 or more items on the last line for text-wrap-style:pretty to avoid orphans.
 static const size_t lastLinePreferredInlineItemCount = 2;
 
-static size_t lastLineBreakingPointOffset()
+static size_t NODELETE lastLineBreakingPointOffset()
 {
     return 2 * lastLinePreferredInlineItemCount + 1;
 }
 
 // Use auto layout if ideal line width is too short relative to the largest inline item.
 // In these situations, text-wrap-pretty does very little of note other than take up time.
-static bool validIdealLineWidth(InlineLayoutUnit maxItemWidth, InlineLayoutUnit idealLineWidth, InlineLayoutUnit maxTextIndent)
+static bool NODELETE validIdealLineWidth(InlineLayoutUnit maxItemWidth, InlineLayoutUnit idealLineWidth, InlineLayoutUnit maxTextIndent)
 {
     return idealLineWidth >= maxItemWidth + maxTextIndent;
 }
 
-static bool validLineWidthPretty(InlineLayoutUnit candidateLineWidth, InlineLayoutUnit idealLineWidth)
+static bool NODELETE validLineWidthPretty(InlineLayoutUnit candidateLineWidth, InlineLayoutUnit idealLineWidth)
 {
     auto difference = candidateLineWidth - idealLineWidth;
     if (difference > 0)
@@ -78,19 +79,19 @@ static bool validLineWidthPretty(InlineLayoutUnit candidateLineWidth, InlineLayo
 
 // Full implementation of the raggedness function defined in:
 // http://www.eprg.org/G53DOC/pdfs/knuth-plass-breaking.pdf
-static float computeRaggedness(InlineLayoutUnit candidateLineWidth, InlineLayoutUnit idealLineWidth)
+static float NODELETE computeRaggedness(InlineLayoutUnit candidateLineWidth, InlineLayoutUnit idealLineWidth)
 {
     auto difference = candidateLineWidth - idealLineWidth;
     auto intermediate = difference / (difference > 0 ? textWrapPrettyStretchability : textWrapPrettyShrinkability);
     return 100 * abs(pow(intermediate, 3));
 };
 
-static float computeCostBalance(InlineLayoutUnit candidateLineWidth, InlineLayoutUnit idealLineWidth)
+static float NODELETE computeCostBalance(InlineLayoutUnit candidateLineWidth, InlineLayoutUnit idealLineWidth)
 {
     return computeRaggedness(candidateLineWidth, idealLineWidth);
 };
 
-static float computeCostPretty(InlineLayoutUnit candidateLineWidth, InlineLayoutUnit idealLineWidth, size_t breakIndex, size_t numberOfBreakOpportunities, InlineLayoutUnit)
+static float NODELETE computeCostPretty(InlineLayoutUnit candidateLineWidth, InlineLayoutUnit idealLineWidth, size_t breakIndex, size_t numberOfBreakOpportunities, InlineLayoutUnit)
 {
     // FIXME: add support for river minimization.
     // Force max/minimum line width bounds if there are more then lastLinePreferredInlineItemCount items to be laid out after the candidate line.
@@ -106,7 +107,7 @@ static LayoutUnit computeLineWidthFromSlidingWidth(InlineLayoutUnit indentWidth,
     return LayoutUnit::fromFloatCeil(indentWidth + slidingWidth.width() + LayoutUnit::epsilon());
 }
 
-static bool containsTrailingSoftHyphen(const InlineItem& inlineItem)
+static bool NODELETE containsTrailingSoftHyphen(const InlineItem& inlineItem)
 {
     if (inlineItem.style().hyphens() == Hyphens::None)
         return false;
@@ -116,19 +117,19 @@ static bool containsTrailingSoftHyphen(const InlineItem& inlineItem)
     return textItem->hasTrailingSoftHyphen();
 }
 
-static bool containsPreservedTab(const InlineItem& inlineItem)
+static bool NODELETE containsPreservedTab(const InlineItem& inlineItem)
 {
     auto* textItem = dynamicDowncast<InlineTextItem>(inlineItem);
     if (!textItem)
         return false;
     if (!textItem->isWhitespace())
         return false;
-    CheckedRef textBox = textItem->inlineTextBox();
+    auto& textBox = textItem->inlineTextBox();
     if (!TextUtil::shouldPreserveSpacesAndTabs(textBox))
         return false;
     auto start = textItem->start();
     auto length = textItem->length();
-    const auto& textContent = textBox->content();
+    const auto& textContent = textBox.content();
     for (size_t index = start; index < start + length; index++) {
         if (textContent[index] == tabCharacter)
             return true;
@@ -136,10 +137,10 @@ static bool containsPreservedTab(const InlineItem& inlineItem)
     return false;
 }
 
-static bool cannotConstrainInlineItem(const InlineItem& inlineItem)
+static bool NODELETE cannotConstrainInlineItem(const InlineItem& inlineItem)
 {
-    // Opaque items are ignored by inline layout and do not affect constraint calculations.
-    if (inlineItem.isOpaque())
+    // Out-of-flow items are ignored by inline layout and do not affect constraint calculations.
+    if (inlineItem.isOutOfFlow())
         return false;
     if (!inlineItem.isText() && !inlineItem.isSoftLineBreak() && !inlineItem.layoutBox().isInlineLevelBox())
         return true;
@@ -177,8 +178,8 @@ void InlineContentConstrainer::updateCachedWidths()
         auto isWordSeparator = false;
         if (auto* textItem = dynamicDowncast<InlineTextItem>(item))
             isWordSeparator = textItem->isWordSeparator();
-        // Opaque items are ignored by inline layout. Skip over these items.
-        if (!item.isOpaque()) {
+        // Out-of-flow items are ignored by inline layout. Skip over these items.
+        if (!item.isOutOfFlow()) {
             m_inlineItemWidths[i] = m_inlineFormattingContext.formattingUtils().inlineItemWidth(item, 0, false) +  (isWordSeparator ? item.style().usedWordSpacing() : 0.0f);
             m_inlineItemWidthsMax = std::max(m_inlineItemWidthsMax, m_inlineItemWidths[i]);
             m_firstLineStyleInlineItemWidths[i] = m_inlineFormattingContext.formattingUtils().inlineItemWidth(item, 0, true) + (isWordSeparator ? item.firstLineStyle().usedWordSpacing() : 0.0f);
@@ -701,8 +702,8 @@ std::optional<Vector<LayoutUnit>> InlineContentConstrainer::prettifyRange(Inline
 
 InlineLayoutUnit InlineContentConstrainer::inlineItemWidth(size_t inlineItemIndex, bool useFirstLineStyle) const
 {
-    // Opaque items are ignored by inline layout. Skip over this item by setting its width to 0.
-    if (m_inlineItemList[inlineItemIndex].isOpaque())
+    // Out-of-flow items are ignored by inline layout. Skip over this item by setting its width to 0.
+    if (m_inlineItemList[inlineItemIndex].isOutOfFlow())
         return { };
     if (m_hasValidInlineItemWidthCache)
         return useFirstLineStyle ? m_firstLineStyleInlineItemWidths[inlineItemIndex] : m_inlineItemWidths[inlineItemIndex];

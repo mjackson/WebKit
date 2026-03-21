@@ -111,13 +111,13 @@ public:
     virtual ~Blob();
 
     URL url() const { return m_internalURL; }
-    const String& type() const { return m_type; }
+    const String& type() const LIFETIME_BOUND { return m_type; }
 
     WEBCORE_EXPORT unsigned long long size() const;
     virtual bool isFile() const { return false; }
 
     // The checks described in the File API spec.
-    static bool isValidContentType(const String&);
+    static bool NODELETE isValidContentType(const String&);
     // The normalization procedure described in the File API spec.
     static String normalizedContentType(const String&);
 #if ASSERT_ENABLED
@@ -172,10 +172,10 @@ private:
     // into an HTML or for FileRead'ing, public blob URLs must be used for those purposes.
     URL m_internalURL;
 
-    HashSet<RefPtr<BlobLoader>> m_blobLoaders;
+    HashSet<Ref<BlobLoader>> m_blobLoaders;
 };
 
-WebCoreOpaqueRoot root(Blob*);
+WebCoreOpaqueRoot NODELETE root(Blob*);
 
 } // namespace WebCore
 

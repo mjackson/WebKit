@@ -28,7 +28,6 @@
 namespace WebCore {
 class BitmapTexture;
 class CoordinatedTileBuffer;
-class TextureMapper;
 
 class CoordinatedBackingStoreTile {
 public:
@@ -37,7 +36,7 @@ public:
 
     BitmapTexture& texture() const { ASSERT(canBePainted()); return *m_texture; }
     float scale() const { return m_scale; }
-    const FloatRect& rect() const { return m_rect; }
+    const FloatRect& rect() const LIFETIME_BOUND { return m_rect; }
 
     struct Update {
         Ref<CoordinatedTileBuffer> buffer;
@@ -47,7 +46,7 @@ public:
     };
     void addUpdate(Update&&);
 
-    void processPendingUpdates(TextureMapper&);
+    void processPendingUpdates();
 
     bool canBePainted() const { return !!m_texture; }
 

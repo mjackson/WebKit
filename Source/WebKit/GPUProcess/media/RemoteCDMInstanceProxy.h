@@ -61,7 +61,7 @@ public:
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
 
-    const RemoteCDMInstanceConfiguration& configuration() const { return m_configuration.get(); }
+    const RemoteCDMInstanceConfiguration& configuration() const LIFETIME_BOUND { return m_configuration.get(); }
     WebCore::CDMInstance& instance() { return m_instance; }
     std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const;
 

@@ -44,7 +44,7 @@
 #import <wtf/HashTable.h>
 #import <wtf/KeyValuePair.h>
 #import <wtf/Ref.h>
-#import <wtf/RetainReleaseSwift.h>
+#import <wtf/SwiftBridging.h>
 #import <wtf/TZoneMalloc.h>
 #import <wtf/ThreadSafeWeakPtr.h>
 #import <wtf/Vector.h>
@@ -133,22 +133,22 @@ public:
     Ref<Texture> createTexture(const WGPUTextureDescriptor&);
     void destroy();
     size_t enumerateFeatures(WGPUFeatureName* features);
-    bool getLimits(WGPUSupportedLimits&);
-    Queue& getQueue() const { return m_defaultQueue; }
-    Ref<Queue> protectedQueue() const { return m_defaultQueue; }
+    bool NODELETE getLimits(WGPUSupportedLimits&);
+    Queue& getQueueReference() const { return m_defaultQueue; }
+    Ref<Queue> getQueue() const { return m_defaultQueue; }
     bool hasFeature(WGPUFeatureName) const;
     bool popErrorScope(CompletionHandler<void(WGPUErrorType, String&&)>&& callback);
     void pushErrorScope(WGPUErrorFilter);
     void setDeviceLostCallback(Function<void(WGPUDeviceLostReason, String&&)>&&);
     void setUncapturedErrorCallback(Function<void(WGPUErrorType, String&&)>&&);
-    void setLabel(String&&);
+    void NODELETE setLabel(String&&);
 
     bool isValid() const { return m_device; }
     bool isLost() const { return m_isLost; }
-    const WGPULimits& limits() const { return m_capabilities.limits; }
+    const WGPULimits& limits() const LIFETIME_BOUND { return m_capabilities.limits; }
     const WGPULimits limitsCopy() const { return m_capabilities.limits; }
-    const Vector<WGPUFeatureName>& features() const { return m_capabilities.features; }
-    const HardwareCapabilities::BaseCapabilities& baseCapabilities() const { return m_capabilities.baseCapabilities; }
+    const Vector<WGPUFeatureName>& features() const LIFETIME_BOUND { return m_capabilities.features; }
+    const HardwareCapabilities::BaseCapabilities& baseCapabilities() const LIFETIME_BOUND { return m_capabilities.baseCapabilities; }
 
     id<MTLDevice> _Nullable device() const { return m_device; }
     void generateAValidationError(NSString * message);
@@ -173,19 +173,19 @@ public:
     uint32_t maxBuffersForFragmentStage() const { return m_capabilities.limits.maxBindGroups; }
 
     uint32_t maxBuffersForComputeStage() const { return m_capabilities.limits.maxBindGroups; }
-    uint32_t vertexBufferIndexForBindGroup(uint32_t groupIndex) const;
+    uint32_t NODELETE vertexBufferIndexForBindGroup(uint32_t groupIndex) const;
 
     id<MTLBuffer> newBufferWithBytes(const void*, size_t, MTLResourceOptions, bool skipMemoryAttribution = false) const;
     id<MTLBuffer> newBufferWithBytesNoCopy(void*, size_t, MTLResourceOptions, bool skipMemoryAttribution = false) const;
     id<MTLTexture> newTextureWithDescriptor(MTLTextureDescriptor *, IOSurfaceRef = nullptr, NSUInteger plane = 0) const;
 
     static bool isStencilOnlyFormat(MTLPixelFormat);
-    bool shouldStopCaptureAfterSubmit();
+    bool NODELETE shouldStopCaptureAfterSubmit();
     id<MTLBuffer> placeholderBuffer() const { return m_placeholderBuffer; }
     uint64_t placeholderBufferUniqueId() const { return m_placeholderBuffer.gpuAddress; }
 
     id<MTLTexture> placeholderTexture(WGPUTextureFormat) const;
-    bool isDestroyed() const;
+    bool NODELETE isDestroyed() const;
     NSString *errorValidatingTextureCreation(const WGPUTextureDescriptor&, const Vector<WGPUTextureFormat>& viewFormats);
     id<MTLBuffer> _Nullable dispatchCallBuffer();
     id<MTLComputePipelineState> _Nullable dispatchCallPipelineState(id<MTLFunction>);
@@ -204,7 +204,7 @@ public:
         return buffer;
     }
     void loseTheDevice(WGPUDeviceLostReason);
-    int bufferIndexForICBContainer() const;
+    int NODELETE bufferIndexForICBContainer() const;
     void setOwnerWithIdentity(id<MTLResource>) const;
     struct ExternalTextureData {
         id<MTLTexture> _Nullable texture0 { nil };
@@ -214,7 +214,7 @@ public:
     };
     ExternalTextureData createExternalTextureFromPixelBuffer(CVPixelBufferRef, WGPUColorSpace) const;
     RefPtr<XRSubImage> getXRViewSubImage(XRProjectionLayer&);
-    RefPtr<XRSubImage> getXRViewSubImage() const;
+    RefPtr<XRSubImage> NODELETE getXRViewSubImage() const;
     id<MTLTexture> _Nullable getXRViewSubImageDepthTexture() const;
     const std::optional<const MachSendRight> webProcessID() const;
 #if CPU(X86_64)
@@ -222,11 +222,11 @@ public:
 #else
     constexpr bool isIntel() const { return false; }
 #endif
-    void pauseErrorReporting(bool pauseReporting);
+    void NODELETE pauseErrorReporting(bool pauseReporting);
     bool enableEncoderTimestamps() const;
     id<MTLCounterSampleBuffer> timestampsBuffer(id<MTLCommandBuffer>, size_t);
     void resolveTimestampsForBuffer(id<MTLCommandBuffer>);
-    id<MTLSharedEvent> resolveTimestampsSharedEvent();
+    id<MTLSharedEvent> _Nonnull resolveTimestampsSharedEvent();
     uint32_t maxVerticesPerDrawCall() const { return m_maxVerticesPerDrawCall; }
     void trackTimestampsBuffer(id<MTLCommandBuffer>, id<MTLCounterSampleBuffer>);
 
@@ -266,7 +266,7 @@ private:
 
     struct ErrorScope;
     ErrorScope* currentErrorScope(WGPUErrorFilter);
-    std::optional<WGPUErrorType> validatePopErrorScope() const;
+    std::optional<WGPUErrorType> NODELETE validatePopErrorScope() const;
     bool validateCreateIOSurfaceBackedTexture(const WGPUTextureDescriptor&, const Vector<WGPUTextureFormat>& viewFormats, IOSurfaceRef backing);
 
     bool validateRenderPipeline(const WGPURenderPipelineDescriptor&);
@@ -349,12 +349,12 @@ private:
 
 inline void refDevice(WebGPU::Device* obj)
 {
-    WTF::ref(obj);
+    obj->ref();
 }
 
 inline void derefDevice(WebGPU::Device* obj)
 {
-    WTF::deref(obj);
+    obj->deref();
 }
 
 IGNORE_CLANG_WARNINGS_END

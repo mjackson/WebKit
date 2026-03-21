@@ -26,6 +26,8 @@
 #include "config.h"
 #include "ChromeClient.h"
 
+#include "AXObjectCache.h"
+#include "AXSearchManager.h"
 #include "BarcodeDetectorInterface.h"
 #include "BarcodeDetectorOptionsInterface.h"
 #include "BarcodeFormatInterface.h"
@@ -133,5 +135,17 @@ void ChromeClient::showCaptionDisplaySettings(HTMLMediaElement&, const ResolvedC
     completionHandler(Exception { ExceptionCode::NotSupportedError, "Caption Display Settings are not supported."_s });
 }
 #endif
+
+#if PLATFORM(MAC)
+void ChromeClient::performAccessibilitySearchInRemoteFrame(FrameIdentifier, const AccessibilitySearchCriteriaIPC&, CompletionHandler<void(Vector<AccessibilityRemoteToken>&&)>&& completionHandler)
+{
+    completionHandler({ });
+}
+
+void ChromeClient::continueAccessibilitySearchFromChildFrame(FrameIdentifier, const AccessibilitySearchCriteriaIPC&, CompletionHandler<void(Vector<AccessibilityRemoteToken>&&)>&& completionHandler)
+{
+    completionHandler({ });
+}
+#endif // PLATFORM(MAC)
 
 } // namespace WebCore

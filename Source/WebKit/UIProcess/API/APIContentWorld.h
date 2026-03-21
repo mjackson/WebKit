@@ -50,7 +50,7 @@ public:
     virtual ~ContentWorld();
 
     WebKit::ContentWorldIdentifier identifier() const { return m_identifier; }
-    const WTF::String& name() const { return m_name; }
+    const WTF::String& name() const LIFETIME_BOUND { return m_name; }
     WebKit::ContentWorldData worldDataForProcess(WebKit::WebProcessProxy&) const;
 
     bool allowAccessToClosedShadowRoots() const { return m_options.contains(WebKit::ContentWorldOption::AllowAccessToClosedShadowRoots); }

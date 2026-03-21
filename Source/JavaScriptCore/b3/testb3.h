@@ -1445,6 +1445,7 @@ void testSShrCompare64(int64_t);
 
 void testInt52RoundTripUnary(int32_t);
 void testInt52RoundTripBinary();
+void testTruncSShrAddUnalignedConstant();
 
 void testMulHigh32();
 void testMulHigh64();
@@ -1499,5 +1500,40 @@ void testFCCmpLessThanAndDouble(double, double, double, double);
 void testFCCmpGreaterEqualOrDouble(double, double, double, double);
 void testFCCmpNaN(double, double, double, double);
 void testFCCmpNegatedAndDouble(double, double, double, double);
+
+// SIMD XOR+rotate pattern matching
+void testVectorXorRotateRight64();
+void testVectorXor3();
+void testVectorDotProductSplatOne();
+
+// SIMD VectorUnzip/Zip/Transpose/Reverse B3 opcodes
+void testVectorUnzipEven();
+void testVectorUnzipOdd();
+void testVectorZipLower();
+void testVectorZipHigher();
+void testVectorTransposeEven();
+void testVectorTransposeOdd();
+void testVectorReverse();
+
+// SIMD strength reduction: shift-by-1 → add
+void testVectorShlByOne();
+
+// SIMD vector shift by immediate
+void testVectorShlImmediate();
+void testVectorShrImmediate();
+
+// SIMD shuffle → canonical instruction strength reduction
+void testVectorSwizzleToUnzipEven();
+void testVectorSwizzleBinaryToUnzipOdd();
+void testVectorSwizzleBinaryCanonical();
+void testVectorSwizzleUnaryCanonical();
+void testVectorExtractPair();
+void testVectorSwizzleBinaryToEXT();
+void testVectorSwizzleUnaryToEXT();
+void testVectorCanonicalSameInputFolding();
+void testVectorSwizzleToDupElement();
+void testVectorSwizzleComposition();
+void testVectorSwizzleUnaryComposition();
+void testVectorSwizzleCompositionMultiUse();
 
 #endif // ENABLE(B3_JIT)

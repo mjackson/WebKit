@@ -1,0 +1,4 @@
+AnchorTagWithHREF
+
+FAIL Attribute href is missing after copy paste of anchor tag promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
+

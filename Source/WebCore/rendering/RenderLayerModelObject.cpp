@@ -29,6 +29,7 @@
 #include "BlendingKeyframes.h"
 #include "ContainerNodeInlines.h"
 #include "InspectorInstrumentation.h"
+#include "LocalFrameView.h"
 #include "MotionPath.h"
 #include "ReferencedSVGResources.h"
 #include "RenderDescendantIterator.h"
@@ -202,8 +203,8 @@ void RenderLayerModelObject::styleDidChange(Style::Difference diff, const Render
 
     if (oldStyle && !oldStyle->scrollPaddingEqual(style())) {
         if (isDocumentElementRenderer()) {
-            LocalFrameView& frameView = view().frameView();
-            frameView.updateScrollbarSteps();
+            CheckedRef frameView = view().frameView();
+            frameView->updateScrollbarSteps();
         } else if (CheckedPtr renderLayer = layer())
             renderLayer->updateScrollbarSteps();
     }
@@ -334,7 +335,7 @@ auto RenderLayerModelObject::computeVisibleRectsInSVGContainer(const RepaintRect
     LayoutSize locationOffset;
     if (CheckedPtr modelObject = dynamicDowncast<RenderSVGModelObject>(this))
         locationOffset = modelObject->locationOffsetEquivalent();
-    else if (CheckedPtr svgBlock = dynamicDowncast<RenderSVGBlock>(this))
+    else if (auto* svgBlock = dynamicDowncast<RenderSVGBlock>(this))
         locationOffset = svgBlock->locationOffset();
 
 
@@ -560,8 +561,10 @@ RenderSVGResourceMarker* RenderLayerModelObject::svgMarkerResourceFromStyle(cons
             return referencedMarkerRenderer;
     }
 
-    if (RefPtr element = dynamicDowncast<SVGElement>(this->element()))
-        document().addPendingSVGResource(AtomString(markerResourceURL->resolved.string()), *element);
+    if (RefPtr element = dynamicDowncast<SVGElement>(this->element())) {
+        auto resourceID = SVGURIReference::fragmentIdentifierFromIRIString(markerResourceURL->resolved.string(), document());
+        document().addPendingSVGResource(resourceID, *element);
+    }
 
     return nullptr;
 }
@@ -653,7 +656,7 @@ bool RenderLayerModelObject::pointInSVGClippingArea(const FloatPoint& point) con
             auto referenceBox = clipPathReferenceBox(clipPath.referenceBox());
             if (!referenceBox.contains(point))
                 return false;
-            return Style::path(clipPath.shape(), referenceBox).contains(point, Style::windRule(clipPath.shape()));
+            return Style::path(clipPath.shape(), referenceBox, style().usedZoomForLength()).contains(point, Style::windRule(clipPath.shape()));
         },
         [&](const Style::BoxPath& clipPath) {
             auto referenceBox = clipPathReferenceBox(clipPath.referenceBox());
@@ -763,6 +766,26 @@ void RenderLayerModelObject::paintSVGMask(PaintInfo& paintInfo, const LayoutPoin
     if (auto* referencedMaskerRenderer = svgMaskerResourceFromStyle())
         referencedMaskerRenderer->applyMask(paintInfo, *this, adjustedPaintOffset);
 }
+
+void RenderLayerModelObject::paintSVGEventRegion(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
+{
+    ASSERT(paintInfo.phase == PaintPhase::EventRegion);
+    if (style().usedVisibility() == Visibility::Hidden || objectBoundingBox().isEmpty())
+        return;
+
+    auto adjustedPaintOffset = paintOffset + currentSVGLayoutLocation();
+    auto coordinateSystemOriginTranslation = adjustedPaintOffset - nominalSVGLayoutLocation();
+    auto eventRegionBounds = strokeBoundingBox();
+    eventRegionBounds.move(coordinateSystemOriginTranslation);
+    paintInfo.eventRegionContext()->unite(FloatRoundedRect(eventRegionBounds), *this, style(), false);
+}
+
+#if ASSERT_ENABLED
+bool RenderLayerModelObject::layerAccessPreventedSlow() const
+{
+    return view().frameView().layerAccessPrevented();
+}
+#endif
 
 bool rendererNeedsPixelSnapping(const RenderLayerModelObject& renderer)
 {

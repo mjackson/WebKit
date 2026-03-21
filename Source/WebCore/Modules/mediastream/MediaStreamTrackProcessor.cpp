@@ -38,6 +38,7 @@
 #include "OffscreenCanvas.h"
 #include "ReadableStream.h"
 #include "SVGImageElement.h"
+#include <wtf/Scope.h>
 #include <wtf/Seconds.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -52,7 +53,7 @@ ExceptionOr<Ref<MediaStreamTrackProcessor>> MediaStreamTrackProcessor::create(Sc
         handle = WTF::move(*trackHandle);
         if (handle->isDetached())
             return Exception { ExceptionCode::TypeError, "Track handle is detached"_s };
-        if (!Ref { handle->protectedTrackSourceObserver()->source() }->isVideo())
+        if (!handle->trackSourceObserver().source().isVideo())
             return Exception { ExceptionCode::TypeError, "Track is not video"_s };
     } else {
         Ref track = std::get<Ref<MediaStreamTrack>>(init.track);
@@ -72,7 +73,7 @@ ExceptionOr<Ref<MediaStreamTrackProcessor>> MediaStreamTrackProcessor::create(Sc
 MediaStreamTrackProcessor::MediaStreamTrackProcessor(ScriptExecutionContext& context, Ref<MediaStreamTrackHandle>&& trackHandle, unsigned short maxVideoFramesCount)
     : ContextDestructionObserver(&context)
     , m_trackKeeper(trackHandle->trackKeeper())
-    , m_videoFrameObserverWrapper(VideoFrameObserverWrapper::create(context.identifier(), *this, Ref { trackHandle->protectedTrackSourceObserver()->source() }, maxVideoFramesCount))
+    , m_videoFrameObserverWrapper(VideoFrameObserverWrapper::create(context.identifier(), *this, trackHandle->trackSourceObserver().source(), maxVideoFramesCount))
     , m_trackObserver(TrackObserverWrapper::create(context, *this, WTF::move(trackHandle)))
 {
     m_trackObserver->start();

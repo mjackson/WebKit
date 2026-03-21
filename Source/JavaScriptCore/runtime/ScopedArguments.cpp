@@ -226,7 +226,6 @@ JSArray* ScopedArguments::fastSlice(JSGlobalObject* globalObject, ScopedArgument
     if (!memory) [[unlikely]]
         return nullptr;
 
-    DeferGC deferGC(vm);
     auto* resultButterfly = Butterfly::fromBase(memory, 0, 0);
     resultButterfly->setVectorLength(vectorLength);
     resultButterfly->setPublicLength(resultLength);

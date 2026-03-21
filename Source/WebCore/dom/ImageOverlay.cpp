@@ -71,6 +71,7 @@
 #include <wtf/WeakPtr.h>
 #include <wtf/text/AtomString.h>
 #include <wtf/text/MakeString.h>
+#include <wtf/unicode/CharacterNames.h>
 
 #if ENABLE(DATA_DETECTION)
 #include "DataDetection.h"
@@ -177,7 +178,7 @@ bool isInsideOverlay(const SimpleRange& range)
 bool isInsideOverlay(const Node& node)
 {
     RefPtr host = imageOverlayHost(node);
-    return host && protect(host->userAgentShadowRoot())->contains(node);
+    return host && host->userAgentShadowRoot()->contains(node);
 }
 
 bool isOverlayText(const Node* node)
@@ -283,7 +284,7 @@ static Elements updateSubtree(HTMLElement& element, const TextRecognitionResult&
     })();
 
     if (RefPtr shadowRoot = element.shadowRoot()) {
-        if (CheckedPtr renderer = dynamicDowncast<RenderImage>(element.renderer()))
+        if (auto* renderer = dynamicDowncast<RenderImage>(element.renderer()))
             renderer->setHasImageOverlay();
 
         if (hasOverlay(element)) {

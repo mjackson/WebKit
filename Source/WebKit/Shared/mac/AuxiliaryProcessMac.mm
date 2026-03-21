@@ -588,7 +588,7 @@ static bool applySandbox(const AuxiliaryProcessInitializationParameters& paramet
     auto header = setAndSerializeSandboxParameters(sandboxInitializationParameters, sandboxParameters, profileOrProfilePath, isProfilePath);
     if (!header) {
         WTFLogAlways("%s: Sandbox parameters are invalid\n", getprogname());
-        CRASH();
+        return compileAndApplySandboxSlowCase(profileOrProfilePath, isProfilePath, sandboxInitializationParameters);
     }
 
     String directoryPath { sandboxDirectory(parameters.processType, dataVaultParentDirectory) };

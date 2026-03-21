@@ -67,6 +67,8 @@ struct MarkedText : public CanMakeCheckedPtr<MarkedText, WTF::DefaultedOperatorE
         Selection,
         DraggedContent,
         TransparentContent,
+        DictationStreamingOpacity,
+        ActiveTextMatch,
     };
 
     enum class PaintPhase {
@@ -94,6 +96,7 @@ struct MarkedText : public CanMakeCheckedPtr<MarkedText, WTF::DefaultedOperatorE
     static Vector<MarkedText> collectForDocumentMarkers(const RenderText&, const TextBoxSelectableRange&, PaintPhase);
     static Vector<MarkedText> collectForHighlights(const RenderText&, const TextBoxSelectableRange&, PaintPhase);
     static Vector<MarkedText> collectForDraggedAndTransparentContent(const DocumentMarkerType, const RenderText& renderer, const TextBoxSelectableRange&);
+    static Vector<MarkedText> collectForDictationStreamingOpacity(const RenderText&, const TextBoxSelectableRange&);
 
     unsigned startOffset { 0 };
     unsigned endOffset { 0 };

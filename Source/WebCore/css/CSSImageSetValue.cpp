@@ -54,7 +54,7 @@ String CSSImageSetValue::customCSSText(const CSS::SerializationContext& context)
         if (i > 0)
             result.append(", "_s);
         ASSERT(is<CSSImageSetOptionValue>(item(i)));
-        result.append(item(i)->cssText(context));
+        result.append(protect(item(i))->cssText(context));
     }
     result.append(')');
     return result.toString();

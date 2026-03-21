@@ -38,6 +38,7 @@
 #include "DocumentInlines.h"
 #include "DocumentPage.h"
 #include "DocumentSecurityOrigin.h"
+#include "DocumentView.h"
 #include "ElementChildIteratorInlines.h"
 #include "ElementTraversal.h"
 #include "EventHandler.h"
@@ -59,6 +60,7 @@
 #include "KeyboardEvent.h"
 #include "LocalDOMWindow.h"
 #include "LocalFrameInlines.h"
+#include "LocalFrameView.h"
 #include "LocalizedStrings.h"
 #include "MouseEvent.h"
 #include "NodeName.h"
@@ -103,7 +105,7 @@ static bool NODELETE isFirstElementChildButton(const Node& child)
 class SelectSlotAssignment final : public NamedSlotAssignment {
 private:
     void hostChildElementDidChange(const Element&, ShadowRoot&) final;
-    const AtomString& slotNameForHostChild(const Node&) const final;
+    const AtomString& NODELETE slotNameForHostChild(const Node&) const final;
 };
 
 void SelectSlotAssignment::hostChildElementDidChange(const Element& childElement, ShadowRoot& shadowRoot)
@@ -116,7 +118,7 @@ void SelectSlotAssignment::hostChildElementDidChange(const Element& childElement
         didChangeSlot(NamedSlotAssignment::defaultSlotName(), shadowRoot);
 }
 
-const AtomString& SelectSlotAssignment::slotNameForHostChild(const Node& child) const
+SUPPRESS_NODELETE const AtomString& SelectSlotAssignment::slotNameForHostChild(const Node& child) const
 {
     return isFirstElementChildButton(child) ? buttonSlotName() : NamedSlotAssignment::defaultSlotName();
 }
@@ -207,7 +209,7 @@ HTMLSelectElement* HTMLSelectElement::findOwnerSelect(ContainerNode* startNode, 
             return nullptr;
         return findOwnerSelect(startNode->parentNode(), ExcludeOptGroup::Yes);
     }
-    if (is<HTMLDataListElement>(*startNode) || is<HTMLHRElement>(*startNode) || is<HTMLOptionElement>(*startNode))
+    if (isAnyOf<HTMLDataListElement, HTMLHRElement, HTMLOptionElement>(*startNode))
         return nullptr;
     return findOwnerSelect(startNode->parentNode(), excludeOptGroup);
 }
@@ -563,10 +565,12 @@ bool HTMLSelectElement::childShouldCreateRenderer(const Node& child) const
     if (!HTMLFormControlElement::childShouldCreateRenderer(child))
         return false;
     if (!usesMenuList())
-        return is<HTMLOptionElement>(child) || is<HTMLOptGroupElement>(child) || validationMessageShadowTreeContains(child);
+        return isAnyOf<HTMLOptionElement, HTMLOptGroupElement>(child) || validationMessageShadowTreeContains(child);
     if (child.isInShadowTree() && child.containingShadowRoot() == userAgentShadowRoot())
         return true;
     if (isFirstElementChildButton(child))
+        return true;
+    if (child.isBeforePseudoElement() || child.isAfterPseudoElement())
         return true;
     if (usesBaseAppearancePicker())
         return true;
@@ -603,12 +607,23 @@ CompletionHandlerCallingScope HTMLSelectElement::optionToSelectFromChildChangeSc
     };
 
     RefPtr<HTMLOptionElement> optionToSelect;
-    if (change.type == ChildChange::Type::ElementInserted) {
-        if (auto* option = dynamicDowncast<HTMLOptionElement>(*change.siblingChanged)) {
-            if (option->selectedWithoutUpdate())
-                optionToSelect = option;
-        } else if (RefPtr optGroup = dynamicDowncast<HTMLOptGroupElement>(change.siblingChanged); !parentOptGroup && optGroup)
-            optionToSelect = getLastSelectedOption(*optGroup);
+    if (change.type == ChildChange::Type::ElementInserted || change.type == ChildChange::Type::ElementAndTextInserted) {
+        auto handleInsertedElement = [&](Element& insertedElement) {
+            if (auto* option = dynamicDowncast<HTMLOptionElement>(insertedElement)) {
+                if (option->selectedWithoutUpdate())
+                    optionToSelect = option;
+            } else if (auto* optGroup = dynamicDowncast<HTMLOptGroupElement>(insertedElement); !parentOptGroup && optGroup)
+                optionToSelect = getLastSelectedOption(*optGroup);
+        };
+        if (RefPtr element = change.siblingChanged)
+            handleInsertedElement(*element);
+        else if (change.insertedChildren) {
+            for (auto& child : *change.insertedChildren) {
+                if (RefPtr element = dynamicDowncast<Element>(child))
+                    handleInsertedElement(*element);
+            }
+        }
+
     } else if (parentOptGroup && change.type == ContainerNode::ChildChange::Type::AllChildrenReplaced)
         optionToSelect = getLastSelectedOption(*parentOptGroup);
 
@@ -652,7 +667,7 @@ void HTMLSelectElement::optionElementChildrenChanged()
 
 void HTMLSelectElement::updateButtonText(HTMLOptionElement* selectedOption, int optionIndex)
 {
-    protect(downcast<SelectFallbackButtonElement>(*protect(m_buttonSlot)->firstChild()))->updateText(selectedOption, optionIndex);
+    protect(downcast<SelectFallbackButtonElement>(*m_buttonSlot->firstChild()))->updateText(selectedOption, optionIndex);
 }
 
 void HTMLSelectElement::setSize(unsigned size)
@@ -985,7 +1000,7 @@ void HTMLSelectElement::scrollToSelection()
 
 void HTMLSelectElement::setOptionsChangedOnRenderer()
 {
-    if (CheckedPtr renderer = this->renderer()) {
+    if (auto* renderer = this->renderer()) {
         if (auto* renderMenuList = dynamicDowncast<RenderMenuList>(*renderer))
             renderMenuList->setOptionsChanged(true);
         else if (!usesMenuList())
@@ -1083,10 +1098,7 @@ void HTMLSelectElement::recalcListItems(bool updateSelectedStates, AllowStyleInv
                         optGroupIt.traverseNextSkippingChildren();
                         continue;
                     }
-                    if (is<HTMLOptGroupElement>(optGroupDescendant)
-                        || is<HTMLDataListElement>(optGroupDescendant)
-                        || is<HTMLSelectElement>(optGroupDescendant)
-                        || is<HTMLHRElement>(optGroupDescendant)) {
+                    if (isAnyOf<HTMLOptGroupElement, HTMLDataListElement, HTMLSelectElement, HTMLHRElement>(optGroupDescendant)) {
                         optGroupIt.traverseNextSkippingChildren();
                         continue;
                     }
@@ -1100,7 +1112,7 @@ void HTMLSelectElement::recalcListItems(bool updateSelectedStates, AllowStyleInv
                 it.traverseNextSkippingChildren();
                 continue;
             }
-            if (is<HTMLDataListElement>(descendant) || is<HTMLSelectElement>(descendant)) {
+            if (isAnyOf<HTMLDataListElement, HTMLSelectElement>(descendant)) {
                 it.traverseNextSkippingChildren();
                 continue;
             }
@@ -1435,10 +1447,13 @@ void HTMLSelectElement::menuListDefaultEventHandler(Event& event)
     ASSERT(renderer());
     ASSERT(usesMenuList());
 
+    if (!event.isTrusted())
+        return;
+
     auto& eventNames = WebCore::eventNames();
 
     bool isBaseSelectPicker = usesBaseAppearancePicker();
-    bool popoverOpen = isBaseSelectPicker && m_popover && protect(m_popover)->isPopoverShowing();
+    bool popoverOpen = isBaseSelectPicker && m_popover && m_popover->isPopoverShowing();
 
     if (event.type() == eventNames.keydownEvent) {
         RefPtr keyboardEvent = dynamicDowncast<KeyboardEvent>(event);
@@ -1573,7 +1588,7 @@ void HTMLSelectElement::menuListDefaultEventHandler(Event& event)
             if (!clickedInsidePopover)
                 hidePickerPopoverElement();
         } else
-            openPickerForUserInteraction();
+            openPickerForUserInteraction(false);
 
         event.setDefaultHandled();
         return;
@@ -2010,7 +2025,7 @@ void HTMLSelectElement::showPickerInternal()
     }
 }
 
-void HTMLSelectElement::openPickerForUserInteraction()
+void HTMLSelectElement::openPickerForUserInteraction(std::optional<bool> focusVisible)
 {
     // Save the selection so it can be compared to the new selection when
     // dispatching change events during selectOption, which gets called from
@@ -2026,10 +2041,10 @@ void HTMLSelectElement::openPickerForUserInteraction()
     int listIndex = optionToListIndex(selectedIndex());
     if (listIndex < 0)
         listIndex = firstSelectableListIndex();
-    focusOptionAtIndex(listIndex);
+    focusOptionAtIndex(listIndex, focusVisible);
 }
 
-void HTMLSelectElement::focusOptionAtIndex(int listIndex)
+void HTMLSelectElement::focusOptionAtIndex(int listIndex, std::optional<bool> focusVisible)
 {
     if (!usesBaseAppearancePicker())
         return;
@@ -2044,6 +2059,7 @@ void HTMLSelectElement::focusOptionAtIndex(int listIndex)
 
     FocusOptions focusOptions;
     focusOptions.preventScroll = false;
+    focusOptions.focusVisible = focusVisible;
     option->focus(focusOptions);
 }
 

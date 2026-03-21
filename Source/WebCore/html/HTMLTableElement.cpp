@@ -85,8 +85,8 @@ ExceptionOr<void> HTMLTableElement::setCaption(RefPtr<HTMLTableCaptionElement>&&
 
 RefPtr<HTMLTableSectionElement> HTMLTableElement::tHead() const
 {
-    for (Ref child : childrenOfType<HTMLTableSectionElement>(const_cast<HTMLTableElement&>(*this))) {
-        if (child->hasTagName(theadTag))
+    for (auto& child : childrenOfType<HTMLTableSectionElement>(const_cast<HTMLTableElement&>(*this))) {
+        if (child.hasTagName(theadTag))
             return child;
     }
     return nullptr;
@@ -112,8 +112,8 @@ ExceptionOr<void> HTMLTableElement::setTHead(RefPtr<HTMLTableSectionElement>&& n
 
 RefPtr<HTMLTableSectionElement> HTMLTableElement::tFoot() const
 {
-    for (Ref child : childrenOfType<HTMLTableSectionElement>(const_cast<HTMLTableElement&>(*this))) {
-        if (child->hasTagName(tfootTag))
+    for (auto& child : childrenOfType<HTMLTableSectionElement>(const_cast<HTMLTableElement&>(*this))) {
+        if (child.hasTagName(tfootTag))
             return child;
     }
     return nullptr;
@@ -184,9 +184,9 @@ void HTMLTableElement::deleteCaption()
 
 HTMLTableSectionElement* HTMLTableElement::lastBody() const
 {
-    for (RefPtr<Node> child = lastChild(); child; child = child->previousSibling()) {
+    for (auto* child = lastChild(); child; child = child->previousSibling()) {
         if (child->hasTagName(tbodyTag))
-            return downcast<HTMLTableSectionElement>(child.get());
+            return downcast<HTMLTableSectionElement>(child);
     }
     return nullptr;
 }
@@ -274,7 +274,7 @@ static bool setTableCellsChanged(Element& element)
     if (element.hasTagName(tdTag))
         cellChanged = true;
     else if (isTableCellAncestor(element)) {
-        for (Ref child : childrenOfType<Element>(element))
+        for (auto& child : childrenOfType<Element>(element))
             cellChanged |= setTableCellsChanged(child);
     }
 
@@ -352,7 +352,7 @@ void HTMLTableElement::collectPresentationalHintsForAttribute(const QualifiedNam
         break;
     case AttributeNames::rulesAttr:
         // The presence of a valid rules attribute causes border collapsing to be enabled.
-        if (m_rulesAttr != UnsetRules)
+        if (m_rulesAttr != TableRules::Unset)
             addPropertyToPresentationalHintStyle(style, CSSPropertyBorderCollapse, CSSValueCollapse);
         break;
     case AttributeNames::frameAttr: {
@@ -419,17 +419,17 @@ void HTMLTableElement::attributeChanged(const QualifiedName& name, const AtomStr
         break;
     }
     case AttributeNames::rulesAttr:
-        m_rulesAttr = UnsetRules;
+        m_rulesAttr = TableRules::Unset;
         if (equalLettersIgnoringASCIICase(newValue, "none"_s))
-            m_rulesAttr = NoneRules;
+            m_rulesAttr = TableRules::None;
         else if (equalLettersIgnoringASCIICase(newValue, "groups"_s))
-            m_rulesAttr = GroupsRules;
+            m_rulesAttr = TableRules::Groups;
         else if (equalLettersIgnoringASCIICase(newValue, "rows"_s))
-            m_rulesAttr = RowsRules;
+            m_rulesAttr = TableRules::Rows;
         else if (equalLettersIgnoringASCIICase(newValue, "cols"_s))
-            m_rulesAttr = ColsRules;
+            m_rulesAttr = TableRules::Cols;
         else if (equalLettersIgnoringASCIICase(newValue, "all"_s))
-            m_rulesAttr = AllRules;
+            m_rulesAttr = TableRules::All;
         break;
     case AttributeNames::cellpaddingAttr:
         if (!newValue.isEmpty())
@@ -444,7 +444,7 @@ void HTMLTableElement::attributeChanged(const QualifiedName& name, const AtomStr
     if (bordersBefore != cellBorders() || oldPadding != m_padding) {
         m_sharedCellStyle = nullptr;
         bool cellChanged = false;
-        for (Ref child : childrenOfType<Element>(*this))
+        for (auto& child : childrenOfType<Element>(*this))
             cellChanged |= setTableCellsChanged(child);
         if (cellChanged)
             invalidateStyleForSubtree();
@@ -469,7 +469,7 @@ const MutableStyleProperties* HTMLTableElement::additionalPresentationalHintStyl
     if (!m_borderAttr) {
         // Setting the border to 'hidden' allows it to win over any border
         // set on the table's cells during border-conflict resolution.
-        if (m_rulesAttr != UnsetRules) {
+        if (m_rulesAttr != TableRules::Unset) {
             static NeverDestroyed<Ref<MutableStyleProperties>> solidBorderStyle = createBorderStyle(CSSValueHidden);
             return solidBorderStyle.get().ptr();
         }
@@ -483,22 +483,22 @@ const MutableStyleProperties* HTMLTableElement::additionalPresentationalHintStyl
 HTMLTableElement::CellBorders HTMLTableElement::cellBorders() const
 {
     switch (m_rulesAttr) {
-        case NoneRules:
-        case GroupsRules:
-            return NoBorders;
-        case AllRules:
-            return SolidBorders;
-        case ColsRules:
-            return SolidBordersColsOnly;
-        case RowsRules:
-            return SolidBordersRowsOnly;
-        case UnsetRules:
-            if (!m_borderAttr)
-                return NoBorders;
-            return InsetBorders;
+    case TableRules::None:
+    case TableRules::Groups:
+        return CellBorders::None;
+    case TableRules::All:
+        return CellBorders::Solid;
+    case TableRules::Cols:
+        return CellBorders::SolidColsOnly;
+    case TableRules::Rows:
+        return CellBorders::SolidRowsOnly;
+    case TableRules::Unset:
+        if (!m_borderAttr)
+            return CellBorders::None;
+        return CellBorders::Inset;
     }
     ASSERT_NOT_REACHED();
-    return NoBorders;
+    return CellBorders::None;
 }
 
 Ref<MutableStyleProperties> HTMLTableElement::createSharedCellStyle() const
@@ -506,31 +506,31 @@ Ref<MutableStyleProperties> HTMLTableElement::createSharedCellStyle() const
     auto style = MutableStyleProperties::create();
 
     switch (cellBorders()) {
-    case SolidBordersColsOnly:
+    case CellBorders::SolidColsOnly:
         style->setProperty(CSSPropertyBorderLeftWidth, CSSValueThin);
         style->setProperty(CSSPropertyBorderRightWidth, CSSValueThin);
         style->setProperty(CSSPropertyBorderLeftStyle, CSSValueSolid);
         style->setProperty(CSSPropertyBorderRightStyle, CSSValueSolid);
         style->setProperty(CSSPropertyBorderColor, CSSPrimitiveValue::create(CSSValueInherit));
         break;
-    case SolidBordersRowsOnly:
+    case CellBorders::SolidRowsOnly:
         style->setProperty(CSSPropertyBorderTopWidth, CSSValueThin);
         style->setProperty(CSSPropertyBorderBottomWidth, CSSValueThin);
         style->setProperty(CSSPropertyBorderTopStyle, CSSValueSolid);
         style->setProperty(CSSPropertyBorderBottomStyle, CSSValueSolid);
         style->setProperty(CSSPropertyBorderColor, CSSPrimitiveValue::create(CSSValueInherit));
         break;
-    case SolidBorders:
+    case CellBorders::Solid:
         style->setProperty(CSSPropertyBorderWidth, CSSPrimitiveValue::create(1, CSSUnitType::CSS_PX));
         style->setProperty(CSSPropertyBorderStyle, CSSPrimitiveValue::create(CSSValueSolid));
         style->setProperty(CSSPropertyBorderColor, CSSPrimitiveValue::create(CSSValueInherit));
         break;
-    case InsetBorders:
+    case CellBorders::Inset:
         style->setProperty(CSSPropertyBorderWidth, CSSPrimitiveValue::create(1, CSSUnitType::CSS_PX));
         style->setProperty(CSSPropertyBorderStyle, CSSPrimitiveValue::create(CSSValueInset));
         style->setProperty(CSSPropertyBorderColor, CSSPrimitiveValue::create(CSSValueInherit));
         break;
-    case NoBorders:
+    case CellBorders::None:
         // If 'rules=none' then allow any borders set at cell level to take effect. 
         break;
     }
@@ -567,7 +567,7 @@ static Ref<MutableStyleProperties> makeGroupBorderStyle(bool rows)
 
 const MutableStyleProperties* HTMLTableElement::additionalGroupStyle(bool rows) const
 {
-    if (m_rulesAttr != GroupsRules)
+    if (m_rulesAttr != TableRules::Groups)
         return nullptr;
     if (rows) {
         static NeverDestroyed<Ref<MutableStyleProperties>> rowBorderStyle = makeGroupBorderStyle(true);

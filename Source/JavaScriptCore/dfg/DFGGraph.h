@@ -38,6 +38,7 @@
 #include "DFGPlan.h"
 #include "DFGPropertyTypeKey.h"
 #include "FullBytecodeLiveness.h"
+#include "FunctionAllowlist.h"
 #include "JITScannable.h"
 #include "MethodOfGettingAValueProfile.h"
 #include <wtf/BitVector.h>
@@ -56,6 +57,7 @@ namespace JSC {
 
 class CodeBlock;
 class CallFrame;
+class IRDumpDebugInfo;
 
 namespace DFG {
 
@@ -504,6 +506,35 @@ public:
         return node->child1()->shouldSpeculateBigInt32();
     }
 #endif
+
+    bool binaryArithShouldSpeculateHeapBigInt(Node* node)
+    {
+        if (Node::shouldSpeculateHeapBigInt(node->child1().node(), node->child2().node()))
+            return true;
+
+        if (hasExitSite(node, BadType))
+            return false;
+
+        auto isHeapBigIntOrOther = [](Node* n) {
+            SpeculatedType prediction = n->prediction();
+            return prediction && !(prediction & ~(SpecHeapBigInt | SpecOther));
+        };
+
+        return (node->child1()->shouldSpeculateHeapBigInt() && isHeapBigIntOrOther(node->child2().node()))
+            || (node->child2()->shouldSpeculateHeapBigInt() && isHeapBigIntOrOther(node->child1().node()));
+    }
+
+    bool unaryArithShouldSpeculateHeapBigInt(Node* node)
+    {
+        if (node->child1()->shouldSpeculateHeapBigInt())
+            return true;
+
+        if (hasExitSite(node, BadType))
+            return false;
+
+        SpeculatedType prediction = node->child1()->prediction();
+        return prediction && !(prediction & ~(SpecHeapBigInt | SpecOther));
+    }
 
     bool variadicArithShouldSpeculateInt32(Node* node, PredictionPass pass)
     {
@@ -1032,8 +1063,8 @@ public:
 
     Profiler::Compilation* compilation() { return m_plan.compilation(); }
 
-    DesiredIdentifiers& identifiers() { return m_plan.identifiers(); }
-    DesiredWatchpoints& watchpoints() { return m_plan.watchpoints(); }
+    DesiredIdentifiers& identifiers() LIFETIME_BOUND { return m_plan.identifiers(); }
+    DesiredWatchpoints& watchpoints() LIFETIME_BOUND { return m_plan.watchpoints(); }
 
     // Returns false if the key is already invalid or unwatchable. If this is a Presence condition,
     // this also makes it cheap to query if the condition holds. Also makes sure that the GC knows
@@ -1266,7 +1297,7 @@ public:
         return result;
     }
 
-    Prefix& prefix() { return m_prefix; }
+    Prefix& prefix() LIFETIME_BOUND { return m_prefix; }
     void nextPhase() { m_prefix.phaseNumber++; }
 
     const UnlinkedSimpleJumpTable& unlinkedSwitchJumpTable(unsigned index) const { return *m_unlinkedSwitchJumpTables[index]; }
@@ -1290,6 +1321,8 @@ public:
     bool afterFixup() { return m_planStage >= PlanStage::AfterFixup; }
 
     RefPtr<JSON::Array> ionGraphPasses() const { return m_ionGraphPasses; }
+
+    UncheckedKeyHashMap<Node*, uint32_t> collectIRDumpDebugInfo(IRDumpDebugInfo&);
 
     StackCheck m_stackChecker;
     VM& m_vm;
@@ -1490,6 +1523,26 @@ private:
     RefPtr<JSON::Object> m_ionGraphFunction;
     RefPtr<JSON::Array> m_ionGraphPasses;
 };
+
+inline FunctionAllowlist& ensureGlobalDumpAllowlist()
+{
+    static LazyNeverDestroyed<FunctionAllowlist> dumpGraphAllowlist;
+    static std::once_flag initializeAllowlistFlag;
+    std::call_once(initializeAllowlistFlag, [] {
+        const char* allowlistFile = Options::dumpGraphAllowlist();
+        dumpGraphAllowlist.construct(allowlistFile);
+    });
+    return dumpGraphAllowlist;
+}
+
+inline bool shouldDumpGraphAtEachPhase(Graph& graph)
+{
+    JITCompilationMode mode = graph.m_plan.mode();
+    if (!(isFTL(mode) ? (Options::dumpGraphAtEachPhase() || Options::dumpDFGFTLGraphAtEachPhase()) : (Options::dumpGraphAtEachPhase() || Options::dumpDFGGraphAtEachPhase())))
+        return false;
+
+    return ensureGlobalDumpAllowlist().contains(graph.m_codeBlock);
+}
 
 } } // namespace JSC::DFG
 

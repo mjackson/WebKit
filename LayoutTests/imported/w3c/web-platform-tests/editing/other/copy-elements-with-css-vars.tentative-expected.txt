@@ -1,0 +1,5 @@
+Span text
+Row 1, Cell 1	Row 1, Cell 2
+
+FAIL Test serialized html on copy has resolved css values promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
+

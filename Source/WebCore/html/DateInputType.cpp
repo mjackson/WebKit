@@ -104,7 +104,7 @@ String DateInputType::formatDateTimeFieldsState(const DateTimeFieldsState& state
 
 void DateInputType::setupLayoutParameters(DateTimeEditElement::LayoutParameters& layoutParameters, const DateComponents&) const
 {
-    layoutParameters.dateTimeFormat = layoutParameters.locale.dateFormat();
+    layoutParameters.dateTimeFormat = layoutParameters.locale->dateFormat();
     layoutParameters.fallbackDateTimeFormat = "yyyy-MM-dd"_s;
 }
 

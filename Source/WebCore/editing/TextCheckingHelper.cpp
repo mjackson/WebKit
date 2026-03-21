@@ -518,7 +518,7 @@ TextCheckingGuesses TextCheckingHelper::guessesForMisspelledWordOrUngrammaticalP
     VisibleSelection currentSelection;
     if (auto frame = m_range.start.document().frame())
         currentSelection = frame->selection().selection();
-    CheckedRef client = m_client.get();
+    CheckedRef client = m_client;
     checkTextOfParagraph(*client->textChecker(), paragraph.text(), checkingTypes, results, currentSelection);
 
     for (auto& result : results) {

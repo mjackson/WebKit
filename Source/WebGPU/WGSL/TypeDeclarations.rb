@@ -856,6 +856,7 @@ function :sign, {
 function :smoothstep, {
     must_use: true,
     const: true,
+    validate: true,
 
     [T < Float].(T, T, T) => T,
     [T < Float, N].(vec[N][T], vec[N][T], vec[N][T]) => vec[N][T],
@@ -1597,6 +1598,9 @@ function :workgroupBarrier, {
 function :workgroupUniformLoad, {
     must_use: true,
     stage: :compute,
+
+    # @must_use fn workgroupUniformLoad(p : ptr<workgroup, atomic<T>, read_write>) -> T
+    [T].(ptr[workgroup, atomic[T]]) => T,
 
     # @must_use fn workgroupUniformLoad(p : ptr<workgroup, T>) -> T
     [T].(ptr[workgroup, T]) => T,

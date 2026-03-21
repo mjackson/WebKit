@@ -33,6 +33,8 @@
 #include "DatagramSource.h"
 #include "ExceptionOr.h"
 #include "HTTPParsers.h"
+#include "JSDOMConvertDictionary.h"
+#include "JSDOMConvertInterface.h"
 #include "JSDOMException.h"
 #include "JSDOMPromise.h"
 #include "JSDOMPromiseDeferred.h"
@@ -242,7 +244,7 @@ void WebTransport::receiveIncomingUnidirectionalStream(WebTransportStreamIdentif
         ASSERT(!m_readStreamSources.contains(identifier));
         m_readStreamSources.add(identifier, WTF::move(incomingStream));
     } else
-        protectedSession()->destroyStream(identifier, std::nullopt);
+        protect(m_session)->destroyStream(identifier, std::nullopt);
 }
 
 static ExceptionOr<Ref<WebTransportBidirectionalStream>> createBidirectionalStream(WebTransport& transport, WebTransportSession& session, JSDOMGlobalObject& globalObject, Ref<WebTransportSendStreamSink>&& sink, Ref<WebTransportReceiveStreamSource>&& source)
@@ -293,7 +295,7 @@ void WebTransport::receiveBidirectionalStream(WebTransportStreamIdentifier ident
         ASSERT(!m_sendStreamSinks.contains(identifier));
         m_sendStreamSinks.add(identifier, WTF::move(sink));
     } else
-        protectedSession()->destroyStream(identifier, std::nullopt);
+        protect(m_session)->destroyStream(identifier, std::nullopt);
 }
 
 void WebTransport::streamReceiveBytes(WebTransportStreamIdentifier identifier, std::span<const uint8_t> span, bool withFin, std::optional<Exception>&& exception)
@@ -667,11 +669,6 @@ void WebTransport::receiveStreamClosed(WebTransportStreamIdentifier identifier)
         if (RefPtr stream = source->stream())
             m_receiveStreams.remove(*stream);
     }
-}
-
-RefPtr<WebTransportSession> WebTransport::protectedSession()
-{
-    return m_session;
 }
 
 } // namespace WebCore

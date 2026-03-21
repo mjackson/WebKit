@@ -89,12 +89,12 @@ public:
         , m_locations(codeBlock->numCalleeLocals() + codeBlock->constantRegisters().size() + CallFrame::headerSizeInRegisters + codeBlock->numParameters())
         , m_backend(backend)
     {
-        RegisterSetBuilder gprs = RegisterSetBuilder::allGPRs();
-        gprs.exclude(RegisterSetBuilder::specialRegisters());
-        gprs.exclude(RegisterSetBuilder::macroClobberedGPRs());
-        gprs.exclude(RegisterSetBuilder::vmCalleeSaveRegisters());
+        RegisterSet gprs = RegisterSet::allGPRs();
+        gprs.exclude(RegisterSet::specialRegisters());
+        gprs.exclude(RegisterSet::macroClobberedGPRs());
+        gprs.exclude(RegisterSet::vmCalleeSaveRegisters());
         gprs.remove(s_scratch);
-        m_allocator.initialize(gprs.buildAndValidate(), verbose ? "LOL"_s : ASCIILiteral());
+        m_allocator.initialize(gprs, verbose ? "LOL"_s : ASCIILiteral());
     }
 
     RegisterSet allocatedRegisters() const { return m_allocator.allocatedRegisters(); }

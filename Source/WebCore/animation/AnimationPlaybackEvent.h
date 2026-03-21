@@ -25,9 +25,9 @@
 
 #pragma once
 
-#include <WebCore/AnimationEventBase.h>
-#include <WebCore/AnimationPlaybackEventInit.h>
-#include <WebCore/WebAnimationTypes.h>
+#include "AnimationEventBase.h"
+#include "AnimationPlaybackEventInit.h"
+#include "WebAnimationTypes.h"
 #include <wtf/Markable.h>
 
 namespace WebCore {

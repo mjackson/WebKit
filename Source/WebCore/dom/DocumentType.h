@@ -38,9 +38,9 @@ public:
         return adoptRef(*new DocumentType(document, name, publicId, systemId));
     }
 
-    const String& name() const { return m_name; }
-    const String& publicId() const { return m_publicId; }
-    const String& systemId() const { return m_systemId; }
+    const String& name() const LIFETIME_BOUND { return m_name; }
+    const String& publicId() const LIFETIME_BOUND { return m_publicId; }
+    const String& systemId() const LIFETIME_BOUND { return m_systemId; }
 
 private:
     DocumentType(Document&, const String& name, const String& publicId, const String& systemId);
@@ -59,5 +59,5 @@ private:
 } // namespace WebCore
 
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::DocumentType)
-    static bool isType(const WebCore::Node& node) { return node.nodeType() == WebCore::Node::DOCUMENT_TYPE_NODE; }
+    static bool isType(const WebCore::Node& node) { return node.nodeType() == WebCore::NodeType::DocumentType; }
 SPECIALIZE_TYPE_TRAITS_END()

@@ -209,11 +209,11 @@ public:
         void didAddToDirectory(BlockDirectory*, unsigned index);
         void didRemoveFromDirectory();
         
-        void* start() const { return &m_block->atoms()[m_startAtom]; }
-        void* end() const { return &m_block->atoms()[endAtom]; }
-        void* atomAt(size_t i) const { return &m_block->atoms()[i]; }
+        void* start() const LIFETIME_BOUND { return &m_block->atoms()[m_startAtom]; }
+        void* end() const LIFETIME_BOUND { return &m_block->atoms()[endAtom]; }
+        void* atomAt(size_t i) const LIFETIME_BOUND { return &m_block->atoms()[i]; }
         bool contains(void* p) const { return start() <= p && p < end(); }
-        void* pageStart() const { return &m_block->atoms()[0]; }
+        void* pageStart() const LIFETIME_BOUND { return &m_block->atoms()[0]; }
 
         void dumpState(PrintStream&);
         
@@ -430,7 +430,8 @@ private:
     inline bool marksConveyLivenessDuringMarking(HeapVersion myMarkingVersion, HeapVersion markingVersion);
 
     // FIXME: rdar://139998916
-    NO_RETURN_DUE_TO_CRASH NEVER_INLINE void dumpInfoAndCrashForInvalidHandleV2(AbstractLocker&, HeapCell*);
+    NO_RETURN_DUE_TO_CRASH NEVER_INLINE void analyzeInvalidHandleAndCrash(AbstractLocker&, HeapCell*);
+    NO_RETURN_DUE_TO_CRASH NEVER_INLINE static void dumpInfoAndCrashForInvalidHandleV2(HeapCell*, uint64_t cellFirst8Bytes, uint64_t zeroCounts, uint64_t bitfield, uint64_t subspaceHash, VM* blockVM, VM* actualVM);
     inline void setupTestForDumpInfoAndCrash();
 };
 

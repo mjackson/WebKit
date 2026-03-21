@@ -104,8 +104,8 @@ GPUProcess::~GPUProcess()
 
 GPUProcess& GPUProcess::singleton()
 {
-    static NeverDestroyed<GPUProcess> gpuProcess;
-    return gpuProcess.get();
+    static NeverDestroyed<Ref<GPUProcess>> gpuProcess = adoptRef(*new GPUProcess);
+    return gpuProcess.get().get();
 }
 
 void GPUProcess::createGPUConnectionToWebProcess(WebCore::ProcessIdentifier identifier, PAL::SessionID sessionID, IPC::Connection::Handle&& connectionHandle, GPUProcessConnectionParameters&& parameters, CompletionHandler<void()>&& completionHandler)

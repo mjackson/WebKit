@@ -38,23 +38,23 @@ class FlexFormattingUtils {
 public:
     FlexFormattingUtils(const FlexFormattingContext&);
 
-    static bool isMainAxisParallelWithInlineAxis(const ElementBox& flexContainer);
-    static bool isMainReversedToContentDirection(const ElementBox& flexContainer);
-    static bool areFlexLinesReversedInCrossAxis(const ElementBox& flexContainer);
+    static bool NODELETE isMainAxisParallelWithInlineAxis(const ElementBox& flexContainer);
+    static bool NODELETE isMainReversedToContentDirection(const ElementBox& flexContainer);
+    static bool NODELETE areFlexLinesReversedInCrossAxis(const ElementBox& flexContainer);
 
     // FIXME: These values should probably be computed by FlexFormattingContext and get passed in to FlexLayout.
     static LayoutUnit mainAxisGapValue(const ElementBox& flexContainer, LayoutUnit flexContainerContentBoxWidth);
     static LayoutUnit crossAxisGapValue(const ElementBox& flexContainer, LayoutUnit flexContainerContentBoxHeight);
 
-    static ContentPosition logicalJustifyContentPosition(const ElementBox& flexContainer, ContentPosition);
+    static ContentPosition NODELETE logicalJustifyContentPosition(const ElementBox& flexContainer, ContentPosition);
 
     LayoutUnit usedMinimumSizeInMainAxis(const LogicalFlexItem&) const;
-    std::optional<LayoutUnit> usedMaximumSizeInMainAxis(const LogicalFlexItem&) const;
+    std::optional<LayoutUnit> NODELETE usedMaximumSizeInMainAxis(const LogicalFlexItem&) const;
     LayoutUnit usedMaxContentSizeInMainAxis(const LogicalFlexItem&) const;
     LayoutUnit usedSizeInCrossAxis(const LogicalFlexItem&, LayoutUnit maxAxisConstraint) const;
 
 private:
-    const FlexFormattingContext& formattingContext() const { return m_flexFormattingContext; }
+    const FlexFormattingContext& formattingContext() const LIFETIME_BOUND { return m_flexFormattingContext; }
 
 private:
     const FlexFormattingContext& m_flexFormattingContext;

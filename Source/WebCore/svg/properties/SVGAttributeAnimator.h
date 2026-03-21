@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2021 Apple Inc. All rights reserved.
+ * Copyright (C) 2018-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -116,7 +116,7 @@ protected:
     void removeAnimatedStyleProperty(SVGElement&);
     void applyAnimatedPropertyChange(SVGElement&);
 
-    const QualifiedName& m_attributeName;
+    QualifiedName m_attributeName;
 };
 
 } // namespace WebCore

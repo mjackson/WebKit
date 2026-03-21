@@ -65,14 +65,14 @@ namespace WebCore {
 // List of displays ever instantiated from EGL. When terminating all EGL resources, we need to
 // terminate all displays. However, we cannot ask EGL all the displays it has created.
 // We must know all the displays via this set.
-static HashSet<GCGLDisplay>& usedDisplays()
+static HashSet<GCGLDisplay>& NODELETE usedDisplays()
 {
     static NeverDestroyed<HashSet<GCGLDisplay>> s_usedDisplays;
     return s_usedDisplays;
 }
 
 #if PLATFORM(MAC) || PLATFORM(IOS_FAMILY)
-static void wipeAlphaChannelFromPixels(std::span<uint8_t> pixels)
+static void NODELETE wipeAlphaChannelFromPixels(std::span<uint8_t> pixels)
 {
     for (size_t i = 0; i < pixels.size(); i += 4)
         pixels[i + 3] = 255;
@@ -156,7 +156,7 @@ static constexpr SortedArrayMap extensionsMapping { std::to_array<std::pair<Comp
     { "GL_QCOM_render_shared_exponent"_s, GCGLExtension::QCOM_render_shared_exponent },
 }) };
 
-static ASCIILiteral extensionName(GCGLExtension extension)
+static ASCIILiteral NODELETE extensionName(GCGLExtension extension)
 {
     size_t index = static_cast<size_t>(extension);
     std::span mapping { extensionsMapping.array() };
@@ -1443,15 +1443,13 @@ Vector<GCGLUniformActiveInfo> GraphicsContextGLANGLE::activeUniforms(PlatformGLO
         name.resize(maxLength); // GL_ACTIVE_UNIFORM_MAX_LENGTH includes nul termination.
         GCGLUniformActiveInfo info;
         GLsizei length = 0;
-        GLint size = 0;
-        GL_GetActiveUniform(program, index, maxLength, &length, &size, &info.type, name.data());
-        if (length < 1 || size < 1) {
+        GL_GetActiveUniform(program, index, maxLength, &length, &info.size, &info.type, name.data());
+        if (length < 1 || info.size < 1) {
             ASSERT_NOT_REACHED();
             return { };
         }
         name.resize(length);
         info.name = name;
-        info.locations.append(GL_GetUniformLocation(program, name.data()));
         if (m_isForWebGL2) {
             GL_GetActiveUniformsiv(program, 1, &index, GL_UNIFORM_BLOCK_INDEX, &info.blockIndex);
             GL_GetActiveUniformsiv(program, 1, &index, GL_UNIFORM_OFFSET, &info.offset);
@@ -1459,15 +1457,18 @@ Vector<GCGLUniformActiveInfo> GraphicsContextGLANGLE::activeUniforms(PlatformGLO
             GL_GetActiveUniformsiv(program, 1, &index, GL_UNIFORM_MATRIX_STRIDE, &info.matrixStride);
             GL_GetActiveUniformsiv(program, 1, &index, GL_UNIFORM_IS_ROW_MAJOR, &info.isRowMajor);
         }
-        if (size > 1) {
-            if (!name.ends_with("[0]")) {
-                ASSERT_NOT_REACHED();
-                return { };
-            }
-            name.resize(name.length() - 3);
-            for (GLint arrayIndex = 1; arrayIndex < size; ++arrayIndex) {
-                auto elementName = (std::ostringstream() << name << '[' << arrayIndex << ']').str();
-                info.locations.append(GL_GetUniformLocation(program, elementName.data()));
+        if (info.blockIndex == -1) {
+            info.locations.append(GL_GetUniformLocation(program, name.data()));
+            if (info.size > 1) {
+                if (!name.ends_with("[0]")) {
+                    ASSERT_NOT_REACHED();
+                    return { };
+                }
+                name.resize(name.length() - 3);
+                for (GLint arrayIndex = 1; arrayIndex < info.size; ++arrayIndex) {
+                    auto elementName = (std::ostringstream() << name << '[' << arrayIndex << ']').str();
+                    info.locations.append(GL_GetUniformLocation(program, elementName.data()));
+                }
             }
         }
         result.append(WTF::move(info));

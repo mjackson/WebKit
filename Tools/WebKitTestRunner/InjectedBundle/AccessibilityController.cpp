@@ -30,6 +30,7 @@
 #include "InjectedBundle.h"
 #include "InjectedBundlePage.h"
 #include "JSAccessibilityController.h"
+#include "StringFunctions.h"
 #include <WebKit/WKBundle.h>
 #include <WebKit/WKBundleFramePrivate.h>
 #include <WebKit/WKBundlePage.h>
@@ -60,6 +61,15 @@ AccessibilityController::~AccessibilityController() = default;
 void AccessibilityController::setRetainedElement(AccessibilityUIElement* uiElement)
 {
     m_retainedElement = uiElement;
+}
+
+void AccessibilityController::printToStderr(JSStringRef jsMessage) const
+{
+    auto message = toWTFString(jsMessage);
+    if (!message.isEmpty())
+        SAFE_FPRINTF(stderr, "%s\n", message.utf8());
+    else
+        SAFE_FPRINTF(stderr, ">>> AccessibilityController::printToStderr <<<\n");
 }
 
 void AccessibilityController::setIsolatedTreeMode(bool flag)

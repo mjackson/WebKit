@@ -198,6 +198,7 @@ private:
     void getToplevelBrowsingContextRect(Function<void(CommandResult&&)>&&);
 
     std::optional<String> pageLoadStrategyString() const;
+    bool clearBrowsingContextsOnError(const CommandResult&);
 
     void handleUserPrompts(Function<void(CommandResult&&)>&&);
     void handleUnexpectedAlertOpen(Function<void(CommandResult&&)>&&);

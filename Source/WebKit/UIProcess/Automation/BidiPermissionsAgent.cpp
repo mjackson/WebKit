@@ -56,7 +56,8 @@ BidiPermissionsAgent::~BidiPermissionsAgent() = default;
 static Vector<Ref<WebPageProxy>> allPageProxiesFor(const WebAutomationSession& session)
 {
     Vector<Ref<WebPageProxy>> pages;
-    for (Ref process : protect(session.processPool())->processes()) {
+    RefPtr processPool = session.processPool();
+    for (Ref process : processPool->processes()) {
         for (Ref page : process->pages()) {
             if (!page->isControlledByAutomation())
                 continue;
@@ -86,7 +87,7 @@ void BidiPermissionsAgent::setPermission(Ref<JSON::Object>&& descriptor, const S
         });
 
         for (auto page : allPageProxiesFor(*session)) {
-            auto pageOrigin = RegistrableDomain { protect(page->pageLoadState())->origin() };
+            auto pageOrigin = RegistrableDomain { page->pageLoadState().origin() };
             if (pageOrigin != topFrameOrigin)
                 continue;
 

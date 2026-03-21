@@ -479,6 +479,6 @@ function dispose()
     "use strict";
 
     var returnMethod = this.return;
-    if (returnMethod !== @undefined)
+    if (!@isUndefinedOrNull(returnMethod))
         returnMethod.@call(this);
 }

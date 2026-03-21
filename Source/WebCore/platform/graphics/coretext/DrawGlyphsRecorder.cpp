@@ -31,6 +31,7 @@
 #include "FloatPoint.h"
 #include "Font.h"
 #include "FontCascade.h"
+#include "FontInlines.h"
 #include "FontPlatformData.h"
 #include "GlyphBuffer.h"
 #include "GraphicsContextCG.h"
@@ -308,7 +309,7 @@ void DrawGlyphsRecorder::recordDrawGlyphs(CGRenderingStateRef, CGGStateRef gstat
         return;
 
     RetainPtr usedFont = CGGStateGetFont(gstate);
-    if (m_deriveFontFromContext == DeriveFontFromContext::No && usedFont != adoptCF(CTFontCopyGraphicsFont(m_originalFont->platformData().protectedCTFont().get(), nullptr)).get())
+    if (m_deriveFontFromContext == DeriveFontFromContext::No && usedFont != adoptCF(CTFontCopyGraphicsFont(protect(m_originalFont->platformData().ctFont()).get(), nullptr)).get())
         return;
 
     updateCTM(*CGGStateGetCTM(gstate));
@@ -325,7 +326,7 @@ void DrawGlyphsRecorder::recordDrawGlyphs(CGRenderingStateRef, CGGStateRef gstat
     // If you set these two equal to each other, and solve for X, you get
     // CTM * currentTextMatrix = CTM * X * m_originalTextMatrix
     // currentTextMatrix * inverse(m_originalTextMatrix) = X
-    AffineTransform currentTextMatrix = CGContextGetTextMatrix(m_internalContext->protectedPlatformContext().get());
+    AffineTransform currentTextMatrix = CGContextGetTextMatrix(protect(m_internalContext->platformContext()).get());
     AffineTransform ctmFixup;
     if (auto invertedOriginalTextMatrix = m_originalTextMatrix.inverse())
         ctmFixup = currentTextMatrix * invertedOriginalTextMatrix.value();
@@ -352,7 +353,7 @@ void DrawGlyphsRecorder::recordDrawGlyphs(CGRenderingStateRef, CGGStateRef gstat
     AdvancesAndInitialPosition advances;
     if (font->platformData().orientation() == FontOrientation::Vertical) {
         Vector<CGSize, 256> translations(glyphs.size());
-        CTFontGetVerticalTranslationsForGlyphs(font->platformData().protectedCTFont().get(), glyphs.data(), translations.mutableSpan().data(), glyphs.size());
+        CTFontGetVerticalTranslationsForGlyphs(protect(font->platformData().ctFont()).get(), glyphs.data(), translations.mutableSpan().data(), glyphs.size());
         auto ascentDelta = font->fontMetrics().ascent(FontBaseline::Ideographic) - font->fontMetrics().ascent();
         advances = computeVerticalAdvancesFromPositions(translations.span(), positions, ascentDelta, textMatrix);
     } else

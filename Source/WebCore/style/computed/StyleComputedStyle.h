@@ -35,13 +35,13 @@ class ComputedStyle final : public ComputedStyleProperties {
 public:
     void inheritFrom(const ComputedStyle&);
     void inheritIgnoringCustomPropertiesFrom(const ComputedStyle&);
-    void inheritUnicodeBidiFrom(const ComputedStyle&);
+    void NODELETE inheritUnicodeBidiFrom(const ComputedStyle&);
     inline void inheritColumnPropertiesFrom(const ComputedStyle&);
     void fastPathInheritFrom(const ComputedStyle&);
     void copyNonInheritedFrom(const ComputedStyle&);
     void copyContentFrom(const ComputedStyle&);
     void copyPseudoElementsFrom(const ComputedStyle&);
-    void copyPseudoElementBitsFrom(const ComputedStyle&);
+    void NODELETE copyPseudoElementBitsFrom(const ComputedStyle&);
 
     // MARK: - Comparisons
 
@@ -51,13 +51,13 @@ public:
     bool nonInheritedEqual(const ComputedStyle&) const;
     bool fastPathInheritedEqual(const ComputedStyle&) const;
     bool nonFastPathInheritedEqual(const ComputedStyle&) const;
-    bool descendantAffectingNonInheritedPropertiesEqual(const ComputedStyle&) const;
+    bool NODELETE descendantAffectingNonInheritedPropertiesEqual(const ComputedStyle&) const;
     bool borderAndBackgroundEqual(const ComputedStyle&) const;
     inline bool containerTypeAndNamesEqual(const ComputedStyle&) const;
     inline bool columnSpanEqual(const ComputedStyle&) const;
     inline bool scrollPaddingEqual(const ComputedStyle&) const;
     inline bool fontCascadeEqual(const ComputedStyle&) const;
-    bool scrollSnapDataEquivalent(const ComputedStyle&) const;
+    bool NODELETE scrollSnapDataEquivalent(const ComputedStyle&) const;
 
     // MARK: - Style reset utilities
 
@@ -74,7 +74,6 @@ public:
     // MARK: - Derived Values
 
     WEBCORE_EXPORT float computedLineHeight() const;
-    float computeLineHeight(const LineHeight&) const;
 
     // MARK: - Non-property initial values.
 

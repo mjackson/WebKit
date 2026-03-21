@@ -71,23 +71,19 @@ void ResizeObserver::observeInternal(Element& target, const ResizeObserverBoxOpt
 {
     ASSERT(!m_JSOrNativeCallback.valueless_by_exception());
 
-    auto position = m_observations.findIf([&](auto& observation) {
-        return observation->target() == &target;
+    auto addResult = m_observationMap.ensure(target, [&]() {
+        return ResizeObservation::create(target, boxOptions);
     });
-
-    if (position != notFound) {
+    if (!addResult.isNewEntry) {
         // The spec suggests unconditionally unobserving here, but that causes a test failure:
         // https://github.com/web-platform-tests/wpt/issues/30708
-        if (m_observations[position]->observedBox() == boxOptions)
+        if (addResult.iterator->value->observedBox() == boxOptions)
             return;
-
         unobserve(target);
     }
-
     auto& observerData = target.ensureResizeObserverData();
     observerData.observers.append(*this);
-
-    m_observations.append(ResizeObservation::create(target, boxOptions));
+    m_observations.add(addResult.iterator->value.copyRef());
 
     // Per the specification, we should dispatch at least one observation for the target. For this reason, we make sure to keep the
     // target alive until this first observation. This, in turn, will keep the ResizeObserver's JS wrapper alive via
@@ -165,7 +161,7 @@ void ResizeObserver::deliverObservations()
 
     auto entries = WTF::compactMap(m_activeObservations, [](auto& observation) -> RefPtr<ResizeObserverEntry> {
         RefPtr target = observation->target();
-        ASSERT(target); // The target is supposed to be kept alive via `m_activeObservationTargets` and JSResizeObserver::visitAdditionalChildren().
+        ASSERT(target); // The target is supposed to be kept alive via `m_activeObservationTargets` and JSResizeObserver::visitAdditionalChildrenInGCThread().
         if (!target)
             return nullptr;
         return ResizeObserverEntry::create(target.releaseNonNull(), observation->computeContentRect(), observation->borderBoxSize(), observation->contentBoxSize());
@@ -174,7 +170,7 @@ void ResizeObserver::deliverObservations()
 
     // Use GCReachableRef here to make sure the targets and their JS wrappers are kept alive while we deliver.
     // It is important since m_activeObservationTargets / m_targetsWaitingForFirstObservation will get cleared and
-    // thus JSResizeObserver::visitAdditionalChildren() won't be able to visit them on a GC thread.
+    // thus JSResizeObserver::visitAdditionalChildrenInGCThread() won't be able to visit them on a GC thread.
     Vector<GCReachableRef<Element>> activeObservationTargets;
     Vector<GCReachableRef<Element>> targetsWaitingForFirstObservation;
     {
@@ -182,14 +178,14 @@ void ResizeObserver::deliverObservations()
         activeObservationTargets = WTF::compactMap(m_activeObservationTargets, [](auto& weakTarget) -> std::optional<GCReachableRef<Element>> {
             if (weakTarget)
                 return GCReachableRef<Element> { *weakTarget };
-            ASSERT_NOT_REACHED(); // Targets are supposed to be kept alive via JSResizeObserver::visitAdditionalChildren().
+            ASSERT_NOT_REACHED(); // Targets are supposed to be kept alive via JSResizeObserver::visitAdditionalChildrenInGCThread().
             return std::nullopt;
         });
         m_activeObservationTargets = { };
         targetsWaitingForFirstObservation = WTF::compactMap(m_targetsWaitingForFirstObservation, [](auto& weakTarget) -> std::optional<GCReachableRef<Element>> {
             if (weakTarget)
                 return GCReachableRef<Element> { *weakTarget };
-            ASSERT_NOT_REACHED(); // Targets are supposed to be kept alive via JSResizeObserver::visitAdditionalChildren().
+            ASSERT_NOT_REACHED(); // Targets are supposed to be kept alive via JSResizeObserver::visitAdditionalChildrenInGCThread().
             return std::nullopt;
         });
         m_targetsWaitingForFirstObservation = { };
@@ -260,6 +256,7 @@ void ResizeObserver::removeAllTargets()
     }
     m_activeObservations.clear();
     m_observations.clear();
+    m_observationMap.clear();
 }
 
 bool ResizeObserver::removeObservation(const Element& target)
@@ -270,9 +267,11 @@ bool ResizeObserver::removeObservation(const Element& target)
             return pendingTarget.get() == &target;
         });
     }
-    return m_observations.removeFirstMatching([&target](auto& observation) {
-        return observation->target() == &target;
-    });
+    RefPtr observation = m_observationMap.take(target);
+    if (!observation)
+        return false;
+    m_observations.remove(observation);
+    return true;
 }
 
 bool ResizeObserver::isJSCallback()
@@ -299,12 +298,8 @@ ResizeObserverCallback* ResizeObserver::callbackConcurrently()
 
 void ResizeObserver::resetObservationSize(Element& target)
 {
-    auto position = m_observations.findIf([&](auto& observation) {
-        return observation->target() == &target;
-    });
-
-    if (position != notFound)
-        m_observations[position]->resetObservationSize();
+    if (RefPtr observation = m_observationMap.get(target))
+        observation->resetObservationSize();
 }
 
 } // namespace WebCore

@@ -48,16 +48,16 @@ public:
     WEBCORE_EXPORT AtomString value() const;
     WEBCORE_EXPORT ExceptionOr<void> setValue(const AtomString&);
 
-    const QualifiedName& qualifiedName() const { return m_name; }
+    const QualifiedName& qualifiedName() const LIFETIME_BOUND { return m_name; }
 
     WEBCORE_EXPORT CSSStyleProperties* style();
 
     void attachToElement(Element&);
     void detachFromElementWithValue(const AtomString&);
 
-    const AtomString& NODELETE namespaceURI() const final { return m_name.namespaceURI(); }
-    const AtomString& NODELETE localName() const final { return m_name.localName(); }
-    const AtomString& NODELETE prefix() const final { return m_name.prefix(); }
+    const AtomString& NODELETE namespaceURI() const LIFETIME_BOUND final { return m_name.namespaceURI(); }
+    const AtomString& NODELETE localName() const LIFETIME_BOUND final { return m_name.localName(); }
+    const AtomString& NODELETE prefix() const LIFETIME_BOUND final { return m_name.prefix(); }
 
 private:
     Attr(Element&, const QualifiedName&);
@@ -87,5 +87,5 @@ private:
 } // namespace WebCore
 
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::Attr)
-    static bool isType(const WebCore::Node& node) { return node.nodeType() == WebCore::Node::ATTRIBUTE_NODE; }
+    static bool isType(const WebCore::Node& node) { return node.nodeType() == WebCore::NodeType::Attribute; }
 SPECIALIZE_TYPE_TRAITS_END()

@@ -85,7 +85,7 @@ DocumentFragment& HTMLTemplateElement::content() const
 {
     ASSERT(!m_declarativeShadowRoot);
     if (!m_content)
-        lazyInitialize(m_content, TemplateContentDocumentFragment::create(protect(document())->ensureProtectedTemplateDocument(), *this));
+        lazyInitialize(m_content, TemplateContentDocumentFragment::create(protect(protect(document())->ensureTemplateDocument()), *this));
     return *m_content;
 }
 
@@ -165,7 +165,7 @@ void HTMLTemplateElement::didMoveToNewDocument(Document& oldDocument, Document& 
     if (!m_content)
         return;
     ASSERT_WITH_SECURITY_IMPLICATION(&document() == &newDocument);
-    m_content->setTreeScopeRecursively(newDocument.ensureProtectedTemplateDocument());
+    m_content->setTreeScopeRecursively(protect(newDocument.ensureTemplateDocument()));
 }
 
 } // namespace WebCore

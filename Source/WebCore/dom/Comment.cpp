@@ -31,7 +31,7 @@ namespace WebCore {
 WTF_MAKE_TZONE_ALLOCATED_IMPL(Comment);
 
 inline Comment::Comment(Document& document, String&& text)
-    : CharacterData(document, WTF::move(text), COMMENT_NODE)
+    : CharacterData(document, WTF::move(text), NodeType::Comment)
 {
 }
 

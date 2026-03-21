@@ -134,7 +134,7 @@ void RenderThemeIOS::adjustCheckboxStyle(RenderStyle& style, const Element*) con
 {
     adjustMinimumIntrinsicSizeForAppearance(StyleAppearance::Checkbox, style);
 
-    if (!style.width().isIntrinsicOrLegacyIntrinsicOrAuto() && !style.height().isAuto())
+    if (!style.width().isSizingKeywordOrAuto() && !style.height().isAuto())
         return;
 
     auto size = Style::PreferredSize::Fixed { std::max(style.computedFontSize(), 10.f) };
@@ -226,14 +226,15 @@ void RenderThemeIOS::adjustRadioStyle(RenderStyle& style, const Element*) const
 {
     adjustMinimumIntrinsicSizeForAppearance(StyleAppearance::Radio, style);
 
-    if (!style.width().isIntrinsicOrLegacyIntrinsicOrAuto() && !style.height().isAuto())
+    if (!style.width().isSizingKeywordOrAuto() && !style.height().isAuto())
         return;
 
     auto size = std::max(style.computedFontSize(), 10.0f);
     style.setWidth(Style::PreferredSize::Fixed { size });
     style.setHeight(Style::PreferredSize::Fixed { size });
 
-    auto radius = Style::LengthPercentage<CSS::Nonnegative>::Dimension { std::trunc(size / 2.0f) };
+    auto usedZoom = style.usedZoomForLength();
+    auto radius = Style::LengthPercentage<CSS::NonnegativeUnzoomed>::Dimension { std::trunc(size / 2 / usedZoom.value) };
     style.setBorderRadius({ radius, radius });
 }
 
@@ -386,7 +387,16 @@ Style::PaddingBox RenderThemeIOS::popupInternalPaddingBox(const RenderStyle& sty
         // FIXME: Reduce code duplication with toTruncatedPaddingEdge.
         auto value = Style::PaddingEdge::Fixed { static_cast<float>(std::trunc(padding + Style::evaluate<float>(style.usedBorderTopWidth(),  Style::ZoomNeeded { }))) / style.usedZoom() };
 
-        if (style.writingMode().isBidiRTL())
+        bool padLeft = [&] {
+            auto textAlign = style.textAlign();
+            if (textAlign == Style::TextAlign::Start)
+                return style.writingMode().isBidiRTL();
+            if (textAlign == Style::TextAlign::End)
+                return style.writingMode().isBidiLTR();
+            return textAlign == Style::TextAlign::Right;
+        }();
+
+        if (padLeft)
             return { 0_css_px, 0_css_px, 0_css_px, value };
         return { 0_css_px, value, 0_css_px, 0_css_px };
     }
@@ -415,22 +425,27 @@ void RenderThemeIOS::adjustRoundBorderRadius(RenderStyle& style, RenderBox& box)
     if (!canAdjustBorderRadiusForAppearance(style.usedAppearance(), box) || Style::hasImageInAnyLayer(style.backgroundLayers()))
         return;
 
-    auto boxLogicalHeight = box.logicalHeight();
-    auto minDimension = std::min(box.width(), box.height());
+    auto usedZoom = style.usedZoomForLength();
 
-    if ((is<RenderButton>(box) || is<RenderMenuList>(box)) && boxLogicalHeight >= largeButtonSize) {
-        auto largeButtonBorderRadius = Style::LengthPercentage<CSS::Nonnegative>::Dimension { minDimension * largeButtonBorderRadiusRatio };
+    auto boxLogicalHeight = box.logicalHeight();
+    auto unzoomedBoxLogicalHeight = box.logicalHeight() / usedZoom.value;
+
+    auto minDimension = std::min(box.width(), box.height());
+    auto unzoomedMinDimension = minDimension / usedZoom.value;
+
+    if ((isAnyOf<RenderButton, RenderMenuList>(box)) && boxLogicalHeight >= largeButtonSize) {
+        auto largeButtonBorderRadius = Style::LengthPercentage<CSS::NonnegativeUnzoomed>::Dimension { unzoomedMinDimension * largeButtonBorderRadiusRatio };
         style.setBorderRadius({ largeButtonBorderRadius, largeButtonBorderRadius });
         return;
     }
 
     // FIXME: We should not be relying on border radius for the appearance of our controls <rdar://problem/7675493>.
     auto borderRadius = Style::BorderRadiusValue {
-        Style::LengthPercentage<CSS::Nonnegative>::Dimension { minDimension / 2 },
-        Style::LengthPercentage<CSS::Nonnegative>::Dimension { boxLogicalHeight / 2 },
+        Style::LengthPercentage<CSS::NonnegativeUnzoomed>::Dimension { unzoomedMinDimension / 2 },
+        Style::LengthPercentage<CSS::NonnegativeUnzoomed>::Dimension { unzoomedBoxLogicalHeight / 2 },
     };
     if (!style.writingMode().isHorizontal())
-        borderRadius = { borderRadius.height(), borderRadius.width() };
+        borderRadius.transpose();
 
     style.setBorderRadius(WTF::move(borderRadius));
 }
@@ -644,7 +659,7 @@ void RenderThemeIOS::adjustSliderTrackStyle(RenderStyle& style, const Element* e
     RenderTheme::adjustSliderTrackStyle(style, element);
 
     // FIXME: We should not be relying on border radius for the appearance of our controls <rdar://problem/7675493>.
-    constexpr auto radius = Style::LengthPercentage<CSS::Nonnegative>::Dimension { defaultTrackRadius };
+    constexpr auto radius = Style::LengthPercentage<CSS::NonnegativeUnzoomed>::Dimension { defaultTrackRadius };
     style.setBorderRadius({ radius, radius });
 }
 
@@ -747,7 +762,7 @@ void RenderThemeIOS::adjustSliderThumbSize(RenderStyle& style, const Element* el
     style.setBorderRadius({ 50_css_percentage, 50_css_percentage });
 
     // Enforce a 16x16 size if no size is provided.
-    if (style.width().isIntrinsicOrLegacyIntrinsicOrAuto() || style.height().isAuto()) {
+    if (style.width().isSizingKeywordOrAuto() || style.height().isAuto()) {
         style.setWidth(defaultSliderThumbSize);
         style.setHeight(defaultSliderThumbSize);
     }
@@ -937,7 +952,7 @@ void RenderThemeIOS::adjustButtonStyle(RenderStyle& style, const Element* elemen
     // If no size is specified, ensure the height of the button matches ControlBaseHeight scaled
     // with the font size. min-height is used rather than height to avoid clipping the contents of
     // the button in cases where the button contains more than one line of text.
-    if (style.logicalWidth().isIntrinsicOrLegacyIntrinsicOrAuto() || style.logicalHeight().isAuto()) {
+    if (style.logicalWidth().isSizingKeywordOrAuto() || style.logicalHeight().isAuto()) {
         auto minimumHeight = ControlBaseHeight / ControlBaseFontSize * style.fontDescription().computedSize();
         if (auto fixedLogicalMinHeight = style.logicalMinHeight().tryFixed())
             minimumHeight = std::max(minimumHeight, fixedLogicalMinHeight->resolveZoom(style.usedZoomForLength()));
@@ -1040,6 +1055,11 @@ Color RenderThemeIOS::platformAnnotationHighlightBackgroundColor(OptionSet<Style
 {
     // FIXME: expose the real value from UIKit.
     return SRGBA<uint8_t> { 255, 238, 190 };
+}
+
+Color RenderThemeIOS::platformTextSearchHighlightColor(OptionSet<StyleColorOptions>) const
+{
+    return SRGBA<uint8_t> { 255, 228, 56 };
 }
 
 bool RenderThemeIOS::shouldHaveSpinButton(const HTMLInputElement&) const

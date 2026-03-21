@@ -54,9 +54,9 @@ public:
 
     ArrayBuffer& rawId() const { return m_rawId; }
 
-    WEBCORE_EXPORT void NODELETE setExtensions(AuthenticationExtensionsClientOutputs&&);
+    WEBCORE_EXPORT void setExtensions(AuthenticationExtensionsClientOutputs&&);
     WEBCORE_EXPORT AuthenticationExtensionsClientOutputs extensions() const;
-    WEBCORE_EXPORT void NODELETE setClientDataJSON(Ref<ArrayBuffer>&&);
+    WEBCORE_EXPORT void setClientDataJSON(Ref<ArrayBuffer>&&);
     ArrayBuffer* NODELETE clientDataJSON() const;
     WEBCORE_EXPORT AuthenticatorAttachment NODELETE attachment() const;
 

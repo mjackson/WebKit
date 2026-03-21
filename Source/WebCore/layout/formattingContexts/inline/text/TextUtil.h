@@ -26,7 +26,6 @@
 #pragma once
 
 #include <WebCore/Font.h>
-#include <WebCore/FontCascade.h>
 #include <WebCore/InlineItem.h>
 #include <WebCore/InlineLine.h>
 #include <WebCore/LayoutUnits.h>
@@ -41,6 +40,8 @@ namespace TextSpacing {
 struct SpacingState;
 }
 
+struct GlyphOverflow;
+class FontCascade;
 class RenderStyle;
 class TextRun;
 
@@ -54,8 +55,8 @@ class TextUtil {
 public:
     enum class UseTrailingWhitespaceMeasuringOptimization : bool { No, Yes };
     static InlineLayoutUnit width(const InlineTextItem&, const FontCascade&, InlineLayoutUnit contentLogicalLeft);
-    static InlineLayoutUnit width(const InlineTextItem&, const FontCascade&, unsigned from, unsigned to, InlineLayoutUnit contentLogicalLeft, UseTrailingWhitespaceMeasuringOptimization = UseTrailingWhitespaceMeasuringOptimization::Yes, TextSpacing::SpacingState spacingState = { });
-    static InlineLayoutUnit width(const InlineTextBox&, const FontCascade&, unsigned from, unsigned to, InlineLayoutUnit contentLogicalLeft, UseTrailingWhitespaceMeasuringOptimization = UseTrailingWhitespaceMeasuringOptimization::Yes, TextSpacing::SpacingState spacingState = { });
+    static InlineLayoutUnit width(const InlineTextItem&, const FontCascade&, unsigned from, unsigned to, InlineLayoutUnit contentLogicalLeft, UseTrailingWhitespaceMeasuringOptimization = UseTrailingWhitespaceMeasuringOptimization::Yes, TextSpacing::SpacingState spacingState = { }, GlyphOverflow* = nullptr);
+    static InlineLayoutUnit width(const InlineTextBox&, const FontCascade&, unsigned from, unsigned to, InlineLayoutUnit contentLogicalLeft, UseTrailingWhitespaceMeasuringOptimization = UseTrailingWhitespaceMeasuringOptimization::Yes, TextSpacing::SpacingState spacingState = { }, GlyphOverflow* = nullptr);
 
     static InlineLayoutUnit trailingWhitespaceWidth(const InlineTextBox&, const FontCascade&, size_t startPosition, size_t endPosition);
     static InlineLayoutUnit singleSpaceWidth(const FontCascade&, bool canUseSimplifiedContentMeasuring);
@@ -82,13 +83,13 @@ public:
     // FIXME: Remove when computeInlinePreferredLogicalWidths is all IFC.
     static bool mayBreakInBetween(String previousContent, const RenderStyle& previousContentStyle, String nextContent, const RenderStyle& nextContentStyle);
     static unsigned findNextBreakablePosition(CachedLineBreakIteratorFactory&, unsigned startPosition, const RenderStyle&);
-    static TextBreakIterator::LineMode::Behavior lineBreakIteratorMode(LineBreak);
-    static TextBreakIterator::ContentAnalysis contentAnalysis(WordBreak);
+    static TextBreakIterator::LineMode::Behavior NODELETE lineBreakIteratorMode(LineBreak);
+    static TextBreakIterator::ContentAnalysis NODELETE contentAnalysis(WordBreak);
 
-    static bool shouldPreserveSpacesAndTabs(const Box&);
-    static bool shouldPreserveNewline(const Box&);
-    static bool isWrappingAllowed(const RenderStyle&);
-    static bool shouldTrailingWhitespaceHang(const RenderStyle&);
+    static bool NODELETE shouldPreserveSpacesAndTabs(const Box&);
+    static bool NODELETE shouldPreserveNewline(const Box&);
+    static bool NODELETE isWrappingAllowed(const RenderStyle&);
+    static bool NODELETE shouldTrailingWhitespaceHang(const RenderStyle&);
 
     static bool isStrongDirectionalityCharacter(char32_t);
     static bool containsStrongDirectionalityText(StringView);
@@ -114,7 +115,7 @@ public:
     static bool hasPositionDependentContentWidth(StringView);
 
     static char32_t baseCharacterFromGraphemeCluster(StringView graphemeCluster);
-    static char32_t lastBaseCharacterFromText(StringView);
+    static char32_t NODELETE lastBaseCharacterFromText(StringView);
 };
 
 } // namespace Layout

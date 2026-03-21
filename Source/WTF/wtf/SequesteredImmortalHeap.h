@@ -115,7 +115,8 @@ public:
         {
             Locker lock(m_lock);
             retval = allocateImpl(bytes);
-            newAllocHead = reinterpret_cast<void*>(m_allocHead);
+            if constexpr (verbose)
+                newAllocHead = reinterpret_cast<void*>(m_allocHead);
         }
         dataLogLnIf(verbose,
             "SequesteredImmortalAllocator at ", RawPointer(this),
@@ -132,7 +133,8 @@ public:
         {
             Locker lock(m_lock);
             retval = alignedAllocateImpl(alignment, bytes);
-            newAllocHead = reinterpret_cast<void*>(m_allocHead);
+            if constexpr (verbose)
+                newAllocHead = reinterpret_cast<void*>(m_allocHead);
         }
         dataLogLnIf(verbose,
             "SequesteredImmortalAllocator at ", RawPointer(this),
@@ -386,7 +388,7 @@ public:
         return m_immortalAllocator.alignedAllocate(alignment, bytes);
     }
 
-    SequesteredStackAllocator& stackAllocator() { return m_stackAllocator; }
+    SequesteredStackAllocator& stackAllocator() LIFETIME_BOUND { return m_stackAllocator; }
 
     void* getSlot()
     {

@@ -47,7 +47,7 @@ public:
     int descent() const;
     String fontFamily() const;
 
-    SVGFontElement* associatedFontElement() const;
+    SVGFontElement* NODELETE associatedFontElement() const;
     void rebuildFontFace();
 
     StyleRuleFontFace& fontFaceRule() const { return m_fontFaceRule.get(); }
@@ -59,8 +59,8 @@ private:
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) final;
 
     void childrenChanged(const ChildChange&) final;
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) final;
-    void removedFromAncestor(RemovalType, ContainerNode&) final;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) final;
+    void removingSteps(RemovalType, ContainerNode&) final;
 
     bool rendererIsNeeded(const RenderStyle&) final { return false; }
 

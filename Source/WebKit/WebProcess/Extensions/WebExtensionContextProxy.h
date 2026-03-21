@@ -60,7 +60,7 @@ class WebExtensionContextProxy final : public RefCounted<WebExtensionContextProx
     WTF_MAKE_NONCOPYABLE(WebExtensionContextProxy);
 
 public:
-    static RefPtr<WebExtensionContextProxy> get(WebExtensionContextIdentifier);
+    static RefPtr<WebExtensionContextProxy> NODELETE get(WebExtensionContextIdentifier);
     static Ref<WebExtensionContextProxy> getOrCreate(const WebExtensionContextParameters&, WebExtensionControllerProxy&, WebPage* = nullptr);
 
     ~WebExtensionContextProxy();
@@ -81,8 +81,8 @@ public:
 
     bool operator==(const WebExtensionContextProxy& other) const { return (this == &other); }
 
-    const URL& baseURL() const { return m_baseURL; }
-    const String& uniqueIdentifier() const { return m_uniqueIdentifier; }
+    const URL& baseURL() const LIFETIME_BOUND { return m_baseURL; }
+    const String& uniqueIdentifier() const LIFETIME_BOUND { return m_uniqueIdentifier; }
 
 #if PLATFORM(COCOA)
     NSDictionary *manifest() const { return m_manifest.get(); }
@@ -110,7 +110,7 @@ public:
     std::optional<WebExtensionTabIdentifier> NODELETE tabIdentifier(WebPage&) const;
 
     RefPtr<WebPage> NODELETE backgroundPage() const;
-    void setBackgroundPage(WebPage&);
+    void NODELETE setBackgroundPage(WebPage&);
 
     bool isUnsupportedAPI(const String& propertyPath, const ASCIILiteral& propertyName) const;
 

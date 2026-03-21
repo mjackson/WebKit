@@ -80,7 +80,7 @@ AcceleratedEffectValues AcceleratedEffectValues::clone() const
     };
 }
 
-static constexpr AcceleratedEffectTransformBox toAcceleratedEffectTransformBox(TransformBox transformBox)
+static constexpr AcceleratedEffectTransformBox NODELETE toAcceleratedEffectTransformBox(TransformBox transformBox)
 {
     switch (transformBox) {
     case TransformBox::StrokeBox:   return AcceleratedEffectTransformBox::StrokeBox;
@@ -92,7 +92,7 @@ static constexpr AcceleratedEffectTransformBox toAcceleratedEffectTransformBox(T
     RELEASE_ASSERT_NOT_REACHED();
 }
 
-static constexpr TransformBox toTransformBox(AcceleratedEffectTransformBox transformBox)
+static constexpr TransformBox NODELETE toTransformBox(AcceleratedEffectTransformBox transformBox)
 {
     switch (transformBox) {
     case AcceleratedEffectTransformBox::StrokeBox:   return TransformBox::StrokeBox;
@@ -113,6 +113,8 @@ AcceleratedEffectValues::AcceleratedEffectValues(const RenderStyle& style, const
 
     // FIXME: RenderStyle::applyCSSTransform uses `transformOperationData.boundingBox` for all the reference boxes, but this uses a mixture of `transformOperationData.boundingBox` and the passed in `borderBoxSize`. Instead, probably `TransformOperationData` should be passed in directly and `borderBoxRect` removed.
 
+    auto zoom = style.usedZoomForLength();
+
     opacity = Style::evaluate<AcceleratedEffectOpacity>(style.opacity());
     transformBox = toAcceleratedEffectTransformBox(style.transformBox());
     transform = Style::toPlatform(style.transform(), borderBoxSize);
@@ -121,15 +123,15 @@ AcceleratedEffectValues::AcceleratedEffectValues(const RenderStyle& style, const
     rotate = Style::toPlatform(style.rotate(), borderBoxSize);
 
     if (!style.offsetPath().isNone() && transformOperationData) {
-        if (auto path = Style::tryPath(style.offsetPath(), *transformOperationData)) {
+        if (auto path = Style::tryPath(style.offsetPath(), *transformOperationData, zoom)) {
             transformOrigin = { .value = Style::TransformResolver::computeTransformOrigin(style, transformOperationData->boundingBox).xy() };
             offsetPath = Style::toPlatform(style.offsetPath());
-            offsetDistance = Style::evaluate<AcceleratedEffectOffsetDistance>(style.offsetDistance(), path->length(), Style::ZoomNeeded { });
+            offsetDistance = Style::evaluate<AcceleratedEffectOffsetDistance>(style.offsetDistance(), path->length(), zoom);
             offsetRotate = Style::evaluate<AcceleratedEffectOffsetRotate>(style.offsetRotate());
-            offsetAnchor = Style::evaluate<AcceleratedEffectOffsetAnchor>(style.offsetAnchor(), transformOperationData->boundingBox.size(), Style::ZoomNeeded { });
+            offsetAnchor = Style::evaluate<AcceleratedEffectOffsetAnchor>(style.offsetAnchor(), transformOperationData->boundingBox.size(), zoom);
 
             // FIXME: Its not clear if this is the right bounding box for this. MotionPath::motionPathDataForRenderer() uses MotionPathData::containingBlockBoundingRect and its not apparent that they are necessarily the same rect.
-            offsetPosition = Style::evaluate<AcceleratedEffectOffsetPosition>(style.offsetPosition(), transformOperationData->boundingBox.size(), Style::ZoomNeeded { });
+            offsetPosition = Style::evaluate<AcceleratedEffectOffsetPosition>(style.offsetPosition(), transformOperationData->boundingBox.size(), zoom);
         }
     }
 
@@ -163,7 +165,8 @@ TransformationMatrix AcceleratedEffectValues::computedTransformationMatrix(const
 
     // 6. Translate and rotate by the transform specified by offset.
     if (transformOperationData && offsetPath) {
-        if (auto path = Style::tryPath(Style::OffsetPath { *offsetPath }, *transformOperationData)) {
+        // Passing the special `none` zoom factor is correct here as zoom was previously applied when `offsetPath` was initialized.
+        if (auto path = Style::tryPath(Style::OffsetPath { *offsetPath }, *transformOperationData, Style::ZoomFactor::none())) {
             // FIXME: This transform of `transformOrigin` is not present in the overload of MotionPath::applyMotionPathTransform() that takes a `RenderStyle`.
             auto computedTransformOrigin = boundingBox.location() + transformOrigin.value;
 

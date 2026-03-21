@@ -70,16 +70,16 @@ private:
     void svgAttributeChanged(const QualifiedName&) override;
     void childrenChanged(const ChildChange&) override;
 
-    Ref<SVGAnimatedNumber> m_azimuth { SVGAnimatedNumber::create(this) };
-    Ref<SVGAnimatedNumber> m_elevation { SVGAnimatedNumber::create(this) };
-    Ref<SVGAnimatedNumber> m_x { SVGAnimatedNumber::create(this) };
-    Ref<SVGAnimatedNumber> m_y { SVGAnimatedNumber::create(this) };
-    Ref<SVGAnimatedNumber> m_z { SVGAnimatedNumber::create(this) };
-    Ref<SVGAnimatedNumber> m_pointsAtX { SVGAnimatedNumber::create(this) };
-    Ref<SVGAnimatedNumber> m_pointsAtY { SVGAnimatedNumber::create(this) };
-    Ref<SVGAnimatedNumber> m_pointsAtZ { SVGAnimatedNumber::create(this) };
-    Ref<SVGAnimatedNumber> m_specularExponent { SVGAnimatedNumber::create(this, 1) };
-    Ref<SVGAnimatedNumber> m_limitingConeAngle { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedNumber> m_azimuth { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedNumber> m_elevation { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedNumber> m_x { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedNumber> m_y { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedNumber> m_z { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedNumber> m_pointsAtX { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedNumber> m_pointsAtY { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedNumber> m_pointsAtZ { SVGAnimatedNumber::create(this) };
+    const Ref<SVGAnimatedNumber> m_specularExponent { SVGAnimatedNumber::create(this, 1) };
+    const Ref<SVGAnimatedNumber> m_limitingConeAngle { SVGAnimatedNumber::create(this) };
 };
 
 } // namespace WebCore

@@ -44,7 +44,6 @@ std::unique_ptr<OpenXRHitTestManager> OpenXRHitTestManager::create(XrInstance in
 }
 
 OpenXRHitTestManager::OpenXRHitTestManager(XrInstance instance, XrSystemId systemId, XrSession session)
-    : m_session(session)
 {
 #if defined(XR_ANDROID_trackables) && defined(XR_ANDROID_raycast)
     uint32_t trackableTypeCapacity = 0;
@@ -67,8 +66,6 @@ OpenXRHitTestManager::OpenXRHitTestManager(XrInstance instance, XrSystemId syste
             break;
         }
     }
-#else
-    UNUSED_VARIABLE(m_session);
 #endif
 }
 
@@ -80,7 +77,7 @@ OpenXRHitTestManager::~OpenXRHitTestManager()
 #endif
 }
 
-Vector<PlatformXR::FrameData::HitTestResult> OpenXRHitTestManager::requestHitTest(const PlatformXR::Ray& ray, XrSpace space, XrTime time)
+Vector<PlatformXR::FrameData::HitTestResult> OpenXRHitTestManager::requestHitTest(XrSession session, const PlatformXR::Ray& ray, XrSpace space, XrTime time)
 {
 #if defined(XR_ANDROID_raycast)
     if (space == XR_NULL_HANDLE)
@@ -101,7 +98,7 @@ Vector<PlatformXR::FrameData::HitTestResult> OpenXRHitTestManager::requestHitTes
     xrHitResults.resultsCountOutput = 0;
     xrHitResults.results = nullptr;
 
-    CHECK_XRCMD(OpenXRExtensions::singleton().methods().xrRaycastANDROID(m_session, &raycastInfo, &xrHitResults));
+    CHECK_XRCMD(OpenXRExtensions::singleton().methods().xrRaycastANDROID(session, &raycastInfo, &xrHitResults));
     if (!xrHitResults.resultsCountOutput)
         return { };
 
@@ -110,7 +107,7 @@ Vector<PlatformXR::FrameData::HitTestResult> OpenXRHitTestManager::requestHitTes
     xrHitResults.resultsCapacityInput = xrHitResults.resultsCountOutput;
     xrHitResults.results = xrResults.mutableSpan().data();
 
-    CHECK_XRCMD(OpenXRExtensions::singleton().methods().xrRaycastANDROID(m_session, &raycastInfo, &xrHitResults));
+    CHECK_XRCMD(OpenXRExtensions::singleton().methods().xrRaycastANDROID(session, &raycastInfo, &xrHitResults));
 
     return xrResults.map([](auto& result) -> PlatformXR::FrameData::HitTestResult {
         return { XrPosefToPose(result.pose) };

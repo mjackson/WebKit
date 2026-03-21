@@ -29,6 +29,8 @@
 namespace WebCore {
 
 class HTMLSelectElement;
+class HTMLSlotElement;
+class HTMLSpanElement;
 
 enum class AllowStyleInvalidation : bool { No, Yes };
 
@@ -71,18 +73,21 @@ public:
 
     void cloneIntoSelectedContent(HTMLSelectedContentElement&);
 
+    void updateUserAgentShadowTree() final;
+
 private:
     HTMLOptionElement(const QualifiedName&, Document&);
 
-    InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) final;
-    void removedFromAncestor(RemovalType, ContainerNode& oldParentOfRemovedTree) final;
+    NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode&) final;
+    void removingSteps(RemovalType, ContainerNode& oldParentOfRemovedTree) final;
 
     bool supportsFocus() const final;
     bool isFocusable() const final;
-    bool rendererIsNeeded(const RenderStyle&) final;
     bool matchesDefaultPseudoClass() const final { return m_isDefault; }
 
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) final;
+
+    void didAddUserAgentShadowRoot(ShadowRoot&) final;
 
     bool accessKeyAction(bool) final;
 
@@ -95,10 +100,15 @@ private:
     String collectOptionInnerText() const;
     String collectOptionInnerTextCollapsingWhitespace() const;
 
+    void invalidateShadowTree();
+
     bool m_disabled { false };
     bool m_isSelected { false };
     bool m_isDefault { false };
+    bool m_shadowTreeNeedsUpdate { false };
     WeakPtr<HTMLSelectElement, WeakPtrImplWithEventTargetData> m_ownerSelect;
+    WeakPtr<HTMLSpanElement, WeakPtrImplWithEventTargetData> m_labelContainer;
+    WeakPtr<HTMLSlotElement, WeakPtrImplWithEventTargetData> m_slot;
 };
 
 } // namespace

@@ -47,6 +47,7 @@ dictionary TextExtractionTestOptions {
     boolean clipToBounds = false;
     boolean includeRects = false;
     boolean includeURLs = false;
+    boolean includeSelectOptions = false;
     boolean shortenURLs = false;
     DOMString nodeIdentifierInclusion = "none";
     object eventListenerCategories;
@@ -88,6 +89,7 @@ interface UIScriptController {
     // These functions post events asynchronously. The callback is fired when the events have been dispatched, but any
     // resulting behavior may also be asynchronous. Points are in "global" (WKWebView) coordinates.
     undefined touchDownAtPoint(long x, long y, long touchCount, object callback);
+    undefined touchDownAtPointWithMajorRadius(long x, long y, float majorRadius, float majorRadiusTolerance, object callback);
     undefined liftUpAtPoint(long x, long y, long touchCount, object callback);
     undefined singleTapAtPoint(long x, long y, object callback);
     undefined singleTapAtPointWithModifiers(long x, long y, object modifierArray, object callback);
@@ -272,6 +274,7 @@ interface UIScriptController {
 
     // <input type=color>
     undefined setSelectedColorForColorPicker(double red, double green, double blue);
+    readonly attribute boolean isShowingColorPicker;
 
     undefined keyboardAccessoryBarNext();
     undefined keyboardAccessoryBarPrevious();

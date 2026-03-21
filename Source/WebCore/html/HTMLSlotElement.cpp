@@ -58,22 +58,24 @@ HTMLSlotElement::HTMLSlotElement(const QualifiedName& tagName, Document& documen
     ASSERT(hasTagName(slotTag));
 }
 
-HTMLSlotElement::InsertedIntoAncestorResult HTMLSlotElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+HTMLSlotElement::NeedsPostConnectionSteps HTMLSlotElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
     SetForScope isInInsertedIntoAncestor { m_isInInsertedIntoAncestor, true };
 
-    auto insertionResult = HTMLElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
-    ASSERT_UNUSED(insertionResult, insertionResult == InsertedIntoAncestorResult::Done);
+    auto insertionResult = HTMLElement::insertionSteps(insertionType, parentOfInsertedTree);
+    ASSERT_UNUSED(insertionResult, insertionResult == NeedsPostConnectionSteps::No);
 
     if (insertionType.treeScopeChanged && isInShadowTree()) {
         if (RefPtr shadowRoot = containingShadowRoot())
             shadowRoot->addSlotElementByName(attributeWithoutSynchronization(nameAttr), *this);
     }
 
-    return InsertedIntoAncestorResult::NeedsPostInsertionCallback;
+    if (!insertionType.connectedToDocument)
+        return NeedsPostConnectionSteps::No;
+    return NeedsPostConnectionSteps::Yes;
 }
 
-void HTMLSlotElement::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+void HTMLSlotElement::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
     if (removalType.treeScopeChanged && oldParentOfRemovedTree.isInShadowTree()) {
         RefPtr oldShadowRoot = oldParentOfRemovedTree.containingShadowRoot();
@@ -81,7 +83,7 @@ void HTMLSlotElement::removedFromAncestor(RemovalType removalType, ContainerNode
         oldShadowRoot->removeSlotElementByName(attributeWithoutSynchronization(nameAttr), *this, oldParentOfRemovedTree);
     }
 
-    HTMLElement::removedFromAncestor(removalType, oldParentOfRemovedTree);
+    HTMLElement::removingSteps(removalType, oldParentOfRemovedTree);
 }
 
 void HTMLSlotElement::childrenChanged(const ChildChange& childChange)
@@ -104,9 +106,9 @@ void HTMLSlotElement::attributeChanged(const QualifiedName& name, const AtomStri
     }
 }
 
-void HTMLSlotElement::didFinishInsertingNode()
+void HTMLSlotElement::postConnectionSteps()
 {
-    HTMLElement::didFinishInsertingNode();
+    HTMLElement::postConnectionSteps();
     if (selfOrPrecedingNodesAffectDirAuto())
         updateEffectiveTextDirection();
 }
@@ -130,7 +132,7 @@ static void flattenAssignedNodes(Vector<Ref<Node>>& nodes, const HTMLSlotElement
         for (RefPtr<Node> child = slot.firstChild(); child; child = child->nextSibling()) {
             if (auto* slot = dynamicDowncast<HTMLSlotElement>(*child))
                 flattenAssignedNodes(nodes, *slot);
-            else if (is<Text>(*child) || is<Element>(*child))
+            else if (isAnyOf<Text, Element>(*child))
                 nodes.append(*child);
         }
         return;

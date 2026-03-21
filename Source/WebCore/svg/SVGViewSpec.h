@@ -43,13 +43,10 @@ public:
     void reset();
     void resetContextElement() { m_contextElement = nullptr; }
 
-    RefPtr<SVGElement> viewTarget() const;
-    const String& viewTargetString() const { return m_viewTargetString; }
-
     String transformString() const { return m_transform->valueAsString(); }
     Ref<SVGTransformList>& transform() { return m_transform; }
 
-    const WeakPtr<SVGElement, WeakPtrImplWithEventTargetData>& contextElementConcurrently() const { return m_contextElement; }
+    SVGElement* contextElementConcurrently() const { return m_contextElement; }
 
     using PropertyRegistry = SVGPropertyOwnerRegistry<SVGViewSpec, SVGFitToViewBox>;
 
@@ -57,7 +54,6 @@ private:
     explicit SVGViewSpec(SVGElement&);
 
     WeakPtr<SVGElement, WeakPtrImplWithEventTargetData> m_contextElement;
-    String m_viewTargetString;
     Ref<SVGTransformList> m_transform;
 };
 

@@ -55,8 +55,7 @@
 #include <wtf/glib/GRefPtr.h>
 #include <wtf/glib/GUniquePtr.h>
 #include <wtf/glib/WTFGType.h>
-#include <wtf/text/CString.h>
-#include <wtf/text/StringView.h>
+#include <wtf/text/CStringView.h>
 
 // These includes need to be in this order because wayland-egl.h defines WL_EGL_PLATFORM
 // and egl.h checks that to decide whether it's Wayland platform.
@@ -260,7 +259,7 @@ const struct wl_registry_listener registryListener = {
         auto* display = WPE_DISPLAY_WAYLAND(data);
         auto* priv = display->priv;
 
-        const auto interfaceName = StringView::fromLatin1(interface);
+        const auto interfaceName = CStringView::unsafeFromUTF8(interface);
 
         if (interfaceName == "wl_compositor"_s)
             priv->wlCompositor = static_cast<struct wl_compositor*>(wl_registry_bind(registry, name, &wl_compositor_interface, std::min<uint32_t>(version, 5)));

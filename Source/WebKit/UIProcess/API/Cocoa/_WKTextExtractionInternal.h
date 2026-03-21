@@ -51,13 +51,6 @@ NS_ASSUME_NONNULL_BEGIN
  */
 - (void)forEachClientNodeAttribute:(void(^)(NSString *attribute, NSString *value, _WKJSHandle *))block;
 
-/*!
- Only include visible text content, excluding all DOM attributes and element types.
- Takes precedence over `includeURLs`, `includeRects`, etc.
- Defaults to `NO`.
- */
-@property (nonatomic) BOOL onlyIncludeVisibleText;
-
 @end
 
 @interface _WKTextExtractionResult ()

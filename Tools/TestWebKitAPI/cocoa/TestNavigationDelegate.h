@@ -40,6 +40,7 @@
 @property (nonatomic, copy) void (^didCommitNavigation)(WKWebView *, WKNavigation *);
 @property (nonatomic, copy) void (^didCommitLoadWithRequestInFrame)(WKWebView *, NSURLRequest *, WKFrameInfo *);
 @property (nonatomic, copy) void (^didFinishNavigation)(WKWebView *, WKNavigation *);
+@property (nonatomic, copy) void (^didFinishLoadWithRequestInFrame)(WKWebView *, NSURLRequest *, WKFrameInfo *);
 @property (nonatomic, copy) void (^didSameDocumentNavigation)(WKWebView *, WKNavigation *);
 @property (nonatomic, copy) void (^renderingProgressDidChange)(WKWebView *, _WKRenderingProgressEvents);
 @property (nonatomic, copy) void (^webContentProcessDidTerminate)(WKWebView *, _WKProcessTerminationReason);
@@ -55,6 +56,7 @@
 - (void)allowAnyTLSCertificate;
 - (void)waitForDidStartProvisionalNavigation;
 - (void)waitForDidFinishNavigation;
+- (void)waitForDidFinishLoadInSubframe;
 - (void)waitForDidFinishNavigationWithPreferences:(WKWebpagePreferences *)preferences;
 - (void)waitForDidSameDocumentNavigation;
 - (_WKProcessTerminationReason)waitForWebContentProcessDidTerminate;

@@ -80,7 +80,7 @@ public:
 
     bool canSetSelectedAttribute() const override;
 
-    Node* node() const final { return m_node.get(); }
+    Node* NODELETE node() const final { return m_node.get(); }
     Document* document() const override;
     LocalFrameView* documentFrameView() const override;
 
@@ -145,8 +145,8 @@ public:
     String axColumnIndexText() const final;
     unsigned colSpan() const;
     unsigned rowSpan() const;
-    void incrementEffectiveRowSpan();
-    void resetEffectiveRowSpan();
+    void NODELETE incrementEffectiveRowSpan();
+    void NODELETE resetEffectiveRowSpan();
     void setAXColIndexFromRow(int);
     void setColumnIndex(unsigned);
 #if USE(ATSPI)
@@ -198,11 +198,7 @@ public:
     bool hasAccNameAttribute() const;
     bool hasAttributesRequiredForInclusion() const final;
     bool hasClickHandler() const final;
-    bool hasCursorPointer() const final
-    {
-        CheckedPtr style = this->style();
-        return style && style->cursorType() == CursorType::Pointer && style->pointerEvents() != PointerEvents::None;
-    }
+    inline bool hasCursorPointer() const final; // Defined in AccessibilityNodeObjectInlines.h
     bool showsCursorOnHover() const final;
     bool hasPointerEventsNone() const final;
 

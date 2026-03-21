@@ -50,7 +50,7 @@ public:
     explicit WebProcessCache(WebProcessPool&);
 
     bool addProcessIfPossible(Ref<WebProcessProxy>&&);
-    RefPtr<WebProcessProxy> takeProcess(const WebCore::Site&, WebProcessProxy::IsolatedProcessType, WebsiteDataStore&, WebProcessProxy::LockdownMode, EnhancedSecurity, const API::PageConfiguration&);
+    RefPtr<WebProcessProxy> takeProcess(const WebCore::Site&, WebProcessProxy::IsolatedProcessType, const std::optional<WebCore::Site>&, WebsiteDataStore&, WebProcessProxy::LockdownMode, EnhancedSecurity, const API::PageConfiguration&);
     RefPtr<WebProcessProxy> takeSharedProcess(const WebCore::Site& mainFrameSite, WebsiteDataStore&, WebProcessProxy::LockdownMode, EnhancedSecurity, const API::PageConfiguration&);
 
     void updateCapacity(WebProcessPool&);
@@ -115,7 +115,7 @@ private:
 
     WeakRef<WebProcessPool> m_processPool;
     HashMap<uint64_t, Ref<CachedProcess>> m_pendingAddRequests;
-    HashMap<std::tuple<WebCore::Site, WebProcessProxy::IsolatedProcessType>, Ref<CachedProcess>> m_processesPerSite;
+    HashMap<std::tuple<WebCore::Site, WebCore::Site>, Ref<CachedProcess>> m_processesPerSite;
     HashMap<WebCore::Site, Ref<CachedProcess>> m_sharedProcessesPerSite;
     RunLoop::Timer m_evictionTimer;
     Seconds m_cachedProcessLifetime;

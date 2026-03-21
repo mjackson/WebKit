@@ -214,7 +214,7 @@ struct PropertyIdentifier {
 };
 TextStream& operator<<(TextStream&, const PropertyIdentifier&);
 
-void add(Hasher&, const PropertyIdentifier&);
+void NODELETE add(Hasher&, const PropertyIdentifier&);
 
 template<CSSValueID C> TextStream& operator<<(TextStream& ts, const Constant<C>&)
 {
@@ -287,8 +287,8 @@ struct SpaceSeparatedEnumSet {
     static SpaceSeparatedEnumSet map(SizedRange&& range, NOESCAPE Mapper&& mapper)
     {
         Container result;
-        for (Ref value : range)
-            result.add(mapper(value.get()));
+        for (auto& value : range)
+            result.add(mapper(value));
         return result;
     }
 
@@ -1263,7 +1263,7 @@ template<typename T, typename... Ts>
     requires (WTF::all<std::convertible_to<Ts, T>...>)
 SpaceSeparatedArray(T, Ts...) -> SpaceSeparatedArray<T, 1 + sizeof...(Ts)>;
 
-template<size_t I, typename T, size_t N> decltype(auto) get(const SpaceSeparatedArray<T, N>& array)
+template<size_t I, typename T, size_t N> constexpr decltype(auto) get(const SpaceSeparatedArray<T, N>& array)
 {
     return std::get<I>(array.value);
 }
@@ -1273,6 +1273,16 @@ template<typename T, size_t N> inline constexpr auto SerializationSeparator<Spac
 
 // Convenience for representing a two element array.
 template<typename T> using SpaceSeparatedPair = SpaceSeparatedArray<T, 2>;
+
+template<typename T> constexpr void transpose(SpaceSeparatedPair<T>& value)
+{
+    std::swap(value.value[0], value.value[1]);
+}
+
+template<typename T> constexpr SpaceSeparatedPair<T> transposed(const SpaceSeparatedPair<T>& value)
+{
+    return { value.value[1], value.value[0] };
+}
 
 // Wraps a pair of elements of a single type, semantically marking them as serializing as "space separated" and "minimally serializing".
 template<typename T> struct MinimallySerializingSpaceSeparatedPair {
@@ -1294,10 +1304,13 @@ template<typename T> struct MinimallySerializingSpaceSeparatedPair {
     constexpr const T& first() const { return get<0>(value); }
     constexpr const T& second() const { return get<1>(value); }
 
+    constexpr void transpose() { WebCore::transpose(value); }
+    constexpr MinimallySerializingSpaceSeparatedPair<T> transposed() const { return WebCore::transposed(value); }
+
     SpaceSeparatedPair<T> value;
 };
 
-template<size_t I, typename T> decltype(auto) get(const MinimallySerializingSpaceSeparatedPair<T>& size)
+template<size_t I, typename T> constexpr decltype(auto) get(const MinimallySerializingSpaceSeparatedPair<T>& size)
 {
     return get<I>(size.value);
 }
@@ -1425,13 +1438,16 @@ template<typename T> struct SpaceSeparatedPoint {
 
     constexpr bool operator==(const SpaceSeparatedPoint<T>&) const = default;
 
-    const T& x() const { return get<0>(value); }
-    const T& y() const { return get<1>(value); }
+    constexpr const T& x() const { return get<0>(value); }
+    constexpr const T& y() const { return get<1>(value); }
+
+    constexpr void transpose() { WebCore::transpose(value); }
+    constexpr SpaceSeparatedPoint<T> transposed() const { return WebCore::transposed(value); }
 
     SpaceSeparatedPair<T> value;
 };
 
-template<size_t I, typename T> decltype(auto) get(const SpaceSeparatedPoint<T>& point)
+template<size_t I, typename T> constexpr decltype(auto) get(const SpaceSeparatedPoint<T>& point)
 {
     return get<I>(point.value);
 }
@@ -1456,13 +1472,16 @@ template<typename T> struct SpaceSeparatedSize {
 
     constexpr bool operator==(const SpaceSeparatedSize<T>&) const = default;
 
-    const T& width() const { return get<0>(value); }
-    const T& height() const { return get<1>(value); }
+    constexpr const T& width() const { return get<0>(value); }
+    constexpr const T& height() const { return get<1>(value); }
+
+    constexpr void transpose() { WebCore::transpose(value); }
+    constexpr SpaceSeparatedSize<T> transposed() const { return WebCore::transposed(value); }
 
     SpaceSeparatedPair<T> value;
 };
 
-template<size_t I, typename T> decltype(auto) get(const SpaceSeparatedSize<T>& size)
+template<size_t I, typename T> constexpr decltype(auto) get(const SpaceSeparatedSize<T>& size)
 {
     return get<I>(size.value);
 }
@@ -1492,13 +1511,16 @@ template<typename T> struct MinimallySerializingSpaceSeparatedPoint {
 
     constexpr bool operator==(const MinimallySerializingSpaceSeparatedPoint<T>&) const = default;
 
-    const T& x() const { return get<0>(value); }
-    const T& y() const { return get<1>(value); }
+    constexpr const T& x() const { return get<0>(value); }
+    constexpr const T& y() const { return get<1>(value); }
+
+    constexpr void transpose() { WebCore::transpose(value); }
+    constexpr MinimallySerializingSpaceSeparatedPoint<T> transposed() const { return WebCore::transposed(value); }
 
     SpaceSeparatedPair<T> value;
 };
 
-template<size_t I, typename T> decltype(auto) get(const MinimallySerializingSpaceSeparatedPoint<T>& point)
+template<size_t I, typename T> constexpr decltype(auto) get(const MinimallySerializingSpaceSeparatedPoint<T>& point)
 {
     return get<I>(point.value);
 }
@@ -1532,10 +1554,13 @@ template<typename T> struct MinimallySerializingSpaceSeparatedSize {
     constexpr const T& width() const { return get<0>(value); }
     constexpr const T& height() const { return get<1>(value); }
 
+    constexpr void transpose() { WebCore::transpose(value); }
+    constexpr MinimallySerializingSpaceSeparatedSize<T> transposed() const { return WebCore::transposed(value); }
+
     SpaceSeparatedPair<T> value;
 };
 
-template<size_t I, typename T> decltype(auto) get(const MinimallySerializingSpaceSeparatedSize<T>& size)
+template<size_t I, typename T> constexpr decltype(auto) get(const MinimallySerializingSpaceSeparatedSize<T>& size)
 {
     return get<I>(size.value);
 }

@@ -23,6 +23,7 @@
 #include "CSSPropertyNames.h"
 #include "Document.h"
 #include "FontCascade.h"
+#include "FontCascadeFonts.h"
 #include "GraphicsContext.h"
 #include "HitTestResult.h"
 #include "InlineBoxPainter.h"
@@ -109,9 +110,8 @@ void LegacyInlineFlowBox::addToLine(LegacyInlineBox* child)
             setHasTextDescendantsOnAncestors(this);
     }
 
-    const RenderStyle& childStyle = child->lineStyle();
+    CheckedRef childStyle = child->lineStyle();
     if (child->isInlineTextBox()) {
-        const RenderStyle* childStyle = &child->lineStyle();
         bool hasMarkers = false;
         if (auto* textBox = dynamicDowncast<LegacyInlineTextBox>(*child))
             hasMarkers = textBox->hasMarkers();
@@ -119,7 +119,7 @@ void LegacyInlineFlowBox::addToLine(LegacyInlineBox* child)
             child->clearKnownToHaveNoOverflow();
     } else if (child->boxModelObject()->hasSelfPaintingLayer())
         child->clearKnownToHaveNoOverflow();
-    else if (childStyle.hasOutlineInVisualOverflow())
+    else if (childStyle->hasOutlineInVisualOverflow())
         child->clearKnownToHaveNoOverflow();
 
     if (lineStyle().hasOutlineInVisualOverflow())

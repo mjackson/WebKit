@@ -35,7 +35,7 @@
 #include "JSCJSValueInlines.h"
 #include "LLIntData.h"
 #include "LLIntThunks.h"
-#include "StructureStubInfo.h"
+#include "PropertyInlineCache.h"
 
 namespace JSC { namespace DFG {
 
@@ -251,9 +251,9 @@ static CodePtr<JSEntryPtrTag> callerReturnPC(CodeBlock* baselineCodeBlockForCall
         case InlineCallFrame::ProxyObjectLoadCall:
         case InlineCallFrame::ProxyObjectStoreCall:
         case InlineCallFrame::ProxyObjectInCall: {
-            StructureStubInfo* stubInfo = baselineCodeBlockForCaller->findStubInfo(CodeOrigin(callBytecodeIndex));
-            RELEASE_ASSERT(stubInfo, callInstruction.opcodeID());
-            jumpTarget = stubInfo->doneLocation.retagged<JSEntryPtrTag>();
+            PropertyInlineCache* propertyCache = baselineCodeBlockForCaller->findPropertyCache(CodeOrigin(callBytecodeIndex));
+            RELEASE_ASSERT(propertyCache, callInstruction.opcodeID());
+            jumpTarget = propertyCache->doneLocation.retagged<JSEntryPtrTag>();
             break;
         }
 
@@ -489,7 +489,7 @@ void adjustAndJumpToTarget(VM& vm, CCallHelpers& jit, const OSRExitBase& exit)
     }
 
     if (exit.isExceptionHandler()) {
-        ASSERT(!RegisterSetBuilder::vmCalleeSaveRegisters().contains(LLInt::Registers::pcGPR, IgnoreVectors));
+        ASSERT(!RegisterSet::vmCalleeSaveRegisters().contains(LLInt::Registers::pcGPR, IgnoreVectors));
         jit.copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm.topEntryFrame, AssemblyHelpers::selectScratchGPR(LLInt::Registers::pcGPR));
 
         // Since we're jumping to op_catch, we need to set callFrameForCatch.

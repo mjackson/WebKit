@@ -48,6 +48,7 @@
 #include "EventNames.h"
 #include "HTMLNames.h"
 #include "InspectorInstrumentation.h"
+#include "JSDOMConvertInterface.h"
 #include "JSWebAnimation.h"
 #include "KeyframeEffect.h"
 #include "KeyframeEffectStack.h"
@@ -849,7 +850,7 @@ void WebAnimation::cancel(Silently silently)
         // 2. Reject the current finished promise with a DOMException named "AbortError".
         // 3. Set the [[PromiseIsHandled]] internal slot of the current finished promise to true.
         if (RefPtr context = scriptExecutionContext(); context && !m_finishedPromise->isFulfilled()) {
-            context->eventLoop().queueMicrotask([finishedPromise = WTF::move(m_finishedPromise)]() mutable {
+            context->eventLoop().queueMicrotask(context->vm(), [finishedPromise = WTF::move(m_finishedPromise)]() mutable {
                 finishedPromise->reject(Exception { ExceptionCode::AbortError }, RejectAsHandled::Yes);
             });
         }
@@ -913,11 +914,11 @@ void WebAnimation::enqueueAnimationEvent(Ref<AnimationEventBase>&& event)
             return timeline;
         if (RefPtr scrollTimeline = dynamicDowncast<ScrollTimeline>(m_timeline)) {
             if (RefPtr source = scrollTimeline->source())
-                return Ref { source->document() }->existingTimeline();
+                return source->document().existingTimeline();
         }
-        if (RefPtr keyframeEffect = this->keyframeEffect()) {
-            if (RefPtr target = keyframeEffect->target())
-                return protect(target->document())->existingTimeline();
+        if (auto* keyframeEffect = this->keyframeEffect()) {
+            if (auto* target = keyframeEffect->target())
+                return target->document().existingTimeline();
         }
         return nullptr;
     };
@@ -970,7 +971,7 @@ void WebAnimation::resetPendingTasks()
     // 5. Reject animation's current ready promise with a DOMException named "AbortError".
     // 6. Set the [[PromiseIsHandled]] internal slot of animation’s current ready promise to true.
     if (RefPtr context = scriptExecutionContext()) {
-        context->eventLoop().queueMicrotask([readyPromise = WTF::move(m_readyPromise)]() mutable {
+        context->eventLoop().queueMicrotask(context->vm(), [readyPromise = WTF::move(m_readyPromise)]() mutable {
             if (!readyPromise->isFulfilled())
                 readyPromise->reject(Exception { ExceptionCode::AbortError }, RejectAsHandled::Yes);
         });
@@ -1119,7 +1120,7 @@ void WebAnimation::updateFinishedState(DidSeek didSeek, SynchronouslyNotify sync
             // is already a microtask queued to run those steps for animation.
             m_finishNotificationStepsMicrotaskPending = true;
             if (RefPtr context = scriptExecutionContext()) {
-                context->eventLoop().queueMicrotask([this, protectedThis = Ref { *this }] {
+                context->eventLoop().queueMicrotask(context->vm(), [this, protectedThis = Ref { *this }] {
                     if (m_finishNotificationStepsMicrotaskPending) {
                         m_finishNotificationStepsMicrotaskPending = false;
                         finishNotificationSteps();
@@ -1810,7 +1811,7 @@ ExceptionOr<void> WebAnimation::commitStyles()
 
     auto unanimatedStyle = [&]() {
         if (auto styleable = Styleable::fromRenderer(*renderer)) {
-            if (CheckedPtr lastStyleChangeEventStyle = styleable->lastStyleChangeEventStyle())
+            if (auto* lastStyleChangeEventStyle = styleable->lastStyleChangeEventStyle())
                 return RenderStyle::clone(*lastStyleChangeEventStyle);
         }
         // If we don't have a style for the last style change event, then the
@@ -1994,7 +1995,7 @@ void WebAnimation::setBindingsRangeStart(TimelineRangeValue&& rangeStartValue)
         return;
 
     m_specifiedRangeStart = WTF::move(rangeStart);
-    if (RefPtr effect = this->effect())
+    if (auto* effect = this->effect())
         effect->animationRangeDidChange();
 }
 
@@ -2009,7 +2010,7 @@ void WebAnimation::setBindingsRangeEnd(TimelineRangeValue&& rangeEndValue)
         return;
 
     m_specifiedRangeEnd = WTF::move(rangeEnd);
-    if (RefPtr effect = this->effect())
+    if (auto* effect = this->effect())
         effect->animationRangeDidChange();
 }
 
@@ -2019,7 +2020,7 @@ void WebAnimation::setRangeStart(Style::SingleAnimationRangeStart&& rangeStart)
         return;
 
     m_timelineRange.start = WTF::move(rangeStart);
-    if (RefPtr effect = this->effect())
+    if (auto* effect = this->effect())
         effect->animationRangeDidChange();
 }
 
@@ -2029,7 +2030,7 @@ void WebAnimation::setRangeEnd(Style::SingleAnimationRangeEnd&& rangeEnd)
         return;
 
     m_timelineRange.end = WTF::move(rangeEnd);
-    if (RefPtr effect = this->effect())
+    if (auto* effect = this->effect())
         effect->animationRangeDidChange();
 }
 

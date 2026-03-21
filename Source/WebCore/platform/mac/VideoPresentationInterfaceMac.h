@@ -110,7 +110,6 @@ public:
     void applicationDidBecomeActive() { }
 
     WEBCORE_EXPORT WebVideoPresentationInterfaceMacObjC *videoPresentationInterfaceObjC();
-    WEBCORE_EXPORT RetainPtr<WebVideoPresentationInterfaceMacObjC> protectedVideoPresentationInterfaceObjC();
 
     WEBCORE_EXPORT void requestHideAndExitPiP();
 
@@ -126,7 +125,7 @@ public:
     uint64_t logIdentifier() const;
     const Logger* loggerPtr() const;
     ASCIILiteral logClassName() const { return "VideoPresentationInterfaceMac"_s; };
-    WTFLogChannel& logChannel() const;
+    WTFLogChannel& NODELETE logChannel() const;
 #endif
 
     // CheckedPtr interface
