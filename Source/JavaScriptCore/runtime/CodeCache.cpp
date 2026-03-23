@@ -173,11 +173,11 @@ UnlinkedModuleProgramCodeBlock* recursivelyGenerateUnlinkedCodeBlockForModulePro
 }
 
 #if USE(BUN_JSC_ADDITIONS)
-UnlinkedFunctionExecutable* recursivelyGenerateUnlinkedCodeBlockForBuiltinFunction(VM& vm, const SourceCode& source, const Identifier& name, ParserError& error)
+UnlinkedFunctionExecutable* recursivelyGenerateUnlinkedCodeBlockForBuiltinFunction(VM& vm, const SourceCode& source, const Identifier& name, ParserError& error, ImplementationVisibility implementationVisibility, ConstructorKind constructorKind, ConstructAbility constructAbility, InlineAttribute inlineAttribute)
 {
     UnlinkedFunctionExecutable* executable = BuiltinExecutables::createExecutable(
-        vm, source, name, ImplementationVisibility::Public,
-        ConstructorKind::None, ConstructAbility::CannotConstruct, InlineAttribute::None,
+        vm, source, name, implementationVisibility,
+        constructorKind, constructAbility, inlineAttribute,
         NeedsClassFieldInitializer::No, PrivateBrandRequirement::None);
     if (!executable)
         return nullptr;

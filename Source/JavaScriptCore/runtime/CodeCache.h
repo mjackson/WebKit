@@ -270,7 +270,7 @@ UnlinkedModuleProgramCodeBlock* recursivelyGenerateUnlinkedCodeBlockForModulePro
 // Parse a builtin function source (with @-prefixed private identifiers) and
 // recursively generate bytecode for all nested functions. Used by Bun to
 // pre-generate bytecode for internal modules at build time.
-JS_EXPORT_PRIVATE UnlinkedFunctionExecutable* recursivelyGenerateUnlinkedCodeBlockForBuiltinFunction(VM&, const SourceCode&, const Identifier& name, ParserError&);
+JS_EXPORT_PRIVATE UnlinkedFunctionExecutable* recursivelyGenerateUnlinkedCodeBlockForBuiltinFunction(VM&, const SourceCode&, const Identifier& name, ParserError&, ImplementationVisibility = ImplementationVisibility::Public, ConstructorKind = ConstructorKind::None, ConstructAbility = ConstructAbility::CannotConstruct, InlineAttribute = InlineAttribute::None);
 #endif
 
 void writeCodeBlock(const SourceCodeKey&, const SourceCodeValue&);
