@@ -30,6 +30,10 @@
 #include "IndirectEvalExecutable.h"
 #include <wtf/TZoneMallocInlines.h>
 
+#if USE(BUN_JSC_ADDITIONS)
+#include "BuiltinExecutables.h"
+#endif
+
 namespace JSC {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(CodeCache);
@@ -167,6 +171,31 @@ UnlinkedModuleProgramCodeBlock* recursivelyGenerateUnlinkedCodeBlockForModulePro
 {
     return recursivelyGenerateUnlinkedCodeBlock<UnlinkedModuleProgramCodeBlock>(vm, source, lexicallyScopedFeatures, scriptMode, codeGenerationMode, error, evalContextType);
 }
+
+#if USE(BUN_JSC_ADDITIONS)
+UnlinkedFunctionExecutable* recursivelyGenerateUnlinkedCodeBlockForBuiltinFunction(VM& vm, const SourceCode& source, const Identifier& name, ParserError& error)
+{
+    UnlinkedFunctionExecutable* executable = BuiltinExecutables::createExecutable(
+        vm, source, name, ImplementationVisibility::Public,
+        ConstructorKind::None, ConstructAbility::CannotConstruct, InlineAttribute::None,
+        NeedsClassFieldInitializer::No, PrivateBrandRequirement::None);
+    if (!executable)
+        return nullptr;
+
+    SourceCode innerSource = executable->linkedSourceCode(source);
+    UnlinkedFunctionCodeBlock* codeBlock = executable->unlinkedCodeBlockFor(
+        vm, innerSource, CodeSpecializationKind::CodeForCall, { }, error,
+        executable->parseMode());
+    if (error.isValid() || !codeBlock)
+        return nullptr;
+
+    generateUnlinkedCodeBlockForFunctions(vm, codeBlock, innerSource, { }, error);
+    if (error.isValid())
+        return nullptr;
+
+    return executable;
+}
+#endif
 
 template<class UnlinkedCodeBlockType, class ExecutableType>
 UnlinkedCodeBlockType* CodeCache::getUnlinkedGlobalCodeBlock(VM& vm, ExecutableType* executable, const SourceCode& source, JSParserScriptMode scriptMode, OptionSet<CodeGenerationMode> codeGenerationMode, ParserError& error, EvalContextType evalContextType)
