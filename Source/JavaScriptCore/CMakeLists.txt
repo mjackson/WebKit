@@ -1461,6 +1461,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSPromise.h
     runtime/JSPromiseConstructor.h
     runtime/JSPromisePrototype.h
+    runtime/JSPromiseReaction.h
     runtime/JSPropertyNameEnumerator.h
     runtime/JSPropertyNameEnumeratorInlines.h
     runtime/JSRawJSONObject.h
