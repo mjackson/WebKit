@@ -151,6 +151,7 @@ public:
     }
 
     bool isHostOrBuiltinFunction() const;
+    bool isHostOrPrivateBuiltinFunction() const;
     bool isBuiltinFunction() const;
     JS_EXPORT_PRIVATE bool isHostFunctionNonInline() const;
     bool isClassConstructorFunction() const;

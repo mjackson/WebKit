@@ -110,6 +110,11 @@ inline bool JSFunction::isHostOrBuiltinFunction() const
     return isHostFunction() || isBuiltinFunction();
 }
 
+inline bool JSFunction::isHostOrPrivateBuiltinFunction() const
+{
+    return isHostFunction() || jsExecutable()->isPrivateBuiltinFunction();
+}
+
 inline bool JSFunction::isClassConstructorFunction() const
 {
     return !isHostFunction() && jsExecutable()->isClassConstructorFunction();

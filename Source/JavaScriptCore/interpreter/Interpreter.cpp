@@ -535,7 +535,7 @@ void Interpreter::getAsyncStackTrace(JSCell* owner, Vector<StackFrame>& results,
     while (currentGenerator && results.size() < maxStackSize) {
         JSValue nextValue = currentGenerator->internalField(static_cast<unsigned>(JSGenerator::Field::Next)).get();
         JSFunction* asyncFunction = jsDynamicCast<JSFunction*>(nextValue);
-        if (asyncFunction && !asyncFunction->isHostOrBuiltinFunction()) {
+        if (asyncFunction && !asyncFunction->isHostOrPrivateBuiltinFunction()) {
             if (FunctionExecutable* executable = asyncFunction->jsExecutable()) {
                 // If a CodeBlock doesn't already exist, the stack trace will only show the filename and won't show line column
                 if (CodeBlock* codeBlock = executable->codeBlockForCall()) {
