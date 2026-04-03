@@ -185,6 +185,7 @@ update_limits:
 static void uv__get_cgroup2_memory_limits(char buf[1024], uint64_t* high,
     uint64_t* max)
 {
+    char path[4097];
     char filename[4097];
     char* p;
     int n;
@@ -193,11 +194,33 @@ static void uv__get_cgroup2_memory_limits(char buf[1024], uint64_t* high,
     p = buf + strlen("0::/");
     n = (int)strcspn(p, "\n");
 
-    /* Read the memory limits of the controller. */
-    snprintf(filename, sizeof(filename), "/sys/fs/cgroup/%.*s/memory.max", n, p);
-    *max = uv__read_uint64(filename);
-    snprintf(filename, sizeof(filename), "/sys/fs/cgroup/%.*s/memory.high", n, p);
-    *high = uv__read_uint64(filename);
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%.*s", n, p);
+
+    *high = UINT64_MAX;
+    *max = UINT64_MAX;
+
+    /* cgroup v2 limits are hierarchical: walk from the leaf to the root,
+     * taking the tightest limit observed at any level. */
+    while (strncmp(path, "/sys/fs/cgroup", sizeof("/sys/fs/cgroup") - 1) == 0) {
+        uint64_t v;
+
+        snprintf(filename, sizeof(filename), "%s/memory.max", path);
+        v = uv__read_uint64(filename);
+        if (v > 0 && v < *max)
+            *max = v;
+
+        snprintf(filename, sizeof(filename), "%s/memory.high", path);
+        v = uv__read_uint64(filename);
+        if (v > 0 && v < *high)
+            *high = v;
+
+        if (strcmp(path, "/sys/fs/cgroup") == 0)
+            break;
+        char* last_slash = strrchr(path, '/');
+        if (last_slash == NULL)
+            break;
+        *last_slash = '\0';
+    }
 }
 
 static uint64_t uv__get_cgroup_constrained_memory(char buf[1024])
@@ -236,9 +259,124 @@ uint64_t uv_get_constrained_memory()
     return uv__get_cgroup_constrained_memory(buf);
 }
 
+/* Find the cgroup v1 line whose controller list contains "cpu" as a whole
+ * token (it may appear as "cpu", "cpu,cpuacct", or "cpuacct,cpu"). Returns
+ * a pointer to the path component (after the leading "/") and its length. */
+static char* uv__cgroup1_find_cpu_controller(char buf[1024], int* n)
+{
+    char* line = buf;
+    while (line != NULL && *line != '\0') {
+        char* ctl = strchr(line, ':');
+        if (ctl == NULL) return NULL;
+        ctl++;
+        char* path = strchr(ctl, ':');
+        if (path == NULL) return NULL;
+
+        char* tok = ctl;
+        while (tok < path) {
+            int len = (int)strcspn(tok, ",:");
+            if (len == 3 && strncmp(tok, "cpu", 3) == 0) {
+                path++; /* skip ":" */
+                if (*path == '/') path++;
+                *n = (int)strcspn(path, "\n");
+                return path;
+            }
+            tok += len + 1;
+        }
+
+        line = strchr(path, '\n');
+        if (line != NULL) line++;
+    }
+    return NULL;
+}
+
+static int uv__get_cgroup1_constrained_cpu(char buf[1024])
+{
+    char filename[4097];
+    char quota_buf[32];
+    long long quota;
+    long long period;
+    int n = 0;
+
+    char* p = uv__cgroup1_find_cpu_controller(buf, &n);
+    if (p == NULL) {
+        p = (char*)"";
+        n = 0;
+    }
+
+    snprintf(filename, sizeof(filename),
+        "/sys/fs/cgroup/cpu/%.*s/cpu.cfs_quota_us", n, p);
+    if (uv__slurp(filename, quota_buf, sizeof(quota_buf)) < 0)
+        return 0;
+    if (sscanf(quota_buf, "%lld", &quota) != 1 || quota <= 0)
+        return 0;
+
+    snprintf(filename, sizeof(filename),
+        "/sys/fs/cgroup/cpu/%.*s/cpu.cfs_period_us", n, p);
+    if (uv__slurp(filename, quota_buf, sizeof(quota_buf)) < 0)
+        return 0;
+    if (sscanf(quota_buf, "%lld", &period) != 1 || period <= 0)
+        return 0;
+
+    return (int)((quota + period - 1) / period);
+}
+
+static int uv__get_cgroup2_constrained_cpu(char buf[1024])
+{
+    char path[4097];
+    char filename[4097];
+    char quota_buf[64];
+    long long quota;
+    long long period;
+    int min_cpus = 0;
+
+    char* p = buf + strlen("0::/");
+    int n = (int)strcspn(p, "\n");
+
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%.*s", n, p);
+
+    while (strncmp(path, "/sys/fs/cgroup", sizeof("/sys/fs/cgroup") - 1) == 0) {
+        snprintf(filename, sizeof(filename), "%s/cpu.max", path);
+        if (uv__slurp(filename, quota_buf, sizeof(quota_buf)) == 0
+            && strncmp(quota_buf, "max", 3) != 0
+            && sscanf(quota_buf, "%lld %lld", &quota, &period) == 2
+            && period > 0 && quota > 0) {
+            int cpus = (int)((quota + period - 1) / period);
+            if (min_cpus == 0 || cpus < min_cpus)
+                min_cpus = cpus;
+        }
+
+        if (strcmp(path, "/sys/fs/cgroup") == 0)
+            break;
+        char* last_slash = strrchr(path, '/');
+        if (last_slash == NULL)
+            break;
+        *last_slash = '\0';
+    }
+
+    return min_cpus;
+}
+
+int uv_get_constrained_cpu()
+{
+    char buf[1024];
+
+    if (uv__slurp("/proc/self/cgroup", buf, sizeof(buf)))
+        return 0;
+
+    if (strncmp(buf, "0::/", 4) == 0)
+        return uv__get_cgroup2_constrained_cpu(buf);
+    return uv__get_cgroup1_constrained_cpu(buf);
+}
+
 #else
 
 uint64_t uv_get_constrained_memory()
+{
+    return 0;
+}
+
+int uv_get_constrained_cpu()
 {
     return 0;
 }

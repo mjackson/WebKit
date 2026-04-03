@@ -32,7 +32,11 @@
 
 #if OS(DARWIN)
 #include <sys/sysctl.h>
-#elif OS(LINUX) || OS(AIX) || OS(OPENBSD) || OS(NETBSD) || OS(FREEBSD) || OS(HAIKU)
+#elif OS(LINUX)
+#include <sched.h>
+#include <unistd.h>
+#include "uv_get_constrained_memory.h"
+#elif OS(AIX) || OS(OPENBSD) || OS(NETBSD) || OS(FREEBSD) || OS(HAIKU)
 #include <unistd.h>
 #elif OS(QNX)
 #include <sys/syspage.h>
@@ -68,7 +72,22 @@ int numberOfProcessorCores()
     int sysctlResult = sysctl(name, sizeof(name) / sizeof(int), &result, &length, 0, 0);
 
     s_numberOfCores = sysctlResult < 0 ? defaultIfUnavailable : result;
-#elif OS(LINUX) || OS(AIX) || OS(OPENBSD) || OS(NETBSD) || OS(FREEBSD) || OS(HAIKU)
+#elif OS(LINUX)
+    long result = sysconf(_SC_NPROCESSORS_ONLN);
+
+    cpu_set_t set;
+    CPU_ZERO(&set);
+    if (sched_getaffinity(0, sizeof(set), &set) == 0) {
+        long affinity = CPU_COUNT(&set);
+        if (affinity > 0 && (result < 1 || affinity < result))
+            result = affinity;
+    }
+
+    if (int constrained = uv_get_constrained_cpu(); constrained > 0 && (result < 1 || constrained < result))
+        result = constrained;
+
+    s_numberOfCores = result < 1 ? defaultIfUnavailable : static_cast<int>(result);
+#elif OS(AIX) || OS(OPENBSD) || OS(NETBSD) || OS(FREEBSD) || OS(HAIKU)
     long sysconfResult = sysconf(_SC_NPROCESSORS_ONLN);
 
     s_numberOfCores = sysconfResult < 0 ? defaultIfUnavailable : static_cast<int>(sysconfResult);
