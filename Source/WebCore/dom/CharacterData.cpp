@@ -49,7 +49,7 @@ CharacterData::~CharacterData()
     willBeDeletedFrom(Ref<Document> { document() });
 }
 
-static bool canUseSetDataOptimization(const CharacterData& node)
+static bool NODELETE canUseSetDataOptimization(const CharacterData& node)
 {
     auto& document = node.document();
     return !document.hasListenerType(Document::ListenerType::DOMCharacterDataModified) && !document.hasMutationObserversOfType(MutationObserverOptionType::CharacterData)

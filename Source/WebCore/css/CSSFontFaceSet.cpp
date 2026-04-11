@@ -40,6 +40,7 @@
 #include "StylePrimitiveNumericTypes+Conversions.h"
 #include "StyleProperties.h"
 #include <ranges>
+#include <wtf/Borrow.h>
 
 namespace WebCore {
 
@@ -50,7 +51,7 @@ CSSFontFaceSet::CSSFontFaceSet(CSSFontSelector* owningFontSelector)
 
 CSSFontFaceSet::~CSSFontFaceSet()
 {
-    for (auto& face : m_faces)
+    for (Ref face : borrow(m_faces).get())
         face->removeClient(*this);
 
     for (auto& pair : m_locallyInstalledFacesLookupTable) {

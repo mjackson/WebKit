@@ -102,6 +102,11 @@ WK_VERSIONED_SDK_ADDITIONS_PATH_YES = $(WK_WORKSPACE_DIR)/WebKitLibraries/SDKs/$
 // internal build may override this location.
 WK_SDKDB_DIR = $(inherited:default=$(WK_WORKSPACE_DIR)/WebKitLibraries/SDKDBs);
 
+// Used by script phases that re-run when a framework or library's header list changes.
+// CPP_HEADERMAP_PRODUCT_HEADERS_VFS_FILE is not exported to script phases, so it must be bound to a different name.
+WK_HEADERS_VFS_FILE = $(WK_HEADERS_VFS_FILE_$(WK_IS_INSTALLHDRS));
+WK_HEADERS_VFS_FILE_NO = $(CPP_HEADERMAP_PRODUCT_HEADERS_VFS_FILE);
+
 WTF_BUILD_SCRIPTS_DIR = $(WTF_BUILD_SCRIPTS_DIR_$(CONFIGURATION));
 WTF_BUILD_SCRIPTS_DIR_Release = $(WTF_BUILD_SCRIPTS_DIR_engineering);
 WTF_BUILD_SCRIPTS_DIR_Debug = $(WTF_BUILD_SCRIPTS_DIR_engineering);

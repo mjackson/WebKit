@@ -27,7 +27,6 @@
 #include <wtf/NumberOfCores.h>
 
 #include <cstdio>
-#include <mutex>
 #include <wtf/text/StringToIntegerConversion.h>
 
 #if OS(DARWIN)

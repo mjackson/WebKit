@@ -278,7 +278,7 @@ Vector<UniqueRef<WebCore::IOSurface>> RemoteGPU::createRenderBuffers(unsigned wi
 
     Vector<UniqueRef<WebCore::IOSurface>> ioSurfaces;
 
-    constexpr auto surfaceCount = 3;
+    constexpr auto surfaceCount = 2;
     for (auto i = 0; i < surfaceCount; ++i) {
         if (auto buffer = WebCore::IOSurface::create(nullptr, WebCore::IntSize(width, height), colorSpace, WebCore::IOSurface::Name::WebGPU, colorFormat)) {
             buffer->setOwnershipIdentity(processIdentity);

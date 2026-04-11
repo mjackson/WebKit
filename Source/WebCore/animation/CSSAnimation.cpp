@@ -215,7 +215,7 @@ void CSSAnimation::syncStyleOriginatedTimeline()
         [&](const CSS::Keyword::None&) {
             setTimeline(nullptr);
         },
-        [&](const CustomIdentifier&) {
+        [&](const Style::CustomIdent&) {
             CheckedRef styleOriginatedTimelinesController = document->ensureStyleOriginatedTimelinesController();
             styleOriginatedTimelinesController->attachAnimation(*this);
         },
@@ -241,7 +241,7 @@ void CSSAnimation::syncStyleOriginatedTimeline()
 
     // If we're not dealing with a named timeline, we should make sure we have no
     // pending attachment operation for this timeline name.
-    if (!m_backingStyleAnimation.timeline().isCustomIdentifier()) {
+    if (!m_backingStyleAnimation.timeline().isCustomIdent()) {
         CheckedRef styleOriginatedTimelinesController = document->ensureStyleOriginatedTimelinesController();
         styleOriginatedTimelinesController->removePendingOperationsForCSSAnimation(*this);
     }

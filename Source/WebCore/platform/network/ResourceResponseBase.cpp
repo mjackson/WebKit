@@ -57,9 +57,7 @@ bool isScriptAllowedByNosniff(const ResourceResponse& response)
     return MIMETypeRegistry::isSupportedJavaScriptMIMEType(mimeType);
 }
 
-ResourceResponseBase::ResourceResponseBase()
-{
-}
+ResourceResponseBase::ResourceResponseBase() = default;
 
 ResourceResponseBase::ResourceResponseBase(URL&& url, String&& mimeType, long long expectedLength, String&& textEncodingName)
     : m_url(WTF::move(url))

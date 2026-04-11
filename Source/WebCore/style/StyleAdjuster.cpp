@@ -69,7 +69,7 @@
 #include "SVGURIReference.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
-#include "StylableInlines.h"
+#include "StyleableInlines.h"
 #include "StyleContainmentCheckerInlines.h"
 #include "StyleComputedStyle+InitialInlines.h"
 #include "StyleFontSizeFunctions.h"
@@ -219,8 +219,8 @@ bool Adjuster::adjustEventListenerRegionTypesForRootStyle(RenderStyle& rootStyle
         regionTypes.add(computeEventListenerRegionTypes(document, rootStyle, *window, { }));
 
 #if ENABLE(TOUCH_EVENT_REGIONS)
-    // https://html.spec.whatwg.org/multipage/popover.html#popover-light-dismiss
-    if (document.needsPointerEventHandlingForPopover()) {
+    // https://html.spec.whatwg.org/multipage/interactive-elements.html#run-light-dismiss-activities
+    if (document.needsPointerEventHandlingForPopoverOrDialog()) {
         regionTypes.add(EventListenerRegionType::PointerDown);
         regionTypes.add(EventListenerRegionType::PointerUp);
     }
@@ -723,7 +723,7 @@ void Adjuster::adjust(RenderStyle& style) const
 #endif
             || style.blendMode() != BlendMode::Normal
             || !style.viewTransitionName().isNone();
-        if (RefPtr element = m_element) {
+        if (auto* element = m_element.get()) {
             auto styleable = Styleable::fromElement(*element);
             forceToFlat |= styleable.capturedInViewTransition();
         }

@@ -170,6 +170,7 @@ struct WebProcessCreationParameters {
 
 #if PLATFORM(COCOA)
     Vector<String> mediaMIMETypes;
+    HashMap<String, bool> mediaSourceTypesSupported;
 #endif
 
 #if PLATFORM(COCOA) || PLATFORM(GTK) || (PLATFORM(WPE) && ENABLE(WPE_PLATFORM))

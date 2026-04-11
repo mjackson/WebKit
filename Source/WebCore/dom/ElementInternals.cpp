@@ -44,10 +44,10 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(ElementInternals);
 
 RefPtr<ShadowRoot> ElementInternals::shadowRoot() const
 {
-    RefPtr element = m_element.get();
+    auto* element = m_element.get();
     if (!element)
         return nullptr;
-    RefPtr shadowRoot = element->shadowRoot();
+    auto* shadowRoot = element->shadowRoot();
     if (!shadowRoot)
         return nullptr;
     if (!shadowRoot->isAvailableToElementInternals())

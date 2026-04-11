@@ -37,9 +37,7 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(PlatformTimeRanges);
 
-PlatformTimeRanges::PlatformTimeRanges()
-{
-}
+PlatformTimeRanges::PlatformTimeRanges() = default;
 
 PlatformTimeRanges::PlatformTimeRanges(const MediaTime& start, const MediaTime& end)
 {

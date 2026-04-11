@@ -116,6 +116,7 @@ private:
     void applyAutocorrection(JSStringRef newString, JSStringRef oldString, JSValueRef, bool) override;
     double minimumZoomScale() const override;
     double maximumZoomScale() const override;
+    bool enhancedWindowingEnabled() const override;
     std::optional<bool> stableStateOverride() const override;
     void setStableStateOverride(std::optional<bool> overrideValue) override;
     JSObjectRef contentVisibleRect() const override;

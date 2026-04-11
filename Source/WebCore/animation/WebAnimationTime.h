@@ -54,8 +54,8 @@ public:
     WebAnimationTime NODELETE matchingInfinity() const;
 
     bool NODELETE approximatelyEqualTo(const WebAnimationTime&) const;
-    bool approximatelyLessThan(const WebAnimationTime&) const;
-    bool approximatelyGreaterThan(const WebAnimationTime&) const;
+    bool NODELETE approximatelyLessThan(const WebAnimationTime&) const;
+    bool NODELETE approximatelyGreaterThan(const WebAnimationTime&) const;
 
     WebAnimationTime NODELETE operator+(const WebAnimationTime&) const;
     WebAnimationTime NODELETE operator-(const WebAnimationTime&) const;

@@ -52,7 +52,7 @@ class TextFieldInputType : public InputType, protected SpinButtonOwner, protecte
     WTF_MAKE_TZONE_ALLOCATED(TextFieldInputType);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(TextFieldInputType);
 public:
-    bool valueMissing(const String&) const final;
+    bool valueMissing(StringView) const final;
 
 protected:
     explicit TextFieldInputType(Type, HTMLInputElement&);

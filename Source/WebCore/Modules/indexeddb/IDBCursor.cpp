@@ -35,6 +35,7 @@
 #include "IDBObjectStore.h"
 #include "IDBRequest.h"
 #include "IDBTransaction.h"
+#include "JSValueInWrappedObjectInlines.h"
 #include "Logging.h"
 #include "ScriptExecutionContext.h"
 #include "ScriptWrappableInlines.h"

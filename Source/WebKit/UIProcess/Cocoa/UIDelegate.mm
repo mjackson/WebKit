@@ -273,9 +273,7 @@ UIDelegate::ContextMenuClient::ContextMenuClient(UIDelegate& uiDelegate)
 {
 }
 
-UIDelegate::ContextMenuClient::~ContextMenuClient()
-{
-}
+UIDelegate::ContextMenuClient::~ContextMenuClient() = default;
 
 void UIDelegate::ContextMenuClient::menuFromProposedMenu(WebPageProxy& page, NSMenu *menu, const ContextMenuContextData& data, API::Object* userInfo, CompletionHandler<void(RetainPtr<NSMenu>&&)>&& completionHandler)
 {

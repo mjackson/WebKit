@@ -87,7 +87,7 @@ RefPtr<GStreamerVideoRTPPacketizer> GStreamerVideoRTPPacketizer::create(RefPtr<U
 
         auto profileLevelID = gstStructureGetString(codecParameters.get(), "profile-level-id"_s);
         if (!profileLevelID.isEmpty()) {
-            codec = makeString("avc1."_s, profileLevelID.span());
+            codec = makeString("avc1."_s, profileLevelID);
             gst_structure_remove_field(codecParameters.get(), "profile-level-id");
         } else {
             auto profileValue = gstStructureGetString(codecParameters.get(), "profile"_s);

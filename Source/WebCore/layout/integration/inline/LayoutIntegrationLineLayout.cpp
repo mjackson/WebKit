@@ -29,6 +29,8 @@
 #include "BlockFormattingState.h"
 #include "BlockLayoutState.h"
 #include "EventRegion.h"
+#include "FloatingObjects.h"
+#include "FontCascadeInlines.h"
 #include "FormattingContextBoxIterator.h"
 #include "HitTestLocation.h"
 #include "HitTestRequest.h"
@@ -49,6 +51,7 @@
 #include "PaintInfo.h"
 #include "PlacedFloats.h"
 #include "RenderBlockFlow.h"
+#include "RenderBlockFlowInlines.h"
 #include "RenderBoxInlines.h"
 #include "RenderBoxModelObjectInlines.h"
 #include "RenderDescendantIterator.h"
@@ -283,7 +286,6 @@ LineLayout* LineLayout::containing(RenderObject& renderer)
                 return dynamicDowncast<RenderBlockFlow>(RenderObject::containingBlockForPositionType(downcast<RenderBox>(renderer).style().position(), renderer));
             }
             if (CheckedPtr parentInlineBox = dynamicDowncast<RenderInline>(renderer.parent())) {
-                ASSERT(parentInlineBox->settings().blocksInInlineLayoutEnabled());
                 return dynamicDowncast<RenderBlockFlow>(parentInlineBox->containingBlock());
             }
             if (auto* parentBlock = dynamicDowncast<RenderBlockFlow>(renderer.parent())) {
@@ -1271,9 +1273,9 @@ bool LineLayout::hitTest(const HitTestRequest& request, HitTestResult& result, c
         return false;
 
     // All real inline content is foreground.
-    if (hitTestAction != HitTestForeground && !m_inlineContent->hasBlockLevelBoxes())
+    if (hitTestAction != HitTestAction::Foreground && !m_inlineContent->hasBlockLevelBoxes())
         return false;
-    if (hitTestAction == HitTestBlockBackground)
+    if (hitTestAction == HitTestAction::BlockBackground)
         return false;
 
     if (isContentConsideredStale()) {
@@ -1297,15 +1299,15 @@ bool LineLayout::hitTest(const HitTestRequest& request, HitTestResult& result, c
 
         auto shouldHitTestForPhase = [&] {
             switch (hitTestAction) {
-            case HitTestForeground:
+            case HitTestAction::Foreground:
                 // Inline boxes around block-in-inline are hit tested in block background phases.
                 return !m_inlineContent->isInlineBoxWrapperForBlockLevelBox(box);
-            case HitTestChildBlockBackground:
-            case HitTestChildBlockBackgrounds:
+            case HitTestAction::ChildBlockBackground:
+            case HitTestAction::ChildBlockBackgrounds:
                 return box.isBlockLevelBox() || m_inlineContent->isInlineBoxWrapperForBlockLevelBox(box);
-            case HitTestFloat:
+            case HitTestAction::Float:
                 return box.isBlockLevelBox();
-            case HitTestBlockBackground:
+            case HitTestAction::BlockBackground:
                 break;
             }
             ASSERT_NOT_REACHED();
@@ -1319,7 +1321,7 @@ bool LineLayout::hitTest(const HitTestRequest& request, HitTestResult& result, c
 
         if (box.isBlockLevelBox()) {
             CheckedRef renderBox = downcast<RenderBox>(renderer.get());
-            auto childHitTest = hitTestAction == HitTestChildBlockBackgrounds ? HitTestChildBlockBackground : hitTestAction;
+            auto childHitTest = hitTestAction == HitTestAction::ChildBlockBackgrounds ? HitTestAction::ChildBlockBackground : hitTestAction;
             LayoutPoint childPoint = flippedContentOffsetIfNeeded(flow(), renderBox, accumulatedOffset);
             if (!renderBox->hasSelfPaintingLayer() && renderBox->nodeAtPoint(request, result, locationInContainer, childPoint, childHitTest))
                 return true;

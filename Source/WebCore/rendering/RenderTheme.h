@@ -200,8 +200,10 @@ public:
 
     WEBCORE_EXPORT Color focusRingColor(OptionSet<StyleColorOptions>) const;
     virtual Color platformFocusRingColor(OptionSet<StyleColorOptions>) const { return Color::black; }
-    static float platformFocusRingWidth() { return 3; }
-    static float platformFocusRingOffset(float outlineWidth) { return std::max<float>(outlineWidth - platformFocusRingWidth(), 0); }
+
+    // On iOS, this matches [UIFocusRingStyle borderThickness] and on macOS this matches AppKit.
+    virtual float platformFocusRingWidth() const { return 3; }
+
 #if ENABLE(CSS_TAP_HIGHLIGHT_COLOR)
     static Color tapHighlightColor();
     virtual Color platformTapHighlightColor() const;
@@ -217,7 +219,7 @@ public:
 
     virtual void adjustSliderThumbSize(RenderStyle&, const Element*) const { }
 
-    virtual Style::PaddingBox popupInternalPaddingBox(const RenderStyle&) const;
+    Style::PaddingBox popupInternalPaddingBox(const RenderStyle&) const;
     virtual PopupMenuStyle::Size popupMenuSize(const RenderStyle&, IntRect&) const { return PopupMenuStyle::Size::Normal; }
 
     virtual ScrollbarWidth scrollbarWidthStyleForPart(StyleAppearance) { return ScrollbarWidth::Auto; }
@@ -404,14 +406,13 @@ protected:
     virtual void adjustSearchFieldResultsButtonStyle(RenderStyle&, const Element*) const { }
     virtual bool paintSearchFieldResultsButton(const RenderBox&, const PaintInfo&, const FloatRect&) { return true; }
 
-    void NODELETE adjustSwitchStyleDisplay(RenderStyle&) const;
     virtual void adjustSwitchStyle(RenderStyle&, const Element*) const;
-    void adjustSwitchThumbOrSwitchTrackStyle(RenderStyle&) const;
-    virtual bool paintSwitchThumb(const RenderElement&, const PaintInfo&, const FloatRect&) { return true; }
-    virtual bool paintSwitchTrack(const RenderElement&, const PaintInfo&, const FloatRect&) { return true; }
+    virtual bool paintSwitch(const RenderElement&, const PaintInfo&, const FloatRect&) { return true; }
 
     // The font description result should have a zoomed font size.
     virtual std::optional<FontCascadeDescription> controlFont(StyleAppearance, const FontCascade&, float) const;
+
+    virtual Style::PaddingBox platformPopupInternalPaddingBox(const RenderStyle&) const;
 
     virtual Style::PaddingBox controlPadding(StyleAppearance, const Style::PaddingBox&, float zoomFactor) const;
 
@@ -440,14 +441,14 @@ private:
 
 public:
     bool NODELETE isWindowActive(const RenderElement&) const;
-    bool isChecked(const RenderElement&) const;
+    bool NODELETE isChecked(const RenderElement&) const;
     bool isIndeterminate(const RenderElement&) const;
     bool isEnabled(const RenderElement&) const;
     bool isFocused(const RenderElement&) const;
     bool isPressed(const RenderElement&) const;
     bool isSpinUpButtonPartPressed(const RenderElement&) const;
     bool isHovered(const RenderElement&) const;
-    bool isSpinUpButtonPartHovered(const RenderElement&) const;
+    bool NODELETE isSpinUpButtonPartHovered(const RenderElement&) const;
     bool isPresenting(const RenderElement&) const;
     bool isReadOnlyControl(const RenderElement&) const;
     bool NODELETE isDefault(const RenderElement&) const;

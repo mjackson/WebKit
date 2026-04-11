@@ -1121,15 +1121,16 @@ ValueKey Value::key() const
     case WasmRefTest: {
         auto* wasmValue = as<WasmRefTypeCheckValue>();
         OptionSet<WasmRefTypeCheckFlag> flags = wasmValue->flags();
+        Value* child2 = wasmValue->hasTargetStructureID() ? child(1) : nullptr;
 
         // Check if RTT is present and set HasRTT flag accordingly
         if (wasmValue->targetRTT()) {
             flags.add(WasmRefTypeCheckFlag::HasRTT);
-            return ValueKey(kind(), type(), child(0), flags.toRaw(), wasmValue->targetRTT());
+            return ValueKey(kind(), type(), child(0), child2, flags.toRaw(), wasmValue->targetRTT());
         }
 
         // Use targetHeapType when RTT is null (builtin types)
-        return ValueKey(kind(), type(), child(0), flags.toRaw(), wasmValue->targetHeapType());
+        return ValueKey(kind(), type(), child(0), child2, flags.toRaw(), wasmValue->targetHeapType());
     }
     case Nop:
     case Set:

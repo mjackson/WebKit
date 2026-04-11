@@ -755,7 +755,7 @@ void RenderPassEncoder::emitMemoryBarrier(id<MTLRenderCommandEncoder> renderComm
 }
 
 template <typename T>
-static T* typedCast(auto& s)
+static T* NODELETE typedCast(auto& s)
 {
     return static_cast<T*>(static_cast<void*>(&s));
 }
@@ -1431,7 +1431,7 @@ void RenderPassEncoder::setBindGroup(uint32_t groupIndex, const BindGroup* group
 {
     RETURN_IF_FINISHED();
 
-    auto dynamicOffsetCount = (groupPtr && groupPtr->bindGroupLayout()) ? protect(groupPtr->bindGroupLayout())->dynamicBufferCount() : 0;
+    auto dynamicOffsetCount = (groupPtr && groupPtr->bindGroupLayout()) ? groupPtr->bindGroupLayout()->dynamicBufferCount() : 0;
     if (groupIndex >= m_device->limits().maxBindGroups || (dynamicOffsets && dynamicOffsetCount != dynamicOffsets->size())) {
         makeInvalid(@"setBindGroup: groupIndex >= limits.maxBindGroups");
         return;

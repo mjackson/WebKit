@@ -23,6 +23,7 @@
 
 #include "config.h"
 #include "LegacyRenderSVGResourceMarker.h"
+#include "LegacyRenderSVGModelObjectInlines.h"
 
 #include "GraphicsContext.h"
 #include "LegacyRenderSVGResourceMarkerInlines.h"

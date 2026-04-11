@@ -33,6 +33,7 @@
 #include <WebCore/FloatLine.h>
 #include <WebCore/FloatQuad.h>
 #include <WebCore/FloatRect.h>
+#include <WebCore/InspectorBackendClient.h>
 #include <WebCore/InspectorOverlayLabel.h>
 #include <WebCore/Path.h>
 #include <WebCore/Timer.h>
@@ -59,7 +60,6 @@ class WeakPtrImplWithEventTargetData;
 class FontCascade;
 class FloatPoint;
 class GraphicsContext;
-class InspectorBackendClient;
 class Node;
 class NodeList;
 class Page;

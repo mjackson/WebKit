@@ -21,5 +21,7 @@
 	</array>
 	<key>CanInheritApplicationStateFromOtherProcesses</key>
 	<true/>
+	<key>MDESupportsUniversalURLPlayback</key>
+	<true/>
 </dict>
 </plist>

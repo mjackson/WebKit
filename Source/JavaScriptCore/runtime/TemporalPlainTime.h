@@ -52,10 +52,10 @@ public:
     static ISO8601::Duration toTemporalTimeRecord(JSGlobalObject*, JSObject*, bool skipRelevantPropertyCheck = false);
     static std::array<std::optional<double>, numberOfTemporalPlainTimeUnits> toPartialTime(JSGlobalObject*, JSObject*, bool skipRelevantPropertyCheck = false);
     static ISO8601::PlainTime regulateTime(JSGlobalObject*, ISO8601::Duration&&, TemporalOverflow);
-    static ISO8601::Duration addTime(const ISO8601::PlainTime&, const ISO8601::Duration&);
+    static ISO8601::Duration NODELETE addTime(const ISO8601::PlainTime&, const ISO8601::Duration&);
 
     static TemporalPlainTime* from(JSGlobalObject*, JSValue, JSObject*);
-    static int32_t compare(const ISO8601::PlainTime&, const ISO8601::PlainTime&);
+    static int32_t NODELETE compare(const ISO8601::PlainTime&, const ISO8601::PlainTime&);
 
     TemporalCalendar* calendar() LIFETIME_BOUND { return m_calendar.get(this); }
     ISO8601::PlainTime plainTime() const { return m_plainTime; }

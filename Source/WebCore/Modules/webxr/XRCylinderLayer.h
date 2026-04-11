@@ -55,7 +55,7 @@ private:
 
     // WebXRLayer.
     [[noreturn]] void startFrame(PlatformXR::FrameData&) final { RELEASE_ASSERT_NOT_REACHED(); }
-    [[noreturn]] PlatformXR::Device::Layer endFrame() final { RELEASE_ASSERT_NOT_REACHED(); }
+    [[noreturn]] PlatformXR::DeviceLayer endFrame() final { RELEASE_ASSERT_NOT_REACHED(); }
 };
 
 } // namespace WebCore

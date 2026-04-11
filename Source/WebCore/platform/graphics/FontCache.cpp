@@ -31,6 +31,7 @@
 #include "FontCache.h"
 
 #include "FontCascade.h"
+#include "FontCascadeInlines.h"
 #include "FontCreationContext.h"
 #include "FontPlatformData.h"
 #include "FontSelector.h"

@@ -56,6 +56,7 @@ enum class Action : uint8_t {
     KeyPress,
     HighlightText,
     Scroll,
+    Hover,
 };
 
 struct Interaction {
@@ -170,6 +171,7 @@ struct TextFormControlData {
     bool isReadonly { false };
     bool isDisabled { false };
     bool isChecked { false };
+    bool isAutofilled { false };
 };
 
 struct SelectOptionData {

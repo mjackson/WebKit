@@ -294,6 +294,8 @@
                 "scrollable",
                 "flex",
                 "grid",
+                "subgrid",
+                "grid-lanes",
                 "event",
                 "slot-assigned",
                 "slot-filled"

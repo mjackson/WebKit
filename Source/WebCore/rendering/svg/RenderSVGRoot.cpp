@@ -466,7 +466,7 @@ bool RenderSVGRoot::nodeAtPoint(const HitTestRequest& request, HitTestResult& re
     }
 
     // If we didn't early exit above, we've just hit the container <svg> element. Unlike SVG 1.1, 2nd Edition allows container elements to be hit.
-    if ((hitTestAction == HitTestBlockBackground || hitTestAction == HitTestChildBlockBackground) && visibleToHitTesting(request)) {
+    if ((hitTestAction == HitTestAction::BlockBackground || hitTestAction == HitTestAction::ChildBlockBackground) && visibleToHitTesting(request)) {
         LayoutRect boundsRect(adjustedLocation, size());
         if (locationInContainer.intersects(boundsRect)) {
             updateHitTestResult(result, flipForWritingMode(locationInContainer.point() - toLayoutSize(adjustedLocation)));
@@ -507,17 +507,17 @@ void RenderSVGRoot::mapLocalToContainer(const RenderLayerModelObject* repaintCon
     // If this box has a transform, it acts as a fixed position container for fixed descendants,
     // and may itself also be fixed position. So propagate 'fixed' up only if this box is fixed position.
     if (isFixedPos)
-        mode.add(IsFixed);
-    else if (mode.contains(IsFixed) && canContainFixedPositionObjects())
-        mode.remove(IsFixed);
+        mode.add(MapCoordinatesMode::IsFixed);
+    else if (mode.contains(MapCoordinatesMode::IsFixed) && canContainFixedPositionObjects())
+        mode.remove(MapCoordinatesMode::IsFixed);
 
     if (wasFixed)
-        *wasFixed = mode.contains(IsFixed);
+        *wasFixed = mode.contains(MapCoordinatesMode::IsFixed);
 
     auto containerOffset = offsetFromContainer(*container, LayoutPoint(transformState.mappedPoint()));
 
-    bool preserve3D = mode & UseTransforms && participatesInPreserve3D();
-    if (mode & UseTransforms && shouldUseTransformFromContainer(container.get())) {
+    bool preserve3D = mode & MapCoordinatesMode::UseTransforms && participatesInPreserve3D();
+    if (mode & MapCoordinatesMode::UseTransforms && shouldUseTransformFromContainer(container.get())) {
         TransformationMatrix t;
         getTransformFromContainer(containerOffset, t);
 
@@ -546,7 +546,7 @@ void RenderSVGRoot::mapLocalToContainer(const RenderLayerModelObject* repaintCon
         return;
     }
 
-    mode.remove(ApplyContainerFlip);
+    mode.remove(MapCoordinatesMode::ApplyContainerFlip);
     if (transformState.transformMatrixTracking() == TransformState::DoNotTrackTransformMatrix) {
         container->mapLocalToContainer(repaintContainer, transformState, mode, wasFixed);
         return;
@@ -605,7 +605,7 @@ void RenderSVGRoot::absoluteQuads(Vector<FloatQuad>& quads, bool* wasFixed) cons
     if (CheckedPtr fragmentedFlow = enclosingFragmentedFlow(); fragmentedFlow && fragmentedFlow->absoluteQuadsForBox(quads, wasFixed, *this))
         return;
 
-    quads.append(localToAbsoluteQuad(FloatRect { borderBoxRect() }, UseTransforms, wasFixed));
+    quads.append(localToAbsoluteQuad(FloatRect { borderBoxRect() }, MapCoordinatesMode::UseTransforms, wasFixed));
 }
 
 }

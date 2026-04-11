@@ -88,11 +88,11 @@ public:
     WEBCORE_EXPORT void NODELETE setAudioCaptureFactory(AudioCaptureFactory&);
     WEBCORE_EXPORT void NODELETE unsetAudioCaptureFactory(AudioCaptureFactory&);
 
-    WEBCORE_EXPORT VideoCaptureFactory& videoCaptureFactory();
+    WEBCORE_EXPORT VideoCaptureFactory& NODELETE videoCaptureFactory();
     WEBCORE_EXPORT void NODELETE setVideoCaptureFactory(VideoCaptureFactory&);
     WEBCORE_EXPORT void NODELETE unsetVideoCaptureFactory(VideoCaptureFactory&);
 
-    WEBCORE_EXPORT DisplayCaptureFactory& displayCaptureFactory();
+    WEBCORE_EXPORT DisplayCaptureFactory& NODELETE displayCaptureFactory();
     WEBCORE_EXPORT void NODELETE setDisplayCaptureFactory(DisplayCaptureFactory&);
     WEBCORE_EXPORT void NODELETE unsetDisplayCaptureFactory(DisplayCaptureFactory&);
 

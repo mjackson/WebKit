@@ -51,24 +51,24 @@ void MeshImpl::setLabelInternal(const String&)
     // FIXME: Implement this.
 }
 
-void MeshImpl::update(const WebModel::UpdateMeshDescriptor& descriptor)
+void MeshImpl::update(Vector<WebModel::UpdateMeshDescriptor>&& descriptor)
 {
-    m_backing->update(descriptor);
+    m_backing->update(WTF::move(descriptor));
 }
 
-void MeshImpl::updateTexture(const WebModel::UpdateTextureDescriptor& descriptor)
+void MeshImpl::updateTexture(Vector<WebModel::UpdateTextureDescriptor>&& descriptor)
 {
-    m_backing->updateTexture(descriptor);
+    m_backing->updateTexture(WTF::move(descriptor));
 }
 
-void MeshImpl::updateMaterial(const WebModel::UpdateMaterialDescriptor& descriptor)
+void MeshImpl::updateMaterial(Vector<WebModel::UpdateMaterialDescriptor>&& descriptor)
 {
-    m_backing->updateMaterial(descriptor);
+    m_backing->updateMaterial(WTF::move(descriptor));
 }
 
-void MeshImpl::render()
+void MeshImpl::render(uint32_t textureIndex, Function<void(bool)>&& completionHandler)
 {
-    m_backing->render();
+    m_backing->render(textureIndex, WTF::move(completionHandler));
 }
 
 void MeshImpl::setEntityTransform(const WebModel::Float4x4& transform)
@@ -83,9 +83,9 @@ std::optional<WebModel::Float4x4> MeshImpl::entityTransform() const
 }
 #endif
 
-void MeshImpl::setCameraDistance(float distance)
+void MeshImpl::setFOV(float fovY)
 {
-    m_backing->setCameraDistance(distance);
+    m_backing->setFOV(fovY);
 }
 
 void MeshImpl::setBackgroundColor(const WebModel::Float3& color)

@@ -281,7 +281,18 @@ void ProcessLauncher::terminateProcess()
     else
         kill(m_processID, SIGKILL);
 #else
+
+#if ENABLE(LLVM_PROFILE_GENERATION)
+    // Ensure auxiliary processes have some time to flush their PGO data.
+    kill(m_processID, SIGTERM);
+    g_timeout_add(500, [](gpointer data) -> gboolean {
+        kill(GPOINTER_TO_INT(data), SIGKILL);
+        return G_SOURCE_REMOVE;
+    }, GINT_TO_POINTER(m_processID));
+#else
     kill(m_processID, SIGKILL);
+#endif
+
 #endif
 
     m_processID = 0;

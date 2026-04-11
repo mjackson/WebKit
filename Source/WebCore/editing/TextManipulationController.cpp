@@ -29,6 +29,7 @@
 #include "AccessibilityObject.h"
 #include "CharacterData.h"
 #include "ContainerNodeInlines.h"
+#include "DocumentView.h"
 #include "EditingInlines.h"
 #include "ElementAncestorIteratorInlines.h"
 #include "ElementRareData.h"
@@ -269,7 +270,7 @@ private:
     std::optional<Vector<String>> m_text;
 };
 
-static bool shouldExtractValueForTextManipulation(const HTMLInputElement& input)
+static bool NODELETE shouldExtractValueForTextManipulation(const HTMLInputElement& input)
 {
     // FIXME: Consider using `type()` instead of checking the attribute, so that plain text fields
     // with and without an explicit `type="text"` behave consistently.
@@ -374,7 +375,7 @@ static bool isEnclosingItemBoundaryElement(const Element& element)
 
 static bool shouldIgnoreNodeInTextField(const Node& node)
 {
-    RefPtr input = dynamicDowncast<HTMLInputElement>(node.shadowHost());
+    auto* input = dynamicDowncast<HTMLInputElement>(node.shadowHost());
     if (!input)
         return false;
 
@@ -633,7 +634,7 @@ void TextManipulationController::scheduleObservationUpdate()
             if (!node->isConnected())
                 continue;
 
-            if (RefPtr host = dynamicDowncast<HTMLInputElement>(node->shadowHost()); host && host->lastChangeWasUserEdit())
+            if (auto* host = dynamicDowncast<HTMLInputElement>(node->shadowHost()); host && host->lastChangeWasUserEdit())
                 continue;
 
             if (!commonAncestor)
@@ -839,7 +840,7 @@ auto TextManipulationController::replace(const ManipulationItemData& item, const
         return std::nullopt;
     }
 
-    if (RefPtr container = item.start.containerNode(); container && shouldIgnoreNodeInTextField(*container))
+    if (auto* container = item.start.containerNode(); container && shouldIgnoreNodeInTextField(*container))
         return ManipulationFailure::Type::ContentChanged;
 
     size_t currentTokenIndex = 0;

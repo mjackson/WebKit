@@ -35,6 +35,7 @@
 #include "ChromeClient.h"
 #include "ContainerNodeInlines.h"
 #include "DocumentFullscreen.h"
+#include "FixedContainerEdges.h"
 #include "GraphicsLayer.h"
 #include "HTMLCanvasElement.h"
 #include "HTMLIFrameElement.h"
@@ -315,9 +316,7 @@ struct RenderLayerCompositor::BackingSharingSnapshot {
 class RenderLayerCompositor::BackingSharingState {
     WTF_MAKE_NONCOPYABLE(BackingSharingState);
 public:
-    BackingSharingState(bool allowOverlappingProviders)
-        : m_allowOverlappingProviders(allowOverlappingProviders)
-    { }
+    BackingSharingState() = default;
 
     struct Provider {
         InlineWeakPtr<RenderLayer> providerLayer;
@@ -346,7 +345,7 @@ public:
     }
 
     void addBackingSharingCandidate(RenderLayer& candidateLayer, LayoutRect candidateAbsoluteBounds, RenderLayer& candidateStackingContext, const std::optional<BackingSharingSnapshot>&);
-    bool isAdditionalProviderCandidate(RenderLayer&, LayoutRect candidateAbsoluteBounds, RenderLayer* stackingContextAncestor) const;
+    bool isAdditionalProviderCandidate(RenderLayer* stackingContextAncestor) const;
     void startBackingSharingSequence(RenderLayer& candidateLayer, LayoutRect candidateAbsoluteBounds, RenderLayer& candidateStackingContext);
     void endBackingSharingSequence(RenderLayer&);
 
@@ -367,7 +366,6 @@ private:
     RenderLayer* m_backingSharingStackingContext { nullptr };
     BackingSharingSequenceIdentifier m_sequenceIdentifier { BackingSharingSequenceIdentifier::generate() };
     InlineWeakKeyHashSet<RenderLayer> m_layersPendingRepaint;
-    bool m_allowOverlappingProviders { false };
 };
 
 WTF::TextStream& operator<<(WTF::TextStream&, const RenderLayerCompositor::BackingSharingState::Provider&);
@@ -417,16 +415,6 @@ auto RenderLayerCompositor::BackingSharingState::backingProviderCandidateForLaye
 {
     if (layer.hasReflection())
         return nullptr;
-
-    if (!m_allowOverlappingProviders) {
-        for (auto& candidate : m_backingProviderCandidates) {
-            CheckedRef providerLayer = *candidate.providerLayer;
-            if (layer.ancestorLayerIsInContainingBlockChain(providerLayer))
-                return &candidate;
-        }
-
-        return nullptr;
-    }
 
     if (m_backingProviderCandidates.isEmpty())
         return nullptr;
@@ -519,24 +507,11 @@ auto RenderLayerCompositor::BackingSharingState::backingProviderForLayer(const R
     return nullptr;
 }
 
-bool RenderLayerCompositor::BackingSharingState::isAdditionalProviderCandidate(RenderLayer& candidateLayer, LayoutRect candidateAbsoluteBounds, RenderLayer* stackingContextAncestor) const
+bool RenderLayerCompositor::BackingSharingState::isAdditionalProviderCandidate(RenderLayer* stackingContextAncestor) const
 {
     ASSERT(!m_backingProviderCandidates.isEmpty());
     if (!stackingContextAncestor || stackingContextAncestor != m_backingSharingStackingContext)
         return false;
-
-    if (!m_allowOverlappingProviders) {
-        // Only allow multiple providers for overflow scroll, which we know clips its descendants.
-        if (!(m_backingProviderCandidates[0].providerLayer->canUseCompositedScrolling() && candidateLayer.canUseCompositedScrolling()))
-            return false;
-
-        // Disallow overlap between backing providers.
-        for (auto& candidate : m_backingProviderCandidates) {
-            if (candidateAbsoluteBounds.intersects(candidate.absoluteBounds))
-                return false;
-        }
-        return true;
-    }
 
     if (!m_backingProviderCandidates[0].providerLayer->canUseCompositedScrolling())
         return false;
@@ -643,13 +618,18 @@ void RenderLayerCompositor::cacheAcceleratedCompositingFlags()
     bool showDebugBorders = settings->showDebugBorders();
     bool showRepaintCounter = settings->showRepaintCounter();
     bool acceleratedDrawingEnabled = settings->acceleratedDrawingEnabled();
+#if ENABLE(RE_DYNAMIC_CONTENT_SCALING)
+    bool useDynamicContentScalingDisplayListsForDOMRendering = settings->useCGDisplayListsForDOMRendering();
+#else
+    bool useDynamicContentScalingDisplayListsForDOMRendering = false;
+#endif
 
     // forceCompositingMode for subframes can only be computed after layout.
     bool forceCompositingMode = m_forceCompositingMode;
     if (isRootFrameCompositor())
         forceCompositingMode = m_renderView.settings().forceCompositingMode() && hasAcceleratedCompositing; 
     
-    if (hasAcceleratedCompositing != m_hasAcceleratedCompositing || showDebugBorders != m_showDebugBorders || showRepaintCounter != m_showRepaintCounter || forceCompositingMode != m_forceCompositingMode) {
+    if (hasAcceleratedCompositing != m_hasAcceleratedCompositing || showDebugBorders != m_showDebugBorders || showRepaintCounter != m_showRepaintCounter || forceCompositingMode != m_forceCompositingMode || useDynamicContentScalingDisplayListsForDOMRendering != m_useDynamicContentScalingDisplayListsForDOMRendering) {
         if (auto* rootLayer = m_renderView.layer()) {
             rootLayer->setNeedsCompositingConfigurationUpdate();
             rootLayer->setDescendantsNeedUpdateBackingAndHierarchyTraversal();
@@ -662,7 +642,8 @@ void RenderLayerCompositor::cacheAcceleratedCompositingFlags()
     m_showDebugBorders = showDebugBorders;
     m_showRepaintCounter = showRepaintCounter;
     m_acceleratedDrawingEnabled = acceleratedDrawingEnabled;
-    
+    m_useDynamicContentScalingDisplayListsForDOMRendering = useDynamicContentScalingDisplayListsForDOMRendering;
+
     if (debugBordersChanged) {
         if (m_layerForHorizontalScrollbar)
             m_layerForHorizontalScrollbar->setShowDebugBorder(m_showDebugBorders);
@@ -1145,7 +1126,7 @@ bool RenderLayerCompositor::updateCompositingLayers(CompositingUpdateType update
     if (updateRoot->hasDescendantNeedingCompositingRequirementsTraversal() || updateRoot->needsCompositingRequirementsTraversal()) {
         CheckedRef rootLayer = rootRenderLayer();
         CompositingState compositingState(updateRoot);
-        BackingSharingState backingSharingState(m_renderView.settings().overlappingBackingStoreProvidersEnabled());
+        BackingSharingState backingSharingState;
         LayerOverlapMap overlapMap(rootLayer);
 
         computeCompositingRequirements(nullptr, rootLayer, overlapMap, compositingState, backingSharingState);
@@ -1888,8 +1869,9 @@ std::optional<RenderLayerCompositor::BackingSharingSnapshot> RenderLayerComposit
             return false;
 
         // If this layer is composited, we can only continue the sequence if it's a new provider candidate.
+        // FIXME: Can this computeExtent() call be removed?
         computeExtent(overlapMap, layer, layerExtent);
-        return !sharingState.isAdditionalProviderCandidate(layer, layerExtent.bounds, stackingContextAncestor);
+        return !sharingState.isAdditionalProviderCandidate(stackingContextAncestor);
     }();
 
     // A layer that composites resets backing-sharing, since subsequent layers need to composite to overlap it.
@@ -1941,7 +1923,7 @@ void RenderLayerCompositor::updateBackingSharingAfterDescendantTraversal(Backing
         }
 
         computeExtent(overlapMap, layer, layerExtent);
-        if (sharingState.isAdditionalProviderCandidate(layer, layerExtent.bounds, stackingContextAncestor)) {
+        if (sharingState.isAdditionalProviderCandidate(stackingContextAncestor)) {
             sharingState.addBackingSharingCandidate(layer, layerExtent.bounds, *stackingContextAncestor, backingSharingSnapshot);
             LOG_WITH_STREAM(Compositing, stream << TextStream::Repeat(depth * 2, ' ') << " - added additional provider candidate " << &layer);
             return;
@@ -2565,7 +2547,6 @@ void RenderLayerCompositor::layerWillBeRemoved(RenderLayer& parent, RenderLayer&
     } else
         return;
 
-    child.clearRepaintContainer();
     child.setNeedsCompositingLayerConnection();
 }
 
@@ -3238,7 +3219,18 @@ void RenderLayerCompositor::updateRootLayerPosition()
         RefPtr { m_contentShadowLayer }->setSize(m_rootContentsLayer->size());
     }
 
-    updateLayerForTopOverhangColorExtension(m_layerForTopOverhangColorExtension);
+    bool wantsLayer = m_layerForTopOverhangColorExtension;
+    Color cachedTopColor;
+    if (!wantsLayer) {
+        cachedTopColor = page().fixedContainerEdges().predominantColor(BoxSide::Top);
+        wantsLayer = cachedTopColor.isVisible();
+    }
+
+    if (RefPtr layer = updateLayerForTopOverhangColorExtension(wantsLayer)) {
+        if (cachedTopColor.isVisible())
+            layer->setBackgroundColor(cachedTopColor);
+    }
+
     updateSizeAndPositionForTopOverhangColorExtensionLayer();
     updateLayerForTopOverhangImage(m_layerForTopOverhangImage);
     updateLayerForBottomOverhangArea(m_layerForBottomOverhangArea);
@@ -3884,7 +3876,7 @@ bool RenderLayerCompositor::requiresCompositingForTransform(RenderLayerModelObje
         // Continue to allow pages to avoid the very slow software filter path.
         if (styleHas3DTransformOperation(renderer.style()) && renderer.hasFilter())
             return true;
-        return styleTransformOperationsAreRepresentableIn2D(renderer.style()) ? false : true;
+        return !styleTransformOperationsAreRepresentableIn2D(renderer.style());
     }
     return false;
 }
@@ -4472,7 +4464,7 @@ bool RenderLayerCompositor::isRunningTransformAnimation(RenderLayerModelObject& 
 // layer background, so we need an extra 'contents' layer for the foreground of the layer object.
 bool RenderLayerCompositor::needsContentsCompositingLayer(const RenderLayer& layer) const
 {
-    for (CheckedPtr negativeZOrderLayer : layer.negativeZOrderLayers()) {
+    for (auto* negativeZOrderLayer : layer.negativeZOrderLayers()) {
         if (negativeZOrderLayer->isComposited() || negativeZOrderLayer->hasCompositingDescendant())
             return true;
     }
@@ -4482,10 +4474,10 @@ bool RenderLayerCompositor::needsContentsCompositingLayer(const RenderLayer& lay
 
 bool RenderLayerCompositor::requiresScrollLayer(RootLayerAttachment attachment) const
 {
-    Ref frameView = m_renderView.frameView();
+    auto& frameView = m_renderView.frameView();
 
     // This applies when the application UI handles scrolling, in which case RenderLayerCompositor doesn't need to manage it.
-    if (frameView->delegatedScrollingMode() == DelegatedScrollingMode::DelegatedToNativeScrollView && isMainFrameCompositor())
+    if (frameView.delegatedScrollingMode() == DelegatedScrollingMode::DelegatedToNativeScrollView && isMainFrameCompositor())
         return false;
 
     // We need to handle our own scrolling if we're:
@@ -4556,7 +4548,7 @@ bool RenderLayerCompositor::needsFixedRootBackgroundLayer(const RenderLayer& lay
 GraphicsLayer* RenderLayerCompositor::fixedRootBackgroundLayer() const
 {
     // Get the fixed root background from the RenderView layer's backing.
-    CheckedPtr viewLayer = m_renderView.layer();
+    auto* viewLayer = m_renderView.layer();
     if (!viewLayer)
         return nullptr;
 
@@ -4684,8 +4676,8 @@ bool RenderLayerCompositor::requiresOverhangAreasLayer() const
         return false;
 
     // We do want a layer if we're using tiled drawing and can scroll.
-    Ref frameView = m_renderView.frameView();
-    if (documentUsesTiledBacking() && frameView->hasOpaqueBackground() && !frameView->prohibitsScrolling())
+    auto& frameView = m_renderView.frameView();
+    if (documentUsesTiledBacking() && frameView.hasOpaqueBackground() && !frameView.prohibitsScrolling())
         return true;
 
     return false;

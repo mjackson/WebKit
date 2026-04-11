@@ -255,7 +255,7 @@ void RenderSelection::apply(const RenderRange& newSelection, RepaintMode blockRe
     }
 
     if (blockRepaintMode != RepaintMode::Nothing)
-        protect(m_renderView->layer())->clearBlockSelectionGapsBounds();
+        m_renderView->layer()->clearBlockSelectionGapsBounds();
 
     // Now that the selection state has been updated for the new objects, walk them again and
     // put them in the new objects list.

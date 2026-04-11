@@ -47,7 +47,7 @@ public:
         return &vm.nativeExecutableSpace();
     }
 
-    CodeBlockHash hashFor(CodeSpecializationKind) const;
+    CodeBlockHash NODELETE hashFor(CodeSpecializationKind) const;
 
     TaggedNativeFunction function() const { return m_function; }
     TaggedNativeFunction constructor() const { return m_constructor; }

@@ -46,9 +46,7 @@ LibWebRTCRtpTransformableFrame::LibWebRTCRtpTransformableFrame(std::unique_ptr<w
 {
 }
 
-LibWebRTCRtpTransformableFrame::~LibWebRTCRtpTransformableFrame()
-{
-}
+LibWebRTCRtpTransformableFrame::~LibWebRTCRtpTransformableFrame() = default;
 
 std::unique_ptr<webrtc::TransformableFrameInterface> LibWebRTCRtpTransformableFrame::takeRTCFrame()
 {

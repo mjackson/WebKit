@@ -70,23 +70,27 @@ void RemoteXRProjectionLayerProxy::startFrame(size_t frameIndex, MachSendRight&&
 }
 #endif
 
+#if PLATFORM(COCOA)
 void RemoteXRProjectionLayerProxy::endFrame()
+#else
+void RemoteXRProjectionLayerProxy::endFrame(PlatformXR::DeviceLayer&)
+#endif
 {
     auto sendResult = send(Messages::RemoteXRProjectionLayer::EndFrame());
     UNUSED_VARIABLE(sendResult);
 }
 
-uint32_t RemoteXRProjectionLayerProxy::textureWidth() const
+uint32_t RemoteXRProjectionLayerProxy::colorTextureWidth() const
 {
     return 0;
 }
 
-uint32_t RemoteXRProjectionLayerProxy::textureHeight() const
+uint32_t RemoteXRProjectionLayerProxy::colorTextureHeight() const
 {
     return 0;
 }
 
-uint32_t RemoteXRProjectionLayerProxy::textureArrayLength() const
+uint32_t RemoteXRProjectionLayerProxy::colorTextureArrayLength() const
 {
     return 0;
 }

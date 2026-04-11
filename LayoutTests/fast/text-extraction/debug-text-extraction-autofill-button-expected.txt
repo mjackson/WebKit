@@ -1,4 +1,4 @@
 root
-	input,'text',placeholder='Username'
-	input,'email',placeholder='Email'
-	input,'password',placeholder='Password',secure
+	input placeholder=Username
+	input placeholder=Email
+	input placeholder=Password secure

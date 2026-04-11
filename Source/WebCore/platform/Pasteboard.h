@@ -410,9 +410,7 @@ extern const ASCIILiteral WebURLsWithTitlesPboardType;
 
 #if !PLATFORM(GTK) && !PLATFORM(WPE)
 
-inline Pasteboard::~Pasteboard()
-{
-}
+inline Pasteboard::~Pasteboard() = default;
 
 #endif
 

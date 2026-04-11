@@ -234,10 +234,25 @@ ScriptExecutionContext::~ScriptExecutionContext()
 #endif
 }
 
-void ScriptExecutionContext::processMessageWithMessagePortsSoon(CompletionHandler<void()>&& completionHandler)
+void ScriptExecutionContext::resumeAllMessagePortsSoon()
+{
+    ASSERT(isContextThread());
+    m_dispatchAllPorts = true;
+
+    if (m_willprocessMessageWithMessagePortsSoon)
+        return;
+
+    m_willprocessMessageWithMessagePortsSoon = true;
+    postTask([] (ScriptExecutionContext& context) {
+        context.dispatchMessagePortEvents();
+    });
+}
+
+void ScriptExecutionContext::processMessageForPortSoon(const MessagePortIdentifier& portIdentifier, CompletionHandler<void()>&& completionHandler)
 {
     ASSERT(isContextThread());
     m_processMessageWithMessagePortsSoonHandlers.append(WTF::move(completionHandler));
+    m_portsWithAvailableMessages.add(portIdentifier);
 
     if (m_willprocessMessageWithMessagePortsSoon)
         return;
@@ -258,11 +273,22 @@ void ScriptExecutionContext::dispatchMessagePortEvents()
     m_willprocessMessageWithMessagePortsSoon = false;
 
     auto completionHandlers = std::exchange(m_processMessageWithMessagePortsSoonHandlers, Vector<CompletionHandler<void()>> { });
+    bool dispatchAll = std::exchange(m_dispatchAllPorts, false);
+    auto portsToDispatch = WTF::move(m_portsWithAvailableMessages);
 
-    m_messagePorts.forEach([](auto& messagePort) {
-        if (messagePort.started())
-            messagePort.dispatchMessages();
-    });
+    if (dispatchAll) {
+        m_messagePorts.forEach([](auto& messagePort) {
+            if (messagePort.started())
+                messagePort.dispatchMessages();
+        });
+    } else {
+        for (auto& portIdentifier : portsToDispatch) {
+            m_messagePorts.forEach([&portIdentifier](auto& messagePort) {
+                if (messagePort.identifier() == portIdentifier && messagePort.started())
+                    messagePort.dispatchMessages();
+            });
+        }
+    }
 
     for (auto& completionHandler : completionHandlers)
         completionHandler();
@@ -422,7 +448,7 @@ void ScriptExecutionContext::resumeActiveDOMObjects(ReasonForSuspension why)
 
     // In case there were pending messages at the time the script execution context entered the BackForwardCache,
     // make sure those get dispatched shortly after restoring from the BackForwardCache.
-    processMessageWithMessagePortsSoon([] { });
+    resumeAllMessagePortsSoon();
 }
 
 void ScriptExecutionContext::stopActiveDOMObjects()
@@ -579,11 +605,15 @@ bool ScriptExecutionContext::dispatchErrorEvent(const String& errorMessage, int 
     if (!target)
         return false;
 
+    auto* jsGlobalObject = globalObject();
+    if (!jsGlobalObject)
+        return false;
+
     RefPtr<ErrorEvent> errorEvent;
     if (canIncludeErrorDetails(cachedScript, sourceURL, fromModule))
-        errorEvent = ErrorEvent::create(errorMessage, sourceURL, lineNumber, columnNumber, { vm(), exception ? exception->value() : JSC::jsNull() });
+        errorEvent = ErrorEvent::create(*jsGlobalObject, errorMessage, sourceURL, lineNumber, columnNumber, { vm(), exception ? exception->value() : JSC::jsNull() });
     else
-        errorEvent = ErrorEvent::create("Script error."_s, { }, 0, 0, { });
+        errorEvent = ErrorEvent::create(*jsGlobalObject, "Script error."_s, { }, 0, 0, { });
 
     ASSERT(!m_inDispatchErrorEvent);
     m_inDispatchErrorEvent = true;

@@ -29,6 +29,7 @@
 
 #if ENABLE(MATHML)
 
+#include "FontCascadeInlines.h"
 #include "MathMLElement.h"
 #include "MathMLOperatorDictionary.h"
 #include "MathMLUnderOverElement.h"

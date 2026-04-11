@@ -21,28 +21,15 @@
 #include "CryptoAlgorithmX25519.h"
 
 #include "CryptoKeyOKP.h"
-#include <pal/PALSwift.h>
+#include <pal/crypto/CryptoAlgorithmX25519CocoaBridging.h>
+#include <pal/crypto/CryptoTypes.h>
 #include <pal/spi/cocoa/CoreCryptoSPI.h>
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
-#include "PALSwift-Generated.h"
-#pragma clang diagnostic pop
 
 namespace WebCore {
 
-static std::optional<Vector<uint8_t>> deriveBitsCryptoKit(const Vector<uint8_t>& baseKey, const Vector<uint8_t>& publicKey)
-{
-    if (baseKey.size() != ed25519KeySize || publicKey.size() != ed25519KeySize)
-        return std::nullopt;
-    auto rv = pal::EdKey::deriveBits(pal::EdKeyAgreementAlgorithm::x25519(), baseKey.span(), publicKey.span());
-    if (rv.errorCode != Cpp::ErrorCodes::Success)
-        return std::nullopt;
-    return WTF::move(rv.result);
-}
-
 std::optional<Vector<uint8_t>> CryptoAlgorithmX25519::platformDeriveBits(const CryptoKeyOKP& baseKey, const CryptoKeyOKP& publicKey)
 {
-    return deriveBitsCryptoKit(baseKey.platformKey(), publicKey.platformKey());
+    return PAL::Crypto::deriveBitsX25519CryptoKit(baseKey.platformKey(), publicKey.platformKey());
 }
+
 } // namespace WebCore

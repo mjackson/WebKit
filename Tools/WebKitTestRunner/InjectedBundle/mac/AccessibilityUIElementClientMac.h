@@ -67,6 +67,9 @@ public:
     double width() override;
     double height() override;
 
+    // Actions.
+    void showMenu() override;
+
     // Helpers.
     JSRetainPtr<JSStringRef> getStringAttribute(const char* attributeName) const;
     double getNumberAttribute(const char* attributeName) const;

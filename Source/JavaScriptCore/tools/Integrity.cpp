@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2019-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -176,6 +176,16 @@ JSValue doAudit(JSValue value)
         doAudit(value.asCell());
     return value;
 }
+
+#if ENABLE(EXTRA_INTEGRITY_CHECKS) && USE(JSVALUE64)
+template<>
+std::span<JSValue> audit(std::span<JSValue> span)
+{
+    for (auto it : span)
+        JSC::Integrity::audit(it);
+    return span;
+}
+#endif
 
 bool Analyzer::analyzeVM(VM& vm, Analyzer::Action action)
 {

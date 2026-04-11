@@ -147,7 +147,7 @@ public:
     bool hasStickyActivation() const;
     WEBCORE_EXPORT bool consumeTransientActivation();
     WEBCORE_EXPORT bool NODELETE hasHistoryActionActivation() const;
-    WEBCORE_EXPORT bool consumeHistoryActionUserActivation();
+    WEBCORE_EXPORT bool NODELETE consumeHistoryActionUserActivation();
     WEBCORE_EXPORT static Seconds NODELETE transientActivationDuration();
 
     struct ClickEventData {
@@ -159,7 +159,7 @@ public:
 
     DOMSelection* getSelection();
 
-    HTMLFrameOwnerElement* frameElement() const;
+    HTMLFrameOwnerElement* NODELETE frameElement() const;
 
     WEBCORE_EXPORT void focus(bool allowFocus = false);
     void focus(LocalDOMWindow& incumbentWindow);
@@ -195,7 +195,7 @@ public:
 
     unsigned length() const;
 
-    AtomString name() const;
+    AtomString NODELETE name() const;
     void setName(const AtomString&);
 
     String status() const;
@@ -320,7 +320,7 @@ public:
 
 #if PLATFORM(IOS_FAMILY)
     void incrementScrollEventListenersCount();
-    void decrementScrollEventListenersCount();
+    void decrementScrollEventListenersCount(unsigned count = 1);
     unsigned scrollEventListenerCount() const { return m_scrollEventListenerCount; }
 #endif
 
@@ -387,7 +387,7 @@ private:
     void eventListenersDidChange() final;
     void setLocation(LocalDOMWindow& activeWindow, const URL& completedURL, NavigationHistoryBehavior, SetLocationLocking, CanNavigateState) final;
 
-    bool allowedToChangeWindowGeometry() const;
+    bool NODELETE allowedToChangeWindowGeometry() const;
 
     static ExceptionOr<RefPtr<Frame>> createWindow(const String& urlString, const AtomString& frameName, const WindowFeatures&, LocalDOMWindow& activeWindow, LocalFrame& firstFrame, LocalFrame& openerFrame, NOESCAPE const Function<void(LocalDOMWindow&)>& prepareDialogFunction = nullptr);
 

@@ -45,6 +45,7 @@
 #include <wtf/CompletionHandler.h>
 #include <wtf/FileHandle.h>
 #include <wtf/FileSystem.h>
+#include <wtf/RetainPtr.h>
 #include <wtf/ScopedLambda.h>
 #include <wtf/cf/VectorCF.h>
 #include <wtf/text/Base64.h>

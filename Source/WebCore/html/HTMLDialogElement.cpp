@@ -42,6 +42,7 @@
 #include "RenderBlock.h"
 #include "RenderElement.h"
 #include "ScopedEventQueue.h"
+#include "Settings.h"
 #include "ToggleEvent.h"
 #include "ToggleEventTask.h"
 #include "TypedElementDescendantIteratorInlines.h"
@@ -79,11 +80,11 @@ ClosedByState HTMLDialogElement::closedByState() const
         return ClosedByState::Auto;
 
     auto value = attributeWithoutSynchronization(HTMLNames::closedbyAttr);
-    if (value == noneAtom())
+    if (equalIgnoringASCIICase(value, noneAtom()))
         return ClosedByState::None;
-    if (value == closerequestAtom())
+    if (equalIgnoringASCIICase(value, closerequestAtom()))
         return ClosedByState::CloseRequest;
-    if (value == anyAtom())
+    if (equalIgnoringASCIICase(value, anyAtom()))
         return ClosedByState::Any;
 
     return ClosedByState::Auto;
@@ -389,13 +390,28 @@ void HTMLDialogElement::setupSteps()
     ASSERT(isConnected());
     Ref document = this->document();
     ASSERT(!document->openDialogsList().contains(this));
+#if ENABLE(IOS_TOUCH_EVENTS)
+    bool neededEventHandling = document->needsPointerEventHandlingForPopoverOrDialog();
+#endif
     document->openDialogsList().add(*this);
+#if ENABLE(IOS_TOUCH_EVENTS)
+    if (!neededEventHandling) {
+        document->invalidateRenderingDependentRegions();
+        document->invalidateEventListenerRegions();
+    }
+#endif
 }
 
 void HTMLDialogElement::cleanupSteps()
 {
     Ref document = this->document();
     document->openDialogsList().remove(*this);
+#if ENABLE(IOS_TOUCH_EVENTS)
+    if (!document->needsPointerEventHandlingForPopoverOrDialog()) {
+        document->invalidateRenderingDependentRegions();
+        document->invalidateEventListenerRegions();
+    }
+#endif
 }
 
 void HTMLDialogElement::setIsModal(bool newValue)

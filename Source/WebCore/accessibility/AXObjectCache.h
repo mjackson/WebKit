@@ -99,6 +99,38 @@ struct TextMarkerData;
 enum class AXNotification : uint8_t;
 enum class AXStreamOptions : uint16_t;
 enum class AXProperty : uint16_t;
+enum class LiveRegionStatus: uint8_t;
+
+enum class AccessibilityMode : uint8_t {
+    // Off MUST be the zero variant - WebPageProxy relies on the default initializer
+    // for an AccessibilityMode to be Off.
+    Off = 0,
+    // Accessibility is enabled but not isolated tree mode.
+    MainThread,
+    // This implies / is equivalent to the notion of isolated tree mode.
+    AXThread,
+    // Equivalent to Off, but remembers what mode we were in before disabling.
+    OffWasMainThread,
+    OffWasAXThread,
+};
+
+inline bool isAccessibilityModeOff(AccessibilityMode mode)
+{
+    return mode == AccessibilityMode::Off
+        || mode == AccessibilityMode::OffWasMainThread
+        || mode == AccessibilityMode::OffWasAXThread;
+}
+
+// Returns the resolved target mode for a requested transition, or std::nullopt
+// if the transition is not allowed. Allowed transitions:
+//   Off (or OffWas*) -> MainThread or AXThread
+//   MainThread       -> AXThread or OffWasMainThread (test mode only)
+//   AXThread         -> OffWasAXThread (test mode only)
+// Transitioning to an Off state is only allowed in test mode.
+// Returns std::nullopt if the transition is not allowed or unnecessary (i.e.
+// the current and requested modes are equal).
+WEBCORE_EXPORT std::optional<AccessibilityMode> resolveAccessibilityModeTransition(AccessibilityMode current, AccessibilityMode requested);
+
 enum class TextMarkerOrigin : uint16_t;
 
 struct CharacterOffset {
@@ -149,8 +181,7 @@ struct AXTreeData {
 
 // When this is updated, WebCoreArgumentCoders.serialization.in must be updated as well.
 struct AXDebugInfo {
-    bool isAccessibilityEnabled;
-    bool isAccessibilityThreadInitialized;
+    AccessibilityMode accessibilityMode;
     String liveTree;
     String isolatedTree;
     Vector<String> warnings;
@@ -230,9 +261,21 @@ struct InheritedFrameState {
     bool isRenderHidden { false };
 };
 
+// Describes a frame's position and scale on screen for accessibility coordinate conversion.
+// Sent from the UIProcess to the WebProcess via IPC whenever the frame scrolls, moves, or resizes.
 // When this is updated, WebCoreArgumentCoders.serialization.in must be updated as well.
-struct FrameGeometry {
+struct AXFrameGeometry {
+    // The frame's content origin in screen coordinates.
+    //   - Coordinate space: bottom-left on macOS, top-left on other platforms.
+    //   - Points to: the top-left of the frame's document.
+    //   - Units: display pixels.
+    //   - Scroll: document-origin-based, so accounts for the frame's scroll position
+    //     (e.g. scrolling down moves the document origin up on screen).
+    // Element rects in content space compose with this directly to produce screen coordinates.
     IntPoint screenPosition;
+
+    // Scale accounts for page zoom and device scale factor, among other things.
+    // Applied to the element rect before adding screenPosition.
     AffineTransform screenTransform;
 };
 #endif
@@ -321,12 +364,9 @@ public:
     AccessibilityObject* rootWebArea();
 #if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
     WEBCORE_EXPORT void setFrameInheritedState(LocalFrame&, const InheritedFrameState&);
-    WEBCORE_EXPORT void setFrameGeometry(LocalFrame&, const FrameGeometry&);
-    const std::optional<FrameGeometry>& frameGeometry() const LIFETIME_BOUND { return m_frameGeometry; }
-    const std::optional<FrameGeometry>& getAndUpdateFrameGeometry() LIFETIME_BOUND;
-#endif
-#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-    WEBCORE_EXPORT void buildIsolatedTreeIfNeeded();
+    WEBCORE_EXPORT void setFrameGeometry(LocalFrame&, const AXFrameGeometry&);
+    const std::optional<AXFrameGeometry>& frameGeometry() const LIFETIME_BOUND { return m_frameGeometry; }
+    const std::optional<AXFrameGeometry>& getAndUpdateFrameGeometry() LIFETIME_BOUND;
 #endif
 
     // Creation/retrieval of AX objects associated with a DOM or RenderTree object.
@@ -551,8 +591,23 @@ public:
     void recomputeIsIgnored(RenderObject&);
     void recomputeIsIgnored(Node*);
 
-    static void enableAccessibility();
-    static void disableAccessibility();
+    enum class ForceAXThreadMode : bool { No, Yes };
+    static void enableAccessibility(ForceAXThreadMode = ForceAXThreadMode::No);
+    // Resets mode to Off without notifying the UI process, so the change
+    // stays local to this web process. Used by Internals::resetToConsistentState
+    // to avoid interfering with other web content processes running tests.
+    WEBCORE_EXPORT static void disableAccessibilityForTesting();
+    WEBCORE_EXPORT static std::optional<AccessibilityMode> attemptMainThreadModeTransition();
+    WEBCORE_EXPORT static std::atomic<AccessibilityMode> gAccessibilityMode;
+    static AccessibilityMode accessibilityMode() { return gAccessibilityMode.load(std::memory_order_relaxed); }
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    WEBCORE_EXPORT static std::optional<AccessibilityMode> transitionToAXThreadModeIfNeeded(ForceAXThreadMode = ForceAXThreadMode::No);
+    WEBCORE_EXPORT static bool shouldForceAccessibilityEnabled();
+#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+
+    using SyncModeToOtherProcessesCallback = Function<void(AccessibilityMode)>;
+    WEBCORE_EXPORT static void setSyncModeToOtherProcessesCallback(SyncModeToOtherProcessesCallback&&);
+
 #if PLATFORM(MAC)
     WEBCORE_EXPORT static bool isAppleInternalInstall();
 #endif
@@ -568,7 +623,7 @@ public:
     WEBCORE_EXPORT AccessibilityObject* focusedObjectForLocalFrame();
 
     // Enhanced user interface accessibility can be toggled by the assistive technology.
-    WEBCORE_EXPORT static void NODELETE setEnhancedUserInterfaceAccessibility(bool flag);
+    WEBCORE_EXPORT static void setEnhancedUserInterfaceAccessibility(bool flag);
 
     static bool accessibilityEnabled();
     WEBCORE_EXPORT static bool NODELETE accessibilityEnhancedUserInterfaceEnabled();
@@ -741,13 +796,13 @@ public:
     void removeLiveRegion(AccessibilityObject&);
     void initializeSortedIDLists();
 
-    static bool clientIsInTestMode();
+    WEBCORE_EXPORT static bool clientIsInTestMode();
 #endif
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     inline void scheduleObjectRegionsUpdate(bool scheduleImmediately = false);
     inline void willUpdateObjectRegions();
-    WEBCORE_EXPORT static bool isIsolatedTreeEnabled();
+    static bool isIsolatedTreeEnabled() { return accessibilityMode() == AccessibilityMode::AXThread; }
     WEBCORE_EXPORT static void initializeAXThreadIfNeeded();
     WEBCORE_EXPORT static bool NODELETE isAXThreadInitialized();
     WEBCORE_EXPORT RefPtr<AXIsolatedTree> getOrCreateIsolatedTree();
@@ -755,6 +810,12 @@ public:
     static bool isAccessibilityList(Element&);
 private:
     static bool clientSupportsIsolatedTree();
+
+    enum class PlatformAXThreadSupport : bool { NotSupported, Supported };
+    static PlatformAXThreadSupport platformAXThreadSupport(ForceAXThreadMode);
+    enum class DidStartThread : bool { No, Yes };
+    static DidStartThread platformStartSecondaryThread();
+
     // Propagates the root of the isolated tree back into the Core and WebKit.
     void setIsolatedTree(Ref<AXIsolatedTree>);
     void setIsolatedTreeFocusedObject(AccessibilityObject*);
@@ -935,7 +996,7 @@ private:
     const WeakPtr<Document, WeakPtrImplWithEventTargetData> m_document;
     const FrameIdentifier m_frameID; // constant for object's lifetime.
 #if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
-    std::optional<FrameGeometry> m_frameGeometry;
+    std::optional<AXFrameGeometry> m_frameGeometry;
 #endif
     OptionSet<ActivityState> m_pageActivityState;
     HashMap<AXID, Ref<AccessibilityObject>> m_objects;
@@ -964,7 +1025,6 @@ private:
     std::unique_ptr<AXLiveRegionManager> m_liveRegionManager;
 #endif
 
-    WEBCORE_EXPORT static std::atomic<bool> gAccessibilityEnabled;
     static bool gAccessibilityEnhancedUserInterfaceEnabled;
     WEBCORE_EXPORT static std::atomic<bool> gForceDeferredSpellChecking;
 
@@ -1081,17 +1141,27 @@ private:
 
 inline bool AXObjectCache::accessibilityEnabled()
 {
-    return gAccessibilityEnabled;
+    return !isAccessibilityModeOff(accessibilityMode());
 }
 
-inline void AXObjectCache::enableAccessibility()
+inline void AXObjectCache::enableAccessibility([[maybe_unused]] ForceAXThreadMode forceAXThread)
 {
-    gAccessibilityEnabled = true;
-}
+    if (accessibilityMode() == AccessibilityMode::AXThread) {
+        // If we're in AXThread mode, there's nothing more to do.
+#if !ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+        AX_ASSERT_NOT_REACHED();
+#endif
+        return;
+    }
 
-inline void AXObjectCache::disableAccessibility()
-{
-    gAccessibilityEnabled = false;
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    if (transitionToAXThreadModeIfNeeded(forceAXThread))
+        return;
+#endif
+    // We may not always be allowed to transition to AXThread-mode based on
+    // various factors (e.g. feature flags, system defaults), so make sure
+    // we move to MainThread mode at a minimum.
+    std::ignore = attemptMainThreadModeTransition();
 }
 
 inline bool AXObjectCache::forceDeferredSpellChecking()

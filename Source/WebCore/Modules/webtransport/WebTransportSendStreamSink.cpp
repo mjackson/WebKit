@@ -49,9 +49,7 @@ WebTransportSendStreamSink::WebTransportSendStreamSink(WebTransport& transport, 
 {
 }
 
-WebTransportSendStreamSink::~WebTransportSendStreamSink()
-{
-}
+WebTransportSendStreamSink::~WebTransportSendStreamSink() = default;
 
 RefPtr<WritableStream> WebTransportSendStreamSink::stream() const
 {

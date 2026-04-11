@@ -197,7 +197,7 @@ void ResourceRequest::doUpdateResourceRequest()
     m_requestData.m_responseContentDispositionEncodingFallbackArray.clear();
     RetainPtr<NSArray> encodingFallbacks = [m_nsRequest contentDispositionEncodingFallbackArray];
     m_requestData.m_responseContentDispositionEncodingFallbackArray.reserveCapacity([encodingFallbacks count]);
-    for (NSNumber *encodingFallback in [m_nsRequest contentDispositionEncodingFallbackArray]) {
+    for (NSNumber *encodingFallback in encodingFallbacks.get()) {
         CFStringEncoding encoding = CFStringConvertNSStringEncodingToEncoding([encodingFallback unsignedLongValue]);
         if (encoding != kCFStringEncodingInvalidId)
             m_requestData.m_responseContentDispositionEncodingFallbackArray.append(CFStringConvertEncodingToIANACharSetName(encoding));
@@ -320,10 +320,8 @@ void ResourceRequest::doUpdatePlatformRequest()
     }).get()];
 
     String partition = cachePartition();
-    if (!partition.isNull() && !partition.isEmpty()) {
-        RetainPtr partitionValue = adoptNS([[NSString alloc] initWithUTF8String:partition.utf8().data()]);
-        [NSURLProtocol setProperty:partitionValue.get() forKey:bridge_cast(_kCFURLCachePartitionKey) inRequest:nsRequest.get()];
-    }
+    if (!partition.isEmpty())
+        [NSURLProtocol setProperty:partition.createNSString() forKey:bridge_cast(_kCFURLCachePartitionKey) inRequest:nsRequest.get()];
 
 #if PLATFORM(MAC)
     if (m_requestData.m_url.protocolIsFile()) {

@@ -625,7 +625,7 @@ void operator delete(T* object, std::destroying_delete_t, size_t size) { \
     object->setDidBeginCheckedPtrDeletion(); \
     object->T::~T(); \
     if (object->checkedPtrCountWithoutThreadCheck()) [[unlikely]] { \
-        zeroBytes(*object); \
+        secureZeroBytes(*object); \
         return; \
     } \
     T::operator delete(object); \

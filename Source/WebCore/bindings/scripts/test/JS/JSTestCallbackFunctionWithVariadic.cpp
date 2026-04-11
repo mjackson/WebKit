@@ -24,7 +24,10 @@
 #include "ContextDestructionObserverInlines.h"
 #include "JSDOMConvertStrings.h"
 #include "JSDOMExceptionHandling.h"
+#include "JSDOMGlobalObject.h"
 #include "ScriptExecutionContext.h"
+#include <JavaScriptCore/JSCellInlines.h>
+#include <JavaScriptCore/MarkedVector.h>
 
 
 namespace WebCore {
@@ -74,7 +77,8 @@ CallbackResult<typename IDLDOMString::CallbackReturnType> JSTestCallbackFunction
     auto jsResult = m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Function, Identifier(), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 

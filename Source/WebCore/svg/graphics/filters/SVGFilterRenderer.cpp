@@ -24,6 +24,7 @@
 #include "SVGFilterRenderer.h"
 
 #include "ElementChildIteratorInlines.h"
+#include "FilterImage.h"
 #include "FilterResults.h"
 #include "GeometryUtilities.h"
 #include "Logging.h"
@@ -315,7 +316,19 @@ void SVGFilterRenderer::mergeEffects(const FilterEffectVector& effects)
 
 RefPtr<FilterImage> SVGFilterRenderer::apply(const Filter&, FilterImage& sourceImage, FilterResults& results)
 {
-    return apply(&sourceImage, results);
+    if (areEssentiallyEqual(sourceImage.primitiveSubregion(), filterRegion()))
+        return apply(&sourceImage, results);
+
+    // Per the SVG spec, standard inputs (SourceGraphic, SourceAlpha, etc.) use
+    // the filter region as their default primitive subregion. The source image
+    // may come from an outer CSSFilterRenderer whose filter region is the
+    // element's bounding box, which is smaller than this SVG filter's region.
+    // Adjust the primitive subregion to match the SVG filter region so that
+    // downstream effects (e.g., feOffset) are not incorrectly clipped.
+    if (RefPtr input = FilterImage::create(filterRegion(), sourceImage, results.allocator()))
+        return apply(input.get(), results);
+
+    return nullptr;
 }
 
 RefPtr<FilterImage> SVGFilterRenderer::apply(FilterImage* sourceImage, FilterResults& results)

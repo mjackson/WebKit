@@ -41,6 +41,7 @@
 #include "AccessibilityObjectInlines.h"
 #include "AccessibilitySVGObject.h"
 #include "AccessibilitySpinButton.h"
+#include "BorderShape.h"
 #include "CachedImage.h"
 #include "Chrome.h"
 #include "ChromeClient.h"
@@ -72,16 +73,19 @@
 #include "HTMLMediaElement.h"
 #include "HTMLMeterElement.h"
 #include "HTMLNames.h"
+#include "HTMLOptGroupElement.h"
 #include "HTMLOptionElement.h"
 #include "HTMLOptionsCollection.h"
 #include "HTMLSelectElement.h"
 #include "HTMLSummaryElement.h"
 #include "HTMLTableElement.h"
 #include "HTMLTextAreaElement.h"
+#include "HTMLTextFormControlElement.h"
 #include "HTMLVideoElement.h"
 #include "HitTestRequest.h"
 #include "HitTestResult.h"
 #include "Image.h"
+#include "ImageOverlay.h"
 #include "InlineIteratorBoxInlines.h"
 #include "InlineIteratorLogicalOrderTraversal.h"
 #include "InlineIteratorTextBoxInlines.h"
@@ -100,8 +104,10 @@
 #include "ProgressTracker.h"
 #include "Range.h"
 #include "RenderBlockFlowInlines.h"
+#include "RenderBox.h"
 #include "RenderButton.h"
 #include "RenderElementInlines.h"
+#include "RenderElementStyleInlines.h"
 #include "RenderFileUploadControl.h"
 #include "RenderHTMLCanvas.h"
 #include "RenderImage.h"
@@ -131,6 +137,7 @@
 #include "SVGElementTypeHelpers.h"
 #include "SVGImage.h"
 #include "SVGSVGElement.h"
+#include "SelectPopoverElement.h"
 #include "ShadowRootMode.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "Text.h"
@@ -199,71 +206,13 @@ void AccessibilityRenderObject::detachRemoteParts(AccessibilityDetachmentType de
     m_renderer = nullptr;
 }
 
-static inline bool isInlineWithContinuation(RenderObject& renderer)
-{
-    auto* renderInline = dynamicDowncast<RenderInline>(renderer);
-    return renderInline && renderInline->continuation();
-}
-
-static inline RenderObject* firstChildInContinuation(RenderBoxModelObject& renderer)
-{
-    WeakPtr continuation = renderer.continuation();
-    while (continuation) {
-        if (is<RenderBlock>(*continuation))
-            return continuation.get();
-
-        if (auto* child = continuation->firstChild())
-            return child;
-
-        continuation = continuation->continuation();
-    }
-
-    return nullptr;
-}
-
-static inline CheckedPtr<RenderObject> firstChildConsideringContinuation(RenderObject& renderer)
-{
-    CheckedPtr firstChild = renderer.firstChildSlow();
-
-    // We don't want to include the end of a continuation as the firstChild of the
-    // anonymous parent, because everything has already been linked up via continuation.
-    // CSS first-letter selector is an example of this case.
-    if (renderer.isAnonymous()) {
-        auto* renderInline = dynamicDowncast<RenderInline>(firstChild.get());
-        if (renderInline && renderInline->isContinuation())
-            firstChild = nullptr;
-    }
-
-    if (!firstChild && isInlineWithContinuation(renderer))
-        firstChild = firstChildInContinuation(uncheckedDowncast<RenderInline>(renderer));
-
-    return firstChild;
-}
-
-
-static inline RenderObject* lastChildConsideringContinuation(RenderObject& renderer)
-{
-    if (!isAnyOf<RenderInline, RenderBlock>(renderer))
-        return &renderer;
-
-    auto& boxModelObject = uncheckedDowncast<RenderBoxModelObject>(renderer);
-    WeakPtr lastChild = boxModelObject.lastChild();
-    for (CheckedPtr current = &boxModelObject; current; ) {
-        if (CheckedPtr newLastChild = current->lastChild())
-            lastChild = newLastChild.get();
-
-        current = current->inlineContinuation();
-    }
-
-    return lastChild.get();
-}
 
 AccessibilityObject* AccessibilityRenderObject::firstChild() const
 {
     if (!m_renderer)
         return AccessibilityNodeObject::firstChild();
 
-    if (CheckedPtr firstChild = firstChildConsideringContinuation(*m_renderer)) {
+    if (CheckedPtr firstChild = m_renderer->firstChildSlow()) {
         CheckedPtr cache = axObjectCache();
         return cache ? cache->getOrCreate(*firstChild) : nullptr;
     }
@@ -283,7 +232,7 @@ AccessibilityObject* AccessibilityRenderObject::lastChild() const
     if (!m_renderer)
         return AccessibilityNodeObject::lastChild();
 
-    if (CheckedPtr lastChild = lastChildConsideringContinuation(*m_renderer)) {
+    if (CheckedPtr lastChild = m_renderer->lastChildSlow()) {
         CheckedPtr cache = axObjectCache();
         return cache ? cache->getOrCreate(lastChild.unsafeGet()) : nullptr;
     }
@@ -294,110 +243,17 @@ AccessibilityObject* AccessibilityRenderObject::lastChild() const
     return nullptr;
 }
 
-static inline RenderInline* startOfContinuations(RenderObject& renderer)
-{
-    WeakPtr renderElement = dynamicDowncast<RenderElement>(renderer);
-    if (!renderElement)
-        return nullptr;
-
-    if (is<RenderInline>(*renderElement) && renderElement->isContinuation() && is<RenderInline>(renderElement->element()->renderer()))
-        return uncheckedDowncast<RenderInline>(renderer.node()->renderer());
-
-    // Blocks with a previous continuation always have a next continuation
-    if (CheckedPtr renderBlock = dynamicDowncast<RenderBlock>(*renderElement); renderBlock && renderBlock->inlineContinuation())
-        return uncheckedDowncast<RenderInline>(renderBlock->inlineContinuation()->element()->renderer());
-    return nullptr;
-}
-
-static inline CheckedPtr<RenderObject> endOfContinuations(RenderObject& renderer)
-{
-    if (!isAnyOf<RenderInline, RenderBlock>(renderer))
-        return &renderer;
-
-    CheckedPtr previous = uncheckedDowncast<RenderBoxModelObject>(&renderer);
-    for (CheckedPtr current = previous; current; ) {
-        previous = current;
-        current = current->inlineContinuation();
-    }
-
-    return previous;
-}
-
-
-static inline CheckedPtr<RenderObject> childBeforeConsideringContinuations(RenderInline* renderer, RenderObject* child)
-{
-    CheckedPtr<RenderObject> previous;
-    for (CheckedPtr currentContainer = CheckedPtr<RenderBoxModelObject>(renderer); currentContainer; ) {
-        if (is<RenderInline>(*currentContainer)) {
-            CheckedPtr current = currentContainer->firstChild();
-            while (current) {
-                if (current == child)
-                    return previous;
-                previous = current;
-                current = current->nextSibling();
-            }
-
-            currentContainer = currentContainer->continuation();
-        } else if (is<RenderBlock>(*currentContainer)) {
-            if (currentContainer == child)
-                return previous;
-
-            previous = currentContainer;
-            currentContainer = currentContainer->inlineContinuation();
-        }
-    }
-
-    AX_ASSERT_NOT_REACHED();
-    return nullptr;
-}
-
-static inline bool firstChildIsInlineContinuation(RenderElement& renderer)
-{
-    CheckedPtr renderInline = dynamicDowncast<RenderInline>(renderer.firstChild());
-    return renderInline && renderInline->isContinuation();
-}
-
 AccessibilityObject* AccessibilityRenderObject::previousSibling() const
 {
     if (!m_renderer)
         return AccessibilityNodeObject::previousSibling();
 
-    CheckedPtr<RenderObject> previousSibling;
-
-    // Case 1: The node is a block and is an inline's continuation. In that case, the inline's
-    // last child is our previous sibling (or further back in the continuation chain)
-    CheckedPtr<RenderInline> startOfConts;
-    WeakPtr renderBlock = dynamicDowncast<RenderBlock>(*m_renderer);
-    if (renderBlock && (startOfConts = startOfContinuations(*renderBlock)))
-        previousSibling = childBeforeConsideringContinuations(startOfConts.get(), renderBlock.get());
-    else if (renderBlock && renderBlock->isAnonymousBlock() && firstChildIsInlineContinuation(*renderBlock)) {
-        // Case 2: Anonymous block parent of the end of a continuation - skip all the way to before
-        // the parent of the start, since everything in between will be linked up via the continuation.
-        CheckedPtr firstParent = startOfContinuations(*renderBlock->firstChild())->parent();
-        AX_ASSERT(firstParent);
-        while (firstChildIsInlineContinuation(*firstParent))
-            firstParent = startOfContinuations(*firstParent->firstChild())->parent();
-        previousSibling = firstParent->previousSibling();
-    } else if (RenderObject* ps = m_renderer->previousSibling()) {
-        // Case 3: The node has an actual previous sibling
-        previousSibling = ps;
-    } else if (is<RenderInline>(m_renderer->parent()) && (startOfConts = startOfContinuations(*m_renderer->parent()))) {
-        // Case 4: This node has no previous siblings, but its parent is an inline,
-        // and is another node's inline continutation. Follow the continuation chain.
-        previousSibling = childBeforeConsideringContinuations(startOfConts.get(), m_renderer->parent()->firstChild());
-    }
-
+    CheckedPtr previousSibling = m_renderer->previousSibling();
     if (!previousSibling)
         return nullptr;
 
     CheckedPtr cache = axObjectCache();
     return cache ? cache->getOrCreate(*previousSibling) : nullptr;
-}
-
-static inline bool lastChildHasContinuation(RenderElement& renderer)
-{
-    CheckedPtr child = renderer.lastChild();
-    return child && isInlineWithContinuation(*child);
 }
 
 AccessibilityObject* AccessibilityRenderObject::nextSibling() const
@@ -408,43 +264,7 @@ AccessibilityObject* AccessibilityRenderObject::nextSibling() const
     if (is<RenderView>(*m_renderer))
         return nullptr;
 
-    CheckedPtr<RenderObject> nextSibling;
-
-    // Case 1: node is a block and has an inline continuation. Next sibling is the inline continuation's
-    // first child.
-    CheckedPtr<RenderInline> inlineContinuation;
-    WeakPtr renderBlock = dynamicDowncast<RenderBlock>(*m_renderer);
-    if (renderBlock && (inlineContinuation = renderBlock->inlineContinuation()))
-        nextSibling = firstChildConsideringContinuation(*inlineContinuation);
-    else if (renderBlock && renderBlock->isAnonymousBlock() && lastChildHasContinuation(*renderBlock)) {
-        // Case 2: Anonymous block parent of the start of a continuation - skip all the way to
-        // after the parent of the end, since everything in between will be linked up via the continuation.
-        CheckedPtr lastParent = endOfContinuations(*renderBlock->lastChild())->parent();
-        AX_ASSERT(lastParent);
-        while (lastChildHasContinuation(*lastParent))
-            lastParent = endOfContinuations(*lastParent->lastChild())->parent();
-        nextSibling = lastParent->nextSibling();
-    } else if (RenderObject* ns = m_renderer->nextSibling())
-        nextSibling = ns;
-    else if (isInlineWithContinuation(*m_renderer)) {
-        // Case 4: node is an inline with a continuation. Next sibling is the next sibling of the end
-        // of the continuation chain.
-        nextSibling = endOfContinuations(*m_renderer)->nextSibling();
-    }
-
-    // Case 5: node has no next sibling, and its parent is an inline with a continuation.
-    // Case 5.1: After case 4, (the element was inline w/ continuation but had no sibling), then check it's parent.
-    if (!nextSibling && m_renderer->parent() && isInlineWithContinuation(*m_renderer->parent())) {
-        CheckedRef continuation = *downcast<RenderInline>(*m_renderer->parent()).continuation();
-
-        // Case 5a: continuation is a block - in this case the block itself is the next sibling.
-        if (is<RenderBlock>(continuation))
-            nextSibling = continuation.ptr();
-        else {
-            // Case 5b: continuation is an inline - in this case the inline's first child is the next sibling
-            nextSibling = firstChildConsideringContinuation(continuation);
-        }
-    }
+    CheckedPtr nextSibling = m_renderer->nextSibling();
 
     if (!nextSibling)
         return nullptr;
@@ -452,23 +272,6 @@ AccessibilityObject* AccessibilityRenderObject::nextSibling() const
     CheckedPtr cache = axObjectCache();
     if (!cache)
         return nullptr;
-
-    // After case 4, there are chances that nextSibling has the same node as the current renderer,
-    // which might lead to looping over the same object repeatedly.
-    if (nextSibling->node() && nextSibling->node() == m_renderer->node()) {
-        if (RefPtr nextObject = cache->getOrCreate(*nextSibling)) {
-            if (nextObject.get() == this) {
-                // WebKit accessibility objects use DOM nodes as the "primary key" (i.e. in m_nodeIdMapping).
-                // This can cause a bit of trouble for continuations, which result in multiple renderers being associated
-                // with the same node. That can cause us to get into this branch — if nextSibling or us is a continuation,
-                // we will be different renderers with the same node, and thus `nextObject` will be us.
-                //
-                // Fallback to walking the DOM in this case to avoid looping infinitely.
-                return AccessibilityNodeObject::nextSibling();
-            }
-            return nextObject->nextSibling();
-        }
-    }
 
     RefPtr nextObject = cache->getOrCreate(*nextSibling);
     RefPtr nextAXRenderObject = dynamicDowncast<AccessibilityRenderObject>(nextObject);
@@ -478,58 +281,12 @@ AccessibilityObject* AccessibilityRenderObject::nextSibling() const
     return !nextRenderParent || nextRenderParent == cache->getOrCreate(renderParentObject()) ? nextObject.unsafeGet() : nullptr;
 }
 
-static RenderBoxModelObject* nextContinuation(RenderObject& renderer)
-{
-    if (!renderer.isBlockLevelReplacedOrAtomicInline()) {
-        if (auto* renderInline = dynamicDowncast<RenderInline>(renderer))
-            return renderInline->continuation();
-    }
-
-    auto* renderBlock = dynamicDowncast<RenderBlock>(renderer);
-    return renderBlock ? renderBlock->inlineContinuation() : nullptr;
-}
-
 RenderObject* AccessibilityRenderObject::renderParentObject() const
 {
     if (!m_renderer)
         return nullptr;
 
-    CheckedPtr parent = m_renderer->parent();
-
-    // Case 1: node is a block and is an inline's continuation. Parent
-    // is the start of the continuation chain.
-    CheckedPtr<RenderInline> startOfConts;
-    CheckedPtr<RenderObject> firstChild;
-    if (is<RenderBlock>(*m_renderer) && (startOfConts = startOfContinuations(*m_renderer)))
-        parent = startOfConts;
-
-    // Case 2: node's parent is an inline which is some node's continuation; parent is
-    // the earliest node in the continuation chain.
-    else if (is<RenderInline>(parent) && (startOfConts = startOfContinuations(*parent)))
-        parent = startOfConts;
-
-    // Case 3: The first sibling is the beginning of a continuation chain. Find the origin of that continuation.
-    else if (parent && (firstChild = parent->firstChild()) && firstChild->node()) {
-        // Get the node's renderer and follow that continuation chain until the first child is found
-        CheckedPtr nodeRenderFirstChild = firstChild->node()->renderer();
-        while (nodeRenderFirstChild != firstChild) {
-            for (CheckedPtr contsTest = nodeRenderFirstChild; contsTest; contsTest = nextContinuation(*contsTest)) {
-                if (contsTest == firstChild) {
-                    parent = nodeRenderFirstChild->parent();
-                    break;
-                }
-            }
-            CheckedPtr parentFirstChild = parent->firstChild();
-            if (firstChild == parentFirstChild)
-                break;
-            firstChild = parentFirstChild;
-            if (!firstChild->node())
-                break;
-            nodeRenderFirstChild = firstChild->node()->renderer();
-        }
-    }
-
-    return parent.unsafeGet();
+    return m_renderer->parent();
 }
 
 AccessibilityObject* AccessibilityRenderObject::parentObject() const
@@ -642,15 +399,10 @@ Element* AccessibilityRenderObject::anchorElement() const
     if (!cache)
         return nullptr;
 
-    CheckedPtr<RenderObject> currentRenderer;
-
-    // Search up the render tree for a RenderObject with a DOM node. Defer to an earlier continuation, though.
-    for (currentRenderer = renderer(); currentRenderer && !currentRenderer->node(); currentRenderer = currentRenderer->parent()) {
-        if (CheckedPtr blockRenderer = dynamicDowncast<RenderBlock>(*currentRenderer); blockRenderer && blockRenderer->isAnonymousBlock()) {
-            if (CheckedPtr continuation = blockRenderer->continuation())
-                return cache->getOrCreate(*continuation)->anchorElement();
-        }
-    }
+    // Search up the render tree for a RenderObject with a DOM node.
+    auto* currentRenderer = renderer();
+    while (currentRenderer && !currentRenderer->node())
+        currentRenderer = currentRenderer->parent();
 
     // Bail if none found.
     if (!currentRenderer)
@@ -816,17 +568,12 @@ String AccessibilityRenderObject::stringValue() const
 
     // For menu list select elements, get the selected option's aria-label or label.
     if (RefPtr selectElement = dynamicDowncast<HTMLSelectElement>(node()); selectElement && selectElement->usesMenuList()) {
-        int selectedIndex = selectElement->selectedIndex();
-        const auto& listItems = selectElement->listItems();
-        if (selectedIndex >= 0 && static_cast<size_t>(selectedIndex) < listItems.size()) {
-            if (RefPtr selectedItem = listItems[selectedIndex].get()) {
-                auto overriddenDescription = selectedItem->attributeTrimmedWithDefaultARIA(aria_labelAttr);
-                if (!overriddenDescription.isEmpty())
-                    return overriddenDescription;
-            }
-        }
-        if (RefPtr option = selectElement->item(selectedIndex))
+        if (RefPtr option = selectElement->selectedOption()) {
+            auto overriddenDescription = option->attributeTrimmedWithDefaultARIA(aria_labelAttr);
+            if (!overriddenDescription.isEmpty())
+                return overriddenDescription;
             return option->label();
+        }
         return String();
     }
 
@@ -890,7 +637,7 @@ LayoutRect AccessibilityRenderObject::boundingBoxRect() const
 {
     CheckedPtr renderer = this->renderer();
     RefPtr node = renderer ? renderer->node() : nullptr;
-    if (node) // If we are a continuation, we want to make sure to use the primary renderer.
+    if (node)
         renderer = node->renderer();
 
     if (!renderer)
@@ -914,7 +661,7 @@ LayoutRect AccessibilityRenderObject::boundingBoxRect() const
 
             CheckedPtr cache = axObjectCache();
             RefPtr endNode = cache ? lastNonAriaHiddenNode(stitchGroup->members(), *cache) : nullptr;
-            if (endNode) {
+            if (node && endNode) {
                 if (std::optional range = makeSimpleRange(positionBeforeNode(*node), positionAfterNode(*endNode))) {
                     quads = RenderObject::absoluteTextQuads(*range);
 
@@ -961,9 +708,15 @@ bool AccessibilityRenderObject::isNonLayerSVGObject() const
     return renderer ? is<RenderSVGInlineText>(renderer) || is<LegacyRenderSVGModelObject>(renderer) : false;
 }
 
-bool AccessibilityRenderObject::supportsPath() const
+static Path computePathForRenderBox(const RenderBox& renderBox)
 {
-    return is<RenderText>(renderer()) || (renderer() && renderer()->isRenderOrLegacyRenderSVGShape());
+    auto borderShape = BorderShape::shapeForBorderRect(renderBox.style(), renderBox.borderBoxRect());
+    auto path = borderShape.pathForOuterShape(renderBox.document().deviceScaleFactor());
+    // borderBoxRect() is in local coordinates. Offset it to absolute document coordinates
+    // to match the coordinate system used by SVG, RenderText, and RenderInline paths.
+    auto absoluteOrigin = flooredLayoutPoint(renderBox.localToAbsolute());
+    path.transform(AffineTransform().translate(absoluteOrigin.x(), absoluteOrigin.y()));
+    return path;
 }
 
 Path AccessibilityRenderObject::elementPath() const
@@ -1038,6 +791,26 @@ Path AccessibilityRenderObject::elementPath() const
             path.transform(AffineTransform().translate(parentOffset.x(), parentOffset.y()));
         }
         return path;
+    }
+
+    if (CheckedPtr renderBox = dynamicDowncast<RenderBox>(*m_renderer)) {
+        if (renderBox->hasClipPath()) {
+            std::optional<Path> clipPathResult;
+            WTF::switchOn(renderBox->style().clipPath(),
+                [&](const Style::BasicShapePath& clipPath) {
+                    auto referenceBox = FloatRect(renderBox->borderBoxRect());
+                    auto path = Style::path(clipPath.shape(), referenceBox, renderBox->style().usedZoomForLength());
+                    auto absoluteOrigin = flooredLayoutPoint(renderBox->localToAbsolute());
+                    path.transform(AffineTransform().translate(absoluteOrigin.x(), absoluteOrigin.y()));
+                    clipPathResult = WTF::move(path);
+                },
+                [](const auto&) { }
+            );
+            if (clipPathResult)
+                return *clipPathResult;
+        }
+        if (renderBox->style().border().hasBorderRadius())
+            return computePathForRenderBox(*renderBox);
     }
 
     return { };
@@ -1199,6 +972,13 @@ bool AccessibilityRenderObject::computeIsIgnored() const
     AX_ASSERT(m_initialized);
 #endif
 
+    if (is<SelectPopoverElement>(node())) {
+        // The base-appearance select popover (Menu) must always be included so that it
+        // properly wraps the menu items. Check before the !m_renderer bailout
+        // because the popover has display:contents (no renderer) when closed.
+        return false;
+    }
+
     if (!m_renderer)
         return AccessibilityNodeObject::computeIsIgnored();
 
@@ -1215,6 +995,12 @@ bool AccessibilityRenderObject::computeIsIgnored() const
         return true;
 
     if (role() == AccessibilityRole::Ignored)
+        return true;
+
+    // Image overlay children (text recognized in images) should be ignored if
+    // their host image is accessibility-ignored (e.g. role="presentation" or
+    // aria-hidden="true").
+    if (isInsideIgnoredImageOverlay())
         return true;
 
     // Needs to happen before the presentational role check, since we want to expose table cells if they are in an exposable table (even if within a presentational role).
@@ -1262,10 +1048,19 @@ bool AccessibilityRenderObject::computeIsIgnored() const
     if (isExposableTable())
         return false;
 
-    // Ignore popup menu items because AppKit does.
     if (RefPtr node = this->node()) {
+        if (node->isInUserAgentShadowTree()) {
+            // Non-base-appearance selects delegate popup rendering to AppKit and use mock AX
+            // objects for their options, so ignore real DOM descendants to avoid duplication.
+            // Base-appearance selects render their own popover and expose real elements, so
+            // their descendants must not be ignored.
+            RefPtr select = dynamicDowncast<HTMLSelectElement>(node->shadowHost());
+            if (select && (!select->usesBaseAppearancePicker() || !is<SelectPopoverElement>(*node)))
+                return true;
+        }
+
         for (Ref ancestor : ancestorsOfType<HTMLSelectElement>(*node)) {
-            if (ancestor->usesMenuList())
+            if (ancestor->usesMenuList() && !ancestor->usesBaseAppearancePicker())
                 return true;
         }
     }
@@ -1315,8 +1110,24 @@ bool AccessibilityRenderObject::computeIsIgnored() const
             if (checkForIgnored && !ancestor->isIgnored()) {
                 checkForIgnored = false;
                 // Static text beneath MenuItems are just reported along with the menu item, so it's ignored on an individual level.
-                if (ancestor->isMenuItem())
+                if (ancestor->isMenuItem()) {
+                    // For base-appearance selects, option elements can have complex content (e.g.
+                    // text alongside buttons and links). When the option has interactive
+                    // content, expose text nodes so VoiceOver can navigate to them.
+                    // Presentational wrappers like <span> don't count.
+                    if (auto* optionElement = dynamicDowncast<HTMLOptionElement>(ancestor->node()); optionElement && optionElement->belongsToBaseAppearancePicker()) {
+                        bool hasInteractiveContent = false;
+                        for (Ref descendant : descendantsOfType<HTMLElement>(*optionElement)) {
+                            if (descendant->isInteractiveContent()) {
+                                hasInteractiveContent = true;
+                                break;
+                            }
+                        }
+                        if (hasInteractiveContent)
+                            break;
+                    }
                     return true;
+                }
             }
         }
 
@@ -1949,6 +1760,21 @@ bool AccessibilityRenderObject::press()
         return AccessibilityMediaHelpers::press(*mediaElement);
     }
 #endif
+
+    if (RefPtr selectElement = dynamicDowncast<HTMLSelectElement>(element()); selectElement && selectElement->usesBaseAppearancePicker()) {
+        // Base-appearance selects need explicit picker toggling since they no longer use
+        // AccessibilityMenuList which had its own press() override.
+        if (selectElement->isDisabledFormControl())
+            return false;
+        if (selectElement->popupIsVisible())
+            selectElement->hidePickerPopoverElement();
+        else
+            selectElement->openPickerForUserInteraction();
+        if (CheckedPtr cache = axObjectCache())
+            cache->postNotification(selectElement.get(), AXNotification::PressDidSucceed);
+        return true;
+    }
+
     return AccessibilityObject::press();
 }
 
@@ -2107,10 +1933,22 @@ void AccessibilityRenderObject::setSelectedVisiblePositionRange(const VisiblePos
     if (client)
         client->willChangeSelectionForAccessibility();
 
+    // Resolve the target text control: either this object itself is a native
+    // text control, or the target position is inside one (e.g. a textarea in
+    // an iframe when this object is the web area). In the latter case, the
+    // else branch below would fail because contains<ComposedTree> returns
+    // false for cross-document positions, clamping the selection to the web
+    // area start.
+    RefPtr<HTMLTextFormControlElement> textControl;
     if (isNativeTextControl()) {
-        // isNativeTextControl returns true only if this->node() is<HTMLTextAreaElement> or is<HTMLInputElement>.
-        // Since both HTMLTextAreaElement and HTMLInputElement derive from HTMLTextFormControlElement, it is safe to downcast here.
-        Ref textControl = uncheckedDowncast<HTMLTextFormControlElement>(*node());
+        // isNativeTextControl returns true only for HTMLTextAreaElement or HTMLInputElement,
+        // both of which derive from HTMLTextFormControlElement.
+        ASSERT(is<HTMLTextFormControlElement>(node()));
+        textControl = downcast<HTMLTextFormControlElement>(node());
+    } else
+        textControl = enclosingTextFormControl(range.start.deepEquivalent());
+
+    if (textControl) {
         int start = textControl->indexForVisiblePosition(range.start);
         int end = textControl->indexForVisiblePosition(range.end);
 
@@ -2120,10 +1958,11 @@ void AccessibilityRenderObject::setSelectedVisiblePositionRange(const VisiblePos
         // the case when range is obtained from AXObjectCache::rangeForNodeContents
         // for the HTMLTextFormControlElement.
         // Thus, the following corrects the start and end indexes in such a case..
-        if (range.start.deepEquivalent().anchorNode() == range.end.deepEquivalent().anchorNode()
-            && range.start.deepEquivalent().anchorNode() == textControl.ptr()) {
+        if (isNativeTextControl()
+            && range.start.deepEquivalent().anchorNode() == range.end.deepEquivalent().anchorNode()
+            && range.start.deepEquivalent().anchorNode() == textControl) {
             if (auto innerText = textControl->innerTextElement()) {
-                auto textControlRange = makeVisiblePositionRange(AXObjectCache::rangeForNodeContents(textControl.get()));
+                auto textControlRange = makeVisiblePositionRange(AXObjectCache::rangeForNodeContents(*textControl));
                 auto innerRange = makeVisiblePositionRange(AXObjectCache::rangeForNodeContents(*innerText));
 
                 if (range.start.equals(textControlRange.end))
@@ -2469,6 +2308,9 @@ AccessibilityRole AccessibilityRenderObject::determineAccessibilityRole()
     if (hasTreeRole())
         return isValidTree() ? AccessibilityRole::Tree : AccessibilityRole::Generic;
 
+    if (is<SelectPopoverElement>(node()))
+        return AccessibilityRole::Menu;
+
     if (!m_renderer)
         return AccessibilityNodeObject::determineAccessibilityRole();
 
@@ -2537,6 +2379,16 @@ AccessibilityRole AccessibilityRenderObject::determineAccessibilityRole()
         return AccessibilityRole::ListBox;
     }
 
+    // Options inside base-appearance selects are menu items.
+    if (RefPtr option = dynamicDowncast<HTMLOptionElement>(node)) {
+        if (RefPtr select = option->ownerSelectElement(); select && select->usesBaseAppearancePicker())
+            return AccessibilityRole::MenuItem;
+    }
+    if (RefPtr optGroup = dynamicDowncast<HTMLOptGroupElement>(node)) {
+        if (RefPtr select = optGroup->ownerSelectElement(); select && select->usesBaseAppearancePicker())
+            return AccessibilityRole::Group;
+    }
+
     if (m_renderer->isRenderOrLegacyRenderSVGRoot())
         return AccessibilityRole::SVGRoot;
 
@@ -2595,11 +2447,28 @@ AccessibilityRole AccessibilityRenderObject::determineAccessibilityRole()
     return AccessibilityRole::Unknown;
 }
 
+bool AccessibilityRenderObject::isInsideIgnoredImageOverlay() const
+{
+    RefPtr node = this->node();
+    if (!node || !ImageOverlay::isInsideOverlay(*node))
+        return false;
+
+    CheckedPtr cache = axObjectCache();
+    if (RefPtr hostObject = cache ? cache->getOrCreate(node->shadowHost()) : nullptr)
+        return hostObject->isIgnored();
+    return false;
+}
+
 std::optional<AXCoreObject::AccessibilityChildrenVector> AccessibilityRenderObject::imageOverlayElements()
 {
     AXTRACE("AccessibilityRenderObject::imageOverlayElements"_s);
 
     if (!m_renderer || !toSimpleImage(*m_renderer))
+        return std::nullopt;
+
+    // Don't expose image overlay elements for images that are accessibility-ignored
+    // (e.g. due to role="presentation" or aria-hidden="true").
+    if (isIgnored())
         return std::nullopt;
 
     const auto& children = this->unignoredChildren();

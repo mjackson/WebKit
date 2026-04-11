@@ -42,6 +42,7 @@
 #import "WebProcessMessages.h"
 #import "WebProcessPool.h"
 #import <WebCore/ActivityState.h>
+#import <pal/Logging.h>
 #import <pal/spi/ios/MobileGestaltSPI.h>
 #import <sys/sysctl.h>
 #import <wtf/NeverDestroyed.h>
@@ -134,9 +135,14 @@ void WebProcessProxy::cacheMediaMIMETypesInternal(const Vector<String>& types)
     send(Messages::WebProcess::SetMediaMIMETypes(types), 0);
 }
 
-Vector<String> WebProcessProxy::mediaMIMETypes() const
+const Vector<String>& WebProcessProxy::mediaMIMETypes()
 {
     return mediaTypeCache();
+}
+
+void WebProcessProxy::cacheMediaSourceTypeSupported(const String& type, bool isSupported)
+{
+    protect(processPool())->cacheMediaSourceTypeSupported(type, isSupported);
 }
 
 #if ENABLE(REMOTE_INSPECTOR)
@@ -194,6 +200,10 @@ void WebProcessProxy::unblockAccessibilityServerIfNeeded()
 #if PLATFORM(MAC) || PLATFORM(MACCATALYST)
 void WebProcessProxy::isAXAuthenticated(CoreIPCAuditToken&& auditToken, CompletionHandler<void(bool)>&& completionHandler)
 {
+    if (processPool().allowAXAuthenticationForTesting()) {
+        completionHandler(true);
+        return;
+    }
     auto authenticated = TCCAccessCheckAuditToken(get_TCC_kTCCServiceAccessibilitySingleton(), auditToken.auditToken(), nullptr);
     completionHandler(authenticated);
 }

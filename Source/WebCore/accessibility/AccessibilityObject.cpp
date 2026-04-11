@@ -29,6 +29,7 @@
 #include "config.h"
 #include "AccessibilityObject.h"
 
+#include "AccessibilityNodeObjectInlines.h"
 #include "AXAttributeCacheScope.h"
 #include "AXComputedObjectAttributeCache.h"
 #include "AXIsolatedTree.h"
@@ -47,9 +48,11 @@
 #include "Chrome.h"
 #include "ChromeClient.h"
 #include "ContainerNodeInlines.h"
+#include "ContextMenuController.h"
 #include "CustomElementDefaultARIA.h"
 #include "DOMTokenList.h"
 #include "DocumentPage.h"
+#include "DocumentView.h"
 #include "EditingInlines.h"
 #include "Editor.h"
 #include "ElementInlines.h"
@@ -71,7 +74,9 @@
 #include "HTMLInputElement.h"
 #include "HTMLModelElement.h"
 #include "HTMLNames.h"
+#include "HTMLOptionElement.h"
 #include "HTMLParserIdioms.h"
+#include "HTMLSelectElement.h"
 #include "HTMLSlotElement.h"
 #include "HTMLTableSectionElement.h"
 #include "HTMLTextAreaElement.h"
@@ -566,10 +571,8 @@ FloatRect AccessibilityObject::convertFrameToSpace(const FloatRect& frameRect, A
 
 #if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
     if (conversionSpace == AccessibilityConversionSpace::Screen) {
-        // For screen space, use contentsToView() to adjust for scroll *within* this frame,
-        // then apply the frame's screen transform and position (which account for iframe offsets and viewport scale).
-        if (parentScrollView)
-            snappedFrameRect = parentScrollView->contentsToView(snappedFrameRect);
+        // screenPosition is content-origin-based (shifts with scroll). Element rects are in content
+        // space (no scroll applied). These compose directly to give correct screen coordinates.
 
         RefPtr rootScrollView = dynamicDowncast<AccessibilityScrollView>(ancestorAccessibilityScrollView(true /* includeSelf */));
         if (!rootScrollView)
@@ -591,9 +594,8 @@ FloatRect AccessibilityObject::convertFrameToSpace(const FloatRect& frameRect, A
         return { position, scaledRect.size() };
     }
 
-    // FIXME: ENABLE(ACCESSIBILITY_LOCAL_FRAME) doesn't support page-relative frame, but this is used for old tests. Remove this once all tests are updated.
-    if (parentScrollView)
-        snappedFrameRect = parentScrollView->contentsToRootView(snappedFrameRect);
+    // For page space geometry (somewhat deprecated with ENABLE_ACCESSIBILITY_LOCAL_FRAME), return element rects in content space (no scroll applied).
+    return snappedFrameRect;
 #else
     // Legacy behavior: contentsToRootView walks up through all frames for local frames.
     // For remote frames, the caller (e.g., relativeFrame()) adds remoteFrameOffset().
@@ -1551,6 +1553,34 @@ bool AccessibilityObject::press()
     }
 
     return pressElement->accessKeyAction(true) || pressElement->dispatchSimulatedClick(nullptr, SendMouseUpDownEvents);
+}
+
+bool AccessibilityObject::performShowMenuAction()
+{
+#if ENABLE(CONTEXT_MENUS) && USE(ACCESSIBILITY_CONTEXT_MENUS)
+    RefPtr page = this->page();
+    if (!page)
+        return false;
+
+    RefPtr frameView = documentFrameView();
+    if (!frameView)
+        return false;
+
+    RefPtr document = this->document();
+    RefPtr frame = document ? document->frame() : nullptr;
+    if (!frame)
+        return false;
+
+    UserGestureIndicator gestureIndicator(IsProcessingUserGesture::Yes, document.get());
+    // Use the element's own frame rather than the main frame so that
+    // sendContextMenuEvent (which does not dispatch to subframes) hit-tests
+    // in the correct frame. This is necessary for elements inside iframes.
+    auto point = frameView->contentsToWindow(roundedIntPoint(elementRect().center()));
+    page->contextMenuController().showContextMenuAt(*frame, point);
+    return true;
+#else
+    return false;
+#endif // ENABLE(CONTEXT_MENUS) && USE(ACCESSIBILITY_CONTEXT_MENUS)
 }
 
 bool AccessibilityObject::dispatchTouchEvent()
@@ -2585,7 +2615,7 @@ static CheckedPtr<RenderObject> nearestRendererFromNode(Node& node)
 
 static int zIndexFromRenderer(RenderObject* renderer)
 {
-    for (CheckedPtr layer = renderer->enclosingLayer(); layer; layer = layer->parent()) {
+    for (auto* layer = renderer->enclosingLayer(); layer; layer = layer->parent()) {
         if (int zIndex = layer->zIndex())
             return zIndex;
     }
@@ -2615,12 +2645,12 @@ bool AccessibilityObject::ignoredFromModalPresence() const
     // Some objects might be outside of a modal, but are linked to elements inside of it. Don't ignore those.
     for (RefPtr ancestor = this; ancestor; ancestor = ancestor->parentObject()) {
         for (auto& controller : ancestor->controllers()) {
-            if (downcast<AccessibilityObject>(controller)->isModalDescendant(*modalNode))
+            if (downcast<AccessibilityObject>(controller.get()).isModalDescendant(*modalNode))
                 return false;
         }
 
         for (auto& activeDescendant : ancestor->activeDescendantOfObjects()) {
-            if (downcast<AccessibilityObject>(activeDescendant)->isModalDescendant(*modalNode))
+            if (downcast<AccessibilityObject>(activeDescendant.get()).isModalDescendant(*modalNode))
                 return false;
         }
     }
@@ -3055,7 +3085,12 @@ bool AccessibilityObject::isSelected() const
     if (isTabItem() && isTabItemSelected())
         return true;
 
-    // Menu items are considered selectable by assistive technologies
+    if (RefPtr option = dynamicDowncast<HTMLOptionElement>(node())) {
+        // Non-base-appearance select options are handled by AccessibilityMenuListOption
+        // or AccessibilityListBoxOption, so only base-appearance options reach here.
+        return option->selected();
+    }
+
     if (isMenuItem()) {
         if (isFocused())
             return true;
@@ -3437,6 +3472,9 @@ bool AccessibilityObject::supportsExpanded() const
     if (isColumnHeader() || isRowHeader())
         return hasValidAriaExpandedValue();
 
+    if (RefPtr select = dynamicDowncast<HTMLSelectElement>(node()); select && select->usesMenuList())
+        return true;
+
     switch (role()) {
     case AccessibilityRole::Details:
         return true;
@@ -3485,6 +3523,8 @@ bool AccessibilityObject::isExpanded() const
     }
 
     if (supportsExpanded()) {
+        if (RefPtr select = dynamicDowncast<HTMLSelectElement>(node()); select && select->usesMenuList())
+            return select->popupIsVisible();
         if (RefPtr commandForElement = this->commandForElement())
             return commandForElement->isPopoverShowing();
         if (RefPtr popoverTargetElement = this->popoverTargetElement())

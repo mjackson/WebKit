@@ -154,6 +154,10 @@ void PageInspectorController::createLazyAgents()
 
     m_didCreateLazyAgents = true;
 
+    // Under site isolation, debugging is handled per-frame by FrameDebugger instead of
+    // a single PageDebugger for the whole page. The PageDebugger is still created so that
+    // PageDebuggerAgent can register the Debugger domain, but it will not attach to any
+    // frames (see PageDebugger::attachDebugger).
     m_debugger = makeUnique<PageDebugger>(m_page);
 
     auto pageContext = pageAgentContext();

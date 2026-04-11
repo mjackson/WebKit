@@ -125,7 +125,7 @@ private:
     Ref<GenericPromise> setMaximumBufferSize(size_t) final;
 
     Ref<ComputeSeekPromise> computeSeekTime(const WebCore::SeekTarget&) final;
-    void seekToTime(const MediaTime&) final;
+    void reenqueueMediaForTime(const MediaTime&) final;
 
     void updateTrackIds(Vector<std::pair<TrackID, TrackID>>&&) final;
 

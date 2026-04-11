@@ -182,6 +182,10 @@ interaction-region/interaction-layers-culling.html [ Failure ]
 platform/visionos/transforms/separated-update.html [ Failure ]
 platform/visionos/transforms/separated-video.html [ Failure ]
 
+overlay-region/full-page-scrolling.html [ Failure ]
+overlay-region/overlay-element.html [ Failure ]
+overlay-region/sticky.html [ Failure ]
+
 ### END OF Triaged failures
 ###################################################################################################
 
@@ -209,11 +213,9 @@ platform/visionos/transforms/separated-video.html [ Failure ]
 ###################################################################################################
 ### START OF Flaky tests
 
-# webkit.org/b/309297 overlay-region/clipping.html
-overlay-region/full-page-horizontal.html [ Pass Failure ]
+webkit.org/b/309297 overlay-region/full-page-horizontal.html [ Pass Failure ]
+webkit.org/b/305613 overlay-region/clipping.html [ Pass Failure ]
 
-# webkit.org/b/305613 overlay-region/clipping.html
-overlay-region/clipping.html [ Pass Failure ]
 
 ### END OF Flaky tests
 ###################################################################################################

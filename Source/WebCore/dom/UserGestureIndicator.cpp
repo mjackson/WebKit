@@ -272,7 +272,7 @@ bool UserGestureIndicator::processingUserGestureForMedia()
         return false;
 
     RefPtr token = currentToken(commonVM());
-    return token ? token->processingUserGestureForMedia() : false;
+    return token && token->processingUserGestureForMedia();
 }
 
 std::optional<WTF::UUID> UserGestureIndicator::authorizationToken() const

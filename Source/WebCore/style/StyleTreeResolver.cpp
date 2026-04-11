@@ -260,18 +260,8 @@ void TreeResolver::resetStyleForNonRenderedDescendants(Element& subtreeRoot)
             it.traverseNextSkippingChildren();
     }
 
-    auto nonRenderedElementsWithPositionOptions = [&] () {
-        Vector<RefPtr<const Element>> result;
-        for (auto& styleable : m_positionOptions.keys()) {
-            if (styleable.first->isComposedTreeDescendantOf(subtreeRoot))
-                result.append(styleable.first);
-        }
-
-        return result;
-    }();
-
-    m_positionOptions.removeIf([&nonRenderedElementsWithPositionOptions] (const auto& kv) {
-        return nonRenderedElementsWithPositionOptions.contains(kv.key.first);
+    m_positionOptions.removeIf([&subtreeRoot] (const auto& kv) {
+        return kv.key.first->isComposedTreeDescendantOf(subtreeRoot);
     });
 
     subtreeRoot.clearChildNeedsStyleRecalc();
@@ -474,7 +464,7 @@ std::optional<ElementUpdate> TreeResolver::resolvePseudoElement(Element& element
             auto* pickerElement = select->pickerPopoverElement();
             if (!pickerElement)
                 return { };
-            CheckedPtr pickerStyle = m_update->elementStyle(*pickerElement);
+            auto* pickerStyle = m_update->elementStyle(*pickerElement);
             if (!pickerStyle || pickerStyle->usedAppearance() != StyleAppearance::Base)
                 return { };
         } else {
@@ -793,6 +783,20 @@ const RenderStyle* TreeResolver::parentBoxStyleForPseudoElement(const ElementUpd
     }
 }
 
+static HashMap<AnimatableCSSProperty, EnumSet<PropertyCascade::AnimationSource>> animatedPropertySources(const Styleable& styleable, const HashSet<AnimatableCSSProperty>& animatedProperties)
+{
+    HashMap<AnimatableCSSProperty, EnumSet<PropertyCascade::AnimationSource>> result;
+    for (auto& property : animatedProperties)
+        result.add(property, PropertyCascade::AnimationSource::CSSAnimation);
+    if (auto* runningTransitionsByProperty = styleable.runningTransitionsByProperty()) {
+        for (auto& property : runningTransitionsByProperty->keys()) {
+            auto& sources = result.add(property, EnumSet<PropertyCascade::AnimationSource> { }).iterator->value;
+            sources.add(PropertyCascade::AnimationSource::CSSTransition);
+        }
+    }
+    return result;
+}
+
 ElementUpdate TreeResolver::createAnimatedElementUpdate(ResolvedStyle&& resolvedStyle, const Styleable& styleable, OptionSet<Change> parentChanges, const ResolutionContext& resolutionContext, IsInDisplayNoneTree isInDisplayNoneTree)
 {
     Ref element = styleable.element;
@@ -864,7 +868,7 @@ ElementUpdate TreeResolver::createAnimatedElementUpdate(ResolvedStyle&& resolved
             // to the old value. To remedy this, we manually patch display to be the old value if:
             // 1. the old style's display is not none, and
             // 2. the new style has display: none and specifies a transition on display.
-            if (oldStyle && !oldStyle->transitions().isInitial() && oldStyle->display() != DisplayType::None && styleHasDisplayTransition(*newStyle) && newStyle->display() == DisplayType::None)
+            if (oldStyle && !oldStyle->transitions().isInitial() && oldStyle->display() != DisplayType::None && styleHasDisplayTransition(*newStyle, element) && newStyle->display() == DisplayType::None)
                 newStyle->setDisplay(oldStyle->display());
             return { WTF::move(newStyle), OptionSet<AnimationImpact> { } };
         }
@@ -892,8 +896,7 @@ ElementUpdate TreeResolver::createAnimatedElementUpdate(ResolvedStyle&& resolved
         if (resolvedStyle.matchResult) {
             auto animatedStyleBeforeCascadeApplication = RenderStyle::clonePtr(*animatedStyle);
             // The cascade may override animated properties and have dependencies to them.
-            // FIXME: This is wrong if there are both transitions and animations running on the same element.
-            auto overriddenAnimatedProperties = applyCascadeAfterAnimation(*animatedStyle, animatedProperties, styleable.hasRunningTransitions(), *resolvedStyle.matchResult, element, resolutionContext);
+            auto overriddenAnimatedProperties = applyCascadeAfterAnimation(*animatedStyle, animatedPropertySources(styleable, animatedProperties), *resolvedStyle.matchResult, element, resolutionContext);
             ASSERT(styleable.keyframeEffectStack());
             styleable.keyframeEffectStack()->cascadeDidOverrideProperties(overriddenAnimatedProperties, document);
             styleable.setHasPropertiesOverridenAfterAnimation(!overriddenAnimatedProperties.isEmpty());
@@ -905,7 +908,6 @@ ElementUpdate TreeResolver::createAnimatedElementUpdate(ResolvedStyle&& resolved
         return { WTF::move(animatedStyle), animationImpact };
     };
 
-    // FIXME: Something like this is also needed for viewport units.
     if (currentStyle && parent().needsUpdateQueryContainerDependentStyle)
         styleable.queryContainerDidChange();
 
@@ -1053,14 +1055,14 @@ std::unique_ptr<RenderStyle> TreeResolver::resolveAgainInDifferentContext(const 
 
 const RenderStyle& TreeResolver::parentAfterChangeStyle(const Styleable& styleable, const ResolutionContext& resolutionContext) const
 {
-    if (RefPtr parentElement = !styleable.pseudoElementIdentifier ? parent().element : &styleable.element) {
+    if (auto* parentElement = !styleable.pseudoElementIdentifier ? parent().element : &styleable.element) {
         if (auto* afterChangeStyle = parentElement->lastStyleChangeEventStyle({ }))
             return *afterChangeStyle;
     }
     return *resolutionContext.parentStyle;
 }
 
-HashSet<AnimatableCSSProperty> TreeResolver::applyCascadeAfterAnimation(RenderStyle& animatedStyle, const HashSet<AnimatableCSSProperty>& animatedProperties, bool isTransition, const MatchResult& matchResult, const Element& element, const ResolutionContext& resolutionContext)
+HashSet<AnimatableCSSProperty> TreeResolver::applyCascadeAfterAnimation(RenderStyle& animatedStyle, const HashMap<AnimatableCSSProperty, EnumSet<PropertyCascade::AnimationSource>>& animatedProperties, const MatchResult& matchResult, const Element& element, const ResolutionContext& resolutionContext)
 {
     auto builderContext = BuilderContext {
         m_document.get(),
@@ -1074,7 +1076,7 @@ HashSet<AnimatableCSSProperty> TreeResolver::applyCascadeAfterAnimation(RenderSt
         animatedStyle,
         WTF::move(builderContext),
         matchResult,
-        { isTransition ? PropertyCascade::PropertyType::AfterTransition : PropertyCascade::PropertyType::AfterAnimation },
+        { PropertyCascade::PropertyType::AfterAnimation },
         &animatedProperties
     };
 
@@ -1542,11 +1544,8 @@ std::unique_ptr<Update> TreeResolver::resolve()
                 // reset the resolution stage to FindAnchor. This re-runs anchor resolution to
                 // pick up new anchor name changes.
                 AnchorPositionedKey anchorPositionedKey { anchorPositionedElement.ptr(), anchors.pseudoElementIdentifier };
-                auto stateIt = m_treeResolutionState.anchorPositionedStates.find(anchorPositionedKey);
-                if (stateIt != m_treeResolutionState.anchorPositionedStates.end()) {
-                    ASSERT(stateIt->value);
-                    stateIt->value->stage = AnchorPositionResolutionStage::FindAnchors;
-                }
+                if (auto* state = m_treeResolutionState.anchorPositionedStates.get(anchorPositionedKey))
+                    state->stage = AnchorPositionResolutionStage::FindAnchors;
             }
         }
 
@@ -1597,7 +1596,7 @@ static std::optional<LayoutSize> scrollContainerSizeForPositionOptions(const Sty
     CheckedRef containingBlock = *anchoredRenderer->containingBlock();
     if (containingBlock->canUseOverlayScrollbars())
         return { };
-    bool isOverflowScroller = containingBlock->isScrollContainerY() || containingBlock->isScrollContainerY();
+    bool isOverflowScroller = containingBlock->isScrollContainerX() || containingBlock->isScrollContainerY();
     if (!containingBlock->isRenderView() && !isOverflowScroller)
         return { };
     return containingBlock->contentBoxSize();
@@ -1670,7 +1669,7 @@ std::unique_ptr<RenderStyle> TreeResolver::generatePositionOption(const Position
         // https://drafts.csswg.org/css-scoping-1/#shadow-names
         return Style::Scope::resolveTreeScopedReference(styleable.element, *fallback.ruleAndTactics.rule, [](const Style::Scope& scope, const AtomString& name) -> RefPtr<const StyleProperties> {
             auto& ruleSet = scope.resolverIfExists()->ruleSets().authorStyle();
-            auto rule = ruleSet.positionTryRuleForName(name);
+            RefPtr rule = ruleSet.positionTryRuleForName(name);
             if (!rule)
                 return nullptr;
             return rule->properties();
@@ -1714,7 +1713,7 @@ void TreeResolver::sortPositionOptionsIfNeeded(PositionOptions& options, const S
         // "For each entry in the position options list, apply that position option to the box, and find
         // the specified inset-modified containing block size that results from those styles."
         // https://drafts.csswg.org/css-anchor-position-1/#position-try-order-property
-        auto boxAxis = boxAxisForPositionTryOrder(order, options.originalStyle().writingMode());
+        auto boxAxis = selfAxisForPositionTryOrder(order, box->style().writingMode(), box->container()->style().writingMode());
 
         struct SortingOption {
             PositionOption option;
@@ -1973,7 +1972,7 @@ unsigned TreeResolver::maximumRenderTreeDepth()
     static unsigned maximum = [] {
 #if PLATFORM(IOS)
         if (WTF::IOSApplication::isMaild()) {
-            static const unsigned maximumMaildRenderTreeDepth = 200;
+            static const unsigned maximumMaildRenderTreeDepth = 100;
             return maximumMaildRenderTreeDepth;
         }
 #endif

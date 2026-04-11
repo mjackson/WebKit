@@ -26,7 +26,9 @@
 #include "config.h"
 #include "Origin.h"
 
+#include "ElementInlines.h"
 #include "ExceptionOr.h"
+#include "HTMLNames.h"
 #include "JSDOMBindingSecurity.h"
 #include "JSDOMBindingSecurityInlines.h"
 #include "JSDOMGlobalObject.h"
@@ -44,6 +46,8 @@
 #include <wtf/URL.h>
 
 namespace WebCore {
+
+using namespace HTMLNames;
 
 Origin::Origin(Ref<SecurityOrigin>&& securityOrigin)
     : m_origin(WTF::move(securityOrigin))

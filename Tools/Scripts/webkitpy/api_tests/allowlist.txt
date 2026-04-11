@@ -395,6 +395,7 @@ TestWebKitAPI.Site
 TestWebKitAPI.SleepDisabler
 TestWebKitAPI.SnapshotStore
 TestWebKitAPI.SpellCheckerDocumentTag
+TestWebKitAPI.StaticRangeValidity
 TestWebKitAPI.StringWithDirection
 TestWebKitAPI.SwitchInputTests
 TestWebKitAPI.SynchronousTimeoutTests

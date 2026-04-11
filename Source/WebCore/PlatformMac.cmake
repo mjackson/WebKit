@@ -18,7 +18,6 @@ find_library(NETWORKEXTENSION_LIBRARY NetworkExtension)
 find_library(OPENGL_LIBRARY OpenGL)
 find_library(QUARTZ_LIBRARY Quartz)
 find_library(QUARTZCORE_LIBRARY QuartzCore)
-find_library(SCENEKIT_LIBRARY SceneKit)
 find_library(SECURITY_LIBRARY Security)
 find_library(SYSTEMCONFIGURATION_LIBRARY SystemConfiguration)
 find_library(VIDEOTOOLBOX_LIBRARY VideoToolbox)
@@ -26,6 +25,10 @@ find_library(XML2_LIBRARY XML2)
 
 find_package(SQLite3 REQUIRED)
 find_package(ZLIB REQUIRED)
+
+if (NOT TARGET SQLite3::SQLite3) # CMake < 4.3
+    add_library(SQLite3::SQLite3 ALIAS SQLite::SQLite3)
+endif ()
 
 list(APPEND WebCore_UNIFIED_SOURCE_LIST_FILES
     "SourcesCocoa.txt"
@@ -51,7 +54,6 @@ list(APPEND WebCore_LIBRARIES
     ${OPENGL_LIBRARY}
     ${QUARTZ_LIBRARY}
     ${QUARTZCORE_LIBRARY}
-    ${SCENEKIT_LIBRARY}
     ${SECURITY_LIBRARY}
     ${SQLITE3_LIBRARIES}
     ${SYSTEMCONFIGURATION_LIBRARY}
@@ -194,13 +196,13 @@ list(APPEND WebCore_SOURCES
 
     platform/audio/AudioSession.cpp
 
+    platform/audio/cocoa/AudioBusCocoa.mm
     platform/audio/cocoa/AudioDecoderCocoa.cpp
     platform/audio/cocoa/AudioEncoderCocoa.cpp
+    platform/audio/cocoa/FFTFrameCocoa.cpp
     platform/audio/cocoa/WebAudioBufferList.cpp
 
-    platform/audio/mac/AudioBusMac.mm
     platform/audio/mac/AudioHardwareListenerMac.cpp
-    platform/audio/mac/FFTFrameMac.cpp
 
     platform/cf/KeyedDecoderCF.cpp
     platform/cf/KeyedEncoderCF.cpp
@@ -213,7 +215,9 @@ list(APPEND WebCore_SOURCES
     platform/cocoa/FileMonitorCocoa.mm
     platform/cocoa/KeyEventCocoa.mm
     platform/cocoa/LocalizedStringsCocoa.mm
+    platform/cocoa/LoggingCocoa.mm
     platform/cocoa/MIMETypeRegistryCocoa.mm
+    platform/cocoa/MediaRemoteSoftLink.mm
     platform/cocoa/NetworkExtensionContentFilter.mm
     platform/cocoa/ParentalControlsContentFilter.mm
     platform/cocoa/PasteboardCocoa.mm
@@ -221,12 +225,15 @@ list(APPEND WebCore_SOURCES
     platform/cocoa/SearchPopupMenuCocoa.mm
     platform/cocoa/SharedBufferCocoa.mm
     platform/cocoa/SharedMemoryCocoa.mm
+    platform/cocoa/StringUtilities.mm
     platform/cocoa/SystemBattery.mm
     platform/cocoa/SystemVersion.mm
     platform/cocoa/TelephoneNumberDetectorCocoa.cpp
     platform/cocoa/ThemeCocoa.mm
     platform/cocoa/VideoToolboxSoftLink.cpp
     platform/cocoa/WebCoreNSErrorExtras.mm
+    platform/cocoa/WebCoreNSURLExtras.mm
+    platform/cocoa/WebCoreObjCExtras.mm
     platform/cocoa/WebNSAttributedStringExtras.mm
 
     platform/gamepad/cocoa/GameControllerSoftLink.mm
@@ -361,8 +368,6 @@ list(APPEND WebCore_SOURCES
     platform/mac/CursorMac.mm
     platform/mac/KeyEventMac.mm
     platform/mac/LocalCurrentGraphicsContextMac.mm
-    platform/mac/LoggingMac.mm
-    platform/mac/MediaRemoteSoftLink.mm
     platform/mac/NSScrollerImpDetails.mm
     platform/mac/PasteboardMac.mm
     platform/mac/PasteboardWriter.mm
@@ -376,7 +381,6 @@ list(APPEND WebCore_SOURCES
     platform/mac/ScrollViewMac.mm
     platform/mac/ScrollbarThemeMac.mm
     platform/mac/SerializedPlatformDataCueMac.mm
-    platform/mac/StringUtilities.mm
     platform/mac/SuddenTermination.mm
     platform/mac/ThemeMac.mm
     platform/mac/ThreadCheck.mm
@@ -385,15 +389,13 @@ list(APPEND WebCore_SOURCES
     platform/mac/WebCoreFullScreenPlaceholderView.mm
     platform/mac/WebCoreFullScreenWarningView.mm
     platform/mac/WebCoreFullScreenWindow.mm
-    platform/mac/WebCoreNSURLExtras.mm
-    platform/mac/WebCoreObjCExtras.mm
     platform/mac/WidgetMac.mm
 
-    platform/mediastream/libwebrtc/LibWebRTCAudioModule.cpp
+    platform/mediastream/cocoa/MockRealtimeVideoSourceCocoa.mm
+    platform/mediastream/cocoa/RealtimeOutgoingVideoSourceCocoa.cpp
+    platform/mediastream/cocoa/RealtimeOutgoingVideoSourceCocoa.mm
 
-    platform/mediastream/mac/MockRealtimeVideoSourceMac.mm
-    platform/mediastream/mac/RealtimeOutgoingVideoSourceCocoa.cpp
-    platform/mediastream/mac/RealtimeOutgoingVideoSourceCocoa.mm
+    platform/mediastream/libwebrtc/LibWebRTCAudioModule.cpp
 
     platform/network/cf/CertificateInfoCFNet.cpp
     platform/network/cf/DNSResolveQueueCFNet.cpp
@@ -422,13 +424,11 @@ list(APPEND WebCore_SOURCES
     platform/network/cocoa/WebCoreResourceHandleAsOperationQueueDelegate.mm
     platform/network/cocoa/WebCoreURLResponse.mm
 
-    platform/network/mac/NetworkStateNotifierMac.cpp
-
     platform/text/cocoa/LocaleCocoa.mm
 
     platform/text/cf/HyphenationCF.cpp
 
-    platform/text/mac/TextBoundaries.mm
+    platform/text/cocoa/TextBoundaries.mm
     platform/text/mac/TextCheckingMac.mm
 
     rendering/TextAutoSizing.cpp
@@ -494,8 +494,9 @@ list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
     Modules/mediasession/MediaSessionReadyState.h
     Modules/mediasession/NavigatorMediaSession.h
 
-    accessibility/mac/CocoaAccessibilityConstants.h
-    accessibility/mac/WebAccessibilityObjectWrapperBase.h
+    accessibility/cocoa/CocoaAccessibilityConstants.h
+    accessibility/cocoa/WebAccessibilityObjectWrapperBase.h
+
     accessibility/mac/WebAccessibilityObjectWrapperMac.h
 
     bridge/objc/WebScriptObject.h
@@ -605,8 +606,11 @@ list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/cocoa/PowerSourceNotifier.h
     platform/cocoa/SearchPopupMenuCocoa.h
     platform/cocoa/SharedVideoFrameInfo.h
+    platform/cocoa/StringUtilities.h
     platform/cocoa/SystemBattery.h
     platform/cocoa/SystemVersion.h
+    platform/cocoa/WebCoreNSURLExtras.h
+    platform/cocoa/WebCoreObjCExtras.h
 
     platform/gamepad/cocoa/GameControllerGamepadProvider.h
 
@@ -705,12 +709,10 @@ list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/mac/RevealUtilities.h
     platform/mac/SerializedPlatformDataCueMac.h
     platform/mac/ScrollbarThemeMac.h
-    platform/mac/StringUtilities.h
+    platform/mac/VideoFullscreenInterfaceMac.h
     platform/mac/WebCoreFullScreenPlaceholderView.h
     platform/mac/WebCoreFullScreenWindow.h
     platform/mac/WebCoreNSFontManagerExtras.h
-    platform/mac/WebCoreNSURLExtras.h
-    platform/mac/WebCoreObjCExtras.h
     platform/mac/WebCoreView.h
 
     platform/mac/WebPlaybackControlsManager.h
@@ -727,10 +729,9 @@ list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     platform/mediastream/cocoa/AudioMediaStreamTrackRendererInternalUnit.h
     platform/mediastream/cocoa/AudioMediaStreamTrackRendererUnit.h
-
-    platform/mediastream/mac/RealtimeIncomingVideoSourceCocoa.h
-    platform/mediastream/mac/RealtimeVideoUtilities.h
-    platform/mediastream/mac/WebAudioSourceProviderCocoa.h
+    platform/mediastream/cocoa/RealtimeIncomingVideoSourceCocoa.h
+    platform/mediastream/cocoa/RealtimeVideoUtilities.h
+    platform/mediastream/cocoa/WebAudioSourceProviderCocoa.h
 
     platform/mediastream/libwebrtc/LibWebRTCProviderCocoa.h
     platform/mediastream/libwebrtc/VideoFrameLibWebRTC.h

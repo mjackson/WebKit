@@ -3,6 +3,10 @@ PASS mathvariant on the math element is not mapped to CSS text-transform
 PASS scriptlevel on the math element is mapped to math-depth(...)
 PASS invalid scriptlevel values on the math element are not mapped to math-depth(...)
 PASS displaystyle on the math element is mapped to CSS math-style
+PASS mathvariant on the a element is not mapped to CSS text-transform
+PASS scriptlevel on the a element is mapped to math-depth(...)
+PASS invalid scriptlevel values on the a element are not mapped to math-depth(...)
+PASS displaystyle on the a element is mapped to CSS math-style
 PASS mathvariant on the annotation element is not mapped to CSS text-transform
 PASS scriptlevel on the annotation element is mapped to math-depth(...)
 PASS invalid scriptlevel values on the annotation element are not mapped to math-depth(...)

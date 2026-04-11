@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2003-2026 Apple Inc. All rights reserved.
  * Copyright (C) 2008 Eric Seidel <eric@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,6 +44,7 @@
 #include "ShadowBlur.h"
 #include "Timer.h"
 #include <pal/spi/cg/CoreGraphicsSPI.h>
+#include <pal/spi/cg/ImageIOSPI.h>
 #include <wtf/MathExtras.h>
 #include <wtf/RetainPtr.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -62,9 +63,20 @@ static void setCGFillColor(CGContextRef context, const Color& color, const Desti
     CGContextSetFillColorWithColor(context, cachedCGColorInDestinationStandardRange(color, colorSpace).get());
 }
 
-inline CGAffineTransform getUserToBaseCTM(CGContextRef context)
+CGAffineTransform getUserToBaseCTM(CGContextRef context)
 {
     return CGAffineTransformConcat(CGContextGetCTM(context), CGAffineTransformInvert(CGContextGetBaseCTM(context)));
+}
+
+CGFloat singularValue(const CGAffineTransform& userToBaseCTM, SingularValueSelection selection)
+{
+    CGFloat A = userToBaseCTM.a * userToBaseCTM.a + userToBaseCTM.b * userToBaseCTM.b;
+    CGFloat B = userToBaseCTM.a * userToBaseCTM.c + userToBaseCTM.b * userToBaseCTM.d;
+    CGFloat D = userToBaseCTM.c * userToBaseCTM.c + userToBaseCTM.d * userToBaseCTM.d;
+    CGFloat discriminant = sqrt(4 * B * B + (A - D) * (A - D));
+    if (selection == SingularValueSelection::Smallest)
+        discriminant = -discriminant;
+    return narrowPrecisionToCGFloat(sqrt(0.5 * ((A + D) + discriminant)));
 }
 
 static InterpolationQuality coreInterpolationQuality(CGContextRef context)
@@ -1095,16 +1107,8 @@ void GraphicsContextCG::endTransparencyLayer()
 
 static CGFloat scaledBlurRadius(CGFloat blurRadius, const CGAffineTransform& userToBaseCTM, bool shadowsIgnoreTransforms)
 {
-    if (!shadowsIgnoreTransforms) {
-        CGFloat A = userToBaseCTM.a * userToBaseCTM.a + userToBaseCTM.b * userToBaseCTM.b;
-        CGFloat B = userToBaseCTM.a * userToBaseCTM.c + userToBaseCTM.b * userToBaseCTM.d;
-        CGFloat C = B;
-        CGFloat D = userToBaseCTM.c * userToBaseCTM.c + userToBaseCTM.d * userToBaseCTM.d;
-
-        CGFloat smallEigenvalue = narrowPrecisionToCGFloat(sqrt(0.5 * ((A + D) - sqrt(4 * B * C + (A - D) * (A - D)))));
-
-        blurRadius *= smallEigenvalue;
-    }
+    if (!shadowsIgnoreTransforms)
+        blurRadius *= singularValue(userToBaseCTM, SingularValueSelection::Smallest);
 
     // Extreme "blur" values can make text drawing crash or take crazy long times, so clamp
     return std::min(blurRadius, narrowPrecisionToCGFloat(1000.0));
@@ -1329,11 +1333,16 @@ void GraphicsContextCG::strokeRect(const FloatRect& rect, float lineWidth)
 void GraphicsContextCG::strokeArc(const PathArc& arc)
 {
 #if HAVE(CGCONTEXT_STROKE_ARC)
-    CGContextRef context = platformContext();
-    CGContextStrokeArc(context, arc.center.x(), arc.center.y(), arc.radius, arc.startAngle, arc.endAngle, arc.direction == RotationDirection::Counterclockwise);
-#else
-    GraphicsContext::strokeArc(arc);
+    if (!strokeGradient()) {
+        if (strokePattern())
+            applyStrokePattern();
+
+        CGContextRef context = platformContext();
+        CGContextStrokeArc(context, arc.center.x(), arc.center.y(), arc.radius, arc.startAngle, arc.endAngle, arc.direction == RotationDirection::Counterclockwise);
+        return;
+    }
 #endif
+    GraphicsContext::strokeArc(arc);
 }
 
 void GraphicsContextCG::setLineCap(LineCap cap)

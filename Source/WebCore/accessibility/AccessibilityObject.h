@@ -327,7 +327,7 @@ public:
 
     // This function checks if the object should be ignored when there's a modal dialog displayed.
     virtual bool ignoredFromModalPresence() const;
-    bool isModalDescendant(Node&) const;
+    bool NODELETE isModalDescendant(Node&) const;
     bool isModalNode() const final;
 
     bool supportsSetSize() const final;
@@ -555,6 +555,7 @@ public:
 
     void performDismissActionIgnoringResult() final { performDismissAction(); }
     bool press() override;
+    bool performShowMenuAction();
 
     std::optional<AccessibilityOrientation> explicitOrientation() const override { return std::nullopt; }
     void increment() override { }

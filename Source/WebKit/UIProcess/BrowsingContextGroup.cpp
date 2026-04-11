@@ -264,9 +264,9 @@ RefPtr<RemotePageProxy> BrowsingContextGroup::remotePageInProcess(const WebPageP
     auto it = m_remotePages.find(page);
     if (it == m_remotePages.end())
         return nullptr;
-    for (Ref remotePage : it->value) {
+    for (auto& remotePage : it->value) {
         if (remotePage->process().coreProcessIdentifier() == process.coreProcessIdentifier())
-            return remotePage;
+            return remotePage.ptr();
     }
     return nullptr;
 }

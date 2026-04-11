@@ -42,7 +42,7 @@ class CustomProperty;
 class Builder {
     WTF_MAKE_TZONE_ALLOCATED(Builder);
 public:
-    Builder(RenderStyle&, BuilderContext&&, const MatchResult&, PropertyCascade::IncludedProperties&& = PropertyCascade::normalProperties(), const HashSet<AnimatableCSSProperty>* animatedProperties = nullptr);
+    Builder(RenderStyle&, BuilderContext&&, const MatchResult&, PropertyCascade::IncludedProperties&& = PropertyCascade::normalProperties(), const HashMap<AnimatableCSSProperty, EnumSet<PropertyCascade::AnimationSource>>* animatedProperties = nullptr);
     ~Builder();
 
     void applyAllProperties();
@@ -55,10 +55,11 @@ public:
     void applyCustomProperty(const AtomString& name);
 
     RefPtr<const CustomProperty> resolveCustomPropertyForContainerQueries(const CSSCustomPropertyValue&);
+    RefPtr<const CustomProperty> resolveFunctionResult(const CSSCustomPropertyValue&);
 
     BuilderState& state() { return m_state; }
 
-    const HashSet<AnimatableCSSProperty> overriddenAnimatedProperties() const { return m_cascade.overriddenAnimatedProperties(); }
+    ValueOrReference<HashSet<AnimatableCSSProperty>> overriddenAnimatedProperties() const { return m_cascade.overriddenAnimatedProperties(); }
 
 private:
     void applyProperties(int firstProperty, int lastProperty);
@@ -75,7 +76,6 @@ private:
     void applyProperty(CSSPropertyID, CSSValue&, SelectorChecker::LinkMatchMask, PropertyCascade::Origin);
     void applyCustomProperty(const AtomString& name, Variant<Ref<const Style::CustomProperty>, CSSWideKeyword>&&);
 
-    Ref<CSSValue> resolveInternalAutoBaseFunction(CSSValue&);
     Ref<CSSValue> resolveSubstitutionFunctions(CSSPropertyID, CSSValue&);
     std::optional<Variant<Ref<const Style::CustomProperty>, CSSWideKeyword>> resolveCustomPropertyValue(CSSCustomPropertyValue&);
 

@@ -1032,7 +1032,7 @@ void ApplyStyleCommand::applyInlineStyleToPushDown(Node& node, EditingStyle* sty
     {
         ScriptDisallowedScope::InMainThread scriptDisallowedScope;
 
-        if (CheckedPtr textRenderer = dynamicDowncast<RenderText>(*node.renderer()); textRenderer && textRenderer->containsOnlyCollapsibleWhitespace())
+        if (auto* textRenderer = dynamicDowncast<RenderText>(*node.renderer()); textRenderer && textRenderer->containsOnlyCollapsibleWhitespace())
             return;
         if (auto* linebreak = dynamicDowncast<RenderLineBreak>(*node.renderer()); linebreak && !linebreak->style().preserveNewline())
             return;

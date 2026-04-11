@@ -54,8 +54,7 @@ InspectorAuditAccessibilityObject::InspectorAuditAccessibilityObject(InspectorAu
 
 static AccessibilityObject* accessibilityObjectForNode(Node& node)
 {
-    if (!AXObjectCache::accessibilityEnabled())
-        AXObjectCache::enableAccessibility();
+    AXObjectCache::enableAccessibility();
 
     if (CheckedPtr axObjectCache = node.document().axObjectCache())
         return axObjectCache->getOrCreate(node);

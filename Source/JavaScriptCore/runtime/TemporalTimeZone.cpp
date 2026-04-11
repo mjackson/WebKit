@@ -59,7 +59,7 @@ TemporalTimeZone::TemporalTimeZone(VM& vm, Structure* structure, TimeZone timeZo
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-parsetemporaltimeZonestring
-static std::optional<int64_t> parseTemporalTimeZoneString(StringView)
+static std::optional<int64_t> NODELETE parseTemporalTimeZoneString(StringView)
 {
     // FIXME: Implement parsing temporal timeZone string, which requires full ISO 8601 parser.
     return std::nullopt;

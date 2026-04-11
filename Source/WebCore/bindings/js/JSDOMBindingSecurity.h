@@ -25,6 +25,7 @@
 
 #include <WebCore/ExceptionOr.h>
 #include <WebCore/HTMLFrameOwnerElement.h>
+#include <WebCore/LocalDOMWindow.h>
 #include <WebCore/RemoteFrame.h>
 #include <wtf/Forward.h>
 
@@ -37,7 +38,6 @@ namespace WebCore {
 
 class DOMWindow;
 class Frame;
-class LocalDOMWindow;
 class LocalFrame;
 class Node;
 
@@ -52,6 +52,7 @@ template<typename T> T* checkSecurityForNode(JSC::JSGlobalObject&, T*);
 template<typename T> T* checkSecurityForNodeWithFrameOwner(JSC::JSGlobalObject&, T*, const HTMLFrameOwnerElement&);
 template<typename T> ExceptionOr<T*> checkSecurityForNode(JSC::JSGlobalObject&, ExceptionOr<T*>&&);
 template<typename T> ExceptionOr<T*> checkSecurityForNode(JSC::JSGlobalObject&, ExceptionOr<T&>&&);
+template<typename T> ExceptionOr<T*> checkSecurityForNodeWithDOMWindow(JSC::JSGlobalObject&, ExceptionOr<T*>&&, const DOMWindow&);
 
 bool shouldAllowAccessToDOMWindow(JSC::JSGlobalObject*, LocalDOMWindow&, SecurityReportingOption = LogSecurityError);
 bool shouldAllowAccessToDOMWindow(JSC::JSGlobalObject&, LocalDOMWindow&, String& message);
@@ -101,6 +102,26 @@ template<typename T> inline ExceptionOr<T*> BindingSecurity::checkSecurityForNod
     if (value.hasException())
         return value.releaseException();
     return checkSecurityForNode(lexicalGlobalObject, value.releaseReturnValue());
+}
+
+template<typename T> inline ExceptionOr<T*> BindingSecurity::checkSecurityForNodeWithDOMWindow(JSC::JSGlobalObject& lexicalGlobalObject, ExceptionOr<T*>&& value, const DOMWindow& window)
+{
+    if (value.hasException())
+        return value.releaseException();
+
+    RefPtr node = value.releaseReturnValue();
+    if (node)
+        return shouldAllowAccessToNode(lexicalGlobalObject, node.get()) ? node.get() : nullptr;
+
+    // With site isolation, the owner element is in the parent's process. Explicitly
+    // check the remote parent frame to log the cross-origin error.
+    if (RefPtr localWindow = dynamicDowncast<LocalDOMWindow>(window)) {
+        if (RefPtr frame = localWindow->frame()) {
+            if (RefPtr parentFrame = dynamicDowncast<RemoteFrame>(frame->tree().parent()))
+                shouldAllowAccessToFrame(&lexicalGlobalObject, parentFrame.get());
+        }
+    }
+    return nullptr;
 }
 
 } // namespace WebCore

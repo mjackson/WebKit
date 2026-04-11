@@ -65,7 +65,6 @@ IGNORE_CLANG_WARNINGS_BEGIN("nullability-completeness")
 #include <webrtc/p2p/client/basic_port_allocator.h>
 IGNORE_CLANG_WARNINGS_END
 #include <webrtc/pc/peer_connection_factory.h>
-#include <webrtc/system_wrappers/include/field_trial.h>
 #include <wtf/MainThread.h>
 #include <wtf/SetForScope.h>
 #include <wtf/SharedTask.h>
@@ -413,7 +412,9 @@ ExceptionOr<LibWebRTCMediaEndpoint::Backends> LibWebRTCMediaEndpoint::createTran
         return toException(result.error());
 
     auto transceiver = makeUniqueRef<LibWebRTCRtpTransceiverBackend>(toRef(result.MoveValue()));
-    return LibWebRTCMediaEndpoint::Backends { transceiver->createSenderBackend(*protect(m_peerConnectionBackend), WTF::move(source)), transceiver->createReceiverBackend(), WTF::move(transceiver) };
+
+    Ref document = downcast<Document>(*m_peerConnectionBackend->connection().scriptExecutionContext());
+    return LibWebRTCMediaEndpoint::Backends { transceiver->createSenderBackend(*protect(m_peerConnectionBackend), WTF::move(source)), transceiver->createReceiverBackend(document), WTF::move(transceiver) };
 }
 
 ExceptionOr<LibWebRTCMediaEndpoint::Backends> LibWebRTCMediaEndpoint::addTransceiver(const String& trackKind, const RTCRtpTransceiverInit& init, PeerConnectionBackend::IgnoreNegotiationNeededFlag ignoreNegotiationNeededFlag)
@@ -905,7 +906,7 @@ void LibWebRTCMediaEndpoint::OnStatsDelivered(const webrtc::scoped_refptr<const 
 #endif
 
             // Stats are very verbose, let's only display them in inspector console in verbose mode.
-            logger().toObservers(LogWebRTC, WTFLogLevel::Debug, Logger::LogSiteIdentifier("LibWebRTCMediaEndpoint"_s, "OnStatsDelivered"_s, logIdentifier()), statsLogger);
+            logger().toObservers(LogWebRTC, WTFLogLevel::Debug, { }, Logger::LogSiteIdentifier("LibWebRTCMediaEndpoint"_s, "OnStatsDelivered"_s, logIdentifier()), statsLogger);
 
             RELEASE_LOG_FORWARDABLE(WebRTCStats, LibWebRtcMediaEndpointOnStatsDelivered, logIdentifier(), statsLogger.toJSONString().utf8());
         }
@@ -940,7 +941,7 @@ Seconds LibWebRTCMediaEndpoint::statsLogInterval(int64_t reportTimestamp) const
     if (m_isGatheringRTCLogs)
         return 1_s;
 
-    if (logger().willLog(logChannel(), WTFLogLevel::Info))
+    if (logger().willLog(logChannel(), WTFLogLevel::Info, { }))
         return 2_s;
 
     if (reportTimestamp - m_statsFirstDeliveredTimestamp > 15000000)

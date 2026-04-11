@@ -80,6 +80,7 @@
 #include <WebCore/ShareableResource.h>
 #include <WebCore/SharedBuffer.h>
 #include <WebCore/ViolationReportType.h>
+#include <wtf/Borrow.h>
 #include <wtf/CallbackAggregator.h>
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/Expected.h>
@@ -1416,7 +1417,7 @@ void NetworkResourceLoader::didFinishWithRedirectResponse(WebCore::ResourceReque
     networkLoadMetrics.responseBodyDecodedSize = 0;
 
     if (m_serviceWorkerFetchTask)
-        networkLoadMetrics.fetchStart = protect(m_serviceWorkerFetchTask)->startTime();
+        networkLoadMetrics.fetchStart = m_serviceWorkerFetchTask->startTime();
     send(Messages::WebResourceLoader::DidFinishResourceLoad { networkLoadMetrics });
 
     cleanup(LoadResult::Success);
@@ -1834,7 +1835,7 @@ void NetworkResourceLoader::consumeSandboxExtensions()
         }
     }
 
-    for (auto& fileReference : m_fileReferences)
+    for (Ref fileReference : borrow(m_fileReferences).get())
         fileReference->prepareForFileAccess();
 
     m_didConsumeSandboxExtensions = true;
@@ -1846,7 +1847,7 @@ void NetworkResourceLoader::invalidateSandboxExtensions()
         for (auto extension : std::exchange(m_extensionsToRevoke, { }))
             extension->revoke();
 
-        for (auto& fileReference : m_fileReferences)
+        for (Ref fileReference : borrow(m_fileReferences).get())
             fileReference->revokeFileAccess();
 
         m_didConsumeSandboxExtensions = false;
@@ -2026,7 +2027,7 @@ void NetworkResourceLoader::logSlowCacheRetrieveIfNeeded(const NetworkCache::Cac
     if (info.storageTimings.dispatchTime) {
         auto time = (info.storageTimings.dispatchTime - info.storageTimings.startTime).milliseconds();
         auto count = info.storageTimings.dispatchCountAtDispatch - info.storageTimings.dispatchCountAtStart;
-        LOADER_RELEASE_LOG("logSlowCacheRetrieveIfNeeded: Dispatch delay %.0fms, dispatched %lu resources first", time, count);
+        LOADER_RELEASE_LOG("logSlowCacheRetrieveIfNeeded: Dispatch delay %.0fms, dispatched %zu resources first", time, count);
     }
     if (info.storageTimings.recordIOStartTime)
         LOADER_RELEASE_LOG("logSlowCacheRetrieveIfNeeded: Record I/O time %.0fms", (info.storageTimings.recordIOEndTime - info.storageTimings.recordIOStartTime).milliseconds());

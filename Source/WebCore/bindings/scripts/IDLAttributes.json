@@ -70,6 +70,9 @@
         "CheckSecurityForNodeWithFrameOwner": {
             "contextsAllowed": ["attribute", "operation"]
         },
+        "CheckSecurityForNodeWithDOMWindow": {
+            "contextsAllowed": ["attribute", "operation"]
+        },
         "Clamp": {
             "contextsAllowed": ["type"],
             "standard": {

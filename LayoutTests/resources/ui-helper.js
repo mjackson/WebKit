@@ -1670,6 +1670,16 @@ window.UIHelper = class UIHelper {
         });
     }
 
+    static enhancedWindowingEnabled()
+    {
+        if (!this.isWebKit2() || !this.isIOSFamily())
+            return Promise.resolve(false);
+
+        return new Promise(resolve => {
+            testRunner.runUIScript("uiController.enhancedWindowingEnabled", result => resolve(result === "true"));
+        });
+    }
+
     static stylusTapAt(x, y, modifiers=[])
     {
         if (!this.isWebKit2())

@@ -21,14 +21,54 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 11) && compiler(>=6.2)
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreTextureProcessing, _version: 19)
 
-@_weakLinked import DirectResource
+import DirectResource
 import Metal
-@_weakLinked import USDKit
-@_weakLinked @_spi(UsdLoaderAPI) import _USDKit_RealityKit
+import USDKit
+@_spi(UsdLoaderAPI) import _USDKit_RealityKit
 @_spi(RealityCoreRendererAPI) import RealityKit
 @_spi(SGInternal) import RealityKit
+
+final class MeshInstancePool {
+    private(set) var meshInstances: _Proto_LowLevelMeshInstanceArray_v1
+    private let renderContext: any _Proto_LowLevelRenderContext_v1
+
+    init(
+        renderContext: any _Proto_LowLevelRenderContext_v1,
+        renderTargets: [_Proto_LowLevelRenderTarget_v1.Descriptor],
+        initialCapacity: Int
+    ) throws {
+        self.renderContext = renderContext
+        self.meshInstances = try renderContext.makeMeshInstanceArray(renderTargets: renderTargets, count: initialCapacity)
+    }
+
+    init(renderContext: any _Proto_LowLevelRenderContext_v1, meshInstances: _Proto_LowLevelMeshInstanceArray_v1) {
+        self.renderContext = renderContext
+        self.meshInstances = meshInstances
+    }
+
+    func add(_ instance: _Proto_LowLevelMeshInstance_v1) throws {
+        if let emptyIndex = meshInstances.firstIndex(where: { $0 == nil }) {
+            try meshInstances.setMeshInstance(instance, index: emptyIndex)
+        } else {
+            let oldCount = meshInstances.count
+            let newArray = try renderContext.makeMeshInstanceArray(renderTargets: meshInstances.renderTargets, count: max(oldCount * 2, 1))
+            for (index, existing) in meshInstances.enumerated() {
+                try newArray.setMeshInstance(existing, index: index)
+            }
+            try newArray.setMeshInstance(instance, index: oldCount)
+            meshInstances = newArray
+        }
+    }
+
+    func remove(_ instance: _Proto_LowLevelMeshInstance_v1) throws {
+        guard let index = meshInstances.firstIndex(where: { $0 === instance }) else {
+            fatalError("Mesh instance not found in MeshInstancePool")
+        }
+        try meshInstances.setMeshInstance(nil, index: index)
+    }
+}
 
 extension simd_float4x4 {
     var minor: simd_float3x3 {
@@ -43,26 +83,6 @@ extension simd_float4x4 {
         var result = simd_mul(self, simd_float4(position, 1))
         result /= result.w
         return simd_float3(result.x, result.y, result.z)
-    }
-}
-
-func mapSemantic(_ semantic: LowLevelMesh.VertexSemantic) -> _Proto_LowLevelMeshResource_v1.VertexSemantic {
-    switch semantic {
-    case .position: .position
-    case .color: .color
-    case .normal: .normal
-    case .tangent: .tangent
-    case .bitangent: .bitangent
-    case .uv0: .uv0
-    case .uv1: .uv1
-    case .uv2: .uv2
-    case .uv3: .uv3
-    case .uv4: .uv4
-    case .uv5: .uv5
-    case .uv6: .uv6
-    case .uv7: .uv7
-    case .unspecified: .unspecified
-    default: .unspecified
     }
 }
 
@@ -155,25 +175,59 @@ extension _Proto_LowLevelTextureResource_v1.Descriptor {
 
         return descriptor
     }
+
+    init(from descriptor: WKBridgeImageAsset) {
+        self.init(
+            textureType: descriptor.textureType,
+            pixelFormat: descriptor.pixelFormat,
+            width: descriptor.width,
+            height: descriptor.height,
+            depth: descriptor.depth,
+            mipmapLevelCount: descriptor.mipmapLevelCount,
+            arrayLength: descriptor.arrayLength,
+            textureUsage: descriptor.textureUsage,
+            swizzle: descriptor.swizzle
+        )
+    }
 }
 
-private func mapSemantic(_ semantic: Int) -> _Proto_LowLevelMeshResource_v1.VertexSemantic {
+private func mapSemantic(_ semantic: LowLevelMesh.VertexSemantic) -> _Proto_LowLevelMeshResource_v1.VertexSemantic {
     switch semantic {
-    case 0: .position
-    case 1: .color
-    case 2: .normal
-    case 3: .tangent
-    case 4: .bitangent
-    case 5: .uv0
-    case 6: .uv1
-    case 7: .uv2
-    case 8: .uv3
-    case 9: .uv4
-    case 10: .uv5
-    case 11: .uv6
-    case 12: .uv7
-    case 13: .unspecified
+    case .position: .position
+    case .color: .color
+    case .normal: .normal
+    case .tangent: .tangent
+    case .bitangent: .bitangent
+    case .uv0: .uv0
+    case .uv1: .uv1
+    case .uv2: .uv2
+    case .uv3: .uv3
+    case .uv4: .uv4
+    case .uv5: .uv5
+    case .uv6: .uv6
+    case .uv7: .uv7
+    case .unspecified: .unspecified
     default: .unspecified
+    }
+}
+
+private func mapSemantic(_ semantic: WKBridgeVertexSemantic) -> _Proto_LowLevelMeshResource_v1.VertexSemantic {
+    switch semantic {
+    case .position: .position
+    case .color: .color
+    case .normal: .normal
+    case .tangent: .tangent
+    case .bitangent: .bitangent
+    case .UV0: .uv0
+    case .UV1: .uv1
+    case .UV2: .uv2
+    case .UV3: .uv3
+    case .UV4: .uv4
+    case .UV5: .uv5
+    case .UV6: .uv6
+    case .UV7: .uv7
+    case .unspecified: .unspecified
+    @unknown default: .unspecified
     }
 }
 
@@ -184,7 +238,7 @@ extension _Proto_LowLevelMeshResource_v1.Descriptor {
         descriptor.vertexAttributes = llmDescriptor.vertexAttributes.map { attribute in
             .init(
                 semantic: mapSemantic(attribute.semantic),
-                format: MTLVertexFormat(rawValue: UInt(attribute.format)) ?? .invalid,
+                format: attribute.format,
                 layoutIndex: attribute.layoutIndex,
                 offset: attribute.offset
             )
@@ -199,7 +253,6 @@ extension _Proto_LowLevelMeshResource_v1.Descriptor {
     }
 }
 
-#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 12)
 internal func debugPrintShaderGraph(_ graph: _Proto_ShaderNodeGraph?, prefix: String = "", indent: String = "") {
     guard let graph = graph else {
         logInfo("\(indent)\(prefix)ShaderGraph: nil")
@@ -490,6 +543,5 @@ private func nodeDataTypeString(_ data: _Proto_ShaderNodeGraph.Node.NodeData) ->
         return "unknown"
     }
 }
-#endif
 
 #endif

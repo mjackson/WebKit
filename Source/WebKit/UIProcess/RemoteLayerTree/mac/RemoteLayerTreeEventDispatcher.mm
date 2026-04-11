@@ -671,7 +671,7 @@ RefPtr<const RemoteAnimationTimeline> RemoteLayerTreeEventDispatcher::timeline(c
 {
     assertIsHeld(m_animationLock);
     if (m_monotonicTimelineRegistry) {
-        if (RefPtr timeline = m_monotonicTimelineRegistry->get(timelineID))
+        if (auto* timeline = m_monotonicTimelineRegistry->get(timelineID))
             return timeline;
     }
     if (auto scrollingTree = this->scrollingTree())

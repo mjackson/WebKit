@@ -136,9 +136,9 @@ public:
     
     bool finalize(VM&);
     
-    bool merge(const CallVariant&);
+    bool NODELETE merge(const CallVariant&);
     
-    void filter(JSValue);
+    void NODELETE filter(JSValue);
     
     void dump(PrintStream& out) const;
     

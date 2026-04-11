@@ -72,6 +72,7 @@ public:
     Color platformInactiveListBoxSelectionBackgroundColor(OptionSet<StyleColorOptions>) const final;
     Color platformInactiveListBoxSelectionForegroundColor(OptionSet<StyleColorOptions>) const final;
     Color platformFocusRingColor(OptionSet<StyleColorOptions>) const final;
+    float platformFocusRingWidth() const final;
     void platformColorsDidChange() final;
 
     void adjustTextFieldStyle(RenderStyle&, const Element*) const final;
@@ -81,7 +82,7 @@ public:
     bool popsMenuBySpaceOrReturn() const final { return true; }
     void adjustMenuListStyle(RenderStyle&, const Element*) const final;
     void adjustMenuListButtonStyle(RenderStyle&, const Element*) const final;
-    Style::PaddingBox popupInternalPaddingBox(const RenderStyle&) const final;
+    Style::PaddingBox platformPopupInternalPaddingBox(const RenderStyle&) const final;
 
     Seconds animationRepeatIntervalForProgressBar(const RenderProgress&) const final;
     IntRect progressBarRectForBounds(const RenderProgress&, const IntRect&) const final;

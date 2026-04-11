@@ -65,7 +65,7 @@ public:
 
     bool canCreateControlPartForRenderer(const RenderElement&) const final;
 
-    Style::PaddingBox popupInternalPaddingBox(const RenderStyle&) const final;
+    Style::PaddingBox platformPopupInternalPaddingBox(const RenderStyle&) const final;
 
     int baselinePosition(const RenderBox&) const final;
 

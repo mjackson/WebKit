@@ -479,11 +479,10 @@ void RemoteRenderingBackend::releaseGradient(RemoteGradientIdentifier identifier
 
 void RemoteRenderingBackend::cacheFilter(Ref<Filter>&& filter)
 {
-    ASSERT(!RunLoop::isMain());
-    if (filter->hasValidRenderingResourceIdentifier())
-        m_remoteResourceCache.cacheFilter(WTF::move(filter));
-    else
-        LOG_WITH_STREAM(DisplayLists, stream << "Received a Filter without a valid resource identifier");
+    assertIsCurrent(workQueue());
+    MESSAGE_CHECK(filter->hasValidRenderingResourceIdentifier(), "Received a Filter without a valid resource identifier.");
+    bool success = m_remoteResourceCache.cacheFilter(WTF::move(filter));
+    MESSAGE_CHECK(success, "Filter already cached.");
 }
 
 void RemoteRenderingBackend::releaseFilter(RenderingResourceIdentifier identifier)

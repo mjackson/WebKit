@@ -309,9 +309,9 @@ ALWAYS_INLINE JSBigInt::ComparisonResult compareBigIntToOtherPrimitive(JSGlobalO
     ASSERT(!primValue.isBigInt());
 
     if (primValue.isString()) {
-        auto string = asString(primValue)->value(globalObject);
+        auto string = asString(primValue)->view(globalObject);
         RETURN_IF_EXCEPTION(scope, JSBigInt::ComparisonResult::Undefined);
-        JSValue bigIntValue = JSBigInt::stringToBigInt(globalObject, WTF::move(string));
+        JSValue bigIntValue = JSBigInt::stringToBigInt(globalObject, string);
         RETURN_IF_EXCEPTION(scope, JSBigInt::ComparisonResult::Undefined);
         if (!bigIntValue)
             return JSBigInt::ComparisonResult::Undefined;
@@ -349,9 +349,9 @@ ALWAYS_INLINE JSBigInt::ComparisonResult compareBigInt32ToOtherPrimitive(JSGloba
     };
 
     if (primValue.isString()) {
-        auto string = asString(primValue)->value(globalObject);
+        auto string = asString(primValue)->view(globalObject);
         RETURN_IF_EXCEPTION(scope, JSBigInt::ComparisonResult::Undefined);
-        JSValue bigIntValue = JSBigInt::stringToBigInt(globalObject, WTF::move(string));
+        JSValue bigIntValue = JSBigInt::stringToBigInt(globalObject, string);
         RETURN_IF_EXCEPTION(scope, JSBigInt::ComparisonResult::Undefined);
         if (!bigIntValue)
             return JSBigInt::ComparisonResult::Undefined;
@@ -455,9 +455,9 @@ ALWAYS_INLINE bool jsLess(JSGlobalObject* globalObject, JSValue v1, JSValue v2)
         return v1.asNumber() < v2.asNumber();
 
     if (isJSString(v1) && isJSString(v2)) {
-        auto s1 = asString(v1)->value(globalObject);
+        auto s1 = asString(v1)->view(globalObject);
         RETURN_IF_EXCEPTION(scope, false);
-        auto s2 = asString(v2)->value(globalObject);
+        auto s2 = asString(v2)->view(globalObject);
         RETURN_IF_EXCEPTION(scope, false);
         return codePointCompareLessThan(s1, s2);
     }
@@ -486,7 +486,7 @@ ALWAYS_INLINE bool jsLess(JSGlobalObject* globalObject, JSValue v1, JSValue v2)
         return n1 < n2;
     }
 
-    return codePointCompareLessThan(asString(p1)->value(globalObject), asString(p2)->value(globalObject));
+    return codePointCompareLessThan(asString(p1)->view(globalObject), asString(p2)->view(globalObject));
 }
 
 // See ES5 11.8.3/11.8.4/11.8.5 for definition of leftFirst, this value ensures correct
@@ -505,9 +505,9 @@ ALWAYS_INLINE bool jsLessEq(JSGlobalObject* globalObject, JSValue v1, JSValue v2
         return v1.asNumber() <= v2.asNumber();
 
     if (isJSString(v1) && isJSString(v2)) {
-        auto s1 = asString(v1)->value(globalObject);
+        auto s1 = asString(v1)->view(globalObject);
         RETURN_IF_EXCEPTION(scope, false);
-        auto s2 = asString(v2)->value(globalObject);
+        auto s2 = asString(v2)->view(globalObject);
         RETURN_IF_EXCEPTION(scope, false);
         return !codePointCompareLessThan(s2, s1);
     }
@@ -535,7 +535,7 @@ ALWAYS_INLINE bool jsLessEq(JSGlobalObject* globalObject, JSValue v1, JSValue v2
 
         return n1 <= n2;
     }
-    return !codePointCompareLessThan(asString(p2)->value(globalObject), asString(p1)->value(globalObject));
+    return !codePointCompareLessThan(asString(p2)->view(globalObject), asString(p1)->view(globalObject));
 }
 
 // Fast-path choices here are based on frequency data from SunSpider:

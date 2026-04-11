@@ -44,6 +44,7 @@
 #include "WorkerGlobalScope.h"
 #include "WorkerLoaderProxy.h"
 #include "WorkerThread.h"
+#include <JavaScriptCore/HeapCellInlines.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/RunLoop.h>
 #include <wtf/text/MakeString.h>

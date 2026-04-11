@@ -124,6 +124,8 @@ void RealtimeOutgoingVideoSource::updateFramesSending()
 {
     double videoFrameScaling = 1.0;
     if (m_maxPixelCount && *m_maxPixelCount > 0) {
+        Locker lock(m_frameSizeLock);
+
         int counter = 0;
         while (videoFrameScaling * m_width * m_height > *m_maxPixelCount) {
             if (++counter % 2)
@@ -174,8 +176,11 @@ void RealtimeOutgoingVideoSource::sourceEnabledChanged()
 void RealtimeOutgoingVideoSource::initializeFromSource()
 {
     const auto& settings = m_videoSource->source().settings();
-    m_width = settings.width();
-    m_height = settings.height();
+    {
+        Locker lock(m_frameSizeLock);
+        m_width = settings.width();
+        m_height = settings.height();
+    }
 
     m_muted = m_videoSource->muted();
     m_enabled = m_videoSource->enabled();
@@ -226,10 +231,15 @@ void RealtimeOutgoingVideoSource::sendBlackFramesIfNeeded()
     if (!m_muted && m_enabled)
         return;
 
-    if (!m_width || !m_height)
-        return;
+    {
+        Locker locker(m_frameSizeLock);
+        if (!m_width || !m_height)
+            return;
+    }
 
     if (!m_blackFrame) {
+        Locker lock(m_frameSizeLock);
+
         auto width = m_width;
         auto height = m_height;
         if (!m_isApplyingRotation && (m_currentRotation == webrtc::kVideoRotation_270 || m_currentRotation == webrtc::kVideoRotation_90))
@@ -257,6 +267,8 @@ void RealtimeOutgoingVideoSource::sendFrame(webrtc::scoped_refptr<webrtc::VideoF
     MonotonicTime timestamp = MonotonicTime::now();
     webrtc::VideoFrame frame(buffer, m_isApplyingRotation ? webrtc::kVideoRotation_0 : m_currentRotation, static_cast<int64_t>(timestamp.secondsSinceEpoch().microseconds()));
 
+    // FIXME: set color space based on VideoFrame.
+
 #if !RELEASE_LOG_DISABLED
     ++m_frameCount;
 
@@ -273,6 +285,16 @@ void RealtimeOutgoingVideoSource::sendFrame(webrtc::scoped_refptr<webrtc::VideoF
     Locker locker { m_sinksLock };
     for (auto* sink : m_sinks)
         sink->OnFrame(frame);
+}
+
+bool RealtimeOutgoingVideoSource::GetStats(Stats* stats)
+{
+    Locker lock(m_frameSizeLock);
+    if (!stats || !m_width || !m_height)
+        return false;
+
+    *stats = { static_cast<int>(m_width), static_cast<int>(m_height) };
+    return true;
 }
 
 #if !RELEASE_LOG_DISABLED

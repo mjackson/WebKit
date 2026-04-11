@@ -71,22 +71,23 @@ public:
         setLabelInternal(m_label);
     }
 
-    virtual void update(const WebModel::UpdateMeshDescriptor&) = 0;
-    virtual void updateTexture(const WebModel::UpdateTextureDescriptor&) = 0;
-    virtual void updateMaterial(const WebModel::UpdateMaterialDescriptor&) = 0;
+    virtual void update(Vector<WebModel::UpdateMeshDescriptor>&&) = 0;
+    virtual void updateTexture(Vector<WebModel::UpdateTextureDescriptor>&&) = 0;
+    virtual void updateMaterial(Vector<WebModel::UpdateMaterialDescriptor>&&) = 0;
     virtual bool isRemoteMeshProxy() const { return false; }
     virtual bool isMeshImpl() const { return false; }
     virtual void setEntityTransform(const WebModel::Float4x4&) = 0;
     virtual bool supportsTransform(const WebCore::TransformationMatrix&) const { return false; }
     virtual void setScale(float) { }
-    virtual void setCameraDistance(float) = 0;
+    virtual void setFOV(float) { }
     virtual void setBackgroundColor(const WebModel::Float3&) { }
+    virtual void setViewportSize(float, float) { }
     virtual void setStageMode(WebCore::StageModeOperation) { }
     virtual void setRotation(float, float = 0.f, float = 0.f) { }
     virtual void play(bool) = 0;
     virtual void setEnvironmentMap(const WebModel::ImageAsset&) = 0;
 
-    virtual void render() = 0;
+    virtual void render(uint32_t textureIndex, Function<void(bool)>&&) = 0;
 #if PLATFORM(COCOA)
     virtual std::optional<WebModel::Float4x4> entityTransform() const = 0;
     virtual Vector<MachSendRight> ioSurfaceHandles() { return { }; }

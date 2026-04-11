@@ -35,6 +35,7 @@
 #include "GraphicsContext.h"
 #include "LayoutRect.h"
 #include "TextRun.h"
+#include "TextShapingResultAndDisplayList.h"
 #include "WidthIterator.h"
 #include <ranges>
 #include <wtf/MainThread.h>
@@ -68,9 +69,7 @@ static std::atomic<unsigned> lastFontCascadeGeneration { 0 };
 // FontCascade Implementation (Cross-Platform Portion)
 // ============================================================================================
 
-FontCascade::FontCascade()
-{
-}
+FontCascade::FontCascade() = default;
 
 FontCascade::FontCascade(FontCascadeDescription&& description)
     : m_fontDescription(WTF::move(description))
@@ -101,8 +100,8 @@ FontCascade::FontCascade(const FontCascade& other)
     , m_fontSelector(other.m_fontSelector)
     , m_generation(other.m_generation)
     , m_useBackslashAsYenSymbol(other.m_useBackslashAsYenSymbol)
-    , m_enableKerning(computeEnableKerning())
-    , m_requiresShaping(computeRequiresShaping())
+    , m_enableKerning(other.m_enableKerning)
+    , m_requiresShaping(other.m_requiresShaping)
 {
 }
 
@@ -129,8 +128,8 @@ bool FontCascade::operator==(const FontCascade& other) const
     if (m_fonts != other.m_fonts)
         return false;
 
-    if (!m_fonts || !other.m_fonts)
-        return false;
+    if (!m_fonts)
+        return true;
 
     if (fontSelector() != other.fontSelector())
         return false;
@@ -179,7 +178,7 @@ TextShapingResult FontCascade::layoutText(CodePath codePathToUse, const TextRun&
 {
     if (RefPtr fonts = this->fonts()) {
         if (auto* cached = fonts->getOrCreateCachedShapedText(run, *this, from, to, forTextEmphasis))
-            return *cached;
+            return cached->textShapingResult;
     }
 
     if (shouldUseComplexTextController(codePathToUse))
@@ -231,6 +230,13 @@ RefPtr<const DisplayList::DisplayList> FontCascade::displayListForTextRun(Graphi
 
     auto glyphBuffer = layoutText(codePathToUse, run, from, destination).glyphBuffer;
     glyphBuffer.flatten();
+
+    return displayListForGlyphBuffer(context, glyphBuffer, customFontNotReadyAction);
+}
+
+RefPtr<const DisplayList::DisplayList> FontCascade::displayListForGlyphBuffer(GraphicsContext& context, const GlyphBuffer& glyphBuffer,  CustomFontNotReadyAction customFontNotReadyAction) const
+{
+    ASSERT(!context.paintingDisabled());
 
     if (glyphBuffer.isEmpty())
         return nullptr;
@@ -440,16 +446,16 @@ float FontCascade::zeroWidth() const
 
 GlyphData FontCascade::glyphDataForCharacter(char32_t c, bool mirror, FontVariant variant, std::optional<ResolvedEmojiPolicy> resolvedEmojiPolicy) const
 {
-    if (variant == AutoVariant) {
+    if (variant == FontVariant::Auto) {
         if (m_fontDescription.variantCaps() == FontVariantCaps::Small) {
             char32_t upperC = u_toupper(c);
             if (upperC != c) {
                 c = upperC;
-                variant = SmallCapsVariant;
+                variant = FontVariant::SmallCaps;
             } else
-                variant = NormalVariant;
+                variant = FontVariant::Normal;
         } else
-            variant = NormalVariant;
+            variant = FontVariant::Normal;
     }
 
     if (mirror)
@@ -468,7 +474,7 @@ bool FontCascade::canUseSimplifiedTextMeasuring(char32_t character, FontVariant 
 
     // We cache whitespaceIsCollapsed = true result. false case is handled above.
     whitespaceIsCollapsed = true;
-    bool isCacheable = fontVariant == AutoVariant && isLatin1(character);
+    bool isCacheable = fontVariant == FontVariant::Auto && isLatin1(character);
     size_t baseIndex = static_cast<size_t>(character) * bitsPerCharacterInCanUseSimplifiedTextMeasuringForAutoVariantCache;
     if (isCacheable) {
         static_assert(0 < bitsPerCharacterInCanUseSimplifiedTextMeasuringForAutoVariantCache);
@@ -500,7 +506,7 @@ bool FontCascade::hasValidAverageCharWidth() const
 {
     ASSERT(isMainThread());
 
-    const AtomString& family = firstFamily();
+    const auto& family = firstFamily().name;
     if (family.isEmpty())
         return false;
 
@@ -1345,7 +1351,7 @@ bool FontCascade::isLoadingCustomFonts() const
 
 bool FontCascade::computeUseBackslashAsYenSymbol() const
 {
-    return protect(FontCache::forCurrentThread())->useBackslashAsYenSignForFamily(m_fontDescription.firstFamily());
+    return protect(FontCache::forCurrentThread())->useBackslashAsYenSignForFamily(m_fontDescription.firstFamily().name);
 }
 
 enum class GlyphUnderlineType : uint8_t {
@@ -1421,7 +1427,7 @@ std::optional<GlyphData> FontCascade::getEmphasisMarkGlyphData(const AtomString&
     } else
         character = mark[0];
 
-    std::optional<GlyphData> glyphData(glyphDataForCharacter(character, false, EmphasisMarkVariant));
+    std::optional<GlyphData> glyphData(glyphDataForCharacter(character, false, FontVariant::EmphasisMark));
     return glyphData.value().isValid() ? glyphData : std::nullopt;
 }
 
@@ -1461,13 +1467,6 @@ const Font* FontCascade::fontForEmphasisMark(const AtomString& mark) const
 
     ASSERT(markGlyphData->font);
     return markGlyphData->font.get();
-}
-
-int FontCascade::emphasisMarkHeight(const AtomString& mark) const
-{
-    if (RefPtr font = fontForEmphasisMark(mark))
-        return font->fontMetrics().intHeight();
-    return { };
 }
 
 float FontCascade::floatEmphasisMarkHeight(const AtomString& mark) const
@@ -1647,12 +1646,6 @@ void FontCascade::drawEmphasisMarks(GraphicsContext& context, const GlyphBuffer&
     drawGlyphBuffer(context, markBuffer, startPoint, CustomFontNotReadyAction::DoNotPaintIfFontNotReady);
 }
 
-float FontCascade::widthForCharacterInRun(const TextRun& run, unsigned characterPosition) const
-{
-    auto shortenedRun = run.subRun(characterPosition, 1);
-    return width(codePath(run), shortenedRun);
-}
-
 void FontCascade::adjustSelectionRectForSimpleText(const TextRun& run, LayoutRect& selectionRect, unsigned from, unsigned to) const
 {
     GlyphBuffer glyphBuffer;
@@ -1758,7 +1751,7 @@ RefPtr<const Font> FontCascade::fontForCombiningCharacterSequence(StringView str
 {
     ASSERT(stringView.length() > 0);
     char32_t baseCharacter = *stringView.codePoints().begin();
-    GlyphData baseCharacterGlyphData = glyphDataForCharacter(baseCharacter, false, NormalVariant);
+    GlyphData baseCharacterGlyphData = glyphDataForCharacter(baseCharacter, false, FontVariant::Normal);
 
     if (!baseCharacterGlyphData.isValid())
         return nullptr;

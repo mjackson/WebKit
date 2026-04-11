@@ -39,9 +39,9 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(LibWebRTCRtpTransceiverBackend);
 
-UniqueRef<LibWebRTCRtpReceiverBackend> LibWebRTCRtpTransceiverBackend::createReceiverBackend()
+LibWebRTCRtpReceiverBackendAndSource LibWebRTCRtpTransceiverBackend::createReceiverBackend(Document& document)
 {
-    return makeUniqueRef<LibWebRTCRtpReceiverBackend>(toRef(m_rtcTransceiver->receiver()));
+    return LibWebRTCRtpReceiverBackend::create(document, toRef(m_rtcTransceiver->receiver()));
 }
 
 Ref<LibWebRTCRtpSenderBackend> LibWebRTCRtpTransceiverBackend::createSenderBackend(LibWebRTCPeerConnectionBackend& backend, LibWebRTCRtpSenderBackend::Source&& source)

@@ -99,6 +99,7 @@
 #import <WebCore/ValidationBubble.h>
 #import <WebCore/VideoPresentationInterfaceIOS.h>
 #import <WebCore/WebTextIndicatorLayer.h>
+#import <pal/spi/cocoa/FeatureFlagsSPI.h>
 #import <pal/spi/cocoa/LaunchServicesSPI.h>
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
 #import <pal/spi/ios/BrowserEngineKitSPI.h>
@@ -1501,6 +1502,27 @@ void WebPageProxy::setSelectionForActiveWritingToolsSession(const WebCore::Chara
     protect(legacyMainFrameProcess())->sendWithAsyncReply(Messages::WebPage::SetSelectionForActiveWritingToolsSession(rangeRelativeToSessionRange), WTF::move(completionHandler), webPageIDInMainFrameProcess());
 }
 
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+void WebPageProxy::addTextEffectForID(IPC::Connection& connection, const WTF::UUID& uuid, WebCore::TextEffectData&& data, RefPtr<WebCore::TextIndicator>&& textIndicator, RefPtr<WebCore::TextIndicator>&& decorationIndicator)
+{
+    MESSAGE_CHECK(uuid.isValid(), connection);
+
+    internals().textIndicatorForAnimationID.add(uuid, textIndicator);
+    internals().decorationIndicatorForAnimationID.add(uuid, decorationIndicator);
+
+    if (RefPtr pageClient = this->pageClient())
+        pageClient->addTextEffectForID(uuid, WTF::move(data));
+}
+
+void WebPageProxy::removeTextEffectForID(IPC::Connection& connection, const WTF::UUID& uuid)
+{
+    MESSAGE_CHECK(uuid.isValid(), connection);
+
+    if (RefPtr pageClient = this->pageClient())
+        pageClient->removeTextEffectForID(uuid);
+}
+#endif // ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+
 void WebPageProxy::addTextAnimationForAnimationID(IPC::Connection& connection, const WTF::UUID& uuid, const WebCore::TextAnimationData& styleData, const RefPtr<WebCore::TextIndicator> textIndicator)
 {
     addTextAnimationForAnimationIDWithCompletionHandler(connection, uuid, styleData, textIndicator, { });
@@ -1596,6 +1618,46 @@ void WebPageProxy::didEndPartialIntelligenceTextAnimation(IPC::Connection&)
 {
     didEndPartialIntelligenceTextAnimationImpl();
 }
+
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+void WebPageProxy::updateUnderlyingTextVisibilityForTextEffectID(const WTF::UUID& uuid, bool visible, CompletionHandler<void()>&& completionHandler)
+{
+    if (!hasRunningProcess()) {
+        completionHandler();
+        return;
+    }
+
+    protect(legacyMainFrameProcess())->sendWithAsyncReply(Messages::WebPage::UpdateUnderlyingTextVisibilityForTextEffectID(uuid, visible), WTF::move(completionHandler), webPageIDInMainFrameProcess());
+}
+
+void WebPageProxy::textIndicatorForTextEffectID(const WTF::UUID& uuid, CompletionHandler<void(RefPtr<WebCore::TextIndicator>&&)>&& completionHandler)
+{
+    if (!hasRunningProcess()) {
+        completionHandler(nullptr);
+        return;
+    }
+
+    auto maybeTextIndicator = internals().textIndicatorForAnimationID.takeOptional(uuid);
+    if (RefPtr textIndicator = maybeTextIndicator.value_or(nullptr)) {
+        completionHandler(WTF::move(textIndicator));
+        return;
+    }
+
+    // Fallback if we are missing the indicator.
+    protect(legacyMainFrameProcess())->sendWithAsyncReply(Messages::WebPage::CreateTextIndicatorForTextEffectID(uuid), WTF::move(completionHandler), webPageIDInMainFrameProcess());
+}
+
+void WebPageProxy::decorationIndicatorForTextEffectID(const WTF::UUID& uuid, CompletionHandler<void(RefPtr<WebCore::TextIndicator>&&)>&& completionHandler)
+{
+    if (!hasRunningProcess()) {
+        completionHandler(nullptr);
+        return;
+    }
+
+    RefPtr decorationIndicator = internals().decorationIndicatorForAnimationID.get(uuid);
+    completionHandler(WTF::move(decorationIndicator));
+}
+#endif // ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
 
 bool WebPageProxy::writingToolsTextReplacementsFinished()
 {
@@ -1915,11 +1977,11 @@ NSDictionary *WebPageProxy::getAccessibilityWebProcessDebugInfo()
     if (!sendResult.succeeded())
         return @{ };
 
-    auto [result] = sendResult.takeReplyOr(WebCore::AXDebugInfo({ 0, 0 }));
+    auto [result] = sendResult.takeReplyOr(WebCore::AXDebugInfo({ }));
 
     return @{
-        @"axIsEnabled": [NSNumber numberWithBool:result.isAccessibilityEnabled],
-        @"axIsThreadInitialized": [NSNumber numberWithBool:result.isAccessibilityThreadInitialized],
+        @"axIsEnabled": [NSNumber numberWithBool:!WebCore::isAccessibilityModeOff(result.accessibilityMode)],
+        @"axIsThreadInitialized": [NSNumber numberWithBool:result.accessibilityMode == WebCore::AccessibilityMode::AXThread],
         @"axLiveTree": result.liveTree.createNSString().get(),
         @"axIsolatedTree": result.isolatedTree.createNSString().get(),
         @"warnings": createNSArray(result.warnings).get(),
@@ -1938,12 +2000,12 @@ NSArray *WebPageProxy::getAccessibilityWebProcessDebugInfoForAllProcesses()
         if (!sendResult.succeeded())
             return;
 
-        auto [result] = sendResult.takeReplyOr(WebCore::AXDebugInfo({ 0, 0 }));
+        auto [result] = sendResult.takeReplyOr(WebCore::AXDebugInfo({ }));
 
         [allResults addObject:@{
             @"pid": [NSNumber numberWithInt:webProcess.processID()],
-            @"axIsEnabled": [NSNumber numberWithBool:result.isAccessibilityEnabled],
-            @"axIsThreadInitialized": [NSNumber numberWithBool:result.isAccessibilityThreadInitialized],
+            @"axIsEnabled": [NSNumber numberWithBool:!WebCore::isAccessibilityModeOff(result.accessibilityMode)],
+            @"axIsThreadInitialized": [NSNumber numberWithBool:result.accessibilityMode == WebCore::AccessibilityMode::AXThread],
             @"axLiveTree": result.liveTree.createNSString().get(),
             @"axIsolatedTree": result.isolatedTree.createNSString().get(),
             @"warnings": createNSArray(result.warnings).get(),

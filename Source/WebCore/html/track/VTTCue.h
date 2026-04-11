@@ -253,7 +253,7 @@ private:
         Align,
         Region
     };
-    CueSetting settingName(VTTScanner&);
+    CueSetting NODELETE settingName(VTTScanner&);
 
     void prepareToSpeak(SpeechSynthesis&, double, double, SpeakCueCompletionHandler&&) final;
     void beginSpeaking() final;

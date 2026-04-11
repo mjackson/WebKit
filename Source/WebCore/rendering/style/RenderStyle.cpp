@@ -117,7 +117,10 @@ RenderStyle RenderStyle::createAnonymousStyleWithDisplay(const RenderStyle& pare
 
 RenderStyle RenderStyle::createStyleInheritingFromPseudoStyle(const RenderStyle& pseudoStyle)
 {
-    ASSERT(pseudoStyle.pseudoElementType() == PseudoElementType::Before || pseudoStyle.pseudoElementType() == PseudoElementType::After || pseudoStyle.pseudoElementType() == PseudoElementType::Checkmark);
+    ASSERT(pseudoStyle.pseudoElementType() == PseudoElementType::Before
+        || pseudoStyle.pseudoElementType() == PseudoElementType::After
+        || pseudoStyle.pseudoElementType() == PseudoElementType::Checkmark
+        || pseudoStyle.pseudoElementType() == PseudoElementType::PickerIcon);
 
     auto style = create();
     style.inheritFrom(pseudoStyle);
@@ -400,9 +403,9 @@ Style::LineWidth RenderStyle::usedColumnRuleWidth() const
 Style::Length<> RenderStyle::usedOutlineOffset() const
 {
     auto& outline = m_computedStyle.outline();
-    if (static_cast<OutlineStyle>(outline.outlineStyle) == OutlineStyle::Auto)
-        return Style::Length<> { Style::evaluate<float>(outline.outlineOffset, Style::ZoomNeeded { }) + RenderTheme::platformFocusRingOffset(Style::evaluate<float>(outline.outlineWidth, Style::ZoomNeeded { })) };
-    return outline.outlineOffset;
+    if (outline.outlineOffset.isInternalInset())
+        return Style::Length<> { -Style::evaluate<float>(usedOutlineWidth(), Style::ZoomNeeded { }) };
+    return *outline.outlineOffset.tryLength();
 }
 
 Style::LineWidth RenderStyle::usedOutlineWidth() const
@@ -411,7 +414,7 @@ Style::LineWidth RenderStyle::usedOutlineWidth() const
     if (static_cast<OutlineStyle>(outline.outlineStyle) == OutlineStyle::None)
         return 0_css_px;
     if (static_cast<OutlineStyle>(outline.outlineStyle) == OutlineStyle::Auto)
-        return Style::LineWidth { std::max(Style::evaluate<float>(outline.outlineWidth, Style::ZoomNeeded { }), RenderTheme::platformFocusRingWidth()) };
+        return Style::LineWidth { RenderTheme::singleton().platformFocusRingWidth() * usedZoom() };
     return outline.outlineWidth;
 }
 

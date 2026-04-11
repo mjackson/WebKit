@@ -49,7 +49,7 @@ GridTemplateList::GridTemplateList(GridTrackList&& entries)
         return;
 
     auto createGridLineNamesList = [](const auto& names, auto currentNamedGridLine, auto& namedGridLines, auto& orderedNamedGridLines) {
-        auto orderedResult = orderedNamedGridLines.map.add(currentNamedGridLine, Vector<String>());
+        auto orderedResult = orderedNamedGridLines.map.add(currentNamedGridLine, Vector<CustomIdent>());
         for (auto& name : names) {
             auto result = namedGridLines.map.add(name, Vector<unsigned> { });
             result.iterator->value.append(currentNamedGridLine);
@@ -66,7 +66,7 @@ GridTemplateList::GridTemplateList(GridTrackList&& entries)
                 ++currentNamedGridLine;
                 sizes.append(size);
             },
-            [&](const Vector<String>& names) {
+            [&](const Vector<CustomIdent>& names) {
                 createGridLineNamesList(names, currentNamedGridLine, namedLines, orderedNamedLines);
                 // Subgrids only have line names defined, not track sizes, so we want our count
                 // to be the number of lines named rather than number of sized tracks.
@@ -76,8 +76,8 @@ GridTemplateList::GridTemplateList(GridTrackList&& entries)
             [&](const GridTrackEntryRepeat& repeat) {
                 for (size_t i = 0; i < repeat.repeats; ++i) {
                     for (auto& repeatEntry : repeat.list) {
-                        if (std::holds_alternative<Vector<String>>(repeatEntry)) {
-                            createGridLineNamesList(std::get<Vector<String>>(repeatEntry), currentNamedGridLine, namedLines, orderedNamedLines);
+                        if (std::holds_alternative<Vector<CustomIdent>>(repeatEntry)) {
+                            createGridLineNamesList(std::get<Vector<CustomIdent>>(repeatEntry), currentNamedGridLine, namedLines, orderedNamedLines);
                             // Subgrids only have line names defined, not track sizes, so we want our count
                             // to be the number of lines named rather than number of sized tracks.
                             if (subgrid)
@@ -94,8 +94,8 @@ GridTemplateList::GridTemplateList(GridTrackList&& entries)
                 autoRepeatIndex = 0;
                 autoRepeatType = repeat.type;
                 for (auto& autoRepeatEntry : repeat.list) {
-                    if (std::holds_alternative<Vector<String>>(autoRepeatEntry)) {
-                        createGridLineNamesList(std::get<Vector<String>>(autoRepeatEntry), autoRepeatIndex, autoRepeatNamedLines, autoRepeatOrderedNamedLines);
+                    if (std::holds_alternative<Vector<CustomIdent>>(autoRepeatEntry)) {
+                        createGridLineNamesList(std::get<Vector<CustomIdent>>(autoRepeatEntry), autoRepeatIndex, autoRepeatNamedLines, autoRepeatOrderedNamedLines);
                         if (subgrid)
                             ++autoRepeatIndex;
                         continue;
@@ -145,8 +145,8 @@ auto CSSValueConversion<GridTemplateList>::operator()(BuilderState& state, const
     auto ensureLineNames = [&](auto& list) {
         if (subgridValue)
             return;
-        if (list.isEmpty() || !std::holds_alternative<Vector<String>>(list.last()))
-            list.append(Vector<String>());
+        if (list.isEmpty() || !std::holds_alternative<Vector<CustomIdent>>(list.last()))
+            list.append(Vector<CustomIdent>());
     };
 
     auto buildRepeatList = [&](const CSSValue& repeatValue, RepeatTrackList& repeatList) {
@@ -156,7 +156,7 @@ auto CSSValueConversion<GridTemplateList>::operator()(BuilderState& state, const
 
         for (Ref currentValue : *vectorValue) {
             if (RefPtr namesValue = dynamicDowncast<CSSGridLineNamesValue>(currentValue))
-                repeatList.append(Vector<String>(namesValue->names()));
+                repeatList.append(toStyle(namesValue->names(), state).value);
             else {
                 ensureLineNames(repeatList);
                 repeatList.append(toStyleFromCSSValue<GridTrackSize>(state, currentValue));
@@ -169,7 +169,7 @@ auto CSSValueConversion<GridTemplateList>::operator()(BuilderState& state, const
 
     auto addOne = [&](const CSSValue& currentValue) {
         if (RefPtr namesValue = dynamicDowncast<CSSGridLineNamesValue>(currentValue)) {
-            trackList.append(Vector<String>(namesValue->names()));
+            trackList.append(toStyle(namesValue->names(), state).value);
             return;
         }
 
@@ -220,11 +220,11 @@ static RepeatTrackList blendRepeatList(const RepeatTrackList& from, const Repeat
         [&](const GridTrackSize& size) {
             result.append(Style::blend(size, std::get<GridTrackSize>(to[i]), context));
         },
-        [&](const Vector<String>& names) {
+        [&](const Vector<CustomIdent>& names) {
             if (context.progress < 0.5)
                 result.append(names);
             else
-                result.append(std::get<Vector<String>>(to[i]));
+                result.append(std::get<Vector<CustomIdent>>(to[i]));
         }
     );
 
@@ -244,8 +244,8 @@ auto Blending<GridTemplateList>::canBlend(const GridTemplateList& from, const Gr
         [&](const GridTrackSize&) {
             return std::holds_alternative<GridTrackSize>(to.list[i]);
         },
-        [&](const Vector<String>&) {
-            return std::holds_alternative<Vector<String>>(to.list[i]);
+        [&](const Vector<CustomIdent>&) {
+            return std::holds_alternative<Vector<CustomIdent>>(to.list[i]);
         },
         [&](const GridTrackEntryRepeat& repeat) {
             if (!std::holds_alternative<GridTrackEntryRepeat>(to.list[i]))
@@ -281,11 +281,11 @@ auto Blending<GridTemplateList>::blend(const GridTemplateList& from, const GridT
         [&](const GridTrackSize& size) {
             result.append(Style::blend(size, std::get<GridTrackSize>(to.list[i]), context));
         },
-        [&](const Vector<String>& names) {
+        [&](const Vector<CustomIdent>& names) {
             if (context.progress < 0.5)
                 result.append(names);
             else
-                result.append(std::get<Vector<String>>(to.list[i]));
+                result.append(std::get<Vector<CustomIdent>>(to.list[i]));
         },
         [&](const GridTrackEntryRepeat& repeatFrom) {
             auto& repeatTo = std::get<GridTrackEntryRepeat>(to.list[i]);
@@ -324,7 +324,7 @@ TextStream& operator<<(TextStream& ts, const RepeatEntry& entry)
         [&](const GridTrackSize& size) {
             ts << size;
         },
-        [&](const Vector<String>& names) {
+        [&](const Vector<CustomIdent>& names) {
             ts << names;
         }
     );
@@ -337,7 +337,7 @@ TextStream& operator<<(TextStream& ts, const GridTrackEntry& entry)
         [&](const GridTrackSize& size) {
             ts << size;
         },
-        [&](const Vector<String>& names) {
+        [&](const Vector<CustomIdent>& names) {
             ts << names;
         },
         [&](const GridTrackEntryRepeat& repeat) {

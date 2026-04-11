@@ -145,7 +145,7 @@ protected:
     bool dispatchMessage(IPC::Connection&, IPC::Decoder&);
     bool dispatchSyncMessage(IPC::Connection&, IPC::Decoder&, UniqueRef<IPC::Encoder>&);
 
-#if OS(LINUX)
+#if OS(LINUX) && !OS(ANDROID)
     void didReceiveMemoryPressureEvent(bool isCritical);
 #endif
 

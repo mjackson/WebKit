@@ -407,7 +407,6 @@ private:
     WEBCORE_EXPORT SharedBufferBuilder(const SharedBufferBuilder&);
     WEBCORE_EXPORT SharedBufferBuilder& operator=(const SharedBufferBuilder&);
 
-    WEBCORE_EXPORT void initialize(Ref<FragmentedSharedBuffer>&&);
     WEBCORE_EXPORT void updateBufferIfNeeded() const;
     WEBCORE_EXPORT void appendDataSegment(Ref<DataSegment>&&);
     WEBCORE_EXPORT Ref<FragmentedSharedBuffer> createBuffer() const;
@@ -454,10 +453,11 @@ inline bool SharedBuffer::isSpanWithinBounds(std::span<T> otherSpan) const
 {
     auto thisSpan = this->span();
     auto otherByteSpan = asByteSpan(otherSpan);
-    if (std::to_address(otherByteSpan.end()) < std::to_address(thisSpan.begin()))
-        return false;
-    size_t offset = std::to_address(otherByteSpan.end()) - std::to_address(thisSpan.begin());
-    return offset <= size(); // "<=" because end is included as valid.
+    auto* thisBegin = std::to_address(thisSpan.begin());
+    auto* thisEnd = std::to_address(thisSpan.end());
+    auto* otherBegin = std::to_address(otherByteSpan.begin());
+    auto* otherEnd = std::to_address(otherByteSpan.end());
+    return otherBegin >= thisBegin && otherEnd <= thisEnd;
 }
 
 } // namespace WebCore

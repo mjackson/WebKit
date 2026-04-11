@@ -444,6 +444,7 @@ constexpr char kBatchId[]                        = "--batch-id=";
 constexpr char kDelayTestStart[]                 = "--delay-test-start=";
 constexpr char kRenderDoc[]                      = "--renderdoc";
 constexpr char kNoRenderDoc[]                    = "--no-renderdoc";
+constexpr char kDisableDebugLayers[]             = "--disable-debug-layers";
 
 void SetupEnvironmentVarsForCaptureReplay()
 {
@@ -542,10 +543,18 @@ ANGLETestBase::ANGLETestBase(const PlatformParameters &params)
     if (withMethods.getRenderer() == EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE)
     {
 #if defined(ANGLE_ENABLE_VULKAN_VALIDATION_LAYERS)
-        withMethods.eglParameters.debugLayersEnabled = true;
+        withMethods.eglParameters.debugLayersEnabled = EGL_TRUE;
 #else
-        withMethods.eglParameters.debugLayersEnabled = false;
+        withMethods.eglParameters.debugLayersEnabled = EGL_FALSE;
 #endif
+    }
+    else
+    {
+        if (withMethods.eglParameters.debugLayersEnabled == EGL_DONT_CARE)
+        {
+            withMethods.eglParameters.debugLayersEnabled =
+                gDisableDebugLayers ? EGL_FALSE : EGL_TRUE;
+        }
     }
 
     if (gEnableRenderDocCapture)
@@ -1616,6 +1625,11 @@ void ANGLETestBase::setConfigStencilBits(int bits)
     mFixture->configParams.stencilBits = bits;
 }
 
+void ANGLETestBase::setConfigColorSpace(EGLenum colorSpace)
+{
+    mFixture->configParams.colorSpace = colorSpace;
+}
+
 void ANGLETestBase::setConfigComponentType(EGLenum componentType)
 {
     mFixture->configParams.componentType = componentType;
@@ -1669,6 +1683,11 @@ void ANGLETestBase::setClientArraysEnabled(bool enabled)
 void ANGLETestBase::setRobustResourceInit(bool enabled)
 {
     mFixture->configParams.robustResourceInit = enabled;
+}
+
+void ANGLETestBase::setPbuffer(bool enabled)
+{
+    mFixture->configParams.pbuffer = enabled;
 }
 
 void ANGLETestBase::setMutableRenderBuffer(bool enabled)
@@ -1893,6 +1912,10 @@ void ANGLEProcessTestArgs(int *argc, char *argv[])
         else if (strncmp(argv[argIndex], kNoRenderDoc, strlen(kNoRenderDoc)) == 0)
         {
             gEnableRenderDocCapture = false;
+        }
+        else if (strncmp(argv[argIndex], kDisableDebugLayers, strlen(kDisableDebugLayers)) == 0)
+        {
+            gDisableDebugLayers = true;
         }
     }
 }

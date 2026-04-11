@@ -87,7 +87,7 @@ public:
     void replaceTrack(RefPtr<MediaStreamTrack>&&, Ref<DeferredPromise>&&);
 
     RTCRtpSendParameters getParameters();
-    void setParameters(const RTCRtpSendParameters&, DOMPromiseDeferred<void>&&);
+    void setParameters(RTCRtpSendParameters&&, DOMPromiseDeferred<void>&&);
 
     RTCRtpSenderBackend& backend() { return m_backend.get(); }
     std::unique_ptr<RTCDtlsTransportBackend> dtlsTransportBackend();

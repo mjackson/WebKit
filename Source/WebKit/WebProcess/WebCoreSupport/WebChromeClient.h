@@ -140,6 +140,7 @@ private:
     WebCore::IntRect rootViewToAccessibilityScreen(const WebCore::IntRect&) const final;
 #if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
     void requestFrameScreenPosition(WebCore::FrameIdentifier) const final;
+    void scheduleAccessibilityFrameGeometryUpdate() const final;
 #endif
 
     void mainFrameDidChange() final;
@@ -560,6 +561,11 @@ private:
     void saveSnapshotOfTextPlaceholderForAnimation(const WebCore::SimpleRange&);
 
     void clearAnimationsForActiveWritingToolsSession() final;
+
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    void addTextEffectForID(const WTF::UUID&, WebCore::TextEffectData&&, RefPtr<WebCore::TextIndicator>&&, RefPtr<WebCore::TextIndicator>&&) final;
+    void removeTextEffectForID(const WTF::UUID&) final;
+#endif
 #endif
 
     WebCore::HTMLFrameOwnerElement* frameOwnerElementForFrameID(WebCore::FrameIdentifier) const final;

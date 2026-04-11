@@ -1,6 +1,6 @@
 /*
  *  Copyright (C) 1999-2000 Harri Porten (porten@kde.org)
- *  Copyright (C) 2003-2024 Apple Inc. All rights reserved.
+ *  Copyright (C) 2003-2024, 2026 Apple Inc. All rights reserved.
  *  Copyright (C) 2003 Peter Kelly (pmk@post.com)
  *  Copyright (C) 2006 Alexey Proskuryakov (ap@nypop.com)
  *
@@ -236,9 +236,11 @@ ALWAYS_INLINE JSString* fastArrayJoin(JSGlobalObject* globalObject, JSObject* th
     return fastArrayJoin(globalObject, thisObject, separator, length, sawHoles, genericCase);
 }
 
-inline bool canUseDefaultArrayJoinForToString(JSObject* thisObject)
+inline bool NODELETE canUseDefaultArrayJoinForToString(JSObject* thisObject)
 {
-    JSGlobalObject* globalObject = thisObject->globalObject();
+    JSGlobalObject* globalObject = thisObject->realmMayBeNull();
+    if (!globalObject)
+        return false;
 
     if (!globalObject->arrayJoinWatchpointSet().isStillValid())
         return false;
@@ -777,7 +779,7 @@ JSC_DEFINE_HOST_FUNCTION(arrayProtoFuncSlice, (JSGlobalObject* globalObject, Cal
     return JSValue::encode(result);
 }
 
-using SortJSValueVector = MarkedVector<JSValue, 64, RecordOverflow>;
+using SortJSValueVector = MarkedArgumentBufferWithSize<64>;
 using SortEntryVector = Vector<std::tuple<JSValue, String>>;
 
 static ALWAYS_INLINE std::tuple<uint64_t, IndexingType, std::span<EncodedJSValue>> sortCompact(JSGlobalObject* globalObject, JSObject* thisObject, uint64_t length, SortJSValueVector& compactedRoot)
@@ -888,7 +890,7 @@ static unsigned sortBucketSort(std::span<EncodedJSValue> sorted, unsigned dst, S
             continue;
         }
 
-        char16_t character = std::get<1>(entry).characterAt(depth);
+        char16_t character = std::get<1>(entry).codeUnitAt(depth);
         buckets.insert(std::pair { character, SortEntryVector { } }).first->second.append(entry);
     }
 
@@ -898,7 +900,7 @@ static unsigned sortBucketSort(std::span<EncodedJSValue> sorted, unsigned dst, S
     return dst;
 }
 
-static ALWAYS_INLINE std::span<EncodedJSValue> sortStableSort(JSGlobalObject* globalObject, std::span<EncodedJSValue> sorted, std::span<EncodedJSValue> compacted, JSObject* comparator)
+static ALWAYS_INLINE std::span<EncodedJSValue> sortStableSort(JSGlobalObject* globalObject, std::span<EncodedJSValue> compacted, std::span<EncodedJSValue> workingSet, JSObject* comparator)
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -908,8 +910,8 @@ static ALWAYS_INLINE std::span<EncodedJSValue> sortStableSort(JSGlobalObject* gl
 
     if (callData.type == CallData::Type::JS) [[likely]] {
         CachedCall cachedCall(globalObject, jsCast<JSFunction*>(comparator), 2);
-        RETURN_IF_EXCEPTION(scope, sorted);
-        RELEASE_AND_RETURN(scope, arrayStableSort(vm, compacted, sorted, [&](auto left, auto right) ALWAYS_INLINE_LAMBDA {
+        RETURN_IF_EXCEPTION(scope, compacted);
+        RELEASE_AND_RETURN(scope, arrayStableSort(vm, compacted, workingSet, [&](auto left, auto right) ALWAYS_INLINE_LAMBDA {
             auto scope = DECLARE_THROW_SCOPE(vm);
 
             JSValue jsResult = cachedCall.callWithArguments(globalObject, jsUndefined(), JSValue::decode(left), JSValue::decode(right));
@@ -920,7 +922,7 @@ static ALWAYS_INLINE std::span<EncodedJSValue> sortStableSort(JSGlobalObject* gl
     }
 
     MarkedArgumentBuffer args;
-    RELEASE_AND_RETURN(scope, arrayStableSort(vm, compacted, sorted, [&](auto left, auto right) ALWAYS_INLINE_LAMBDA {
+    RELEASE_AND_RETURN(scope, arrayStableSort(vm, compacted, workingSet, [&](auto left, auto right) ALWAYS_INLINE_LAMBDA {
         auto scope = DECLARE_THROW_SCOPE(vm);
 
         args.clear();
@@ -1020,7 +1022,7 @@ static ALWAYS_INLINE void sortImpl(JSGlobalObject* globalObject, JSObject* thisO
         sortBucketSort(sorted, 0, entries, 0);
         dest = sorted;
     } else {
-        dest = sortStableSort(globalObject, sorted, compacted, asObject(comparatorValue));
+        dest = sortStableSort(globalObject, compacted, sorted, asObject(comparatorValue));
         RETURN_IF_EXCEPTION(scope, void());
     }
 

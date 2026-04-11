@@ -322,7 +322,7 @@ public:
     };
 #endif
 
-    WebExtensionContextIdentifier privilegedIdentifier() const;
+    WebExtensionContextIdentifier NODELETE privilegedIdentifier() const;
 
     WebExtensionContextParameters parameters(IncludePrivilegedIdentifier) const;
 

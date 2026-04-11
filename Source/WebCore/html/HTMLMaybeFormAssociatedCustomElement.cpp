@@ -29,6 +29,7 @@
 #include "Document.h"
 #include "ElementRareData.h"
 #include "FormAssociatedCustomElement.h"
+#include "ShadowRoot.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {

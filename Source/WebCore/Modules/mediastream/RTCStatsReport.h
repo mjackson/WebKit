@@ -31,6 +31,7 @@
 #include <WebCore/RTCIceServerTransportProtocol.h>
 #include <WebCore/RTCIceTcpCandidateType.h>
 #include "RTCIceTransportState.h"
+#include <wtf/Function.h>
 #include <wtf/KeyValuePair.h>
 #include <wtf/RefCounted.h>
 #include <wtf/text/WTFString.h>

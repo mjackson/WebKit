@@ -50,6 +50,7 @@ bindings/js/StructuredClone.cpp
 css/CSSStyleSheet.cpp
 css/SelectorChecker.cpp
 css/ShorthandSerializer.cpp
+css/values/CSSValueAggregates.h
 dom/Position.cpp
 dom/Range.cpp
 dom/SpaceSplitString.cpp
@@ -106,6 +107,8 @@ rendering/RenderTreeAsText.cpp
 rendering/cocoa/RenderThemeCocoa.mm
 [ iOS ] rendering/ios/RenderThemeIOS.mm
 rendering/svg/legacy/LegacyRenderSVGTransformableContainer.cpp
+rendering/updating/RenderTreeBuilderFirstLetter.cpp
+style/ElementRuleCollector.cpp
 style/MatchResultCache.cpp
 style/PageRuleCollector.cpp
 style/RuleSetBuilder.cpp

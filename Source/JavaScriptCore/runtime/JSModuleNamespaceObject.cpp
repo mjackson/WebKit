@@ -55,7 +55,7 @@ void JSModuleNamespaceObject::finishCreation(JSGlobalObject* globalObject, Abstr
     //
     // Sort the exported names by the code point order.
     std::ranges::sort(resolutions, WTF::codePointCompareLessThan, [](const auto& resolution) {
-        return resolution.first.impl();
+        return StringView(resolution.first.impl());
     });
 
     m_moduleRecord.set(vm, this, moduleRecord);

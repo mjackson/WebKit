@@ -31,9 +31,11 @@
 #include "Chrome.h"
 #include "ChromeClient.h"
 #include "DocumentLoader.h"
+#include "DocumentPage.h"
 #include "DocumentSettingsValues.h"
 #include "DocumentView.h"
 #include "EventNames.h"
+#include "FrameDestructionObserverInlines.h"
 #include "FrameLoader.h"
 #include "HTMLBodyElement.h"
 #include "HTMLEmbedElement.h"
@@ -124,7 +126,7 @@ void MediaDocumentParser::createDocumentStructure()
     if (!frame)
         return;
 
-    protect(frame->loader().activeDocumentLoader())->setMainResourceDataBufferingPolicy(DataBufferingPolicy::DoNotBufferData);
+    frame->loader().activeDocumentLoader()->setMainResourceDataBufferingPolicy(DataBufferingPolicy::DoNotBufferData);
     frame->loader().setOutgoingReferrer(document->completeURL(m_outgoingReferrer));
 }
 

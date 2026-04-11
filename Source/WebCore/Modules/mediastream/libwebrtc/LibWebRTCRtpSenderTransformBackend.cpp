@@ -45,9 +45,7 @@ LibWebRTCRtpSenderTransformBackend::LibWebRTCRtpSenderTransformBackend(Ref<webrt
 {
 }
 
-LibWebRTCRtpSenderTransformBackend::~LibWebRTCRtpSenderTransformBackend()
-{
-}
+LibWebRTCRtpSenderTransformBackend::~LibWebRTCRtpSenderTransformBackend() = default;
 
 void LibWebRTCRtpSenderTransformBackend::setTransformableFrameCallback(Callback&& callback)
 {

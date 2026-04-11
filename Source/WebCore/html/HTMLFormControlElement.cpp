@@ -45,6 +45,7 @@
 #include "RenderBox.h"
 #include "RenderStyle+GettersInlines.h"
 #include "RenderTheme.h"
+#include "ScriptTrackingPrivacyCategory.h"
 #include "SelectionRestorationMode.h"
 #include "Settings.h"
 #include "StyleTreeResolver.h"
@@ -160,15 +161,6 @@ void HTMLFormControlElement::disabledStateChanged()
     ValidatedFormListedElement::disabledStateChanged();
     if (CheckedPtr renderer = this->renderer(); renderer && renderer->style().hasUsedAppearance())
         renderer->repaint();
-}
-
-void HTMLFormControlElement::readOnlyStateChanged()
-{
-    ValidatedFormListedElement::readOnlyStateChanged();
-
-    // Some input pseudo classes like :in-range/out-of-range change based on the readonly state.
-    // FIXME: Use PseudoClassChangeInvalidation instead for :has() support and more efficiency.
-    invalidateStyleForSubtree();
 }
 
 void HTMLFormControlElement::requiredStateChanged()

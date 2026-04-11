@@ -55,7 +55,7 @@ template<> ConversionResult<IDLDictionary<TestDictionary>> convertDictionary<Tes
         throwTypeError(&lexicalGlobalObject, throwScope);
         return ConversionResultException { };
     }
-    auto guardedMemberConversionResult = [&]() -> ConversionResult<IDLOptional<IDLBoolean>> {
+    auto guardedMemberConversionResult = [&] -> ConversionResult<IDLOptional<IDLBoolean>> {
         if (worldForDOMObject(*&lexicalGlobalObject).someWorld()) {
             JSValue guardedMemberValue;
             if (isNullOrUndefined)

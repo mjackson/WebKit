@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <WebCore/StyleCustomIdent.h>
 #include <WebCore/StyleScopeOrdinal.h>
 #include <WebCore/StyleValueTypes.h>
 
@@ -51,7 +52,7 @@ struct NameScope {
     {
     }
 
-    NameScope(CommaSeparatedListHashSet<CustomIdentifier>&& names, ScopeOrdinal scopeOrdinal)
+    NameScope(CommaSeparatedListHashSet<CustomIdent>&& names, ScopeOrdinal scopeOrdinal)
         : type { Type::Ident }
         , names { WTF::move(names) }
         , scopeOrdinal { scopeOrdinal }
@@ -59,7 +60,7 @@ struct NameScope {
     }
 
     Type type { Type::None };
-    CommaSeparatedListHashSet<CustomIdentifier> names;
+    CommaSeparatedListHashSet<CustomIdent> names;
     ScopeOrdinal scopeOrdinal { ScopeOrdinal::Element };
 
     template<typename... F> constexpr decltype(auto) switchOn(F&&...) const;

@@ -256,7 +256,7 @@ AffineTransform LegacyRenderSVGResourceContainer::transformOnNonScalingStroke(Re
         return resourceTransform;
 
     RefPtr element = downcast<SVGGraphicsElement>(object->node());
-    AffineTransform transform = element->getScreenCTM(DisallowStyleUpdate);
+    AffineTransform transform = element->getScreenCTM(StyleUpdateStrategy::Disallow);
     transform *= resourceTransform;
     return transform;
 }

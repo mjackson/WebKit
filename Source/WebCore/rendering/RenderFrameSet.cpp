@@ -515,7 +515,7 @@ void RenderFrameSet::positionFrames()
             child->setHeight(height);
 #if PLATFORM(IOS_FAMILY)
             // FIXME: Is this iOS-specific?
-            child->setNeedsLayout(MarkOnlyThis);
+            child->setNeedsLayout(MarkingBehavior::MarkOnlyThis);
 #else
             child->setNeedsLayout();
 #endif
@@ -565,7 +565,7 @@ bool RenderFrameSet::userResize(MouseEvent& event)
         if (needsLayout())
             return false;
         if (event.type() == eventNames().mousedownEvent && event.button() == MouseButton::Left) {
-            FloatPoint localPos = absoluteToLocal(event.absoluteLocation(), UseTransforms);
+            FloatPoint localPos = absoluteToLocal(event.absoluteLocation(), MapCoordinatesMode::UseTransforms);
             startResizing(m_cols, localPos.x());
             startResizing(m_rows, localPos.y());
             if (m_cols.m_splitBeingResized != noSplit || m_rows.m_splitBeingResized != noSplit) {
@@ -575,7 +575,7 @@ bool RenderFrameSet::userResize(MouseEvent& event)
         }
     } else {
         if (event.type() == eventNames().mousemoveEvent || (event.type() == eventNames().mouseupEvent && event.button() == MouseButton::Left)) {
-            FloatPoint localPos = absoluteToLocal(event.absoluteLocation(), UseTransforms);
+            FloatPoint localPos = absoluteToLocal(event.absoluteLocation(), MapCoordinatesMode::UseTransforms);
             continueResizing(m_cols, localPos.x());
             continueResizing(m_rows, localPos.y());
             if (event.type() == eventNames().mouseupEvent && event.button() == MouseButton::Left) {
@@ -655,11 +655,11 @@ CursorDirective RenderFrameSet::getCursor(const LayoutPoint& point, Cursor& curs
     IntPoint roundedPoint = roundedIntPoint(point);
     if (canResizeRow(roundedPoint)) {
         cursor = rowResizeCursor();
-        return SetCursor;
+        return CursorDirective::SetCursor;
     }
     if (canResizeColumn(roundedPoint)) {
         cursor = columnResizeCursor();
-        return SetCursor;
+        return CursorDirective::SetCursor;
     }
     return RenderBox::getCursor(point, cursor);
 }

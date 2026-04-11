@@ -243,7 +243,7 @@ inline void ComputedStyleProperties::setFontSynthesisSmallCaps(FontSynthesisLong
     setFontDescription(WTF::move(description));
 }
 
-inline void ComputedStyleProperties::setFontSynthesisStyle(FontSynthesisLonghandValue value)
+inline void ComputedStyleProperties::setFontSynthesisStyle(FontSynthesisStyleLonghandValue value)
 {
     auto description = fontDescription();
     description.setFontSynthesisStyle(value);

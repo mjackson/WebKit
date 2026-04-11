@@ -1,5 +1,5 @@
 Original text
 
 
-FAIL clipboard change during paste event handler promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
+FAIL clipboard change during paste event handler assert_equals: expected "New text" but got ""
 

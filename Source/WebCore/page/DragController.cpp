@@ -384,13 +384,13 @@ static RefPtr<HTMLInputElement> asFileInput(Node& node)
     return inputElement && inputElement->isFileUpload() ? inputElement : nullptr;
 }
 
-static bool isEnabledColorInput(Node& node)
+static bool NODELETE isEnabledColorInput(Node& node)
 {
     auto* input = dynamicDowncast<HTMLInputElement>(node);
     return input && input->isColorControl() && !input->isDisabledFormControl();
 }
 
-static bool isInShadowTreeOfEnabledColorInput(Node& node)
+static bool NODELETE isInShadowTreeOfEnabledColorInput(Node& node)
 {
     auto* host = node.shadowHost();
     return host && isEnabledColorInput(*host);
@@ -1381,7 +1381,7 @@ void DragController::beginDrag(DragItem dragItem, LocalFrame& frame, const IntPo
     client().beginDrag(WTF::move(dragItem), frame, mouseDownPointInRootViewCoordinates, mouseDraggedPointInRootViewCoordinates, dataTransfer, dragSourceAction);
 }
 
-static RefPtr<Element> containingLinkElement(Element& element)
+static RefPtr<Element> NODELETE containingLinkElement(Element& element)
 {
     for (auto& currentElement : lineageOfType<Element>(element)) {
         if (currentElement.isLink())

@@ -37,6 +37,7 @@
 #include "PathOperation.h"
 #include "RenderElementInlines.h"
 #include "RenderLayer.h"
+#include "RenderSVGText.h"
 #include "RenderView.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGGraphicsElement.h"

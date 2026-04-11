@@ -78,7 +78,7 @@ public:
         m_slowPathBegin = slowPathBegin;
     }
 
-    void finalize(
+    void NODELETE finalize(
         LinkBuffer& fastPathLinkBuffer, LinkBuffer& slowPathLinkBuffer,
         CodeLocationLabel<JITStubRoutinePtrTag> start);
 

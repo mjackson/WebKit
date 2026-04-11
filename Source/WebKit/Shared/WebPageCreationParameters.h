@@ -98,6 +98,7 @@
 namespace WebCore {
 enum class SandboxFlag : uint16_t;
 using SandboxFlags = OptionSet<SandboxFlag>;
+enum class AccessibilityMode : uint8_t;
 }
 
 namespace WebKit {
@@ -385,7 +386,7 @@ struct WebPageCreationParameters {
 
     bool isPopup { false };
 
-    bool accessibilityEnabled { false };
+    WebCore::AccessibilityMode accessibilityMode { };
     bool shouldForceSiteIsolationAlwaysOnForTesting { false };
 };
 

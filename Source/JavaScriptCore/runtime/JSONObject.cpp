@@ -111,9 +111,9 @@ private:
         Holder(JSGlobalObject*, JSObject*, Structure*);
         Holder(RootHolderTag, JSObject*);
 
-        JSObject* object() const { return m_object; }
-        bool isArray() const { return m_isArray; }
-        bool hasFastObjectProperties() const { return m_hasFastObjectProperties; }
+        JSObject* NODELETE object() const { return m_object; }
+        bool NODELETE isArray() const { return m_isArray; }
+        bool NODELETE hasFastObjectProperties() const { return m_hasFastObjectProperties; }
 
         bool appendNextProperty(Stringifier&, StringBuilder&);
 
@@ -142,7 +142,7 @@ private:
     void indent();
     void unindent();
     void startNewLine(StringBuilder&) const;
-    bool isCallableReplacer() const { return m_replacerCallData.type != CallData::Type::None; }
+    bool NODELETE isCallableReplacer() const { return m_replacerCallData.type != CallData::Type::None; }
 
     JSGlobalObject* const m_globalObject;
     JSValue m_replacer;
@@ -479,7 +479,7 @@ Stringifier::StringifyResult Stringifier::appendStringifiedValue(StringBuilder& 
     return StringifySucceeded;
 }
 
-inline bool Stringifier::willIndent() const
+inline bool NODELETE Stringifier::willIndent() const
 {
     return !m_gap.isEmpty();
 }
@@ -494,7 +494,7 @@ inline void Stringifier::indent()
     m_indent = StringView { m_repeatedGap }.left(newSize);
 }
 
-inline void Stringifier::unindent()
+inline void NODELETE Stringifier::unindent()
 {
     ASSERT(m_indent.length() >= m_gap.length());
     m_indent = StringView { m_repeatedGap }.left(m_indent.length() - m_gap.length());
@@ -718,7 +718,7 @@ private:
     void append(char, char, char, char);
     void append(char, char, char, char, char);
     template<typename T> void recordFailure(FailureReason, T&& reason);
-    template<typename T> void recordFailure(T&& reason)
+    template<typename T> void NODELETE recordFailure(T&& reason)
     {
         recordFailure(FailureReason::Unknown, std::forward<T>(reason));
     }
@@ -1982,20 +1982,20 @@ JSC_DEFINE_HOST_FUNCTION(jsonProtoFuncRawJSON, (JSGlobalObject* globalObject, Ca
         return character == 0x0009 || character == 0x000A || character == 0x000D || character == 0x0020;
     };
 
-    String string = jsString->value(globalObject);
+    auto view = jsString->view(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
-    if (string.isEmpty()) [[unlikely]] {
+    if (view->isEmpty()) [[unlikely]] {
         throwSyntaxError(globalObject, scope, "JSON.rawJSON cannot accept empty string"_s);
         return { };
     }
 
-    char16_t firstCharacter = string[0];
+    char16_t firstCharacter = view->codeUnitAt(0);
     if (isJSONWhitespace(firstCharacter)) [[unlikely]] {
         throwSyntaxError(globalObject, scope, makeString("JSON.rawJSON cannot accept string starting with '"_s, firstCharacter, "'"_s));
         return { };
     }
 
-    char16_t lastCharacter = string[string.length() - 1];
+    char16_t lastCharacter = view->codeUnitAt(view->length() - 1);
     if (isJSONWhitespace(lastCharacter)) [[unlikely]] {
         throwSyntaxError(globalObject, scope, makeString("JSON.rawJSON cannot accept string ending with '"_s, lastCharacter, "'"_s));
         return { };
@@ -2003,8 +2003,8 @@ JSC_DEFINE_HOST_FUNCTION(jsonProtoFuncRawJSON, (JSGlobalObject* globalObject, Ca
 
     {
         JSValue result;
-        if (string.is8Bit()) {
-            LiteralParser<Latin1Character, JSONReviverMode::Disabled> jsonParser(globalObject, string.span8(), StrictJSON);
+        if (view->is8Bit()) {
+            LiteralParser<Latin1Character, JSONReviverMode::Disabled> jsonParser(globalObject, view->span8(), StrictJSON);
             result = jsonParser.tryLiteralParsePrimitiveValue();
             RETURN_IF_EXCEPTION(scope, { });
             if (!result) [[unlikely]] {
@@ -2012,7 +2012,7 @@ JSC_DEFINE_HOST_FUNCTION(jsonProtoFuncRawJSON, (JSGlobalObject* globalObject, Ca
                 return { };
             }
         } else {
-            LiteralParser<char16_t, JSONReviverMode::Disabled> jsonParser(globalObject, string.span16(), StrictJSON);
+            LiteralParser<char16_t, JSONReviverMode::Disabled> jsonParser(globalObject, view->span16(), StrictJSON);
             result = jsonParser.tryLiteralParsePrimitiveValue();
             RETURN_IF_EXCEPTION(scope, { });
             if (!result) [[unlikely]] {

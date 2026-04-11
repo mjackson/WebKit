@@ -91,7 +91,7 @@ public:
 
     bool isZero() const { return m_topLeft.isZero() && m_topRight.isZero() && m_bottomLeft.isZero() && m_bottomRight.isZero(); }
     bool NODELETE hasEvenCorners() const;
-    bool isUniformCornerRadius() const; // Including no radius.
+    bool NODELETE isUniformCornerRadius() const; // Including no radius.
 
     void NODELETE scale(float factor);
     void scale(float horizontalFactor, float verticalFactor);

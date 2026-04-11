@@ -131,7 +131,7 @@ public:
     // Anchor name matching is case sensitive in strict mode and not case sensitive in
     // quirks mode for historical compatibility reasons.
     RefPtr<Element> findAnchor(StringView name);
-    bool isMatchingAnchor(HTMLAnchorElement&, StringView name);
+    bool NODELETE isMatchingAnchor(HTMLAnchorElement&, StringView name);
 
     inline ContainerNode& rootNode() const; // Defined in TreeScopeInlines.h
 

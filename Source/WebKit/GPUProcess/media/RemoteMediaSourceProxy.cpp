@@ -37,6 +37,7 @@
 #include <WebCore/ContentType.h>
 #include <WebCore/NotImplemented.h>
 #include <WebCore/SourceBufferPrivate.h>
+#include <wtf/Borrow.h>
 #include <wtf/RefPtr.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -65,7 +66,7 @@ RemoteMediaSourceProxy::~RemoteMediaSourceProxy()
 void RemoteMediaSourceProxy::setMediaPlayers(RemoteMediaPlayerProxy& remoteMediaPlayerProxy, WebCore::MediaPlayerPrivateInterface* mediaPlayerPrivate)
 {
     m_remoteMediaPlayerProxy = remoteMediaPlayerProxy;
-    for (auto& sourceBuffer : m_sourceBuffers)
+    for (RefPtr sourceBuffer : borrow(m_sourceBuffers).get())
         sourceBuffer->setMediaPlayer(remoteMediaPlayerProxy);
     if (RefPtr protectedPrivate = m_private)
         protectedPrivate->setPlayer(mediaPlayerPrivate);

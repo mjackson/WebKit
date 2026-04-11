@@ -74,7 +74,7 @@ public:
     void clear() { m_data.fill(0); }
 
     template<TemporalUnit unit>
-    std::optional<Int128> totalNanoseconds() const;
+    std::optional<Int128> NODELETE totalNanoseconds() const;
 
     Duration operator-() const
     {
@@ -157,7 +157,7 @@ public:
 
     friend constexpr auto operator<=>(const ExactTime&, const ExactTime&) = default;
 
-    std::optional<ExactTime> add(Duration) const;
+    std::optional<ExactTime> NODELETE add(Duration) const;
     InternalDuration difference(JSGlobalObject*, ExactTime, unsigned, TemporalUnit, RoundingMode) const;
     ExactTime round(JSGlobalObject*, unsigned, TemporalUnit, RoundingMode) const;
 
@@ -186,7 +186,7 @@ public:
         : m_dateDuration(Duration()), m_time(0) { }
     static constexpr Int128 maxTimeDuration = 9'007'199'254'740'992 * ExactTime::nsPerSecond - 1;
 
-    int32_t sign() const;
+    int32_t NODELETE sign() const;
 
     int32_t timeDurationSign() const
     {
@@ -197,7 +197,7 @@ public:
 
     Duration dateDuration() const { return m_dateDuration; }
 
-    static InternalDuration combineDateAndTimeDuration(Duration, Int128);
+    static InternalDuration NODELETE combineDateAndTimeDuration(Duration, Int128);
 private:
 
     // Time fields are ignored
@@ -402,10 +402,10 @@ std::optional<std::tuple<PlainTime, std::optional<TimeZoneRecord>, std::optional
 std::optional<std::tuple<PlainDate, std::optional<PlainTime>, std::optional<TimeZoneRecord>>> parseDateTime(StringView, TemporalDateFormat);
 std::optional<std::tuple<PlainDate, std::optional<PlainTime>, std::optional<TimeZoneRecord>, std::optional<CalendarID>>> parseCalendarDateTime(StringView, TemporalDateFormat);
 uint8_t dayOfWeek(PlainDate);
-uint16_t dayOfYear(PlainDate);
+uint16_t NODELETE dayOfYear(PlainDate);
 uint8_t weeksInYear(int32_t year);
 uint8_t weekOfYear(PlainDate);
-uint8_t daysInMonth(int32_t year, uint8_t month);
+uint8_t NODELETE daysInMonth(int32_t year, uint8_t month);
 uint8_t daysInMonth(uint8_t month);
 String formatTimeZoneOffsetString(int64_t);
 String temporalTimeToString(PlainTime, std::tuple<Precision, unsigned>);
@@ -415,12 +415,12 @@ String temporalYearMonthToString(PlainYearMonth, StringView);
 String temporalMonthDayToString(PlainMonthDay, StringView);
 String monthCode(uint32_t);
 
-bool isValidDuration(const Duration&);
-bool isValidISODate(double, double, double);
-PlainDate createISODateRecord(double, double, double);
+bool NODELETE isValidDuration(const Duration&);
+bool NODELETE isValidISODate(double, double, double);
+PlainDate NODELETE createISODateRecord(double, double, double);
 
 std::optional<ExactTime> parseInstant(StringView);
-std::optional<ParsedMonthCode> parseMonthCode(StringView);
+std::optional<ParsedMonthCode> NODELETE parseMonthCode(StringView);
 
 bool isDateTimeWithinLimits(int32_t year, uint8_t month, uint8_t day, unsigned hour, unsigned minute, unsigned second, unsigned millisecond, unsigned microsecond, unsigned nanosecond);
 
@@ -430,6 +430,6 @@ Int128 roundTimeDuration(JSGlobalObject*, Int128, unsigned, TemporalUnit, Roundi
 
 using CheckedInt128 = Checked<Int128, RecordOverflow>;
 
-CheckedInt128 checkedCastDoubleToInt128(double n);
+CheckedInt128 NODELETE checkedCastDoubleToInt128(double n);
 
 } // namespace JSC

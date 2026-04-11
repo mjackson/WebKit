@@ -63,7 +63,7 @@
 
 namespace WebCore {
 
-static MediaTime timestampToMediaTime(int64_t timestamp)
+static MediaTime NODELETE timestampToMediaTime(int64_t timestamp)
 {
     return MediaTime::createWithDouble(Seconds::fromMicroseconds(timestamp).value());
 }

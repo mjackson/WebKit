@@ -30,13 +30,15 @@
 #if ENABLE(MATHML)
 
 #include "CSSUnits.h"
+#include "FontCascadeInlines.h"
 #include "GraphicsContext.h"
 #include "LayoutRepainter.h"
 #include "MathMLElement.h"
 #include "MathMLNames.h"
 #include "MathMLPresentationElement.h"
-#include "RenderChildIterator.h"
+#include "OpenTypeMathData.h"
 #include "RenderBoxInlines.h"
+#include "RenderChildIterator.h"
 #include "RenderElementStyleInlines.h"
 #include "RenderObjectInlines.h"
 #include "RenderTableInlines.h"
@@ -168,7 +170,7 @@ void RenderMathMLBlock::layoutItems(RelayoutChildren relayoutChildren)
         LayoutUnit childPreferredSize = childSize + child->horizontalBorderAndPaddingExtent();
 
         if (childPreferredSize != child->width())
-            child->setChildNeedsLayout(MarkOnlyThis);
+            child->setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
 
         updateBlockChildDirtyBitsBeforeLayout(relayoutChildren, *child);
         child->layoutIfNeeded();

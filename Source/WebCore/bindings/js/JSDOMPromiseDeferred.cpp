@@ -30,6 +30,7 @@
 #include "Document.h"
 #include "EventLoop.h"
 #include "JSDOMConvertAny.h"
+#include "JSDOMConvertBufferSource.h"
 #include "JSDOMConvertInterface.h"
 #include "JSDOMExceptionHandling.h"
 #include "JSDOMPromise.h"

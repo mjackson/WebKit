@@ -79,7 +79,7 @@ class TestResultWriter(object):
         output_basename = ext_parts[0]
 
         if len(variant):
-            output_basename += "_" + re.sub(r'[|* <>:]', '_', variant)
+            output_basename += "_" + re.sub(r'[|* <>:/%]', '_', variant)
 
         return output_basename + modifier
 

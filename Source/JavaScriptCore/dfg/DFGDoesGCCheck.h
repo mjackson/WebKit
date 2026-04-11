@@ -40,6 +40,7 @@ struct DoesGCCheck {
         Uninitialized,
         DFGOSRExit,
         FTLOSRExit,
+        Termination,
         NumberOfSpecials
     };
 

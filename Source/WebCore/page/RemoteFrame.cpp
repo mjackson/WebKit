@@ -167,9 +167,9 @@ String RemoteFrame::customNavigatorPlatform() const
     return m_customNavigatorPlatform;
 }
 
-void RemoteFrame::documentURLForConsoleLog(CompletionHandler<void(const URL&)>&& completionHandler)
+URL RemoteFrame::urlForConsoleLog() const
 {
-    m_client->documentURLForConsoleLog(WTF::move(completionHandler));
+    return frameDocumentSecurityOrigin()->toURL();
 }
 
 OptionSet<AdvancedPrivacyProtections> RemoteFrame::advancedPrivacyProtections() const

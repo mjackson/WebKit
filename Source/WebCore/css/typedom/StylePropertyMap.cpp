@@ -31,10 +31,10 @@
 #include "CSSPropertyParser.h"
 #include "CSSQuadValue.h"
 #include "CSSStyleValueFactory.h"
+#include "CSSSubstitutionValue.h"
 #include "CSSUnparsedValue.h"
 #include "CSSValueList.h"
 #include "CSSValuePair.h"
-#include "CSSVariableReferenceValue.h"
 #include "Document.h"
 #include "ExceptionOr.h"
 #include "Settings.h"
@@ -78,7 +78,7 @@ ExceptionOr<void> StylePropertyMap::set(Document& document, const AtomString& pr
         auto value = protect(styleValues[0])->toCSSValue();
         if (!value)
             return Exception { ExceptionCode::TypeError, "Invalid values"_s };
-        setCustomProperty(document, property, downcast<CSSVariableReferenceValue>(value.releaseNonNull()));
+        setCustomProperty(document, property, downcast<CSSSubstitutionValue>(value.releaseNonNull()));
         return { };
     }
     auto propertyID = cssPropertyID(property);
@@ -181,7 +181,7 @@ ExceptionOr<void> StylePropertyMap::append(Document& document, const AtomString&
 
         if (!cssValue)
             continue;
-        if (is<CSSVariableReferenceValue>(*cssValue))
+        if (is<CSSSubstitutionValue>(*cssValue))
             return Exception { ExceptionCode::TypeError, "Values cannot contain a CSSVariableReferenceValue"_s };
 
         list.append(cssValue.releaseNonNull());

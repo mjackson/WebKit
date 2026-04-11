@@ -27,6 +27,7 @@
 #include "ElementInlines.h"
 #include "Event.h"
 #include "EventNames.h"
+#include "EventTargetInlines.h"
 #include "HTMLNames.h"
 #include "HTMLParserIdioms.h"
 #include "JSRequestPriority.h"

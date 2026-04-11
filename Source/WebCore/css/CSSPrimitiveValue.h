@@ -55,7 +55,7 @@ public:
     template<CSS::FrequencyUnit, typename T = double> static T computeFrequency(CSSUnitType, T frequency);
     template<CSS::ResolutionUnit, typename T = double> static T computeResolution(CSSUnitType, T resolution);
 
-    // FIXME: Some of these use primitiveUnitType() and some use primitiveType(). Many that use primitiveUnitType() are likely broken with calc().
+    // FIXME: Some of these use primitiveUnitType() and some use NODELETE primitiveType(). Many that use primitiveUnitType() are likely broken with calc().
     bool isAngle() const { return unitCategory(primitiveType()) == CSSUnitCategory::Angle; }
     bool isAttr() const { return primitiveUnitType() == CSSUnitType::CSS_ATTR; }
     bool isFontIndependentLength() const { return isFontIndependentLength(primitiveUnitType()); }
@@ -82,7 +82,7 @@ public:
     bool isContainerPercentageLength() const { return isContainerPercentageLength(primitiveUnitType()); }
     bool isFlex() const { return primitiveType() == CSSUnitType::CSS_FR; }
 
-    bool conversionToCanonicalUnitRequiresConversionData() const;
+    bool NODELETE conversionToCanonicalUnitRequiresConversionData() const;
 
     static Ref<CSSPrimitiveValue> create(double);
     static Ref<CSSPrimitiveValue> create(double, CSSUnitType);
@@ -100,10 +100,6 @@ public:
 
     bool isString() const { return primitiveUnitType() == CSSUnitType::CSS_STRING; }
     static Ref<CSSPrimitiveValue> create(String);
-
-    static Ref<CSSPrimitiveValue> createCustomIdent(String);
-    bool isCustomIdent() const { return primitiveUnitType() == CSSUnitType::CustomIdent; }
-    String customIdent() const { ASSERT(isCustomIdent()); return stringValue(); }
 
     static Ref<CSSPrimitiveValue> createFontFamily(String);
     bool isFontFamily() const { return primitiveUnitType() == CSSUnitType::CSS_FONT_FAMILY; }
@@ -220,10 +216,14 @@ private:
 
     // MARK: Non-converting
     double doubleValue(const CSSToLengthConversionData&) const;
-    double doubleValueNoConversionDataRequired() const { ASSERT(!isCalculated()); return m_value.number; }
+    double doubleValueNoConversionDataRequired() const
+    {
+        ASSERT(!isCalculated());
+        return m_value.number;
+    }
     double doubleValueDeprecated() const;
     double doubleValueDividingBy100IfPercentage(const CSSToLengthConversionData&) const;
-    double doubleValueDividingBy100IfPercentageNoConversionDataRequired() const;
+    double NODELETE doubleValueDividingBy100IfPercentageNoConversionDataRequired() const;
     double doubleValueDividingBy100IfPercentageDeprecated() const;
     template<typename T = double> inline T valueDeprecated() const { return clampTo<T>(doubleValueDeprecated()); }
 
@@ -723,12 +723,6 @@ inline bool isValueID(const Ref<CSSValue>& value, CSSValueID id)
     return isValueID(value.get(), id);
 }
 
-inline bool isCustomIdentValue(const CSSValue& value)
-{
-    auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value);
-    return primitiveValue && primitiveValue->isCustomIdent();
-}
-
 inline bool CSSValue::isValueID() const
 {
     auto* value = dynamicDowncast<CSSPrimitiveValue>(*this);
@@ -739,18 +733,6 @@ inline CSSValueID CSSValue::valueID() const
 {
     auto* value = dynamicDowncast<CSSPrimitiveValue>(*this);
     return value ? value->valueID() : CSSValueInvalid;
-}
-
-inline bool CSSValue::isCustomIdent() const
-{
-    auto* value = dynamicDowncast<CSSPrimitiveValue>(*this);
-    return value && value->isCustomIdent();
-}
-
-inline String CSSValue::customIdent() const
-{
-    ASSERT(isCustomIdent());
-    return downcast<CSSPrimitiveValue>(*this).stringValue();
 }
 
 inline bool CSSValue::isString() const

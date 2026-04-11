@@ -73,7 +73,7 @@ public:
     ~LocalFrameViewLayoutContext();
 
     WEBCORE_EXPORT void layout(bool canDeferUpdateLayerPositions = false);
-    bool needsLayout(OptionSet<LayoutOptions> layoutOptions = { }) const;
+    bool NODELETE needsLayout(OptionSet<LayoutOptions> layoutOptions = { }) const;
 
     void interleavedLayout();
 
@@ -185,10 +185,10 @@ private:
     friend class ContentVisibilityOverrideScope;
     friend class RepaintBlocker;
 
-    bool needsLayoutInternal() const;
+    bool NODELETE needsLayoutInternal() const;
 
     void performLayout(bool canDeferUpdateLayerPositions);
-    bool canPerformLayout() const;
+    bool NODELETE canPerformLayout() const;
     bool isLayoutSchedulingEnabled() const { return m_layoutSchedulingIsEnabled; }
 
     bool hasPendingUpdateLayerPositions() const { return !!m_pendingUpdateLayerPositions; }
@@ -234,10 +234,10 @@ private:
     void allowRepaints() { m_repaintsBlocked = false; }
     void blockRepaints() { m_repaintsBlocked = true; }
 
-    LocalFrame& frame() const;
+    LocalFrame& NODELETE frame() const;
     LocalFrameView& NODELETE view() const;
-    RenderView* renderView() const;
-    Document* document() const;
+    RenderView* NODELETE renderView() const;
+    Document* NODELETE document() const;
 
     SingleThreadWeakRef<LocalFrameView> m_frameView;
     Timer m_layoutTimer;

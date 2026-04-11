@@ -27,6 +27,7 @@
 #include "config.h"
 #include "ReferencedSVGResources.h"
 
+#include "DocumentView.h"
 #include "LegacyRenderSVGResourceClipper.h"
 #include "LegacyRenderSVGResourceContainerInlines.h"
 #include "PathOperation.h"

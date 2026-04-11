@@ -42,6 +42,7 @@ public:
     }
 
     ALWAYS_INLINE char16_t nextInputCharacter() const { return m_nextInputCharacter; }
+    ALWAYS_INLINE bool skipNextNewLine() const { return m_skipNextNewLine; }
 
     // Returns whether we succeeded in peeking at the next character.
     // The only way we can fail to peek is if there are no more

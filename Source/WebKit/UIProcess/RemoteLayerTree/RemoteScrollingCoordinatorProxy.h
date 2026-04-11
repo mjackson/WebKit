@@ -209,13 +209,14 @@ public:
     void receivedLastScrollingTreeNodeUpdateReply();
     bool NODELETE isMonitoringWheelEvents();
 
+    void establishLayerTreeScrollingRelations(IPC::Connection&);
+
 protected:
     explicit RemoteScrollingCoordinatorProxy(WebPageProxy&);
 
     RemoteScrollingTree& scrollingTree() const { return m_scrollingTree.get(); }
 
     virtual void connectStateNodeLayers(WebCore::ScrollingStateTree&, const RemoteLayerTreeHost&) = 0;
-    virtual void establishLayerTreeScrollingRelations(const RemoteLayerTreeHost&) = 0;
 
     virtual void didReceiveWheelEvent(bool /* wasHandled */) { }
 

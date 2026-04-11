@@ -39,6 +39,7 @@
 #include <JavaScriptCore/InspectorFrontendChannel.h>
 #include <WebCore/FrameIdentifier.h>
 #include <WebCore/NavigationIdentifier.h>
+#include <WebCore/SecurityOriginData.h>
 #include <WebCore/ShareableBitmap.h>
 #include <wtf/CheckedPtr.h>
 #include <wtf/CompletionHandler.h>
@@ -50,6 +51,10 @@
 
 #if ENABLE(REMOTE_INSPECTOR)
 #include <JavaScriptCore/RemoteAutomationTarget.h>
+#endif
+
+#if ENABLE(WEBDRIVER_BIDI)
+#include "IdentifierTypes.h"
 #endif
 
 namespace API {
@@ -182,6 +187,7 @@ public:
     void contextCreatedForFrame(const WebFrameProxy&);
     void contextDestroyedForPage(const WebPageProxy&);
     void contextDestroyedForFrame(const WebFrameProxy&);
+    void setViewportForPage(WebPageProxy&, std::optional<int> width, std::optional<int> height, std::optional<double> devicePixelRatio, Inspector::CommandCallback<void>&&);
 #endif
     void willClosePage(const WebPageProxy&);
     void handleRunOpenPanel(const WebPageProxy&, const WebFrameProxy&, const API::OpenPanelParameters&, WebOpenPanelResultListenerProxy&);
@@ -290,7 +296,9 @@ public:
 
 #if ENABLE(WEBDRIVER_BIDI)
     Inspector::CommandResult<void> processBidiMessage(const String&) override;
+    Inspector::CommandResult<void> emitActiveBidiScriptRealmCreatedEvents() override;
     void sendBidiMessage(const String&);
+    WebDriverBidiProcessor& bidiProcessor() const { return m_bidiProcessor; }
 #endif
 
 #if PLATFORM(MAC)
@@ -316,6 +324,10 @@ public:
     String handleForWebPageProxy(const WebPageProxy&);
 
     Expected<PageAndFrameHandle, AutomationCommandError> extractBrowsingContextHandles(const String&);
+
+#if ENABLE(WEBDRIVER_BIDI)
+    bool isValidUserContext(const String& userContextID) const;
+#endif
 
 private:
     Ref<Inspector::Protocol::Automation::BrowsingContext> buildBrowsingContextForPage(WebPageProxy&, WebCore::FloatRect windowFrame);
@@ -344,6 +356,10 @@ private:
 
     // Called by WebAutomationSession messages.
     void logEntryAdded(const JSC::MessageSource&, const JSC::MessageLevel&, const String& messageText, const JSC::MessageType&, const WallTime&);
+#if ENABLE(WEBDRIVER_BIDI)
+    void scriptRealmCreated(WebCore::FrameIdentifier, RealmIdentifier, const WebCore::SecurityOriginData&);
+    void scriptRealmDestroyed(WebCore::FrameIdentifier, RealmIdentifier);
+#endif
 
     // Platform-dependent implementations.
 #if ENABLE(WEBDRIVER_MOUSE_INTERACTIONS)
@@ -351,7 +367,7 @@ private:
     void updateClickCount(MouseButton, const WebCore::IntPoint&, Seconds maxTime = 0.5_s, int maxDistance = 0);
     void NODELETE updateLastPosition(const WebCore::IntPoint&, int maxDistance = 0);
     void platformSimulateMouseInteraction(WebPageProxy&, MouseInteraction, MouseButton, const WebCore::IntPoint& locationInViewport, OptionSet<WebEventModifier>, const String& pointerType);
-    static OptionSet<WebEventModifier> platformWebModifiersFromRaw(WebPageProxy&, unsigned modifiers);
+    static OptionSet<WebEventModifier> NODELETE platformWebModifiersFromRaw(WebPageProxy&, unsigned modifiers);
 #endif
 #if ENABLE(WEBDRIVER_TOUCH_INTERACTIONS)
     // Simulates a single touch point being pressed, moved, and released.

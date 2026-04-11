@@ -41,6 +41,7 @@
 #include "MediaSourcePrivateRemoteMessageReceiverMessages.h"
 #include "RemoteAudioHardwareListenerMessages.h"
 #include "RemoteAudioSourceProviderManager.h"
+#include "RemoteAudioSourceProviderManagerMessages.h"
 #include "RemoteCDMFactory.h"
 #include "RemoteCDMProxy.h"
 #include "RemoteMediaEngineConfigurationFactory.h"
@@ -225,7 +226,7 @@ RemoteMediaPlayerManager& GPUProcessConnection::mediaPlayerManager()
 RemoteAudioSourceProviderManager& GPUProcessConnection::audioSourceProviderManager()
 {
     if (!m_audioSourceProviderManager)
-        m_audioSourceProviderManager = RemoteAudioSourceProviderManager::create();
+        m_audioSourceProviderManager = RemoteAudioSourceProviderManager::create(m_connection);
     return *m_audioSourceProviderManager;
 }
 #endif

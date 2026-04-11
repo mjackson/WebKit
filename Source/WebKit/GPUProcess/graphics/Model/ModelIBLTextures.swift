@@ -21,11 +21,11 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 11) && compiler(>=6.2)
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreTextureProcessing, _version: 19)
 
 import Metal
-@_weakLinked import USDKit
-@_weakLinked @_spi(UsdLoaderAPI) import _USDKit_RealityKit
+import USDKit
+@_spi(UsdLoaderAPI) import _USDKit_RealityKit
 @_spi(RealityCoreRendererAPI) import RealityKit
 @_spi(RealityCoreTextureProcessingAPI) import RealityKit
 

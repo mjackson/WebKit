@@ -798,6 +798,23 @@ static const IdentifierSchema& overflowInlineFeatureSchema()
 }
 
 #if ENABLE(DARK_MODE_CSS)
+static bool frameUsesDarkAppearanceForPrefersColorScheme(const Frame& frame)
+{
+    if (RefPtr parent = frame.parent()) {
+        // From CSS Media Queries Level 5: if the frame is a subframe, its preferred color scheme
+        // is the color scheme of its owner element:
+        // > the preferred color scheme must reflect the value of the used color scheme on the
+        // > embedding node in the embedding document.
+        // FIXME (webkit.org/b/309611): this should recurse up to the main frame.
+        if (RefPtr ownerRenderer = frame.ownerRenderer()) {
+            if (ownerRenderer->style().hasExplicitlySetColorScheme())
+                return protect(parent->virtualView())->ownerElementOfChildFrameUsesDarkAppearance(frame);
+        }
+    }
+
+    return protect(frame.page())->useDarkAppearance();
+}
+
 static const IdentifierSchema& prefersColorSchemeFeatureSchema()
 {
     static MainThreadNeverDestroyed<IdentifierSchema> schema {
@@ -805,8 +822,7 @@ static const IdentifierSchema& prefersColorSchemeFeatureSchema()
         FixedVector { CSSValueLight, CSSValueDark },
         MediaQueryDynamicDependency::Appearance,
         [](auto& context) {
-            Ref page = *context.document->frame()->page();
-            bool useDarkAppearance = page->useDarkAppearance();
+            bool useDarkAppearance = frameUsesDarkAppearanceForPrefersColorScheme(*context.document->frame());
 
             return MatchingIdentifiers { useDarkAppearance ? CSSValueDark : CSSValueLight };
         }

@@ -70,8 +70,8 @@ void WasmDebuggerDispatcher::dispatchMessage(const String& message)
     // Safe to call even when main thread is blocked in infinite loop.
     JSC::Wasm::DebugServer& debugServer = JSC::Wasm::DebugServer::singleton();
 
-    if (!debugServer.isConnected()) {
-        RELEASE_LOG_ERROR(Inspector, "WasmDebugServer not connected");
+    if (!debugServer.hasDebugger()) {
+        RELEASE_LOG_ERROR(Inspector, "WasmDebugServer has no debug client");
         return;
     }
 

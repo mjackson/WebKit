@@ -25,6 +25,10 @@ find_package(ZLIB REQUIRED)
 find_package(WebP REQUIRED COMPONENTS demux)
 find_package(ATSPI 2.5.3)
 
+if (NOT TARGET SQLite3::SQLite3) # CMake < 4.3
+    add_library(SQLite3::SQLite3 ALIAS SQLite::SQLite3)
+endif ()
+
 include(GStreamerDefinitions)
 include(FindGLibCompileResources)
 

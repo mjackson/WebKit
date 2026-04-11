@@ -111,7 +111,7 @@ public:
 
     TriState strictEqual(const LazyJSValue& other) const;
     
-    uintptr_t switchLookupValue(SwitchKind) const;
+    uintptr_t NODELETE switchLookupValue(SwitchKind) const;
 
     void emit(CCallHelpers&, JSValueRegs, Plan&) const;
     
@@ -119,7 +119,7 @@ public:
     void dumpInContext(PrintStream&, DumpContext*) const;
     
 private:
-    const StringImpl* tryGetStringImpl() const;
+    const StringImpl* NODELETE tryGetStringImpl() const;
     
     union {
         FrozenValue* value;

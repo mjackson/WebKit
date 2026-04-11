@@ -48,6 +48,8 @@
 #include "ScriptController.h"
 #include "ScriptDisallowedScope.h"
 #include "Settings.h"
+#include <JavaScriptCore/HeapCellInlines.h>
+#include <JavaScriptCore/JSCJSValueCellInlines.h>
 #include <wtf/MainThread.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/Ref.h>
@@ -106,7 +108,7 @@ bool EventTarget::addEventListener(const AtomString& eventType, Ref<EventListene
     bool trustedOnly = false;
     if (options.webkitTrustedOnly) {
         auto* function = listener->jsFunction();
-        if (function && worldForDOMObject(*function).allowAutofill())
+        if (function && function->realmMayBeNull() && worldForDOMObject(*function).allowAutofill())
             trustedOnly = true;
     }
 
@@ -215,7 +217,7 @@ bool EventTarget::setAttributeEventListener(const AtomString& eventType, RefPtr<
         listener->checkValidityForEventTarget(*this);
 #endif
 
-        eventTargetData()->eventListenerMap.replace(eventType, *existingListener, *listener, { });
+        eventTargetData()->eventListenerMap.replacePreservingOptions(eventType, *existingListener, *listener);
 
         InspectorInstrumentation::didAddEventListener(*this, eventType, *listener, false);
 
@@ -373,7 +375,7 @@ void EventTarget::innerInvokeEventListeners(Event& event, EventListenerVector li
         JSC::EnsureStillAliveScope jsFunctionProtector(callback->jsFunction());
 
         if (event.isAutofillEvent()) [[unlikely]] {
-            if (!worldForDOMObject(*callback->jsFunction()).allowAutofill())
+            if (!callback->jsFunction()->realmMayBeNull() || !worldForDOMObject(*callback->jsFunction()).allowAutofill())
                 continue; // webkitrequestautofill only fires in a world with autofill capability.
         }
 
@@ -430,7 +432,7 @@ void EventTarget::removeAllEventListeners()
     threadData->setIsInRemoveAllEventListeners(false);
 }
 
-bool EventTarget::hasAnyEventListeners(Vector<AtomString> eventTypes) const
+bool EventTarget::hasAnyEventListeners(std::span<const AtomString> eventTypes) const
 {
     if (auto* data = eventTargetData()) {
         for (const auto& eventType : eventTypes) {

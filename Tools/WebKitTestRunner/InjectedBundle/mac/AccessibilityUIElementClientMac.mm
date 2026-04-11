@@ -189,6 +189,18 @@ static std::pair<double, double> axCopyAttributeValueAsSize(uint64_t elementToke
     return { width, height };
 }
 
+static void axPerformAction(uint64_t elementToken, const char* actionName)
+{
+    WKRetainPtr dictionary = adoptWK(WKMutableDictionaryCreate());
+    setValue(dictionary, "elementToken", elementToken);
+    setValue(dictionary, "actionName", actionName);
+
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    WKTypeRef returnData = nullptr;
+    WKBundlePostSynchronousMessage(InjectedBundle::singleton().bundle(), toWK("AXPerformAction").get(), dictionary.get(), &returnData);
+    ALLOW_DEPRECATED_DECLARATIONS_END
+}
+
 Ref<AccessibilityUIElementClientMac> AccessibilityUIElementClientMac::create(uint64_t elementToken)
 {
     return adoptRef(*new AccessibilityUIElementClientMac(elementToken));
@@ -401,6 +413,14 @@ RefPtr<AccessibilityUIElement> AccessibilityUIElementClientMac::childAtIndex(uns
 {
     Vector children = getChildrenInRange(index, 1);
     return children.size() == 1 ? children[0] : nullptr;
+}
+
+void AccessibilityUIElementClientMac::showMenu()
+{
+    if (!isValid())
+        return;
+
+    axPerformAction(m_elementToken, "AXShowMenu");
 }
 
 JSValueRef AccessibilityUIElementClientMac::uiElementsForSearchPredicate(JSContextRef context, AccessibilityUIElement* startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly, unsigned resultsLimit)

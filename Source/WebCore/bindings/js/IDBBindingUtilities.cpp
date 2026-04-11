@@ -53,6 +53,7 @@
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/ArrayBuffer.h>
 #include <JavaScriptCore/DateInstance.h>
+#include <JavaScriptCore/JSObjectInlines.h>
 #include <JavaScriptCore/ObjectConstructor.h>
 #include <JavaScriptCore/StrongInlines.h>
 #include <wtf/AutodrainedPool.h>

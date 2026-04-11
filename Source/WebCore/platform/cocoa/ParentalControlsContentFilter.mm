@@ -33,6 +33,7 @@
 #import "ResourceResponse.h"
 #import "SharedBuffer.h"
 #import <objc/runtime.h>
+#import <wtf/CompletionHandler.h>
 #import <wtf/SoftLinking.h>
 #import <wtf/TZoneMallocInlines.h>
 #import <wtf/WorkQueue.h>
@@ -40,7 +41,6 @@
 
 #if HAVE(WEBCONTENTRESTRICTIONS)
 #import <WebCore/ParentalControlsURLFilter.h>
-#import <wtf/CompletionHandler.h>
 #import <pal/cocoa/WebContentRestrictionsSoftLink.h>
 #elif HAVE(WEBCONTENTANALYSIS_FRAMEWORK)
 #import <pal/spi/cocoa/WebFilterEvaluatorSPI.h>

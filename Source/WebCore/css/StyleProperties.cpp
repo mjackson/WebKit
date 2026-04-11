@@ -25,13 +25,13 @@
 
 #include "CSSColorValue.h"
 #include "CSSCustomPropertyValue.h"
-#include "CSSPendingSubstitutionValue.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSPropertyInitialValues.h"
 #include "CSSPropertyNames.h"
 #include "CSSPropertyParserConsumer+Color.h"
 #include "CSSPropertyParserConsumer+Font.h"
 #include "CSSSerializationContext.h"
+#include "CSSShorthandSubstitutionValue.h"
 #include "CSSStyleProperties.h"
 #include "CSSValueKeywords.h"
 #include "CSSValueList.h"
@@ -264,7 +264,7 @@ StringBuilder StyleProperties::asTextInternal(const CSS::SerializationContext& c
         ASSERT(isLonghand(propertyID) || propertyID == CSSPropertyCustom);
         Vector<CSSPropertyID, maxShorthandsForLonghand> shorthands;
 
-        if (RefPtr substitutionValue = dynamicDowncast<CSSPendingSubstitutionValue>(property.value()))
+        if (RefPtr substitutionValue = dynamicDowncast<CSSShorthandSubstitutionValue>(property.value()))
             shorthands.append(substitutionValue->shorthandPropertyId());
         else {
             for (auto& shorthand : matchingShorthandsForLonghand(propertyID)) {

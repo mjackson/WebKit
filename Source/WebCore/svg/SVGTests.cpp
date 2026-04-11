@@ -22,7 +22,6 @@
 #include "config.h"
 #include "SVGTests.h"
 
-#include "EventTarget.h"
 #include "HTMLNames.h"
 #include "NodeName.h"
 #include "SVGElement.h"

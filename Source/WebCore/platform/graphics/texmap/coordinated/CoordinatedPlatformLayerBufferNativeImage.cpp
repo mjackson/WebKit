@@ -40,10 +40,8 @@
 #if USE(SKIA)
 #include "GLContext.h"
 #include "PlatformDisplay.h"
+#include "SkiaUtilities.h"
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
-#include <skia/gpu/ganesh/GrBackendSurface.h>
-#include <skia/gpu/ganesh/SkImageGanesh.h>
-#include <skia/gpu/ganesh/gl/GrGLBackendSurface.h>
 #include <skia/core/SkPixmap.h> // NOLINT
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 #endif
@@ -75,17 +73,11 @@ CoordinatedPlatformLayerBufferNativeImage::CoordinatedPlatformLayerBufferNativeI
     RELEASE_ASSERT(grContext);
     grContext->flushAndSubmit(GLFence::isSupported(display.glDisplay()) ? GrSyncCpu::kNo : GrSyncCpu::kYes);
 
-    unsigned textureID = 0;
-    GrBackendTexture backendTexture;
-    if (SkImages::GetBackendTextureFromImage(image, &backendTexture, false)) {
-        GrGLTextureInfo textureInfo;
-        if (GrBackendTextures::GetGLTextureInfo(backendTexture, &textureInfo))
-            textureID = textureInfo.fID;
-    }
+    auto textureID = SkiaUtilities::retrieveGLTextureID(*image);
     if (!textureID)
         return;
 
-    m_buffer = CoordinatedPlatformLayerBufferRGB::create(textureID, m_image->size(), m_flags, GLFence::create(display.glDisplay()));
+    m_buffer = CoordinatedPlatformLayerBufferRGB::create(*textureID, m_image->size(), m_flags, GLFence::create(display.glDisplay()));
 #endif
 }
 

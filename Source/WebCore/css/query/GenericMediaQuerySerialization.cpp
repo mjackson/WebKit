@@ -89,7 +89,7 @@ void serialize(StringBuilder& builder, const Feature& feature)
 
     switch (feature.syntax) {
     case Syntax::Boolean:
-        serializeIdentifier(feature.name, builder);
+        serializeIdentifier(builder, feature.name);
         break;
 
     case Syntax::Plain:
@@ -107,7 +107,7 @@ void serialize(StringBuilder& builder, const Feature& feature)
             ASSERT_NOT_REACHED();
             break;
         }
-        serializeIdentifier(feature.name, builder);
+        serializeIdentifier(builder, feature.name);
 
         builder.append(": "_s, protect(feature.rightComparison->value)->cssText(CSS::defaultSerializationContext()));
         break;
@@ -118,7 +118,7 @@ void serialize(StringBuilder& builder, const Feature& feature)
             serializeRangeComparisonOperator(feature.leftComparison->op);
         }
 
-        serializeIdentifier(feature.name, builder);
+        serializeIdentifier(builder, feature.name);
 
         if (feature.rightComparison) {
             serializeRangeComparisonOperator(feature.rightComparison->op);

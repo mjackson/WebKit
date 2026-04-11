@@ -59,12 +59,12 @@ STATIC_ASSERT_IS_TRIVIALLY_DESTRUCTIBLE(JSWebAssembly);
 
 // Uses UNUSED_FUNCTION because some constructors, e.g., for Arrays are currently not exposed.
 #define DEFINE_CALLBACK_FOR_CONSTRUCTOR(capitalName, lowerName, properName, instanceType, jsName, prototypeBase, featureFlag) \
-    static UNUSED_FUNCTION JSValue create##capitalName(VM&, JSObject* object)                                                 \
-    {                                                                                                                         \
-        JSWebAssembly* webAssembly = jsCast<JSWebAssembly*>(object);                                                          \
-        JSGlobalObject* globalObject = webAssembly->globalObject();                                                           \
-        return globalObject->properName##Constructor();                                                                       \
-    }
+static UNUSED_FUNCTION JSValue create##capitalName(VM&, JSObject* object) \
+{ \
+    JSWebAssembly* webAssembly = jsCast<JSWebAssembly*>(object); \
+    JSGlobalObject* globalObject = webAssembly->realm(); \
+    return globalObject->properName##Constructor(); \
+}
 
 FOR_EACH_WEBASSEMBLY_CONSTRUCTOR_TYPE(DEFINE_CALLBACK_FOR_CONSTRUCTOR)
 
@@ -75,8 +75,6 @@ static JSC_DECLARE_HOST_FUNCTION(webAssemblyInstantiateFunc);
 static JSC_DECLARE_HOST_FUNCTION(webAssemblyPromisingFunc);
 static JSC_DECLARE_HOST_FUNCTION(webAssemblyValidateFunc);
 static JSC_DECLARE_HOST_FUNCTION(webAssemblyGetterJSTag);
-static JSC_DECLARE_HOST_FUNCTION(webAssemblyGetterSuspending);
-static JSC_DECLARE_HOST_FUNCTION(webAssemblyGetterSuspendError);
 
 }
 
@@ -126,11 +124,8 @@ void JSWebAssembly::finishCreation(VM& vm, JSGlobalObject* globalObject)
     if (globalObject->globalObjectMethodTable()->instantiateStreaming)
         JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION("instantiateStreaming"_s, webAssemblyInstantiateStreamingCodeGenerator, static_cast<unsigned>(0));
     JSC_NATIVE_GETTER_WITHOUT_TRANSITION("JSTag"_s, webAssemblyGetterJSTag, PropertyAttribute::ReadOnly);
-    if (Options::useJSPI()) {
-        JSC_NATIVE_GETTER_WITHOUT_TRANSITION("Suspending"_s, webAssemblyGetterSuspending, PropertyAttribute::DontEnum);
-        JSC_NATIVE_GETTER_WITHOUT_TRANSITION("SuspendError"_s, webAssemblyGetterSuspendError, PropertyAttribute::DontEnum);
+    if (Options::useJSPI())
         JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("promising"_s, webAssemblyPromisingFunc, static_cast<unsigned>(PropertyAttribute::None), 0, ImplementationVisibility::Public);
-    }
 }
 
 JSWebAssembly::JSWebAssembly(VM& vm, Structure* structure)
@@ -151,7 +146,7 @@ JSC_DEFINE_HOST_FUNCTION(webAssemblyCompileFunc, (JSGlobalObject* globalObject, 
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     auto* promise = JSPromise::create(vm, globalObject->promiseStructure());
-    RETURN_IF_EXCEPTION(scope, {});
+    RETURN_IF_EXCEPTION(scope, { });
 
     Vector<uint8_t> source = createSourceBufferFromValue(vm, globalObject, callFrame->argument(0));
     RETURN_IF_EXCEPTION(scope, JSValue::encode(promise->rejectWithCaughtException(globalObject, scope)));
@@ -233,10 +228,10 @@ static void instantiate(VM& vm, JSGlobalObject* globalObject, JSPromise* promise
     scope.release();
     auto ticket = vm.deferredWorkTimer->addPendingWork(DeferredWorkTimer::WorkType::ImminentlyScheduled, vm, instance, WTF::move(dependencies));
     // Note: This completion task may or may not get called immediately.
-    module->module().compileAsync(vm, instance->memoryMode(), createSharedTask<Wasm::CalleeGroup::CallbackType>([ticket, promise, instance, module, resolveKind, creationMode, &vm, alwaysAsync](Ref<Wasm::CalleeGroup>&& calleeGroup, bool isAsync) mutable {
+    module->module().compileAsync(vm, instance->memoryMode(), createSharedTask<Wasm::CalleeGroup::CallbackType>([ticket, promise, instance, module, resolveKind, creationMode, &vm, alwaysAsync] (Ref<Wasm::CalleeGroup>&& calleeGroup, bool isAsync) mutable {
         auto callback = [promise, instance, module, resolveKind, creationMode, &vm, calleeGroup = WTF::move(calleeGroup)](DeferredWorkTimer::Ticket) mutable {
             auto scope = DECLARE_THROW_SCOPE(vm);
-            JSGlobalObject* globalObject = instance->globalObject();
+            JSGlobalObject* globalObject = instance->realm();
             instance->finalizeCreation(vm, globalObject, WTF::move(calleeGroup), creationMode);
             if (scope.exception()) [[unlikely]] {
                 promise->rejectWithCaughtException(globalObject, scope);
@@ -442,7 +437,7 @@ JSC_DEFINE_HOST_FUNCTION(webAssemblyValidateFunc, (JSGlobalObject* globalObject,
     return JSValue::encode(jsBoolean(success));
 }
 
-JSC_DEFINE_HOST_FUNCTION(webAssemblyCompileStreamingInternal, (JSGlobalObject * globalObject, CallFrame* callFrame))
+JSC_DEFINE_HOST_FUNCTION(webAssemblyCompileStreamingInternal, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -464,7 +459,7 @@ JSC_DEFINE_HOST_FUNCTION(webAssemblyCompileStreamingInternal, (JSGlobalObject * 
     RELEASE_AND_RETURN(scope, JSValue::encode(globalObject->globalObjectMethodTable()->compileStreaming(globalObject, callFrame->argument(0), WTF::move(compileOptions))));
 }
 
-JSC_DEFINE_HOST_FUNCTION(webAssemblyInstantiateStreamingInternal, (JSGlobalObject * globalObject, CallFrame* callFrame))
+JSC_DEFINE_HOST_FUNCTION(webAssemblyInstantiateStreamingInternal, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -496,16 +491,6 @@ JSC_DEFINE_HOST_FUNCTION(webAssemblyGetterJSTag, (JSGlobalObject* globalObject, 
 {
     // https://webassembly.github.io/exception-handling/js-api/#dom-webassembly-jstag
     return JSValue::encode(globalObject->webAssemblyJSTag());
-}
-
-JSC_DEFINE_HOST_FUNCTION(webAssemblyGetterSuspending, (JSGlobalObject* globalObject, CallFrame*))
-{
-    return JSValue::encode(globalObject->webAssemblySuspendingConstructor());
-}
-
-JSC_DEFINE_HOST_FUNCTION(webAssemblyGetterSuspendError, (JSGlobalObject* globalObject, CallFrame*))
-{
-    return JSValue::encode(globalObject->webAssemblySuspendErrorConstructor());
 }
 
 } // namespace JSC

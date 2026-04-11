@@ -48,7 +48,7 @@ void lowerEntrySwitch(Code& code)
     
     // It's possible that we don't have any EntrySwitches. That's fine.
     if (worklist.seen().isEmpty()) {
-        Vector<FrequentedBlock> entrypoints(code.proc().numEntrypoints(), FrequentedBlock(code[0]));
+        Vector<FrequentedBlock> entrypoints(FillWith { }, code.proc().numEntrypoints(), FrequentedBlock(code[0]));
         code.setEntrypoints(WTF::move(entrypoints));
         return;
     }
@@ -58,7 +58,7 @@ void lowerEntrySwitch(Code& code)
     
     RELEASE_ASSERT(worklist.saw(code[0]));
     
-    Vector<FrequencyClass> entrypointFrequencies(code.proc().numEntrypoints(), FrequencyClass::Rare);
+    Vector<FrequencyClass> entrypointFrequencies(FillWith { }, code.proc().numEntrypoints(), FrequencyClass::Rare);
     for (BasicBlock* block : code) {
         if (block->last().kind.opcode != EntrySwitch)
             continue;

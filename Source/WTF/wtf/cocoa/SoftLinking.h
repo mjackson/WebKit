@@ -392,7 +392,7 @@ static void* lib##Library() \
     namespace functionNamespace { \
     extern void* lib##Library(bool isOptional = false); \
     bool is##lib##LibraryAvailable(); \
-    inline bool is##lib##LibaryAvailable() { \
+    inline bool is##lib##LibraryAvailable() { \
         return lib##Library(true) != nullptr; \
     } \
     }

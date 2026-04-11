@@ -209,7 +209,7 @@ JSC_DEFINE_HOST_FUNCTION(regExpProtoFuncCompile, (JSGlobalObject* globalObject, 
     if (!thisRegExp) [[unlikely]]
         return throwVMTypeError(globalObject, scope);
 
-    if (thisRegExp->globalObject() != globalObject)
+    if (thisRegExp->realm() != globalObject)
         return throwVMTypeError(globalObject, scope, "RegExp.prototype.compile function's Realm must be the same to |this| RegExp object"_s);
 
     if (!thisRegExp->areLegacyFeaturesEnabled())
@@ -515,7 +515,7 @@ JSC_DEFINE_HOST_FUNCTION(regExpProtoFuncSearch, (JSGlobalObject* globalObject, C
     RELEASE_AND_RETURN(scope, JSValue::encode(match.get(globalObject, vm.propertyNames->index)));
 }
 
-static inline uint64_t advanceStringIndex(StringView str, unsigned strSize, uint64_t index, bool isUnicode)
+static inline uint64_t NODELETE advanceStringIndex(StringView str, unsigned strSize, uint64_t index, bool isUnicode)
 {
     if (!isUnicode)
         return ++index;

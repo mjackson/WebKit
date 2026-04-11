@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <WebCore/WritingDirection.h>
 #include <wtf/Markable.h>
 #include <wtf/UUID.h>
 
@@ -49,6 +50,10 @@ struct TextAnimationData {
     Markable<WTF::UUID> sourceAnimationUUID;
     Markable<WTF::UUID> destinationAnimationUUID;
 
+};
+
+struct TextEffectData {
+    WritingDirection writingDirection;
 };
 
 } // namespace WebKit

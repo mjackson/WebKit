@@ -130,14 +130,15 @@ class RTC_EXPORT RtpSenderInterface : public RefCountInterface,
       std::unique_ptr<VideoEncoderFactory::EncoderSelectorInterface>
           encoder_selector) = 0;
 
-#if defined(WEBRTC_WEBKIT_BUILD)
-  virtual RTCError GenerateKeyFrame(const std::vector<std::string>&) = 0;
-#endif
-
   // Default implementation of SetFrameTransformer.
   // TODO: bugs.webrtc.org/15929 - remove when all implementations are good
   void SetFrameTransformer(scoped_refptr<FrameTransformerInterface>
                            /* frame_transformer */) override {}
+
+  // TODO(crbug.com/1354101): make pure virtual again after Chrome roll.
+  virtual RTCError GenerateKeyFrame(const std::vector<std::string>& rids) {
+    return RTCError::OK();
+  }
 
  protected:
   ~RtpSenderInterface() override = default;

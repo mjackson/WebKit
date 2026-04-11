@@ -99,14 +99,13 @@ if (NOT HAS_RUN_WEBKIT_COMMON)
     else ()
         string(TOLOWER ${CMAKE_SYSTEM_PROCESSOR} LOWERCASE_CMAKE_SYSTEM_PROCESSOR)
     endif ()
-    if (LOWERCASE_CMAKE_SYSTEM_PROCESSOR MATCHES "(^aarch64|^arm64|^cortex-?[am][2-7][2-8])")
-         if (FORCE_32BIT)
-            set(WTF_CPU_ARM 1)
-        else ()
-            set(WTF_CPU_ARM64 1)
-        endif ()
-    elseif (LOWERCASE_CMAKE_SYSTEM_PROCESSOR MATCHES "(^arm|^cortex)")
+    if (FORCE_32BIT OR (
+            LOWERCASE_CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|aarch32|cortex-(a(5|7|8|9|1[2-7]|32)|m[0-9]|r[0-9]([^0-9]|$)))"
+            AND NOT LOWERCASE_CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)"))
         set(WTF_CPU_ARM 1)
+        set(CMAKE_SYSTEM_PROCESSOR "armv7l" CACHE INTERNAL "" FORCE)
+    elseif (LOWERCASE_CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|cortex-(a|x|c))")
+        set(WTF_CPU_ARM64 1)
     elseif (LOWERCASE_CMAKE_SYSTEM_PROCESSOR MATCHES "^mips64")
         set(WTF_CPU_MIPS64 1)
     elseif (LOWERCASE_CMAKE_SYSTEM_PROCESSOR MATCHES "^mips")
@@ -258,6 +257,77 @@ if (NOT HAS_RUN_WEBKIT_COMMON)
     if (ENABLE_WEBCORE)
         # TODO Enforce version requirement for gperf
         find_package(Gperf 3.0.1 REQUIRED)
+    endif ()
+
+    # -------------------------------------------------------------------------
+    # PGO (Profile-Guided Optimization) support
+    # -------------------------------------------------------------------------
+    if (ENABLE_LLVM_PROFILE_GENERATION AND NOT COMPILER_IS_CLANG)
+        message(FATAL_ERROR "ENABLE_LLVM_PROFILE_GENERATION requires Clang.")
+    endif ()
+
+    if (USE_PGO_PROFILE AND NOT COMPILER_IS_CLANG)
+        message(FATAL_ERROR "USE_PGO_PROFILE requires Clang.")
+    endif ()
+
+    # Phase 1: Profile Generation - build instrumented binary that writes .profraw files
+    if (ENABLE_LLVM_PROFILE_GENERATION AND COMPILER_IS_CLANG AND NOT MSVC)
+        include(CheckCXXSourceCompiles)
+        cmake_push_check_state()
+        set(CMAKE_REQUIRED_FLAGS "-fprofile-generate")
+        set(CMAKE_REQUIRED_LINK_OPTIONS "-fprofile-generate")
+        check_cxx_source_compiles("int main() { return 0; }" HAVE_CLANG_PROFILE_RUNTIME)
+        cmake_pop_check_state()
+
+        if (NOT HAVE_CLANG_PROFILE_RUNTIME)
+            message(FATAL_ERROR
+                "ENABLE_LLVM_PROFILE_GENERATION requires the Clang profile runtime (libclang_rt.profile).\n"
+                "Install it or disable PGO with: -DENABLE_LLVM_PROFILE_GENERATION=OFF")
+        endif ()
+
+        set(PGO_PROFILE_DIR "" CACHE PATH "Runtime directory for PGO profile output. Leave empty for clang default.")
+
+        if (PGO_PROFILE_DIR)
+            set(PGO_COMPILE_OPTIONS "-fprofile-generate=${PGO_PROFILE_DIR}" CACHE INTERNAL "")
+        else ()
+            set(PGO_COMPILE_OPTIONS "-fprofile-generate" CACHE INTERNAL "")
+        endif ()
+
+        # LTO builds error out on duplicate __llvm_profile_filename definitions.
+        set(PGO_LINK_FLAGS "${PGO_COMPILE_OPTIONS}")
+        if (LD_SUPPORTS_ALLOW_MULTIPLE_DEFINITION)
+            string(PREPEND PGO_LINK_FLAGS "-Wl,--allow-multiple-definition ")
+        endif ()
+        string(PREPEND CMAKE_EXE_LINKER_FLAGS "${PGO_LINK_FLAGS} ")
+        string(PREPEND CMAKE_SHARED_LINKER_FLAGS "${PGO_LINK_FLAGS} ")
+        string(PREPEND CMAKE_MODULE_LINKER_FLAGS "${PGO_LINK_FLAGS} ")
+
+        if (PGO_PROFILE_DIR)
+            message(STATUS "PGO profile generation enabled. Profile output: ${PGO_PROFILE_DIR}")
+        else ()
+            message(STATUS "PGO profile generation enabled. Using clang default profile output.")
+        endif ()
+        message(STATUS "  Override at runtime with: LLVM_PROFILE_FILE=/your/path/%p_%m.profraw")
+    endif ()
+
+    # Phase 2: Profile Use - build optimized binary using collected profile data
+    if (USE_PGO_PROFILE AND COMPILER_IS_CLANG AND NOT MSVC)
+        set(PGO_PROFILE_PATH "" CACHE FILEPATH "Path to merged .profdata file for PGO")
+        if (NOT PGO_PROFILE_PATH)
+            message(FATAL_ERROR "USE_PGO_PROFILE is ON but PGO_PROFILE_PATH is not set")
+        endif ()
+        if (NOT EXISTS "${PGO_PROFILE_PATH}")
+            message(FATAL_ERROR "PGO_PROFILE_PATH does not exist: ${PGO_PROFILE_PATH}")
+        endif ()
+
+        # profile counter mismatches (e.g., source changed since profiling) trigger backend-plugin warnings,
+        # which would break the build with our usage of -Werror in CI
+        WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS("-fprofile-use=${PGO_PROFILE_PATH}" "-Wno-error=backend-plugin")
+        string(PREPEND CMAKE_EXE_LINKER_FLAGS "-fprofile-use=${PGO_PROFILE_PATH} ")
+        string(PREPEND CMAKE_SHARED_LINKER_FLAGS "-fprofile-use=${PGO_PROFILE_PATH} ")
+        string(PREPEND CMAKE_MODULE_LINKER_FLAGS "-fprofile-use=${PGO_PROFILE_PATH} ")
+
+        message(STATUS "PGO profile use enabled with: ${PGO_PROFILE_PATH}")
     endif ()
 
     # -----------------------------------------------------------------------------

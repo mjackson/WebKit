@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include "CachedResourceClient.h"
+#include "CachedRawResourceClient.h"
 #include "CachedResourceHandle.h"
 #include <optional>
 #include <wtf/CompletionHandler.h>

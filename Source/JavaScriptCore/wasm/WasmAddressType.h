@@ -42,9 +42,9 @@ public:
     explicit AddressType(bool is64bit);
 
     AddressType::Kind type() const { return m_type; }
-    TypeKind asTypeKind() const;
+    TypeKind NODELETE asTypeKind() const;
 
-    friend bool operator==(const AddressType& lhs, const AddressType& rhs);
+    friend bool NODELETE operator==(const AddressType& lhs, const AddressType& rhs);
     friend bool operator!=(const AddressType& lhs, const AddressType& rhs);
     bool is64Bit() const { return m_type == AddressType::I64; }
 

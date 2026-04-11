@@ -59,6 +59,7 @@ struct SharedPreferencesForWebProcess;
 class ModelProcessProxy final : public AuxiliaryProcessProxy {
     WTF_MAKE_TZONE_ALLOCATED(ModelProcessProxy);
     WTF_MAKE_NONCOPYABLE(ModelProcessProxy);
+    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(ModelProcessProxy);
     friend LazyNeverDestroyed<ModelProcessProxy>;
 public:
     static Ref<ModelProcessProxy> getOrCreate();

@@ -28,6 +28,7 @@
 #include "NodeDocument.h"
 #include "RenderSVGHiddenContainer.h"
 #include "RenderSVGTransformableContainer.h"
+#include "RenderStyle+GettersInlines.h"
 #include "SVGNames.h"
 #include "SVGPropertyOwnerRegistry.h"
 #include "Settings.h"

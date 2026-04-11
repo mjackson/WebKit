@@ -24,7 +24,6 @@
 struct WebKit::RemoteAudioVideoRendererState {
     MediaTime currentTime;
     bool paused;
-    bool seeking;
     bool timeIsProgressing;
     double effectiveRate;
     std::optional<WebCore::VideoPlaybackQualityMetrics> videoPlaybackQualityMetrics;

@@ -45,10 +45,10 @@ static constexpr bool verbose = false;
 }
 const unsigned giveUpThreshold = 50;
 
-int64_t clampedSumImpl() { return 0; }
+int64_t NODELETE clampedSumImpl() { return 0; }
 
 template<typename... Args>
-int64_t clampedSumImpl(int left, Args... args)
+int64_t NODELETE clampedSumImpl(int left, Args... args)
 {
     return static_cast<int64_t>(left) + clampedSumImpl(args...);
 }
@@ -64,7 +64,7 @@ int clampedSum(Args... args)
             result)));
 }
 
-bool isGeneralOffset(int offset)
+bool NODELETE isGeneralOffset(int offset)
 {
     return offset >= -1 && offset <= 1;
 }
@@ -80,7 +80,7 @@ public:
 
     // Some relationships provide more information than others. When a relationship provides more
     // information, it is less vague.
-    static unsigned vagueness(Kind kind)
+    static unsigned NODELETE vagueness(Kind kind)
     {
         switch (kind) {
         case Equal:
@@ -98,7 +98,7 @@ public:
     static constexpr unsigned minVagueness = 0;
     static constexpr unsigned maxVagueness = 2;
     
-    static Kind flipped(Kind kind)
+    static Kind NODELETE flipped(Kind kind)
     {
         switch (kind) {
         case LessThan:
@@ -134,7 +134,7 @@ public:
         RELEASE_ASSERT(m_left != m_right);
     }
     
-    static Relationship safeCreate(NodeFlowProjection left, NodeFlowProjection right, Kind kind, int offset = 0)
+    static Relationship NODELETE safeCreate(NodeFlowProjection left, NodeFlowProjection right, Kind kind, int offset = 0)
     {
         if (!left.isStillValid() || !right.isStillValid() || left == right)
             return Relationship();
@@ -143,14 +143,14 @@ public:
 
     explicit operator bool() const { return !!m_left; }
     
-    NodeFlowProjection left() const { return m_left; }
-    NodeFlowProjection right() const { return m_right; }
-    Kind kind() const { return m_kind; }
-    int offset() const { return m_offset; }
+    NodeFlowProjection NODELETE left() const { return m_left; }
+    NodeFlowProjection NODELETE right() const { return m_right; }
+    Kind NODELETE kind() const { return m_kind; }
+    int NODELETE offset() const { return m_offset; }
 
-    unsigned vagueness() const { return vagueness(kind()); }
+    unsigned NODELETE vagueness() const { return vagueness(kind()); }
     
-    Relationship flipped() const
+    Relationship NODELETE flipped() const
     {
         if (!*this)
             return Relationship();
@@ -183,7 +183,7 @@ public:
         return Relationship(m_right, m_left, flipped(m_kind), -m_offset);
     }
     
-    Relationship inverse() const
+    Relationship NODELETE inverse() const
     {
         if (!*this)
             return *this;
@@ -206,16 +206,16 @@ public:
         RELEASE_ASSERT_NOT_REACHED();
     }
     
-    bool isCanonical() const { return m_left < m_right; }
+    bool NODELETE isCanonical() const { return m_left < m_right; }
     
-    Relationship canonical() const
+    Relationship NODELETE canonical() const
     {
         if (isCanonical())
             return *this;
         return flipped();
     }
     
-    bool sameNodesAs(const Relationship& other) const
+    bool NODELETE sameNodesAs(const Relationship& other) const
     {
         return m_left == other.m_left
             && m_right == other.m_right;
@@ -243,14 +243,14 @@ public:
         return false;
     }
     
-    bool operator==(const Relationship& other) const
+    bool NODELETE operator==(const Relationship& other) const
     {
         return sameNodesAs(other)
             && m_kind == other.m_kind
             && m_offset == other.m_offset;
     }
     
-    bool operator<(const Relationship& other) const
+    bool NODELETE operator<(const Relationship& other) const
     {
         if (m_left != other.m_left)
             return m_left < other.m_left;
@@ -264,7 +264,7 @@ public:
     // If possible, returns a form of this relationship where the given node is the left
     // side. Returns a null relationship if this relationship cannot say anything about this
     // node.
-    Relationship forNode(NodeFlowProjection node) const
+    Relationship NODELETE forNode(NodeFlowProjection node) const
     {
         if (m_left == node)
             return *this;
@@ -273,17 +273,17 @@ public:
         return Relationship();
     }
     
-    void setLeft(NodeFlowProjection left)
+    void NODELETE setLeft(NodeFlowProjection left)
     {
         RELEASE_ASSERT(left != m_right);
         m_left = left;
     }
-    void setRight(NodeFlowProjection right)
+    void NODELETE setRight(NodeFlowProjection right)
     {
         RELEASE_ASSERT(right != m_left);
         m_right = right;
     }
-    bool addToOffset(int offset)
+    bool NODELETE addToOffset(int offset)
     {
         if (sumOverflows<int>(m_offset, offset))
             return false;
@@ -1043,7 +1043,7 @@ public:
     // otherwise it might break the inductive reasoning around phis/upsilons.
     // For example, if lhs > 0 => node(lhs) > 0, you can't add that relationship. Pruning
     // relationships involving lhs won't prune this new relationship.
-    bool provablyGreaterThan(Node* lhs, Node* rhs, int32_t minOffset = 0)
+    bool NODELETE provablyGreaterThan(Node* lhs, Node* rhs, int32_t minOffset = 0)
     {
         auto iter = m_relationships.find(lhs);
         if (iter != m_relationships.end()) {
@@ -1057,12 +1057,12 @@ public:
         return false;
     }
 
-    bool provablyGreaterThanOrEqual(Node* lhs, Node* rhs)
+    bool NODELETE provablyGreaterThanOrEqual(Node* lhs, Node* rhs)
     {
         return provablyGreaterThan(lhs, rhs, -1);
     }
 
-    bool provablyNonNegative(Node* lhs)
+    bool NODELETE provablyNonNegative(Node* lhs)
     {
         return provablyGreaterThanOrEqual(lhs, m_zero);
     }

@@ -458,7 +458,7 @@ void WebExtensionAPIWebPageRuntime::sendMessage(WebPage& page, WebFrame& frame, 
         documentIdentifier.value(),
     };
 
-    RefPtr destinationExtensionContext = protect(page.webExtensionControllerProxy())->extensionContext(extensionID);
+    RefPtr destinationExtensionContext = page.webExtensionControllerProxy()->extensionContext(extensionID);
     if (!destinationExtensionContext) {
         // Respond after a random delay to prevent the page from easily detecting if extensions are not installed.
         callAfterRandomDelay([callback = WTF::move(callback)]() {
@@ -504,7 +504,7 @@ RefPtr<WebExtensionAPIPort> WebExtensionAPIWebPageRuntime::connect(WebPage& page
         documentIdentifier.value(),
     };
 
-    RefPtr destinationExtensionContext = protect(page.webExtensionControllerProxy())->extensionContext(extensionID);
+    RefPtr destinationExtensionContext = page.webExtensionControllerProxy()->extensionContext(extensionID);
     if (!destinationExtensionContext) {
         // Return a port that cant send messages, and disconnect after a random delay to prevent the page from easily detecting if extensions are not installed.
         Ref port = WebExtensionAPIPort::create(*this, resolvedName);

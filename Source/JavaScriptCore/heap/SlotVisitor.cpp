@@ -283,7 +283,7 @@ ALWAYS_INLINE void SlotVisitor::appendToMarkStack(ContainerType& container, JSCe
 #if CPU(X86_64)
     if (Options::dumpZappedCellCrashData()) [[unlikely]] {
         if (cell->isZapped()) [[unlikely]]
-            reportZappedCellAndCrash(m_heap, cell);
+            reportZappedCellAndCrash(cell);
     }
 #endif
     ASSERT(!cell->isZapped());
@@ -393,7 +393,7 @@ ALWAYS_INLINE void SlotVisitor::visitChildren(const JSCell* cell)
                 methodTable->visitChildren(const_cast<JSCell*>(cell), *this);
                 break;
             }
-            reportZappedCellAndCrash(m_heap, const_cast<JSCell*>(cell));
+            reportZappedCellAndCrash(const_cast<JSCell*>(cell));
         }
 #endif
         cell->methodTable()->visitChildren(const_cast<JSCell*>(cell), *this);

@@ -461,7 +461,7 @@ public:
 
     char16_t at(unsigned) const;
     char16_t operator[](unsigned i) const { return at(i); }
-    WTF_EXPORT_PRIVATE char32_t NODELETE characterStartingAt(unsigned);
+    WTF_EXPORT_PRIVATE char32_t NODELETE codePointAt(unsigned);
 
     // FIXME: Like the strict functions above, these give false for "ok" when there is trailing garbage.
     // Like the non-strict functions above, these return the value when there is trailing garbage.
@@ -474,6 +474,7 @@ public:
     WTF_EXPORT_PRIVATE Ref<StringImpl> convertToLowercaseWithoutLocale();
     WTF_EXPORT_PRIVATE Ref<StringImpl> convertToLowercaseWithoutLocaleStartingAtFailingIndex8Bit(unsigned);
     WTF_EXPORT_PRIVATE Ref<StringImpl> convertToUppercaseWithoutLocale();
+    WTF_EXPORT_PRIVATE Ref<StringImpl> convertToUppercaseWithoutLocaleStartingAtFailingIndex8Bit(unsigned);
     WTF_EXPORT_PRIVATE Ref<StringImpl> convertToLowercaseWithLocale(const AtomString& localeIdentifier);
     WTF_EXPORT_PRIVATE Ref<StringImpl> convertToUppercaseWithLocale(const AtomString& localeIdentifier);
 
@@ -583,7 +584,6 @@ private:
     template<typename CharacterType> static Expected<Ref<StringImpl>, UTF8ConversionError> reallocateInternal(Ref<StringImpl>&&, unsigned, CharacterType*&);
     template<typename CharacterType> static Ref<StringImpl> createInternal(std::span<const CharacterType>);
     WTF_EXPORT_PRIVATE NEVER_INLINE unsigned hashSlowCase() const;
-    Ref<StringImpl> convertToUppercaseWithoutLocaleStartingAtFailingIndex8Bit(unsigned);
     Ref<StringImpl> convertToUppercaseWithoutLocaleUpconvert();
 
     // The bottom bit in the ref count indicates a static (immortal) string.
@@ -665,8 +665,7 @@ size_t NODELETE reverseFind(std::span<const Latin1Character>, char16_t matchChar
 template<size_t inlineCapacity> bool NODELETE equalIgnoringNullity(const Vector<char16_t, inlineCapacity>&, StringImpl*);
 
 template<typename CharacterType1, typename CharacterType2>
-std::strong_ordering NODELETE odePointCompare(std::span<const CharacterType1> characters1, std::span<const CharacterType2> characters2);
-std::strong_ordering NODELETE codePointCompare(const StringImpl* string1, const StringImpl* string2);
+SUPPRESS_NODELETE std::strong_ordering NODELETE codePointCompare(std::span<const CharacterType1> characters1, std::span<const CharacterType2> characters2);
 
 bool NODELETE isUnicodeWhitespace(char16_t);
 
@@ -795,7 +794,8 @@ template<size_t inlineCapacity> inline bool equalIgnoringNullity(const Vector<ch
 }
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
-template<typename CharacterType1, typename CharacterType2> inline std::strong_ordering codePointCompare(std::span<const CharacterType1> characters1, std::span<const CharacterType2> characters2)
+template<typename CharacterType1, typename CharacterType2>
+inline std::strong_ordering codePointCompare(std::span<const CharacterType1> characters1, std::span<const CharacterType2> characters2)
 {
     size_t commonLength = std::min(characters1.size(), characters2.size());
 
@@ -849,26 +849,6 @@ template<typename CharacterType1, typename CharacterType2> inline std::strong_or
     return (characters1.size() > characters2.size()) ? std::strong_ordering::greater : std::strong_ordering::less;
 }
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
-
-SUPPRESS_NODELETE inline std::strong_ordering codePointCompare(const StringImpl* string1, const StringImpl* string2)
-{
-    // FIXME: Should null strings compare as less than empty strings rather than equal to them?
-    if (!string1)
-        return (string2 && string2->length()) ? std::strong_ordering::less : std::strong_ordering::equal;
-    if (!string2)
-        return string1->length() ? std::strong_ordering::greater : std::strong_ordering::equal;
-
-    bool string1Is8Bit = string1->is8Bit();
-    bool string2Is8Bit = string2->is8Bit();
-    if (string1Is8Bit) {
-        if (string2Is8Bit)
-            return codePointCompare(string1->span8(), string2->span8());
-        return codePointCompare(string1->span8(), string2->span16());
-    }
-    if (string2Is8Bit)
-        return codePointCompare(string1->span16(), string2->span8());
-    return codePointCompare(string1->span16(), string2->span16());
-}
 
 // FIXME: For Latin1Character, isUnicodeCompatibleASCIIWhitespace(character) || character == 0x0085 || character == noBreakSpace would be enough
 SUPPRESS_NODELETE inline bool isUnicodeWhitespace(char16_t character)

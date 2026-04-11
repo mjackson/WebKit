@@ -836,6 +836,12 @@ void WebChromeClient::requestFrameScreenPosition(FrameIdentifier frameID) const
     if (RefPtr page = m_page.get())
         page->requestFrameScreenPosition(frameID);
 }
+
+void WebChromeClient::scheduleAccessibilityFrameGeometryUpdate() const
+{
+    if (RefPtr page = m_page.get())
+        page->scheduleAccessibilityFrameGeometryUpdate();
+}
 #endif
 
 void WebChromeClient::mainFrameDidChange()
@@ -912,7 +918,7 @@ void WebChromeClient::scrollContainingScrollViewsToRevealRect(const IntRect&) co
 CornerRadii WebChromeClient::scrollbarAvoidanceCornerRadii() const
 {
 #if HAVE(NSVIEW_CORNER_CONFIGURATION)
-    if (RefPtr page = m_page.get())
+    if (auto* page = m_page.get())
         return page->scrollbarAvoidanceCornerRadii();
 #endif
     return { };
@@ -2379,6 +2385,20 @@ void WebChromeClient::clearAnimationsForActiveWritingToolsSession()
     if (RefPtr page = m_page.get())
         page->clearAnimationsForActiveWritingToolsSession();
 }
+
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+void WebChromeClient::addTextEffectForID(const WTF::UUID& uuid, WebCore::TextEffectData&& data, RefPtr<WebCore::TextIndicator>&& textIndicator, RefPtr<WebCore::TextIndicator>&& decorationIndicator)
+{
+    if (RefPtr page = m_page.get())
+        page->addTextEffectForID(uuid, WTF::move(data), WTF::move(textIndicator), WTF::move(decorationIndicator));
+}
+
+void WebChromeClient::removeTextEffectForID(const WTF::UUID& uuid)
+{
+    if (RefPtr page = m_page.get())
+        page->removeTextEffectForID(uuid);
+}
+#endif // ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
 
 #endif
 

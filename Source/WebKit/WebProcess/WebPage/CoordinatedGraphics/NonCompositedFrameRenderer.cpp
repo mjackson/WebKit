@@ -204,11 +204,16 @@ void NonCompositedFrameRenderer::updateRendering()
         if (m_context)
             PlatformDisplay::sharedDisplay().skiaGLContext()->makeContextCurrent();
 
+        m_surface->clear({ });
+
         canvas->save();
         GraphicsContextSkia graphicsContext(*canvas, m_context ? RenderingMode::Accelerated : RenderingMode::Unaccelerated, RenderingPurpose::DOM);
         graphicsContext.applyDeviceScaleFactor(webPage->deviceScaleFactor());
 
-        if (m_surface->shouldPaintMirrored()) {
+        // recordingContext is the GPU context, so we need to manually flip Y only
+        // for non-GPU surfaces, because GPU surfaces are created with the right
+        // GrSurfaceOrigin to leave skia handle that.
+        if (m_surface->shouldPaintMirrored() && !canvas->recordingContext()) {
             SkMatrix matrix;
             matrix.setScaleTranslate(1, -1, 0, webPage->size().height());
             canvas->concat(matrix);

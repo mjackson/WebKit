@@ -568,10 +568,19 @@ bool JSGenericTypedArrayView<Adaptor>::put(
 {
     JSGenericTypedArrayView* thisObject = jsCast<JSGenericTypedArrayView*>(cell);
 
-    if (std::optional<uint32_t> index = parseIndex(propertyName))
+    // https://tc39.es/ecma262/#sec-typedarray-set
+    if (std::optional<uint32_t> index = parseIndex(propertyName)) {
+        if (isThisValueAltered(slot, thisObject)) [[unlikely]] {
+            if (thisObject->isDetached() || !thisObject->inBounds(index.value()))
+                return true;
+            return ordinarySetSlow(globalObject, thisObject, propertyName, value, slot.thisValue(), slot.isStrictMode());
+        }
         return putByIndex(thisObject, globalObject, index.value(), value, slot.isStrictMode());
+    }
 
     if (isCanonicalNumericIndexString(propertyName.uid())) {
+        if (isThisValueAltered(slot, thisObject)) [[unlikely]]
+            return true;
         // Cases like '-0', '1.1', etc. are still obliged to give the RHS a chance to throw.
         toNativeFromValue<Adaptor>(globalObject, value);
         return true;
@@ -993,12 +1002,22 @@ template<typename Adaptor> RefPtr<typename Adaptor::ViewType> JSGenericTypedArra
     return result;
 }
 
+template<typename Adaptor> RefPtr<typename Adaptor::ViewType> JSGenericTypedArrayView<Adaptor>::toWrappedAllowResizable(VM& vm, JSValue value)
+{
+    return JSC::toUnsharedNativeTypedView<Adaptor>(vm, value);
+}
+
 template<typename Adaptor> RefPtr<typename Adaptor::ViewType> JSGenericTypedArrayView<Adaptor>::toWrappedAllowShared(VM& vm, JSValue value)
 {
     auto result = JSC::toPossiblySharedNativeTypedView<Adaptor>(vm, value);
     if (!result || result->isResizableOrGrowableShared())
         return nullptr;
     return result;
+}
+
+template<typename Adaptor> RefPtr<typename Adaptor::ViewType> JSGenericTypedArrayView<Adaptor>::toWrappedAllowSharedAndResizable(VM& vm, JSValue value)
+{
+    return JSC::toPossiblySharedNativeTypedView<Adaptor>(vm, value);
 }
 
 template<typename PassedAdaptor> inline const ClassInfo* JSGenericResizableOrGrowableSharedTypedArrayView<PassedAdaptor>::info()

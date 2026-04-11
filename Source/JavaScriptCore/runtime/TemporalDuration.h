@@ -79,8 +79,8 @@ public:
     int sign() const { return sign(m_duration); }
 
     ISO8601::Duration with(JSGlobalObject*, JSObject* durationLike) const;
-    ISO8601::Duration negated() const;
-    ISO8601::Duration abs() const;
+    ISO8601::Duration NODELETE negated() const;
+    ISO8601::Duration NODELETE abs() const;
     ISO8601::Duration add(JSGlobalObject*, JSValue) const;
     ISO8601::Duration subtract(JSGlobalObject*, JSValue) const;
     ISO8601::Duration round(JSGlobalObject*, JSValue options) const;

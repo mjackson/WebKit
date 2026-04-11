@@ -532,6 +532,20 @@ void TestController::tooltipDidChange(WKStringRef tooltip)
     m_tooltipCallbacks.notifyListeners(tooltip);
 }
 
+static void cursorDidChangeForTesting(WKStringRef cursorInfo, const void*)
+{
+    TestController::singleton().cursorDidChange(cursorInfo);
+}
+
+void TestController::cursorDidChange(WKStringRef cursorInfo)
+{
+    m_cursorCallbacks.notifyListeners(cursorInfo);
+#if PLATFORM(MAC)
+    if (m_mainWebView)
+        m_mainWebView->updateCursorOverlayImage();
+#endif
+}
+
 void TestController::Callbacks::append(WKJSHandleRef handle)
 {
     if (!handle)
@@ -1615,6 +1629,11 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options, Re
         m_finishExitFullscreenHandler();
 
     m_tooltipCallbacks.clear();
+    m_cursorCallbacks.clear();
+    if (m_mainWebView && m_mainWebView->options().shouldShowCursor())
+        WKPageSetCursorDidChangeCallbackForTesting(mainWebView()->page(), cursorDidChangeForTesting, nullptr);
+    else
+        WKPageSetCursorDidChangeCallbackForTesting(mainWebView()->page(), nullptr, nullptr);
     m_beginSwipeCallbacks.clear();
     m_willEndSwipeCallbacks.clear();
     m_didEndSwipeCallbacks.clear();
@@ -1948,6 +1967,7 @@ if (window.testRunner) {
     let createHandle = (object) => object ? window.webkit.createJSHandle(object) : undefined;
 
     testRunner.installTooltipDidChangeCallback = callback => post(['InstallTooltipCallback', createHandle(callback)]);
+    testRunner.installCursorDidChangeCallback = callback => post(['InstallCursorCallback', createHandle(callback)]);
     testRunner.installDidBeginSwipeCallback = callback => post(['InstallBeginSwipeCallback', createHandle(callback)]);
     testRunner.installWillEndSwipeCallback = callback => post(['InstallWillEndSwipeCallback', createHandle(callback)]);
     testRunner.installDidEndSwipeCallback = callback => post(['InstallDidEndSwipeCallback', createHandle(callback)]);
@@ -2477,6 +2497,12 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
 
     if (WKStringIsEqualToUTF8CString(command, "InstallTooltipCallback")) {
         m_tooltipCallbacks.append(dynamic_wk_cast<WKJSHandleRef>(argument));
+        return completionHandler(nullptr);
+    }
+
+    if (WKStringIsEqualToUTF8CString(command, "InstallCursorCallback")) {
+        m_cursorCallbacks.append(dynamic_wk_cast<WKJSHandleRef>(argument));
+        WKPageSetCursorDidChangeCallbackForTesting(mainWebView()->page(), cursorDidChangeForTesting, nullptr);
         return completionHandler(nullptr);
     }
 
@@ -3432,6 +3458,11 @@ void TestController::didReceiveSynchronousMessageFromInjectedBundle(WKStringRef 
 
     if (WKStringIsEqualToUTF8CString(messageName, "AXSearchPredicate"))
         return completionHandler(handleAXSearchPredicate(dictionaryValue(messageBody)).get());
+
+    if (WKStringIsEqualToUTF8CString(messageName, "AXPerformAction")) {
+        handleAXPerformAction(dictionaryValue(messageBody));
+        return completionHandler(nullptr);
+    }
 #endif
 
     completionHandler(protectedCurrentInvocation()->didReceiveSynchronousMessageFromInjectedBundle(messageName, messageBody).get());
@@ -5699,6 +5730,19 @@ WKRetainPtr<WKTypeRef> TestController::handleAXSearchPredicate(WKDictionaryRef m
     }
 
     return tokenArray;
+}
+
+void TestController::handleAXPerformAction(WKDictionaryRef messageBody)
+{
+    uint64_t elementToken = uint64Value(messageBody, "elementToken");
+    WKStringRef actionName = stringValue(messageBody, "actionName");
+
+    AXUIElementRef element = static_cast<AXUIElementRef>(getAXElement(elementToken));
+    if (!element)
+        return;
+
+    RetainPtr actionNameCF = adoptCF(CFStringCreateWithCString(kCFAllocatorDefault, toSTD(actionName).c_str(), kCFStringEncodingUTF8));
+    AXUIElementPerformAction(element, actionNameCF.get());
 }
 
 #endif // PLATFORM(MAC)

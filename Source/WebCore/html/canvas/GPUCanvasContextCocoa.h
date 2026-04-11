@@ -102,7 +102,7 @@ private:
         GPUTextureFormat format { GPUTextureFormat::R8unorm };
         GPUTextureUsageFlags usage { GPUTextureUsage::RENDER_ATTACHMENT };
         Vector<GPUTextureFormat> viewFormats;
-        GPUPredefinedColorSpace colorSpace { GPUPredefinedColorSpace::SRGB };
+        PredefinedColorSpace colorSpace { PredefinedColorSpace::SRGB };
         GPUCanvasToneMapping toneMapping;
         GPUCanvasAlphaMode compositingAlphaMode { GPUCanvasAlphaMode::Opaque };
         Vector<MachSendRight> renderBuffers;

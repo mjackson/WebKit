@@ -102,7 +102,7 @@ ExceptionOr<RefPtr<SVGTransform>> SVGTransformList::consolidate()
     if (m_items.size() == 1)
         return RefPtr { at(0).ptr() };
 
-    auto newItem = SVGTransform::create(concatenate());
+    auto newItem = SVGTransform::create(*concatenate());
     clearItems();
 
     auto item = append(WTF::move(newItem));
@@ -110,8 +110,10 @@ ExceptionOr<RefPtr<SVGTransform>> SVGTransformList::consolidate()
     return RefPtr { item.ptr() };
 }
 
-AffineTransform SVGTransformList::concatenate() const
+std::optional<AffineTransform> SVGTransformList::concatenate() const
 {
+    if (m_items.isEmpty())
+        return std::nullopt;
     AffineTransform result;
     for (auto& transform : m_items)
         result *= transform->matrix().value();

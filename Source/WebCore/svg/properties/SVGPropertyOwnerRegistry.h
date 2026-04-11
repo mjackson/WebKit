@@ -69,7 +69,7 @@ public:
     {
     }
 
-    template<const LazyNeverDestroyed<const QualifiedName>& attributeName, Ref<SVGStringList> SVGConditionalProcessingAttributes::*property>
+    template<const LazyNeverDestroyed<const QualifiedName>& attributeName, const Ref<SVGStringList> SVGConditionalProcessingAttributes::*property>
     static void registerConditionalProcessingAttributeProperty()
     {
         registerProperty(attributeName, SVGConditionalProcessingAttributeAccessor<OwnerType>::template singleton<property>());
@@ -298,7 +298,7 @@ public:
 
     bool isAnimatedPropertyAttribute(const QualifiedName& attributeName) const override
     {
-        if (auto* property = fastAnimatedPropertyLookup(m_owner, attributeName))
+        if (RefPtr property = fastAnimatedPropertyLookup(m_owner, attributeName))
             return true;
 
         bool isAnimatedPropertyAttribute = false;
@@ -306,6 +306,18 @@ public:
             isAnimatedPropertyAttribute = accessor.isAnimatedProperty();
         });
         return isAnimatedPropertyAttribute;
+    }
+
+    bool isAnimatingProperty(const QualifiedName& attributeName) const override
+    {
+        if (RefPtr property = fastAnimatedPropertyLookup(m_owner, attributeName))
+            return property->isAnimating();
+
+        bool result = false;
+        lookupRecursivelyAndApply(attributeName, [&](auto& accessor) {
+            result = accessor.isAnimating(m_owner);
+        });
+        return result;
     }
 
     bool isAnimatedStylePropertyAttribute(const QualifiedName& attributeName) const override

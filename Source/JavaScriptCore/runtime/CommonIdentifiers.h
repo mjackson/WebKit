@@ -437,7 +437,6 @@ namespace JSC {
         const Identifier emptyIdentifier;
         const Identifier underscoreProto;
         const Identifier useStrictIdentifier;
-        const Identifier timesIdentifier;
         const Identifier negativeOneIdentifier;
         const Identifier usingIdentifier;
     private:

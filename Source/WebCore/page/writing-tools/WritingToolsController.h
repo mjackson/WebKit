@@ -184,7 +184,7 @@ private:
     static String plainText(const SimpleRange&);
 
     template<WritingTools::Session::Type Type>
-    StateFromSessionType<Type>::Value* currentState();
+    StateFromSessionType<Type>::Value* NODELETE currentState();
 
     template<WritingTools::Session::Type Type>
     const StateFromSessionType<Type>::Value* currentState() const;
@@ -220,7 +220,7 @@ private:
 
     void commitComposition(CompositionState&, Document&);
 
-    RefPtr<Document> document() const;
+    RefPtr<Document> NODELETE document() const;
 
     WeakPtr<Page> m_page;
     std::unique_ptr<State> m_state;

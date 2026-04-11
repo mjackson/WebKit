@@ -69,6 +69,7 @@
 #include "RTCSessionDescription.h"
 #include "RTCSessionDescriptionInit.h"
 #include "Settings.h"
+#include <JavaScriptCore/StrongInlines.h>
 #include <algorithm>
 #include <wtf/MainThread.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -196,7 +197,14 @@ static std::optional<Exception> validateSendEncodings(Vector<RTCRtpEncodingParam
     size_t encodingIndex = 0;
     bool hasAnyScaleResolutionDownBy = !isAudio && std::ranges::any_of(encodings, [](auto& encoding) { return !!encoding.scaleResolutionDownBy; });
     for (auto& encoding: encodings) {
-        // FIXME: Validate rid and codec
+        if (encoding.rid.length() > 16)
+            return Exception { ExceptionCode::TypeError, "Rid is too long"_s };
+        bool hasInvalidCharacter = encoding.rid.find([](auto character) {
+            return !isASCIIAlphanumeric(character) && character != '-' && character != '_';
+        }) != notFound;
+        if (hasInvalidCharacter)
+            return Exception { ExceptionCode::TypeError, "Rid contains invalid character(s)"_s };
+
         if (isAudio) {
             encoding.scaleResolutionDownBy = { };
             encoding.maxFramerate = { };
@@ -215,27 +223,24 @@ static std::optional<Exception> validateSendEncodings(Vector<RTCRtpEncodingParam
             encoding.scaleResolutionDownBy = 1 << (encodings.size() - ++encodingIndex);
     }
 
-    return { };
-}
+    if (encodings.size() == 1)
+        encodings[0].rid = { };
 
-// https://w3c.github.io/webrtc-pc/#dfn-addtransceiver-sendencodings-validation-steps (partial implementation).
-static std::optional<Exception> validateRTCRtpTransceiverInitSendEncodings(const RTCRtpTransceiverInit& init)
-{
-    for (auto& encoding : init.sendEncodings) {
-        if (encoding.rid.length() > 16)
-            return Exception { ExceptionCode::TypeError, "Rid is too long"_s };
-        bool hasInvalidCharacter = encoding.rid.find([](auto character) {
-            return !isASCIIAlphanumeric(character) && character != '-' && character != '_';
-        }) != notFound;
-        if (hasInvalidCharacter)
-            return Exception { ExceptionCode::TypeError, "Rid contains invalid character(s)"_s };
-    }
     return { };
 }
 
 ExceptionOr<Ref<RTCRtpTransceiver>> RTCPeerConnection::addTransceiver(AddTransceiverTrackOrKind&& withTrack, RTCRtpTransceiverInit&& init)
 {
     INFO_LOG(LOGIDENTIFIER);
+
+    if (std::holds_alternative<String>(withTrack)) {
+        const String& kind = std::get<String>(withTrack);
+        if (kind != "audio"_s && kind != "video"_s)
+            return Exception { ExceptionCode::TypeError, "Kind should be audio or video"_s };
+    }
+
+    if (isClosed())
+        return Exception { ExceptionCode::InvalidStateError, "RTCPeerConnection is closed"_s };
 
     if (auto exception = validateSendEncodings(init.sendEncodings, isAudioTransceiver(withTrack)))
         return WTF::move(*exception);
@@ -248,14 +253,8 @@ ExceptionOr<Ref<RTCRtpTransceiver>> RTCPeerConnection::addTransceiver(AddTransce
         if (isClosed())
             return Exception { ExceptionCode::InvalidStateError, "RTCPeerConnection is closed"_s };
 
-        if (auto exception = validateRTCRtpTransceiverInitSendEncodings(init))
-            return WTF::move(*exception);
-
         return protect(*m_backend)->addTransceiver(kind, init, PeerConnectionBackend::IgnoreNegotiationNeededFlag::No);
     }
-
-    if (isClosed())
-        return Exception { ExceptionCode::InvalidStateError };
 
     Ref track = std::get<Ref<MediaStreamTrack>>(withTrack);
     return protect(*m_backend)->addTransceiver(WTF::move(track), init);
@@ -404,7 +403,7 @@ void RTCPeerConnection::setLocalDescription(std::optional<RTCLocalSessionDescrip
 
 #if !RELEASE_LOG_DISABLED
     String sdp = localDescription.value_or(RTCLocalSessionDescriptionInit { }).sdp;
-    logger().toObservers(LogWebRTC, WTFLogLevel::Always, LOGIDENTIFIER, "Setting local description to:\n", sdp);
+    logger().toObservers(LogWebRTC, WTFLogLevel::Always, { }, LOGIDENTIFIER, "Setting local description to:\n", sdp);
     RELEASE_LOG_FORWARDABLE(WebRTC, RtcPeerConnectionSetLocalDescription, logIdentifier(), sdp.utf8());
 #endif
 
@@ -437,7 +436,7 @@ void RTCPeerConnection::setRemoteDescription(RTCSessionDescriptionInit&& remoteD
     }
 
 #if !RELEASE_LOG_DISABLED
-    logger().toObservers(LogWebRTC, WTFLogLevel::Always, LOGIDENTIFIER, "Setting remote description to:\n", remoteDescription.sdp);
+    logger().toObservers(LogWebRTC, WTFLogLevel::Always, { }, LOGIDENTIFIER, "Setting remote description to:\n", remoteDescription.sdp);
     RELEASE_LOG_FORWARDABLE(WebRTC, RtcPeerConnectionSetRemoteDescription, logIdentifier(), remoteDescription.sdp.utf8());
 #endif
 

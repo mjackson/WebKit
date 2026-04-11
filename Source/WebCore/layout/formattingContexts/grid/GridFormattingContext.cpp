@@ -137,7 +137,7 @@ static Style::RepeatTrackList repeatTrackListWithPercentagesConvertedToAuto(cons
             [](const Style::GridTrackSize& trackSize) -> Style::RepeatEntry {
                 return trackSizeWithPercentagesConvertedToAuto(trackSize);
             },
-            [](const Vector<String>& lineNames) -> Style::RepeatEntry {
+            [](const Vector<Style::CustomIdent>& lineNames) -> Style::RepeatEntry {
                 return lineNames;
             });
     });
@@ -150,7 +150,7 @@ static Style::GridTemplateList gridTemplateListWithPercentagesConvertedToAuto(co
             [](const Style::GridTrackSize& trackSize) -> Style::GridTrackEntry {
                 return trackSizeWithPercentagesConvertedToAuto(trackSize);
             },
-            [](const Vector<String>& lineNames) -> Style::GridTrackEntry {
+            [](const Vector<Style::CustomIdent>& lineNames) -> Style::GridTrackEntry {
                 return lineNames;
             },
             [](const Style::GridTrackEntryRepeat& repeat) -> Style::GridTrackEntry {

@@ -159,7 +159,7 @@ void FlexLayout::layout()
             renderer->setOverridingBorderBoxLogicalWidth(isOrthogonal ? borderBox.height() : borderBox.width());
             renderer->setOverridingBorderBoxLogicalHeight(isOrthogonal ? borderBox.width() : borderBox.height());
 
-            renderer->setChildNeedsLayout(MarkOnlyThis);
+            renderer->setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
             renderer->layoutIfNeeded();
             renderer->clearOverridingSize();
 

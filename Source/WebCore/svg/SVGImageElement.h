@@ -36,7 +36,7 @@ public:
 
     WEBCORE_EXPORT CachedImage* NODELETE cachedImage() const;
     bool renderingTaintsOrigin() const;
-    const AtomString& imageSourceURL() const final;
+    String imageSourceURL() const final;
 
     const SVGLengthValue& x() const LIFETIME_BOUND { return m_x->currentValue(); }
     const SVGLengthValue& y() const LIFETIME_BOUND { return m_y->currentValue(); }

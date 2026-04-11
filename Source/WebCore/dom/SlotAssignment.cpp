@@ -511,6 +511,11 @@ void ManualSlotAssignment::removeSlotElementByName(const AtomString&, HTMLSlotEl
     --m_slotElementCount;
     ++m_slottableVersion;
 
+    if (auto* host = shadowRoot.host()) {
+        if (!m_slotElementCount)
+            host->setHasShadowRootContainingSlots(false);
+    }
+
     if (!shadowRoot.shouldFireSlotchangeEvent())
         return;
 

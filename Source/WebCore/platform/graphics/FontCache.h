@@ -137,7 +137,7 @@ public:
     Vector<String> systemFontFamilies();
     void platformInit();
 
-    static bool isSystemFontForbiddenForEditing(const String&);
+    static bool NODELETE isSystemFontForbiddenForEditing(const String&);
 
 #if PLATFORM(COCOA)
     WEBCORE_EXPORT static void setFontAllowlist(const Vector<String>&);
@@ -240,7 +240,7 @@ private:
 #endif
 
 #if PLATFORM(COCOA)
-    FontDatabase& database(AllowUserInstalledFonts);
+    FontDatabase& NODELETE database(AllowUserInstalledFonts);
 #endif
 
     Timer m_purgeTimer;

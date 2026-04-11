@@ -29,6 +29,7 @@
 #include "AnimationUtilities.h"
 
 #include "CSSPropertyParserConsumer+Font.h"
+#include "StylePrimitiveNumericTypes+Blending.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "RenderStyle+GettersInlines.h"
 #include "StyleBuilderChecking.h"

@@ -108,7 +108,6 @@ public:
     uint64_t resultInteger() const { return m_resultInteger; }
 
     WEBCORE_EXPORT const IDBGetResult& NODELETE getResult() const;
-    WEBCORE_EXPORT IDBGetResult& NODELETE getResultRef();
     WEBCORE_EXPORT const IDBGetAllResult& NODELETE getAllResult() const;
 
     WEBCORE_EXPORT IDBResultData();

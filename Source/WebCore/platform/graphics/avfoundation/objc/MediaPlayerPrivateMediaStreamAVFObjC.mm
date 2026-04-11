@@ -167,13 +167,13 @@ MediaPlayerPrivateMediaStreamAVFObjC::~MediaPlayerPrivateMediaStreamAVFObjC()
         mediaStreamPrivate->removeObserver(*this);
 
     for (auto& track : m_audioTrackMap.values())
-        protect(track->streamTrack())->removeObserver(*this);
+        track->streamTrack().removeObserver(*this);
 
     for (auto& track : m_videoTrackMap.values())
-        protect(track->streamTrack())->removeObserver(*this);
+        track->streamTrack().removeObserver(*this);
 
     if (m_activeVideoTrack)
-        protect(protect(m_activeVideoTrack->streamTrack())->source())->removeVideoFrameObserver(*this);
+        m_activeVideoTrack->streamTrack().source().removeVideoFrameObserver(*this);
 
     [m_boundsChangeListener invalidate];
 
@@ -987,12 +987,12 @@ void MediaPlayerPrivateMediaStreamAVFObjC::checkSelectedVideoTrack()
 
     if (oldVideoTrack != m_activeVideoTrack) {
         if (oldVideoTrack)
-            protect(protect(oldVideoTrack->streamTrack())->source())->removeVideoFrameObserver(*this);
+            oldVideoTrack->streamTrack().source().removeVideoFrameObserver(*this);
         m_isActiveVideoTrackEnabled = m_activeVideoTrack ? m_activeVideoTrack->streamTrack().enabled() : true;
         if (m_activeVideoTrack) {
-            if (m_sampleBufferDisplayLayer && protect(m_activeVideoTrack->streamTrack())->source().isCaptureSource())
+            if (m_sampleBufferDisplayLayer && m_activeVideoTrack->streamTrack().source().isCaptureSource())
                 m_sampleBufferDisplayLayer->setRenderPolicy(SampleBufferDisplayLayer::RenderPolicy::Immediately);
-            protect(protect(m_activeVideoTrack->streamTrack())->source())->addVideoFrameObserver(*this);
+            m_activeVideoTrack->streamTrack().source().addVideoFrameObserver(*this);
             ALWAYS_LOG(LOGIDENTIFIER, "observing video source ", m_activeVideoTrack->streamTrack().logIdentifier());
         }
     } else

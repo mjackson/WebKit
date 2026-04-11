@@ -106,7 +106,13 @@ bool MediaStrategy::hasRemoteRendererFor(MediaPlayerMediaEngineIdentifier type) 
 
 void MediaStrategy::enableRemoteRenderer(MediaPlayerMediaEngineIdentifier type, bool enabled)
 {
+    if (m_remoteRenderersEnabled.get(static_cast<uint16_t>(type)) == enabled)
+        return;
+
     m_remoteRenderersEnabled.set(static_cast<uint16_t>(type), enabled);
+#if ENABLE(VIDEO)
+    MediaPlayer::resetMediaEngines();
+#endif
 }
 #endif
 

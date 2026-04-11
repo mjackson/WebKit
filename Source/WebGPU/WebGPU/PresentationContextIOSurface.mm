@@ -115,8 +115,14 @@ RetainPtr<CGImageRef> PresentationContextIOSurface::getTextureAsNativeImage(uint
     case WGPUColorSpace::SRGB:
         colorSpaceName = kCGColorSpaceSRGB;
         break;
+    case WGPUColorSpace::SRGBLinear:
+        colorSpaceName = kCGColorSpaceLinearSRGB;
+        break;
     case WGPUColorSpace::DisplayP3:
         colorSpaceName = kCGColorSpaceDisplayP3;
+        break;
+    case WGPUColorSpace::DisplayP3Linear:
+        colorSpaceName = kCGColorSpaceLinearDisplayP3;
         break;
     }
 

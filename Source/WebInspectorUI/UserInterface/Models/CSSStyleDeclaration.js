@@ -198,8 +198,7 @@ WI.CSSStyleDeclaration = class CSSStyleDeclaration extends WI.Object
             return;
         }
 
-        // Allow updates from the backend when text matches because `properties` may contain warnings that need to be shown.
-        if (this._locked && !options.forceUpdate && text !== this._text)
+        if (this._locked && !options.forceUpdate)
             return;
 
         text = text || "";

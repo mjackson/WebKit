@@ -37,24 +37,24 @@ namespace Style {
 
 auto CSSValueConversion<SingleTransitionProperty>::operator()(BuilderState& state, const CSSValue& value) -> SingleTransitionProperty
 {
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-    if (!primitiveValue)
-        return CSS::Keyword::All { };
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
+        switch (primitiveValue->valueID()) {
+        case CSSValueAll:
+            return CSS::Keyword::All { };
+        case CSSValueNone:
+            return CSS::Keyword::None { };
+        default:
+            break;
+        }
 
-    switch (primitiveValue->valueID()) {
-    case CSSValueAll:
-        return CSS::Keyword::All { };
-    case CSSValueNone:
-        return CSS::Keyword::None { };
-    default:
-        break;
+        auto propertyID = primitiveValue->propertyID();
+        if (propertyID == CSSPropertyInvalid)
+            return CustomIdent { AtomString { primitiveValue->stringValue() } };
+
+        return propertyID;
     }
 
-    auto propertyID = primitiveValue->propertyID();
-    if (propertyID == CSSPropertyInvalid)
-        return CustomIdentifier { AtomString { primitiveValue->stringValue() } };
-
-    return propertyID;
+    return toStyleFromCSSValue<CustomIdent>(state, value);
 }
 
 } // namespace Style

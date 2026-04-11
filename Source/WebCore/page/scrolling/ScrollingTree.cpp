@@ -583,16 +583,6 @@ void ScrollingTree::removeAllNodes()
     }
 }
 
-void ScrollingTree::applyLayerPositionsAfterCommit()
-{
-    // Scrolling tree needs to make adjustments only if the UI side positions have changed.
-    if (!m_needsApplyLayerPositionsAfterCommit)
-        return;
-    m_needsApplyLayerPositionsAfterCommit = false;
-
-    applyLayerPositions();
-}
-
 void ScrollingTree::applyLayerPositions()
 {
     Locker locker { m_treeLock };

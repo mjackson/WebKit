@@ -149,8 +149,9 @@ public:
     auto end() const LIFETIME_BOUND { return m_keyframes.end(); }
 
     bool NODELETE usesContainerUnits() const;
+    bool usesViewportUnits() const;
     bool usesRelativeFontWeight() const { return m_usesRelativeFontWeight; }
-    bool hasCSSVariableReferences() const { return m_containsCSSVariableReferences; }
+    bool hasSubstitutionFunctions() const { return m_containsSubstitutionFunctions; }
     bool hasColorSetToCurrentColor() const;
     bool NODELETE hasPropertySetToCurrentColor() const;
     const HashSet<AnimatableCSSProperty>& NODELETE propertiesSetToInherit() const LIFETIME_BOUND;
@@ -182,7 +183,7 @@ private:
     HashSet<AnimatableCSSProperty> m_propertiesSetToInherit;
     HashSet<AnimatableCSSProperty> m_propertiesSetToCurrentColor;
     bool m_usesRelativeFontWeight { false };
-    bool m_containsCSSVariableReferences { false };
+    bool m_containsSubstitutionFunctions { false };
     bool m_usesAnchorFunctions { false };
     bool m_hasWidthDependentTransform { false };
     bool m_hasHeightDependentTransform { false };

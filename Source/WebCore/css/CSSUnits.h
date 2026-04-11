@@ -122,8 +122,6 @@ enum class CSSUnitType : uint8_t {
     CSS_LH,
     CSS_RLH,
 
-    CustomIdent,
-
     CSS_TURN,
     CSS_REM,
     CSS_REX,

@@ -26,6 +26,7 @@
 #pragma once
 
 #include <wtf/Assertions.h>
+#include <wtf/OverflowHandler.h>
 
 #include <limits>
 #include <stdint.h>
@@ -76,67 +77,6 @@ namespace WTF {
 enum class CheckedState {
     DidOverflow,
     DidNotOverflow
-};
-
-class AssertNoOverflow {
-public:
-    static NO_RETURN_DUE_TO_ASSERT void overflowed()
-    {
-        ASSERT_NOT_REACHED();
-    }
-
-    void clearOverflow() { }
-
-    static NO_RETURN_DUE_TO_CRASH void crash()
-    {
-        CRASH();
-    }
-
-public:
-    constexpr bool hasOverflowed() const { return false; }
-};
-
-class CrashOnOverflow {
-public:
-    static NO_RETURN_DUE_TO_CRASH void overflowed()
-    {
-        crash();
-    }
-
-    void clearOverflow() { }
-
-    static NO_RETURN_DUE_TO_CRASH void crash()
-    {
-        CRASH();
-    }
-
-public:
-    bool hasOverflowed() const { return false; }
-};
-
-class RecordOverflow {
-protected:
-    RecordOverflow()
-        : m_overflowed(false)
-    {
-    }
-
-    void clearOverflow()
-    {
-        m_overflowed = false;
-    }
-
-    static NO_RETURN_DUE_TO_CRASH void crash()
-    {
-        CRASH();
-    }
-
-public:
-    bool hasOverflowed() const { return m_overflowed; }
-    void overflowed() { m_overflowed = true; }
-
-private:
-    unsigned char m_overflowed;
 };
 
 template<typename, typename = CrashOnOverflow> class Checked;
@@ -385,7 +325,9 @@ template<typename LHS, typename RHS, typename ResultType> struct ArithmeticOpera
 
     [[nodiscard]] static inline bool divide(LHS lhs, RHS rhs, ResultType& result)
     {
-        if (!rhs)
+        if (!rhs) [[unlikely]]
+            return false;
+        if (rhs == -1 && lhs == std::numeric_limits<ResultType>::min()) [[unlikely]]
             return false;
 
         result = lhs / rhs;
@@ -519,10 +461,12 @@ template<typename ResultType> struct ArithmeticOperations<int, unsigned, ResultT
 
     static inline bool divide(int64_t lhs, int64_t rhs, ResultType& result)
     {
-        if (!rhs)
+        if (!rhs) [[unlikely]]
             return false;
 
         int64_t temp = lhs / rhs;
+        if (!isInBounds<ResultType>(temp)) [[unlikely]]
+            return false;
         result = static_cast<ResultType>(temp);
         return true;
     }
@@ -819,19 +763,19 @@ public:
     }
 
     // Equality comparisons
-    template<typename V> bool operator==(Checked<T, V> rhs)
+    template<typename V> bool operator==(Checked<T, V> rhs) const
     {
         return value() == rhs.value();
     }
 
-    template<typename U> bool operator==(U rhs)
+    template<typename U> bool operator==(U rhs) const
     {
         if (this->hasOverflowed())
             this->crash();
         return safeEquals(m_value, rhs);
     }
     
-    template<typename U, typename V> bool operator==(Checked<U, V> rhs)
+    template<typename U, typename V> bool operator==(Checked<U, V> rhs) const
     {
         return value() == Checked(rhs.value());
     }
@@ -1017,7 +961,6 @@ inline ToType safeCast(FromType value)
 
 }
 
-using WTF::AssertNoOverflow;
 using WTF::Checked;
 using WTF::CheckedState;
 using WTF::CheckedInt8;
@@ -1029,8 +972,6 @@ using WTF::CheckedUint32;
 using WTF::CheckedInt64;
 using WTF::CheckedUint64;
 using WTF::CheckedSize;
-using WTF::CrashOnOverflow;
-using WTF::RecordOverflow;
 using WTF::checkedSum;
 using WTF::checkedDifference;
 using WTF::checkedProduct;

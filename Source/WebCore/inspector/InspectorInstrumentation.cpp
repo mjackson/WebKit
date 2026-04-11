@@ -39,7 +39,9 @@
 #include "DocumentLoader.h"
 #include "Event.h"
 #include "EventTargetInlines.h"
+#include "FrameDebuggerAgent.h"
 #include "FrameInspectorController.h"
+#include "FrameRuntimeAgent.h"
 #include "InspectorAnimationAgent.h"
 #include "InspectorCSSAgent.h"
 #include "InspectorCanvasAgent.h"
@@ -78,7 +80,6 @@
 #include "WebSocketFrame.h"
 #include "WorkerInspectorController.h"
 #include "WorkerOrWorkletGlobalScope.h"
-#include "agents/frame/FrameRuntimeAgent.h"
 #include <JavaScriptCore/ConsoleMessage.h>
 #include <JavaScriptCore/ConsoleTypes.h>
 #include <JavaScriptCore/InspectorDebuggerAgent.h>
@@ -106,10 +107,17 @@ void InspectorInstrumentation::lastFrontendDeleted()
 
 void InspectorInstrumentation::didClearWindowObjectInWorldImpl(InstrumentingAgents& instrumentingAgents, LocalFrame& frame, DOMWrapperWorld& world)
 {
+    // NOTE: Under site isolation, PageDebuggerAgent and FrameDebuggerAgent cannot both be enabled for
+    // the same frame. Cross-origin frames run in a separate process where PageInspectorController never
+    // connects, so enabledPageDebuggerAgent() returns null. Same-site frames stay in the main frame's
+    // process and use PageDebuggerAgent — FrameDebuggerAgent is only created when site isolation is
+    // enabled, which guarantees cross-origin frames are in their own process.
     if (auto* pageDebuggerAgent = instrumentingAgents.enabledPageDebuggerAgent())
         pageDebuggerAgent->didClearWindowObjectInWorld(frame, world);
 
     if (auto* frameRuntimeAgent = frame.inspectorController().instrumentingAgents().enabledFrameRuntimeAgent()) {
+        if (auto* frameDebuggerAgent = frame.inspectorController().instrumentingAgents().enabledFrameDebuggerAgent())
+            frameDebuggerAgent->didClearWindowObjectInWorld(world);
         frameRuntimeAgent->didClearWindowObjectInWorld(world);
         if (CheckedPtr pageAgent = instrumentingAgents.enabledPageAgent())
             pageAgent->didClearWindowObjectInWorld(frame, world);

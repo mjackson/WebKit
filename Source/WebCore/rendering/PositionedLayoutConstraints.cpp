@@ -613,7 +613,7 @@ static LayoutPoint positionInContainer(const RenderBox& container, const RenderB
 {
     auto containerWritingMode = container.writingMode();
     auto childWritingMode = child.writingMode();
-    auto childInFlowOffset = child.writingMode().isHorizontal() ? child.offsetForInFlowPosition() : child.offsetForInFlowPosition().transposedSize();
+    auto childInFlowOffset = childWritingMode.isHorizontal() ? child.offsetForInFlowPosition() : child.offsetForInFlowPosition().transposedSize();
     auto childLogicalLeft = childInFlowOffset.width() + child.logicalLeft();
     auto childLogicalTop = childInFlowOffset.height() + child.logicalTop();
 

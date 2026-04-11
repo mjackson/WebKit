@@ -20,7 +20,9 @@
 
 #pragma once
 
+#include "HTMLElement.h"
 #include "RenderBlockFlow.h"
+#include "Timer.h"
 
 namespace WebCore {
 

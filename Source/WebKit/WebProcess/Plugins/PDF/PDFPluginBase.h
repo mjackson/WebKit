@@ -381,7 +381,7 @@ protected:
     explicit PDFPluginBase(WebCore::HTMLPlugInElement&);
 
     WebPage* webPage() const;
-    WebCore::Page* page() const;
+    WebCore::Page* NODELETE page() const;
 
     virtual void teardown();
 
@@ -453,7 +453,7 @@ protected:
 #if ENABLE(PDF_HUD)
     void updateHUDLocation();
     WebCore::IntRect frameForHUDInRootViewCoordinates() const;
-    bool hudEnabled() const;
+    bool NODELETE hudEnabled() const;
     bool shouldShowHUD() const;
     void updateHUDVisibility();
 #endif
@@ -475,7 +475,7 @@ protected:
     void writeStringToFindPasteboard(const String&) const;
 #endif
 
-    std::optional<WebCore::PageIdentifier> pageIdentifier() const;
+    std::optional<WebCore::PageIdentifier> NODELETE pageIdentifier() const;
 
     WebCore::Color pluginBackgroundColor() const;
 
@@ -503,7 +503,8 @@ protected:
     WebCore::AffineTransform m_rootViewToPluginTransform;
 
     WebCore::IntSize m_scrollOffset;
-    std::optional<WebMouseEvent> m_lastMouseEvent;
+
+    std::optional<WebCore::PlatformMouseEvent> m_lastMouseEvent;
 
     RefPtr<WebCore::Scrollbar> m_horizontalScrollbar;
     RefPtr<WebCore::Scrollbar> m_verticalScrollbar;

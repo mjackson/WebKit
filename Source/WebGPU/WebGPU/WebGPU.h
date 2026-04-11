@@ -203,7 +203,9 @@ struct WGPURenderPipelineDescriptor;
 
 typedef enum WGPUColorSpace {
     SRGB,
+    SRGBLinear,
     DisplayP3,
+    DisplayP3Linear,
 } WGPUColorSpace;
 
 typedef enum WGPUAdapterType {

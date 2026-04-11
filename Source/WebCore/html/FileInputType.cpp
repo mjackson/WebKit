@@ -30,6 +30,7 @@
 #include "ElementInlines.h"
 #include "ElementRareData.h"
 #include "Event.h"
+#include "FrameDestructionObserverInlines.h"
 #include "File.h"
 #include "FileChooser.h"
 #include "FileList.h"
@@ -74,7 +75,7 @@ FileInputType::FileInputType(HTMLInputElement& element)
 
 FileInputType::~FileInputType()
 {
-    if (RefPtr fileChooser = m_fileChooser)
+    if (auto* fileChooser = m_fileChooser.get())
         fileChooser->invalidate();
 
     if (m_fileIconLoader)
@@ -142,7 +143,7 @@ bool FileInputType::appendFormData(DOMFormData& formData) const
     return true;
 }
 
-bool FileInputType::valueMissing(const String& value) const
+bool FileInputType::valueMissing(StringView value) const
 {
     ASSERT(element());
     return element()->isRequired() && value.isEmpty();
@@ -151,7 +152,7 @@ bool FileInputType::valueMissing(const String& value) const
 String FileInputType::valueMissingText() const
 {
     ASSERT(element());
-    return protect(element())->multiple() ? validationMessageValueMissingForMultipleFileText() : validationMessageValueMissingForFileText();
+    return element()->multiple() ? validationMessageValueMissingForMultipleFileText() : validationMessageValueMissingForFileText();
 }
 
 void FileInputType::handleDOMActivateEvent(Event& event)
@@ -242,7 +243,7 @@ void FileInputType::createShadowSubtree()
     disabledStateChanged();
 }
 
-static RefPtr<HTMLInputElement> fileSelectorButton(const Element& element)
+static RefPtr<HTMLInputElement> NODELETE fileSelectorButton(const Element& element)
 {
     auto* root = element.userAgentShadowRoot();
     return root ? downcast<HTMLInputElement>(root->firstChild()) : nullptr;
@@ -309,7 +310,7 @@ FileChooserSettings FileInputType::fileChooserSettings() const
 
 void FileInputType::applyFileChooserSettings()
 {
-    if (RefPtr fileChooser = m_fileChooser)
+    if (auto* fileChooser = m_fileChooser.get())
         fileChooser->invalidate();
 
     m_fileChooser = FileChooser::create(*this, fileChooserSettings());
@@ -318,10 +319,10 @@ void FileInputType::applyFileChooserSettings()
 bool FileInputType::allowsDirectories() const
 {
     ASSERT(element());
-    Ref element = *this->element();
-    if (!element->document().settings().directoryUploadEnabled())
+    auto& element = *this->element();
+    if (!element.document().settings().directoryUploadEnabled())
         return false;
-    return element->hasAttributeWithoutSynchronization(webkitdirectoryAttr);
+    return element.hasAttributeWithoutSynchronization(webkitdirectoryAttr);
 }
 
 bool FileInputType::dirAutoUsesValue() const
@@ -526,7 +527,7 @@ String FileInputType::defaultToolTip() const
     unsigned listSize = m_fileList->length();
     if (!listSize) {
         ASSERT(element());
-        if (protect(element())->multiple())
+        if (element()->multiple())
             return fileButtonNoFilesSelectedLabel();
         return fileButtonNoFileSelectedLabel();
     }

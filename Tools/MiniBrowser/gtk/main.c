@@ -53,6 +53,7 @@ static gboolean editorMode;
 static const char *sessionFile;
 static char *geometry;
 static gboolean privateMode;
+static const char* profileDirectory;
 static gboolean automationMode;
 static gboolean fullScreen;
 static gboolean ignoreTLSErrors;
@@ -157,6 +158,7 @@ static const GOptionEntry commandLineOptions[] =
     { "geometry", 'g', 0, G_OPTION_ARG_STRING, &geometry, "Unused. Kept for backwards-compatibility only", "GEOMETRY" },
     { "full-screen", 'f', 0, G_OPTION_ARG_NONE, &fullScreen, "Set the window to full-screen mode", NULL },
     { "private", 'p', 0, G_OPTION_ARG_NONE, &privateMode, "Run in private browsing mode", NULL },
+    { "profile-dir", 0, 0, G_OPTION_ARG_FILENAME, &profileDirectory, "Custom profile directory to store session data", "DIR" },
     { "automation", 0, 0, G_OPTION_ARG_NONE, &automationMode, "Run in automation mode", NULL },
     { "cookies-file", 'c', 0, G_OPTION_ARG_FILENAME, &cookiesFile, "Persistent cookie storage database file", "FILE" },
     { "cookies-policy", 0, 0, G_OPTION_ARG_STRING, &cookiesPolicy, "Cookies accept policy (always, never, no-third-party). Default: no-third-party", "POLICY" },
@@ -797,11 +799,9 @@ static void activate(GApplication *application, WebKitSettings *webkitSettings)
     else if (privateMode)
         networkSession = webkit_network_session_new_ephemeral();
     else {
-        char *dataDirectory = g_build_filename(g_get_user_data_dir(), "webkitgtk-" WEBKITGTK_API_VERSION, "MiniBrowser", NULL);
-        char *cacheDirectory = g_build_filename(g_get_user_cache_dir(), "webkitgtk-" WEBKITGTK_API_VERSION, "MiniBrowser", NULL);
+        g_autofree char *dataDirectory = profileDirectory ? g_build_filename(profileDirectory, "data", NULL) : g_build_filename(g_get_user_data_dir(), "webkitgtk-" WEBKITGTK_API_VERSION, "MiniBrowser", NULL);
+        g_autofree char *cacheDirectory = profileDirectory ? g_build_filename(profileDirectory, "cache", NULL) : g_build_filename(g_get_user_cache_dir(), "webkitgtk-" WEBKITGTK_API_VERSION, "MiniBrowser", NULL);
         networkSession = webkit_network_session_new(dataDirectory, cacheDirectory);
-        g_free(dataDirectory);
-        g_free(cacheDirectory);
     }
 
     webkit_network_session_set_itp_enabled(networkSession, enableITP);
@@ -841,11 +841,9 @@ static void activate(GApplication *application, WebKitSettings *webkitSettings)
     if (privateMode || automationMode)
         manager = webkit_website_data_manager_new_ephemeral();
     else {
-        char *dataDirectory = g_build_filename(g_get_user_data_dir(), "webkitgtk-" WEBKITGTK_API_VERSION, "MiniBrowser", NULL);
-        char *cacheDirectory = g_build_filename(g_get_user_cache_dir(), "webkitgtk-" WEBKITGTK_API_VERSION, "MiniBrowser", NULL);
+        g_autofree char *dataDirectory = profileDirectory ? g_build_filename(profileDirectory, "data", NULL) : g_build_filename(g_get_user_data_dir(), "webkitgtk-" WEBKITGTK_API_VERSION, "MiniBrowser", NULL);
+        g_autofree char *cacheDirectory = profileDirectory ? g_build_filename(profileDirectory, "cache", NULL) : g_build_filename(g_get_user_cache_dir(), "webkitgtk-" WEBKITGTK_API_VERSION, "MiniBrowser", NULL);
         manager = webkit_website_data_manager_new("base-data-directory", dataDirectory, "base-cache-directory", cacheDirectory, NULL);
-        g_free(dataDirectory);
-        g_free(cacheDirectory);
     }
 
     webkit_website_data_manager_set_itp_enabled(manager, enableITP);

@@ -105,7 +105,7 @@ public:
     bool isInfinity() const { return std::isinf(m_value); }
     bool isFinite() const { return std::isfinite(m_value); }
 
-    explicit operator bool() const { return !!m_value; }
+    explicit NODELETE operator bool() const { return !!m_value; }
     
     TimeWithDynamicClockType operator+(Seconds other) const
     {

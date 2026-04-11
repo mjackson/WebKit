@@ -477,6 +477,7 @@ public:
 #endif
 
     void uiScriptDidComplete(const String& result, unsigned scriptCallbackID);
+    void cursorDidChange(WKStringRef cursorInfo);
 
 #if PLATFORM(MAC)
     // Client accessibility testing support
@@ -592,6 +593,7 @@ private:
     WKRetainPtr<WKTypeRef> handleAXCopyAttributeValueAsPoint(WKDictionaryRef);
     WKRetainPtr<WKTypeRef> handleAXCopyAttributeValueAsSize(WKDictionaryRef);
     WKRetainPtr<WKTypeRef> handleAXSearchPredicate(WKDictionaryRef);
+    void handleAXPerformAction(WKDictionaryRef);
 #endif
 
     // WKContextClient
@@ -850,6 +852,7 @@ private:
         Vector<WKRetainPtr<WKJSHandleRef>> m_callbacks;
     };
     Callbacks m_tooltipCallbacks;
+    Callbacks m_cursorCallbacks;
     Callbacks m_beginSwipeCallbacks;
     Callbacks m_willEndSwipeCallbacks;
     Callbacks m_didEndSwipeCallbacks;

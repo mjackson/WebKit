@@ -55,7 +55,7 @@ public:
 
     virtual ~DocumentTimeline();
 
-    Document* document() const { return m_document.get(); }
+    Document* document() const;
 
     std::optional<WebAnimationTime> currentTime(UseCachedCurrentTime = UseCachedCurrentTime::Yes) override;
     ExceptionOr<Ref<WebAnimation>> animate(Ref<CustomEffectCallback>&&, Variant<double, CustomAnimationOptions>&&);

@@ -45,6 +45,7 @@
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
+#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -134,6 +135,11 @@ JSTestLegacyNoInterfaceObject::JSTestLegacyNoInterfaceObject(Structure* structur
 }
 
 static_assert(!std::is_base_of<ActiveDOMObject, TestLegacyNoInterfaceObject>::value, "Interface is not marked as [ActiveDOMObject] even though implementation class subclasses ActiveDOMObject.");
+
+JSC::Structure* JSTestLegacyNoInterfaceObject::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
+{
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
+}
 
 JSObject* JSTestLegacyNoInterfaceObject::createPrototype(VM& vm, JSDOMGlobalObject& globalObject)
 {
@@ -228,7 +234,7 @@ static inline JSValue jsTestLegacyNoInterfaceObject_nodeAttributeGetter(JSGlobal
     SUPPRESS_UNCOUNTED_LOCAL auto& vm = JSC::getVM(&lexicalGlobalObject);
     auto throwScope = DECLARE_THROW_SCOPE(vm);
     SUPPRESS_UNCOUNTED_LOCAL auto& impl = thisObject.wrapped();
-    RELEASE_AND_RETURN(throwScope, (toJS<IDLInterface<Node>>(lexicalGlobalObject, *thisObject.globalObject(), throwScope, impl.nodeAttribute())));
+    RELEASE_AND_RETURN(throwScope, (toJS<IDLInterface<Node>>(lexicalGlobalObject, *thisObject.realm(), throwScope, impl.nodeAttribute())));
 }
 
 JSC_DEFINE_CUSTOM_GETTER(jsTestLegacyNoInterfaceObject_nodeAttribute, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName attributeName))
@@ -294,7 +300,7 @@ static inline JSC::EncodedJSValue jsTestLegacyNoInterfaceObjectPrototypeFunction
     UNUSED_PARAM(throwScope);
     UNUSED_PARAM(callFrame);
     SUPPRESS_UNCOUNTED_LOCAL auto& impl = castedThis->wrapped();
-    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&]() -> decltype(auto) { return impl.voidOperation(); })));
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&] -> decltype(auto) { return impl.voidOperation(); })));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestLegacyNoInterfaceObjectPrototypeFunction_voidOperation, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
@@ -322,7 +328,7 @@ static inline JSC::EncodedJSValue jsTestLegacyNoInterfaceObjectConstructorFuncti
     auto throwScope = DECLARE_THROW_SCOPE(vm);
     UNUSED_PARAM(throwScope);
     UNUSED_PARAM(callFrame);
-    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&]() -> decltype(auto) { return TestLegacyNoInterfaceObject::staticOperation(); })));
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&] -> decltype(auto) { return TestLegacyNoInterfaceObject::staticOperation(); })));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestLegacyNoInterfaceObjectConstructorFunction_staticOperation, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))

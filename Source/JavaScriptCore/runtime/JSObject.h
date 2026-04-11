@@ -94,6 +94,7 @@ class JSObject : public JSCell {
     friend class JIT;
     friend class JSCell;
     friend class JSFinalObject;
+    friend class JSObjectWithButterfly;
     friend class MarkedBlock;
 
     enum PutMode : uint8_t {
@@ -192,14 +193,14 @@ public:
     {
         if (!hasIndexedProperties(indexingType()))
             return 0;
-        return m_butterfly->publicLength();
+        return butterfly()->publicLength();
     }
-        
+
     unsigned getVectorLength()
     {
         if (!hasIndexedProperties(indexingType()))
             return 0;
-        return m_butterfly->vectorLength();
+        return butterfly()->vectorLength();
     }
     
     inline bool canHaveExistingOwnIndexedGetterSetterProperties(); // Defined in RenderObjectInlines.h
@@ -211,7 +212,7 @@ public:
     static bool putInlineForJSObject(JSCell*, JSGlobalObject*, PropertyName, JSValue, PutPropertySlot&);
     
     JS_EXPORT_PRIVATE static bool put(JSCell*, JSGlobalObject*, PropertyName, JSValue, PutPropertySlot&);
-    static bool mightBeSpecialProperty(VM&, JSType, UniquedStringImpl*);
+    static bool NODELETE mightBeSpecialProperty(VM&, JSType, UniquedStringImpl*);
     JS_EXPORT_PRIVATE NEVER_INLINE static bool definePropertyOnReceiver(JSGlobalObject*, PropertyName, JSValue, PutPropertySlot&);
     // putByIndex assumes that the receiver is this JSCell object.
     JS_EXPORT_PRIVATE static bool putByIndex(JSCell*, JSGlobalObject*, unsigned propertyName, JSValue, bool shouldThrow);
@@ -254,7 +255,7 @@ public:
             case ALL_WRITABLE_DOUBLE_INDEXING_TYPES:
             case ALL_WRITABLE_CONTIGUOUS_INDEXING_TYPES:
             case ALL_ARRAY_STORAGE_INDEXING_TYPES:
-                return propertyName < m_butterfly->vectorLength();
+                return propertyName < butterfly()->vectorLength();
             default:
                 if (isCopyOnWrite(indexingMode()))
                     return false;
@@ -488,7 +489,7 @@ public:
 
     void setIndexQuickly(VM& vm, unsigned i, JSValue v)
     {
-        Butterfly* butterfly = m_butterfly.get();
+        Butterfly* butterfly = this->butterfly();
         ASSERT(!isCopyOnWrite(indexingMode()));
         switch (indexingType()) {
         case ALL_INT32_INDEXING_TYPES: {
@@ -556,7 +557,7 @@ public:
         case ALL_CONTIGUOUS_INDEXING_TYPES:
             return false;
         case ALL_ARRAY_STORAGE_INDEXING_TYPES:
-            return !!m_butterfly->arrayStorage()->m_sparseMap;
+            return !!butterfly()->arrayStorage()->m_sparseMap;
         default:
             RELEASE_ASSERT_NOT_REACHED();
             return false;
@@ -573,7 +574,7 @@ public:
         case ALL_CONTIGUOUS_INDEXING_TYPES:
             return false;
         case ALL_ARRAY_STORAGE_INDEXING_TYPES:
-            return m_butterfly->arrayStorage()->inSparseMode();
+            return butterfly()->arrayStorage()->inSparseMode();
         default:
             RELEASE_ASSERT_NOT_REACHED();
             return false;
@@ -624,7 +625,7 @@ public:
     static constexpr unsigned maximumPrototypeChainDepth = 40000;
     JS_EXPORT_PRIVATE void getPropertyNames(JSGlobalObject*, PropertyNameArrayBuilder&, DontEnumPropertiesMode);
     JS_EXPORT_PRIVATE static void getOwnPropertyNames(JSObject*, JSGlobalObject*, PropertyNameArrayBuilder&, DontEnumPropertiesMode);
-    JS_EXPORT_PRIVATE static void getOwnSpecialPropertyNames(JSObject*, JSGlobalObject*, PropertyNameArrayBuilder&, DontEnumPropertiesMode);
+    JS_EXPORT_PRIVATE static void NODELETE getOwnSpecialPropertyNames(JSObject*, JSGlobalObject*, PropertyNameArrayBuilder&, DontEnumPropertiesMode);
     JS_EXPORT_PRIVATE void getOwnIndexedPropertyNames(JSGlobalObject*, PropertyNameArrayBuilder&, DontEnumPropertiesMode);
     JS_EXPORT_PRIVATE void getOwnNonIndexPropertyNames(JSGlobalObject*, PropertyNameArrayBuilder&, DontEnumPropertiesMode);
     void getNonReifiedStaticPropertyNames(VM&, PropertyNameArrayBuilder&, DontEnumPropertiesMode);
@@ -671,11 +672,11 @@ public:
     bool hasInlineStorage() const { return structure()->hasInlineStorage(); }
     ConstPropertyStorage inlineStorageUnsafe() const
     {
-        return std::bit_cast<ConstPropertyStorage>(this + 1);
+        return std::bit_cast<ConstPropertyStorage>(std::bit_cast<const char*>(this) + offsetOfInlineStorage());
     }
     PropertyStorage inlineStorageUnsafe()
     {
-        return std::bit_cast<PropertyStorage>(this + 1);
+        return std::bit_cast<PropertyStorage>(std::bit_cast<char*>(this) + offsetOfInlineStorage());
     }
     ConstPropertyStorage inlineStorage() const
     {
@@ -687,16 +688,25 @@ public:
         ASSERT(hasInlineStorage());
         return inlineStorageUnsafe();
     }
-        
-    const Butterfly* butterfly() const LIFETIME_BOUND { return m_butterfly.get(); }
-    Butterfly* butterfly() LIFETIME_BOUND { return m_butterfly.get(); }
-    Dependency fencedButterfly(Butterfly*& butterfly)
+
+    const Butterfly* butterfly() const LIFETIME_BOUND
     {
-        return Dependency::loadAndFence(static_cast<Butterfly**>(butterflyAddress()), butterfly);
+        return const_cast<JSObject*>(this)->butterfly();
     }
-    
-    ConstPropertyStorage outOfLineStorage() const { return m_butterfly->propertyStorage(); }
-    PropertyStorage outOfLineStorage() { return m_butterfly->propertyStorage(); }
+
+    Butterfly* butterfly() LIFETIME_BOUND
+    {
+        // Access m_butterfly field of JSObjectWithButterfly regardless of whether this object is a derived class of JSObjectWithButterfly.
+        // This is safe as atom of GC heap allocation is 16 bytes, thus the butterfly field, offset from 8 byte, is always accessible.
+        // We intentionally load it regardless to make this function branchless. This is critical to keep this fast while we have butterfly-less objects.
+        auto* b = *std::bit_cast<Butterfly**>(std::bit_cast<char*>(this) + butterflyOffset());
+        if (type() == WebAssemblyGCObjectType) [[unlikely]]
+            b = nullptr;
+        return b;
+    }
+
+    ConstPropertyStorage outOfLineStorage() const { return butterfly()->propertyStorage(); }
+    PropertyStorage outOfLineStorage() { return butterfly()->propertyStorage(); }
 
     ALWAYS_INLINE const WriteBarrierBase<Unknown>* locationForOffset(PropertyOffset offset) const
     {
@@ -765,15 +775,15 @@ public:
     JS_EXPORT_PRIVATE void seal(VM&);
     JS_EXPORT_PRIVATE void freeze(VM&);
     JS_EXPORT_PRIVATE static bool preventExtensions(JSObject*, JSGlobalObject*);
-    JS_EXPORT_PRIVATE static bool isExtensible(JSObject*, JSGlobalObject*);
+    JS_EXPORT_PRIVATE static bool NODELETE isExtensible(JSObject*, JSGlobalObject*);
     bool isSealed(VM& vm) { return structure()->isSealed(vm); }
     bool isFrozen(VM& vm) { return structure()->isFrozen(vm); }
 
-    JS_EXPORT_PRIVATE bool anyObjectInChainMayInterceptIndexedAccesses() const;
-    bool needsSlowPutIndexing() const;
+    JS_EXPORT_PRIVATE bool NODELETE anyObjectInChainMayInterceptIndexedAccesses() const;
+    bool NODELETE needsSlowPutIndexing() const;
 
 private:
-    TransitionKind suggestedArrayStorageTransition() const;
+    TransitionKind NODELETE suggestedArrayStorageTransition() const;
 public:
     // You should only call isStructureExtensible() when:
     // - Performing this check in a way that isn't described in the specification 
@@ -814,11 +824,23 @@ public:
     }
     void shiftButterflyAfterFlattening(const GCSafeConcurrentJSLocker&, VM&, Structure* structure, size_t outOfLineCapacityAfter);
 
-    JSGlobalObject* globalObject() const
+    JSGlobalObject* realmMayBeNull() const
     {
-        ASSERT(structure()->globalObject());
-        ASSERT(!isGlobalObject() || ((JSObject*)structure()->globalObject()) == this);
-        return structure()->globalObject();
+        return structure()->realm();
+    }
+
+#if USE(BUN_JSC_ADDITIONS)
+    // Compat alias: upstream renamed JSObject::globalObject() -> realm() in 7d4583947a7b.
+    // Preserves old (nullable) semantics for Bun's existing call sites.
+    JSGlobalObject* globalObject() const { return realmMayBeNull(); }
+#endif
+
+    JSGlobalObject* realm() const
+    {
+        SUPPRESS_FORWARD_DECL_ARG auto* result = realmMayBeNull();
+        RELEASE_ASSERT(result, "Do not call JSObject::realm() on objects with realmless structures (e.g., WebAssembly GC objects)");
+        ASSERT(!isGlobalObject() || ((JSObject*)result) == this);
+        return result;
     }
 
     void switchToSlowPutArrayStorage(VM&);
@@ -839,7 +861,7 @@ public:
     ContiguousJSValues tryMakeWritableInt32(VM& vm)
     {
         if (hasInt32(indexingType()) && !isCopyOnWrite(indexingMode())) [[likely]]
-            return m_butterfly->contiguousInt32();
+            return butterfly()->contiguousInt32();
 
         return tryMakeWritableInt32Slow(vm);
     }
@@ -851,7 +873,7 @@ public:
     ContiguousDoubles tryMakeWritableDouble(VM& vm)
     {
         if (hasDouble(indexingType()) && !isCopyOnWrite(indexingMode())) [[likely]]
-            return m_butterfly->contiguousDouble();
+            return butterfly()->contiguousDouble();
 
         return tryMakeWritableDoubleSlow(vm);
     }
@@ -861,7 +883,7 @@ public:
     ContiguousJSValues tryMakeWritableContiguous(VM& vm)
     {
         if (hasContiguous(indexingType()) && !isCopyOnWrite(indexingMode())) [[likely]]
-            return m_butterfly->contiguous();
+            return butterfly()->contiguous();
 
         return tryMakeWritableContiguousSlow(vm);
     }
@@ -873,7 +895,7 @@ public:
     ArrayStorage* ensureArrayStorage(VM& vm)
     {
         if (hasAnyArrayStorage(indexingType())) [[likely]]
-            return m_butterfly->arrayStorage();
+            return butterfly()->arrayStorage();
 
         return ensureArrayStorageSlow(vm);
     }
@@ -884,18 +906,16 @@ public:
             convertFromCopyOnWrite(vm);
     }
 
-    static constexpr size_t offsetOfInlineStorage()
+    static constexpr size_t offsetOfInlineStorage();
+
+    static constexpr ptrdiff_t butterflyOffset()
     {
         return sizeof(JSObject);
     }
 
-    static constexpr ptrdiff_t butterflyOffset()
-    {
-        return OBJECT_OFFSETOF(JSObject, m_butterfly);
-    }
     void* butterflyAddress()
     {
-        return &m_butterfly;
+        return std::bit_cast<char*>(this) + butterflyOffset();
     }
 
     JS_EXPORT_PRIVATE JSValue getMethod(JSGlobalObject*, CallData&, const Identifier&, const String& errorMessage);
@@ -933,27 +953,27 @@ protected:
 
     // To instantiate objects you likely want JSFinalObject, below.
     // To create derived types you likely want JSNonFinalObject, below.
-    JSObject(VM&, Structure*, Butterfly* = nullptr);
+    JSObject(VM&, Structure*);
+
+    // Returns reference to butterfly field storage. Only valid for objects that have butterfly storage
+    // (JSObjectWithButterfly subclasses). Used by JSObject methods that manipulate butterfly storage.
+    ALWAYS_INLINE AuxiliaryBarrier<Butterfly*>& butterflyRef()
+    {
+        ASSERT(type() != WebAssemblyGCObjectType);
+        return *std::bit_cast<AuxiliaryBarrier<Butterfly*>*>(std::bit_cast<char*>(this) + butterflyOffset());
+    }
 
     JSObject(CreatingWellDefinedBuiltinCellTag, StructureID structureID, int32_t blob)
         : JSCell(CreatingWellDefinedBuiltinCell, structureID, blob)
-        , m_butterfly(nullptr, WriteBarrierEarlyInit)
     {
     }
-
-    // Visits the butterfly unless there is a race. Returns the structure if there was no race.
-    template<typename Visitor> Structure* visitButterfly(Visitor&);
-    
-    template<typename Visitor> Structure* visitButterflyImpl(Visitor&);
-    
-    template<typename Visitor> void markAuxiliaryAndVisitOutOfLineProperties(Visitor&, Butterfly*, Structure*, PropertyOffset maxOffset);
 
     // Call this if you know that the object is in a mode where it has array
     // storage. This will assert otherwise.
     ArrayStorage* arrayStorage()
     {
         ASSERT(hasAnyArrayStorage(indexingType()));
-        return m_butterfly->arrayStorage();
+        return butterfly()->arrayStorage();
     }
         
     // Call this if you want to predicate some actions on whether or not the
@@ -962,7 +982,7 @@ protected:
     {
         switch (indexingType()) {
         case ALL_ARRAY_STORAGE_INDEXING_TYPES:
-            return m_butterfly->arrayStorage();
+            return butterfly()->arrayStorage();
                 
         default:
             return nullptr;
@@ -1018,7 +1038,7 @@ protected:
     bool putByIndexBeyondVectorLengthWithArrayStorage(JSGlobalObject*, unsigned propertyName, JSValue, bool shouldThrow, ArrayStorage*);
 
     bool increaseVectorLength(VM&, unsigned newLength);
-    void deallocateSparseIndexMap();
+    void NODELETE deallocateSparseIndexMap();
     bool defineOwnIndexedProperty(JSGlobalObject*, unsigned, const PropertyDescriptor&, bool throwException);
     SparseArrayValueMap* allocateSparseIndexMap(VM&);
         
@@ -1033,13 +1053,13 @@ protected:
         RELEASE_ASSERT(length <= MAX_STORAGE_VECTOR_LENGTH);
         ASSERT(hasContiguous(indexingType()) || hasInt32(indexingType()) || hasDouble(indexingType()) || hasUndecided(indexingType()));
 
-        if (m_butterfly->vectorLength() < length || isCopyOnWrite(indexingMode())) {
+        if (butterfly()->vectorLength() < length || isCopyOnWrite(indexingMode())) {
             if (!ensureLengthSlow(vm, length))
                 return false;
         }
-            
-        if (m_butterfly->publicLength() < length)
-            m_butterfly->setPublicLength(length);
+
+        if (butterfly()->publicLength() < length)
+            butterfly()->setPublicLength(length);
         return true;
     }
         
@@ -1048,7 +1068,7 @@ protected:
     void reallocateAndShrinkButterfly(VM&, unsigned length);
     
     template<IndexingType indexingShape>
-    unsigned countElements(Butterfly*);
+    unsigned NODELETE countElements(Butterfly*);
         
     // This is relevant to undecided, int32, double, and contiguous.
     unsigned countElements();
@@ -1099,27 +1119,82 @@ private:
     JS_EXPORT_PRIVATE ArrayStorage* ensureArrayStorageSlow(VM&);
 
     PropertyOffset prepareToPutDirectWithoutTransition(VM&, PropertyName, unsigned attributes, StructureID, Structure*);
+};
 
+// JSObjectWithButterfly is a JSObject that has out-of-line property storage (butterfly).
+// All normal JS objects go through this class. Wasm GC objects inherit JSObject directly
+// without butterfly to save 8 bytes per allocation.
+class JSObjectWithButterfly : public JSObject {
+    friend class JSObject;
+    friend class JSFinalObject;
+    friend class LLIntOffsetsExtractor;
+
+public:
+    using Base = JSObject;
+
+    DECLARE_VISIT_CHILDREN_WITH_MODIFIER(JS_EXPORT_PRIVATE);
+
+    DECLARE_EXPORT_INFO;
+
+    const Butterfly* butterfly() const LIFETIME_BOUND { return m_butterfly.get(); }
+    Butterfly* butterfly() LIFETIME_BOUND { return m_butterfly.get(); }
+    Dependency fencedButterfly(Butterfly*& butterfly)
+    {
+        return Dependency::loadAndFence(static_cast<Butterfly**>(butterflyAddress()), butterfly);
+    }
+
+    ConstPropertyStorage outOfLineStorage() const { return m_butterfly->propertyStorage(); }
+    PropertyStorage outOfLineStorage() { return m_butterfly->propertyStorage(); }
+
+    void* butterflyAddress()
+    {
+        return &m_butterfly;
+    }
+
+    // Visits the butterfly unless there is a race. Returns the structure if there was no race.
+    template<typename Visitor> Structure* visitButterfly(Visitor&);
+    template<typename Visitor> Structure* visitButterflyImpl(Visitor&);
+    template<typename Visitor> void markAuxiliaryAndVisitOutOfLineProperties(Visitor&, Butterfly*, Structure*, PropertyOffset maxOffset);
+
+protected:
+    JSObjectWithButterfly(VM& vm, Structure* structure, Butterfly* butterfly = nullptr)
+        : JSObject(vm, structure)
+        , m_butterfly(butterfly, WriteBarrierEarlyInit)
+    {
+    }
+
+    JSObjectWithButterfly(CreatingWellDefinedBuiltinCellTag, StructureID structureID, int32_t blob)
+        : JSObject(CreatingWellDefinedBuiltinCell, structureID, blob)
+        , m_butterfly(nullptr, WriteBarrierEarlyInit)
+    {
+    }
+
+private:
     AuxiliaryBarrier<Butterfly*> m_butterfly;
 #if CPU(ADDRESS32)
     unsigned m_32BitPadding;
 #endif
 };
 
+constexpr size_t JSObject::offsetOfInlineStorage()
+{
+    return sizeof(JSObjectWithButterfly);
+}
+
 // JSNonFinalObject is a type of JSObject that has some internal storage,
 // but also preserves some space in the collector cell for additional
 // data members in derived types.
-class JSNonFinalObject : public JSObject {
+class JSNonFinalObject : public JSObjectWithButterfly {
     friend class JSObject;
 
 public:
-    typedef JSObject Base;
+    typedef JSObjectWithButterfly Base;
 
     inline static Structure* createStructure(VM&, JSGlobalObject*, JSValue);
 
 protected:
     explicit JSNonFinalObject(VM& vm, Structure* structure, Butterfly* butterfly = nullptr)
-        : JSObject(vm, structure, butterfly)
+        : JSObjectWithButterfly(vm, structure, butterfly)
     {
     }
 
@@ -1135,10 +1210,10 @@ protected:
 
 // JSFinalObject is a type of JSObject that contains sufficient internal
 // storage to fully make use of the collector cell containing it.
-class JSFinalObject final : public JSObject {
+class JSFinalObject final : public JSObjectWithButterfly {
     friend class JSObject;
 public:
-    using Base = JSObject;
+    using Base = JSObjectWithButterfly;
     static constexpr unsigned StructureFlags = Base::StructureFlags;
 
     template<typename CellType, SubspaceAccess>
@@ -1146,7 +1221,7 @@ public:
 
     static size_t allocationSize(Checked<size_t> inlineCapacity)
     {
-        return sizeof(JSObject) + inlineCapacity * sizeof(WriteBarrierBase<Unknown>);
+        return sizeof(JSObjectWithButterfly) + inlineCapacity * sizeof(WriteBarrierBase<Unknown>);
     }
 
     static inline constexpr TypeInfo typeInfo() { return TypeInfo(FinalObjectType, StructureFlags); }
@@ -1157,11 +1232,11 @@ public:
     }
 
     static constexpr unsigned defaultSizeInBytes = 64;
-    static constexpr unsigned defaultInlineCapacity = (defaultSizeInBytes - sizeof(JSObject)) / sizeof(WriteBarrier<Unknown>);
+    static constexpr unsigned defaultInlineCapacity = (defaultSizeInBytes - sizeof(JSObjectWithButterfly)) / sizeof(WriteBarrier<Unknown>);
     static_assert(defaultInlineCapacity < firstOutOfLineOffset);
 
     static constexpr unsigned maxSizeInBytes = 512;
-    static constexpr unsigned maxInlineCapacity = (maxSizeInBytes - sizeof(JSObject)) / sizeof(WriteBarrier<Unknown>);
+    static constexpr unsigned maxInlineCapacity = (maxSizeInBytes - sizeof(JSObjectWithButterfly)) / sizeof(WriteBarrier<Unknown>);
     static_assert(maxInlineCapacity < firstOutOfLineOffset);
 
     static JSFinalObject* create(VM&, Structure*);
@@ -1178,14 +1253,14 @@ private:
     friend class LLIntOffsetsExtractor;
 
     explicit JSFinalObject(VM& vm, Structure* structure, Butterfly* butterfly, size_t inlineCapacity)
-        : JSObject(vm, structure, butterfly)
+        : JSObjectWithButterfly(vm, structure, butterfly)
     {
         // We do not need to use gcSafeMemcpy since this object is not exposed yet.
         memset(inlineStorageUnsafe(), 0, inlineCapacity * sizeof(EncodedJSValue));
     }
 
     explicit JSFinalObject(CreatingWellDefinedBuiltinCellTag, StructureID structureID)
-        : JSObject(CreatingWellDefinedBuiltinCell, structureID, defaultTypeInfoBlob())
+        : JSObjectWithButterfly(CreatingWellDefinedBuiltinCell, structureID, defaultTypeInfoBlob())
     {
         // We do not need to use gcSafeMemcpy since this object is not exposed yet.
         memset(inlineStorageUnsafe(), 0, defaultInlineCapacity * sizeof(EncodedJSValue));
@@ -1259,14 +1334,14 @@ inline bool JSObject::isWithScope() const
 inline void JSObject::setStructure(VM& vm, Structure* structure)
 {
     ASSERT(structure);
-    ASSERT(!m_butterfly == !(structure->outOfLineCapacity() || structure->hasIndexingHeader(this)));
+    ASSERT(!butterfly() == !(structure->outOfLineCapacity() || structure->hasIndexingHeader(this)));
     JSCell::setStructure(vm, structure);
 }
 
 inline JSObject* asObject(JSCell* cell)
 {
     ASSERT(cell);
-    ASSERT(cell->isObject());
+    ASSERT(cell->isObjectSlow());
     return jsCast<JSObject*>(cell);
 }
 
@@ -1275,9 +1350,8 @@ inline JSObject* asObject(JSValue value)
     return asObject(value.asCell());
 }
 
-inline JSObject::JSObject(VM& vm, Structure* structure, Butterfly* butterfly)
+inline JSObject::JSObject(VM& vm, Structure* structure)
     : JSCell(vm, structure)
-    , m_butterfly(butterfly, WriteBarrierEarlyInit)
 {
 }
 
@@ -1519,7 +1593,9 @@ inline size_t maxOffsetRelativeToBase(PropertyOffset offset)
     return static_cast<size_t>(addressOffset);
 }
 
-static_assert(!(sizeof(JSObject) % sizeof(WriteBarrierBase<Unknown>)), "JSObject inline storage has correct alignment");
+static_assert(!(sizeof(JSObjectWithButterfly) % sizeof(WriteBarrierBase<Unknown>)), "JSObject inline storage has correct alignment");
+static_assert(sizeof(JSObject) == sizeof(JSCell), "JSObject should be the same size as JSCell (no butterfly)");
+static_assert(JSObject::butterflyOffset() == sizeof(JSObject), "butterfly offset must be right after JSObject");
 
 ALWAYS_INLINE Identifier makeIdentifier(VM& vm, ASCIILiteral literal)
 {

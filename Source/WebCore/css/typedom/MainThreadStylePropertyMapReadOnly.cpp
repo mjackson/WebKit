@@ -26,10 +26,10 @@
 #include "config.h"
 #include "MainThreadStylePropertyMapReadOnly.h"
 
-#include "CSSPendingSubstitutionValue.h"
 #include "CSSProperty.h"
 #include "CSSPropertyNames.h"
 #include "CSSPropertyParser.h"
+#include "CSSShorthandSubstitutionValue.h"
 #include "CSSStyleValue.h"
 #include "CSSStyleValueFactory.h"
 #include "CSSTokenizer.h"

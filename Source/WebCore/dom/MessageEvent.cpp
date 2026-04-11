@@ -31,6 +31,7 @@
 #include "Blob.h"
 #include "EventNames.h"
 #include "JSMessageEvent.h"
+#include "JSValueInWrappedObjectInlines.h"
 #include "SecurityOrigin.h"
 #include <JavaScriptCore/JSCInlines.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -53,14 +54,14 @@ MessageEvent::MessageEvent()
 {
 }
 
-inline MessageEvent::MessageEvent(const AtomString& type, Init&& initializer, IsTrusted isTrusted)
+inline MessageEvent::MessageEvent(JSC::JSGlobalObject& globalObject, const AtomString& type, Init&& initializer, IsTrusted isTrusted)
     : Event(EventInterfaceType::MessageEvent, type, initializer, isTrusted)
     , m_data(JSValueTag { })
     , m_origin(initializer.origin)
     , m_lastEventId(initializer.lastEventId)
     , m_source(WTF::move(initializer.source))
     , m_ports(WTF::move(initializer.ports))
-    , m_jsData(initializer.data)
+    , m_jsData(globalObject, initializer.data)
 {
 }
 
@@ -90,7 +91,7 @@ auto MessageEvent::create(JSC::JSGlobalObject& globalObject, Ref<SerializedScrip
     auto& eventType = didFail ? eventNames().messageerrorEvent : eventNames().messageEvent;
     Ref event = adoptRef(*new MessageEvent(eventType, MessageEvent::JSValueTag { }, WTF::move(origin), lastEventId, WTF::move(source), WTF::move(ports)));
     JSC::Strong<JSC::JSObject> strongWrapper(vm, JSC::jsCast<JSC::JSObject*>(toJS(&globalObject, JSC::jsCast<JSDOMGlobalObject*>(&globalObject), event.get())));
-    event->jsData().set(vm, strongWrapper.get(), deserialized);
+    event->jsData().set(globalObject, strongWrapper.get(), deserialized);
 
     return MessageEventWithStrongData { event, WTF::move(strongWrapper) };
 }
@@ -110,9 +111,9 @@ Ref<MessageEvent> MessageEvent::createForBindings()
     return adoptRef(*new MessageEvent);
 }
 
-Ref<MessageEvent> MessageEvent::create(const AtomString& type, Init&& initializer, IsTrusted isTrusted)
+Ref<MessageEvent> MessageEvent::create(JSC::JSGlobalObject& globalObject, const AtomString& type, Init&& initializer, IsTrusted isTrusted)
 {
-    return adoptRef(*new MessageEvent(type, WTF::move(initializer), isTrusted));
+    return adoptRef(*new MessageEvent(globalObject, type, WTF::move(initializer), isTrusted));
 }
 
 MessageEvent::~MessageEvent() = default;
@@ -141,7 +142,7 @@ const RefPtr<SecurityOrigin> MessageEvent::securityOrigin() const
     );
 }
 
-void MessageEvent::initMessageEvent(const AtomString& type, bool canBubble, bool cancelable, JSValue data, const String& origin, const String& lastEventId, std::optional<MessageEventSource>&& source, Vector<Ref<MessagePort>>&& ports)
+void MessageEvent::initMessageEvent(JSC::JSGlobalObject& globalObject, const AtomString& type, bool canBubble, bool cancelable, JSValue data, const String& origin, const String& lastEventId, std::optional<MessageEventSource>&& source, Vector<Ref<MessagePort>>&& ports)
 {
     if (isBeingDispatched())
         return;
@@ -152,9 +153,9 @@ void MessageEvent::initMessageEvent(const AtomString& type, bool canBubble, bool
         Locker locker { m_concurrentDataAccessLock };
         m_data = JSValueTag { };
     }
-    // FIXME: This code is wrong: we should emit a write-barrier. Otherwise, GC can collect it.
-    // https://bugs.webkit.org/show_bug.cgi?id=236353
-    m_jsData.setWeakly(data);
+    auto* domGlobalObject = JSC::jsCast<JSDOMGlobalObject*>(&globalObject);
+    auto* wrapper = toJS(&globalObject, domGlobalObject, *this).getObject();
+    m_jsData.set(globalObject, wrapper, data);
     m_cachedData.clear();
     m_origin = origin;
     m_lastEventId = lastEventId;

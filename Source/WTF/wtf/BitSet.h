@@ -317,7 +317,7 @@ inline constexpr size_t BitSet<bitSetSize, WordType>::count(size_t start) const
             ++result;
     }
     for (size_t i = start / wordSize; i < words; ++i)
-        result += WTF::bitCount(bits[i]);
+        result += std::popcount(bits[i]);
     return result;
 }
 

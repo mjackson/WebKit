@@ -146,7 +146,7 @@ public:
     void didFailHeartBeatCheck();
     void updateAppInitiatedValue(LastNavigationWasAppInitiated);
 
-    WorkerThreadMode workerThreadMode() const;
+    WorkerThreadMode NODELETE workerThreadMode() const;
 
     void incrementFunctionalEventCounter() { ++m_functionalEventCounter; }
     void decrementFunctionalEventCounter();

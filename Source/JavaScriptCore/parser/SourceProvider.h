@@ -124,7 +124,8 @@ public:
 private:
     JS_EXPORT_PRIVATE virtual void lockUnderlyingBufferImpl();
     JS_EXPORT_PRIVATE virtual void unlockUnderlyingBufferImpl();
-    JS_EXPORT_PRIVATE void getID();
+
+    JS_EXPORT_PRIVATE void NODELETE getID();
 
     std::atomic<unsigned> m_lockingCount { 0 };
     SourceProviderSourceType m_sourceType;

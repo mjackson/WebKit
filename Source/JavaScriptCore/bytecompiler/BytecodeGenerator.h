@@ -679,7 +679,7 @@ namespace JSC {
 
         void hoistSloppyModeFunctionIfNecessary(FunctionMetadataNode*);
 
-        ForInContext* findForInContext(RegisterID* property);
+        ForInContext* NODELETE findForInContext(RegisterID* property);
 
     private:
         void emitTypeProfilerExpressionInfo(const JSTextPosition& startDivot, const JSTextPosition& endDivot);
@@ -863,7 +863,7 @@ namespace JSC {
         
         void emitPutAsyncGeneratorFields(RegisterID* nextFunction);
 
-        ExpectedFunction expectedFunctionForIdentifier(const Identifier&);
+        ExpectedFunction NODELETE expectedFunctionForIdentifier(const Identifier&);
         RegisterID* emitCall(RegisterID* dst, RegisterID* func, ExpectedFunction, CallArguments&, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd, DebuggableCall);
         RegisterID* emitCallInTailPosition(RegisterID* dst, RegisterID* func, ExpectedFunction, CallArguments&, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd, DebuggableCall);
         RegisterID* emitCallDirectEval(RegisterID* dst, RegisterID* func, CallArguments&, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd, DebuggableCall);
@@ -904,7 +904,7 @@ namespace JSC {
         RegisterID* emitToPropertyKey(RegisterID* dst, RegisterID* src);
         RegisterID* emitToPropertyKeyOrNumber(RegisterID* dst, RegisterID* src);
 
-        ResolveType resolveType();
+        ResolveType NODELETE resolveType();
         RegisterID* emitResolveConstantLocal(RegisterID* dst, const Variable&);
         RegisterID* emitResolveScope(RegisterID* dst, const Variable&);
         RegisterID* emitGetFromScope(RegisterID* dst, RegisterID* scope, const Variable&, ResolveMode);
@@ -1024,7 +1024,7 @@ namespace JSC {
         void restoreScopeRegister();
         void restoreScopeRegister(int lexicalScopeIndex);
 
-        int labelScopeDepthToLexicalScopeIndex(int labelScopeDepth);
+        int NODELETE labelScopeDepthToLexicalScopeIndex(int labelScopeDepth);
 
         void emitThrow(RegisterID*);
         RegisterID* emitArgumentCount(RegisterID*);
@@ -1074,8 +1074,8 @@ namespace JSC {
         void pushForInScope(RegisterID* local, RegisterID* propertyName, RegisterID* propertyOffset, RegisterID* enumerator, RegisterID* mode, std::optional<Variable> base);
         void popForInScope(RegisterID* local);
 
-        LabelScope* breakTarget(const Identifier&);
-        LabelScope* continueTarget(const Identifier&);
+        LabelScope* NODELETE breakTarget(const Identifier&);
+        LabelScope* NODELETE continueTarget(const Identifier&);
 
         void beginSwitch(RegisterID*, SwitchInfo::SwitchType);
         void endSwitch(const Vector<Ref<Label>, 8>&, ExpressionNode**, Label& defaultLabel, int32_t min, int32_t range);
@@ -1133,8 +1133,8 @@ namespace JSC {
         void emitPushFunctionNameScope(const Identifier& property, RegisterID* value, bool isCaptured);
         void emitNewFunctionExpressionCommon(RegisterID*, FunctionMetadataNode*);
         
-        bool isNewTargetUsedInInnerArrowFunction();
-        bool isArgumentsUsedInInnerArrowFunction();
+        bool NODELETE isNewTargetUsedInInnerArrowFunction();
+        bool NODELETE isArgumentsUsedInInnerArrowFunction();
 
         void emitToThis() { emitToThis(&m_thisRegister); }
 
@@ -1146,18 +1146,18 @@ namespace JSC {
         bool canDoPeepholeOptimization() const { return m_lastOpcodeID != op_debug; }
 
     public:
-        bool isSuperUsedInInnerArrowFunction();
-        bool isSuperCallUsedInInnerArrowFunction();
-        bool isThisUsedInInnerArrowFunction();
+        bool NODELETE isSuperUsedInInnerArrowFunction();
+        bool NODELETE isSuperCallUsedInInnerArrowFunction();
+        bool NODELETE isThisUsedInInnerArrowFunction();
         void pushLexicalScope(VariableEnvironmentNode*, ScopeType, TDZCheckOptimization, NestedScopeType = NestedScopeType::IsNotNested, RegisterID** constantSymbolTableResult = nullptr, bool shouldInitializeBlockScopedFunctions = true);
         void pushClassLexicalScope(VariableEnvironmentNode*);
         void popLexicalScope(VariableEnvironmentNode*);
         void prepareLexicalScopeForNextForLoopIteration(VariableEnvironmentNode*, RegisterID* loopSymbolTable);
-        int labelScopeDepth() const;
+        int NODELETE labelScopeDepth() const;
 
     private:
         ParserError generate(unsigned&);
-        Variable variableForLocalEntry(const Identifier&, const SymbolTableEntry&, int symbolTableConstantIndex, bool isLexicallyScoped);
+        Variable NODELETE variableForLocalEntry(const Identifier&, const SymbolTableEntry&, int symbolTableConstantIndex, bool isLexicallyScoped);
 
         RegisterID* kill(RegisterID* dst)
         {
@@ -1166,7 +1166,7 @@ namespace JSC {
         }
 
         void retrieveLastUnaryOp(int& dstIndex, int& srcIndex);
-        ALWAYS_INLINE void rewind();
+        ALWAYS_INLINE void NODELETE rewind();
 
         void allocateScope();
 
@@ -1186,7 +1186,7 @@ namespace JSC {
         // (i.e. "Object()" is identical to "new Object()").
         ExpectedFunction emitExpectedFunctionSnippet(RegisterID* dst, RegisterID* func, ExpectedFunction, CallArguments&, Label& done);
 
-        LexicallyScopedFeatures computeFeaturesForCallDirectEval();
+        LexicallyScopedFeatures NODELETE computeFeaturesForCallDirectEval();
         
         template<typename CallOp>
         RegisterID* emitCall(RegisterID* dst, RegisterID* func, ExpectedFunction, CallArguments&, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd, DebuggableCall);
@@ -1209,7 +1209,7 @@ namespace JSC {
             return m_parameters[reg.toArgument()];
         }
 
-        bool hasConstant(const Identifier&) const;
+        bool NODELETE hasConstant(const Identifier&) const;
         unsigned addConstant(const Identifier&);
         RegisterID* addConstantValue(JSValue, SourceCodeRepresentation = SourceCodeRepresentation::Other);
         RegisterID* addConstantEmptyValue();
@@ -1217,6 +1217,7 @@ namespace JSC {
         UnlinkedFunctionExecutable* makeFunction(FunctionMetadataNode* metadata)
         {
             DerivedContextType newDerivedContextType = DerivedContextType::None;
+            EvalContextType newEvalContextType = EvalContextType::FunctionEvalContext;
 
             NeedsClassFieldInitializer needsClassFieldInitializer = metadata->isConstructorAndNeedsClassFieldInitializer() ? NeedsClassFieldInitializer::Yes : NeedsClassFieldInitializer::No;
             PrivateBrandRequirement privateBrandRequirement = metadata->privateBrandRequirement();
@@ -1228,6 +1229,7 @@ namespace JSC {
                 }
                 else if (m_codeBlock->isClassContext() || isDerivedClassContext())
                     newDerivedContextType = DerivedContextType::DerivedMethodContext;
+                newEvalContextType = m_codeBlock->evalContextType();
             }
 
             auto optionalVariablesUnderTDZ = getVariablesUnderTDZ();
@@ -1244,7 +1246,7 @@ namespace JSC {
             if (isGeneratorOrAsyncFunctionWrapperParseMode(m_codeBlock->parseMode()) && isGeneratorOrAsyncFunctionBodyParseMode(parseMode))
                 generatorOrAsyncWrapperFunctionParameterNames = getParameterNames();
 
-            return UnlinkedFunctionExecutable::create(m_vm, m_scopeNode->source(), metadata, isBuiltinFunction() ? UnlinkedBuiltinFunction : UnlinkedNormalFunction, constructAbility, InlineAttribute::None, scriptMode(), WTF::move(optionalVariablesUnderTDZ), WTF::move(generatorOrAsyncWrapperFunctionParameterNames), WTF::move(parentPrivateNameEnvironment), newDerivedContextType, needsClassFieldInitializer, privateBrandRequirement);
+            return UnlinkedFunctionExecutable::create(m_vm, m_scopeNode->source(), metadata, isBuiltinFunction() ? UnlinkedBuiltinFunction : UnlinkedNormalFunction, constructAbility, InlineAttribute::None, scriptMode(), WTF::move(optionalVariablesUnderTDZ), WTF::move(generatorOrAsyncWrapperFunctionParameterNames), WTF::move(parentPrivateNameEnvironment), newDerivedContextType, newEvalContextType, needsClassFieldInitializer, privateBrandRequirement);
         }
 
         RefPtr<TDZEnvironmentLink> getVariablesUnderTDZ();
@@ -1264,7 +1266,7 @@ namespace JSC {
         void initializeVarLexicalEnvironment(int symbolTableConstantIndex, SymbolTable* functionSymbolTable, bool hasCapturedVariables);
         void initializeDefaultParameterValuesAndSetupFunctionScopeStack(FunctionParameters&, bool isSimpleParameterList, FunctionNode*, SymbolTable*, int symbolTableConstantIndex, const ScopedLambda<bool (UniquedStringImpl*)>& captures, bool shouldCreateArgumentsVariableInParameterScope);
         void initializeArrowFunctionContextScopeIfNeeded(SymbolTable* functionSymbolTable = nullptr, bool canReuseLexicalEnvironment = false);
-        bool needsDerivedConstructorInArrowFunctionLexicalEnvironment();
+        bool NODELETE needsDerivedConstructorInArrowFunctionLexicalEnvironment();
 
         enum class TDZNecessityLevel {
             NotNeeded,
@@ -1307,7 +1309,7 @@ namespace JSC {
             m_lastInstruction = prevLastInstruction;
         }
 
-        PrivateNameEntry getPrivateTraits(const Identifier&);
+        PrivateNameEntry NODELETE getPrivateTraits(const Identifier&);
 
         void pushPrivateAccessNames(const PrivateNameEnvironment*);
         void popPrivateAccessNames();
@@ -1372,7 +1374,7 @@ namespace JSC {
         unsigned m_localScopeCount { 0 };
         const CodeType m_codeType;
 
-        unsigned localScopeDepth() const;
+        unsigned NODELETE localScopeDepth() const;
         void pushLocalControlFlowScope();
         void popLocalControlFlowScope();
 

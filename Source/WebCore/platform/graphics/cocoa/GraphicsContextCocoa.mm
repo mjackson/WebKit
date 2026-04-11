@@ -99,7 +99,7 @@ ImageDrawResult GraphicsContext::drawMultiRepresentationHEIC(Image& image, const
 
 #endif
 
-void GraphicsContextCG::drawFocusRing(const Path& path, float, const Color& color)
+void GraphicsContextCG::drawFocusRing(const Path& path, float, const Color& color, float zoomFactor)
 {
     if (path.isEmpty())
         return;
@@ -117,14 +117,19 @@ void GraphicsContextCG::drawFocusRing(const Path& path, float, const Color& colo
     focusRingStyle.bounds = CGRectZero;
 #endif
 
+    // zoomFactor covers CSS zoom / page zoom (Cmd+/-). ctmScale covers page scale (pinch-to-zoom), canvas transforms, etc.
+    CGContextRef platformContext = this->platformContext();
+    auto ctmScale = singularValue(getUserToBaseCTM(platformContext), SingularValueSelection::Largest);
+    if (ctmScale <= 0)
+        ctmScale = 1.0f;
+    focusRingStyle.radius *= zoomFactor * ctmScale;
+
     // We want to respect the CGContext clipping and also not overpaint any
     // existing focus ring. The way to do this is set accumulate to
     // -1. According to CoreGraphics, the reasoning for this behavior has been
     // lost in time.
     focusRingStyle.accumulate = -1;
     auto style = adoptCF(CGStyleCreateFocusRingWithColor(&focusRingStyle, cachedCGColor(color).get()));
-
-    CGContextRef platformContext = this->platformContext();
 
     CGContextStateSaver stateSaver(platformContext);
 
@@ -135,15 +140,12 @@ void GraphicsContextCG::drawFocusRing(const Path& path, float, const Color& colo
     CGContextFillPath(platformContext);
 }
 
-void GraphicsContextCG::drawFocusRing(const Vector<FloatRect>& rects, float outlineOffset, float outlineWidth, const Color& color)
+void GraphicsContextCG::drawFocusRing(const Vector<FloatRect>& rects, float outlineWidth, const Color& color, float zoomFactor)
 {
     Path path;
-    for (const auto& rect : rects) {
-        auto r = rect;
-        r.inflate(-outlineOffset);
-        path.addRect(r);
-    }
-    drawFocusRing(path, outlineWidth, color);
+    for (const auto& rect : rects)
+        path.addRect(rect);
+    drawFocusRing(path, outlineWidth, color, zoomFactor);
 }
 
 static inline void setPatternPhaseInUserSpace(CGContextRef context, CGPoint phasePoint)

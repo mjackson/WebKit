@@ -26,6 +26,7 @@
 #pragma once
 
 #include "CachedResource.h" // for CachedResource::Type.
+#include <JavaScriptCore/InspectorProtocolObjects.h>
 #include <wtf/Forward.h>
 
 namespace WebCore {

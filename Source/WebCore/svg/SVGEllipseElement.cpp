@@ -26,6 +26,7 @@
 #include "LegacyRenderSVGResource.h"
 #include "NodeName.h"
 #include "RenderSVGEllipse.h"
+#include "Settings.h"
 #include "SVGElementInlines.h"
 #include "SVGParsingError.h"
 #include "SVGPropertyOwnerRegistry.h"

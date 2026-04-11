@@ -140,7 +140,7 @@ public:
     RefPtr<BBQCallee> tryGetBBQCalleeForLoopOSRConcurrently(VM&, FunctionCodeIndex) WTF_IGNORES_THREAD_SAFETY_ANALYSIS;
 #endif
 #if ENABLE(WEBASSEMBLY_OMGJIT)
-    RefPtr<OMGCallee> tryGetOMGCalleeConcurrently(FunctionCodeIndex) WTF_IGNORES_THREAD_SAFETY_ANALYSIS;
+    RefPtr<OMGCallee> NODELETE tryGetOMGCalleeConcurrently(FunctionCodeIndex) WTF_IGNORES_THREAD_SAFETY_ANALYSIS;
 #endif
 
     Ref<Callee> wasmEntrypointCalleeFromFunctionIndexSpace(const AbstractLocker& locker, FunctionSpaceIndex functionIndexSpace) WTF_REQUIRES_LOCK(m_lock)
@@ -210,7 +210,7 @@ public:
         return m_wasmToWasmExitStubs[functionIndex].code();
     }
 
-    bool isSafeToRun(MemoryMode);
+    bool NODELETE isSafeToRun(MemoryMode);
 
     MemoryMode mode() const { return m_mode; }
 

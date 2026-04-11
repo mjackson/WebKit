@@ -112,8 +112,8 @@ private:
     void drawDotsForDocumentMarker(const WebCore::FloatRect&, WebCore::DocumentMarkerLineStyle) final;
     void drawEllipse(const WebCore::FloatRect&) final;
     void drawPath(const WebCore::Path&) final;
-    void drawFocusRing(const WebCore::Path&, float outlineWidth, const WebCore::Color&) final;
-    void drawFocusRing(const Vector<WebCore::FloatRect>&, float outlineOffset, float outlineWidth, const WebCore::Color&) final;
+    void drawFocusRing(const WebCore::Path&, float outlineWidth, const WebCore::Color&, float zoomFactor) final;
+    void drawFocusRing(const Vector<WebCore::FloatRect>&, float outlineWidth, const WebCore::Color&, float zoomFactor) final;
     void drawPattern(const WebCore::NativeImage&, const WebCore::FloatRect& destRect, const WebCore::FloatRect& tileRect, const WebCore::AffineTransform&, const WebCore::FloatPoint& phase, const WebCore::FloatSize& spacing, WebCore::ImagePaintingOptions = { }) final;
     void drawPattern(WebCore::ImageBuffer&, const WebCore::FloatRect& destRect, const WebCore::FloatRect& tileRect, const WebCore::AffineTransform&, const WebCore::FloatPoint& phase, const WebCore::FloatSize& spacing, WebCore::ImagePaintingOptions = { }) final;
     void fillPath(const WebCore::Path&) final;

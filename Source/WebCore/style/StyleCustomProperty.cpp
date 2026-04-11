@@ -28,10 +28,10 @@
 #include "CSSCalcValue.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSSerializationContext.h"
+#include "CSSSubstitutionValue.h"
 #include "CSSTokenizer.h"
 #include "CSSValueList.h"
 #include "CSSValuePool.h"
-#include "CSSVariableReferenceValue.h"
 #include "RenderStyle.h"
 #include "StyleCalculationValue.h"
 #include "StylePrimitiveNumericTypes+CSSValueCreation.h"
@@ -45,6 +45,11 @@ namespace Style {
 WTF_MAKE_TZONE_ALLOCATED_IMPL(CustomProperty);
 
 bool CustomProperty::operator==(const CustomProperty& other) const
+{
+    return m_isAttrTainted == other.m_isAttrTainted && valueEquals(other);
+}
+
+bool CustomProperty::valueEquals(const CustomProperty& other) const
 {
     if (m_name != other.m_name || m_value.index() != other.m_value.index())
         return false;
@@ -80,7 +85,7 @@ Ref<CSSValue> CustomProperty::propertyValue(CSSValuePool& pool, const RenderStyl
             return CSSPrimitiveValue::create(""_s);
         },
         [&](const Ref<CSSVariableData>& variableData) -> Ref<CSSValue> {
-            return CSSVariableReferenceValue::create(variableData.copyRef());
+            return CSSSubstitutionValue::create(variableData.copyRef());
         },
         [&](const Value& value) -> Ref<CSSValue> {
             return convertValue(value);
@@ -196,7 +201,7 @@ const Vector<CSSParserToken>& CustomProperty::tokens() const
         [&](auto&) -> const Vector<CSSParserToken>& {
             if (!m_cachedTokens) {
                 CSSTokenizer tokenizer { propertyValueSerializationForTokenization(CSS::defaultSerializationContext(), RenderStyle::defaultStyleSingleton()) };
-                m_cachedTokens = CSSVariableData::create(tokenizer.tokenRange());
+                m_cachedTokens = CSSVariableData::create(tokenizer.tokenRange(), m_isAttrTainted);
             }
             return m_cachedTokens->tokens();
         }

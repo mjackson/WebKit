@@ -421,6 +421,7 @@ public:
     String toString(IncludeListMarkerText = IncludeListMarkerText::Yes, IncludeImageAltText = IncludeImageAltText::No) const;
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    std::optional<std::pair<AXTextMarker, AXTextMarker>> toValidTextRunMarkers() const;
     // Returns the bounds (frame) of the text in this range relative to the viewport.
     // Analagous to AXCoreObject::relativeFrame().
     FloatRect viewportRelativeFrame() const;

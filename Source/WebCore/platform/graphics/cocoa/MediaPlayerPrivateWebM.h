@@ -373,7 +373,6 @@ private:
     bool seeking() const final;
     void seekInternal();
     void cancelPendingSeek(); // Called from destructor or running queue
-    void startSeek(const MediaTime&);
     void completeSeek(const MediaTime&);
     Ref<GenericPromise> waitForTimeBuffered(const MediaTime&);
     void resolveWaitForTimeBufferedPromiseIfPossible();
@@ -382,14 +381,14 @@ private:
     // WorkQueue on which the player is running.
     WorkQueue& runningQueue() const { return m_runningQueue.get(); }
     void ensureOnRunningQueue(Function<void()>&&);
-    MediaTime durationOnRunningQueue() const;
+    MediaTime NODELETE durationOnRunningQueue() const;
 
     Timer m_seekTimer WTF_GUARDED_BY_CAPABILITY(mainThread);
     MediaTime m_lastSeekTime WTF_GUARDED_BY_CAPABILITY(runningQueue());
     std::optional<SeekTarget> m_pendingSeek WTF_GUARDED_BY_CAPABILITY(mainThread);
     std::atomic<bool> m_hasPendingSeek { false };
-    std::optional<GenericPromise::Producer> m_waitForTimeBufferedPromise WTF_GUARDED_BY_CAPABILITY(runningQueue());
-    const Ref<NativePromiseRequest> m_rendererSeekRequest;
+    std::optional<GenericPromise::AutoRejectProducer> m_waitForTimeBufferedPromise WTF_GUARDED_BY_CAPABILITY(runningQueue());
+    Ref<NativePromiseRequest> m_rendererSeekRequest;
     std::atomic<bool> m_seeking { false };
 #if HAVE(SPATIAL_TRACKING_LABEL)
     String m_defaultSpatialTrackingLabel WTF_GUARDED_BY_CAPABILITY(mainThread);

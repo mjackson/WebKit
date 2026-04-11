@@ -192,7 +192,7 @@ public:
 
 #if PLATFORM(MAC)
     static FloatSize NODELETE wheelDeltaBiasingTowardsVertical(const FloatSize&);
-    static bool isScrollDeltaOpposingStretch(IntSize stretch, ScrollEventAxis, float delta);
+    static bool NODELETE isScrollDeltaOpposingStretch(IntSize stretch, ScrollEventAxis, float delta);
 
     // Returns true if handled.
     bool processWheelEventForScrollSnap(const PlatformWheelEvent&);
@@ -220,7 +220,7 @@ private:
     void stopScrollSnapAnimation();
 
 #if PLATFORM(MAC)
-    bool shouldOverrideMomentumScrolling() const;
+    bool NODELETE shouldOverrideMomentumScrolling() const;
     void discreteSnapTransitionTimerFired();
     void scheduleDiscreteScrollSnap(const FloatSize& delta);
     void scrollendTimerFired();

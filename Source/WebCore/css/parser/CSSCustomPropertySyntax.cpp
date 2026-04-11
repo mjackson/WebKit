@@ -96,7 +96,7 @@ auto CSSCustomPropertySyntax::parseComponent(std::span<const CharacterType> span
 
     auto multiplier = consumeMultiplier();
 
-    return Component { Type::CustomIdent, multiplier, ident };
+    return Component { Type::Ident, multiplier, ident };
 }
 
 std::optional<CSSCustomPropertySyntax> CSSCustomPropertySyntax::parse(StringView syntax)
@@ -126,8 +126,11 @@ std::optional<CSSCustomPropertySyntax> CSSCustomPropertySyntax::parse(StringView
 
             definition.append(*component);
 
-            skipExactly(buffer, '|');
-            skipWhile<isCSSSpace>(buffer);
+            if (skipExactly(buffer, '|')) {
+                skipWhile<isCSSSpace>(buffer);
+                if (!buffer.hasCharactersRemaining())
+                    return { };
+            }
         }
 
         if (definition.isEmpty())

@@ -32,6 +32,7 @@
 #include "DocumentPage.h"
 #include "FrameConsoleClient.h"
 #include "FrameLoader.h"
+#include "FrameLoaderStateMachine.h"
 #include "InstrumentingAgents.h"
 #include "JSDOMWindowCustom.h"
 #include "JSExecState.h"
@@ -194,9 +195,9 @@ void FrameRuntimeAgent::reportExecutionContextCreation()
     if (!script->canExecuteScripts(ReasonForCallingCanExecuteScripts::NotAboutToExecuteScript))
         return;
 
-    // Don't report contexts if we're still on about:blank - wait for didClearWindowObjectInWorld after navigation
-    RefPtr document = protectedFrame->document();
-    if (!document || document->url().isAboutBlank())
+    // Skip the initial empty document's context. The real context will be reported when the frame navigates
+    // to its actual destination URL.
+    if (protectedFrame->loader().stateMachine().isDisplayingInitialEmptyDocument())
         return;
 
     // Always send the main world first
@@ -256,6 +257,11 @@ void FrameRuntimeAgent::didClearWindowObjectInWorld(DOMWrapperWorld& world)
 {
     RefPtr frame = m_inspectedFrame.get();
     if (!frame)
+        return;
+
+    // Skip the initial empty document's context. The real context will be reported when the frame navigates
+    // to its actual destination URL.
+    if (frame->loader().stateMachine().isDisplayingInitialEmptyDocument())
         return;
 
     Ref protectedFrame = *frame;

@@ -316,6 +316,13 @@ if (isWin() || isPlayStation() || (isJSCOnly() && isWindows())) {
 
     push @cmakeArgs, vcpkgArgsFromFeatures(@features, !$noExperimentalFeatures) if shouldUseVcpkg();
 
+    if (($ENV{'WK_USE_CCACHE'} // "") eq "YES") {
+        # Allow ccache to hit when building on different directories
+        $ENV{"CCACHE_BASEDIR"} //= sourceDir();
+        $ENV{"CCACHE_SLOPPINESS"} //= "pch_defines,time_macros";
+        $ENV{"CCACHE_PCH_EXTERNAL_CHECKSUM"} //= "true";
+    }
+
     chdirWebKit();
     if (exitStatus(generateBuildSystemFromCMakeProject($prefixPath, @featureArgs, @cmakeArgs))) {
         die "Run Visual Studio installation vcvars.bat before build-webkit when using ninja";

@@ -144,34 +144,85 @@ bool InsertTextCommand::applySmartListsIfNeeded()
     if (!selectionAllowsSmartLists(m_text, endingSelection()))
         return false;
 
+    // Get the start of the current line
+
     auto lineStart = logicalStartOfLine(endingSelection().visibleBase());
     if (lineStart.isNull() || lineStart.isOrphan()) {
         ASSERT_NOT_REACHED();
         return false;
     }
 
-    // Get the range from the beginning of the line up until the current caret position,
-    // before `m_text` has been applied.
-    VisibleSelection line { lineStart, endingSelection().visibleExtent() };
-    auto range = line.firstRange();
-    if (!range) {
-        ASSERT_NOT_REACHED();
-        return false;
-    }
+    // Create and parse the smart list for the current line, if possible.
 
-    // First, convert the SimpleRange to a String, and then convert the String to a Style::ListStyleType
+    auto smartListRangeForCurrentLine = [&] -> std::optional<SimpleRange> {
+        // Get the range from the beginning of the line up until the current caret position,
+        // before `m_text` has been applied.
+        VisibleSelection line { lineStart, endingSelection().visibleExtent() };
+        return line.firstRange();
+    };
+
+    auto currentRange = smartListRangeForCurrentLine();
+    if (!currentRange)
+        return false;
+
+    // Convert the SimpleRange to a String, and then convert the String to a Style::ListStyleType
     // (which itself is later converted to a CSSValue).
 
-    auto lineText = plainText(*range);
-    auto smartList = parseTextList(lineText);
-    if (!smartList) {
+    auto currentLineText = plainText(*currentRange);
+    auto currentSmartList = parseTextList(currentLineText);
+    if (!currentSmartList) {
         // The line content does not match the Smart List marker criteria.
         return false;
     }
 
+    // Create and parse the smart list for the previous line, if possible.
+
+    auto smartListRangeForPreviousLine = [&] -> std::optional<SimpleRange> {
+        auto positionBeforeStartOfCurrentLine = lineStart.previous();
+        auto previousLineStart = logicalStartOfLine(positionBeforeStartOfCurrentLine);
+        if (previousLineStart.isNull() || previousLineStart.isOrphan())
+            return std::nullopt;
+
+        auto previousLineEnd = logicalEndOfLine(positionBeforeStartOfCurrentLine);
+        if (previousLineEnd.isNull() || previousLineEnd.isOrphan())
+            return std::nullopt;
+
+        VisibleSelection previousLine { previousLineStart, previousLineEnd };
+        return previousLine.firstRange();
+    };
+
+    auto previousRange = smartListRangeForPreviousLine();
+    if (!previousRange)
+        return false;
+
+    auto previousLineText = plainText(*previousRange);
+    auto previousSmartList = parseTextList(previousLineText);
+    if (!previousSmartList) {
+        // The line content does not match the Smart List marker criteria.
+        return false;
+    }
+
+    // Ensure there are no mismatches between the current and previous line list markers
+
+    if (!areCompatibleListMarkers(*currentSmartList, *previousSmartList))
+        return false;
+
     Ref document = this->document();
-    auto listType = smartList->ordered ? InsertListCommand::Type::OrderedList : InsertListCommand::Type::UnorderedList;
-    applyCommandToComposite(InsertListCommand::create(document.copyRef(), listType, smartList->styleType), *range);
+
+    // Insert a list for the previous line
+
+    auto listType = previousSmartList->ordered ? InsertListCommand::Type::OrderedList : InsertListCommand::Type::UnorderedList;
+    applyCommandToComposite(InsertListCommand::create(document.copyRef(), listType, previousSmartList->styleType), *previousRange);
+
+    // And delete the marker from that line.
+
+    if (RefPtr prevListChild = enclosingListChild(endingSelection().base().anchorNode())) {
+        if (RefPtr textNode = dynamicDowncast<Text>(prevListChild->firstDescendant())) {
+            auto spaceIndex = previousLineText.find(' ');
+            if (spaceIndex != WTF::notFound && spaceIndex + 1 <= textNode->length())
+                deleteTextFromNode(*textNode, 0, spaceIndex + 1);
+        }
+    }
 
     // This list is the one that was just created or modified.
     RefPtr listElement = enclosingList(endingSelection().base().anchorNode());
@@ -180,11 +231,20 @@ bool InsertTextCommand::applySmartListsIfNeeded()
         return false;
     }
 
-    auto attributes = nodeAttributesForSmartList(*listElement, *smartList, lineText);
+    // Apply the relevant attributes to the current list element
+
+    auto attributes = nodeAttributesForSmartList(*listElement, *previousSmartList);
     for (const auto& [attribute, value] : attributes)
         setNodeAttribute(*listElement, attribute, value);
 
+    // Insert a list for the current line, which will get merged into the prior line.
+
+    applyCommandToComposite(InsertListCommand::create(document.copyRef(), listType, currentSmartList->styleType), *currentRange);
+
+    // And delete the marker from the current line.
+
     deleteSelection();
+
     return true;
 }
 #endif // PLATFORM(COCOA)

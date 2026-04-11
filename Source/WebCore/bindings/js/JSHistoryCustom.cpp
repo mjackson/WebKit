@@ -29,6 +29,7 @@
 #include "config.h"
 #include "JSHistory.h"
 
+#include "JSValueInWrappedObjectInlines.h"
 #include "SerializedScriptValue.h"
 #include <JavaScriptCore/JSCInlines.h>
 
@@ -45,7 +46,7 @@ JSValue JSHistory::state(JSGlobalObject& lexicalGlobalObject) const
             return jsNull();
         }
         auto* serialized = wrapped().state().releaseReturnValue();
-        return serialized ? serialized->deserialize(lexicalGlobalObject, globalObject()) : jsNull();
+        return serialized ? serialized->deserialize(lexicalGlobalObject, realm()) : jsNull();
     });
 }
 

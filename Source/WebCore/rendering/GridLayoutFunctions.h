@@ -74,7 +74,7 @@ bool NODELETE isOrthogonalParent(const RenderGrid&, const RenderElement& parent)
 bool isAspectRatioBlockSizeDependentGridItem(const RenderBox&);
 Style::GridTrackSizingDirection NODELETE flowAwareDirectionForGridItem(const RenderGrid&, const RenderBox&, Style::GridTrackSizingDirection);
 Style::GridTrackSizingDirection NODELETE flowAwareDirectionForParent(const RenderGrid&, const RenderElement& parent, Style::GridTrackSizingDirection);
-std::optional<RenderBox::GridAreaSize> overridingContainingBlockContentSizeForGridItem(const RenderBox&, Style::GridTrackSizingDirection);
+std::optional<RenderBox::GridAreaSize> NODELETE overridingContainingBlockContentSizeForGridItem(const RenderBox&, Style::GridTrackSizingDirection);
 bool NODELETE hasRelativeOrKeywordOrAutoSizeForGridItem(const RenderBox& gridItem, Style::GridTrackSizingDirection);
 
 bool NODELETE isFlippedDirection(const RenderGrid&, Style::GridTrackSizingDirection);
@@ -98,7 +98,7 @@ void updateAutoMarginsInColumnAxisIfNeeded(RenderBox&, WritingMode);
 bool NODELETE isRelativeGridTrackBreadthAsAuto(const Style::GridTrackFitContentLength&, std::optional<LayoutUnit> availableSpace);
 bool NODELETE isRelativeGridTrackBreadthAsAuto(const Style::GridTrackBreadth&, std::optional<LayoutUnit> availableSpace);
 
-const Style::GridTrackSize& rawGridTrackSize(const RenderStyle&, Style::GridTrackSizingDirection, unsigned translatedIndex, unsigned autoRepeatTracksCount, unsigned explicitGridStart);
+const Style::GridTrackSize& NODELETE rawGridTrackSize(const RenderStyle&, Style::GridTrackSizingDirection, unsigned translatedIndex, unsigned autoRepeatTracksCount, unsigned explicitGridStart);
 
 } // namespace GridLayoutFunctions
 

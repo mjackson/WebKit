@@ -36,6 +36,7 @@
 #include "RenderView.h"
 #include "ScriptElementCachedScriptFetcher.h"
 #include <wtf/TZoneMallocInlines.h>
+#include "FrameDestructionObserverInlines.h"
 
 namespace WebCore {
 

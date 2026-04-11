@@ -2477,9 +2477,9 @@ void BytecodeGenerator::prepareLexicalScopeForNextForLoopIteration(VariableEnvir
     ASSERT(loopScope);
 
     struct SymbolTableNoLocks {
-        auto begin() const { return symbolTable->begin(NoLockingNecessary); }
-        auto end() const { return symbolTable->end(NoLockingNecessary); }
-        size_t size() const { return symbolTable->scopeSize(); }
+        auto NODELETE begin() const { return symbolTable->begin(NoLockingNecessary); }
+        auto NODELETE end() const { return symbolTable->end(NoLockingNecessary); }
+        size_t NODELETE size() const { return symbolTable->scopeSize(); }
         SymbolTable* symbolTable;
     } symbolTableWithoutLocks { symbolTable };
 
@@ -3269,7 +3269,7 @@ void BytecodeGenerator::emitTDZCheckIfNecessary(const Variable& variable, Regist
 
 void BytecodeGenerator::liftTDZCheckIfPossible(const Variable& variable)
 {
-    RefPtr<UniquedStringImpl> identifier(variable.ident().impl());
+    UniquedStringImpl* identifier = variable.ident().impl();
     for (unsigned i = m_TDZStack.size(); i--;) {
         auto iter = m_TDZStack[i].first.find(identifier);
         if (iter != m_TDZStack[i].first.end()) {
@@ -3605,7 +3605,7 @@ RegisterID* BytecodeGenerator::emitNewClassFieldInitializerFunction(RegisterID* 
 
     FunctionMetadataNode metadata(parserArena(), JSTokenLocation(), JSTokenLocation(), 0, 0, 0, 0, 0, ImplementationVisibility::Private, StrictModeLexicallyScopedFeature, ConstructorKind::None, superBinding, 0, parseMode, false);
     metadata.finishParsing(m_scopeNode->source(), Identifier(), FunctionMode::MethodDefinition);
-    auto initializer = UnlinkedFunctionExecutable::create(m_vm, m_scopeNode->source(), &metadata, isBuiltinFunction() ? UnlinkedBuiltinFunction : UnlinkedNormalFunction, constructAbility, InlineAttribute::Always, scriptMode(), WTF::move(variablesUnderTDZ), { }, WTF::move(parentPrivateNameEnvironment), newDerivedContextType, NeedsClassFieldInitializer::No, PrivateBrandRequirement::None);
+    auto initializer = UnlinkedFunctionExecutable::create(m_vm, m_scopeNode->source(), &metadata, isBuiltinFunction() ? UnlinkedBuiltinFunction : UnlinkedNormalFunction, constructAbility, InlineAttribute::Always, scriptMode(), WTF::move(variablesUnderTDZ), { }, WTF::move(parentPrivateNameEnvironment), newDerivedContextType, EvalContextType::InstanceFieldEvalContext, NeedsClassFieldInitializer::No, PrivateBrandRequirement::None);
     initializer->setClassElementDefinitions(WTF::move(classElementDefinitions));
 
     unsigned index = m_codeBlock->addFunctionExpr(initializer);
@@ -3786,7 +3786,6 @@ RegisterID* BytecodeGenerator::emitCall(RegisterID* dst, RegisterID* func, Expec
             }
             RefPtr<RegisterID> argumentRegister;
             argumentRegister = expression->emitBytecode(*this, callArguments.argumentRegister(0));
-            RefPtr<RegisterID> thisRegister = move(newTemporary(), callArguments.thisRegister());
             return emitCallVarargs<typename VarArgsOp<CallOp>::type>(dst, func, callArguments.thisRegister(), argumentRegister.get(), newTemporary(), 0, divot, divotStart, divotEnd, debuggableCall);
         }
         for (; n; n = n->m_next)
@@ -3995,7 +3994,6 @@ RegisterID* BytecodeGenerator::emitConstructImpl(RegisterID* dst, RegisterID* fu
                     OpSpread::emit(this, argumentRegister.get(), argumentRegister.get());
 
                     move(callArguments.thisRegister(), lazyThis);
-                    RefPtr<RegisterID> thisRegister = move(newTemporary(), callArguments.thisRegister());
                     return emitCallVarargs<typename VarArgsOp<ConstructOp>::type>(dst, func, callArguments.thisRegister(), argumentRegister.get(), newTemporary(), 0, divot, divotStart, divotEnd, DebuggableCall::No);
                 }
             }

@@ -143,7 +143,7 @@ AudioVideoRendererAVFObjC::~AudioVideoRendererAVFObjC()
 void AudioVideoRendererAVFObjC::setPreferences(VideoRendererPreferences preferences)
 {
     m_preferences = preferences;
-    if (RefPtr videoRenderer = m_videoRenderer)
+    if (auto* videoRenderer = m_videoRenderer.get())
         videoRenderer->setPreferences(preferences);
 }
 
@@ -246,6 +246,12 @@ void AudioVideoRendererAVFObjC::enqueueSample(TrackIdentifier trackId, Ref<Media
         }
 
         ASSERT(m_videoRenderer);
+        if (m_keyframeNeeded && !sample->isSync()) {
+            ALWAYS_LOG(LOGIDENTIFIER, "Keyframe needed: but frame not keyframe");
+            ASSERT_NOT_REACHED();
+            return;
+        }
+        m_keyframeNeeded = false;
         if (RefPtr videoRenderer = m_videoRenderer; videoRenderer && isEnabledVideoTrackId(trackId))
             videoRenderer->enqueueSample(sample, minimumUpcomingTime.value_or(sample->presentationTime()));
         break;
@@ -278,10 +284,8 @@ bool AudioVideoRendererAVFObjC::isReadyForMoreSamples(TrackIdentifier trackId)
     case TrackType::Video:
         return m_readyToRequestVideoData && isEnabledVideoTrackId(trackId) && protect(m_videoRenderer)->isReadyForMoreMediaData();
     case TrackType::Audio:
-        if (!m_readyToRequestAudioData)
-            return false;
         if (RetainPtr audioRenderer = audioRendererFor(trackId))
-            return [audioRenderer isReadyForMoreMediaData];
+            return audioTrackPropertiesFor(trackId).readyToRequestAudioData && [audioRenderer isReadyForMoreMediaData];
         return false;
     default:
         ASSERT_NOT_REACHED();
@@ -307,7 +311,7 @@ Ref<AudioVideoRenderer::RequestPromise> AudioVideoRendererAVFObjC::requestMediaD
                 if (!protectedThis)
                     return;
                 if (!protectedThis->m_readyToRequestVideoData) {
-                        DEBUG_LOG_WITH_THIS(protectedThis, LOGIDENTIFIER_WITH_THIS(protectedThis), "Not ready to request video data, ignoring");
+                    DEBUG_LOG_WITH_THIS(protectedThis, LOGIDENTIFIER_WITH_THIS(protectedThis), "Not ready to request video data, ignoring");
                     return;
                 }
                 if (RefPtr videoRenderer = protectedThis->m_videoRenderer)
@@ -326,16 +330,17 @@ Ref<AudioVideoRenderer::RequestPromise> AudioVideoRendererAVFObjC::requestMediaD
                 RefPtr protectedThis = weakThis.get();
                 if (!protectedThis)
                     return;
-                if (!protectedThis->m_readyToRequestAudioData) {
-                        DEBUG_LOG_WITH_THIS(protectedThis, LOGIDENTIFIER_WITH_THIS(protectedThis), "Not ready to request audio data, ignoring");
-                    return;
-                }
 
                 RetainPtr audioRenderer = protectedThis->audioRendererFor(trackId);
                 if (!audioRenderer)
                     return;
-                [audioRenderer stopRequestingMediaData];
+
                 auto& property = protectedThis->audioTrackPropertiesFor(trackId);
+                if (!property.readyToRequestAudioData) {
+                    DEBUG_LOG_WITH_THIS(protectedThis, LOGIDENTIFIER_WITH_THIS(protectedThis), "Not ready to request audio data, ignoring");
+                    return;
+                }
+                [audioRenderer stopRequestingMediaData];
                 if (auto existingPromise = std::exchange(property.requestPromise, nullptr))
                     existingPromise->resolve(trackId);
             });
@@ -375,12 +380,8 @@ void AudioVideoRendererAVFObjC::flush()
     ALWAYS_LOG(LOGIDENTIFIER);
 
     cancelSeekingPromiseIfNeeded();
-    if (m_seekState == RequiresFlush)
-        m_seekState = Seeking;
-    else {
-        m_seekState = SeekCompleted;
-        m_isSynchronizerSeeking = false;
-    }
+    m_seekState = SeekCompleted;
+    m_isSynchronizerSeeking = false;
 
     flushVideo();
     flushAudio();
@@ -388,7 +389,7 @@ void AudioVideoRendererAVFObjC::flush()
 
 void AudioVideoRendererAVFObjC::flushTrack(TrackIdentifier trackId)
 {
-    DEBUG_LOG(LOGIDENTIFIER, toString(trackId));
+    ALWAYS_LOG(LOGIDENTIFIER, toString(trackId));
 
     auto type = typeOf(trackId);
     if (!type)
@@ -569,6 +570,7 @@ void AudioVideoRendererAVFObjC::setTimeObserver(Seconds interval, Function<void(
                 if (!protectedThis->m_currentTimeDidChangeCallback)
                     return;
 
+                ALWAYS_LOG_WITH_THIS(protectedThis, LOGIDENTIFIER_WITH_THIS(protectedThis), "timeobserver called", PAL::toMediaTime(time));
                 auto clampedTime = CMTIME_IS_NUMERIC(time) ? protectedThis->clampTimeToLastSeekTime(PAL::toMediaTime(time)) : MediaTime::zeroTime();
                 protectedThis->m_currentTimeDidChangeCallback(clampedTime);
             }
@@ -588,24 +590,12 @@ void AudioVideoRendererAVFObjC::cancelPerformTaskAtTimeObserverIfNeeded()
         [m_synchronizer removeTimeObserver:taskObserver.get()];
 }
 
-void AudioVideoRendererAVFObjC::prepareToSeek()
+Ref<MediaTimePromise> AudioVideoRendererAVFObjC::prepareToSeek(const MediaTime& seekTime)
 {
     ALWAYS_LOG(LOGIDENTIFIER, "state: ", toString(m_seekState));
 
     cancelSeekingPromiseIfNeeded();
-    m_seekState = Preparing;
-    stall();
-}
-
-Ref<MediaTimePromise> AudioVideoRendererAVFObjC::seekTo(const MediaTime& seekTime)
-{
-    ALWAYS_LOG(LOGIDENTIFIER, seekTime, "state: ", toString(m_seekState), " m_isSynchronizerSeeking: ", m_isSynchronizerSeeking, " hasAvailableVideoFrame: ", m_videoRenderer && allRenderersHaveAvailableSamples());
-
-    cancelSeekingPromiseIfNeeded();
-    if (m_seekState == RequiresFlush)
-        return MediaTimePromise::createAndReject(PlatformMediaError::RequiresFlushToResume);
-
-    m_lastSeekTime = seekTime;
+    m_seekState = Seeking;
 
     MediaTime synchronizerTime = PAL::toMediaTime([m_synchronizer currentTime]);
 
@@ -616,27 +606,35 @@ Ref<MediaTimePromise> AudioVideoRendererAVFObjC::seekTo(const MediaTime& seekTim
         // In cases where the destination seek time matches too closely the synchronizer's existing time
         // no time jumped notification will be issued. In this case, just notify the MediaPlayer that
         // the seek completed successfully.
-        m_seekPromise.emplace();
-        Ref promise = m_seekPromise->promise();
-        maybeCompleteSeek();
-        return promise;
+        m_lastSeekTime = synchronizerTime;
+        m_seekState = SeekCompleted;
+        return MediaTimePromise::createAndResolve(m_lastSeekTime);
     }
 
+    setHasAvailableVideoFrame(false);
+    m_readyToRequestVideoData = false;
+    for (auto& properties : m_audioTracksMap.values()) {
+        properties.hasAudibleSample = false;
+        properties.readyToRequestAudioData = false;
+    }
+
+    m_lastSeekTime = seekTime;
     m_isSynchronizerSeeking = isSynchronizerSeeking;
     [m_synchronizer setRate:0 time:PAL::toCMTime(seekTime)];
+    return MediaTimePromise::createAndResolve(MediaTime::indefiniteTime());
+}
 
-    if (m_seekState == SeekCompleted || m_seekState == Preparing) {
-        m_seekState = RequiresFlush;
-        m_readyToRequestAudioData = false;
-        m_readyToRequestVideoData = false;
-        ALWAYS_LOG(LOGIDENTIFIER, "Requesting Flush");
-        return MediaTimePromise::createAndReject(PlatformMediaError::RequiresFlushToResume);
-    }
+Ref<GenericPromise> AudioVideoRendererAVFObjC::finishSeek(const MediaTime& seekTime)
+{
+    ALWAYS_LOG(LOGIDENTIFIER, seekTime, "state: ", toString(m_seekState), " m_isSynchronizerSeeking: ", m_isSynchronizerSeeking, " hasAvailableVideoFrame: ", m_videoRenderer && allRenderersHaveAvailableSamples());
 
-    m_seekState = Seeking;
+    if (m_seekState != Seeking)
+        return GenericPromise::createAndReject();
 
     m_seekPromise.emplace();
-    return m_seekPromise->promise();
+    Ref promise = m_seekPromise->promise();
+    maybeCompleteSeek();
+    return promise;
 }
 
 void AudioVideoRendererAVFObjC::notifyEffectiveRateChanged(Function<void(double)>&& callback)
@@ -1018,7 +1016,6 @@ void AudioVideoRendererAVFObjC::maybeCompleteSeek()
         m_seekState = WaitingForAvailableFame;
         return;
     }
-    m_seekState = Seeking;
     if (m_isSynchronizerSeeking) {
         ALWAYS_LOG(LOGIDENTIFIER, "Waiting on synchronizer to complete seeking");
         return;
@@ -1030,7 +1027,7 @@ void AudioVideoRendererAVFObjC::maybeCompleteSeek()
         ALWAYS_LOG(LOGIDENTIFIER, "Not resuming playback, shouldBePlaying:false");
 
     if (auto promise = std::exchange(m_seekPromise, std::nullopt))
-        promise->resolve(m_lastSeekTime);
+        promise->resolve();
     ALWAYS_LOG(LOGIDENTIFIER, "seek completed");
 }
 
@@ -1868,18 +1865,20 @@ void AudioVideoRendererAVFObjC::flushVideo()
     if (RefPtr videoRenderer = m_videoRenderer)
         videoRenderer->flush();
     flushPendingSizeChanges();
+    m_keyframeNeeded = true;
 }
 
 void AudioVideoRendererAVFObjC::flushAudio()
 {
-    for (auto& properties : m_audioTracksMap.values())
+    for (auto& properties : m_audioTracksMap.values()) {
         properties.hasAudibleSample = false;
+        properties.readyToRequestAudioData = true;
+    }
     updateAllRenderersHaveAvailableSamples();
 
     applyOnAudioRenderers([&](auto *renderer) {
         [renderer flush];
     });
-    m_readyToRequestAudioData = true;
 }
 
 void AudioVideoRendererAVFObjC::flushAudioTrack(TrackIdentifier trackId)
@@ -1888,6 +1887,7 @@ void AudioVideoRendererAVFObjC::flushAudioTrack(TrackIdentifier trackId)
     RetainPtr audioRenderer = audioRendererFor(trackId);
     if (!audioRenderer)
         return;
+    audioTrackPropertiesFor(trackId).readyToRequestAudioData = true;
     [audioRenderer flush];
     setHasAvailableAudioSample(trackId, false);
 }
@@ -1903,8 +1903,7 @@ void AudioVideoRendererAVFObjC::notifyRequiresFlushToResume()
 
 void AudioVideoRendererAVFObjC::cancelSeekingPromiseIfNeeded()
 {
-    if (auto promise = std::exchange(m_seekPromise, std::nullopt))
-        promise->reject(PlatformMediaError::Cancelled);
+    m_seekPromise.reset();
 }
 
 WTFLogChannel& AudioVideoRendererAVFObjC::logChannel() const
@@ -1939,10 +1938,6 @@ String AudioVideoRendererAVFObjC::toString(TrackIdentifier trackId) const
 String AudioVideoRendererAVFObjC::toString(SeekState state) const
 {
     switch (state) {
-    case Preparing:
-        return "Preparing"_s;
-    case RequiresFlush:
-        return "RequiresFlush"_s;
     case Seeking:
         return "Seeking"_s;
     case WaitingForAvailableFame:

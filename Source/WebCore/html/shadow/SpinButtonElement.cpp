@@ -104,7 +104,7 @@ void SpinButtonElement::defaultEventHandler(Event& event)
         return;
     }
 
-    IntPoint local = roundedIntPoint(box->absoluteToLocal(mouseEvent->absoluteLocation(), UseTransforms));
+    IntPoint local = roundedIntPoint(box->absoluteToLocal(mouseEvent->absoluteLocation(), MapCoordinatesMode::UseTransforms));
     if (mouseEvent->type() == eventNames().mousedownEvent && mouseEvent->button() == MouseButton::Left) {
         if (box->borderBoxRect().contains(local)) {
             // The following functions of HTMLInputElement may run JavaScript

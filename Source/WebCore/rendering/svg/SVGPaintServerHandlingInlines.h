@@ -23,6 +23,7 @@
 
 #include "RenderSVGResourceGradient.h"
 #include "RenderStyle+GettersInlines.h"
+#include "LocalFrameView.h"
 #include "RenderView.h"
 #include "SVGPaintServerHandling.h"
 #include "SVGRenderSupport.h"
@@ -122,7 +123,7 @@ SVGPaintServerOrColor SVGPaintServerHandling::requestPaintServer(const RenderLay
 
 inline void SVGPaintServerHandling::prepareFillOperation(const RenderLayerModelObject& renderer, const RenderStyle& style, const Color& fillColor) const
 {
-    if (protect(renderer.view().frameView())->paintBehavior().contains(PaintBehavior::RenderingSVGClipOrMask)) {
+    if (renderer.view().frameView().paintBehavior().contains(PaintBehavior::RenderingSVGClipOrMask)) {
         m_context.setAlpha(1);
         m_context.setFillRule(style.clipRule());
     } else {

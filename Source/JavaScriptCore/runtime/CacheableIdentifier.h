@@ -38,6 +38,7 @@ class JSCell;
 class CacheableIdentifier {
 public:
     CacheableIdentifier() = default;
+    constexpr CacheableIdentifier(std::nullptr_t) { }
 
     static inline CacheableIdentifier createFromCell(JSCell* identifier);
     template <typename CodeBlockType>
@@ -47,13 +48,6 @@ public:
     static inline CacheableIdentifier createFromImmortalIdentifier(UniquedStringImpl*);
     static inline CacheableIdentifier createFromSharedStub(UniquedStringImpl*);
     static constexpr CacheableIdentifier createFromRawBits(uintptr_t rawBits) { return CacheableIdentifier(rawBits); }
-
-    CacheableIdentifier(const CacheableIdentifier&) = default;
-    CacheableIdentifier(CacheableIdentifier&&) = default;
-
-    CacheableIdentifier(std::nullptr_t)
-        : m_bits(0)
-    { }
 
     bool isUid() const { return m_bits & s_uidTag; }
     bool isCell() const { return !isUid(); }
@@ -70,9 +64,6 @@ public:
     explicit operator bool() const { return m_bits; }
 
     unsigned hash() const { return uid()->symbolAwareHash(); }
-
-    CacheableIdentifier& operator=(const CacheableIdentifier&) = default;
-    CacheableIdentifier& operator=(CacheableIdentifier&&) = default;
 
     bool operator==(const CacheableIdentifier&) const;
     bool operator==(const Identifier&) const;

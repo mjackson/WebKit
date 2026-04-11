@@ -29,6 +29,7 @@
 #import "config.h"
 #import "WebAuthenticatorCoordinatorProxy.h"
 
+#import "APIPageConfiguration.h"
 #import "APIUIClient.h"
 #import "ArgumentCoders.h"
 #import "LocalService.h"
@@ -583,6 +584,11 @@ static inline AuthenticatorAttachment NODELETE fromASAuthorizationPublicKeyCrede
 
 void WebAuthenticatorCoordinatorProxy::performRequest(WebAuthenticationRequestData &&requestData, RequestCompletionHandler &&handler)
 {
+    if (m_webPageProxy->configuration().backgroundTextExtractionEnabled()) {
+        handler(WebCore::AuthenticatorResponseData { }, AuthenticatorAttachment::Platform, { ExceptionCode::NotAllowedError, @"" });
+        return;
+    }
+
 #if HAVE(UNIFIED_ASC_AUTH_UI)
     RefPtr webPageProxy = m_webPageProxy.get();
     if (!webPageProxy || !protect(webPageProxy->preferences())->webAuthenticationASEnabled()) {
@@ -1328,6 +1334,11 @@ void WebAuthenticatorCoordinatorProxy::getClientCapabilities(const WebCore::Secu
 
 void WebAuthenticatorCoordinatorProxy::isUserVerifyingPlatformAuthenticatorAvailable(const SecurityOriginData& data, QueryCompletionHandler&& handler)
 {
+    if (m_webPageProxy->configuration().backgroundTextExtractionEnabled()) {
+        handler(false);
+        return;
+    }
+
     getCanCurrentProcessAccessPasskeyForRelyingParty(data, [handler = WTF::move(handler), data](bool canAccessPasskeyData) mutable {
         if (!canAccessPasskeyData) {
             handler(false);

@@ -419,4 +419,20 @@ template<> ConversionResult<IDLUnsignedLongLong> convertToInteger<IDLUnsignedLon
     return n;
 }
 
+JSC::JSValue JSConverter<IDLDouble>::convert(Type value)
+{
+    ASSERT(!std::isnan(value));
+    return JSC::jsNumber(value);
+}
+
+JSC::JSValue JSConverter<IDLUnrestrictedDouble>::convert(Type value)
+{
+    return JSC::jsNumber(JSC::purifyNaN(value));
+}
+
+JSC::JSValue JSConverter<IDLUnrestrictedDouble>::convert(const MediaTime& value)
+{
+    return JSC::jsNumber(JSC::purifyNaN(value.toDouble()));
+}
+
 } // namespace WebCore

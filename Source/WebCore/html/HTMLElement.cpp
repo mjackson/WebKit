@@ -149,17 +149,6 @@ void HTMLElement::applyBorderAttributeToStyle(const AtomString& value, MutableSt
     addPropertyToPresentationalHintStyle(style, CSSPropertyBorderStyle, CSSValueSolid);
 }
 
-void HTMLElement::mapLanguageAttributeToLocale(const AtomString& value, MutableStyleProperties& style)
-{
-    if (!value.isEmpty()) {
-        // Have to quote so the locale id is treated as a string instead of as a CSS keyword.
-        addPropertyToPresentationalHintStyle(style, CSSPropertyWebkitLocale, serializeString(value));
-    } else {
-        // The empty string means the language is explicitly unknown.
-        addPropertyToPresentationalHintStyle(style, CSSPropertyWebkitLocale, CSSValueAuto);
-    }
-}
-
 bool HTMLElement::hasPresentationalHintsForAttribute(const QualifiedName& name) const
 {
     switch (name.nodeName()) {

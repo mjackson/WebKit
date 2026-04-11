@@ -60,22 +60,22 @@ static bool NODELETE isCSPDirectiveName(StringView name)
         || equalIgnoringASCIICase(name, ContentSecurityPolicyDirectiveNames::styleSrc);
 }
 
-template<typename CharacterType> static bool isHostCharacter(CharacterType c)
+template<typename CharacterType> static bool NODELETE isHostCharacter(CharacterType c)
 {
     return isASCIIAlphanumeric(c) || c == '-';
 }
 
-template<typename CharacterType> static bool isPathComponentCharacter(CharacterType c)
+template<typename CharacterType> static bool NODELETE isPathComponentCharacter(CharacterType c)
 {
     return c != '?' && c != '#';
 }
 
-template<typename CharacterType> static bool isSchemeContinuationCharacter(CharacterType c)
+template<typename CharacterType> static bool NODELETE isSchemeContinuationCharacter(CharacterType c)
 {
     return isASCIIAlphanumeric(c) || c == '+' || c == '-' || c == '.';
 }
 
-template<typename CharacterType> static bool isNotColonOrSlash(CharacterType c)
+template<typename CharacterType> static bool NODELETE isNotColonOrSlash(CharacterType c)
 {
     return c != ':' && c != '/';
 }
@@ -578,7 +578,7 @@ template<typename CharacterType> std::optional<ContentSecurityPolicySourceList::
 // Match Blink's behavior of allowing an equal sign to appear anywhere in the value of the nonce
 // even though this does not match the behavior of Content Security Policy Level 3 spec.,
 // <https://w3c.github.io/webappsec-csp/> (29 February 2016).
-template<typename CharacterType> static bool isNonceCharacter(CharacterType c)
+template<typename CharacterType> static bool NODELETE isNonceCharacter(CharacterType c)
 {
     return isBase64OrBase64URLCharacter(c) || c == '=';
 }

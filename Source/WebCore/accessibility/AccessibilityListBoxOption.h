@@ -64,7 +64,7 @@ private:
         m_subtreeDirty = false;
     }
     bool canHaveChildren() const final { return false; }
-    HTMLSelectElement* listBoxOptionParentNode() const;
+    HTMLSelectElement* NODELETE listBoxOptionParentNode() const;
     int listBoxOptionIndex() const;
     IntRect listBoxOptionRect() const;
     AccessibilityObject* listBoxOptionAccessibilityObject(HTMLElement*) const;

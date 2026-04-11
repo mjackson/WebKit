@@ -59,7 +59,7 @@ String toErrorString(const String& callingAPIName, const String& sourceKey, Stri
 
 /// Returns an error for Expected results in CompletionHandler.
 template<typename... Args>
-Unexpected<WebExtensionError> toWebExtensionError(const String& callingAPIName, const String& sourceKey, const String& underlyingErrorString, Args&&... args)
+std::unexpected<WebExtensionError> toWebExtensionError(const String& callingAPIName, const String& sourceKey, const String& underlyingErrorString, Args&&... args)
 {
     return makeUnexpected(toErrorString(callingAPIName, sourceKey, underlyingErrorString, std::forward<Args>(args)...));
 }
@@ -139,7 +139,7 @@ inline NSNumber *toWebAPI(size_t index)
 
 #endif // __OBJC__
 
-Markable<WTF::UUID> toDocumentIdentifier(WebFrame&);
+Markable<WTF::UUID> NODELETE toDocumentIdentifier(WebFrame&);
 
 } // namespace WebKit
 

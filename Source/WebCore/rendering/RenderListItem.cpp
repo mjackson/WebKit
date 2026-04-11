@@ -93,7 +93,7 @@ bool isHTMLListElement(const Node& node)
     return isAnyOf<HTMLUListElement, HTMLOListElement>(node);
 }
 
-static LayoutPoint paintOffsetForMarkerFromAssociatedListItem(const RenderListMarker& marker, const RenderListItem& listItem, const LayoutPoint& listItemPaintOffset)
+static LayoutPoint NODELETE paintOffsetForMarkerFromAssociatedListItem(const RenderListMarker& marker, const RenderListItem& listItem, const LayoutPoint& listItemPaintOffset)
 {
     auto markerParentPaintOffset = listItemPaintOffset;
     for (auto* ancestor = marker.parent(); ancestor && ancestor != &listItem; ancestor = ancestor->parent()) {

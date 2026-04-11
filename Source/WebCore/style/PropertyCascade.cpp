@@ -43,7 +43,7 @@ namespace Style {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(PropertyCascade);
 
-PropertyCascade::PropertyCascade(const MatchResult& matchResult, IncludedProperties&& includedProperties, const HashSet<AnimatableCSSProperty>* animatedProperties, const StyleProperties* positionTryFallbackProperties)
+PropertyCascade::PropertyCascade(const MatchResult& matchResult, IncludedProperties&& includedProperties, const HashMap<AnimatableCSSProperty, EnumSet<AnimationSource>>* animatedProperties, const StyleProperties* positionTryFallbackProperties)
     : m_matchResult(matchResult)
     , m_includedProperties(WTF::move(includedProperties))
     , m_maximumOrigin(positionTryFallbackProperties ? PropertyCascade::Origin::PositionFallback : PropertyCascade::Origin::Author)
@@ -85,12 +85,15 @@ PropertyCascade::PropertyCascade(const PropertyCascade& parent, RevertRuleTag)
 
 PropertyCascade::~PropertyCascade() = default;
 
-PropertyCascade::AnimationLayer::AnimationLayer(const HashSet<AnimatableCSSProperty>& properties)
+PropertyCascade::AnimationLayer::AnimationLayer(const HashMap<AnimatableCSSProperty, EnumSet<AnimationSource>>& properties)
     : properties(properties)
 {
-    hasCustomProperties = std::ranges::find_if(properties, [](auto& property) {
-        return std::holds_alternative<AtomString>(property);
-    }) != properties.end();
+    for (auto& key : properties.keys()) {
+        if (std::holds_alternative<AtomString>(key)) {
+            hasCustomProperties = true;
+            break;
+        }
+    }
 
     hasFontSize = properties.contains(CSSPropertyFontSize);
     hasLineHeight = properties.contains(CSSPropertyLineHeight);
@@ -306,7 +309,7 @@ bool PropertyCascade::addMatch(const MatchedProperties& matchedProperties, Origi
             if (mayOverrideExistingProperty(propertyID, *current.value()))
                 return true;
 
-            if (m_includedProperties.types.containsAny({ PropertyType::AfterAnimation, PropertyType::AfterTransition })) {
+            if (m_includedProperties.types.contains(PropertyType::AfterAnimation)) {
                 if (shouldApplyAfterAnimation(current)) {
                     m_animationLayer->overriddenProperties.add(propertyID);
                     return true;
@@ -346,16 +349,13 @@ bool PropertyCascade::shouldApplyAfterAnimation(const StyleProperties::PropertyR
     auto id = property.id();
     RefPtr customProperty = dynamicDowncast<CSSCustomPropertyValue>(*property.value());
 
-    auto isAnimatedProperty = [&] {
-        if (customProperty)
-            return m_animationLayer->properties.contains(customProperty->name());
-        return m_animationLayer->properties.contains(id);
-    }();
-
-    if (isAnimatedProperty) {
+    auto animationSource = m_animationLayer->properties.getOptional(customProperty ? AnimatableCSSProperty { customProperty->name() } : id);
+    if (animationSource) {
         // "Important declarations from all origins take precedence over animations."
         // https://drafts.csswg.org/css-cascade-5/#importance
-        return m_includedProperties.types.contains(PropertyType::AfterAnimation) && property.isImportant();
+        // But transitions take precedence over !important, so only allow the
+        // override for properties not animated by a transition.
+        return !animationSource->contains(AnimationSource::CSSTransition) && property.isImportant();
     }
 
     // If we are animating custom properties they may affect other properties so we need to re-resolve them.
@@ -363,7 +363,7 @@ bool PropertyCascade::shouldApplyAfterAnimation(const StyleProperties::PropertyR
         // We could check if the we are actually animating the referenced variable. Indirect cases would need to be taken into account.
         if (customProperty && customProperty->isVariableReference())
             return true;
-        if (property.value()->hasVariableReferences())
+        if (property.value()->hasSubstitutionFunctions())
             return true;
     }
 
@@ -482,7 +482,7 @@ void PropertyCascade::sortLogicalGroupPropertyIDs()
     });
 }
 
-const HashSet<AnimatableCSSProperty> PropertyCascade::overriddenAnimatedProperties() const
+ValueOrReference<HashSet<AnimatableCSSProperty>> PropertyCascade::overriddenAnimatedProperties() const
 {
     if (m_animationLayer)
         return m_animationLayer->overriddenProperties;

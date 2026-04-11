@@ -152,6 +152,16 @@ Ref<RTCRtpTransformBackend> RTCRtpReceiver::rtcRtpTransformBackend()
     return m_backend->rtcRtpTransformBackend();
 }
 
+ExceptionOr<void> RTCRtpReceiver::setJitterBufferTarget(std::optional<double> valueInMillisecond)
+{
+    if (valueInMillisecond && (*valueInMillisecond < 0 || *valueInMillisecond > 4000))
+        return Exception { ExceptionCode::RangeError, "jitterBufferTarget is invalid"_s };
+
+    m_jitterBufferTarget = valueInMillisecond;
+    m_backend->setJitterBufferTarget(valueInMillisecond);
+    return { };
+}
+
 #if !RELEASE_LOG_DISABLED
 WTFLogChannel& RTCRtpReceiver::logChannel() const
 {

@@ -93,8 +93,6 @@ public:
 
     UncheckedKeyHashMap<IPIntPC, IPIntTierUpCounter::OSREntryData>& tierUpCounter() LIFETIME_BOUND { return m_tierUpCounter; }
 
-    const RTT* addSignature(const TypeDefinition&);
-
     void addCallTarget(unsigned callProfileIndex, FunctionSpaceIndex target)
     {
         if (callProfileIndex >= m_callTargets.size())
@@ -119,6 +117,7 @@ private:
     };
 
     void addLength(size_t length);
+    void addMemoryIndex(uint8_t memoryIndex);
     void addLEB128ConstantInt32AndLength(uint32_t value, size_t length);
     void addLEB128ConstantInt64AndLength(uint64_t value, size_t length);
     void addLEB128ConstantAndLengthForType(Type, uint64_t value, size_t length);

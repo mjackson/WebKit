@@ -34,7 +34,9 @@
 #include "EventNames.h"
 #include "EventTargetInlines.h"
 #include "JSDOMException.h"
+#include "JSValueInWrappedObjectInlines.h"
 #include "ScriptExecutionContext.h"
+#include "ScriptWrappableInlines.h"
 #include "WebCoreOpaqueRoot.h"
 #include <JavaScriptCore/Exception.h>
 #include <JavaScriptCore/JSCast.h>
@@ -55,7 +57,7 @@ Ref<AbortSignal> AbortSignal::abort(JSDOMGlobalObject& globalObject, ScriptExecu
     ASSERT(reason);
     if (reason.isUndefined())
         reason = toJS(&globalObject, &globalObject, DOMException::create(ExceptionCode::AbortError));
-    return adoptRef(*new AbortSignal(&context, Aborted::Yes, reason));
+    return adoptRef(*new AbortSignal(globalObject, &context, Aborted::Yes, reason));
 }
 
 // https://dom.spec.whatwg.org/#dom-abortsignal-timeout
@@ -96,12 +98,17 @@ Ref<AbortSignal> AbortSignal::any(ScriptExecutionContext& context, const Vector<
     return resultSignal;
 }
 
-AbortSignal::AbortSignal(ScriptExecutionContext* context, Aborted aborted, JSC::JSValue reason)
+AbortSignal::AbortSignal(ScriptExecutionContext* context, Aborted aborted)
     : ContextDestructionObserver(context)
-    , m_reason(reason)
     , m_aborted(aborted == Aborted::Yes)
 {
-    ASSERT(reason);
+}
+
+AbortSignal::AbortSignal(JSC::JSGlobalObject& globalObject, ScriptExecutionContext* context, Aborted aborted, JSC::JSValue reason)
+    : ContextDestructionObserver(context)
+    , m_reason(globalObject, reason)
+    , m_aborted(aborted == Aborted::Yes)
+{
 }
 
 AbortSignal::~AbortSignal() = default;
@@ -127,27 +134,31 @@ void AbortSignal::addDependentSignal(AbortSignal& signal)
 // https://dom.spec.whatwg.org/#abortsignal-signal-abort
 void AbortSignal::signalAbort(JSC::JSValue reason)
 {
-    // 1. If signal's aborted flag is set, then return.
+    // 1. If signal’s aborted flag is set, then return.
     if (m_aborted)
+        return;
+
+    RefPtr context = scriptExecutionContext();
+    if (!context)
+        return;
+
+    auto* globalObject = JSC::jsCast<JSDOMGlobalObject*>(context->globalObject());
+    if (!globalObject)
         return;
 
     // 2. ... if the reason is not given, set it to a new "AbortError" DOMException.
     ASSERT(reason);
-    if (reason.isUndefined()) {
-        auto* globalObject = JSC::jsCast<JSDOMGlobalObject*>(protect(scriptExecutionContext())->globalObject());
-        if (!globalObject)
-            return;
+    if (reason.isUndefined())
         reason = toJS(globalObject, globalObject, DOMException::create(ExceptionCode::AbortError));
-    }
 
     // 2. Set signal’s abort reason to reason if it is given; otherwise to a new "AbortError" DOMException.
-    markAborted(reason);
+    markAborted(*globalObject, reason);
 
     Vector<Ref<AbortSignal>> dependentSignalsToAbort;
 
     for (Ref dependentSignal : std::exchange(m_dependentSignals, { })) {
         if (!dependentSignal->aborted()) {
-            dependentSignal->markAborted(reason);
+            dependentSignal->markAborted(*globalObject, reason);
             dependentSignalsToAbort.append(WTF::move(dependentSignal));
         }
     }
@@ -160,7 +171,7 @@ void AbortSignal::signalAbort(JSC::JSValue reason)
         dependentSignal->runAbortSteps();
 }
 
-void AbortSignal::markAborted(JSC::JSValue reason)
+void AbortSignal::markAborted(JSC::JSGlobalObject& globalObject, JSC::JSValue reason)
 {
     m_aborted = true;
     m_sourceSignals.clear();
@@ -168,7 +179,7 @@ void AbortSignal::markAborted(JSC::JSValue reason)
     // FIXME: This code is wrong: we should emit a write-barrier. Otherwise, GC can collect it.
     // https://bugs.webkit.org/show_bug.cgi?id=236353
     ASSERT(reason);
-    m_reason.setWeakly(reason);
+    m_reason.setWeakly(globalObject, reason);
 }
 
 void AbortSignal::runAbortSteps()

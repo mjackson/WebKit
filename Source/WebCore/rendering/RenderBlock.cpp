@@ -53,6 +53,7 @@
 #include "Page.h"
 #include "PaintInfo.h"
 #include "PaintInfoInlines.h"
+#include "PositionedLayoutConstraints.h"
 #include "RenderBlockFlow.h"
 #include "RenderBlockInlines.h"
 #include "RenderBoxFragmentInfo.h"
@@ -249,8 +250,6 @@ static OutOfFlowDescendantsMap& NODELETE outOfFlowDescendantsMap()
     static NeverDestroyed<OutOfFlowDescendantsMap> mapForOutOfFlowDescendants;
     return mapForOutOfFlowDescendants;
 }
-
-using ContinuationOutlineTableMap = SingleThreadWeakHashMap<RenderBlock, std::unique_ptr<SingleThreadWeakListHashSet<RenderInline>>>;
 
 // Allocated only when some of these fields have non-default values
 
@@ -671,11 +670,11 @@ void RenderBlock::updateBlockChildDirtyBitsBeforeLayout(RelayoutChildren relayou
         return style.height().isPercentOrCalculated() || style.minHeight().isPercentOrCalculated() || style.maxHeight().isPercentOrCalculated();
     };
     if (relayoutChildren == RelayoutChildren::Yes || (childHasRelativeHeight() && !isRenderView()))
-        child.setChildNeedsLayout(MarkOnlyThis);
+        child.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
 
     // If relayoutChildren is set and the child has percentage padding or an embedded content box, we also need to invalidate the childs pref widths.
     if (relayoutChildren == RelayoutChildren::Yes && child.shouldInvalidatePreferredWidths())
-        child.setNeedsPreferredWidthsUpdate(MarkOnlyThis);
+        child.setNeedsPreferredWidthsUpdate(MarkingBehavior::MarkOnlyThis);
 }
 
 void RenderBlock::simplifiedNormalFlowLayout()
@@ -763,11 +762,11 @@ void RenderBlock::markFixedPositionBoxForLayoutIfNeeded(RenderBox& positionedChi
         positionedChild.computeLogicalWidth(computedValues);
         LayoutUnit newLeft = computedValues.position;
         if (newLeft != positionedChild.logicalLeft())
-            positionedChild.setChildNeedsLayout(MarkOnlyThis);
+            positionedChild.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
     } else if (hasStaticBlockPosition) {
         auto logicalTop = positionedChild.logicalTop();
         if (logicalTop != positionedChild.computeLogicalHeight(positionedChild.logicalHeight(), logicalTop).position)
-            positionedChild.setChildNeedsLayout(MarkOnlyThis);
+            positionedChild.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
     }
 }
 
@@ -826,11 +825,11 @@ void RenderBlock::layoutOutOfFlowBox(RenderBox& outOfFlowBox, RelayoutChildren r
         return false;
     };
     if (needsLayout())
-        outOfFlowBox.setChildNeedsLayout(MarkOnlyThis);
+        outOfFlowBox.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
 
     // If relayoutChildren is set and the child has percentage padding or an embedded content box, we also need to invalidate the childs pref widths.
     if (relayoutChildren == RelayoutChildren::Yes && outOfFlowBox.shouldInvalidatePreferredWidths())
-        outOfFlowBox.setNeedsPreferredWidthsUpdate(MarkOnlyThis);
+        outOfFlowBox.setNeedsPreferredWidthsUpdate(MarkingBehavior::MarkOnlyThis);
     
     outOfFlowBox.markForPaginationRelayoutIfNeeded();
     
@@ -869,12 +868,12 @@ void RenderBlock::layoutOutOfFlowBox(RenderBox& outOfFlowBox, RelayoutChildren r
 
     // Lay out again if our estimate was wrong.
     if (layoutChanged || (needsBlockDirectionLocationSetBeforeLayout && logicalTopForChild(outOfFlowBox) != oldLogicalTop)) {
-        outOfFlowBox.setChildNeedsLayout(MarkOnlyThis);
+        outOfFlowBox.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
         outOfFlowBox.layoutIfNeeded();
     }
 
     if (updateFragmentRangeForBoxChild(outOfFlowBox)) {
-        outOfFlowBox.setNeedsLayout(MarkOnlyThis);
+        outOfFlowBox.setNeedsLayout(MarkingBehavior::MarkOnlyThis);
         outOfFlowBox.layoutIfNeeded();
     }
     
@@ -913,7 +912,7 @@ void RenderBlock::markForPaginationRelayoutIfNeeded()
         return;
 
     if (layoutState->pageLogicalHeightChanged() || (layoutState->pageLogicalHeight() && layoutState->pageLogicalOffset(this, logicalTop()) != pageLogicalOffset()))
-        setChildNeedsLayout(MarkOnlyThis);
+        setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
 }
 
 void RenderBlock::paintCarets(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
@@ -1236,68 +1235,14 @@ void RenderBlock::paintObject(PaintInfo& paintInfo, const LayoutPoint& paintOffs
     }
 
     // 5. paint outline.
-    if ((paintPhase == PaintPhase::Outline || paintPhase == PaintPhase::SelfOutline) && hasOutline() && style().usedVisibility() == Visibility::Visible) {
-        // Don't paint focus ring for anonymous block continuation because the
-        // inline element having outline-style:auto paints the whole focus ring.
-        if (style().outlineStyle() != OutlineStyle::Auto || !isContinuation())
-            paintOutline(paintInfo, LayoutRect(paintOffset, size()));
-    }
-
-    // 6. paint continuation outlines.
-    if ((paintPhase == PaintPhase::Outline || paintPhase == PaintPhase::ChildOutlines)) {
-        RenderInline* inlineCont = inlineContinuation();
-        if (inlineCont && inlineCont->hasOutline() && inlineCont->style().usedVisibility() == Visibility::Visible) {
-            RenderInline* inlineRenderer = downcast<RenderInline>(inlineCont->element()->renderer());
-            RenderBlock* containingBlock = this->containingBlock();
-
-            bool inlineEnclosedInSelfPaintingLayer = false;
-            for (RenderBoxModelObject* box = inlineRenderer; box != containingBlock; box = &box->parent()->enclosingBoxModelObject()) {
-                if (box->hasSelfPaintingLayer()) {
-                    inlineEnclosedInSelfPaintingLayer = true;
-                    break;
-                }
-            }
-
-            // Do not add continuations for outline painting by our containing block if we are a relative positioned
-            // anonymous block (i.e. have our own layer), paint them straightaway instead. This is because a block depends on renderers in its continuation table being
-            // in the same layer. 
-            if (!inlineEnclosedInSelfPaintingLayer && !hasLayer())
-                containingBlock->addContinuationWithOutline(inlineRenderer);
-            else if (!InlineIterator::lineLeftmostInlineBoxFor(*inlineRenderer) || (!inlineEnclosedInSelfPaintingLayer && hasLayer())) {
-                auto outlineOffset = paintOffset - locationOffset() + inlineRenderer->containingBlock()->location();
-                OutlinePainter { paintInfo }.paintOutline(*inlineRenderer, outlineOffset);
-            }
-        }
-        paintContinuationOutlines(paintInfo, paintOffset);
-    }
+    if ((paintPhase == PaintPhase::Outline || paintPhase == PaintPhase::SelfOutline) && hasOutline() && style().usedVisibility() == Visibility::Visible)
+        paintOutline(paintInfo, LayoutRect(paintOffset, size()));
 
     // 7. paint caret.
     // If the caret's node's render object's containing block is this block, and the paint action is PaintPhase::Foreground,
     // then paint the caret.
     if (shouldPaintContent)
         paintCarets(paintInfo, paintOffset);
-}
-
-static ContinuationOutlineTableMap* NODELETE continuationOutlineTable()
-{
-    static NeverDestroyed<ContinuationOutlineTableMap> table;
-    return &table.get();
-}
-
-void RenderBlock::addContinuationWithOutline(RenderInline* flow)
-{
-    // We can't make this work if the inline is in a layer.  We'll just rely on the broken
-    // way of painting.
-    ASSERT(!flow->layer() && !flow->isContinuation());
-    
-    auto* table = continuationOutlineTable();
-    auto* continuations = table->get(*this);
-    if (!continuations) {
-        continuations = new SingleThreadWeakListHashSet<RenderInline>;
-        table->set(*this, std::unique_ptr<SingleThreadWeakListHashSet<RenderInline>>(continuations));
-    }
-    
-    continuations->add(*flow);
 }
 
 bool RenderBlock::establishesIndependentFormattingContextIgnoringDisplayType(const RenderStyle& style) const
@@ -1337,7 +1282,7 @@ bool RenderBlock::establishesIndependentFormattingContext() const
         if (!style.gridTemplateColumns().subgrid && !style.gridTemplateRows().subgrid)
             return true;
         // Masonry makes grid items not subgrids.
-        if (CheckedPtr parentGridBox = dynamicDowncast<RenderGrid>(parent()))
+        if (auto* parentGridBox = dynamicDowncast<RenderGrid>(parent()))
             return parentGridBox->isMasonry();
     }
 
@@ -1368,35 +1313,6 @@ bool RenderBlock::createsNewFormattingContext() const
         || style.columnSpan() == ColumnSpan::All
         || style.display() == Style::DisplayType::BlockFlowRoot
         || establishesIndependentFormattingContext();
-}
-
-#if ASSERT_ENABLED
-bool RenderBlock::paintsContinuationOutline(const RenderInline& renderer)
-{
-    if (auto* continuations = continuationOutlineTable()->get(*this))
-        return continuations->contains(renderer);
-    return false;
-}
-#endif
-
-void RenderBlock::paintContinuationOutlines(PaintInfo& info, const LayoutPoint& paintOffset)
-{
-    auto* table = continuationOutlineTable();
-    auto continuations = table->take(*this);
-    if (!continuations)
-        return;
-
-    LayoutPoint accumulatedPaintOffset = paintOffset;
-    // Paint each continuation outline.
-    OutlinePainter outlinePainter { info };
-    for (auto& renderInline : *continuations) {
-        // Need to add in the coordinates of the intervening blocks.
-        auto* block = renderInline.containingBlock();
-        for ( ; block && block != this; block = block->containingBlock())
-            accumulatedPaintOffset.moveBy(block->location());
-        ASSERT(block);
-        outlinePainter.paintOutline(renderInline, accumulatedPaintOffset);
-    }
 }
 
 bool RenderBlock::shouldPaintSelectionGaps() const
@@ -1438,7 +1354,7 @@ GapRects RenderBlock::selectionGapRectsForRepaint(const RenderLayerModelObject* 
     if (!shouldPaintSelectionGaps())
         return { };
 
-    FloatPoint containerPoint = localToContainerPoint(FloatPoint(), repaintContainer, UseTransforms);
+    FloatPoint containerPoint = localToContainerPoint(FloatPoint(), repaintContainer, MapCoordinatesMode::UseTransforms);
     LayoutPoint offsetFromRepaintContainer(containerPoint - toFloatSize(scrollPosition()));
 
 #if ENABLE(TEXT_SELECTION)
@@ -1774,7 +1690,7 @@ void RenderBlock::addOutOfFlowBox(RenderBox& outOfFlowBox)
 
     if (outOfFlowBox.isRenderFragmentedFlow())
         return;
-    // FIXME: Find out if we can do this as part of outOfFlowBox.setChildNeedsLayout(MarkOnlyThis)
+    // FIXME: Find out if we can do this as part of outOfFlowBox.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis)
     if (outOfFlowBox.needsLayout()) {
         // We should turn this bit on only while in layout.
         ASSERT(outOfFlowChildNeedsLayout() || view().frameView().layoutContext().isInLayout());
@@ -1790,9 +1706,9 @@ void RenderBlock::removeOutOfFlowBox(const RenderBox& rendererToRemove)
 
 static inline void markRendererAndParentForLayout(RenderBox& renderer)
 {
-    renderer.setChildNeedsLayout(MarkOnlyThis);
+    renderer.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
     if (renderer.shouldInvalidatePreferredWidths())
-        renderer.setNeedsPreferredWidthsUpdate(MarkOnlyThis);
+        renderer.setNeedsPreferredWidthsUpdate(MarkingBehavior::MarkOnlyThis);
     auto* parentBlock = RenderObject::containingBlockForPositionType(PositionType::Static, renderer);
     if (!parentBlock) {
         ASSERT_NOT_REACHED();
@@ -2019,11 +1935,6 @@ Node* RenderBlock::nodeForHitTest() const
         }
     }
 
-    // If we are in the margins of block elements that are part of a
-    // continuation we're actually still inside the enclosing element
-    // that was split. Use the appropriate inner node.
-    if (auto* continuation = this->continuation())
-        return continuation->element();
     return element();
 }
 
@@ -2035,7 +1946,7 @@ bool RenderBlock::hitTestChildren(const HitTestRequest& request, HitTestResult& 
     const LayoutSize localOffset = toLayoutSize(adjustedLocation);
     const LayoutSize scrolledOffset(localOffset - toLayoutSize(scrollPosition()));
 
-    if (hitTestAction == HitTestFloat && hitTestFloats(request, result, locationInContainer, toLayoutPoint(scrolledOffset)))
+    if (hitTestAction == HitTestAction::Float && hitTestFloats(request, result, locationInContainer, toLayoutPoint(scrolledOffset)))
         return true;
     if (hitTestContents(request, result, locationInContainer, toLayoutPoint(scrolledOffset), hitTestAction)) {
         updateHitTestResult(result, flipForWritingMode(locationInContainer.point() - localOffset));
@@ -2053,7 +1964,7 @@ bool RenderBlock::nodeAtPoint(const HitTestRequest& request, HitTestResult& resu
     if (!hitTestVisualOverflow(locationInContainer, accumulatedOffset))
         return false;
 
-    if ((hitTestAction == HitTestBlockBackground || hitTestAction == HitTestChildBlockBackground)
+    if ((hitTestAction == HitTestAction::BlockBackground || hitTestAction == HitTestAction::ChildBlockBackground)
         && visibleToHitTesting(request) && isPointInOverflowControl(result, locationInContainer.point(), adjustedLocation)) {
         updateHitTestResult(result, locationInContainer.point() - localOffset);
         // FIXME: isPointInOverflowControl() doesn't handle rect-based tests yet.
@@ -2080,7 +1991,7 @@ bool RenderBlock::nodeAtPoint(const HitTestRequest& request, HitTestResult& resu
         return false;
 
     // Now hit test our background
-    if (hitTestAction == HitTestBlockBackground || hitTestAction == HitTestChildBlockBackground) {
+    if (hitTestAction == HitTestAction::BlockBackground || hitTestAction == HitTestAction::ChildBlockBackground) {
         LayoutRect boundsRect(adjustedLocation, size());
         if (visibleToHitTesting(request) && locationInContainer.intersects(boundsRect)) {
             updateHitTestResult(result, flipForWritingMode(locationInContainer.point() - localOffset));
@@ -2102,8 +2013,8 @@ bool RenderBlock::hitTestContents(const HitTestRequest& request, HitTestResult& 
 
     // Hit test our children.
     HitTestAction childHitTest = hitTestAction;
-    if (hitTestAction == HitTestChildBlockBackgrounds)
-        childHitTest = HitTestChildBlockBackground;
+    if (hitTestAction == HitTestAction::ChildBlockBackgrounds)
+        childHitTest = HitTestAction::ChildBlockBackground;
     for (auto* child = lastChildBox(); child; child = child->previousSiblingBox()) {
         LayoutPoint childPoint = flipForWritingModeForChild(*child, accumulatedOffset);
         if (!child->hasSelfPaintingLayer() && !child->isFloating() && child->nodeAtPoint(request, result, locationInContainer, childPoint, childHitTest))
@@ -2427,7 +2338,7 @@ void RenderBlock::computeChildPreferredLogicalWidths(RenderBox& childBox, Layout
             auto aspectRatioSize = blockSizeFromAspectRatio(
                 childBox.horizontalBorderAndPaddingExtent(),
                 childBox.verticalBorderAndPaddingExtent(),
-                LayoutUnit { childBoxStyle.logicalAspectRatio() },
+                childBoxStyle.logicalAspectRatio(),
                 childBoxStyle.boxSizingForAspectRatio(),
                 LayoutUnit { fixedChildBoxStyleLogicalWidth->resolveZoom(childBoxStyle.usedZoomForLength()) },
                 style().aspectRatio(),
@@ -2679,52 +2590,26 @@ void RenderBlock::setPageLogicalOffset(LayoutUnit logicalOffset)
 
 void RenderBlock::boundingRects(Vector<LayoutRect>& rects, const LayoutPoint& accumulatedOffset) const
 {
-    // For blocks inside inlines, we include margins so that we run right up to the inline boxes
-    // above and below us (thus getting merged with them to form a single irregular shape).
-    if (auto* continuation = this->continuation()) {
-        // FIXME: This is wrong for block-flows that are horizontal.
-        // https://bugs.webkit.org/show_bug.cgi?id=46781
-        rects.append(LayoutRect(accumulatedOffset.x(), accumulatedOffset.y() - collapsedMarginBefore(), width(), height() + collapsedMarginBefore() + collapsedMarginAfter()));
-        auto* containingBlock = inlineContinuation()->containingBlock();
-        continuation->boundingRects(rects, accumulatedOffset - locationOffset() + containingBlock->locationOffset());
-    } else
-        rects.append({ accumulatedOffset, size() });
+    rects.append({ accumulatedOffset, size() });
 }
 
 void RenderBlock::absoluteQuads(Vector<FloatQuad>& quads, bool* wasFixed) const
 {
-    if (!continuation()) {
-        absoluteQuadsIgnoringContinuation({ { }, size() }, quads, wasFixed);
-        return;
-    }
-    // For blocks inside inlines, we include margins so that we run right up to the inline boxes
-    // above and below us (thus getting merged with them to form a single irregular shape).
-    auto logicalRect = FloatRect { 0, -collapsedMarginBefore(), width(), height() + collapsedMarginBefore() + collapsedMarginAfter() };
-    absoluteQuadsIgnoringContinuation(logicalRect, quads, wasFixed);
-    collectAbsoluteQuadsForContinuation(quads, wasFixed);
-}
-
-void RenderBlock::absoluteQuadsIgnoringContinuation(const FloatRect& logicalRect, Vector<FloatQuad>& quads, bool* wasFixed) const
-{
     // FIXME: This is wrong for block-flows that are horizontal.
     // https://bugs.webkit.org/show_bug.cgi?id=46781
+    FloatRect logicalRect { { }, size() };
     CheckedPtr fragmentedFlow = enclosingFragmentedFlow();
     if (!fragmentedFlow || !fragmentedFlow->absoluteQuadsForBox(quads, wasFixed, *this))
-        quads.append(localToAbsoluteQuad(logicalRect, UseTransforms, wasFixed));
+        quads.append(localToAbsoluteQuad(logicalRect, MapCoordinatesMode::UseTransforms, wasFixed));
 }
 
 LayoutRect RenderBlock::rectWithOutlineForRepaint(const RenderLayerModelObject* repaintContainer, LayoutUnit outlineWidth) const
 {
-    LayoutRect r(RenderBox::rectWithOutlineForRepaint(repaintContainer, outlineWidth));
-    if (isContinuation())
-        r.inflateY(collapsedMarginBefore()); // FIXME: This is wrong for block-flows that are horizontal.
-    return r;
+    return RenderBox::rectWithOutlineForRepaint(repaintContainer, outlineWidth);
 }
 
 const RenderStyle& RenderBlock::outlineStyleForRepaint() const
 {
-    if (auto* continuation = this->continuation())
-        return continuation->style();
     return RenderElement::outlineStyleForRepaint();
 }
 
@@ -3067,7 +2952,7 @@ std::optional<LayoutUnit> RenderBlock::availableLogicalHeightForPercentageComput
             return blockSizeFromAspectRatio(
                 horizontalBorderAndPaddingExtent(),
                 verticalBorderAndPaddingExtent(),
-                LayoutUnit { style.logicalAspectRatio() },
+                style.logicalAspectRatio(),
                 style.boxSizingForAspectRatio(),
                 logicalWidth(),
                 style.aspectRatio(),
@@ -3129,7 +3014,7 @@ void RenderBlock::layoutExcludedChildren(RelayoutChildren relayoutChildren)
 
     RenderBox& legend = *box;
     if (relayoutChildren == RelayoutChildren::Yes)
-        legend.setChildNeedsLayout(MarkOnlyThis);
+        legend.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
     legend.layoutIfNeeded();
     
     LayoutUnit logicalLeft;
@@ -3404,8 +3289,8 @@ bool RenderBlock::hitTestExcludedChildrenInBorder(const HitTestRequest& request,
         return false;
 
     HitTestAction childHitTest = hitTestAction;
-    if (hitTestAction == HitTestChildBlockBackgrounds)
-        childHitTest = HitTestChildBlockBackground;
+    if (hitTestAction == HitTestAction::ChildBlockBackgrounds)
+        childHitTest = HitTestAction::ChildBlockBackground;
     LayoutPoint childPoint = flipForWritingModeForChild(*legend, accumulatedOffset);
     return legend->nodeAtPoint(request, result, locationInContainer, childPoint, childHitTest);
 }

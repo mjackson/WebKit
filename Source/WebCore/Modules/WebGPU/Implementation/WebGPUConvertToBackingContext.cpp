@@ -766,7 +766,7 @@ WGPUBufferUsageFlags ConvertToBackingContext::convertBufferUsageFlagsToBacking(B
     return static_cast<WGPUBufferUsageFlags>(bufferUsageFlags);
 }
 
-static constexpr bool compare(auto a, auto b)
+static constexpr bool NODELETE compare(auto a, auto b)
 {
     return static_cast<unsigned>(a) == static_cast<unsigned>(b);
 }

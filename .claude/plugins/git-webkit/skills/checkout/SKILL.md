@@ -2,7 +2,7 @@
 name: checkout-webkit-commit
 description: Use when the user wants to checkout a branch, checkout a PR, checkout a commit or move HEAD to a specific commit in the WebKit repository. The user can specify a pull requests by number or URL.
 user-invocable: true
-allowed-tools: Bash(git-webkit checkout:*), Bash(Tools/Scripts/git-webkit checkout:*), Bash(git-webkit find:*), Bash(Tools/Scripts/git-webkit find:*), Bash(git checkout:*),
+allowed-tools: Bash(git-webkit checkout:*), Bash(git webkit checkout:*), Bash(Tools/Scripts/git-webkit checkout:*), Bash(git-webkit find:*), Bash(git webkit find:*), Bash(Tools/Scripts/git-webkit find:*), Bash(git checkout:*),
 ---
 
 Use `git-webkit checkout` instead of `git checkout` to check out branches, commits, or pull requests when the string provided does not match a hash, branch or tag in the repository.

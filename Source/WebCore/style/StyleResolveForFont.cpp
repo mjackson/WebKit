@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2013 Google Inc. All rights reserved.
- * Copyright (C) 2014-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2026 Apple Inc. All rights reserved.
  * Copyright (C) 2020 Metrological Group B.V.
  * Copyright (C) 2020 Igalia S.L.
  * Copyright (C) 2024 Samuel Weinig <sam@webkit.org>
@@ -49,6 +49,7 @@
 #include "ScriptExecutionContext.h"
 #include "Settings.h"
 #include "StyleBuilderChecking.h"
+#include "StyleFontFamily.h"
 #include "StyleFontSizeFunctions.h"
 #include "StyleLengthResolution.h"
 #include "StylePrimitiveNumericTypes+Conversions.h"
@@ -169,7 +170,7 @@ static ResolvedFontStyle fontStyleFromUnresolvedFontStyle(const CSSPropertyParse
             case CSSValueNormal:
                 return {
                     .slope = std::nullopt,
-                    .axis = FontStyleAxis::slnt
+                    .axis = FontStyleAxis::normal
                 };
 
             case CSSValueItalic:
@@ -189,12 +190,12 @@ static ResolvedFontStyle fontStyleFromUnresolvedFontStyle(const CSSPropertyParse
             }
 
             ASSERT_NOT_REACHED();
-            return { .slope = std::nullopt, .axis = FontStyleAxis::slnt };
+            return { .slope = std::nullopt, .axis = FontStyleAxis::normal };
         },
         [](const CSSPropertyParserHelpers::UnresolvedFontStyleObliqueAngle& angle) -> ResolvedFontStyle {
             // FIXME: Figure out correct behavior when conversion data is required.
             if (requiresConversionData(angle))
-                return { .slope = std::nullopt, .axis = FontStyleAxis::slnt };
+                return { .slope = std::nullopt, .axis = FontStyleAxis::normal };
 
             return {
                 .slope = FontSelectionValue::clampFloat(Style::toStyleNoConversionDataRequired(angle).value),
@@ -308,17 +309,17 @@ static FontVariantCaps NODELETE fontVariantCapsFromUnresolvedFontVariantCaps(con
 // MARK: - 'font-family'
 
 struct ResolvedFontFamily {
-    Vector<AtomString> family;
-    bool isSpecifiedFont;
+    Vector<WebCore::FontFamily> families;
+    bool hasAuthorSpecifiedNonGenericPrimaryFont;
 };
 
 static ResolvedFontFamily fontFamilyFromUnresolvedFontFamily(const CSSPropertyParserHelpers::UnresolvedFontFamily& unresolvedFamily, Ref<ScriptExecutionContext> context)
 {
     bool isFirstFont = true;
-    bool isSpecifiedFont = false;
+    bool hasAuthorSpecifiedNonGenericPrimaryFont = false;
 
-    auto family = WTF::compactMap(unresolvedFamily, [&](auto& item) -> std::optional<AtomString> {
-        auto [family, isGenericFamily] = switchOn(item,
+    auto families = WTF::compactMap(unresolvedFamily, [&](auto& item) -> std::optional<WebCore::FontFamily> {
+        auto [familyName, isGenericFamily] = switchOn(item,
             [&](CSSValueID ident) -> std::pair<AtomString, bool> {
                 if (ident != CSSValueWebkitBody) {
                     // FIXME: Treat system-ui like other generic font families
@@ -333,19 +334,19 @@ static ResolvedFontFamily fontFamilyFromUnresolvedFontFamily(const CSSPropertyPa
             }
         );
 
-        if (family.isEmpty())
+        if (familyName.isEmpty())
             return std::nullopt;
 
         if (isFirstFont) {
-            isSpecifiedFont = !isGenericFamily;
+            hasAuthorSpecifiedNonGenericPrimaryFont = !isGenericFamily;
             isFirstFont = false;
         }
-        return family;
+        return WebCore::FontFamily { WTF::move(familyName), isGenericFamily ? FontFamilyKind::Generic : FontFamilyKind::Specified };
     });
 
     return {
-        .family = WTF::move(family),
-        .isSpecifiedFont = isSpecifiedFont
+        .families = WTF::move(families),
+        .hasAuthorSpecifiedNonGenericPrimaryFont = hasAuthorSpecifiedNonGenericPrimaryFont
     };
 }
 
@@ -362,7 +363,7 @@ std::optional<FontCascade> resolveForUnresolvedFont(const CSSPropertyParserHelpe
 
     auto useFixedDefaultSize = [](const FontCascadeDescription& fontDescription) {
         return fontDescription.familyCount() == 1
-            && fontDescription.firstFamily() == *familyNamesData->at(FamilyNamesIndex::MonospaceFamily);
+            && fontDescription.firstFamily().name == *familyNamesData->at(FamilyNamesIndex::MonospaceFamily);
     };
 
     // Font family applied in the same way as StyleBuilderCustom::applyValueFontFamily
@@ -370,10 +371,10 @@ std::optional<FontCascade> resolveForUnresolvedFont(const CSSPropertyParserHelpe
     bool oldFamilyUsedFixedDefaultSize = useFixedDefaultSize(fontDescription);
 
     auto resolvedFamily = fontFamilyFromUnresolvedFontFamily(unresolvedFont.family, protectedContext);
-    if (resolvedFamily.family.isEmpty())
+    if (resolvedFamily.families.isEmpty())
         return std::nullopt;
-    fontDescription.setFamilies(resolvedFamily.family);
-    fontDescription.setIsSpecifiedFont(resolvedFamily.isSpecifiedFont);
+    fontDescription.setFamilies(resolvedFamily.families);
+    fontDescription.setHasAuthorSpecifiedNonGenericPrimaryFont(resolvedFamily.hasAuthorSpecifiedNonGenericPrimaryFont);
 
     if (useFixedDefaultSize(fontDescription) != oldFamilyUsedFixedDefaultSize) {
         if (auto sizeIdentifier = fontDescription.keywordSizeAsIdentifier()) {

@@ -7,7 +7,7 @@ set(PAL_PUBLIC_HEADERS
     ThreadGlobalData.h
 
     crypto/CryptoDigest.h
-    crypto/CryptoDigestHashFunction.h
+    crypto/CryptoTypes.h
 
     system/Clock.h
     system/ClockGeneric.h

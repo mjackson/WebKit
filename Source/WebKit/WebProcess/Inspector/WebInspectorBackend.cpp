@@ -47,6 +47,7 @@
 #include <WebCore/PageInspectorController.h>
 #include <WebCore/ScriptController.h>
 #include <WebCore/WindowFeatures.h>
+#include <wtf/Borrow.h>
 
 static const float minimumAttachedHeight = 250;
 static const float maximumAttachedHeightRatio = 0.75;
@@ -95,7 +96,7 @@ void WebInspectorBackend::setFrontendConnection(IPC::Connection::Handle&& connec
     m_frontendConnection = frontendConnection.copyRef();
     frontendConnection->open(*this);
 
-    for (auto& callback : m_frontendConnectionActions)
+    for (auto& callback : borrow(m_frontendConnectionActions).get())
         callback(frontendConnection.get());
     m_frontendConnectionActions.clear();
 }

@@ -36,6 +36,7 @@
 #import <WebCore/LocalDOMWindow.h>
 #import <WebCore/ThreadCheck.h>
 #import <WebCore/WebScriptObjectPrivate.h>
+#import <WebCore/WindowProxy.h>
 #import <wtf/GetPtr.h>
 #import <wtf/URL.h>
 

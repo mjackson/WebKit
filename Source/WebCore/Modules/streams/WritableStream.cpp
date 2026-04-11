@@ -28,6 +28,7 @@
 
 #include "InternalWritableStream.h"
 #include "JSDOMGlobalObject.h"
+#include "JSDOMPromiseDeferred.h"
 #include "JSWritableStream.h"
 #include "JSWritableStreamSink.h"
 #include "MessageChannel.h"

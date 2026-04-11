@@ -246,8 +246,8 @@ void ConservativeRoots::genericAddSpan(void* begin, void* end, MarkHook& markHoo
 
 class DummyMarkHook {
 public:
-    void mark(void*) { }
-    void markKnownJSCell(JSCell*) { }
+    void NODELETE mark(void*) { }
+    void NODELETE markKnownJSCell(JSCell*) { }
 };
 
 void ConservativeRoots::add(void* begin, void* end)

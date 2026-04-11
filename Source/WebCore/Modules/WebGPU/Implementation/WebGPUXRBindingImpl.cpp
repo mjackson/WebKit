@@ -65,7 +65,7 @@ RefPtr<XRSubImage> XRBindingImpl::getSubImage(XRProjectionLayer&, WebCore::WebXR
 RefPtr<XRSubImage> XRBindingImpl::getViewSubImage(XRProjectionLayer& projectionLayer)
 {
     auto& projectionLayerImpl = downcast<XRProjectionLayerImpl>(projectionLayer);
-    return XRSubImageImpl::create(adoptWebGPU(wgpuBindingGetViewSubImage(m_backing.get(), projectionLayerImpl.backing())), Ref { m_convertToBackingContext });
+    return XRSubImageImpl::create(adoptWebGPU(wgpuBindingGetViewSubImage(m_backing.get(), projectionLayerImpl.backing())), protect(m_convertToBackingContext));
 }
 
 TextureFormat XRBindingImpl::getPreferredColorFormat()

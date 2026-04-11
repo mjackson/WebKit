@@ -82,7 +82,7 @@ public:
     }
 
 private:
-    static bool foldPurifyNaN(Edge& edge)
+    static bool NODELETE foldPurifyNaN(Edge& edge)
     {
         if (edge->op() == PurifyNaN) {
             edge = edge->child1();
@@ -91,7 +91,7 @@ private:
         return false;
     }
 
-    static bool foldPurifyNaNOnBinary(Node* node)
+    static bool NODELETE foldPurifyNaNOnBinary(Node* node)
     {
         bool result = false;
         if (node->isBinaryUseKind(DoubleRepUse)) {
@@ -101,7 +101,7 @@ private:
         return result;
     }
 
-    static bool foldPurifyNaNOnUnary(Node* node)
+    static bool NODELETE foldPurifyNaNOnUnary(Node* node)
     {
         if (node->child1().useKind() == DoubleRepUse)
             return foldPurifyNaN(node->child1());
@@ -662,11 +662,16 @@ private:
         }
 
         case GetArrayLength: {
-            if (m_node->arrayMode().type() == Array::Generic
-                || m_node->arrayMode().type() == Array::String) {
+            if (m_node->arrayMode().type() == Array::Generic || m_node->arrayMode().type() == Array::String) {
                 String string = m_node->child1()->tryGetString(m_graph);
                 if (!!string) {
                     m_graph.convertToConstant(m_node, jsNumber(string.length()));
+                    m_changed = true;
+                    break;
+                }
+
+                if (JSString* jsString = m_node->child1()->dynamicCastConstant<JSString*>()) {
+                    m_graph.convertToConstant(m_node, jsNumber(jsString->length()));
                     m_changed = true;
                     break;
                 }
@@ -685,8 +690,10 @@ private:
 
         case GetGlobalObject: {
             if (JSObject* object = m_node->child1()->dynamicCastConstant<JSObject*>()) {
-                m_graph.convertToConstant(m_node, object->globalObject());
-                m_changed = true;
+                if (JSGlobalObject* globalObject = object->realmMayBeNull()) {
+                    m_graph.convertToConstant(m_node, globalObject);
+                    m_changed = true;
+                }
                 break;
             }
             break;
@@ -748,7 +755,7 @@ private:
             if (m_node->op() == RegExpExec || m_node->op() == RegExpTest || m_node->op() == RegExpMatchFast || m_node->op() == RegExpSearch) {
                 regExpObjectNode = m_node->child2().node();
                 if (RegExpObject* regExpObject = regExpObjectNode->dynamicCastConstant<RegExpObject*>()) {
-                    JSGlobalObject* globalObject = regExpObject->globalObject();
+                    JSGlobalObject* globalObject = regExpObject->realm();
                     if (globalObject->isRegExpRecompiled()) {
                         dataLogLnIf(verbose, "Giving up because RegExp recompile happens.");
                         break;
@@ -1175,7 +1182,7 @@ private:
             Node* regExpObjectNode = m_node->child2().node();
             RegExp* regExp;
             if (RegExpObject* regExpObject = regExpObjectNode->dynamicCastConstant<RegExpObject*>()) {
-                JSGlobalObject* globalObject = regExpObject->globalObject();
+                JSGlobalObject* globalObject = regExpObject->realm();
                 if (m_graph.m_plan.isUnlinked() && globalObject != m_graph.globalObjectFor(m_node->origin.semantic)) {
                     dataLogLnIf(verbose, "Giving up because unlinked DFG requires globalObject is the same to the node's origin.");
                     break;

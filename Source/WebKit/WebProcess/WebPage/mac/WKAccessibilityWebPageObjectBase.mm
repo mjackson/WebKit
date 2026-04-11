@@ -40,6 +40,7 @@
 #import <WebCore/Document.h>
 #import <WebCore/FrameTree.h>
 #import <WebCore/LocalFrame.h>
+#import <WebCore/LocalFrameInlines.h>
 #import <WebCore/LocalFrameView.h>
 #import <WebCore/Page.h>
 #import <WebCore/RemoteFrame.h>
@@ -63,18 +64,6 @@ namespace ax = WebCore::Accessibility;
         return nullptr;
 
     return page->axObjectCache();
-}
-
-- (void)enableAccessibilityForAllProcesses
-{
-    // Immediately enable accessibility in the current web process, otherwise this
-    // will happen asynchronously and could break certain flows (e.g., attribute
-    // requests).
-    if (!WebCore::AXObjectCache::accessibilityEnabled())
-        WebCore::AXObjectCache::enableAccessibility();
-
-    if (RefPtr page = m_page.get())
-        page->enableAccessibilityForAllProcesses();
 }
 
 - (id)accessibilityPluginObject
@@ -115,8 +104,11 @@ namespace ax = WebCore::Accessibility;
 #endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
     return ax::retrieveAutoreleasedValueFromMainThread<id>([protectedSelf = retainPtr(self), protectedFrame = RefPtr { frame }] () -> RetainPtr<id> {
-        if (!WebCore::AXObjectCache::accessibilityEnabled())
-            [protectedSelf enableAccessibilityForAllProcesses];
+
+        // Immediately enable accessibility in the current web process, otherwise this
+        // will happen asynchronously and could break certain flows (e.g., attribute
+        // requests).
+        WebCore::AXObjectCache::enableAccessibility();
 
         if (protectedSelf->m_hasMainFramePlugin) {
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
@@ -124,8 +116,7 @@ namespace ax = WebCore::Accessibility;
             // is built, so that when text annotations are created on-the-fly as users focus on text fields,
             // isolated objects are able to be attached to those text annotation object wrappers.
             // If they aren't, we never have a backing object to serve any requests from.
-            if (CheckedPtr cache = protectedSelf.get().axObjectCache.get())
-                cache->buildIsolatedTreeIfNeeded();
+            std::ignore = WebCore::AXObjectCache::transitionToAXThreadModeIfNeeded();
 #endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
             if (![protectedSelf shouldFallbackToWebContentAXObjectForMainFramePlugin])
                 return [protectedSelf accessibilityPluginObject];
@@ -226,13 +217,6 @@ namespace ax = WebCore::Accessibility;
     m_window = window;
 }
 
-- (void)_buildIsolatedTreeIfNeeded
-{
-    ensureOnMainThread([protectedSelf = RetainPtr { self }] {
-        if (CheckedPtr cache = protectedSelf.get().axObjectCache.get())
-            cache->buildIsolatedTreeIfNeeded();
-    });
-}
 #endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
 - (void)setHasMainFramePlugin:(bool)hasPlugin

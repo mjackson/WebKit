@@ -133,7 +133,7 @@ ExceptionOr<void> NumberInputType::setValueAsDecimal(const Decimal& newValue, Te
     return { };
 }
 
-bool NumberInputType::typeMismatchFor(const String& value) const
+bool NumberInputType::typeMismatchFor(StringView value) const
 {
     return !value.isEmpty() && !std::isfinite(parseToDoubleForNumberType(value));
 }
@@ -330,7 +330,7 @@ auto NumberInputType::handleKeydownEvent(KeyboardEvent& event) -> ShouldCallBase
     return ShouldCallBaseEventHandler::Yes;
 }
 
-Decimal NumberInputType::parseToNumber(const String& src, const Decimal& defaultValue) const
+Decimal NumberInputType::parseToNumber(StringView src, const Decimal& defaultValue) const
 {
     return parseToDecimalForNumberType(src, defaultValue);
 }

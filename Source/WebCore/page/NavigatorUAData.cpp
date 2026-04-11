@@ -25,6 +25,8 @@
 #include "config.h"
 #include "NavigatorUAData.h"
 
+#include "JSDOMConvertDictionary.h"
+#include "JSDOMPromiseDeferred.h"
 #include "JSUADataValues.h"
 #include "NavigatorUABrandVersion.h"
 #include "NotImplemented.h"
@@ -37,6 +39,7 @@
 #include <random>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/WeakRandomNumber.h>
+#include <wtf/text/MakeString.h>
 #include <wtf/text/WTFString.h>
 
 #if USE(GLIB)

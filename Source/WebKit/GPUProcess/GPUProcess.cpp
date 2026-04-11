@@ -46,6 +46,8 @@
 #include "WebProcessPoolMessages.h"
 #include <WebCore/CommonAtomStrings.h>
 #include <WebCore/DeprecatedGlobalSettings.h>
+#include <WebCore/FloatSize.h>
+#include <WebCore/FrameIdentifier.h>
 #include <WebCore/LogInitialization.h>
 #include <WebCore/MediaPlayer.h>
 #include <WebCore/MemoryRelease.h>
@@ -81,6 +83,8 @@
 #include <WebCore/ScreenCaptureKitCaptureSource.h>
 #endif
 
+using namespace WebCore;
+
 namespace WebKit {
 
 // We wouldn't want the GPUProcess to repeatedly exit then relaunch when under memory pressure. In particular, we need to make sure the
@@ -98,9 +102,7 @@ GPUProcess::GPUProcess()
 #endif
 }
 
-GPUProcess::~GPUProcess()
-{
-}
+GPUProcess::~GPUProcess() = default;
 
 GPUProcess& GPUProcess::singleton()
 {
@@ -348,7 +350,7 @@ GPUConnectionToWebProcess* GPUProcess::webProcessConnection(WebCore::ProcessIden
 
 void GPUProcess::updateSandboxAccess(const Vector<SandboxExtension::Handle>& extensions)
 {
-    RELEASE_LOG(WebRTC, "GPUProcess::updateSandboxAccess: Adding %ld extensions", extensions.size());
+    RELEASE_LOG(WebRTC, "GPUProcess::updateSandboxAccess: Adding %zu extensions", extensions.size());
     for (auto& extension : extensions)
         SandboxExtension::consumePermanently(extension);
 }

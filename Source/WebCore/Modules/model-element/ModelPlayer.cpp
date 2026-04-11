@@ -113,11 +113,6 @@ void ModelPlayer::setInteractionEnabled(bool)
 {
 }
 
-String ModelPlayer::inlinePreviewUUIDForTesting() const
-{
-    return emptyString();
-}
-
 #if ENABLE(MODEL_ELEMENT_ANIMATIONS_CONTROL)
 
 void ModelPlayer::setAutoplay(bool)

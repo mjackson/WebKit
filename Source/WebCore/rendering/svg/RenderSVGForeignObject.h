@@ -50,6 +50,7 @@ public:
     FloatRect decoratedBoundingBox() const final { return m_viewport; }
 
     bool isObjectBoundingBoxValid() const { return !m_viewport.isEmpty(); }
+    bool objectBoundingBoxIsEmpty() const final { return !isObjectBoundingBoxValid(); }
 
 private:
     void graphicsElement() const = delete;

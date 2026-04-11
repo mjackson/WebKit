@@ -25,8 +25,8 @@
 
 #include "config.h"
 
-#include "PlatformUtilities.h"
-#include "TestNSBundleExtras.h"
+#include "Helpers/PlatformUtilities.h"
+#include "Helpers/cocoa/TestNSBundleExtras.h"
 #include "WebCoreTestSupport.h"
 #include <WebCore/MediaPlayerPrivateAVFoundationObjC.h>
 #include <wtf/Identified.h>

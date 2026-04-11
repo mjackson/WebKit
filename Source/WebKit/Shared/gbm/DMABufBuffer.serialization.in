@@ -21,10 +21,10 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #if USE(GBM)
-header: <WebCore/DMABufBuffer.h>
-[RValue, CustomHeader] struct WebCore::DMABufBufferAttributes {
+header: <WebCore/DMABufBufferAttributes.h>
+[CustomHeader] class WebCore::DMABufBufferAttributes {
     WebCore::IntSize size;
-    uint32_t fourcc;
+    WebCore::FourCC fourcc;
     Vector<WTF::UnixFileDescriptor> fds;
     Vector<uint32_t> offsets;
     Vector<uint32_t> strides;

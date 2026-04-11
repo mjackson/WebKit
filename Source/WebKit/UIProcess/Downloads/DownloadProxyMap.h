@@ -72,8 +72,8 @@ public:
 private:
     NetworkProcessProxy& process() const { return m_process; }
 
-    void platformCreate();
-    void platformDestroy();
+    void NODELETE platformCreate();
+    void NODELETE platformDestroy();
 
     WeakRef<NetworkProcessProxy> m_process;
     HashMap<DownloadID, Ref<DownloadProxy>> m_downloads;

@@ -49,6 +49,7 @@
 #import <WebCore/Pasteboard.h>
 #import <WebCore/PasteboardItemInfo.h>
 #import <WebCore/PlatformPasteboard.h>
+#import <WebCore/Quirks.h>
 #import <WebCore/SharedBuffer.h>
 #import <WebCore/UTIUtilities.h>
 #import <wtf/URL.h>
@@ -65,10 +66,22 @@ static PasteboardDataLifetime determineDataLifetime(std::optional<WebPageProxyId
     if (!pageID)
         return PasteboardDataLifetime::Persistent;
 
-    if (RefPtr page = WebProcessProxy::webPage(*pageID))
+    if (auto* page = WebProcessProxy::webPage(*pageID))
         return page->sessionID().isEphemeral() ? PasteboardDataLifetime::Ephemeral : PasteboardDataLifetime::Persistent;
 
     return PasteboardDataLifetime::Persistent;
+}
+
+static bool shouldTranscodeHEICImagesForPage(std::optional<WebPageProxyIdentifier> pageID)
+{
+    if (!pageID)
+        return false;
+
+    RefPtr page = WebProcessProxy::webPage(*pageID);
+    if (!page)
+        return false;
+
+    return protect(page->preferences())->needsSiteSpecificQuirks() && Quirks::shouldTranscodeHeicImagesForURL(URL { page->currentURL() });
 }
 
 void WebPasteboardProxy::grantAccessToCurrentTypes(WebProcessProxy& process, const String& pasteboardName)
@@ -225,10 +238,12 @@ void WebPasteboardProxy::getPasteboardPathnamesForType(IPC::Connection& connecti
 
 #if PLATFORM(MAC)
         Vector<size_t> indicesToTranscode;
-        for (size_t i = 0; i < pathnames.size(); ++i) {
-            auto mimeType = WebCore::MIMETypeRegistry::mimeTypeForPath(pathnames[i]);
-            if (mimeType == "image/heic"_s || mimeType == "image/heif"_s)
-                indicesToTranscode.append(i);
+        if (shouldTranscodeHEICImagesForPage(pageID)) {
+            for (size_t i = 0; i < pathnames.size(); ++i) {
+                auto mimeType = WebCore::MIMETypeRegistry::mimeTypeForPath(pathnames[i]);
+                if (mimeType == "image/heic"_s || mimeType == "image/heif"_s)
+                    indicesToTranscode.append(i);
+            }
         }
 
         if (indicesToTranscode.isEmpty()) {
@@ -587,9 +602,12 @@ static void notifyNetworkProcessOfTranscodedFiles(RefPtr<WebProcessProxy>& proce
         protect(protect(process->websiteDataStore())->networkProcess())->sendWithAsyncReply(Messages::NetworkProcess::AllowFilesAccessFromWebProcess(process->coreProcessIdentifier(), nonEmptyPaths), [] { });
 }
 
-static Vector<HEICTranscodingInfo> findHEICPathsForTranscoding(Vector<PasteboardItemInfo>& allInfo)
+static Vector<HEICTranscodingInfo> findHEICPathsForTranscoding(Vector<PasteboardItemInfo>& allInfo, std::optional<WebPageProxyIdentifier> pageID)
 {
     Vector<HEICTranscodingInfo> transcodingInfo;
+    if (!shouldTranscodeHEICImagesForPage(pageID))
+        return transcodingInfo;
+
     for (size_t infoIndex = 0; infoIndex < allInfo.size(); ++infoIndex) {
         auto& info = allInfo[infoIndex];
         for (size_t pathIndex = 0; pathIndex < info.pathsForFileUpload.size(); ++pathIndex) {
@@ -604,10 +622,10 @@ static Vector<HEICTranscodingInfo> findHEICPathsForTranscoding(Vector<Pasteboard
     return transcodingInfo;
 }
 
-static Vector<HEICTranscodingInfo> findHEICPathsForTranscoding(PasteboardItemInfo& info)
+static Vector<HEICTranscodingInfo> findHEICPathsForTranscoding(PasteboardItemInfo& info, std::optional<WebPageProxyIdentifier> pageID)
 {
     Vector<PasteboardItemInfo> items { info };
-    return findHEICPathsForTranscoding(items);
+    return findHEICPathsForTranscoding(items, pageID);
 }
 #endif
 
@@ -630,7 +648,7 @@ void WebPasteboardProxy::allPasteboardItemInfo(IPC::Connection& connection, cons
             return;
         }
 
-        auto transcodingInfo = findHEICPathsForTranscoding(*allInfo);
+        auto transcodingInfo = findHEICPathsForTranscoding(*allInfo, pageID);
         if (transcodingInfo.isEmpty()) {
             completionHandler(WTF::move(allInfo));
             return;
@@ -680,7 +698,7 @@ void WebPasteboardProxy::informationForItemAtIndex(IPC::Connection& connection, 
             return;
         }
 
-        auto transcodingInfo = findHEICPathsForTranscoding(*info);
+        auto transcodingInfo = findHEICPathsForTranscoding(*info, pageID);
         if (transcodingInfo.isEmpty()) {
             completionHandler(WTF::move(info));
             return;

@@ -243,7 +243,7 @@ RefPtr<CSSValue> consumeTranslate(CSSParserTokenRange& range, CSS::PropertyParse
         return nullptr;
 
     // If the z value is a zero value and not a percent value, we have nothing left to add to the list.
-    bool haveNonZeroZ = z && (z->isCalculated() || z->isPercentage() || !*z->isZero());
+    bool haveNonZeroZ = z->isCalculated() || z->isPercentage() || !*z->isZero();
 
     if (!haveNonZeroY && !haveNonZeroZ)
         return CSSValueList::createSpaceSeparated(x.releaseNonNull());

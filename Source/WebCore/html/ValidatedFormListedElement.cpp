@@ -53,7 +53,7 @@
 #include "ValidationMessage.h"
 #include <JavaScriptCore/ConsoleTypes.h>
 #include <wtf/Ref.h>
-#include <wtf/SetForScope.h>
+#include <wtf/Scope.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/Vector.h>
 #include <wtf/text/MakeString.h>
@@ -167,7 +167,9 @@ RefPtr<HTMLElement> ValidatedFormListedElement::focusableValidationAnchorElement
 void ValidatedFormListedElement::focusAndShowValidationMessage(Ref<HTMLElement> validationAnchor)
 {
     Ref protectedThis { *this };
-    SetForScope isFocusingWithValidationMessageScope(m_isFocusingWithValidationMessage, true);
+    bool previousIsFocusingWithValidationMessage = m_isFocusingWithValidationMessage;
+    m_isFocusingWithValidationMessage = true;
+    auto scopeExit = makeScopeExit([&] { m_isFocusingWithValidationMessage = previousIsFocusingWithValidationMessage; });
 
     // Calling focus() will scroll the element into view.
     validationAnchor->focus();
@@ -260,10 +262,10 @@ void ValidatedFormListedElement::updateValidity()
     if (newIsValid != m_isValid) {
         SUPPRESS_UNCOUNTED_LOCAL auto& element = asHTMLElement();
         Style::PseudoClassChangeInvalidation styleInvalidation(element, {
-            { CSSSelector::PseudoClass::Valid, newIsValid },
-            { CSSSelector::PseudoClass::Invalid, !newIsValid },
-            { CSSSelector::PseudoClass::UserValid, m_wasInteractedWithSinceLastFormSubmitEvent && newIsValid },
-            { CSSSelector::PseudoClass::UserInvalid, m_wasInteractedWithSinceLastFormSubmitEvent && !newIsValid },
+            { CSSSelector::PseudoClass::Valid, willValidate && newIsValid },
+            { CSSSelector::PseudoClass::Invalid, willValidate && !newIsValid },
+            { CSSSelector::PseudoClass::UserValid, willValidate && m_wasInteractedWithSinceLastFormSubmitEvent && newIsValid },
+            { CSSSelector::PseudoClass::UserInvalid, willValidate && m_wasInteractedWithSinceLastFormSubmitEvent && !newIsValid },
         });
 
         m_isValid = newIsValid;
@@ -320,7 +322,27 @@ void ValidatedFormListedElement::parseReadOnlyAttribute(const AtomString& value)
     bool newHasReadOnlyAttribute = !value.isNull();
     if (m_hasReadOnlyAttribute != newHasReadOnlyAttribute) {
         bool newMatchesReadWrite = supportsReadOnly() && !newHasReadOnlyAttribute;
-        Style::PseudoClassChangeInvalidation readWriteInvalidation(asHTMLElement(), { { CSSSelector::PseudoClass::ReadWrite, newMatchesReadWrite }, { CSSSelector::PseudoClass::ReadOnly, !newMatchesReadWrite } });
+        Ref element = asHTMLElement();
+
+        // :in-range/:out-of-range/:valid/:invalid depend on willValidate() which is affected by the readonly state.
+        // Temporarily apply the new readonly state to compute the new pseudo-class values.
+        m_hasReadOnlyAttribute = newHasReadOnlyAttribute;
+        m_willValidateInitialized = false;
+        bool newMatchesValid = matchesValidPseudoClass();
+        bool newMatchesInvalid = matchesInvalidPseudoClass();
+        bool newMatchesInRange = element->isInRange();
+        bool newMatchesOutOfRange = element->isOutOfRange();
+        // Restore old state so PseudoClassChangeInvalidation constructors capture the before-change state.
+        m_hasReadOnlyAttribute = !newHasReadOnlyAttribute;
+        m_willValidateInitialized = false;
+
+        Style::PseudoClassChangeInvalidation readWriteInvalidation(element, { { CSSSelector::PseudoClass::ReadWrite, newMatchesReadWrite }, { CSSSelector::PseudoClass::ReadOnly, !newMatchesReadWrite } });
+        Style::PseudoClassChangeInvalidation rangeAndValidityInvalidation(element, {
+            { CSSSelector::PseudoClass::InRange, newMatchesInRange },
+            { CSSSelector::PseudoClass::OutOfRange, newMatchesOutOfRange },
+            { CSSSelector::PseudoClass::Valid, newMatchesValid },
+            { CSSSelector::PseudoClass::Invalid, newMatchesInvalid },
+        });
         m_hasReadOnlyAttribute = newHasReadOnlyAttribute;
         readOnlyStateChanged();
     }

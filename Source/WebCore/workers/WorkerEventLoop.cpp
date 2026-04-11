@@ -43,9 +43,7 @@ WorkerEventLoop::WorkerEventLoop(WorkerOrWorkletGlobalScope& context)
     addAssociatedContext(context);
 }
 
-WorkerEventLoop::~WorkerEventLoop()
-{
-}
+WorkerEventLoop::~WorkerEventLoop() = default;
 
 void WorkerEventLoop::scheduleToRun()
 {

@@ -105,7 +105,7 @@ GSourceFuncs RunLoop::s_runLoopSourceFunctions = {
 
         if (shouldEnableSourceDispatchSignposts && readyTime > 0) {
             gint64 lateness = g_get_monotonic_time() - readyTime;
-            WTFEmitSignpost(source, RunLoopSourceDispatch, "[%s] lateness=%ldµs", g_source_get_name(source), lateness);
+            WTFEmitSignpost(source, RunLoopSourceDispatch, "[%s] lateness=%" G_GINT64_FORMAT "µs", g_source_get_name(source), lateness);
         }
 #endif
 

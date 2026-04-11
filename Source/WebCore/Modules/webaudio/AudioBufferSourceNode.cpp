@@ -602,7 +602,7 @@ double AudioBufferSourceNode::totalPitchRate()
 
     totalRate = std::clamp(totalRate, -MaxRate, MaxRate);
     
-    bool isTotalRateValid = !std::isnan(totalRate) && !std::isinf(totalRate);
+    bool isTotalRateValid = std::isfinite(totalRate);
     ASSERT(isTotalRateValid);
     if (!isTotalRateValid)
         totalRate = 1.0;

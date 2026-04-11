@@ -35,6 +35,7 @@
 #if ENABLE(WEB_RTC)
 
 #include "ContextDestructionObserverInlines.h"
+#include "ExceptionOr.h"
 #include "Logging.h"
 #include "RTCPeerConnection.h"
 #include "ScriptWrappableInlines.h"

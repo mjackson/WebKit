@@ -101,7 +101,7 @@ public:
 
     WebSampleBufferVideoRendering *NODELETE renderer() const;
 
-    template <typename T> T* as() const;
+    template <typename T> T* NODELETE as() const;
     template <> AVSampleBufferVideoRenderer* as() const;
     template <> AVSampleBufferDisplayLayer* as() const
     {

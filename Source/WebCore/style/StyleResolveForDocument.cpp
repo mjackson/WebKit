@@ -89,7 +89,7 @@ RenderStyle resolveForDocument(const Document& document)
 
         FontCascadeDescription fontDescription;
         fontDescription.setSpecifiedLocale(document.contentLanguage());
-        fontDescription.setOneFamily(standardFamily);
+        fontDescription.setOneFamily(WebCore::FontFamily { standardFamily, FontFamilyKind::Generic });
         fontDescription.setShouldAllowUserInstalledFonts(settings.shouldAllowUserInstalledFonts() ? AllowUserInstalledFonts::Yes : AllowUserInstalledFonts::No);
         // FIXME: We need evaluationTimeZoomEnabled to be accessible from FontDescription, not only from RenderStyle. Would it be weird to move it to FontDescription (which is already accessible from RenderStyle)?
         fontDescription.setEvaluationTimeZoomEnabled(document.settings().evaluationTimeZoomEnabled());

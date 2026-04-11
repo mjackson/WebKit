@@ -357,7 +357,6 @@ public:
     WEBCORE_EXPORT ~FontPlatformData();
 
     static FontPlatformData cloneWithOrientation(const FontPlatformData&, FontOrientation);
-    static FontPlatformData cloneWithSyntheticOblique(const FontPlatformData&, bool);
 
     static FontPlatformData cloneWithSize(const FontPlatformData&, float);
     void updateSizeWithFontSizeAdjust(const FontSizeAdjust&, float);
@@ -443,15 +442,6 @@ public:
 
     static constexpr bool safeToCompareToHashTableEmptyOrDeletedValue = true;
 
-    bool isEmoji() const
-    {
-#if PLATFORM(IOS_FAMILY)
-        return m_isEmoji;
-#else
-        return false;
-#endif
-    }
-
     RefPtr<SharedBuffer> openTypeTable(uint32_t table) const;
     RefPtr<SharedBuffer> NODELETE platformOpenTypeTable(uint32_t table) const;
 
@@ -531,9 +521,6 @@ private:
 #endif
     // The values above are common to all ports
 
-#if PLATFORM(IOS_FAMILY)
-    bool m_isEmoji { false };
-#endif
 
 #if USE(FREETYPE)
     bool m_fixedWidth { false };

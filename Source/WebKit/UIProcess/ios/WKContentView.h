@@ -115,10 +115,8 @@ using LayerHostingContextID = uint32_t;
 #if ENABLE(MODEL_PROCESS)
 - (void)_modelProcessDidCreateContextForVisibilityPropagation;
 #endif // ENABLE(MODEL_PROCESS)
-#if USE(EXTENSIONKIT)
-- (UIView *)_createVisibilityPropagationView;
+- (RetainPtr<UIView>)_createVisibilityPropagationView;
 - (void)_removeVisibilityPropagationView:(UIView *)view;
-#endif
 #endif // HAVE(VISIBILITY_PROPAGATION_VIEW)
 
 - (void)_setAcceleratedCompositingRootView:(UIView *)rootView;

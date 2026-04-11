@@ -185,7 +185,7 @@ bool JITPlan::reportCompileTimes() const
         || (Options::reportFTLCompileTimes() && isFTL());
 }
 
-static inline void* signpostId(JITPlan& plan)
+static inline void* NODELETE signpostId(JITPlan& plan)
 {
     uintptr_t id = std::bit_cast<uintptr_t>(&plan);
     unsigned stage = static_cast<unsigned>(plan.stage());

@@ -103,7 +103,7 @@ private:
     void loadFrameRequest(FrameLoadRequest&&, Event*) final;
     void didFinishLoadInAnotherProcess() final;
     bool isRootFrame() const final { return false; }
-    void documentURLForConsoleLog(CompletionHandler<void(const URL&)>&&) final;
+    URL urlForConsoleLog() const final;
     SecurityOrigin* NODELETE frameDocumentSecurityOrigin() const final;
     std::optional<DocumentSecurityPolicy> NODELETE frameDocumentSecurityPolicy() const final;
     String NODELETE frameURLProtocol() const final;

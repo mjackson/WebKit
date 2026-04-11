@@ -28,8 +28,11 @@
 #include "AxisConstraint.h"
 #include "GridTypeAliases.h"
 #include "LayoutUnit.h"
+#include <wtf/Function.h>
 
 namespace WebCore {
+
+class StyleContentAlignmentData;
 
 namespace Layout {
 

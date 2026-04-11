@@ -219,7 +219,7 @@ template<> ConversionResult<IDLDictionary<DictionaryImplName>> convertDictionary
         return ConversionResultException { };
 #endif
 #if ENABLE(Conditional13) || ENABLE(Conditional14)
-    auto partialStringMemberWithEnabledBySettingConversionResult = [&]() -> ConversionResult<IDLOptional<IDLDOMString>> {
+    auto partialStringMemberWithEnabledBySettingConversionResult = [&] -> ConversionResult<IDLOptional<IDLDOMString>> {
         if (jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject)->scriptExecutionContext()->settingsValues().testSettingEnabled) {
             JSValue partialStringMemberWithEnabledBySettingValue;
             if (isNullOrUndefined)
@@ -255,7 +255,7 @@ template<> ConversionResult<IDLDictionary<DictionaryImplName>> convertDictionary
         permissiveEnumMemberValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "permissiveEnumMember"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
-    auto permissiveEnumMemberConversionResult = [&]() -> ConversionResult<IDLOptional<IDLEnumeration<TestStandaloneDictionary::EnumInStandaloneDictionaryFile>>> {
+    auto permissiveEnumMemberConversionResult = [&] -> ConversionResult<IDLOptional<IDLEnumeration<TestStandaloneDictionary::EnumInStandaloneDictionaryFile>>> {
         if (permissiveEnumMemberValue.isUndefined())
             return std::nullopt;
         auto parseResult = parseEnumeration<TestStandaloneDictionary::EnumInStandaloneDictionaryFile>(lexicalGlobalObject, permissiveEnumMemberValue);
@@ -271,7 +271,7 @@ template<> ConversionResult<IDLDictionary<DictionaryImplName>> convertDictionary
         permissiveEnumMemberWithDefaultValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "permissiveEnumMemberWithDefault"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
-    auto permissiveEnumMemberWithDefaultConversionResult = [&]() -> ConversionResult<IDLEnumeration<TestStandaloneDictionary::EnumInStandaloneDictionaryFile>> {
+    auto permissiveEnumMemberWithDefaultConversionResult = [&] -> ConversionResult<IDLEnumeration<TestStandaloneDictionary::EnumInStandaloneDictionaryFile>> {
         if (permissiveEnumMemberWithDefaultValue.isUndefined())
             return TestStandaloneDictionary::EnumInStandaloneDictionaryFile::EnumValue1;
         auto parseResult = parseEnumeration<TestStandaloneDictionary::EnumInStandaloneDictionaryFile>(lexicalGlobalObject, permissiveEnumMemberWithDefaultValue);

@@ -54,7 +54,7 @@ public:
     inline bool presentButInvisible() const { return widthForPainting() && !hasVisibleColorAndStyle(); }
     inline float widthForPainting() const { return m_isPresent ? m_flooredToDevicePixelWidth : 0; }
     void getDoubleBorderStripeWidths(LayoutUnit& outerWidth, LayoutUnit& innerWidth) const;
-    bool obscuresBackgroundEdge(float scale) const;
+    bool NODELETE obscuresBackgroundEdge(float scale) const;
     bool NODELETE obscuresBackground() const;
 
 private:

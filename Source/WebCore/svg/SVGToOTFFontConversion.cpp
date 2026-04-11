@@ -26,7 +26,6 @@
 #include "config.h"
 #include "SVGToOTFFontConversion.h"
 
-#include "CSSStyleDeclaration.h"
 #include "ElementChildIteratorInlines.h"
 #include "Glyph.h"
 #include "HTMLParserIdioms.h"

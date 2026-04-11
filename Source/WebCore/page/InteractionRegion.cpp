@@ -72,6 +72,7 @@
 #include "TextIterator.h"
 #include <wtf/NeverDestroyed.h>
 #include <wtf/text/MakeString.h>
+#include "FrameDestructionObserverInlines.h"
 
 #if ENABLE(FORM_CONTROL_REFRESH)
 #include "PathCG.h"
@@ -84,7 +85,7 @@ InteractionRegion::~InteractionRegion() = default;
 
 class InteractionRegionPathCache {
 public:
-    static InteractionRegionPathCache& singleton();
+    static InteractionRegionPathCache& NODELETE singleton();
 
     std::optional<Path> get(const Image&, const FloatSize&);
     void add(const Image&, const FloatSize&, Path);
@@ -129,10 +130,10 @@ void InteractionRegion::clearCache()
     InteractionRegionPathCache::singleton().clear();
 }
 
-static bool hasInteractiveCursorType(Element& element)
+static bool NODELETE hasInteractiveCursorType(Element& element)
 {
-    CheckedPtr renderer = element.renderer();
-    CheckedPtr style = renderer ? &renderer->style() : nullptr;
+    auto* renderer = element.renderer();
+    auto* style = renderer ? &renderer->style() : nullptr;
     auto cursorType = style ? style->cursorType() : CursorType::Auto;
 
     if (cursorType == CursorType::Auto && element.enclosingLinkEventParentOrSelf())
@@ -240,7 +241,7 @@ static bool shouldAllowNonInteractiveCursorForElement(const Element& element)
     return false;
 }
 
-static bool shouldGetOcclusion(const RenderElement& renderer)
+static bool NODELETE shouldGetOcclusion(const RenderElement& renderer)
 {
     if (auto* renderLayerModelObject = dynamicDowncast<RenderBox>(renderer)) {
         if (renderLayerModelObject->hasLayer() && renderLayerModelObject->layer()->isComposited())
@@ -369,11 +370,9 @@ static RefPtr<Image> findIconImage(const RenderObject& renderer)
 static std::optional<std::pair<Ref<SVGSVGElement>, Ref<SVGGraphicsElement>>> findSVGClipElements(const RenderObject& renderer)
 {
     if (const auto& renderShape = dynamicDowncast<LegacyRenderSVGShape>(renderer)) {
-        Ref shapeElement = renderShape->graphicsElement();
-        if (auto* owner = shapeElement->ownerSVGElement()) {
-            Ref svgSVGElement = *owner;
-            return std::make_pair(svgSVGElement, shapeElement);
-        }
+        auto& shapeElement = renderShape->graphicsElement();
+        if (auto* owner = shapeElement.ownerSVGElement())
+            return std::make_pair(Ref { *owner }, Ref { shapeElement });
     }
 
     return std::nullopt;
@@ -588,7 +587,7 @@ std::optional<InteractionRegion> interactionRegionForRenderedRegion(const Render
         FloatSize size = svgSVGElement->currentViewportSizeExcludingZoom();
         auto viewBoxTransform = svgSVGElement->viewBoxToViewTransform(size.width(), size.height());
 
-        auto shapeBoundingBox = shapeElement->getBBox(DisallowStyleUpdate);
+        auto shapeBoundingBox = shapeElement->getBBox(StyleUpdateStrategy::Disallow);
         path.transform(viewBoxTransform);
         shapeBoundingBox = viewBoxTransform.mapRect(shapeBoundingBox);
 

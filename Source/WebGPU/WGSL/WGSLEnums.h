@@ -42,9 +42,9 @@ namespace WGSL {
     value(Workgroup, workgroup) \
 
 #define ENUM_AccessMode(value) \
-    value(Read, read) \
-    value(ReadWrite, read_write) \
-    value(Write, write) \
+    value(Read, read, 1 << 0) \
+    value(ReadWrite, read_write, 1 << 1 | 1 << 0) \
+    value(Write, write, 1 << 1) \
 
 #define ENUM_TexelFormat(value) \
     value(BGRA8unorm, bgra8unorm) \

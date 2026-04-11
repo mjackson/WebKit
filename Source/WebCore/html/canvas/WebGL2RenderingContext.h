@@ -192,7 +192,7 @@ public:
     void deleteQuery(WebGLQuery*);
     GCGLboolean isQuery(WebGLQuery*);
     void beginQuery(GCGLenum target, WebGLQuery&);
-    void endQuery(GCGLenum target);
+    void endQuery(ScriptExecutionContext&, GCGLenum target);
     WebGLAny getQuery(GCGLenum target, GCGLenum pname);
     WebGLAny getQueryParameter(WebGLQuery&, GCGLenum pname);
     

@@ -43,6 +43,7 @@ enum LocationKind {
     DataViewByteLengthLoc,
     DataViewByteLengthAsInt52Loc,
     CheckTypeInfoFlagsLoc,
+    CheckPrivateBrandLoc,
     OverridesHasInstanceLoc,
     ClosureVariableLoc,
     ClosureVariableDoubleLoc,

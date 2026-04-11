@@ -163,6 +163,7 @@ public:
     bool isAnimatedPropertyAttribute(const QualifiedName&) const;
     bool isAnimatedAttribute(const QualifiedName&) const;
     bool isAnimatedStyleAttribute(const QualifiedName&) const;
+    bool hasAttributeOrIsAnimatingProperty(const QualifiedName&) const;
 
     void synchronizeAttribute(const QualifiedName&);
     void synchronizeAllAttributes();

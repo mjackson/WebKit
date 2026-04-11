@@ -119,7 +119,7 @@ bool DeclaredStylePropertyMap::setProperty(CSSPropertyID propertyID, Ref<CSSValu
     return !didFailParsing;
 }
 
-bool DeclaredStylePropertyMap::setCustomProperty(Document&, const AtomString& property, Ref<CSSVariableReferenceValue>&& value)
+bool DeclaredStylePropertyMap::setCustomProperty(Document&, const AtomString& property, Ref<CSSSubstitutionValue>&& value)
 {
     RefPtr styleRule = this->styleRule();
     if (!styleRule)

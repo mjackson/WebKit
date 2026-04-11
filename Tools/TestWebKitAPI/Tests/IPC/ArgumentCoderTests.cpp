@@ -30,7 +30,7 @@
 #include "Decoder.h"
 #include "Encoder.h"
 #include "StreamConnectionEncoder.h"
-#include "Test.h"
+#include "Helpers/Test.h"
 #include <wtf/StdLibExtras.h>
 
 namespace TestWebKitAPI {
@@ -106,7 +106,7 @@ private:
         WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(Impl);
 
         Impl()
-            : buffer(1024, static_cast<uint8_t>(0))
+            : buffer(FillWith { }, 1024, static_cast<uint8_t>(0))
             , encoder(EncoderDecoderTest::name(), buffer.mutableSpan())
         { }
 

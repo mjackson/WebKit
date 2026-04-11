@@ -166,13 +166,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
     if (!didInitialize) [[unlikely]] {
         didInitialize = true;
         callOnMainRunLoopAndWait([protectedSelf = retainPtr(self)] {
-            if (!WebCore::AXObjectCache::accessibilityEnabled())
-                [protectedSelf enableAccessibilityForAllProcesses];
-
-#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-            if (WebCore::AXObjectCache::isIsolatedTreeEnabled())
-                [protectedSelf _buildIsolatedTreeIfNeeded];
-#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+            WebCore::AXObjectCache::enableAccessibility();
 
             float roundedHeight = std::round(WebCore::screenRectForPrimaryScreen().size().height());
             screenHeight = std::max(0u, static_cast<unsigned>(roundedHeight));

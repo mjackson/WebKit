@@ -196,6 +196,7 @@ static Vector<String> allowableDefaultSupportedImageTypes()
     allowableDefaultSupportedImageTypes.append("public.jpeg-2000"_s);
     allowableDefaultSupportedImageTypes.append("public.radiance"_s);
     allowableDefaultSupportedImageTypes.append("com.ilm.openexr-image"_s);
+    allowableDefaultSupportedImageTypes.append("com.truevision.tga-image"_s);
     return allowableDefaultSupportedImageTypes;
 }
 

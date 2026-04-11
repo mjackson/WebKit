@@ -37,11 +37,7 @@ namespace WebCore {
 
 class ShareableSpatialImage {
 public:
-    ShareableSpatialImage(ShareableSpatialImage&&) = default;
-    ShareableSpatialImage(const ShareableSpatialImage&) = default;
     WEBCORE_EXPORT ShareableSpatialImage(ShareableBitmap::Handle&&, ShareableBitmap::Handle&&, const SpatialImageEyeProperties&, const SpatialImageEyeProperties&);
-
-    ShareableSpatialImage& operator=(ShareableSpatialImage&&) = default;
 
     WEBCORE_EXPORT static std::optional<ShareableSpatialImage> create(BitmapImage&);
 

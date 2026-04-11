@@ -174,7 +174,6 @@ private:
     RetainPtr<CTFontRef> fontAttributeValue(AXProperty) const;
     URL urlAttributeValue(AXProperty) const;
     uint64_t uint64AttributeValue(AXProperty) const;
-    Path pathAttributeValue(AXProperty) const;
     Style::SpeakAs speakAsAttributeValue(AXProperty) const;
     std::pair<unsigned, unsigned> indexRangePairAttributeValue(AXProperty) const;
     template<typename T> T rectAttributeValue(AXProperty) const;
@@ -563,8 +562,8 @@ private:
 #endif
     AXObjectCache* NODELETE axObjectCache() const;
     Element* actionElement() const final;
-    Path elementPath() const final { return pathAttributeValue(AXProperty::Path); };
-    bool supportsPath() const final { return boolAttributeValue(AXProperty::SupportsPath); }
+    Path elementPath() const final;
+    bool supportsPath() const final;
 
     bool isWidget() const final
     {

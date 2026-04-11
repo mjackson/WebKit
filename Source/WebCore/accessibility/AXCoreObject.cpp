@@ -29,6 +29,7 @@
 #include "config.h"
 #include "AXCoreObject.h"
 
+#include "AccessibilityNodeObjectInlines.h"
 #include "AXLoggerBase.h"
 #include "AXObjectCache.h"
 #include "AXSearchManager.h"
@@ -36,6 +37,8 @@
 #include "AXUtilities.h"
 #include "DocumentView.h"
 #include "HTMLAreaElement.h"
+#include "HTMLOptionElement.h"
+#include "HTMLSelectElement.h"
 #include "LocalFrameView.h"
 #include "Logging.h"
 #include "RenderObjectStyle.h"
@@ -104,6 +107,9 @@ bool AXCoreObject::isControl() const
     case AccessibilityRole::DateTime:
     case AccessibilityRole::LandmarkSearch:
     case AccessibilityRole::ListBox:
+    // FIXME: MenuItemCheckbox and MenuItemRadio should also be considered controls.
+    // Without this, Voice Control won't generate numbered overlays for them.
+    case AccessibilityRole::MenuItem:
     case AccessibilityRole::PopUpButton:
     case AccessibilityRole::RadioButton:
     case AccessibilityRole::SearchField:
@@ -186,6 +192,8 @@ bool AXCoreObject::isGroup() const
     }
 }
 
+// FIXME: This should be moved to AccessibilityNodeObject, since AXCoreObjects
+// should not use element()s (those aren't available off the main-thread for AXIsolatedObject).
 bool AXCoreObject::isImageMapLink() const
 {
     RefPtr element = this->element();
@@ -923,6 +931,15 @@ AXCoreObject::AccessibilityChildrenVector AXCoreObject::selectedChildren()
         return selectedListItems();
     case AccessibilityRole::Menu:
     case AccessibilityRole::MenuBar:
+        if (Accessibility::findAncestor(*this, /* includeSelf */ false, [] (const auto& ancestor) {
+            return ancestor.isPopUpButton();
+        })) {
+            for (const auto& child : unignoredChildren()) {
+                if (child->isSelected())
+                    return { { child } };
+            }
+            break;
+        }
         if (RefPtr descendant = activeDescendant())
             return { { descendant.releaseNonNull() } };
         if (RefPtr focusedElement = focusedUIElement())
@@ -1406,6 +1423,11 @@ bool AXCoreObject::containsOnlyStaticText() const
         return true;
     });
     return hasText && !nonTextDescendant;
+}
+
+bool AXCoreObject::supportsPath() const
+{
+    return isStaticTextLabel() || isLink();
 }
 
 String AXCoreObject::roleDescription()

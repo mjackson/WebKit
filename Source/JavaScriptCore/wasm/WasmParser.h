@@ -60,7 +60,7 @@ inline String makeString(const T& failure) { return WTF::toString(failure); }
 class ParserBase {
 public:
     typedef String ErrorType;
-    typedef Unexpected<ErrorType> UnexpectedResult;
+    typedef std::unexpected<ErrorType> UnexpectedResult;
     typedef Expected<void, ErrorType> PartialResult;
 
     std::span<const uint8_t> source() const { return m_source; }
@@ -353,7 +353,7 @@ ALWAYS_INLINE bool ParserBase::parseValueType(const ModuleInformation& info, Typ
                 typeIndex = def->index(); // Owned by TypeInformation placeholder projections singleton.
             } else {
                 ASSERT(static_cast<uint32_t>(heapType) < info.typeCount());
-                typeIndex = TypeInformation::get(info.typeSignatures[heapType].get());
+                SUPPRESS_UNCOUNTED_ARG typeIndex = TypeInformation::get(info.typeSignature(ModuleInformation::typeSignatureIndexFromHeapType(heapType)));
             }
         }
     }

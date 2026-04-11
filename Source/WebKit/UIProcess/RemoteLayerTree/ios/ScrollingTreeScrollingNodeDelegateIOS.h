@@ -89,7 +89,7 @@ public:
     WKBaseScrollView *scrollView() const;
 
     bool startAnimatedScrollToPosition(WebCore::FloatPoint) final;
-    void stopAnimatedScroll() final;
+    void stopAnimatedScroll(EnumSet<WebCore::AnimatedScrollType>) final;
 
     void serviceScrollAnimation(MonotonicTime) final { }
     

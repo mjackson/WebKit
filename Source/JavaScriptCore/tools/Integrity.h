@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 Apple Inc. All rights reserved.
+ * Copyright (C) 2019-2022, 2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,7 +25,8 @@
 
 #pragma once
 
-#include "JSExportMacros.h"
+#include <JavaScriptCore/JSExportMacros.h>
+#include <span>
 #include <wtf/AccessibleAddress.h>
 #include <wtf/Assertions.h>
 #include <wtf/Lock.h>
@@ -176,6 +177,10 @@ ALWAYS_INLINE void auditStructureID(StructureID);
 
 #if ENABLE(EXTRA_INTEGRITY_CHECKS) && USE(JSVALUE64)
 template<typename T> ALWAYS_INLINE T audit(T value) { return std::bit_cast<T>(doAudit(value)); }
+
+template<>
+std::span<JSValue> audit(std::span<JSValue>);
+
 #else
 template<typename T> ALWAYS_INLINE T audit(T value) { return value; }
 #endif

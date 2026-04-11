@@ -25,6 +25,7 @@
 
 #include "config.h"
 #include "TextPaintStyle.h"
+#include "DocumentView.h"
 
 #include "ColorLuminance.h"
 #include "FocusController.h"

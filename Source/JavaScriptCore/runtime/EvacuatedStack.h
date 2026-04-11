@@ -97,7 +97,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 // Authenticate 'returnPC' assuming is was stored in a frame pointed at by 'originalFP', and
 // re-sign it so it can be used in a frame pointed at by 'newFP'.
-void* relocateReturnPC(void* returnPC, const CallerFrameAndPC* originalFP, const CallerFrameAndPC* newFP);
+void* NODELETE relocateReturnPC(void* returnPC, const CallerFrameAndPC* originalFP, const CallerFrameAndPC* newFP);
 
 // An abstract class with a set of utilities for implementing a concrete stack slicer.
 // A stack slicer is a class driven by a StackVisitor via a StackSlicerFunctor. It

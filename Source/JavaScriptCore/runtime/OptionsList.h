@@ -664,6 +664,7 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, useImportDefer, false, Normal, "Enable deferred module import."_s) \
     v(Bool, useIteratorChunking, false, Normal, "Expose the Iterator.prototype.chunks and Iterator.prototype.windows methods."_s) \
     v(Bool, useIteratorSequencing, true, Normal, "Expose the Iterator.concat method."_s) \
+    v(Bool, useIteratorIncludes, false, Normal, "Expose the Iterator.includes method."_s) \
     v(Bool, useJSONSourceTextAccess, true, Normal, "Expose JSON source text access feature."_s) \
     v(Bool, useJSPI, true, Normal, "Enable the implementation of JavaScript Promise Integration."_s) \
     v(Bool, useMoreCurrencyDisplayChoices, false, Normal, "Enable more currencyDisplay choices for Intl.NumberFormat"_s) \
@@ -674,10 +675,10 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, useWasmJSStringBuiltins, true, Normal, "Enable the implementation of the JS String Builtins proposal."_s) \
     v(Bool, useWasmMemory64, false, Normal, "Allow the Memory64 proposal for WebAssembly. This feature is currently only supported in the IPInt tier."_s) \
     v(Bool, useWasmMemoryToBufferAPIs, true, Normal, "Enable the toFixedLengthBuffer() and toResizableBuffer() Wasm Memory.prototype functions."_s) \
+    v(Bool, useWasmMultiMemory, false, Normal, "Allow wasm code to access multiple linear memories") \
     v(Bool, useWasmRelaxedSIMD, false, Normal, "Allow the relaxed simd instructions and types from the wasm relaxed simd spec."_s) \
     v(Bool, useWasmSIMD, true, Normal, "Allow the new simd instructions and types from the wasm simd spec."_s) \
     v(Bool, useWasmTailCalls, true, Normal, "Allow the new instructions from the wasm tail calls spec."_s) \
-    v(Bool, useWasmMultiMemory, false, Normal, "Allow wasm code to access multiple memories") \
 
 
 
@@ -748,7 +749,7 @@ public:
     OptionRange(std::nullptr_t) { }
 
     bool init(const char*);
-    bool isInRange(unsigned) const;
+    bool NODELETE isInRange(unsigned) const;
     const char* rangeString() const { return (m_state > InitError) ? m_rangeString : s_nullRangeStr; }
 
     void dump(PrintStream& out) const;

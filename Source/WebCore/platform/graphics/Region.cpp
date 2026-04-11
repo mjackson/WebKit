@@ -44,9 +44,7 @@ DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(Region);
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(Region::Shape);
 
-Region::Region()
-{
-}
+Region::Region() = default;
 
 Region::Region(const IntRect& rect)
     : m_bounds(rect)
@@ -59,15 +57,9 @@ Region::Region(const Region& other)
 {
 }
 
-Region::Region(Region&& other)
-    : m_bounds(WTF::move(other.m_bounds))
-    , m_shape(WTF::move(other.m_shape))
-{
-}
+Region::Region(Region&&) = default;
 
-Region::~Region()
-{
-}
+Region::~Region() = default;
 
 Region& Region::operator=(const Region& other)
 {
@@ -76,12 +68,7 @@ Region& Region::operator=(const Region& other)
     return *this;
 }
 
-Region& Region::operator=(Region&& other)
-{
-    m_bounds = WTF::move(other.m_bounds);
-    m_shape = WTF::move(other.m_shape);
-    return *this;
-}
+Region& Region::operator=(Region&&) = default;
 
 Vector<IntRect, 1> Region::rects() const
 {

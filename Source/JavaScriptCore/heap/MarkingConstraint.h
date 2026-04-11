@@ -58,7 +58,7 @@ public:
     JS_EXPORT_PRIVATE const char* abbreviatedName() const LIFETIME_BOUND { return m_abbreviatedName.data(); }
     JS_EXPORT_PRIVATE const char* name() const LIFETIME_BOUND { return m_name.data(); }
     
-    JS_EXPORT_PRIVATE void resetStats();
+    JS_EXPORT_PRIVATE void NODELETE resetStats();
     
     JS_EXPORT_PRIVATE size_t lastVisitCount() const { return m_lastVisitCount; }
     

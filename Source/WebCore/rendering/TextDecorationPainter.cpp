@@ -364,10 +364,6 @@ static void collectStylesForRenderer(TextDecorationPainter::Styles& result, cons
             return;
 
         current = current->parent();
-        if (CheckedPtr currentBlock = dynamicDowncast<RenderBlock>(current); currentBlock && currentBlock->isAnonymousBlock()) {
-            if (auto* continuation = currentBlock->continuation())
-                current = continuation;
-        }
 
         if (remainingDecorations.isNone())
             break;

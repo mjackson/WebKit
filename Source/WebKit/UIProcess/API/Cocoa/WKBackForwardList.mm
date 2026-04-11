@@ -68,7 +68,7 @@ WK_OBJECT_DISABLE_DISABLE_KVC_IVAR_ACCESS;
 
 - (WKBackForwardListItem *)itemAtIndex:(NSInteger)index
 {
-    return WebKit::wrapper(protect((*_list).itemAtIndex(index)).get());
+    return WebKit::wrapper(protect(*_list)->itemAtDeltaFromCurrentIndex(index).get());
 }
 
 - (NSArray *)backList

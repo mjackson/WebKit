@@ -329,7 +329,7 @@ bool PropertyCondition::isStillValidAssumingImpurePropertyWatchpoint(
 }
 
 IGNORE_RETURN_TYPE_WARNINGS_BEGIN
-static ALWAYS_INLINE Concurrency watchabilityToConcurrency(PropertyCondition::WatchabilityEffort effort)
+static ALWAYS_INLINE Concurrency NODELETE watchabilityToConcurrency(PropertyCondition::WatchabilityEffort effort)
 {
     switch (effort) {
     case PropertyCondition::WatchabilityEffort::EnsureWatchability:

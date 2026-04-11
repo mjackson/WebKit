@@ -280,31 +280,6 @@ inline void JSRopeString::convertToNonRope(String&& string) const
     notifyNeedsDestruction();
 }
 
-inline StringImpl* JSRopeString::tryGetLHS(ASCIILiteral rhs) const
-{
-    if (isSubstring())
-        return nullptr;
-
-    JSString* fiber2 = this->fiber2();
-    if (fiber2)
-        return nullptr;
-
-    JSString* fiber1 = this->fiber1();
-    ASSERT(fiber1);
-    if (fiber1->isRope())
-        return nullptr;
-
-    JSString* fiber0 = this->fiber0();
-    ASSERT(fiber0);
-    if (fiber0->isRope())
-        return nullptr;
-
-    if (fiber1->valueInternal() != rhs)
-        return nullptr;
-
-    return fiber0->valueInternal().impl();
-}
-
 // Overview: These functions convert a JSString from holding a string in rope form
 // down to a simple String representation. It does so by building up the string
 // backwards, since we want to avoid recursion, we expect that the tree structure
@@ -755,11 +730,11 @@ inline JSString* jsSubstringOfResolved(VM& vm, GCDeferralContext* deferralContex
         return s;
 
     if (length == 1) {
-        if (auto c = base.characterAt(offset); c <= maxSingleCharacterString)
+        if (auto c = base.codeUnitAt(offset); c <= maxSingleCharacterString)
             return vm.smallStrings.singleCharacterString(c);
     } else if (length == 2) {
-        char16_t first = base.characterAt(offset);
-        char16_t second = base.characterAt(offset + 1);
+        char16_t first = base.codeUnitAt(offset);
+        char16_t second = base.codeUnitAt(offset + 1);
         if ((first | second) < 0x80) {
             auto createFromSubstring = [&](VM& vm, auto& buffer) {
                 auto impl = AtomStringImpl::add(buffer);

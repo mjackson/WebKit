@@ -286,7 +286,7 @@ private:
     void didAccessWindowProxyPropertyViaOpener(WebCore::SecurityOriginData&&, WebCore::WindowProxyProperty) final;
 #endif
 
-    bool siteIsolationEnabled() const;
+    bool NODELETE siteIsolationEnabled() const;
 
     void broadcastAllFrameTreeSyncDataToOtherProcesses(WebCore::FrameTreeSyncData&) final;
     void broadcastFrameTreeSyncDataToOtherProcesses(const WebCore::FrameTreeSyncSerializationData&) final;
@@ -319,9 +319,6 @@ private:
 
     bool isParentProcessAFullWebBrowser() const final;
 
-#if ENABLE(ARKIT_INLINE_PREVIEW_MAC)
-    void modelInlinePreviewUUIDs(CompletionHandler<void(Vector<String>)>&&) const final;
-#endif
 
     void dispatchLoadEventToOwnerElementInAnotherProcess() final;
 

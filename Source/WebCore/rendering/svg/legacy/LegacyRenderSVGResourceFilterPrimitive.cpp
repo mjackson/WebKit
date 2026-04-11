@@ -28,6 +28,7 @@
 
 #include "config.h"
 #include "LegacyRenderSVGResourceFilterPrimitive.h"
+#include "LegacyRenderSVGModelObjectInlines.h"
 
 #include "RenderObjectDocument.h"
 #include "RenderStyle+GettersInlines.h"

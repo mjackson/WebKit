@@ -110,7 +110,7 @@ ExceptionOr<void> RangeInputType::setValueAsDecimal(const Decimal& newValue, Tex
     return { };
 }
 
-bool RangeInputType::typeMismatchFor(const String& value) const
+bool RangeInputType::typeMismatchFor(StringView value) const
 {
     return !value.isEmpty() && !std::isfinite(parseToDoubleForNumberType(value));
 }
@@ -283,15 +283,15 @@ HTMLElement* RangeInputType::sliderTrackElement() const
     if (!hasCreatedShadowSubtree())
         return nullptr;
 
-    RefPtr root = element()->userAgentShadowRoot();
+    auto* root = element()->userAgentShadowRoot();
     ASSERT(root);
     ASSERT(is<SliderContainerElement>(root->firstChild())); // container
     ASSERT(root->firstChild()->firstChild()); // track
 
     if (!root)
         return nullptr;
-    
-    RefPtr container = root->firstChild();
+
+    auto* container = root->firstChild();
     return container ? downcast<HTMLElement>(container->firstChild()) : nullptr;
 }
 
@@ -315,7 +315,7 @@ RenderPtr<RenderElement> RangeInputType::createInputRenderer(RenderStyle&& style
     SUPPRESS_UNCOUNTED_ARG return createRenderer<RenderSlider>(*protect(element()), WTF::move(style));
 }
 
-Decimal RangeInputType::parseToNumber(const String& src, const Decimal& defaultValue) const
+Decimal RangeInputType::parseToNumber(StringView src, const Decimal& defaultValue) const
 {
     return parseToDecimalForNumberType(src, defaultValue);
 }

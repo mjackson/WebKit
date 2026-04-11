@@ -244,6 +244,9 @@ typedef void (*WKPageDoAfterProcessingAllPendingKeyEventsFunction)(void* functio
 WK_EXPORT void WKPageDoAfterProcessingAllPendingKeyEvents(WKPageRef page, void* context, WKPageDoAfterProcessingAllPendingKeyEventsFunction function);
 #endif
 
+typedef void (*WKPageCursorDidChangeCallbackForTesting)(WKStringRef cursorInfo, const void* clientInfo);
+WK_EXPORT void WKPageSetCursorDidChangeCallbackForTesting(WKPageRef page, WKPageCursorDidChangeCallbackForTesting callback, const void* clientInfo);
+
 #ifdef __cplusplus
 }
 #endif

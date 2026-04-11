@@ -280,13 +280,13 @@ public:
 
     bool NODELETE isAlwaysOnLoggingAllowed() const;
 
-    std::optional<NetworkActivityTracker::CompletionCode> lastRootActivityCompletionCodeForTesting(WebCore::PageIdentifier) const;
+    std::optional<NetworkActivityTracker::CompletionCode> NODELETE lastRootActivityCompletionCodeForTesting(WebCore::PageIdentifier) const;
 
 private:
     NetworkConnectionToWebProcess(NetworkProcess&, WebCore::ProcessIdentifier, PAL::SessionID, NetworkProcessConnectionParameters&&, IPC::Connection::Identifier&&);
 
     void didFinishPreconnection(WebCore::ResourceLoaderIdentifier preconnectionIdentifier, const WebCore::ResourceError&);
-    WebCore::NetworkStorageSession* storageSession();
+    WebCore::NetworkStorageSession* NODELETE storageSession();
 
     // IPC::Connection::Client
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&) override;

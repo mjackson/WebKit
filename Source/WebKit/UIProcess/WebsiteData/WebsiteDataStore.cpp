@@ -74,6 +74,7 @@
 #include <WebCore/StorageUtilities.h>
 #include <WebCore/WebLockRegistry.h>
 #include <algorithm>
+#include <wtf/Borrow.h>
 #include <wtf/CallbackAggregator.h>
 #include <wtf/CheckedPtr.h>
 #include <wtf/CompletionHandler.h>
@@ -455,10 +456,6 @@ static void resolveDirectories(WebsiteDataStoreConfiguration::Directories& direc
     if (!directories.generalStorageDirectory.isEmpty())
         directories.generalStorageDirectory = resolveAndCreateReadWriteDirectoryForSandboxExtension(directories.generalStorageDirectory);
 
-#if ENABLE(ARKIT_INLINE_PREVIEW)
-    if (!directories.modelElementCacheDirectory.isEmpty())
-        directories.modelElementCacheDirectory = resolveAndCreateReadWriteDirectoryForSandboxExtension(directories.modelElementCacheDirectory);
-#endif
 
     if (!directories.cookieStorageFile.isEmpty()) {
         auto resolvedCookieDirectory = resolveAndCreateReadWriteDirectoryForSandboxExtension(FileSystem::parentPath(directories.cookieStorageFile));
@@ -530,9 +527,6 @@ void WebsiteDataStore::handleResolvedDirectoriesAsynchronously(const WebsiteData
         allCacheDirectories = {
             directories.mediaCacheDirectory.isolatedCopy()
             , directories.networkCacheDirectory.isolatedCopy()
-#if ENABLE(ARKIT_INLINE_PREVIEW)
-            , directories.modelElementCacheDirectory.isolatedCopy()
-#endif
         };
     }
 
@@ -887,7 +881,7 @@ HashSet<WebCore::ProcessIdentifier> WebsiteDataStore::activeWebProcesses() const
     HashSet<WebCore::ProcessIdentifier> identifiers;
     // m_processes does not include worker processes now, so we iterate all processes.
     for (Ref processPool : WebProcessPool::allProcessPools()) {
-        for (Ref process : processPool->processes()) {
+        for (Ref process : borrow(processPool->processes()).get()) {
             if (process->isPrewarmed() || process->websiteDataStore() != this)
                 continue;
 

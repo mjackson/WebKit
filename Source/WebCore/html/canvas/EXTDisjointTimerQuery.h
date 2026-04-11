@@ -47,8 +47,8 @@ public:
     void deleteQueryEXT(WebGLTimerQueryEXT*);
     GCGLboolean isQueryEXT(WebGLTimerQueryEXT*);
     void beginQueryEXT(GCGLenum target, WebGLTimerQueryEXT&);
-    void endQueryEXT(GCGLenum target);
-    void queryCounterEXT(WebGLTimerQueryEXT&, GCGLenum target);
+    void endQueryEXT(ScriptExecutionContext&, GCGLenum target);
+    void queryCounterEXT(ScriptExecutionContext&, WebGLTimerQueryEXT&, GCGLenum target);
     WebGLAny getQueryEXT(GCGLenum target, GCGLenum pname);
     WebGLAny getQueryObjectEXT(WebGLTimerQueryEXT&, GCGLenum pname);
 };

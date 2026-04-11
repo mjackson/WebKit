@@ -74,7 +74,7 @@ public:
 
 private:
     JS_EXPORT_PRIVATE WeakBlock::FreeCell* findAllocator(CellContainer);
-    WeakBlock::FreeCell* tryFindAllocator();
+    WeakBlock::FreeCell* NODELETE tryFindAllocator();
     WeakBlock::FreeCell* addAllocator(CellContainer);
     void removeAllocator(WeakBlock*);
 

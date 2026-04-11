@@ -50,7 +50,9 @@ XRDeviceProxy::XRDeviceProxy(XRDeviceInfo&& deviceInfo, PlatformXRSystemProxy& x
     m_supportsOrientationTracking = deviceInfo.supportsOrientationTracking;
     m_recommendedResolution = deviceInfo.recommendedResolution;
     m_minimumNearClipPlane = deviceInfo.minimumNearClipPlane;
-
+#if ENABLE(WEBXR_LAYERS)
+    m_maxRenderLayers = deviceInfo.maxRenderLayers;
+#endif
     if (!deviceInfo.vrFeatures.contains(SessionFeature::WebGPU))
         deviceInfo.vrFeatures.append(SessionFeature::WebGPU);
 #if ENABLE(WEBXR_LAYERS)
@@ -140,7 +142,7 @@ std::optional<PlatformXR::LayerHandle> XRDeviceProxy::createLayerProjection(uint
     return xrSystem ? xrSystem->createLayerProjection(width, height, alpha) : std::nullopt;
 }
 
-void XRDeviceProxy::submitFrame(Vector<PlatformXR::Device::Layer>&& layers)
+void XRDeviceProxy::submitFrame(Vector<PlatformXR::DeviceLayer>&& layers)
 {
     if (RefPtr xrSystem = m_xrSystem.get()) {
 #if USE(OPENXR)

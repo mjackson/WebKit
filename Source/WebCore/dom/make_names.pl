@@ -1371,6 +1371,49 @@ sub candidatesWithStringLength
     return grep { length($_->{string}) == $expectedLength } @$candidates;
 }
 
+sub computeCommonPrefixLength
+{
+    my $candidates = shift;
+    my $startIndex = shift;
+    my $length = shift;
+
+    my $firstString = $candidates->[0]{string};
+    my $commonEnd = $length;
+    for my $candidate (@$candidates) {
+        my $string = $candidate->{string};
+        for (my $i = $startIndex; $i < $commonEnd; $i++) {
+            if (substr($string, $i, 1) ne substr($firstString, $i, 1)) {
+                $commonEnd = $i;
+                last;
+            }
+        }
+    }
+    return $commonEnd - $startIndex;
+}
+
+sub printPrefixCheck
+{
+    my $indent = shift;
+    my $startIndex = shift;
+    my $string = shift;
+    my $prefixLen = shift;
+
+    my $bufferStart = $startIndex > 0 ? "buffer.subspan($startIndex).data()" : "buffer.data()";
+    if ($prefixLen == 1) {
+        my $letter = substr($string, $startIndex, 1);
+        print F "${indent}if (buffer[$startIndex] == '$letter') {\n";
+    } elsif ($prefixLen <= 8) {
+        print F "${indent}if (compareCharacters($bufferStart";
+        for (my $index = $startIndex; $index < $startIndex + $prefixLen; $index++) {
+            my $letter = substr($string, $index, 1);
+            print F ", '$letter'";
+        }
+        print F ")) {\n";
+    } else {
+        print F "${indent}if (WTF::equal($bufferStart, \"". substr($string, $startIndex, $prefixLen) . "\"_span8)) {\n";
+    }
+}
+
 sub generateFindNameForLength
 {
     my $indent = shift;
@@ -1386,23 +1429,7 @@ sub generateFindNameForLength
         my $enumValue = $candidate->{enumValue};
         my $needsIfCheck = $currentIndex < $length;
         if ($needsIfCheck) {
-            my $lengthToCompare = $length - $currentIndex;
-            if ($lengthToCompare == 1) {
-                my $letter = substr($string, $currentIndex, 1);
-                print F "${indent}if (buffer[$currentIndex] == '$letter') {\n";
-            } else {
-                my $bufferStart = $currentIndex > 0 ? "buffer.subspan($currentIndex).data()" : "buffer.data()";
-                if ($lengthToCompare <= 8) {
-                    print F "${indent}if (compareCharacters($bufferStart";
-                    for (my $index = $currentIndex; $index < $length; $index = $index + 1) {
-                        my $letter = substr($string, $index, 1);
-                        print F ", '$letter'";
-                    }
-                    print F ")) {\n";
-                } else {
-                    print F "${indent}if (WTF::equal($bufferStart, \"". substr($string, $currentIndex, $length - $currentIndex) . "\"_span8)) {\n";
-                }
-            }
+            printPrefixCheck($indent, $currentIndex, $string, $length - $currentIndex);
             print F "$indent    return ${enumClass}::$enumValue;\n";
             print F "$indent}\n";
         } else {
@@ -1410,6 +1437,18 @@ sub generateFindNameForLength
         }
         return;
     }
+
+    # When all candidates share a common prefix at currentIndex, emit a single
+    # comparison for the shared prefix instead of single-case switches per character.
+    my $commonPrefixLen = computeCommonPrefixLength($candidates, $currentIndex, $length);
+    if ($commonPrefixLen > 1) {
+        printPrefixCheck($indent, $currentIndex, $candidates->[0]{string}, $commonPrefixLen);
+        generateFindNameForLength($indent . "    ", $candidates, $length, $currentIndex + $commonPrefixLen, $enumClass);
+        print F "${indent}    return ${enumClass}::Unknown;\n";
+        print F "$indent}\n";
+        return;
+    }
+
     print F "${indent}switch (buffer[$currentIndex]) {\n";
     for (my $i = 0; $i < $candidateCount;) {
         my $candidate = $candidates->[$i];
@@ -1468,7 +1507,7 @@ sub generateFindBody {
     }
     print F "    default:\n";
     print F "        break;\n";
-    print F "    };\n";
+    print F "    }\n";
     print F "    return ${enumClass}::Unknown;\n";
 }
 
@@ -1954,6 +1993,7 @@ sub printWrapperFactoryCppFile
 
 #include "DeprecatedGlobalSettings.h"
 #include "Document.h"
+#include "JSDOMWrapperCache.h"
 #include "NodeName.h"
 #include "Settings.h"
 #include <wtf/NeverDestroyed.h>
@@ -1963,8 +2003,6 @@ END
     printConditionalElementIncludes($F, 1);
 
     print F <<END;
-
-using namespace JSC;
 
 namespace WebCore {
 

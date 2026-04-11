@@ -64,7 +64,7 @@ struct Content {
         bool operator==(const Image&) const = default;
     };
     struct Counter {
-        AtomString identifier;
+        CustomIdent identifier;
         AtomString separator;
         CounterStyle style;
 
@@ -142,16 +142,16 @@ template<typename... F> decltype(auto) Content::Counter::switchOn(F&&... f) cons
 {
     auto visitor = WTF::makeVisitor(std::forward<F>(f)...);
 
-    using CounterFunction = FunctionNotation<CSSValueCounter, CommaSeparatedTuple<CustomIdentifier, std::optional<CounterStyle>>>;
-    using CountersFunction = FunctionNotation<CSSValueCounters, CommaSeparatedTuple<CustomIdentifier, AtomString, std::optional<CounterStyle>>>;
+    using CounterFunction = FunctionNotation<CSSValueCounter, CommaSeparatedTuple<CustomIdent, std::optional<CounterStyle>>>;
+    using CountersFunction = FunctionNotation<CSSValueCounters, CommaSeparatedTuple<CustomIdent, AtomString, std::optional<CounterStyle>>>;
 
     if (separator.isEmpty()) {
         return visitor(CounterFunction {
-            .parameters = { CustomIdentifier { identifier }, style != nameString(CSSValueDecimal) ? std::make_optional(style) : std::nullopt }
+            .parameters = { CustomIdent { identifier }, style != nameString(CSSValueDecimal) ? std::make_optional(style) : std::nullopt }
         });
     } else {
         return visitor(CountersFunction {
-            .parameters = { CustomIdentifier { identifier }, separator, style != nameString(CSSValueDecimal) ? std::make_optional(style) : std::nullopt }
+            .parameters = { CustomIdent { identifier }, separator, style != nameString(CSSValueDecimal) ? std::make_optional(style) : std::nullopt }
         });
     }
 }

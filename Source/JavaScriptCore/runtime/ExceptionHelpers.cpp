@@ -83,7 +83,7 @@ String errorDescriptionForValue(JSGlobalObject* globalObject, JSValue v)
     return v.toString(globalObject)->value(globalObject);
 }
 
-static StringView clampErrorMessage(const String& originalMessage LIFETIME_BOUND)
+static StringView NODELETE clampErrorMessage(const String& originalMessage LIFETIME_BOUND)
 {
     // Hopefully this is sufficiently long. Note, this is the length of the string not the number of bytes used.
     constexpr unsigned maxLength = 2 * KB;
@@ -104,7 +104,7 @@ String defaultSourceAppender(const String& originalMessage, StringView sourceTex
     return makeString(clampErrorMessage(originalMessage), " (evaluating '"_s, sourceText, "')"_s);
 }
 
-static StringView functionCallBase(StringView sourceText)
+static StringView NODELETE functionCallBase(StringView sourceText)
 {
     // This function retrieves the 'foo.bar' substring from 'foo.bar(baz)'.
     // FIXME: This function has simple processing of /* */ style comments.

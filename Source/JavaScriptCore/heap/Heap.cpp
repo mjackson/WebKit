@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2003-2025 Apple Inc. All rights reserved.
+ *  Copyright (C) 2003-2026 Apple Inc. All rights reserved.
  *  Copyright (C) 2007 Eric Seidel <eric@webkit.org>
  *
  *  This library is free software; you can redistribute it and/or
@@ -65,7 +65,6 @@
 #include "JSWeakSet.h"
 #include "MachineStackMarker.h"
 #include "MarkStackMergingConstraint.h"
-#include "MarkedJSValueRefArray.h"
 #include "MarkedSpaceInlines.h"
 #include "MarkingConstraintSet.h"
 #include "MegamorphicCache.h"
@@ -209,7 +208,7 @@ void recordType(TypeCountSet& set, JSCell* cell)
     set.add(typeName);
 }
 
-constexpr bool measurePhaseTiming()
+constexpr bool NODELETE measurePhaseTiming()
 {
     return false;
 }
@@ -246,12 +245,12 @@ public:
     {
     }
     
-    void setScope(std::optional<CollectionScope> scope)
+    void NODELETE setScope(std::optional<CollectionScope> scope)
     {
         m_scope = scope;
     }
     
-    void setScope(JSC::Heap& heap)
+    void NODELETE setScope(JSC::Heap& heap)
     {
         setScope(heap.collectionScope());
     }
@@ -3050,13 +3049,6 @@ void Heap::addCoreConstraints()
             }
 
             {
-                SetRootMarkReasonScope rootScope(visitor, RootMarkReason::MarkedJSValueRefArray);
-                m_markedJSValueRefArrays.forEach([&] (MarkedJSValueRefArray* array) {
-                    array->visitAggregate(visitor);
-                });
-            }
-
-            {
                 SetRootMarkReasonScope rootScope(visitor, RootMarkReason::VMExceptions);
                 visitor.appendUnbarriered(vm.exception());
                 visitor.appendUnbarriered(vm.lastException());
@@ -3320,11 +3312,6 @@ void Heap::setBonusVisitorTask(RefPtr<SharedTask<void(SlotVisitor&)>> task)
 }
 
 
-void Heap::addMarkedJSValueRefArray(MarkedJSValueRefArray* array)
-{
-    m_markedJSValueRefArrays.append(array);
-}
-
 void Heap::runTaskInParallel(RefPtr<SharedTask<void(SlotVisitor&)>> task)
 {
     unsigned initialRefCount = task->refCount();
@@ -3493,9 +3480,7 @@ Heap::Heap(JSC::Heap& heap)
 {
 }
 
-Heap::~Heap()
-{
-}
+Heap::~Heap() = default;
 
 #undef INIT_CLIENT_ISO_SUBSPACE
 #undef CLIENT_ISO_SUBSPACE_INIT_FROM_SPACE_AND_SET

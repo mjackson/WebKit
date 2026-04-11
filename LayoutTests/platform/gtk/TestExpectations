@@ -106,13 +106,8 @@ imported/w3c/web-platform-tests/css/CSS2/stacking-context/composite-change-after
 webkit.org/b/290522 imported/w3c/web-platform-tests/html/canvas/offscreen/manual/text/canvas.2d.offscreen.worker.direction.html [ ImageOnlyFailure Pass ]
 
 # Times out, possibly missing automation:
-webkit.org/b/214677 imported/w3c/web-platform-tests/event-timing/interactionid-auxclick.html [ Skip ]
 webkit.org/b/214677 imported/w3c/web-platform-tests/event-timing/interactionid-aux-pointerdown-and-pointerdown.html [ Skip ]
 webkit.org/b/214677 imported/w3c/web-platform-tests/event-timing/interactionid-aux-pointerdown.html [ Skip ]
-
-# Event timing: timing out for unclear reasons - perhaps scheduling. Events handlers are called but event timing entries aren't produced
-webkit.org/b/301110 imported/w3c/web-platform-tests/event-timing/gap-keydown-keyup.html [ Skip ]
-webkit.org/b/301110 imported/w3c/web-platform-tests/event-timing/gap-pointerdown-pointerup.html [ Skip ]
 
 # Media controls
 accessibility/gtk/media-controls-panel-title.html [ Failure ]
@@ -144,6 +139,7 @@ webkit.org/b/308373 webrtc/encoded-streams-quirks.html [ Pass Timeout ]
 webkit.org/b/308362 [ Debug ] webrtc/processIceTransportStateChange-gc.html [ Pass Crash ]
 
 webkit.org/b/305553 fast/selectors/selection-window-inactive-stroke-color.html [ ImageOnlyFailure ]
+webkit.org/b/305553 fast/selectors/selection-window-inactive.html [ ImageOnlyFailure Pass ]
 
 # This test constantly fails in EWS but passes in post-commit bots, so skip it.
 fast/selectors/selection-window-inactive-text-shadow.html [ Skip ]
@@ -256,47 +252,7 @@ webkit.org/b/245840 webgl/1.0.x/conformance/extensions/ext-float-blend.html [ Pa
 # WEBGL2 failures
 webkit.org/b/251107 inspector/canvas/recording-webgl2-full.html [ Failure ]
 webkit.org/b/251107 inspector/canvas/recording-webgl2-snapshots.html [ Failure ]
-webkit.org/b/251107 webgl/2.0.y/conformance/context/premultiplyalpha-test.html [ Failure ]
-webkit.org/b/251107 webgl/2.0.y/conformance/rendering/gl-scissor-test.html [ Failure ]
-webkit.org/b/251107 webgl/2.0.y/conformance2/reading/read-pixels-from-fbo-test.html [ Failure ]
-
-# WEBGL flakies
-webkit.org/b/251107 fast/canvas/webgl/webgl2-texture-upload-enums.html [ Failure ]
-webkit.org/b/251107 webgl/1.0.x/conformance/ogles/GL/abs/abs_001_to_006.html [ Timeout Crash Failure Pass ]
-webkit.org/b/251107 webgl/1.0.x/conformance/textures/image_bitmap_from_video/tex-2d-alpha-alpha-unsigned_byte.html [ Pass Timeout ]
-webkit.org/b/251107 webgl/1.0.x/conformance/textures/image_bitmap_from_video/tex-2d-luminance_alpha-luminance_alpha-unsigned_byte.html [ Pass Timeout ]
-webkit.org/b/251107 webgl/1.0.x/conformance/textures/image_bitmap_from_video/tex-2d-luminance-luminance-unsigned_byte.html [ Pass Timeout ]
-webkit.org/b/251107 webgl/1.0.x/conformance/textures/image_bitmap_from_video/tex-2d-rgb-rgb-unsigned_byte.html [ Pass Timeout ]
-webkit.org/b/251107 webgl/1.0.x/conformance/textures/image_bitmap_from_video/tex-2d-rgb-rgb-unsigned_short_5_6_5.html [ Timeout ]
-webkit.org/b/251107 webgl/1.0.x/conformance/textures/image_bitmap_from_video/tex-2d-rgba-rgba-unsigned_byte.html [ Timeout ]
-webkit.org/b/251107 webgl/1.0.x/conformance/textures/misc/png-image-types.html [ Failure Timeout ]
-webkit.org/b/251107 webgl/1.0.x/conformance/textures/misc/tex-video-using-tex-unit-non-zero.html [ Pass Timeout ]
-webkit.org/b/251107 webgl/1.0.x/conformance/textures/misc/texture-upload-size.html [ Timeout ]
-webkit.org/b/251107 webgl/1.0.x/conformance/textures/video/tex-2d-alpha-alpha-unsigned_byte.html [ Pass Timeout ]
-webkit.org/b/251107 webgl/1.0.x/conformance/textures/video/tex-2d-luminance_alpha-luminance_alpha-unsigned_byte.html [ Pass Timeout ]
-webkit.org/b/251107 webgl/1.0.x/conformance/textures/video/tex-2d-luminance-luminance-unsigned_byte.html [ Pass Timeout ]
-webkit.org/b/251107 webgl/1.0.x/conformance/textures/video/tex-2d-rgb-rgb-unsigned_byte.html [ Pass Timeout ]
-webkit.org/b/251107 webgl/1.0.x/conformance/textures/video/tex-2d-rgb-rgb-unsigned_short_5_6_5.html [ Timeout ]
-webkit.org/b/251107 webgl/1.0.x/conformance/uniforms/uniform-default-values.html [ Pass Timeout ]
-webkit.org/b/251107 webgl/2.0.y/conformance2/extensions/promoted-extensions-in-shaders.html [ Pass Failure ]
-webkit.org/b/251107 webgl/2.0.y/conformance2/rendering/blitframebuffer-test.html [ Pass Failure ]
-webkit.org/b/251107 webgl/2.0.0/conformance2/state/gl-object-get-calls.html [ Pass Failure ]
-webkit.org/b/251107 webgl/2.0.y/conformance/buffers/buffer-data-dynamic-delay.html [ Failure Pass Timeout ]
-webkit.org/b/251107 webgl/2.0.y/conformance/buffers/element-array-buffer-delete-recreate.html [ Pass Failure Timeout ]
-webkit.org/b/251107 webgl/2.0.y/conformance/extensions/webgl-compressed-texture-astc.html [ Failure Pass Timeout ]
-webkit.org/b/251107 webgl/2.0.y/conformance/extensions/webgl-compressed-texture-s3tc-srgb.html [ Pass Failure Timeout ]
-webkit.org/b/251107 webgl/2.0.y/conformance/glsl/functions/glsl-function-abs.html [ Failure Pass Timeout ]
-webkit.org/b/251107 webgl/2.0.y/conformance/offscreencanvas/offscreencanvas-transfer-image-bitmap.html [ Failure Pass Timeout ]
-webkit.org/b/251107 webgl/2.0.y/conformance/textures/image_bitmap_from_video/tex-2d-alpha-alpha-unsigned_byte.html [ Timeout ]
-webkit.org/b/251107 webgl/2.0.y/conformance/textures/misc/png-image-types.html [ Failure ]
-webkit.org/b/251107 webgl/2.0.y/conformance/textures/misc/tex-video-using-tex-unit-non-zero.html [ Timeout ]
-webkit.org/b/251107 webgl/2.0.y/conformance/textures/svg_image/tex-2d-rgb-rgb-unsigned_byte.html [ Pass Timeout ]
-webkit.org/b/251107 webgl/2.0.y/conformance/textures/video/tex-2d-alpha-alpha-unsigned_byte.html [ Timeout ]
-webkit.org/b/251107 webgl/2.0.y/conformance/uniforms/out-of-bounds-uniform-array-access.html [ Pass Timeout ]
-webkit.org/b/251107 webgl/2.0.y/conformance/uniforms/uniform-default-values.html [ Pass Timeout ]
-webkit.org/b/251107 webgl/2.0.y/conformance2/extensions/ext-texture-norm16.html [ Failure ]
-webkit.org/b/251107 webgl/2.0.y/conformance2/extensions/webgl-multi-draw-instanced-base-vertex-base-instance.html [ Pass Failure Timeout ]
-webkit.org/b/251107 webgl/2.0.y/conformance2/rendering/blitframebuffer-filter-outofbounds.html [ Failure ]
+webkit.org/b/251107 webgl/2.0.y/conformance/offscreencanvas/offscreencanvas-transfer-image-bitmap.html [ Timeout ]
 
 # WebGL2 Textures failing.
 webgl/2.0.0/conformance2/textures/svg_image/tex-2d-r11f_g11f_b10f-rgb-float.html [ Failure ]
@@ -413,7 +369,6 @@ editing/inserting/smart-quote-with-all-configurations.html [ Skip ]
 fast/shadow-dom/touch-event-on-text-assigned-to-slot.html [ Skip ]
 
 webkit.org/b/141467 fast/multicol/pagination/LeftToRight-tb-hittest.html [ Failure ]
-webkit.org/b/141467 fast/multicol/pagination/RightToLeft-rl-hittest.html [ Failure ]
 
 # Path::addPath needs to be implemented
 webkit.org/b/130464 fast/canvas/canvas-path-addPath.html
@@ -431,9 +386,6 @@ Bug(GTK) editing/spelling/markers.html [ Skip ]
 
 # Requires ENABLE(MEDIA_CAPTURE)
 webkit.org/b/85958 fast/forms/file/file-input-capture.html [ Failure ]
-
-# This tests fail since the upgrade of GTK to 3.16 and Cairo to 1.14 on the JHBuild
-webkit.org/b/146731 fast/backgrounds/hidpi-background-image-contain-cover-scale-needs-more-precision.html [ ImageOnlyFailure Timeout ]
 
 # WebKitGTK+ doesn't have killring support.
 webkit.org/b/152379 editing/pasteboard/emacs-killring-alternating-append-prepend.html [ Failure ]
@@ -474,8 +426,6 @@ webkit.org/b/158617 fast/dom/Window/window-properties-performance-resource-timin
 
 # Resource timing tests are flaky due to redirect timing variability
 webkit.org/b/197473 imported/w3c/web-platform-tests/resource-timing/resource-timing-level1.sub.html [ Pass Failure ]
-webkit.org/b/197473 http/wpt/resource-timing/rt-cors.html [ Pass Failure ]
-webkit.org/b/197473 http/wpt/resource-timing/rt-cors.worker.html [ Pass Failure ]
 
 # No support for font-variant-* properties in @font-face declarations
 webkit.org/b/161586 css3/font-feature-settings-font-face-rendering.html [ ImageOnlyFailure ]
@@ -526,7 +476,6 @@ imported/w3c/web-platform-tests/pointerevents/pointerevent_boundary_events_in_ca
 imported/w3c/web-platform-tests/pointerevents/pointerevent_movementxy.html?pen [ Skip ]
 imported/w3c/web-platform-tests/pointerevents/pointerevent_pointerout_pen.html [ Skip ]
 imported/w3c/web-platform-tests/pointerevents/pointerevent_releasepointercapture_events_to_original_target.html?pen [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_sequence_at_implicit_release_on_click.html?pen [ Skip ]
 imported/w3c/web-platform-tests/pointerevents/pointerevent_setpointercapture_override_pending_capture_element.html?pen [ Skip ]
 
 webkit.org/b/206872 platform/gtk/scrollbars/main-frame-scrollbar-horizontal-wheel-scroll.html [ ImageOnlyFailure ]
@@ -544,7 +493,6 @@ webkit.org/b/209275 imported/w3c/web-platform-tests/css/css-writing-modes/text-b
 webkit.org/b/209275 imported/w3c/web-platform-tests/css/css-writing-modes/vertical-alignment-vlr-023.xht [ ImageOnlyFailure ]
 webkit.org/b/209275 imported/w3c/web-platform-tests/css/css-writing-modes/vertical-alignment-vrl-022.xht [ ImageOnlyFailure ]
 
-webkit.org/b/257011 imported/w3c/web-platform-tests/css/css-text/hyphens/hyphens-vertical-002.html [ ImageOnlyFailure ]
 webkit.org/b/214290 imported/w3c/web-platform-tests/css/css-text/white-space/textarea-pre-wrap-012.html [ ImageOnlyFailure ]
 
 # Only flatpak based GTK Release layout test bot is constantly failing.
@@ -567,7 +515,7 @@ webkit.org/b/214470 imported/w3c/web-platform-tests/css/css-backgrounds/backgrou
 webkit.org/b/214470 imported/w3c/web-platform-tests/css/css-images/image-orientation/image-orientation-border-image.html [ ImageOnlyFailure ]
 webkit.org/b/214470 imported/w3c/web-platform-tests/css/css-values/ch-unit-002.html [ ImageOnlyFailure ]
 webkit.org/b/214470 imported/w3c/web-platform-tests/css/css-values/ch-unit-011.html [ ImageOnlyFailure ]
-webkit.org/b/277995 imported/w3c/web-platform-tests/css/css-values/attr-all-types.html [ Failure ]
+webkit.org/b/277995 imported/w3c/web-platform-tests/css/css-values/attr-all-types.html [ Pass ]
 
 webkit.org/b/219614 inspector/css/getComputedPrimaryFontForNode.html [ Failure ]
 
@@ -594,7 +542,7 @@ webkit.org/b/120839 animations/cross-fade-background-image.html [ ImageOnlyFailu
 webkit.org/b/286132 [ Debug ] inspector/debugger/breakpoints/resolved-dump-all-inline-script-pause-locations.html [ Crash ]
 webkit.org/b/286132 [ Release ] inspector/debugger/breakpoints/resolved-dump-all-inline-script-pause-locations.html [ Pass Crash ]
 
-webkit.org/b/299482 inspector/dom-debugger/event-animation-frame-breakpoints.html [ Pass Crash ]
+webkit.org/b/299482 inspector/dom-debugger/event-animation-frame-breakpoints.html [ Pass Crash Timeout ]
 
 webkit.org/b/304644 [ Debug ] inspector/unit-tests/editing-support.html [ Crash Timeout ]
 webkit.org/b/304644 [ Release ] inspector/unit-tests/editing-support.html [ Pass Crash Timeout ]
@@ -664,8 +612,6 @@ webkit.org/b/190703 inspector/worker/debugger-pause.html [ Failure Pass Timeout 
 webkit.org/b/194382 mathml/presentation/stretchy-depth-height-symmetric.html [ Failure ]
 imported/w3c/web-platform-tests/mathml/presentation-markup/tables/table-002.html [ Pass ]
 
-webkit.org/b/195466 imported/w3c/web-platform-tests/html/semantics/embedded-content/media-elements/ready-states/autoplay.html [ Failure ]
-
 webkit.org/b/170484 swipe/main-frame-pinning-requirement.html [ Timeout ]
 
 webkit.org/b/185939 imported/w3c/web-platform-tests/css/WOFF2 [ Pass ]
@@ -725,7 +671,7 @@ imported/w3c/web-platform-tests/html/dom/render-blocking/remove-element-unblocks
 # Flaky tests detected from 29Jan2023 to 23Feb2023
 webkit.org/b/252878 fast/frames/exponential-frames.html [ Pass Timeout ]
 webkit.org/b/252878 fast/frames/lots-of-objects.html [ Pass Timeout ]
-webkit.org/b/252878 http/wpt/mediarecorder/MediaRecorder-video-h264-profiles.html [ Crash Pass Timeout ]
+webkit.org/b/252878 http/wpt/mediarecorder/MediaRecorder-video-h264-profiles.html [ Pass Failure ]
 webkit.org/b/252878 imported/w3c/web-platform-tests/css/css-transforms/huge-length-tiny-scale.html [ Pass Timeout ]
 webkit.org/b/252878 imported/w3c/web-platform-tests/css/css-writing-modes/forms/text-input-vertical-overflow-no-scroll.html [ Failure Pass Timeout ]
 webkit.org/b/252878 imported/w3c/web-platform-tests/encoding/legacy-mb-japanese/euc-jp/eucjp-encode-form-errors-han.html?13001-14000 [ Failure Pass ]
@@ -808,13 +754,8 @@ webkit.org/b/252878 webaudio/audioworket-out-of-memory.html [ Pass Timeout ]
 
 imported/w3c/web-platform-tests/cors/remote-origin.htm [ Pass Failure ]
 
-# Flaky tests detected on May2023
-webkit.org/b/257624 fast/mediastream/MediaStream-video-element-track-stop.html [ Failure ]
-webkit.org/b/257624 http/tests/frame-throttling/raf-throttle-in-cross-origin-subframe.html [ Failure ]
-
 # Uncomment when webkit.org/b/267992 is fixed
 #webkit.org/b/257624 http/wpt/cross-origin-opener-policy/header-parsing-with-report-to.https.html [ Failure Pass ]
-webkit.org/b/257624 imported/blink/fast/text/international/vertical-positioning-with-combining-marks.html [ Crash ImageOnlyFailure Pass ]
 webkit.org/b/257624 imported/w3c/web-platform-tests/cors/cors-safelisted-request-header.any.html [ Crash Failure Pass ]
 webkit.org/b/257624 imported/w3c/web-platform-tests/encoding/legacy-mb-japanese/euc-jp/eucjp-encode-form-errors-han.html?12001-13000 [ Failure Pass ]
 webkit.org/b/257624 imported/w3c/web-platform-tests/encoding/legacy-mb-tchinese/big5/big5-encode-form-big5-hkscs.html?12001-13000 [ Failure Pass ]
@@ -1196,7 +1137,6 @@ webkit.org/b/182763 accessibility/gtk/aria-activedescendant-changed-notification
 webkit.org/b/183902 fast/dom/frame-loading-via-document-write.html [ Failure ]
 
 # Imported css-text test suite from WPT
-webkit.org/b/183258 imported/w3c/web-platform-tests/css/css-text/letter-spacing/letter-spacing-control-chars-001.html [ ImageOnlyFailure ]
 webkit.org/b/183258 imported/w3c/web-platform-tests/css/css-text/word-break/word-break-break-all-007.html [ ImageOnlyFailure ]
 webkit.org/b/183258 imported/w3c/web-platform-tests/css/css-text/word-break/word-break-normal-lo-000.html [ ImageOnlyFailure ]
 
@@ -1220,8 +1160,6 @@ webkit.org/b/190991 http/tests/navigation/page-cache-mediakeysession.html [ Skip
 
 webkit.org/b/208052 imported/w3c/web-platform-tests/intersection-observer/text-target.html [ Pass Failure ]
 webkit.org/b/208052 imported/w3c/web-platform-tests/intersection-observer/callback-cross-realm-report-exception.html [ Pass Failure ]
-webkit.org/b/208052 imported/w3c/web-platform-tests/intersection-observer/v2/cross-origin-effects.sub.html [ Skip ]
-webkit.org/b/208052 imported/w3c/web-platform-tests/intersection-observer/v2/cross-origin-occlusion.sub.html [ Skip ]
 
 webkit.org/b/191882 fast/forms/auto-fill-button/input-credit-card-auto-fill-button.html [ Failure ]
 
@@ -1247,20 +1185,11 @@ webkit.org/b/211981 editing/pasteboard/data-transfer-get-data-on-pasting-html-us
 
 webkit.org/b/224062 webgl/1.0.x/conformance/rendering/gl-scissor-test.html [ Failure ]
 
-webkit.org/b/224076 imported/w3c/web-platform-tests/css/css-text/white-space/white-space-zero-fontsize-002.html [ ImageOnlyFailure ]
-
 imported/w3c/web-platform-tests/css/css-transforms/ttwf-css-3d-polygon-cycle.html [ ImageOnlyFailure ]
 
 webkit.org/b/279023 imported/w3c/web-platform-tests/css/css-transforms/composited-under-rotateY-180deg-perspective.html [ ImageOnlyFailure ]
 
 webkit.org/b/234782 imported/w3c/web-platform-tests/css/css-writing-modes/text-shadow-orientation-upright-001.html [ ImageOnlyFailure ]
-
-# Failing for css-highlight
-imported/w3c/web-platform-tests/css/css-highlight-api/painting/custom-highlight-painting-iframe-003.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-highlight-api/painting/custom-highlight-painting-iframe-004.html [ ImageOnlyFailure ]
-
-# WPT css/css-pseudo import (webkit.org/b/235197)
-imported/w3c/web-platform-tests/css/css-pseudo/selection-background-painting-order.html [ ImageOnlyFailure ]
 
 # Failing with skia only with swrast
 webkit.org/b/273396 css3/masking/clip-path-border-radius-border-box-000.html [ ImageOnlyFailure ]
@@ -1341,6 +1270,8 @@ media/media-source/media-detachablemse-append.html [ Skip ]
 # Tests failing while still having the right values in expected related to the import in webkit.org/b/252516
 imported/w3c/web-platform-tests/css/css-tables/table-model-fixup-2.html [ Failure ]
 
+imported/w3c/web-platform-tests/css/CSS2/tables/table-cell-dynamic-color.html [ ImageOnlyFailure ]
+
 imported/w3c/web-platform-tests/css/css-color/system-color-consistency.html [ Failure ]
 
 webkit.org/b/234726 imported/w3c/web-platform-tests/css/css-color/parsing/color-valid-relative-color.html [ ImageOnlyFailure ]
@@ -1360,39 +1291,15 @@ fast/encoding/char-encoding.html [ Skip ]
 fast/encoding/char-encoding-mac.html [ Skip ]
 fast/replaced/pdf-as-embed-with-no-mime-type-is-not-blank.html [ Skip ]
 http/tests/inspector/network/intercept-request-main-resource.html [ Skip ]
-imported/w3c/web-platform-tests/css/css-animations/flip-running-animation-via-variable.html [ Skip ]
-imported/w3c/web-platform-tests/css/cssom-view/add-background-attachment-fixed-during-smooth-scroll.html [ Skip ]
 webgl/1.0.x/conformance/context/context-no-alpha-fbo-with-alpha.html [ Skip ]
 webgl/2.0.y/conformance/state/state-uneffected-after-compositing.html [ Skip ]
 webgl/2.0.y/conformance2/offscreencanvas/offscreencanvas-transfer-image-bitmap.html [ Skip ]
 webgl/2.0.y/conformance/context/context-no-alpha-fbo-with-alpha.html [ Skip ]
 
 # Flaky tests on Aug-2023
-webkit.org/b/261024 http/wpt/mediarecorder/MediaRecorder-video-bitrate.html [ Crash Failure Pass ]
-webkit.org/b/261024 imported/w3c/web-platform-tests/css/css-transforms/animation/transform-interpolation-rotate-slerp.html [ ImageOnlyFailure Pass ]
 webkit.org/b/261024 imported/w3c/web-platform-tests/html/browsers/browsing-the-web/navigating-across-documents/javascript-url-return-value-handling-dynamic.html [ Failure Pass ]
 webkit.org/b/261024 imported/w3c/web-platform-tests/media-source/mediasource-play.html [ Failure Pass Timeout ]
-webkit.org/b/261024 imported/w3c/web-platform-tests/streams/readable-byte-streams/construct-byob-request.any.worker.html [ Failure Pass ]
-webkit.org/b/261024 imported/w3c/web-platform-tests/websockets/constructor/006.html?default [ Failure Pass ]
-webkit.org/b/261024 imported/w3c/web-platform-tests/websockets/constructor/009.html?default [ Failure Pass ]
-webkit.org/b/261024 imported/w3c/web-platform-tests/websockets/constructor/012.html?default [ Failure Pass ]
-webkit.org/b/261024 imported/w3c/web-platform-tests/websockets/constructor/016.html [ Failure Pass ]
-webkit.org/b/261024 imported/w3c/web-platform-tests/websockets/cookies/003.html?default [ Failure Pass ]
-webkit.org/b/261024 imported/w3c/web-platform-tests/websockets/cookies/004.html?default [ Failure Pass ]
-webkit.org/b/261024 imported/w3c/web-platform-tests/websockets/cookies/006.html?default [ Failure Pass ]
-webkit.org/b/261024 imported/w3c/web-platform-tests/websockets/interfaces/WebSocket/readyState/008.html?default [ Failure Pass ]
-webkit.org/b/261024 imported/w3c/web-platform-tests/websockets/interfaces/WebSocket/send/005.html?default [ Failure Pass ]
-webkit.org/b/261024 imported/w3c/web-platform-tests/websockets/keeping-connection-open/001.html?default [ Failure Pass ]
-webkit.org/b/261024 imported/w3c/web-platform-tests/websockets/opening-handshake/002.html?default [ Failure Pass ]
-webkit.org/b/261024 imported/w3c/web-platform-tests/websockets/opening-handshake/005.html?default [ Failure Pass ]
 webkit.org/b/261024 inspector/canvas/recording-webgl-full.html [ Failure ]
-webkit.org/b/261024 webgl/1.0.x/conformance/canvas/buffer-offscreen-test.html [ Pass Timeout ]
-webkit.org/b/261024 webgl/1.0.x/conformance/context/context-attribute-preserve-drawing-buffer-antialias.html [ Pass Timeout ]
-webkit.org/b/261024 webgl/1.0.x/conformance/offscreencanvas/context-attribute-preserve-drawing-buffer.html [ Pass Timeout ]
-webkit.org/b/261024 webgl/1.0.x/conformance/renderbuffers/framebuffer-state-restoration.html [ Pass Timeout ]
-webkit.org/b/261024 webgl/1.0.x/conformance/rendering/color-mask-preserved-during-implicit-clears.html [ Pass Timeout ]
-webkit.org/b/261024 webgl/2.0.y/conformance2/query/occlusion-query.html [ Pass Timeout ]
-webkit.org/b/261024 webgl/2.0.y/conformance2/textures/canvas/tex-3d-r8-red-unsigned_byte.html [ Pass Timeout ]
 
 imported/w3c/web-platform-tests/css/filter-effects/backdrop-filter-plus-filter.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/filter-effects/filtered-block-is-container.html [ ImageOnlyFailure ]
@@ -1405,12 +1312,10 @@ webkit.org/b/264680 fast/media/mq-prefers-contrast-live-update-for-listener.html
 webkit.org/b/264680 fast/scrolling/gtk/user-scroll-snapping-interaction.html [ Timeout ]
 webkit.org/b/264680 http/wpt/service-workers/controlled-sharedworker.https.html [ Failure Pass ]
 webkit.org/b/264680 imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/windows-1251.html?include=loading [ Failure Pass ]
-webkit.org/b/264680 imported/w3c/web-platform-tests/html/semantics/embedded-content/media-elements/autoplay-allowed-by-feature-policy-attribute.https.sub.html [ Crash Failure Pass Timeout ]
 webkit.org/b/264680 imported/w3c/web-platform-tests/media-source/mediasource-seek-during-pending-seek.html [ Crash Failure Pass Timeout ]
 webkit.org/b/264680 inspector/heap/getPreview.html [ Failure Pass ]
 webkit.org/b/264680 media/no-fullscreen-when-hidden.html [ Timeout Pass ]
 webkit.org/b/264680 media/video-background-tab-playback.html [ Timeout Pass ]
-webkit.org/b/264680 media/video-muted-holds-sleep-assertion.html [ Timeout Pass Failure ]
 webkit.org/b/264680 scrollbars/scrollbar-selectors.html [ Pass Timeout ]
 
 fast/dom/no-scroll-when-command-click-fragment-URL.html [ Skip ]
@@ -1429,7 +1334,6 @@ imported/w3c/web-platform-tests/css/css-view-transitions/window-resize-aborts-tr
 
 http/tests/login-status/login-status-api-getter-setter-functions.html [ Failure ]
 
-imported/w3c/web-platform-tests/css/css-overflow/scrollbar-gutter-root-both-edges.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-overflow/scrollbar-gutter-root.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-overflow/overflow-auto-scrolling-with-margin-and-transform.html [ Skip ]
 
@@ -1505,13 +1409,6 @@ webkit.org/b/304269 [ Debug ] fast/images/png-suite/test.html [ Crash Pass Timeo
 
 webkit.org/b/304271 [ Debug ] fullscreen/full-screen-enter-while-exiting-fully-mid-completion-handler.html [ Crash Pass ]
 
-# Flaky NetworkProcess related crash in allowsFirstPartyForCookies
-webkit.org/b/286063 [ Debug ] fast/forms/appearance-base/appearance-base-checkable-checkmark-dynamic.html [ Crash Pass ]
-webkit.org/b/286063 [ Debug ] fast/mediastream/RTCPeerConnection-page-cache.html [ Crash Pass ]
-webkit.org/b/286063 [ Debug ] media/audio-only-video-intrinsic-size.html [ Crash Pass ]
-webkit.org/b/286063 [ Debug ] storage/indexeddb/cursor-properties.html [ Crash Pass ]
-webkit.org/b/286063 [ Debug ] storage/indexeddb/modern/idbobjectstore-delete-failures-private.html [ Crash Pass ]
-
 webkit.org/b/304278 inspector/worker/debugger-pause-subworker.html [ Skip ]
 
 # webkit.org/b/304535 ui-serif, ui-sans-serif, ui-monospace, ui-rounded generic families not implemented on GTK
@@ -1544,6 +1441,8 @@ webkit.org/b/306384 fast/css/object-position/object-position-img.html [ ImageOnl
 webkit.org/b/306384 fast/table/row-background-image.html [ ImageOnlyFailure ]
 webkit.org/b/306384 imported/w3c/web-platform-tests/quirks/line-height-in-list-item.html [ ImageOnlyFailure ]
 webkit.org/b/306384 scrollbars/corner-resizer-window-inactive.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/quirks/tables-inherit-color-from-body-quirk-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/quirks/tables-inherit-color-from-body-quirk-002.html [ ImageOnlyFailure ]
 
 webkit.org/b/309260 webrtc/video-clone-track.html [ Pass Failure Timeout ]
 webkit.org/b/309261 platform/gtk/fast/forms/menulist-typeahead-find.html [ Pass Failure ]
@@ -1563,3 +1462,26 @@ webkit.org/b/309267 inspector/unit-tests/array-utilities.html [ Pass Failure ]
 
 webkit.org/b/309892 accessibility/aria-role-on-label.html [ Pass Crash ]
 webkit.org/b/309894 http/tests/inspector/target/pause-on-inline-debugger-statement.html [ Pass Timeout ]
+
+imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/bidi/u002E_u2029_u05D0.html [ Pass ]
+
+webkit.org/b/310748 editing/pasteboard/copy-element-with-conflicting-background-color-from-rule.html [ Pass ImageOnlyFailure ]
+webkit.org/b/310750 imported/w3c/web-platform-tests/webrtc/protocol/h265-loopback.https.html [ Pass Failure ]
+webkit.org/b/310751 imported/w3c/web-platform-tests/webrtc/protocol/h264-profile-levels.https.html?interop-2026 [ Pass Failure ]
+webkit.org/b/310752 imported/w3c/web-platform-tests/html/browsers/browsing-the-web/navigating-across-documents/replace-before-load/location-setter.html [ Pass Failure ]
+webkit.org/b/310753 imported/w3c/web-platform-tests/webrtc/protocol/split.https.html [ Pass Failure ]
+webkit.org/b/310754 inspector/controller/runtime-controller-import.html [ Pass Failure ]
+webkit.org/b/310755 media/modern-media-controls/time-labels-support/remaining-time.html [ Pass Timeout ]
+webkit.org/b/310756 media/video-currentTime-set.html [ Pass Timeout ]
+webkit.org/b/310757 media/video-main-content-allow-then-scroll.html [ Pass Timeout ]
+
+inspector/unit-tests/retryuntil.html [ Pass Failure ]
+
+pointer-lock/lock-lost-on-alert.html [ Pass Failure ]
+
+webkit.org/b/311846 webrtc/h264-high.html [ Pass Failure Timeout ]
+webkit.org/b/311847 webrtc/dtmf-gc.html [ Pass Timeout ]
+
+webkit.org/b/311927 accessibility/combobox/gtk/combobox-collapsed-selection-changed.html [ Failure Pass ]
+
+webkit.org/b/311930 fonts/font-cache-memory-pressure-crash.html [ Failure Pass ]

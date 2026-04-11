@@ -26,8 +26,6 @@
 #include "config.h"
 #include <wtf/RunLoop.h>
 
-#include <CoreFoundation/CoreFoundation.h>
-#include <dispatch/dispatch.h>
 #include <wtf/AutodrainedPool.h>
 #include <wtf/SchedulePair.h>
 

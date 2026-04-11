@@ -132,9 +132,12 @@ if (ENABLE_WEBCORE)
         list(APPEND PlayStationModule_TARGETS LibXml2::LibXml2)
     endif ()
 
-    if (NOT TARGET SQLite::SQLite3)
+    if (NOT TARGET SQLite3::SQLite3)
         find_package(SQLite3 3.23.1 REQUIRED)
-        list(APPEND PlayStationModule_TARGETS SQLite::SQLite3)
+        if (NOT TARGET SQLite3::SQLite3) # CMake < 4.3
+            add_library(SQLite3::SQLite3 ALIAS SQLite::SQLite3)
+        endif ()
+        list(APPEND PlayStationModule_TARGETS SQLite3::SQLite3)
     endif ()
 
     if (NOT TARGET WebP::libwebp)

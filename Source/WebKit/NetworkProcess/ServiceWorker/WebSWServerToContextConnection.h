@@ -101,7 +101,7 @@ public:
     void reportNetworkUsageToWorkerClient(const WebCore::ScriptExecutionContextIdentifier, uint64_t bytesTransferredOverNetworkDelta) final;
 #endif
 
-    std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const;
+    std::optional<SharedPreferencesForWebProcess> NODELETE sharedPreferencesForWebProcess() const;
 private:
     WebSWServerToContextConnection(NetworkConnectionToWebProcess&, WebPageProxyIdentifier, WebCore::Site&&, std::optional<WebCore::ScriptExecutionContextIdentifier>, WebCore::SWServer&);
 

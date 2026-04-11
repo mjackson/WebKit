@@ -285,7 +285,6 @@ std::optional<CanonicalDimension> canonicalize(NonCanonicalDimension root, const
     case CSSUnitType::CSS_STRING:
     case CSSUnitType::CSS_UNKNOWN:
     case CSSUnitType::CSS_VALUE_ID:
-    case CSSUnitType::CustomIdent:
         break;
     }
 
@@ -1333,11 +1332,23 @@ std::optional<Child> simplify(Random& root, const SimplificationOptions& options
 
             auto randomBaseValue = WTF::switchOn(root.sharing,
                 [&](const Random::SharingOptions& sharingOptions) -> std::optional<double> {
-                    if (sharingOptions.elementShared.has_value() && !options.conversionData->styleBuilderState()->element())
+                    CheckedPtr builderState = options.conversionData->styleBuilderState();
+                    if (sharingOptions.elementScoped.has_value() && !builderState->element())
                         return { };
-                    return protect(options.conversionData->styleBuilderState())->lookupCSSRandomBaseValue(
-                        sharingOptions.identifier,
-                        sharingOptions.elementShared
+
+                    return WTF::switchOn(sharingOptions.identifier,
+                        [&](const Random::SharingOptions::Auto& autoValue) {
+                            return builderState->lookupCSSRandomBaseValue(
+                                autoValue,
+                                sharingOptions.elementScoped
+                            );
+                        },
+                        [&](const CSS::CustomIdent& customIdent) {
+                            return builderState->lookupCSSRandomBaseValue(
+                                Style::toStyle(customIdent, *builderState),
+                                sharingOptions.elementScoped
+                            );
+                        }
                     );
                 },
                 [&](const Random::SharingFixed& sharingFixed) -> std::optional<double> {
@@ -1420,9 +1431,9 @@ std::optional<Child> simplify(AnchorSize& anchorSize, const SimplificationOption
     CheckedPtr builderState = options.conversionData->styleBuilderState();
 
     std::optional<Style::ScopedName> anchorSizeScopedName;
-    if (!anchorSize.elementName.isNull()) {
+    if (anchorSize.elementName) {
         anchorSizeScopedName = Style::ScopedName {
-            .name = anchorSize.elementName,
+            .name = Style::toStyle(*anchorSize.elementName, *builderState).value,
             .scopeOrdinal = builderState->styleScopeOrdinal()
         };
     }

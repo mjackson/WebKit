@@ -51,7 +51,7 @@ QueueImpl::~QueueImpl() = default;
 void QueueImpl::submit(Vector<Ref<WebGPU::CommandBuffer>>&& commandBuffers)
 {
     auto backingCommandBuffers = commandBuffers.map([&](auto commandBuffer) {
-        return Ref { m_convertToBackingContext }->convertToBacking(commandBuffer);
+        return protect(m_convertToBackingContext)->convertToBacking(commandBuffer);
     });
 
     wgpuQueueSubmit(m_backing.get(), backingCommandBuffers.size(), backingCommandBuffers.span().data());
@@ -98,7 +98,7 @@ void QueueImpl::writeBufferNoCopy(
     Size64 dataOffset,
     std::optional<Size64> size)
 {
-    wgpuQueueWriteBuffer(m_backing.get(), Ref { m_convertToBackingContext }->convertToBacking(buffer), bufferOffset, source.subspan(dataOffset, size.value_or(source.size() - dataOffset)));
+    wgpuQueueWriteBuffer(m_backing.get(), protect(m_convertToBackingContext)->convertToBacking(buffer), bufferOffset, source.subspan(dataOffset, size.value_or(source.size() - dataOffset)));
 }
 
 void QueueImpl::writeTexture(

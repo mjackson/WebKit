@@ -137,7 +137,7 @@ static ALWAYS_INLINE bool isArraySlowInline(JSGlobalObject* globalObject, ProxyO
             // then this test will fail even if function is Object.prototype.toString. The only
             // way this test will be work everytime is if we check against the
             // Object.prototype.toString of the function's own globalObject.
-            if (function && function == function->globalObject()->objectProtoToStringFunctionConcurrently())
+            if (function && function == function->realm()->objectProtoToStringFunctionConcurrently())
                 calleeName = "Object.prototype.toString"_s;
             throwTypeError(globalObject, scope, makeString(calleeName, " cannot be called on a Proxy that has been revoked"_s));
             return false;
@@ -256,17 +256,17 @@ JSC_DEFINE_HOST_FUNCTION(arrayConstructorOf, (JSGlobalObject* globalObject, Call
     return JSValue::encode(result);
 }
 
-static ALWAYS_INLINE unsigned getArgumentsLength(ScopedArguments* arguments)
+static ALWAYS_INLINE unsigned NODELETE getArgumentsLength(ScopedArguments* arguments)
 {
     return arguments->internalLength();
 }
 
-static ALWAYS_INLINE unsigned getArgumentsLength(DirectArguments* arguments)
+static ALWAYS_INLINE unsigned NODELETE getArgumentsLength(DirectArguments* arguments)
 {
     return arguments->internalLength();
 }
 
-static ALWAYS_INLINE unsigned getArgumentsLength(ClonedArguments* arguments)
+static ALWAYS_INLINE unsigned NODELETE getArgumentsLength(ClonedArguments* arguments)
 {
     ASSERT(arguments->isIteratorProtocolFastAndNonObservable());
     JSValue lengthValue = arguments->getDirect(clonedArgumentsLengthPropertyOffset);

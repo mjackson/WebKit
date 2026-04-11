@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,7 +26,8 @@
 #include "config.h"
 #include "StyleCounterStyle.h"
 
-#include "CSSPrimitiveValue.h"
+#include "CSSPropertyParserConsumer+CounterStyles.h"
+#include "CSSValueKeywords.h"
 #include "StyleBuilderChecking.h"
 
 namespace WebCore {
@@ -34,13 +35,34 @@ namespace Style {
 
 // MARK: - Conversion
 
+auto ToCSS<CounterStyle>::operator()(const CounterStyle& value, const RenderStyle& style) -> CSS::CounterStyle
+{
+    return { toCSS(value.identifier, style) };
+}
+
+auto ToStyle<CSS::CounterStyle>::operator()(const CSS::CounterStyle& value, const BuilderState& state) -> CounterStyle
+{
+    return WTF::switchOn(value.identifier,
+        [&](CSSValueID predefinedKeyword) -> CounterStyle {
+            return { CustomIdent { nameStringForSerialization(predefinedKeyword) } };
+        },
+        [&](const CSS::CustomIdent& customIdent) -> CounterStyle {
+            return { toStyle(customIdent, state) };
+        }
+    );
+}
+
 auto CSSValueConversion<CounterStyle>::operator()(BuilderState& state, const CSSValue& value) -> CounterStyle
 {
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-    if (!primitiveValue)
-        return CounterStyle { nameString(CSSValueDecimal) };
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
+        if (auto valueID = primitiveValue->valueID(); CSSPropertyParserHelpers::isPredefinedCounterStyle(valueID))
+            return { CustomIdent { nameStringForSerialization(valueID) } };
 
-    return CounterStyle { { AtomString { primitiveValue->stringValue() } } };
+        state.setCurrentPropertyInvalidAtComputedValueTime();
+        return { CustomIdent { nullAtom() } };
+    }
+
+    return { toStyleFromCSSValue<CustomIdent>(state, value) };
 }
 
 } // namespace Style

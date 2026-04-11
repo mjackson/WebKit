@@ -54,6 +54,7 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/URL.h>
 #include <wtf/UUID.h>
+#include <wtf/ZippedRange.h>
 #include <wtf/glib/GMallocString.h>
 #include <wtf/glib/GSpanExtras.h>
 #include <wtf/glib/GThreadSafeWeakPtr.h>
@@ -467,14 +468,13 @@ bool ensureGStreamerInitialized()
             WTFLogAlways("The USE_PLAYBIN3 variable was detected in the environment. Expect playback issues or please unset it.");
 
 #if ENABLE(VIDEO) || ENABLE(WEB_AUDIO)
-        Vector<String> parameters = s_UIProcessCommandLineOptions.value_or(extractGStreamerOptionsFromCommandLine());
-        s_UIProcessCommandLineOptions.reset();
-        WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GLib port
-        char** argv = g_new0(char*, parameters.size() + 2);
+        auto parameters = std::exchange(s_UIProcessCommandLineOptions, std::nullopt).value_or(extractGStreamerOptionsFromCommandLine());
         int argc = parameters.size() + 1;
-        argv[0] = g_strdup(FileSystem::currentExecutableName().data());
-        for (unsigned i = 0; i < parameters.size(); i++)
-            argv[i + 1] = g_strdup(parameters[i].utf8().data());
+        char** argv = g_new0(char*, argc + 1);
+        auto argvSpan = unsafeMakeSpan(argv, argc);
+        argvSpan[0] = g_strdup(FileSystem::currentExecutableName().data());
+        for (auto [arg, parameter] : zippedRange(argvSpan.subspan(1), parameters))
+            arg = g_strdup(parameter.utf8().data());
 
         GUniqueOutPtr<GError> error;
         isGStreamerInitialized = gst_init_check(&argc, &argv, &error.outPtr());
@@ -493,7 +493,6 @@ bool ensureGStreamerInitialized()
             if (!disableFastMalloc || disableFastMalloc == "0"_s)
                 gst_allocator_set_default(GST_ALLOCATOR(g_object_new(gst_allocator_fast_malloc_get_type(), nullptr)));
         }
-        WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 #if USE(GSTREAMER_MPEGTS)
         if (isGStreamerInitialized)
@@ -665,7 +664,7 @@ void unregisterPipeline(const GRefPtr<GstElement>& pipeline)
     activePipelinesMap().remove(name.span());
 }
 
-void WebCoreLogObserver::didLogMessage(const WTFLogChannel& channel, WTFLogLevel level, Vector<JSONLogValue>&& values)
+void WebCoreLogObserver::didLogMessage(const WTFLogChannel& channel, WTFLogLevel level, std::optional<WTFLogLocation> location, Vector<JSONLogValue>&& values)
 {
 #ifndef GST_DISABLE_GST_DEBUG
     if (!shouldEmitLogMessage(channel))
@@ -676,23 +675,11 @@ void WebCoreLogObserver::didLogMessage(const WTFLogChannel& channel, WTFLogLevel
         builder.append(value);
 
     auto logString = builder.toString();
-    GstDebugLevel gstDebugLevel;
-    switch (level) {
-    case WTFLogLevel::Error:
-        gstDebugLevel = GST_LEVEL_ERROR;
-        break;
-    case WTFLogLevel::Debug:
-        gstDebugLevel = GST_LEVEL_DEBUG;
-        break;
-    case WTFLogLevel::Always:
-    case WTFLogLevel::Info:
-        gstDebugLevel = GST_LEVEL_INFO;
-        break;
-    case WTFLogLevel::Warning:
-        gstDebugLevel = GST_LEVEL_WARNING;
-        break;
-    };
-    gst_debug_log(debugCategory(), gstDebugLevel, __FILE__, __FUNCTION__, __LINE__, nullptr, "%s", logString.utf8().data());
+    auto gstDebugLevel = gstDebugLevelFromWTFLogLevel(level);
+    const char* file = location ? location->file : __FILE__;
+    const char* function = location ? location->function : __FUNCTION__;
+    int line = location ? location->line : __LINE__;
+    gst_debug_log(debugCategory(), gstDebugLevel, file, function, line, nullptr, "%s", logString.utf8().data());
 #else
     UNUSED_PARAM(channel);
     UNUSED_PARAM(level);
@@ -2292,6 +2279,24 @@ void dumpBinToDotFile(const GRefPtr<GstElement>& element, const String& filename
     ASSERT(GST_IS_BIN(element.get()));
     dumpBinToDotFile(GST_BIN_CAST(element.get()), filename, details);
 }
+
+#if !RELEASE_LOG_DISABLED
+GstDebugLevel gstDebugLevelFromWTFLogLevel(WTFLogLevel level)
+{
+    switch (level) {
+    case WTFLogLevel::Error:
+        return GST_LEVEL_ERROR;
+    case WTFLogLevel::Debug:
+        return GST_LEVEL_DEBUG;
+    case WTFLogLevel::Always:
+    case WTFLogLevel::Info:
+        return GST_LEVEL_INFO;
+    case WTFLogLevel::Warning:
+        return GST_LEVEL_WARNING;
+    };
+    return GST_LEVEL_NONE;
+}
+#endif
 
 #undef GST_CAT_DEFAULT
 

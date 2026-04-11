@@ -167,8 +167,8 @@ static inline bool isAbsentUnit(Variant<TemporalAuto, std::optional<TemporalUnit
 }
 
 WTF::String ellipsizeAt(unsigned maxLength, const WTF::String&);
-PropertyName temporalUnitPluralPropertyName(VM&, TemporalUnit);
-PropertyName temporalUnitSingularPropertyName(VM&, TemporalUnit);
+PropertyName NODELETE temporalUnitPluralPropertyName(VM&, TemporalUnit);
+PropertyName NODELETE temporalUnitSingularPropertyName(VM&, TemporalUnit);
 std::optional<TemporalUnit> temporalUnitType(StringView);
 Variant<TemporalAuto, std::optional<TemporalUnit>>
 getTemporalUnitValuedOption(JSGlobalObject*, JSObject*, PropertyName);
@@ -178,16 +178,16 @@ std::tuple<TemporalUnit, TemporalUnit, RoundingMode, double> extractDifferenceOp
 std::optional<unsigned> temporalFractionalSecondDigits(JSGlobalObject*, JSObject* options);
 PrecisionData secondsStringPrecision(JSGlobalObject*, JSObject* options);
 RoundingMode temporalRoundingMode(JSGlobalObject*, JSObject*, RoundingMode);
-RoundingMode negateTemporalRoundingMode(RoundingMode);
+RoundingMode NODELETE negateTemporalRoundingMode(RoundingMode);
 void formatSecondsStringFraction(StringBuilder&, unsigned fraction, std::tuple<Precision, unsigned>);
 void formatSecondsStringPart(StringBuilder&, unsigned second, unsigned fraction, PrecisionData);
-std::optional<unsigned> maximumRoundingIncrement(TemporalUnit);
+std::optional<unsigned> NODELETE maximumRoundingIncrement(TemporalUnit);
 double temporalRoundingIncrement(JSGlobalObject*, JSObject* options);
 double roundNumberToIncrement(double, double increment, RoundingMode);
 double roundNumberToIncrementDouble(double, double increment, RoundingMode);
-Int128 roundNumberToIncrementInt128(Int128, Int128, RoundingMode);
-Int128 roundNumberToIncrementAsIfPositive(Int128, Int128, RoundingMode);
-double applyUnsignedRoundingMode(double, double, double, UnsignedRoundingMode);
+Int128 NODELETE roundNumberToIncrementInt128(Int128, Int128, RoundingMode);
+Int128 NODELETE roundNumberToIncrementAsIfPositive(Int128, Int128, RoundingMode);
+double NODELETE applyUnsignedRoundingMode(double, double, double, UnsignedRoundingMode);
 void rejectObjectWithCalendarOrTimeZone(JSGlobalObject*, JSObject*);
 
 constexpr Int128 lengthInNanoseconds(TemporalUnit unit)

@@ -90,14 +90,14 @@ public:
         ParenthesesDisjunctionContext* lastContext;
     };
 
-    static inline void appendParenthesesDisjunctionContext(BackTrackInfoParentheses* backTrack, ParenthesesDisjunctionContext* context)
+    static inline void NODELETE appendParenthesesDisjunctionContext(BackTrackInfoParentheses* backTrack, ParenthesesDisjunctionContext* context)
     {
         context->next = backTrack->lastContext;
         backTrack->lastContext = context;
         ++backTrack->matchAmount;
     }
 
-    static inline void popParenthesesDisjunctionContext(BackTrackInfoParentheses* backTrack)
+    static inline void NODELETE popParenthesesDisjunctionContext(BackTrackInfoParentheses* backTrack)
     {
         RELEASE_ASSERT(backTrack->matchAmount);
         RELEASE_ASSERT(backTrack->lastContext);
@@ -109,7 +109,7 @@ public:
     {
         DisjunctionContext() = default;
 
-        void* operator new(size_t, void* where)
+        void* NODELETE operator new(size_t, void* where)
         {
             return where;
         }
@@ -143,7 +143,7 @@ public:
         return new (allocatorPool->alloc(size)) DisjunctionContext();
     }
 
-    void freeDisjunctionContext(DisjunctionContext* context)
+    void NODELETE freeDisjunctionContext(DisjunctionContext* context)
     {
 #if ASSERT_ENABLED
         ASSERT(context->m_magicNumber == DisjunctionContext::magicNumber);
@@ -179,7 +179,7 @@ public:
             new (getDisjunctionContext()) DisjunctionContext();
         }
 
-        void* operator new(size_t, void* where)
+        void* NODELETE operator new(size_t, void* where)
         {
             return where;
         }
@@ -201,7 +201,7 @@ public:
             return std::bit_cast<DisjunctionContext*>(std::bit_cast<uintptr_t>(this) + allocationSize(m_numBackupIds));
         }
 
-        unsigned backupOffsetForDuplicateNamedGroup(unsigned duplicateNamedGroup)
+        unsigned NODELETE backupOffsetForDuplicateNamedGroup(unsigned duplicateNamedGroup)
         {
             unsigned offset = (m_numNestedSubpatterns << 1) + duplicateNamedGroup;
             ASSERT(offset < m_numBackupIds);
@@ -281,18 +281,18 @@ public:
         {
         }
 
-        void next()
+        void NODELETE next()
         {
             ++pos;
         }
 
-        void rewind(unsigned amount)
+        void NODELETE rewind(unsigned amount)
         {
             ASSERT(pos >= amount);
             pos -= amount;
         }
 
-        char32_t read()
+        char32_t NODELETE read()
         {
             ASSERT(pos < length);
             if (pos < length)
@@ -300,7 +300,7 @@ public:
             return errorCodePoint;
         }
 
-        char32_t readChecked(unsigned negativePositionOffest)
+        char32_t NODELETE readChecked(unsigned negativePositionOffest)
         {
             RELEASE_ASSERT(pos >= negativePositionOffest);
             unsigned p = pos - negativePositionOffest;
@@ -316,7 +316,7 @@ public:
             return result;
         }
 
-        char32_t readCheckedDontAdvance(unsigned negativePositionOffest)
+        char32_t NODELETE readCheckedDontAdvance(unsigned negativePositionOffest)
         {
             RELEASE_ASSERT(pos >= negativePositionOffest);
             unsigned p = pos - negativePositionOffest;
@@ -331,7 +331,7 @@ public:
 
         // readForCharacterDump() is only for use by the DUMP_CURR_CHAR macro.
         // We don't want any side effects like the next() in readChecked() above.
-        char32_t readForCharacterDump(unsigned negativePositionOffest)
+        char32_t NODELETE readForCharacterDump(unsigned negativePositionOffest)
         {
             RELEASE_ASSERT(pos >= negativePositionOffest);
             unsigned p = pos - negativePositionOffest;
@@ -345,7 +345,7 @@ public:
             return result;
         }
         
-        char32_t tryReadBackward(unsigned negativePositionOffest)
+        char32_t NODELETE tryReadBackward(unsigned negativePositionOffest)
         {
             if (pos < negativePositionOffest)
                 return errorCodePoint;
@@ -359,7 +359,7 @@ public:
             return result;
         }
 
-        char32_t readSurrogatePairChecked(unsigned negativePositionOffset)
+        char32_t NODELETE readSurrogatePairChecked(unsigned negativePositionOffset)
         {
             RELEASE_ASSERT(pos >= negativePositionOffset);
             unsigned p = pos - negativePositionOffset;
@@ -373,7 +373,7 @@ public:
             return errorCodePoint;
         }
 
-        char32_t reread(unsigned from)
+        char32_t NODELETE reread(unsigned from)
         {
             ASSERT(from < length);
             auto result = input[from];
@@ -394,12 +394,12 @@ public:
             return errorCodePoint;
         }
 
-        unsigned getPos()
+        unsigned NODELETE getPos()
         {
             return pos;
         }
 
-        void setPos(unsigned p)
+        void NODELETE setPos(unsigned p)
         {
             pos = p;
         }
@@ -409,17 +409,17 @@ public:
             return pos == 0;
         }
 
-        bool atEnd()
+        bool NODELETE atEnd()
         {
             return pos == length;
         }
 
-        unsigned end()
+        unsigned NODELETE end()
         {
             return length;
         }
 
-        bool checkInput(unsigned count)
+        bool NODELETE checkInput(unsigned count)
         {
             if (((pos + count) <= length) && ((pos + count) >= pos)) {
                 pos += count;
@@ -428,13 +428,13 @@ public:
             return false;
         }
 
-        void uncheckInput(unsigned count)
+        void NODELETE uncheckInput(unsigned count)
         {
             RELEASE_ASSERT(pos >= count);
             pos -= count;
         }
 
-        bool tryUncheckInput(unsigned count)
+        bool NODELETE tryUncheckInput(unsigned count)
         {
             if (count > pos)
                 return false;
@@ -442,23 +442,23 @@ public:
             return true;
         }
 
-        bool atStart(unsigned negativePositionOffset)
+        bool NODELETE atStart(unsigned negativePositionOffset)
         {
             return pos == negativePositionOffset;
         }
 
-        bool atEnd(unsigned negativePositionOffest)
+        bool NODELETE atEnd(unsigned negativePositionOffest)
         {
             RELEASE_ASSERT(pos >= negativePositionOffest);
             return (pos - negativePositionOffest) == length;
         }
 
-        bool isAvailableInput(unsigned offset)
+        bool NODELETE isAvailableInput(unsigned offset)
         {
             return (((pos + offset) <= length) && ((pos + offset) >= pos));
         }
 
-        bool isValidNegativeInputOffset(unsigned offset)
+        bool NODELETE isValidNegativeInputOffset(unsigned offset)
         {
             return (pos >= offset) && ((pos - offset) < length);
         }
@@ -588,7 +588,7 @@ public:
         return false;
     }
 
-    bool checkCharacter(ByteTerm& term, unsigned negativeInputOffset)
+    bool NODELETE checkCharacter(ByteTerm& term, unsigned negativeInputOffset)
     {
         ASSERT(term.isCharacterType());
         if (term.matchDirection() == Forward)
@@ -597,13 +597,13 @@ public:
         return term.atom.patternCharacter == static_cast<char32_t>(input.tryReadBackward(negativeInputOffset));
     }
 
-    bool checkSurrogatePair(ByteTerm& term, unsigned negativeInputOffset)
+    bool NODELETE checkSurrogatePair(ByteTerm& term, unsigned negativeInputOffset)
     {
         ASSERT(term.isCharacterType());
         return term.atom.patternCharacter == static_cast<char32_t>(input.readSurrogatePairChecked(negativeInputOffset));
     }
 
-    bool checkCasedCharacter(ByteTerm& term, unsigned negativeInputOffset)
+    bool NODELETE checkCasedCharacter(ByteTerm& term, unsigned negativeInputOffset)
     {
         ASSERT(term.isCasedCharacterType());
         char32_t ch = term.matchDirection() == Forward ? input.readChecked(negativeInputOffset) : input.tryReadBackward(negativeInputOffset);
@@ -638,7 +638,7 @@ public:
         return testCharacterClass(characterClass, static_cast<char32_t>(readCharacter));
     }
 
-    bool tryConsumeBackReference(int matchBegin, int matchEnd, ByteTerm& term)
+    bool NODELETE tryConsumeBackReference(int matchBegin, int matchEnd, ByteTerm& term)
     {
         unsigned matchSize = (unsigned)(matchEnd - matchBegin);
 
@@ -719,7 +719,7 @@ public:
         return term.invert() ? !wordBoundary : wordBoundary;
     }
 
-    bool backtrackPatternCharacter(ByteTerm& term, DisjunctionContext* context)
+    bool NODELETE backtrackPatternCharacter(ByteTerm& term, DisjunctionContext* context)
     {
         BackTrackInfoPatternCharacter* backTrack = reinterpret_cast<BackTrackInfoPatternCharacter*>(context->frame + term.frameLocation);
 
@@ -769,7 +769,7 @@ public:
         return false;
     }
 
-    bool backtrackPatternCasedCharacter(ByteTerm& term, DisjunctionContext* context)
+    bool NODELETE backtrackPatternCasedCharacter(ByteTerm& term, DisjunctionContext* context)
     {
         BackTrackInfoPatternCharacter* backTrack = reinterpret_cast<BackTrackInfoPatternCharacter*>(context->frame + term.frameLocation);
 
@@ -1062,7 +1062,7 @@ public:
         return false;
     }
 
-    bool backtrackBackReference(ByteTerm& term, DisjunctionContext* context)
+    bool NODELETE backtrackBackReference(ByteTerm& term, DisjunctionContext* context)
     {
         ASSERT(term.type == ByteTerm::Type::BackReference);
         BackTrackInfoBackReference* backTrack = reinterpret_cast<BackTrackInfoBackReference*>(context->frame + term.frameLocation);
@@ -1157,7 +1157,7 @@ public:
         return JSRegExpResult::NoMatch;
     }
 
-    bool matchParenthesesOnceBegin(ByteTerm& term, DisjunctionContext* context)
+    bool NODELETE matchParenthesesOnceBegin(ByteTerm& term, DisjunctionContext* context)
     {
         ASSERT(term.type == ByteTerm::Type::ParenthesesSubpatternOnceBegin);
         ASSERT(term.atom.quantityMaxCount == 1);
@@ -1188,7 +1188,7 @@ public:
         return true;
     }
 
-    bool matchParenthesesOnceEnd(ByteTerm& term, DisjunctionContext* context)
+    bool NODELETE matchParenthesesOnceEnd(ByteTerm& term, DisjunctionContext* context)
     {
         ASSERT(term.type == ByteTerm::Type::ParenthesesSubpatternOnceEnd);
         ASSERT(term.atom.quantityMaxCount == 1);
@@ -1284,7 +1284,7 @@ public:
         return false;
     }
 
-    bool matchParenthesesTerminalBegin(ByteTerm& term, DisjunctionContext* context)
+    bool NODELETE matchParenthesesTerminalBegin(ByteTerm& term, DisjunctionContext* context)
     {
         ASSERT(term.type == ByteTerm::Type::ParenthesesSubpatternTerminalBegin);
         ASSERT(term.atom.quantityType == QuantifierType::Greedy);
@@ -1296,7 +1296,7 @@ public:
         return true;
     }
 
-    bool matchParenthesesTerminalEnd(ByteTerm& term, DisjunctionContext* context)
+    bool NODELETE matchParenthesesTerminalEnd(ByteTerm& term, DisjunctionContext* context)
     {
         ASSERT(term.type == ByteTerm::Type::ParenthesesSubpatternTerminalEnd);
 
@@ -1310,7 +1310,7 @@ public:
         return true;
     }
 
-    bool backtrackParenthesesTerminalBegin(ByteTerm& term, DisjunctionContext* context)
+    bool NODELETE backtrackParenthesesTerminalBegin(ByteTerm& term, DisjunctionContext* context)
     {
         ASSERT(term.type == ByteTerm::Type::ParenthesesSubpatternTerminalBegin);
         ASSERT(term.atom.quantityType == QuantifierType::Greedy);
@@ -1323,7 +1323,7 @@ public:
         return true;
     }
 
-    bool backtrackParenthesesTerminalEnd(ByteTerm&, DisjunctionContext*)
+    bool NODELETE backtrackParenthesesTerminalEnd(ByteTerm&, DisjunctionContext*)
     {
         // 'Terminal' parentheses are at the end of the regex, and as such a match past end
         // should always be returned as a successful match - we should never backtrack to here.
@@ -1331,7 +1331,7 @@ public:
         return false;
     }
 
-    bool matchParentheticalAssertionBegin(ByteTerm& term, DisjunctionContext* context)
+    bool NODELETE matchParentheticalAssertionBegin(ByteTerm& term, DisjunctionContext* context)
     {
         ASSERT(term.type == ByteTerm::Type::ParentheticalAssertionBegin);
         ASSERT(term.atom.quantityMaxCount == 1);
@@ -1343,7 +1343,7 @@ public:
         return true;
     }
 
-    bool matchParentheticalAssertionEnd(ByteTerm& term, DisjunctionContext* context)
+    bool NODELETE matchParentheticalAssertionEnd(ByteTerm& term, DisjunctionContext* context)
     {
         ASSERT(term.type == ByteTerm::Type::ParentheticalAssertionEnd);
         ASSERT(term.atom.quantityMaxCount == 1);
@@ -1367,7 +1367,7 @@ public:
         return true;
     }
 
-    bool backtrackParentheticalAssertionBegin(ByteTerm& term, DisjunctionContext* context)
+    bool NODELETE backtrackParentheticalAssertionBegin(ByteTerm& term, DisjunctionContext* context)
     {
         ASSERT(term.type == ByteTerm::Type::ParentheticalAssertionBegin);
         ASSERT(term.atom.quantityMaxCount == 1);
@@ -1386,7 +1386,7 @@ public:
         return false;
     }
 
-    bool backtrackParentheticalAssertionEnd(ByteTerm& term, DisjunctionContext* context)
+    bool NODELETE backtrackParentheticalAssertionEnd(ByteTerm& term, DisjunctionContext* context)
     {
         ASSERT(term.type == ByteTerm::Type::ParentheticalAssertionEnd);
         ASSERT(term.atom.quantityMaxCount == 1);
@@ -2248,10 +2248,10 @@ public:
     }
 
 private:
-    inline bool isLegacyCompilation() const { return compileMode == CompileMode::Legacy; }
-    inline bool isUnicodeCompilation() const { return compileMode == CompileMode::Unicode; }
-    inline bool isUnicodeSetsCompilation() const { return compileMode == CompileMode::UnicodeSets; }
-    inline bool isEitherUnicodeCompilation() const { return isUnicodeCompilation() || isUnicodeSetsCompilation(); }
+    inline bool NODELETE isLegacyCompilation() const { return compileMode == CompileMode::Legacy; }
+    inline bool NODELETE isUnicodeCompilation() const { return compileMode == CompileMode::Unicode; }
+    inline bool NODELETE isUnicodeSetsCompilation() const { return compileMode == CompileMode::UnicodeSets; }
+    inline bool NODELETE isEitherUnicodeCompilation() const { return isUnicodeCompilation() || isUnicodeSetsCompilation(); }
 
     inline bool isSafeToRecurse() { return m_stackCheck.isSafeToRecurse(); }
 
@@ -2465,7 +2465,7 @@ public:
         m_bodyDisjunction->terms.append(ByteTerm::DotStarEnclosure(bolAnchored, eolAnchored, m_currentFlags));
     }
 
-    unsigned popParenthesesStack()
+    unsigned NODELETE popParenthesesStack()
     {
         ASSERT(m_parenthesesStack.size());
         unsigned beginTerm = m_parenthesesStack.last().beginTerm;

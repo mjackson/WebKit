@@ -232,7 +232,7 @@ struct GetPtrHelper<CheckedPtr<T, PtrTraits>> {
 template <typename T, typename U>
 struct IsSmartPtr<CheckedPtr<T, U>> {
     static constexpr bool value = true;
-    static constexpr bool isNullable = false;
+    static constexpr bool isNullable = true;
 };
 
 template<typename T, typename PtrTraits = RawPtrTraits<T>>
@@ -276,7 +276,7 @@ inline bool is(const CheckedPtr<ArgType, ArgPtrTraits>& source)
 template<typename... ExpectedTypes, typename ArgType, typename ArgPtrTraits>
 inline bool isAnyOf(CheckedPtr<ArgType, ArgPtrTraits>& source)
 {
-    return is<ExpectedTypes...>(source.get());
+    return isAnyOf<ExpectedTypes...>(source.get());
 }
 
 template<typename... ExpectedTypes, typename ArgType, typename ArgPtrTraits>

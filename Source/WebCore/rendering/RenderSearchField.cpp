@@ -46,6 +46,7 @@
 #include "RenderBoxModelObjectInlines.h"
 #include "RenderLayer.h"
 #include "RenderObjectInlines.h"
+#include "RenderStyle+SettersInlines.h"
 #include "RenderTheme.h"
 #include "RenderView.h"
 #include "SearchInputType.h"
@@ -120,7 +121,7 @@ void RenderSearchField::showPopup()
         popup->saveRecentSearches(name, recentSearches);
     }
 
-    FloatPoint absTopLeft = localToAbsolute(FloatPoint(), UseTransforms);
+    FloatPoint absTopLeft = localToAbsolute(FloatPoint(), MapCoordinatesMode::UseTransforms);
     IntRect absBounds = absoluteBoundingBoxRectIgnoringTransforms();
     absBounds.setLocation(roundedIntPoint(absTopLeft));
     protect(protect(m_searchPopup)->popupMenu())->show(absBounds, protect(view().frameView()), -1);

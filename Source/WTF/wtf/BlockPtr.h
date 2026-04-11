@@ -194,13 +194,8 @@ public:
 
     BlockPtr& operator=(BlockPtr&& other)
     {
-        ASSERT(this != &other);
-
-#if !__has_feature(objc_arc)
-        Block_release(m_block);
-#endif
-        m_block = std::exchange(other.m_block, nullptr);
-
+        BlockPtr moved(std::move(other));
+        std::swap(m_block, moved.m_block);
         return *this;
     }
 

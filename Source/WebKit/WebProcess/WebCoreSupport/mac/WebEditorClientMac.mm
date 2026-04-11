@@ -41,6 +41,7 @@
 #import <WebCore/FocusController.h>
 #import <WebCore/KeyboardEvent.h>
 #import <WebCore/LocalFrame.h>
+#import <WebCore/LocalFrameInlines.h>
 #import <WebCore/NotImplemented.h>
 #import <WebCore/Page.h>
 #import <wtf/cocoa/NSURLExtras.h>

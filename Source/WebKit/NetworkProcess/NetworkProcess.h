@@ -112,6 +112,7 @@ struct ParentalControlsURLFilterParameters;
 namespace WebKit {
 
 class AuthenticationManager;
+class LaunchServicesDatabaseObserver;
 class NetworkConnectionToWebProcess;
 class NetworkProcessSupplement;
 class NetworkProximityManager;
@@ -483,7 +484,7 @@ public:
 
     WebCore::ShouldRelaxThirdPartyCookieBlocking NODELETE shouldRelaxThirdPartyCookieBlockingForPage(std::optional<WebPageProxyIdentifier>) const;
 
-    void setDefaultRequestTimeoutInterval(double);
+    void NODELETE setDefaultRequestTimeoutInterval(double);
 
 #if HAVE(WEBCONTENTRESTRICTIONS)
     void allowEvaluatedURL(const WebCore::ParentalControlsURLFilterParameters&, CompletionHandler<void(bool)>&&);
@@ -641,6 +642,10 @@ private:
     // multiple requests to clear the cache can come in before previous requests complete, and we need to wait for all of them.
     // In the future using WorkQueue and a counting semaphore would work, as would WorkQueue supporting the libdispatch concept of "work groups".
     OSObjectPtr<dispatch_group_t> m_clearCacheDispatchGroup;
+#endif
+
+#if HAVE(LSDATABASECONTEXT)
+    const Ref<LaunchServicesDatabaseObserver> m_launchServicesDatabaseObserver;
 #endif
 
 #if ENABLE(CONTENT_EXTENSIONS)

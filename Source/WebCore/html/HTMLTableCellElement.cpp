@@ -62,14 +62,6 @@ unsigned HTMLTableCellElement::colSpan() const
 
 unsigned HTMLTableCellElement::rowSpan() const
 {
-    // When rowspan="0", return 0 to signal "span all remaining rows"
-    // The rendering layer (RenderTableCell::rowSpan) will calculate the actual count
-    // Per HTML spec: https://html.spec.whatwg.org/multipage/tables.html#attr-tdth-rowspan
-    return rowSpanForBindings();
-}
-
-unsigned HTMLTableCellElement::rowSpanForBindings() const
-{
     return clampHTMLNonNegativeIntegerToRange(attributeWithoutSynchronization(rowspanAttr), minRowspan, maxRowspan, defaultRowspan);
 }
 
@@ -108,11 +100,9 @@ void HTMLTableCellElement::collectPresentationalHintsForAttribute(const Qualifie
         addPropertyToPresentationalHintStyle(style, CSSPropertyTextWrapMode, CSSValueNowrap);
         break;
     case AttributeNames::widthAttr:
-        // width="0" is not allowed for compatibility with WinIE.
         addHTMLLengthToStyle(style, CSSPropertyWidth, value, AllowZeroValue::No);
         break;
     case AttributeNames::heightAttr:
-        // width="0" is not allowed for compatibility with WinIE.
         addHTMLLengthToStyle(style, CSSPropertyHeight, value, AllowZeroValue::No);
         break;
     default:
@@ -153,9 +143,9 @@ String HTMLTableCellElement::axis() const
     return attributeWithoutSynchronization(axisAttr);
 }
 
-void HTMLTableCellElement::setColSpan(unsigned n)
+void HTMLTableCellElement::setColSpan(unsigned number)
 {
-    setAttributeWithoutSynchronization(colspanAttr, AtomString::number(limitToOnlyHTMLNonNegative(n, 1)));
+    setAttributeWithoutSynchronization(colspanAttr, AtomString::number(limitToOnlyHTMLNonNegative(number, 1)));
 }
 
 String HTMLTableCellElement::headers() const
@@ -163,9 +153,9 @@ String HTMLTableCellElement::headers() const
     return attributeWithoutSynchronization(headersAttr);
 }
 
-void HTMLTableCellElement::setRowSpanForBindings(unsigned n)
+void HTMLTableCellElement::setRowSpan(unsigned number)
 {
-    setAttributeWithoutSynchronization(rowspanAttr, AtomString::number(limitToOnlyHTMLNonNegative(n, 1)));
+    setAttributeWithoutSynchronization(rowspanAttr, AtomString::number(limitToOnlyHTMLNonNegative(number, 1)));
 }
 
 const AtomString& HTMLTableCellElement::scope() const

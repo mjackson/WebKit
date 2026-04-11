@@ -135,13 +135,13 @@ InlineLayoutUnit TableFormattingGeometry::usedBaselineForCell(const ElementBox& 
         ASSERT_NOT_IMPLEMENTED_YET();
         return { };
     }
-    for (CheckedRef cellDescendant : descendantsOfType<ElementBox>(cellBox)) {
-        if (cellDescendant->establishesInlineFormattingContext()) {
+    for (auto& cellDescendant : descendantsOfType<ElementBox>(cellBox)) {
+        if (cellDescendant.establishesInlineFormattingContext()) {
             // FIXME: Check for baseline value based on display content.
             ASSERT_NOT_IMPLEMENTED_YET();
             return { };
         }
-        if (cellDescendant->establishesTableFormattingContext())
+        if (cellDescendant.establishesTableFormattingContext())
             return layoutState().formattingStateForTableFormattingContext(cellDescendant).tableGrid().rows().list()[0].baseline();
     }
     return formattingContext().geometryForBox(cellBox).contentBoxBottom();

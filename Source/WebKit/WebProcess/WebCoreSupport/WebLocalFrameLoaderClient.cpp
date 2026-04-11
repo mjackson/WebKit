@@ -376,7 +376,7 @@ void WebLocalFrameLoaderClient::dispatchDidReceiveServerRedirectForProvisionalLo
 
     RefPtr documentLoader = m_localFrame->loader().provisionalDocumentLoader();
     if (!documentLoader) {
-        WebLocalFrameLoaderClient_RELEASE_LOG_FAULT(Loading, "dispatchDidReceiveServerRedirectForProvisionalLoad: Called with no provisional DocumentLoader (frameState=%hhu, stateForDebugging=%i)", static_cast<uint8_t>(m_localFrame->loader().state()), m_localFrame->loader().stateMachine().stateForDebugging());
+        WebLocalFrameLoaderClient_RELEASE_LOG_FAULT(Loading, "dispatchDidReceiveServerRedirectForProvisionalLoad: Called with no provisional DocumentLoader (frameState=%hhu, stateForDebugging=%i)", std::to_underlying(m_localFrame->loader().state()), m_localFrame->loader().stateMachine().stateForDebugging());
         return;
     }
 
@@ -397,7 +397,12 @@ void WebLocalFrameLoaderClient::dispatchDidChangeProvisionalURL()
     if (!webPage)
         return;
 
-    Ref documentLoader { *m_localFrame->loader().provisionalDocumentLoader() };
+    RefPtr documentLoader = m_localFrame->loader().provisionalDocumentLoader();
+    if (!documentLoader) {
+        WebLocalFrameLoaderClient_RELEASE_LOG_FAULT(Loading, "dispatchDidChangeProvisionalURL: Called with no provisional DocumentLoader (frameState=%hhu, stateForDebugging=%i)", std::to_underlying(m_localFrame->loader().state()), m_localFrame->loader().stateMachine().stateForDebugging());
+        return;
+    }
+
     webPage->send(Messages::WebPageProxy::DidChangeProvisionalURLForFrame(m_frame->frameID(), documentLoader->navigationID(), documentLoader->url()));
 }
 
@@ -1108,7 +1113,7 @@ void WebLocalFrameLoaderClient::dispatchWillSendSubmitEvent(Ref<FormState>&& for
     Ref form = formState->form();
 
     ASSERT(formState->sourceDocument().frame());
-    RefPtr sourceFrame = WebFrame::fromCoreFrame(*protect(formState->sourceDocument().frame()));
+    RefPtr sourceFrame = WebFrame::fromCoreFrame(*formState->sourceDocument().frame());
     ASSERT(sourceFrame);
 
     webPage->injectedBundleFormClient().willSendSubmitEvent(webPage.get(), form.ptr(), m_frame.ptr(), sourceFrame.get(), formState->textFieldValues());
@@ -1583,7 +1588,7 @@ Ref<DocumentLoader> WebLocalFrameLoaderClient::createDocumentLoader(ResourceRequ
 
 void WebLocalFrameLoaderClient::updateCachedDocumentLoader(WebCore::DocumentLoader& loader)
 {
-    protect(m_frame->page())->updateCachedDocumentLoader(loader, protect(m_localFrame));
+    m_frame->page()->updateCachedDocumentLoader(loader, m_localFrame);
 }
 
 void WebLocalFrameLoaderClient::setTitle(const StringWithDirection& title, const URL& url)
@@ -1698,7 +1703,6 @@ void WebLocalFrameLoaderClient::transitionToCommittedForNewPage(InitializingIfra
     if (auto viewportSizeForViewportUnits = webPage->viewportSizeForCSSViewportUnits())
         view->setSizeForCSSDefaultViewportUnits(*viewportSizeForViewportUnits);
     view->setProhibitsScrolling(shouldDisableScrolling);
-    view->setVisualUpdatesAllowedByClient(!webPage->shouldExtendIncrementalRenderingSuppression());
 #if PLATFORM(COCOA)
     RefPtr drawingArea = webPage->drawingArea();
     view->setViewExposedRect(drawingArea->viewExposedRect());
@@ -2010,8 +2014,11 @@ void WebLocalFrameLoaderClient::getLoadDecisionForIcons(const Vector<std::pair<W
     if (!webPage)
         return;
 
+    HashMap<CallbackID, WebCore::LinkIcon> callbackIdIconMap;
     for (auto& icon : icons)
-        webPage->send(Messages::WebPageProxy::GetLoadDecisionForIcon(icon.first, CallbackID::fromInteger(icon.second)));
+        callbackIdIconMap.add(CallbackID::fromInteger(icon.second), icon.first);
+
+    webPage->send(Messages::WebPageProxy::GetLoadDecisionForIcons(WTF::move(callbackIdIconMap)));
 }
 
 void WebLocalFrameLoaderClient::didFinishServiceWorkerPageRegistration(bool success)
@@ -2058,18 +2065,6 @@ bool WebLocalFrameLoaderClient::isParentProcessAFullWebBrowser() const
     return page && page->isParentProcessAWebBrowser();
 }
 
-#if ENABLE(ARKIT_INLINE_PREVIEW_MAC)
-void WebLocalFrameLoaderClient::modelInlinePreviewUUIDs(CompletionHandler<void(Vector<String>)>&& completionHandler) const
-{
-    RefPtr webPage = m_frame->page();
-    if (!webPage) {
-        completionHandler({ });
-        return;
-    }
-
-    webPage->sendWithAsyncReply(Messages::WebPageProxy::ModelInlinePreviewUUIDs(), WTF::move(completionHandler));
-}
-#endif
 
 void WebLocalFrameLoaderClient::dispatchLoadEventToOwnerElementInAnotherProcess()
 {

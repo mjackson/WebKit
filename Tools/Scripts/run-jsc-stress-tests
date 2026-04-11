@@ -814,10 +814,10 @@ def frameworkFromJSCPath(jscPath)
         parentDirectory.dirname
     elsif $hostOS == "playstation"
         jscPath.dirname
-    elsif parentDirectory.basename.to_s =~ /^Debug/ or parentDirectory.basename.to_s =~ /^Release/ or (parentDirectory / "JavaScriptCore.framework").directory?
+    elsif parentDirectory.basename.to_s =~ /^Debug/ or parentDirectory.basename.to_s =~ /^Release/
         jscPath.dirname + "JavaScriptCore.framework"
     else
-        $stderr.puts "Warning: cannot identify JSC framework, doing generic VM copy.\n"
+        $stderr.puts "Warning: cannot identify JSC framework, doing generic VM copy."
         nil
     end
 end
@@ -878,6 +878,10 @@ def addRunCommandConfig(config, *additionalEnv)
             raise "Missing #{key} in #{config}"
         end
     }
+    kind = config[:kind]
+    if $skipModes.include?(kind.to_sym) or $skipModes.include?(kind.gsub('-', '_').to_sym)
+        return
+    end
     $didAddRunCommand = true
     name = baseOutputName(config[:kind])
     if $filter and name !~ $filter
@@ -1529,9 +1533,6 @@ BASE_MODES.each { |mode|
     configKinds.each { |configKind|
         methodName = "#{name}#{configKind.extension}".to_sym
         define_method(methodName) { |*args|
-            if not kind.nil? and $skipModes.include?(kind.to_sym)
-                return
-            end
             config = nil
             if configKind.expectConfig
                 # If we're defining a method that expects a config
@@ -1589,7 +1590,7 @@ def defaultRunConfig(config, subsetOptions, *optionalTestSpecificOptions)
         runDefaultConfig(config, *optionalTestSpecificOptions)
         runBytecodeCacheConfig(config, *optionalTestSpecificOptions)
         runMiniModeConfig(config, *optionalTestSpecificOptions) unless $skipMiniMode
-        runLockdownConfig(config, *optionalTestSpecificOptions) unless $skipLockdown or $skipModes.include?(:lockdown)
+        runLockdownConfig(config, *optionalTestSpecificOptions) unless $skipLockdown
         if $jitTests
             if not subsetOptions.has_key?(:skipNoLLInt)
                 runNoLLIntConfig(config, *optionalTestSpecificOptions)
@@ -1686,7 +1687,7 @@ def runProfiler
 
     profilerOutput = uniqueFilename(".json")
     if $canRunDisplayProfilerOutput
-        addRunCommand("profiler", ["ruby", (pathToHelpers + "profiler-test-helper").to_s, (SCRIPTS_PATH + "display-profiler-output").to_s, profilerOutput.to_s, *vmCommand, "--useConcurrentJIT=false", "-p", profilerOutput.to_s, $benchmark.to_s], silentOutputHandler, simpleErrorHandler)
+        addRunCommand("profiler", ["ruby", (pathToHelpers + "profiler-test-helper").to_s, (SCRIPTS_PATH + "display-profiler-output").to_s, profilerOutput.to_s, *vmCommand, "--useConcurrentJIT=false", "-p", profilerOutput.to_s, $benchmark.to_s], noisyOutputHandler, simpleErrorHandler)
     else
         puts "Running simple version of #{$collectionName}/#{$benchmark} because some required Ruby features are unavailable."
         run("profiler-simple", "--useConcurrentJIT=false", "-p", profilerOutput.to_s)
@@ -1848,7 +1849,7 @@ def runWebAssembly
         end
         if $isFTLPlatform
             run("wasm-simd", "-m", "--useWasmSIMD=1", "--forceAllFunctionsToUseSIMD=1", *FTL_OPTIONS) unless !$isSIMDPlatform
-            run("wasm-aggressive-inline", "-m", "--wasmInliningMaximumWasmCalleeSize=2147483647", "--wasmInliningBudget=100000", "--wasmInliningMaximumDepth=10", *(FTL_OPTIONS + EAGER_OPTIONS)) unless $skipModes.include?(:wasm_aggressive_inline)
+            run("wasm-aggressive-inline", "-m", "--wasmInliningMaximumWasmCalleeSize=2147483647", "--wasmInliningBudget=100000", "--wasmInliningMaximumDepth=10", *(FTL_OPTIONS + EAGER_OPTIONS))
             # FIXME: remove with rdar://144792585
             run("wasm-graph-reg-alloc", "-m", "--airUseGreedyRegAlloc=false", *FTL_OPTIONS)
         end
@@ -1881,7 +1882,7 @@ def runWebAssemblyJetStream2
         end
         if $isFTLPlatform
             run("wasm-simd", "--useWasmSIMD=1", "--forceAllFunctionsToUseSIMD=1", *FTL_OPTIONS) unless !$isSIMDPlatform
-            run("wasm-aggressive-inline", "--wasmInliningMaximumWasmCalleeSize=2147483647", "--wasmInliningBudget=100000", "--wasmInliningMaximumDepth=10", *(FTL_OPTIONS + EAGER_OPTIONS)) unless $skipModes.include?(:wasm_aggressive_inline)
+            run("wasm-aggressive-inline", "--wasmInliningMaximumWasmCalleeSize=2147483647", "--wasmInliningBudget=100000", "--wasmInliningMaximumDepth=10", *(FTL_OPTIONS + EAGER_OPTIONS))
             # FIXME: remove with rdar://144792585
             run("wasm-graph-reg-alloc", "--airUseGreedyRegAlloc=false", *FTL_OPTIONS)
         end
@@ -1913,15 +1914,15 @@ def runWebAssemblySuite(*optionalTestSpecificOptions)
         run("wasm-bbq", "--useWasmIPInt=false", *(FTL_OPTIONS + optionalTestSpecificOptions))
         run("wasm-bbq-no-consts", "--useWasmIPInt=false", "--disableBBQConsts=true", *(FTL_OPTIONS + optionalTestSpecificOptions))
         if $runJITlessWasm
-          run("wasm-no-jit", "--useJIT=false", *(FTL_OPTIONS + optionalTestSpecificOptions)) unless $skipModes.include?("wasm-no-jit".to_sym)
-          run("wasm-no-wasm-jit", "--useBBQJIT=false", "--useOMGJIT=false", *(FTL_OPTIONS + optionalTestSpecificOptions)) unless $skipModes.include?("wasm-no-wasm-jit".to_sym)
+          run("wasm-no-jit", "--useJIT=false", *(FTL_OPTIONS + optionalTestSpecificOptions))
+          run("wasm-no-wasm-jit", "--useBBQJIT=false", "--useOMGJIT=false", *(FTL_OPTIONS + optionalTestSpecificOptions))
         end
         if $isOMGPlatform
             run("wasm-omg", "--useWasmIPInt=true", "--useBBQJIT=true", "--thresholdForBBQOptimizeAfterWarmUp=0", "--thresholdForBBQOptimizeSoon=0", "--thresholdForOMGOptimizeAfterWarmUp=0", "--thresholdForOMGOptimizeSoon=0", *(FTL_OPTIONS + optionalTestSpecificOptions))
         end
         if $isFTLPlatform
             run("wasm-simd", "--useWasmSIMD=1", "--forceAllFunctionsToUseSIMD=1", *(FTL_OPTIONS + optionalTestSpecificOptions)) unless !$isSIMDPlatform
-            run("wasm-aggressive-inline", "--wasmInliningMaximumWasmCalleeSize=2147483647", "--wasmInliningBudget=100000", "--wasmInliningMaximumDepth=10", *(FTL_OPTIONS + EAGER_OPTIONS + optionalTestSpecificOptions)) unless $skipModes.include?(:wasm_aggressive_inline)
+            run("wasm-aggressive-inline", "--wasmInliningMaximumWasmCalleeSize=2147483647", "--wasmInliningBudget=100000", "--wasmInliningMaximumDepth=10", *(FTL_OPTIONS + EAGER_OPTIONS + optionalTestSpecificOptions))
             # FIXME: remove with rdar://144792585
             run("wasm-graph-reg-alloc", "--airUseGreedyRegAlloc=false", *(FTL_OPTIONS + optionalTestSpecificOptions))
         end
@@ -1946,15 +1947,15 @@ def runV8WebAssemblySuite(*optionalTestSpecificOptions)
         run("wasm-bbq", "--useWasmIPInt=false", *(FTL_OPTIONS + optionalTestSpecificOptions))
         run("wasm-bbq-no-consts", "--useWasmIPInt=false", "--disableBBQConsts=true", *(FTL_OPTIONS + optionalTestSpecificOptions))
         if $runJITlessWasm
-          run("wasm-no-jit", "--useJIT=false", *(FTL_OPTIONS + optionalTestSpecificOptions)) unless $skipModes.include?("wasm-no-jit".to_sym)
-          run("wasm-no-wasm-jit", "--useBBQJIT=false", "--useOMGJIT=false", *(FTL_OPTIONS + optionalTestSpecificOptions)) unless $skipModes.include?("wasm-no-wasm-jit".to_sym)
+          run("wasm-no-jit", "--useJIT=false", *(FTL_OPTIONS + optionalTestSpecificOptions))
+          run("wasm-no-wasm-jit", "--useBBQJIT=false", "--useOMGJIT=false", *(FTL_OPTIONS + optionalTestSpecificOptions))
         end
         if $isOMGPlatform
             run("wasm-omg", "--useWasmIPInt=true", "--useBBQJIT=true", "--thresholdForBBQOptimizeAfterWarmUp=0", "--thresholdForBBQOptimizeSoon=0", "--thresholdForOMGOptimizeAfterWarmUp=0", "--thresholdForOMGOptimizeSoon=0", *(FTL_OPTIONS + optionalTestSpecificOptions))
         end        
         if $isFTLPlatform
             run("wasm-simd", "--useWasmSIMD=1", "--forceAllFunctionsToUseSIMD=1", *(FTL_OPTIONS + optionalTestSpecificOptions)) unless !$isSIMDPlatform
-            run("wasm-aggressive-inline", "--wasmInliningMaximumWasmCalleeSize=2147483647", "--wasmInliningBudget=100000", "--wasmInliningMaximumDepth=10", *(FTL_OPTIONS + EAGER_OPTIONS + optionalTestSpecificOptions)) unless $skipModes.include?(:wasm_aggressive_inline)
+            run("wasm-aggressive-inline", "--wasmInliningMaximumWasmCalleeSize=2147483647", "--wasmInliningBudget=100000", "--wasmInliningMaximumDepth=10", *(FTL_OPTIONS + EAGER_OPTIONS + optionalTestSpecificOptions))
             # FIXME: remove with rdar://144792585
             run("wasm-graph-reg-alloc", "--airUseGreedyRegAlloc=false", *(FTL_OPTIONS + optionalTestSpecificOptions))
         end
@@ -1974,6 +1975,9 @@ end
 
 def runWasmHarnessTest(kind, *options)
     raise unless $isWasmPlatform
+    if $skipModes.include?(kind.to_sym) or $skipModes.include?(kind.gsub('-', '_').to_sym)
+        return
+    end
 
     wasmFiles = allWasmFiles($collection)
     wasmFiles.each {
@@ -2003,7 +2007,7 @@ def runWebAssemblyWithHarness(*optionalTestSpecificOptions)
         end
         if $isFTLPlatform
             runWasmHarnessTest("wasm-simd", "--useWasmSIMD=1", "--forceAllFunctionsToUseSIMD=1", *FTL_OPTIONS) unless !$isSIMDPlatform
-            runWasmHarnessTest("wasm-aggressive-inline", "--wasmInliningMaximumWasmCalleeSize=2147483647", "--wasmInliningBudget=100000", "--wasmInliningMaximumDepth=10", *(FTL_OPTIONS + EAGER_OPTIONS)) unless $skipModes.include?(:wasm_aggressive_inline)
+            runWasmHarnessTest("wasm-aggressive-inline", "--wasmInliningMaximumWasmCalleeSize=2147483647", "--wasmInliningBudget=100000", "--wasmInliningMaximumDepth=10", *(FTL_OPTIONS + EAGER_OPTIONS))
             # FIXME: remove with rdar://144792585
             runWasmHarnessTest("wasm-graph-reg-alloc", "--airUseGreedyRegAlloc=false", *(FTL_OPTIONS + optionalTestSpecificOptions))
         end
@@ -2025,15 +2029,15 @@ def runWebAssemblyEmscripten(mode)
         run("wasm-collect-continuously", "--collectContinuously=true", "--verifyGC=true", *FTL_OPTIONS) if shouldCollectContinuously?
         run("wasm-bbq", "--useWasmIPInt=false", *FTL_OPTIONS) # Doesn't actually depend on FTL, but we enable it on the same platforms for now.
         if $runJITlessWasm
-          run("wasm-no-jit", "--useJIT=false" *FTL_OPTIONS) unless $skipModes.include?("wasm-no-jit".to_sym)
-          run("wasm-no-wasm-jit", "--useBBQJIT=false", "--useOMGJIT=false" *FTL_OPTIONS) unless $skipModes.include?("wasm-no-wasm-jit".to_sym)
+          run("wasm-no-jit", "--useJIT=false" *FTL_OPTIONS)
+          run("wasm-no-wasm-jit", "--useBBQJIT=false", "--useOMGJIT=false" *FTL_OPTIONS)
         end
         if $isOMGPlatform
             run("wasm-omg", "--useWasmIPInt=true", "--useBBQJIT=false", *FTL_OPTIONS)
         end
         if $isFTLPlatform
             run("wasm-simd", "--useWasmSIMD=1", "--forceAllFunctionsToUseSIMD=1", *FTL_OPTIONS) unless !$isSIMDPlatform
-            run("wasm-aggressive-inline", "--wasmInliningMaximumWasmCalleeSize=2147483647", "--wasmInliningBudget=100000", "--wasmInliningMaximumDepth=10", *(FTL_OPTIONS + EAGER_OPTIONS)) unless $skipModes.include?(:wasm_aggressive_inline)
+            run("wasm-aggressive-inline", "--wasmInliningMaximumWasmCalleeSize=2147483647", "--wasmInliningBudget=100000", "--wasmInliningMaximumDepth=10", *(FTL_OPTIONS + EAGER_OPTIONS))
             # FIXME: remove with rdar://144792585
             run("wasm-graph-reg-alloc", "--airUseGreedyRegAlloc=false", *FTL_OPTIONS)
         end
@@ -2152,9 +2156,6 @@ def runLayoutTest(kind, *options)
         kind = "layout-" + kind
     else
         kind = "layout"
-    end
-    if $skipModes.include?(kind.to_sym)
-        return
     end
 
     prepareExtraRelativeFiles(["../#{testName}-expected.txt"], $benchmarkDirectory)

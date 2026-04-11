@@ -45,7 +45,7 @@ inline const Font& FontCascade::primaryFont() const
     if (m_fonts->cachedPrimaryFont())
         return *m_fonts->cachedPrimaryFont();
     WeakRef font = protect(m_fonts)->primaryFont(m_fontDescription, protect(fontSelector()).get());
-    m_fontDescription.resolveFontSizeAdjustFromFontIfNeeded(protect(font));
+    m_fontDescription.resolveFontSizeAdjustFromFontIfNeeded(font);
     return font;
 }
 

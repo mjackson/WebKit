@@ -642,6 +642,8 @@ void MediaSessionManagerInterface::addSession(PlatformMediaSessionInterface& ses
 #if ENABLE(VIDEO) || ENABLE(WEB_AUDIO)
     if (m_currentInterruption)
         session.beginInterruption(*m_currentInterruption);
+#else
+    UNUSED_PARAM(session);
 #endif
 
     scheduleUpdateSessionState();

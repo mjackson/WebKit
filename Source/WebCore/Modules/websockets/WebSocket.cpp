@@ -188,7 +188,7 @@ ExceptionOr<Ref<WebSocket>> WebSocket::create(ScriptExecutionContext& context, c
 
 ExceptionOr<Ref<WebSocket>> WebSocket::create(ScriptExecutionContext& context, const String& url, const String& protocol)
 {
-    return create(context, url, Vector<String> { 1, protocol });
+    return create(context, url, Vector<String> { FillWith { }, 1, protocol });
 }
 
 HashSet<CheckedPtr<WebSocket>>& WebSocket::allActiveWebSockets()
@@ -209,7 +209,7 @@ ExceptionOr<void> WebSocket::connect(const String& url)
 
 ExceptionOr<void> WebSocket::connect(const String& url, const String& protocol)
 {
-    return connect(url, Vector<String> { 1, protocol });
+    return connect(url, Vector<String> { FillWith { }, 1, protocol });
 }
 
 void WebSocket::failAsynchronously()

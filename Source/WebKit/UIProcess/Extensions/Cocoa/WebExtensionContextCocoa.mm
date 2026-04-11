@@ -814,7 +814,7 @@ Ref<WebExtensionWindow> WebExtensionContext::getOrCreateWindow(WKWebExtensionWin
 {
     ASSERT(delegate);
 
-    for (Ref window : m_windowMap.values()) {
+    for (auto& window : m_windowMap.values()) {
         if (window->delegate() == delegate)
             return window;
     }
@@ -1003,8 +1003,7 @@ RefPtr<WebExtensionTab> WebExtensionContext::getCurrentTab(WebPageProxyIdentifie
 
     // Search open inspectors.
     for (auto [inspector, tab] : openInspectors()) {
-        Ref protectedInspector = inspector;
-        if (protectedInspector->inspectorPage()->identifier() == webPageProxyIdentifier) {
+        if (inspector->inspectorPage()->identifier() == webPageProxyIdentifier) {
             if (includeExtensionViews == IncludeExtensionViews::No)
                 return nullptr;
 
@@ -2367,6 +2366,12 @@ WKWebViewConfiguration *WebExtensionContext::webViewConfiguration(WebViewPurpose
         preferences._hiddenPageDOMTimerThrottlingEnabled = NO;
         preferences._pageVisibilityBasedProcessSuppressionEnabled = NO;
         preferences.inactiveSchedulingPolicy = WKInactiveSchedulingPolicyNone;
+    }
+
+    if (purpose == WebViewPurpose::Inspector) {
+        // Match the Web Inspector's own AllowAll policy (see WKInspectorViewController.mm) so that
+        // the extension inspector background page shares the same process as the inspector web view.
+        preferences._storageBlockingPolicy = _WKStorageBlockingPolicyAllowAll;
     }
 
     return configuration;

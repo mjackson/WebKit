@@ -320,7 +320,7 @@ Expected<PageCount, GrowFailReason> Memory::grow(VM& vm, PageCount delta)
             for (Ref anchor : m_handle->anchors(locker)) {
                 Locker locker { anchor->m_lock };
                 if (JSWebAssemblyInstance* instance = anchor->instance())
-                    instance->updateCachedMemory();
+                    instance->updateCachedMemories();
             }
         }
         m_growSuccessCallback(GrowSuccessTag, oldPageCount, newPageCount);

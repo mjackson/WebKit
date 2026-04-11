@@ -473,8 +473,8 @@ bool Graph::terminalsAreValid()
     return true;
 }
 
-static BasicBlock* unboxLoopNode(const CPSCFG::Node& node) { return node.node(); }
-static BasicBlock* unboxLoopNode(BasicBlock* block) { return block; }
+static BasicBlock* NODELETE unboxLoopNode(const CPSCFG::Node& node) { return node.node(); }
+static BasicBlock* NODELETE unboxLoopNode(BasicBlock* block) { return block; }
 
 void Graph::dumpBlockHeader(PrintStream& out, const char* prefixStr, BasicBlock* block, PhiNodeDumpMode phiNodeDumpMode, DumpContext* context)
 {
@@ -2025,7 +2025,7 @@ bool Graph::canDoFastSpread(Node* node, const AbstractValue& value)
     ArrayPrototype* arrayPrototype = globalObject->arrayPrototype();
     bool allGood = true;
     value.m_structure.forEach([&] (RegisteredStructure structure) {
-        allGood &= structure->globalObject() == globalObject 
+        allGood &= structure->realm() == globalObject 
             && structure->hasMonoProto()
             && structure->storedPrototype() == arrayPrototype
             && !structure->isDictionary()

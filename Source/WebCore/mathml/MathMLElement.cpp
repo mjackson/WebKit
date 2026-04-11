@@ -34,6 +34,7 @@
 #include "ContainerNodeInlines.h"
 #include "ElementInlines.h"
 #include "EventHandler.h"
+#include "FrameDestructionObserverInlines.h"
 #include "FrameLoader.h"
 #include "HTMLAnchorElement.h"
 #include "HTMLElement.h"
@@ -44,6 +45,7 @@
 #include "MathMLNames.h"
 #include "MouseEvent.h"
 #include "NodeName.h"
+#include "RenderStyle+GettersInlines.h"
 #include "RenderTableCell.h"
 #include "Settings.h"
 #include <wtf/TZoneMallocInlines.h>

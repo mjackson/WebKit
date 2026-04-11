@@ -32,13 +32,12 @@
 #include "ReadableStream.h"
 #include "ReadableStreamBYOBRequest.h"
 #include <JavaScriptCore/ArrayBuffer.h>
+#include <JavaScriptCore/HeapCellInlines.h>
 #include <wtf/StdLibExtras.h>
 
 namespace WebCore {
 
-DatagramByteSource::DatagramByteSource()
-{
-}
+DatagramByteSource::DatagramByteSource() = default;
 
 DatagramByteSource::~DatagramByteSource() = default;
 

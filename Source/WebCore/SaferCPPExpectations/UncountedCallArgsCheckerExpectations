@@ -15,7 +15,6 @@ Modules/mediastream/RTCRtpSFrameTransform.cpp
 Modules/mediastream/RTCRtpSender.cpp
 Modules/mediastream/RTCRtpTransform.cpp
 Modules/mediastream/libwebrtc/LibWebRTCObservers.h
-[ Mac ] Modules/model-element/scenekit/SceneKitModelPlayer.mm
 Modules/notifications/NotificationResourcesLoader.cpp
 Modules/pictureinpicture/HTMLVideoElementPictureInPicture.cpp
 Modules/push-api/PushManager.cpp
@@ -66,12 +65,12 @@ accessibility/AccessibilityObject.h
 accessibility/AccessibilityRenderObject.cpp
 accessibility/AccessibilitySlider.cpp
 accessibility/AccessibilityTableHeaderContainer.cpp
+[ iOS ] accessibility/cocoa/WebAccessibilityObjectWrapperBase.mm
 [ iOS ] accessibility/ios/AXObjectCacheIOS.mm
 [ iOS ] accessibility/ios/AccessibilityObjectIOS.mm
 [ iOS ] accessibility/ios/WebAccessibilityObjectWrapperIOS.mm
 [ Mac ] accessibility/isolatedtree/AXIsolatedTree.cpp
 [ Mac ] accessibility/mac/AccessibilityObjectMac.mm
-[ iOS ] accessibility/mac/WebAccessibilityObjectWrapperBase.mm
 animation/BlendingKeyframes.cpp
 animation/DocumentTimeline.cpp
 animation/KeyframeEffect.cpp
@@ -87,7 +86,6 @@ bindings/js/JSCSSRuleCustom.h
 bindings/js/JSCanvasRenderingContext2DCustom.cpp
 bindings/js/JSCustomElementInterface.cpp
 bindings/js/JSDOMBindingSecurity.cpp
-bindings/js/JSDOMBindingSecurity.h
 bindings/js/JSDOMBindingSecurityInlines.h
 bindings/js/JSDOMConvertBase.h
 bindings/js/JSDOMConvertCallbacks.h
@@ -186,7 +184,6 @@ css/StyleRuleImport.h
 css/StyleSheetContents.cpp
 css/typedom/DeclaredStylePropertyMap.cpp
 css/typedom/InlineStylePropertyMap.cpp
-css/typedom/numeric/CSSMathInvert.cpp
 css/typedom/numeric/CSSMathMax.cpp
 css/typedom/numeric/CSSMathMin.cpp
 css/typedom/numeric/CSSMathValue.h
@@ -309,7 +306,6 @@ html/canvas/CanvasRenderingContext.cpp
 html/canvas/CanvasRenderingContext2D.cpp
 html/canvas/CanvasRenderingContext2DBase.cpp
 html/canvas/CanvasStyle.cpp
-html/canvas/EXTDisjointTimerQuery.cpp
 html/canvas/GPUCanvasContextCocoa.mm
 html/canvas/OffscreenCanvasRenderingContext2D.cpp
 html/canvas/PlaceholderRenderingContext.cpp
@@ -352,7 +348,6 @@ inspector/agents/InspectorTimelineAgent.cpp
 inspector/agents/InspectorWorkerAgent.cpp
 inspector/agents/page/PageCanvasAgent.cpp
 inspector/agents/page/PageConsoleAgent.cpp
-inspector/agents/page/PageDOMDebuggerAgent.cpp
 inspector/agents/page/PageNetworkAgent.cpp
 inspector/agents/page/PageRuntimeAgent.cpp
 inspector/agents/worker/ServiceWorkerAgent.cpp
@@ -443,7 +438,6 @@ page/scrolling/AsyncScrollingCoordinator.cpp
 [ Mac ] page/scrolling/AsyncScrollingCoordinator.h
 page/scrolling/ScrollAnchoringController.cpp
 page/scrolling/ScrollSnapOffsetsInfo.cpp
-page/scrolling/ScrollingCoordinator.cpp
 [ Mac ] page/scrolling/ThreadedScrollingCoordinator.cpp
 [ Mac ] page/scrolling/mac/ScrollingCoordinatorMac.mm
 page/text-extraction/TextExtraction.cpp
@@ -499,8 +493,7 @@ platform/graphics/controls/SearchFieldPart.h
 platform/graphics/controls/SearchFieldResultsPart.h
 platform/graphics/controls/SliderThumbPart.h
 platform/graphics/controls/SliderTrackPart.cpp
-platform/graphics/controls/SwitchThumbPart.h
-platform/graphics/controls/SwitchTrackPart.h
+platform/graphics/controls/SwitchPart.h
 platform/graphics/controls/TextAreaPart.h
 platform/graphics/controls/TextFieldPart.h
 platform/graphics/controls/ToggleButtonPart.h
@@ -517,19 +510,18 @@ platform/graphics/transforms/TransformOperationsSharedPrimitivesPrefix.h
 [ iOS ] platform/ios/LegacyTileGrid.mm
 [ iOS ] platform/ios/PlatformPasteboardIOS.mm
 [ iOS ] platform/ios/PlatformScreenIOS.mm
-[ iOS ] platform/ios/VideoPresentationInterfaceIOS.mm
 [ iOS ] platform/ios/WebVideoFullscreenControllerAVKit.mm
 [ iOS ] platform/ios/wak/WAKWindow.mm
 platform/mediastream/RealtimeOutgoingAudioSource.cpp
 platform/mediastream/RealtimeOutgoingAudioSource.h
 platform/mediastream/RealtimeOutgoingVideoSource.cpp
+platform/mediastream/cocoa/CoreAudioCaptureSource.cpp
+[ iOS ] platform/mediastream/cocoa/CoreAudioCaptureUnit.cpp
 platform/mediastream/cocoa/IncomingAudioMediaStreamTrackRendererUnit.cpp
+platform/mediastream/cocoa/MediaStreamTrackAudioSourceProviderCocoa.cpp
+platform/mediastream/cocoa/RealtimeOutgoingAudioSourceCocoa.cpp
+platform/mediastream/cocoa/WebAudioSourceProviderCocoa.mm
 [ iOS ] platform/mediastream/ios/CoreAudioCaptureSourceIOS.mm
-platform/mediastream/mac/CoreAudioCaptureSource.cpp
-[ iOS ] platform/mediastream/mac/CoreAudioCaptureUnit.cpp
-platform/mediastream/mac/MediaStreamTrackAudioSourceProviderCocoa.cpp
-platform/mediastream/mac/RealtimeOutgoingAudioSourceCocoa.cpp
-platform/mediastream/mac/WebAudioSourceProviderCocoa.mm
 platform/mock/MockRealtimeVideoSource.cpp
 platform/network/cocoa/ResourceHandleCocoa.mm
 platform/network/cocoa/WebCoreResourceHandleAsOperationQueueDelegate.mm
@@ -635,7 +627,6 @@ rendering/svg/legacy/SVGResources.cpp
 rendering/svg/legacy/SVGResourcesCache.cpp
 rendering/updating/RenderTreeBuilder.cpp
 rendering/updating/RenderTreeBuilderFirstLetter.cpp
-rendering/updating/RenderTreeBuilderInline.cpp
 rendering/updating/RenderTreeBuilderMathML.cpp
 rendering/updating/RenderTreeBuilderMultiColumn.cpp
 rendering/updating/RenderTreeBuilderRuby.cpp
@@ -705,7 +696,6 @@ svg/SVGFontFaceUriElement.cpp
 svg/SVGGlyphRefElement.cpp
 svg/SVGGradientElement.cpp
 svg/SVGGraphicsElement.cpp
-svg/SVGGraphicsElement.h
 svg/SVGImageElement.cpp
 svg/SVGLengthContext.cpp
 svg/SVGLinearGradientElement.cpp

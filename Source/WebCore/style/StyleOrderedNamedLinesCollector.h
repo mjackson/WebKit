@@ -52,12 +52,12 @@ public:
 
     bool isEmpty() const { return m_orderedNamedGridLines.map.isEmpty() && m_orderedNamedAutoRepeatGridLines.map.isEmpty(); }
 
-    virtual void collectLineNamesForIndex(Vector<String>&, unsigned index) const = 0;
+    virtual void collectLineNamesForIndex(Vector<Style::CustomIdent>&, unsigned index) const = 0;
     virtual int namedGridLineCount() const { return m_orderedNamedGridLines.map.size(); }
 
 protected:
     enum class NamedLinesType : bool { NamedLines, AutoRepeatNamedLines };
-    void appendLines(Vector<String>&, unsigned index, NamedLinesType) const;
+    void appendLines(Vector<Style::CustomIdent>&, unsigned index, NamedLinesType) const;
 
     const GridOrderedNamedLinesMap& m_orderedNamedGridLines;
     const GridOrderedNamedLinesMap& m_orderedNamedAutoRepeatGridLines;
@@ -73,7 +73,7 @@ public:
     {
     }
 
-    void collectLineNamesForIndex(Vector<String>&, unsigned index) const override;
+    void collectLineNamesForIndex(Vector<Style::CustomIdent>&, unsigned index) const override;
 
 private:
     unsigned m_insertionPoint { 0 };
@@ -102,7 +102,7 @@ public:
         m_autoRepeatTotalLineSets *= m_autoRepeatLineSetListLength;
     }
 
-    void collectLineNamesForIndex(Vector<String>&, unsigned index) const override;
+    void collectLineNamesForIndex(Vector<Style::CustomIdent>&, unsigned index) const override;
     int namedGridLineCount() const override { return m_totalLines; }
 
 private:
@@ -112,7 +112,7 @@ private:
     unsigned m_totalLines { 0 };
 };
 
-inline void OrderedNamedLinesCollector::appendLines(Vector<String>& lineNames, unsigned index, NamedLinesType type) const
+inline void OrderedNamedLinesCollector::appendLines(Vector<Style::CustomIdent>& lineNames, unsigned index, NamedLinesType type) const
 {
     auto& map = (type == NamedLinesType::NamedLines ? m_orderedNamedGridLines : m_orderedNamedAutoRepeatGridLines).map;
     auto it = map.find(index);
@@ -122,7 +122,7 @@ inline void OrderedNamedLinesCollector::appendLines(Vector<String>& lineNames, u
         lineNames.append(name);
 }
 
-inline void OrderedNamedLinesCollectorInGridLayout::collectLineNamesForIndex(Vector<String>& lineNamesValue, unsigned i) const
+inline void OrderedNamedLinesCollectorInGridLayout::collectLineNamesForIndex(Vector<Style::CustomIdent>& lineNamesValue, unsigned i) const
 {
     ASSERT(!isEmpty());
     if (!m_autoRepeatTrackListLength || i < m_insertionPoint) {
@@ -155,7 +155,7 @@ inline void OrderedNamedLinesCollectorInGridLayout::collectLineNamesForIndex(Vec
     appendLines(lineNamesValue, autoRepeatIndexInFirstRepetition, NamedLinesType::AutoRepeatNamedLines);
 }
 
-inline void OrderedNamedLinesCollectorInSubgridLayout::collectLineNamesForIndex(Vector<String>& lineNamesValue, unsigned i) const
+inline void OrderedNamedLinesCollectorInSubgridLayout::collectLineNamesForIndex(Vector<Style::CustomIdent>& lineNamesValue, unsigned i) const
 {
     if (!m_autoRepeatLineSetListLength || i < m_insertionPoint) {
         appendLines(lineNamesValue, i, NamedLinesType::NamedLines);

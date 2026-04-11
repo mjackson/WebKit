@@ -72,7 +72,7 @@ public:
     WebBackForwardListItem* NODELETE currentItem() const;
     WebBackForwardListItem* NODELETE backItem() const;
     WebBackForwardListItem* NODELETE forwardItem() const;
-    WebBackForwardListItem* NODELETE itemAtIndex(int) const;
+    RefPtr<WebBackForwardListItem> itemAtDeltaFromCurrentIndex(int) const;
 
     RefPtr<WebBackForwardListItem> goBackItemSkippingItemsWithoutUserGesture() const;
     RefPtr<WebBackForwardListItem> goForwardItemSkippingItemsWithoutUserGesture() const;
@@ -104,6 +104,10 @@ public:
 
 private:
     explicit WebBackForwardList(WebPageProxy&);
+
+    enum class NavigationDirection { Backward, Forward };
+    std::pair<RefPtr<WebBackForwardListItem>, size_t> itemStartingAtIndexSkippingItemsAddedByJSWithoutUserGesture(NavigationDirection, size_t startingIndex) const;
+    std::pair<RefPtr<WebBackForwardListItem>, size_t> itemAtIndexWithoutSkipping(size_t) const;
 
     void addItem(Ref<WebBackForwardListItem>&&);
     void addChildItem(WebCore::FrameIdentifier, Ref<FrameState>&&);
@@ -153,7 +157,7 @@ public:
     void clear();
 
     WebBackForwardListItem* WTF_NULLABLE currentItem() const;
-    WebBackForwardListItem* WTF_NULLABLE itemAtIndex(int) const;
+    RefPtr<WebBackForwardListItem> itemAtDeltaFromCurrentIndex(int) const;
     WebBackForwardListItem* WTF_NULLABLE backItem() const;
     WebBackForwardListItem* WTF_NULLABLE forwardItem() const;
 

@@ -26,57 +26,48 @@
 #include "config.h"
 #include "CSSGridLineValue.h"
 
-#include <wtf/Vector.h>
+#include "CSSPrimitiveNumericTypes+Serialization.h"
 #include <wtf/text/StringBuilder.h>
-#include <wtf/text/WTFString.h>
 
 namespace WebCore {
 
-String CSSGridLineValue::customCSSText(const CSS::SerializationContext& context) const
-{
-    Vector<String> parts;
-    if (m_spanValue)
-        parts.append(m_spanValue->cssText(context));
-    // Only return the numeric value if not 1, or if it provided without a span value.
-    // https://drafts.csswg.org/css-grid-2/#grid-placement-span-int
-    if (m_numericValue) {
-        if (m_numericValue->isOne() != true || !m_spanValue || !m_gridLineName)
-            parts.append(m_numericValue->cssText(context));
-    }
-    if (m_gridLineName)
-        parts.append(m_gridLineName->cssText(context));
-    return makeStringByJoining(parts, " "_s);
-}
-
-CSSGridLineValue::CSSGridLineValue(RefPtr<CSSPrimitiveValue>&& spanValue, RefPtr<CSSPrimitiveValue>&& numericValue, RefPtr<CSSPrimitiveValue>&& gridLineName)
+CSSGridLineValue::CSSGridLineValue(std::optional<CSS::Keyword::Span> span, std::optional<CSS::Integer<>>&& numeric, std::optional<CSS::CustomIdent>&& gridLineName)
     : CSSValue(ClassType::GridLineValue)
-    , m_spanValue(WTF::move(spanValue))
-    , m_numericValue(WTF::move(numericValue))
+    , m_span(span)
+    , m_numeric(WTF::move(numeric))
     , m_gridLineName(WTF::move(gridLineName))
 {
 }
 
-Ref<CSSGridLineValue> CSSGridLineValue::create(RefPtr<CSSPrimitiveValue>&& spanValue, RefPtr<CSSPrimitiveValue>&& numericValue, RefPtr<CSSPrimitiveValue>&& gridLineName)
+Ref<CSSGridLineValue> CSSGridLineValue::create(std::optional<CSS::Keyword::Span> span, std::optional<CSS::Integer<>>&& numeric, std::optional<CSS::CustomIdent>&& gridLineName)
 {
-    return adoptRef(*new CSSGridLineValue(WTF::move(spanValue), WTF::move(numericValue), WTF::move(gridLineName)));
+    return adoptRef(*new CSSGridLineValue(span, WTF::move(numeric), WTF::move(gridLineName)));
 }
 
 bool CSSGridLineValue::equals(const CSSGridLineValue& other) const
 {
-    auto equals = [](CSSPrimitiveValue* value, CSSPrimitiveValue* otherValue) {
-        if ((!value && otherValue) || (value && !otherValue))
-            return false;
-        return (!value && !otherValue) || value->equals(*otherValue);
-    };
-
-    if (!equals(protect(spanValue()).get(), protect(other.spanValue()).get()))
+    if (m_span != other.m_span)
         return false;
-    if (!equals(protect(numericValue()).get(), protect(other.numericValue()).get()))
+    if (m_numeric != other.m_numeric)
         return false;
-    if (!equals(protect(gridLineName()).get(), protect(other.gridLineName()).get()))
+    if (m_gridLineName != other.m_gridLineName)
         return false;
-
     return true;
+}
+
+String CSSGridLineValue::customCSSText(const CSS::SerializationContext& context) const
+{
+    using SerializationType = SpaceSeparatedTuple<
+        std::optional<CSS::Keyword::Span>,
+        std::optional<CSS::Integer<>>,
+        std::optional<CSS::CustomIdent>
+    >;
+
+    return CSS::serializationForCSS(context, SerializationType {
+        m_span,
+        m_numeric && (m_numeric->raw() != 1 || !m_span || !m_gridLineName) ? m_numeric : std::nullopt,
+        m_gridLineName
+    });
 }
 
 } // namespace WebCore

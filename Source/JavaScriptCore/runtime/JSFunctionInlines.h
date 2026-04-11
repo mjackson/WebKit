@@ -244,7 +244,7 @@ inline bool JSFunction::canUseAllocationProfiles()
         if (isHostFunction())
             return false;
 
-        VM& vm = globalObject()->vm();
+        VM& vm = this->vm();
         unsigned attributes;
         JSValue prototype = getDirect(vm, vm.propertyNames->prototype, attributes);
         if (!prototype || (attributes & PropertyAttribute::AccessorOrCustomAccessorOrValue))

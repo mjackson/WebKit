@@ -1051,7 +1051,7 @@ public:
     void overrideConstructorKindForTopLevelFunctionExpressions(ConstructorKind constructorKind) { m_constructorKindForTopLevelFunctionExpressions = constructorKind; }
 
     JSTextPosition positionBeforeLastNewline() const { return m_lexer->positionBeforeLastNewline(); }
-    JSTokenLocation locationBeforeLastToken() const { return m_lexer->lastTokenLocation(); }
+    JSTokenLocation locationBeforeLastToken() const { return m_lastTokenLocation; }
 
     struct CallOrApplyDepthScope {
         CallOrApplyDepthScope(Parser* parser)
@@ -1267,6 +1267,19 @@ private:
             scope = scope->containingScope();
         }
         // When reaching the top level scope (it can be non ordinary function scope), we return it.
+        return scope;
+    }
+
+    // Walk to the closest scope that has its own `arguments` binding (or the top-level
+    // scope). Arrow functions and lexical scopes are transparent for `arguments`.
+    Scope* closestScopeOwningArguments()
+    {
+        Scope* scope = currentScope();
+        while (scope->containingScope()) {
+            if (scope->isFunctionBoundary() && !scope->isArrowFunctionBoundary())
+                break;
+            scope = scope->containingScope();
+        }
         return scope;
     }
 
@@ -1494,9 +1507,10 @@ private:
     struct LexerState {
         int startOffset;
         unsigned oldLineStartOffset;
-        unsigned oldLastLineNumber;
+        JSTokenLocation lastTokenLocation;
         unsigned oldLineNumber;
         bool hasLineTerminatorBeforeToken;
+        JSTokenType lastTokenType;
     };
 
     struct SavePoint {
@@ -1516,31 +1530,22 @@ private:
 
     ALWAYS_INLINE void next(OptionSet<LexerFlags> lexerFlags = { })
     {
-        int lastLine = m_token.m_startPosition.line;
-        int lastTokenEnd = m_token.m_endPosition.offset;
-        int lastTokenLineStart = m_token.m_startPosition.lineStartOffset;
-        m_lastTokenEndPosition = JSTextPosition(lastLine, lastTokenEnd, lastTokenLineStart);
-        m_lexer->setLastLineNumber(lastLine);
+        m_lastTokenLocation = m_token.location();
+        m_lastTokenType = m_token.m_type;
         m_token.m_type = m_lexer->lex(&m_token, lexerFlags, strictMode());
     }
 
     ALWAYS_INLINE void nextWithoutClearingLineTerminator(OptionSet<LexerFlags> lexerFlags = { })
     {
-        int lastLine = m_token.m_startPosition.line;
-        int lastTokenEnd = m_token.m_endPosition.offset;
-        int lastTokenLineStart = m_token.m_startPosition.lineStartOffset;
-        m_lastTokenEndPosition = JSTextPosition(lastLine, lastTokenEnd, lastTokenLineStart);
-        m_lexer->setLastLineNumber(lastLine);
+        m_lastTokenLocation = m_token.location();
+        m_lastTokenType = m_token.m_type;
         m_token.m_type = m_lexer->lexWithoutClearingLineTerminator(&m_token, lexerFlags, strictMode());
     }
 
     ALWAYS_INLINE void nextExpectIdentifier(OptionSet<LexerFlags> lexerFlags = { })
     {
-        int lastLine = m_token.m_startPosition.line;
-        int lastTokenEnd = m_token.m_endPosition.offset;
-        int lastTokenLineStart = m_token.m_startPosition.lineStartOffset;
-        m_lastTokenEndPosition = JSTextPosition(lastLine, lastTokenEnd, lastTokenLineStart);
-        m_lexer->setLastLineNumber(lastLine);
+        m_lastTokenLocation = m_token.location();
+        m_lastTokenType = m_token.m_type;
         m_token.m_type = m_lexer->lexExpectIdentifier(&m_token, lexerFlags, strictMode());
     }
 
@@ -1849,9 +1854,9 @@ private:
         return m_vm.isSafeToRecurse();
     }
     
-    const JSTextPosition& lastTokenEndPosition() const
+    JSTextPosition lastTokenEndPosition() const
     {
-        return m_lastTokenEndPosition;
+        return JSTextPosition(m_lastTokenLocation.line, m_lastTokenLocation.endOffset, m_lastTokenLocation.lineStartOffset);
     }
 
     bool hasError() const
@@ -1988,9 +1993,14 @@ private:
         LexerState result;
         result.startOffset = m_token.m_startPosition.offset;
         result.oldLineStartOffset = m_token.m_startPosition.lineStartOffset;
-        result.oldLastLineNumber = m_lexer->lastLineNumber();
-        result.oldLineNumber = m_lexer->lineNumber();
+        result.lastTokenLocation = m_lastTokenLocation;
+        result.oldLineNumber = m_token.m_startPosition.line;
+        // Why is this reading from Lexer fine while we are re-lexing the same token?
+        // This is because this flag is updated and indicating whether we have a line
+        // terminator before the lexed token, and based on that, we already moved startOffset.
+        // So getting this flag and setting it before lexing this token is right.
         result.hasLineTerminatorBeforeToken = m_lexer->hasLineTerminatorBeforeToken();
+        result.lastTokenType = m_lastTokenType;
         ASSERT(static_cast<unsigned>(result.startOffset) >= result.oldLineStartOffset);
         return result;
     }
@@ -2001,8 +2011,13 @@ private:
         m_lexer->setOffset(lexerState.startOffset, lexerState.oldLineStartOffset);
         m_lexer->setLineNumber(lexerState.oldLineNumber);
         m_lexer->setHasLineTerminatorBeforeToken(lexerState.hasLineTerminatorBeforeToken);
+        m_lastTokenType = lexerState.lastTokenType;
+        m_token.m_type = lexerState.lastTokenType;
+        m_token.m_startPosition.line = lexerState.lastTokenLocation.line;
+        m_token.m_startPosition.offset = lexerState.lastTokenLocation.startOffset;
+        m_token.m_startPosition.lineStartOffset = lexerState.lastTokenLocation.lineStartOffset;
+        m_token.m_endPosition.offset = lexerState.lastTokenLocation.endOffset;
         nextWithoutClearingLineTerminator();
-        m_lexer->setLastLineNumber(lexerState.oldLastLineNumber);
     }
 
     template <class TreeBuilder>
@@ -2061,7 +2076,8 @@ private:
     // Cache line 0 (hot)
     VM& m_vm;
     Scope* m_currentScope { nullptr };
-    JSTextPosition m_lastTokenEndPosition;
+    JSTokenLocation m_lastTokenLocation;
+    JSTokenType m_lastTokenType { ERRORTOK };
     bool m_allowsIn;
     bool m_immediateParentAllowsFunctionDeclarationInStatement;
     SourceParseMode m_parseMode;

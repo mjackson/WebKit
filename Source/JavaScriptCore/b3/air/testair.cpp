@@ -434,7 +434,7 @@ void testShuffleBroadcastAllRegs()
     for (unsigned i = 0; i < regs.size(); ++i)
         root->append(Move32, nullptr, Tmp(regs[i]), Arg::stack(slot, static_cast<int32_t>(i * sizeof(int32_t))));
 
-    Vector<int32_t> things(regs.size(), 666);
+    Vector<int32_t> things(FillWith { }, regs.size(), 666);
     Tmp base = code.newTmp(GP);
     root->append(Move, nullptr, Arg::bigImm(std::bit_cast<intptr_t>(&things[0])), base);
     for (unsigned i = 0; i < regs.size(); ++i) {
@@ -967,7 +967,7 @@ void testShuffleShiftAllRegs()
     for (unsigned i = 0; i < regs.size(); ++i)
         root->append(Move32, nullptr, Tmp(regs[i]), Arg::stack(slot, static_cast<int32_t>(i * sizeof(int32_t))));
 
-    Vector<int32_t> things(regs.size(), 666);
+    Vector<int32_t> things(FillWith { }, regs.size(), 666);
     Tmp base = code.newTmp(GP);
     root->append(Move, nullptr, Arg::bigImm(std::bit_cast<intptr_t>(&things[0])), base);
     for (unsigned i = 0; i < regs.size(); ++i) {
@@ -1004,7 +1004,7 @@ void testShuffleRotateAllRegs()
     for (unsigned i = 0; i < regs.size(); ++i)
         root->append(Move32, nullptr, Tmp(regs[i]), Arg::stack(slot, static_cast<int32_t>(i * sizeof(int32_t))));
 
-    Vector<int32_t> things(regs.size(), 666);
+    Vector<int32_t> things(FillWith { }, regs.size(), 666);
     Tmp base = code.newTmp(GP);
     root->append(Move, nullptr, Arg::bigImm(std::bit_cast<intptr_t>(&things[0])), base);
     for (unsigned i = 0; i < regs.size(); ++i) {
@@ -1288,7 +1288,7 @@ void testShuffleShiftMemoryAllRegs()
     for (unsigned i = 2; i < regs.size(); ++i)
         shuffle.append(Tmp(regs[i - 1]), Tmp(regs[i]), Arg::widthArg(Width32));
 
-    Vector<int32_t> things(regs.size(), 666);
+    Vector<int32_t> things(FillWith { }, regs.size(), 666);
     root->append(Move, nullptr, Arg::bigImm(std::bit_cast<intptr_t>(&things[0])), Tmp(GPRInfo::regT0));
     for (unsigned i = 0; i < regs.size(); ++i) {
         root->append(
@@ -1340,7 +1340,7 @@ void testShuffleShiftMemoryAllRegs64()
     for (unsigned i = 2; i < regs.size(); ++i)
         shuffle.append(Tmp(regs[i - 1]), Tmp(regs[i]), Arg::widthArg(Width64));
 
-    Vector<int64_t> things(regs.size(), 666);
+    Vector<int64_t> things(FillWith { }, regs.size(), 666);
     root->append(Move, nullptr, Arg::bigImm(std::bit_cast<intptr_t>(&things[0])), Tmp(GPRInfo::regT0));
     for (unsigned i = 0; i < regs.size(); ++i) {
         root->append(
@@ -1404,7 +1404,7 @@ void testShuffleShiftMemoryAllRegsMixedWidth()
             (i & 1) ? Arg::widthArg(Width32) : Arg::widthArg(Width64));
     }
 
-    Vector<int64_t> things(regs.size(), 666);
+    Vector<int64_t> things(FillWith { }, regs.size(), 666);
     root->append(Move, nullptr, Arg::bigImm(std::bit_cast<intptr_t>(&things[0])), Tmp(GPRInfo::regT0));
     for (unsigned i = 0; i < regs.size(); ++i) {
         root->append(
@@ -1597,7 +1597,7 @@ void testShuffleRotateMemoryAllRegs64()
     for (unsigned i = 2; i < regs.size(); ++i)
         shuffle.append(Tmp(regs[i - 1]), Tmp(regs[i]), Arg::widthArg(Width64));
 
-    Vector<int64_t> things(regs.size(), 666);
+    Vector<int64_t> things(FillWith { }, regs.size(), 666);
     root->append(Move, nullptr, Arg::bigImm(std::bit_cast<intptr_t>(&things[0])), Tmp(GPRInfo::regT0));
     for (unsigned i = 0; i < regs.size(); ++i) {
         root->append(
@@ -1649,7 +1649,7 @@ void testShuffleRotateMemoryAllRegsMixedWidth()
     for (unsigned i = 2; i < regs.size(); ++i)
         shuffle.append(Tmp(regs[i - 1]), Tmp(regs[i]), Arg::widthArg(Width64));
 
-    Vector<int64_t> things(regs.size(), 666);
+    Vector<int64_t> things(FillWith { }, regs.size(), 666);
     root->append(Move, nullptr, Arg::bigImm(std::bit_cast<intptr_t>(&things[0])), Tmp(GPRInfo::regT0));
     for (unsigned i = 0; i < regs.size(); ++i) {
         root->append(
@@ -2464,6 +2464,9 @@ void testLinearScanSpillRangesEarlyDef()
 #if USE(JSVALUE64)
 void testZDefOfSpillSlotWithOffsetNeedingToBeMaterializedInARegister()
 {
+    // This test runs slowly in Debug builds so run it less frequently. B3OptLevel 1 and 2 behave the same w.r.t. this code anyway.
+    if (Options::defaultB3OptLevel() == 1)
+        return;
 
     B3::Procedure proc;
     Code& code = proc.code();
@@ -2709,7 +2712,6 @@ void testEarlyClobberInterference()
     }
 }
 
-#if USE(JSVALUE64)
 void testMoveDoubleZeroConstant()
 {
     B3::Procedure proc;
@@ -2882,7 +2884,6 @@ void testMulDoubleZeroWithOther()
 
     CHECK(std::bit_cast<double>(compileAndRun<uint64_t>(proc)) == 0.0);
 }
-#endif
 
 #if CPU(ARM64)
 void testStorePair()
@@ -3106,7 +3107,10 @@ void run(const char* filter)
                                 return;
                             task = tasks.takeFirst();
                         }
-
+#if USE(PROTECTED_JIT)
+                        // Must be constructed before we allocate anything using SequesteredArenaMalloc
+                        ArenaLifetime arenaLifetime;
+#endif
                         task->run();
                     }
                 }));

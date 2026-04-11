@@ -105,7 +105,7 @@ CallData JSCell::getConstructData(JSCell*)
 
 bool JSCell::isValidCallee() const
 {
-    return isObject() && asObject(this)->globalObject();
+    return isObject() && asObject(this)->realmMayBeNull();
 }
 
 bool JSCell::put(JSCell* cell, JSGlobalObject* globalObject, PropertyName identifier, JSValue value, PutPropertySlot& slot)
@@ -169,6 +169,22 @@ double JSCell::toNumber(JSGlobalObject* globalObject) const
     return jsSecureCast<const JSObject*>(this)->toNumber(globalObject);
 }
 
+bool JSCell::isObjectSlow() const
+{
+    return isObject();
+}
+
+bool JSCell::validateIsNotSweeping() const
+{
+    ASSERT_IMPLIES(vm().currentThreadIsHoldingAPILock(), vm().heap.mutatorState() != MutatorState::Sweeping);
+    return !vm().currentThreadIsHoldingAPILock() || vm().heap.mutatorState() != MutatorState::Sweeping;
+}
+
+bool JSCell::inheritsSlow(const ClassInfo* info) const
+{
+    return inherits(info);
+}
+
 JSObject* JSCell::toObjectSlow(JSGlobalObject* globalObject) const
 {
     Integrity::auditStructureID(structureID());
@@ -180,7 +196,7 @@ JSObject* JSCell::toObjectSlow(JSGlobalObject* globalObject) const
     return jsSecureCast<const Symbol*>(this)->toObject(globalObject);
 }
 
-void slowValidateCell(JSCell* cell)
+void NODELETE slowValidateCell(JSCell* cell)
 {
     ASSERT_GC_OBJECT_LOOKS_VALID(cell);
 }
@@ -277,8 +293,9 @@ void JSCellLock::unlockSlow()
 }
 
 #if CPU(X86_64)
-NEVER_INLINE NO_RETURN_DUE_TO_CRASH NOT_TAIL_CALLED void reportZappedCellAndCrash(Heap& heap, const JSCell* cell)
+NEVER_INLINE NO_RETURN_DUE_TO_CRASH NOT_TAIL_CALLED void reportZappedCellAndCrash(const JSCell* cell)
 {
+    Heap& heap = *cell->heap();
     MarkedBlock::Handle* foundBlockHandle = nullptr;
     uint64_t* cellWords = std::bit_cast<uint64_t*>(cell);
 

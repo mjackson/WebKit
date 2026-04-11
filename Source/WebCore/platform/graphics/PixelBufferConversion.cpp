@@ -95,7 +95,7 @@ static inline vImage_CGImageFormat makeVImageCGImageFormat(const PixelBufferForm
     return result;
 }
 
-template<typename View> static vImage_Buffer makeVImageBuffer(const View& view, const IntSize& size)
+template<typename View> static vImage_Buffer NODELETE makeVImageBuffer(const View& view, const IntSize& size)
 {
     vImage_Buffer result;
 
@@ -209,7 +209,7 @@ static bool convertImagePixelsSkia(const ConstPixelBufferConversionView& source,
 enum class PixelFormatConversion { None, Permute };
 
 template<PixelFormatConversion pixelFormatConversion>
-static void convertSinglePixelPremultipliedToPremultiplied(std::span<const uint8_t, 4> sourcePixel, std::span<uint8_t, 4> destinationPixel)
+static void NODELETE convertSinglePixelPremultipliedToPremultiplied(std::span<const uint8_t, 4> sourcePixel, std::span<uint8_t, 4> destinationPixel)
 {
     uint8_t alpha = sourcePixel[3];
     if (!alpha) {
@@ -275,7 +275,7 @@ static void convertSinglePixelUnpremultipliedToPremultiplied(std::span<const uin
 }
 
 template<PixelFormatConversion pixelFormatConversion>
-static void convertSinglePixelUnpremultipliedToUnpremultiplied(std::span<const uint8_t, 4> sourcePixel, std::span<uint8_t, 4> destinationPixel)
+static void NODELETE convertSinglePixelUnpremultipliedToUnpremultiplied(std::span<const uint8_t, 4> sourcePixel, std::span<uint8_t, 4> destinationPixel)
 {
     if constexpr (pixelFormatConversion == PixelFormatConversion::None)
         reinterpretCastSpanStartTo<uint32_t>(destinationPixel) = reinterpretCastSpanStartTo<const uint32_t>(sourcePixel);
@@ -289,7 +289,7 @@ static void convertSinglePixelUnpremultipliedToUnpremultiplied(std::span<const u
 }
 
 template<void (*convertFunctor)(std::span<const uint8_t, 4>, std::span<uint8_t, 4>)>
-static void convertImagePixelsUnaccelerated(const ConstPixelBufferConversionView& source, const PixelBufferConversionView& destination, const IntSize& destinationSize)
+static void NODELETE convertImagePixelsUnaccelerated(const ConstPixelBufferConversionView& source, const PixelBufferConversionView& destination, const IntSize& destinationSize)
 {
     size_t bytesPerRow = destinationSize.width() * 4;
     for (int y = 0; y < destinationSize.height(); ++y) {

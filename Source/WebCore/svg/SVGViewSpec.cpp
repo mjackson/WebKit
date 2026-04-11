@@ -25,7 +25,6 @@
 #include "SVGElement.h"
 #include "SVGFitToViewBox.h"
 #include "SVGNames.h"
-#include "SVGParserUtilities.h"
 #include "SVGTransformList.h"
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/StringParsingBuffer.h>

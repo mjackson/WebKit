@@ -105,7 +105,7 @@ bool ImportDeclarationNode::analyzeModule(ModuleAnalyzer& analyzer)
     analyzer.appendRequestedModule(m_moduleName->moduleName(), WTF::move(result.value()));
     for (auto* specifier : m_specifierList->specifiers()) {
         analyzer.moduleRecord()->addImportEntry(JSModuleRecord::ImportEntry {
-            specifier->importedName() == analyzer.vm().propertyNames->timesIdentifier
+            specifier->importedName() == analyzer.vm().propertyNames->starNamespacePrivateName
                 ? JSModuleRecord::ImportEntryType::Namespace : JSModuleRecord::ImportEntryType::Single,
             m_moduleName->moduleName(),
             specifier->importedName(),

@@ -229,9 +229,12 @@ template<typename CharacterType> inline Expected<Ref<StringImpl>, UTF8Conversion
         return makeUnexpected(UTF8ConversionError::OutOfMemory);
 
     originalString->~StringImpl();
-    SUPPRESS_UNCOUNTED_LOCAL auto* string = static_cast<StringImpl*>(StringImplMalloc::tryRealloc(&originalString.leakRef(), allocationSize<CharacterType>(length)));
-    if (!string)
+    SUPPRESS_UNCOUNTED_LOCAL auto* rawPointer = &originalString.leakRef();
+    SUPPRESS_UNCOUNTED_LOCAL auto* string = static_cast<StringImpl*>(StringImplMalloc::tryRealloc(rawPointer, allocationSize<CharacterType>(length)));
+    if (!string) {
+        StringImplMalloc::free(rawPointer);
         return makeUnexpected(UTF8ConversionError::OutOfMemory);
+    }
 
     data = string->tailPointer<CharacterType>();
     return constructInternal<CharacterType>(*string, length);
@@ -296,29 +299,18 @@ RefPtr<StringImpl> StringImpl::create(std::span<const char8_t> codeUnits)
         return create(byteCast<Latin1Character>(codeUnits));
 
     auto inputLength = codeUnits.size();
-#if CPU(ARM64)
     auto input = reinterpret_cast<const char*>(codeUnits.data());
-    if (!simdutf::validate_utf8(input, inputLength))
-        return nullptr;
 
-    size_t utf16Length = simdutf::utf16_length_from_utf8(input, inputLength);
-
-    std::span<char16_t> data;
-    auto string = createUninitializedInternalNonEmpty(utf16Length, data);
-
-    size_t written = simdutf::convert_valid_utf8_to_utf16le(input, inputLength, data.data());
-    RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(written == utf16Length);
-
-    return string;
-#else
+    // We are observing some clients changing the string content while converting!
+    // This makes it impossible to use utf16_length_from_utf8 & convert_valid_utf8_to_utf16le
+    // because of TOCTOU issue. For now, we use pre-allocated Vector (with maximally possible length)
+    // and use convert_utf8_to_utf16 instead.
     Vector<char16_t, 1024> buffer(inputLength);
-    auto result = Unicode::convert(codeUnits, buffer.mutableSpan());
-    if (result.code != Unicode::ConversionResultCode::Success)
+    size_t written = simdutf::convert_utf8_to_utf16(input, inputLength, buffer.mutableSpan().data());
+    if (!written)
         return nullptr;
-
-    RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(result.buffer.size() <= inputLength);
-    return create(result.buffer);
-#endif
+    RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(written <= inputLength);
+    return create(buffer.span().first(written));
 }
 
 Ref<StringImpl> StringImpl::createStaticStringImpl(std::span<const Latin1Character> characters)
@@ -383,7 +375,7 @@ Ref<StringImpl> StringImpl::substring(unsigned start, unsigned length)
     return create(span16().subspan(start, length));
 }
 
-char32_t NODELETE StringImpl::characterStartingAt(unsigned i)
+char32_t NODELETE StringImpl::codePointAt(unsigned i)
 {
     if (is8Bit())
         return span8()[i];
@@ -392,7 +384,7 @@ char32_t NODELETE StringImpl::characterStartingAt(unsigned i)
         return span[i];
     if (i + 1 < m_length && U16_IS_LEAD(span[i]) && U16_IS_TRAIL(span[i + 1]))
         return U16_GET_SUPPLEMENTARY(span[i], span[i + 1]);
-    return 0;
+    return span[i];
 }
 
 Ref<StringImpl> StringImpl::convertToLowercaseWithoutLocale()
@@ -928,19 +920,24 @@ SUPPRESS_NODELETE size_t StringImpl::find(std::span<const Latin1Character> match
     // only call equal if the hashes match.
 
     auto findWithHash = [&](auto searchCharacters) -> size_t {
+        // Rabin-Karp style rolling hash with base 31.
+        constexpr unsigned base = 31;
         unsigned searchHash = 0;
         unsigned matchHash = 0;
+        unsigned basePower = 1; // base^(matchString.size()-1)
         for (size_t i = 0; i < matchString.size(); ++i) {
-            searchHash += searchCharacters[i];
-            matchHash += matchString[i];
+            searchHash = searchHash * base + searchCharacters[i];
+            matchHash = matchHash * base + matchString[i];
+            if (i)
+                basePower *= base;
         }
 
         for (size_t i = 0; i <= delta; ++i) {
             if (searchHash == matchHash && equal(searchCharacters.subspan(i, matchString.size()), matchString))
                 return start + i;
             if (i < delta) {
-                searchHash += searchCharacters[i + matchString.size()];
-                searchHash -= searchCharacters[i];
+                searchHash -= searchCharacters[i] * basePower;
+                searchHash = searchHash * base + searchCharacters[i + matchString.size()];
             }
         }
         return notFound;
@@ -1483,7 +1480,7 @@ bool equal(const StringImpl* a, const StringImpl* b)
     return equalCommon(a, b);
 }
 
-template<typename CharacterType> inline bool equalInternal(const StringImpl* a, std::span<const CharacterType> b)
+template<typename CharacterType> inline bool NODELETE equalInternal(const StringImpl* a, std::span<const CharacterType> b)
 {
     if (!a)
         return !b.data();

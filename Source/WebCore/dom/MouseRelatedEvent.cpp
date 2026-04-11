@@ -234,7 +234,7 @@ void MouseRelatedEvent::computeRelativePosition()
         targetNode = WTF::move(adjustedNode);
 
     if (renderer) {
-        m_offsetLocation = renderer->absoluteToLocal(absoluteLocation(), UseTransforms);
+        m_offsetLocation = renderer->absoluteToLocal(absoluteLocation(), MapCoordinatesMode::UseTransforms);
 
         if (CheckedPtr boxModel = dynamicDowncast<RenderBoxModelObject>(renderer.get()))
             m_offsetLocation.move(-boxModel->borderLeft(), -boxModel->borderTop());
@@ -263,7 +263,7 @@ void MouseRelatedEvent::computeRelativePosition()
             auto layerLocationInAbsoluteCoords = absoluteLocation();
 
             // Convert layer position to absolute coordinates accounting for transforms.
-            auto layerAbsolutePosition = layer->renderer().localToAbsolute(FloatPoint(), UseTransforms);
+            auto layerAbsolutePosition = layer->renderer().localToAbsolute(FloatPoint(), MapCoordinatesMode::UseTransforms);
 
             // Subtract the layer's absolute position from the mouse absolute position.
             layerLocationInAbsoluteCoords.moveBy(-layerAbsolutePosition);

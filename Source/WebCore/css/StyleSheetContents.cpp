@@ -88,7 +88,7 @@ StyleSheetContents::StyleSheetContents(const StyleSheetContents& o)
     , m_importRules(o.m_importRules.size())
     , m_namespaceRules(o.m_namespaceRules.size())
     , m_childRules(o.m_childRules.size())
-    , m_namespaces(o.m_namespaces)
+    , m_namespacePrefixMap(o.m_namespacePrefixMap)
     , m_defaultNamespace(o.m_defaultNamespace)
     , m_isUserStyleSheet(o.m_isUserStyleSheet)
     , m_loadCompleted(true)
@@ -386,16 +386,13 @@ void StyleSheetContents::parserAddNamespace(const AtomString& prefix, const Atom
         m_defaultNamespace = uri;
         return;
     }
-    PrefixNamespaceURIMap::AddResult result = m_namespaces.add(prefix, uri);
-    if (result.isNewEntry)
-        return;
-    result.iterator->value = uri;
+    m_namespacePrefixMap.set(prefix, uri);
 }
 
 const AtomString& StyleSheetContents::namespaceURIFromPrefix(const AtomString& prefix)
 {
-    PrefixNamespaceURIMap::const_iterator it = m_namespaces.find(prefix);
-    if (it == m_namespaces.end())
+    auto it = m_namespacePrefixMap.find(prefix);
+    if (it == m_namespacePrefixMap.end())
         return nullAtom();
     return it->value;
 }

@@ -90,7 +90,7 @@ private:
 
     std::optional<FloatSize> computeViewportSize() const;
     float computeNonCalcLength(float, CSS::LengthUnit) const;
-    float removeZoomFromFontOrRootFontRelativeLength(float value, CSS::LengthUnit) const;
+    float NODELETE removeZoomFromFontOrRootFontRelativeLength(float value, CSS::LengthUnit) const;
 
     std::optional<CSSToLengthConversionData> cssConversionData() const;
 

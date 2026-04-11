@@ -567,7 +567,7 @@ public:
     WEBCORE_EXPORT ScrollTypeScope(ScrollableArea&, ScrollType);
     WEBCORE_EXPORT ~ScrollTypeScope();
 
-    void restore();
+    void NODELETE restore();
 
 private:
     WeakRef<ScrollableArea> m_scrollableArea;

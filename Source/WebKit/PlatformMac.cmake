@@ -158,6 +158,7 @@ list(APPEND WebKit_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBKIT_DIR}/WebProcess/WebPage/Cocoa"
     "${WEBKIT_DIR}/WebProcess/WebPage/RemoteLayerTree"
     "${WEBKIT_DIR}/WebProcess/WebPage/mac"
+    "${WEBKIT_DIR}/WebProcess/WebCoreSupport/cocoa"
     "${WEBKIT_DIR}/WebProcess/WebCoreSupport/mac"
     "${WEBKIT_DIR}/webpushd"
     "${WEBKITLEGACY_DIR}"

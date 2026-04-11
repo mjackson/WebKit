@@ -85,7 +85,6 @@ webkit.org/b/195259 compositing/geometry/fixed-position-composited-page-scale-sm
 # testRunner.setWindowIsKey() depends on gtk_window_present(),which
 # does not work currently in Wayland. See GNOME bug #766284.
 webkit.org/b/183365 fast/dom/Window/window-focus-self.html [ Failure ]
-webkit.org/b/183365 fast/selectors/selection-window-inactive.html [ ImageOnlyFailure ]
 webkit.org/b/183365 scrollbars/corner-resizer-window-inactive.html [ ImageOnlyFailure ]
 webkit.org/b/183365 fast/selectors/selection-window-inactive-stroke-color.html [ ImageOnlyFailure ]
 webkit.org/b/183365 fast/selectors/selection-window-inactive-text-shadow.html [ ImageOnlyFailure ]

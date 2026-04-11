@@ -27,6 +27,8 @@
 #include "FrameLoader.h"
 #include "LocalDOMWindow.h"
 #include "LocalFrame.h"
+#include "LocalFrameInlines.h"
+#include "FrameDestructionObserverInlines.h"
 #include "NodeInlines.h"
 #include "RemoteFrame.h"
 #include "RemoteFrameClient.h"
@@ -81,7 +83,7 @@ void HTMLFrameOwnerElement::clearContentFrame()
 void HTMLFrameOwnerElement::disconnectContentFrame()
 {
     if (RefPtr frame = m_contentFrame.get()) {
-        if (RefPtr innerDocument = contentDocument())
+        if (auto* innerDocument = contentDocument())
             innerDocument->willBeDisconnectedFromFrame(document());
         frame->frameDetached();
         if (frame == m_contentFrame.get())

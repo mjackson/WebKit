@@ -22,7 +22,6 @@
 #include <JavaScriptCore/AuxiliaryBarrierInlines.h>
 #include <JavaScriptCore/HeapInlines.h>
 #include <JavaScriptCore/JSArray.h>
-#include <JavaScriptCore/JSCJSValueInlines.h>
 #include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSObjectInlines.h>
 #include <JavaScriptCore/Lookup.h>

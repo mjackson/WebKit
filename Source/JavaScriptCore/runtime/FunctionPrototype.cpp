@@ -163,7 +163,7 @@ JSC_DEFINE_HOST_FUNCTION(functionProtoFuncBind, (JSGlobalObject* globalObject, C
 }
 
 // https://github.com/claudepache/es-legacy-function-reflection/blob/master/spec.md#isallowedreceiverfunctionforcallerandargumentsfunc-expectedrealm (except step 3)
-static ALWAYS_INLINE bool isAllowedReceiverFunctionForCallerAndArguments(JSFunction* function)
+static ALWAYS_INLINE bool NODELETE isAllowedReceiverFunctionForCallerAndArguments(JSFunction* function)
 {
     if (function->isHostOrBuiltinFunction())
         return false;
@@ -183,7 +183,7 @@ public:
     {
     }
 
-    JSValue result() const { return m_result; }
+    JSValue NODELETE result() const { return m_result; }
 
     IterationStatus operator()(StackVisitor& visitor) const
     {
@@ -237,9 +237,9 @@ public:
     {
     }
 
-    JSValue result() const { return m_result; }
+    JSValue NODELETE result() const { return m_result; }
 
-    IterationStatus operator()(StackVisitor& visitor) const
+    IterationStatus NODELETE operator()(StackVisitor& visitor) const
     {
         if (!visitor->callee().isCell())
             return IterationStatus::Continue;

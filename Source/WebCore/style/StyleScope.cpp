@@ -58,6 +58,7 @@
 #include "SVGStyleElement.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
+#include "StyleableInlines.h"
 #include "StyleBuilder.h"
 #include "StyleCustomPropertyRegistry.h"
 #include "StyleInvalidator.h"
@@ -240,7 +241,7 @@ const Scope& Scope::forNode(const Node& node)
 
 Scope* Scope::forOrdinal(Element& element, ScopeOrdinal ordinal)
 {
-    if (CheckedPtr pseudoElement = dynamicDowncast<PseudoElement>(element))
+    if (auto* pseudoElement = dynamicDowncast<PseudoElement>(element))
         return forOrdinal(*pseudoElement->hostElement(), ordinal);
 
     if (ordinal == ScopeOrdinal::Element)
@@ -908,8 +909,9 @@ void Scope::didChangeViewportSize()
 
     // FIXME: Ideally, we should save the list of elements that have viewport units and only iterate over those.
     for (RefPtr element = ElementTraversal::firstWithin(rootNode); element; element = ElementTraversal::nextIncludingPseudo(*element)) {
+        bool styleableHasViewportUnitAnimation = Styleable::fromElement(*element).viewportSizeDidChange();
         auto* renderer = element->renderer();
-        if (renderer && renderer->style().usesViewportUnits())
+        if (styleableHasViewportUnitAnimation || (renderer && renderer->style().usesViewportUnits()))
             element->invalidateStyle();
     }
 }
@@ -927,8 +929,6 @@ void Scope::invalidateMatchedDeclarationsCache()
 
 void Scope::pendingUpdateTimerFired()
 {
-    RefPtr protectedShadowRoot { m_shadowRoot };
-    Ref protectedDocument { m_document.get() };
     flushPendingUpdate();
 }
 
@@ -1107,7 +1107,7 @@ MatchResultCache& Scope::matchResultCache()
 RefPtr<HTMLSlotElement> assignedSlotForScopeOrdinal(const Element& element, ScopeOrdinal scopeOrdinal)
 {
     ASSERT(scopeOrdinal >= ScopeOrdinal::FirstSlot);
-    RefPtr slot = element.assignedSlot();
+    auto* slot = element.assignedSlot();
     for (auto scopeDepth = ScopeOrdinal::FirstSlot; slot && scopeDepth != scopeOrdinal; ++scopeDepth)
         slot = slot->assignedSlot();
     return slot;
@@ -1116,7 +1116,7 @@ RefPtr<HTMLSlotElement> assignedSlotForScopeOrdinal(const Element& element, Scop
 RefPtr<Element> hostForScopeOrdinal(const Element& element, ScopeOrdinal scopeOrdinal)
 {
     ASSERT(scopeOrdinal <= ScopeOrdinal::ContainingHost);
-    RefPtr host = element.shadowHost();
+    auto* host = element.shadowHost();
     for (auto scopeDepth = ScopeOrdinal::ContainingHost; host && scopeDepth != scopeOrdinal; --scopeDepth)
         host = host->shadowHost();
     return host;

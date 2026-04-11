@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2006-2026 Apple Inc. All rights reserved.
  * Copyright (C) 2007-2009 Torch Mobile, Inc.
  * Copyright (C) 2010, 2011 Research In Motion Limited. All rights reserved.
  *
@@ -69,7 +69,7 @@
 #define WTF_OS_CONSTANT_EFFECTIVE_ADDRESS_WIDTH 36
 /* iOS simulators lie about the size of the address space */
 #elif OS(DARWIN) && !PLATFORM(IOS_FAMILY_SIMULATOR)
-#define WTF_OS_CONSTANT_EFFECTIVE_ADDRESS_WIDTH (WTF::getMSBSetConstexpr(MACH_VM_MAX_ADDRESS) + 1)
+#define WTF_OS_CONSTANT_EFFECTIVE_ADDRESS_WIDTH (WTF::getMSBSet(MACH_VM_MAX_ADDRESS) + 1)
 #else
 /* We strongly assume that effective address width is <= 48 in 64bit architectures (e.g. NaN boxing). */
 #define WTF_OS_CONSTANT_EFFECTIVE_ADDRESS_WIDTH 48
@@ -337,6 +337,13 @@
     || (PLATFORM(APPLETV) && __TV_OS_VERSION_MIN_REQUIRED >= 260000) \
     || (PLATFORM(VISION) && __VISION_OS_VERSION_MIN_REQUIRED >= 260000))
 #define HAVE_MEDIA_ACCESSIBILITY_PROFILES_API 1
+#endif
+
+#if PLATFORM(COCOA) \
+    && ((PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 260000) \
+    || (PLATFORM(MACCATALYST) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 260000) \
+    || (PLATFORM(IOS_FAMILY) && !PLATFORM(MACCATALYST)))
+#define HAVE_LOCALHOST_TIED_TO_LOOPBACK 1
 #endif
 
 #if PLATFORM(MAC) || PLATFORM(MACCATALYST)
@@ -1049,10 +1056,6 @@
 
 #if PLATFORM(COCOA)
 #define HAVE_CORE_LOCATION 1
-#endif
-
-#if PLATFORM(MAC)
-#define HAVE_SCENEKIT !ENABLE_GPU_PROCESS_MODEL
 #endif
 
 #if PLATFORM(COCOA)
@@ -2043,6 +2046,13 @@
     || (PLATFORM(WATCHOS) && __WATCH_OS_VERSION_MIN_REQUIRED >= 110400) \
     || (PLATFORM(APPLETV) && __TV_OS_VERSION_MIN_REQUIRED >= 180400))
 #define ENABLE_COOKIE_STORE_API_BY_DEFAULT 1
+#endif
+
+#if !defined(HAVE_SUPPORT_HDR_DISPLAY_APIS) \
+    && ((PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 260000) \
+    || (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 260000) \
+    || (PLATFORM(VISION) && __VISION_OS_VERSION_MIN_REQUIRED >= 260000))
+#define HAVE_SUPPORT_HDR_DISPLAY_APIS 1
 #endif
 
 #if !defined(HAVE_DIGITAL_CREDENTIALS_UI) \

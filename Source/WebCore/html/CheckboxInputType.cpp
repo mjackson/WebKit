@@ -73,7 +73,7 @@ const AtomString& CheckboxInputType::formControlType() const
     return InputTypeNames::checkbox();
 }
 
-bool CheckboxInputType::valueMissing(const String&) const
+bool CheckboxInputType::valueMissing(StringView) const
 {
     ASSERT(element());
     return element()->isRequired() && !element()->checked();
@@ -271,7 +271,7 @@ static int switchPointerTrackingLogicalLeftPosition(Element& element, LayoutPoin
 {
     CheckedRef renderer = *element.renderer();
     auto isVertical = !renderer->writingMode().isHorizontal();
-    auto localLocation = renderer->absoluteToLocal(absoluteLocation, UseTransforms);
+    auto localLocation = renderer->absoluteToLocal(absoluteLocation, MapCoordinatesMode::UseTransforms);
     return isVertical ? localLocation.y() : localLocation.x();
 }
 

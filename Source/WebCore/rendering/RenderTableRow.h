@@ -49,6 +49,7 @@ public:
     RenderTable* table() const;
 
     void paintOutlineForRowIfNeeded(PaintInfo&, const LayoutPoint&);
+    void paintShadowForRowIfNeeded(PaintInfo&, const LayoutPoint&);
 
     void setRowIndex(unsigned);
     bool rowIndexWasSet() const { return m_rowIndex != unsetRowIndex; }

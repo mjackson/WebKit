@@ -310,14 +310,15 @@ bool MediaPlayerPrivateGStreamerMSE::doSeek(const SeekTarget& target, float rate
     // This will also add support for fastSeek once done (see webkit.org/b/260607)
     if (!m_mediaSourcePrivate)
         return false;
-    m_mediaSourcePrivate->willSeek();
     m_mediaSourcePrivate->waitForTarget(target)->whenSettled(RunLoop::currentSingleton(), [this, weakThis = ThreadSafeWeakPtr { *this }](auto&& result) {
         RefPtr self = weakThis.get();
         if (!self || !result)
             return;
 
+        // FIXME: Should m_mediaSourcePrivate run on its own WorkQueue (e.g. if MSE in a worker is enabled)
+        // this should be changed for the async version of reenqueueMediaForTime.
         if (m_mediaSourcePrivate)
-            m_mediaSourcePrivate->seekToTime(*result);
+            m_mediaSourcePrivate->reenqueueMediaForTime(*result);
 
         auto player = m_player.get();
         if (player && !hasVideo() && m_audioSink) {

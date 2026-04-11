@@ -106,7 +106,7 @@ public:
         struct Run {
             Run(const InlineItem&, const RenderStyle&, InlineLayoutUnit offset, InlineLayoutUnit contentWidth, InlineLayoutUnit textSpacingAdjustment = 0.f);
             Run(const Run&);
-            Run& operator=(const Run&);
+            Run& operator=(const Run&) = delete;
 
             InlineLayoutUnit spaceRequired() const { return offset + contentWidth(); }
             void adjustContentWidth(InlineLayoutUnit contentWidth) { m_contentWidth = contentWidth; }
@@ -211,6 +211,7 @@ inline InlineContentBreaker::ContinuousContent::Run::Run(const Run& other)
     , style(other.style)
     , offset(other.offset)
     , textSpacingAdjustment(other.textSpacingAdjustment)
+    , shapingBoundary(other.shapingBoundary)
     , m_contentWidth(other.contentWidth())
 {
 }

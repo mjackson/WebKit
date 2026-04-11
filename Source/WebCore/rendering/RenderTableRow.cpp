@@ -27,6 +27,7 @@
 #include "config.h"
 #include "RenderTableRow.h"
 
+#include "BackgroundPainter.h"
 #include "Document.h"
 #include "HTMLNames.h"
 #include "HitTestResult.h"
@@ -163,7 +164,7 @@ void RenderTableRow::layout()
 
     for (RenderTableCell* cell = firstCell(); cell; cell = cell->nextCell()) {
         if (!cell->needsLayout() && paginated && (layoutState->pageLogicalHeightChanged() || (layoutState->pageLogicalHeight() && layoutState->pageLogicalOffset(cell, cell->logicalTop()) != cell->pageLogicalOffset())))
-            cell->setChildNeedsLayout(MarkOnlyThis);
+            cell->setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
 
         if (cell->needsLayout()) {
             cell->layout();
@@ -242,6 +243,19 @@ void RenderTableRow::paintOutlineForRowIfNeeded(PaintInfo& paintInfo, const Layo
         auto adjustedPaintOffset = paintOffset + location();
         paintOutline(paintInfo, LayoutRect(adjustedPaintOffset, size()));
     }
+}
+
+void RenderTableRow::paintShadowForRowIfNeeded(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
+{
+    if (paintInfo.phase != PaintPhase::BlockBackground && paintInfo.phase != PaintPhase::ChildBlockBackground)
+        return;
+
+    auto adjustedPaintOffset = paintOffset + location();
+    LayoutRect rect(adjustedPaintOffset, size());
+    adjustBorderBoxRectForPainting(rect);
+
+    BackgroundPainter backgroundPainter { *this, paintInfo };
+    backgroundPainter.paintBoxShadow(rect, style(), Style::ShadowStyle::Normal);
 }
 
 void RenderTableRow::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)

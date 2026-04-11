@@ -74,7 +74,7 @@ private:
     size_t ensureDisplayBoxForContainer(const ElementBox&, DisplayBoxTree&, AncestorStack&, InlineDisplay::Boxes&);
 
     template <typename BoxType, typename LayoutUnitType>
-    void setLogicalLeft(BoxType&, LayoutUnitType logicalLeft, WritingMode) const;
+    void NODELETE setLogicalLeft(BoxType&, LayoutUnitType logicalLeft, WritingMode) const;
     void setLogicalRight(InlineDisplay::Box&, InlineLayoutUnit logicalRight, WritingMode) const;
     InlineLayoutPoint movePointHorizontallyForWritingMode(const InlineLayoutPoint& topLeft, InlineLayoutUnit horizontalOffset, WritingMode) const;
     InlineLayoutUnit outsideListMarkerVisualPosition(const ElementBox&) const;

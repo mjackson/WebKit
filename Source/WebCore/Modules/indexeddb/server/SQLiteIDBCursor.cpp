@@ -58,9 +58,9 @@ std::unique_ptr<SQLiteIDBCursor> SQLiteIDBCursor::maybeCreate(SQLiteIDBTransacti
     return cursor.moveToUniquePtr();
 }
 
-std::unique_ptr<SQLiteIDBCursor> SQLiteIDBCursor::maybeCreateBackingStoreCursor(SQLiteIDBTransaction& transaction, IDBObjectStoreIdentifier objectStoreID, std::optional<IDBIndexIdentifier> indexID, const IDBKeyRangeData& range)
+std::unique_ptr<SQLiteIDBCursor> SQLiteIDBCursor::maybeCreateBackingStoreCursor(SQLiteIDBTransaction& transaction, IDBObjectStoreIdentifier objectStoreID, std::optional<IDBIndexIdentifier> indexID, const IDBKeyRangeData& range, IndexedDB::CursorDirection cursorDirection)
 {
-    auto cursor = makeUniqueRef<SQLiteIDBCursor>(transaction, objectStoreID, indexID, range);
+    auto cursor = makeUniqueRef<SQLiteIDBCursor>(transaction, objectStoreID, indexID, range, cursorDirection);
 
     if (!cursor->establishStatement())
         return nullptr;
@@ -83,12 +83,12 @@ SQLiteIDBCursor::SQLiteIDBCursor(SQLiteIDBTransaction& transaction, const IDBCur
 {
 }
 
-SQLiteIDBCursor::SQLiteIDBCursor(SQLiteIDBTransaction& transaction, IDBObjectStoreIdentifier objectStoreID, std::optional<IDBIndexIdentifier> indexID, const IDBKeyRangeData& range)
+SQLiteIDBCursor::SQLiteIDBCursor(SQLiteIDBTransaction& transaction, IDBObjectStoreIdentifier objectStoreID, std::optional<IDBIndexIdentifier> indexID, const IDBKeyRangeData& range, IndexedDB::CursorDirection cursorDirection)
     : m_transaction(&transaction)
     , m_cursorIdentifier(transaction.transactionIdentifier())
     , m_objectStoreID(objectStoreID)
     , m_indexID(indexID)
-    , m_cursorDirection(IndexedDB::CursorDirection::Next)
+    , m_cursorDirection(cursorDirection)
     , m_cursorType(IndexedDB::CursorType::KeyAndValue)
     , m_keyRange(range)
     , m_boundID(m_objectStoreID)

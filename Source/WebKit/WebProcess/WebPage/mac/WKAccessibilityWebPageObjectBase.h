@@ -70,7 +70,6 @@ class AXIsolatedTree;
 - (void)setIsolatedTree:(Ref<WebCore::AXIsolatedTree>&&)tree;
 - (RefPtr<WebCore::AXIsolatedTree>)isolatedTree;
 - (void)setWindow:(id)window;
-- (void)_buildIsolatedTreeIfNeeded;
 #endif
 - (void)setRemoteParent:(id)parent token:(NSData *)token;
 - (void)setRemoteFrameOffset:(WebCore::IntPoint)offset;

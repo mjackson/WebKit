@@ -93,10 +93,10 @@ bool IPIntPlan::prepareImpl()
 void IPIntPlan::compileFunction(FunctionCodeIndex functionIndex)
 {
     const auto& function = m_moduleInformation->functions[functionIndex];
-    TypeIndex typeIndex = m_moduleInformation->internalFunctionTypeIndices[functionIndex];
-    const TypeDefinition& signature = TypeInformation::get(typeIndex).expand();
+    TypeSignatureIndex typeSignatureIndex = m_moduleInformation->internalFunctionTypeSignatureIndices[functionIndex];
+    const TypeDefinition& signature = m_moduleInformation->expandedTypeSignature(typeSignatureIndex);
     auto functionIndexSpace = m_moduleInformation->toSpaceIndex(functionIndex);
-    ASSERT_UNUSED(functionIndexSpace, m_moduleInformation->typeIndexFromFunctionIndexSpace(functionIndexSpace) == typeIndex);
+    ASSERT_UNUSED(functionIndexSpace, m_moduleInformation->typeIndexFromFunctionIndexSpace(functionIndexSpace) == m_moduleInformation->typeIndexFromTypeSignatureIndex(typeSignatureIndex));
 
     beginCompilerSignpost(CompilationMode::IPIntMode, functionIndexSpace);
     m_unlinkedWasmToWasmCalls[functionIndex] = Vector<UnlinkedWasmToWasmCall>();
@@ -173,7 +173,7 @@ bool IPIntPlan::ensureEntrypoint(IPIntCallee&, FunctionCodeIndex functionIndex)
     if (m_entrypoints[functionIndex])
         return true;
 
-    m_entrypoints[functionIndex] = JSToWasmCallee::create(m_moduleInformation->internalFunctionTypeIndices[functionIndex], m_moduleInformation->usesSIMD(functionIndex));
+    m_entrypoints[functionIndex] = JSToWasmCallee::create(m_moduleInformation->typeIndexFromTypeSignatureIndex(m_moduleInformation->internalFunctionTypeSignatureIndices[functionIndex]), m_moduleInformation->usesSIMD(functionIndex));
     return true;
 }
 

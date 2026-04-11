@@ -763,10 +763,6 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case PutPrivateNameById:
     case GetPrivateName:
     case GetPrivateNameById:
-    // FIXME: We should have a better cloberize rule for both CheckPrivateBrand and SetPrivateBrand
-    // https://bugs.webkit.org/show_bug.cgi?id=221571
-    case CheckPrivateBrand:
-    case SetPrivateBrand:
     case DefineDataProperty:
     case DefineAccessorProperty:
     case ObjectDefineProperty:
@@ -1449,6 +1445,16 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case CheckStructureOrEmpty:
     case CheckStructure:
         read(JSCell_structureID);
+        return;
+
+    case CheckPrivateBrand:
+        read(JSCell_structureID);
+        def(HeapLocation(CheckPrivateBrandLoc, JSCell_structureID, node->child1(), node->child2()), LazyNode(node));
+        return;
+
+    case SetPrivateBrand:
+        read(JSCell_structureID);
+        write(JSCell_structureID);
         return;
 
     case CheckArrayOrEmpty:
@@ -2519,6 +2525,7 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         def(PureValue(node));
         return;
 
+    case ToUpperCase:
     case ToLowerCase:
         def(PureValue(node));
         return;

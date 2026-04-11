@@ -325,8 +325,8 @@ public:
 
     // Focus Rings
 
-    virtual void drawFocusRing(const Path&, float outlineWidth, const Color&) = 0;
-    virtual void drawFocusRing(const Vector<FloatRect>&, float outlineOffset, float outlineWidth, const Color&) = 0;
+    virtual void drawFocusRing(const Path&, float outlineWidth, const Color&, float zoomFactor) = 0;
+    virtual void drawFocusRing(const Vector<FloatRect>&, float outlineWidth, const Color&, float zoomFactor) = 0;
 
     // Transforms
 

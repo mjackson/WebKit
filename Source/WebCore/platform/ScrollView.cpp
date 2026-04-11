@@ -252,6 +252,21 @@ void ScrollView::setExposedContentRect(const FloatRect& rect)
     m_delegatedScrollingGeometry->exposedContentRect = rect;
 }
 
+void ScrollView::adjustExposedContentRectForProgrammaticScroll(ScrollPosition newPosition)
+{
+    if (!m_delegatedScrollingGeometry)
+        return;
+
+    if (parent())
+        return;
+
+    FloatSize delta = newPosition - scrollPosition();
+    if (delta.isZero())
+        return;
+
+    m_delegatedScrollingGeometry->exposedContentRect.move(delta);
+}
+
 FloatSize ScrollView::unobscuredContentSize() const
 {
     ASSERT(m_delegatedScrollingGeometry);

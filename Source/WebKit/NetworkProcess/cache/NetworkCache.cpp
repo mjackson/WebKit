@@ -149,9 +149,7 @@ Cache::Cache(NetworkProcess& networkProcess, const String& storageDirectory, Ref
     }
 }
 
-Cache::~Cache()
-{
-}
+Cache::~Cache() = default;
 
 size_t Cache::capacity() const
 {

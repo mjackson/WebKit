@@ -74,8 +74,8 @@ public:
     void waitForWheelEventsToCompleteForTesting(CompletionHandler<void()>&&);
 
 #if PLATFORM(COCOA) && ENABLE(MEDIA_STREAM)
-    void setIndexOfGetDisplayMediaDeviceSelectedForTesting(std::optional<unsigned>);
-    void setSystemCanPromptForGetDisplayMediaForTesting(bool);
+    void NODELETE setIndexOfGetDisplayMediaDeviceSelectedForTesting(std::optional<unsigned>);
+    void NODELETE setSystemCanPromptForGetDisplayMediaForTesting(bool);
 #endif
 
     void setObscuredContentInsets(float top, float right, float bottom, float left, CompletionHandler<void()>&&);

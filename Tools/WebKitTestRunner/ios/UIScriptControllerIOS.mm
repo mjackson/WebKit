@@ -931,6 +931,15 @@ double UIScriptControllerIOS::maximumZoomScale() const
     return webView().scrollView.maximumZoomScale;
 }
 
+bool UIScriptControllerIOS::enhancedWindowingEnabled() const
+{
+#if HAVE(UIKIT_RESIZABLE_WINDOWS)
+    return webView().window.windowScene._enhancedWindowingEnabled;
+#else
+    return false;
+#endif
+}
+
 std::optional<bool> UIScriptControllerIOS::stableStateOverride() const
 {
     TestRunnerWKWebView *webView = this->webView();

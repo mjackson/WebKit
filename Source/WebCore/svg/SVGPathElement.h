@@ -93,7 +93,7 @@ public:
     ExceptionOr<Ref<SVGPoint>> getPointAtLength(float distance) const final;
     unsigned getPathSegAtLength(float distance) const;
 
-    FloatRect getBBox(StyleUpdateStrategy = AllowStyleUpdate) final;
+    FloatRect getBBox(StyleUpdateStrategy = StyleUpdateStrategy::Allow) final;
 
     SVGPathSegList& pathSegList() { return m_pathSegList->baseVal(); }
     SVGPathSegList& animatedPathSegList() { return m_pathSegList->animVal(); }

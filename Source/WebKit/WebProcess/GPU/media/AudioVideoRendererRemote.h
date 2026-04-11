@@ -147,8 +147,8 @@ private:
     void setRate(double) final;
     double effectiveRate() const final;
     void stall() final;
-    void prepareToSeek() final;
-    Ref<WebCore::MediaTimePromise> seekTo(const MediaTime&) final;
+    Ref<WebCore::MediaTimePromise> prepareToSeek(const MediaTime&) final;
+    Ref<GenericPromise> finishSeek(const MediaTime&) final;
     bool seeking() const final;
 
     void setPreferences(WebCore::VideoRendererPreferences) final;
@@ -235,6 +235,8 @@ private:
     ReadyForMoreDataState& readyForMoreDataState(TrackIdentifier);
     void resolveRequestMediaDataWhenReadyIfNeeded(TrackIdentifier);
 
+    void cancelPendingSeek();
+
     const ThreadSafeWeakPtr<GPUProcessConnection> m_gpuProcessConnection;
     const Ref<MessageReceiver> m_receiver;
     const RemoteAudioVideoRendererIdentifier m_identifier;
@@ -265,8 +267,15 @@ private:
     Vector<LayerHostingContextCallback> m_layerHostingContextRequests WTF_GUARDED_BY_CAPABILITY(queueSingleton());
     WebCore::HostingContext m_layerHostingContext WTF_GUARDED_BY_LOCK(m_lock);
     WebCore::FloatSize m_naturalSize WTF_GUARDED_BY_LOCK(m_lock);
+
+    // Seek Tracking
+    Ref<NativePromiseRequest> m_prepareSeekRequest WTF_GUARDED_BY_CAPABILITY(queueSingleton());
+    std::optional<WebCore::MediaTimePromise::Producer> m_prepareSeekPromise WTF_GUARDED_BY_CAPABILITY(queueSingleton());
+    Ref<NativePromiseRequest> m_finishSeekRequest WTF_GUARDED_BY_CAPABILITY(queueSingleton());
+    std::optional<GenericPromise::Producer> m_finishSeekPromise WTF_GUARDED_BY_CAPABILITY(queueSingleton());
     std::atomic<bool> m_seeking { false };
-    MediaTime m_lastSeekTime; // Always call on the renderer's client thread.
+    MediaTime m_lastSeekTime; // Always called on the renderer's client thread.
+
 #if PLATFORM(COCOA)
     const UniqueRef<WebCore::VideoLayerManager> m_videoLayerManager WTF_GUARDED_BY_LOCK(m_lock);
     mutable PlatformLayerContainer m_videoLayer WTF_GUARDED_BY_LOCK(m_lock);
@@ -276,6 +285,7 @@ private:
     const Ref<const Logger> m_logger;
     const uint64_t m_logIdentifier;
 #endif
+    bool m_keyframeNeeded { true };
 };
 
 }

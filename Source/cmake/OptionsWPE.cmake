@@ -23,6 +23,10 @@ find_package(Unifdef REQUIRED)
 find_package(WebP REQUIRED COMPONENTS demux)
 find_package(ZLIB REQUIRED)
 
+if (NOT TARGET SQLite3::SQLite3) # CMake < 4.3
+    add_library(SQLite3::SQLite3 ALIAS SQLite::SQLite3)
+endif ()
+
 if (ANDROID)
     find_package(Android REQUIRED COMPONENTS Android Log)
 
@@ -119,6 +123,7 @@ WEBKIT_OPTION_DEFINE(USE_SYSTEM_SYSPROF_CAPTURE "Whether to use a system-provide
 WEBKIT_OPTION_DEFINE(USE_SYSTEM_UNIFDEF "Whether to use a system-provided unifdef" PRIVATE ON)
 WEBKIT_OPTION_DEFINE(ENABLE_COG "Toggle Cog browser compilation." PRIVATE OFF)
 WEBKIT_OPTION_DEFINE(ENABLE_JSC_RESTRICTED_OPTIONS_BY_DEFAULT "Whether to enable dangerous development options in JSC by default." PRIVATE OFF)
+WEBKIT_OPTION_DEFINE(ENABLE_CRASH_DUMP_INFO "Enables extra crash investigation tools that might increase binary size." PRIVATE ${ENABLE_DEVELOPER_MODE})
 
 WEBKIT_OPTION_CONFLICT(ENABLE_WPE_PLATFORM ENABLE_WPE_1_1_API)
 

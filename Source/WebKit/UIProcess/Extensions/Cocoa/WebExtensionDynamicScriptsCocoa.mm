@@ -49,6 +49,7 @@
 #import "WebUserContentControllerProxy.h"
 #import "_WKFrameHandle.h"
 #import "_WKFrameTreeNode.h"
+#import <wtf/Borrow.h>
 #import <wtf/CallbackAggregator.h>
 #import <wtf/TZoneMallocInlines.h>
 #import <wtf/URL.h>
@@ -119,7 +120,7 @@ class InjectionResultHolder : public RefCounted<InjectionResultHolder> {
 
 public:
     template<typename... Args>
-    static Ref<InjectionResultHolder> create(Args&&... args)
+    static Ref<InjectionResultHolder> NODELETE create(Args&&... args)
     {
         return adoptRef(*new InjectionResultHolder(std::forward<Args>(args)...));
     }
@@ -195,7 +196,7 @@ void removeStyleSheets(const SourcePairs& styleSheetPairs, WKWebView *webView,  
     auto& dynamicallyInjectedUserStyleSheets = context.dynamicallyInjectedUserStyleSheets();
 
     for (auto& styleSheetContent : styleSheetPairs) {
-        for (auto& userStyleSheet : dynamicallyInjectedUserStyleSheets) {
+        for (Ref userStyleSheet : borrow(dynamicallyInjectedUserStyleSheets).get()) {
             if (userStyleSheetMatchesContent(userStyleSheet, styleSheetContent, injectedFrames)) {
                 styleSheetsToRemove.append(userStyleSheet);
                 Ref controller = webView._page.get()->userContentController();

@@ -35,6 +35,7 @@
 namespace WebCore {
 
 class CSSSVGResourceElementClient;
+class WeakPtrImplWithEventTargetData;
 class Document;
 class LegacyRenderSVGResourceClipper;
 class LegacyRenderSVGResourceContainer;

@@ -53,7 +53,7 @@ static inline LegacyRenderSVGResource* requestPaintingResource(RenderSVGResource
     bool applyToFill = mode == RenderSVGResourceMode::ApplyToFill;
 
     // When rendering the mask for a LegacyRenderSVGResourceClipper, always use the initial fill paint server.
-    if (protect(renderer.view().frameView())->paintBehavior().contains(PaintBehavior::RenderingSVGClipOrMask)) {
+    if (renderer.view().frameView().paintBehavior().contains(PaintBehavior::RenderingSVGClipOrMask)) {
         // Ignore stroke.
         if (!applyToFill)
             return nullptr;
@@ -206,21 +206,21 @@ void LegacyRenderSVGResource::markForLayoutAndParentResourceInvalidationIfNeeded
         // If we are inside the layout of an LegacyRenderSVGRoot, do not cross the SVG boundary to
         // invalidate the ancestor renderer because it may have finished its layout already.
         if (CheckedPtr svgRoot = dynamicDowncast<LegacyRenderSVGRoot>(object); svgRoot && svgRoot->isInLayout())
-            svgRoot->setNeedsLayout(MarkOnlyThis);
+            svgRoot->setNeedsLayout(MarkingBehavior::MarkOnlyThis);
         else {
             if (CheckedPtr element = dynamicDowncast<RenderElement>(object)) {
                 auto svgRoot = SVGRenderSupport::findTreeRootObject(*element);
                 if (!svgRoot || !svgRoot->isInLayout())
-                    element->setNeedsLayout(MarkContainingBlockChain);
+                    element->setNeedsLayout(MarkingBehavior::MarkContainingBlockChain);
                 else {
                     // We just want to re-layout the ancestors up to the RenderSVGRoot.
-                    element->setNeedsLayout(MarkOnlyThis);
+                    element->setNeedsLayout(MarkingBehavior::MarkOnlyThis);
                     for (auto current = element->parent(); current != svgRoot; current = current->parent())
-                        current->setNeedsLayout(MarkOnlyThis);
-                    svgRoot->setNeedsLayout(MarkOnlyThis);
+                        current->setNeedsLayout(MarkingBehavior::MarkOnlyThis);
+                    svgRoot->setNeedsLayout(MarkingBehavior::MarkOnlyThis);
                 }
             } else
-                object.setNeedsLayout(MarkOnlyThis);
+                object.setNeedsLayout(MarkingBehavior::MarkOnlyThis);
         }
     }
 

@@ -31,6 +31,7 @@
 #include "Settings.h"
 #include "StyleBuilderChecking.h"
 #include "SystemFontDatabase.h"
+#include <wtf/text/TextStream.h>
 
 namespace WebCore {
 namespace Style {
@@ -83,7 +84,7 @@ auto CSSValueConversion<FontFamilies>::operator()(BuilderState& state, const CSS
         return { nullAtom(), FontFamilyKind::Generic };
 
     std::optional<FontFamilyKind> firstFontKind;
-    auto families = WTF::compactMap(*valueList, [&](auto& contentValue) -> std::optional<AtomString> {
+    auto families = WTF::compactMap(*valueList, [&](auto& contentValue) -> std::optional<WebCore::FontFamily> {
         auto [family, kind] = [&] -> std::pair<AtomString, FontFamilyKind> {
             if (contentValue.isFontFamily())
                 return { AtomString { contentValue.stringValue() }, FontFamilyKind::Specified };
@@ -101,7 +102,7 @@ auto CSSValueConversion<FontFamilies>::operator()(BuilderState& state, const CSS
         if (!firstFontKind)
             firstFontKind = kind;
 
-        return family;
+        return WebCore::FontFamily { WTF::move(family), kind };
     });
 
     if (families.isEmpty()) {
@@ -110,9 +111,16 @@ auto CSSValueConversion<FontFamilies>::operator()(BuilderState& state, const CSS
     }
 
     return {
-        RefCountedFixedVector<AtomString>::createFromVector(WTF::move(families)),
+        RefCountedFixedVector<WebCore::FontFamily>::createFromVector(WTF::move(families)),
         *firstFontKind
     };
+}
+
+// MARK: - Logging
+
+TextStream& operator<<(TextStream& ts, const FontFamily& fontFamily)
+{
+    return ts << fontFamily.value;
 }
 
 } // namespace Style

@@ -30,6 +30,7 @@
 NS_HEADER_AUDIT_BEGIN(nullability, sendability)
 
 @class WKFrameInfo;
+@class WKSecurityOrigin;
 @class WKWebView;
 @class _WKJSHandle;
 
@@ -39,22 +40,22 @@ typedef NS_OPTIONS(NSUInteger, _WKTextExtractionFilterOptions) {
     _WKTextExtractionFilterClassifier = 1 << 1,
     _WKTextExtractionFilterRules = 1 << 2,
     _WKTextExtractionFilterAll = NSUIntegerMax,
-} WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA));
+} WK_API_AVAILABLE(macos(26.4), ios(26.4), visionos(26.4));
 
 typedef NS_ENUM(NSInteger, _WKTextExtractionNodeIdentifierInclusion) {
     _WKTextExtractionNodeIdentifierInclusionNone = 0,
     _WKTextExtractionNodeIdentifierInclusionEditableOnly,
     _WKTextExtractionNodeIdentifierInclusionInteractive,
     _WKTextExtractionNodeIdentifierInclusionAllContainers,
-} WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA));
+} WK_API_AVAILABLE(macos(26.4), ios(26.4), visionos(26.4));
 
 typedef NS_ENUM(NSInteger, _WKTextExtractionOutputFormat) {
     _WKTextExtractionOutputFormatTextTree = 0,
     _WKTextExtractionOutputFormatHTML,
     _WKTextExtractionOutputFormatMarkdown,
     _WKTextExtractionOutputFormatJSON,
-    _WKTextExtractionOutputFormatPlainText,
-} WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA));
+    _WKTextExtractionOutputFormatPlainText WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA)),
+} WK_API_AVAILABLE(macos(26.4), ios(26.4), visionos(26.4));
 
 #define WK_TEXT_EXTRACTION_HAS_EVENT_LISTENER_CATEGORIES 1
 
@@ -84,7 +85,7 @@ typedef NS_ENUM(NSInteger, _WKTextExtractionWordLimitPolicy) {
     _WKTextExtractionWordLimitPolicyDiscretionary,
 } WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA));
 
-WK_CLASS_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA))
+WK_CLASS_AVAILABLE(macos(26.4), ios(26.4), visionos(26.4))
 @interface _WKTextExtractionConfiguration : NSObject
 
 @property (nonatomic, class, copy, readonly) _WKTextExtractionConfiguration *configurationForVisibleTextOnly WK_API_DEPRECATED_WITH_REPLACEMENT("_WKTextExtractionOutputFormatPlainText", macos(WK_MAC_TBA, WK_MAC_TBA), ios(WK_IOS_TBA, WK_IOS_TBA), visionos(WK_XROS_TBA, WK_XROS_TBA)) NS_SWIFT_NAME(visibleTextOnly);
@@ -238,10 +239,15 @@ WK_CLASS_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA))
 
 @end
 
-WK_CLASS_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA))
+WK_CLASS_AVAILABLE(macos(26.4), ios(26.4), visionos(26.4))
 @interface _WKTextExtractionResult : NSObject
 
 @property (nonatomic, readonly) NSString *textContent;
+
+/*!
+ The origin of the committed page at the time text extraction completed.
+ */
+@property (nonatomic, readonly, nullable) WKSecurityOrigin *origin;
 
 /*!
  Set to `YES` if and only if any output text was filtered out as a result
@@ -276,6 +282,18 @@ WK_CLASS_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA))
  */
 - (void)requestContainerJSHandleForNodeIdentifier:(nullable NSString *)nodeIdentifier searchText:(nullable NSString *)searchText completionHandler:(void (^)(_WKJSHandle * _Nullable))completionHandler;
 
+/*!
+ Asynchronously find the smallest appropriately-sized container element that
+ contains all of the given search texts. Each search text is independently
+ located in the document; their common ancestor is then expanded upward until
+ a container meeting a minimum size threshold is found.
+ @param searchTexts         An array of one or more rendered text strings to search for in the document.
+ @param nodeIdentifier      Optional fallback node identifier; text searches will be performed in a range
+                            after the start of this node. If no matches are found, this node will be returned.
+ At least one search text or a non-null node identifier must be specified.
+ */
+- (void)requestContainerJSHandleForSearchTexts:(NSArray<NSString *> *)searchTexts nodeIdentifier:(nullable NSString *)nodeIdentifier completionHandler:(void (^)(_WKJSHandle * _Nullable))completionHandler;
+
 @end
 
 typedef NS_ENUM(NSInteger, _WKTextExtractionAction) {
@@ -285,17 +303,19 @@ typedef NS_ENUM(NSInteger, _WKTextExtractionAction) {
     _WKTextExtractionActionTextInput,
     _WKTextExtractionActionKeyPress,
     _WKTextExtractionActionHighlightText,
-    _WKTextExtractionActionScroll,
+    _WKTextExtractionActionScroll WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA)),
     _WKTextExtractionActionScrollBy = _WKTextExtractionActionScroll,
-} WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA));
+    _WKTextExtractionActionHover WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA)),
+} WK_API_AVAILABLE(macos(26.4), ios(26.4), visionos(26.4));
 
-WK_CLASS_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA))
+WK_CLASS_AVAILABLE(macos(26.4), ios(26.4), visionos(26.4))
 WK_SWIFT_UI_ACTOR
 NS_REQUIRES_PROPERTY_DEFINITIONS
 @interface _WKTextExtractionInteraction : NSObject
 
 - (instancetype)init NS_UNAVAILABLE;
-- (instancetype)initWithAction:(_WKTextExtractionAction)action NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithAction:(_WKTextExtractionAction)action;
+- (instancetype)initWithAction:(_WKTextExtractionAction)action extractionContext:(nullable _WKTextExtractionResult *)extractionContext NS_DESIGNATED_INITIALIZER;
 
 - (void)debugDescriptionInWebView:(WKWebView *)webView completionHandler:(void (^)(NSString * _Nullable, NSError * _Nullable))completionHandler;
 
@@ -305,13 +325,14 @@ NS_REQUIRES_PROPERTY_DEFINITIONS
 @property (nonatomic) BOOL replaceAll;
 @property (nonatomic) BOOL scrollToVisible;
 @property (nonatomic) CGSize scrollDelta;
+@property (nonatomic, readonly, strong, nullable) _WKTextExtractionResult *extractionContext;
 
 // Must be within the visible bounds of the web view.
 @property (nonatomic) CGPoint location;
 
 @end
 
-WK_CLASS_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA))
+WK_CLASS_AVAILABLE(macos(26.4), ios(26.4), visionos(26.4))
 WK_SWIFT_UI_ACTOR
 NS_REQUIRES_PROPERTY_DEFINITIONS
 @interface _WKTextExtractionInteractionResult : NSObject

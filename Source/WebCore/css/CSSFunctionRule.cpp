@@ -71,13 +71,13 @@ String CSSFunctionRule::cssText() const
 {
     StringBuilder builder;
     builder.append("@function "_s);
-    serializeIdentifier(name(), builder);
+    serializeIdentifier(builder, name());
     builder.append('(');
 
     auto separator = ""_s;
     for (auto& parameter : styleRuleFunction().parameters()) {
         builder.append(separator);
-        serializeIdentifier(parameter.name, builder);
+        serializeIdentifier(builder, parameter.name);
         // FIXME: Serialize the type.
 
         if (RefPtr defaultValue = parameter.defaultValue)

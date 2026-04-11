@@ -88,6 +88,7 @@ if (USE_COORDINATED_GRAPHICS)
     list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
         page/scrolling/coordinated/ScrollingTreeCoordinated.h
 
+        platform/graphics/gbm/DMABufBufferAttributes.h
         platform/graphics/texmap/coordinated/CoordinatedAnimatedBackingStoreClient.h
         platform/graphics/texmap/coordinated/CoordinatedBackingStore.h
         platform/graphics/texmap/coordinated/CoordinatedBackingStoreProxy.h

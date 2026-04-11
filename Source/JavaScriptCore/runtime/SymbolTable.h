@@ -377,7 +377,7 @@ private:
         return inflateSlow();
     }
     
-    FatEntry* inflateSlow();
+    FatEntry* NODELETE inflateSlow();
     
     ALWAYS_INLINE intptr_t bits() const
     {
@@ -748,8 +748,8 @@ public:
 
     void prepareForTypeProfiling(const ConcurrentJSLocker&);
 
-    String inferredName();
-    DebuggerLocation debuggerLocation();
+    String NODELETE inferredName();
+    DebuggerLocation NODELETE debuggerLocation();
     void collectDebuggerInfo(CodeBlock*);
     
     InferredValue<JSScope>& singleton() LIFETIME_BOUND { return m_singleton; }

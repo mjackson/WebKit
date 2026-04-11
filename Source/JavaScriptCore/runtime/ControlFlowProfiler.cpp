@@ -131,7 +131,7 @@ Vector<BasicBlockRange> ControlFlowProfiler::getBasicBlocksForSourceID(SourceID 
     return result;
 }
 
-static BasicBlockRange findBasicBlockAtTextOffset(int offset, const Vector<BasicBlockRange>& blocks)
+static BasicBlockRange NODELETE findBasicBlockAtTextOffset(int offset, const Vector<BasicBlockRange>& blocks)
 {
     int bestDistance = INT_MAX;
     BasicBlockRange bestRange;

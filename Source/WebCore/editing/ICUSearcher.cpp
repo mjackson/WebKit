@@ -168,8 +168,7 @@ bool isWordStartMatch(std::span<const char16_t> buffer, size_t start, size_t len
     U16_GET(buffer, 0, offset, size, firstCharacter);
 
     if (options.contains(FindOption::TreatMedialCapitalAsWordStart)) {
-        char32_t previousCharacter;
-        U16_PREV(buffer, 0, offset, previousCharacter);
+        char32_t previousCharacter = StringView(buffer).codePointBefore(offset);
 
         if (isSeparator(firstCharacter)) {
             // The start of a separator run is a word start (".org" in "webkit.org").

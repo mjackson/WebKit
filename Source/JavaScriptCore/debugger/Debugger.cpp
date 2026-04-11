@@ -180,7 +180,7 @@ void Debugger::attach(JSGlobalObject* globalObject)
             if (isJSCellKind(kind)) {
                 auto* cell = static_cast<JSCell*>(heapCell);
                 if (auto* function = jsDynamicCast<JSFunction*>(cell)) {
-                    if (function->scope()->globalObject() == globalObject && function->executable()->isFunctionExecutable() && !function->isHostOrBuiltinFunction())
+                    if (function->scope()->realm() == globalObject && function->executable()->isFunctionExecutable() && !function->isHostOrBuiltinFunction())
                         sourceProviders.add(jsCast<FunctionExecutable*>(function->executable())->source().provider());
                 }
             }
@@ -673,7 +673,7 @@ public:
     {
     }
 
-    void operator()(CodeBlock* codeBlock) const
+    void NODELETE operator()(CodeBlock* codeBlock) const
     {
         if (codeBlock->hasDebuggerRequests() && m_debugger == codeBlock->globalObject()->debugger())
             codeBlock->clearDebuggerRequests();
@@ -789,7 +789,7 @@ public:
     {
     }
 
-    void operator()(CodeBlock* codeBlock) const
+    void NODELETE operator()(CodeBlock* codeBlock) const
     {
         if (codeBlock->hasDebuggerRequests() && m_globalObject == codeBlock->globalObject())
             codeBlock->clearDebuggerRequests();
@@ -1164,7 +1164,7 @@ public:
         ASSERT(callFrame->isEmptyTopLevelCallFrameForDebugger());
     }
 
-    CallFrame* asCallFrame() { return CallFrame::create(m_values); }
+    CallFrame* NODELETE asCallFrame() { return CallFrame::create(m_values); }
 
 private:
     Register m_values[CallFrame::headerSizeInRegisters + /* thisValue */ 1] { };

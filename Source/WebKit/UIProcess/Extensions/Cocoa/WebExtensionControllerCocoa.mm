@@ -465,8 +465,8 @@ void WebExtensionController::addUserContentController(WebUserContentControllerPr
 void WebExtensionController::removeUserContentController(WebUserContentControllerProxy& userContentController)
 {
     // Only remove the user content controller if no other pages use the same one.
-    for (Ref knownPage : m_pages) {
-        if (knownPage->userContentController() == userContentController)
+    for (auto& knownPage : m_pages) {
+        if (knownPage.userContentController() == userContentController)
             return;
     }
 
@@ -486,9 +486,9 @@ RefPtr<WebsiteDataStore> WebExtensionController::websiteDataStore(std::optional<
     if (!sessionID || configuration->defaultWebsiteDataStore().sessionID() == sessionID.value())
         return configuration->defaultWebsiteDataStore();
 
-    for (Ref dataStore : allWebsiteDataStores()) {
-        if (dataStore->sessionID() == sessionID.value())
-            return dataStore;
+    for (auto& dataStore : allWebsiteDataStores()) {
+        if (dataStore.sessionID() == sessionID.value())
+            return &dataStore;
     }
 
     return nullptr;
@@ -507,8 +507,8 @@ void WebExtensionController::addWebsiteDataStore(WebsiteDataStore& dataStore)
 void WebExtensionController::removeWebsiteDataStore(WebsiteDataStore& dataStore)
 {
     // Only remove the data store if no other pages use the same one.
-    for (Ref knownPage : m_pages) {
-        if (knownPage->websiteDataStore() == dataStore)
+    for (auto& knownPage : m_pages) {
+        if (knownPage.websiteDataStore() == dataStore)
             return;
     }
 
@@ -544,7 +544,7 @@ bool WebExtensionController::isFeatureEnabled(const String& featureName) const
 
 RefPtr<WebExtensionContext> WebExtensionController::extensionContext(const WebExtension& extension) const
 {
-    for (Ref context : m_extensionContexts) {
+    for (auto& context : m_extensionContexts) {
         if (context->extension() == extension)
             return context.ptr();
     }
@@ -554,7 +554,7 @@ RefPtr<WebExtensionContext> WebExtensionController::extensionContext(const WebEx
 
 RefPtr<WebExtensionContext> WebExtensionController::extensionContext(const UniqueIdentifier& uniqueIdentifier) const
 {
-    for (Ref context : m_extensionContexts) {
+    for (auto& context : m_extensionContexts) {
         if (context->uniqueIdentifier() == uniqueIdentifier)
             return context.ptr();
     }

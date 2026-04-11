@@ -69,7 +69,7 @@ public:
 
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&);
 
-    std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const;
+    std::optional<SharedPreferencesForWebProcess> NODELETE sharedPreferencesForWebProcess() const;
 
     friend class WebSocketTask;
 

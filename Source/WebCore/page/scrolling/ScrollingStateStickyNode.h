@@ -56,7 +56,7 @@ private:
     ScrollingStateStickyNode(ScrollingStateTree&, ScrollingNodeID);
     ScrollingStateStickyNode(const ScrollingStateStickyNode&, ScrollingStateTree&);
 
-    FloatPoint computeClippingLayerPosition(const LayoutRect& viewportRect) const;
+    FloatPoint NODELETE computeClippingLayerPosition(const LayoutRect& viewportRect) const;
     FloatPoint computeAnchorLayerPosition(const LayoutRect& viewportRect) const;
     void reconcileLayerPositionForViewportRect(const LayoutRect& viewportRect, ScrollingLayerPositionAction) final;
     FloatSize scrollDeltaSinceLastCommit(const LayoutRect& viewportRect) const;

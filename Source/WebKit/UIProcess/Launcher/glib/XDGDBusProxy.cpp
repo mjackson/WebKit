@@ -72,8 +72,8 @@ std::optional<CString> XDGDBusProxy::dbusSessionProxy(const char* baseDirectory,
     if (m_dbusSessionProxyPath.isNull())
         return std::nullopt;
 
-    m_args.appendVector(Vector<CString> {
-        CString(dbusAddress), m_dbusSessionProxyPath,
+    m_args.appendList<CString>({
+        dbusAddress, m_dbusSessionProxyPath,
         "--filter"
     });
 
@@ -103,7 +103,7 @@ std::optional<CString> XDGDBusProxy::accessibilityProxy(const char* baseDirector
 
     auto webProcessA11yOwnArg = makeString("--own="_s, accessibilityBusName);
 
-    m_args.appendVector(Vector<CString> {
+    m_args.appendList<CString>({
         accessibilityBusAddress.utf8(), m_accessibilityProxyPath,
         "--filter",
         "--sloppy-names",

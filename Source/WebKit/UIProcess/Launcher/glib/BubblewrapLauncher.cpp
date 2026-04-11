@@ -197,8 +197,8 @@ static void bindSymlinksRealPath(Vector<CString>& args, const String& path, cons
 {
     auto realPath = FileSystem::realPath(path);
     if (path != realPath) {
-        CString rpath = realPath.utf8();
-        args.appendVector(Vector<CString>({ bindOption, rpath.data(), rpath.data() }));
+        auto rpath = realPath.utf8();
+        args.appendList<CString>({ bindOption, rpath, rpath });
     }
 }
 
@@ -224,7 +224,7 @@ static void bindIfExists(Vector<CString>& args, const CStringView& path, BindFla
     // links.
     if (!startsWith(path.span(), "/etc/"_s)) {
         auto pathString = CString(path.span());
-        args.appendVector(Vector<CString>({ bindType, pathString, pathString }));
+        args.appendList<CString>({ bindType, pathString, pathString });
     }
 }
 
@@ -244,7 +244,7 @@ static void bindDBusSession(Vector<CString>& args, XDGDBusProxy& dbusProxy, bool
 
     GUniquePtr<char> sandboxedSessionBusPath(g_build_filename(sandboxedUserRuntimeDirectory().data(), "bus", nullptr));
     GUniquePtr<char> proxyAddress(g_strdup_printf("unix:path=%s", sandboxedSessionBusPath.get()));
-    args.appendVector(Vector<CString> {
+    args.appendList<CString>({
         "--ro-bind", *dbusSessionProxyPath, sandboxedSessionBusPath.get(),
         "--setenv", "DBUS_SESSION_BUS_ADDRESS", proxyAddress.get()
     });
@@ -391,9 +391,9 @@ static void bindA11y(Vector<CString>& args, XDGDBusProxy& dbusProxy, const Strin
         return;
 
     ASSERT(sandboxedAccessibilityBusAddress.startsWith("unix:path="_s));
-    auto sandboxedAccessibilityBusPath = sandboxedAccessibilityBusAddress.substring(strlen("unix:path="));
-    args.appendVector(Vector<CString> {
-        "--ro-bind", *accessibilityProxyPath, sandboxedAccessibilityBusPath.utf8(),
+    auto sandboxedAccessibilityBusPath = sandboxedAccessibilityBusAddress.substring(strlen("unix:path=")).utf8();
+    args.appendList<CString>({
+        "--ro-bind", *accessibilityProxyPath, sandboxedAccessibilityBusPath,
         "--setenv", "AT_SPI_BUS_ADDRESS", sandboxedAccessibilityBusAddress.utf8(),
     });
 }
@@ -465,7 +465,7 @@ static void bindGStreamerData(Vector<CString>& args)
 
 static void bindOpenGL(Vector<CString>& args)
 {
-    args.appendVector(Vector<CString>({
+    args.appendList({
         "--dev-bind-try", "/dev/dri", "/dev/dri",
         // Mali
         "--dev-bind-try", "/dev/mali", "/dev/mali",
@@ -482,22 +482,34 @@ static void bindOpenGL(Vector<CString>& args)
         "--dev-bind-try", "/dev/fb0", "/dev/fb0",
         "--dev-bind-try", "/dev/fb1", "/dev/fb1",
 #endif
-    }));
+    });
 }
 
-#if PLATFORM(WPE)
 static void bindV4l(Vector<CString>& args)
 {
-    args.appendVector(Vector<CString>({
+    args.appendList({
         "--dev-bind-try", "/dev/v4l", "/dev/v4l",
-        // Not pretty but a stop-gap for pipewire anyway.
-        "--dev-bind-try", "/dev/video0", "/dev/video0",
-        "--dev-bind-try", "/dev/video1", "/dev/video1",
-        "--dev-bind-try", "/dev/video2", "/dev/video2",
-        "--dev-bind-try", "/dev/media0", "/dev/media0",
-    }));
+    });
+
+    for (StringView fileName : FileSystem::listDirectory("/dev"_s)) {
+        bool isV4LNode = [&] () {
+            static constexpr std::array<ASCIILiteral, 3> nodeNames = { "video"_s, "media"_s, "v4l-subdev"_s };
+            for (const auto& nodeName : nodeNames) {
+                if (fileName.startsWith(nodeName) && fileName.substring(nodeName.length()).containsOnly<isASCIIDigit>())
+                    return true;
+            }
+            return false;
+        }();
+
+        if (!isV4LNode)
+            continue;
+
+        CString path = FileSystem::pathByAppendingComponent("/dev"_s, fileName).utf8();
+        args.appendList<CString>({
+            "--dev-bind-try", path, path,
+        });
+    }
 }
-#endif
 
 static bool enableDebugPermissions()
 {
@@ -762,10 +774,10 @@ static std::optional<CString> directoryContainingDBusSocket(const char* dbusAddr
 static void addExtraPaths(const HashMap<CString, SandboxPermission>& paths, Vector<CString>& args)
 {
     for (const auto& pathAndPermission : paths) {
-        args.appendVector(Vector<CString>({
+        args.appendList<CString>({
             pathAndPermission.value == SandboxPermission::ReadOnly ? "--ro-bind-try": "--bind-try",
             pathAndPermission.key, pathAndPermission.key
-        }));
+        });
     }
 }
 
@@ -827,13 +839,13 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
         const char* dataDir = g_get_user_data_dir();
         GUniquePtr<char> rrOutputDir(g_build_filename(dataDir, "rr", nullptr));
 
-        sandboxArgs.appendVector(Vector<CString>({
+        sandboxArgs.appendList<CString>({
             // Other binaries are helpful for debugging such as gdbserver.
             "--ro-bind-try", "/bin", "/bin",
             "--ro-bind-try", "/usr/bin", "/usr/bin",
             // rr writes to this directory.
             "--bind-try", rrOutputDir.get(), rrOutputDir.get(),
-        }));
+        });
     } else {
         // In some configurations cross pid namespace debugging has issues.
         sandboxArgs.append("--unshare-pid");
@@ -842,26 +854,26 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
     addExtraPaths(launchOptions.extraSandboxPaths, sandboxArgs);
 
     if (launchOptions.processType == ProcessLauncher::ProcessType::DBusProxy) {
-        sandboxArgs.appendVector(Vector<CString>({
+        sandboxArgs.appendList<CString>({
             "--ro-bind", DBUS_PROXY_EXECUTABLE, DBUS_PROXY_EXECUTABLE,
-            "--bind", sandboxedUserRuntimeDirectory().data(), sandboxedUserRuntimeDirectory().data(),
-        }));
+            "--bind", sandboxedUserRuntimeDirectory(), sandboxedUserRuntimeDirectory(),
+        });
 
         // xdg-dbus-proxy is trusted, so it's OK to mount the directories that contain the session
         // bus and a11y bus sockets wherever they may be. xdg-dbus-proxy is sandboxed only because
         // we have to mount .flatpak-info in its mount namespace so that portals may use it as a
         // trusted way to get the app ID of the process that is using it.
         if (auto sessionBusDirectory = directoryContainingDBusSocket(g_getenv("DBUS_SESSION_BUS_ADDRESS"))) {
-            sandboxArgs.appendVector(Vector<CString>({
+            sandboxArgs.appendList<CString>({
                 "--bind", *sessionBusDirectory, *sessionBusDirectory,
-            }));
+            });
         }
 
 #if USE(ATSPI)
         if (auto a11yBusDirectory = directoryContainingDBusSocket(launchOptions.extraInitializationData.get("accessibilityBusAddress"_s).utf8().data())) {
-            sandboxArgs.appendVector(Vector<CString>({
+            sandboxArgs.appendList<CString>({
                 "--bind", *a11yBusDirectory, *a11yBusDirectory,
-            }));
+            });
         }
 #endif
     }
@@ -876,9 +888,9 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
     if (libraryPath && libraryPath[0]) {
         // On distros using a suid bwrap it drops this env var
         // so we have to pass it through to the children.
-        sandboxArgs.appendVector(Vector<CString>({
+        sandboxArgs.appendList<CString>({
             "--setenv", "LD_LIBRARY_PATH", libraryPath,
-        }));
+        });
     }
 
     bindSymlinksRealPath(sandboxArgs, "/etc/resolv.conf"_s);
@@ -894,9 +906,9 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
         g_subprocess_launcher_take_fd(launcher, flatpakInfoFd, flatpakInfoFd);
         GUniquePtr<char> flatpakInfoFdStr(g_strdup_printf("%d", flatpakInfoFd));
 
-        sandboxArgs.appendVector(Vector<CString>({
+        sandboxArgs.appendList<CString>({
             "--ro-bind-data", flatpakInfoFdStr.get(), "/.flatpak-info"
-        }));
+        });
     }
 
     bindIfExists(sandboxArgs, "/run/systemd/journal/socket");
@@ -920,9 +932,9 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
 
         Vector<String> extraPaths = { "mediaKeysDirectory"_s, "waylandSocket"_s };
         for (const auto& path : extraPaths) {
-            String extraPath = launchOptions.extraInitializationData.get(path);
+            auto extraPath = launchOptions.extraInitializationData.get(path).utf8();
             if (!extraPath.isEmpty())
-                sandboxArgs.appendVector(Vector<CString>({ "--bind-try", extraPath.utf8(), extraPath.utf8() }));
+                sandboxArgs.appendList<CString>({ "--bind-try", extraPath, extraPath });
         }
 
         bindDBusSession(sandboxArgs, dbusProxy, flatpakInfoFd != -1);
@@ -933,18 +945,8 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
         bindGStreamerData(sandboxArgs);
         bindOpenGL(sandboxArgs);
 
-        // NOTE: We don't bind v4l2 devices in the sandbox for WebKitGTK builds. We expect the
-        // WebKitGTK Application/UIProcess to be packaged as a Flatpak so that Camera access can be
-        // managed via the DesktopPortal. Our fake WebProcess .flatpak-info file is not sufficient
-        // for this, at least on GNOME hosts, where GNOME-Shell expects the Window/UIProcess to also
-        // have a .flatpak-info file mapped in /proc/<pid>/root/.flatpak-info in order to show the
-        // camera access permission popup.
-        //
-        // For WPEWebKit applications, we expect to find no DesktopPortal at runtime, so we bind the
-        // v4l2 devices in the sandbox.
-#if PLATFORM(WPE)
+        // Although cameras can be managed via the DesktopPortal, we still need v4l2 for video decoding.
         bindV4l(sandboxArgs);
-#endif
 
 #if USE(ATSPI)
         auto accessibilityBusAddress = launchOptions.extraInitializationData.get("accessibilityBusAddress"_s);
@@ -981,7 +983,7 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
     int seccompFd = setupSeccomp();
     GUniquePtr<char> fdStr(g_strdup_printf("%d", seccompFd));
     g_subprocess_launcher_take_fd(launcher, seccompFd, seccompFd);
-    sandboxArgs.appendVector(Vector<CString>({ "--seccomp", fdStr.get() }));
+    sandboxArgs.appendList<CString>({ "--seccomp", fdStr.get() });
 
     int bwrapFd = argumentsToFileDescriptor(sandboxArgs, "bwrap");
     GUniquePtr<char> bwrapFdStr(g_strdup_printf("%d", bwrapFd));

@@ -1187,6 +1187,8 @@ void WebPageProxy::showValidationMessage(const IntRect& anchorClientRect, String
     m_validationBubble = pageClient->createValidationBubble(WTF::move(message), { protect(m_preferences)->minimumFontSize() });
     Ref validationBubble = *m_validationBubble;
 
+    validationBubble->setShouldSuppressPresentation(pageClient->shouldSuppressFormValidationBubble());
+
     // FIXME: When in element fullscreen, UIClient::presentingViewController() may not return the
     // WKFullScreenViewController even though that is the presenting view controller of the WKWebView.
     // We should call PageClientImpl::presentingViewController() instead.
@@ -1520,9 +1522,17 @@ WebContentMode WebPageProxy::effectiveContentModeAfterAdjustingPolicies(API::Web
         if (auto selectors = Quirks::defaultVisibilityAdjustmentSelectors(request.url()))
             policies.setVisibilityAdjustmentSelectors({ WTF::move(*selectors) });
 
+        if (Quirks::needsMediaSourceEnabled(request.url()))
+            policies.setMediaSourcePolicy(WebsiteMediaSourcePolicy::Enable);
+
         if (Quirks::needsIPhoneUserAgent(request.url())) {
             policies.setCustomUserAgent(makeStringByReplacingAll(standardUserAgentWithApplicationName(m_applicationNameForUserAgent), "iPad"_s, "iPhone"_s));
             policies.setCustomNavigatorPlatform("iPhone"_s);
+            return WebContentMode::Mobile;
+        }
+
+        if (Quirks::needsChromeForAndroidUserAgent(request.url())) {
+            policies.setCustomUserAgent("Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Mobile Safari/537.36"_s);
             return WebContentMode::Mobile;
         }
     }

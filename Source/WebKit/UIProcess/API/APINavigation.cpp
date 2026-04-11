@@ -96,9 +96,7 @@ Navigation::Navigation(WebCore::ProcessIdentifier processID, WebCore::ResourceRe
     m_substituteData = WTF::move(substituteData);
 }
 
-Navigation::~Navigation()
-{
-}
+Navigation::~Navigation() = default;
 
 void Navigation::resetRequestStart()
 {

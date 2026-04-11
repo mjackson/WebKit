@@ -45,6 +45,7 @@
 #include "LocalizedStrings.h"
 #include "NodeName.h"
 #include "RenderObjectInlines.h"
+#include "RenderStyle+SettersInlines.h"
 #include "RenderTextControlMultiLine.h"
 #include "ScriptDisallowedScope.h"
 #include "ShadowRoot.h"
@@ -526,8 +527,7 @@ void HTMLTextAreaElement::setRows(unsigned rows)
 
 void HTMLTextAreaElement::updatePlaceholderText()
 {
-    auto& placeholderText = attributeWithoutSynchronization(placeholderAttr);
-    if (placeholderText.isEmpty()) {
+    if (!hasAttributeWithoutSynchronization(placeholderAttr)) {
         if (RefPtr placeholder = m_placeholder) {
             protect(userAgentShadowRoot())->removeChild(*placeholder);
             m_placeholder = nullptr;
@@ -538,7 +538,7 @@ void HTMLTextAreaElement::updatePlaceholderText()
         m_placeholder = TextControlPlaceholderElement::create(protect(document()));
         protect(userAgentShadowRoot())->insertBefore(*protect(m_placeholder), protect(innerTextElement()->nextSibling()));
     }
-    protect(m_placeholder)->setInnerText(String { placeholderText });
+    protect(m_placeholder)->setInnerText(String { attributeWithoutSynchronization(placeholderAttr) });
 }
 
 RenderStyle HTMLTextAreaElement::createInnerTextStyle(const RenderStyle& style)

@@ -47,8 +47,8 @@ public:
     SVGAnimatedRect& viewBoxAnimated() { return m_viewBox; }
     SVGAnimatedPreserveAspectRatio& preserveAspectRatioAnimated() { return m_preserveAspectRatio; }
 
-    void setViewBox(const FloatRect&);
-    void resetViewBox();
+    void NODELETE setViewBox(const FloatRect&);
+    void NODELETE resetViewBox();
 
     void setPreserveAspectRatio(const SVGPreserveAspectRatioValue& preserveAspectRatio) { m_preserveAspectRatio->setBaseValInternal(preserveAspectRatio); }
     void resetPreserveAspectRatio() { m_preserveAspectRatio->setBaseValInternal({ }); }
@@ -56,7 +56,13 @@ public:
     String viewBoxString() const { return SVGPropertyTraits<FloatRect>::toString(viewBox()); }
     String preserveAspectRatioString() const { return preserveAspectRatio().valueAsString(); }
 
-    bool hasValidViewBox() const { return m_isViewBoxValid && viewBox().width() >= 0 && viewBox().height() >= 0; }
+    bool hasValidViewBox() const
+    {
+        auto& viewBox = this->viewBox();
+        if (m_viewBox->isAnimating())
+            return viewBox.width() >= 0 && viewBox.height() >= 0;
+        return m_isViewBoxValid && viewBox.width() >= 0 && viewBox.height() >= 0;
+    }
     bool hasEmptyViewBox() const { return hasValidViewBox() && viewBox().isEmpty(); }
 
 protected:
@@ -64,7 +70,7 @@ protected:
 
     static bool isKnownAttribute(const QualifiedName& attributeName) { return PropertyRegistry::isKnownAttribute(attributeName); }
 
-    void reset();
+    void NODELETE reset();
     bool parseAttribute(const QualifiedName&, const AtomString&);
     std::optional<FloatRect> parseViewBox(StringView);
     std::optional<FloatRect> parseViewBox(StringParsingBuffer<Latin1Character>&, bool validate = true);

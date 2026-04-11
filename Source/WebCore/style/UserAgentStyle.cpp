@@ -256,7 +256,7 @@ void UserAgentStyle::ensureDefaultStyleSheetsForElement(const Element& element)
     }
 #endif // ENABLE(FULLSCREEN_API)
 
-    if (!viewTransitionsStyleSheet && element.document().settings().viewTransitionsEnabled()) {
+    if (!viewTransitionsStyleSheet) {
         viewTransitionsStyleSheet = parseUASheet(StringImpl::createWithoutCopying(viewTransitionsUserAgentStyleSheet));
         addToDefaultStyle(*viewTransitionsStyleSheet);
         addUserAgentKeyframes(*viewTransitionsStyleSheet);

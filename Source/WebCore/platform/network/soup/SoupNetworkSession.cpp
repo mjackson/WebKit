@@ -87,7 +87,7 @@ private:
         if (!certificateData)
             return String();
 
-        auto digest = PAL::CryptoDigest::create(PAL::CryptoDigest::Algorithm::SHA_256);
+        auto digest = PAL::Crypto::CryptoDigest::create(PAL::Crypto::CryptoDigest::Algorithm::SHA_256);
         digest->addBytes(span(certificateData));
 
         return base64EncodeToString(digest->computeHash());

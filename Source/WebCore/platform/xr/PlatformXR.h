@@ -178,30 +178,30 @@ inline SessionFeature sessionFeatureFromReferenceSpaceType(ReferenceSpaceType re
 
 inline std::optional<SessionFeature> parseSessionFeatureDescriptor(StringView string)
 {
-    auto feature = string.trim(isUnicodeCompatibleASCIIWhitespace<char16_t>).convertToASCIILowercase();
+    auto feature = string.trim(isUnicodeCompatibleASCIIWhitespace<char16_t>);
 
-    if (feature == "viewer"_s)
+    if (equalLettersIgnoringASCIICase(feature, "viewer"_s))
         return SessionFeature::ReferenceSpaceTypeViewer;
-    if (feature == "local"_s)
+    if (equalLettersIgnoringASCIICase(feature, "local"_s))
         return SessionFeature::ReferenceSpaceTypeLocal;
-    if (feature == "local-floor"_s)
+    if (equalLettersIgnoringASCIICase(feature, "local-floor"_s))
         return SessionFeature::ReferenceSpaceTypeLocalFloor;
-    if (feature == "bounded-floor"_s)
+    if (equalLettersIgnoringASCIICase(feature, "bounded-floor"_s))
         return SessionFeature::ReferenceSpaceTypeBoundedFloor;
-    if (feature == "unbounded"_s)
+    if (equalLettersIgnoringASCIICase(feature, "unbounded"_s))
         return SessionFeature::ReferenceSpaceTypeUnbounded;
 #if ENABLE(WEBXR_HANDS)
-    if (feature == "hand-tracking"_s)
+    if (equalLettersIgnoringASCIICase(feature, "hand-tracking"_s))
         return SessionFeature::HandTracking;
 #endif
 #if ENABLE(WEBXR_HIT_TEST)
-    if (feature == "hit-test"_s)
+    if (equalLettersIgnoringASCIICase(feature, "hit-test"_s))
         return SessionFeature::HitTest;
 #endif
-    if (feature == "webgpu"_s)
+    if (equalLettersIgnoringASCIICase(feature, "webgpu"_s))
         return SessionFeature::WebGPU;
 #if ENABLE(WEBXR_LAYERS)
-    if (feature == "layers"_s)
+    if (equalLettersIgnoringASCIICase(feature, "layers"_s))
         return SessionFeature::Layers;
 #endif
     return std::nullopt;
@@ -475,6 +475,19 @@ struct FrameData {
     FrameData copy() const;
 };
 
+struct DeviceLayer {
+    struct LayerView {
+        Eye eye { Eye::None };
+        WebCore::IntRect viewport;
+    };
+    LayerHandle handle { 0 };
+    bool visible { true };
+    Vector<LayerView> views;
+#if USE(OPENXR)
+    WTF::UnixFileDescriptor fenceFD;
+#endif
+};
+
 class Device : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<Device> {
     WTF_MAKE_TZONE_ALLOCATED_INLINE(Device);
     WTF_MAKE_NONCOPYABLE(Device);
@@ -522,20 +535,6 @@ public:
     virtual void deleteTransientInputHitTestSource(TransientInputHitTestSource) = 0;
 #endif
 
-    struct LayerView {
-        Eye eye { Eye::None };
-        WebCore::IntRect viewport;
-    };
-
-    struct Layer {
-        LayerHandle handle { 0 };
-        bool visible { true };
-        Vector<LayerView> views;
-#if USE(OPENXR)
-        WTF::UnixFileDescriptor fenceFD;
-#endif
-    };
-
     struct ViewData {
         bool active { false };
         Eye eye { Eye::None };
@@ -545,7 +544,12 @@ public:
 
     using RequestFrameCallback = Function<void(FrameData&&)>;
     virtual void requestFrame(std::optional<RequestData>&&, RequestFrameCallback&&) = 0;
-    virtual void submitFrame(Vector<Layer>&&) { };
+    virtual void submitFrame(Vector<DeviceLayer>&&) { };
+
+#if ENABLE(WEBXR_LAYERS)
+    unsigned maxRenderLayers() const { return m_maxRenderLayers; }
+#endif
+
 protected:
     Device() = default;
 
@@ -559,6 +563,10 @@ protected:
     bool m_supportsOrientationTracking { false };
     bool m_supportsViewportScaling { false };
     WeakPtr<TrackingAndRenderingClient> m_trackingAndRenderingClient;
+
+#if ENABLE(WEBXR_LAYERS)
+    unsigned m_maxRenderLayers { 1 };
+#endif
 };
 
 using DeviceList = Vector<Ref<Device>>;

@@ -92,11 +92,11 @@ bool LargestContentfulPaintData::isEligibleForLargestContentfulPaint(const Eleme
 
 bool LargestContentfulPaintData::canCompareWithLargestPaintArea(const Element& element)
 {
-    CheckedPtr renderer = element.renderer();
+    auto* renderer = element.renderer();
     if (!renderer)
         return false;
 
-    CheckedPtr layer = renderer->enclosingLayer();
+    auto* layer = renderer->enclosingLayer();
     if (!layer)
         return false;
 

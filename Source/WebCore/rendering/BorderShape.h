@@ -51,11 +51,10 @@ public:
     // overrideBorderWidths describe custom insets from the border box, used instead of the border widths from the style.
     static BorderShape shapeForBorderRect(const RenderStyle&, const LayoutRect& borderRect, const RectEdges<LayoutUnit>& overrideBorderWidths, RectEdges<bool> closedEdges = { true });
 
-    // Create a BorderShape suitable for rendering an outline or outset shadow. borderRect is provided to allow for scaling the corner radii.
-    static BorderShape shapeForOutsetRect(const RenderStyle&, const LayoutRect& borderRect, const LayoutRect& outlineBoxRect, const RectEdges<LayoutUnit>& outlineWidths, RectEdges<bool> closedEdges = { true });
-
-    // Create a BorderShape suitable for rendering a shape inset from the box. borderRect is provided to allow for scaling the corner radii.
-    static BorderShape shapeForInsetRect(const RenderStyle&, const LayoutRect& borderRect, const LayoutRect& insetRect);
+    // Create a BorderShape suitable for rendering an outline or shadow. borderRect is provided to
+    // allow for scaling the corner radii; radii expand outward or shrink inward based on the offset
+    // between borderRect and offsetRect.
+    static BorderShape shapeForOffsetRect(const RenderStyle&, const LayoutRect& borderRect, const LayoutRect& offsetRect, const RectEdges<LayoutUnit>& edgeWidths, RectEdges<bool> closedEdges = { true });
 
     BorderShape(const LayoutRect& borderRect, const RectEdges<LayoutUnit>& borderWidths);
     BorderShape(const LayoutRect& borderRect, const RectEdges<LayoutUnit>& borderWidths, const LayoutRoundedRectRadii&);
@@ -94,8 +93,8 @@ public:
 
     bool isRounded() const { return m_borderRect.isRounded(); }
 
-    bool outerShapeIsRectangular() const;
-    bool innerShapeIsRectangular() const;
+    bool NODELETE outerShapeIsRectangular() const;
+    bool NODELETE innerShapeIsRectangular() const;
 
     bool isEmpty() const { return m_borderRect.rect().isEmpty(); }
 

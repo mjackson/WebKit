@@ -227,7 +227,7 @@ void RemoteScrollingTreeMac::scrollingTreeNodeDidScroll(ScrollingTreeScrollingNo
         .data = ScrollUpdateData {
             .updateType = ScrollUpdateType::PositionUpdate,
             .updateLayerPositionAction = action,
-            .layoutViewportOrigin = layoutViewportOrigin,
+            .layoutViewportOriginOrOverrideRect = layoutViewportOrigin,
         }
     };
     addPendingScrollUpdate(WTF::move(scrollUpdate));
@@ -540,11 +540,9 @@ OptionSet<EventListenerRegionType> RemoteScrollingTreeMac::eventListenerRegionTy
 
     auto rootContentsLayer = rootScrollingNode->rootContentsLayer();
 
-    auto* eventRegion = eventRegionForPoint(rootScrollingNode->rootContentsLayer().get(), point);
-    if (!eventRegion)
-        return { };
-
-    return eventRegion->eventListenerRegionTypesForPoint(roundedIntPoint(point));
+    return eventRegionForPoint(rootScrollingNode->rootContentsLayer().get(), point).transform([&point](const WebCore::EventRegion& eventRegion) {
+        return eventRegion.eventListenerRegionTypesForPoint(roundedIntPoint(point));
+    }).value_or(OptionSet<EventListenerRegionType> { });
 }
 #endif
 
@@ -566,20 +564,28 @@ void RemoteScrollingTreeMac::scrollingTreeNodeScrollbarMinimumThumbLengthDidChan
 
 void RemoteScrollingTreeMac::triggerMainFrameRubberBandSnapBack()
 {
-    RefPtr rootScrollingNode = dynamicDowncast<ScrollingTreeFrameScrollingNodeMac>(rootNode());
-    if (!rootScrollingNode)
-        return;
+    ASSERT(isMainRunLoop());
+    ScrollingThread::dispatch([protectedThis = Ref { *this }]() {
+        Locker locker { protectedThis->m_treeLock };
+        RefPtr rootScrollingNode = dynamicDowncast<ScrollingTreeFrameScrollingNodeMac>(protectedThis->rootNode());
+        if (!rootScrollingNode)
+            return;
 
-    rootScrollingNode->startRubberBandSnapBack();
+        rootScrollingNode->startRubberBandSnapBack();
+    });
 }
 
 void RemoteScrollingTreeMac::mainFrameRubberBandTargetOffsetDidChange()
 {
-    RefPtr rootScrollingNode = dynamicDowncast<ScrollingTreeFrameScrollingNodeMac>(rootNode());
-    if (!rootScrollingNode)
-        return;
+    ASSERT(isMainRunLoop());
+    ScrollingThread::dispatch([protectedThis = Ref { *this }]() {
+        Locker locker { protectedThis->m_treeLock };
+        RefPtr rootScrollingNode = dynamicDowncast<ScrollingTreeFrameScrollingNodeMac>(protectedThis->rootNode());
+        if (!rootScrollingNode)
+            return;
 
-    rootScrollingNode->rubberBandTargetOffsetDidChange();
+        rootScrollingNode->rubberBandTargetOffsetDidChange();
+    });
 }
 
 } // namespace WebKit

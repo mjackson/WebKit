@@ -3,13 +3,13 @@
 root
     'Hello world'
     select
-        option,value='one','Number 1'
-        option,value='two','Number 2'
-        option,selected,value='three','Number 3'
-    select,multiple
-        option,selected,value='banana'
-        option,selected,value='pear'
-        option,value='apple'
+        option value=one 'Number 1'
+        option value=two 'Number 2'
+        option selected value=three 'Number 3'
+    select multiple
+        option selected value=banana
+        option selected value=pear
+        option value=apple
 
 -- json (includeSelectOptions: true)
 
@@ -72,7 +72,7 @@ root
 root
     'Hello world'
     select
-    select,multiple
+    select multiple
 
 -- json (includeSelectOptions: false)
 

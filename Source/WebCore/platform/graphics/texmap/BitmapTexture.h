@@ -41,6 +41,16 @@
 #include "MemoryMappedGPUBuffer.h"
 #endif
 
+#if USE(SKIA)
+WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
+#include <skia/core/SkRefCnt.h>
+#include <skia/gpu/ganesh/GrBackendSurface.h>
+WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
+class GrDirectContext;
+class SkSurface;
+enum GrSurfaceOrigin : int;
+#endif
+
 typedef void *EGLImage;
 
 namespace WebCore {
@@ -104,6 +114,11 @@ public:
     void copyFromExternalTexture(GLuint sourceTextureID, const IntRect& targetRect, const IntSize& sourceOffset);
 
     OptionSet<TextureMapperFlags> colorConvertFlags() const;
+
+#if USE(SKIA)
+    GrBackendTexture createSkiaBackendTexture() const;
+    sk_sp<SkSurface> createSkiaSurface(GrDirectContext*, GrSurfaceOrigin = kTopLeft_GrSurfaceOrigin, unsigned sampleCount = 0) const;
+#endif
 
 #if USE(GBM)
     MemoryMappedGPUBuffer* memoryMappedGPUBuffer() const LIFETIME_BOUND { return m_memoryMappedGPUBuffer.get(); }

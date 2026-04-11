@@ -448,10 +448,8 @@ public:
 #if ENABLE(MODEL_PROCESS)
     virtual void didCreateContextInModelProcessForVisibilityPropagation(LayerHostingContextID) { }
 #endif
-#if USE(EXTENSIONKIT)
-    virtual UIView *createVisibilityPropagationView() { return nullptr; }
+    virtual RetainPtr<UIView> createVisibilityPropagationView() { return nullptr; }
     virtual void removeVisibilityPropagationView(UIView *) { }
-#endif
 #endif // HAVE(VISIBILITY_PROPAGATION_VIEW)
 
 #if ENABLE(GPU_PROCESS)
@@ -490,6 +488,8 @@ public:
 #if PLATFORM(COCOA) || PLATFORM(GTK)
     virtual Ref<WebCore::ValidationBubble> createValidationBubble(String&& message, const WebCore::ValidationBubble::Settings&) = 0;
 #endif
+
+    virtual bool shouldSuppressFormValidationBubble() const { return false; }
 
 #if PLATFORM(COCOA)
     virtual CALayer *textIndicatorInstallationLayer() = 0;
@@ -814,6 +814,11 @@ public:
 
     virtual void addTextAnimationForAnimationID(const WTF::UUID&, const WebCore::TextAnimationData&) = 0;
     virtual void removeTextAnimationForAnimationID(const WTF::UUID&) = 0;
+
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    virtual void addTextEffectForID(const WTF::UUID&, WebCore::TextEffectData&&) = 0;
+    virtual void removeTextEffectForID(const WTF::UUID&) = 0;
+#endif
 #endif
 
 #if ENABLE(DATA_DETECTION)

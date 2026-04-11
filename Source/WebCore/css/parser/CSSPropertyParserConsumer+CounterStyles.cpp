@@ -26,6 +26,7 @@
 #include "config.h"
 #include "CSSPropertyParserConsumer+CounterStyles.h"
 
+#include "CSSCustomIdentValue.h"
 #include "CSSParserContext.h"
 #include "CSSParserIdioms.h"
 #include "CSSParserTokenRange.h"
@@ -46,25 +47,40 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
-static bool NODELETE isPredefinedCounterStyle(CSSValueID valueID)
+bool isPredefinedCounterStyle(CSSValueID valueID)
 {
     // https://drafts.csswg.org/css-counter-styles-3/#predefined-counters
 
     return valueID >= CSSValueDisc && valueID <= CSSValueEthiopicNumeric;
 }
 
-RefPtr<CSSValue> consumeCounterStyle(CSSParserTokenRange& range, CSS::PropertyParserState&)
+std::optional<CSS::CounterStyle> consumeUnresolvedCounterStyle(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <counter-style> = <counter-style-name excluding=none> | <symbols()>
     // https://drafts.csswg.org/css-counter-styles-3/#typedef-counter-style
 
     // FIXME: Implement support for `symbols()`.
 
-    if (range.peek().id() == CSSValueNone)
-        return nullptr;
-    if (auto predefinedValues = consumeIdent(range, isPredefinedCounterStyle))
-        return predefinedValues;
-    return consumeCustomIdent(range);
+    if (isPredefinedCounterStyle(range.peek().id()))
+        return CSS::CounterStyle { range.consumeIncludingWhitespace().id() };
+
+    auto customIdent = consumeUnresolvedCustomIdentExcluding(range, state, { CSSValueNone });
+    if (!customIdent)
+        return { };
+
+    return CSS::CounterStyle { WTF::move(*customIdent) };
+}
+
+RefPtr<CSSValue> consumeCounterStyle(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    // <counter-style> = <counter-style-name excluding=none> | <symbols()>
+    // https://drafts.csswg.org/css-counter-styles-3/#typedef-counter-style
+
+    // FIXME: Implement support for `symbols()`.
+    if (isPredefinedCounterStyle(range.peek().id()))
+        return CSSPrimitiveValue::create(range.consumeIncludingWhitespace().id());
+
+    return consumeCustomIdentExcluding(range, state, { CSSValueNone });
 }
 
 AtomString consumeCounterStyleNameInPrelude(CSSParserTokenRange& prelude, CSSParserMode mode)
@@ -88,7 +104,7 @@ AtomString consumeCounterStyleNameInPrelude(CSSParserTokenRange& prelude, CSSPar
     return isPredefinedCounterStyle(nameToken.id()) ? name.convertToASCIILowercaseAtom() : name.toAtomString();
 }
 
-RefPtr<CSSValue> consumeCounterStyleName(CSSParserTokenRange& range, CSS::PropertyParserState&)
+RefPtr<CSSValue> consumeCounterStyleName(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <counter-style-name> is a <custom-ident> that is not an ASCII case-insensitive match for "none".
     // https://drafts.csswg.org/css-counter-styles-3/#typedef-counter-style-name
@@ -96,10 +112,12 @@ RefPtr<CSSValue> consumeCounterStyleName(CSSParserTokenRange& range, CSS::Proper
     auto valueID = range.peek().id();
     if (valueID == CSSValueNone)
         return nullptr;
+
     // If the value is an ASCII case-insensitive match for any of the predefined counter styles, lowercase it.
-    if (auto name = consumeCustomIdent(range, isPredefinedCounterStyle(valueID)))
-        return name;
-    return nullptr;
+    if (isPredefinedCounterStyle(valueID))
+        return CSSPrimitiveValue::create(range.consumeIncludingWhitespace().id());
+
+    return consumeCustomIdentExcluding(range, state, { CSSValueNone });
 }
 
 RefPtr<CSSValue> consumeCounterStyleSystem(CSSParserTokenRange& range, CSS::PropertyParserState& state)

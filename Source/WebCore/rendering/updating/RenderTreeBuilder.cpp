@@ -68,7 +68,6 @@
 #include "RenderTextFragment.h"
 #include "RenderTreeBuilderBlock.h"
 #include "RenderTreeBuilderBlockFlow.h"
-#include "RenderTreeBuilderContinuation.h"
 #include "RenderTreeBuilderFirstLetter.h"
 #include "RenderTreeBuilderFormControls.h"
 #include "RenderTreeBuilderInline.h"
@@ -186,7 +185,6 @@ RenderTreeBuilder::RenderTreeBuilder(RenderView& view)
 #if ENABLE(MATHML)
     , m_mathMLBuilder(makeUniqueRef<MathML>(*this))
 #endif
-    , m_continuationBuilder(makeUniqueRef<Continuation>(*this))
 {
     RELEASE_ASSERT(!s_current || &m_view != &s_current->m_view);
     m_previous = s_current;
@@ -233,9 +231,6 @@ void RenderTreeBuilder::destroy(RenderObject& renderer, CanCollapseAnonymousBloc
 
     if (auto* textFragment = dynamicDowncast<RenderTextFragment>(renderer))
         firstLetterBuilder().cleanupOnDestroy(*textFragment);
-
-    if (auto* renderBox = dynamicDowncast<RenderBoxModelObject>(renderer))
-        continuationBuilder().cleanupOnDestroy(*renderBox);
 
     auto tearDownSubTreeIfApplicable = [&] {
         auto* rendererToDelete = dynamicDowncast<RenderElement>(toDestroy.get());
@@ -403,21 +398,6 @@ void RenderTreeBuilder::attachInternal(RenderElement& parent, RenderPtr<RenderOb
     }
 
     attachToRenderElement(parent, WTF::move(child), beforeChild);
-}
-
-void RenderTreeBuilder::attachIgnoringContinuation(RenderElement& parent, RenderPtr<RenderObject> child, RenderObject* beforeChild)
-{
-    if (auto* inlineParent = dynamicDowncast<RenderInline>(parent)) {
-        inlineBuilder().attachIgnoringContinuation(*inlineParent, WTF::move(child), beforeChild);
-        return;
-    }
-
-    if (auto* parentBlock = dynamicDowncast<RenderBlock>(parent)) {
-        blockBuilder().attachIgnoringContinuation(*parentBlock, WTF::move(child), beforeChild);
-        return;
-    }
-
-    attachInternal(parent, WTF::move(child), beforeChild);
 }
 
 RenderPtr<RenderObject> RenderTreeBuilder::detach(RenderElement& parent, RenderObject& child, WillBeDestroyed willBeDestroyed, CanCollapseAnonymousBlock canCollapseAnonymousBlock)
@@ -841,8 +821,6 @@ void RenderTreeBuilder::childFlowStateChangesAndAffectsParentBlock(RenderElement
         WeakPtr parent = child.parent();
         if (auto* parentBlockRenderer = dynamicDowncast<RenderBlock>(*parent))
             blockBuilder().childBecameNonInline(*parentBlockRenderer, child);
-        else if (auto* parentInlineRenderer = dynamicDowncast<RenderInline>(*parent))
-            inlineBuilder().childBecameNonInline(*parentInlineRenderer, child);
         // WARNING: original parent might be deleted at this point.
         if (auto* newParent = child.parent(); newParent != parent) {
             if (CheckedPtr gridRenderer = dynamicDowncast<RenderGrid>(newParent)) {
@@ -870,8 +848,6 @@ void RenderTreeBuilder::removeAnonymousWrappersForInlineChildrenIfNeeded(RenderE
     // We have changed to floated or out-of-flow positioning so maybe all our parent's
     // children can be inline now. Bail if there are any block children left on the line,
     // otherwise we can proceed to stripping solitary anonymous wrappers from the inlines.
-    // FIXME: We should also handle split inlines here - we exclude them at the moment by returning
-    // if we find a continuation.
     std::optional<bool> shouldAllChildrenBeInline;
     for (auto* current = blockParent->firstChild(); current; current = current->nextSibling()) {
         if (current->style().floating() != Float::None || current->style().hasOutOfFlowPosition())
@@ -880,9 +856,9 @@ void RenderTreeBuilder::removeAnonymousWrappersForInlineChildrenIfNeeded(RenderE
         if (!is<RenderBlock>(*current))
             return;
         CheckedPtr renderBlockChild = dynamicDowncast<RenderBlock>(*current);
-        if (!renderBlockChild->isAnonymousBlock() || renderBlockChild->isContinuation())
+        if (!renderBlockChild->isAnonymousBlock())
             return;
-        // Anonymous block not in continuation. Check if it holds a set of inline or block children and try not to mix them.
+        // Check if it holds a set of inline or block children and try not to mix them.
         auto* firstChild = renderBlockChild->firstChild();
         if (!firstChild)
             continue;

@@ -51,7 +51,7 @@ class EmbeddedDevicePort(EmbeddedPort, metaclass=ABCMeta):
     @classmethod
     def determine_full_port_name(cls, host, options, port_name):
         if port_name == cls.port_name:
-            sdk_version = host.platform.xcode_sdk_version(cls._DEFAULT_SDK)
+            sdk_version = host.platform.xcode_sdk_version(cls.SDK)
             if not sdk_version:
                 raise Exception("Please install the {} SDK.".format(cls.DEVICE_TYPE.software_variant))
             port_name = port_name + '-' + str(sdk_version.major)

@@ -344,9 +344,9 @@ public:
         return node;
     }
 
-    ExpressionNode* createRegExp(const JSTokenLocation& location, const Identifier& pattern, const Identifier& flags, const JSTextPosition& start)
+    ExpressionNode* createRegExp(const JSTokenLocation& location, const Identifier& pattern, const Identifier& flags, const JSTextPosition& start, bool skipSyntaxCheck)
     {
-        if (Yarr::hasError(Yarr::checkSyntax(pattern.string(), flags.string())))
+        if (!skipSyntaxCheck && Yarr::hasError(Yarr::checkSyntax(pattern.string(), flags.string())))
             return nullptr;
         RegExpNode* node = new (m_parserArena) RegExpNode(location, pattern, flags);
         int size = pattern.length() + 2; // + 2 for the two /'s

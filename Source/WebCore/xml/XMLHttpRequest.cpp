@@ -126,9 +126,7 @@ XMLHttpRequest::XMLHttpRequest(ScriptExecutionContext& context)
 {
 }
 
-XMLHttpRequest::~XMLHttpRequest()
-{
-}
+XMLHttpRequest::~XMLHttpRequest() = default;
 
 ScriptExecutionContext* XMLHttpRequest::scriptExecutionContext() const
 {

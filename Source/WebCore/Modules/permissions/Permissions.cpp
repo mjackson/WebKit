@@ -53,6 +53,7 @@
 #include "WorkerGlobalScope.h"
 #include "WorkerLoaderProxy.h"
 #include "WorkerThread.h"
+#include <JavaScriptCore/HeapCellInlines.h>
 #include <optional>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/TypeCasts.h>

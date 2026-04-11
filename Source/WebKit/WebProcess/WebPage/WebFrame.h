@@ -167,14 +167,14 @@ public:
     WebCore::IntSize size() const;
 
     // WKBundleFrame API and SPI functions
-    bool isMainFrame() const;
+    bool NODELETE isMainFrame() const;
     bool isRootFrame() const;
     String name() const;
     URL url() const;
     WebCore::CertificateInfo certificateInfo() const;
     String innerText() const;
     bool isFrameSet() const;
-    RefPtr<WebFrame> parentFrame() const;
+    RefPtr<WebFrame> NODELETE parentFrame() const;
     Ref<API::Array> childFrames();
     JSGlobalContextRef jsContext();
     JSGlobalContextRef jsContextForWorld(WebCore::DOMWrapperWorld&);
@@ -202,8 +202,8 @@ public:
     RefPtr<InjectedBundleHitTestResult> hitTest(const WebCore::IntPoint, OptionSet<WebCore::HitTestRequest::Type> = defaultHitTestRequestTypes()) const;
 
     bool getDocumentBackgroundColor(double* red, double* green, double* blue, double* alpha);
-    bool containsAnyFormElements() const;
-    bool containsAnyFormControls() const;
+    bool NODELETE containsAnyFormElements() const;
+    bool NODELETE containsAnyFormControls() const;
     void stopLoading();
     void setAccessibleName(const AtomString&);
 
@@ -241,10 +241,10 @@ public:
     void setFirstLayerTreeTransactionIDAfterDidCommitLoad(TransactionID transactionID) { m_firstLayerTreeTransactionIDAfterDidCommitLoad = transactionID; }
 #endif
 
-    WebLocalFrameLoaderClient* localFrameLoaderClient() const;
+    WebLocalFrameLoaderClient* NODELETE localFrameLoaderClient() const;
 
-    WebRemoteFrameClient* remoteFrameClient() const;
-    WebFrameLoaderClient* frameLoaderClient() const;
+    WebRemoteFrameClient* NODELETE remoteFrameClient() const;
+    WebFrameLoaderClient* NODELETE frameLoaderClient() const;
 
 #if ENABLE(APP_BOUND_DOMAINS)
     bool shouldEnableInAppBrowserPrivacyProtections();
@@ -293,6 +293,7 @@ public:
     void takeSnapshotOfExtractedText(WebCore::TextExtraction::ExtractedText&&, CompletionHandler<void(RefPtr<WebCore::TextIndicator>&&)>&&);
     void requestJSHandleForExtractedText(WebCore::TextExtraction::ExtractedText&&, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&&);
     void requestContainerJSHandleForExtractedText(WebCore::TextExtraction::ExtractedText&&, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&&);
+    void requestContainerJSHandleForSearchTexts(Vector<String>&&, std::optional<WebCore::NodeIdentifier>&&, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&&);
 
     void getSelectorPathsForNode(JSHandleInfo&&, CompletionHandler<void(Vector<HashSet<String>>&&)>&&);
     void getNodeForSelectorPaths(Vector<HashSet<String>>&&, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&&);

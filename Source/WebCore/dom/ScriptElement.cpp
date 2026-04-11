@@ -178,7 +178,7 @@ std::optional<ScriptType> ScriptElement::determineScriptType(const String& type,
         return ScriptType::Classic; // Assume text/javascript.
 
     // Step 9. If the script block's type string is a JavaScript MIME type essence match, then set el's type to "classic".
-    if (MIMETypeRegistry::isSupportedJavaScriptMIMEType(type.trim(isASCIIWhitespace)))
+    if (MIMETypeRegistry::isSupportedJavaScriptMIMEType(StringView(type).trim(isASCIIWhitespace)))
         return ScriptType::Classic;
 
     // FIXME: XHTML spec defines "defer" attribute. But WebKit does not implement it for a long time.

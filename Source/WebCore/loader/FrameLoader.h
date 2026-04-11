@@ -173,7 +173,7 @@ public:
     // FIXME: clear() is trying to do too many things. We should break it down into smaller functions (ideally with fewer raw Boolean parameters).
     void clear(RefPtr<Document>&& newDocument, bool clearWindowProperties = true, bool clearScriptObjects = true, bool clearFrameView = true, Function<void()>&& handleDOMWindowCreation = nullptr);
 
-    bool isLoading() const;
+    bool NODELETE isLoading() const;
     WEBCORE_EXPORT bool NODELETE frameHasLoaded() const;
 
     WEBCORE_EXPORT int numPendingOrLoadingRequests(bool recurse) const;
@@ -294,7 +294,7 @@ public:
     bool shouldInterruptLoadForXFrameOptions(const String&, const URL&, ResourceLoaderIdentifier);
 
     void completed();
-    bool allAncestorsAreComplete() const; // including this
+    bool NODELETE allAncestorsAreComplete() const; // including this
     void clientRedirected(const URL&, double delay, WallTime fireDate, LockBackForwardList);
     void clientRedirectCancelledOrFinished(NewLoadInProgress);
 
@@ -368,9 +368,9 @@ public:
 
     void updateURLAndHistory(const URL&, RefPtr<SerializedScriptValue>&& stateObject, NavigationHistoryBehavior = NavigationHistoryBehavior::Replace);
 
-    WEBCORE_EXPORT void setPendingAsyncBackForwardNavigation();
+    WEBCORE_EXPORT void NODELETE setPendingAsyncBackForwardNavigation();
     WEBCORE_EXPORT void cancelPendingAsyncBackForwardNavigation();
-    WEBCORE_EXPORT bool shouldProceedWithAsyncBackForwardNavigation();
+    WEBCORE_EXPORT bool NODELETE shouldProceedWithAsyncBackForwardNavigation();
     bool isWaitingForAsyncBackForwardNavigation() const { return m_asyncBackForwardNavigationState != AsyncBackForwardNavigationState::None; }
 
     void setRequiredCookiesVersion(uint64_t version) { m_requiredCookiesVersion = version; }
@@ -391,7 +391,7 @@ private:
         MayNotAttemptCacheOnlyLoadForFormSubmissionItem
     };
 
-    RefPtr<LocalFrame> nonSrcdocFrame() const;
+    RefPtr<LocalFrame> NODELETE nonSrcdocFrame() const;
 
     std::optional<PageIdentifier> NODELETE pageID() const;
     void executeJavaScriptURL(const URL&, const NavigationAction&);
@@ -452,7 +452,7 @@ private:
     void loadPostRequest(FrameLoadRequest&&, const String& referrer, FrameLoadType, Event*, RefPtr<const FormSubmission>&&, CompletionHandler<void()>&&);
     void loadURL(FrameLoadRequest&&, const String& referrer, FrameLoadType, Event*, RefPtr<const FormSubmission>&&, std::optional<PrivateClickMeasurement>&&, CompletionHandler<void()>&&);
 
-    bool shouldReload(const URL& currentURL, const URL& destinationURL);
+    bool NODELETE shouldReload(const URL& currentURL, const URL& destinationURL);
 
     ResourceLoaderIdentifier requestFromDelegate(ResourceRequest&, ResourceError&);
 
@@ -474,7 +474,7 @@ private:
 
     void dispatchGlobalObjectAvailableInAllWorlds();
 
-    bool isNavigationAllowed() const;
+    bool NODELETE isNavigationAllowed() const;
     bool NODELETE isStopLoadingAllowed() const;
 
     enum class LoadContinuingState : uint8_t { NotContinuing,
@@ -484,11 +484,11 @@ private:
 
     // SubframeLoader specific.
     void loadURLIntoChildFrame(const URL&, const String& referer, LocalFrame&);
-    void started();
+    void NODELETE started();
 
     // PolicyChecker specific.
     void clearProvisionalLoadForPolicyCheck();
-    bool hasOpenedFrames() const;
+    bool NODELETE hasOpenedFrames() const;
 
     void updateRequestAndAddExtraFields(Frame&, ResourceRequest&, IsMainResource, FrameLoadType, ShouldUpdateAppInitiatedValue, IsServiceWorkerNavigationLoad, WillOpenInNewWindow, Document*);
 

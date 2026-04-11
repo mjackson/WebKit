@@ -25,8 +25,6 @@
 
 #pragma once
 
-#include <JavaScriptCore/JSCInlines.h>
-#include <JavaScriptCore/JSGenericTypedArrayViewInlines.h>
 #include <JavaScriptCore/JSTypedArrays.h>
 #include <WebCore/BufferSource.h>
 #include <WebCore/IDLTypes.h>
@@ -48,40 +46,33 @@ struct IDLFloat64Array : IDLTypedArray<JSC::Float64Array> { };
 struct IDLBigInt64Array : IDLTypedArray<JSC::BigInt64Array> { };
 struct IDLBigUint64Array : IDLTypedArray<JSC::BigUint64Array> { };
 
-inline RefPtr<JSC::Int8Array> toPossiblySharedInt8Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toPossiblySharedNativeTypedView<JSC::Int8Adaptor>(vm, value); }
-inline RefPtr<JSC::Int16Array> toPossiblySharedInt16Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toPossiblySharedNativeTypedView<JSC::Int16Adaptor>(vm, value); }
-inline RefPtr<JSC::Int32Array> toPossiblySharedInt32Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toPossiblySharedNativeTypedView<JSC::Int32Adaptor>(vm, value); }
-inline RefPtr<JSC::Uint8Array> toPossiblySharedUint8Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toPossiblySharedNativeTypedView<JSC::Uint8Adaptor>(vm, value); }
-inline RefPtr<JSC::Uint8ClampedArray> toPossiblySharedUint8ClampedArray(JSC::VM& vm, JSC::JSValue value) { return JSC::toPossiblySharedNativeTypedView<JSC::Uint8ClampedAdaptor>(vm, value); }
-inline RefPtr<JSC::Uint16Array> toPossiblySharedUint16Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toPossiblySharedNativeTypedView<JSC::Uint16Adaptor>(vm, value); }
-inline RefPtr<JSC::Uint32Array> toPossiblySharedUint32Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toPossiblySharedNativeTypedView<JSC::Uint32Adaptor>(vm, value); }
-inline RefPtr<JSC::Float16Array> toPossiblySharedFloat16Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toPossiblySharedNativeTypedView<JSC::Float16Adaptor>(vm, value); }
-inline RefPtr<JSC::Float32Array> toPossiblySharedFloat32Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toPossiblySharedNativeTypedView<JSC::Float32Adaptor>(vm, value); }
-inline RefPtr<JSC::Float64Array> toPossiblySharedFloat64Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toPossiblySharedNativeTypedView<JSC::Float64Adaptor>(vm, value); }
-inline RefPtr<JSC::BigInt64Array> toPossiblySharedBigInt64Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toPossiblySharedNativeTypedView<JSC::BigInt64Adaptor>(vm, value); }
-inline RefPtr<JSC::BigUint64Array> toPossiblySharedBigUint64Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toPossiblySharedNativeTypedView<JSC::BigUint64Adaptor>(vm, value); }
+WEBCORE_EXPORT RefPtr<JSC::Int8Array> toPossiblySharedInt8Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Int16Array> toPossiblySharedInt16Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Int32Array> toPossiblySharedInt32Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Uint8Array> toPossiblySharedUint8Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Uint8ClampedArray> toPossiblySharedUint8ClampedArray(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Uint16Array> toPossiblySharedUint16Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Uint32Array> toPossiblySharedUint32Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Float16Array> toPossiblySharedFloat16Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Float32Array> toPossiblySharedFloat32Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Float64Array> toPossiblySharedFloat64Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::BigInt64Array> toPossiblySharedBigInt64Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::BigUint64Array> toPossiblySharedBigUint64Array(JSC::VM&, JSC::JSValue);
 
-inline RefPtr<JSC::Int8Array> toUnsharedInt8Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toUnsharedNativeTypedView<JSC::Int8Adaptor>(vm, value); }
-inline RefPtr<JSC::Int16Array> toUnsharedInt16Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toUnsharedNativeTypedView<JSC::Int16Adaptor>(vm, value); }
-inline RefPtr<JSC::Int32Array> toUnsharedInt32Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toUnsharedNativeTypedView<JSC::Int32Adaptor>(vm, value); }
-inline RefPtr<JSC::Uint8Array> toUnsharedUint8Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toUnsharedNativeTypedView<JSC::Uint8Adaptor>(vm, value); }
-inline RefPtr<JSC::Uint8ClampedArray> toUnsharedUint8ClampedArray(JSC::VM& vm, JSC::JSValue value) { return JSC::toUnsharedNativeTypedView<JSC::Uint8ClampedAdaptor>(vm, value); }
-inline RefPtr<JSC::Uint16Array> toUnsharedUint16Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toUnsharedNativeTypedView<JSC::Uint16Adaptor>(vm, value); }
-inline RefPtr<JSC::Uint32Array> toUnsharedUint32Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toUnsharedNativeTypedView<JSC::Uint32Adaptor>(vm, value); }
-inline RefPtr<JSC::Float16Array> toUnsharedFloat16Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toUnsharedNativeTypedView<JSC::Float16Adaptor>(vm, value); }
-inline RefPtr<JSC::Float32Array> toUnsharedFloat32Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toUnsharedNativeTypedView<JSC::Float32Adaptor>(vm, value); }
-inline RefPtr<JSC::Float64Array> toUnsharedFloat64Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toUnsharedNativeTypedView<JSC::Float64Adaptor>(vm, value); }
-inline RefPtr<JSC::BigInt64Array> toUnsharedBigInt64Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toUnsharedNativeTypedView<JSC::BigInt64Adaptor>(vm, value); }
-inline RefPtr<JSC::BigUint64Array> toUnsharedBigUint64Array(JSC::VM& vm, JSC::JSValue value) { return JSC::toUnsharedNativeTypedView<JSC::BigUint64Adaptor>(vm, value); }
+WEBCORE_EXPORT RefPtr<JSC::Int8Array> toUnsharedInt8Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Int16Array> toUnsharedInt16Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Int32Array> toUnsharedInt32Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Uint8Array> toUnsharedUint8Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Uint8ClampedArray> toUnsharedUint8ClampedArray(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Uint16Array> toUnsharedUint16Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Uint32Array> toUnsharedUint32Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Float16Array> toUnsharedFloat16Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Float32Array> toUnsharedFloat32Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::Float64Array> toUnsharedFloat64Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::BigInt64Array> toUnsharedBigInt64Array(JSC::VM&, JSC::JSValue);
+WEBCORE_EXPORT RefPtr<JSC::BigUint64Array> toUnsharedBigUint64Array(JSC::VM&, JSC::JSValue);
 
-inline JSC::JSValue toJS(JSC::JSGlobalObject* lexicalGlobalObject, JSDOMGlobalObject* globalObject, JSC::ArrayBuffer& buffer)
-{
-    if (auto result = getCachedWrapper(globalObject->world(), buffer))
-        return result;
-
-    // The JSArrayBuffer::create function will register the wrapper in finishCreation.
-    return JSC::JSArrayBuffer::create(JSC::getVM(lexicalGlobalObject), globalObject->arrayBufferStructure(buffer.sharingMode()), &buffer);
-}
+WEBCORE_EXPORT JSC::JSValue toJS(JSC::JSGlobalObject*, JSDOMGlobalObject*, JSC::ArrayBuffer&);
 
 inline JSC::JSValue toJS(JSC::JSGlobalObject* lexicalGlobalObject, JSC::JSGlobalObject* globalObject, JSC::ArrayBufferView& view)
 {

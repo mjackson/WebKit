@@ -95,6 +95,7 @@
 #include "JSVideoTransferCharacteristics.h"
 #include "LocalDOMWindow.h"
 #include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "LocalFrameView.h"
 #include "MutationEvent.h"
 #include "Node.h"
@@ -585,7 +586,7 @@ void InspectorDOMAgent::discardBindings()
     m_childrenRequested.clear();
 }
 
-static RefPtr<Element> elementToPushForStyleable(const Styleable& styleable)
+static RefPtr<Element> NODELETE elementToPushForStyleable(const Styleable& styleable)
 {
     auto& element = styleable.element;
     // FIXME: We want to get rid of PseudoElement.
@@ -1968,7 +1969,7 @@ static String computeContentSecurityPolicySHA256Hash(const Element& element)
     PAL::TextEncoding documentEncoding = element.document().textEncoding();
     const PAL::TextEncoding& encodingToUse = documentEncoding.isValid() ? documentEncoding : PAL::UTF8Encoding();
     auto content = encodingToUse.encode(TextNodeTraversal::contentsAsString(element), PAL::UnencodableHandling::Entities);
-    auto cryptoDigest = PAL::CryptoDigest::create(PAL::CryptoDigest::Algorithm::SHA_256);
+    auto cryptoDigest = PAL::Crypto::CryptoDigest::create(PAL::Crypto::CryptoDigest::Algorithm::SHA_256);
     cryptoDigest->addBytes(content.span());
     auto digest = cryptoDigest->computeHash();
     return makeString("sha256-"_s, base64Encoded(digest));
@@ -2246,8 +2247,7 @@ void InspectorDOMAgent::processAccessibilityChildren(AXCoreObject& axObject, JSO
 
 Ref<Inspector::Protocol::DOM::AccessibilityProperties> InspectorDOMAgent::buildObjectForAccessibilityProperties(Node& node)
 {
-    if (!WebCore::AXObjectCache::accessibilityEnabled())
-        WebCore::AXObjectCache::enableAccessibility();
+    WebCore::AXObjectCache::enableAccessibility();
 
     RefPtr<Node> activeDescendantNode;
     bool busy = false;
@@ -2572,7 +2572,7 @@ Ref<Inspector::Protocol::DOM::AccessibilityProperties> InspectorDOMAgent::buildO
     return value;
 }
 
-static bool containsOnlyASCIIWhitespace(Node* node)
+static bool NODELETE containsOnlyASCIIWhitespace(Node* node)
 {
     // FIXME: Respect ignoreWhitespace setting from inspector front end?
     // This static is invoked during node deletion so cannot use RefPtr.
@@ -2607,7 +2607,7 @@ Node* InspectorDOMAgent::innerPreviousSibling(Node* node)
 unsigned InspectorDOMAgent::innerChildNodeCount(Node* node)
 {
     unsigned count = 0;
-    for (RefPtr child = innerFirstChild(node); child; child = innerNextSibling(child.get()))
+    for (auto* child = innerFirstChild(node); child; child = innerNextSibling(child))
         ++count;
     return count;
 }
@@ -3103,7 +3103,7 @@ RefPtr<Node> InspectorDOMAgent::nodeForPath(const String& path)
             return nullptr;
 
         RefPtr<Node> child;
-        if (RefPtr frameOwner = dynamicDowncast<HTMLFrameOwnerElement>(*node)) {
+        if (auto* frameOwner = dynamicDowncast<HTMLFrameOwnerElement>(*node)) {
             ASSERT(!*childNumber);
             child = frameOwner->contentDocument();
         } else {

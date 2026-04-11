@@ -2,7 +2,7 @@
 name: find-webkit-commit
 description: Convert between commit hashes and WebKit identifiers using git-webkit. Use when working with git commits, commit hashes, or commit references in the WebKit repository.
 user-invocable: false
-allowed-tools: Bash(git-webkit find:*), Bash(Tools/Scripts/git-webkit find:*), Bash(git-webkit log:*), Bash(Tools/Scripts/git-webkit log:*), Bash(git-webkit blame:*), Bash(Tools/Scripts/git-webkit blame:*), Bash(git-webkit show:*), Bash(Tools/Scripts/git-webkit show:*)
+allowed-tools: Bash(git-webkit find:*), Bash(git webkit find:*), Bash(Tools/Scripts/git-webkit find:*), Bash(git-webkit log:*), Bash(git webkit log:*), Bash(Tools/Scripts/git-webkit log:*), Bash(git-webkit blame:*), Bash(git webkit blame:*), Bash(Tools/Scripts/git-webkit blame:*), Bash(git-webkit show:*), Bash(git webkit show:*), Bash(Tools/Scripts/git-webkit show:*)
 ---
 
 When working in the WebKit repository, ALWAYS reference commits by their WebKit "identifier" rather than by hash.

@@ -7,13 +7,13 @@ line 3
 test;
 
 
-FAIL The extra line break is missing after the paragraph that ends with a comment. promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
-FAIL The extra line break is missing after the paragraph that ends with a display:none span. promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
-FAIL The extra line break is missing after the paragraph that ends with a hidden span. promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
-FAIL The extra line break is missing after the paragraph that ends with a meta tag. promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
-FAIL The extra line break is missing after the paragraph that ends with a style tag. promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
-FAIL The extra line break is missing after the paragraph that ends with a base tag. promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
-FAIL Line break should not be present before semicolon after block elements styled as inline-flex. promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
-FAIL Line break should not be present before semicolon after block elements styled as inline-block. promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
-FAIL Line break should not be present before semicolon after block elements styled as inline-grid. promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
+FAIL The extra line break is missing after the paragraph that ends with a comment. assert_equals: expected "line 1\n\nline 2\n\nline 3" but got ""
+FAIL The extra line break is missing after the paragraph that ends with a display:none span. assert_equals: expected "line 1\n\nline 2\n\nline 3" but got ""
+FAIL The extra line break is missing after the paragraph that ends with a hidden span. assert_equals: expected "line 1\n\nline 2\n\nline 3" but got ""
+FAIL The extra line break is missing after the paragraph that ends with a meta tag. assert_equals: expected "line 1\n\nline 2\n\nline 3" but got ""
+FAIL The extra line break is missing after the paragraph that ends with a style tag. assert_equals: expected "line 1\n\nline 2\n\nline 3" but got ""
+FAIL The extra line break is missing after the paragraph that ends with a base tag. assert_equals: expected "line 1\n\nline 2\n\nline 3" but got ""
+FAIL Line break should not be present before semicolon after block elements styled as inline-flex. assert_equals: expected "test;" but got ""
+FAIL Line break should not be present before semicolon after block elements styled as inline-block. assert_equals: expected "test;" but got ""
+FAIL Line break should not be present before semicolon after block elements styled as inline-grid. assert_equals: expected "test;" but got ""
 

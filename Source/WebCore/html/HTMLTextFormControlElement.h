@@ -87,7 +87,7 @@ public:
 
     void scheduleSelectionChangeEvent();
 
-    TextFieldSelectionDirection computeSelectionDirection() const;
+    TextFieldSelectionDirection NODELETE computeSelectionDirection() const;
 
     std::optional<SimpleRange> selection() const;
     String selectedText() const;
@@ -122,7 +122,6 @@ public:
 
 protected:
     HTMLTextFormControlElement(const QualifiedName&, Document&, HTMLFormElement*);
-    bool isPlaceholderEmpty() const;
     virtual void updatePlaceholderText() = 0;
 
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) override;
@@ -192,13 +191,14 @@ private:
 
     bool m_hasCachedSelection { false };
     bool m_hasScheduledSelectionChangeEvent { false };
+    bool m_isInsideSetSelectionRange { false };
 
     String m_pointerType { mousePointerEventType() };
 
     String m_textAsOfLastFormControlChangeEvent;
 };
 
-WEBCORE_EXPORT HTMLTextFormControlElement* enclosingTextFormControl(const Position&);
+WEBCORE_EXPORT HTMLTextFormControlElement* NODELETE enclosingTextFormControl(const Position&);
 
 } // namespace WebCore
 

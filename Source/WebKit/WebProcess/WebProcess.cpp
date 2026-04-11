@@ -164,9 +164,6 @@
 #include <wtf/text/StringHash.h>
 #include <wtf/text/TextStream.h>
 
-#if ENABLE(ARKIT_INLINE_PREVIEW_MAC)
-#include "ARKitInlinePreviewModelPlayerMac.h"
-#endif
 
 #if !OS(WINDOWS)
 #include <unistd.h>
@@ -779,10 +776,6 @@ void WebProcess::setWebsiteDataStoreParameters(WebProcessDataStoreParameters&& p
         WebCore::HTMLMediaElement::setMediaCacheDirectory(parameters.mediaCacheDirectory);
 #endif
 
-#if ENABLE(ARKIT_INLINE_PREVIEW_MAC)
-    if (!parameters.modelElementCacheDirectory.isEmpty())
-        ARKitInlinePreviewModelPlayerMac::setModelElementCacheDirectory(parameters.modelElementCacheDirectory);
-#endif
 
     setTrackingPreventionEnabled(parameters.trackingPreventionEnabled);
 
@@ -1145,9 +1138,6 @@ void WebProcess::didClose(IPC::Connection& connection)
 #if ENABLE(VIDEO)
     FileSystem::markPurgeable(WebCore::HTMLMediaElement::mediaCacheDirectory());
 #endif
-#if ENABLE(ARKIT_INLINE_PREVIEW_MAC)
-    FileSystem::markPurgeable(ARKitInlinePreviewModelPlayerMac::modelElementCacheDirectory());
-#endif
     AuxiliaryProcess::didClose(connection);
 }
 
@@ -1474,7 +1464,7 @@ void WebProcess::networkProcessConnectionClosed(NetworkProcessConnection* connec
     for (auto& page : m_pageMap.values()) {
         page->stopAllURLSchemeTasks();
 #if ENABLE(APPLE_PAY)
-        if (RefPtr paymentCoordinator = page->paymentCoordinator())
+        if (auto* paymentCoordinator = page->paymentCoordinator())
             paymentCoordinator->networkProcessConnectionClosed();
 #endif
     }

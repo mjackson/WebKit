@@ -233,10 +233,6 @@ void RemoteScrollingCoordinatorProxyMac::connectStateNodeLayers(ScrollingStateTr
     }
 }
 
-void RemoteScrollingCoordinatorProxyMac::establishLayerTreeScrollingRelations(const RemoteLayerTreeHost&)
-{
-}
-
 void RemoteScrollingCoordinatorProxyMac::displayDidRefresh(PlatformDisplayID displayID)
 {
     m_eventDispatcher->mainThreadDisplayDidRefresh(displayID);

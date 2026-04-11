@@ -259,7 +259,7 @@ bool JSArray::put(JSCell* cell, JSGlobalObject* globalObject, PropertyName prope
         RETURN_IF_EXCEPTION(scope, false);
         double valueAsNumber = value.toNumber(globalObject);
         RETURN_IF_EXCEPTION(scope, false);
-        if (valueAsNumber != static_cast<double>(newLength)) {
+        if (valueAsNumber != static_cast<double>(newLength)) [[unlikely]] {
             throwException(globalObject, scope, createRangeError(globalObject, "Invalid array length"_s));
             return false;
         }
@@ -280,7 +280,7 @@ bool JSArray::deleteProperty(JSCell* cell, JSGlobalObject* globalObject, Propert
     return JSObject::deleteProperty(thisObject, globalObject, propertyName, slot);
 }
 
-static int compareKeysForQSort(const void* a, const void* b)
+static int NODELETE compareKeysForQSort(const void* a, const void* b)
 {
     unsigned da = *static_cast<const unsigned*>(a);
     unsigned db = *static_cast<const unsigned*>(b);
@@ -1974,7 +1974,7 @@ void JSArray::copyToArguments(JSGlobalObject* globalObject, JSValue* firstElemen
 
 bool JSArray::isIteratorProtocolFastAndNonObservable()
 {
-    JSGlobalObject* globalObject = this->globalObject();
+    JSGlobalObject* globalObject = this->realm();
     if (!globalObject->isArrayPrototypeIteratorProtocolFastAndNonObservable())
         return false;
 
@@ -1998,7 +1998,7 @@ bool JSArray::isIteratorProtocolFastAndNonObservable()
 
 bool JSArray::isToPrimitiveFastAndNonObservable()
 {
-    JSGlobalObject* globalObject = this->globalObject();
+    JSGlobalObject* globalObject = this->realm();
     if (!globalObject->arrayPrototypeChainIsSane()) [[unlikely]]
         return false;
     if (!globalObject->arrayToStringWatchpointSet().isStillValid()) [[unlikely]]
@@ -2029,7 +2029,7 @@ inline JSArray* constructArray(ObjectInitializationScope& scope, Structure* arra
     // FIXME: We only need this for subclasses of Array because we might need to allocate a new structure to change
     // indexing types while initializing. If this triggered a GC then we might scan our currently uninitialized
     // array and crash. https://bugs.webkit.org/show_bug.cgi?id=186811
-    if (!arrayStructure->globalObject()->isOriginalArrayStructure(arrayStructure))
+    if (!arrayStructure->realm()->isOriginalArrayStructure(arrayStructure))
         JSArray::eagerlyInitializeButterfly(scope, array, length);
 
     return array;

@@ -47,7 +47,7 @@ public:
     WEBCORE_EXPORT String text() const;
     void setText(String&&);
 
-    WEBCORE_EXPORT HTMLFormElement* form() const;
+    WEBCORE_EXPORT HTMLFormElement* NODELETE form() const;
     RefPtr<HTMLFormElement> formForBindings() const;
 
     WEBCORE_EXPORT int index() const;
@@ -58,6 +58,7 @@ public:
     WEBCORE_EXPORT void setSelected(bool);
 
     WEBCORE_EXPORT HTMLSelectElement* NODELETE ownerSelectElement() const;
+    bool belongsToBaseAppearancePicker() const;
 
     WEBCORE_EXPORT String label() const;
     WEBCORE_EXPORT String displayLabel() const;
@@ -94,8 +95,6 @@ private:
     void defaultEventHandler(Event&) final;
 
     void childrenChanged(const ChildChange&) final;
-
-    void willResetComputedStyle() final;
 
     String collectOptionInnerText() const;
     String collectOptionInnerTextCollapsingWhitespace() const;

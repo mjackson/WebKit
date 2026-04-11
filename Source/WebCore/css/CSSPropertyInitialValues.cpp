@@ -47,22 +47,22 @@ static bool NODELETE isValueIDPair(const CSSValue& value, CSSValueID valueID)
     return value.isPair() && isValueID(value.first(), valueID) && isValueID(value.second(), valueID);
 }
 
-static bool isNumber(const CSSPrimitiveValue& value, double number, CSSUnitType type)
+static bool NODELETE isNumber(const CSSPrimitiveValue& value, double number, CSSUnitType type)
 {
     return value.primitiveType() == type && !value.isCalculated() && value.valueNoConversionDataRequired<double>() == number;
 }
 
-static bool isNumber(const CSSPrimitiveValue* value, double number, CSSUnitType type)
+static bool NODELETE isNumber(const CSSPrimitiveValue* value, double number, CSSUnitType type)
 {
     return value && isNumber(*value, number, type);
 }
 
-static bool isNumber(const CSSValue& value, double number, CSSUnitType type)
+static bool NODELETE isNumber(const CSSValue& value, double number, CSSUnitType type)
 {
     return isNumber(dynamicDowncast<CSSPrimitiveValue>(value), number, type);
 }
 
-static bool isNumber(const RectBase& quad, double number, CSSUnitType type)
+static bool NODELETE isNumber(const RectBase& quad, double number, CSSUnitType type)
 {
     return isNumber(quad.top(), number, type)
         && isNumber(quad.right(), number, type)
@@ -78,7 +78,7 @@ static bool NODELETE isValueID(const RectBase& quad, CSSValueID valueID)
         && isValueID(quad.left(), valueID);
 }
 
-static bool isNumericQuad(const CSSValue& value, double number, CSSUnitType type)
+static bool NODELETE isNumericQuad(const CSSValue& value, double number, CSSUnitType type)
 {
     return value.isQuad() && isNumber(value.quad(), number, type);
 }

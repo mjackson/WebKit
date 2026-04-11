@@ -36,9 +36,7 @@
 
 namespace WebCore {
 
-RenderTextLineBoxes::RenderTextLineBoxes()
-{
-}
+RenderTextLineBoxes::RenderTextLineBoxes() = default;
 
 LegacyInlineTextBox* RenderTextLineBoxes::createAndAppendLineBox(RenderSVGInlineText& renderText)
 {

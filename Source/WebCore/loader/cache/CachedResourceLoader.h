@@ -145,7 +145,7 @@ public:
     
     CachePolicy cachePolicy(CachedResource::Type, const URL&) const;
     
-    LocalFrame* frame() const; // Can be null
+    LocalFrame* NODELETE frame() const; // Can be null
     Document* document() const { return m_document.get(); } // Can be null
     void setDocument(Document* document) { m_document = document; }
     void NODELETE clearDocumentLoader();

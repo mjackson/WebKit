@@ -31,6 +31,7 @@
 #include "CSSPropertyParserConsumer+NumberDefinitions.h"
 #include "CSSToLengthConversionData.h"
 #include "CSSTokenizer.h"
+#include "CSSUnits.h"
 #include "ExceptionOr.h"
 #include "SVGElement.h"
 #include "SVGLengthContext.h"
@@ -208,6 +209,28 @@ float SVGLengthValue::value(const SVGLengthContext& context) const
     return result.releaseReturnValue();
 }
 
+static float convertToPixels(float value, CSS::LengthPercentageUnit unit)
+{
+    switch (unit) {
+    case CSS::LengthPercentageUnit::Px:
+        return value;
+    case CSS::LengthPercentageUnit::Cm:
+        return value * CSS::pixelsPerCm;
+    case CSS::LengthPercentageUnit::Mm:
+        return value * CSS::pixelsPerMm;
+    case CSS::LengthPercentageUnit::Q:
+        return value * CSS::pixelsPerQ;
+    case CSS::LengthPercentageUnit::In:
+        return value * CSS::pixelsPerInch;
+    case CSS::LengthPercentageUnit::Pt:
+        return value * CSS::pixelsPerPt;
+    case CSS::LengthPercentageUnit::Pc:
+        return value * CSS::pixelsPerPc;
+    default:
+        return value;
+    }
+}
+
 float SVGLengthValue::valueAsPercentage() const
 {
     return WTF::switchOn(m_value,
@@ -222,7 +245,7 @@ float SVGLengthValue::valueAsPercentage() const
                 if (raw->unit == CSS::LengthPercentageUnit::Percentage)
                     return raw->value / 100.0f;
 
-                return raw->value;
+                return convertToPixels(raw->value, raw->unit);
             }
 
             return 0.0f;

@@ -151,10 +151,10 @@ void RenderMenuList::computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, 
     maxLogicalWidth = shouldApplySizeContainment() ? minimumSize : std::max(LayoutUnit(m_optionsWidth), minimumSize);
 
     auto internalPadding = theme().popupInternalPaddingBox(style());
-    if (auto left = internalPadding.left().tryFixed())
-        maxLogicalWidth += LayoutUnit(left->resolveZoom(style().usedZoomForLength()));
-    if (auto right = internalPadding.right().tryFixed())
-        maxLogicalWidth += LayoutUnit(right->resolveZoom(style().usedZoomForLength()));
+    if (auto start = internalPadding.start(writingMode()).tryFixed())
+        maxLogicalWidth += LayoutUnit(start->resolveZoom(style().usedZoomForLength()));
+    if (auto end = internalPadding.end(writingMode()).tryFixed())
+        maxLogicalWidth += LayoutUnit(end->resolveZoom(style().usedZoomForLength()));
 
     if (shouldApplySizeOrInlineSizeContainment()) {
         if (auto logicalWidth = explicitIntrinsicInnerLogicalWidth())

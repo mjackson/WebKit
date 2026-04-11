@@ -36,6 +36,7 @@
 #include "ScriptController.h"
 #include "ScriptElement.h"
 #include <wtf/TZoneMallocInlines.h>
+#include "FrameDestructionObserverInlines.h"
 
 namespace WebCore {
 

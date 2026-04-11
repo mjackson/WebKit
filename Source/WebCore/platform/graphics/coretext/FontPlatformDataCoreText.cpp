@@ -81,10 +81,6 @@ FontPlatformData::FontPlatformData(RetainPtr<CTFontRef>&& font, float size, bool
     m_isColorBitmapFont = CTFontGetSymbolicTraits(m_font.get()) & kCTFontColorGlyphsTrait;
     m_isSystemFont = WebCore::isSystemFont(m_font.get());
 
-#if PLATFORM(IOS_FAMILY)
-    m_isEmoji = CTFontIsAppleColorEmoji(m_font.get());
-#endif
-
     if (m_widthVariant != FontWidthVariant::RegularWidth) {
         // FIXME: Do something smarter than creating the CTFontRef twice <webkit.org/b/276635>
         int featureTypeValue = kTextSpacingType;
@@ -257,9 +253,6 @@ FontPlatformData::FontPlatformData(float size, WebCore::FontOrientation&& orient
 {
     m_isColorBitmapFont = CTFontGetSymbolicTraits(m_font.get()) & kCTFontColorGlyphsTrait;
     m_isSystemFont = WebCore::isSystemFont(m_font.get());
-#if PLATFORM(IOS_FAMILY)
-    m_isEmoji = CTFontIsAppleColorEmoji(m_font.get());
-#endif
 }
 
 FontPlatformData::IPCData FontPlatformData::toIPCData() const

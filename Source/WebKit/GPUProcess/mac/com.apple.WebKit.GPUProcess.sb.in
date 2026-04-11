@@ -90,22 +90,29 @@
         "IOPMrootDomain"))
 
 
-;; FIXME: Add check `(with-filter (system-attribute virtual-device)` when this is supported. See rdar://118274636.
-(allow iokit-open-service (iokit-registry-entry-class "AppleVideoToolboxParavirtualizationDriver"))
+(define (allow-paravirtualization)
+    (allow iokit-open-service (iokit-registry-entry-class "AppleVideoToolboxParavirtualizationDriver"))
 
-(if (equal? (param "ENABLE_SANDBOX_MESSAGE_FILTER") "YES")
-    (allow iokit-open-user-client
-        (iokit-user-client-class "AppleVideoToolboxParavirtualizationUserClient")
-        (apply-message-filter
-            (allow iokit-external-method
-                (iokit-method-number 0 1 2 3 4))
-            (GPU_PROCESS_IOKIT_DEFAULT_FILTER_OPERATION (with telemetry)
-                iokit-async-external-method
-                iokit-external-method
-                iokit-external-trap)))
-    ;; else
-    (allow iokit-open-user-client
-        (iokit-user-client-class "AppleVideoToolboxParavirtualizationUserClient")))
+    (if (equal? (param "ENABLE_SANDBOX_MESSAGE_FILTER") "YES")
+        (allow iokit-open-user-client
+            (iokit-user-client-class "AppleVideoToolboxParavirtualizationUserClient")
+            (apply-message-filter
+                (allow iokit-external-method
+                    (iokit-method-number 0 1 2 3 4))
+                (GPU_PROCESS_IOKIT_DEFAULT_FILTER_OPERATION (with telemetry)
+                    iokit-async-external-method
+                    iokit-external-method
+                    iokit-external-trap)))
+        ;; else
+        (allow iokit-open-user-client
+            (iokit-user-client-class "AppleVideoToolboxParavirtualizationUserClient"))))
+
+#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 260000
+(with-filter (system-attribute virtual-device)
+    (allow-paravirtualization))
+#else
+(allow-paravirtualization)
+#endif
 
 (deny darwin-notification-post (with no-report))
 (deny nvram-get (with no-report))

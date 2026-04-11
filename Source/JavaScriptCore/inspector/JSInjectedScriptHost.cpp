@@ -898,7 +898,7 @@ public:
         });
     }
 
-    UncheckedKeyHashSet<JSCell*>& holders() { return m_holders; }
+    UncheckedKeyHashSet<JSCell*>& NODELETE holders() { return m_holders; }
 
     void analyzeEdge(JSCell* from, JSCell* to, RootMarkReason reason) final
     {

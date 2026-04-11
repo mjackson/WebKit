@@ -26,7 +26,6 @@
 #include "config.h"
 #include <wtf/Logger.h>
 
-#include <mutex>
 #include <wtf/HexNumber.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/text/WTFString.h>

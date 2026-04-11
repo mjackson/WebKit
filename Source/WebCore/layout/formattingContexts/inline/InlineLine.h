@@ -200,7 +200,7 @@ public:
         };
         bool hasCollapsibleTrailingWhitespace() const { return hasTrailingWhitespace() && (m_trailingWhitespace.type == TrailingWhitespace::Type::Collapsible || hasCollapsedTrailingWhitespace()); }
         bool hasCollapsedTrailingWhitespace() const { return hasTrailingWhitespace() && m_trailingWhitespace.type == TrailingWhitespace::Type::Collapsed; }
-        static std::optional<TrailingWhitespace::Type> trailingWhitespaceType(const InlineTextItem&);
+        static std::optional<TrailingWhitespace::Type> NODELETE trailingWhitespaceType(const InlineTextItem&);
         InlineLayoutUnit removeTrailingWhitespace();
 
         std::optional<Run> NODELETE detachTrailingWhitespace();

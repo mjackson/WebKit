@@ -127,8 +127,8 @@ void OMGPlan::work()
     const FunctionData& function = m_moduleInformation->functions[m_functionIndex];
 
     const FunctionSpaceIndex functionIndexSpace = m_moduleInformation->toSpaceIndex(m_functionIndex);
-    TypeIndex typeIndex = m_moduleInformation->internalFunctionTypeIndices[m_functionIndex];
-    const TypeDefinition& signature = TypeInformation::get(typeIndex).expand();
+    TypeSignatureIndex typeSignatureIndex = m_moduleInformation->internalFunctionTypeSignatureIndices[m_functionIndex];
+    const TypeDefinition& signature = m_moduleInformation->expandedTypeSignature(typeSignatureIndex);
 
     Ref<IPIntCallee> profiledCallee = m_calleeGroup->ipintCalleeFromFunctionIndexSpace(functionIndexSpace);
     Ref<OMGCallee> callee = OMGCallee::create(functionIndexSpace, m_moduleInformation->nameSection->get(functionIndexSpace), Ref { profiledCallee });

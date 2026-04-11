@@ -221,14 +221,15 @@ Value* ValueKey::materialize(Procedure& proc, Origin origin) const
         return proc.add<SIMDValue>(origin, kind(), type(), simdInfo(), child(proc, 0), child(proc, 1), child(proc, 2));
     case WasmRefTest:
     case WasmRefCast: {
-        OptionSet<WasmRefTypeCheckFlag> flags = OptionSet<WasmRefTypeCheckFlag>::fromRaw(u.indices[1]);
+        unsigned packedFlags = u.indices[3] >> 16;
+        OptionSet<WasmRefTypeCheckFlag> flags = OptionSet<WasmRefTypeCheckFlag>::fromRaw(packedFlags);
 
         int32_t targetHeapType = 0;
         RefPtr<const Wasm::RTT> targetRTT;
 
         if (flags.contains(WasmRefTypeCheckFlag::HasRTT)) {
-            // Reconstruct RTT pointer when HasRTT flag is set
-            uintptr_t rttPtr = static_cast<uintptr_t>(static_cast<uint64_t>(u.indices[2]) | (static_cast<uint64_t>(u.indices[3]) << 32));
+            // Reconstruct RTT pointer: lower 32 bits in indices[2], upper 16 bits in lower 16 bits of indices[3]
+            uintptr_t rttPtr = static_cast<uintptr_t>(static_cast<uint64_t>(u.indices[2]) | (static_cast<uint64_t>(u.indices[3] & 0xFFFF) << 32));
             targetRTT = reinterpret_cast<const Wasm::RTT*>(rttPtr);
         } else {
             // Use targetHeapType when HasRTT flag is not set (builtin types)
@@ -239,6 +240,9 @@ Value* ValueKey::materialize(Procedure& proc, Origin origin) const
         // Remove HasRTT from flags before passing to constructor (it's not stored in the value)
         flags.remove(WasmRefTypeCheckFlag::HasRTT);
 
+        bool hasChild2 = u.indices[1] != UINT_MAX;
+        if (hasChild2)
+            return proc.add<WasmRefTypeCheckValue>(kind(), type(), origin, targetHeapType, flags, WTF::move(targetRTT), child(proc, 0), child(proc, 1));
         return proc.add<WasmRefTypeCheckValue>(kind(), type(), origin, targetHeapType, flags, WTF::move(targetRTT), child(proc, 0));
     }
     case Nop:

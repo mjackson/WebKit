@@ -356,6 +356,12 @@ struct FeaturesGL : FeatureSetBase
         &members,
     };
 
+    FeatureInfo forceLumaWorkaroundForSameTextureCopyTexImage2D = {
+        "forceLumaWorkaroundForSameTextureCopyTexImage2D",
+        FeatureCategory::OpenGLWorkarounds,
+        &members,
+    };
+
     FeatureInfo disableGPUSwitchingSupport = {
         "disableGPUSwitchingSupport",
         FeatureCategory::OpenGLWorkarounds,
@@ -652,6 +658,30 @@ struct FeaturesGL : FeatureSetBase
 
     FeatureInfo disableClearTexImageForRobustInit = {
         "disableClearTexImageForRobustInit",
+        FeatureCategory::OpenGLWorkarounds,
+        &members,
+    };
+
+    FeatureInfo multiviewViaViewportArray = {
+        "multiviewViaViewportArray",
+        FeatureCategory::OpenGLFeatures,
+        &members,
+    };
+
+    FeatureInfo validateMaxPerStageUniformBlocksAtCompileTime = {
+        "validateMaxPerStageUniformBlocksAtCompileTime",
+        FeatureCategory::OpenGLWorkarounds,
+        &members,
+    };
+
+    FeatureInfo recreateMipmapLevelsBeforeGenerate = {
+        "recreateMipmapLevelsBeforeGenerate",
+        FeatureCategory::OpenGLWorkarounds,
+        &members,
+    };
+
+    FeatureInfo limitMaxBufferSizeTo1gb = {
+        "limitMaxBufferSizeTo1gb",
         FeatureCategory::OpenGLWorkarounds,
         &members,
     };

@@ -39,7 +39,7 @@ namespace WebCore {
 unsigned FontPlatformData::hash() const
 {
     // FIXME: Hashing a CFHash is unfortunate here.
-    return computeHash(CFHash(m_font.get()), m_widthVariant, m_isHashTableDeletedValue, m_textRenderingMode, m_orientation, m_orientation, m_syntheticBold, m_syntheticOblique);
+    return computeHash(CFHash(m_font.get()), m_widthVariant, m_isHashTableDeletedValue, m_textRenderingMode, m_orientation, m_syntheticBold, m_syntheticOblique);
 }
 
 bool FontPlatformData::platformIsEqual(const FontPlatformData& other) const

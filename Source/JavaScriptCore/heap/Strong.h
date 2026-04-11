@@ -116,29 +116,9 @@ public:
 
     ExternalType get() const { return HandleTypes<T>::getFromSlot(this->slot()); }
 
-    inline void set(VM&, ExternalType);
-
-    template <typename U> Strong& operator=(const Strong<U>& other)
-    {
-        if (!other.slot()) {
-            clear();
-            return *this;
-        }
-
-        set(*HandleSet::heapFor(other.slot())->vm(), other.get());
-        return *this;
-    }
-
-    Strong& operator=(const Strong& other)
-    {
-        if (!other.slot()) {
-            clear();
-            return *this;
-        }
-
-        set(HandleSet::heapFor(other.slot())->vm(), other.get());
-        return *this;
-    }
+    inline void set(VM&, ExternalType); // Defined in StrongInlines.h
+    template <typename U> inline Strong& operator=(const Strong<U>& other); // Defined in StrongInlines.h
+    Strong& operator=(const Strong& other); // Defined in StrongInlines.h
 
     void clear()
     {

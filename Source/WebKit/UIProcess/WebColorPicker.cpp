@@ -35,9 +35,7 @@ WebColorPicker::WebColorPicker(Client* client, std::optional<WebCore::FrameIdent
 {
 }
 
-WebColorPicker::~WebColorPicker()
-{
-}
+WebColorPicker::~WebColorPicker() = default;
 
 void WebColorPicker::endPicker()
 {

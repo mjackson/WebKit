@@ -67,12 +67,13 @@ selectors = [
     { name = "_parentTypes", class = "UTType" },
 ]
 
-[[temporary-usage]]
+[[staging]]
 request = "rdar://161241270"
 cleanup = "rdar://161241477"
 symbols = [
     "CTFontGetUIFontType",
 ]
+requires-sdk = ["iOS <= 26.*"]
 
 [[temporary-usage]]
 request = "rdar://168834967"
@@ -130,4 +131,12 @@ request = "rdar://170092229"
 cleanup = "rdar://170092414"
 symbols = [
     "CGPatternCreateWithImageTransformStep",
+]
+
+[[temporary-usage]]
+request = "rdar://165789536"
+cleanup = "rdar://173046822"
+classes = [
+    "_WTTextEffectManager",
+    "_WTTextPreview",
 ]

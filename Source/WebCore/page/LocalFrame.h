@@ -182,7 +182,7 @@ public:
     const LocalFrame& rootFrame() const { return *m_rootFrame; }
     LocalFrame& rootFrame() { return *m_rootFrame; }
 
-    WEBCORE_EXPORT RenderView* contentRenderer() const; // Root of the render tree for the document contained in this frame.
+    WEBCORE_EXPORT RenderView* NODELETE contentRenderer() const; // Root of the render tree for the document contained in this frame.
 
     bool documentIsBeingReplaced() const { return m_documentIsBeingReplaced; }
 
@@ -200,9 +200,9 @@ public:
 
     WEBCORE_EXPORT void injectUserScripts(UserScriptInjectionTime);
     WEBCORE_EXPORT void injectUserScriptImmediately(DOMWrapperWorld&, const UserScript&);
-    UserContentProvider* userContentProvider();
+    UserContentProvider* NODELETE userContentProvider();
     const UserContentProvider* userContentProvider() const;
-    WEBCORE_EXPORT bool hasUserContentProvider(const UserContentProvider&);
+    WEBCORE_EXPORT bool NODELETE hasUserContentProvider(const UserContentProvider&);
 
     WEBCORE_EXPORT String trackedRepaintRectsAsText() const;
 
@@ -344,7 +344,7 @@ public:
     OptionSet<AdvancedPrivacyProtections> advancedPrivacyProtections() const final;
     AutoplayPolicy autoplayPolicy() const final;
 
-    WEBCORE_EXPORT SandboxFlags effectiveSandboxFlags() const;
+    WEBCORE_EXPORT SandboxFlags NODELETE effectiveSandboxFlags() const;
     SandboxFlags sandboxFlagsFromSandboxAttributeNotCSP() { return m_sandboxFlags; }
     WEBCORE_EXPORT void updateSandboxFlags(SandboxFlags, NotifyUIProcess) final;
 
@@ -392,7 +392,7 @@ private:
     DOMWindow* NODELETE virtualWindow() const final;
     void reinitializeDocumentSecurityContext() final;
     FrameLoaderClient& NODELETE loaderClient() LIFETIME_BOUND final;
-    void documentURLForConsoleLog(CompletionHandler<void(const URL&)>&&) final;
+    URL urlForConsoleLog() const final;
 
     WeakHashSet<FrameDestructionObserver> m_destructionObservers;
 

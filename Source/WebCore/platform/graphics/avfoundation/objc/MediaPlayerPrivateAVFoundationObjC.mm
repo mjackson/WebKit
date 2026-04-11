@@ -1218,6 +1218,10 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
     if (RefPtr provider = m_provider) {
         provider->setPlayerItem(m_avPlayerItem.get());
         provider->setAudioTrack(firstEnabledAudibleTrack());
+        if (auto player = this->player()) {
+            provider->setPreservesPitch(player->preservesPitch());
+            provider->setVolume(player->volume());
+        }
     }
 #endif
 
@@ -1643,14 +1647,17 @@ void MediaPlayerPrivateAVFoundationObjC::setVolume(float volume)
         return;
     m_volume = volume;
 
-    updateIsAudible();
-
-    if (!m_avPlayer)
-        return;
-
     ALWAYS_LOG(LOGIDENTIFIER, volume);
 
-    [m_avPlayer setVolume:volume];
+    updateIsAudible();
+
+    if (m_avPlayer)
+        [m_avPlayer setVolume:volume];
+
+#if ENABLE(WEB_AUDIO) && USE(MEDIATOOLBOX)
+    if (RefPtr provider = m_provider)
+        provider->setVolume(volume);
+#endif
 }
 
 void MediaPlayerPrivateAVFoundationObjC::setMuted(bool muted)
@@ -1675,6 +1682,10 @@ void MediaPlayerPrivateAVFoundationObjC::setRateDouble(double rate)
     if (m_requestedPlaying)
         setPlayerRate(rate);
     m_wallClockAtCachedCurrentTime = std::nullopt;
+#if ENABLE(WEB_AUDIO) && USE(MEDIATOOLBOX)
+    if (RefPtr provider = m_provider)
+        provider->setPlaybackRate(rate);
+#endif
 }
 
 void MediaPlayerPrivateAVFoundationObjC::setPlayerRate(double rate, std::optional<MonotonicTime>&& hostTime)
@@ -1748,6 +1759,10 @@ void MediaPlayerPrivateAVFoundationObjC::setPreservesPitch(bool preservesPitch)
     auto player = this->player();
     if (m_avPlayerItem && player)
         [m_avPlayerItem setAudioTimePitchAlgorithm:MediaSessionManagerCocoa::audioTimePitchAlgorithmForMediaPlayerPitchCorrectionAlgorithm(player->pitchCorrectionAlgorithm(), preservesPitch, m_requestedRate).createNSString().get()];
+#if ENABLE(WEB_AUDIO) && USE(MEDIATOOLBOX)
+    if (RefPtr provider = m_provider)
+        provider->setPreservesPitch(preservesPitch);
+#endif
 }
 
 void MediaPlayerPrivateAVFoundationObjC::setPitchCorrectionAlgorithm(MediaPlayer::PitchCorrectionAlgorithm pitchCorrectionAlgorithm)
@@ -4493,7 +4508,7 @@ NSArray* playerKVOProperties()
 #endif
         }
 
-        if (player.logger().willLog(player.logChannel(), WTFLogLevel::Debug) && !([keyPath isEqualToString:@"loadedTimeRanges"] || [keyPath isEqualToString:@"seekableTimeRanges"])) {
+        if (player.logger().willLog(player.logChannel(), WTFLogLevel::Debug, { }) && !([keyPath isEqualToString:@"loadedTimeRanges"] || [keyPath isEqualToString:@"seekableTimeRanges"])) {
             auto identifier = Logger::LogSiteIdentifier("MediaPlayerPrivateAVFoundation"_s, "observeValueForKeyPath"_s, player.logIdentifier());
 
             if (shouldLogValue) {

@@ -1081,7 +1081,7 @@ bool SourceBuffer::validateInitializationSegment(const SourceBufferPrivateClient
     //   * The number of audio, video, and text tracks match what was in the first initialization segment.
     return segment.audioTracks.size() == audioTracksIfExists()->length()
         && segment.videoTracks.size() == videoTracksIfExists()->length()
-        && segment.textTracks.size() == protect(textTracksIfExists())->length();
+        && segment.textTracks.size() == textTracksIfExists()->length();
 }
 
 void SourceBuffer::appendError(bool decodeError)

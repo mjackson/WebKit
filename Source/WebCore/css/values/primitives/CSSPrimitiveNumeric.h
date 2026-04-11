@@ -88,30 +88,6 @@ template<NumericRaw RawType> struct PrimitiveNumeric {
     {
     }
 
-    // MARK: Copy/Move Construction/Assignment
-
-    PrimitiveNumeric(const PrimitiveNumeric& other)
-        : m_data { other.m_data }
-    {
-    }
-
-    PrimitiveNumeric(PrimitiveNumeric&& other)
-        : m_data { WTF::move(other.m_data) }
-    {
-    }
-
-    PrimitiveNumeric& operator=(const PrimitiveNumeric& other)
-    {
-        m_data = other.m_data;
-        return *this;
-    }
-
-    PrimitiveNumeric& operator=(PrimitiveNumeric&& other)
-    {
-        m_data = WTF::move(other.m_data);
-        return *this;
-    }
-
     // MARK: Equality
 
     bool operator==(const PrimitiveNumeric& other) const
@@ -167,8 +143,12 @@ template<NumericRaw RawType> struct PrimitiveNumeric {
         return visitor(asRaw());
     }
 
-    bool isKnownZero() const { return isRaw() && m_data.payload.number == 0; }
-    bool isKnownNotZero() const { return isRaw() && m_data.payload.number != 0; }
+    bool isKnownZero() const requires (range.min <= 0 && range.max >= 0) { return isRaw() && m_data.payload.number == 0; }
+    bool isKnownNotZero() const requires (range.min <= 0 && range.max >= 0) { return isRaw() && m_data.payload.number != 0; }
+    bool isKnownPositive() const requires (range.max > 0) { return isRaw() && m_data.payload.number > 0; }
+    bool isKnownPositiveOrZero() const requires (range.max >= 0) { return isRaw() && m_data.payload.number >= 0; }
+    bool isKnownNegative() const requires (range.min < 0) { return isRaw() && m_data.payload.number < 0; }
+    bool isKnownNegativeOrZero() const requires (range.min <= 0) { return isRaw() && m_data.payload.number <= 0; }
 
     bool isRaw() const { return m_data.isRaw(); }
     bool isCalc() const { return m_data.isCalc(); }

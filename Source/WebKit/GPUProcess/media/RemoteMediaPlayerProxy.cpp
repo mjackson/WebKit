@@ -56,6 +56,7 @@
 #include <WebCore/NotImplemented.h>
 #include <WebCore/ResourceError.h>
 #include <WebCore/SecurityOrigin.h>
+#include <wtf/Borrow.h>
 #include <wtf/MemoryFootprint.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/UniqueRef.h>
@@ -293,6 +294,10 @@ void RemoteMediaPlayerProxy::setVolumeLocked(bool volumeLocked)
 void RemoteMediaPlayerProxy::setVolume(double volume)
 {
     protect(m_player)->setVolume(volume);
+#if ENABLE(WEB_AUDIO) && PLATFORM(COCOA)
+    if (RefPtr provider = m_remoteAudioSourceProvider)
+        provider->setVolume(volume);
+#endif
 }
 
 void RemoteMediaPlayerProxy::setMuted(bool muted)
@@ -313,6 +318,10 @@ void RemoteMediaPlayerProxy::setPrivateBrowsingMode(bool privateMode)
 void RemoteMediaPlayerProxy::setPreservesPitch(bool preservesPitch)
 {
     protect(m_player)->setPreservesPitch(preservesPitch);
+#if ENABLE(WEB_AUDIO) && PLATFORM(COCOA)
+    if (RefPtr provider = m_remoteAudioSourceProvider)
+        provider->setPreservesPitch(preservesPitch);
+#endif
 }
 
 void RemoteMediaPlayerProxy::setPitchCorrectionAlgorithm(WebCore::MediaPlayer::PitchCorrectionAlgorithm algorithm)
@@ -459,12 +468,12 @@ void RemoteMediaPlayerProxy::mediaPlayerReadyStateChanged()
 
 void RemoteMediaPlayerProxy::mediaPlayerVolumeChanged()
 {
-    protect(m_webProcessConnection)->send(Messages::MediaPlayerPrivateRemote::VolumeChanged(protect(m_player)->volume()), m_id);
+    m_webProcessConnection->send(Messages::MediaPlayerPrivateRemote::VolumeChanged(m_player->volume()), m_id);
 }
 
 void RemoteMediaPlayerProxy::mediaPlayerMuteChanged()
 {
-    protect(m_webProcessConnection)->send(Messages::MediaPlayerPrivateRemote::MuteChanged(protect(m_player)->muted()), m_id);
+    m_webProcessConnection->send(Messages::MediaPlayerPrivateRemote::MuteChanged(m_player->muted()), m_id);
 }
 
 static MediaTimeUpdateData timeUpdateData(const MediaPlayer& player, MediaTime time)
@@ -504,7 +513,17 @@ void RemoteMediaPlayerProxy::mediaPlayerRateChanged()
     sendCachedState();
 
     RefPtr player = m_player;
-    protect(m_webProcessConnection)->send(Messages::MediaPlayerPrivateRemote::RateChanged(player->effectiveRate(), timeUpdateData(*player, player->currentTime())), m_id);
+    if (!player)
+        return;
+
+    auto effectiveRate = player->effectiveRate();
+
+#if ENABLE(WEB_AUDIO) && PLATFORM(COCOA)
+    if (RefPtr provider = m_remoteAudioSourceProvider)
+        provider->setPlaybackRate(effectiveRate);
+#endif
+
+    protect(m_webProcessConnection)->send(Messages::MediaPlayerPrivateRemote::RateChanged(effectiveRate, timeUpdateData(*player, player->currentTime())), m_id);
 }
 
 void RemoteMediaPlayerProxy::mediaPlayerEngineFailedToLoad()
@@ -652,7 +671,7 @@ void RemoteMediaPlayerProxy::addRemoteAudioTrackProxy(WebCore::AudioTrackPrivate
     track.setLogger(protect(m_logger), mediaPlayerLogIdentifier());
 #endif
 
-    for (auto& audioTrack : m_audioTracks) {
+    for (auto& audioTrack : borrow(m_audioTracks).get()) {
         if (audioTrack.get() == track)
             return;
         if (audioTrack->id() == track.id()) {
@@ -666,7 +685,7 @@ void RemoteMediaPlayerProxy::addRemoteAudioTrackProxy(WebCore::AudioTrackPrivate
 
 void RemoteMediaPlayerProxy::audioTrackSetEnabled(TrackID trackId, bool enabled)
 {
-    for (auto& track : m_audioTracks) {
+    for (Ref track : borrow(m_audioTracks).get()) {
         if (track->id() == trackId) {
             track->setEnabled(enabled);
             return;
@@ -685,7 +704,7 @@ void RemoteMediaPlayerProxy::addRemoteVideoTrackProxy(WebCore::VideoTrackPrivate
     track.setLogger(protect(m_logger), mediaPlayerLogIdentifier());
 #endif
 
-    for (auto& videoTrack : m_videoTracks) {
+    for (auto& videoTrack : borrow(m_videoTracks).get()) {
         if (videoTrack.get() == track)
             return;
         if (videoTrack->id() == track.id()) {
@@ -699,7 +718,7 @@ void RemoteMediaPlayerProxy::addRemoteVideoTrackProxy(WebCore::VideoTrackPrivate
 
 void RemoteMediaPlayerProxy::videoTrackSetSelected(TrackID trackId, bool selected)
 {
-    for (auto& track : m_videoTracks) {
+    for (Ref track : borrow(m_videoTracks).get()) {
         if (track->id() == trackId) {
             track->setSelected(selected);
             return;
@@ -718,7 +737,7 @@ void RemoteMediaPlayerProxy::addRemoteTextTrackProxy(WebCore::InbandTextTrackPri
     track.setLogger(protect(m_logger), mediaPlayerLogIdentifier());
 #endif
 
-    for (auto& textTrack : m_textTracks) {
+    for (auto& textTrack : borrow(m_textTracks).get()) {
         if (textTrack.get() == track)
             return;
         if (textTrack->id() == track.id()) {
@@ -732,7 +751,7 @@ void RemoteMediaPlayerProxy::addRemoteTextTrackProxy(WebCore::InbandTextTrackPri
 
 void RemoteMediaPlayerProxy::textTrackSetMode(TrackID trackId, WebCore::InbandTextTrackPrivate::Mode mode)
 {
-    for (auto& track : m_textTracks) {
+    for (Ref track : borrow(m_textTracks).get()) {
         if (track->id() == trackId) {
             track->setMode(mode);
             return;
@@ -1252,7 +1271,10 @@ void RemoteMediaPlayerProxy::createAudioSourceProvider()
     if (!provider)
         return;
 
-    m_remoteAudioSourceProvider = RemoteAudioSourceProviderProxy::create(m_id, m_webProcessConnection.copyRef(), *provider);
+    Ref proxy = RemoteAudioSourceProviderProxy::create(m_id, m_webProcessConnection.copyRef(), *provider);
+    proxy->setPlaybackRate(player->effectiveRate());
+    proxy->setPreservesPitch(player->preservesPitch());
+    m_remoteAudioSourceProvider = WTF::move(proxy);
 #endif
 }
 

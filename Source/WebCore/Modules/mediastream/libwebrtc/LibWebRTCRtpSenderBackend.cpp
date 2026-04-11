@@ -134,7 +134,7 @@ RTCRtpSendParameters LibWebRTCRtpSenderBackend::getParameters() const
         return { };
 
     m_currentParameters = m_rtcSender->GetParameters();
-    return toRTCRtpSendParameters(*m_currentParameters);
+    return toRTCRtpSendParameters(*m_currentParameters, m_rtcSender->media_type() == webrtc::MediaType::AUDIO);
 }
 
 static bool NODELETE validateModifiedParameters(const RTCRtpSendParameters& newParameters, const RTCRtpSendParameters& oldParameters)
@@ -198,7 +198,7 @@ void LibWebRTCRtpSenderBackend::setParameters(const RTCRtpSendParameters& parame
         return;
     }
 
-    if (!validateModifiedParameters(parameters, toRTCRtpSendParameters(*m_currentParameters))) {
+    if (!validateModifiedParameters(parameters, toRTCRtpSendParameters(*m_currentParameters, m_rtcSender->media_type() == webrtc::MediaType::AUDIO))) {
         promise.reject(ExceptionCode::InvalidModificationError, "parameters are not valid"_s);
         return;
     }

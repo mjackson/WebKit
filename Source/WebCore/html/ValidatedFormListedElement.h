@@ -146,7 +146,7 @@ private:
     bool m_hasReadOnlyAttribute : 1 { false };
     bool m_wasInteractedWithSinceLastFormSubmitEvent : 1 { false };
     bool m_belongsToFormThatIsBeingDestroyed : 1 { false };
-    bool m_isFocusingWithValidationMessage { false };
+    bool m_isFocusingWithValidationMessage : 1 { false };
 
     mutable TriState m_isInsideDataList : 2 { TriState::Indeterminate };
 

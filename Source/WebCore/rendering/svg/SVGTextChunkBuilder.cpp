@@ -28,9 +28,7 @@
 
 namespace WebCore {
 
-SVGTextChunkBuilder::SVGTextChunkBuilder()
-{
-}
+SVGTextChunkBuilder::SVGTextChunkBuilder() = default;
 
 unsigned SVGTextChunkBuilder::totalCharacters() const
 {

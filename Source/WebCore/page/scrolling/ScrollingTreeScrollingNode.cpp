@@ -358,10 +358,10 @@ bool ScrollingTreeScrollingNode::startAnimatedScrollToPosition(FloatPoint destin
     return m_delegate ? m_delegate->startAnimatedScrollToPosition(destinationPosition) : false;
 }
 
-void ScrollingTreeScrollingNode::stopAnimatedScroll()
+void ScrollingTreeScrollingNode::stopAnimatedScroll(EnumSet<AnimatedScrollType> scrollTypesToStop)
 {
     if (m_delegate)
-        m_delegate->stopAnimatedScroll();
+        m_delegate->stopAnimatedScroll(scrollTypesToStop);
 }
 
 void ScrollingTreeScrollingNode::serviceScrollAnimation(MonotonicTime currentTime)
@@ -413,7 +413,7 @@ void ScrollingTreeScrollingNode::handleScrollPositionRequest(const RequestedScro
 #endif
 
     if (requestedScrollData.requestType != ScrollRequestType::ImplicitDeltaUpdate)
-        stopAnimatedScroll();
+        stopAnimatedScroll(AnimatedScrollType::Programmatic);
 
     if (requestedScrollData.requestType == ScrollRequestType::CancelAnimatedScroll) {
         LOG_WITH_STREAM(Scrolling, stream << "ScrollingTreeScrollingNode " << scrollingNodeID() << " handleScrollPositionRequest() - cancel animated scroll");
@@ -510,7 +510,6 @@ void ScrollingTreeScrollingNode::wasScrolledByDelegatedScrolling(const FloatPoin
 
     scrollingTree()->notifyRelatedNodesAfterScrollPositionChange(*this);
     scrollingTree()->scrollingTreeNodeDidScroll(*this, scrollingLayerPositionAction);
-    scrollingTree()->setNeedsApplyLayerPositionsAfterCommit();
 }
 
 void ScrollingTreeScrollingNode::dumpProperties(TextStream& ts, OptionSet<ScrollingStateTreeAsTextBehavior> behavior) const

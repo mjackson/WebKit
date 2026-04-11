@@ -55,7 +55,7 @@ struct PositionAreaValue {
 
     ItemPosition NODELETE defaultAlignmentForAxis(BoxAxis, WritingMode containerWritingMode, WritingMode selfWritingMode) const;
 
-    constexpr bool operator==(const PositionAreaValue&) const = default;
+    constexpr bool NODELETE operator==(const PositionAreaValue&) const = default;
 
 private:
     PositionAreaSpan m_blockOrXAxis;

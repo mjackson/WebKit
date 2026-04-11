@@ -165,7 +165,9 @@ void CanvasRenderingContext2D::drawFocusIfNeededInternal(const Path& path, Eleme
     Ref canvas = this->canvas();
     if (!element.focused() || !hasInvertibleTransform() || path.isEmpty() || !element.isDescendantOf(canvas.get()) || !context)
         return;
-    context->drawFocusRing(path, 1, RenderTheme::singleton().focusRingColor(protect(element.document())->styleColorOptions(canvas->computedStyle())));
+    CheckedPtr canvasStyle = canvas->computedStyle();
+    auto zoomFactor = canvasStyle ? canvasStyle->usedZoom() : 1.f;
+    context->drawFocusRing(path, 1, RenderTheme::singleton().focusRingColor(protect(element.document())->styleColorOptions(canvasStyle)), zoomFactor);
     didDrawEntireCanvas();
 }
 

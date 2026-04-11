@@ -116,7 +116,7 @@ private:
         Scroll
     };
 
-    RegionSetting scanSettingName(VTTScanner&);
+    RegionSetting NODELETE scanSettingName(VTTScanner&);
 
     void parseSettingValue(RegionSetting, VTTScanner&);
 

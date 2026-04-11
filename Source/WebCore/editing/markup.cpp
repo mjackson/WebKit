@@ -205,6 +205,7 @@ Ref<Page> createPageForSanitizingWebContent(Document* destinationDocument)
 {
     bool useDarkAppearance = false;
     bool useElevatedUserInterfaceLevel = false;
+    std::optional<FontGenericFamilies> fontGenericFamilies;
 
     if (destinationDocument) {
         if (RefPtr destinationPage = destinationDocument->page()) {
@@ -217,6 +218,7 @@ Ref<Page> createPageForSanitizingWebContent(Document* destinationDocument)
 
             useDarkAppearance = documentNeedsDarkAppearance && destinationPage->useDarkAppearance();
             useElevatedUserInterfaceLevel = destinationPage->useElevatedUserInterfaceLevel();
+            fontGenericFamilies = destinationPage->settings().fontGenericFamilies();
         }
     }
 
@@ -231,6 +233,9 @@ Ref<Page> createPageForSanitizingWebContent(Document* destinationDocument)
     page->settings().setHTMLParserScriptingFlagPolicy(HTMLParserScriptingFlagPolicy::Enabled);
     page->settings().setAcceleratedCompositingEnabled(false);
     page->settings().setLinkPreloadEnabled(false);
+
+    if (fontGenericFamilies)
+        page->settings().fontGenericFamilies() = *fontGenericFamilies;
 
     RefPtr frame = page->localMainFrame();
     if (!frame)
@@ -607,7 +612,7 @@ const String& StyledMarkupAccumulator::styleNodeCloseTag(bool isBlock)
     return isBlock ? divClose : styleSpanClose;
 }
 
-bool StyledMarkupAccumulator::containsOnlyASCII() const
+bool NODELETE StyledMarkupAccumulator::containsOnlyASCII() const
 {
     for (auto& preceding : m_reversedPrecedingMarkup) {
         if (!preceding.containsOnlyASCII())
@@ -1027,7 +1032,7 @@ bool StyledMarkupAccumulator::appendNodeToPreserveMSOList(Node& node)
     return false;
 }
 
-static Node* ancestorToRetainStructureAndAppearanceForBlock(Node* commonAncestorBlock)
+static Node* NODELETE ancestorToRetainStructureAndAppearanceForBlock(Node* commonAncestorBlock)
 {
     if (!commonAncestorBlock)
         return nullptr;
@@ -1430,7 +1435,7 @@ bool isPlainTextMarkup(Node* node)
     if (secondChild->nextSibling())
         return false;
 
-    return parentTabSpanNode(protect(firstChild->firstChild()).get()) && is<Text>(secondChild);
+    return parentTabSpanNode(firstChild->firstChild()) && is<Text>(secondChild);
 }
 
 static bool contextPreservesNewline(const SimpleRange& context)

@@ -132,6 +132,48 @@
                     "device": "Mac16,11",
                     "xcode": "Xcode 26.2-17C52"
                   },
+                  {
+                    "name": "bot10005",
+                    "platform": "mac-tahoe",
+                    "os": "macOS Tahoe 26.2-25C56",
+                    "device": "Mac16,11",
+                    "xcode": "Xcode 26.2-17C52"
+                  },
+                  {
+                    "name": "bot10006",
+                    "platform": "mac-tahoe",
+                    "os": "macOS Tahoe 26.2-25C56",
+                    "device": "Mac16,11",
+                    "xcode": "Xcode 26.2-17C52"
+                  },
+                  {
+                    "name": "bot10007",
+                    "platform": "mac-tahoe",
+                    "os": "macOS Tahoe 26.2-25C56",
+                    "device": "Mac16,11",
+                    "xcode": "Xcode 26.2-17C52"
+                  },
+                  {
+                    "name": "bot10008",
+                    "platform": "mac-tahoe",
+                    "os": "macOS Tahoe 26.2-25C56",
+                    "device": "Mac16,11",
+                    "xcode": "Xcode 26.2-17C52"
+                  },
+                  {
+                    "name": "bot10009",
+                    "platform": "mac-tahoe",
+                    "os": "macOS Tahoe 26.2-25C56",
+                    "device": "Mac16,11",
+                    "xcode": "Xcode 26.2-17C52"
+                  },
+                  {
+                    "name": "bot10010",
+                    "platform": "mac-tahoe",
+                    "os": "macOS Tahoe 26.2-25C56",
+                    "device": "Mac16,11",
+                    "xcode": "Xcode 26.2-17C52"
+                  },
 
                   { "name": "wincairo-debug-build-01", "platform": "win" },
                   { "name": "wincairo-debug-tests-01", "platform": "win" },
@@ -275,7 +317,7 @@
                   { "name": "Apple-Tahoe-Release-WK2-Site-Isolation-Tree-Tests", "factory": "TestLayoutAndAPIOnlyFactory",
                   "platform": "mac-tahoe", "configuration": "release", "architectures": ["x86_64", "arm64"],
                   "additionalArguments": ["--no-retry-failures", "--site-isolation"],
-                  "workernames": ["bot2000", "bot2001"]
+                  "workernames": ["bot10005", "bot10006", "bot10007", "bot10008"]
                   },
                   { "name": "Apple-Tahoe-Debug-Build", "factory": "BuildFactory",
                   "platform": "mac-tahoe", "configuration": "debug", "architectures": ["x86_64", "arm64"],
@@ -312,7 +354,7 @@
                   {
                     "name": "Apple-Tahoe-Safer-CPP-Checks", "factory": "SaferCPPStaticAnalyzerFactory",
                     "platform": "mac-tahoe", "configuration": "release", "architectures": ["arm64"],
-                    "workernames": ["bot600"]
+                    "workernames": ["bot600", "bot10009", "bot10010"]
                   },
                   { "name": "Apple-Sequoia-Release-Build", "factory": "BuildFactory",
                   "platform": "mac-sequoia", "configuration": "release", "architectures": ["x86_64", "arm64"],

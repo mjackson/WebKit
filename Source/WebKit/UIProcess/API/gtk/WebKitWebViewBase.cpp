@@ -1884,7 +1884,8 @@ static gboolean webkitWebViewBaseTouchEvent(GtkWidget* widget, GdkEventTouch* ev
     }
     case GDK_TOUCH_UPDATE: {
         auto it = priv->touchEvents.find(sequence);
-        ASSERT(it != priv->touchEvents.end());
+        if (it == priv->touchEvents.end())
+            return GDK_EVENT_PROPAGATE;
 #if USE(GTK4)
         it->value = touchEvent;
 #else
@@ -1895,7 +1896,8 @@ static gboolean webkitWebViewBaseTouchEvent(GtkWidget* widget, GdkEventTouch* ev
     case GDK_TOUCH_CANCEL:
         [[fallthrough]];
     case GDK_TOUCH_END:
-        ASSERT(priv->touchEvents.contains(sequence));
+        if (!priv->touchEvents.contains(sequence))
+            return GDK_EVENT_PROPAGATE;
         priv->touchEvents.remove(sequence);
         break;
     default:

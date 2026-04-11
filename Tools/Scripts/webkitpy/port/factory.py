@@ -35,6 +35,8 @@ import optparse
 import re
 
 from webkitpy.port import config
+from webkitpy.common.system import executive
+from webkitpy.common.system import filesystem
 
 
 def platform_options(use_globs=False):
@@ -76,7 +78,7 @@ def platform_options(use_globs=False):
 
 def configuration_options():
     return [
-        optparse.make_option("-t", "--target", default=None, dest="configuration", help="(DEPRECATED)"),
+        optparse.make_option("-t", "--target", default=config.Config(executive.Executive(), filesystem.FileSystem()).default_configuration(), dest="configuration", help="(DEPRECATED) (default: %default)"),
         optparse.make_option('--debug', action='store_const', const='Debug', dest="configuration",
             help='Set the configuration to Debug'),
         optparse.make_option('--release', action='store_const', const='Release', dest="configuration",
@@ -130,37 +132,28 @@ class PortFactory(object):
             return 'win'
         raise NotImplementedError('unknown platform: %s' % platform)
 
-    @staticmethod
-    def _load_port_class(port_class):
-        """Import and return the class object for a PORT_CLASSES entry."""
-        module_name, class_name = port_class.rsplit('.', 1)
-        module = __import__('webkitpy.port.{}'.format(module_name), globals(), locals(), [], 0)
-        return module.__dict__.get('port').__dict__.get(module_name).__dict__.get(class_name)
-
     def get(self, port_name=None, options=None, **kwargs):
         """Returns an object implementing the Port interface. If
         port_name is None, this routine attempts to guess at the most
         appropriate port on this platform."""
         port_name = port_name or self._default_port()
-
+        classes = []
         for port_class in self.PORT_CLASSES:
-            cls = self._load_port_class(port_class)
-            if cls and port_name.startswith(cls.port_name):
-                full_port_name = cls.determine_full_port_name(self._host, options, port_name)
+            module_name, class_name = port_class.rsplit('.', 1)
+            module = __import__('webkitpy.port.{}'.format(module_name), globals(), locals(), [], 0)
+            cls = module.__dict__.get('port').__dict__.get(module_name).__dict__.get(class_name)
+            if cls:
+                classes.append(cls)
+        if config.apple_additions() and hasattr(config.apple_additions(), 'ports'):
+            classes += config.apple_additions().ports()
+
+        for cls in classes:
+            if port_name.startswith(cls.port_name):
+                port_name = cls.determine_full_port_name(self._host, options, port_name)
                 try:
-                    return cls(self._host, full_port_name, options=options, **kwargs)
+                    return cls(self._host, port_name, options=options, **kwargs)
                 except ValueError:
                     continue
-
-        if config.apple_additions() and hasattr(config.apple_additions(), 'ports'):
-            for cls in config.apple_additions().ports():
-                if port_name.startswith(cls.port_name):
-                    full_port_name = cls.determine_full_port_name(self._host, options, port_name)
-                    try:
-                        return cls(self._host, full_port_name, options=options, **kwargs)
-                    except ValueError:
-                        continue
-
         raise NotImplementedError('unsupported platform: "%s"' % port_name)
 
     def all_port_names(self, platform=None):

@@ -76,7 +76,7 @@ public:
     IntSize NODELETE sliderTickSize() const final;
     int NODELETE sliderTickOffsetFromTrackCenter() const final;
 
-    Style::PaddingBox popupInternalPaddingBox(const RenderStyle&) const final;
+    Style::PaddingBox platformPopupInternalPaddingBox(const RenderStyle&) const final;
     PopupMenuStyle::Size popupMenuSize(const RenderStyle&, IntRect&) const final;
 
     std::optional<FontCascadeDescription> controlFont(StyleAppearance, const FontCascade&, float zoomFactor) const final;
@@ -97,7 +97,7 @@ public:
     IntRect progressBarRectForBounds(const RenderProgress&, const IntRect&) const final;
 
     // Controls color values returned from platformFocusRingColor(). systemColor() will be used when false.
-    bool usesTestModeFocusRingColor() const;
+    bool NODELETE usesTestModeFocusRingColor() const;
 
     WEBCORE_EXPORT static IconAndSize iconForAttachment(const String& fileName, const String& attachmentType, const String& title);
     WEBCORE_EXPORT Color systemColor(CSSValueID, OptionSet<StyleColorOptions>) const final;

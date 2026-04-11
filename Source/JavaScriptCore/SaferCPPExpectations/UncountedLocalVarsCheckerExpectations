@@ -64,7 +64,6 @@ inspector/agents/InspectorScriptProfilerAgent.cpp
 interpreter/CallFrame.cpp
 interpreter/Interpreter.cpp
 interpreter/StackVisitor.cpp
-jit/JITOpcodes.cpp
 jit/JITOperations.cpp
 jit/JITWorklist.cpp
 jsc.cpp

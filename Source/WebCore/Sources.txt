@@ -164,6 +164,7 @@ Modules/indexeddb/IDBDatabase.cpp
 Modules/indexeddb/IDBDatabaseIdentifier.cpp
 Modules/indexeddb/IDBDatabaseNameAndVersionRequest.cpp
 Modules/indexeddb/IDBFactory.cpp
+Modules/indexeddb/IDBGetAllOptions.cpp
 Modules/indexeddb/IDBGetAllResult.cpp
 Modules/indexeddb/IDBGetResult.cpp
 Modules/indexeddb/IDBIndex.cpp
@@ -174,6 +175,7 @@ Modules/indexeddb/IDBKeyRange.cpp
 Modules/indexeddb/IDBKeyRangeData.cpp
 Modules/indexeddb/IDBObjectStore.cpp
 Modules/indexeddb/IDBOpenDBRequest.cpp
+Modules/indexeddb/IDBRecord.cpp
 Modules/indexeddb/IDBRequest.cpp
 Modules/indexeddb/IDBRequestCompletionEvent.cpp
 Modules/indexeddb/IDBTransaction.cpp
@@ -538,6 +540,7 @@ Modules/webtransport/WebTransportSendStreamSink.cpp
 Modules/webtransport/WebTransportSession.cpp
 Modules/webtransport/WorkerWebTransportSession.cpp
 Modules/webxr/NavigatorWebXR.cpp
+Modules/webxr/WebGLOpaqueTexture.cpp
 Modules/webxr/WebXRBoundedReferenceSpace.cpp
 Modules/webxr/WebXRFrame.cpp
 Modules/webxr/WebXRGamepad.cpp
@@ -560,6 +563,7 @@ Modules/webxr/WebXRView.cpp
 Modules/webxr/WebXRViewerPose.cpp
 Modules/webxr/WebXRViewport.cpp
 Modules/webxr/WebXRWebGLLayer.cpp
+Modules/webxr/WebXRWebGLSwapchain.cpp
 Modules/webxr/XRCompositionLayer.cpp
 Modules/webxr/XRGPUBinding.cpp
 Modules/webxr/XRGPUSubImage.cpp
@@ -577,6 +581,8 @@ Modules/webxr/WebXRRay.cpp
 Modules/webxr/XRReferenceSpaceEvent.cpp
 Modules/webxr/XRSessionEvent.cpp
 Modules/webxr/XRSubImage.cpp
+Modules/webxr/XRWebGLLayerBacking.cpp
+Modules/webxr/XRWebGLProjectionLayerBacking.cpp
 Modules/webxr/WebXRTransientInputHitTestResult.cpp
 Modules/webxr/WebXRTransientInputHitTestSource.cpp
 Modules/webxr/XRWebGLBinding.cpp
@@ -689,7 +695,9 @@ bindings/js/JSDOMBindingSecurity.cpp
 bindings/js/JSDOMBuiltinConstructorBase.cpp
 bindings/js/JSDOMConstructorBase.cpp
 bindings/js/JSDOMConstructorWithDocument.cpp
+bindings/js/JSDOMConvertAny.cpp
 bindings/js/JSDOMConvertBoolean.cpp
+bindings/js/JSDOMConvertBufferSource.cpp
 bindings/js/JSDOMConvertDate.cpp
 bindings/js/JSDOMConvertNumbers.cpp
 bindings/js/JSDOMConvertStrings.cpp
@@ -728,6 +736,7 @@ bindings/js/JSHistoryCustom.cpp
 bindings/js/JSIDBCursorCustom.cpp
 bindings/js/JSIDBCursorWithValueCustom.cpp
 bindings/js/JSIDBObjectStoreCustom.cpp
+bindings/js/JSIDBRecordCustom.cpp
 bindings/js/JSIDBRequestCustom.cpp
 bindings/js/JSIDBSerializationGlobalObject.cpp
 bindings/js/JSIDBTransactionCustom.cpp
@@ -885,13 +894,13 @@ css/CSSColorValue.cpp
 css/CSSComputedStyleDeclaration.cpp
 css/CSSConditionRule.cpp
 css/CSSContainerRule.cpp
-css/CSSCounterStyle.cpp
 css/CSSCounterStyleDescriptors.cpp
 css/CSSCounterStyleRegistry.cpp
 css/CSSCounterStyleRule.cpp
 css/CSSCounterValue.cpp
 css/CSSCrossfadeValue.cpp
 css/CSSCursorImageValue.cpp
+css/CSSCustomIdentValue.cpp
 css/CSSCustomPropertyValue.cpp
 css/CSSDynamicRangeLimitValue.cpp
 css/CSSEasingFunctionValue.cpp
@@ -940,7 +949,7 @@ css/CSSPageDescriptors.cpp
 css/CSSPageRule.cpp
 css/CSSPaintImageValue.cpp
 css/CSSPathValue.cpp
-css/CSSPendingSubstitutionValue.cpp
+css/CSSShorthandSubstitutionValue.cpp
 css/CSSPositionTryDescriptors.cpp
 css/CSSPositionTryRule.cpp
 css/CSSPositionValue.cpp
@@ -954,6 +963,7 @@ css/CSSRatioValue.cpp
 css/CSSRayValue.cpp
 css/CSSRectValue.cpp
 css/CSSReflectValue.cpp
+css/CSSRegisteredCounterStyle.cpp
 css/CSSRegisteredCustomProperty.cpp
 css/CSSRule.cpp
 css/CSSRuleList.cpp
@@ -981,7 +991,7 @@ css/CSSValueList.cpp
 css/CSSValuePair.cpp
 css/CSSValuePool.cpp
 css/CSSVariableData.cpp
-css/CSSVariableReferenceValue.cpp
+css/CSSSubstitutionValue.cpp
 css/CSSViewTransitionRule.cpp
 css/CSSViewValue.cpp
 css/ComputedStyleDependencies.cpp
@@ -1090,7 +1100,7 @@ css/parser/CSSSelectorParserContext.cpp
 css/parser/CSSSupportsParser.cpp
 css/parser/CSSTokenizer.cpp
 css/parser/CSSTokenizerInputStream.cpp
-css/parser/CSSVariableParser.cpp
+css/parser/CSSSubstitutionParser.cpp
 css/parser/MediaQueryBlockWatcher.cpp
 css/parser/MutableCSSSelector.cpp
 css/parser/SizesAttributeParser.cpp
@@ -1169,6 +1179,7 @@ css/values/color/CSSResolvedColor.cpp
 css/values/grid/CSSGridNamedAreaMap.cpp
 css/values/images/CSSGradient.cpp
 css/values/motion/CSSRayFunction.cpp
+css/values/primitives/CSSCustomIdent.cpp
 css/values/primitives/CSSPosition.cpp
 css/values/primitives/CSSPrimitiveNumericCategory.cpp
 css/values/primitives/CSSPrimitiveNumericTypes+Canonicalization.cpp
@@ -1873,6 +1884,7 @@ inspector/InspectorStyleSheet.cpp
 inspector/InspectorThreadableLoaderClient.cpp
 inspector/InstrumentingAgents.cpp
 inspector/NetworkResourcesData.cpp
+inspector/FrameDebugger.cpp
 inspector/PageDebugger.cpp
 inspector/PageInspectorController.cpp
 inspector/TimelineRecordFactory.cpp
@@ -1899,6 +1911,7 @@ inspector/agents/WebConsoleAgent.cpp
 inspector/agents/WebDebuggerAgent.cpp
 inspector/agents/WebHeapAgent.cpp
 inspector/agents/frame/FrameConsoleAgent.cpp
+inspector/agents/frame/FrameDebuggerAgent.cpp
 inspector/agents/page/PageAuditAgent.cpp
 inspector/agents/page/PageCanvasAgent.cpp
 inspector/agents/page/PageConsoleAgent.cpp
@@ -2421,10 +2434,23 @@ platform/animation/AcceleratedTimeline.cpp
 platform/animation/TimingFunction.cpp
 platform/animation/values/AcceleratedEffectOffsetAnchor.cpp
 platform/animation/values/AcceleratedEffectOffsetDistance.cpp
+platform/animation/values/AcceleratedEffectOffsetPath.cpp
 platform/animation/values/AcceleratedEffectOffsetPosition.cpp
 platform/animation/values/AcceleratedEffectOffsetRotate.cpp
 platform/animation/values/AcceleratedEffectOpacity.cpp
 platform/animation/values/AcceleratedEffectTransformOrigin.cpp
+platform/animation/values/paths/AcceleratedEffectBasicShapePath.cpp
+platform/animation/values/paths/AcceleratedEffectBoxPath.cpp
+platform/animation/values/paths/AcceleratedEffectRayPath.cpp
+platform/animation/values/paths/AcceleratedEffectReferencePath.cpp
+platform/animation/values/shapes/AcceleratedEffectBasicShape.cpp
+platform/animation/values/shapes/AcceleratedEffectCircleFunction.cpp
+platform/animation/values/shapes/AcceleratedEffectEllipseFunction.cpp
+platform/animation/values/shapes/AcceleratedEffectInsetFunction.cpp
+platform/animation/values/shapes/AcceleratedEffectPathFunction.cpp
+platform/animation/values/shapes/AcceleratedEffectPolygonFunction.cpp
+platform/animation/values/shapes/AcceleratedEffectRayFunction.cpp
+platform/animation/values/shapes/AcceleratedEffectShapeFunction.cpp
 platform/audio/AudioBus.cpp
 platform/audio/AudioChannel.cpp
 platform/audio/AudioDSPKernelProcessor.cpp
@@ -2584,6 +2610,7 @@ platform/graphics/LayoutRoundedRect.cpp
 platform/graphics/LayoutSize.cpp
 platform/graphics/MIMESniffer.cpp
 platform/graphics/MIMETypeCache.cpp
+platform/graphics/MediaSourceTypeSupportedCache.cpp
 platform/graphics/MediaPlaybackTargetWirelessPlayback.cpp
 platform/graphics/MediaPlayer.cpp
 platform/graphics/MediaPlayerPrivate.cpp
@@ -2639,6 +2666,7 @@ platform/graphics/controls/ApplePayButtonPart.cpp
 platform/graphics/controls/ControlFactory.cpp
 platform/graphics/controls/ControlPart.cpp
 platform/graphics/controls/ControlStyle.cpp
+platform/graphics/controls/PlatformControl.cpp
 platform/graphics/controls/EmptyControlFactory.cpp
 platform/graphics/controls/MeterPart.cpp
 platform/graphics/controls/ProgressBarPart.cpp
@@ -2957,6 +2985,7 @@ rendering/RenderTextFragment.cpp
 rendering/RenderTextLineBoxes.cpp
 rendering/RenderTheme.cpp
 rendering/RenderTreeAsText.cpp
+rendering/RenderTreeOrder.cpp
 rendering/RenderTreeMutationDisallowedScope.cpp
 rendering/RenderVTTCue.cpp
 rendering/RenderVideo.cpp
@@ -3088,7 +3117,6 @@ rendering/svg/legacy/SVGResourcesCycleSolver.cpp
 rendering/updating/RenderTreeBuilder.cpp
 rendering/updating/RenderTreeBuilderBlock.cpp
 rendering/updating/RenderTreeBuilderBlockFlow.cpp
-rendering/updating/RenderTreeBuilderContinuation.cpp
 rendering/updating/RenderTreeBuilderFirstLetter.cpp
 rendering/updating/RenderTreeBuilderFormControls.cpp
 rendering/updating/RenderTreeBuilderInline.cpp
@@ -3337,8 +3365,6 @@ style/values/motion/StyleOffsetPath.cpp
 style/values/motion/StyleOffsetPosition.cpp
 style/values/motion/StyleOffsetRotate.cpp
 style/values/motion/StyleRayFunction.cpp
-style/values/multicol/StyleColumnCount.cpp
-style/values/multicol/StyleColumnWidth.cpp
 style/values/non-standard/StyleWebKitBoxReflect.cpp
 style/values/non-standard/StyleWebKitLineClamp.cpp
 style/values/non-standard/StyleWebKitLocale.cpp
@@ -3350,6 +3376,7 @@ style/values/overflow/StyleScrollbarGutter.cpp
 style/values/overflow/StyleOverflowClipMargin.cpp
 style/values/page/StylePageSize.cpp
 style/values/pointerevents/StyleTouchAction.cpp
+style/values/primitives/StyleCustomIdent.cpp
 style/values/primitives/StyleLengthResolution.cpp
 style/values/primitives/StyleLengthWrapper+DeprecatedCSSValueConversion.cpp
 style/values/primitives/StyleLengthWrapperData.cpp
@@ -4240,7 +4267,6 @@ JSGPUPipelineErrorReason.cpp
 JSGPUPipelineLayout.cpp
 JSGPUPipelineLayoutDescriptor.cpp
 JSGPUPowerPreference.cpp
-JSGPUPredefinedColorSpace.cpp
 JSGPUPrimitiveState.cpp
 JSGPUPrimitiveTopology.cpp
 JSGPUProgrammablePassEncoder.cpp
@@ -4408,10 +4434,12 @@ JSIDBCursorDirection.cpp
 JSIDBCursorWithValue.cpp
 JSIDBDatabase.cpp
 JSIDBFactory.cpp
+JSIDBGetAllOptions.cpp
 JSIDBIndex.cpp
 JSIDBKeyRange.cpp
 JSIDBObjectStore.cpp
 JSIDBOpenDBRequest.cpp
+JSIDBRecord.cpp
 JSIDBRequest.cpp
 JSIDBTransaction.cpp
 JSIDBTransactionDurability.cpp

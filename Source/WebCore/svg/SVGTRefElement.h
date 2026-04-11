@@ -59,7 +59,7 @@ private:
     void detachTarget();
     void buildPendingResource() override;
 
-    Ref<SVGTRefTargetEventListener> m_targetListener;
+    const Ref<SVGTRefTargetEventListener> m_targetListener;
 };
 
 } // namespace WebCore

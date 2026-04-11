@@ -40,6 +40,7 @@ struct PlatformVideoColorSpace {
     std::optional<PlatformVideoMatrixCoefficients> matrix { };
     std::optional<bool> fullRange { };
 
+    bool isValid() const { return primaries || transfer || matrix || fullRange; }
     friend bool operator==(const PlatformVideoColorSpace&, const PlatformVideoColorSpace&) = default;
 };
 

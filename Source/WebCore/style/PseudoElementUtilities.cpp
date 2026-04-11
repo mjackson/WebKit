@@ -36,12 +36,12 @@ namespace WebCore::Style {
 
 static RefPtr<Element> findElementForUserAgentPart(Element& host, const AtomString& userAgentPartName)
 {
-    RefPtr shadowRoot = host.userAgentShadowRoot();
+    auto* shadowRoot = host.userAgentShadowRoot();
     if (!shadowRoot)
         return nullptr;
-    for (Ref descendant : descendantsOfType<Element>(*shadowRoot)) {
-        if (descendant->userAgentPart() == userAgentPartName)
-            return descendant.ptr();
+    for (auto& descendant : descendantsOfType<Element>(*shadowRoot)) {
+        if (descendant.userAgentPart() == userAgentPartName)
+            return &descendant;
     }
     return nullptr;
 }

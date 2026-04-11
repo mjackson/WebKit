@@ -28,8 +28,6 @@ layer at (105,38.41) size 17x17 backgroundClip at (81.05,23.89) size 41.02x22.50
   RenderSVGText {text} at (0,0) size 17x17 contains 1 chunk(s)
     RenderSVGInlineText {#text} at (0,0) size 17x17
       chunk 1 text run 1 at (105.00,52.00) startOffset 0 endOffset 2 width 16.68: "50"
-layer at (100,38.50) size 0x17
-  RenderSVGPath {line} at (-5,0.09) size 0x16.50 [stroke={[type=SOLID] [color=#FF0000] [stroke width=1.50]}] [fill={[type=SOLID] [color=#000000]}] [x1=100.00] [y1=55.00] [x2=100.00] [y2=38.50]
 layer at (0,0) size 433x30
   RenderSVGTransformableContainer {g} at (0,0) size 432.69x30
 layer at (0,0) size 433x30

@@ -34,9 +34,7 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(IDBValue);
 
-IDBValue::IDBValue()
-{
-}
+IDBValue::IDBValue() = default;
 
 IDBValue::IDBValue(const SerializedScriptValue& scriptValue)
     : m_data(ThreadSafeDataBuffer::copyData(scriptValue.wireBytes()))

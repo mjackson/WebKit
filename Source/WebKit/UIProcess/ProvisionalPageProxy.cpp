@@ -173,7 +173,7 @@ ProvisionalPageProxy::~ProvisionalPageProxy()
 
     if (!m_wasCommitted && m_page) {
         Ref page = *m_page;
-        page->inspectorController().willDestroyProvisionalPage(*this);
+        page->inspectorController().willDestroyProvisionalPage(*this, m_mainFrame->frameID(), protect(m_frameProcess->process())->coreProcessIdentifier());
 
         RefPtr dataStore = process->websiteDataStore();
         if (dataStore && dataStore!= &page->websiteDataStore())
@@ -192,6 +192,11 @@ ProvisionalPageProxy::~ProvisionalPageProxy()
 WebProcessProxy& ProvisionalPageProxy::process()
 {
     return m_frameProcess->process();
+}
+
+bool ProvisionalPageProxy::hasActiveLoadForNavigation(const API::Navigation& navigation) const
+{
+    return !m_didFailProvisionalLoad && m_navigationID == navigation.navigationID();
 }
 
 void ProvisionalPageProxy::processDidTerminate()
@@ -301,7 +306,7 @@ void ProvisionalPageProxy::initializeWebPage(RefPtr<API::WebsitePolicies>&& webs
     if (page->isLayerTreeFrozenDueToSwipeAnimation())
         send(Messages::WebPage::SwipeAnimationDidStart());
 
-    page->inspectorController().didCreateProvisionalPage(*this);
+    page->inspectorController().didCreateProvisionalPage(*this, m_mainFrame->frameID(), protect(m_frameProcess->process()));
 }
 
 void ProvisionalPageProxy::loadData(API::Navigation& navigation, Ref<WebCore::SharedBuffer>&& data, const String& mimeType, const String& encoding, const String& baseURL, API::Object* userData, WebCore::ShouldTreatAsContinuingLoad shouldTreatAsContinuingLoad, std::optional<NavigatingToAppBoundDomain> isNavigatingToAppBoundDomain, RefPtr<API::WebsitePolicies>&& websitePolicies, SubstituteData::SessionHistoryVisibility sessionHistoryVisibility)

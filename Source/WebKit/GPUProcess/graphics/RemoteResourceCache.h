@@ -65,7 +65,7 @@ public:
     bool releaseGradient(RemoteGradientIdentifier);
     RefPtr<WebCore::Gradient> cachedGradient(RemoteGradientIdentifier) const;
 
-    void cacheFilter(Ref<WebCore::Filter>&&);
+    bool cacheFilter(Ref<WebCore::Filter>&&);
     bool releaseFilter(WebCore::RenderingResourceIdentifier);
     RefPtr<WebCore::Filter> cachedFilter(WebCore::RenderingResourceIdentifier) const;
 

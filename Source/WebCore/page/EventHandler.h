@@ -242,11 +242,11 @@ public:
 
     WEBCORE_EXPORT void lostMouseCapture();
 
-    WEBCORE_EXPORT HandleUserInputEventResult handleMousePressEvent(const PlatformMouseEvent&);
+    WEBCORE_EXPORT HandleUserInputEventResult handleMousePressEvent(const PlatformMouseEvent&, OptionSet<HitTestRequest::Type> additionalHitTestTypes = { });
     WEBCORE_EXPORT OptionSet<HitTestRequest::Type> getHitTypeForMouseMoveEvent(const PlatformMouseEvent&, bool onlyUpdateScrollbars = false);
     WEBCORE_EXPORT HitTestResult getHitTestResultForMouseEvent(const PlatformMouseEvent&);
-    HandleUserInputEventResult handleMouseMoveEvent(const PlatformMouseEvent&, HitTestResult* = nullptr, bool onlyUpdateScrollbars = false);
-    WEBCORE_EXPORT HandleUserInputEventResult handleMouseReleaseEvent(const PlatformMouseEvent&);
+    HandleUserInputEventResult handleMouseMoveEvent(const PlatformMouseEvent&, HitTestResult* = nullptr, bool onlyUpdateScrollbars = false, OptionSet<HitTestRequest::Type> additionalHitTestTypes = { });
+    WEBCORE_EXPORT HandleUserInputEventResult handleMouseReleaseEvent(const PlatformMouseEvent&, OptionSet<HitTestRequest::Type> additionalHitTestTypes = { });
     WEBCORE_EXPORT bool handleMouseForceEvent(const PlatformMouseEvent&);
 
     WEBCORE_EXPORT std::pair<HandleUserInputEventResult, OptionSet<EventHandling>> handleWheelEvent(const PlatformWheelEvent&, OptionSet<WheelEventProcessingSteps>);
@@ -300,7 +300,7 @@ public:
 
     void setMouseDownMayStartAutoscroll() { m_mouseDownMayStartAutoscroll = true; }
 
-    bool needsKeyboardEventDisambiguationQuirks() const;
+    bool NODELETE needsKeyboardEventDisambiguationQuirks() const;
 
     WEBCORE_EXPORT static OptionSet<PlatformEvent::Modifier> accessKeyModifiers();
     WEBCORE_EXPORT bool handleAccessKey(const PlatformKeyboardEvent&);
@@ -440,7 +440,7 @@ private:
     std::optional<WeakSimpleRange> getWeakSimpleRangeFromSelection(const VisibleSelection&) const;
 #endif
 
-    bool eventActivatedView(const PlatformMouseEvent&) const;
+    bool NODELETE eventActivatedView(const PlatformMouseEvent&) const;
     bool updateSelectionForMouseDownDispatchingSelectStart(Node*, const VisibleSelection&, TextGranularity);
     bool expandAndUpdateSelectionForMouseDownIfNeeded(Node& targetNode, const VisibleSelection&, TextGranularity);
     void selectClosestWordFromHitTestResult(const HitTestResult&, AppendTrailingWhitespace);

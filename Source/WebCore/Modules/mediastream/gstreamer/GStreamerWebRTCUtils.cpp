@@ -35,6 +35,7 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/WallTime.h>
 #include <wtf/WeakRandomNumber.h>
+#include <wtf/glib/GMallocString.h>
 #include <wtf/glib/GSpanExtras.h>
 #include <wtf/text/Base64.h>
 #include <wtf/text/StringToIntegerConversion.h>
@@ -784,6 +785,16 @@ void SDPStringBuilder::appendAttribute(const GstSDPAttribute* attribute)
             return;
     }
 
+    if (key == "rtpmap"_s) {
+        auto tokens = value.split(' ');
+        if (tokens.size() < 2) [[unlikely]]
+            return;
+
+        // https://gitlab.freedesktop.org/gstreamer/gstreamer/-/work_items/2511
+        if (startsWith(tokens[1], "OPUS"_s))
+            value = makeStringByReplacingAll(value, "OPUS"_s, "opus"_s);
+    }
+
     m_stringBuilder.append("a="_s, key);
     if (!value.isEmpty())
         m_stringBuilder.append(':', value);
@@ -876,13 +887,13 @@ SDPStringBuilder::SDPStringBuilder(const GstSDPMessage* sdp)
     }
 
     if (auto name = CStringView::unsafeFromUTF8(gst_sdp_message_get_session_name(sdp)))
-        m_stringBuilder.append("s="_s, name.span(), CRLF);
+        m_stringBuilder.append("s="_s, name, CRLF);
 
     if (auto info = CStringView::unsafeFromUTF8(gst_sdp_message_get_information(sdp)))
-        m_stringBuilder.append("i="_s, info.span(), CRLF);
+        m_stringBuilder.append("i="_s, info, CRLF);
 
     if (auto uri = CStringView::unsafeFromUTF8(gst_sdp_message_get_uri(sdp)))
-        m_stringBuilder.append("u="_s, uri.span(), CRLF);
+        m_stringBuilder.append("u="_s, uri, CRLF);
 
     unsigned totalEmails = gst_sdp_message_emails_len(sdp);
     for (unsigned i = 0; i < totalEmails; i++)

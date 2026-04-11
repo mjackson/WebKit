@@ -21,6 +21,7 @@
 
 #include "config.h"
 #include "LegacyRenderSVGTransformableContainer.h"
+#include "LegacyRenderSVGModelObjectInlines.h"
 
 #include "RenderElementStyleInlines.h"
 #include "SVGElementTypeHelpers.h"

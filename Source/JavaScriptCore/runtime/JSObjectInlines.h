@@ -71,12 +71,12 @@ inline void JSObject::setButterfly(VM& vm, Butterfly* butterfly)
 {
     if (isX86() || vm.heap.mutatorShouldBeFenced()) {
         WTF::storeStoreFence();
-        m_butterfly.set(vm, this, butterfly);
+        butterflyRef().set(vm, this, butterfly);
         WTF::storeStoreFence();
         return;
     }
 
-    m_butterfly.set(vm, this, butterfly);
+    butterflyRef().set(vm, this, butterfly);
 }
 
 inline void JSObject::nukeStructureAndSetButterfly(VM& vm, StructureID oldStructureID, Butterfly* butterfly)
@@ -84,12 +84,12 @@ inline void JSObject::nukeStructureAndSetButterfly(VM& vm, StructureID oldStruct
     if (isX86() || vm.heap.mutatorShouldBeFenced()) {
         setStructureIDDirectly(oldStructureID.nuke());
         WTF::storeStoreFence();
-        m_butterfly.set(vm, this, butterfly);
+        butterflyRef().set(vm, this, butterfly);
         WTF::storeStoreFence();
         return;
     }
 
-    m_butterfly.set(vm, this, butterfly);
+    butterflyRef().set(vm, this, butterfly);
 }
 
 inline JSValue JSObject::get(JSGlobalObject* globalObject, PropertyName propertyName) const
@@ -1002,7 +1002,7 @@ void JSObject::forEachOwnIndexedProperty(JSGlobalObject* globalObject, const Fun
     case ALL_INT32_INDEXING_TYPES:
     case ALL_CONTIGUOUS_INDEXING_TYPES:
     case ALL_DOUBLE_INDEXING_TYPES: {
-        unsigned usedLength = m_butterfly->publicLength();
+        unsigned usedLength = butterfly()->publicLength();
         for (unsigned i = 0; i < usedLength; ++i) {
             JSValue value = getDirectIndex(globalObject, i);
             RETURN_IF_EXCEPTION(scope, void());
@@ -1013,7 +1013,7 @@ void JSObject::forEachOwnIndexedProperty(JSGlobalObject* globalObject, const Fun
     }
 
     case ALL_ARRAY_STORAGE_INDEXING_TYPES: {
-        ArrayStorage* storage = m_butterfly->arrayStorage();
+        ArrayStorage* storage = butterfly()->arrayStorage();
         unsigned usedVectorLength = std::min(storage->length(), storage->vectorLength());
         for (unsigned i = 0; i < usedVectorLength; ++i) {
             auto value = storage->m_vector[i];
@@ -1074,7 +1074,7 @@ inline void JSObject::initializeIndex(ObjectInitializationScope& scope, unsigned
 ALWAYS_INLINE void JSObject::initializeIndex(ObjectInitializationScope& scope, unsigned i, JSValue v, IndexingType indexingType)
 {
     VM& vm = scope.vm();
-    Butterfly* butterfly = m_butterfly.get();
+    auto* butterfly = this->butterfly();
     switch (indexingType) {
     case ALL_UNDECIDED_INDEXING_TYPES: {
         setIndexQuicklyToUndecided(vm, i, v);
@@ -1129,7 +1129,7 @@ inline void JSObject::initializeIndexWithoutBarrier(ObjectInitializationScope& s
 
 ALWAYS_INLINE void JSObject::initializeIndexWithoutBarrier(ObjectInitializationScope&, unsigned i, JSValue v, IndexingType indexingType)
 {
-    Butterfly* butterfly = m_butterfly.get();
+    auto* butterfly = this->butterfly();
     switch (indexingType) {
     case ALL_UNDECIDED_INDEXING_TYPES: {
         RELEASE_ASSERT_NOT_REACHED();
@@ -1181,7 +1181,7 @@ inline bool JSObject::canHaveExistingOwnIndexedGetterSetterProperties()
     case ALL_DOUBLE_INDEXING_TYPES:
         return false;
     case ALL_ARRAY_STORAGE_INDEXING_TYPES: {
-        SparseArrayValueMap* map = m_butterfly->arrayStorage()->m_sparseMap.get();
+        SparseArrayValueMap* map = butterfly()->arrayStorage()->m_sparseMap.get();
         if (!map)
             return false;
         return map->hasAnyKindOfGetterSetterProperties();
@@ -1203,9 +1203,9 @@ inline unsigned JSObject::canHaveExistingOwnIndexedProperties() const
     case ALL_INT32_INDEXING_TYPES:
     case ALL_CONTIGUOUS_INDEXING_TYPES:
     case ALL_DOUBLE_INDEXING_TYPES:
-        return m_butterfly->publicLength();
+        return butterfly()->publicLength();
     case ALL_ARRAY_STORAGE_INDEXING_TYPES: {
-        ArrayStorage* storage = m_butterfly->arrayStorage();
+        auto* storage = butterfly()->arrayStorage();
         unsigned usedVectorLength = std::min(storage->length(), storage->vectorLength());
         if (usedVectorLength)
             return true;

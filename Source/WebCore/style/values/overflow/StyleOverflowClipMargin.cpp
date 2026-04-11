@@ -28,6 +28,7 @@
 
 #include "CSSPrimitiveValueMappings.h"
 #include "StyleBuilderChecking.h"
+#include "StylePrimitiveNumericTypes+CSSValueConversion.h"
 
 namespace WebCore {
 namespace Style {

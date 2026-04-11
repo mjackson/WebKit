@@ -29,6 +29,7 @@ set(WTF_PUBLIC_HEADERS
     BlockPtr.h
     BloomFilter.h
     BooleanLattice.h
+    Borrow.h
     Box.h
     BoxPtr.h
     Brigand.h
@@ -37,10 +38,11 @@ set(WTF_PUBLIC_HEADERS
     ButterflyArray.h
     ByteOrder.h
     CPUTime.h
-    CanMakeWeakPtr.h
     CagedPtr.h
     CagedUniquePtr.h
     CallbackAggregator.h
+    CanBorrow.h
+    CanMakeWeakPtr.h
     CancellableTask.h
     CheckedArithmetic.h
     CheckedPtr.h
@@ -218,6 +220,7 @@ set(WTF_PUBLIC_HEADERS
     OptionalOrReference.h
     OptionSetHash.h
     OrderMaker.h
+    OverflowHandler.h
     OverflowPolicy.h
     Packed.h
     PackedRef.h
@@ -379,7 +382,6 @@ set(WTF_PUBLIC_HEADERS
     URLParser.h
     UUID.h
     UnalignedAccess.h
-    Unexpected.h
     UniStdExtras.h
     UnionFind.h
     UniqueArray.h
@@ -843,10 +845,10 @@ endif ()
 
 file(MAKE_DIRECTORY ${WTF_SCRIPTS_DIR})
 
-message(STATUS "Copying generate-unified-source-bundles.rb to: ${WTF_SCRIPTS_DIR}")
+message(STATUS "Copying generate-unified-source-bundles.py to: ${WTF_SCRIPTS_DIR}")
 
 file(COPY
-    ../Scripts/generate-unified-source-bundles.rb
+    ../Scripts/generate-unified-source-bundles.py
     DESTINATION ${WTF_SCRIPTS_DIR}
 )
 

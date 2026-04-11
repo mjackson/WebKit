@@ -50,6 +50,14 @@ RefPtr<FilterImage> FilterImage::create(const FloatRect& primitiveSubregion, con
     return adoptRef(*new FilterImage(primitiveSubregion, imageRect, absoluteImageRect, WTF::move(imageBuffer), allocator));
 }
 
+RefPtr<FilterImage> FilterImage::create(const FloatRect& primitiveSubregion, FilterImage& other, ImageBufferAllocator& allocator)
+{
+    RefPtr buffer = other.imageBuffer();
+    if (!buffer)
+        return nullptr;
+    return adoptRef(*new FilterImage(primitiveSubregion, other.imageRect(), other.absoluteImageRect(), Ref { *buffer }, allocator));
+}
+
 FilterImage::FilterImage(const FloatRect& primitiveSubregion, const FloatRect& imageRect, const IntRect& absoluteImageRect, bool isAlphaImage, bool isValidPremultiplied, RenderingMode renderingMode, const DestinationColorSpace& colorSpace, ImageBufferAllocator& allocator)
     : m_primitiveSubregion(primitiveSubregion)
     , m_imageRect(imageRect)

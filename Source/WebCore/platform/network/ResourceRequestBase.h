@@ -274,7 +274,7 @@ public:
     void upgradeInsecureRequest();
     void upgradeInsecureRequestIfNeeded(ShouldUpgradeLocalhostAndIPAddress, const std::optional<uint16_t>&);
 
-    WEBCORE_EXPORT static double defaultTimeoutInterval(); // May return 0 when using platform default.
+    WEBCORE_EXPORT static double NODELETE defaultTimeoutInterval(); // May return 0 when using platform default.
     WEBCORE_EXPORT static void NODELETE setDefaultTimeoutInterval(double);
 
     WEBCORE_EXPORT static bool equal(const ResourceRequest&, const ResourceRequest&);

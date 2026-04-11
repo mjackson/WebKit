@@ -96,6 +96,28 @@ bool AXGeometryManager::cacheRectIfNeeded(AXID axID, IntRect&& rect)
     return true;
 }
 
+void AXGeometryManager::cachePathForID(AXID axID, std::unique_ptr<Path>&& path)
+{
+    Locker locker { m_cachedPathsLock };
+    m_cachedPaths.set(axID, WTF::move(path));
+}
+
+std::optional<Path> AXGeometryManager::cachedPathForID(AXID axID)
+{
+    Locker locker { m_cachedPathsLock };
+    auto iterator = m_cachedPaths.find(axID);
+    if (iterator != m_cachedPaths.end())
+        return *iterator->value;
+    return std::nullopt;
+}
+
+void AXGeometryManager::remove(AXID axID)
+{
+    m_cachedRects.remove(axID);
+    Locker locker { m_cachedPathsLock };
+    m_cachedPaths.remove(axID);
+}
+
 void AXGeometryManager::scheduleObjectRegionsUpdate(bool scheduleImmediately)
 {
     if (!scheduleImmediately) [[likely]] {

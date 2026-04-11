@@ -319,7 +319,7 @@ public:
 
     void markMarginAsTrimmed(Style::MarginTrimSide);
     void clearTrimmedMarginsMarkings();
-    bool hasTrimmedMargin(std::optional<Style::MarginTrimSide>) const;
+    bool NODELETE hasTrimmedMargin(std::optional<Style::MarginTrimSide>) const;
 
     LayoutSize offsetFromContainer(const RenderElement&, const LayoutPoint&, bool* offsetDependsOnPoint = nullptr) const override;
     
@@ -386,7 +386,7 @@ public:
     LayoutUnit computeLogicalHeightWithoutLayout() const;
 
     enum class RenderBoxFragmentInfoFlags : bool { CacheRenderBoxFragmentInfo, DoNotCacheRenderBoxFragmentInfo };
-    RenderBoxFragmentInfo* renderBoxFragmentInfo(RenderFragmentContainer*, RenderBoxFragmentInfoFlags = RenderBoxFragmentInfoFlags::CacheRenderBoxFragmentInfo) const;
+    RenderBoxFragmentInfo* NODELETE renderBoxFragmentInfo(RenderFragmentContainer*, RenderBoxFragmentInfoFlags = RenderBoxFragmentInfoFlags::CacheRenderBoxFragmentInfo) const;
     void computeLogicalWidth(LogicalExtentComputedValues&) const;
 
     inline bool stretchesToViewport() const;
@@ -526,7 +526,7 @@ public:
     LayoutUnit offsetTop() const override;
 
     LayoutPoint NODELETE flipForWritingModeForChild(const RenderBox& child, const LayoutPoint&) const;
-    LayoutUnit flipForWritingMode(LayoutUnit position) const; // The offset is in the block direction (y for horizontal writing modes, x for vertical writing modes).
+    LayoutUnit NODELETE flipForWritingMode(LayoutUnit position) const; // The offset is in the block direction (y for horizontal writing modes, x for vertical writing modes).
     LayoutPoint NODELETE flipForWritingMode(const LayoutPoint&) const;
     LayoutSize NODELETE flipForWritingMode(const LayoutSize&) const;
     FloatPoint flipForWritingMode(const FloatPoint&) const;
@@ -651,7 +651,7 @@ protected:
     virtual bool isChildEligibleForMarginTrim(Style::MarginTrimSide, const RenderBox&) const { return false; }
 
     virtual bool NODELETE shouldResetLogicalHeightBeforeLayout() const;
-    void resetLogicalHeightBeforeLayoutIfNeeded();
+    void NODELETE resetLogicalHeightBeforeLayoutIfNeeded();
 
     // Returns false if it could not cheaply compute the extent (e.g. fixed background), in which case the returned rect may be incorrect.
     bool getBackgroundPaintedExtent(const LayoutPoint& paintOffset, LayoutRect&) const;

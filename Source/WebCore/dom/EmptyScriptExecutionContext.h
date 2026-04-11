@@ -130,7 +130,7 @@ private:
         void scheduleToRun() final { ASSERT_NOT_REACHED(); }
         bool isContextThread() const final { return true; }
 
-        Ref<MicrotaskQueue> m_queue;
+        const Ref<MicrotaskQueue> m_queue;
     };
 
     const Ref<JSC::VM> m_vm;

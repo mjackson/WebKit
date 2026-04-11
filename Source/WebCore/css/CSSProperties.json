@@ -1275,7 +1275,11 @@
             "initial": "auto",
             "values": [
                 "auto",
-                "none"
+                "none",
+                {
+                    "value": "oblique-only",
+                    "settings-flag": "cssFontSynthesisStyleObliqueOnlyEnabled"
+                }
             ],
             "codegen-properties": {
                 "font-property": true,
@@ -1283,7 +1287,7 @@
                 "computed-style-storage-container": "opaque",
                 "computed-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "computed-style-storage-kind": "enum",
-                "computed-style-type": "FontSynthesisLonghandValue",
+                "computed-style-type": "FontSynthesisStyleLonghandValue",
                 "parser-grammar": "<<values>>"
             },
             "specification": {
@@ -7037,14 +7041,20 @@
         "outline-offset": {
             "animation-type": "by computed value",
             "initial": "0px",
+            "values": [
+                {
+                	"value": "-internal-inset",
+                	"status": "internal"
+                }
+            ],
             "codegen-properties": {
-                "computed-style-initial-constexpr": true,
                 "computed-style-storage-path": ["m_nonInheritedData", "backgroundData", "outline"],
                 "computed-style-storage-container": "struct",
                 "computed-style-storage-kind": "reference",
-                "computed-style-type": "Style::Length<>",
+                "computed-style-type": "Style::OutlineOffset",
                 "skip-render-style-getter": true,
-                "parser-grammar": "<length>"
+                "style-extractor-custom": true,
+                "parser-grammar": "<length> | <<values>>"
             },
             "specification": {
                 "category": "css-ui",
@@ -11904,8 +11914,6 @@
                     "-webkit-text-stroke-width",
                     "-webkit-text-stroke-color"
                 ],
-                "skip-style-extractor": true,
-                "skip-style-extractor-comment": "FIXME: Figure out and document why this has no computed value",
                 "shorthand-pattern": "StandardSpaceSeparated",
                 "parser-grammar-unused": "<'-webkit-text-stroke-width'> || <'-webkit-text-stroke-color'>",
                 "parser-grammar-unused-reason": "Needs support for shorthand grammars."
@@ -13026,7 +13034,6 @@
                 "none"
             ],
             "codegen-properties": {
-                "settings-flag": "viewTransitionsEnabled",
                 "computed-style-name-for-methods": "ViewTransitionClasses",
                 "computed-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "computed-style-storage-kind": "reference",
@@ -13047,7 +13054,6 @@
                 "match-element"
             ],
             "codegen-properties": {
-                "settings-flag": "viewTransitionsEnabled",
                 "computed-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "computed-style-storage-kind": "reference",
                 "computed-style-type": "Style::ViewTransitionName",
@@ -13769,7 +13775,9 @@
             "result": {
                 "codegen-properties": {
                     "settings-flag": "cssFunctionAtRuleEnabled",
-                    "parser-grammar": "<declaration-value>?"
+                    "parser-function": "consumeFunctionResult",
+                    "parser-grammar-unused": "<declaration-value>?",
+                    "parser-grammar-unused-reason": "Needs custom function to set the property name to 'result'."
                 },
                 "specification": {
                     "category": "css-mixins",
@@ -13784,7 +13792,6 @@
                     "auto"
                 ],
                 "codegen-properties": {
-                    "settings-flag": "crossDocumentViewTransitionsEnabled",
                     "parser-grammar": "<<values>>",
                     "parser-exported": true
                 },
@@ -13798,7 +13805,6 @@
                     "none"
                 ],
                 "codegen-properties": {
-                    "settings-flag": "crossDocumentViewTransitionsEnabled",
                     "parser-function": "consumeViewTransitionTypes",
                     "parser-grammar-unused": "none | <custom-ident excluding=none>+",
                     "parser-grammar-unused-reason": "Needs support for excluding from <custom-ident> based on prefixes."

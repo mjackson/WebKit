@@ -130,7 +130,7 @@ TextStream& operator<<(TextStream& stream, const FloatingObject& object)
 
 #endif
 
-inline static bool rangesIntersect(LayoutUnit floatTop, LayoutUnit floatBottom, LayoutUnit objectTop, LayoutUnit objectBottom)
+inline static bool NODELETE rangesIntersect(LayoutUnit floatTop, LayoutUnit floatBottom, LayoutUnit objectTop, LayoutUnit objectBottom)
 {
     if (objectTop >= floatBottom || objectBottom < floatTop)
         return false;

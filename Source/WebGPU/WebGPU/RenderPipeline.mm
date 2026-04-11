@@ -441,7 +441,7 @@ static size_t NODELETE vertexFormatSize(WGPUVertexFormat vertexFormat)
     }
 }
 
-static MTLVertexStepFunction stepFunction(WGPUVertexStepMode stepMode, auto arrayStride)
+static MTLVertexStepFunction NODELETE stepFunction(WGPUVertexStepMode stepMode, auto arrayStride)
 {
     if (!arrayStride)
         return MTLVertexStepFunctionConstant;
@@ -2019,5 +2019,5 @@ WGPUBindGroupLayout wgpuRenderPipelineGetBindGroupLayout(WGPURenderPipeline rend
 
 void wgpuRenderPipelineSetLabel(WGPURenderPipeline renderPipeline, const char* label)
 {
-    protect(WebGPU::fromAPI(renderPipeline))->setLabel(WebGPU::fromAPI(label));
+    WebGPU::fromAPI(renderPipeline).setLabel(WebGPU::fromAPI(label));
 }

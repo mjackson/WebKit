@@ -103,7 +103,7 @@ bool CloseWatcher::requestToClose()
 
     RefPtr document = dynamicDowncast<Document>(scriptExecutionContext());
     Ref manager = protect(document->window())->closeWatcherManager();
-    bool canPreventClose = manager->canPreventClose() && protect(document->window())->hasHistoryActionActivation();
+    bool canPreventClose = manager->canPreventClose() && document->window()->hasHistoryActionActivation();
     Ref cancelEvent = Event::create(eventNames().cancelEvent, Event::CanBubble::No, canPreventClose ? Event::IsCancelable::Yes : Event::IsCancelable::No);
     m_isRunningCancelAction = true;
     dispatchEvent(cancelEvent);

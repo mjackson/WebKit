@@ -33,6 +33,8 @@
 #include "ElementInlines.h"
 #include "NodeName.h"
 #include "RenderMathMLOperator.h"
+#include "RenderObjectInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/unicode/CharacterNames.h>
 

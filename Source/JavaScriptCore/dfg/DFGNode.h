@@ -105,7 +105,7 @@ struct MultiDeleteByOffsetData {
     Vector<DeleteByVariant, 2> variants;
 
     bool writesStructures() const;
-    bool allVariantsStoreEmpty() const;
+    bool NODELETE allVariantsStoreEmpty() const;
 };
 
 struct MultiGetByValData {
@@ -495,7 +495,7 @@ public:
     }
 
     void remove(Graph&);
-    void removeWithoutChecks();
+    void NODELETE removeWithoutChecks();
 
     void convertToCheckStructure(RegisteredStructureSet* set)
     {
@@ -532,14 +532,14 @@ public:
     }
     
     void replaceWith(Graph&, Node* other);
-    void replaceWithWithoutChecks(Node* other);
+    void NODELETE replaceWithWithoutChecks(Node* other);
 
-    void convertToIdentity();
-    void convertToIdentityOn(Node*);
+    void NODELETE convertToIdentity();
+    void NODELETE convertToIdentityOn(Node*);
 
     void convertToGetByIdMaybeMegamorphic(Graph&, CacheableIdentifier);
-    void convertToPutByIdMaybeMegamorphic(Graph&, CacheableIdentifier);
-    void convertToInByIdMaybeMegamorphic(Graph&, CacheableIdentifier);
+    void NODELETE convertToPutByIdMaybeMegamorphic(Graph&, CacheableIdentifier);
+    void NODELETE convertToInByIdMaybeMegamorphic(Graph&, CacheableIdentifier);
 
     bool mustGenerate() const
     {
@@ -912,22 +912,22 @@ public:
         m_opInfo2 = OpInfoWrapper();
     }
 
-    void convertToNewArrayBuffer(FrozenValue* immutableButterfly);
-    void convertToNewArrayWithSize();
-    void convertToNewArrayWithButterfly(Graph&, Node* butterfly);
-    void convertToNewArrayWithSizeAndStructure(Graph&, RegisteredStructure);
+    void NODELETE convertToNewArrayBuffer(FrozenValue* immutableButterfly);
+    void NODELETE convertToNewArrayWithSize();
+    void NODELETE convertToNewArrayWithButterfly(Graph&, Node* butterfly);
+    void NODELETE convertToNewArrayWithSizeAndStructure(Graph&, RegisteredStructure);
 
-    void convertToNewBoundFunction(FrozenValue*);
+    void NODELETE convertToNewBoundFunction(FrozenValue*);
 
-    void convertToDirectCall(FrozenValue*);
+    void NODELETE convertToDirectCall(FrozenValue*);
 
-    void convertToCallWasm(FrozenValue*);
+    void NODELETE convertToCallWasm(FrozenValue*);
 
-    void convertToCallDOM(Graph&);
+    void NODELETE convertToCallDOM(Graph&);
 
-    void convertToRegExpExecNonGlobalOrStickyWithoutChecks(FrozenValue* regExp);
-    void convertToRegExpMatchFastGlobalWithoutChecks(FrozenValue* regExp);
-    void convertToRegExpTestInline(FrozenValue* globalObject, FrozenValue* regExp);
+    void NODELETE convertToRegExpExecNonGlobalOrStickyWithoutChecks(FrozenValue* regExp);
+    void NODELETE convertToRegExpMatchFastGlobalWithoutChecks(FrozenValue* regExp);
+    void NODELETE convertToRegExpTestInline(FrozenValue* globalObject, FrozenValue* regExp);
 
     void convertToSetRegExpObjectLastIndex()
     {
@@ -1097,7 +1097,7 @@ public:
         }
     }
     
-    bool hasVariableAccessData(Graph&);
+    bool NODELETE hasVariableAccessData(Graph&);
     bool accessesStack(Graph& graph)
     {
         return hasVariableAccessData(graph);
@@ -1359,7 +1359,7 @@ public:
         return op() == PutHint;
     }
     
-    PromotedLocationDescriptor promotedLocationDescriptor();
+    PromotedLocationDescriptor NODELETE promotedLocationDescriptor();
     
     // This corrects the arithmetic node flags, so that irrelevant bits are
     // ignored. In particular, anything other than ArithMul or ValueMul does not need

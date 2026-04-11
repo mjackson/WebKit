@@ -23,7 +23,6 @@
 
 #include "InlineStyleSheetOwner.h"
 #include "SVGElement.h"
-#include "Timer.h"
 
 namespace WebCore {
 

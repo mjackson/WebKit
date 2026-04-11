@@ -313,7 +313,7 @@ void PageClientImpl::didCommitLoadForMainFrame(const String&, bool)
     CheckedRef impl = *m_impl;
     impl->updateSupportsArbitraryLayoutModes();
     impl->dismissContentRelativeChildWindowsWithAnimation(true);
-    impl->clearPromisedDragImage();
+    impl->clearPromisedImageDragData();
     impl->pageDidScroll({ 0, 0 });
 #if ENABLE(WRITING_TOOLS)
     impl->hideTextAnimationView();
@@ -447,9 +447,9 @@ void PageClientImpl::startDrag(const WebCore::DragItem& item, ShareableBitmap::H
 
 void PageClientImpl::setPromisedDataForImage(const String& pasteboardName, Ref<FragmentedSharedBuffer>&& imageBuffer, const String& filename, const String& extension, const String& title, const String& url, const String& visibleURL, RefPtr<FragmentedSharedBuffer>&& archiveBuffer, const String& originIdentifier)
 {
-    auto image = BitmapImage::create();
+    Ref image = BitmapImage::create();
     image->setData(WTF::move(imageBuffer), true);
-    protect(m_impl)->setPromisedDataForImage(image.get(), filename.createNSString().get(), extension.createNSString().get(), title.createNSString().get(), url.createNSString().get(), visibleURL.createNSString().get(), archiveBuffer.get(), pasteboardName.createNSString().get(), originIdentifier.createNSString().get());
+    protect(m_impl)->setPromisedDataForImage(WTF::move(image), filename, extension, title, url, visibleURL, WTF::move(archiveBuffer), pasteboardName, originIdentifier);
 }
 
 void PageClientImpl::updateSecureInputState()
@@ -903,7 +903,7 @@ void PageClientImpl::navigationGestureDidBegin()
     protect(m_impl)->dismissContentRelativeChildWindowsWithAnimation(true);
 
     if (auto webView = this->webView()) {
-        if (RefPtr navigationState = NavigationState::fromWebPage(Ref { *webView->_page }))
+        if (RefPtr navigationState = NavigationState::fromWebPage(*webView->_page))
             navigationState->navigationGestureDidBegin();
     }
 }
@@ -911,7 +911,7 @@ void PageClientImpl::navigationGestureDidBegin()
 void PageClientImpl::navigationGestureWillEnd(bool willNavigate, WebBackForwardListItem& item)
 {
     if (auto webView = this->webView()) {
-        if (RefPtr navigationState = NavigationState::fromWebPage(Ref { *webView->_page }))
+        if (RefPtr navigationState = NavigationState::fromWebPage(*webView->_page))
             navigationState->navigationGestureWillEnd(willNavigate, item);
     }
 }
@@ -919,7 +919,7 @@ void PageClientImpl::navigationGestureWillEnd(bool willNavigate, WebBackForwardL
 void PageClientImpl::navigationGestureDidEnd(bool willNavigate, WebBackForwardListItem& item)
 {
     if (auto webView = this->webView()) {
-        if (RefPtr navigationState = NavigationState::fromWebPage(Ref { *webView->_page }))
+        if (RefPtr navigationState = NavigationState::fromWebPage(*webView->_page))
             navigationState->navigationGestureDidEnd(willNavigate, item);
     }
 }
@@ -931,7 +931,7 @@ void PageClientImpl::navigationGestureDidEnd()
 void PageClientImpl::willRecordNavigationSnapshot(WebBackForwardListItem& item)
 {
     if (auto webView = this->webView()) {
-        if (RefPtr navigationState = NavigationState::fromWebPage(Ref { *webView->_page }))
+        if (RefPtr navigationState = NavigationState::fromWebPage(*webView->_page))
             navigationState->willRecordNavigationSnapshot(item);
     }
 }
@@ -939,7 +939,7 @@ void PageClientImpl::willRecordNavigationSnapshot(WebBackForwardListItem& item)
 void PageClientImpl::didRemoveNavigationGestureSnapshot()
 {
     if (auto webView = this->webView()) {
-        if (RefPtr navigationState = NavigationState::fromWebPage(Ref { *webView->_page }))
+        if (RefPtr navigationState = NavigationState::fromWebPage(*webView->_page))
             navigationState->navigationGestureSnapshotWasRemoved();
     }
 }

@@ -106,7 +106,7 @@ public:
 
     NavigationType type() const { return m_type; }
 
-    bool processingUserGesture() const { return m_userGestureToken ? m_userGestureToken->processingUserGesture() : false; }
+    bool processingUserGesture() const { return m_userGestureToken && m_userGestureToken->processingUserGesture(); }
     RefPtr<UserGestureToken> userGestureToken() const { return m_userGestureToken; }
 
     bool treatAsSameOriginNavigation() const { return m_treatAsSameOriginNavigation; }

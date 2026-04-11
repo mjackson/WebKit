@@ -34,7 +34,7 @@
 
 namespace WebCore {
 
-class LibWebRTCRtpReceiverBackend;
+struct LibWebRTCRtpReceiverBackendAndSource;
 
 class LibWebRTCRtpTransceiverBackend final : public RTCRtpTransceiverBackend {
     WTF_MAKE_TZONE_ALLOCATED(LibWebRTCRtpTransceiverBackend);
@@ -44,7 +44,7 @@ public:
     {
     }
 
-    UniqueRef<LibWebRTCRtpReceiverBackend> createReceiverBackend();
+    LibWebRTCRtpReceiverBackendAndSource createReceiverBackend(Document&);
     Ref<LibWebRTCRtpSenderBackend> createSenderBackend(LibWebRTCPeerConnectionBackend&, LibWebRTCRtpSenderBackend::Source&&);
 
     webrtc::RtpTransceiverInterface* rtcTransceiver() { return m_rtcTransceiver.ptr(); }

@@ -204,5 +204,23 @@ final class BrowserViewModel {
 
             preferences._setEnabled(value, for: feature)
         }
+
+        var overlayRegions: _WKDebugOverlayRegions = []
+        if UserDefaults.standard.bool(forKey: AppStorageKeys.debugOverlayNonFastScrollableRegion) {
+            overlayRegions.insert(.nonFastScrollableRegion)
+        }
+        if UserDefaults.standard.bool(forKey: AppStorageKeys.debugOverlayWheelEventHandlerRegion) {
+            overlayRegions.insert(.wheelEventHandlerRegion)
+        }
+        if UserDefaults.standard.bool(forKey: AppStorageKeys.debugOverlayTouchActionRegion) {
+            overlayRegions.insert(.touchActionRegion)
+        }
+        if UserDefaults.standard.bool(forKey: AppStorageKeys.debugOverlayInteractionRegion) {
+            overlayRegions.insert(.interactionRegion)
+        }
+        if UserDefaults.standard.bool(forKey: AppStorageKeys.debugOverlayEnhancedSecurityRegion) {
+            overlayRegions.insert(.enhancedSecurityRegion)
+        }
+        preferences._visibleDebugOverlayRegions = overlayRegions
     }
 }

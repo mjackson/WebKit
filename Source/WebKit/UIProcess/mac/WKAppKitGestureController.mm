@@ -806,27 +806,7 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
     if (!page)
         return;
 
-    auto timestamp = MonotonicTime::now();
-
-    WebKit::WebWheelEvent cancelEvent {
-        { WebKit::WebEventType::Wheel, { }, timestamp, WTF::UUID::createVersion4() },
-        WebCore::IntPoint { },
-        WebCore::IntPoint { },
-        WebCore::FloatSize { },
-        WebCore::FloatSize { },
-        WebKit::WebWheelEvent::Granularity::ScrollByPixelWheelEvent,
-        false,
-        WebKit::WebWheelEvent::Phase::Cancelled,
-        WebKit::WebWheelEvent::Phase::None,
-        true,
-        1,
-        WebCore::FloatSize { },
-        timestamp,
-        std::nullopt,
-        WebKit::WebWheelEvent::MomentumEndType::Interrupted
-    };
-
-    page->handleNativeWheelEvent(WebKit::NativeWebWheelEvent { cancelEvent });
+    page->interruptSyntheticMomentumScrolling();
     WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(page->logIdentifier(), "Interrupted momentum scrolling");
 }
 
@@ -939,8 +919,32 @@ static inline bool isSamePair(NSGestureRecognizer *a, NSGestureRecognizer *b, NS
 
 - (BOOL)_gestureRecognizer:(NSGestureRecognizer *)preventingGestureRecognizer canPreventGestureRecognizer:(NSGestureRecognizer *)preventedGestureRecognizer
 {
-    bool isOurClickGesture = preventingGestureRecognizer == _singleClickGestureRecognizer || preventingGestureRecognizer == _secondaryClickGestureRecognizer || preventingGestureRecognizer == _mouseTrackingGestureRecognizer;
-    return !isOurClickGesture || ![self _isScrollOrZoomGestureRecognizer:preventedGestureRecognizer];
+    CheckedPtr viewImpl = _viewImpl.get();
+    if (!viewImpl)
+        return NO;
+
+    RetainPtr webView = viewImpl->view();
+    if (!webView)
+        return NO;
+
+    bool isOurClickGesture = preventingGestureRecognizer == _singleClickGestureRecognizer
+        || preventingGestureRecognizer == _secondaryClickGestureRecognizer
+        || preventingGestureRecognizer == _mouseTrackingGestureRecognizer;
+
+    if (!isOurClickGesture)
+        return YES;
+
+    if ([self _isScrollOrZoomGestureRecognizer:preventedGestureRecognizer])
+        return NO;
+
+    // Don't let our click gestures prevent text selection manager gestures;
+    // they should be allowed to recognize simultaneously (per shouldRecognizeSimultaneouslyWithGestureRecognizer:).
+    for (NSGestureRecognizer *textSelectionGesture in [[webView textSelectionManager] gesturesForFailureRequirements]) {
+        if (preventedGestureRecognizer == textSelectionGesture)
+            return NO;
+    }
+
+    return YES;
 }
 
 @end

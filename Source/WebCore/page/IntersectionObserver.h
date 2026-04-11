@@ -100,7 +100,7 @@ public:
     const Vector<double>& thresholds() const LIFETIME_BOUND { return m_thresholds; }
     const WeakListHashSet<Element, WeakPtrImplWithEventTargetData>& observationTargets() const LIFETIME_BOUND { return m_observationTargets; }
     bool hasObservationTargets() const { return !m_observationTargets.isEmptyIgnoringNullReferences(); }
-    bool isObserving(const Element&) const;
+    bool NODELETE isObserving(const Element&) const;
 
     void observe(Element&);
     void unobserve(Element&);

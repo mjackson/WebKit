@@ -3414,7 +3414,7 @@ GraphicsLayerCA::CloneID GraphicsLayerCA::ReplicaState::cloneID() const
     const size_t bitsPerChar16 = sizeof(char16_t) * 8;
     size_t vectorSize = (depth + bitsPerChar16 - 1) / bitsPerChar16;
     
-    Vector<char16_t> result(vectorSize, 0);
+    Vector<char16_t> result(FillWith { }, vectorSize, 0);
 
     // Create a string from the bit sequence which we can use to identify the clone.
     // Note that the string may contain embedded nulls, but that's OK.
@@ -3851,7 +3851,7 @@ static const TransformOperations& NODELETE transformationAnimationValueAt(const 
     return downcast<GraphicsLayerTransformAnimationValue>(valueList.at(i)).value();
 }
 
-static bool hasBig3DRotation(const GraphicsLayerKeyframeValueList& valueList, const TransformOperationsSharedPrimitivesPrefix<TransformOperation::Type>& prefix)
+static bool NODELETE hasBig3DRotation(const GraphicsLayerKeyframeValueList& valueList, const TransformOperationsSharedPrimitivesPrefix<TransformOperation::Type>& prefix)
 {
     // Hardware non-matrix animations are used for every function in the shared primitives prefix.
     // These kind of animations have issues with large rotation angles, so for every function that

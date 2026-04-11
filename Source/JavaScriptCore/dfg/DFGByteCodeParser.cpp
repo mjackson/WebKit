@@ -329,8 +329,8 @@ private:
     void linkBlock(BasicBlock*, Vector<BasicBlock*>& possibleTargets);
     void linkBlocks(Vector<BasicBlock*>& unlinkedBlocks, Vector<BasicBlock*>& possibleTargets);
     
-    BytecodeIndex nextOpcodeIndex() const { return BytecodeIndex(m_currentIndex.offset() + m_currentInstruction->size()); }
-    BytecodeIndex nextCheckpoint() const { return m_currentIndex.withCheckpoint(m_currentIndex.checkpoint() + 1); }
+    BytecodeIndex NODELETE nextOpcodeIndex() const { return BytecodeIndex(m_currentIndex.offset() + m_currentInstruction->size()); }
+    BytecodeIndex NODELETE nextCheckpoint() const { return m_currentIndex.withCheckpoint(m_currentIndex.checkpoint() + 1); }
 
     BytecodeIndex progressToNextCheckpoint()
     {
@@ -589,7 +589,7 @@ private:
         return node;
     }
     
-    ArgumentPosition* findArgumentPositionForArgument(int argument)
+    ArgumentPosition* NODELETE findArgumentPositionForArgument(int argument)
     {
         InlineStackEntry* stack = m_inlineStackTop;
         while (stack->m_inlineCallFrame)
@@ -597,7 +597,7 @@ private:
         return stack->m_argumentPositions[argument];
     }
     
-    ArgumentPosition* findArgumentPositionForLocal(VirtualRegister operand)
+    ArgumentPosition* NODELETE findArgumentPositionForLocal(VirtualRegister operand)
     {
         for (InlineStackEntry* stack = m_inlineStackTop; ; stack = stack->m_caller) {
             InlineCallFrame* inlineCallFrame = stack->m_inlineCallFrame;
@@ -613,7 +613,7 @@ private:
         return nullptr;
     }
     
-    ArgumentPosition* findArgumentPosition(Operand operand)
+    ArgumentPosition* NODELETE findArgumentPosition(Operand operand)
     {
         if (operand.isTmp())
             return nullptr;
@@ -790,22 +790,22 @@ private:
         return jsConstant(m_graph.freeze(constantValue));
     }
 
-    InlineCallFrame* inlineCallFrame()
+    InlineCallFrame* NODELETE inlineCallFrame()
     {
         return m_inlineStackTop->m_inlineCallFrame;
     }
 
-    bool allInlineFramesAreTailCalls()
+    bool NODELETE allInlineFramesAreTailCalls()
     {
         return !inlineCallFrame() || !inlineCallFrame()->getCallerSkippingTailCalls();
     }
 
-    CodeOrigin currentCodeOrigin()
+    CodeOrigin NODELETE currentCodeOrigin()
     {
         return CodeOrigin(m_currentIndex, inlineCallFrame());
     }
 
-    NodeOrigin currentNodeOrigin()
+    NodeOrigin NODELETE currentNodeOrigin()
     {
         CodeOrigin semantic = m_currentSemanticOrigin.isSet() ? m_currentSemanticOrigin : currentCodeOrigin();
         CodeOrigin forExit = m_currentExitOrigin.isSet() ? m_currentExitOrigin : currentCodeOrigin();
@@ -1215,7 +1215,7 @@ private:
         return node;
     }
     
-    void noticeArgumentsUse()
+    void NODELETE noticeArgumentsUse()
     {
         // All of the arguments in this function need to be formatted as JSValues because we will
         // load from them in a random-access fashion and we don't want to have to switch on
@@ -1275,7 +1275,7 @@ private:
         CodeBlock* const m_profiledBlock;
         InlineCallFrame* m_inlineCallFrame;
         
-        ScriptExecutable* executable() { return m_codeBlock->ownerExecutable(); }
+        ScriptExecutable* NODELETE executable() { return m_codeBlock->ownerExecutable(); }
         
         QueryableExitProfile m_exitProfile;
         
@@ -1329,7 +1329,7 @@ private:
         
         ~InlineStackEntry();
         
-        Operand remapOperand(Operand operand) const
+        Operand NODELETE remapOperand(Operand operand) const
         {
             if (!m_inlineCallFrame)
                 return operand;
@@ -2674,7 +2674,7 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
             auto* function = variant.function();
             if (!function)
                 return CallOptimizationResult::DidNothing;
-            if (function->globalObject() != globalObject)
+            if (function->realmMayBeNull() != globalObject)
                 return CallOptimizationResult::DidNothing;
 
             insertChecks();
@@ -2926,6 +2926,15 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
 
             insertChecks();
             setResult(addToGraph(ArrayIsArray, get(virtualRegisterForArgumentIncludingThis(1, registerOffset))));
+            return CallOptimizationResult::Inlined;
+        }
+
+        case ErrorIsErrorIntrinsic: {
+            if (argumentCountIncludingThis < 2)
+                return CallOptimizationResult::DidNothing;
+
+            insertChecks();
+            setResult(addToGraph(IsCellWithType, OpInfo(ErrorInstanceType), get(virtualRegisterForArgumentIncludingThis(1, registerOffset))));
             return CallOptimizationResult::Inlined;
         }
 
@@ -4363,6 +4372,17 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
             return CallOptimizationResult::Inlined;
         }
 
+        case StringPrototypeToUpperCaseIntrinsic: {
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadType))
+                return CallOptimizationResult::DidNothing;
+
+            insertChecks();
+            Node* thisString = get(virtualRegisterForArgumentIncludingThis(0, registerOffset));
+            Node* resultNode = addToGraph(ToUpperCase, thisString);
+            setResult(resultNode);
+            return CallOptimizationResult::Inlined;
+        }
+
         case NumberPrototypeToStringIntrinsic: {
             if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadType))
                 return CallOptimizationResult::DidNothing;
@@ -4903,6 +4923,8 @@ bool ByteCodeParser::handleIntrinsicGetter(Operand result, SpeculatedType predic
 
         NodeType op = mayBeLargeArrayBuffer ? DataViewGetByteLengthAsInt52 : DataViewGetByteLength;
         Node* lengthNode = addToGraph(op, OpInfo(mayBeResizableOrGrowableSharedArrayBuffer), Edge(thisNode, DataViewObjectUse));
+        if (mayBeResizableOrGrowableSharedArrayBuffer)
+            lengthNode->mergeFlags(NodeMustGenerate);
         m_exitOK = true;
         addToGraph(ExitOK);
 
@@ -5116,7 +5138,7 @@ bool ByteCodeParser::handleIntrinsicGetter(Operand result, SpeculatedType predic
     RELEASE_ASSERT_NOT_REACHED();
 }
 
-static void blessCallDOMGetter(Node* node)
+static void NODELETE blessCallDOMGetter(Node* node)
 {
     DOMJIT::CallDOMGetterSnippet* snippet = node->callDOMGetterData()->snippet;
     if (snippet && !snippet->effect.mustGenerate())
@@ -5429,7 +5451,7 @@ bool ByteCodeParser::handleTypedArrayConstructor(
     if (kind == CodeSpecializationKind::CodeForCall)
         return false;
 
-    if (function->globalObject() != m_inlineStackTop->m_codeBlock->globalObject())
+    if (function->realmMayBeNull() != m_inlineStackTop->m_codeBlock->globalObject())
         return false;
     
     // We only have an intrinsic for the case where you say:
@@ -5469,12 +5491,12 @@ bool ByteCodeParser::handleTypedArrayConstructor(
     // Check both structures are already initialized.
     {
         constexpr bool isResizableOrGrowableShared = false;
-        if (!function->globalObject()->typedArrayStructureConcurrently(type, isResizableOrGrowableShared))
+        if (!function->realm()->typedArrayStructureConcurrently(type, isResizableOrGrowableShared))
             return false;
     }
     {
         constexpr bool isResizableOrGrowableShared = true;
-        if (!function->globalObject()->typedArrayStructureConcurrently(type, isResizableOrGrowableShared))
+        if (!function->realm()->typedArrayStructureConcurrently(type, isResizableOrGrowableShared))
             return false;
     }
 
@@ -5507,7 +5529,7 @@ bool ByteCodeParser::handleConstantFunction(
                 return false;
         }
 
-        if (function->globalObject() != m_inlineStackTop->m_codeBlock->globalObject())
+        if (function->realm() != m_inlineStackTop->m_codeBlock->globalObject())
             return false;
 
         insertChecks();
@@ -5571,7 +5593,7 @@ bool ByteCodeParser::handleConstantFunction(
         
         Node* resultNode;
         if (kind == CodeSpecializationKind::CodeForConstruct)
-            resultNode = addToGraph(NewStringObject, OpInfo(m_graph.registerStructure(function->globalObject()->stringObjectStructure())), addToGraph(ToString, argumentNode));
+            resultNode = addToGraph(NewStringObject, OpInfo(m_graph.registerStructure(function->realm()->stringObjectStructure())), addToGraph(ToString, argumentNode));
         else
             resultNode = addToGraph(CallStringConstructor, argumentNode);
         
@@ -5587,7 +5609,7 @@ bool ByteCodeParser::handleConstantFunction(
         if (newTargetNode != callTargetNode)
             return false;
 
-        auto* structure = function->globalObject()->regExpStructure();
+        auto* structure = function->realm()->regExpStructure();
         if (structure) {
             if (argumentCountIncludingThis >= 3) {
                 insertChecks();
@@ -5608,7 +5630,7 @@ bool ByteCodeParser::handleConstantFunction(
         if (newTargetNode != callTargetNode)
             return false;
 
-        auto* structure = function->globalObject()->mapStructureConcurrently();
+        auto* structure = function->realm()->mapStructureConcurrently();
         if (argumentCountIncludingThis <= 1 && structure) {
             insertChecks();
             Node* resultNode = addToGraph(NewMap, OpInfo(m_graph.registerStructure(structure)));
@@ -5625,7 +5647,7 @@ bool ByteCodeParser::handleConstantFunction(
         if (newTargetNode != callTargetNode)
             return false;
 
-        auto* structure = function->globalObject()->setStructureConcurrently();
+        auto* structure = function->realm()->setStructureConcurrently();
         if (argumentCountIncludingThis <= 1 && structure) {
             insertChecks();
             Node* resultNode = addToGraph(NewSet, OpInfo(m_graph.registerStructure(structure)));
@@ -5642,7 +5664,7 @@ bool ByteCodeParser::handleConstantFunction(
         if (newTargetNode != callTargetNode)
             return false;
 
-        auto* structure = function->globalObject()->arrayBufferStructureConcurrently(function->classInfo() == JSArrayBufferConstructor::info() ? ArrayBufferSharingMode::Default : ArrayBufferSharingMode::Shared);
+        auto* structure = function->realm()->arrayBufferStructureConcurrently(function->classInfo() == JSArrayBufferConstructor::info() ? ArrayBufferSharingMode::Default : ArrayBufferSharingMode::Shared);
         if (argumentCountIncludingThis == 2 && structure) {
             insertChecks();
             Node* resultNode = addToGraph(NewTypedArrayBuffer, OpInfo(m_graph.registerStructure(structure)), get(virtualRegisterForArgumentIncludingThis(1, registerOffset)));
@@ -5686,9 +5708,9 @@ bool ByteCodeParser::handleConstantFunction(
 
         Node* resultNode;
         if (argumentCountIncludingThis <= 1)
-            resultNode = addToGraph(NewObject, OpInfo(m_graph.registerStructure(function->globalObject()->objectStructureForObjectConstructor())));
+            resultNode = addToGraph(NewObject, OpInfo(m_graph.registerStructure(function->realm()->objectStructureForObjectConstructor())));
         else
-            resultNode = addToGraph(CallObjectConstructor, OpInfo(m_graph.freeze(function->globalObject())), OpInfo(prediction), get(virtualRegisterForArgumentIncludingThis(1, registerOffset)));
+            resultNode = addToGraph(CallObjectConstructor, OpInfo(m_graph.freeze(function->realm())), OpInfo(prediction), get(virtualRegisterForArgumentIncludingThis(1, registerOffset)));
         set(result, resultNode);
         return true;
     }
@@ -5772,7 +5794,7 @@ bool ByteCodeParser::check(const ObjectPropertyCondition& condition)
     return true;
 }
 
-bool ByteCodeParser::needsDynamicLookup(ResolveType type, OpcodeID opcode)
+bool NODELETE ByteCodeParser::needsDynamicLookup(ResolveType type, OpcodeID opcode)
 {
     ASSERT(opcode == op_resolve_scope || opcode == op_get_from_scope || opcode == op_put_to_scope);
 
@@ -6967,13 +6989,13 @@ void ByteCodeParser::handlePutPrivateNameById(
     } }
 }
 
-void ByteCodeParser::prepareToParseBlock()
+void NODELETE ByteCodeParser::prepareToParseBlock()
 {
     clearCaches();
     ASSERT(m_setLocalQueue.isEmpty());
 }
 
-void ByteCodeParser::clearCaches()
+void NODELETE ByteCodeParser::clearCaches()
 {
     m_constants.shrink(0);
 }
@@ -7000,7 +7022,7 @@ void ByteCodeParser::parseGetById(const JSInstruction* currentInstruction, unsig
     handleGetById(bytecode.m_dst, prediction, base, identifier, identifierNumber, getByStatus, type, nextOpcodeIndex());
 }
 
-static uint64_t makeDynamicVarOpInfo(unsigned identifierNumber, unsigned getPutInfo)
+static uint64_t NODELETE makeDynamicVarOpInfo(unsigned identifierNumber, unsigned getPutInfo)
 {
     static_assert(sizeof(identifierNumber) == 4,
         "We cannot fit identifierNumber into the high bits of m_opInfo");
@@ -7283,7 +7305,7 @@ void ByteCodeParser::parseBlock(unsigned limit)
                             Structure* structure = rareData->internalFunctionAllocationStructure();
                             if (structure
                                 && structure->classInfoForCells() == (bytecode.m_isInternalPromise ? JSInternalPromise::info() : JSPromise::info())
-                                && structure->globalObject() == globalObject) {
+                                && structure->realm() == globalObject) {
                                 m_graph.freeze(rareData);
                                 m_graph.watchpoints().addLazily(rareData->allocationProfileWatchpointSet());
                                 m_graph.freeze(globalObject);
@@ -9168,7 +9190,7 @@ void ByteCodeParser::parseBlock(unsigned limit)
             auto& metadata = bytecode.metadata(codeBlock);
             uint32_t seenModes = metadata.m_iterationMetadata.seenModes;
 
-            unsigned numberOfRemainingModes = WTF::bitCount(seenModes);
+            unsigned numberOfRemainingModes = std::popcount(seenModes);
             ASSERT(numberOfRemainingModes <= numberOfIterationModes);
             bool generatedCase = false;
 
@@ -9327,7 +9349,7 @@ void ByteCodeParser::parseBlock(unsigned limit)
             auto& metadata = bytecode.metadata(codeBlock);
             uint32_t seenModes = metadata.m_iterationMetadata.seenModes;
 
-            unsigned numberOfRemainingModes = WTF::bitCount(seenModes);
+            unsigned numberOfRemainingModes = std::popcount(seenModes);
             ASSERT(numberOfRemainingModes <= numberOfIterationModes);
             bool generatedCase = false;
 
@@ -11066,7 +11088,7 @@ void ByteCodeParser::handleCreateInternalFieldObject(const ClassInfo* classInfo,
                 Structure* structure = rareData->internalFunctionAllocationStructure();
                 if (structure
                     && structure->classInfoForCells() == classInfo
-                    && structure->globalObject() == globalObject) {
+                    && structure->realm() == globalObject) {
                     m_graph.freeze(rareData);
                     m_graph.watchpoints().addLazily(rareData->allocationProfileWatchpointSet());
                     m_graph.freeze(globalObject);

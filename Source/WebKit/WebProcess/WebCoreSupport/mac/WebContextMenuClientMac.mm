@@ -34,6 +34,7 @@
 #import <WebCore/DictionaryLookup.h>
 #import <WebCore/Editor.h>
 #import <WebCore/LocalFrame.h>
+#import <WebCore/LocalFrameInlines.h>
 #import <WebCore/LocalFrameView.h>
 #import <WebCore/Page.h>
 #import <WebCore/TextIndicator.h>

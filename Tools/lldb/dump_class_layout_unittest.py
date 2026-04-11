@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2018 Apple Inc. All rights reserved.
+# Copyright (C) 2018-2026 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -25,13 +25,28 @@
 
 import atexit
 import difflib
+import importlib.machinery
+import importlib.util
 import lldb
 import os
 import sys
 import unittest
+from unittest.mock import call, MagicMock, patch
 
 from lldb_dump_class_layout import LLDBDebuggerInstance, ClassLayoutBase
 from webkitpy.common.system.systemhost import SystemHost
+
+# Load the extensionless dump-class-layout script as a module.
+_test_dir = os.path.dirname(os.path.abspath(__file__))
+_scripts_dir = os.path.join(os.path.dirname(_test_dir), 'Scripts')
+_script_path = os.path.join(_scripts_dir, 'dump-class-layout')
+_spec = importlib.util.spec_from_file_location(
+    'dump_class_layout_script',
+    _script_path,
+    loader=importlib.machinery.SourceFileLoader('dump_class_layout_script', _script_path),
+)
+dump_class_layout_script = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(dump_class_layout_script)
 
 # Build for x86_64.
 # Run these tests with xcrun python3 Tools/Scripts/test-lldb-webkit
@@ -356,7 +371,7 @@ Padding percentage: 61.98 %"""
         self.assertEqual(EXPECTED_RESULT, actual_layout.as_string())
 
     def serial_test_InheritsFromClassWithPaddedBitfields(self):
-        EXPECTED_RESULT = """  +0 < 16> InheritsFromClassWithPaddedBitfields
+        EXPECTED_RESULT = """  +0 < 24> InheritsFromClassWithPaddedBitfields
   +0 < 16>     ClassWithPaddedBitfields ClassWithPaddedBitfields
   +0 <  1>         bool boolMember
   +1 < :1>         unsigned int bitfield1 : 1
@@ -371,11 +386,58 @@ Padding percentage: 61.98 %"""
   +8 < :9>         unsigned int bitfield8 : 9
   +9 < :1>         bool bitfield9 : 1
   +9 < :5>         <UNUSED BITS: 5 bits>
- +10 < :1>     bool derivedBitfield : 1
- +10 < :7>     <UNUSED BITS: 7 bits>
- +11 <  5>     <PADDING: 5 bytes>
-Total byte size: 16
-Total pad bytes: 6
-Padding percentage: 42.97 %"""
+ +10 <  6>     <PADDING: 6 bytes>
+ +16 < :1>     bool derivedBitfield : 1
+ +16 < :7>     <UNUSED BITS: 7 bits>
+ +17 <  7>     <PADDING: 7 bytes>
+Total byte size: 24
+Total pad bytes: 14
+Padding percentage: 61.98 %"""
         actual_layout = debugger_instance.layout_for_classname('InheritsFromClassWithPaddedBitfields')
         self.assertEqual(EXPECTED_RESULT, actual_layout.as_string())
+
+
+@unittest.skipUnless(SystemHost.get_default().platform.is_mac(), "macOS only")
+class TestDumpClassLayoutScript(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        mock_layout = MagicMock()
+        self._mock_instance = MagicMock()
+        self._mock_instance.layout_for_classname.return_value = mock_layout
+        self._lldb_patcher = patch.object(dump_class_layout_script, 'LLDBDebuggerInstance', return_value=self._mock_instance)
+        self._build_dir_patcher = patch.object(dump_class_layout_script, 'webkit_build_dir', return_value='/tmp/build')
+        self._lldb_patcher.start()
+        self._build_dir_patcher.start()
+
+    def tearDown(self):
+        self._lldb_patcher.stop()
+        self._build_dir_patcher.stop()
+        super().tearDown()
+
+    def test_single_classname_calls_layout_once(self):
+        dump_class_layout_script.main(['WebCore', 'ClassA'])
+        self._mock_instance.layout_for_classname.assert_called_once_with('ClassA', False)
+
+    def test_multiple_classnames_each_get_layout_called(self):
+        dump_class_layout_script.main(['WebCore', 'ClassA', 'ClassB', 'ClassC'])
+        self.assertEqual(self._mock_instance.layout_for_classname.call_count, 3)
+        self.assertEqual(
+            self._mock_instance.layout_for_classname.call_args_list,
+            [call('ClassA', False), call('ClassB', False), call('ClassC', False)],
+        )
+
+    def test_blank_line_printed_between_multiple_classes(self):
+        with patch('builtins.print') as mock_print:
+            dump_class_layout_script.main(['WebCore', 'ClassA', 'ClassB'])
+        # Exactly one blank line should be printed — between the two class dumps.
+        self.assertEqual(mock_print.call_args_list.count(call()), 1)
+
+    def test_blank_line_count_matches_class_count_minus_one(self):
+        with patch('builtins.print') as mock_print:
+            dump_class_layout_script.main(['WebCore', 'ClassA', 'ClassB', 'ClassC'])
+        self.assertEqual(mock_print.call_args_list.count(call()), 2)
+
+    def test_no_blank_line_for_single_class(self):
+        with patch('builtins.print') as mock_print:
+            dump_class_layout_script.main(['WebCore', 'ClassA'])
+        self.assertNotIn(call(), mock_print.call_args_list)

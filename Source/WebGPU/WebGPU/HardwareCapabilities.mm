@@ -45,7 +45,7 @@ static constexpr auto tier2LimitForBuffersAndTextures = 4;
 static constexpr auto tier2LimitForSamplers = 2;
 static constexpr uint64_t defaultMaxBufferSize = 268435456;
 
-static constexpr auto multipleOf4(auto input)
+static constexpr auto NODELETE multipleOf4(auto input)
 {
     return input & (~3);
 }
@@ -65,7 +65,7 @@ static constexpr uint32_t NODELETE largeReasonableLimit()
     return USHRT_MAX;
 }
 
-static constexpr auto workaroundCTSBindGroupLimit(auto valueToClamp)
+static constexpr auto NODELETE workaroundCTSBindGroupLimit(auto valueToClamp)
 {
     return valueToClamp > 1000 ? 1000 : valueToClamp;
 }

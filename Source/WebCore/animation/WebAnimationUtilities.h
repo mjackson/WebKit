@@ -69,7 +69,7 @@ AtomString animatablePropertyAsString(AnimatableCSSProperty);
 bool animatablePropertiesContainTransformRelatedProperty(const HashSet<AnimatableCSSProperty>&);
 
 // Determines whether a RenderStyle specifies a transition on `display` property.
-bool styleHasDisplayTransition(const RenderStyle&);
+bool styleHasDisplayTransition(const RenderStyle&, const Element&);
 
 } // namespace WebCore
 

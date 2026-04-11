@@ -389,7 +389,7 @@ public:
     }
 
     const TypeDefinition& expand() const;
-    bool hasRecursiveReference() const;
+    bool NODELETE hasRecursiveReference() const;
     bool isFinalType() const;
 
     // Type definitions that are compound and contain references to other definitions
@@ -877,8 +877,8 @@ public:
 #endif
     }
 
-    bool isSubRTT(const RTT& other) const;
-    bool isStrictSubRTT(const RTT& other) const;
+    bool NODELETE isSubRTT(const RTT& other) const;
+    bool NODELETE isStrictSubRTT(const RTT& other) const;
     bool isFinalType() const { return m_isFinalType; }
 
     static constexpr ptrdiff_t offsetOfKind() { return OBJECT_OFFSETOF(RTT, m_kind); }

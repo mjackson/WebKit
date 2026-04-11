@@ -208,41 +208,69 @@ void WebPageInspectorController::setContinueLoadingCallback(const ProvisionalPag
     target->setResumeCallback(WTF::move(callback));
 }
 
-void WebPageInspectorController::didCreateProvisionalPage(ProvisionalPageProxy& provisionalPage)
+void WebPageInspectorController::didCreateProvisionalPage(ProvisionalPageProxy& provisionalPage, WebCore::FrameIdentifier mainFrameID, WebProcessProxy& mainFrameProcess)
 {
     addTarget(PageInspectorTargetProxy::create(provisionalPage, getTargetID(provisionalPage), Inspector::InspectorTargetType::Page));
-}
-
-void WebPageInspectorController::willDestroyProvisionalPage(const ProvisionalPageProxy& provisionalPage)
-{
-    removeTarget(getTargetID(provisionalPage));
-}
-
-void WebPageInspectorController::didCommitProvisionalPage(WebCore::PageIdentifier oldWebPageID, WebCore::PageIdentifier newWebPageID)
-{
-    String oldID = PageInspectorTarget::toTargetID(oldWebPageID);
-    String newID = PageInspectorTarget::toTargetID(newWebPageID);
-    auto newTarget = m_targets.take(newID);
-    CheckedPtr targetAgent = m_targetAgent;
-    ASSERT(newTarget);
-    newTarget->didCommitProvisionalTarget();
-    targetAgent->didCommitProvisionalTarget(oldID, newID);
-
-    // Update target list to only include targets from the committed page.
-    for (auto& target : m_targets.values())
-        targetAgent->targetDestroyed(*target);
-    m_targets.clear();
-    m_targets.set(newTarget->identifier(), WTF::move(newTarget));
 
     if (shouldManageFrameTargets()) {
-        // WebFrameProxies are structurally preserved across page navigation rather than destroyed and recreated,
-        // so no didCreateFrame/willDestroyFrame callbacks fire for them. Recreate the frame targets here.
-        //
-        // (Frame target ids include the process id, which changes across a cross-origin navigation,
-        // so surviving frames need to surface as new targets to the frontend.)
-        for (RefPtr frame = m_inspectedPage->mainFrame(); frame; frame = frame->traverseNext().frame)
-            didCreateFrame(*frame);
+        constexpr bool isProvisional = true;
+        addTarget(makeUnique<FrameInspectorTargetProxy>(mainFrameID, mainFrameProcess, isProvisional));
     }
+}
+
+void WebPageInspectorController::willDestroyProvisionalPage(const ProvisionalPageProxy& provisionalPage, WebCore::FrameIdentifier mainFrameID, WebCore::ProcessIdentifier mainFrameProcessID)
+{
+    removeTarget(getTargetID(provisionalPage));
+
+    if (shouldManageFrameTargets())
+        removeTarget(FrameInspectorTarget::toTargetID(mainFrameID, mainFrameProcessID));
+}
+
+void WebPageInspectorController::didCommitProvisionalPage(std::optional<WebCore::FrameIdentifier> oldMainFrameID, WebCore::ProcessIdentifier oldProcessID, WebCore::PageIdentifier oldWebPageID, WebCore::PageIdentifier newWebPageID)
+{
+    String oldPageTargetID = PageInspectorTarget::toTargetID(oldWebPageID);
+    String newPageTargetID = PageInspectorTarget::toTargetID(newWebPageID);
+    CheckedPtr targetAgent = m_targetAgent;
+
+    // Commit the provisional page target.
+    CheckedPtr newPageTarget = m_targets.get(newPageTargetID);
+    ASSERT(newPageTarget);
+    newPageTarget->didCommitProvisionalTarget();
+    targetAgent->didCommitProvisionalTarget(oldPageTargetID, newPageTargetID);
+
+    // Commit the provisional main frame target.
+    bool shouldManageFrameTargets = this->shouldManageFrameTargets();
+    String mainFrameTargetID;
+    if (shouldManageFrameTargets) {
+        RefPtr mainFrame = protect(m_inspectedPage)->mainFrame();
+        mainFrameTargetID = FrameInspectorTarget::toTargetID(mainFrame->frameID(), protect(mainFrame->process())->coreProcessIdentifier());
+
+        CheckedPtr mainFrameTarget = m_targets.get(mainFrameTargetID);
+        ASSERT(mainFrameTarget && mainFrameTarget->isProvisional());
+        mainFrameTarget->didCommitProvisionalTarget();
+
+        ASSERT(oldMainFrameID);
+        String oldMainFrameTargetID = FrameInspectorTarget::toTargetID(*oldMainFrameID, oldProcessID);
+        targetAgent->didCommitProvisionalTarget(oldMainFrameTargetID, mainFrameTargetID);
+    }
+
+    // Update target list to only include targets belonging to the committed page.
+    Vector<String> targetIDsToRemove;
+    for (auto& [targetID, target] : m_targets) {
+        if (targetID == newPageTargetID)
+            continue;
+        if (shouldManageFrameTargets && targetID == mainFrameTargetID)
+            continue;
+        targetIDsToRemove.append(targetID);
+    }
+
+    for (auto& targetID : targetIDsToRemove) {
+        if (CheckedPtr target = m_targets.get(targetID))
+            targetAgent->targetDestroyed(*target);
+    }
+
+    for (auto& targetID : targetIDsToRemove)
+        m_targets.remove(targetID);
 }
 
 void WebPageInspectorController::didCreateFrame(WebFrameProxy& frame)
@@ -250,7 +278,8 @@ void WebPageInspectorController::didCreateFrame(WebFrameProxy& frame)
     if (!shouldManageFrameTargets())
         return;
 
-    addTarget(FrameInspectorTargetProxy::create(frame, getTargetID(frame)));
+    constexpr bool isProvisional = false;
+    addTarget(makeUnique<FrameInspectorTargetProxy>(frame.frameID(), protect(frame.process()), isProvisional));
 }
 
 void WebPageInspectorController::willDestroyFrame(const WebFrameProxy& frame)
@@ -266,7 +295,8 @@ void WebPageInspectorController::didCreateProvisionalFrame(ProvisionalFrameProxy
     if (!shouldManageFrameTargets())
         return;
 
-    addTarget(FrameInspectorTargetProxy::create(provisionalFrame, getTargetID(provisionalFrame)));
+    constexpr bool isProvisional = true;
+    addTarget(makeUnique<FrameInspectorTargetProxy>(protect(provisionalFrame.frame())->frameID(), protect(provisionalFrame.process()), isProvisional));
 }
 
 void WebPageInspectorController::willDestroyProvisionalFrame(const ProvisionalFrameProxy& provisionalFrame)

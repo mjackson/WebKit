@@ -70,25 +70,6 @@ template<> struct CSSValueConversion<AtomString> {
     }
 };
 
-// Specialization for `CustomIdentifier`.
-template<> struct CSSValueConversion<CustomIdentifier> {
-    CustomIdentifier operator()(BuilderState& state, const CSSPrimitiveValue& value)
-    {
-        if (!value.isCustomIdent()) [[unlikely]] {
-            state.setCurrentPropertyInvalidAtComputedValueTime();
-            return { .value = emptyAtom() };
-        }
-        return { .value = AtomString { value.customIdent() } };
-    }
-    CustomIdentifier operator()(BuilderState& state, const CSSValue& value)
-    {
-        RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-        if (!primitiveValue) [[unlikely]]
-            return { .value = emptyAtom() };
-        return this->operator()(state, *primitiveValue);
-    }
-};
-
 // Specialization for `PropertyIdentifier`.
 template<> struct CSSValueConversion<PropertyIdentifier> {
     PropertyIdentifier operator()(BuilderState& state, const CSSPrimitiveValue& value)
@@ -109,7 +90,9 @@ template<> struct CSSValueConversion<PropertyIdentifier> {
 };
 
 // Specialization for `TupleLike` (wrapper).
-template<TupleLike StyleType> requires (std::tuple_size_v<StyleType> == 1) struct CSSValueConversion<StyleType> {
+template<TupleLike StyleType>
+    requires(std::tuple_size_v<StyleType> == 1)
+struct CSSValueConversion<StyleType> {
     template<typename... Rest> StyleType operator()(BuilderState& state, const CSSValue& value, Rest&&... rest)
     {
         return { toStyleFromCSSValue<std::remove_cvref_t<std::tuple_element_t<0, StyleType>>>(state, value, std::forward<Rest>(rest)...) };

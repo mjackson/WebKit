@@ -35,9 +35,7 @@
 
 namespace WebCore {
 
-ResourceUsageThread::ResourceUsageThread()
-{
-}
+ResourceUsageThread::ResourceUsageThread() = default;
 
 ResourceUsageThread& ResourceUsageThread::singleton()
 {

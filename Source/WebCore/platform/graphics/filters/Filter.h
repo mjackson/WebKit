@@ -81,8 +81,8 @@ public:
     FloatRect enclosingFilterRegion() const { return m_enclosingFilterRegion; }
     void setEnclosingFilterRegion(const FloatRect& rect) { m_enclosingFilterRegion = rect; }
 
-    FloatRect absoluteEnclosingFilterRegion() const;
-    FloatRect flippedRectRelativeToAbsoluteEnclosingFilterRegion(const FloatRect&) const;
+    FloatRect NODELETE absoluteEnclosingFilterRegion() const;
+    FloatRect NODELETE flippedRectRelativeToAbsoluteEnclosingFilterRegion(const FloatRect&) const;
 #endif
 
     virtual FilterEffectVector effectsOfType(FilterFunction::Type) const = 0;

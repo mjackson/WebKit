@@ -26,7 +26,6 @@
 #include "config.h"
 #include "ScopedName.h"
 
-#include "CSSPrimitiveValue.h"
 #include "StyleBuilderChecking.h"
 #include <wtf/text/TextStream.h>
 
@@ -35,33 +34,25 @@ namespace Style {
 
 // MARK: - Conversion
 
-auto CSSValueConversion<ScopedName>::operator()(BuilderState& state, const CSSPrimitiveValue& primitiveValue) -> ScopedName
-{
-    if (!primitiveValue.isCustomIdent()) {
-        state.setCurrentPropertyInvalidAtComputedValueTime();
-        return { };
-    }
-
-    return {
-        .name = AtomString { primitiveValue.customIdent() },
-        .scopeOrdinal = state.styleScopeOrdinal()
-    };
-}
-
 auto CSSValueConversion<ScopedName>::operator()(BuilderState& state, const CSSValue& value) -> ScopedName
 {
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-    if (!primitiveValue)
-        return { };
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
+        if (primitiveValue->isString()) {
+            return ScopedName {
+                .name = AtomString { primitiveValue->string() },
+                .scopeOrdinal = state.styleScopeOrdinal(),
+                .isIdentifier = false,
+            };
+        }
 
-    if (!primitiveValue->isCustomIdent()) {
         state.setCurrentPropertyInvalidAtComputedValueTime();
-        return { };
+        return ScopedName { nullAtom() };
     }
 
     return ScopedName {
-        .name = AtomString { primitiveValue->customIdent() },
-        .scopeOrdinal = state.styleScopeOrdinal()
+        .name = toStyleFromCSSValue<CustomIdent>(state, value).value,
+        .scopeOrdinal = state.styleScopeOrdinal(),
+        .isIdentifier = true,
     };
 }
 

@@ -441,10 +441,9 @@ ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 ALLOW_DEPRECATED_DECLARATIONS_END
 
     auto role = this->role();
-    if (role == AccessibilityRole::Label) {
+    if (isStaticTextLabel()) {
         // Labels that only contain static text should just be mapped to static text.
-        if (containsOnlyStaticText())
-            role = AccessibilityRole::StaticText;
+        role = AccessibilityRole::StaticText;
     } else if (isAnonymousMathOperator()) {
         // The mfenced element creates anonymous RenderMathMLOperators with no RenderText
         // descendants. These anonymous renderers are the only accessible objects

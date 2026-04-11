@@ -66,14 +66,14 @@ public:
 
     bool NODELETE isValid() const;
 
-    static uint32_t texelBlockWidth(WGPUTextureFormat); // Texels
-    static uint32_t texelBlockHeight(WGPUTextureFormat); // Texels
+    static uint32_t NODELETE texelBlockWidth(WGPUTextureFormat); // Texels
+    static uint32_t NODELETE texelBlockHeight(WGPUTextureFormat); // Texels
     static NSUInteger NODELETE bytesPerRow(WGPUTextureFormat, uint32_t textureWidth, uint32_t sampleCount);
     static WGPUExtent3D NODELETE physicalTextureExtent(WGPUTextureDimension, WGPUTextureFormat, WGPUExtent3D logicalExtent);
 
     // For depth-stencil textures, the input value to texelBlockSize()
     // needs to be the output of aspectSpecificFormat().
-    static Checked<uint32_t> texelBlockSize(WGPUTextureFormat); // Bytes
+    static Checked<uint32_t> NODELETE texelBlockSize(WGPUTextureFormat); // Bytes
     static bool NODELETE containsDepthAspect(WGPUTextureFormat);
     static bool NODELETE containsStencilAspect(WGPUTextureFormat);
     static bool NODELETE isDepthOrStencilFormat(WGPUTextureFormat);
@@ -120,7 +120,7 @@ public:
 
     Device& device() const { return m_device; }
 
-    bool previouslyCleared() const;
+    bool NODELETE previouslyCleared() const;
     void setPreviouslyCleared();
     bool previouslyCleared(uint32_t mipLevel, uint32_t slice) const;
     void setPreviouslyCleared(uint32_t mipLevel, uint32_t slice, bool = true);

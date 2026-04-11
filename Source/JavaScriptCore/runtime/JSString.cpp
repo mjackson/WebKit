@@ -231,6 +231,9 @@ const String& JSRopeString::resolveRopeWithFunction(JSGlobalObject* nullOrGlobal
     ASSERT(isRope());
 
     VM& vm = this->vm();
+    if constexpr (validateDFGDoesGC)
+        vm.verifyCanGC();
+
     if (isSubstring()) {
         ASSERT(!substringBase()->isRope());
         auto newImpl = substringBase()->valueInternal().substringSharingImpl(substringOffset(), length());

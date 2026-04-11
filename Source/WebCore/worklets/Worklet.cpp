@@ -38,6 +38,7 @@
 #include "WorkletGlobalScopeProxy.h"
 #include "WorkletPendingTasks.h"
 #include <JavaScriptCore/IdentifiersFactory.h>
+#include <wtf/Borrow.h>
 #include <wtf/CrossThreadCopier.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>
@@ -85,7 +86,7 @@ void Worklet::addModule(const String& moduleURLString, WorkletOptions&& options,
     Ref pendingTasks = WorkletPendingTasks::create(*this, WTF::move(promise), m_proxies.size());
     m_pendingTasksSet.add(pendingTasks);
 
-    for (auto& proxy : m_proxies) {
+    for (Ref proxy : borrow(m_proxies).get()) {
         proxy->postTaskForModeToWorkletGlobalScope([pendingTasks = pendingTasks.copyRef(), moduleURL = moduleURL.isolatedCopy(), credentials = options.credentials, pendingActivity = makePendingActivity(*this)](ScriptExecutionContext& context) mutable {
             downcast<WorkletGlobalScope>(context).fetchAndInvokeScript(moduleURL, credentials, [pendingTasks = WTF::move(pendingTasks), pendingActivity = WTF::move(pendingActivity)](std::optional<Exception>&& exception) mutable {
                 callOnMainThread([pendingTasks = WTF::move(pendingTasks), exception = crossThreadCopy(WTF::move(exception)), pendingActivity = WTF::move(pendingActivity)]() mutable {

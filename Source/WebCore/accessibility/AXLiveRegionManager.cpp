@@ -136,10 +136,9 @@ void AXLiveRegionManager::registerLiveRegion(AccessibilityObject& object, bool s
 
 static LiveRegionStatus stringToLiveRegionStatus(const String& string)
 {
-    String lowercaseString = string.convertToASCIILowercase();
-    if (lowercaseString == "assertive")
+    if (equalLettersIgnoringASCIICase(string, "assertive"_s))
         return LiveRegionStatus::Assertive;
-    if (lowercaseString == "polite")
+    if (equalLettersIgnoringASCIICase(string, "polite"_s))
         return LiveRegionStatus::Polite;
 
     return LiveRegionStatus::Off;
@@ -147,16 +146,15 @@ static LiveRegionStatus stringToLiveRegionStatus(const String& string)
 
 static OptionSet<LiveRegionRelevant> stringToLiveRegionRelevant(const String& string)
 {
-    Vector<String> strings = string.convertToASCIILowercase().split(" "_s);
     OptionSet<LiveRegionRelevant> result;
-    for (const auto& attribute : strings) {
-        if (attribute == "additions")
+    for (auto attribute : StringView(string).split(' ')) {
+        if (equalLettersIgnoringASCIICase(attribute, "additions"_s))
             result.add(LiveRegionRelevant::Additions);
-        else if (attribute == "all")
+        else if (equalLettersIgnoringASCIICase(attribute, "all"_s))
             result.add(LiveRegionRelevant::All);
-        else if (attribute == "removals")
+        else if (equalLettersIgnoringASCIICase(attribute, "removals"_s))
             result.add(LiveRegionRelevant::Removals);
-        else if (attribute == "text")
+        else if (equalLettersIgnoringASCIICase(attribute, "text"_s))
             result.add(LiveRegionRelevant::Text);
     }
     return result;

@@ -63,6 +63,7 @@
 #include "Page.h"
 #include "PaintInfo.h"
 #include "PositionedLayoutConstraints.h"
+#include "RenderBlockFlowInlines.h"
 #include "RenderBlockInlines.h"
 #include "RenderBoxFragmentInfo.h"
 #include "RenderBoxInlines.h"
@@ -107,7 +108,6 @@
 #include <math.h>
 #include <wtf/Assertions.h>
 #include <wtf/RuntimeApplicationChecks.h>
-#include <wtf/Scope.h>
 #include <wtf/StackStats.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -218,7 +218,7 @@ bool RenderBox::hasFragmentRangeInFragmentedFlow() const
     return false;
 }
 
-static RenderBlockFlow* outermostBlockContainingFloatingObject(RenderBox& box)
+static RenderBlockFlow* NODELETE outermostBlockContainingFloatingObject(RenderBox& box)
 {
     ASSERT(box.isFloating());
     RenderBlockFlow* parentBlock = nullptr;
@@ -481,9 +481,6 @@ void RenderBox::updateShapeOutsideInfoAfterStyleChange(const RenderStyle& style,
     Style::ShapeOutside shapeOutside = style.shapeOutside();
     Style::ShapeOutside oldShapeOutside = oldStyle ? oldStyle->shapeOutside() : Style::ComputedStyle::initialShapeOutside();
 
-    Style::ShapeMargin shapeMargin = style.shapeMargin();
-    Style::ShapeMargin oldShapeMargin = oldStyle ? oldStyle->shapeMargin() : Style::ComputedStyle::initialShapeMargin();
-
     if (diff <= Style::DifferenceResult::RecompositeLayer)
         return;
 
@@ -700,7 +697,7 @@ void RenderBox::absoluteQuads(Vector<FloatQuad>& quads, bool* wasFixed) const
         return;
 
     auto localRect = FloatRect { 0, 0, width(), height() };
-    quads.append(localToAbsoluteQuad(localRect, UseTransforms, wasFixed));
+    quads.append(localToAbsoluteQuad(localRect, MapCoordinatesMode::UseTransforms, wasFixed));
 }
 
 void RenderBox::applyTransform(TransformationMatrix& t, const RenderStyle& style, const FloatRect& boundingBox, OptionSet<Style::TransformResolverOption> options) const
@@ -791,7 +788,7 @@ LayoutUnit RenderBox::constrainLogicalHeightByMinMax(LayoutUnit logicalHeight, s
         auto heightFromAspectRatio = blockSizeFromAspectRatio(borderAndPaddingLogicalWidth(), borderAndPaddingLogicalHeight(), style().logicalAspectRatio(), style().boxSizingForAspectRatio(), logicalWidth(), style().aspectRatio(), isRenderReplaced()) - borderAndPaddingLogicalHeight();
         if (firstChild())
             heightFromAspectRatio = std::max(heightFromAspectRatio, *intrinsicContentHeight);
-        logicalMinHeight = Style::MinimumSize::Fixed { heightFromAspectRatio };
+        logicalMinHeight = Style::MinimumSize::Fixed { heightFromAspectRatio / styleToUse.usedZoomForLength().value };
         minimumSizeType = MinimumSizeIsAutomaticContentBased::Yes;
     }
     if (logicalMinHeight.isMinContent() || logicalMinHeight.isMaxContent())
@@ -1656,7 +1653,7 @@ bool RenderBox::nodeAtPoint(const HitTestRequest& request, HitTestResult& result
     // foreground phase (which is true for replaced elements like images).
     LayoutRect boundsRect = borderBoxRect();
     boundsRect.moveBy(adjustedLocation);
-    if (visibleToHitTesting(request) && action == HitTestForeground && locationInContainer.intersects(boundsRect)) {
+    if (visibleToHitTesting(request) && action == HitTestAction::Foreground && locationInContainer.intersects(boundsRect)) {
         if (!hitTestVisualOverflow(locationInContainer, accumulatedOffset))
             return false;
 
@@ -2456,25 +2453,25 @@ void RenderBox::mapLocalToContainer(const RenderLayerModelObject* ancestorContai
     // If this box has a transform, it acts as a fixed position container for fixed descendants,
     // and may itself also be fixed position. So propagate 'fixed' up only if this box is fixed position.
     if (isFixedPos)
-        mode.add(IsFixed);
-    else if (mode.contains(IsFixed) && canContainFixedPositionObjects())
-        mode.remove(IsFixed);
+        mode.add(MapCoordinatesMode::IsFixed);
+    else if (mode.contains(MapCoordinatesMode::IsFixed) && canContainFixedPositionObjects())
+        mode.remove(MapCoordinatesMode::IsFixed);
 
     if (wasFixed)
-        *wasFixed = mode.contains(IsFixed);
-    
+        *wasFixed = mode.contains(MapCoordinatesMode::IsFixed);
+
     LayoutSize containerOffset = offsetFromContainer(*container, LayoutPoint(transformState.mappedPoint()));
 
     // Remove sticky positioning from the offset if it should be ignored. This is done here in
     // order to avoid piping this flag down the method chain.
-    if (mode.contains(IgnoreStickyOffsets) && isStickilyPositioned())
+    if (mode.contains(MapCoordinatesMode::IgnoreStickyOffsets) && isStickilyPositioned())
         containerOffset -= stickyPositionOffset();
 
     pushOntoTransformState(transformState, mode, ancestorContainer, container, containerOffset, containerSkipped);
     if (containerSkipped)
         return;
 
-    mode.remove(ApplyContainerFlip);
+    mode.remove(MapCoordinatesMode::ApplyContainerFlip);
 
     container->mapLocalToContainer(ancestorContainer, transformState, mode, wasFixed);
 }
@@ -2496,11 +2493,11 @@ void RenderBox::mapAbsoluteToLocalPoint(OptionSet<MapCoordinatesMode> mode, Tran
 {
     bool isFixedPos = isFixedPositioned();
     if (isFixedPos)
-        mode.add(IsFixed);
-    else if (mode.contains(IsFixed) && canContainFixedPositionObjects()) {
+        mode.add(MapCoordinatesMode::IsFixed);
+    else if (mode.contains(MapCoordinatesMode::IsFixed) && canContainFixedPositionObjects()) {
         // If this box has a transform, it acts as a fixed position container for fixed descendants,
         // and may itself also be fixed position. So propagate 'fixed' up only if this box is fixed position.
-        mode.remove(IsFixed);
+        mode.remove(MapCoordinatesMode::IsFixed);
     }
 
     RenderBoxModelObject::mapAbsoluteToLocalPoint(mode, transformState);
@@ -2710,7 +2707,7 @@ static LayoutUnit inlineSizeFromAspectRatio(LayoutUnit borderPaddingInlineSum, L
     return LayoutUnit((blockSize - borderPaddingBlockSum) * aspectRatioValue) + borderPaddingInlineSum;
 }
 
-static bool shouldMarginInlineEndContributeToScrollableOverflow(auto& renderer)
+static bool NODELETE shouldMarginInlineEndContributeToScrollableOverflow(auto& renderer)
 {
     auto isSupportedContent = renderer.isGridItem() || renderer.isFlexItemIncludingDeprecated() || (renderer.isInFlow() && renderer.parent()->isBlockContainer());
     if (!isSupportedContent)
@@ -2882,6 +2879,14 @@ template<typename Keyword> void RenderBox::computeIntrinsicKeywordLogicalWidths(
                 minLogicalWidth = std::max(minLogicalWidth, minChildrenLogicalWidth);
                 maxLogicalWidth = std::max(maxLogicalWidth, maxChildrenLogicalWidth);
             }
+        } else if (isRenderReplacedWithIntrinsicRatio() && style().logicalHeight().isSpecified()) {
+            // For replaced elements with an intrinsic aspect ratio (e.g. <img>) and a
+            // specified block size, compute the transferred min/max-content inline size
+            // through the intrinsic ratio rather than using the raw natural width.
+            auto intrinsicRatio = downcast<RenderReplaced>(*this).computeIntrinsicAspectRatio();
+            auto computedValues = computeLogicalHeight(logicalHeight(), logicalTop());
+            auto contentBlockSize = std::max(0_lu, computedValues.extent - borderAndPaddingLogicalHeight());
+            minLogicalWidth = maxLogicalWidth = LayoutUnit(contentBlockSize * intrinsicRatio);
         } else
             computeIntrinsicKeywordLogicalWidths(minLogicalWidth, maxLogicalWidth);
     }
@@ -4087,19 +4092,7 @@ LayoutRange RenderBox::containingBlockRangeForPositioned(const RenderBoxModelObj
     }
 
     // Inline containing blocks are formed by relatively-positioned inline boxes.
-    CheckedPtr<const RenderInline> inlineContainer;
-    if ((inlineContainer = container.inlineContinuation())) {
-        auto relativelyPositionedInlineBoxAncestor = [&] {
-            CheckedPtr<const RenderElement> ancestor = inlineContainer;
-            for (; ancestor && !ancestor->isRelativelyPositioned(); ancestor = ancestor->parent()) { }
-            return ancestor ? dynamicDowncast<RenderInline>(ancestor.get()) : nullptr;
-        }();
-        // Since we stop splitting inlines over 200 nested boxes (see RenderTreeBuilder::Inline::splitInlines), we may not be able to find the real containing block here.
-        if (relativelyPositionedInlineBoxAncestor)
-            inlineContainer = relativelyPositionedInlineBoxAncestor;
-    } else
-        inlineContainer = dynamicDowncast<RenderInline>(container);
-    if (inlineContainer) {
+    if (auto* inlineContainer = dynamicDowncast<RenderInline>(container)) {
         return isContainerInlineAxis
             ? LayoutRange(startEdge, inlineContainer->innerPaddingBoxWidth())
             : LayoutRange(startEdge, inlineContainer->innerPaddingBoxHeight());
@@ -4457,7 +4450,7 @@ PositionWithAffinity RenderBox::positionForPoint(const LayoutPoint& point, HitTe
         LayoutUnit left = renderer.borderLeft() + renderer.paddingLeft() + (is<RenderTableRow>(*this) ? 0_lu : renderer.x());
         LayoutUnit right = left + renderer.contentBoxWidth();
         
-        if (point.x() <= right && point.x() >= left && point.y() <= top && point.y() >= bottom) {
+        if (point.x() <= right && point.x() >= left && point.y() >= top && point.y() <= bottom) {
             if (is<RenderTableRow>(renderer))
                 return renderer.positionForPoint(point + adjustedPoint - renderer.locationOffset(), source, fragment);
             return renderer.positionForPoint(point - renderer.locationOffset(), source, fragment);
@@ -5185,13 +5178,6 @@ std::pair<LayoutUnit, LayoutUnit> RenderBox::computeMinMaxLogicalHeightFromAspec
 {
     LayoutUnit transferredMinSize = LayoutUnit();
     LayoutUnit transferredMaxSize = LayoutUnit::max();
-
-#if ASSERT_ENABLED
-    auto checkMinMaxSizes = makeScopeExit([&transferredMinSize, &transferredMaxSize] {
-        ASSERT(transferredMaxSize >= transferredMinSize);
-    });
-#endif
-
     std::optional<double> aspectRatio = resolveAspectRatio();
     if (!aspectRatio)
         return { transferredMinSize, transferredMaxSize };
@@ -5212,12 +5198,13 @@ std::pair<LayoutUnit, LayoutUnit> RenderBox::computeMinMaxLogicalHeightFromAspec
 
 bool RenderBox::hasRelativeDimensions() const
 {
-    return style().height().isPercentOrCalculated() || style().width().isPercentOrCalculated()
-        || style().maxHeight().isPercentOrCalculated() || style().maxWidth().isPercentOrCalculated()
-        || style().minHeight().isPercentOrCalculated() || style().minWidth().isPercentOrCalculated()
-        || style().height().isStretch() || style().width().isStretch()
-        || style().maxHeight().isStretch() || style().maxWidth().isStretch()
-        || style().minHeight().isStretch() || style().minWidth().isStretch();
+    auto& style = this->style();
+    return style.height().isPercentOrCalculated() || style.width().isPercentOrCalculated()
+        || style.maxHeight().isPercentOrCalculated() || style.maxWidth().isPercentOrCalculated()
+        || style.minHeight().isPercentOrCalculated() || style.minWidth().isPercentOrCalculated()
+        || style.height().isStretch() || style.width().isStretch()
+        || style.maxHeight().isStretch() || style.maxWidth().isStretch()
+        || style.minHeight().isStretch() || style.minWidth().isStretch();
 }
 
 bool RenderBox::hasRelativeLogicalHeight() const

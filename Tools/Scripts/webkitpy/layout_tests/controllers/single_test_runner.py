@@ -43,7 +43,7 @@ from webkitpy.thirdparty.BeautifulSoup import BeautifulSoup as Parser
 
 _log = logging.getLogger(__name__)
 
-_render_tree_dump_pattern = re.compile(br"^layer at \(\d+,\d+\) size \d+x\d+\n")
+_render_tree_dump_pattern = re.compile(r"^layer at \(\d+,\d+\) size \d+x\d+\n")
 
 
 def run_single_test(port, options, results_directory, worker_name, driver, test_input, stop_when_done):
@@ -272,7 +272,7 @@ class SingleTestRunner(object):
                 )
             )
         elif extension == ".png" or (
-            extension == ".txt" and _render_tree_dump_pattern.match(data)
+            extension == ".txt" and _render_tree_dump_pattern.match(string_utils.decode(data, target_type=str))
         ):
             # The baseline path applying to the Port.
             output_dir = fs.join(

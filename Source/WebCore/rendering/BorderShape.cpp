@@ -41,6 +41,36 @@
 
 namespace WebCore {
 
+static void zeroRadiiForOpenEdges(LayoutRoundedRectRadii& radii, RectEdges<bool> closedEdges)
+{
+    if (!closedEdges.top()) {
+        radii.setTopLeft({ });
+        radii.setTopRight({ });
+    }
+    if (!closedEdges.right()) {
+        radii.setTopRight({ });
+        radii.setBottomRight({ });
+    }
+    if (!closedEdges.bottom()) {
+        radii.setBottomRight({ });
+        radii.setBottomLeft({ });
+    }
+    if (!closedEdges.left()) {
+        radii.setBottomLeft({ });
+        radii.setTopLeft({ });
+    }
+}
+
+static RectEdges<LayoutUnit> applyClosedEdges(const RectEdges<LayoutUnit>& widths, RectEdges<bool> closedEdges)
+{
+    return {
+        LayoutUnit(closedEdges.top() ? widths.top() : 0_lu),
+        LayoutUnit(closedEdges.right() ? widths.right() : 0_lu),
+        LayoutUnit(closedEdges.bottom() ? widths.bottom() : 0_lu),
+        LayoutUnit(closedEdges.left() ? widths.left() : 0_lu),
+    };
+}
+
 BorderShape BorderShape::shapeForBorderRect(const RenderStyle& style, const LayoutRect& borderRect, RectEdges<bool> closedEdges)
 {
     auto borderWidths = RectEdges<LayoutUnit>::map(style.usedBorderWidths(), [&](auto width) {
@@ -51,34 +81,12 @@ BorderShape BorderShape::shapeForBorderRect(const RenderStyle& style, const Layo
 
 BorderShape BorderShape::shapeForBorderRect(const RenderStyle& style, const LayoutRect& borderRect, const RectEdges<LayoutUnit>& overrideBorderWidths, RectEdges<bool> closedEdges)
 {
-    // top, right, bottom, left.
-    auto usedBorderWidths = RectEdges<LayoutUnit> {
-        LayoutUnit(closedEdges.top() ? overrideBorderWidths.top() : 0_lu),
-        LayoutUnit(closedEdges.right() ? overrideBorderWidths.right() : 0_lu),
-        LayoutUnit(closedEdges.bottom() ? overrideBorderWidths.bottom() : 0_lu),
-        LayoutUnit(closedEdges.left() ? overrideBorderWidths.left() : 0_lu),
-    };
+    auto usedBorderWidths = applyClosedEdges(overrideBorderWidths, closedEdges);
 
     if (style.border().hasBorderRadius()) {
         auto radii = Style::evaluate<LayoutRoundedRectRadii>(style.borderRadii(), borderRect.size(), style.usedZoomForLength());
         radii.scale(calcBorderRadiiConstraintScaleFor(borderRect, radii));
-
-        if (!closedEdges.top()) {
-            radii.setTopLeft({ });
-            radii.setTopRight({ });
-        }
-        if (!closedEdges.right()) {
-            radii.setTopRight({ });
-            radii.setBottomRight({ });
-        }
-        if (!closedEdges.bottom()) {
-            radii.setBottomRight({ });
-            radii.setBottomLeft({ });
-        }
-        if (!closedEdges.left()) {
-            radii.setBottomLeft({ });
-            radii.setTopLeft({ });
-        }
+        zeroRadiiForOpenEdges(radii, closedEdges);
 
         if (!radii.areRenderableInRect(borderRect))
             radii.makeRenderableInRect(borderRect);
@@ -89,72 +97,28 @@ BorderShape BorderShape::shapeForBorderRect(const RenderStyle& style, const Layo
     return BorderShape { borderRect, usedBorderWidths };
 }
 
-BorderShape BorderShape::shapeForOutsetRect(const RenderStyle& style, const LayoutRect& borderRect, const LayoutRect& outlineBoxRect, const RectEdges<LayoutUnit>& outlineWidths, RectEdges<bool> closedEdges)
+BorderShape BorderShape::shapeForOffsetRect(const RenderStyle& style, const LayoutRect& borderRect, const LayoutRect& offsetRect, const RectEdges<LayoutUnit>& edgeWidths, RectEdges<bool> closedEdges)
 {
-    // top, right, bottom, left.
-    auto usedOutlineWidths = RectEdges<LayoutUnit> {
-        LayoutUnit(closedEdges.top() ? outlineWidths.top() : 0_lu),
-        LayoutUnit(closedEdges.right() ? outlineWidths.right() : 0_lu),
-        LayoutUnit(closedEdges.bottom() ? outlineWidths.bottom() : 0_lu),
-        LayoutUnit(closedEdges.left() ? outlineWidths.left() : 0_lu),
-    };
+    auto usedEdgeWidths = applyClosedEdges(edgeWidths, closedEdges);
 
     if (style.border().hasBorderRadius()) {
         auto radii = Style::evaluate<LayoutRoundedRectRadii>(style.borderRadii(), borderRect.size(), style.usedZoomForLength());
 
-        auto leftOutset = std::max(borderRect.x() - outlineBoxRect.x(), 0_lu);
-        auto topOutset = std::max(borderRect.y() - outlineBoxRect.y(), 0_lu);
-        auto rightOutset = std::max(outlineBoxRect.maxX() - borderRect.maxX(), 0_lu);
-        auto bottomOutset = std::max(outlineBoxRect.maxY() - borderRect.maxY(), 0_lu);
+        auto leftDelta = borderRect.x() - offsetRect.x();
+        auto topDelta = borderRect.y() - offsetRect.y();
+        auto rightDelta = offsetRect.maxX() - borderRect.maxX();
+        auto bottomDelta = offsetRect.maxY() - borderRect.maxY();
 
-        radii.expand(topOutset, bottomOutset, leftOutset, rightOutset);
+        radii.expand(topDelta, bottomDelta, leftDelta, rightDelta);
+        zeroRadiiForOpenEdges(radii, closedEdges);
 
-        // FIXME: Share
-        if (!closedEdges.top()) {
-            radii.setTopLeft({ });
-            radii.setTopRight({ });
-        }
-        if (!closedEdges.right()) {
-            radii.setTopRight({ });
-            radii.setBottomRight({ });
-        }
-        if (!closedEdges.bottom()) {
-            radii.setBottomRight({ });
-            radii.setBottomLeft({ });
-        }
-        if (!closedEdges.left()) {
-            radii.setBottomLeft({ });
-            radii.setTopLeft({ });
-        }
+        if (!radii.areRenderableInRect(offsetRect))
+            radii.makeRenderableInRect(offsetRect);
 
-        if (!radii.areRenderableInRect(outlineBoxRect))
-            radii.makeRenderableInRect(outlineBoxRect);
-
-        return BorderShape { outlineBoxRect, usedOutlineWidths, radii };
+        return BorderShape { offsetRect, usedEdgeWidths, radii };
     }
 
-    return BorderShape { outlineBoxRect, usedOutlineWidths };
-}
-
-BorderShape BorderShape::shapeForInsetRect(const RenderStyle& style, const LayoutRect& borderRect, const LayoutRect& insetRect)
-{
-    if (style.border().hasBorderRadius()) {
-        auto radii = Style::evaluate<LayoutRoundedRectRadii>(style.borderRadii(), borderRect.size(), style.usedZoomForLength());
-
-        auto leftInset = std::max(insetRect.x() - borderRect.x(), 0_lu);
-        auto topInset = std::max(insetRect.y()- borderRect.y(), 0_lu);
-        auto rightInset = std::max(borderRect.maxX() - insetRect.maxX(), 0_lu);
-        auto bottomInset = std::max(borderRect.maxY() - insetRect.maxY(), 0_lu);
-
-        auto insetWidths = RectEdges<LayoutUnit> { topInset, rightInset, bottomInset, leftInset };
-        auto roundedRect = LayoutRoundedRect { borderRect, radii };
-
-        auto insetRoundedRect = computeInnerEdgeRoundedRect(roundedRect, insetWidths);
-
-        return BorderShape { insetRect, { }, insetRoundedRect.radii() };
-    }
-
-    return BorderShape { insetRect, { } };
+    return BorderShape { offsetRect, usedEdgeWidths };
 }
 
 BorderShape::BorderShape(const LayoutRect& borderRect, const RectEdges<LayoutUnit>& borderWidths)

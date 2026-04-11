@@ -97,6 +97,7 @@
 #include <wtf/text/CString.h>
 #include <wtf/text/MakeString.h>
 #include <wtf/text/WTFString.h>
+#include "LocalFrameInlines.h"
 
 #if ENABLE(APPLICATION_MANIFEST)
 #include "CachedApplicationManifest.h"
@@ -974,9 +975,11 @@ static bool shouldReuseExistingFetchMetadata(const LocalFrame& frame, const Reso
     if (loader && loader->triggeringAction().type() != NavigationType::FormResubmitted)
         return false;
 
-    ASSERT_UNUSED(request, request.hasHTTPHeaderField(HTTPHeaderName::SecFetchDest));
+    if (!request.hasHTTPHeaderField(HTTPHeaderName::SecFetchSite))
+        return false;
+
+    ASSERT(request.hasHTTPHeaderField(HTTPHeaderName::SecFetchDest));
     ASSERT(request.hasHTTPHeaderField(HTTPHeaderName::SecFetchMode));
-    ASSERT(request.hasHTTPHeaderField(HTTPHeaderName::SecFetchSite));
 
     return true;
 }

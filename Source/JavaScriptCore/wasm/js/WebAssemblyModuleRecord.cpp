@@ -142,7 +142,7 @@ static void initializeBuiltinImport(VM& vm, WriteBarrier<JSWebAssemblyInstance>&
     info->importFunctionStub = builtin->callee()->entrypointImpl();
     info->entrypointLoadLocation = &info->importFunctionStub;
     info->targetInstance.set(vm, instance.get(), instance.get());
-    info->typeIndex = instance->moduleInformation().importFunctionTypeIndices[import.kindIndex];
+    info->typeIndex = instance->moduleInformation().typeIndexFromTypeSignatureIndex(instance->moduleInformation().importFunctionTypeSignatureIndices[import.kindIndex]);
 }
 
 /**
@@ -275,7 +275,7 @@ void WebAssemblyModuleRecord::initializeImports(JSGlobalObject* globalObject, JS
                     function = wasmWrapperFunction->function();
                     ASSERT(wasmWrapperFunction->boxedCallee() == boxedCallee);
                 }
-                Wasm::TypeIndex expectedTypeIndex = moduleInformation.importFunctionTypeIndices[import.kindIndex];
+                Wasm::TypeIndex expectedTypeIndex = moduleInformation.typeIndexFromTypeSignatureIndex(moduleInformation.importFunctionTypeSignatureIndices[import.kindIndex]);
                 if (!Wasm::isSubtypeIndex(importedTypeIndex, expectedTypeIndex))
                     return exception(createJSWebAssemblyLinkError(globalObject, vm, importFailMessage(import, "imported function"_s, "signature doesn't match the provided WebAssembly function's signature"_s)));
             }
@@ -289,7 +289,7 @@ void WebAssemblyModuleRecord::initializeImports(JSGlobalObject* globalObject, JS
             info->boxedCallee = boxedCallee;
             info->targetInstance.set(vm, m_instance.get(), calleeInstance);
             info->entrypointLoadLocation = entrypointLoadLocation;
-            info->typeIndex = moduleInformation.importFunctionTypeIndices[import.kindIndex];
+            info->typeIndex = moduleInformation.typeIndexFromTypeSignatureIndex(moduleInformation.importFunctionTypeSignatureIndices[import.kindIndex]);
             m_instance->importFunction(import.kindIndex).set(vm, m_instance.get(), function);
             break;
         }
@@ -464,7 +464,7 @@ void WebAssemblyModuleRecord::initializeImports(JSGlobalObject* globalObject, JS
             if (!tag)
                 return exception(createJSWebAssemblyLinkError(globalObject, vm, importFailMessage(import, "Tag import"_s, "is not an instance of WebAssembly.Tag"_s)));
 
-            Wasm::TypeIndex expectedTypeIndex = moduleInformation.importExceptionTypeIndices[import.kindIndex];
+            Wasm::TypeIndex expectedTypeIndex = moduleInformation.typeIndexFromTypeSignatureIndex(moduleInformation.importExceptionTypeSignatureIndices[import.kindIndex]);
 
             // FIXME: change this to subtyping if the final exception proposal specifies it.
             if (expectedTypeIndex != tag->tag().typeIndex())
@@ -540,9 +540,9 @@ void WebAssemblyModuleRecord::initializeExports(JSGlobalObject* globalObject)
     // This needs to be looked up after the memory is initialized, as the codeBlock depends on the memory mode.
     Wasm::CalleeGroup* calleeGroup = m_instance->calleeGroup();
 
-    for (unsigned index = 0; index < moduleInformation.internalExceptionTypeIndices.size(); ++index) {
-        Wasm::TypeIndex typeIndex = moduleInformation.internalExceptionTypeIndices[index];
-        m_instance->setTag(moduleInformation.importExceptionCount() + index, Wasm::Tag::create(Wasm::TypeInformation::get(typeIndex).expand()));
+    for (unsigned index = 0; index < moduleInformation.internalExceptionTypeSignatureIndices.size(); ++index) {
+        Wasm::TypeSignatureIndex typeSignatureIndex = moduleInformation.internalExceptionTypeSignatureIndices[index];
+        m_instance->setTag(moduleInformation.importExceptionCount() + index, Wasm::Tag::create(Ref { moduleInformation.expandedTypeSignature(typeSignatureIndex) }));
     }
 
     unsigned functionImportCount = calleeGroup->functionImportCount();

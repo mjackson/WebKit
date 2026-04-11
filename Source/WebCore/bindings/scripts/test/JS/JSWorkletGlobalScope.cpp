@@ -39,6 +39,7 @@
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
+#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -123,6 +124,11 @@ void JSWorkletGlobalScope::finishCreation(VM& vm, JSGlobalProxy* proxy)
 }
 #endif
 
+JSC::Structure* JSWorkletGlobalScope::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
+{
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::GlobalObjectType, StructureFlags), info(), JSC::NonArray);
+}
+
 JSObject* JSWorkletGlobalScope::createPrototype(VM& vm, JSDOMGlobalObject& globalObject)
 {
     auto* structure = JSWorkletGlobalScopePrototype::createStructure(vm, &globalObject, JSEventTarget::prototype(vm, globalObject));
@@ -147,7 +153,7 @@ JSC_DEFINE_CUSTOM_GETTER(jsWorkletGlobalScopeConstructor, (JSGlobalObject* lexic
     auto* prototype = jsDynamicCast<JSWorkletGlobalScopePrototype*>(JSValue::decode(thisValue));
     if (!prototype) [[unlikely]]
         return throwVMTypeError(lexicalGlobalObject, throwScope);
-    return JSValue::encode(JSWorkletGlobalScope::getConstructor(vm, prototype->globalObject()));
+    return JSValue::encode(JSWorkletGlobalScope::getConstructor(vm, prototype->realm()));
 }
 
 static inline JSValue jsWorkletGlobalScope_WorkletGlobalScopeConstructorGetter(JSGlobalObject& lexicalGlobalObject, JSWorkletGlobalScope& thisObject)

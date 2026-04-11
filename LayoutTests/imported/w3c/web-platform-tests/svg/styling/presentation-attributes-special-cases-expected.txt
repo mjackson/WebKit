@@ -5,8 +5,6 @@ PASS x, y, width, and height presentation attributes supported on foreignObject 
 PASS x, y, width, and height presentation attributes supported on image element
 PASS x, y, width, and height presentation attributes supported on rect element
 PASS x, y, width, and height presentation attributes supported on svg element
-PASS x, y, width, and height presentation attributes supported on symbol element
-PASS x, y, width, and height presentation attributes supported on use element
 PASS r presentation attribute supported on circle element
 PASS rx and ry presentation attributes supported on ellipse element
 PASS rx and ry presentation attributes supported on rect element

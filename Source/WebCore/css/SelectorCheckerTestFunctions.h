@@ -198,8 +198,8 @@ ALWAYS_INLINE bool containslanguageSubtagMatchingRange(StringView language, Stri
 
         StringView languageSubtag = language.substring(languageSubtagsStartIndex, languageSubtagsEndIndex - languageSubtagsStartIndex);
         bool isEqual = equalIgnoringASCIICase(range, languageSubtag);
-        if (!isAsteriskRange) {
-            if ((!isEqual && !languageSubtagsStartIndex) || (languageSubtag.length() == 1 && languageSubtagsStartIndex > 0))
+        if (!isAsteriskRange && !isEqual) {
+            if (!languageSubtagsStartIndex || (languageSubtag.length() == 1 && languageSubtagsStartIndex > 0))
                 return false;
         }
         languageSubtagsStartIndex = languageSubtagsEndIndex;
@@ -234,7 +234,7 @@ ALWAYS_INLINE bool matchesLangPseudoClass(const Element& element, const FixedVec
             continue;
         if (rangeStringView == "*"_s)
             return true;
-        if (equalIgnoringASCIICase(languageStringView, rangeStringView) && !languageStringView.contains('-'))
+        if (equalIgnoringASCIICase(languageStringView, rangeStringView))
             return true;
 
         unsigned rangeLength = rangeStringView.length();

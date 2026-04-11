@@ -28,6 +28,7 @@
 
 #include "AXObjectCacheInlines.h"
 #include "AccessibilityMenuListPopup.h"
+#include "AccessibilityNodeObjectInlines.h"
 #include "AccessibilityObjectInlines.h"
 #include "Document.h"
 #include "HTMLNames.h"
@@ -109,6 +110,12 @@ bool AccessibilityMenuListOption::computeIsIgnored() const
 
 LayoutRect AccessibilityMenuListOption::elementRect() const
 {
+    if (renderer()) {
+        // When the option has a renderer (as for base-appearance selects),
+        // use the renderer's bounding box.
+        return boundingBoxRect();
+    }
+
     RefPtr parent = parentObject();
     // Our parent should've been set to be a menu-list popup before this method is called.
     AX_ASSERT(parent && parent->isMenuListPopup());

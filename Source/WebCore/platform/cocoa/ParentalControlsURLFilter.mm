@@ -91,7 +91,7 @@ static bool wcrBrowserEngineClientEnabled()
     return [PAL::getWCRBrowserEngineClientClassSingleton() shouldEvaluateURLs];
 }
 
-static RefPtr<ParentalControlsURLFilter>& globalFilter()
+static RefPtr<ParentalControlsURLFilter>& NODELETE globalFilter()
 {
     static MainThreadNeverDestroyed<RefPtr<ParentalControlsURLFilter>> filter;
     return filter.get();
@@ -245,7 +245,11 @@ void ParentalControlsURLFilter::allowURL(const ParentalControlsURLFilterParamete
 }
 
 #if HAVE(WEBCONTENTRESTRICTIONS_ASK_TO)
-void ParentalControlsURLFilter::requestPermissionForURL(const URL& url, const URL& referrerURL, CompletionHandler<void(bool)>&& completionHandler)
+void ParentalControlsURLFilter::requestPermissionForURL(const URL& url, const URL& referrerURL, CompletionHandler<void(bool)>&& completionHandler
+#if HAVE(BROWSERENGINEKIT_WEBCONTENTFILTER)
+    , CocoaView*
+#endif
+)
 {
     ASSERT(isMainThread());
 

@@ -835,8 +835,6 @@ private:
                     Value* typeInfo = fastPathContinuation->appendNew<Const32Value>(m_proc, m_origin, JSWebAssemblyStruct::typeInfoBlob().blob());
                     fastPathContinuation->appendNew<MemoryValue>(m_proc, Store, m_origin, structureID, cell, static_cast<int32_t>(JSCell::structureIDOffset()));
                     fastPathContinuation->appendNew<MemoryValue>(m_proc, Store, m_origin, typeInfo, cell, static_cast<int32_t>(JSCell::indexingTypeAndMiscOffset()));
-                    fastPathContinuation->appendNew<MemoryValue>(m_proc, Store, m_origin, fastPathContinuation->appendIntConstant(m_proc, m_origin, pointerType(), 0), cell, static_cast<int32_t>(JSObject::butterflyOffset()));
-                    fastPathContinuation->appendNew<MemoryValue>(m_proc, Store, m_origin, fastPathContinuation->appendIntConstant(m_proc, m_origin, pointerType(), std::bit_cast<uintptr_t>(rtt.ptr())), cell, static_cast<int32_t>(WebAssemblyGCObjectBase::offsetOfRTT()));
 
                     fastUpsilon = fastPathContinuation->appendNew<UpsilonValue>(m_proc, m_origin, cell);
                     fastPathContinuation->appendNew<Value>(m_proc, Jump, m_origin);
@@ -925,7 +923,7 @@ private:
         return block->appendNew<CCallValue>(m_proc, type, m_origin, Effects::none(), functionAddress, num, den);
     }
 #else
-    Value* callDivModHelper(BasicBlock*, Opcode, Value*, Value*)
+    Value* NODELETE callDivModHelper(BasicBlock*, Opcode, Value*, Value*)
     {
         RELEASE_ASSERT_NOT_REACHED();
     }
@@ -1376,7 +1374,10 @@ private:
 
                     emitCheckOrBranchForCast(castKind, currentBlock->appendNew<Value>(m_proc, NotEqual, m_origin, jsType, constant(Int32, JSType::WebAssemblyGCObjectType)), castFailure, falseBlock);
                 }
-                Value* rtt = currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, pointerType(), m_origin, value, safeCast<int32_t>(WebAssemblyGCObjectBase::offsetOfRTT()));
+                Value* structureID = currentBlock->appendNew<MemoryValue>(m_proc, Load, Int32, m_origin, value, safeCast<int32_t>(JSCell::structureIDOffset()));
+                Value* structure = currentBlock->appendNew<Value>(m_proc, ZExt32, m_origin, structureID);
+                structure = currentBlock->appendNew<Value>(m_proc, BitOr, m_origin, structure, currentBlock->appendIntConstant(m_proc, m_origin, Int64, structureIDBase()));
+                Value* rtt = currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, pointerType(), m_origin, structure, safeCast<int32_t>(WebAssemblyGCStructure::offsetOfRTT()));
                 auto* kind = currentBlock->appendNew<MemoryValue>(m_proc, Load8Z, m_origin, rtt, safeCast<int32_t>(Wasm::RTT::offsetOfKind()));
                 kind->setControlDependent(false);
 
@@ -1402,7 +1403,34 @@ private:
                         emitCheckOrBranchForCast(castKind, currentBlock->appendNew<Value>(m_proc, NotEqual, m_origin, jsType, constant(Int32, JSType::WebAssemblyGCObjectType)), castFailure, falseBlock);
                     }
 
-                    rtt = currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, pointerType(), m_origin, value, safeCast<int32_t>(WebAssemblyGCObjectBase::offsetOfRTT()));
+                    if (typeCheck->hasTargetStructureID()) {
+                        if (targetRTT->isFinalType()) {
+                            Value* objectStructureID = currentBlock->appendNew<MemoryValue>(m_proc, Load, Int32, m_origin, value, safeCast<int32_t>(JSCell::structureIDOffset()));
+                            Value* targetStructureID = typeCheck->targetStructureIDValue();
+                            emitCheckOrBranchForCast(castKind, currentBlock->appendNew<Value>(m_proc, NotEqual, m_origin, objectStructureID, targetStructureID), castFailure, falseBlock);
+                            return;
+                        }
+
+                        if (targetRTT->displaySizeExcludingThis() < WebAssemblyGCStructure::inlinedDisplaySize) {
+                            Value* objectStructureID = currentBlock->appendNew<MemoryValue>(m_proc, Load, Int32, m_origin, value, safeCast<int32_t>(JSCell::structureIDOffset()));
+                            Value* structure = currentBlock->appendNew<Value>(m_proc, ZExt32, m_origin, objectStructureID);
+                            structure = currentBlock->appendNew<Value>(m_proc, BitOr, m_origin, structure, currentBlock->appendIntConstant(m_proc, m_origin, Int64, structureIDBase()));
+                            auto* ancestorStructureID = currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, Int32, m_origin, structure, safeCast<int32_t>(WebAssemblyGCStructure::offsetOfInlinedDisplay() + targetRTT->displaySizeExcludingThis() * sizeof(WriteBarrierStructureID)));
+                            ancestorStructureID->setReadsMutability(B3::Mutability::Immutable);
+                            ancestorStructureID->setControlDependent(false);
+
+                            Value* targetStructureID = typeCheck->targetStructureIDValue();
+                            emitCheckOrBranchForCast(castKind, currentBlock->appendNew<Value>(m_proc, NotEqual, m_origin, ancestorStructureID, targetStructureID), castFailure, falseBlock);
+                            return;
+                        }
+                    }
+
+                    {
+                        Value* structureID = currentBlock->appendNew<MemoryValue>(m_proc, Load, Int32, m_origin, value, safeCast<int32_t>(JSCell::structureIDOffset()));
+                        Value* structure = currentBlock->appendNew<Value>(m_proc, ZExt32, m_origin, structureID);
+                        structure = currentBlock->appendNew<Value>(m_proc, BitOr, m_origin, structure, currentBlock->appendIntConstant(m_proc, m_origin, Int64, structureIDBase()));
+                        rtt = currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, pointerType(), m_origin, structure, safeCast<int32_t>(WebAssemblyGCStructure::offsetOfRTT()));
+                    }
                     if (targetRTT->isFinalType()) {
                         // If signature is final type and pointer equality failed, this value must not be a subtype.
                         emitCheckOrBranchForCast(castKind, currentBlock->appendNew<Value>(m_proc, NotEqual, m_origin, rtt, targetRTTPointer), castFailure, falseBlock);
@@ -1434,10 +1462,12 @@ private:
                     // If signature is final type and pointer equality failed, this value must not be a subtype.
                     emitCheckOrBranchForCast(castKind, constant(Int32, 1), castFailure, falseBlock);
                 } else {
-                    auto* displaySizeExcludingThis = currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, Int32, m_origin, rtt, safeCast<int32_t>(Wasm::RTT::offsetOfDisplaySizeExcludingThis()));
-                    displaySizeExcludingThis->setControlDependent(false);
+                    if (targetRTT->displaySizeExcludingThis() >= Wasm::RTT::inlinedDisplaySize) {
+                        auto* displaySizeExcludingThis = currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, Int32, m_origin, rtt, safeCast<int32_t>(Wasm::RTT::offsetOfDisplaySizeExcludingThis()));
+                        displaySizeExcludingThis->setControlDependent(false);
 
-                    emitCheckOrBranchForCast(castKind, currentBlock->appendNew<Value>(m_proc, BelowEqual, m_origin, displaySizeExcludingThis, constant(Int32, targetRTT->displaySizeExcludingThis())), castFailure, falseBlock);
+                        emitCheckOrBranchForCast(castKind, currentBlock->appendNew<Value>(m_proc, BelowEqual, m_origin, displaySizeExcludingThis, constant(Int32, targetRTT->displaySizeExcludingThis())), castFailure, falseBlock);
+                    }
 
                     auto* pointer = currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, Int64, m_origin, rtt, safeCast<int32_t>(Wasm::RTT::offsetOfData() + targetRTT->displaySizeExcludingThis() * sizeof(RefPtr<const Wasm::RTT>)));
                     pointer->setReadsMutability(B3::Mutability::Immutable);

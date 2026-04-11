@@ -100,7 +100,7 @@ private:
     void requestFrame(IPC::Connection&, std::optional<PlatformXR::RequestData>&&, CompletionHandler<void(PlatformXR::FrameData&&)>&&);
 #if USE(OPENXR)
     void createLayerProjection(IPC::Connection&, uint32_t width, uint32_t height, bool alpha, CompletionHandler<void(std::optional<PlatformXR::LayerHandle>)>&&);
-    void submitFrame(IPC::Connection&, Vector<XRDeviceLayer>&&);
+    void submitFrame(IPC::Connection&, Vector<PlatformXR::DeviceLayer>&&);
 #else
     void submitFrame(IPC::Connection&);
 #endif

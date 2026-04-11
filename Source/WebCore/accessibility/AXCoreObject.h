@@ -786,6 +786,7 @@ public:
     virtual AccessibilityChildrenVector radioButtonGroup() const = 0;
 
     virtual bool containsOnlyStaticText() const;
+    bool isStaticTextLabel() const { return role() == AccessibilityRole::Label && containsOnlyStaticText(); }
 
     bool hasPopup() const;
     bool selfOrAncestorLinkHasPopup() const;
@@ -1010,7 +1011,7 @@ public:
     virtual IntSize size() const = 0;
     virtual IntPoint clickPoint() = 0;
     virtual Path elementPath() const = 0;
-    virtual bool supportsPath() const = 0;
+    virtual bool supportsPath() const;
 
     virtual CharacterRange selectedTextRange() const = 0;
     virtual int insertionPointLineNumber() const = 0;

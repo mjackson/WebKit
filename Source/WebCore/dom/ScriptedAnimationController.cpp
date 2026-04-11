@@ -27,12 +27,15 @@
 #include "config.h"
 #include "ScriptedAnimationController.h"
 
+#include "DocumentPage.h"
+#include "FrameDestructionObserverInlines.h"
 #include "InspectorInstrumentation.h"
 #include "Logging.h"
 #include "OpportunisticTaskScheduler.h"
 #include "Page.h"
 #include "RenderObjectStyle.h"
 #include "RequestAnimationFrameCallback.h"
+#include "ScriptController.h"
 #include "Settings.h"
 #include "UserGestureIndicator.h"
 #include <wtf/SystemTracing.h>
@@ -160,6 +163,14 @@ void ScriptedAnimationController::serviceRequestAnimationFrameCallbacks(ReducedR
     // reference to us, so take a defensive reference.
     Ref protectedThis { *this };
     Ref document = *m_document;
+
+    RefPtr frame = document->frame();
+    if (!frame)
+        return;
+
+    CheckedRef script = frame->script();
+    if (!script->canExecuteScripts(ReasonForCallingCanExecuteScripts::AboutToExecuteScript) || script->isPaused())
+        return;
 
     for (auto& [callback, userGestureTokenToForward, scheduledWorkScope] : callbackDataList) {
         if (callback->m_firedOrCancelled)

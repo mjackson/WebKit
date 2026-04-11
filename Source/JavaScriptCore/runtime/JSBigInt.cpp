@@ -306,7 +306,7 @@ JSBigInt* JSBigInt::createFrom(JSGlobalObject* globalObject, double value)
     ASSERT(rawExponent >= 0x3ff); // Since value is integer, exponent should be >= 0 + bias (0x3ff).
     int32_t exponent = rawExponent - 0x3ff;
     int32_t digits = exponent / digitBits + 1;
-    Vector<Digit, 64> resultVector(digits, 0);
+    Vector<Digit, 64> resultVector(FillWith { }, digits, 0);
     auto result = resultVector.mutableSpan();
 
     // We construct a BigInt from the double value by shifting its mantissa
@@ -482,7 +482,7 @@ private:
 };
 
 template<typename D>
-static std::span<D> normalize(std::span<D> x)
+static std::span<D> NODELETE normalize(std::span<D> x)
 {
     while (!x.empty() && !x.back())
         x = x.first(x.size() - 1);
@@ -603,7 +603,7 @@ ALWAYS_INLINE JSBigInt::ImplResult::ImplResult(JSValue value)
     : payload(value)
 { }
 
-static ALWAYS_INLINE JSValue tryConvertToBigInt32(JSBigInt::ImplResult implResult)
+static ALWAYS_INLINE JSValue NODELETE tryConvertToBigInt32(JSBigInt::ImplResult implResult)
 {
     if (!implResult.payload)
         return JSValue();
@@ -673,7 +673,7 @@ JSBigInt::ImplResult JSBigInt::exponentiateImpl(JSGlobalObject* globalObject, Bi
         // Fast path for 2^n.
         int neededDigits = 1 + (n / digitBits);
 
-        Vector<Digit, 16> resultVector(neededDigits, 0);
+        Vector<Digit, 16> resultVector(FillWith { }, neededDigits, 0);
         auto result = resultVector.mutableSpan();
 
         // All bits are zero. Now set the n-th bit.
@@ -1123,7 +1123,7 @@ public:
     }
 
 private:
-    static ALWAYS_INLINE Digit calculateInverse(Digit d)
+    static ALWAYS_INLINE Digit NODELETE calculateInverse(Digit d)
     {
         ASSERT(d & (1ULL << (digitBits - 1))); // d is already normalized.
         TwoDigit limit = ~static_cast<TwoDigit>(0);
@@ -3877,7 +3877,7 @@ uint64_t JSBigInt::toBigUInt64Heap(JSBigInt* bigInt)
     return ~(value - 1); // To avoid undefined behavior, we compute two's compliment by hand in C while this is simply `-value`.
 }
 
-static ALWAYS_INLINE unsigned computeHash(JSBigInt::Digit* digits, unsigned length, bool sign)
+static ALWAYS_INLINE unsigned NODELETE computeHash(JSBigInt::Digit* digits, unsigned length, bool sign)
 {
     Hasher hasher;
     WTF::add(hasher, sign);

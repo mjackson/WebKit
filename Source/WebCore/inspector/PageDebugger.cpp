@@ -39,6 +39,7 @@
 #include "PageGroup.h"
 #include "PageInspectorController.h"
 #include "ScriptController.h"
+#include "Settings.h"
 #include "Timer.h"
 #include <JavaScriptCore/JSLock.h>
 #include <wtf/MainThread.h>
@@ -67,6 +68,11 @@ void PageDebugger::attachDebugger()
 {
     JSC::Debugger::attachDebugger();
 
+    // Under site isolation, FrameDebugger handles per-frame debugging.
+    // Don't attach the PageDebugger to frames to avoid conflicts.
+    if (m_page->settings().siteIsolationEnabled())
+        return;
+
     m_page->setDebugger(this);
 }
 
@@ -74,7 +80,8 @@ void PageDebugger::detachDebugger(bool isBeingDestroyed)
 {
     JSC::Debugger::detachDebugger(isBeingDestroyed);
 
-    m_page->setDebugger(nullptr);
+    if (m_page->debugger() == this)
+        m_page->setDebugger(nullptr);
     if (!isBeingDestroyed)
         recompileAllJSFunctions();
 }

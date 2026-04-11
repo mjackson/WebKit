@@ -61,14 +61,14 @@ public:
     ~CheckedRef()
     {
         unpoison(*this);
-        if (auto* ptr = PtrTraits::exchange(m_ptr, nullptr))
-            PtrTraits::unwrap(ptr)->decrementCheckedPtrCount();
+        if (auto* ptr = PtrTraits::unwrap(m_ptr))
+            ptr->decrementCheckedPtrCount();
     }
 
     CheckedRef(T& object)
         : m_ptr(&object)
     {
-        PtrTraits::unwrap(m_ptr)->incrementCheckedPtrCount();
+        object.incrementCheckedPtrCount();
     }
 
     enum AdoptTag { Adopt };
@@ -78,18 +78,16 @@ public:
     }
 
     ALWAYS_INLINE CheckedRef(const CheckedRef& other)
-        : m_ptr { PtrTraits::unwrap(other.m_ptr) }
+        : m_ptr { other.m_ptr }
     {
-        auto* ptr = PtrTraits::unwrap(m_ptr);
-        ptr->incrementCheckedPtrCount();
+        PtrTraits::unwrap(m_ptr)->incrementCheckedPtrCount();
     }
 
     template<typename OtherType, typename OtherPtrTraits>
     CheckedRef(const CheckedRef<OtherType, OtherPtrTraits>& other)
-        : m_ptr { PtrTraits::unwrap(other.m_ptr) }
+        : m_ptr { OtherPtrTraits::unwrap(other.m_ptr) }
     {
-        auto* ptr = PtrTraits::unwrap(m_ptr);
-        ptr->incrementCheckedPtrCount();
+        PtrTraits::unwrap(m_ptr)->incrementCheckedPtrCount();
     }
 
     ALWAYS_INLINE CheckedRef(CheckedRef&& other)
@@ -229,7 +227,7 @@ struct GetPtrHelper<CheckedRef<T, PtrTraits>> {
 template <typename T, typename U>
 struct IsSmartPtr<CheckedRef<T, U>> {
     static constexpr bool value = true;
-    static constexpr bool isNullable = true;
+    static constexpr bool isNullable = false;
 };
 
 template<typename ExpectedType, typename ArgType, typename ArgPtrTraits>
@@ -352,6 +350,13 @@ enum class DefaultedOperatorEqual : bool { No, Yes };
 // DO NOT make use of this enum in new code. An object which supports CanMakeCheckedPtr must be heap allocated on its own.
 enum class CheckedPtrDeleteCheckException : bool { No, Yes };
 
+template<typename T>
+concept AtomicLike = requires(T t) {
+    t.load(std::memory_order_relaxed);
+    t.fetch_add(1, std::memory_order_relaxed);
+    t.fetch_sub(1, std::memory_order_relaxed);
+};
+
 template <typename StorageType, typename PtrCounterType, typename DeletionFlagType, CheckedPtrDeleteCheckException deleteException> class CanMakeCheckedPtrBase {
 public:
     CanMakeCheckedPtrBase() = default;
@@ -366,21 +371,34 @@ public:
     }
 
     PtrCounterType checkedPtrCount() const { return m_checkedPtrCount; }
-    void incrementCheckedPtrCount() const { ++m_checkedPtrCount; }
+    void incrementCheckedPtrCount() const
+    {
+        if constexpr (AtomicLike<StorageType>)
+            m_checkedPtrCount.fetch_add(1, std::memory_order_relaxed);
+        else
+            ++m_checkedPtrCount;
+    }
     ALWAYS_INLINE void decrementCheckedPtrCount() const
     {
         // In normal execution, a CheckedPtr always points to an object with a non-zero checkedPtrCount().
         // When it detects a dangling pointer, WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR scribbles an object with zeroes and then leaks it.
-        // When we check checkedPtrCountWithoutThreadCheck() here, we're checking for a scribbled object.
-        if (!checkedPtrCountWithoutThreadCheck()) [[unlikely]]
-            crashDueToCheckedPtrToDeadObject();
-        --m_checkedPtrCount;
+        // When we check the count here, we're checking for a scribbled object.
+        if constexpr (AtomicLike<StorageType>) {
+            // Combine the acquire load (zombie check) with the release decrement into a
+            // single acq_rel fetch_sub. The returned old value lets us detect a zero count.
+            if (!m_checkedPtrCount.fetch_sub(1, std::memory_order_acq_rel)) [[unlikely]]
+                crashDueToCheckedPtrToDeadObject();
+        } else {
+            if (!m_checkedPtrCount.valueWithoutThreadCheck()) [[unlikely]]
+                crashDueToCheckedPtrToDeadObject();
+            --m_checkedPtrCount;
+        }
     }
 
     ALWAYS_INLINE PtrCounterType checkedPtrCountWithoutThreadCheck() const
     {
-        if constexpr (std::is_same_v<StorageType, std::atomic<uint32_t>>)
-            return m_checkedPtrCount;
+        if constexpr (AtomicLike<StorageType>)
+            return m_checkedPtrCount.load(std::memory_order_acquire);
         else
             return m_checkedPtrCount.valueWithoutThreadCheck();
     }
@@ -409,7 +427,7 @@ class CanMakeCheckedPtr : public CanMakeCheckedPtrBase<SingleThreadIntegralWrapp
 public:
     ~CanMakeCheckedPtr()
     {
-        static_assert(std::is_same<typename T::WTFIsFastMallocAllocated, int>::value, "Objects that use CanMakeCheckedPtr must use FastMalloc (WTF_DEPRECATED_MAKE_FAST_ALLOCATED)");
+        static_assert(std::is_same<typename T::WTFIsFastMallocAllocated, int>::value, "Objects that use CanMakeCheckedPtr must use TZoneMalloc (WTF_MAKE_TZONE_ALLOCATED or one of its variants)");
         static_assert(std::is_same<typename T::WTFDidOverrideDeleteForCheckedPtr, int>::value, "Objects that use CanMakeCheckedPtr must use WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR");
     }
 
@@ -425,7 +443,7 @@ class CanMakeThreadSafeCheckedPtr : public CanMakeCheckedPtrBase<std::atomic<uin
 public:
     ~CanMakeThreadSafeCheckedPtr()
     {
-        static_assert(std::is_same<typename T::WTFIsFastMallocAllocated, int>::value, "Objects that use CanMakeCheckedPtr must use FastMalloc (WTF_DEPRECATED_MAKE_FAST_ALLOCATED)");
+        static_assert(std::is_same<typename T::WTFIsFastMallocAllocated, int>::value, "Objects that use CanMakeCheckedPtr must use TZoneMalloc (WTF_MAKE_TZONE_ALLOCATED or one of its variants)");
         static_assert(std::is_same<typename T::WTFDidOverrideDeleteForCheckedPtr, int>::value, "Objects that use CanMakeCheckedPtr must use WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR");
     }
 

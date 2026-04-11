@@ -61,6 +61,19 @@ static void testCodePathRange(CodePathRange range)
     EXPECT_EQ(range.abovePath, FontCascade::characterRangeCodePath(std::span<char16_t>(above))) << "above: " << std::hex << static_cast<int>(above[0]);
 }
 
+TEST(FontCascadeTest, EqualityWithNullFonts)
+{
+    FontCascadeDescription description;
+    description.setOneFamily("Times"_s);
+    description.setComputedSize(16);
+
+    FontCascade a(FontCascadeDescription { description });
+    FontCascade b(FontCascadeDescription { description });
+
+    // Both have null m_fonts (update() not called). They should be equal.
+    EXPECT_TRUE(a == b);
+}
+
 // Testing characterRangeCodePath for non-surrogate codepoints
 TEST(FontCascadeTest, characterRangeCodePath_NonSurrogates)
 {

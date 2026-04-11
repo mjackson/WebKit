@@ -61,7 +61,7 @@ std::optional<TimeZoneID> parseTimeZoneName(StringView string)
 }
 
 template<typename CharType>
-static int32_t parseDecimalInt32(std::span<const CharType> characters)
+static int32_t NODELETE parseDecimalInt32(std::span<const CharType> characters)
 {
     int32_t result = 0;
     for (auto character : characters) {
@@ -79,7 +79,7 @@ static void handleFraction(Duration& duration, int factor, StringView fractionSt
     ASSERT(fractionLength && fractionLength <= 9 && fractionString.containsOnlyASCII());
     ASSERT(fractionType == TemporalUnit::Hour || fractionType == TemporalUnit::Minute || fractionType == TemporalUnit::Second);
 
-    Vector<Latin1Character, 9> padded(9, '0');
+    Vector<Latin1Character, 9> padded(FillWith { }, 9, '0');
     for (unsigned i = 0; i < fractionLength; i++)
         padded[i] = fractionString[i];
 
@@ -362,7 +362,7 @@ static std::optional<PlainTime> parseTimeSpec(StringParsingBuffer<CharacterType>
     if (!digits)
         return std::nullopt;
 
-    Vector<Latin1Character, 9> padded(9, '0');
+    Vector<Latin1Character, 9> padded(FillWith { }, 9, '0');
     for (size_t i = 0; i < digits; ++i)
         padded[i] = buffer[i];
     buffer.advanceBy(digits);
@@ -427,7 +427,7 @@ std::optional<int64_t> parseUTCOffset(StringView string, bool parseSubMinutePrec
 }
 
 template<typename CharacterType>
-static std::optional<int64_t> parseUTCOffsetInMinutes(StringParsingBuffer<CharacterType>& buffer)
+static std::optional<int64_t> NODELETE parseUTCOffsetInMinutes(StringParsingBuffer<CharacterType>& buffer)
 {
     // UTCOffset :::
     //     TemporalSign Hour
@@ -527,7 +527,7 @@ std::optional<int64_t> parseUTCOffsetInMinutes(StringView string)
 }
 
 template<typename CharacterType>
-static bool canBeRFC9557Annotation(const StringParsingBuffer<CharacterType>& buffer)
+static bool NODELETE canBeRFC9557Annotation(const StringParsingBuffer<CharacterType>& buffer)
 {
     // https://tc39.es/proposal-temporal/#sec-temporal-parseisodatetime
     // Step 4(a)(ii)(2)(a):
@@ -589,7 +589,7 @@ static bool canBeRFC9557Annotation(const StringParsingBuffer<CharacterType>& buf
 }
 
 template<typename CharacterType>
-static bool canBeTimeZone(const StringParsingBuffer<CharacterType>& buffer, CharacterType character)
+static bool NODELETE canBeTimeZone(const StringParsingBuffer<CharacterType>& buffer, CharacterType character)
 {
     switch (static_cast<char16_t>(character)) {
     // UTCDesignator
@@ -972,7 +972,7 @@ static std::optional<std::tuple<PlainTime, std::optional<TimeZoneRecord>>> parse
 }
 
 template<typename CharacterType>
-static bool canBeYear(StringParsingBuffer<CharacterType>& buffer)
+static bool NODELETE canBeYear(StringParsingBuffer<CharacterType>& buffer)
 {
     // 4 characters for year, plus 2 more for month
     if (buffer.lengthRemaining() < 6)
@@ -989,7 +989,7 @@ static bool canBeYear(StringParsingBuffer<CharacterType>& buffer)
 }
 
 template<typename CharacterType>
-static std::optional<PlainDate> parseDate(StringParsingBuffer<CharacterType>& buffer, TemporalDateFormat format)
+static std::optional<PlainDate> NODELETE parseDate(StringParsingBuffer<CharacterType>& buffer, TemporalDateFormat format)
 {
     // https://tc39.es/proposal-temporal/#prod-Date
     // Date :
@@ -1260,7 +1260,7 @@ std::optional<std::tuple<PlainTime, std::optional<TimeZoneRecord>>> parseTime(St
 }
 
 template<typename CharacterType>
-static bool isAmbiguousCalendarTime(StringParsingBuffer<CharacterType>& buffer)
+static bool NODELETE isAmbiguousCalendarTime(StringParsingBuffer<CharacterType>& buffer)
 {
     auto length = buffer.lengthRemaining();
     ASSERT(length > 1);
@@ -1845,7 +1845,7 @@ Int128 roundTimeDuration(JSGlobalObject* globalObject, Int128 timeDuration, unsi
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-datedurationsign
-static int32_t dateDurationSign(const Duration& d)
+static int32_t NODELETE dateDurationSign(const Duration& d)
 {
     if (d.years() > 0)
         return 1;

@@ -64,7 +64,7 @@ inline void appendAirArgs(B3::Air::Inst& inst, T&& t, Arguments&&... others)
     appendAirArgs(inst, std::forward<Arguments>(others)...);
 }
 
-[[noreturn]] void printAirArg(PrintStream&, Context&);
+[[noreturn]] void NODELETE printAirArg(PrintStream&, Context&);
 
 // Printer<Arg&> is only a place-holder which PrintSpecial::generate() will later
 // replace with a Printer for a register, constant, etc. as appropriate. 

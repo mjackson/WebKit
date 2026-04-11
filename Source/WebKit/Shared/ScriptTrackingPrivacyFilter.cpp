@@ -27,6 +27,7 @@
 #include "ScriptTrackingPrivacyFilter.h"
 
 #include <WebCore/RegistrableDomain.h>
+#include <WebCore/ScriptTrackingPrivacyCategory.h>
 #include <WebCore/SecurityOrigin.h>
 
 #if PLATFORM(COCOA)
@@ -118,7 +119,7 @@ bool ScriptTrackingPrivacyFilter::shouldBlockRequest(const URL& url, const WebCo
         return false;
 #endif
 
-    auto categoryFlag = WebCore::scriptCategoryAsFlag(ScriptTrackingPrivacyCategory::NetworkRequests);
+    auto categoryFlag = WebCore::scriptCategoryAsFlag(WebCore::ScriptTrackingPrivacyCategory::NetworkRequests);
     if (!m_categoriesWithAllowedHosts.contains(categoryFlag))
         return true;
 

@@ -51,6 +51,7 @@ protected:
     }
 
     bool isAnimatedProperty() const override { return true; }
+    bool isAnimating(const OwnerType& owner) const override { return property1(owner)->isAnimating() || property2(owner)->isAnimating(); }
 
     const Ref<AnimatedPropertyType1>& property1(OwnerType& owner) const { return m_accessor1.property(owner); }
     const Ref<AnimatedPropertyType1>& property1(const OwnerType& owner) const { return m_accessor1.property(owner); }

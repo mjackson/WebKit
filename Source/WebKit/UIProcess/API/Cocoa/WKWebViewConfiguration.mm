@@ -405,7 +405,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 - (WKWebExtensionController *)_strongWebExtensionController
 {
 #if ENABLE(WK_WEB_EXTENSIONS)
-    return wrapper(protect(_pageConfiguration->webExtensionController()).get());
+    return wrapper(_pageConfiguration->webExtensionController());
 #else
     return nil;
 #endif
@@ -414,7 +414,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 - (WKWebExtensionController *)_weakWebExtensionController
 {
 #if ENABLE(WK_WEB_EXTENSIONS)
-    return wrapper(protect(_pageConfiguration->weakWebExtensionController()).get());
+    return wrapper(_pageConfiguration->weakWebExtensionController());
 #else
     return nil;
 #endif
@@ -423,7 +423,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 - (void)_setWeakWebExtensionController:(WKWebExtensionController *)webExtensionController
 {
 #if ENABLE(WK_WEB_EXTENSIONS)
-    protect(*_pageConfiguration)->setWeakWebExtensionController(webExtensionController ? Ref { webExtensionController._webExtensionController }.ptr() : nullptr);
+    _pageConfiguration->setWeakWebExtensionController(webExtensionController ? Ref { webExtensionController._webExtensionController }.ptr() : nullptr);
 #endif
 }
 
@@ -1070,7 +1070,7 @@ static WebKit::AttributionOverrideTesting toAttributionOverrideTesting(_WKAttrib
 
 - (WKWebsiteDataStore *)_websiteDataStoreIfExists
 {
-    return wrapper(protect(_pageConfiguration->websiteDataStoreIfExists()).get());
+    return wrapper(_pageConfiguration->websiteDataStoreIfExists());
 }
 
 - (NSArray<NSString *> *)_corsDisablingPatterns
@@ -1229,7 +1229,7 @@ static WebKit::AttributionOverrideTesting toAttributionOverrideTesting(_WKAttrib
 
 - (_WKApplicationManifest *)_applicationManifest
 {
-    return wrapper(protect(_pageConfiguration->applicationManifest()).get());
+    return wrapper(_pageConfiguration->applicationManifest());
 }
 
 - (void)_setApplicationManifest:(_WKApplicationManifest *)applicationManifest

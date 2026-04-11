@@ -19,6 +19,8 @@ fast/forms/datalist/datalist-fallback-content.html [ Pass ]
 # Tests which pass only with form control refresh enabled (support added in Tahoe)
 fast/forms/appearance-default-button.html  [ Skip ]
 fast/forms/form-control-refresh [ Skip ]
+fast/forms/vertical-writing-mode/select-menulist.html [ Skip ]
+fast/forms/vertical-writing-mode/select-menulist-rtl.html [ Skip ]
 imported/w3c/web-platform-tests/css/css-ui/button-author-level-padding-applies.html [ Skip ]
 
 # Tests which pass only with form control refresh disabled (support added in Tahoe)

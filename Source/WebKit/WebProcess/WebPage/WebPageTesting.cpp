@@ -165,7 +165,7 @@ void WebPageTesting::resetStateBetweenTests()
         mainFrame->disownOpener();
         mainFrame->tree().clearName();
     }
-    if (RefPtr corePage = page->corePage()) {
+    if (auto* corePage = page->corePage()) {
         // Force consistent "responsive" behavior for WebPage::eventThrottlingDelay() for testing. Tests can override via internals.
         corePage->setEventThrottlingBehaviorOverride(WebCore::EventThrottlingBehavior::Responsive);
     }

@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include <WebCore/MessagePortIdentifier.h>
 #include <WebCore/ScriptExecutionContextIdentifier.h>
 #include <WebCore/SecurityContext.h>
 #include <WebCore/ServiceWorkerIdentifier.h>
@@ -35,6 +36,7 @@
 #include <wtf/Function.h>
 #include <wtf/HashSet.h>
 #include <wtf/ObjectIdentifier.h>
+#include <wtf/SmallSet.h>
 #include <wtf/ThreadSafeWeakHashSet.h>
 #include <wtf/WeakHashSet.h>
 #include <wtf/text/WTFString.h>
@@ -222,7 +224,8 @@ public:
     void willDestroyDestructionObserver(ContextDestructionObserver&);
 
     // MessagePort is conceptually a kind of ActiveDOMObject, but it needs to be tracked separately for message dispatch.
-    void processMessageWithMessagePortsSoon(CompletionHandler<void()>&&);
+    void resumeAllMessagePortsSoon();
+    void processMessageForPortSoon(const MessagePortIdentifier&, CompletionHandler<void()>&&);
     void createdMessagePort(MessagePort&);
     void destroyedMessagePort(MessagePort&);
 
@@ -233,7 +236,7 @@ public:
     virtual RefPtr<FontLoadRequest> fontLoadRequest(const String& url, bool isSVG, bool isInitiatingElementInUserAgentShadowTree, LoadedFromOpaqueSource);
     virtual void beginLoadingFontSoon(FontLoadRequest&) { }
 
-    WEBCORE_EXPORT static void setCrossOriginMode(CrossOriginMode);
+    WEBCORE_EXPORT static void NODELETE setCrossOriginMode(CrossOriginMode);
     static CrossOriginMode NODELETE crossOriginMode();
 
     WEBCORE_EXPORT void NODELETE ref();
@@ -450,6 +453,8 @@ private:
     int m_timerNestingLevel { 0 };
 
     Vector<CompletionHandler<void()>> m_processMessageWithMessagePortsSoonHandlers;
+    SmallSet<MessagePortIdentifier, DefaultHash<MessagePortIdentifier>, HashTraits<MessagePortIdentifier>, 2> m_portsWithAvailableMessages;
+    bool m_dispatchAllPorts { false };
 
 #if ASSERT_ENABLED
     bool m_inScriptExecutionContextDestructor { false };

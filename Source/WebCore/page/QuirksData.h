@@ -33,8 +33,10 @@ namespace WebCore {
 struct QuirksData {
     bool isAmazon : 1 { false };
     bool isBankOfAmerica : 1 { false };
+    bool isBestBuy : 1 { false };
     bool isBing : 1 { false };
     bool isCBSSports : 1 { false };
+    bool isCEAC : 1 { false };
     bool isDictionary : 1 { false };
     bool isEA : 1 { false };
     bool isESPN : 1 { false };
@@ -42,6 +44,8 @@ struct QuirksData {
     bool isGoogleDocs : 1 { false };
     bool isGoogleProperty : 1 { false };
     bool isGoogleMaps : 1 { false };
+    bool isIHeart : 1 { false };
+    bool isInVideo : 1 { false };
     bool isNBA : 1 { false };
     bool isNetflix : 1 { false };
     bool isOutlook : 1 { false };
@@ -109,9 +113,7 @@ struct QuirksData {
 #endif
         NeedsResettingTransitionCancelsRunningTransitionQuirk,
         NeedsReuseLiveRangeForSelectionUpdateQuirk,
-#if PLATFORM(IOS_FAMILY)
         NeedsScriptToEvaluateBeforeRunningScriptFromURLQuirk,
-#endif
         NeedsScrollbarWidthThinDisabledQuirk,
         NeedsSeekingSupportDisabledQuirk,
         NeedsSuppressPostLayoutBoundaryEventsQuirk,
@@ -158,6 +160,7 @@ struct QuirksData {
 #endif
 #if ENABLE(MEDIA_STREAM)
         ShouldDisableImageCaptureQuirk,
+        ShouldAllowMediaStreamTrackSerializationQuirk,
 #endif
         ShouldDisableLazyIframeLoadingQuirk,
 #if PLATFORM(IOS_FAMILY)

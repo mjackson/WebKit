@@ -106,9 +106,6 @@ template<typename> struct ToStyle;
 // Specialize `TreatAsNonConverting` for `Constant<C>`, to indicate that its type does not change from the CSS representation.
 template<CSSValueID C> inline constexpr bool TreatAsNonConverting<Constant<C>> = true;
 
-// Specialize `TreatAsNonConverting` for `CustomIdentifier`, to indicate that its type does not change from the CSS representation.
-template<> inline constexpr bool TreatAsNonConverting<CustomIdentifier> = true;
-
 // Specialize `TreatAsNonConverting` for `PropertyIdentifier`, to indicate that its type does not change from the CSS representation.
 template<> inline constexpr bool TreatAsNonConverting<PropertyIdentifier> = true;
 
@@ -1237,6 +1234,24 @@ template<typename... StyleTypes> struct Blending<Variant<StyleTypes...>> {
                 RELEASE_ASSERT_NOT_REACHED();
             }
         ), a, b);
+    }
+};
+
+// Specialization for `ValueOrKeyword`, constrained to types whose value is blendable.
+template<ValueOrKeywordDerived T> requires HasBlendWithoutRenderStyleAndWithBlendingContext<typename T::Value> struct Blending<T> {
+    auto canBlend(const T& a, const T& b) -> bool
+    {
+        if (a.isKeyword() || b.isKeyword())
+            return false;
+        return WebCore::Style::canBlend(*a.tryValue(), *b.tryValue());
+    }
+    auto blend(const T& a, const T& b, const auto& context) -> T
+    {
+        if (context.isDiscrete) {
+            ASSERT(!context.progress || context.progress == 1);
+            return context.progress ? b : a;
+        }
+        return T { WebCore::Style::blend(*a.tryValue(), *b.tryValue(), context) };
     }
 };
 

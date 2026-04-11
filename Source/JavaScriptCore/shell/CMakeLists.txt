@@ -89,6 +89,7 @@ if (DEVELOPER_MODE)
         ../wasm/debugger/tests/ExecutionHandlerIdleStopTest.cpp
         ../wasm/debugger/tests/ExecutionHandlerTest.cpp
         ../wasm/debugger/tests/ExecutionHandlerTestSupport.cpp
+        ../wasm/debugger/tests/ExecutionHandlerVMLifecycleTest.cpp
         ../wasm/debugger/tests/ExtGCTests.cpp
         ../wasm/debugger/tests/GDBPacketParserTest.cpp
         ../wasm/debugger/tests/MemoryTests.cpp

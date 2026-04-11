@@ -91,13 +91,13 @@ public:
     bool putByIndexCommon(JSGlobalObject*, JSValue thisValue, unsigned propertyName, JSValue putValue, bool shouldThrow);
     JSValue performGetPrototype(JSGlobalObject*);
     void revoke(VM&);
-    bool isRevoked() const;
+    bool NODELETE isRevoked() const;
 
     const WriteBarrier<Unknown>& internalField(Field field) const { return Base::internalField(static_cast<uint32_t>(field)); }
     WriteBarrier<Unknown>& internalField(Field field) { return Base::internalField(static_cast<uint32_t>(field)); }
 
     JSObject* getHandlerTrap(JSGlobalObject*, JSObject*, CallData&, const Identifier&, HandlerTrap);
-    bool forwardsGetOwnPropertyNamesToTarget(DontEnumPropertiesMode);
+    bool NODELETE forwardsGetOwnPropertyNamesToTarget(DontEnumPropertiesMode);
 
 private:
     JS_EXPORT_PRIVATE ProxyObject(VM&, Structure*);
@@ -105,12 +105,12 @@ private:
     JS_EXPORT_PRIVATE static Structure* structureForTarget(JSGlobalObject*, JSValue target);
 
     bool isHandlerTrapsCacheValid(JSObject* handler);
-    void clearHandlerTrapsOffsetsCache();
+    void NODELETE clearHandlerTrapsOffsetsCache();
 
     static bool getOwnPropertySlot(JSObject*, JSGlobalObject*, PropertyName, PropertySlot&);
     static bool getOwnPropertySlotByIndex(JSObject*, JSGlobalObject*, unsigned propertyName, PropertySlot&);
-    static CallData getCallData(JSCell*);
-    static CallData getConstructData(JSCell*);
+    static CallData NODELETE getCallData(JSCell*);
+    static CallData NODELETE getConstructData(JSCell*);
     static bool deleteProperty(JSCell*, JSGlobalObject*, PropertyName, DeletePropertySlot&);
     static bool deletePropertyByIndex(JSCell*, JSGlobalObject*, unsigned propertyName);
     static bool preventExtensions(JSObject*, JSGlobalObject*);

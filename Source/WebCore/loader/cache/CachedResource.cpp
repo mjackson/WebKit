@@ -1003,7 +1003,7 @@ ResourceCryptographicDigest CachedResource::cryptographicDigest(ResourceCryptogr
 {
     unsigned digestIndex = WTF::fastLog2(static_cast<unsigned>(algorithm));
     RELEASE_ASSERT(digestIndex < m_cryptographicDigests.size());
-    ASSERT(static_cast<std::underlying_type_t<ResourceCryptographicDigest::Algorithm>>(algorithm) == (1 << digestIndex));
+    ASSERT(std::to_underlying(algorithm) == (1 << digestIndex));
     auto& existingDigest = m_cryptographicDigests[digestIndex];
     if (!existingDigest)
         existingDigest = cryptographicDigestForSharedBuffer(algorithm, protect(m_data).get());

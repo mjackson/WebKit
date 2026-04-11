@@ -58,7 +58,7 @@ public:
 
 protected:
     static String createLookupKey(const String& sourceFilename, OpcodeID, int startLocation, int endLocation);
-    static OpcodeID opcodeAliasForLookupKey(const OpcodeID&);
+    static OpcodeID NODELETE opcodeAliasForLookupKey(const OpcodeID&);
 };
 
 } // namespace JSC

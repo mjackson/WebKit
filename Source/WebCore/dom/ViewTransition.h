@@ -204,7 +204,7 @@ public:
 
     Document* NODELETE document() const;
 
-    bool documentElementIsCaptured() const;
+    bool NODELETE documentElementIsCaptured() const;
 
     const ViewTransitionTypeSet& types() const { return m_types; }
     void setTypes(Ref<ViewTransitionTypeSet>&&);

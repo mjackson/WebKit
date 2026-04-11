@@ -80,6 +80,7 @@ enum class PaintBehavior : uint32_t {
     FixedAndStickyLayersOnly                    = 1 << 21,
     DrawsHDRContent                             = 1 << 22,
     DraggableSnapshot                           = 1 << 23,
+    IncludeDocumentMarkers                      = 1 << 24,
 };
 
 } // namespace WebCore

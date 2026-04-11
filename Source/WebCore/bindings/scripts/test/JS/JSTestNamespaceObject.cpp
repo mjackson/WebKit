@@ -47,6 +47,7 @@
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/ObjectPrototype.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
+#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -137,6 +138,11 @@ JSTestNamespaceObject::JSTestNamespaceObject(Structure* structure, JSDOMGlobalOb
     : JSDOMObject(structure, globalObject) { }
 
 static_assert(!std::is_base_of<ActiveDOMObject, TestNamespaceObject>::value, "Interface is not marked as [ActiveDOMObject] even though implementation class subclasses ActiveDOMObject.");
+
+JSC::Structure* JSTestNamespaceObject::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
+{
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
+}
 
 JSValue JSTestNamespaceObject::getConstructor(VM& vm, const JSGlobalObject* globalObject)
 {
@@ -261,7 +267,7 @@ static inline JSC::EncodedJSValue jsTestNamespaceObjectConstructorFunction_names
     auto throwScope = DECLARE_THROW_SCOPE(vm);
     UNUSED_PARAM(throwScope);
     UNUSED_PARAM(callFrame);
-    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&]() -> decltype(auto) { return WebCore::TestNamespaceObjectImpl::operationFromPartialImpl(); })));
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&] -> decltype(auto) { return WebCore::TestNamespaceObjectImpl::operationFromPartialImpl(); })));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestNamespaceObjectConstructorFunction_namespaceOperationFromPartial, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))

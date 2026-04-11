@@ -19,7 +19,7 @@ macro(WEBKIT_COMPUTE_SOURCES _framework)
     endif ()
 
     if (ENABLE_UNIFIED_BUILDS)
-        execute_process(COMMAND ${Ruby_EXECUTABLE} ${WTF_SCRIPTS_DIR}/generate-unified-source-bundles.rb
+        execute_process(COMMAND ${Python_EXECUTABLE} ${WTF_SCRIPTS_DIR}/generate-unified-source-bundles.py
             ${gusb_args}
             "--print-bundled-sources"
             ${_sourceListFileTruePaths}
@@ -27,7 +27,7 @@ macro(WEBKIT_COMPUTE_SOURCES _framework)
             OUTPUT_VARIABLE _outputTmp)
 
         if (${_resultTmp})
-             message(FATAL_ERROR "generate-unified-source-bundles.rb exited with non-zero status, exiting")
+             message(FATAL_ERROR "generate-unified-source-bundles.py exited with non-zero status, exiting")
         endif ()
 
         foreach (_sourceFileTmp IN LISTS _outputTmp)
@@ -36,14 +36,14 @@ macro(WEBKIT_COMPUTE_SOURCES _framework)
         endforeach ()
         unset(_sourceFileTmp)
 
-        execute_process(COMMAND ${Ruby_EXECUTABLE} ${WTF_SCRIPTS_DIR}/generate-unified-source-bundles.rb
+        execute_process(COMMAND ${Python_EXECUTABLE} ${WTF_SCRIPTS_DIR}/generate-unified-source-bundles.py
             ${gusb_args}
             ${_sourceListFileTruePaths}
             RESULT_VARIABLE  _resultTmp
             OUTPUT_VARIABLE _outputTmp)
 
         if (${_resultTmp})
-            message(FATAL_ERROR "generate-unified-source-bundles.rb exited with non-zero status, exiting")
+            message(FATAL_ERROR "generate-unified-source-bundles.py exited with non-zero status, exiting")
         endif ()
 
         foreach (_file IN LISTS _outputTmp)
@@ -57,7 +57,7 @@ macro(WEBKIT_COMPUTE_SOURCES _framework)
         unset(_resultTmp)
         unset(_outputTmp)
     else ()
-        execute_process(COMMAND ${Ruby_EXECUTABLE} ${WTF_SCRIPTS_DIR}/generate-unified-source-bundles.rb
+        execute_process(COMMAND ${Python_EXECUTABLE} ${WTF_SCRIPTS_DIR}/generate-unified-source-bundles.py
             ${gusb_args}
             "--print-all-sources"
             ${_sourceListFileTruePaths}
@@ -65,7 +65,7 @@ macro(WEBKIT_COMPUTE_SOURCES _framework)
             OUTPUT_VARIABLE _outputTmp)
 
         if (${_resultTmp})
-             message(FATAL_ERROR "generate-unified-source-bundles.rb exited with non-zero status, exiting")
+             message(FATAL_ERROR "generate-unified-source-bundles.py exited with non-zero status, exiting")
         endif ()
 
         list(APPEND ${_framework}_SOURCES ${_outputTmp})
@@ -356,6 +356,12 @@ macro(WEBKIT_FRAMEWORK _target)
     _WEBKIT_TARGET(${_target})
     _WEBKIT_TARGET_ANALYZE(${_target})
 
+    # Apply PGO compile flags only to library targets (not executables) to avoid duplicate symbol errors
+    # Link flags are applied globally via CMAKE_SHARED_LINKER_FLAGS for LTO compatibility
+    if (PGO_COMPILE_OPTIONS)
+        target_compile_options(${_target} PRIVATE ${PGO_COMPILE_OPTIONS})
+    endif ()
+
     if (${_target}_OUTPUT_NAME)
         set_target_properties(${_target} PROPERTIES OUTPUT_NAME ${${_target}_OUTPUT_NAME})
     endif ()
@@ -381,6 +387,12 @@ macro(WEBKIT_LIBRARY _target)
     _WEBKIT_LIBRARY_LINK_FRAMEWORK(${_target})
     _WEBKIT_TARGET(${_target})
     _WEBKIT_TARGET_ANALYZE(${_target})
+
+    # Apply PGO compile flags only to library targets (not executables) to avoid duplicate symbol errors
+    # Link flags are applied globally via CMAKE_SHARED_LINKER_FLAGS for LTO compatibility
+    if (PGO_COMPILE_OPTIONS)
+        target_compile_options(${_target} PRIVATE ${PGO_COMPILE_OPTIONS})
+    endif ()
 
     if (${_target}_OUTPUT_NAME)
         set_target_properties(${_target} PROPERTIES OUTPUT_NAME ${${_target}_OUTPUT_NAME})
@@ -421,7 +433,7 @@ function(WEBKIT_COPY_FILES target_name)
             set(dst_file ${opt_DESTINATION}/${file})
         endif ()
         add_custom_command(OUTPUT ${dst_file}
-            COMMAND ${CMAKE_COMMAND} -E copy ${src_file} ${dst_file}
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${src_file} ${dst_file}
             MAIN_DEPENDENCY ${file}
             VERBATIM
         )

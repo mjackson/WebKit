@@ -91,9 +91,7 @@ void RemoteSampleBufferDisplayLayer::setLogIdentifier(uint64_t identifier)
 }
 #endif
 
-RemoteSampleBufferDisplayLayer::~RemoteSampleBufferDisplayLayer()
-{
-}
+RemoteSampleBufferDisplayLayer::~RemoteSampleBufferDisplayLayer() = default;
 
 CGRect RemoteSampleBufferDisplayLayer::bounds() const
 {

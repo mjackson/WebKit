@@ -36,7 +36,7 @@
 #include "RenderImage.h"
 #include "RenderQuote.h"
 #include "RenderStyle+GettersInlines.h"
-#include "StylableInlines.h"
+#include "StyleableInlines.h"
 #include "StyleResolver.h"
 #include <wtf/TZoneMallocInlines.h>
 

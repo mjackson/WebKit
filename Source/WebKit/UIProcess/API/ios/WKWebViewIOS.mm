@@ -1292,6 +1292,9 @@ static void changeContentOffsetBoundedInValidRange(UIScrollView *scrollView, Web
 - (void)_layerTreeCommitComplete
 {
     _perProcessState.commitDidRestoreScrollPosition = NO;
+#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+    _page->scheduleAccessibilityFrameGeometryUpdate();
+#endif
 }
 
 - (void)_couldNotRestorePageState
@@ -1496,7 +1499,7 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
         if (WTF::areEssentiallyEqual<float>(scrollPosition.y(), 0) && scrollViewContentOffset.y < 0)
             contentOffsetInScrollViewCoordinates.y = scrollViewContentOffset.y;
 
-        if (interruptAnimation)
+        if (interruptAnimation || animated)
             [_scrollView setContentOffset:contentOffsetInScrollViewCoordinates animated:animated];
         else
             [_scrollView setContentOffset:contentOffsetInScrollViewCoordinates];
@@ -2055,6 +2058,12 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
     [self _scheduleVisibleContentRectUpdate];
     [_contentView didFinishScrolling];
 
+#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+    // After scrolling completes, recompute the screen position for each frame
+    // so accessibility clients get up-to-date screen coordinates.
+    _page->scheduleAccessibilityFrameGeometryUpdate();
+#endif
+
     if (CheckedPtr coordinator = _page->scrollingCoordinatorProxy())
         coordinator->setRootNodeIsInUserScroll(false);
 }
@@ -2181,7 +2190,7 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
     auto event = WebKit::WebIOSEventFactory::createWebWheelEvent(update, _contentView.get(), overridePhase);
 
     _wheelEventCountInCurrentScrollGesture++;
-    _page->dispatchWheelEventWithoutScrolling(event, [weakSelf = WeakObjCPtr<WKWebView>(self), strongCompletion = makeBlockPtr(completion), isCancelable, isHandledByDefault](bool defaultPrevented) {
+    _page->handleWheelEventWithoutScrolling(event, [weakSelf = WeakObjCPtr<WKWebView>(self), strongCompletion = makeBlockPtr(completion), isCancelable, isHandledByDefault](bool defaultPrevented) {
         RetainPtr strongSelf = weakSelf.get();
         if (!strongSelf) {
             if (isCancelable)

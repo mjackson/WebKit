@@ -152,6 +152,7 @@ WK_MOBILE_KEY_BAG_LDFLAGS_iphoneos = -framework MobileKeyBag;
 WK_LIBSANDBOX_LDFLAGS = $(WK_LIBSANDBOX_LDFLAGS_$(WK_PLATFORM_NAME));
 WK_LIBSANDBOX_LDFLAGS_macosx = -lsandbox;
 WK_LIBSANDBOX_LDFLAGS_maccatalyst = -lsandbox;
+WK_LIBSANDBOX_LDFLAGS_iphonesimulator = -W1,-hidden-lsandbox-static;
 
 WK_PDFKIT_LDFLAGS = $(WK_PDFKIT_LDFLAGS_$(WK_PLATFORM_NAME));
 WK_PDFKIT_LDFLAGS_iphoneos = -framework PDFKit;
@@ -334,9 +335,6 @@ REEXPORTED_LIBRARY_NAMES[sdk=macosx*] = objc;
 OTHER_TAPI_FLAGS = $(inherited) -reexport_install_name $(NORMAL_UMBRELLA_FRAMEWORKS_DIR)/WebKitLegacy.framework/$(WK_FRAMEWORK_VERSION_PREFIX)WebKitLegacy -extra-private-header $(SRCROOT)/Platform/ExtraPrivateSymbolsForTAPI.h -extra-private-header $(SRCROOT)/Shared/Cocoa/XPCEndpoint.h -extra-private-header $(SRCROOT)/Shared/Cocoa/XPCEndpointClient.h -extra-public-header $(SRCROOT)/Platform/ExtraPublicSymbolsForTAPI.h -extra-project-header $(SRCROOT)/UIProcess/Cocoa/WebKitSwiftOverlayMacros.h -Xparser -include -Xparser config.h $(OTHER_TAPI_FLAGS_SPI_CHECKING_$(WK_AUDIT_SPI));
 OTHER_TAPI_FLAGS_SPI_CHECKING_YES = -sdkdb-output-dir $(BUILT_PRODUCTS_DIR)/SDKDB;
 
-SECTORDER_FLAGS = $(SECTORDER_FLAGS_$(CONFIGURATION));
-SECTORDER_FLAGS_Production[sdk=macosx*] = -Wl,-order_file,mac/WebKit2.order;
-
 WK_EXCLUDED_WEBPUSHD_SANDBOX = $(WK_EXCLUDED_WEBPUSHD_SANDBOX_$(WK_RELOCATABLE_WEBPUSHD));
 WK_EXCLUDED_WEBPUSHD_SANDBOX_NO = com.apple.WebKit.webpushd.relocatable.mac.sb
 WK_EXCLUDED_WEBPUSHD_SANDBOX_YES = com.apple.WebKit.webpushd.mac.sb
@@ -377,7 +375,7 @@ WK_MAC_PUBLIC_IOS_PRIVATE_HEADERS_DIR = $(WK_MAC_PUBLIC_IOS_PRIVATE_HEADERS_DIR_
 WK_MAC_PUBLIC_IOS_PRIVATE_HEADERS_DIR_ = $(PUBLIC_HEADERS_FOLDER_PATH);
 WK_MAC_PUBLIC_IOS_PRIVATE_HEADERS_DIR_cocoatouch = $(PRIVATE_HEADERS_FOLDER_PATH);
 
-EXCLUDED_MACOS_PLUGIN_FILE_NAMES[sdk=iphone*] = SecItemShim.dylib WebProcessShim.dylib *.pdf Resources/mac/* com.apple.WebKit.NetworkProcess.sb com.apple.WebKit.GPUProcess.sb com.apple.WebKit.webpushd.mac.sb com.apple.WebProcess.sb;
+EXCLUDED_MACOS_PLUGIN_FILE_NAMES[sdk=iphone*] = SecItemShim.dylib WebProcessShim.dylib *.pdf Resources/mac/* com.apple.WebKit.NetworkProcess.sb com.apple.WebKit.GPUProcess.sb com.apple.WebKit.webpushd.mac.sb com.apple.WebProcess.sb com.apple.WebProcess.x86.sb;
 
 WK_SUPPORTS_SWIFT_OBJCXX_INTEROP = $(WK_HAS_VALID_OBJCXX_MODULE);
 

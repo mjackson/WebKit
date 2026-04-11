@@ -91,7 +91,7 @@ public:
     void NODELETE consumeComponentValue();
 
     // https://drafts.csswg.org/css-syntax-3/#typedef-any-value
-    bool consumeAnyValue();
+    bool NODELETE consumeAnyValue();
 
     void consumeWhitespace()
     {

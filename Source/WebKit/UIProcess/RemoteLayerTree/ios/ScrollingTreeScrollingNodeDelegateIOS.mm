@@ -451,10 +451,24 @@ bool ScrollingTreeScrollingNodeDelegateIOS::startAnimatedScrollToPosition(FloatP
     return true;
 }
 
-void ScrollingTreeScrollingNodeDelegateIOS::stopAnimatedScroll()
+void ScrollingTreeScrollingNodeDelegateIOS::stopAnimatedScroll(EnumSet<AnimatedScrollType> scrollTypesToStop)
 {
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    [protect(scrollView()) _wk_stopScrollingAndZooming];
+
+    RetainPtr scrollView = this->scrollView();
+    bool stopScrolling = [&] {
+        if (scrollTypesToStop.contains(AnimatedScrollType::User) && [scrollView isDecelerating])
+            return true;
+
+        if (scrollTypesToStop.contains(AnimatedScrollType::Programmatic) && [scrollView isScrollAnimating])
+            return true;
+
+        return false;
+    }();
+
+    if (stopScrolling)
+        [scrollView _wk_stopScrollingAndZooming];
+
     END_BLOCK_OBJC_EXCEPTIONS
 }
 

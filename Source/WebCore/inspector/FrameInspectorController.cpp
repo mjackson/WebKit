@@ -33,6 +33,8 @@
 #include "CommonVM.h"
 #include "DocumentPage.h"
 #include "FrameConsoleAgent.h"
+#include "FrameDebugger.h"
+#include "FrameDebuggerAgent.h"
 #include "FrameInlines.h"
 #include "FrameRuntimeAgent.h"
 #include "InspectorInstrumentation.h"
@@ -152,8 +154,10 @@ void FrameInspectorController::createLazyAgents()
         return;
 
     // Create debugger before agents that depend on it.
-    // FIXME: <https://webkit.org/b/298909> Add FrameDebuggerAgent to actively use this debugger.
-    m_debugger = makeUnique<JSC::Debugger>(vm());
+    m_debugger = makeUnique<FrameDebugger>(*frame);
+
+    auto context = frameAgentContext();
+    m_agents.append(makeUniqueRef<FrameDebuggerAgent>(context));
 
     createRuntimeAgent();
 }
@@ -253,7 +257,6 @@ Stopwatch& FrameInspectorController::executionStopwatch() const
 
 JSC::Debugger* FrameInspectorController::debugger()
 {
-    // FIXME: <https://webkit.org/b/298909> Add full Debugger domain support for frame targets.
     return m_debugger.get();
 }
 

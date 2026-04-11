@@ -2066,27 +2066,27 @@ IDBError SQLiteIDBBackingStore::getRecord(const IDBResourceIdentifier& transacti
         case IDBGetRecordDataType::KeyAndValue:
             if (keyRange.lowerOpen) {
                 if (keyRange.upperOpen)
-                    statement = cachedStatement(SQL::GetValueRecordsLowerOpenUpperOpen, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key;"_s);
+                    statement = cachedStatement(SQL::GetAllValueRecordsLowerOpenUpperOpen, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key;"_s);
                 else
-                    statement = cachedStatement(SQL::GetValueRecordsLowerOpenUpperClosed, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key;"_s);
+                    statement = cachedStatement(SQL::GetAllValueRecordsLowerOpenUpperClosed, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key;"_s);
             } else {
                 if (keyRange.upperOpen)
-                    statement = cachedStatement(SQL::GetValueRecordsLowerClosedUpperOpen, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key;"_s);
+                    statement = cachedStatement(SQL::GetAllValueRecordsLowerClosedUpperOpen, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key;"_s);
                 else
-                    statement = cachedStatement(SQL::GetValueRecordsLowerClosedUpperClosed, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key;"_s);
+                    statement = cachedStatement(SQL::GetAllValueRecordsLowerClosedUpperClosed, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key;"_s);
             }
             break;
         case IDBGetRecordDataType::KeyOnly:
             if (keyRange.lowerOpen) {
                 if (keyRange.upperOpen)
-                    statement = cachedStatement(SQL::GetKeyRecordsLowerOpenUpperOpen, "SELECT key FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key;"_s);
+                    statement = cachedStatement(SQL::GetAllKeyRecordsLowerOpenUpperOpen, "SELECT key FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key;"_s);
                 else
-                    statement = cachedStatement(SQL::GetKeyRecordsLowerOpenUpperClosed, "SELECT key FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key;"_s);
+                    statement = cachedStatement(SQL::GetAllKeyRecordsLowerOpenUpperClosed, "SELECT key FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key;"_s);
             } else {
                 if (keyRange.upperOpen)
-                    statement = cachedStatement(SQL::GetKeyRecordsLowerClosedUpperOpen, "SELECT key FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key;"_s);
+                    statement = cachedStatement(SQL::GetAllKeyRecordsLowerClosedUpperOpen, "SELECT key FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key;"_s);
                 else
-                    statement = cachedStatement(SQL::GetKeyRecordsLowerClosedUpperClosed, "SELECT key FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key;"_s);
+                    statement = cachedStatement(SQL::GetAllKeyRecordsLowerClosedUpperClosed, "SELECT key FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key;"_s);
             }
         }
 
@@ -2156,27 +2156,49 @@ IDBError SQLiteIDBBackingStore::getAllRecords(const IDBResourceIdentifier& trans
 
 SQLiteStatementAutoResetScope SQLiteIDBBackingStore::cachedStatementForGetAllObjectStoreRecords(const IDBGetAllRecordsData& getAllRecordsData)
 {
+    bool next = getAllRecordsData.cursorDirection == IndexedDB::CursorDirection::Next || getAllRecordsData.cursorDirection == IndexedDB::CursorDirection::Nextunique;
+
     if (getAllRecordsData.getAllType == IndexedDB::GetAllType::Keys) {
         if (getAllRecordsData.keyRangeData.lowerOpen) {
-            if (getAllRecordsData.keyRangeData.upperOpen)
-                return cachedStatement(SQL::GetAllKeyRecordsLowerOpenUpperOpen, "SELECT key FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key;"_s);
-            return cachedStatement(SQL::GetAllKeyRecordsLowerOpenUpperClosed, "SELECT key FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key;"_s);
+            if (getAllRecordsData.keyRangeData.upperOpen) {
+                if (next)
+                    return cachedStatement(SQL::GetAllKeyRecordsLowerOpenUpperOpen, "SELECT key FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key;"_s);
+                return cachedStatement(SQL::GetAllKeyRecordsLowerOpenUpperOpenDesc, "SELECT key FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key DESC;"_s);
+            }
+            if (next)
+                return cachedStatement(SQL::GetAllKeyRecordsLowerOpenUpperClosed, "SELECT key FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key;"_s);
+            return cachedStatement(SQL::GetAllKeyRecordsLowerOpenUpperClosedDesc, "SELECT key FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key DESC;"_s);
         }
 
-        if (getAllRecordsData.keyRangeData.upperOpen)
-            return cachedStatement(SQL::GetAllKeyRecordsLowerClosedUpperOpen, "SELECT key FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key;"_s);
-        return cachedStatement(SQL::GetAllKeyRecordsLowerClosedUpperClosed, "SELECT key FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key;"_s);
+        if (getAllRecordsData.keyRangeData.upperOpen) {
+            if (next)
+                return cachedStatement(SQL::GetAllKeyRecordsLowerClosedUpperOpen, "SELECT key FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key;"_s);
+            return cachedStatement(SQL::GetAllKeyRecordsLowerClosedUpperOpenDesc, "SELECT key FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key DESC;"_s);
+        }
+        if (next)
+            return cachedStatement(SQL::GetAllKeyRecordsLowerClosedUpperClosed, "SELECT key FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key;"_s);
+        return cachedStatement(SQL::GetAllKeyRecordsLowerClosedUpperClosedDesc, "SELECT key FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key DESC;"_s);
     }
 
     if (getAllRecordsData.keyRangeData.lowerOpen) {
-        if (getAllRecordsData.keyRangeData.upperOpen)
-            return cachedStatement(SQL::GetValueRecordsLowerOpenUpperOpen, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key;"_s);
-        return cachedStatement(SQL::GetValueRecordsLowerOpenUpperClosed, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key;"_s);
+        if (getAllRecordsData.keyRangeData.upperOpen) {
+            if (next)
+                return cachedStatement(SQL::GetAllValueRecordsLowerOpenUpperOpen, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key;"_s);
+            return cachedStatement(SQL::GetAllValueRecordsLowerOpenUpperOpenDesc, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key DESC;"_s);
+        }
+        if (next)
+            return cachedStatement(SQL::GetAllValueRecordsLowerOpenUpperClosed, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key;"_s);
+        return cachedStatement(SQL::GetAllValueRecordsLowerOpenUpperClosedDesc, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key > CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key DESC;"_s);
     }
 
-    if (getAllRecordsData.keyRangeData.upperOpen)
-        return cachedStatement(SQL::GetValueRecordsLowerClosedUpperOpen, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key;"_s);
-    return cachedStatement(SQL::GetValueRecordsLowerClosedUpperClosed, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key;"_s);
+    if (getAllRecordsData.keyRangeData.upperOpen) {
+        if (next)
+            return cachedStatement(SQL::GetAllValueRecordsLowerClosedUpperOpen, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key;"_s);
+        return cachedStatement(SQL::GetAllValueRecordsLowerClosedUpperOpenDesc, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key < CAST(? AS TEXT) ORDER BY key DESC;"_s);
+    }
+    if (next)
+        return cachedStatement(SQL::GetAllValueRecordsLowerClosedUpperClosed, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key;"_s);
+    return cachedStatement(SQL::GetAllValueRecordsLowerClosedUpperClosedDesc, "SELECT key, value, ROWID FROM Records WHERE objectStoreID = ? AND key >= CAST(? AS TEXT) AND key <= CAST(? AS TEXT) ORDER BY key DESC;"_s);
 }
 
 IDBError SQLiteIDBBackingStore::getAllObjectStoreRecords(const IDBResourceIdentifier& transactionIdentifier, const IDBGetAllRecordsData& getAllRecordsData, IDBGetAllResult& result)
@@ -2241,9 +2263,13 @@ IDBError SQLiteIDBBackingStore::getAllObjectStoreRecords(const IDBResourceIdenti
             LOG_ERROR("Unable to deserialize key data from database while getting all records");
             return IDBError { ExceptionCode::UnknownError, "Unable to deserialize key data while getting all records"_s };
         }
+
+        if (getAllRecordsData.getAllType == IndexedDB::GetAllType::Records)
+            result.addPrimaryKey(IDBKeyData(keyData));
+
         result.addKey(WTF::move(keyData));
 
-        if (getAllRecordsData.getAllType == IndexedDB::GetAllType::Values) {
+        if (getAllRecordsData.getAllType == IndexedDB::GetAllType::Values || getAllRecordsData.getAllType == IndexedDB::GetAllType::Records) {
             ThreadSafeDataBuffer valueResultBuffer = ThreadSafeDataBuffer::create(statement->columnBlob(1));
 
             auto recordID = statement->columnInt64(2);
@@ -2285,7 +2311,7 @@ IDBError SQLiteIDBBackingStore::getAllIndexRecords(const IDBResourceIdentifier& 
     if (!transaction || !transaction->inProgressOrReadOnly())
         return IDBError { ExceptionCode::UnknownError, "Attempt to get all index records from database without an in-progress transaction"_s };
 
-    auto cursor = transaction->maybeOpenBackingStoreCursor(getAllRecordsData.objectStoreIdentifier, getAllRecordsData.indexIdentifier, getAllRecordsData.keyRangeData);
+    auto cursor = transaction->maybeOpenBackingStoreCursor(getAllRecordsData.objectStoreIdentifier, getAllRecordsData.indexIdentifier, getAllRecordsData.keyRangeData, getAllRecordsData.cursorDirection);
     if (!cursor) {
         LOG_ERROR("Cannot open cursor to perform index gets in database");
         return IDBError { ExceptionCode::UnknownError, "Cannot open cursor to perform index gets in database"_s };
@@ -2307,10 +2333,20 @@ IDBError SQLiteIDBBackingStore::getAllIndexRecords(const IDBResourceIdentifier& 
     if (!targetCount)
         targetCount = std::numeric_limits<uint32_t>::max();
     while (!cursor->didComplete() && !cursor->didError() && currentCount < targetCount) {
-        IDBKeyData keyCopy = cursor->currentPrimaryKey();
-        result.addKey(WTF::move(keyCopy));
-        if (getAllRecordsData.getAllType == IndexedDB::GetAllType::Values)
+        switch (getAllRecordsData.getAllType) {
+        case IndexedDB::GetAllType::Keys:
+            result.addKey(IDBKeyData(cursor->currentPrimaryKey()));
+            break;
+        case IndexedDB::GetAllType::Values:
+            result.addKey(IDBKeyData(cursor->currentPrimaryKey()));
             result.addValue(IDBValue(cursor->currentValue()));
+            break;
+        case IndexedDB::GetAllType::Records:
+            result.addKey(IDBKeyData(cursor->currentKey()));
+            result.addPrimaryKey(IDBKeyData(cursor->currentPrimaryKey()));
+            result.addValue(IDBValue(cursor->currentValue()));
+            break;
+        };
 
         ++currentCount;
         cursor->advance(1);
@@ -2356,7 +2392,10 @@ IDBError SQLiteIDBBackingStore::getIndexRecord(const IDBResourceIdentifier& tran
             getResult = { cursor->currentPrimaryKey() };
         else {
             auto* objectStoreInfo = infoForObjectStore(objectStoreID);
-            ASSERT(objectStoreInfo);
+            if (!objectStoreInfo) {
+                RELEASE_LOG_ERROR(IndexedDB, "%p - SQLiteIDBBackingStore::getIndexRecord: object store cannot be found in database", this);
+                return IDBError { ExceptionCode::UnknownError, "Object store cannot be found in the database"_s };
+            }
             getResult = { cursor->currentPrimaryKey(), cursor->currentPrimaryKey(), IDBValue(cursor->currentValue()), objectStoreInfo->keyPath() };
         }
     }
@@ -2417,7 +2456,10 @@ IDBError SQLiteIDBBackingStore::uncheckedGetIndexRecordForOneKey(IDBIndexIdentif
         return error;
 
     auto* objectStoreInfo = infoForObjectStore(objectStoreID);
-    ASSERT(objectStoreInfo);
+    if (!objectStoreInfo) {
+        RELEASE_LOG_ERROR(IndexedDB, "%p - SQLiteIDBBackingStore::uncheckedGetIndexRecordForOneKey: object store cannot be found in database", this);
+        return IDBError { ExceptionCode::UnknownError, "Object store cannot be found in the database"_s };
+    }
     getResult = { objectStoreKey, objectStoreKey, { ThreadSafeDataBuffer::create(WTF::move(valueVector)), WTF::move(blobURLs), WTF::move(blobFilePaths) }, objectStoreInfo->keyPath() };
     return IDBError { };
 }
@@ -2625,7 +2667,10 @@ IDBError SQLiteIDBBackingStore::openCursor(const IDBResourceIdentifier& transact
     m_cursors.set(cursor->identifier(), cursor.get());
 
     auto* objectStoreInfo = infoForObjectStore(info.objectStoreIdentifier());
-    ASSERT(objectStoreInfo);
+    if (!objectStoreInfo) {
+        RELEASE_LOG_ERROR(IndexedDB, "%p - SQLiteIDBBackingStore::openCursor: object store cannot be found in database", this);
+        return IDBError { ExceptionCode::UnknownError, "Object store cannot be found in the database"_s };
+    }
     cursor->currentData(result, objectStoreInfo->keyPath());
     return IDBError { };
 }
@@ -2669,7 +2714,10 @@ IDBError SQLiteIDBBackingStore::iterateCursor(const IDBResourceIdentifier& trans
 
     if (data.option == IndexedDB::CursorIterateOption::Reply) {
         auto* objectStoreInfo = infoForObjectStore(cursor->objectStoreID());
-        ASSERT(objectStoreInfo);
+        if (!objectStoreInfo) {
+            RELEASE_LOG_ERROR(IndexedDB, "%p - SQLiteIDBBackingStore::iterateCursor: object store cannot be found in database", this);
+            return IDBError { ExceptionCode::UnknownError, "Object store cannot be found in the database"_s };
+        }
 
         bool shouldPrefetch = key.isNull() && primaryKey.isNull();
         if (shouldPrefetch)

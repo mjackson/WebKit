@@ -63,6 +63,7 @@
 #include "FloatRect.h"
 #include "FocusController.h"
 #include "FocusOptions.h"
+#include "FrameDestructionObserverInlines.h"
 #include "FrameInlines.h"
 #include "FrameLoader.h"
 #include "FrameSelection.h"
@@ -119,6 +120,7 @@
 #include "RenderLayerScrollableArea.h"
 #include "RenderListBox.h"
 #include "RenderObjectStyle.h"
+#include "RenderStyle+GettersInlines.h"
 #include "RenderTextControlSingleLine.h"
 #include "RenderView.h"
 #include "RenderWidget.h"
@@ -391,7 +393,7 @@ bool EventHandler::eventLoopHandleMouseDragged(const MouseEventWithHitTestResult
 // If a mouse event handler changes the input element type to one that has a widget associated,
 // we'd like to EventHandler::handleMousePressEvent to pass the event to the widget and thus the
 // event target node can't still be the shadow node.
-static inline bool shouldRefetchEventTarget(const MouseEventWithHitTestResults& mouseEvent)
+static inline bool NODELETE shouldRefetchEventTarget(const MouseEventWithHitTestResults& mouseEvent)
 {
     auto* targetNode = mouseEvent.targetNode();
     ASSERT(targetNode);
@@ -1553,7 +1555,7 @@ RefPtr<Frame> EventHandler::subframeForTargetNode(Node* node)
     return &frameView->frame();
 }
 
-static bool isSubmitImage(Node* node)
+static bool NODELETE isSubmitImage(Node* node)
 {
     auto* input = dynamicDowncast<HTMLInputElement>(node);
     return input && input->isImageButton();
@@ -1700,11 +1702,11 @@ std::optional<Cursor> EventHandler::selectCursor(const HitTestResult& result, bo
     if (renderer) {
         Cursor overrideCursor;
         switch (renderer->getCursor(roundedIntPoint(result.localPoint()), overrideCursor)) {
-        case SetCursorBasedOnStyle:
+        case CursorDirective::SetCursorBasedOnStyle:
             break;
-        case SetCursor:
+        case CursorDirective::SetCursor:
             return overrideCursor;
-        case DoNotSetCursor:
+        case CursorDirective::DoNotSetCursor:
             return std::nullopt;
         }
     }
@@ -1719,6 +1721,27 @@ std::optional<Cursor> EventHandler::selectCursor(const HitTestResult& result, bo
             float scale = styleImage->imageScaleFactor();
             // Get hotspot and convert from logical pixels to physical pixels.
             auto hotSpot = styleCursorImage.hotSpot;
+
+            CheckedPtr renderElement = dynamicDowncast<RenderElement>(renderer);
+            if (!renderElement && renderer && renderer->parent())
+                renderElement = renderer->parent();
+
+            if (renderElement) {
+                RefPtr image = cachedImage->image();
+                if (image && image->drawsSVGImage()) {
+                    // For SVG cursors, scale the image size with device resolution so
+                    // on high-DPI displays SVG images get crisp rendering.
+                    RefPtr page = frame->page();
+                    float deviceScale = page ? page->deviceScaleFactor() : 1.0f;
+
+                    FloatSize scaledSize = image->size() * deviceScale;
+                    styleImage->setContainerContextForRenderer(*renderElement, scaledSize, deviceScale);
+
+                    renderer = renderElement;
+                    scale *= deviceScale;
+                }
+            }
+
             FloatSize size = cachedImage->imageForRenderer(renderer)->size();
             if (cachedImage->errorOccurred())
                 continue;
@@ -1728,10 +1751,10 @@ std::optional<Cursor> EventHandler::selectCursor(const HitTestResult& result, bo
             if (size.width() > maximumCursorSize || size.height() > maximumCursorSize)
                 continue;
 
-            RefPtr localMainFrame = dynamicDowncast<LocalFrame>(frame->mainFrame());
-            if (!localMainFrame)
+            RefPtr frameView = frame->view();
+            if (!frameView)
                 continue;
-            IntRect visibleContentRect = localMainFrame->view()->visibleContentRect();
+            IntRect visibleContentRect = frameView->visibleContentRect();
             IntRect cursorRect = { roundedIntPoint(result.pointInMainFrame()), expandedIntSize(size) };
             cursorRect.moveBy(-hotSpot);
 
@@ -1975,7 +1998,7 @@ static LastKnownMousePositionSource NODELETE mousePositionSource(const PlatformM
     return event.syntheticClickType() == SyntheticClickType::NoTap ? Mouse : Touch;
 }
 
-HandleUserInputEventResult EventHandler::handleMousePressEvent(const PlatformMouseEvent& platformMouseEvent)
+HandleUserInputEventResult EventHandler::handleMousePressEvent(const PlatformMouseEvent& platformMouseEvent, OptionSet<HitTestRequest::Type> additionalHitTestTypes)
 {
     Ref frame = m_frame.get();
     RefPtr protectedView { frame->view() };
@@ -2034,10 +2057,11 @@ HandleUserInputEventResult EventHandler::handleMousePressEvent(const PlatformMou
     m_mouseDownWasInSubframe = false;
 
     constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::Active, HitTestRequest::Type::DisallowUserAgentShadowContent };
+    auto hitTypeWithAdditions = hitType | additionalHitTestTypes;
     // Save the document point we generate in case the window coordinate is invalidated by what happens
     // when we dispatch the event.
     DoublePoint documentPoint = documentPointForWindowPoint(frame, platformMouseEvent.position());
-    MouseEventWithHitTestResults mouseEvent = protect(frame->document())->prepareMouseEvent(hitType, documentPoint, platformMouseEvent);
+    MouseEventWithHitTestResults mouseEvent = protect(frame->document())->prepareMouseEvent(hitTypeWithAdditions, documentPoint, platformMouseEvent);
 
     if (!mouseEvent.targetNode()) {
         invalidateClick();
@@ -2124,14 +2148,14 @@ HandleUserInputEventResult EventHandler::handleMousePressEvent(const PlatformMou
     // in case the scrollbar widget was destroyed when the mouse event was handled.
     if (mouseEvent.scrollbar()) {
         const bool wasLastScrollBar = mouseEvent.scrollbar() == m_lastScrollbarUnderMouse;
-        mouseEvent = protect(frame->document())->prepareMouseEvent(HitTestRequest(), documentPoint, platformMouseEvent);
+        mouseEvent = protect(frame->document())->prepareMouseEvent(HitTestRequest(HitTestRequest::defaultTypes | additionalHitTestTypes), documentPoint, platformMouseEvent);
         if (wasLastScrollBar && mouseEvent.scrollbar() != m_lastScrollbarUnderMouse)
             m_lastScrollbarUnderMouse = nullptr;
     }
 
     if (!swallowEvent) {
         if (shouldRefetchEventTarget(mouseEvent))
-            mouseEvent = protect(frame->document())->prepareMouseEvent(HitTestRequest(), documentPoint, platformMouseEvent);
+            mouseEvent = protect(frame->document())->prepareMouseEvent(HitTestRequest(HitTestRequest::defaultTypes | additionalHitTestTypes), documentPoint, platformMouseEvent);
     }
 
     if (!swallowEvent) {
@@ -2298,7 +2322,7 @@ HitTestResult EventHandler::getHitTestResultForMouseEvent(const PlatformMouseEve
     return prepareMouseEvent(request, platformMouseEvent).hitTestResult();
 }
 
-HandleUserInputEventResult EventHandler::handleMouseMoveEvent(const PlatformMouseEvent& platformMouseEvent, HitTestResult* hitTestResult, bool onlyUpdateScrollbars)
+HandleUserInputEventResult EventHandler::handleMouseMoveEvent(const PlatformMouseEvent& platformMouseEvent, HitTestResult* hitTestResult, bool onlyUpdateScrollbars, OptionSet<HitTestRequest::Type> additionalHitTestTypes)
 {
 #if ENABLE(TOUCH_EVENTS)
     bool defaultPrevented = dispatchSyntheticTouchEventIfEnabled(platformMouseEvent);
@@ -2342,7 +2366,7 @@ HandleUserInputEventResult EventHandler::handleMouseMoveEvent(const PlatformMous
         return m_lastScrollbarUnderMouse->mouseMoved(platformMouseEvent);
 #endif
 
-    HitTestRequest request(getHitTypeForMouseMoveEvent(platformMouseEvent, onlyUpdateScrollbars));
+    HitTestRequest request(getHitTypeForMouseMoveEvent(platformMouseEvent, onlyUpdateScrollbars) | additionalHitTestTypes);
     MouseEventWithHitTestResults mouseEvent = prepareMouseEvent(request, platformMouseEvent);
     if (hitTestResult)
         *hitTestResult = mouseEvent.hitTestResult();
@@ -2505,7 +2529,7 @@ bool EventHandler::swallowAnyClickEvent(const PlatformMouseEvent& platformMouseE
     return swallowed;
 }
 
-HandleUserInputEventResult EventHandler::handleMouseReleaseEvent(const PlatformMouseEvent& platformMouseEvent)
+HandleUserInputEventResult EventHandler::handleMouseReleaseEvent(const PlatformMouseEvent& platformMouseEvent, OptionSet<HitTestRequest::Type> additionalHitTestTypes)
 {
     Ref frame = m_frame.get();
     RefPtr protectedView { frame->view() };
@@ -2568,7 +2592,7 @@ HandleUserInputEventResult EventHandler::handleMouseReleaseEvent(const PlatformM
     }
 
     constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::Release, HitTestRequest::Type::DisallowUserAgentShadowContent };
-    MouseEventWithHitTestResults mouseEvent = prepareMouseEvent(hitType, platformMouseEvent);
+    MouseEventWithHitTestResults mouseEvent = prepareMouseEvent(hitType | additionalHitTestTypes, platformMouseEvent);
     auto subframe = isCapturingMouseEventsElement() ? subframeForTargetNode(m_capturingMouseEventsElement.get()) : subframeForHitTestResult(mouseEvent);
     if (m_eventHandlerWillResetCapturingMouseEventsElement)
         resetCapturingMouseEventsElement();
@@ -2712,7 +2736,7 @@ bool EventHandler::canDropCurrentlyDraggedImageAsFile() const
     return !sourceOrigin || protect(protect(m_frame->document())->securityOrigin())->canReceiveDragData(*sourceOrigin);
 }
 
-static std::pair<bool, RefPtr<Frame>> contentFrameForNode(Node* target)
+static std::pair<bool, RefPtr<Frame>> NODELETE contentFrameForNode(Node* target)
 {
     auto* frameElement = dynamicDowncast<HTMLFrameElementBase>(target);
     if (!frameElement)
@@ -2962,7 +2986,7 @@ MouseEventWithHitTestResults EventHandler::prepareMouseEvent(const HitTestReques
     return protect(frame->document())->prepareMouseEvent(request, documentPointForWindowPoint(frame, mouseEvent.position()), mouseEvent);
 }
 
-static bool hierarchyHasCapturingEventListeners(Element* element, const AtomString& pointerEventName, const AtomString& compatibilityMouseEventName)
+static bool NODELETE hierarchyHasCapturingEventListeners(Element* element, const AtomString& pointerEventName, const AtomString& compatibilityMouseEventName)
 {
     for (ContainerNode* curr = element; curr; curr = curr->parentInComposedTree()) {
         if (curr->hasCapturingEventListeners(pointerEventName) || curr->hasCapturingEventListeners(compatibilityMouseEventName))
@@ -4139,7 +4163,7 @@ bool EventHandler::keyEvent(const PlatformKeyboardEvent& keyEvent)
     RefPtr page = frame->page();
     RefPtr mainFrameDocument = frame->document() ? frame->document()->mainFrameDocument() : nullptr;
     MonotonicTime savedLastHandledUserGestureTimestamp;
-    bool savedUserDidInteractWithPage = page ? page->userDidInteractWithPage() : false;
+    bool savedUserDidInteractWithPage = page && page->userDidInteractWithPage();
 
     if (auto* document = frame->document())
         savedLastHandledUserGestureTimestamp = document->lastHandledUserGestureTimestamp();
@@ -4342,7 +4366,7 @@ bool EventHandler::internalKeyEvent(const PlatformKeyboardEvent& initialKeyEvent
     // webkit.org/b/305666: Emojis appear as Chinese characters in Google Docs
     auto shouldAvoidDispatchingKeyPressEvent = [&] {
         auto text = keyPressEvent.text();
-        if (!text.isEmpty() && !U_IS_BMP(text.characterStartingAt(0)))
+        if (!text.isEmpty() && !U_IS_BMP(text.codePointAt(0)))
             return true;
 
         // Suppress keypress for command shortcuts (Cmd+key, Ctrl+key).
@@ -4519,7 +4543,10 @@ void EventHandler::defaultKeyboardEventHandler(KeyboardEvent& event)
         if (event.key() == "Escape"_s) {
             if (frame->settings().closeWatcherEnabled())
                 frame->document()->window()->closeWatcherManager().escapeKeyHandler(event);
-            if (RefPtr activeModalDialog = frame->document()->activeModalDialog())
+            if (frame->settings().closedbyAttributeEnabled()) {
+                if (RefPtr activeCloseableDialog = frame->document()->activeCloseableDialog())
+                    activeCloseableDialog->requestClose(nullString(), nullptr);
+            } else if (RefPtr activeModalDialog = frame->document()->activeModalDialog())
                 activeModalDialog->queueCancelTask();
             if (RefPtr topmostAutoPopover = frame->document()->topmostAutoPopover())
                 topmostAutoPopover->hidePopover();
@@ -5064,9 +5091,9 @@ void EventHandler::defaultBackspaceEventHandler(KeyboardEvent& event)
     bool handledEvent = false;
 
     if (event.shiftKey())
-        handledEvent = protect(page->backForward())->goForward();
+        handledEvent = page->backForward().goForward();
     else
-        handledEvent = protect(page->backForward())->goBack();
+        handledEvent = page->backForward().goBack();
 
     if (handledEvent)
         event.setDefaultHandled();
@@ -5431,6 +5458,8 @@ Expected<bool, RemoteFrameGeometryTransformer> EventHandler::handleTouchEvent(co
             allTouchReleased = false;
     }
 
+    bool swallowedEvent = false;
+
     for (unsigned index = 0; index < points.size(); index++) {
         auto& point = points[index];
         PlatformTouchPoint::State pointState = point.state();
@@ -5539,8 +5568,16 @@ Expected<bool, RemoteFrameGeometryTransformer> EventHandler::handleTouchEvent(co
 
         // FIXME: Pass the touch delta for pointermove events by remembering the position per pointerID similar to
         // Apple's m_touchLastGlobalPositionAndDeltaMap
-        protect(document->page())->pointerCaptureController().dispatchEventForTouchAtIndex(
+        Ref page = *document->page();
+        page->pointerCaptureController().dispatchEventForTouchAtIndex(
             *pointerTarget, event, index, !index, *document->windowProxy(), { 0, 0 });
+
+        // https://w3c.github.io/pointerevents/#suppressing-a-compatibility-mouse-event
+        // If pointerdown was canceled via preventDefault(), suppress compatibility mouse events
+        // by marking the touch event as handled. This propagates to the UIProcess via
+        // doneWithTouchEvent(wasEventHandled=true), preventing gesture-based mouse synthesis.
+        if (page->pointerCaptureController().preventsCompatibilityMouseEventsForIdentifier(PointerEvent::pointerIdForTouchPoint(point)))
+            swallowedEvent = true;
 #endif
 
         // pagePoint should always be relative to the target elements containing frame.
@@ -5585,7 +5622,6 @@ Expected<bool, RemoteFrameGeometryTransformer> EventHandler::handleTouchEvent(co
         m_originatingTouchPointDocument = nullptr;
 
     // Now iterate the changedTouches list and m_targets within it, sending events to the targets as required.
-    bool swallowedEvent = false;
     RefPtr<TouchList> emptyList = TouchList::create();
     for (unsigned state = 0; state != PlatformTouchPoint::TouchStateEnd; ++state) {
         if (!changedTouches[state].m_touches)

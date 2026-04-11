@@ -225,7 +225,7 @@ public:
 
     // Used to suspend caret blinking while the mouse is down.
     WEBCORE_EXPORT void setCaretBlinkingSuspended(bool);
-    WEBCORE_EXPORT bool isCaretBlinkingSuspended() const;
+    WEBCORE_EXPORT bool NODELETE isCaretBlinkingSuspended() const;
 
 #if ENABLE(ACCESSIBILITY_NON_BLINKING_CURSOR)
     WEBCORE_EXPORT void setPrefersNonBlinkingCursor(bool);
@@ -311,7 +311,7 @@ private:
     void updateDataDetectorsForSelection();
 
     bool setSelectionWithoutUpdatingAppearance(const VisibleSelection&, OptionSet<SetSelectionOption>, CursorAlignOnScroll, TextGranularity);
-    void setNodeFlags(VisibleSelection&, bool value);
+    void NODELETE setNodeFlags(VisibleSelection&, bool value);
 
     void respondToNodeModification(Node&, bool anchorRemoved, bool focusRemoved, bool baseRemoved, bool extentRemoved, bool startRemoved, bool endRemoved);
     TextDirection directionOfEnclosingBlock();

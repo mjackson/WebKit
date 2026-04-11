@@ -86,51 +86,6 @@ using namespace HTMLNames;
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderBoxModelObject);
 
-// The HashMap for storing continuation pointers.
-// An inline can be split with blocks occuring in between the inline content.
-// When this occurs we need a pointer to the next object. We can basically be
-// split into a sequence of inlines and blocks. The continuation will either be
-// an anonymous block (that houses other blocks) or it will be an inline flow.
-// <b><i><p>Hello</p></i></b>. In this example the <i> will have a block as
-// its continuation but the <b> will just have an inline as its continuation.
-RenderBoxModelObject::ContinuationChainNode::ContinuationChainNode(RenderBoxModelObject& renderer)
-    : renderer(renderer)
-{
-}
-
-RenderBoxModelObject::ContinuationChainNode::~ContinuationChainNode()
-{
-    if (next) {
-        ASSERT(previous);
-        ASSERT(next->previous == this);
-        next->previous = previous;
-    }
-    if (previous) {
-        ASSERT(previous->next == this);
-        previous->next = next;
-    }
-}
-
-void RenderBoxModelObject::ContinuationChainNode::insertAfter(ContinuationChainNode& after)
-{
-    ASSERT(!previous);
-    ASSERT(!next);
-    if ((next = after.next)) {
-        ASSERT(next->previous == &after);
-        next->previous = this;
-    }
-    previous = &after;
-    after.next = this;
-}
-
-using ContinuationChainNodeMap = SingleThreadWeakHashMap<const RenderBoxModelObject, std::unique_ptr<RenderBoxModelObject::ContinuationChainNode>>;
-
-static ContinuationChainNodeMap& NODELETE continuationChainNodeMap()
-{
-    static NeverDestroyed<ContinuationChainNodeMap> map;
-    return map;
-}
-
 using FirstLetterRemainingTextMap = SingleThreadWeakHashMap<const RenderBoxModelObject, SingleThreadWeakPtr<RenderTextFragment>>;
 
 static FirstLetterRemainingTextMap& NODELETE firstLetterRemainingTextMap()
@@ -198,7 +153,6 @@ RenderBoxModelObject::RenderBoxModelObject(Type type, Document& document, Render
 RenderBoxModelObject::~RenderBoxModelObject()
 {
     // Do not add any code here. Add it to willBeDestroyed() instead.
-    ASSERT(!continuation());
 }
 
 void RenderBoxModelObject::willBeDestroyed()
@@ -233,21 +187,6 @@ void RenderBoxModelObject::updateFromStyle()
         view().frameView().setHasFlippedBlockRenderers(true);
 }
 
-static LayoutSize accumulateInFlowPositionOffsets(const RenderBoxModelObject& child)
-{
-    if (!child.isAnonymousBlock() || !child.isInFlowPositioned())
-        return LayoutSize();
-    LayoutSize offset;
-    for (RenderElement* parent = downcast<RenderBlock>(child).inlineContinuation(); parent; parent = parent->parent()) {
-        auto* parentRenderInline = dynamicDowncast<RenderInline>(*parent);
-        if (!parentRenderInline)
-            break;
-        if (parent->isInFlowPositioned())
-            offset += parentRenderInline->offsetForInFlowPosition();
-    }
-    return offset;
-}
-    
 static inline bool NODELETE isOutOfFlowPositionedWithImplicitHeight(const RenderBoxModelObject& child)
 {
     return child.isOutOfFlowPositioned() && !child.style().logicalTop().isAuto() && !child.style().logicalBottom().isAuto();
@@ -381,7 +320,7 @@ LayoutSize RenderBoxModelObject::relativePositionOffset() const
     auto& top = style.top();
     auto& bottom = style.bottom();
 
-    auto offset = accumulateInFlowPositionOffsets(*this);
+    LayoutSize offset;
     auto topFixed = top.tryFixed();
     auto leftFixed = left.tryFixed();
     if (topFixed && leftFixed && bottom.isAuto() && right.isAuto() && containingBlock->writingMode().isAnyLeftToRight()) {
@@ -764,7 +703,7 @@ static inline LayoutSize NODELETE resolveAgainstIntrinsicWidthOrHeightAndRatio(c
     return LayoutSize(resolveWidthForRatio(useHeight, intrinsicRatio), useHeight);
 }
 
-static inline LayoutSize resolveAgainstIntrinsicRatio(const LayoutSize& size, const LayoutSize& intrinsicRatio)
+static inline LayoutSize NODELETE resolveAgainstIntrinsicRatio(const LayoutSize& size, const LayoutSize& intrinsicRatio)
 {
     // Two possible solutions: (size.width(), solutionHeight) or (solutionWidth, size.height())
     // "... must be assumed to be the largest dimensions..." = easiest answer: the rect with the largest surface area.
@@ -900,72 +839,6 @@ LayoutUnit RenderBoxModelObject::containingBlockLogicalWidthForContent() const
     return { };
 }
 
-RenderBoxModelObject* RenderBoxModelObject::continuation() const
-{
-    if (!hasContinuationChainNode())
-        return nullptr;
-
-    auto& continuationChainNode = *continuationChainNodeMap().get(*this);
-    if (!continuationChainNode.next)
-        return nullptr;
-    return continuationChainNode.next->renderer.get();
-}
-
-RenderInline* RenderBoxModelObject::inlineContinuation() const
-{
-    if (!hasContinuationChainNode())
-        return nullptr;
-
-    for (auto* next = continuationChainNodeMap().get(*this)->next; next; next = next->next) {
-        if (auto* renderInline = dynamicDowncast<RenderInline>(*next->renderer))
-            return renderInline;
-    }
-    return nullptr;
-}
-
-void RenderBoxModelObject::forRendererAndContinuations(RenderBoxModelObject& renderer, const std::function<void(RenderBoxModelObject&)>& function)
-{
-    function(renderer);
-    if (!renderer.hasContinuationChainNode())
-        return;
-
-    for (auto* next = continuationChainNodeMap().get(renderer)->next; next; next = next->next) {
-        if (!next->renderer)
-            continue;
-        function(*next->renderer);
-    }
-}
-
-RenderBoxModelObject::ContinuationChainNode* RenderBoxModelObject::continuationChainNode() const
-{
-    return continuationChainNodeMap().get(*this);
-}
-
-void RenderBoxModelObject::insertIntoContinuationChainAfter(RenderBoxModelObject& afterRenderer)
-{
-    ASSERT(isContinuation());
-    ASSERT(!continuationChainNodeMap().contains(*this));
-
-    auto& after = afterRenderer.ensureContinuationChainNode();
-    ensureContinuationChainNode().insertAfter(after);
-}
-
-void RenderBoxModelObject::removeFromContinuationChain()
-{
-    ASSERT(hasContinuationChainNode());
-    ASSERT(continuationChainNodeMap().contains(*this));
-    setHasContinuationChainNode(false);
-    continuationChainNodeMap().remove(*this);
-}
-
-auto RenderBoxModelObject::ensureContinuationChainNode() -> ContinuationChainNode&
-{
-    setHasContinuationChainNode(true);
-    return *continuationChainNodeMap().ensure(*this, [&] {
-        return makeUnique<ContinuationChainNode>(*this);
-    }).iterator->value;
-}
-
 RenderTextFragment* RenderBoxModelObject::firstLetterRemainingText() const
 {
     if (!isFirstLetter())
@@ -1003,22 +876,6 @@ bool RenderBoxModelObject::hasRunningAcceleratedAnimations() const
     if (auto styleable = Styleable::fromRenderer(*this))
         return styleable->hasRunningAcceleratedAnimations();
     return false;
-}
-
-void RenderBoxModelObject::collectAbsoluteQuadsForContinuation(Vector<FloatQuad>& quads, bool* wasFixed) const
-{
-    ASSERT(continuation());
-    for (auto* nextInContinuation = this->continuation(); nextInContinuation; nextInContinuation = nextInContinuation->continuation()) {
-        if (auto blockBox = dynamicDowncast<RenderBlock>(*nextInContinuation); blockBox && blockBox->height() && blockBox->width()) {
-            // For blocks inside inlines, we include margins so that we run right up to the inline boxes
-            // above and below us (thus getting merged with them to form a single irregular shape).
-            auto logicalRect = FloatRect { 0, -blockBox->collapsedMarginBefore(), blockBox->width(),
-                blockBox->height() + blockBox->collapsedMarginBefore() + blockBox->collapsedMarginAfter() };
-            nextInContinuation->absoluteQuadsIgnoringContinuation(logicalRect, quads, wasFixed);
-            continue;
-        }
-        nextInContinuation->absoluteQuadsIgnoringContinuation({ }, quads, wasFixed);
-    }
 }
 
 void RenderBoxModelObject::applyTransform(TransformationMatrix&, const RenderStyle&, const FloatRect&, OptionSet<Style::TransformResolverOption>) const

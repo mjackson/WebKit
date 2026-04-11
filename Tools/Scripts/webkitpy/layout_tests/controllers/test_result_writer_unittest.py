@@ -104,7 +104,7 @@ class TestResultWriterTest(unittest.TestCase):
             "template_test/pbkdf2.https.any.worker.html?a%20b", fs
         )
         self.assertEqual(
-            "template_test/pbkdf2.https.any.worker_a%20b-expected.txt", expected
+            "template_test/pbkdf2.https.any.worker_a_20b-expected.txt", expected
         )
 
         expected = test_result_writer.TestResultWriter.expected_filename(
@@ -119,6 +119,13 @@ class TestResultWriterTest(unittest.TestCase):
         )
         self.assertEqual(
             "template_test/pbkdf2.https.any.worker_1-1000#aaa-expected.txt", expected
+        )
+
+        expected = test_result_writer.TestResultWriter.expected_filename(
+            "css/css-backgrounds/box-shadow-radius-generated.html?width=200&height=40&spread=50&radius=100px%20/%2020px", fs
+        )
+        self.assertEqual(
+            "css/css-backgrounds/box-shadow-radius-generated_width=200&height=40&spread=50&radius=100px_20__2020px-expected.txt", expected
         )
 
     def test_actual_filename(self):

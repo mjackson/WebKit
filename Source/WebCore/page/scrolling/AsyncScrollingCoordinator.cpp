@@ -410,6 +410,10 @@ bool AsyncScrollingCoordinator::requestScrollToPosition(ScrollableArea& scrollab
                 .updateLayerPositionAction = ScrollingLayerPositionAction::Set,
             },
         };
+
+        if (scrollingNodeID == frameView->scrollingNodeID())
+            frameView->adjustExposedContentRectForProgrammaticScroll(adjustedScrollPosition);
+
         applyScrollUpdate(WTF::move(scrollUpdate), ScrollType::Programmatic);
     }
 
@@ -704,7 +708,7 @@ void AsyncScrollingCoordinator::applyScrollPositionUpdate(ScrollUpdate&& update,
         auto& data = std::get<ScrollUpdateData>(update.data);
         switch (data.updateType) {
         case ScrollUpdateType::PositionUpdate:
-            updateScrollPositionAfterAsyncScroll(update.nodeID, update.scrollPosition, data.layoutViewportOrigin, data.updateLayerPositionAction, scrollType, viewportStability);
+            updateScrollPositionAfterAsyncScroll(update.nodeID, update.scrollPosition, data.layoutViewportOriginOrOverrideRect, data.updateLayerPositionAction, scrollType, viewportStability);
             break;
 
         case ScrollUpdateType::AnimatedScrollWillStart:
@@ -819,7 +823,7 @@ void AsyncScrollingCoordinator::notifyScrollableAreasForScrollEnd(ScrollingNodeI
         scrollableArea->scrollDidEnd();
 }
 
-void AsyncScrollingCoordinator::updateScrollPositionAfterAsyncScroll(ScrollingNodeID nodeID, FloatPoint scrollPosition, std::optional<FloatPoint> layoutViewportOrigin, ScrollingLayerPositionAction updateLayerPositionAction, ScrollType scrollType, ViewportRectStability viewportRectStability)
+void AsyncScrollingCoordinator::updateScrollPositionAfterAsyncScroll(ScrollingNodeID nodeID, FloatPoint scrollPosition, const std::optional<LayoutViewportOriginOrOverrideRect>& layoutViewportOriginOrOverrideRect, ScrollingLayerPositionAction updateLayerPositionAction, ScrollType scrollType, ViewportRectStability viewportRectStability)
 {
     ASSERT(isMainThread());
 
@@ -839,7 +843,7 @@ void AsyncScrollingCoordinator::updateScrollPositionAfterAsyncScroll(ScrollingNo
     }
 
     if (nodeID == frameView->scrollingNodeID()) {
-        reconcileScrollingState(*frameView, scrollPosition, layoutViewportOrigin, scrollType, viewportRectStability, updateLayerPositionAction);
+        reconcileScrollingState(*frameView, scrollPosition, layoutViewportOriginOrOverrideRect, scrollType, viewportRectStability, updateLayerPositionAction);
         return;
     }
 
@@ -855,7 +859,7 @@ void AsyncScrollingCoordinator::updateScrollPositionAfterAsyncScroll(ScrollingNo
     }
 }
 
-void AsyncScrollingCoordinator::reconcileScrollingState(LocalFrameView& frameView, const FloatPoint& scrollPosition, const LayoutViewportOriginOrOverrideRect& layoutViewportOriginOrOverrideRect, ScrollType scrollType, ViewportRectStability viewportRectStability, ScrollingLayerPositionAction scrollingLayerPositionAction)
+void AsyncScrollingCoordinator::reconcileScrollingState(LocalFrameView& frameView, const FloatPoint& scrollPosition, const std::optional<LayoutViewportOriginOrOverrideRect>& layoutViewportOriginOrOverrideRect, ScrollType scrollType, ViewportRectStability viewportRectStability, ScrollingLayerPositionAction scrollingLayerPositionAction)
 {
     LOG_WITH_STREAM(Scrolling, stream << getCurrentProcessID() << " AsyncScrollingCoordinator " << this << " reconcileScrollingState scrollPosition " << scrollPosition << " type " << scrollType << " stability " << viewportRectStability << " " << scrollingLayerPositionAction);
 
@@ -863,17 +867,15 @@ void AsyncScrollingCoordinator::reconcileScrollingState(LocalFrameView& frameVie
 
     std::optional<FloatRect> layoutViewportRect;
 
-    WTF::switchOn(layoutViewportOriginOrOverrideRect,
-        [&frameView](std::optional<FloatPoint> origin) {
-            if (origin)
-                frameView.setBaseLayoutViewportOrigin(LayoutPoint(origin.value()), LocalFrameView::TriggerLayoutOrNot::No);
-        }, [&layoutViewportRect](std::optional<FloatRect> overrideRect) {
-            if (!overrideRect)
-                return;
-
-            layoutViewportRect = overrideRect;
-        }
-    );
+    if (layoutViewportOriginOrOverrideRect) {
+        WTF::switchOn(*layoutViewportOriginOrOverrideRect,
+            [&frameView](FloatPoint origin) {
+                frameView.setBaseLayoutViewportOrigin(LayoutPoint(origin), LocalFrameView::TriggerLayoutOrNot::No);
+            }, [&layoutViewportRect](FloatRect overrideRect) {
+                layoutViewportRect = overrideRect;
+            }
+        );
+    }
 
     frameView.setScrollClamping(ScrollClamping::Unclamped);
     frameView.notifyScrollPositionChanged(roundedIntPoint(scrollPosition));

@@ -32,10 +32,18 @@
 #include <float.h>
 #include <limits>
 #include <numbers>
+#include <optional>
 #include <stdint.h>
 #include <stdlib.h>
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/StdLibExtras.h>
+
+#if CPU(ARM64)
+#include <arm_neon.h>
+#endif
+#if CPU(X86_64)
+#include <emmintrin.h>
+#endif
 
 #if OS(OPENBSD)
 #include <sys/types.h>
@@ -448,7 +456,7 @@ inline void doubleToInteger(double d, unsigned long long& value)
 
 namespace WTF {
 
-constexpr uint32_t roundUpToPowerOfTwo(auto v)
+constexpr auto roundUpToPowerOfTwo(auto v)
 {
     return std::bit_ceil(v);
 }
@@ -592,92 +600,30 @@ constexpr void shuffleVector(VectorType& vector, const RandomFunc& randomFunc)
 }
 
 template<typename T>
-constexpr unsigned clzConstexpr(T value)
+constexpr unsigned clz(T value)
 {
-    constexpr unsigned bitSize = sizeof(T) * CHAR_BIT;
-
-    auto uValue = unsignedCast(value);
-
-    unsigned zeroCount = 0;
-    for (int i = bitSize - 1; i >= 0; i--) {
-        if (uValue >> i)
-            break;
-        zeroCount++;
-    }
-    return zeroCount;
+    return std::countl_zero(unsignedCast(value));
 }
 
 template<typename T>
-inline unsigned clz(T value)
+constexpr unsigned ctz(T value)
 {
-    constexpr unsigned bitSize = sizeof(T) * CHAR_BIT;
-
-    auto uValue = unsignedCast(value);
-
-    constexpr unsigned bitSize64 = sizeof(uint64_t) * CHAR_BIT;
-    if (uValue)
-        return __builtin_clzll(uValue) - (bitSize64 - bitSize);
-    return bitSize;
+    return std::countr_zero(unsignedCast(value));
 }
 
 template<typename T>
-constexpr unsigned ctzConstexpr(T value)
+constexpr unsigned getLSBSet(T t)
 {
-    constexpr unsigned bitSize = sizeof(T) * CHAR_BIT;
-
-    auto uValue = unsignedCast(value);
-
-    unsigned zeroCount = 0;
-    for (unsigned i = 0; i < bitSize; i++) {
-        if (uValue & 1)
-            break;
-
-        zeroCount++;
-        uValue >>= 1;
-    }
-    return zeroCount;
-}
-
-template<typename T>
-inline unsigned ctz(T value)
-{
-    constexpr unsigned bitSize = sizeof(T) * CHAR_BIT;
-
-    auto uValue = unsignedCast(value);
-
-    if (uValue)
-        return __builtin_ctzll(uValue);
-    return bitSize;
-}
-
-template<typename T>
-inline unsigned getLSBSet(T t)
-{
-    ASSERT(t);
+    ASSERT_UNDER_CONSTEXPR_CONTEXT(t);
     return ctz(t);
 }
 
 template<typename T>
-constexpr unsigned getLSBSetConstexpr(T t)
-{
-    ASSERT_UNDER_CONSTEXPR_CONTEXT(t);
-    return ctzConstexpr(t);
-}
-
-template<typename T>
-inline unsigned getMSBSet(T t)
+constexpr unsigned getMSBSet(T t)
 {
     constexpr unsigned bitSize = sizeof(T) * CHAR_BIT;
-    ASSERT(t);
+    ASSERT_UNDER_CONSTEXPR_CONTEXT(t);
     return bitSize - 1 - clz(t);
-}
-
-template<typename T>
-constexpr unsigned getMSBSetConstexpr(T t)
-{
-    constexpr unsigned bitSize = sizeof(T) * CHAR_BIT;
-    ASSERT_UNDER_CONSTEXPR_CONTEXT(t);
-    return bitSize - 1 - clzConstexpr(t);
 }
 
 inline uint32_t reverseBits32(uint32_t value)
@@ -846,6 +792,257 @@ constexpr T roundDownToMultipleOf(T x)
     return roundDownToMultipleOf(divisor, x);
 }
 
+// The following truncation helpers perform a direct hardware truncation of
+// floating-point values to integer types. Unlike ECMAScript ToInt32/ToInt64
+// (modular wrap-around), these produce architecture-defined results for
+// out-of-range inputs (e.g., NaN, infinity, values exceeding the target
+// range). They are intended for call sites that check the result after
+// conversion (e.g., round-trip comparison) or that are fine with a
+// deterministic but unspecified value on overflow. The inline-asm paths avoid
+// C++ undefined behaviour that a plain static_cast would trigger for
+// non-representable values.
+
+// Double-to-integer truncation helpers.
+
+#define WTF_PROVEN_TRUE(x) (__builtin_constant_p(x) && (x))
+
+SUPPRESS_NODELETE ALWAYS_INLINE int32_t NODELETE truncateDoubleToInt32(double number)
+{
+#if CPU(X86_64)
+    return _mm_cvttsd_si32(_mm_set_sd(number));
+#elif CPU(ARM64)
+    if (WTF_PROVEN_TRUE(number > -2147483649.0 && number < 2147483648.0))
+        return static_cast<int32_t>(number);
+    // fcvtzs w0, d0
+    int32_t result;
+    __asm__("fcvtzs %w0, %d1" : "=r"(result) : "w"(number));
+    return result;
+#else
+    if (WTF_PROVEN_TRUE(number > -2147483649.0 && number < 2147483648.0))
+        return static_cast<int32_t>(number);
+    if (!std::isfinite(number))
+        return 0;
+    if (number > 0) {
+        if (number >= static_cast<double>(INT32_MAX) + 1.0)
+            return INT32_MIN; // Saturate/wrap matching cvttsd2si overflow sentinel.
+        return static_cast<int32_t>(number);
+    }
+    if (number < static_cast<double>(INT32_MIN))
+        return INT32_MIN;
+    return static_cast<int32_t>(number);
+#endif
+}
+
+SUPPRESS_NODELETE ALWAYS_INLINE int64_t NODELETE truncateDoubleToInt64(double number)
+{
+#if CPU(X86_64)
+    return _mm_cvttsd_si64(_mm_set_sd(number));
+#elif CPU(ARM64)
+    return vcvtd_s64_f64(number);
+#else
+    if (WTF_PROVEN_TRUE(number >= -9223372036854775808.0 && number < 9223372036854775808.0))
+        return static_cast<int64_t>(number);
+    if (!std::isfinite(number))
+        return 0;
+    if (number > 0) {
+        if (number >= static_cast<double>(INT64_MAX) + 1.0)
+            return INT64_MIN; // Saturate/wrap matching cvttsd2si overflow sentinel.
+        return static_cast<int64_t>(number);
+    }
+    if (number < static_cast<double>(INT64_MIN))
+        return INT64_MIN;
+    return static_cast<int64_t>(number);
+#endif
+}
+
+SUPPRESS_NODELETE ALWAYS_INLINE uint32_t NODELETE truncateDoubleToUint32(double number)
+{
+#if CPU(X86_64)
+    return static_cast<uint32_t>(_mm_cvttsd_si64(_mm_set_sd(number)));
+#elif CPU(ARM64)
+    if (WTF_PROVEN_TRUE(number >= 0.0 && number < 4294967296.0))
+        return static_cast<uint32_t>(number);
+    // fcvtzu w0, d0
+    uint32_t result;
+    __asm__("fcvtzu %w0, %d1" : "=r"(result) : "w"(number));
+    return result;
+#else
+    if (WTF_PROVEN_TRUE(number >= 0.0 && number < 4294967296.0))
+        return static_cast<uint32_t>(number);
+    if (!std::isfinite(number))
+        return 0;
+    // Mimic x86_64: cvttsd2si into int64, take low 32 bits.
+    int64_t wide = truncateDoubleToInt64(number);
+    return static_cast<uint32_t>(wide);
+#endif
+}
+
+SUPPRESS_NODELETE ALWAYS_INLINE uint64_t NODELETE truncateDoubleToUint64(double number)
+{
+#if CPU(X86_64)
+    // Branchless conversion matching compiler codegen for static_cast<uint64_t>(double).
+    // cvttsd2si returns 0x8000000000000000 (negative) on overflow, including for
+    // values >= 2^63. When that happens, subtract 2^63 and convert again; the
+    // arithmetic-right-shift mask selects the adjusted result only on overflow.
+    constexpr double twoTo63 = 9223372036854775808.0; // 0x43e0000000000000
+    int64_t direct = _mm_cvttsd_si64(_mm_set_sd(number));
+    double shifted = number - twoTo63;
+    int64_t fromShifted = _mm_cvttsd_si64(_mm_set_sd(shifted));
+    int64_t mask = direct >> 63;
+    return static_cast<uint64_t>((fromShifted & mask) | direct);
+#elif CPU(ARM64)
+    return vcvtd_u64_f64(number);
+#else
+    if (WTF_PROVEN_TRUE(number >= 0.0 && number < 18446744073709551616.0))
+        return static_cast<uint64_t>(number);
+    if (!std::isfinite(number))
+        return 0;
+    if (number < 0.0)
+        return 0;
+    if (number >= 18446744073709551616.0)
+        return UINT64_MAX;
+    // For values >= 2^63, split into high and low halves to avoid UB.
+    constexpr double twoTo63 = 9223372036854775808.0;
+    if (number >= twoTo63) {
+        int64_t lo = static_cast<int64_t>(number - twoTo63);
+        return static_cast<uint64_t>(lo) + static_cast<uint64_t>(twoTo63);
+    }
+    return static_cast<uint64_t>(static_cast<int64_t>(number));
+#endif
+}
+
+// Float-to-integer truncation helpers.
+
+SUPPRESS_NODELETE ALWAYS_INLINE int32_t NODELETE truncateFloatToInt32(float number)
+{
+#if CPU(X86_64)
+    return _mm_cvttss_si32(_mm_set_ss(number));
+#elif CPU(ARM64)
+    return vcvts_s32_f32(number);
+#else
+    if (WTF_PROVEN_TRUE(number > -2147483649.0f && number < 2147483648.0f))
+        return static_cast<int32_t>(number);
+    if (!std::isfinite(number))
+        return 0;
+    if (number > 0) {
+        if (number >= static_cast<float>(INT32_MAX) + 1.0f)
+            return INT32_MIN;
+        return static_cast<int32_t>(number);
+    }
+    if (number < static_cast<float>(INT32_MIN))
+        return INT32_MIN;
+    return static_cast<int32_t>(number);
+#endif
+}
+
+SUPPRESS_NODELETE ALWAYS_INLINE int64_t NODELETE truncateFloatToInt64(float number)
+{
+#if CPU(X86_64)
+    return _mm_cvttss_si64(_mm_set_ss(number));
+#elif CPU(ARM64)
+    if (WTF_PROVEN_TRUE(number >= -9223372036854775808.0f && number < 9223372036854775808.0f))
+        return static_cast<int64_t>(number);
+    // fcvtzs x0, s0
+    int64_t result;
+    __asm__("fcvtzs %x0, %s1" : "=r"(result) : "w"(number));
+    return result;
+#else
+    if (WTF_PROVEN_TRUE(number >= -9223372036854775808.0f && number < 9223372036854775808.0f))
+        return static_cast<int64_t>(number);
+    if (!std::isfinite(number))
+        return 0;
+    if (number > 0) {
+        if (number >= static_cast<float>(INT64_MAX) + 1.0f)
+            return INT64_MIN;
+        return static_cast<int64_t>(number);
+    }
+    if (number < static_cast<float>(INT64_MIN))
+        return INT64_MIN;
+    return static_cast<int64_t>(number);
+#endif
+}
+
+SUPPRESS_NODELETE ALWAYS_INLINE uint32_t NODELETE truncateFloatToUint32(float number)
+{
+#if CPU(X86_64)
+    return static_cast<uint32_t>(_mm_cvttss_si64(_mm_set_ss(number)));
+#elif CPU(ARM64)
+    return vcvts_u32_f32(number);
+#else
+    if (WTF_PROVEN_TRUE(number >= 0.0f && number < 4294967296.0f))
+        return static_cast<uint32_t>(number);
+    if (!std::isfinite(number))
+        return 0;
+    int64_t wide = truncateFloatToInt64(number);
+    return static_cast<uint32_t>(wide);
+#endif
+}
+
+SUPPRESS_NODELETE ALWAYS_INLINE uint64_t NODELETE truncateFloatToUint64(float number)
+{
+#if CPU(X86_64)
+    // Branchless conversion matching compiler codegen for static_cast<uint64_t>(float).
+    constexpr float twoTo63 = 9223372036854775808.0f; // 0x5f000000
+    int64_t direct = _mm_cvttss_si64(_mm_set_ss(number));
+    float shifted = number - twoTo63;
+    int64_t fromShifted = _mm_cvttss_si64(_mm_set_ss(shifted));
+    int64_t mask = direct >> 63;
+    return static_cast<uint64_t>((fromShifted & mask) | direct);
+#elif CPU(ARM64)
+    if (WTF_PROVEN_TRUE(number >= 0.0f && number < 18446744073709551616.0f))
+        return static_cast<uint64_t>(number);
+    // fcvtzu x0, s0
+    uint64_t result;
+    __asm__("fcvtzu %x0, %s1" : "=r"(result) : "w"(number));
+    return result;
+#else
+    if (WTF_PROVEN_TRUE(number >= 0.0f && number < 18446744073709551616.0f))
+        return static_cast<uint64_t>(number);
+    if (!std::isfinite(number))
+        return 0;
+    if (number < 0.0f)
+        return 0;
+    if (number >= 18446744073709551616.0f)
+        return UINT64_MAX;
+    constexpr float twoTo63 = 9223372036854775808.0f;
+    if (number >= twoTo63) {
+        int64_t lo = static_cast<int64_t>(number - twoTo63);
+        return static_cast<uint64_t>(lo) + static_cast<uint64_t>(twoTo63);
+    }
+    return static_cast<uint64_t>(static_cast<int64_t>(number));
+#endif
+}
+
+// tryConvertToStrictInt32: Attempts to convert a double to int32_t, returning
+// std::nullopt if the value is not exactly representable as int32 (including
+// -0.0, NaN, Infinity, non-integer values, and out-of-range values).
+SUPPRESS_NODELETE ALWAYS_INLINE std::optional<int32_t> NODELETE tryConvertToStrictInt32(double value)
+{
+#if HAVE(FJCVTZS_INSTRUCTION)
+    int32_t result;
+    bool isExact;
+    // Unlike other conversions on ARM, fjcvtzs sets the zero flag when no rounding occurred.
+    __asm__(
+        "fjcvtzs %w0, %d2"
+        : "=r" (result), "=@cceq" (isExact)
+        : "w" (value)
+        : "cc");
+    if (isExact)
+        return result;
+    return std::nullopt;
+#else
+    if (std::isinf(value) || std::isnan(value))
+        return std::nullopt;
+
+    // Note that -0.0 is not StrictInt32.
+    const int32_t asInt32 = truncateDoubleToInt32(value);
+    if (!(asInt32 != value || (!asInt32 && std::signbit(value))))
+        return asInt32;
+
+    return std::nullopt;
+#endif
+}
+
 } // namespace WTF
 
 using WTF::shuffleVector;
@@ -864,3 +1061,12 @@ using WTF::roundUpToPowerOfTwo;
 using WTF::isIdentical;
 using WTF::isRepresentableAs;
 using WTF::isPowerOfTwo;
+using WTF::truncateDoubleToInt32;
+using WTF::truncateDoubleToInt64;
+using WTF::truncateDoubleToUint32;
+using WTF::truncateDoubleToUint64;
+using WTF::truncateFloatToInt32;
+using WTF::truncateFloatToInt64;
+using WTF::truncateFloatToUint32;
+using WTF::truncateFloatToUint64;
+using WTF::tryConvertToStrictInt32;

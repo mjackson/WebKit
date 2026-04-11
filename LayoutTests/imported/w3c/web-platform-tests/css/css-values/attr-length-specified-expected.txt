@@ -1,5 +1,5 @@
 
-FAIL type(<length>) lowercase assert_equals: expected "3em" but got ""
-FAIL type(<length>) uppercase assert_equals: expected "3em" but got ""
-FAIL Unit (em) number assert_equals: expected "3em" but got ""
+PASS type(<length>) lowercase
+PASS type(<length>) uppercase
+PASS Unit (em) number
 

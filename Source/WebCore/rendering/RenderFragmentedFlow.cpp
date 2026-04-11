@@ -193,7 +193,7 @@ RenderBox::LogicalExtentComputedValues RenderFragmentedFlow::computeLogicalHeigh
 
 bool RenderFragmentedFlow::nodeAtPoint(const HitTestRequest& request, HitTestResult& result, const HitTestLocation& locationInContainer, const LayoutPoint& accumulatedOffset, HitTestAction hitTestAction)
 {
-    if (hitTestAction == HitTestBlockBackground)
+    if (hitTestAction == HitTestAction::BlockBackground)
         return false;
     return RenderBlockFlow::nodeAtPoint(request, result, locationInContainer, accumulatedOffset, hitTestAction);
 }
@@ -234,7 +234,7 @@ bool RenderFragmentedFlow::absoluteQuadsForBox(Vector<FloatQuad>& quads, bool* w
         auto& fragment = *it;
         auto rectsInFragment = fragment.fragmentRectsForFlowContentRect(boxRectInFlowCoordinates);
         for (auto rect : rectsInFragment) {
-            auto absoluteQuad = fragment.localToAbsoluteQuad(FloatRect(rect), UseTransforms, wasFixed);
+            auto absoluteQuad = fragment.localToAbsoluteQuad(FloatRect(rect), MapCoordinatesMode::UseTransforms, wasFixed);
             quads.append(absoluteQuad);
         }
 
@@ -274,7 +274,7 @@ public:
     const LayoutUnit& NODELETE lowValue() const { return m_offset; }
     const LayoutUnit& NODELETE highValue() const { return m_offset; }
 
-    void collectIfNeeded(const PODInterval<LayoutUnit, SingleThreadWeakPtr<RenderFragmentContainer>>& interval)
+    void NODELETE collectIfNeeded(const PODInterval<LayoutUnit, SingleThreadWeakPtr<RenderFragmentContainer>>& interval)
     {
         if (m_result)
             return;

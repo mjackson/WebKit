@@ -133,7 +133,7 @@ public:
 
     PAL::SessionID sessionID() const { return m_sessionID; }
     NetworkProcess& networkProcess() { return m_networkProcess; }
-    WebCore::NetworkStorageSession* networkStorageSession() const;
+    WebCore::NetworkStorageSession* NODELETE networkStorageSession() const;
 
     void registerNetworkDataTask(NetworkDataTask&);
     void unregisterNetworkDataTask(NetworkDataTask&);

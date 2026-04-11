@@ -29,12 +29,13 @@
 
 #include "Exception.h"
 #include "ExceptionCode.h"
+#include "JSDOMPromiseDeferred.h"
 #include "JSWebCodecsVideoFrame.h"
 #include "MediaStreamTrack.h"
 #include "VideoFrame.h"
 #include "WritableStream.h"
 #include "WritableStreamSink.h"
-
+#include <JavaScriptCore/JSCellInlines.h>
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {

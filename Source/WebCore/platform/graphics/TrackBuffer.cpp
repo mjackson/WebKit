@@ -146,7 +146,7 @@ RefPtr<MediaSample> TrackBuffer::nextSample()
     Ref sample = decodeQueue().begin()->second;
 
     if (sample->decodeTime() > enqueueDiscontinuityBoundary()) {
-        DEBUG_LOG(LOGIDENTIFIER, "bailing early because of unbuffered gap, new sample: ", sample->decodeTime(), " >= the current discontinuity boundary: ", enqueueDiscontinuityBoundary());
+        WARNING_LOG(LOGIDENTIFIER, "bailing early because of unbuffered gap, new sample DTS: ", sample->decodeTime(), " >= the current discontinuity boundary: ", enqueueDiscontinuityBoundary());
         return { };
     }
 

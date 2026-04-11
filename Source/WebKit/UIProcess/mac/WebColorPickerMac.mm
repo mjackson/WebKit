@@ -43,12 +43,8 @@
 #import <wtf/WeakPtr.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
 
-static const size_t maxColorSuggestions = 12;
-static const CGFloat colorPickerMatrixNumColumns = 12.0;
-static const CGFloat colorPickerMatrixBorderWidth = 1.0;
-
 // FIXME: <rdar://problem/41173525> We should not have to track changes in NSPopoverColorWell's implementation.
-static const CGFloat colorPickerMatrixSwatchWidth = 13.0;
+static constexpr CGFloat colorPickerMatrixNumColumns = 12.0;
 
 @protocol WKPopoverColorWellDelegate <NSObject>
 - (void)didClosePopover;
@@ -173,17 +169,24 @@ void WebColorPickerMac::showColorPicker(const WebCore::Color& color, const WebCo
     controller.get().delegate = self;
 
     if (_suggestedColors) {
-        NSUInteger numColors = [[_suggestedColors allKeys] count];
-        CGFloat swatchWidth = (colorPickerMatrixNumColumns * colorPickerMatrixSwatchWidth + (colorPickerMatrixNumColumns * colorPickerMatrixBorderWidth - numColors)) / numColors;
-        CGFloat swatchHeight = colorPickerMatrixSwatchWidth;
-
         // topBarMatrixView cannot be accessed until view has been loaded
         if (!controller.get().isViewLoaded)
             [controller loadView];
 
         RetainPtr<NSColorPickerMatrixView> topMatrix = controller.get().topBarMatrixView;
+        NSUInteger numColors = [[_suggestedColors allKeys] count];
         [topMatrix setNumberOfColumns:numColors];
+
+#if HAVE(NSCOLORPICKERMATRIXVIEW_CUSTOM_SWATCH_SIZE)
+        // FIXME: <rdar://problem/41173525> We should not have to track changes in NSPopoverColorWell's implementation.
+        static constexpr CGFloat colorPickerMatrixSwatchWidth = 13.0;
+        static constexpr CGFloat colorPickerMatrixBorderWidth = 1.0;
+
+        CGFloat swatchWidth = (colorPickerMatrixNumColumns * colorPickerMatrixSwatchWidth + (colorPickerMatrixNumColumns * colorPickerMatrixBorderWidth - numColors)) / numColors;
+        CGFloat swatchHeight = colorPickerMatrixSwatchWidth;
         [topMatrix setSwatchSize:NSMakeSize(swatchWidth, swatchHeight)];
+#endif
+
         [topMatrix setColorList:_suggestedColors.get()];
     }
 
@@ -241,7 +244,7 @@ void WebColorPickerMac::showColorPicker(const WebCore::Color& color, const WebCo
     RetainPtr<NSColorList> suggestedColors;
     if (suggestions.size()) {
         suggestedColors = adoptNS([[NSColorList alloc] init]);
-        for (size_t i = 0; i < std::min(suggestions.size(), maxColorSuggestions); i++)
+        for (size_t i = 0; i < std::min(suggestions.size(), clampTo<size_t>(colorPickerMatrixNumColumns)); i++)
             [suggestedColors insertColor:cocoaColor(suggestions.at(i)).get() key:retainPtr(@(i).stringValue).get() atIndex:i];
     }
 

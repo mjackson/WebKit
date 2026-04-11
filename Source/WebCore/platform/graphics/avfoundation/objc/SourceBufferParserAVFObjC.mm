@@ -201,13 +201,9 @@ private:
 
 MediaPlayerEnums::SupportsType SourceBufferParserAVFObjC::isContentTypeSupported(const ContentType& type)
 {
-    // Check that AVStreamDataParser is in a functional state.
-    if (!PAL::getAVStreamDataParserClassSingleton() || !adoptNS([PAL::allocAVStreamDataParserInstance() init]))
-        return MediaPlayerEnums::SupportsType::IsNotSupported;
-
     String extendedType = type.raw();
     String outputCodecs = type.parameter(ContentType::codecsParameter());
-    if (!outputCodecs.isEmpty() && [PAL::getAVStreamDataParserClassSingleton() respondsToSelector:@selector(outputMIMECodecParameterForInputMIMECodecParameter:)]) {
+    if (!outputCodecs.isEmpty()) {
         outputCodecs = [PAL::getAVStreamDataParserClassSingleton() outputMIMECodecParameterForInputMIMECodecParameter:outputCodecs.createNSString().get()];
         extendedType = makeString(type.containerType(), "; codecs=\""_s, outputCodecs, "\""_s);
     }

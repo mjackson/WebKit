@@ -201,14 +201,14 @@ TemporalDuration* TemporalDuration::from(JSGlobalObject* globalObject, JSValue i
     return toTemporalDuration(globalObject, itemValue);
 }
 
-static double totalSeconds(ISO8601::Duration& duration)
+static double NODELETE totalSeconds(ISO8601::Duration& duration)
 {
     auto hours = 24 * duration.days() + duration.hours();
     auto minutes = 60 * hours + duration.minutes();
     return 60 * minutes + duration.seconds();
 }
 
-static double totalSubseconds(ISO8601::Duration& duration)
+static double NODELETE totalSubseconds(ISO8601::Duration& duration)
 {
     auto milliseconds = duration.milliseconds();
     auto microseconds = 1000 * milliseconds + duration.microseconds();
@@ -323,7 +323,7 @@ ISO8601::Duration TemporalDuration::abs() const
 
 // DefaultTemporalLargestUnit ( years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds )
 // https://tc39.es/proposal-temporal/#sec-temporal-defaulttemporallargestunit
-static TemporalUnit largestSubduration(const ISO8601::Duration& duration)
+static TemporalUnit NODELETE largestSubduration(const ISO8601::Duration& duration)
 {
     uint8_t index = 0;
     while (index < numberOfTemporalUnits - 1 && !duration[index])
@@ -784,7 +784,7 @@ static NudgeResult nudgeToDayOrTime(JSGlobalObject* globalObject, ISO8601::Inter
     return NudgeResult(resultDuration, nudgedEpochNs, didExpandDays);
 }
 
-static constexpr int32_t unitIndexInTable(TemporalUnit unit)
+static constexpr int32_t NODELETE unitIndexInTable(TemporalUnit unit)
 {
     switch (unit) {
     case TemporalUnit::Year:
@@ -813,7 +813,7 @@ static constexpr int32_t unitIndexInTable(TemporalUnit unit)
     }
 }
 
-static constexpr TemporalUnit unitInTable(int32_t i)
+static constexpr TemporalUnit NODELETE unitInTable(int32_t i)
 {
     switch (i) {
     case 0:
@@ -1122,7 +1122,7 @@ String TemporalDuration::toString(JSGlobalObject* globalObject, JSValue optionsV
     RELEASE_AND_RETURN(scope, toString(globalObject, roundedDuration, data.precision));
 }
 
-static TemporalUnit defaultTemporalLargestUnit(const ISO8601::Duration& duration)
+static TemporalUnit NODELETE defaultTemporalLargestUnit(const ISO8601::Duration& duration)
 {
     if (duration.years())
         return TemporalUnit::Year;

@@ -125,7 +125,7 @@ struct RuleFeatureSet {
         HashSet<GenericHashKey<SelectorDeduplicationKey>> selectorDeduplicationSet;
     };
     void collectFeatures(CollectionContext&, const RuleData&, const Vector<Ref<const StyleRuleScope>>& scopeRules = { });
-    void registerContentAttribute(const AtomString&);
+    void registerSubstitutionAttribute(const AtomString&);
 
     bool usesHasPseudoClass() const;
     bool usesMatchElement(MatchElement matchElement) const { return usedMatchElements[std::to_underlying(matchElement)]; }
@@ -135,7 +135,7 @@ struct RuleFeatureSet {
     HashSet<AtomString> idsMatchingAncestorsInRules;
     HashSet<AtomString> attributeLowercaseLocalNamesInRules;
     HashSet<AtomString> attributeLocalNamesInRules;
-    HashSet<AtomString> contentAttributeNamesInRules;
+    HashSet<AtomString> substitutionAttributeNamesInRules;
 
     HashMap<AtomString, std::unique_ptr<RuleFeatureVector>> idRules;
     HashMap<AtomString, std::unique_ptr<RuleFeatureVector>> classRules;

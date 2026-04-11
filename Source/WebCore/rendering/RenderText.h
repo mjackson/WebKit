@@ -196,7 +196,7 @@ protected:
     void willBeDestroyed() override;
 
     virtual void setRenderedText(const String&);
-    virtual Vector<char16_t> previousCharacter() const;
+    virtual char32_t previousCharacter() const;
 
     virtual void setTextInternal(const String&, bool force);
 
@@ -263,9 +263,9 @@ private:
     FontCascade::CodePath m_fontCodePath : 2;
 };
 
-String applyTextTransform(const RenderStyle&, const String&, Vector<char16_t> previousCharacter);
+String applyTextTransform(const RenderStyle&, const String&, char32_t previousCharacter);
 String applyTextTransform(const RenderStyle&, const String&);
-String capitalize(const String&, Vector<char16_t> previousCharacter);
+String capitalize(const String&, char32_t previousCharacter);
 String capitalize(const String&);
 TextBreakIterator::LineMode::Behavior NODELETE mapLineBreakToIteratorMode(LineBreak);
 TextBreakIterator::ContentAnalysis NODELETE mapWordBreakToContentAnalysis(WordBreak);

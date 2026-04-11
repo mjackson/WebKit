@@ -186,7 +186,7 @@ public:
     WEBCORE_EXPORT FloatPoint(const POINT&);
 #endif
 
-    WEBCORE_EXPORT FloatPoint matrixTransform(const TransformationMatrix&) const;
+    WEBCORE_EXPORT FloatPoint NODELETE matrixTransform(const TransformationMatrix&) const;
     WEBCORE_EXPORT FloatPoint matrixTransform(const AffineTransform&) const;
 
     static constexpr FloatPoint nanPoint();

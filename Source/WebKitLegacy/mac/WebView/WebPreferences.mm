@@ -89,7 +89,7 @@ static RetainPtr<NSMutableDictionary>& NODELETE webPreferencesInstances()
 
 static unsigned webPreferencesInstanceCountWithPrivateBrowsingEnabled;
 
-template<unsigned size> static bool contains(const char* const (&array)[size], const char* item)
+template<unsigned size> static bool NODELETE contains(const char* const (&array)[size], const char* item)
 {
     if (!item)
         return false;

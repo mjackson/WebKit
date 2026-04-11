@@ -127,7 +127,7 @@ struct Effects {
 
     // Returns true if reordering instructions with these respective effects would change program
     // behavior in an observable way.
-    bool interferes(const Effects&) const;
+    bool NODELETE interferes(const Effects&) const;
     
     friend bool operator==(const Effects&, const Effects&) = default;
 

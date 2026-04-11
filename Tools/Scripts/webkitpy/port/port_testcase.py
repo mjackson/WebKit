@@ -86,10 +86,6 @@ def bind_mock_apple_additions():
     class MockAppleAdditions(object):
 
         @staticmethod
-        def get_sdk(sdk_name):
-            return sdk_name
-
-        @staticmethod
         def layout_tests_path():
             return '/additional_testing_path/'
 

@@ -34,6 +34,7 @@
 #include "DocumentPage.h"
 #include "DocumentView.h"
 #include "Editing.h"
+#include "EditingInlines.h"
 #include "Editor.h"
 #include "EditorClient.h"
 #include "Element.h"
@@ -81,7 +82,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(FocusController);
 
 using namespace HTMLNames;
 
-static HTMLElement* invokerForOpenPopover(const Node* candidatePopover)
+static HTMLElement* NODELETE invokerForOpenPopover(const Node* candidatePopover)
 {
     auto* popover = dynamicDowncast<HTMLElement>(candidatePopover);
     if (popover && popover->isPopoverShowing())
@@ -89,7 +90,7 @@ static HTMLElement* invokerForOpenPopover(const Node* candidatePopover)
     return nullptr;
 }
 
-static RefPtr<Element> openPopoverForInvoker(const Node* candidateInvoker)
+static RefPtr<Element> NODELETE openPopoverForInvoker(const Node* candidateInvoker)
 {
     auto* invoker = dynamicDowncast<HTMLElement>(candidateInvoker);
     if (!invoker)
@@ -100,13 +101,13 @@ static RefPtr<Element> openPopoverForInvoker(const Node* candidateInvoker)
     return nullptr;
 }
 
-static inline bool hasCustomFocusLogic(const Element& element)
+static inline bool NODELETE hasCustomFocusLogic(const Element& element)
 {
     auto* htmlElement = dynamicDowncast<HTMLElement>(element);
     return htmlElement && htmlElement->hasCustomFocusLogic();
 }
 
-static inline bool isFocusScopeOwner(const Element& element)
+static inline bool NODELETE isFocusScopeOwner(const Element& element)
 {
     if (element.shadowRoot() && !hasCustomFocusLogic(element))
         return true;
@@ -137,22 +138,23 @@ static void clearSelectionIfNeeded(LocalFrame* oldFocusedFrame, LocalFrame* newF
         return;
 
     if (newFocusedNode) {
-        auto* selectionStartNode = selection.start().deprecatedNode();
+        RefPtr selectionStartNode = selection.start().deprecatedNode();
         if (newFocusedNode->contains(selectionStartNode) || selectionStartNode->shadowHost() == newFocusedNode)
             return;
     }
 
     if (RefPtr mousePressNode = newFocusedFrame ? newFocusedFrame->eventHandler().mousePressNode() : nullptr) {
-        if (!mousePressNode->canStartSelection()) {
+        RefPtr root = selection.rootEditableElement();
+        if (root) {
             // Don't clear the selection for contentEditable elements, but do clear it for input and textarea. See bug 38696.
-            RefPtr root = selection.rootEditableElement();
-            if (!root)
-                return;
+
             RefPtr host = root->shadowHost();
             // FIXME: Seems likely we can just do the check on "host" here instead of "rootOrHost".
             RefPtr rootOrHost = host ? host : root;
             if (!is<HTMLInputElement>(*rootOrHost) && !is<HTMLTextAreaElement>(*rootOrHost))
                 return;
+        } else if (!mousePressNode->canStartSelection()) {
+            return;
         }
     }
 
@@ -164,23 +166,23 @@ public:
     Variant<RefPtr<Element>, RefPtr<Frame>> owner() const;
     WEBCORE_EXPORT static FocusNavigationScope scopeOf(Node&);
     static FocusNavigationScope scopeOwnedByScopeOwner(Element&);
-    static FocusNavigationScope scopeOwnedByIFrame(HTMLFrameOwnerElement&);
+    static FocusNavigationScope NODELETE scopeOwnedByIFrame(HTMLFrameOwnerElement&);
 
     Node* firstNodeInScope() const;
     Node* lastNodeInScope() const;
-    Node* nextInScope(const Node*) const;
+    Node* NODELETE nextInScope(const Node*) const;
     Node* previousInScope(const Node*) const;
-    Node* lastChildInScope(const Node&) const;
+    Node* NODELETE lastChildInScope(const Node&) const;
 
 private:
     enum class SlotKind : uint8_t { Assigned, Fallback };
 
-    Node* firstChildInScope(const Node&) const;
+    Node* NODELETE firstChildInScope(const Node&) const;
 
-    Node* parentInScope(const Node&) const;
+    Node* NODELETE parentInScope(const Node&) const;
 
-    Node* nextSiblingInScope(const Node&) const;
-    Node* previousSiblingInScope(const Node&) const;
+    Node* NODELETE nextSiblingInScope(const Node&) const;
+    Node* NODELETE previousSiblingInScope(const Node&) const;
 
     explicit FocusNavigationScope(TreeScope&);
     explicit FocusNavigationScope(HTMLSlotElement&, SlotKind);

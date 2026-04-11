@@ -84,17 +84,31 @@ static WorkQueue& webMediaStrategyQueueSingleton()
     return workQueue.get();
 }
 
+void WebMediaStrategy::ensureCodecsSupportChecksInitialized()
+{
+    callOnMainRunLoopAndWait([] {
+        protect(WebProcess::singleton().ensureGPUProcessConnection())->waitForDidInitialize();
+    });
+}
+
 bool WebMediaStrategy::canDecodeExtendedType(PlatformMediaDecodingType platformType, const ContentType& contentType)
 {
+    Ref connection = [&] {
+        RefPtr connection = WebProcess::singleton().existingGPUProcessConnection();
+        if (connection)
+            return connection.releaseNonNull();
+        callOnMainRunLoopAndWait([&] {
+            connection = &WebProcess::singleton().ensureGPUProcessConnection();
+        });
+        return connection.releaseNonNull();
+    }();
     std::atomic<bool> isSupported = false;
     BinarySemaphore semaphore;
-    webMediaStrategyQueueSingleton().dispatch([&] {
-        if (RefPtr connection = WebProcess::singleton().existingGPUProcessConnection()) {
-            connection->connection().sendWithAsyncReplyOnDispatcher(Messages::GPUConnectionToWebProcess::CanDecodeExtendedType(platformType, contentType), webMediaStrategyQueueSingleton(), [&semaphore, &isSupported](bool supported) {
-                isSupported = supported;
-                semaphore.signal();
-            });
-        }
+    webMediaStrategyQueueSingleton().dispatch([&, connection = WTF::move(connection)] {
+        connection->connection().sendWithAsyncReplyOnDispatcher(Messages::GPUConnectionToWebProcess::CanDecodeExtendedType(platformType, contentType), webMediaStrategyQueueSingleton(), [&semaphore, &isSupported](bool supported) {
+            isSupported = supported;
+            semaphore.signal();
+        });
     });
     semaphore.wait();
     return isSupported;

@@ -367,7 +367,7 @@ AccessibilitySearchResults mergeParentSearchResults(AccessibilitySearchResults&&
 // When a child frame's search needs results from its parent frame (e.g. elements
 // before or after the iframe in tree order), this context manages the IPC roundtrip
 // and prevents use-after-free if the calling thread times out before the callback.
-class ParentFrameSearchContext : public RefCounted<ParentFrameSearchContext> {
+class ParentFrameSearchContext : public ThreadSafeRefCounted<ParentFrameSearchContext> {
     WTF_MAKE_NONCOPYABLE(ParentFrameSearchContext);
     WTF_MAKE_TZONE_ALLOCATED_INLINE(ParentFrameSearchContext);
 public:

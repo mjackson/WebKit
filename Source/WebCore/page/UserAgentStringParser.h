@@ -44,8 +44,8 @@ private:
     void consumeProduct();
     void consumeComment();
     void NODELETE consumeRWS();
-    void consumeToken();
-    void consumeQuotedPair();
+    void NODELETE consumeToken();
+    void NODELETE consumeQuotedPair();
 
     void populateUserAgentData();
 

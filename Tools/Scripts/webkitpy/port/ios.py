@@ -38,6 +38,7 @@ class IOSPort(EmbeddedPort):
 
     DEVICE_TYPE = DeviceType(software_variant='iOS')
     DRIVER_NAMES = ('WebKitTestRunner', 'DumpRenderTree')
+    DEFAULT_SUPPORTED_DRIVERS = [DRIVER_NAMES[0]]
 
     def __init__(self, host, port_name, **kwargs):
         super(IOSPort, self).__init__(host, port_name, **kwargs)

@@ -22,6 +22,7 @@
 #include "config.h"
 #include "RenderSVGResourceRadialGradient.h"
 
+#include "RenderObjectNode.h"
 #include "RenderSVGModelObjectInlines.h"
 #include "RenderSVGResourceRadialGradientInlines.h"
 #include "RenderSVGShape.h"

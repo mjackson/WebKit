@@ -27,10 +27,16 @@
 #include <wtf/Platform.h>
 
 #ifdef __cplusplus
+#include <WebCore/WebGPUPrimitiveTopology.h>
+#include <WebCore/WebGPUTextureFormat.h>
+#include <WebCore/WebGPUTextureUsage.h>
+#include <WebCore/WebGPUTextureViewDimension.h>
+#include <WebCore/WebGPUVertexFormat.h>
 #include <WebKit/Float3.h>
 #include <WebKit/Float4x4.h>
 #include <wtf/ExportMacros.h>
 #include <wtf/RetainPtr.h>
+#include <wtf/UUID.h>
 #include <wtf/UniqueRef.h>
 #include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
@@ -51,16 +57,33 @@ typedef NS_ENUM(uint8_t, WKBridgeDataUpdateType) {
     WKBridgeDataUpdateTypeDelta
 };
 
+typedef NS_ENUM(uint8_t, WKBridgeVertexSemantic) {
+    WKBridgeVertexSemanticPosition,
+    WKBridgeVertexSemanticColor,
+    WKBridgeVertexSemanticNormal,
+    WKBridgeVertexSemanticTangent,
+    WKBridgeVertexSemanticBitangent,
+    WKBridgeVertexSemanticUV0,
+    WKBridgeVertexSemanticUV1,
+    WKBridgeVertexSemanticUV2,
+    WKBridgeVertexSemanticUV3,
+    WKBridgeVertexSemanticUV4,
+    WKBridgeVertexSemanticUV5,
+    WKBridgeVertexSemanticUV6,
+    WKBridgeVertexSemanticUV7,
+    WKBridgeVertexSemanticUnspecified,
+};
+
 @interface WKBridgeVertexAttributeFormat : NSObject
 
-@property (nonatomic, readonly) long semantic;
-@property (nonatomic, readonly) unsigned long format;
+@property (nonatomic, readonly) WKBridgeVertexSemantic semantic;
+@property (nonatomic, readonly) MTLVertexFormat format;
 @property (nonatomic, readonly) long layoutIndex;
 @property (nonatomic, readonly) long offset;
 
 - (instancetype)init NS_UNAVAILABLE;
 
-- (instancetype)initWithSemantic:(long)semantic format:(unsigned long)format layoutIndex:(long)layoutIndex offset:(long)offset NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithSemantic:(WKBridgeVertexSemantic)semantic format:(MTLVertexFormat)format layoutIndex:(long)layoutIndex offset:(long)offset NS_DESIGNATED_INITIALIZER;
 
 @end
 
@@ -336,9 +359,21 @@ NS_SWIFT_SENDABLE
 @end
 
 NS_SWIFT_SENDABLE
+@interface WKBridgeTypedResourceId : NSObject
+
+@property (nonatomic, readonly) NSString *value;
+@property (nonatomic, readonly) NSString *path;
+@property (nonatomic, readonly) NSInteger cachedHashValue;
+
+- (instancetype)init NS_UNAVAILABLE;
+- (instancetype)initWithValue:(NSUUID *)value path:(NSString *)path hashValue:(NSInteger)hashValue NS_DESIGNATED_INITIALIZER;
+
+@end
+
+NS_SWIFT_SENDABLE
 @interface WKBridgeUpdateMesh : NSObject
 
-@property (nonatomic, readonly) NSString *identifier;
+@property (nonatomic, readonly) WKBridgeTypedResourceId *identifier;
 @property (nonatomic, readonly) WKBridgeDataUpdateType updateType;
 @property (nonatomic, strong, readonly, nullable) WKBridgeMeshDescriptor *descriptor;
 @property (nonatomic, strong, readonly) NSArray<WKBridgeMeshPart*> *parts;
@@ -346,11 +381,11 @@ NS_SWIFT_SENDABLE
 @property (nonatomic, strong, readonly) NSArray<NSData *> *vertexData;
 @property (nonatomic, strong, readonly, nullable) NSData *instanceTransformsData;
 @property (nonatomic, readonly) long instanceTransformsCount;
-@property (nonatomic, strong, readonly) NSArray<NSString *> *materialPrims;
+@property (nonatomic, strong, readonly) NSArray<WKBridgeTypedResourceId *> *assignedMaterials;
 @property (nonatomic, strong, readonly, nullable) WKBridgeDeformationData *deformationData;
 
 - (instancetype)init NS_UNAVAILABLE;
-- (instancetype)initWithIdentifier:(NSString *)identifier
+- (instancetype)initWithIdentifier:(WKBridgeTypedResourceId *)identifier
     updateType:(WKBridgeDataUpdateType)updateType
     descriptor:(nullable WKBridgeMeshDescriptor *)descriptor
     parts:(NSArray<WKBridgeMeshPart*> *)parts
@@ -358,7 +393,7 @@ NS_SWIFT_SENDABLE
     vertexData:(NSArray<NSData *> *)vertexData
     instanceTransforms:(nullable NSData *)instanceTransforms
     instanceTransformsCount:(long)instanceTransformsCount
-    materialPrims:(NSArray<NSString *> *)materialPrims
+    assignedMaterials:(NSArray<WKBridgeTypedResourceId *> *)assignedMaterials
     deformationData:(nullable WKBridgeDeformationData *)deformationData NS_DESIGNATED_INITIALIZER;
 
 @end
@@ -367,10 +402,10 @@ NS_SWIFT_SENDABLE
 @interface WKBridgeUpdateMaterial : NSObject
 
 @property (nonatomic, strong, readonly, nullable) WKBridgeMaterialGraph *materialGraph;
-@property (nonatomic, strong, readonly) NSString *identifier;
+@property (nonatomic, strong, readonly) WKBridgeTypedResourceId *identifier;
 
 - (instancetype)init NS_UNAVAILABLE;
-- (instancetype)initWithMaterialGraph:(nullable WKBridgeMaterialGraph *)materialGraph identifier:(NSString *)identifier NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithMaterialGraph:(nullable WKBridgeMaterialGraph *)materialGraph identifier:(WKBridgeTypedResourceId *)identifier NS_DESIGNATED_INITIALIZER;
 
 @end
 
@@ -396,11 +431,11 @@ NS_SWIFT_SENDABLE
 @interface WKBridgeUpdateTexture : NSObject
 
 @property (nonatomic, readonly, strong, nullable) WKBridgeImageAsset *imageAsset;
-@property (nonatomic, readonly, strong) NSString *identifier;
+@property (nonatomic, readonly, strong) WKBridgeTypedResourceId *identifier;
 @property (nonatomic, readonly, strong) NSString *hashString;
 
 - (instancetype)init NS_UNAVAILABLE;
-- (instancetype)initWithImageAsset:(nullable WKBridgeImageAsset *)imageAsset identifier:(NSString *)identifier hashString:(NSString *)hashString NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithImageAsset:(nullable WKBridgeImageAsset *)imageAsset identifier:(WKBridgeTypedResourceId *)identifier hashString:(NSString *)hashString NS_DESIGNATED_INITIALIZER;
 
 @end
 
@@ -415,12 +450,13 @@ NS_SWIFT_SENDABLE
 
 @interface WKBridgeReceiver : NSObject
 
-- (void)renderWithTexture:(id<MTLTexture>)texture;
-- (void)updateMesh:(WKBridgeUpdateMesh *)descriptor completionHandler:(void (^)(void))completionHandler;
-- (void)updateTexture:(WKBridgeUpdateTexture *)descriptor;
-- (void)updateMaterial:(WKBridgeUpdateMaterial *)descriptor completionHandler:(void (^)(void))completionHandler;
+- (nullable id<MTLCommandBuffer>)commandBuffer;
+- (void)renderWithTexture:(id<MTLTexture>)texture commandBuffer:(id<MTLCommandBuffer>)commandBuffer;
+- (void)updateMesh:(NSArray<WKBridgeUpdateMesh *> *)descriptor completionHandler:(void (^)(void))completionHandler;
+- (void)updateTexture:(NSArray<WKBridgeUpdateTexture *> *)descriptor;
+- (void)updateMaterial:(NSArray<WKBridgeUpdateMaterial *> *)descriptor completionHandler:(void (^)(void))completionHandler;
 - (void)setTransform:(simd_float4x4)transform;
-- (void)setCameraDistance:(float)distance;
+- (void)setFOV:(float)fovY;
 - (void)setBackgroundColor:(simd_float3)color;
 - (void)setPlaying:(BOOL)play;
 - (void)setEnvironmentMap:(WKBridgeImageAsset *)imageAsset;
@@ -439,10 +475,10 @@ NS_SWIFT_SENDABLE
 - (double)duration;
 - (void)loadModelFrom:(NSURL *)url;
 - (void)loadModel:(NSData *)data;
-- (void)update:(double)deltaTime;
+- (void)update:(double)deltaTime completionHandler:(void (^)(void))completionHandler;
 - (void)setLoop:(BOOL)loop;
 - (void)requestCompleted:(NSObject *)request;
-- (void)setCallbacksWithModelUpdatedCallback:(void (^)(WKBridgeUpdateMesh *))modelUpdatedCallback textureUpdatedCallback:(void (^)(WKBridgeUpdateTexture *))textureUpdatedCallback materialUpdatedCallback:(void (^)(WKBridgeUpdateMaterial *))materialUpdatedCallback;
+- (void)setCallbacksWithModelUpdatedCallback:(void (^)(NSArray<WKBridgeUpdateMesh *> *))modelUpdatedCallback textureUpdatedCallback:(void (^)(NSArray<WKBridgeUpdateTexture *> *))textureUpdatedCallback materialUpdatedCallback:(void (^)(NSArray<WKBridgeUpdateMaterial *> *))materialUpdatedCallback;
 
 @end
 
@@ -474,11 +510,11 @@ struct ImageAsset {
     long height { 0 };
     long depth { 0 };
     long bytesPerPixel { 0 };
-    uint64_t textureType { 0 };
-    uint64_t pixelFormat { 0 };
+    WebCore::WebGPU::TextureViewDimension textureType { WebCore::WebGPU::TextureViewDimension::_2d };
+    WebCore::WebGPU::TextureFormat pixelFormat { WebCore::WebGPU::TextureFormat::R8unorm };
     long mipmapLevelCount { 0 };
     long arrayLength { 0 };
-    uint64_t textureUsage { 0 };
+    WebCore::WebGPU::TextureUsageFlags textureUsage { };
     ImageAssetSwizzle swizzle { };
 };
 
@@ -491,17 +527,39 @@ struct VertexLayout {
 struct MeshPart {
     uint32_t indexOffset;
     uint32_t indexCount;
-    uint32_t topology;
+    WebCore::WebGPU::PrimitiveTopology topology;
     uint32_t materialIndex;
     Float3 boundsMin;
     Float3 boundsMax;
 };
 
+enum class VertexSemantic : uint8_t {
+    Position,
+    Color,
+    Normal,
+    Tangent,
+    Bitangent,
+    UV0, // NOLINT
+    UV1, // NOLINT
+    UV2, // NOLINT
+    UV3, // NOLINT
+    UV4, // NOLINT
+    UV5, // NOLINT
+    UV6, // NOLINT
+    UV7, // NOLINT
+    Unspecified,
+};
+
 struct VertexAttributeFormat {
-    long semantic;
-    unsigned long format;
+    VertexSemantic semantic;
+    WebCore::WebGPU::VertexFormat format;
     long layoutIndex;
     long offset;
+};
+
+enum class IndexType : uint8_t {
+    UInt16,
+    UInt32,
 };
 
 struct MeshDescriptor {
@@ -510,7 +568,7 @@ struct MeshDescriptor {
     Vector<VertexAttributeFormat> vertexAttributes;
     Vector<VertexLayout> vertexLayouts;
     long indexCapacity;
-    long indexType;
+    IndexType indexType;
 };
 
 struct Edge {
@@ -642,14 +700,20 @@ struct MaterialGraph {
     Vector<InputOutput> outputs;
 };
 
+struct TypedResourceId {
+    String value;
+    String path;
+    int64_t hashValue;
+};
+
 struct UpdateMaterialDescriptor {
     MaterialGraph materialGraph;
-    String identifier;
+    TypedResourceId identifier;
 };
 
 struct UpdateTextureDescriptor {
     ImageAsset imageAsset;
-    String identifier;
+    TypedResourceId identifier;
     String hashString;
 };
 
@@ -681,7 +745,7 @@ struct DeformationData {
 };
 
 struct UpdateMeshDescriptor {
-    String identifier;
+    TypedResourceId identifier;
     uint8_t updateType;
     MeshDescriptor descriptor;
     Vector<MeshPart> parts;
@@ -689,7 +753,7 @@ struct UpdateMeshDescriptor {
     Vector<Vector<uint8_t>> vertexData;
     Float4x4 transform;
     Vector<Float4x4> instanceTransforms;
-    Vector<String> materialPrims;
+    Vector<TypedResourceId> assignedMaterials;
     std::optional<DeformationData> deformationData;
 };
 

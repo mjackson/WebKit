@@ -42,6 +42,7 @@
 #include "CSSCounterValue.h"
 #include "CSSCrossfadeValue.h"
 #include "CSSCursorImageValue.h"
+#include "CSSCustomIdentValue.h"
 #include "CSSCustomPropertyValue.h"
 #include "CSSDynamicRangeLimitValue.h"
 #include "CSSEasingFunctionValue.h"
@@ -67,7 +68,6 @@
 #include "CSSOffsetRotateValue.h"
 #include "CSSPaintImageValue.h"
 #include "CSSPathValue.h"
-#include "CSSPendingSubstitutionValue.h"
 #include "CSSPositionValue.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSProperty.h"
@@ -78,7 +78,9 @@
 #include "CSSReflectValue.h"
 #include "CSSScrollValue.h"
 #include "CSSSerializationContext.h"
+#include "CSSShorthandSubstitutionValue.h"
 #include "CSSSubgridValue.h"
+#include "CSSSubstitutionValue.h"
 #include "CSSTextShadowPropertyValue.h"
 #include "CSSToLengthConversionData.h"
 #include "CSSTransformListValue.h"
@@ -86,7 +88,6 @@
 #include "CSSUnicodeRangeValue.h"
 #include "CSSValueList.h"
 #include "CSSValuePair.h"
-#include "CSSVariableReferenceValue.h"
 #include "CSSViewValue.h"
 #include "ComputedStyleDependencies.h"
 #include "DeprecatedCSSOMPrimitiveValue.h"
@@ -137,6 +138,8 @@ template<typename Visitor> constexpr decltype(auto) CSSValue::visitDerived(Visit
         return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<CSSCrossfadeValue>(*this));
     case CursorImage:
         return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<CSSCursorImageValue>(*this));
+    case CustomIdent:
+        return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<CSSCustomIdentValue>(*this));
     case CustomProperty:
         return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<CSSCustomPropertyValue>(*this));
     case DynamicRangeLimit:
@@ -187,8 +190,8 @@ template<typename Visitor> constexpr decltype(auto) CSSValue::visitDerived(Visit
         return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<CSSOffsetRotateValue>(*this));
     case Path:
         return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<CSSPathValue>(*this));
-    case PendingSubstitutionValue:
-        return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<CSSPendingSubstitutionValue>(*this));
+    case ShorthandSubstitution:
+        return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<CSSShorthandSubstitutionValue>(*this));
     case Position:
         return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<CSSPositionValue>(*this));
     case PositionX:
@@ -223,8 +226,8 @@ template<typename Visitor> constexpr decltype(auto) CSSValue::visitDerived(Visit
         return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<CSSValueList>(*this));
     case ValuePair:
         return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<CSSValuePair>(*this));
-    case VariableReference:
-        return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<CSSVariableReferenceValue>(*this));
+    case Substitution:
+        return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<CSSSubstitutionValue>(*this));
     case View:
         return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<CSSViewValue>(*this));
     case PaintImage:
@@ -370,6 +373,7 @@ Ref<DeprecatedCSSOMValue> CSSValue::createDeprecatedCSSOMWrapper(CSSStyleDeclara
     case Primitive:
     case Color:
     case Counter:
+    case CustomIdent:
     case Quad:
     case Rect:
     case URL:

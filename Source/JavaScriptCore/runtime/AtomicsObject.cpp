@@ -227,7 +227,7 @@ struct AddFunc {
     static constexpr unsigned numExtraArgs = 1;
     
     template<typename T>
-    T operator()(T* ptr, const T* args) const
+    T NODELETE operator()(T* ptr, const T* args) const
     {
         return WTF::atomicExchangeAdd(ptr, args[0]);
     }
@@ -237,7 +237,7 @@ struct AndFunc {
     static constexpr unsigned numExtraArgs = 1;
     
     template<typename T>
-    T operator()(T* ptr, const T* args) const
+    T NODELETE operator()(T* ptr, const T* args) const
     {
         return WTF::atomicExchangeAnd(ptr, args[0]);
     }
@@ -247,7 +247,7 @@ struct CompareExchangeFunc {
     static constexpr unsigned numExtraArgs = 2;
     
     template<typename T>
-    T operator()(T* ptr, const T* args) const
+    T NODELETE operator()(T* ptr, const T* args) const
     {
         T expected = args[0];
         T newValue = args[1];
@@ -259,7 +259,7 @@ struct ExchangeFunc {
     static constexpr unsigned numExtraArgs = 1;
     
     template<typename T>
-    T operator()(T* ptr, const T* args) const
+    T NODELETE operator()(T* ptr, const T* args) const
     {
         return WTF::atomicExchange(ptr, args[0]);
     }
@@ -279,7 +279,7 @@ struct OrFunc {
     static constexpr unsigned numExtraArgs = 1;
     
     template<typename T>
-    T operator()(T* ptr, const T* args) const
+    T NODELETE operator()(T* ptr, const T* args) const
     {
         return WTF::atomicExchangeOr(ptr, args[0]);
     }
@@ -289,7 +289,7 @@ struct SubFunc {
     static constexpr unsigned numExtraArgs = 1;
     
     template<typename T>
-    T operator()(T* ptr, const T* args) const
+    T NODELETE operator()(T* ptr, const T* args) const
     {
         return WTF::atomicExchangeSub(ptr, args[0]);
     }
@@ -299,7 +299,7 @@ struct XorFunc {
     static constexpr unsigned numExtraArgs = 1;
     
     template<typename T>
-    T operator()(T* ptr, const T* args) const
+    T NODELETE operator()(T* ptr, const T* args) const
     {
         return WTF::atomicExchangeXor(ptr, args[0]);
     }

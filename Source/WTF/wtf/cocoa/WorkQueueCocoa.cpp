@@ -27,7 +27,6 @@
 #include <wtf/WorkQueue.h>
 
 #include <wtf/BlockPtr.h>
-#include <wtf/Ref.h>
 #include <wtf/darwin/DispatchExtras.h>
 
 namespace WTF {

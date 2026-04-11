@@ -74,6 +74,10 @@ static bool isEventStop(PlatformGtkScrollData* event)
     return event->isEnd;
 }
 
+void ViewGestureController::platformInitialize()
+{
+}
+
 void ViewGestureController::platformTeardown()
 {
     cancelSwipe();

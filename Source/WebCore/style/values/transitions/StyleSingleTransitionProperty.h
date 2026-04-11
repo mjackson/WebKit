@@ -25,6 +25,7 @@
 #pragma once
 
 #include <WebCore/CSSPropertyParser.h>
+#include <WebCore/StyleCustomIdent.h>
 #include <WebCore/StyleValueTypes.h>
 #include <WebCore/WebAnimationTypes.h>
 #include <WebCore/WebAnimationUtilities.h>
@@ -36,7 +37,7 @@ namespace Style {
 // https://www.w3.org/TR/css-transitions-1/#single-transition-property
 struct SingleTransitionProperty {
     struct UnknownProperty {
-        CustomIdentifier value;
+        CustomIdent value;
 
         bool operator==(const UnknownProperty&) const = default;
     };
@@ -46,7 +47,7 @@ struct SingleTransitionProperty {
         template<typename... F> decltype(auto) switchOn(F&&... f) const
         {
             auto visitor = WTF::makeVisitor(std::forward<F>(f)...);
-            return visitor(CustomIdentifier { animatablePropertyAsString(value) });
+            return visitor(CustomIdent { animatablePropertyAsString(value) });
         }
 
         bool operator==(const SingleProperty&) const = default;
@@ -62,8 +63,8 @@ struct SingleTransitionProperty {
     {
     }
 
-    SingleTransitionProperty(CustomIdentifier&& identifier)
-        : m_value { fromCustomIdentifier(WTF::move(identifier)) }
+    SingleTransitionProperty(CustomIdent&& customIdent)
+        : m_value { fromCustomIdent(WTF::move(customIdent)) }
     {
     }
 
@@ -87,11 +88,11 @@ struct SingleTransitionProperty {
 private:
     using Kind = Variant<CSS::Keyword::All, CSS::Keyword::None, UnknownProperty, SingleProperty>;
 
-    static Kind fromCustomIdentifier(CustomIdentifier&& identifier)
+    static Kind fromCustomIdent(CustomIdent&& customIdent)
     {
-        if (isCustomPropertyName(identifier.value))
-            return Kind { SingleProperty { .value = WTF::move(identifier.value) } };
-        return Kind { UnknownProperty { .value = WTF::move(identifier) } };
+        if (isCustomPropertyName(customIdent.value))
+            return Kind { SingleProperty { .value = WTF::move(customIdent.value) } };
+        return Kind { UnknownProperty { .value = WTF::move(customIdent) } };
     }
 
     Kind m_value;

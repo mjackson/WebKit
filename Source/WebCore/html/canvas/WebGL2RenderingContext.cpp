@@ -1178,7 +1178,7 @@ void WebGL2RenderingContext::compressedTexImage2D(GCGLenum target, GCGLint level
     auto slice = sliceArrayBufferView("compressedTexImage2D"_s, srcData, srcOffset, srcLengthOverride);
     if (!slice)
         return;
-    graphicsContextGL()->compressedTexImage2D(target, level, internalformat, width, height, border, slice->byteLength(), slice->span());
+    graphicsContextGL()->compressedTexImage2D(target, level, internalformat, width, height, border, slice->span());
 }
 
 void WebGL2RenderingContext::compressedTexImage3D(GCGLenum target, GCGLint level, GCGLenum internalformat, GCGLsizei width, GCGLsizei height, GCGLsizei depth, GCGLint border, GCGLsizei imageSize, GCGLint64 offset)
@@ -1211,7 +1211,7 @@ void WebGL2RenderingContext::compressedTexImage3D(GCGLenum target, GCGLint level
     auto slice = sliceArrayBufferView("compressedTexImage3D"_s, srcData, srcOffset, srcLengthOverride);
     if (!slice)
         return;
-    graphicsContextGL()->compressedTexImage3D(target, level, internalformat, width, height, depth, border, slice->byteLength(), slice->span());
+    graphicsContextGL()->compressedTexImage3D(target, level, internalformat, width, height, depth, border, slice->span());
 }
 
 void WebGL2RenderingContext::compressedTexSubImage2D(GCGLenum target, GCGLint level, GCGLint xoffset, GCGLint yoffset, GCGLsizei width, GCGLsizei height, GCGLenum format, ArrayBufferView& srcData)
@@ -1257,7 +1257,7 @@ void WebGL2RenderingContext::compressedTexSubImage2D(GCGLenum target, GCGLint le
     auto slice = sliceArrayBufferView("compressedTexSubImage2D"_s, srcData, srcOffset, srcLengthOverride);
     if (!slice)
         return;
-    graphicsContextGL()->compressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, slice->byteLength(), slice->span());
+    graphicsContextGL()->compressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, slice->span());
 }
 
 void WebGL2RenderingContext::compressedTexSubImage3D(GCGLenum target, GCGLint level, GCGLint xoffset, GCGLint yoffset, GCGLint zoffset, GCGLsizei width, GCGLsizei height, GCGLsizei depth, GCGLenum format, GCGLsizei imageSize, GCGLint64 offset)
@@ -1290,7 +1290,7 @@ void WebGL2RenderingContext::compressedTexSubImage3D(GCGLenum target, GCGLint le
     auto slice = sliceArrayBufferView("compressedTexSubImage3D"_s, srcData, srcOffset, srcLengthOverride);
     if (!slice)
         return;
-    graphicsContextGL()->compressedTexSubImage3D(target, level, xoffset, yoffset, zoffset, width, height, depth, format, slice->byteLength(), slice->span());
+    graphicsContextGL()->compressedTexSubImage3D(target, level, xoffset, yoffset, zoffset, width, height, depth, format, slice->span());
 }
 
 GCGLint WebGL2RenderingContext::getFragDataLocation(WebGLProgram& program, const String& name)
@@ -1793,10 +1793,10 @@ void WebGL2RenderingContext::beginQuery(GCGLenum target, WebGLQuery& query)
     query.setTarget(target);
 }
 
-void WebGL2RenderingContext::endQuery(GCGLenum target)
+void WebGL2RenderingContext::endQuery(ScriptExecutionContext& scriptExecutionContext, GCGLenum target)
 {
     Locker locker { objectGraphLock() };
-    if (isContextLost() || !scriptExecutionContext())
+    if (isContextLost())
         return;
     auto activeQueryKey = validateQueryTarget("endQuery"_s, target);
     if (!activeQueryKey)
@@ -1808,14 +1808,14 @@ void WebGL2RenderingContext::endQuery(GCGLenum target)
     graphicsContextGL()->endQuery(target);
 
     // A query's result must not be made available until control has returned to the user agent's main loop.
-    protect(protect(scriptExecutionContext())->eventLoop())->queueMicrotask(protect(scriptExecutionContext())->vm(), [query = WTF::move(m_activeQueries[*activeQueryKey])] {
+    protect(scriptExecutionContext.eventLoop())->queueMicrotask(scriptExecutionContext.vm(), [query = WTF::move(m_activeQueries[*activeQueryKey])] {
         query->makeResultAvailable();
     });
 }
 
 WebGLAny WebGL2RenderingContext::getQuery(GCGLenum target, GCGLenum pname)
 {
-    if (isContextLost() || !scriptExecutionContext())
+    if (isContextLost())
         return nullptr;
 
     RefPtr context = m_context;
@@ -2514,7 +2514,7 @@ WebGLAny WebGL2RenderingContext::getActiveUniformBlockParameter(WebGLProgram& pr
     case GraphicsContextGL::UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES: {
         RefPtr context = m_context;
         GCGLint size = context->getActiveUniformBlocki(program.object(), uniformBlockIndex, GraphicsContextGL::UNIFORM_BLOCK_ACTIVE_UNIFORMS);
-        Vector<GCGLint> params(size, 0);
+        Vector<GCGLint> params(FillWith { }, size, 0);
         context->getActiveUniformBlockiv(program.object(), uniformBlockIndex, pname, params);
         return toWebGLAny(Uint32Array::tryCreate(spanReinterpretCast<const GCGLuint>(params.span())));
     }

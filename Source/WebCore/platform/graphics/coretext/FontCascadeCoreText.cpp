@@ -61,7 +61,7 @@ static const AffineTransform& NODELETE rotateLeftTransform()
     return result;
 }
 
-AffineTransform computeBaseOverallTextMatrix(const std::optional<AffineTransform>& syntheticOblique)
+AffineTransform NODELETE computeBaseOverallTextMatrix(const std::optional<AffineTransform>& syntheticOblique)
 {
     AffineTransform result;
 
@@ -94,7 +94,7 @@ AffineTransform computeOverallTextMatrix(const Font& font)
     return computeBaseOverallTextMatrix(syntheticOblique);
 }
 
-AffineTransform computeBaseVerticalTextMatrix(const AffineTransform& previousTextMatrix)
+AffineTransform NODELETE computeBaseVerticalTextMatrix(const AffineTransform& previousTextMatrix)
 {
     // The translation here ("e" and "f" fields) are irrelevant, because
     // this matrix is inverted in fillVectorWithVerticalGlyphPositions to place the glyphs in the CTM's coordinate system.
@@ -106,7 +106,7 @@ AffineTransform computeBaseVerticalTextMatrix(const AffineTransform& previousTex
     return rotateLeftTransform() * previousTextMatrix;
 }
 
-AffineTransform computeVerticalTextMatrix(const Font& font, const AffineTransform& previousTextMatrix)
+AffineTransform NODELETE computeVerticalTextMatrix(const Font& font, const AffineTransform& previousTextMatrix)
 {
     ASSERT_UNUSED(font, font.platformData().orientation() == FontOrientation::Vertical);
     return computeBaseVerticalTextMatrix(previousTextMatrix);
@@ -416,7 +416,7 @@ RefPtr<const Font> FontCascade::fontForCombiningCharacterSequence(StringView str
     ++codePointsIterator;
     bool isOnlySingleCodePoint = codePointsIterator == codePoints.end();
 
-    GlyphData baseCharacterGlyphData = glyphDataForCharacter(baseCharacter, false, NormalVariant);
+    GlyphData baseCharacterGlyphData = glyphDataForCharacter(baseCharacter, false, FontVariant::Normal);
 
     if (!baseCharacterGlyphData.glyph)
         return nullptr;

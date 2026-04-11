@@ -27,6 +27,7 @@
 #include "DisplayListRecorderImpl.h"
 #include "FilterOperations.h"
 #include "FontCascade.h"
+#include "FontCascadeInlines.h"
 #include "GraphicsContext.h"
 #include "InlineIteratorTextBox.h"
 #include "LayoutIntegrationInlineContent.h"
@@ -34,10 +35,14 @@
 #include "RenderCombineText.h"
 #include "RenderLayer.h"
 #include "RenderStyle.h"
+#include "RenderStyle+GettersInlines.h"
+#include "Settings.h"
 #include "StyleAppleColorFilter.h"
+#include "StyleColorResolver.h"
 #include "StyleTextShadow.h"
 #include "TextBoxPainter.h"
 #include <wtf/NeverDestroyed.h>
+#include <wtf/unicode/CharacterNames.h>
 
 namespace WebCore {
 

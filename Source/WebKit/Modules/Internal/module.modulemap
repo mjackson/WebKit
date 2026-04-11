@@ -11,6 +11,12 @@ module WebKit_Internal [system] {
         export *
     }
 
+    module CallbackID {
+        requires cplusplus20
+        header "../../Shared/CallbackID.h"
+        export *
+    }
+
     module FrameInfoData {
         requires cplusplus20
         header "../../Shared/FrameInfoData.h"
@@ -315,6 +321,12 @@ module WebKit_Internal [system] {
         requires objc
     }
 
+    module WKTextEffectManager {
+        header "../../UIProcess/Cocoa/WKTextEffectManager.h"
+        export *
+        requires objc
+    }
+
     module WKPreferencesInternal {
         header "../../UIProcess/API/Cocoa/WKPreferencesInternal.h"
         export *
@@ -329,6 +341,12 @@ module WebKit_Internal [system] {
 
     module WKSeparatedImageView {
         header "../../UIProcess/Cocoa/Separated/WKSeparatedImageView.h"
+        export *
+        requires objc
+    }
+
+    module WKStageModeOrbitSimulator {
+        header "../../Shared/Model/WKStageModeOrbitSimulator.h"
         export *
         requires objc
     }

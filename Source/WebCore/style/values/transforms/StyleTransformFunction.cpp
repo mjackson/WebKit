@@ -37,6 +37,7 @@
 #include "CSSPrimitiveValueMappings.h"
 #include "CSSTransformListValue.h"
 #include "CSSValueList.h"
+#include "StylePrimitiveNumericTypes+CSSValueConversion.h"
 #include "RenderStyle+GettersInlines.h"
 #include "StyleBuilderChecking.h"
 #include "StyleCalculationValue.h"

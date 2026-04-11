@@ -113,7 +113,7 @@ using namespace HTMLNames;
 @end
 #endif
 
-static WebViewInsertAction kit(EditorInsertAction action)
+static WebViewInsertAction NODELETE kit(EditorInsertAction action)
 {
     switch (action) {
     case EditorInsertAction::Typed:

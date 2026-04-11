@@ -305,9 +305,7 @@ VTTCue::VTTCue(Document& document, Ref<WebVTTCueData>&& cueData)
     setCueSettings(cueData->settings());
 }
 
-VTTCue::~VTTCue()
-{
-}
+VTTCue::~VTTCue() = default;
 
 RefPtr<VTTCueBox> VTTCue::createDisplayTree()
 {

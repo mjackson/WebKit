@@ -49,7 +49,7 @@ public:
     WEBCORE_EXPORT static bool isDataDecodable(const Settings&, std::span<const uint8_t>);
 
     RenderBox* embeddedContentBox() const;
-    LocalFrameView* frameView() const;
+    LocalFrameView* NODELETE frameView() const;
 
     bool isSVGImage() const final { return true; }
 

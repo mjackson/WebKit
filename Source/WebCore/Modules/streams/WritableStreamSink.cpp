@@ -31,6 +31,7 @@
 #include "JSWritableStreamDefaultController.h"
 #include "JSWritableStreamSink.h"
 #include "WebCoreJSClientData.h"
+#include <JavaScriptCore/HeapCellInlines.h>
 #include <JavaScriptCore/HeapInlines.h>
 #include <JavaScriptCore/IdentifierInlines.h>
 #include <JavaScriptCore/JSObjectInlines.h>

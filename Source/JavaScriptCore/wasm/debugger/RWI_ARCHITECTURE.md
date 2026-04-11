@@ -57,7 +57,7 @@ WebKit's WebAssembly debugging uses a **singleton `WasmDebugServer`** that manag
 ### UI Process (Safari)
 
 **WebProcessProxy** - Manages one WebContent process
-- Creates `WasmDebuggerDebuggable` on construction (if `--wasm-debugger` enabled)
+- Creates `WasmDebuggerDebuggable` on construction (if `enableWasmDebugger` enabled)
 - Forwards debugging commands via IPC
 - Routes responses back to LLDB
 

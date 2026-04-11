@@ -117,7 +117,7 @@ RefPtr<VideoInfo> createVideoInfoFromAVCC(std::span<const uint8_t> avcc)
         }, {
             .size = { static_cast<float>(dimensions.width), static_cast<float>(dimensions.height) },
             .displaySize = { static_cast<float>(presentationDimensions.width), static_cast<float>(presentationDimensions.height) },
-            .extensionAtoms = { 1 , { computeBoxType(kCMVideoCodecType_H264), SharedBuffer::create(avcc) } },
+            .extensionAtoms = { FillWith { }, 1 , { computeBoxType(kCMVideoCodecType_H264), SharedBuffer::create(avcc) } },
         }
     });
 }

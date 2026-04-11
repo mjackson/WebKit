@@ -28,12 +28,13 @@
 
 #include "AbortController.h"
 #include "AbortSignal.h"
+#include "ContextDestructionObserverInlines.h"
 #include "Exception.h"
 #include "ExceptionCode.h"
 #include "InternalObserver.h"
 #include "JSDOMConvertAny.h"
 #include "JSDOMPromiseDeferred.h"
-#include "JSValueInWrappedObject.h"
+#include "JSValueInWrappedObjectInlines.h"
 #include "Observable.h"
 #include "ScriptExecutionContext.h"
 #include "SubscribeOptions.h"
@@ -55,7 +56,13 @@ public:
 private:
     void next(JSC::JSValue value) final
     {
-        m_lastValue.setWeakly(value);
+        RefPtr context = scriptExecutionContext();
+        if (!context)
+            return;
+        auto* globalObject = context->globalObject();
+        if (!globalObject)
+            return;
+        m_lastValue.setWeakly(*globalObject, value);
     }
 
     void error(JSC::JSValue value) final

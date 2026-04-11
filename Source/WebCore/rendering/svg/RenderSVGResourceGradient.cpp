@@ -20,6 +20,7 @@
 #include "config.h"
 #include "RenderSVGResourceGradient.h"
 
+#include "RenderObjectNode.h"
 #include "RenderSVGModelObjectInlines.h"
 #include "RenderSVGResourceGradientInlines.h"
 #include "RenderSVGShape.h"

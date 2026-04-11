@@ -32,7 +32,7 @@
 namespace WebCore {
 
 class DMABufBuffer;
-struct DMABufBufferAttributes;
+class DMABufBufferAttributes;
 
 class CoordinatedPlatformLayerBufferDMABuf final : public CoordinatedPlatformLayerBuffer {
 public:

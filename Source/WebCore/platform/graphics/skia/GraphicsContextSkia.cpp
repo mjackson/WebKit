@@ -43,6 +43,7 @@
 #include "SkiaImageAtlasLayoutBuilder.h"
 #include "SkiaPaintingEngine.h"
 #include "SkiaRecordingResult.h"
+#include "SkiaUtilities.h"
 #include <cmath>
 #include <ranges>
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
@@ -58,8 +59,6 @@ WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <skia/core/SkSurface.h>
 #include <skia/core/SkTileMode.h>
 #include <skia/effects/SkImageFilters.h>
-#include <skia/gpu/ganesh/GrBackendSurface.h>
-#include <skia/gpu/ganesh/SkImageGanesh.h>
 #include <skia/gpu/ganesh/SkSurfaceGanesh.h>
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 #include <wtf/MathExtras.h>
@@ -342,12 +341,10 @@ void GraphicsContextSkia::drawNativeImage(const NativeImage& nativeImage, const 
             if (!image->isValid(grContext->asRecorder())) {
                 // Ensure any pending GPU operations on the source image are complete before
                 // accessing its backend texture for rewrapping.
-                if (auto fence = createAcceleratedRenderingFence(nativeImage.platformImage(), nativeImage.grContext()))
+                if (auto fence = SkiaUtilities::flushAndSubmitImageWithFence(nativeImage.grContext(), nativeImage.platformImage()))
                     fence->serverWait();
 
-                GrBackendTexture backendTexture;
-                if (SkImages::GetBackendTextureFromImage(image.get(), &backendTexture, false))
-                    imageInThisThread = SkImages::BorrowTextureFrom(grContext, backendTexture, kTopLeft_GrSurfaceOrigin, image->colorType(), image->alphaType(), image->refColorSpace());
+                imageInThisThread = SkiaUtilities::rewrapImageForContext(grContext, *image);
             }
         }
     }
@@ -789,7 +786,7 @@ void GraphicsContextSkia::clipToImageBuffer(ImageBuffer& buffer, const FloatRect
     }
 }
 
-void GraphicsContextSkia::drawFocusRing(const Path& path, float, const Color& color)
+void GraphicsContextSkia::drawFocusRing(const Path& path, float, const Color& color, float)
 {
 #if USE(THEME_ADWAITA)
     Adwaita::paintFocus(*this, path, color);
@@ -800,7 +797,7 @@ void GraphicsContextSkia::drawFocusRing(const Path& path, float, const Color& co
 #endif
 }
 
-void GraphicsContextSkia::drawFocusRing(const Vector<FloatRect>& rects, float, float, const Color& color)
+void GraphicsContextSkia::drawFocusRing(const Vector<FloatRect>& rects, float, const Color& color, float)
 {
 #if USE(THEME_ADWAITA)
     Adwaita::paintFocus(*this, rects, color);
@@ -1295,48 +1292,6 @@ void GraphicsContextSkia::replayStateOnCanvas(SkCanvas& canvas) const
     canvas.setMatrix(m_canvas.getTotalMatrix());
 }
 
-static std::unique_ptr<GLFence> createFenceAfterFlush(GrDirectContext* grContext)
-{
-    auto& glDisplay = PlatformDisplay::sharedDisplay().glDisplay();
-    if (GLFence::isSupported(glDisplay)) {
-        grContext->submit(GrSyncCpu::kNo);
-
-        if (auto fence = GLFence::create(glDisplay))
-            return fence;
-    }
-
-    grContext->submit(GrSyncCpu::kYes);
-    return nullptr;
-}
-
-std::unique_ptr<GLFence> GraphicsContextSkia::createAcceleratedRenderingFence(SkSurface* surface)
-{
-    auto* glContext = PlatformDisplay::sharedDisplay().skiaGLContext();
-    if (!glContext || !glContext->makeContextCurrent())
-        return nullptr;
-
-    auto* recordingContext = surface->recordingContext();
-    auto* grContext = recordingContext ? recordingContext->asDirectContext() : nullptr;
-    if (!grContext)
-        return nullptr;
-
-    grContext->flush(surface);
-    return createFenceAfterFlush(grContext);
-}
-
-std::unique_ptr<GLFence> GraphicsContextSkia::createAcceleratedRenderingFence(const sk_sp<SkImage>& image, GrDirectContext* grContext)
-{
-    auto* glContext = PlatformDisplay::sharedDisplay().skiaGLContext();
-    if (!glContext || !glContext->makeContextCurrent())
-        return nullptr;
-
-    if (!grContext)
-        return nullptr;
-
-    grContext->flush(image);
-    return createFenceAfterFlush(grContext);
-}
-
 void GraphicsContextSkia::trackAcceleratedRenderingFenceIfNeeded(const sk_sp<SkImage>& image, GrDirectContext* grContext)
 {
     if (m_contextMode != ContextMode::RecordingMode)
@@ -1345,7 +1300,7 @@ void GraphicsContextSkia::trackAcceleratedRenderingFenceIfNeeded(const sk_sp<SkI
     if (!image || !image->isTextureBacked())
         return;
 
-    if (auto fence = createAcceleratedRenderingFence(image, grContext))
+    if (auto fence = SkiaUtilities::flushAndSubmitImageWithFence(grContext, image))
         m_imageToFenceMap.add(image.get(), WTF::move(fence));
 }
 

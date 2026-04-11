@@ -186,7 +186,7 @@ void WebPageProxyTesting::clearWheelEventTestMonitor()
 
 void WebPageProxyTesting::startMonitoringWheelEventsForTesting(CompletionHandler<void()>&& completionHandler)
 {
-    if (!protect(page())->hasRunningProcess()) {
+    if (!page().hasRunningProcess()) {
         completionHandler();
         return;
     }
@@ -195,7 +195,7 @@ void WebPageProxyTesting::startMonitoringWheelEventsForTesting(CompletionHandler
 
 void WebPageProxyTesting::waitForWheelEventsToCompleteForTesting(CompletionHandler<void()>&& completionHandler)
 {
-    if (!protect(page())->hasRunningProcess()) {
+    if (!page().hasRunningProcess()) {
         completionHandler();
         return;
     }

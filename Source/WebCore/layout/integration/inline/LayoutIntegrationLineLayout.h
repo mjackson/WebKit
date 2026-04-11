@@ -111,6 +111,7 @@ public:
 
     bool NODELETE isPaginated() const;
     size_t NODELETE lineCount() const;
+    bool hasContent() const { return !!m_inlineContent; }
     bool NODELETE hasContentfulInlineOrBlockLine() const;
     bool NODELETE hasContentfulInlineLine() const;
     bool isSelfCollapsingContent() const;

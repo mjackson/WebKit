@@ -481,42 +481,6 @@ test/built-ins/TypedArrayConstructors/ctors/object-arg/iterated-array-changed-by
 test/built-ins/TypedArrayConstructors/ctors/typedarray-arg/throw-type-error-before-custom-proto-access.js:
   default: 'Test262Error: Expected a TypeError but got a Test262Error (Testing with Float64Array and makePassthrough.)'
   strict mode: 'Test262Error: Expected a TypeError but got a Test262Error (Testing with Float64Array and makePassthrough.)'
-test/built-ins/TypedArrayConstructors/internals/Set/BigInt/key-is-canonical-invalid-index-prototype-chain-set.js:
-  default: 'Test262Error: 1 setter should be unreachable! (Testing with BigInt64Array and makePassthrough.)'
-  strict mode: 'Test262Error: 1 setter should be unreachable! (Testing with BigInt64Array and makePassthrough.)'
-test/built-ins/TypedArrayConstructors/internals/Set/BigInt/key-is-canonical-invalid-index-reflect-set.js:
-  default: 'Test262Error: value should not be coerced Expected SameValue(«32», «0») to be true'
-  strict mode: 'Test262Error: value should not be coerced Expected SameValue(«32», «0») to be true'
-test/built-ins/TypedArrayConstructors/internals/Set/BigInt/key-is-valid-index-prototype-chain-set.js:
-  default: 'Test262Error: 0 setter should be unreachable! (Testing with BigInt64Array and makePassthrough.)'
-  strict mode: 'Test262Error: 0 setter should be unreachable! (Testing with BigInt64Array and makePassthrough.)'
-test/built-ins/TypedArrayConstructors/internals/Set/BigInt/key-is-valid-index-reflect-set.js:
-  default: 'Test262Error: target[0] should remain unchanged (receiver: empty object) Expected SameValue(«2n», «0n») to be true (Testing with BigInt64Array and makePassthrough.)'
-  strict mode: 'Test262Error: target[0] should remain unchanged (receiver: empty object) Expected SameValue(«2n», «0n») to be true (Testing with BigInt64Array and makePassthrough.)'
-test/built-ins/TypedArrayConstructors/internals/Set/key-is-canonical-invalid-index-prototype-chain-set.js:
-  default: 'Test262Error: 1 setter should be unreachable! (Testing with Float64Array and makePassthrough.)'
-  strict mode: 'Test262Error: 1 setter should be unreachable! (Testing with Float64Array and makePassthrough.)'
-test/built-ins/TypedArrayConstructors/internals/Set/key-is-canonical-invalid-index-reflect-set.js:
-  default: 'Test262Error: value should not be coerced Expected SameValue(«160», «0») to be true'
-  strict mode: 'Test262Error: value should not be coerced Expected SameValue(«160», «0») to be true'
-test/built-ins/TypedArrayConstructors/internals/Set/key-is-in-bounds-receiver-is-not-typed-array.js:
-  default: 'Test262Error: valueOf is not called Expected SameValue(«1», «0») to be true'
-  strict mode: 'Test262Error: valueOf is not called Expected SameValue(«1», «0») to be true'
-test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-not-object.js:
-  default: 'Test262Error: valueOf is not called Expected SameValue(«1», «0») to be true'
-  strict mode: 'Test262Error: valueOf is not called Expected SameValue(«1», «0») to be true'
-test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-not-typed-array.js:
-  default: 'Test262Error: valueOf is not called Expected SameValue(«1», «0») to be true'
-  strict mode: 'Test262Error: valueOf is not called Expected SameValue(«1», «0») to be true'
-test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-proto.js:
-  default: 'Test262Error: [[Set]] succeeeds'
-  strict mode: 'Test262Error: [[Set]] succeeeds'
-test/built-ins/TypedArrayConstructors/internals/Set/key-is-valid-index-prototype-chain-set.js:
-  default: 'Test262Error: 0 setter should be unreachable! (Testing with Float64Array and makePassthrough.)'
-  strict mode: 'Test262Error: 0 setter should be unreachable! (Testing with Float64Array and makePassthrough.)'
-test/built-ins/TypedArrayConstructors/internals/Set/key-is-valid-index-reflect-set.js:
-  default: 'Test262Error: target[0] should remain unchanged (receiver: empty object) Expected SameValue(«2.3», «0») to be true (Testing with Float64Array and makePassthrough.)'
-  strict mode: 'Test262Error: target[0] should remain unchanged (receiver: empty object) Expected SameValue(«2.3», «0») to be true (Testing with Float64Array and makePassthrough.)'
 test/built-ins/Uint8Array/prototype/setFromBase64/trailing-garbage-empty.js:
   default: 'SyntaxError: Uint8Array.prototype.setFromBase64 requires a valid base64 string'
   strict mode: 'SyntaxError: Uint8Array.prototype.setFromBase64 requires a valid base64 string'
@@ -798,18 +762,6 @@ test/language/expressions/call/tco-non-eval-global.js:
   default: 'RangeError: Maximum call stack size exceeded.'
 test/language/expressions/call/tco-non-eval-with.js:
   default: 'RangeError: Maximum call stack size exceeded.'
-test/language/expressions/class/elements/arrow-body-direct-eval-err-contains-arguments.js:
-  default: 'Test262Error: Expected a SyntaxError but got a ReferenceError'
-  strict mode: 'Test262Error: Expected a SyntaxError but got a ReferenceError'
-test/language/expressions/class/elements/arrow-body-private-direct-eval-err-contains-arguments.js:
-  default: 'Test262Error: Expected a SyntaxError but got a ReferenceError'
-  strict mode: 'Test262Error: Expected a SyntaxError but got a ReferenceError'
-test/language/expressions/class/elements/nested-direct-eval-err-contains-arguments.js:
-  default: 'Test262Error: Expected a SyntaxError but got a ReferenceError'
-  strict mode: 'Test262Error: Expected a SyntaxError but got a ReferenceError'
-test/language/expressions/class/elements/nested-private-direct-eval-err-contains-arguments.js:
-  default: 'Test262Error: Expected a SyntaxError but got a ReferenceError'
-  strict mode: 'Test262Error: Expected a SyntaxError but got a ReferenceError'
 test/language/expressions/delete/super-property-uninitialized-this.js:
   default: 'Test262Error: Expected a ReferenceError but got a Test262Error'
   strict mode: 'Test262Error: Expected a ReferenceError but got a Test262Error'
@@ -885,18 +837,6 @@ test/language/statements/async-generator/yield-star-promise-not-unwrapped.js:
 test/language/statements/async-generator/yield-star-return-then-getter-ticks.js:
   default: 'Test262:AsyncTestFailure:Test262Error: Test262Error: Actual [start, tick 1, tick 2, get then, tick 3, get return, get then] and expected [start, tick 1, get then, tick 2, get return, get then, tick 3] should have the same contents. Ticks for return with thenable getter'
   strict mode: 'Test262:AsyncTestFailure:Test262Error: Test262Error: Actual [start, tick 1, tick 2, get then, tick 3, get return, get then] and expected [start, tick 1, get then, tick 2, get return, get then, tick 3] should have the same contents. Ticks for return with thenable getter'
-test/language/statements/class/elements/arrow-body-direct-eval-err-contains-arguments.js:
-  default: 'Test262Error: Expected a SyntaxError but got a ReferenceError'
-  strict mode: 'Test262Error: Expected a SyntaxError but got a ReferenceError'
-test/language/statements/class/elements/arrow-body-private-direct-eval-err-contains-arguments.js:
-  default: 'Test262Error: Expected a SyntaxError but got a ReferenceError'
-  strict mode: 'Test262Error: Expected a SyntaxError but got a ReferenceError'
-test/language/statements/class/elements/nested-direct-eval-err-contains-arguments.js:
-  default: 'Test262Error: Expected a SyntaxError but got a ReferenceError'
-  strict mode: 'Test262Error: Expected a SyntaxError but got a ReferenceError'
-test/language/statements/class/elements/nested-private-direct-eval-err-contains-arguments.js:
-  default: 'Test262Error: Expected a SyntaxError but got a ReferenceError'
-  strict mode: 'Test262Error: Expected a SyntaxError but got a ReferenceError'
 test/language/statements/class/elements/private-class-field-on-nonextensible-objects.js:
   strict mode: 'Test262Error: Expected a TypeError to be thrown but no exception was thrown at all'
 test/language/statements/class/subclass/default-constructor-spread-override.js:
@@ -911,11 +851,6 @@ test/language/statements/for-in/head-lhs-let.js:
   default: "SyntaxError: Cannot use the keyword 'in' as a lexical variable name."
 test/language/statements/for-in/identifier-let-allowed-as-lefthandside-expression-not-strict.js:
   default: "SyntaxError: Cannot use the keyword 'in' as a lexical variable name."
-test/language/statements/for-of/head-await-using-bound-names-fordecl-tdz.js:
-  default: "SyntaxError: Unexpected identifier 'x'. Expected either 'in' or 'of' in enumeration syntax."
-  strict mode: "SyntaxError: Unexpected identifier 'x'. Expected either 'in' or 'of' in enumeration syntax."
-test/language/statements/for-of/head-await-using-fresh-binding-per-iteration.js:
-  module: "SyntaxError: Unexpected identifier 'x'. Expected either 'in' or 'of' in enumeration syntax."
 test/language/statements/for/head-lhs-let.js:
   default: "SyntaxError: Unexpected token ';'. Expected a parameter pattern or a ')' in parameter list."
 test/language/statements/with/get-binding-value-call-with-proxy-env.js:
@@ -947,12 +882,6 @@ test/staging/sm/PrivateName/modify-non-extensible.js:
 test/staging/sm/Proxy/revoked-get-function-realm-typeerror.js:
   default: 'Test262Error: Expected a TypeError to be thrown but no exception was thrown at all'
   strict mode: 'Test262Error: Expected a TypeError to be thrown but no exception was thrown at all'
-test/staging/sm/RegExp/match-local-tolength-recompilation.js:
-  default: 'Test262Error: Expected SameValue(«false», «true») to be true'
-  strict mode: 'Test262Error: Expected SameValue(«false», «true») to be true'
-test/staging/sm/RegExp/replace-local-tolength-recompilation.js:
-  default: 'Test262Error: Expected SameValue(«"b"», «"pass"») to be true'
-  strict mode: 'Test262Error: Expected SameValue(«"b"», «"pass"») to be true'
 test/staging/sm/RegExp/replace-sticky-lastIndex.js:
   default: 'Test262Error: Expected SameValue(«"b"», «"a"») to be true'
   strict mode: 'Test262Error: Expected SameValue(«"b"», «"a"») to be true'
@@ -971,12 +900,6 @@ test/staging/sm/String/string-upper-lower-mapping.js:
 test/staging/sm/TypedArray/constructor-buffer-sequence.js:
   default: 'Test262Error: Expected a ExpectedError but got a Error'
   strict mode: 'Test262Error: Expected a ExpectedError but got a Error'
-test/staging/sm/TypedArray/iterator-next-with-detached.js:
-  default: 'TypeError: Underlying ArrayBuffer has been detached from the view or out-of-bounds'
-  strict mode: 'TypeError: Underlying ArrayBuffer has been detached from the view or out-of-bounds'
-test/staging/sm/TypedArray/set-with-receiver.js:
-  default: 'Test262Error: Expected SameValue(«47», «0») to be true'
-  strict mode: 'Test262Error: Expected SameValue(«47», «0») to be true'
 test/staging/sm/TypedArray/slice-memcpy.js:
   default: 'Test262Error: Actual [1, 2, 1, 2, 3, 4] and expected [1, 2, 1, 2, 1, 2] should have the same contents. '
   strict mode: 'Test262Error: Actual [1, 2, 1, 2, 3, 4] and expected [1, 2, 1, 2, 1, 2] should have the same contents. '
@@ -1035,8 +958,6 @@ test/staging/sm/misc/future-reserved-words.js:
   default: 'Test262Error: implements: function argument retroactively strict Expected a SyntaxError to be thrown but no exception was thrown at all'
 test/staging/sm/module/await-restricted-nested.js:
   module: 'Test262: This statement should not be evaluated.'
-test/staging/sm/module/module-export-name-star.js:
-  module: "ReferenceError: Can't find variable: y"
 test/staging/sm/object/defineProperties-order.js:
   default: 'Test262Error: Expected SameValue(«"ownKeys,getOwnPropertyDescriptor,getOwnPropertyDescriptor,get,get"», «"ownKeys,getOwnPropertyDescriptor,get,getOwnPropertyDescriptor,get"») to be true'
   strict mode: 'Test262Error: Expected SameValue(«"ownKeys,getOwnPropertyDescriptor,getOwnPropertyDescriptor,get,get"», «"ownKeys,getOwnPropertyDescriptor,get,getOwnPropertyDescriptor,get"») to be true'

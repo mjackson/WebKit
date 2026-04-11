@@ -448,11 +448,11 @@ RefPtr<WebFrame> InjectedBundleNodeHandle::documentFrame()
 
 RefPtr<WebFrame> InjectedBundleNodeHandle::htmlIFrameElementContentFrame()
 {
-    RefPtr iframeElement = dynamicDowncast<HTMLIFrameElement>(m_node.get());
+    auto* iframeElement = dynamicDowncast<HTMLIFrameElement>(m_node.get());
     if (!iframeElement)
         return nullptr;
 
-    RefPtr frame = iframeElement->contentFrame();
+    auto* frame = iframeElement->contentFrame();
     if (!frame)
         return nullptr;
 

@@ -21,7 +21,6 @@
 #include "config.h"
 #include "SVGTSpanElement.h"
 
-#include "RenderInline.h"
 #include "RenderSVGTSpan.h"
 #include "SVGElementInlines.h"
 #include "SVGNames.h"

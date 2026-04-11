@@ -56,10 +56,10 @@ public:
 
     SymbolImpl& uid() const { return m_privateName.uid(); }
     PrivateName privateName() const { return m_privateName; }
-    String description() const;
+    String NODELETE description() const;
     Expected<String, ErrorTypeWithExtension> tryGetDescriptiveString() const;
 
-    JSValue toPrimitive(JSGlobalObject*, PreferredPrimitiveType) const;
+    JSValue NODELETE toPrimitive(JSGlobalObject*, PreferredPrimitiveType) const;
     JSObject* toObject(JSGlobalObject*) const;
     double toNumber(JSGlobalObject*) const;
 

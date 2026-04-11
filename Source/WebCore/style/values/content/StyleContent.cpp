@@ -33,6 +33,7 @@
 #include "RenderStyle+GettersInlines.h"
 #include "RenderStyle+SettersInlines.h"
 #include "StyleBuilderChecking.h"
+#include "StyleValueTypes+CSSValueConversion.h"
 
 namespace WebCore {
 namespace Style {
@@ -79,7 +80,7 @@ auto CSSValueConversion<Content>::operator()(BuilderState& state, const CSSValue
         const AtomString& attributeValue = element ? element->getAttribute(attr) : nullAtom();
 
         // Register the fact that the attribute value affects the style.
-        state.registerContentAttribute(attr.localName());
+        state.registerSubstitutionAttribute(attr.localName());
 
         if (attributeValue.isNull()) {
             RefPtr fallback = dynamicDowncast<CSSPrimitiveValue>(value.fallback());
@@ -120,8 +121,13 @@ auto CSSValueConversion<Content>::operator()(BuilderState& state, const CSSValue
                 return Content::Text { emptyString() };
             }
 
-            if (RefPtr counter = dynamicDowncast<CSSCounterValue>(item))
-                return Content::Counter { counter->identifier(), counter->separator(), toStyleFromCSSValue<CounterStyle>(state, counter->counterStyle()) };
+            if (RefPtr counter = dynamicDowncast<CSSCounterValue>(item)) {
+                return Content::Counter {
+                    toStyle(counter->identifier(), state),
+                    toStyle(counter->separator(), state),
+                    toStyle(counter->counterStyle(), state),
+                };
+            }
 
             state.setCurrentPropertyInvalidAtComputedValueTime();
             return Content::Text { emptyString() };
@@ -149,9 +155,13 @@ auto CSSValueConversion<Content>::operator()(BuilderState& state, const CSSValue
     return Content::Data { computeContentList(), computeAltText() };
 }
 
-Ref<CSSValue> CSSValueCreation<Content::Counter>::operator()(CSSValuePool& pool, const RenderStyle& style, const Content::Counter& value)
+Ref<CSSValue> CSSValueCreation<Content::Counter>::operator()(CSSValuePool&, const RenderStyle& style, const Content::Counter& value)
 {
-    return CSSCounterValue::create(AtomString { value.identifier }, AtomString { value.separator }, createCSSValue(pool, style, value.style));
+    return CSSCounterValue::create(
+        toCSS(value.identifier, style),
+        AtomString { value.separator },
+        toCSS(value.style, style)
+    );
 }
 
 } // namespace Style

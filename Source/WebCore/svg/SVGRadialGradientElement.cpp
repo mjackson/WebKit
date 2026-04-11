@@ -26,7 +26,6 @@
 #include "SVGRadialGradientElement.h"
 
 #include "ContainerNodeInlines.h"
-#include "FloatConversion.h"
 #include "FloatPoint.h"
 #include "LegacyRenderSVGResourceRadialGradient.h"
 #include "NodeName.h"
@@ -119,14 +118,14 @@ RenderPtr<RenderElement> SVGRadialGradientElement::createElementRenderer(RenderS
 
 static void setGradientAttributes(SVGGradientElement& element, RadialGradientAttributes& attributes, bool isRadial = true)
 {
-    if (!attributes.hasSpreadMethod() && element.hasAttribute(SVGNames::spreadMethodAttr))
+    if (!attributes.hasSpreadMethod() && element.hasAttributeOrIsAnimatingProperty(SVGNames::spreadMethodAttr))
         attributes.setSpreadMethod(element.spreadMethod());
 
-    if (!attributes.hasGradientUnits() && element.hasAttribute(SVGNames::gradientUnitsAttr))
+    if (!attributes.hasGradientUnits() && element.hasAttributeOrIsAnimatingProperty(SVGNames::gradientUnitsAttr))
         attributes.setGradientUnits(element.gradientUnits());
 
-    if (!attributes.hasGradientTransform() && element.hasAttribute(SVGNames::gradientTransformAttr))
-        attributes.setGradientTransform(element.gradientTransform().concatenate());
+    if (!attributes.hasGradientTransform() && element.hasAttributeOrIsAnimatingProperty(SVGNames::gradientTransformAttr))
+        attributes.setGradientTransform(element.gradientTransform().concatenate().value_or(identity));
 
     if (!attributes.hasStops())
         attributes.setStops(element.buildStops());
@@ -134,22 +133,22 @@ static void setGradientAttributes(SVGGradientElement& element, RadialGradientAtt
     if (isRadial) {
         SVGRadialGradientElement& radial = downcast<SVGRadialGradientElement>(element);
 
-        if (!attributes.hasCx() && element.hasAttribute(SVGNames::cxAttr))
+        if (!attributes.hasCx() && element.hasAttributeOrIsAnimatingProperty(SVGNames::cxAttr))
             attributes.setCx(radial.cx());
 
-        if (!attributes.hasCy() && element.hasAttribute(SVGNames::cyAttr))
+        if (!attributes.hasCy() && element.hasAttributeOrIsAnimatingProperty(SVGNames::cyAttr))
             attributes.setCy(radial.cy());
 
-        if (!attributes.hasR() && element.hasAttribute(SVGNames::rAttr))
+        if (!attributes.hasR() && element.hasAttributeOrIsAnimatingProperty(SVGNames::rAttr))
             attributes.setR(radial.r());
 
-        if (!attributes.hasFx() && element.hasAttribute(SVGNames::fxAttr))
+        if (!attributes.hasFx() && element.hasAttributeOrIsAnimatingProperty(SVGNames::fxAttr))
             attributes.setFx(radial.fx());
 
-        if (!attributes.hasFy() && element.hasAttribute(SVGNames::fyAttr))
+        if (!attributes.hasFy() && element.hasAttributeOrIsAnimatingProperty(SVGNames::fyAttr))
             attributes.setFy(radial.fy());
 
-        if (!attributes.hasFr() && element.hasAttribute(SVGNames::frAttr))
+        if (!attributes.hasFr() && element.hasAttributeOrIsAnimatingProperty(SVGNames::frAttr))
             attributes.setFr(radial.fr());
     }
 }

@@ -36,9 +36,7 @@
 namespace WebCore {
 DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(ElementAnimationRareData);
 
-ElementAnimationRareData::ElementAnimationRareData()
-{
-}
+ElementAnimationRareData::ElementAnimationRareData() = default;
 
 ElementAnimationRareData::~ElementAnimationRareData()
 {

@@ -27,6 +27,7 @@
 #include "CSSPropertyParserConsumer+Animations.h"
 
 #include "CSSCalcSymbolTable.h"
+#include "CSSCustomIdentValue.h"
 #include "CSSParserContext.h"
 #include "CSSParserIdioms.h"
 #include "CSSParserTokenRange.h"
@@ -122,7 +123,7 @@ Vector<std::pair<CSSValueID, double>> parseKeyframeKeyList(const String& string,
     return result;
 }
 
-RefPtr<CSSValue> consumeKeyframesName(CSSParserTokenRange& range, CSS::PropertyParserState&)
+RefPtr<CSSValue> consumeKeyframesName(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <keyframes-name> = <custom-ident> | <string>
     // https://drafts.csswg.org/css-animations/#typedef-keyframes-name
@@ -135,11 +136,11 @@ RefPtr<CSSValue> consumeKeyframesName(CSSParserTokenRange& range, CSS::PropertyP
 
         auto valueId = cssValueKeywordID(token.value());
         if (isValidCustomIdentifier(valueId) && valueId != CSSValueNone)
-            return CSSPrimitiveValue::createCustomIdent(token.value().toString());
+            return CSSCustomIdentValue::create(CSS::CustomIdent { token.value().toAtomString() });
         return CSSPrimitiveValue::create(token.value().toString());
     }
 
-    return consumeCustomIdent(range);
+    return consumeCustomIdent(range, state);
 }
 
 } // namespace CSSPropertyParserHelpers

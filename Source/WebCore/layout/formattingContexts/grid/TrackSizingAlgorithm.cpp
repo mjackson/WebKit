@@ -30,6 +30,7 @@
 #include "LayoutIntegrationUtils.h"
 #include "NotImplemented.h"
 #include "PlacedGridItem.h"
+#include "StyleContentAlignmentData.h"
 #include "TrackSizingFunctions.h"
 #include <wtf/Range.h>
 #include <wtf/Vector.h>
@@ -618,7 +619,7 @@ static bool NODELETE itemCrossesFlexibleTrack(const UnsizedTracks& tracks, const
 // Implements the final step of spec section 11.7:
 // "For each flexible track, if the product of the used flex fraction and the track's
 // flex factor is greater than the track's base size, set its base size to that product."
-static void applyFlexFractionToTracks(UnsizedTracks& unsizedTracks, const FlexTracks& flexTracks, LayoutUnit flexFraction)
+static void NODELETE applyFlexFractionToTracks(UnsizedTracks& unsizedTracks, const FlexTracks& flexTracks, LayoutUnit flexFraction)
 {
     for (const auto& flexTrack : flexTracks) {
         LayoutUnit flexSize = flexFraction * LayoutUnit(flexTrack.flexFactor.value);

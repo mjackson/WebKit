@@ -131,11 +131,6 @@ public:
 
     LayoutRect logicalRectToPhysicalRect(const LayoutPoint& physicalPosition, const LayoutRect& logicalRect);
 
-    void addContinuationWithOutline(RenderInline*);
-#if ASSERT_ENABLED
-    bool paintsContinuationOutline(const RenderInline&);
-#endif
-
     bool establishesIndependentFormattingContext() const;
     bool createsNewFormattingContext() const;
 
@@ -188,8 +183,8 @@ public:
     LayoutSize logicalSizeForChild(const RenderBox& child) const { return isHorizontalWritingMode() ? child.size() : child.size().transposedSize(); }
     LayoutUnit logicalTopForChild(const RenderBox& child) const { return isHorizontalWritingMode() ? child.y() : child.x(); }
     LayoutUnit logicalLeftForChild(const RenderBox& child) const { return isHorizontalWritingMode() ? child.x() : child.y(); }
-    void setLogicalLeftForChild(RenderBox& child, LayoutUnit logicalLeft, ApplyLayoutDeltaMode = DoNotApplyLayoutDelta);
-    void setLogicalTopForChild(RenderBox& child, LayoutUnit logicalTop, ApplyLayoutDeltaMode = DoNotApplyLayoutDelta);
+    void NODELETE setLogicalLeftForChild(RenderBox& child, LayoutUnit logicalLeft, ApplyLayoutDeltaMode = DoNotApplyLayoutDelta);
+    void NODELETE setLogicalTopForChild(RenderBox& child, LayoutUnit logicalTop, ApplyLayoutDeltaMode = DoNotApplyLayoutDelta);
     LayoutUnit marginBeforeForChild(const RenderBoxModelObject& child) const { return child.marginBefore(writingMode()); }
     LayoutUnit marginAfterForChild(const RenderBoxModelObject& child) const { return child.marginAfter(writingMode()); }
     LayoutUnit marginStartForChild(const RenderBoxModelObject& child) const { return child.marginStart(writingMode()); }
@@ -382,13 +377,9 @@ private:
     // FIXME-BLOCKFLOW: Remove virtualizaion when all callers have moved to RenderBlockFlow
     virtual void clipOutFloatingBoxes(RenderBlock&, const PaintInfo*, const LayoutPoint&, const LayoutSize&) { };
 
-    void paintContinuationOutlines(PaintInfo&, const LayoutPoint&);
-
     virtual PositionWithAffinity positionForPointWithInlineChildren(const LayoutPoint&, HitTestSource);
 
     RenderFragmentedFlow* updateCachedEnclosingFragmentedFlow(RenderFragmentedFlow*) const;
-
-    void absoluteQuadsIgnoringContinuation(const FloatRect&, Vector<FloatQuad>&, bool* wasFixed) const override;
 
     void paintDebugBoxShadowIfApplicable(GraphicsContext&, const LayoutRect&) const;
 

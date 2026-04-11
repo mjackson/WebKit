@@ -89,70 +89,70 @@ static JSC_DECLARE_HOST_FUNCTION(intlObjectFuncSupportedValuesOf);
 static JSValue createCollatorConstructor(VM& vm, JSObject* object)
 {
     IntlObject* intlObject = jsCast<IntlObject*>(object);
-    JSGlobalObject* globalObject = intlObject->globalObject();
+    JSGlobalObject* globalObject = intlObject->realm();
     return IntlCollatorConstructor::create(vm, IntlCollatorConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), jsCast<IntlCollatorPrototype*>(globalObject->collatorStructure()->storedPrototypeObject()));
 }
 
 static JSValue createDateTimeFormatConstructor(VM&, JSObject* object)
 {
     IntlObject* intlObject = jsCast<IntlObject*>(object);
-    JSGlobalObject* globalObject = intlObject->globalObject();
+    JSGlobalObject* globalObject = intlObject->realm();
     return globalObject->dateTimeFormatConstructor();
 }
 
 static JSValue createDisplayNamesConstructor(VM& vm, JSObject* object)
 {
     IntlObject* intlObject = jsCast<IntlObject*>(object);
-    JSGlobalObject* globalObject = intlObject->globalObject();
+    JSGlobalObject* globalObject = intlObject->realm();
     return IntlDisplayNamesConstructor::create(vm, IntlDisplayNamesConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), jsCast<IntlDisplayNamesPrototype*>(globalObject->displayNamesStructure()->storedPrototypeObject()));
 }
 
 static JSValue createDurationFormatConstructor(VM& vm, JSObject* object)
 {
     IntlObject* intlObject = jsCast<IntlObject*>(object);
-    JSGlobalObject* globalObject = intlObject->globalObject();
+    JSGlobalObject* globalObject = intlObject->realm();
     return IntlDurationFormatConstructor::create(vm, IntlDurationFormatConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), jsCast<IntlDurationFormatPrototype*>(globalObject->durationFormatStructure()->storedPrototypeObject()));
 }
 
 static JSValue createListFormatConstructor(VM& vm, JSObject* object)
 {
     IntlObject* intlObject = jsCast<IntlObject*>(object);
-    JSGlobalObject* globalObject = intlObject->globalObject();
+    JSGlobalObject* globalObject = intlObject->realm();
     return IntlListFormatConstructor::create(vm, IntlListFormatConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), jsCast<IntlListFormatPrototype*>(globalObject->listFormatStructure()->storedPrototypeObject()));
 }
 
 static JSValue createLocaleConstructor(VM& vm, JSObject* object)
 {
     IntlObject* intlObject = jsCast<IntlObject*>(object);
-    JSGlobalObject* globalObject = intlObject->globalObject();
+    JSGlobalObject* globalObject = intlObject->realm();
     return IntlLocaleConstructor::create(vm, IntlLocaleConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), jsCast<IntlLocalePrototype*>(globalObject->localeStructure()->storedPrototypeObject()));
 }
 
 static JSValue createNumberFormatConstructor(VM&, JSObject* object)
 {
     IntlObject* intlObject = jsCast<IntlObject*>(object);
-    JSGlobalObject* globalObject = intlObject->globalObject();
+    JSGlobalObject* globalObject = intlObject->realm();
     return globalObject->numberFormatConstructor();
 }
 
 static JSValue createPluralRulesConstructor(VM& vm, JSObject* object)
 {
     IntlObject* intlObject = jsCast<IntlObject*>(object);
-    JSGlobalObject* globalObject = intlObject->globalObject();
+    JSGlobalObject* globalObject = intlObject->realm();
     return IntlPluralRulesConstructor::create(vm, IntlPluralRulesConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), jsCast<IntlPluralRulesPrototype*>(globalObject->pluralRulesStructure()->storedPrototypeObject()));
 }
 
 static JSValue createRelativeTimeFormatConstructor(VM& vm, JSObject* object)
 {
     IntlObject* intlObject = jsCast<IntlObject*>(object);
-    JSGlobalObject* globalObject = intlObject->globalObject();
+    JSGlobalObject* globalObject = intlObject->realm();
     return IntlRelativeTimeFormatConstructor::create(vm, IntlRelativeTimeFormatConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), jsCast<IntlRelativeTimeFormatPrototype*>(globalObject->relativeTimeFormatStructure()->storedPrototypeObject()));
 }
 
 static JSValue createSegmenterConstructor(VM& vm, JSObject* object)
 {
     IntlObject* intlObject = jsCast<IntlObject*>(object);
-    JSGlobalObject* globalObject = intlObject->globalObject();
+    JSGlobalObject* globalObject = intlObject->realm();
     return IntlSegmenterConstructor::create(vm, IntlSegmenterConstructor::createStructure(vm, globalObject, globalObject->functionPrototype()), jsCast<IntlSegmenterPrototype*>(globalObject->segmenterStructure()->storedPrototypeObject()));
 }
 
@@ -1197,7 +1197,7 @@ bool isUnicodeVariantSubtag(StringView string)
 }
 
 using VariantCode = uint64_t;
-static VariantCode parseVariantCode(StringView string)
+static VariantCode NODELETE parseVariantCode(StringView string)
 {
     ASSERT(isUnicodeVariantSubtag(string));
     ASSERT(string.containsOnlyASCII());
@@ -1217,7 +1217,7 @@ static VariantCode parseVariantCode(StringView string)
     return result;
 }
 
-static unsigned convertToUnicodeSingletonIndex(char16_t singleton)
+static unsigned NODELETE convertToUnicodeSingletonIndex(char16_t singleton)
 {
     ASSERT(isASCIIAlphanumeric(singleton));
     singleton = toASCIILower(singleton);
@@ -1229,41 +1229,41 @@ static unsigned convertToUnicodeSingletonIndex(char16_t singleton)
 }
 static constexpr unsigned numberOfUnicodeSingletons = 10 + 26; // Digits + Alphabets.
 
-static bool isUnicodeExtensionAttribute(StringView string)
+static bool NODELETE isUnicodeExtensionAttribute(StringView string)
 {
     auto length = string.length();
     return length >= 3 && length <= 8 && string.containsOnly<isASCIIAlphanumeric>();
 }
 
-static bool isUnicodeExtensionKey(StringView string)
+static bool NODELETE isUnicodeExtensionKey(StringView string)
 {
     return string.length() == 2 && isASCIIAlphanumeric(string[0]) && isASCIIAlpha(string[1]);
 }
 
-static bool isUnicodeExtensionTypeComponent(StringView string)
+static bool NODELETE isUnicodeExtensionTypeComponent(StringView string)
 {
     auto length = string.length();
     return length >= 3 && length <= 8 && string.containsOnly<isASCIIAlphanumeric>();
 }
 
-static bool isUnicodePUExtensionValue(StringView string)
+static bool NODELETE isUnicodePUExtensionValue(StringView string)
 {
     auto length = string.length();
     return length >= 1 && length <= 8 && string.containsOnly<isASCIIAlphanumeric>();
 }
 
-static bool isUnicodeOtherExtensionValue(StringView string)
+static bool NODELETE isUnicodeOtherExtensionValue(StringView string)
 {
     auto length = string.length();
     return length >= 2 && length <= 8 && string.containsOnly<isASCIIAlphanumeric>();
 }
 
-static bool isUnicodeTKey(StringView string)
+static bool NODELETE isUnicodeTKey(StringView string)
 {
     return string.length() == 2 && isASCIIAlpha(string[0]) && isASCIIDigit(string[1]);
 }
 
-static bool isUnicodeTValueComponent(StringView string)
+static bool NODELETE isUnicodeTValueComponent(StringView string)
 {
     auto length = string.length();
     return length >= 3 && length <= 8 && string.containsOnly<isASCIIAlphanumeric>();
@@ -1293,12 +1293,12 @@ public:
     bool parseUnicodeLocaleId();
     bool parseUnicodeLanguageId();
 
-    bool isEOS()
+    bool NODELETE isEOS()
     {
         return m_cursor == m_range.end();
     }
 
-    bool next()
+    bool NODELETE next()
     {
         if (isEOS())
             return false;
@@ -1372,7 +1372,7 @@ bool LanguageTagParser::parseUnicodeLanguageId()
     }
 }
 
-bool LanguageTagParser::parseUnicodeExtensionAfterPrefix()
+bool NODELETE LanguageTagParser::parseUnicodeExtensionAfterPrefix()
 {
     // ((sep keyword)+ | (sep attribute)+ (sep keyword)*) ;
     //
@@ -1454,7 +1454,7 @@ bool LanguageTagParser::parseTransformedExtensionAfterPrefix()
     return found;
 }
 
-bool LanguageTagParser::parseOtherExtensionAfterPrefix()
+bool NODELETE LanguageTagParser::parseOtherExtensionAfterPrefix()
 {
     // (sep alphanum{2,8})+ ;
     ASSERT(!isEOS());
@@ -1471,7 +1471,7 @@ bool LanguageTagParser::parseOtherExtensionAfterPrefix()
     }
 }
 
-bool LanguageTagParser::parsePUExtensionAfterPrefix()
+bool NODELETE LanguageTagParser::parsePUExtensionAfterPrefix()
 {
     // (sep alphanum{1,8})+ ;
     ASSERT(!isEOS());

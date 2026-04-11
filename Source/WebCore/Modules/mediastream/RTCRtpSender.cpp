@@ -156,12 +156,32 @@ RTCRtpSendParameters RTCRtpSender::getParameters()
     return m_backend->getParameters();
 }
 
-void RTCRtpSender::setParameters(const RTCRtpSendParameters& parameters, DOMPromiseDeferred<void>&& promise)
+void RTCRtpSender::setParameters(RTCRtpSendParameters&& parameters, DOMPromiseDeferred<void>&& promise)
 {
     if (isStopped()) {
         promise.reject(ExceptionCode::InvalidStateError);
         return;
     }
+
+    // https://w3c.github.io/webrtc-pc/#dfn-setparameters-validation-steps
+    if (m_trackKind == "audio"_s) {
+        for (auto& encoding : parameters.encodings) {
+            encoding.scaleResolutionDownBy = { };
+            encoding.maxFramerate = { };
+        }
+    } else {
+        for (auto& encoding : parameters.encodings) {
+            if (encoding.scaleResolutionDownBy && encoding.scaleResolutionDownBy < 1) {
+                promise.reject(Exception { ExceptionCode::RangeError });
+                return;
+            }
+            if (encoding.maxFramerate && encoding.maxFramerate < 0) {
+                promise.reject(Exception { ExceptionCode::RangeError });
+                return;
+            }
+        }
+    }
+
     return m_backend->setParameters(parameters, WTF::move(promise));
 }
 

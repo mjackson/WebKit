@@ -94,7 +94,7 @@ public:
     PerformanceTiming& timing();
     EventCounts& eventCounts() LIFETIME_BOUND;
 
-    uint64_t interactionCount();
+    uint64_t NODELETE interactionCount();
 
     Vector<Ref<PerformanceEntry>> getEntries() const;
     Vector<Ref<PerformanceEntry>> getEntriesByType(const String& entryType) const;

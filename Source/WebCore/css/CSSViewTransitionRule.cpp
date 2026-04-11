@@ -26,6 +26,7 @@
 #include "config.h"
 #include "CSSViewTransitionRule.h"
 
+#include "CSSCustomIdentValue.h"
 #include "CSSPropertyParser.h"
 #include "CSSStyleSheet.h"
 #include "CSSTokenizer.h"
@@ -58,8 +59,8 @@ StyleRuleViewTransition::StyleRuleViewTransition(Ref<StyleProperties>&& properti
 
     if (auto value = properties->getPropertyCSSValue(CSSPropertyTypes)) {
         auto processSingleValue = [&](const CSSValue& currentValue) {
-            if (currentValue.isCustomIdent())
-                m_types.append(currentValue.customIdent());
+            if (RefPtr customIdentValue = dynamicDowncast<CSSCustomIdentValue>(currentValue))
+                m_types.append(customIdentValue->customIdent().value);
         };
         if (auto* list = dynamicDowncast<CSSValueList>(*value)) {
             for (Ref currentValue : *list)

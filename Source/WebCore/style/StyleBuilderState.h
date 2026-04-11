@@ -34,6 +34,7 @@
 #include "RuleSet.h"
 #include "SelectorChecker.h"
 #include "StyleForVisitedLink.h"
+#include "StyleSubstitutionContext.h"
 #include "TextFlags.h"
 #include "TreeResolutionState.h"
 #include <wtf/BitSet.h>
@@ -136,7 +137,7 @@ public:
     bool applyPropertyToRegularStyle() const { return m_linkMatch != SelectorChecker::MatchVisited; }
     bool applyPropertyToVisitedLinkStyle() const { return m_linkMatch != SelectorChecker::MatchLink; }
 
-    float zoomWithTextZoomFactor();
+    float NODELETE zoomWithTextZoomFactor();
 
     bool NODELETE useSVGZoomRules() const;
     bool NODELETE useSVGZoomRulesForLength() const;
@@ -145,10 +146,12 @@ public:
 
     RefPtr<Image> createStyleImage(const CSSValue&) const;
 
-    const Vector<AtomString>& registeredContentAttributes() const LIFETIME_BOUND { return m_registeredContentAttributes; }
-    void registerContentAttribute(const AtomString& attributeLocalName);
+    const Vector<AtomString>& registeredSubstitutionAttributes() const LIFETIME_BOUND { return m_registeredSubstitutionAttributes; }
+    void registerSubstitutionAttribute(const AtomString& attributeLocalName);
 
     const CSSToLengthConversionData& cssToLengthConversionData() const LIFETIME_BOUND { return m_cssToLengthConversionData; }
+
+    GuardedSubstitutionContexts::Guard guardSubstitutionContext(SubstitutionContext&& context) { return m_guardedSubstitutionContexts.guard(WTF::move(context)); }
 
     void setIsBuildingKeyframeStyle() { m_isBuildingKeyframeStyle = true; }
     bool hasRevertRuleOrLayerInKeyframeStyle() const { return m_hasRevertRuleOrLayerInKeyframeStyle; }
@@ -166,11 +169,11 @@ public:
     void NODELETE setUsesViewportUnits();
     void NODELETE setUsesContainerUnits();
 
-    double lookupCSSRandomBaseValue(const CSSCalc::RandomCachingKey&, std::optional<CSS::Keyword::ElementShared>) const;
+    double lookupCSSRandomBaseValue(const CSSCalc::RandomCachingKey&, std::optional<CSS::Keyword::ElementScoped>) const;
 
     // Accessors for sibling information used by the sibling-count() and sibling-index() CSS functions.
-    unsigned siblingCount();
-    unsigned siblingIndex();
+    unsigned NODELETE siblingCount();
+    unsigned NODELETE siblingIndex();
 
     AnchorPositionedStates* anchorPositionedStates() LIFETIME_BOUND { return m_context.treeResolutionState ? &m_context.treeResolutionState->anchorPositionedStates : nullptr; }
     const std::optional<BuilderPositionTryFallback>& positionTryFallback() const LIFETIME_BOUND { return m_context.positionTryFallback; }
@@ -190,7 +193,7 @@ public:
     void setFontDescriptionFontSmoothing(FontSmoothingMode);
     void setFontDescriptionFontStyle(FontStyle);
     void setFontDescriptionFontSynthesisSmallCaps(FontSynthesisLonghandValue);
-    void setFontDescriptionFontSynthesisStyle(FontSynthesisLonghandValue);
+    void setFontDescriptionFontSynthesisStyle(FontSynthesisStyleLonghandValue);
     void setFontDescriptionFontSynthesisWeight(FontSynthesisLonghandValue);
     void setFontDescriptionKerning(Kerning);
     void setFontDescriptionOpticalSizing(FontOpticalSizing);
@@ -228,6 +231,7 @@ private:
     // See the comment in maybeUpdateFontForLetterSpacingOrWordSpacing() about why this needs to be a friend.
     friend void maybeUpdateFontForLetterSpacingOrWordSpacing(BuilderState&, CSSValue&);
     friend class Builder;
+    friend class SubstitutionResolver;
 
     BuilderState(RenderStyle&);
     BuilderState(RenderStyle&, BuilderContext&&);
@@ -249,8 +253,7 @@ private:
     const CSSToLengthConversionData m_cssToLengthConversionData;
 
     HashSet<AtomString> m_appliedCustomProperties;
-    HashSet<AtomString> m_inProgressCustomProperties;
-    HashSet<AtomString> m_inCycleCustomProperties;
+    GuardedSubstitutionContexts m_guardedSubstitutionContexts;
     WTF::BitSet<cssPropertyIDEnumValueCount> m_inProgressProperties;
     WTF::BitSet<cssPropertyIDEnumValueCount> m_invalidAtComputedValueTimeProperties;
 
@@ -259,7 +262,7 @@ private:
     const PropertyCascade* m_currentRollbackCascade { nullptr };
 
     bool m_fontDirty { false };
-    Vector<AtomString> m_registeredContentAttributes;
+    Vector<AtomString> m_registeredSubstitutionAttributes;
 
     bool m_isBuildingKeyframeStyle { false };
     bool m_hasRevertRuleOrLayerInKeyframeStyle { false };

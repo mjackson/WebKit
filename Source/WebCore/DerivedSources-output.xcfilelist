@@ -1351,8 +1351,6 @@ $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSGPUPipelineLayoutDescriptor.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSGPUPipelineLayoutDescriptor.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSGPUPowerPreference.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSGPUPowerPreference.h
-$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSGPUPredefinedColorSpace.cpp
-$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSGPUPredefinedColorSpace.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSGPUPrimitiveState.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSGPUPrimitiveState.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSGPUPrimitiveTopology.cpp
@@ -1725,6 +1723,8 @@ $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBDatabase.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBDatabase.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBFactory.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBFactory.h
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBGetAllOptions.cpp
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBGetAllOptions.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBIndex.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBIndex.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBKeyRange.cpp
@@ -1733,6 +1733,8 @@ $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBObjectStore.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBObjectStore.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBOpenDBRequest.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBOpenDBRequest.h
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBRecord.cpp
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBRecord.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBRequest.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBRequest.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIDBTransaction.cpp
@@ -3527,6 +3529,8 @@ $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSWebXRRigidTransform.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSWebXRRigidTransform.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSWebXRSession+AR.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSWebXRSession+AR.h
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSWebXRSession+Layers.cpp
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSWebXRSession+Layers.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSWebXRSession+HitTest.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSWebXRSession+HitTest.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSWebXRSession.cpp

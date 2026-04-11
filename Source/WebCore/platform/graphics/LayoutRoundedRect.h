@@ -56,7 +56,7 @@ public:
 
     bool NODELETE isZero() const;
 
-    bool areRenderableInRect(const LayoutRect&) const;
+    bool NODELETE areRenderableInRect(const LayoutRect&) const;
     void makeRenderableInRect(const LayoutRect&);
 
     void NODELETE scale(float factor);
@@ -103,13 +103,13 @@ public:
     void expandRadii(LayoutUnit size) { m_radii.expand(size); }
     void shrinkRadii(LayoutUnit size) { m_radii.shrink(size); }
 
-    bool isRenderable() const;
+    bool NODELETE isRenderable() const;
     void adjustRadii();
 
     // Tests whether the quad intersects any part of this rounded rectangle.
     // This only works for convex quads.
-    bool intersectsQuad(const FloatQuad&) const;
-    WEBCORE_EXPORT bool contains(const LayoutRect&) const;
+    bool NODELETE intersectsQuad(const FloatQuad&) const;
+    WEBCORE_EXPORT bool NODELETE contains(const LayoutRect&) const;
 
     FloatRoundedRect pixelSnappedRoundedRectForPainting(float deviceScaleFactor) const;
 

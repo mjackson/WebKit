@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2007 Alexey Proskuryakov <ap@nypop.com>.
- * Copyright (C) 2008-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2008-2026 Apple Inc. All rights reserved.
  * Copyright (C) 2009 Torch Mobile Inc. All rights reserved. (http://www.torchmobile.com/)
  * Copyright (C) 2009 Jeff Schiller <codedread@gmail.com>
  * Copyright (C) Research In Motion Limited 2010. All rights reserved.
@@ -373,8 +373,6 @@ constexpr CSSValueID toCSSValueID(StyleAppearance e)
     case StyleAppearance::SliderThumbHorizontal:
     case StyleAppearance::SliderThumbVertical:
     case StyleAppearance::Switch:
-    case StyleAppearance::SwitchThumb:
-    case StyleAppearance::SwitchTrack:
         ASSERT_NOT_REACHED_UNDER_CONSTEXPR_CONTEXT();
         return CSSValueNone;
     }
@@ -2246,6 +2244,12 @@ template<> constexpr FontTechnology fromCSSValueID(CSSValueID valueID)
 
 #define TYPE FontSynthesisLonghandValue
 #define FOR_EACH(CASE) CASE(Auto) CASE(None)
+DEFINE_TO_FROM_CSS_VALUE_ID_FUNCTIONS
+#undef TYPE
+#undef FOR_EACH
+
+#define TYPE FontSynthesisStyleLonghandValue
+#define FOR_EACH(CASE) CASE(Auto) CASE(None) CASE(ObliqueOnly)
 DEFINE_TO_FROM_CSS_VALUE_ID_FUNCTIONS
 #undef TYPE
 #undef FOR_EACH

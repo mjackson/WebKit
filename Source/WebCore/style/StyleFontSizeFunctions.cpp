@@ -182,7 +182,7 @@ int legacyFontSizeForPixelSize(int pixelFontSize, bool shouldUseFixedDefaultSize
     return findNearestLegacyFontSize(pixelFontSize, std::span { fontSizeFactors }, mediumSize);
 }
 
-static float adjustedFontSize(float size, float sizeAdjust, float metricValue)
+static float NODELETE adjustedFontSize(float size, float sizeAdjust, float metricValue)
 {
     ASSERT(sizeAdjust > 0);
     if (!size)

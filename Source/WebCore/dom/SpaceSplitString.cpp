@@ -113,7 +113,7 @@ public:
     }
 
     template <typename TokenCharacterType>
-    bool processToken(std::span<const TokenCharacterType> characters)
+    bool NODELETE processToken(std::span<const TokenCharacterType> characters)
     {
         if (characters.size() == m_referenceLength && equal(m_referenceCharacters, characters)) {
             m_referenceStringWasFound = true;
@@ -131,7 +131,7 @@ private:
 };
 
 template <typename ValueCharacterType>
-static bool spaceSplitStringContainsValueInternal(StringView spaceSplitString, StringView value)
+static bool NODELETE spaceSplitStringContainsValueInternal(StringView spaceSplitString, StringView value)
 {
     TokenIsEqualToCharactersTokenProcessor<ValueCharacterType> tokenProcessor(value.span<ValueCharacterType>().data(), value.length());
     tokenizeSpaceSplitString(tokenProcessor, spaceSplitString);

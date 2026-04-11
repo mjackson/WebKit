@@ -56,5 +56,7 @@ void installBreakpadExceptionHandler()
             return succeeded;
         }, nullptr, true, -1);
 }
+
+} // namespace WebKit
 #endif
 

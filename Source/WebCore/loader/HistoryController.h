@@ -104,7 +104,7 @@ public:
 
 private:
     friend class Page;
-    bool shouldStopLoadingForHistoryItem(HistoryItem&) const;
+    bool NODELETE shouldStopLoadingForHistoryItem(HistoryItem&) const;
     void goToItem(HistoryItem&, FrameLoadType, ShouldTreatAsContinuingLoad);
     void goToItemForNavigationAPI(HistoryItem&, FrameLoadType, LocalFrame& triggeringFrame, NavigationAPIMethodTracker*);
     void goToItemShared(HistoryItem&, CompletionHandler<void(ShouldGoToHistoryItem)>&&, ShouldTreatAsContinuingLoad = ShouldTreatAsContinuingLoad::No);

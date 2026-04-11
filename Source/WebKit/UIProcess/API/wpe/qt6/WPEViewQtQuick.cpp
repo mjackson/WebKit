@@ -64,13 +64,7 @@ static PFNGLEGLIMAGETARGETTEXTURE2DOESPROC imageTargetTexture2DOES;
 
 static void wpeViewQtQuickDispose(GObject* object)
 {
-    auto* priv = WPE_VIEW_QTQUICK(object)->priv;
-    if (priv->textureId) {
-        if (auto* glFunctions = priv->context ? priv->context->functions() : nullptr)
-            glFunctions->glDeleteTextures(1, &priv->textureId);
-        priv->textureId = 0;
-    }
-
+    wpe_view_qtquick_invalidate_rendering(WPE_VIEW_QTQUICK(object));
     G_OBJECT_CLASS(wpe_view_qtquick_parent_class)->dispose(object);
 }
 
@@ -161,6 +155,17 @@ gboolean wpe_view_qtquick_initialize_rendering(WPEViewQtQuick* view, WPEQtView* 
     priv->surface.create();
 
     return TRUE;
+}
+
+void wpe_view_qtquick_invalidate_rendering(WPEViewQtQuick* view)
+{
+    auto* priv = view->priv;
+    if (priv->textureId && priv->context) {
+        if (auto* glFunctions = priv->context->functions())
+            glFunctions->glDeleteTextures(1, &priv->textureId);
+        priv->textureId = 0;
+    }
+    priv->context = nullptr;
 }
 
 QSGTexture* wpe_view_qtquick_render_buffer_to_texture(WPEViewQtQuick* view, QSize size, GError** error)

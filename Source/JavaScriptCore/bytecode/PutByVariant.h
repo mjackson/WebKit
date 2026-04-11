@@ -100,7 +100,7 @@ public:
         return oldStructure();
     }
     
-    Structure* oldStructureForTransition() const;
+    Structure* NODELETE oldStructureForTransition() const;
     
     Structure* newStructure() const
     {
@@ -108,11 +108,11 @@ public:
         return m_newStructure;
     }
     
-    void fixTransitionToReplaceIfNecessary();
+    void NODELETE fixTransitionToReplaceIfNecessary();
 
-    bool writesStructures() const;
-    bool reallocatesStorage() const;
-    bool makesCalls() const;
+    bool NODELETE writesStructures() const;
+    bool NODELETE reallocatesStorage() const;
+    bool NODELETE makesCalls() const;
     
     const ObjectPropertyConditionSet& conditionSet() const LIFETIME_BOUND { return m_conditionSet; }
     

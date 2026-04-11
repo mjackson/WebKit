@@ -113,7 +113,7 @@ public:
     using ComputeSeekPromise = SourceBufferPrivate::ComputeSeekPromise;
     Ref<ComputeSeekPromise> computeSeekTime(const SeekTarget&);
 
-    bool hasVideo() const;
+    bool NODELETE hasVideo() const;
 
     bool active() const { return m_active; }
 
@@ -208,7 +208,7 @@ private:
 
     void appendError(bool);
 
-    bool hasAudio() const;
+    bool NODELETE hasAudio() const;
 
     void rangeRemoval(const MediaTime&, const MediaTime&);
 

@@ -38,8 +38,8 @@
 #include "CSSPropertyParserConsumer+ResolutionDefinitions.h"
 #include "CSSPropertyParserState.h"
 #include "CSSRatioValue.h"
+#include "CSSSubstitutionParser.h"
 #include "CSSValue.h"
-#include "CSSVariableParser.h"
 #include "MediaQueryParserContext.h"
 #include <wtf/text/MakeString.h>
 
@@ -77,7 +77,7 @@ static RefPtr<CSSValue> consumeCustomPropertyValue(AtomString propertyName, CSSP
     if (valueRange.atEnd())
         return CSSCustomPropertyValue::createEmpty(propertyName);
 
-    return CSSVariableParser::parseDeclarationValue(propertyName, valueRange, context.context);
+    return CSSSubstitutionParser::parseDeclarationValue(propertyName, valueRange, context.context);
 }
 
 std::optional<Feature> FeatureParser::consumeBooleanOrPlainFeature(CSSParserTokenRange& range, const MediaQueryParserContext& context)

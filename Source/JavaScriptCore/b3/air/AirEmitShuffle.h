@@ -75,7 +75,7 @@ public:
     // For GP, it picks between Move32 and Move. For FP, it picks between MoveFloat and MoveDouble.
     Width width() const { return m_width; }
     
-    Bank bank() const;
+    Bank NODELETE bank() const;
 
     // Creates an instruction sequence for the move represented by this shuffle pair.
     // You need to pass Code because we may need to create a tmp.

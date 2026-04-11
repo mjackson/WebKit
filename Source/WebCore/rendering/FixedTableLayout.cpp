@@ -221,7 +221,7 @@ void FixedTableLayout::layout()
         nEffCols = m_table->numEffCols();
     }
 
-    Vector<float> calcWidth(nEffCols, 0);
+    Vector<float> calcWidth(FillWith { }, nEffCols, 0);
 
     unsigned numAuto = 0;
     unsigned autoSpan = 0;

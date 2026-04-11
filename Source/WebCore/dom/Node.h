@@ -502,7 +502,7 @@ public:
         bool treeScopeChanged { false };
     };
     // https://dom.spec.whatwg.org/#concept-node-insert-ext
-    // Called *after* this node or its ancestor is inserted into a new parent (may or may not be a part of document) by scripts or parser.
+    // Called *after* this node or its ancestor is inserted into a new NODELETE parent (may or may not be a part of document) by scripts or parser.
     // insertionSteps **MUST NOT** invoke scripts. Return NeedsPostConnectionSteps and implement postConnectionSteps instead to run scripts.
     virtual NeedsPostConnectionSteps insertionSteps(InsertionType, ContainerNode& parentOfInsertedTree);
 
@@ -827,8 +827,8 @@ private:
 
 bool NODELETE connectedInSameTreeScope(const Node*, const Node*);
 
-enum TreeType { Tree, ShadowIncludingTree, ComposedTree };
-template<TreeType = Tree> ContainerNode* parent(const Node&);
+enum TreeType { Tree, ShadowIncludingTree, ComposedTree, ComposedTreeIncludingPseudoElements };
+template<TreeType = Tree> ContainerNode* NODELETE parent(const Node&);
 template<TreeType = Tree> Node* commonInclusiveAncestor(const Node&, const Node&);
 template<TreeType = Tree> std::partial_ordering treeOrder(const Node&, const Node&);
 

@@ -74,7 +74,7 @@ GST_DEBUG_CATEGORY_STATIC(webkitMediaStreamSrcDebug);
     return tagList;
 }
 
-GstStream* webkitMediaStreamNew(const RefPtr<MediaStreamTrackPrivate>& track)
+[[nodiscard]] GRefPtr<GstStream> webkitMediaStreamNew(const RefPtr<MediaStreamTrackPrivate>& track)
 {
     if (!track)
         return nullptr;
@@ -91,15 +91,10 @@ GstStream* webkitMediaStreamNew(const RefPtr<MediaStreamTrackPrivate>& track)
         type = GST_STREAM_TYPE_VIDEO;
     }
 
-    StringBuilder builder;
-    builder.append(track->id());
-    if (!track->enabled())
-        builder.append("-disabled"_s);
-
-    auto trackId = builder.toString();
-    auto* stream = gst_stream_new(trackId.utf8().data(), caps.get(), type, GST_STREAM_FLAG_SELECT);
+    auto flags = track->enabled() ? GST_STREAM_FLAG_SELECT : GST_STREAM_FLAG_NONE;
+    auto stream = adoptGRef(gst_stream_new(track->id().utf8().data(), caps.get(), type, flags));
     auto tags = mediaStreamTrackPrivateGetTags(track);
-    gst_stream_set_tags(stream, tags.get());
+    gst_stream_set_tags(stream.get(), tags.get());
     return stream;
 }
 
@@ -341,6 +336,8 @@ public:
         m_audioTrack->setEnabled(m_audioTrack->streamTrack().enabled());
         if (isPlaying)
             m_audioTrack->play();
+        else
+            m_audioTrack->pause();
     }
 
     bool signalEndOfStream()
@@ -769,7 +766,7 @@ private:
         if (m_src)
             g_signal_handlers_disconnect_matched(m_src.get(), G_SIGNAL_MATCH_DATA, 0, 0, nullptr, nullptr, this);
 
-        m_stream = adoptGRef(webkitMediaStreamNew(track()));
+        m_stream = webkitMediaStreamNew(track());
 
         g_signal_connect_swapped(m_stream.get(), "notify::tags", G_CALLBACK(+[](InternalSource* self) {
             auto pad = adoptGRef(gst_element_get_static_pad(self->m_src.get(), "src"));

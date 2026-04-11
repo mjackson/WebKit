@@ -28,6 +28,7 @@
 
 #include "Document.h"
 #include "Editing.h"
+#include "EditingInlines.h"
 #include "EditingStyle.h"
 #include "ElementInlines.h"
 #include "HTMLBRElement.h"
@@ -149,7 +150,7 @@ Ref<Element> InsertParagraphSeparatorCommand::cloneHierarchyUnderNewBlock(const 
     return parent.releaseNonNull();
 }
 
-static bool isPhrasingContent(const Node& node)
+static bool NODELETE isPhrasingContent(const Node& node)
 {
     auto* element = dynamicDowncast<Element>(node);
     if (!element)

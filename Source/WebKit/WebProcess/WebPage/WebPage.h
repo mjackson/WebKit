@@ -232,6 +232,7 @@ class TextCheckingRequest;
 class VisiblePosition;
 class LayoutRect;
 
+enum class AccessibilityMode : uint8_t;
 enum class ActivityState : uint16_t;
 enum class AdjustViewSize : bool;
 enum class COEPDisposition : bool;
@@ -322,7 +323,7 @@ class HTMLAttachmentElement;
 class HandleUserInputEventResult;
 #endif
 #if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
-struct FrameGeometry;
+struct AXFrameGeometry;
 struct InheritedFrameState;
 #endif
 struct InteractionRegion;
@@ -347,6 +348,7 @@ struct TargetedElementInfo;
 struct TargetedElementRequest;
 struct TextAnimationData;
 struct TextCheckingResult;
+struct TextEffectData;
 struct TextManipulationControllerExclusionRule;
 struct TextManipulationControllerManipulationResult;
 struct TextManipulationItem;
@@ -687,7 +689,7 @@ public:
     void updateRendering();
     bool NODELETE hasRootFrames();
     String rootFrameOriginString();
-    bool shouldTriggerRenderingUpdate(unsigned rescheduledRenderingUpdateCount) const;
+    bool NODELETE shouldTriggerRenderingUpdate(unsigned rescheduledRenderingUpdateCount) const;
     void finalizeRenderingUpdate(OptionSet<WebCore::FinalizeRenderingUpdateFlags>);
 
     void willStartRenderingUpdateDisplay();
@@ -698,7 +700,7 @@ public:
     void releaseMemory(WTF::Critical);
     void NODELETE willDestroyDecodedDataForAllImages();
 
-    unsigned remoteImagesCountForTesting() const;
+    unsigned NODELETE remoteImagesCountForTesting() const;
 
     enum class LazyCreationPolicy { UseExistingOnly, CreateIfNeeded };
 
@@ -840,7 +842,7 @@ public:
     WebCore::Frame* NODELETE mainFrame() const;
     WebCore::FrameView* mainFrameView() const;
     WebCore::LocalFrameView* localMainFrameView() const;
-    RefPtr<WebCore::LocalFrame> localMainFrame() const;
+    RefPtr<WebCore::LocalFrame> NODELETE localMainFrame() const;
     RefPtr<WebCore::Document> localTopDocument() const;
 
     void createRemoteSubframe(WebCore::FrameIdentifier parentID, WebCore::FrameIdentifier newChildID, const String& newChildFrameName, Ref<WebCore::FrameTreeSyncData>&&);
@@ -887,8 +889,10 @@ public:
 #if PLATFORM(COCOA)
     void accessibilityManageRemoteElementStatus(bool, int);
 #endif
-    void enableAccessibilityForAllProcesses();
-    void NODELETE enableAccessibility();
+    // Called when we inherit an accessibility mode from the UI process.
+    // The inheritance aspect is an important semantic, as if we inherit
+    // AXThread mode, we should skip the client checks it normally does.
+    void inheritAccessibilityMode(WebCore::AccessibilityMode);
 
 #if PLATFORM(MAC)
     void getAccessibilityWebProcessDebugInfo(CompletionHandler<void(WebCore::AXDebugInfo)>&&);
@@ -921,7 +925,7 @@ public:
     void setMinimumUnobscuredSize(const WebCore::FloatSize&);
     void setMaximumUnobscuredSize(const WebCore::FloatSize&);
 
-    void listenForLayoutMilestones(OptionSet<WebCore::LayoutMilestone>);
+    void NODELETE listenForLayoutMilestones(OptionSet<WebCore::LayoutMilestone>);
 
     void setSuppressScrollbarAnimations(bool);
 
@@ -1026,6 +1030,7 @@ public:
     // Allows remote web processes to request an asynchronous update to their screen position, computed in the UI process.
 #if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
     void requestFrameScreenPosition(WebCore::FrameIdentifier);
+    void scheduleAccessibilityFrameGeometryUpdate();
 #endif
 #if PLATFORM(IOS_FAMILY)
     void relayAccessibilityNotification(String&&, RetainPtr<NSData>&&);
@@ -1317,6 +1322,7 @@ public:
     WKAccessibilityWebPageObject* NODELETE accessibilityRemoteObject();
     WebCore::IntPoint accessibilityRemoteFrameOffset();
     void createMockAccessibilityElement(pid_t);
+    void sendAccessibilityTokenIfNeeded();
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     void cacheAXPosition(const WebCore::FloatPoint&);
     void cacheAXSize(const WebCore::IntSize&);
@@ -1626,10 +1632,6 @@ public:
     void handleClickForDataDetectionResult(const WebCore::DataDetectorElementInfo&, const WebCore::IntPoint&);
 #endif
 
-    unsigned extendIncrementalRenderingSuppression();
-    void stopExtendingIncrementalRenderingSuppression(unsigned token);
-    bool shouldExtendIncrementalRenderingSuppression() { return !m_activeRenderingSuppressionTokens.isEmpty(); }
-
     WebCore::ScrollPinningBehavior NODELETE scrollPinningBehavior();
     void setScrollPinningBehavior(WebCore::ScrollPinningBehavior);
 
@@ -1725,8 +1727,8 @@ public:
     std::optional<double> cpuLimit() const { return m_cpuLimit; }
 
 #if ENABLE(PDF_PLUGIN)
-    static PluginView* focusedPluginViewForFrame(WebCore::LocalFrame&);
-    static PluginView* pluginViewForFrame(WebCore::LocalFrame*);
+    static PluginView* NODELETE focusedPluginViewForFrame(WebCore::LocalFrame&);
+    static PluginView* NODELETE pluginViewForFrame(WebCore::LocalFrame*);
     PluginView* mainFramePlugIn() const;
 #endif
 
@@ -1805,7 +1807,7 @@ public:
     UnixFileDescriptor hostFileDescriptor() const { return m_hostFileDescriptor.duplicate(); }
 #endif
 
-    void updateCurrentModifierState(OptionSet<WebCore::PlatformEventModifier> modifiers);
+    void NODELETE updateCurrentModifierState(OptionSet<WebCore::PlatformEventModifier> modifiers);
 
     inline UserContentControllerIdentifier userContentControllerIdentifier() const;
 
@@ -1978,7 +1980,7 @@ public:
     void didAddOrRemoveViewportConstrainedObjects();
 
 #if PLATFORM(IOS_FAMILY)
-    void dispatchWheelEventWithoutScrolling(WebCore::FrameIdentifier, const WebWheelEvent&, CompletionHandler<void(bool)>&&);
+    void dispatchWheelEventWithoutScrolling(WebCore::FrameIdentifier, const WebWheelEvent&, CompletionHandler<void(bool, std::optional<WebCore::RemoteUserInputEventData>)>&&);
 #endif
 
 #if ENABLE(PDF_PLUGIN)
@@ -2008,18 +2010,6 @@ public:
 
     void prepareToRunModalJavaScriptDialog();
 
-#if ENABLE(ARKIT_INLINE_PREVIEW)
-    bool useARKitForModel() const { return m_useARKitForModel; };
-#endif
-#if HAVE(SCENEKIT)
-    bool useSceneKitForModel() const { return m_useSceneKitForModel; };
-#endif
-
-#if ENABLE(ARKIT_INLINE_PREVIEW_IOS)
-    void modelInlinePreviewDidLoad(WebCore::PlatformLayerIdentifier);
-    void modelInlinePreviewDidFailToLoad(WebCore::PlatformLayerIdentifier, const WebCore::ResourceError&);
-#endif
-
 #if ENABLE(IMAGE_ANALYSIS) && ENABLE(VIDEO)
     void beginTextRecognitionForVideoInElementFullScreen(const WebCore::HTMLVideoElement&);
     void cancelTextRecognitionForVideoInElementFullScreen();
@@ -2040,13 +2030,13 @@ public:
     bool needsScrollGeometryUpdates() { return m_needsScrollGeometryUpdates; }
     void setNeedsScrollGeometryUpdates(bool needsUpdates) { m_needsScrollGeometryUpdates = needsUpdates; }
 
-    void startDeferringResizeEvents();
+    void NODELETE startDeferringResizeEvents();
     void flushDeferredResizeEvents();
 
-    void startDeferringScrollEvents();
+    void NODELETE startDeferringScrollEvents();
     void flushDeferredScrollEvents();
 
-    void startDeferringIntersectionObservations();
+    void NODELETE startDeferringIntersectionObservations();
     void flushDeferredIntersectionObservations();
 
     void flushDeferredDidReceiveMouseEvent();
@@ -2097,6 +2087,11 @@ public:
     void addTextAnimationForAnimationID(const WTF::UUID&, const WebCore::TextAnimationData&, const RefPtr<WebCore::TextIndicator>, CompletionHandler<void(WebCore::TextAnimationRunMode)>&& = { });
 
     void removeTextAnimationForAnimationID(const WTF::UUID&);
+
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    void addTextEffectForID(const WTF::UUID&, WebCore::TextEffectData&&, RefPtr<WebCore::TextIndicator>&&, RefPtr<WebCore::TextIndicator>&&);
+    void removeTextEffectForID(const WTF::UUID&);
+#endif
 
     void removeInitialTextAnimationForActiveWritingToolsSession();
     void addInitialTextAnimationForActiveWritingToolsSession();
@@ -2166,7 +2161,7 @@ public:
     void setNeedsFixedContainerEdgesUpdate() { m_needsFixedContainerEdgesUpdate = true; }
 
     RefPtr<WebCore::MediaSessionManagerInterface> mediaSessionManager() const;
-    WebCore::MediaSessionManagerInterface* mediaSessionManagerIfExists() const;
+    WebCore::MediaSessionManagerInterface* NODELETE mediaSessionManagerIfExists() const;
 
 #if ENABLE(MODEL_ELEMENT)
     bool NODELETE shouldDisableModelLoadDelaysForTesting() const;
@@ -2291,7 +2286,7 @@ private:
     void testProcessIncomingSyncMessagesWhenWaitingForSyncReply(CompletionHandler<void(bool)>&&);
 
     void updateDrawingAreaLayerTreeFreezeState();
-    void updateAfterDrawingAreaCreation(const WebPageCreationParameters&);
+    void NODELETE updateAfterDrawingAreaCreation(const WebPageCreationParameters&);
 
     enum class MarkLayersVolatileDontRetryReason : uint8_t { None, SuspendedUnderLock, TimedOut };
     void markLayersVolatileOrRetry(MarkLayersVolatileDontRetryReason);
@@ -2464,7 +2459,7 @@ private:
 #if HAVE(APP_ACCENT_COLORS)
     void setAccentColor(WebCore::Color);
 #if PLATFORM(MAC)
-    void setAppUsesCustomAccentColor(bool);
+    void NODELETE setAppUsesCustomAccentColor(bool);
     bool appUsesCustomAccentColor();
 #endif
 #endif
@@ -2710,6 +2705,11 @@ private:
     void intelligenceTextAnimationsDidComplete();
 #endif
 
+#if ENABLE(WRITING_TOOLS) && ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    void updateUnderlyingTextVisibilityForTextEffectID(const WTF::UUID&, bool, CompletionHandler<void()>&&);
+    void createTextIndicatorForTextEffectID(const WTF::UUID&, CompletionHandler<void(RefPtr<WebCore::TextIndicator>&&)>&&);
+#endif
+
     void remotePostMessage(WebCore::FrameIdentifier source, const WebCore::SecurityOriginData& sourceOrigin, WebCore::FrameIdentifier target, std::optional<WebCore::SecurityOriginData>&& targetOrigin, const WebCore::MessageWithMessagePorts&);
     void renderTreeAsTextForTesting(WebCore::FrameIdentifier, uint64_t baseIndent, OptionSet<WebCore::RenderAsTextFlag>, CompletionHandler<void(String&&)>&&);
     void layerTreeAsTextForTesting(WebCore::FrameIdentifier, uint64_t baseIndent, OptionSet<WebCore::LayerTreeAsTextOptions>, CompletionHandler<void(String&&)>&&);
@@ -2718,7 +2718,7 @@ private:
     void updateRemotePageAccessibilityOffset(WebCore::FrameIdentifier, WebCore::IntPoint);
 #if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
     void updateRemotePageAccessibilityInheritedState(WebCore::FrameIdentifier, const WebCore::InheritedFrameState&);
-    void updateRemotePageAccessibilityScreenPosition(WebCore::FrameIdentifier, const WebCore::FrameGeometry&);
+    void updateRemotePageAccessibilityScreenPosition(WebCore::FrameIdentifier, const WebCore::AXFrameGeometry&);
 #endif
     void resolveAccessibilityHitTestForTesting(WebCore::FrameIdentifier, const WebCore::IntPoint&, CompletionHandler<void(String)>&&);
 #if PLATFORM(MAC)
@@ -2847,6 +2847,7 @@ private:
     WebCore::FloatPoint m_accessibilityPosition;
 
     RetainPtr<WKAccessibilityWebPageObject> m_mockAccessibilityElement;
+    bool m_needsAccessibilityTokenTransfer { false };
 #endif
 
 #if HAVE(NSVIEW_CORNER_CONFIGURATION)
@@ -3157,9 +3158,6 @@ private:
     HashSet<String, ASCIICaseInsensitiveHash> m_mimeTypesWithCustomContentProviders;
     std::optional<WebCore::Color> m_backgroundColor { WebCore::Color::white };
 
-    HashSet<unsigned> m_activeRenderingSuppressionTokens;
-    unsigned m_maximumRenderingSuppressionToken { 0 };
-
     std::optional<WebCore::ScrollbarOverlayStyle> m_scrollbarOverlayStyle;
 
     bool m_useAsyncScrolling { false };
@@ -3249,13 +3247,6 @@ private:
     bool m_didUpdateRenderingAfterCommittingLoad { false };
     bool m_isStoppingLoadingDueToProcessSwap { false };
     bool m_skipDecidePolicyForResponseIfPossible { false };
-
-#if ENABLE(ARKIT_INLINE_PREVIEW)
-    bool m_useARKitForModel { false };
-#endif
-#if HAVE(SCENEKIT)
-    bool m_useSceneKitForModel { false };
-#endif
 
 #if HAVE(APP_ACCENT_COLORS)
     bool m_appUsesCustomAccentColor { false };

@@ -422,7 +422,7 @@ std::optional<Vector<CDMMediaCapability>> CDMPrivate::getSupportedCapabilitiesFo
         // 3.13. If the user agent and implementation definitely support playback of encrypted media data for the
         //       combination of container, media types, robustness and local accumulated configuration in combination
         //       with restrictions:
-        MediaEngineSupportParameters parameters { .type = ContentType(contentType->mimeType()) };
+        MediaEngineSupportParameters parameters { .type = ContentType(contentType->contentType()) };
         if (MediaPlayer::supportsType(parameters) == MediaPlayer::SupportsType::IsNotSupported) {
             // Try with Media Source:
             parameters.platformType = PlatformMediaDecodingType::MediaSource;

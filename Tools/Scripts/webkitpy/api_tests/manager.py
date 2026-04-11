@@ -25,11 +25,12 @@ import logging
 import os
 import re
 import time
-from typing import Optional
 
 from webkitpy.api_tests.runner import Runner
 from webkitpy.common.iteration_compatibility import iteritems
 from webkitpy.common.system.executive import ScriptError
+from webkitpy.results.upload import Upload
+from webkitpy.xcode.simulated_device import DeviceRequest, SimulatedDeviceManager
 
 _log = logging.getLogger(__name__)
 
@@ -99,54 +100,7 @@ class Manager(object):
                     continue
         return result
 
-    @classmethod
-    def _is_exact_test_name(cls, arg: str) -> bool:
-        """Returns True if arg looks like an exact fully-qualified test name (no globs)."""
-        if '*' in arg:
-            return False
-        parts = arg.split('.')
-        # Must be <Suite>.<Test> or <Binary>.<Suite>.<Test> (or with / for parameterized suites)
-        return len(parts) >= 2 and '' not in parts
-
-    def _try_collect_exact_tests(self, args: list[str]) -> Optional[list[str]]:
-        """Try to resolve test names without spawning the binary to list all tests.
-
-        Returns a list of fully-qualified test names (Binary.Suite.Test) if all args
-        can be resolved exactly, or None if we need to fall back to listing.
-        """
-        if not args:
-            return None
-
-        if not all(self._is_exact_test_name(arg) for arg in args):
-            return None
-
-        known_binaries: set[str] = set(self._port.path_to_api_test_binaries().keys())
-        result: list[str] = []
-
-        for arg in args:
-            parts = arg.split('.')
-            candidate_binary = parts[0]
-
-            if candidate_binary in known_binaries:
-                # First part is a binary name. Need at least 3 parts
-                # (Binary.Suite.Test) to be an exact test. With only 2 parts
-                # (Binary.Suite), it's a suite filter that requires listing.
-                if len(parts) < 3:
-                    return None
-                result.append(arg)
-            else:
-                # arg is <Suite>.<Test> — we don't know which binary contains it,
-                # so fall back to listing.
-                return None
-
-        return sorted(result) if result else None
-
-    def _collect_tests(self, args: list[str]) -> list[str]:
-        # Fast path: if all args are exact test names, skip listing
-        exact = self._try_collect_exact_tests(args)
-        if exact is not None:
-            return exact
-
+    def _collect_tests(self, args):
         available_tests = []
         specified_binaries = self._binaries_for_arguments(args)
         for canonicalized_binary, path in self._port.path_to_api_test_binaries().items():
@@ -160,7 +114,7 @@ class Manager(object):
                 self.host.filesystem.copymode(path, to_be_listed)
             try:
                 output = self.host.executive.run_command(
-                    Runner.command_for_port(self._port, [to_be_listed, '--gtest_list_tests']),
+                    Runner.command_for_port(self._port, [to_be_listed, '--list-tests']),
                     env=self._port.environment_for_api_tests())
                 available_tests += Manager._test_list_from_output(output, f'{canonicalized_binary}.')
             except ScriptError:
@@ -227,6 +181,7 @@ class Manager(object):
             return False
 
         self._update_worker_count()
+        self._port.reset_preferences()
 
         # Set up devices for the test run
         if 'simulator' in self._port.port_name:
@@ -270,13 +225,14 @@ class Manager(object):
         start_time = time.time()
 
         self._stream.write_update('Checking build ...')
-        if self._options.build:
-            if not self._port.check_api_test_build(self._binaries_for_arguments(args)):
-                _log.error('Build check failed')
-                return Manager.FAILED_BUILD_CHECK
+        if not self._port.check_api_test_build(self._binaries_for_arguments(args)):
+            _log.error('Build check failed')
+            return Manager.FAILED_BUILD_CHECK
 
         if not self._set_up_run():
             return Manager.FAILED_BUILD_CHECK
+
+        configuration_for_upload = self._port.configuration_for_upload(self._port.target_host(0))
 
         self._stream.write_update('Collecting tests ...')
         try:
@@ -393,12 +349,8 @@ class Manager(object):
                 self.host.filesystem.write_text_file(json_output, json.dumps(result_dictionary, indent=4))
 
         if self._options.report_urls:
-            from webkitpy.results.upload import Upload
-
             self._stream.writeln('\n')
             self._stream.write_update('Preparing upload data ...')
-
-            configuration_for_upload = self._port.configuration_for_upload(self._port.target_host(0))
 
             status_to_test_result = {
                 runner.STATUS_PASSED: None,

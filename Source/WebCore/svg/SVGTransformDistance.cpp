@@ -20,7 +20,6 @@
 #include "config.h"
 #include "SVGTransformDistance.h"
 
-#include "FloatConversion.h"
 #include "FloatPoint.h"
 #include "FloatSize.h"
 #include "SVGTransformValue.h"

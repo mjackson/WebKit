@@ -117,8 +117,8 @@ private:
     void pause(RemoteAudioVideoRendererIdentifier, std::optional<MonotonicTime>);
     void setRate(RemoteAudioVideoRendererIdentifier, double);
     void stall(RemoteAudioVideoRendererIdentifier);
-    void prepareToSeek(RemoteAudioVideoRendererIdentifier);
-    void seekTo(RemoteAudioVideoRendererIdentifier, const MediaTime&, CompletionHandler<void(WebCore::MediaTimePromise::Result&&)>&&);
+    void prepareToSeek(RemoteAudioVideoRendererIdentifier, const MediaTime&, CompletionHandler<void(WebCore::MediaTimePromise::Result&&)>&&);
+    void finishSeek(RemoteAudioVideoRendererIdentifier, const MediaTime&, CompletionHandler<void(GenericPromise::Result&&)>&&);
 
     // AudioInterface
     void setVolume(RemoteAudioVideoRendererIdentifier, float);

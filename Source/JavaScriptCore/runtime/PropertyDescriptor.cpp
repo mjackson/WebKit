@@ -41,12 +41,12 @@ struct WeakCustomGetterOrSetterHashTranslator {
 
     using Key = std::tuple<PropertyName, typename T::CustomFunctionPointer, const ClassInfo*>;
 
-    static unsigned hash(const Key& key)
+    static unsigned NODELETE hash(const Key& key)
     {
         return BaseHash::hash(std::get<0>(key), std::get<1>(key), std::get<2>(key));
     }
 
-    static bool equal(const Weak<T>& a, const Key& b)
+    static bool NODELETE equal(const Weak<T>& a, const Key& b)
     {
         if (!a)
             return false;
@@ -298,7 +298,7 @@ bool PropertyDescriptor::setPropertySlot(JSGlobalObject* globalObject, PropertyN
     else if (slot.attributes() & PropertyAttribute::CustomAccessor) {
         ASSERT_WITH_MESSAGE(slot.isCustom(), "PropertySlot::TypeCustom is required in case of PropertyAttribute::CustomAccessor");
         setAccessorDescriptor((slot.attributes() | PropertyAttribute::Accessor) & ~PropertyAttribute::CustomAccessor);
-        auto* slotBaseGlobalObject = slot.slotBase()->globalObject();
+        auto* slotBaseGlobalObject = slot.slotBase()->realm();
         if (slot.customGetter())
             setGetter(createCustomGetterFunction(slotBaseGlobalObject, vm, propertyName, slot.customGetter(), slot.domAttribute()));
         if (slot.customSetter())

@@ -294,7 +294,7 @@ public:
             auto axis = flexBox.mainAxisIsFlexItemInlineAxis(flexItem) ? OverridingSizesScope::Axis::Block : OverridingSizesScope::Axis::Inline;
             m_overridingScope.emplace(flexItem, axis, flexBox.computeCrossSizeForFlexItemUsingContainerCrossSize(flexItem));
             if (invalidatePreferredWidths == InvalidatePreferredWidths::Yes) {
-                flexItem.setNeedsPreferredWidthsUpdate(MarkOnlyThis);
+                flexItem.setNeedsPreferredWidthsUpdate(MarkingBehavior::MarkOnlyThis);
 #if ASSERT_ENABLED
                 m_didDirtyPreferredWidths = true;
 #endif
@@ -328,7 +328,7 @@ static void updateFlexItemDirtyBitsBeforeLayout(bool relayoutFlexItem, RenderBox
     // FIXME: Technically percentage height objects only need a relayout if their percentage isn't going to be turned into
     // an auto value. Add a method to determine this, so that we can avoid the relayout.
     if (relayoutFlexItem || flexItem.hasRelativeLogicalHeight())
-        flexItem.setChildNeedsLayout(MarkOnlyThis);
+        flexItem.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
 }
 
 void RenderFlexibleBox::computeChildIntrinsicLogicalWidths(RenderBox& flexBoxChild, LayoutUnit& minPreferredLogicalWidth, LayoutUnit& maxPreferredLogicalWidth) const
@@ -420,13 +420,13 @@ void RenderFlexibleBox::styleDidChange(Style::Difference diff, const RenderStyle
         // stretching since other alignment values don't change the size of the
         // box.
         if (alignItemsStretchChanged && flexItem.style().alignSelf().isAuto())
-            flexItem.setChildNeedsLayout(MarkOnlyThis);
+            flexItem.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
     }
 }
 
 bool RenderFlexibleBox::hitTestChildren(const HitTestRequest& request, HitTestResult& result, const HitTestLocation& locationInContainer, const LayoutPoint& adjustedLocation, HitTestAction hitTestAction)
 {
-    if (hitTestAction != HitTestForeground)
+    if (hitTestAction != HitTestAction::Foreground)
         return false;
 
     LayoutPoint scrolledOffset = hasNonVisibleOverflow() ? adjustedLocation - toLayoutSize(scrollPosition()) : adjustedLocation;
@@ -824,12 +824,12 @@ template<typename SizeType> std::optional<LayoutUnit> RenderFlexibleBox::compute
     if (flexItem.style().logicalWidth().isAuto() && !flexItemHasAspectRatio(flexItem)) {
         if (size.isMinContent()) {
             if (flexItem.shouldInvalidatePreferredWidths())
-                flexItem.setNeedsPreferredWidthsUpdate(MarkOnlyThis);
+                flexItem.setNeedsPreferredWidthsUpdate(MarkingBehavior::MarkOnlyThis);
             return flexItem.minPreferredLogicalWidth() - flexItem.borderAndPaddingLogicalWidth();
         }
         if (size.isMaxContent()) {
             if (flexItem.shouldInvalidatePreferredWidths())
-                flexItem.setNeedsPreferredWidthsUpdate(MarkOnlyThis);
+                flexItem.setNeedsPreferredWidthsUpdate(MarkingBehavior::MarkOnlyThis);
             return flexItem.maxPreferredLogicalWidth() - flexItem.borderAndPaddingLogicalWidth();
         }
     }
@@ -1522,8 +1522,8 @@ void RenderFlexibleBox::performFlexLayout(RelayoutChildren relayoutChildren)
         }
         remainingFreeSpace -= (lineItems.size() - 1) * gapBetweenItems;
 
-        // This will std::move lineItems into a newly-created LineState.
-        layoutAndPlaceFlexItems(crossAxisOffset, lineItems, remainingFreeSpace, relayoutChildren, lineStates, gapBetweenItems, lineBreakLength);
+        // This will WTF::move lineItems into a newly-created LineState.
+        layoutAndPlaceFlexItems(crossAxisOffset, lineItems, remainingFreeSpace, relayoutChildren, lineStates, gapBetweenItems);
     }
 
     if (!lineStates.isEmpty()) {
@@ -1550,7 +1550,6 @@ void RenderFlexibleBox::performFlexLayout(RelayoutChildren relayoutChildren)
 
     updateLogicalHeight();
     repositionLogicalHeightDependentFlexItems(lineStates, gapBetweenLines);
-    m_mainAxisContentExtentAtLastLayout = lineBreakLength;
 }
 
 std::optional<RenderFlexibleBox::FlexingLineData> RenderFlexibleBox::computeNextFlexLine(size_t& nextIndex, const FlexLayoutItems& allItems, LayoutUnit lineBreakLength, LayoutUnit gapBetweenItems)
@@ -1820,6 +1819,7 @@ std::pair<LayoutUnit, LayoutUnit> RenderFlexibleBox::computeFlexItemMinMaxSizes(
 
         if (flexItemHasAspectRatio(flexItem))
             contentSize = adjustFlexItemSizeForAspectRatioCrossAxisMinAndMax(flexItem, contentSize);
+        contentSize = std::max(0_lu, contentSize);
         ASSERT(contentSize >= 0);
         contentSize = std::min(contentSize, maxExtent.value_or(contentSize));
         
@@ -1934,20 +1934,13 @@ void RenderFlexibleBox::maybeCacheFlexItemMainIntrinsicSize(RenderBox& flexItem,
     // flexItem.intrinsicContentLogicalHeight() and flexItem.scrollbarLogicalHeight(),
     // so if the child has intrinsic min/max/preferred size, run layout on it now to make sure
     // its logical height and scroll bars are up to date.
-    //
-    // Skip updateBlockChildDirtyBitsBeforeLayout if we have a cached intrinsic
-    // size and the child isn't otherwise dirty. That method (when relayoutChildren
-    // is No) only marks children dirty for percentage heights, which don't
-    // invalidate the cache since it was computed with FlexPercentResolveDisabler.
-    bool hasCachedIntrinsicSize = m_intrinsicSizeAlongMainAxis.contains(flexItem);
-    if (!hasCachedIntrinsicSize || flexItem.needsLayout() || relayoutChildren == RelayoutChildren::Yes)
-        updateBlockChildDirtyBitsBeforeLayout(relayoutChildren, flexItem);
+    updateBlockChildDirtyBitsBeforeLayout(relayoutChildren, flexItem);
     // Don't resolve percentages in children. This is especially important for the min-height calculation,
     // where we want percentages to be treated as auto. For flex-basis itself, this is not a problem because
     // by definition we have an indefinite flex basis here and thus percentages should not resolve.
-    if (flexItem.needsLayout() || !hasCachedIntrinsicSize) {
+    if (flexItem.needsLayout() || !m_intrinsicSizeAlongMainAxis.contains(flexItem)) {
         auto percentResolveDisableScope = FlexPercentResolveDisabler { view().frameView().layoutContext(), flexItem };
-        flexItem.setChildNeedsLayout(MarkOnlyThis);
+        flexItem.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
         flexItem.layoutIfNeeded();
         cacheFlexItemMainSize(flexItem);
     }
@@ -1964,7 +1957,7 @@ RenderFlexibleBox::FlexLayoutItem RenderFlexibleBox::constructFlexLayoutItem(Ren
         flexItem.clearTrimmedMarginsMarkings();
 
     if (flexItem.shouldInvalidatePreferredWidths())
-        flexItem.setNeedsPreferredWidthsUpdate(MarkOnlyThis);
+        flexItem.setNeedsPreferredWidthsUpdate(MarkingBehavior::MarkOnlyThis);
 
     LayoutUnit borderAndPadding = isHorizontalFlow() ? flexItem.horizontalBorderAndPaddingExtent() : flexItem.verticalBorderAndPaddingExtent();
     LayoutUnit innerFlexBaseSize = computeFlexBaseSizeForFlexItem(flexItem, borderAndPadding, relayoutChildren);
@@ -2114,7 +2107,7 @@ static LayoutUnit initialJustifyContentOffset(const RenderStyle& style, LayoutUn
     return { };
 }
 
-static LayoutUnit justifyContentSpaceBetweenFlexItems(LayoutUnit availableFreeSpace, ContentDistribution justifyContentDistribution, unsigned numberOfFlexItems)
+static LayoutUnit NODELETE justifyContentSpaceBetweenFlexItems(LayoutUnit availableFreeSpace, ContentDistribution justifyContentDistribution, unsigned numberOfFlexItems)
 {
     if (availableFreeSpace > 0 && numberOfFlexItems > 1) {
         if (justifyContentDistribution == ContentDistribution::SpaceBetween)
@@ -2267,14 +2260,14 @@ void RenderFlexibleBox::prepareFlexItemForPositionedLayout(RenderBox& flexItem)
     if (layer->staticInlinePosition() != staticInlinePosition) {
         layer->setStaticInlinePosition(staticInlinePosition);
         if (flexItem.style().hasStaticInlinePosition(writingMode().isHorizontal()))
-            flexItem.setChildNeedsLayout(MarkOnlyThis);
+            flexItem.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
     }
 
     LayoutUnit staticBlockPosition = flowAwareBorderBefore() + flowAwarePaddingBefore();
     if (layer->staticBlockPosition() != staticBlockPosition) {
         layer->setStaticBlockPosition(staticBlockPosition);
         if (flexItem.style().hasStaticBlockPosition(writingMode().isHorizontal()))
-            flexItem.setChildNeedsLayout(MarkOnlyThis);
+            flexItem.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
     }
 }
 
@@ -2458,7 +2451,7 @@ bool RenderFlexibleBox::flexItemHasPercentHeightDescendants(const RenderBox& ren
     return false;
 }
 
-static LayoutUnit contentAlignmentStartOverflow(LayoutUnit availableFreeSpace, ContentPosition position, ContentDistribution distribution, OverflowAlignment safety, bool isReverse)
+static LayoutUnit NODELETE contentAlignmentStartOverflow(LayoutUnit availableFreeSpace, ContentPosition position, ContentDistribution distribution, OverflowAlignment safety, bool isReverse)
 {
     if (availableFreeSpace >= 0 || safety == OverflowAlignment::Safe)
         return 0_lu;
@@ -2488,7 +2481,7 @@ static LayoutUnit contentAlignmentStartOverflow(LayoutUnit availableFreeSpace, C
     }
 }
 
-void RenderFlexibleBox::layoutAndPlaceFlexItems(LayoutUnit& crossAxisOffset, FlexLayoutItems& flexLayoutItems, LayoutUnit availableFreeSpace, RelayoutChildren relayoutChildren, FlexLineStates& lineStates, LayoutUnit gapBetweenItems, LayoutUnit mainAxisContentExtent)
+void RenderFlexibleBox::layoutAndPlaceFlexItems(LayoutUnit& crossAxisOffset, FlexLayoutItems& flexLayoutItems, LayoutUnit availableFreeSpace, RelayoutChildren relayoutChildren, FlexLineStates& lineStates, LayoutUnit gapBetweenItems)
 {
     LayoutUnit autoMarginOffset = autoMarginOffsetInMainAxis(flexLayoutItems, availableFreeSpace);
     LayoutUnit mainAxisOffset = flowAwareBorderStart() + flowAwarePaddingStart();
@@ -2527,7 +2520,7 @@ void RenderFlexibleBox::layoutAndPlaceFlexItems(LayoutUnit& crossAxisOffset, Fle
         // width, so we need to compare to the size including the scrollbar.
         // FIXME: Should it include the scrollbar?
         if (flexLayoutItem.flexedContentSize != mainAxisContentExtentForFlexItemIncludingScrollbar(flexItem))
-            flexItem.setChildNeedsLayout(MarkOnlyThis);
+            flexItem.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
         else {
             // To avoid double applying margin changes in
             // updateAutoMarginsInCrossAxis, we reset the margins here.
@@ -2537,27 +2530,11 @@ void RenderFlexibleBox::layoutAndPlaceFlexItems(LayoutUnit& crossAxisOffset, Fle
         // computeInnerFlexBaseSizeForFlexItem.
         bool forceFlexItemRelayout = relayoutChildren == RelayoutChildren::Yes && !m_relaidOutFlexItems.contains(flexItem);
         if (!forceFlexItemRelayout && flexItemHasPercentHeightDescendants(flexItem)) {
-            auto needsRelayoutForPercentHeightDescendants = [&] {
-                // FIXME: Row flexboxes have issues with dirty bit tracking
-                // for flex items with percent-height descendants, making
-                // this check necessary.
-                if (!isColumnFlow())
-                    return true;
-                // First layout so no prior m_mainAxisContentExtentAtLastLayout
-                // to compare against.
-                if (!everHadLayout())
-                    return true;
-                // Container main axis extent changed since the last completed
-                // layout so percentage heights may resolve to new values.
-                if (mainAxisContentExtent != m_mainAxisContentExtentAtLastLayout)
-                    return true;
-                // Item's intrinsic size was recomputed in this pass, descendants
-                // were not yet sized with the correct override height.
-                if (m_relaidOutFlexItems.contains(flexLayoutItem.renderer))
-                    return true;
-                return false;
-            };
-            forceFlexItemRelayout = needsRelayoutForPercentHeightDescendants();
+            // Have to force another relayout even though the child is sized
+            // correctly, because its descendants are not sized correctly yet. Our
+            // previous layout of the child was done without an override height set.
+            // So, redo it here.
+            forceFlexItemRelayout = true;
         }
         updateFlexItemDirtyBitsBeforeLayout(forceFlexItemRelayout, flexItem);
         if (!flexItem.needsLayout())
@@ -2690,7 +2667,7 @@ static LayoutUnit initialAlignContentOffset(LayoutUnit availableFreeSpace, Conte
     return 0_lu;
 }
 
-static LayoutUnit alignContentSpaceBetweenFlexItems(LayoutUnit availableFreeSpace, ContentDistribution alignContentDistribution, unsigned numberOfLines)
+static LayoutUnit NODELETE alignContentSpaceBetweenFlexItems(LayoutUnit availableFreeSpace, ContentDistribution alignContentDistribution, unsigned numberOfLines)
 {
     if (availableFreeSpace > 0 && numberOfLines > 1) {
         if (alignContentDistribution == ContentDistribution::SpaceBetween)
@@ -2881,7 +2858,7 @@ void RenderFlexibleBox::applyStretchMinMaxCrossSize(RenderBox& flexItem, LayoutU
             flexItem.setOverridingBorderBoxLogicalHeight(newSize);
         else
             flexItem.setOverridingBorderBoxLogicalWidth(newSize);
-        flexItem.setChildNeedsLayout(MarkOnlyThis);
+        flexItem.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
         flexItem.layoutIfNeeded();
     }
 }
@@ -2918,7 +2895,7 @@ void RenderFlexibleBox::applyStretchAlignmentToFlexItem(RenderBox& flexItem, Lay
             // determine their intrinsic content logical height correctly even when
             // there's an overrideHeight.
             LayoutUnit flexItemIntrinsicContentLogicalHeight = cachedFlexItemIntrinsicContentLogicalHeight(flexItem);
-            flexItem.setChildNeedsLayout(MarkOnlyThis);
+            flexItem.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
 
             // Don't use layoutChildIfNeeded to avoid setting cross axis cached size twice.
             flexItem.layoutIfNeeded();
@@ -2937,7 +2914,7 @@ void RenderFlexibleBox::applyStretchAlignmentToFlexItem(RenderBox& flexItem, Lay
 
     if (flexItemWidth != flexItem.logicalWidth()) {
         flexItem.setOverridingBorderBoxLogicalWidth(flexItemWidth);
-        flexItem.setChildNeedsLayout(MarkOnlyThis);
+        flexItem.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
         flexItem.layoutIfNeeded();
     }
 }

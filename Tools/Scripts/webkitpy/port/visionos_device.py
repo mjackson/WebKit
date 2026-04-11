@@ -36,11 +36,7 @@ class VisionOSDevicePort(EmbeddedDevicePort, VisionOSPort):
     DEFAULT_ARCHITECTURE = 'arm64'
     VERSION_FALLBACK_ORDER = ['visionos-1', 'visionos-2']
 
-    _DEFAULT_SDK = 'xros'
-
-    @property
-    def SDK(self):
-        return apple_additions().get_sdk(self._DEFAULT_SDK) if apple_additions() else self._DEFAULT_SDK
+    SDK = apple_additions().get_sdk('xros') if apple_additions() else 'xros'
 
     def _is_device_platform_match(self, device):
         return device.platform.is_visionos()

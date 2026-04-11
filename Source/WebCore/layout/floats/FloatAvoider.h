@@ -45,7 +45,7 @@ public:
     void NODELETE setBlockStart(LayoutUnit);
     void resetInlineStart() { m_absoluteTopLeft.setX(initialInlineStart()); }
 
-    bool overflowsContainingBlock() const;
+    bool NODELETE overflowsContainingBlock() const;
 
     LayoutUnit blockStart() const;
     LayoutUnit inlineStart() const;

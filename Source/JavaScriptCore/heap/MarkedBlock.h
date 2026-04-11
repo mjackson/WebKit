@@ -21,10 +21,11 @@
 
 #pragma once
 
-#include "CellAttributes.h"
-#include "DestructionMode.h"
-#include "HeapCell.h"
-#include "WeakSet.h"
+#include <JavaScriptCore/CellAttributes.h>
+#include <JavaScriptCore/DestructionMode.h>
+#include <JavaScriptCore/HeapCell.h>
+#include <JavaScriptCore/JSExportMacros.h>
+#include <JavaScriptCore/WeakSet.h>
 #include <algorithm>
 #include <type_traits>
 #include <wtf/Atomics.h>
@@ -134,7 +135,7 @@ public:
         void lastChanceToFinalize();
 
         BlockDirectory* directory() const;
-        Subspace* subspace() const;
+        Subspace* NODELETE subspace() const;
         AlignedMemoryAllocator* alignedMemoryAllocator() const;
         JSC::Heap* heap() const;
         inline MarkedSpace* space() const;
@@ -195,7 +196,7 @@ public:
         template <typename Functor> inline IterationStatus forEachDeadCell(const Functor&);
         template <typename Functor> inline IterationStatus forEachMarkedCell(const Functor&);
             
-        JS_EXPORT_PRIVATE bool areMarksStale();
+        JS_EXPORT_PRIVATE bool NODELETE areMarksStale();
         bool areMarksStaleForSweep();
         
         void assertMarksNotStale();
@@ -206,8 +207,8 @@ public:
         
         void removeFromDirectory();
         
-        void didAddToDirectory(BlockDirectory*, unsigned index);
-        void didRemoveFromDirectory();
+        void NODELETE didAddToDirectory(BlockDirectory*, unsigned index);
+        void NODELETE didRemoveFromDirectory();
         
         void* start() const LIFETIME_BOUND { return &m_block->atoms()[m_startAtom]; }
         void* end() const LIFETIME_BOUND { return &m_block->atoms()[endAtom]; }
@@ -422,7 +423,7 @@ private:
     Atom* atoms();
         
     JS_EXPORT_PRIVATE void aboutToMarkSlow(HeapVersion markingVersion, HeapCell*);
-    void clearHasAnyMarked();
+    void NODELETE clearHasAnyMarked();
     
     void noteMarkedSlow();
     
@@ -432,7 +433,7 @@ private:
     // FIXME: rdar://139998916
     NO_RETURN_DUE_TO_CRASH NEVER_INLINE void analyzeInvalidHandleAndCrash(AbstractLocker&, HeapCell*);
     NO_RETURN_DUE_TO_CRASH NEVER_INLINE static void dumpInfoAndCrashForInvalidHandleV2(HeapCell*, uint64_t cellFirst8Bytes, uint64_t zeroCounts, uint64_t bitfield, uint64_t subspaceHash, VM* blockVM, VM* actualVM);
-    inline void setupTestForDumpInfoAndCrash();
+    inline void NODELETE setupTestForDumpInfoAndCrash();
 };
 
 inline MarkedBlock::Header& MarkedBlock::header()

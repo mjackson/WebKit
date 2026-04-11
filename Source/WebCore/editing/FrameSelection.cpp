@@ -40,6 +40,7 @@
 #include "DocumentQuirks.h"
 #include "DocumentView.h"
 #include "Editing.h"
+#include "EditingInlines.h"
 #include "Editor.h"
 #include "EditorClient.h"
 #include "Element.h"
@@ -65,6 +66,7 @@
 #include "LegacyInlineTextBox.h"
 #include "LocalDOMWindow.h"
 #include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "LocalFrameView.h"
 #include "Logging.h"
 #include "MutableStyleProperties.h"
@@ -586,7 +588,7 @@ static bool removingNodeRemovesPosition(Node& node, const Position& position)
     if (position.anchorNode() == &node)
         return true;
 
-    RefPtr element = dynamicDowncast<Element>(node);
+    auto* element = dynamicDowncast<Element>(node);
     return element && element->isShadowIncludingInclusiveAncestorOf(position.anchorNode());
 }
 
@@ -614,7 +616,7 @@ void DragCaretController::clearCaretPositionWithoutUpdatingStyle()
     clearCaretRect();
 }
 
-static void setNodeContainsSelectionEndPoint(const Position& position, bool value)
+static void NODELETE setNodeContainsSelectionEndPoint(const Position& position, bool value)
 {
     // We use anchorNode instead of containerNode() because nodeWillBeRemoved must update position when anchored node is removed.
     for (auto* currentNode = position.anchorNode(); currentNode; currentNode = currentNode->parentOrShadowHostNode()) {
@@ -2634,7 +2636,7 @@ static RefPtr<HTMLFormElement> scanForForm(Element* start)
     return nullptr;
 }
 
-static ValidatedFormListedElement* findFormControlElementAncestor(Element& element)
+static ValidatedFormListedElement* NODELETE findFormControlElementAncestor(Element& element)
 {
     for (auto& ancestor : lineageOfType<Element>(element)) {
         if (auto* formControlAncestor = ancestor.asValidatedFormListedElement())

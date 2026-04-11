@@ -97,7 +97,8 @@ enum ContentSizeCategory {
 enum TreeType {
     "Tree",
     "ShadowIncludingTree",
-    "ComposedTree"
+    "ComposedTree",
+    "ComposedTreeIncludingPseudoElements"
 };
 
 [Conditional=WEBGL] enum SimulatedWebGLContextEvent {
@@ -593,6 +594,7 @@ enum ContentsFormat {
     double preferredRenderingUpdateInterval();
 
     DOMString visiblePlaceholder(Element element);
+    DOMString anchorPrefetchEagerness(Element element);
     undefined selectColorInColorChooser(HTMLInputElement element, DOMString colorValue);
     sequence<[AtomString] DOMString> formControlStateOfPreviousHistoryItem();
     undefined setFormControlStateOfPreviousHistoryItem(sequence<[AtomString] DOMString> values);
@@ -835,6 +837,8 @@ enum ContentsFormat {
     DOMRectList nonFastScrollableRects();
 
     DOMString repaintRectsAsText();
+
+    double minimumShrinkToFitWidthWhenPreferringHorizontalScrolling();
 
     // These throw if the element does not have a compositing layer.
     undefined setElementUsesDisplayListDrawing(Element element, boolean usesDisplayListDrawing);
@@ -1473,9 +1477,6 @@ enum ContentsFormat {
 
     PushSubscription? createPushSubscription(USVString endpoint, EpochTimeStamp? expirationTime, ArrayBuffer serverVAPIDPublicKey, ArrayBuffer clientECDHPublicKey, ArrayBuffer auth);
 
-    [Conditional=ARKIT_INLINE_PREVIEW_MAC] Promise<sequence<DOMString>> modelInlinePreviewUUIDs();
-    [Conditional=ARKIT_INLINE_PREVIEW_MAC] DOMString modelInlinePreviewUUIDForModelElement(HTMLModelElement modelElement);
-
     boolean hasSleepDisabler();
 
     undefined acceptTypedArrays(Int32Array target);
@@ -1485,6 +1486,8 @@ enum ContentsFormat {
     boolean consumeHistoryActionUserActivation();
 
     SelectorFilterHashCounts selectorFilterHashCounts(DOMString selector);
+
+    any dumpJSNodeStatistics();
 
     undefined setHistoryTotalStateObjectPayloadLimitOverride(unsigned long limit);
 

@@ -295,6 +295,8 @@ WI.DOMNode = class DOMNode extends WI.Object
             break;
 
         case WI.DOMNode.LayoutFlag.Grid:
+        case WI.DOMNode.LayoutFlag.Subgrid:
+        case WI.DOMNode.LayoutFlag.GridLanes:
             WI.settings.gridOverlayShowExtendedGridLines.removeEventListener(WI.Setting.Event.Changed, this._handleLayoutOverlaySettingChanged, this);
             WI.settings.gridOverlayShowLineNames.removeEventListener(WI.Setting.Event.Changed, this._handleLayoutOverlaySettingChanged, this);
             WI.settings.gridOverlayShowLineNumbers.removeEventListener(WI.Setting.Event.Changed, this._handleLayoutOverlaySettingChanged, this);
@@ -653,6 +655,8 @@ WI.DOMNode = class DOMNode extends WI.Object
 
         switch (this.layoutContextType) {
         case WI.DOMNode.LayoutFlag.Grid:
+        case WI.DOMNode.LayoutFlag.Subgrid:
+        case WI.DOMNode.LayoutFlag.GridLanes:
             agentCommandArguments.gridOverlayConfig = {
                 gridColor: color.toProtocol(),
                 showLineNames: WI.settings.gridOverlayShowLineNames.value,
@@ -722,6 +726,8 @@ WI.DOMNode = class DOMNode extends WI.Object
 
         switch (this.layoutContextType) {
         case WI.DOMNode.LayoutFlag.Grid:
+        case WI.DOMNode.LayoutFlag.Subgrid:
+        case WI.DOMNode.LayoutFlag.GridLanes:
             WI.settings.gridOverlayShowExtendedGridLines.removeEventListener(WI.Setting.Event.Changed, this._handleLayoutOverlaySettingChanged, this);
             WI.settings.gridOverlayShowLineNames.removeEventListener(WI.Setting.Event.Changed, this._handleLayoutOverlaySettingChanged, this);
             WI.settings.gridOverlayShowLineNumbers.removeEventListener(WI.Setting.Event.Changed, this._handleLayoutOverlaySettingChanged, this);
@@ -1326,6 +1332,8 @@ WI.DOMNode = class DOMNode extends WI.Object
         let nextColorIndex;
         switch (this.layoutContextType) {
         case WI.DOMNode.LayoutFlag.Grid:
+        case WI.DOMNode.LayoutFlag.Subgrid:
+        case WI.DOMNode.LayoutFlag.GridLanes:
             nextColorIndex = defaultConfiguration.nextGridColorIndex;
             defaultConfiguration.nextGridColorIndex = (nextColorIndex + 1) % defaultConfiguration.colors.length;
             break;
@@ -1345,7 +1353,7 @@ WI.DOMNode = class DOMNode extends WI.Object
             this.showLayoutOverlay();
     }
 
-    // COMPATIBILITY (iOS 18.0, macOS 15.0): `DOM.getMediaStats` did not exist yet.
+    // COMPATIBILITY (macOS 14.4, iOS 17.4): `DOM.getMediaStats` did not exist yet.
     async getMediaStats()
     {
         let target = WI.assumingMainTarget();
@@ -1407,9 +1415,13 @@ WI.DOMNode.LayoutFlag = {
     // These are mutually exclusive.
     Flex: "flex",
     Grid: "grid",
+    Subgrid: "subgrid",
+    GridLanes: "grid-lanes",
 };
 
 WI.DOMNode._LayoutContextTypes = [
     WI.DOMNode.LayoutFlag.Flex,
     WI.DOMNode.LayoutFlag.Grid,
+    WI.DOMNode.LayoutFlag.Subgrid,
+    WI.DOMNode.LayoutFlag.GridLanes,
 ];

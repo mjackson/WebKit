@@ -97,7 +97,9 @@ bool ContainsOpaque(const TStructure *structType)
     for (const auto &field : structType->fields())
     {
         if (ContainsOpaque<OpaqueFunc>(*field->type()))
+        {
             return true;
+        }
     }
     return false;
 }
@@ -429,6 +431,37 @@ angle::base::CheckedNumeric<size_t> CalculateVariableSize(const TType *type, boo
     // overestimated).
     return isStd140 ? kVec4Size : type->getNominalSize() * sizeof(float);
 }
+
+unsigned int GetMaxUniformBlocksForShaderType(sh::GLenum shaderType,
+                                              const ShCompileOptions &options,
+                                              const ShBuiltInResources &resources)
+{
+    // If the validatePerStageMaxUniformBlocks workaround is disabled. Set a limit that will not be
+    // hit.
+    if (!options.validatePerStageMaxUniformBlocks)
+    {
+        return std::numeric_limits<unsigned int>::max();
+    }
+
+    switch (shaderType)
+    {
+        case GL_FRAGMENT_SHADER:
+            return resources.MaxFragmentUniformBlocks;
+        case GL_VERTEX_SHADER:
+            return resources.MaxVertexUniformBlocks;
+        case GL_COMPUTE_SHADER:
+            return resources.MaxComputeUniformBlocks;
+        case GL_GEOMETRY_SHADER:
+            return resources.MaxGeometryUniformBlocks;
+        case GL_TESS_CONTROL_SHADER:
+            return resources.MaxTessControlUniformBlocks;
+        case GL_TESS_EVALUATION_SHADER:
+            return resources.MaxTessEvaluationUniformBlocks;
+        default:
+            UNREACHABLE();
+            return 0;
+    }
+}
 }  // namespace
 
 // This tracks each binding point's current default offset for inheritance of subsequent
@@ -500,6 +533,8 @@ TParseContext::TParseContext(TSymbolTable &symt,
       mComputeShaderLocalSizeDeclared(false),
       mComputeShaderLocalSize(-1),
       mNumViews(-1),
+      mMaxUniformBlocks(GetMaxUniformBlocksForShaderType(mShaderType, options, resources)),
+      mNumUniformBlocks(0),
       mDeclaringFunction(false),
       mDeclaringMain(false),
       mMainFunction(nullptr),
@@ -695,7 +730,7 @@ void TParseContext::errorIfPLSDeclared(const TSourceLoc &loc, PLSIllegalOperatio
     {
         return;
     }
-    if (mPLSFormats.empty())
+    if (mPLSLayouts.empty())
     {
         // No pixel local storage uniforms have been declared yet. Remember this potential error in
         // case PLS gets declared later.
@@ -922,6 +957,7 @@ bool TParseContext::checkCanBeLValue(const TSourceLoc &line, const char *op, TIn
         case EvqSampleIn:
         case EvqNoPerspectiveCentroidIn:
         case EvqNoPerspectiveSampleIn:
+        case EvqPatchIn:
             message = "can't modify an input";
             break;
         case EvqUniform:
@@ -929,6 +965,21 @@ bool TParseContext::checkCanBeLValue(const TSourceLoc &line, const char *op, TIn
             break;
         case EvqVaryingIn:
             message = "can't modify a varying";
+            break;
+        case EvqInstanceID:
+            message = "can't modify gl_InstanceID";
+            break;
+        case EvqVertexID:
+            message = "can't modify gl_VertexID";
+            break;
+        case EvqBaseVertex:
+            message = "can't modify gl_BaseVertex";
+            break;
+        case EvqBaseInstance:
+            message = "can't modify gl_BaseInstance";
+            break;
+        case EvqDrawID:
+            message = "can't modify gl_DrawID";
             break;
         case EvqFragCoord:
             message = "can't modify gl_FragCoord";
@@ -963,6 +1014,9 @@ bool TParseContext::checkCanBeLValue(const TSourceLoc &line, const char *op, TIn
         case EvqViewIDOVR:
             message = "can't modify gl_ViewID_OVR";
             break;
+        case EvqDepthRange:
+            message = "can't modify gl_DepthRange";
+            break;
         case EvqComputeIn:
             message = "can't modify work group size variable";
             break;
@@ -995,6 +1049,15 @@ bool TParseContext::checkCanBeLValue(const TSourceLoc &line, const char *op, TIn
             break;
         case EvqSamplePosition:
             message = "can't modify gl_SamplePosition";
+            break;
+        case EvqNumSamples:
+            message = "can't modify gl_NumSamples";
+            break;
+        case EvqPatchVerticesIn:
+            message = "can't modify gl_PatchVerticesIn";
+            break;
+        case EvqTessCoord:
+            message = "can't modify gl_TessCoord";
             break;
         case EvqClipDistance:
             if (mShaderType == GL_FRAGMENT_SHADER)
@@ -1183,7 +1246,7 @@ bool TParseContext::checkConstructorArguments(const TSourceLoc &line,
         markStaticUseIfSymbol(arg);
         const TIntermTyped *argTyped = arg->getAsTyped();
         ASSERT(argTyped != nullptr);
-        if (type.getBasicType() != EbtStruct && IsOpaqueType(argTyped->getBasicType()))
+        if (IsOpaqueType(argTyped->getBasicType()))
         {
             std::string reason("cannot convert a variable with type ");
             reason += getBasicString(argTyped->getBasicType());
@@ -1198,6 +1261,11 @@ bool TParseContext::checkConstructorArguments(const TSourceLoc &line,
         if (argTyped->getBasicType() == EbtVoid)
         {
             error(line, "cannot convert a void", "constructor");
+            return false;
+        }
+        else if (argTyped->getBasicType() == EbtYuvCscStandardEXT)
+        {
+            error(line, "cannot convert a yuvCscStandardEXT", "constructor");
             return false;
         }
     }
@@ -2058,7 +2126,9 @@ bool TParseContext::declareVariable(const TSourceLoc &line,
     }
 
     if (needsReservedCheck && !checkIsNotReserved(line, identifier))
+    {
         return false;
+    }
 
     if (!symbolTable.declare(*variable))
     {
@@ -2067,7 +2137,9 @@ bool TParseContext::declareVariable(const TSourceLoc &line,
     }
 
     if (!checkIsNonVoid(line, identifier, type->getBasicType()))
+    {
         return false;
+    }
 
     checkVariableSize(line, identifier, type);
     checkVariableLocations(line, *variable);
@@ -2808,17 +2880,19 @@ void TParseContext::checkPixelLocalStorageBindingIsValid(const TSourceLoc &locat
     {
         error(location, "pixel local storage binding out of range", "layout qualifier");
     }
-    else if (mPLSFormats.find(layoutQualifier.binding) != mPLSFormats.end())
+    else if (mPLSLayouts.find(layoutQualifier.binding) != mPLSLayouts.end())
     {
         error(location, "duplicate pixel local storage binding index",
               std::to_string(layoutQualifier.binding).c_str());
     }
     else
     {
-        mPLSFormats[layoutQualifier.binding] =
-            ImageFormatToPLSFormat(layoutQualifier.imageInternalFormat);
-        // "mPLSFormats" is how we know whether any pixel local storage uniforms have been declared,
-        // so flush the queue of potential errors once mPLSFormats isn't empty.
+        mPLSLayouts[layoutQualifier.binding] = {
+            .format      = ImageFormatToPLSFormat(layoutQualifier.imageInternalFormat),
+            .noncoherent = layoutQualifier.noncoherent,
+        };
+        // "mPLSLayouts" is how we know whether any pixel local storage uniforms have been declared,
+        // so flush the queue of potential errors once mPLSLayouts isn't empty.
         if (!mPLSPotentialErrors.empty())
         {
             for (const auto &[loc, op] : mPLSPotentialErrors)
@@ -2970,7 +3044,9 @@ void TParseContext::checkInvariantVariableQualifier(bool invariant,
                                                     const TSourceLoc &invariantLocation)
 {
     if (!invariant)
+    {
         return;
+    }
 
     if (mShaderVersion < 300)
     {
@@ -3952,6 +4028,45 @@ void TParseContext::onLoopConditionBegin(TIntermNode *init, const TSourceLoc &li
         checkESSL100ForLoopInit(init, line);
     }
 
+    // Make sure variables declared in |init| are scoped to the for loop in the IR.  This is to aid
+    // generators distinguish between:
+    //
+    //     for (int i = 0; ...) { }
+    //
+    // and:
+    //
+    //     int i = 0;
+    //     for (; ...) { }
+    //
+    // because they otherwise look identical in the IR.  The difference between the two is that in
+    // the second case, |i| might be used after the `for` loop.  This rescoping of the variable is
+    // purely an optimization; the IR would be able to tell if |i| is later used or not by visiting
+    // the rest of the block, which is simply less efficient.
+    if (init != nullptr)
+    {
+        TIntermDeclaration *declaration = init->getAsDeclarationNode();
+        if (declaration != nullptr)
+        {
+            for (TIntermNode *singleDecl : *declaration->getSequence())
+            {
+                // Extract the symbol and scope it to the `for` loop.  All the `nullptr` checks here
+                // are there to avoid crashes in the presence of compile errors.
+                TIntermBinary *symbolInit = singleDecl->getAsBinaryNode();
+                TIntermSymbol *symbol =
+                    symbolInit != nullptr && symbolInit->getOp() == EOpInitialize
+                        ? symbolInit->getLeft()->getAsSymbolNode()
+                        : singleDecl->getAsSymbolNode();
+                // The check makes sure sole struct declarations are skipped, like `struct S { ...
+                // };` which the translator declares with an "empty" variable.  Same if init
+                // expression is just `S;`.
+                if (symbol != nullptr && symbol->variable().symbolType() != SymbolType::Empty)
+                {
+                    mIRBuilder.rescopeAsForLoopVariable(mVariableToId.at(&symbol->variable()).id);
+                }
+            }
+        }
+    }
+
     mIRBuilder.beginLoopCondition();
 }
 
@@ -4664,7 +4779,7 @@ TIntermDeclaration *TParseContext::parseSingleDeclaration(
     const ImmutableString &identifier)
 {
     TType *type = new TType(publicType);
-    if (mCompileOptions.flattenPragmaSTDGLInvariantAll &&
+    if ((mCompileOptions.flattenPragmaSTDGLInvariantAll || mCompileOptions.useIR) &&
         mDirectiveHandler.pragma().stdgl.invariantAll)
     {
         TQualifier qualifier = type->getQualifier();
@@ -5576,6 +5691,7 @@ void TParseContext::parseGlobalLayoutQualifier(const TTypeQualifierBuilder &type
         }
 
         mNumViews = layoutQualifier.numViews;
+        mIRBuilder.setNumViews(mNumViews);
     }
     else if (typeQualifier.qualifier == EvqFragmentIn)
     {
@@ -5946,7 +6062,7 @@ TFunction *TParseContext::parseFunctionDeclarator(const TSourceLoc &location, TF
         }
     }
 
-    mDeclaringMain = function->isMain();
+    mDeclaringMain         = function->isMain();
     mIsReturnVisitedInMain = false;
 
     //
@@ -6315,6 +6431,22 @@ TIntermDeclaration *TParseContext::addInterfaceBlock(
         error(arraySizesLine, "geometry shader input blocks must be an array", "");
     }
 
+    // Validate max uniform block limits
+    if (typeQualifier.qualifier == EvqUniform)
+    {
+        unsigned int blockCount =
+            arraySizes == nullptr || arraySizes->empty() ? 1 : (*arraySizes)[0];
+        if (mNumUniformBlocks + blockCount > mMaxUniformBlocks)
+        {
+            error(arraySizesLine,
+                  "uniform block count greater than per stage maximum uniform blocks", "");
+        }
+        else
+        {
+            mNumUniformBlocks += blockCount;
+        }
+    }
+
     checkIndexIsNotSpecified(typeQualifier.line, typeQualifier.layoutQualifier.index);
 
     if (mShaderVersion < 310)
@@ -6449,6 +6581,12 @@ TIntermDeclaration *TParseContext::addInterfaceBlock(
         if (fieldType->isInvariant() && !isOutputShaderIoBlock)
         {
             error(field->line(), "invalid qualifier on interface block member", "invariant");
+        }
+        // Set invariant on output I/O blocks if invariant(all) is globally specified
+        if (isOutputShaderIoBlock && mDirectiveHandler.pragma().stdgl.invariantAll &&
+            (mCompileOptions.flattenPragmaSTDGLInvariantAll || mCompileOptions.useIR))
+        {
+            fieldType->setInvariant(true);
         }
 
         // check layout qualifiers
@@ -8195,6 +8333,19 @@ TIntermSwitch *TParseContext::addSwitch(TIntermTyped *init,
         return nullptr;
     }
 
+    // In case the last statement isn't already a branch, add |break| automatically.  Some AST
+    // transformations may dead-code-eliminate the contents of the last |case| and leave the switch
+    // statements ending in a case (which is what the check above forbids).  Most generators do not
+    // handle this unexpected situation.
+    //
+    // Note that a branch may be present inside a nested block, but that's ok, the extra branch
+    // added here gets eliminated in |PruneNoOps|.
+    if (statementCount > 0 &&
+        statementList->getChildNode(statementCount - 1)->getAsBranchNode() == nullptr)
+    {
+        statementList->appendStatement(new TIntermBranch(EOpBreak, nullptr));
+    }
+
     mIRBuilder.endSwitch();
 
     markStaticUseIfSymbol(init);
@@ -8645,7 +8796,9 @@ bool TParseContext::binaryOpCommonCheck(TOperator op,
                 // If the nominal sizes of operands do not match:
                 // One of them must be a scalar.
                 if (!left->isScalar() && !right->isScalar())
+                {
                     return false;
+                }
 
                 // In the case of compound assignment other than multiply-assign,
                 // the right side needs to be a scalar. Otherwise a vector/matrix
@@ -8653,7 +8806,9 @@ bool TParseContext::binaryOpCommonCheck(TOperator op,
                 // vector either.
                 if (!right->isScalar() &&
                     (IsAssignment(op) || op == EOpBitShiftLeft || op == EOpBitShiftRight))
+                {
                     return false;
+                }
             }
             break;
         default:
@@ -9242,7 +9397,9 @@ void TParseContext::checkInterpolationFS(TIntermAggregate *functionCall)
     {
         const TIntermSequence *argp = functionCall->getSequence();
         if (argp->size() > 0)
+        {
             arg0 = (*argp)[0]->getAsTyped();
+        }
     }
     else
     {
@@ -9257,9 +9414,11 @@ void TParseContext::checkInterpolationFS(TIntermAggregate *functionCall)
         const TIntermTyped *base = FindLValueBase(arg0);
 
         if (base == nullptr || (!IsVaryingIn(base->getType().getQualifier())))
+        {
             error(arg0->getLine(),
                   "first argument must be an interpolant, or interpolant-array element",
                   func->name());
+        }
     }
 }
 
@@ -10062,7 +10221,7 @@ void TParseContext::postParseValidateFragmentOutputLocations()
                 "when EXT_blend_func_extended extension is not enabled, must explicitly specify "
                 "all locations when using multiple fragment outputs";
         }
-        else if (!mPLSFormats.empty())
+        else if (!mPLSLayouts.empty())
         {
             unspecifiedLocationErrorMessage =
                 "must explicitly specify all locations when using multiple fragment outputs and "
@@ -10220,6 +10379,17 @@ bool TParseContext::postParseChecks()
         }
     }
 
+    // When PLS planes are emulated with storage images, early_fragment_tests has to be specified.
+    // Until codegen is done from the IR itself, set this flag here in anticipation, avoiding a need
+    // for the PLS transformation in IR to make an FFI call to set it in TCompiler.  This can be
+    // removed after codegen is no longer done from AST.
+    if (mCompileOptions.useIR && !mPLSLayouts.empty() &&
+        mCompileOptions.pls.type == ShPixelLocalStorageType::ImageLoadStore)
+    {
+        mEarlyFragmentTestsSpecified = true;
+        // No need to set it for the IR, the PLS rewrite transformation will do that.
+    }
+
     checkCallGraph();
 
     return numErrors() == 0;
@@ -10240,11 +10410,15 @@ int PaParseStrings(angle::Span<const char *const> string,
     }
 
     if (glslang_initialize(context))
+    {
         return 1;
+    }
 
     int error = glslang_scan(string.size(), string.data(), length, context);
     if (!error)
+    {
         error = glslang_parse(context);
+    }
 
     glslang_finalize(context);
 

@@ -59,7 +59,7 @@ private:
     LayoutUnit computeControlLogicalHeight(LayoutUnit lineHeight, LayoutUnit nonContentHeight) const override;
     void updateFromElement() override;
     Visibility visibilityForCancelButton() const;
-    const AtomString& autosaveName() const;
+    const AtomString& NODELETE autosaveName() const;
 
     SearchPopupMenu* searchPopup() const { return m_searchPopup.get(); }
 

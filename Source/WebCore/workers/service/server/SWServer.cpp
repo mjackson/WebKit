@@ -1462,7 +1462,7 @@ SWServer::ShouldDelayRemoval SWServer::removeContextConnectionIfPossible(const R
     if (!connection)
         return ShouldDelayRemoval::No;
 
-    for (Ref worker : m_runningOrTerminatingWorkers.values()) {
+    for (auto& worker : m_runningOrTerminatingWorkers.values()) {
         if (worker->isRunning() && worker->topRegistrableDomain() == domain && worker->shouldContinue())
             return ShouldDelayRemoval::Yes;
     }

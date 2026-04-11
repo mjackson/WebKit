@@ -30,6 +30,7 @@
 #include "SVGGraphicsElement.h"
 #include "SVGUseElement.h"
 #include <wtf/TZoneMallocInlines.h>
+#include "RenderObjectNode.h"
 
 namespace WebCore {
 

@@ -48,6 +48,8 @@ public:
 
     bool isObjectBoundingBoxValid() const { return !m_objectBoundingBox.isEmpty(); }
 
+    bool objectBoundingBoxIsEmpty() const final { return !isObjectBoundingBoxValid(); }
+
 private:
     void willBeDestroyed() final;
 

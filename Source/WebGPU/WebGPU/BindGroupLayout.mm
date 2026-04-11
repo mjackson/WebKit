@@ -34,7 +34,7 @@
 
 namespace WebGPU {
 
-static uint64_t makeKey(uint32_t firstInteger, auto secondValue)
+static uint64_t NODELETE makeKey(uint32_t firstInteger, auto secondValue)
 {
     return firstInteger | (static_cast<uint64_t>(secondValue) << 32);
 }
@@ -143,7 +143,7 @@ static void addDescriptor(NSMutableArray<MTLArgumentDescriptor *> *arguments, MT
     [arguments addObject:stageDescriptor];
 }
 
-static bool containsStage(WGPUShaderStageFlags stageBitfield, auto stage)
+static bool NODELETE containsStage(WGPUShaderStageFlags stageBitfield, auto stage)
 {
     static_assert(1 == WGPUShaderStage_Vertex && 2 == WGPUShaderStage_Fragment && 4 == WGPUShaderStage_Compute, "Expect WGPUShaderStage to be a bitfield");
     return stageBitfield & (1 << static_cast<uint32_t>(stage));
@@ -155,7 +155,7 @@ static void reportErrorInCreateBindGroupLayout(NSString* errorMessage, bool isAu
         device.generateAValidationError(errorMessage);
 }
 
-static bool isArrayLength(const auto& entry)
+static bool NODELETE isArrayLength(const auto& entry)
 {
     return entry.buffer.type == static_cast<WGPUBufferBindingType>(WGPUBufferBindingType_ArrayLength);
 }
@@ -493,7 +493,7 @@ static bool NODELETE isEqual(const WGPUStorageTextureBindingLayout& entry, const
 }
 
 template<typename T>
-static bool isEqual(const T* bindingLayoutPtr, const T& bindingLayout)
+static bool NODELETE isEqual(const T* bindingLayoutPtr, const T& bindingLayout)
 {
     if (!bindingLayoutPtr)
         return false;

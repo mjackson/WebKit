@@ -38,6 +38,19 @@ enum class WebExtensionDeclarativeNetRequestStorageType : uint8_t {
     Session
 };
 
+inline String toString(WebExtensionDeclarativeNetRequestStorageType ruleType)
+{
+    switch (ruleType) {
+    case WebExtensionDeclarativeNetRequestStorageType::Dynamic:
+        return "dynamic"_s;
+    case WebExtensionDeclarativeNetRequestStorageType::Session:
+        return "session"_s;
+    default:
+        ASSERT_NOT_REACHED();
+        return emptyString();
+    }
+}
+
 class WebExtensionDeclarativeNetRequestSQLiteStore final : public WebExtensionSQLiteStore {
     WTF_MAKE_TZONE_ALLOCATED(WebExtensionDeclarativeNetRequestSQLiteStore);
 

@@ -42,6 +42,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-in-parent-position.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-in-sibling-position.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-invalidation-after-removing-non-first-element.html
+/LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-invalidation-first-in-sibling-chain.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-invalidation-for-wiping-an-element.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-nested-pseudo-001-crash.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-nested-pseudo-002-crash.html
@@ -53,6 +54,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-sibling.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-side-effect.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-unstyled.html
+/LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-with-is-child-combinator.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-with-nesting-parent-containing-complex.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-with-nesting-parent-containing-hover.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-with-not.html
@@ -60,6 +62,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-with-nth-child-sibling-remove.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-with-nth-child.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/has-with-pseudo-class.html
+/LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/heading-pseudo-class-in-has.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/host-context-pseudo-class-in-has.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/host-has-shadow-tree-element-at-nonsubject-position.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/host-has-shadow-tree-element-at-subject-position.html
@@ -85,7 +88,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/link-pseudo-class-in-has.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/link-pseudo-in-has.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/location-pseudo-classes-in-has.html
-/LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/media-loading-pseudo-classes-in-has.html
+/LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/media-loading-pseudo-classes-in-has.sub.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/media-pseudo-classes-in-has.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/modal-pseudo-class-in-has.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/negated-always-matches-negated-first-of-type-when-ancestor-changes-expected.html
@@ -94,6 +97,10 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/negated-always-matches-negated-last-of-type-when-ancestor-changes-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/negated-always-matches-negated-last-of-type-when-ancestor-changes-ref.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/negated-always-matches-negated-last-of-type-when-ancestor-changes.html
+/LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/negated-first-of-type-in-nonsubject-position-expected.xht
+/LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/negated-first-of-type-in-nonsubject-position.html
+/LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/negated-has-in-nonsubject-position-expected.xht
+/LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/negated-has-in-nonsubject-position.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/negated-is-always-matches-negated-first-of-type-when-ancestor-changes-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/negated-is-always-matches-negated-first-of-type-when-ancestor-changes-ref.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/negated-is-always-matches-negated-first-of-type-when-ancestor-changes.html
@@ -220,6 +227,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/nth-last-child-when-sibling-changes-ref.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/nth-last-child-when-sibling-changes.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/nth-of-namespace-class-invalidation-crash.html
+/LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/open-pseudo-class-in-has.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/part-dir.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/part-lang.html
 /LayoutTests/imported/w3c/web-platform-tests/css/selectors/invalidation/part-pseudo-expected.html

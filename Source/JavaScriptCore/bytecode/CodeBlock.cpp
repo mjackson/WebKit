@@ -353,7 +353,7 @@ void CodeBlock::finishCreation(VM& vm, CopyParsedBlockTag, CodeBlock& other)
 
 CodeBlock::CodeBlock(VM& vm, Structure* structure, ScriptExecutable* ownerExecutable, UnlinkedCodeBlock* unlinkedCodeBlock, JSScope* scope)
     : JSCell(vm, structure)
-    , m_globalObject(scope->globalObject(), WriteBarrierEarlyInit)
+    , m_globalObject(scope->realm(), WriteBarrierEarlyInit)
     , m_shouldAlwaysBeInlined(true)
 #if ENABLE(JIT)
     , m_capabilityLevelState(DFG::CapabilityLevelNotSet)
@@ -1260,7 +1260,7 @@ bool CodeBlock::shouldJettisonDueToWeakReference(VM& vm)
     return !vm.heap.isMarked(this);
 }
 
-static Seconds timeToLive(JITType jitType)
+static Seconds NODELETE timeToLive(JITType jitType)
 {
     if (Options::useEagerCodeBlockJettisonTiming()) [[unlikely]] {
         switch (jitType) {
@@ -2447,7 +2447,7 @@ public:
         , m_didRecurse(false)
     { }
 
-    IterationStatus operator()(StackVisitor& visitor) const
+    IterationStatus NODELETE operator()(StackVisitor& visitor) const
     {
         CallFrame* currentCallFrame = visitor->callFrame();
 
@@ -2467,7 +2467,7 @@ public:
         return IterationStatus::Continue;
     }
 
-    bool didRecurse() const { return m_didRecurse; }
+    bool NODELETE didRecurse() const { return m_didRecurse; }
 
 private:
     CallFrame* const m_startCallFrame;
@@ -2687,7 +2687,7 @@ double CodeBlock::optimizationThresholdScalingFactor() const
     return result;
 }
 
-static int32_t clipThreshold(double threshold)
+static int32_t NODELETE clipThreshold(double threshold)
 {
     if (threshold < 1.0)
         return 1;

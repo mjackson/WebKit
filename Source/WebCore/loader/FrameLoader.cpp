@@ -51,6 +51,7 @@
 #include "CrossOriginAccessControl.h"
 #include "CrossOriginEmbedderPolicy.h"
 #include "DNS.h"
+#include "DOMWrapperWorld.h"
 #include "DatabaseManager.h"
 #include "DiagnosticLoggingClient.h"
 #include "DiagnosticLoggingKeys.h"
@@ -158,6 +159,7 @@
 #include <wtf/text/CString.h>
 #include <wtf/text/MakeString.h>
 #include <wtf/text/WTFString.h>
+#include "FrameDestructionObserverInlines.h"
 
 #if ENABLE(WEB_ARCHIVE) || ENABLE(MHTML)
 #include "Archive.h"
@@ -254,7 +256,7 @@ static bool NODELETE isDocumentSandboxed(LocalFrame& frame, SandboxFlag flag)
     return frame.document() && frame.document()->isSandboxed(flag);
 }
 
-static bool isInVisibleAndActivePage(const LocalFrame& frame)
+static bool NODELETE isInVisibleAndActivePage(const LocalFrame& frame)
 {
     auto* page = frame.page();
     return page && page->isVisibleAndActive();
@@ -824,8 +826,8 @@ static AtomString extractContentLanguageFromHeader(const String& header)
 {
     auto commaIndex = header.find(',');
     if (commaIndex == notFound)
-        return AtomString { header.trim(isASCIIWhitespace) };
-    return StringView(header).left(commaIndex).trim(isASCIIWhitespace<char16_t>).toAtomString();
+        return StringView(header).trim(isASCIIWhitespace).toAtomString();
+    return StringView(header).left(commaIndex).trim(isASCIIWhitespace).toAtomString();
 }
 
 void FrameLoader::didBeginDocument(bool dispatch, LocalDOMWindow* previousWindow)
@@ -1639,7 +1641,10 @@ void FrameLoader::loadURL(FrameLoadRequest&& frameLoadRequest, const String& ref
     bool isSameOrigin = protect(frameLoadRequest.requesterSecurityOrigin())->isSameOriginDomain(protect(document->securityOrigin()).get());
     if (!isReload(newLoadType)) {
         if (historyHandling == NavigationHistoryBehavior::Auto) {
-            if ((document->url() == newURL || document->readyState() != Document::ReadyState::Complete) && isSameOrigin)
+            // https://html.spec.whatwg.org/multipage/browsing-the-web.html#navigate (navigate-convert-to-replace)
+            // "If url equals navigable's active document's URL, and initiatorOriginSnapshot is
+            // same origin with navigable's active document's origin, then set historyHandling to 'replace'."
+            if (document->url() == newURL && isSameOrigin)
                 historyHandling = NavigationHistoryBehavior::Replace;
             else
                 historyHandling = NavigationHistoryBehavior::Push;
@@ -2392,7 +2397,7 @@ void FrameLoader::commitProvisionalLoad()
 
             RefPtr window = document->window();
             auto navigationAPIType = pdl->triggeringAction().navigationAPIType();
-            if (window && navigationAPIType) {
+            if (window && navigationAPIType && document->settings().navigationAPIEnabled()) {
                 // FIXME: The NavigationActivation for pageswap should be created after the global
                 // history update, but before the unload event (which might be delayed). Those steps
                 // are currently intertwined, so this creates a fake/detached new history entry to
@@ -3746,7 +3751,7 @@ void FrameLoader::receivedMainResourceError(const ResourceError& error, LoadWill
     // FIXME: Don't want to do this if an entirely new load is going, so should check
     // that both data sources on the frame are either this or nil.
     stop();
-    if (m_client->shouldFallBack(error)) {
+    if (loadWillContinueInAnotherProcess == LoadWillContinueInAnotherProcess::No && m_client->shouldFallBack(error)) {
         if (RefPtr owner = dynamicDowncast<HTMLObjectElement>(frame->ownerElement()))
             owner->renderFallbackContent();
     }
@@ -3769,7 +3774,12 @@ void FrameLoader::receivedMainResourceError(const ResourceError& error, LoadWill
             clientRedirectCancelledOrFinished(NewLoadInProgress::No);
     }
 
-    checkCompleted();
+    if (frame->isMainFrame() || loadWillContinueInAnotherProcess == LoadWillContinueInAnotherProcess::No)
+        checkCompleted();
+    else if (loadWillContinueInAnotherProcess == LoadWillContinueInAnotherProcess::Yes) {
+        ASSERT(frame->settings().siteIsolationEnabled());
+        m_provisionalLoadHappeningInAnotherProcess = true;
+    }
     if (frame->page())
         checkLoadComplete(loadWillContinueInAnotherProcess);
 }
@@ -3956,14 +3966,14 @@ void FrameLoader::dispatchUnloadEvents(UnloadEventPolicy unloadEventPolicy)
         protect(m_frame->document())->removeAllEventListeners();
 }
 
-static bool shouldAskForNavigationConfirmation(Document& document, const BeforeUnloadEvent& event)
+static bool NODELETE shouldAskForNavigationConfirmation(Document& document, const BeforeUnloadEvent& event)
 {
     // Confirmation dialog should not be displayed when the allow-modals flag is not set.
     if (document.isSandboxed(SandboxFlag::Modals))
         return false;
 
     auto* page = document.page();
-    bool userDidInteractWithPage = page ? page->userDidInteractWithPage() : false;
+    bool userDidInteractWithPage = page && page->userDidInteractWithPage();
 
     // Web pages can request we ask for confirmation before navigating by:
     // - Cancelling the BeforeUnloadEvent (modern way)
@@ -5004,7 +5014,7 @@ void FrameLoader::advanceStatePastInitialEmptyDocument()
 
 RefPtr<DocumentLoader> FrameLoader::loaderForWebsitePolicies(CanIncludeCurrentDocumentLoader canIncludeCurrentDocumentLoader) const
 {
-    RefPtr loader = policyDocumentLoader();
+    auto* loader = policyDocumentLoader();
     if (!loader)
         loader = provisionalDocumentLoader();
     if (!loader && canIncludeCurrentDocumentLoader == CanIncludeCurrentDocumentLoader::Yes)

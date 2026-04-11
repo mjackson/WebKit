@@ -115,15 +115,66 @@ struct CustomMenuActionInfo {
 @dynamic _stableStateOverride;
 
 #if PLATFORM(MAC)
+- (void)_startTestDragWithImage:(NSImage *)image offset:(NSSize)offset pasteboard:(NSPasteboard *)pasteboard source:(id)source
+{
+    ++_draggingSequenceNumber;
+    RetainPtr draggingInfo = adoptNS([[WebKitTestRunnerDraggingInfo alloc] initWithImage:image offset:offset pasteboard:pasteboard source:source sequenceNumber:_draggingSequenceNumber]);
+    _currentDraggingInfo = draggingInfo;
+    [self draggingEntered:draggingInfo.get()];
+    [self draggingUpdated:draggingInfo.get()];
+}
+
 IGNORE_WARNINGS_BEGIN("deprecated-implementations")
 - (void)dragImage:(NSImage *)anImage at:(NSPoint)viewLocation offset:(NSSize)initialOffset event:(NSEvent *)event pasteboard:(NSPasteboard *)pboard source:(id)sourceObj slideBack:(BOOL)slideFlag
 IGNORE_WARNINGS_END
 {
-    ++_draggingSequenceNumber;
-    RetainPtr draggingInfo = adoptNS([[WebKitTestRunnerDraggingInfo alloc] initWithImage:anImage offset:initialOffset pasteboard:pboard source:sourceObj sequenceNumber:_draggingSequenceNumber]);
-    _currentDraggingInfo = draggingInfo;
-    [self draggingEntered:draggingInfo.get()];
-    [self draggingUpdated:draggingInfo.get()];
+    [self _startTestDragWithImage:anImage offset:initialOffset pasteboard:pboard source:sourceObj];
+}
+
+- (NSDraggingSession *)beginDraggingSessionWithItems:(NSArray<NSDraggingItem *> *)items event:(NSEvent *)event source:(id<NSDraggingSource>)source
+{
+    RetainPtr pasteboard = [NSPasteboard pasteboardWithName:NSPasteboardNameDrag];
+
+    // Save and restore legacy pasteboard data around clearContents + writeObjects:,
+    // since this override fires draggingEntered: synchronously (before the caller
+    // can restore the data itself).
+    RetainPtr savedTypes = adoptNS([[pasteboard types] copy]);
+    RetainPtr savedData = adoptNS([[NSMutableDictionary alloc] init]);
+    for (NSString *type in savedTypes.get()) {
+        if (RetainPtr data = [pasteboard dataForType:type])
+            [savedData setObject:data.get() forKey:type];
+    }
+
+    [pasteboard clearContents];
+    RetainPtr pasteboardObjects = [NSMutableArray arrayWithCapacity:items.count];
+    NSMutableArray<NSString *> *promisedFileTypes = [NSMutableArray array];
+    for (NSDraggingItem *item in items) {
+        id pasteboardObject = item.item;
+        if ([pasteboardObject isKindOfClass:[NSFilePromiseProvider class]])
+            [promisedFileTypes addObject:[(NSFilePromiseProvider *)pasteboardObject fileType]];
+        else
+            [pasteboardObjects addObject:pasteboardObject];
+    }
+    if ([pasteboardObjects count])
+        [pasteboard writeObjects:pasteboardObjects.get()];
+    if (promisedFileTypes.count) {
+        [pasteboard setPropertyList:promisedFileTypes forType:NSFilesPromisePboardType];
+        [pasteboard addTypes:@[@"NSPromiseContentsPboardType", (NSString *)kPasteboardTypeFileURLPromise] owner:nil];
+    }
+
+    if ([savedTypes count]) {
+        [pasteboard clearContents];
+        [pasteboard addTypes:savedTypes.get() owner:nil];
+        for (NSString *type in savedTypes.get()) {
+            if (RetainPtr data = [savedData objectForKey:type])
+                [pasteboard setData:data.get() forType:type];
+        }
+    }
+
+    RetainPtr dragImage = dynamic_objc_cast<NSImage>(items.firstObject.imageComponents.firstObject.contents);
+    [self _startTestDragWithImage:dragImage.get() offset:NSZeroSize pasteboard:pasteboard.get() source:source];
+
+    return adoptNS([[NSDraggingSession alloc] init]).autorelease();
 }
 
 - (void)mouseDown:(NSEvent *)event

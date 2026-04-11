@@ -31,7 +31,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <wtf/CrossThreadCopier.h>
 #include <wtf/Expected.h>
 #include <wtf/StdLibExtras.h>
-#include <wtf/Unexpected.h>
 
 namespace WebCore {
 

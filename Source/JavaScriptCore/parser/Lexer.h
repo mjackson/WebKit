@@ -79,9 +79,7 @@ public:
         return JSTextPosition(m_lineNumber, currentOffset(), currentLineStartOffset());
     }
     JSTextPosition positionBeforeLastNewline() const { return m_positionBeforeLastNewline; }
-    JSTokenLocation lastTokenLocation() const { return m_lastTokenLocation; }
-    void setLastLineNumber(int lastLineNumber) { m_lastLineNumber = lastLineNumber; }
-    int lastLineNumber() const { return m_lastLineNumber; }
+
     bool hasLineTerminatorBeforeToken() const { return m_hasLineTerminatorBeforeToken; }
     JSTokenType scanRegExp(JSToken*, char16_t patternPrefix = 0);
     enum class RawStringsBuildMode { BuildRawStrings, DontBuildRawStrings };
@@ -150,7 +148,7 @@ private:
     void append16(std::span<const char16_t> characters) { m_buffer16.append(characters); }
 
     static constexpr char32_t errorCodePoint = 0xFFFFFFFFu;
-    char32_t currentCodePoint() const;
+    char32_t NODELETE currentCodePoint() const;
     ALWAYS_INLINE void shift();
     ALWAYS_INLINE bool atEnd() const;
     ALWAYS_INLINE T peek(int offset) const;
@@ -174,8 +172,6 @@ private:
     ALWAYS_INLINE const Identifier* makeRightSizedIdentifier(std::span<const char16_t>, char16_t orAllChars);
     ALWAYS_INLINE const Identifier* makeEmptyIdentifier();
 
-    ALWAYS_INLINE bool lastTokenWasRestrKeyword() const;
-    
     ALWAYS_INLINE void skipWhitespace();
 
     template <int shiftAmount> void internalShift();
@@ -209,12 +205,11 @@ private:
     template <unsigned length>
     ALWAYS_INLINE bool consume(const char (&input)[length]);
 
-    void fillTokenInfo(JSToken*, JSTokenType, JSTextPosition endPosition);
+    void fillTokenInfo(JSToken*, JSTextPosition endPosition);
 
     static constexpr size_t initialReadBufferCapacity = 32;
 
-    // Hot fields, grouped to share a cache line. Depending on sizeof(T),
-    // the line may or may not include m_lastLineNumber.
+    // Hot fields, grouped to share a cache line.
     VM& m_vm;
     IdentifierArena* m_arena;
     const T* m_code;
@@ -222,14 +217,12 @@ private:
     const T* m_codeEnd;
     const T* m_lineStart;
     int m_lineNumber;
-    int m_lastToken;
     T m_current;
     bool m_hasLineTerminatorBeforeToken;
     bool m_atLineStart;
     bool m_parsingBuiltinFunction;
-    int m_lastLineNumber;
 
-    JSTokenLocation m_lastTokenLocation;
+
     JSTextPosition m_positionBeforeLastNewline;
     JSParserScriptMode m_scriptMode;
     Vector<Latin1Character> m_buffer8;
@@ -402,7 +395,6 @@ ALWAYS_INLINE JSTokenType Lexer<T>::lexExpectIdentifier(JSToken* tokenRecord, Op
     }
 #endif
 
-    m_lastToken = IDENT;
     return IDENT;
     
 slowCase:

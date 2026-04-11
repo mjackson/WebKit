@@ -321,7 +321,7 @@ void AudioWorkletNode::fireProcessorErrorOnMainThread(ProcessorError error)
             errorMessage = "An error was thrown from AudioWorkletProcessor::process() method"_s;
             break;
         }
-        queueTaskToDispatchEvent(*this, TaskSource::MediaElement, ErrorEvent::create(eventNames().processorerrorEvent, errorMessage, { }, 0, 0, { }));
+        queueTaskToDispatchEvent(*this, TaskSource::MediaElement, ErrorEvent::create(eventNames().processorerrorEvent, errorMessage, { }, 0, 0));
     });
 }
 

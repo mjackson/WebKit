@@ -188,7 +188,7 @@ inline size_t elementSize(JSType type)
     return elementSize(typedArrayType(type));
 }
 
-const ClassInfo* constructorClassInfoForType(TypedArrayType);
+const ClassInfo* NODELETE constructorClassInfoForType(TypedArrayType);
 
 inline TypedArrayType typedArrayTypeForType(JSType type)
 {

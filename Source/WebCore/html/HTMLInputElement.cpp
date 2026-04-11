@@ -248,7 +248,7 @@ bool HTMLInputElement::shouldAutocomplete() const
     return HTMLTextFormControlElement::shouldAutocomplete();
 }
 
-bool HTMLInputElement::isValidValue(const String& value) const
+bool HTMLInputElement::isValidValue(StringView value) const
 {
     if (!m_inputType->isValidValue(value))
         return false;
@@ -690,7 +690,6 @@ bool HTMLInputElement::hasPresentationalHintsForAttribute(const QualifiedName& n
         return isImageButton();
     default:
         return HTMLTextFormControlElement::hasPresentationalHintsForAttribute(name);
-        break;
     }
 }
 
@@ -748,10 +747,9 @@ void HTMLInputElement::initializeInputTypeAfterParsingOrCloning()
 
     m_hasType = true;
     m_inputType = InputType::createIfDifferent(*this, type);
-    updateWillValidateAndValidity();
     registerForSuspensionCallbackIfNeeded();
     runPostTypeUpdateTasks();
-    updateValidity();
+    updateWillValidateAndValidity();
 }
 
 void HTMLInputElement::attributeChanged(const QualifiedName& name, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason attributeModificationReason)
@@ -798,7 +796,6 @@ void HTMLInputElement::attributeChanged(const QualifiedName& name, const AtomStr
         removeFromRadioButtonGroup();
         m_name = newValue;
         addToRadioButtonGroup();
-        HTMLTextFormControlElement::attributeChanged(name, oldValue, newValue, attributeModificationReason);
         break;
     case AttributeNames::checkedAttr:
         setDefaultCheckedState(!newValue.isNull());
@@ -1167,7 +1164,7 @@ ExceptionOr<void> HTMLInputElement::setValue(const String& value, TextFieldEvent
     Ref protectedThis { *this };
     EventQueueScope scope;
     auto sanitizedValue = sanitizeValue(value);
-    bool valueChanged = sanitizedValue != this->value();
+    bool valueChanged = sanitizedValue != this->value().get();
 
     setLastChangeWasNotUserEdit();
     setFormControlValueMatchesRenderer(false);
@@ -2082,20 +2079,25 @@ bool HTMLInputElement::isEmptyValue() const
 
 bool HTMLInputElement::isDevolvableWidget() const
 {
-    return m_inputType->isColorControl()
-        || m_inputType->isDateField()
-        || m_inputType->isDateTimeLocalField()
-        || m_inputType->isEmailField()
-        || m_inputType->isMonthField()
-        || m_inputType->isNumberField()
-        || m_inputType->isPasswordField()
-        || m_inputType->isSearchField()
-        || m_inputType->isTelephoneField()
-        || m_inputType->isTextButton()
-        || m_inputType->isTextType()
-        || m_inputType->isTimeField()
-        || m_inputType->isURLField()
-        || m_inputType->isWeekField();
+    static constexpr OptionSet<InputType::Type> devolvableTypes = {
+        InputType::Type::Button,
+        InputType::Type::Color,
+        InputType::Type::Date,
+        InputType::Type::DateTimeLocal,
+        InputType::Type::Email,
+        InputType::Type::Month,
+        InputType::Type::Number,
+        InputType::Type::Password,
+        InputType::Type::Reset,
+        InputType::Type::Search,
+        InputType::Type::Submit,
+        InputType::Type::Telephone,
+        InputType::Type::Text,
+        InputType::Type::Time,
+        InputType::Type::URL,
+        InputType::Type::Week,
+    };
+    return devolvableTypes.contains(m_inputType->type());
 }
 
 void HTMLInputElement::maxLengthAttributeChanged(const AtomString& newValue)

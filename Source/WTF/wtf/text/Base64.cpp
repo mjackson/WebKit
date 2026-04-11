@@ -249,7 +249,7 @@ static std::optional<Vector<uint8_t, 0, CrashOnOverflow, 16, Malloc>> base64Deco
         return Vector<uint8_t, 0, CrashOnOverflow, 16, Malloc> { };
     }
 
-    // The should be no padding if length is a multiple of 4.
+    // There should be no padding if length is a multiple of 4.
     // We use (destinationLength + equalsSignCount) instead of length because we don't want to account for ignored characters (i.e. spaces).
     if (validatePadding && equalsSignCount && (destinationLength + equalsSignCount) % 4)
         return std::nullopt;

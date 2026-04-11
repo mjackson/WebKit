@@ -214,7 +214,7 @@ using WebCore::PlaybackSessionInterfaceMac;
     if (audioMediaSelectionOption && _audioTouchBarMediaSelectionOptions)
         index = [_audioTouchBarMediaSelectionOptions indexOfObject:audioMediaSelectionOption];
 
-    if (CheckedPtr model = Ref { *_playbackSessionInterfaceMac }->playbackSessionModel())
+    if (CheckedPtr model = _playbackSessionInterfaceMac->playbackSessionModel())
         model->selectAudioMediaOption(index != NSNotFound ? index : UINT64_MAX);
 }
 
@@ -245,7 +245,7 @@ using WebCore::PlaybackSessionInterfaceMac;
     if (legibleMediaSelectionOption && _legibleTouchBarMediaSelectionOptions)
         index = [_legibleTouchBarMediaSelectionOptions indexOfObject:legibleMediaSelectionOption];
 
-    if (CheckedPtr model = Ref { *_playbackSessionInterfaceMac }->playbackSessionModel())
+    if (CheckedPtr model = _playbackSessionInterfaceMac->playbackSessionModel())
         model->selectLegibleMediaOption(index != NSNotFound ? index : UINT64_MAX);
 }
 
@@ -427,19 +427,19 @@ static RetainPtr<NSArray> mediaSelectionOptions(const Vector<MediaSelectionOptio
 
 - (void)togglePictureInPicture
 {
-    if (CheckedPtr model = Ref { *_playbackSessionInterfaceMac }->playbackSessionModel())
+    if (CheckedPtr model = _playbackSessionInterfaceMac->playbackSessionModel())
         model->togglePictureInPicture();
 }
 
 - (void)enterInWindow
 {
-    if (CheckedPtr model = Ref { *_playbackSessionInterfaceMac }->playbackSessionModel())
+    if (CheckedPtr model = _playbackSessionInterfaceMac->playbackSessionModel())
         model->enterInWindowFullscreen();
 }
 
 - (void)exitInWindow
 {
-    if (CheckedPtr model = Ref { *_playbackSessionInterfaceMac }->playbackSessionModel())
+    if (CheckedPtr model = _playbackSessionInterfaceMac->playbackSessionModel())
         model->exitInWindowFullscreen();
 }
 

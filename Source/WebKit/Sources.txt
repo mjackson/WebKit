@@ -417,7 +417,6 @@ UIProcess/GeolocationPermissionRequestProxy.cpp
 UIProcess/LegacyGlobalSettings.cpp
 UIProcess/MediaKeySystemPermissionRequestManagerProxy.cpp
 UIProcess/MediaKeySystemPermissionRequestProxy.cpp
-UIProcess/ModelElementController.cpp
 UIProcess/OverrideLanguages.cpp
 UIProcess/PageClient.cpp
 UIProcess/PageLoadState.cpp
@@ -594,6 +593,7 @@ UIProcess/Automation/BidiBrowserAgent.cpp @no-unify
 UIProcess/Automation/BidiBrowsingContextAgent.cpp @no-unify
 UIProcess/Automation/BidiPermissionsAgent.cpp @no-unify
 UIProcess/Automation/BidiScriptAgent.cpp @no-unify
+UIProcess/Automation/BidiSessionAgent.cpp @no-unify
 UIProcess/Automation/BidiStorageAgent.cpp @no-unify
 UIProcess/Automation/BidiUserContext.cpp @no-unify
 UIProcess/Automation/SimulatedInputDispatcher.cpp @no-unify

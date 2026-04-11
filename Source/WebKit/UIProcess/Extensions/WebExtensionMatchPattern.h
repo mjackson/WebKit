@@ -98,7 +98,7 @@ public:
     static void registerCustomURLScheme(String);
     static bool isWebExtensionURL(const URL&);
 
-    bool operator==(const WebExtensionMatchPattern&) const;
+    bool NODELETE operator==(const WebExtensionMatchPattern&) const;
 
     bool isValid() const { return m_valid; }
     bool isSupported() const;
@@ -134,8 +134,8 @@ private:
     static bool isValidScheme(String);
 
     bool schemeMatches(const WebExtensionMatchPattern&, OptionSet<Options> = { }) const;
-    bool hostMatches(const WebExtensionMatchPattern&, OptionSet<Options> = { }) const;
-    bool pathMatches(const WebExtensionMatchPattern&, OptionSet<Options> = { }) const;
+    bool NODELETE hostMatches(const WebExtensionMatchPattern&, OptionSet<Options> = { }) const;
+    bool NODELETE pathMatches(const WebExtensionMatchPattern&, OptionSet<Options> = { }) const;
 
     WebCore::UserContentURLPattern m_pattern;
     bool m_matchesAllURLs { false };

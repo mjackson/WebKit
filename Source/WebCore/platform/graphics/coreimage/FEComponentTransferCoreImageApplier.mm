@@ -55,7 +55,7 @@ static bool isNullOr(const ComponentTransferFunction& function)
 }
 
 template<ComponentTransferType... Types>
-static bool isType(const ComponentTransferFunction& function)
+static bool NODELETE isType(const ComponentTransferFunction& function)
 {
     return ((function.type == Types) || ...);
 }

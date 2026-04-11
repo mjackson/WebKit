@@ -42,6 +42,7 @@
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
+#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -135,6 +136,11 @@ JSTestScheduledAction::JSTestScheduledAction(Structure* structure, JSDOMGlobalOb
 
 static_assert(!std::is_base_of<ActiveDOMObject, TestScheduledAction>::value, "Interface is not marked as [ActiveDOMObject] even though implementation class subclasses ActiveDOMObject.");
 
+JSC::Structure* JSTestScheduledAction::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
+{
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
+}
+
 JSObject* JSTestScheduledAction::createPrototype(VM& vm, JSDOMGlobalObject& globalObject)
 {
     auto* structure = JSTestScheduledActionPrototype::createStructure(vm, &globalObject, globalObject.objectPrototype());
@@ -165,7 +171,7 @@ JSC_DEFINE_CUSTOM_GETTER(jsTestScheduledActionConstructor, (JSGlobalObject* lexi
     auto* prototype = jsDynamicCast<JSTestScheduledActionPrototype*>(JSValue::decode(thisValue));
     if (!prototype) [[unlikely]]
         return throwVMTypeError(lexicalGlobalObject, throwScope);
-    return JSValue::encode(JSTestScheduledAction::getConstructor(vm, prototype->globalObject()));
+    return JSValue::encode(JSTestScheduledAction::getConstructor(vm, prototype->realm()));
 }
 
 static inline JSC::EncodedJSValue jsTestScheduledActionPrototypeFunction_methodBody(JSC::JSGlobalObject* lexicalGlobalObject, JSC::CallFrame* callFrame, typename IDLOperation<JSTestScheduledAction>::ClassParameter castedThis)
@@ -178,10 +184,10 @@ static inline JSC::EncodedJSValue jsTestScheduledActionPrototypeFunction_methodB
     if (callFrame->argumentCount() < 1) [[unlikely]]
         return throwVMError(lexicalGlobalObject, throwScope, createNotEnoughArgumentsError(lexicalGlobalObject));
     EnsureStillAliveScope argument0 = callFrame->uncheckedArgument(0);
-    auto actionConversionResult = convert<IDLScheduledAction>(*lexicalGlobalObject, argument0.value(), *castedThis->globalObject(), "TestScheduledActionReal method"_s);
+    auto actionConversionResult = convert<IDLScheduledAction>(*lexicalGlobalObject, argument0.value(), *castedThis->realm(), "TestScheduledActionReal method"_s);
     if (actionConversionResult.hasException(throwScope)) [[unlikely]]
        return encodedJSValue();
-    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&]() -> decltype(auto) { return impl.method(actionConversionResult.releaseReturnValue()); })));
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&] -> decltype(auto) { return impl.method(actionConversionResult.releaseReturnValue()); })));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestScheduledActionPrototypeFunction_method, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Apple Inc. All rights reserved.
+ * Copyright (C) 2018-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -36,6 +36,7 @@
 #include "InlineQuirks.h"
 #include "LayoutBoxInlines.h"
 #include "LayoutElementBox.h"
+#include "RenderObjectDocument.h"
 #include "RenderStyle+GettersInlines.h"
 #include "RubyFormattingContext.h"
 #include "Settings.h"
@@ -110,8 +111,11 @@ bool InlineFormattingUtils::inlineLevelBoxAffectsLineBox(const InlineLevelBox& i
     if (!inlineLevelBox.mayStretchLineBox())
         return false;
 
-    if (inlineLevelBox.isLineBreakBox())
-        return false;
+    if (inlineLevelBox.isLineBreakBox()) {
+        // A line break box affects the line box when it has a non-default
+        // line-height (e.g. br { line-height: 200px }).
+        return !inlineLevelBox.isPreferredLineHeightFontMetricsBased();
+    }
     if (inlineLevelBox.isListMarker()) {
         // This does not match other browser engines. see webkit.org/b/256390.
         return true;
@@ -168,10 +172,12 @@ InlineLayoutUnit InlineFormattingUtils::computedTextIndent(IsIntrinsicWidthMode 
     auto& textIndentLength = root->style().textIndent().length;
     if (textIndentLength == 0_css_px)
         return { };
-    if (isIntrinsicWidthMode == IsIntrinsicWidthMode::Yes && textIndentLength.isPercent()) {
-        // Percentages must be treated as 0 for the purpose of calculating intrinsic size contributions.
+    if (isIntrinsicWidthMode == IsIntrinsicWidthMode::Yes && textIndentLength.isPercentOrCalculated()) {
+        // Percentages and calc() expressions containing percentages must be treated as 0
+        // for the purpose of calculating intrinsic size contributions, with a zero percentage
+        // basis so fixed-length components in calc() are still preserved.
         // https://drafts.csswg.org/css-text/#text-indent-property
-        return { };
+        return Style::evaluate<InlineLayoutUnit>(textIndentLength, 0, root->style().usedZoomForLength());
     }
     return Style::evaluate<InlineLayoutUnit>(textIndentLength, availableWidth, root->style().usedZoomForLength());
 }

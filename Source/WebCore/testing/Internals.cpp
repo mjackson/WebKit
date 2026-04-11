@@ -145,6 +145,7 @@
 #include "JSDOMPromiseDeferred.h"
 #include "JSFile.h"
 #include "JSInternals.h"
+#include "JSNode.h"
 #include "LegacySchemeRegistry.h"
 #include "LoaderStrategy.h"
 #include "LocalDOMWindow.h"
@@ -262,11 +263,13 @@
 #include "UserMediaController.h"
 #include "VideoConfiguration.h"
 #include "ViewportArguments.h"
+#include "ViewportConfiguration.h"
 #include "VoidCallback.h"
 #include "WebAnimation.h"
 #include "WebAnimationUtilities.h"
 #include "WebCodecsVideoDecoder.h"
 #include "WebCoreJSClientData.h"
+#include "WebCoreTestSupport.h"
 #include "WebRTCProvider.h"
 #include "WindowProxy.h"
 #include "WorkerThread.h"
@@ -276,10 +279,13 @@
 #include "XMLHttpRequest.h"
 #include <JavaScriptCore/CodeBlock.h>
 #include <JavaScriptCore/FunctionExecutable.h>
+#include <JavaScriptCore/HeapInlines.h>
+#include <JavaScriptCore/HeapIterationScope.h>
 #include <JavaScriptCore/InspectorAgentBase.h>
 #include <JavaScriptCore/InspectorFrontendChannel.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSCJSValue.h>
+#include <JavaScriptCore/MarkedSpaceInlines.h>
 #include <wtf/FileHandle.h>
 #include <wtf/FileSystem.h>
 #include <wtf/HexNumber.h>
@@ -426,7 +432,7 @@
 #include "TextRecognitionResult.h"
 #endif
 
-#if ENABLE(ARKIT_INLINE_PREVIEW_MAC) || ENABLE(MODEL_ELEMENT)
+#if ENABLE(MODEL_ELEMENT)
 #include "HTMLModelElement.h"
 #endif
 
@@ -668,9 +674,12 @@ void Internals::resetToConsistentState(Page& page)
     sessionManager->setIsPlayingToAutomotiveHeadUnit(false);
 #endif
     AXObjectCache::setEnhancedUserInterfaceAccessibility(false);
-    AXObjectCache::disableAccessibility();
+    AXObjectCache::disableAccessibilityForTesting();
     WebCore::setShouldMockParentSearchResultsForTesting(false);
     WebCore::setShouldMockChildFrameSearchResultsForTesting(false);
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    WebCoreTestSupport::notifyAccessibilityTestTeardown();
+#endif
 
     MockPageOverlayClient::singleton().uninstallAllOverlays();
 
@@ -877,7 +886,7 @@ ExceptionOr<bool> Internals::areSVGAnimationsPaused() const
     if (!document->svgExtensionsIfExists())
         return Exception { ExceptionCode::NotFoundError, "No SVG animations"_s };
 
-    return protect(document->svgExtensions())->areAnimationsPaused();
+    return document->svgExtensions().areAnimationsPaused();
 }
 
 ExceptionOr<double> Internals::svgAnimationsInterval(SVGSVGElement& element) const
@@ -1753,6 +1762,13 @@ String Internals::visiblePlaceholder(Element& element)
             return placeholderElement->textContent();
     }
 
+    return String();
+}
+
+String Internals::anchorPrefetchEagerness(Element& element)
+{
+    if (auto* anchor = dynamicDowncast<HTMLAnchorElement>(element))
+        return anchor->prefetchEagernessForTesting();
     return String();
 }
 
@@ -3402,7 +3418,7 @@ ExceptionOr<void> Internals::setInspectorIsUnderTest(bool isUnderTest)
     if (!document || !document->page())
         return Exception { ExceptionCode::InvalidAccessError };
 
-    protect(document->page())->inspectorController().setIsUnderTest(isUnderTest);
+    document->page()->inspectorController().setIsUnderTest(isUnderTest);
     return { };
 }
 
@@ -3812,6 +3828,11 @@ ExceptionOr<Ref<DOMRectList>> Internals::nonFastScrollableRects() const
         return DOMRectList::create();
 
     return page->nonFastScrollableRectsForTesting();
+}
+
+double Internals::minimumShrinkToFitWidthWhenPreferringHorizontalScrolling() const
+{
+    return ViewportConfiguration::minimumShrinkToFitWidthWhenPreferringHorizontalScrolling;
 }
 
 ExceptionOr<void> Internals::setElementUsesDisplayListDrawing(Element& element, bool usesDisplayListDrawing)
@@ -4570,8 +4591,15 @@ Ref<SerializedScriptValue> Internals::deserializeBuffer(ArrayBuffer& buffer) con
 
 bool Internals::isFromCurrentWorld(JSC::JSValue value) const
 {
+    if (!value.isObject())
+        return true;
+
+    auto* realm = value.getObject()->realmMayBeNull();
+    if (!realm)
+        return false;
+
     JSC::VM& vm = contextDocument()->vm();
-    return isWorldCompatible(*vm.topCallFrame->lexicalGlobalObject(vm), value);
+    return &worldForDOMObject(*value.getObject()) == &currentWorld(*vm.topCallFrame->lexicalGlobalObject(vm));
 }
 
 JSC::JSValue Internals::evaluateInWorldIgnoringException(const String& name, const String& source)
@@ -5490,7 +5518,7 @@ void Internals::setAudioContextRestrictions(AudioContext& context, StringView re
 
 Vector<float> Internals::waveShaperProcessCurveWithData(Vector<float> source, Vector<float> curve)
 {
-    Vector<float> destination(source.size(), 0.0f);
+    Vector<float> destination(FillWith { }, source.size(), 0.0f);
     WaveShaperDSPKernel::processCurveWithData(std::span { source }, std::span { destination }, std::span { curve });
     return destination;
 }
@@ -7011,7 +7039,7 @@ Internals::ImageOverlayDataDetector::~ImageOverlayDataDetector() = default;
 #if ENABLE(IMAGE_ANALYSIS)
 
 template<typename T>
-static FloatQuad getQuad(const T& overlayTextOrLine)
+static FloatQuad NODELETE getQuad(const T& overlayTextOrLine)
 {
     return {
         FloatPoint(overlayTextOrLine.topLeft->x(), overlayTextOrLine.topLeft->y()),
@@ -7432,9 +7460,7 @@ String Internals::highlightPseudoElementColor(const AtomString& highlightName, E
     return serializationForCSS(resolvedStyle->style->color());
 }
     
-Internals::TextIndicatorInfo::TextIndicatorInfo()
-{
-}
+Internals::TextIndicatorInfo::TextIndicatorInfo() = default;
 
 Internals::TextIndicatorInfo::TextIndicatorInfo(const WebCore::TextIndicatorData& data)
     : textBoundingRectInRootViewCoordinates(DOMRect::create(data.textBoundingRectInRootViewCoordinates))
@@ -7906,6 +7932,8 @@ constexpr TreeType NODELETE convertType(Internals::TreeType type)
         return ShadowIncludingTree;
     case Internals::ComposedTree:
         return ComposedTree;
+    case Internals::ComposedTreeIncludingPseudoElements:
+        return ComposedTreeIncludingPseudoElements;
     }
     ASSERT_NOT_REACHED();
     return Tree;
@@ -8009,40 +8037,10 @@ RefPtr<PushSubscription> Internals::createPushSubscription(const String& endpoin
     return PushSubscription::create(PushSubscriptionData { std::nullopt, { endpoint }, expirationTime, serverVAPIDPublicKey.toVector(), clientECDHPublicKey.toVector(), auth.toVector() });
 }
 
-#if ENABLE(ARKIT_INLINE_PREVIEW_MAC)
-
-void Internals::modelInlinePreviewUUIDs(ModelInlinePreviewUUIDsPromise&& promise) const
-{
-    auto* document = contextDocument();
-    if (!document) {
-        promise.reject(ExceptionCode::InvalidStateError);
-        return;
-    }
-
-    auto* frame = document->frame();
-    if (!frame) {
-        promise.reject(ExceptionCode::InvalidStateError);
-        return;
-    }
-
-    CompletionHandler<void(Vector<String>&&)> completionHandler = [promise = WTF::move(promise)] (Vector<String> uuids) mutable {
-        promise.resolve(uuids);
-    };
-
-    frame->loader().client().modelInlinePreviewUUIDs(WTF::move(completionHandler));
-}
-
-String Internals::modelInlinePreviewUUIDForModelElement(const HTMLModelElement& modelElement) const
-{
-    return modelElement.inlinePreviewUUIDForTesting();
-}
-
-#endif
-
 bool Internals::hasSleepDisabler() const
 {
     auto* document = contextDocument();
-    return document ? document->hasSleepDisabler() : false;
+    return document && document->hasSleepDisabler();
 }
 
 void Internals::acceptTypedArrays(Int32Array&)
@@ -8055,10 +8053,75 @@ Internals::SelectorFilterHashCounts Internals::selectorFilterHashCounts(const St
     auto selectorList = CSSSelectorParser::parseSelectorList(selector, CSSParserContext(*contextDocument()));
     if (!selectorList)
         return { };
-    
+
     auto hashes = SelectorFilter::collectHashesForTesting(selectorList->first());
 
     return { hashes.ids.size(), hashes.classes.size(), hashes.tags.size(), hashes.attributes.size() };
+}
+
+// This produces statistics for every JS wrapper (including duplicate JS wrappers for the same dom node).
+JSC::JSValue Internals::dumpJSNodeStatistics()
+{
+    auto* document = contextDocument();
+    if (!document)
+        return JSC::jsNull();
+
+    auto& vm = document->vm();
+    auto* globalObject = vm.topCallFrame->lexicalGlobalObject(vm);
+
+    vm.heap.collectNow(JSC::Sync, JSC::CollectionScope::Full);
+
+    struct Entry {
+        size_t connected { 0 };
+        size_t count { 0 };
+    };
+    HashMap<String, Entry> stats;
+    Entry totals;
+
+    {
+        JSC::HeapIterationScope iterationScope(vm.heap);
+        vm.heap.objectSpace().forEachLiveCell(iterationScope, [&](JSC::HeapCell* heapCell, JSC::HeapCell::Kind kind) {
+            if (!isJSCellKind(kind))
+                return IterationStatus::Continue;
+            SUPPRESS_MEMORY_UNSAFE_CAST auto* jsNode = JSC::jsDynamicCast<JSNode*>(static_cast<JSC::JSCell*>(heapCell));
+            if (!jsNode)
+                return IterationStatus::Continue;
+
+            auto& node = jsNode->wrapped();
+            String nodeName;
+            if (node.isElementNode())
+                nodeName = downcast<Element>(node).tagName();
+            else
+                nodeName = node.localName();
+            bool connected = node.isConnected();
+
+            if (!nodeName)
+                return IterationStatus::Continue;
+
+            auto& entry = stats.add(WTF::move(nodeName), Entry { }).iterator->value;
+            ++entry.count;
+            ++totals.count;
+            if (connected) {
+                ++entry.connected;
+                ++totals.connected;
+            }
+
+            return IterationStatus::Continue;
+        });
+    }
+
+    auto* result = JSC::constructEmptyObject(globalObject);
+    auto makeEntry = [&](const Entry& e) {
+        auto* obj = JSC::constructEmptyObject(globalObject);
+        obj->putDirect(vm, JSC::Identifier::fromString(vm, "connected"_s), JSC::jsNumber(e.connected));
+        obj->putDirect(vm, JSC::Identifier::fromString(vm, "count"_s), JSC::jsNumber(e.count));
+        return obj;
+    };
+    result->putDirect(vm, JSC::Identifier::fromString(vm, "nodes"_s), makeEntry(totals));
+    for (auto& [key, entry] : stats)
+        result->putDirect(vm, JSC::Identifier::fromString(vm, key), makeEntry(entry));
+
+    return result;
 }
 
 bool Internals::isVisuallyNonEmpty() const

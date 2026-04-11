@@ -65,6 +65,47 @@ WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(Sqrt);
 WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(Sum);
 WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(Tan);
 
+Child number(double value)
+{
+    return makeChild(Number { .value = value });
+}
+
+Child percentage(double value)
+{
+    return makeChild(Percentage { .value = value });
+}
+
+Child dimension(double value)
+{
+    return makeChild(Dimension { .value = value });
+}
+
+Child add(Child&& a, Child&& b)
+{
+    Vector<Child> sumChildren;
+    sumChildren.append(WTF::move(a));
+    sumChildren.append(WTF::move(b));
+    return makeChild(Sum { .children = WTF::move(sumChildren) });
+}
+
+Child multiply(Child&& a, Child&& b)
+{
+    Vector<Child> productChildren;
+    productChildren.append(WTF::move(a));
+    productChildren.append(WTF::move(b));
+    return makeChild(Product { .children = WTF::move(productChildren) });
+}
+
+Child subtract(Child&& a, Child&& b)
+{
+    return add(WTF::move(a), makeChild(Negate { .a = WTF::move(b) }));
+}
+
+Child blend(Child&& from, Child&& to, double progress)
+{
+    return makeChild(Blend { .progress = progress, .from = WTF::move(from), .to = WTF::move(to) });
+}
+
 static size_t computeDepth(const Child& root)
 {
     size_t maximumChildDepth = 0;

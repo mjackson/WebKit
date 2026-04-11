@@ -26,7 +26,6 @@
 #include <WebCore/LocalDOMWindow.h>
 #include <WebCore/NodeDocument.h>
 #include "WebCoreJSClientData.h"
-#include <JavaScriptCore/StrongInlines.h>
 #include <JavaScriptCore/Weak.h>
 #include <JavaScriptCore/WeakInlines.h>
 #include <wtf/Ref.h>
@@ -124,14 +123,14 @@ inline JSC::JSValue windowEventHandlerAttribute(HTMLElement& element, const Atom
 template<typename JSMaybeErrorEventListener>
 inline void setWindowEventHandlerAttribute(DOMWindow& window, const AtomString& eventType, JSC::JSValue listener, JSC::JSObject& jsEventTarget)
 {
-    window.setAttributeEventListener<JSMaybeErrorEventListener>(eventType, listener, *jsEventTarget.globalObject());
+    window.setAttributeEventListener<JSMaybeErrorEventListener>(eventType, listener, *jsEventTarget.realm());
 }
 
 template<typename JSMaybeErrorEventListener>
 inline void setWindowEventHandlerAttribute(HTMLElement& element, const AtomString& eventType, JSC::JSValue listener, JSC::JSObject& jsEventTarget)
 {
     if (RefPtr window = element.document().window())
-        window->setAttributeEventListener<JSMaybeErrorEventListener>(eventType, listener, *jsEventTarget.globalObject());
+        window->setAttributeEventListener<JSMaybeErrorEventListener>(eventType, listener, *jsEventTarget.realm());
 }
 
 inline JSC::JSObject* JSEventListener::ensureJSFunction(ScriptExecutionContext& scriptExecutionContext) const

@@ -325,6 +325,11 @@ template<CSS::Range R, typename V> struct Percentage : PrimitiveNumeric<CSS::Per
 template<CSS::Range R, typename V> struct Angle : PrimitiveNumeric<CSS::Angle<R, V>> {
     using Base = PrimitiveNumeric<CSS::Angle<R, V>>;
     using Base::Base;
+
+    constexpr Angle() requires (R.min == R.max)
+        : Base { static_cast<V>(R.min) }
+    {
+    }
 };
 template<CSS::Range R, typename V> struct Length : PrimitiveNumeric<CSS::Length<R, V>> {
     using Base = PrimitiveNumeric<CSS::Length<R, V>>;

@@ -43,7 +43,7 @@ Gamepad::Gamepad(Document* document, const PlatformGamepad& platformGamepad)
     , m_timestamp(platformGamepad.lastUpdateTime())
     , m_mapping(platformGamepad.mapping())
     , m_supportedEffectTypes(platformGamepad.supportedEffectTypes())
-    , m_axes(platformGamepad.axisValues().size(), 0.0)
+    , m_axes(FillWith { }, platformGamepad.axisValues().size(), 0.0)
     , m_vibrationActuator(platformGamepad.supportedEffectTypes().contains(GamepadHapticEffectType::DualRumble) ? RefPtr { GamepadHapticActuator::create(document, GamepadHapticActuator::Type::DualRumble, *this) } : nullptr)
 {
     unsigned buttonCount = platformGamepad.buttonValues().size();

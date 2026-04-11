@@ -88,7 +88,7 @@ public:
     LayoutSize relativePositionOffset() const;
 
     FloatRect constrainingRectForStickyPosition() const;
-    std::pair<const RenderBox&, const RenderLayer*> enclosingClippingBoxForStickyPosition() const;
+    std::pair<const RenderBox&, const RenderLayer*> NODELETE enclosingClippingBoxForStickyPosition() const;
     void computeStickyPositionConstraints(StickyPositionViewportConstraints&, const FloatRect& constrainingRect) const;
     LayoutSize stickyPositionOffset() const;
 
@@ -204,14 +204,6 @@ public:
     void contentChanged(ContentChangeType, const std::optional<FloatRect>& = std::nullopt);
     bool hasAcceleratedCompositing() const;
 
-    RenderBoxModelObject* NODELETE continuation() const;
-    WEBCORE_EXPORT RenderInline* NODELETE inlineContinuation() const;
-
-    static void forRendererAndContinuations(RenderBoxModelObject&, const std::function<void(RenderBoxModelObject&)>&);
-
-    void insertIntoContinuationChainAfter(RenderBoxModelObject&);
-    void removeFromContinuationChain();
-
     bool hasRunningAcceleratedAnimations() const;
 
     void applyTransform(TransformationMatrix&, const RenderStyle&, const FloatRect& boundingBox, OptionSet<Style::TransformResolverOption>) const override;
@@ -231,7 +223,7 @@ protected:
     bool borderObscuresBackground() const;
 
 public:
-    bool fixedBackgroundPaintsInLocalCoordinates() const;
+    bool NODELETE fixedBackgroundPaintsInLocalCoordinates() const;
     InterpolationQuality chooseInterpolationQuality(GraphicsContext&, Image&, const void*, const LayoutSize&) const;
     DecodingMode decodingModeForImageDraw(const Image&, const PaintInfo&) const;
 
@@ -251,31 +243,12 @@ public:
 
     void removeOutOfFlowBoxesIfNeededOnStyleChange(RenderBlock& delegateBlock, const RenderStyle& oldStyle, const RenderStyle& newStyle);
 
-    struct ContinuationChainNode {
-        WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(ContinuationChainNode);
-
-        SingleThreadWeakPtr<RenderBoxModelObject> renderer;
-        ContinuationChainNode* previous { nullptr };
-        ContinuationChainNode* next { nullptr };
-
-        ContinuationChainNode(RenderBoxModelObject&);
-        ~ContinuationChainNode();
-
-        void NODELETE insertAfter(ContinuationChainNode&);
-    };
-
-    ContinuationChainNode* NODELETE continuationChainNode() const LIFETIME_BOUND;
 
 protected:
     LayoutUnit resolveLengthPercentageUsingContainerLogicalWidth(const auto&) const;
     LayoutUnit resolveLengthPercentageUsingContainerLogicalWidth(const auto&, const Style::ZoomFactor&) const;
 
-    virtual void absoluteQuadsIgnoringContinuation(const FloatRect&, Vector<FloatQuad>&, bool* /*wasFixed*/) const { ASSERT_NOT_REACHED(); }
-    void collectAbsoluteQuadsForContinuation(Vector<FloatQuad>& quads, bool* wasFixed) const;
-
 private:
-    ContinuationChainNode& ensureContinuationChainNode() LIFETIME_BOUND;
-
     virtual LayoutRect frameRectForStickyPositioning() const = 0;
 
     RenderBlock* containingBlockForAutoHeightDetectionGeneric(const auto& logicalHeight) const;

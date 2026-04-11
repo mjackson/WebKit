@@ -26,6 +26,7 @@
 #include "config.h"
 #include "SelectFallbackButtonElement.h"
 
+#include "ContainerNodeInlines.h"
 #include "CSSPrimitiveValueMappings.h"
 #include "CSSValueKeywords.h"
 #include "HTMLOptionElement.h"
@@ -34,6 +35,7 @@
 #include "RenderStyle+SettersInlines.h"
 #include "RenderTheme.h"
 #include "ResolvedStyle.h"
+#include "ShadowRoot.h"
 #include "StyleResolver.h"
 #include "StyleTextAlign.h"
 #include <wtf/TZoneMallocInlines.h>

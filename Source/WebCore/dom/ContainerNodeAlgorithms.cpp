@@ -115,7 +115,7 @@ static RemovedSubtreeResult notifyNodeRemovedFromDocument(ContainerNode& oldPare
     for (RefPtr currentNode = node; currentNode; currentNode = NodeTraversal::next(*currentNode)) {
         ++subTreeSize;
         currentNode->removingSteps(Node::RemovalType { /* disconnectedFromDocument */ true, treeScopeChange == TreeScopeChange::Changed }, oldParentOfRemovedTree);
-        updateCanDelayNodeDeletion(canDelayNodeDeletion, AsyncNodeDeletionQueue::canNodeBeDeletedAsync(node));
+        updateCanDelayNodeDeletion(canDelayNodeDeletion, AsyncNodeDeletionQueue::canNodeBeDeletedAsync(*currentNode));
         updateObservability(observability, observabilityOfRemovedNode(*currentNode));
         if (RefPtr root = currentNode->shadowRoot()) {
             auto [shadowTreeSize, newObservability, canBeDelayed] = notifyNodeRemovedFromDocument(oldParentOfRemovedTree, TreeScopeChange::DidNotChange, *root);
@@ -137,7 +137,7 @@ static RemovedSubtreeResult notifyNodeRemovedFromTree(ContainerNode& oldParentOf
     for (RefPtr currentNode = node; currentNode; currentNode = NodeTraversal::next(*currentNode)) {
         ++subTreeSize;
         currentNode->removingSteps(Node::RemovalType { /* disconnectedFromDocument */ false, treeScopeChange == TreeScopeChange::Changed }, oldParentOfRemovedTree);
-        updateCanDelayNodeDeletion(canDelayNodeDeletion, AsyncNodeDeletionQueue::canNodeBeDeletedAsync(node));
+        updateCanDelayNodeDeletion(canDelayNodeDeletion, AsyncNodeDeletionQueue::canNodeBeDeletedAsync(*currentNode));
         updateObservability(observability, observabilityOfRemovedNode(*currentNode));
         if (RefPtr root = currentNode->shadowRoot()) {
             auto [shadowTreeSize, newObservability, canBeDelayed] = notifyNodeRemovedFromTree(oldParentOfRemovedTree, TreeScopeChange::DidNotChange, *root);

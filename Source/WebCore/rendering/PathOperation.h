@@ -95,9 +95,9 @@ public:
 
     const Style::URL& url() const LIFETIME_BOUND { return m_url; }
     const AtomString& fragment() const LIFETIME_BOUND { return m_fragment; }
+    const std::optional<Path>& path() const LIFETIME_BOUND { return m_path; }
 
     std::optional<Path> getPath(const TransformOperationData&, Style::ZoomFactor) const final { return m_path; }
-    std::optional<Path> path() const { return m_path; }
 
     bool operator==(const ReferencePathOperation& other) const
     {

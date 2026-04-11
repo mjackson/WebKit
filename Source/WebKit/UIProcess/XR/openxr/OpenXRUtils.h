@@ -111,6 +111,9 @@ inline ASCIILiteral handednessToString(PlatformXR::XRHandedness handedness)
 struct OpenXRSystemProperties {
     bool supportsOrientationTracking { false };
     bool supportsHandTracking { false };
+#if ENABLE(WEBXR_LAYERS)
+    unsigned maxLayerCount { 1 };
+#endif
 };
 
 inline OpenXRSystemProperties systemProperties(XrInstance instance, XrSystemId systemId)
@@ -129,9 +132,12 @@ inline OpenXRSystemProperties systemProperties(XrInstance instance, XrSystemId s
     return {
         .supportsOrientationTracking = xrSystemProperties.trackingProperties.orientationTracking == XR_TRUE,
 #if defined(XR_EXT_hand_tracking)
-        .supportsHandTracking = handTrackingProperties.supportsHandTracking == XR_TRUE
+        .supportsHandTracking = handTrackingProperties.supportsHandTracking == XR_TRUE,
 #else
-        .supportsHandTracking = false
+        .supportsHandTracking = false,
+#endif
+#if ENABLE(WEBXR_LAYERS)
+        .maxLayerCount = xrSystemProperties.graphicsProperties.maxLayerCount,
 #endif
     };
 }

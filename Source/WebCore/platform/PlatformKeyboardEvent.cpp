@@ -168,7 +168,7 @@ static std::optional<KeyEventData> lookup(const String& key)
     if (key.length() != 1)
         return { };
 
-    auto character = key.characterAt(0);
+    auto character = key.codeUnitAt(0);
     if (character >= 'A' && character <= 'Z') {
         return { {
             key,

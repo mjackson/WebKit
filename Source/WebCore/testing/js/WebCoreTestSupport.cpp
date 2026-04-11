@@ -27,6 +27,8 @@
 #include "config.h"
 #include "WebCoreTestSupport.h"
 
+#include "AXIsolatedTree.h"
+#include "AXTreeStore.h"
 #include "DeprecatedGlobalSettings.h"
 #include "DocumentFragment.h"
 #include "DocumentPage.h"
@@ -173,6 +175,28 @@ void setLinkedOnOrAfterEverythingForTesting()
 void setAccessibilityIsolatedTreeEnabled(bool isEnabled)
 {
     DeprecatedGlobalSettings::setIsAccessibilityIsolatedTreeEnabled(isEnabled);
+}
+
+bool isAccessibilityIsolatedTreeModeEnabled()
+{
+    return AXObjectCache::isIsolatedTreeEnabled();
+}
+
+static Function<void()>& accessibilityTestTeardownCallback()
+{
+    static NeverDestroyed<Function<void()>> callback;
+    return callback.get();
+}
+
+void setAccessibilityTestTeardownCallback(Function<void()>&& callback)
+{
+    accessibilityTestTeardownCallback() = WTF::move(callback);
+}
+
+void notifyAccessibilityTestTeardown()
+{
+    if (auto& callback = accessibilityTestTeardownCallback())
+        callback();
 }
 #endif
 

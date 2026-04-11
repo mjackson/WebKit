@@ -64,7 +64,7 @@ private:
 
     bool rendererIsNeeded(const RenderStyle&) final { return false; }
 
-    Ref<StyleRuleFontFace> m_fontFaceRule;
+    const Ref<StyleRuleFontFace> m_fontFaceRule;
     WeakPtr<SVGFontElement, WeakPtrImplWithEventTargetData> m_fontElement;
 };
 

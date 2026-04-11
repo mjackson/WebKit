@@ -24,6 +24,7 @@
 
 #include "config.h"
 #include "LegacyRenderSVGResourceFilter.h"
+#include "LegacyRenderSVGModelObjectInlines.h"
 
 #include "FilterEffect.h"
 #include "FloatPoint.h"

@@ -87,11 +87,7 @@
 #define PAS_ARM __PAS_ARM
 
 #ifndef PAS_ENABLE_MTE
-#if defined(PAS_BMALLOC)
 #define PAS_ENABLE_MTE (PAS_USE_APPLE_INTERNAL_SDK && __PAS_ARM64E && !PAS_ASAN_ENABLED)
-#else /* !defined(PAS_BMALLOC) */
-#define PAS_ENABLE_MTE 0
-#endif /* defined(PAS_BMALLOC) */
 #endif /* PAS_ENABLE_MTE */
 
 #define PAS_RISCV __PAS_RISCV

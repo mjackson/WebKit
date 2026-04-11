@@ -102,8 +102,6 @@ private:
 
     bool canHaveChildren() const final { return true; }
 
-    void absoluteQuadsIgnoringContinuation(const FloatRect&, Vector<FloatQuad>&, bool* wasFixed) const override;
-
     template<typename GeneratorContext>
     void generateLineBoxRects(GeneratorContext& yield) const;
 

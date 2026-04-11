@@ -103,7 +103,7 @@ static String getFileNameFromURIComponent(StringView input)
     StringBuilder result;
     result.reserveCapacity(length);
     for (unsigned index = 0; index < length; ++index) {
-        char16_t character = decodedInput->characterAt(index);
+        char16_t character = decodedInput->codeUnitAt(index);
         if (isUnreservedURICharacter(character)) {
             result.append(character);
             continue;

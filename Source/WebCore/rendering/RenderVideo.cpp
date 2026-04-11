@@ -313,7 +313,7 @@ void RenderVideo::layout()
 void RenderVideo::styleDidChange(Style::Difference difference, const RenderStyle* oldStyle)
 {
     RenderMedia::styleDidChange(difference, oldStyle);
-    if (!oldStyle || style().objectFit() != oldStyle->objectFit())
+    if (oldStyle && style().objectFit() != oldStyle->objectFit())
         setNeedsLayout();
 }
 

@@ -30,6 +30,10 @@
 #include <WebCore/ParentalControlsURLFilterParameters.h>
 #include <wtf/ThreadSafeRefCounted.h>
 
+#if HAVE(BROWSERENGINEKIT_WEBCONTENTFILTER)
+#include <WebCore/CocoaView.h>
+#endif
+
 OBJC_CLASS WCRBrowserEngineClient;
 
 namespace WTF {
@@ -51,7 +55,7 @@ public:
     WEBCORE_EXPORT static void allowURL(const ParentalControlsURLFilterParameters&, CompletionHandler<void(bool)>&&);
     WEBCORE_EXPORT static WorkQueue& workQueueSingleton();
     WEBCORE_EXPORT bool isEnabled() const;
-    void resetIsEnabled();
+    void NODELETE resetIsEnabled();
 
     WEBCORE_EXPORT virtual ~ParentalControlsURLFilter();
     virtual bool isEnabledImpl() const;
@@ -59,7 +63,11 @@ public:
     WEBCORE_EXPORT void isURLAllowed(const URL& mainDocumentURL, const URL&, CompletionHandler<void(bool, NSData *)>&&);
     virtual void allowURL(const URL&, CompletionHandler<void(bool)>&&);
 #if HAVE(WEBCONTENTRESTRICTIONS_ASK_TO)
-    virtual void requestPermissionForURL(const URL&, const URL& referrerURL, CompletionHandler<void(bool)>&&);
+#if HAVE(BROWSERENGINEKIT_WEBCONTENTFILTER)
+    virtual void requestPermissionForURL(const URL&, const URL& referrerURL, CompletionHandler<void(bool)>&&, CocoaView* presentingView = nullptr);
+#else
+    WEBCORE_EXPORT void requestPermissionForURL(const URL&, const URL& referrerURL, CompletionHandler<void(bool)>&&);
+#endif
 #endif
 
 protected:

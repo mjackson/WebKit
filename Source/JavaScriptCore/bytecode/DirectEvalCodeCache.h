@@ -39,20 +39,14 @@ namespace JSC {
 
     class DirectEvalCodeCache {
     public:
-        enum class RopeSuffix : uint8_t {
-            None,
-            FunctionCall
-        };
-
         class CacheLookupKey;
 
         class CacheKey {
             friend class CacheLookupKey;
         public:
-            CacheKey(StringImpl* source, BytecodeIndex bytecodeIndex, RopeSuffix ropeSuffix)
+            CacheKey(StringImpl* source, BytecodeIndex bytecodeIndex)
                 : m_source(source)
                 , m_bytecodeIndex(bytecodeIndex)
-                , m_ropeSuffix(ropeSuffix)
             {
             }
 
@@ -63,13 +57,13 @@ namespace JSC {
 
             CacheKey() = default;
 
-            unsigned hash() const { return m_source->hash() + m_bytecodeIndex.asBits() + std::to_underlying(m_ropeSuffix); }
+            unsigned hash() const { return m_source->hash() + m_bytecodeIndex.asBits(); }
 
             bool isEmptyValue() const { return !m_source; }
 
             bool operator==(const CacheKey& other) const
             {
-                return m_bytecodeIndex == other.m_bytecodeIndex && m_ropeSuffix == other.m_ropeSuffix && WTF::equal(m_source.get(), other.m_source.get());
+                return m_bytecodeIndex == other.m_bytecodeIndex && WTF::equal(m_source.get(), other.m_source.get());
             }
 
             bool isHashTableDeletedValue() const { return m_source.isHashTableDeletedValue(); }
@@ -79,38 +73,35 @@ namespace JSC {
         private:
             RefPtr<StringImpl> m_source;
             BytecodeIndex m_bytecodeIndex;
-            RopeSuffix m_ropeSuffix;
         };
 
         class CacheLookupKey {
             void* operator new(size_t) = delete;
 
         public:
-            CacheLookupKey(StringImpl* source, BytecodeIndex bytecodeIndex, RopeSuffix ropeSuffix)
+            CacheLookupKey(StringImpl* source, BytecodeIndex bytecodeIndex)
                 : m_source(source)
                 , m_bytecodeIndex(bytecodeIndex)
-                , m_ropeSuffix(ropeSuffix)
             {
             }
 
             CacheLookupKey() = default;
 
-            unsigned hash() const { return m_source->hash() + m_bytecodeIndex.asBits() + std::to_underlying(m_ropeSuffix); }
+            unsigned hash() const { return m_source->hash() + m_bytecodeIndex.asBits(); }
 
             bool operator==(const CacheKey& other) const
             {
-                return m_bytecodeIndex == other.m_bytecodeIndex && m_ropeSuffix == other.m_ropeSuffix && WTF::equal(m_source, other.m_source.get());
+                return m_bytecodeIndex == other.m_bytecodeIndex && WTF::equal(m_source, other.m_source.get());
             }
 
             operator CacheKey() const
             {
-                return CacheKey(m_source, m_bytecodeIndex, m_ropeSuffix);
+                return CacheKey(m_source, m_bytecodeIndex);
             }
 
         private:
             SUPPRESS_UNCOUNTED_MEMBER StringImpl* m_source;
             BytecodeIndex m_bytecodeIndex;
-            RopeSuffix m_ropeSuffix;
         };
 
         struct CacheLookupKeyHashTranslator {

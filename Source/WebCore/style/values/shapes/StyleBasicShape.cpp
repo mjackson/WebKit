@@ -25,9 +25,11 @@
 #include "config.h"
 #include "StyleBasicShape.h"
 
+#include "AcceleratedEffectBasicShape.h"
 #include "CSSBasicShapeValue.h"
 #include "StylePrimitiveNumericTypes+Blending.h"
 #include "StylePrimitiveNumericTypes+Conversions.h"
+#include "TransformOperationData.h"
 
 namespace WebCore {
 namespace Style {
@@ -121,17 +123,65 @@ WebCore::Path PathComputation<BasicShape>::operator()(const BasicShape& shape, c
     return WTF::switchOn(shape, [&](const auto& shape) { return WebCore::Style::path(shape, rect, zoom); });
 }
 
+std::optional<WebCore::Path> tryPath(const BasicShape& shape, const TransformOperationData& transformData, ZoomFactor zoom)
+{
+    if (auto motionPathData = transformData.motionPathData) {
+        auto containingBlockRect = motionPathData->offsetRect().rect();
+        return WTF::switchOn(shape,
+            [&]<ShapeWithCenterCoordinate T>(const T& shape) -> std::optional<WebCore::Path> {
+                if (!shape->position)
+                    return pathForCenterCoordinate(*shape, containingBlockRect, motionPathData->usedStartingPosition, zoom);
+                return path(shape, containingBlockRect, zoom);
+            },
+            [&](const auto& shape) -> std::optional<WebCore::Path> {
+                return path(shape, containingBlockRect, zoom);
+            }
+        );
+    }
+    return path(shape, transformData.boundingBox, zoom);
+}
+
 // MARK: - Winding
 
 WindRule WindRuleComputation<BasicShape>::operator()(const BasicShape& shape)
 {
     return WTF::switchOn(shape,
-        [&](const Style::PathFunction& path) { return WebCore::Style::windRule(path); },
-        [&](const Style::PolygonFunction& polygon) { return WebCore::Style::windRule(polygon); },
-        [&](const Style::ShapeFunction& shape) { return WebCore::Style::windRule(shape); },
+        [&](const PathFunction& path) { return WebCore::Style::windRule(path); },
+        [&](const PolygonFunction& polygon) { return WebCore::Style::windRule(polygon); },
+        [&](const ShapeFunction& shape) { return WebCore::Style::windRule(shape); },
         [&](const auto&) { return WindRule::NonZero; }
     );
 }
+
+// MARK: - Evaluation
+
+#if ENABLE(THREADED_ANIMATIONS)
+
+AcceleratedEffectBasicShape Evaluation<BasicShape, AcceleratedEffectBasicShape>::operator()(const BasicShape& shape, const TransformOperationData& data, ZoomFactor zoom)
+{
+    return WTF::switchOn(shape,
+        [&](const Style::CircleFunction& shape) -> AcceleratedEffectBasicShape {
+            return { .function = evaluate<AcceleratedEffectCircleFunction>(shape, data, zoom) };
+        },
+        [&](const Style::EllipseFunction& shape) -> AcceleratedEffectBasicShape {
+            return { .function = evaluate<AcceleratedEffectEllipseFunction>(shape, data, zoom) };
+        },
+        [&](const Style::InsetFunction& shape) -> AcceleratedEffectBasicShape {
+            return { .function = evaluate<AcceleratedEffectInsetFunction>(shape, data, zoom) };
+        },
+        [&](const Style::PathFunction& shape) -> AcceleratedEffectBasicShape {
+            return { .function = evaluate<AcceleratedEffectPathFunction>(shape, data, zoom) };
+        },
+        [&](const Style::PolygonFunction& shape) -> AcceleratedEffectBasicShape {
+            return { .function = evaluate<AcceleratedEffectPolygonFunction>(shape, data, zoom) };
+        },
+        [&](const Style::ShapeFunction& shape) -> AcceleratedEffectBasicShape {
+            return { .function = evaluate<AcceleratedEffectShapeFunction>(shape, data, zoom) };
+        }
+    );
+}
+
+#endif
 
 } // namespace Style
 } // namespace WebCore

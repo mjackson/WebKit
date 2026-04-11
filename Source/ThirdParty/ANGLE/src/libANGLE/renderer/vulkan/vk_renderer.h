@@ -190,16 +190,20 @@ class Renderer : angle::NonCopyable
     {
         return mHostImageCopyProperties;
     }
-    const VkPhysicalDeviceFeatures &getPhysicalDeviceFeatures() const
-    {
-        return mPhysicalDeviceFeatures;
-    }
     const VkPhysicalDeviceShaderIntegerDotProductProperties &
     getPhysicalDeviceShaderIntegerDotProductProperties() const
     {
         return mShaderIntegerDotProductProperties;
     }
+    const VkPhysicalDeviceSubgroupProperties &getPhysicalDeviceSubgroupProperties() const
+    {
+        return mSubgroupProperties;
+    }
 
+    const VkPhysicalDeviceFeatures &getPhysicalDeviceFeatures() const
+    {
+        return mPhysicalDeviceFeatures;
+    }
     const VkPhysicalDeviceFeatures2KHR &getEnabledFeatures() const { return mEnabledFeatures; }
     VkDevice getDevice() const { return mDevice; }
 
@@ -659,10 +663,7 @@ class Renderer : angle::NonCopyable
 
     void requestAsyncCommandsAndGarbageCleanup(vk::ErrorContext *context);
 
-    VkDeviceSize getMaxMemoryAllocationSize() const
-    {
-        return mMaintenance3Properties.maxMemoryAllocationSize;
-    }
+    VkDeviceSize getMaxMemoryAllocationSize() const { return mMaxMemoryAllocationSize; }
 
     // Cleanup garbage and finish command batches from the queue if necessary in the event of an OOM
     // error.
@@ -711,18 +712,14 @@ class Renderer : angle::NonCopyable
     uint32_t getPreferredVectorWidthDouble() const { return mPreferredVectorWidthDouble; }
     uint32_t getPreferredVectorWidthHalf() const { return mPreferredVectorWidthHalf; }
 
-    bool isVertexAttributeInstanceRateZeroDivisorAllowed() const
-    {
-        return !mFeatures.supportsVertexInputDynamicState.enabled ||
-               mVertexAttributeDivisorFeatures.vertexAttributeInstanceRateZeroDivisor == VK_TRUE;
-    }
-
     angle::Result onFrameBoundary(const gl::Context *contextGL);
 
     uint32_t getMinRenderPassWriteCommandCountToEarlySubmit() const
     {
         return mMinRPWriteCommandCountToEarlySubmit;
     }
+
+    void logFeatures() const;
 
   private:
     angle::Result setupDevice(vk::ErrorContext *context,
@@ -775,6 +772,8 @@ class Renderer : angle::NonCopyable
                       const angle::FeatureOverrides &featureOverrides,
                       UseVulkanSwapchain useVulkanSwapchain,
                       angle::NativeWindowSystem nativeWindowSystem);
+    void initOpenCLFeatures(const vk::ExtensionNameList &extensions,
+                            const angle::FeatureOverrides &featureOverrides);
     void appBasedFeatureOverrides(const vk::ExtensionNameList &extensions);
     angle::Result initPipelineCache(vk::ErrorContext *context,
                                     vk::PipelineCache *pipelineCache,
@@ -929,6 +928,7 @@ class Renderer : angle::NonCopyable
     VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR mUnifiedImageLayoutsFeatures;
     VkPhysicalDeviceShaderIntegerDotProductFeatures mShaderIntegerDotProductFeatures;
     VkPhysicalDeviceShaderIntegerDotProductProperties mShaderIntegerDotProductProperties;
+    VkPhysicalDeviceShaderDemoteToHelperInvocationFeatures mShaderDemoteToHelperInvocationFeatures;
     VkPhysicalDeviceGlobalPriorityQueryFeaturesEXT mPhysicalDeviceGlobalPriorityQueryFeatures;
     VkPhysicalDeviceExternalMemoryHostPropertiesEXT mExternalMemoryHostProperties;
     VkPhysicalDeviceBufferDeviceAddressFeaturesKHR mBufferDeviceAddressFeatures;
@@ -1116,6 +1116,9 @@ class Renderer : angle::NonCopyable
 
     // A placeholder descriptor set layout handle for layouts with no bindings.
     vk::DescriptorSetLayoutPtr mPlaceHolderDescriptorSetLayout;
+
+    // Allocation size limit for a single object.
+    VkDeviceSize mMaxMemoryAllocationSize;
 
     // Cached value for the buffer memory size limit.
     VkDeviceSize mMaxBufferMemorySizeLimit;

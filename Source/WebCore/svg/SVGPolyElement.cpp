@@ -28,7 +28,6 @@
 #include "NodeDocument.h"
 #include "RenderSVGPath.h"
 #include "SVGDocumentExtensions.h"
-#include "SVGParserUtilities.h"
 #include "SVGPropertyOwnerRegistry.h"
 #include "Settings.h"
 #include <wtf/TZoneMallocInlines.h>

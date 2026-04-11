@@ -90,7 +90,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     Modules/WebGPU/GPUPipelineLayout.h
     Modules/WebGPU/GPUPipelineLayoutDescriptor.h
     Modules/WebGPU/GPUPowerPreference.h
-    Modules/WebGPU/GPUPredefinedColorSpace.h
     Modules/WebGPU/GPUPrimitiveState.h
     Modules/WebGPU/GPUPrimitiveTopology.h
     Modules/WebGPU/GPUProgrammableStage.h
@@ -614,9 +613,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     Modules/model-element/dummy/DummyModelPlayerProvider.h
 
-    Modules/model-element/scenekit/SceneKitModelLoaderClient.h
-    Modules/model-element/scenekit/SceneKitModelPlayer.h
-
     Modules/notifications/Notification.h
     Modules/notifications/NotificationClient.h
     Modules/notifications/NotificationController.h
@@ -961,6 +957,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     bindings/js/JSShadowRealmGlobalScopeBase.h
     bindings/js/JSStyleSheetCustom.h
     bindings/js/JSValueInWrappedObject.h
+    bindings/js/JSValueInWrappedObjectInlines.h
     bindings/js/JSWindowProxy.h
     bindings/js/ModuleScriptLoader.h
     bindings/js/ReadableStreamDefaultController.h
@@ -1067,7 +1064,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/CSSColorValue.h
     css/CSSComputedStyleDeclaration.h
     css/CSSConditionRule.h
-    css/CSSCounterStyle.h
     css/CSSCounterStyleDescriptors.h
     css/CSSCounterValue.h
     css/CSSCustomPropertyValue.h
@@ -1078,6 +1074,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/CSSGroupingRule.h
     css/CSSImportRule.h
     css/CSSMediaRule.h
+    css/CSSNamespacePrefixMap.h
     css/CSSPageDescriptors.h
     css/CSSPageRule.h
     css/CSSPrimitiveValue.h
@@ -1096,6 +1093,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/CSSStyleRule.h
     css/CSSStyleSheet.h
     css/CSSSubgridValue.h
+    css/CSSSubstitutionValue.h
     css/CSSToLengthConversionData.h
     css/CSSUnits.h
     css/CSSValue.h
@@ -1103,7 +1101,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/CSSValuePair.h
     css/CSSValuePool.h
     css/CSSVariableData.h
-    css/CSSVariableReferenceValue.h
     css/CSSWideKeyword.h
     css/ComputedStyleDependencies.h
     css/DOMCSSPaintWorklet.h
@@ -1190,6 +1187,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     css/values/motion/CSSRayFunction.h
 
+    css/values/primitives/CSSCustomIdent.h
     css/values/primitives/CSSPosition.h
     css/values/primitives/CSSPrimitiveData.h
     css/values/primitives/CSSPrimitiveKeywordList.h
@@ -2337,11 +2335,25 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/animation/TimingFunction.h
     platform/animation/values/AcceleratedEffectOffsetAnchor.h
     platform/animation/values/AcceleratedEffectOffsetDistance.h
+    platform/animation/values/AcceleratedEffectOffsetPath.h
     platform/animation/values/AcceleratedEffectOffsetPosition.h
     platform/animation/values/AcceleratedEffectOffsetRotate.h
     platform/animation/values/AcceleratedEffectOpacity.h
     platform/animation/values/AcceleratedEffectTransformBox.h
     platform/animation/values/AcceleratedEffectTransformOrigin.h
+    platform/animation/values/paths/AcceleratedEffectBasicShapePath.h
+    platform/animation/values/paths/AcceleratedEffectBoxPath.h
+    platform/animation/values/paths/AcceleratedEffectCoordBox.h
+    platform/animation/values/paths/AcceleratedEffectRayPath.h
+    platform/animation/values/paths/AcceleratedEffectReferencePath.h
+    platform/animation/values/shapes/AcceleratedEffectBasicShape.h
+    platform/animation/values/shapes/AcceleratedEffectCircleFunction.h
+    platform/animation/values/shapes/AcceleratedEffectEllipseFunction.h
+    platform/animation/values/shapes/AcceleratedEffectInsetFunction.h
+    platform/animation/values/shapes/AcceleratedEffectPathFunction.h
+    platform/animation/values/shapes/AcceleratedEffectPolygonFunction.h
+    platform/animation/values/shapes/AcceleratedEffectRayFunction.h
+    platform/animation/values/shapes/AcceleratedEffectShapeFunction.h
     platform/audio/AudioArray.h
     platform/audio/AudioBus.h
     platform/audio/AudioChannel.h
@@ -2664,8 +2676,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/graphics/controls/SearchFieldResultsPart.h
     platform/graphics/controls/SliderThumbPart.h
     platform/graphics/controls/SliderTrackPart.h
-    platform/graphics/controls/SwitchThumbPart.h
-    platform/graphics/controls/SwitchTrackPart.h
+    platform/graphics/controls/SwitchPart.h
     platform/graphics/controls/TextAreaPart.h
     platform/graphics/controls/TextFieldPart.h
     platform/graphics/controls/ToggleButtonPart.h
@@ -3013,6 +3024,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     rendering/RenderTextLineBoxes.h
     rendering/RenderTheme.h
     rendering/RenderTreeAsText.h
+    rendering/RenderTreeOrder.h
     rendering/RenderVideo.h
     rendering/RenderVideoInlines.h
     rendering/RenderView.h
@@ -3321,6 +3333,8 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/non-standard/StyleWebKitTextStrokeWidth.h
     style/values/non-standard/StyleWebKitTouchCallout.h
 
+    style/values/outline/StyleOutlineOffset.h
+
     style/values/overflow/StyleBlockEllipsis.h
     style/values/overflow/StyleMaximumLines.h
     style/values/overflow/StyleOverflowClipMargin.h
@@ -3333,6 +3347,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     style/values/position/StyleInset.h
 
+    style/values/primitives/StyleCustomIdent.h
     style/values/primitives/StyleCoordinatedValueList.h
     style/values/primitives/StyleCoordinatedValueListValue.h
     style/values/primitives/StyleLengthWrapper.h

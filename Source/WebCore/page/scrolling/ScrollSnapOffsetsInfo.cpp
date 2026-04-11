@@ -43,7 +43,7 @@
 namespace WebCore {
 
 template <typename UnitType, typename RectType>
-static std::pair<UnitType, UnitType> rangeForAxis(RectType rect, ScrollEventAxis axis)
+static std::pair<UnitType, UnitType> NODELETE rangeForAxis(RectType rect, ScrollEventAxis axis)
 {
     return axis == ScrollEventAxis::Horizontal ? std::make_pair(rect.x(), rect.maxX()) : std::make_pair(rect.y(), rect.maxY());
 }
@@ -103,13 +103,13 @@ static PotentialSnapPointSearchResult<UnitType> searchForPotentialSnapPoints(con
 }
 
 template <typename UnitType, typename PointType>
-static UnitType componentForAxis(PointType point, ScrollEventAxis axis)
+static UnitType NODELETE componentForAxis(PointType point, ScrollEventAxis axis)
 {
     return axis == ScrollEventAxis::Horizontal ? point.x() : point.y();
 }
 
 template <typename InfoType, typename UnitType, typename SizeType>
-static bool offsetHasVisibleSnapArea(const InfoType& info, const SnapOffset<UnitType>& snapOffset, const SnapOffset<UnitType>& snapOffsetOther, ScrollEventAxis axis, const SizeType& viewportSize)
+static bool NODELETE offsetHasVisibleSnapArea(const InfoType& info, const SnapOffset<UnitType>& snapOffset, const SnapOffset<UnitType>& snapOffsetOther, ScrollEventAxis axis, const SizeType& viewportSize)
 {
     auto otherAxis = axis == ScrollEventAxis::Horizontal ? ScrollEventAxis::Vertical : ScrollEventAxis::Horizontal;
     auto viewportLengthInOtherAxis = axis == ScrollEventAxis::Horizontal ? viewportSize.height() : viewportSize.width();
@@ -258,7 +258,7 @@ static LayoutRect computeScrollSnapPortRect(const RenderStyle& style, const Layo
     return result;
 }
 
-static LayoutRect computeScrollSnapAreaRect(const RenderStyle& style, const LayoutRect& rect)
+static LayoutRect NODELETE computeScrollSnapAreaRect(const RenderStyle& style, const LayoutRect& rect)
 {
     auto result = rect;
     result.expand(Style::extentForRect(style.scrollMarginBox(), rect, style.usedZoomForLength()));
@@ -351,7 +351,7 @@ void updateSnapOffsetsForScrollableArea(ScrollableArea& scrollableArea, const Re
 
         // The bounds of the child element's snap area, where the top left of the scrolling container's border box is the origin.
         // The snap area is the bounding box of the child element's border box, after applying transformations.
-        OptionSet<MapCoordinatesMode> options = { UseTransforms, IgnoreStickyOffsets };
+        OptionSet<MapCoordinatesMode> options = { MapCoordinatesMode::UseTransforms, MapCoordinatesMode::IgnoreStickyOffsets };
         auto scrollSnapArea = LayoutRect(child->localToContainerQuad(FloatQuad(child->borderBoundingBox()), &scrollingElementBox, options).boundingBox());
 
         // localToContainerQuad will transform the scroll snap area by the scroll position, except in the case that this position is

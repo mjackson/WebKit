@@ -322,24 +322,18 @@ void AccessibilityScrollView::addLocalFrameChild()
         if (!frameAXObjectCache)
             return;
 
-        RefPtr protectedView = localFrame->view();
-        RefPtr frameRoot = frameAXObjectCache->getOrCreate(protectedView.get());
+        RefPtr frameRoot = frameAXObjectCache->rootObjectForFrame(*localFrame);
         if (!frameRoot)
             return;
 
         // Set the initial hosting node state on the child frame's root scroll view.
         if (RefPtr childScrollView = dynamicDowncast<AccessibilityScrollView>(frameRoot.get())) {
-            InheritedFrameState state { isHostingFrameHidden(), isHostingFrameInert(), isHostingFrameRenderHidden() };
-            childScrollView->setInheritedFrameState(state);
+            childScrollView->setInheritedFrameState({ isHostingFrameHidden(), isHostingFrameInert(), isHostingFrameRenderHidden() });
 
             // Request the screen position for the UI process to update asynchronously.
             if (RefPtr page = this->page())
                 page->chrome().client().requestFrameScreenPosition(localFrame->frameID());
         }
-
-#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-        frameAXObjectCache->buildIsolatedTreeIfNeeded();
-#endif
 
         if (RefPtr localFrame = downcast<AXLocalFrame>(cache->create(AccessibilityRole::LocalFrame))) {
             localFrame->setLocalFrameView(localFrameView.get());
@@ -600,7 +594,7 @@ bool AccessibilityScrollView::isFrameGeometryInitialized() const
     return true;
 }
 
-FrameGeometry AccessibilityScrollView::frameGeometry() const
+AXFrameGeometry AccessibilityScrollView::frameGeometry() const
 {
     if (CheckedPtr cache = axObjectCache()) {
         if (std::optional geometry = cache->frameGeometry())

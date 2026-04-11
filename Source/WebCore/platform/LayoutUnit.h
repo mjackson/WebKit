@@ -86,7 +86,7 @@ public:
     }
 
     LayoutUnit& operator=(const LayoutUnit&) = default;
-    LayoutUnit& operator=(const float& other) { return *this = LayoutUnit(other); }
+    LayoutUnit& operator=(float other) { return *this = LayoutUnit(other); }
 
     friend auto operator<=>(LayoutUnit, LayoutUnit) = default;
 

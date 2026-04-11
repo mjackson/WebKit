@@ -108,6 +108,7 @@ const TestFeatures& TestOptions::defaults()
             { "SpeechRecognitionEnabled", true },
             { "TextAreasAreResizable", true },
             { "TextAutosizingEnabled", false },
+            { "TextEffectsEnabled", false },
             { "UsesBackForwardCache", false },
             { "VisualViewportAPIEnabled", true },
             { "WebAudioEnabled", true },

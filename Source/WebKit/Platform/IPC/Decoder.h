@@ -29,8 +29,6 @@
 #include "MessageNames.h"
 #include "ReceiverMatcher.h"
 #include "SyncRequestID.h"
-#include <bmalloc/TZoneHeap.h>
-#include <bmalloc/bmalloc.h>
 #include <memory>
 #include <span>
 #include <wtf/ArgumentCoder.h>
@@ -128,6 +126,7 @@ public:
     void markInvalid()
     {
         auto buffer = std::exchange(m_buffer, { });
+        m_bufferPosition = m_buffer.begin();
         if (m_bufferDeallocator && !buffer.empty())
             m_bufferDeallocator(WTF::move(buffer));
     }

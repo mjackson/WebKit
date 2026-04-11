@@ -493,7 +493,7 @@ inline void CachedImage::clearImage()
 
         if (imageObserver->cachedImages().isEmptyIgnoringNullReferences()) {
             ASSERT(imageObserver->hasOneRef());
-            protect(m_image)->setImageObserver(nullptr);
+            m_image->setImageObserver(nullptr);
         }
     }
 

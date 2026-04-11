@@ -117,7 +117,10 @@ public:
     WEBCORE_EXPORT static bool needsIPadMiniUserAgent(const URL&);
     WEBCORE_EXPORT static bool NODELETE needsIPhoneUserAgent(const URL&);
     WEBCORE_EXPORT static bool NODELETE needsDesktopUserAgent(const URL&);
+    WEBCORE_EXPORT static bool NODELETE needsChromeForAndroidUserAgent(const URL&);
     WEBCORE_EXPORT static std::optional<String> needsCustomUserAgentOverride(const URL&, const String& applicationNameForUserAgent, const String& currentUserAgent);
+
+    WEBCORE_EXPORT static bool NODELETE needsMediaSourceEnabled(const URL&);
 
     WEBCORE_EXPORT static bool needsPartitionedCookies(const ResourceRequest&);
 
@@ -147,7 +150,7 @@ public:
 
     bool NODELETE needsPreloadAutoQuirk() const;
 
-    bool needsPauseBeforeFullscreenExitQuirk() const;
+    bool NODELETE needsPauseBeforeFullscreenExitQuirk() const;
 
     bool shouldBypassBackForwardCache() const;
     bool shouldBypassAsyncScriptDeferring() const;
@@ -161,6 +164,7 @@ public:
     Ref<NodeList> applyFacebookFlagQuirk(Document&, NodeList&);
     bool shouldEnableLegacyGetUserMediaQuirk() const;
     bool shouldDisableImageCaptureQuirk() const;
+    bool shouldAllowMediaStreamTrackSerializationQuirk() const;
     bool shouldEnableSpeakerSelectionPermissionsPolicyQuirk() const;
     bool shouldEnableEnumerateDeviceQuirk() const;
     bool shouldEnableCameraAndMicrophonePermissionStateQuirk() const;
@@ -259,7 +263,7 @@ public:
     bool mayBenefitFromFingerprintingProtectionQuirk(const URL&) const;
     static String standardUserAgentWithApplicationNameIncludingCompatOverrides(const String&, const String&, UserAgentType);
 
-    String NODELETE scriptToEvaluateBeforeRunningScriptFromURL(const URL&);
+    String scriptToEvaluateBeforeRunningScriptFromURL(const URL&);
 
     bool NODELETE shouldHideCoarsePointerCharacteristics() const;
 

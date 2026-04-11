@@ -125,7 +125,7 @@ void GPUAdapter::requestDevice(ScriptExecutionContext& scriptExecutionContext, c
         return;
     }
 
-    m_backing->requestDevice(convertToBacking(deviceDescriptor), [protectedThis = Ref { *this }, deviceDescriptor, promise = WTF::move(promise), scriptExecutionContextRef = Ref { scriptExecutionContext }](RefPtr<WebGPU::Device>&& device) mutable {
+    m_backing->requestDevice(convertToBacking(deviceDescriptor), [protectedThis = protect(*this), deviceDescriptor, promise = WTF::move(promise), scriptExecutionContextRef = protect(scriptExecutionContext)](RefPtr<WebGPU::Device>&& device) mutable {
         if (!device.get())
             promise.reject(Exception(ExceptionCode::OperationError));
         else {

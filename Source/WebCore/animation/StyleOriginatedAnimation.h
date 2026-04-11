@@ -97,7 +97,7 @@ private:
 
     WeakPtr<Element, WeakPtrImplWithEventTargetData> m_owningElement;
     std::optional<Style::PseudoElementIdentifier> m_owningPseudoElementIdentifier;
-    double m_previousIteration;
+    double m_previousIteration { 0 };
 };
 
 } // namespace WebCore

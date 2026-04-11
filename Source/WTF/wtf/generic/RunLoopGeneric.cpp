@@ -120,16 +120,18 @@ private:
     bool m_isScheduled { };
 };
 
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RunLoop::TimerBase::ScheduledTask);
+
 #if USE(BUN_EVENT_LOOP)
 // This constructor and destructor can't be fixed by the `#define RunLoop RunLoop::RunLoopGenericState`
 // because that would make their names include `RunLoop::` twice.
 RunLoop::RunLoopGenericState::RunLoopGenericState(RunLoop& parent)
     : m_parent(parent)
-#else
-RunLoop::RunLoop()
-#endif
 {
 }
+#else
+RunLoop::RunLoop() = default;
+#endif
 
 #if USE(BUN_EVENT_LOOP)
 RunLoop::RunLoopGenericState::~RunLoopGenericState()

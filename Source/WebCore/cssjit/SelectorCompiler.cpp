@@ -316,7 +316,7 @@ static JSC_DECLARE_NOEXCEPT_JIT_OPERATION_WITHOUT_WTF_INTERNAL(operationAttribut
 
 } // extern "C"
 
-static bool shouldDumpCSSJITDisassembly()
+static bool NODELETE shouldDumpCSSJITDisassembly()
 {
     return JSC::Options::dumpDisassembly() || JSC::Options::dumpCSSJITDisassembly();
 }
@@ -1773,7 +1773,7 @@ bool NODELETE hasAnyCombinators(const Vector<SelectorFragmentList>& selectorList
 }
 
 template <size_t inlineCapacity>
-bool hasAnyCombinators(const Vector<SelectorFragment, inlineCapacity>& selectorFragmentList)
+bool NODELETE hasAnyCombinators(const Vector<SelectorFragment, inlineCapacity>& selectorFragmentList)
 {
     if (selectorFragmentList.isEmpty())
         return false;
@@ -2299,11 +2299,11 @@ void computeBacktrackingInformation(SelectorFragmentList& selectorFragments, uns
     }
 }
 
-inline void SelectorCodeGenerator::pushMacroAssemblerRegisters()
+inline void NODELETE SelectorCodeGenerator::pushMacroAssemblerRegisters()
 {
 }
 
-inline void SelectorCodeGenerator::popMacroAssemblerRegisters(StackAllocator&)
+inline void NODELETE SelectorCodeGenerator::popMacroAssemblerRegisters(StackAllocator&)
 {
 }
 
@@ -2938,7 +2938,7 @@ Assembler::Jump SelectorCodeGenerator::branchOnResolvingModeWithCheckingContext(
 {
     // Depend on the specified resolving mode and our current mode, branch.
     static_assert(sizeof(SelectorChecker::Mode) == 1, "We generate a byte load/test for the SelectorChecker::Mode.");
-    return m_assembler.branch8(condition, Assembler::Address(checkingContext, OBJECT_OFFSETOF(SelectorChecker::CheckingContext, resolvingMode)), Assembler::TrustedImm32(static_cast<std::underlying_type<SelectorChecker::Mode>::type>(mode)));
+    return m_assembler.branch8(condition, Assembler::Address(checkingContext, OBJECT_OFFSETOF(SelectorChecker::CheckingContext, resolvingMode)), Assembler::TrustedImm32(std::to_underlying(mode)));
 
 }
 
@@ -2963,7 +2963,7 @@ void SelectorCodeGenerator::generateSpecialFailureInQuirksModeForActiveAndHoverI
         static_assert(sizeof(DocumentCompatibilityMode) == 1, "We generate a byte load/test for the compatibility mode.");
         LocalRegister documentAddress(m_registerAllocator);
         DOMJIT::loadDocument(m_assembler, elementAddressRegister, documentAddress);
-        failureCases.append(m_assembler.branchTest8(Assembler::NonZero, Assembler::Address(documentAddress, Document::compatibilityModeMemoryOffset()), Assembler::TrustedImm32(static_cast<std::underlying_type<DocumentCompatibilityMode>::type>(DocumentCompatibilityMode::QuirksMode))));
+        failureCases.append(m_assembler.branchTest8(Assembler::NonZero, Assembler::Address(documentAddress, Document::compatibilityModeMemoryOffset()), Assembler::TrustedImm32(std::to_underlying(DocumentCompatibilityMode::QuirksMode))));
 
         isLink.link(&m_assembler);
     }
@@ -3490,7 +3490,7 @@ enum CaseSensitivity {
 };
 
 template<CaseSensitivity caseSensitivity>
-static bool attributeValueBeginsWith(const Attribute* attribute, AtomStringImpl* expectedString)
+static bool NODELETE attributeValueBeginsWith(const Attribute* attribute, AtomStringImpl* expectedString)
 {
     ASSERT(expectedString);
 
@@ -3510,7 +3510,7 @@ static bool attributeValueContains(const Attribute* attribute, AtomStringImpl* e
 }
 
 template<CaseSensitivity caseSensitivity>
-static bool attributeValueEndsWith(const Attribute* attribute, AtomStringImpl* expectedString)
+static bool NODELETE attributeValueEndsWith(const Attribute* attribute, AtomStringImpl* expectedString)
 {
     ASSERT(expectedString);
 
@@ -3521,7 +3521,7 @@ static bool attributeValueEndsWith(const Attribute* attribute, AtomStringImpl* e
 }
 
 template<CaseSensitivity caseSensitivity>
-static bool attributeValueMatchHyphenRule(const Attribute* attribute, AtomStringImpl* expectedString)
+static bool NODELETE attributeValueMatchHyphenRule(const Attribute* attribute, AtomStringImpl* expectedString)
 {
     ASSERT(expectedString);
 
@@ -4421,7 +4421,7 @@ void SelectorCodeGenerator::generateElementMatchesMatchesPseudoClass(Assembler::
         generateElementMatchesSelectorList(failureCases, elementAddressRegister, matchesList);
 }
 
-void SelectorCodeGenerator::generateElementHasPseudoElement(Assembler::JumpList&, const SelectorFragment& fragment)
+void NODELETE SelectorCodeGenerator::generateElementHasPseudoElement(Assembler::JumpList&, const SelectorFragment& fragment)
 {
     ASSERT_UNUSED(fragment, fragment.pseudoElementSelector);
     ASSERT_WITH_MESSAGE(m_selectorContext != SelectorContext::QuerySelector, "When the fragment has pseudo element, the selector becomes CannotMatchAnything for QuerySelector and this test function is not called.");

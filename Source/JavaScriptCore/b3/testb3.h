@@ -157,11 +157,21 @@ extern Lock crashLock;
             }));                                        \
     }
 
+#if USE(PROTECTED_JIT)
+// Must be constructed before we allocate anything using SequesteredArenaMalloc
+#define B3_TEST_ARENA_LIFETIME ArenaLifetime b3TestArenaLifetime;
+#else
+#define B3_TEST_ARENA_LIFETIME
+#endif
+
 #define RUN_NOW(test) do {                      \
         if (!shouldRun(config, #test))          \
             break;                              \
         dataLog(PREFIX #test "...\n");          \
-        test;                                   \
+        {                                       \
+            B3_TEST_ARENA_LIFETIME              \
+            test;                               \
+        }                                       \
         dataLog(PREFIX #test ": OK!\n");        \
     } while (false)
 
@@ -675,6 +685,10 @@ void testSelectFloatCompareFloat(float, float);
 void testSelectDoubleCompareDoubleWithAliasing();
 void testSelectFloatCompareFloatWithAliasing();
 void testSelectFold(intptr_t value);
+void testSelectInt32WithZeroElse();
+void testSelectInt64WithZeroElse();
+void testSelectInt32ImmWithZeroElse();
+void testSelectTestWithZeroElse();
 void testSelectInvert();
 void testCheckSelect();
 void testCheckSelectCheckSelect();
@@ -1244,6 +1258,14 @@ void testReduceStrengthDivDoubleByFour();
 void testReduceStrengthDivFloatByFour();
 void testReduceStrengthDivDoubleByNegTwo();
 void testReduceStrengthDivFloatByNegTwo();
+void testReduceStrengthBelowEqualZeroInt32();
+void testReduceStrengthBelowEqualZeroInt64();
+void testReduceStrengthBelowOneInt32();
+void testReduceStrengthBelowOneInt64();
+void testReduceStrengthAboveEqualOneInt32();
+void testReduceStrengthAboveEqualOneInt64();
+void testReduceStrengthAboveZeroInt32();
+void testReduceStrengthAboveZeroInt64();
 void testLoadBaseIndexShift2();
 void testLoadBaseIndexShift32();
 void testOptimizeMaterialization();

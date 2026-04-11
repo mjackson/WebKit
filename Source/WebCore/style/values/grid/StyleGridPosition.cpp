@@ -32,6 +32,7 @@
 #include "config.h"
 #include "StyleGridPosition.h"
 
+#include "CSSCustomIdentValue.h"
 #include "CSSGridLineValue.h"
 #include "CSSPrimitiveValue.h"
 #include "StyleBuilderChecking.h"
@@ -69,7 +70,7 @@ GridPosition::GridPosition(GridPosition::Span&& spanPosition)
 {
 }
 
-GridPosition::GridPosition(CustomIdentifier&& namedGridAreaPosition)
+GridPosition::GridPosition(CustomIdent&& namedGridAreaPosition)
     : m_type { GridPositionType::NamedGridArea }
     , m_namedGridLine { WTF::move(namedGridAreaPosition.value) }
 {
@@ -112,32 +113,51 @@ void GridPosition::setMaxPositionForTesting(unsigned maxPosition)
 
 auto CSSValueConversion<GridPosition>::operator()(BuilderState& state, const CSSValue& value) -> GridPosition
 {
+    using namespace CSS::Literals;
+
     if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
         if (isValueID(*primitiveValue, CSSValueAuto))
             return CSS::Keyword::Auto { };
-
-        if (primitiveValue->isCustomIdent())
-            return CustomIdentifier { AtomString { primitiveValue->stringValue() } };
 
         state.setCurrentPropertyInvalidAtComputedValueTime();
         return CSS::Keyword::Auto { };
     }
 
+    if (RefPtr customIdentValue = dynamicDowncast<CSSCustomIdentValue>(value))
+        return toStyleFromCSSValue<CustomIdent>(state, *customIdentValue);
+
     RefPtr gridLineValue = requiredDowncast<CSSGridLineValue>(state, value);
     if (!gridLineValue)
         return CSS::Keyword::Auto { };
 
-    RefPtr uncheckedSpanValue = gridLineValue->spanValue();
-    RefPtr uncheckedNumericValue = gridLineValue->numericValue();
-    RefPtr uncheckedGridLineName = gridLineValue->gridLineName();
+    auto resolveGridLineNumberForSpan = [&] -> GridPosition::Span::Position {
+        if (!gridLineValue->numeric())
+            return 1_css_integer;
+        auto unclampedInteger = toStyle(*gridLineValue->numeric(), state);
+        return { CSS::clampToRangeOf<GridPosition::Span::Position>(unclampedInteger.value) };
+    };
 
-    auto gridLineNumber = uncheckedNumericValue && uncheckedNumericValue->isInteger() ? uncheckedNumericValue->resolveAsInteger(state.cssToLengthConversionData()) : 0;
-    auto gridLineName = uncheckedGridLineName && uncheckedGridLineName->isCustomIdent() ? AtomString { uncheckedGridLineName->stringValue() } : nullAtom();
+    auto resolveGridLineNumberForExplicit = [&] -> GridPosition::Explicit::Position {
+        if (!gridLineValue->numeric())
+            return 1_css_integer;
+        return toStyle(*gridLineValue->numeric(), state);
+    };
 
-    if (isValueID(uncheckedSpanValue, CSSValueSpan))
-        return GridPosition::Span { { gridLineNumber > 0 ? gridLineNumber : 1 }, CustomIdentifier { WTF::move(gridLineName) } };
+    auto resolveGridLineName = [&] {
+        return toStyle(gridLineValue->gridLineName(), state).value_or(CustomIdent { nullAtom() });
+    };
 
-    return GridPosition::Explicit { { gridLineNumber }, CustomIdentifier { WTF::move(gridLineName) } };
+    if (gridLineValue->span()) {
+        return GridPosition::Span {
+            resolveGridLineNumberForSpan(),
+            resolveGridLineName(),
+        };
+    }
+
+    return GridPosition::Explicit {
+        resolveGridLineNumberForExplicit(),
+        resolveGridLineName(),
+    };
 }
 
 // MARK: - Logging
@@ -154,8 +174,8 @@ TextStream& operator<<(TextStream& ts, const GridPosition& value)
         [&](const Style::GridPosition::Span& spanPosition) {
             ts << "span"_s << ' ' << spanPosition.name << ' ' << spanPosition.position;
         },
-        [&](const CustomIdentifier& namedGridAreaPosition) {
-            ts << namedGridAreaPosition.value;
+        [&](const CustomIdent& namedGridAreaPosition) {
+            ts << namedGridAreaPosition;
         }
     );
     return ts;

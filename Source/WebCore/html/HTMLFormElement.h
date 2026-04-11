@@ -54,8 +54,8 @@ public:
     Vector<Ref<Element>> namedElements(const AtomString&);
     bool isSupportedPropertyName(const AtomString&);
 
-    bool isSupportedPropertyIndex(unsigned index) const { return index < length(); }
-    WEBCORE_EXPORT unsigned length() const;
+    bool isSupportedPropertyIndex(unsigned index) { return index < length(); }
+    WEBCORE_EXPORT unsigned length();
     HTMLElement* item(unsigned index);
     std::optional<Variant<Ref<RadioNodeList>, Ref<Element>>> namedItem(const AtomString&);
     Vector<AtomString> NODELETE supportedPropertyNames() const;

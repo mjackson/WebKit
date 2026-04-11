@@ -33,6 +33,7 @@
 #include <concepts>
 #include <cstring>
 #include <errno.h>
+#include <expected>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -207,19 +208,6 @@ inline std::span<const std::byte> alignedBytes(std::span<const std::byte> buffer
     return buffer.subspan(alignedBytesCorrection(buffer, alignment));
 }
 
-// Returns a count of the number of bits set in 'bits'.
-inline size_t bitCount(unsigned bits)
-{
-    bits = bits - ((bits >> 1) & 0x55555555);
-    bits = (bits & 0x33333333) + ((bits >> 2) & 0x33333333);
-    return (((bits + (bits >> 4)) & 0xF0F0F0F) * 0x1010101) >> 24;
-}
-
-inline size_t bitCount(uint64_t bits)
-{
-    return bitCount(static_cast<unsigned>(bits)) + bitCount(static_cast<unsigned>(bits >> 32));
-}
-
 template<typename T> constexpr T mask(T value, uintptr_t mask)
 {
     static_assert(sizeof(T) == sizeof(uintptr_t), "sizeof(T) must be equal to sizeof(uintptr_t).");
@@ -358,7 +346,7 @@ bool checkAndSet(T& left, U right)
 }
 
 template<typename T>
-inline unsigned ctz(T value); // Clients will also need to #include MathExtras.h
+constexpr unsigned ctz(T value); // Clients will also need to #include MathExtras.h
 
 template<typename T>
 bool findBitInWord(T word, size_t& startOrResultIndex, size_t endIndex, bool value)
@@ -631,7 +619,7 @@ template<typename... Ts> struct HoldsAlternative<Variant<Ts...>> {
     }
     template<size_t I> static constexpr bool holdsAlternative(const Variant<Ts...>& v)
     {
-        return std::holds_alternative<I>(v);
+        return v.index() == I;
     }
 };
 
@@ -662,7 +650,7 @@ template<size_t I, typename V> constexpr bool holdsAlternative(const V& v)
     }                                                                                \
     template<typename T> bool holdsAlternative() const                               \
     {                                                                                \
-        return WTF::holdsAlternative<T>(value);                                      \
+        return WTF::holdsAlternative<T>(name);                                       \
     }                                                                                \
     template<typename T> friend T& get(Self& self)                                   \
     {                                                                                \
@@ -761,7 +749,7 @@ template<class F, class Tuple> ALWAYS_INLINE constexpr decltype(auto) visitTuple
     );
 }
 
-template<typename Tuple, typename... F> ALWAYS_INLINE constexpr auto switchOnTupleAtIndex(size_t index, Tuple&& tuple, F&&... f) -> decltype(visitTupleElementAtIndex(index, WTF::makeVisitor(std::forward<F>(f)...), std::forward<Tuple>(tuple)))
+template<typename Tuple, typename... F> ALWAYS_INLINE constexpr auto switchOnTupleAtIndex(size_t index, Tuple&& tuple, F&&... f) -> decltype(visitTupleElementAtIndex(WTF::makeVisitor(std::forward<F>(f)...), index, std::forward<Tuple>(tuple)))
 {
     return visitTupleElementAtIndex(WTF::makeVisitor(std::forward<F>(f)...), index, std::forward<Tuple>(tuple));
 }
@@ -868,7 +856,7 @@ template<typename T>
 template<class T, class... Args>
 [[nodiscard]] ALWAYS_INLINE decltype(auto) makeUnique(Args&&... args)
 {
-    static_assert(std::is_same<typename T::WTFIsFastMallocAllocated, int>::value, "T should use FastMalloc (WTF_DEPRECATED_MAKE_FAST_ALLOCATED)");
+    static_assert(std::is_same<typename T::WTFIsFastMallocAllocated, int>::value, "T should use TZoneMalloc (WTF_MAKE_TZONE_ALLOCATED or one of its variants)");
     static_assert(!HasRefPtrMemberFunctions<T>::value, "T should not be RefCounted");
     return std::make_unique<T>(std::forward<Args>(args)...);
 }
@@ -880,7 +868,7 @@ template<class T, class... Args>
 template<class T, class U = T, class... Args>
 [[nodiscard]] ALWAYS_INLINE const std::unique_ptr<U> makeUniqueWithoutRefCountedCheck(Args&&... args)
 {
-    static_assert(std::is_same<typename T::WTFIsFastMallocAllocated, int>::value, "T should use FastMalloc (WTF_DEPRECATED_MAKE_FAST_ALLOCATED)");
+    static_assert(std::is_same<typename T::WTFIsFastMallocAllocated, int>::value, "T should use TZoneMalloc (WTF_MAKE_TZONE_ALLOCATED or one of its variants)");
     return std::unique_ptr<U>(std::make_unique<T>(std::forward<Args>(args)...));
 }
 
@@ -1016,6 +1004,8 @@ bool equalSpans(std::span<T, TExtent> a, std::span<U, UExtent> b)
     static_assert(ignoreTypeChecks == IgnoreTypeChecks::Yes || std::has_unique_object_representations_v<U>);
     if (a.size() != b.size())
         return false;
+    if (!a.size())
+        return true;
     return !memcmp(a.data(), b.data(), a.size_bytes()); // NOLINT
 }
 
@@ -1098,7 +1088,7 @@ size_t find(std::span<T, TExtent> haystack, std::span<U, UExtent> needle)
 
 template<typename T, std::size_t TExtent, typename U, std::size_t UExtent>
     requires(TriviallyComparableOneByteCodeUnits<T, U>)
-size_t contains(std::span<T, TExtent> haystack, std::span<U, UExtent> needle)
+bool contains(std::span<T, TExtent> haystack, std::span<U, UExtent> needle)
 {
     return find(haystack, needle) != notFound;
 }
@@ -1144,14 +1134,24 @@ void zeroBytes(T& object)
 }
 
 template<typename T, std::size_t Extent>
-void secureMemsetSpan(std::span<T, Extent> destination, uint8_t byte)
+void secureZeroSpan(std::span<T, Extent> destination)
 {
     static_assert(std::is_trivially_copyable_v<T>);
 #ifdef __STDC_LIB_EXT1__
-    memset_s(destination.data(), byte, destination.size_bytes()); // NOLINT
+    memset_s(destination.data(), destination.size_bytes(), 0, destination.size_bytes()); // NOLINT
 #else
-    memset(destination.data(), byte, destination.size_bytes()); // NOLINT
+    memset(destination.data(), 0, destination.size_bytes()); // NOLINT
+    // Prevent the compiler from eliding the memset as a dead store.
+    // Without this barrier, the compiler may prove that no well-defined
+    // read follows and optimize away the write.
+    asm volatile("" ::: "memory");
 #endif
+}
+
+// Like zeroBytes, but guaranteed not to be optimized away by the compiler.
+template<typename T> void secureZeroBytes(T& object)
+{
+    secureZeroSpan(asMutableByteSpan(object));
 }
 
 template<typename T> void skip(std::span<T>& data, size_t amountToSkip)
@@ -1574,6 +1574,8 @@ static constexpr auto dereferenceView = std::views::transform([](auto&& x) -> de
 
 }
 
+template<class E> constexpr std::unexpected<std::decay_t<E>> makeUnexpected(E&& v) { return std::unexpected<typename std::decay<E>::type>(std::forward<E>(v)); }
+
 } // namespace WTF
 
 namespace WTF {
@@ -1617,6 +1619,7 @@ using WTF::isCompilationThread;
 using WTF::isPointerAligned;
 using WTF::isStatelessLambda;
 using WTF::lazyInitialize;
+using WTF::makeUnexpected;
 using WTF::makeUnique;
 using WTF::makeUniqueWithoutFastMallocCheck;
 using WTF::makeUniqueWithoutRefCountedCheck;
@@ -1625,7 +1628,7 @@ using WTF::memmoveSpan;
 using WTF::memsetSpan;
 using WTF::mergeDeduplicatedSorted;
 using WTF::reinterpretCastSpanStartTo;
-using WTF::secureMemsetSpan;
+using WTF::secureZeroSpan;
 using WTF::singleElementSpan;
 using WTF::skip;
 using WTF::spanConstCast;
@@ -1642,6 +1645,7 @@ using WTF::valueOrCompute;
 using WTF::valueOrDefault;
 using WTF::weakOrderingCast;
 using WTF::zeroBytes;
+using WTF::secureZeroBytes;
 using WTF::zeroSpan;
 using WTF::DerivedFromOrConvertibleTo;
 using WTF::IntegralOrEnum;

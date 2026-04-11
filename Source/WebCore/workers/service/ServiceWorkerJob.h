@@ -65,7 +65,7 @@ public:
     Identifier identifier() const { return m_jobData.identifier().jobIdentifier; }
 
     const ServiceWorkerJobData& data() const LIFETIME_BOUND { return m_jobData; }
-    Ref<DeferredPromise> takePromise();
+    Ref<DeferredPromise> NODELETE takePromise();
 
     void fetchScriptWithContext(ScriptExecutionContext&, FetchOptions::Cache);
 

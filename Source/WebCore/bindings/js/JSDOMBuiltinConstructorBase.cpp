@@ -23,6 +23,7 @@
 #include "JSDOMBuiltinConstructorBase.h"
 
 #include "WebCoreJSClientData.h"
+#include <JavaScriptCore/HeapCellInlines.h>
 #include <JavaScriptCore/JSCInlines.h>
 
 namespace WebCore {

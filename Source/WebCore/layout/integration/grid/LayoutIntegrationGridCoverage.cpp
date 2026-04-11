@@ -45,7 +45,6 @@ enum class ReasonCollectionMode : bool {
 };
 
 enum class GridAvoidanceReason : uint8_t {
-    GridHasNonFixedHeight,
     GridHasVerticalWritingMode,
     GridHasMarginTrim,
     GridNeedsBaseline,
@@ -54,11 +53,6 @@ enum class GridAvoidanceReason : uint8_t {
     GridItemIsReplacedElement,
     GridItemDoesNotHaveElement,
     GridIsEmpty,
-    GridHasNonInitialMinWidth,
-    GridHasNonInitialMaxWidth,
-    GridHasNonInitialMinHeight,
-    GridHasNonInitialMaxHeight,
-    GridHasNonZeroMinWidth,
     GridHasGridTemplateAreas,
     GridHasColumnAutoFlow,
     GridHasNonFixedGaps,
@@ -66,10 +60,7 @@ enum class GridAvoidanceReason : uint8_t {
     GridHasContainsSize,
     GridHasUnsupportedGridTemplateColumns,
     GridHasUnsupportedGridTemplateRows,
-    GridItemHasNonFixedWidth,
-    GridItemHasNonFixedHeight,
     GridItemHasNonInitialMaxWidth,
-    GridItemHasNonZeroMinHeight,
     GridItemHasNonInitialMaxHeight,
     GridItemHasBorder,
     GridItemHasPadding,
@@ -80,8 +71,21 @@ enum class GridAvoidanceReason : uint8_t {
     GridItemHasUnsupportedBlockAxisAlignment,
     GridItemHasNonVisibleOverflow,
     GridItemHasContainsSize,
-    GridItemHasUnsupportedColumnPlacement,
-    GridItemHasUnsupportedRowPlacement,
+
+    GridItemColumnStartHasLineName,
+    GridItemColumnStartHasNegativeLineNumber,
+    GridItemColumnStartHasSpan,
+    GridItemHasColumnStartOutsideExplicitGrid,
+    GridItemHasUnsupportedColumnEnd,
+
+    GridNeedsImplicitColumnsForItemsLockedToRow,
+    GridItemHasAutomaticRowStartPlacement,
+    GridItemRowStartHasLineName,
+    GridItemRowStartHasNegativeLineNumber,
+    GridItemRowStartHasSpan,
+    GridItemHasRowStartOutsideExplicitGrid,
+    GridItemHasUnsupportedRowEnd,
+
     GridItemHasUnsupportedWidthValue,
     GridItemHasUnsupportedAutomaticInlineSizing,
     GridItemHasUnsupportedHeightValue,
@@ -92,20 +96,50 @@ enum class GridAvoidanceReason : uint8_t {
     GridFormattingContextIntegrationDisabled,
 };
 
+#if ASSERT_ENABLED
+static bool avoidanceReasonIsColumnPlacementRelated(GridAvoidanceReason gridAvoidanceReason)
+{
+    switch (gridAvoidanceReason) {
+    case GridAvoidanceReason::GridItemColumnStartHasLineName:
+    case GridAvoidanceReason::GridItemColumnStartHasNegativeLineNumber:
+    case GridAvoidanceReason::GridItemColumnStartHasSpan:
+    case GridAvoidanceReason::GridItemHasColumnStartOutsideExplicitGrid:
+    case GridAvoidanceReason::GridItemHasUnsupportedColumnEnd:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool avoidanceReasonIsRowPlacementRelated(GridAvoidanceReason gridAvoidanceReason)
+{
+    switch (gridAvoidanceReason) {
+    case GridAvoidanceReason::GridItemHasAutomaticRowStartPlacement:
+    case GridAvoidanceReason::GridItemRowStartHasLineName:
+    case GridAvoidanceReason::GridItemRowStartHasNegativeLineNumber:
+    case GridAvoidanceReason::GridItemRowStartHasSpan:
+    case GridAvoidanceReason::GridItemHasRowStartOutsideExplicitGrid:
+    case GridAvoidanceReason::GridItemHasUnsupportedRowEnd:
+        return true;
+    default:
+        return false;
+    }
+}
+#endif
+
 #ifndef NDEBUG
 #define ADD_REASON_AND_RETURN_IF_NEEDED(reason, reasons, reasonCollectionMode) { \
-        reasons.add(GridAvoidanceReason::reason); \
+        reasons.add(reason); \
         if (reasonCollectionMode == ReasonCollectionMode::FirstOnly) \
             return reasons; \
     }
 #else
 #define ADD_REASON_AND_RETURN_IF_NEEDED(reason, reasons, reasonCollectionMode) { \
         ASSERT_UNUSED(reasonCollectionMode, reasonCollectionMode == ReasonCollectionMode::FirstOnly); \
-        reasons.add(GridAvoidanceReason::reason); \
+        reasons.add(reason); \
         return reasons; \
     }
 #endif
-
 
 static bool hasValidColumnEnd(const Style::GridPositionExplicit& explicitColumnStart, const Style::GridPosition columnEnd, size_t linesFromGridTemplateColumnsCount)
 {
@@ -131,7 +165,7 @@ static bool hasValidColumnEnd(const Style::GridPositionExplicit& explicitColumnS
         [&](const Style::GridPositionSpan&) {
             return false;
         },
-        [&](const CustomIdentifier&) {
+        [&](const Style::CustomIdent&) {
             return false;
         }
     );
@@ -151,7 +185,7 @@ static bool hasValidColumnEnd(const CSS::Keyword::Auto& autoColumnStart, const S
         [](const Style::GridPositionSpan&) {
             return false;
         },
-        [](const CustomIdentifier&) {
+        [](const Style::CustomIdent&) {
             return false;
         }
     );
@@ -181,7 +215,7 @@ static bool hasValidRowEnd(const Style::GridPositionExplicit& explicitRowStart, 
         [&](const Style::GridPositionSpan&) {
             return false;
         },
-        [&](const CustomIdentifier&) {
+        [&](const Style::CustomIdent&) {
             return false;
         }
     );
@@ -236,55 +270,55 @@ static EnumSet<GridAvoidanceReason> gridLayoutAvoidanceReason(const RenderGrid& 
     auto reasons = EnumSet<GridAvoidanceReason> { };
 
     if (!renderGrid.document().settings().gridFormattingContextIntegrationEnabled())
-        ADD_REASON_AND_RETURN_IF_NEEDED(GridFormattingContextIntegrationDisabled, reasons, reasonCollectionMode);
+        ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridFormattingContextIntegrationDisabled, reasons, reasonCollectionMode);
 
     CheckedRef renderGridStyle = renderGrid.style();
 
     if (renderGridStyle->display() == Style::DisplayType::InlineGrid)
-        ADD_REASON_AND_RETURN_IF_NEEDED(GridNeedsBaseline, reasons, reasonCollectionMode);
+        ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridNeedsBaseline, reasons, reasonCollectionMode);
 
     if (renderGridStyle->display() != Style::DisplayType::BlockGrid)
-        ADD_REASON_AND_RETURN_IF_NEEDED(NotAGrid, reasons, reasonCollectionMode);
+        ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::NotAGrid, reasons, reasonCollectionMode);
 
     if (!renderGridStyle->writingMode().isHorizontal())
-        ADD_REASON_AND_RETURN_IF_NEEDED(GridHasVerticalWritingMode, reasons, reasonCollectionMode);
+        ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridHasVerticalWritingMode, reasons, reasonCollectionMode);
 
     if (!renderGridStyle->marginTrim().isNone())
-        ADD_REASON_AND_RETURN_IF_NEEDED(GridHasMarginTrim, reasons, reasonCollectionMode);
+        ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridHasMarginTrim, reasons, reasonCollectionMode);
 
     if (!renderGridStyle->isOverflowVisible())
-        ADD_REASON_AND_RETURN_IF_NEEDED(GridHasNonVisibleOverflow, reasons, reasonCollectionMode);
+        ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridHasNonVisibleOverflow, reasons, reasonCollectionMode);
 
     if (!renderGrid.firstInFlowChild())
-        ADD_REASON_AND_RETURN_IF_NEEDED(GridIsEmpty, reasons, reasonCollectionMode);
+        ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridIsEmpty, reasons, reasonCollectionMode);
 
     // GFC currently supports grid-auto-flow: row and row dense
     // Column auto-flow is not yet supported
     auto gridAutoFlow = renderGridStyle->gridAutoFlow();
     if (gridAutoFlow.isColumn())
-        ADD_REASON_AND_RETURN_IF_NEEDED(GridHasColumnAutoFlow, reasons, reasonCollectionMode);
+        ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridHasColumnAutoFlow, reasons, reasonCollectionMode);
 
     // Check for non-fixed gaps. GFC currently only supports fixed-length gaps.
     if (!renderGridStyle->rowGap().isNormal()) {
         if (!renderGridStyle->rowGap().tryFixed())
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridHasNonFixedGaps, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridHasNonFixedGaps, reasons, reasonCollectionMode);
     }
 
     if (!renderGridStyle->columnGap().isNormal()) {
         if (!renderGridStyle->columnGap().tryFixed())
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridHasNonFixedGaps, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridHasNonFixedGaps, reasons, reasonCollectionMode);
     }
 
     if (renderGrid.isOutOfFlowPositioned())
-        ADD_REASON_AND_RETURN_IF_NEEDED(GridIsOutOfFlow, reasons, reasonCollectionMode);
+        ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridIsOutOfFlow, reasons, reasonCollectionMode);
 
     if (!renderGridStyle->gridTemplateAreas().isNone())
-        ADD_REASON_AND_RETURN_IF_NEEDED(GridHasGridTemplateAreas, reasons, reasonCollectionMode);
+        ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridHasGridTemplateAreas, reasons, reasonCollectionMode);
 
     auto& gridTemplateColumns = renderGridStyle->gridTemplateColumns();
     auto& gridTemplateColumnsTrackList = gridTemplateColumns.list;
     if (gridTemplateColumnsTrackList.isEmpty())
-        ADD_REASON_AND_RETURN_IF_NEEDED(GridHasUnsupportedGridTemplateColumns, reasons, reasonCollectionMode);
+        ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridHasUnsupportedGridTemplateColumns, reasons, reasonCollectionMode);
 
     for (auto& columnsTrackListEntry : gridTemplateColumnsTrackList) {
         auto avoidanceReason = WTF::switchOn(columnsTrackListEntry,
@@ -295,7 +329,7 @@ static EnumSet<GridAvoidanceReason> gridLayoutAvoidanceReason(const RenderGrid& 
                     return GridAvoidanceReason::GridHasUnsupportedGridTemplateColumns;
                 return { };
             },
-            [&](const Vector<String>& names) -> std::optional<GridAvoidanceReason> {
+            [&](const Vector<Style::CustomIdent>& names) -> std::optional<GridAvoidanceReason> {
                 if (!names.isEmpty())
                     return GridAvoidanceReason::GridHasUnsupportedGridTemplateColumns;
                 return std::nullopt;
@@ -330,7 +364,7 @@ static EnumSet<GridAvoidanceReason> gridLayoutAvoidanceReason(const RenderGrid& 
                     return GridAvoidanceReason::GridHasUnsupportedGridTemplateRows;
                 return { };
             },
-            [&](const Vector<String>& names) -> std::optional<GridAvoidanceReason> {
+            [&](const Vector<Style::CustomIdent>& names) -> std::optional<GridAvoidanceReason> {
                 if (!names.isEmpty())
                     return GridAvoidanceReason::GridHasUnsupportedGridTemplateRows;
                 return std::nullopt;
@@ -354,7 +388,7 @@ static EnumSet<GridAvoidanceReason> gridLayoutAvoidanceReason(const RenderGrid& 
     }
 
     if (renderGridStyle->usedContain().contains(Style::ContainValue::Size))
-        ADD_REASON_AND_RETURN_IF_NEEDED(GridHasContainsSize, reasons, reasonCollectionMode);
+        ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridHasContainsSize, reasons, reasonCollectionMode);
 
     ASSERT(renderGridStyle->gridAutoFlow().isRow(),
         "If we end up supporting column auto flow before broader implicit grid support then the logic using explicitlyPlacedItemsInRowCount will need to be reworked to be based upon the auto flow direction");
@@ -365,10 +399,10 @@ static EnumSet<GridAvoidanceReason> gridLayoutAvoidanceReason(const RenderGrid& 
         // See: https://drafts.csswg.org/css-grid/#grid-item-sizing
         RefPtr gridItemElement = gridItem->element();
         if (!gridItemElement)
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemDoesNotHaveElement, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemDoesNotHaveElement, reasons, reasonCollectionMode);
 
         if (gridItemElement->isReplaced())
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemIsReplacedElement, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemIsReplacedElement, reasons, reasonCollectionMode);
 
         CheckedRef gridItemStyle = gridItem->style();
 
@@ -376,44 +410,44 @@ static EnumSet<GridAvoidanceReason> gridLayoutAvoidanceReason(const RenderGrid& 
 
         if ((usedJustifySelf.position() != ItemPosition::Start && usedJustifySelf.position() != ItemPosition::Normal)
             && usedJustifySelf.overflow() != OverflowAlignment::Default && usedJustifySelf.positionType() != ItemPositionType::NonLegacy)
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasUnsupportedInlineAxisAlignment, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasUnsupportedInlineAxisAlignment, reasons, reasonCollectionMode);
 
         auto& gridItemWidth = gridItemStyle->width();
         if (!gridItemHasValidWidth(gridItemWidth))
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasUnsupportedWidthValue, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasUnsupportedWidthValue, reasons, reasonCollectionMode);
 
         if (gridItemWidth.isAuto() && !canComputeAutomaticInlineSize(gridItem, usedJustifySelf))
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasUnsupportedAutomaticInlineSizing, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasUnsupportedAutomaticInlineSizing, reasons, reasonCollectionMode);
 
         auto usedAlignSelf = gridItemStyle->alignSelf().resolve(renderGridStyle.ptr());
 
         if ((usedAlignSelf.position() != ItemPosition::Start && usedAlignSelf.position() != ItemPosition::Normal)
             && usedAlignSelf.overflow() != OverflowAlignment::Default && usedAlignSelf.positionType() != ItemPositionType::NonLegacy)
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasUnsupportedBlockAxisAlignment, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasUnsupportedBlockAxisAlignment, reasons, reasonCollectionMode);
 
         auto& gridItemHeight = gridItemStyle->height();
         if (!gridItemHasValidHeight(gridItemHeight))
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasUnsupportedHeightValue, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasUnsupportedHeightValue, reasons, reasonCollectionMode);
 
         if (gridItemHeight.isAuto() && !canComputeAutomaticBlockSize(gridItem, usedAlignSelf))
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasUnsupportedAutomaticBlockSizing, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasUnsupportedAutomaticBlockSizing, reasons, reasonCollectionMode);
 
         auto& minWidth = gridItemStyle->minWidth();
         if (!minWidth.isFixed() && !minWidth.isAuto())
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasUnsupportedMinWidth, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasUnsupportedMinWidth, reasons, reasonCollectionMode);
 
         if (!gridItemStyle->maxWidth().isNone())
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasNonInitialMaxWidth, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasNonInitialMaxWidth, reasons, reasonCollectionMode);
 
         auto& minHeight = gridItemStyle->minHeight();
         if (!minHeight.isFixed() && !minHeight.isAuto())
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasUnsupportedMinHeight, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasUnsupportedMinHeight, reasons, reasonCollectionMode);
 
         if (!gridItemStyle->maxHeight().isNone())
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasNonInitialMaxHeight, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasNonInitialMaxHeight, reasons, reasonCollectionMode);
 
         if (gridItemStyle->border().hasBorder())
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasBorder, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasBorder, reasons, reasonCollectionMode);
 
         auto gridItemHasPadding = [&] {
             return gridItemStyle->paddingBox().anyOf([](const Style::PaddingEdge& paddingEdge) {
@@ -421,7 +455,7 @@ static EnumSet<GridAvoidanceReason> gridLayoutAvoidanceReason(const RenderGrid& 
             });
         };
         if (gridItemHasPadding())
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasPadding, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasPadding, reasons, reasonCollectionMode);
 
         auto gridItemHasMargins = [&] {
             return gridItemStyle->marginBox().anyOf([](const Style::MarginEdge& marginEdge) {
@@ -429,7 +463,7 @@ static EnumSet<GridAvoidanceReason> gridLayoutAvoidanceReason(const RenderGrid& 
             });
         };
         if (gridItemHasMargins())
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasMargin, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasMargin, reasons, reasonCollectionMode);
 
         auto linesFromGridTemplateColumnsCount = gridTemplateColumns.sizes.size() + 1;
         auto linesFromGridTemplateRowsCount = gridTemplateRows.sizes.size() + 1;
@@ -438,42 +472,51 @@ static EnumSet<GridAvoidanceReason> gridLayoutAvoidanceReason(const RenderGrid& 
             [&](const CSS::Keyword::Auto& autoPosition) -> std::optional<GridAvoidanceReason> {
                 auto& columnEnd = gridItemStyle->gridItemColumnEnd();
                 if (!hasValidColumnEnd(autoPosition, columnEnd))
-                    return GridAvoidanceReason::GridItemHasUnsupportedColumnPlacement;
+                    return GridAvoidanceReason::GridItemHasUnsupportedColumnEnd;
                 return { };
             },
             [&](const Style::GridPositionExplicit& explicitPosition) -> std::optional<GridAvoidanceReason> {
-                if (!columnStart.namedGridLine().isEmpty() || columnStart.explicitPosition() < 0 || columnStart.explicitPosition() > static_cast<int>(linesFromGridTemplateColumnsCount))
-                    return GridAvoidanceReason::GridItemHasUnsupportedColumnPlacement;
+                auto columnStartLineNumber = explicitPosition.position.value;
+                if (!columnStart.namedGridLine().isEmpty())
+                    return GridAvoidanceReason::GridItemColumnStartHasLineName;
+                if (columnStartLineNumber < 0)
+                    return GridAvoidanceReason::GridItemColumnStartHasNegativeLineNumber;
+                if (columnStartLineNumber > static_cast<int>(linesFromGridTemplateColumnsCount))
+                    return GridAvoidanceReason::GridItemHasColumnStartOutsideExplicitGrid;
                 if (!hasValidColumnEnd(explicitPosition, gridItemStyle->gridItemColumnEnd(), linesFromGridTemplateColumnsCount))
-                    return GridAvoidanceReason::GridItemHasUnsupportedColumnPlacement;
+                    return GridAvoidanceReason::GridItemHasUnsupportedColumnEnd;
                 return { };
             },
             [&](const Style::GridPositionSpan&) -> std::optional<GridAvoidanceReason> {
-                return GridAvoidanceReason::GridItemHasUnsupportedColumnPlacement;
+                return GridAvoidanceReason::GridItemColumnStartHasSpan;
             },
-            [&](const CustomIdentifier&) -> std::optional<GridAvoidanceReason> {
-                return GridAvoidanceReason::GridItemHasUnsupportedColumnPlacement;
+            [&](const Style::CustomIdent&) -> std::optional<GridAvoidanceReason> {
+                return GridAvoidanceReason::GridItemColumnStartHasLineName;
             }
         );
 
         if (columnPositioningAvoidanceReason) {
-            ASSERT(columnPositioningAvoidanceReason == GridAvoidanceReason::GridItemHasUnsupportedColumnPlacement);
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasUnsupportedColumnPlacement, reasons, reasonCollectionMode);
+            ASSERT(avoidanceReasonIsColumnPlacementRelated(*columnPositioningAvoidanceReason));
+            ADD_REASON_AND_RETURN_IF_NEEDED(*columnPositioningAvoidanceReason, reasons, reasonCollectionMode);
         }
 
         auto& rowStart = gridItemStyle->gridItemRowStart();
         auto rowPositioningAvoidanceReason = WTF::switchOn(rowStart,
             [&](const CSS::Keyword::Auto&) -> std::optional<GridAvoidanceReason> {
-                return GridAvoidanceReason::GridItemHasUnsupportedRowPlacement;
+                return GridAvoidanceReason::GridItemHasAutomaticRowStartPlacement;
             },
             [&](const Style::GridPositionExplicit& explicitPosition) -> std::optional<GridAvoidanceReason> {
                 auto rowStartLineNumber = explicitPosition.position.value;
-                if (!rowStart.namedGridLine().isEmpty() || rowStartLineNumber < 0 || rowStartLineNumber > static_cast<int>(linesFromGridTemplateRowsCount))
-                    return GridAvoidanceReason::GridItemHasUnsupportedRowPlacement;
+                if (!rowStart.namedGridLine().isEmpty())
+                    return GridAvoidanceReason::GridItemRowStartHasLineName;
+                if (rowStartLineNumber < 0)
+                    return GridAvoidanceReason::GridItemRowStartHasNegativeLineNumber;
+                if (rowStartLineNumber > static_cast<int>(linesFromGridTemplateRowsCount))
+                    return GridAvoidanceReason::GridItemHasRowStartOutsideExplicitGrid;
 
                 auto rowEnd = gridItemStyle->gridItemRowEnd();
                 if (!hasValidRowEnd(explicitPosition, rowEnd, linesFromGridTemplateRowsCount))
-                    return GridAvoidanceReason::GridItemHasUnsupportedRowPlacement;
+                    return GridAvoidanceReason::GridItemHasUnsupportedRowEnd;
 
                 ASSERT(rowEnd.isExplicit());
                 size_t rowIndex = rowStartLineNumber + 1;
@@ -484,16 +527,16 @@ static EnumSet<GridAvoidanceReason> gridLayoutAvoidanceReason(const RenderGrid& 
                 return { };
             },
             [&](const Style::GridPositionSpan&) -> std::optional<GridAvoidanceReason> {
-                return GridAvoidanceReason::GridItemHasUnsupportedRowPlacement;
+                return GridAvoidanceReason::GridItemRowStartHasSpan;
             },
-            [&](const CustomIdentifier&) -> std::optional<GridAvoidanceReason> {
-                return GridAvoidanceReason::GridItemHasUnsupportedRowPlacement;
+            [&](const Style::CustomIdent&) -> std::optional<GridAvoidanceReason> {
+                return GridAvoidanceReason::GridItemRowStartHasLineName;
             }
         );
 
         if (rowPositioningAvoidanceReason) {
-            ASSERT(rowPositioningAvoidanceReason == GridAvoidanceReason::GridItemHasUnsupportedRowPlacement);
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasUnsupportedRowPlacement, reasons, reasonCollectionMode);
+            ASSERT(avoidanceReasonIsRowPlacementRelated(*rowPositioningAvoidanceReason));
+            ADD_REASON_AND_RETURN_IF_NEEDED(*rowPositioningAvoidanceReason, reasons, reasonCollectionMode);
         }
 
         // If there are too many items in a given row compared to the total number of columns in the
@@ -504,22 +547,22 @@ static EnumSet<GridAvoidanceReason> gridLayoutAvoidanceReason(const RenderGrid& 
             return itemsInRowCount >= linesFromGridTemplateColumnsCount;
         });
         if (ineligibleRowIndex != notFound)
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasUnsupportedRowPlacement, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridNeedsImplicitColumnsForItemsLockedToRow, reasons, reasonCollectionMode);
 
         if (gridItemStyle->writingMode().isVertical())
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasVerticalWritingMode, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasVerticalWritingMode, reasons, reasonCollectionMode);
 
         if (gridItem->isOutOfFlowPositioned())
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridHasOutOfFlowChild, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridHasOutOfFlowChild, reasons, reasonCollectionMode);
 
         if (gridItemStyle->aspectRatio().hasRatio())
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasAspectRatio, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasAspectRatio, reasons, reasonCollectionMode);
 
         if (!gridItemStyle->isOverflowVisible())
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasNonVisibleOverflow, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasNonVisibleOverflow, reasons, reasonCollectionMode);
 
         if (gridItemStyle->usedContain().contains(Style::ContainValue::Size))
-            ADD_REASON_AND_RETURN_IF_NEEDED(GridItemHasContainsSize, reasons, reasonCollectionMode);
+            ADD_REASON_AND_RETURN_IF_NEEDED(GridAvoidanceReason::GridItemHasContainsSize, reasons, reasonCollectionMode);
     }
     return reasons;
 }
@@ -560,9 +603,6 @@ static void printReason(GridAvoidanceReason reason, TextStream& stream)
     case GridAvoidanceReason::GridFormattingContextIntegrationDisabled:
         stream << "grid formatting context integration is disabled";
         break;
-    case GridAvoidanceReason::GridHasNonFixedHeight:
-        stream << "grid has non-fixed height";
-        break;
     case GridAvoidanceReason::GridHasVerticalWritingMode:
         stream << "grid has vertical writing mode";
         break;
@@ -586,21 +626,6 @@ static void printReason(GridAvoidanceReason reason, TextStream& stream)
         break;
     case GridAvoidanceReason::GridIsEmpty:
         stream << "grid is empty";
-        break;
-    case GridAvoidanceReason::GridHasNonInitialMinWidth:
-        stream << "grid has non-initial min-width";
-        break;
-    case GridAvoidanceReason::GridHasNonInitialMaxWidth:
-        stream << "grid has non-initial max-width";
-        break;
-    case GridAvoidanceReason::GridHasNonInitialMinHeight:
-        stream << "grid has non-initial min-height";
-        break;
-    case GridAvoidanceReason::GridHasNonInitialMaxHeight:
-        stream << "grid has non-initial max-height";
-        break;
-    case GridAvoidanceReason::GridHasNonZeroMinWidth:
-        stream << "grid has non-zero min-width";
         break;
     case GridAvoidanceReason::GridHasGridTemplateAreas:
         stream << "grid has grid-template-areas";
@@ -635,14 +660,8 @@ static void printReason(GridAvoidanceReason reason, TextStream& stream)
     case GridAvoidanceReason::GridItemHasUnsupportedAutomaticBlockSizing:
         stream << "grid item has unsupported automatic block sizing";
         break;
-    case GridAvoidanceReason::GridItemHasNonFixedHeight:
-        stream << "grid item has non-fixed height";
-        break;
     case GridAvoidanceReason::GridItemHasNonInitialMaxWidth:
         stream << "grid item has non-initial max-width";
-        break;
-    case GridAvoidanceReason::GridItemHasNonZeroMinHeight:
-        stream << "grid item has non-zero min-height";
         break;
     case GridAvoidanceReason::GridItemHasNonInitialMaxHeight:
         stream << "grid item has non-initial max-height";
@@ -674,11 +693,41 @@ static void printReason(GridAvoidanceReason reason, TextStream& stream)
     case GridAvoidanceReason::GridItemHasContainsSize:
         stream << "grid item has contains: size";
         break;
-    case GridAvoidanceReason::GridItemHasUnsupportedColumnPlacement:
-        stream << "grid item has unsupported column placement";
+    case GridAvoidanceReason::GridItemColumnStartHasLineName:
+        stream << "grid item column start has line name";
         break;
-    case GridAvoidanceReason::GridItemHasUnsupportedRowPlacement:
-        stream << "grid item has unsupported row placement";
+    case GridAvoidanceReason::GridItemColumnStartHasNegativeLineNumber:
+        stream << "grid item column start has negative line number";
+        break;
+    case GridAvoidanceReason::GridItemColumnStartHasSpan:
+        stream << "grid item column start has span";
+        break;
+    case GridAvoidanceReason::GridItemHasColumnStartOutsideExplicitGrid:
+        stream << "grid item has column start outside explicit grid";
+        break;
+    case GridAvoidanceReason::GridItemHasUnsupportedColumnEnd:
+        stream << "grid item has unsupported column end";
+        break;
+    case GridAvoidanceReason::GridNeedsImplicitColumnsForItemsLockedToRow:
+        stream << "grid needs implicit columns for items locked to row";
+        break;
+    case GridAvoidanceReason::GridItemHasAutomaticRowStartPlacement:
+        stream << "grid item has automatic row start placement";
+        break;
+    case GridAvoidanceReason::GridItemRowStartHasLineName:
+        stream << "grid item row start has line name";
+        break;
+    case GridAvoidanceReason::GridItemRowStartHasNegativeLineNumber:
+        stream << "grid item row start has negative line number";
+        break;
+    case GridAvoidanceReason::GridItemRowStartHasSpan:
+        stream << "grid item row start has span";
+        break;
+    case GridAvoidanceReason::GridItemHasRowStartOutsideExplicitGrid:
+        stream << "grid item has row start outside explicit grid";
+        break;
+    case GridAvoidanceReason::GridItemHasUnsupportedRowEnd:
+        stream << "grid item has unsupported row end";
         break;
     case GridAvoidanceReason::GridItemHasUnsupportedMinWidth:
         stream << "grid item has unsupported min-width";
@@ -686,7 +735,8 @@ static void printReason(GridAvoidanceReason reason, TextStream& stream)
     case GridAvoidanceReason::GridItemHasUnsupportedMinHeight:
         stream << "grid item has unsupported min-height";
         break;
-    default:
+    case GridAvoidanceReason::NotAGrid:
+        stream << "not a grid";
         break;
     }
 }

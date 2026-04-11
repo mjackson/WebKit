@@ -639,15 +639,17 @@ class TestResults
 };
 
 class TestResultsController
-{        
-    constructor(containerElement, testResults)
+{
+    constructor(containerElement, testResults, pathPrefix)
     {
         this.containerElement = containerElement;
         this.testResults = testResults;
+        this.pathPrefix = pathPrefix || '';
+        this.containerElement._controller = this;
 
         this.shouldToggleImages = true;
         this._togglingImageInterval = null;
-        
+
         this._updatePageTitle();
 
         this.buildResultsTables();
@@ -825,10 +827,10 @@ class TestResultsController
         return document.getElementById('unexpected-results').checked;
     }
 
-    static _testListHeader(title)
+    _testListHeader(title)
     {
         let header = document.createElement('h1');
-        header.innerHTML = title + ' (<span class=test-list-count></span>): <a href="#" class=flag-all onclick="controller.flagAll(this)">flag all</a>';
+        header.innerHTML = title + ' (<span class=test-list-count></span>): <a href="#" class=flag-all onclick="flagAllForElement(this)">flag all</a>';
         return header;
     }
 
@@ -903,30 +905,33 @@ class TestResultsController
 
     testLink(testResult)
     {
-        return '<a class=test-link onclick="controller.checkServerIsRunning(event)" href="' + this.layoutTestURL(testResult) + '">' + testResult.name + '</a><span class=flag onclick="controller.unflag(this)"> \u2691</span>';
+        return '<a class=test-link onclick="checkServerIsRunningForElement(event)" href="' + this.layoutTestURL(testResult) + '">' + testResult.name + '</a><span class=flag onclick="unflagForElement(this)"> \u2691</span>';
     }
     
     expandButtonSpan()
     {
-        return '<span class=expand-button onclick="controller.toggleExpectations(this)"><span class=expand-button-text>+</span></span>';
+        return '<span class=expand-button onclick="toggleExpectationsForElement(this)"><span class=expand-button-text>+</span></span>';
     }
-    
-    static resultLink(testPrefix, suffix, contents)
+
+    resultLink(testPrefix, suffix, contents)
     {
-        return '<a class=result-link href="' + encodeURI(testPrefix + suffix) + '" data-prefix="' + testPrefix + '">' + contents + '</a> ';
+        // Don't add pathPrefix for absolute paths (http://, https://, file://)
+        let isAbsolutePath = testPrefix.match(/^(https?|file):\/\//);
+        let path = isAbsolutePath ? testPrefix : (this.pathPrefix + testPrefix);
+        return '<a class=result-link href="' + encodeURI(path + suffix) + '" data-prefix="' + testPrefix + '">' + contents + '</a> ';
     }
 
     textResultLinks(prefix)
     {
-        let html = TestResultsController.resultLink(prefix, '-expected.txt', 'expected') +
-            TestResultsController.resultLink(prefix, '-actual.txt', 'actual') +
-            TestResultsController.resultLink(prefix, '-diff.txt', 'diff');
+        let html = this.resultLink(prefix, '-expected.txt', 'expected') +
+            this.resultLink(prefix, '-actual.txt', 'actual') +
+            this.resultLink(prefix, '-diff.txt', 'diff');
 
         if (this.testResults.hasPrettyPatch())
-            html += TestResultsController.resultLink(prefix, '-pretty-diff.html', 'pretty diff');
+            html += this.resultLink(prefix, '-pretty-diff.html', 'pretty diff');
 
         if (this.testResults.hasWDiff())
-            html += TestResultsController.resultLink(prefix, '-wdiff.html', 'wdiff');
+            html += this.resultLink(prefix, '-wdiff.html', 'wdiff');
 
         return html;
     }
@@ -1066,8 +1071,9 @@ class TestResultsController
 
         // FIXME: this is all pretty confusing. Simplify.
         if (this.shouldToggleImages) {
+            let self = this;
             Utils.forEach(document.querySelectorAll('table:not(#missing-table) tbody:not([mismatchreftest]) a[href$=".png"]'), TestResultsController._convertToTogglingHandler(function(prefix) {
-                return TestResultsController.resultLink(prefix, '-diffs.html', 'images');
+                return self.resultLink(prefix, '-diffs.html', 'images');
             }));
             Utils.forEach(document.querySelectorAll('table:not(#missing-table) tbody:not([mismatchreftest]) img[src$=".png"]'), TestResultsController._convertToTogglingHandler(TestResultsController._togglingImage));
         } else {
@@ -1250,9 +1256,9 @@ class SectionBuilder {
     build()
     {
         TestResults.sortByName(this._tests);
-        
+
         let section = document.createElement('section');
-        section.appendChild(TestResultsController._testListHeader(this.sectionTitle()));
+        section.appendChild(this._resultsController._testListHeader(this.sectionTitle()));
         if (this.hideWhenShowingUnexpectedResultsOnly())
             section.classList.add('expected');
 
@@ -1435,19 +1441,19 @@ class FailuresSectionBuilder extends SectionBuilder {
     appendAudioFailureLinks(testResult, cell)
     {
         let prefix = Utils.testPrefix(testResult.name);
-        cell.innerHTML += TestResultsController.resultLink(prefix, '-expected.wav', 'expected audio')
-            + TestResultsController.resultLink(prefix, '-actual.wav', 'actual audio')
-            + TestResultsController.resultLink(prefix, '-diff.txt', 'textual diff');
+        cell.innerHTML += this._resultsController.resultLink(prefix, '-expected.wav', 'expected audio')
+            + this._resultsController.resultLink(prefix, '-actual.wav', 'actual audio')
+            + this._resultsController.resultLink(prefix, '-diff.txt', 'textual diff');
     }
-    
+
     appendActualOnlyLinks(testResult, cell)
     {
         let prefix = Utils.testPrefix(testResult.name);
         if (testResult.isMissingAudio())
-            cell.innerHTML += TestResultsController.resultLink(prefix, '-actual.wav', 'audio result');
+            cell.innerHTML += this._resultsController.resultLink(prefix, '-actual.wav', 'audio result');
 
         if (testResult.isMissingText())
-            cell.innerHTML += TestResultsController.resultLink(prefix, '-actual.txt', 'result');
+            cell.innerHTML += this._resultsController.resultLink(prefix, '-actual.txt', 'result');
     }
 
     imageResultLinks(testResult, testPrefix, resultToken)
@@ -1457,27 +1463,27 @@ class FailuresSectionBuilder extends SectionBuilder {
             let testExtension = Utils.splitExtension(testResult.name)[1];
 
             if (testResult.isMismatchRefTest()) {
-                result += TestResultsController.resultLink(this._resultsController.layoutTestsBasePath() + testPrefix, '-expected-mismatch' + testExtension, 'ref mismatch');
-                result += TestResultsController.resultLink(testPrefix, '-actual.png', 'actual');
+                result += this._resultsController.resultLink(this._resultsController.layoutTestsBasePath() + testPrefix, '-expected-mismatch' + testExtension, 'ref mismatch');
+                result += this._resultsController.resultLink(testPrefix, '-actual.png', 'actual');
             } else {
                 if (testResult.isMatchRefTest())
-                    result += TestResultsController.resultLink(this._resultsController.layoutTestsBasePath() + testPrefix, '-expected' + testExtension, 'reference');
+                    result += this._resultsController.resultLink(this._resultsController.layoutTestsBasePath() + testPrefix, '-expected' + testExtension, 'reference');
 
                 if (this._resultsController.shouldToggleImages)
-                    result += TestResultsController.resultLink(testPrefix, '-diffs.html', 'images');
+                    result += this._resultsController.resultLink(testPrefix, '-diffs.html', 'images');
                 else {
-                    result += TestResultsController.resultLink(testPrefix, '-expected.png', 'expected');
-                    result += TestResultsController.resultLink(testPrefix, '-actual.png', 'actual');
+                    result += this._resultsController.resultLink(testPrefix, '-expected.png', 'expected');
+                    result += this._resultsController.resultLink(testPrefix, '-actual.png', 'actual');
                 }
 
                 const diff = Math.max(testResult.info.image_diff_percent, 0.01).toFixed(2);
-                result += TestResultsController.resultLink(testPrefix, '-diff.png', `diff (${diff}%)`);
+                result += this._resultsController.resultLink(testPrefix, '-diff.png', `diff (${diff}%)`);
             }
         }
-        
+
         if (testResult.hasMissingResult() && testResult.isMissingImage())
-            result += TestResultsController.resultLink(testPrefix, '-actual.png', 'png result');
-        
+            result += this._resultsController.resultLink(testPrefix, '-actual.png', 'png result');
+
         return result;
     }
 };
@@ -1526,7 +1532,7 @@ class TestsWithStdErrSectionBuilder extends SectionBuilder {
 
     fillTestResultCell(testResult, cell)
     {
-        cell.innerHTML = TestResultsController.resultLink(Utils.testPrefix(testResult.name), '-stderr.txt', 'stderr');
+        cell.innerHTML = this._resultsController.resultLink(Utils.testPrefix(testResult.name), '-stderr.txt', 'stderr');
     }
 };
 
@@ -1545,8 +1551,8 @@ class CrashingTestsSectionBuilder extends SectionBuilder {
 
     fillTestResultCell(testResult, cell)
     {
-        cell.innerHTML = TestResultsController.resultLink(Utils.testPrefix(testResult.name), '-crash-log.txt', 'crash log')
-                       + TestResultsController.resultLink(Utils.testPrefix(testResult.name), '-sample.txt', 'sample');
+        cell.innerHTML = this._resultsController.resultLink(Utils.testPrefix(testResult.name), '-crash-log.txt', 'crash log')
+                       + this._resultsController.resultLink(Utils.testPrefix(testResult.name), '-sample.txt', 'sample');
     }
 };
 
@@ -1554,7 +1560,7 @@ class OtherCrashesSectionBuilder extends SectionBuilder {
     sectionTitle() { return 'Other crashes'; }
     fillTestResultCell(testResult, cell)
     {
-        cell.innerHTML = TestResultsController.resultLink(Utils.testPrefix(testResult.name), '-crash-log.txt', 'crash log');
+        cell.innerHTML = this._resultsController.resultLink(Utils.testPrefix(testResult.name), '-crash-log.txt', 'crash log');
     }
 
     createHistoryCell(testResult)
@@ -1873,14 +1879,24 @@ class OptionWriter {
     }
 };
 
-let testResults;
-function ADD_RESULTS(input)
+let resultsByVariant = {};
+
+function ADD_RESULTS(arg1, arg2)
 {
-    testResults = new TestResults(input);
+    if (arguments.length === 1) {
+        input = arg1;
+        subdirectory = '';
+    } else {
+        subdirectory = arg1;
+        input = arg2;
+    }
+
+    resultsByVariant[subdirectory] = new TestResults(input);
 }
 </script>
 
 <script src="full_results.json"></script>
+<script src="wk1/full_results.json" onerror="this.remove()"></script>
 
 <script>
 
@@ -2085,20 +2101,106 @@ function handleMouseDown(e)
 
 document.addEventListener('mousedown', handleMouseDown, false);
 
-let controller;
+function getControllerForElement(element)
+{
+    let node = element;
+    while (node) {
+        if (node._controller)
+            return node._controller;
+        node = node.parentNode;
+    }
+    return controller;
+}
+
+function toggleExpectationsForElement(element)
+{
+    let ctrl = getControllerForElement(element);
+    if (ctrl)
+        ctrl.toggleExpectations(element);
+}
+
+function checkServerIsRunningForElement(event)
+{
+    let ctrl = getControllerForElement(event.target);
+    if (ctrl)
+        ctrl.checkServerIsRunning(event);
+}
+
+function unflagForElement(element)
+{
+    let ctrl = getControllerForElement(element);
+    if (ctrl)
+        ctrl.unflag(element);
+}
+
+function flagAllForElement(element)
+{
+    let ctrl = getControllerForElement(element);
+    if (ctrl)
+        ctrl.flagAll(element);
+}
+
+let controllersByVariant = {};
 let pixelZoomer;
 let testNavigator;
 
 function generatePage()
 {
     let container = document.getElementById('main-content');
+    let variants = Object.keys(resultsByVariant).sort();
+    let hasMultipleVariants = variants.length > 1;
 
-    controller = new TestResultsController(container, testResults);
+    // Default variant (empty string) always comes first if it exists
+    let defaultVariantIndex = variants.indexOf('');
+    if (defaultVariantIndex > 0) {
+        variants.splice(defaultVariantIndex, 1);
+        variants.unshift('');
+    }
+
+    for (let i = 0; i < variants.length; i++) {
+        let variant = variants[i];
+        let testResults = resultsByVariant[variant];
+
+        // Add header for each variant when there are multiple
+        if (hasMultipleVariants) {
+            let variantHeader = document.createElement('h1');
+            if (variant === '') {
+                variantHeader.textContent = 'WebKit Results';
+            } else if (variant === 'wk1') {
+                variantHeader.textContent = 'WebKitLegacy Results';
+            } else {
+                variantHeader.textContent = 'Results for ' + variant;
+            }
+
+            if (i > 0) {
+                variantHeader.style.marginTop = '3em';
+                variantHeader.style.borderTop = '3px solid #ccc';
+                variantHeader.style.paddingTop = '1em';
+            } else {
+                variantHeader.style.marginBottom = '0.5em';
+            }
+            container.appendChild(variantHeader);
+        }
+
+        let variantContainer = document.createElement('div');
+        variantContainer.id = variant ? (variant + '-results') : 'main-results';
+        container.appendChild(variantContainer);
+
+        let pathPrefix = variant ? (variant + '/') : '';
+        controllersByVariant[variant] = new TestResultsController(variantContainer, testResults, pathPrefix);
+    }
+
     pixelZoomer = new PixelZoomer();
     testNavigator = new TestNavigator();
 
     OptionWriter.apply();
 }
+
+Object.defineProperty(window, 'controller', {
+    get: function() {
+        return controllersByVariant[''] || controllersByVariant[Object.keys(controllersByVariant)[0]];
+    }
+});
 
 window.addEventListener('load', generatePage, false);
 

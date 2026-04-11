@@ -48,9 +48,7 @@ RemoteMediaSessionProxy::RemoteMediaSessionProxy(const RemoteMediaSessionState& 
     setMediaSessionIdentifier(state.sessionIdentifier);
 }
 
-RemoteMediaSessionProxy::~RemoteMediaSessionProxy()
-{
-}
+RemoteMediaSessionProxy::~RemoteMediaSessionProxy() = default;
 
 void RemoteMediaSessionProxy::updateState(const RemoteMediaSessionState& remoteState)
 {

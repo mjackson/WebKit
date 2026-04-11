@@ -55,10 +55,11 @@ public:
     struct TimeBounds {
         uint64_t startFrame { 0 };
         uint64_t endFrame { 0 };
+        uint64_t writeAhead { 0 };
         bool operator<=>(const TimeBounds&) const = default;
     };
     WEBCORE_EXPORT TimeBounds NODELETE getStoreTimeBounds();
-    WEBCORE_EXPORT Error store(const AudioBufferList*, size_t frameCount, uint64_t startFrame);
+    WEBCORE_EXPORT Error store(const AudioBufferList*, size_t frameCount, uint64_t startFrame, uint64_t writeAhead = 0);
 
     enum FetchMode { Copy, MixInt16, MixInt32, MixFloat32, MixFloat64 };
     static FetchMode fetchModeForMixing(AudioStreamDescription::PCMFormat);

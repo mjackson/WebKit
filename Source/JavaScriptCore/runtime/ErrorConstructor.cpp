@@ -42,7 +42,7 @@ ErrorConstructor::ErrorConstructor(VM& vm, Structure* structure)
 
 void ErrorConstructor::finishCreation(VM& vm, ErrorPrototype* errorPrototype)
 {
-    JSGlobalObject* globalObject = errorPrototype->globalObject();
+    JSGlobalObject* globalObject = errorPrototype->realm();
 
     Base::finishCreation(vm, 1, vm.propertyNames->Error.string(), PropertyAdditionMode::WithoutStructureTransition);
     // ECMA 15.11.3.1 Error.prototype
@@ -50,7 +50,7 @@ void ErrorConstructor::finishCreation(VM& vm, ErrorPrototype* errorPrototype)
     putDirectWithoutTransition(vm, vm.propertyNames->stackTraceLimit, jsNumber(globalObject->stackTraceLimit().value_or(Options::defaultErrorStackTraceLimit())), static_cast<unsigned>(PropertyAttribute::None));
 
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->captureStackTrace, errorConstructorCaptureStackTrace, static_cast<unsigned>(PropertyAttribute::DontEnum), 0, ImplementationVisibility::Public);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("isError"_s, errorConstructorIsError, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public);
+    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("isError"_s, errorConstructorIsError, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public, ErrorIsErrorIntrinsic);
 }
 
 // ECMA 15.9.3

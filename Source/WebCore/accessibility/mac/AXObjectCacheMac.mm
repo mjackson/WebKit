@@ -34,6 +34,7 @@
 #import "AXNotifications.h"
 #import "AXObjectCacheInlines.h"
 #import "AXSearchManager.h"
+#import "AXTreeStoreInlines.h"
 #import "AXUtilities.h"
 #import "AccessibilityObject.h"
 #import "CocoaAccessibilityConstants.h"
@@ -754,47 +755,43 @@ bool AXObjectCache::clientSupportsIsolatedTree()
     return false;
 }
 
-bool AXObjectCache::isIsolatedTreeEnabled()
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+AXObjectCache::PlatformAXThreadSupport AXObjectCache::platformAXThreadSupport(ForceAXThreadMode forceAXThread)
 {
-    static std::atomic<bool> enabled { false };
-    if (enabled)
-        return true;
+    if (!(_AXSIsolatedTreeModeFunctionIsAvailable()))
+        return PlatformAXThreadSupport::NotSupported;
 
-    if (!isMainThread()) {
-        AX_ASSERT(clientIsInTestMode() || _AXUIElementRequestServicedBySecondaryAXThread());
-        enabled = true;
-    } else {
-        enabled = DeprecatedGlobalSettings::isAccessibilityIsolatedTreeEnabled() // Used to turn off in apps other than Safari, e.g., Mail.
-            && _AXSIsolatedTreeModeFunctionIsAvailable()
-            && _AXSIsolatedTreeMode_Soft() != AXSIsolatedTreeModeOff // Used to switch via system defaults.
-            && clientSupportsIsolatedTree();
+    if (forceAXThread == ForceAXThreadMode::No && !shouldForceAccessibilityEnabled()) {
+        if (!clientSupportsIsolatedTree())
+            return PlatformAXThreadSupport::NotSupported;
+
+        if (_AXSIsolatedTreeMode_Soft() == AXSIsolatedTreeModeOff)
+            return PlatformAXThreadSupport::NotSupported;
+
+        // We'll now return PlatformAXThreadSupport::Supported, which assumes that
+        // _AXSIsolatedTreeMode_Soft() == AXSIsolatedTreeModeSecondaryThread. This
+        // assert should help us catch the scenario where a new variant is added
+        // that we aren't handling (e.g. a main-thread-isolated-tree-mode).
+        //
+        // _AXSIsolatedTreeMode represents what mode the system allows the web content process
+        // to be, different from our gAccessibilityMode which is what our mode actually is.
+        AX_ASSERT(_AXSIsolatedTreeMode_Soft() == AXSIsolatedTreeModeSecondaryThread);
     }
 
-    return enabled;
+    return _AXSIsolatedTreeMode_Soft() == AXSIsolatedTreeModeSecondaryThread
+        ? PlatformAXThreadSupport::Supported
+        : PlatformAXThreadSupport::NotSupported;
 }
 
-static bool axThreadInitialized = false;
-
-void AXObjectCache::initializeAXThreadIfNeeded()
+AXObjectCache::DidStartThread AXObjectCache::platformStartSecondaryThread()
 {
-    if (axThreadInitialized || !isMainThread()) [[likely]]
-        return;
-
-    if (_AXSIsolatedTreeModeFunctionIsAvailable() && _AXSIsolatedTreeMode_Soft() == AXSIsolatedTreeModeSecondaryThread) {
-        // Initialize the role map before the accessibility thread starts so that it's safe for both threads
-        // to use (the only thing that needs to be thread-safe about it is initialization since it's not modified
-        // after creation and is never destroyed).
-        Accessibility::initializeRoleMap();
-
-        _AXUIElementUseSecondaryAXThread(true);
-        axThreadInitialized = true;
-    }
+    auto error = _AXUIElementUseSecondaryAXThread(true);
+    // Starting the true AX thread doesn't work in testing contexts.
+    // This is OK because we fake it with the AXThread class.
+    AX_ASSERT(error == kAXErrorSuccess || clientIsInTestMode());
+    return error == kAXErrorSuccess ? DidStartThread::Yes : DidStartThread::No;
 }
-
-bool AXObjectCache::isAXThreadInitialized()
-{
-    return axThreadInitialized;
-}
+#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
 bool AXObjectCache::shouldSpellCheck()
 {
@@ -1116,6 +1113,15 @@ std::optional<SimpleRange> rangeForTextMarkerRange(AXObjectCache* cache, AXTextM
     CharacterOffset startCharacterOffset = characterOffsetForTextMarker(cache, startTextMarker.get());
     CharacterOffset endCharacterOffset = characterOffsetForTextMarker(cache, endTextMarker.get());
     return cache->rangeForUnorderedCharacterOffsets(startCharacterOffset, endCharacterOffset);
+}
+
+bool AXObjectCache::shouldForceAccessibilityEnabled()
+{
+    static bool cachedValue = [] {
+        RetainPtr userDefaults = adoptNS([[NSUserDefaults alloc] initWithSuiteName:@"com.apple.Accessibility"]);
+        return [userDefaults boolForKey:@"ShouldForceWebKitAccessibilityEnabled"];
+    }();
+    return cachedValue;
 }
 
 } // namespace WebCore

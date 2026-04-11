@@ -205,8 +205,6 @@ private:
 
     String nodeName() const final;
 
-    void mapLanguageAttributeToLocale(const AtomString&, MutableStyleProperties&);
-
     enum class AllowPercentage : bool { No, Yes };
     enum class UseCSSPXAsUnitType : bool { No, Yes };
     enum class IsMultiLength : bool { No, Yes };

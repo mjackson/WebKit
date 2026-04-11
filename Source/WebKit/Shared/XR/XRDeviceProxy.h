@@ -66,7 +66,7 @@ private:
     void requestFrame(std::optional<PlatformXR::RequestData>&&, PlatformXR::Device::RequestFrameCallback&&) final;
     std::optional<PlatformXR::LayerHandle> createLayerProjection(uint32_t, uint32_t, bool) final;
     void deleteLayer(PlatformXR::LayerHandle) override { };
-    void submitFrame(Vector<PlatformXR::Device::Layer>&&) final;
+    void submitFrame(Vector<PlatformXR::DeviceLayer>&&) final;
 
 #if ENABLE(WEBXR_HIT_TEST)
     void requestHitTestSource(const PlatformXR::HitTestOptions&, CompletionHandler<void(WebCore::ExceptionOr<PlatformXR::HitTestSource>)>&&) final;

@@ -34,6 +34,7 @@
 #include <WebCore/Document.h>
 #include <WebCore/DocumentMarkerController.h>
 #include <WebCore/DocumentMarkers.h>
+#include <WebCore/DocumentPage.h>
 #include <WebCore/DocumentQuirks.h>
 #include <WebCore/DocumentView.h>
 #include <WebCore/Editor.h>
@@ -52,6 +53,8 @@
 #include <WebCore/PageOverlayController.h>
 #include <WebCore/PathUtilities.h>
 #include <WebCore/PlatformMouseEvent.h>
+#include <WebCore/RenderLayer.h>
+#include <WebCore/RenderObject.h>
 #include <WebCore/SimpleRange.h>
 #include <WebCore/TextIterator.h>
 #include <ranges>
@@ -88,7 +91,7 @@ static inline WebFoundTextRange createWebFoundTextRange(SimpleRange& simpleRange
     };
 }
 
-static inline bool canConvertToWebFoundTextRange(SimpleRange& range)
+static inline bool NODELETE canConvertToWebFoundTextRange(SimpleRange& range)
 {
     auto& document = range.startContainer().document();
 
@@ -253,17 +256,20 @@ void WebFoundTextRangeController::scrollTextRangeToVisible(const WebFoundTextRan
             if (!simpleRange)
                 return;
 
-            RefPtr document = documentForFoundTextRange(range);
-            if (!document)
+            auto rects = WebCore::RenderObject::absoluteTextRects(*simpleRange);
+            if (rects.isEmpty())
                 return;
 
-            WebCore::VisibleSelection visibleSelection(*simpleRange);
-            OptionSet temporarySelectionOptions { WebCore::TemporarySelectionOption::DelegateMainFrameScroll, WebCore::TemporarySelectionOption::RevealSelectionBounds, WebCore::TemporarySelectionOption::DoNotSetFocus, WebCore::TemporarySelectionOption::UserTriggered };
+            CheckedPtr renderer = simpleRange->startContainer().renderer();
+            if (!renderer)
+                return;
 
-            if (document->isTopDocument())
-                temporarySelectionOptions.add(WebCore::TemporarySelectionOption::SmoothScroll);
+            WebCore::ScrollRectToVisibleOptions options;
+            RefPtr document = documentForFoundTextRange(range);
+            if (document && document->isTopDocument())
+                options.behavior = WebCore::ScrollBehavior::Smooth;
 
-            WebCore::TemporarySelectionChange selectionChange(*document, visibleSelection, temporarySelectionOptions);
+            WebCore::LocalFrameView::scrollRectToVisible(WebCore::LayoutRect(unionRect(rects)), *renderer, false, options);
         },
         [&] (const WebKit::WebFoundTextRange::PDFData& pdfData) {
 #if ENABLE(PDF_PLUGIN)

@@ -69,5 +69,6 @@ platform/graphics/skia/SkiaReplayAtlas.cpp
 platform/graphics/skia/SkiaReplayCanvas.cpp
 platform/graphics/skia/SkiaSystemFallbackFontCache.cpp
 platform/graphics/skia/SkiaTextureAtlasPacker.cpp
+platform/graphics/skia/SkiaUtilities.cpp
 
 platform/skia/SharedBufferSkia.cpp

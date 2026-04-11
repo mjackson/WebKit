@@ -119,10 +119,9 @@ String MediaList::item(unsigned index) const
 
 ExceptionOr<void> MediaList::deleteMedium(const String& value)
 {
-    auto valueToRemove = value.convertToASCIILowercase();
     auto queries = mediaQueries();
     for (unsigned i = 0; i < queries.size(); ++i) {
-        if (item(i) == valueToRemove) {
+        if (equalIgnoringASCIICase(item(i), value)) {
             queries.removeAt(i);
             setMediaQueries(WTF::move(queries));
             return { };

@@ -25,7 +25,6 @@
 
 #pragma once
 
-#include "SVGParserUtilities.h"
 #include "SVGPrimitiveList.h"
 #include <wtf/text/StringBuilder.h>
 

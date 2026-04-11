@@ -29,6 +29,7 @@
 #include "config.h"
 #include "AccessibilitySlider.h"
 
+#include "AccessibilityNodeObjectInlines.h"
 #include "AccessibilityObjectInlines.h"
 #include "AXLoggerBase.h"
 #include "AXObjectCache.h"

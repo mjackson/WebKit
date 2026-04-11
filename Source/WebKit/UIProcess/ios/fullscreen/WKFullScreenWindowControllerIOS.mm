@@ -2163,6 +2163,16 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     return YES;
 }
 
+- (void)_updateFullscreenWindowOrigin
+{
+    CGRect originalWindowBounds = [_lastKnownParentWindow bounds];
+    CGRect fullscreenWindowBounds = [_window bounds];
+    CGRect adjustedFullscreenWindowFrame = fullscreenWindowBounds;
+    adjustedFullscreenWindowFrame.origin.x = (CGRectGetWidth(originalWindowBounds) - CGRectGetWidth(adjustedFullscreenWindowFrame)) / 2;
+    adjustedFullscreenWindowFrame.origin.y = (CGRectGetHeight(originalWindowBounds)  - CGRectGetHeight(adjustedFullscreenWindowFrame)) / 2;
+    [_window setFrame:adjustedFullscreenWindowFrame];
+}
+
 - (void)_performSpatialFullScreenTransition:(BOOL)enter completionHandler:(CompletionHandler<void()>&&)completionHandler
 {
     OBJC_ALWAYS_LOG(OBJC_LOGIDENTIFIER, enter);
@@ -2175,16 +2185,14 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
     const BOOL shouldAnimateResizeScene = [self _shouldAnimateResizeScene];
 
-    // This is a workaround for the fact that the content in the window is anchored to the top left of the scene
-    // As a result, we need to apply an XY offset that animates as the inWindow comes in, such that it
-    // is centered while the animation happens during scene resize.
     CGFloat sceneWidthDifference = inWindowBounds.size.width - outWindowBounds.size.width;
     CGFloat sceneHeightDifference = inWindowBounds.size.height - outWindowBounds.size.height;
-    float inWindowXOffset = shouldAnimateResizeScene ? sceneWidthDifference / 2 : 0;
-    float inWindowYOffset = shouldAnimateResizeScene ? sceneHeightDifference / 2 : 0;
     CGSize targetSceneSize = [inWindow bounds].size;
 
-    inWindow.transform3D = CATransform3DTranslate(originalState.transform3D, -inWindowXOffset, -inWindowYOffset, kIncomingWindowZOffset);
+    if (shouldAnimateResizeScene && enter)
+        [self _updateFullscreenWindowOrigin];
+
+    inWindow.transform3D = CATransform3DTranslate(originalState.transform3D, 0, 0, kIncomingWindowZOffset);
 
     WKSurroundingsEffectType targetDarkness = enter ? (self.prefersSceneDimming ? WKSurroundingsEffectTypeDark : originalState.preferredSurroundingsEffect) : originalState.preferredSurroundingsEffect;
 
@@ -2234,16 +2242,19 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         completionHandler();
     });
 
-    auto animationCompletionBlock = makeBlockPtr([inWindow, targetSceneSize, shouldAnimateResizeScene, resizeCompletionBlock = WTF::move(resizeCompletionBlock)] (BOOL finished) mutable {
-        if (shouldAnimateResizeScene)
-            resizeCompletionBlock();
-        else
+    auto animationCompletionBlock = makeBlockPtr([enter, inWindow, targetSceneSize, shouldAnimateResizeScene, resizeCompletionBlock = WTF::move(resizeCompletionBlock)] (BOOL finished) mutable {
+        if (!shouldAnimateResizeScene || enter)
             WebKit::resizeScene([inWindow windowScene], targetSceneSize, 0, shouldAnimateResizeScene, WTF::move(resizeCompletionBlock));
+        else
+            resizeCompletionBlock();
     });
 
-    auto animationBlock = makeBlockPtr([inWindow, outWindow, originalState, enter, allowSceneGeometryUpdates, inWindowXOffset, inWindowYOffset, sceneWidthDifference, sceneHeightDifference, shouldAnimateResizeScene, self, weakSelf = WTF::move(weakSelf), animationCompletionBlock = WTF::move(animationCompletionBlock)] mutable {
+    auto animationBlock = makeBlockPtr([inWindow, outWindow, originalState, enter, allowSceneGeometryUpdates, sceneWidthDifference, sceneHeightDifference, shouldAnimateResizeScene, self, weakSelf = WTF::move(weakSelf), animationCompletionBlock = WTF::move(animationCompletionBlock)] mutable {
+        if (shouldAnimateResizeScene && !enter)
+            [self _updateFullscreenWindowOrigin];
+
 #if ENABLE(SCENE_GEOMETRY_UPDATE)
-        [UIView animateWithDuration:kWindowTranslationDuration delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
+        [UIView animateWithDuration:kOutgoingWindowFadeDuration delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
             if (allowSceneGeometryUpdates)
                 [[inWindow windowScene] setUsesDefaultGeometry:!enter];
         } completion:nil];
@@ -2259,7 +2270,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         } completion:nil];
 
         [UIView animateWithDuration:kWindowTranslationDuration delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
-            outWindow.transform3D = CATransform3DTranslate(outWindow.transform3D, inWindowXOffset, inWindowYOffset, kOutgoingWindowZOffset);
+            outWindow.transform3D = CATransform3DTranslate(outWindow.transform3D, 0, 0, kOutgoingWindowZOffset);
         } completion:nil];
 
         [UIView animateWithDuration:kWindowTranslationDuration delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
@@ -2304,10 +2315,10 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         } completion:animationCompletionBlock.get()];
     });
 
-    if (shouldAnimateResizeScene)
-        WebKit::resizeScene([inWindow windowScene], targetSceneSize, kWindowTranslationDuration, shouldAnimateResizeScene, WTF::move(animationBlock));
-    else
+    if (!shouldAnimateResizeScene || enter)
         animationBlock();
+    else
+        WebKit::resizeScene([inWindow windowScene], targetSceneSize, 0, shouldAnimateResizeScene, WTF::move(animationBlock));
 }
 
 - (void)toggleSceneDimming

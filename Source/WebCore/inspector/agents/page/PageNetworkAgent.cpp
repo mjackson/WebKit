@@ -25,6 +25,7 @@
 
 #include "config.h"
 #include "PageNetworkAgent.h"
+#include "DocumentPage.h"
 
 #include "DocumentLoader.h"
 #include "FrameConsoleClient.h"

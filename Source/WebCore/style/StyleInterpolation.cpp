@@ -156,18 +156,20 @@ static std::optional<CustomProperty::ValueList> interpolateSyntaxValueLists(cons
 
 static Ref<const CustomProperty> interpolatedCustomProperty(const RenderStyle& fromStyle, const RenderStyle& toStyle, const CustomProperty& from, const CustomProperty& to, const Context& context)
 {
+    auto isAttrTainted = std::max(from.isAttrTainted(), to.isAttrTainted());
+
     if (std::holds_alternative<CustomProperty::Value>(from.value()) && std::holds_alternative<CustomProperty::Value>(to.value())) {
         auto& fromSyntaxValue = std::get<CustomProperty::Value>(from.value());
         auto& toSyntaxValue = std::get<CustomProperty::Value>(to.value());
         if (auto interpolatedSyntaxValue = interpolateSyntaxValues(fromStyle, toStyle, fromSyntaxValue, toSyntaxValue, context))
-            return CustomProperty::createForValue(from.name(), WTF::move(*interpolatedSyntaxValue));
+            return CustomProperty::createForValue(from.name(), WTF::move(*interpolatedSyntaxValue), isAttrTainted);
     }
 
     if (std::holds_alternative<CustomProperty::ValueList>(from.value()) && std::holds_alternative<CustomProperty::ValueList>(to.value())) {
         auto& fromSyntaxValueList = std::get<CustomProperty::ValueList>(from.value());
         auto& toSyntaxValueList = std::get<CustomProperty::ValueList>(to.value());
         if (auto interpolatedSyntaxValueList = interpolateSyntaxValueLists(fromStyle, toStyle, fromSyntaxValueList, toSyntaxValueList, context))
-            return CustomProperty::createForValueList(from.name(), WTF::move(*interpolatedSyntaxValueList));
+            return CustomProperty::createForValueList(from.name(), WTF::move(*interpolatedSyntaxValueList), isAttrTainted);
     }
 
     // Use a discrete interpolation for all other cases.
@@ -225,7 +227,7 @@ static bool typeOfSyntaxValueCanBeInterpolated(const CustomProperty::Value& synt
         [](const URL&) {
             return false;
         },
-        [](const CustomIdentifier&) {
+        [](const CustomIdent&) {
             return false;
         },
         [](const String&) {

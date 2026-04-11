@@ -320,7 +320,7 @@ static ImageDecoderAVFObjCSample* NODELETE toSample(const PresentationOrderSampl
 }
 
 template <typename Iterator>
-ImageDecoderAVFObjCSample* toSample(Iterator iter)
+ImageDecoderAVFObjCSample* NODELETE toSample(Iterator iter)
 {
     return downcast<ImageDecoderAVFObjCSample>(iter->second.ptr());
 }

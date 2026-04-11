@@ -28,7 +28,7 @@
 
 #include "CodeBlock.h"
 #include "Interpreter.h"
-#include "JSFunction.h"
+#include "JSFunctionInlines.h"
 #include "ThrowScope.h"
 
 namespace JSC {

@@ -73,7 +73,7 @@ public:
         TransformState transformState(TransformState::ApplyTransformDirection, FloatPoint { });
         transformState.setTransformMatrixTracking(trackingMode);
 
-        renderer->mapLocalToContainer(ancestorContainer, transformState, { UseTransforms, ApplyContainerFlip });
+        renderer->mapLocalToContainer(ancestorContainer, transformState, { MapCoordinatesMode::UseTransforms, MapCoordinatesMode::ApplyContainerFlip });
 
         if (trackingMode == TransformState::TrackSVGCTMMatrix) {
             if (auto* svgRoot = dynamicDowncast<RenderSVGRoot>(m_renderer.get()))
@@ -83,7 +83,7 @@ public:
                 // The resulting TransformState is aligned with the 'nominalSVGLayoutLocation()' within the local coordinate system of the 'm_renderer'. (0, 0) in local
                 // coordinates is mapped to the top-left of the 'objectBoundingBoxWithoutTransforms()' of the SVG renderer.
                 if (auto* svgRoot = lineageOfType<RenderSVGRoot>(*ancestorContainer).first())
-                    ancestorContainer->mapLocalToContainer(svgRoot->viewportContainer(), transformState, { ApplyContainerFlip });
+                    ancestorContainer->mapLocalToContainer(svgRoot->viewportContainer(), transformState, { MapCoordinatesMode::ApplyContainerFlip });
             }
         }
 

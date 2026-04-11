@@ -238,7 +238,7 @@
       "nicks" : [
          "adetaylor"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -3219,7 +3219,7 @@
          "fwang@igalia.com"
       ],
       "github" : "fred-wang",
-      "name" : "Fr\u00e9d\u00e9ric Wang",
+      "name" : "Fr\u00e9d\u00e9ric Wang N\u00e9lar",
       "nicks" : [
          "fredw"
       ],
@@ -4480,12 +4480,13 @@
          "joanne_pan2@apple.com",
          "jpan0917@gmail.com"
       ],
-      "github" : "j0pan",
+      "github" : "J0pan",
       "name" : "Joanne Pan",
       "nicks" : [
          "jopan",
-         "j0pan"
-      ]
+         "J0pan"
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -6254,6 +6255,18 @@
    },
    {
       "emails" : [
+         "mgorse@suse.com",
+         "mgorse@alum.wpi.edu"
+      ],
+      "github" : "mgorse",
+      "name" : "Mike Gorse",
+      "nicks" : [
+         "mgorse"
+      ],
+      "status" : "committer"
+   },
+   {
+      "emails" : [
          "mikelawther@chromium.org"
       ],
       "name" : "Mike Lawther",
@@ -6466,6 +6479,17 @@
       "name" : "Nayan Kumar K",
       "nicks" : [
          "xc0ffee"
+      ]
+   },
+   {
+      "emails" : [
+         "neeraqa@gmail.com",
+         "n_raj@apple.com"
+      ],
+      "github" : "neeraqa",
+      "name" : "Neethu Raj",
+      "nicks" : [
+         "neethuraj"
       ]
    },
    {
@@ -7046,7 +7070,7 @@
       "nicks" : [
          "qianlangchen"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -7629,6 +7653,17 @@
       "name" : "Scott Violet",
       "nicks" : [
          "sky"
+      ]
+   },
+   {
+      "emails" : [
+         "sean_patterson@apple.com",
+         "spatterson@apple.com"
+      ],
+      "github" : "swpatters",
+      "name" : "Sean Patterson",
+      "nicks" : [
+         "spatters"
       ]
    },
    {

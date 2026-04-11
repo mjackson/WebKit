@@ -26,10 +26,8 @@
 #include "StylePerspective.h"
 
 #include "StyleBuilderChecking.h"
-#include "StylePrimitiveNumericTypes+Blending.h"
 
-namespace WebCore {
-namespace Style {
+namespace WebCore::Style {
 
 // MARK: - Conversion
 
@@ -62,24 +60,4 @@ auto CSSValueConversion<Perspective>::operator()(BuilderState& state, const CSSV
     return Style::Perspective::Length { perspective };
 }
 
-// MARK: - Blending
-
-auto Blending<Perspective>::canBlend(const Perspective& from, const Perspective& to) -> bool
-{
-    return !from.isNone() && !to.isNone();
-}
-
-auto Blending<Perspective>::blend(const Perspective& from, const Perspective& to, const BlendingContext& context) -> Perspective
-{
-    if (context.isDiscrete) {
-        ASSERT(!context.progress || context.progress == 1);
-        return context.progress ? to : from;
-    }
-
-    ASSERT(!from.isNone());
-    ASSERT(!to.isNone());
-    return { WebCore::Style::blend(*from.tryValue(), *to.tryValue(), context) };
-}
-
-} // namespace Style
-} // namespace WebCore
+} // namespace WebCore::Style

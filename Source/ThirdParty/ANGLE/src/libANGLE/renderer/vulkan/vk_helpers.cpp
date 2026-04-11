@@ -568,6 +568,38 @@ bool IsTileMemoryCompatible(const vk::Renderer *renderer, const VkImageCreateInf
 
     return compatible;
 }
+
+const VkImageFormatListCreateInfoKHR *GetImageFormatListCreateInfo(const void *createInfoPNext)
+{
+    const VkBaseInStructure *pNextChain =
+        reinterpret_cast<const VkBaseInStructure *>(createInfoPNext);
+    while (pNextChain != nullptr &&
+           pNextChain->sType != VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO_KHR)
+    {
+        pNextChain = pNextChain->pNext;
+    }
+
+    return reinterpret_cast<const VkImageFormatListCreateInfoKHR *>(pNextChain);
+}
+
+void DeriveImageViewFormatsFromExternalCreateInfo(const void *externalCreateInfo,
+                                                  vk::ImageHelper::ImageFormats *imageFormats)
+{
+    const VkImageFormatListCreateInfoKHR *imageFormatListCreateInfo =
+        GetImageFormatListCreateInfo(externalCreateInfo);
+
+    if (imageFormatListCreateInfo != nullptr)
+    {
+        // Clear out any stale entries
+        ASSERT(imageFormats);
+        imageFormats->clear();
+
+        for (uint32_t i = 0; i < imageFormatListCreateInfo->viewFormatCount; i++)
+        {
+            imageFormats->push_back(*(imageFormatListCreateInfo->pViewFormats + i));
+        }
+    }
+}
 }  // anonymous namespace
 
 // This is an arbitrary max. We can change this later if necessary.
@@ -996,7 +1028,7 @@ void CommandBufferHelperCommon::releaseCommandPoolImpl()
 }
 
 template <class DerivedT>
-void CommandBufferHelperCommon::assertCanBeRecycledImpl()
+ANGLE_INLINE void CommandBufferHelperCommon::assertCanBeRecycledImpl()
 {
     DerivedT *derived = static_cast<DerivedT *>(this);
     ASSERT(mCommandPool == nullptr);
@@ -1343,7 +1375,7 @@ void OutsideRenderPassCommandBufferHelper::releaseCommandPool()
     releaseCommandPoolImpl<OutsideRenderPassCommandBufferHelper>();
 }
 
-void OutsideRenderPassCommandBufferHelper::assertCanBeRecycled()
+ANGLE_INLINE void OutsideRenderPassCommandBufferHelper::assertCanBeRecycled()
 {
     assertCanBeRecycledImpl<OutsideRenderPassCommandBufferHelper>();
 }
@@ -1454,13 +1486,15 @@ RenderPassCommandBufferHelper::RenderPassCommandBufferHelper()
       mDepthStencilAttachmentIndex(kAttachmentIndexInvalid),
       mColorAttachmentsCount(0),
       mImageOptimizeForPresent(nullptr),
-      mImageOptimizeForPresentOriginalLayout(ImageAccess::Undefined)
+      mImageOptimizeForPresentOriginalLayout(ImageAccess::Undefined),
+      mPipelineLayout(nullptr)
 {}
 
 RenderPassCommandBufferHelper::~RenderPassCommandBufferHelper() {}
 
 angle::Result RenderPassCommandBufferHelper::initialize(ErrorContext *context)
 {
+    mGraphicsDriverUniforms = std::make_unique<GraphicsDriverUniforms>(context->getRenderer());
     initializeImpl();
     return initializeCommandBuffer(context);
 }
@@ -1505,6 +1539,7 @@ angle::Result RenderPassCommandBufferHelper::reset(
     mDepthStencilAttachmentIndex           = kAttachmentIndexInvalid;
     mImageOptimizeForPresent               = nullptr;
     mImageOptimizeForPresentOriginalLayout = ImageAccess::Undefined;
+    mPipelineLayout                        = nullptr;
 
     // Collect/Reset the command buffers
     for (uint32_t subpass = 0; subpass < getSubpassCommandBufferCount(); ++subpass)
@@ -2161,6 +2196,22 @@ void RenderPassCommandBufferHelper::updatePerfCountersForDynamicRenderingInstanc
                                        mAttachmentOps, countersOut);
 }
 
+void RenderPassCommandBufferHelper::addCurrentDriverUniforms(
+    const vk::PipelineLayout *pipelineLayout,
+    const GraphicsDriverUniforms &graphicsDriverUniforms)
+{
+    mPipelineLayout = pipelineLayout;
+    if (pipelineLayout != nullptr)
+    {
+        mGraphicsDriverUniforms->copyGraphicsDriverUniformsData(graphicsDriverUniforms);
+    }
+}
+
+void RenderPassCommandBufferHelper::dirtyCurrentDriverUniforms()
+{
+    mGraphicsDriverUniforms->setAllDirtyBits();
+}
+
 angle::Result RenderPassCommandBufferHelper::beginRenderPass(
     ContextVk *contextVk,
     RenderPassFramebuffer &&framebuffer,
@@ -2406,6 +2457,13 @@ angle::Result RenderPassCommandBufferHelper::flushToPrimary(Context *context,
             mFramebuffer.isImageless() ? &attachmentBeginInfo : nullptr);
     }
 
+    if (mPipelineLayout != nullptr)
+    {
+        // This will issue pushConstants only if it is dirty, which by default it is not.
+        mGraphicsDriverUniforms->pushConstants(renderer, *mPipelineLayout, primaryCommands);
+        mPipelineLayout = nullptr;
+    }
+
     // Run commands inside the RenderPass.
     for (uint32_t subpass = 0; subpass < getSubpassCommandBufferCount(); ++subpass)
     {
@@ -2583,7 +2641,7 @@ void RenderPassCommandBufferHelper::releaseCommandPool()
     releaseCommandPoolImpl<RenderPassCommandBufferHelper>();
 }
 
-void RenderPassCommandBufferHelper::assertCanBeRecycled()
+ANGLE_INLINE void RenderPassCommandBufferHelper::assertCanBeRecycled()
 {
     ASSERT(!mRenderPassStarted);
     ASSERT(getSubpassCommandBufferCount() == 1);
@@ -5489,8 +5547,7 @@ void ImageHelper::resetCachedProperties()
     mMemoryTypeIndex             = kInvalidMemoryTypeIndex;
     mTileMemoryCompatible        = false;
     mUseTileMemory               = false;
-    std::fill(mViewFormats.begin(), mViewFormats.begin() + mViewFormats.max_size(),
-              VK_FORMAT_UNDEFINED);
+    mViewFormats.clear();
     mYcbcrConversionDesc.reset();
     mCurrentSingleClearValue.reset();
     mRenderPassUsageFlags.reset();
@@ -5666,7 +5723,7 @@ angle::Result ImageHelper::init(ErrorContext *context,
                         tileMemoryPreference,
                         deriveConversionDesc(context, format.getActualRenderableImageFormatID(),
                                              format.getIntendedFormatID()),
-                        nullptr);
+                        nullptr, ImageFormatReinterpretability::ColorspaceOverrides);
 }
 
 angle::Result ImageHelper::copyToBufferOneOff(ErrorContext *context,
@@ -5699,25 +5756,25 @@ angle::Result ImageHelper::copyToBufferOneOff(ErrorContext *context,
     return renderer->finishQueueSerial(context, submitQueueSerial);
 }
 
-angle::Result ImageHelper::initMSAASwapchain(ErrorContext *context,
-                                             gl::TextureType textureType,
-                                             const VkExtent3D &extents,
-                                             bool rotatedAspectRatio,
-                                             angle::FormatID intendedFormatID,
-                                             angle::FormatID actualFormatID,
-                                             GLint samples,
-                                             VkImageUsageFlags usage,
-                                             gl::LevelIndex firstLevel,
-                                             uint32_t mipLevels,
-                                             uint32_t layerCount,
-                                             bool isRobustResourceInitEnabled,
-                                             bool hasProtectedContent)
+angle::Result ImageHelper::initAncillarySwapchain(ErrorContext *context,
+                                                  gl::TextureType textureType,
+                                                  const VkExtent3D &extents,
+                                                  bool rotatedAspectRatio,
+                                                  angle::FormatID intendedFormatID,
+                                                  angle::FormatID actualFormatID,
+                                                  GLint samples,
+                                                  VkImageUsageFlags usage,
+                                                  gl::LevelIndex firstLevel,
+                                                  uint32_t mipLevels,
+                                                  uint32_t layerCount,
+                                                  bool isRobustResourceInitEnabled,
+                                                  bool hasProtectedContent)
 {
     ANGLE_TRY(initExternal(context, textureType, extents, intendedFormatID, actualFormatID, samples,
                            usage, kVkImageCreateFlagsNone, ImageAccess::Undefined, nullptr,
                            firstLevel, mipLevels, layerCount, isRobustResourceInitEnabled,
                            hasProtectedContent, TileMemory::Prohibited, YcbcrConversionDesc{},
-                           nullptr));
+                           nullptr, ImageFormatReinterpretability::ColorspaceOverrides));
     if (rotatedAspectRatio)
     {
         std::swap(mExtents.width, mExtents.height);
@@ -5743,7 +5800,8 @@ angle::Result ImageHelper::initExternal(ErrorContext *context,
                                         bool hasProtectedContent,
                                         TileMemory tileMemoryPreference,
                                         YcbcrConversionDesc conversionDesc,
-                                        const void *compressionControl)
+                                        const void *compressionControl,
+                                        ImageFormatReinterpretability formatReinterpretability)
 {
     ASSERT(!valid());
     ASSERT(!IsAnySubresourceContentDefined(mVkImageContentDefined));
@@ -5773,34 +5831,43 @@ angle::Result ImageHelper::initExternal(ErrorContext *context,
     ASSERT(textureType != gl::TextureType::CubeMap || mLayerCount == gl::kCubeFaceCount);
     ASSERT(textureType != gl::TextureType::CubeMapArray || mLayerCount % gl::kCubeFaceCount == 0);
 
+    // It is invalid to pass in both compression control and external create info
+    ASSERT(compressionControl == nullptr || externalImageCreateInfo == nullptr);
+
     // If externalImageCreateInfo is provided, use that directly.  Otherwise derive the necessary
     // pNext chain.
-    const void *imageCreateInfoPNext = externalImageCreateInfo;
+    VkFormat actualVkFormat          = GetVkFormatFromFormatID(renderer, actualFormatID);
+    ImageFormats imageFormats        = {actualVkFormat};
+    const void *imageCreateInfoPNext = nullptr;
     VkImageFormatListCreateInfoKHR imageFormatListInfoStorage;
-    ImageListFormats imageListFormatsStorage;
-
     if (externalImageCreateInfo == nullptr)
     {
-        imageCreateInfoPNext = DeriveCreateInfoPNext(
-            context, usage, actualFormatID, compressionControl, &imageFormatListInfoStorage,
-            &imageListFormatsStorage, &mCreateFlags);
+        imageCreateInfoPNext = compressionControl;
+        ASSERT(GetImageFormatListCreateInfo(imageCreateInfoPNext) == nullptr);
+        imageCreateInfoPNext = DeriveCreateInfoPNext(context, actualFormatID, imageCreateInfoPNext,
+                                                     &imageFormatListInfoStorage, &imageFormats,
+                                                     formatReinterpretability, &mCreateFlags);
     }
     else
     {
+        imageCreateInfoPNext = externalImageCreateInfo;
+        // Derive image formats from external create info
+        DeriveImageViewFormatsFromExternalCreateInfo(externalImageCreateInfo, &imageFormats);
+
         // Derive the tiling for external images.
         deriveExternalImageTiling(externalImageCreateInfo);
     }
 
-    mYcbcrConversionDesc = conversionDesc;
+    // Cache image view formats
+    ASSERT(imageFormats.size() >= 1);
+    mViewFormats = imageFormats;
 
-    const angle::Format &actualFormat   = angle::Format::Get(actualFormatID);
-    VkFormat actualVkFormat             = GetVkFormatFromFormatID(renderer, actualFormatID);
-
+    const angle::Format &actualFormat = angle::Format::Get(actualFormatID);
     ANGLE_TRACE_EVENT_INSTANT(
         "gpu.angle.texture_metrics", "ImageHelper::initExternal", "intended_format",
         angle::Format::Get(intendedFormatID).glInternalFormat, "actual_format",
         actualFormat.glInternalFormat, "width", extents.width, "height", extents.height);
-
+    mYcbcrConversionDesc = conversionDesc;
     if (actualFormat.isYUV)
     {
         ASSERT(mYcbcrConversionDesc.valid());
@@ -5825,15 +5892,15 @@ angle::Result ImageHelper::initExternal(ErrorContext *context,
     VkSampleCountFlagBits sampleCountFlagBits =
         gl_vk::GetSamples(mSamples, context->getFeatures().limitSampleCountTo2.enabled);
 
-    VkImageCreateInfo imageInfo = {};
-    imageInfo.sType             = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageInfo.pNext             = imageCreateInfoPNext;
-    imageInfo.flags             = mCreateFlags;
-    imageInfo.imageType         = mImageType;
-    imageInfo.format            = actualVkFormat;
-    imageInfo.extent            = mExtents;
-    imageInfo.mipLevels         = mLevelCount;
-    imageInfo.arrayLayers       = mLayerCount;
+    VkImageCreateInfo imageInfo     = {};
+    imageInfo.sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.pNext                 = imageCreateInfoPNext;
+    imageInfo.flags                 = mCreateFlags;
+    imageInfo.imageType             = mImageType;
+    imageInfo.format                = actualVkFormat;
+    imageInfo.extent                = mExtents;
+    imageInfo.mipLevels             = mLevelCount;
+    imageInfo.arrayLayers           = mLayerCount;
     imageInfo.samples               = sampleCountFlagBits;
     imageInfo.tiling                = mTilingMode;
     imageInfo.usage                 = mRequestedUsage;
@@ -5882,9 +5949,6 @@ angle::Result ImageHelper::initExternal(ErrorContext *context,
 
     ANGLE_VK_TRY(context, mImage.init(context->getDevice(), imageInfo));
 
-    // Find the image formats in pNext chain in imageInfo.
-    deriveImageViewFormatFromCreateInfoPNext(imageInfo, mViewFormats);
-
     mVkImageCreateInfo               = imageInfo;
     mVkImageCreateInfo.pNext         = nullptr;
     mVkImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -5904,39 +5968,58 @@ angle::Result ImageHelper::initExternal(ErrorContext *context,
 // static
 const void *ImageHelper::DeriveCreateInfoPNext(
     ErrorContext *context,
-    VkImageUsageFlags usage,
     angle::FormatID actualFormatID,
     const void *pNext,
     VkImageFormatListCreateInfoKHR *imageFormatListInfoStorage,
-    std::array<VkFormat, kImageListFormatCount> *imageListFormatsStorage,
+    ImageFormats *imageFormats,
+    ImageFormatReinterpretability formatReinterpretability,
     VkImageCreateFlags *createFlagsOut)
 {
+    // Early-return if format reinterpretability was "None"
+    if (formatReinterpretability == ImageFormatReinterpretability::None)
+    {
+        return pNext;
+    }
+
+    // For full format reinterpretability just update the VkImage create flags and return
+    if (formatReinterpretability == ImageFormatReinterpretability::Full)
+    {
+        *createFlagsOut |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+        return pNext;
+    }
+
+    ASSERT(formatReinterpretability == ImageFormatReinterpretability::ColorspaceOverrides);
+
     // With the introduction of sRGB related GLES extensions any sample/render target could be
-    // respecified causing it to be interpreted in a different colorspace.  Create the VkImage
-    // accordingly.
+    // respecified causing it to be interpreted in a different colorspace.
     Renderer *renderer                = context->getRenderer();
     const angle::Format &actualFormat = angle::Format::Get(actualFormatID);
-    angle::FormatID additionalFormat =
+    angle::FormatID additionalFormatID =
         actualFormat.isSRGB ? ConvertToLinear(actualFormatID) : ConvertToSRGB(actualFormatID);
-    (*imageListFormatsStorage)[0] = vk::GetVkFormatFromFormatID(renderer, actualFormatID);
-    (*imageListFormatsStorage)[1] = vk::GetVkFormatFromFormatID(renderer, additionalFormat);
 
-    // Don't add the format list if the storage bit is enabled for the image; framebuffer
-    // compression is already disabled in that case, and GL allows many formats to alias
-    // the original format for storage images (more than ANGLE provides in the format list).
+    // Allow linear and sRGB variants if image format list is supported and format features match
     if (renderer->getFeatures().supportsImageFormatList.enabled &&
-        renderer->haveSameFormatFeatureBits(actualFormatID, additionalFormat) &&
-        (usage & VK_IMAGE_USAGE_STORAGE_BIT) == 0)
+        renderer->haveSameFormatFeatureBits(actualFormatID, additionalFormatID))
     {
-        // Add VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT to VkImage create flag
+        // Add the VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT to VkImage create flag
         *createFlagsOut |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
 
-        // There is just 1 additional format we might use to create a VkImageView for this
-        // VkImage
+        ASSERT(imageFormats);
+        imageFormats->clear();
+
+        // VkImageView can be created with either the linear or sRGB variant of the format
+        imageFormats->push_back(vk::GetVkFormatFromFormatID(renderer, actualFormatID));
+        imageFormats->push_back(vk::GetVkFormatFromFormatID(renderer, additionalFormatID));
+        // VUID-VkImageFormatListCreateInfo-viewFormatCount-09540
+        //    If viewFormatCount is not 0, each element of pViewFormats
+        //    must not be VK_FORMAT_UNDEFINED
+        ASSERT(imageFormats->at(0) != VK_FORMAT_UNDEFINED);
+        ASSERT(imageFormats->at(1) != VK_FORMAT_UNDEFINED);
+
         imageFormatListInfoStorage->sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO_KHR;
         imageFormatListInfoStorage->pNext = pNext;
-        imageFormatListInfoStorage->viewFormatCount = kImageListFormatCount;
-        imageFormatListInfoStorage->pViewFormats    = imageListFormatsStorage->data();
+        imageFormatListInfoStorage->viewFormatCount = kImageColorspaceOverrideFormatCount;
+        imageFormatListInfoStorage->pViewFormats    = imageFormats->data();
 
         pNext = imageFormatListInfoStorage;
     }
@@ -5978,42 +6061,6 @@ bool ImageHelper::FormatSupportsUsage(const Renderer *renderer,
                imageFormatProperties2.imageFormatProperties.sampleCounts > 1;
     }
     return result == VK_SUCCESS;
-}
-
-void ImageHelper::setImageFormatsFromActualFormat(VkFormat actualFormat,
-                                                  ImageFormats &imageFormatsOut)
-{
-    imageFormatsOut.push_back(actualFormat);
-}
-
-void ImageHelper::deriveImageViewFormatFromCreateInfoPNext(const VkImageCreateInfo &imageInfo,
-                                                           ImageFormats &formatOut)
-{
-    const VkBaseInStructure *pNextChain =
-        reinterpret_cast<const VkBaseInStructure *>(imageInfo.pNext);
-    while (pNextChain != nullptr &&
-           pNextChain->sType != VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO_KHR)
-    {
-        pNextChain = pNextChain->pNext;
-    }
-
-    // Clear formatOut in case it has leftovers from previous VkImage in the case of releaseImage
-    // followed by initExternal.
-    std::fill(formatOut.begin(), formatOut.begin() + formatOut.max_size(), VK_FORMAT_UNDEFINED);
-    if (pNextChain != nullptr)
-    {
-        const VkImageFormatListCreateInfoKHR *imageFormatCreateInfo =
-            reinterpret_cast<const VkImageFormatListCreateInfoKHR *>(pNextChain);
-
-        for (uint32_t i = 0; i < imageFormatCreateInfo->viewFormatCount; i++)
-        {
-            formatOut.push_back(*(imageFormatCreateInfo->pViewFormats + i));
-        }
-    }
-    else
-    {
-        setImageFormatsFromActualFormat(imageInfo.format, formatOut);
-    }
 }
 
 void ImageHelper::deriveExternalImageTiling(const void *createInfoChain)
@@ -6102,7 +6149,7 @@ void ImageHelper::finalizeImageLayoutInShareContexts(Renderer *renderer,
 
 void ImageHelper::releaseStagedUpdates(Renderer *renderer)
 {
-    ASSERT(validateSubresourceUpdateRefCountsConsistent());
+    assertSubresourceUpdateRefCountsConsistent();
 
     // Remove updates that never made it to the texture.
     for (SubresourceUpdates &levelUpdates : mSubresourceUpdates)
@@ -6114,7 +6161,7 @@ void ImageHelper::releaseStagedUpdates(Renderer *renderer)
         }
     }
 
-    ASSERT(validateSubresourceUpdateRefCountsConsistent());
+    assertSubresourceUpdateRefCountsConsistent();
 
     mSubresourceUpdates.clear();
     mTotalStagedBufferUpdateSize = 0;
@@ -6594,7 +6641,8 @@ angle::Result ImageHelper::initLayerImageViewImpl(ContextVk *contextVk,
     const angle::Format &angleFormat               = getActualFormat();
     GLenum glFormat                                = angleFormat.glInternalFormat;
     VkImageViewASTCDecodeModeEXT astcDecodeModeEXT = {};
-    if (astcDecodePrecision != GL_NONE && gl::IsASTC2DFormat(glFormat))
+    if (astcDecodePrecision != GL_NONE &&
+        (gl::IsASTC2DFormat(glFormat) || gl::IsASTC3DFormat(glFormat)))
     {
         astcDecodeModeEXT.sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_ASTC_DECODE_MODE_EXT;
         astcDecodeModeEXT.pNext      = nullptr;
@@ -6691,7 +6739,8 @@ void ImageHelper::init2DWeakReference(ErrorContext *context,
                                       VkImageCreateFlags createFlags,
                                       VkImageUsageFlags usage,
                                       GLint samples,
-                                      bool isRobustResourceInitEnabled)
+                                      bool isRobustResourceInitEnabled,
+                                      const ImageFormats &imageFormats)
 {
     ASSERT(!valid());
     ASSERT(!IsAnySubresourceContentDefined(mVkImageContentDefined));
@@ -6713,11 +6762,8 @@ void ImageHelper::init2DWeakReference(ErrorContext *context,
     mLayerCount              = 1;
     mLevelCount              = 1;
 
-    // The view formats and usage flags are used for imageless framebuffers. Here, the former is set
-    // similar to deriveImageViewFormatFromCreateInfoPNext() when there is no pNext from a
-    // VkImageCreateInfo object.
-    setImageFormatsFromActualFormat(GetVkFormatFromFormatID(renderer, actualFormatID),
-                                    mViewFormats);
+    // The view formats and usage flags are used for imageless framebuffers.
+    mViewFormats = imageFormats;
 
     mImage.setHandle(handle);
     // Even though we did not use mVkImageCreateInfo to create mImage, mVkImageCreateInfo.usage  is
@@ -6864,7 +6910,7 @@ angle::Result ImageHelper::initImplicitMultisampledRenderToTexture(
                            ImageAccess::Undefined, nullptr, resolveImage.getFirstAllocatedLevel(),
                            kLevelCount, resolveImage.getLayerCount(), isRobustResourceInitEnabled,
                            hasProtectedContent, TileMemory::Prohibited, YcbcrConversionDesc{},
-                           nullptr));
+                           nullptr, ImageFormatReinterpretability::ColorspaceOverrides));
 
     // Remove the emulated format clear from the multisampled image if any.  There is one already
     // staged on the resolve image if needed.
@@ -6903,11 +6949,12 @@ angle::Result ImageHelper::initRgbDrawImageForYuvResolve(ErrorContext *context,
         (resolveImage.getCreateFlags() & VK_IMAGE_CREATE_PROTECTED_BIT) != 0;
     const VkImageCreateFlags createFlags = hasProtectedContent ? VK_IMAGE_CREATE_PROTECTED_BIT : 0;
 
-    ANGLE_TRY(initExternal(
-        context, gl::TextureType::_2D, resolveImage.getExtents(), formatID, formatID, 1, usageFlags,
-        createFlags, ImageAccess::Undefined, nullptr, resolveImage.getFirstAllocatedLevel(),
-        resolveImage.getLevelCount(), resolveImage.getLayerCount(), isRobustResourceInitEnabled,
-        hasProtectedContent, TileMemory::Prohibited, YcbcrConversionDesc{}, nullptr));
+    ANGLE_TRY(initExternal(context, gl::TextureType::_2D, resolveImage.getExtents(), formatID,
+                           formatID, 1, usageFlags, createFlags, ImageAccess::Undefined, nullptr,
+                           resolveImage.getFirstAllocatedLevel(), resolveImage.getLevelCount(),
+                           resolveImage.getLayerCount(), isRobustResourceInitEnabled,
+                           hasProtectedContent, TileMemory::Prohibited, YcbcrConversionDesc{},
+                           nullptr, ImageFormatReinterpretability::None));
 
     ASSERT(!hasEmulatedImageChannels());
 
@@ -8195,6 +8242,27 @@ angle::Result ImageHelper::generateMipmapsWithBlit(ContextVk *contextVk,
     return angle::Result::Continue;
 }
 
+void ImageHelper::copy(Renderer *renderer,
+                       ImageHelper *dst,
+                       const VkImageCopy &region,
+                       OutsideRenderPassCommandBuffer *commandBuffer)
+{
+    ASSERT(mCurrentAccess == ImageAccess::TransferSrc ||
+           mCurrentAccess == ImageAccess::SharedPresent);
+    ASSERT(dst->getCurrentImageAccess() == ImageAccess::TransferDst ||
+           dst->getCurrentImageAccess() == ImageAccess::SharedPresent);
+    // Source image must be up-to-date.
+    ASSERT(verifyNoStagedUpdates());
+    // Dest image might have clears staged due to robustness or format emulation, which can be
+    // dropped.  Note that this function is only used with swapchain images, so there is no need to
+    // be specific about which subresource updates to drop.
+    ASSERT(dst->getLevelCount() == 1 && dst->getLayerCount() == 1);
+    ASSERT(dst->verifyNoStagedUpdates() || dst->areStagedUpdatesClearOnly());
+    dst->mSubresourceUpdates.clear();
+    commandBuffer->copyImage(getImage(), getCurrentLayout(renderer), dst->getImage(),
+                             dst->getCurrentLayout(renderer), 1, &region);
+}
+
 void ImageHelper::resolve(Renderer *renderer,
                           ImageHelper *dst,
                           const VkImageResolve &region,
@@ -8273,7 +8341,7 @@ void ImageHelper::removeStagedUpdates(ErrorContext *context,
                                       gl::LevelIndex levelGLStart,
                                       gl::LevelIndex levelGLEnd)
 {
-    ASSERT(validateSubresourceUpdateRefCountsConsistent());
+    assertSubresourceUpdateRefCountsConsistent();
 
     // Remove all updates to levels [start, end].
     for (gl::LevelIndex level = levelGLStart; level <= levelGLEnd; ++level)
@@ -8297,7 +8365,7 @@ void ImageHelper::removeStagedUpdates(ErrorContext *context,
         levelUpdates->clear();
     }
 
-    ASSERT(validateSubresourceUpdateRefCountsConsistent());
+    assertSubresourceUpdateRefCountsConsistent();
 }
 
 angle::Result ImageHelper::stageSubresourceUpdateImpl(ContextVk *contextVk,
@@ -8776,11 +8844,11 @@ angle::Result ImageHelper::reformatStagedBufferUpdates(ContextVk *contextVk,
                 const VkBufferImageCopy &copy = update.data.buffer.copyRegion;
 
                 // Source and dst data are tightly packed
-                GLuint srcDataRowPitch = copy.imageExtent.width * srcFormat.pixelBytes;
-                GLuint dstDataRowPitch = copy.imageExtent.width * dstFormat.pixelBytes;
+                const size_t srcDataRowPitch = copy.imageExtent.width * srcFormat.pixelBytes;
+                const size_t dstDataRowPitch = copy.imageExtent.width * dstFormat.pixelBytes;
 
-                GLuint srcDataDepthPitch = srcDataRowPitch * copy.imageExtent.height;
-                GLuint dstDataDepthPitch = dstDataRowPitch * copy.imageExtent.height;
+                const size_t srcDataDepthPitch = srcDataRowPitch * copy.imageExtent.height;
+                const size_t dstDataDepthPitch = dstDataRowPitch * copy.imageExtent.height;
 
                 // Retrieve source buffer
                 vk::BufferHelper *srcBuffer = update.data.buffer.bufferHelper;
@@ -8823,8 +8891,7 @@ angle::Result ImageHelper::reformatStagedBufferUpdates(ContextVk *contextVk,
                 // Let update structure owns the staging buffer
                 if (update.refCounted.buffer)
                 {
-                    update.refCounted.buffer->releaseRef();
-                    if (!update.refCounted.buffer->isReferenced())
+                    if (update.refCounted.buffer->getAndReleaseRef() == 1)
                     {
                         update.refCounted.buffer->get().release(contextVk);
                         SafeDelete(update.refCounted.buffer);
@@ -9362,8 +9429,9 @@ angle::Result ImageHelper::stageSubresourceUpdateFromFramebuffer(
     {
         // When a conversion is required, we need to use the loadFunction to read from a temporary
         // buffer instead so its an even slower path.
-        size_t bufferSize =
-            storageFormat.pixelBytes * clippedRectangle.width * clippedRectangle.height;
+        const size_t bufferSize = static_cast<size_t>(clippedRectangle.width) *
+                                  static_cast<size_t>(clippedRectangle.height) *
+                                  storageFormat.pixelBytes;
         angle::MemoryBuffer *memoryBuffer = nullptr;
         ANGLE_VK_CHECK_ALLOC(contextVk, context->getScratchBuffer(bufferSize, &memoryBuffer));
 
@@ -9471,10 +9539,9 @@ void ImageHelper::stageClear(const gl::ImageIndex &index,
     appendSubresourceUpdate(updateLevelGL, SubresourceUpdate(aspectFlags, clearValue, index));
 }
 
-void ImageHelper::stageRobustResourceClear(const gl::ImageIndex &index)
+void ImageHelper::stageRobustResourceClear(const gl::ImageIndex &index,
+                                           const VkImageAspectFlags aspectFlags)
 {
-    const VkImageAspectFlags aspectFlags = getAspectFlags();
-
     ASSERT(mActualFormatID != angle::FormatID::NONE);
     VkClearValue clearValue = GetRobustResourceClearValue(getIntendedFormat(), getActualFormat());
 
@@ -9506,9 +9573,19 @@ angle::Result ImageHelper::stageResourceClearWithFormat(ContextVk *contextVk,
 
         const gl::InternalFormat &formatInfo =
             gl::GetSizedInternalFormatInfo(imageFormat.glInternalFormat);
+
+        // For the array compressed textures (e.g., 2D array), the depth is set to 1. This should be
+        // taken into account when calculating the required buffer size for the copy.
+        gl::Extents glExtentForSizeComputation = glExtents;
+        if (gl::IsArrayTextureType(index.getType()))
+        {
+            ASSERT(glExtentForSizeComputation.depth == 1);
+            glExtentForSizeComputation.depth = index.getLayerCount();
+        }
+
         GLuint totalSize;
-        ANGLE_VK_CHECK_MATH(contextVk,
-                            formatInfo.computeCompressedImageSize(glExtents, &totalSize));
+        ANGLE_VK_CHECK_MATH(contextVk, formatInfo.computeCompressedImageSize(
+                                           glExtentForSizeComputation, &totalSize));
 
         std::unique_ptr<RefCounted<BufferHelper>> stagingBuffer =
             std::make_unique<RefCounted<BufferHelper>>();
@@ -9623,6 +9700,18 @@ void ImageHelper::stageClearIfEmulatedFormat(bool isRobustResourceInitEnabled, b
                                      SubresourceUpdate(aspectFlags, clearValue, index));
         }
     }
+}
+
+bool ImageHelper::verifyNoStagedUpdates() const
+{
+    for (const SubresourceUpdates &updates : mSubresourceUpdates)
+    {
+        if (!updates.empty())
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool ImageHelper::verifyEmulatedClearsAreBeforeOtherUpdates(const SubresourceUpdates &updates)
@@ -9977,8 +10066,11 @@ angle::Result ImageHelper::flushStagedUpdatesImpl(ContextVk *contextVk,
                    (update.updateSource == UpdateSource::Buffer &&
                     update.data.buffer.bufferHelper != nullptr) ||
                    (update.updateSource == UpdateSource::Image &&
-                    update.refCounted.image != nullptr && update.refCounted.image->isReferenced() &&
-                    update.refCounted.image->get().valid()));
+                    update.refCounted.image != nullptr && update.refCounted.image->get().valid()));
+            if (update.updateSource == UpdateSource::Image)
+            {
+                update.refCounted.image->assertIsReferenced();
+            }
 
             uint32_t updateBaseLayer, updateLayerCount;
             update.getDestSubresource(mLayerCount, &updateBaseLayer, &updateLayerCount);
@@ -10272,7 +10364,7 @@ angle::Result ImageHelper::flushStagedUpdates(ContextVk *contextVk,
         }
     }
 
-    ASSERT(validateSubresourceUpdateRefCountsConsistent());
+    assertSubresourceUpdateRefCountsConsistent();
 
     // Process the clear emulated channels from the updates first. They are expected to be at the
     // beginning of the level updates.
@@ -10301,7 +10393,7 @@ angle::Result ImageHelper::flushStagedUpdates(ContextVk *contextVk,
     }
     mSubresourceUpdates.resize(compactSize);
 
-    ASSERT(validateSubresourceUpdateRefCountsConsistent());
+    assertSubresourceUpdateRefCountsConsistent();
 
     // If no updates left, release the staging buffers to save memory.
     if (mSubresourceUpdates.empty())
@@ -10482,12 +10574,12 @@ bool ImageHelper::hasBufferSourcedStagedUpdatesInAllLevels() const
     return true;
 }
 
-bool ImageHelper::validateSubresourceUpdateBufferRefConsistent(
+void ImageHelper::assertSubresourceUpdateBufferRefConsistentImpl(
     RefCounted<BufferHelper> *buffer) const
 {
     if (buffer == nullptr)
     {
-        return true;
+        return;
     }
 
     uint32_t refs = 0;
@@ -10503,14 +10595,15 @@ bool ImageHelper::validateSubresourceUpdateBufferRefConsistent(
         }
     }
 
-    return buffer->isRefCountAsExpected(refs);
+    buffer->assertIsRefCountAsExpected(refs);
 }
 
-bool ImageHelper::validateSubresourceUpdateImageRefConsistent(RefCounted<ImageHelper> *image) const
+void ImageHelper::assertSubresourceUpdateImageRefConsistentImpl(
+    RefCounted<ImageHelper> *image) const
 {
     if (image == nullptr)
     {
-        return true;
+        return;
     }
 
     uint32_t refs = 0;
@@ -10526,10 +10619,10 @@ bool ImageHelper::validateSubresourceUpdateImageRefConsistent(RefCounted<ImageHe
         }
     }
 
-    return image->isRefCountAsExpected(refs);
+    image->assertIsRefCountAsExpected(refs);
 }
 
-bool ImageHelper::validateSubresourceUpdateRefCountsConsistent() const
+void ImageHelper::assertSubresourceUpdateRefCountsConsistentImpl() const
 {
     for (const SubresourceUpdates &levelUpdates : mSubresourceUpdates)
     {
@@ -10537,22 +10630,14 @@ bool ImageHelper::validateSubresourceUpdateRefCountsConsistent() const
         {
             if (update.updateSource == UpdateSource::Image)
             {
-                if (!validateSubresourceUpdateImageRefConsistent(update.refCounted.image))
-                {
-                    return false;
-                }
+                assertSubresourceUpdateImageRefConsistentImpl(update.refCounted.image);
             }
             else if (update.updateSource == UpdateSource::Buffer)
             {
-                if (!validateSubresourceUpdateBufferRefConsistent(update.refCounted.buffer))
-                {
-                    return false;
-                }
+                assertSubresourceUpdateBufferRefConsistentImpl(update.refCounted.buffer);
             }
         }
     }
-
-    return true;
 }
 
 void ImageHelper::pruneSupersededUpdatesForLevel(ContextVk *contextVk,
@@ -10686,13 +10771,13 @@ void ImageHelper::pruneSupersededUpdatesForLevelImpl(ContextVk *contextVk,
     // Update total staging buffer size
     mTotalStagedBufferUpdateSize -= supersededUpdateSize;
 
-    ASSERT(validateSubresourceUpdateRefCountsConsistent());
+    assertSubresourceUpdateRefCountsConsistent();
 }
 
 void ImageHelper::removeSupersededUpdates(ContextVk *contextVk,
                                           const gl::TexLevelMask skipLevelsAllFaces)
 {
-    ASSERT(validateSubresourceUpdateRefCountsConsistent());
+    assertSubresourceUpdateRefCountsConsistent();
 
     for (LevelIndex levelVk(0); levelVk < LevelIndex(mLevelCount); ++levelVk)
     {
@@ -10726,9 +10811,10 @@ angle::Result ImageHelper::copyImageDataToBuffer(ContextVk *contextVk,
     // used in this function to be of some combined depth and stencil format.
     ASSERT(getAspectFlags() == VK_IMAGE_ASPECT_COLOR_BIT);
 
-    uint32_t pixelBytes = imageFormat.pixelBytes;
-    size_t bufferSize =
-        sourceArea.width * sourceArea.height * sourceArea.depth * pixelBytes * layerCount;
+    size_t pixelBytes = imageFormat.pixelBytes;
+    size_t bufferSize = static_cast<size_t>(sourceArea.width) *
+                        static_cast<size_t>(sourceArea.height) *
+                        static_cast<size_t>(sourceArea.depth) * pixelBytes * layerCount;
 
     const VkImageAspectFlags aspectFlags = getAspectFlags();
 
@@ -11168,33 +11254,38 @@ angle::Result ImageHelper::readPixels(ContextVk *contextVk,
         ASSERT(depthOffset > 0 || stencilOffset > 0);
         ASSERT(depthOffset + depthFormat.depthBits / 8 <= readFormat.pixelBytes);
         ASSERT(stencilOffset + stencilFormat.stencilBits / 8 <= readFormat.pixelBytes);
+        const size_t areaWidth  = static_cast<size_t>(area.width);
+        const size_t areaHeight = static_cast<size_t>(area.height);
 
         // Read the depth values, tightly-packed
         angle::MemoryBuffer depthBuffer;
-        ANGLE_VK_CHECK_ALLOC(contextVk,
-                             depthBuffer.resize(depthFormat.pixelBytes * area.width * area.height));
-        ANGLE_TRY(
-            readPixelsImpl(contextVk, area,
-                           PackPixelsParams(area, depthFormat, depthFormat.pixelBytes * area.width,
-                                            false, nullptr, 0),
-                           VK_IMAGE_ASPECT_DEPTH_BIT, levelGL, layer, depthBuffer.data()));
+        const size_t outputDepthPitch = areaWidth * depthFormat.pixelBytes;
+        const size_t depthBufferSize  = outputDepthPitch * areaHeight;
+        ANGLE_VK_CHECK_ALLOC(contextVk, depthBuffer.resize(depthBufferSize));
+        ANGLE_TRY(readPixelsImpl(
+            contextVk, area,
+            PackPixelsParams(area, depthFormat, static_cast<GLuint>(outputDepthPitch), false,
+                             nullptr, 0),
+            VK_IMAGE_ASPECT_DEPTH_BIT, levelGL, layer, depthBuffer.data()));
 
         // Read the stencil values, tightly-packed
         angle::MemoryBuffer stencilBuffer;
-        ANGLE_VK_CHECK_ALLOC(
-            contextVk, stencilBuffer.resize(stencilFormat.pixelBytes * area.width * area.height));
+        const size_t outputStencilPitch = areaWidth * stencilFormat.pixelBytes;
+        const size_t stencilBufferSize  = outputStencilPitch * areaHeight;
+        ANGLE_VK_CHECK_ALLOC(contextVk, stencilBuffer.resize(stencilBufferSize));
         ANGLE_TRY(readPixelsImpl(
             contextVk, area,
-            PackPixelsParams(area, stencilFormat, stencilFormat.pixelBytes * area.width, false,
+            PackPixelsParams(area, stencilFormat, static_cast<GLuint>(outputStencilPitch), false,
                              nullptr, 0),
             VK_IMAGE_ASPECT_STENCIL_BIT, levelGL, layer, stencilBuffer.data()));
 
         // Interleave them together
         angle::MemoryBuffer readPixelBuffer;
-        ANGLE_VK_CHECK_ALLOC(
-            contextVk, readPixelBuffer.resize(readFormat.pixelBytes * area.width * area.height));
+        const size_t readPixelArea       = areaWidth * areaHeight;
+        const size_t readPixelBufferSize = readPixelArea * readFormat.pixelBytes;
+        ANGLE_VK_CHECK_ALLOC(contextVk, readPixelBuffer.resize(readPixelBufferSize));
         readPixelBuffer.fill(0);
-        for (int i = 0; i < area.width * area.height; i++)
+        for (size_t i = 0; i < readPixelArea; i++)
         {
             uint8_t *readPixel = readPixelBuffer.data() + i * readFormat.pixelBytes;
             memcpy(readPixel + depthOffset, depthBuffer.data() + i * depthFormat.pixelBytes,
@@ -11714,9 +11805,7 @@ void ImageHelper::SubresourceUpdate::release(Renderer *renderer)
 {
     if (updateSource == UpdateSource::Image)
     {
-        refCounted.image->releaseRef();
-
-        if (!refCounted.image->isReferenced())
+        if (refCounted.image->getAndReleaseRef() == 1)
         {
             // Staging images won't be used in render pass attachments.
             refCounted.image->get().releaseImage(renderer);
@@ -11728,9 +11817,7 @@ void ImageHelper::SubresourceUpdate::release(Renderer *renderer)
     }
     else if (updateSource == UpdateSource::Buffer && refCounted.buffer != nullptr)
     {
-        refCounted.buffer->releaseRef();
-
-        if (!refCounted.buffer->isReferenced())
+        if (refCounted.buffer->getAndReleaseRef() == 1)
         {
             refCounted.buffer->get().release(renderer);
             SafeDelete(refCounted.buffer);
@@ -12059,8 +12146,20 @@ void ImageViewHelper::release(Renderer *renderer, const ResourceUse &use)
     ReleaseSubresourceImageViews(&mSubresourceStencilOnlyImageViews, &garbage);
 
     // Release the storage views
-    ReleaseImageViews(&mLevelStorageImageViews, &garbage);
-    ReleaseLayerLevelImageViews(&mLayerLevelStorageImageViews, &garbage);
+    for (auto &iter : mLevelStorageImageViews)
+    {
+        std::unique_ptr<ImageViewVector> &imageViewVector = iter.second;
+        ReleaseImageViews(imageViewVector.get(), &garbage);
+        imageViewVector.reset();
+    }
+    mLevelStorageImageViews.clear();
+    for (auto &iter : mLayerLevelStorageImageViews)
+    {
+        std::unique_ptr<LayerLevelImageViewVector> &layerLevelImageViewVector = iter.second;
+        ReleaseLayerLevelImageViews(layerLevelImageViewVector.get(), &garbage);
+        layerLevelImageViewVector.reset();
+    }
+    mLayerLevelStorageImageViews.clear();
 
     // Release fragment shading rate view
     if (mFragmentShadingRateImageView.valid())
@@ -12119,8 +12218,20 @@ void ImageViewHelper::destroy(VkDevice device)
     DestroySubresourceImageViews(&mSubresourceStencilOnlyImageViews, device);
 
     // Release the storage views
-    DestroyImageViews(&mLevelStorageImageViews, device);
-    DestroyLayerLevelImageViews(&mLayerLevelStorageImageViews, device);
+    for (auto &iter : mLevelStorageImageViews)
+    {
+        std::unique_ptr<ImageViewVector> &imageViewVector = iter.second;
+        DestroyImageViews(imageViewVector.get(), device);
+        imageViewVector.reset();
+    }
+    mLevelStorageImageViews.clear();
+    for (auto &iter : mLayerLevelStorageImageViews)
+    {
+        std::unique_ptr<LayerLevelImageViewVector> &layerLevelImageViewVector = iter.second;
+        DestroyLayerLevelImageViews(layerLevelImageViewVector.get(), device);
+        layerLevelImageViewVector.reset();
+    }
+    mLayerLevelStorageImageViews.clear();
 
     // Destroy fragment shading rate view
     mFragmentShadingRateImageView.destroy(device);
@@ -12354,8 +12465,17 @@ angle::Result ImageViewHelper::getLevelStorageImageView(ContextVk *contextVk,
 {
     ASSERT(mImageViewSerial.valid());
 
+    if (!mLevelStorageImageViews.contains(formatID))
+    {
+        mLevelStorageImageViews[formatID] = std::make_unique<ImageViewVector>();
+    }
+    ASSERT(mLevelStorageImageViews.contains(formatID));
+
+    ImageViewVector *levelStorageImageViews = mLevelStorageImageViews[formatID].get();
+    ASSERT(levelStorageImageViews);
+
     ImageView *imageView =
-        GetLevelImageView(&mLevelStorageImageViews, levelVk, image.getLevelCount());
+        GetLevelImageView(levelStorageImageViews, levelVk, image.getLevelCount());
 
     *imageViewOut = imageView;
     if (imageView->valid())
@@ -12381,8 +12501,18 @@ angle::Result ImageViewHelper::getLevelLayerStorageImageView(ContextVk *contextV
     ASSERT(mImageViewSerial.valid());
     ASSERT(!image.getActualFormat().isBlock);
 
+    if (!mLayerLevelStorageImageViews.contains(formatID))
+    {
+        mLayerLevelStorageImageViews[formatID] = std::make_unique<LayerLevelImageViewVector>();
+    }
+    ASSERT(mLayerLevelStorageImageViews.contains(formatID));
+
+    LayerLevelImageViewVector *layerLevelStorageImageViews =
+        mLayerLevelStorageImageViews[formatID].get();
+    ASSERT(layerLevelStorageImageViews);
+
     ImageView *imageView =
-        GetLevelLayerImageView(&mLayerLevelStorageImageViews, levelVk, layer, image.getLevelCount(),
+        GetLevelLayerImageView(layerLevelStorageImageViews, levelVk, layer, image.getLevelCount(),
                                GetImageLayerCountForView(image));
     *imageViewOut = imageView;
 

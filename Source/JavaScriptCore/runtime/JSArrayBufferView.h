@@ -349,9 +349,11 @@ public:
     static constexpr ptrdiff_t offsetOfLength() { return OBJECT_OFFSETOF(JSArrayBufferView, m_length); }
     static constexpr ptrdiff_t offsetOfByteOffset() { return OBJECT_OFFSETOF(JSArrayBufferView, m_byteOffset); }
     static constexpr ptrdiff_t offsetOfMode() { return OBJECT_OFFSETOF(JSArrayBufferView, m_mode); }
-    
+
     static inline RefPtr<ArrayBufferView> toWrapped(VM&, JSValue);
+    static inline RefPtr<ArrayBufferView> toWrappedAllowResizable(VM&, JSValue);
     static inline RefPtr<ArrayBufferView> toWrappedAllowShared(VM&, JSValue);
+    static inline RefPtr<ArrayBufferView> toWrappedAllowSharedAndResizable(VM&, JSValue);
 
     bool isIteratorProtocolFastAndNonObservable();
 

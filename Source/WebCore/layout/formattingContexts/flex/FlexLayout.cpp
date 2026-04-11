@@ -246,7 +246,7 @@ FlexLayout::LineRanges FlexLayout::computeFlexLines(const LogicalFlexItems& flex
 FlexLayout::SizeList FlexLayout::computeMainSizeForFlexItems(const LogicalFlexItems& flexItems, const LineRanges& lineRanges, LayoutUnit flexContainerInnerMainSize, const FlexBaseAndHypotheticalMainSizeList& flexBaseAndHypotheticalMainSizeList) const
 {
     SizeList mainSizeList(flexItems.size());
-    Vector<bool> isInflexibleItemList(flexItems.size(), false);
+    Vector<bool> isInflexibleItemList(FillWith { }, flexItems.size(), false);
 
     for (size_t lineIndex = 0; lineIndex < lineRanges.size(); ++lineIndex) {
         auto lineRange = lineRanges[lineIndex];

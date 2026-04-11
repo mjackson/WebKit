@@ -32,9 +32,11 @@
 #include "Chrome.h"
 #include "ChromeClient.h"
 #include "Document.h"
+#include "DocumentPage.h"
 #include "DocumentView.h"
 #include "ElementInlines.h"
 #include "EventNames.h"
+#include "FrameDestructionObserverInlines.h"
 #include "HTMLImageLoader.h"
 #include "HTMLNames.h"
 #include "ImageBuffer.h"
@@ -77,7 +79,7 @@ do { \
         if (logger().hasEnabledInspector()) { \
             std::array<char, 1024> buffer { }; \
             SAFE_SPRINTF(std::span { buffer }, MESSAGE_HTMLVideoElement##formatString, logIdentifier(), ##__VA_ARGS__); \
-            logger().toObservers(logChannel(), WTFLogLevel::Always, String::fromUTF8(buffer.data())); \
+            logger().toObservers(logChannel(), WTFLogLevel::Always, { }, String::fromUTF8(buffer.data())); \
         } \
     } \
 } while (0)
@@ -316,7 +318,7 @@ bool HTMLVideoElement::isURLAttribute(const Attribute& attribute) const
     return attribute.name() == posterAttr || HTMLMediaElement::isURLAttribute(attribute);
 }
 
-const AtomString& HTMLVideoElement::imageSourceURL() const
+String HTMLVideoElement::imageSourceURL() const
 {
     const auto& url = attributeWithoutSynchronization(posterAttr);
     if (!StringView(url).containsOnly<isASCIIWhitespace<char16_t>>())
@@ -515,7 +517,7 @@ unsigned HTMLVideoElement::webkitDroppedFrameCount() const
 
 URL HTMLVideoElement::posterImageURL() const
 {
-    auto url = imageSourceURL().string().trim(isASCIIWhitespace);
+    auto url = imageSourceURL().trim(isASCIIWhitespace);
     if (url.isEmpty())
         return URL();
     return protect(document())->completeURL(url);
@@ -801,6 +803,14 @@ void HTMLVideoElement::serviceRequestVideoFrameCallbacks(ReducedResolutionSecond
 
     auto videoFrameMetadata = player()->videoFrameMetadata();
     if (!videoFrameMetadata || !document().window())
+        return;
+
+    RefPtr frame = document().frame();
+    if (!frame)
+        return;
+
+    CheckedRef script = frame->script();
+    if (!script->canExecuteScripts(ReasonForCallingCanExecuteScripts::AboutToExecuteScript) || script->isPaused())
         return;
 
     processVideoFrameMetadataTimestamps(*videoFrameMetadata, protect(document().window()->performance()));

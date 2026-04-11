@@ -22,6 +22,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/list-box-important-colors-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/list-box-important-colors-ref.html
 /LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/list-box-important-colors.html
+/LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/option-selectedness-script-mutation.html
 /LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/reset-algorithm-rendering-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/reset-algorithm-rendering-ref.html
 /LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/reset-algorithm-rendering.html
@@ -32,6 +33,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/select-ask-for-reset.html
 /LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/select-attribute-crash.html
 /LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/select-clear-reappend.tentative.html
+/LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/select-click-does-not-open-picker.html
 /LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/select-hr-listbox-expected-mismatch.html
 /LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/select-hr-listbox-notref.html
 /LayoutTests/imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/select-hr-listbox.html

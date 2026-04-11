@@ -224,16 +224,29 @@ void FindController::updateMatchIndex(unsigned matchCount, OptionSet<FindOptions
 {
     if (!options.contains(FindOptions::DetermineMatchIndex))
         return;
+    if (options.contains(FindOptions::NoIndexChange))
+        return;
 
     if (matchCount == static_cast<unsigned>(kWKMoreThanMaximumMatchCount)) {
         m_foundStringMatchIndex = std::nullopt;
         return;
     }
 
-    if (!m_foundStringMatchIndex)
-        m_foundStringMatchIndex = matchCount;
-    else if (*m_foundStringMatchIndex >= matchCount)
-        *m_foundStringMatchIndex -= matchCount;
+    if (!m_foundStringMatchIndex) {
+        m_foundStringMatchIndex = 0;
+        return;
+    }
+
+    if (options.contains(FindOptions::Backwards)) {
+        if (!*m_foundStringMatchIndex)
+            m_foundStringMatchIndex = matchCount - 1;
+        else
+            (*m_foundStringMatchIndex)--;
+    } else {
+        (*m_foundStringMatchIndex)++;
+        if (*m_foundStringMatchIndex >= matchCount)
+            *m_foundStringMatchIndex %= matchCount;
+    }
 }
 
 void FindController::updateFindUIAfterFindingAllMatches(bool found, const String& string, OptionSet<FindOptions> options, unsigned maxMatchCount)
@@ -327,7 +340,6 @@ void FindController::findString(const String& string, OptionSet<FindOptions> opt
 
     protect(protect(m_webPage.get())->corePage())->removeAllActiveTextMatches();
 
-    bool foundStringStartsAfterSelection = false;
     RefPtr webPage { m_webPage.get() };
 #if ENABLE(PDF_PLUGIN)
     if (!pluginView)
@@ -337,7 +349,7 @@ void FindController::findString(const String& string, OptionSet<FindOptions> opt
             if (protect(selectedFrame->selection())->selectionBounds().isEmpty()) {
                 auto result = protect(webPage->corePage())->findTextMatches(string, coreOptions, maxMatchCount);
                 m_foundStringMatchIndex = result.indexForSelection;
-                foundStringStartsAfterSelection = true;
+                options.add(FindOptions::NoIndexChange);
             }
         }
     }
@@ -365,16 +377,6 @@ void FindController::findString(const String& string, OptionSet<FindOptions> opt
         if (selectedFrame) {
             if (std::optional<SimpleRange> range = selectedFrame->selection().selection().range())
                 addMarker(*range, DocumentMarkerType::ActiveTextMatch);
-        }
-
-        if (!foundStringStartsAfterSelection && options.contains(FindOptions::DetermineMatchIndex)) {
-            if (m_foundStringMatchIndex) {
-                if (options.contains(FindOptions::Backwards))
-                    (*m_foundStringMatchIndex)--;
-                else if (!options.contains(FindOptions::NoIndexChange))
-                    (*m_foundStringMatchIndex)++;
-            } else
-                m_foundStringMatchIndex = 0;
         }
     }
 

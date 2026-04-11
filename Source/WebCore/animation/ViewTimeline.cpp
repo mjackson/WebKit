@@ -40,7 +40,7 @@
 #include "RenderSVGModelObject.h"
 #include "ScrollAnchoringController.h"
 #include "ScrollingConstraints.h"
-#include "StylableInlines.h"
+#include "StyleableInlines.h"
 #include "StyleLengthWrapper+DeprecatedCSSValueConversion.h"
 #include "StylePrimitiveKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
@@ -319,7 +319,7 @@ void ViewTimeline::cacheCurrentTime()
 
         // https://drafts.csswg.org/scroll-animations-1/#view-timelines-ranges
         // Transforms and sticky position offsets are ignored, but relative and absolute positioning are accounted for.
-        OptionSet<MapCoordinatesMode> options { IgnoreStickyOffsets };
+        OptionSet<MapCoordinatesMode> options { MapCoordinatesMode::IgnoreStickyOffsets };
         auto subjectOffsetFromSource = subjectRenderer->localToContainerPoint(pointForLocalToContainer(*sourceScrollableArea), sourceRenderer.get(), options);
         float subjectOffset = scrollDirection.isVertical ? subjectOffsetFromSource.y() : subjectOffsetFromSource.x();
 

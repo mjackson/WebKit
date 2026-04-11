@@ -30,6 +30,7 @@
 #include "LocalFrame.h"
 #include "ScriptController.h"
 #include "Settings.h"
+#include "FrameDestructionObserverInlines.h"
 
 namespace WebCore {
 

@@ -51,6 +51,8 @@ class RealtimeMediaSource;
 class RealtimeOutgoingAudioSource;
 class RealtimeOutgoingVideoSource;
 
+struct LibWebRTCRtpReceiverBackendAndSource;
+
 class LibWebRTCPeerConnectionBackend final : public PeerConnectionBackend {
     WTF_MAKE_TZONE_ALLOCATED(LibWebRTCPeerConnectionBackend);
 public:
@@ -108,7 +110,7 @@ private:
     template<typename T>
     ExceptionOr<Ref<RTCRtpTransceiver>> addTransceiverFromTrackOrKind(T&& trackOrKind, const RTCRtpTransceiverInit&, IgnoreNegotiationNeededFlag = IgnoreNegotiationNeededFlag::No);
 
-    Ref<RTCRtpReceiver> createReceiver(UniqueRef<LibWebRTCRtpReceiverBackend>&&);
+    Ref<RTCRtpReceiver> createReceiver(LibWebRTCRtpReceiverBackendAndSource&&);
 
     void suspend() final;
     void resume() final;

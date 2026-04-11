@@ -62,6 +62,7 @@
 #include <libintl.h>
 #include <memory>
 #include <pal/HysteresisActivity.h>
+#include <wtf/Borrow.h>
 #include <wtf/DateMath.h>
 #include <wtf/FileSystem.h>
 #include <wtf/HashMap.h>
@@ -1938,7 +1939,7 @@ void webkit_web_context_send_message_to_all_extensions(WebKitWebContext* context
 
     // We sink the reference in case of being floating.
     GRefPtr<WebKitUserMessage> adoptedMessage = message;
-    for (Ref process : context->priv->processPool->processes())
+    for (Ref process : borrow(context->priv->processPool->processes()).get())
         process->send(Messages::WebProcess::SendMessageToWebProcessExtension(webkitUserMessageGetMessage(message)), 0);
 }
 

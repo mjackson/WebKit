@@ -113,6 +113,7 @@ public:
         , m_hasDidAllowPrivateTokenUsageByThirdPartyForTestingSelector([m_delegate.get() respondsToSelector:@selector(websiteDataStore:didAllowPrivateTokenUsageByThirdPartyForTesting:forResourceURL:)])
         , m_hasDidExceedMemoryFootprintThresholdSelector([m_delegate.get() respondsToSelector:@selector(websiteDataStore:domain:didExceedMemoryFootprintThreshold:withPageCount:processLifetime:inForeground:wasPrivateRelayed:canSuspend:)])
         , m_hasWebCryptoMasterKeySelector([m_delegate.get() respondsToSelector:@selector(webCryptoMasterKey:)])
+        , m_hasDidPerformEvictionForDomainsSelector([m_delegate.get() respondsToSelector:@selector(didEvictDataForDomains:)])
     {
     }
 
@@ -131,6 +132,18 @@ private:
                 return completionHandler(std::nullopt);
             completionHandler(makeVector(result));
         }).get()];
+    }
+
+    void didEvictDataForDomains(const Vector<WebCore::RegistrableDomain>& domains) final
+    {
+        if (!m_hasDidPerformEvictionForDomainsSelector || !m_delegate)
+            return;
+
+        RetainPtr array = createNSArray(domains, [] (auto& domain) {
+            return domain.string().createNSString();
+        });
+
+        [m_delegate.get() didEvictDataForDomains:array.get()];
     }
 
     void requestStorageSpace(const WebCore::SecurityOriginData& topOrigin, const WebCore::SecurityOriginData& frameOrigin, uint64_t quota, uint64_t currentSize, uint64_t spaceRequired, CompletionHandler<void(std::optional<uint64_t>)>&& completionHandler) final
@@ -372,6 +385,7 @@ private:
     bool m_hasDidAllowPrivateTokenUsageByThirdPartyForTestingSelector { false };
     bool m_hasDidExceedMemoryFootprintThresholdSelector { false };
     bool m_hasWebCryptoMasterKeySelector { false };
+    bool m_hasDidPerformEvictionForDomainsSelector { false };
 };
 
 #if PLATFORM(IOS)

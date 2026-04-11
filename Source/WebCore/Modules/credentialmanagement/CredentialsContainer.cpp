@@ -38,6 +38,7 @@
 #include "JSDOMConvertInterface.h"
 #include "JSDOMConvertNullable.h"
 #include "JSDigitalCredential.h"
+#include "JSValueInWrappedObjectInlines.h"
 #include "LocalFrame.h"
 #include "Navigator.h"
 #include "Page.h"
@@ -49,75 +50,15 @@ CredentialsContainer::CredentialsContainer(WeakPtr<Document, WeakPtrImplWithEven
 {
 }
 
-void CredentialsContainer::get(CredentialRequestOptions&& options, CredentialPromise&& promise)
-{
-    // The following implements https://www.w3.org/TR/credential-management-1/#algorithm-request as of 4 August 2017
-    // with enhancement from 14 November 2017 Editor's Draft.
-    if (!performCommonChecks(options, promise)) {
-        return;
-    }
-
-    Ref document = *this->document();
-    if (options.digital) {
-#if HAVE(DIGITAL_CREDENTIALS_UI)
-        DigitalCredential::discoverFromExternalSource(document, WTF::move(promise), WTF::move(options));
-#else
-        promise.resolve(nullptr);
-#endif
-        return;
-    }
-    document->page()->authenticatorCoordinator().discoverFromExternalSource(document, WTF::move(options), WTF::move(promise));
-}
-
-void CredentialsContainer::store(const BasicCredential&, CredentialPromise&& promise)
-{
-    promise.reject(Exception { ExceptionCode::NotSupportedError, "Not implemented."_s });
-}
-
-void CredentialsContainer::isCreate(CredentialCreationOptions&& options, CredentialPromise&& promise)
-{
-    if (!performCommonChecks(options, promise))
-        return;
-
-    // Extra.
-    Ref document = *this->document();
-    if (!document->hasFocus()) {
-        promise.reject(Exception { ExceptionCode::NotAllowedError, "The document is not focused."_s });
-        return;
-    }
-
-    if (options.publicKey) {
-        document->page()->authenticatorCoordinator().create(document, WTF::move(options), WTF::move(options.signal), WTF::move(promise));
-        return;
-    }
-
-    promise.resolve(nullptr);
-}
-
-void CredentialsContainer::preventSilentAccess(DOMPromiseDeferred<void>&& promise) const
-{
-    if (RefPtr document = this->document(); !document->isFullyActive()) {
-        promise.reject(Exception { ExceptionCode::InvalidStateError, "The document is not fully active."_s });
-        return;
-    }
-    promise.resolve();
-}
-
 template<typename Options>
-bool CredentialsContainer::performCommonChecks(const Options& options, CredentialPromise& promise)
+static bool performCommonChecks(const Document& document, const Options& options, CredentialPromise& promise)
 {
-    RefPtr document = this->document();
-    if (!document) {
-        promise.reject(Exception { ExceptionCode::NotSupportedError });
-        return false;
-    }
-
-    if (!document->isFullyActive()) {
+    if (!document.isFullyActive()) {
         promise.reject(Exception { ExceptionCode::InvalidStateError, "The document is not fully active."_s });
         return false;
     }
 
-    if (!document->page()) {
+    if (!document.page()) {
         promise.reject(Exception { ExceptionCode::InvalidStateError, "No browsing context"_s });
         return false;
     }
@@ -146,8 +87,71 @@ bool CredentialsContainer::performCommonChecks(const Options& options, Credentia
 #endif
     }
 
-    ASSERT(document->isSecureContext());
+    ASSERT(document.isSecureContext());
     return true;
+}
+
+void CredentialsContainer::get(CredentialRequestOptions&& options, CredentialPromise&& promise)
+{
+    // The following implements https://www.w3.org/TR/credential-management-1/#algorithm-request as of 4 August 2017
+    // with enhancement from 14 November 2017 Editor's Draft.
+    RefPtr document = this->document();
+    if (!document) {
+        promise.reject(Exception { ExceptionCode::NotSupportedError });
+        return;
+    }
+
+    if (!performCommonChecks(*document, options, promise))
+        return;
+
+    if (options.digital) {
+#if HAVE(DIGITAL_CREDENTIALS_UI)
+        DigitalCredential::discoverFromExternalSource(*document, WTF::move(promise), WTF::move(options));
+#else
+        promise.resolve(nullptr);
+#endif
+        return;
+    }
+    document->page()->authenticatorCoordinator().discoverFromExternalSource(*document, WTF::move(options), WTF::move(promise));
+}
+
+void CredentialsContainer::store(const BasicCredential&, CredentialPromise&& promise)
+{
+    promise.reject(Exception { ExceptionCode::NotSupportedError, "Not implemented."_s });
+}
+
+void CredentialsContainer::isCreate(CredentialCreationOptions&& options, CredentialPromise&& promise)
+{
+    RefPtr document = this->document();
+    if (!document) {
+        promise.reject(Exception { ExceptionCode::NotSupportedError });
+        return;
+    }
+
+    if (!performCommonChecks(*document, options, promise))
+        return;
+
+    // Extra.
+    if (!document->hasFocus()) {
+        promise.reject(Exception { ExceptionCode::NotAllowedError, "The document is not focused."_s });
+        return;
+    }
+
+    if (options.publicKey) {
+        document->page()->authenticatorCoordinator().create(*document, WTF::move(options), WTF::move(options.signal), WTF::move(promise));
+        return;
+    }
+
+    promise.resolve(nullptr);
+}
+
+void CredentialsContainer::preventSilentAccess(DOMPromiseDeferred<void>&& promise) const
+{
+    if (RefPtr document = this->document(); !document->isFullyActive()) {
+        promise.reject(Exception { ExceptionCode::InvalidStateError, "The document is not fully active."_s });
+        return;
+    }
+    promise.resolve();
 }
 
 } // namespace WebCore

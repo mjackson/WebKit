@@ -56,6 +56,7 @@
 #include <wtf/RefPtr.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/TZoneMallocInlines.h>
+#include "FrameDestructionObserverInlines.h"
 
 #if ENABLE(WEB_RTC)
 #include "JSRTCPeerConnection.h"

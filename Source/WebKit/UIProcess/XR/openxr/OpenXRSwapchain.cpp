@@ -47,7 +47,7 @@ std::unique_ptr<OpenXRSwapchain> OpenXRSwapchain::create(XrSession session, cons
         return nullptr;
     }
 
-    Vector<XrSwapchainImageOpenGLESKHR> imageBuffers(imageCount, [] {
+    Vector<XrSwapchainImageOpenGLESKHR> imageBuffers(FillWith { }, imageCount, [] {
         return createOpenXRStruct<XrSwapchainImageOpenGLESKHR, XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_ES_KHR>();
     }());
 

@@ -45,7 +45,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 namespace JSC {
 
 #if ENABLE(JIT)
-static bool ensureIsSafeToLock(Lock& lock) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+static bool NODELETE ensureIsSafeToLock(Lock& lock) WTF_IGNORES_THREAD_SAFETY_ANALYSIS
 {
     static constexpr unsigned maxRetries = 2;
     unsigned tryCount = 0;
@@ -195,7 +195,7 @@ struct CellAddressCheckFunctor : MarkedBlock::CountFunctor {
     {
     }
 
-    IterationStatus operator()(HeapCell* cell, HeapCell::Kind) const
+    IterationStatus NODELETE operator()(HeapCell* cell, HeapCell::Kind) const
     {
         if (cell == candidate) {
             found = true;
@@ -227,7 +227,7 @@ bool VMInspector::isValidCodeBlock(VM* vm, CodeBlock* candidate)
         {
         }
 
-        void operator()(CodeBlock* codeBlock) const
+        void NODELETE operator()(CodeBlock* codeBlock) const
         {
             if (codeBlock == candidate)
                 found = true;
@@ -257,7 +257,7 @@ CodeBlock* VMInspector::codeBlockForFrame(VM* vm, CallFrame* topCallFrame, unsig
         {
         }
 
-        IterationStatus operator()(StackVisitor& visitor) const
+        IterationStatus NODELETE operator()(StackVisitor& visitor) const
         {
             auto currentFrame = nextFrame++;
             if (currentFrame == targetFrame) {

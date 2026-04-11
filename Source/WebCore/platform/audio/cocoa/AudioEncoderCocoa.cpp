@@ -312,7 +312,7 @@ Ref<AudioEncoder::EncodePromise> InternalAudioEncoderCocoa::encode(AudioEncoder:
 {
     assertIsCurrent(queueSingleton());
 
-    RetainPtr cmSample = downcast<PlatformRawAudioDataCocoa>(rawFrame.frame)->sampleBuffer();
+    RetainPtr cmSample = downcast<PlatformRawAudioDataCocoa>(rawFrame.frame.get())->sampleBuffer();
     ASSERT(cmSample);
     if (auto error = PAL::CMSampleBufferSetOutputPresentationTimeStamp(cmSample.get(), PAL::CMTimeMake(rawFrame.timestamp, 1000000)))
         RELEASE_LOG_ERROR(MediaStream, "AudioSampleBufferConverter CMSampleBufferSetOutputPresentationTimeStamp failed with %d", error);

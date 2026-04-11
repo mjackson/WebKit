@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -48,6 +48,10 @@
 #import <wtf/LoggerHelper.h>
 #import <wtf/NeverDestroyed.h>
 #import <wtf/SoftLinking.h>
+
+#if PLATFORM(IOS)
+#include <pal/system/ios/UserInterfaceIdiom.h>
+#endif
 
 namespace WebCore {
 
@@ -288,11 +292,14 @@ void VideoPresentationModelVideoElement::requestFullscreenMode(HTMLMediaElementE
 
     videoElement->setPresentationMode(HTMLVideoElement::toPresentationMode(mode));
 
-    if (finishedWithMedia && mode == MediaPlayer::VideoFullscreenModeNone) {
-        if (videoElement->document().isMediaDocument()) {
-            if (RefPtr window = videoElement->document().window())
-                window->history().back();
-        }
+    if (finishedWithMedia
+#if PLATFORM(IOS)
+        && PAL::currentUserInterfaceIdiomIsSmallScreen()
+#endif
+        && mode == MediaPlayer::VideoFullscreenModeNone
+        && videoElement->document().isMediaDocument()) {
+        if (RefPtr window = videoElement->document().window())
+            window->history().back();
     }
 }
 

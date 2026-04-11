@@ -430,16 +430,16 @@ void RemoteGraphicsContextProxy::drawPath(const Path& path)
     send(Messages::RemoteGraphicsContext::DrawPath(path));
 }
 
-void RemoteGraphicsContextProxy::drawFocusRing(const Path& path, float outlineWidth, const Color& color)
+void RemoteGraphicsContextProxy::drawFocusRing(const Path& path, float outlineWidth, const Color& color, float zoomFactor)
 {
     appendStateChangeItemIfNecessary();
-    send(Messages::RemoteGraphicsContext::DrawFocusRingPath(path, outlineWidth, color));
+    send(Messages::RemoteGraphicsContext::DrawFocusRingPath(path, outlineWidth, color, zoomFactor));
 }
 
-void RemoteGraphicsContextProxy::drawFocusRing(const Vector<FloatRect>& rects, float outlineOffset, float outlineWidth, const Color& color)
+void RemoteGraphicsContextProxy::drawFocusRing(const Vector<FloatRect>& rects, float outlineWidth, const Color& color, float zoomFactor)
 {
     appendStateChangeItemIfNecessary();
-    send(Messages::RemoteGraphicsContext::DrawFocusRingRects(rects, outlineOffset, outlineWidth, color));
+    send(Messages::RemoteGraphicsContext::DrawFocusRingRects(rects, outlineWidth, color, zoomFactor));
 }
 
 void RemoteGraphicsContextProxy::fillPath(const Path& path)

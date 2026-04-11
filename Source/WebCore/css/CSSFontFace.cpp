@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2022 Apple Inc. All rights reserved.
+ * Copyright (C) 2007-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -232,18 +232,30 @@ void CSSFontFace::setWidth(CSSValue& style)
     });
 }
 
-static FontSelectionRange calculateItalicRange(CSSValue& value)
+struct FontFaceStyleInfo {
+    FontSelectionRange range;
+    FontStyleAxis axis;
+};
+
+static FontFaceStyleInfo calculateFontFaceStyleInfo(CSSValue& value)
 {
     auto* rangeValue = dynamicDowncast<CSSFontStyleRangeValue>(value);
-    if (!rangeValue)
-        return FontSelectionRange { Style::fontStyleFromCSSValueDeprecated(value).value_or(normalItalicValue()) };
+    if (!rangeValue) {
+        auto slope = Style::fontStyleFromCSSValueDeprecated(value);
+        if (!slope)
+            return { FontSelectionRange { normalItalicValue() }, FontStyleAxis::normal };
+        auto axis = (value.valueID() == CSSValueItalic) ? FontStyleAxis::ital : FontStyleAxis::slnt;
+        return { FontSelectionRange { *slope }, axis };
+    }
 
     auto keyword = rangeValue->fontStyleValue->valueID();
     if (!rangeValue->obliqueValues) {
         if (keyword == CSSValueNormal)
-            return FontSelectionRange { normalItalicValue() };
-        ASSERT(keyword == CSSValueItalic || keyword == CSSValueOblique);
-        return FontSelectionRange { italicValue() };
+            return { FontSelectionRange { normalItalicValue() }, FontStyleAxis::normal };
+        if (keyword == CSSValueItalic)
+            return { FontSelectionRange { italicValue() }, FontStyleAxis::ital };
+        ASSERT(keyword == CSSValueOblique);
+        return { FontSelectionRange { italicValue() }, FontStyleAxis::slnt };
     }
     ASSERT(keyword == CSSValueOblique);
     auto length = rangeValue->obliqueValues->length();
@@ -252,19 +264,20 @@ static FontSelectionRange calculateItalicRange(CSSValue& value)
         return Style::fontStyleAngleFromCSSValueDeprecated(*rangeValue->obliqueValues->itemWithoutBoundsCheck(index));
     };
     if (length == 1)
-        return FontSelectionRange { angleAtIndex(0) };
-    return { angleAtIndex(0), angleAtIndex(1) };
+        return { FontSelectionRange { angleAtIndex(0) }, FontStyleAxis::slnt };
+    return { { angleAtIndex(0), angleAtIndex(1) }, FontStyleAxis::slnt };
 }
 
 void CSSFontFace::setStyle(CSSValue& style)
 {
     mutableProperties().setProperty(CSSPropertyFontStyle, style);
 
-    auto range = calculateItalicRange(style);
-    if (m_fontSelectionCapabilities.slope == range)
+    auto [range, axis] = calculateFontFaceStyleInfo(style);
+    if (m_fontSelectionCapabilities.slope == range && m_fontSelectionCapabilities.faceAxis == axis)
         return;
 
     m_fontSelectionCapabilities.slope = range;
+    m_fontSelectionCapabilities.faceAxis = axis;
 
     iterateClients(m_clients, [&](CSSFontFaceClient& client) {
         client.fontPropertyChanged(*this);

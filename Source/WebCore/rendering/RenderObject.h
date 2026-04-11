@@ -606,7 +606,7 @@ public:
     // FIXME: Those belong into a SVG specific base-class for all renderers (see above)
     // Unfortunately we don't have such a class yet, because it's not possible for all renderers
     // to inherit from RenderSVGObject -> RenderObject (some need RenderBlock inheritance for instance)
-    void invalidateCachedBoundaries();
+    void NODELETE invalidateCachedBoundaries();
     bool usesBoundaryCaching() const;
     virtual void NODELETE setNeedsBoundariesUpdate();
     virtual void setNeedsTransformUpdate() { }
@@ -619,6 +619,7 @@ public:
     // The name objectBoundingBox is taken from the SVG 1.1 spec.
     virtual FloatRect objectBoundingBox() const;
     virtual FloatRect strokeBoundingBox() const;
+    virtual bool objectBoundingBoxIsEmpty() const { return false; }
 
     // The objectBoundingBox of a SVG container is affected by the transformations applied on its children -- the container
     // bounding box is a union of all child bounding boxes, mapped through their transformation matrices.
@@ -754,10 +755,10 @@ public:
     RenderElement* container(const RenderLayerModelObject* repaintContainer, bool& repaintContainerSkipped) const;
 
     RenderElement* markContainingBlocksForLayout(RenderElement* layoutRoot = nullptr);
-    inline void setNeedsLayout(MarkingBehavior = MarkContainingBlockChain);
+    inline void setNeedsLayout(MarkingBehavior = MarkingBehavior::MarkContainingBlockChain);
     enum class HadSkippedLayout { No, Yes };
     void clearNeedsLayout(HadSkippedLayout = HadSkippedLayout::No);
-    void setNeedsPreferredWidthsUpdate(MarkingBehavior = MarkContainingBlockChain);
+    void setNeedsPreferredWidthsUpdate(MarkingBehavior = MarkingBehavior::MarkContainingBlockChain);
     void clearNeedsPreferredWidthsUpdate() { m_stateBitfields.setFlag(StateFlag::PreferredLogicalWidthsNeedUpdate, { }); }
     
     inline void setNeedsLayoutAndPreferredWidthsUpdate();
@@ -788,7 +789,7 @@ public:
 
     bool NODELETE isComposited() const;
 
-    bool hitTest(const HitTestRequest&, HitTestResult&, const HitTestLocation& locationInContainer, const LayoutPoint& accumulatedOffset, HitTestFilter = HitTestAll);
+    bool hitTest(const HitTestRequest&, HitTestResult&, const HitTestLocation& locationInContainer, const LayoutPoint& accumulatedOffset, HitTestFilter = HitTestFilter::All);
     virtual Node* nodeForHitTest() const;
     virtual void updateHitTestResult(HitTestResult&, const LayoutPoint&) const;
 
@@ -811,13 +812,13 @@ public:
     FloatPoint absoluteToLocal(const DoublePoint&, OptionSet<MapCoordinatesMode> = { }) const;
 
     // Convert a local quad to absolute coordinates, taking transforms into account.
-    inline FloatQuad localToAbsoluteQuad(const FloatQuad&, OptionSet<MapCoordinatesMode> = UseTransforms, bool* wasFixed = nullptr) const; // Defined in RenderObjectInlines.h
+    inline FloatQuad localToAbsoluteQuad(const FloatQuad&, OptionSet<MapCoordinatesMode> = MapCoordinatesMode::UseTransforms, bool* wasFixed = nullptr) const; // Defined in RenderObjectInlines.h
     // Convert an absolute quad to local coordinates.
-    FloatQuad absoluteToLocalQuad(const FloatQuad&, OptionSet<MapCoordinatesMode> = UseTransforms) const;
+    FloatQuad absoluteToLocalQuad(const FloatQuad&, OptionSet<MapCoordinatesMode> = MapCoordinatesMode::UseTransforms) const;
 
     // Convert a local quad into the coordinate system of container, taking transforms into account.
-    WEBCORE_EXPORT FloatQuad localToContainerQuad(const FloatQuad&, const RenderLayerModelObject* container, OptionSet<MapCoordinatesMode> = UseTransforms, bool* wasFixed = nullptr) const;
-    WEBCORE_EXPORT FloatPoint localToContainerPoint(const FloatPoint&, const RenderLayerModelObject* container, OptionSet<MapCoordinatesMode> = UseTransforms, bool* wasFixed = nullptr) const;
+    WEBCORE_EXPORT FloatQuad localToContainerQuad(const FloatQuad&, const RenderLayerModelObject* container, OptionSet<MapCoordinatesMode> = MapCoordinatesMode::UseTransforms, bool* wasFixed = nullptr) const;
+    WEBCORE_EXPORT FloatPoint localToContainerPoint(const FloatPoint&, const RenderLayerModelObject* container, OptionSet<MapCoordinatesMode> = MapCoordinatesMode::UseTransforms, bool* wasFixed = nullptr) const;
 
     // Return the offset from the container() renderer (excluding transforms). In multi-column layout,
     // different offsets apply at different points, so return the offset that applies to the given point.
@@ -864,8 +865,6 @@ public:
     inline WritingMode writingMode() const; // Defined in RenderObjectStyle.h.
     // writingMode().isHorizontal() is cached by isHorizontalWritingMode() above.
 
-    // Anonymous blocks that are part of of a continuation chain will return their inline continuation's outline style instead.
-    // This is typically only relevant when repainting.
     virtual const RenderStyle& outlineStyleForRepaint() const LIFETIME_BOUND;
 
     virtual CursorDirective getCursor(const LayoutPoint&, Cursor&) const;
@@ -1161,8 +1160,8 @@ private:
     virtual RepaintRects localRectsForRepaint(RepaintOutlineBounds) const;
 
     void addAbsoluteRectForLayer(LayoutRect& result);
-    void setLayerNeedsFullRepaint();
-    void setLayerNeedsFullRepaintForOutOfFlowMovementLayout();
+    void NODELETE setLayerNeedsFullRepaint();
+    void NODELETE setLayerNeedsFullRepaintForOutOfFlowMovementLayout();
 
     void invalidateContainerPreferredLogicalWidths();
 
@@ -1475,6 +1474,8 @@ inline CachedImageClient& RenderObject::cachedImageClient() const
         lazyInitialize(m_cachedImageClient, CachedImageListener::create(*const_cast<RenderObject*>(this)));
     return *m_cachedImageClient.get();
 }
+
+std::partial_ordering renderTreeOrder(const RenderObject&, const RenderObject&);
 
 WTF::TextStream& operator<<(WTF::TextStream&, const RenderObject&);
 WTF::TextStream& operator<<(WTF::TextStream&, const RenderObject::RepaintRects&);

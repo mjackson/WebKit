@@ -113,9 +113,7 @@ LibWebRTCVPXVideoDecoder::LibWebRTCVPXVideoDecoder(Type type, const Config& conf
 {
 }
 
-LibWebRTCVPXVideoDecoder::~LibWebRTCVPXVideoDecoder()
-{
-}
+LibWebRTCVPXVideoDecoder::~LibWebRTCVPXVideoDecoder() = default;
 
 Ref<VideoDecoder::DecodePromise> LibWebRTCVPXVideoDecoder::decode(EncodedFrame&& frame)
 {

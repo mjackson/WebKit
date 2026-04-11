@@ -195,7 +195,8 @@ void RootObject::removeRuntimeObject(RuntimeObject* object)
 
 void RootObject::finalize(JSC::Handle<JSC::Unknown> handle, void*)
 {
-    auto* object = jsCast<RuntimeObject*>(handle.slot()->asCell());
+    // Cannot call jsCast() during weak reference finalization.
+    SUPPRESS_MEMORY_UNSAFE_CAST auto* object = static_cast<RuntimeObject*>(handle.slot()->asCell());
 
     Ref<RootObject> protectedThis(*this);
     object->invalidate();

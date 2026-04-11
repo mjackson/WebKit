@@ -196,7 +196,7 @@ public:
 private:
     std::pair<std::underlying_type_t<CollectionType>, AtomString> namedCollectionKey(CollectionType type, const AtomString& name)
     {
-        return std::pair<std::underlying_type_t<CollectionType>, AtomString>(static_cast<std::underlying_type_t<CollectionType>>(type), name);
+        return { std::to_underlying(type), name };
     }
 
     template<typename NodeListType>

@@ -245,7 +245,7 @@ ISO8601::Duration TemporalInstant::difference(JSGlobalObject* globalObject, Temp
 
 // Must return a double because the maximum increment for nanoseconds
 // does not fit in an int32_t
-static constexpr double maximumIncrement(TemporalUnit smallestUnit)
+static constexpr double NODELETE maximumIncrement(TemporalUnit smallestUnit)
 {
     switch (smallestUnit) {
     case TemporalUnit::Hour: return 24;

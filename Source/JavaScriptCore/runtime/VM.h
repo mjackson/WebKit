@@ -192,8 +192,10 @@ class Signature;
 
 #if ENABLE(WEBASSEMBLY)
 class JSWebAssemblyInstance;
+class WebAssemblyGCStructure;
 namespace Wasm {
 class IPIntCallee;
+class RTT;
 #if ENABLE(WEBASSEMBLY_DEBUGGER)
 struct DebugState;
 #endif
@@ -300,7 +302,7 @@ public:
     inline CallFrame* topJSCallFrame() const;
 
     // Global object in which execution began.
-    JS_EXPORT_PRIVATE JSGlobalObject* deprecatedVMEntryGlobalObject(JSGlobalObject*) const;
+    JS_EXPORT_PRIVATE JSGlobalObject* NODELETE deprecatedVMEntryGlobalObject(JSGlobalObject*) const;
 
     WeakRandom& random() LIFETIME_BOUND { return m_random; }
     WeakRandom& heapRandom() LIFETIME_BOUND { return m_heapRandom; }
@@ -315,7 +317,7 @@ public:
         m_hasTerminationRequest = false;
         clearEntryScopeService(ConcurrentEntryScopeService::ResetTerminationRequest);
     }
-    void setHasTerminationRequest();
+    void NODELETE setHasTerminationRequest();
 
     bool executionForbidden() const { return m_executionForbidden; }
     void setExecutionForbidden() { m_executionForbidden = true; }
@@ -759,6 +761,9 @@ public:
 
     WeakGCMap<SymbolImpl*, Symbol, PtrHash<SymbolImpl*>> symbolImplToSymbolMap;
     WeakGCMap<StringImpl*, JSString, PtrHash<StringImpl*>> atomStringToJSStringMap;
+#if ENABLE(WEBASSEMBLY)
+    WeakGCMap<const Wasm::RTT*, WebAssemblyGCStructure, PtrHash<const Wasm::RTT*>> wasmGCStructureMap;
+#endif
 
     enum class DeletePropertyMode {
         // Default behaviour of deleteProperty, matching the spec.
@@ -928,7 +933,7 @@ public:
     }
 
     void* lastStackTop() { return m_lastStackTop; }
-    void setLastStackTop(const Thread&);
+    void NODELETE setLastStackTop(const Thread&);
     
 #if ENABLE(C_LOOP)
     ALWAYS_INLINE CLoopStack& cloopStack() { return traps().cloopStack(); }
@@ -1083,7 +1088,7 @@ public:
         DrainMicrotaskDelayScope& operator=(const DrainMicrotaskDelayScope&);
 
     private:
-        void increment();
+        void NODELETE increment();
         void decrement();
 
         RefPtr<VM> m_vm;
@@ -1178,7 +1183,7 @@ public:
 
     WTF::RunLoop& runLoop() const { return m_runLoop; }
 
-    static void setCrashOnVMCreation(bool);
+    static void NODELETE setCrashOnVMCreation(bool);
 
     void addLoopHintExecutionCounter(const JSInstruction*);
     uintptr_t* getLoopHintExecutionCounter(const JSInstruction*);
@@ -1206,8 +1211,8 @@ public:
     void beginMarking();
     DECLARE_VISIT_AGGREGATE;
 
-    void addDebugger(Debugger&);
-    void removeDebugger(Debugger&);
+    void NODELETE addDebugger(Debugger&);
+    void NODELETE removeDebugger(Debugger&);
     template<typename Func>
     void forEachDebugger(const Func&);
 
@@ -1218,13 +1223,13 @@ public:
 
     int64_t numberOfActiveJITPlans() const { return m_numberOfActiveJITPlans.load(std::memory_order_relaxed); }
 
-    Ref<Waiter> syncWaiter();
+    Ref<Waiter> NODELETE syncWaiter();
 
     void notifyDebuggerHookInjected() { m_isDebuggerHookInjected = true; }
     bool isDebuggerHookInjected() const { return m_isDebuggerHookInjected; }
 
 #if ENABLE(WEBASSEMBLY_DEBUGGER)
-    JS_EXPORT_PRIVATE Wasm::DebugState* debugState();
+    JS_EXPORT_PRIVATE Wasm::DebugState* NODELETE debugState();
 #endif
 
 private:
@@ -1329,7 +1334,6 @@ private:
     Lock m_scratchBufferLock;
     Vector<ScratchBuffer*> m_scratchBuffers;
     size_t m_sizeOfLastScratchBuffer { 0 };
-    Lock m_evacuatedStacksLock;
     Vector<EvacuatedStackSlice*> m_evacuatedStackSlices;
     Vector<std::span<CPURegister>> m_evacuatedCalleeSaves;
     Vector<std::unique_ptr<CheckpointOSRExitSideState>, expectedMaxActiveSideStateCount> m_checkpointSideState;
@@ -1386,8 +1390,6 @@ private:
 #endif
 
     DoublyLinkedList<Debugger> m_debuggers;
-
-    void checkStaticAsserts(); // Not for calling.
 
     friend class Heap;
     friend class ExceptionScope; // Friend for exception checking purpose only.

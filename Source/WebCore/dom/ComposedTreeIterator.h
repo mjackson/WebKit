@@ -217,7 +217,7 @@ WEBCORE_EXPORT String composedTreeAsText(ContainerNode& root, ComposedTreeAsText
 
 inline RefPtr<HTMLSlotElement> assignedSlotIgnoringUserAgentShadow(Node& node)
 {
-    RefPtr slot = node.assignedSlot();
+    auto* slot = node.assignedSlot();
     if (!slot || slot->containingShadowRoot()->mode() == ShadowRootMode::UserAgent)
         return nullptr;
     return slot;

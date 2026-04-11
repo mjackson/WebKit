@@ -257,7 +257,7 @@ String replaceURLsInSrcsetAttribute(const Element& element, StringView attribute
     return result.toString();
 }
 
-static ImageCandidate pickBestImageCandidate(float deviceScaleFactor, Vector<ImageCandidate>& imageCandidates, float sourceSize)
+static ImageCandidate pickBestImageCandidate(float deviceScaleFactor, Vector<ImageCandidate>& imageCandidates, std::optional<float> sourceSize)
 {
     bool ignoreSrc = false;
     if (imageCandidates.isEmpty())
@@ -266,7 +266,9 @@ static ImageCandidate pickBestImageCandidate(float deviceScaleFactor, Vector<Ima
     // http://picture.responsiveimages.org/#normalize-source-densities
     for (auto& candidate : imageCandidates) {
         if (candidate.resourceWidth > 0) {
-            candidate.density = static_cast<float>(candidate.resourceWidth) / sourceSize;
+            candidate.density = sourceSize
+                ? static_cast<float>(candidate.resourceWidth) / *sourceSize
+                : DefaultDensityValue;
             ignoreSrc = true;
         } else if (candidate.density < 0)
             candidate.density = DefaultDensityValue;
@@ -295,7 +297,7 @@ static ImageCandidate pickBestImageCandidate(float deviceScaleFactor, Vector<Ima
     return imageCandidates[winner];
 }
 
-ImageCandidate bestFitSourceForImageAttributes(float deviceScaleFactor, const AtomString& srcAttribute, StringView srcsetAttribute, float sourceSize, NOESCAPE const Function<bool(const ImageCandidate&)>& shouldIgnoreCandidateCallback)
+ImageCandidate bestFitSourceForImageAttributes(float deviceScaleFactor, const AtomString& srcAttribute, StringView srcsetAttribute, std::optional<float> sourceSize, NOESCAPE const Function<bool(const ImageCandidate&)>& shouldIgnoreCandidateCallback)
 {
     if (srcsetAttribute.isNull()) {
         if (srcAttribute.isNull())

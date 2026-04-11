@@ -114,7 +114,7 @@ struct FunctionInfo {
     CallSiteRequirement callSiteTag;
     FunctionTag functionTag { FunctionTag::NoRestriction };
 
-    Node* requiredToBeUniformForSeverity(SeverityControl severity)
+    Node* NODELETE requiredToBeUniformForSeverity(SeverityControl severity)
     {
         switch (severity) {
         case SeverityControl::Error:   return requiredToBeUniform[0];
@@ -169,7 +169,7 @@ struct FunctionInfo {
         scopes.last().set(name, node);
     }
 
-    void resetVisited()
+    void NODELETE resetVisited()
     {
         for (auto& node : nodes)
             node->visitedFrom = nullptr;
@@ -220,10 +220,10 @@ private:
     };
     LValue processLValueExpression(Node*, AST::Expression&, bool isPartialReference = false);
 
-    static AST::IdentifierExpression* rootIdentifier(AST::Expression&);
+    static AST::IdentifierExpression* NODELETE rootIdentifier(AST::Expression&);
     static bool isGlobalNonUniform(AST::Variable&);
 
-    SeverityControl currentSeverity() const
+    SeverityControl NODELETE currentSeverity() const
     {
         return m_severityStack.last();
     }

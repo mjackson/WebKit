@@ -89,6 +89,8 @@ public:
 
     void setShouldBePrefetched(SpeculationRules::Eagerness, Vector<String>&& tags, std::optional<ReferrerPolicy>&&);
 
+    WEBCORE_EXPORT String prefetchEagernessForTesting() const;
+
 protected:
     HTMLAnchorElement(const QualifiedName&, Document&);
 

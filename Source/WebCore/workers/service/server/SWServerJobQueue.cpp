@@ -50,9 +50,7 @@ SWServerJobQueue::SWServerJobQueue(SWServer& server, const ServiceWorkerRegistra
 {
 }
 
-SWServerJobQueue::~SWServerJobQueue()
-{
-}
+SWServerJobQueue::~SWServerJobQueue() = default;
 
 bool SWServerJobQueue::isCurrentlyProcessingJob(const ServiceWorkerJobDataIdentifier& jobDataIdentifier) const
 {

@@ -42,6 +42,7 @@
 #include "PlatformMediaEngineConfigurationFactory.h"
 #include "Settings.h"
 #include "WebRTCProvider.h"
+#include <JavaScriptCore/HeapCellInlines.h>
 #include <wtf/Logger.h>
 #include <wtf/SortedArrayMap.h>
 

@@ -53,7 +53,7 @@ GRefPtr<GSubprocess> flatpakSpawn(GSubprocessLauncher* launcher, const WebKit::P
     };
 
     if (launchOptions.processType == ProcessLauncher::ProcessType::Web) {
-        flatpakArgs.appendVector(Vector<CString>({
+        flatpakArgs.appendList({
             "--sandbox",
             "--no-network",
             "--sandbox-flag=share-gpu",
@@ -61,7 +61,7 @@ GRefPtr<GSubprocess> flatpakSpawn(GSubprocessLauncher* launcher, const WebKit::P
             "--sandbox-flag=share-sound",
             "--sandbox-flag=allow-a11y",
             "--sandbox-flag=allow-dbus", // Note that this only allows portals and $appid.Sandbox.* access
-        }));
+        });
 
         // GST_DEBUG_FILE points to an absolute file path, so we need write permissions for its parent directory.
         if (const char* debugFilePath = g_getenv("GST_DEBUG_FILE")) {

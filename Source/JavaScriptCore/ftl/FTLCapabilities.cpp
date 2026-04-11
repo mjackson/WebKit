@@ -32,7 +32,7 @@ namespace JSC { namespace FTL {
 
 using namespace DFG;
 
-static bool verboseCapabilities()
+static bool NODELETE verboseCapabilities()
 {
     return verboseCompilationEnabled() || Options::verboseFTLFailure();
 }
@@ -428,6 +428,7 @@ inline CapabilityLevel canCompile(Node* node)
     case StringValueOf:
     case StringSlice:
     case StringSubstring:
+    case ToUpperCase:
     case ToLowerCase:
     case NumberToStringWithRadix:
     case NumberToStringWithValidRadixConstant:

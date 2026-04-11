@@ -32,6 +32,7 @@
 #include "api/field_trials_view.h"
 #include "api/sequence_checker.h"
 #include "api/task_queue/pending_task_safety_flag.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/units/time_delta.h"
 #include "rtc_base/buffer.h"
 #include "rtc_base/checks.h"
@@ -46,7 +47,6 @@
 #include "rtc_base/stream.h"
 #include "rtc_base/string_encode.h"
 #include "rtc_base/task_utils/repeating_task.h"
-#include "rtc_base/thread.h"
 #include "rtc_base/time_utils.h"
 
 #ifdef OPENSSL_IS_BORINGSSL
@@ -189,20 +189,18 @@ std::string GetOpenSslError() {
 }
 #endif
 
-}  // namespace
-
 //////////////////////////////////////////////////////////////////////
 // StreamBIO
 //////////////////////////////////////////////////////////////////////
 
-static int stream_write(BIO* h, const char* buf, int num);
-static int stream_read(BIO* h, char* buf, int size);
-static int stream_puts(BIO* h, const char* str);
-static long stream_ctrl(BIO* h, int cmd, long arg1, void* arg2);
-static int stream_new(BIO* h);
-static int stream_free(BIO* data);
+int stream_write(BIO* h, const char* buf, int num);
+int stream_read(BIO* h, char* buf, int size);
+int stream_puts(BIO* h, const char* str);
+long stream_ctrl(BIO* h, int cmd, long arg1, void* arg2);
+int stream_new(BIO* h);
+int stream_free(BIO* data);
 
-static BIO_METHOD* BIO_stream_method() {
+BIO_METHOD* BIO_stream_method() {
   static BIO_METHOD* method = [] {
     BIO_METHOD* method = BIO_meth_new(BIO_TYPE_BIO, "stream");
     BIO_meth_set_write(method, stream_write);
@@ -216,7 +214,7 @@ static BIO_METHOD* BIO_stream_method() {
   return method;
 }
 
-static BIO* BIO_new_stream(StreamInterface* stream) {
+BIO* BIO_new_stream(StreamInterface* stream) {
   BIO* ret = BIO_new(BIO_stream_method());
   if (ret == nullptr) {
     return nullptr;
@@ -227,21 +225,21 @@ static BIO* BIO_new_stream(StreamInterface* stream) {
 
 // bio methods return 1 (or at least non-zero) on success and 0 on failure.
 
-static int stream_new(BIO* b) {
+int stream_new(BIO* b) {
   BIO_set_shutdown(b, 0);
   BIO_set_init(b, 1);
   BIO_set_data(b, nullptr);
   return 1;
 }
 
-static int stream_free(BIO* b) {
+int stream_free(BIO* b) {
   if (b == nullptr) {
     return 0;
   }
   return 1;
 }
 
-static int stream_read(BIO* b, char* out, int outl) {
+int stream_read(BIO* b, char* out, int outl) {
   if (!out) {
     return -1;
   }
@@ -259,7 +257,7 @@ static int stream_read(BIO* b, char* out, int outl) {
   return -1;
 }
 
-static int stream_write(BIO* b, const char* in, int inl) {
+int stream_write(BIO* b, const char* in, int inl) {
   if (!in) {
     return -1;
   }
@@ -277,11 +275,11 @@ static int stream_write(BIO* b, const char* in, int inl) {
   return -1;
 }
 
-static int stream_puts(BIO* b, const char* str) {
+int stream_puts(BIO* b, const char* str) {
   return stream_write(b, str, checked_cast<int>(strlen(str)));
 }
 
-static long stream_ctrl(BIO* b, int cmd, long num, void* ptr) {
+long stream_ctrl(BIO* b, int cmd, long num, void* ptr) {
   switch (cmd) {
     case BIO_CTRL_RESET:
       return 0;
@@ -294,6 +292,7 @@ static long stream_ctrl(BIO* b, int cmd, long num, void* ptr) {
     case BIO_CTRL_PENDING:
       return 0;
     case BIO_CTRL_FLUSH: {
+      // Flush signals the end of a flight of handshake packets.
       StreamInterface* stream = static_cast<StreamInterface*>(BIO_get_data(b));
       RTC_DCHECK(stream);
       if (stream->Flush()) {
@@ -315,6 +314,8 @@ static long stream_ctrl(BIO* b, int cmd, long num, void* ptr) {
   }
 }
 
+}  // namespace
+
 /////////////////////////////////////////////////////////////////////////////
 // OpenSSLStreamAdapter
 /////////////////////////////////////////////////////////////////////////////
@@ -325,7 +326,7 @@ OpenSSLStreamAdapter::OpenSSLStreamAdapter(
     const FieldTrialsView* field_trials)
     : stream_(std::move(stream)),
       handshake_error_(std::move(handshake_error)),
-      owner_(Thread::Current()),
+      owner_(TaskQueueBase::Current()),
       state_(SSL_NONE),
       role_(SSL_CLIENT),
       ssl_read_needs_write_(false),
@@ -497,6 +498,44 @@ bool OpenSSLStreamAdapter::ExportSrtpKeyingMaterial(
   return true;
 }
 
+bool OpenSSLStreamAdapter::AppendSrtpKeyingMaterial(
+    ZeroOnFreeBuffer<uint8_t>& key_buffer) {
+  // Compute size of keying material.
+  int selected_crypto_suite;
+  if (!GetDtlsSrtpCryptoSuite(&selected_crypto_suite)) {
+    RTC_LOG(LS_ERROR) << "No crypto suite";
+    return false;
+  }
+  int key_len, salt_len;
+  if (!GetSrtpKeyAndSaltLengths(selected_crypto_suite, &key_len, &salt_len)) {
+    RTC_LOG(LS_ERROR) << "Unable to get key and salt len from crypto suite";
+    return false;
+  }
+  int key_material_size = key_len * 2 + salt_len * 2;
+  // Arguments are:
+  // keying material/len -- a buffer to hold the keying material.
+  // label               -- the exporter label.
+  //                        part of the RFC defining each exporter
+  //                        usage. We only use RFC 5764 for DTLS-SRTP.
+  // context/context_len -- a context to bind to for this connection;
+  // use_context            optional, can be null, 0 (IN). Not used by WebRTC.
+  bool success = false;
+  key_buffer.AppendData(
+      key_material_size, [&](ArrayView<uint8_t> keying_material) -> size_t {
+        int result = SSL_export_keying_material(
+            ssl_, keying_material.data(), keying_material.size(),
+            kDtlsSrtpExporterLabel.data(), kDtlsSrtpExporterLabel.size(),
+            nullptr, 0, false);
+        if (result != 0) {
+          success = true;
+          return keying_material.size();
+        } else {
+          return 0;  // Consider no data appended
+        }
+      });
+  return success;
+}
+
 uint16_t OpenSSLStreamAdapter::GetPeerSignatureAlgorithm() const {
   if (state_ != SSL_CONNECTED) {
     return 0;
@@ -598,9 +637,23 @@ void OpenSSLStreamAdapter::SetInitialRetransmissionTimeout(int timeout_ms) {
   dtls_handshake_timeout_ms_ = timeout_ms;
 #ifdef OPENSSL_IS_BORINGSSL
   if (ssl_ctx_ != nullptr && ssl_mode_ == SSL_MODE_DTLS) {
-    // TODO (jonaso, webrtc:367395350): Switch to upcoming
-    // DTLSv1_set_timeout_duration.
     DTLSv1_set_initial_timeout_duration(ssl_, dtls_handshake_timeout_ms_);
+  }
+#endif
+}
+
+void OpenSSLStreamAdapter::UpdateRetransmissionTimeout(int timeout_ms) {
+  dtls_handshake_timeout_ms_ = timeout_ms;
+#ifdef OPENSSL_IS_BORINGSSL
+  if (ssl_ctx_ != nullptr && ssl_mode_ == SSL_MODE_DTLS) {
+    // TODO jonaso, webrtc:404763475 : Now that this is actually
+    // implemented in BORING_SSL we need to update test cases that
+    // will otherwise start to fail.
+    // DTLSv1_set_initial_timeout_duration(ssl_, dtls_handshake_timeout_ms_);
+
+    // Clear the DTLS timer
+    timeout_task_.Stop();
+    MaybeSetTimeout();
   }
 #endif
 }

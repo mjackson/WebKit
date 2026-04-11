@@ -21,6 +21,7 @@
 
 #include "config.h"
 #include "LegacyRenderSVGResourcePattern.h"
+#include "LegacyRenderSVGModelObjectInlines.h"
 
 #include "ContainerNodeInlines.h"
 #include "ElementChildIteratorInlines.h"

@@ -42,7 +42,7 @@ enum class RejectAsHandled : bool { No, Yes };
 
 #define DEFERRED_PROMISE_HANDLE_AND_RETURN_IF_EXCEPTION(scope, globalObject) do { \
         if (scope.exception()) [[unlikely]] { \
-            handleUncaughtException(scope, *jsCast<JSDOMGlobalObject*>(globalObject)); \
+            handleUncaughtException(scope, *globalObject); \
             return; \
         } \
     } while (false)
@@ -76,7 +76,7 @@ public:
 
         ASSERT(deferred());
         ASSERT(globalObject());
-        JSC::JSGlobalObject* lexicalGlobalObject = globalObject();
+        auto* lexicalGlobalObject = globalObject();
         auto& vm = lexicalGlobalObject->vm();
         JSC::JSLockHolder locker(vm);
         auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
@@ -93,7 +93,7 @@ public:
 
         ASSERT(deferred());
         ASSERT(globalObject());
-        JSC::JSGlobalObject* lexicalGlobalObject = globalObject();
+        auto* lexicalGlobalObject = globalObject();
         JSC::JSLockHolder locker(lexicalGlobalObject);
         resolve(*lexicalGlobalObject, resolution);
     }
@@ -105,7 +105,7 @@ public:
 
         ASSERT(deferred());
         ASSERT(globalObject());
-        JSC::JSGlobalObject* lexicalGlobalObject = globalObject();
+        auto* lexicalGlobalObject = globalObject();
         JSC::JSLockHolder locker(lexicalGlobalObject);
         resolve(*lexicalGlobalObject, JSC::jsUndefined());
     }
@@ -118,7 +118,7 @@ public:
 
         ASSERT(deferred());
         ASSERT(globalObject());
-        JSC::JSGlobalObject* lexicalGlobalObject = globalObject();
+        auto* lexicalGlobalObject = globalObject();
         auto& vm = lexicalGlobalObject->vm();
         JSC::JSLockHolder locker(vm);
         auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
@@ -152,7 +152,7 @@ public:
 
         ASSERT(deferred());
         ASSERT(globalObject());
-        JSC::JSGlobalObject* lexicalGlobalObject = globalObject();
+        auto* lexicalGlobalObject = globalObject();
         auto& vm = lexicalGlobalObject->vm();
         JSC::JSLockHolder locker(vm);
         auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);

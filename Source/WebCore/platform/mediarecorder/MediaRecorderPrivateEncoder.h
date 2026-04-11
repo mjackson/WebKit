@@ -76,7 +76,7 @@ public:
 
     bool hasAudio() const { return m_hasAudio; }
     bool hasVideo() const { return m_hasVideo; }
-    bool shouldApplyVideoRotation() const { return m_writer ? m_writer->shouldApplyVideoRotation() : false; }
+    bool shouldApplyVideoRotation() const { return m_writer && m_writer->shouldApplyVideoRotation(); }
 
 private:
     MediaRecorderPrivateEncoder(bool hasAudio, bool hasVideo);

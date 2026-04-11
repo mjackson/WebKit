@@ -29,6 +29,7 @@
 #include "LibWebRTCObservers.h"
 #include "LibWebRTCProvider.h"
 #include "LibWebRTCRefWrappers.h"
+#include "LibWebRTCRtpReceiverBackend.h"
 #include "LibWebRTCRtpSenderBackend.h"
 #include "RTCRtpReceiver.h"
 #include "Timer.h"
@@ -108,7 +109,7 @@ public:
 
     struct Backends {
         Ref<LibWebRTCRtpSenderBackend> senderBackend;
-        UniqueRef<LibWebRTCRtpReceiverBackend> receiverBackend;
+        LibWebRTCRtpReceiverBackendAndSource receiverBackendAndSource;
         UniqueRef<LibWebRTCRtpTransceiverBackend> transceiverBackend;
     };
     ExceptionOr<Backends> addTransceiver(const String& trackKind, const RTCRtpTransceiverInit&, PeerConnectionBackend::IgnoreNegotiationNeededFlag);

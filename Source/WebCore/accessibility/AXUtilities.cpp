@@ -52,8 +52,8 @@ using namespace HTMLNames;
 
 RefPtr<ContainerNode> composedParentIgnoringDocumentFragments(const Node& node)
 {
-    RefPtr ancestor = node.parentInComposedTree();
-    while (is<DocumentFragment>(ancestor.get()))
+    auto* ancestor = node.parentInComposedTree();
+    while (is<DocumentFragment>(ancestor))
         ancestor = ancestor->parentInComposedTree();
     return ancestor;
 }
@@ -137,11 +137,8 @@ bool hasAccNameAttribute(Element& element)
 
     // For title, check that it's not whitespace-only.
     const auto& titleValue = element.attributeWithoutSynchronization(titleAttr);
-    if (!titleValue.isEmpty()) {
-        auto titleCopy = titleValue.string();
-        if (!titleCopy.trim(isASCIIWhitespace).isEmpty())
-            return true;
-    }
+    if (!titleValue.string().containsOnly<isASCIIWhitespace>())
+        return true;
 
     return false;
 }

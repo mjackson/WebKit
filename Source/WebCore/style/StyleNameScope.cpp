@@ -26,6 +26,7 @@
 #include "config.h"
 #include "StyleNameScope.h"
 
+#include "CSSCustomIdentValue.h"
 #include "StyleBuilderChecking.h"
 #include <wtf/text/TextStream.h>
 
@@ -40,23 +41,25 @@ auto CSSValueConversion<NameScope>::operator()(BuilderState& state, const CSSVal
             return CSS::Keyword::None { };
         case CSSValueAll:
             return { CSS::Keyword::All { }, state.styleScopeOrdinal() };
-        case CSSValueInvalid:
-            return { CommaSeparatedListHashSet<CustomIdentifier> { { AtomString { primitiveValue->stringValue() } } }, state.styleScopeOrdinal() };
         default:
             state.setCurrentPropertyInvalidAtComputedValueTime();
             return CSS::Keyword::None { };
         }
     }
 
-    auto list = requiredListDowncast<CSSValueList, CSSPrimitiveValue>(state, value);
+    if (RefPtr customIdentValue = dynamicDowncast<CSSCustomIdentValue>(value))
+        return { CommaSeparatedListHashSet<CustomIdent> { toStyleFromCSSValue<CustomIdent>(state, *customIdentValue) }, state.styleScopeOrdinal() };
+
+    auto list = requiredListDowncast<CSSValueList, CSSCustomIdentValue>(state, value);
     if (!list)
         return CSS::Keyword::None { };
 
-    CommaSeparatedListHashSet<CustomIdentifier> names;
-    for (Ref item : *list)
-        names.value.add({ AtomString { item->stringValue() } });
-
-    return { WTF::move(names), state.styleScopeOrdinal() };
+    return {
+        CommaSeparatedListHashSet<CustomIdent>::map(*list, [&](auto& item) {
+            return toStyleFromCSSValue<CustomIdent>(state, item);
+        }),
+        state.styleScopeOrdinal()
+    };
 }
 
 } // namespace Style

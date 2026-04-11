@@ -339,7 +339,9 @@ void BufferMtl::ensureShadowCopySyncedFromGPU(ContextMtl *contextMtl)
     if (mBuffer->isCPUReadMemDirty())
     {
         const uint8_t *ptr = mBuffer->mapReadOnly(contextMtl);
-        memcpy(mShadowCopy.data(), ptr, size());
+        ASSERT(mShadowCopy.size() == mBuffer->size());
+        // Copy based on the shadow buffer's size, don't copy the extra padding bytes.
+        memcpy(mShadowCopy.data(), ptr, mBuffer->size());
         mBuffer->unmap(contextMtl);
 
         mBuffer->resetCPUReadMemDirty();
@@ -446,11 +448,11 @@ void BufferMtl::clearConversionBuffers()
 }
 
 template <typename T>
-static std::vector<IndexRange> calculateRestartRanges(ContextMtl *ctx, mtl::BufferRef idxBuffer)
+static std::vector<IndexRange> calculateRestartRanges(ContextMtl *ctx, mtl::BufferRef idxBuffer, size_t size)
 {
     std::vector<IndexRange> result;
     const T *bufferData       = reinterpret_cast<const T *>(idxBuffer->mapReadOnly(ctx));
-    const size_t numIndices   = idxBuffer->size() / sizeof(T);
+    const size_t numIndices   = size / sizeof(T);
     constexpr T restartMarker = std::numeric_limits<T>::max();
     for (size_t i = 0; i < numIndices; ++i)
     {
@@ -479,13 +481,13 @@ const std::vector<IndexRange> &BufferMtl::getRestartIndices(ContextMtl *ctx,
         switch (indexType)
         {
             case gl::DrawElementsType::UnsignedByte:
-                ranges = calculateRestartRanges<uint8_t>(ctx, getCurrentBuffer());
+                ranges = calculateRestartRanges<uint8_t>(ctx, getCurrentBuffer(), size());
                 break;
             case gl::DrawElementsType::UnsignedShort:
-                ranges = calculateRestartRanges<uint16_t>(ctx, getCurrentBuffer());
+                ranges = calculateRestartRanges<uint16_t>(ctx, getCurrentBuffer(), size());
                 break;
             case gl::DrawElementsType::UnsignedInt:
-                ranges = calculateRestartRanges<uint32_t>(ctx, getCurrentBuffer());
+                ranges = calculateRestartRanges<uint32_t>(ctx, getCurrentBuffer(), size());
                 break;
             default:
                 ASSERT(false);
@@ -504,13 +506,13 @@ const std::vector<IndexRange> BufferMtl::getRestartIndicesFromClientData(
     switch (indexType)
     {
         case gl::DrawElementsType::UnsignedByte:
-            restartIndices = calculateRestartRanges<uint8_t>(ctx, idxBuffer);
+            restartIndices = calculateRestartRanges<uint8_t>(ctx, idxBuffer, idxBuffer->size());
             break;
         case gl::DrawElementsType::UnsignedShort:
-            restartIndices = calculateRestartRanges<uint16_t>(ctx, idxBuffer);
+            restartIndices = calculateRestartRanges<uint16_t>(ctx, idxBuffer, idxBuffer->size());
             break;
         case gl::DrawElementsType::UnsignedInt:
-            restartIndices = calculateRestartRanges<uint32_t>(ctx, idxBuffer);
+            restartIndices = calculateRestartRanges<uint32_t>(ctx, idxBuffer, idxBuffer->size());
             break;
         default:
             ASSERT(false);
@@ -524,6 +526,10 @@ angle::Result BufferMtl::allocateNewMetalBuffer(ContextMtl *contextMtl,
                                                 bool returnOldBufferImmediately,
                                                 BufferFeedback *feedback)
 {
+    // Ensures no validation layer issues in std140 with data types like vec3 being 12 bytes vs 16
+    // in MSL. Many buffer types can be bound as a uniform buffer, so align all buffer sizes.
+    const size_t adjustedSize = roundUpPow2(std::max<size_t>(1, size), size_t(16));
+
     mtl::BufferManager &bufferManager = contextMtl->getBufferManager();
     if (returnOldBufferImmediately && mBuffer)
     {
@@ -532,7 +538,7 @@ angle::Result BufferMtl::allocateNewMetalBuffer(ContextMtl *contextMtl,
         bufferManager.returnBuffer(contextMtl, mBuffer);
         mBuffer = nullptr;
     }
-    ANGLE_TRY(bufferManager.getBuffer(contextMtl, storageMode, size, mBuffer));
+    ANGLE_TRY(bufferManager.getBuffer(contextMtl, storageMode, adjustedSize, mBuffer));
 
     feedback->internalMemoryAllocationChanged = true;
 
@@ -561,20 +567,10 @@ angle::Result BufferMtl::setDataImpl(const gl::Context *context,
 
     mUsage              = usage;
     mGLSize             = intendedSize;
-    size_t adjustedSize = std::max<size_t>(1, intendedSize);
-
-    // Ensures no validation layer issues in std140 with data types like vec3 being 12 bytes vs 16
-    // in MSL.
-    if (target == gl::BufferBinding::Uniform)
-    {
-        // This doesn't work! A buffer can be allocated on ARRAY_BUFFER and used in UNIFORM_BUFFER
-        // TODO(anglebug.com/42266052)
-        adjustedSize = roundUpPow2(adjustedSize, (size_t)16);
-    }
 
     // Re-create the buffer
     auto storageMode = mtl::Buffer::getStorageModeForUsage(contextMtl, usage);
-    ANGLE_TRY(allocateNewMetalBuffer(contextMtl, storageMode, adjustedSize,
+    ANGLE_TRY(allocateNewMetalBuffer(contextMtl, storageMode, intendedSize,
                                      /*returnOldBufferImmediately=*/true, feedback));
 
 #ifndef NDEBUG
@@ -587,8 +583,8 @@ angle::Result BufferMtl::setDataImpl(const gl::Context *context,
     // We may use shadow copy to maintain consistent data between buffers in pool
     size_t shadowSize = (!features.preferCpuForBuffersubdata.enabled &&
                          features.useShadowBuffersWhenAppropriate.enabled &&
-                         adjustedSize <= mtl::kSharedMemBufferMaxBufSizeHint)
-                            ? adjustedSize
+                         mBuffer->size() <= mtl::kSharedMemBufferMaxBufSizeHint)
+                            ? mBuffer->size()
                             : 0;
     ANGLE_CHECK_GL_ALLOC(contextMtl, mShadowCopy.resize(shadowSize));
 

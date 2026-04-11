@@ -102,9 +102,7 @@ FunctionSignature::FunctionSignature(FunctionArgCount argumentCount, FunctionArg
     , m_retCount(returnCount)
 { }
 
-FunctionSignature::~FunctionSignature()
-{
-}
+FunctionSignature::~FunctionSignature() = default;
 
 String StructType::toString() const
 {
@@ -292,7 +290,7 @@ bool RecursionGroup::cleanup()
     return true;
 }
 
-static unsigned computeSignatureHash(size_t returnCount, const Type* returnTypes, size_t argumentCount, const Type* argumentTypes)
+static unsigned NODELETE computeSignatureHash(size_t returnCount, const Type* returnTypes, size_t argumentCount, const Type* argumentTypes)
 {
     unsigned accumulator = 0xa1bcedd8u;
     for (uint32_t i = 0; i < argumentCount; ++i) {
@@ -326,7 +324,7 @@ static unsigned computeArrayTypeHash(FieldType elementType)
     return accumulator;
 }
 
-static unsigned computeRecursionGroupHash(std::span<const TypeIndex> types)
+static unsigned NODELETE computeRecursionGroupHash(std::span<const TypeIndex> types)
 {
     unsigned accumulator = 0x9cfb89bb;
     for (auto& type : types)
@@ -334,7 +332,7 @@ static unsigned computeRecursionGroupHash(std::span<const TypeIndex> types)
     return accumulator;
 }
 
-static unsigned computeProjectionHash(TypeIndex recursionGroup, ProjectionIndex projectionIndex)
+static unsigned NODELETE computeProjectionHash(TypeIndex recursionGroup, ProjectionIndex projectionIndex)
 {
     unsigned accumulator = 0xbeae6d4e;
     accumulator = WTF::pairIntHash(accumulator, WTF::IntHash<TypeIndex>::hash(recursionGroup));
@@ -342,7 +340,7 @@ static unsigned computeProjectionHash(TypeIndex recursionGroup, ProjectionIndex 
     return accumulator;
 }
 
-static unsigned computeSubtypeHash(std::span<const TypeIndex> superTypes, TypeIndex underlyingType, bool isFinal)
+static unsigned NODELETE computeSubtypeHash(std::span<const TypeIndex> superTypes, TypeIndex underlyingType, bool isFinal)
 {
     unsigned accumulator = 0x3efa01b9;
     for (auto& type : superTypes)
@@ -679,12 +677,12 @@ struct FunctionParameterTypes {
     const Vector<Type, 16>& returnTypes;
     const Vector<Type, 16>& argumentTypes;
 
-    static unsigned hash(const FunctionParameterTypes& params)
+    static unsigned NODELETE hash(const FunctionParameterTypes& params)
     {
         return computeSignatureHash(params.returnTypes.size(), params.returnTypes.span().data(), params.argumentTypes.size(), params.argumentTypes.span().data());
     }
 
-    static bool equal(const TypeHash& sig, const FunctionParameterTypes& params)
+    static bool NODELETE equal(const TypeHash& sig, const FunctionParameterTypes& params)
     {
         if (!sig.key->is<FunctionSignature>())
             return false;
@@ -811,12 +809,12 @@ struct ArrayParameterTypes {
 struct RecursionGroupParameterTypes {
     const Vector<TypeIndex>& types;
 
-    static unsigned hash(const RecursionGroupParameterTypes& params)
+    static unsigned NODELETE hash(const RecursionGroupParameterTypes& params)
     {
         return computeRecursionGroupHash(params.types.span());
     }
 
-    static bool equal(const TypeHash& sig, const RecursionGroupParameterTypes& params)
+    static bool NODELETE equal(const TypeHash& sig, const RecursionGroupParameterTypes& params)
     {
         if (!sig.key->is<RecursionGroup>())
             return false;
@@ -845,12 +843,12 @@ struct ProjectionParameterTypes {
     const TypeIndex recursionGroup;
     const ProjectionIndex projectionIndex;
 
-    static unsigned hash(const ProjectionParameterTypes& params)
+    static unsigned NODELETE hash(const ProjectionParameterTypes& params)
     {
         return computeProjectionHash(params.recursionGroup, params.projectionIndex);
     }
 
-    static bool equal(const TypeHash& sig, const ProjectionParameterTypes& params)
+    static bool NODELETE equal(const TypeHash& sig, const ProjectionParameterTypes& params)
     {
         if (!sig.key->is<Projection>())
             return false;
@@ -875,12 +873,12 @@ struct SubtypeParameterTypes {
     TypeIndex underlyingType;
     bool isFinal;
 
-    static unsigned hash(const SubtypeParameterTypes& params)
+    static unsigned NODELETE hash(const SubtypeParameterTypes& params)
     {
         return computeSubtypeHash(params.superTypes.span(), params.underlyingType, params.isFinal);
     }
 
-    static bool equal(const TypeHash& sig, const SubtypeParameterTypes& params)
+    static bool NODELETE equal(const TypeHash& sig, const SubtypeParameterTypes& params)
     {
         if (!sig.key->is<Subtype>())
             return false;
@@ -1152,7 +1150,7 @@ bool TypeInformation::isReferenceValueAssignable(JSValue refValue, bool allowNul
         auto* object = jsDynamicCast<WebAssemblyGCObjectBase*>(refValue);
         if (!object)
             return false;
-        return object->rtt()->isSubRTT(*rtt);
+        return object->rtt().isSubRTT(*rtt);
     }
     }
 
@@ -1181,7 +1179,7 @@ void TypeInformation::tryCleanup()
     } while (changed);
 }
 
-bool Type::definitelyIsCellOrNull() const
+bool NODELETE Type::definitelyIsCellOrNull() const
 {
     if (!isRefType(*this))
         return false;

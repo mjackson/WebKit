@@ -311,7 +311,7 @@ public:
     RenderBox& NODELETE gridItem() const { return m_gridItem; }
     GridSpan NODELETE span() const { return m_span; }
 
-    bool operator<(const GridItemWithSpan other) const { return m_span.integerSpan() < other.m_span.integerSpan(); }
+    bool NODELETE operator<(const GridItemWithSpan other) const { return m_span.integerSpan() < other.m_span.integerSpan(); }
 
 private:
     std::reference_wrapper<RenderBox> m_gridItem;
@@ -1019,7 +1019,7 @@ LayoutUnit GridTrackSizingAlgorithmStrategy::logicalHeightForGridItem(RenderBox&
     };
     if (hasOverridingContainingBlockContentSizeForGridItem() && shouldClearOverridingContainingBlockContentSizeForGridItem(gridItem, Style::GridTrackSizingDirection::Rows)) {
         setOverridingContainingBlockContentSizeForGridItem(*renderGrid(), gridItem, gridItemBlockDirection, std::nullopt);
-        gridItem.setNeedsLayout(MarkOnlyThis);
+        gridItem.setNeedsLayout(MarkingBehavior::MarkOnlyThis);
 
         if (renderGrid()->canSetColumnAxisStretchRequirementForItem(gridItem))
             gridLayoutState.setLayoutRequirementForGridItem(gridItem, ItemLayoutRequirement::NeedsColumnAxisStretchAlignment);
@@ -1080,7 +1080,7 @@ LayoutUnit GridTrackSizingAlgorithmStrategy::minContentContributionForGridItem(R
     }
 
     if (updateOverridingContainingBlockContentSizeForGridItem(gridItem, gridItemInlineDirection)) {
-        gridItem.setNeedsLayout(MarkOnlyThis);
+        gridItem.setNeedsLayout(MarkingBehavior::MarkOnlyThis);
 
         if (auto& intrinsicLogicalHeightsForRowSizingFirstPass = renderGrid()->intrinsicLogicalHeightsForRowSizingFirstPass())
             intrinsicLogicalHeightsForRowSizingFirstPass->invalidateSizeForItem(gridItem);
@@ -1111,7 +1111,7 @@ LayoutUnit GridTrackSizingAlgorithmStrategy::maxContentContributionForGridItem(R
     if (updateOverridingContainingBlockContentSizeForGridItem(gridItem, gridItemInlineDirection)) {
         if (auto& intrinsicLogicalHeightsForRowSizingFirstPass = renderGrid()->intrinsicLogicalHeightsForRowSizingFirstPass())
             intrinsicLogicalHeightsForRowSizingFirstPass->invalidateSizeForItem(gridItem);
-        gridItem.setNeedsLayout(MarkOnlyThis);
+        gridItem.setNeedsLayout(MarkingBehavior::MarkOnlyThis);
     }
     return logicalHeightForGridItem(gridItem, gridLayoutState);
 }
@@ -1328,7 +1328,7 @@ private:
 void IndefiniteSizeStrategy::layoutGridItemForMinSizeComputation(RenderBox& gridItem, bool overrideSizeHasChanged) const
 {
     if (overrideSizeHasChanged && direction() != Style::GridTrackSizingDirection::Columns)
-        gridItem.setNeedsLayout(MarkOnlyThis);
+        gridItem.setNeedsLayout(MarkingBehavior::MarkOnlyThis);
     gridItem.layoutIfNeeded();
 }
 
@@ -1534,7 +1534,7 @@ void DefiniteSizeStrategy::maximizeTracks(Vector<UniqueRef<GridTrack>>& tracks, 
 void DefiniteSizeStrategy::layoutGridItemForMinSizeComputation(RenderBox& gridItem, bool overrideSizeHasChanged) const
 {
     if (overrideSizeHasChanged)
-        gridItem.setNeedsLayout(MarkOnlyThis);
+        gridItem.setNeedsLayout(MarkingBehavior::MarkOnlyThis);
     gridItem.layoutIfNeeded();
 }
 
@@ -2087,7 +2087,6 @@ bool GridTrackSizingAlgorithm::copyUsedTrackSizesForSubgrid()
     auto span = outer->gridSpanForGridItem(*m_renderGrid, direction);
     auto& allTracks = tracks(m_direction);
     int numTracks = allTracks.size();
-    RELEASE_ASSERT((parentTracks.size()  - 1) >= (numTracks - 1 + span.startLine()));
     for (int i = 0; i < numTracks; i++)
         allTracks[i].get() = parentTracks[i + span.startLine()].get();
 

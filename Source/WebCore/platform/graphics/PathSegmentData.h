@@ -52,7 +52,7 @@ struct PathMoveTo {
 
     void applyElements(const PathElementApplier&) const;
 
-    void transform(const AffineTransform&);
+    void NODELETE transform(const AffineTransform&);
 };
 
 WEBCORE_EXPORT WTF::TextStream& operator<<(WTF::TextStream&, const PathMoveTo&);

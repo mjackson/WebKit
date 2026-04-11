@@ -28,9 +28,9 @@
 
 #if ENABLE(WEBASSEMBLY)
 
-#include "CallFrame.h"
 #include "EvacuatedStack.h"
 #include "Exception.h"
+#include "JSCellInlines.h"
 #include "JSPIContextInlines.h"
 #include "JSPromise.h"
 #include "PinballHandlerContext.h"
@@ -158,8 +158,6 @@ static void pinballHandlerInitContext(JSGlobalObject* globalObject, CallFrame* c
     ASSERT(callFrame->argumentCount() == 1);
     PinballCompletion* pinball = jsCast<PinballCompletion*>(self->getField(JSFunctionWithFields::Field::PromiseHandlerPinballCompletion));
     ASSERT(pinball->hasSlices());
-    auto* slice = pinball->takeTopSlice().release();
-
 #if ASSERT_ENABLED
     context->magic = 0xBA11FEED;
 #endif
@@ -167,8 +165,8 @@ static void pinballHandlerInitContext(JSGlobalObject* globalObject, CallFrame* c
     context->vm = &vm;
     context->handler = self;
     new (&context->jspiContext) JSPIContext(JSPIContext::Purpose::Completing, vm, callFrame, pinball->resultPromise());
-    context->slice = slice;
-    context->sliceByteSize = slice->size() * sizeof(Register);
+    new (&context->slice) std::unique_ptr<EvacuatedStackSlice>(pinball->takeTopSlice()); // context is uninitialized, can't assign
+    context->sliceByteSize = context->slice->size() * sizeof(Register);
     ASSERT(!(context->sliceByteSize % stackAlignmentBytes())); // asm code assumes alignment is not needed
     context->evacuatedCalleeSaves = pinball->calleeSaves();
 #if ASSERT_ENABLED
@@ -204,14 +202,13 @@ void pinballHandlerImplantSlice(PinballHandlerContext* context, Register *base, 
     VM& vm = context->globalObject->vm();
     PinballCompletion* pinball = jsCast<PinballCompletion*>(context->handler->getField(JSFunctionWithFields::Field::PromiseHandlerPinballCompletion));
 
-    auto* slice = context->slice;
+    auto* slice = context->slice.get();
     CallFrame* bottommostImplantedFrame = slice->implant(base, sentinelFrame);
     returnFrame->callerFrame = bottommostImplantedFrame;
     returnFrame->returnPC = relocateReturnPC(const_cast<void*>(slice->entryPC()), reinterpret_cast<const CallerFrameAndPC*>(slice->entryPCFrame()), returnFrame);
 
     vm.removeEvacuatedStackSlice(slice); // the slice data is now scanned as part of the stack
-    delete slice;
-    context->slice = nullptr;
+    context->slice.reset();
     // At this point callee saves have been loaded into the registers and it is safe for the VM to forget them.
     // We end up doing it multiple times, which is okay. Repeat removals do nothing.
     vm.removeEvacuatedCalleeSaves(std::span(pinball->calleeSaves(), NUMBER_OF_CALLEE_SAVES_REGISTERS));
@@ -243,9 +240,8 @@ UCPURegister pinballHandlerFulfillFunctionContinue(PinballHandlerContext* contex
 
     if (pinball->hasSlices()) {
         RELEASE_ASSERT(!scope.exception()); // multi-slice completion is not yet prepared to handle exceptions; we should never encounter one at this point
-        auto* slice = pinball->takeTopSlice().release();
-        context->slice = slice;
-        context->sliceByteSize = slice->size() * sizeof(Register);
+        context->slice = pinball->takeTopSlice();
+        context->sliceByteSize = context->slice->size() * sizeof(Register);
         return 1;
     }
 

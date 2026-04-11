@@ -265,7 +265,7 @@ void PlatformXRSystem::requestFrame(IPC::Connection& connection, std::optional<P
 }
 
 #if USE(OPENXR)
-void PlatformXRSystem::submitFrame(IPC::Connection& connection, Vector<XRDeviceLayer>&& layers)
+void PlatformXRSystem::submitFrame(IPC::Connection& connection, Vector<PlatformXR::DeviceLayer>&& layers)
 #else
 void PlatformXRSystem::submitFrame(IPC::Connection& connection)
 #endif

@@ -27,7 +27,6 @@
 #include "CSSPropertyParserConsumer+Content.h"
 
 #include "CSSCounterValue.h"
-#include "CSSParserContext.h"
 #include "CSSParserTokenRange.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSPropertyParserConsumer+Attr.h"
@@ -74,23 +73,22 @@ static RefPtr<CSSValue> consumeCounterContent(CSSParserTokenRange args, CSS::Pro
     // counter()  =  counter( <counter-name>, <counter-style>? )
     // https://www.w3.org/TR/css-lists-3/#funcdef-counter
 
-    AtomString identifier { consumeCustomIdentRaw(args) };
-    if (identifier.isNull())
+    auto customIdent = consumeUnresolvedCustomIdent(args, state);
+    if (!customIdent)
         return nullptr;
 
-    RefPtr<CSSValue> counterStyle;
+    std::optional<CSS::CounterStyle> counterStyle;
     if (consumeCommaIncludingWhitespace(args)) {
-        counterStyle = consumeCounterStyle(args, state);
+        counterStyle = consumeUnresolvedCounterStyle(args, state);
         if (!counterStyle)
             return nullptr;
-    }
-    if (!counterStyle)
-        counterStyle = CSSPrimitiveValue::create(CSSValueDecimal);
+    } else
+        counterStyle = CSS::CounterStyle { CSS::CustomIdent { nameLiteral(CSSValueDecimal) } };
 
     if (!args.atEnd())
         return nullptr;
 
-    return CSSCounterValue::create(WTF::move(identifier), AtomString { nullAtom() }, counterStyle.releaseNonNull());
+    return CSSCounterValue::create(WTF::move(*customIdent), AtomString { nullAtom() }, WTF::move(*counterStyle));
 }
 
 static RefPtr<CSSValue> consumeCountersContent(CSSParserTokenRange args, CSS::PropertyParserState& state)
@@ -98,27 +96,26 @@ static RefPtr<CSSValue> consumeCountersContent(CSSParserTokenRange args, CSS::Pr
     // counters() = counters( <counter-name>, <string>, <counter-style>? )
     // https://www.w3.org/TR/css-lists-3/#funcdef-counters
 
-    AtomString identifier { consumeCustomIdentRaw(args) };
-    if (identifier.isNull())
+    auto customIdent = consumeUnresolvedCustomIdent(args, state);
+    if (!customIdent)
         return nullptr;
 
     if (!consumeCommaIncludingWhitespace(args) || args.peek().type() != StringToken)
         return nullptr;
     auto separator = args.consumeIncludingWhitespace().value().toAtomString();
 
-    RefPtr<CSSValue> counterStyle;
+    std::optional<CSS::CounterStyle> counterStyle;
     if (consumeCommaIncludingWhitespace(args)) {
-        counterStyle = consumeCounterStyle(args, state);
+        counterStyle = consumeUnresolvedCounterStyle(args, state);
         if (!counterStyle)
             return nullptr;
-    }
-    if (!counterStyle)
-        counterStyle = CSSPrimitiveValue::create(CSSValueDecimal);
+    } else
+        counterStyle = CSS::CounterStyle { CSS::CustomIdent { AtomString { nameLiteral(CSSValueDecimal) } } };
 
     if (!args.atEnd())
         return nullptr;
 
-    return CSSCounterValue::create(WTF::move(identifier), WTF::move(separator), counterStyle.releaseNonNull());
+    return CSSCounterValue::create(WTF::move(*customIdent), WTF::move(separator), WTF::move(*counterStyle));
 }
 
 RefPtr<CSSValue> consumeContent(CSSParserTokenRange& range, CSS::PropertyParserState& state)

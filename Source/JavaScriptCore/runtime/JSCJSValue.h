@@ -281,14 +281,14 @@ public:
     inline bool isGetterSetter() const; // Defined in JSCJSValueCellInlines.h
     inline bool isCustomGetterSetter() const; // Defined in JSCJSValueCellInlines.h
     inline bool isObject() const; // Defined in JSCJSValueCellInlines.h
-    bool inherits(const ClassInfo*) const;
-    template<typename Target> bool inherits() const;
-    const ClassInfo* classInfoOrNull() const;
+    inline bool inherits(const ClassInfo*) const; // Defined in JSCJSValueCellInlines.h
+    template<typename Target> inline bool inherits() const; // Defined in JSCJSValueCellInlines.h
+    inline const ClassInfo* classInfoOrNull() const; // Defined in JSCJSValueCellInlines.h
 
     // Non-inline versions of above for use in header ASSERT macros:
-    JS_EXPORT_PRIVATE bool isGetterSetterSlow() const;
-    JS_EXPORT_PRIVATE bool isCustomGetterSetterSlow() const;
-    JS_EXPORT_PRIVATE bool isStringSlow() const;
+    JS_EXPORT_PRIVATE bool NODELETE isGetterSetterSlow() const;
+    JS_EXPORT_PRIVATE bool NODELETE isCustomGetterSetterSlow() const;
+    JS_EXPORT_PRIVATE bool NODELETE isStringSlow() const;
 
     // Extracting the value.
     inline bool getString(JSGlobalObject*, WTF::String&) const; // Defined in JSCJSValueCellInlines.h
@@ -312,7 +312,7 @@ public:
     JSBigInt* asHeapBigInt() const;
 
     // toNumber conversion if it can be done without side effects.
-    std::optional<double> toNumberFromPrimitive() const;
+    std::optional<double> NODELETE toNumberFromPrimitive() const;
 
     inline JSString* toString(JSGlobalObject*) const; // On exception, this returns the empty string. Defined in JSCJSValueInlines.h
     inline JSString* toStringOrNull(JSGlobalObject*) const; // On exception, this returns null, to make exception checks faster. Defined in JSCJSValueInlines.h
@@ -377,7 +377,7 @@ public:
     bool isCell() const;
     JSCell* asCell() const;
 
-    Structure* structureOrNull() const;
+    inline Structure* structureOrNull() const; // Defined in JSCJSValueCellInlines.h
 
     JS_EXPORT_PRIVATE void dump(PrintStream&) const;
     void dumpInContext(PrintStream&, DumpContext*) const;

@@ -619,6 +619,9 @@ GlyphBufferAdvance Font::applyTransforms(GlyphBuffer& glyphBuffer, unsigned begi
 {
     UNUSED_PARAM(requiresShaping);
 
+    if (!platformData().size())
+        return makeGlyphBufferAdvance();
+
     auto handler = ^(CFRange range, CGGlyph** newGlyphsPointer, CGSize** newAdvancesPointer, CGPoint** newOffsetsPointer, CFIndex** newIndicesPointer)
     {
         range.location = std::min(std::max(range.location, static_cast<CFIndex>(0)), static_cast<CFIndex>(glyphBuffer.size()));
@@ -839,14 +842,14 @@ bool Font::platformSupportsCodePoint(char32_t character, std::optional<char32_t>
 static bool hasGlyphsForCharacterRange(CTFontRef font, UniChar firstCharacter, UniChar lastCharacter, bool expectValidGlyphsForAllCharacters)
 {
     const unsigned numberOfCharacters = lastCharacter - firstCharacter + 1;
-    Vector<CGGlyph> glyphs(numberOfCharacters, 0);
+    Vector<CGGlyph> glyphs(FillWith { }, numberOfCharacters, 0);
     CTFontGetGlyphsForCharacterRange(font, glyphs.begin(), CFRangeMake(firstCharacter, numberOfCharacters));
     glyphs.removeAll(0);
 
     if (glyphs.isEmpty())
         return false;
 
-    Vector<CGRect> boundingRects(glyphs.size(), CGRectZero);
+    Vector<CGRect> boundingRects(FillWith { }, glyphs.size(), CGRectZero);
     CTFontGetBoundingRectsForGlyphs(font, kCTFontOrientationDefault, glyphs.begin(), boundingRects.begin(), glyphs.size());
 
     unsigned validGlyphsCount = 0;
@@ -904,12 +907,12 @@ Font::ComplexColorFormatGlyphs Font::ComplexColorFormatGlyphs::createWithRelevan
     return { true, glyphCount };
 }
 
-bool Font::ComplexColorFormatGlyphs::hasValueFor(Glyph glyph) const
+bool NODELETE Font::ComplexColorFormatGlyphs::hasValueFor(Glyph glyph) const
 {
     return m_bits.contains(bitForInitialized(glyph));
 }
 
-bool Font::ComplexColorFormatGlyphs::get(Glyph glyph) const
+bool NODELETE Font::ComplexColorFormatGlyphs::get(Glyph glyph) const
 {
     ASSERT(hasValueFor(glyph));
     return m_bits.contains(bitForValue(glyph));

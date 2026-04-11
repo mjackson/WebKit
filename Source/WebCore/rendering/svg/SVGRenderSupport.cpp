@@ -88,7 +88,7 @@ std::optional<FloatRect> SVGRenderSupport::computeFloatVisibleRectInContainer(co
         return FloatRect();
 
     FloatRect adjustedRect = rect;
-    adjustedRect.inflate(Style::evaluate<float>(renderer.style().usedOutlineWidth(), Style::ZoomNeeded { }));
+    adjustedRect.inflate(renderer.style().usedOutlineSize());
 
     // Translate to coords in our parent renderer, and then call computeFloatVisibleRectInContainer() on our parent.
     adjustedRect = renderer.localToParentTransform().mapRect(adjustedRect);
@@ -121,7 +121,7 @@ void SVGRenderSupport::mapLocalToContainer(const RenderElement& renderer, const 
 
     transformState.applyTransform(transform);
 
-    OptionSet<MapCoordinatesMode> mode = UseTransforms;
+    OptionSet<MapCoordinatesMode> mode = MapCoordinatesMode::UseTransforms;
     parent.mapLocalToContainer(ancestorContainer, transformState, mode, wasFixed);
 }
 
@@ -327,7 +327,7 @@ void SVGRenderSupport::layoutChildren(RenderElement& start, bool selfNeedsLayout
         }
 
         if (needsLayout)
-            child.setNeedsLayout(MarkOnlyThis);
+            child.setNeedsLayout(MarkingBehavior::MarkOnlyThis);
 
         if (child.needsLayout()) {
             CheckedRef childElement = downcast<RenderElement>(child);

@@ -126,12 +126,12 @@ static inline void writeUnalignedValue(uint8_t* p, V value)
 
 class Writer : public RefCountedAndCanMakeWeakPtr<Writer> {
 public:
-    static Ref<Writer> create(DebugObject* obj)
+    static Ref<Writer> NODELETE create(DebugObject* obj)
     {
         return adoptRef(*new Writer(obj));
     }
 
-    uintptr_t position() const { return m_position; }
+    uintptr_t NODELETE position() const { return m_position; }
 
     template<typename T>
     class Slot {
@@ -193,9 +193,9 @@ public:
             m_buffer.grow(pos);
     }
 
-    DebugObject* debugObject() { return m_debugObject; }
+    DebugObject* NODELETE debugObject() { return m_debugObject; }
 
-    uint8_t* buffer() LIFETIME_BOUND { return &m_buffer[0]; }
+    uint8_t* NODELETE buffer() LIFETIME_BOUND { return &m_buffer[0]; }
 
     void align(uintptr_t align)
     {
@@ -247,14 +247,14 @@ private:
     friend class Slot;
 
     template<typename T>
-    uint8_t* addressAt(uintptr_t offset) LIFETIME_BOUND
+    uint8_t* NODELETE addressAt(uintptr_t offset) LIFETIME_BOUND
     {
         ASSERT(offset < m_buffer.size() && offset + sizeof(T) <= m_buffer.size());
         return &m_buffer[offset];
     }
 
     template<typename T>
-    T* rawSlotAt(uintptr_t offset) LIFETIME_BOUND
+    T* NODELETE rawSlotAt(uintptr_t offset) LIFETIME_BOUND
     {
         ASSERT(offset < m_buffer.size() && offset + sizeof(T) <= m_buffer.size());
         return reinterpret_cast<T*>(&m_buffer[offset]);
@@ -273,17 +273,17 @@ private:
 
 class CodeDescription : public RefCounted<CodeDescription> {
 public:
-    const CString& name() const LIFETIME_BOUND { return m_name; }
+    const CString& NODELETE name() const LIFETIME_BOUND { return m_name; }
 
-    const void* codeStart() const { return reinterpret_cast<const void*>(m_codeRegion.data()); }
+    const void* NODELETE codeStart() const { return reinterpret_cast<const void*>(m_codeRegion.data()); }
 
-    const void* codeEnd() const { return reinterpret_cast<const void*>(std::to_address(m_codeRegion.end())); }
+    const void* NODELETE codeEnd() const { return reinterpret_cast<const void*>(std::to_address(m_codeRegion.end())); }
 
-    uintptr_t codeSize() const { return m_codeRegion.size(); }
+    uintptr_t NODELETE codeSize() const { return m_codeRegion.size(); }
 
-    std::span<const uint8_t> region() { return m_codeRegion; }
+    std::span<const uint8_t> NODELETE region() { return m_codeRegion; }
 
-    static Ref<CodeDescription> create(const CString& name, std::span<const uint8_t> region)
+    static Ref<CodeDescription> NODELETE create(const CString& name, std::span<const uint8_t> region)
     {
         return adoptRef(*new CodeDescription(name, region));
     }
@@ -422,8 +422,8 @@ public:
         strncpy(header->segname, m_segment.data(), sizeof(header->segname));
     }
 
-    const void* addr() const { return m_addr; }
-    size_t size() const { return m_size; }
+    const void* NODELETE addr() const { return m_addr; }
+    size_t NODELETE size() const { return m_size; }
 
 private:
     CString m_name;

@@ -128,7 +128,7 @@ float canonicalizeAndClampLength(double, CSS::LengthUnit, const CSSToLengthConve
 
 template<auto R, typename V, typename... Rest> constexpr Integer<R, V> canonicalize(const CSS::IntegerRaw<R, V>& raw, NoConversionDataRequiredToken, Rest&&...)
 {
-    return { roundForImpreciseConversion<V>(raw.value) };
+    return { clampTo<V>(raw.value) };
 }
 
 template<auto R, typename V, typename... Rest> constexpr Integer<R, V> canonicalize(const CSS::IntegerRaw<R, V>& raw, const CSSToLengthConversionData&, Rest&&... rest)

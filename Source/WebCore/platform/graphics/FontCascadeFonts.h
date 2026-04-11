@@ -55,7 +55,7 @@ class GraphicsContext;
 class IntRect;
 class MixedFontGlyphPage;
 
-struct TextShapingResult;
+struct TextShapingResultAndDisplayList;
 
 struct GlyphOverflow {
     // FIXME: May need clearer&safer storage and names. See webkit.org/b/307002
@@ -79,8 +79,6 @@ static constexpr int maxInterval = -3; // Never ramp up sampling, stay aggressiv
 static constexpr unsigned maxSize = 3000; // Shaped text entries are large due to GlyphBuffer
 static constexpr unsigned maxTextLength = 128; // Larger than default to cache longer canvas text
 }
-
-using CachedTextShapingResult = std::unique_ptr<TextShapingResult>;
 
 } // namespace WebCore
 
@@ -134,8 +132,9 @@ public:
     GlyphGeometryCache& glyphGeometryCache() LIFETIME_BOUND { return m_glyphGeometryCache; }
     const GlyphGeometryCache& glyphGeometryCache() const LIFETIME_BOUND { return m_glyphGeometryCache; }
 
+    using CachedTextShapingResultAndDisplayList = std::unique_ptr<TextShapingResultAndDisplayList>;
     using ShapedTextCache = TextMeasurementCache<
-        CachedTextShapingResult,
+        CachedTextShapingResultAndDisplayList,
         ShapedTextCacheDefaults::initialInterval,
         ShapedTextCacheDefaults::minInterval,
         ShapedTextCacheDefaults::maxInterval,
@@ -145,7 +144,7 @@ public:
     ShapedTextCache& shapedTextCache() LIFETIME_BOUND { return m_shapedTextCache; }
     const ShapedTextCache& shapedTextCache() const LIFETIME_BOUND { return m_shapedTextCache; }
 
-    const TextShapingResult* getOrCreateCachedShapedText(const TextRun&, const FontCascade&, unsigned from, std::optional<unsigned> to, ForTextEmphasis);
+    TextShapingResultAndDisplayList* getOrCreateCachedShapedText(const TextRun&, const FontCascade&, unsigned from, std::optional<unsigned> to, ForTextEmphasis);
 
     const Font& primaryFont(const FontCascadeDescription&, FontSelector*);
     const Font* NODELETE cachedPrimaryFont() const { return m_cachedPrimaryFont.get(); }
@@ -195,7 +194,7 @@ private:
     ShapedTextCache m_shapedTextCache;
 
     unsigned short m_generation { 0 };
-    Pitch m_pitch { UnknownPitch };
+    PitchType m_pitch { PitchType::Unknown };
     bool m_isForPlatformFont { false };
     TriState m_canTakeFixedPitchFastContentMeasuring : 2 { TriState::Indeterminate };
 #if ASSERT_ENABLED
@@ -205,9 +204,9 @@ private:
 
 inline bool FontCascadeFonts::isFixedPitch(const FontCascadeDescription& description, FontSelector* fontSelector)
 {
-    if (m_pitch == UnknownPitch)
+    if (m_pitch == PitchType::Unknown)
         determinePitch(description, fontSelector);
-    return m_pitch == FixedPitch;
+    return m_pitch == PitchType::Fixed;
 }
 
 inline bool FontCascadeFonts::canTakeFixedPitchFastContentMeasuring(const FontCascadeDescription& description, FontSelector* fontSelector)

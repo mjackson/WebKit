@@ -35,6 +35,7 @@
 #include "HTMLDocument.h"
 #include "HTMLNames.h"
 #include "SVGElement.h"
+#include "SecurityOrigin.h"
 #include "SelectorChecker.h"
 #include "StaticNodeList.h"
 #include "StyledElement.h"
@@ -181,19 +182,6 @@ inline bool SelectorDataList::selectorMatches(const SelectorData& selectorData, 
     return selectorChecker.match(selectorData.selector, element, selectorCheckingContext);
 }
 
-inline Element* SelectorDataList::selectorClosest(const SelectorData& selectorData, Element& element, const ContainerNode& rootNode, Style::SelectorMatchingState* selectorMatchingState) const
-{
-    SelectorChecker selectorChecker(element.document());
-    SelectorChecker::CheckingContext selectorCheckingContext(SelectorChecker::Mode::QueryingRules);
-    selectorCheckingContext.scope = rootNode.isDocumentNode() ? nullptr : &rootNode;
-    // Providing SelectorMatchingState allows cross-element optimizations like caching for :has() matches.
-    selectorCheckingContext.selectorMatchingState = selectorMatchingState;
-
-    if (!selectorChecker.match(selectorData.selector, element, selectorCheckingContext))
-        return nullptr;
-    return &element;
-}
-
 bool SelectorDataList::matches(Element& targetElement) const
 {
     for (auto& selector : m_selectors) {
@@ -203,14 +191,14 @@ bool SelectorDataList::matches(Element& targetElement) const
     return false;
 }
 
-Element* SelectorDataList::closest(Element& targetElement) const
+RefPtr<Element> SelectorDataList::closest(Element& targetElement) const
 {
     Style::SelectorMatchingState selectorMatchingState;
 
     for (Ref currentElement : lineageOfType<Element>(targetElement)) {
         for (auto& selector : m_selectors) {
-            if (auto* candidateElement = selectorClosest(selector, currentElement, targetElement, &selectorMatchingState))
-                return candidateElement;
+            if (selectorMatches(selector, currentElement, targetElement, &selectorMatchingState))
+                return currentElement;
         }
     }
     return nullptr;
@@ -713,14 +701,10 @@ SelectorQuery* SelectorQueryCache::add(const String& selectors, const Document& 
 {
     ASSERT(!selectors.isEmpty());
 
-    constexpr auto maximumSelectorQueryCacheSize = 512;
-    if (m_entries.size() == maximumSelectorQueryCacheSize)
-        m_entries.remove(m_entries.random());
-
     auto context = CSSSelectorParserContext { document };
     auto key = Key { selectors, context, document.securityOrigin().data() };
 
-    return m_entries.ensure(key, [&]() -> std::unique_ptr<SelectorQuery> {
+    auto result = m_entries.ensure(key, [&] -> std::unique_ptr<SelectorQuery> {
         auto tokenizer = CSSTokenizer { selectors };
         auto selectorList = parseCSSSelectorList(tokenizer.tokenRange(), context);
 
@@ -731,7 +715,17 @@ SelectorQuery* SelectorQueryCache::add(const String& selectors, const Document& 
             selectorList = CSSSelectorParser::resolveNestingParent(WTF::move(*selectorList), nullptr);
 
         return makeUnique<SelectorQuery>(WTF::move(*selectorList));
-    }).iterator->value.get();
+    });
+
+    auto* query = result.iterator->value.get();
+    constexpr auto maximumSelectorQueryCacheSize = 512;
+    while (m_entries.size() > maximumSelectorQueryCacheSize) {
+        auto it = m_entries.random();
+        if (it->key != result.iterator->key)
+            m_entries.remove(it);
+    }
+
+    return query;
 }
 
 void SelectorQueryCache::clear()

@@ -46,6 +46,7 @@ public:
 
 private:
     bool isAnimatedProperty() const override { return true; }
+    bool isAnimating(const OwnerType& owner) const override { return property(owner)->isAnimating(); }
 };
 
 }

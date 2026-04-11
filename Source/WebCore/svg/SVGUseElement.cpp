@@ -258,7 +258,7 @@ static inline bool NODELETE isDisallowedElement(const SVGElement& element)
     return true;
 }
 
-static inline bool isDisallowedElement(const Element& element)
+static inline bool NODELETE isDisallowedElement(const Element& element)
 {
     auto* svgElement = dynamicDowncast<SVGElement>(element);
     return !svgElement || isDisallowedElement(*svgElement);
@@ -510,8 +510,8 @@ RefPtr<SVGElement> SVGUseElement::findTarget(AtomString* targetID) const
         return nullptr;
 
     if (correspondingElement) {
-        for (Ref ancestor : lineageOfType<SVGElement>(*this)) {
-            if (ancestor->correspondingElement() == target)
+        for (auto& ancestor : lineageOfType<SVGElement>(*this)) {
+            if (ancestor.correspondingElement() == target)
                 return nullptr;
         }
     } else {

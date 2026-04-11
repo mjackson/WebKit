@@ -452,7 +452,7 @@ void AssemblyHelpers::loadProperty(GPRReg object, GPRReg offset, JSValueRegs res
     isInline.link(this);
     addPtr(
         TrustedImm32(
-            static_cast<int32_t>(sizeof(JSObject)) -
+            static_cast<int32_t>(JSObject::offsetOfInlineStorage()) -
             (static_cast<int32_t>(firstOutOfLineOffset) - 2) * static_cast<int32_t>(sizeof(EncodedJSValue))),
         object, result.payloadGPR());
 
@@ -479,7 +479,7 @@ void AssemblyHelpers::storeProperty(JSValueRegs value, GPRReg object, GPRReg off
     isInline.link(this);
     addPtr(
         TrustedImm32(
-            static_cast<int32_t>(sizeof(JSObject)) -
+            static_cast<int32_t>(JSObject::offsetOfInlineStorage()) -
             (static_cast<int32_t>(firstOutOfLineOffset) - 2) * static_cast<int32_t>(sizeof(EncodedJSValue))),
         object, scratch);
 
@@ -840,6 +840,15 @@ void emitRandomThunkImpl(AssemblyHelpers& jit, GPRReg scratch0, GPRReg scratch1,
     // m_low = y;
     storeToLow(scratch1);
 
+#if CPU(ARM64)
+    // x ^= x << 23;
+    jit.xorLeftShift64(scratch0, scratch0, AssemblyHelpers::TrustedImm32(23), scratch0);
+    // x ^= x >> 17;
+    jit.xorUnsignedRightShift64(scratch0, scratch0, AssemblyHelpers::TrustedImm32(17), scratch0);
+    // x ^= y ^ (y >> 26);
+    jit.xorUnsignedRightShift64(scratch1, scratch1, AssemblyHelpers::TrustedImm32(26), scratch2);
+    jit.xor64(scratch2, scratch0);
+#else
     // x ^= x << 23;
     jit.lshift64(scratch0, AssemblyHelpers::TrustedImm32(23), scratch2);
     jit.xor64(scratch2, scratch0);
@@ -852,6 +861,7 @@ void emitRandomThunkImpl(AssemblyHelpers& jit, GPRReg scratch0, GPRReg scratch1,
     jit.urshift64(scratch1, AssemblyHelpers::TrustedImm32(26), scratch2);
     jit.xor64(scratch1, scratch2);
     jit.xor64(scratch2, scratch0);
+#endif
 
     // m_high = x;
     storeToHigh(scratch0);
@@ -901,7 +911,7 @@ void AssemblyHelpers::emitRandomThunk(VM& vm, GPRReg scratch0, GPRReg scratch1, 
 {
     emitGetFromCallFrameHeaderPtr(CallFrameSlot::callee, scratch3);
     emitLoadStructure(vm, scratch3, scratch3);
-    loadPtr(Address(scratch3, Structure::globalObjectOffset()), scratch3);
+    loadPtr(Address(scratch3, Structure::realmOffset()), scratch3);
     // Now, scratch3 holds JSGlobalObject*.
 
     auto loadFromHigh = [&](GPRReg high) {
@@ -1235,7 +1245,28 @@ void AssemblyHelpers::emitVirtualCallWithoutMovingGlobalObject(VM& vm, GPRReg ca
 void AssemblyHelpers::wangsInt64Hash(GPRReg inputAndResult, GPRReg scratch)
 {
     GPRReg input = inputAndResult;
-    // key += ~(key << 32);
+#if CPU(ARM64)
+    // key += ~(key << 32) => key = key - (key << 32) - 1
+    subLeftShift64(input, input, TrustedImm32(32), input);
+    sub64(TrustedImm32(1), input);
+    // key ^= (key >> 22)
+    xorUnsignedRightShift64(input, input, TrustedImm32(22), input);
+    // key += ~(key << 13) => key = key - (key << 13) - 1
+    subLeftShift64(input, input, TrustedImm32(13), input);
+    sub64(TrustedImm32(1), input);
+    // key ^= (key >> 8)
+    xorUnsignedRightShift64(input, input, TrustedImm32(8), input);
+    // key += (key << 3)
+    addLeftShift64(input, input, TrustedImm32(3), input);
+    // key ^= (key >> 15)
+    xorUnsignedRightShift64(input, input, TrustedImm32(15), input);
+    // key += ~(key << 27) => key = key - (key << 27) - 1
+    subLeftShift64(input, input, TrustedImm32(27), input);
+    sub64(TrustedImm32(1), input);
+    // key ^= (key >> 31)
+    xorUnsignedRightShift64(input, input, TrustedImm32(31), input);
+    UNUSED_PARAM(scratch);
+#else
     lshift64(input, TrustedImm32(32), scratch);
     not64(scratch);
     add64(scratch, input);
@@ -1262,6 +1293,7 @@ void AssemblyHelpers::wangsInt64Hash(GPRReg inputAndResult, GPRReg scratch)
     // key ^= (key >> 31);
     urshift64(input, TrustedImm32(31), scratch);
     xor64(scratch, input);
+#endif // CPU(ARM64)
 
     // return static_cast<unsigned>(result)
     void* mask = std::bit_cast<void*>(static_cast<uintptr_t>(UINT_MAX));
@@ -1301,7 +1333,7 @@ void AssemblyHelpers::emitConvertValueToBoolean(VM& vm, JSValueRegs value, GPRRe
         isNotMasqueradesAsUndefined.append(branchTest8(Zero, Address(value.payloadGPR(), JSCell::typeInfoFlagsOffset()), TrustedImm32(MasqueradesAsUndefined)));
         emitLoadStructure(vm, value.payloadGPR(), result);
         move(TrustedImmPtr(globalObject), scratchIfShouldCheckMasqueradesAsUndefined);
-        isNotMasqueradesAsUndefined.append(branchPtr(NotEqual, Address(result, Structure::globalObjectOffset()), scratchIfShouldCheckMasqueradesAsUndefined));
+        isNotMasqueradesAsUndefined.append(branchPtr(NotEqual, Address(result, Structure::realmOffset()), scratchIfShouldCheckMasqueradesAsUndefined));
 
         // We act like we are "undefined" here.
         move(invert ? TrustedImm32(1) : TrustedImm32(0), result);
@@ -1397,7 +1429,7 @@ AssemblyHelpers::JumpList AssemblyHelpers::branchIfValue(VM& vm, JSValueRegs val
             move(std::get<GPRReg>(globalObject), scratchIfShouldCheckMasqueradesAsUndefined);
         else
             loadPtr(Address(GPRInfo::jitDataRegister, BaselineJITData::offsetOfGlobalObject()), scratchIfShouldCheckMasqueradesAsUndefined);
-        isNotMasqueradesAsUndefined.append(branchPtr(NotEqual, Address(scratch, Structure::globalObjectOffset()), scratchIfShouldCheckMasqueradesAsUndefined));
+        isNotMasqueradesAsUndefined.append(branchPtr(NotEqual, Address(scratch, Structure::realmOffset()), scratchIfShouldCheckMasqueradesAsUndefined));
 
         // We act like we are "undefined" here.
         if (invert)

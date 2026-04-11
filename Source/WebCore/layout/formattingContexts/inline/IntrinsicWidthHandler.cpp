@@ -28,6 +28,7 @@
 
 #include "InlineFormattingContext.h"
 #include "InlineLineBuilder.h"
+#include <wtf/unicode/CharacterNames.h>
 #include "LayoutElementBox.h"
 #include "RenderStyle+GettersInlines.h"
 #include "StyleComputedStyle+InitialInlines.h"

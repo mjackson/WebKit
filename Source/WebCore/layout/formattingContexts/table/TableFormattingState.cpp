@@ -96,9 +96,7 @@ TableFormattingState::TableFormattingState(LayoutState& layoutState, const Eleme
 {
 }
 
-TableFormattingState::~TableFormattingState()
-{
-}
+TableFormattingState::~TableFormattingState() = default;
 
 }
 }

@@ -42,7 +42,7 @@
 #else
 
 #if HAVE(LIQUID_GLASS)
-static bool platformIsLiquidGlassEnabled()
+static bool NODELETE platformIsLiquidGlassEnabled()
 {
     return true;
 }
@@ -98,13 +98,13 @@ bool NODELETE defaultWebContentRestrictionsAskToEnabled()
 namespace WebKit {
 
 #if HAVE(LIQUID_GLASS)
-static std::optional<bool>& cachedIsLiqudGlassEnabled()
+static std::optional<bool>& NODELETE cachedIsLiqudGlassEnabled()
 {
     static std::optional<bool> isLiquidGlassEnabled;
     return isLiquidGlassEnabled;
 }
 
-bool isLiquidGlassEnabled()
+bool NODELETE isLiquidGlassEnabled()
 {
     if (auto isLiquidGlassEnabled = cachedIsLiqudGlassEnabled())
         return *isLiquidGlassEnabled;
@@ -112,7 +112,7 @@ bool isLiquidGlassEnabled()
     return platformIsLiquidGlassEnabled();
 }
 
-void setLiquidGlassEnabled(bool isLiquidGlassEnabled)
+void NODELETE setLiquidGlassEnabled(bool isLiquidGlassEnabled)
 {
     cachedIsLiqudGlassEnabled() = isLiquidGlassEnabled;
 }
@@ -183,7 +183,7 @@ bool NODELETE defaultContentInsetBackgroundFillEnabled()
 }
 
 #if HAVE(MATERIAL_HOSTING)
-bool defaultHostedBlurMaterialInMediaControlsEnabled()
+bool NODELETE defaultHostedBlurMaterialInMediaControlsEnabled()
 {
     return isLiquidGlassEnabled();
 }

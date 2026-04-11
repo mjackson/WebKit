@@ -40,9 +40,7 @@ WebTextChecker* WebTextChecker::singleton()
     return textChecker;
 }
 
-WebTextChecker::WebTextChecker()
-{
-}
+WebTextChecker::WebTextChecker() = default;
 
 void WebTextChecker::setClient(const WKTextCheckerClientBase* client)
 {

@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 1999-2001 Harri Porten (porten@kde.org)
  *  Copyright (C) 2001 Peter Kelly (pmk@post.com)
- *  Copyright (C) 2003-2025 Apple Inc. All rights reserved.
+ *  Copyright (C) 2003-2026 Apple Inc. All rights reserved.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Library General Public
@@ -233,25 +233,25 @@ using JSInstruction = BaseInstruction<JSOpcodeTraits>;
         void clearReturnPC() { callerFrameAndPC().returnPC = nullptr; }
         static constexpr ptrdiff_t returnPCOffset() { return OBJECT_OFFSETOF(CallerFrameAndPC, returnPC); }
 
-        bool callSiteBitsAreBytecodeOffset() const;
-        bool callSiteBitsAreCodeOriginIndex() const;
+        bool NODELETE callSiteBitsAreBytecodeOffset() const;
+        bool NODELETE callSiteBitsAreCodeOriginIndex() const;
 
-        unsigned callSiteAsRawBits() const;
-        unsigned unsafeCallSiteAsRawBits() const;
-        CallSiteIndex callSiteIndex() const;
-        CallSiteIndex unsafeCallSiteIndex() const;
+        unsigned NODELETE callSiteAsRawBits() const;
+        unsigned NODELETE unsafeCallSiteAsRawBits() const;
+        CallSiteIndex NODELETE callSiteIndex() const;
+        CallSiteIndex NODELETE unsafeCallSiteIndex() const;
         void setCallSiteIndex(CallSiteIndex);
 
 #if ENABLE(WEBASSEMBLY)
-        JSWebAssemblyInstance* wasmInstance() const;
+        JSWebAssemblyInstance* NODELETE wasmInstance() const;
 #endif
 
         JSCell* codeOwnerCell() const;
 
     private:
-        unsigned callSiteBitsAsBytecodeOffset() const;
-        JS_EXPORT_PRIVATE JSGlobalObject* lexicalGlobalObjectFromNativeCallee(VM&) const;
-        JS_EXPORT_PRIVATE JSCell* codeOwnerCellSlow() const;
+        unsigned NODELETE callSiteBitsAsBytecodeOffset() const;
+        JS_EXPORT_PRIVATE JSGlobalObject* NODELETE lexicalGlobalObjectFromNativeCallee(VM&) const;
+        JS_EXPORT_PRIVATE JSCell* NODELETE codeOwnerCellSlow() const;
     public:
 
         // This will try to get you the bytecode offset, but you should be aware that
@@ -267,8 +267,8 @@ using JSInstruction = BaseInstruction<JSOpcodeTraits>;
 
         inline Register* topOfFrame();
 
-        const JSInstruction* currentVPC() const; // This only makes sense in the LLInt and baseline.
-        void setCurrentVPC(const JSInstruction*);
+        const JSInstruction* NODELETE currentVPC() const; // This only makes sense in the LLInt and baseline.
+        void NODELETE setCurrentVPC(const JSInstruction*);
 
         void setCallerFrame(CallFrame* frame) { callerFrameAndPC().callerFrame = frame; }
         inline void setScope(int scopeRegisterOffset, JSScope*);
@@ -283,6 +283,8 @@ using JSInstruction = BaseInstruction<JSOpcodeTraits>;
         size_t argumentCountIncludingThis() const { return this[static_cast<int>(CallFrameSlot::argumentCountIncludingThis)].payload(); }
         static constexpr int argumentOffset(int argument) { return (CallFrameSlot::firstArgument + argument); }
         static constexpr int argumentOffsetIncludingThis(int argument) { return (CallFrameSlot::thisArgument + argument); }
+
+        std::span<JSValue> argumentsSpan() { return { addressOfArgumentsStart(), argumentCount() }; }
 
         // In the following (argument() and setArgument()), the 'argument'
         // parameter is the index of the arguments of the target function of
@@ -388,7 +390,7 @@ using JSInstruction = BaseInstruction<JSOpcodeTraits>;
         SUPPRESS_ASAN const CallerFrameAndPC& unsafeCallerFrameAndPC() const { return *reinterpret_cast<const CallerFrameAndPC*>(this); }
     };
 
-JS_EXPORT_PRIVATE bool isFromJSCode(void* returnAddress);
+JS_EXPORT_PRIVATE bool NODELETE isFromJSCode(void* returnAddress);
 
 #if USE(BUILTIN_FRAME_ADDRESS)
 #if OS(WINDOWS) && CPU(X86_64)

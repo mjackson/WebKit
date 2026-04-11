@@ -59,6 +59,7 @@
 #include "JSCanvasRenderingContext2D.h"
 #include "JSCanvasTextAlign.h"
 #include "JSCanvasTextBaseline.h"
+#include "JSDOMWrapperCache.h"
 #include "JSExecState.h"
 #include "JSImageBitmapRenderingContext.h"
 #include "JSImageSmoothingQuality.h"

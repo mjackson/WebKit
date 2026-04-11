@@ -47,7 +47,7 @@ public:
         : m_graph(graph)
         , m_graphDumpMode(graphDumpMode)
         , m_graphDumpBeforePhase(graphDumpBeforePhase)
-        , m_myTupleRefCounts(m_graph.m_tupleData.size(), 0)
+        , m_myTupleRefCounts(FillWith { }, m_graph.m_tupleData.size(), 0)
     {
     }
     
@@ -1076,7 +1076,7 @@ private:
             getLocalPositions.operand(operand) < setLocalPositions.operand(operand));
     }
     
-    void reportValidationContext() { }
+    void NODELETE reportValidationContext() { }
 
     void reportValidationContext(Node* node)
     {

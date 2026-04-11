@@ -119,7 +119,7 @@ const SymbolTable::LocalToEntryVec& SymbolTable::localToEntry(const ConcurrentJS
                 size = std::max(size, offset.scopeOffset().offset() + 1);
         }
     
-        m_localToEntry = makeUnique<LocalToEntryVec>(size, nullptr);
+        m_localToEntry = makeUnique<LocalToEntryVec>(FillWith { }, size, nullptr);
         for (auto& entry : m_map) {
             VarOffset offset = entry.value.varOffset();
             if (offset.isScope())

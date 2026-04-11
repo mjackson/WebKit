@@ -33,6 +33,7 @@
 #include "HTMLFormElement.h"
 #include "JSCustomElementInterface.h"
 #include "JSDOMConstructorBase.h"
+#include "JSDOMWrapperCache.h"
 #include "JSHTMLElementWrapperFactory.h"
 #include "JSNodeCustom.h"
 #include "LocalDOMWindow.h"
@@ -103,7 +104,7 @@ EncodedJSValue constructJSHTMLElement(JSGlobalObject* lexicalGlobalObject, CallF
         return JSValue::encode(jsUndefined());
     }
 
-    JSValue elementWrapperValue = toJS(lexicalGlobalObject, jsConstructor->globalObject(), *elementToUpgrade);
+    JSValue elementWrapperValue = toJS(lexicalGlobalObject, jsConstructor->realm(), *elementToUpgrade);
     ASSERT(elementWrapperValue.isObject());
 
     JSValue newPrototype = newTarget->get(lexicalGlobalObject, vm.propertyNames->prototype);
@@ -129,16 +130,16 @@ JSScope* JSHTMLElement::pushEventHandlerScope(JSGlobalObject* lexicalGlobalObjec
     // https://bugs.webkit.org/show_bug.cgi?id=134932
     VM& vm = lexicalGlobalObject->vm();
     
-    scope = JSWithScope::create(vm, lexicalGlobalObject, scope, asObject(toJS(lexicalGlobalObject, globalObject(), element->document())));
+    scope = JSWithScope::create(vm, lexicalGlobalObject, scope, asObject(toJS(lexicalGlobalObject, realm(), element->document())));
 
     // The form is next, searched before the document, but after the element itself.
     if (auto* formAssociated = element->asFormAssociatedElement()) {
         if (RefPtr form = formAssociated->form())
-            scope = JSWithScope::create(vm, lexicalGlobalObject, scope, asObject(toJS(lexicalGlobalObject, globalObject(), *form)));
+            scope = JSWithScope::create(vm, lexicalGlobalObject, scope, asObject(toJS(lexicalGlobalObject, realm(), *form)));
     }
 
     // The element is on top, searched first.
-    return JSWithScope::create(vm, lexicalGlobalObject, scope, asObject(toJS(lexicalGlobalObject, globalObject(), element)));
+    return JSWithScope::create(vm, lexicalGlobalObject, scope, asObject(toJS(lexicalGlobalObject, realm(), element)));
 }
 
 JSValue toJS(JSGlobalObject*, JSDOMGlobalObject* globalObject, HTMLElement& element)

@@ -269,4 +269,33 @@
                 if(style(--condition-val < attr(data-foo type(*))): url(https://does-not-exist.test/404.png);))`,
               'text',
               'none');
+
+    // Test taint propagation through registered custom property with universal syntax.
+    // A registered * property should still carry attr()-taint.
+    test(() => {
+        CSS.registerProperty({
+            name: '--registered-universal',
+            syntax: '*',
+            inherits: false,
+            initialValue: '',
+        });
+        var elem = document.getElementById("attr");
+        elem.setAttribute("data-foo", "https://does-not-exist.test/404.png");
+        elem.style.setProperty('--registered-universal', 'attr(data-foo)');
+        elem.style.setProperty('background-image', 'image-set(var(--registered-universal))');
+        assert_equals(window.getComputedStyle(elem).getPropertyValue('background-image'), 'none');
+        elem.style.setProperty('--registered-universal', null);
+        elem.style.setProperty('background-image', null);
+    }, 'Taint propagates through registered * syntax custom property into image-set()');
+
+    // Test taint propagation through a simple var() reference into background-image with url() tokens.
+    test(() => {
+        var elem = document.getElementById("attr");
+        elem.setAttribute("data-foo", "url(https://does-not-exist.test/404.png)");
+        elem.style.setProperty('--tainted-url', 'attr(data-foo type(*))');
+        elem.style.setProperty('background-image', 'var(--tainted-url)');
+        assert_equals(window.getComputedStyle(elem).getPropertyValue('background-image'), 'none');
+        elem.style.setProperty('--tainted-url', null);
+        elem.style.setProperty('background-image', null);
+    }, 'Taint propagates through simple var() reference with url() tokens into background-image');
 </script>

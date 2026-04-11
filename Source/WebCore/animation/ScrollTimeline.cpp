@@ -38,7 +38,7 @@
 #include "RenderLayerScrollableArea.h"
 #include "RenderObjectInlines.h"
 #include "RenderView.h"
-#include "StylableInlines.h"
+#include "StyleableInlines.h"
 #include "StyleComputedStyle+InitialInlines.h"
 #include "StyleSingleAnimationRange.h"
 #include "WebAnimation.h"

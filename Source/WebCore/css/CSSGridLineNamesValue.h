@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include "CSSCustomIdent.h"
 #include "CSSValue.h"
 #include <wtf/FixedVector.h>
 #include <wtf/text/WTFString.h>
@@ -38,17 +39,17 @@ namespace WebCore {
 
 class CSSGridLineNamesValue final : public CSSValue {
 public:
-    static Ref<CSSGridLineNamesValue> create(std::span<const String>);
+    static Ref<CSSGridLineNamesValue> create(SpaceSeparatedVector<CSS::CustomIdent>&&);
 
-    std::span<const String> names() const { return m_names; }
+    const SpaceSeparatedVector<CSS::CustomIdent>& names() const { return m_names; }
 
     String customCSSText(const CSS::SerializationContext&) const;
     bool equals(const CSSGridLineNamesValue& other) const { return m_names == other.m_names; }
 
 private:
-    explicit CSSGridLineNamesValue(std::span<const String>);
+    explicit CSSGridLineNamesValue(SpaceSeparatedVector<CSS::CustomIdent>&&);
 
-    FixedVector<String> m_names;
+    SpaceSeparatedVector<CSS::CustomIdent> m_names;
 };
 
 } // namespace WebCore

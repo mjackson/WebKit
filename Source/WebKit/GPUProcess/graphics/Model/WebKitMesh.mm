@@ -30,9 +30,13 @@
 
 #import <WebCore/IOSurface.h>
 #import <WebCore/ProcessIdentity.h>
+#import <wtf/BlockPtr.h>
 #import <wtf/CheckedArithmetic.h>
+#import <wtf/CompletionHandler.h>
 #import <wtf/MathExtras.h>
+#import <wtf/RunLoop.h>
 #import <wtf/TZoneMallocInlines.h>
+#import <wtf/cocoa/VectorCocoa.h>
 #import <wtf/spi/cocoa/IOSurfaceSPI.h>
 #import <wtf/threads/BinarySemaphore.h>
 
@@ -41,6 +45,402 @@
 namespace WebModel {
 
 #if ENABLE(GPU_PROCESS_MODEL)
+
+static WKBridgeTypedResourceId *convert(const TypedResourceId& update)
+{
+    return [WebKit::allocWKBridgeTypedResourceIdInstance() initWithValue:[[NSUUID alloc] initWithUUIDString:update.value.createNSString().get()] path:update.path.createNSString().get() hashValue:update.hashValue];
+}
+
+// Helper conversion functions from WebGPU types to Metal types
+static WKBridgeVertexSemantic toMetal(VertexSemantic semantic)
+{
+    switch (semantic) {
+    case VertexSemantic::Position:
+        return WKBridgeVertexSemanticPosition;
+    case VertexSemantic::Color:
+        return WKBridgeVertexSemanticColor;
+    case VertexSemantic::Normal:
+        return WKBridgeVertexSemanticNormal;
+    case VertexSemantic::Tangent:
+        return WKBridgeVertexSemanticTangent;
+    case VertexSemantic::Bitangent:
+        return WKBridgeVertexSemanticBitangent;
+    case VertexSemantic::UV0:
+        return WKBridgeVertexSemanticUV0;
+    case VertexSemantic::UV1:
+        return WKBridgeVertexSemanticUV1;
+    case VertexSemantic::UV2:
+        return WKBridgeVertexSemanticUV2;
+    case VertexSemantic::UV3:
+        return WKBridgeVertexSemanticUV3;
+    case VertexSemantic::UV4:
+        return WKBridgeVertexSemanticUV4;
+    case VertexSemantic::UV5:
+        return WKBridgeVertexSemanticUV5;
+    case VertexSemantic::UV6:
+        return WKBridgeVertexSemanticUV6;
+    case VertexSemantic::UV7:
+        return WKBridgeVertexSemanticUV7;
+    case VertexSemantic::Unspecified:
+        return WKBridgeVertexSemanticUnspecified;
+    }
+}
+
+static MTLVertexFormat toMetal(WebCore::WebGPU::VertexFormat format)
+{
+    switch (format) {
+    case WebCore::WebGPU::VertexFormat::Uint8:
+        return MTLVertexFormatUChar;
+    case WebCore::WebGPU::VertexFormat::Uint8x2:
+        return MTLVertexFormatUChar2;
+    case WebCore::WebGPU::VertexFormat::Uint8x4:
+        return MTLVertexFormatUChar4;
+    case WebCore::WebGPU::VertexFormat::Sint8:
+        return MTLVertexFormatChar;
+    case WebCore::WebGPU::VertexFormat::Sint8x2:
+        return MTLVertexFormatChar2;
+    case WebCore::WebGPU::VertexFormat::Sint8x4:
+        return MTLVertexFormatChar4;
+    case WebCore::WebGPU::VertexFormat::Unorm8:
+        return MTLVertexFormatUCharNormalized;
+    case WebCore::WebGPU::VertexFormat::Unorm8x2:
+        return MTLVertexFormatUChar2Normalized;
+    case WebCore::WebGPU::VertexFormat::Unorm8x4:
+        return MTLVertexFormatUChar4Normalized;
+    case WebCore::WebGPU::VertexFormat::Snorm8:
+        return MTLVertexFormatCharNormalized;
+    case WebCore::WebGPU::VertexFormat::Snorm8x2:
+        return MTLVertexFormatChar2Normalized;
+    case WebCore::WebGPU::VertexFormat::Snorm8x4:
+        return MTLVertexFormatChar4Normalized;
+    case WebCore::WebGPU::VertexFormat::Uint16:
+        return MTLVertexFormatUShort;
+    case WebCore::WebGPU::VertexFormat::Uint16x2:
+        return MTLVertexFormatUShort2;
+    case WebCore::WebGPU::VertexFormat::Uint16x4:
+        return MTLVertexFormatUShort4;
+    case WebCore::WebGPU::VertexFormat::Sint16:
+        return MTLVertexFormatShort;
+    case WebCore::WebGPU::VertexFormat::Sint16x2:
+        return MTLVertexFormatShort2;
+    case WebCore::WebGPU::VertexFormat::Sint16x4:
+        return MTLVertexFormatShort4;
+    case WebCore::WebGPU::VertexFormat::Unorm16:
+        return MTLVertexFormatUShortNormalized;
+    case WebCore::WebGPU::VertexFormat::Unorm16x2:
+        return MTLVertexFormatUShort2Normalized;
+    case WebCore::WebGPU::VertexFormat::Unorm16x4:
+        return MTLVertexFormatUShort4Normalized;
+    case WebCore::WebGPU::VertexFormat::Snorm16:
+        return MTLVertexFormatShortNormalized;
+    case WebCore::WebGPU::VertexFormat::Snorm16x2:
+        return MTLVertexFormatShort2Normalized;
+    case WebCore::WebGPU::VertexFormat::Snorm16x4:
+        return MTLVertexFormatShort4Normalized;
+    case WebCore::WebGPU::VertexFormat::Float16:
+        return MTLVertexFormatHalf;
+    case WebCore::WebGPU::VertexFormat::Float16x2:
+        return MTLVertexFormatHalf2;
+    case WebCore::WebGPU::VertexFormat::Float16x4:
+        return MTLVertexFormatHalf4;
+    case WebCore::WebGPU::VertexFormat::Float32:
+        return MTLVertexFormatFloat;
+    case WebCore::WebGPU::VertexFormat::Float32x2:
+        return MTLVertexFormatFloat2;
+    case WebCore::WebGPU::VertexFormat::Float32x3:
+        return MTLVertexFormatFloat3;
+    case WebCore::WebGPU::VertexFormat::Float32x4:
+        return MTLVertexFormatFloat4;
+    case WebCore::WebGPU::VertexFormat::Uint32:
+        return MTLVertexFormatUInt;
+    case WebCore::WebGPU::VertexFormat::Uint32x2:
+        return MTLVertexFormatUInt2;
+    case WebCore::WebGPU::VertexFormat::Uint32x3:
+        return MTLVertexFormatUInt3;
+    case WebCore::WebGPU::VertexFormat::Uint32x4:
+        return MTLVertexFormatUInt4;
+    case WebCore::WebGPU::VertexFormat::Sint32:
+        return MTLVertexFormatInt;
+    case WebCore::WebGPU::VertexFormat::Sint32x2:
+        return MTLVertexFormatInt2;
+    case WebCore::WebGPU::VertexFormat::Sint32x3:
+        return MTLVertexFormatInt3;
+    case WebCore::WebGPU::VertexFormat::Sint32x4:
+        return MTLVertexFormatInt4;
+    case WebCore::WebGPU::VertexFormat::Unorm1010102:
+        return MTLVertexFormatUInt1010102Normalized;
+    case WebCore::WebGPU::VertexFormat::Unorm8x4Bgra:
+        return MTLVertexFormatUChar4Normalized_BGRA;
+    }
+}
+
+static MTLTextureType toMetal(WebCore::WebGPU::TextureViewDimension dimension)
+{
+    switch (dimension) {
+    case WebCore::WebGPU::TextureViewDimension::_1d:
+        return MTLTextureType1D;
+    case WebCore::WebGPU::TextureViewDimension::_2d:
+        return MTLTextureType2D;
+    case WebCore::WebGPU::TextureViewDimension::_2dArray:
+        return MTLTextureType2DArray;
+    case WebCore::WebGPU::TextureViewDimension::Cube:
+        return MTLTextureTypeCube;
+    case WebCore::WebGPU::TextureViewDimension::CubeArray:
+        return MTLTextureTypeCubeArray;
+    case WebCore::WebGPU::TextureViewDimension::_3d:
+        return MTLTextureType3D;
+    }
+}
+
+static MTLTextureUsage toMetal(WebCore::WebGPU::TextureUsageFlags flags)
+{
+    MTLTextureUsage usage = 0;
+
+    if (flags.contains(WebCore::WebGPU::TextureUsage::TextureBinding))
+        usage |= MTLTextureUsageShaderRead;
+    if (flags.contains(WebCore::WebGPU::TextureUsage::StorageBinding))
+        usage |= MTLTextureUsageShaderWrite;
+    if (flags.contains(WebCore::WebGPU::TextureUsage::RenderAttachment))
+        usage |= MTLTextureUsageRenderTarget;
+    if (flags.contains(WebCore::WebGPU::TextureUsage::CopySource) || flags.contains(WebCore::WebGPU::TextureUsage::CopyDestination))
+        usage |= MTLTextureUsagePixelFormatView;
+
+    return usage;
+}
+
+static MTLPrimitiveType toMetal(WebCore::WebGPU::PrimitiveTopology topology)
+{
+    switch (topology) {
+    case WebCore::WebGPU::PrimitiveTopology::PointList:
+        return MTLPrimitiveTypePoint;
+    case WebCore::WebGPU::PrimitiveTopology::LineList:
+        return MTLPrimitiveTypeLine;
+    case WebCore::WebGPU::PrimitiveTopology::LineStrip:
+        return MTLPrimitiveTypeLineStrip;
+    case WebCore::WebGPU::PrimitiveTopology::TriangleList:
+        return MTLPrimitiveTypeTriangle;
+    case WebCore::WebGPU::PrimitiveTopology::TriangleStrip:
+        return MTLPrimitiveTypeTriangleStrip;
+    }
+}
+
+static MTLIndexType toMetal(WebModel::IndexType indexType)
+{
+    switch (indexType) {
+    case WebModel::IndexType::UInt16:
+        return MTLIndexTypeUInt16;
+    case WebModel::IndexType::UInt32:
+        return MTLIndexTypeUInt32;
+    }
+}
+
+static MTLPixelFormat toMetal(WebCore::WebGPU::TextureFormat textureFormat)
+{
+    switch (textureFormat) {
+    case WebCore::WebGPU::TextureFormat::R8unorm:
+        return MTLPixelFormatR8Unorm;
+    case WebCore::WebGPU::TextureFormat::R8snorm:
+        return MTLPixelFormatR8Snorm;
+    case WebCore::WebGPU::TextureFormat::R8uint:
+        return MTLPixelFormatR8Uint;
+    case WebCore::WebGPU::TextureFormat::R8sint:
+        return MTLPixelFormatR8Sint;
+    case WebCore::WebGPU::TextureFormat::R16unorm:
+        return MTLPixelFormatR16Unorm;
+    case WebCore::WebGPU::TextureFormat::R16snorm:
+        return MTLPixelFormatR16Snorm;
+    case WebCore::WebGPU::TextureFormat::R16uint:
+        return MTLPixelFormatR16Uint;
+    case WebCore::WebGPU::TextureFormat::R16sint:
+        return MTLPixelFormatR16Sint;
+    case WebCore::WebGPU::TextureFormat::R16float:
+        return MTLPixelFormatR16Float;
+    case WebCore::WebGPU::TextureFormat::Rg8unorm:
+        return MTLPixelFormatRG8Unorm;
+    case WebCore::WebGPU::TextureFormat::Rg8snorm:
+        return MTLPixelFormatRG8Snorm;
+    case WebCore::WebGPU::TextureFormat::Rg8uint:
+        return MTLPixelFormatRG8Uint;
+    case WebCore::WebGPU::TextureFormat::Rg8sint:
+        return MTLPixelFormatRG8Sint;
+    case WebCore::WebGPU::TextureFormat::R32float:
+        return MTLPixelFormatR32Float;
+    case WebCore::WebGPU::TextureFormat::R32uint:
+        return MTLPixelFormatR32Uint;
+    case WebCore::WebGPU::TextureFormat::R32sint:
+        return MTLPixelFormatR32Sint;
+    case WebCore::WebGPU::TextureFormat::Rg16unorm:
+        return MTLPixelFormatRG16Unorm;
+    case WebCore::WebGPU::TextureFormat::Rg16snorm:
+        return MTLPixelFormatRG16Snorm;
+    case WebCore::WebGPU::TextureFormat::Rg16uint:
+        return MTLPixelFormatRG16Uint;
+    case WebCore::WebGPU::TextureFormat::Rg16sint:
+        return MTLPixelFormatRG16Sint;
+    case WebCore::WebGPU::TextureFormat::Rg16float:
+        return MTLPixelFormatRG16Float;
+    case WebCore::WebGPU::TextureFormat::Rgba8unorm:
+        return MTLPixelFormatRGBA8Unorm;
+    case WebCore::WebGPU::TextureFormat::Rgba8unormSRGB:
+        return MTLPixelFormatRGBA8Unorm_sRGB;
+    case WebCore::WebGPU::TextureFormat::Rgba8snorm:
+        return MTLPixelFormatRGBA8Snorm;
+    case WebCore::WebGPU::TextureFormat::Rgba8uint:
+        return MTLPixelFormatRGBA8Uint;
+    case WebCore::WebGPU::TextureFormat::Rgba8sint:
+        return MTLPixelFormatRGBA8Sint;
+    case WebCore::WebGPU::TextureFormat::Bgra8unorm:
+        return MTLPixelFormatBGRA8Unorm;
+    case WebCore::WebGPU::TextureFormat::Bgra8unormSRGB:
+        return MTLPixelFormatBGRA8Unorm_sRGB;
+    case WebCore::WebGPU::TextureFormat::Rgb10a2unorm:
+        return MTLPixelFormatRGB10A2Unorm;
+    case WebCore::WebGPU::TextureFormat::Rg11b10ufloat:
+        return MTLPixelFormatRG11B10Float;
+    case WebCore::WebGPU::TextureFormat::Rgb9e5ufloat:
+        return MTLPixelFormatRGB9E5Float;
+    case WebCore::WebGPU::TextureFormat::Rgb10a2uint:
+        return MTLPixelFormatRGB10A2Uint;
+    case WebCore::WebGPU::TextureFormat::Rg32float:
+        return MTLPixelFormatRG32Float;
+    case WebCore::WebGPU::TextureFormat::Rg32uint:
+        return MTLPixelFormatRG32Uint;
+    case WebCore::WebGPU::TextureFormat::Rg32sint:
+        return MTLPixelFormatRG32Sint;
+    case WebCore::WebGPU::TextureFormat::Rgba16unorm:
+        return MTLPixelFormatRGBA16Unorm;
+    case WebCore::WebGPU::TextureFormat::Rgba16snorm:
+        return MTLPixelFormatRGBA16Snorm;
+    case WebCore::WebGPU::TextureFormat::Rgba16uint:
+        return MTLPixelFormatRGBA16Uint;
+    case WebCore::WebGPU::TextureFormat::Rgba16sint:
+        return MTLPixelFormatRGBA16Sint;
+    case WebCore::WebGPU::TextureFormat::Rgba16float:
+        return MTLPixelFormatRGBA16Float;
+    case WebCore::WebGPU::TextureFormat::Rgba32float:
+        return MTLPixelFormatRGBA32Float;
+    case WebCore::WebGPU::TextureFormat::Rgba32uint:
+        return MTLPixelFormatRGBA32Uint;
+    case WebCore::WebGPU::TextureFormat::Rgba32sint:
+        return MTLPixelFormatRGBA32Sint;
+    case WebCore::WebGPU::TextureFormat::Stencil8:
+        return MTLPixelFormatStencil8;
+    case WebCore::WebGPU::TextureFormat::Depth16unorm:
+        return MTLPixelFormatDepth16Unorm;
+    case WebCore::WebGPU::TextureFormat::Depth24plus:
+        return MTLPixelFormatDepth32Float;
+    case WebCore::WebGPU::TextureFormat::Depth24plusStencil8:
+        return MTLPixelFormatDepth32Float_Stencil8;
+    case WebCore::WebGPU::TextureFormat::Depth32float:
+        return MTLPixelFormatDepth32Float;
+    case WebCore::WebGPU::TextureFormat::Depth32floatStencil8:
+        return MTLPixelFormatDepth32Float_Stencil8;
+    case WebCore::WebGPU::TextureFormat::Bc1RgbaUnorm:
+        return MTLPixelFormatBC1_RGBA;
+    case WebCore::WebGPU::TextureFormat::Bc1RgbaUnormSRGB:
+        return MTLPixelFormatBC1_RGBA_sRGB;
+    case WebCore::WebGPU::TextureFormat::Bc2RgbaUnorm:
+        return MTLPixelFormatBC2_RGBA;
+    case WebCore::WebGPU::TextureFormat::Bc2RgbaUnormSRGB:
+        return MTLPixelFormatBC2_RGBA_sRGB;
+    case WebCore::WebGPU::TextureFormat::Bc3RgbaUnorm:
+        return MTLPixelFormatBC3_RGBA;
+    case WebCore::WebGPU::TextureFormat::Bc3RgbaUnormSRGB:
+        return MTLPixelFormatBC3_RGBA_sRGB;
+    case WebCore::WebGPU::TextureFormat::Bc4RUnorm:
+        return MTLPixelFormatBC4_RUnorm;
+    case WebCore::WebGPU::TextureFormat::Bc4RSnorm:
+        return MTLPixelFormatBC4_RSnorm;
+    case WebCore::WebGPU::TextureFormat::Bc5RgUnorm:
+        return MTLPixelFormatBC5_RGUnorm;
+    case WebCore::WebGPU::TextureFormat::Bc5RgSnorm:
+        return MTLPixelFormatBC5_RGSnorm;
+    case WebCore::WebGPU::TextureFormat::Bc6hRgbUfloat:
+        return MTLPixelFormatBC6H_RGBUfloat;
+    case WebCore::WebGPU::TextureFormat::Bc6hRgbFloat:
+        return MTLPixelFormatBC6H_RGBFloat;
+    case WebCore::WebGPU::TextureFormat::Bc7RgbaUnorm:
+        return MTLPixelFormatBC7_RGBAUnorm;
+    case WebCore::WebGPU::TextureFormat::Bc7RgbaUnormSRGB:
+        return MTLPixelFormatBC7_RGBAUnorm_sRGB;
+    case WebCore::WebGPU::TextureFormat::Etc2Rgb8unorm:
+        return MTLPixelFormatETC2_RGB8;
+    case WebCore::WebGPU::TextureFormat::Etc2Rgb8unormSRGB:
+        return MTLPixelFormatETC2_RGB8_sRGB;
+    case WebCore::WebGPU::TextureFormat::Etc2Rgb8a1unorm:
+        return MTLPixelFormatETC2_RGB8A1;
+    case WebCore::WebGPU::TextureFormat::Etc2Rgb8a1unormSRGB:
+        return MTLPixelFormatETC2_RGB8A1_sRGB;
+    case WebCore::WebGPU::TextureFormat::Etc2Rgba8unorm:
+        return MTLPixelFormatEAC_RGBA8;
+    case WebCore::WebGPU::TextureFormat::Etc2Rgba8unormSRGB:
+        return MTLPixelFormatEAC_RGBA8_sRGB;
+    case WebCore::WebGPU::TextureFormat::EacR11unorm:
+        return MTLPixelFormatEAC_R11Unorm;
+    case WebCore::WebGPU::TextureFormat::EacR11snorm:
+        return MTLPixelFormatEAC_R11Snorm;
+    case WebCore::WebGPU::TextureFormat::EacRg11unorm:
+        return MTLPixelFormatEAC_RG11Unorm;
+    case WebCore::WebGPU::TextureFormat::EacRg11snorm:
+        return MTLPixelFormatEAC_RG11Snorm;
+    case WebCore::WebGPU::TextureFormat::Astc4x4Unorm:
+        return MTLPixelFormatASTC_4x4_LDR;
+    case WebCore::WebGPU::TextureFormat::Astc4x4UnormSRGB:
+        return MTLPixelFormatASTC_4x4_sRGB;
+    case WebCore::WebGPU::TextureFormat::Astc5x4Unorm:
+        return MTLPixelFormatASTC_5x4_LDR;
+    case WebCore::WebGPU::TextureFormat::Astc5x4UnormSRGB:
+        return MTLPixelFormatASTC_5x4_sRGB;
+    case WebCore::WebGPU::TextureFormat::Astc5x5Unorm:
+        return MTLPixelFormatASTC_5x5_LDR;
+    case WebCore::WebGPU::TextureFormat::Astc5x5UnormSRGB:
+        return MTLPixelFormatASTC_5x5_sRGB;
+    case WebCore::WebGPU::TextureFormat::Astc6x5Unorm:
+        return MTLPixelFormatASTC_6x5_LDR;
+    case WebCore::WebGPU::TextureFormat::Astc6x5UnormSRGB:
+        return MTLPixelFormatASTC_6x5_sRGB;
+    case WebCore::WebGPU::TextureFormat::Astc6x6Unorm:
+        return MTLPixelFormatASTC_6x6_LDR;
+    case WebCore::WebGPU::TextureFormat::Astc6x6UnormSRGB:
+        return MTLPixelFormatASTC_6x6_sRGB;
+    case WebCore::WebGPU::TextureFormat::Astc8x5Unorm:
+        return MTLPixelFormatASTC_8x5_LDR;
+    case WebCore::WebGPU::TextureFormat::Astc8x5UnormSRGB:
+        return MTLPixelFormatASTC_8x5_sRGB;
+    case WebCore::WebGPU::TextureFormat::Astc8x6Unorm:
+        return MTLPixelFormatASTC_8x6_LDR;
+    case WebCore::WebGPU::TextureFormat::Astc8x6UnormSRGB:
+        return MTLPixelFormatASTC_8x6_sRGB;
+    case WebCore::WebGPU::TextureFormat::Astc8x8Unorm:
+        return MTLPixelFormatASTC_8x8_LDR;
+    case WebCore::WebGPU::TextureFormat::Astc8x8UnormSRGB:
+        return MTLPixelFormatASTC_8x8_sRGB;
+    case WebCore::WebGPU::TextureFormat::Astc10x5Unorm:
+        return MTLPixelFormatASTC_10x5_LDR;
+    case WebCore::WebGPU::TextureFormat::Astc10x5UnormSRGB:
+        return MTLPixelFormatASTC_10x5_sRGB;
+    case WebCore::WebGPU::TextureFormat::Astc10x6Unorm:
+        return MTLPixelFormatASTC_10x6_LDR;
+    case WebCore::WebGPU::TextureFormat::Astc10x6UnormSRGB:
+        return MTLPixelFormatASTC_10x6_sRGB;
+    case WebCore::WebGPU::TextureFormat::Astc10x8Unorm:
+        return MTLPixelFormatASTC_10x8_LDR;
+    case WebCore::WebGPU::TextureFormat::Astc10x8UnormSRGB:
+        return MTLPixelFormatASTC_10x8_sRGB;
+    case WebCore::WebGPU::TextureFormat::Astc10x10Unorm:
+        return MTLPixelFormatASTC_10x10_LDR;
+    case WebCore::WebGPU::TextureFormat::Astc10x10UnormSRGB:
+        return MTLPixelFormatASTC_10x10_sRGB;
+    case WebCore::WebGPU::TextureFormat::Astc12x10Unorm:
+        return MTLPixelFormatASTC_12x10_LDR;
+    case WebCore::WebGPU::TextureFormat::Astc12x10UnormSRGB:
+        return MTLPixelFormatASTC_12x10_sRGB;
+    case WebCore::WebGPU::TextureFormat::Astc12x12Unorm:
+        return MTLPixelFormatASTC_12x12_LDR;
+    case WebCore::WebGPU::TextureFormat::Astc12x12UnormSRGB:
+        return MTLPixelFormatASTC_12x12_sRGB;
+    }
+}
 
 static WKBridgeConstant convert(const Constant constant)
 {
@@ -129,7 +529,7 @@ static WKBridgeConstant convert(const Constant constant)
 
 static WKBridgeMeshPart *convert(const MeshPart& part)
 {
-    return [WebKit::allocWKBridgeMeshPartInstance() initWithIndexOffset:part.indexOffset indexCount:part.indexCount topology:static_cast<MTLPrimitiveType>(part.topology) materialIndex:part.materialIndex boundsMin:part.boundsMin boundsMax:part.boundsMax];
+    return [WebKit::allocWKBridgeMeshPartInstance() initWithIndexOffset:part.indexOffset indexCount:part.indexCount topology:toMetal(part.topology) materialIndex:part.materialIndex boundsMin:part.boundsMin boundsMax:part.boundsMax];
 }
 
 static NSArray<WKBridgeMeshPart *> *convert(const Vector<MeshPart>& parts)
@@ -138,6 +538,18 @@ static NSArray<WKBridgeMeshPart *> *convert(const Vector<MeshPart>& parts)
         return nil;
 
     NSMutableArray<WKBridgeMeshPart *> *result = [NSMutableArray array];
+    for (const auto& p : parts)
+        [result addObject:convert(p)];
+
+    return result;
+}
+
+static NSArray<WKBridgeTypedResourceId *> *convert(const Vector<TypedResourceId>& parts)
+{
+    if (!parts.size())
+        return nil;
+
+    NSMutableArray<WKBridgeTypedResourceId *> *result = [NSMutableArray array];
     for (const auto& p : parts)
         [result addObject:convert(p)];
 
@@ -175,7 +587,7 @@ static NSArray<WKBridgeVertexAttributeFormat *> *convert(const Vector<VertexAttr
 
     NSMutableArray<WKBridgeVertexAttributeFormat *> *result = [NSMutableArray array];
     for (const auto& format : formats)
-        [result addObject:[WebKit::allocWKBridgeVertexAttributeFormatInstance() initWithSemantic:format.semantic format:format.format layoutIndex:format.layoutIndex offset:format.offset]];
+        [result addObject:[WebKit::allocWKBridgeVertexAttributeFormatInstance() initWithSemantic:toMetal(format.semantic) format:toMetal(format.format) layoutIndex:format.layoutIndex offset:format.offset]];
 
     return result;
 }
@@ -202,19 +614,7 @@ static WKBridgeMeshDescriptor *convert(const MeshDescriptor& descriptor)
         vertexAttributes:convert(descriptor.vertexAttributes)
         vertexLayouts:convert(descriptor.vertexLayouts)
         indexCapacity:descriptor.indexCapacity
-        indexType:static_cast<MTLIndexType>(descriptor.indexType)];
-}
-
-static NSArray<NSString *> *convert(const Vector<String>& v)
-{
-    if (!v.size())
-        return nil;
-
-    NSMutableArray<NSString *> *result = [NSMutableArray array];
-    for (const auto& s : v)
-        [result addObject:s.createNSString().get()];
-
-    return result;
+        indexType:toMetal(descriptor.indexType)];
 }
 
 static WKBridgeSkinningData *convert(const std::optional<SkinningData>& data)
@@ -389,9 +789,8 @@ static uint32_t texelBlockSize(MTLPixelFormat format)
 
 static WKBridgeImageAsset* convert(const ImageAsset& imageAsset)
 {
-    MTLPixelFormat mtlPixelFormat = static_cast<MTLPixelFormat>(imageAsset.pixelFormat);
-
-    return [WebKit::allocWKBridgeImageAssetInstance() initWithData:convert(imageAsset.data) width:imageAsset.width height:imageAsset.height depth:imageAsset.depth bytesPerPixel:imageAsset.bytesPerPixel ?: texelBlockSize(mtlPixelFormat) textureType:static_cast<MTLTextureType>(imageAsset.textureType) pixelFormat:mtlPixelFormat mipmapLevelCount:imageAsset.mipmapLevelCount arrayLength:imageAsset.arrayLength textureUsage:static_cast<MTLTextureUsage>(imageAsset.textureUsage) swizzle:convert(imageAsset.swizzle)];
+    auto mtlPixelFormat = WebModel::toMetal(imageAsset.pixelFormat);
+    return [WebKit::allocWKBridgeImageAssetInstance() initWithData:convert(imageAsset.data) width:imageAsset.width height:imageAsset.height depth:imageAsset.depth bytesPerPixel:imageAsset.bytesPerPixel ?: texelBlockSize(mtlPixelFormat) textureType:toMetal(imageAsset.textureType) pixelFormat:mtlPixelFormat mipmapLevelCount:imageAsset.mipmapLevelCount arrayLength:imageAsset.arrayLength textureUsage:toMetal(imageAsset.textureUsage) swizzle:convert(imageAsset.swizzle)];
 }
 
 static WKBridgeDataType convert(DataType type)
@@ -608,30 +1007,34 @@ bool WebMesh::isValid() const
 
 WebMesh::~WebMesh() = default;
 
-void WebMesh::render() const
+void WebMesh::render(uint32_t textureIndex, Function<void(bool)>&& completionHandler) const
 {
 #if ENABLE(GPU_PROCESS_MODEL)
     processUpdates();
-    if (!m_meshDataExists)
+    if (!m_meshDataExists) {
+        completionHandler(false);
         return;
+    }
 
-    auto texture = ^{
-        ++m_currentTexture;
-        if (m_currentTexture >= [m_textures count])
-            m_currentTexture = 0;
-
-        return [m_textures count] ? [m_textures objectAtIndex:m_currentTexture] : nil;
+    auto texture = ^(uint32_t textureIndex) {
+        return [m_textures count] > textureIndex ? [m_textures objectAtIndex:textureIndex] : nil;
     };
 
-    if (id<MTLTexture> modelBacking = texture())
-        [m_receiver renderWithTexture:modelBacking];
+    if (id<MTLTexture> modelBacking = texture(textureIndex)) {
+        id<MTLCommandBuffer> commandBuffer = [m_receiver commandBuffer];
+        [commandBuffer addCompletedHandler:makeBlockPtr([completionHandler = WTF::move(completionHandler)] (id<MTLCommandBuffer> mtlCommandBuffer) mutable {
+            completionHandler(mtlCommandBuffer.status == MTLCommandBufferStatusCompleted);
+        }).get()];
+        [m_receiver renderWithTexture:modelBacking commandBuffer:commandBuffer];
+    } else
+        completionHandler(false);
 #endif
 }
 
-void WebMesh::update(const WebModel::UpdateMeshDescriptor& input)
-{
 #if ENABLE(GPU_PROCESS_MODEL)
-    WKBridgeUpdateMesh *descriptor = [WebKit::allocWKBridgeUpdateMeshInstance() initWithIdentifier:input.identifier.createNSString().get()
+static WKBridgeUpdateMesh *convert(const WebModel::UpdateMeshDescriptor& input)
+{
+    return [WebKit::allocWKBridgeUpdateMeshInstance() initWithIdentifier:convert(input.identifier)
         updateType:static_cast<WKBridgeDataUpdateType>(input.updateType)
         descriptor:WebModel::convert(input.descriptor)
         parts:WebModel::convert(input.parts)
@@ -639,65 +1042,83 @@ void WebMesh::update(const WebModel::UpdateMeshDescriptor& input)
         vertexData:WebModel::convert(input.vertexData)
         instanceTransforms:WebModel::convert(input.instanceTransforms)
         instanceTransformsCount:input.instanceTransforms.size()
-        materialPrims:WebModel::convert(input.materialPrims)
+        assignedMaterials:WebModel::convert(input.assignedMaterials)
         deformationData:WebModel::convert(input.deformationData)];
+}
+#endif
 
-    if (!descriptor)
-        return;
-
+void WebMesh::update(Vector<WebModel::UpdateMeshDescriptor>&& inputArray)
+{
+#if ENABLE(GPU_PROCESS_MODEL)
     if (!m_batchedUpdates)
         m_batchedUpdates = [NSMutableDictionary dictionary];
 
-    [m_batchedUpdates setObject:descriptor forKey:descriptor.identifier];
+    for (auto& input : inputArray) {
+        WKBridgeUpdateMesh *descriptor = convert(input);
+        RELEASE_ASSERT(descriptor);
+        [m_batchedUpdates setObject:descriptor forKey:@(descriptor.identifier.cachedHashValue)];
+    }
 #else
-    UNUSED_PARAM(input);
+    UNUSED_PARAM(inputArray);
 #endif
 }
 
 void WebMesh::processUpdates() const
 {
 #if ENABLE(GPU_PROCESS_MODEL)
-    for (WKBridgeUpdateMesh *descriptor in [m_batchedUpdates allValues]) {
-        BinarySemaphore completion;
-        RELEASE_ASSERT(m_receiver);
-        [m_receiver updateMesh:descriptor completionHandler:[&] mutable {
-            completion.signal();
-        }];
-        completion.wait();
-        m_meshDataExists = true;
-    }
+    if (![m_batchedUpdates count])
+        return;
+
+    BinarySemaphore completion;
+    RELEASE_ASSERT(m_receiver);
+    [m_receiver updateMesh:[m_batchedUpdates allValues] completionHandler:[&] mutable {
+        completion.signal();
+    }];
+    completion.wait();
+    m_meshDataExists = true;
     [m_batchedUpdates removeAllObjects];
 #endif
 }
 
-void WebMesh::updateTexture(const WebModel::UpdateTextureDescriptor& input)
+#if ENABLE(GPU_PROCESS_MODEL)
+static WKBridgeUpdateTexture *convert(const WebModel::UpdateTextureDescriptor& input)
+{
+    return [WebKit::allocWKBridgeUpdateTextureInstance() initWithImageAsset:WebModel::convert(input.imageAsset) identifier:convert(input.identifier) hashString:input.hashString.createNSString().get()];
+}
+#endif
+
+void WebMesh::updateTexture(Vector<WebModel::UpdateTextureDescriptor>&& inputArray)
 {
 #if ENABLE(GPU_PROCESS_MODEL)
-    WKBridgeUpdateTexture *descriptor = [WebKit::allocWKBridgeUpdateTextureInstance() initWithImageAsset:WebModel::convert(input.imageAsset) identifier:input.identifier.createNSString().get() hashString:input.hashString.createNSString().get()];
-
-    if (!descriptor)
-        return;
-
     RELEASE_ASSERT(m_receiver);
-    [m_receiver updateTexture:descriptor];
+    [m_receiver updateTexture:createNSArray(inputArray, [](const WebModel::UpdateTextureDescriptor& desc) {
+        return convert(desc);
+    })];
+#else
+    UNUSED_PARAM(inputArray);
 #endif
 }
 
-void WebMesh::updateMaterial(const WebModel::UpdateMaterialDescriptor& originalDescriptor)
+#if ENABLE(GPU_PROCESS_MODEL)
+static WKBridgeUpdateMaterial *convert(const WebModel::UpdateMaterialDescriptor& input)
+{
+    return [WebKit::allocWKBridgeUpdateMaterialInstance() initWithMaterialGraph:WebModel::convert(input.materialGraph) identifier:convert(input.identifier)];
+}
+#endif
+
+void WebMesh::updateMaterial(Vector<WebModel::UpdateMaterialDescriptor>&& inputArray)
 {
 #if ENABLE(GPU_PROCESS_MODEL)
-    WKBridgeUpdateMaterial *descriptor = [WebKit::allocWKBridgeUpdateMaterialInstance() initWithMaterialGraph:WebModel::convert(originalDescriptor.materialGraph) identifier:originalDescriptor.identifier.createNSString().get()];
-    if (!descriptor)
-        return;
-
     RELEASE_ASSERT(m_receiver);
     BinarySemaphore completion;
-    [m_receiver updateMaterial:descriptor completionHandler:[&] mutable {
+    [m_receiver updateMaterial:createNSArray(inputArray, [](const WebModel::UpdateMaterialDescriptor& desc) {
+        return convert(desc);
+    }) completionHandler:[&] mutable {
         completion.signal();
     }];
     completion.wait();
 #else
-    UNUSED_PARAM(originalDescriptor);
+    UNUSED_PARAM(inputArray);
 #endif
 }
 
@@ -711,13 +1132,12 @@ void WebMesh::setTransform(const simd_float4x4& transform)
 #endif
 }
 
-void WebMesh::setCameraDistance(float distance)
+void WebMesh::setFOV(float fovY)
 {
 #if ENABLE(GPU_PROCESS_MODEL)
-    [m_receiver setCameraDistance:distance];
-    render();
+    [m_receiver setFOV:fovY];
 #else
-    UNUSED_PARAM(distance);
+    UNUSED_PARAM(fovY);
 #endif
 }
 
@@ -755,7 +1175,6 @@ void WebMesh::updateRenderBuffers(const WebModel::ResizeMeshDescriptor& descript
         return buffer->surface();
     });
     m_textures = createMetalTextures(MTLCreateSystemDefaultDevice(), ioSurfaces, descriptor.width, descriptor.height);
-    m_currentTexture = 0;
 #else
     UNUSED_PARAM(descriptor);
 #endif

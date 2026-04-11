@@ -184,7 +184,7 @@ private:
         return std::bit_cast<WriteBarrier<Unknown>*>(std::bit_cast<char*>(this) + storageOffset());
     }
     
-    unsigned mappedArgumentsSize();
+    unsigned NODELETE mappedArgumentsSize();
     
     WriteBarrier<JSFunction> m_callee;
     uint32_t m_length; // Always the actual length of captured arguments and never what was stored into the length property.

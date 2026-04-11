@@ -28,6 +28,7 @@
 
 #if ENABLE(THREADED_ANIMATIONS)
 
+#include "FloatPoint.h"
 #include "IntSize.h"
 #include "MotionPath.h"
 #include "Path.h"
@@ -39,6 +40,7 @@
 #include "StyleOffsetPath.h"
 #include "StyleOffsetPosition.h"
 #include "StyleTransformResolver.h"
+#include "TransformationMatrix.h"
 #include "TransformOperationData.h"
 
 namespace WebCore {
@@ -53,7 +55,7 @@ AcceleratedEffectValues AcceleratedEffectValues::clone() const
     RefPtr clonedTranslate = translate ? RefPtr { translate->clone() } : nullptr;
     RefPtr clonedScale = scale ? RefPtr { scale->clone() } : nullptr;
     RefPtr clonedRotate = rotate ? RefPtr { rotate->clone() } : nullptr;
-    RefPtr clonedOffsetPath = offsetPath ? RefPtr { offsetPath->clone() } : nullptr;
+    auto clonedOffsetPath = offsetPath;
     auto clonedOffsetDistance = offsetDistance;
     auto clonedOffsetPosition = offsetPosition;
     auto clonedOffsetAnchor = offsetAnchor;
@@ -122,10 +124,11 @@ AcceleratedEffectValues::AcceleratedEffectValues(const RenderStyle& style, const
     scale = Style::toPlatform(style.scale(), borderBoxSize);
     rotate = Style::toPlatform(style.rotate(), borderBoxSize);
 
-    if (!style.offsetPath().isNone() && transformOperationData) {
-        if (auto path = Style::tryPath(style.offsetPath(), *transformOperationData, zoom)) {
+    if (transformOperationData && transformOperationData->motionPathData && !style.offsetPath().isNone()) {
+        auto evaluatedOffsetPath = Style::evaluate<AcceleratedEffectOffsetPath>(style.offsetPath(), *transformOperationData, zoom);
+        if (auto path = tryPath(evaluatedOffsetPath, *transformOperationData)) {
+            offsetPath = WTF::move(evaluatedOffsetPath);
             transformOrigin = { .value = Style::TransformResolver::computeTransformOrigin(style, transformOperationData->boundingBox).xy() };
-            offsetPath = Style::toPlatform(style.offsetPath());
             offsetDistance = Style::evaluate<AcceleratedEffectOffsetDistance>(style.offsetDistance(), path->length(), zoom);
             offsetRotate = Style::evaluate<AcceleratedEffectOffsetRotate>(style.offsetRotate());
             offsetAnchor = Style::evaluate<AcceleratedEffectOffsetAnchor>(style.offsetAnchor(), transformOperationData->boundingBox.size(), zoom);
@@ -164,9 +167,8 @@ TransformationMatrix AcceleratedEffectValues::computedTransformationMatrix(const
         scale->apply(matrix);
 
     // 6. Translate and rotate by the transform specified by offset.
-    if (transformOperationData && offsetPath) {
-        // Passing the special `none` zoom factor is correct here as zoom was previously applied when `offsetPath` was initialized.
-        if (auto path = Style::tryPath(Style::OffsetPath { *offsetPath }, *transformOperationData, Style::ZoomFactor::none())) {
+    if (transformOperationData) {
+        if (auto path = tryPath(offsetPath, *transformOperationData)) {
             // FIXME: This transform of `transformOrigin` is not present in the overload of MotionPath::applyMotionPathTransform() that takes a `RenderStyle`.
             auto computedTransformOrigin = boundingBox.location() + transformOrigin.value;
 

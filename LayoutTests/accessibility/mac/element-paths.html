@@ -1,7 +1,8 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<script src="../../resources/js-test-pre.js"></script>
+<script src="../../resources/accessibility-helper.js"></script>
+<script src="../../resources/js-test.js"></script>
 </head>
 <body id="body">
 
@@ -16,29 +17,51 @@
 
 <img src="resources/cake.png"  border="1" align="left" usemap="#imagemap1" vspace="1">
 
-<div id="console"></div>
+<!-- Border-radius test cases -->
+<button id="pill-button" style="border-radius: 50%; width: 100px; height: 50px;">Pill</button>
+<div id="rounded-div" role="button" style="border-radius: 10px; width: 100px; height: 50px;">Rounded</div>
+<div id="no-radius-div" role="button" style="width: 100px; height: 50px;">Sharp</div>
+
+<!-- Clip-path test case -->
+<div id="clip-path-div" role="button" style="clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); width: 100px; height: 100px;">Diamond</div>
 
 <script>
+var output = "This tests that AXPath is correctly computed for SVG elements, image map areas, elements with border-radius, and elements with clip-path.\n\n";
 
-    description("This tests SVG group elements are accessible and that the svg:title element is returned properly.");
+if (window.accessibilityController) {
+    window.jsTestIsAsync = true;
 
-    if (window.accessibilityController) {
+    var svgSupportsPath = accessibilityController.accessibleElementById("svg").isAttributeSupported("AXPath");
+    output += expect("svgSupportsPath", "true");
 
-          var svg = accessibilityController.accessibleElementById("svg");
-          shouldBeTrue("svg.isAttributeSupported('AXPath')");
-          debug("SVG path description" + svg.pathDescription);
+    // No border-radius: should not support AXPath.
+    var noRadiusSupportsPath = accessibilityController.accessibleElementById("no-radius-div").isAttributeSupported("AXPath");
+    output += expect("noRadiusSupportsPath", "false");
 
-          var map1 = accessibilityController.accessibleElementById("map1");
-          shouldBeTrue("map1.isAttributeSupported('AXPath')");
-          debug("Map1 path description" + map1.pathDescription);
+    var map1 = accessibilityController.accessibleElementById("map1");
+    var map2 = accessibilityController.accessibleElementById("map2");
+    (async () => {
+        // Image map areas and border-radius paths are cached during paint
+        // in the isolated tree. Wait for the paths to become available
+        // before querying.
+        await waitUntilIDHasPathWith("pill-button", 1, "Curve to");
 
-          var map2 = accessibilityController.accessibleElementById("map2");
-          shouldBeTrue("map2.isAttributeSupported('AXPath')");
-          debug("Map2 path description"  + map2.pathDescription);
-    }
+        output += expect("map1.isAttributeSupported('AXPath')", "true");
+        output += expect("map2.isAttributeSupported('AXPath')", "true");
 
+        // Border-radius: pill button (border-radius: 50%) should have curves.
+        output += expect("pathSegmentCountOfID('pill-button', 'Curve to') > 0", "true");
+
+        // Border-radius: rounded div (border-radius: 10px) should have curves.
+        output += expect("pathSegmentCountOfID('rounded-div', 'Curve to') > 0", "true");
+
+        // Clip-path: diamond polygon should have line segments.
+        output += expect("pathSegmentCountOfID('clip-path-div', 'Line to') > 0", "true");
+
+        debug(output);
+        finishJSTest();
+    })();
+}
 </script>
-
-<script src="../../resources/js-test-post.js"></script>
 </body>
 </html>

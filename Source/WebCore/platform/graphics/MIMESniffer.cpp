@@ -34,7 +34,7 @@ namespace WebCore {
 namespace MIMESniffer {
 
 template<std::size_t N>
-constexpr auto span8(const char(&p)[N])
+constexpr auto NODELETE span8(const char(&p)[N])
 {
     return unsafeMakeSpan<const uint8_t, N - 1>(byteCast<uint8_t>(static_cast<const char*>(p)), N - 1);
 }

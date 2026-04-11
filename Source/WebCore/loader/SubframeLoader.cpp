@@ -94,11 +94,11 @@ void FrameLoader::SubframeLoader::clear()
 
 bool FrameLoader::SubframeLoader::canCreateSubFrame() const
 {
-    Ref frame = m_frame;
-    if (!frame->page() || frame->page()->subframeCount() >= Page::maxNumberOfFrames)
+    auto& frame = m_frame.get();
+    if (!frame.page() || frame.page()->subframeCount() >= Page::maxNumberOfFrames)
         return false;
 
-    if (frame->tree().depth() >= Page::maxFrameDepth)
+    if (frame.tree().depth() >= Page::maxFrameDepth)
         return false;
 
     return true;

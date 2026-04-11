@@ -44,16 +44,19 @@
 #include "JSDOMPromise.h"
 #include "JSDOMPromiseDeferred.h"
 #include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "Page.h"
 #include "PasteboardCustomData.h"
 #include "SharedBuffer.h"
 #include "markup.h"
+#include <JavaScriptCore/HeapCellInlines.h>
+#include <JavaScriptCore/JSCJSValueCellInlines.h>
 #include <wtf/Function.h>
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
 
-static Document* documentFromClipboard(const Clipboard* clipboard)
+static Document* NODELETE documentFromClipboard(const Clipboard* clipboard)
 {
     if (!clipboard)
         return nullptr;
@@ -291,7 +294,7 @@ String ClipboardItemBindingsDataSource::ClipboardItemTypeLoader::dataAsString() 
 void ClipboardItemBindingsDataSource::ClipboardItemTypeLoader::sanitizeDataIfNeeded()
 {
     if (m_type == textPlainContentTypeAtom() || m_type == "text/uri-list"_s) {
-        RefPtr document = documentFromClipboard(RefPtr { m_writingDestination.get() }.get());
+        RefPtr document = documentFromClipboard(m_writingDestination.get());
         if (!document)
             return;
 
@@ -311,7 +314,7 @@ void ClipboardItemBindingsDataSource::ClipboardItemTypeLoader::sanitizeDataIfNee
         if (markupToSanitize.isEmpty())
             return;
 
-        RefPtr document = documentFromClipboard(RefPtr { m_writingDestination.get() }.get());
+        RefPtr document = documentFromClipboard(m_writingDestination.get());
         m_data = { sanitizeMarkup(markupToSanitize, document.get()) };
     }
 

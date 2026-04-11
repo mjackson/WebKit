@@ -48,7 +48,7 @@
 #include "RenderStyle+GettersInlines.h"
 #include "RenderView.h"
 #include "StyleAnimations.h"
-#include "StylableInlines.h"
+#include "StyleableInlines.h"
 #include "StyleChangedAnimatableProperties.h"
 #include "StyleCustomPropertyData.h"
 #include "StyleInterpolation.h"
@@ -389,8 +389,11 @@ void Styleable::updateCSSAnimations(const RenderStyle* currentStyle, const Rende
 {
     auto& keyframeEffectStack = ensureKeyframeEffectStack();
 
-    // In case this element is newly getting a "display: none" we need to cancel all of its animations and disregard new ones.
-    if ((!currentStyle || currentStyle->display() != Style::DisplayType::None) && newStyle.display() == Style::DisplayType::None) {
+    // Cancel all animations and disregard new ones when this element is newly getting
+    // "display: none", or when it is in a display:none subtree due to an ancestor (so
+    // that animations restart when the subtree becomes visible again).
+    if (((!currentStyle || currentStyle->display() != Style::DisplayType::None) && newStyle.display() == Style::DisplayType::None)
+        || isInDisplayNoneTree == Style::IsInDisplayNoneTree::Yes) {
         for (auto& cssAnimation : animationsCreatedByMarkup())
             cssAnimation->cancelFromStyle();
         keyframeEffectStack.setCSSAnimationList(std::nullopt);
@@ -772,7 +775,7 @@ void Styleable::updateCSSTransitions(const RenderStyle& currentStyle, const Rend
 
     // In case this element is newly getting a "display: none" we need to cancel all of its transitions and disregard new ones,
     // unless it will transition the "display" property itself.
-    if (!currentStyle.transitions().isInitial() && currentStyle.display() != Style::DisplayType::None && newStyle.display() == Style::DisplayType::None && !styleHasDisplayTransition(newStyle)) {
+    if (!currentStyle.transitions().isInitial() && currentStyle.display() != Style::DisplayType::None && newStyle.display() == Style::DisplayType::None && !styleHasDisplayTransition(newStyle, element)) {
         if (hasRunningTransitions()) {
             auto runningTransitions = ensureRunningTransitionsByProperty();
             for (const auto& cssTransitionsByAnimatableCSSPropertyMapItem : runningTransitions)
@@ -880,7 +883,7 @@ void Styleable::updateCSSScrollTimelines(const RenderStyle* currentStyle, const 
             [](CSS::Keyword::None) {
                 // Nothing to register.
             },
-            [&](const CustomIdentifier& identifier) {
+            [&](const Style::CustomIdent& identifier) {
                 styleOriginatedTimelinesController->registerNamedScrollTimeline(identifier.value, *this, scrollTimeline.axis());
                 registeredScrollTimelineNames.add(identifier.value);
             }
@@ -895,7 +898,7 @@ void Styleable::updateCSSScrollTimelines(const RenderStyle* currentStyle, const 
             [](CSS::Keyword::None) {
                 // Nothing to unregister.
             },
-            [&](const CustomIdentifier& identifier) {
+            [&](const Style::CustomIdent& identifier) {
                 if (!registeredScrollTimelineNames.contains(identifier.value))
                     styleOriginatedTimelinesController->unregisterNamedTimeline(identifier.value, *this);
             }
@@ -917,7 +920,7 @@ void Styleable::updateCSSViewTimelines(const RenderStyle* currentStyle, const Re
             [](CSS::Keyword::None) {
                 // Nothing to register.
             },
-            [&](const CustomIdentifier& identifier) {
+            [&](const Style::CustomIdent& identifier) {
                 styleOriginatedTimelinesController->registerNamedViewTimeline(identifier.value, *this, viewTimeline.axis(), viewTimeline.inset());
                 registeredViewTimelineNames.add(identifier.value);
             }
@@ -932,7 +935,7 @@ void Styleable::updateCSSViewTimelines(const RenderStyle* currentStyle, const Re
             [](CSS::Keyword::None) {
                 // Nothing to unregister.
             },
-            [&](const CustomIdentifier& identifier) {
+            [&](const Style::CustomIdent& identifier) {
                 if (!registeredViewTimelineNames.contains(identifier.value))
                     styleOriginatedTimelinesController->unregisterNamedTimeline(identifier.value, *this);
             }
@@ -954,6 +957,25 @@ void Styleable::queryContainerDidChange() const
                 keyframeEffect->recomputeKeyframesAtNextOpportunity();
         }
     }
+}
+
+bool Styleable::viewportSizeDidChange() const
+{
+    auto* animations = this->animations();
+    if (!animations)
+        return false;
+    bool changed = false;
+    for (auto& animation : *animations) {
+        RefPtr keyframeEffect = animation->keyframeEffect();
+        if (keyframeEffect && keyframeEffect->blendingKeyframes().usesViewportUnits()) {
+            if (RefPtr cssAnimation = dynamicDowncast<CSSAnimation>(animation))
+                cssAnimation->keyframesRuleDidChange();
+            else
+                keyframeEffect->recomputeKeyframesAtNextOpportunity();
+            changed = true;
+        }
+    }
+    return changed;
 }
 
 bool Styleable::capturedInViewTransition() const

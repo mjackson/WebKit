@@ -54,9 +54,7 @@ ScrollingTreeScrollingNodeDelegateMac::ScrollingTreeScrollingNodeDelegateMac(Scr
 #endif
 }
 
-ScrollingTreeScrollingNodeDelegateMac::~ScrollingTreeScrollingNodeDelegateMac()
-{
-}
+ScrollingTreeScrollingNodeDelegateMac::~ScrollingTreeScrollingNodeDelegateMac() = default;
 
 void ScrollingTreeScrollingNodeDelegateMac::nodeWillBeDestroyed()
 {

@@ -55,6 +55,7 @@ struct ANGLE_UTIL_EXPORT ConfigParameters
     bool bindGeneratesResource;
     bool clientArraysEnabled;
     bool robustAccess;
+    bool pbuffer;
     bool mutableRenderBuffer;
     EGLint samples;
     bool contextProgramCacheEnabled;
@@ -139,6 +140,8 @@ class ANGLE_UTIL_EXPORT GLWindowBase : angle::NonCopyable
 
     virtual EGLint getEGLError()                                    = 0;
     virtual Display getCurrentDisplay()                             = 0;
+    virtual Surface getCurrentSurface(EGLint readdraw)              = 0;
+    virtual EGLContext getCurrentContext()                          = 0;
     virtual Surface createPbufferSurface(const EGLint *attrib_list) = 0;
     virtual EGLBoolean destroySurface(Surface surface)              = 0;
 
@@ -252,6 +255,8 @@ class ANGLE_UTIL_EXPORT EGLWindow : public GLWindowBase
 
     EGLint getEGLError() override;
     Display getCurrentDisplay() override;
+    Surface getCurrentSurface(EGLint readdraw) override;
+    EGLContext getCurrentContext() override;
     Surface createPbufferSurface(const EGLint *attrib_list) override;
     EGLBoolean destroySurface(Surface surface) override;
 

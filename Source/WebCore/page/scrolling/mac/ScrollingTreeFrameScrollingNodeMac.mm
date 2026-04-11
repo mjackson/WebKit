@@ -146,6 +146,14 @@ WheelEventHandlingResult ScrollingTreeFrameScrollingNodeMac::handleWheelEvent(co
     if (!canHandleWheelEvent(wheelEvent, eventTargeting))
         return WheelEventHandlingResult::unhandled();
 
+#if HAVE(RUBBER_BANDING)
+    // FIXME: <https://webkit.org/b/310912> Stale momentum events from scroll gestures continue
+    // to dispatch across page reloads. Until this problem is solved, absorb wheel events during
+    // rubberband restoration to prevent interference.
+    if (restoredRubberbandingInProgress())
+        return WheelEventHandlingResult::handled();
+#endif
+
     bool handled = delegate().handleWheelEvent(wheelEvent);
     delegate().updateSnapScrollState();
     return WheelEventHandlingResult::result(handled);

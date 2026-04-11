@@ -1,0 +1,6 @@
+
+
+PASS sizes=auto→500px: prior sizes=auto must not override new sizes value
+FAIL loading=lazy removed: prior loading=lazy must not override 100vw fallback for loading=eager assert_true: initial (got: http://web-platform.test:8800/images/green-16x16.png?a) expected true got false
+FAIL picture source removal: new selector must not fall back to 100vw assert_true: initial (got: http://web-platform.test:8800/images/green-16x16.png?a) expected true got false
+

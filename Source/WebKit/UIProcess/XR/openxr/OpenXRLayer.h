@@ -38,8 +38,6 @@ class GLDisplay;
 
 namespace WebKit {
 
-struct XRDeviceLayer;
-
 class OpenXRLayer {
     WTF_MAKE_TZONE_ALLOCATED(OpenXRLayer);
     WTF_MAKE_NONCOPYABLE(OpenXRLayer);
@@ -47,7 +45,7 @@ public:
     virtual ~OpenXRLayer();
 
     virtual std::optional<PlatformXR::FrameData::LayerData> startFrame() = 0;
-    virtual XrCompositionLayerBaseHeader* endFrame(const XRDeviceLayer&, XrSpace, const Vector<XrView>&) = 0;
+    virtual XrCompositionLayerBaseHeader* endFrame(const PlatformXR::DeviceLayer&, XrSpace, const Vector<XrView>&) = 0;
 
 #if USE(GBM)
     void setGBMDevice(RefPtr<WebCore::GBMDevice>);
@@ -94,7 +92,7 @@ private:
     explicit OpenXRLayerProjection(UniqueRef<OpenXRSwapchain>&&);
 
     std::optional<PlatformXR::FrameData::LayerData> startFrame() final;
-    XrCompositionLayerBaseHeader* endFrame(const XRDeviceLayer&, XrSpace, const Vector<XrView>&) final;
+    XrCompositionLayerBaseHeader* endFrame(const PlatformXR::DeviceLayer&, XrSpace, const Vector<XrView>&) final;
 
     XrCompositionLayerProjection m_layerProjection;
     Vector<XrCompositionLayerProjectionView> m_projectionViews;

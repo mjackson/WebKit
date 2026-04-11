@@ -99,10 +99,8 @@ private:
     void didCreateContextInModelProcessForVisibilityPropagation(LayerHostingContextID) override;
     void didReceiveInteractiveModelElement(std::optional<WebCore::NodeIdentifier>) override;
 #endif // ENABLE(MODEL_PROCESS)
-#if USE(EXTENSIONKIT)
-    UIView *createVisibilityPropagationView() override;
+    RetainPtr<UIView> createVisibilityPropagationView() override;
     void removeVisibilityPropagationView(UIView *) override;
-#endif
 #endif // HAVE(VISIBILITY_PROPAGATION_VIEW)
 
 #if ENABLE(GPU_PROCESS)
@@ -159,6 +157,7 @@ private:
 
     RefPtr<WebPopupMenuProxy> createPopupMenuProxy(WebPageProxy&) override;
     Ref<WebCore::ValidationBubble> createValidationBubble(String&& message, const WebCore::ValidationBubble::Settings&) final;
+    bool shouldSuppressFormValidationBubble() const final;
 
     RefPtr<WebColorPicker> createColorPicker(WebPageProxy&, const WebCore::Color& initialColor, const WebCore::IntRect&, ColorControlSupportsAlpha, Vector<WebCore::Color>&&, std::optional<WebCore::FrameIdentifier>) final { return nullptr; }
 

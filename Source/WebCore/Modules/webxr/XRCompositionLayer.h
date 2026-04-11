@@ -30,11 +30,12 @@
 #include "WebXRLayer.h"
 #include "XRLayerLayout.h"
 #include "XRLayerQuality.h"
-
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {
 
+class WebGLOpaqueTexture;
+class WebXRSession;
 class XRLayerBacking;
 
 class XRCompositionLayer : public WebXRLayer {
@@ -42,7 +43,8 @@ class XRCompositionLayer : public WebXRLayer {
 public:
     virtual ~XRCompositionLayer();
 
-    XRLayerLayout layout() const { return XRLayerLayout::Stereo; }
+    XRLayerLayout layout() const { return m_layout; }
+    void setLayout(XRLayerLayout layout) { m_layout = layout; }
 
     bool blendTextureSourceAlpha() const { return false; }
     void setBlendTextureSourceAlpha(bool) { }
@@ -58,17 +60,39 @@ public:
     XRLayerQuality quality() const { return XRLayerQuality::Default; }
     void setQuality(XRLayerQuality) { }
 
-    bool needsRedraw() const { return true; }
+    bool needsRedraw() const { return m_needsRedraw; }
+    void setNeedsRedraw(bool needsRedraw) { m_needsRedraw = needsRedraw; }
+
+    bool isStatic() const { return m_isStatic; }
+    void setIsStatic(bool isStatic) { m_isStatic = isStatic; }
 
     XRLayerBacking& backing();
+    WebXRSession* session() const;
 
     void destroy() { }
+
+    const Vector<RefPtr<WebGLOpaqueTexture>>& colorTextures() const { return m_colorTextures; }
+    void setColorTextures(Vector<RefPtr<WebGLOpaqueTexture>>&&);
+
+    const Vector<RefPtr<WebGLOpaqueTexture>>& depthStencilTextures() const { return m_depthStencilTextures; }
+    void setDepthStencilTextures(Vector<RefPtr<WebGLOpaqueTexture>>&&);
+
 protected:
-    explicit XRCompositionLayer(ScriptExecutionContext*, Ref<XRLayerBacking>&&);
+    explicit XRCompositionLayer(ScriptExecutionContext*, WebXRSession&, Ref<XRLayerBacking>&&);
+
     const Ref<XRLayerBacking> m_backing;
 
 private:
     bool isXRCompositionLayer() const final { return true; }
+
+    WeakPtr<WebXRSession> m_session;
+
+    bool m_isStatic { false };
+    bool m_needsRedraw { true };
+    XRLayerLayout m_layout { XRLayerLayout::Stereo };
+
+    Vector<RefPtr<WebGLOpaqueTexture>> m_colorTextures;
+    Vector<RefPtr<WebGLOpaqueTexture>> m_depthStencilTextures;
 };
 
 } // namespace WebCore

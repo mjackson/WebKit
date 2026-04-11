@@ -399,6 +399,9 @@ public:
 
 #if ENABLE(WRITING_TOOLS)
     HashMap<WTF::UUID, RefPtr<WebCore::TextIndicator>> textIndicatorForAnimationID;
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    HashMap<WTF::UUID, RefPtr<WebCore::TextIndicator>> decorationIndicatorForAnimationID;
+#endif
     HashMap<WTF::UUID, CompletionHandler<void(WebCore::TextAnimationRunMode)>> completionHandlerForAnimationID;
     HashMap<WTF::UUID, CompletionHandler<void(RefPtr<WebCore::TextIndicator>)>> completionHandlerForDestinationTextIndicatorForSourceID;
     HashMap<WTF::UUID, WTF::UUID> sourceAnimationIDtoDestinationAnimationID;
@@ -462,7 +465,7 @@ public:
     WebCore::CornerRadii scrollbarAvoidanceCornerRadii;
 #endif
 
-    explicit Internals(WebPageProxy&, std::optional<WebCore::SecurityOriginData>);
+    explicit Internals(WebPageProxy&, bool processInheritedFromOpener);
 
 #if ENABLE(SPEECH_SYNTHESIS)
     SpeechSynthesisData& speechSynthesisData() LIFETIME_BOUND;
@@ -538,7 +541,7 @@ public:
 
     Vector<Ref<WebProcessProxy>> activityTargets() final;
 
-    std::optional<WebCore::SecurityOriginData> openerOrigin;
+    bool processInheritedFromOpener { false };
 };
 
 } // namespace WebKit

@@ -29,9 +29,6 @@
 
 #include "XRDeviceIdentifier.h"
 #include "XRDeviceInfo.h"
-#if USE(OPENXR)
-#include "XRDeviceLayer.h"
-#endif
 #include <WebCore/ExceptionOr.h>
 #include <WebCore/PlatformXR.h>
 #include <wtf/AbstractRefCountedAndCanMakeWeakPtr.h>
@@ -79,7 +76,7 @@ public:
     // Session display loop.
     virtual void scheduleAnimationFrame(WebPageProxy&, std::optional<PlatformXR::RequestData>&&, PlatformXR::Device::RequestFrameCallback&&) = 0;
 #if USE(OPENXR)
-    virtual void submitFrame(WebPageProxy&, Vector<XRDeviceLayer>&&) = 0;
+    virtual void submitFrame(WebPageProxy&, Vector<PlatformXR::DeviceLayer>&&) = 0;
 #else
     virtual void submitFrame(WebPageProxy&) { }
 #endif

@@ -179,7 +179,7 @@ public:
     // propagatesSilence() should return true if the node will generate silent output when given silent input. By default, AudioNode
     // will take tailTime() and latencyTime() into account when determining whether the node will propagate silence.
     virtual bool propagatesSilence() const;
-    bool inputsAreSilent();
+    bool NODELETE inputsAreSilent();
     void silenceOutputs();
 
     void enableOutputsIfNecessary();

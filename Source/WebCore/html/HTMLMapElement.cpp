@@ -90,10 +90,6 @@ void HTMLMapElement::attributeChanged(const QualifiedName& name, const AtomStrin
 
     if (name == HTMLNames::idAttr || name == HTMLNames::nameAttr) {
         auto oldMapName = m_name;
-        auto oldId = name == HTMLNames::idAttr ? oldValue : getIdAttribute();
-
-        if (isInTreeScope())
-            treeScope().removeImageMap(*this, oldMapName, oldId);
 
         if (name == HTMLNames::nameAttr) {
             AtomString mapName = newValue;
@@ -102,8 +98,16 @@ void HTMLMapElement::attributeChanged(const QualifiedName& name, const AtomStrin
             m_name = WTF::move(mapName);
         }
 
-        if (isInTreeScope())
-            treeScope().addImageMap(*this, m_name, getIdAttribute());
+        auto newId = getIdAttribute();
+        if (oldMapName == m_name && m_registeredId == newId)
+            return;
+
+        if (isInTreeScope()) {
+            treeScope().removeImageMap(*this, oldMapName, m_registeredId);
+            m_registeredId = newId;
+            treeScope().addImageMap(*this, m_name, m_registeredId);
+        } else
+            m_registeredId = newId;
     }
 }
 
@@ -115,15 +119,17 @@ Ref<HTMLCollection> HTMLMapElement::areas()
 Node::NeedsPostConnectionSteps HTMLMapElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
     Node::NeedsPostConnectionSteps request = HTMLElement::insertionSteps(insertionType, parentOfInsertedTree);
-    if (insertionType.treeScopeChanged)
-        treeScope().addImageMap(*this, m_name, getIdAttribute());
+    if (insertionType.treeScopeChanged) {
+        m_registeredId = getIdAttribute();
+        treeScope().addImageMap(*this, m_name, m_registeredId);
+    }
     return request;
 }
 
 void HTMLMapElement::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
     if (removalType.treeScopeChanged)
-        oldParentOfRemovedTree.treeScope().removeImageMap(*this, m_name, getIdAttribute());
+        oldParentOfRemovedTree.treeScope().removeImageMap(*this, m_name, m_registeredId);
     HTMLElement::removingSteps(removalType, oldParentOfRemovedTree);
 }
 

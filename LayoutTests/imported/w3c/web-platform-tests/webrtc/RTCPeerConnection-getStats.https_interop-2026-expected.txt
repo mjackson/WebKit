@@ -5,6 +5,6 @@ PASS getStats() track without stream returns peer-connection and outbound-rtp st
 PASS getStats() audio contains outbound-rtp stats
 PASS getStats() video contains outbound-rtp stats
 PASS getStats() on track associated with RTCRtpSender should return stats report containing outbound-rtp stats
-FAIL getStats() on track associated with RTCRtpReceiver should return stats report containing inbound-rtp stats assert_true: expected true got false
+PASS getStats() on track associated with RTCRtpReceiver should return stats report containing inbound-rtp stats
 PASS getStats() audio contains candidate-pair stats
 

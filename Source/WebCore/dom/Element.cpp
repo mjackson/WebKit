@@ -152,7 +152,7 @@
 #include "ShadowRootInit.h"
 #include "SimulatedClick.h"
 #include "SlotAssignment.h"
-#include "StylableInlines.h"
+#include "StyleableInlines.h"
 #include "StyleInvalidator.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "StyleProperties.h"
@@ -385,11 +385,11 @@ bool Element::isNonceable() const
 
         for (auto& attribute : attributes()) {
             auto name = attribute.localNameLowercase();
-            auto value = attribute.value().convertToASCIILowercase();
+            auto value = attribute.value();
             if (name.contains(scriptString)
                 || name.contains(styleString)
-                || value.contains(scriptString)
-                || value.contains(styleString))
+                || value.containsIgnoringASCIICase(scriptString)
+                || value.containsIgnoringASCIICase(styleString))
                 return false;
         }
     }
@@ -452,7 +452,7 @@ bool Element::isKeyboardFocusable(const FocusEventData&) const
             return false;
     }
     // Popovers with invokers delegate focus.
-    if (RefPtr popover = dynamicDowncast<HTMLElement>(*this)) {
+    if (auto* popover = dynamicDowncast<HTMLElement>(*this)) {
         if (popover->isPopoverShowing() && popover->popoverData()->invoker())
             return false;
     }
@@ -1020,8 +1020,11 @@ void Element::setFocus(bool value, FocusVisibility visibility)
         root->host()->invalidateStyle();
     }
 
-    for (RefPtr element = this; element; element = element->parentElementInComposedTree())
+    for (Ref element : composedTreeLineage(*this)) {
         element->setHasFocusWithin(value);
+        if (element->isInTopLayer())
+            break;
+    }
 
     setHasFocusVisible(value && (visibility == FocusVisibility::Visible || (visibility == FocusVisibility::Invisible && shouldAlwaysHaveFocusVisibleWhenFocused(*this))));
 }
@@ -1053,9 +1056,13 @@ void Element::setHasFocusWithin(bool value)
 void Element::setHasTentativeFocus(bool value)
 {
     // Tentative focus is used when trying to set the focus on a new element.
+    if (isInTopLayer())
+        return;
     for (Ref ancestor : composedTreeAncestors(*this)) {
         ASSERT(ancestor->hasFocusWithin() != value);
         document().userActionElements().setHasFocusWithin(ancestor, value);
+        if (ancestor->isInTopLayer())
+            break;
     }
 }
 
@@ -1169,18 +1176,19 @@ inline ScrollAlignment NODELETE toScrollAlignmentForBlockDirection(std::optional
     }
 }
 
+static HTMLSelectElement* owningSelectElement(const Element& element)
+{
+    if (auto* optionElement = dynamicDowncast<HTMLOptionElement>(element))
+        return optionElement->ownerSelectElement();
+
+    if (auto* optGroupElement = dynamicDowncast<HTMLOptGroupElement>(element))
+        return optGroupElement->ownerSelectElement();
+
+    return nullptr;
+}
+
 static std::optional<std::pair<SingleThreadWeakPtr<RenderElement>, LayoutRect>> listBoxElementScrollIntoView(const Element& element)
 {
-    auto owningSelectElement = [](const Element& element) -> HTMLSelectElement* {
-        if (auto* optionElement = dynamicDowncast<HTMLOptionElement>(element))
-            return optionElement->ownerSelectElement();
-
-        if (auto* optGroupElement = dynamicDowncast<HTMLOptGroupElement>(element))
-            return optGroupElement->ownerSelectElement();
-
-        return nullptr;
-    };
-
     RefPtr selectElement = owningSelectElement(element);
     if (!selectElement)
         return std::nullopt;
@@ -1243,11 +1251,11 @@ void Element::scrollIntoView(Variant<bool, ScrollIntoViewOptions>&& arg)
 
     bool isHorizontal = writingMode.isHorizontal();
     auto visibleOptions = ScrollRectToVisibleOptions {
-        SelectionRevealMode::Reveal,
-        isHorizontal ? alignX : alignY,
-        isHorizontal ? alignY : alignX,
-        ShouldAllowCrossOriginScrolling::No,
-        options.behavior
+        .revealMode = SelectionRevealMode::Reveal,
+        .alignX = isHorizontal ? alignX : alignY,
+        .alignY = isHorizontal ? alignY : alignX,
+        .behavior = options.behavior,
+        .skipScrollingTargetElement = SkipScrollingTargetElement::Yes
     };
     LocalFrameView::scrollRectToVisible(absoluteBounds, *renderer, insideFixed, visibleOptions);
 }
@@ -1264,11 +1272,17 @@ void Element::scrollIntoView(bool alignToTop)
     LayoutRect absoluteBounds = renderer->absoluteAnchorRectWithScrollMargin(&insideFixed).marginRect;
 
     // Align to the top / bottom and to the closest edge.
-    auto alignY = alignToTop ? ScrollAlignment::alignTopAlways : ScrollAlignment::alignBottomAlways;
     auto alignX = ScrollAlignment::alignToEdgeIfNeeded;
     alignX.disableLegacyHorizontalVisibilityThreshold();
 
-    LocalFrameView::scrollRectToVisible(absoluteBounds, *renderer, insideFixed, { SelectionRevealMode::Reveal, alignX, alignY, ShouldAllowCrossOriginScrolling::No });
+    auto options = ScrollRectToVisibleOptions {
+        .revealMode = SelectionRevealMode::Reveal,
+        .alignX = alignX,
+        .alignY = alignToTop ? ScrollAlignment::alignTopAlways : ScrollAlignment::alignBottomAlways,
+        .skipScrollingTargetElement = SkipScrollingTargetElement::Yes
+    };
+
+    LocalFrameView::scrollRectToVisible(absoluteBounds, *renderer, insideFixed, options);
 }
 
 void Element::scrollIntoViewIfNeeded(bool centerIfNeeded)
@@ -1285,11 +1299,16 @@ void Element::scrollIntoViewIfNeeded(bool centerIfNeeded)
     bool insideFixed;
     LayoutRect absoluteBounds = renderer->absoluteAnchorRectWithScrollMargin(&insideFixed).marginRect;
 
-    auto alignY = centerIfNeeded ? ScrollAlignment::alignCenterIfNeeded : ScrollAlignment::alignToEdgeIfNeeded;
     auto alignX = centerIfNeeded ? ScrollAlignment::alignCenterIfNeeded : ScrollAlignment::alignToEdgeIfNeeded;
     alignX.disableLegacyHorizontalVisibilityThreshold();
 
-    LocalFrameView::scrollRectToVisible(absoluteBounds, *renderer, insideFixed, { SelectionRevealMode::Reveal, alignX, alignY, ShouldAllowCrossOriginScrolling::No });
+    auto options = ScrollRectToVisibleOptions {
+        .revealMode = SelectionRevealMode::Reveal,
+        .alignX = alignX,
+        .alignY = centerIfNeeded ? ScrollAlignment::alignCenterIfNeeded : ScrollAlignment::alignToEdgeIfNeeded,
+        .skipScrollingTargetElement = SkipScrollingTargetElement::Yes
+    };
+    LocalFrameView::scrollRectToVisible(absoluteBounds, *renderer, insideFixed, options);
 }
 
 void Element::scrollIntoViewIfNotVisible(bool centerIfNotVisible, AllowScrollingOverflowHidden allowScrollingOverflowHidden)
@@ -1303,12 +1322,12 @@ void Element::scrollIntoViewIfNotVisible(bool centerIfNotVisible, AllowScrolling
     bool insideFixed;
     LayoutRect absoluteBounds = renderer->absoluteAnchorRectWithScrollMargin(&insideFixed).marginRect;
     auto align = centerIfNotVisible ? ScrollAlignment::alignCenterIfNotVisible : ScrollAlignment::alignToEdgeIfNotVisible;
-    ScrollRectToVisibleOptions options = {
+    auto options = ScrollRectToVisibleOptions {
         .revealMode = SelectionRevealMode::Reveal,
         .alignX = align,
         .alignY = align,
-        .shouldAllowCrossOriginScrolling = ShouldAllowCrossOriginScrolling::No,
-        .allowScrollingOverflowHidden = allowScrollingOverflowHidden
+        .allowScrollingOverflowHidden = allowScrollingOverflowHidden,
+        .skipScrollingTargetElement = SkipScrollingTargetElement::Yes
     };
 
     LocalFrameView::scrollRectToVisible(absoluteBounds, *renderer, insideFixed, options);
@@ -1869,10 +1888,10 @@ static bool layoutOverflowRectContainsAllDescendants(const RenderBox& renderBox)
 
     // If there are any position:fixed inside of us, game over.
     if (auto* viewPositionedOutOfFlowBoxes = renderBox.view().outOfFlowBoxes()) {
-        for (CheckedRef viewPositionedOutOfFlowBox : *viewPositionedOutOfFlowBoxes) {
-            if (viewPositionedOutOfFlowBox.ptr() == &renderBox)
+        for (auto& viewPositionedOutOfFlowBox : *viewPositionedOutOfFlowBoxes) {
+            if (&viewPositionedOutOfFlowBox == &renderBox)
                 continue;
-            if (viewPositionedOutOfFlowBox->isFixedPositioned() && renderBox.element()->contains(viewPositionedOutOfFlowBox->element()))
+            if (viewPositionedOutOfFlowBox.isFixedPositioned() && renderBox.element()->contains(viewPositionedOutOfFlowBox.element()))
                 return false;
         }
     }
@@ -1883,12 +1902,12 @@ static bool layoutOverflowRectContainsAllDescendants(const RenderBox& renderBox)
     }
 
     // This renderer may have positioned descendants whose containing block is some ancestor.
-    if (CheckedPtr containingBlock = RenderObject::containingBlockForPositionType(PositionType::Absolute, renderBox)) {
+    if (auto* containingBlock = RenderObject::containingBlockForPositionType(PositionType::Absolute, renderBox)) {
         if (auto* outOfFlowBoxes = containingBlock->outOfFlowBoxes()) {
-            for (CheckedRef outOfFlowBox : *outOfFlowBoxes) {
-                if (outOfFlowBox.ptr() == &renderBox)
+            for (auto& outOfFlowBox : *outOfFlowBoxes) {
+                if (&outOfFlowBox == &renderBox)
                     continue;
-                if (renderBox.element()->contains(outOfFlowBox->element()))
+                if (renderBox.element()->contains(outOfFlowBox.element()))
                     return false;
             }
         }
@@ -1907,7 +1926,7 @@ LayoutRect Element::absoluteEventBounds(bool& boundsIncludeAllDescendantElements
     LayoutRect result;
     if (RefPtr svgElement = elementWithSVGLayoutBox(*this)) {
         if (auto localRect = svgElement->getBoundingBox())
-            result = LayoutRect(protect(renderer())->localToAbsoluteQuad(*localRect, UseTransforms, &includesFixedPositionElements).boundingBox());
+            result = LayoutRect(protect(renderer())->localToAbsoluteQuad(*localRect, MapCoordinatesMode::UseTransforms, &includesFixedPositionElements).boundingBox());
     } else {
         CheckedPtr renderer = this->renderer();
         if (CheckedPtr box = dynamicDowncast<RenderBox>(renderer.get())) {
@@ -1924,7 +1943,7 @@ LayoutRect Element::absoluteEventBounds(bool& boundsIncludeAllDescendantElements
                     // FIXME: this doesn't handle nested columns.
                     if (CheckedPtr multicolContainer = dynamicDowncast<RenderBox>(fragmentedFlow->parent())) {
                         auto overflowRect = multicolContainer->layoutOverflowRect();
-                        result = LayoutRect(multicolContainer->localToAbsoluteQuad(FloatRect(overflowRect), UseTransforms, &includesFixedPositionElements).boundingBox());
+                        result = LayoutRect(multicolContainer->localToAbsoluteQuad(FloatRect(overflowRect), MapCoordinatesMode::UseTransforms, &includesFixedPositionElements).boundingBox());
                         computedBounds = true;
                     }
                 }
@@ -1932,7 +1951,7 @@ LayoutRect Element::absoluteEventBounds(bool& boundsIncludeAllDescendantElements
 
             if (!computedBounds) {
                 LayoutRect overflowRect = box->layoutOverflowRect();
-                result = LayoutRect(box->localToAbsoluteQuad(FloatRect(overflowRect), UseTransforms, &includesFixedPositionElements).boundingBox());
+                result = LayoutRect(box->localToAbsoluteQuad(FloatRect(overflowRect), MapCoordinatesMode::UseTransforms, &includesFixedPositionElements).boundingBox());
                 boundsIncludeAllDescendantElements = layoutOverflowRectContainsAllDescendants(*box);
             }
         } else
@@ -1970,16 +1989,6 @@ LayoutRect Element::absoluteEventHandlerBounds(bool& includesFixedPositionElemen
 
 static std::optional<std::pair<CheckedRef<RenderListBox>, LayoutRect>> listBoxElementBoundingBox(const Element& element)
 {
-    auto owningSelectElement = [](const Element& element) -> HTMLSelectElement* {
-        if (auto* optionElement = dynamicDowncast<HTMLOptionElement>(element))
-            return optionElement->ownerSelectElement();
-        
-        if (auto* optGroupElement = dynamicDowncast<HTMLOptGroupElement>(element))
-            return optGroupElement->ownerSelectElement();
-
-        return nullptr;
-    };
-
     RefPtr selectElement = owningSelectElement(element);
     if (!selectElement)
         return std::nullopt;
@@ -2818,7 +2827,7 @@ bool Element::hasDisplayNone() const
 
 void Element::storeDisplayContentsOrNoneStyle(std::unique_ptr<RenderStyle> style)
 {
-    // This is used by RenderTreeBuilder to store the style for Elements with display:{contents|none}.
+    // This is used by RenderTreeUpdater to store the style for Elements with display:{contents|none}.
     // Normally style is held in renderers but display:contents doesn't generate one.
     // This is kept distinct from ElementRareData::computedStyle() which can update outside style resolution.
     // This way renderOrDisplayContentsStyle() always returns consistent styles matching the rendering state.
@@ -3048,7 +3057,7 @@ ExceptionOr<void> Element::setPrefix(const AtomString& prefix)
     return { };
 }
 
-const AtomString& Element::imageSourceURL() const
+String Element::imageSourceURL() const
 {
     return attributeWithoutSynchronization(srcAttr);
 }
@@ -4536,24 +4545,20 @@ void Element::willBecomeFullscreenElement()
         child->ancestorWillEnterFullscreen();
 }
 
-static void forEachRenderLayer(Element& element, const std::function<void(RenderLayer&)>& function)
+static void propagateUserActionPseudoClassesToAncestors(Element& element, bool value, bool hover, bool active, bool focusWithin)
 {
-    CheckedPtr layerModelObject = dynamicDowncast<RenderLayerModelObject>(element.renderer());
-    if (!layerModelObject)
-        return;
-
-
-    CheckedPtr renderBoxModelObject = dynamicDowncast<RenderBoxModelObject>(*layerModelObject);
-    if (!renderBoxModelObject) {
-        if (layerModelObject->hasLayer())
-            function(*layerModelObject->layer());
-        return;
+    for (Ref ancestor : composedTreeAncestors(element)) {
+        if (hover)
+            ancestor->setHovered(value);
+        if (active) {
+            ancestor->setActive(value);
+            element.document().userActionElements().setInActiveChain(ancestor, value);
+        }
+        if (focusWithin)
+            ancestor->setHasFocusWithin(value);
+        if (value && ancestor->isInTopLayer())
+            break;
     }
-
-    RenderBoxModelObject::forRendererAndContinuations(*renderBoxModelObject, [function](RenderBoxModelObject& renderer) {
-        if (renderer.hasLayer())
-            function(*renderer.layer());
-    });
 }
 
 void Element::addToTopLayer()
@@ -4562,13 +4567,19 @@ void Element::addToTopLayer()
     RELEASE_ASSERT(isConnected());
     ScriptDisallowedScope::InMainThread scriptDisallowedScope;
 
-    forEachRenderLayer(*this, [](RenderLayer& layer) {
-        layer.establishesTopLayerWillChange();
-    });
+    if (CheckedPtr renderer = this->renderer())
+        renderer->establishesTopLayerWillChange();
 
     Ref document = this->document();
     document->addTopLayerElement(*this);
     setEventTargetFlag(EventTargetFlag::IsInTopLayer);
+
+    // User-action pseudo-classes should not propagate past top layer boundaries.
+    bool clearHover = document->hoveredElement() && contains(document->hoveredElement());
+    bool clearActive = document->activatedElement() && contains(document->activatedElement());
+    bool clearFocusWithin = hasFocusWithin();
+    if (clearHover || clearActive || clearFocusWithin)
+        propagateUserActionPseudoClassesToAncestors(*this, false, clearHover, clearActive, clearFocusWithin);
 
     document->scheduleContentRelevancyUpdate(ContentRelevancy::IsInTopLayer);
 
@@ -4577,9 +4588,8 @@ void Element::addToTopLayer()
     if (RefPtr documentElement = document->documentElement())
         documentElement->invalidateStyleInternal();
 
-    forEachRenderLayer(*this, [](RenderLayer& layer) {
-        layer.establishesTopLayerDidChange();
-    });
+    if (CheckedPtr renderer = this->renderer())
+        renderer->establishesTopLayerDidChange();
 }
 
 void Element::removeFromTopLayer()
@@ -4587,9 +4597,8 @@ void Element::removeFromTopLayer()
     RELEASE_ASSERT(isInTopLayer());
     ScriptDisallowedScope::InMainThread scriptDisallowedScope;
 
-    forEachRenderLayer(*this, [](RenderLayer& layer) {
-        layer.establishesTopLayerWillChange();
-    });
+    if (CheckedPtr renderer = this->renderer())
+        renderer->establishesTopLayerWillChange();
 
     // We need to call Styleable::fromRenderer() while this element is still contained in
     // Document::topLayerElements(), since Styleable::fromRenderer() relies on this to
@@ -4605,6 +4614,14 @@ void Element::removeFromTopLayer()
     document().removeTopLayerElement(*this);
     clearEventTargetFlag(EventTargetFlag::IsInTopLayer);
 
+    // User-action pseudo-classes should now propagate past this element since it is
+    // no longer a top layer boundary.
+    bool setHover = document().hoveredElement() && contains(document().hoveredElement());
+    bool setActive = document().activatedElement() && contains(document().activatedElement());
+    bool setFocusWithin = hasFocusWithin();
+    if (setHover || setActive || setFocusWithin)
+        propagateUserActionPseudoClassesToAncestors(*this, true, setHover, setActive, setFocusWithin);
+
     document().scheduleContentRelevancyUpdate(ContentRelevancy::IsInTopLayer);
 
     // Invalidate inert state
@@ -4614,9 +4631,8 @@ void Element::removeFromTopLayer()
     if (RefPtr modalElement = document().activeModalDialog())
         modalElement->invalidateStyleInternal();
 
-    forEachRenderLayer(*this, [](RenderLayer& layer) {
-        layer.establishesTopLayerDidChange();
-    });
+    if (CheckedPtr renderer = this->renderer())
+        renderer->establishesTopLayerDidChange();
 }
 
 static PseudoElement* NODELETE beforeOrAfterPseudoElement(const Element& host, PseudoElementType pseudoElementSpecifier)
@@ -4689,14 +4705,14 @@ const RenderStyle* Element::resolveComputedStyle(ResolveComputedStyleMode mode)
 
         RefPtr<const Element> rootmost;
 
-        for (RefPtr element = this; element; element = element->parentElementInComposedTree()) {
+        for (Ref element : composedTreeLineage(*this)) {
             if (element->hasStateFlag(StateFlag::IsComputedStyleInvalidFlag)) {
-                rootmost = element;
+                rootmost = element.ptr();
                 continue;
             }
             CheckedPtr existing = element->existingComputedStyle();
             if (!existing) {
-                rootmost = element;
+                rootmost = element.ptr();
                 continue;
             }
             if (mode == ResolveComputedStyleMode::RenderedOnly && existing->display() == Style::DisplayType::None) {
@@ -4757,7 +4773,7 @@ const RenderStyle* Element::resolveComputedStyle(ResolveComputedStyleMode mode)
     return computedStyle;
 }
 
-const RenderStyle* Element::resolvePseudoElementStyle(const Style::PseudoElementIdentifier& pseudoElementIdentifier)
+const RenderStyle& Element::resolvePseudoElementStyle(const Style::PseudoElementIdentifier& pseudoElementIdentifier)
 {
     ASSERT(!isPseudoElement());
 
@@ -4770,8 +4786,6 @@ const RenderStyle* Element::resolvePseudoElementStyle(const Style::PseudoElement
 
     auto style = document->styleForElementIgnoringPendingStylesheets(*this, parentStyle.get(), pseudoElementIdentifier);
     if (!style) {
-        if (pseudoElementIdentifier.type == PseudoElementType::UserAgentPartFallback)
-            return nullptr;
         style = RenderStyle::createPtr();
         style->inheritFrom(*parentStyle);
         style->setPseudoElementIdentifier(pseudoElementIdentifier);
@@ -4780,7 +4794,7 @@ const RenderStyle* Element::resolvePseudoElementStyle(const Style::PseudoElement
     CheckedPtr computedStyle = style.get();
     const_cast<RenderStyle*>(parentStyle.get())->addCachedPseudoStyle(WTF::move(style));
     ASSERT(parentStyle->getCachedPseudoStyle(pseudoElementIdentifier));
-    return computedStyle.unsafeGet();
+    return *computedStyle.unsafeGet();
 }
 
 const RenderStyle* Element::computedStyle(const std::optional<Style::PseudoElementIdentifier>& pseudoElementIdentifier)
@@ -4801,7 +4815,7 @@ const RenderStyle* Element::computedStyle(const std::optional<Style::PseudoEleme
     if (pseudoElementIdentifier) {
         if (auto* cachedPseudoStyle = style->getCachedPseudoStyle(*pseudoElementIdentifier))
             return cachedPseudoStyle;
-        return resolvePseudoElementStyle(*pseudoElementIdentifier);
+        return &resolvePseudoElementStyle(*pseudoElementIdentifier);
     }
 
     return style.unsafeGet();
@@ -5009,7 +5023,7 @@ ExceptionOr<bool> Element::matches(const String& selector)
     return query.releaseReturnValue().matches(*this);
 }
 
-ExceptionOr<Element*> Element::closest(const String& selector)
+ExceptionOr<RefPtr<Element>> Element::closest(const String& selector)
 {
     auto query = document().selectorQueryForString(selector);
     if (query.hasException())
@@ -5198,24 +5212,15 @@ bool Element::hasPointerCapture(int32_t pointerId)
 
 #if ENABLE(POINTER_LOCK)
 
-JSC::JSValue Element::requestPointerLock(JSC::JSGlobalObject& lexicalGlobalObject, PointerLockOptions&& options)
+void Element::requestPointerLock(PointerLockOptions&& options, Ref<DeferredPromise>&& promise)
 {
-    RefPtr<DeferredPromise> promise;
-    if (RefPtr page = document().page()) {
-        bool optionsEnabled = document().settings().pointerLockOptionsEnabled();
-
-        if (optionsEnabled)
-            promise = DeferredPromise::create(*JSC::jsSecureCast<JSDOMGlobalObject*>(&lexicalGlobalObject), DeferredPromise::Mode::RetainPromiseOnResolve);
-
-        page->pointerLockController().requestPointerLock(this, optionsEnabled ? std::optional(WTF::move(options)) : std::nullopt, promise);
+    RefPtr page = document().page();
+    if (!page) {
+        promise->resolve();
+        return;
     }
-    return promise ? promise->promise() : JSC::jsUndefined();
-}
 
-void Element::requestPointerLock()
-{
-    if (RefPtr page = document().page())
-        page->pointerLockController().requestPointerLock(this);
+    page->pointerLockController().requestPointerLock(this, WTF::move(options), WTF::move(promise));
 }
 
 #endif
@@ -5504,7 +5509,7 @@ bool Element::isWritingSuggestionsEnabled() const
     // `element` is an `input` element whose `type` attribute is in either the
     // `Text`, `Search`, `URL`, `Email` state and is `mutable`.
     auto isEligibleInputElement = [&] {
-        RefPtr input = dynamicDowncast<HTMLInputElement>(*this);
+        auto* input = dynamicDowncast<HTMLInputElement>(*this);
         if (!input)
             return false;
 
@@ -5513,7 +5518,7 @@ bool Element::isWritingSuggestionsEnabled() const
 
     // `element` is a `textarea` element that is `mutable`.
     auto isEligibleTextArea = [&] {
-        RefPtr textArea = dynamicDowncast<HTMLTextAreaElement>(*this);
+        auto* textArea = dynamicDowncast<HTMLTextAreaElement>(*this);
         if (!textArea)
             return false;
 
@@ -5529,7 +5534,7 @@ bool Element::isWritingSuggestionsEnabled() const
     // not in the `default` state and the nearest such ancestor's `writingsuggestions` content attribute
     // is in the `false` state, then return `false`.
 
-    for (RefPtr ancestor = this; ancestor; ancestor = ancestor->parentElementInComposedTree()) {
+    for (Ref ancestor : composedTreeLineage(*this)) {
         auto& value = ancestor->attributeWithoutSynchronization(HTMLNames::writingsuggestionsAttr);
 
         if (value.isNull())
@@ -5780,16 +5785,11 @@ void Element::resetComputedStyle()
     if (!hasRareData() || !elementRareData()->computedStyle())
         return;
 
-    auto reset = [](Element& element) {
-        if (element.hasCustomStyleResolveCallbacks())
-            element.willResetComputedStyle();
-        element.elementRareData()->setComputedStyle(nullptr);
-    };
-    reset(*this);
+    elementRareData()->setComputedStyle(nullptr);
     for (Ref child : descendantsOfType<Element>(*this)) {
         if (!child->hasRareData() || !child->elementRareData()->computedStyle() || child->hasDisplayContents() || child->hasDisplayNone())
             continue;
-        reset(child);
+        child->elementRareData()->setComputedStyle(nullptr);
     }
 }
 
@@ -5840,11 +5840,6 @@ void Element::willRecalcStyle(OptionSet<Style::Change>)
 }
 
 void Element::didRecalcStyle(OptionSet<Style::Change>)
-{
-    ASSERT(hasCustomStyleResolveCallbacks());
-}
-
-void Element::willResetComputedStyle()
 {
     ASSERT(hasCustomStyleResolveCallbacks());
 }
@@ -6336,7 +6331,7 @@ bool Element::checkVisibility(const CheckVisibilityOptions& options)
     if (options.contentVisibilityAuto && isSkippedContentWithReason(ContentVisibility::Auto))
         return false;
 
-    for (RefPtr ancestor = this; ancestor; ancestor = ancestor->parentElementInComposedTree()) {
+    for (Ref ancestor : composedTreeLineage(*this)) {
         CheckedPtr ancestorStyle = ancestor->computedStyle();
         if (ancestorStyle->display() == Style::DisplayType::None)
             return false;
@@ -6358,7 +6353,7 @@ AtomString Element::makeTargetBlankIfHasDanglingMarkup(const AtomString& target)
 bool Element::hasCustomState(const AtomString& state) const
 {
     if (hasRareData()) {
-        RefPtr customStates = elementRareData()->customStateSet();
+        auto* customStates = elementRareData()->customStateSet();
         return customStates && customStates->has(state);
     }
 
@@ -6387,7 +6382,7 @@ void Element::setVisibilityAdjustment(OptionSet<VisibilityAdjustment> adjustment
     if (!adjustment)
         return;
 
-    if (RefPtr page = document().page())
+    if (auto* page = document().page())
         page->didSetVisibilityAdjustment();
 }
 
@@ -6454,8 +6449,8 @@ RefPtr<HTMLElement> Element::topmostPopoverAncestor(TopLayerElementType topLayer
 
         // https://html.spec.whatwg.org/#nearest-inclusive-open-popover
         auto nearestInclusiveOpenPopover = [](Element& candidate) -> HTMLElement* {
-            for (auto* element = &candidate; element; element = element->parentElementInComposedTree()) {
-                if (auto* htmlElement = dynamicDowncast<HTMLElement>(element)) {
+            for (Ref element : composedTreeLineage(candidate)) {
+                if (auto* htmlElement = dynamicDowncast<HTMLElement>(element.get())) {
                     if (htmlElement->popoverState() == PopoverState::Auto && htmlElement->popoverData()->visibilityState() == PopoverVisibilityState::Showing)
                         return htmlElement;
                 }

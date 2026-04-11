@@ -135,7 +135,7 @@ JSC_DEFINE_HOST_FUNCTION(typedArrayViewPrivateFuncIsResizableOrGrowableSharedTyp
     return JSValue::encode(jsBoolean(jsCast<JSArrayBufferView*>(value)->isResizableOrGrowableShared()));
 }
 
-static inline std::optional<JSType> isTypedArrayViewConstructor(JSValue value)
+static inline std::optional<JSType> NODELETE isTypedArrayViewConstructor(JSValue value)
 {
     if (!value.isCell()) [[unlikely]]
         return std::nullopt;
@@ -160,7 +160,7 @@ JSC_DEFINE_HOST_FUNCTION(typedArrayViewPrivateFuncTypedArrayFromFast, (JSGlobalO
     if (!type)
         return JSValue::encode(jsUndefined());
 
-    if (jsCast<JSObject*>(constructor)->globalObject() != globalObject)
+    if (jsCast<JSObject*>(constructor)->realm() != globalObject)
         return JSValue::encode(jsUndefined());
 
     scope.release();

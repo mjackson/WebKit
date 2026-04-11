@@ -59,7 +59,7 @@ public:
     explicit CallLinkStatus(JSValue);
     
     CallLinkStatus(CallVariant variant)
-        : m_variants(1, variant)
+        : m_variants(FillWith { }, 1, variant)
     {
     }
     
@@ -103,7 +103,7 @@ public:
     bool isBasedOnStub() const { return m_isBasedOnStub; }
     bool canOptimize() const { return !m_variants.isEmpty(); }
 
-    bool isClosureCall() const; // Returns true if any callee is a closure call.
+    bool NODELETE isClosureCall() const; // Returns true if any callee is a closure call.
     
     unsigned maxArgumentCountIncludingThisForVarargs() const { return m_maxArgumentCountIncludingThisForVarargs; }
     

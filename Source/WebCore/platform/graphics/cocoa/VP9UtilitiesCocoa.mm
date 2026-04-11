@@ -31,9 +31,12 @@
 #import "CMUtilities.h"
 #import "FourCC.h"
 #import "LibWebRTCProvider.h"
+#import "Logging.h"
+#import "MediaStrategy.h"
 #import "PlatformMediaCapabilitiesInfo.h"
 #import "PlatformMediaCapabilitiesVideoConfiguration.h"
 #import "PlatformScreen.h"
+#import "PlatformStrategies.h"
 #import "ScreenProperties.h"
 #import "SharedBuffer.h"
 #import "SystemBattery.h"
@@ -41,6 +44,7 @@
 #import "VideoDecoder.h"
 #import <JavaScriptCore/DataView.h>
 #import <webm/common/vp9_header_parser.h>
+#import <wtf/cf/VectorCF.h>
 #import <wtf/text/StringToIntegerConversion.h>
 
 #import <pal/cocoa/AVFoundationSoftLink.h>
@@ -65,9 +69,9 @@ void VP9TestingOverrides::setHardwareDecoderDisabled(std::optional<bool>&& disab
         m_configurationChangedCallback(false);
 }
 
-void VP9TestingOverrides::setVP9HardwareDecoderEnabledOverride(std::optional<bool>&& disabled)
+void VP9TestingOverrides::setVP9HardwareDecoderEnabledOverride(std::optional<bool>&& enabled)
 {
-    m_vp9HardwareDecoderEnabledOverride = WTF::move(disabled);
+    m_vp9HardwareDecoderEnabledOverride = WTF::move(enabled);
     if (m_configurationChangedCallback)
         m_configurationChangedCallback(false);
 }
@@ -196,6 +200,11 @@ bool shouldEnableSWVP9Decoder()
     return isSWDecodersAlwaysEnabled() || (!vp9HardwareDecoderAvailable() && !systemHasBattery());
 }
 
+static bool isVP9HardwareDecoderAvailabilityKnown()
+{
+    return VP9TestingOverrides::singleton().hardwareDecoderDisabled() || VP9TestingOverrides::singleton().vp9HardwareDecoderEnabledOverride();
+}
+
 bool isVP9DecoderAvailable()
 {
     if (isSWDecodersAlwaysEnabled())
@@ -214,6 +223,13 @@ bool isVP8DecoderAvailable()
 
 bool vp9HardwareDecoderAvailable()
 {
+    // If the GPUP hasn't delivered VP9 hardware decoder capability yet,
+    // ensure it's initialized and re-check.
+    if (!isVP9HardwareDecoderAvailabilityKnown() && hasPlatformStrategies()) {
+        RELEASE_LOG_ERROR(Media, "SourceBufferParserWebM::isContentTypeSupported: VP9 availability unknown, ensuring codecs support is initialized");
+        platformStrategies()->mediaStrategy()->ensureCodecsSupportChecksInitialized();
+    }
+
     if (auto disabledForTesting = VP9TestingOverrides::singleton().hardwareDecoderDisabled())
         return !*disabledForTesting;
 
@@ -540,7 +556,7 @@ static Ref<VideoInfo> createVideoInfoFromVPCodecConfigurationRecord(const VPCode
             .size = size,
             .displaySize = displaySize,
             .colorSpace = colorSpaceFromVPCodecConfigurationRecord(record),
-            .extensionAtoms = { 1, { computeBoxType(codecName), SharedBuffer::create(vpcCFromVPCodecConfigurationRecord(record)) } },
+            .extensionAtoms = { FillWith { }, 1, { computeBoxType(codecName), SharedBuffer::create(vpcCFromVPCodecConfigurationRecord(record)) } },
         }
     });
 }
@@ -675,6 +691,15 @@ Ref<VideoInfo> createVideoInfoFromVP8Header(const VP8FrameHeader& header, const 
     }
 
     return createVideoInfoFromVPCodecConfigurationRecord(record, { static_cast<float>(header.width), static_cast<float>(header.height) }, { static_cast<float>(video.display_width.is_present() ? video.display_width.value() : header.width), static_cast<float>(video.display_height.is_present() ? video.display_height.value() : header.height) });
+}
+
+RetainPtr<CMVideoFormatDescriptionRef> createVP9FormatDescriptionFromRecord(const VPCodecConfigurationRecord& record)
+{
+    ASSERT(record.frameWidth);
+    ASSERT(record.frameHeight);
+
+    Ref videoInfo = createVideoInfoFromVPCodecConfigurationRecord(record, IntSize { record.frameWidth, record.frameHeight }, IntSize { record.frameWidth, record.frameHeight });
+    return createFormatDescriptionFromTrackInfo(videoInfo.get());
 }
 
 }

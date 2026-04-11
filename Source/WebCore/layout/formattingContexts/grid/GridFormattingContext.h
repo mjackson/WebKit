@@ -31,6 +31,7 @@
 #include <WebCore/StyleGapGutter.h>
 #include <WebCore/StyleGridTemplateList.h>
 #include <WebCore/StyleGridTrackSizes.h>
+#include <WebCore/StylePrimitiveNumericTypes+Evaluation.h>
 #include <wtf/CheckedRef.h>
 
 namespace WebCore {

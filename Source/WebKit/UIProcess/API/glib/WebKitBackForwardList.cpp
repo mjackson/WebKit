@@ -212,7 +212,7 @@ WebKitBackForwardListItem* webkit_back_forward_list_get_nth_item(WebKitBackForwa
 {
     g_return_val_if_fail(WEBKIT_IS_BACK_FORWARD_LIST(backForwardList), 0);
 
-    return webkitBackForwardListGetOrCreateItem(backForwardList, backForwardList->priv->backForwardItems->itemAtIndex(index));
+    return webkitBackForwardListGetOrCreateItem(backForwardList, backForwardList->priv->backForwardItems->itemAtDeltaFromCurrentIndex(index).get());
 }
 
 /**

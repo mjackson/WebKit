@@ -29,6 +29,8 @@
 #include "ContextDestructionObserverInlines.h"
 #include "DOMAsyncIterator.h"
 #include "InternalWritableStreamWriter.h"
+#include "JSDOMConvertBufferSource.h"
+#include "JSDOMConvertNullable.h"
 #include "JSDOMPromise.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSReadableStream.h"

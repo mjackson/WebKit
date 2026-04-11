@@ -47,6 +47,7 @@ OBJC_CLASS NSString;
 namespace WTF {
 
 class AdaptiveStringSearcherTables;
+template<typename T> class ValueOrReference;
 
 // StringView is a non-owning reference to a string, similar to the proposed std::string_view.
 
@@ -58,12 +59,13 @@ public:
     ~StringView();
     StringView(StringView&&);
     StringView(const StringView&);
-    StringView& operator=(StringView&&);
+    StringView& NODELETE operator=(StringView&&);
     StringView& operator=(const StringView&);
 #endif
 
     StringView(const AtomString& string LIFETIME_BOUND);
     StringView(const String& string LIFETIME_BOUND);
+    StringView(const ValueOrReference<String>& string LIFETIME_BOUND);
     StringView(const StringImpl& string LIFETIME_BOUND);
     StringView(const StringImpl* string LIFETIME_BOUND);
     StringView(std::span<const Latin1Character> span LIFETIME_BOUND);
@@ -81,8 +83,10 @@ public:
     explicit operator bool() const;
     bool isNull() const;
 
-    char16_t characterAt(unsigned index) const;
+    char16_t codeUnitAt(unsigned index) const;
     char16_t operator[](unsigned index) const;
+    char32_t codePointAt(unsigned index) const;
+    char32_t codePointBefore(unsigned index) const;
 
     class CodeUnits;
     CodeUnits codeUnits() const;
@@ -148,8 +152,7 @@ public:
     StringView left(unsigned length) const { return substring(0, length); }
     StringView right(unsigned length) const { return substring(this->length() - length, length); }
 
-    template<typename MatchedCharacterPredicate>
-    StringView trim(const MatchedCharacterPredicate&) const;
+    StringView trim(CodeUnitMatchFunction) const;
 
     class SplitResult;
     SplitResult split(char16_t) const;
@@ -285,8 +288,15 @@ WTF_EXPORT_PRIVATE String normalizedNFC(const String&);
 inline StringView nullStringView() { return { }; }
 inline StringView emptyStringView() { return ""_span; }
 
+WTF_EXPORT_PRIVATE NODELETE std::strong_ordering codePointCompare(StringView, StringView);
+inline bool NODELETE codePointCompareLessThan(StringView a, StringView b)
+{
+    return codePointCompare(a, b) < 0;
+}
+
 } // namespace WTF
 
+#include <wtf/ValueOrReference.h>
 #include <wtf/text/AtomString.h>
 #include <wtf/text/WTFString.h>
 
@@ -473,6 +483,11 @@ inline StringView::StringView(const AtomString& atomString LIFETIME_BOUND)
 {
 }
 
+inline StringView::StringView(const ValueOrReference<String>& string LIFETIME_BOUND)
+    : StringView(string.get())
+{
+}
+
 inline void StringView::clear()
 {
     m_characters = nullptr;
@@ -591,7 +606,7 @@ inline StringView StringView::substring(unsigned start, unsigned length) const
     return result;
 }
 
-inline char16_t StringView::characterAt(unsigned index) const
+inline char16_t StringView::codeUnitAt(unsigned index) const
 {
     if (is8Bit())
         return span8()[index];
@@ -600,7 +615,29 @@ inline char16_t StringView::characterAt(unsigned index) const
 
 inline char16_t StringView::operator[](unsigned index) const
 {
-    return characterAt(index);
+    return codeUnitAt(index);
+}
+
+inline char32_t StringView::codePointAt(unsigned index) const
+{
+    ASSERT(index < length());
+    if (m_is8Bit)
+        return span8()[index];
+    auto characters = span16();
+    if (U16_IS_SINGLE(characters[index]))
+        return characters[index];
+    if (index + 1 < length() && U16_IS_LEAD(characters[index]) && U16_IS_TRAIL(characters[index + 1]))
+        return U16_GET_SUPPLEMENTARY(characters[index], characters[index + 1]);
+    return characters[index];
+}
+
+inline char32_t StringView::codePointBefore(unsigned index) const
+{
+    ASSERT(index > 0 && index <= length());
+    unsigned offset = index;
+    char32_t codePoint;
+    U16_PREV(*this, 0, offset, codePoint);
+    return codePoint;
 }
 
 inline bool StringView::contains(char16_t character) const
@@ -915,18 +952,25 @@ private:
 class StringView::CodePoints::Iterator {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED(Iterator);
 public:
-    using iterator_category = std::forward_iterator_tag;
+    using iterator_category = std::bidirectional_iterator_tag;
+    using value_type = char32_t;
+    using difference_type = ptrdiff_t;
+    Iterator() = default;
     Iterator(StringView view LIFETIME_BOUND, unsigned index);
 
     char32_t operator*() const;
     Iterator& operator++();
+    Iterator operator++(int);
+    Iterator& operator--();
+    Iterator operator--(int);
 
     bool operator==(const Iterator&) const;
 
 private:
-    const void* m_current;
-    const void* m_end;
-    bool m_is8Bit;
+    const void* m_begin { nullptr };
+    const void* m_current { nullptr };
+    const void* m_end { nullptr };
+    bool m_is8Bit { true };
 #if CHECK_STRINGVIEW_LIFETIME
     StringView m_stringView;
 #endif
@@ -990,10 +1034,12 @@ inline StringView::CodePoints::Iterator::Iterator(StringView stringView LIFETIME
 {
     if (m_is8Bit) {
         auto characters = stringView.span8();
+        m_begin = std::to_address(characters.begin());
         m_current = characters.subspan(index).data();
         m_end = std::to_address(characters.end());
     } else {
         auto characters = stringView.span16();
+        m_begin = std::to_address(characters.begin());
         m_current = characters.subspan(index).data();
         m_end = std::to_address(characters.end());
     }
@@ -1015,6 +1061,38 @@ inline auto StringView::CodePoints::Iterator::operator++() -> Iterator&
         m_current = static_cast<const char16_t*>(m_current) + i;
     }
     return *this;
+}
+
+inline auto StringView::CodePoints::Iterator::operator++(int) -> Iterator
+{
+    auto result = *this;
+    ++*this;
+    return result;
+}
+
+inline auto StringView::CodePoints::Iterator::operator--() -> Iterator&
+{
+#if CHECK_STRINGVIEW_LIFETIME
+    ASSERT(m_stringView.underlyingStringIsValid());
+#endif
+    ASSERT(m_current > m_begin);
+    if (m_is8Bit)
+        m_current = static_cast<const Latin1Character*>(m_current) - 1;
+    else {
+        auto* begin = static_cast<const char16_t*>(m_begin);
+        auto* current = static_cast<const char16_t*>(m_current);
+        unsigned i = current - begin;
+        U16_BACK_1(begin, 0, i);
+        m_current = begin + i;
+    }
+    return *this;
+}
+
+inline auto StringView::CodePoints::Iterator::operator--(int) -> Iterator
+{
+    auto result = *this;
+    --*this;
+    return result;
 }
 
 inline char32_t StringView::CodePoints::Iterator::operator*() const
@@ -1076,7 +1154,7 @@ inline auto StringView::CodeUnits::Iterator::operator++() -> Iterator&
 
 inline char16_t StringView::CodeUnits::Iterator::operator*() const
 {
-    return m_stringView.characterAt(m_index);
+    return m_stringView.codeUnitAt(m_index);
 }
 
 inline bool StringView::CodeUnits::Iterator::operator==(const Iterator& other) const
@@ -1176,8 +1254,7 @@ inline StringView StringView::trim(std::span<const CharacterType> characters, co
     return result;
 }
 
-template<typename MatchedCharacterPredicate>
-StringView StringView::trim(const MatchedCharacterPredicate& predicate) const
+inline StringView StringView::trim(CodeUnitMatchFunction predicate) const
 {
     if (is8Bit())
         return trim<Latin1Character>(span8(), predicate);
@@ -1199,8 +1276,6 @@ inline bool equalIgnoringNullity(StringView a, StringView b)
     // FIXME: equal(StringView, StringView) ignores nullity; consider changing to be like other string classes and respecting it.
     return equal(a, b);
 }
-
-WTF_EXPORT_PRIVATE std::strong_ordering codePointCompare(StringView, StringView);
 
 inline bool hasUnpairedSurrogate(StringView string)
 {
@@ -1514,3 +1589,5 @@ using WTF::StringViewWithUnderlyingString;
 using WTF::hasUnpairedSurrogate;
 using WTF::nullStringView;
 using WTF::emptyStringView;
+using WTF::codePointCompare;
+using WTF::codePointCompareLessThan;

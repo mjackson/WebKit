@@ -47,7 +47,9 @@
 #include "SerializedScriptValue.h"
 #include <JavaScriptCore/FunctionPrototype.h>
 #include <JavaScriptCore/JSCInlines.h>
+#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSString.h>
+#include <JavaScriptCore/MarkedVector.h>
 #include <type_traits>
 #include <wtf/IsIncreasing.h>
 #include <wtf/NeverDestroyed.h>
@@ -222,7 +224,8 @@ CallbackResult<typename IDLUndefined::CallbackReturnType> JSTestCallbackInterfac
     m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackWithNoParam"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -277,7 +280,8 @@ CallbackResult<typename IDLUndefined::CallbackReturnType> JSTestCallbackInterfac
     m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackWithArrayParam"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -334,7 +338,8 @@ CallbackResult<typename IDLUndefined::CallbackReturnType> JSTestCallbackInterfac
     m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackWithSerializedScriptValueParam"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -391,7 +396,8 @@ CallbackResult<typename IDLUndefined::CallbackReturnType> JSTestCallbackInterfac
     m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackWithStringList"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -447,7 +453,8 @@ CallbackResult<typename IDLUndefined::CallbackReturnType> JSTestCallbackInterfac
     m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackWithBoolean"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -503,7 +510,8 @@ CallbackResult<typename IDLDOMString::CallbackReturnType> JSTestCallbackInterfac
     auto jsResult = m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackWithEnum"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -568,7 +576,8 @@ CallbackResult<typename IDLUndefined::CallbackReturnType> JSTestCallbackInterfac
     m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackRequiresThisToPass"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -624,7 +633,8 @@ CallbackResult<typename IDLDOMString::CallbackReturnType> JSTestCallbackInterfac
     auto jsResult = m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackWithAReturnValue"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -719,7 +729,8 @@ CallbackResult<typename IDLDOMString::CallbackReturnType> JSTestCallbackInterfac
     auto jsResult = m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackWithThisObject"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 

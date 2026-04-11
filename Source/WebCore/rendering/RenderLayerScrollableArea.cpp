@@ -57,6 +57,7 @@
 #include "ElementRuleCollector.h"
 #include "EventHandler.h"
 #include "FocusController.h"
+#include "FrameInlines.h"
 #include "FrameSelection.h"
 #include "HTMLBodyElement.h"
 #include "HTMLHtmlElement.h"
@@ -678,7 +679,7 @@ void RenderLayerScrollableArea::availableContentSizeChanged(AvailableSizeChangeR
 bool RenderLayerScrollableArea::shouldSuspendScrollAnimations() const
 {
     auto& renderer = m_layer.renderer();
-    return protect(renderer.view().frameView())->shouldSuspendScrollAnimations();
+    return renderer.view().frameView().shouldSuspendScrollAnimations();
 }
 
 #if PLATFORM(IOS_FAMILY)
@@ -868,8 +869,8 @@ void RenderLayerScrollableArea::createScrollbarsController()
 
 static inline RenderElement* rendererForScrollbar(RenderLayerModelObject& renderer)
 {
-    if (RefPtr element = renderer.element()) {
-        if (RefPtr shadowRoot = element->containingShadowRoot()) {
+    if (auto* element = renderer.element()) {
+        if (auto* shadowRoot = element->containingShadowRoot()) {
             if (shadowRoot->mode() == ShadowRootMode::UserAgent)
                 return shadowRoot->host()->renderer();
         }
@@ -1319,7 +1320,7 @@ void RenderLayerScrollableArea::updateScrollbarsAfterLayout()
         if (renderer.style().overflowX() == Overflow::Auto || renderer.style().overflowY() == Overflow::Auto) {
             if (!m_inOverflowRelayout) {
                 SetForScope inOverflowRelayoutScope(m_inOverflowRelayout, true);
-                renderer.setNeedsLayout(MarkOnlyThis);
+                renderer.setNeedsLayout(MarkingBehavior::MarkOnlyThis);
                 if (CheckedPtr block = dynamicDowncast<RenderBlock>(renderer)) {
                     // FIXME: Calling layoutBlock here is a bit of a layering violation.
                     auto scope = LayoutScope { *block };
@@ -1994,7 +1995,7 @@ std::optional<LayoutRect> RenderLayerScrollableArea::updateScrollPositionForScro
     IntSize scrollOffsetDifference = realScrollOffset - oldScrollOffset;
     auto localExposeRectScrolled = localExposeRect;
     localExposeRectScrolled.move(-scrollOffsetDifference);
-    return LayoutRect(box->localToAbsoluteQuad(FloatQuad(FloatRect(localExposeRectScrolled)), UseTransforms).boundingBox());
+    return LayoutRect(box->localToAbsoluteQuad(FloatQuad(FloatRect(localExposeRectScrolled)), MapCoordinatesMode::UseTransforms).boundingBox());
 }
 
 void RenderLayerScrollableArea::scrollByRecursively(const IntSize& delta, ScrollableArea** scrolledArea)

@@ -517,6 +517,7 @@ private:
     mutable std::optional<bool> m_cachedAssetIsHLS;
     bool m_volumeLocked { false };
     bool m_muted { false };
+    bool m_preservesPitch { true };
     bool m_shouldObserveTimeControlStatus { false };
     mutable std::optional<bool> m_tracksArePlayable;
     bool m_automaticallyWaitsToMinimizeStalling { false };

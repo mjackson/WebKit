@@ -31,6 +31,7 @@
 
 #include "CachedRawResource.h"
 #include "CachedResourceRequest.h"
+#include "ContentType.h"
 #include "CrossOriginAccessControl.h"
 #include "DocumentQuirks.h"
 #include "DocumentResourceLoader.h"
@@ -42,6 +43,7 @@
 #include "LocalFrameLoaderClient.h"
 #include "OriginAccessPatterns.h"
 #include "SecurityOrigin.h"
+#include "Settings.h"
 #include <wtf/NeverDestroyed.h>
 #include <wtf/SortedArrayMap.h>
 #include <wtf/TZoneMallocInlines.h>

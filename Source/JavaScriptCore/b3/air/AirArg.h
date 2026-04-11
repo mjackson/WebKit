@@ -961,7 +961,7 @@ public:
     // - the Addr kind with the base being either SP or FP
     // Callers of this function are allowed to expect that if it returns true, then it must be one of
     // these easy-to-recognize kinds. So, making this function recognize more kinds could break things.
-    bool isStackMemory() const;
+    bool NODELETE isStackMemory() const;
 
     bool isRelCond() const
     {
@@ -1029,7 +1029,7 @@ public:
     }
 
     template<typename T>
-    bool isRepresentableAs() const
+    bool NODELETE isRepresentableAs() const
     {
         return WTF::isRepresentableAs<T>(value());
     }
@@ -1291,10 +1291,10 @@ public:
         ASSERT_NOT_REACHED();
     }
 
-    bool canRepresent(Type) const;
+    bool NODELETE canRepresent(Type) const;
     bool canRepresent(Value* value) const;
 
-    bool isCompatibleBank(const Arg& other) const;
+    bool NODELETE isCompatibleBank(const Arg& other) const;
 
     bool isGPR() const
     {
@@ -1875,7 +1875,7 @@ public:
     }
 
     // This computes a hash for comparing this to JSAir's Arg.
-    unsigned jsHash() const;
+    unsigned NODELETE jsHash() const;
     
     void dump(PrintStream&) const;
 

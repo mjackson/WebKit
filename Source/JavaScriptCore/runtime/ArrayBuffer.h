@@ -328,9 +328,9 @@ public:
     inline void pinAndLock();
     inline bool isLocked();
 
-    void makeWasmMemory();
+    void NODELETE makeWasmMemory();
     inline bool isWasmMemory();
-    void setAssociatedWasmMemory(Wasm::Memory*);
+    void NODELETE setAssociatedWasmMemory(Wasm::Memory*);
     // When a resizable buffer is associated with a non-shared Wasm memory, this function is called by the memory's growthSuccessCallback.
     void refreshAfterWasmMemoryGrow(Wasm::Memory*);
 
@@ -361,8 +361,8 @@ private:
     static Ref<ArrayBuffer> createInternal(ArrayBufferContents&&, const void*, size_t);
     static RefPtr<ArrayBuffer> tryCreate(size_t numElements, unsigned elementByteSize, std::optional<size_t> maxByteLength, ArrayBufferContents::InitializationPolicy);
     ArrayBuffer(ArrayBufferContents&&);
-    inline size_t clampIndex(double index) const;
-    static inline size_t clampValue(double x, size_t left, size_t right);
+    inline size_t NODELETE clampIndex(double index) const;
+    static inline size_t NODELETE clampValue(double x, size_t left, size_t right);
 
     void notifyDetaching(VM&);
 

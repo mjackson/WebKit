@@ -227,6 +227,7 @@ struct InlineCallFrame {
     JSFunction* calleeForCallFrame(CallFrame*) const;
     
     CString inferredName() const;
+    String inferredNameWithHash() const;
     CodeBlockHash hash() const;
     
     void setStackOffset(signed offset)

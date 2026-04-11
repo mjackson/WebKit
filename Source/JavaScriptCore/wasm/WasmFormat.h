@@ -555,7 +555,7 @@ inline size_t sizeOfType(TypeKind kind)
 inline JSValue internalizeExternref(JSValue value)
 {
     if (value.isDouble()) {
-        if (auto int32Value = JSC::tryConvertToStrictInt32(value.asDouble())) {
+        if (auto int32Value = tryConvertToStrictInt32(value.asDouble())) {
             if (int32Value.value() <= Wasm::maxI31ref && int32Value.value() >= Wasm::minI31ref)
                 return jsNumber(int32Value.value());
         }
@@ -887,6 +887,22 @@ public:
 
     size_t rawIndex() const { return m_index; }
     operator size_t() const { return m_index; }
+    void dump(PrintStream& out) const { out.print(m_index); }
+
+private:
+    uint32_t m_index { UINT_MAX };
+};
+
+// An index into the type section of a module (typeSignatures / expandedTypeSignatures vectors).
+// NOT interchangeable with TypeIndex, which is a global canonical identity.
+class TRIVIAL_ABI TypeSignatureIndex {
+public:
+    TypeSignatureIndex() = default;
+    explicit constexpr TypeSignatureIndex(uint32_t index)
+        : m_index(index)
+    { }
+
+    uint32_t rawIndex() const { return m_index; }
     void dump(PrintStream& out) const { out.print(m_index); }
 
 private:

@@ -35,16 +35,18 @@
 #import "MetalSPI.h"
 #import "Texture.h"
 #import "TextureView.h"
+#import <simd/simd.h>
+#import <wtf/Borrow.h>
+#import <wtf/CheckedArithmetic.h>
+#import <wtf/StdLibExtras.h>
+#import <wtf/TZoneMallocInlines.h>
+
 #if ENABLE(WEBGPU_SWIFT)
 #import "CxxBridging.h"
 #import <WebGPU/CxxBridgingPublic.h>
 #import <WebGPU/WGPUTextureImpl.h>
 #import "WebGPUSwift-Generated.h"
 #endif
-#import <simd/simd.h>
-#import <wtf/CheckedArithmetic.h>
-#import <wtf/StdLibExtras.h>
-#import <wtf/TZoneMallocInlines.h>
 
 namespace WebGPU {
 
@@ -476,7 +478,7 @@ id<MTLIndirectCommandBuffer> Queue::trimICB(id<MTLIndirectCommandBuffer> dest, i
     return dest;
 }
 
-static std::pair<uint32_t, uint16_t> maxIndexValueSlow(std::span<uint8_t> data)
+static std::pair<uint32_t, uint16_t> NODELETE maxIndexValueSlow(std::span<uint8_t> data)
 {
     auto lengthUint32 = data.size() / 4;
     std::span<uint32_t> dataUint = unsafeMakeSpan(static_cast<uint32_t*>(static_cast<void*>(data.data())), lengthUint32);
@@ -561,11 +563,11 @@ void Queue::writeBuffer(Buffer& buffer, uint64_t bufferOffset, std::span<uint8_t
     if (isIdle()) {
         switch (buffer.buffer().storageMode) {
         case MTLStorageModeShared:
-            memcpySpan(buffer.getBufferContents().subspan(bufferOffset, data.size()), data);
+            SUPPRESS_UNCOUNTED_ARG memcpySpan(borrow(buffer)->getBufferContents().subspan(bufferOffset, data.size()), data);
             return;
 #if PLATFORM(MAC) || PLATFORM(MACCATALYST)
         case MTLStorageModeManaged:
-            memcpySpan(buffer.getBufferContents().subspan(bufferOffset, data.size()), data);
+            SUPPRESS_UNCOUNTED_ARG memcpySpan(borrow(buffer)->getBufferContents().subspan(bufferOffset, data.size()), data);
             [buffer.buffer() didModifyRange:NSMakeRange(bufferOffset, data.size())];
             return;
 #endif
@@ -953,7 +955,7 @@ void Queue::writeTexture(const WGPUImageCopyTexture& destination, std::span<uint
         auto checkedNewBytesPerImageTimesMaxZ = checkedProduct<uint32_t>(newBytesPerImage, maxZ);
         if (checkedNewBytesPerImageTimesMaxZ.hasOverflowed())
             return;
-        newData = Vector<uint8_t>(checkedNewBytesPerImageTimesMaxZ.value(), 0);
+        newData = Vector<uint8_t>(FillWith { }, checkedNewBytesPerImageTimesMaxZ.value(), 0);
         dataLayoutOffset = 0;
 
         auto verticalOffset = checkedProduct<uint64_t>(maxY ? (maxY - 1) : 0, bytesPerRow);

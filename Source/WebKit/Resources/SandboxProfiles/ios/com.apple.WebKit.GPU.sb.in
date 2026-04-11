@@ -307,3 +307,7 @@
         (syscall-number
             SYS_mkdirat
             SYS_rmdir)))
+
+(with-filter (require-all (system-attribute virtual-device) (system-attribute apple-internal))
+    (allow iokit-open-service (iokit-registry-entry-class "AppleVideoToolboxParavirtualizationDriver"))
+    (allow iokit-open-user-client (iokit-user-client-class "AppleVideoToolboxParavirtualizationUserClient")))

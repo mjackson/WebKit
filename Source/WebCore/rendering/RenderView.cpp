@@ -98,7 +98,7 @@ RenderView::RenderView(Document& document, RenderStyle&& style)
     m_minPreferredLogicalWidth = 0;
     m_maxPreferredLogicalWidth = 0;
 
-    setNeedsPreferredWidthsUpdate(MarkOnlyThis);
+    setNeedsPreferredWidthsUpdate(MarkingBehavior::MarkOnlyThis);
     
     setPositionState(PositionType::Absolute); // to 0,0 :)
 
@@ -188,7 +188,7 @@ void RenderView::layout()
     // Use calcWidth/Height to get the new width/height, since this will take the full page zoom factor into account.
     bool relayoutChildren = !shouldUsePrintingLayout() && (width() != viewWidth() || height() != viewHeight());
     if (relayoutChildren) {
-        setChildNeedsLayout(MarkOnlyThis);
+        setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
 
         for (auto& box : childrenOfType<RenderBox>(*this)) {
             if (box.hasRelativeLogicalHeight()
@@ -197,7 +197,7 @@ void RenderView::layout()
                 || box.style().logicalMaxHeight().isPercentOrCalculated()
                 || box.isRenderOrLegacyRenderSVGRoot()
                 )
-                box.setChildNeedsLayout(MarkOnlyThis);
+                box.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
         }
     }
 
@@ -281,12 +281,12 @@ void RenderView::mapLocalToContainer(const RenderLayerModelObject* ancestorConta
     // If a container was specified, and was not nullptr or the RenderView,
     // then we should have found it by now.
     ASSERT_ARG(ancestorContainer, !ancestorContainer || ancestorContainer == this);
-    ASSERT_UNUSED(wasFixed, !wasFixed || *wasFixed == (mode.contains(IsFixed)));
+    ASSERT_UNUSED(wasFixed, !wasFixed || *wasFixed == (mode.contains(MapCoordinatesMode::IsFixed)));
 
-    if (mode.contains(IsFixed))
+    if (mode.contains(MapCoordinatesMode::IsFixed))
         transformState.move(toLayoutSize(frameView().scrollPositionRespectingCustomFixedPosition()));
 
-    if (!ancestorContainer && mode.contains(UseTransforms) && shouldUseTransformFromContainer(nullptr)) {
+    if (!ancestorContainer && mode.contains(MapCoordinatesMode::UseTransforms) && shouldUseTransformFromContainer(nullptr)) {
         TransformationMatrix t;
         getTransformFromContainer(LayoutSize(), t);
         transformState.applyTransform(t);
@@ -313,13 +313,13 @@ const RenderElement* RenderView::pushMappingToContainer(const RenderLayerModelOb
 
 void RenderView::mapAbsoluteToLocalPoint(OptionSet<MapCoordinatesMode> mode, TransformState& transformState) const
 {
-    if (mode & UseTransforms && shouldUseTransformFromContainer(nullptr)) {
+    if (mode & MapCoordinatesMode::UseTransforms && shouldUseTransformFromContainer(nullptr)) {
         TransformationMatrix t;
         getTransformFromContainer(LayoutSize(), t);
         transformState.applyTransform(t);
     }
 
-    if (mode & IsFixed)
+    if (mode & MapCoordinatesMode::IsFixed)
         transformState.move(toLayoutSize(frameView().scrollPositionRespectingCustomFixedPosition()));
 }
 
@@ -682,7 +682,7 @@ bool RenderView::shouldUsePrintingLayout() const
 {
     if (!printing())
         return false;
-    return protect(frameView().frame())->shouldUsePrintingLayout();
+    return frameView().frame().shouldUsePrintingLayout();
 }
 
 LayoutRect RenderView::viewRect() const
@@ -715,7 +715,7 @@ bool RenderView::shouldPaintBaseBackground() const
     if (frameView->frame().isMainFrame())
         return !frameView->isTransparent();
 
-    if (RefPtr ownerElement = document->ownerElement(); ownerElement && ownerElement->hasTagName(HTMLNames::frameTag))
+    if (auto* ownerElement = document->ownerElement(); ownerElement && ownerElement->hasTagName(HTMLNames::frameTag))
         return true;
 
     // Locate the <body> element using the DOM. This is easier than trying
@@ -733,7 +733,7 @@ bool RenderView::shouldPaintBaseBackground() const
         return true;
 
     if (RefPtr parentFrame = frameView->frame().parent()) {
-        if (RefPtr documentLoader = document->loader(); documentLoader && documentLoader->isInitialAboutBlank()) {
+        if (auto* documentLoader = document->loader(); documentLoader && documentLoader->isInitialAboutBlank()) {
             // https://github.com/w3c/csswg-drafts/issues/9624#issuecomment-1944425637
             // > RESOLVED: initial about:blank iframes are always transparent
             return false;

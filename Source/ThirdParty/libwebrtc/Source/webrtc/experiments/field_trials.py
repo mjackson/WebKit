@@ -47,6 +47,12 @@ ACTIVE_FIELD_TRIALS: FrozenSet[FieldTrial] = frozenset([
     FieldTrial('WebRTC-Aec3BufferingMaxAllowedExcessRenderBlocksOverride',
                337900458,
                date(2024, 9, 1)),
+    FieldTrial('WebRTC-Agc2MaxSpeechLevelExperimental',
+               457791164,
+               date(2026, 12, 11)),
+    FieldTrial('WebRTC-Agc2SpeechLevelEstimatorExperimental',
+               457791164,
+               date(2026, 11, 5)),
     FieldTrial('WebRTC-ApmEnforce48kHzProcessingRate',
                454695115,
                date(2026, 6, 1)),
@@ -77,6 +83,9 @@ ACTIVE_FIELD_TRIALS: FrozenSet[FieldTrial] = frozenset([
     FieldTrial('WebRTC-Bwe-ScreamV2',
                447037083,
                date(2026, 12, 30)),
+    FieldTrial('WebRTC-CorruptionDetectionFrameSelector',
+               358039777,
+               date(2026, 4, 1)),
     FieldTrial('WebRTC-DataChannelMessageInterleaving',
                41481008,
                date(2024, 10, 1)),
@@ -137,6 +146,9 @@ ACTIVE_FIELD_TRIALS: FrozenSet[FieldTrial] = frozenset([
     FieldTrial('WebRTC-LibvpxVp8Encoder-AndroidSpecificThreadingSettings',
                42226191,
                date(2024, 9, 1)),
+    FieldTrial('WebRTC-MediaTaskQueuePriorities',
+               470337728,
+               date(2027, 4, 1)),
     FieldTrial('WebRTC-MixedCodecSimulcast',
                362277533,
                date(2025, 9, 1)),
@@ -212,12 +224,12 @@ ACTIVE_FIELD_TRIALS: FrozenSet[FieldTrial] = frozenset([
     FieldTrial('WebRTC-TimestampExtrapolatorConfig',
                424739326,
                date(2026, 6, 30)),
+    FieldTrial('WebRTC-UnifiedCommunications',
+               466507512,
+               date(2026, 6, 30)),
     FieldTrial('WebRTC-UseAbsCapTimeForG2gMetric',
                401512883,
                date(2025, 9, 10)),
-    FieldTrial('WebRTC-UseNtpTimeAbsoluteSendTime',
-               42226305,
-               date(2024, 9, 1)),
     FieldTrial('WebRTC-VP8-MaxFrameInterval',
                42225870,
                date(2024, 4, 1)),
@@ -811,9 +823,6 @@ POLICY_EXEMPT_FIELD_TRIALS: FrozenSet[FieldTrial] = frozenset([
     FieldTrial('WebRTC-StrictPacingAndProbing',
                42233198,
                date(2024, 4, 1)),
-    FieldTrial('WebRTC-StunInterPacketDelay',
-               NO_BUG,
-               date(2024, 4, 1)),
     FieldTrial('WebRTC-SurfaceCellularTypes',
                42221576,
                date(2024, 4, 1)),
@@ -926,7 +935,7 @@ POLICY_EXEMPT_FIELD_TRIALS: FrozenSet[FieldTrial] = frozenset([
 ])  # yapf: disable
 
 POLICY_EXEMPT_FIELD_TRIALS_DIGEST: str = \
-    '625f8d689ab8bcfe4118347c6f8c852e3ac372c7'
+    '71d9f133598bcdbc40f515029be48e9ce8619d36'
 
 REGISTERED_FIELD_TRIALS: FrozenSet[FieldTrial] = ACTIVE_FIELD_TRIALS.union(
     POLICY_EXEMPT_FIELD_TRIALS)

@@ -421,15 +421,21 @@ void AlternativeTextController::respondToChangedSelection(const VisibleSelection
         return;
 
     VisiblePosition selectionPosition = currentSelection.start();
+    VisiblePosition oldSelectionPosition = oldSelection.start();
     
     // Creating a Visible position triggers a layout and there is no
     // guarantee that the selection is still valid.
     if (selectionPosition.isNull())
         return;
     
+    VisiblePosition startPositionOfWord = startOfWord(selectionPosition, WordSide::RightWordIfOnBoundary);
     VisiblePosition endPositionOfWord = endOfWord(selectionPosition, WordSide::LeftWordIfOnBoundary);
-    if (selectionPosition != endPositionOfWord)
-        return;
+    if (!oldSelectionPosition.isNull()) {
+        VisiblePosition oldStartPositionOfWord = startOfWord(oldSelectionPosition, WordSide::RightWordIfOnBoundary);
+        VisiblePosition oldEndPositionOfWord = endOfWord(oldSelectionPosition, WordSide::LeftWordIfOnBoundary);
+        if (startPositionOfWord == oldStartPositionOfWord || endPositionOfWord == oldEndPositionOfWord)
+            return;
+    }
 
     Position position = endPositionOfWord.deepEquivalent();
     if (position.anchorType() != Position::PositionIsOffsetInAnchor)

@@ -134,7 +134,7 @@ public:
 
     void copyOnly8BitCharacterData(const CharacterClass& other);
 
-    bool hasNonBMPCharacters() const { return m_characterWidths & CharacterClassWidths::HasNonBMPChars; }
+    bool NODELETE hasNonBMPCharacters() const { return m_characterWidths & CharacterClassWidths::HasNonBMPChars; }
 
     bool hasOneCharacterSize() const { return m_characterWidths == CharacterClassWidths::HasBMPChars || m_characterWidths == CharacterClassWidths::HasNonBMPChars; }
     bool hasOnlyNonBMPCharacters() const { return m_characterWidths == CharacterClassWidths::HasNonBMPChars; }
@@ -327,7 +327,7 @@ struct PatternTerm {
 
     static PatternTerm NamedBackReference(unsigned subpatternId, OptionSet<Flags> currFlags)
     {
-        PatternTerm term(subpatternId, currFlags);
+        PatternTerm NODELETE term(subpatternId, currFlags);
         ASSERT(term.type == Type::NumberedBackReference);
         term.type = Type::NamedBackReference;
         return term;
@@ -374,17 +374,17 @@ struct PatternTerm {
         type = Type::NamedBackReference;
     }
 
-    bool invert() const
+    bool NODELETE invert() const
     {
         return m_invert;
     }
 
-    void setMatchDirection(MatchDirection matchDirection)
+    void NODELETE setMatchDirection(MatchDirection matchDirection)
     {
         m_matchDirection = matchDirection;
     }
 
-    MatchDirection matchDirection() const
+    MatchDirection NODELETE matchDirection() const
     {
         return m_matchDirection;
     }
@@ -394,17 +394,17 @@ struct PatternTerm {
         return m_capture;
     }
 
-    bool ignoreCase()
+    bool NODELETE ignoreCase()
     {
         return m_currentFlags.contains(Flags::IgnoreCase);
     }
 
-    bool multiline()
+    bool NODELETE multiline()
     {
         return m_currentFlags.contains(Flags::Multiline);
     }
 
-    bool dotAll()
+    bool NODELETE dotAll()
     {
         return m_currentFlags.contains(Flags::DotAll);
     }

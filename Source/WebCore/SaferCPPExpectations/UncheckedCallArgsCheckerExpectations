@@ -44,7 +44,6 @@ bindings/js/DOMPromiseProxy.h
 bindings/js/JSCanvasRenderingContext2DCustom.cpp
 bindings/js/JSCustomElementInterface.cpp
 bindings/js/JSDOMBindingSecurity.cpp
-bindings/js/JSDOMBindingSecurity.h
 bindings/js/JSDOMConvertBase.h
 bindings/js/JSDOMConvertNullable.h
 bindings/js/JSDOMGlobalObject.cpp
@@ -179,7 +178,6 @@ html/ValidatedFormListedElement.cpp
 html/ValidationMessage.cpp
 html/canvas/CanvasRenderingContext2D.cpp
 html/canvas/CanvasRenderingContext2DBase.cpp
-html/canvas/EXTDisjointTimerQuery.cpp
 html/canvas/OffscreenCanvasRenderingContext2D.cpp
 html/parser/HTMLConstructionSite.cpp
 html/parser/HTMLDocumentParser.cpp
@@ -188,7 +186,6 @@ html/parser/HTMLScriptRunner.cpp
 html/parser/HTMLTreeBuilder.cpp
 inspector/DOMEditor.cpp
 inspector/InspectorAuditAccessibilityObject.cpp
-inspector/InspectorCanvas.cpp
 inspector/InspectorFrontendAPIDispatcher.cpp
 inspector/InspectorFrontendHost.cpp
 inspector/InspectorInstrumentation.cpp
@@ -208,7 +205,6 @@ inspector/agents/InspectorNetworkAgent.cpp
 inspector/agents/InspectorPageAgent.cpp
 inspector/agents/WebHeapAgent.cpp
 inspector/agents/page/PageCanvasAgent.cpp
-inspector/agents/page/PageDOMDebuggerAgent.cpp
 inspector/agents/page/PageRuntimeAgent.cpp
 inspector/agents/worker/WorkerAuditAgent.cpp
 inspector/agents/worker/WorkerDebuggerAgent.cpp
@@ -543,10 +539,8 @@ rendering/svg/legacy/SVGResourcesCache.cpp
 rendering/updating/RenderTreeBuilder.cpp
 rendering/updating/RenderTreeBuilderBlock.cpp
 rendering/updating/RenderTreeBuilderBlockFlow.cpp
-rendering/updating/RenderTreeBuilderContinuation.cpp
 rendering/updating/RenderTreeBuilderFirstLetter.cpp
 rendering/updating/RenderTreeBuilderFormControls.cpp
-rendering/updating/RenderTreeBuilderInline.cpp
 rendering/updating/RenderTreeBuilderList.cpp
 rendering/updating/RenderTreeBuilderMathML.cpp
 rendering/updating/RenderTreeBuilderMultiColumn.cpp
@@ -583,7 +577,6 @@ style/StyleResolveForFont.cpp
 style/StyleResolver.cpp
 style/StyleScope.cpp
 style/StyleScopeRuleSets.cpp
-style/StyleSubstitutionResolver.cpp
 style/StyleTreeResolver.cpp
 style/StyleUpdate.cpp
 style/Styleable.cpp

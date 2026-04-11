@@ -80,7 +80,7 @@
     undefined stop();
 
     // other browsing contexts
-    [CheckSecurityForNode] readonly attribute Element? frameElement;
+    [CheckSecurityForNodeWithDOMWindow] readonly attribute Element? frameElement;
     [CallWith=ActiveWindow&FirstWindow] WindowProxy? open(optional USVString url = "", optional [AtomString] DOMString target = "_blank", optional [LegacyNullToEmptyString] DOMString features = "");
 
     // the user agent

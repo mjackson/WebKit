@@ -546,14 +546,14 @@ messages -> WebPage WantsAsyncDispatchMessage {
     UpdateRemotePageAccessibilityOffset(WebCore::FrameIdentifier frameID, WebCore::IntPoint offset);
 #if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
     UpdateRemotePageAccessibilityInheritedState(WebCore::FrameIdentifier frameID, struct WebCore::InheritedFrameState state);
-    UpdateRemotePageAccessibilityScreenPosition(WebCore::FrameIdentifier frameID, struct WebCore::FrameGeometry geometry);
+    UpdateRemotePageAccessibilityScreenPosition(WebCore::FrameIdentifier frameID, struct WebCore::AXFrameGeometry geometry);
 #endif
     ResolveAccessibilityHitTestForTesting(WebCore::FrameIdentifier frameID, WebCore::IntPoint point) -> (String result)
 #if PLATFORM(MAC)
     PerformAccessibilitySearchInRemoteFrame(WebCore::FrameIdentifier frameID, struct WebCore::AccessibilitySearchCriteriaIPC criteria) -> (Vector<WebCore::AccessibilityRemoteToken> results)
     ContinueAccessibilitySearchInParentFrame(WebCore::FrameIdentifier childFrameID, struct WebCore::AccessibilitySearchCriteriaIPC criteria) -> (Vector<WebCore::AccessibilityRemoteToken> results)
 #endif
-    EnableAccessibility()
+    InheritAccessibilityMode(enum:uint8_t WebCore::AccessibilityMode mode)
 
 #if PLATFORM(MAC)
     GetAccessibilityWebProcessDebugInfo() -> (struct WebCore::AXDebugInfo result) Synchronous
@@ -796,7 +796,7 @@ messages -> WebPage WantsAsyncDispatchMessage {
     HandleWheelEvent(WebCore::FrameIdentifier frameID, WebKit::WebWheelEvent event, OptionSet<WebCore::WheelEventProcessingSteps> processingSteps, std::optional<bool> willStartSwipe) -> (std::optional<WebCore::ScrollingNodeID> scrollingNodeID, enum:uint8_t std::optional<WebCore::WheelScrollGestureState> gestureState, bool handled, struct std::optional<WebCore::RemoteUserInputEventData> remoteUserInputEventData)
 
 #if PLATFORM(IOS_FAMILY)
-    DispatchWheelEventWithoutScrolling(WebCore::FrameIdentifier frameID, WebKit::WebWheelEvent event) -> (bool defaultPrevented)
+    DispatchWheelEventWithoutScrolling(WebCore::FrameIdentifier frameID, WebKit::WebWheelEvent event) -> (bool defaultPrevented, struct std::optional<WebCore::RemoteUserInputEventData> remoteUserInputEventData)
 #endif
 
     LastNavigationWasAppInitiated() -> (bool wasAppBound)
@@ -815,11 +815,6 @@ messages -> WebPage WantsAsyncDispatchMessage {
     ScrollToEdge(WebCore::RectEdges<bool> edges, enum:bool WebCore::ScrollIsAnimated animated)
 
     NavigateServiceWorkerClient(WebCore::ScriptExecutionContextIdentifier documentIdentifier, URL url) -> (enum:uint8_t WebCore::ScheduleLocationChangeResult result)
-
-#if ENABLE(ARKIT_INLINE_PREVIEW_IOS)
-    ModelInlinePreviewDidLoad(WebCore::PlatformLayerIdentifier layerID)
-    ModelInlinePreviewDidFailToLoad(WebCore::PlatformLayerIdentifier layerID, WebCore::ResourceError error)
-#endif
 
 #if HAVE(UIKIT_RESIZABLE_WINDOWS)
     SetIsWindowResizingEnabled(bool hasResizableWindows)
@@ -908,6 +903,11 @@ messages -> WebPage WantsAsyncDispatchMessage {
     UpdateUnderlyingTextVisibilityForTextAnimationID(WTF::UUID uuid, bool visible) -> ()
 
     IntelligenceTextAnimationsDidComplete();
+#endif
+
+#if ENABLE(WRITING_TOOLS) && ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    UpdateUnderlyingTextVisibilityForTextEffectID(WTF::UUID uuid, bool visible) -> ()
+    CreateTextIndicatorForTextEffectID(WTF::UUID uuid) -> (RefPtr<WebCore::TextIndicator> textIndicator)
 #endif
 
 #if PLATFORM(COCOA)

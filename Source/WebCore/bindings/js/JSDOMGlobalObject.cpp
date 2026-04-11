@@ -64,6 +64,7 @@
 #include "ShadowRealmGlobalScope.h"
 #include "SharedWorkerGlobalScope.h"
 #include "StructuredClone.h"
+#include "TrustedType.h"
 #include "WebCoreJSBuiltinInternals.h"
 #include "WebCoreJSClientData.h"
 #include "WorkerGlobalScope.h"
@@ -595,7 +596,7 @@ static JSC::JSPromise* handleResponseOnStreamingAction(JSC::JSGlobalObject* glob
         }
     }
 
-    auto compiler = JSC::Wasm::StreamingCompiler::create(vm, compilerMode, globalObject, jsCast<JSC::JSPromise*>(deferred->promise()), importObject, WTF::move(compileOptions), JSC::makeSource("handleResponseOnStreamingAction"_s, JSC::SourceOrigin(), JSC::SourceTaintedOrigin::Untainted));
+    auto compiler = JSC::Wasm::StreamingCompiler::create(vm, compilerMode, globalObject, jsCast<JSC::JSPromise*>(deferred->promise()), importObject, WTF::move(compileOptions), JSC::makeSource("handleResponseOnStreamingAction"_s, JSC::SourceOrigin(), JSC::SourceTaintedOrigin::Untainted), inputResponse->url());
 
     if (inputResponse->isBodyReceivedByChunk()) {
         inputResponse->consumeBodyReceivedByChunk([globalObject, compiler = WTF::move(compiler)](auto&& result) mutable {
@@ -845,7 +846,7 @@ static JSDOMGlobalObject& callerGlobalObject(JSC::JSGlobalObject& lexicalGlobalO
                     // Figure out what to do here. We can probably get the global object
                     // from the top-most Wasm Instance. https://bugs.webkit.org/show_bug.cgi?id=165721
                     if (visitor->callee().isCell() && visitor->callee().asCell()->isObject())
-                        m_globalObject = jsCast<JSObject*>(visitor->callee().asCell())->globalObject();
+                        m_globalObject = jsCast<JSObject*>(visitor->callee().asCell())->realm();
                 }
                 return IterationStatus::Done;
             }

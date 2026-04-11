@@ -388,16 +388,18 @@ static bool equalConfigurations(const auto& a, const auto& b)
         && a.colorSpace     == b.colorSpace;
 }
 
-static DestinationColorSpace toWebCoreColorSpace(const GPUPredefinedColorSpace& colorSpace, const GPUCanvasToneMapping& toneMapping)
+static DestinationColorSpace toWebCoreColorSpace(const PredefinedColorSpace& colorSpace, const GPUCanvasToneMapping& toneMapping)
 {
     switch (colorSpace) {
-    case GPUPredefinedColorSpace::SRGB:
+    case PredefinedColorSpace::SRGB:
         return toneMapping.mode == GPUCanvasToneMappingMode::Standard ? DestinationColorSpace::SRGB() : DestinationColorSpace::ExtendedSRGB();
-    case GPUPredefinedColorSpace::DisplayP3:
+    case PredefinedColorSpace::SRGBLinear:
+        return toneMapping.mode == GPUCanvasToneMappingMode::Standard ? DestinationColorSpace::LinearSRGB() : DestinationColorSpace::ExtendedLinearSRGB();
 #if ENABLE(PREDEFINED_COLOR_SPACE_DISPLAY_P3)
+    case PredefinedColorSpace::DisplayP3:
         return toneMapping.mode == GPUCanvasToneMappingMode::Standard ? DestinationColorSpace::DisplayP3() : DestinationColorSpace::ExtendedDisplayP3();
-#else
-        return toneMapping.mode == GPUCanvasToneMappingMode::Standard ? DestinationColorSpace::SRGB() : DestinationColorSpace::ExtendedSRGB();
+    case PredefinedColorSpace::DisplayP3Linear:
+        return toneMapping.mode == GPUCanvasToneMappingMode::Standard ? DestinationColorSpace::LinearDisplayP3() : DestinationColorSpace::ExtendedLinearDisplayP3();
 #endif
     }
 

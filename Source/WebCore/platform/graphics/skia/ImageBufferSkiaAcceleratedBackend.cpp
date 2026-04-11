@@ -39,6 +39,7 @@
 #include "ProcessCapabilities.h"
 #include "SkiaRecordingResult.h"
 #include "SkiaReplayCanvas.h"
+#include "SkiaUtilities.h"
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <skia/core/SkPixmap.h>
 #include <skia/gpu/ganesh/GrBackendSurface.h>
@@ -223,18 +224,10 @@ std::unique_ptr<GLFence> ImageBufferSkiaAcceleratedBackend::flushCanvasRecording
 
     auto* recordingContext = m_surface->recordingContext();
     auto* grContext = recordingContext ? recordingContext->asDirectContext() : nullptr;
-
-    auto& glDisplay = PlatformDisplay::sharedDisplay().glDisplay();
-    if (GLFence::isSupported(glDisplay)) {
-        grContext->flushAndSubmit(m_surface.get(), GrSyncCpu::kNo);
-        if (auto fence = GLFence::create(glDisplay))
-            return fence;
-        grContext->submit(GrSyncCpu::kYes);
+    if (!grContext)
         return nullptr;
-    }
 
-    grContext->flushAndSubmit(m_surface.get(), GrSyncCpu::kYes);
-    return nullptr;
+    return SkiaUtilities::flushAndSubmitSurfaceWithFence(grContext, m_surface.get());
 }
 
 void ImageBufferSkiaAcceleratedBackend::flushContext()
@@ -246,10 +239,15 @@ void ImageBufferSkiaAcceleratedBackend::flushContext()
     }
 
     // Normal surface flush.
-    if (!m_surface)
+    if (!m_surface || !PlatformDisplay::sharedDisplay().skiaGLContext()->makeContextCurrent())
         return;
 
-    if (auto fence = GraphicsContextSkia::createAcceleratedRenderingFence(m_surface.get()))
+    auto* recordingContext = m_surface->recordingContext();
+    auto* grContext = recordingContext ? recordingContext->asDirectContext() : nullptr;
+    if (!grContext)
+        return;
+
+    if (auto fence = SkiaUtilities::flushAndSubmitSurfaceWithFence(grContext, m_surface.get()))
         fence->serverWait();
 }
 
@@ -358,14 +356,14 @@ static std::span<uint8_t> mutableSpan(SkData* data)
 
 void ImageBufferSkiaAcceleratedBackend::putPixelBuffer(const PixelBufferSourceView& pixelBuffer, const IntRect& srcRect, const IntPoint& destPoint, AlphaPremultiplication destFormat)
 {
+    if (!PlatformDisplay::sharedDisplay().skiaGLContext()->makeContextCurrent())
+        return;
+
     // CPU needs to write pixels now, wait for GPU completion.
     if (auto fence = flushCanvasRecordingContextIfNeeded())
         fence->serverWait();
 
     UNUSED_PARAM(destFormat);
-
-    if (!PlatformDisplay::sharedDisplay().skiaGLContext()->makeContextCurrent())
-        return;
 
     ASSERT(IntRect({ 0, 0 }, pixelBuffer.size()).contains(srcRect));
     ASSERT(pixelBuffer.format().pixelFormat == PixelFormat::RGBA8 || pixelBuffer.format().pixelFormat == PixelFormat::BGRA8);

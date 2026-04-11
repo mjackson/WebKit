@@ -754,7 +754,7 @@ const GlobalObjectMethodTable* JSGlobalObject::baseGlobalObjectMethodTable()
 JSC_DEFINE_HOST_FUNCTION(enqueueJob, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
     auto* job = jsCast<JSFunction*>(callFrame->argument(0));
-    ASSERT(job->globalObject() == globalObject);
+    ASSERT(job->realm() == globalObject);
     JSValue argument0 = callFrame->argument(1);
     JSValue argument1 = callFrame->argument(2);
     JSValue argument2 = callFrame->argument(3);
@@ -1746,6 +1746,39 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
             init.set(collator);
         });
 
+    m_defaultDateTimeFormat.initLater(
+        [] (const Initializer<IntlDateTimeFormat>& init) {
+            JSGlobalObject* globalObject = jsCast<JSGlobalObject*>(init.owner);
+            VM& vm = init.vm;
+            auto scope = DECLARE_THROW_SCOPE(vm);
+            auto* dateTimeFormat = IntlDateTimeFormat::create(vm, globalObject->dateTimeFormatStructure());
+            dateTimeFormat->initializeDateTimeFormat(globalObject, jsUndefined(), jsUndefined(), IntlDateTimeFormat::RequiredComponent::Any, IntlDateTimeFormat::Defaults::All);
+            RETURN_IF_EXCEPTION(scope, void());
+            init.set(dateTimeFormat);
+        });
+
+    m_defaultDateFormat.initLater(
+        [] (const Initializer<IntlDateTimeFormat>& init) {
+            JSGlobalObject* globalObject = jsCast<JSGlobalObject*>(init.owner);
+            VM& vm = init.vm;
+            auto scope = DECLARE_THROW_SCOPE(vm);
+            auto* dateTimeFormat = IntlDateTimeFormat::create(vm, globalObject->dateTimeFormatStructure());
+            dateTimeFormat->initializeDateTimeFormat(globalObject, jsUndefined(), jsUndefined(), IntlDateTimeFormat::RequiredComponent::Date, IntlDateTimeFormat::Defaults::Date);
+            RETURN_IF_EXCEPTION(scope, void());
+            init.set(dateTimeFormat);
+        });
+
+    m_defaultTimeFormat.initLater(
+        [] (const Initializer<IntlDateTimeFormat>& init) {
+            JSGlobalObject* globalObject = jsCast<JSGlobalObject*>(init.owner);
+            VM& vm = init.vm;
+            auto scope = DECLARE_THROW_SCOPE(vm);
+            auto* dateTimeFormat = IntlDateTimeFormat::create(vm, globalObject->dateTimeFormatStructure());
+            dateTimeFormat->initializeDateTimeFormat(globalObject, jsUndefined(), jsUndefined(), IntlDateTimeFormat::RequiredComponent::Time, IntlDateTimeFormat::Defaults::Time);
+            RETURN_IF_EXCEPTION(scope, void());
+            init.set(dateTimeFormat);
+        });
+
     m_defaultNumberFormat.initLater(
         [] (const Initializer<IntlNumberFormat>& init) {
             JSGlobalObject* globalObject = jsCast<JSGlobalObject*>(init.owner);
@@ -2291,6 +2324,11 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
         FOR_EACH_WEBASSEMBLY_CONSTRUCTOR_TYPE(CREATE_WEBASSEMBLY_PROTOTYPE)
 
 #undef CREATE_WEBASSEMBLY_PROTOTYPE
+
+        if (Options::useJSPI()) {
+            webAssembly->putDirectWithoutTransition(vm, Identifier::fromString(vm, "Suspending"_s), webAssemblySuspendingConstructor(), static_cast<unsigned>(PropertyAttribute::DontEnum));
+            webAssembly->putDirectWithoutTransition(vm, Identifier::fromString(vm, "SuspendError"_s), webAssemblySuspendErrorConstructor(), static_cast<unsigned>(PropertyAttribute::DontEnum));
+        }
     }
 #endif // ENABLE(WEBASSEMBLY)
 
@@ -2506,7 +2544,7 @@ void JSGlobalObject::notifyArrayBufferDetachingSlow()
     m_arrayBufferDetachWatchpointSet->fireAll(vm(), "ArrayBuffer detached");
 }
 
-static inline JSObject* lastInPrototypeChain(JSObject* object)
+static inline JSObject* NODELETE lastInPrototypeChain(JSObject* object)
 {
     JSObject* o = object;
     while (o->getPrototypeDirect().isObject())
@@ -2552,15 +2590,20 @@ inline void GlobalObjectDependencyFinder::visit(JSObject* object)
         return;
 
     JSObject* current = object;
-    JSGlobalObject* objectGlobalObject = object->globalObject();
+    JSGlobalObject* objectGlobalObject = object->realmMayBeNull();
+    if (!objectGlobalObject) {
+        ASSERT(object->getPrototypeDirect().isNull());
+        return;
+    }
+
     do {
         JSValue prototypeValue = current->getPrototypeDirect();
         if (prototypeValue.isNull())
             return;
         current = asObject(prototypeValue);
 
-        JSGlobalObject* protoGlobalObject = current->globalObject();
-        if (protoGlobalObject != objectGlobalObject)
+        JSGlobalObject* protoGlobalObject = current->realmMayBeNull();
+        if (protoGlobalObject && protoGlobalObject != objectGlobalObject)
             addDependency(protoGlobalObject, objectGlobalObject);
     } while (true);
 }
@@ -2586,7 +2629,7 @@ public:
     ObjectsWithBrokenIndexingFinder(Vector<JSObject*>&, JSGlobalObject*);
     ObjectsWithBrokenIndexingFinder(Vector<JSObject*>&, UncheckedKeyHashSet<JSGlobalObject*>&);
 
-    bool needsMultiGlobalsScan() const { return m_needsMultiGlobalsScan; }
+    bool NODELETE needsMultiGlobalsScan() const { return m_needsMultiGlobalsScan; }
     IterationStatus operator()(HeapCell*, HeapCell::Kind) const;
 
 private:
@@ -2612,12 +2655,12 @@ ObjectsWithBrokenIndexingFinder<BadTimeFinderMode::MultipleGlobals>::ObjectsWith
 {
 }
 
-inline bool hasBrokenIndexing(IndexingType type)
+inline bool NODELETE hasBrokenIndexing(IndexingType type)
 {
     return type && !hasSlowPutArrayStorage(type);
 }
 
-inline bool hasBrokenIndexing(JSObject* object)
+inline bool NODELETE hasBrokenIndexing(JSObject* object)
 {
     IndexingType type = object->indexingType();
     return hasBrokenIndexing(type);
@@ -2634,7 +2677,7 @@ inline IterationStatus ObjectsWithBrokenIndexingFinder<mode>::visit(JSObject* ob
         bool objectMayBePrototype { false };
 
         if (mode == BadTimeFinderMode::SingleGlobal) {
-            objectGlobalObject = object->globalObject();
+            objectGlobalObject = object->realmMayBeNull();
             if (objectGlobalObject == m_globalObject)
                 return true;
 
@@ -2642,14 +2685,14 @@ inline IterationStatus ObjectsWithBrokenIndexingFinder<mode>::visit(JSObject* ob
         }
 
         for (JSObject* current = object; ;) {
-            JSGlobalObject* currentGlobalObject = current->globalObject();
+            JSGlobalObject* currentGlobalObject = current->realmMayBeNull();
             if (mode == BadTimeFinderMode::SingleGlobal) {
                 if (objectMayBePrototype && currentGlobalObject != objectGlobalObject)
                     m_needsMultiGlobalsScan = true;
                 if (currentGlobalObject == m_globalObject)
                     return true;
             } else {
-                if (m_globalObjects->contains(currentGlobalObject))
+                if (currentGlobalObject && m_globalObjects->contains(currentGlobalObject))
                     return true;
             }
 
@@ -2665,8 +2708,8 @@ inline IterationStatus ObjectsWithBrokenIndexingFinder<mode>::visit(JSObject* ob
         if (hasBrokenIndexing(structure->indexingType())) {
             bool isRelevantGlobalObject =
                 (mode == BadTimeFinderMode::SingleGlobal
-                    ? m_globalObject == structure->globalObject()
-                    : m_globalObjects->contains(structure->globalObject()))
+                    ? m_globalObject == structure->realm()
+                    : m_globalObjects->contains(structure->realm()))
                 || (structure->hasMonoProto() && !structure->storedPrototype().isNull() && isInAffectedGlobalObject(asObject(structure->storedPrototype())));
             return isRelevantGlobalObject;
         }
@@ -2684,7 +2727,7 @@ inline IterationStatus ObjectsWithBrokenIndexingFinder<mode>::visit(JSObject* ob
                 if (mode == BadTimeFinderMode::SingleGlobal && m_needsMultiGlobalsScan)
                     return IterationStatus::Done; // Bailing early and let the MultipleGlobals path handle everything.
                 if (isRelevantGlobalObject)
-                    rareData->clearInternalFunctionAllocationProfile("have a bad time breaking internal function allocation");
+                    rareData->clearInternalFunctionAllocationProfile(function->vm(), "have a bad time breaking internal function allocation");
             }
         }
     }
@@ -2970,6 +3013,9 @@ void JSGlobalObject::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     visitor.append(thisObject->m_stringConstructor);
 
     thisObject->m_defaultCollator.visit(visitor);
+    thisObject->m_defaultDateTimeFormat.visit(visitor);
+    thisObject->m_defaultDateFormat.visit(visitor);
+    thisObject->m_defaultTimeFormat.visit(visitor);
     thisObject->m_defaultNumberFormat.visit(visitor);
     thisObject->m_collatorStructure.visit(visitor);
     thisObject->m_displayNamesStructure.visit(visitor);
@@ -3634,7 +3680,7 @@ void JSGlobalObject::tryInstallPropertyDescriptorFastPathWatchpoint()
         installObjectAdaptiveStructureWatchpoint(condition, m_propertyDescriptorFastPathWatchpointSet);
 }
 
-void slowValidateCell(JSGlobalObject* globalObject)
+void NODELETE slowValidateCell(JSGlobalObject* globalObject)
 {
     RELEASE_ASSERT(globalObject->isGlobalObject());
     ASSERT_GC_OBJECT_INHERITS(globalObject, JSGlobalObject::info());
@@ -3802,7 +3848,7 @@ void JSGlobalObject::finishCreation(VM& vm)
 {
     DeferTermination deferTermination(vm);
     Base::finishCreation(vm);
-    structure()->setGlobalObject(vm, this);
+    structure()->setRealm(vm, this);
     m_runtimeFlags = m_globalObjectMethodTable->javaScriptRuntimeFlags(this);
     init(vm);
     setGlobalThis(vm, JSGlobalProxy::create(vm, JSGlobalProxy::createStructure(vm, this, getPrototypeDirect()), this));
@@ -3813,7 +3859,7 @@ void JSGlobalObject::finishCreation(VM& vm, JSObject* thisValue)
 {
     DeferTermination deferTermination(vm);
     Base::finishCreation(vm);
-    structure()->setGlobalObject(vm, this);
+    structure()->setRealm(vm, this);
     m_runtimeFlags = m_globalObjectMethodTable->javaScriptRuntimeFlags(this);
     init(vm);
     setGlobalThis(vm, thisValue);

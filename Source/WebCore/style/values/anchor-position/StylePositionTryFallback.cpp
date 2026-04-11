@@ -28,11 +28,13 @@
 #include "StylePositionTryFallback.h"
 
 #include "StyleBuilderChecking.h"
+#include "StyleCustomIdent.h"
 #include "StylePrimitiveKeyword+CSSValueConversion.h"
 #include "StylePrimitiveKeyword+CSSValueCreation.h"
 #include "StylePrimitiveKeyword+Logging.h"
 #include "StylePrimitiveKeyword+Serialization.h"
 #include "StylePropertiesInlines.h"
+#include "StyleValueTypes+CSSValueConversion.h"
 
 namespace WebCore {
 namespace Style {
@@ -101,9 +103,12 @@ auto CSSValueConversion<PositionTryFallback>::operator()(BuilderState& state, co
                 tactics.value.append(PositionTryFallbackTactic::FlipY);
                 break;
             case CSSValueInvalid:
-                if (item->isCustomIdent() && !rule) {
-                    rule = ScopedName { AtomString { item->customIdent() }, state.styleScopeOrdinal() };
-                    break;
+                if (!rule) {
+                    auto customIdent = toStyleFromCSSValue<CustomIdent>(state, item.get());
+                    if (!customIdent.value.isNull()) {
+                        rule = ScopedName { WTF::move(customIdent.value), state.styleScopeOrdinal() };
+                        break;
+                    }
                 }
                 [[fallthrough]];
             default:

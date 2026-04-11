@@ -153,7 +153,7 @@ inline double JSValue::toIntegerWithTruncation(JSGlobalObject* globalObject) con
 {
     if (isInt32())
         return asInt32();
-    return trunc(toNumber(globalObject) + 0.0);
+    return std::trunc(toNumber(globalObject) + 0.0);
 }
 
 // https://tc39.es/ecma262/#sec-tointegerorinfinity
@@ -162,7 +162,7 @@ inline double JSValue::toIntegerOrInfinity(JSGlobalObject* globalObject) const
     if (isInt32())
         return asInt32();
     double d = toNumber(globalObject);
-    return isnan(d) ? 0.0 : trunc(d) + 0.0;
+    return std::isnan(d) ? 0.0 : std::trunc(d) + 0.0;
 }
 
 inline bool JSValue::isUInt32() const
@@ -190,7 +190,7 @@ inline std::optional<uint32_t> JSValue::tryGetAsUint32Index()
     }
     if (isNumber()) {
         double number = asNumber();
-        uint32_t asUint = static_cast<uint32_t>(number);
+        uint32_t asUint = static_cast<uint32_t>(truncateDoubleToUint64(number));
         if (static_cast<double>(asUint) == number && isIndex(asUint))
             return asUint;
     }
@@ -203,7 +203,7 @@ inline std::optional<int32_t> JSValue::tryGetAsInt32()
         return asInt32();
     if (isNumber()) {
         double number = asNumber();
-        int32_t asInt = static_cast<int32_t>(number);
+        int32_t asInt = truncateDoubleToInt32(number);
         if (static_cast<double>(asInt) == number)
             return asInt;
     }

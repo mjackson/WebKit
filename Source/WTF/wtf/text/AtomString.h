@@ -319,11 +319,6 @@ inline bool equalIgnoringASCIICase(const AtomString& a, ASCIILiteral b)
     return equalIgnoringASCIICase(a.string(), b);
 }
 
-inline std::strong_ordering codePointCompare(const AtomString& a, const AtomString& b)
-{
-    return codePointCompare(a.string(), b.string());
-}
-
 [[nodiscard]] ALWAYS_INLINE String makeStringByReplacingAll(const AtomString& string, char16_t target, char16_t replacement)
 {
     return makeStringByReplacingAll(string.string(), target, replacement);

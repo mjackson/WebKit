@@ -150,9 +150,7 @@ NotificationResourcesLoader::ResourceLoader::ResourceLoader(ScriptExecutionConte
     m_loader = ThreadableLoader::create(context, *this, ResourceRequest(URL { url }), options);
 }
 
-NotificationResourcesLoader::ResourceLoader::~ResourceLoader()
-{
-}
+NotificationResourcesLoader::ResourceLoader::~ResourceLoader() = default;
 
 void NotificationResourcesLoader::ResourceLoader::cancel()
 {

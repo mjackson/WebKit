@@ -772,6 +772,174 @@ void testReduceStrengthDivFloatByNegTwo()
     CHECK(isIdentical(result->child(1)->asFloat(), -0.5f));
 }
 
+void testReduceStrengthBelowEqualZeroInt32()
+{
+    // BelowEqual(arg, 0) → Equal(arg, 0)
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t>(proc, root);
+    Value* arg = arguments[0];
+    Value* zero = root->appendNew<Const32Value>(proc, Origin(), 0);
+    root->appendNew<Value>(proc, BelowEqual, Origin(), arg, zero);
+    root->appendNew<Value>(proc, Return, Origin(), root->last());
+
+    proc.resetReachability();
+    reduceStrength(proc);
+
+    CHECK_EQ(root->last()->opcode(), Return);
+    Value* result = root->last()->child(0);
+    CHECK_EQ(result->opcode(), Equal);
+    CHECK(result->child(0) == arg);
+    CHECK(result->child(1)->isInt(0));
+}
+
+void testReduceStrengthBelowEqualZeroInt64()
+{
+    // BelowEqual(arg, 0) → Equal(arg, 0)
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int64_t>(proc, root);
+    Value* arg = arguments[0];
+    Value* zero = root->appendNew<Const64Value>(proc, Origin(), 0);
+    root->appendNew<Value>(proc, BelowEqual, Origin(), arg, zero);
+    root->appendNew<Value>(proc, Return, Origin(), root->last());
+
+    proc.resetReachability();
+    reduceStrength(proc);
+
+    CHECK_EQ(root->last()->opcode(), Return);
+    Value* result = root->last()->child(0);
+    CHECK_EQ(result->opcode(), Equal);
+    CHECK(result->child(0) == arg);
+    CHECK(result->child(1)->isInt(0));
+}
+
+void testReduceStrengthBelowOneInt32()
+{
+    // Below(arg, 1) → Equal(arg, 0)
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t>(proc, root);
+    Value* arg = arguments[0];
+    Value* one = root->appendNew<Const32Value>(proc, Origin(), 1);
+    root->appendNew<Value>(proc, Below, Origin(), arg, one);
+    root->appendNew<Value>(proc, Return, Origin(), root->last());
+
+    proc.resetReachability();
+    reduceStrength(proc);
+
+    CHECK_EQ(root->last()->opcode(), Return);
+    Value* result = root->last()->child(0);
+    CHECK_EQ(result->opcode(), Equal);
+    CHECK(result->child(0) == arg);
+    CHECK(result->child(1)->isInt(0));
+}
+
+void testReduceStrengthBelowOneInt64()
+{
+    // Below(arg, 1) → Equal(arg, 0)
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int64_t>(proc, root);
+    Value* arg = arguments[0];
+    Value* one = root->appendNew<Const64Value>(proc, Origin(), 1);
+    root->appendNew<Value>(proc, Below, Origin(), arg, one);
+    root->appendNew<Value>(proc, Return, Origin(), root->last());
+
+    proc.resetReachability();
+    reduceStrength(proc);
+
+    CHECK_EQ(root->last()->opcode(), Return);
+    Value* result = root->last()->child(0);
+    CHECK_EQ(result->opcode(), Equal);
+    CHECK(result->child(0) == arg);
+    CHECK(result->child(1)->isInt(0));
+}
+
+void testReduceStrengthAboveEqualOneInt32()
+{
+    // AboveEqual(arg, 1) → NotEqual(arg, 0)
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t>(proc, root);
+    Value* arg = arguments[0];
+    Value* one = root->appendNew<Const32Value>(proc, Origin(), 1);
+    root->appendNew<Value>(proc, AboveEqual, Origin(), arg, one);
+    root->appendNew<Value>(proc, Return, Origin(), root->last());
+
+    proc.resetReachability();
+    reduceStrength(proc);
+
+    CHECK_EQ(root->last()->opcode(), Return);
+    Value* result = root->last()->child(0);
+    CHECK_EQ(result->opcode(), NotEqual);
+    CHECK(result->child(0) == arg);
+    CHECK(result->child(1)->isInt(0));
+}
+
+void testReduceStrengthAboveEqualOneInt64()
+{
+    // AboveEqual(arg, 1) → NotEqual(arg, 0)
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int64_t>(proc, root);
+    Value* arg = arguments[0];
+    Value* one = root->appendNew<Const64Value>(proc, Origin(), 1);
+    root->appendNew<Value>(proc, AboveEqual, Origin(), arg, one);
+    root->appendNew<Value>(proc, Return, Origin(), root->last());
+
+    proc.resetReachability();
+    reduceStrength(proc);
+
+    CHECK_EQ(root->last()->opcode(), Return);
+    Value* result = root->last()->child(0);
+    CHECK_EQ(result->opcode(), NotEqual);
+    CHECK(result->child(0) == arg);
+    CHECK(result->child(1)->isInt(0));
+}
+
+void testReduceStrengthAboveZeroInt32()
+{
+    // Above(arg, 0) → NotEqual(arg, 0)
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t>(proc, root);
+    Value* arg = arguments[0];
+    Value* zero = root->appendNew<Const32Value>(proc, Origin(), 0);
+    root->appendNew<Value>(proc, Above, Origin(), arg, zero);
+    root->appendNew<Value>(proc, Return, Origin(), root->last());
+
+    proc.resetReachability();
+    reduceStrength(proc);
+
+    CHECK_EQ(root->last()->opcode(), Return);
+    Value* result = root->last()->child(0);
+    CHECK_EQ(result->opcode(), NotEqual);
+    CHECK(result->child(0) == arg);
+    CHECK(result->child(1)->isInt(0));
+}
+
+void testReduceStrengthAboveZeroInt64()
+{
+    // Above(arg, 0) → NotEqual(arg, 0)
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int64_t>(proc, root);
+    Value* arg = arguments[0];
+    Value* zero = root->appendNew<Const64Value>(proc, Origin(), 0);
+    root->appendNew<Value>(proc, Above, Origin(), arg, zero);
+    root->appendNew<Value>(proc, Return, Origin(), root->last());
+
+    proc.resetReachability();
+    reduceStrength(proc);
+
+    CHECK_EQ(root->last()->opcode(), Return);
+    Value* result = root->last()->child(0);
+    CHECK_EQ(result->opcode(), NotEqual);
+    CHECK(result->child(0) == arg);
+    CHECK(result->child(1)->isInt(0));
+}
+
 void testLoadBaseIndexShift2()
 {
     Procedure proc;

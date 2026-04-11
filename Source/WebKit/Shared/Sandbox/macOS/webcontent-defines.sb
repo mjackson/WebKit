@@ -278,44 +278,43 @@
                 (iokit-user-client-class "IOAudioEngineUserClient")))))
 
 (define (allow-iokit-with-extension-arm64)
-    (when (equal? (param "CPU") "arm64")
-        (if (equal? (param "ENABLE_SANDBOX_MESSAGE_FILTER") "YES")
-            (allow IOKIT_OPEN_USER_CLIENT
-                (require-all
-                    (extension "com.apple.webkit.extension.iokit")
-                    (iokit-user-client-class
-                        "AppleAVDUserClient")) ;; <rdar://problem/60088861>
-                (AppleAVDUserClientMessageFilter))
-            ; else
-            (allow IOKIT_OPEN_USER_CLIENT
-                (require-all
-                    (extension "com.apple.webkit.extension.iokit")
-                    (iokit-user-client-class "AppleAVDUserClient"))))
+    (if (equal? (param "ENABLE_SANDBOX_MESSAGE_FILTER") "YES")
+        (allow IOKIT_OPEN_USER_CLIENT
+            (require-all
+                (extension "com.apple.webkit.extension.iokit")
+                (iokit-user-client-class
+                    "AppleAVDUserClient")) ;; <rdar://problem/60088861>
+            (AppleAVDUserClientMessageFilter))
+        ; else
+        (allow IOKIT_OPEN_USER_CLIENT
+            (require-all
+                (extension "com.apple.webkit.extension.iokit")
+                (iokit-user-client-class "AppleAVDUserClient"))))
 
-        (if (equal? (param "ENABLE_SANDBOX_MESSAGE_FILTER") "YES")
-            (allow IOKIT_OPEN_USER_CLIENT
-                (require-all
-                    (extension "com.apple.webkit.extension.iokit")
-                    (iokit-user-client-class "IOMobileFramebufferUserClient"))
-                (IOMobileFramebufferUserClientMessageFilter))
-            ; else
-            (allow IOKIT_OPEN_USER_CLIENT
-                (require-all
-                    (extension "com.apple.webkit.extension.iokit")
-                    (iokit-user-client-class "IOMobileFramebufferUserClient"))))
+    (if (equal? (param "ENABLE_SANDBOX_MESSAGE_FILTER") "YES")
+        (allow IOKIT_OPEN_USER_CLIENT
+            (require-all
+                (extension "com.apple.webkit.extension.iokit")
+                (iokit-user-client-class "IOMobileFramebufferUserClient"))
+            (IOMobileFramebufferUserClientMessageFilter))
+        ; else
+        (allow IOKIT_OPEN_USER_CLIENT
+            (require-all
+                (extension "com.apple.webkit.extension.iokit")
+                (iokit-user-client-class "IOMobileFramebufferUserClient"))))
 
-        (if (equal? (param "ENABLE_SANDBOX_MESSAGE_FILTER") "YES")
-            (allow IOKIT_OPEN_USER_CLIENT
-                (require-all
-                    (extension "com.apple.webkit.extension.iokit")
-                    (iokit-user-client-class "IOSurfaceAcceleratorClient")) ;; <rdar://problem/63696732>
-                (IOSurfaceAcceleratorClientMessageFilter))
-            ; else
-            (allow IOKIT_OPEN_USER_CLIENT
-                (require-all
-                    (extension "com.apple.webkit.extension.iokit")
-                    (iokit-user-client-class
-                        "IOSurfaceAcceleratorClient")))))) ;; <rdar://problem/63696732>
+    (if (equal? (param "ENABLE_SANDBOX_MESSAGE_FILTER") "YES")
+        (allow IOKIT_OPEN_USER_CLIENT
+            (require-all
+                (extension "com.apple.webkit.extension.iokit")
+                (iokit-user-client-class "IOSurfaceAcceleratorClient")) ;; <rdar://problem/63696732>
+            (IOSurfaceAcceleratorClientMessageFilter))
+        ; else
+        (allow IOKIT_OPEN_USER_CLIENT
+            (require-all
+                (extension "com.apple.webkit.extension.iokit")
+                (iokit-user-client-class
+                    "IOSurfaceAcceleratorClient"))))) ;; <rdar://problem/63696732>
 
 (define (allow-iokit-without-extension)
     (if (equal? (param "ENABLE_SANDBOX_MESSAGE_FILTER") "YES")
@@ -330,31 +329,6 @@
                 (require-not (extension "com.apple.webkit.extension.iokit"))
                 (iokit-registry-entry-class "IOSurfaceRootUserClient"))))
 
-    (when (equal? (param "CPU") "arm64")
-        (if (equal? (param "ENABLE_SANDBOX_MESSAGE_FILTER") "YES")
-            (allow IOKIT_OPEN_USER_CLIENT
-                (require-all
-                    (require-not (extension "com.apple.webkit.extension.iokit"))
-                    (iokit-user-client-class "AppleAVDUserClient"))
-                (AppleAVDUserClientMessageFilter))
-            ; else
-            (allow IOKIT_OPEN_USER_CLIENT
-                (require-all
-                    (require-not (extension "com.apple.webkit.extension.iokit"))
-                    (iokit-user-client-class "AppleAVDUserClient"))))
-
-        (if (equal? (param "ENABLE_SANDBOX_MESSAGE_FILTER") "YES")
-            (allow IOKIT_OPEN_USER_CLIENT
-                (require-all
-                    (require-not (extension "com.apple.webkit.extension.iokit"))
-                    (iokit-user-client-class "IOSurfaceAcceleratorClient"))
-                (IOSurfaceAcceleratorClientMessageFilter))
-            ; else
-            (allow IOKIT_OPEN_USER_CLIENT
-                (require-all
-                    (require-not (extension "com.apple.webkit.extension.iokit"))
-                    (iokit-user-client-class "IOSurfaceAcceleratorClient")))))
-
     (if (equal? (param "ENABLE_SANDBOX_MESSAGE_FILTER") "YES")
         (allow IOKIT_OPEN_USER_CLIENT
             (require-all
@@ -366,6 +340,31 @@
             (require-all
                 (require-not (extension "com.apple.webkit.extension.iokit"))
                 (iokit-connection "IOAccelerator")))))
+
+(define (allow-iokit-without-extension-arm64)
+    (if (equal? (param "ENABLE_SANDBOX_MESSAGE_FILTER") "YES")
+        (allow IOKIT_OPEN_USER_CLIENT
+            (require-all
+                (require-not (extension "com.apple.webkit.extension.iokit"))
+                (iokit-user-client-class "AppleAVDUserClient"))
+            (AppleAVDUserClientMessageFilter))
+        ; else
+        (allow IOKIT_OPEN_USER_CLIENT
+            (require-all
+                (require-not (extension "com.apple.webkit.extension.iokit"))
+                (iokit-user-client-class "AppleAVDUserClient"))))
+
+    (if (equal? (param "ENABLE_SANDBOX_MESSAGE_FILTER") "YES")
+        (allow IOKIT_OPEN_USER_CLIENT
+            (require-all
+                (require-not (extension "com.apple.webkit.extension.iokit"))
+                (iokit-user-client-class "IOSurfaceAcceleratorClient"))
+            (IOSurfaceAcceleratorClientMessageFilter))
+        ; else
+        (allow IOKIT_OPEN_USER_CLIENT
+            (require-all
+                (require-not (extension "com.apple.webkit.extension.iokit"))
+                (iokit-user-client-class "IOSurfaceAcceleratorClient")))))
 
 (define (allow-metal-compiler-service)
     (allow mach-lookup

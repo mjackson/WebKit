@@ -87,8 +87,8 @@ protected:
     JS_EXPORT_PRIVATE void finishCreation(VM&, unsigned length, const String& name, PropertyAdditionMode = PropertyAdditionMode::WithStructureTransition);
     DECLARE_DEFAULT_FINISH_CREATION;
 
-    JS_EXPORT_PRIVATE static CallData getConstructData(JSCell*);
-    JS_EXPORT_PRIVATE static CallData getCallData(JSCell*);
+    JS_EXPORT_PRIVATE static CallData NODELETE getConstructData(JSCell*);
+    JS_EXPORT_PRIVATE static CallData NODELETE getCallData(JSCell*);
 
     TaggedNativeFunction m_functionForCall;
     TaggedNativeFunction m_functionForConstruct;

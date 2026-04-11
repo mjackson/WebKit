@@ -55,7 +55,7 @@ void BlendingKeyframes::clear()
     m_propertiesSetToInherit.clear();
     m_propertiesSetToCurrentColor.clear();
     m_usesRelativeFontWeight = false;
-    m_containsCSSVariableReferences = false;
+    m_containsSubstitutionFunctions = false;
     m_usesAnchorFunctions = false;
 }
 
@@ -281,6 +281,15 @@ bool BlendingKeyframes::usesContainerUnits() const
     return false;
 }
 
+bool BlendingKeyframes::usesViewportUnits() const
+{
+    for (auto& keyframe : m_keyframes) {
+        if (keyframe.style()->usesViewportUnits())
+            return true;
+    }
+    return false;
+}
+
 void BlendingKeyframes::addProperty(const AnimatableCSSProperty& property)
 {
     ASSERT(!std::holds_alternative<CSSPropertyID>(property) || std::get<CSSPropertyID>(property) != CSSPropertyCustom);
@@ -314,8 +323,8 @@ void BlendingKeyframes::updatePropertiesMetadata(const StyleProperties& properti
         if (!cssValue)
             continue;
 
-        if (!m_containsCSSVariableReferences && cssValue->hasVariableReferences())
-            m_containsCSSVariableReferences = true;
+        if (!m_containsSubstitutionFunctions && cssValue->hasSubstitutionFunctions())
+            m_containsSubstitutionFunctions = true;
 
         if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(cssValue)) {
             auto propertyID = propertyReference.id();

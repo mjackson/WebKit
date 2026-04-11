@@ -83,6 +83,7 @@
 #import <pal/system/ios/UserInterfaceIdiom.h>
 #import <sys/param.h>
 #import <wtf/BlockPtr.h>
+#import <wtf/Borrow.h>
 #import <wtf/CallbackAggregator.h>
 #import <wtf/FileSystem.h>
 #import <wtf/ProcessPrivilege.h>
@@ -304,7 +305,7 @@ void WebProcessPool::setMediaAccessibilityPreferences(WebProcessProxy& process)
 
 static void logProcessPoolState(const WebProcessPool& pool)
 {
-    for (Ref process : pool.processes()) {
+    for (Ref process : borrow(pool.processes()).get()) {
         WTF::TextStream processDescription;
         processDescription << process;
 
@@ -375,9 +376,15 @@ void WebProcessPool::platformResolvePathsForSandboxExtensions()
     m_resolvedPaths.uiProcessBundleResourcePath = resolvePathForSandboxExtension(String { [[NSBundle mainBundle] resourcePath] });
 }
 
+void WebProcessPool::cacheMediaSourceTypeSupported(const String& type, bool isSupported)
+{
+    m_mediaSourceTypesSupported.add(type, isSupported);
+}
+
 void WebProcessPool::platformInitializeWebProcess(const WebProcessProxy& process, WebProcessCreationParameters& parameters)
 {
     parameters.mediaMIMETypes = process.mediaMIMETypes();
+    parameters.mediaSourceTypesSupported = m_mediaSourceTypesSupported;
 
 #if PLATFORM(MAC)
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
@@ -713,7 +720,7 @@ void WebProcessPool::hardwareKeyboardAvailabilityChangedCallback(CFNotificationC
 
 void WebProcessPool::hardwareKeyboardAvailabilityChanged()
 {
-    for (Ref process : processes()) {
+    for (Ref process : borrow(this->processes()).get()) {
         auto pages = process->pages();
         for (auto& page : pages)
             page->hardwareKeyboardAvailabilityChanged(cachedHardwareKeyboardState());

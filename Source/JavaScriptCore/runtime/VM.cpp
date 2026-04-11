@@ -173,6 +173,10 @@
 #include <wtf/darwin/DispatchExtras.h>
 #endif
 
+#if ENABLE(WEBASSEMBLY_DEBUGGER)
+#include "WasmDebugServerUtilities.h"
+#endif
+
 #include <span>
 
 namespace JSC {
@@ -229,25 +233,6 @@ void VM::computeCanUseJIT()
 #endif
 }
 
-// This function is not meant to be called by anyone. It just provides a convenient scope
-// that can is permitted to access private members of VM in order to do some needed
-// static_asserts.
-inline void VM::checkStaticAsserts()
-{
-    // VM registration is done in the instantiation of its VMThreadContext.
-    //
-    // VM registration with the VMManager can only be done after m_apiLock is initialized
-    // because VMManager may trigger traps to stop the VM, and VMTraps the which uses
-    // m_apiLock for the VMTraps::SignalSender uses m_apiLock.
-    //
-    // VM registration needs to be done before the heap is initialized because we may Global GC
-    // may want to block the VM from doing any heap activity. In a Global GC world, we would be
-    // binding this VM to the global heap instead of instantiating the heap field. We want to
-    // be able to block before that point.
-    static_assert(OBJECT_OFFSETOF(VM, m_apiLock) < OBJECT_OFFSETOF(VM, m_threadContext));
-    static_assert(OBJECT_OFFSETOF(VM, m_threadContext) < OBJECT_OFFSETOF(VM, heap));
-}
-
 static bool vmCreationShouldCrash = false;
 
 VM::VM(VMType vmType, HeapType heapType, WTF::RunLoop* runLoop, bool* success)
@@ -269,6 +254,9 @@ VM::VM(VMType vmType, HeapType heapType, WTF::RunLoop* runLoop, bool* success)
     , machineCodeBytesPerBytecodeWordForBaselineJIT(makeUnique<SimpleStats>())
     , symbolImplToSymbolMap(*this)
     , atomStringToJSStringMap(*this)
+#if ENABLE(WEBASSEMBLY)
+    , wasmGCStructureMap(*this)
+#endif
     , m_regExpCache(makeUnique<RegExpCache>())
     , m_compactVariableMap(adoptRef(*new CompactTDZEnvironmentMap))
     , m_codeCache(makeUnique<CodeCache>())
@@ -516,6 +504,10 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     // We must set this at the end only after the VM is fully initialized.
     WTF::storeStoreFence();
     m_isInService = true;
+
+    // Register after all VM state is initialized so that a stop-the-world triggered
+    // immediately on registration sees a fully constructed VM.
+    VMManager::singleton().notifyVMConstruction(*this);
 }
 
 static ReadWriteLock s_destructionLock;
@@ -539,6 +531,10 @@ void VM::queueMicrotask(QueuedTask&& task)
 
 VM::~VM()
 {
+    // Remove from VMManager before marking as no longer in service or cancelling traps,
+    // so requestStopAllInternal() never iterates a VM with m_isShuttingDown set.
+    VMManager::singleton().notifyVMDestruction(*this);
+
     Locker destructionLocker { s_destructionLock.read() };
 
     if (vmType == VMType::Default)
@@ -608,7 +604,7 @@ VM::~VM()
 #if ENABLE(WEBASSEMBLY_DEBUGGER)
     if (Options::enableWasmDebugger()) [[unlikely]] {
         auto& debugServer = Wasm::DebugServer::singleton();
-        if (debugServer.isConnected())
+        if (debugServer.hasDebugger())
             debugServer.execution().notifyVMDestruction(this);
     }
 #endif
@@ -718,7 +714,7 @@ Exception* VM::ensureTerminationException()
 }
 
 #if ENABLE(JIT)
-static ThunkGenerator thunkGeneratorForIntrinsic(Intrinsic intrinsic)
+static ThunkGenerator NODELETE thunkGeneratorForIntrinsic(Intrinsic intrinsic)
 {
     switch (intrinsic) {
     case CharCodeAtIntrinsic:
@@ -1032,6 +1028,11 @@ void VM::throwTerminationException()
 {
     ASSERT(hasTerminationRequest());
     ASSERT(!traps().isDeferringTermination());
+    // Termination can occur while executing DFG/FTL code that has set
+    // doesGC expectations. Reset the expectation so that subsequent
+    // heap access (e.g. JSLock re-acquisition) doesn't hit a stale
+    // doesGC assertion.
+    setDoesGCExpectation(true, DoesGCCheck::Special::Termination);
     setException(terminationException());
     if (m_executionForbiddenOnTermination)
         setExecutionForbidden();
@@ -1199,7 +1200,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 void VM::gatherEvacuatedStackRoots(ConservativeRoots& roots)
 {
-    Locker locker { m_evacuatedStacksLock };
+    ASSERT(heap.worldIsStopped());
     for (auto* slice : m_evacuatedStackSlices) {
         std::span<Register> slots = slice->slots();
         roots.add(slots.data(), slots.data() + slots.size());
@@ -1385,7 +1386,7 @@ void VM::dumpTypeProfilerData()
 
 void VM::callPromiseRejectionCallback(Strong<JSPromise>& promise)
 {
-    JSObject* callback = promise->globalObject()->unhandledRejectionCallback();
+    JSObject* callback = promise->realm()->unhandledRejectionCallback();
     if (!callback)
         return;
 
@@ -1398,7 +1399,7 @@ void VM::callPromiseRejectionCallback(Strong<JSPromise>& promise)
     args.append(promise.get());
     args.append(promise->result());
     ASSERT(!args.hasOverflowed());
-    call(promise->globalObject(), callback, callData, jsNull(), args);
+    call(promise->realm(), callback, callData, jsNull(), args);
     scope.clearException();
 }
 
@@ -1568,25 +1569,25 @@ bool VM::isScratchBuffer(void* ptr)
 
 void VM::addEvacuatedStackSlice(EvacuatedStackSlice* slice)
 {
-    Locker lock { m_evacuatedStacksLock };
+    ASSERT(currentThreadIsHoldingAPILock());
     m_evacuatedStackSlices.append(slice);
 }
 
 void VM::removeEvacuatedStackSlice(EvacuatedStackSlice* slice)
 {
-    Locker lock { m_evacuatedStacksLock };
+    ASSERT(currentThreadIsHoldingAPILock());
     m_evacuatedStackSlices.removeAll(slice);
 }
 
 void VM::addEvacuatedCalleeSaves(std::span<CPURegister> span)
 {
-    Locker lock { m_evacuatedStacksLock };
+    ASSERT(currentThreadIsHoldingAPILock());
     m_evacuatedCalleeSaves.constructAndAppend(span);
 }
 
 void VM::removeEvacuatedCalleeSaves(std::span<CPURegister> span)
 {
-    Locker lock { m_evacuatedStacksLock };
+    ASSERT(currentThreadIsHoldingAPILock());
     m_evacuatedCalleeSaves.removeAllMatching([&](const std::span<CPURegister>& existing) {
         return existing.data() == span.data() && existing.size() == span.size();
     });

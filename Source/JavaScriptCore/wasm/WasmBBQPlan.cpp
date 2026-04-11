@@ -93,8 +93,8 @@ void BBQPlan::work()
     CompilationContext context;
     Vector<UnlinkedWasmToWasmCall> unlinkedWasmToWasmCalls;
     FunctionSpaceIndex functionIndexSpace = m_moduleInformation->toSpaceIndex(m_functionIndex);
-    TypeIndex typeIndex = m_moduleInformation->internalFunctionTypeIndices[m_functionIndex];
-    const TypeDefinition& signature = TypeInformation::get(typeIndex).expand();
+    TypeSignatureIndex typeSignatureIndex = m_moduleInformation->internalFunctionTypeSignatureIndices[m_functionIndex];
+    const TypeDefinition& signature = m_moduleInformation->expandedTypeSignature(typeSignatureIndex);
 
     Ref<BBQCallee> callee = BBQCallee::create(functionIndexSpace, m_moduleInformation->nameSection->get(functionIndexSpace), Ref { m_profiledCallee });
     std::unique_ptr<InternalFunction> function = compileFunction(m_functionIndex, callee.get(), context, unlinkedWasmToWasmCalls);
@@ -148,10 +148,10 @@ void BBQPlan::work()
 std::unique_ptr<InternalFunction> BBQPlan::compileFunction(FunctionCodeIndex functionIndex, BBQCallee& callee, CompilationContext& context, Vector<UnlinkedWasmToWasmCall>& unlinkedWasmToWasmCalls)
 {
     const auto& function = m_moduleInformation->functions[functionIndex];
-    TypeIndex typeIndex = m_moduleInformation->internalFunctionTypeIndices[functionIndex];
-    const TypeDefinition& signature = TypeInformation::get(typeIndex).expand();
+    TypeSignatureIndex typeSignatureIndex = m_moduleInformation->internalFunctionTypeSignatureIndices[functionIndex];
+    const TypeDefinition& signature = m_moduleInformation->expandedTypeSignature(typeSignatureIndex);
     FunctionSpaceIndex functionIndexSpace = m_moduleInformation->toSpaceIndex(functionIndex);
-    ASSERT_UNUSED(functionIndexSpace, m_moduleInformation->typeIndexFromFunctionIndexSpace(functionIndexSpace) == typeIndex);
+    ASSERT_UNUSED(functionIndexSpace, m_moduleInformation->typeIndexFromFunctionIndexSpace(functionIndexSpace) == m_moduleInformation->typeIndexFromTypeSignatureIndex(typeSignatureIndex));
     Expected<std::unique_ptr<InternalFunction>, String> parseAndCompileResult;
 
     beginCompilerSignpost(callee);

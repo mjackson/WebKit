@@ -40,9 +40,7 @@
 
 namespace WebCore {
 
-FileReaderSync::FileReaderSync()
-{
-}
+FileReaderSync::FileReaderSync() = default;
 
 ExceptionOr<RefPtr<ArrayBuffer>> FileReaderSync::readAsArrayBuffer(ScriptExecutionContext& scriptExecutionContext, Blob& blob)
 {

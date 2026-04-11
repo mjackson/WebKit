@@ -3,7 +3,7 @@
 # Copyright (C) 2006 Anders Carlsson <andersca@mac.com>
 # Copyright (C) 2006, 2007 Samuel Weinig <sam@webkit.org>
 # Copyright (C) 2006 Alexey Proskuryakov <ap@webkit.org>
-# Copyright (C) 2006-2025 Apple Inc. All rights reserved.
+# Copyright (C) 2006-2026 Apple Inc. All rights reserved.
 # Copyright (C) 2009 Cameron McCormack <cam@mcc.id.au>
 # Copyright (C) Research In Motion Limited 2010. All rights reserved.
 # Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies)
@@ -833,7 +833,7 @@ sub GenerateIndexedGetter
     my $nativeToJSConversion;
     if ($indexedGetterOperation->extendedAttributes->{RaisesException}) {
         $itemGetterCondition = "$indexExpression < thisObject->wrapped().length()";
-        $nativeToJSConversion = NativeToJSValueUsingPointers($indexedGetterOperation, $interface, "thisObject->wrapped().${indexedGetterFunctionName}(${indexExpression})", "*thisObject->globalObject()");
+        $nativeToJSConversion = NativeToJSValueUsingPointers($indexedGetterOperation, $interface, "thisObject->wrapped().${indexedGetterFunctionName}(${indexExpression})", "*thisObject->realm()");
     } else {
         # In the common case, the implementation getter will do a bound check and return null if the index is out of range.
         # We can thus call item() right away and do a null check instead of first checking if `index < length` and then calling
@@ -841,7 +841,7 @@ sub GenerateIndexedGetter
         $itemGetterCondition = "auto item = thisObject->wrapped().${indexedGetterFunctionName}(${indexExpression}); !!item";
         my $IDLType = GetIDLType($interface, $indexedGetterOperation->type);
         my $extract = "${IDLType}::extractValueFromNullable(WTF::move(item))";
-        $nativeToJSConversion = NativeToJSValueUsingPointers($indexedGetterOperation, $interface, $extract, "*thisObject->globalObject()");
+        $nativeToJSConversion = NativeToJSValueUsingPointers($indexedGetterOperation, $interface, $extract, "*thisObject->realm()");
     }
     return ($itemGetterCondition, $nativeToJSConversion, StringifyJSCAttributes(\@attributes));
 }
@@ -876,7 +876,7 @@ sub GenerateNamedGetter
     push(@attributes, "JSC::PropertyAttribute::ReadOnly") if !GetNamedSetterOperation($interface) && !$interface->extendedAttributes->{Plugin};
     push(@attributes, "JSC::PropertyAttribute::DontEnum") if $interface->extendedAttributes->{LegacyUnenumerableNamedProperties};
 
-    my $nativeToJSConversion = NativeToJSValueUsingPointers($namedGetterOperation, $interface, $namedPropertyExpression, "*thisObject->globalObject()");
+    my $nativeToJSConversion = NativeToJSValueUsingPointers($namedGetterOperation, $interface, $namedPropertyExpression, "*thisObject->realm()");
     
     return ($nativeToJSConversion, StringifyJSCAttributes(\@attributes));
 }
@@ -2881,7 +2881,7 @@ sub GenerateDictionaryImplementationMemberConversion
     if ($needsRuntimeCheck) {
         my $runtimeEnableConditionalString = GenerateRuntimeEnableConditionalString($dictionary, $member, "&lexicalGlobalObject");
 
-        $memberConversion .= "    auto ${implementedAsKey}ConversionResult = [&]() -> ConversionResult<${adjustedIDLType}> {\n";
+        $memberConversion .= "    auto ${implementedAsKey}ConversionResult = [&] -> ConversionResult<${adjustedIDLType}> {\n";
         $memberConversion .= "        if (${runtimeEnableConditionalString}) {\n";
         $indent = "        ";
     }
@@ -2922,7 +2922,7 @@ sub GenerateDictionaryImplementationMemberConversion
 
         AddToImplIncludes("JSDOMConvertOptional.h", $conditional) if $optional;
 
-        $conversion = "[&]() -> ConversionResult<${adjustedIDLType}> {\n";
+        $conversion = "[&] -> ConversionResult<${adjustedIDLType}> {\n";
         $conversion .= "        if (${key}Value.isUndefined())\n";
         $conversion .= "            return ${defaultValue};\n";
         $conversion .= "        auto parseResult = parseEnumeration<${enumClassName}>(lexicalGlobalObject, ${key}Value);\n";
@@ -3656,20 +3656,7 @@ sub GenerateHeader
     }
 
     # Structure ID
-    push(@headerContent, "    static JSC::Structure* createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)\n");
-    push(@headerContent, "    {\n");
-    my $indexingModeIncludingHistory = InstanceOverridesGetOwnPropertySlot($interface) ? "JSC::MayHaveIndexedAccessors" : "JSC::NonArray";
-    if (IsDOMGlobalObject($interface)) {
-        push(@headerContent, "        return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::GlobalObjectType, StructureFlags), info(), $indexingModeIncludingHistory);\n");
-    } elsif ($codeGenerator->InheritsInterface($interface, "Node")) {
-        my $type = GetJSTypeForNode($interface);
-        push(@headerContent, "        return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::JSType($type), StructureFlags), info(), $indexingModeIncludingHistory);\n");
-    } elsif ($codeGenerator->InheritsInterface($interface, "Event")) {
-        push(@headerContent, "        return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::JSType(JSEventType), StructureFlags), info(), $indexingModeIncludingHistory);\n");
-    } else {
-        push(@headerContent, "        return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), $indexingModeIncludingHistory);\n");
-    }
-    push(@headerContent, "    }\n\n");
+    push(@headerContent, "    static JSC::Structure* createStructure(JSC::VM&, JSC::JSGlobalObject*, JSC::JSValue);\n");
 
     if ($codeGenerator->InheritsInterface($interface, "HTMLElement")) {
         push(@headerContent, "    JSC::JSScope* pushEventHandlerScope(JSC::JSGlobalObject*, JSC::JSScope*) const;\n\n");
@@ -4689,7 +4676,7 @@ sub GenerateRuntimeEnableConditionalString
             if ($interface->type->name eq "DOMWindow") {
                 push(@conjuncts, "(scriptExecutionContext && scriptExecutionContext->isSecureContext())");
             } else {
-                push(@conjuncts, "jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->isSecureContext()");
+                push(@conjuncts, "jsCast<JSDOMGlobalObject*>(realm())->scriptExecutionContext()->isSecureContext()");
             }
         }
     }
@@ -4711,7 +4698,7 @@ sub GenerateRuntimeEnableConditionalString
 
         AddToImplIncludes("DOMWrapperWorld.h");
 
-        push(@conjuncts, "jsCast<JSDOMGlobalObject*>(this->globalObject())->" . ToMethodName($context->extendedAttributes->{EnabledForGlobalObject}) . "()");
+        push(@conjuncts, "jsCast<JSDOMGlobalObject*>(this->realm())->" . ToMethodName($context->extendedAttributes->{EnabledForGlobalObject}) . "()");
     }
 
     if ($context->extendedAttributes->{EnabledBySetting}) {
@@ -4847,7 +4834,7 @@ sub addUnscopableProperties
     return if scalar(@unscopables) == 0;
 
     AddToImplIncludes("<JavaScriptCore/ObjectConstructor.h>");
-    push(@implContent, "    JSObject& unscopables = *constructEmptyObject(globalObject()->vm(), globalObject()->nullPrototypeObjectStructure());\n");
+    push(@implContent, "    JSObject& unscopables = *constructEmptyObject(vm, realm()->nullPrototypeObjectStructure());\n");
     foreach my $unscopable (@unscopables) {
         push(@implContent, "    unscopables.putDirect(vm, Identifier::fromString(vm, \"$unscopable\"_s), jsBoolean(true));\n");
     }
@@ -5263,14 +5250,14 @@ sub GenerateImplementation
         foreach my $operationOrAttribute (@runtimeEnabledProperties) {
             my $conditionalString = $codeGenerator->GenerateConditionalString($operationOrAttribute);
             push(@implContent, "#if ${conditionalString}\n") if $conditionalString;
-            my $runtimeEnableConditionalString = GenerateRuntimeEnableConditionalString($interface, $operationOrAttribute, "globalObject()");
+            my $runtimeEnableConditionalString = GenerateRuntimeEnableConditionalString($interface, $operationOrAttribute, "realm()");
             my $name = $operationOrAttribute->name;
             push(@implContent, "    if (!${runtimeEnableConditionalString}) {\n");
             push(@implContent, "        hasDisabledRuntimeProperties = true;\n");
             push(@implContent, "        auto propertyName = Identifier::fromString(vm, \"$name\"_s);\n");
             push(@implContent, "        VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);\n");
             push(@implContent, "        DeletePropertySlot slot;\n");
-            push(@implContent, "        JSObject::deleteProperty(this, globalObject(), propertyName, slot);\n");
+            push(@implContent, "        JSObject::deleteProperty(this, realm(), propertyName, slot);\n");
             push(@implContent, "    }\n");
             push(@implContent, "#endif\n") if $conditionalString;
         }
@@ -5278,7 +5265,7 @@ sub GenerateImplementation
         foreach my $attribute (@runtimeEnabledAttributes) {
             if (NeedsRuntimeReadWriteCheck($interface, $attribute)) {
                 AddToImplIncludes("WebCoreJSClientData.h");
-                my $runtimeEnableConditionalString = GenerateRuntimeEnableConditionalString($interface, $attribute, "globalObject()");
+                my $runtimeEnableConditionalString = GenerateRuntimeEnableConditionalString($interface, $attribute, "realm()");
 
                 my $attributeName = $attribute->name;
                 my $getter = GetAttributeGetterName($interface, $className, $attribute);
@@ -5310,7 +5297,7 @@ sub GenerateImplementation
             AddToImplIncludes("WebCoreJSClientData.h");
             my $conditionalString = $codeGenerator->GenerateConditionalString($operation);
             push(@implContent, "#if ${conditionalString}\n") if $conditionalString;
-            push(@implContent, "    putDirect(vm, builtinNames(vm)." . $operation->name . "PrivateName(), JSFunction::create(vm, globalObject(), 0, String(), " . GetFunctionName($interface, $className, $operation) . ", ImplementationVisibility::Public), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);\n");
+            push(@implContent, "    putDirect(vm, builtinNames(vm)." . $operation->name . "PrivateName(), JSFunction::create(vm, realm(), 0, String(), " . GetFunctionName($interface, $className, $operation) . ", ImplementationVisibility::Public), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);\n");
             push(@implContent, "#endif\n") if $conditionalString;
         }
 
@@ -5322,7 +5309,7 @@ sub GenerateImplementation
                 push(@implContent, "    putDirect(vm, vm.propertyNames->iteratorSymbol, getDirect(vm, vm.propertyNames->builtinNames().valuesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
             } else {
                 AddToImplIncludes("<JavaScriptCore/ArrayPrototype.h>");
-                push(@implContent, "    putDirect(vm, vm.propertyNames->iteratorSymbol, globalObject()->arrayPrototype()->getDirect(vm, vm.propertyNames->builtinNames().valuesPrivateName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
+                push(@implContent, "    putDirect(vm, vm.propertyNames->iteratorSymbol, realm()->arrayPrototype()->getDirect(vm, vm.propertyNames->builtinNames().valuesPrivateName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
             }
         }
         if (InterfaceNeedsAsyncIterator($interface)) {
@@ -5330,7 +5317,7 @@ sub GenerateImplementation
             # FIXME: We should parse EnabledBySetting as done for other methods.
             my $enabledBySettings = $interface->asyncIterable->extendedAttributes->{EnabledBySetting};
             if ($enabledBySettings) {
-                push(@implContent, "    if (jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->settingsValues()." . ToMethodName($enabledBySettings) . ")\n    ");
+                push(@implContent, "    if (jsCast<JSDOMGlobalObject*>(realm())->scriptExecutionContext()->settingsValues()." . ToMethodName($enabledBySettings) . ")\n    ");
             }
             if ($interface->asyncIterable->isKeyValue) {
                 push(@implContent, "    putDirect(vm, vm.propertyNames->asyncIteratorSymbol, getDirect(vm, vm.propertyNames->builtinNames().entriesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
@@ -5338,7 +5325,7 @@ sub GenerateImplementation
                 push(@implContent, "    putDirect(vm, vm.propertyNames->asyncIteratorSymbol, getDirect(vm, vm.propertyNames->builtinNames().valuesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
             }
         }
-        push(@implContent, "    addValueIterableMethods(*globalObject(), *this);\n") if ($interface->iterable or $interface->asyncIterable) and !IsKeyValueIterableInterface($interface);
+        push(@implContent, "    addValueIterableMethods(*realm(), *this);\n") if ($interface->iterable or $interface->asyncIterable) and !IsKeyValueIterableInterface($interface);
 
         addUnscopableProperties($interface);
     }
@@ -5404,7 +5391,7 @@ sub GenerateImplementation
         push(@finishCreation, "void ${className}::finishCreation(VM& vm, JSWindowProxy* proxy)\n");
         push(@finishCreation, "{\n");
         push(@finishCreation, "    Base::finishCreation(vm, proxy);\n\n");
-        push(@finishCreation, "    auto* scriptExecutionContext = jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext();\n\n");
+        push(@finishCreation, "    auto* scriptExecutionContext = jsCast<JSDOMGlobalObject*>(realm())->scriptExecutionContext();\n\n");
         $hasNonDefaultFinishCreation = 1;
     } elsif (ShouldCreateWithJSGlobalProxy($codeGenerator, $interface)) {
         push(@finishCreation, "void ${className}::finishCreation(VM& vm, JSGlobalProxy* proxy)\n");
@@ -5428,7 +5415,7 @@ sub GenerateImplementation
     }
 
     if ($interfaceName eq "Location") {
-        push(@finishCreation, "    putDirect(vm, vm.propertyNames->valueOf, globalObject()->objectProtoValueOfFunction(), JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);\n");
+        push(@finishCreation, "    putDirect(vm, vm.propertyNames->valueOf, realm()->objectProtoValueOfFunction(), JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);\n");
         push(@finishCreation, "    putDirect(vm, vm.propertyNames->toPrimitiveSymbol, jsUndefined(), JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);\n");
         $hasNonTrivialFinishCreation = 1;
     }
@@ -5439,7 +5426,7 @@ sub GenerateImplementation
         next unless AttributeShouldBeOnInstance($interface, $attribute);
 
         AddToImplIncludes("WebCoreJSClientData.h");
-        my $runtimeEnableConditionalString = GenerateRuntimeEnableConditionalString($interface, $attribute, "globalObject()");
+        my $runtimeEnableConditionalString = GenerateRuntimeEnableConditionalString($interface, $attribute, "realm()");
         my $attributeName = $attribute->name;
         my $getter = GetAttributeGetterName($interface, $className, $attribute);
         my $setter = IsReadonly($attribute) || $codeGenerator->IsConstructorType($attribute->type) ? "nullptr" : GetAttributeSetterName($interface, $className, $attribute);
@@ -5490,7 +5477,7 @@ sub GenerateImplementation
         next if $operation->{overloadIndex} && $operation->{overloadIndex} > 1;
 
         AddToImplIncludes("WebCoreJSClientData.h");
-        my $runtimeEnableConditionalString = GenerateRuntimeEnableConditionalString($interface, $operation, "globalObject()");
+        my $runtimeEnableConditionalString = GenerateRuntimeEnableConditionalString($interface, $operation, "realm()");
         my $functionName = $operation->name;
         my $implementationFunction = GetFunctionName($interface, $className, $operation);
         my $functionLength = GetFunctionLength($operation);
@@ -5520,6 +5507,22 @@ sub GenerateImplementation
         push(@implContent, "#endif\n") if !$hasNonTrivialFinishCreation;
         push(@implContent, "\n");
     }
+
+    AddToImplIncludes("<JavaScriptCore/StructureInlines.h>");
+    push(@implContent, "JSC::Structure* ${className}::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)\n");
+    push(@implContent, "{\n");
+    my $indexingModeIncludingHistory = InstanceOverridesGetOwnPropertySlot($interface) ? "JSC::MayHaveIndexedAccessors" : "JSC::NonArray";
+    if (IsDOMGlobalObject($interface)) {
+        push(@implContent, "    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::GlobalObjectType, StructureFlags), info(), $indexingModeIncludingHistory);\n");
+    } elsif ($codeGenerator->InheritsInterface($interface, "Node")) {
+        my $type = GetJSTypeForNode($interface);
+        push(@implContent, "    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::JSType($type), StructureFlags), info(), $indexingModeIncludingHistory);\n");
+    } elsif ($codeGenerator->InheritsInterface($interface, "Event")) {
+        push(@implContent, "    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::JSType(JSEventType), StructureFlags), info(), $indexingModeIncludingHistory);\n");
+    } else {
+        push(@implContent, "    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), $indexingModeIncludingHistory);\n");
+    }
+    push(@implContent, "}\n\n");
 
     unless (ShouldUseGlobalObjectPrototype($interface) || ShouldUseOrdinaryObjectPrototype($interface)) {
         push(@implContent, "JSObject* ${className}::createPrototype(VM& vm, JSDOMGlobalObject& globalObject)\n");
@@ -5605,7 +5608,7 @@ sub GenerateImplementation
         push(@implContent, "    auto* prototype = jsDynamicCast<${className}Prototype*>(JSValue::decode(thisValue));\n");
         push(@implContent, "    if (!prototype) [[unlikely]]\n");
         push(@implContent, "        return throwVMTypeError(lexicalGlobalObject, throwScope);\n");
-        push(@implContent, "    return JSValue::encode(${className}::getConstructor(vm, prototype->globalObject()));\n");
+        push(@implContent, "    return JSValue::encode(${className}::getConstructor(vm, prototype->realm()));\n");
         push(@implContent, "}\n\n");
     }
 
@@ -5890,6 +5893,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 END
 
+        AddToImplIncludes("JSDOMWrapperCache.h");
         push(@implContent, "JSC::JSValue toJSNewlyCreated(JSC::JSGlobalObject* lexicalGlobalObject, JSDOMGlobalObject* globalObject, Ref<$implType>&& impl)\n");
         push(@implContent, "{\n");
         if ($implType =~ /Document$/) {
@@ -5920,6 +5924,9 @@ END
                         AddToImplIncludes("MathMLElementTypeHelpers.h");
                     }
                 }
+                if ($childInterface->type->name eq "SVGComponentTransferFunctionElement") {
+                    AddToImplIncludes("SVGComponentTransferFunctionElementInlines.h");
+                }
                 push(@implContent, "    if (is<${childImplType}>(impl))\n");
                 push(@implContent, "        return toJSNewlyCreated(lexicalGlobalObject, globalObject, uncheckedDowncast<${childImplType}>(WTF::move(impl)));\n");
                 push(@implContent, "#endif\n") if $conditional;
@@ -5930,6 +5937,7 @@ END
     verifyVTable<$implType>(impl.ptr());
 #endif
 END
+        AddToImplIncludes("JSDOMWrapperCache.h");
         push(@implContent, "    return createWrapper<${implType}>(globalObject, WTF::move(impl));\n");
         push(@implContent, "}\n\n");
 
@@ -6079,7 +6087,7 @@ sub GenerateAttributeGetterBodyDefinition
         if (IsDOMGlobalObject($interface)) {
             push(@$outputArray, "    return JS" . $constructorType . "::${constructorGetter}(JSC::getVM(&lexicalGlobalObject), &thisObject);\n");
         } else {
-            push(@$outputArray, "    return JS" . $constructorType . "::${constructorGetter}(JSC::getVM(&lexicalGlobalObject), thisObject.globalObject());\n");
+            push(@$outputArray, "    return JS" . $constructorType . "::${constructorGetter}(JSC::getVM(&lexicalGlobalObject), thisObject.realm());\n");
         }
     } else {
         if ($attribute->extendedAttributes->{CachedAttribute}) {
@@ -6096,7 +6104,7 @@ sub GenerateAttributeGetterBodyDefinition
         
         unshift(@arguments, @callWithArgs);
 
-        my $globalObjectReference = $attribute->isStatic ? "*jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject)" : "*thisObject.globalObject()";
+        my $globalObjectReference = $attribute->isStatic ? "*jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject)" : "*thisObject.realm()";
         my $toJSExpression = NativeToJSValueUsingReferences($attribute, $interface, "${functionName}(" . join(", ", @arguments) . ")", $globalObjectReference);
         push(@$outputArray, "    SUPPRESS_UNCOUNTED_LOCAL auto& impl = thisObject.wrapped();\n") unless $attribute->isStatic or $attribute->extendedAttributes->{ForwardToMapLike} or $attribute->extendedAttributes->{ForwardToSetLike};
 
@@ -6326,7 +6334,7 @@ sub GenerateAttributeSetterBodyDefinition
     } elsif ($attribute->type->isUnion && !$attribute->type->isNullable && $attribute->extendedAttributes->{OptimizedUnionSetterUsingOverloads}) {
         push(@$outputArray, "    SUPPRESS_UNCOUNTED_LOCAL auto& impl = thisObject.wrapped();\n") if !$attribute->isStatic;
 
-        my $globalObjectReference = $attribute->isStatic ? "*jsCast<JSDOMGlobalObject*>(lexicalGlobalObject)" : "*thisObject.globalObject()";
+        my $globalObjectReference = $attribute->isStatic ? "*jsCast<JSDOMGlobalObject*>(lexicalGlobalObject)" : "*thisObject.realm()";
         my $exceptionThrower = GetAttributeExceptionThrower($interface, $attribute);
 
         push(@$outputArray, "    auto valueFunctor = [&]<typename T>(T&& nativeValueConversionResult) -> bool {\n");
@@ -6409,7 +6417,7 @@ sub GenerateAttributeSetterBodyDefinition
             $readValue = "optionalNativeValue.value()";
             $releaseValue = "optionalNativeValue.value()";
         } else {
-            my $globalObjectReference = $attribute->isStatic ? "*jsCast<JSDOMGlobalObject*>(lexicalGlobalObject)" : "*thisObject.globalObject()";
+            my $globalObjectReference = $attribute->isStatic ? "*jsCast<JSDOMGlobalObject*>(lexicalGlobalObject)" : "*thisObject.realm()";
             my $exceptionThrower = GetAttributeExceptionThrower($interface, $attribute);
 
             my $toNativeExpression = JSValueToNative($interface, $attribute, "value", $attribute->extendedAttributes->{Conditional}, "&lexicalGlobalObject", "lexicalGlobalObject", "thisObject", $globalObjectReference, $exceptionThrower);
@@ -6707,7 +6715,7 @@ sub GenerateOperationDefinition
             push(@arguments, $value);
         }
         my $functionString = "$implFunctionName(" . join(", ", @arguments) . ")";
-        push(@$outputArray, "    OPERATION_RETURN(throwScope, JSValue::encode(" . NativeToJSValueUsingPointers($operation, $interface, $functionString, "*castedThis->globalObject()") . "));\n");
+        push(@$outputArray, "    OPERATION_RETURN(throwScope, JSValue::encode(" . NativeToJSValueUsingPointers($operation, $interface, $functionString, "*castedThis->realm()") . "));\n");
         push(@$outputArray, "}\n\n");
 
         push(@$outputArray, "#endif\n\n") if $conditional;
@@ -6785,12 +6793,12 @@ sub GenerateDefaultToJSONOperationDefinition
                     my ($baseFunctionName, @arguments) = $codeGenerator->GetterExpression(\%implIncludes, $currentInterface->type->name, $attribute);
                     my $functionName = GetFullyQualifiedImplementationCallName($currentInterface, $attribute, $baseFunctionName, "impl", $conditional);
                     $mayThrowException = NativeToJSValueMayThrow($attribute);
-                    $toJSExpression = NativeToJSValue($attribute, $currentInterface, "${functionName}(" . join(", ", @arguments) . ")", "*lexicalGlobalObject", "*castedThis->globalObject()");
+                    $toJSExpression = NativeToJSValue($attribute, $currentInterface, "${functionName}(" . join(", ", @arguments) . ")", "*lexicalGlobalObject", "*castedThis->realm()");
                 }
 
                 my $needsRuntimeCheck = NeedsRuntimeCheck($currentInterface, $attribute);
                 if ($needsRuntimeCheck) {
-                    my $runtimeEnableConditionalString = GenerateRuntimeEnableConditionalString($currentInterface, $attribute, "castedThis->globalObject()");
+                    my $runtimeEnableConditionalString = GenerateRuntimeEnableConditionalString($currentInterface, $attribute, "castedThis->realm()");
                     push(@$outputArray, "    if (${runtimeEnableConditionalString}) {\n");
                     push(@$outputArray, "        auto ${attributeName}Value = ${toJSExpression};\n");
                     push(@$outputArray, "        RETURN_IF_EXCEPTION(throwScope, { });\n") if $mayThrowException;
@@ -6867,7 +6875,7 @@ sub GenerateConstructorCallWithUsingPointers
 
     my $callFramePointer = "callFrame";
     my $callFrameReference = "*callFrame";
-    my $globalObject = "castedThis->globalObject()";
+    my $globalObject = "castedThis->realm()";
     my $contextMissing = "throwConstructorScriptExecutionContextUnavailableError(*lexicalGlobalObject, throwScope, \"${visibleInterfaceName}\"_s)";
     my $scriptExecutionContextAccessor = "castedThis";
 
@@ -6887,7 +6895,7 @@ sub GenerateCallWith
     if ($codeGenerator->ExtendedAttributeContains($callWith, "CurrentGlobalObject")) {
         push(@callWithArgs, "*${globalObject}");
     }
-    my $relevantGlobalObjectPointer = "(${thisReference}).globalObject()";
+    my $relevantGlobalObjectPointer = "(${thisReference}).realm()";
     # Global object of relevant realm (https://html.spec.whatwg.org/multipage/webappapis.html#concept-relevant-everything)
     if ($codeGenerator->ExtendedAttributeContains($callWith, "RelevantGlobalObject")) {
         push(@callWithArgs, "*${relevantGlobalObjectPointer}");
@@ -7149,7 +7157,7 @@ sub GenerateOperationParametersCheck
     my $numArguments = @{$operation->arguments};
     my $conditional = $operation->extendedAttributes->{Conditional};
     my $isConstructor = $operation->isConstructor;
-    my $globalObjectReference = $operation->isStatic ? "*jsCast<JSDOMGlobalObject*>(lexicalGlobalObject)" : "*castedThis->globalObject()";
+    my $globalObjectReference = $operation->isStatic ? "*jsCast<JSDOMGlobalObject*>(lexicalGlobalObject)" : "*castedThis->realm()";
 
     my $functionName = GetFullyQualifiedImplementationCallName($interface, $operation, $functionImplementationName, "impl", $conditional);
     
@@ -7496,6 +7504,8 @@ sub GenerateCallbackImplementationOperationBody
     push(@$contentRef, "    auto& lexicalGlobalObject = globalObject;\n");
 
     push(@$contentRef, "    JSValue thisValue = ${thisValue};\n");
+
+    $includesRef->{"<JavaScriptCore/MarkedVector.h>"} = 1;
     push(@$contentRef, "    MarkedArgumentBuffer args;\n");
 
     foreach my $argument (@{$operation->arguments}) {
@@ -7538,7 +7548,8 @@ sub GenerateCallbackImplementationOperationBody
         push(@$contentRef, "        return CallbackResultType::ExceptionThrown;\n");
     } else {
         push(@$contentRef, "        UNUSED_PARAM(lexicalGlobalObject);\n");
-        push(@$contentRef, "        reportException(m_data->callback()->globalObject(), returnedException);\n");
+        push(@$contentRef, "        auto* callbackRealm = m_data->callback()->realmMayBeNull();\n");
+        push(@$contentRef, "        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);\n");
         push(@$contentRef, "        return CallbackResultType::ExceptionThrown;\n");
     }
     push(@$contentRef, "     }\n\n");
@@ -7568,8 +7579,10 @@ sub GenerateCallbackImplementationContent
     my $visibleName = $codeGenerator->GetVisibleInterfaceName($interfaceOrCallback);
     my $className = "JS${name}";
 
-    $includesRef->{"ScriptExecutionContext.h"} = 1;
     $includesRef->{"ContextDestructionObserverInlines.h"} = 1;
+    $includesRef->{"JSDOMGlobalObject.h"} = 1;
+    $includesRef->{"ScriptExecutionContext.h"} = 1;
+    $includesRef->{"<JavaScriptCore/JSCellInlines.h>"} = 1;
 
     # We already validated GenerateIsReachable when generating the header file.
     my $ownerObject = $generateIsReachable ? "globalObject->scriptExecutionContext()" : "this";
@@ -7721,7 +7734,7 @@ sub GenerateImplementationFunctionCall
         GenerateWriteBarriersForArguments($outputArray, $operation, $indent);
         push(@$outputArray, $indent . "return JSValue::encode($returnArgumentName.value());\n");
     } else {
-        my $globalObjectReference = $operation->isStatic ? "*jsCast<JSDOMGlobalObject*>(lexicalGlobalObject)" : "*castedThis->globalObject()";
+        my $globalObjectReference = $operation->isStatic ? "*jsCast<JSDOMGlobalObject*>(lexicalGlobalObject)" : "*castedThis->realm()";
         if ($hasWriteBarriersForArguments) {
             push(@$outputArray, $indent . "auto result = JSValue::encode(" . NativeToJSValueUsingPointers($operation, $interface, $functionString, $globalObjectReference) . ");\n");
             push(@$outputArray, $indent . "RETURN_IF_EXCEPTION(throwScope, encodedJSValue());\n") if $hasThrowScope;
@@ -7917,7 +7930,7 @@ END
 
             if ($interface->asyncIterable) {
                 my $quotedFunctionName = "\"$functionName\"_s";
-                my $globalObjectReference = "*castedThis->globalObject()";
+                my $globalObjectReference = "*castedThis->realm()";
                 my $conditional = $operation->extendedAttributes->{Conditional};
 
                 GenerateArgumentsCountCheck(\@implContent, $interface->asyncIterable, $interface, "    ");
@@ -8384,6 +8397,10 @@ sub NativeToJSValue
         AddToImplIncludes("JSDOMBindingSecurity.h", $conditional);
         $value = "BindingSecurity::checkSecurityForNodeWithFrameOwner($lexicalGlobalObjectReference, $value, impl)";
     }
+    if ($context->extendedAttributes->{CheckSecurityForNodeWithDOMWindow}) {
+        AddToImplIncludes("JSDOMBindingSecurity.h", $conditional);
+        $value = "BindingSecurity::checkSecurityForNodeWithDOMWindow($lexicalGlobalObjectReference, $value, impl)";
+    }
 
     my $IDLType = GetIDLType($interface, $type);
 
@@ -8401,7 +8418,7 @@ sub NativeToJSValue
     push(@conversionArguments, $globalObjectReference) if NativeToJSValueDOMConvertNeedsGlobalObject($type);
     push(@conversionArguments, "throwScope") if $mayThrowException;
     if ($needsFunctorWrapping) {
-        push(@conversionArguments, "[&]() -> decltype(auto) { return $value; }");
+        push(@conversionArguments, "[&] -> decltype(auto) { return $value; }");
     } else {
         push(@conversionArguments, "$value");
     }
@@ -8917,7 +8934,7 @@ sub GenerateConstructorDefinition
 
             my @constructionConversionArguments = ();
             push(@constructionConversionArguments, "*lexicalGlobalObject");
-            push(@constructionConversionArguments, "*castedThis->globalObject()");
+            push(@constructionConversionArguments, "*castedThis->realm()");
             push(@constructionConversionArguments, "throwScope");
             push(@constructionConversionArguments, "WTF::move(object)");
 

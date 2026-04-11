@@ -170,6 +170,17 @@ struct VectorTypeOperations
         }
     }
 
+    template<typename U, std::size_t Extent>
+    static void uninitializedMove(std::span<U, Extent> source, std::span<T> destination)
+    {
+        if constexpr (std::same_as<T, U> && std::is_trivially_copyable_v<T>)
+            memcpySpan(destination, source);
+        else {
+            for (size_t i = 0; i < source.size(); ++i)
+                new (NotNull, std::addressof(destination[i])) T(WTF::move(source[i]));
+        }
+    }
+
     static void uninitializedFill(T* dst, T* dstEnd, const T& val)
     {
         if constexpr (VectorTraits<T>::canFillWithMemset) {
@@ -198,7 +209,7 @@ struct VectorTypeOperations
 };
 
 template<typename T>
-constexpr inline bool isValidCapacityForVector(size_t capacity) { return capacity <= std::numeric_limits<unsigned>::max() / sizeof(T); }
+constexpr inline bool isValidCapacityForVector(size_t capacity) { return capacity <= (std::numeric_limits<unsigned>::max() >> 1) / sizeof(T); }
 
 template<typename Collection> struct CopyOrMoveToVectorResult;
 
@@ -281,6 +292,7 @@ protected:
     VectorBufferBase()
         : m_buffer(nullptr)
         , m_capacity(0)
+        , m_isBorrowed(false)
         , m_size(0)
     {
     }
@@ -288,6 +300,7 @@ protected:
     VectorBufferBase(T* buffer, size_t capacity, size_t size)
         : m_buffer(buffer)
         , m_capacity(capacity)
+        , m_isBorrowed(false)
         , m_size(size)
     {
     }
@@ -298,8 +311,38 @@ protected:
     }
 
     T* m_buffer;
-    unsigned m_capacity;
-    unsigned m_size; // Only used by the Vector subclass, but placed here to avoid padding the struct.
+    unsigned m_capacity : 31;
+    mutable unsigned m_isBorrowed : 1;
+    unsigned m_size;
+
+    unsigned exchangeCapacity(unsigned newCapacity)
+    {
+        auto capacity = m_capacity;
+        m_capacity = newCapacity;
+        return capacity;
+    }
+
+    void swapCapacity(VectorBufferBase& other)
+    {
+        auto capacity = m_capacity;
+        m_capacity = other.m_capacity;
+        other.m_capacity = capacity;
+    }
+
+    bool isBorrowed() const { return m_isBorrowed; }
+
+    bool setIsBorrowed(bool isBorrowed) const
+    {
+        bool old = m_isBorrowed;
+        m_isBorrowed = isBorrowed;
+        return old;
+    }
+
+    void crashIfBorrowed() const
+    {
+        // FIXME: Switch to RELEASE_ASSERT once we have more experience and stability.
+        ASSERT(!m_isBorrowed);
+    }
 };
 
 template<typename T, size_t inlineCapacity, typename Malloc = VectorBufferMalloc> class VectorBuffer;
@@ -316,8 +359,6 @@ public:
     explicit VectorBuffer(size_t capacity, size_t size = 0)
     {
         m_size = size;
-        // Calling malloc(0) might take a lock and may actually do an
-        // allocation on some systems.
         if (capacity)
             allocateBuffer(capacity);
     }
@@ -330,7 +371,7 @@ public:
     void swap(VectorBuffer<T, 0, Malloc>& other, size_t, size_t)
     {
         std::swap(m_buffer, other.m_buffer);
-        std::swap(m_capacity, other.m_capacity);
+        Base::swapCapacity(other);
     }
     
     void restoreInlineBufferIfNeeded() { }
@@ -351,6 +392,8 @@ public:
     using Base::buffer;
     using Base::capacity;
     using Base::bufferMemoryOffset;
+    using Base::setIsBorrowed;
+    using Base::crashIfBorrowed;
 
     using Base::releaseBuffer;
     using Base::capacitySpan;
@@ -361,7 +404,7 @@ protected:
     VectorBuffer(VectorBuffer<T, 0, Malloc>&& other)
     {
         m_buffer = std::exchange(other.m_buffer, nullptr);
-        m_capacity = std::exchange(other.m_capacity, 0);
+        m_capacity = other.exchangeCapacity(0);
         m_size = std::exchange(other.m_size, 0);
     }
 
@@ -369,7 +412,7 @@ protected:
     {
         deallocateBuffer(buffer());
         m_buffer = std::exchange(other.m_buffer, nullptr);
-        m_capacity = std::exchange(other.m_capacity, 0);
+        m_capacity = other.exchangeCapacity(0);
         m_size = std::exchange(other.m_size, 0);
     }
 
@@ -382,7 +425,7 @@ private:
 template<typename T, size_t inlineCapacity, typename Malloc>
 class VectorBuffer : private VectorBufferBase<T, Malloc> {
     WTF_MAKE_NONCOPYABLE(VectorBuffer);
-private:
+    template<typename> friend class Borrow;
     typedef VectorBufferBase<T, Malloc> Base;
 public:
     VectorBuffer()
@@ -439,20 +482,20 @@ public:
     {
         if (buffer() == inlineBuffer() && other.buffer() == other.inlineBuffer()) {
             swapInlineBuffer(other, mySize, otherSize);
-            std::swap(m_capacity, other.m_capacity);
+            Base::swapCapacity(other);
         } else if (buffer() == inlineBuffer()) {
             m_buffer = other.m_buffer;
             other.m_buffer = other.inlineBuffer();
             swapInlineBuffer(other, mySize, 0);
-            std::swap(m_capacity, other.m_capacity);
+            Base::swapCapacity(other);
         } else if (other.buffer() == other.inlineBuffer()) {
             other.m_buffer = m_buffer;
             m_buffer = inlineBuffer();
             swapInlineBuffer(other, 0, otherSize);
-            std::swap(m_capacity, other.m_capacity);
+            Base::swapCapacity(other);
         } else {
             std::swap(m_buffer, other.m_buffer);
-            std::swap(m_capacity, other.m_capacity);
+            Base::swapCapacity(other);
         }
     }
 
@@ -484,6 +527,8 @@ public:
     using Base::capacitySpan;
     using Base::capacity;
     using Base::bufferMemoryOffset;
+    using Base::setIsBorrowed;
+    using Base::crashIfBorrowed;
 
     MallocSpan<T, Malloc> releaseBuffer()
     {
@@ -502,7 +547,7 @@ protected:
             VectorTypeOperations<T>::move(other.inlineBuffer(), other.inlineBuffer() + other.m_size, inlineBuffer());
         else {
             m_buffer = std::exchange(other.m_buffer, other.inlineBuffer());
-            m_capacity = std::exchange(other.m_capacity, inlineCapacity);
+            m_capacity = other.exchangeCapacity(inlineCapacity);
         }
         m_size = std::exchange(other.m_size, 0);
     }
@@ -518,7 +563,7 @@ protected:
             m_capacity = other.m_capacity;
         } else {
             m_buffer = std::exchange(other.m_buffer, other.inlineBuffer());
-            m_capacity = std::exchange(other.m_capacity, inlineCapacity);
+            m_capacity = other.exchangeCapacity(inlineCapacity);
         }
         m_size = std::exchange(other.m_size, 0);
     }
@@ -578,6 +623,7 @@ private:
     typedef VectorBuffer<T, inlineCapacity, Malloc> Base;
     typedef VectorTypeOperations<T> TypeOperations;
     friend class JSC::LLIntOffsetsExtractor;
+    template<typename> friend class Borrow;
 
 public:
     // FIXME: Remove uses of ValueType and standardize on value_type, which is required for std::span.
@@ -617,7 +663,7 @@ public:
             TypeOperations::initializeIfNonPOD(begin(), end());
     }
 
-    Vector(size_t size, const T& val)
+    Vector(FillWith, size_t size, const T& val)
         : Base(size, size)
     {
         asanSetInitialBufferSizeTo(size);
@@ -732,6 +778,11 @@ public:
     std::span<const T> subspan(size_t offset, size_t length = std::dynamic_extent) const LIFETIME_BOUND
     {
         return span().subspan(offset, length);
+    }
+
+    std::span<T> mutableSubspan(size_t offset, size_t length = std::dynamic_extent) LIFETIME_BOUND
+    {
+        return mutableSpan().subspan(offset, length);
     }
 
     [[nodiscard]] T& at(size_t i) LIFETIME_BOUND
@@ -1158,6 +1209,10 @@ bool Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::removeFirs
 template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
 void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::fill(const T& val, size_t newSize)
 {
+    // Copy val before mutating the vector, since val may reference an element
+    // within this vector that could be invalidated by shrink/clear/reallocation.
+    T valCopy(val);
+
     if (size() > newSize)
         shrink(newSize);
     else if (newSize > capacity()) {
@@ -1168,8 +1223,8 @@ void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::fill(const
 
     asanBufferSizeWillChangeTo(newSize);
 
-    std::ranges::fill(*this, val);
-    TypeOperations::uninitializedFill(end(), begin() + newSize, val);
+    std::ranges::fill(*this, valCopy);
+    TypeOperations::uninitializedFill(end(), begin() + newSize, valCopy);
     m_size = newSize;
 }
 
@@ -1564,20 +1619,23 @@ ALWAYS_INLINE void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Mallo
 
 template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
 template<typename U, size_t otherCapacity, typename OtherOverflowHandler, size_t otherMinCapacity, typename OtherMalloc>
-inline void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::appendVector(const Vector<U, otherCapacity, OtherOverflowHandler, otherMinCapacity, OtherMalloc>& val)
+inline void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::appendVector(const Vector<U, otherCapacity, OtherOverflowHandler, otherMinCapacity, OtherMalloc>& other)
 {
-    append(val.span());
+    append(other.span());
 }
 
 template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
 template<typename U, size_t otherCapacity, typename OtherOverflowHandler, size_t otherMinCapacity, typename OtherMalloc>
-inline void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::appendVector(Vector<U, otherCapacity, OtherOverflowHandler, otherMinCapacity, OtherMalloc>&& val)
+inline void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::appendVector(Vector<U, otherCapacity, OtherOverflowHandler, otherMinCapacity, OtherMalloc>&& other)
 {
-    size_t newSize = m_size + val.size();
+    if (other.isEmpty())
+        return;
+    size_t newSize = m_size + other.size();
     if (newSize > capacity())
         expandCapacity<FailureAction::Crash>(newSize);
-    for (auto& item : val)
-        unsafeAppendWithoutCapacityCheck(WTF::move(item));
+    asanBufferSizeWillChangeTo(newSize);
+    TypeOperations::uninitializedMove(other.mutableSpan(), unsafeMakeSpan(end(), other.size()));
+    m_size = newSize;
 }
 
 template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
@@ -1619,6 +1677,11 @@ inline void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::ins
 template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
 void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::insertFill(size_t position, const T& data, size_t dataSize)
 {
+    // Copy data before mutating the vector, since data may reference an element
+    // within this vector that could be invalidated by reallocation or the
+    // moveOverlapping shift.
+    T dataCopy(data);
+
     size_t newSize = m_size + dataSize;
     if (newSize > capacity()) {
         expandCapacity<FailureAction::Crash>(newSize);
@@ -1629,7 +1692,7 @@ void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::insertFill
     asanBufferSizeWillChangeTo(newSize);
     T* spot = mutableSpan().subspan(position).data();
     TypeOperations::moveOverlapping(spot, end(), spot + dataSize);
-    TypeOperations::uninitializedFill(spot, spot + dataSize, data);
+    TypeOperations::uninitializedFill(spot, spot + dataSize, dataCopy);
     m_size = newSize;
 }
 

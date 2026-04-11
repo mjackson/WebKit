@@ -116,7 +116,7 @@ RefPtr<CSSValue> consumeSingleViewTimelineInsetItem(CSSParserTokenRange& range, 
         return nullptr;
 
     if (auto endInset = CSSPropertyParsing::consumeSingleViewTimelineInset(range, state)) {
-        if (endInset != startInset)
+        if (!endInset->equals(*startInset))
             return CSSValuePair::createNoncoalescing(startInset.releaseNonNull(), endInset.releaseNonNull());
     }
 

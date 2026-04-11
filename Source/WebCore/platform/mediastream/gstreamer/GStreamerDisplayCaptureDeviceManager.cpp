@@ -39,9 +39,7 @@ GStreamerDisplayCaptureDeviceManager& GStreamerDisplayCaptureDeviceManager::sing
     return manager;
 }
 
-GStreamerDisplayCaptureDeviceManager::GStreamerDisplayCaptureDeviceManager()
-{
-}
+GStreamerDisplayCaptureDeviceManager::GStreamerDisplayCaptureDeviceManager() = default;
 
 GStreamerDisplayCaptureDeviceManager::~GStreamerDisplayCaptureDeviceManager()
 {

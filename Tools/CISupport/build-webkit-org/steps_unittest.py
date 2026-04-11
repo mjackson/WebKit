@@ -1200,7 +1200,7 @@ class TestRunJavaScriptCoreTests(BuildStepMixinAdditions, unittest.TestCase):
                         command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', ' '.join(command) + ' 2>&1 | python3 Tools/Scripts/filter-test-logs jsc'],
                         logfiles={'json': self.jsonFileName},
                         env={'RESULTS_SERVER_API_KEY': 'test-api-key'},
-                        timeout=72000,
+                        timeout=1200,
                         )
             .exit(0),
         )
@@ -1216,7 +1216,7 @@ class TestRunJavaScriptCoreTests(BuildStepMixinAdditions, unittest.TestCase):
                         command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', ' '.join(command) + ' 2>&1 | python3 Tools/Scripts/filter-test-logs jsc'],
                         logfiles={'json': self.jsonFileName},
                         env={'RESULTS_SERVER_API_KEY': 'test-api-key'},
-                        timeout=72000,
+                        timeout=1200,
                         )
             .log('stdio', stdout='Results for JSC stress tests:\n 9 failures found.')
             .exit(2),
@@ -1257,10 +1257,10 @@ class TestRunAPITests(BuildStepMixinAdditions, unittest.TestCase):
         self.expectRemoteCommands(
             ExpectShell(workdir='wkdir',
                         log_environ=False,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', base_command + ' > logs.txt 2>&1 ; ret=$? ; grep "Ran " logs.txt ; exit $ret'],
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', base_command + ' 2>&1 | python3 Tools/Scripts/filter-test-logs api'],
                         logfiles={'json': self.jsonFileName},
                         env={'RESULTS_SERVER_API_KEY': 'test-api-key'},
-                        timeout=10800,
+                        timeout=1200,
                         )
             .exit(0),
         )
@@ -1274,10 +1274,10 @@ class TestRunAPITests(BuildStepMixinAdditions, unittest.TestCase):
         self.expectRemoteCommands(
             ExpectShell(workdir='wkdir',
                         log_environ=False,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', base_command + ' > logs.txt 2>&1 ; ret=$? ; grep "Ran " logs.txt ; exit $ret'],
+                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', base_command + ' 2>&1 | python3 Tools/Scripts/filter-test-logs api'],
                         logfiles={'json': self.jsonFileName},
                         env={'RESULTS_SERVER_API_KEY': 'test-api-key'},
-                        timeout=10800,
+                        timeout=1200,
                         )
             .log('stdio', stderr=stderr_output)
             .exit(1),
@@ -1295,16 +1295,16 @@ class TestRunAPITests(BuildStepMixinAdditions, unittest.TestCase):
         return self.successTest('mac', 'mac-highsierra', 'release', expected_command, additional_arguments)
 
     def test_success_gtk(self):
-        expected_command = 'python3 Tools/Scripts/run-gtk-tests --release --json-output=api_test_results.json'
+        expected_command = f'python3 Tools/Scripts/run-gtk-tests --release --json-output=api_test_results.json --buildbot-master={CURRENT_HOSTNAME} --builder-name=API-Tests --build-number=101 --buildbot-worker=bot100 --report=https://results.webkit.org'
         return self.successTest('gtk', 'gtk', 'release', expected_command)
 
     def test_success_wpe(self):
-        expected_command = 'python3 Tools/Scripts/run-wpe-tests --release --json-output=api_test_results.json'
+        expected_command = f'python3 Tools/Scripts/run-wpe-tests --release --json-output=api_test_results.json --buildbot-master={CURRENT_HOSTNAME} --builder-name=API-Tests --build-number=101 --buildbot-worker=bot100 --report=https://results.webkit.org'
         return self.successTest('wpe', 'wpe', 'release', expected_command)
 
     def test_success_wpe_additional_arguments(self):
         additional_arguments = ['--wpe-legacy-api']
-        expected_command = 'python3 Tools/Scripts/run-wpe-tests --release --json-output=api_test_results.json --wpe-legacy-api'
+        expected_command = f'python3 Tools/Scripts/run-wpe-tests --release --json-output=api_test_results.json --buildbot-master={CURRENT_HOSTNAME} --builder-name=API-Tests --build-number=101 --buildbot-worker=bot100 --report=https://results.webkit.org --wpe-legacy-api'
         return self.successTest('wpe', 'wpe', 'release', expected_command, additional_arguments)
 
     def test_failure_mac(self):
@@ -1314,13 +1314,13 @@ class TestRunAPITests(BuildStepMixinAdditions, unittest.TestCase):
         return self.failureTest('mac', 'mac-highsierra', 'release', expected_command, generated_stderr_output, expected_state_string)
 
     def test_failure_gtk(self):
-        expected_command = 'python3 Tools/Scripts/run-gtk-tests --release --json-output=api_test_results.json'
+        expected_command = f'python3 Tools/Scripts/run-gtk-tests --release --json-output=api_test_results.json --buildbot-master={CURRENT_HOSTNAME} --builder-name=API-Tests --build-number=101 --buildbot-worker=bot100 --report=https://results.webkit.org'
         generated_stderr_output = 'Random string should not affect\nRan 100 tests of 200 with 90 successful'
         expected_state_string = '10 api tests failed or timed out'
         return self.failureTest('gtk', 'gtk', 'release', expected_command, generated_stderr_output, expected_state_string)
 
     def test_failure_wpe(self):
-        expected_command = 'python3 Tools/Scripts/run-wpe-tests --release --json-output=api_test_results.json'
+        expected_command = f'python3 Tools/Scripts/run-wpe-tests --release --json-output=api_test_results.json --buildbot-master={CURRENT_HOSTNAME} --builder-name=API-Tests --build-number=101 --buildbot-worker=bot100 --report=https://results.webkit.org'
         generated_stderr_output = f'Command failed: {expected_command}\nRandomString no issue\nRan 95 tests of 95 with 90 successful'
         expected_state_string = '5 api tests failed or timed out'
         return self.failureTest('wpe', 'wpe', 'release', expected_command, generated_stderr_output, expected_state_string)

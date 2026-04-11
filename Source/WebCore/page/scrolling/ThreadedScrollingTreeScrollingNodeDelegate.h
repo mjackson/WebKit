@@ -55,7 +55,7 @@ protected:
     void updateFromStateNode(const ScrollingStateScrollingNode&) override;
 
     bool startAnimatedScrollToPosition(FloatPoint) override;
-    void stopAnimatedScroll() override;
+    void stopAnimatedScroll(EnumSet<AnimatedScrollType>) override;
     void serviceScrollAnimation(MonotonicTime) override;
 
     // ScrollingEffectsControllerClient.

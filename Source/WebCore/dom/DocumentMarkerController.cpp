@@ -42,6 +42,10 @@
 #include "RenderObjectInlines.h"
 #include "RenderReplaced.h"
 #include "RenderText.h"
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+#include "TextEffectController.h"
+#include "TextIndicator.h"
+#endif
 #include "RenderedDocumentMarker.h"
 #include "TextIterator.h"
 #include <stdio.h>
@@ -75,6 +79,9 @@ void DocumentMarkerController::detach()
     m_possiblyExistingMarkerTypes = { };
     m_fadeAnimationTimer.stop();
     m_writingToolsTextSuggestionAnimationTimer.stop();
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    m_appliedGrammarTextEffectRanges.clear();
+#endif
 }
 
 auto DocumentMarkerController::collectTextRanges(const SimpleRange& range) -> Vector<TextRange>
@@ -90,10 +97,45 @@ auto DocumentMarkerController::collectTextRanges(const SimpleRange& range) -> Ve
 bool DocumentMarkerController::addMarker(const SimpleRange& range, DocumentMarkerType type, const DocumentMarker::Data& data)
 {
     bool added = false;
+
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    RefPtr page = m_document->page();
+    const auto isGrammar = type == DocumentMarkerType::Grammar;
+    const auto textEffectsEnabled = page && page->settings().textEffectsEnabled();
+    auto needsTextEffect = false;
+    if (isGrammar && textEffectsEnabled) {
+        needsTextEffect = true;
+        auto textRanges = collectTextRanges(range);
+        for (auto& textPiece : textRanges) {
+            SimpleRange pieceRange { BoundaryPoint { textPiece.node.copyRef(), textPiece.range.start }, BoundaryPoint { textPiece.node.copyRef(), textPiece.range.end } };
+            for (auto& applied : m_appliedGrammarTextEffectRanges) {
+                if (applied == pieceRange) {
+                    needsTextEffect = false;
+                    break;
+                }
+            }
+            if (!needsTextEffect)
+                break;
+        }
+    }
+    RefPtr<TextIndicator> textIndicator;
+    if (needsTextEffect)
+        textIndicator = page->textEffectController().createTextIndicatorForRange(range);
+#endif
+
     for (auto& textPiece : collectTextRanges(range)) {
         if (addMarker(textPiece.node, { type, textPiece.range, DocumentMarker::Data { data } }))
             added = true;
     }
+
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    if (needsTextEffect) {
+        RefPtr decorationIndicator = page->textEffectController().createTextIndicatorForRange(range, IncludeDocumentMarkers::Yes);
+        page->textEffectController().addTextEffect(range, WTF::move(textIndicator), WTF::move(decorationIndicator));
+        for (auto& textPiece : collectTextRanges(range))
+            m_appliedGrammarTextEffectRanges.append(SimpleRange { BoundaryPoint { textPiece.node.copyRef(), textPiece.range.start }, BoundaryPoint { textPiece.node.copyRef(), textPiece.range.end } });
+    }
+#endif
     return added;
 }
 
@@ -146,6 +188,12 @@ void DocumentMarkerController::removeAllDictationStreamingOpacityMarkers()
 
 void DocumentMarkerController::removeMarkers(const SimpleRange& range, OptionSet<DocumentMarkerType> types, RemovePartiallyOverlappingMarker overlapRule)
 {
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    if (types.contains(DocumentMarkerType::Grammar)) {
+        if (RefPtr page = m_document->page())
+            page->textEffectController().removeTextEffect(range);
+    }
+#endif
     filterMarkers(range, nullptr, types, overlapRule);
 }
 

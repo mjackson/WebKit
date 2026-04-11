@@ -41,7 +41,6 @@
 #include <wtf/StdLibExtras.h>
 #include <wtf/ThreadingPrimitives.h>
 #include <wtf/WTFConfig.h>
-#include <wtf/WordLock.h>
 
 #if OS(HAIKU)
 #include <OS.h>
@@ -404,14 +403,14 @@ void Thread::changePriority(int delta)
 }
 
 #if HAVE(THREAD_TIME_CONSTRAINTS)
-void Thread::setThreadTimeConstraints(MonotonicTime period, MonotonicTime nominalComputation, MonotonicTime constraint, bool isPremptable)
+void Thread::setThreadTimeConstraints(MonotonicTime period, MonotonicTime nominalComputation, MonotonicTime constraint, bool isPreemptable)
 {
 #if OS(DARWIN)
     thread_time_constraint_policy policy { };
     policy.period = period.toMachAbsoluteTime();
     policy.computation = nominalComputation.toMachAbsoluteTime();
     policy.constraint = constraint.toMachAbsoluteTime();
-    policy.preemptible = isPremptable;
+    policy.preemptible = isPreemptable;
     if (auto error = thread_policy_set(machThread(), THREAD_TIME_CONSTRAINT_POLICY, (thread_policy_t)&policy, THREAD_TIME_CONSTRAINT_POLICY_COUNT)) {
         UNUSED_VARIABLE(error);
         LOG_ERROR("Thread %p failed to set time constraints with error %d", this, error);

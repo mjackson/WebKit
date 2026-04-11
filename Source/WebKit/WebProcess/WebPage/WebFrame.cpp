@@ -72,6 +72,7 @@
 #include <WebCore/CertificateInfo.h>
 #include <WebCore/Chrome.h>
 #include <WebCore/ContextMenuController.h>
+#include <WebCore/DOMWrapperWorld.h>
 #include <WebCore/DocumentInlines.h>
 #include <WebCore/DocumentLoader.h>
 #include <WebCore/DocumentPage.h>
@@ -1762,6 +1763,20 @@ void WebFrame::requestContainerJSHandleForExtractedText(TextExtraction::Extracte
         return completion({ });
 
     RefPtr element = TextExtraction::containerElementForExtractedText(*frame, WTF::move(extractedText));
+    if (!element)
+        return completion({ });
+
+    auto [handle, info] = createAndPrepareToSendJSHandle(*element);
+    completion({ WTF::move(info) });
+}
+
+void WebFrame::requestContainerJSHandleForSearchTexts(Vector<String>&& searchTexts, std::optional<NodeIdentifier>&& targetNodeIdentifier, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&& completion)
+{
+    RefPtr frame = coreLocalFrame();
+    if (!frame)
+        return completion({ });
+
+    RefPtr element = TextExtraction::containerElementForSearchTexts(*frame, WTF::move(searchTexts), WTF::move(targetNodeIdentifier));
     if (!element)
         return completion({ });
 

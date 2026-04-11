@@ -210,7 +210,7 @@ void NodeIterator::updateForNodeRemoval(Node& removedNode, NodePointer& referenc
                     node = NodeTraversal::previous(*node);
             }
             if (node)
-                referenceNode.node = WTF::move(node);
+                referenceNode.node = node;
         } else {
             // FIXME: This branch doesn't appear to have any LayoutTests.
             node = NodeTraversal::next(removedNode, &root);

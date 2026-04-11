@@ -222,7 +222,7 @@ struct StyleFeatureSchema : public FeatureSchema {
             return toEvaluationResult(!customPropertyValue || customPropertyValue->isGuaranteedInvalid());
 
         ASSERT(feature.rightComparison->op == ComparisonOperator::Equal);
-        return toEvaluationResult(customPropertyValue && *customPropertyValue == *resolvedFeatureValue);
+        return toEvaluationResult(customPropertyValue && customPropertyValue->valueEquals(*resolvedFeatureValue));
     }
 };
 

@@ -74,7 +74,7 @@ public:
         m_entries.clear();
     }
 
-    void replace(const AtomString& eventType, EventListener& oldListener, Ref<EventListener>&& newListener, const RegisteredEventListener::Options&);
+    void replacePreservingOptions(const AtomString& eventType, EventListener& oldListener, Ref<EventListener>&& newListener, bool useCapture = false);
     bool add(const AtomString& eventType, Ref<EventListener>&&, const RegisteredEventListener::Options&);
     bool remove(const AtomString& eventType, EventListener&, bool useCapture);
     WEBCORE_EXPORT EventListenerVector* NODELETE find(const AtomString& eventType);

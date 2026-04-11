@@ -440,7 +440,7 @@ inline void WidthIterator::advanceInternal(TextIterator& textIterator, GlyphBuff
             continue;
         }
 #endif
-        auto glyphData = m_fontCascade->glyphDataForCharacter(character, false, FontVariant::NormalVariant);
+        auto glyphData = m_fontCascade->glyphDataForCharacter(character, false, FontVariant::Normal);
 
         RefPtr halfWidthFont = applyTextSpacingTrimIfNeeded(glyphData, character, fontDescription.textSpacingTrim());
 
@@ -596,8 +596,8 @@ struct CharacterToGlyphMapping {
     Vector<float> advanceWidths;
 
     CharacterToGlyphMapping(unsigned length)
-        : characterIndexToGlyphIndexRange(length, std::nullopt)
-        , advanceWidths(length, 0)
+        : characterIndexToGlyphIndexRange(FillWith { }, length, std::nullopt)
+        , advanceWidths(FillWith { }, length, 0)
     {
     }
 };
@@ -619,7 +619,7 @@ static CharacterToGlyphMapping buildCharacterToGlyphMapping(const GlyphBuffer& g
     return mapping;
 }
 
-static void applyHorizontalGlyphStretch(GlyphBuffer& glyphBuffer, unsigned glyphBufferStartIndex, const TextRun& run)
+static void NODELETE applyHorizontalGlyphStretch(GlyphBuffer& glyphBuffer, unsigned glyphBufferStartIndex, const TextRun& run)
 {
     if (run.horizontalGlyphStretch() == 1)
         return;
@@ -642,9 +642,9 @@ TextSpacing::CharacterClass WidthIterator::applyTextAutospaceIfNeededAndGetChara
     if (textAutospace.isNoAutospace())
         return TextSpacing::CharacterClass::Undefined;
 
-    auto currentCharacterClass = TextSpacing::characterClass(m_run.get()[characterIndex]);
+    auto currentCharacterClass = TextSpacing::characterClass(m_run->text().codePointAt(characterIndex));
     if (textAutospace.shouldApplySpacing(currentCharacterClass, previousCharacterClass)) {
-        auto textAutospaceSpacing = TextAutospace::textAutospaceSize(protect(glyphBuffer.fontAt(glyphIndexRange.leadingGlyphIndex)));
+        auto textAutospaceSpacing = TextAutospace::textAutospaceSize(glyphBuffer.fontAt(glyphIndexRange.leadingGlyphIndex));
         glyphBuffer.expandAdvanceToLogicalRight(glyphIndexRange.leadingGlyphIndex, textAutospaceSpacing);
         m_runWidthSoFar += textAutospaceSpacing;
     }
@@ -744,8 +744,6 @@ bool WidthIterator::characterCanUseSimplifiedTextMeasuring(char32_t codePoint, b
 void WidthIterator::applyCSSVisibilityRules(GlyphBuffer& glyphBuffer, unsigned glyphBufferStartIndex)
 {
     // This function needs to be kept in sync with characterCanUseSimplifiedTextMeasuring().
-
-    Vector<unsigned> glyphsIndicesToBeDeleted;
 
     float yPosition = height(glyphBuffer.initialAdvance());
 

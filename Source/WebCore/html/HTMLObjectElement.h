@@ -37,7 +37,7 @@ public:
 
     static Ref<HTMLObjectElement> create(const QualifiedName&, Document&, HTMLFormElement*);
 
-    bool isExposed() const { return m_isExposed; }
+    bool isExposed() const;
 
     bool hasFallbackContent() const;
     bool useFallbackContent() const final { return m_useFallbackContent; }
@@ -72,12 +72,11 @@ private:
     void childrenChanged(const ChildChange&) final;
 
     bool NODELETE isURLAttribute(const Attribute&) const final;
-    const AtomString& imageSourceURL() const final;
+    String imageSourceURL() const final;
 
     void addSubresourceAttributeURLs(ListHashSet<URL>&) const final;
 
     void updateWidget(CreatePlugins) final;
-    void updateExposedState();
 
     // FIXME: Better share code between <object> and <embed>.
     void parametersForPlugin(Vector<AtomString>& paramNames, Vector<AtomString>& paramValues);
@@ -100,7 +99,6 @@ private:
 
     bool canContainRangeEndPoint() const final;
 
-    bool m_isExposed { true };
     bool m_useFallbackContent { false };
 };
 

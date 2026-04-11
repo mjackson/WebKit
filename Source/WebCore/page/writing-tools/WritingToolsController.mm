@@ -1013,7 +1013,7 @@ template<>
 void WritingToolsController::didEndWritingToolsSession<WritingTools::Session::Type::Composition>(bool accepted)
 {
     bool shouldConsiderAnimationsCompleted = [&] {
-        CheckedPtr state = currentState<WritingTools::Session::Type::Composition>();
+        auto* state = currentState<WritingTools::Session::Type::Composition>();
         if (!state) {
             ASSERT_NOT_REACHED();
             return false;

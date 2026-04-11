@@ -379,7 +379,7 @@ static Style::PaddingEdge toTruncatedPaddingEdge(auto value)
     return Style::PaddingEdge::Fixed { static_cast<float>(std::trunc(value)) };
 }
 
-Style::PaddingBox RenderThemeIOS::popupInternalPaddingBox(const RenderStyle& style) const
+Style::PaddingBox RenderThemeIOS::platformPopupInternalPaddingBox(const RenderStyle& style) const
 {
     const auto padding = Style::emToPx<float>(1, style);
 
@@ -387,16 +387,21 @@ Style::PaddingBox RenderThemeIOS::popupInternalPaddingBox(const RenderStyle& sty
         // FIXME: Reduce code duplication with toTruncatedPaddingEdge.
         auto value = Style::PaddingEdge::Fixed { static_cast<float>(std::trunc(padding + Style::evaluate<float>(style.usedBorderTopWidth(),  Style::ZoomNeeded { }))) / style.usedZoom() };
 
-        bool padLeft = [&] {
-            auto textAlign = style.textAlign();
-            if (textAlign == Style::TextAlign::Start)
-                return style.writingMode().isBidiRTL();
-            if (textAlign == Style::TextAlign::End)
+        // Return in horizontal-tb LTR; popupInternalPaddingBox() handles conversion.
+        bool padStart = [&] {
+            switch (style.textAlign()) {
+            case Style::TextAlign::Start:
+                return false;
+            case Style::TextAlign::End:
+                return true;
+            case Style::TextAlign::Right:
                 return style.writingMode().isBidiLTR();
-            return textAlign == Style::TextAlign::Right;
+            default:
+                return style.writingMode().isBidiRTL();
+            }
         }();
 
-        if (padLeft)
+        if (padStart)
             return { 0_css_px, 0_css_px, 0_css_px, value };
         return { 0_css_px, value, 0_css_px, 0_css_px };
     }
@@ -620,10 +625,13 @@ void RenderThemeIOS::paintMenuListButtonDecorations(const RenderBox& box, const 
     bool isHorizontalWritingMode = style.writingMode().isHorizontal();
     auto logicalRect = isHorizontalWritingMode ? rect : rect.transposedRect();
 
+    auto glyphInlineSize = isHorizontalWritingMode ? glyphSize.width() : glyphSize.height();
+    auto glyphBlockSize = isHorizontalWritingMode ? glyphSize.height() : glyphSize.width();
+
     FloatPoint glyphOrigin;
-    glyphOrigin.setY(logicalRect.center().y() - glyphSize.height() / 2.0f);
+    glyphOrigin.setY(logicalRect.center().y() - glyphBlockSize / 2.0f);
     if (!style.writingMode().isInlineFlipped())
-        glyphOrigin.setX(logicalRect.maxX() - glyphSize.width() - Style::evaluate<float>(box.style().usedBorderWidthEnd(), Style::ZoomNeeded { }) - Style::evaluate<float>(box.style().paddingEnd(), logicalRect.width(), box.style().usedZoomForLength()));
+        glyphOrigin.setX(logicalRect.maxX() - glyphInlineSize - Style::evaluate<float>(box.style().usedBorderWidthEnd(), Style::ZoomNeeded { }) - Style::evaluate<float>(box.style().paddingEnd(), logicalRect.width(), box.style().usedZoomForLength()));
     else
         glyphOrigin.setX(logicalRect.x() + Style::evaluate<float>(box.style().usedBorderWidthEnd(), Style::ZoomNeeded { }) + Style::evaluate<float>(box.style().paddingEnd(), logicalRect.width(), box.style().usedZoomForLength()));
 

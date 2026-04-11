@@ -852,13 +852,13 @@ void GPUProcessProxy::voiceActivityDetected()
 
 void GPUProcessProxy::startMonitoringCaptureDeviceRotation(PageIdentifier pageID, const String& persistentId)
 {
-    if (RefPtr page = WebProcessProxy::webPage(pageID))
+    if (auto* page = WebProcessProxy::webPage(pageID))
         page->startMonitoringCaptureDeviceRotation(persistentId);
 }
 
 void GPUProcessProxy::stopMonitoringCaptureDeviceRotation(PageIdentifier pageID, const String& persistentId)
 {
-    if (RefPtr page = WebProcessProxy::webPage(pageID))
+    if (auto* page = WebProcessProxy::webPage(pageID))
         page->stopMonitoringCaptureDeviceRotation(persistentId);
 }
 

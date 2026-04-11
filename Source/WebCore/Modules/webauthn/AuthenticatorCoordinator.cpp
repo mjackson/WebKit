@@ -47,6 +47,7 @@
 #include "JSDOMConvertRecord.h"
 #include "JSDOMConvertStrings.h"
 #include "JSDOMPromiseDeferred.h"
+#include "JSValueInWrappedObjectInlines.h"
 #include "LoginStatus.h"
 #include "Page.h"
 #include "PermissionsPolicy.h"
@@ -249,7 +250,7 @@ void AuthenticatorCoordinator::create(const Document& document, CredentialCreati
 
     auto callback = [promise = WTF::move(promise), abortSignal = WTF::move(abortSignal)](AuthenticatorResponseData&& data, AuthenticatorAttachment attachment, ExceptionData&& exception) mutable {
         if (abortSignal && abortSignal->aborted()) {
-            promise.reject(Exception { ExceptionCode::AbortError, "Aborted by AbortSignal."_s });
+            promise.rejectType<IDLAny>(abortSignal->reason().getValue());
             return;
         }
 
@@ -368,7 +369,7 @@ void AuthenticatorCoordinator::discoverFromExternalSource(const Document& docume
 
     auto callback = [weakThis = WeakPtr { *this }, promise = WTF::move(promise), abortSignal = WTF::move(requestOptions.signal), weakPage = WeakPtr { document.page() }] (AuthenticatorResponseData&& data, AuthenticatorAttachment attachment, ExceptionData&& exception) mutable {
         if (abortSignal && abortSignal->aborted()) {
-            promise.reject(Exception { ExceptionCode::AbortError, "Aborted by AbortSignal."_s });
+            promise.rejectType<IDLAny>(abortSignal->reason().getValue());
             return;
         }
 

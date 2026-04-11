@@ -52,14 +52,14 @@ public:
     DECLARE_INFO;
 
     static inline TypeInfoBlob typeInfoBlob();
-    static inline WebAssemblyGCStructure* createStructure(VM&, JSGlobalObject*, Ref<const Wasm::TypeDefinition>&&, Ref<const Wasm::RTT>&&);
+    static inline WebAssemblyGCStructure* createStructure(VM&, Ref<const Wasm::TypeDefinition>&&, Ref<const Wasm::RTT>&&);
     static JSWebAssemblyStruct* tryCreate(VM&, WebAssemblyGCStructure*);
     static JSWebAssemblyStruct* create(VM&, WebAssemblyGCStructure*);
 
     DECLARE_VISIT_CHILDREN;
 
     uint64_t get(uint32_t) const;
-    v128_t getVector(uint32_t) const;
+    v128_t NODELETE getVector(uint32_t) const;
     void set(uint32_t, uint64_t);
     void set(uint32_t, v128_t);
     const Wasm::TypeDefinition& typeDefinition() const { return gcStructure()->typeDefinition(); }
@@ -94,12 +94,12 @@ TypeInfoBlob JSWebAssemblyStruct::typeInfoBlob()
     return TypeInfoBlob(0, TypeInfo(WebAssemblyGCObjectType, StructureFlags));
 }
 
-WebAssemblyGCStructure* JSWebAssemblyStruct::createStructure(VM& vm, JSGlobalObject* globalObject, Ref<const Wasm::TypeDefinition>&& unexpandedType, Ref<const Wasm::RTT>&& rtt)
+WebAssemblyGCStructure* JSWebAssemblyStruct::createStructure(VM& vm, Ref<const Wasm::TypeDefinition>&& unexpandedType, Ref<const Wasm::RTT>&& rtt)
 {
     Ref<const Wasm::TypeDefinition> type { unexpandedType->expand() };
     RELEASE_ASSERT(type->is<Wasm::StructType>());
     RELEASE_ASSERT(rtt->kind() == Wasm::RTTKind::Struct);
-    return WebAssemblyGCStructure::create(vm, globalObject, TypeInfo(WebAssemblyGCObjectType, StructureFlags), info(), WTF::move(unexpandedType), WTF::move(type), WTF::move(rtt));
+    return WebAssemblyGCStructure::create(vm, TypeInfo(WebAssemblyGCObjectType, StructureFlags), info(), WTF::move(unexpandedType), WTF::move(type), WTF::move(rtt));
 }
 
 } // namespace JSC

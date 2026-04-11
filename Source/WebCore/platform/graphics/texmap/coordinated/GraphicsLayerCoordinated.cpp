@@ -63,7 +63,7 @@ GraphicsLayerCoordinated::GraphicsLayerCoordinated(Type layerType, GraphicsLayer
     , m_platformLayer(WTF::move(platformLayer))
 {
     m_platformLayer->setOwner(this);
-    noteLayerPropertyChanged({ Change::ContentsScale, Change::ContentsVisible }, ScheduleFlush::Yes);
+    noteLayerPropertyChanged({ Change::ContentsScale, Change::ContentsVisible, Change::Preserves3D }, ScheduleFlush::Yes);
 }
 
 GraphicsLayerCoordinated::~GraphicsLayerCoordinated()

@@ -32,6 +32,7 @@
 #include "RenderTreeBuilder.h"
 #include "RenderTreeBuilderBlock.h"
 #include "RenderTreeBuilderInline.h"
+#include "RenderStyle+SettersInlines.h"
 #include "UnicodeBidi.h"
 #include <wtf/TZoneMallocInlines.h>
 
@@ -66,10 +67,6 @@ static RenderPtr<RenderElement> createAnonymousRendererForRuby(RenderElement& pa
 CheckedRef<RenderElement> RenderTreeBuilder::Ruby::findOrCreateParentForStyleBasedRubyChild(RenderElement& parent, const RenderObject& child, RenderObject*& beforeChild)
 {
     CheckedRef<RenderElement> beforeChildAncestor = parent;
-    if (auto* rubyInline = dynamicDowncast<RenderInline>(parent); rubyInline && rubyInline->continuation())
-        beforeChildAncestor = RenderTreeBuilder::Inline::parentCandidateInContinuation(*rubyInline, beforeChild);
-    else if (auto* rubyBlock = dynamicDowncast<RenderBlock>(parent); rubyBlock && rubyBlock->continuation())
-        beforeChildAncestor = *RenderTreeBuilder::Block::continuationBefore(*rubyBlock, beforeChild);
 
     if (!child.isRenderText() && child.style().display() == Style::DisplayType::InlineRuby && beforeChildAncestor->style().display() == Style::DisplayType::BlockRuby)
         return beforeChildAncestor;
@@ -86,7 +83,9 @@ CheckedRef<RenderElement> RenderTreeBuilder::Ruby::findOrCreateParentForStyleBas
             if (first->style().display() == Style::DisplayType::InlineRuby) {
                 if (beforeChild && !beforeChild->isDescendantOf(first.get()))
                     beforeChild = nullptr;
-                return downcast<RenderElement>(*first);
+                if (first.get() != beforeChild)
+                    return downcast<RenderElement>(*first);
+                break;
             }
         }
     }

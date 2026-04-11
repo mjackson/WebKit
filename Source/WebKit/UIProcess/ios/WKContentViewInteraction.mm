@@ -213,6 +213,7 @@
 
 #if ENABLE(WRITING_TOOLS)
 #import "WKTextAnimationManagerIOS.h"
+#import "WKTextEffectManager.h"
 #endif
 
 #if ENABLE(MODEL_PROCESS) || ENABLE(WRITING_TOOLS)
@@ -2463,7 +2464,13 @@ static WebCore::FloatQuad inflateQuad(const WebCore::FloatQuad& quad, float infl
 #if ENABLE(TOUCH_EVENTS)
 - (void)_touchEvent:(const WebKit::WebTouchEvent&)touchEvent preventsNativeGestures:(BOOL)preventsNativeGesture
 {
-    if (!preventsNativeGesture || ![_touchEventGestureRecognizer isDispatchingTouchEvents])
+    if (!preventsNativeGesture)
+        return;
+
+    _preventsPanningInXAxis = YES;
+    _preventsPanningInYAxis = YES;
+
+    if (![_touchEventGestureRecognizer isDispatchingTouchEvents])
         return;
 
     _longPressCanClick = NO;
@@ -3202,6 +3209,11 @@ static inline bool isSamePair(UIGestureRecognizer *a, UIGestureRecognizer *b, UI
         if (WebKit::UIGamepadProvider::singleton().platformWebPageProxyForGamepadInput() == _page)
             return NO;
     }
+#endif
+
+#if ENABLE(MODEL_PROCESS)
+    if (gestureRecognizer == _modelInteractionPanGestureRecognizer && otherGestureRecognizer == [_webView.get() scrollView].panGestureRecognizer)
+        return _page->hasModelElement();
 #endif
 
     if ([gestureRecognizer isKindOfClass:WKDeferringGestureRecognizer.class])
@@ -10673,7 +10685,10 @@ static BOOL shouldEnableDragInteractionForPolicy(_WKDragInteractionPolicy policy
 #if HAVE(UIKIT_WITH_MOUSE_SUPPORT)
     if (!self.shouldUseAsyncInteractions) {
         [_dragInteraction _setLiftDelay:self.dragLiftDelay];
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+        // FIXME: rdar://174059449 ('_setAllowsPointerDragBeforeLiftDelay:' is deprecated)
         [_dragInteraction _setAllowsPointerDragBeforeLiftDelay:NO];
+ALLOW_DEPRECATED_DECLARATIONS_END
     }
 #endif
 
@@ -14326,6 +14341,33 @@ static inline WKTextAnimationType toWKTextAnimationType(WebCore::TextAnimationTy
 
     [_textAnimationManager removeTextAnimationForAnimationID:uuid];
 }
+
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+- (void)addTextEffectForID:(NSUUID *)uuid withData:(const WebCore::TextEffectData&)data
+{
+    if (!protect(_page->preferences())->textEffectsEnabled())
+        return;
+
+    if (!_textEffectManager)
+        _textEffectManager = adoptNS([[WKTextEffectManager alloc] initWithWebView:self.webView]);
+
+    [_textEffectManager addTextEffectForID:uuid withData:data];
+}
+
+- (void)removeTextEffectForID:(NSUUID *)uuid
+{
+    if (!uuid)
+        return;
+
+    if (!protect(_page->preferences())->textEffectsEnabled())
+        return;
+
+    if (!_textEffectManager)
+        return;
+
+    [_textEffectManager removeTextEffectForID:uuid];
+}
+#endif // ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
 
 #endif
 

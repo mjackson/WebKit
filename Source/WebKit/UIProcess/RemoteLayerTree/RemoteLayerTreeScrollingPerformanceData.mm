@@ -45,9 +45,7 @@ RemoteLayerTreeScrollingPerformanceData::RemoteLayerTreeScrollingPerformanceData
 {
 }
 
-RemoteLayerTreeScrollingPerformanceData::~RemoteLayerTreeScrollingPerformanceData()
-{
-}
+RemoteLayerTreeScrollingPerformanceData::~RemoteLayerTreeScrollingPerformanceData() = default;
 
 void RemoteLayerTreeScrollingPerformanceData::didCommitLayerTree(const FloatRect& visibleRect)
 {

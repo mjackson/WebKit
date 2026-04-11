@@ -64,7 +64,7 @@ public:
     const Document& document() const { return m_document; }
     LocalFrame* NODELETE frame() const;
     Element* documentElement() const { return document().documentElement(); }
-    bool isSimpleFullscreenDocument() const;
+    bool NODELETE isSimpleFullscreenDocument() const;
     Document::BackForwardCacheState backForwardCacheState() const { return document().backForwardCacheState(); }
 
     // WHATWG Fullscreen API.

@@ -124,7 +124,7 @@ static Vector<uint8_t> hashPRFInput(const BufferSource& input)
 {
     constexpr uint8_t prefix[] = { 'W', 'e', 'b', 'A', 'u', 't', 'h', 'n', ' ', 'P', 'R', 'F' };
     constexpr uint8_t nullByte = 0x00;
-    auto crypto = PAL::CryptoDigest::create(PAL::CryptoDigest::Algorithm::SHA_256);
+    auto crypto = PAL::Crypto::CryptoDigest::create(PAL::Crypto::CryptoDigest::Algorithm::SHA_256);
     crypto->addBytes(std::span { prefix });
     crypto->addBytes(std::span { &nullByte, 1 });
     crypto->addBytes(input.span());

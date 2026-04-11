@@ -49,6 +49,8 @@ header: "SessionState.h"
     int64_t documentSequenceNumber;
     int64_t itemSequenceNumber;
 
+    std::optional<WTF::UUID> navigationAPIKey;
+
     WebCore::IntPoint scrollPosition;
     bool shouldRestoreScrollPosition;
     float pageScaleFactor;

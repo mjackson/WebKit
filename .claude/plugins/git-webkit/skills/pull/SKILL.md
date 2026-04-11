@@ -2,7 +2,7 @@
 name: update-webkit
 description: Use when the user wants to update, pull, or sync their WebKit repository or branch.
 user-invocable: true
-allowed-tools: Bash(git-webkit pull:*), Bash(Tools/Scripts/git-webkit pull:*), Bash(git-webkit find:*), Bash(Tools/Scripts/git-webkit find:*)
+allowed-tools: Bash(git-webkit pull:*), Bash(git webkit pull:*), Bash(Tools/Scripts/git-webkit pull:*), Bash(git-webkit find:*), Bash(git webkit find:*), Bash(Tools/Scripts/git-webkit find:*)
 ---
 
 Use `git-webkit pull` to update the current repository.

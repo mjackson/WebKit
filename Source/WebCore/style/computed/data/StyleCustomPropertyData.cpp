@@ -56,8 +56,8 @@ CustomPropertyData::CustomPropertyData(const CustomPropertyData& other)
     if (shouldReferenceAsParentValues)
         lazyInitialize(m_parentValues, Ref { other });
     else {
-        if (RefPtr otherParentValues = other.m_parentValues)
-            lazyInitialize(m_parentValues, otherParentValues.releaseNonNull());
+        if (other.m_parentValues)
+            lazyInitialize(m_parentValues, Ref { *other.m_parentValues });
         m_ownValues = other.m_ownValues;
     }
 

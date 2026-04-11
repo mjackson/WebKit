@@ -139,14 +139,14 @@ public:
     // The following functions are used when the render tree hierarchy changes to make sure layers get
     // properly added and removed. Since containership can be implemented by any subclass, and since a hierarchy
     // can contain a mixture of boxes and other object types, these functions need to be in the base class.
-    RenderLayer* layerParent() const;
+    RenderLayer* NODELETE layerParent() const;
     RenderLayer* layerNextSibling(RenderLayer& parentLayer) const;
     void removeLayers();
     void moveLayers(RenderLayer& newParent);
 
     virtual void dirtyLineFromChangedChild() { }
 
-    void setChildNeedsLayout(MarkingBehavior = MarkContainingBlockChain);
+    void setChildNeedsLayout(MarkingBehavior = MarkingBehavior::MarkContainingBlockChain);
     void NODELETE setOutOfFlowChildNeedsStaticPositionLayout();
     void NODELETE clearChildNeedsLayout();
     void setNeedsOutOfFlowMovementLayout(const RenderStyle* oldStyle);
@@ -267,9 +267,6 @@ public:
     // the child.
     virtual void updateAnonymousChildStyle(RenderStyle&) const { };
 
-    bool hasContinuationChainNode() const { return m_hasContinuationChainNode; }
-    bool isContinuation() const { return m_isContinuation; }
-    void setIsContinuation() { m_isContinuation = true; }
     bool isFirstLetter() const { return m_isFirstLetter; }
     void setIsFirstLetter() { m_isFirstLetter = true; }
 
@@ -308,6 +305,9 @@ public:
     bool isFlexItemIncludingDeprecated() const { return !isInline() && !isFloatingOrOutOfFlowPositioned() && parent() && parent()->isFlexibleBoxIncludingDeprecated(); }
 
     virtual LayoutRect paintRectToClipOutFromBorder(const LayoutRect&) { return { }; }
+
+    void establishesTopLayerWillChange();
+    void establishesTopLayerDidChange();
 
     static void markRendererDirtyAfterTopLayerChange(RenderElement* renderer, RenderBlock* containingBlockBeforeStyleResolution);
 
@@ -372,8 +372,6 @@ protected:
 
     void pushOntoGeometryMap(RenderGeometryMap&, const RenderLayerModelObject* repaintContainer, RenderElement* container, bool containerSkipped) const;
 
-    void setHasContinuationChainNode(bool b) { m_hasContinuationChainNode = b; }
-
     void setRenderBlockHasMarginBeforeQuirk(bool b) { m_renderBlockHasMarginBeforeQuirk = b; }
     void setRenderBlockHasMarginAfterQuirk(bool b) { m_renderBlockHasMarginAfterQuirk = b; }
     void setRenderBlockShouldForceRelayoutChildren(bool b) { m_renderBlockShouldForceRelayoutChildren = b; }
@@ -409,7 +407,7 @@ private:
 
     inline bool mayContainOutOfFlowPositionedObjects(const RenderStyle* styleToUse = nullptr) const; // Defined in RenderElementStyleInlines.h.
 
-    RenderElement* rendererForPseudoStyleAcrossShadowBoundary() const;
+    RenderElement* NODELETE rendererForPseudoStyleAcrossShadowBoundary() const;
 
     // Called when an object that was floating or positioned becomes a normal flow object
     // again.  We have to make sure the render tree updates as needed to accommodate the new
@@ -452,12 +450,10 @@ private:
 
     unsigned m_hasPausedImageAnimations : 1;
     unsigned m_hasCounterNodeMap : 1;
-    unsigned m_hasContinuationChainNode : 1;
 #if HAVE(SUPPORT_HDR_DISPLAY)
     unsigned m_hasHDRImages : 1;
 #endif
 
-    unsigned m_isContinuation : 1;
     unsigned m_isFirstLetter : 1;
     unsigned m_renderBlockHasMarginBeforeQuirk : 1;
     unsigned m_renderBlockHasMarginAfterQuirk : 1;
@@ -485,7 +481,7 @@ inline void RenderElement::setChildNeedsLayout(MarkingBehavior markParents)
     if (normalChildNeedsLayout())
         return;
     setNormalChildNeedsLayoutBit(true);
-    if (markParents == MarkContainingBlockChain)
+    if (markParents == MarkingBehavior::MarkContainingBlockChain)
         scheduleLayout(markContainingBlocksForLayout());
 }
 

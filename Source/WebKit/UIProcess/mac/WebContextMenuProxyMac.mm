@@ -62,7 +62,7 @@
 #endif
 
 #if HAVE(APPKIT_GESTURES_SUPPORT)
-#import <WebKitAdditions/WKAppKitGestureControllerAdditionsBefore.mm>
+#import <WebKitAdditions/AppKitUtilities.h>
 #endif
 
 @interface WKUserDataWrapper : NSObject {
@@ -1010,7 +1010,7 @@ void WebContextMenuProxyMac::showContextMenuWithItems(Vector<Ref<WebContextMenuI
     if (m_context.inputSource() == WebMouseEventInputSource::Automation) {
 #if HAVE(APPKIT_GESTURES_SUPPORT)
         NSPoint locationInScreenCoordinates = [[webView window] convertPointToScreen:locationInWindowCoordinates];
-        RetainPtr screenRelativeContext = [_NSViewMenuContext menuContextWithLocation:locationInScreenCoordinates source:contextMenuRequestSourceForAutomation()];
+        RetainPtr screenRelativeContext = [_NSViewMenuContext menuContextWithLocation:locationInScreenCoordinates source:ContextMenuRequestSourceForAutomation];
         [NSMenu _popUpContextMenu:m_menu.get() withContext:screenRelativeContext.get() forView:webView.get() completionBlock:nil];
 #else
         RELEASE_ASSERT_NOT_REACHED();

@@ -51,7 +51,7 @@ public:
 
     // You don't have to worry about using legal offsets unless you've entered quirks mode.
     template<std::signed_integral Int>
-    bool isLegalOffset(Int offset) const { return isLegalOffsetImpl(offset); }
+    bool NODELETE isLegalOffset(Int offset) const { return isLegalOffsetImpl(offset); }
 
     // A necessary consequence of MemoryValue having an offset is that it participates in instruction
     // selection. This tells you if this will get lowered to something that requires an offsetless
@@ -80,9 +80,9 @@ public:
     bool hasFence() const { return !!fenceRange(); }
     bool isExotic() const { return hasFence() || isAtom(opcode()); }
 
-    Type accessType() const;
-    Bank accessBank() const;
-    size_t accessByteSize() const;
+    Type NODELETE accessType() const;
+    Bank NODELETE accessBank() const;
+    size_t NODELETE accessByteSize() const;
     
     inline Width accessWidth() const;
 

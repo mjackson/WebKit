@@ -25,36 +25,36 @@
 
 #pragma once
 
+#include "CSSCounterStyle.h"
+#include "CSSCustomIdent.h"
 #include "CSSValue.h"
+#include <wtf/Function.h>
 #include <wtf/text/AtomString.h>
 
 namespace WebCore {
 
 class CSSCounterValue final : public CSSValue {
 public:
-    static Ref<CSSCounterValue> NODELETE create(AtomString&& identifier, AtomString&& separator, Ref<CSSValue>&& counterStyle);
+    static Ref<CSSCounterValue> create(CSS::CustomIdent&&, AtomString&& separator, CSS::CounterStyle&&);
 
-    const AtomString& identifier() const LIFETIME_BOUND { return m_identifier; }
+    const CSS::CustomIdent& identifier() const LIFETIME_BOUND { return m_identifier; }
     const AtomString& separator() const LIFETIME_BOUND { return m_separator; }
-    CSSValue& counterStyle() const { return m_counterStyle; }
-    String counterStyleCSSText() const;
+    const CSS::CounterStyle& counterStyle() const { return m_counterStyle; }
 
     String customCSSText(const CSS::SerializationContext&) const;
     bool equals(const CSSCounterValue&) const;
 
-    IterationStatus customVisitChildren(NOESCAPE const Function<IterationStatus(CSSValue&)>& func) const
+    IterationStatus customVisitChildren(NOESCAPE const Function<IterationStatus(CSSValue&)>&) const
     {
-        if (func(m_counterStyle) == IterationStatus::Done)
-            return IterationStatus::Done;
         return IterationStatus::Continue;
     }
 
 private:
-    CSSCounterValue(AtomString&& identifier, AtomString&& separator, Ref<CSSValue>&& counterStyle);
+    CSSCounterValue(CSS::CustomIdent&& identifier, AtomString&& separator, CSS::CounterStyle&&);
 
-    AtomString m_identifier;
+    CSS::CustomIdent m_identifier;
     AtomString m_separator;
-    const Ref<CSSValue> m_counterStyle;
+    CSS::CounterStyle m_counterStyle;
 };
 
 } // namespace WebCore

@@ -443,6 +443,7 @@ UIProcess/Cocoa/AutomationSessionClient.mm @nonARC
 UIProcess/Cocoa/BrowsingWarningCocoa.mm @nonARC
 UIProcess/Cocoa/CoreTelephonyUtilities.mm @nonARC
 UIProcess/Cocoa/DiagnosticLoggingClient.mm @nonARC
+UIProcess/Cocoa/DisplayCaptureSessionManager.mm @nonARC
 UIProcess/Cocoa/DownloadProxyMapCocoa.mm @nonARC
 UIProcess/Cocoa/ExtensionCapabilityGranter.mm @nonARC
 UIProcess/Cocoa/FindClient.mm @nonARC
@@ -452,9 +453,9 @@ UIProcess/Cocoa/GlobalFindInPageState.mm @nonARC
 UIProcess/Cocoa/IconLoadingDelegate.mm @nonARC
 UIProcess/Cocoa/LegacyCustomProtocolManagerClient.mm @nonARC
 UIProcess/Cocoa/LegacyDownloadClient.mm @nonARC
+UIProcess/Cocoa/LegacySessionStateCoding.cpp
 UIProcess/Cocoa/MediaUtilities.mm @nonARC
 UIProcess/Cocoa/MediaPermissionUtilities.mm @nonARC
-UIProcess/Cocoa/ModelElementControllerCocoa.mm @nonARC
 UIProcess/Cocoa/NavigationState.mm @nonARC
 UIProcess/Cocoa/PageClientImplCocoa.mm @nonARC
 UIProcess/Cocoa/PlatformWritingToolsUtilities.mm @nonARC
@@ -471,7 +472,9 @@ UIProcess/Cocoa/UIDelegate.mm @nonARC
 UIProcess/Cocoa/UIProcessLogInitializationCocoa.mm @nonARC
 UIProcess/Cocoa/UIRemoteObjectRegistry.cpp
 UIProcess/Cocoa/UserMediaPermissionRequestManagerProxy.mm @nonARC
+UIProcess/Cocoa/UserMediaPermissionRequestProxyCocoa.mm @nonARC
 UIProcess/Cocoa/VideoPresentationManagerProxy.mm @nonARC
+UIProcess/Cocoa/ViewSnapshotStoreCocoa.mm @nonARC
 UIProcess/Cocoa/WebGeolocationManagerProxyCocoa.cpp
 UIProcess/Cocoa/WebKitSwiftSoftLink.mm @nonARC @no-unify
 UIProcess/Cocoa/WebPagePreferencesLockdownModeObserver.mm @nonARC
@@ -488,6 +491,7 @@ UIProcess/Cocoa/WKEditCommand.mm @nonARC
 UIProcess/Cocoa/WKFullKeyboardAccessWatcher.mm @nonARC
 UIProcess/Cocoa/WKReloadFrameErrorRecoveryAttempter.mm @nonARC
 UIProcess/Cocoa/WKScreenTimeConfigurationObserver.mm @nonARC
+UIProcess/Cocoa/WKTextEffectManager.mm @nonARC
 UIProcess/Cocoa/WKTextPlaceholder.mm @nonARC
 UIProcess/Cocoa/WKTextSelectionRect.mm @nonARC
 UIProcess/Cocoa/WKWebViewContentProviderRegistry.mm @nonARC
@@ -602,8 +606,6 @@ UIProcess/ios/WKGeolocationProviderIOS.mm @nonARC
 UIProcess/ios/WKHighlightLongPressGestureRecognizer.mm @nonARC
 UIProcess/ios/WKImageAnalysisGestureRecognizer.mm @nonARC
 UIProcess/ios/WKKeyboardScrollingAnimator.mm @nonARC
-UIProcess/ios/WKModelInteractionGestureRecognizer.mm @nonARC
-UIProcess/ios/WKModelView.mm @nonARC
 UIProcess/ios/WKMouseDeviceObserver.mm @nonARC
 UIProcess/ios/WKMouseInteraction.mm @nonARC
 UIProcess/ios/WKPageHostedModelView.mm @nonARC
@@ -627,17 +629,14 @@ UIProcess/ios/WKWebGeolocationPolicyDeciderIOS.mm @nonARC
 UIProcess/Launcher/cocoa/ProcessLauncherCocoa.mm @nonARC
 
 UIProcess/mac/CorrectionPanel.mm @nonARC
-UIProcess/mac/DisplayCaptureSessionManager.mm @nonARC
 UIProcess/mac/DisplayLinkMac.cpp
-UIProcess/mac/LegacySessionStateCoding.cpp
 UIProcess/mac/PageClientImplMac.mm @nonARC
 UIProcess/mac/SecItemShimProxy.cpp
 UIProcess/mac/ServicesController.mm @nonARC
+UIProcess/mac/SwipeProgressTrackerMac.mm @nonARC
 UIProcess/mac/TextCheckerMac.mm @nonARC
 UIProcess/mac/TiledCoreAnimationDrawingAreaProxy.mm @nonARC
-UIProcess/mac/UserMediaPermissionRequestProxyMac.mm @nonARC
 UIProcess/mac/ViewGestureControllerMac.mm @nonARC
-UIProcess/mac/ViewSnapshotStoreMac.mm @nonARC
 UIProcess/mac/WebColorPickerMac.mm @nonARC
 UIProcess/mac/WebContextMenuProxyMac.mm @nonARC
 UIProcess/mac/WebDataListSuggestionsDropdownMac.mm @nonARC
@@ -840,10 +839,6 @@ WebProcess/Inspector/mac/WebInspectorUIMac.mm @nonARC
 
 WebProcess/MediaCache/WebMediaKeyStorageManager.cpp
 
-WebProcess/Model/ARKitInlinePreviewModelPlayer.mm @nonARC
-WebProcess/Model/ios/ARKitInlinePreviewModelPlayerIOS.mm @nonARC
-WebProcess/Model/mac/ARKitInlinePreviewModelPlayerMac.mm @nonARC
-
 WebProcess/Plugins/PDF/PDFAnnotationTypeHelpers.mm @nonARC
 WebProcess/Plugins/PDF/PDFIncrementalLoader.mm @nonARC
 WebProcess/Plugins/PDF/PDFPlugin.mm @nonARC
@@ -868,7 +863,10 @@ WebProcess/Plugins/PDF/UnifiedPDF/UnifiedPDFPlugin.mm @nonARC
 WebProcess/WebCoreSupport/WebCaptionPreferencesDelegate.cpp
 WebProcess/WebCoreSupport/WebValidationMessageClient.cpp
 
+WebProcess/WebCoreSupport/cocoa/WebAlternativeTextClient.cpp
 WebProcess/WebCoreSupport/cocoa/WebChromeClientCocoa.mm @nonARC
+WebProcess/WebCoreSupport/cocoa/WebDragClientCocoa.mm @nonARC
+WebProcess/WebCoreSupport/cocoa/WebFrameNetworkingContext.mm @nonARC
 WebProcess/WebCoreSupport/cocoa/WebLocalFrameLoaderClientCocoa.mm @nonARC
 
 WebProcess/WebCoreSupport/ios/WebChromeClientIOS.mm @nonARC
@@ -876,11 +874,8 @@ WebProcess/WebCoreSupport/ios/WebEditorClientIOS.mm @nonARC
 WebProcess/WebCoreSupport/ios/WebLocalFrameLoaderClientIOS.mm @nonARC
 WebProcess/WebCoreSupport/ios/WebPreviewLoaderClient.cpp
 
-WebProcess/WebCoreSupport/mac/WebAlternativeTextClient.cpp
 WebProcess/WebCoreSupport/mac/WebContextMenuClientMac.mm @nonARC
-WebProcess/WebCoreSupport/mac/WebDragClientMac.mm @nonARC
 WebProcess/WebCoreSupport/mac/WebEditorClientMac.mm @nonARC
-WebProcess/WebCoreSupport/mac/WebFrameNetworkingContext.mm @nonARC
 WebProcess/WebCoreSupport/mac/WebPopupMenuMac.mm @nonARC
 
 WebProcess/WebPage/ViewGestureGeometryCollector.cpp

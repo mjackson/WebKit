@@ -53,7 +53,7 @@ private:
     bool canContainRangeEndPoint() const final { return false; }
 
     RenderPtr<RenderElement> createElementRenderer(RenderStyle&&, const RenderTreePosition&) final;
-    RenderProgress* renderProgress() const;
+    RenderProgress* NODELETE renderProgress() const;
     bool childShouldCreateRenderer(const Node&) const final;
 
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) final;

@@ -24,26 +24,26 @@
 import Metal
 import WebKit
 
-#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 11) && compiler(>=6.2)
-@_weakLinked @_spi(UsdLoaderAPI) import _USDKit_RealityKit
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreTextureProcessing, _version: 19)
+@_spi(UsdLoaderAPI) import _USDKit_RealityKit
 @_spi(RealityCoreRendererAPI) import RealityKit
-@_weakLinked import USDKit
-@_weakLinked @_spi(SwiftAPI) import DirectResource
-@_weakLinked import _USDKit_RealityKit
-@_weakLinked import ShaderGraph
+import USDKit
+@_spi(SwiftAPI) import DirectResource
+import _USDKit_RealityKit
+import ShaderGraph
 #endif
 
 @objc
 @implementation
 extension WKBridgeVertexAttributeFormat {
-    let semantic: Int
-    let format: UInt
+    let semantic: WKBridgeVertexSemantic
+    let format: MTLVertexFormat
     let layoutIndex: Int
     let offset: Int
 
     init(
-        semantic: Int,
-        format: UInt,
+        semantic: WKBridgeVertexSemantic,
+        format: MTLVertexFormat,
         layoutIndex: Int,
         offset: Int
     ) {
@@ -209,8 +209,41 @@ extension WKBridgeDeformationData {
 
 @objc
 @implementation
+extension WKBridgeTypedResourceId {
+    let value: String
+    let path: String
+    let cachedHashValue: Int
+
+    init(
+        value: UUID,
+        path: String,
+        hashValue: Int
+    ) {
+        self.value = value.uuidString
+        self.path = path
+        self.cachedHashValue = hashValue
+    }
+
+    public override var hash: Int {
+        cachedHashValue
+    }
+
+    public override func isEqual(_ object: Any?) -> Bool {
+        guard let other = object as? WKBridgeTypedResourceId else {
+            return false
+        }
+        return self.cachedHashValue == other.cachedHashValue
+    }
+
+    public override var description: String {
+        path + "@" + value
+    }
+}
+
+@objc
+@implementation
 extension WKBridgeUpdateMesh {
-    let identifier: String
+    let identifier: WKBridgeTypedResourceId
     let updateType: WKBridgeDataUpdateType
     let descriptor: WKBridgeMeshDescriptor?
     let parts: [WKBridgeMeshPart]
@@ -218,11 +251,11 @@ extension WKBridgeUpdateMesh {
     let vertexData: [Data]
     let instanceTransformsData: Data? // [float4x4]
     let instanceTransformsCount: Int
-    let materialPrims: [String]
+    let assignedMaterials: [WKBridgeTypedResourceId]
     let deformationData: WKBridgeDeformationData?
 
     init(
-        identifier: String,
+        identifier: WKBridgeTypedResourceId,
         updateType: WKBridgeDataUpdateType,
         descriptor: WKBridgeMeshDescriptor?,
         parts: [WKBridgeMeshPart],
@@ -230,7 +263,7 @@ extension WKBridgeUpdateMesh {
         vertexData: [Data],
         instanceTransforms: Data?,
         instanceTransformsCount: Int,
-        materialPrims: [String],
+        assignedMaterials: [WKBridgeTypedResourceId],
         deformationData: WKBridgeDeformationData?
     ) {
         self.identifier = identifier
@@ -241,12 +274,12 @@ extension WKBridgeUpdateMesh {
         self.vertexData = vertexData
         self.instanceTransformsData = instanceTransforms
         self.instanceTransformsCount = instanceTransformsCount
-        self.materialPrims = materialPrims
+        self.assignedMaterials = assignedMaterials
         self.deformationData = deformationData
     }
 }
 
-#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 11) && compiler(>=6.2)
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreTextureProcessing, _version: 19)
 func decodeValues<T>(from data: Data) -> [T] {
     let stride = MemoryLayout<T>.stride
 
@@ -369,12 +402,12 @@ extension WKBridgeImageAsset {
 @implementation
 extension WKBridgeUpdateTexture {
     let imageAsset: WKBridgeImageAsset?
-    let identifier: String
+    let identifier: WKBridgeTypedResourceId
     let hashString: String
 
     init(
         imageAsset: WKBridgeImageAsset?,
-        identifier: String,
+        identifier: WKBridgeTypedResourceId,
         hashString: String
     ) {
         self.imageAsset = imageAsset
@@ -387,11 +420,11 @@ extension WKBridgeUpdateTexture {
 @implementation
 extension WKBridgeUpdateMaterial {
     let materialGraph: WKBridgeMaterialGraph?
-    let identifier: String
+    let identifier: WKBridgeTypedResourceId
 
     init(
         materialGraph: WKBridgeMaterialGraph?,
-        identifier: String,
+        identifier: WKBridgeTypedResourceId,
     ) {
         self.materialGraph = materialGraph
         self.identifier = identifier
@@ -545,9 +578,9 @@ extension WKBridgeMaterialGraph {
     }
 }
 
-#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 11) && compiler(>=6.2)
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreTextureProcessing, _version: 19)
 
-internal func toData<T>(_ input: [T]) -> Data {
+func toData<T>(_ input: [T]) -> Data {
     // FIXME: (rdar://164559261) understand/document/remove unsafety
     unsafe input.withUnsafeBytes { bufferPointer in
         unsafe Data(bufferPointer)
@@ -558,22 +591,22 @@ private func toDataArray<T>(_ input: [[T]]) -> [Data] {
     input.map { toData($0) }
 }
 
-private func convertSemantic(_ semantic: LowLevelMesh.VertexSemantic) -> Int {
+private func convertSemantic(_ semantic: LowLevelMesh.VertexSemantic) -> WKBridgeVertexSemantic {
     switch semantic {
-    case .position: 0
-    case .color: 1
-    case .normal: 2
-    case .tangent: 3
-    case .bitangent: 4
-    case .uv0: 5
-    case .uv1: 6
-    case .uv2: 7
-    case .uv3: 8
-    case .uv4: 9
-    case .uv5: 10
-    case .uv6: 11
-    case .uv7: 12
-    default: 13
+    case .position: .position
+    case .color: .color
+    case .normal: .normal
+    case .tangent: .tangent
+    case .bitangent: .bitangent
+    case .uv0: .UV0
+    case .uv1: .UV1
+    case .uv2: .UV2
+    case .uv3: .UV3
+    case .uv4: .UV4
+    case .uv5: .UV5
+    case .uv6: .UV6
+    case .uv7: .UV7
+    default: .unspecified
     }
 }
 
@@ -581,7 +614,7 @@ private func webAttributesFromAttributes(_ attributes: [LowLevelMesh.Attribute])
     attributes.map({ a in
         WKBridgeVertexAttributeFormat(
             semantic: convertSemantic(a.semantic),
-            format: a.format.rawValue,
+            format: a.format,
             layoutIndex: a.layoutIndex,
             offset: a.offset
         )
@@ -710,7 +743,6 @@ extension WKBridgeSkinningData {
             return []
         }
 
-        #if compiler(>=6.2)
         return unsafe data.withUnsafeBytes { rawBufferPointer in
             guard let baseAddress = rawBufferPointer.baseAddress else {
                 return []
@@ -719,16 +751,6 @@ extension WKBridgeSkinningData {
             let matrices = unsafe baseAddress.assumingMemoryBound(to: Float.self)
             return (0..<influenceWeightsCount).map { unsafe matrices[$0] }
         }
-        #else
-        return data.withUnsafeBytes { rawBufferPointer in
-            guard let baseAddress = rawBufferPointer.baseAddress else {
-                return []
-            }
-
-            let matrices = baseAddress.assumingMemoryBound(to: Float.self)
-            return (0..<influenceWeightsCount).map { matrices[$0] }
-        }
-        #endif
     }
 
     @nonobjc

@@ -101,8 +101,8 @@ public:
     void setRate(double) final;
     double effectiveRate() const final;
     void stall() final;
-    void prepareToSeek() final;
-    Ref<MediaTimePromise> seekTo(const MediaTime&) final;
+    Ref<MediaTimePromise> prepareToSeek(const MediaTime&) final;
+    Ref<GenericPromise> finishSeek(const MediaTime&) final;
     void notifyEffectiveRateChanged(Function<void(double)>&&) final;
     bool seeking() const final;
 
@@ -247,14 +247,13 @@ private:
     WTFLogChannel& logChannel() const final;
 
     enum SeekState {
-        Preparing,
-        RequiresFlush,
         Seeking,
         WaitingForAvailableFame,
         SeekCompleted,
     };
     struct AudioTrackProperties {
         bool hasAudibleSample { false };
+        bool readyToRequestAudioData { true };
         std::unique_ptr<RequestPromise::AutoRejectProducer> requestPromise;
         Function<void(TrackIdentifier, const MediaTime&)> callbackForReenqueuing;
     };
@@ -297,7 +296,7 @@ private:
     // Seek Logic
     MediaTime m_lastSeekTime;
     SeekState m_seekState { SeekCompleted };
-    std::optional<MediaTimePromise::Producer> m_seekPromise;
+    std::optional<GenericPromise::AutoRejectProducer> m_seekPromise;
     RetainPtr<id> m_timeJumpedObserver;
     bool m_isSynchronizerSeeking { false };
     bool m_hasAvailableVideoFrame { false };
@@ -306,7 +305,6 @@ private:
     HashMap<TrackIdentifier, AudioTrackProperties> m_audioTracksMap;
     std::optional<RequestPromise::AutoRejectProducer> m_requestVideoPromise;
     bool m_readyToRequestVideoData { true };
-    bool m_readyToRequestAudioData { true };
 
     HashMap<TrackIdentifier, TrackType> m_trackTypes;
     HashMap<TrackIdentifier, RetainPtr<AVSampleBufferAudioRenderer>> m_audioRenderers;
@@ -374,6 +372,7 @@ private:
     ThreadSafeWeakPtr<CDMSessionAVContentKeySession> m_session;
 #endif
 #endif
+    bool m_keyframeNeeded { true };
 };
 
 } // namespace WebCore

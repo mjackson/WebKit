@@ -35,7 +35,7 @@ inline To jsCast(From* from)
     static_assert(std::is_base_of<JSCell, typename std::remove_pointer<To>::type>::value && std::is_base_of<JSCell, typename std::remove_pointer<From>::type>::value, "JS casting expects that the types you are casting to/from are subclasses of JSCell");
 #if (ASSERT_ENABLED || ENABLE(SECURITY_ASSERTIONS)) && CPU(X86_64)
     if (from && !from->JSCell::inherits(std::remove_pointer<To>::type::info()))
-        reportZappedCellAndCrash(*from->JSCell::heap(), from);
+        reportZappedCellAndCrash(from);
 #else
     ASSERT_WITH_SECURITY_IMPLICATION(!from || from->JSCell::inherits(std::remove_pointer<To>::type::info()));
 #endif
@@ -50,7 +50,7 @@ inline To jsCast(JSValue from)
     ASSERT_WITH_SECURITY_IMPLICATION(from.isCell());
     JSCell* cell = from.asCell();
     if (!cell->JSCell::inherits(std::remove_pointer<To>::type::info()))
-        reportZappedCellAndCrash(*cell->JSCell::heap(), cell);
+        reportZappedCellAndCrash(cell);
 #else
     ASSERT_WITH_SECURITY_IMPLICATION(from.isCell() && from.asCell()->JSCell::inherits(std::remove_pointer<To>::type::info()));
 #endif
@@ -211,7 +211,7 @@ struct FinalTypeDispatcher</* isFinal */ true> {
         static_assert(std::is_final<Target>::value, "Target is a final type");
         bool canCast = from->JSCell::classInfo() == Target::info();
         // Do not use inherits<Target>() since inherits<T> depends on this function.
-        ASSERT(canCast == from->JSCell::inherits(Target::info()));
+        ASSERT(canCast == from->JSCell::inheritsSlow(Target::info()));
         return canCast;
     }
 };
@@ -222,7 +222,7 @@ inline bool inheritsJSTypeImpl(From* from, JSTypeRange range)
     static_assert(std::is_base_of<JSCell, Target>::value && std::is_base_of<JSCell, typename std::remove_pointer<From>::type>::value, "JS casting expects that the types you are casting to/from are subclasses of JSCell");
     bool canCast = range.contains(from->type());
     // Do not use inherits<Target>() since inherits<T> depends on this function.
-    ASSERT(canCast == from->JSCell::inherits(Target::info()));
+    ASSERT(canCast == from->JSCell::inheritsSlow(Target::info()));
     return canCast;
 }
 

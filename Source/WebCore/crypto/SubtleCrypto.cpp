@@ -73,6 +73,8 @@
 #include "Settings.h"
 #include <JavaScriptCore/ConsoleTypes.h>
 #include <JavaScriptCore/JSONObject.h>
+#include <JavaScriptCore/JSObjectInlines.h>
+#include <JavaScriptCore/JSString.h>
 #include <JavaScriptCore/ObjectConstructor.h>
 #include <wtf/text/WTFString.h>
 
@@ -114,20 +116,6 @@ static ExceptionOr<CryptoAlgorithmIdentifier> toHashIdentifier(JSGlobalObject& s
     return digestParams.returnValue()->identifier;
 }
 
-static bool isSafeCurvesEnabled(JSGlobalObject& state)
-{
-    auto& globalObject = *JSC::jsCast<JSDOMGlobalObject*>(&state);
-    RefPtr context = globalObject.scriptExecutionContext();
-    return context && context->settingsValues().webCryptoSafeCurvesEnabled;
-}
-
-static bool isX25519Enabled(JSGlobalObject& state)
-{
-    auto& globalObject = *JSC::jsCast<JSDOMGlobalObject*>(&state);
-    RefPtr context = globalObject.scriptExecutionContext();
-    return context && context->settingsValues().webCryptoX25519Enabled;
-}
-
 template<typename T, typename... Rest>
 static std::unique_ptr<CryptoAlgorithmParameters> makeParameters(Rest&&... rest)
 {
@@ -156,12 +144,6 @@ static ExceptionOr<std::unique_ptr<CryptoAlgorithmParameters>> normalizeCryptoAl
 
     auto identifier = CryptoAlgorithmRegistry::singleton().identifier(params.returnValue().name);
     if (!identifier) [[unlikely]]
-        return Exception { ExceptionCode::NotSupportedError };
-
-    if (*identifier == CryptoAlgorithmIdentifier::Ed25519 && !isSafeCurvesEnabled(state))
-        return Exception { ExceptionCode::NotSupportedError };
-
-    if (*identifier == CryptoAlgorithmIdentifier::X25519 && !isX25519Enabled(state))
         return Exception { ExceptionCode::NotSupportedError };
 
     switch (operation) {

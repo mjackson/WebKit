@@ -96,12 +96,12 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtensionContext, WebExtensionContext
 
 - (WKWebExtension *)webExtension
 {
-    return wrapper(protect(_webExtensionContext->extension()).get());
+    return wrapper(_webExtensionContext->extension());
 }
 
 - (WKWebExtensionController *)webExtensionController
 {
-    return wrapper(protect(_webExtensionContext->extensionController()).get());
+    return wrapper(_webExtensionContext->extensionController());
 }
 
 - (BOOL)isLoaded

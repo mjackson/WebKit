@@ -45,10 +45,10 @@ namespace JSC { namespace Wasm {
 
 using JIT = CCallHelpers;
 
-static void materializeImportJSCell(JIT& jit, unsigned importIndex, GPRReg result)
+static void materializeImportJSCell(JIT& jit, const Wasm::ModuleInformation& info, unsigned importIndex, GPRReg result)
 {
     // We're calling out of the current WebAssembly.Instance. That JSWebAssemblyInstance has a list of all its import functions.
-    jit.loadPtr(JIT::Address(GPRInfo::wasmContextInstancePointer, JSWebAssemblyInstance::offsetOfImportFunction(importIndex)), result);
+    jit.loadPtr(JIT::Address(GPRInfo::wasmContextInstancePointer, JSWebAssemblyInstance::offsetOfImportFunction(info, importIndex)), result);
 }
 
 static Expected<MacroAssemblerCodeRef<WasmEntryPtrTag>, BindingFailure> handleBadImportTypeUse(JIT& jit, unsigned importIndex, Wasm::ExceptionType exceptionType)
@@ -64,13 +64,13 @@ static Expected<MacroAssemblerCodeRef<WasmEntryPtrTag>, BindingFailure> handleBa
     return FINALIZE_WASM_CODE(linkBuffer, WasmEntryPtrTag, nullptr, "WebAssembly->JavaScript throw exception due to invalid use of restricted type in import[%i]", importIndex);
 }
 
-Expected<MacroAssemblerCodeRef<WasmEntryPtrTag>, BindingFailure> wasmToJS(TypeIndex typeIndex, unsigned importIndex)
+Expected<MacroAssemblerCodeRef<WasmEntryPtrTag>, BindingFailure> wasmToJS(const Wasm::ModuleInformation& info, unsigned importIndex)
 {
     // FIXME: This function doesn't properly abstract away the calling convention.
     // It'd be super easy to do so: https://bugs.webkit.org/show_bug.cgi?id=169401
     const auto& wasmCC = wasmCallingConvention();
     const auto& jsCC = jsCallingConvention();
-    const TypeDefinition& typeDefinition = TypeInformation::get(typeIndex).expand();
+    const TypeDefinition& typeDefinition = info.expandedTypeSignature(info.importFunctionTypeSignatureIndices[importIndex]);
     const auto& signature = *typeDefinition.as<FunctionSignature>();
     unsigned argCount = signature.argumentCount();
     constexpr GPRReg importJSCellGPRReg = GPRInfo::regT0; // Callee needs to be in regT0 for slow path below.
@@ -123,8 +123,9 @@ Expected<MacroAssemblerCodeRef<WasmEntryPtrTag>, BindingFailure> wasmToJS(TypeIn
     ASSERT(!(numberOfRegsForCall % stackAlignmentRegisters()));
     const unsigned numberOfBytesForCall = numberOfRegsForCall * sizeof(Register) - sizeof(CallerFrameAndPC);
     const unsigned numberOfBytesForSavedResults = savedResultRegisters.sizeOfAreaInBytes();
-    const unsigned stackOffset = WTF::roundUpToMultipleOf<stackAlignmentBytes()>(std::max(numberOfBytesForCall, numberOfBytesForSavedResults));
+    const unsigned stackOffset = WTF::roundUpToMultipleOf<stackAlignmentBytes()>(std::max(numberOfBytesForCall, numberOfBytesForSavedResults) + static_cast<unsigned>(Wasm::WasmToJSScratchSpaceSize));
     jit.subPtr(MacroAssembler::TrustedImm32(stackOffset), MacroAssembler::stackPointerRegister);
+    jit.storePtr(GPRInfo::wasmIPIntPCRegister, CCallHelpers::Address(GPRInfo::callFrameRegister, WasmToJSIPIntReturnPCSlot));
     JIT::Address calleeFrame = CCallHelpers::Address(MacroAssembler::stackPointerRegister, -static_cast<ptrdiff_t>(sizeof(CallerFrameAndPC)));
 
     // FIXME make these loops which switch on signature if there are many arguments on the stack. It'll otherwise be huge for huge type definitions. https://bugs.webkit.org/show_bug.cgi?id=165547
@@ -333,7 +334,7 @@ Expected<MacroAssemblerCodeRef<WasmEntryPtrTag>, BindingFailure> wasmToJS(TypeIn
     // jsArg10 might overlap with regT0, so store 'this' argument first
     jit.storeValue(jsUndefined(), calleeFrame.withOffset(CallFrameSlot::thisArgument * static_cast<int>(sizeof(Register))), jsArg10);
     ASSERT(!wasmCC.calleeSaveRegisters.contains(importJSCellGPRReg, IgnoreVectors));
-    materializeImportJSCell(jit, importIndex, importJSCellGPRReg);
+    materializeImportJSCell(jit, info, importIndex, importJSCellGPRReg);
     jit.storeCell(importJSCellGPRReg, calleeFrame.withOffset(CallFrameSlot::callee * static_cast<int>(sizeof(Register))));
     jit.store32(JIT::TrustedImm32(numberOfParameters), calleeFrame.withOffset(CallFrameSlot::argumentCountIncludingThis * static_cast<int>(sizeof(Register)) + PayloadOffset));
 
@@ -344,7 +345,7 @@ Expected<MacroAssemblerCodeRef<WasmEntryPtrTag>, BindingFailure> wasmToJS(TypeIn
 #if USE(JSVALUE32_64)
     jit.move(CCallHelpers::TrustedImm32(JSValue::CellTag), BaselineJITRegisters::Call::calleeJSR.tagGPR());
 #endif
-    jit.loadPtr(CCallHelpers::Address(GPRInfo::wasmContextInstancePointer, JSWebAssemblyInstance::offsetOfCallLinkInfo(importIndex)), BaselineJITRegisters::Call::callLinkInfoGPR);
+    jit.loadPtr(CCallHelpers::Address(GPRInfo::wasmContextInstancePointer, JSWebAssemblyInstance::offsetOfCallLinkInfo(info, importIndex)), BaselineJITRegisters::Call::callLinkInfoGPR);
     CallLinkInfo::emitDataICFastPath(jit);
 
     if (signature.returnCount() == 1) {

@@ -39,6 +39,7 @@
 #include "RenderImage.h"
 #include "RenderQuote.h"
 #include "RenderStyle+GettersInlines.h"
+#include "RenderStyle+SettersInlines.h"
 #include "RenderTextFragment.h"
 #include "RenderTreeUpdater.h"
 #include "RenderView.h"
@@ -77,7 +78,7 @@ void RenderTreeUpdater::GeneratedContent::updateQuotesUpTo(RenderQuote* lastQuot
         if (&quote == lastQuote)
             return;
     }
-    ASSERT(!lastQuote || m_updater.m_builder.hasBrokenContinuation());
+    ASSERT_UNUSED(lastQuote, !lastQuote);
 }
 
 void RenderTreeUpdater::GeneratedContent::updateCounters()
@@ -92,7 +93,7 @@ void RenderTreeUpdater::GeneratedContent::updateCounters()
     update();
 }
 
-static KeyframeEffectStack* keyframeEffectStackForPseudoElement(const Element& element, PseudoElementType pseudoElementType)
+static KeyframeEffectStack* NODELETE keyframeEffectStackForPseudoElement(const Element& element, PseudoElementType pseudoElementType)
 {
     if (!element.mayHaveKeyframeEffects())
         return nullptr;
@@ -241,11 +242,6 @@ void RenderTreeUpdater::GeneratedContent::updateBeforeOrAfterPseudoElement(Eleme
         auto pseudoElementUpdateStyle = RenderStyle::cloneIncludingPseudoElements(*updateStyle);
         Style::ElementUpdate pseudoElementUpdate { makeUnique<RenderStyle>(WTF::move(pseudoElementUpdateStyle)), styleChanges, elementUpdate.recompositeLayer };
         m_updater.updateElementRenderer(*pseudoElement, WTF::move(pseudoElementUpdate));
-        if (updateStyle->display() == Style::DisplayType::None) {
-            auto pseudoElementUpdateStyle = RenderStyle::cloneIncludingPseudoElements(*updateStyle);
-            pseudoElement->storeDisplayContentsOrNoneStyle(makeUnique<RenderStyle>(WTF::move(pseudoElementUpdateStyle)));
-        } else
-            pseudoElement->clearDisplayContentsOrNoneStyle();
     }
 
     auto* pseudoElementRenderer = pseudoElement->renderer();

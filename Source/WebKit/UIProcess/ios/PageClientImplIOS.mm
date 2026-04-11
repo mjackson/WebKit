@@ -33,6 +33,7 @@
 #import "APIPageConfiguration.h"
 #import "APIUIClient.h"
 #import "ApplicationStateTracker.h"
+#import "DefaultWebBrowserChecks.h"
 #import "DrawingAreaProxy.h"
 #import "EndowmentStateTracker.h"
 #import "FrameInfoData.h"
@@ -117,9 +118,7 @@ PageClientImpl::PageClientImpl(WKContentView *contentView, WKWebView *webView)
 {
 }
 
-PageClientImpl::~PageClientImpl()
-{
-}
+PageClientImpl::~PageClientImpl() = default;
 
 Ref<DrawingAreaProxy> PageClientImpl::createDrawingAreaProxy(WebProcessProxy& webProcessProxy)
 {
@@ -299,8 +298,7 @@ void PageClientImpl::didReceiveInteractiveModelElement(std::optional<WebCore::No
 }
 #endif // ENABLE(MODEL_PROCESS)
 
-#if USE(EXTENSIONKIT)
-UIView *PageClientImpl::createVisibilityPropagationView()
+RetainPtr<UIView> PageClientImpl::createVisibilityPropagationView()
 {
     return [contentView() _createVisibilityPropagationView];
 }
@@ -309,7 +307,6 @@ void PageClientImpl::removeVisibilityPropagationView(UIView *view)
 {
     [contentView() _removeVisibilityPropagationView:view];
 }
-#endif
 #endif // HAVE(VISIBILITY_PROPAGATION_VIEW)
 
 #if ENABLE(GPU_PROCESS)
@@ -592,6 +589,14 @@ IntRect PageClientImpl::rootViewToAccessibilityScreen(const IntRect& rect)
     auto contentView = this->contentView();
     if ([contentView respondsToSelector:@selector(accessibilityConvertRectToSceneReferenceCoordinates:)])
         rootViewRect = [contentView accessibilityConvertRectToSceneReferenceCoordinates:rootViewRect];
+#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+    else if (isRunningTest(applicationBundleIdentifier())) [[unlikely]] {
+        // accessibilityConvertRectToSceneReferenceCoordinates is a no-op when running tests,
+        // so fall back to standard UIKit coordinate conversion.
+        if (UIWindow *window = [contentView window])
+            rootViewRect = [contentView convertRect:rootViewRect toCoordinateSpace:window.screen.coordinateSpace];
+    }
+#endif
     return enclosingIntRect(rootViewRect);
 }
     
@@ -1131,6 +1136,11 @@ WebCore::UserInterfaceLayoutDirection PageClientImpl::userInterfaceLayoutDirecti
 Ref<ValidationBubble> PageClientImpl::createValidationBubble(String&& message, const ValidationBubble::Settings& settings)
 {
     return ValidationBubble::create(protect(m_contentView.getAutoreleased()), WTF::move(message), settings);
+}
+
+bool PageClientImpl::shouldSuppressFormValidationBubble() const
+{
+    return [webView() _shouldSuppressFormValidationBubble];
 }
 
 RefPtr<WebDataListSuggestionsDropdown> PageClientImpl::createDataListSuggestionsDropdown(WebPageProxy& page)

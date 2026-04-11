@@ -20,8 +20,6 @@
 #include "config.h"
 #include <wtf/RefTrackerMixin.h>
 
-#include <ranges>
-
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace WTF {

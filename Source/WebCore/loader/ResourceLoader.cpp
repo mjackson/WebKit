@@ -37,16 +37,19 @@
 #include "DiagnosticLoggingClient.h"
 #include "DiagnosticLoggingKeys.h"
 #include "DocumentLoader.h"
+#include "DocumentPage.h"
 #include "DocumentQuirks.h"
 #include "DocumentSecurityOrigin.h"
 #include "FrameConsoleClient.h"
 #include "FrameDestructionObserverInlines.h"
+#include "FrameInlines.h"
 #include "FrameLoader.h"
 #include "HTMLFrameOwnerElement.h"
 #include "InspectorInstrumentation.h"
 #include "LegacySchemeRegistry.h"
 #include "LoaderStrategy.h"
 #include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "LocalFrameLoaderClient.h"
 #include "Logging.h"
 #include "NetworkingContext.h"
@@ -546,16 +549,10 @@ bool ResourceLoader::shouldAllowResourceToAskForCredentials() const
     RefPtr frame = m_frame.get();
     if (!frame)
         return false;
-    RefPtr topFrame = dynamicDowncast<LocalFrame>(frame->tree().top());
-    if (!topFrame)
+    RefPtr topFrameSecurityOrigin = frame->tree().top().frameDocumentSecurityOrigin();
+    if (!topFrameSecurityOrigin)
         return false;
-    RefPtr topDocument = topFrame->document();
-    if (!topDocument)
-        return false;
-    RefPtr securityOrigin = static_cast<SecurityContext*>(topDocument.get())->securityOrigin();
-    if (!securityOrigin)
-        return false;
-    return securityOrigin->canRequest(m_request.url(), OriginAccessPatternsForWebProcess::singleton());
+    return topFrameSecurityOrigin->canRequest(m_request.url(), OriginAccessPatternsForWebProcess::singleton());
 }
 
 void ResourceLoader::didBlockAuthenticationChallenge()
@@ -946,7 +943,7 @@ bool ResourceLoader::isPDFJSResourceLoad() const
 
     RefPtr frame = m_frame.get();
     RefPtr document = frame && frame->ownerElement() ? &frame->ownerElement()->document() : nullptr;
-    return document ? document->isPDFDocument() : false;
+    return document && document->isPDFDocument();
 #else
     return false;
 #endif

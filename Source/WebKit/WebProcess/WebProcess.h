@@ -426,7 +426,10 @@ public:
 #endif
     void unblockServicesRequiredByAccessibility(Vector<SandboxExtension::Handle>&&);
     static id accessibilityFocusedUIElement();
-    void powerSourceDidChange(bool);
+#if PLATFORM(MAC) || PLATFORM(MACCATALYST)
+    static void setAllowAXAuthenticationForTesting(bool);
+#endif
+    void NODELETE powerSourceDidChange(bool);
 #endif
 
 #if PLATFORM(MAC)
@@ -599,9 +602,9 @@ private:
     void registerURLSchemeAsWebExtension(const String&) const;
 #endif
 
-    void setDefaultRequestTimeoutInterval(double);
-    void setAlwaysUsesComplexTextCodePath(bool);
-    void setDisableFontSubpixelAntialiasingForTesting(bool);
+    void NODELETE setDefaultRequestTimeoutInterval(double);
+    void NODELETE setAlwaysUsesComplexTextCodePath(bool);
+    void NODELETE setDisableFontSubpixelAntialiasingForTesting(bool);
     void setTrackingPreventionEnabled(bool);
     void clearResourceLoadStatistics();
     void flushResourceLoadStatistics();
@@ -614,7 +617,7 @@ private:
 
     void NODELETE platformSetCacheModel(CacheModel);
 
-    void NODELETE setEnhancedAccessibility(bool);
+    void setEnhancedAccessibility(bool);
     void bindAccessibilityFrameWithData(WebCore::FrameIdentifier, std::span<const uint8_t>);
 
     void startMemorySampler(SandboxExtension::Handle&&, const String&, const double);
@@ -756,7 +759,7 @@ private:
     void resumeAllMediaBuffering();
 #endif
 
-    void clearCurrentModifierStateForTesting();
+    void NODELETE clearCurrentModifierStateForTesting();
 
 #if PLATFORM(GTK) || PLATFORM(WPE)
     void sendMessageToWebProcessExtension(UserMessage&&);

@@ -89,7 +89,7 @@ GPU* WorkerNavigator::gpu()
 void WorkerNavigator::setAppBadge(std::optional<unsigned long long> badge, Ref<DeferredPromise>&& promise)
 {
 #if ENABLE(DECLARATIVE_WEB_PUSH)
-    if (RefPtr context = dynamicDowncast<ServiceWorkerGlobalScope>(scriptExecutionContext())) {
+    if (auto* context = dynamicDowncast<ServiceWorkerGlobalScope>(scriptExecutionContext())) {
         if (auto* declarativePushEvent = context->declarativePushEvent()) {
             declarativePushEvent->setUpdatedAppBadge(WTF::move(badge));
             return;

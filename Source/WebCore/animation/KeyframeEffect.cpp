@@ -1017,13 +1017,13 @@ auto KeyframeEffect::getKeyframes() -> Vector<ComputedKeyframe>
             String styleString = emptyString();
             if (keyframeRule) {
                 if (auto cssValue = keyframeRule->properties().getPropertyCSSValue(cssPropertyId)) {
-                    if (!cssValue->hasVariableReferences())
+                    if (!cssValue->hasSubstitutionFunctions())
                         styleString = keyframeRule->properties().getPropertyValue(cssPropertyId);
                 }
             }
             if (styleString.isEmpty()) {
                 if (auto cssValue = styleProperties->getPropertyCSSValue(cssPropertyId)) {
-                    if (!cssValue->hasVariableReferences())
+                    if (!cssValue->hasSubstitutionFunctions())
                         styleString = styleProperties->getPropertyValue(cssPropertyId);
                 }
             }
@@ -1036,13 +1036,13 @@ auto KeyframeEffect::getKeyframes() -> Vector<ComputedKeyframe>
             String styleString = emptyString();
             if (keyframeRule) {
                 if (auto cssValue = keyframeRule->properties().getCustomPropertyCSSValue(customProperty)) {
-                    if (!cssValue->hasVariableReferences())
+                    if (!cssValue->hasSubstitutionFunctions())
                         styleString = keyframeRule->properties().getCustomPropertyValue(customProperty);
                 }
             }
             if (styleString.isEmpty()) {
                 if (auto cssValue = styleProperties->getCustomPropertyCSSValue(customProperty)) {
-                    if (!cssValue->hasVariableReferences())
+                    if (!cssValue->hasSubstitutionFunctions())
                         styleString = styleProperties->getCustomPropertyValue(customProperty);
                 }
             }
@@ -2188,7 +2188,7 @@ std::optional<KeyframeEffect::RecomputationReason> KeyframeEffect::recomputeKeyf
     };
 
     auto cssVariableChanged = [&]() {
-        if (previousUnanimatedStyle && m_blendingKeyframes.hasCSSVariableReferences()) {
+        if (previousUnanimatedStyle && m_blendingKeyframes.hasSubstitutionFunctions()) {
             if (!previousUnanimatedStyle->customPropertiesEqual(unanimatedStyle))
                 return true;
         }

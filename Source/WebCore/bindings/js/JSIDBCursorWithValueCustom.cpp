@@ -28,6 +28,7 @@
 
 #include "IDBBindingUtilities.h"
 #include "IDBCursorWithValue.h"
+#include "JSValueInWrappedObjectInlines.h"
 #include <JavaScriptCore/JSCInlines.h>
 
 namespace WebCore {

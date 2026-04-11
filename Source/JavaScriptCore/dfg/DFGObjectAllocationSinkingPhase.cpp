@@ -161,12 +161,12 @@ public:
     }
 
 
-    const Fields& fields() const
+    const Fields& NODELETE fields() const
     {
         return m_fields;
     }
 
-    Fields& fields()
+    Fields& NODELETE fields()
     {
         return m_fields;
     }
@@ -193,36 +193,36 @@ public:
         set(descriptor, nullptr);
     }
 
-    IndexingType indexingType() const
+    IndexingType NODELETE indexingType() const
     {
         return m_indexingType;
     }
 
-    unsigned length() const
+    unsigned NODELETE length() const
     {
         return m_initializedIndices.size();
     }
 
-    bool isIndexInitialized(unsigned index) const
+    bool NODELETE isIndexInitialized(unsigned index) const
     {
         ASSERT(index < length());
         return m_initializedIndices[index];
     }
 
-    void setIndexInitialized(unsigned index)
+    void NODELETE setIndexInitialized(unsigned index)
     {
         ASSERT(index < length());
         m_initializedIndices[index] = true;
     }
 
-    Allocation& mergeInitializedIndices(const Allocation& other)
+    Allocation& NODELETE mergeInitializedIndices(const Allocation& other)
     {
         ASSERT(length() == other.length());
         m_initializedIndices &= other.m_initializedIndices;
         return *this;
     }
 
-    bool hasStructures() const
+    bool NODELETE hasStructures() const
     {
         switch (kind()) {
         case Kind::Object:
@@ -259,56 +259,56 @@ public:
         return *this;
     }
 
-    const RegisteredStructureSet& structures() const
+    const RegisteredStructureSet& NODELETE structures() const
     {
         return m_structures;
     }
 
-    const RegisteredStructureSet& structuresForMaterialization() const
+    const RegisteredStructureSet& NODELETE structuresForMaterialization() const
     {
         return m_structuresForMaterialization;
     }
 
-    Node* identifier() const { return m_identifier; }
+    Node* NODELETE identifier() const { return m_identifier; }
 
-    Kind kind() const { return m_kind; }
+    Kind NODELETE kind() const { return m_kind; }
 
-    bool isEscapedAllocation() const
+    bool NODELETE isEscapedAllocation() const
     {
         return kind() == Kind::Escaped;
     }
 
-    bool isArrayAllocation() const
+    bool NODELETE isArrayAllocation() const
     {
         return m_kind == Kind::Array;
     }
 
-    bool isObjectAllocation() const
+    bool NODELETE isObjectAllocation() const
     {
         return m_kind == Kind::Object;
     }
 
-    bool isActivationAllocation() const
+    bool NODELETE isActivationAllocation() const
     {
         return m_kind == Kind::Activation;
     }
 
-    bool isFunctionAllocation() const
+    bool NODELETE isFunctionAllocation() const
     {
         return m_kind == Kind::Function || m_kind == Kind::GeneratorFunction || m_kind == Kind::AsyncFunction || m_kind == Kind::AsyncGeneratorFunction;
     }
 
-    bool isInternalFieldObjectAllocation() const
+    bool NODELETE isInternalFieldObjectAllocation() const
     {
         return m_kind == Kind::InternalFieldObject;
     }
 
-    bool isRegExpObjectAllocation() const
+    bool NODELETE isRegExpObjectAllocation() const
     {
         return m_kind == Kind::RegExpObject;
     }
 
-    friend bool operator==(const Allocation&, const Allocation&) = default;
+    friend bool NODELETE operator==(const Allocation&, const Allocation&) = default;
 
     void dump(PrintStream& out) const
     {
@@ -460,12 +460,12 @@ public:
     // set, the current escapees can be retrieved at any time using
     // takeEscapees(), which will clear the cached set of escapees;
     // otherwise the heap won't remember escaping allocations.
-    void setWantEscapees()
+    void NODELETE setWantEscapees()
     {
         m_wantEscapees = true;
     }
 
-    UncheckedKeyHashMap<Node*, Allocation> takeEscapees()
+    UncheckedKeyHashMap<Node*, Allocation> NODELETE takeEscapees()
     {
         return WTF::move(m_escapees);
     }
@@ -637,7 +637,7 @@ public:
             && m_pointers == other.m_pointers;
     }
 
-    const UncheckedKeyHashMap<Node*, Allocation>& allocations() const
+    const UncheckedKeyHashMap<Node*, Allocation>& NODELETE allocations() const
     {
         return m_allocations;
     }
@@ -657,12 +657,12 @@ public:
         }
     }
 
-    bool reached() const
+    bool NODELETE reached() const
     {
         return m_reached;
     }
 
-    void setReached()
+    void NODELETE setReached()
     {
         m_reached = true;
     }

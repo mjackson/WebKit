@@ -1,5 +1,4 @@
-if (ENABLE_VIDEO OR ENABLE_WEB_AUDIO OR ENABLE_WEB_CODECS)
-    SET_AND_EXPOSE_TO_BUILD(USE_GSTREAMER TRUE)
+if (USE_GSTREAMER)
       if (USE_GSTREAMER_FULL)
           find_package(GStreamer 1.18.4 REQUIRED COMPONENTS full)
           if (NOT PC_GSTREAMER_FULL_FOUND)
@@ -15,10 +14,6 @@ if (ENABLE_VIDEO OR ENABLE_WEB_AUDIO OR ENABLE_WEB_CODECS)
 
           if (ENABLE_WEB_AUDIO)
               list(APPEND GSTREAMER_COMPONENTS audio fft)
-          endif ()
-
-          if (ENABLE_MEDIA_RECORDER)
-              list(APPEND GSTREAMER_COMPONENTS transcoder)
           endif ()
 
           if (USE_GSTREAMER_WEBRTC)

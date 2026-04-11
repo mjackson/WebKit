@@ -47,14 +47,14 @@ static void moveAllChildrenToInternal(RenderBoxModelObject& from, RenderElement&
         newParent.attachRendererInternal(from.detachRendererInternal(*from.firstChild()), &from);
 }
 
-static bool canDropAnonymousBlock(const RenderBlock& anonymousBlock)
+static bool NODELETE canDropAnonymousBlock(const RenderBlock& anonymousBlock)
 {
-    if (anonymousBlock.beingDestroyed() || anonymousBlock.continuation())
+    if (anonymousBlock.beingDestroyed())
         return false;
     return true;
 }
 
-static bool canMergeContiguousAnonymousBlocks(const RenderObject& rendererToBeRemoved, const RenderObject* previous, const RenderObject* next, const RenderObject* anonymousDestroyRoot)
+static bool canMergeContiguousAnonymousBlocks(const RenderObject& rendererToBeRemoved, const RenderObject* previous, const RenderObject* next, const RenderObject*)
 {
     ASSERT(!rendererToBeRemoved.renderTreeBeingDestroyed());
 
@@ -73,91 +73,13 @@ static bool canMergeContiguousAnonymousBlocks(const RenderObject& rendererToBeRe
             return false;
     }
 
-    auto* boxToBeRemoved = dynamicDowncast<RenderBoxModelObject>(rendererToBeRemoved);
-    if (!boxToBeRemoved || !boxToBeRemoved->continuation())
-        return true;
-
-    // Let's merge pre and post anonymous block containers when the continuation triggering box (rendererToBeRemoved) is going away.
-    return previous && next && previous != anonymousDestroyRoot && next != anonymousDestroyRoot;
-}
-
-RenderBlock* RenderTreeBuilder::Block::continuationBefore(RenderBlock& parent, RenderObject* beforeChild)
-{
-    if (beforeChild && beforeChild->parent() == &parent)
-        return &parent;
-
-    RenderBlock* nextToLast = &parent;
-    RenderBlock* last = &parent;
-    for (auto* current = downcast<RenderBlock>(parent.continuation()); current; current = downcast<RenderBlock>(current->continuation())) {
-        if (beforeChild && beforeChild->parent() == current) {
-            if (current->firstChild() == beforeChild)
-                return last;
-            return current;
-        }
-
-        nextToLast = last;
-        last = current;
-    }
-
-    if (!beforeChild && !last->firstChild())
-        return nextToLast;
-    return last;
+    return true;
 }
 
 RenderTreeBuilder::Block::Block(RenderTreeBuilder& builder)
     : m_builder(builder)
     , m_buildsSimpleAnonymousBlocks(!builder.view().settings().anonymousBlockGenerationDisabled())
 {
-}
-
-void RenderTreeBuilder::Block::attach(RenderBlock& parent, RenderPtr<RenderObject> child, RenderObject* beforeChild)
-{
-    if (parent.continuation() && !parent.isAnonymousBlock())
-        insertChildToContinuation(parent, WTF::move(child), beforeChild);
-    else
-        attachIgnoringContinuation(parent, WTF::move(child), beforeChild);
-}
-
-void RenderTreeBuilder::Block::insertChildToContinuation(RenderBlock& parent, RenderPtr<RenderObject> child, RenderObject* beforeChild)
-{
-    RenderBlock* flow = continuationBefore(parent, beforeChild);
-    ASSERT(!beforeChild || is<RenderBlock>(*beforeChild->parent()));
-    RenderBoxModelObject* beforeChildParent = nullptr;
-    if (beforeChild)
-        beforeChildParent = downcast<RenderBoxModelObject>(beforeChild->parent());
-    else {
-        RenderBoxModelObject* continuation = flow->continuation();
-        if (continuation)
-            beforeChildParent = continuation;
-        else
-            beforeChildParent = flow;
-    }
-
-    if (child->isFloatingOrOutOfFlowPositioned()) {
-        m_builder.attachIgnoringContinuation(*beforeChildParent, WTF::move(child), beforeChild);
-        return;
-    }
-
-    bool childIsNormal = child->isInline() || child->style().columnSpan() == ColumnSpan::None;
-    bool bcpIsNormal = beforeChildParent->isInline() || beforeChildParent->style().columnSpan() == ColumnSpan::None;
-    bool flowIsNormal = flow->isInline() || flow->style().columnSpan() == ColumnSpan::None;
-
-    if (flow == beforeChildParent) {
-        m_builder.attachIgnoringContinuation(*flow, WTF::move(child), beforeChild);
-        return;
-    }
-
-    // The goal here is to match up if we can, so that we can coalesce and create the
-    // minimal # of continuations needed for the inline.
-    if (childIsNormal == bcpIsNormal) {
-        m_builder.attachIgnoringContinuation(*beforeChildParent, WTF::move(child), beforeChild);
-        return;
-    }
-    if (flowIsNormal == childIsNormal) {
-        m_builder.attachIgnoringContinuation(*flow, WTF::move(child)); // Just treat like an append.
-        return;
-    }
-    m_builder.attachIgnoringContinuation(*beforeChildParent, WTF::move(child), beforeChild);
 }
 
 struct ParentAndBeforeChild {
@@ -217,7 +139,7 @@ static std::optional<ParentAndBeforeChild> findParentAndBeforeChildForNonSibling
     return ParentAndBeforeChild { };
 }
 
-void RenderTreeBuilder::Block::attachIgnoringContinuation(RenderBlock& parent, RenderPtr<RenderObject> child, RenderObject* beforeChild)
+void RenderTreeBuilder::Block::attach(RenderBlock& parent, RenderPtr<RenderObject> child, RenderObject* beforeChild)
 {
     auto parentAndBeforeChildMayNeedAdjustment = beforeChild && beforeChild->parent() != &parent;
     if (parentAndBeforeChildMayNeedAdjustment) {
@@ -322,7 +244,7 @@ void RenderTreeBuilder::Block::removeLeftoverAnonymousBlock(RenderBlock& anonymo
     ASSERT(!anonymousBlock.childrenInline());
     ASSERT(anonymousBlock.parent());
 
-    if (anonymousBlock.continuation())
+    if (anonymousBlock.beingDestroyed())
         return;
 
     auto* parent = anonymousBlock.parent();
@@ -364,7 +286,6 @@ RenderPtr<RenderObject> RenderTreeBuilder::Block::detach(RenderBlock& parent, Re
             // In order to reuse it, we have to reset it to just be a generic anonymous block. Make sure
             // to clear out inherited column properties by just making a new style, and to also clear the
             // column span flag if it is set.
-            ASSERT(!inlineChildrenBlock.continuation());
             // Cache this value as it might get changed in setStyle() call.
             inlineChildrenBlock.setStyle(RenderStyle::createAnonymousStyleWithDisplay(parent.style(), Style::DisplayType::BlockFlow));
             auto blockToMove = m_builder.detachFromRenderElement(parent, inlineChildrenBlock, WillBeDestroyed::No);

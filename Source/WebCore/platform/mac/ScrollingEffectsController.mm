@@ -115,7 +115,7 @@ static FloatSize NODELETE deltaAlignedToDominantAxis(FloatSize delta)
     return deltaAlignedToAxis(delta, dominantAxis);
 }
 
-static std::optional<BoxSide> affectedSideOnDominantAxis(FloatSize delta)
+static std::optional<BoxSide> NODELETE affectedSideOnDominantAxis(FloatSize delta)
 {
     auto dominantAxis = dominantAxisFavoringVertical(delta);
     return ScrollableArea::targetSideForScrollDelta(delta, dominantAxis);
@@ -867,14 +867,12 @@ std::optional<RubberbandingState> ScrollingEffectsController::captureRubberbandi
     auto stretchAmount = m_client.stretchAmount();
     LOG_WITH_STREAM(ScrollAnimations, stream << "ScrollingEffectsController::captureRubberbandingState: m_isRubberBanding=" << m_isRubberBanding << " m_isAnimatingRubberBand=" << m_isAnimatingRubberBand << " stretchAmount=" << stretchAmount);
 
-    if (stretchAmount.isZero() || (!m_isRubberBanding && !m_isAnimatingRubberBand))
+    if (stretchAmount.isZero())
         return std::nullopt;
 
     RubberbandingState state;
     state.captureTime = MonotonicTime::now();
     state.rubberbandingEdges = m_rubberBandingEdges;
-    state.stretchScrollForce = m_stretchScrollForce;
-    state.momentumVelocity = m_momentumVelocity;
 
     if (CheckedPtr rubberBandAnimation = dynamicDowncast<ScrollAnimationRubberBand>(m_currentAnimation.get())) {
         if (rubberBandAnimation->isActive()) {
@@ -887,13 +885,12 @@ std::optional<RubberbandingState> ScrollingEffectsController::captureRubberbandi
         }
     }
 
-    // User is still dragging past the edge (not yet in bounce-back animation).
-    state.initialVelocity = m_momentumVelocity;
+    state.initialVelocity = { };
     state.initialOverscroll = stretchAmount;
     state.targetOverscroll = m_client.rubberBandTargetOffset();
     state.animationStartTime = MonotonicTime::now();
 
-    LOG_WITH_STREAM(ScrollAnimations, stream << "ScrollingEffectsController::captureRubberbandingState - captured from stretch: initialOverscroll=" << state.initialOverscroll << " targetOverscroll=" << state.targetOverscroll << " initialVelocity=" << state.initialVelocity);
+    LOG_WITH_STREAM(ScrollAnimations, stream << "ScrollingEffectsController::captureRubberbandingState - captured outside of animation: initialOverscroll=" << state.initialOverscroll << " targetOverscroll=" << state.targetOverscroll << " initialVelocity=" << state.initialVelocity);
     return state;
 }
 
@@ -909,8 +906,6 @@ bool ScrollingEffectsController::restoreRubberbandingState(const RubberbandingSt
     LOG_WITH_STREAM(ScrollAnimations, stream << "ScrollingEffectsController::restoreRubberbandingState - restoring with initialOverscroll=" << state.initialOverscroll << " targetOverscroll=" << state.targetOverscroll << " totalElapsed=" << totalElapsed.seconds() << "s");
 
     m_rubberBandingEdges = state.rubberbandingEdges;
-    m_stretchScrollForce = state.stretchScrollForce;
-    m_momentumVelocity = state.momentumVelocity;
     m_isRubberBanding = true;
 
     bool started = startRubberBandAnimationWithElapsedTime(state.initialVelocity, state.initialOverscroll, totalElapsed, state.targetOverscroll);

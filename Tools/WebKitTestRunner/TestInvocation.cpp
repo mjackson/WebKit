@@ -582,7 +582,7 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         return nullptr;
     }
     if (WKStringIsEqualToUTF8CString(messageName, "GetWaitUntilDone"))
-        return adoptWK(WKBooleanCreate(m_waitUntilDone));
+        return adoptWK(WKBooleanCreate(m_waitUntilDone || m_notifyDoneMessageSent));
 
     if (WKStringIsEqualToUTF8CString(messageName, "SetDumpFrameLoadCallbacks")) {
         m_dumpFrameLoadCallbacks = booleanValue(messageBody);
@@ -1428,6 +1428,7 @@ bool TestInvocation::resolveNotifyDone()
         return false;
     m_waitUntilDone = false;
     if (m_options.siteIsolationEnabled()) {
+        m_notifyDoneMessageSent = true;
         postPageMessage("NotifyDone");
         return false;
     }
@@ -1440,6 +1441,7 @@ bool TestInvocation::resolveForceImmediateCompletion()
         return false;
     m_waitUntilDone = false;
     if (m_options.siteIsolationEnabled()) {
+        m_notifyDoneMessageSent = true;
         postPageMessage("ForceImmediateCompletion");
         return false;
     }

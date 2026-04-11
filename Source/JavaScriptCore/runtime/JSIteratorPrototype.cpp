@@ -30,12 +30,21 @@
 
 #include "BuiltinNames.h"
 #include "CachedCallInlines.h"
+#include "CallData.h"
+#include "ExceptionScope.h"
+#include "ImplementationVisibility.h"
 #include "InterpreterInlines.h"
 #include "IteratorOperations.h"
 #include "JSCBuiltins.h"
 #include "JSCInlines.h"
 #include "JSIteratorConstructor.h"
+#include "MathCommon.h"
+#include "ThrowScope.h"
 #include "VMEntryScopeInlines.h"
+#include <cmath>
+#include <cstdint>
+#include <optional>
+#include <wtf/Assertions.h>
 
 namespace JSC {
 
@@ -48,6 +57,7 @@ static JSC_DECLARE_CUSTOM_GETTER(iteratorProtoToStringTagGetter);
 static JSC_DECLARE_CUSTOM_SETTER(iteratorProtoToStringTagSetter);
 static JSC_DECLARE_HOST_FUNCTION(iteratorProtoFuncToArray);
 static JSC_DECLARE_HOST_FUNCTION(iteratorProtoFuncForEach);
+static JSC_DECLARE_HOST_FUNCTION(iteratorProtoFuncIncludes);
 
 void JSIteratorPrototype::finishCreation(VM& vm, JSGlobalObject* globalObject)
 {
@@ -88,6 +98,11 @@ void JSIteratorPrototype::finishCreation(VM& vm, JSGlobalObject* globalObject)
         JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION("chunks"_s, jsIteratorPrototypeChunksCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
         // https://tc39.es/proposal-iterator-chunking/#sec-iterator.prototype.windows
         JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION("windows"_s, jsIteratorPrototypeWindowsCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
+    }
+
+    if (Options::useIteratorIncludes()) {
+        // https://tc39.es/proposal-iterator-includes/#sec-iterator.prototype.includes
+        JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().includesPublicName(), iteratorProtoFuncIncludes, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public);
     }
 
     if (Options::useExplicitResourceManagement())
@@ -194,6 +209,115 @@ JSC_DEFINE_HOST_FUNCTION(iteratorProtoFuncForEach, (JSGlobalObject* globalObject
 
     RETURN_IF_EXCEPTION(scope, { });
     return JSValue::encode(jsUndefined());
+}
+
+// https://tc39.es/proposal-iterator-includes/#sec-iterator.prototype.includes
+JSC_DEFINE_HOST_FUNCTION(iteratorProtoFuncIncludes, (JSGlobalObject* globalObject, CallFrame* callFrame))
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    JSValue thisValue = callFrame->thisValue().toThis(globalObject, ECMAMode::strict());
+    RETURN_IF_EXCEPTION(scope, { });
+    if (!thisValue.isObject()) [[unlikely]]
+        return throwVMTypeError(globalObject, scope, "Iterator.prototype.includes requires that |this| be an Object."_s);
+
+    JSValue skippedElementsArg = callFrame->argument(1);
+    uint64_t toSkip = 0;
+    if (!skippedElementsArg.isUndefined()) {
+        constexpr ASCIILiteral errorMessage = "Iterator.prototype.includes requires that the second argument is a non-negative integral Number or Infinity."_s;
+
+        if (skippedElementsArg.isInt32()) [[likely]] {
+            int32_t skippedAsInt32 = skippedElementsArg.asInt32();
+            if (skippedAsInt32 < 0) {
+                iteratorClose(globalObject, thisValue);
+                TRY_CLEAR_EXCEPTION(scope, { });
+                return throwVMRangeError(globalObject, scope, errorMessage);
+            }
+            toSkip = skippedAsInt32;
+        } else if (skippedElementsArg.isDouble()) {
+            double skippedAsDouble = skippedElementsArg.asDouble();
+            if (isInteger(skippedAsDouble)) {
+                if (skippedAsDouble < 0) {
+                    iteratorClose(globalObject, thisValue);
+                    TRY_CLEAR_EXCEPTION(scope, { });
+                    return throwVMRangeError(globalObject, scope, errorMessage);
+                }
+
+                toSkip = static_cast<uint64_t>(skippedAsDouble);
+            } else if (std::isinf(skippedAsDouble)) {
+                // check -Infinity
+                if (skippedAsDouble < 0) {
+                    iteratorClose(globalObject, thisValue);
+                    TRY_CLEAR_EXCEPTION(scope, { });
+                    return throwVMRangeError(globalObject, scope, errorMessage);
+                }
+
+                // if the 2nd argument is +Infinity, we should consume the iterator to the end.
+                toSkip = std::numeric_limits<uint64_t>::max();
+            } else {
+                iteratorClose(globalObject, thisValue);
+                TRY_CLEAR_EXCEPTION(scope, { });
+                return throwVMTypeError(globalObject, scope, errorMessage);
+            }
+        } else {
+            iteratorClose(globalObject, thisValue);
+            TRY_CLEAR_EXCEPTION(scope, { });
+            return throwVMTypeError(globalObject, scope, errorMessage);
+        }
+    }
+
+    IterationRecord iterationRecord = iteratorDirect(globalObject, thisValue);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    JSValue nextMethod = iterationRecord.nextMethod;
+    CallData callData = getCallDataInline(nextMethod);
+
+    std::optional<CachedCall> cachedCallHolder;
+    CachedCall* cachedCall = nullptr;
+    if (callData.type == CallData::Type::JS) [[likely]] {
+        cachedCallHolder.emplace(globalObject, jsCast<JSFunction*>(nextMethod), 0);
+        RETURN_IF_EXCEPTION(scope, { });
+
+        cachedCall = &cachedCallHolder.value();
+    }
+
+    JSValue searchElement = callFrame->argument(0);
+    uint64_t skipped = 0;
+
+    while (true) {
+        JSValue next;
+        if (cachedCall) [[likely]] {
+            cachedCall->clearArguments();
+            next = iteratorStepWithCachedCall(globalObject, iterationRecord, cachedCall);
+        } else
+            next = iteratorStep(globalObject, iterationRecord);
+
+        RETURN_IF_EXCEPTION(scope, { });
+
+        if (next.isFalse())
+            return JSValue::encode(jsBoolean(false));
+
+        if (skipped < toSkip) {
+            skipped += 1;
+            continue;
+        }
+
+        JSValue nextValue = iteratorValue(globalObject, next);
+        RETURN_IF_EXCEPTION(scope, { });
+
+        bool isEqual = sameValueZero(globalObject, nextValue, searchElement);
+        RETURN_IF_EXCEPTION(scope, { });
+
+        if (isEqual) {
+            iteratorClose(globalObject, iterationRecord.iterator);
+            TRY_CLEAR_EXCEPTION(scope, { });
+            return JSValue::encode(jsBoolean(true));
+        }
+    }
+
+    RELEASE_ASSERT_NOT_REACHED();
+    return { };
 }
 
 } // namespace JSC

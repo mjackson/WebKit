@@ -91,6 +91,9 @@
 
 #if HAVE(BROWSERENGINEKIT_WEBCONTENTFILTER)
 #include "WebParentalControlsURLFilter.h"
+#if HAVE(WEBCONTENTRESTRICTIONS_ASK_TO)
+#include <WebCore/CocoaView.h>
+#endif
 #endif
 
 #define MESSAGE_CHECK(assertion) MESSAGE_CHECK_BASE(assertion, process().connection())
@@ -134,8 +137,6 @@ WebFrameProxy::WebFrameProxy(WebPageProxy& page, FrameProcess& process, FrameIde
     ASSERT(!allFrames().contains(frameID));
     allFrames().set(frameID, *this);
     WebProcessPool::statistics().wkFrameCount++;
-
-    page.inspectorController().didCreateFrame(*this);
 
     m_frameProcess->incrementFrameCount();
 
@@ -451,8 +452,12 @@ bool WebFrameProxy::didHandleContentFilterUnblockNavigation(const ResourceReques
 
     std::optional<URL> unblockRequestURL = std::nullopt;
 #if HAVE(WEBCONTENTRESTRICTIONS_ASK_TO)
-    if (page->preferences().webContentRestrictionsAskToEnabled())
+    bool webContentRestrictionsAskToEnabled = page->preferences().webContentRestrictionsAskToEnabled();
+    if (webContentRestrictionsAskToEnabled)
         unblockRequestURL = request.url();
+#if HAVE(BROWSERENGINEKIT_WEBCONTENTFILTER)
+    RetainPtr<CocoaView> presentingView = webContentRestrictionsAskToEnabled ? reinterpret_cast<CocoaView *>(page->cocoaView().get()) : nullptr;
+#endif
 #endif
 
 #if HAVE(WEBCONTENTRESTRICTIONS)
@@ -480,10 +485,14 @@ bool WebFrameProxy::didHandleContentFilterUnblockNavigation(const ResourceReques
     WebParentalControlsURLFilter::setSharedParentalControlsURLFilterIfNecessary();
 #endif
 
-    m_contentFilterUnblockHandler.requestUnblockAsync([page](bool unblocked) {
+    SUPPRESS_FORWARD_DECL_ARG m_contentFilterUnblockHandler.requestUnblockAsync([page](bool unblocked) {
         if (unblocked)
             page->reload({ });
-    }, unblockRequestURL);
+    }, unblockRequestURL
+#if HAVE(WEBCONTENTRESTRICTIONS_ASK_TO) && HAVE(BROWSERENGINEKIT_WEBCONTENTFILTER)
+    , presentingView
+#endif
+    );
     return true;
 }
 #endif
@@ -537,6 +546,7 @@ void WebFrameProxy::didCreateSubframe(WebCore::FrameIdentifier frameID, String&&
     Ref child = WebFrameProxy::create(*page, m_frameProcess, frameID, effectiveSandboxFlags, effectiveReferrerPolicy, scrollingMode, nullptr, this, IsMainFrame::No, std::nullopt);
     child->m_parentFrame = *this;
     child->m_frameName = WTF::move(frameName);
+    page->inspectorController().didCreateFrame(child);
     page->observeAndCreateRemoteSubframesInOtherProcesses(child, child->m_frameName);
     m_childFrames.add(child.copyRef());
 
@@ -626,7 +636,7 @@ void WebFrameProxy::getFrameTree(CompletionHandler<void(std::optional<FrameTreeN
     private:
         FrameInfoCallbackAggregator(CompletionHandler<void(std::optional<FrameTreeNodeData>&&)>&& completionHandler, size_t childCount)
             : m_completionHandler(WTF::move(completionHandler))
-            , m_childFrameData(childCount, { }) { }
+            , m_childFrameData(FillWith { }, childCount, { }) { }
 
         CompletionHandler<void(std::optional<FrameTreeNodeData>&&)> m_completionHandler;
         std::optional<FrameInfoData> m_currentFrameData;
@@ -799,7 +809,7 @@ auto WebFrameProxy::traverseNext(CanWrap canWrap) const -> TraversalResult
 
     if (canWrap == CanWrap::Yes) {
         if (RefPtr page = m_page.get())
-            return { protect(page->mainFrame()), DidWrap::Yes };
+            return { page->mainFrame(), DidWrap::Yes };
 
     }
     return { };
@@ -819,8 +829,8 @@ auto WebFrameProxy::traversePrevious(CanWrap canWrap) -> TraversalResult
 
 RefPtr<WebFrameProxy> WebFrameProxy::deepLastChild()
 {
-    RefPtr result = this;
-    for (RefPtr last = lastChild(); last; last = last->lastChild())
+    auto* result = static_cast<WebFrameProxy*>(this);
+    for (auto* last = lastChild(); last; last = last->lastChild())
         result = last;
     return result;
 }
@@ -873,7 +883,7 @@ WebFrameProxy* WebFrameProxy::previousSibling() const
 
 RefPtr<WebFrameProxy> WebFrameProxy::childFrame(uint64_t index) const
 {
-    RefPtr child = firstChild();
+    auto* child = firstChild();
     for (uint64_t i = 0; i < index && child; i++)
         child = child->nextSibling();
     return child;
@@ -1015,6 +1025,14 @@ void WebFrameProxy::requestContainerJSHandleForExtractedText(TextExtraction::Ext
         return completion({ });
 
     sendWithAsyncReply(Messages::WebFrame::RequestContainerJSHandleForExtractedText(WTF::move(extractedText)), WTF::move(completion));
+}
+
+void WebFrameProxy::requestContainerJSHandleForSearchTexts(Vector<String>&& searchTexts, std::optional<NodeIdentifier>&& targetNodeIdentifier, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&& completion)
+{
+    if (RefPtr page = m_page.get(); !page || !page->hasRunningProcess())
+        return completion({ });
+
+    sendWithAsyncReply(Messages::WebFrame::RequestContainerJSHandleForSearchTexts(WTF::move(searchTexts), WTF::move(targetNodeIdentifier)), WTF::move(completion));
 }
 
 void WebFrameProxy::getSelectorPathsForNode(JSHandleInfo&& handle, CompletionHandler<void(Vector<HashSet<String>>&&)>&& completion)

@@ -225,22 +225,24 @@ static inline size_t capitalizeCharacter(String textContent, unsigned startChara
 
 String capitalize(const String& string)
 {
-    Vector<char16_t> previousCharacter(1, ' ');
-    return capitalize(string, previousCharacter);
+    return capitalize(string, ' ');
 }
 
-String capitalize(const String& string, Vector<char16_t> previousCharacter)
+String capitalize(const String& string, char32_t previousCharacter)
 {
     int32_t length = string.length();
-    int32_t previousCharacterLength = previousCharacter.size();
     auto& stringImpl = *string.impl();
 
     static_assert(String::MaxLength < std::numeric_limits<unsigned>::max(), "Must be able to add one without overflowing unsigned");
 
     // Replace NO BREAK SPACE with a normal spaces since ICU does not treat it as a word separator.
+    std::array<char16_t, 2> previousCharacterUTF16;
+    int32_t previousCharacterLength = 0;
+    U16_APPEND_UNSAFE(previousCharacterUTF16, previousCharacterLength, previousCharacter);
+
     Vector<char16_t> stringWithPrevious(previousCharacterLength + length);
     for (int32_t i = 0; i < previousCharacterLength; ++i)
-        stringWithPrevious[i] = convertNoBreakSpaceToSpace(previousCharacter[i]);
+        stringWithPrevious[i] = convertNoBreakSpaceToSpace(previousCharacterUTF16[i]);
     for (int32_t i = previousCharacterLength; i < length + previousCharacterLength; ++i)
         stringWithPrevious[i] = convertNoBreakSpaceToSpace(stringImpl[i - previousCharacterLength]);
 
@@ -385,7 +387,7 @@ bool RenderText::computeUseBackslashAsYenSymbol() const
     const auto& fontDescription = style.fontDescription();
     if (style.fontCascade().useBackslashAsYenSymbol())
         return true;
-    if (fontDescription.isSpecifiedFont())
+    if (fontDescription.hasAuthorSpecifiedNonGenericPrimaryFont())
         return false;
     const PAL::TextEncoding* encoding = document().decoder() ? &document().decoder()->encoding() : 0;
     if (encoding && encoding->backslashAsCurrencySymbol() != '\\')
@@ -398,14 +400,14 @@ void RenderText::initiateFontLoadingByAccessingGlyphDataAndComputeCanUseSimplifi
     auto& style = this->style();
     auto& fontCascade = style.fontCascade();
     // See webkit.org/b/252668
-    auto fontVariant = AutoVariant;
+    auto fontVariant = FontVariant::Auto;
     m_canUseSimplifiedTextMeasuring = canUseSimpleFontCodePath();
 #if USE(FONT_VARIANT_VIA_FEATURES)
     auto fontVariantCaps = fontCascade.fontDescription().variantCaps();
     if (fontVariantCaps == FontVariantCaps::Small || fontVariantCaps == FontVariantCaps::AllSmall || fontVariantCaps ==  FontVariantCaps::Petite || fontVariantCaps == FontVariantCaps::AllPetite) {
         // This matches the behavior of ComplexTextController::collectComplexTextRuns(): that function doesn't perform font fallback
         // on the capitalized characters when small caps is enabled, so we shouldn't here either.
-        fontVariant = NormalVariant;
+        fontVariant = FontVariant::Normal;
         m_canUseSimplifiedTextMeasuring = false;
     }
 #endif
@@ -566,7 +568,7 @@ void RenderText::collectSelectionGeometries(Vector<SelectionGeometry>& rects, un
         bool containsEnd = textBox->start() <= end && textBox->end() >= end;
 
         bool isFixed = false;
-        auto absoluteQuad = localToAbsoluteQuad(FloatRect(rect), UseTransforms, &isFixed);
+        auto absoluteQuad = localToAbsoluteQuad(FloatRect(rect), MapCoordinatesMode::UseTransforms, &isFixed);
         bool boxIsHorizontal = !is<InlineIterator::SVGTextBoxIterator>(textBox) ? textBox->isHorizontal() : !writingMode().isVertical();
 
         auto selectionGeometry = SelectionGeometry(absoluteQuad, HTMLElement::selectionRenderingBehavior(textNode()), textBox->direction(), extentsRect.x(), extentsRect.maxX(), extentsRect.maxY(), 0, textBox->isLineBreak(), isFirstOnLine, isLastOnLine, containsStart, containsEnd, boxIsHorizontal, isFixed, view().pageNumberForBlockProgressionOffset(absoluteQuad.enclosingBoundingBox().x()));
@@ -616,7 +618,7 @@ static Vector<FloatQuad> collectAbsoluteQuads(const RenderText& textRenderer, bo
             }
         }
         
-        quads.append(textRenderer.localToAbsoluteQuad(boundaries, UseTransforms, wasFixed));
+        quads.append(textRenderer.localToAbsoluteQuad(boundaries, MapCoordinatesMode::UseTransforms, wasFixed));
     }
     return quads;
 }
@@ -719,7 +721,7 @@ Vector<FloatQuad> RenderText::absoluteQuadsForRange(unsigned start, unsigned end
 
             for (auto& rect : rects) {
                 if (FloatRect localRect { rect }; !localRect.isZero())
-                    quads.append(localToAbsoluteQuad(localRect, UseTransforms, wasFixed));
+                    quads.append(localToAbsoluteQuad(localRect, MapCoordinatesMode::UseTransforms, wasFixed));
             }
             continue;
         }
@@ -738,12 +740,12 @@ Vector<FloatQuad> RenderText::absoluteQuadsForRange(unsigned start, unsigned end
                     boundaries.setX(selectionRect.x());
                 }
             }
-            quads.append(localToAbsoluteQuad(boundaries, UseTransforms, wasFixed));
+            quads.append(localToAbsoluteQuad(boundaries, MapCoordinatesMode::UseTransforms, wasFixed));
             continue;
         }
         FloatRect rect = localQuadForTextBox(textBox, start, end, useSelectionHeight);
         if (!rect.isZero())
-            quads.append(localToAbsoluteQuad(rect, UseTransforms, wasFixed));
+            quads.append(localToAbsoluteQuad(rect, MapCoordinatesMode::UseTransforms, wasFixed));
     }
     return quads;
 }
@@ -1025,12 +1027,11 @@ unsigned RenderText::lastCharacterIndexStrippingSpaces() const
     if (!style().collapseWhiteSpace())
         return text().length() - 1;
     
-    int i = text().length() - 1;
-    for ( ; i  >= 0; --i) {
+    for (auto i = text().length(); i--;) {
         if (text()[i] != ' ' && (text()[i] != '\n' || style().preserveNewline()) && text()[i] != '\t')
-            break;
+            return i;
     }
-    return i;
+    return 0;
 }
 
 RenderText::Widths RenderText::trimmedPreferredWidths(float leadWidth, bool& stripFrontSpaces)
@@ -1479,7 +1480,7 @@ bool RenderText::containsOnlyCollapsibleWhitespace() const
 }
 
 // FIXME: merge this with isCSSSpace somehow
-template<typename CharacterType> static inline bool containsOnlyPossiblyCollapsibleWhitespace(std::span<const CharacterType> characters)
+template<typename CharacterType> static inline bool NODELETE containsOnlyPossiblyCollapsibleWhitespace(std::span<const CharacterType> characters)
 {
     for (auto character : characters) {
         if (!(character == '\n' || character == ' ' || character == '\t'))
@@ -1549,7 +1550,7 @@ static inline bool NODELETE isInlineFlowOrEmptyText(const RenderObject& renderer
     return textRenderer && textRenderer->text().isEmpty();
 }
 
-Vector<char16_t> RenderText::previousCharacter() const
+char32_t RenderText::previousCharacter() const
 {
     const RenderObject* previousText = this;
     while ((previousText = previousText->previousInPreOrder())) {
@@ -1559,32 +1560,13 @@ Vector<char16_t> RenderText::previousCharacter() const
             break;
     }
     auto* renderText = dynamicDowncast<RenderText>(previousText);
-    Vector<char16_t> previous;
     if (!renderText)
-        previous.append(' ');
-    else {
-        auto& previousString = renderText->text();
-        if (previousString.is8Bit())
-            previous.append(previousString[previousString.length() - 1]);
-        else {
-            auto previousCharacterLength = [&] {
-                auto contentIterator = SurrogatePairAwareTextIterator { previousString.span16(), 0, previousString.length() };
-                unsigned characterLength = 0;
-                char32_t currentCharacter = 0;
-                while (contentIterator.consume(currentCharacter, characterLength))
-                    contentIterator.advance(characterLength);
-                return characterLength;
-            }();
-
-            if (previousCharacterLength > previousString.length()) {
-                ASSERT_NOT_REACHED();
-                return previous;
-            }
-            for (size_t i = previousString.length() - previousCharacterLength; i < previousString.length(); ++i)
-                previous.append(previousString[i]);
-        }
-    }
-    return previous;
+        return ' ';
+    auto& previousString = renderText->text();
+    unsigned length = previousString.length();
+    if (!length)
+        return ' ';
+    return StringView(previousString).codePointBefore(length);
 }
 
 static String convertToFullSizeKana(const String& string)
@@ -1689,11 +1671,10 @@ static String convertToMathAuto(const String& string)
 
 String applyTextTransform(const RenderStyle& style, const String& text)
 {
-    Vector<char16_t> previousCharacter(1, ' ');
-    return applyTextTransform(style, text, previousCharacter);
+    return applyTextTransform(style, text, ' ');
 }
 
-String applyTextTransform(const RenderStyle& style, const String& text, Vector<char16_t> previousCharacter)
+String applyTextTransform(const RenderStyle& style, const String& text, char32_t previousCharacter)
 {
     auto transform = style.textTransform();
 

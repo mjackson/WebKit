@@ -40,6 +40,7 @@ class BidiBrowserAgent;
 class BidiBrowsingContextAgent;
 class BidiPermissionsAgent;
 class BidiScriptAgent;
+class BidiSessionAgent;
 class BidiStorageAgent;
 class WebAutomationSession;
 class WebPageProxy;
@@ -54,6 +55,7 @@ public:
     void sendBidiMessage(const String&);
 
     BidiBrowserAgent& browserAgent() const LIFETIME_BOUND { return m_browserAgent; }
+    BidiScriptAgent& scriptAgent() const LIFETIME_BOUND { return m_scriptAgent; }
 
     // Inspector::FrontendChannel methods. Domain events sent via WebDriverBidi domain notifiers are packaged up
     // by FrontendRouter and are then sent back out-of-process via WebAutomationSession::sendBidiMessage().
@@ -63,6 +65,10 @@ public:
     // Event entry points called from the owning WebAutomationSession.
     Inspector::BidiBrowsingContextFrontendDispatcher& browsingContextDomainNotifier() const LIFETIME_BOUND { return m_browsingContextDomainNotifier; }
     Inspector::BidiLogFrontendDispatcher& logDomainNotifier() const LIFETIME_BOUND { return m_logDomainNotifier; }
+    Inspector::BidiScriptFrontendDispatcher& scriptDomainNotifier() const LIFETIME_BOUND { return m_scriptDomainNotifier; }
+
+    bool eventIsEnabled(const String& eventName, const HashSet<String>& contexts);
+    void emitEventIfEnabled(const String& eventName, const HashSet<String>& browsingContexts, NOESCAPE const Function<void()>&);
 
 private:
     WeakPtr<WebAutomationSession> m_session;
@@ -74,9 +80,11 @@ private:
     const UniqueRef<BidiBrowsingContextAgent> m_browsingContextAgent;
     const UniqueRef<BidiPermissionsAgent> m_permissionsAgent;
     const UniqueRef<BidiScriptAgent> m_scriptAgent;
+    const UniqueRef<BidiSessionAgent> m_sessionAgent;
     const UniqueRef<BidiStorageAgent> m_storageAgent;
     const UniqueRef<Inspector::BidiBrowsingContextFrontendDispatcher> m_browsingContextDomainNotifier;
     const UniqueRef<Inspector::BidiLogFrontendDispatcher> m_logDomainNotifier;
+    const UniqueRef<Inspector::BidiScriptFrontendDispatcher> m_scriptDomainNotifier;
 };
 
 } // namespace WebKit

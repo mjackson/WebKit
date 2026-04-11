@@ -27,6 +27,7 @@
 #include "AttributeChangeInvalidation.h"
 #include "CSSComputedStyleDeclaration.h"
 #include "CSSImageValue.h"
+#include "CSSMarkup.h"
 #include "CSSParser.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSPropertyParser.h"
@@ -387,6 +388,17 @@ void StyledElement::addPropertyToPresentationalHintStyle(MutableStyleProperties&
 void StyledElement::addPropertyToPresentationalHintStyle(MutableStyleProperties& style, CSSPropertyID propertyID, Ref<CSSValue>&& value)
 {
     style.setProperty(propertyID, WTF::move(value));
+}
+
+void StyledElement::mapLanguageAttributeToLocale(const AtomString& value, MutableStyleProperties& style)
+{
+    if (!value.isEmpty()) {
+        // Quote the locale id so it is treated as a string instead of as a CSS keyword.
+        addPropertyToPresentationalHintStyle(style, CSSPropertyWebkitLocale, serializeString(value));
+    } else {
+        // The empty string means the language is explicitly unknown.
+        addPropertyToPresentationalHintStyle(style, CSSPropertyWebkitLocale, CSSValueAuto);
+    }
 }
 
 }

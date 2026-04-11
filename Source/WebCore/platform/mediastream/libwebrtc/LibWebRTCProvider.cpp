@@ -45,18 +45,18 @@ WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 
 #include <webrtc/api/audio_codecs/builtin_audio_decoder_factory.h>
 #include <webrtc/api/audio_codecs/builtin_audio_encoder_factory.h>
-#include <webrtc/api/create_modular_peer_connection_factory.h>
 #include <webrtc/api/enable_media.h>
 #include <webrtc/api/environment/environment_factory.h>
 IGNORE_CLANG_WARNINGS_BEGIN("nullability-completeness")
+#include <webrtc/api/create_modular_peer_connection_factory.h>
 #include <webrtc/api/rtc_event_log/rtc_event_log_factory.h>
 #include <webrtc/modules/audio_processing/include/audio_processing.h>
 #include <webrtc/p2p/base/basic_packet_socket_factory.h>
 #include <webrtc/p2p/client/basic_port_allocator.h>
-IGNORE_CLANG_WARNINGS_END
-// See Bug 274508: Disable thread-safety-reference-return warnings in libwebrtc
 IGNORE_CLANG_WARNINGS_BEGIN("thread-safety-reference-return")
+// See Bug 274508: Disable thread-safety-reference-return warnings in libwebrtc
 #include <webrtc/pc/peer_connection_factory.h>
+IGNORE_CLANG_WARNINGS_END
 IGNORE_CLANG_WARNINGS_END
 #include <webrtc/pc/peer_connection_factory_proxy.h>
 #include <webrtc/rtc_base/physical_socket_server.h>
@@ -75,13 +75,9 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(LibWebRTCProvider);
 
-LibWebRTCProvider::LibWebRTCProvider()
-{
-}
+LibWebRTCProvider::LibWebRTCProvider() = default;
 
-LibWebRTCProvider::~LibWebRTCProvider()
-{
-}
+LibWebRTCProvider::~LibWebRTCProvider() = default;
 
 #if !PLATFORM(COCOA)
 void LibWebRTCProvider::registerWebKitVP9Decoder()

@@ -327,7 +327,7 @@ public:
     
     // Reset the AbstractState. This throws away any results, and at this point
     // you can safely call beginBasicBlock() on any basic block.
-    void reset();
+    void NODELETE reset();
     
     AbstractInterpreterClobberState clobberState() const { return m_clobberState; }
     

@@ -69,12 +69,12 @@ public:
 WTF_MAKE_SEQUESTERED_ARENA_ALLOCATED_IMPL(ImpureDataSlot);
 
 struct ImpureDataSlotHash : public DefaultHash<std::unique_ptr<ImpureDataSlot>> {
-    static unsigned hash(const std::unique_ptr<ImpureDataSlot>& key)
+    static unsigned NODELETE hash(const std::unique_ptr<ImpureDataSlot>& key)
     {
         return key->hash;
     }
 
-    static bool equal(const std::unique_ptr<ImpureDataSlot>& a, const std::unique_ptr<ImpureDataSlot>& b)
+    static bool NODELETE equal(const std::unique_ptr<ImpureDataSlot>& a, const std::unique_ptr<ImpureDataSlot>& b)
     {
         // The ImpureDataSlot are unique per table per HeapLocation. This lets us compare the key
         // by just comparing the pointers of the unique ImpureDataSlots.
@@ -84,12 +84,12 @@ struct ImpureDataSlotHash : public DefaultHash<std::unique_ptr<ImpureDataSlot>> 
 };
 
 struct ImpureDataTranslator {
-    static unsigned hash(const HeapLocation& key)
+    static unsigned NODELETE hash(const HeapLocation& key)
     {
         return key.hash();
     }
 
-    static bool equal(const std::unique_ptr<ImpureDataSlot>& slot, const HeapLocation& key)
+    static bool NODELETE equal(const std::unique_ptr<ImpureDataSlot>& slot, const HeapLocation& key)
     {
         if (!slot)
             return false;
@@ -364,13 +364,13 @@ private:
         {
         }
     
-        void clear()
+        void NODELETE clear()
         {
             m_pureLength = 0;
             m_impureLength = 0;
         }
     
-        void write(AbstractHeap heap)
+        void NODELETE write(AbstractHeap heap)
         {
             if (heap.kind() == SideState)
                 return;
@@ -381,7 +381,7 @@ private:
             }
         }
     
-        Node* addPure(PureValue value, Node* node)
+        Node* NODELETE addPure(PureValue value, Node* node)
         {
             for (unsigned i = m_pureLength; i--;) {
                 if (m_pureMap[i].key == value)
@@ -393,7 +393,7 @@ private:
             return nullptr;
         }
         
-        LazyNode findReplacement(HeapLocation location)
+        LazyNode NODELETE findReplacement(HeapLocation location)
         {
             for (unsigned i = m_impureLength; i--;) {
                 if (m_impureMap[i].key == location)
@@ -402,7 +402,7 @@ private:
             return nullptr;
         }
     
-        LazyNode addImpure(HeapLocation location, LazyNode node)
+        LazyNode NODELETE addImpure(HeapLocation location, LazyNode node)
         {
             // FIXME: If we are using small maps, we must not def() derived values.
             // This is because we rely on one node defining at most one value so
@@ -606,7 +606,7 @@ private:
             return m_changed;
         }
     
-        void read(AbstractHeap) { }
+        void NODELETE read(AbstractHeap) { }
     
         void write(AbstractHeap heap)
         {
@@ -756,7 +756,7 @@ public:
         return m_changed;
     }
 
-    void read(AbstractHeap) { }
+    void NODELETE read(AbstractHeap) { }
     
     void write(AbstractHeap heap)
     {

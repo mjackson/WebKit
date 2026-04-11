@@ -301,7 +301,7 @@ inline Interval::Interval(int min, int max)
 {
 }
 
-inline bool Interval::contains(int value) const
+inline bool NODELETE Interval::contains(int value) const
 {
     if (m_min == Inf && m_max == Inf)
         return true;

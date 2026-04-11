@@ -200,7 +200,7 @@ struct AbstractValue {
     
     bool valueIsTop() const
     {
-        return !m_value && m_type;
+        return !m_value && m_type != SpecEmpty;
     }
 
     bool isInt52Any() const
@@ -396,7 +396,7 @@ struct AbstractValue {
     void assertIsRegistered(Graph&) const { }
 #endif
 
-    ResultType resultType() const;
+    ResultType NODELETE resultType() const;
 
     void dumpInContext(PrintStream&, DumpContext*) const;
     void dump(PrintStream&) const;
@@ -493,13 +493,13 @@ private:
     FiltrationResult fastForwardToAndFilterSlow(AbstractValueClobberEpoch, SpeculatedType);
     
     void filterValueByType();
-    void filterArrayModesByType();
+    void NODELETE filterArrayModesByType();
 
 #if USE(JSVALUE64) && !defined(NDEBUG)
     JS_EXPORT_PRIVATE void ensureCanInitializeWithZeros();
 #endif
     
-    bool shouldBeClear() const;
+    bool NODELETE shouldBeClear() const;
     FiltrationResult normalizeClarity();
     FiltrationResult normalizeClarity(Graph&);
 };

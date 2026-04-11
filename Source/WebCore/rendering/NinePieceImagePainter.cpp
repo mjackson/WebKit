@@ -210,7 +210,7 @@ static FloatSize NODELETE computeMiddleTileScale(const Vector<FloatSize, MaxPiec
 
 static Vector<FloatSize, MaxPiece> computeTileScales(const Vector<FloatRect, MaxPiece>& destinationRects, const Vector<FloatRect, MaxPiece>& sourceRects, NinePieceImageRule hRule, NinePieceImageRule vRule)
 {
-    Vector<FloatSize, MaxPiece> scales(MaxPiece, FloatSize(1, 1));
+    Vector<FloatSize, MaxPiece> scales(FillWith { }, MaxPiece, FloatSize(1, 1));
 
     scales[TopPiece]    = computeSideTileScale(TopPiece,    destinationRects, sourceRects);
     scales[RightPiece]  = computeSideTileScale(RightPiece,  destinationRects, sourceRects);

@@ -270,7 +270,7 @@ public:
     void packNodeIndices();
     void clearAbstractValues();
 
-    void dethread();
+    void NODELETE dethread();
     
     FrozenValue* freeze(JSValue); // We use weak freezing by default.
     FrozenValue* freezeStrong(JSValue); // Shorthand for freeze(value)->strengthenTo(StrongValue).
@@ -312,7 +312,7 @@ public:
 
     void dump(PrintStream&, DumpContext*);
 
-    bool terminalsAreValid();
+    bool NODELETE terminalsAreValid();
     
     enum PhiNodeDumpMode { DumpLivePhisOnly, DumpAllPhis };
     void dumpBlockHeader(PrintStream&, const char* prefix, BasicBlock*, PhiNodeDumpMode, DumpContext*);
@@ -563,7 +563,7 @@ public:
         return arithRound->canSpeculateInt32(pass) && !hasExitSite(arithRound->origin.semantic, Overflow) && !hasExitSite(arithRound->origin.semantic, NegativeZero);
     }
     
-    static ASCIILiteral opName(NodeType);
+    static ASCIILiteral NODELETE opName(NodeType);
     
     RegisteredStructureSet* addStructureSet(const StructureSet& structureSet)
     {
@@ -768,16 +768,16 @@ public:
     // any GetLocals in the basic block.
     // FIXME: it may be appropriate, in the future, to generalize this to handle GetLocals
     // introduced anywhere in the basic block.
-    void substituteGetLocal(BasicBlock& block, unsigned startIndexInBlock, VariableAccessData* variableAccessData, Node* newGetLocal);
+    void NODELETE substituteGetLocal(BasicBlock& block, unsigned startIndexInBlock, VariableAccessData* variableAccessData, Node* newGetLocal);
     
     void invalidateCFG();
     void invalidateNodeLiveness();
     
-    void clearFlagsOnAllNodes(NodeFlags);
+    void NODELETE clearFlagsOnAllNodes(NodeFlags);
     
-    void clearReplacements();
-    void clearEpochs();
-    void initializeNodeOwners();
+    void NODELETE clearReplacements();
+    void NODELETE clearEpochs();
+    void NODELETE initializeNodeOwners();
     
     BlockList blocksInPreOrder();
     BlockList blocksInPostOrder(bool isSafeToValidate = true);
@@ -1210,7 +1210,7 @@ public:
             functor(virtualRegisterForArgumentIncludingThis(argument));
     }
 
-    static unsigned parameterSlotsForArgCount(unsigned);
+    static unsigned NODELETE parameterSlotsForArgCount(unsigned);
     
     unsigned frameRegisterCount();
     unsigned stackPointerOffset();

@@ -56,7 +56,7 @@ struct ScreenData {
     uint32_t displayMask { 0 };
     PlatformGPUID gpuID { 0 };
     DynamicRangeMode preferredDynamicRangeMode { DynamicRangeMode::Standard };
-    WEBCORE_EXPORT double screenDPI() const;
+    WEBCORE_EXPORT double NODELETE screenDPI() const;
 #endif
 #if PLATFORM(GTK) || (PLATFORM(WPE) && ENABLE(WPE_PLATFORM))
     IntSize screenSize; // In millimeters.

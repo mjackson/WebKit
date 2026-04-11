@@ -128,7 +128,7 @@ struct OSRExit : public DFG::OSRExitBase {
     CodeLocationJump<JSInternalPtrTag> m_patchableJump;
     FixedVector<B3::ValueRep> m_valueReps;
 
-    CodeLocationJump<JSInternalPtrTag> codeLocationForRepatch(CodeBlock* ftlCodeBlock) const;
+    CodeLocationJump<JSInternalPtrTag> NODELETE codeLocationForRepatch(CodeBlock* ftlCodeBlock) const;
     void considerAddingAsFrequentExitSite(CodeBlock* profiledCodeBlock)
     {
         OSRExitBase::considerAddingAsFrequentExitSite(profiledCodeBlock, ExitFromFTL);

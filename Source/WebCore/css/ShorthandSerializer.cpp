@@ -26,11 +26,10 @@
 #include "ShorthandSerializer.h"
 
 #include "CSSBorderImageWidthValue.h"
-#include "CSSFunctionValue.h"
+#include "CSSCustomIdentValue.h"
 #include "CSSGridLineNamesValue.h"
 #include "CSSGridTemplateAreasValue.h"
 #include "CSSParserIdioms.h"
-#include "CSSPendingSubstitutionValue.h"
 #include "CSSPropertyInitialValues.h"
 #include "CSSPropertyNames.h"
 #include "CSSPropertyParser.h"
@@ -38,10 +37,11 @@
 #include "CSSPropertyParserConsumer+Grid.h"
 #include "CSSPropertyParserConsumer+Ident.h"
 #include "CSSSerializationContext.h"
+#include "CSSShorthandSubstitutionValue.h"
+#include "CSSSubstitutionValue.h"
 #include "CSSValueKeywords.h"
 #include "CSSValueList.h"
 #include "CSSValuePair.h"
-#include "CSSVariableReferenceValue.h"
 #include "FontSelectionValueInlines.h"
 #include "Quad.h"
 #include "StyleExtractor.h"
@@ -230,7 +230,7 @@ bool ShorthandSerializer::commonSerializationChecks(const StyleProperties& prope
     std::optional<CSSValueID> specialKeyword;
     bool allSpecialKeywords = true;
     std::optional<bool> importance;
-    std::optional<CSSPendingSubstitutionValue*> firstValueFromShorthand;
+    std::optional<CSSShorthandSubstitutionValue*> firstValueFromShorthand;
     String commonValue;
     for (unsigned i = 0; i < length(); ++i) {
         auto longhand = longhandProperty(i);
@@ -263,16 +263,12 @@ bool ShorthandSerializer::commonSerializationChecks(const StyleProperties& prope
             continue;
         }
 
-        // Don't serialize if any longhand was set to a variable.
-        if (is<CSSVariableReferenceValue>(value))
-            return true;
-
-        // Don't serialize if any longhand was set to -internal-auto-base().
-        if (auto* functionValue = dynamicDowncast<CSSFunctionValue>(*value); functionValue && functionValue->name() == CSSValueInternalAutoBase)
+        // Don't serialize if any longhand was set to a variable or substitution function.
+        if (is<CSSSubstitutionValue>(value))
             return true;
 
         // Don't serialize if any longhand was set by a different shorthand.
-        RefPtr valueFromShorthand = dynamicDowncast<CSSPendingSubstitutionValue>(value);
+        RefPtr valueFromShorthand = dynamicDowncast<CSSShorthandSubstitutionValue>(value);
         if (valueFromShorthand && valueFromShorthand->shorthandPropertyId() != m_shorthand.id())
             return true;
 
@@ -363,8 +359,9 @@ String ShorthandSerializer::serialize()
     case CSSPropertyOutline:
     case CSSPropertyTextEmphasis:
     case CSSPropertyTextDecoration:
-    case CSSPropertyWebkitTextStroke:
         return serializeLonghandsOmittingInitialValues();
+    case CSSPropertyWebkitTextStroke:
+        return serializeLonghands();
     case CSSPropertyBorderColor:
     case CSSPropertyBorderStyle:
     case CSSPropertyBorderWidth:
@@ -550,9 +547,8 @@ public:
 
     CSSValueID valueIDIncludingCustomIdent(unsigned index) const
     {
-        RefPtr value = dynamicDowncast<CSSPrimitiveValue>(m_values[index].get());
-        if (value && value->isCustomIdent())
-            return cssValueKeywordID(value->stringValue());
+        if (RefPtr customIdentValue = dynamicDowncast<CSSCustomIdentValue>(m_values[index].get()))
+            return cssValueKeywordID(customIdentValue->customIdent().value);
         return valueID(index).value_or(CSSValueInvalid);
     }
 
@@ -1145,10 +1141,13 @@ String ShorthandSerializer::serializeGrid() const
     return makeString("auto-flow"_s, dense, ' ', serializeLonghandValue(autoRowsIndex), " / "_s, serializeLonghandValue(columnsIndex));
 }
 
-static bool canOmitTrailingGridAreaValue(CSSValue& value, CSSValue& trailing, const CSS::SerializationContext& context)
+static bool canOmitTrailingGridAreaValue(CSSValue& value, CSSValue& trailing)
 {
-    if (isCustomIdentValue(value))
-        return isCustomIdentValue(trailing) && value.cssText(context) == trailing.cssText(context);
+    if (RefPtr customIdentValue = dynamicDowncast<CSSCustomIdentValue>(value)) {
+        if (RefPtr customIdentTrailing = dynamicDowncast<CSSCustomIdentValue>(trailing))
+            return customIdentValue->customIdent() == customIdentTrailing->customIdent();
+        return false;
+    }
     return isValueID(trailing, CSSValueAuto);
 }
 
@@ -1156,11 +1155,11 @@ String ShorthandSerializer::serializeGridArea() const
 {
     ASSERT(length() == 4);
     unsigned longhandsToSerialize = 4;
-    if (canOmitTrailingGridAreaValue(longhandValue(1), longhandValue(3), m_serializationContext)) {
+    if (canOmitTrailingGridAreaValue(longhandValue(1), longhandValue(3))) {
         --longhandsToSerialize;
-        if (canOmitTrailingGridAreaValue(longhandValue(0), longhandValue(2), m_serializationContext)) {
+        if (canOmitTrailingGridAreaValue(longhandValue(0), longhandValue(2))) {
             --longhandsToSerialize;
-            if (canOmitTrailingGridAreaValue(longhandValue(0), longhandValue(1), m_serializationContext))
+            if (canOmitTrailingGridAreaValue(longhandValue(0), longhandValue(1)))
                 --longhandsToSerialize;
         }
     }
@@ -1170,7 +1169,7 @@ String ShorthandSerializer::serializeGridArea() const
 String ShorthandSerializer::serializeGridRowColumn() const
 {
     ASSERT(length() == 2);
-    return serializeLonghands(canOmitTrailingGridAreaValue(longhandValue(0), longhandValue(1), m_serializationContext) ? 1 : 2, " / "_s);
+    return serializeLonghands(canOmitTrailingGridAreaValue(longhandValue(0), longhandValue(1)) ? 1 : 2, " / "_s);
 }
 
 String ShorthandSerializer::serializeGridTemplate() const

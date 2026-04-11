@@ -582,7 +582,7 @@ public:
     inline URL getURLAttributeForBindings(const QualifiedName&) const;
     URL getNonEmptyURLAttribute(const QualifiedName&) const;
 
-    virtual const AtomString& imageSourceURL() const;
+    virtual String imageSourceURL() const;
     virtual AtomString target() const { return nullAtom(); }
 
     static RefPtr<Element> findFocusDelegateForTarget(ContainerNode&, FocusTrigger);
@@ -646,7 +646,7 @@ public:
     virtual bool matchesIndeterminatePseudoClass() const;
     virtual bool matchesDefaultPseudoClass() const;
     WEBCORE_EXPORT ExceptionOr<bool> matches(const String& selectors);
-    WEBCORE_EXPORT ExceptionOr<Element*> closest(const String& selectors);
+    WEBCORE_EXPORT ExceptionOr<RefPtr<Element>> closest(const String& selectors);
 
     WEBCORE_EXPORT DOMTokenList& classList();
 
@@ -745,8 +745,7 @@ public:
     bool hasPointerCapture(int32_t);
 
 #if ENABLE(POINTER_LOCK)
-    JSC::JSValue requestPointerLock(JSC::JSGlobalObject& lexicalGlobalObject, PointerLockOptions&&);
-    WEBCORE_EXPORT void requestPointerLock();
+    void requestPointerLock(PointerLockOptions&&, Ref<DeferredPromise>&&);
 #endif
 
     OptionSet<VisibilityAdjustment> NODELETE visibilityAdjustment() const;
@@ -787,7 +786,6 @@ public:
 
     virtual void willRecalcStyle(OptionSet<Style::Change>);
     virtual void didRecalcStyle(OptionSet<Style::Change>);
-    virtual void willResetComputedStyle();
     virtual void willAttachRenderers();
     virtual void didAttachRenderers();
     virtual void willDetachRenderers();
@@ -796,9 +794,9 @@ public:
 
     LayoutRect absoluteEventHandlerBounds(bool& includesFixedPositionElements) override;
 
-    const RenderStyle* existingComputedStyle() const LIFETIME_BOUND;
-    WEBCORE_EXPORT const RenderStyle* renderOrDisplayContentsStyle() const LIFETIME_BOUND;
-    WEBCORE_EXPORT const RenderStyle* renderOrDisplayContentsStyle(const std::optional<Style::PseudoElementIdentifier>&) const LIFETIME_BOUND;
+    const RenderStyle* NODELETE existingComputedStyle() const LIFETIME_BOUND;
+    WEBCORE_EXPORT const RenderStyle* NODELETE renderOrDisplayContentsStyle() const LIFETIME_BOUND;
+    WEBCORE_EXPORT const RenderStyle* NODELETE renderOrDisplayContentsStyle(const std::optional<Style::PseudoElementIdentifier>&) const LIFETIME_BOUND;
 
     void clearBeforePseudoElement();
     void clearAfterPseudoElement();
@@ -916,8 +914,8 @@ public:
 
     void addShadowRoot(Ref<ShadowRoot>&&);
 
-    bool shouldNotifyTextManipulationControllerIfDisplayed() const;
-    void clearShouldNotifyTextManipulationControllerIfDisplayed();
+    bool NODELETE shouldNotifyTextManipulationControllerIfDisplayed() const;
+    void NODELETE clearShouldNotifyTextManipulationControllerIfDisplayed();
 
 protected:
     Element(const QualifiedName&, Document&, OptionSet<TypeFlag>);
@@ -952,13 +950,13 @@ private:
     LocalFrame* documentFrameWithNonNullView() const;
     void hideNonceSlow();
 
-    bool isUserActionElementInActiveChain() const;
-    bool isUserActionElementActive() const;
-    bool isUserActionElementFocused() const;
-    bool isUserActionElementHovered() const;
-    bool isUserActionElementDragged() const;
-    bool isUserActionElementHasFocusVisible() const;
-    bool isUserActionElementHasFocusWithin() const;
+    bool NODELETE isUserActionElementInActiveChain() const;
+    bool NODELETE isUserActionElementActive() const;
+    bool NODELETE isUserActionElementFocused() const;
+    bool NODELETE isUserActionElementHovered() const;
+    bool NODELETE isUserActionElementDragged() const;
+    bool NODELETE isUserActionElementHasFocusVisible() const;
+    bool NODELETE isUserActionElementHasFocusWithin() const;
 
     bool isNonceable() const;
 
@@ -1021,7 +1019,7 @@ private:
 
     enum class ResolveComputedStyleMode : uint8_t { Normal, RenderedOnly, Editability };
     const RenderStyle* resolveComputedStyle(ResolveComputedStyleMode = ResolveComputedStyleMode::Normal);
-    const RenderStyle* resolvePseudoElementStyle(const Style::PseudoElementIdentifier&);
+    const RenderStyle& resolvePseudoElementStyle(const Style::PseudoElementIdentifier&);
 
     unsigned NODELETE rareDataChildIndex() const;
 

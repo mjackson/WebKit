@@ -96,7 +96,7 @@ private:
 // at points where replaced elements break up the text flow. The text is delivered in
 // the chunks it's already stored in, to avoid copying any text.
 
-bool shouldEmitNewlinesBeforeAndAfterNode(Node&);
+bool NODELETE shouldEmitNewlinesBeforeAndAfterNode(Node&);
 
 class TextIterator {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(TextIterator, WEBCORE_EXPORT);
@@ -252,7 +252,7 @@ public:
     StringView text() const LIFETIME_BOUND { return m_underlyingIterator.text().substring(m_runOffset); }
     WEBCORE_EXPORT SimpleRange range() const;
 
-    bool atBreak() const { return m_atBreak; }
+    bool NODELETE atBreak() const { return m_atBreak; }
     unsigned characterOffset() const { return m_offset; }
 
 private:

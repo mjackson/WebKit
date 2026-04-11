@@ -52,6 +52,11 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebXRWebGLLayer);
 
+const WebXRSession* WebXRWebGLLayer::session()
+{
+    return m_session.get();
+}
+
 // Arbitrary value for minimum framebuffer scaling.
 // Below this threshold the resulting framebuffer would be too small to see.
 constexpr double MinFramebufferScalingFactor = 0.2;
@@ -313,17 +318,17 @@ void WebXRWebGLLayer::startFrame(PlatformXR::FrameData& data)
     m_framebuffer->startFrame(it->value);
 }
 
-PlatformXR::Device::Layer WebXRWebGLLayer::endFrame()
+PlatformXR::DeviceLayer WebXRWebGLLayer::endFrame()
 {
     ASSERT(m_framebuffer);
     m_framebuffer->endFrame();
 
-    Vector<PlatformXR::Device::LayerView> views {
+    Vector<PlatformXR::DeviceLayer::LayerView> views {
         { PlatformXR::Eye::Left, m_leftViewportData.viewport->rect() },
         { PlatformXR::Eye::Right, m_rightViewportData.viewport->rect() }
     };
 
-    return PlatformXR::Device::Layer {
+    return PlatformXR::DeviceLayer {
         .handle = m_framebuffer->handle(),
         .visible = true,
         .views = WTF::move(views),

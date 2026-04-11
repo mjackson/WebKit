@@ -34,6 +34,7 @@
 #include "RenderFragmentedFlow.h"
 #include "VisiblePosition.h"
 #include <memory>
+#include <wtf/WeakHashMap.h>
 
 namespace WebCore {
 
@@ -144,7 +145,7 @@ private:
 
     virtual void NODELETE installFragmentedFlow();
 
-    LayoutPoint mapFragmentPointIntoFragmentedFlowCoordinates(const LayoutPoint&);
+    LayoutPoint NODELETE mapFragmentPointIntoFragmentedFlowCoordinates(const LayoutPoint&);
     LayoutRect computedVisualOverflowRectForBox(const RenderBox&) const;
     LayoutRect computedLayoutOverflowRectForBox(const RenderBox&) const;
 

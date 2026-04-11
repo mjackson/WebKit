@@ -10,5 +10,5 @@ b
 x
 text	string
 
-FAIL MathML elements should preserve structure and content during copy-paste promise_test: Unhandled rejection with value: object "TypeError: utils.sendCopyShortcutKey is not a function. (In 'utils.sendCopyShortcutKey()', 'utils.sendCopyShortcutKey' is undefined)"
+FAIL MathML elements should preserve structure and content during copy-paste assert_not_equals: MathML element should be pasted got disallowed value null
 

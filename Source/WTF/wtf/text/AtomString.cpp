@@ -23,7 +23,6 @@
 #include "config.h"
 #include <wtf/text/AtomString.h>
 
-#include <mutex>
 #include <wtf/dtoa.h>
 #include <wtf/text/IntegerToStringConversion.h>
 #include <wtf/text/StringBuilder.h>

@@ -51,6 +51,7 @@
 #include "ServiceWorkerTypes.h"
 #include "WebCoreOpaqueRoot.h"
 #include "WorkerGlobalScope.h"
+#include <JavaScriptCore/HeapCellInlines.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/Vector.h>
 

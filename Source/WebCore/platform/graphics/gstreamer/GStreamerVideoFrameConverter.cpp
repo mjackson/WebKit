@@ -125,9 +125,9 @@ GRefPtr<GstSample> GStreamerVideoFrameConverter::Pipeline::run(const GRefPtr<Gst
     gst_app_src_push_sample(GST_APP_SRC_CAST(m_src.get()), sample.get());
 
     auto bus = adoptGRef(gst_element_get_bus(m_pipeline.get()));
-    auto message = adoptGRef(gst_bus_timed_pop_filtered(bus.get(), 200 * GST_MSECOND, static_cast<GstMessageType>(GST_MESSAGE_ERROR | GST_MESSAGE_ASYNC_DONE)));
+    auto message = adoptGRef(gst_bus_timed_pop_filtered(bus.get(), 400 * GST_MSECOND, static_cast<GstMessageType>(GST_MESSAGE_ERROR | GST_MESSAGE_ASYNC_DONE)));
     if (!message) {
-        GST_ERROR_OBJECT(m_pipeline.get(), "Video frame conversion 200ms timeout expired.");
+        GST_ERROR_OBJECT(m_pipeline.get(), "Video frame conversion 400ms timeout expired.");
         return nullptr;
     }
 

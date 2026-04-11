@@ -133,7 +133,8 @@ angle::Result RenderbufferVk::setStorageImpl(const gl::Context *context,
     ANGLE_TRY(mImage->initExternal(
         contextVk, gl::TextureType::_2D, extents, format.getIntendedFormatID(), textureFormatID,
         imageSamples, usage, createFlags, vk::ImageAccess::Undefined, nullptr, gl::LevelIndex(0), 1,
-        1, robustInit, false, tileMemoryPreference, vk::YcbcrConversionDesc{}, nullptr));
+        1, robustInit, false, tileMemoryPreference, vk::YcbcrConversionDesc{}, nullptr,
+        vk::ImageFormatReinterpretability::ColorspaceOverrides));
 
     VkMemoryPropertyFlags flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     ANGLE_TRY(contextVk->initImageAllocation(mImage, false, flags,
@@ -286,7 +287,7 @@ angle::Result RenderbufferVk::initializeContents(const gl::Context *context,
                                                  const gl::ImageIndex &imageIndex)
 {
     // Note: stageSubresourceRobustClear only uses the intended format to count channels.
-    mImage->stageRobustResourceClear(imageIndex);
+    mImage->stageRobustResourceClear(imageIndex, mImage->getAspectFlags());
     return mImage->flushAllStagedUpdates(vk::GetImpl(context));
 }
 

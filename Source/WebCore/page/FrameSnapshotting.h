@@ -59,6 +59,7 @@ enum class SnapshotFlags : uint16_t {
     ExcludeText                             = 1 << 11,
     FixedAndStickyLayersOnly                = 1 << 12,
     DraggableElement                        = 1 << 13,
+    IncludeDocumentMarkers                  = 1 << 14,
 };
 
 struct SnapshotOptions {

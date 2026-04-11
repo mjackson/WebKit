@@ -42,6 +42,7 @@
 #if ENABLE(PICTURE_IN_PICTURE_API)
 #include "NotImplemented.h"
 #endif
+#include "LocalDOMWindow.h"
 #include "RenderElement.h"
 #include "SerializedNode.h"
 #include "Settings.h"

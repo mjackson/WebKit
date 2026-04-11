@@ -28,6 +28,9 @@
 
 #include "HTMLOptionElement.h"
 #include "HTMLSelectElement.h"
+#include "RenderBoxModelObjectInlines.h"
+#include "RenderObjectDocument.h"
+#include "RenderObjectNode.h"
 #include "RenderText.h"
 #include "RenderTreeBuilder.h"
 #include "RenderView.h"

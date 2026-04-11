@@ -334,10 +334,11 @@ private:
         case TagId::Meta:
             if (match(attributeName, contentAttr))
                 m_metaContent = attributeValue.toString();
-            else if (match(attributeName, nameAttr))
+            else if (match(attributeName, nameAttr)) {
                 m_metaIsViewport = equalLettersIgnoringASCIICase(attributeValue, "viewport"_s);
-            else if (document->settings().disabledAdaptationsMetaTagEnabled() && match(attributeName, nameAttr))
-                m_metaIsDisabledAdaptations = equalLettersIgnoringASCIICase(attributeValue, "disabled-adaptations"_s);
+                if (document->settings().disabledAdaptationsMetaTagEnabled())
+                    m_metaIsDisabledAdaptations = equalLettersIgnoringASCIICase(attributeValue, "disabled-adaptations"_s);
+            }
             break;
         case TagId::Video:
             processVideoAttribute(attributeName, attributeValue);
@@ -542,8 +543,8 @@ void TokenPreloadScanner::updatePredictedBaseURL(const HTMLToken& token, bool sh
     if (!hrefAttribute)
         return;
     URL temp { m_documentURL, StringImpl::create8BitIfPossible(hrefAttribute->value) };
-    if (!shouldRestrictBaseURLSchemes || SecurityPolicy::isBaseURLSchemeAllowed(temp))
-        m_predictedBaseElementURL = WTF::move(temp).isValid() ? WTF::move(temp).isolatedCopy() : URL();
+    if (temp.isValid() && (!shouldRestrictBaseURLSchemes || SecurityPolicy::isBaseURLSchemeAllowed(temp)))
+        m_predictedBaseElementURL = WTF::move(temp);
 }
 
 HTMLPreloadScanner::HTMLPreloadScanner(const HTMLParserOptions& options, const URL& documentURL, float deviceScaleFactor)

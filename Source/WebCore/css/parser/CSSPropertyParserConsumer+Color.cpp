@@ -142,7 +142,7 @@ static std::optional<CSS::RelativeColorComponent<Descriptor, Index>> consumeRela
 }
 
 template<typename Descriptor>
-static bool consumeAlphaDelimiter(CSSParserTokenRange& args)
+static bool NODELETE consumeAlphaDelimiter(CSSParserTokenRange& args)
 {
     if constexpr (Descriptor::syntax == CSSColorFunctionSyntax::Legacy)
         return consumeCommaIncludingWhitespace(args);

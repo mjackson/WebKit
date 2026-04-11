@@ -39,7 +39,7 @@
 
 namespace WebCore {
 
-static inline const RenderObject* rendererFromPosition(const Position& position)
+static inline const RenderObject* NODELETE rendererFromPosition(const Position& position)
 {
     ASSERT(position.isNotNull());
     Node* rendererNode = nullptr;
@@ -66,9 +66,7 @@ static inline const RenderObject* rendererFromPosition(const Position& position)
     return rendererNode->renderer();
 }
 
-RenderedPosition::RenderedPosition()
-{
-}
+RenderedPosition::RenderedPosition() = default;
 
 RenderedPosition::RenderedPosition(const RenderObject* renderer, InlineIterator::LeafBoxIterator box, unsigned offset)
     : m_renderer(renderer)

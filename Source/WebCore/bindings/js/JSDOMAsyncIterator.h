@@ -128,7 +128,7 @@ public:
 
 protected:
     JSDOMAsyncIteratorBase(JSC::Structure* structure, JSWrapper& iteratedObject, IterationKind kind, InternalIterator&& iterator)
-        : Base(structure, *iteratedObject.globalObject())
+        : Base(structure, *iteratedObject.realm())
         , m_iterator(WTF::move(iterator))
         , m_kind(kind)
         , m_isFinished(IsFinished::create())
@@ -225,7 +225,7 @@ JSC::JSValue JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::next(JSC::JSGlob
         auto* promise = runNextSteps(lexicalGlobalObject);
         RETURN_IF_EXCEPTION(scope, { });
 
-        m_ongoingPromise = DOMPromise::create(*this->globalObject(), *promise);
+        m_ongoingPromise = DOMPromise::create(*this->realm(), *promise);
         return m_ongoingPromise->promise();
     }
 
@@ -241,7 +241,7 @@ JSC::JSValue JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::next(JSC::JSGlob
     auto* ongoingPromise = m_ongoingPromise->promise();
     ongoingPromise->performPromiseThenExported(vm, &lexicalGlobalObject, onSettled, onSettled, afterOngoingPromiseCapability);
 
-    m_ongoingPromise = DOMPromise::create(*this->globalObject(), *promise);
+    m_ongoingPromise = DOMPromise::create(*this->realm(), *promise);
     return m_ongoingPromise->promise();
 }
 
@@ -283,7 +283,7 @@ JSC::JSPromise* JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::getNextIterat
     JSC::VM& vm = JSC::getVM(&globalObject);
 
     auto* promise = JSC::JSPromise::create(vm, globalObject.promiseStructure());
-    auto deferred = DeferredPromise::create(*this->globalObject(), *promise);
+    auto deferred = DeferredPromise::create(*this->realm(), *promise);
     if (!m_iterator) {
         deferred->resolve();
         return promise;
@@ -513,12 +513,12 @@ JSC::JSValue JSDOMAsyncIteratorBase<JSWrapper, IteratorTraits>::returnMethod(JSC
         auto* ongoingPromise = m_ongoingPromise->promise();
         ongoingPromise->performPromiseThenExported(vm, &lexicalGlobalObject, onSettled, onSettled, afterOngoingPromiseCapability);
 
-        m_ongoingPromise = DOMPromise::create(*this->globalObject(), *promise);
+        m_ongoingPromise = DOMPromise::create(*this->realm(), *promise);
     } else {
         auto* promise = runReturnSteps(lexicalGlobalObject, value);
         RETURN_IF_EXCEPTION(scope, { });
 
-        m_ongoingPromise = DOMPromise::create(*this->globalObject(), *promise);
+        m_ongoingPromise = DOMPromise::create(*this->realm(), *promise);
         return m_ongoingPromise->promise();
     }
 
@@ -558,7 +558,7 @@ template<typename JSWrapper, typename IteratorTraits>
 void JSDOMAsyncIteratorPrototype<JSWrapper, IteratorTraits>::finishCreation(JSC::VM& vm, JSC::JSGlobalObject* globalObject)
 {
     Base::finishCreation(vm);
-    ASSERT(inherits(info()));
+    ASSERT(inheritsSlow(info()));
 
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->next, next, 0, 0, JSC::ImplementationVisibility::Public);
     addReturnMethodIfNeeded<typename DOMWrapped::Iterator>(vm, globalObject);

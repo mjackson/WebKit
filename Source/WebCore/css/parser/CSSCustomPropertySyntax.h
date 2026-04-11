@@ -44,6 +44,7 @@ struct CSSCustomPropertySyntax {
         Color,
         Image,
         URL,
+        Ident,
         CustomIdent,
         String,
         TransformFunction,

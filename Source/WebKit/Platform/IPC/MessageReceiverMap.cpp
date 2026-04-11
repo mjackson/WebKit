@@ -31,13 +31,9 @@
 
 namespace IPC {
 
-MessageReceiverMap::MessageReceiverMap()
-{
-}
+MessageReceiverMap::MessageReceiverMap() = default;
 
-MessageReceiverMap::~MessageReceiverMap()
-{
-}
+MessageReceiverMap::~MessageReceiverMap() = default;
 
 void MessageReceiverMap::addMessageReceiver(ReceiverName messageReceiverName, MessageReceiver& messageReceiver)
 {

@@ -108,6 +108,7 @@ void MathOperator::reset(const RenderStyle& style)
     m_descent = 0;
     m_italicCorrection = 0;
     m_radicalVerticalScale = 1;
+    m_unstretchedSize = 0;
 
     // We use the base size for the calculation of the preferred width.
     GlyphData baseGlyph;
@@ -115,6 +116,11 @@ void MathOperator::reset(const RenderStyle& style)
         return;
     m_maxPreferredWidth = m_width = advanceWidthForGlyph(baseGlyph);
     getAscentAndDescentForGlyph(baseGlyph, m_ascent, m_descent);
+
+    // Store the unstretched size for minsize/maxsize percentage calculations.
+    // Per MathML Core, minsize/maxsize only apply to vertical (block axis) operators.
+    if (m_operatorType == Type::VerticalOperator)
+        m_unstretchedSize = m_ascent + m_descent;
 
     if (m_operatorType == Type::VerticalOperator)
         calculateStretchyData(style, true); // We also take into account the width of larger sizes for the calculation of the preferred width.

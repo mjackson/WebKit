@@ -44,6 +44,7 @@
 #include "DocumentView.h"
 #include "Editing.h"
 #include "EditingBehavior.h"
+#include "EditingStyle.h"
 #include "EditingInlines.h"
 #include "ElementIteratorInlines.h"
 #include "EventNames.h"
@@ -89,6 +90,7 @@
 #include <wtf/RobinHoodHashSet.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/TZoneMallocInlines.h>
+#include "DocumentPage.h"
 
 namespace WebCore {
 
@@ -133,13 +135,13 @@ private:
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ReplacementFragment);
 
-static bool isInterchangeNewlineNode(const Node& node)
+static bool NODELETE isInterchangeNewlineNode(const Node& node)
 {
     auto* br = dynamicDowncast<HTMLBRElement>(node);
     return br && br->attributeWithoutSynchronization(classAttr) == AppleInterchangeNewline;
 }
 
-static bool isInterchangeConvertedSpaceSpan(const Node& node)
+static bool NODELETE isInterchangeConvertedSpaceSpan(const Node& node)
 {
     auto* element = dynamicDowncast<HTMLElement>(node);
     return element && element->attributeWithoutSynchronization(classAttr) == AppleConvertedSpace;
@@ -283,12 +285,12 @@ bool ReplacementFragment::isEmpty() const
     return (!m_fragment || !m_fragment->firstChild()) && !m_hasInterchangeNewlineAtStart && !m_hasInterchangeNewlineAtEnd;
 }
 
-Node *ReplacementFragment::firstChild() const 
+Node *NODELETE ReplacementFragment::firstChild() const 
 { 
     return m_fragment ? m_fragment->firstChild() : 0; 
 }
 
-Node *ReplacementFragment::lastChild() const 
+Node *NODELETE ReplacementFragment::lastChild() const 
 { 
     return m_fragment ? m_fragment->lastChild() : 0; 
 }
@@ -1348,11 +1350,31 @@ void ReplaceSelectionCommand::doApply()
         fragment.removeNode(*refNode);
 
     RefPtr blockStart { enclosingBlock(protect(insertionPos.deprecatedNode())) };
-    bool isInsertingIntoList = (isListHTMLElement(refNode.get()) || (isLegacyAppleStyleSpan(refNode.get()) && isListHTMLElement(refNode->firstChild())))
-    && blockStart && blockStart->renderer()->isRenderListItem() && blockStart->parentNode()->hasEditableStyle();
+
+    bool isListOrLegacyAppleStyleSpanWrappingListElement = isListHTMLElement(refNode.get()) || (isLegacyAppleStyleSpan(refNode.get()) && isListHTMLElement(refNode->firstChild()));
+    bool isBlockStartInEditableList = blockStart && blockStart->renderer()->isRenderListItem() && blockStart->parentNode()->hasEditableStyle();
+    bool isInsertingIntoList = isListOrLegacyAppleStyleSpanWrappingListElement && isBlockStartInEditableList;
+    bool isInsertingIntoListItem = refNode && refNode->hasTagName(liTag) && isStartOfBlock(VisiblePosition(insertionPos));
+
     if (isInsertingIntoList)
         refNode = insertAsListItems(downcast<HTMLElement>(*refNode), blockStart.get(), insertionPos, insertedNodes);
-    else if (isEditablePosition(insertionPos)) {
+    else if (isBlockStartInEditableList && isInsertingIntoListItem) {
+        if (RefPtr parentList = enclosingList(blockStart.get())) {
+            Ref wrapperList = parentList->cloneElementWithoutChildren(document(), nullptr);
+            wrapperList->appendChild(*refNode);
+            while (node && node->hasTagName(liTag)) {
+                RefPtr next = node->nextSibling();
+                fragment.removeNode(*node);
+                wrapperList->appendChild(*node);
+                node = WTF::move(next);
+            }
+            refNode = insertAsListItems(downcast<HTMLElement>(wrapperList.get()), blockStart.get(), insertionPos, insertedNodes);
+            isInsertingIntoList = true;
+            node = refNode->nextSibling();
+        }
+    }
+
+    if (!isInsertingIntoList && isEditablePosition(insertionPos)) {
         insertNodeAt(*refNode, insertionPos);
         insertedNodes.respondToNodeInsertion(refNode.get());
     }

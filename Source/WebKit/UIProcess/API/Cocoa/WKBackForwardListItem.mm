@@ -87,7 +87,7 @@ WK_OBJECT_DISABLE_DISABLE_KVC_IVAR_ACCESS;
 
 - (BOOL)_wasCreatedByJSWithoutUserInteraction
 {
-    return protect(*_item)->wasCreatedByJSWithoutUserInteraction();
+    return _item->wasCreatedByJSWithoutUserInteraction();
 }
 
 #pragma mark WKObject protocol implementation

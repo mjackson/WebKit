@@ -29,6 +29,7 @@
 #include "api/scoped_refptr.h"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
+#include "api/video/corruption_detection/corruption_detection_settings_generator.h"
 #include "api/video/encoded_image.h"
 #include "api/video/render_resolution.h"
 #include "api/video/video_bitrate_allocation.h"
@@ -51,7 +52,6 @@
 #include "modules/video_coding/codecs/vp8/vp8_scalability.h"
 #include "modules/video_coding/include/video_codec_interface.h"
 #include "modules/video_coding/include/video_error_codes.h"
-#include "modules/video_coding/utility/corruption_detection_settings_generator.h"
 #include "modules/video_coding/utility/simulcast_rate_allocator.h"
 #include "modules/video_coding/utility/simulcast_utility.h"
 #include "modules/video_coding/utility/vp8_constants.h"
@@ -1248,7 +1248,8 @@ int LibvpxVp8Encoder::GetEncodedPartitions(const VideoFrame& input_image,
     vpx_codec_iter_t iter = nullptr;
     encoded_images_[encoder_idx].set_size(0);
     encoded_images_[encoder_idx].set_psnr(std::nullopt);
-    encoded_images_[encoder_idx]._frameType = VideoFrameType::kVideoFrameDelta;
+    encoded_images_[encoder_idx].set_frame_type(
+        VideoFrameType::kVideoFrameDelta);
     CodecSpecificInfo codec_specific;
     const vpx_codec_cx_pkt_t* pkt = nullptr;
 
@@ -1289,8 +1290,8 @@ int LibvpxVp8Encoder::GetEncodedPartitions(const VideoFrame& input_image,
           (pkt->data.frame.flags & VPX_FRAME_IS_FRAGMENT) == 0) {
         // check if encoded frame is a key frame
         if (pkt->data.frame.flags & VPX_FRAME_IS_KEY) {
-          encoded_images_[encoder_idx]._frameType =
-              VideoFrameType::kVideoFrameKey;
+          encoded_images_[encoder_idx].set_frame_type(
+              VideoFrameType::kVideoFrameKey);
         }
         encoded_images_[encoder_idx].SetEncodedData(buffer);
         encoded_images_[encoder_idx].set_size(encoded_pos);
@@ -1328,8 +1329,8 @@ int LibvpxVp8Encoder::GetEncodedPartitions(const VideoFrame& input_image,
 
         encoded_images_[encoder_idx].set_corruption_detection_filter_settings(
             corruption_detection_settings_generator_->OnFrame(
-                encoded_images_[encoder_idx].FrameType() ==
-                    VideoFrameType::kVideoFrameKey,
+                encoded_images_[encoder_idx].IsKey(),
+
                 qp_128));
 
         encoded_complete_callback_->OnEncodedImage(encoded_images_[encoder_idx],

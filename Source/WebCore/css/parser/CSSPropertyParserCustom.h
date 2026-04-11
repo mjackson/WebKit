@@ -34,6 +34,7 @@
 #include "CSSBorderImageSliceValue.h"
 #include "CSSBorderImageWidthValue.h"
 #include "CSSBorderRadius.h"
+#include "CSSCustomIdentValue.h"
 #include "CSSFontStyleRangeValue.h"
 #include "CSSFontVariantLigaturesParser.h"
 #include "CSSFontVariantNumericParser.h"
@@ -1376,7 +1377,7 @@ inline bool PropertyParserCustom::consumeGridItemPositionShorthand(CSSParserToke
         if (!endValue)
             return false;
     } else {
-        endValue = isCustomIdentValue(*startValue) ? startValue : CSSPrimitiveValue::create(CSSValueAuto);
+        endValue = is<CSSCustomIdentValue>(*startValue) ? startValue : CSSPrimitiveValue::create(CSSValueAuto);
     }
     if (!range.atEnd())
         return false;
@@ -1413,11 +1414,11 @@ inline bool PropertyParserCustom::consumeGridAreaShorthand(CSSParserTokenRange& 
     if (!range.atEnd())
         return false;
     if (!columnStartValue)
-        columnStartValue = isCustomIdentValue(*rowStartValue) ? rowStartValue : CSSPrimitiveValue::create(CSSValueAuto);
+        columnStartValue = is<CSSCustomIdentValue>(*rowStartValue) ? rowStartValue : CSSPrimitiveValue::create(CSSValueAuto);
     if (!rowEndValue)
-        rowEndValue = isCustomIdentValue(*rowStartValue) ? rowStartValue : CSSPrimitiveValue::create(CSSValueAuto);
+        rowEndValue = is<CSSCustomIdentValue>(*rowStartValue) ? rowStartValue : CSSPrimitiveValue::create(CSSValueAuto);
     if (!columnEndValue)
-        columnEndValue = isCustomIdentValue(*columnStartValue) ? columnStartValue : CSSPrimitiveValue::create(CSSValueAuto);
+        columnEndValue = is<CSSCustomIdentValue>(*columnStartValue) ? columnStartValue : CSSPrimitiveValue::create(CSSValueAuto);
 
     result.addPropertyForCurrentShorthand(state, CSSPropertyGridRowStart, rowStartValue.releaseNonNull());
     result.addPropertyForCurrentShorthand(state, CSSPropertyGridColumnStart, columnStartValue.releaseNonNull());
@@ -1474,10 +1475,11 @@ inline bool PropertyParserCustom::consumeGridTemplateShorthand(CSSParserTokenRan
             if (!previousLineNames)
                 templateRows.append(lineNames.releaseNonNull());
             else {
-                Vector<String> combinedLineNames;
-                combinedLineNames.append(previousLineNames->names());
-                combinedLineNames.append(lineNames->names());
-                templateRows.last() = CSSGridLineNamesValue::create(combinedLineNames);
+                SpaceSeparatedVector<CSS::CustomIdent> combinedLineNames;
+                combinedLineNames.value.reserveInitialCapacity(previousLineNames->names().size() + lineNames->names().size());
+                combinedLineNames.value.appendVector(previousLineNames->names().value);
+                combinedLineNames.value.appendVector(lineNames->names().value);
+                templateRows.last() = CSSGridLineNamesValue::create(WTF::move(combinedLineNames));
             }
         }
 
@@ -1786,6 +1788,8 @@ inline bool PropertyParserCustom::consumeTransformOriginShorthand(CSSParserToken
 inline bool PropertyParserCustom::consumePerspectiveOriginShorthand(CSSParserTokenRange& range, PropertyParserState& state, const StylePropertyShorthand&, PropertyParserResult& result)
 {
     if (auto position = consumePositionUnresolved(range, state)) {
+        if (!range.atEnd())
+            return false;
         auto [positionX, positionY] = split(WTF::move(*position));
         result.addPropertyForCurrentShorthand(state, CSSPropertyPerspectiveOriginX, CSSPositionXValue::create(WTF::move(positionX)));
         result.addPropertyForCurrentShorthand(state, CSSPropertyPerspectiveOriginY, CSSPositionYValue::create(WTF::move(positionY)));
@@ -2124,7 +2128,7 @@ inline bool PropertyParserCustom::consumeScrollTimelineShorthand(CSSParserTokenR
 
     do {
         // A valid scroll-timeline-name is required.
-        if (RefPtr name = CSSPropertyParsing::consumeSingleScrollTimelineName(range))
+        if (RefPtr name = CSSPropertyParsing::consumeSingleScrollTimelineName(range, state))
             namesList.append(name.releaseNonNull());
         else
             return false;
@@ -2158,7 +2162,7 @@ inline bool PropertyParserCustom::consumeViewTimelineShorthand(CSSParserTokenRan
 
     do {
         // A valid view-timeline-name is required.
-        if (RefPtr name = CSSPropertyParsing::consumeSingleScrollTimelineName(range))
+        if (RefPtr name = CSSPropertyParsing::consumeSingleScrollTimelineName(range, state))
             namesList.append(name.releaseNonNull());
         else
             return false;

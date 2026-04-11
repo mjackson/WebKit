@@ -79,12 +79,10 @@ RetainPtr<NSAttributedString> AXTextMarkerRange::toAttributedString(AXCoreObject
 {
     AX_ASSERT(!isMainThread());
 
-    auto start = m_start.toTextRunMarker();
-    if (!start.isValid())
+    auto markers = toValidTextRunMarkers();
+    if (!markers)
         return nil;
-    auto end = m_end.toTextRunMarker();
-    if (!end.isValid())
-        return nil;
+    auto& [start, end] = *markers;
 
     String listMarkerText = listMarkerTextOnSameLine(start);
 

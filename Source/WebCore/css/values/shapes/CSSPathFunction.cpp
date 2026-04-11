@@ -46,7 +46,7 @@ void Serialize<Path>::operator()(StringBuilder& builder, const SerializationCont
     // FIXME: Add version of `buildStringFromByteStream` that takes a `StringBuilder`.
     String pathString;
     buildStringFromByteStream(value.data.byteStream, pathString, UnalteredParsing);
-    serializeString(pathString, builder);
+    serializeString(builder, pathString);
 }
 
 void ComputedStyleDependenciesCollector<Path::Data>::operator()(ComputedStyleDependencies&, const Path::Data&)

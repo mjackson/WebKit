@@ -34,7 +34,10 @@ if (window.accessibilityController) {
         });
 
         // Web area -> iframe -> paragraph -> static text.
-        var text = webArea.childAtIndex(0).childAtIndex(0).childAtIndex(0);
+        await waitFor(() => {
+            text = webArea.childAtIndex(0).childAtIndex(0).childAtIndex(0);
+            return text;
+        });
 
         var pageOrigin = { x: webArea.x, y: webArea.y };
 

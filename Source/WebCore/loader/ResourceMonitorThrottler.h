@@ -68,7 +68,7 @@ private:
         AccessThrottler() = default;
 
         bool tryAccessAndUpdateHistory(ContinuousApproximateTime, const Config&);
-        bool tryExpire(ContinuousApproximateTime, const Config&);
+        bool NODELETE tryExpire(ContinuousApproximateTime, const Config&);
         ContinuousApproximateTime NODELETE oldestAccessTime() const;
         ContinuousApproximateTime newestAccessTime() const { return m_newestAccessTime; }
 

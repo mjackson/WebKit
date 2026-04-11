@@ -717,7 +717,7 @@ void NetworkStorageSession::deleteCookies(const ClientOrigin& origin, Completion
     }, WTF::move(completionHandler));
 }
 
-void NetworkStorageSession::deleteCookiesForHostnames(const Vector<String>& hostnames, IncludeHttpOnlyCookies includeHttpOnlyCookies, ScriptWrittenCookiesOnly scriptWrittenCookiesOnly, CompletionHandler<void()>&& completionHandler)
+void NetworkStorageSession::deleteCookiesForHostnames(std::span<const String> hostnames, IncludeHttpOnlyCookies includeHttpOnlyCookies, ScriptWrittenCookiesOnly scriptWrittenCookiesOnly, CompletionHandler<void()>&& completionHandler)
 {
     HashSet<String> hostnamesSet;
     for (auto& hostname : hostnames)

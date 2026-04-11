@@ -241,7 +241,7 @@ public:
     }
 
 private:
-    bool shouldCopyPropagate(Value* value)
+    bool NODELETE shouldCopyPropagate(Value* value)
     {
         switch (value->opcode()) {
         case Trunc:
@@ -273,7 +273,7 @@ private:
         {
         }
         
-        void swap(ArgPromise& other)
+        void NODELETE swap(ArgPromise& other)
         {
             std::swap(m_arg, other.m_arg);
             std::swap(m_value, other.m_value);
@@ -287,7 +287,7 @@ private:
             swap(other);
         }
         
-        ArgPromise& operator=(ArgPromise&& other)
+        ArgPromise& NODELETE operator=(ArgPromise&& other)
         {
             swap(other);
             return *this;
@@ -299,12 +299,12 @@ private:
                 RELEASE_ASSERT(m_wasWrapped);
         }
         
-        void setTraps(bool value)
+        void NODELETE setTraps(bool value)
         {
             m_traps = value;
         }
 
-        static ArgPromise tmp(Value* value)
+        static ArgPromise NODELETE tmp(Value* value)
         {
             ArgPromise result;
             result.m_value = value;
@@ -313,14 +313,14 @@ private:
 
         explicit operator bool() const { return m_arg || m_value; }
 
-        Arg::Kind kind() const
+        Arg::Kind NODELETE kind() const
         {
             if (!m_arg && m_value)
                 return Arg::Tmp;
             return m_arg.kind();
         }
 
-        const Arg& peek() const
+        const Arg& NODELETE peek() const
         {
             return m_arg;
         }
@@ -453,12 +453,12 @@ private:
         return tmp;
     }
 
-    ArgPromise tmpPromise(Value* value)
+    ArgPromise NODELETE tmpPromise(Value* value)
     {
         return ArgPromise::tmp(value);
     }
 
-    Tmp tmpForType(Type type)
+    Tmp NODELETE tmpForType(Type type)
     {
         return m_code.newTmp(bankForType(type));
     }
@@ -483,7 +483,7 @@ private:
         RELEASE_ASSERT_NOT_REACHED();
     }
 
-    bool canBeInternal(Value* value)
+    bool NODELETE canBeInternal(Value* value)
     {
         // If one of the internal things has already been computed, then we don't want to cause
         // it to be recomputed again.
@@ -533,7 +533,7 @@ private:
         return true;
     }
 
-    bool isMergeableValue(Value* v, B3::Opcode b3Opcode)
+    bool NODELETE isMergeableValue(Value* v, B3::Opcode b3Opcode)
     { 
         if (v->opcode() != b3Opcode)
             return false;
@@ -557,7 +557,7 @@ private:
     }
 
     template<IsLegalOffset Int>
-    std::optional<unsigned> scaleForShl(Air::Opcode opcode, Value* shl, Int offset, std::optional<Width> width = std::nullopt)
+    std::optional<unsigned> NODELETE scaleForShl(Air::Opcode opcode, Value* shl, Int offset, std::optional<Width> width = std::nullopt)
     {
         if (shl->opcode() != Shl)
             return std::nullopt;
@@ -766,7 +766,7 @@ private:
         return Arg();
     }
 
-    Arg bitImm64(Value* value)
+    Arg NODELETE bitImm64(Value* value)
     {
         if (value->hasInt()) {
             int64_t intValue = value->asInt();
@@ -786,7 +786,7 @@ private:
         return Arg();
     }
 
-    Arg fpImm64(Value* value)
+    Arg NODELETE fpImm64(Value* value)
     {
         if (value->hasInt()) {
             int64_t intValue = value->asInt();
@@ -796,7 +796,7 @@ private:
         return Arg();
     }
 
-    Arg fpImm128(Value* value)
+    Arg NODELETE fpImm128(Value* value)
     {
         if (value->hasV128()) {
             auto v128Value = value->asV128();
@@ -806,7 +806,7 @@ private:
         return Arg();
     }
 
-    Arg zeroReg()
+    Arg NODELETE zeroReg()
     {
         return Arg::zeroReg();
     }
@@ -891,7 +891,7 @@ private:
     }
 
     // By convention, we use Oops to mean "I don't know".
-    Air::Opcode tryOpcodeForType(
+    Air::Opcode NODELETE tryOpcodeForType(
         Air::Opcode opcode32, Air::Opcode opcode64, Air::Opcode opcodeDouble, Air::Opcode opcodeFloat, Type type)
     {
         Air::Opcode opcode;
@@ -916,12 +916,12 @@ private:
         return opcode;
     }
 
-    Air::Opcode tryOpcodeForType(Air::Opcode opcode32, Air::Opcode opcode64, Type type)
+    Air::Opcode NODELETE tryOpcodeForType(Air::Opcode opcode32, Air::Opcode opcode64, Type type)
     {
         return tryOpcodeForType(opcode32, opcode64, Air::Oops, Air::Oops, type);
     }
 
-    Air::Opcode opcodeForType(
+    Air::Opcode NODELETE opcodeForType(
         Air::Opcode opcode32, Air::Opcode opcode64, Air::Opcode opcodeDouble, Air::Opcode opcodeFloat, Type type)
     {
         Air::Opcode opcode = tryOpcodeForType(opcode32, opcode64, opcodeDouble, opcodeFloat, type);
@@ -929,7 +929,7 @@ private:
         return opcode;
     }
 
-    Air::Opcode opcodeForType(Air::Opcode opcode32, Air::Opcode opcode64, Type type)
+    Air::Opcode NODELETE opcodeForType(Air::Opcode opcode32, Air::Opcode opcode64, Type type)
     {
         return tryOpcodeForType(opcode32, opcode64, Air::Oops, Air::Oops, type);
     }
@@ -962,7 +962,7 @@ private:
         append(opcode, result);
     }
 
-    Air::Opcode opcodeBasedOnShiftKind(B3::Opcode b3Opcode, 
+    Air::Opcode NODELETE opcodeBasedOnShiftKind(B3::Opcode b3Opcode, 
         Air::Opcode shl32, Air::Opcode shl64, 
         Air::Opcode sshr32, Air::Opcode sshr64, 
         Air::Opcode zshr32, Air::Opcode zshr64)
@@ -1306,7 +1306,7 @@ private:
         return Inst(move, m_value, tmp(value), dest);
     }
     
-    Air::Opcode storeOpcode(Width width, Bank bank)
+    Air::Opcode NODELETE storeOpcode(Width width, Bank bank)
     {
         using namespace Air;
         switch (width) {
@@ -1370,7 +1370,7 @@ private:
     }
 
     template<Air::Opcode i8, Air::Opcode i16, Air::Opcode i32, Air::Opcode i64, Air::Opcode f32, Air::Opcode f64>
-    constexpr Air::Opcode simdOpcode(SIMDLane lane)
+    constexpr Air::Opcode NODELETE simdOpcode(SIMDLane lane)
     {
         if (scalarTypeIsFloatingPoint(lane)) {
             switch (elementByteSize(lane)) {
@@ -1396,7 +1396,7 @@ private:
     }
 
     template<Air::Opcode unsignedI8, Air::Opcode signedI8, Air::Opcode unsignedI16, Air::Opcode signedI16, Air::Opcode i32, Air::Opcode i64, Air::Opcode f32, Air::Opcode f64>
-    constexpr Air::Opcode simdOpcode(SIMDLane lane, SIMDSignMode signMode)
+    constexpr Air::Opcode NODELETE simdOpcode(SIMDLane lane, SIMDSignMode signMode)
     {
         if (scalarTypeIsFloatingPoint(lane)) {
             switch (elementByteSize(lane)) {
@@ -2150,14 +2150,14 @@ private:
 
         CompareChainNode() = default;
 
-        bool isComparison() const { return type == COMPARE; }
-        bool isLogicOp() const { return type == AND || type == OR; }
-        bool isLegalFirstCombine() const
+        bool NODELETE isComparison() const { return type == COMPARE; }
+        bool NODELETE isLogicOp() const { return type == AND || type == OR; }
+        bool NODELETE isLegalFirstCombine() const
         {
             return left->isComparison() && right->isComparison();
         }
 
-        void setCondition(MacroAssembler::RelationalCondition cond) {
+        void NODELETE setCondition(MacroAssembler::RelationalCondition cond) {
           ASSERT(isLogicOp());
           relCond = cond;
           if (requiresNegation) {
@@ -2166,7 +2166,7 @@ private:
           }
         }
 
-        void markRequiresNegation()
+        void NODELETE markRequiresNegation()
         {
             if (isComparison()) {
                 // Immediately negate the condition for leaf nodes
@@ -2196,7 +2196,7 @@ private:
 
     class CompareSequence {
     public:
-        void setInitialCompare(Air::Opcode opcode, Value* left, Value* right)
+        void NODELETE setInitialCompare(Air::Opcode opcode, Value* left, Value* right)
         {
             m_initialLeft = left;
             m_initialRight = right;
@@ -2204,22 +2204,22 @@ private:
             m_hasInitialCompare = true;
         }
 
-        bool hasInitialCompare() const { return m_hasInitialCompare; }
-        Value* initialLeft() const { return m_initialLeft; }
-        Value* initialRight() const { return m_initialRight; }
-        Air::Opcode initialOpcode() const { return m_initialOpcode; }
+        bool NODELETE hasInitialCompare() const { return m_hasInitialCompare; }
+        Value* NODELETE initialLeft() const { return m_initialLeft; }
+        Value* NODELETE initialRight() const { return m_initialRight; }
+        Air::Opcode NODELETE initialOpcode() const { return m_initialOpcode; }
 
         void addConditionalCompare(Air::Opcode opcode, MacroAssembler::RelationalCondition ccmpCondition, MacroAssembler::RelationalCondition defaultFlags, Value* left, Value* right)
         {
             m_conditionalCompares.append({ ccmpCondition, defaultFlags, left, right, opcode });
         }
 
-        const Vector<ConditionalCompare, 16>& conditionalCompares() const
+        const Vector<ConditionalCompare, 16>& NODELETE conditionalCompares() const
         {
             return m_conditionalCompares;
         }
 
-        size_t size() const { return m_conditionalCompares.size(); }
+        size_t NODELETE size() const { return m_conditionalCompares.size(); }
 
     private:
         Value* m_initialLeft { nullptr };
@@ -2230,7 +2230,7 @@ private:
     };
 
 #if CPU(ARM64)
-    static bool isComparisonOpcode(B3::Opcode opcode)
+    static bool NODELETE isComparisonOpcode(B3::Opcode opcode)
     {
         switch (opcode) {
         case Equal:
@@ -2249,7 +2249,7 @@ private:
         }
     }
 
-    static MacroAssembler::RelationalCondition relationalConditionForOpcode(B3::Opcode opcode)
+    static MacroAssembler::RelationalCondition NODELETE relationalConditionForOpcode(B3::Opcode opcode)
     {
         switch (opcode) {
         case Equal:
@@ -2292,7 +2292,7 @@ private:
     //     └─────────────────┴─────┴─────┴─────┴─────┘
     // B3 LessThan maps to Below (ConditionLO = C==0) not LessThan (ConditionLT = N!=V)
     // B3 LessEqual maps to BelowOrEqual (ConditionLS = C==0 || Z==1) not LessThanOrEqual (ConditionLE = N!=V || Z==1)
-    static MacroAssembler::RelationalCondition floatRelationalConditionForOpcode(B3::Opcode opcode)
+    static MacroAssembler::RelationalCondition NODELETE floatRelationalConditionForOpcode(B3::Opcode opcode)
     {
         switch (opcode) {
         case Equal:
@@ -2313,7 +2313,7 @@ private:
         }
     }
 
-    static Air::Opcode compareOnFlagsOpcodeForType(B3::Type type)
+    static Air::Opcode NODELETE compareOnFlagsOpcodeForType(B3::Type type)
     {
         switch (type.kind()) {
         case Float:
@@ -2330,7 +2330,7 @@ private:
         }
     }
 
-    static Air::Opcode compareConditionallyOnFlagsOpcodeForType(B3::Type type)
+    static Air::Opcode NODELETE compareConditionallyOnFlagsOpcodeForType(B3::Type type)
     {
         switch (type.kind()) {
         case Float:
@@ -2572,7 +2572,7 @@ private:
 
     // Check if an immediate can be encoded in a ccmp instruction.
     // ccmp supports 5-bit immediates (0-31 for ccmp, -31 to -1 for ccmn).
-    static bool isValidConditionalCompareImmediate(int64_t value)
+    static bool NODELETE isValidConditionalCompareImmediate(int64_t value)
     {
         return -31 <= value && value <= 31;
     }
@@ -2580,7 +2580,7 @@ private:
     // Calculate the NZCV default flags for a condition.
     // This is what the flags will be set to if the ccmp predicate is false.
     // Strategy: set the MINIMUM flags needed to make the condition evaluate to true.
-    static unsigned nzcvForCondition(MacroAssembler::RelationalCondition cond)
+    static unsigned NODELETE nzcvForCondition(MacroAssembler::RelationalCondition cond)
     {
         // NZCV bits: N=8, Z=4, C=2, V=1
         enum Flag : unsigned {
@@ -2901,6 +2901,14 @@ private:
     {
         using namespace Air;
         auto createSelectInstruction = [&] (Air::Opcode opcode, const Arg& condition, ArgPromise& left, ArgPromise& right) -> Inst {
+            if (m_value->child(2)->isInt(0)) {
+                if (isValidForm(opcode, condition.kind(), left.kind(), right.kind(), Arg::Tmp, Arg::ZeroReg, Arg::Tmp)) {
+                    Tmp result = tmp(m_value);
+                    Tmp thenCase = tmp(m_value->child(1));
+                    return left.inst(right.inst(opcode, m_value, condition, left.consume(*this), right.consume(*this), thenCase, zeroReg(), result));
+                }
+            }
+
             if (isValidForm(opcode, condition.kind(), left.kind(), right.kind(), Arg::Tmp, Arg::Tmp, Arg::Tmp)) {
                 Tmp result = tmp(m_value);
                 Tmp thenCase = tmp(m_value->child(1));
@@ -2909,6 +2917,7 @@ private:
                     opcode, m_value, condition,
                     left.consume(*this), right.consume(*this), thenCase, elseCase, result));
             }
+
             if (isValidForm(opcode, condition.kind(), left.kind(), right.kind(), Arg::Tmp, Arg::Tmp)) {
                 Tmp result = tmp(m_value);
                 Tmp source = tmp(m_value->child(1));
@@ -3189,12 +3198,12 @@ private:
         append(Move, m_edx, tmp(m_value));
     }
     
-    Air::Opcode loadLinkOpcode(Width width, bool fence)
+    Air::Opcode NODELETE loadLinkOpcode(Width width, bool fence)
     {
         return fence ? OPCODE_FOR_WIDTH(LoadLinkAcq, width) : OPCODE_FOR_WIDTH(LoadLink, width);
     }
     
-    Air::Opcode storeCondOpcode(Width width, bool fence)
+    Air::Opcode NODELETE storeCondOpcode(Width width, bool fence)
     {
         return fence ? OPCODE_FOR_WIDTH(StoreCondRel, width) : OPCODE_FOR_WIDTH(StoreCond, width);
     }
@@ -3981,7 +3990,7 @@ private:
                 uint64_t mask = right->asInt();
                 if (!mask || mask & (mask + 1))
                     return false;
-                uint64_t width = WTF::bitCount(mask);
+                uint64_t width = std::popcount(mask);
                 uint64_t datasize = opcode == ExtractUnsignedBitfield32 ? 32 : 64;
                 uint64_t resultDataSize = 0;
                 if (!WTF::safeAdd(lsb, width, resultDataSize) || resultDataSize > datasize)
@@ -4069,7 +4078,7 @@ private:
                 uint64_t mask = maskValue->asInt();
                 if (!mask || mask & (mask + 1))
                     return false;
-                uint64_t maskBitCount = WTF::bitCount(mask);
+                uint64_t maskBitCount = std::popcount(mask);
                 uint64_t highWidth = highWidthValue->asInt();
                 uint64_t lowWidth = lowWidthValue->asInt();
                 uint64_t datasize = opcode == ExtractRegister32 ? 32 : 64;
@@ -4110,7 +4119,7 @@ private:
                 if (!mask1 || mask1 & (mask1 + 1))
                     return false;
                 uint64_t datasize = opcode == InsertBitField32 ? 32 : 64;
-                uint64_t width = WTF::bitCount(mask1);
+                uint64_t width = std::popcount(mask1);
                 uint64_t resultDataSize = 0;
                 if (!WTF::safeAdd(lsb, width, resultDataSize) || resultDataSize > datasize)
                     return false;
@@ -4160,7 +4169,7 @@ private:
                 uint64_t mask1 = maskValue1->asInt();
                 if (!mask1 || mask1 & (mask1 + 1))
                     return false;
-                uint64_t width = WTF::bitCount(mask1);
+                uint64_t width = std::popcount(mask1);
                 uint64_t datasize = opcode == ExtractInsertBitfieldAtLowEnd32 ? 32 : 64;
                 uint64_t resultDataSize = 0;
                 if (!WTF::safeAdd(lsb, width, resultDataSize) || resultDataSize > datasize)
@@ -4335,7 +4344,7 @@ private:
                     if (!mask || mask & (mask + 1))
                         return false;
 
-                    uint64_t width = WTF::bitCount(mask);
+                    uint64_t width = std::popcount(mask);
                     uint64_t datasize = opcode == InsertUnsignedBitfieldInZero32 ? 32 : 64;
                     uint64_t resultDataSize = 0;
                     if (!WTF::safeAdd(lsb, width, resultDataSize) || resultDataSize > datasize)

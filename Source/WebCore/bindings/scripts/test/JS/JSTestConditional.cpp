@@ -38,6 +38,7 @@
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
+#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -234,6 +235,11 @@ JSTestConditional::JSTestConditional(Structure* structure, JSDOMGlobalObject& gl
 
 static_assert(!std::is_base_of<ActiveDOMObject, TestConditional>::value, "Interface is not marked as [ActiveDOMObject] even though implementation class subclasses ActiveDOMObject.");
 
+JSC::Structure* JSTestConditional::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
+{
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
+}
+
 JSObject* JSTestConditional::createPrototype(VM& vm, JSDOMGlobalObject& globalObject)
 {
     auto* structure = JSTestConditionalPrototype::createStructure(vm, &globalObject, globalObject.objectPrototype());
@@ -264,7 +270,7 @@ JSC_DEFINE_CUSTOM_GETTER(jsTestConditionalConstructor, (JSGlobalObject* lexicalG
     auto* prototype = jsDynamicCast<JSTestConditionalPrototype*>(JSValue::decode(thisValue));
     if (!prototype) [[unlikely]]
         return throwVMTypeError(lexicalGlobalObject, throwScope);
-    return JSValue::encode(JSTestConditional::getConstructor(vm, prototype->globalObject()));
+    return JSValue::encode(JSTestConditional::getConstructor(vm, prototype->realm()));
 }
 
 #if ENABLE(FOO)

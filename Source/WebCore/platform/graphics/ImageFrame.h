@@ -44,13 +44,13 @@ public:
 
     ImageFrame();
     ImageFrame(Ref<NativeImage>&&);
-    ImageFrame(const ImageFrame& other) { operator=(other); }
+    ImageFrame(const ImageFrame&);
 
     ~ImageFrame();
 
     static const ImageFrame& NODELETE defaultFrame();
 
-    ImageFrame& operator=(const ImageFrame& other);
+    ImageFrame& operator=(const ImageFrame&);
 
     unsigned clearSourceImage(ShouldDecodeToHDR);
     unsigned clearImage(std::optional<ShouldDecodeToHDR> = std::nullopt);

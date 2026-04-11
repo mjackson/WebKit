@@ -182,9 +182,9 @@ RefPtr<const Element> ContainerQueryEvaluator::selectContainer(OptionSet<CQ::Axi
         // query containers can be established by flat tree ancestors of those elements.
         // For other pseudo-elements, query containers can be established by inclusive flat tree ancestors of their originating element.
         // https://drafts.csswg.org/css-conditional-5/#container-queries
-        for (RefPtr ancestor = originatingElement; ancestor; ancestor = ancestor->parentElementInComposedTree()) {
-            if (isContainerForQuery(*ancestor.get(), originatingElement.get()))
-                return ancestor;
+        for (Ref ancestor : composedTreeLineage(*originatingElement)) {
+            if (isContainerForQuery(ancestor, originatingElement.get()))
+                return ancestor.ptr();
         }
         return nullptr;
     }
@@ -197,9 +197,9 @@ RefPtr<const Element> ContainerQueryEvaluator::selectContainer(OptionSet<CQ::Axi
         return { };
     }
 
-    for (RefPtr ancestor = element.parentElementInComposedTree(); ancestor; ancestor = ancestor->parentElementInComposedTree()) {
-        if (isContainerForQuery(*ancestor.get()))
-            return ancestor;
+    for (Ref ancestor : composedTreeAncestors(element)) {
+        if (isContainerForQuery(ancestor))
+            return ancestor.ptr();
     }
     return { };
 }

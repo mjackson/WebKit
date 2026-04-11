@@ -122,7 +122,6 @@ CSSUnitCategory unitCategory(CSSUnitType type)
     case CSSUnitType::CSS_STRING:
     case CSSUnitType::CSS_UNKNOWN:
     case CSSUnitType::CSS_VALUE_ID:
-    case CSSUnitType::CustomIdent:
         return CSSUnitCategory::Other;
     }
     ASSERT_NOT_REACHED();
@@ -205,7 +204,6 @@ TextStream& operator<<(TextStream& ts, CSSUnitType unitType)
     case CSSUnitType::CSS_DIMENSION: ts << "dimension"_s; break;
     case CSSUnitType::CSS_STRING: ts << "string"_s; break;
     case CSSUnitType::CSS_IDENT: ts << "ident"_s; break;
-    case CSSUnitType::CustomIdent: ts << "custom-ident"_s; break;
     case CSSUnitType::CSS_ATTR: ts << "attr"_s; break;
     case CSSUnitType::CSS_VW: ts << "vw"_s; break;
     case CSSUnitType::CSS_VH: ts << "vh"_s; break;
@@ -381,7 +379,6 @@ bool conversionToCanonicalUnitRequiresConversionData(CSSUnitType unit)
     case CSSUnitType::CSS_STRING:
     case CSSUnitType::CSS_UNKNOWN:
     case CSSUnitType::CSS_VALUE_ID:
-    case CSSUnitType::CustomIdent:
         break;
     }
 

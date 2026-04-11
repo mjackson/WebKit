@@ -74,7 +74,7 @@ Ref<WebDataListSuggestionsDropdownMac> WebDataListSuggestionsDropdownMac::create
     return adoptRef(*new WebDataListSuggestionsDropdownMac(page, view));
 }
 
-WebDataListSuggestionsDropdownMac::~WebDataListSuggestionsDropdownMac() { }
+WebDataListSuggestionsDropdownMac::~WebDataListSuggestionsDropdownMac() = default;
 
 WebDataListSuggestionsDropdownMac::WebDataListSuggestionsDropdownMac(WebPageProxy& page, NSView *view)
     : WebDataListSuggestionsDropdown(page)

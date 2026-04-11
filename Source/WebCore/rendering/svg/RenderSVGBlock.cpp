@@ -86,7 +86,7 @@ void RenderSVGBlock::boundingRects(Vector<LayoutRect>& rects, const LayoutPoint&
 
 void RenderSVGBlock::absoluteQuads(Vector<FloatQuad>& quads, bool* wasFixed) const
 {
-    quads.append(localToAbsoluteQuad(FloatRect { { }, size() }, UseTransforms, wasFixed));
+    quads.append(localToAbsoluteQuad(FloatRect { { }, size() }, MapCoordinatesMode::UseTransforms, wasFixed));
 }
 
 void RenderSVGBlock::willBeDestroyed()

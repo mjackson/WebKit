@@ -461,6 +461,7 @@ const OpcodeIDWide32SizeWasm = 2 # Wide32 Prefix + OpcodeID(1 byte)
 
 const WTFConfig = _g_config + constexpr WTF::startOffsetOfWTFConfig
 const GigacageConfig = _g_config + constexpr Gigacage::startOffsetOfGigacageConfig
+const ExecutableAllocatorConfigOffset = constexpr WebConfig::startOffsetOfExecutableAllocatorConfig
 const JSCConfigOffset = constexpr WTF::offsetOfWTFConfigExtension
 const JSCConfigGateMapOffset = JSCConfigOffset + constexpr JSC::offsetOfJSCConfigGateMap
 

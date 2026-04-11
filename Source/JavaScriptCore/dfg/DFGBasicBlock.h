@@ -142,8 +142,8 @@ public:
     }
     bool isPhiIndex(size_t i) const { return i < phis.size(); }
     
-    bool isInPhis(Node* node) const;
-    bool isInBlock(Node* myNode) const;
+    bool NODELETE isInPhis(Node* node) const;
+    bool NODELETE isInBlock(Node* myNode) const;
     
     BlockNodeList::iterator begin() { return m_nodes.begin(); }
     BlockNodeList::iterator end() { return m_nodes.end(); }
@@ -166,8 +166,8 @@ public:
 
     bool isJumpPad() { return m_nodes.size() == 1 && m_nodes[0]->isJump(); }
     
-    void removePredecessor(BasicBlock* block);
-    void replacePredecessor(BasicBlock* from, BasicBlock* to);
+    void NODELETE removePredecessor(BasicBlock* block);
+    void NODELETE replacePredecessor(BasicBlock* from, BasicBlock* to);
 
     inline Node* cloneAndAppend(Graph&, const Node*);
 

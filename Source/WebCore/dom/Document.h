@@ -564,7 +564,7 @@ public:
     AsyncNodeDeletionQueue& asyncNodeDeletionQueue() LIFETIME_BOUND { return m_asyncNodeDeletionQueue; };
     static constexpr ptrdiff_t documentElementMemoryOffset() { return OBJECT_OFFSETOF(Document, m_documentElement); }
 
-    WEBCORE_EXPORT Element* activeElement();
+    WEBCORE_EXPORT Element* NODELETE activeElement();
     WEBCORE_EXPORT bool hasFocus() const;
     void whenVisible(Function<void()>&&);
 
@@ -714,7 +714,7 @@ public:
     const CSSFontSelector* fontSelectorIfExists() const { return m_fontSelector.get(); }
     inline CSSFontSelector& fontSelector() const; // Defined in DocumentInlines.h.
 
-    WEBCORE_EXPORT bool haveStylesheetsLoaded() const;
+    WEBCORE_EXPORT bool NODELETE haveStylesheetsLoaded() const;
     bool isIgnoringPendingStylesheets() const { return m_ignorePendingStylesheets; }
 
     WEBCORE_EXPORT StyleSheetList& styleSheets();
@@ -753,7 +753,7 @@ public:
 
     WEBCORE_EXPORT float deviceScaleFactor() const;
 
-    WEBCORE_EXPORT bool useElevatedUserInterfaceLevel() const;
+    WEBCORE_EXPORT bool NODELETE useElevatedUserInterfaceLevel() const;
     WEBCORE_EXPORT bool useDarkAppearance(const RenderStyle*) const;
     WEBCORE_EXPORT bool useDarkAppearance(const Style::ComputedStyle*) const;
 #if ENABLE(DARK_MODE_CSS)
@@ -821,8 +821,8 @@ public:
 
     inline const SettingsValues& settingsValues() const final; // Defined in DocumentSettingsValues.h.
 
-    void suspendDeviceMotionAndOrientationUpdates();
-    void resumeDeviceMotionAndOrientationUpdates();
+    void NODELETE suspendDeviceMotionAndOrientationUpdates();
+    void NODELETE resumeDeviceMotionAndOrientationUpdates();
 
     void suspendFontLoading();
 
@@ -961,7 +961,7 @@ public:
     void setParsing(bool);
     bool parsing() const { return m_bParsing; }
 
-    bool shouldScheduleLayout() const;
+    bool NODELETE shouldScheduleLayout() const;
     bool NODELETE isLayoutPending() const;
 #if !LOG_DISABLED
     Seconds timeSinceDocumentCreation() const { return MonotonicTime::now() - m_documentCreationTime; };
@@ -1018,6 +1018,9 @@ public:
     void hoveredElementDidDetach(Element&);
     void elementInActiveChainDidDetach(Element&);
 
+    Element* hoveredElement() const { return m_hoveredElement.get(); }
+    Element* activatedElement() const { return m_activeElement.get(); }
+
     enum class CaptureChange : bool { No, Yes };
     void updateHoverActiveState(const HitTestRequest&, Element*, CaptureChange = CaptureChange::No);
 
@@ -1060,7 +1063,7 @@ public:
     void parentlessNodeMovedToNewDocument(Node&);
 
     enum class AcceptChildOperation : bool { Replace, InsertOrAdd };
-    bool canAcceptChild(const Node& newChild, const Node* refChild, AcceptChildOperation) const;
+    bool NODELETE canAcceptChild(const Node& newChild, const Node* refChild, AcceptChildOperation) const;
 
     void textInserted(Node&, unsigned offset, unsigned length);
     void textRemoved(Node&, unsigned offset, unsigned length);
@@ -1207,7 +1210,7 @@ public:
     WEBCORE_EXPORT String domain() const;
     ExceptionOr<void> setDomain(const String& newDomain);
 
-    void overrideLastModified(const std::optional<WallTime>&);
+    void NODELETE overrideLastModified(const std::optional<WallTime>&);
     WEBCORE_EXPORT String lastModified() const;
 
     // The cookieURL is used to query the cookie database for this document's
@@ -1256,7 +1259,7 @@ public:
 
     // This is the "body element" as defined by HTML5, the first body or frameset child of the
     // document element. See https://html.spec.whatwg.org/multipage/dom.html#the-body-element-2.
-    WEBCORE_EXPORT HTMLElement* bodyOrFrameset() const;
+    WEBCORE_EXPORT HTMLElement* NODELETE bodyOrFrameset() const;
     WEBCORE_EXPORT ExceptionOr<void> setBodyOrFrameset(RefPtr<HTMLElement>&&);
 
     Location* location() const;
@@ -1283,7 +1286,7 @@ public:
     WEBCORE_EXPORT String NODELETE designMode() const;
     WEBCORE_EXPORT void setDesignMode(const String&);
 
-    WEBCORE_EXPORT Document* parentDocument() const;
+    WEBCORE_EXPORT Document* NODELETE parentDocument() const;
 
     WEBCORE_EXPORT Document* mainFrameDocument() const;
     bool isTopDocument() const { return mainFrameDocument() == this; }
@@ -1330,7 +1333,7 @@ public:
     // Extension for manipulating canvas drawing contexts for use in CSS
     std::optional<RenderingContext> getCSSCanvasContext(const String& type, const String& name, int width, int height);
     HTMLCanvasElement& getCSSCanvasElement(const String& name);
-    String nameForCSSCanvasElement(const HTMLCanvasElement&) const;
+    String NODELETE nameForCSSCanvasElement(const HTMLCanvasElement&) const;
 
     WEBCORE_EXPORT void postTask(Task&&) final; // Executes the task on context's thread asynchronously.
 
@@ -1368,9 +1371,9 @@ public:
     void unregisterMediaElement(HTMLMediaElement&);
 #endif
 
-    bool requiresUserGestureForAudioPlayback() const;
-    bool requiresUserGestureForVideoPlayback() const;
-    bool mediaDataLoadsAutomatically() const;
+    bool NODELETE requiresUserGestureForAudioPlayback() const;
+    bool NODELETE requiresUserGestureForVideoPlayback() const;
+    bool NODELETE mediaDataLoadsAutomatically() const;
 
     void privateBrowsingStateDidChange(PAL::SessionID);
 
@@ -1381,7 +1384,7 @@ public:
     void unregisterForCaptionPreferencesChangedCallbacks(HTMLMediaElement&);
     void captionPreferencesChanged();
     void NODELETE setMediaElementShowingTextTrack(const HTMLMediaElement&);
-    void clearMediaElementShowingTextTrack();
+    void NODELETE clearMediaElementShowingTextTrack();
     void updateTextTrackRepresentationImageIfNeeded();
     WEBCORE_EXPORT void shouldSuppressHDRDidChange();
 #endif
@@ -1403,7 +1406,7 @@ public:
     void updateAccessibilityObjectRegions();
     void updateEventRegions();
 
-    void invalidateRenderingDependentRegions();
+    void NODELETE invalidateRenderingDependentRegions();
     void invalidateEventRegionsForFrame(HTMLFrameOwnerElement&);
 
     void invalidateEventListenerRegions();
@@ -1539,7 +1542,7 @@ public:
     void userActivatedMediaFinishedPlaying() { m_userActivatedMediaFinishedPlayingTimestamp = MonotonicTime::now(); }
 
     // Used for testing. Count handlers in the main document, and one per frame which contains handlers.
-    WEBCORE_EXPORT unsigned wheelEventHandlerCount() const;
+    WEBCORE_EXPORT unsigned NODELETE wheelEventHandlerCount() const;
     WEBCORE_EXPORT unsigned NODELETE touchEventHandlerCount() const;
 
     WEBCORE_EXPORT void NODELETE startTrackingStyleRecalcs();
@@ -1665,8 +1668,6 @@ public:
 
     Ref<FontFaceSet> fonts();
 
-    void setVisualUpdatesAllowedByClient(bool);
-
     std::optional<Vector<uint8_t>> serializeAndWrapCryptoKey(CryptoKeyData&&) final;
     std::optional<Vector<uint8_t>> unwrapCryptoKey(const Vector<uint8_t>&) final;
 
@@ -1761,7 +1762,7 @@ public:
     size_t gatherResizeObservations(size_t deeperThan);
     void deliverResizeObservations();
     bool NODELETE hasSkippedResizeObservations() const;
-    void setHasSkippedResizeObservations(bool);
+    void NODELETE setHasSkippedResizeObservations(bool);
     void updateResizeObservations(Page&);
 
     size_t gatherResizeObservationsForContainIntrinsicSize();
@@ -1824,15 +1825,15 @@ public:
     void orientationChanged(IntDegrees orientation);
     OrientationNotifier& orientationNotifier();
 
-    WEBCORE_EXPORT const AtomString& bgColor() const;
+    WEBCORE_EXPORT const AtomString& NODELETE bgColor() const;
     WEBCORE_EXPORT void setBgColor(const AtomString&);
-    WEBCORE_EXPORT const AtomString& fgColor() const;
+    WEBCORE_EXPORT const AtomString& NODELETE fgColor() const;
     WEBCORE_EXPORT void setFgColor(const AtomString&);
-    WEBCORE_EXPORT const AtomString& alinkColor() const;
+    WEBCORE_EXPORT const AtomString& NODELETE alinkColor() const;
     WEBCORE_EXPORT void setAlinkColor(const AtomString&);
-    WEBCORE_EXPORT const AtomString& linkColorForBindings() const;
+    WEBCORE_EXPORT const AtomString& NODELETE linkColorForBindings() const;
     WEBCORE_EXPORT void setLinkColorForBindings(const AtomString&);
-    WEBCORE_EXPORT const AtomString& vlinkColor() const;
+    WEBCORE_EXPORT const AtomString& NODELETE vlinkColor() const;
     WEBCORE_EXPORT void setVlinkColor(const AtomString&);
 
     // Per https://html.spec.whatwg.org/multipage/obsolete.html#dom-document-clear, this method does nothing.
@@ -1875,13 +1876,14 @@ public:
     ListHashSet<Ref<HTMLDialogElement>>& openDialogsList() { return m_openDialogsList; }
 
     HTMLDialogElement* activeModalDialog() const;
+    HTMLDialogElement* activeCloseableDialog() const;
     HTMLElement* NODELETE topmostAutoPopover() const;
     RefPtr<HTMLDialogElement> nearestClickedDialog(const PointerEvent&, Node&) const;
 
     void hideAllPopoversUntil(HTMLElement*, FocusPreviousElement, FireEvents);
     void handlePopoverLightDismiss(const PointerEvent&, Node&);
     void handleDialogLightDismiss(const PointerEvent&, Node&);
-    bool needsPointerEventHandlingForPopover() const { return !m_autoPopoverList.isEmpty(); }
+    bool needsPointerEventHandlingForPopoverOrDialog() const { return !m_autoPopoverList.isEmpty() || !m_openDialogsList.isEmpty(); }
 
 #if ENABLE(ATTACHMENT_ELEMENT)
     void registerAttachmentIdentifier(const String&, const AttachmentAssociatedElement&);
@@ -1911,7 +1913,7 @@ public:
     bool handlingTouchEvent() const { return m_handlingTouchEvent; }
 #endif
 
-    WEBCORE_EXPORT bool hasRequestedPageSpecificStorageAccessWithUserInteraction(const RegistrableDomain&);
+    WEBCORE_EXPORT bool NODELETE hasRequestedPageSpecificStorageAccessWithUserInteraction(const RegistrableDomain&);
     WEBCORE_EXPORT void setHasRequestedPageSpecificStorageAccessWithUserInteraction(const RegistrableDomain&);
     WEBCORE_EXPORT void wasLoadedWithDataTransferFromPrevalentResource();
     void downgradeReferrerToRegistrableDomain();
@@ -1973,12 +1975,6 @@ public:
     LazyLoadImageObserver& lazyLoadImageObserver();
 #if ENABLE(MODEL_ELEMENT)
     LazyLoadModelObserver& lazyLoadModelObserver();
-#endif
-
-#if ENABLE(MODEL_PROCESS)
-    void incrementModelElementCount();
-    void decrementModelElementCount();
-    bool hasModelElement() const { return m_modelElementCount > 0; }
 #endif
 
     ContentVisibilityDocumentState& contentVisibilityDocumentState();
@@ -2050,12 +2046,12 @@ public:
 
     unsigned unloadCounter() const { return m_unloadCounter; }
 
-    WEBCORE_EXPORT FrameMemoryMonitor& frameMemoryMonitor();
+    WEBCORE_EXPORT FrameMemoryMonitor& NODELETE frameMemoryMonitor();
 
 #if ENABLE(CONTENT_EXTENSIONS)
     ResourceMonitor* NODELETE resourceMonitorIfExists();
     ResourceMonitor& resourceMonitor();
-    ResourceMonitor* parentResourceMonitorIfExists();
+    ResourceMonitor* NODELETE parentResourceMonitorIfExists();
 
     bool shouldSkipResourceMonitorThrottling() const { return m_shouldSkipResourceMonitorThrottling; }
     void setShouldSkipResourceMonitorThrottling(bool flag) { m_shouldSkipResourceMonitorThrottling = flag; }
@@ -2181,14 +2177,13 @@ private:
     void setVisualUpdatesAllowed(ReadyState);
 
     enum class VisualUpdatesPreventedReason {
-        Client         = 1 << 0,
-        ReadyState     = 1 << 1,
-        Suspension     = 1 << 2,
-        RenderBlocking = 1 << 3,
+        ReadyState     = 1 << 0,
+        Suspension     = 1 << 1,
+        RenderBlocking = 1 << 2,
     };
     friend WTF::TextStream& operator<<(WTF::TextStream&, const VisualUpdatesPreventedReason&);
     static constexpr OptionSet<VisualUpdatesPreventedReason> visualUpdatePreventReasonsClearedByTimer() { return { VisualUpdatesPreventedReason::ReadyState, VisualUpdatesPreventedReason::RenderBlocking }; }
-    static constexpr OptionSet<VisualUpdatesPreventedReason> visualUpdatePreventRequiresLayoutMilestones() { return { VisualUpdatesPreventedReason::Client, VisualUpdatesPreventedReason::ReadyState }; }
+    static constexpr OptionSet<VisualUpdatesPreventedReason> visualUpdatePreventRequiresLayoutMilestones() { return { VisualUpdatesPreventedReason::ReadyState }; }
 
     enum class CompletePageTransition : bool { No, Yes };
     void addVisualUpdatePreventedReason(VisualUpdatesPreventedReason, CompletePageTransition = CompletePageTransition::Yes);
@@ -2223,13 +2218,13 @@ private:
 
     bool shouldEnforceHTTP09Sandbox() const;
 
-    void platformSuspendOrStopActiveDOMObjects();
+    void NODELETE platformSuspendOrStopActiveDOMObjects();
 
     void collectHighlightRangesFromRegister(Vector<WeakPtr<HighlightRange>>&, const HighlightRegistry&);
 
     bool isBodyPotentiallyScrollable(HTMLBodyElement&);
 
-    void didLogMessage(const WTFLogChannel&, WTFLogLevel, Vector<JSONLogValue>&&) final;
+    void didLogMessage(const WTFLogChannel&, WTFLogLevel, std::optional<WTFLogLocation>, Vector<JSONLogValue>&&) final;
     static void configureSharedLogger();
 
     void addToDocumentsMap();
@@ -2355,10 +2350,6 @@ private:
     std::unique_ptr<LazyLoadImageObserver> m_lazyLoadImageObserver;
 #if ENABLE(MODEL_ELEMENT)
     std::unique_ptr<LazyLoadModelObserver> m_lazyLoadModelObserver;
-#endif
-
-#if ENABLE(MODEL_PROCESS)
-    unsigned m_modelElementCount { 0 };
 #endif
 
     std::unique_ptr<ContentVisibilityDocumentState> m_contentVisibilityDocumentState;

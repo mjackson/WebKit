@@ -90,6 +90,8 @@ protected:
     void addPropertyToPresentationalHintStyle(MutableStyleProperties&, CSSPropertyID, const String& value);
     void addPropertyToPresentationalHintStyle(MutableStyleProperties&, CSSPropertyID, Ref<CSSValue>&&);
 
+    void mapLanguageAttributeToLocale(const AtomString& value, MutableStyleProperties&);
+
     void addSubresourceAttributeURLs(ListHashSet<URL>&) const override;
     Attribute replaceURLsInAttributeValue(const Attribute&, const CSS::SerializationContext&) const override;
 

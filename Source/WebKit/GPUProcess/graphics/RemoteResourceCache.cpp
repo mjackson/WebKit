@@ -87,10 +87,10 @@ RefPtr<Gradient> RemoteResourceCache::cachedGradient(RemoteGradientIdentifier id
     return m_gradients.get(identifier);
 }
 
-void RemoteResourceCache::cacheFilter(Ref<Filter>&& filter)
+bool RemoteResourceCache::cacheFilter(Ref<Filter>&& filter)
 {
     auto identifier = filter->renderingResourceIdentifier();
-    m_filters.add(identifier, WTF::move(filter));
+    return m_filters.add(identifier, WTF::move(filter)).isNewEntry;
 }
 
 bool RemoteResourceCache::releaseFilter(RenderingResourceIdentifier identifier)

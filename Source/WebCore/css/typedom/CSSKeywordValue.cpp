@@ -30,6 +30,7 @@
 #include "config.h"
 #include "CSSKeywordValue.h"
 
+#include "CSSCustomIdentValue.h"
 #include "CSSMarkup.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSPropertyParser.h"
@@ -74,14 +75,14 @@ ExceptionOr<void> CSSKeywordValue::setValue(const String& value)
 void CSSKeywordValue::serialize(StringBuilder& builder, OptionSet<SerializationArguments>) const
 {
     // https://drafts.css-houdini.org/css-typed-om/#keywordvalue-serialization
-    serializeIdentifier(m_value, builder);
+    serializeIdentifier(builder, m_value);
 }
 
 RefPtr<CSSValue> CSSKeywordValue::toCSSValue() const
 {
     auto keyword = cssValueKeywordID(m_value);
     if (keyword == CSSValueInvalid)
-        return CSSPrimitiveValue::createCustomIdent(m_value);
+        return CSSCustomIdentValue::create(CSS::CustomIdent { AtomString { m_value } });
     return CSSPrimitiveValue::create(keyword);
 }
 

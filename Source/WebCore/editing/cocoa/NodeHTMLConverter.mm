@@ -2130,7 +2130,7 @@ void HTMLConverter::_processText(Text& text)
     bool wasSpace = false;
     if (_caches->propertyValueForNode(text, CSSPropertyWhiteSpace).startsWith("pre"_s)) {
         if (textLength && originalString.length() && _flags.isSoft) {
-            unichar c = originalString.characterAt(0);
+            unichar c = originalString.codeUnitAt(0);
             if (c == '\n' || c == '\r' || c == NSParagraphSeparatorCharacter || c == NSLineSeparatorCharacter || c == NSFormFeedCharacter || c == WebNextLineCharacter)
                 rangeToReplace = NSMakeRange(textLength - 1, 1);
         }
@@ -2140,7 +2140,7 @@ void HTMLConverter::_processText(Text& text)
         StringBuilder builder;
         Latin1Character noBreakSpaceRepresentation = 0;
         for (unsigned i = 0; i < count; i++) {
-            char16_t c = originalString.characterAt(i);
+            char16_t c = originalString.codeUnitAt(i);
             bool isWhitespace = c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == 0xc || c == 0x200b;
             if (isWhitespace)
                 wasSpace = (!wasLeading || !suppressLeadingSpace);

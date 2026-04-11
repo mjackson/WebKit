@@ -99,7 +99,6 @@ JSWebAssemblyInstance::JSWebAssemblyInstance(VM& vm, Structure* structure, JSWeb
     , m_passiveDataSegments(m_moduleInformation->dataSegmentsCount())
     , m_tags(m_moduleInformation->exceptionIndexSpaceSize())
 {
-    static_assert(static_cast<ptrdiff_t>(JSWebAssemblyInstance::offsetOfCachedMemory() + sizeof(void*)) == JSWebAssemblyInstance::offsetOfCachedBoundsCheckingSize());
     for (unsigned i = 0; i < m_numImportFunctions; ++i)
         new (importFunctionInfo(i)) WasmOrJSImportableFunctionCallLinkInfo();
 
@@ -146,16 +145,14 @@ void JSWebAssemblyInstance::finishCreation(VM& vm)
     ASSERT(inherits(info()));
 
     // FIXME: We should only generate these structures if the module uses GC objects.
-    // FIXME: Maybe we should cache these structures. It's unclear how profitable this would be though since there's typically only one instance per module per VM.
-    // Since we don't have a global GC it's somewhat unlikely we'd end up de-duplicating much. It's also a bit unclear how much of a perf win it would be at least
-    // until folks start doing dynamic code loading.
-    JSGlobalObject* globalObject = this->globalObject();
     for (unsigned i = 0; i < m_moduleInformation->typeCount(); ++i) {
-        Ref rtt = m_moduleInformation->rtts[i];
+        Wasm::TypeSignatureIndex typeSignatureIndex(i);
+        Ref rtt = m_moduleInformation->rtt(typeSignatureIndex);
+        Ref type = m_moduleInformation->typeSignature(typeSignatureIndex);
         if (rtt->kind() == RTTKind::Array)
-            gcObjectStructureID(i).set(vm, this, JSWebAssemblyArray::createStructure(vm, globalObject, m_moduleInformation->typeSignatures[i], WTF::move(rtt)));
+            gcObjectStructureID(i).set(vm, this, JSWebAssemblyArray::createStructure(vm, WTF::move(type), WTF::move(rtt)));
         else if (rtt->kind() == RTTKind::Struct)
-            gcObjectStructureID(i).set(vm, this, JSWebAssemblyStruct::createStructure(vm, globalObject, m_moduleInformation->typeSignatures[i], WTF::move(rtt)));
+            gcObjectStructureID(i).set(vm, this, JSWebAssemblyStruct::createStructure(vm, WTF::move(type), WTF::move(rtt)));
     }
 
     m_vm->traps().registerMirror(m_stackMirror);
@@ -490,7 +487,7 @@ void JSWebAssemblyInstance::elemDrop(uint32_t elementIndex)
     m_passiveElements.quickClear(elementIndex);
 }
 
-bool JSWebAssemblyInstance::memoryInit(uint64_t dstAddress, uint32_t srcAddress, uint32_t length, uint32_t dataSegmentIndex)
+bool JSWebAssemblyInstance::memoryInit(uint64_t dstAddress, uint32_t srcAddress, uint32_t length, uint32_t dataSegmentIndex, uint8_t memoryIndex)
 {
     RELEASE_ASSERT(dataSegmentIndex < module().moduleInformation().dataSegmentsCount());
 
@@ -504,8 +501,8 @@ bool JSWebAssemblyInstance::memoryInit(uint64_t dstAddress, uint32_t srcAddress,
 
     const uint8_t* segmentData = !length ? nullptr : &segment->byte(srcAddress);
 
-    ASSERT(memory());
-    return memory()->memory().init(dstAddress, segmentData, length);
+    ASSERT(memoryIndex < m_moduleInformation->memoryCount());
+    return memory(memoryIndex)->memory().init(dstAddress, segmentData, length);
 }
 
 void JSWebAssemblyInstance::dataDrop(uint32_t dataSegmentIndex)
@@ -527,7 +524,7 @@ void JSWebAssemblyInstance::initElementSegment(uint32_t tableIndex, const Elemen
     RELEASE_ASSERT(length <= segment.length());
 
     JSWebAssemblyTable* jsTable = this->jsTable(tableIndex);
-    JSGlobalObject* globalObject = this->globalObject();
+    JSGlobalObject* globalObject = this->realm();
     VM& vm = globalObject->vm();
 
     for (uint32_t index = 0; index < length; ++index) {

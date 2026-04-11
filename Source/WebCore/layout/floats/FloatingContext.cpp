@@ -659,7 +659,7 @@ bool FloatPair::intersects(const FloatAvoider& floatAvoider) const
     return intersects(inlineStart()) || intersects(inlineEnd());
 }
 
-bool FloatPair::intersects(BoxGeometry::HorizontalEdges containingBlockContentBoxEdges) const
+bool NODELETE FloatPair::intersects(BoxGeometry::HorizontalEdges containingBlockContentBoxEdges) const
 {
     ASSERT(!m_floatPair.isEmpty());
 

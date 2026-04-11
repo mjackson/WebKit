@@ -65,9 +65,7 @@ PlaybackSessionModelMediaElement::PlaybackSessionModelMediaElement()
 {
 }
 
-PlaybackSessionModelMediaElement::~PlaybackSessionModelMediaElement()
-{
-}
+PlaybackSessionModelMediaElement::~PlaybackSessionModelMediaElement() = default;
 
 void PlaybackSessionModelMediaElement::setMediaElement(HTMLMediaElement* mediaElement)
 {

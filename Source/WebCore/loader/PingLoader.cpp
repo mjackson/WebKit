@@ -38,6 +38,7 @@
 #include "ContentRuleListResults.h"
 #include "ContentSecurityPolicy.h"
 #include "DocumentLoader.h"
+#include "DocumentPage.h"
 #include "DocumentResourceLoader.h"
 #include "FrameLoader.h"
 #include "HTTPHeaderValues.h"
@@ -59,6 +60,7 @@
 #include "UserContentController.h"
 #include "ViolationReportType.h"
 #include <wtf/text/CString.h>
+#include "LocalFrameInlines.h"
 
 namespace WebCore {
 

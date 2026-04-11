@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2021 Apple Inc. All rights reserved.
+ * Copyright (C) 2008-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -37,9 +37,7 @@
 namespace WebCore {
 DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(CSSSegmentedFontFace);
 
-CSSSegmentedFontFace::CSSSegmentedFontFace()
-{
-}
+CSSSegmentedFontFace::CSSSegmentedFontFace() = default;
 
 CSSSegmentedFontFace::~CSSSegmentedFontFace()
 {
@@ -130,7 +128,7 @@ FontRanges CSSSegmentedFontFace::fontRanges(const FontDescription& fontDescripti
         auto selectionCapabilities = face->fontSelectionCapabilities();
 
         bool syntheticBold = fontDescription.hasAutoFontSynthesisWeight() && !isFontWeightBold(selectionCapabilities.weight.maximum) && isFontWeightBold(desiredRequest.weight);
-        bool syntheticItalic = fontDescription.hasAutoFontSynthesisStyle() && !isItalic(selectionCapabilities.slope.maximum) && isItalic(desiredRequest.slope);
+        bool syntheticItalic = fontDescription.allowsItalicOrObliqueFontSynthesisStyle() && !isItalic(selectionCapabilities.slope.maximum) && isItalic(desiredRequest.slope);
 
         // Metrics used for layout come from FontRanges::fontForFirstRange(), which assumes that the first font is non-null.
         auto fontAccessor = CSSFontAccessor::create(face, fontDescription, fontPaletteValues, fontFeatureValues, syntheticBold, syntheticItalic);

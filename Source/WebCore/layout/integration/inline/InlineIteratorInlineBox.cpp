@@ -46,8 +46,8 @@ RectEdges<bool> InlineBox::closedEdges() const
     if (style()->boxDecorationBreak() == BoxDecorationBreak::Clone)
         return closedEdges;
     auto writingMode = style()->writingMode();
-    bool isFirst = !nextInlineBoxLineLeftward() && !renderer().isContinuation();
-    bool isLast = !nextInlineBoxLineRightward() && !renderer().continuation();
+    bool isFirst = !nextInlineBoxLineLeftward();
+    bool isLast = !nextInlineBoxLineRightward();
     closedEdges.setStart(isFirst, writingMode);
     closedEdges.setEnd(isLast, writingMode);
     return closedEdges;

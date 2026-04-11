@@ -291,7 +291,7 @@ const LayoutScrollSnapOffsetsInfo* ScrollAnimator::snapOffsetsInfo() const
 
 FloatPoint ScrollAnimator::scrollOffset() const
 {
-    return protect(scrollableArea())->scrollOffsetFromPosition(roundedIntPoint(currentPosition()));
+    return scrollableArea().scrollOffsetFromPosition(roundedIntPoint(currentPosition()));
 }
 
 bool ScrollAnimator::allowsHorizontalScrolling() const

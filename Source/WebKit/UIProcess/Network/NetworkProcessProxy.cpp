@@ -83,6 +83,7 @@
 #include <WebCore/RegistrableDomain.h>
 #include <WebCore/ResourceError.h>
 #include <WebCore/ShouldRelaxThirdPartyCookieBlocking.h>
+#include <wtf/Borrow.h>
 #include <wtf/CallbackAggregator.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/MainThread.h>
@@ -2016,6 +2017,12 @@ void NetworkProcessProxy::addAllowedFilePaths(WebProcessProxy& webProcessProxy, 
 
     for (auto& path : paths)
         pathSet.add(path);
+}
+
+void NetworkProcessProxy::didPerformEvictionForDomains(PAL::SessionID sessionID, const Vector<RegistrableDomain>& domains)
+{
+    if (RefPtr store = websiteDataStoreFromSessionID(sessionID))
+        store->client().didEvictDataForDomains(domains);
 }
 
 #if USE(RUNNINGBOARD)

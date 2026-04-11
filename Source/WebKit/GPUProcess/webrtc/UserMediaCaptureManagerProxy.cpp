@@ -775,7 +775,7 @@ void UserMediaCaptureManagerProxy::takePhoto(RealtimeMediaSourceIdentifier sourc
 {
     RefPtr proxy = m_proxies.get(sourceID);
     if (!proxy) {
-        handler(Unexpected<String>("Device not available"_s));
+        handler(std::unexpected<String>("Device not available"_s));
         return;
     }
 
@@ -788,7 +788,7 @@ void UserMediaCaptureManagerProxy::getPhotoCapabilities(RealtimeMediaSourceIdent
 {
     RefPtr proxy = m_proxies.get(sourceID);
     if (!proxy) {
-        handler(Unexpected<String>("Device not available"_s));
+        handler(std::unexpected<String>("Device not available"_s));
         return;
     }
 
@@ -799,7 +799,7 @@ void UserMediaCaptureManagerProxy::getPhotoSettings(RealtimeMediaSourceIdentifie
 {
     RefPtr proxy = m_proxies.get(sourceID);
     if (!proxy) {
-        handler(Unexpected<String>("Device not available"_s));
+        handler(std::unexpected<String>("Device not available"_s));
         return;
     }
 

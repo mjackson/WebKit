@@ -36,11 +36,6 @@
 namespace WebCore {
 namespace CSS {
 
-void serializationForCSSCustomIdentifier(StringBuilder& builder, const SerializationContext&, const CustomIdentifier& value)
-{
-    WebCore::serializeIdentifier(value.value, builder);
-}
-
 void serializationForCSSPropertyIdentifier(StringBuilder& builder, const SerializationContext&, const PropertyIdentifier& value)
 {
     builder.append(nameLiteral(value.value));
@@ -48,22 +43,17 @@ void serializationForCSSPropertyIdentifier(StringBuilder& builder, const Seriali
 
 void serializationForCSSString(StringBuilder& builder, const SerializationContext&, const WTF::AtomString& value)
 {
-    WebCore::serializeString(value, builder);
+    WebCore::serializeString(builder, value);
 }
 
 void serializationForCSSString(StringBuilder& builder, const SerializationContext&, const WTF::String& value)
 {
-    WebCore::serializeString(value, builder);
+    WebCore::serializeString(builder, value);
 }
 
 Ref<CSSValue> makePrimitiveCSSValue(CSSValueID value)
 {
     return CSSPrimitiveValue::create(value);
-}
-
-Ref<CSSValue> makePrimitiveCSSValue(const CustomIdentifier& value)
-{
-    return CSSPrimitiveValue::createCustomIdent(value.value);
 }
 
 Ref<CSSValue> makePrimitiveCSSValue(const PropertyIdentifier& value)

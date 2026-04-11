@@ -40,6 +40,7 @@
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
+#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -127,6 +128,11 @@ JSTestNamedDeleterThrowingException::JSTestNamedDeleterThrowingException(Structu
 }
 
 static_assert(!std::is_base_of<ActiveDOMObject, TestNamedDeleterThrowingException>::value, "Interface is not marked as [ActiveDOMObject] even though implementation class subclasses ActiveDOMObject.");
+
+JSC::Structure* JSTestNamedDeleterThrowingException::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
+{
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::MayHaveIndexedAccessors);
+}
 
 JSObject* JSTestNamedDeleterThrowingException::createPrototype(VM& vm, JSDOMGlobalObject& globalObject)
 {
@@ -318,7 +324,7 @@ JSC_DEFINE_CUSTOM_GETTER(jsTestNamedDeleterThrowingExceptionConstructor, (JSGlob
     auto* prototype = jsDynamicCast<JSTestNamedDeleterThrowingExceptionPrototype*>(JSValue::decode(thisValue));
     if (!prototype) [[unlikely]]
         return throwVMTypeError(lexicalGlobalObject, throwScope);
-    return JSValue::encode(JSTestNamedDeleterThrowingException::getConstructor(vm, prototype->globalObject()));
+    return JSValue::encode(JSTestNamedDeleterThrowingException::getConstructor(vm, prototype->realm()));
 }
 
 JSC::GCClient::IsoSubspace* JSTestNamedDeleterThrowingException::subspaceForImpl(JSC::VM& vm)

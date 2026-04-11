@@ -38,8 +38,8 @@ platform/graphics/cocoa/VideoMediaSampleRenderer.mm
 platform/mediarecorder/MediaRecorderPrivateEncoder.cpp
 platform/mediastream/RealtimeVideoCaptureSource.cpp
 platform/mediastream/cocoa/IncomingAudioMediaStreamTrackRendererUnit.cpp
-platform/mediastream/mac/RealtimeIncomingVideoSourceCocoa.mm
-platform/mediastream/mac/RealtimeOutgoingAudioSourceCocoa.cpp
+platform/mediastream/cocoa/RealtimeIncomingVideoSourceCocoa.mm
+platform/mediastream/cocoa/RealtimeOutgoingAudioSourceCocoa.cpp
 rendering/BackgroundPainter.cpp
 rendering/BorderPainter.cpp
 rendering/RenderBox.cpp

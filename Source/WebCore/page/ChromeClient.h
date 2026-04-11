@@ -171,6 +171,7 @@ struct SimpleRange;
 struct StringWithDirection;
 struct SystemPreviewInfo;
 struct TextRecognitionOptions;
+struct TextEffectData;
 struct ViewportArguments;
 struct WindowFeatures;
 
@@ -294,6 +295,7 @@ public:
     virtual IntRect rootViewToAccessibilityScreen(const IntRect&) const = 0;
 #if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
     virtual void requestFrameScreenPosition(FrameIdentifier) const { }
+    virtual void scheduleAccessibilityFrameGeometryUpdate() const { }
 #endif
 #if PLATFORM(IOS_FAMILY)
     virtual void relayAccessibilityNotification(String&&, RetainPtr<NSData>&&) const = 0;
@@ -361,13 +363,6 @@ public:
 #endif
 
     virtual void exceededDatabaseQuota(LocalFrame&, const String& databaseName, DatabaseDetails) = 0;
-
-    // Callback invoked when the application cache fails to save a cache object
-    // because storing it would grow the database file past its defined maximum
-    // size or past the amount of free space on the device. 
-    // The chrome client would need to take some action such as evicting some
-    // old caches.
-    virtual void reachedMaxAppCacheSize(int64_t) { }
 
     WEBCORE_EXPORT virtual std::unique_ptr<WorkerClient> createWorkerClient(SerialFunctionDispatcher&);
 
@@ -784,6 +779,11 @@ public:
     virtual void saveSnapshotOfTextPlaceholderForAnimation(const SimpleRange&) { };
 
     virtual void clearAnimationsForActiveWritingToolsSession() { };
+
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    virtual void addTextEffectForID(const WTF::UUID&, TextEffectData&&, RefPtr<TextIndicator>&&, RefPtr<TextIndicator>&&) { }
+    virtual void removeTextEffectForID(const WTF::UUID&) { }
+#endif
 #endif
 
     virtual void setIsInRedo(bool) { }

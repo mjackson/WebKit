@@ -102,8 +102,6 @@ FloatBoxExtent PrintContext::computedPageMargin(FloatBoxExtent printMargin)
 {
     if (!frame() || !frame()->document())
         return printMargin;
-    if (!frame()->settings().pageAtRuleMarginDescriptorsEnabled())
-        return printMargin;
     // FIXME Currently no pseudo class is supported.
     auto style = frame()->document()->styleScope().resolver().styleForPage(0);
 
@@ -418,7 +416,7 @@ String PrintContext::pageProperty(LocalFrame* frame, const String& propertyName,
     if (propertyName == "font-size"_s)
         return makeString(style->fontDescription().computedSize());
     if (propertyName == "font-family"_s)
-        return style->fontDescription().firstFamily();
+        return style->fontDescription().firstFamily().name;
     if (propertyName == "size"_s) {
         return WTF::switchOn(style->pageSize(),
             [&](const CSS::Keyword::Auto&) -> String {

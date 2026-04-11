@@ -147,7 +147,7 @@ template<> ConversionResult<IDLDictionary<TestInheritedDictionary>> convertDicti
     auto partialStringMemberConversionResult = convert<IDLOptional<IDLDOMString>>(lexicalGlobalObject, partialStringMemberValue);
     if (partialStringMemberConversionResult.hasException(throwScope)) [[unlikely]]
         return ConversionResultException { };
-    auto partialStringMemberWithEnabledBySettingConversionResult = [&]() -> ConversionResult<IDLOptional<IDLDOMString>> {
+    auto partialStringMemberWithEnabledBySettingConversionResult = [&] -> ConversionResult<IDLOptional<IDLDOMString>> {
         if (jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject)->scriptExecutionContext()->settingsValues().testSettingEnabled) {
             JSValue partialStringMemberWithEnabledBySettingValue;
             if (isNullOrUndefined)

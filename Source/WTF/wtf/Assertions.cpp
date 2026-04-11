@@ -28,7 +28,6 @@
 #include "config.h"
 #include <wtf/Assertions.h>
 
-#include <mutex>
 #include <stdio.h>
 #include <string.h>
 #include <wtf/Compiler.h>
@@ -368,7 +367,7 @@ void WTFPrintBacktrace(std::span<void* const> stack)
     WTFPrintBacktraceWithPrefixAndPrintStream(out, stack, "");
 }
 
-#if !defined(NDEBUG) || !(OS(DARWIN) || PLATFORM(PLAYSTATION) || OS(LINUX))
+#if !defined(NDEBUG) || !(OS(DARWIN) || PLATFORM(PLAYSTATION) || OS(LINUX)) || !ENABLE(CRASH_DUMP_INFO)
 void WTFCrash()
 {
 #if ASAN_ENABLED
@@ -653,7 +652,7 @@ void WTFInitializeLogChannelStatesFromString(WTFLogChannel* channels[], size_t c
 
 } // extern "C"
 
-#if !ASAN_ENABLED && (CPU(X86_64) || CPU(ARM64) || CPU(ARM_THUMB2))
+#if !ASAN_ENABLED && (CPU(X86_64) || CPU(ARM64) || CPU(ARM_THUMB2)) && ENABLE(CRASH_DUMP_INFO)
 
 void WTFCrashWithInfoImpl(int, const char*, const char*, UCPURegister reason, UCPURegister misc1, UCPURegister misc2, UCPURegister misc3, UCPURegister misc4, UCPURegister misc5, UCPURegister misc6)
 {

@@ -9,5 +9,5 @@ PASS checkStopAfterCreateOffer
 PASS checkStopAfterSetLocalAnswer
 PASS checkStopAfterSetLocalOffer
 PASS checkStopAfterSetRemoteOffer
-FAIL track with audio stays muted when setting the transceiver direction to 'sendrecv' after 'inactive' but no packets flow assert_true: track remains muted expected true got false
+PASS track with audio stays muted when setting the transceiver direction to 'sendrecv' after 'inactive' but no packets flow
 

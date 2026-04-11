@@ -31,14 +31,18 @@
 #include "URLPatternCanonical.h"
 #include "URLPatternParser.h"
 #include "URLPatternResult.h"
-#include <JavaScriptCore/JSCJSValue.h>
+#include <JavaScriptCore/JSCJSValueInlines.h>
+#include <JavaScriptCore/JSGlobalObject.h>
 #include <JavaScriptCore/JSString.h>
 #include <JavaScriptCore/RegExpObject.h>
+#include <JavaScriptCore/StrongInlines.h>
 #include <ranges>
 
 namespace WebCore {
 using namespace JSC;
 namespace URLPatternUtilities {
+
+URLPatternComponent::URLPatternComponent() = default;
 
 URLPatternComponent::URLPatternComponent(String&& patternString, JSC::Strong<JSC::RegExp>&& regex, Vector<String>&& groupNameList, bool hasRegexpGroupsFromPartsList)
     : m_patternString(WTF::move(patternString))

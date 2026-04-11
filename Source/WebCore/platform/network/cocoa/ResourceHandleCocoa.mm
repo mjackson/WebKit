@@ -82,9 +82,7 @@ static NSOperationQueue *operationQueueForAsyncClients()
     return queue.get().get();
 }
 
-ResourceHandleInternal::~ResourceHandleInternal()
-{
-}
+ResourceHandleInternal::~ResourceHandleInternal() = default;
 
 ResourceHandle::~ResourceHandle()
 {

@@ -41,7 +41,10 @@
 #include "HTMLParserIdioms.h"
 #include "InputTypeNames.h"
 #include "KeyboardEvent.h"
+#include "LocalizedStrings.h"
 #include "NodeRenderStyle.h"
+#include "Page.h"
+#include "RenderObjectInlines.h"
 #include "RenderSearchField.h"
 #include "RenderStyle+GettersInlines.h"
 #include "ScriptDisallowedScope.h"
@@ -186,7 +189,7 @@ int SearchInputType::listSize() const
 
 void SearchInputType::popupDidHide()
 {
-    if (CheckedPtr renderer = dynamicDowncast<RenderSearchField>(protect(element())->renderer()))
+    if (CheckedPtr renderer = dynamicDowncast<RenderSearchField>(element()->renderer()))
         renderer->popupDidHide();
 }
 

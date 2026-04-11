@@ -27,11 +27,15 @@
 #include "JSIDBRequest.h"
 
 #include "IDBBindingUtilities.h"
+#include "IDBRecord.h"
+#include "IndexedDB.h"
 #include "JSDOMConvertIndexedDB.h"
 #include "JSDOMConvertInterface.h"
 #include "JSDOMConvertSequences.h"
 #include "JSIDBCursor.h"
 #include "JSIDBDatabase.h"
+#include "JSIDBRecord.h"
+#include "JSValueInWrappedObjectInlines.h"
 
 namespace WebCore {
 using namespace JSC;
@@ -85,20 +89,32 @@ JSC::JSValue JSIDBRequest::result(JSC::JSGlobalObject& lexicalGlobalObject) cons
         [&](const IDBGetAllResult& getAllResult) {
             return cachedPropertyValue(throwScope, lexicalGlobalObject, *this, resultWrapper, [&](JSC::ThrowScope& throwScope) {
                 auto& keys = getAllResult.keys();
+                auto& primaryKeys = getAllResult.primaryKeys();
                 auto& values = getAllResult.values();
                 auto& keyPath = getAllResult.keyPath();
+
+                auto* domGlobalObject = jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject);
+
                 JSC::MarkedArgumentBuffer list;
-                list.ensureCapacity(values.size());
-                for (unsigned i = 0; i < values.size(); i ++) {
-                    auto result = deserializeIDBValueWithKeyInjection(lexicalGlobalObject, values[i], keys[i], keyPath);
-                    if (!result)
-                        return jsNull();
-                    list.append(result.value());
+                list.ensureCapacity(keys.size());
+
+                for (unsigned i = 0; i < keys.size(); i++) {
+                    if (getAllResult.type() == IndexedDB::GetAllType::Records) {
+                        Ref record = IDBRecord::create(IDBKeyData(keys[i]), IDBKeyData(primaryKeys[i]), IDBValue(values[i]), keyPath);
+                        list.append(toJS<IDLInterface<IDBRecord>>(lexicalGlobalObject, *domGlobalObject, throwScope, WTF::move(record)));
+                    } else {
+                        auto result = deserializeIDBValueWithKeyInjection(lexicalGlobalObject, values[i], keys[i], keyPath);
+                        if (!result)
+                            return jsNull();
+                        list.append(result.value());
+                    }
+
                     if (list.hasOverflowed()) [[unlikely]] {
                         propagateException(lexicalGlobalObject, throwScope, Exception(ExceptionCode::UnknownError));
                         return jsNull();
                     }
                 }
+
                 return JSValue(JSC::constructArray(&lexicalGlobalObject, static_cast<JSC::ArrayAllocationProfile*>(nullptr), list));
             });
         }

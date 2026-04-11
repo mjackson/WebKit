@@ -112,7 +112,7 @@ public:
 
     OptionSet<Type> type() const { return m_type; }
 
-    bool isVisibleForStyle(const RenderStyle&) const;
+    bool NODELETE isVisibleForStyle(const RenderStyle&) const;
 
 private:
     OptionSet<Type> m_type;

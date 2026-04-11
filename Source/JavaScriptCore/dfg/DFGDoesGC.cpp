@@ -455,6 +455,7 @@ bool doesGC(Graph& graph, Node* node)
     case StringSubstring:
     case StringValueOf:
     case CreateRest:
+    case ToUpperCase:
     case ToLowerCase:
     case CallDOMGetter:
     case CallDOM:

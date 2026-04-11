@@ -188,6 +188,12 @@ template<Range range, std::signed_integral T, typename U> constexpr T clampToRan
     }
 }
 
+// Clamps a value to within `range` of the specified numeric type.
+template<typename Numeric, Range range = Numeric::range, typename T = typename Numeric::ResolvedValueType, typename U> constexpr T clampToRangeOf(U value)
+{
+    return clampToRange<range, T, U>(value);
+}
+
 // Checks if a floating point value is within `range`.
 template<Range range, std::floating_point T> constexpr bool isWithinRange(T value)
 {

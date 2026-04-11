@@ -46,7 +46,7 @@ public:
         return adoptRef(*new RangeInputType(element));
     }
 
-    bool typeMismatchFor(const String&) const final;
+    bool typeMismatchFor(StringView) const final;
 
 private:
     explicit RangeInputType(HTMLInputElement&);
@@ -60,7 +60,7 @@ private:
     ShouldCallBaseEventHandler handleKeydownEvent(KeyboardEvent&) final;
     RenderPtr<RenderElement> createInputRenderer(RenderStyle&&) final;
     void createShadowSubtree() final;
-    Decimal parseToNumber(const String&, const Decimal&) const final;
+    Decimal parseToNumber(StringView, const Decimal&) const final;
     String serialize(const Decimal&) const final;
     bool accessKeyAction(bool sendMouseEvents) final;
     void attributeChanged(const QualifiedName&) final;

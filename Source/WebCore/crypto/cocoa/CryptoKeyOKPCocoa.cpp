@@ -30,7 +30,8 @@
 #include "ExceptionOr.h"
 #include "JsonWebKey.h"
 #include "Logging.h"
-#include <pal/PALSwift.h>
+#include <pal/crypto/CryptoEDKeyBridging.h>
+#include <pal/crypto/CryptoTypes.h>
 #include <pal/spi/cocoa/CoreCryptoSPI.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/text/Base64.h>
@@ -49,10 +50,10 @@ std::optional<CryptoKeyPair> CryptoKeyOKP::platformGeneratePair(CryptoAlgorithmI
 
     switch (identifier) {
     case CryptoAlgorithmIdentifier::Ed25519: {
-        auto privateKeyPlatform = pal::EdKey::generatePrivateKey(pal::EdSigningAlgorithm::ed25519());
+        auto privateKeyPlatform = PAL::Crypto::EdKey::generatePrivateKey(PAL::Crypto::EdSigningAlgorithm::ED25519);
         RELEASE_ASSERT(privateKeyPlatform.size() == 32);
-        auto publicKeyPlatformRv = pal::EdKey::privateToPublic(pal::EdSigningAlgorithm::ed25519(), privateKeyPlatform.span());
-        if (publicKeyPlatformRv.errorCode != Cpp::ErrorCodes::Success)
+        auto publicKeyPlatformRv = PAL::Crypto::EdKey::privateToPublic(PAL::Crypto::EdSigningAlgorithm::ED25519, privateKeyPlatform.span());
+        if (publicKeyPlatformRv.errorCode != PAL::Crypto::Error::Success)
             return std::nullopt;
         bool isPublicKeyExtractable = true;
         auto publicKey = CryptoKeyOKP::create(identifier, namedCurve, CryptoKeyType::Public, WTF::move(publicKeyPlatformRv.result), isPublicKeyExtractable, usages);
@@ -62,10 +63,10 @@ std::optional<CryptoKeyPair> CryptoKeyOKP::platformGeneratePair(CryptoAlgorithmI
         return CryptoKeyPair { WTF::move(publicKey), WTF::move(privateKey) };
     }
     case CryptoAlgorithmIdentifier::X25519: {
-        auto privateKeyPlatform = pal::EdKey::generatePrivateKeyKeyAgreement(pal::EdKeyAgreementAlgorithm::x25519());
+        auto privateKeyPlatform = PAL::Crypto::EdKey::generatePrivateKeyKeyAgreement(PAL::Crypto::EdKeyAgreementAlgorithm::X25519);
         RELEASE_ASSERT(privateKeyPlatform.size() == 32);
-        auto publicKeyPlatformRv = pal::EdKey::privateToPublicKeyAgreement(pal::EdKeyAgreementAlgorithm::x25519(), privateKeyPlatform.span());
-        if (publicKeyPlatformRv.errorCode != Cpp::ErrorCodes::Success)
+        auto publicKeyPlatformRv = PAL::Crypto::EdKey::privateToPublicKeyAgreement(PAL::Crypto::EdKeyAgreementAlgorithm::X25519, privateKeyPlatform.span());
+        if (publicKeyPlatformRv.errorCode != PAL::Crypto::Error::Success)
             return std::nullopt;
         bool isPublicKeyExtractable = true;
         auto publicKey = CryptoKeyOKP::create(identifier, namedCurve, CryptoKeyType::Public, WTF::move(publicKeyPlatformRv.result), isPublicKeyExtractable, usages);
@@ -90,9 +91,9 @@ bool CryptoKeyOKP::platformCheckPairedKeys(CryptoAlgorithmIdentifier identifier,
 
     switch (identifier) {
     case CryptoAlgorithmIdentifier::Ed25519:
-        return pal::EdKey::validateKeyPair(pal::EdSigningAlgorithm::ed25519(), privateKey.span(), publicKey.span());
+        return PAL::Crypto::EdKey::validateKeyPair(PAL::Crypto::EdSigningAlgorithm::ED25519, privateKey.span(), publicKey.span());
     case CryptoAlgorithmIdentifier::X25519:
-        return pal::EdKey::validateKeyPairKeyAgreement(pal::EdKeyAgreementAlgorithm::x25519(), privateKey.span(), publicKey.span());
+        return PAL::Crypto::EdKey::validateKeyPairKeyAgreement(PAL::Crypto::EdKeyAgreementAlgorithm::X25519, privateKey.span(), publicKey.span());
     default:
         RELEASE_ASSERT_NOT_REACHED();
         return false;
@@ -356,13 +357,13 @@ String CryptoKeyOKP::generateJwkX() const
     ASSERT(type() == CryptoKeyType::Private);
     switch (namedCurve()) {
     case NamedCurve::Ed25519: {
-        auto publicKeyPlatformRv = pal::EdKey::privateToPublic(pal::EdSigningAlgorithm::ed25519(), platformKey().span());
-        RELEASE_ASSERT(publicKeyPlatformRv.errorCode == Cpp::ErrorCodes::Success);
+        auto publicKeyPlatformRv = PAL::Crypto::EdKey::privateToPublic(PAL::Crypto::EdSigningAlgorithm::ED25519, platformKey().span());
+        RELEASE_ASSERT(publicKeyPlatformRv.errorCode == PAL::Crypto::Error::Success);
         return base64URLEncodeToString(publicKeyPlatformRv.result.span());
     }
     case NamedCurve::X25519: {
-        auto publicKeyPlatformRv = pal::EdKey::privateToPublicKeyAgreement(pal::EdKeyAgreementAlgorithm::x25519(), platformKey().span());
-        RELEASE_ASSERT(publicKeyPlatformRv.errorCode == Cpp::ErrorCodes::Success);
+        auto publicKeyPlatformRv = PAL::Crypto::EdKey::privateToPublicKeyAgreement(PAL::Crypto::EdKeyAgreementAlgorithm::X25519, platformKey().span());
+        RELEASE_ASSERT(publicKeyPlatformRv.errorCode == PAL::Crypto::Error::Success);
         return base64URLEncodeToString(publicKeyPlatformRv.result.span());
     }
     default:

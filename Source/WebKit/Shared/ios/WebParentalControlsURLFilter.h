@@ -47,7 +47,7 @@ private:
     void isURLAllowedImpl(const URL& mainDocumentURL, const URL&, CompletionHandler<void(bool, NSData *)>&&) final;
     void allowURL(const URL&, CompletionHandler<void(bool)>&&) final;
 #if HAVE(WEBCONTENTRESTRICTIONS_ASK_TO)
-    void requestPermissionForURL(const URL&, const URL& referrerURL, CompletionHandler<void(bool)>&&) final;
+    void requestPermissionForURL(const URL&, const URL& referrerURL, CompletionHandler<void(bool)>&&, CocoaView* presentingView = nullptr) final;
 #endif
 
     BEWebContentFilter* ensureWebContentFilter();

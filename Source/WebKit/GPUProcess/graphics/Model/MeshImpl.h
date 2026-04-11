@@ -67,19 +67,19 @@ private:
     bool isMeshImpl() const final { return true; }
 
     void setLabelInternal(const String&) final;
-    void update(const WebModel::UpdateMeshDescriptor&) final;
-    void updateTexture(const WebModel::UpdateTextureDescriptor&) final;
-    void updateMaterial(const WebModel::UpdateMaterialDescriptor&) final;
+    void update(Vector<WebModel::UpdateMeshDescriptor>&&) final;
+    void updateTexture(Vector<WebModel::UpdateTextureDescriptor>&&) final;
+    void updateMaterial(Vector<WebModel::UpdateMaterialDescriptor>&&) final;
     void setEntityTransform(const WebModel::Float4x4&) final;
 #if PLATFORM(COCOA)
     std::optional<WebModel::Float4x4> entityTransform() const final;
 #endif
-    void setCameraDistance(float) final;
+    void setFOV(float) final;
     void setBackgroundColor(const WebModel::Float3&) final;
     void play(bool) final;
     void setEnvironmentMap(const WebModel::ImageAsset&) final;
 
-    void render() final;
+    void render(uint32_t textureIndex, Function<void(bool)>&&) final;
 
     Ref<WebMesh> m_backing;
 #if PLATFORM(COCOA)

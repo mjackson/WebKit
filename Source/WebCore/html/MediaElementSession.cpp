@@ -128,7 +128,7 @@ static String restrictionNames(MediaElementSession::BehaviorRestrictions restric
 
 #endif
 
-static bool pageExplicitlyAllowsElementToAutoplayInline(const HTMLMediaElement& element)
+static bool NODELETE pageExplicitlyAllowsElementToAutoplayInline(const HTMLMediaElement& element)
 {
     auto& document = element.document();
     auto* page = document.page();
@@ -429,22 +429,20 @@ void MediaElementSession::removeBehaviorRestriction(BehaviorRestrictions restric
     m_restrictions &= ~restriction;
 }
 
-Expected<void, MediaPlaybackDenialReason> MediaElementSession::playbackStateChangePermitted(MediaPlaybackState state) const
+Expected<void, MediaPlaybackDenialExplanation> MediaElementSession::playbackStateChangePermitted(MediaPlaybackState state) const
 {
     RefPtr element = m_element.get();
+    auto makeUnexpectedDenial = [](MediaPlaybackDenialReason reason, const String& explanation) {
+        return makeUnexpected<MediaPlaybackDenialExplanation>({ reason, explanation });
+    };
 
-    INFO_LOG(LOGIDENTIFIER, "state = ", state);
-    if (!element || element->isSuspended()) {
-        ALWAYS_LOG(LOGIDENTIFIER, "Returning FALSE because element is suspended");
-        return makeUnexpected(MediaPlaybackDenialReason::InvalidState);
-    }
+    if (!element || element->isSuspended())
+        return makeUnexpectedDenial(MediaPlaybackDenialReason::InvalidState, "Element is suspended"_s);
 
     Ref document = element->document();
     RefPtr page = document->page();
-    if (!page || page->mediaPlaybackIsSuspended()) {
-        ALWAYS_LOG(LOGIDENTIFIER, "Returning FALSE because media playback is suspended");
-        return makeUnexpected(MediaPlaybackDenialReason::PageConsentRequired);
-    }
+    if (!page || page->mediaPlaybackIsSuspended())
+        return makeUnexpectedDenial(MediaPlaybackDenialReason::PageConsentRequired, "Playback is suspended"_s);
 
     if (document->isMediaDocument() && !document->ownerElement())
         return { };
@@ -452,10 +450,8 @@ Expected<void, MediaPlaybackDenialReason> MediaElementSession::playbackStateChan
     if (pageExplicitlyAllowsElementToAutoplayInline(*element))
         return { };
 
-    if (requiresFullscreenForVideoPlayback() && !fullscreenPermitted()) {
-        ALWAYS_LOG(LOGIDENTIFIER, "Returning FALSE because of fullscreen restriction");
-        return makeUnexpected(MediaPlaybackDenialReason::FullscreenRequired);
-    }
+    if (requiresFullscreenForVideoPlayback() && !fullscreenPermitted())
+        return makeUnexpectedDenial(MediaPlaybackDenialReason::FullscreenRequired, "Fullscreen restriction"_s);
 
     if (m_restrictions & OverrideUserGestureRequirementForMainContent && updateIsMainContent())
         return { };
@@ -479,40 +475,29 @@ Expected<void, MediaPlaybackDenialReason> MediaElementSession::playbackStateChan
         && mainFrameDocument->quirks().requiresUserGestureToPauseInPictureInPicture()
         && element->fullscreenMode() & HTMLMediaElementEnums::VideoFullscreenModePictureInPicture
         && !element->paused() && state == MediaPlaybackState::Paused
-        && !document->processingUserGestureForMedia()) {
-        ALWAYS_LOG(LOGIDENTIFIER, "Returning FALSE because a quirk requires a user gesture to pause while in Picture-in-Picture");
-        return makeUnexpected(MediaPlaybackDenialReason::UserGestureRequired);
-    }
+        && !document->processingUserGestureForMedia())
+        return makeUnexpectedDenial(MediaPlaybackDenialReason::UserGestureRequired, "Quirk requires user gesture to pause in Picture-in-Picture"_s);
 
     if (mainFrameDocument
         && mainFrameDocument->mediaState() & MediaProducerMediaState::HasUserInteractedWithMediaElement
         && mainFrameDocument->quirks().needsPerDocumentAutoplayBehavior())
         return { };
 
-    if (m_restrictions & RequireUserGestureForVideoRateChange && element->isVideo() && !document->processingUserGestureForMedia()) {
-        ALWAYS_LOG(LOGIDENTIFIER, "Returning FALSE because a user gesture is required for video rate change restriction");
-        return makeUnexpected(MediaPlaybackDenialReason::UserGestureRequired);
-    }
+    if (m_restrictions & RequireUserGestureForVideoRateChange && element->isVideo() && !document->processingUserGestureForMedia())
+        return makeUnexpectedDenial(MediaPlaybackDenialReason::UserGestureRequired, "User gesture required for video rate change"_s);
 
-    if (m_restrictions & RequireUserGestureForAudioRateChange && (!element->isVideo() || element->hasAudio()) && !element->muted() && element->volume() && !document->processingUserGestureForMedia()) {
-        ALWAYS_LOG(LOGIDENTIFIER, "Returning FALSE because a user gesture is required for audio rate change restriction");
-        return makeUnexpected(MediaPlaybackDenialReason::UserGestureRequired);
-    }
+    if (m_restrictions & RequireUserGestureForAudioRateChange && (!element->isVideo() || element->hasAudio()) && !element->muted() && element->volume() && !document->processingUserGestureForMedia())
+        return makeUnexpectedDenial(MediaPlaybackDenialReason::UserGestureRequired, "User gesture required for audio rate change"_s);
 
-    if (m_restrictions & RequirePageVisibilityToPlayAudio && (!element->isVideo() || element->hasAudio()) && !element->muted() && element->volume() && element->elementIsHidden()) {
-        ALWAYS_LOG(LOGIDENTIFIER, "Returning FALSE because page visibility required for audio rate change restriction");
-        return makeUnexpected(MediaPlaybackDenialReason::UserGestureRequired);
-    }
 
-    if (m_restrictions & RequireUserGestureForVideoDueToLowPowerMode && element->isVideo() && !document->processingUserGestureForMedia()) {
-        ALWAYS_LOG(LOGIDENTIFIER, "Returning FALSE because of video low power mode restriction");
-        return makeUnexpected(MediaPlaybackDenialReason::UserGestureRequired);
-    }
+    if (m_restrictions & RequirePageVisibilityToPlayAudio && (!element->isVideo() || element->hasAudio()) && !element->muted() && element->volume() && element->elementIsHidden())
+        return makeUnexpectedDenial(MediaPlaybackDenialReason::UserGestureRequired, "Page visibility required for audio rate change"_s);
 
-    if (m_restrictions & RequireUserGestureForVideoDueToAggressiveThermalMitigation && element->isVideo() && !document->processingUserGestureForMedia()) {
-        ALWAYS_LOG(LOGIDENTIFIER, "Returning FALSE because of video aggressive thermal mitigation restriction");
-        return makeUnexpected(MediaPlaybackDenialReason::UserGestureRequired);
-    }
+    if (m_restrictions & RequireUserGestureForVideoDueToLowPowerMode && element->isVideo() && !document->processingUserGestureForMedia())
+        return makeUnexpectedDenial(MediaPlaybackDenialReason::UserGestureRequired, "Video low power mode restriction"_s);
+
+    if (m_restrictions & RequireUserGestureForVideoDueToAggressiveThermalMitigation && element->isVideo() && !document->processingUserGestureForMedia())
+        return makeUnexpectedDenial(MediaPlaybackDenialReason::UserGestureRequired, "Video aggressive thermal mitigation"_s);
 
     return { };
 }
@@ -1334,7 +1319,7 @@ bool MediaElementSession::allowsPlaybackControlsForAutoplayingAudio() const
 
 #if ENABLE(MEDIA_SESSION)
 #if ENABLE(MEDIA_STREAM)
-static bool isDocumentPlayingSeveralMediaStreamsAndCapturing(Document& document)
+static bool NODELETE isDocumentPlayingSeveralMediaStreamsAndCapturing(Document& document)
 {
     // We restrict to capturing document for now, until we have a good way to state to the UIProcess application that audio rendering is muted from here.
     auto* page = document.page();
@@ -1632,16 +1617,18 @@ void MediaElementSession::updateMediaUsageIfChanged()
 
 String convertEnumerationToString(const MediaPlaybackDenialReason enumerationValue)
 {
-    static const std::array<NeverDestroyed<String>, 4> values {
+    static const std::array<NeverDestroyed<String>, 5> values {
+        MAKE_STATIC_STRING_IMPL("Unknown"),
         MAKE_STATIC_STRING_IMPL("UserGestureRequired"),
         MAKE_STATIC_STRING_IMPL("FullscreenRequired"),
         MAKE_STATIC_STRING_IMPL("PageConsentRequired"),
         MAKE_STATIC_STRING_IMPL("InvalidState"),
     };
-    static_assert(static_cast<size_t>(MediaPlaybackDenialReason::UserGestureRequired) == 0, "MediaPlaybackDenialReason::UserGestureRequired is not 0 as expected");
-    static_assert(static_cast<size_t>(MediaPlaybackDenialReason::FullscreenRequired) == 1, "MediaPlaybackDenialReason::FullscreenRequired is not 1 as expected");
-    static_assert(static_cast<size_t>(MediaPlaybackDenialReason::PageConsentRequired) == 2, "MediaPlaybackDenialReason::PageConsentRequired is not 2 as expected");
-    static_assert(static_cast<size_t>(MediaPlaybackDenialReason::InvalidState) == 3, "MediaPlaybackDenialReason::InvalidState is not 3 as expected");
+    static_assert(!static_cast<size_t>(MediaPlaybackDenialReason::Unknown), "MediaPlaybackDenialReason::Unknown is not 0 as expected");
+    static_assert(static_cast<size_t>(MediaPlaybackDenialReason::UserGestureRequired) == 1, "MediaPlaybackDenialReason::UserGestureRequired is not 1 as expected");
+    static_assert(static_cast<size_t>(MediaPlaybackDenialReason::FullscreenRequired) == 2, "MediaPlaybackDenialReason::FullscreenRequired is not 2 as expected");
+    static_assert(static_cast<size_t>(MediaPlaybackDenialReason::PageConsentRequired) == 3, "MediaPlaybackDenialReason::PageConsentRequired is not 3 as expected");
+    static_assert(static_cast<size_t>(MediaPlaybackDenialReason::InvalidState) == 4, "MediaPlaybackDenialReason::InvalidState is not 4 as expected");
     ASSERT(static_cast<size_t>(enumerationValue) < std::size(values));
     return values[static_cast<size_t>(enumerationValue)];
 }

@@ -42,6 +42,9 @@ WK_PGO_USE_LDFLAGS_YES = -fprofile-use=$(WK_OPTIMIZATION_PROFILE_FILE) -Wno-erro
 
 OTHER_CFLAGS = $(inherited) $(WK_PGO_USE_CFLAGS) $(WK_PGO_GEN_FLAGS);
 OTHER_LDFLAGS = $(inherited) $(WK_PGO_USE_LDFLAGS) $(WK_PGO_GEN_FLAGS);
+// rdar://174426778: Force a 64-bit fat header, as some build configurations
+// generate a >4GB static archive but do not trigger sizing logic inside lipo.
+OTHER_LIPOFLAGS = $(inherited) -fat64;
 
 SKIP_INSTALL = YES;
 

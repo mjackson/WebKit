@@ -34,6 +34,7 @@
 #include "CSSPropertyParserConsumer+Ident.h"
 #include "CSSPropertyParserState.h"
 #include "CSSValueKeywords.h"
+#include "CSSValuePair.h"
 #include <wtf/EnumeratedArray.h>
 
 namespace WebCore {
@@ -103,7 +104,7 @@ consteval DisplayOutsideInsideMap NODELETE makeDisplayOutsideInsideMap()
 constexpr auto displayOutsideInsideMap = makeDisplayOutsideInsideMap();
 
 template<DisplayOutside outside, DisplayInside inside>
-RefPtr<CSSValue> mappedDisplayValue()
+RefPtr<CSSValue> NODELETE mappedDisplayValue()
 {
     static constexpr auto result = displayOutsideInsideMap[outside][inside];
 

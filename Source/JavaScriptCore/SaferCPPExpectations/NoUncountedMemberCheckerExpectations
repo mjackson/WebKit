@@ -5,7 +5,7 @@ API/JSObjectRef.h
 API/JSRetainPtr.h
 API/tests/testapi.cpp
 BytecodeStructs.h
-bytecode/InlineCacheCompiler.h
+bytecode/InlineCacheHandler.h
 bytecode/SharedJITStubSet.h
 bytecode/PropertyInlineCacheClearingWatchpoint.h
 bytecompiler/BytecodeGenerator.h

@@ -1,4 +1,5 @@
 
+FAIL float child ignored in a assert_approx_equals: inline size expected 83.0625 +/- 1 but got 27.6875
 FAIL float child ignored in maction assert_approx_equals: inline size expected 20 +/- 1 but got 0
 FAIL float child ignored in menclose assert_approx_equals: inline size expected 94.21875 +/- 1 but got 38.84375
 FAIL float child ignored in merror assert_approx_equals: inline size expected 85.0625 +/- 1 but got 29.6875

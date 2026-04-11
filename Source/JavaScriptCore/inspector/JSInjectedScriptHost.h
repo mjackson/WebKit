@@ -75,11 +75,11 @@ public:
     JSC::JSValue functionDetails(JSC::JSGlobalObject*, JSC::CallFrame*);
     JSC::JSValue getOwnPrivatePropertySymbols(JSC::JSGlobalObject*, JSC::CallFrame*);
     JSC::JSValue getInternalProperties(JSC::JSGlobalObject*, JSC::CallFrame*);
-    JSC::JSValue proxyTargetValue(JSC::CallFrame*);
+    JSC::JSValue NODELETE proxyTargetValue(JSC::CallFrame*);
     JSC::JSValue weakRefTargetValue(JSC::JSGlobalObject*, JSC::CallFrame*);
-    JSC::JSValue weakMapSize(JSC::JSGlobalObject*, JSC::CallFrame*);
+    JSC::JSValue NODELETE weakMapSize(JSC::JSGlobalObject*, JSC::CallFrame*);
     JSC::JSValue weakMapEntries(JSC::JSGlobalObject*, JSC::CallFrame*);
-    JSC::JSValue weakSetSize(JSC::JSGlobalObject*, JSC::CallFrame*);
+    JSC::JSValue NODELETE weakSetSize(JSC::JSGlobalObject*, JSC::CallFrame*);
     JSC::JSValue weakSetEntries(JSC::JSGlobalObject*, JSC::CallFrame*);
     JSC::JSValue iteratorEntries(JSC::JSGlobalObject*, JSC::CallFrame*);
     JSC::JSValue queryInstances(JSC::JSGlobalObject*, JSC::CallFrame*);

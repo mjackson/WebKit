@@ -28,6 +28,7 @@
 #include "config.h"
 #include "AccessibilitySVGObject.h"
 
+#include "AccessibilityNodeObjectInlines.h"
 #include "AXObjectCacheInlines.h"
 #include "AXUtilities.h"
 #include "AccessibilityObjectInlines.h"

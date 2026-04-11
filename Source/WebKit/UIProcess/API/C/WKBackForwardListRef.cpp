@@ -55,7 +55,7 @@ WKBackForwardListItemRef WKBackForwardListGetForwardItem(WKBackForwardListRef li
 
 WKBackForwardListItemRef WKBackForwardListGetItemAtIndex(WKBackForwardListRef listRef, int index)
 {
-    return toAPI(protect(toImpl(listRef)->itemAtIndex(index)).get());
+    return toAPI(protect(toImpl(listRef))->itemAtDeltaFromCurrentIndex(index).get());
 }
 
 void WKBackForwardListClear(WKBackForwardListRef listRef)

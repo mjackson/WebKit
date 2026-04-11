@@ -536,7 +536,7 @@ bool GPUConnectionToWebProcess::allowsExitUnderMemoryPressure() const
         return false;
 #endif
 #if PLATFORM(COCOA) && ENABLE(MEDIA_STREAM)
-    if (m_userMediaCaptureManagerProxy && Ref { *m_userMediaCaptureManagerProxy }->hasSourceProxies())
+    if (m_userMediaCaptureManagerProxy && m_userMediaCaptureManagerProxy->hasSourceProxies())
         return false;
     if (m_audioMediaStreamTrackRendererInternalUnitManager && m_audioMediaStreamTrackRendererInternalUnitManager->hasUnits())
         return false;
@@ -556,7 +556,7 @@ bool GPUConnectionToWebProcess::allowsExitUnderMemoryPressure() const
         return false;
 #endif
 #if PLATFORM(COCOA) && USE(LIBWEBRTC)
-    if (!protect(m_libWebRTCCodecsProxy.get())->allowsExitUnderMemoryPressure())
+    if (!m_libWebRTCCodecsProxy->allowsExitUnderMemoryPressure())
         return false;
 #endif
     return true;

@@ -109,7 +109,7 @@ public:
         return m_depth;
     }
 
-    bool wasValidWalk() const
+    bool NODELETE wasValidWalk() const
     {
         return !m_bailingOut;
     }
@@ -172,7 +172,7 @@ protected:
         m_callFrame = m_callFrame->unsafeCallerFrame(m_entryFrame);
     }
 
-    bool isAtTop() const
+    bool NODELETE isAtTop() const
     {
         return !m_callFrame;
     }
@@ -203,7 +203,7 @@ protected:
         }
     }
 
-    bool isValidFramePointer(void* callFrame)
+    bool NODELETE isValidFramePointer(void* callFrame)
     {
         uint8_t* fpCast = std::bit_cast<uint8_t*>(callFrame);
         for (auto& thread : m_vm.heap.machineThreads().threads(m_machineThreadsLocker)) {
@@ -282,7 +282,7 @@ public:
 
 private:
 
-    bool isCFrame()
+    bool NODELETE isCFrame()
     {
         return frame()->callerFrame != m_callFrame;
     }
@@ -306,7 +306,7 @@ private:
         Base::resetAtMachineFrame();
     }
 
-    CallerFrameAndPC* frame()
+    CallerFrameAndPC* NODELETE frame()
     {
         return reinterpret_cast<CallerFrameAndPC*>(m_machineFrame);
     }
@@ -474,7 +474,7 @@ void SamplingProfiler::takeSample(Seconds& stackTraceProcessingTime)
     }
 }
 
-static ALWAYS_INLINE BytecodeIndex tryGetBytecodeIndex(unsigned llintPC, CodeBlock* codeBlock)
+static ALWAYS_INLINE BytecodeIndex NODELETE tryGetBytecodeIndex(unsigned llintPC, CodeBlock* codeBlock)
 {
 #if ENABLE(DFG_JIT)
     RELEASE_ASSERT(!codeBlock->hasCodeOrigins());
@@ -806,7 +806,10 @@ String SamplingProfiler::StackFrame::nameFromCallee(VM& vm)
 
     DeferTermination deferScope(vm);
     auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
-    JSGlobalObject* globalObject = callee->globalObject();
+    JSGlobalObject* globalObject = callee->realmMayBeNull();
+    if (!globalObject)
+        return String();
+
     auto getPropertyIfPureOperation = [&] (const Identifier& ident) -> String {
         PropertySlot slot(callee, PropertySlot::InternalMethodType::VMInquiry, &vm);
         PropertyName propertyName(ident);

@@ -75,6 +75,8 @@ DocumentTimeline::DocumentTimeline(Document& document, Seconds originTime)
 
 DocumentTimeline::~DocumentTimeline() = default;
 
+Document* DocumentTimeline::document() const { return m_document.get(); }
+
 AnimationTimelinesController* DocumentTimeline::controller() const
 {
     if (RefPtr document = m_document.get())

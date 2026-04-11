@@ -26,6 +26,7 @@
 #include "config.h"
 #include "CSSPropertyParserConsumer+Grid.h"
 
+#include "CSSCustomIdentValue.h"
 #include "CSSFunctionValue.h"
 #include "CSSGridAutoRepeatValue.h"
 #include "CSSGridIntegerRepeatValue.h"
@@ -38,13 +39,12 @@
 #include "CSSPropertyParserConsumer+CSSPrimitiveValueResolver.h"
 #include "CSSPropertyParserConsumer+Ident.h"
 #include "CSSPropertyParserConsumer+IntegerDefinitions.h"
-#include "CSSPropertyParserConsumer+LengthPercentageDefinitions.h"
+#include "CSSPropertyParserConsumer+MetaConsumer.h"
 #include "CSSPropertyParserConsumer+Primitives.h"
 #include "CSSPropertyParserState.h"
 #include "CSSSubgridValue.h"
 #include "CSSValueList.h"
 #include "CSSValuePool.h"
-#include "GridArea.h"
 #include "StyleGridPosition.h"
 #include <wtf/Vector.h>
 #include <wtf/text/StringView.h>
@@ -57,11 +57,9 @@ bool isGridBreadthIdent(CSSValueID id)
     return identMatches<CSSValueMinContent, CSSValueWebkitMinContent, CSSValueMaxContent, CSSValueWebkitMaxContent, CSSValueAuto>(id);
 }
 
-static RefPtr<CSSPrimitiveValue> consumeCustomIdentForGridLine(CSSParserTokenRange& range)
+static std::optional<CSS::CustomIdent> consumeCustomIdentForGridLine(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
-    if (range.peek().id() == CSSValueAuto || range.peek().id() == CSSValueSpan)
-        return nullptr;
-    return consumeCustomIdent(range);
+    return consumeUnresolvedCustomIdentExcluding(range, state, { CSSValueAuto, CSSValueSpan });
 }
 
 std::optional<CSS::GridNamedAreaMapRow> consumeUnresolvedGridTemplateAreasRow(CSSParserTokenRange& range, CSS::PropertyParserState&)
@@ -109,7 +107,7 @@ std::optional<CSS::GridNamedAreaMapRow> consumeUnresolvedGridTemplateAreasRow(CS
         areaName.append(character);
     }
     if (!areaName.isEmpty())
-        row->append(areaName.toString());
+        row->append(areaName.toAtomString());
 
     return row;
 }
@@ -126,39 +124,45 @@ RefPtr<CSSValue> consumeGridLine(CSSParserTokenRange& range, CSS::PropertyParser
     if (range.peek().id() == CSSValueAuto)
         return consumeIdent(range);
 
-    RefPtr<CSSPrimitiveValue> spanValue;
-    RefPtr<CSSPrimitiveValue> gridLineName;
-    RefPtr<CSSPrimitiveValue> numericValue = CSSPrimitiveValueResolver<CSS::Integer<>>::consumeAndResolve(range, state);
+    auto consumeSpanKeyword = [](auto& range) -> std::optional<CSS::Keyword::Span> {
+        if (consumeIdentRaw<CSSValueSpan>(range))
+            return CSS::Keyword::Span { };
+        return std::nullopt;
+    };
+
+    std::optional<CSS::Keyword::Span> spanKeyword;
+    std::optional<CSS::CustomIdent> gridLineName;
+    std::optional<CSS::Integer<>> numericValue = MetaConsumer<CSS::Integer<>>::consume(range, state);
     if (numericValue) {
-        gridLineName = consumeCustomIdentForGridLine(range);
-        spanValue = consumeIdent<CSSValueSpan>(range);
+        gridLineName = consumeCustomIdentForGridLine(range, state);
+        spanKeyword = consumeSpanKeyword(range);
     } else {
-        spanValue = consumeIdent<CSSValueSpan>(range);
-        if (spanValue) {
-            numericValue = CSSPrimitiveValueResolver<CSS::Integer<>>::consumeAndResolve(range, state);
-            gridLineName = consumeCustomIdentForGridLine(range);
+        spanKeyword = consumeSpanKeyword(range);
+        if (spanKeyword) {
+            numericValue = MetaConsumer<CSS::Integer<>>::consume(range, state);
+            gridLineName = consumeCustomIdentForGridLine(range, state);
             if (!numericValue)
-                numericValue = CSSPrimitiveValueResolver<CSS::Integer<>>::consumeAndResolve(range, state);
+                numericValue = MetaConsumer<CSS::Integer<>>::consume(range, state);
         } else {
-            gridLineName = consumeCustomIdentForGridLine(range);
+            gridLineName = consumeCustomIdentForGridLine(range, state);
             if (gridLineName) {
-                numericValue = CSSPrimitiveValueResolver<CSS::Integer<>>::consumeAndResolve(range, state);
-                spanValue = consumeIdent<CSSValueSpan>(range);
-                if (!spanValue && !numericValue)
-                    return gridLineName;
+                numericValue = MetaConsumer<CSS::Integer<>>::consume(range, state);
+                spanKeyword = consumeSpanKeyword(range);
+                if (!spanKeyword && !numericValue)
+                    return CSSCustomIdentValue::create(WTF::move(*gridLineName));
             } else
                 return nullptr;
         }
     }
 
-    if (spanValue && !numericValue && !gridLineName)
+    if (spanKeyword && !numericValue && !gridLineName)
         return nullptr; // "span" keyword alone is invalid.
-    if (spanValue && numericValue && numericValue->isNegative().value_or(false))
-        return nullptr; // Negative numbers are not allowed for span.
-    if (numericValue && numericValue->isZero().value_or(false))
+    if (spanKeyword && numericValue && numericValue->isKnownNegative())
+        return nullptr; // Negative numbers are not allowed when the "span" keyword is specified.
+    if (numericValue && numericValue->isKnownZero())
         return nullptr; // An <integer> value of zero makes the declaration invalid.
 
-    return CSSGridLineValue::create(WTF::move(spanValue), WTF::move(numericValue), WTF::move(gridLineName));
+    return CSSGridLineValue::create(spanKeyword, WTF::move(numericValue), WTF::move(gridLineName));
 }
 
 static bool isGridTrackFixedSized(const CSSPrimitiveValue& primitiveValue)
@@ -245,21 +249,21 @@ RefPtr<CSSValue> consumeGridTrackSize(CSSParserTokenRange& range, CSS::PropertyP
     return consumeGridBreadth(range, state);
 }
 
-RefPtr<CSSGridLineNamesValue> consumeGridLineNames(CSSParserTokenRange& range, CSS::PropertyParserState&, AllowEmpty allowEmpty)
+RefPtr<CSSGridLineNamesValue> consumeGridLineNames(CSSParserTokenRange& range, CSS::PropertyParserState& state, AllowEmpty allowEmpty)
 {
     CSSParserTokenRange rangeCopy = range;
     if (rangeCopy.consumeIncludingWhitespace().type() != LeftBracketToken)
         return nullptr;
 
-    Vector<String, 4> lineNames;
-    while (auto lineName = consumeCustomIdentForGridLine(rangeCopy))
-        lineNames.append(lineName->customIdent());
+    SpaceSeparatedVector<CSS::CustomIdent> lineNames;
+    while (auto lineName = consumeCustomIdentForGridLine(rangeCopy, state))
+        lineNames.value.append(WTF::move(*lineName));
     if (rangeCopy.consumeIncludingWhitespace().type() != RightBracketToken)
         return nullptr;
     range = rangeCopy;
     if (allowEmpty == AllowEmpty::No && lineNames.isEmpty())
         return nullptr;
-    return CSSGridLineNamesValue::create(lineNames);
+    return CSSGridLineNamesValue::create(WTF::move(lineNames));
 }
 
 static bool consumeGridTrackRepeatFunction(CSSParserTokenRange& range, CSS::PropertyParserState& state, CSSValueListBuilder& list, bool& isAutoRepeat, bool& allTracksAreFixedSized)

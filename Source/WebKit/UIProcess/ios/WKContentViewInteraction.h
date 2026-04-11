@@ -110,6 +110,7 @@ struct MediaPlayerClientIdentifierType;
 struct PromisedAttachmentInfo;
 struct ShareDataWithParsedURL;
 struct TextAnimationData;
+struct TextEffectData;
 struct TextRecognitionResult;
 enum class DOMPasteAccessCategory : uint8_t;
 enum class DOMPasteAccessResponse : uint8_t;
@@ -159,6 +160,7 @@ enum class PickerDismissalReason : uint8_t;
 @class _WKTextInputContext;
 
 @class WKTextAnimationManager;
+@class WKTextEffectManager;
 
 #if ENABLE(WEB_AUTHN)
 @class WKDigitalCredentialsPicker;
@@ -479,6 +481,9 @@ struct ImageAnalysisContextMenuActionData {
     BOOL _isPresentingWritingTools;
 
     RetainPtr<WKTextAnimationManager> _textAnimationManager;
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    RetainPtr<WKTextEffectManager> _textEffectManager;
+#endif
 #endif
 
     enum class SelectionInteractionType : uint8_t {
@@ -956,6 +961,11 @@ FOR_EACH_PRIVATE_WKCONTENTVIEW_ACTION(DECLARE_WKCONTENTVIEW_ACTION_FOR_WEB_VIEW)
 #if ENABLE(WRITING_TOOLS)
 - (void)addTextAnimationForAnimationID:(NSUUID *)uuid withData:(const WebCore::TextAnimationData&)data;
 - (void)removeTextAnimationForAnimationID:(NSUUID *)uuid;
+
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+- (void)addTextEffectForID:(NSUUID *)uuid withData:(const WebCore::TextEffectData&)data;
+- (void)removeTextEffectForID:(NSUUID *)uuid;
+#endif
 #endif
 
 @property (nonatomic, readonly) BOOL _shouldUseContextMenus;

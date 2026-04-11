@@ -97,7 +97,7 @@ template<FormattingGeometry::HeightType heightType> std::optional<LayoutUnit> Fo
             ASSERT_NOT_IMPLEMENTED_YET();
         } else {
             auto [nonAnonymousContainingBlockLogicalHeight, nonAnonymousContainingBlockUsedZoom] = [&]() -> std::pair<Style::PreferredSize, Style::ZoomFactor> {
-                // When the block level box is a direct child of an inline level box (<span><div></div></span>) and we wrap it into a continuation,
+                // When the block level box is a direct child of an inline level box (<span><div></div></span>),
                 // the containing block (anonymous wrapper) is not the box we need to check for fixed height.
                 for (auto& containingBlock : containingBlockChain(layoutBox)) {
                     if (containingBlock.isAnonymous())

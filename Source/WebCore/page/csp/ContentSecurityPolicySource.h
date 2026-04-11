@@ -48,7 +48,7 @@ public:
 
 private:
     bool schemeMatches(const URL&) const;
-    bool hostMatches(const URL&) const;
+    bool NODELETE hostMatches(const URL&) const;
     bool pathMatches(const URL&) const;
     bool portMatches(const URL&) const;
     bool NODELETE isSchemeOnly() const;

@@ -99,7 +99,7 @@ public:
                 // We retained ourselves above.
                 Locker locker { m_lock };
                 hasOtherWeakRefs = --m_weakReferenceCount;
-                // release the lock here so we don't do it in Locker's destuctor after we've already called delete.
+                // release the lock here so we don't do it in Locker's destructor after we've already called delete.
             }
 
             if (!hasOtherWeakRefs)
@@ -239,9 +239,10 @@ public:
             bits -= refIncrement;
             newStrongOnlyRefCount = bits;
             return true;
-        }, std::memory_order_relaxed);
+        }, std::memory_order_release);
         if (didDerefStrongOnly) {
             if (newStrongOnlyRefCount == strongOnlyFlag) {
+                std::atomic_thread_fence(std::memory_order_acquire);
                 ASSERT(m_bits.exchangeOr(destructionStartedFlag) == newStrongOnlyRefCount);
                 SUPPRESS_UNCOUNTED_LAMBDA_CAPTURE auto deleteObject = [this] {
                     delete static_cast<const T*>(this);

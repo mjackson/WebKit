@@ -369,9 +369,7 @@ NavigationState::NavigationClient::NavigationClient(NavigationState& navigationS
 {
 }
 
-NavigationState::NavigationClient::~NavigationClient()
-{
-}
+NavigationState::NavigationClient::~NavigationClient() = default;
 
 bool NavigationState::NavigationClient::didChangeBackForwardList(WebPageProxy&, WebBackForwardListItem* added, const Vector<Ref<WebBackForwardListItem>>& removed)
 {
@@ -1502,9 +1500,7 @@ NavigationState::HistoryClient::HistoryClient(NavigationState& navigationState)
 {
 }
 
-NavigationState::HistoryClient::~HistoryClient()
-{
-}
+NavigationState::HistoryClient::~HistoryClient() = default;
 
 void NavigationState::HistoryClient::didNavigateWithNavigationData(WebPageProxy&, const WebNavigationDataStore& navigationDataStore)
 {

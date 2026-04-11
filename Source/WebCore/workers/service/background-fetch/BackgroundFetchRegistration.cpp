@@ -71,9 +71,7 @@ BackgroundFetchRegistration::BackgroundFetchRegistration(ScriptExecutionContext&
 {
 }
 
-BackgroundFetchRegistration::~BackgroundFetchRegistration()
-{
-}
+BackgroundFetchRegistration::~BackgroundFetchRegistration() = default;
 
 void BackgroundFetchRegistration::abort(ScriptExecutionContext& context, DOMPromiseDeferred<IDLBoolean>&& promise)
 {

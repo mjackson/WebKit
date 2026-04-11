@@ -55,6 +55,10 @@ find_package(ZLIB 1.2.11 REQUIRED)
 find_package(LibPSL 0.20.2 REQUIRED)
 find_package(WebP REQUIRED COMPONENTS demux)
 
+if (NOT TARGET SQLite3::SQLite3) # CMake < 4.3
+    add_library(SQLite3::SQLite3 ALIAS SQLite::SQLite3)
+endif ()
+
 WEBKIT_OPTION_BEGIN()
 
 # FIXME: Most of these options should not be public.

@@ -350,7 +350,7 @@ class WebCoreLogObserver : public Logger::Observer {
     friend NeverDestroyed<WebCoreLogObserver>;
 public:
     explicit WebCoreLogObserver() = default;
-    void didLogMessage(const WTFLogChannel&, WTFLogLevel, Vector<JSONLogValue>&&) final;
+    void didLogMessage(const WTFLogChannel&, WTFLogLevel, std::optional<WTFLogLocation>, Vector<JSONLogValue>&&) final;
 
     virtual GstDebugCategory* debugCategory() const = 0;
     virtual bool shouldEmitLogMessage(const WTFLogChannel&) const = 0;
@@ -388,6 +388,10 @@ GRefPtr<GstElement> createVideoConvertScaleElement(const String& name = emptyStr
 
 void dumpBinToDotFile(GstBin*, const String&, GstDebugGraphDetails = GST_DEBUG_GRAPH_SHOW_ALL);
 void dumpBinToDotFile(const GRefPtr<GstElement>&, const String&, GstDebugGraphDetails = GST_DEBUG_GRAPH_SHOW_ALL);
+
+#if !RELEASE_LOG_DISABLED
+GstDebugLevel gstDebugLevelFromWTFLogLevel(WTFLogLevel);
+#endif
 
 } // namespace WebCore
 

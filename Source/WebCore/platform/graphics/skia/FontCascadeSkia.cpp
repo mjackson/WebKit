@@ -100,7 +100,7 @@ RefPtr<const Font> FontCascade::fontForCombiningCharacterSequence(StringView str
         // the base character with the cat emoji to try to force an emoji font.
         baseCharacterForBaseFont = emojiCat;
     }
-    GlyphData baseCharacterGlyphData = glyphDataForCharacter(baseCharacterForBaseFont, false, NormalVariant, emojiPolicy);
+    GlyphData baseCharacterGlyphData = glyphDataForCharacter(baseCharacterForBaseFont, false, FontVariant::Normal, emojiPolicy);
     if (!baseCharacterGlyphData.glyph)
         return nullptr;
 

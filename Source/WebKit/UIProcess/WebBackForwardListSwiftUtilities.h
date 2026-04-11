@@ -58,7 +58,6 @@ inline bool contentsMatch(const T& lhs, const T& rhs)
 
 // Workaround for rdar://162193891
 WebCore::BackForwardFrameItemIdentifier generateBackForwardFrameItemIdentifier();
-WebCore::BackForwardItemIdentifier generateBackForwardItemIdentifier();
 
 // Workaround for rdar://129159672
 inline void setOptionalUInt32Value(std::optional<uint32_t>& optional, uint32_t value)
@@ -94,5 +93,9 @@ inline bool filterSpecified(WebBackForwardListItemFilter& fn)
 {
     return bool(*fn);
 }
+
+// Workarounds for rdar://171011011
+void appendToBackForwardStateItems(Vector<WebKit::BackForwardListItemState>& items, const WebKit::WebBackForwardListItem& entry);
+Ref<WebKit::WebBackForwardListItem> createItemFromState(const WebKit::BackForwardListItemState&, WebKit::WebPageProxyIdentifier pageIdentifier);
 
 #endif // ENABLE(BACK_FORWARD_LIST_SWIFT)

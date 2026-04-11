@@ -32,9 +32,7 @@
 
 namespace WebCore {
 
-IDBResultData::IDBResultData()
-{
-}
+IDBResultData::IDBResultData() = default;
 
 IDBResultData::IDBResultData(const IDBResourceIdentifier& requestIdentifier)
     : m_requestIdentifier(requestIdentifier)
@@ -226,12 +224,6 @@ const IDBTransactionInfo& IDBResultData::transactionInfo() const
 }
 
 const IDBGetResult& IDBResultData::getResult() const
-{
-    RELEASE_ASSERT(m_getResult);
-    return *m_getResult;
-}
-
-IDBGetResult& IDBResultData::getResultRef()
 {
     RELEASE_ASSERT(m_getResult);
     return *m_getResult;

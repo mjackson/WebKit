@@ -46,6 +46,7 @@
 #include "ImageBuffer.h"
 #include "ImageData.h"
 #include "IntRect.h"
+#include "JSDOMConvertInterface.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSImageBitmap.h"
 #include "LayoutSize.h"
@@ -98,8 +99,8 @@ static inline RenderingMode NODELETE bufferRenderingMode(ScriptExecutionContext&
     static RenderingMode defaultRenderingMode = RenderingMode::Unaccelerated;
 #endif
 
-#if PLATFORM(GTK)
-    if (!scriptExecutionContext.settingsValues().acceleratedCompositingEnabled)
+#if PLATFORM(GTK) || ENABLE(WPE_PLATFORM)
+    if (!scriptExecutionContext.settingsValues().hardwareAccelerationEnabled)
         return RenderingMode::Unaccelerated;
 #else
     UNUSED_PARAM(scriptExecutionContext);

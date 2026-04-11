@@ -31,6 +31,7 @@
 #include "RenderMathMLFenced.h"
 #include "RenderMathMLFencedOperator.h"
 #include "RenderObjectDocument.h"
+#include "RenderObjectNode.h"
 #include "RenderStyle+SettersInlines.h"
 #include "RenderTreeBuilderBlock.h"
 #include <wtf/TZoneMallocInlines.h>

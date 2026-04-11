@@ -55,6 +55,7 @@ private:
     void removingSteps(RemovalType, ContainerNode&) final;
 
     AtomString m_name;
+    AtomString m_registeredId;
 };
 
 } // namespaces

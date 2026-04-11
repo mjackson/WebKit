@@ -33,6 +33,7 @@
 #include "FontCascadeInlines.h"
 #include "GraphicsContext.h"
 #include "MathMLFractionElement.h"
+#include "OpenTypeMathData.h"
 #include "PaintInfo.h"
 #include "RenderMathMLBlockInlines.h"
 #include "RenderObjectInlines.h"

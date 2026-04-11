@@ -72,7 +72,7 @@ WebAuthenticatorCoordinatorProxy::~WebAuthenticatorCoordinatorProxy()
 
 std::optional<SharedPreferencesForWebProcess> WebAuthenticatorCoordinatorProxy::sharedPreferencesForWebProcess() const
 {
-    RefPtr webPageProxy = m_webPageProxy.get();
+    auto* webPageProxy = m_webPageProxy.get();
     return webPageProxy ? webPageProxy->legacyMainFrameProcess().sharedPreferencesForWebProcess() : std::nullopt;
 }
 

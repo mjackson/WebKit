@@ -115,7 +115,7 @@ static constexpr std::array<uint8_t, maximumEscapedentityCharacter + 1> entityMa
     EntitySubstitutionIndex::Nbsp // noBreakSpace.
 };
 
-static bool elementCannotHaveEndTag(const Node& node)
+static bool NODELETE elementCannotHaveEndTag(const Node& node)
 {
     using namespace ElementNames;
     auto* element = dynamicDowncast<Element>(node);
@@ -156,7 +156,7 @@ static bool elementCannotHaveEndTag(const Node& node)
 // 2. Elements w/ children never self-close because they use a separate end tag.
 // 3. HTML elements which do not have a "forbidden" end tag will close with a separate end tag.
 // 4. Other elements self-close.
-static bool shouldSelfClose(const Element& element, SerializationSyntax syntax)
+static bool NODELETE shouldSelfClose(const Element& element, SerializationSyntax syntax)
 {
     if (syntax != SerializationSyntax::XML)
         return false;

@@ -40,12 +40,6 @@ namespace Wasm {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(FunctionIPIntMetadataGenerator);
 
-const RTT* FunctionIPIntMetadataGenerator::addSignature(const TypeDefinition& signature)
-{
-    // This is held by wasm module.
-    return TypeInformation::getCanonicalRTT(signature.index()).unsafePtr();
-}
-
 void FunctionIPIntMetadataGenerator::setTailCall(uint32_t functionIndex, bool isImportedFunctionFromFunctionIndexSpace)
 {
     m_hasTailCallSuccessors = true;
@@ -62,6 +56,16 @@ void FunctionIPIntMetadataGenerator::addLength(size_t length)
     size_t size = m_metadata.size();
     m_metadata.grow(size + sizeof(instructionLength));
     WRITE_TO_METADATA(m_metadata.mutableSpan().data() + size, instructionLength, IPInt::InstructionLengthMetadata);
+}
+
+void FunctionIPIntMetadataGenerator::addMemoryIndex(uint8_t memoryIndex)
+{
+    IPInt::MemoryIndexMetadata mdConst {
+        .memoryIndex = memoryIndex
+    };
+    size_t size = m_metadata.size();
+    m_metadata.grow(size + sizeof(mdConst));
+    WRITE_TO_METADATA(m_metadata.mutableSpan().data() + size, mdConst, IPInt::MemoryIndexMetadata);
 }
 
 void FunctionIPIntMetadataGenerator::addLEB128ConstantInt32AndLength(uint32_t value, size_t length)

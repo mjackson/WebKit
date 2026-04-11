@@ -436,7 +436,7 @@ String BunV8HeapSnapshotBuilder::getDetailedNodeType(JSCell* cell, bool recurse)
         // These cases are typically F.prototype objects and we want to treat these as
         // "Object" in snapshots and not get the name of the prototype's parent.
         JSObject* object = asObject(cell);
-        if (JSGlobalObject* globalObject = object->globalObject()) {
+        if (JSGlobalObject* globalObject = object->realmMayBeNull()) {
             PropertySlot slot(object, PropertySlot::InternalMethodType::VMInquiry, &m_profiler.vm());
             if (!object->getOwnPropertySlot(object, globalObject, m_profiler.vm().propertyNames->constructor, slot)) {
                 name = JSObject::calculatedClassName(object);
@@ -505,7 +505,6 @@ unsigned BunV8HeapSnapshotBuilder::getEdgeTypeIndex(RootMarkReason reason)
     case RootMarkReason::JITWorkList:
     case RootMarkReason::StrongReferences:
     case RootMarkReason::CodeBlocks:
-    case RootMarkReason::MarkedJSValueRefArray:
     case RootMarkReason::MarkListSet:
     case RootMarkReason::StrongHandles:
     case RootMarkReason::DOMGCOutput:

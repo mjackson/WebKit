@@ -31,9 +31,6 @@
 
 #include "config.h"
 
-#include <type_traits>
-#include <utility>
-#include <wtf/Assertions.h>
 #include <wtf/RefCounted.h>
 #include <wtf/RefPtr.h>
 #include <wtf/ThreadAssertions.h>

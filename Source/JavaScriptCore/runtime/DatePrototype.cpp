@@ -969,8 +969,15 @@ JSC_DEFINE_HOST_FUNCTION(dateProtoFuncToLocaleString, (JSGlobalObject* globalObj
     if (std::isnan(milli))
         return JSValue::encode(jsNontrivialString(vm, String("Invalid Date"_s)));
 
-    auto* dateTimeFormat = IntlDateTimeFormat::create(vm, globalObject->dateTimeFormatStructure());
-    dateTimeFormat->initializeDateTimeFormat(globalObject, callFrame->argument(0), callFrame->argument(1), IntlDateTimeFormat::RequiredComponent::Any, IntlDateTimeFormat::Defaults::All);
+    JSValue locales = callFrame->argument(0);
+    JSValue options = callFrame->argument(1);
+    IntlDateTimeFormat* dateTimeFormat;
+    if (locales.isUndefined() && options.isUndefined())
+        dateTimeFormat = globalObject->defaultDateTimeFormat();
+    else {
+        dateTimeFormat = IntlDateTimeFormat::create(vm, globalObject->dateTimeFormatStructure());
+        dateTimeFormat->initializeDateTimeFormat(globalObject, locales, options, IntlDateTimeFormat::RequiredComponent::Any, IntlDateTimeFormat::Defaults::All);
+    }
     RETURN_IF_EXCEPTION(scope, { });
     RELEASE_AND_RETURN(scope, JSValue::encode(dateTimeFormat->format(globalObject, milli)));
 }
@@ -988,8 +995,15 @@ JSC_DEFINE_HOST_FUNCTION(dateProtoFuncToLocaleDateString, (JSGlobalObject* globa
     if (std::isnan(milli))
         return JSValue::encode(jsNontrivialString(vm, String("Invalid Date"_s)));
 
-    auto* dateTimeFormat = IntlDateTimeFormat::create(vm, globalObject->dateTimeFormatStructure());
-    dateTimeFormat->initializeDateTimeFormat(globalObject, callFrame->argument(0), callFrame->argument(1), IntlDateTimeFormat::RequiredComponent::Date, IntlDateTimeFormat::Defaults::Date);
+    JSValue locales = callFrame->argument(0);
+    JSValue options = callFrame->argument(1);
+    IntlDateTimeFormat* dateTimeFormat;
+    if (locales.isUndefined() && options.isUndefined())
+        dateTimeFormat = globalObject->defaultDateFormat();
+    else {
+        dateTimeFormat = IntlDateTimeFormat::create(vm, globalObject->dateTimeFormatStructure());
+        dateTimeFormat->initializeDateTimeFormat(globalObject, locales, options, IntlDateTimeFormat::RequiredComponent::Date, IntlDateTimeFormat::Defaults::Date);
+    }
     RETURN_IF_EXCEPTION(scope, { });
     RELEASE_AND_RETURN(scope, JSValue::encode(dateTimeFormat->format(globalObject, milli)));
 }
@@ -1007,8 +1021,15 @@ JSC_DEFINE_HOST_FUNCTION(dateProtoFuncToLocaleTimeString, (JSGlobalObject* globa
     if (std::isnan(milli))
         return JSValue::encode(jsNontrivialString(vm, String("Invalid Date"_s)));
 
-    auto* dateTimeFormat = IntlDateTimeFormat::create(vm, globalObject->dateTimeFormatStructure());
-    dateTimeFormat->initializeDateTimeFormat(globalObject, callFrame->argument(0), callFrame->argument(1), IntlDateTimeFormat::RequiredComponent::Time, IntlDateTimeFormat::Defaults::Time);
+    JSValue locales = callFrame->argument(0);
+    JSValue options = callFrame->argument(1);
+    IntlDateTimeFormat* dateTimeFormat;
+    if (locales.isUndefined() && options.isUndefined())
+        dateTimeFormat = globalObject->defaultTimeFormat();
+    else {
+        dateTimeFormat = IntlDateTimeFormat::create(vm, globalObject->dateTimeFormatStructure());
+        dateTimeFormat->initializeDateTimeFormat(globalObject, locales, options, IntlDateTimeFormat::RequiredComponent::Time, IntlDateTimeFormat::Defaults::Time);
+    }
     RETURN_IF_EXCEPTION(scope, { });
     RELEASE_AND_RETURN(scope, JSValue::encode(dateTimeFormat->format(globalObject, milli)));
 }

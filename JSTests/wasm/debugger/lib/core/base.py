@@ -233,12 +233,13 @@ class BaseTestCase:
         self._process_tracker = tracker
         self._worker_tid = worker_tid
 
-    def start_debugger(self, test_file: str) -> bool:
+    def start_debugger(self, test_file: str, extra_jsc_options: List[str] = None) -> bool:
         """
         Start the WebAssembly debugger server
 
         Args:
             test_file: Path to the test file (JavaScript or WebAssembly) to debug
+            extra_jsc_options: Optional list of additional JSC options (e.g. ["--maxPerThreadStackUsage=524288"])
 
         Returns:
             True if debugger started successfully, False otherwise
@@ -252,12 +253,16 @@ class BaseTestCase:
         if not jsc_path:
             raise Exception("JSC executable not found")
 
-        cmd = [jsc_path, f"--wasm-debugger={self.current_port}"]
+        def build_cmd(filename):
+            cmd = [jsc_path, f"--wasm-debugger={self.current_port}"]
+            if self._verbose_wasm_debugger:
+                cmd.append("--verboseWasmDebugger=1")
+            if extra_jsc_options:
+                cmd.extend(extra_jsc_options)
+            cmd.append(filename)
+            return cmd
 
-        if self._verbose_wasm_debugger:
-            cmd.append("--verboseWasmDebugger=1")
-
-        cmd.append(test_file)
+        cmd = build_cmd(test_file)
 
         self.logger.verbose(f"Starting debugger on port {self.current_port}")
         self.logger.verbose(f"Command: {' '.join(cmd)}")
@@ -272,14 +277,7 @@ class BaseTestCase:
             if "/" in test_file:
                 test_subdir = os.path.dirname(test_file)
                 working_dir = os.path.join(test_dir, test_subdir)
-                # Update the command to use just the filename
-                test_filename = os.path.basename(test_file)
-                cmd = [jsc_path, f"--wasm-debugger={self.current_port}"]
-
-                if self._verbose_wasm_debugger:
-                    cmd.append("--verboseWasmDebugger=1")
-
-                cmd.append(test_filename)
+                cmd = build_cmd(os.path.basename(test_file))
             else:
                 working_dir = test_dir
 
@@ -415,12 +413,13 @@ class BaseTestCase:
                 self.lldb_process = None
             return False
 
-    def setup_debugging_session(self, test_file: str) -> bool:
+    def setup_debugging_session(self, test_file: str, extra_jsc_options: List[str] = None) -> bool:
         """
         Setup complete debugging session (debugger + LLDB)
 
         Args:
             test_file: Path to the test file (JavaScript or WebAssembly) to debug
+            extra_jsc_options: Optional list of additional JSC options
 
         Returns:
             True if both debugger and LLDB started successfully, False otherwise
@@ -428,7 +427,7 @@ class BaseTestCase:
         self.logger.header(f"Setting up debugging session for {self.name}")
 
         # Start debugger
-        if not self.start_debugger(test_file):
+        if not self.start_debugger(test_file, extra_jsc_options):
             return False
 
         if not self.start_lldb(connection_timeout=60.0):
@@ -497,9 +496,9 @@ class BaseTestCase:
             raise Exception(f"Command '{command}' failed: {result.error}")
         return result
 
-    def setup_debugging_session_or_raise(self, test_file: str):
+    def setup_debugging_session_or_raise(self, test_file: str, extra_jsc_options: List[str] = None):
         """Setup complete debugging session and raise exception on failure"""
-        if not self.setup_debugging_session(test_file):
+        if not self.setup_debugging_session(test_file, extra_jsc_options):
             raise Exception("Session setup failed")
 
     def wait_for_lldb_stop(self, timeout: float = 10.0) -> bool:

@@ -201,7 +201,6 @@ static unsigned NODELETE sortPriority(CSSUnitType unit)
     case CSSUnitType::CSS_STRING:
     case CSSUnitType::CSS_UNKNOWN:
     case CSSUnitType::CSS_VALUE_ID:
-    case CSSUnitType::CustomIdent:
         break;
     }
 
@@ -385,12 +384,21 @@ void serializeMathFunctionArguments(StringBuilder& builder, const IndirectNode<R
 {
     WTF::switchOn(fn->sharing,
         [&](const Random::SharingOptions& options) {
-            if (std::holds_alternative<AtomString>(options.identifier) && options.elementShared)
-                builder.append(std::get<AtomString>(options.identifier), ' ', nameLiteralForSerialization(CSSValueElementShared), ", "_s);
-            else if (std::holds_alternative<AtomString>(options.identifier))
-                builder.append(std::get<AtomString>(options.identifier), ", "_s);
-            else if (options.elementShared)
-                builder.append(nameLiteralForSerialization(CSSValueElementShared), ", "_s);
+            WTF::switchOn(options.identifier,
+                [&](const Random::SharingOptions::Auto&) {
+                    // Noting to do.
+                },
+                [&](const CSS::CustomIdent& customIdent) {
+                    if (!customIdent.value.isNull()) {
+                        CSS::serializationForCSS(builder, state.serializationContext, customIdent);
+                        if (options.elementScoped)
+                            builder.append(' ', nameLiteralForSerialization(CSSValueElementScoped), ", "_s);
+                        else
+                            builder.append(", "_s);
+                    } else if (options.elementScoped)
+                        builder.append(' ', nameLiteralForSerialization(CSSValueElementScoped), ", "_s);
+                }
+            );
         },
         [&](const Random::SharingFixed& fixed) {
             builder.append(nameLiteralForSerialization(CSSValueFixed), ' ');
@@ -411,8 +419,8 @@ void serializeMathFunctionArguments(StringBuilder& builder, const IndirectNode<R
 
 void serializeMathFunctionArguments(StringBuilder& builder, const IndirectNode<Anchor>& anchor, SerializationState& state)
 {
-    if (!anchor->elementName.isNull()) {
-        serializeIdentifier(anchor->elementName, builder);
+    if (anchor->elementName) {
+        CSS::serializationForCSS(builder, state.serializationContext, *anchor->elementName);
         builder.append(' ');
     }
 
@@ -458,20 +466,17 @@ static void serializeAnchorSizeDimension(StringBuilder& builder, Style::AnchorSi
 
 void serializeMathFunctionArguments(StringBuilder& builder, const IndirectNode<AnchorSize>& anchorSize, SerializationState& state)
 {
-    bool hasElementName = !anchorSize->elementName.isNull();
-
-    if (hasElementName)
-        serializeIdentifier(anchorSize->elementName, builder);
+    if (anchorSize->elementName)
+        CSS::serializationForCSS(builder, state.serializationContext, *anchorSize->elementName);
 
     if (anchorSize->dimension) {
-        if (hasElementName)
+        if (anchorSize->elementName)
             builder.append(' ');
-
         serializeAnchorSizeDimension(builder, *anchorSize->dimension);
     }
 
     if (anchorSize->fallback) {
-        if (hasElementName || anchorSize->dimension)
+        if (anchorSize->elementName || anchorSize->dimension)
             builder.append(", "_s);
 
         serializeWithoutOmittingPrefix(builder, *anchorSize->fallback, state);
@@ -488,10 +493,10 @@ template<typename Op> void serializeMathFunctionArguments(StringBuilder& builder
                 serializeCalculationTree(builder, *root, state);
             }
         },
-        [&](const AtomString& root) {
-            if (!root.isNull()) {
+        [&](const CSS::CustomIdent& root) {
+            if (!root.value.isNull()) {
                 builder.append(std::exchange(separator, ", "_s));
-                serializeIdentifier(root, builder);
+                CSS::serializationForCSS(builder, state.serializationContext, root);
             }
         },
         [&](const auto& root) {
@@ -506,7 +511,8 @@ void serializeWithoutOmittingPrefix(StringBuilder& builder, const Child& child, 
     WTF::switchOn(child,
         [&](Leaf auto& op) {
             serializeCalculationTree(builder, op, state);
-        }, [&](auto& op) {
+        },
+        [&](auto& op) {
             serializeMathFunction(builder, op, state);
         }
     );

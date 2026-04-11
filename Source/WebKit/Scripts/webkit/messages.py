@@ -512,6 +512,7 @@ def serialized_identifiers():
         'WebKit::PDFPluginIdentifier',
         'WebKit::PageGroupIdentifier',
         'WebKit::QuotaIncreaseRequestIdentifier',
+        'WebKit::RealmIdentifier',
         'WebKit::RemoteAudioDestinationIdentifier',
         'WebKit::RemoteAudioHardwareListenerIdentifier',
         'WebKit::RemoteAudioVideoRendererIdentifier',
@@ -570,6 +571,7 @@ def types_that_cannot_be_forward_declared():
     return frozenset([
         'CVPixelBufferRef',
         'GCGLint',
+        'GenericPromise::Result',
         'IPC::AsyncReplyID',
         'IPC::FontReference',
         'IPC::Semaphore',
@@ -578,6 +580,7 @@ def types_that_cannot_be_forward_declared():
         'Inspector::ExtensionTabID',
         'MachSendRight',
         'MediaTime',
+        'PlatformXR::DeviceLayer',
         'PlatformXR::ReferenceSpaceType',
         'PlatformXR::HitTestOptions',
         'PlatformXR::HitTestSource',
@@ -1097,6 +1100,7 @@ def headers_for_type(type, for_implementation_file=False):
     special_cases = {
         'CVPixelBufferRef': ['<WebCore/CVUtilities.h>'],
         'GCGLint': ['<WebCore/GraphicsTypesGL.h>'],
+        'GenericPromise::Result': ['<wtf/NativePromise.h>'],
         'Inspector::ExtensionAppearance': ['"InspectorExtensionTypes.h"'],
         'Inspector::ExtensionError': ['"InspectorExtensionTypes.h"'],
         'Inspector::ExtensionTabID': ['"InspectorExtensionTypes.h"'],
@@ -1115,6 +1119,7 @@ def headers_for_type(type, for_implementation_file=False):
         'MonotonicTime': ['<wtf/MonotonicTime.h>'],
         'PAL::SessionID': ['<pal/SessionID.h>'],
         'PAL::UserInterfaceIdiom': ['<pal/system/ios/UserInterfaceIdiom.h>'],
+        'PlatformXR::DeviceLayer': ['<WebCore/PlatformXR.h>'],
         'PlatformXR::FrameData': ['<WebCore/PlatformXR.h>'],
         'PlatformXR::HitTestOptions': ['<WebCore/PlatformXR.h>'],
         'PlatformXR::HitTestSource': ['<WebCore/PlatformXR.h>'],
@@ -1132,9 +1137,11 @@ def headers_for_type(type, for_implementation_file=False):
         'String': ['<wtf/text/WTFString.h>'],
         'std::monostate': [],
         'URL': ['<wtf/URLHash.h>'],
+        'WTF::GenericPromise::Result': ['<wtf/NativePromise.h>'],
         'WTF::UUID': ['<wtf/UUID.h>'],
         'WallTime': ['<wtf/WallTime.h>'],
         'WebCore::AXDebugInfo': ['<WebCore/AXObjectCache.h>'],
+        'WebCore::AccessibilityMode': ['<WebCore/AXObjectCache.h>'],
         'WebCore::AccessibilityRemoteToken': ['<WebCore/AXObjectCache.h>'],
         'WebCore::AccessibilitySearchCriteriaIPC': ['<WebCore/AXSearchManager.h>'],
         'WebCore::AriaNotifyData': ['<WebCore/AXObjectCache.h>'],
@@ -1225,7 +1232,7 @@ def headers_for_type(type, for_implementation_file=False):
         'WebCore::FontSmoothingMode': ['<WebCore/GraphicsTypes.h>'],
         'WebCore::FoundElementInRemoteFrame': ['<WebCore/FocusControllerTypes.h>'],
         'WebCore::FragmentedSharedBuffer': ['<WebCore/SharedBuffer.h>'],
-        'WebCore::FrameGeometry': ['<WebCore/AXObjectCache.h>'],
+        'WebCore::AXFrameGeometry': ['<WebCore/AXObjectCache.h>'],
         'WebCore::FrameIdentifierID': ['"GeneratedSerializers.h"'],
         'WebCore::FrameLoadType': ['<WebCore/FrameLoaderTypes.h>'],
         'WebCore::FrameTreeSyncSerializationData': ['<WebCore/FrameTreeSyncData.h>'],
@@ -1306,6 +1313,7 @@ def headers_for_type(type, for_implementation_file=False):
         'WebCore::MediaSettingsRange': ['<WebCore/MediaSettingsRange.h>'],
         'WebCore::MediaSourcePrivateAddStatus': ['<WebCore/MediaSourcePrivate.h>'],
         'WebCore::MediaSourcePrivateEndOfStreamStatus': ['<WebCore/MediaSourcePrivate.h>'],
+        'WebCore::MediaTimePromise::Result': ['<WebCore/MediaPromiseTypes.h>'],
         'WebCore::MessagePortChannelProvider::HasActivity': ['<WebCore/MessagePortChannelProvider.h>'],
         'WebCore::ModalContainerControlType': ['<WebCore/ModalContainerTypes.h>'],
         'WebCore::ModalContainerDecision': ['<WebCore/ModalContainerTypes.h>'],
@@ -1413,6 +1421,7 @@ def headers_for_type(type, for_implementation_file=False):
         'WebCore::TextCheckingResult': ['<WebCore/TextCheckerClient.h>'],
         'WebCore::TextCheckingType': ['<WebCore/TextChecking.h>'],
         'WebCore::TextDrawingModeFlags': ['<WebCore/GraphicsTypes.h>'],
+        'WebCore::TextEffectData': ['<WebCore/TextAnimationTypes.h>'],
         'WebCore::TextExtraction::Item': ['<WebCore/TextExtractionTypes.h>'],
         'WebCore::TextExtraction::Result': ['<WebCore/TextExtractionTypes.h>'],
         'WebCore::TextIndicatorData': ['<WebCore/TextIndicator.h>'],
@@ -1530,6 +1539,7 @@ def headers_for_type(type, for_implementation_file=False):
         'WebKit::MessageBatchIdentifier': ['"NetworkConnectionToWebProcess.h"'],
         'WebKit::NetworkActivityTracker::CompletionCode': ['"NetworkActivityTracker.h"'],
         'WebKit::PageGroupIdentifier': ['"IdentifierTypes.h"'],
+        'WebKit::RealmIdentifier': ['"IdentifierTypes.h"'],
         'WebKit::PaymentSetupConfiguration': ['"PaymentSetupConfigurationWebKit.h"'],
         'WebKit::PaymentSetupFeatures': ['"ApplePayPaymentSetupFeaturesWebKit.h"'],
         'WebKit::ImageBufferSetPrepareBufferForDisplayInputData': ['"PrepareBackingStoreBuffersData.h"'],
@@ -1633,6 +1643,8 @@ def headers_for_type(type, for_implementation_file=False):
         'WebKit::WebPushD::WebPushDaemonConnectionConfiguration': ['"WebPushDaemonConnectionConfiguration.h"'],
         'WebKit::WebScriptMessageHandlerData': ['"WebUserContentControllerDataTypes.h"'],
         'WebKit::WebTransportSessionIdentifier': ['"WebTransportSession.h"'],
+        'WebKit::WebCoreUserScriptData': ['"WebUserContentControllerDataTypes.h"'],
+        'WebKit::WebCoreUserStyleSheetData': ['"WebUserContentControllerDataTypes.h"'],
         'WebKit::WebUserScriptData': ['"WebUserContentControllerDataTypes.h"'],
         'WebKit::WebUserStyleSheetData': ['"WebUserContentControllerDataTypes.h"'],
         'WTF::UnixFileDescriptor': ['<wtf/unix/UnixFileDescriptor.h>'],
@@ -2028,8 +2040,22 @@ def convert_enable_macros_to_swift_syntax(condition):
     return re.sub(r'ENABLE\(([^)]+)\)', r'ENABLE_\1', condition)
 
 
-def generate_swift_message_handler_internals(receiver, unsafe_keyword):
+def generate_swift_message_handler(receiver):
+    assert (receiver.swift_receiver or receiver.swift_receiver_build_enabled_by)
     result = []
+    result.append(block_to_line_comments(_license_header))
+    result.append('\n')
+    result.append('\n')
+    if receiver.condition:
+        result.append('#if %s\n' % convert_enable_macros_to_swift_syntax(receiver.condition))
+    if receiver.swift_receiver_build_enabled_by:
+        result.append('#if ENABLE_%s\n' % (receiver.swift_receiver_build_enabled_by))
+    result.append('import WebKit_Internal\n')
+    if receiver.condition:
+        result.append('#endif\n')
+    if receiver.swift_receiver_build_enabled_by:
+        result.append('#endif\n')
+    result.append('\n')
 
     class_name = receiver.name
     message_forwarder_class = class_name + 'MessageForwarder'
@@ -2058,7 +2084,7 @@ def generate_swift_message_handler_internals(receiver, unsafe_keyword):
     result.append('        // Safety: we\'re creating a pointer which will immediately be stored in a\n')
     result.append('        // proper ref-counted reference on the C++ side before this call returns.\n')
     result.append('        // Workaround for rdar://163107752.\n')
-    result.append('        return %sWebKit.%s.createFromWeak(\n' % (unsafe_keyword, message_forwarder_class))
+    result.append('        return unsafe WebKit.%s.createFromWeak(\n' % (message_forwarder_class))
     result.append('            OpaquePointer(\n')
     result.append('                Unmanaged.passRetained(weakRefContainer).toOpaque()\n')
     result.append('            )\n')
@@ -2071,37 +2097,6 @@ def generate_swift_message_handler_internals(receiver, unsafe_keyword):
     if receiver.swift_receiver_build_enabled_by:
         result.append('#endif\n')
 
-    return result
-
-
-def generate_swift_message_handler(receiver):
-    assert (receiver.swift_receiver or receiver.swift_receiver_build_enabled_by)
-    result = []
-    result.append(block_to_line_comments(_license_header))
-    result.append('\n')
-    result.append('\n')
-    if receiver.condition:
-        result.append('#if %s\n' % convert_enable_macros_to_swift_syntax(receiver.condition))
-    if receiver.swift_receiver_build_enabled_by:
-        result.append('#if ENABLE_%s\n' % (receiver.swift_receiver_build_enabled_by))
-    result.append('import WebKit_Internal\n')
-    if receiver.condition:
-        result.append('#endif\n')
-    if receiver.swift_receiver_build_enabled_by:
-        result.append('#endif\n')
-    result.append('\n')
-
-    # Workaround for absence of https://github.com/swiftlang/swift/pull/74415
-    # - we repeat everything for older compilers
-    result.append('#if compiler(>=6.2)\n')
-    result.append('\n')
-    result.extend(generate_swift_message_handler_internals(receiver, 'unsafe '))
-    result.append('\n')
-    result.append('#else\n')
-    result.append('\n')
-    result.extend(generate_swift_message_handler_internals(receiver, ''))
-    result.append('\n')
-    result.append('#endif\n')
 
     return ''.join(result)
 

@@ -944,6 +944,7 @@ void GStreamerMediaEndpoint::doSetRemoteDescription(const RTCSessionDescription&
         }
 
         if (unsigned totalMedias = gst_sdp_message_medias_len(sdpMessage.get())) {
+            bool hasInvalidFormat = false;
             bool hasRtcpMuxAttribute = false;
             for (unsigned i = 0; i < totalMedias; i++) {
                 const auto media = gst_sdp_message_get_media(sdpMessage.get(), i);
@@ -961,11 +962,27 @@ void GStreamerMediaEndpoint::doSetRemoteDescription(const RTCSessionDescription&
                         break;
                     }
                 }
-                if (hasRtcpMuxAttribute)
+
+                unsigned totalFormats = gst_sdp_media_formats_len(media);
+                for (unsigned ii = 0; ii < totalFormats; ii++) {
+                    auto formatString = CStringView::unsafeFromUTF8(gst_sdp_media_get_format(media, ii));
+                    auto format = WTF::parseInteger<int>(formatString.span());
+                    if (!format) [[unlikely]]
+                        continue;
+                    if (*format < 64 || *format >= 96)
+                        continue;
+                    hasInvalidFormat = true;
+                    break;
+                }
+                if (hasRtcpMuxAttribute || hasInvalidFormat)
                     break;
             }
             if (!hasRtcpMuxAttribute) {
                 peerConnectionBackend->setRemoteDescriptionFailed(Exception { ExceptionCode::InvalidAccessError, "Invalid SDP, the rtcp-mux attribute is missing"_s });
+                return;
+            }
+            if (hasInvalidFormat) {
+                peerConnectionBackend->setRemoteDescriptionFailed(Exception { ExceptionCode::InvalidAccessError, "Invalid SDP, PT is in 64-95 range"_s });
                 return;
             }
         }
@@ -1074,8 +1091,7 @@ void GStreamerMediaEndpoint::setDescription(const RTCSessionDescription* descrip
         }
 
         if (!description->sdp().isEmpty()) {
-            auto sdp = makeStringByReplacingAll(description->sdp(), "opus"_s, "OPUS"_s);
-            if (gst_sdp_message_new_from_text(sdp.utf8().data(), &message.outPtr()) != GST_SDP_OK) {
+            if (gst_sdp_message_new_from_text(description->sdp().utf8().data(), &message.outPtr()) != GST_SDP_OK) {
                 failureCallback(nullptr);
                 return;
             }
@@ -1855,7 +1871,7 @@ ExceptionOr<GStreamerMediaEndpoint::Backends> GStreamerMediaEndpoint::createTran
             gst_value_set_structure(&value, encodingData.returnValue().get());
             gst_value_list_append_and_take_value(&encodingsValue, &value);
         } else {
-            GUniquePtr<GstStructure> encodingData(gst_structure_new("encoding-parameters", "encoding-name", G_TYPE_STRING, "OPUS", "payload", G_TYPE_INT, 96, "active", G_TYPE_BOOLEAN, TRUE, nullptr));
+            GUniquePtr<GstStructure> encodingData(gst_structure_new("encoding-parameters", "encoding-name", G_TYPE_STRING, "opus", "payload", G_TYPE_INT, 96, "active", G_TYPE_BOOLEAN, TRUE, nullptr));
             GValue value = G_VALUE_INIT;
             g_value_init(&value, GST_TYPE_STRUCTURE);
             gst_value_set_structure(&value, encodingData.get());
@@ -2686,7 +2702,7 @@ void GStreamerMediaEndpoint::processStatsItem(const GValue* value)
         peerConnectionBackend->provideStatLogs(WTF::move(event));
     }
 
-    if (logger().willLog(logChannel(), WTFLogLevel::Debug)) {
+    if (logger().willLog(logChannel(), WTFLogLevel::Debug, { })) {
         // Stats are very verbose, let's only display them in inspector console in verbose mode.
         logger().debug(LogWebRTC, Logger::LogSiteIdentifier("GStreamerMediaEndpoint"_s, "OnStatsDelivered"_s, logIdentifier()), statsLogger);
     } else
@@ -2730,7 +2746,7 @@ Seconds GStreamerMediaEndpoint::statsLogInterval(Seconds reportTimestamp) const
     if (m_isGatheringRTCLogs)
         return 1_s;
 
-    if (logger().willLog(logChannel(), WTFLogLevel::Info))
+    if (logger().willLog(logChannel(), WTFLogLevel::Info, { }))
         return 2_s;
 
     if (reportTimestamp - m_statsFirstDeliveredTimestamp > 15_s)

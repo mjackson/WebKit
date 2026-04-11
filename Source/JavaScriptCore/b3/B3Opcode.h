@@ -502,7 +502,7 @@ inline bool isCheckMath(Opcode opcode)
     }
 }
 
-std::optional<Opcode> invertedCompare(Opcode, Type);
+std::optional<Opcode> NODELETE invertedCompare(Opcode, Type);
 
 inline Opcode constPtrOpcode()
 {
@@ -656,7 +656,7 @@ inline Opcode signExtendOpcode(Width width)
     }
 }
 
-JS_EXPORT_PRIVATE Opcode storeOpcode(Bank bank, Width width);
+JS_EXPORT_PRIVATE Opcode NODELETE storeOpcode(Bank bank, Width width);
 
 } } // namespace JSC::B3
 #endif // ENABLE(B3_JIT)

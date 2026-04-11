@@ -139,14 +139,14 @@ inline TimerHeapReference& TimerHeapReference::operator=(Ref<ThreadTimerHeapItem
     return *this;
 }
 
-inline void TimerHeapReference::swap(TimerHeapReference& other)
+inline void NODELETE TimerHeapReference::swap(TimerHeapReference& other)
 {
     m_reference.swap(other.m_reference);
     updateHeapIndex();
     other.updateHeapIndex();
 }
 
-inline void TimerHeapReference::updateHeapIndex()
+inline void NODELETE TimerHeapReference::updateHeapIndex()
 {
     auto& heap = m_reference->timerHeap();
     if (&m_reference >= heap.begin() && &m_reference < heap.end())
@@ -224,12 +224,12 @@ inline ptrdiff_t NODELETE operator-(TimerHeapIterator a, TimerHeapIterator b) { 
 
 class TimerHeapLessThanFunction {
 public:
-    static bool compare(const TimerBase& a, const Ref<ThreadTimerHeapItem>& b)
+    static bool NODELETE compare(const TimerBase& a, const Ref<ThreadTimerHeapItem>& b)
     {
         return compare(a.m_heapItemWithBitfields.pointer()->time, a.m_heapItemWithBitfields.pointer()->insertionOrder, b->time, b->insertionOrder);
     }
 
-    static bool compare(const Ref<ThreadTimerHeapItem>& a, const TimerBase& b)
+    static bool NODELETE compare(const Ref<ThreadTimerHeapItem>& a, const TimerBase& b)
     {
         return compare(a->time, a->insertionOrder, b.m_heapItemWithBitfields.pointer()->time, b.m_heapItemWithBitfields.pointer()->insertionOrder);
     }
@@ -240,7 +240,7 @@ public:
     }
 
 private:
-    static bool compare(MonotonicTime aTime, unsigned aOrder, MonotonicTime bTime, unsigned bOrder)
+    static bool NODELETE compare(MonotonicTime aTime, unsigned aOrder, MonotonicTime bTime, unsigned bOrder)
     {
         // The comparisons below are "backwards" because the heap puts the largest
         // element first and we want the lowest time to be the first one in the heap.
@@ -442,7 +442,7 @@ void TimerBase::heapDeleteNullMin(ThreadTimerHeap& heap)
     heap.removeLast();
 }
 
-static inline bool parentHeapPropertyHolds(const TimerBase* current, const ThreadTimerHeap& heap, unsigned currentIndex)
+static inline bool NODELETE parentHeapPropertyHolds(const TimerBase* current, const ThreadTimerHeap& heap, unsigned currentIndex)
 {
     if (!currentIndex)
         return true;
@@ -450,7 +450,7 @@ static inline bool parentHeapPropertyHolds(const TimerBase* current, const Threa
     return TimerHeapLessThanFunction::compare(*current, heap[parentIndex]);
 }
 
-static inline bool childHeapPropertyHolds(const TimerBase* current, const ThreadTimerHeap& heap, unsigned childIndex)
+static inline bool NODELETE childHeapPropertyHolds(const TimerBase* current, const ThreadTimerHeap& heap, unsigned childIndex)
 {
     if (childIndex >= heap.size())
         return true;
@@ -460,7 +460,7 @@ static inline bool childHeapPropertyHolds(const TimerBase* current, const Thread
 bool TimerBase::hasValidHeapPosition() const
 {
     ASSERT(nextFireTime());
-    RefPtr item = m_heapItemWithBitfields.pointer();
+    auto* item = m_heapItemWithBitfields.pointer();
     ASSERT(item);
     if (!inHeap())
         return false;

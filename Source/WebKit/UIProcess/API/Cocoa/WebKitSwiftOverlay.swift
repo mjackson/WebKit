@@ -27,7 +27,7 @@
 
 // Older versions of the Swift compiler fail to import WebKit_Private. Can be
 // removed when WebKit drops support for macOS Sonoma.
-#if ENABLE_WK_WEB_EXTENSIONS && compiler(>=6.1)
+#if ENABLE_WK_WEB_EXTENSIONS
 import WebKit_Private.WKWebExtensionPrivate
 #endif
 
@@ -135,7 +135,7 @@ extension WKWebView {
     }
 }
 
-#if ENABLE_WK_WEB_EXTENSIONS && compiler(>=6.1)
+#if ENABLE_WK_WEB_EXTENSIONS
 @available(iOS 18.4, macOS 15.4, visionOS 2.4, *)
 @available(watchOS, unavailable)
 @available(tvOS, unavailable)

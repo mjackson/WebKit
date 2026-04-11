@@ -33,6 +33,12 @@
 #include <wtf/RefPtr.h>
 
 namespace WebCore {
+
+namespace CSS {
+struct CustomIdent;
+struct PropertyParserState;
+}
+
 namespace CSSPropertyParserHelpers {
 
 // MARK: - Ident
@@ -57,15 +63,23 @@ template<typename Map> std::optional<typename Map::ValueType> peekIdentUsingMapp
 // MARK: <custom-ident>
 // https://drafts.csswg.org/css-values/#custom-idents
 
-String consumeCustomIdentRaw(CSSParserTokenRange&, bool shouldLowercase = false);
-RefPtr<CSSPrimitiveValue> consumeCustomIdent(CSSParserTokenRange&, bool shouldLowercase = false);
-RefPtr<CSSPrimitiveValue> consumeCustomIdentExcluding(CSSParserTokenRange&, std::initializer_list<CSSValueID> excluding, bool shouldLowercase = false);
+StringView consumeEagerlyResolvableCustomIdentRaw(CSSParserTokenRange&);
+StringView consumeEagerlyResolvableCustomIdentRawExcluding(CSSParserTokenRange&, std::initializer_list<CSSValueID>);
+
+std::optional<CSS::CustomIdent> consumeUnresolvedCustomIdent(CSSParserTokenRange&, CSS::PropertyParserState&);
+std::optional<CSS::CustomIdent> consumeUnresolvedCustomIdentExcluding(CSSParserTokenRange&, CSS::PropertyParserState&, std::initializer_list<CSSValueID>);
+
+RefPtr<CSSValue> consumeCustomIdent(CSSParserTokenRange&, CSS::PropertyParserState&);
+RefPtr<CSSValue> consumeCustomIdentExcluding(CSSParserTokenRange&, CSS::PropertyParserState&, std::initializer_list<CSSValueID>);
 
 // MARK: <dashed-ident>
 // https://drafts.csswg.org/css-values/#dashed-idents
 
-String consumeDashedIdentRaw(CSSParserTokenRange&, bool shouldLowercase = false);
-RefPtr<CSSPrimitiveValue> consumeDashedIdent(CSSParserTokenRange&, bool shouldLowercase = false);
+StringView consumeEagerlyResolvableDashedIdentRaw(CSSParserTokenRange&);
+
+std::optional<CSS::CustomIdent> consumeUnresolvedDashedIdent(CSSParserTokenRange&, CSS::PropertyParserState&);
+
+RefPtr<CSSValue> consumeDashedIdent(CSSParserTokenRange&, CSS::PropertyParserState&);
 
 // MARK: -
 
@@ -126,13 +140,6 @@ template<typename Map> std::optional<typename Map::ValueType> peekIdentUsingMapp
     if (auto value = map.tryGet(range.peek().id()))
         return std::make_optional(*value);
     return std::nullopt;
-}
-
-inline RefPtr<CSSPrimitiveValue> consumeCustomIdentExcluding(CSSParserTokenRange& range, std::initializer_list<CSSValueID> excluding, bool shouldLowercase)
-{
-    if (std::ranges::find(excluding, range.peek().id()) != excluding.end())
-        return nullptr;
-    return consumeCustomIdent(range, shouldLowercase);
 }
 
 } // namespace CSSPropertyParserHelpers

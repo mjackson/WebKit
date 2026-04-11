@@ -29,7 +29,6 @@
 #include "LegacyRenderSVGResource.h"
 #include "MutationEvent.h"
 #include "RenderSVGInline.h"
-#include "RenderSVGInlineText.h"
 #include "SVGDocumentExtensions.h"
 #include "SVGElementInlines.h"
 #include "SVGNames.h"

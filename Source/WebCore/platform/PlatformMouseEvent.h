@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2022 Apple Inc. All rights reserved.
+ * Copyright (C) 2004-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -68,7 +68,6 @@ public:
     MouseButton button() const { return m_button; }
     unsigned short buttons() const { return m_buttons; }
     int clickCount() const { return m_clickCount; }
-    unsigned modifierFlags() const { return m_modifierFlags; }
     double force() const { return m_force; }
     SyntheticClickType syntheticClickType() const { return m_syntheticClickType; }
     PointerID pointerId() const { return m_pointerId; }
@@ -107,7 +106,6 @@ protected:
     PointerID m_pointerId { mousePointerID };
     String m_pointerType { mousePointerEventType() };
     int m_clickCount { 0 };
-    unsigned m_modifierFlags { 0 };
     unsigned short m_buttons { 0 };
     Vector<PlatformMouseEvent> m_coalescedEvents;
     Vector<PlatformMouseEvent> m_predictedEvents;

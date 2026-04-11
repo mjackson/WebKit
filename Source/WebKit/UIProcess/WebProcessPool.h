@@ -374,14 +374,14 @@ public:
         GameControllerFramework,
     };
     size_t numberOfConnectedGamepadsForTesting(GamepadType);
-    void setUsesOnlyHIDGamepadProviderForTesting(bool);
+    void NODELETE setUsesOnlyHIDGamepadProviderForTesting(bool);
 
 #if PLATFORM(COCOA)
     static bool omitPDFSupport();
 #endif
 
     void fullKeyboardAccessModeChanged(bool fullKeyboardAccessEnabled);
-#if OS(LINUX)
+#if OS(LINUX) && !OS(ANDROID)
     void sendMemoryPressureEvent(bool isCritical);
 #endif
     void textCheckerStateChanged();
@@ -533,10 +533,6 @@ public:
     WebProcessWithAudibleMediaToken webProcessWithAudibleMediaToken() const;
     WebProcessWithMediaStreamingToken webProcessWithMediaStreamingToken() const;
 
-    static bool NODELETE globalDelaysWebProcessLaunchDefaultValue();
-    bool delaysWebProcessLaunchDefaultValue() const { return m_delaysWebProcessLaunchDefaultValue; }
-    void setDelaysWebProcessLaunchDefaultValue(bool delaysWebProcessLaunchDefaultValue) { m_delaysWebProcessLaunchDefaultValue = delaysWebProcessLaunchDefaultValue; }
-
     void setJavaScriptConfigurationDirectory(String&& directory) { m_javaScriptConfigurationDirectory = directory; }
     const String& javaScriptConfigurationDirectory() const LIFETIME_BOUND { return m_javaScriptConfigurationDirectory; }
 
@@ -617,6 +613,8 @@ public:
 
 #if PLATFORM(COCOA)
     void registerAssetFonts(WebProcessProxy&);
+    const HashMap<String, bool>& mediaSourceTypesSupported() const { return m_mediaSourceTypesSupported; }
+    void cacheMediaSourceTypeSupported(const String& type, bool isSupported);
 #endif
 
 #if PLATFORM(MAC)
@@ -633,6 +631,9 @@ public:
     void initializeAccessibilityIfNecessary();
 #endif
 
+    void setAllowAXAuthenticationForTesting(bool allow) { m_allowAXAuthenticationForTesting = allow; }
+    bool allowAXAuthenticationForTesting() const { return m_allowAXAuthenticationForTesting; }
+
     void setPLTResourceDelayInterval(Seconds interval) { m_pltResourceDelayInterval = interval; }
     Seconds pltResourceDelayInterval() const { return m_pltResourceDelayInterval; }
 
@@ -644,7 +645,7 @@ private:
     enum class NeedsGlobalStaticInitialization : bool { No, Yes };
     void platformInitialize(NeedsGlobalStaticInitialization);
 
-    RefPtr<WebProcessProxy> webProcessProxyFromConnection(const IPC::Connection&) const;
+    RefPtr<WebProcessProxy> NODELETE webProcessProxyFromConnection(const IPC::Connection&) const;
 
     void platformInitializeWebProcess(const WebProcessProxy&, WebProcessCreationParameters&);
     void platformInvalidateContext();
@@ -980,8 +981,6 @@ private:
     int32_t m_userId { -1 };
 #endif
 
-    bool m_delaysWebProcessLaunchDefaultValue { globalDelaysWebProcessLaunchDefaultValue() };
-
     static bool s_useSeparateServiceWorkerProcess;
 
     HashSet<WebCore::RegistrableDomain> m_domainsWithUserInteraction;
@@ -1035,6 +1034,7 @@ private:
     std::optional<HashMap<String, URL>> m_userInstalledFontURLs;
     std::optional<HashMap<String, Vector<String>>> m_userInstalledFontFamilyMap;
     std::optional<Vector<URL>> m_sandboxExtensionURLs;
+    HashMap<String, bool> m_mediaSourceTypesSupported;
 #endif
 
 #if ENABLE(IPC_TESTING_API)
@@ -1042,6 +1042,7 @@ private:
 #endif
 
     bool m_hasReceivedAXRequestInUIProcess { false };
+    bool m_allowAXAuthenticationForTesting { false };
     bool m_suppressEDR { false };
 
     Seconds m_pltResourceDelayInterval { 100_ms };

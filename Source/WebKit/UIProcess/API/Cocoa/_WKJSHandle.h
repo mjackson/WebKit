@@ -28,7 +28,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // Note: NSSecureCoding should not be made public API.
-WK_CLASS_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA))
+WK_CLASS_AVAILABLE(macos(26.4), ios(26.4), visionos(26.4))
 @interface _WKJSHandle : WKJSHandle<NSSecureCoding>
 - (void)windowFrameInfo:(void (^)(WKFrameInfo * _Nullable))completionHandler;
 @end

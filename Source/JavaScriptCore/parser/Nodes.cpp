@@ -90,7 +90,7 @@ bool SourceElements::hasCompletionValue() const
 bool SourceElements::hasEarlyBreakOrContinue() const
 {
     for (StatementNode* statement = m_head; statement; statement = statement->next()) {
-        if (statement->isBreak() || statement->isContinue())
+        if (statement->hasEarlyBreakOrContinue())
             return true;
         if (statement->hasCompletionValue())
             return false;

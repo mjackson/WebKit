@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2015-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -76,6 +76,7 @@
 #import "WKQuickLookPreviewController.h"
 #import "WKRevealItemPresenter.h"
 #import "WKTextAnimationManagerMac.h"
+#import "WKTextEffectManager.h"
 #import "WKTextPlaceholder.h"
 #import "WKTextSelectionController.h"
 #import "WKViewLayoutStrategy.h"
@@ -561,14 +562,14 @@ static void* keyValueObservingContext = &keyValueObservingContext;
 #if HAVE(SUPPORT_HDR_DISPLAY_APIS)
 - (void)_applicationShouldBeginSuppressingHDR:(NSNotification *)notification
 {
-    if (_impl)
-        _impl->applicationShouldSuppressHDR(true);
+    if (CheckedPtr impl = _impl.get())
+        impl->applicationShouldSuppressHDR(true);
 }
 
 - (void)_applicationShouldEndSuppressingHDR:(NSNotification *)notification
 {
-    if (_impl)
-        _impl->applicationShouldSuppressHDR(false);
+    if (CheckedPtr impl = _impl.get())
+        impl->applicationShouldSuppressHDR(false);
 }
 #endif // HAVE(SUPPORT_HDR_DISPLAY_APIS)
 
@@ -4599,11 +4600,13 @@ void WebViewImpl::registerDraggedTypes()
 
 NSString *WebViewImpl::fileNameForFilePromiseProvider(NSFilePromiseProvider *provider, NSString *)
 {
-    RetainPtr userInfo = dynamic_objc_cast<WKPromisedAttachmentContext>(provider.userInfo);
-    if (!userInfo)
-        return nil;
+    if (RetainPtr userInfo = dynamic_objc_cast<WKPromisedAttachmentContext>(provider.userInfo))
+        return [userInfo fileName];
 
-    return [userInfo fileName];
+    if (m_promisedImageDragData)
+        return m_promisedImageDragData->filename.createNSString().autorelease();
+
+    return nil;
 }
 
 static NSError *webKitUnknownError()
@@ -4619,20 +4622,40 @@ void WebViewImpl::didPerformDragOperation(bool handled)
 void WebViewImpl::writeToURLForFilePromiseProvider(NSFilePromiseProvider *provider, NSURL *fileURL, void(^completionHandler)(NSError *))
 {
     RetainPtr userInfo = dynamic_objc_cast<WKPromisedAttachmentContext>(provider.userInfo);
-    if (!userInfo) {
+    if (userInfo) {
+        if (RefPtr attachment = m_page->attachmentForIdentifier([userInfo attachmentIdentifier])) {
+            attachment->doWithFileWrapper([fileURL = RetainPtr { fileURL }, completionHandler](NSFileWrapper *fileWrapper) {
+                NSError *attachmentWritingError = nil;
+                if ([fileWrapper writeToURL:fileURL options:0 originalContentsURL:nil error:&attachmentWritingError])
+                    completionHandler(nil);
+                else
+                    completionHandler(attachmentWritingError);
+            });
+            return;
+        }
         completionHandler(webKitUnknownError());
         return;
     }
 
-    if (auto attachment = m_page->attachmentForIdentifier(userInfo.get().attachmentIdentifier)) {
-        NSError *attachmentWritingError = nil;
-        attachment->doWithFileWrapper([&](NSFileWrapper *fileWrapper) {
-            if ([fileWrapper writeToURL:fileURL options:0 originalContentsURL:nil error:&attachmentWritingError])
+    if (m_promisedImageDragData) {
+        RetainPtr<NSData> data;
+        Ref image = m_promisedImageDragData->image;
+        if (image->data() && !image->data()->isEmpty())
+            data = protect(image->data())->makeContiguous()->createNSData();
+        if (!data && !m_promisedImageDragData->url.isEmpty()) {
+            RetainPtr imageURL = adoptNS([[NSURL alloc] initWithString:m_promisedImageDragData->url.createNSString().get()]);
+            data = [NSData dataWithContentsOfURL:imageURL.get()];
+        }
+        if (data) {
+            NSError *error = nil;
+            if ([data writeToURL:fileURL options:NSDataWritingAtomic error:&error]) {
+                if (!m_promisedImageDragData->url.isEmpty())
+                    FileSystem::setMetadataURL(fileURL.path, m_promisedImageDragData->url);
                 completionHandler(nil);
-            else
-                completionHandler(attachmentWritingError);
-        });
-        return;
+            } else
+                completionHandler(error);
+            return;
+        }
     }
 
     completionHandler(webKitUnknownError());
@@ -4668,7 +4691,7 @@ void WebViewImpl::startDrag(const WebCore::DragItem& item, ShareableBitmap::Hand
     RetainPtr dragCGImage = dragImageAsBitmap->createPlatformImage(DontCopyBackingStore);
     auto dragNSImage = adoptNS([[NSImage alloc] initWithCGImage:dragCGImage.get() size:dragImageAsBitmap->size()]);
 
-    WebCore::IntSize size([dragNSImage size]);
+    WebCore::FloatSize size { [dragNSImage size] };
     size.scale(1.0 / m_page->deviceScaleFactor());
     [dragNSImage setSize:size];
 
@@ -4678,7 +4701,7 @@ void WebViewImpl::startDrag(const WebCore::DragItem& item, ShareableBitmap::Hand
     if (RefPtr frame = WebFrameProxy::webFrame(item.rootFrameID)) {
         // FIXME: The `dragLocationInWindowCoordinates` is in window coordinates (equivalent to root view), but `convertPointToMainFrameCoordinates`
         // expects the input to be in content coordinates of the frame corresponding to the given frame ID.
-        m_page->convertPointToMainFrameCoordinates(item.dragLocationInWindowCoordinates, item.rootFrameID, [weakThis = WeakPtr { *this }, promisedAttachmentInfo = item.promisedAttachmentInfo, dragNSImage = WTF::move(dragNSImage), size, lastMouseDownEvent = m_lastMouseDownEvent, frameID] (std::optional<FloatPoint> dragLocationInMainFrameCoordinates) mutable {
+        m_page->convertPointToMainFrameCoordinates(item.dragLocationInWindowCoordinates, item.rootFrameID, [weakThis = WeakPtr { *this }, promisedAttachmentInfo = item.promisedAttachmentInfo, dragNSImage = WTF::move(dragNSImage), size, lastMouseDownEvent = m_lastMouseDownEvent, frameID, &sourceAction = item.sourceAction] (std::optional<FloatPoint> dragLocationInMainFrameCoordinates) mutable {
             CheckedPtr protectedThis = weakThis.get();
             if (!protectedThis || !dragLocationInMainFrameCoordinates)
                 return;
@@ -4687,8 +4710,24 @@ void WebViewImpl::startDrag(const WebCore::DragItem& item, ShareableBitmap::Hand
 
             auto clientDragLocation = IntPoint(dragLocationInMainFrameCoordinates.value());
 
+            bool isImageDrag = protectedThis->m_promisedImageDragData && sourceAction == WebCore::DragSourceAction::Image;
+            bool canUseFilePromiseForImageDrag = isImageDrag && !protectedThis->m_promisedImageDragData->imageUTI.isEmpty();
+
             RetainPtr pasteboard = [NSPasteboard pasteboardWithName:NSPasteboardNameDrag];
 
+            if (!lastMouseDownEvent) {
+                page->dragCancelled();
+                return;
+            }
+
+            RetainPtr<NSDraggingItem> draggingItem;
+
+            // beginDraggingSessionWithItems: clears the pasteboard and populates it with
+            // UTI-typed data from NSPasteboardItems. We want to restore the legacy-typed
+            // pasteboard data afterwards so that WP read paths (which expect legacy types)
+            // can find this data in the original order.
+            RetainPtr<NSArray<NSString *>> savedLegacyPasteboardTypes;
+            RetainPtr<NSMutableDictionary<NSString *, NSData *>> savedLegacyPasteboardData;
             if (promisedAttachmentInfo) {
                 RefPtr attachment = page->attachmentForIdentifier(promisedAttachmentInfo.attachmentIdentifier);
                 if (!attachment) {
@@ -4706,30 +4745,57 @@ void WebViewImpl::startDrag(const WebCore::DragItem& item, ShareableBitmap::Hand
                 RetainPtr provider = adoptNS([[NSFilePromiseProvider alloc] initWithFileType:utiType.get() delegate:(id<NSFilePromiseProviderDelegate>)view.get()]);
                 RetainPtr context = adoptNS([[WKPromisedAttachmentContext alloc] initWithIdentifier:promisedAttachmentInfo.attachmentIdentifier.createNSString().get() fileName:fileName.get()]);
                 [provider setUserInfo:context.get()];
-
-                RetainPtr draggingItem = adoptNS([[NSDraggingItem alloc] initWithPasteboardWriter:provider.get()]);
+                draggingItem = adoptNS([[NSDraggingItem alloc] initWithPasteboardWriter:provider.get()]);
                 [draggingItem setDraggingFrame:NSMakeRect(clientDragLocation.x(), clientDragLocation.y() - size.height(), size.width(), size.height()) contents:dragNSImage.get()];
+            } else if (canUseFilePromiseForImageDrag) {
+                RetainPtr imageUTI = protectedThis->m_promisedImageDragData->imageUTI.createNSString();
+                RetainPtr provider = adoptNS([[NSFilePromiseProvider alloc] initWithFileType:imageUTI.get() delegate:(id<NSFilePromiseProviderDelegate>)view.get()]);
+                draggingItem = adoptNS([[NSDraggingItem alloc] initWithPasteboardWriter:provider.get()]);
+                [draggingItem setDraggingFrame:NSMakeRect(clientDragLocation.x(), clientDragLocation.y(), size.width(), size.height()) contents:dragNSImage.get()];
+            } else {
+                protectedThis->clearPromisedImageDragData();
 
-                if (!lastMouseDownEvent) {
-                    page->dragCancelled();
-                    return;
+                // NSPasteboardItem here is a placeholder to satisfy the NSDraggingItem initializer.
+                // The real data lives in the saved legacy state and is restored once the drag session starts.
+                savedLegacyPasteboardTypes = adoptNS([[pasteboard types] copy]);
+                savedLegacyPasteboardData = adoptNS([[NSMutableDictionary alloc] init]);
+                for (NSString *type in [pasteboard types]) {
+                    if (RetainPtr data = [pasteboard dataForType:type])
+                        [savedLegacyPasteboardData setObject:data.get() forKey:type];
                 }
+                RetainPtr pasteboardItem = adoptNS([[NSPasteboardItem alloc] init]);
+                [pasteboardItem setData:[NSData data] forType:UTTypeData.identifier];
+                draggingItem = adoptNS([[NSDraggingItem alloc] initWithPasteboardWriter:pasteboardItem.get()]);
+                [draggingItem setDraggingFrame:NSMakeRect(clientDragLocation.x(), clientDragLocation.y(), size.width(), size.height()) contents:dragNSImage.get()];
+            }
+            [view beginDraggingSessionWithItems:@[draggingItem.get()] event:lastMouseDownEvent.get() source:(id<NSDraggingSource>)view.get()];
 
-                [view beginDraggingSessionWithItems:@[draggingItem.get()] event:lastMouseDownEvent.get() source:(id<NSDraggingSource>)view.get()];
-
+            if (promisedAttachmentInfo) {
                 for (size_t index = 0; index < promisedAttachmentInfo.additionalTypesAndData.size(); ++index) {
                     RetainPtr nsData = protect(*promisedAttachmentInfo.additionalTypesAndData[index].second)->createNSData();
                     [pasteboard setData:nsData.get() forType:promisedAttachmentInfo.additionalTypesAndData[index].first.createNSString().get()];
                 }
+                // FIXME: should we plumb the frameID for promised blobs?
                 page->didStartDrag();
-                return;
+            } else if (isImageDrag) {
+                protectedThis->writePromisedImageDragDataToPasteboard(pasteboard.get());
+                if (page->sessionID().isEphemeral())
+                    [pasteboard _setExpirationDate:[NSDate dateWithTimeIntervalSinceNow:pasteboardExpirationDelay.seconds()]];
+                page->didStartDrag(frameID);
+            } else {
+                if (savedLegacyPasteboardTypes && [savedLegacyPasteboardTypes count]) {
+                    [pasteboard clearContents];
+                    [pasteboard addTypes:savedLegacyPasteboardTypes.get() owner:nil];
+                    for (NSString *type in savedLegacyPasteboardTypes.get()) {
+                        if (RetainPtr data = [savedLegacyPasteboardData objectForKey:type])
+                            [pasteboard setData:data.get() forType:type];
+                    }
+                    if (page->sessionID().isEphemeral())
+                        [pasteboard _setExpirationDate:[NSDate dateWithTimeIntervalSinceNow:pasteboardExpirationDelay.seconds()]];
+                }
+                [pasteboard setString:@"" forType:PasteboardTypes::WebDummyPboardType];
+                page->didStartDrag(frameID);
             }
-            page->didStartDrag(frameID);
-
-            [pasteboard setString:@"" forType:PasteboardTypes::WebDummyPboardType];
-        ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-            [view dragImage:dragNSImage.get() at:NSPointFromCGPoint(clientDragLocation) offset:NSZeroSize event:lastMouseDownEvent.get() pasteboard:pasteboard.get() source:view.get() slideBack:YES];
-        ALLOW_DEPRECATED_DECLARATIONS_END
         });
     }
 }
@@ -4740,78 +4806,82 @@ static bool matchesExtensionOrEquivalent(const String& filename, const String& e
         || (equalLettersIgnoringASCIICase(extension, "jpeg"_s) && filename.endsWithIgnoringASCIICase(".jpg"_s));
 }
 
-void WebViewImpl::setFileAndURLTypes(NSString *filename, NSString *extension, NSString* uti, NSString *title, NSString *url, NSString *visibleURL, NSPasteboard *pasteboard)
+void WebViewImpl::setPromisedDataForImage(Ref<WebCore::Image>&& image, const String& filename, const String& extension, const String& title, const String& url, const String& visibleURL, RefPtr<WebCore::FragmentedSharedBuffer>&& archiveBuffer, const String&, const String& originIdentifier)
 {
-    RetainPtr<NSString> filenameWithExtension;
-    if (matchesExtensionOrEquivalent(filename, extension))
-        filenameWithExtension = filename;
-    else
-        filenameWithExtension = [retainPtr([filename stringByAppendingString:@"."]) stringByAppendingString:extension];
+    String filenameWithExtension = filename;
+    if (!matchesExtensionOrEquivalent(filename, extension))
+        filenameWithExtension = makeString(filename, '.', extension);
 
-    [pasteboard setString:visibleURL forType:WebCore::legacyStringPasteboardTypeSingleton()];
-    [pasteboard setString:visibleURL forType:PasteboardTypes::WebURLPboardType];
-    [pasteboard setString:title forType:PasteboardTypes::WebURLNamePboardType];
-    [pasteboard setPropertyList:@[@[visibleURL], @[title]] forType:PasteboardTypes::WebURLsWithTitlesPboardType];
-    [pasteboard setPropertyList:@[uti] forType:WebCore::legacyFilesPromisePasteboardTypeSingleton()];
-    m_promisedFilename = filenameWithExtension.get();
-    m_promisedURL = url;
+    String uti = image->uti();
+
+    m_promisedImageDragData = {
+        .image = WTF::move(image),
+        .filename = WTF::move(filenameWithExtension),
+        .extension = extension,
+        .title = title,
+        .url = url,
+        .visibleURL = visibleURL,
+        .imageUTI = WTF::move(uti),
+        .archiveBuffer = WTF::move(archiveBuffer),
+        .originIdentifier = originIdentifier,
+    };
 }
 
-void WebViewImpl::setPromisedDataForImage(WebCore::Image& image, NSString *filename, NSString *extension, NSString *title, NSString *url, NSString *visibleURL, WebCore::FragmentedSharedBuffer* archiveBuffer, NSString *pasteboardName, NSString *originIdentifier)
+void WebViewImpl::writePromisedImageDragDataToPasteboard(NSPasteboard *pasteboard)
 {
-    RetainPtr pasteboard = [NSPasteboard pasteboardWithName:pasteboardName];
-    RetainPtr types = adoptNS([[NSMutableArray alloc] initWithObjects:WebCore::legacyFilesPromisePasteboardTypeSingleton(), nil]);
+    if (!m_promisedImageDragData)
+        return;
 
-    auto uti = image.uti();
-    if (!uti.isEmpty() && image.data() && !image.data()->isEmpty())
-        [types addObject:uti.createNSString().get()];
+    auto& data = *m_promisedImageDragData;
+    RetainPtr visibleURLString = data.visibleURL.createNSString();
+    RetainPtr titleString = data.title.createNSString();
 
-    RetainPtr<NSData> customDataBuffer;
-    if (originIdentifier.length) {
-        [types addObject:RetainPtr { @(WebCore::PasteboardCustomData::cocoaType().characters()) }.get()];
-        WebCore::PasteboardCustomData customData;
-        customData.setOrigin(originIdentifier);
-        customDataBuffer = customData.createSharedBuffer()->createNSData();
+    [pasteboard setString:visibleURLString.get() forType:WebCore::legacyStringPasteboardTypeSingleton()];
+    [pasteboard setString:visibleURLString.get() forType:PasteboardTypes::WebURLPboardType];
+    [pasteboard setString:titleString.get() forType:PasteboardTypes::WebURLNamePboardType];
+    [pasteboard setPropertyList:@[@[visibleURLString.get()], @[titleString.get()]] forType:PasteboardTypes::WebURLsWithTitlesPboardType];
+
+    RetainPtr nsURL = [NSURL URLWithString:visibleURLString.get()];
+    if (RetainPtr baseCocoaURL = [nsURL baseURL])
+        [pasteboard setPropertyList:@[[nsURL relativeString], [baseCocoaURL absoluteString]] forType:WebCore::legacyURLPasteboardTypeSingleton()];
+    else if (nsURL)
+        [pasteboard setPropertyList:@[[nsURL absoluteString], @""] forType:WebCore::legacyURLPasteboardTypeSingleton()];
+    else
+        [pasteboard setPropertyList:@[@"", @""] forType:WebCore::legacyURLPasteboardTypeSingleton()];
+
+    Ref image = data.image;
+    if (!data.imageUTI.isEmpty() && image->data() && !image->data()->isEmpty()) {
+        if (RetainPtr imageData = protect(image->data())->makeContiguous()->createNSData())
+            [pasteboard setData:imageData.get() forType:data.imageUTI.createNSString().get()];
     }
 
-    [types addObjectsFromArray:RetainPtr { archiveBuffer ? PasteboardTypes::forImagesWithArchiveSingleton() : PasteboardTypes::forImagesSingleton() }.get()];
+    if (RetainPtr tiffData = image->adapter().tiffRepresentation())
+        [pasteboard setData:bridge_cast(WTF::move(tiffData)) forType:WebCore::legacyTIFFPasteboardTypeSingleton()];
 
-    [pasteboard clearContents];
-    if (m_page->sessionID().isEphemeral())
-        [pasteboard _setExpirationDate:[NSDate dateWithTimeIntervalSinceNow:pasteboardExpirationDelay.seconds()]];
-    [pasteboard addTypes:types.get() owner:m_view.get().get()];
-    setFileAndURLTypes(filename, extension, uti.createNSString().get(), title, url, visibleURL, pasteboard.get());
-
-    if (archiveBuffer) {
-        auto nsData = archiveBuffer->makeContiguous()->createNSData();
+    if (RefPtr archiveBuffer = data.archiveBuffer) {
+        RetainPtr nsData = archiveBuffer->makeContiguous()->createNSData();
         [pasteboard setData:nsData.get() forType:UTTypeWebArchive.identifier];
         [pasteboard setData:nsData.get() forType:PasteboardTypes::WebArchivePboardType];
     }
 
-    if (customDataBuffer)
-        [pasteboard setData:customDataBuffer.get() forType:@(WebCore::PasteboardCustomData::cocoaType().characters())];
-
-    m_promisedImage = image;
-}
-
-void WebViewImpl::clearPromisedDragImage()
-{
-    m_promisedImage = nullptr;
+    if (!data.originIdentifier.isEmpty()) {
+        WebCore::PasteboardCustomData customData;
+        customData.setOrigin(data.originIdentifier);
+        [pasteboard setData:customData.createSharedBuffer()->createNSData().get() forType:@(WebCore::PasteboardCustomData::cocoaType().characters())];
+    }
 }
 
 void WebViewImpl::pasteboardChangedOwner(NSPasteboard *pasteboard)
 {
-    clearPromisedDragImage();
-    m_promisedFilename = emptyString();
-    m_promisedURL = emptyString();
+    clearPromisedImageDragData();
 }
 
 void WebViewImpl::provideDataForPasteboard(NSPasteboard *pasteboard, NSString *type)
 {
-    RefPtr promisedImage = m_promisedImage;
-    if (!promisedImage)
+    if (!m_promisedImageDragData)
         return;
 
+    Ref promisedImage = m_promisedImageDragData->image;
     if ([type isEqual:promisedImage->uti().createNSString().get()] && promisedImage->data()) {
         if (auto platformData = protect(promisedImage->data())->makeContiguous()->createNSData())
             [pasteboard setData:(__bridge NSData *)platformData.get() forType:type];
@@ -4863,20 +4933,22 @@ static RetainPtr<NSString> pathWithUniqueFilenameForPath(NSString *path)
 NSArray *WebViewImpl::namesOfPromisedFilesDroppedAtDestination(NSURL *dropDestination)
 {
     RetainPtr<NSFileWrapper> wrapper;
-    RetainPtr<NSData> data;
+    RetainPtr<NSData> nsData;
 
-    if (RefPtr promisedImage = m_promisedImage) {
-        data = protect(promisedImage->data())->makeContiguous()->createNSData();
-        wrapper = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:data.get()]);
-    } else
-        wrapper = adoptNS([[NSFileWrapper alloc] initWithURL:adoptNS([[NSURL alloc] initWithString:m_promisedURL.createNSString().get()]).get() options:NSFileWrapperReadingImmediate error:nil]);
+    if (m_promisedImageDragData) {
+        if (RefPtr data = m_promisedImageDragData->image->data()) {
+            nsData = data->makeContiguous()->createNSData();
+            wrapper = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:nsData.get()]);
+        } else if (!m_promisedImageDragData->url.isEmpty())
+            wrapper = adoptNS([[NSFileWrapper alloc] initWithURL:adoptNS([[NSURL alloc] initWithString:m_promisedImageDragData->url.createNSString().get()]).get() options:NSFileWrapperReadingImmediate error:nil]);
+    }
 
-    if (wrapper)
-        [wrapper setPreferredFilename:m_promisedFilename.createNSString().get()];
-    else {
+    if (!m_promisedImageDragData || !wrapper) {
         LOG_ERROR("Failed to create image file.");
         return nil;
     }
+
+    [wrapper setPreferredFilename:m_promisedImageDragData->filename.createNSString().get()];
 
     // FIXME: Report an error if we fail to create a file.
     RetainPtr<NSString> path = [retainPtr([dropDestination path]) stringByAppendingPathComponent:retainPtr([wrapper preferredFilename]).get()];
@@ -4884,8 +4956,8 @@ NSArray *WebViewImpl::namesOfPromisedFilesDroppedAtDestination(NSURL *dropDestin
     if (![wrapper writeToURL:[NSURL fileURLWithPath:path.get() isDirectory:NO] options:NSFileWrapperWritingWithNameUpdating originalContentsURL:nil error:nullptr])
         LOG_ERROR("Failed to create image file via -[NSFileWrapper writeToURL:options:originalContentsURL:error:]");
 
-    if (!m_promisedURL.isEmpty())
-        FileSystem::setMetadataURL(String(path.get()), m_promisedURL);
+    if (!m_promisedImageDragData->url.isEmpty())
+        FileSystem::setMetadataURL(path.get(), m_promisedImageDragData->url);
 
     return @[[path lastPathComponent]];
 }
@@ -5108,6 +5180,27 @@ void WebViewImpl::hideTextAnimationView()
 {
     [m_textAnimationTypeManager hideTextAnimationView];
 }
+
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+void WebViewImpl::addTextEffectForID(NSUUID *uuid, const WebCore::TextEffectData& data)
+{
+    if (!protect(m_page->preferences())->textEffectsEnabled())
+        return;
+
+    if (!m_textEffectManager)
+        m_textEffectManager = adoptNS([[WKTextEffectManager alloc] initWithWebView:view()]);
+
+    [m_textEffectManager addTextEffectForID:uuid withData:data];
+}
+
+void WebViewImpl::removeTextEffectForID(NSUUID *uuid)
+{
+    if (!protect(m_page->preferences())->textEffectsEnabled())
+        return;
+
+    [m_textEffectManager removeTextEffectForID:uuid];
+}
+#endif // ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
 
 #endif // ENABLE(WRITING_TOOLS)
 
@@ -5473,7 +5566,8 @@ void WebViewImpl::interpretKeyEvent(NSEvent *event, void(^completionHandler)(BOO
         }
 
         auto additionalCommands = checkedThis->collectKeyboardLayoutCommandsForEvent(capturedEvent.get());
-        commands.appendVector(additionalCommands);
+        if (!hasInsertText)
+            commands.appendVector(additionalCommands);
         capturedBlock(NO, commands);
 #if PLATFORM(MAC)
         ASSERT(checkedThis->m_page->editorState().inputMethodUsesCorrectKeyEventOrder || checkedThis->m_interpretKeyEventHoldingTank.isEmpty());

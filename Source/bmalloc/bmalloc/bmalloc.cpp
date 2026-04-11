@@ -141,6 +141,17 @@ bool isEnabled(HeapKind)
     return !Environment::get()->shouldBmallocAllocateThroughSystemHeap();
 }
 
+bool isMTEEnabled(HeapKind kind)
+{
+    BUNUSED_PARAM(kind);
+#if PAS_BMALLOC && defined(PAS_ENABLE_MTE) && PAS_ENABLE_MTE
+    // MTE is not currently enabled for the Gigacage
+    return isEnabled(kind) && kind == HeapKind::Primary && pas_mte_is_mte_enabled();
+#else
+    return false;
+#endif
+}
+
 #if BOS(DARWIN)
 void setScavengerThreadQOSClass(qos_class_t overrideClass)
 {

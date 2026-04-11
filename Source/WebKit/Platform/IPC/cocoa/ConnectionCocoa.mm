@@ -285,7 +285,7 @@ bool Connection::platformCanSendOutgoingMessages() const
 }
 
 template<typename descriptorType>
-static descriptorType& popDescriptorAndAdvance(std::span<uint8_t>& data)
+static descriptorType& NODELETE popDescriptorAndAdvance(std::span<uint8_t>& data)
 {
     return consumeAndReinterpretCastTo<descriptorType>(data);
 }

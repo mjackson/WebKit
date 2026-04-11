@@ -138,7 +138,6 @@ $(PROJECT_DIR)/Modules/WebGPU/GPUPipelineErrorReason.idl
 $(PROJECT_DIR)/Modules/WebGPU/GPUPipelineLayout.idl
 $(PROJECT_DIR)/Modules/WebGPU/GPUPipelineLayoutDescriptor.idl
 $(PROJECT_DIR)/Modules/WebGPU/GPUPowerPreference.idl
-$(PROJECT_DIR)/Modules/WebGPU/GPUPredefinedColorSpace.idl
 $(PROJECT_DIR)/Modules/WebGPU/GPUPrimitiveState.idl
 $(PROJECT_DIR)/Modules/WebGPU/GPUPrimitiveTopology.idl
 $(PROJECT_DIR)/Modules/WebGPU/GPUProgrammablePassEncoder.idl
@@ -288,7 +287,6 @@ $(PROJECT_DIR)/Modules/WebGPU/WebExposedAPI/GPUPipelineErrorReason.idl
 $(PROJECT_DIR)/Modules/WebGPU/WebExposedAPI/GPUPipelineLayout.idl
 $(PROJECT_DIR)/Modules/WebGPU/WebExposedAPI/GPUPipelineLayoutDescriptor.idl
 $(PROJECT_DIR)/Modules/WebGPU/WebExposedAPI/GPUPowerPreference.idl
-$(PROJECT_DIR)/Modules/WebGPU/WebExposedAPI/GPUPredefinedColorSpace.idl
 $(PROJECT_DIR)/Modules/WebGPU/WebExposedAPI/GPUPrimitiveState.idl
 $(PROJECT_DIR)/Modules/WebGPU/WebExposedAPI/GPUPrimitiveTopology.idl
 $(PROJECT_DIR)/Modules/WebGPU/WebExposedAPI/GPUProgrammablePassEncoder.idl
@@ -524,10 +522,12 @@ $(PROJECT_DIR)/Modules/indexeddb/IDBCursorDirection.idl
 $(PROJECT_DIR)/Modules/indexeddb/IDBCursorWithValue.idl
 $(PROJECT_DIR)/Modules/indexeddb/IDBDatabase.idl
 $(PROJECT_DIR)/Modules/indexeddb/IDBFactory.idl
+$(PROJECT_DIR)/Modules/indexeddb/IDBGetAllOptions.idl
 $(PROJECT_DIR)/Modules/indexeddb/IDBIndex.idl
 $(PROJECT_DIR)/Modules/indexeddb/IDBKeyRange.idl
 $(PROJECT_DIR)/Modules/indexeddb/IDBObjectStore.idl
 $(PROJECT_DIR)/Modules/indexeddb/IDBOpenDBRequest.idl
+$(PROJECT_DIR)/Modules/indexeddb/IDBRecord.idl
 $(PROJECT_DIR)/Modules/indexeddb/IDBRequest.idl
 $(PROJECT_DIR)/Modules/indexeddb/IDBTransaction.idl
 $(PROJECT_DIR)/Modules/indexeddb/IDBTransactionDurability.idl
@@ -1140,6 +1140,7 @@ $(PROJECT_DIR)/Modules/webxr/WebXRRenderState+Layers.idl
 $(PROJECT_DIR)/Modules/webxr/WebXRRenderState.idl
 $(PROJECT_DIR)/Modules/webxr/WebXRRigidTransform.idl
 $(PROJECT_DIR)/Modules/webxr/WebXRSession+AR.idl
+$(PROJECT_DIR)/Modules/webxr/WebXRSession+Layers.idl
 $(PROJECT_DIR)/Modules/webxr/WebXRSession+HitTest.idl
 $(PROJECT_DIR)/Modules/webxr/WebXRSession.idl
 $(PROJECT_DIR)/Modules/webxr/WebXRSpace.idl

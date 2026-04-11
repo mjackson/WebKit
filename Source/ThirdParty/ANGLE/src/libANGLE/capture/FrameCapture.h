@@ -1057,7 +1057,7 @@ class FrameCaptureShared final : angle::NonCopyable
     std::string mOutDirectory;
     std::string mCaptureLabel;
     bool mCompression;
-    gl::AttribArray<int> mClientVertexArrayMap;
+    gl::AttribArray<const void *> mClientVertexArrayData;
     uint32_t mFrameIndex;
     uint32_t mCaptureStartFrame;
     uint32_t mCaptureEndFrame;
@@ -1265,9 +1265,9 @@ void CaptureGetParameter(const gl::State &glState,
                          ParamCapture *paramCapture);
 
 void CaptureGetActiveUniformBlockivParameters(const gl::State &glState,
-                                              gl::ShaderProgramID handle,
-                                              gl::UniformBlockIndex uniformBlockIndex,
-                                              GLenum pname,
+                                              gl::ShaderProgramID programPacked,
+                                              gl::UniformBlockIndex uniformBlockIndexPacked,
+                                              gl::UniformBlockParameter pnamePacked,
                                               ParamCapture *paramCapture);
 
 template <typename T>

@@ -224,8 +224,8 @@ public:
     unsigned jumpTarget(int index) const { return m_jumpTargets[index]; }
     unsigned lastJumpTarget() const { return m_jumpTargets.last(); }
 
-    UnlinkedHandlerInfo* handlerForBytecodeIndex(BytecodeIndex, RequiredHandler = RequiredHandler::AnyHandler);
-    UnlinkedHandlerInfo* handlerForIndex(unsigned, RequiredHandler = RequiredHandler::AnyHandler);
+    UnlinkedHandlerInfo* NODELETE handlerForBytecodeIndex(BytecodeIndex, RequiredHandler = RequiredHandler::AnyHandler);
+    UnlinkedHandlerInfo* NODELETE handlerForIndex(unsigned, RequiredHandler = RequiredHandler::AnyHandler);
 
     bool isBuiltinFunction() const { return m_isBuiltinFunction; }
 
@@ -339,7 +339,7 @@ public:
         return PrivateBrandRequirement::None;
     }
 
-    void dump(PrintStream&) const;
+    void NODELETE dump(PrintStream&) const;
 
     BytecodeLivenessAnalysis& livenessAnalysis(CodeBlock* codeBlock)
     {
@@ -385,7 +385,7 @@ public:
     bool hasIdentifier(UniquedStringImpl*);
 #endif
 
-    int32_t thresholdForJIT(int32_t threshold);
+    int32_t NODELETE thresholdForJIT(int32_t threshold);
 
 protected:
     UnlinkedCodeBlock(VM&, Structure*, CodeType, const ExecutableInfo&, OptionSet<CodeGenerationMode>);
@@ -477,7 +477,7 @@ public:
     struct RareData {
         WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(RareData, UnlinkedCodeBlock_RareData);
 
-        size_t sizeInBytes(const AbstractLocker&) const;
+        size_t NODELETE sizeInBytes(const AbstractLocker&) const;
 
         FixedVector<UnlinkedHandlerInfo> m_exceptionHandlers;
 

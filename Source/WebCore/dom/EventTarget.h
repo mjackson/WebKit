@@ -122,7 +122,7 @@ public:
 
     bool hasEventListeners() const;
     bool hasEventListeners(const AtomString& eventType) const;
-    bool hasAnyEventListeners(Vector<AtomString> eventTypes) const;
+    bool hasAnyEventListeners(std::span<const AtomString> eventTypes) const;
     bool hasCapturingEventListeners(const AtomString& eventType);
     bool NODELETE hasActiveEventListeners(const AtomString& eventType) const;
 

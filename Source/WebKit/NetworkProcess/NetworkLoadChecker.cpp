@@ -42,6 +42,7 @@
 #include <WebCore/HTTPStatusCodes.h>
 #include <WebCore/LegacySchemeRegistry.h>
 #include <WebCore/OriginAccessPatterns.h>
+#include <WebCore/RegistrableDomain.h>
 #include <wtf/Scope.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>
@@ -354,6 +355,11 @@ bool NetworkLoadChecker::shouldBlockForTrackingPolicy(const ResourceRequest& req
     auto mayBlock = networkResourceLoader->parameters().mayBlockNetworkRequest;
     if (!mayBlock)
         return false;
+
+    if (RefPtr topOrigin = networkResourceLoader->parameters().topOrigin) {
+        if (RegistrableDomain(request.url()).matches(topOrigin->data()))
+            return false;
+    }
 
     if (*mayBlock && networkResourceLoader->parameters().options.destination != FetchOptionsDestination::Script) {
         LOAD_CHECKER_RELEASE_LOG("shouldBlockForTrackingPolicy - Blocked non-script load by tracking protections");

@@ -89,7 +89,7 @@ private:
 
     void platformLazyInit();
 
-    void doPlatformIsolatedCopy(const ResourceError&);
+    void NODELETE doPlatformIsolatedCopy(const ResourceError&);
 
     mutable RetainPtr<NSError> m_platformError;
     bool m_dataIsUpToDate { true };

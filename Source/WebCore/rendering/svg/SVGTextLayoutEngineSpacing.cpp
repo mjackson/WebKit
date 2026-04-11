@@ -22,6 +22,7 @@
 #include "SVGTextLayoutEngineSpacing.h"
 
 #include "FontCascade.h"
+#include "FontCascadeInlines.h"
 #include "SVGFontElement.h"
 #include "SVGFontFaceElement.h"
 #include "SVGLengthContext.h"

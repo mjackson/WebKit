@@ -106,7 +106,7 @@ public:
 
     bool currentThreadIsHoldingLock() { return m_hasOwnerThread && m_ownerThread.get() == &Thread::currentSingleton(); }
 
-    void willDestroyVM(VM*);
+    void NODELETE willDestroyVM(VM*);
 
     class DropAllLocks {
         WTF_MAKE_NONCOPYABLE(DropAllLocks);

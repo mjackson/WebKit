@@ -385,7 +385,7 @@ std::optional<Vector<LayoutUnit>> InlineContentConstrainer::balanceRangeWithLine
     // state[i][j] holds the optimal set of line breaks where the jth line break (1-indexed) is
     // right before m_inlineItemList[breakOpportunities[i]]. "Optimal" in this context means the
     // lowest possible accumulated cost.
-    Vector<Vector<EntryBalance>> state(numberOfBreakOpportunities, Vector<EntryBalance>(numberOfLines + 1));
+    Vector<Vector<EntryBalance>> state(FillWith { }, numberOfBreakOpportunities, Vector<EntryBalance>(numberOfLines + 1));
     state[0][0].accumulatedCost = 0.f;
 
     // Special case the first line because of ::first-line styling, indentation, etc.

@@ -2018,7 +2018,7 @@ JSC_DEFINE_JIT_OPERATION(operationToNumberString, EncodedJSValue, (JSGlobalObjec
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    auto view = string->value(globalObject);
+    auto view = string->view(globalObject);
     OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
 
     unsigned size = view->length();
@@ -3016,7 +3016,7 @@ JSC_DEFINE_JIT_OPERATION(operationNewRegExpUntyped, JSObject*, (JSGlobalObject* 
         encodedFlags
     };
 
-    JSGlobalObject* regExpGlobalObject = structure->globalObject();
+    JSGlobalObject* regExpGlobalObject = structure->realm();
     JSObject* regExpConstructor = regExpGlobalObject->regExpConstructor();
     OPERATION_RETURN(scope, constructRegExp(regExpGlobalObject, ArgList { args, 2 }, regExpConstructor, regExpConstructor));
 }
@@ -3032,7 +3032,7 @@ JSC_DEFINE_JIT_OPERATION(operationNewRegExpString, JSObject*, (JSGlobalObject* g
         JSValue::encode(flags)
     };
 
-    JSGlobalObject* regExpGlobalObject = structure->globalObject();
+    JSGlobalObject* regExpGlobalObject = structure->realm();
     OPERATION_RETURN(scope, constructRegExp(regExpGlobalObject, ArgList { args, 2 }, regExpGlobalObject->regExpConstructor()));
 }
 
@@ -3288,6 +3288,25 @@ JSC_DEFINE_JIT_OPERATION(operationStringSubstringWithEnd, JSString*, (JSGlobalOb
     OPERATION_RETURN(scope, stringSubstring(globalObject, string, start, end));
 }
 
+JSC_DEFINE_JIT_OPERATION(operationToUpperCase, JSString*, (JSGlobalObject* globalObject, JSString* string, uint32_t failingIndex))
+{
+    VM& vm = globalObject->vm();
+    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
+    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
+
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    auto inputString = string->value(globalObject);
+    OPERATION_RETURN_IF_EXCEPTION(scope, nullptr);
+    if (!inputString->length())
+        OPERATION_RETURN(scope, vm.smallStrings.emptyString());
+
+    String uppercasedString = inputString->is8Bit() ? inputString->convertToUppercaseWithoutLocaleStartingAtFailingIndex8Bit(failingIndex) : inputString->convertToUppercaseWithoutLocale();
+    if (uppercasedString.impl() == inputString->impl())
+        OPERATION_RETURN(scope, string);
+    OPERATION_RETURN(scope, jsString(vm, WTF::move(uppercasedString)));
+}
+
 JSC_DEFINE_JIT_OPERATION(operationToLowerCase, JSString*, (JSGlobalObject* globalObject, JSString* string, uint32_t failingIndex))
 {
     VM& vm = globalObject->vm();
@@ -3315,10 +3334,10 @@ JSC_DEFINE_JIT_OPERATION(operationStringLocaleCompare, UCPUStrictInt32, (JSGloba
 
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    auto string = base->value(globalObject);
+    auto string = base->view(globalObject);
     OPERATION_RETURN_IF_EXCEPTION(scope, 0);
 
-    auto that = argument->value(globalObject);
+    auto that = argument->view(globalObject);
     OPERATION_RETURN_IF_EXCEPTION(scope, 0);
 
     auto* collator = globalObject->defaultCollator();
@@ -3334,13 +3353,25 @@ JSC_DEFINE_JIT_OPERATION(operationStringIndexOf, UCPUStrictInt32, (JSGlobalObjec
 
     auto scope = DECLARE_THROW_SCOPE(vm);
 
+    unsigned pos = 0;
+    if (argument->length() == 1 && base->isRope() && base->length() >= JSString::minLengthForRopeWalk) {
+        auto otherView = argument->view(globalObject);
+        OPERATION_RETURN_IF_EXCEPTION(scope, 0);
+        if (auto result = base->tryFindOneChar(globalObject, otherView[0], pos)) {
+            if (*result != notFound)
+                OPERATION_RETURN(scope, toUCPUStrictInt32(static_cast<int32_t>(*result)));
+            OPERATION_RETURN(scope, toUCPUStrictInt32(-1));
+        }
+        // nullopt: bail out, fall through to resolve. pos is advanced past the searched range.
+    }
+
     auto thisView = base->view(globalObject);
     OPERATION_RETURN_IF_EXCEPTION(scope, 0);
 
     auto otherView = argument->view(globalObject);
     OPERATION_RETURN_IF_EXCEPTION(scope, 0);
 
-    size_t result = thisView->find(vm.adaptiveStringSearcherTables(), otherView);
+    size_t result = thisView->find(vm.adaptiveStringSearcherTables(), otherView, pos);
     if (result == notFound)
         OPERATION_RETURN(scope, toUCPUStrictInt32(-1));
     OPERATION_RETURN(scope, toUCPUStrictInt32(result));
@@ -3381,19 +3412,30 @@ JSC_DEFINE_JIT_OPERATION(operationStringIndexOfWithIndex, UCPUStrictInt32, (JSGl
 
     auto scope = DECLARE_THROW_SCOPE(vm);
 
+    int32_t length = base->length();
+    unsigned pos = 0;
+    if (position >= 0)
+        pos = std::min<uint32_t>(position, length);
+
+    if (static_cast<unsigned>(length) < argument->length() + pos)
+        OPERATION_RETURN(scope, toUCPUStrictInt32(-1));
+
+    if (argument->length() == 1 && base->isRope() && base->length() >= JSString::minLengthForRopeWalk) {
+        auto otherView = argument->view(globalObject);
+        OPERATION_RETURN_IF_EXCEPTION(scope, 0);
+        if (auto result = base->tryFindOneChar(globalObject, otherView[0], pos)) {
+            if (*result != notFound)
+                OPERATION_RETURN(scope, toUCPUStrictInt32(static_cast<int32_t>(*result)));
+            OPERATION_RETURN(scope, toUCPUStrictInt32(-1));
+        }
+        // nullopt: bail out, fall through to resolve. pos is advanced past the searched range.
+    }
+
     auto thisView = base->view(globalObject);
     OPERATION_RETURN_IF_EXCEPTION(scope, 0);
 
     auto otherView = argument->view(globalObject);
     OPERATION_RETURN_IF_EXCEPTION(scope, 0);
-
-    int32_t length = thisView->length();
-    unsigned pos = 0;
-    if (position >= 0)
-        pos = std::min<uint32_t>(position, length);
-
-    if (static_cast<unsigned>(length) < otherView->length() + pos)
-        OPERATION_RETURN(scope, toUCPUStrictInt32(-1));
 
     size_t result = thisView->find(vm.adaptiveStringSearcherTables(), otherView, pos);
     if (result == notFound)
@@ -4070,7 +4112,7 @@ JSC_DEFINE_JIT_OPERATION(operationCompareStringLess, uintptr_t, (JSGlobalObject*
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    OPERATION_RETURN(scope, codePointCompareLessThan(asString(a)->value(globalObject), asString(b)->value(globalObject)));
+    OPERATION_RETURN(scope, codePointCompareLessThan(asString(a)->view(globalObject), asString(b)->view(globalObject)));
 }
 
 JSC_DEFINE_JIT_OPERATION(operationCompareStringLessEq, uintptr_t, (JSGlobalObject* globalObject, JSString* a, JSString* b))
@@ -4080,7 +4122,7 @@ JSC_DEFINE_JIT_OPERATION(operationCompareStringLessEq, uintptr_t, (JSGlobalObjec
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    OPERATION_RETURN(scope, !codePointCompareLessThan(asString(b)->value(globalObject), asString(a)->value(globalObject)));
+    OPERATION_RETURN(scope, !codePointCompareLessThan(asString(b)->view(globalObject), asString(a)->view(globalObject)));
 }
 
 JSC_DEFINE_JIT_OPERATION(operationCompareStringGreater, uintptr_t, (JSGlobalObject* globalObject, JSString* a, JSString* b))
@@ -4090,7 +4132,7 @@ JSC_DEFINE_JIT_OPERATION(operationCompareStringGreater, uintptr_t, (JSGlobalObje
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    OPERATION_RETURN(scope, codePointCompareLessThan(asString(b)->value(globalObject), asString(a)->value(globalObject)));
+    OPERATION_RETURN(scope, codePointCompareLessThan(asString(b)->view(globalObject), asString(a)->view(globalObject)));
 }
 
 JSC_DEFINE_JIT_OPERATION(operationCompareStringGreaterEq, uintptr_t, (JSGlobalObject* globalObject, JSString* a, JSString* b))
@@ -4100,7 +4142,7 @@ JSC_DEFINE_JIT_OPERATION(operationCompareStringGreaterEq, uintptr_t, (JSGlobalOb
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    OPERATION_RETURN(scope, !codePointCompareLessThan(asString(a)->value(globalObject), asString(b)->value(globalObject)));
+    OPERATION_RETURN(scope, !codePointCompareLessThan(asString(a)->view(globalObject), asString(b)->view(globalObject)));
 }
 
 JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationNotifyWrite, void, (VM* vmPointer, WatchpointSet* set))
@@ -4888,7 +4930,7 @@ JSC_DEFINE_JIT_OPERATION(operationNewArrayWithSpecies, JSObject*, (JSGlobalObjec
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    uint64_t length = static_cast<uint64_t>(JSValue::decode(encodedLength).asNumber());
+    uint64_t length = truncateDoubleToUint64(JSValue::decode(encodedLength).asNumber());
     OPERATION_RETURN(scope, newArrayWithSpeciesImpl(globalObject, length, array, indexingType));
 }
 
@@ -5501,7 +5543,7 @@ JSC_DEFINE_JIT_OPERATION(operationThrowStaticError, void, (JSGlobalObject* globa
 
 JSC_DEFINE_JIT_OPERATION(operationLinkDirectCall, void, (DirectCallLinkInfo* callLinkInfo, JSFunction* callee))
 {
-    JSGlobalObject* globalObject = callee->globalObject();
+    JSGlobalObject* globalObject = callee->realm();
     VM& vm = globalObject->vm();
     CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);

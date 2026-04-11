@@ -34,7 +34,7 @@ class HTMLLegendElement final : public HTMLElement {
 public:
     static Ref<HTMLLegendElement> create(const QualifiedName&, Document&);
 
-    WEBCORE_EXPORT HTMLFormElement* form() const;
+    WEBCORE_EXPORT HTMLFormElement* NODELETE form() const;
     RefPtr<HTMLFormElement> formForBindings() const;
 
 private:

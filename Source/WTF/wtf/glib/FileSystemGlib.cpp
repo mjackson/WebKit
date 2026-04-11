@@ -94,7 +94,7 @@ CString currentExecutablePath()
     ssize_t result = readlink("/proc/curproc/file", readLinkBuffer, PATH_MAX);
     if (result == -1)
         return { };
-    return CString(readLinkBuffer, result);
+    return CString(unsafeMakeSpan(readLinkBuffer, static_cast<size_t>(result)));
 }
 #elif OS(WINDOWS)
 CString currentExecutablePath()

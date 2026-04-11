@@ -150,7 +150,7 @@ static inline RTCRtpCodec toRTCRtpCodec(const webrtc::RtpCodec rtcCodec)
     };
 }
 
-static inline RTCRtpEncodingParameters toRTCEncodingParameters(const webrtc::RtpEncodingParameters& rtcParameters)
+static inline RTCRtpEncodingParameters toRTCEncodingParameters(const webrtc::RtpEncodingParameters& rtcParameters, bool isAudio)
 {
     RTCRtpEncodingParameters parameters;
 
@@ -162,10 +162,11 @@ static inline RTCRtpEncodingParameters toRTCEncodingParameters(const webrtc::Rtp
         parameters.codec = toRTCRtpCodec(*rtcParameters.codec);
     if (rtcParameters.max_bitrate_bps)
         parameters.maxBitrate = *rtcParameters.max_bitrate_bps;
-    if (rtcParameters.max_framerate)
+    if (rtcParameters.max_framerate && !isAudio)
         parameters.maxFramerate = *rtcParameters.max_framerate;
-    parameters.rid = fromStdString(rtcParameters.rid);
-    if (rtcParameters.scale_resolution_down_by)
+    if (rtcParameters.rid.length())
+        parameters.rid = fromStdString(rtcParameters.rid);
+    if (rtcParameters.scale_resolution_down_by && !isAudio)
         parameters.scaleResolutionDownBy = *rtcParameters.scale_resolution_down_by;
 
     parameters.priority = fromWebRTCBitRatePriority(rtcParameters.bitrate_priority);
@@ -267,14 +268,14 @@ RTCRtpParameters toRTCRtpParameters(const webrtc::RtpParameters& rtcParameters)
     return parameters;
 }
 
-RTCRtpSendParameters toRTCRtpSendParameters(const webrtc::RtpParameters& rtcParameters)
+RTCRtpSendParameters toRTCRtpSendParameters(const webrtc::RtpParameters& rtcParameters, bool isAudio)
 {
     RTCRtpSendParameters parameters { toRTCRtpParameters(rtcParameters), nullString(), { }, { } };
     parameters.rtcp.cname = fromStdString(rtcParameters.rtcp.cname);
 
     parameters.transactionId = fromStdString(rtcParameters.transaction_id);
     for (auto& rtcEncoding : rtcParameters.encodings)
-        parameters.encodings.append(toRTCEncodingParameters(rtcEncoding));
+        parameters.encodings.append(toRTCEncodingParameters(rtcEncoding, isAudio));
 
     if (rtcParameters.degradation_preference) {
         switch (*rtcParameters.degradation_preference) {
@@ -309,10 +310,16 @@ void updateRTCRtpSendParameters(const RTCRtpSendParameters& parameters, webrtc::
         rtcParameters.encodings[i].active = parameters.encodings[i].active;
         if (parameters.encodings[i].maxBitrate)
             rtcParameters.encodings[i].max_bitrate_bps = *parameters.encodings[i].maxBitrate;
+        else
+            rtcParameters.encodings[i].max_bitrate_bps = std::nullopt;
         if (parameters.encodings[i].maxFramerate)
             rtcParameters.encodings[i].max_framerate = *parameters.encodings[i].maxFramerate;
+        else
+            rtcParameters.encodings[i].max_framerate = std::nullopt;
         if (parameters.encodings[i].scaleResolutionDownBy)
             rtcParameters.encodings[i].scale_resolution_down_by = *parameters.encodings[i].scaleResolutionDownBy;
+        else
+            rtcParameters.encodings[i].scale_resolution_down_by = std::nullopt;
         rtcParameters.encodings[i].bitrate_priority = toWebRTCBitRatePriority(parameters.encodings[i].priority);
         if (parameters.encodings[i].networkPriority)
             rtcParameters.encodings[i].network_priority = fromRTCPriorityType(*parameters.encodings[i].networkPriority);

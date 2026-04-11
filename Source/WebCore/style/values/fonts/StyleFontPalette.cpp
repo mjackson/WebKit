@@ -37,26 +37,24 @@ namespace Style {
 
 auto CSSValueConversion<FontPalette>::operator()(BuilderState& state, const CSSValue& value) -> FontPalette
 {
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-    if (!primitiveValue)
-        return CSS::Keyword::Normal { };
-
-    switch (auto valueID = primitiveValue->valueID(); valueID) {
-    case CSSValueNormal:
-        return CSS::Keyword::Normal { };
-    case CSSValueLight:
-        return CSS::Keyword::Light { };
-    case CSSValueDark:
-        return CSS::Keyword::Dark { };
-    case CSSValueInvalid:
-        return toStyleFromCSSValue<CustomIdentifier>(state, *primitiveValue);
-    default:
-        if (CSSPropertyParserHelpers::isSystemFontShorthand(valueID))
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
+        switch (auto valueID = primitiveValue->valueID(); valueID) {
+        case CSSValueNormal:
             return CSS::Keyword::Normal { };
+        case CSSValueLight:
+            return CSS::Keyword::Light { };
+        case CSSValueDark:
+            return CSS::Keyword::Dark { };
+        default:
+            if (CSSPropertyParserHelpers::isSystemFontShorthand(valueID))
+                return CSS::Keyword::Normal { };
 
-        state.setCurrentPropertyInvalidAtComputedValueTime();
-        return CSS::Keyword::Normal { };
+            state.setCurrentPropertyInvalidAtComputedValueTime();
+            return CSS::Keyword::Normal { };
+        }
     }
+
+    return toStyleFromCSSValue<CustomIdent>(state, value);
 }
 
 } // namespace Style

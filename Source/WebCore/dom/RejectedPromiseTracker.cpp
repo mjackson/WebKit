@@ -169,7 +169,7 @@ void RejectedPromiseTracker::reportUnhandledRejections(Vector<UnhandledPromise>&
             WTF::move(domPromise),
             promise.result(),
         };
-        Ref event = PromiseRejectionEvent::create(eventNames().unhandledrejectionEvent, WTF::move(initializer));
+        Ref event = PromiseRejectionEvent::create(lexicalGlobalObject, eventNames().unhandledrejectionEvent, WTF::move(initializer));
         RefPtr target = m_context->errorEventTarget();
         target->dispatchEvent(event);
 
@@ -191,6 +191,10 @@ void RejectedPromiseTracker::reportRejectionHandled(Ref<DOMPromise>&& rejectedPr
     if (rejectedPromise->isSuspended())
         return;
 
+    auto* globalObject = rejectedPromise->globalObject();
+    if (!globalObject)
+        return;
+
     auto& promise = *rejectedPromise->promise();
 
     auto initializer = PromiseRejectionEvent::Init {
@@ -198,7 +202,7 @@ void RejectedPromiseTracker::reportRejectionHandled(Ref<DOMPromise>&& rejectedPr
         WTF::move(rejectedPromise),
         promise.result(),
     };
-    Ref event = PromiseRejectionEvent::create(eventNames().rejectionhandledEvent, WTF::move(initializer));
+    Ref event = PromiseRejectionEvent::create(*globalObject, eventNames().rejectionhandledEvent, WTF::move(initializer));
     RefPtr target = m_context->errorEventTarget();
     target->dispatchEvent(event);
 }

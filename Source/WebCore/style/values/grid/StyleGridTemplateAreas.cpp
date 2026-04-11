@@ -40,12 +40,12 @@ static GridNamedLinesMap initializeImplicitNamedGridLines(const GridNamedAreaMap
     for (auto& area : namedGridAreas.map) {
         auto areaSpan = direction == GridTrackSizingDirection::Rows ? area.value.rows : area.value.columns;
         {
-            auto& startVector = namedGridLines.map.add(makeString(area.key, "-start"_s), Vector<unsigned>()).iterator->value;
+            auto& startVector = namedGridLines.map.add(CustomIdent { makeAtomString(area.key, "-start"_s) }, Vector<unsigned>()).iterator->value;
             startVector.append(areaSpan.startLine());
             std::ranges::sort(startVector);
         }
         {
-            auto& endVector = namedGridLines.map.add(makeString(area.key, "-end"_s), Vector<unsigned>()).iterator->value;
+            auto& endVector = namedGridLines.map.add(CustomIdent { makeAtomString(area.key, "-end"_s) }, Vector<unsigned>()).iterator->value;
             endVector.append(areaSpan.endLine());
             std::ranges::sort(endVector);
         }

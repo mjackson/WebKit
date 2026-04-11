@@ -29,6 +29,7 @@
 #include "Exception.h"
 #include "JSDOMConvertBufferSource.h"
 #include "JSDOMConvertUnion.h"
+#include "JSDOMPromiseDeferred.h"
 #include "ScriptExecutionContextInlines.h"
 #include "WebTransport.h"
 #include "WebTransportDatagramsWritable.h"

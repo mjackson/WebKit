@@ -133,7 +133,7 @@ Ref<MediaPlaybackTarget> MediaPlaybackTargetContextSerialized::playbackTarget() 
 
 namespace WTF {
 
-template<> bool isValidEnum<WebCore::MediaPlaybackTargetType>(std::underlying_type_t<WebCore::MediaPlaybackTargetType> value)
+template<> bool NODELETE isValidEnum<WebCore::MediaPlaybackTargetType>(std::underlying_type_t<WebCore::MediaPlaybackTargetType> value)
 {
     switch (value) {
     case std::to_underlying(WebCore::MediaPlaybackTargetType::None):

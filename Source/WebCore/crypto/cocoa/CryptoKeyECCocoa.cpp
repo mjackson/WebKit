@@ -28,7 +28,7 @@
 
 #include "CommonCryptoDERUtilities.h"
 #include "JsonWebKey.h"
-#include <pal/PALSwift.h>
+#include <pal/crypto/CryptoTypes.h>
 #include <wtf/text/Base64.h>
 
 namespace WebCore {
@@ -97,29 +97,10 @@ bool CryptoKeyEC::platformSupportedCurve(NamedCurve curve)
     return curve == NamedCurve::P256 || curve == NamedCurve::P384 || curve == NamedCurve::P521;
 }
 
-static pal::ECCurve namedCurveToCryptoKitCurve(CryptoKeyEC::NamedCurve curve)
-{
-    switch (curve) {
-    case CryptoKeyEC::NamedCurve::P256:
-        return pal::ECCurve::p256();
-    case CryptoKeyEC::NamedCurve::P384:
-        return pal::ECCurve::p384();
-    case CryptoKeyEC::NamedCurve::P521:
-        return pal::ECCurve::p521();
-    }
-
-    ASSERT_NOT_REACHED();
-    return pal::ECCurve::p256();
-}
-static PlatformECKeyContainer toPlatformKey(pal::ECKey key)
-{
-    return makeUniqueRefWithoutFastMallocCheck<pal::ECKey>(key);
-}
-
 std::optional<CryptoKeyPair> CryptoKeyEC::platformGeneratePair(CryptoAlgorithmIdentifier identifier, NamedCurve curve, bool extractable, CryptoKeyUsageBitmap usages)
 {
-    auto privateKey = CryptoKeyEC::create(identifier, curve, CryptoKeyType::Private, toPlatformKey(pal::ECKey::init(namedCurveToCryptoKitCurve(curve))), extractable, usages);
-    auto publicKey = CryptoKeyEC::create(identifier, curve, CryptoKeyType::Public, toPlatformKey(privateKey->platformKey()->toPub()), true, usages);
+    Ref privateKey = CryptoKeyEC::create(identifier, curve, CryptoKeyType::Private, PAL::Crypto::PlatformECKey(curve), extractable, usages);
+    Ref publicKey = CryptoKeyEC::create(identifier, curve, CryptoKeyType::Public, privateKey->platformKey().toPub(), true, usages);
     return CryptoKeyPair { WTF::move(publicKey), WTF::move(privateKey) };
 }
 
@@ -128,17 +109,17 @@ RefPtr<CryptoKeyEC> CryptoKeyEC::platformImportRaw(CryptoAlgorithmIdentifier ide
     if (!doesUncompressedPointMatchNamedCurve(curve, keyData.size()))
         return nullptr;
 
-    auto rv = pal::ECKey::importX963Pub(keyData.span(), namedCurveToCryptoKitCurve(curve));
-    if (!rv.getErrorCode().isSuccess() || !rv.getKey())
+    auto rv = PAL::Crypto::PlatformECKey::importX963Pub(keyData.span(), curve);
+    if (!rv)
         return nullptr;
-    return create(identifier, curve, CryptoKeyType::Public, toPlatformKey(rv.getKey().get()), extractable, usages);
+    return create(identifier, curve, CryptoKeyType::Public, WTF::move(*rv), extractable, usages);
 }
 
 Vector<uint8_t> CryptoKeyEC::platformExportRaw() const
 {
     size_t expectedSize = 2 * keySizeInBytes() + 1; // Per Section 2.3.4 of http://www.secg.org/sec1-v2.pdf
-    auto rv = platformKey()->exportX963Pub();
-    if (rv.errorCode != Cpp::ErrorCodes::Success)
+    auto rv = platformKey().exportX963Pub();
+    if (rv.errorCode != PAL::Crypto::Error::Success)
         return { };
     if (rv.result.size() != expectedSize)
         return { };
@@ -168,10 +149,10 @@ RefPtr<CryptoKeyEC> CryptoKeyEC::platformImportJWKPrivate(CryptoAlgorithmIdentif
     binaryInput.appendVector(y);
     binaryInput.appendVector(d);
 
-    auto rv = pal::ECKey::importX963Private(binaryInput.span(), namedCurveToCryptoKitCurve(curve));
-    if (!rv.getErrorCode().isSuccess() || !rv.getKey())
+    auto rv = PAL::Crypto::PlatformECKey::importX963Private(binaryInput.span(), curve);
+    if (!rv)
         return nullptr;
-    return create(identifier, curve, CryptoKeyType::Private, toPlatformKey(rv.getKey().get()), extractable, usages);
+    return create(identifier, curve, CryptoKeyType::Private, WTF::move(*rv), extractable, usages);
 }
 
 bool CryptoKeyEC::platformAddFieldElements(JsonWebKey& jwk) const
@@ -183,15 +164,15 @@ bool CryptoKeyEC::platformAddFieldElements(JsonWebKey& jwk) const
     Vector<uint8_t> result(privateKeySize);
     switch (type()) {
     case CryptoKeyType::Public: {
-        auto rv = platformKey()->exportX963Pub();
-        if (rv.errorCode != Cpp::ErrorCodes::Success)
+        auto rv = platformKey().exportX963Pub();
+        if (rv.errorCode != PAL::Crypto::Error::Success)
             return false;
         result = WTF::move(rv.result);
         break;
     }
     case CryptoKeyType::Private: {
-        auto rv = platformKey()->exportX963Private();
-        if (rv.errorCode != Cpp::ErrorCodes::Success)
+        auto rv = platformKey().exportX963Private();
+        if (rv.errorCode != PAL::Crypto::Error::Success)
             return false;
         result = WTF::move(rv.result);
         break;
@@ -209,7 +190,7 @@ bool CryptoKeyEC::platformAddFieldElements(JsonWebKey& jwk) const
     return true;
 }
 
-static std::span<const uint8_t> getOID(CryptoKeyEC::NamedCurve curve)
+static std::span<const uint8_t> NODELETE getOID(CryptoKeyEC::NamedCurve curve)
 {
     switch (curve) {
     case CryptoKeyEC::NamedCurve::P256:
@@ -259,10 +240,10 @@ RefPtr<CryptoKeyEC> CryptoKeyEC::platformImportSpki(CryptoAlgorithmIdentifier id
         return platformImportRaw(identifier, curve, Vector<uint8_t>(keyData.subspan(index, keyData.size() - index)), extractable, usages);
 
     // CryptoKit can read pure compressed so no need for index++ here.
-    auto rv = pal::ECKey::importCompressedPub(keyData.subspan(index, keyData.size() - index), namedCurveToCryptoKitCurve(curve));
-    if (!rv.getErrorCode().isSuccess() || !rv.getKey())
+    auto rv = PAL::Crypto::PlatformECKey::importCompressedPub(keyData.subspan(index, keyData.size() - index), curve);
+    if (!rv)
         return nullptr;
-    return create(identifier, curve, CryptoKeyType::Public, toPlatformKey(rv.getKey().get()), extractable, usages);
+    return create(identifier, curve, CryptoKeyType::Public, WTF::move(*rv), extractable, usages);
 }
 
 Vector<uint8_t> CryptoKeyEC::platformExportSpki() const
@@ -271,8 +252,8 @@ Vector<uint8_t> CryptoKeyEC::platformExportSpki() const
     Vector<uint8_t> keyBytes(expectedKeySize);
     size_t keySize = keyBytes.size();
 
-    auto rv = platformKey()->exportX963Pub();
-    if (rv.errorCode != Cpp::ErrorCodes::Success)
+    auto rv = platformKey().exportX963Pub();
+    if (rv.errorCode != PAL::Crypto::Error::Success)
         return { };
     if (rv.result.size() != expectedKeySize)
         return { };
@@ -359,10 +340,10 @@ RefPtr<CryptoKeyEC> CryptoKeyEC::platformImportPkcs8(CryptoAlgorithmIdentifier i
         return nullptr;
     keyBinary.append(keyData.subspan(privateKeyPos, privateKeySize));
 
-    auto rv = pal::ECKey::importX963Private(keyBinary.span(), namedCurveToCryptoKitCurve(curve));
-    if (!rv.getErrorCode().isSuccess() || !rv.getKey())
+    auto rv = PAL::Crypto::PlatformECKey::importX963Private(keyBinary.span(), curve);
+    if (!rv)
         return nullptr;
-    return create(identifier, curve, CryptoKeyType::Private, toPlatformKey(rv.getKey().get()), extractable, usages);
+    return create(identifier, curve, CryptoKeyType::Private, WTF::move(*rv), extractable, usages);
 }
 
 Vector<uint8_t> CryptoKeyEC::platformExportPkcs8() const
@@ -371,8 +352,8 @@ Vector<uint8_t> CryptoKeyEC::platformExportPkcs8() const
     size_t expectedKeySize = keySizeInBytes * 3 + 1; // 04 + X + Y + D
     Vector<uint8_t> keyBytes(expectedKeySize);
 
-    auto rv = platformKey()->exportX963Private();
-    if (rv.errorCode != Cpp::ErrorCodes::Success)
+    auto rv = platformKey().exportX963Private();
+    if (rv.errorCode != PAL::Crypto::Error::Success)
         return { };
     if (rv.result.size() != expectedKeySize)
         return { };

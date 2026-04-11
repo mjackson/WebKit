@@ -213,7 +213,7 @@ public:
 
     CompositeEditCommand* lastEditCommand() { return m_lastEditCommand.get(); }
 
-    Document& document() const { return m_document; }
+    Document& NODELETE document() const;
 
     WEBCORE_EXPORT void NODELETE ref() const;
     WEBCORE_EXPORT void deref() const;

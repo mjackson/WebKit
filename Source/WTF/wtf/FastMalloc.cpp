@@ -30,11 +30,6 @@
 #include <string.h>
 #include <wtf/CheckedArithmetic.h>
 
-#if OS(DARWIN)
-#include <malloc/malloc.h>
-#include <wtf/darwin/DispatchExtras.h>
-#endif
-
 #if OS(WINDOWS)
 #include <windows.h>
 #include <psapi.h>

@@ -58,7 +58,7 @@ JSC_FOR_EACH_COMMON_THUNK(JSC_DEFINE_COMMON_JIT_THUNK)
 #undef JSC_DEFINE_COMMON_JIT_THUNK
 }
 
-static inline NativeExecutable& getMayBeDyingNativeExecutable(const Weak<NativeExecutable>& weak)
+static inline NativeExecutable& NODELETE getMayBeDyingNativeExecutable(const Weak<NativeExecutable>& weak)
 {
     // This never gets Deleted / Empty slots.
     WeakImpl* impl = weak.unsafeImpl();
@@ -211,13 +211,13 @@ MacroAssemblerCodeRef<JITThunkPtrTag> JITThunks::ctiSlowPathFunctionStub(VM& vm,
 }
 
 struct JITThunks::HostKeySearcher {
-    static unsigned hash(const HostFunctionKey& key) { return WeakNativeExecutableHash::hash(key); }
-    static bool equal(const Weak<NativeExecutable>& a, const HostFunctionKey& b) { return WeakNativeExecutableHash::equal(a, b); }
+    static unsigned NODELETE hash(const HostFunctionKey& key) { return WeakNativeExecutableHash::hash(key); }
+    static bool NODELETE equal(const Weak<NativeExecutable>& a, const HostFunctionKey& b) { return WeakNativeExecutableHash::equal(a, b); }
 };
 
 struct JITThunks::NativeExecutableTranslator {
-    static unsigned hash(const NativeExecutable* key) { return WeakNativeExecutableHash::hash(key); }
-    static bool equal(const Weak<NativeExecutable>& a, const NativeExecutable* b) { return WeakNativeExecutableHash::equal(a, b); }
+    static unsigned NODELETE hash(const NativeExecutable* key) { return WeakNativeExecutableHash::hash(key); }
+    static bool NODELETE equal(const Weak<NativeExecutable>& a, const NativeExecutable* b) { return WeakNativeExecutableHash::equal(a, b); }
     static void translate(Weak<NativeExecutable>& location, NativeExecutable* executable, unsigned)
     {
         location = Weak<NativeExecutable>(executable, executable->vm().jitStubs.get());

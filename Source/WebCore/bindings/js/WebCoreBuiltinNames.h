@@ -285,6 +285,7 @@ namespace WebCore {
     macro(IDBKeyRange) \
     macro(IDBObjectStore) \
     macro(IDBOpenDBRequest) \
+    macro(IDBRecord) \
     macro(IDBRequest) \
     macro(IDBTransaction) \
     macro(IDBVersionChangeEvent) \

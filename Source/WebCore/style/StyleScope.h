@@ -151,9 +151,9 @@ public:
     const ShadowRoot* shadowRoot() const { return m_shadowRoot; }
     ShadowRoot* shadowRoot() { return m_shadowRoot; }
 
-    CheckedPtr<const Scope> hostScope() const;
+    CheckedPtr<const Scope> NODELETE hostScope() const;
 
-    static Scope& forNode(Node&);
+    static Scope& NODELETE forNode(Node&);
     static const Scope& forNode(const Node&);
     static Scope* forOrdinal(Element&, ScopeOrdinal);
     static const Scope* forOrdinal(const Element&, ScopeOrdinal);

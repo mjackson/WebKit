@@ -740,7 +740,16 @@
     "imported/w3c/web-animations/timing-model/timelines/update-and-send-events.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/FileAPI/BlobURL/cross-partition.tentative.https.html": [
+    "imported/w3c/web-platform-tests/FileAPI/BlobURL/cross-partition-navigation.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/FileAPI/BlobURL/cross-partition-self-fetch.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/FileAPI/BlobURL/cross-partition-worker-creation.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/FileAPI/BlobURL/cross-partition.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/FileAPI/file/send-file-form-iso-2022-jp.html": [
@@ -1679,12 +1688,6 @@
     "imported/w3c/web-platform-tests/cookies/attributes/path.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/cookies/attributes/resources/domain-child.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/cookies/attributes/resources/secure-non-secure-child.html": [
-        "slow"
-    ],
     "imported/w3c/web-platform-tests/cookies/attributes/secure-non-secure.html": [
         "slow"
     ],
@@ -1701,9 +1704,6 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/cookies/ordering/ordering.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/cookies/ordering/resources/ordering-child.sub.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/cookies/partitioned-cookies/partitioned-cookies-a-b-a-embed.tentative.https.html": [
@@ -1731,9 +1731,6 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/cookies/samesite-none-secure/cookies-without-samesite-must-be-secure.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/cookies/samesite-none-secure/cookies-without-samesite-must-be-secure.https.tentative.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/cookies/samesite/fetch.https.html": [
@@ -1778,10 +1775,7 @@
     "imported/w3c/web-platform-tests/cookies/size/name-and-value.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/cookies/third-party-cookies/resources/third-party-cookies-cross-site-embed.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/cookies/third-party-cookies/resources/third-party-cookies-cross-site-window.html": [
+    "imported/w3c/web-platform-tests/cookies/third-party-cookies/third-party-cookie-heuristics.tentative.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/cookies/third-party-cookies/third-party-cookies.tentative.https.html": [
@@ -2015,10 +2009,10 @@
     "imported/w3c/web-platform-tests/css/selectors/focus-visible-018-2.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/css/selectors/invalidation/media-loading-pseudo-classes-in-has.html": [
+    "imported/w3c/web-platform-tests/css/selectors/invalidation/media-loading-pseudo-classes-in-has.sub.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/css/selectors/media/media-loading-state.html": [
+    "imported/w3c/web-platform-tests/css/selectors/media/media-loading-state.sub.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/custom-elements/ElementInternals-role.html": [
@@ -2972,30 +2966,6 @@
     "imported/w3c/web-platform-tests/eventsource/shared-worker/eventsource-constructor-non-same-origin.htm": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/feature-policy/feature-policy-frame-policy-allowed-for-all.https.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/feature-policy/feature-policy-frame-policy-allowed-for-self.https.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/feature-policy/feature-policy-frame-policy-allowed-for-some-override.https.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/feature-policy/feature-policy-frame-policy-allowed-for-some.https.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/feature-policy/feature-policy-frame-policy-disallowed-for-all.https.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/feature-policy/feature-policy-nested-header-policy-allowed-for-all.https.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/feature-policy/feature-policy-nested-header-policy-allowed-for-self.https.sub.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/feature-policy/feature-policy-nested-header-policy-disallowed-for-all.https.sub.html": [
-        "slow"
-    ],
     "imported/w3c/web-platform-tests/fetch/api/request/request-keepalive-quota.html": [
         "slow"
     ],
@@ -3815,6 +3785,9 @@
     "imported/w3c/web-platform-tests/html/editing/the-hidden-attribute/beforematch-scroll-to-text-fragment.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/utf-16be.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/utf-16le.html": [
         "slow"
     ],
@@ -3980,6 +3953,9 @@
     "imported/w3c/web-platform-tests/html/semantics/forms/form-submission-0/submit-entity-body.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/html/semantics/forms/input-change-event-properties.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/html/semantics/forms/textfieldselection/select-event.html": [
         "slow"
     ],
@@ -3998,7 +3974,13 @@
     "imported/w3c/web-platform-tests/html/semantics/forms/the-input-element/show-picker-disabled-readonly.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/html/semantics/forms/the-input-element/show-picker-does-not-focus.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/html/semantics/forms/the-input-element/show-picker-user-gesture.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/forms/the-label-element/control-active-with-multiple-clicks.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select-listbox/select-listbox-home-end-pagedown-pageup.optional.html": [
@@ -5336,6 +5318,30 @@
     "imported/w3c/web-platform-tests/payment-request/payment-request-constructor-thcrash.https.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/permissions-policy/permissions-policy-frame-policy-allowed-for-all.https.sub.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/permissions-policy/permissions-policy-frame-policy-allowed-for-self.https.sub.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/permissions-policy/permissions-policy-frame-policy-allowed-for-some-override.https.sub.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/permissions-policy/permissions-policy-frame-policy-allowed-for-some.https.sub.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/permissions-policy/permissions-policy-frame-policy-disallowed-for-all.https.sub.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/permissions-policy/permissions-policy-nested-header-policy-allowed-for-all.https.sub.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/permissions-policy/permissions-policy-nested-header-policy-allowed-for-self.https.sub.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/permissions-policy/permissions-policy-nested-header-policy-disallowed-for-all.https.sub.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/picture-in-picture/leave-picture-in-picture.html": [
         "slow"
     ],
@@ -5586,6 +5592,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/selection/extend-40.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/selection/onselectstart-on-key-in-contenteditable.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/selection/selectAllChildren.html": [

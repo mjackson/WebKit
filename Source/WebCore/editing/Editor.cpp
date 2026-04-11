@@ -63,6 +63,7 @@
 #include "DocumentResourceLoader.h"
 #include "DocumentView.h"
 #include "Editing.h"
+#include "EditingInlines.h"
 #include "EditorClient.h"
 #include "ElementAncestorIteratorInlines.h"
 #include "EventHandler.h"
@@ -104,6 +105,7 @@
 #include "NodeTraversal.h"
 #include "PagePasteboardContext.h"
 #include "Pasteboard.h"
+#include "PositionInlines.h"
 #include "Range.h"
 #include "RemoveFormatCommand.h"
 #include "RenderAncestorIterator.h"
@@ -358,6 +360,8 @@ EditingBehavior Editor::behavior() const
 {
     return document().editingBehavior();
 }
+
+Document& Editor::document() const { return m_document; }
 
 EditorClient* Editor::client() const
 {
@@ -2200,7 +2204,7 @@ void Editor::setTextAlignmentForChangedBaseWritingDirection(WritingDirection dir
     }
 
     auto isTextControl = [](Element* focusedElement) {
-        if (RefPtr input = dynamicDowncast<HTMLInputElement>(focusedElement))
+        if (auto* input = dynamicDowncast<HTMLInputElement>(focusedElement))
             return input->isTextField() || input->isSearchField();
         return is<HTMLTextAreaElement>(focusedElement);
     };
@@ -4062,12 +4066,12 @@ std::optional<SimpleRange> Editor::findString(const String& target, FindOptions 
     return resultRange;
 }
 
-template<typename T> static auto& start(T& range, FindOptions options)
+template<typename T> static auto& NODELETE start(T& range, FindOptions options)
 {
     return options.contains(FindOption::Backwards) ? range.end : range.start;
 }
 
-template<typename T> static auto& end(T& range, FindOptions options)
+template<typename T> static auto& NODELETE end(T& range, FindOptions options)
 {
     return options.contains(FindOption::Backwards) ? range.start : range.end;
 }

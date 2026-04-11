@@ -658,7 +658,7 @@ MediaTime MediaSession::mediaSessionDuration() const
 
 std::optional<MediaSessionGroupIdentifier> MediaSession::mediaSessionGroupIdentifier() const
 {
-    RefPtr document = this->document();
+    auto* document = this->document();
     return document && document->page() ? document->page()->mediaSessionGroupIdentifier() : std::nullopt;
 }
 

@@ -174,8 +174,8 @@ public:
 
     WebGLCanvas canvas();
 
-    int drawingBufferWidth() const;
-    int drawingBufferHeight() const;
+    int NODELETE drawingBufferWidth() const;
+    int NODELETE drawingBufferHeight() const;
 
     PredefinedColorSpace drawingBufferColorSpace() const { return m_drawingBufferColorSpace; }
     void setDrawingBufferColorSpace(PredefinedColorSpace);

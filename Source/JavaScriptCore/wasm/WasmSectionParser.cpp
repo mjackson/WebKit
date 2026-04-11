@@ -51,10 +51,11 @@ auto SectionParser::parseType() -> PartialResult
 
     WASM_PARSER_FAIL_IF(!parseVarUInt32(count), "can't get Type section's count"_s);
     WASM_PARSER_FAIL_IF(count > maxTypes, "Type section's count is too big "_s, count, " maximum "_s, maxTypes);
-    RELEASE_ASSERT(!m_info->typeSignatures.capacity());
-    RELEASE_ASSERT(!m_info->rtts.capacity());
-    WASM_ALLOCATOR_FAIL_IF(!m_info->typeSignatures.tryReserveInitialCapacity(count), "can't allocate enough memory for Type section's "_s, count, " entries"_s);
-    WASM_ALLOCATOR_FAIL_IF(!m_info->rtts.tryReserveInitialCapacity(count), "can't allocate enough memory for Type section's "_s, count, " canonical RTT entries"_s);
+    RELEASE_ASSERT(!m_info->m_typeSignatures.capacity());
+    RELEASE_ASSERT(!m_info->m_rtts.capacity());
+    WASM_ALLOCATOR_FAIL_IF(!m_info->m_typeSignatures.tryReserveInitialCapacity(count), "can't allocate enough memory for Type section's "_s, count, " entries"_s);
+    WASM_ALLOCATOR_FAIL_IF(!m_info->m_expandedTypeSignatures.tryReserveInitialCapacity(count), "can't allocate enough memory for Type section's "_s, count, " expanded entries"_s);
+    WASM_ALLOCATOR_FAIL_IF(!m_info->m_rtts.tryReserveInitialCapacity(count), "can't allocate enough memory for Type section's "_s, count, " canonical RTT entries"_s);
 
     for (uint32_t i = 0; i < count; ++i) {
         int8_t typeKind;
@@ -115,17 +116,20 @@ auto SectionParser::parseType() -> PartialResult
                 signature = WTF::move(projection);
             }
             TypeInformation::registerCanonicalRTTForType(signature->index());
-            m_info->rtts.append(TypeInformation::getCanonicalRTT(signature->index()));
+            m_info->m_rtts.append(TypeInformation::getCanonicalRTT(signature->index()));
             const TypeDefinition& unrolled = signature->unroll();
             if (unrolled.is<Subtype>()) {
-                WASM_PARSER_FAIL_IF(m_info->rtts.last()->displaySizeExcludingThis() > maxSubtypeDepth, "subtype depth for Type section's "_s, i, "th signature exceeded the limits of "_s, maxSubtypeDepth);
+                WASM_PARSER_FAIL_IF(m_info->m_rtts.last()->displaySizeExcludingThis() > maxSubtypeDepth, "subtype depth for Type section's "_s, i, "th signature exceeded the limits of "_s, maxSubtypeDepth);
                 WASM_FAIL_IF_HELPER_FAILS(checkSubtypeValidity(unrolled));
             }
-            m_info->typeSignatures.append(signature.releaseNonNull());
+            m_info->m_typeSignatures.append(signature.releaseNonNull());
         }
     }
 
-    RELEASE_ASSERT(m_info->typeSignatures.size() == m_info->rtts.size());
+    RELEASE_ASSERT(m_info->m_typeSignatures.size() == m_info->m_rtts.size());
+    for (auto& sig : m_info->m_typeSignatures)
+        m_info->m_expandedTypeSignatures.append(Ref { sig->expand() });
+    RELEASE_ASSERT(m_info->m_typeSignatures.size() == m_info->m_expandedTypeSignatures.size());
     return { };
 }
 
@@ -136,12 +140,12 @@ auto SectionParser::parseImport() -> PartialResult
     WASM_PARSER_FAIL_IF(importCount > maxImports, "Import section's count is too big "_s, importCount, " maximum "_s, maxImports);
     RELEASE_ASSERT(!m_info->globals.capacity());
     RELEASE_ASSERT(!m_info->imports.capacity());
-    RELEASE_ASSERT(!m_info->importFunctionTypeIndices.capacity());
-    RELEASE_ASSERT(!m_info->importExceptionTypeIndices.capacity());
+    RELEASE_ASSERT(!m_info->importFunctionTypeSignatureIndices.capacity());
+    RELEASE_ASSERT(!m_info->importExceptionTypeSignatureIndices.capacity());
     WASM_ALLOCATOR_FAIL_IF(!m_info->globals.tryReserveInitialCapacity(importCount), "can't allocate enough memory for "_s, importCount, " globals"_s); // FIXME this over-allocates when we fix the FIXMEs below.
     WASM_ALLOCATOR_FAIL_IF(!m_info->imports.tryReserveInitialCapacity(importCount), "can't allocate enough memory for "_s, importCount, " imports"_s); // FIXME this over-allocates when we fix the FIXMEs below.
-    WASM_ALLOCATOR_FAIL_IF(!m_info->importFunctionTypeIndices.tryReserveInitialCapacity(importCount), "can't allocate enough memory for "_s, importCount, " import function signatures"_s); // FIXME this over-allocates when we fix the FIXMEs below.
-    WASM_ALLOCATOR_FAIL_IF(!m_info->importExceptionTypeIndices.tryReserveInitialCapacity(importCount), "can't allocate enough memory for "_s, importCount, " import exception signatures"_s); // FIXME this over-allocates when we fix the FIXMEs below.
+    WASM_ALLOCATOR_FAIL_IF(!m_info->importFunctionTypeSignatureIndices.tryReserveInitialCapacity(importCount), "can't allocate enough memory for "_s, importCount, " import function signatures"_s); // FIXME this over-allocates when we fix the FIXMEs below.
+    WASM_ALLOCATOR_FAIL_IF(!m_info->importExceptionTypeSignatureIndices.tryReserveInitialCapacity(importCount), "can't allocate enough memory for "_s, importCount, " import exception signatures"_s); // FIXME this over-allocates when we fix the FIXMEs below.
 
     for (uint32_t importNumber = 0; importNumber < importCount; ++importNumber) {
         uint32_t moduleLen;
@@ -163,11 +167,10 @@ auto SectionParser::parseImport() -> PartialResult
             uint32_t functionTypeIndex;
             WASM_PARSER_FAIL_IF(!parseVarUInt32(functionTypeIndex), "can't get "_s, importNumber, "th Import's function signature in module '"_s, moduleString, "' field '"_s, fieldString, "'"_s);
             WASM_PARSER_FAIL_IF(functionTypeIndex >= m_info->typeCount(), "invalid function signature for "_s, importNumber, "th Import, "_s, functionTypeIndex, " is out of range of "_s, m_info->typeCount(), " in module '"_s, moduleString, "' field '"_s, fieldString, "'"_s);
-            kindIndex = m_info->importFunctionTypeIndices.size();
-            TypeIndex typeIndex = TypeInformation::get(m_info->typeSignatures[functionTypeIndex]);
-            auto signature = TypeInformation::tryGetFunctionSignature(typeIndex);
-            WASM_PARSER_FAIL_IF(!signature.has_value(), importNumber, "th Function type "_s, functionTypeIndex, " doesn't have a function signature"_s);
-            m_info->importFunctionTypeIndices.append(typeIndex);
+            kindIndex = m_info->importFunctionTypeSignatureIndices.size();
+            auto index = TypeSignatureIndex(functionTypeIndex);
+            WASM_PARSER_FAIL_IF(!m_info->expandedTypeSignature(index).is<FunctionSignature>(), importNumber, "th Function type "_s, functionTypeIndex, " doesn't have a function signature"_s);
+            m_info->importFunctionTypeSignatureIndices.append(index);
             break;
         }
         case ExternalKind::Table: {
@@ -204,12 +207,12 @@ auto SectionParser::parseImport() -> PartialResult
             uint32_t exceptionSignatureIndex;
             WASM_PARSER_FAIL_IF(!parseVarUInt32(exceptionSignatureIndex), "can't get "_s, importNumber, "th Import's exception signature in module '"_s, moduleString, "' field '"_s, fieldString, "'"_s);
             WASM_PARSER_FAIL_IF(exceptionSignatureIndex >= m_info->typeCount(), "invalid exception signature for "_s, importNumber, "th Import, "_s, exceptionSignatureIndex, " is out of range of "_s, m_info->typeCount(), " in module '"_s, moduleString, "' field '"_s, fieldString, "'"_s);
-            kindIndex = m_info->importExceptionTypeIndices.size();
-            TypeIndex typeIndex = TypeInformation::get(m_info->typeSignatures[exceptionSignatureIndex]);
-            auto signature = TypeInformation::tryGetFunctionSignature(typeIndex);
-            WASM_PARSER_FAIL_IF(!signature.has_value(), importNumber, "th Exception type "_s, exceptionSignatureIndex, " doesn't have a function signature"_s);
-            WASM_PARSER_FAIL_IF(!signature.value()->returnsVoid(), importNumber, "th Exception type cannot have a non-void return type "_s, exceptionSignatureIndex);
-            m_info->importExceptionTypeIndices.append(typeIndex);
+            kindIndex = m_info->importExceptionTypeSignatureIndices.size();
+            auto index = TypeSignatureIndex(exceptionSignatureIndex);
+            const auto& expanded = m_info->expandedTypeSignature(index);
+            WASM_PARSER_FAIL_IF(!expanded.is<FunctionSignature>(), importNumber, "th Exception type "_s, exceptionSignatureIndex, " doesn't have a function signature"_s);
+            WASM_PARSER_FAIL_IF(!expanded.as<FunctionSignature>()->returnsVoid(), importNumber, "th Exception type cannot have a non-void return type "_s, exceptionSignatureIndex);
+            m_info->importExceptionTypeSignatureIndices.append(index);
             break;
         }
         }
@@ -226,9 +229,9 @@ auto SectionParser::parseFunction() -> PartialResult
     uint32_t count;
     WASM_PARSER_FAIL_IF(!parseVarUInt32(count), "can't get Function section's count"_s);
     WASM_PARSER_FAIL_IF(count > maxFunctions, "Function section's count is too big "_s, count, " maximum "_s, maxFunctions);
-    RELEASE_ASSERT(!m_info->internalFunctionTypeIndices.capacity());
+    RELEASE_ASSERT(!m_info->internalFunctionTypeSignatureIndices.capacity());
     RELEASE_ASSERT(!m_info->functions.capacity());
-    WASM_ALLOCATOR_FAIL_IF(!m_info->internalFunctionTypeIndices.tryReserveInitialCapacity(count), "can't allocate enough memory for "_s, count, " Function signatures"_s);
+    WASM_ALLOCATOR_FAIL_IF(!m_info->internalFunctionTypeSignatureIndices.tryReserveInitialCapacity(count), "can't allocate enough memory for "_s, count, " Function signatures"_s);
     WASM_ALLOCATOR_FAIL_IF(!m_info->functions.tryReserveInitialCapacity(count), "can't allocate enough memory for "_s, count, "Function locations"_s);
 
     for (uint32_t i = 0; i < count; ++i) {
@@ -236,23 +239,22 @@ auto SectionParser::parseFunction() -> PartialResult
         WASM_PARSER_FAIL_IF(!parseVarUInt32(typeNumber), "can't get "_s, i, "th Function's type number"_s);
         WASM_PARSER_FAIL_IF(typeNumber >= m_info->typeCount(), i, "th Function type number is invalid "_s, typeNumber);
 
-        TypeIndex typeIndex = TypeInformation::get(m_info->typeSignatures[typeNumber]);
-        auto signature = TypeInformation::tryGetFunctionSignature(typeIndex);
+        auto index = TypeSignatureIndex(typeNumber);
+        WASM_PARSER_FAIL_IF(!m_info->expandedTypeSignature(index).is<FunctionSignature>(), i, "th Function type "_s, typeNumber, " doesn't have a function signature"_s);
         // The Code section fixes up start and end.
         size_t start = 0;
         size_t end = 0;
-        WASM_PARSER_FAIL_IF(!signature.has_value(), i, "th Function type "_s, typeNumber, " doesn't have a function signature"_s);
-        m_info->internalFunctionTypeIndices.append(typeIndex);
+        m_info->internalFunctionTypeSignatureIndices.append(index);
         m_info->functions.append({ start, end, Vector<uint8_t>() });
     }
 
     // Note that `initializeFunctionTrackers` should only be used after both parseImport and parseFunction
-    // finish updating importFunctionTypeIndices and internalFunctionTypeIndices.
+    // finish updating importFunctionTypeSignatureIndices and internalFunctionTypeSignatureIndices.
     m_info->initializeFunctionTrackers();
     return { };
 }
 
-static bool limitsFlagIsValid(uint8_t flags)
+static bool NODELETE limitsFlagIsValid(uint8_t flags)
 {
     constexpr uint8_t invalidFlagsMask = ~0x07;
     const uint8_t hasInvalidFlags = flags & invalidFlagsMask;
@@ -388,6 +390,8 @@ auto SectionParser::parseMemoryHelper(bool isImport) -> PartialResult
     if (!Options::useWasmMultiMemory())
         WASM_PARSER_FAIL_IF(m_info->memoryCount(), "there can at most be one Memory section for now"_s);
 
+    WASM_PARSER_FAIL_IF(m_info->memoryCount() >= maxMemories, "there can be at most "_s, maxMemories, " memories"_s);
+
     PageCount initialPageCount;
     PageCount maximumPageCount;
     bool isShared { false };
@@ -400,6 +404,11 @@ auto SectionParser::parseMemoryHelper(bool isImport) -> PartialResult
             return makeUnexpected(WTF::move(limits.error()));
         ASSERT(!maximum || *maximum >= initial);
         WASM_PARSER_FAIL_IF(!PageCount::isValid(initial), "Memory's initial page count of "_s, initial, " is invalid"_s);
+
+        // FIXME(wasm-memory64): for now IPInt checks m_cachedIsMemory64 (flag if memory 0 is 64-bit)
+        // no matter which memory is being accessed
+        if (isMemory64)
+            WASM_PARSER_FAIL_IF(m_info->memoryCount(), "if using memory64 then multiple memories are illegal for now");
 
         initialPageCount = PageCount(initial);
 
@@ -799,7 +808,7 @@ auto SectionParser::parseInitExpr(uint8_t& opcode, bool& isExtendedConstantExpre
         int32_t heapType;
         WASM_PARSER_FAIL_IF(!parseHeapType(m_info, heapType), "ref.null heaptype must be funcref, externref or type_idx"_s);
         if (isTypeIndexHeapType(heapType)) {
-            TypeIndex typeIndex = TypeInformation::get(m_info->typeSignatures[heapType].get());
+            TypeIndex typeIndex = m_info->typeIndexFromTypeSignatureIndex(ModuleInformation::typeSignatureIndexFromHeapType(heapType));
             typeOfNull = Type { TypeKind::RefNull, typeIndex };
         } else
             typeOfNull = Type { TypeKind::RefNull, static_cast<TypeIndex>(heapType) };
@@ -1024,14 +1033,17 @@ auto SectionParser::parseRecursionGroup(uint32_t position, RefPtr<TypeDefinition
     // Type definitions are normalized such that non-recursive, singleton recursion groups
     // are stored as the underlying concrete type without a projection. Otherwise we will
     // store projections for each recursion group index in the type section.
-    WASM_PARSER_FAIL_IF(!m_info->typeSignatures.tryGrowCapacityBy(typeCount), "can't allocate enough memory for recursion group's "_s, typeCount, " type "_s, typeCount > 1 ? "indices"_s : "index"_s);
-    WASM_PARSER_FAIL_IF(!m_info->rtts.tryGrowCapacityBy(typeCount), "can't allocate enough memory for recursion group's "_s, typeCount, " RTT"_s, typeCount > 1 ? "s"_s : ""_s);
+    // Note: m_expandedTypeSignatures is only pre-allocated here; the actual expanded entries
+    // are populated by the final loop in parseType() after all m_typeSignatures are complete.
+    WASM_PARSER_FAIL_IF(!m_info->m_typeSignatures.tryGrowCapacityBy(typeCount), "can't allocate enough memory for recursion group's "_s, typeCount, " type "_s, typeCount > 1 ? "indices"_s : "index"_s);
+    WASM_PARSER_FAIL_IF(!m_info->m_expandedTypeSignatures.tryGrowCapacityBy(typeCount), "can't allocate enough memory for recursion group's "_s, typeCount, " expanded type "_s, typeCount > 1 ? "indices"_s : "index"_s);
+    WASM_PARSER_FAIL_IF(!m_info->m_rtts.tryGrowCapacityBy(typeCount), "can't allocate enough memory for recursion group's "_s, typeCount, " RTT"_s, typeCount > 1 ? "s"_s : ""_s);
     if (typeCount == 1 && !signatures[0]->hasRecursiveReference()) {
         TypeInformation::registerCanonicalRTTForType(signatures[0]->index());
-        m_info->rtts.append(TypeInformation::getCanonicalRTT(signatures[0]->index()));
+        m_info->m_rtts.append(TypeInformation::getCanonicalRTT(signatures[0]->index()));
         if (signatures[0]->is<Subtype>())
             WASM_FAIL_IF_HELPER_FAILS(checkSubtypeValidity(signatures[0]));
-        m_info->typeSignatures.append(WTF::move(signatures[0]));
+        m_info->m_typeSignatures.append(WTF::move(signatures[0]));
     } else {
         Vector<Ref<TypeDefinition>> projections;
         // Take ownership of all projections before unrolling since they can refer to each other.
@@ -1042,8 +1054,8 @@ auto SectionParser::parseRecursionGroup(uint32_t position, RefPtr<TypeDefinition
         }
         for (uint32_t i = 0; i < typeCount; ++i) {
             TypeInformation::registerCanonicalRTTForType(projections[i]->index());
-            m_info->rtts.append(TypeInformation::getCanonicalRTT(projections[i]->index()));
-            m_info->typeSignatures.append(projections[i]);
+            m_info->m_rtts.append(TypeInformation::getCanonicalRTT(projections[i]->index()));
+            m_info->m_typeSignatures.append(projections[i]);
         }
         // Checking subtyping requirements has to be deferred until we construct projections in case recursive references show up in the type.
         for (uint32_t i = 0; i < typeCount; ++i) {
@@ -1144,7 +1156,7 @@ auto SectionParser::parseSubtype(uint32_t position, RefPtr<TypeDefinition>& subt
         WASM_PARSER_FAIL_IF(!parseVarUInt32(typeIndex), "can't get subtype's supertype index"_s);
         WASM_PARSER_FAIL_IF(typeIndex >= m_info->typeCount() + recursionGroupTypes.size(), "supertype index is a forward reference"_s);
         if (typeIndex < m_info->typeCount())
-            supertypeIndex = TypeInformation::get(m_info->typeSignatures[typeIndex]);
+            supertypeIndex = m_info->typeIndexFromTypeSignatureIndex(TypeSignatureIndex(typeIndex));
         // If a parent type is in the same recursion group, the index needs to refer to the projection instead.
         else {
             RefPtr<TypeDefinition> projection = TypeInformation::getPlaceholderProjection(typeIndex - m_info->typeCount());
@@ -1376,8 +1388,8 @@ auto SectionParser::parseException() -> PartialResult
     uint32_t exceptionCount;
     WASM_PARSER_FAIL_IF(!parseVarUInt32(exceptionCount), "can't get Exception section's count"_s);
     WASM_PARSER_FAIL_IF(exceptionCount > maxExceptions, "Export section's count is too big "_s, exceptionCount, " maximum "_s, maxExceptions);
-    RELEASE_ASSERT(!m_info->internalExceptionTypeIndices.capacity());
-    WASM_ALLOCATOR_FAIL_IF(!m_info->internalExceptionTypeIndices.tryReserveInitialCapacity(exceptionCount), "can't allocate enough memory for "_s, exceptionCount, " exceptions"_s);
+    RELEASE_ASSERT(!m_info->internalExceptionTypeSignatureIndices.capacity());
+    WASM_ALLOCATOR_FAIL_IF(!m_info->internalExceptionTypeSignatureIndices.tryReserveInitialCapacity(exceptionCount), "can't allocate enough memory for "_s, exceptionCount, " exceptions"_s);
 
     for (uint32_t exceptionNumber = 0; exceptionNumber < exceptionCount; ++exceptionNumber) {
         uint8_t tagType;
@@ -1387,11 +1399,11 @@ auto SectionParser::parseException() -> PartialResult
         uint32_t typeNumber;
         WASM_PARSER_FAIL_IF(!parseVarUInt32(typeNumber), "can't get "_s, exceptionNumber, "th Exception's type number"_s);
         WASM_PARSER_FAIL_IF(typeNumber >= m_info->typeCount(), exceptionNumber, "th Exception type number is invalid "_s, typeNumber);
-        TypeIndex typeIndex = TypeInformation::get(m_info->typeSignatures[typeNumber]);
-        auto signature = TypeInformation::tryGetFunctionSignature(typeIndex);
-        WASM_PARSER_FAIL_IF(!signature.has_value(), exceptionNumber, "th Exception type "_s, typeNumber, " doesn't have a function signature"_s);
-        WASM_PARSER_FAIL_IF(!signature.value()->returnsVoid(), exceptionNumber, "th Exception type cannot have a non-void return type "_s, typeNumber);
-        m_info->internalExceptionTypeIndices.append(typeIndex);
+        auto index = TypeSignatureIndex(typeNumber);
+        const auto& expanded = m_info->expandedTypeSignature(index);
+        WASM_PARSER_FAIL_IF(!expanded.is<FunctionSignature>(), exceptionNumber, "th Exception type "_s, typeNumber, " doesn't have a function signature"_s);
+        WASM_PARSER_FAIL_IF(!expanded.as<FunctionSignature>()->returnsVoid(), exceptionNumber, "th Exception type cannot have a non-void return type "_s, typeNumber);
+        m_info->internalExceptionTypeSignatureIndices.append(index);
     }
 
     return { };

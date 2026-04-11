@@ -66,8 +66,8 @@ class SettingsBase : public AbstractRefCountedAndCanMakeWeakPtr<SettingsBase> {
 public:
 
 #if ENABLE(MEDIA_SOURCE)
-    WEBCORE_EXPORT static bool platformDefaultMediaSourceEnabled();
-    WEBCORE_EXPORT static uint64_t defaultMaximumSourceBufferSize();
+    WEBCORE_EXPORT static bool NODELETE platformDefaultMediaSourceEnabled();
+    WEBCORE_EXPORT static uint64_t NODELETE defaultMaximumSourceBufferSize();
 #endif
 
     static const unsigned defaultMaximumHTMLParserDOMTreeDepth = 512;

@@ -26,32 +26,24 @@
 #pragma once
 
 #if USE(COORDINATED_GRAPHICS) && USE(GBM)
-#include "IntSize.h"
-#include <optional>
+#include "DMABufBufferAttributes.h"
 #include <wtf/ThreadSafeRefCounted.h>
-#include <wtf/Vector.h>
-#include <wtf/unix/UnixFileDescriptor.h>
+
+typedef int32_t EGLint;
+typedef void* EGLImage;
 
 namespace WebCore {
 
 class CoordinatedPlatformLayerBuffer;
-
-struct DMABufBufferAttributes {
-    IntSize size;
-    uint32_t fourcc { 0 };
-    Vector<WTF::UnixFileDescriptor> fds;
-    Vector<uint32_t> offsets;
-    Vector<uint32_t> strides;
-    uint64_t modifier { 0 };
-};
+class GLDisplay;
 
 class DMABufBuffer final : public ThreadSafeRefCounted<DMABufBuffer> {
 public:
     using Attributes = DMABufBufferAttributes;
 
-    static Ref<DMABufBuffer> create(const IntSize& size, uint32_t fourcc, Vector<WTF::UnixFileDescriptor>&& fds, Vector<uint32_t>&& offsets, Vector<uint32_t>&& strides, uint64_t modifier)
+    static Ref<DMABufBuffer> create(Attributes&& attributes)
     {
-        return adoptRef(*new DMABufBuffer(size, fourcc, WTF::move(fds), WTF::move(offsets), WTF::move(strides), modifier));
+        return adoptRef(*new DMABufBuffer(WTF::move(attributes)));
     }
     static Ref<DMABufBuffer> create(uint64_t id, Attributes&& attributes)
     {
@@ -71,11 +63,15 @@ public:
     std::optional<TransferFunction> transferFunction() const { return m_transferFunction; }
     void setTransferFunction(TransferFunction transferFunction) { m_transferFunction = transferFunction; }
 
+    EGLImage createEGLImage(GLDisplay&) const;
+    static EGLImage createEGLImage(GLDisplay&, const Attributes&);
+    static std::optional<Vector<EGLint>> buildEGLImageAttributes(const Attributes&, Attributes::EnableModifiers = Attributes::EnableModifiers::Yes);
+
     CoordinatedPlatformLayerBuffer* buffer() const LIFETIME_BOUND { return m_buffer.get(); }
     void setBuffer(std::unique_ptr<CoordinatedPlatformLayerBuffer>&&);
 
 private:
-    DMABufBuffer(const IntSize&, uint32_t fourcc, Vector<WTF::UnixFileDescriptor>&&, Vector<uint32_t>&&, Vector<uint32_t>&&, uint64_t modifier);
+    explicit DMABufBuffer(Attributes&&);
     DMABufBuffer(uint64_t id, Attributes&&);
 
     uint64_t m_id { 0 };

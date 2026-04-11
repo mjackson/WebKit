@@ -142,6 +142,10 @@ void OpenXRCoordinator::getPrimaryDeviceInfo(WebPageProxy& page, DeviceInfoCallb
     deviceInfo.vrFeatures.append(PlatformXR::SessionFeature::ReferenceSpaceTypeLocalFloor);
     deviceInfo.arFeatures.append(PlatformXR::SessionFeature::ReferenceSpaceTypeLocalFloor);
 
+#if ENABLE(WEBXR_LAYERS)
+    deviceInfo.maxRenderLayers = runtimeProperties.maxLayerCount;
+#endif
+
     callback(WTF::move(deviceInfo));
 }
 
@@ -347,14 +351,14 @@ void OpenXRCoordinator::scheduleAnimationFrame(WebPageProxy& page, std::optional
             }
 
             active.renderQueue->dispatch([this, renderState = active.renderState, requestData = WTF::move(requestData), onFrameUpdateCallback = WTF::move(onFrameUpdateCallback)]() mutable {
-                renderState->passthroughFullyObscured = requestData && requestData->isPassthroughFullyObscured;
+                renderState->passthroughFullyObscured = requestData ? requestData->isPassthroughFullyObscured : false;
                 renderState->onFrameUpdate = WTF::move(onFrameUpdateCallback);
                 renderLoop(renderState);
             });
         });
 }
 
-void OpenXRCoordinator::submitFrame(WebPageProxy& page, Vector<XRDeviceLayer>&& layers)
+void OpenXRCoordinator::submitFrame(WebPageProxy& page, Vector<PlatformXR::DeviceLayer>&& layers)
 {
     ASSERT(RunLoop::isMain());
     WTF::switchOn(m_state,
@@ -1135,7 +1139,7 @@ void OpenXRCoordinator::beginFrame(Box<RenderState> renderState)
     }
 }
 
-void OpenXRCoordinator::endFrame(Box<RenderState> renderState, Vector<XRDeviceLayer>&& layers)
+void OpenXRCoordinator::endFrame(Box<RenderState> renderState, Vector<PlatformXR::DeviceLayer>&& layers)
 {
     ASSERT(!RunLoop::isMain());
 

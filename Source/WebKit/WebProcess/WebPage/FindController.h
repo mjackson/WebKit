@@ -101,7 +101,7 @@ private:
     void updateFindIndicatorIfNeeded(bool found, OptionSet<FindOptions>, bool shouldShowOverlay);
     unsigned markMatches(const String&, OptionSet<FindOptions>, unsigned maxMatchCount);
     unsigned getMatchCount(const String&, OptionSet<FindOptions>, unsigned maxMatchCount);
-    void updateMatchIndex(unsigned matchCount, OptionSet<FindOptions>);
+    void NODELETE updateMatchIndex(unsigned matchCount, OptionSet<FindOptions>);
     void didScrollAffectingFindIndicatorPosition();
 
     RefPtr<WebCore::LocalFrame> frameWithSelection(WebCore::Page*);

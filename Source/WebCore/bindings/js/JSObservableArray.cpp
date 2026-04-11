@@ -223,6 +223,11 @@ bool JSObservableArray::defineOwnProperty(JSObject* object, JSGlobalObject* glob
     RELEASE_AND_RETURN(scope, Base::defineOwnProperty(object, globalObject, propertyName, descriptor, throwException));
 }
 
+Structure* JSObservableArray::createStructure(VM& vm, JSGlobalObject* globalObject, JSValue prototype)
+{
+    return Structure::create(vm, globalObject, prototype, TypeInfo(DerivedArrayType, StructureFlags), info(), NonArray);
+}
+
 JSC::GCClient::IsoSubspace* JSObservableArray::subspaceForImpl(JSC::VM& vm)
 {
     return &downcast<JSVMClientData>(vm.clientData)->observableArraySpace();

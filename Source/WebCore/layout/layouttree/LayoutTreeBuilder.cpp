@@ -25,6 +25,7 @@
 
 #include "config.h"
 #include "LayoutTreeBuilder.h"
+#include "LayoutBoxInlines.h"
 
 #include "CachedImage.h"
 #include "FontCascadeInlines.h"
@@ -82,21 +83,13 @@ static BoxType& appendChild(ElementBox& parent, std::unique_ptr<BoxType> newChil
     return box;
 }
 
-static std::optional<LayoutSize> accumulatedOffsetForInFlowPositionedContinuation(const RenderBox& block)
-{
-    // FIXE: This is a workaround of the continuation logic when the relatively positioned parent inline box
-    // becomes a sibling box of this block and only reachable through the continuation link which we don't have here.
-    if (!block.isAnonymous() || !block.isInFlowPositioned() || !block.isContinuation())
-        return { };
-    return block.relativePositionOffset();
-}
 
 template<typename CharacterType>
 static bool canUseSimplifiedTextMeasuringForCharacters(std::span<const CharacterType> characters, const FontCascade& fontCascade, bool whitespaceIsCollapsed)
 {
     Ref primaryFont = fontCascade.primaryFont();
     for (auto character : characters) {
-        if (!fontCascade.canUseSimplifiedTextMeasuring(character, AutoVariant, whitespaceIsCollapsed, primaryFont))
+        if (!fontCascade.canUseSimplifiedTextMeasuring(character, FontVariant::Auto, whitespaceIsCollapsed, primaryFont))
             return false;
     }
     return true;
@@ -129,9 +122,7 @@ std::unique_ptr<Layout::LayoutTree> TreeBuilder::buildLayoutTree(const RenderVie
     return makeUnique<LayoutTree>(WTF::move(rootLayoutBox));
 }
 
-TreeBuilder::TreeBuilder()
-{
-}
+TreeBuilder::TreeBuilder() = default;
 
 std::unique_ptr<Box> TreeBuilder::createReplacedBox(Box::ElementAttributes elementAttributes, ElementBox::ReplacedAttributes&& replacedAttributes, RenderStyle&& style)
 {
@@ -232,14 +223,9 @@ std::unique_ptr<Box> TreeBuilder::createLayoutBox(const ElementBox& parentContai
             }
             childLayoutBox = createReplacedBox(elementAttributes(renderer), WTF::move(replacedAttributes), WTF::move(clonedStyle));
         } else {
-            if (displayType == Style::DisplayType::BlockFlow) {
-                if (auto offset = accumulatedOffsetForInFlowPositionedContinuation(downcast<RenderBox>(renderer))) {
-                    clonedStyle.setTop(Style::InsetEdge::Fixed { offset->height() });
-                    clonedStyle.setLeft(Style::InsetEdge::Fixed { offset->width() });
-                    childLayoutBox = createContainer(elementAttributes(renderer), WTF::move(clonedStyle));
-                } else
-                    childLayoutBox = createContainer(elementAttributes(renderer), WTF::move(clonedStyle));
-            } else if (displayType == Style::DisplayType::BlockFlex)
+            if (displayType == Style::DisplayType::BlockFlow)
+                childLayoutBox = createContainer(elementAttributes(renderer), WTF::move(clonedStyle));
+            else if (displayType == Style::DisplayType::BlockFlex)
                 childLayoutBox = createContainer(elementAttributes(renderer), WTF::move(clonedStyle));
             else if (displayType == Style::DisplayType::InlineFlow)
                 childLayoutBox = createContainer(elementAttributes(renderer), WTF::move(clonedStyle));

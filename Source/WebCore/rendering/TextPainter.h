@@ -70,7 +70,7 @@ public:
     }
 
     static bool shouldUseGlyphDisplayList(const PaintInfo&, const RenderStyle&);
-    WEBCORE_EXPORT static void setForceUseGlyphDisplayListForTesting(bool);
+    WEBCORE_EXPORT static void NODELETE setForceUseGlyphDisplayListForTesting(bool);
     WEBCORE_EXPORT static String cachedGlyphDisplayListsForTextNodeAsText(Text&, OptionSet<DisplayList::AsTextFlag>);
     WEBCORE_EXPORT static void clearGlyphDisplayListCacheForTesting();
 

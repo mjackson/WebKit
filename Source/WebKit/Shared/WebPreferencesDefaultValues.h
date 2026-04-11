@@ -52,7 +52,11 @@
 #define Supporthdrdisplay_feature_status Testable
 #endif
 
+#if defined(ENABLE_WEBXR_LAYERS) && ENABLE_WEBXR_LAYERS
+#define Webxr_layers_feature_status Testable
+#else
 #define Webxr_layers_feature_status Unstable
+#endif
 
 #if defined(ENABLE_WEBXR_WEBGPU) && ENABLE_WEBXR_WEBGPU && PLATFORM(VISION)
 #define Webgpu_webxr_feature_status Stable

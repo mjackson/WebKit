@@ -27,6 +27,7 @@
 #include "RenderLayoutState.h"
 
 #include "RenderBoxModelObjectInlines.h"
+#include "RenderElementInlines.h"
 #include "RenderFragmentedFlow.h"
 #include "RenderInline.h"
 #include "RenderLayer.h"
@@ -53,7 +54,7 @@ RenderLayoutState::RenderLayoutState(RenderElement& renderer)
 #endif
 {
     if (RenderElement* container = renderer.container()) {
-        FloatPoint absContentPoint = container->localToAbsolute(FloatPoint(), UseTransforms);
+        FloatPoint absContentPoint = container->localToAbsolute(FloatPoint(), MapCoordinatesMode::UseTransforms);
         m_paintOffset = LayoutSize(absContentPoint.x(), absContentPoint.y());
 
         if (container->hasNonVisibleOverflow()) {
@@ -96,7 +97,7 @@ void RenderLayoutState::computeOffsets(const RenderLayoutState& ancestor, Render
 {
     bool fixed = renderer.isFixedPositioned();
     if (fixed) {
-        FloatPoint fixedOffset = renderer.view().localToAbsolute(FloatPoint(), IsFixed);
+        FloatPoint fixedOffset = renderer.view().localToAbsolute(FloatPoint(), MapCoordinatesMode::IsFixed);
         m_paintOffset = LayoutSize(fixedOffset.x(), fixedOffset.y()) + offset;
     } else
         m_paintOffset = ancestor.paintOffset() + offset;
@@ -132,7 +133,7 @@ void RenderLayoutState::computeClipRect(const RenderLayoutState& ancestor, Rende
         return;
 
     auto paintOffsetForClipRect = toLayoutPoint(m_paintOffset + toLayoutSize(renderer.scrollPosition()));
-    LayoutRect clipRect(paintOffsetForClipRect + protect(renderer.view().frameView())->layoutContext().layoutDelta(), renderer.cachedSizeForOverflowClip());
+    LayoutRect clipRect(paintOffsetForClipRect + renderer.view().frameView().layoutContext().layoutDelta(), renderer.cachedSizeForOverflowClip());
     if (m_clipped)
         m_clipRect.intersect(clipRect);
     else

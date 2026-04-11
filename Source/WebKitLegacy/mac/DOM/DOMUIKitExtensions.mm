@@ -208,14 +208,14 @@ static WebCore::Node* firstNodeAfter(const WebCore::BoundaryPoint& point)
     RenderObject* renderer = core(self)->renderer();
     return renderer
         && renderer->childrenInline()
-        && (is<RenderBlock>(*renderer) && !downcast<RenderBlock>(*renderer).inlineContinuation())
+        && is<RenderBlock>(*renderer)
         && !renderer->isRenderTable();
 }
 
 - (BOOL)isSelectableBlock
 {
     RenderObject* renderer = core(self)->renderer();
-    return renderer && (is<WebCore::RenderBlockFlow>(*renderer) || (is<RenderBlock>(*renderer) && downcast<RenderBlock>(*renderer).inlineContinuation() != nil));
+    return renderer && (is<WebCore::RenderBlockFlow>(*renderer));
 }
 
 - (DOMRange *)rangeOfContainingParagraph
@@ -266,7 +266,7 @@ static WebCore::Node* firstNodeAfter(const WebCore::BoundaryPoint& point)
             result = INT_MAX;
         } else if (!renderer->firstChildSlow()) {
             result = 0;
-        } else if (is<WebCore::RenderBlockFlow>(*renderer) || (is<RenderBlock>(*renderer) && downcast<RenderBlock>(*renderer).inlineContinuation())) {
+        } else if (is<WebCore::RenderBlockFlow>(*renderer)) {
             BOOL noCost = NO;
             if (auto renderBox = dynamicDowncast<RenderBox>(*renderer)) {
                 auto* parentRenderBox = dynamicDowncast<RenderBox>(renderBox->parent());

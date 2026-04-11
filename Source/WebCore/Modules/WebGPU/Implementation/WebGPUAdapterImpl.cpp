@@ -299,7 +299,7 @@ void AdapterImpl::requestDevice(const DeviceDescriptor& descriptor, CompletionHa
         limits.maxStorageTexturesInVertexStage);
 
     auto requestedFeatures = supportedFeatures(features);
-    auto blockPtr = makeBlockPtr([protectedThis = Ref { *this }, convertToBackingContext = m_convertToBackingContext.copyRef(), callback = WTF::move(callback), requestedLimits, requestedFeatures](WGPURequestDeviceStatus status, WGPUDevice device, const char*) mutable {
+    auto blockPtr = makeBlockPtr([protectedThis = protect(*this), convertToBackingContext = m_convertToBackingContext.copyRef(), callback = WTF::move(callback), requestedLimits, requestedFeatures](WGPURequestDeviceStatus status, WGPUDevice device, const char*) mutable {
         callback(DeviceImpl::create(adoptWebGPU(device), status == WGPURequestDeviceStatus_Success ? WTF::move(requestedFeatures) : SupportedFeatures::create({ }), WTF::move(requestedLimits), convertToBackingContext));
     });
     wgpuAdapterRequestDevice(m_backing.get(), &backingDescriptor, &requestDeviceCallback, Block_copy(blockPtr.get())); // Block_copy is matched with Block_release above in requestDeviceCallback().

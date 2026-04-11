@@ -57,36 +57,58 @@ struct ModuleInformation final : public ThreadSafeRefCounted<ModuleInformation> 
 
     JS_EXPORT_PRIVATE ~ModuleInformation();
     
-    size_t functionIndexSpaceSize() const { return importFunctionTypeIndices.size() + internalFunctionTypeIndices.size(); }
+    size_t functionIndexSpaceSize() const { return importFunctionTypeSignatureIndices.size() + internalFunctionTypeSignatureIndices.size(); }
     bool isImportedFunctionFromFunctionIndexSpace(FunctionSpaceIndex functionIndex) const
     {
         ASSERT(functionIndex < functionIndexSpaceSize());
-        return functionIndex < importFunctionTypeIndices.size();
+        return functionIndex < importFunctionTypeSignatureIndices.size();
+    }
+    TypeSignatureIndex typeSignatureIndexFromFunctionIndexSpace(FunctionSpaceIndex functionIndex) const
+    {
+        return isImportedFunctionFromFunctionIndexSpace(functionIndex)
+            ? importFunctionTypeSignatureIndices[functionIndex]
+            : internalFunctionTypeSignatureIndices[functionIndex - importFunctionTypeSignatureIndices.size()];
     }
     TypeIndex typeIndexFromFunctionIndexSpace(FunctionSpaceIndex functionIndex) const
     {
-        return isImportedFunctionFromFunctionIndexSpace(functionIndex)
-            ? importFunctionTypeIndices[functionIndex]
-            : internalFunctionTypeIndices[functionIndex - importFunctionTypeIndices.size()];
+        return typeIndexFromTypeSignatureIndex(typeSignatureIndexFromFunctionIndexSpace(functionIndex));
     }
 
-    size_t exceptionIndexSpaceSize() const { return importExceptionTypeIndices.size() + internalExceptionTypeIndices.size(); }
+    size_t exceptionIndexSpaceSize() const { return importExceptionTypeSignatureIndices.size() + internalExceptionTypeSignatureIndices.size(); }
     bool isImportedExceptionFromExceptionIndexSpace(size_t exceptionIndex) const
     {
         ASSERT(exceptionIndex < exceptionIndexSpaceSize());
-        return exceptionIndex < importExceptionTypeIndices.size();
+        return exceptionIndex < importExceptionTypeSignatureIndices.size();
+    }
+    TypeSignatureIndex typeSignatureIndexFromExceptionIndexSpace(size_t exceptionIndex) const
+    {
+        return isImportedExceptionFromExceptionIndexSpace(exceptionIndex)
+            ? importExceptionTypeSignatureIndices[exceptionIndex]
+            : internalExceptionTypeSignatureIndices[exceptionIndex - importExceptionTypeSignatureIndices.size()];
     }
     TypeIndex typeIndexFromExceptionIndexSpace(size_t exceptionIndex) const
     {
-        return isImportedExceptionFromExceptionIndexSpace(exceptionIndex)
-            ? importExceptionTypeIndices[exceptionIndex]
-            : internalExceptionTypeIndices[exceptionIndex - importExceptionTypeIndices.size()];
+        return typeIndexFromTypeSignatureIndex(typeSignatureIndexFromExceptionIndexSpace(exceptionIndex));
     }
 
-    uint32_t importFunctionCount() const { return importFunctionTypeIndices.size(); }
-    uint32_t internalFunctionCount() const { return internalFunctionTypeIndices.size(); }
-    uint32_t importExceptionCount() const { return importExceptionTypeIndices.size(); }
-    uint32_t internalExceptionCount() const { return internalExceptionTypeIndices.size(); }
+    uint32_t importFunctionCount() const { return importFunctionTypeSignatureIndices.size(); }
+    uint32_t internalFunctionCount() const { return internalFunctionTypeSignatureIndices.size(); }
+    uint32_t importExceptionCount() const { return importExceptionTypeSignatureIndices.size(); }
+    uint32_t internalExceptionCount() const { return internalExceptionTypeSignatureIndices.size(); }
+
+    uint32_t typeCount() const { return m_typeSignatures.size(); }
+    const TypeDefinition& typeSignature(TypeSignatureIndex index) const LIFETIME_BOUND { ASSERT(index.rawIndex() < m_typeSignatures.size()); return m_typeSignatures[index.rawIndex()]; }
+    const TypeDefinition& expandedTypeSignature(TypeSignatureIndex index) const LIFETIME_BOUND { ASSERT(index.rawIndex() < m_expandedTypeSignatures.size()); return m_expandedTypeSignatures[index.rawIndex()]; }
+    const RTT& rtt(TypeSignatureIndex index) const LIFETIME_BOUND { ASSERT(index.rawIndex() < m_rtts.size()); return m_rtts[index.rawIndex()]; }
+    TypeIndex typeIndexFromTypeSignatureIndex(TypeSignatureIndex index) const
+    {
+        ASSERT(index.rawIndex() < m_typeSignatures.size());
+        SUPPRESS_UNCOUNTED_ARG return m_typeSignatures[index.rawIndex()]->index();
+    }
+
+    // Convert a parsed heap type (int32_t from the binary) to a TypeSignatureIndex.
+    // Only valid when isTypeIndexHeapType(heapType) is true.
+    static TypeSignatureIndex typeSignatureIndexFromHeapType(int32_t heapType) { ASSERT(isTypeIndexHeapType(heapType)); return TypeSignatureIndex(heapType); }
 
     FunctionCodeIndex toCodeIndex(FunctionSpaceIndex index) const { ASSERT(importFunctionCount() <= index && index < functionIndexSpaceSize()); return FunctionCodeIndex(index - importFunctionCount()); }
     FunctionSpaceIndex toSpaceIndex(FunctionCodeIndex index) const { ASSERT(index < internalFunctionCount()); return FunctionSpaceIndex(index + importFunctionCount()); }
@@ -159,8 +181,6 @@ struct ModuleInformation final : public ThreadSafeRefCounted<ModuleInformation> 
 
     void doneSeeingFunction(FunctionCodeIndex index) { ASSERT(index < internalFunctionCount()); ASSERT(!functions[index].finishedValidating); functions[index].finishedValidating = true; }
 
-    uint32_t typeCount() const { return typeSignatures.size(); }
-
     bool hasGCObjectTypes() const { return m_hasGCObjectTypes; }
 
     bool hasMemoryImport() const
@@ -198,11 +218,10 @@ struct ModuleInformation final : public ThreadSafeRefCounted<ModuleInformation> 
     // FIXME: These should probably be FixedVectors.
     Vector<Import> imports;
     FixedBitVector importShouldBeHidden; // filter imports[i] from the result of Module.imports(moduleObject)
-    Vector<TypeIndex> importFunctionTypeIndices;
-    Vector<TypeIndex> internalFunctionTypeIndices;
-    Vector<TypeIndex> importExceptionTypeIndices;
-    Vector<TypeIndex> internalExceptionTypeIndices;
-    Vector<Ref<TypeDefinition>> typeSignatures;
+    Vector<TypeSignatureIndex> importFunctionTypeSignatureIndices;
+    Vector<TypeSignatureIndex> internalFunctionTypeSignatureIndices;
+    Vector<TypeSignatureIndex> importExceptionTypeSignatureIndices;
+    Vector<TypeSignatureIndex> internalExceptionTypeSignatureIndices;
     Vector<Ref<TypeDefinition>> recursionGroups;
 
     Vector<MemoryInformation> memories;
@@ -224,7 +243,6 @@ struct ModuleInformation final : public ThreadSafeRefCounted<ModuleInformation> 
     Ref<NameSection> nameSection;
     BranchHints branchHints;
     std::optional<uint32_t> numberOfDataSegments;
-    Vector<Ref<const RTT>> rtts;
     Vector<Vector<uint8_t>> constantExpressions;
     Name sourceMappingURL;
 #if ENABLE(WEBASSEMBLY_DEBUGGER)
@@ -240,6 +258,12 @@ struct ModuleInformation final : public ThreadSafeRefCounted<ModuleInformation> 
 
 private:
     void populateImportShouldBeHidden();
+
+    friend class SectionParser;
+
+    Vector<Ref<TypeDefinition>> m_typeSignatures;
+    Vector<Ref<const TypeDefinition>> m_expandedTypeSignatures;
+    Vector<Ref<const RTT>> m_rtts;
 
     std::optional<String> m_importedStringConstants;
     Vector<String> m_qualifiedBuiltinSetNames;

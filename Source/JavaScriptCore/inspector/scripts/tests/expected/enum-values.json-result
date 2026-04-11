@@ -324,11 +324,15 @@ void CommandDomainBackendDispatcher::command(long protocol_requestId, RefPtr<JSO
 
     auto in_enumRequired = Protocol::TestHelpers::parseEnumValueFromString<Protocol::TypeDomain::Enum>(in_enumRequired_json);
     if (!in_enumRequired) {
-        m_backendDispatcher->reportProtocolError(BackendDispatcher::ServerError, makeString("Unknown enumRequired: "_s, in_enumRequired_json));
+        m_backendDispatcher->reportProtocolError(BackendDispatcher::InvalidParams, makeString("Unknown enumRequired: "_s, in_enumRequired_json));
         return;
     }
 
     auto in_opt_enumOptional = Protocol::TestHelpers::parseEnumValueFromString<Protocol::TypeDomain::Enum>(in_opt_enumOptional_json);
+    if (!in_opt_enumOptional_json.isEmpty() && !in_opt_enumOptional) {
+        m_backendDispatcher->reportProtocolError(BackendDispatcher::InvalidParams, makeString("Unknown enumOptional: "_s, in_opt_enumOptional_json));
+        return;
+    }
 
     auto result = m_agent->command(*in_enumRequired, WTF::move(in_opt_enumOptional), in_parameterRequired, in_opt_parameterOptional);
     if (!result) {

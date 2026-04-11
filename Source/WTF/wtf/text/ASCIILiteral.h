@@ -82,7 +82,7 @@ public:
     bool isEmpty() const { return m_charactersWithNullTerminator.size() <= 1; }
 
     constexpr char operator[](size_t index) const { return m_charactersWithNullTerminator[index]; }
-    constexpr char characterAt(size_t index) const { return m_charactersWithNullTerminator[index]; }
+    constexpr char codeUnitAt(size_t index) const { return m_charactersWithNullTerminator[index]; }
 
 #ifdef __OBJC__
     // This function convert null strings to empty strings.

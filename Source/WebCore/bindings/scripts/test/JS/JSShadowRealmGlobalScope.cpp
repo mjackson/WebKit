@@ -42,6 +42,7 @@
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/ObjectPrototype.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
+#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -102,8 +103,13 @@ void JSShadowRealmGlobalScope::finishCreation(VM& vm, JSGlobalProxy* proxy)
 {
     Base::finishCreation(vm, proxy);
 
-    if (jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->settingsValues().webAPIsInShadowRealmEnabled)
+    if (jsCast<JSDOMGlobalObject*>(realm())->scriptExecutionContext()->settingsValues().webAPIsInShadowRealmEnabled)
         putDirectCustomAccessor(vm, builtinNames(vm).ExposedStarPublicName(), CustomGetterSetter::create(vm, jsShadowRealmGlobalScope_ExposedStarConstructor, nullptr), attributesForStructure(static_cast<unsigned>(JSC::PropertyAttribute::DontEnum)));
+}
+
+JSC::Structure* JSShadowRealmGlobalScope::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
+{
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::GlobalObjectType, StructureFlags), info(), JSC::NonArray);
 }
 
 JSValue JSShadowRealmGlobalScope::getConstructor(VM& vm, const JSGlobalObject* globalObject)
@@ -124,7 +130,7 @@ JSC_DEFINE_CUSTOM_GETTER(jsShadowRealmGlobalScopeConstructor, (JSGlobalObject* l
     auto* prototype = jsDynamicCast<JSShadowRealmGlobalScopePrototype*>(JSValue::decode(thisValue));
     if (!prototype) [[unlikely]]
         return throwVMTypeError(lexicalGlobalObject, throwScope);
-    return JSValue::encode(JSShadowRealmGlobalScope::getConstructor(vm, prototype->globalObject()));
+    return JSValue::encode(JSShadowRealmGlobalScope::getConstructor(vm, prototype->realm()));
 }
 
 static inline JSValue jsShadowRealmGlobalScope_ExposedStarConstructorGetter(JSGlobalObject& lexicalGlobalObject, JSShadowRealmGlobalScope& thisObject)

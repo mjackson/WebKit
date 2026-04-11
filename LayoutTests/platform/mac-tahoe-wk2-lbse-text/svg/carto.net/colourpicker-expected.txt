@@ -17,7 +17,7 @@ layer at (200,400) size 300x120
 layer at (200,400) size 300x120
   RenderSVGRect {rect} at (0,0) size 300x120 [fill={[type=SOLID] [color=#DCDCDC]}] [x=200.00] [y=400.00] [width=300.00] [height=120.00]
 layer at (212,411.84) size 198x9
-  RenderSVGRect {rect} at (12,11.84) size 198x7.52 [fill={[type=SOLID] [color=#000000]}] [x=212.00] [y=411.85] [width=198.00] [height=7.50]
+  RenderSVGRect {rect} at (12,11.84) size 198x7.52 [fill={[type=SOLID] [color=#00000000]}] [x=212.00] [y=411.85] [width=198.00] [height=7.50]
 layer at (212,415.59) size 198x1
   RenderSVGPath {line} at (12,15.59) size 198x0.02 [stroke={[type=SOLID] [color=#000000] [opacity=0.00] [stroke width=15.00] [line cap=SQUARE]}] [fill={[type=SOLID] [color=#000000] [opacity=0.00]}] [x1=212.00] [y1=415.60] [x2=410.00] [y2=415.60]
 layer at (212,415.59) size 198x1
@@ -37,7 +37,7 @@ layer at (242,454) size 45x36
 layer at (212,436) size 45x36
   RenderSVGRect {rect} at (12,36) size 45x36 [fill={[type=SOLID] [color=#00FF00]}] [x=212.00] [y=436.00] [width=45.00] [height=36.00]
 layer at (302,435.84) size 108x9
-  RenderSVGRect {rect} at (102,35.84) size 108x7.52 [fill={[type=SOLID] [color=#000000]}] [x=302.00] [y=435.85] [width=108.00] [height=7.50]
+  RenderSVGRect {rect} at (102,35.84) size 108x7.52 [fill={[type=SOLID] [color=#00000000]}] [x=302.00] [y=435.85] [width=108.00] [height=7.50]
 layer at (302,439.59) size 108x1
   RenderSVGPath {line} at (102,39.59) size 108x0.02 [stroke={[type=SOLID] [color=#000000] [opacity=0.00] [stroke width=15.00] [line cap=SQUARE]}] [fill={[type=SOLID] [color=#000000] [opacity=0.00]}] [x1=302.00] [y1=439.60] [x2=410.00] [y2=439.60]
 layer at (302,439.59) size 108x1
@@ -53,7 +53,7 @@ layer at (416,433.23) size 77x14
     RenderSVGInlineText {#text} at (0,0) size 77x14
       chunk 1 text run 1 at (416.00,444.10) startOffset 0 endOffset 14 width 76.70: "Saturation (%)"
 layer at (302,459.84) size 108x9
-  RenderSVGRect {rect} at (102,59.84) size 108x7.52 [fill={[type=SOLID] [color=#000000]}] [x=302.00] [y=459.85] [width=108.00] [height=7.50]
+  RenderSVGRect {rect} at (102,59.84) size 108x7.52 [fill={[type=SOLID] [color=#00000000]}] [x=302.00] [y=459.85] [width=108.00] [height=7.50]
 layer at (302,463.59) size 108x1
   RenderSVGPath {line} at (102,63.59) size 108x0.02 [stroke={[type=SOLID] [color=#000000] [opacity=0.00] [stroke width=15.00] [line cap=SQUARE]}] [fill={[type=SOLID] [color=#000000] [opacity=0.00]}] [x1=302.00] [y1=463.60] [x2=410.00] [y2=463.60]
 layer at (302,463.59) size 108x1
@@ -69,7 +69,7 @@ layer at (416,457.23) size 53x14
     RenderSVGInlineText {#text} at (0,0) size 53x14
       chunk 1 text run 1 at (416.00,468.10) startOffset 0 endOffset 9 width 52.69: "Value (%)"
 layer at (302,483.84) size 108x9
-  RenderSVGRect {rect} at (102,83.84) size 108x7.52 [fill={[type=SOLID] [color=#000000]}] [x=302.00] [y=483.85] [width=108.00] [height=7.50]
+  RenderSVGRect {rect} at (102,83.84) size 108x7.52 [fill={[type=SOLID] [color=#00000000]}] [x=302.00] [y=483.85] [width=108.00] [height=7.50]
 layer at (302,487.59) size 108x1
   RenderSVGPath {line} at (102,87.59) size 108x0.02 [stroke={[type=SOLID] [color=#000000] [opacity=0.00] [stroke width=15.00] [line cap=SQUARE]}] [fill={[type=SOLID] [color=#000000] [opacity=0.00]}] [x1=302.00] [y1=487.60] [x2=410.00] [y2=487.60]
 layer at (302,487.59) size 108x1
@@ -93,7 +93,7 @@ layer at (500,200) size 300x100
 layer at (500,200) size 300x100
   RenderSVGRect {rect} at (0,0) size 300x100 [fill={[type=SOLID] [color=#DCDCDC]}] [x=500.00] [y=200.00] [width=300.00] [height=100.00]
 layer at (512,209.25) size 198x8
-  RenderSVGRect {rect} at (12,9.25) size 198x7.50 [fill={[type=SOLID] [color=#000000]}] [x=512.00] [y=209.25] [width=198.00] [height=7.50]
+  RenderSVGRect {rect} at (12,9.25) size 198x7.50 [fill={[type=SOLID] [color=#00000000]}] [x=512.00] [y=209.25] [width=198.00] [height=7.50]
 layer at (512,213) size 198x0
   RenderSVGPath {line} at (12,13) size 198x0 [stroke={[type=SOLID] [color=#000000] [opacity=0.00] [stroke width=15.00] [line cap=SQUARE]}] [fill={[type=SOLID] [color=#000000] [opacity=0.00]}] [x1=512.00] [y1=213.00] [x2=710.00] [y2=213.00]
 layer at (0,0) size 0x0
@@ -111,7 +111,7 @@ layer at (542,245) size 45x30
 layer at (512,230) size 45x30
   RenderSVGRect {rect} at (12,30) size 45x30 [fill={[type=SOLID] [color=#FF0000]}] [x=512.00] [y=230.00] [width=45.00] [height=30.00]
 layer at (602,235.91) size 108x9
-  RenderSVGRect {rect} at (102,35.91) size 108x7.52 [fill={[type=SOLID] [color=#000000]}] [x=602.00] [y=235.92] [width=108.00] [height=7.50]
+  RenderSVGRect {rect} at (102,35.91) size 108x7.52 [fill={[type=SOLID] [color=#00000000]}] [x=602.00] [y=235.92] [width=108.00] [height=7.50]
 layer at (602,239.66) size 108x1
   RenderSVGPath {line} at (102,39.66) size 108x0.02 [stroke={[type=SOLID] [color=#000000] [opacity=0.00] [stroke width=15.00] [line cap=SQUARE]}] [fill={[type=SOLID] [color=#000000] [opacity=0.00]}] [x1=602.00] [y1=239.67] [x2=710.00] [y2=239.67]
 layer at (602,239.66) size 108x1
@@ -127,7 +127,7 @@ layer at (716,233.30) size 77x14
     RenderSVGInlineText {#text} at (0,0) size 77x14
       chunk 1 text run 1 at (716.00,244.17) startOffset 0 endOffset 14 width 76.70: "Saturation (%)"
 layer at (602,262.58) size 108x9
-  RenderSVGRect {rect} at (102,62.58) size 108x7.52 [fill={[type=SOLID] [color=#000000]}] [x=602.00] [y=262.58] [width=108.00] [height=7.50]
+  RenderSVGRect {rect} at (102,62.58) size 108x7.52 [fill={[type=SOLID] [color=#00000000]}] [x=602.00] [y=262.58] [width=108.00] [height=7.50]
 layer at (602,266.33) size 108x1
   RenderSVGPath {line} at (102,66.33) size 108x0.02 [stroke={[type=SOLID] [color=#000000] [opacity=0.00] [stroke width=15.00] [line cap=SQUARE]}] [fill={[type=SOLID] [color=#000000] [opacity=0.00]}] [x1=602.00] [y1=266.33] [x2=710.00] [y2=266.33]
 layer at (602,266.33) size 108x1
@@ -151,7 +151,7 @@ layer at (700,500) size 300x120 backgroundClip at (0,0) size 800x600 clip at (0,
 layer at (700,500) size 300x120 backgroundClip at (0,0) size 800x600 clip at (0,0) size 800x600
   RenderSVGRect {rect} at (0,0) size 300x120 [fill={[type=SOLID] [color=#DCDCDC]}] [x=700.00] [y=500.00] [width=300.00] [height=120.00]
 layer at (712,511.84) size 198x9 backgroundClip at (0,0) size 800x600 clip at (0,0) size 800x600
-  RenderSVGRect {rect} at (12,11.84) size 198x7.52 [fill={[type=SOLID] [color=#000000]}] [x=712.00] [y=511.85] [width=198.00] [height=7.50]
+  RenderSVGRect {rect} at (12,11.84) size 198x7.52 [fill={[type=SOLID] [color=#00000000]}] [x=712.00] [y=511.85] [width=198.00] [height=7.50]
 layer at (712,515.59) size 198x1 backgroundClip at (0,0) size 800x600 clip at (0,0) size 800x600
   RenderSVGPath {line} at (12,15.59) size 198x0.02 [stroke={[type=SOLID] [color=#000000] [opacity=0.00] [stroke width=15.00] [line cap=SQUARE]}] [fill={[type=SOLID] [color=#000000] [opacity=0.00]}] [x1=712.00] [y1=515.60] [x2=910.00] [y2=515.60]
 layer at (712,515.59) size 198x1 backgroundClip at (0,0) size 800x600 clip at (0,0) size 800x600
@@ -165,7 +165,7 @@ layer at (0,-10) size 0x20
 layer at (712,536) size 45x36
   RenderSVGRect {rect} at (12,36) size 45x36 [stroke={[type=SOLID] [color=#787878] [stroke width=7.50]}] [x=712.00] [y=536.00] [width=45.00] [height=36.00]
 layer at (772,535.84) size 138x9 backgroundClip at (0,0) size 800x600 clip at (0,0) size 800x600
-  RenderSVGRect {rect} at (72,35.84) size 138x7.52 [fill={[type=SOLID] [color=#000000]}] [x=772.00] [y=535.85] [width=138.00] [height=7.50]
+  RenderSVGRect {rect} at (72,35.84) size 138x7.52 [fill={[type=SOLID] [color=#00000000]}] [x=772.00] [y=535.85] [width=138.00] [height=7.50]
 layer at (772,539.59) size 138x1 backgroundClip at (0,0) size 800x600 clip at (0,0) size 800x600
   RenderSVGPath {line} at (72,39.59) size 138x0.02 [stroke={[type=SOLID] [color=#000000] [opacity=0.00] [stroke width=15.00] [line cap=SQUARE]}] [fill={[type=SOLID] [color=#000000] [opacity=0.00]}] [x1=772.00] [y1=539.60] [x2=910.00] [y2=539.60]
 layer at (772,539.59) size 138x1 backgroundClip at (0,0) size 800x600 clip at (0,0) size 800x600
@@ -177,7 +177,7 @@ layer at (0,0) size 1024x768 backgroundClip at (0,0) size 800x600 clip at (0,0) 
 layer at (0,-10) size 0x20
   RenderSVGPath {line} at (0,-10) size 0x20 [stroke={[type=SOLID] [color=#696969] [stroke width=5.00]}] [fill={[type=SOLID] [color=#000000]}] [x1=0.00] [y1=-10.00] [x2=0.00] [y2=10.00]
 layer at (772,559.84) size 138x9 backgroundClip at (0,0) size 800x600 clip at (0,0) size 800x600
-  RenderSVGRect {rect} at (72,59.84) size 138x7.52 [fill={[type=SOLID] [color=#000000]}] [x=772.00] [y=559.85] [width=138.00] [height=7.50]
+  RenderSVGRect {rect} at (72,59.84) size 138x7.52 [fill={[type=SOLID] [color=#00000000]}] [x=772.00] [y=559.85] [width=138.00] [height=7.50]
 layer at (772,563.59) size 138x1 backgroundClip at (0,0) size 800x600 clip at (0,0) size 800x600
   RenderSVGPath {line} at (72,63.59) size 138x0.02 [stroke={[type=SOLID] [color=#000000] [opacity=0.00] [stroke width=15.00] [line cap=SQUARE]}] [fill={[type=SOLID] [color=#000000] [opacity=0.00]}] [x1=772.00] [y1=563.60] [x2=910.00] [y2=563.60]
 layer at (772,563.59) size 138x1 backgroundClip at (0,0) size 800x600 clip at (0,0) size 800x600
@@ -189,7 +189,7 @@ layer at (0,0) size 1024x768 backgroundClip at (0,0) size 800x600 clip at (0,0) 
 layer at (0,-10) size 0x20
   RenderSVGPath {line} at (0,-10) size 0x20 [stroke={[type=SOLID] [color=#696969] [stroke width=5.00]}] [fill={[type=SOLID] [color=#000000]}] [x1=0.00] [y1=-10.00] [x2=0.00] [y2=10.00]
 layer at (772,583.84) size 138x9 backgroundClip at (0,0) size 800x600 clip at (0,0) size 800x600
-  RenderSVGRect {rect} at (72,83.84) size 138x7.52 [fill={[type=SOLID] [color=#000000]}] [x=772.00] [y=583.85] [width=138.00] [height=7.50]
+  RenderSVGRect {rect} at (72,83.84) size 138x7.52 [fill={[type=SOLID] [color=#00000000]}] [x=772.00] [y=583.85] [width=138.00] [height=7.50]
 layer at (772,587.59) size 138x1 backgroundClip at (0,0) size 800x600 clip at (0,0) size 800x600
   RenderSVGPath {line} at (72,87.59) size 138x0.02 [stroke={[type=SOLID] [color=#000000] [opacity=0.00] [stroke width=15.00] [line cap=SQUARE]}] [fill={[type=SOLID] [color=#000000] [opacity=0.00]}] [x1=772.00] [y1=587.60] [x2=910.00] [y2=587.60]
 layer at (772,587.59) size 138x1 backgroundClip at (0,0) size 800x600 clip at (0,0) size 800x600
@@ -216,7 +216,7 @@ layer at (500,200) size 300x90
 layer at (500,200) size 300x90
   RenderSVGRect {rect} at (0,0) size 300x90 [fill={[type=SOLID] [color=#DCDCDC]}] [x=500.00] [y=200.00] [width=300.00] [height=90.00]
 layer at (512,207.94) size 198x9
-  RenderSVGRect {rect} at (12,7.94) size 198x7.52 [fill={[type=SOLID] [color=#000000]}] [x=512.00] [y=207.95] [width=198.00] [height=7.50]
+  RenderSVGRect {rect} at (12,7.94) size 198x7.52 [fill={[type=SOLID] [color=#00000000]}] [x=512.00] [y=207.95] [width=198.00] [height=7.50]
 layer at (512,211.69) size 198x1
   RenderSVGPath {line} at (12,11.69) size 198x0.02 [stroke={[type=SOLID] [color=#000000] [opacity=0.00] [stroke width=15.00] [line cap=SQUARE]}] [fill={[type=SOLID] [color=#000000] [opacity=0.00]}] [x1=512.00] [y1=211.70] [x2=710.00] [y2=211.70]
 layer at (512,211.69) size 198x1
@@ -234,7 +234,7 @@ layer at (716,205.33) size 80x14
 layer at (512,227) size 45x27
   RenderSVGRect {rect} at (12,27) size 45x27 [fill={[type=SOLID] [color=#00FFFF] [opacity=0.50]}] [x=512.00] [y=227.00] [width=45.00] [height=27.00]
 layer at (572,231.94) size 138x9
-  RenderSVGRect {rect} at (72,31.94) size 138x7.52 [fill={[type=SOLID] [color=#000000]}] [x=572.00] [y=231.95] [width=138.00] [height=7.50]
+  RenderSVGRect {rect} at (72,31.94) size 138x7.52 [fill={[type=SOLID] [color=#00000000]}] [x=572.00] [y=231.95] [width=138.00] [height=7.50]
 layer at (572,235.69) size 138x1
   RenderSVGPath {line} at (72,35.69) size 138x0.02 [stroke={[type=SOLID] [color=#000000] [opacity=0.00] [stroke width=15.00] [line cap=SQUARE]}] [fill={[type=SOLID] [color=#000000] [opacity=0.00]}] [x1=572.00] [y1=235.70] [x2=710.00] [y2=235.70]
 layer at (572,235.69) size 138x1
@@ -250,7 +250,7 @@ layer at (716,229.33) size 77x14
     RenderSVGInlineText {#text} at (0,0) size 77x14
       chunk 1 text run 1 at (716.00,240.20) startOffset 0 endOffset 14 width 76.70: "Saturation (%)"
 layer at (572,255.94) size 138x9
-  RenderSVGRect {rect} at (72,55.94) size 138x7.52 [fill={[type=SOLID] [color=#000000]}] [x=572.00] [y=255.95] [width=138.00] [height=7.50]
+  RenderSVGRect {rect} at (72,55.94) size 138x7.52 [fill={[type=SOLID] [color=#00000000]}] [x=572.00] [y=255.95] [width=138.00] [height=7.50]
 layer at (572,259.69) size 138x1
   RenderSVGPath {line} at (72,59.69) size 138x0.02 [stroke={[type=SOLID] [color=#000000] [opacity=0.00] [stroke width=15.00] [line cap=SQUARE]}] [fill={[type=SOLID] [color=#000000] [opacity=0.00]}] [x1=572.00] [y1=259.70] [x2=710.00] [y2=259.70]
 layer at (572,259.69) size 138x1

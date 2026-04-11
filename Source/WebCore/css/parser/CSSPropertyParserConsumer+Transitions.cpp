@@ -36,18 +36,22 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
-static RefPtr<CSSValue> consumeSingleTransitionPropertyIdent(CSSParserTokenRange& range, const CSSParserToken& token)
+static RefPtr<CSSValue> consumeSingleTransitionPropertyIdent(CSSParserTokenRange& range, CSS::PropertyParserState& state, const CSSParserToken& token)
 {
-    if (token.id() == CSSValueAll)
-        return consumeIdent(range);
-    if (auto property = token.parseAsCSSPropertyID()) {
-        range.consumeIncludingWhitespace();
-        return CSSPrimitiveValue::create(property);
+    // <single-transition-property> = all | <custom-ident>
+
+    if (token.type() == IdentToken) {
+        if (token.id() == CSSValueAll)
+            return consumeIdent(range);
+        if (auto property = token.parseAsCSSPropertyID()) {
+            range.consumeIncludingWhitespace();
+            return CSSPrimitiveValue::create(property);
+        }
     }
-    return consumeCustomIdent(range);
+    return consumeCustomIdent(range, state);
 }
 
-RefPtr<CSSValue> consumeSingleTransitionPropertyOrNone(CSSParserTokenRange& range, CSS::PropertyParserState&)
+RefPtr<CSSValue> consumeSingleTransitionPropertyOrNone(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // This variant of consumeSingleTransitionProperty is used for the slightly different
     // parse rules used for the 'transition' shorthand which allows 'none':
@@ -56,15 +60,12 @@ RefPtr<CSSValue> consumeSingleTransitionPropertyOrNone(CSSParserTokenRange& rang
     // https://drafts.csswg.org/css-transitions/#single-transition-property
 
     auto& token = range.peek();
-    if (token.type() != IdentToken)
-        return nullptr;
     if (token.id() == CSSValueNone)
         return consumeIdent(range);
-
-    return consumeSingleTransitionPropertyIdent(range, token);
+    return consumeSingleTransitionPropertyIdent(range, state, token);
 }
 
-RefPtr<CSSValue> consumeSingleTransitionProperty(CSSParserTokenRange& range, CSS::PropertyParserState&)
+RefPtr<CSSValue> consumeSingleTransitionProperty(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // "The <custom-ident> production in <single-transition-property> also excludes the keyword
     //  none, in addition to the keywords always excluded from <custom-ident>."
@@ -73,12 +74,9 @@ RefPtr<CSSValue> consumeSingleTransitionProperty(CSSParserTokenRange& range, CSS
     // https://drafts.csswg.org/css-transitions/#single-transition-property
 
     auto& token = range.peek();
-    if (token.type() != IdentToken)
-        return nullptr;
     if (token.id() == CSSValueNone)
         return nullptr;
-
-    return consumeSingleTransitionPropertyIdent(range, token);
+    return consumeSingleTransitionPropertyIdent(range, state, token);
 }
 
 } // namespace CSSPropertyParserHelpers

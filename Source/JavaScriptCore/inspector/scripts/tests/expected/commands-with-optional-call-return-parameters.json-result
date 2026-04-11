@@ -314,6 +314,10 @@ void DatabaseBackendDispatcher::executeAllOptionalParameters(long protocol_reque
 #endif // ENABLE(INSPECTOR_ALTERNATE_DISPATCHERS)
 
     auto in_opt_screenColor = Protocol::TestHelpers::parseEnumValueFromString<Protocol::Database::PrimaryColors>(in_opt_screenColor_json);
+    if (!in_opt_screenColor_json.isEmpty() && !in_opt_screenColor) {
+        m_backendDispatcher->reportProtocolError(BackendDispatcher::InvalidParams, makeString("Unknown screenColor: "_s, in_opt_screenColor_json));
+        return;
+    }
 
     auto result = m_agent->executeAllOptionalParameters(WTF::move(in_opt_columnNames), in_opt_notes, WTF::move(in_opt_timestamp), WTF::move(in_opt_values), WTF::move(in_opt_payload), WTF::move(in_opt_databaseId), WTF::move(in_opt_sqlError), WTF::move(in_opt_screenColor), WTF::move(in_opt_alternateColors), in_opt_printColor);
     if (!result) {
@@ -374,7 +378,7 @@ void DatabaseBackendDispatcher::executeNoOptionalParameters(long protocol_reques
 
     auto in_screenColor = Protocol::TestHelpers::parseEnumValueFromString<Protocol::Database::PrimaryColors>(in_screenColor_json);
     if (!in_screenColor) {
-        m_backendDispatcher->reportProtocolError(BackendDispatcher::ServerError, makeString("Unknown screenColor: "_s, in_screenColor_json));
+        m_backendDispatcher->reportProtocolError(BackendDispatcher::InvalidParams, makeString("Unknown screenColor: "_s, in_screenColor_json));
         return;
     }
 

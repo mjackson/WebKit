@@ -166,7 +166,7 @@ static JSValue getWrappedValue(JSGlobalObject* globalObject, JSGlobalObject* tar
 
 JSC_DEFINE_JIT_OPERATION(operationGetWrappedValueForTarget, EncodedJSValue, (JSRemoteFunction* callee, EncodedJSValue encodedValue))
 {
-    JSGlobalObject* globalObject = callee->globalObject();
+    JSGlobalObject* globalObject = callee->realm();
     VM& vm = globalObject->vm();
 
     CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
@@ -174,13 +174,13 @@ JSC_DEFINE_JIT_OPERATION(operationGetWrappedValueForTarget, EncodedJSValue, (JSR
     auto scope = DECLARE_THROW_SCOPE(vm);
     ASSERT(isRemoteFunction(callee));
 
-    JSGlobalObject* targetGlobalObject = callee->targetFunction()->globalObject();
+    JSGlobalObject* targetGlobalObject = callee->targetFunction()->realm();
     OPERATION_RETURN(scope, JSValue::encode(getWrappedValue(globalObject, targetGlobalObject, JSValue::decode(encodedValue))));
 }
 
 JSC_DEFINE_JIT_OPERATION(operationGetWrappedValueForCaller, EncodedJSValue, (JSRemoteFunction* callee, EncodedJSValue encodedValue))
 {
-    JSGlobalObject* globalObject = callee->globalObject();
+    JSGlobalObject* globalObject = callee->realm();
     VM& vm = globalObject->vm();
 
     CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
@@ -213,7 +213,7 @@ static inline UGPRPair materializeTargetCode(VM& vm, JSFunction* targetFunction)
 
 JSC_DEFINE_JIT_OPERATION(operationMaterializeBoundFunctionTargetCode, UGPRPair, (JSBoundFunction* callee))
 {
-    JSGlobalObject* globalObject = callee->globalObject();
+    JSGlobalObject* globalObject = callee->realm();
     VM& vm = globalObject->vm();
     CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
@@ -224,7 +224,7 @@ JSC_DEFINE_JIT_OPERATION(operationMaterializeBoundFunctionTargetCode, UGPRPair, 
 
 JSC_DEFINE_JIT_OPERATION(operationMaterializeRemoteFunctionTargetCode, UGPRPair, (JSRemoteFunction* callee))
 {
-    JSGlobalObject* globalObject = callee->globalObject();
+    JSGlobalObject* globalObject = callee->realm();
     VM& vm = globalObject->vm();
     CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
     JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
@@ -236,7 +236,7 @@ JSC_DEFINE_JIT_OPERATION(operationMaterializeRemoteFunctionTargetCode, UGPRPair,
 
 JSC_DEFINE_JIT_OPERATION(operationThrowRemoteFunctionException, EncodedJSValue, (JSRemoteFunction* callee))
 {
-    JSGlobalObject* globalObject = callee->globalObject();
+    JSGlobalObject* globalObject = callee->realm();
     VM& vm = globalObject->vm();
 
     CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
@@ -332,7 +332,7 @@ JSC_DEFINE_JIT_OPERATION(operationTryGetByIdOptimize, EncodedJSValue, (EncodedJS
 
     CodeBlock* codeBlock = callFrame->codeBlock();
     if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, baseValue.structureOrNull(), identifier) && !slot.isTaintedByOpaqueObject() && (slot.isCacheableValue() || slot.isCacheableGetter() || slot.isUnset()))
-        repatchGetBy(globalObject, codeBlock, baseValue, identifier, slot, *propertyCache, GetByKind::TryById);
+        repatchGetBy(globalObject, codeBlock, baseValue, identifier, slot, *propertyCache, GetByKind::TryById, /* isNonStringPrimitiveKey */ false);
 
     OPERATION_RETURN(scope, JSValue::encode(slot.getPureResult()));
 }
@@ -394,7 +394,7 @@ JSC_DEFINE_JIT_OPERATION(operationGetByIdDirectOptimize, EncodedJSValue, (Encode
 
     CodeBlock* codeBlock = callFrame->codeBlock();
     if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, baseValue.structureOrNull(), identifier))
-        repatchGetBy(globalObject, codeBlock, baseValue, identifier, slot, *propertyCache, GetByKind::ByIdDirect);
+        repatchGetBy(globalObject, codeBlock, baseValue, identifier, slot, *propertyCache, GetByKind::ByIdDirect, /* isNonStringPrimitiveKey */ false);
 
     OPERATION_RETURN(scope, JSValue::encode(found ? slot.getValue(globalObject, identifier) : jsUndefined()));
 }
@@ -564,7 +564,7 @@ JSC_DEFINE_JIT_OPERATION(operationGetByIdOptimize, EncodedJSValue, (EncodedJSVal
         
         CodeBlock* codeBlock = callFrame->codeBlock();
         if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, baseValue.structureOrNull(), identifier))
-            repatchGetBy(globalObject, codeBlock, baseValue, identifier, slot, *propertyCache, GetByKind::ById);
+            repatchGetBy(globalObject, codeBlock, baseValue, identifier, slot, *propertyCache, GetByKind::ById, /* isNonStringPrimitiveKey */ false);
         return found ? slot.getValue(globalObject, identifier) : jsUndefined();
     })));
 }
@@ -637,7 +637,7 @@ JSC_DEFINE_JIT_OPERATION(operationGetByIdWithThisOptimize, EncodedJSValue, (Enco
         
         CodeBlock* codeBlock = callFrame->codeBlock();
         if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, baseValue.structureOrNull(), identifier))
-            repatchGetBy(globalObject, codeBlock, baseValue, identifier, slot, *propertyCache, GetByKind::ByIdWithThis);
+            repatchGetBy(globalObject, codeBlock, baseValue, identifier, slot, *propertyCache, GetByKind::ByIdWithThis, /* isNonStringPrimitiveKey */ false);
         return found ? slot.getValue(globalObject, identifier) : jsUndefined();
     })));
 }
@@ -1422,7 +1422,7 @@ JSC_DEFINE_JIT_OPERATION(operationPutByIdStrictOptimize, void, (EncodedJSValue e
         OPERATION_RETURN(scope);
     
     if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, structure, identifier))
-        repatchPutBy(globalObject, codeBlock, baseValue, structure, identifier, slot, *propertyCache, PutByKind::ByIdStrict);
+        repatchPutBy(globalObject, codeBlock, baseValue, structure, identifier, slot, *propertyCache, PutByKind::ByIdStrict, /* isNonStringPrimitiveKey */ false);
     OPERATION_RETURN(scope);
 }
 
@@ -1455,7 +1455,7 @@ JSC_DEFINE_JIT_OPERATION(operationPutByIdSloppyOptimize, void, (EncodedJSValue e
         OPERATION_RETURN(scope);
     
     if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, structure, identifier))
-        repatchPutBy(globalObject, codeBlock, baseValue, structure, identifier, slot, *propertyCache, PutByKind::ByIdSloppy);
+        repatchPutBy(globalObject, codeBlock, baseValue, structure, identifier, slot, *propertyCache, PutByKind::ByIdSloppy, /* isNonStringPrimitiveKey */ false);
     OPERATION_RETURN(scope);
 }
 
@@ -1487,7 +1487,7 @@ JSC_DEFINE_JIT_OPERATION(operationPutByIdDirectStrictOptimize, void, (EncodedJSV
         OPERATION_RETURN(scope);
     
     if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, structure, identifier))
-        repatchPutBy(globalObject, codeBlock, baseObject, structure, identifier, slot, *propertyCache, PutByKind::ByIdDirectStrict);
+        repatchPutBy(globalObject, codeBlock, baseObject, structure, identifier, slot, *propertyCache, PutByKind::ByIdDirectStrict, /* isNonStringPrimitiveKey */ false);
     OPERATION_RETURN(scope);
 }
 
@@ -1519,7 +1519,7 @@ JSC_DEFINE_JIT_OPERATION(operationPutByIdDirectSloppyOptimize, void, (EncodedJSV
         OPERATION_RETURN(scope);
     
     if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, structure, identifier))
-        repatchPutBy(globalObject, codeBlock, baseObject, structure, identifier, slot, *propertyCache, PutByKind::ByIdDirectSloppy);
+        repatchPutBy(globalObject, codeBlock, baseObject, structure, identifier, slot, *propertyCache, PutByKind::ByIdDirectSloppy, /* isNonStringPrimitiveKey */ false);
     OPERATION_RETURN(scope);
 }
 
@@ -1603,7 +1603,7 @@ JSC_DEFINE_JIT_OPERATION(operationPutByIdDefinePrivateFieldStrictOptimize, void,
         ASSERT_UNUSED(accessType, accessType == static_cast<AccessType>(propertyCache->accessType));
 
         if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, oldStructure, identifier))
-            repatchPutBy(globalObject, codeBlock, baseObject, oldStructure, identifier, putSlot, *propertyCache, PutByKind::DefinePrivateNameById);
+            repatchPutBy(globalObject, codeBlock, baseObject, oldStructure, identifier, putSlot, *propertyCache, PutByKind::DefinePrivateNameById, /* isNonStringPrimitiveKey */ false);
     });
     OPERATION_RETURN(scope);
 }
@@ -1650,7 +1650,7 @@ JSC_DEFINE_JIT_OPERATION(operationPutByIdSetPrivateFieldStrictOptimize, void, (E
         ASSERT_UNUSED(accessType, accessType == static_cast<AccessType>(propertyCache->accessType));
 
         if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, oldStructure, identifier))
-            repatchPutBy(globalObject, codeBlock, baseObject, oldStructure, identifier, putSlot, *propertyCache, PutByKind::SetPrivateNameById);
+            repatchPutBy(globalObject, codeBlock, baseObject, oldStructure, identifier, putSlot, *propertyCache, PutByKind::SetPrivateNameById, /* isNonStringPrimitiveKey */ false);
     });
     OPERATION_RETURN(scope);
 }
@@ -1768,22 +1768,31 @@ static ALWAYS_INLINE void putByValOptimize(JSGlobalObject* globalObject, CodeBlo
             }
         }
 
-        if (auto propertyName = CacheableIdentifier::getCacheableIdentifier(subscript)) {
-            RETURN_IF_EXCEPTION(scope, void());
-            if (subscript.isSymbol() || !parseIndex(*propertyName.data)) {
+        {
+            CacheableIdentifier identifier;
+            bool isNonStringPrimitiveKey = false;
+            if (auto propertyName = CacheableIdentifier::getCacheableIdentifier(subscript)) {
+                RETURN_IF_EXCEPTION(scope, void());
+                if (subscript.isSymbol() || !parseIndex(*propertyName.data))
+                    identifier = CacheableIdentifier::createFromCell(subscript.asCell());
+            } else {
+                identifier = nonStringPrimitiveKeyForSubscript(vm, subscript);
+                isNonStringPrimitiveKey = !!identifier;
+            }
+
+            if (identifier) {
                 AccessType accessType = static_cast<AccessType>(propertyCache->accessType);
                 PutPropertySlot slot(baseValue, isStrict, codeBlock->putByIdContext());
 
                 Structure* structure = CommonSlowPaths::originalStructureBeforePut(baseValue);
-                baseObject->putInline(globalObject, propertyName.data, value, slot);
+                baseObject->putInline(globalObject, identifier, value, slot);
                 RETURN_IF_EXCEPTION(scope, void());
 
                 if (accessType != static_cast<AccessType>(propertyCache->accessType))
                     return;
 
-                CacheableIdentifier identifier = CacheableIdentifier::createFromCell(subscript.asCell());
                 if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, structure, identifier))
-                    repatchPutBy(globalObject, codeBlock, baseValue, structure, identifier, slot, *propertyCache, kind);
+                    repatchPutBy(globalObject, codeBlock, baseValue, structure, identifier, slot, *propertyCache, kind, isNonStringPrimitiveKey);
                 return;
             }
         }
@@ -1842,24 +1851,32 @@ static ALWAYS_INLINE void directPutByValOptimize(JSGlobalObject* globalObject, C
         }
     }
 
-    if (CacheableIdentifier::isCacheableIdentifierCell(subscript)) {
-        const Identifier propertyName = subscript.toPropertyKey(globalObject);
-        RETURN_IF_EXCEPTION(scope, void());
-        if (subscript.isSymbol() || !parseIndex(propertyName)) {
+    {
+        CacheableIdentifier identifier;
+        bool isNonStringPrimitiveKey = false;
+        if (auto propertyName = CacheableIdentifier::getCacheableIdentifier(subscript)) {
+            RETURN_IF_EXCEPTION(scope, void());
+            if (subscript.isSymbol() || !parseIndex(*propertyName.data))
+                identifier = CacheableIdentifier::createFromCell(subscript.asCell());
+        } else {
+            identifier = nonStringPrimitiveKeyForSubscript(vm, subscript);
+            isNonStringPrimitiveKey = !!identifier;
+        }
+
+        if (identifier) {
             AccessType accessType = static_cast<AccessType>(propertyCache->accessType);
             PutPropertySlot slot(baseValue, isStrict, codeBlock->putByIdContext());
 
             Structure* structure = CommonSlowPaths::originalStructureBeforePut(baseValue);
-            CommonSlowPaths::putDirectWithReify(vm, globalObject, baseObject, propertyName, value, slot);
+            CommonSlowPaths::putDirectWithReify(vm, globalObject, baseObject, identifier, value, slot);
 
             RETURN_IF_EXCEPTION(scope, void());
 
             if (accessType != static_cast<AccessType>(propertyCache->accessType))
                 return;
 
-            CacheableIdentifier identifier = CacheableIdentifier::createFromCell(subscript.asCell());
             if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, structure, identifier))
-                repatchPutBy(globalObject, codeBlock, baseValue, structure, identifier, slot, *propertyCache, kind);
+                repatchPutBy(globalObject, codeBlock, baseValue, structure, identifier, slot, *propertyCache, kind, isNonStringPrimitiveKey);
             return;
         }
     }
@@ -2323,7 +2340,7 @@ static ALWAYS_INLINE void putPrivateNameOptimize(JSGlobalObject* globalObject, C
     if (baseValue.isObject() && CacheableIdentifier::isCacheableIdentifierCell(subscript)) {
         CacheableIdentifier identifier = CacheableIdentifier::createFromCell(subscript.asCell());
         if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, structure, identifier))
-            repatchPutBy(globalObject, codeBlock, baseValue, structure, identifier, slot, *propertyCache, define ? PutByKind::DefinePrivateNameByVal : PutByKind::SetPrivateNameByVal);
+            repatchPutBy(globalObject, codeBlock, baseValue, structure, identifier, slot, *propertyCache, define ? PutByKind::DefinePrivateNameByVal : PutByKind::SetPrivateNameByVal, /* isNonStringPrimitiveKey */ false);
     }
 }
 
@@ -3472,7 +3489,7 @@ ALWAYS_INLINE static JSValue getByVal(JSGlobalObject* globalObject, CallFrame* c
                 && static_cast<uint32_t>(i) < object->butterfly()->publicLength()) {
                 // FIXME: expand this to ArrayStorage, Int32, and maybe Double:
                 // https://bugs.webkit.org/show_bug.cgi?id=182940
-                auto* globalObject = object->globalObject();
+                auto* globalObject = object->realm();
                 skipMarkingOutOfBounds = globalObject->isOriginalArrayStructure(object->structure()) && globalObject->arrayPrototypeChainIsSane();
             }
 
@@ -3536,27 +3553,34 @@ JSC_DEFINE_JIT_OPERATION(operationGetByValOptimize, EncodedJSValue, (EncodedJSVa
 
     CodeBlock* codeBlock = callFrame->codeBlock();
 
-    if (baseValue.isCell() && subscript.isInt32()) {
-        Structure* structure = baseValue.asCell()->structure();
-        if (propertyCache->considerRepatchingCacheGeneric(vm, codeBlock, structure)) {
-            if (profile)
-                profile->computeUpdatedPrediction(codeBlock, structure);
-            repatchArrayGetByVal(globalObject, codeBlock, baseValue, subscript, *propertyCache, GetByKind::ByVal);
-        }
-    }
-
     if (baseValue.isCell()) {
-        if (auto propertyName = CacheableIdentifier::getCacheableIdentifier(subscript)) {
-            OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
-            if (subscript.isSymbol() || !parseIndex(*propertyName.data)) {
+        if (subscript.isInt32()) {
+            Structure* structure = baseValue.asCell()->structure();
+            if (propertyCache->considerRepatchingCacheGeneric(vm, codeBlock, structure)) {
+                if (profile)
+                    profile->computeUpdatedPrediction(codeBlock, structure);
+                repatchArrayGetByVal(globalObject, codeBlock, baseValue, subscript, *propertyCache, GetByKind::ByVal);
+            }
+        } else {
+            CacheableIdentifier identifier;
+            bool isNonStringPrimitiveKey = false;
+            if (auto propertyName = CacheableIdentifier::getCacheableIdentifier(subscript)) {
+                OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
+                if (subscript.isSymbol() || !parseIndex(*propertyName.data))
+                    identifier = CacheableIdentifier::createFromCell(subscript.asCell());
+            } else {
+                identifier = nonStringPrimitiveKeyForSubscript(vm, subscript);
+                isNonStringPrimitiveKey = !!identifier;
+            }
+
+            if (identifier) {
                 scope.release();
-                OPERATION_RETURN(scope, JSValue::encode(baseValue.getPropertySlot(globalObject, propertyName.data, [&] (bool found, PropertySlot& slot) -> JSValue {
+                OPERATION_RETURN(scope, JSValue::encode(baseValue.getPropertySlot(globalObject, identifier, [&] (bool found, PropertySlot& slot) -> JSValue {
                     LOG_IC((ICEvent::OperationGetByValOptimize, baseValue.classInfoOrNull(), baseValue == slot.slotBase()));
 
-                    CacheableIdentifier identifier = CacheableIdentifier::createFromCell(subscript.asCell());
                     if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, baseValue.structureOrNull(), identifier))
-                        repatchGetBy(globalObject, codeBlock, baseValue, identifier, slot, *propertyCache, GetByKind::ByVal);
-                    return found ? slot.getValue(globalObject, propertyName.data) : jsUndefined();
+                        repatchGetBy(globalObject, codeBlock, baseValue, identifier, slot, *propertyCache, GetByKind::ByVal, isNonStringPrimitiveKey);
+                    return found ? slot.getValue(globalObject, identifier) : jsUndefined();
                 })));
             }
         }
@@ -3607,7 +3631,7 @@ ALWAYS_INLINE static JSValue getByValWithThis(JSGlobalObject* globalObject, Call
                 && static_cast<uint32_t>(i) < object->butterfly()->publicLength()) {
                 // FIXME: expand this to ArrayStorage, Int32, and maybe Double:
                 // https://bugs.webkit.org/show_bug.cgi?id=182940
-                auto* globalObject = object->globalObject();
+                auto* globalObject = object->realm();
                 skipMarkingOutOfBounds = globalObject->isOriginalArrayStructure(object->structure()) && globalObject->arrayPrototypeChainIsSane();
             }
 
@@ -3818,29 +3842,37 @@ JSC_DEFINE_JIT_OPERATION(operationGetByValWithThisOptimize, EncodedJSValue, (Enc
 
     CodeBlock* codeBlock = callFrame->codeBlock();
 
-    if (baseValue.isCell() && subscript.isInt32()) {
-        Structure* structure = baseValue.asCell()->structure();
-        if (propertyCache->considerRepatchingCacheGeneric(vm, codeBlock, structure)) {
-            if (profile)
-                profile->computeUpdatedPrediction(codeBlock, structure);
-            repatchArrayGetByVal(globalObject, codeBlock, baseValue, subscript, *propertyCache, GetByKind::ByValWithThis);
-        }
-    }
-
     PropertySlot slot(thisValue, PropertySlot::PropertySlot::InternalMethodType::Get);
-    if (baseValue.isCell() && CacheableIdentifier::isCacheableIdentifierCell(subscript)) {
-        const Identifier propertyName = subscript.toPropertyKey(globalObject);
-        OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
-        if (subscript.isSymbol() || !parseIndex(propertyName)) {
-            scope.release();
-            OPERATION_RETURN(scope, JSValue::encode(baseValue.getPropertySlot(globalObject, propertyName, slot, [&] (bool found, PropertySlot& slot) -> JSValue {
-                LOG_IC((ICEvent::OperationGetByValWithThisOptimize, baseValue.classInfoOrNull(), baseValue == slot.slotBase()));
+    if (baseValue.isCell()) {
+        if (subscript.isInt32()) {
+            Structure* structure = baseValue.asCell()->structure();
+            if (propertyCache->considerRepatchingCacheGeneric(vm, codeBlock, structure)) {
+                if (profile)
+                    profile->computeUpdatedPrediction(codeBlock, structure);
+                repatchArrayGetByVal(globalObject, codeBlock, baseValue, subscript, *propertyCache, GetByKind::ByValWithThis);
+            }
+        } else {
+            CacheableIdentifier identifier;
+            bool isNonStringPrimitiveKey = false;
+            if (auto propertyName = CacheableIdentifier::getCacheableIdentifier(subscript)) {
+                OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
+                if (subscript.isSymbol() || !parseIndex(*propertyName.data))
+                    identifier = CacheableIdentifier::createFromCell(subscript.asCell());
+            } else {
+                identifier = nonStringPrimitiveKeyForSubscript(vm, subscript);
+                isNonStringPrimitiveKey = !!identifier;
+            }
 
-                CacheableIdentifier identifier = CacheableIdentifier::createFromCell(subscript.asCell());
-                if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, baseValue.structureOrNull(), identifier))
-                    repatchGetBy(globalObject, codeBlock, baseValue, identifier, slot, *propertyCache, GetByKind::ByValWithThis);
-                return found ? slot.getValue(globalObject, propertyName) : jsUndefined();
-            })));
+            if (identifier) {
+                scope.release();
+                OPERATION_RETURN(scope, JSValue::encode(baseValue.getPropertySlot(globalObject, identifier, slot, [&] (bool found, PropertySlot& slot) -> JSValue {
+                    LOG_IC((ICEvent::OperationGetByValWithThisOptimize, baseValue.classInfoOrNull(), baseValue == slot.slotBase()));
+
+                    if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, baseValue.structureOrNull(), identifier))
+                        repatchGetBy(globalObject, codeBlock, baseValue, identifier, slot, *propertyCache, GetByKind::ByValWithThis, isNonStringPrimitiveKey);
+                    return found ? slot.getValue(globalObject, identifier) : jsUndefined();
+                })));
+            }
         }
     }
 
@@ -3977,7 +4009,7 @@ JSC_DEFINE_JIT_OPERATION(operationGetPrivateNameOptimize, EncodedJSValue, (Encod
 
         CacheableIdentifier identifier = CacheableIdentifier::createFromCell(fieldNameValue.asCell());
         if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, baseValue.structureOrNull(), identifier))
-            repatchGetBy(globalObject, codeBlock, baseValue, identifier, slot, *propertyCache, GetByKind::PrivateName);
+            repatchGetBy(globalObject, codeBlock, baseValue, identifier, slot, *propertyCache, GetByKind::PrivateName, /* isNonStringPrimitiveKey */ false);
         OPERATION_RETURN(scope, JSValue::encode(slot.getValue(globalObject, fieldName)));
     }
 
@@ -4059,7 +4091,7 @@ JSC_DEFINE_JIT_OPERATION(operationGetPrivateNameByIdOptimize, EncodedJSValue, (E
 
         CodeBlock* codeBlock = callFrame->codeBlock();
         if (propertyCache->considerRepatchingCacheBy(vm, codeBlock, baseValue.structureOrNull(), identifier))
-            repatchGetBy(globalObject, codeBlock, baseValue, identifier, slot, *propertyCache, GetByKind::PrivateNameById);
+            repatchGetBy(globalObject, codeBlock, baseValue, identifier, slot, *propertyCache, GetByKind::PrivateNameById, /* isNonStringPrimitiveKey */ false);
         OPERATION_RETURN(scope, JSValue::encode(slot.getValue(globalObject, identifier)));
     }
 
@@ -5235,7 +5267,7 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationDebuggerWillCallNativeExecutable, voi
 {
     ASSERT(!callFrame->isNativeCalleeFrame());
 
-    auto* globalObject = callFrame->jsCallee()->globalObject();
+    auto* globalObject = callFrame->jsCallee()->realm();
     if (!globalObject)
         return;
 

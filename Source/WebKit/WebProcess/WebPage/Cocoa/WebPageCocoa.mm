@@ -179,6 +179,10 @@
 #include "WebExtensionControllerProxy.h"
 #endif
 
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+#import <WebCore/TextEffectController.h>
+#endif
+
 #import "PDFKitSoftLink.h"
 
 #define WEBPAGE_RELEASE_LOG(channel, fmt, ...) RELEASE_LOG(channel, "%p - [webPageID=%" PRIu64 "] WebPage::" fmt, this, m_identifier.toUInt64(), ##__VA_ARGS__)
@@ -767,10 +771,7 @@ void WebPage::getAccessibilityWebProcessDebugInfo(CompletionHandler<void(WebCore
         return;
     }
 
-    bool isAXThreadInitialized = false;
-#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-    isAXThreadInitialized = WebCore::AXObjectCache::isAXThreadInitialized();
-#endif
+    auto mode = WebCore::AXObjectCache::accessibilityMode();
     Vector<String> warnings;
 
     RefPtr focusedFrame = [m_mockAccessibilityElement focusedLocalFrame];
@@ -780,7 +781,7 @@ void WebPage::getAccessibilityWebProcessDebugInfo(CompletionHandler<void(WebCore
         if (CheckedPtr cache = document->axObjectCache()) {
             auto treeData = cache->treeData();
             warnings = WTF::move(treeData.warnings);
-            completionHandler({ WebCore::AXObjectCache::accessibilityEnabled(), isAXThreadInitialized, WTF::move(treeData.liveTree), WTF::move(treeData.isolatedTree), WTF::move(warnings), [m_mockAccessibilityElement remoteTokenHash], [accessibilityRemoteTokenData() hash] });
+            completionHandler({ mode, WTF::move(treeData.liveTree), WTF::move(treeData.isolatedTree), WTF::move(warnings), [m_mockAccessibilityElement remoteTokenHash], [accessibilityRemoteTokenData() hash] });
             return;
         }
         warnings.append("No AXObjectCache"_s);
@@ -789,7 +790,7 @@ void WebPage::getAccessibilityWebProcessDebugInfo(CompletionHandler<void(WebCore
     else
         warnings.append("Focused LocalFrame has no document"_s);
 
-    completionHandler({ WebCore::AXObjectCache::accessibilityEnabled(), isAXThreadInitialized, emptyString(), emptyString(), WTF::move(warnings), [m_mockAccessibilityElement remoteTokenHash], [accessibilityRemoteTokenData() hash] });
+    completionHandler({ mode, emptyString(), emptyString(), WTF::move(warnings), [m_mockAccessibilityElement remoteTokenHash], [accessibilityRemoteTokenData() hash] });
 }
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
@@ -1353,6 +1354,18 @@ void WebPage::removeTextAnimationForAnimationID(const WTF::UUID& uuid)
     send(Messages::WebPageProxy::RemoveTextAnimationForAnimationID(uuid));
 }
 
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+void WebPage::addTextEffectForID(const WTF::UUID& uuid, WebCore::TextEffectData&& data, RefPtr<WebCore::TextIndicator>&& textIndicator, RefPtr<WebCore::TextIndicator>&& decorationIndicator)
+{
+    send(Messages::WebPageProxy::AddTextEffectForID(uuid, WTF::move(data), WTF::move(textIndicator), WTF::move(decorationIndicator)));
+}
+
+void WebPage::removeTextEffectForID(const WTF::UUID& uuid)
+{
+    send(Messages::WebPageProxy::RemoveTextEffectForID(uuid));
+}
+#endif // ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+
 void WebPage::removeInitialTextAnimationForActiveWritingToolsSession()
 {
     m_textAnimationController->removeInitialTextAnimationForActiveWritingToolsSession();
@@ -1392,6 +1405,18 @@ void WebPage::updateUnderlyingTextVisibilityForTextAnimationID(const WTF::UUID& 
 {
     m_textAnimationController->updateUnderlyingTextVisibilityForTextAnimationID(uuid, visible, WTF::move(completionHandler));
 }
+
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+void WebPage::updateUnderlyingTextVisibilityForTextEffectID(const WTF::UUID& uuid, bool visible, CompletionHandler<void()>&& completionHandler)
+{
+    protect(corePage())->textEffectController().updateUnderlyingTextVisibilityForTextEffectID(uuid, visible, WTF::move(completionHandler));
+}
+
+void WebPage::createTextIndicatorForTextEffectID(const WTF::UUID& uuid, CompletionHandler<void(RefPtr<WebCore::TextIndicator>&&)>&& completionHandler)
+{
+    protect(corePage())->textEffectController().createTextIndicatorForTextEffectID(uuid, WTF::move(completionHandler));
+}
+#endif // ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
 
 void WebPage::proofreadingSessionSuggestionTextRectsInRootViewCoordinates(const WebCore::CharacterRange& enclosingRangeRelativeToSessionRange, CompletionHandler<void(Vector<FloatRect>&&)>&& completionHandler) const
 {
@@ -2628,7 +2653,7 @@ bool WebPage::isAssistableElement(Element& element)
         return true;
     if (is<HTMLTextAreaElement>(element))
         return true;
-    if (RefPtr inputElement = dynamicDowncast<HTMLInputElement>(element)) {
+    if (auto* inputElement = dynamicDowncast<HTMLInputElement>(element)) {
         // FIXME: This laundry list of types is not a good way to factor this. Need a suitable function on HTMLInputElement itself.
 #if ENABLE(INPUT_TYPE_WEEK_PICKER)
         if (inputElement->isWeekField())
@@ -3282,7 +3307,8 @@ void WebPage::completeSyntheticClick(std::optional<WebCore::FrameIdentifier> fra
     // FIXME: Pass caps lock state.
     auto platformModifiers = platform(modifiers);
 
-    bool handledPress = localRootFrame->eventHandler().handleMousePressEvent(PlatformMouseEvent(roundedAdjustedPoint, roundedAdjustedPoint, MouseButton::Left, PlatformEvent::Type::MousePressed, 1, platformModifiers, MonotonicTime::now(), WebCore::ForceAtClick, syntheticClickType, m_potentialTapInputSource, pointerId)).wasHandled();
+    auto pressEvent = PlatformMouseEvent { roundedAdjustedPoint, roundedAdjustedPoint, MouseButton::Left, PlatformEvent::Type::MousePressed, 1, platformModifiers, MonotonicTime::now(), WebCore::ForceAtClick, syntheticClickType, m_potentialTapInputSource, pointerId };
+    bool handledPress = localRootFrame->eventHandler().handleMousePressEvent(pressEvent).wasHandled();
     if (m_isClosed)
         return;
 
@@ -3302,15 +3328,11 @@ void WebPage::completeSyntheticClick(std::optional<WebCore::FrameIdentifier> fra
     RefPtr<Element> newFocusedElement = newFocusedFrame ? newFocusedFrame->document()->focusedElement() : nullptr;
 
     if (nodeRespondingToClick.document().settings().contentChangeObserverEnabled()) {
-        Ref document = nodeRespondingToClick.document();
-        // Dispatch mouseOut to dismiss tooltip content when tapping on the control bar buttons (cc, settings).
-        if (document->quirks().needsYouTubeMouseOutQuirk()) {
-            if (RefPtr frame = document->frame()) {
-                PlatformMouseEvent event { roundedAdjustedPoint, roundedAdjustedPoint, MouseButton::Left, PlatformEvent::Type::NoType, 0, platformModifiers, MonotonicTime::now(), 0, WebCore::SyntheticClickType::NoTap, m_potentialTapInputSource, pointerId };
-                if (!nodeRespondingToClick.isConnected())
-                    frame->eventHandler().dispatchSyntheticMouseMove(event);
-                frame->eventHandler().dispatchSyntheticMouseOut(event);
-            }
+        if (RefPtr frame = nodeRespondingToClick.document().frame()) {
+            PlatformMouseEvent event { roundedAdjustedPoint, roundedAdjustedPoint, MouseButton::None, PlatformEvent::Type::NoType, 0, platformModifiers, MonotonicTime::now(), 0, WebCore::SyntheticClickType::NoTap, m_potentialTapInputSource, pointerId };
+            if (!nodeRespondingToClick.isConnected())
+                frame->eventHandler().dispatchSyntheticMouseMove(event);
+            frame->eventHandler().dispatchSyntheticMouseOut(event);
         }
     }
 
@@ -3319,8 +3341,10 @@ void WebPage::completeSyntheticClick(std::optional<WebCore::FrameIdentifier> fra
 
 #if ENABLE(PDF_PLUGIN)
     if (RefPtr pluginElement = dynamicDowncast<HTMLPlugInElement>(nodeRespondingToClick)) {
-        if (RefPtr pluginWidget = downcast<PluginView>(pluginElement->pluginWidget()))
+        if (RefPtr pluginWidget = downcast<PluginView>(pluginElement->pluginWidget())) {
+            pluginWidget->handleSyntheticClick(WTF::move(pressEvent));
             pluginWidget->handleSyntheticClick(WTF::move(releaseEvent));
+        }
     }
 #endif
 

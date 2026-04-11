@@ -35,7 +35,6 @@ extern "C" {
 #endif
 
 #include <cstdio>
-#include <mutex>
 #include <signal.h>
 #include <wtf/StdLibExtras.h>
 
@@ -49,20 +48,14 @@ extern "C" {
 #endif
 
 #if OS(DARWIN)
-#include <mach/vm_param.h>
 #endif
 
-#include <unistd.h>
-#include <wtf/Atomics.h>
 #include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/DataLog.h>
-#include <wtf/MathExtras.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/PlatformRegisters.h>
-#include <wtf/Scope.h>
 #include <wtf/ThreadGroup.h>
 #include <wtf/Threading.h>
-#include <wtf/TranslatedProcess.h>
 #include <wtf/WTFConfig.h>
 
 namespace WTF {

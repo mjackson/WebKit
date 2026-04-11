@@ -43,15 +43,19 @@
 #include "ImageBuffer.h"
 #include "IntRect.h"
 #include "LocalFrame.h"
+#include "LocalFrameInlines.h"
+#include "DocumentView.h"
 #include "LocalFrameView.h"
 #include "NodeTraversal.h"
 #include "Range.h"
 #include "RenderElement.h"
 #include "RenderLayer.h"
 #include "RenderObject.h"
+#include "RenderStyle+GettersInlines.h"
 #include "RenderText.h"
 #include "TextIterator.h"
 #include "TextPaintStyle.h"
+#include "FrameDestructionObserverInlines.h"
 
 #if PLATFORM(IOS_FAMILY)
 #include "SelectionGeometry.h"
@@ -214,6 +218,9 @@ static SnapshotOptions snapshotOptionsForTextIndicatorOptions(OptionSet<TextIndi
 
     if (options.contains(TextIndicatorOption::SnapshotContentAt3xBaseScale))
         snapshotOptions.flags.add(SnapshotFlags::PaintWith3xBaseScale);
+
+    if (options.contains(TextIndicatorOption::IncludeDocumentMarkers))
+        snapshotOptions.flags.add(SnapshotFlags::IncludeDocumentMarkers);
 
     return snapshotOptions;
 }

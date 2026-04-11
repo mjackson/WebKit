@@ -36,8 +36,9 @@ class CSSValue;
 enum CSSValueID : uint16_t;
 
 namespace CSS {
+struct CustomIdent;
 struct PropertyParserState;
-using GridNamedAreaMapRow = Vector<String, 8>;
+using GridNamedAreaMapRow = Vector<AtomString, 8>;
 }
 
 namespace CSSPropertyParserHelpers {

@@ -84,8 +84,8 @@ protected:
     virtual bool hasRelativeIntrinsicLogicalWidth() const { return false; }
 
     void paint(PaintInfo&, const LayoutPoint&) override;
-    bool shouldPaint(PaintInfo&, const LayoutPoint&);
-    LayoutRect localSelectionRect(bool checkWhetherSelected = true) const; // This is in local coordinates, but it's a physical rect (so the top left corner is physical top left).
+    bool NODELETE shouldPaint(PaintInfo&, const LayoutPoint&);
+    LayoutRect NODELETE localSelectionRect(bool checkWhetherSelected = true) const; // This is in local coordinates, but it's a physical rect (so the top left corner is physical top left).
 
     void willBeDestroyed() override;
 

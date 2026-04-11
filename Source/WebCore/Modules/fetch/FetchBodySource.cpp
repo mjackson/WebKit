@@ -26,6 +26,7 @@
 
 #include "config.h"
 #include "FetchBodySource.h"
+#include "ContextDestructionObserverInlines.h"
 
 #include "FetchResponse.h"
 #include "JSDOMPromise.h"

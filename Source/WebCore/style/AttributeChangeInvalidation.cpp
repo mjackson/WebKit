@@ -58,7 +58,7 @@ void AttributeChangeInvalidation::invalidateStyle(const QualifiedName& attribute
             mayAffectStyleInShadowTree = true;
         if (features.attributesAffectingHost.contains(attributeNameForLookups))
             shouldInvalidateCurrent = true;
-        else if (features.contentAttributeNamesInRules.contains(attributeNameForLookups))
+        else if (features.substitutionAttributeNamesInRules.contains(attributeNameForLookups))
             shouldInvalidateCurrent = true;
     });
 

@@ -37,7 +37,7 @@ class ImageBufferCGPDFDocumentBackend : public ImageBufferCGBackend {
     WTF_MAKE_TZONE_ALLOCATED(ImageBufferCGPDFDocumentBackend);
     WTF_MAKE_NONCOPYABLE(ImageBufferCGPDFDocumentBackend);
 public:
-    WEBCORE_EXPORT static size_t calculateMemoryCost(const Parameters&);
+    WEBCORE_EXPORT static size_t NODELETE calculateMemoryCost(const Parameters&);
     WEBCORE_EXPORT static std::unique_ptr<ImageBufferCGPDFDocumentBackend> create(const Parameters&, const ImageBufferCreationContext&);
 
     ~ImageBufferCGPDFDocumentBackend();

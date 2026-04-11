@@ -20,6 +20,7 @@
 
 #include "config.h"
 #include "SVGTextQuery.h"
+#include "FontCascadeInlines.h"
 
 #include "FloatConversion.h"
 #include "LegacyInlineFlowBox.h"

@@ -38,6 +38,7 @@
 #include "RenderBoxInlines.h"
 #include "RenderBoxModelObjectInlines.h"
 #include "RenderChildIterator.h"
+#include "RenderElementStyleInlines.h"
 #include "RenderLayoutState.h"
 #include "RenderObjectInlines.h"
 #include "RenderTableCellInlines.h"
@@ -297,7 +298,7 @@ LayoutUnit RenderTableSection::calcRowLogicalHeight()
                 if (cell->overridingBorderBoxLogicalHeight() && !cell->isOrthogonal()) {
                     cell->clearIntrinsicPadding();
                     cell->clearOverridingSize();
-                    cell->setChildNeedsLayout(MarkOnlyThis);
+                    cell->setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
                     cell->layoutIfNeeded();
                 }
 
@@ -396,12 +397,12 @@ void RenderTableSection::layout()
             auto cellHadSelfNeedsLayout = cell->selfNeedsLayout();
             cell->setCellLogicalWidth(cellLogicalWidthInTableDirectionIncludingColumnSpan(*cell, startColumn, numberOfColumns));
             if (!cellHadSelfNeedsLayout && cell->selfNeedsLayout() && rowRenderer)
-                rowRenderer->setChildNeedsLayout(MarkOnlyThis);
+                rowRenderer->setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
         }
 
         if (rowRenderer) {
             if (!rowRenderer->needsLayout() && paginated && view().frameView().layoutContext().layoutState()->pageLogicalHeightChanged())
-                rowRenderer->setChildNeedsLayout(MarkOnlyThis);
+                rowRenderer->setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
 
             rowRenderer->layoutIfNeeded();
         }
@@ -560,7 +561,7 @@ void RenderTableSection::relayoutCellIfFlexed(RenderTableCell& cell, int rowInde
     if (!cellChildrenFlex)
         return;
 
-    cell.setChildNeedsLayout(MarkOnlyThis);
+    cell.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
     // Alignment within a cell is based off the calculated
     // height, which becomes irrelevant once the cell has
     // been resized based off its percentage.
@@ -634,7 +635,7 @@ void RenderTableSection::layoutRows()
             auto logicalHeightForIntrinsicPadding = !cell->isOrthogonal() ? rowHeight : cellLogicalWidthInTableDirectionIncludingColumnSpan(*cell, columnIndex, numberOfEffectiveColumns);
             if (cell->computeIntrinsicPadding(logicalHeightForIntrinsicPadding)) {
                 // FIXME: Changing an intrinsic padding shouldn't trigger a relayout as it only shifts the cell inside the row but doesn't change the logical height.
-                cell->setChildNeedsLayout(MarkOnlyThis);
+                cell->setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
             }
 
             LayoutRect oldCellRect = cell->frameRect();
@@ -643,10 +644,10 @@ void RenderTableSection::layoutRows()
 
             auto* layoutState = view().frameView().layoutContext().layoutState();
             if (!cell->needsLayout() && layoutState->pageLogicalHeight() && layoutState->pageLogicalOffset(cell, cell->logicalTop()) != cell->pageLogicalOffset())
-                cell->setChildNeedsLayout(MarkOnlyThis);
+                cell->setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
 
             if (cell->isOrthogonal()) {
-                cell->setNeedsLayout(MarkOnlyThis);
+                cell->setNeedsLayout(MarkingBehavior::MarkOnlyThis);
                 cell->setOverridingBorderBoxLogicalWidth(rowHeight);
             }
             cell->layoutIfNeeded();
@@ -1044,7 +1045,7 @@ CellSpan RenderTableSection::dirtiedRows(const LayoutRect& damageRect) const
     CellSpan coveredRows = spannedRows(damageRect, IncludeAllIntersectingCells);
 
     // To repaint the border we might need to repaint first or last row even if they are not spanned themselves.
-    if (coveredRows.start >= m_rowPos.size() - 1 && m_rowPos[m_rowPos.size() - 1] + table()->outerBorderAfter() >= damageRect.y())
+    if (coveredRows.start >= m_rowPos.size() - 1 && m_rowPos.last() + table()->outerBorderAfter() >= damageRect.y())
         --coveredRows.start;
 
     if (!coveredRows.end && m_rowPos[0] - table()->outerBorderBefore() <= damageRect.maxY())
@@ -1062,7 +1063,7 @@ CellSpan RenderTableSection::dirtiedColumns(const LayoutRect& damageRect) const
 
     const Vector<LayoutUnit>& columnPos = table()->columnPositions();
     // To repaint the border we might need to repaint first or last column even if they are not spanned themselves.
-    if (coveredColumns.start >= columnPos.size() - 1 && columnPos[columnPos.size() - 1] + table()->outerBorderEnd() >= damageRect.x())
+    if (coveredColumns.start >= columnPos.size() - 1 && columnPos.last() + table()->outerBorderEnd() >= damageRect.x())
         --coveredColumns.start;
 
     if (!coveredColumns.end && columnPos[0] - table()->outerBorderStart() <= damageRect.maxX())
@@ -1346,9 +1347,19 @@ void RenderTableSection::paintObject(PaintInfo& paintInfo, const LayoutPoint& pa
             row->paintOutlineForRowIfNeeded(paintInfo, paintOffset);
     };
 
+    auto paintRowShadow = [&](unsigned rowIndex, PaintPhase phase) {
+        if (phase != PaintPhase::BlockBackground && phase != PaintPhase::ChildBlockBackground)
+            return;
+
+        auto* row = m_grid[rowIndex].rowRenderer;
+        if (row && !row->hasSelfPaintingLayer() && !row->style().boxShadow().isNone())
+            row->paintShadowForRowIfNeeded(paintInfo, paintOffset);
+    };
+
     auto paintContiguousCells = [&]() {
         // Draw the dirty cells in the order that they appear.
         for (unsigned r = dirtiedRows.start; r < dirtiedRows.end; r++) {
+            paintRowShadow(r , paintInfo.phase);
             paintRowOutline(r, paintInfo.phase);
 
             for (unsigned c = dirtiedColumns.start; c < dirtiedColumns.end; c++) {

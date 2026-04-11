@@ -59,8 +59,8 @@ public:
 
     void requestImmersive(HTMLModelElement*, CompletionHandler<void(ExceptionOr<void>)>&&);
     void exitImmersive(CompletionHandler<void(ExceptionOr<void>)>&&);
-    WEBCORE_EXPORT void exitImmersive();
-    void exitRemovedImmersiveElement(HTMLModelElement*, CompletionHandler<void()>&&);
+    WEBCORE_EXPORT void exitImmersiveIfNeeded();
+    void exitRemovedImmersiveElementIfNeeded(HTMLModelElement*, CompletionHandler<void()>&&);
 
     enum class EventType : bool { Change, Error };
     void dispatchPendingEvents();
@@ -89,7 +89,7 @@ private:
         WeakPtr<HTMLModelElement, WeakPtrImplWithEventTargetData> element;
     };
     ActiveRequest m_activeRequest;
-    std::optional<Exception> checkRequestStillValid(HTMLModelElement*, ActiveRequest::Stage expectedStage);
+    std::optional<Exception> isRequestOutdated(HTMLModelElement*, ActiveRequest::Stage expectedStage);
 
     void cancelActiveRequest(CompletionHandler<void()>&&);
     void beginImmersiveRequest(Ref<HTMLModelElement>&&, CompletionHandler<void(ExceptionOr<void>)>&&);

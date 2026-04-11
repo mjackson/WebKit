@@ -60,7 +60,7 @@ private:
     { }
 
 public:
-    static std::optional<SignalContext> tryCreate(PlatformRegisters& registers)
+    static std::optional<SignalContext> NODELETE tryCreate(PlatformRegisters& registers)
     {
         auto instructionPointer = MachineContext::instructionPointer(registers);
         if (!instructionPointer)
@@ -74,12 +74,12 @@ public:
     void* framePointer;
 };
 
-inline static bool vmIsInactive(VM& vm)
+inline static bool NODELETE vmIsInactive(VM& vm)
 {
     return !vm.entryScope && !vm.ownerThread();
 }
 
-static bool isSaneFrame(CallFrame* frame, CallFrame* calleeFrame, EntryFrame* entryFrame, StackBounds stackBounds)
+static bool NODELETE isSaneFrame(CallFrame* frame, CallFrame* calleeFrame, EntryFrame* entryFrame, StackBounds stackBounds)
 {
     if (reinterpret_cast<void*>(frame) >= reinterpret_cast<void*>(entryFrame))
         return false;
@@ -259,7 +259,7 @@ public:
         });
     }
 
-    VMTraps& traps() { return m_vm.traps(); }
+    VMTraps& NODELETE traps() { return m_vm.traps(); }
 
 
     void notify(AbstractLocker&)
@@ -272,7 +272,7 @@ public:
         });
     }
 
-    bool isStopped(AbstractLocker&)
+    bool NODELETE isStopped(AbstractLocker&)
     {
         return !m_scheduled;
     }
@@ -303,18 +303,23 @@ private:
 
         auto optionalOwnerThread = vm.ownerThread();
         if (optionalOwnerThread) {
+            auto expectedUID = optionalOwnerThread.value()->uid();
             ThreadSuspendLocker locker;
             sendMessage(locker, *optionalOwnerThread.value().get(), [&] (PlatformRegisters& registers) -> void {
                 auto signalContext = SignalContext::tryCreate(registers);
                 if (!signalContext)
                     return;
 
-                auto ownerThread = vm.apiLock().ownerThread();
                 // We can't mess with a thread unless it's the one we suspended.
-                if (!ownerThread || ownerThread != optionalOwnerThread)
+                // Use ownerThreadUID() instead of ownerThread() to avoid creating a temporary
+                // RefPtr<Thread> copy, which would acquire the Thread control block WordLock.
+                // If the suspended thread was frozen mid-unlock of that same WordLock,
+                // calling ownerThread() here would deadlock.
+                auto currentUID = vm.ownerThreadUID();
+                if (!currentUID || *currentUID != expectedUID)
                     return;
 
-                Thread& thread = *ownerThread->get();
+                Thread& thread = *optionalOwnerThread->get();
                 vm.traps().tryInstallTrapBreakpoints(*signalContext, thread.stack());
             });
         }
@@ -435,7 +440,7 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
     VM& vm = this->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     ASSERT(onlyContainsAsyncEvents(mask));
-    ASSERT(needHandling(mask));
+    // No ASSERT(needHandling(mask)): cancelStop() from resumeTheWorld() can race with this call.
 
     if (m_trapsDeferred)
         RELEASE_AND_RETURN(scope, false); // We'll service them on the next opportunity after deferring has stopped.
@@ -502,6 +507,10 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
         case NeedStopTheWorld:
             VMManager::singleton().notifyVMStop(vm, StopTheWorldEvent::VMStopped);
             didHandleTrap = true;
+            break;
+
+        // cancelStop() cleared the bit between needHandling() and takeTopPriorityTrap().
+        case NoEvent:
             break;
 
         case NeedExceptionHandling:

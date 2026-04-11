@@ -276,9 +276,9 @@ static Elements updateSubtree(HTMLElement& element, const TextRecognitionResult&
             return nullptr;
 
         auto& containerClass = controlsHost->mediaControlsContainerClassName();
-        for (Ref child : childrenOfType<HTMLDivElement>(*shadowRoot)) {
-            if (child->hasClassName(containerClass))
-                return &child.get();
+        for (auto& child : childrenOfType<HTMLDivElement>(*shadowRoot)) {
+            if (child.hasClassName(containerClass))
+                return &child;
         }
         return nullptr;
     })();

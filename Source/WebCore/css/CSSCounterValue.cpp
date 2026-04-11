@@ -26,15 +26,11 @@
 #include "config.h"
 #include "CSSCounterValue.h"
 
-#include "CSSMarkup.h"
-#include "CSSPrimitiveValue.h"
-#include <wtf/PointerComparison.h> 
-#include <wtf/text/MakeString.h>
 #include <wtf/text/StringBuilder.h>
 
 namespace WebCore {
 
-CSSCounterValue::CSSCounterValue(AtomString&& identifier, AtomString&& separator, Ref<CSSValue>&& counterStyle)
+CSSCounterValue::CSSCounterValue(CSS::CustomIdent&& identifier, AtomString&& separator, CSS::CounterStyle&& counterStyle)
     : CSSValue(ClassType::Counter)
     , m_identifier(WTF::move(identifier))
     , m_separator(WTF::move(separator))
@@ -42,38 +38,66 @@ CSSCounterValue::CSSCounterValue(AtomString&& identifier, AtomString&& separator
 {
 }
 
-Ref<CSSCounterValue> CSSCounterValue::create(AtomString&& identifier, AtomString&& separator, Ref<CSSValue>&& counterStyle)
+Ref<CSSCounterValue> CSSCounterValue::create(CSS::CustomIdent&& identifier, AtomString&& separator, CSS::CounterStyle&& counterStyle)
 {
     return adoptRef(*new CSSCounterValue(WTF::move(identifier), WTF::move(separator), WTF::move(counterStyle)));
 }
 
 bool CSSCounterValue::equals(const CSSCounterValue& other) const
 {
-    return m_identifier == other.m_identifier && m_separator == other.m_separator && arePointingToEqualData(m_counterStyle, other.m_counterStyle);
+    return m_identifier == other.m_identifier
+        && m_separator == other.m_separator
+        && m_counterStyle == other.m_counterStyle;
 }
 
-String CSSCounterValue::customCSSText(const CSS::SerializationContext&) const
+String CSSCounterValue::customCSSText(const CSS::SerializationContext& context) const
 {
-    bool isDecimal = m_counterStyle->valueID() == CSSValueDecimal || (m_counterStyle->isCustomIdent() && m_counterStyle->customIdent() == "decimal"_s);
-    auto styleSeparator = isDecimal ? ""_s : ", "_s;
-    auto styleLiteral = isDecimal ? ""_s : counterStyleCSSText();
-    if (m_separator.isEmpty())
-        return makeString("counter("_s, m_identifier, styleSeparator, styleLiteral, ')');
-    StringBuilder result;
-    result.append("counters("_s, m_identifier, ", "_s);
-    serializeString(m_separator, result);
-    result.append(styleSeparator, styleLiteral, ')');
-    return result.toString();
+    bool hasDefaultCounterStyle = WTF::switchOn(m_counterStyle.identifier,
+        [](CSSValueID predefinedKeyword) {
+            return predefinedKeyword == CSSValueDecimal;
+        },
+        [](const CSS::CustomIdent& ident) {
+            return ident.value == nameStringForSerialization(CSSValueDecimal);
+        }
+    );
+
+    if (m_separator.isEmpty()) {
+        StringBuilder builder;
+        builder.append("counter("_s);
+        CSS::serializationForCSS(builder, context, m_identifier);
+        if (!hasDefaultCounterStyle) {
+            builder.append(", "_s);
+            WTF::switchOn(m_counterStyle.identifier,
+                [&](CSSValueID predefinedKeyword) {
+                    builder.append(nameLiteralForSerialization(predefinedKeyword));
+                },
+                [&](const CSS::CustomIdent& customIdent) {
+                    CSS::serializationForCSS(builder, context, customIdent);
+                 }
+            );
+        }
+        builder.append(')');
+        return builder.toString();
+    }
+
+    StringBuilder builder;
+    builder.append("counters("_s);
+    CSS::serializationForCSS(builder, context, m_identifier);
+    builder.append(", "_s);
+    CSS::serializationForCSS(builder, context, m_separator);
+    if (!hasDefaultCounterStyle) {
+        builder.append(", "_s);
+        WTF::switchOn(m_counterStyle.identifier,
+            [&](CSSValueID predefinedKeyword) {
+                builder.append(nameLiteralForSerialization(predefinedKeyword));
+            },
+            [&](const CSS::CustomIdent& customIdent) {
+                CSS::serializationForCSS(builder, context, customIdent);
+             }
+        );
+    }
+    builder.append(')');
+    return builder.toString();
 }
 
-String CSSCounterValue::counterStyleCSSText() const
-{
-    if (m_counterStyle->isValueID())
-        return nameString(m_counterStyle->valueID()).string();
-    if (m_counterStyle->isCustomIdent())
-        return m_counterStyle->customIdent();
-
-    ASSERT_NOT_REACHED();
-    return emptyString();
-}
 } // namespace WebCore

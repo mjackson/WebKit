@@ -284,9 +284,7 @@ PlatformSpeechSynthesizer::PlatformSpeechSynthesizer(PlatformSpeechSynthesizerCl
 {
 }
 
-PlatformSpeechSynthesizer::~PlatformSpeechSynthesizer()
-{
-}
+PlatformSpeechSynthesizer::~PlatformSpeechSynthesizer() = default;
 
 void PlatformSpeechSynthesizer::appendVoices(NSArray *voices)
 {

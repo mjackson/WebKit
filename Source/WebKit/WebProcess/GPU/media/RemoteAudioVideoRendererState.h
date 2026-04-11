@@ -34,7 +34,6 @@ namespace WebKit {
 struct RemoteAudioVideoRendererState {
     MediaTime currentTime { MediaTime::zeroTime() };
     bool paused { false };
-    bool seeking { false };
     bool timeIsProgressing { false };
     double effectiveRate { 0 };
     std::optional<WebCore::VideoPlaybackQualityMetrics> videoPlaybackQualityMetrics { };

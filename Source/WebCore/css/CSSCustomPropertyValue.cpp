@@ -38,9 +38,9 @@ Ref<CSSCustomPropertyValue> CSSCustomPropertyValue::createEmpty(const AtomString
     return createSyntaxAll(name, Ref { empty.get() });
 }
 
-Ref<CSSCustomPropertyValue> CSSCustomPropertyValue::createUnresolved(const AtomString& name, Ref<CSSVariableReferenceValue>&& value)
+Ref<CSSCustomPropertyValue> CSSCustomPropertyValue::createUnresolved(const AtomString& name, Ref<CSSSubstitutionValue>&& value)
 {
-    return adoptRef(*new CSSCustomPropertyValue(name, VariantValue { WTF::InPlaceType<Ref<CSSVariableReferenceValue>>, WTF::move(value) }));
+    return adoptRef(*new CSSCustomPropertyValue(name, VariantValue { WTF::InPlaceType<Ref<CSSSubstitutionValue>>, WTF::move(value) }));
 }
 
 Ref<CSSCustomPropertyValue> CSSCustomPropertyValue::createSyntaxAll(const AtomString& name, Ref<CSSVariableData>&& value)
@@ -55,7 +55,7 @@ Ref<CSSCustomPropertyValue> CSSCustomPropertyValue::createWithCSSWideKeyword(con
 
 bool CSSCustomPropertyValue::isVariableReference() const
 {
-    return std::holds_alternative<Ref<CSSVariableReferenceValue>>(m_value);
+    return std::holds_alternative<Ref<CSSSubstitutionValue>>(m_value);
 }
 
 bool CSSCustomPropertyValue::isVariableData() const
@@ -81,8 +81,8 @@ bool CSSCustomPropertyValue::equals(const CSSCustomPropertyValue& other) const
         return false;
 
     return WTF::switchOn(m_value,
-        [&](const Ref<CSSVariableReferenceValue>& value) {
-            return arePointingToEqualData(value, std::get<Ref<CSSVariableReferenceValue>>(other.m_value));
+        [&](const Ref<CSSSubstitutionValue>& value) {
+            return arePointingToEqualData(value, std::get<Ref<CSSSubstitutionValue>>(other.m_value));
         },
         [&](const Ref<CSSVariableData>& value) {
             return arePointingToEqualData(value, std::get<Ref<CSSVariableData>>(other.m_value));
@@ -97,7 +97,7 @@ String CSSCustomPropertyValue::customCSSText(const CSS::SerializationContext& co
 {
     auto serialize = [&] {
         return WTF::switchOn(m_value,
-            [&](const Ref<CSSVariableReferenceValue>& value) {
+            [&](const Ref<CSSSubstitutionValue>& value) {
                 return value->cssText(context);
             },
             [&](const Ref<CSSVariableData>& value) {
@@ -120,7 +120,7 @@ const Vector<CSSParserToken>& CSSCustomPropertyValue::tokens() const
     static NeverDestroyed<Vector<CSSParserToken>> emptyTokens;
 
     return WTF::switchOn(m_value,
-        [&](const Ref<CSSVariableReferenceValue>&) -> const Vector<CSSParserToken>& {
+        [&](const Ref<CSSSubstitutionValue>&) -> const Vector<CSSParserToken>& {
             ASSERT_NOT_REACHED();
             return emptyTokens;
         },
@@ -137,7 +137,7 @@ const Vector<CSSParserToken>& CSSCustomPropertyValue::tokens() const
 Ref<const CSSVariableData> CSSCustomPropertyValue::asVariableData() const
 {
     return WTF::switchOn(m_value,
-        [&](const Ref<CSSVariableReferenceValue>& value) -> Ref<const CSSVariableData> {
+        [&](const Ref<CSSSubstitutionValue>& value) -> Ref<const CSSVariableData> {
             return value->data();
         },
         [&](const Ref<CSSVariableData>& value) -> Ref<const CSSVariableData> {
@@ -153,8 +153,8 @@ bool CSSCustomPropertyValue::isCurrentColor() const
 {
     // FIXME: Registered properties?
     auto tokenRange = switchOn(m_value,
-        [&](const Ref<CSSVariableReferenceValue>& variableReferenceValue) {
-            return variableReferenceValue->data().tokenRange();
+        [&](const Ref<CSSSubstitutionValue>& substitutionValue) {
+            return substitutionValue->data().tokenRange();
         },
         [&](const Ref<CSSVariableData>& data) {
             return data->tokenRange();
@@ -177,7 +177,7 @@ bool CSSCustomPropertyValue::isCurrentColor() const
 
 IterationStatus CSSCustomPropertyValue::customVisitChildren(NOESCAPE const Function<IterationStatus(CSSValue&)>& func) const
 {
-    if (auto* value = std::get_if<Ref<CSSVariableReferenceValue>>(&m_value)) {
+    if (auto* value = std::get_if<Ref<CSSSubstitutionValue>>(&m_value)) {
         if (func(*value) == IterationStatus::Done)
             return IterationStatus::Done;
     }

@@ -54,7 +54,7 @@ struct GlyphDisplayListCacheKey {
     const bool shouldSubpixelQuantizeFonts;
 };
 
-static void add(Hasher& hasher, const GlyphDisplayListCacheKey& key)
+static void NODELETE add(Hasher& hasher, const GlyphDisplayListCacheKey& key)
 {
     add(hasher, key.textRun, key.scaleFactor.width(), key.scaleFactor.height(), key.fontCascadeGeneration, key.shouldSubpixelQuantizeFonts);
 }

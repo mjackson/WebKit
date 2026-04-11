@@ -61,7 +61,7 @@ public:
 
     static std::pair<Vector<FileChooserFileInfo>, String> filesFromFormControlState(const FormControlState&);
     bool canSetStringValue() const final;
-    bool valueMissing(const String&) const final;
+    bool valueMissing(StringView) const final;
 
 private:
     explicit FileInputType(HTMLInputElement&);

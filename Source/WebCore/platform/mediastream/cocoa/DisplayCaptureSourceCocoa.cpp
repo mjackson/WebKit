@@ -119,9 +119,7 @@ DisplayCaptureSourceCocoa::DisplayCaptureSourceCocoa(const std::function<UniqueR
 {
 }
 
-DisplayCaptureSourceCocoa::~DisplayCaptureSourceCocoa()
-{
-}
+DisplayCaptureSourceCocoa::~DisplayCaptureSourceCocoa() = default;
 
 const RealtimeMediaSourceCapabilities& DisplayCaptureSourceCocoa::capabilities()
 {

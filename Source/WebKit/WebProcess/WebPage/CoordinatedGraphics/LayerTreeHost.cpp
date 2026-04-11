@@ -52,6 +52,7 @@
 #include <WebCore/Settings.h>
 #include <WebCore/SkiaPaintingEngine.h>
 #include <WebCore/ThreadedScrollingTree.h>
+#include <WebCore/WindowEventLoop.h>
 #include <wtf/SetForScope.h>
 #include <wtf/SystemTracing.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -490,6 +491,7 @@ void LayerTreeHost::applyTransientZoomToLayers(double scale, FloatPoint origin)
     transform.translate(constrainedOrigin.x(), constrainedOrigin.y());
     transform.scale(scale);
 
+    Locker locker { zoomLayer->lock() };
     zoomLayer->setTransform(transform);
     zoomLayer->setAnchorPoint(FloatPoint3D());
     zoomLayer->setPosition(FloatPoint());
@@ -502,6 +504,11 @@ void LayerTreeHost::adjustTransientZoom(double scale, FloatPoint origin, FloatPo
     m_transientZoomOrigin = origin;
 
     applyTransientZoomToLayers(m_transientZoomScale, m_transientZoomOrigin);
+
+    if (m_isWaitingForRenderer)
+        scheduleRenderingUpdate();
+    else
+        updateRendering();
 }
 
 void LayerTreeHost::commitTransientZoom(double scale, FloatPoint origin, FloatPoint unscrolledOrigin)
@@ -512,7 +519,9 @@ void LayerTreeHost::commitTransientZoom(double scale, FloatPoint origin, FloatPo
         TransformationMatrix finalTransform;
         finalTransform.scale(scale);
 
-        layerForTransientZoom()->setTransform(finalTransform);
+        auto* zoomLayer = layerForTransientZoom();
+        Locker locker { zoomLayer->lock() };
+        zoomLayer->setTransform(finalTransform);
     }
 
     m_transientZoom = false;

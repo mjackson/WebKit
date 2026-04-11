@@ -72,6 +72,29 @@ WI.DOMTreeElement = class DOMTreeElement extends WI.TreeElement
         }
     }
 
+    static badgeTypeForLayoutFlag(layoutFlag)
+    {
+        switch (layoutFlag) {
+        case WI.DOMNode.LayoutFlag.Scrollable:
+            return WI.DOMTreeElement.BadgeType.Scrollable;
+        case WI.DOMNode.LayoutFlag.Flex:
+            return WI.DOMTreeElement.BadgeType.Flex;
+        case WI.DOMNode.LayoutFlag.Grid:
+            return WI.DOMTreeElement.BadgeType.Grid;
+        case WI.DOMNode.LayoutFlag.Subgrid:
+            return WI.DOMTreeElement.BadgeType.Subgrid;
+        case WI.DOMNode.LayoutFlag.GridLanes:
+            return WI.DOMTreeElement.BadgeType.GridLanes;
+        case WI.DOMNode.LayoutFlag.Event:
+            return WI.DOMTreeElement.BadgeType.Event;
+        case WI.DOMNode.LayoutFlag.SlotAssigned:
+            return WI.DOMTreeElement.BadgeType.SlotAssigned;
+        case WI.DOMNode.LayoutFlag.SlotFilled:
+            return WI.DOMTreeElement.BadgeType.SlotFilled;
+        }
+        console.assert(false, "not reached", layoutFlag);
+    }
+
     // Public
 
     get statusImageElement() { return this._statusImageElement; }
@@ -2103,13 +2126,33 @@ WI.DOMTreeElement = class DOMTreeElement extends WI.TreeElement
 
         case WI.DOMTreeElement.BadgeType.Flex:
             console.assert(!this._elementForBadgeType.has(WI.DOMTreeElement.BadgeType.Grid));
+            console.assert(!this._elementForBadgeType.has(WI.DOMTreeElement.BadgeType.Subgrid));
+            console.assert(!this._elementForBadgeType.has(WI.DOMTreeElement.BadgeType.GridLanes));
             text = WI.unlocalizedString("flex");
             handleClick = this._layoutBadgeClicked.bind(this);
             break;
 
         case WI.DOMTreeElement.BadgeType.Grid:
             console.assert(!this._elementForBadgeType.has(WI.DOMTreeElement.BadgeType.Flex));
+            console.assert(!this._elementForBadgeType.has(WI.DOMTreeElement.BadgeType.Subgrid));
+            console.assert(!this._elementForBadgeType.has(WI.DOMTreeElement.BadgeType.GridLanes));
             text = WI.unlocalizedString("grid");
+            handleClick = this._layoutBadgeClicked.bind(this);
+            break;
+
+        case WI.DOMTreeElement.BadgeType.Subgrid:
+            console.assert(!this._elementForBadgeType.has(WI.DOMTreeElement.BadgeType.Flex));
+            console.assert(!this._elementForBadgeType.has(WI.DOMTreeElement.BadgeType.Grid));
+            console.assert(!this._elementForBadgeType.has(WI.DOMTreeElement.BadgeType.GridLanes));
+            text = WI.unlocalizedString("subgrid");
+            handleClick = this._layoutBadgeClicked.bind(this);
+            break;
+
+        case WI.DOMTreeElement.BadgeType.GridLanes:
+            console.assert(!this._elementForBadgeType.has(WI.DOMTreeElement.BadgeType.Flex));
+            console.assert(!this._elementForBadgeType.has(WI.DOMTreeElement.BadgeType.Grid));
+            console.assert(!this._elementForBadgeType.has(WI.DOMTreeElement.BadgeType.Subgrid));
+            text = WI.unlocalizedString("grid-lanes");
             handleClick = this._layoutBadgeClicked.bind(this);
             break;
 
@@ -2150,33 +2193,8 @@ WI.DOMTreeElement = class DOMTreeElement extends WI.TreeElement
             badgeElement.remove();
         this._elementForBadgeType.clear();
 
-        for (let layoutFlag of this.representedObject.layoutFlags) {
-            switch (layoutFlag) {
-            case WI.DOMNode.LayoutFlag.Scrollable:
-                this._createBadge(WI.DOMTreeElement.BadgeType.Scrollable);
-                break;
-
-            case WI.DOMNode.LayoutFlag.Grid:
-                this._createBadge(WI.DOMTreeElement.BadgeType.Grid);
-                break;
-
-            case WI.DOMNode.LayoutFlag.Flex:
-                this._createBadge(WI.DOMTreeElement.BadgeType.Flex);
-                break;
-
-            case WI.DOMNode.LayoutFlag.Event:
-                this._createBadge(WI.DOMTreeElement.BadgeType.Event);
-                break;
-
-            case WI.DOMNode.LayoutFlag.SlotAssigned:
-                this._createBadge(WI.DOMTreeElement.BadgeType.SlotAssigned);
-                break;
-
-            case WI.DOMNode.LayoutFlag.SlotFilled:
-                this._createBadge(WI.DOMTreeElement.BadgeType.SlotFilled);
-                break;
-            }
-        }
+        for (let layoutFlag of this.representedObject.layoutFlags)
+            this._createBadge(WI.DOMTreeElement.badgeTypeForLayoutFlag(layoutFlag));
 
         if (!this._elementForBadgeType.size) {
             if (hadBadge) {
@@ -2327,6 +2345,8 @@ WI.DOMTreeElement = class DOMTreeElement extends WI.TreeElement
         for (let [badgeType, badgeElement] of this._elementForBadgeType) {
             switch (badgeType) {
             case WI.DOMTreeElement.BadgeType.Grid:
+            case WI.DOMTreeElement.BadgeType.Subgrid:
+            case WI.DOMTreeElement.BadgeType.GridLanes:
             case WI.DOMTreeElement.BadgeType.Flex: {
                 let layoutOverlayShowing = this.representedObject.layoutOverlayShowing;
                 badgeElement.classList.toggle("activated", layoutOverlayShowing);
@@ -2400,6 +2420,8 @@ WI.DOMTreeElement.BadgeType = {
     Scrollable: "scrollable",
     Flex: "flex",
     Grid: "grid",
+    Subgrid: "subgrid",
+    GridLanes: "grid-lanes",
     Event: "event",
     SlotAssigned: "slot-assigned",
     SlotFilled: "slot-filled",

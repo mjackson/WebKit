@@ -909,7 +909,7 @@ static bool validateTextureViewDimension(const auto* textureEntry, const auto& a
     }
 }
 
-static bool validateStorageTextureViewFormat(const WGPUStorageTextureBindingLayout* storageTexture, const auto& apiTextureView)
+static bool NODELETE validateStorageTextureViewFormat(const WGPUStorageTextureBindingLayout* storageTexture, const auto& apiTextureView)
 {
     return !storageTexture || storageTexture->format == apiTextureView->format();
 }

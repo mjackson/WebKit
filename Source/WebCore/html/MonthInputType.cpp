@@ -112,7 +112,7 @@ StepRange MonthInputType::createStepRange(AnyStepHandling anyStepHandling) const
     return StepRange(stepBase, RangeLimitations::Valid, minimum, maximum, step, monthStepDescription);
 }
 
-Decimal MonthInputType::parseToNumber(const String& src, const Decimal& defaultValue) const
+Decimal MonthInputType::parseToNumber(StringView src, const Decimal& defaultValue) const
 {
     auto date = parseToDateComponents(src);
     if (!date)

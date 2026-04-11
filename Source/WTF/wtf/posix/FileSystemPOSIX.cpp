@@ -29,25 +29,16 @@
 #include "config.h"
 #include <wtf/FileSystem.h>
 
-#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <fnmatch.h>
-#include <libgen.h>
 #include <stdio.h>
-#include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
-#include <sys/types.h>
 #include <unistd.h>
-#include <wtf/EnumTraits.h>
 #include <wtf/FileHandle.h>
-#include <wtf/MallocSpan.h>
-#include <wtf/MappedFileData.h>
 #include <wtf/SafeStrerror.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/MakeString.h>
-#include <wtf/text/ParsingUtilities.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/text/WTFString.h>
 

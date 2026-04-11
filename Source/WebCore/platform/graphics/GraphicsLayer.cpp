@@ -166,7 +166,7 @@ public:
     static EmptyGraphicsLayerClient& singleton();
 };
 
-EmptyGraphicsLayerClient& EmptyGraphicsLayerClient::singleton()
+EmptyGraphicsLayerClient& NODELETE EmptyGraphicsLayerClient::singleton()
 {
     static NeverDestroyed<EmptyGraphicsLayerClient> client;
     return client;

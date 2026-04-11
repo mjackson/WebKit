@@ -43,13 +43,13 @@ void Serialize<URL>::operator()(StringBuilder& builder, const SerializationConte
 
     if (!value.resolved.isNull()) {
         if (auto replacementURLString = context.replacementURLStrings.get(value.resolved.string()); !replacementURLString.isEmpty())
-            serializeString(replacementURLString, builder);
+            serializeString(builder, replacementURLString);
         else if (context.shouldUseResolvedURLInCSSText)
-            serializeString(value.resolved.string(), builder);
+            serializeString(builder, value.resolved.string());
         else
-            serializeString(value.specified, builder);
+            serializeString(builder, value.specified);
     } else
-        serializeString(value.specified, builder);
+        serializeString(builder, value.specified);
 
     if (value.modifiers.crossOrigin) {
         builder.append(' ');

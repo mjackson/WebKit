@@ -239,6 +239,8 @@ public:
     void notifyCreation(VM& vm, JSFunction* function, const char* reason)
     {
         m_singleton.notifyWrite(vm, this, function, reason);
+        if (m_singleton.hasBeenInvalidated())
+            m_unlinkedExecutable->setSingletonHasBeenInvalidated();
     }
 
     // Cached poly proto structure for the result of constructing this executable.

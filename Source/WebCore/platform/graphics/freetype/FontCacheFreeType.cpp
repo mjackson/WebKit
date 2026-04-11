@@ -117,7 +117,7 @@ static void getFontPropertiesFromPattern(FcPattern* pattern, const FontDescripti
     // We requested an italic font, but Fontconfig gave us one that was neither oblique nor italic.
     syntheticOblique = false;
     int actualFontSlant;
-    bool allowSyntheticOblique = fontDescription.hasAutoFontSynthesisStyle()
+    bool allowSyntheticOblique = fontDescription.allowsItalicOrObliqueFontSynthesisStyle()
         && !options.contains(FontLookupOptions::DisallowObliqueSynthesis);
     if (allowSyntheticOblique && fontDescription.fontStyleSlope()
         && FcPatternGetInteger(pattern, FC_SLANT, 0, &actualFontSlant) == FcResultMatch) {

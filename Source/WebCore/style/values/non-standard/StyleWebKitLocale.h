@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <WebCore/StyleCustomIdent.h>
 #include <WebCore/StyleValueTypes.h>
 #include <wtf/text/AtomString.h>
 
@@ -51,7 +52,7 @@ struct WebkitLocale {
             return visitor(CSS::Keyword::Auto { });
 
         // FIXME: It seems wrong that we extract/serialize the value as a <custom-ident>, given it is parsed as a <string>, but this maintains existing behavior. See https://bugs.webkit.org/show_bug.cgi?id=302724.
-        return visitor(CustomIdentifier { m_platform });
+        return visitor(CustomIdent { m_platform });
     }
 
     bool operator==(const WebkitLocale&) const = default;

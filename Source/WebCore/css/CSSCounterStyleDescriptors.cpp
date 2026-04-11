@@ -27,6 +27,7 @@
 #include "CSSCounterStyleDescriptors.h"
 
 #include "CSSCounterStyleRule.h"
+#include "CSSCustomIdentValue.h"
 #include "CSSMarkup.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSValueList.h"
@@ -70,11 +71,13 @@ CSSCounterStyleDescriptors::Ranges rangeFromCSSValue(const CSSValue& value)
 
 CSSCounterStyleDescriptors::Symbol symbolFromCSSValue(const CSSValue* value)
 {
-    auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value);
-    if (!primitiveValue)
-        return { };
+    if (RefPtr customIdentValue = dynamicDowncast<CSSCustomIdentValue>(value))
+        return { .isCustomIdent = true, .text = customIdentValue->customIdent().value };
 
-    return { primitiveValue->isCustomIdent(), primitiveValue->stringValue() };
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value))
+        return { .isCustomIdent = false, .text = primitiveValue->stringValue() };
+
+    return { };
 }
 
 static CSSCounterStyleDescriptors::AdditiveSymbols additiveSymbolsFromStyleProperties(const StyleProperties& properties)
@@ -163,11 +166,11 @@ static CSSCounterStyleDescriptors::Name fallbackNameFromStyleProperties(const St
 
 CSSCounterStyleDescriptors::Name fallbackNameFromCSSValue(const CSSValue& value)
 {
-    auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value);
-    if (!primitiveValue)
-        return { };
-
-    return makeAtomString(primitiveValue->stringValue());
+    if (RefPtr customIdentValue = dynamicDowncast<CSSCustomIdentValue>(value))
+        return customIdentValue->customIdent().value;
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value); primitiveValue && primitiveValue->isValueID())
+        return nameStringForSerialization(primitiveValue->valueID());
+    return { };
 }
 
 static CSSCounterStyleDescriptors::Symbol prefixFromStyleProperties(const StyleProperties& properties)
@@ -208,8 +211,11 @@ CSSCounterStyleDescriptors::SystemData extractSystemDataFromCSSValue(const CSSVa
         // This value must be `fixed` or `extends`, both of which can or must have an additional component.
         Ref secondValue = systemValue->second();
         if (system == CSSCounterStyleDescriptors::System::Extends) {
-            ASSERT(secondValue->isCustomIdent());
-            result.first = AtomString { secondValue->isCustomIdent() ? secondValue->customIdent() : "decimal"_s };
+            ASSERT(secondValue->isValueID() || secondValue->isCustomIdentValue());
+            if (secondValue->isValueID())
+                result.first = nameStringForSerialization(secondValue->valueID());
+            else
+                result.first = downcast<CSSCustomIdentValue>(secondValue)->customIdent().value;
         } else if (system == CSSCounterStyleDescriptors::System::Fixed) {
             ASSERT(secondValue->isInteger());
             result.second = secondValue->isInteger() ? secondValue->integerDeprecated() : 1;
@@ -387,9 +393,9 @@ String CSSCounterStyleDescriptors::Symbol::cssText() const
 {
     StringBuilder builder;
     if (isCustomIdent)
-        serializeIdentifier(text, builder);
+        serializeIdentifier(builder, text);
     else
-        serializeString(text, builder);
+        serializeString(builder, text);
     return builder.toString();
 }
 

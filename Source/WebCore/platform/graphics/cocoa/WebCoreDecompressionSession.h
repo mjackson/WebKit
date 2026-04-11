@@ -50,6 +50,7 @@ typedef struct OpaqueVTDecompressionSession*  VTDecompressionSessionRef;
 namespace WebCore {
 
 class VideoDecoder;
+class VideoDecoderVTB;
 struct PlatformVideoColorSpace;
 
 class WebCoreDecompressionSession : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<WebCoreDecompressionSession> {
@@ -81,7 +82,7 @@ private:
     WEBCORE_EXPORT WebCoreDecompressionSession(NSDictionary *, GuaranteedSerialFunctionDispatcher*);
     static NSDictionary *defaultPixelBufferAttributes();
 
-    Expected<RetainPtr<VTDecompressionSessionRef>, OSStatus> ensureDecompressionSessionForSample(CMSampleBufferRef);
+    Expected<RefPtr<VideoDecoderVTB>, OSStatus> ensureDecoderForSample(CMSampleBufferRef);
 
     Ref<DecodingPromise> decodeSampleInternal(CMSampleBufferRef, DecodingFlags);
     void assignResourceOwner(CVImageBufferRef);
@@ -94,7 +95,7 @@ private:
     const Ref<GuaranteedSerialFunctionDispatcher> m_dispatcher;
 
     mutable Lock m_lock;
-    RetainPtr<VTDecompressionSessionRef> m_decompressionSession WTF_GUARDED_BY_LOCK(m_lock);
+    RefPtr<VideoDecoderVTB> m_videoDecoderVTB WTF_GUARDED_BY_LOCK(m_lock);
     mutable std::optional<bool> m_isHardwareAccelerated WTF_GUARDED_BY_LOCK(m_lock);
 
     std::atomic<uint32_t> m_flushId { 0 };

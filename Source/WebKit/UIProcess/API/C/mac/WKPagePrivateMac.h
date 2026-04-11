@@ -27,6 +27,7 @@
 #define WKPagePrivateMac_h
 
 #include <WebKit/WKBase.h>
+#include <WebKit/WKDeprecated.h>
 #include <sys/types.h>
 
 #ifdef __cplusplus
@@ -78,6 +79,7 @@ WK_EXPORT bool WKPageIsURLKnownHSTSHost(WKPageRef page, WKURLRef url);
 
 #if !TARGET_OS_IPHONE
 WK_EXPORT bool WKPageIsPlayingVideoInPictureInPicture(WKPageRef page);
+WK_EXPORT bool WKPageIsPlayingVideoInEnhancedFullscreen(WKPageRef page) WK_C_API_DEPRECATED_WITH_REPLACEMENT(WKPageIsPlayingVideoInPictureInPicture);
 #endif
 
 #ifdef __cplusplus

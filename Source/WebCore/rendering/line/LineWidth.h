@@ -75,7 +75,7 @@ public:
 private:
     void computeAvailableWidthFromLeftAndRight();
     bool NODELETE fitsOnLineExcludingTrailingCollapsedWhitespace() const;
-    void updateLineDimension(LayoutUnit newLineTop, LayoutUnit newLineWidth, float newLineLeft, float newLineRight);
+    void NODELETE updateLineDimension(LayoutUnit newLineTop, LayoutUnit newLineWidth, float newLineLeft, float newLineRight);
 
     const CheckedRef<RenderBlockFlow> m_block;
     float m_uncommittedWidth { 0 };

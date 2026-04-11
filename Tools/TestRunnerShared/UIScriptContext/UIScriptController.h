@@ -124,6 +124,7 @@ public:
     virtual double zoomScale() const { notImplemented(); return 1; }
     virtual double minimumZoomScale() const { notImplemented(); return 1; }
     virtual double maximumZoomScale() const { notImplemented(); return 1; }
+    virtual bool enhancedWindowingEnabled() const { notImplemented(); return false; }
 
     // Viewports
 

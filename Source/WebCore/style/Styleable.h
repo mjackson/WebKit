@@ -123,6 +123,11 @@ struct Styleable {
         return element.hasRunningTransitions(pseudoElementIdentifier);
     }
 
+    const AnimatableCSSPropertyToTransitionMap* runningTransitionsByProperty() const
+    {
+        return element.runningTransitionsByProperty(pseudoElementIdentifier);
+    }
+
     AnimationCollection& ensureAnimations() const
     {
         return element.ensureAnimations(pseudoElementIdentifier);
@@ -174,6 +179,7 @@ struct Styleable {
     }
 
     void queryContainerDidChange() const;
+    bool viewportSizeDidChange() const;
 
     bool animationListContainsNewlyValidAnimation(const Style::Animations&) const;
 
@@ -198,12 +204,14 @@ class WeakStyleable {
 public:
     WeakStyleable() = default;
 
-    WeakStyleable(AtomString name)
-    {
-        m_element = nullptr;
-        m_pseudoElementIdentifier = Style::PseudoElementIdentifier();
-        m_pseudoElementIdentifier->nameOrPart = name;
-    }
+    WeakStyleable(WTF::HashTableDeletedValueType) : m_element(WTF::HashTableDeletedValue) { }
+    bool isHashTableDeletedValue() const { return m_element.isHashTableDeletedValue(); }
+
+    WeakStyleable(WTF::HashTableEmptyValueType) : m_element(WTF::HashTableEmptyValue) { }
+    bool isHashTableEmptyValue() const { return m_element.isHashTableEmptyValue(); }
+
+    // WeakPtr is not safe to compare.
+    static constexpr bool isSafeToCompareToHashTableEmptyOrDeletedValue = false;
 
     explicit operator bool() const { return !!m_element; }
 
@@ -237,28 +245,28 @@ private:
     std::optional<Style::PseudoElementIdentifier> m_pseudoElementIdentifier;
 };
 
-// FIXME: using PairHashTraits would give us constructDeletedValue() and isDeletedValue() for free.
-struct WeakStyleableHashTraits : HashTraits<WeakStyleable> {
-    static constexpr bool hasIsWeakNullValueFunction = true;
-    static bool isWeakNullValue(const WeakStyleable& value) { return !value; }
-    static void constructDeletedValue(WeakStyleable& slot) { slot = { AtomString { WTF::HashTableDeletedValue } }; }
-    static bool isDeletedValue(const WeakStyleable& value) { return !value.element() && value.pseudoElementIdentifier() && value.pseudoElementIdentifier()->nameOrPart.isHashTableDeletedValue(); }
-};
-
-struct WeakStyleableHash {
-    static unsigned hash(const WeakStyleable& styleable) { return WTF::PairHash<Element*, std::optional<Style::PseudoElementIdentifier>>::hash({ styleable.element().get(), styleable.pseudoElementIdentifier() }); }
-    static bool equal(const WeakStyleable& a, const WeakStyleable& b)
-    {
-        if (!a || !b)
-            return false;
-        return a.element().get() == b.element().get() && a.pseudoElementIdentifier() == b.pseudoElementIdentifier();
-    }
-    static constexpr bool safeToCompareToEmptyOrDeleted = false;
-};
-
-using WeakStyleableHashSet = HashSet<WeakStyleable, WeakStyleableHash, WeakStyleableHashTraits>;
+// This lets HasherBasedHash define a DefaultHash<WeakStyleable> for us.
+inline void add(Hasher& hasher, const WeakStyleable& weakStyleable)
+{
+    add(hasher, weakStyleable.element());
+    add(hasher, weakStyleable.pseudoElementIdentifier());
+}
 
 WTF::TextStream& operator<<(WTF::TextStream&, const Styleable&);
 WTF::TextStream& operator<<(WTF::TextStream&, const WeakStyleable&);
 
 } // namespace WebCore
+
+namespace WTF {
+
+template<> struct HashTraits<WebCore::WeakStyleable> : SimpleClassHashTraits<WebCore::WeakStyleable> {
+    static const bool emptyValueIsZero = false;
+    static constexpr bool hasIsEmptyValueFunction = true;
+    static WebCore::WeakStyleable emptyValue() { return { WTF::HashTableEmptyValue }; }
+    static bool isEmptyValue(const WebCore::WeakStyleable& value) { return value.isHashTableEmptyValue(); }
+
+    static constexpr bool hasIsWeakNullValueFunction = true;
+    static bool isWeakNullValue(const WebCore::WeakStyleable& value) { return !value; }
+};
+
+} // namespace WTF

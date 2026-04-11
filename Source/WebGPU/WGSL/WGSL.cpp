@@ -34,6 +34,7 @@
 #include "EntryPointRewriter.h"
 #include "GlobalSorting.h"
 #include "GlobalVariableRewriter.h"
+#include "IOValidator.h"
 #include "MangleNames.h"
 #include "Metal/MetalCodeGenerator.h"
 #include "Parser.h"

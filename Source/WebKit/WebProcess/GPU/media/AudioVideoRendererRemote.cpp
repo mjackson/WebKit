@@ -86,6 +86,8 @@ AudioVideoRendererRemote::AudioVideoRendererRemote(LoggerHelper* loggerHelper, G
     : m_gpuProcessConnection(connection)
     , m_receiver(MessageReceiver::create(*this))
     , m_identifier(identifier)
+    , m_prepareSeekRequest(NativePromiseRequest::create())
+    , m_finishSeekRequest(NativePromiseRequest::create())
 #if PLATFORM(COCOA)
     , m_videoLayerManager(makeUniqueRef<VideoLayerManagerObjC>(loggerHelper->logger(), loggerHelper->logIdentifier()))
 #endif
@@ -106,13 +108,24 @@ AudioVideoRendererRemote::AudioVideoRendererRemote(LoggerHelper* loggerHelper, G
     connection.connection().send(Messages::RemoteAudioVideoRendererProxyManager::Create(identifier, mediaElementIdentifier, playerIdentifier), 0);
 }
 
-AudioVideoRendererRemote::~AudioVideoRendererRemote()
+AudioVideoRendererRemote::~AudioVideoRendererRemote() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
 {
     ALWAYS_LOG(LOGIDENTIFIER);
 
 #if PLATFORM(COCOA)
     m_videoLayerManager->didDestroyVideoLayer();
 #endif
+
+    ensureOnDispatcher([prepareSeekRequest = WTF::move(m_prepareSeekRequest), prepareSeekPromise = WTF::move(m_prepareSeekPromise), finishSeekRequest = WTF::move(m_finishSeekRequest), finishSeekPromise = WTF::move(m_finishSeekPromise)]() mutable {
+        if (prepareSeekRequest->hasCallback())
+            prepareSeekRequest->disconnect();
+        if (auto promise = std::exchange(prepareSeekPromise, std::nullopt))
+            promise->reject(PlatformMediaError::Cancelled);
+        if (finishSeekRequest->hasCallback())
+            finishSeekRequest->disconnect();
+        if (auto promise = std::exchange(finishSeekPromise, std::nullopt))
+            promise->reject();
+    });
 
     if (RefPtr gpuProcessConnection = m_gpuProcessConnection.get(); gpuProcessConnection && !m_shutdown) {
         ensureOnDispatcher([gpuProcessConnection, identifier = m_identifier] {
@@ -425,14 +438,21 @@ void AudioVideoRendererRemote::stall()
     });
 }
 
-void AudioVideoRendererRemote::prepareToSeek()
+void AudioVideoRendererRemote::cancelPendingSeek()
 {
-    ensureOnDispatcherWithConnection([](auto& renderer, auto& connection) {
-        connection.send(Messages::RemoteAudioVideoRendererProxyManager::PrepareToSeek(renderer.m_identifier), 0);
-    });
+    assertIsCurrent(queueSingleton());
+
+    if (m_prepareSeekRequest->hasCallback())
+        protect(m_prepareSeekRequest)->disconnect();
+    if (auto promise = std::exchange(m_prepareSeekPromise, std::nullopt))
+        promise->reject(PlatformMediaError::Cancelled);
+    if (m_finishSeekRequest->hasCallback())
+        protect(m_finishSeekRequest)->disconnect();
+    if (auto promise = std::exchange(m_finishSeekPromise, std::nullopt))
+        promise->reject();
 }
 
-Ref<MediaTimePromise> AudioVideoRendererRemote::seekTo(const MediaTime& time)
+Ref<MediaTimePromise> AudioVideoRendererRemote::prepareToSeek(const MediaTime& time)
 {
     {
         Locker locker { m_lock };
@@ -441,22 +461,78 @@ Ref<MediaTimePromise> AudioVideoRendererRemote::seekTo(const MediaTime& time)
     m_seeking = true;
     m_lastSeekTime = time;
     return invokeAsync(queueSingleton(), [protectedThis = Ref { *this }, this, time] -> Ref<MediaTimePromise> {
-        RefPtr gpuProcessConnection = m_gpuProcessConnection.get();
-        if (!isGPURunning() || !gpuProcessConnection)
-            return MediaTimePromise::createAndReject(PlatformMediaError::Cancelled);
+        cancelPendingSeek();
 
-        return gpuProcessConnection->connection().sendWithPromisedReply<MediaPromiseConverter>(Messages::RemoteAudioVideoRendererProxyManager::SeekTo(m_identifier, time), 0)->whenSettled(queueSingleton(), [protectedThis](auto&& result) {
-            if (result)
+        RefPtr gpuProcessConnection = m_gpuProcessConnection.get();
+        if (!isGPURunning() || !gpuProcessConnection) {
+            m_seeking = false;
+            return MediaTimePromise::createAndReject(PlatformMediaError::IPCError);
+        }
+
+        assertIsCurrent(queueSingleton());
+        m_prepareSeekPromise.emplace();
+        Ref promise = m_prepareSeekPromise->promise();
+
+        gpuProcessConnection->connection().sendWithPromisedReply<MediaPromiseConverter>(Messages::RemoteAudioVideoRendererProxyManager::PrepareToSeek(m_identifier, time), 0)->whenSettled(queueSingleton(), [weakThis = ThreadSafeWeakPtr { *this }](auto&& result) {
+            RefPtr protectedThis = weakThis.get();
+            if (!protectedThis)
+                return;
+
+            assertIsCurrent(queueSingleton());
+            protect(protectedThis->m_prepareSeekRequest)->complete();
+
+            if (result && !result->isIndefinite())
                 protectedThis->m_seeking = false;
-            return MediaTimePromise::createAndSettle(WTF::move(result));
-        });
+
+            if (auto producer = std::exchange(protectedThis->m_prepareSeekPromise, std::nullopt))
+                producer->settle(WTF::move(result));
+        })->track(m_prepareSeekRequest);
+
+        return promise;
+    });
+}
+
+Ref<GenericPromise> AudioVideoRendererRemote::finishSeek(const MediaTime& time)
+{
+    {
+        Locker locker { m_lock };
+        m_state.currentTime = time;
+    }
+    ASSERT(m_seeking, "Invalid seeking state, bad API usage");
+    return invokeAsync(queueSingleton(), [protectedThis = Ref { *this }, this, time] -> Ref<GenericPromise> {
+        cancelPendingSeek();
+
+        RefPtr gpuProcessConnection = m_gpuProcessConnection.get();
+        if (!isGPURunning() || !gpuProcessConnection) {
+            m_seeking = false;
+            return GenericPromise::createAndReject();
+        }
+
+        assertIsCurrent(queueSingleton());
+        m_finishSeekPromise.emplace();
+        Ref promise = m_finishSeekPromise->promise();
+
+        gpuProcessConnection->connection().sendWithPromisedReply<WTF::GenericPromiseConverter>(Messages::RemoteAudioVideoRendererProxyManager::FinishSeek(m_identifier, time), 0)->whenSettled(queueSingleton(), [weakThis = ThreadSafeWeakPtr { *this }](auto&& result) {
+            RefPtr protectedThis = weakThis.get();
+            if (!protectedThis)
+                return;
+
+            assertIsCurrent(queueSingleton());
+            protect(protectedThis->m_finishSeekRequest)->complete();
+
+            protectedThis->m_seeking = false;
+
+            if (auto producer = std::exchange(protectedThis->m_finishSeekPromise, std::nullopt))
+                producer->settle(WTF::move(result));
+        })->track(m_finishSeekRequest);
+
+        return promise;
     });
 }
 
 bool AudioVideoRendererRemote::seeking() const
 {
-    Locker locker { m_lock };
-    return m_state.seeking;
+    return m_seeking;
 }
 
 void AudioVideoRendererRemote::setPreferences(VideoRendererPreferences preferences)
@@ -515,6 +591,14 @@ void AudioVideoRendererRemote::enqueueSample(TrackIdentifier trackIdentifier, Re
         auto block = addResult.iterator->value.convert(sample, MediaSampleConverter::SetTrackInfo::No);
         if (formatChanged)
             connection.send(Messages::RemoteAudioVideoRendererProxyManager::NewTrackInfoForTrack(renderer.m_identifier, trackIdentifier, Ref { const_cast<WebCore::TrackInfo&>(*addResult.iterator->value.currentTrackInfo()) }), 0);
+        if (addResult.iterator->value.currentTrackInfo()->isVideo()) {
+            if (renderer.m_keyframeNeeded && !sample->isSync()) {
+                ALWAYS_LOG_WITH_THIS(&renderer, LOGIDENTIFIER_WITH_THIS(&renderer), "Keyframe needed: but frame not keyframe");
+                ASSERT_NOT_REACHED();
+                return;
+            }
+            renderer.m_keyframeNeeded = false;
+        }
         connection.sendWithAsyncReplyOnDispatcher(Messages::RemoteAudioVideoRendererProxyManager::EnqueueSample(renderer.m_identifier, trackIdentifier, WTF::move(block), expectedMinimum), queueSingleton(), [weakThis = ThreadSafeWeakPtr { renderer }, trackIdentifier](bool readyForMoreData) {
             RefPtr protectedThis = weakThis.get();
             if (!protectedThis)
@@ -621,7 +705,10 @@ void AudioVideoRendererRemote::performTaskAtTime(const MediaTime& time, Function
 
 void AudioVideoRendererRemote::flush()
 {
+    ALWAYS_LOG(LOGIDENTIFIER, "seeking:", m_seeking.load());
+    m_seeking = false;
     ensureOnDispatcherWithConnection([](auto& renderer, auto& connection) {
+        renderer.m_keyframeNeeded = true;
         connection.send(Messages::RemoteAudioVideoRendererProxyManager::Flush(renderer.m_identifier), 0);
     });
 }

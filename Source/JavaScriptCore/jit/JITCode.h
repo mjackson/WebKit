@@ -70,7 +70,7 @@ enum class JITType : uint8_t {
     FTLJIT = 0b101,
 };
 static constexpr unsigned widthOfJITType = 3;
-static_assert(WTF::getMSBSetConstexpr(static_cast<std::underlying_type_t<JITType>>(JITType::FTLJIT)) + 1 == widthOfJITType);
+static_assert(WTF::getMSBSet(static_cast<std::underlying_type_t<JITType>>(JITType::FTLJIT)) + 1 == widthOfJITType);
 
 #if CPU(ADDRESS64)
 template<typename ByteSizedEnumType>
@@ -255,7 +255,7 @@ public:
         return m_jitType;
     }
 
-    bool isUnlinked() const;
+    bool NODELETE isUnlinked() const;
     
     template<typename PointerType>
     static JITType jitTypeFor(PointerType jitCode)

@@ -117,7 +117,6 @@ protected:
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) override;
 
     void disabledStateChanged() override;
-    void readOnlyStateChanged() override;
     virtual void requiredStateChanged();
 
     bool isMouseFocusable() const override;

@@ -26,6 +26,7 @@
 #pragma once
 
 #include <WebCore/CSSCalcType.h>
+#include <WebCore/CSSCustomIdent.h>
 #include <WebCore/CSSPrimitiveNumeric.h>
 #include <WebCore/CSSPrimitiveNumericRange.h>
 #include <WebCore/CSSUnits.h>
@@ -33,7 +34,6 @@
 #include <wtf/StdLibExtras.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
-#include <wtf/text/AtomString.h>
 
 namespace WebCore {
 
@@ -263,9 +263,7 @@ struct Children {
 
     Vector<Child> value;
 
-    Children(Children&&);
     Children(Vector<Child>&&);
-    Children& operator=(Children&&);
     Children& operator=(Vector<Child>&&);
 
     iterator begin() LIFETIME_BOUND;
@@ -747,7 +745,7 @@ struct Random {
     WTF_MAKE_STRUCT_TZONE_ALLOCATED(Random);
     static constexpr auto id = CSSValueRandom;
 
-    // <random-value-sharing> = [ [ auto | <dashed-ident> ] || element-shared ] | fixed <number [0,1]>
+    // <random-value-sharing> = [ auto | <dashed-ident> ] || element-scoped | fixed <number [0,1]>
     struct SharingOptions {
         struct Auto {
             CSSPropertyID property;
@@ -755,8 +753,8 @@ struct Random {
 
             bool operator==(const Auto&) const = default;
         };
-        Variant<Auto, AtomString> identifier;
-        std::optional<CSS::Keyword::ElementShared> elementShared;
+        Variant<Auto, CSS::CustomIdent> identifier;
+        std::optional<CSS::Keyword::ElementScoped> elementScoped;
 
         bool operator==(const SharingOptions&) const = default;
     };
@@ -823,7 +821,7 @@ struct Anchor {
 
     // Can't use Style::ScopedName here, since the scope ordinal is not available at
     // parsing time.
-    AtomString elementName;
+    std::optional<CSS::CustomIdent> elementName;
     AnchorSide side;
     std::optional<Child> fallback;
 
@@ -838,9 +836,7 @@ struct AnchorSize {
     // <anchor-element> = <dashed-ident>
     // <anchor-size> = width | height | block | inline | self-block | self-inline
 
-    // Can't use Style::ScopedName here, since the scope ordinal is not available at
-    // parsing time.
-    AtomString elementName; // <anchor-element>
+    std::optional<CSS::CustomIdent> elementName; // <anchor-element>
     std::optional<Style::AnchorSizeDimension> dimension; // <anchor-size>
     std::optional<Child> fallback;
 
@@ -955,59 +951,21 @@ constexpr CSSUnitType toCSSUnit(const NonCanonicalDimension& dimension) { return
 
 // MARK: Predicates
 
-inline bool isNumeric(const Child& root)
-{
-    return WTF::switchOn(root,
-        []<Numeric T>(const T&) { return true; },
-        [](const auto&) { return false; }
-    );
-}
+bool isNumeric(const Child& root);
 
 // Convenience constructors
 
 // Makes the appropriate child type (number, percentage, canonical-dimensions, non-canonical-dimension) based on the CSSUnitType.
 Child makeNumeric(double, CSSUnitType);
 
-inline Sum add(Child&& a, Child&& b)
-{
-    Vector<Child> sumChildren;
-    sumChildren.append(WTF::move(a));
-    sumChildren.append(WTF::move(b));
-    return Sum { .children = WTF::move(sumChildren) };
-}
+Sum add(Child&& a, Child&& b);
+Product multiply(Child&& a, Child&& b);
+Sum subtract(Child&& a, Child&& b);
 
-inline Product multiply(Child&& a, Child&& b)
-{
-    Vector<Child> productChildren;
-    productChildren.append(WTF::move(a));
-    productChildren.append(WTF::move(b));
-    return Product { .children = WTF::move(productChildren) };
-}
-
-inline Sum subtract(Child&& a, Child&& b)
-{
-    return add(WTF::move(a), makeChild(Negate { .a = WTF::move(b) }, getType(b)));
-}
-
-inline Child makeChildWithValueBasedOn(double value, const Number&)
-{
-    return makeChild(Number { .value = value });
-}
-
-inline Child makeChildWithValueBasedOn(double value, const Percentage& a)
-{
-    return makeChild(Percentage { .value = value, .hint = a.hint });
-}
-
-inline Child makeChildWithValueBasedOn(double value, const CanonicalDimension& a)
-{
-    return makeChild(CanonicalDimension { .value = value, .dimension = a.dimension });
-}
-
-inline Child makeChildWithValueBasedOn(double value, const NonCanonicalDimension& a)
-{
-    return makeChild(NonCanonicalDimension { .value = value, .unit = a.unit });
-}
+Child makeChildWithValueBasedOn(double value, const Number&);
+Child makeChildWithValueBasedOn(double value, const Percentage&);
+Child makeChildWithValueBasedOn(double value, const CanonicalDimension&);
+Child makeChildWithValueBasedOn(double value, const NonCanonicalDimension&);
 
 // MARK: Tuple Conformance
 
@@ -1242,20 +1200,9 @@ inline ChildOrNone::ChildOrNone(CSS::Keyword::None none)
 
 // MARK: Children Definition
 
-inline Children::Children(Children&& other)
-    : value(WTF::move(other.value))
-{
-}
-
 inline Children::Children(Vector<Child>&& other)
     : value(WTF::move(other))
 {
-}
-
-inline Children& Children::operator=(Children&& other)
-{
-    value = WTF::move(other.value);
-    return *this;
 }
 
 inline Children& Children::operator=(Vector<Child>&& other)

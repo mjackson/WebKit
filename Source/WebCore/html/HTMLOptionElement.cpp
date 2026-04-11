@@ -64,7 +64,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(HTMLOptionElement);
 using namespace HTMLNames;
 
 HTMLOptionElement::HTMLOptionElement(const QualifiedName& tagName, Document& document)
-    : HTMLElement(tagName, document, TypeFlag::HasCustomStyleResolveCallbacks)
+    : HTMLElement(tagName, document)
 {
     ASSERT(hasTagName(optionTag));
 }
@@ -169,6 +169,15 @@ auto HTMLOptionElement::insertionSteps(InsertionType insertionType, ContainerNod
     if (RefPtr select = HTMLSelectElement::findOwnerSelect(parentNode(), HTMLSelectElement::ExcludeOptGroup::No)) {
         m_ownerSelect = select.get();
         select->setRecalcListItems();
+        // If this non-selected option is the first non-disabled option in a
+        // single-select that has no explicitly selected option, select it by
+        // default. This maintains m_isSelected incrementally so that
+        // finishParsingChildren() can use selectedWithoutUpdate() (O(1))
+        // instead of selected() which triggers O(n) recalcListItems().
+        // Only do this during parsing — for API insertions, the existing
+        // childrenChanged → optionToSelectFromChildChangeScope path handles it.
+        if (!select->isFinishedParsingChildren() && !selectedWithoutUpdate() && !m_disabled)
+            select->selectDefaultOptionIfNeeded(*this);
     }
 
     if (insertionType.connectedToDocument && m_shadowTreeNeedsUpdate)
@@ -187,7 +196,7 @@ void HTMLOptionElement::removingSteps(RemovalType removalType, ContainerNode& ol
     if (!document().settings().htmlEnhancedSelectParsingEnabled() || !m_ownerSelect)
         return;
 
-    if (RefPtr select = HTMLSelectElement::findOwnerSelect(parentNode(), HTMLSelectElement::ExcludeOptGroup::No)) {
+    if (auto* select = HTMLSelectElement::findOwnerSelect(parentNode(), HTMLSelectElement::ExcludeOptGroup::No)) {
         ASSERT_UNUSED(select, select == m_ownerSelect.get());
         return;
     }
@@ -208,22 +217,30 @@ void HTMLOptionElement::finishParsingChildren()
 
     ASSERT(document().settings().htmlEnhancedSelectParsingEnabled());
 
-    if (m_disabled || !selected())
+    if (m_disabled)
         return;
 
-    RefPtr select = m_ownerSelect.get();
+    RefPtr select = m_ownerSelect;
     if (!select)
         return;
 
-    select->updateSelectedContent();
+    // When the owning <select> is still being parsed, use selectedWithoutUpdate()
+    // instead of selected() to avoid triggering recalcListItems() for each
+    // option, which would be O(n²). The selection state (m_isSelected) is
+    // maintained incrementally at insertion time — see insertionSteps() and
+    // optionToSelectFromChildChangeScope().
+    bool isSelected = select->isFinishedParsingChildren() ? selected() : selectedWithoutUpdate();
+    if (!isSelected)
+        return;
+
+    // Pass `this` to avoid updateSelectedContent() calling listItems() to find
+    // the selected option, which would also trigger recalcListItems().
+    select->updateSelectedContent(this);
 }
 
 bool HTMLOptionElement::supportsFocus() const
 {
-    if (HTMLElement::supportsFocus())
-        return true;
-    RefPtr select = ownerSelectElement();
-    return select && select->usesBaseAppearancePicker();
+    return HTMLElement::supportsFocus() || belongsToBaseAppearancePicker();
 }
 
 bool HTMLOptionElement::isFocusable() const
@@ -291,7 +308,12 @@ void HTMLOptionElement::defaultEventHandler(Event& event)
         int currentIndex = select->optionToListIndex(index());
         int listIndex = select->computeNavigationIndex(keyIdentifier, currentIndex, select->pickerNavigationKeyIdentifiers());
         if (listIndex >= 0) {
-            select->focusOptionAtIndex(listIndex);
+            auto scrollMode = HTMLSelectElement::PickerScrollMode::Nearest;
+            if (keyIdentifier == "PageDown"_s)
+                scrollMode = HTMLSelectElement::PickerScrollMode::AlignBottom;
+            else if (keyIdentifier == "PageUp"_s)
+                scrollMode = HTMLSelectElement::PickerScrollMode::AlignTop;
+            select->focusOptionAtIndex(listIndex, std::nullopt, scrollMode);
             keyboardEvent->setDefaultHandled();
             return;
         }
@@ -472,6 +494,12 @@ HTMLSelectElement* HTMLOptionElement::ownerSelectElement() const
     return nullptr;
 }
 
+bool HTMLOptionElement::belongsToBaseAppearancePicker() const
+{
+    RefPtr select = ownerSelectElement();
+    return select && select->usesBaseAppearancePicker();
+}
+
 String HTMLOptionElement::label() const
 {
     String label = attributeWithoutSynchronization(labelAttr);
@@ -486,16 +514,6 @@ String HTMLOptionElement::displayLabel() const
     if (document().inQuirksMode())
         return collectOptionInnerTextCollapsingWhitespace();
     return label();
-}
-
-void HTMLOptionElement::willResetComputedStyle()
-{
-    // FIXME: This is nasty, we ask our owner select to repaint even if the new
-    // style is exactly the same.
-    if (RefPtr select = ownerSelectElement()) {
-        if (CheckedPtr renderer = select->renderer())
-            renderer->repaint();
-    }
 }
 
 String HTMLOptionElement::textIndentedToRespectGroupLabel() const

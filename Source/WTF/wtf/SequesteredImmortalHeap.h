@@ -78,7 +78,7 @@ public:
         }
     }
 
-    void decommit();
+    WTF_EXPORT_PRIVATE void decommit();
 private:
     GranuleList acquireExclusiveCopyOfGranuleList()
     {
@@ -198,7 +198,7 @@ private:
         return reinterpret_cast<void*>(allocation);
     }
 
-    GranuleHeader* addGranule(size_t minSize);
+    WTF_EXPORT_PRIVATE GranuleHeader* addGranule(size_t minSize);
 
     GranuleList m_granules { };
     uintptr_t m_allocHead { 0 };
@@ -356,7 +356,7 @@ public:
         ReturnNull
     };
 
-    static SequesteredImmortalHeap& instance();
+    WTF_EXPORT_PRIVATE static SequesteredImmortalHeap& instance();
 
     template <typename T> requires (sizeof(T) <= slotSize)
     T* allocateAndInstall()

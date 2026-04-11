@@ -2659,7 +2659,7 @@ class CheckStatusOfPR(buildstep.BuildStep, GitHubMixin, AddToLogMixin):
     name = 'check-status-of-pr'
     flunkOnFailure = False
     haltOnFailure = False
-    EMBEDDED_CHECKS = ['ios', 'ios-sim', 'ios-wk2', 'ios-wk2-wpt', 'api-ios', 'vision', 'vision-sim', 'vision-wk2', 'tv', 'tv-sim', 'watch', 'watch-sim']
+    EMBEDDED_CHECKS = ['ios', 'ios-safer-cpp', 'ios-sim', 'ios-wk2', 'ios-wk2-wpt', 'api-ios', 'vision', 'vision-sim', 'vision-wk2', 'tv', 'tv-sim', 'watch', 'watch-sim']
     MACOS_CHECKS = ['mac', 'mac-AS-debug', 'api-mac', 'api-mac-debug', 'mac-wk1', 'mac-wk2', 'mac-AS-debug-wk2', 'mac-wk2-stress', 'mac-safer-cpp', 'jsc', 'jsc-debug-arm64']
     LINUX_CHECKS = ['gtk', 'gtk-wk2', 'api-gtk', 'wpe', 'gtk3-libwebrtc', 'wpe-wk2', 'api-wpe']
     WINDOWS_CHECKS = ['win']
@@ -3766,7 +3766,7 @@ class RunJavaScriptCoreTests(shell.Test, AddToLogMixin, ShellMixin):
     FAILURE_THRESHOLD = 1000
 
     def __init__(self, **kwargs):
-        super().__init__(logEnviron=False, sigtermTime=10, timeout=3 * 60 * 60, **kwargs)
+        super().__init__(logEnviron=False, sigtermTime=10, timeout=1 * 60 * 60, **kwargs)
         self.binaryFailures = []
         self.stressTestFailures = []
         self.flaky = {}
@@ -5851,7 +5851,7 @@ class RunAPITests(shell.Test, AddToLogMixin, ShellMixin):
     MSG_FOR_EXCESSIVE_LOGS_API_TEST = f'Stopped due to excessive logging, limit: {THRESHOLD_FOR_EXCESSIVE_LOGS_API_TESTS}'
 
     def __init__(self, **kwargs):
-        super().__init__(logEnviron=False, timeout=3 * 60 * 60, **kwargs)
+        super().__init__(logEnviron=False, timeout=20 * 60, **kwargs)
         self.failing_tests_filtered = []
         self.preexisting_failures_in_results_db = []
         self.steps_to_add = []
@@ -5883,7 +5883,7 @@ class RunAPITests(shell.Test, AddToLogMixin, ShellMixin):
             if list_failed_tests_with_change:
                 self.command = self.command + [quote(t) for t in list_failed_tests_with_change]
         if SHOULD_FILTER_LOGS is True:
-            self.command = self.shell_command(' '.join(self.command) + ' > logs.txt 2>&1 ; ret=$? ; grep "Ran " logs.txt ; exit $ret')
+            self.command = self.shell_command(' '.join(self.command) + ' 2>&1 | Tools/Scripts/filter-test-logs api')
 
         rc = yield super().run()
 

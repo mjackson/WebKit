@@ -127,9 +127,7 @@ ElementData::ElementData(const ElementData& other, bool isUnique)
     // NOTE: The inline style is copied by the subclass copy constructor since we don't know what to do with it here.
 }
 
-UniqueElementData::UniqueElementData()
-{
-}
+UniqueElementData::UniqueElementData() = default;
 
 UniqueElementData::UniqueElementData(const UniqueElementData& other)
     : ElementData(other, true)

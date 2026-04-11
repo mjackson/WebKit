@@ -123,8 +123,6 @@ public:
     virtual void isMuted(CompletionHandler<void(std::optional<bool>&&)>&&) = 0;
     virtual void setIsMuted(bool, CompletionHandler<void(bool success)>&&) = 0;
 
-    virtual String inlinePreviewUUIDForTesting() const;
-
 #if ENABLE(MODEL_ELEMENT_ACCESSIBILITY)
     virtual ModelPlayerAccessibilityChildren accessibilityChildren() = 0;
 #endif

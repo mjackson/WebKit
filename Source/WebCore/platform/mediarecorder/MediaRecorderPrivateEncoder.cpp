@@ -692,7 +692,7 @@ void MediaRecorderPrivateEncoder::processVideoEncoderActiveConfiguration(const V
             .size = configuration.visibleWidth && configuration.visibleHeight ? FloatSize { static_cast<float>(*configuration.visibleWidth), static_cast<float>(*configuration.visibleHeight) } : FloatSize { static_cast<float>(config.width), static_cast<float>(config.height) },
             .displaySize = configuration.displayWidth && configuration.displayHeight ? FloatSize { static_cast<float>(*configuration.displayWidth), static_cast<float>(*configuration.displayHeight) } : FloatSize { static_cast<float>(config.width), static_cast<float>(config.height) },
             .colorSpace = configuration.colorSpace.value_or(PlatformVideoColorSpace { }),
-            .extensionAtoms = configuration.description ? Vector<TrackInfo::AtomData> { 1, { computeBoxType(m_videoCodec), SharedBuffer::create(*configuration.description) } } : Vector<TrackInfo::AtomData> { }
+            .extensionAtoms = configuration.description ? Vector<TrackInfo::AtomData> { FillWith { }, 1, { computeBoxType(m_videoCodec), SharedBuffer::create(*configuration.description) } } : Vector<TrackInfo::AtomData> { }
         }
     });
     m_videoTrackInfo = videoInfo.copyRef();
@@ -729,7 +729,7 @@ void MediaRecorderPrivateEncoder::enqueueCompressedVideoFrame(VideoEncoder::Enco
 
     ASSERT(m_videoTrackInfo);
 
-    MediaSamplesBlock::SamplesVector vector(1, {
+    MediaSamplesBlock::SamplesVector vector(FillWith { }, 1, {
         .presentationTime = compressedFrameTime,
         .decodeTime = compressedFrameTime,
         .data = SharedBuffer::create(frame.data),

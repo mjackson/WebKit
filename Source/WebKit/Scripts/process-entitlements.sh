@@ -14,35 +14,10 @@ function mac_process_webcontent_entitlements()
 {
     plistbuddy Add :com.apple.security.cs.allow-jit bool YES
 
-    if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
-    then
-        plistbuddy Add :com.apple.security.fatal-exceptions array
-        plistbuddy Add :com.apple.security.fatal-exceptions:0 string jit
-    fi
-
     if [[ "${WK_USE_RESTRICTED_ENTITLEMENTS}" == YES ]]
     then
-        plistbuddy Add :com.apple.private.webkit.use-xpc-endpoint bool YES
-        plistbuddy Add :com.apple.rootless.storage.WebKitWebContentSandbox bool YES
-        plistbuddy Add :com.apple.QuartzCore.webkit-end-points bool YES
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 110000 ))
-        then
-            plistbuddy Add :com.apple.developer.kernel.extended-virtual-addressing bool YES
-            plistbuddy Add :com.apple.developer.videotoolbox.client-sandboxed-decoder bool YES
-            plistbuddy Add :com.apple.pac.shared_region_id string WebContent
-            plistbuddy Add :com.apple.private.security.message-filter bool YES
-            plistbuddy Add :com.apple.avfoundation.allow-system-wide-context bool YES
-            plistbuddy add :com.apple.QuartzCore.webkit-limited-types bool YES
-
-            if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
-            then
-                plistbuddy Add :com.apple.private.pac.exception bool YES
-            fi
-        fi
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 130000 ))
-        then
-            plistbuddy Add :com.apple.private.gpu-restricted bool YES
-        fi
+        plistbuddy Add :com.apple.private.verified-jit bool YES
+        plistbuddy Add :com.apple.security.cs.single-jit bool YES
     fi
 
     mac_process_webcontent_shared_entitlements
@@ -50,42 +25,13 @@ function mac_process_webcontent_entitlements()
 
 function mac_process_webcontent_captiveportal_entitlements()
 {
-    if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
-    then
-        plistbuddy Add :com.apple.security.fatal-exceptions array
-        plistbuddy Add :com.apple.security.fatal-exceptions:0 string jit
-    fi
-
     if [[ "${WK_USE_RESTRICTED_ENTITLEMENTS}" == YES ]]
     then
-        plistbuddy Add :com.apple.private.webkit.use-xpc-endpoint bool YES
-        plistbuddy Add :com.apple.rootless.storage.WebKitWebContentSandbox bool YES
-        plistbuddy Add :com.apple.QuartzCore.webkit-end-points bool YES
-
         plistbuddy Add :com.apple.imageio.allowabletypes array
         plistbuddy Add :com.apple.imageio.allowabletypes:0 string org.webmproject.webp
         plistbuddy Add :com.apple.imageio.allowabletypes:1 string public.jpeg
         plistbuddy Add :com.apple.imageio.allowabletypes:2 string public.png
         plistbuddy Add :com.apple.imageio.allowabletypes:3 string com.compuserve.gif
-
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 110000 ))
-        then
-            plistbuddy Add :com.apple.developer.kernel.extended-virtual-addressing bool YES
-            plistbuddy Add :com.apple.developer.videotoolbox.client-sandboxed-decoder bool YES
-            plistbuddy Add :com.apple.pac.shared_region_id string WebContent
-            plistbuddy Add :com.apple.private.security.message-filter bool YES
-            plistbuddy Add :com.apple.avfoundation.allow-system-wide-context bool YES
-            plistbuddy add :com.apple.QuartzCore.webkit-limited-types bool YES
-
-            if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
-            then
-                plistbuddy Add :com.apple.private.pac.exception bool YES
-            fi
-        fi
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 130000 ))
-        then
-            plistbuddy Add :com.apple.private.gpu-restricted bool YES
-        fi
     fi
 
     mac_process_webcontent_shared_entitlements
@@ -93,38 +39,6 @@ function mac_process_webcontent_captiveportal_entitlements()
 
 function mac_process_webcontent_enhancedsecurity_entitlements()
 {
-    if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
-    then
-        plistbuddy Add :com.apple.security.fatal-exceptions array
-        plistbuddy Add :com.apple.security.fatal-exceptions:0 string jit
-    fi
-
-    if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 260000 ))
-    then
-        plistbuddy Add :com.apple.security.hardened-process.checked-allocations.no-tagged-receive bool YES
-    fi
-
-    if [[ "${WK_USE_RESTRICTED_ENTITLEMENTS}" == YES ]]
-    then
-        plistbuddy Add :com.apple.private.webkit.use-xpc-endpoint bool YES
-        plistbuddy Add :com.apple.rootless.storage.WebKitWebContentSandbox bool YES
-        plistbuddy Add :com.apple.QuartzCore.webkit-end-points bool YES
-        
-        plistbuddy Add :com.apple.developer.kernel.extended-virtual-addressing bool YES
-        plistbuddy Add :com.apple.developer.videotoolbox.client-sandboxed-decoder bool YES
-        plistbuddy Add :com.apple.pac.shared_region_id string WebContent
-        plistbuddy Add :com.apple.private.security.message-filter bool YES
-        plistbuddy Add :com.apple.avfoundation.allow-system-wide-context bool YES
-        plistbuddy add :com.apple.QuartzCore.webkit-limited-types bool YES
-    
-        plistbuddy Add :com.apple.private.gpu-restricted bool YES
-
-        if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
-        then
-            plistbuddy Add :com.apple.private.pac.exception bool YES
-        fi
-    fi
-
     mac_process_webcontent_shared_entitlements
 }
 
@@ -138,46 +52,28 @@ function mac_process_gpu_entitlements()
 
     if [[ "${WK_USE_RESTRICTED_ENTITLEMENTS}" == YES ]]
     then
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 101400 ))
-        then
-            plistbuddy Add :com.apple.tcc.delegated-services array
-            plistbuddy Add :com.apple.tcc.delegated-services:1 string kTCCServiceMicrophone
-            plistbuddy Add :com.apple.tcc.delegated-services:0 string kTCCServiceCamera
-        fi
+        plistbuddy Add :com.apple.tcc.delegated-services array
+        plistbuddy Add :com.apple.tcc.delegated-services:1 string kTCCServiceMicrophone
+        plistbuddy Add :com.apple.tcc.delegated-services:0 string kTCCServiceCamera
 
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 110000 ))
-        then
-            plistbuddy Add :com.apple.developer.videotoolbox.client-sandboxed-decoder bool YES
-            plistbuddy Add :com.apple.avfoundation.allow-system-wide-context bool YES
-            plistbuddy add :com.apple.QuartzCore.webkit-limited-types bool YES
-        fi
+        plistbuddy Add :com.apple.developer.videotoolbox.client-sandboxed-decoder bool YES
+        plistbuddy Add :com.apple.avfoundation.allow-system-wide-context bool YES
+        plistbuddy add :com.apple.QuartzCore.webkit-limited-types bool YES
 
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 110000 ))
-        then
-            plistbuddy Add :com.apple.private.security.message-filter bool YES
-            plistbuddy Add :com.apple.security.cs.jit-write-allowlist bool YES
-        fi
+        plistbuddy Add :com.apple.private.security.message-filter bool YES
+        plistbuddy Add :com.apple.security.cs.jit-write-allowlist bool YES
 
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 120000 ))
-        then
-            plistbuddy add :com.apple.coreaudio.allow-vorbis-decode bool YES
-        fi
+        plistbuddy add :com.apple.coreaudio.allow-vorbis-decode bool YES
 
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 130000 ))
-        then
-            plistbuddy Add :com.apple.private.gpu-restricted bool YES
-            plistbuddy Add :com.apple.private.screencapturekit.sharingsession bool YES
-            plistbuddy Add :com.apple.private.tcc.allow array
-            plistbuddy Add :com.apple.private.tcc.allow:0 string kTCCServiceScreenCapture
-            plistbuddy Add :com.apple.runningboard.assertions.webkit bool YES
-            plistbuddy Add :com.apple.mediaremote.external-artwork-validation bool YES
-        fi
+        plistbuddy Add :com.apple.private.gpu-restricted bool YES
+        plistbuddy Add :com.apple.private.screencapturekit.sharingsession bool YES
+        plistbuddy Add :com.apple.private.tcc.allow array
+        plistbuddy Add :com.apple.private.tcc.allow:0 string kTCCServiceScreenCapture
+        plistbuddy Add :com.apple.runningboard.assertions.webkit bool YES
+        plistbuddy Add :com.apple.mediaremote.external-artwork-validation bool YES
 
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 140000 ))
-        then
-            plistbuddy add :com.apple.private.disable.screencapturekit.alert bool YES
-            plistbuddy add :com.apple.aneuserd.private.allow bool YES
-        fi
+        plistbuddy add :com.apple.private.disable.screencapturekit.alert bool YES
+        plistbuddy add :com.apple.aneuserd.private.allow bool YES
 
         plistbuddy Add :com.apple.private.memory.ownership_transfer bool YES
         plistbuddy Add :com.apple.private.webkit.use-xpc-endpoint bool YES
@@ -189,6 +85,10 @@ function mac_process_gpu_entitlements()
         if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
         then
             plistbuddy Add :com.apple.private.pac.exception bool YES
+        fi
+        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 260000 ))
+        then
+            plistbuddy Add :com.apple.security.hardened-process.checked-allocations.no-tagged-receive bool YES
         fi
         plistbuddy Add :com.apple.security.hardened-process.checked-allocations.soft-mode bool YES # FIXME: Should be removed before release <rdar://171909082>
     fi
@@ -204,36 +104,21 @@ function mac_process_network_entitlements()
 
     if [[ "${WK_USE_RESTRICTED_ENTITLEMENTS}" == YES ]]
     then
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 101500 ))
-        then
-            plistbuddy Add :com.apple.private.network.socket-delegate bool YES
-        fi
+        plistbuddy Add :com.apple.private.network.socket-delegate bool YES
 
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 110000 ))
-        then
-            plistbuddy Add :com.apple.private.security.message-filter bool YES
-            plistbuddy Add :com.apple.private.tcc.manager.check-by-audit-token array
-            plistbuddy Add :com.apple.private.tcc.manager.check-by-audit-token:0 string kTCCServiceWebKitIntelligentTrackingPrevention
-            plistbuddy Add :com.apple.private.tcc.manager.check-by-audit-token:1 string kTCCServiceUserTracking
-        fi
+        plistbuddy Add :com.apple.private.security.message-filter bool YES
+        plistbuddy Add :com.apple.private.tcc.manager.check-by-audit-token array
+        plistbuddy Add :com.apple.private.tcc.manager.check-by-audit-token:0 string kTCCServiceWebKitIntelligentTrackingPrevention
+        plistbuddy Add :com.apple.private.tcc.manager.check-by-audit-token:1 string kTCCServiceUserTracking
 
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 110000 ))
-        then
-            plistbuddy Add :com.apple.security.cs.jit-write-allowlist bool YES
-        fi
+        plistbuddy Add :com.apple.security.cs.jit-write-allowlist bool YES
 
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 130000 ))
-        then
-            plistbuddy Add :com.apple.runningboard.assertions.webkit bool YES
-            plistbuddy Add :com.apple.private.assets.bypass-asset-types-check bool YES
-            plistbuddy Add :com.apple.private.assets.accessible-asset-types array
-            plistbuddy Add :com.apple.private.assets.accessible-asset-types:0 string com.apple.MobileAsset.WebContentRestrictions
-        fi
+        plistbuddy Add :com.apple.runningboard.assertions.webkit bool YES
+        plistbuddy Add :com.apple.private.assets.bypass-asset-types-check bool YES
+        plistbuddy Add :com.apple.private.assets.accessible-asset-types array
+        plistbuddy Add :com.apple.private.assets.accessible-asset-types:0 string com.apple.MobileAsset.WebContentRestrictions
 
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 140000 ))
-        then
-            plistbuddy Add :com.apple.private.ciphermld.allow bool YES
-        fi
+        plistbuddy Add :com.apple.private.ciphermld.allow bool YES
 
         plistbuddy Add :com.apple.private.launchservices.allowedtochangethesekeysinotherapplications array
         plistbuddy Add :com.apple.private.launchservices.allowedtochangethesekeysinotherapplications:0 string LSActivePageUserVisibleOriginsKey
@@ -245,7 +130,12 @@ function mac_process_network_entitlements()
         plistbuddy Add :com.apple.private.webkit.adattributiond bool YES
         plistbuddy Add :com.apple.private.webkit.webpush bool YES
         plistbuddy Add :com.apple.developer.hardened-process bool YES
+        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 260000 ))
+        then
+            plistbuddy Add :com.apple.security.hardened-process.checked-allocations.no-tagged-receive bool YES
+        fi
         plistbuddy Add :com.apple.security.hardened-process.checked-allocations.soft-mode bool YES # FIXME: Should be removed before release <rdar://171909082>
+
         # FIXME: This should be removed after crash investigation as part of <rdar://problem/160965793>
         plistbuddy Add :com.apple.private.get-system-corpse bool YES
 
@@ -266,11 +156,10 @@ function webcontent_sandbox_entitlements()
     plistbuddy Add :com.apple.private.security.mutable-state-flags:4 string ParentProcessCanEnableQuickLookStateFlag
     plistbuddy Add :com.apple.private.security.mutable-state-flags:5 string BlockOpenDirectoryInWebContentSandbox
     plistbuddy Add :com.apple.private.security.mutable-state-flags:6 string BlockMobileAssetInWebContentSandbox
-    plistbuddy Add :com.apple.private.security.mutable-state-flags:7 string BlockWebInspectorInWebContentSandbox
-    plistbuddy Add :com.apple.private.security.mutable-state-flags:8 string BlockIconServicesInWebContentSandbox
-    plistbuddy Add :com.apple.private.security.mutable-state-flags:9 string UnifiedPDFEnabled
-    plistbuddy Add :com.apple.private.security.mutable-state-flags:10 string WebProcessDidNotInjectStoreBundle
-    plistbuddy Add :com.apple.private.security.mutable-state-flags:11 string BlockUserInstalledFonts
+    plistbuddy Add :com.apple.private.security.mutable-state-flags:7 string BlockIconServicesInWebContentSandbox
+    plistbuddy Add :com.apple.private.security.mutable-state-flags:8 string UnifiedPDFEnabled
+    plistbuddy Add :com.apple.private.security.mutable-state-flags:9 string WebProcessDidNotInjectStoreBundle
+    plistbuddy Add :com.apple.private.security.mutable-state-flags:10 string BlockUserInstalledFonts
     plistbuddy Add :com.apple.private.security.enable-state-flags array
     plistbuddy Add :com.apple.private.security.enable-state-flags:0 string EnableExperimentalSandbox
     plistbuddy Add :com.apple.private.security.enable-state-flags:1 string BlockIOKitInWebContentSandbox
@@ -278,11 +167,10 @@ function webcontent_sandbox_entitlements()
     plistbuddy Add :com.apple.private.security.enable-state-flags:3 string ParentProcessCanEnableQuickLookStateFlag
     plistbuddy Add :com.apple.private.security.enable-state-flags:4 string BlockOpenDirectoryInWebContentSandbox
     plistbuddy Add :com.apple.private.security.enable-state-flags:5 string BlockMobileAssetInWebContentSandbox
-    plistbuddy Add :com.apple.private.security.enable-state-flags:6 string BlockWebInspectorInWebContentSandbox
-    plistbuddy Add :com.apple.private.security.enable-state-flags:7 string BlockIconServicesInWebContentSandbox
-    plistbuddy Add :com.apple.private.security.enable-state-flags:8 string UnifiedPDFEnabled
-    plistbuddy Add :com.apple.private.security.enable-state-flags:9 string WebProcessDidNotInjectStoreBundle
-    plistbuddy Add :com.apple.private.security.enable-state-flags:10 string BlockUserInstalledFonts
+    plistbuddy Add :com.apple.private.security.enable-state-flags:6 string BlockIconServicesInWebContentSandbox
+    plistbuddy Add :com.apple.private.security.enable-state-flags:7 string UnifiedPDFEnabled
+    plistbuddy Add :com.apple.private.security.enable-state-flags:8 string WebProcessDidNotInjectStoreBundle
+    plistbuddy Add :com.apple.private.security.enable-state-flags:9 string BlockUserInstalledFonts
 }
 
 function extract_notification_names() {
@@ -327,26 +215,12 @@ function mac_process_webcontent_shared_entitlements()
 {
     if [[ "${WK_USE_RESTRICTED_ENTITLEMENTS}" == YES ]]
     then
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 110000 ))
-        then
-            plistbuddy Add :com.apple.security.cs.jit-write-allowlist bool YES
-        fi
+        plistbuddy Add :com.apple.security.cs.jit-write-allowlist bool YES
 
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 120000 ))
-        then
-            if [[ "${PRODUCT_NAME}" != com.apple.WebKit.WebContent.EnhancedSecurity && "${PRODUCT_NAME}" != com.apple.WebKit.WebContent.CaptivePortal ]]
-            then
-                plistbuddy Add :com.apple.private.verified-jit bool YES
-                plistbuddy Add :com.apple.security.cs.single-jit bool YES
-            fi
-            plistbuddy add :com.apple.coreaudio.allow-vorbis-decode bool YES
-        fi
+        plistbuddy add :com.apple.coreaudio.allow-vorbis-decode bool YES
 
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 130000 ))
-        then
-            webcontent_sandbox_entitlements
-            plistbuddy Add :com.apple.runningboard.assertions.webkit bool YES
-        fi
+        webcontent_sandbox_entitlements
+        plistbuddy Add :com.apple.runningboard.assertions.webkit bool YES
 
         if [[ "${WK_WEBCONTENT_SERVICE_NEEDS_XPC_DOMAIN_EXTENSION_ENTITLEMENT}" == YES ]]
         then
@@ -354,7 +228,29 @@ function mac_process_webcontent_shared_entitlements()
         fi
 
         plistbuddy Add :com.apple.developer.hardened-process bool YES
+        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 260000 ))
+        then
+            plistbuddy Add :com.apple.security.hardened-process.checked-allocations.no-tagged-receive bool YES
+        fi
         plistbuddy Add :com.apple.security.hardened-process.checked-allocations.soft-mode bool YES # FIXME: Should be removed before release <rdar://171909082>
+
+        plistbuddy Add :com.apple.private.webkit.use-xpc-endpoint bool YES
+        plistbuddy Add :com.apple.rootless.storage.WebKitWebContentSandbox bool YES
+        plistbuddy Add :com.apple.QuartzCore.webkit-end-points bool YES
+
+        plistbuddy Add :com.apple.developer.kernel.extended-virtual-addressing bool YES
+        plistbuddy Add :com.apple.developer.videotoolbox.client-sandboxed-decoder bool YES
+        plistbuddy Add :com.apple.pac.shared_region_id string WebContent
+        plistbuddy Add :com.apple.private.security.message-filter bool YES
+        plistbuddy Add :com.apple.avfoundation.allow-system-wide-context bool YES
+        plistbuddy add :com.apple.QuartzCore.webkit-limited-types bool YES
+
+        if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
+        then
+            plistbuddy Add :com.apple.private.pac.exception bool YES
+        fi
+
+        plistbuddy Add :com.apple.private.gpu-restricted bool YES
     fi
 
     if [[ "${WK_XPC_SERVICE_VARIANT}" == Development ]]
@@ -365,6 +261,12 @@ function mac_process_webcontent_shared_entitlements()
     if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" > 140000 ))
     then
         notify_entitlements
+    fi
+
+    if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
+    then
+        plistbuddy Add :com.apple.security.fatal-exceptions array
+        plistbuddy Add :com.apple.security.fatal-exceptions:0 string jit
     fi
 }
 
@@ -386,122 +288,22 @@ function mac_process_webpushd_entitlements()
 # macCatalyst entitlements
 # ========================================
 
-function maccatalyst_process_webcontent_entitlements()
+function maccatalyst_process_webcontent_shared_entitlements()
 {
-    plistbuddy Add :com.apple.security.cs.allow-jit bool YES
-    plistbuddy Add :com.apple.runningboard.assertions.webkit bool YES
-    plistbuddy Add :com.apple.private.webkit.use-xpc-endpoint bool YES
     plistbuddy Add :com.apple.QuartzCore.webkit-end-points bool YES
     plistbuddy Add :com.apple.developer.hardened-process bool YES
-    plistbuddy Add :com.apple.security.hardened-process.checked-allocations.soft-mode bool YES # FIXME: Should be removed before release <rdar://171909082>
-
-    if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
-    then
-        plistbuddy Add :com.apple.security.fatal-exceptions array
-        plistbuddy Add :com.apple.security.fatal-exceptions:0 string jit
-    fi
-
-    if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 110000 ))
-    then
-        plistbuddy Add :com.apple.developer.kernel.extended-virtual-addressing bool YES
-        plistbuddy Add :com.apple.pac.shared_region_id string WebContent
-        plistbuddy Add :com.apple.private.security.message-filter bool YES
-        plistbuddy Add :com.apple.UIKit.view-service-wants-custom-idiom-and-scale bool YES
-        plistbuddy Add :com.apple.QuartzCore.webkit-limited-types bool YES
-
-        if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
-        then
-            plistbuddy Add :com.apple.private.pac.exception bool YES
-        fi
-    fi
-
-    if [[ "${WK_USE_RESTRICTED_ENTITLEMENTS}" == YES ]]
-    then
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 110000 ))
-        then
-            plistbuddy Add :com.apple.security.cs.jit-write-allowlist bool YES
-        fi
-    fi
-
-    if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 120000 ))
-    then
-        plistbuddy Add :com.apple.private.verified-jit bool YES
-        plistbuddy Add :com.apple.security.cs.single-jit bool YES
-    fi
-
-    if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" > 150000 ))
-    then
-        plistbuddy Add :com.apple.private.disable-log-mach-ports bool YES
-    fi
-}
-
-function maccatalyst_process_webcontent_captiveportal_entitlements()
-{
-    plistbuddy Add :com.apple.runningboard.assertions.webkit bool YES
     plistbuddy Add :com.apple.private.webkit.use-xpc-endpoint bool YES
-    plistbuddy Add :com.apple.QuartzCore.webkit-end-points bool YES
-    plistbuddy Add :com.apple.developer.hardened-process bool YES
-    plistbuddy Add :com.apple.security.hardened-process.checked-allocations.soft-mode bool YES # FIXME: Should be removed before release <rdar://171909082>
-
-    plistbuddy Add :com.apple.imageio.allowabletypes array
-    plistbuddy Add :com.apple.imageio.allowabletypes:0 string org.webmproject.webp
-    plistbuddy Add :com.apple.imageio.allowabletypes:1 string public.jpeg
-    plistbuddy Add :com.apple.imageio.allowabletypes:2 string public.png
-    plistbuddy Add :com.apple.imageio.allowabletypes:3 string com.compuserve.gif
-
-    if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
-    then
-        plistbuddy Add :com.apple.security.fatal-exceptions array
-        plistbuddy Add :com.apple.security.fatal-exceptions:0 string jit
-    fi
-
-    if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 110000 ))
-    then
-        plistbuddy Add :com.apple.developer.kernel.extended-virtual-addressing bool YES
-        plistbuddy Add :com.apple.pac.shared_region_id string WebContent
-        plistbuddy Add :com.apple.private.security.message-filter bool YES
-        plistbuddy Add :com.apple.UIKit.view-service-wants-custom-idiom-and-scale bool YES
-        plistbuddy Add :com.apple.QuartzCore.webkit-limited-types bool YES
-
-        if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
-        then
-            plistbuddy Add :com.apple.private.pac.exception bool YES
-        fi
-    fi
-
-    if [[ "${WK_USE_RESTRICTED_ENTITLEMENTS}" == YES ]]
-    then
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 110000 ))
-        then
-            plistbuddy Add :com.apple.security.cs.jit-write-allowlist bool YES
-        fi
-    fi
-
-    if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 120000 ))
-    then
-        plistbuddy Add :com.apple.private.verified-jit bool YES
-        plistbuddy Add :com.apple.security.cs.single-jit bool YES
-    fi
-}
-
-function maccatalyst_process_webcontent_enhancedsecurity_entitlements()
-{
     plistbuddy Add :com.apple.runningboard.assertions.webkit bool YES
-    plistbuddy Add :com.apple.private.webkit.use-xpc-endpoint bool YES
-    plistbuddy Add :com.apple.QuartzCore.webkit-end-points bool YES
-    plistbuddy Add :com.apple.developer.hardened-process bool YES
-
-    if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
-    then
-        plistbuddy Add :com.apple.security.fatal-exceptions array
-        plistbuddy Add :com.apple.security.fatal-exceptions:0 string jit
-        plistbuddy Add :com.apple.private.pac.exception bool YES
-    fi
 
     if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 260000 ))
     then
-        plistbuddy Add :com.apple.security.hardened-process.checked-allocations.soft-mode bool YES
-        plistbuddy Add :com.apple.security.hardened-process.checked-allocations.no-tagged-receive bool YES
+        plistbuddy Add :com.apple.security.hardened-process.checked-allocations.soft-mode bool YES # FIXME: Should be removed before release <rdar://171909082>
+    fi
+
+    if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
+    then
+        plistbuddy Add :com.apple.security.fatal-exceptions array
+        plistbuddy Add :com.apple.security.fatal-exceptions:0 string jit
     fi
 
     plistbuddy Add :com.apple.developer.kernel.extended-virtual-addressing bool YES
@@ -510,12 +312,51 @@ function maccatalyst_process_webcontent_enhancedsecurity_entitlements()
     plistbuddy Add :com.apple.UIKit.view-service-wants-custom-idiom-and-scale bool YES
     plistbuddy Add :com.apple.QuartzCore.webkit-limited-types bool YES
 
+    if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
+    then
+        plistbuddy Add :com.apple.private.pac.exception bool YES
+    fi
+
     if [[ "${WK_USE_RESTRICTED_ENTITLEMENTS}" == YES ]]
     then
         plistbuddy Add :com.apple.security.cs.jit-write-allowlist bool YES
+
+        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 260000 ))
+        then
+            plistbuddy Add :com.apple.security.hardened-process.checked-allocations.no-tagged-receive bool YES
+        fi
     fi
 
-    plistbuddy Add :com.apple.private.disable-log-mach-ports bool YES
+    if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" > 150000 ))
+    then
+        plistbuddy Add :com.apple.private.disable-log-mach-ports bool YES
+    fi
+}
+
+function maccatalyst_process_webcontent_entitlements()
+{
+    plistbuddy Add :com.apple.security.cs.allow-jit bool YES
+
+    plistbuddy Add :com.apple.private.verified-jit bool YES
+    plistbuddy Add :com.apple.security.cs.single-jit bool YES
+
+    maccatalyst_process_webcontent_shared_entitlements
+}
+
+function maccatalyst_process_webcontent_captiveportal_entitlements()
+{
+    plistbuddy Add :com.apple.imageio.allowabletypes array
+    plistbuddy Add :com.apple.imageio.allowabletypes:0 string org.webmproject.webp
+    plistbuddy Add :com.apple.imageio.allowabletypes:1 string public.jpeg
+    plistbuddy Add :com.apple.imageio.allowabletypes:2 string public.png
+    plistbuddy Add :com.apple.imageio.allowabletypes:3 string com.compuserve.gif
+
+    maccatalyst_process_webcontent_shared_entitlements
+}
+
+function maccatalyst_process_webcontent_enhancedsecurity_entitlements()
+{
+    maccatalyst_process_webcontent_shared_entitlements
 }
 
 function maccatalyst_process_gpu_entitlements()
@@ -539,9 +380,10 @@ function maccatalyst_process_gpu_entitlements()
 
     if [[ "${WK_USE_RESTRICTED_ENTITLEMENTS}" == YES ]]
     then
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 110000 ))
+        plistbuddy Add :com.apple.security.cs.jit-write-allowlist bool YES
+        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 260000 ))
         then
-            plistbuddy Add :com.apple.security.cs.jit-write-allowlist bool YES
+            plistbuddy Add :com.apple.security.hardened-process.checked-allocations.no-tagged-receive bool YES
         fi
     fi
 }
@@ -568,9 +410,10 @@ function maccatalyst_process_network_entitlements()
 
     if [[ "${WK_USE_RESTRICTED_ENTITLEMENTS}" == YES ]]
     then
-        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 110000 ))
+        plistbuddy Add :com.apple.security.cs.jit-write-allowlist bool YES
+        if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 260000 ))
         then
-            plistbuddy Add :com.apple.security.cs.jit-write-allowlist bool YES
+            plistbuddy Add :com.apple.security.hardened-process.checked-allocations.no-tagged-receive bool YES
         fi
     fi
 }
@@ -604,13 +447,14 @@ function ios_family_process_webcontent_shared_entitlements()
         plistbuddy Add :com.apple.security.fatal-exceptions:0 string jit
     fi
 
-if [[ "${PRODUCT_NAME}" != WebContentExtension && "${PRODUCT_NAME}" != WebContentCaptivePortalExtension && "${PRODUCT_NAME}" != WebContentEnhancedSecurityExtension ]]; then
-    plistbuddy Add :com.apple.private.gpu-restricted bool YES
-    plistbuddy Add :com.apple.private.sandbox.profile string com.apple.WebKit.WebContent
-fi
+    if [[ "${PRODUCT_NAME}" != WebContentExtension && "${PRODUCT_NAME}" != WebContentCaptivePortalExtension && "${PRODUCT_NAME}" != WebContentEnhancedSecurityExtension ]]; then
+        plistbuddy Add :com.apple.private.gpu-restricted bool YES
+        plistbuddy Add :com.apple.private.sandbox.profile string com.apple.WebKit.WebContent
+    fi
     plistbuddy add :com.apple.coreaudio.LoadDecodersInProcess bool YES
     plistbuddy add :com.apple.coreaudio.allow-vorbis-decode bool YES
     plistbuddy Add :com.apple.developer.hardened-process bool YES
+    plistbuddy Add :com.apple.security.hardened-process.checked-allocations.no-tagged-receive bool YES
     plistbuddy Add :com.apple.security.hardened-process.checked-allocations.soft-mode bool YES # FIXME: Should be removed before release <rdar://171909082>
 
     if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
@@ -660,7 +504,6 @@ function ios_family_process_webcontent_enhancedsecurity_entitlements()
 {
     plistbuddy Add :com.apple.private.webkit.enhanced-security bool YES
     plistbuddy Add :com.apple.developer.kernel.extended-virtual-addressing bool YES
-    plistbuddy Add :com.apple.security.hardened-process.checked-allocations.no-tagged-receive bool YES
 
     ios_family_process_webcontent_shared_entitlements
 }
@@ -703,16 +546,16 @@ function ios_family_process_gpu_entitlements()
         plistbuddy Add :com.apple.security.fatal-exceptions:0 string jit
     fi
 
-if [[ "${PRODUCT_NAME}" != GPUExtension ]]; then
-    plistbuddy Add :com.apple.private.gpu-restricted bool YES
-    plistbuddy Add :com.apple.private.sandbox.profile string com.apple.WebKit.GPU
-    plistbuddy Add :com.apple.private.coremedia.allow-fps-attachment bool YES
+    if [[ "${PRODUCT_NAME}" != GPUExtension ]]; then
+        plistbuddy Add :com.apple.private.gpu-restricted bool YES
+        plistbuddy Add :com.apple.private.sandbox.profile string com.apple.WebKit.GPU
+        plistbuddy Add :com.apple.private.coremedia.allow-fps-attachment bool YES
 
-    if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
-    then
-        plistbuddy Add :com.apple.private.pac.exception bool YES
+        if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
+        then
+            plistbuddy Add :com.apple.private.pac.exception bool YES
+        fi
     fi
-fi
 
     plistbuddy Add :com.apple.systemstatus.activityattribution bool YES
     plistbuddy Add :com.apple.security.exception.mach-lookup.global-name array
@@ -722,13 +565,14 @@ fi
 
     plistbuddy add :com.apple.coreaudio.allow-vorbis-decode bool YES
 
-if [[ "${WK_PLATFORM_NAME}" == xros ]]; then
-    plistbuddy Add :com.apple.surfboard.application-service-client bool YES
-    plistbuddy Add :com.apple.surfboard.shared-simulation-connection-request bool YES
-    plistbuddy Add :com.apple.surfboard.shared-simulation-memory-attribution bool YES
-fi
+    if [[ "${WK_PLATFORM_NAME}" == xros ]]; then
+        plistbuddy Add :com.apple.surfboard.application-service-client bool YES
+        plistbuddy Add :com.apple.surfboard.shared-simulation-connection-request bool YES
+        plistbuddy Add :com.apple.surfboard.shared-simulation-memory-attribution bool YES
+    fi
 
     plistbuddy Add :com.apple.developer.hardened-process bool YES
+    plistbuddy Add :com.apple.security.hardened-process.checked-allocations.no-tagged-receive bool YES
     plistbuddy Add :com.apple.security.hardened-process.checked-allocations.soft-mode bool YES # FIXME: Should be removed before release <rdar://171909082>
 
     plistbuddy Add :com.apple.developer.kernel.extended-virtual-addressing bool YES
@@ -749,6 +593,7 @@ function ios_family_process_model_entitlements()
     then
         plistbuddy Add :com.apple.private.pac.exception bool YES
     fi
+    plistbuddy Add :com.apple.security.hardened-process.checked-allocations.no-tagged-receive bool YES
     plistbuddy Add :com.apple.security.hardened-process.checked-allocations.soft-mode bool YES # FIXME: Should be removed before release <rdar://171909082>
 }
 
@@ -803,20 +648,21 @@ function ios_family_process_network_entitlements()
         plistbuddy Add :com.apple.security.fatal-exceptions:0 string jit
     fi
 
-if [[ "${PRODUCT_NAME}" != NetworkingExtension ]]; then
-    plistbuddy Add :com.apple.private.sandbox.profile string com.apple.WebKit.Networking
+    if [[ "${PRODUCT_NAME}" != NetworkingExtension ]]; then
+        plistbuddy Add :com.apple.private.sandbox.profile string com.apple.WebKit.Networking
 
-    if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
-    then
-        plistbuddy Add :com.apple.private.pac.exception bool YES
+        if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
+        then
+            plistbuddy Add :com.apple.private.pac.exception bool YES
+        fi
     fi
-fi
     plistbuddy Add :com.apple.symptom_analytics.configure bool YES
 
     plistbuddy Add :com.apple.private.assets.bypass-asset-types-check bool YES
     plistbuddy Add :com.apple.private.assets.accessible-asset-types array
     plistbuddy Add :com.apple.private.assets.accessible-asset-types:0 string com.apple.MobileAsset.WebContentRestrictions
     plistbuddy Add :com.apple.developer.hardened-process bool YES
+    plistbuddy Add :com.apple.security.hardened-process.checked-allocations.no-tagged-receive bool YES
     plistbuddy Add :com.apple.security.hardened-process.checked-allocations.soft-mode bool YES # FIXME: Should be removed before release <rdar://171909082>
 
     plistbuddy Add :com.apple.private.security.mutable-state-flags array

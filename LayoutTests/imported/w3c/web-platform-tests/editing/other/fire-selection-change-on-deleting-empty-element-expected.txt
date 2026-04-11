@@ -1,5 +1,5 @@
 A
 
 
-FAIL Selection is updated after removing the element in contenteditable div promise_test: Unhandled rejection with value: object "TypeError: eventSender.asyncKeyDown is not a function. (In 'eventSender.asyncKeyDown(key, modifiers)', 'eventSender.asyncKeyDown' is undefined)"
+FAIL Selection is updated after removing the element in contenteditable div assert_equals: Character should be removed expected "<h1><br></h1>" but got "<h1>A</h1>"
 

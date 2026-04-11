@@ -27,6 +27,7 @@
 #include "SkiaGPUAtlas.h"
 
 #if USE(SKIA)
+#include "BitmapTexture.h"
 #include "SkiaImageAtlasLayout.h"
 #if USE(GBM)
 #include "MemoryMappedGPUBuffer.h"
@@ -36,14 +37,7 @@
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <skia/core/SkColorSpace.h>
 #include <skia/core/SkPixmap.h>
-#include <skia/gpu/ganesh/gl/GrGLBackendSurface.h>
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
-
-#if USE(LIBEPOXY)
-#include <epoxy/gl.h>
-#else
-#include <GLES3/gl3.h>
-#endif
 
 namespace WebCore {
 
@@ -72,11 +66,7 @@ RefPtr<SkiaGPUAtlas> SkiaGPUAtlas::create(const SkiaImageAtlasLayout& layout, Re
 
     RELEASE_ASSERT(atlasSize == atlasTexture->size());
 
-    GrGLTextureInfo externalTexture;
-    externalTexture.fTarget = GL_TEXTURE_2D;
-    externalTexture.fID = atlasTexture->id();
-    externalTexture.fFormat = GL_RGBA8;
-    auto backendTexture = GrBackendTextures::MakeGL(atlasSize.width(), atlasSize.height(), skgpu::Mipmapped::kNo, externalTexture);
+    auto backendTexture = atlasTexture->createSkiaBackendTexture();
     if (!backendTexture.isValid())
         return nullptr;
 

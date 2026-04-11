@@ -104,7 +104,9 @@ Ref<AudioVideoRenderer> MediaPlayerPrivateMediaSourceAVFObjC::createRenderer(Log
 MediaPlayerPrivateMediaSourceAVFObjC::MediaPlayerPrivateMediaSourceAVFObjC(MediaPlayer& player)
     : m_player(player)
     , m_seekTimer(*this, &MediaPlayerPrivateMediaSourceAVFObjC::seekInternal)
-    , m_rendererSeekRequest(NativePromiseRequest::create())
+    , m_waitForTargetRequest(NativePromiseRequest::create())
+    , m_rendererPrepareSeekRequest(NativePromiseRequest::create())
+    , m_rendererFinishSeekRequest(NativePromiseRequest::create())
     , m_networkState(MediaPlayer::NetworkState::Empty)
     , m_logger(player.mediaPlayerLogger())
     , m_logIdentifier(player.mediaPlayerLogIdentifier())
@@ -125,7 +127,6 @@ MediaPlayerPrivateMediaSourceAVFObjC::~MediaPlayerPrivateMediaSourceAVFObjC()
     cancelPendingSeek();
     m_seekTimer.stop();
     m_renderer->pause();
-    m_renderer->flush();
 }
 
 #pragma mark -
@@ -392,13 +393,13 @@ FloatSize MediaPlayerPrivateMediaSourceAVFObjC::naturalSize() const
 
 bool MediaPlayerPrivateMediaSourceAVFObjC::hasVideo() const
 {
-    RefPtr mediaSourcePrivate = m_mediaSourcePrivate;
+    auto* mediaSourcePrivate = m_mediaSourcePrivate.get();
     return mediaSourcePrivate && mediaSourcePrivate->hasVideo();
 }
 
 bool MediaPlayerPrivateMediaSourceAVFObjC::hasAudio() const
 {
-    RefPtr mediaSourcePrivate = m_mediaSourcePrivate;
+    auto* mediaSourcePrivate = m_mediaSourcePrivate.get();
     return mediaSourcePrivate && mediaSourcePrivate->hasAudio();
 }
 
@@ -523,52 +524,85 @@ void MediaPlayerPrivateMediaSourceAVFObjC::seekInternal()
     m_seeking = true;
 
     cancelPendingSeek();
-    m_renderer->prepareToSeek();
 
-    mediaSourcePrivate->waitForTarget(pendingSeek)->whenSettled(RunLoop::currentSingleton(), [weakThis = WeakPtr { *this }, seekTime = m_lastSeekTime] (auto&& result) mutable {
+    m_renderer->stall();
+
+    ALWAYS_LOG(LOGIDENTIFIER);
+
+    // Wait until the user agent has established whether or not the
+    // media data for the new playback position is available, and, if it is, until it has decoded enough data
+    // to play back that position" step of the seek algorithm:
+    protect(m_mediaSourcePrivate)->waitForTarget(pendingSeek)->whenSettled(RunLoop::mainSingleton(), [weakThis = WeakPtr { *this }] (auto&& result) {
+        assertIsMainThread();
         RefPtr protectedThis = weakThis.get();
-        if (!protectedThis || !result)
-            return; // seek cancelled;
+        if (!protectedThis)
+            return;
+        protectedThis->m_waitForTargetRequest->complete();
 
-        protectedThis->startSeek(seekTime);
-    });
+        if (!result)
+            return; // seek cancelled;
+        protectedThis->continueSeek(*result);
+    })->track(m_waitForTargetRequest);
 }
 
-void MediaPlayerPrivateMediaSourceAVFObjC::startSeek(const MediaTime& seekTime)
+void MediaPlayerPrivateMediaSourceAVFObjC::continueSeek(const MediaTime& seekTime)
 {
     assertIsMainThread();
-    if (m_rendererSeekRequest->hasCallback()) {
-        ALWAYS_LOG(LOGIDENTIFIER, "Seeking pending, cancel earlier seek");
-        cancelPendingSeek();
-    }
-    m_renderer->seekTo(seekTime)->whenSettled(RunLoop::mainSingleton(), [weakThis = WeakPtr { *this }, seekTime](auto&& result) {
-        assertIsMainThread();
-        if (!result && result.error() != PlatformMediaError::RequiresFlushToResume)
-            return; // cancelled.
+    ALWAYS_LOG(LOGIDENTIFIER, seekTime);
 
+    m_lastSeekTime = seekTime;
+    m_renderer->prepareToSeek(seekTime)->whenSettled(RunLoop::mainSingleton(), [weakThis = WeakPtr { *this }, seekTime] (auto&& result) {
+        assertIsMainThread();
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
 
-        protectedThis->m_rendererSeekRequest->complete();
+        protectedThis->m_rendererPrepareSeekRequest->complete();
 
-        if (!result) {
-            ASSERT(result.error() == PlatformMediaError::RequiresFlushToResume);
-            protectedThis->flush();
-            protectedThis->reenqueueMediaForTime(seekTime);
-            protectedThis->startSeek(seekTime);
+        if (!result)
+            return;
+        if (result->isIndefinite()) {
+            protectedThis->setHasAvailableVideoFrame(false);
+            protectedThis->reenqueueMediaForTimeAndFinishSeek(seekTime);
             return;
         }
         protectedThis->completeSeek(*result);
-    })->track(m_rendererSeekRequest.get());
+    })->track(m_rendererPrepareSeekRequest);
+}
+
+void MediaPlayerPrivateMediaSourceAVFObjC::reenqueueMediaForTimeAndFinishSeek(const MediaTime& seekTime)
+{
+    assertIsMainThread();
+    ALWAYS_LOG(LOGIDENTIFIER, seekTime);
+
+    GenericPromise::all({
+        protect(m_mediaSourcePrivate)->reenqueueMediaForTime(seekTime),
+        m_renderer->finishSeek(seekTime)
+    })->whenSettled(RunLoop::mainSingleton(), [weakThis = WeakPtr { *this }, seekTime](auto&& result) {
+        assertIsMainThread();
+        RefPtr protectedThis = weakThis.get();
+        if (!protectedThis)
+            return;
+
+        protectedThis->m_rendererFinishSeekRequest->complete();
+
+        if (!result)
+            return; // cancelled.
+
+        protectedThis->completeSeek(seekTime);
+    })->track(m_rendererFinishSeekRequest);
 }
 
 void MediaPlayerPrivateMediaSourceAVFObjC::cancelPendingSeek()
 {
     assertIsMainThread();
 
-    if (m_rendererSeekRequest->hasCallback())
-        m_rendererSeekRequest->disconnect();
+    if (m_waitForTargetRequest->hasCallback())
+        m_waitForTargetRequest->disconnect();
+    if (m_rendererPrepareSeekRequest->hasCallback())
+        m_rendererPrepareSeekRequest->disconnect();
+    if (m_rendererFinishSeekRequest->hasCallback())
+        m_rendererFinishSeekRequest->disconnect();
 }
 
 void MediaPlayerPrivateMediaSourceAVFObjC::completeSeek(const MediaTime& seekedTime)
@@ -717,7 +751,7 @@ void MediaPlayerPrivateMediaSourceAVFObjC::setLayerRequiresFlush()
     ALWAYS_LOG(LOGIDENTIFIER);
     m_layerRequiresFlush = true;
 #if PLATFORM(IOS_FAMILY)
-    if (m_applicationIsActive)
+    if (m_applicationIsActive || m_isInFullscreenOrPictureInPicture)
         flushVideoIfNeeded();
 #else
     flushVideoIfNeeded();
@@ -739,20 +773,6 @@ void MediaPlayerPrivateMediaSourceAVFObjC::flushVideoIfNeeded()
         setHasAvailableVideoFrame(false);
         mediaSourcePrivate->flushAndReenqueueActiveVideoSourceBuffers();
     }
-}
-
-void MediaPlayerPrivateMediaSourceAVFObjC::flush()
-{
-    assertIsMainThread();
-    ALWAYS_LOG(LOGIDENTIFIER);
-    m_renderer->flush();
-    setHasAvailableVideoFrame(false);
-}
-
-void MediaPlayerPrivateMediaSourceAVFObjC::reenqueueMediaForTime(const MediaTime& seekTime)
-{
-    if (RefPtr mediaSourcePrivate = m_mediaSourcePrivate)
-        mediaSourcePrivate->seekToTime(seekTime);
 }
 
 bool MediaPlayerPrivateMediaSourceAVFObjC::didLoadingProgress() const
@@ -1402,6 +1422,8 @@ bool MediaPlayerPrivateMediaSourceAVFObjC::supportsLimitedMatroska() const
 
 void MediaPlayerPrivateMediaSourceAVFObjC::isInFullscreenOrPictureInPictureChanged(bool isInFullscreenOrPictureInPicture)
 {
+    assertIsMainThread();
+    m_isInFullscreenOrPictureInPicture = isInFullscreenOrPictureInPicture;
     m_renderer->isInFullscreenOrPictureInPictureChanged(isInFullscreenOrPictureInPicture);
 }
 

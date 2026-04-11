@@ -96,6 +96,7 @@
 #include "KeyboardEvent.h"
 #include "LayoutIntegrationLineLayout.h"
 #include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "LocalFrameView.h"
 #include "LocalizedStrings.h"
 #include "MathMLElement.h"
@@ -333,6 +334,22 @@ Path AccessibilityNodeObject::elementPath() const
     }
 
     return Path();
+}
+
+bool AccessibilityNodeObject::supportsPath() const
+{
+    if (auto* renderer = this->renderer()) {
+        if (is<RenderText>(renderer) || renderer->isRenderOrLegacyRenderSVGShape())
+            return true;
+        if (CheckedPtr renderBox = dynamicDowncast<RenderBox>(renderer)) {
+            if (renderBox->style().border().hasBorderRadius())
+                return true;
+        }
+        if (auto* renderElement = dynamicDowncast<RenderElement>(renderer); renderElement && renderElement->hasClipPath())
+            return true;
+    }
+
+    return isImageMapLink() || AXCoreObject::supportsPath();
 }
 
 LayoutRect AccessibilityNodeObject::boundingBoxRect() const
@@ -895,6 +912,12 @@ bool AccessibilityNodeObject::canHaveChildren() const
     case AccessibilityRole::MenuItemRadio:
     case AccessibilityRole::Splitter:
     case AccessibilityRole::Meter:
+        // Base-appearance selects expose their popover and options as real
+        // AX children, so the PopUpButton must be able to have children.
+        if (role() == AccessibilityRole::PopUpButton) {
+            if (RefPtr select = dynamicDowncast<HTMLSelectElement>(node()))
+                return select->usesBaseAppearancePicker();
+        }
         return false;
     default:
         return true;
@@ -1637,7 +1660,7 @@ Element* AccessibilityNodeObject::actionElement() const
 bool AccessibilityNodeObject::hasClickHandler() const
 {
     RefPtr element = this->element();
-    return element && element->hasAnyEventListeners({ eventNames().clickEvent, eventNames().mousedownEvent, eventNames().mouseupEvent });
+    return element && element->hasAnyEventListeners(std::array { eventNames().clickEvent, eventNames().mousedownEvent, eventNames().mouseupEvent });
 }
 
 bool AccessibilityNodeObject::showsCursorOnHover() const
@@ -3492,6 +3515,11 @@ void AccessibilityNodeObject::visibleText(Vector<AccessibilityText>& textOrder) 
         if (isHeading())
             mode.includeFocusableContent = true;
 
+        // Base-appearance select options can have interactive content (buttons, links) whose text
+        // should be included in the menu item's title for VoiceOver to read.
+        if (RefPtr optionElement = dynamicDowncast<HTMLOptionElement>(node.get()); optionElement && optionElement->belongsToBaseAppearancePicker())
+            mode.includeFocusableContent = true;
+
         // Track nodes referenced via aria-labelledby to avoid double-counting them
         // when they're encountered again in the tree.
         HashSet<const Node*> nodesReferencedViaLabeledby;
@@ -3912,43 +3940,42 @@ String AccessibilityNodeObject::textUnderElement(TextUnderElementMode mode) cons
         }
     };
 
-    auto childIterator = AXChildIterator(*this);
-    for (auto child = childIterator.begin(); child != childIterator.end(); previous = child.ptr(), ++child) {
-        if (mode.ignoredChildNode && child->node() == mode.ignoredChildNode)
-            continue;
+    auto processChild = [&] (AccessibilityObject& child) {
+        if (mode.ignoredChildNode && child.node() == mode.ignoredChildNode)
+            return;
 
         if (mode.isHidden()) {
             // If we are within a hidden context, don't add any text for this node. Instead, fan out downwards
             // to search for un-hidden nodes (e.g. visibility:visible nodes within a visibility:hidden ancestor).
-            appendTextUnderElement(*child);
-            continue;
+            appendTextUnderElement(child);
+            return;
         }
 
-        bool shouldDeriveNameFromAuthor = (mode.childrenInclusion == TextUnderElementMode::Children::IncludeNameFromContentsChildren && !child->accessibleNameDerivesFromContent());
+        bool shouldDeriveNameFromAuthor = (mode.childrenInclusion == TextUnderElementMode::Children::IncludeNameFromContentsChildren && !child.accessibleNameDerivesFromContent());
         if (shouldDeriveNameFromAuthor) {
-            auto nameForNode = accessibleNameForNode(*child->node());
+            auto nameForNode = accessibleNameForNode(*child.node());
             bool nameIsEmpty = nameForNode.isEmpty();
             appendNameToStringBuilder(builder, WTF::move(nameForNode));
             // Separate author-provided text with a space.
             previousRequiresSpace = previousRequiresSpace || !nameIsEmpty;
-            continue;
+            return;
         }
 
-        if (!shouldUseAccessibilityObjectInnerText(*child, mode))
-            continue;
+        if (!shouldUseAccessibilityObjectInnerText(child, mode))
+            return;
 
         // Skip this child if it was already referenced via aria-labelledby by a sibling.
         // This prevents double-counting elements that were already included via labelledby.
-        if (mode.nodesReferencedViaLabeledby && child->node() && mode.nodesReferencedViaLabeledby->contains(child->node()))
-            continue;
+        if (mode.nodesReferencedViaLabeledby && child.node() && mode.nodesReferencedViaLabeledby->contains(child.node()))
+            return;
 
-        if (RefPtr accessibilityNodeObject = dynamicDowncast<AccessibilityNodeObject>(*child)) {
+        if (RefPtr accessibilityNodeObject = dynamicDowncast<AccessibilityNodeObject>(child)) {
             // We should ignore the child if it's labeled by this node.
             // This could happen when this node labels multiple child nodes and we didn't
             // skip in the above ignoredChildNode check.
             auto labeledByElements = accessibilityNodeObject->ariaLabeledByElements();
             if (labeledByElements.containsIf([&](auto& element) { return element.ptr() == node; }))
-                continue;
+                return;
 
             Vector<AccessibilityText> textOrder;
             accessibilityNodeObject->alternativeText(textOrder);
@@ -3962,11 +3989,67 @@ String AccessibilityNodeObject::textUnderElement(TextUnderElementMode mode) cons
                 appendNameToStringBuilder(builder, WTF::move(textOrder[0].text));
                 // Alternative text (e.g. from aria-label, aria-labelledby, alt, etc) requires space separation.
                 previousRequiresSpace = true;
-                continue;
+                return;
             }
         }
 
-        appendTextUnderElement(*child);
+        appendTextUnderElement(child);
+    };
+
+    auto childIterator = AXChildIterator(*this);
+    for (auto child = childIterator.begin(); child != childIterator.end(); previous = child.ptr(), ++child) {
+        // Skip children that are aria-owned by another element, as they should
+        // contribute to the owning element's name, not this DOM parent's name.
+        // Only skip if the owner is not hidden, as per the ARIA spec, aria-owns must
+        // not be resolved when set on an element excluded from the accessibility tree.
+        auto owners = child->owners();
+        if (owners.size()) {
+            bool isOwnedByOtherObject = false;
+            for (const auto& owner : owners) {
+                if (owner.ptr() == this)
+                    continue;
+                Ref ownerObject = downcast<AccessibilityObject>(owner.get());
+                if (!ownerObject->isHidden()) {
+                    isOwnedByOtherObject = true;
+                    break;
+                }
+            }
+
+            if (isOwnedByOtherObject)
+                continue;
+        }
+
+        processChild(*child);
+    }
+
+    // Include children that this element owns via aria-owns. These are not in
+    // the DOM subtree, so AXChildIterator won't find them. Only do this if this
+    // element is not hidden, as aria-owns must not be resolved when set on an
+    // element excluded from the accessibility tree.
+    if (!mode.inHiddenSubtree) {
+        auto ownedChildren = ownedObjects();
+        if (ownedChildren.size()) {
+            // Owned children come from different DOM subtrees, so they need
+            // explicit space separation from preceding content (CSS whitespace
+            // collapsing may strip leading spaces from owned text since it's
+            // rendered in a different context).
+            if (builder.length())
+                previousRequiresSpace = true;
+
+            for (const auto& ownedChild : ownedChildren) {
+                Ref child = downcast<AccessibilityObject>(ownedChild.get());
+                // Per the ARIA spec, aria-owns must not be resolved when it
+                // references an element that is, or has a DOM ancestor that is,
+                // hidden from all users (e.g. display:none via the hidden attribute).
+                // Assume that elements without renderers that are ignored are hidden.
+                // Elements without renderers that are not ignored have legitimate reasons
+                // for lacking a renderer (e.g. display:contents, canvas fallback content).
+                if (!child->renderer() && child->isIgnored())
+                    continue;
+                processChild(child);
+                previous = child.ptr();
+            }
+        }
     }
 
     auto result = builder.toString();
@@ -4035,7 +4118,6 @@ Vector<AXStitchGroup> AccessibilityNodeObject::stitchGroups() const
     if (!cache)
         return { };
 
-    bool shouldStop = false;
     StitchingContext context { *this };
     Vector<AXStitchGroup> stitchGroups;
     Vector<AXID> currentGroup;
@@ -4046,7 +4128,14 @@ Vector<AXStitchGroup> AccessibilityNodeObject::stitchGroups() const
         if (currentGroup.isEmpty() || currentGroup.last() != axID)
             currentGroup.append(axID);
     };
-    for (auto lineBox = inlineLayout->firstLineBox(); lineBox && !shouldStop; lineBox.traverseNext()) {
+    auto finalizeCurrentGroup = [&] {
+        if (currentGroup.size() > 1 && representativeID)
+            stitchGroups.append(AXStitchGroup { std::exchange(currentGroup, { }), *representativeID });
+        else
+            currentGroup.clear();
+        representativeID = std::nullopt;
+    };
+    for (auto lineBox = inlineLayout->firstLineBox(); lineBox; lineBox.traverseNext()) {
         for (auto box = lineBox->logicalLeftmostLeafBox(); box; box.traverseLogicalRightwardOnLine()) {
             auto updateLastRenderer = makeScopeExit([&] {
                 context.lastRenderer = box->renderer();
@@ -4059,9 +4148,10 @@ Vector<AXStitchGroup> AccessibilityNodeObject::stitchGroups() const
             }
 
             if (box->isAtomicInlineBox()) {
-                // Non-list-marker atomic inline boxes (like buttons) should break up stitch groups.
-                shouldStop = true;
-                break;
+                // Non-list-marker atomic inline boxes (like buttons) should finalize
+                // the current stitch group. Text after the atomic inline can start a new group.
+                finalizeCurrentGroup();
+                continue;
             }
 
             // FIXME: We should also be able to stitch ellipsis-type boxes.
@@ -4072,34 +4162,33 @@ Vector<AXStitchGroup> AccessibilityNodeObject::stitchGroups() const
                     continue;
                 AXID axID = object->objectID();
 
-                if (shouldStopStitchingAt(renderer, *object, context)) {
-                    if (currentGroup.size() > 1 && representativeID)
-                        stitchGroups.append(AXStitchGroup { std::exchange(currentGroup, { }), *representativeID });
-                    else
-                        currentGroup.clear();
-
-                    representativeID = std::nullopt;
-                } else {
-                    CheckedPtr renderText = dynamicDowncast<RenderText>(renderer);
-
-                    // Avoid doing the wrong thing when !renderText->hasRenderedText() is only true
-                    // because it has dirty layout. We should not run this function when layout is dirty.
-                    AX_ASSERT(!renderText || !renderText->needsLayout() || !renderText->text().length());
-
-                    if (!renderText || !renderText->hasRenderedText())
+                auto action = stitchActionFor(renderer, *object, context);
+                if (action != StitchAction::Continue) {
+                    finalizeCurrentGroup();
+                    if (action == StitchAction::BreakAndSkip)
                         continue;
-
-                    if (currentGroup.isEmpty()) {
-                        if (renderText->text().containsOnly<isASCIIWhitespace>()) {
-                            // Do not start a stitch-group with whitspace.
-                            continue;
-                        }
-                    }
-
-                    if (!representativeID)
-                        representativeID = axID;
-                    appendToCurrentGroup(axID);
+                    // BreakAndAdd: fall through to add this text to a new group.
                 }
+
+                CheckedPtr renderText = dynamicDowncast<RenderText>(renderer);
+
+                // Avoid doing the wrong thing when !renderText->hasRenderedText() is only true
+                // because it has dirty layout. We should not run this function when layout is dirty.
+                AX_ASSERT(!renderText || !renderText->needsLayout() || !renderText->text().length());
+
+                if (!renderText || !renderText->hasRenderedText())
+                    continue;
+
+                if (currentGroup.isEmpty()) {
+                    if (renderText->text().containsOnly<isASCIIWhitespace>()) {
+                        // Do not start a stitch-group with whitspace.
+                        continue;
+                    }
+                }
+
+                if (!representativeID)
+                    representativeID = axID;
+                appendToCurrentGroup(axID);
             }
         }
     }
@@ -4194,14 +4283,10 @@ String AccessibilityNodeObject::stringValue() const
     }
 
     if (RefPtr selectElement = dynamicDowncast<HTMLSelectElement>(*node)) {
-        int selectedIndex = selectElement->selectedIndex();
-        auto& listItems = selectElement->listItems();
-        if (selectedIndex >= 0 && static_cast<size_t>(selectedIndex) < listItems.size()) {
-            if (RefPtr selectedItem = listItems[selectedIndex].get()) {
-                auto overriddenDescription = selectedItem->attributeTrimmedWithDefaultARIA(aria_labelAttr);
-                if (!overriddenDescription.isEmpty())
-                    return overriddenDescription;
-            }
+        if (RefPtr option = selectElement->selectedOption()) {
+            auto overriddenDescription = option->attributeTrimmedWithDefaultARIA(aria_labelAttr);
+            if (!overriddenDescription.isEmpty())
+                return overriddenDescription;
         }
         if (!selectElement->multiple())
             return selectElement->value();
@@ -4565,7 +4650,7 @@ bool AccessibilityNodeObject::canSetValueAttribute() const
 
     String readOnly = readOnlyValue();
     if (!readOnly.isEmpty())
-        return readOnly == "true"_s ? false : true;
+        return readOnly != "true"_s;
 
     if (isNonNativeTextControl())
         return true;

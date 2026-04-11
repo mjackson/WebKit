@@ -99,9 +99,7 @@ void GStreamerCapturer::tearDown(bool disconnectSignals)
     m_caps = nullptr;
 }
 
-GStreamerCapturerObserver::~GStreamerCapturerObserver()
-{
-}
+GStreamerCapturerObserver::~GStreamerCapturerObserver() = default;
 
 void GStreamerCapturer::setDevice(std::optional<GStreamerCaptureDevice>&& device)
 {

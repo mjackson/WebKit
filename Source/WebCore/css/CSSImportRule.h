@@ -56,7 +56,7 @@ private:
     void NODELETE reattach(StyleRuleBase&) final;
     void getChildStyleSheets(HashSet<Ref<CSSStyleSheet>>&) final;
 
-    String cssTextInternal(const String& urlString) const;
+    String cssTextInternal(const String& urlString, const CSS::SerializationContext&) const;
     const MQ::MediaQueryList& NODELETE mediaQueries() const;
     void setMediaQueries(MQ::MediaQueryList&&);
 

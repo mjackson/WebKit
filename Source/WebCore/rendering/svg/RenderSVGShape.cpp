@@ -39,6 +39,7 @@
 #include "LegacyRenderSVGResourceMarker.h"
 #include "PointerEventsHitRules.h"
 #include "RenderObjectDocument.h"
+#include "RenderObjectNode.h"
 #include "RenderSVGShapeInlines.h"
 #include "RenderStyle+GettersInlines.h"
 #include "RenderView.h"
@@ -178,7 +179,7 @@ bool RenderSVGShape::setupNonScalingStrokeContext(AffineTransform& strokeTransfo
 
 AffineTransform RenderSVGShape::nonScalingStrokeTransform() const
 {
-    return protect(graphicsElement())->getScreenCTM(DisallowStyleUpdate);
+    return protect(graphicsElement())->getScreenCTM(StyleUpdateStrategy::Disallow);
 }
 
 void RenderSVGShape::fillShape(const RenderStyle& style, GraphicsContext& context)
@@ -291,7 +292,7 @@ FloatPoint RenderSVGShape::getPointAtLength(float distance) const
 
 bool RenderSVGShape::nodeAtPoint(const HitTestRequest& request, HitTestResult& result, const HitTestLocation& locationInContainer, const LayoutPoint& accumulatedOffset, HitTestAction hitTestAction)
 {
-    if (hitTestAction != HitTestForeground)
+    if (hitTestAction != HitTestAction::Foreground)
         return false;
 
     static NeverDestroyed<SVGVisitedRendererTracking::VisitedSet> s_visitedSet;

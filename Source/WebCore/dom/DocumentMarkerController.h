@@ -140,6 +140,10 @@ private:
 
     Timer m_fadeAnimationTimer;
     Timer m_writingToolsTextSuggestionAnimationTimer;
+
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    Vector<SimpleRange> m_appliedGrammarTextEffectRanges;
+#endif
 };
 
 

@@ -73,6 +73,7 @@ struct FocusEventData;
 struct FrameIdentifierType;
 struct JSHandleIdentifierType;
 struct NavigationIdentifierType;
+struct NodeIdentifierType;
 
 enum class FocusDirection : uint8_t;
 enum class FoundElementInRemoteFrame : bool;
@@ -92,6 +93,7 @@ struct Result;
 
 using FrameIdentifier = ObjectIdentifier<FrameIdentifierType>;
 using NavigationIdentifier = ObjectIdentifier<NavigationIdentifierType, uint64_t>;
+using NodeIdentifier = ObjectIdentifier<NodeIdentifierType>;
 using SandboxFlags = OptionSet<SandboxFlag>;
 using WebProcessJSHandleIdentifier = ObjectIdentifier<JSHandleIdentifierType>;
 using JSHandleIdentifier = ProcessQualified<WebProcessJSHandleIdentifier>;
@@ -229,7 +231,7 @@ public:
     WebFrameProxy* parentFrame() const { return m_parentFrame; }
     Ref<WebFrameProxy> rootFrame();
     RefPtr<WebFrameProxy> childFrame(uint64_t index) const;
-    std::optional<uint64_t> indexInFrameTreeSiblings() const;
+    std::optional<uint64_t> NODELETE indexInFrameTreeSiblings() const;
 
     WebProcessProxy& NODELETE process() const;
     void setProcess(FrameProcess&);
@@ -238,7 +240,7 @@ public:
     void removeChildFrames();
     ProvisionalFrameProxy* provisionalFrame() { return m_provisionalFrame.get(); }
     RefPtr<ProvisionalFrameProxy> takeProvisionalFrame();
-    WebProcessProxy& provisionalLoadProcess();
+    WebProcessProxy& NODELETE provisionalLoadProcess();
     std::optional<WebCore::PageIdentifier> webPageIDInCurrentProcess();
     void notifyParentOfLoadCompletion(WebProcessProxy&);
 
@@ -308,6 +310,7 @@ public:
     void takeSnapshotOfExtractedText(WebCore::TextExtraction::ExtractedText&&, CompletionHandler<void(RefPtr<WebCore::TextIndicator>&&)>&&);
     void requestJSHandleForExtractedText(WebCore::TextExtraction::ExtractedText&&, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&&);
     void requestContainerJSHandleForExtractedText(WebCore::TextExtraction::ExtractedText&&, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&&);
+    void requestContainerJSHandleForSearchTexts(Vector<String>&&, std::optional<WebCore::NodeIdentifier>&&, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&&);
 
     void getSelectorPathsForNode(JSHandleInfo&&, CompletionHandler<void(Vector<HashSet<String>>&&)>&&);
     void getNodeForSelectorPaths(Vector<HashSet<String>>&&, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&&);
@@ -319,7 +322,7 @@ private:
     std::optional<SharedPreferencesForWebProcess> NODELETE sharedPreferencesForWebProcess() const;
 
     std::optional<WebCore::PageIdentifier> NODELETE pageIdentifier() const;
-    Ref<WebCore::SecurityOrigin> securityOrigin() const;
+    Ref<WebCore::SecurityOrigin> NODELETE securityOrigin() const;
     void updateDocumentSecurityOrigin(WebFrameProxy*);
 
     RefPtr<WebFrameProxy> deepLastChild();

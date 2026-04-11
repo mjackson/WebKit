@@ -329,7 +329,7 @@ public:
         ContentChange       // existing renderer gets changed (text content only atm)
     };
     void invalidateLineLayout(InvalidationReason);
-    void computeAndSetLineLayoutPath();
+    void NODELETE computeAndSetLineLayoutPath();
 
     enum LineLayoutPath { UndeterminedPath = 0, InlinePath, SvgTextPath };
     LineLayoutPath lineLayoutPath() const { return static_cast<LineLayoutPath>(renderBlockFlowLineLayoutPath()); }
@@ -473,7 +473,7 @@ private:
     LayoutUnit nextFloatLogicalBottomBelowForBlock(LayoutUnit) const;
     
     LayoutUnit addOverhangingFloats(RenderBlockFlow& child, bool makeChildPaintOtherFloats);
-    bool hasOverhangingFloat(RenderBox&);
+    bool NODELETE hasOverhangingFloat(RenderBox&);
     void addIntrudingFloats(RenderBlockFlow* prev, RenderBlockFlow* container, LayoutUnit xoffset, LayoutUnit yoffset);
     inline bool hasOverhangingFloats() const;
     LayoutUnit computedClearDeltaForChild(RenderBox& child, LayoutUnit yPos);

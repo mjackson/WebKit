@@ -38,9 +38,12 @@
 #include "RemoteSharedResourceCache.h"
 #include "StreamConnectionWorkQueue.h"
 #include <WebCore/GraphicsContext.h>
+#include <WebCore/RenderingResourceIdentifier.h>
 #include <wtf/StdLibExtras.h>
 
 #define MESSAGE_CHECK(assertion, message) MESSAGE_CHECK_WITH_MESSAGE_BASE(assertion, m_renderingBackend->streamConnection(), message)
+
+using namespace WebCore;
 
 namespace WebKit {
 

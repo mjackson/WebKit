@@ -42,9 +42,7 @@ DeviceMotionClientIOS::DeviceMotionClientIOS(RefPtr<DeviceOrientationUpdateProvi
 {
 }
 
-DeviceMotionClientIOS::~DeviceMotionClientIOS()
-{
-}
+DeviceMotionClientIOS::~DeviceMotionClientIOS() = default;
 
 void DeviceMotionClientIOS::setController(DeviceMotionController* controller)
 {

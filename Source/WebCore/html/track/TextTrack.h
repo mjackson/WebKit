@@ -118,7 +118,7 @@ public:
 
     bool NODELETE isRendered();
     bool NODELETE isSpoken();
-    int trackIndexRelativeToRenderedTracks();
+    int NODELETE trackIndexRelativeToRenderedTracks();
 
     bool hasBeenConfigured() const { return m_hasBeenConfigured; }
     void setHasBeenConfigured(bool flag) { m_hasBeenConfigured = flag; }

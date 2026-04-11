@@ -90,7 +90,7 @@ private:
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&) override;
     void didReceiveSyncMessage(IPC::Connection&, IPC::Decoder&, UniqueRef<IPC::Encoder>&) override;
 
-    RefPtr<WebProcessProxy> webProcessProxyForConnection(IPC::Connection&) const;
+    RefPtr<WebProcessProxy> NODELETE webProcessProxyForConnection(IPC::Connection&) const;
 
 #if PLATFORM(IOS_FAMILY)
     void writeURLToPasteboard(IPC::Connection&, const WebCore::PasteboardURL&, const String& pasteboardName, std::optional<WebPageProxyIdentifier>);

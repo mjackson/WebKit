@@ -30,6 +30,7 @@
 #include "CacheStorageRegistry.h"
 #include <WebCore/ClientOrigin.h>
 #include <WebCore/StorageUtilities.h>
+#include <wtf/Borrow.h>
 #include <wtf/CallbackAggregator.h>
 #include <wtf/Scope.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -266,7 +267,7 @@ void CacheStorageManager::reset()
         request.second(false);
     }
 
-    for (Ref cache : m_caches)
+    for (Ref cache : borrow(m_caches).get())
         m_registry->unregisterCache(cache->identifier());
     m_caches.clear();
 
@@ -352,7 +353,7 @@ void CacheStorageManager::allCaches(uint64_t updateCounter, WebCore::DOMCacheEng
     auto callbackAggregator = CallbackAggregator::create([callback = WTF::move(callback), cacheInfos = WTF::move(cacheInfos), updateCounter = m_updateCounter]() mutable {
         callback(WebCore::DOMCacheEngine::CacheInfos { WTF::move(cacheInfos), updateCounter });
     });
-    for (Ref cache : m_caches)
+    for (Ref cache : borrow(m_caches).get())
         cache->open([callbackAggregator](auto) { });
 }
 
@@ -393,13 +394,14 @@ void CacheStorageManager::requestSpaceAfterInitializingSize(uint64_t spaceReques
         return;
 
     m_pendingSize = { 0, { } };
-    for (auto& cache : m_caches)
+    auto caches = borrow(m_caches);
+    for (Ref cache : caches.get())
         m_pendingSize.second.add(cache->identifier());
 
     for (auto& identifier : m_removedCaches.keys())
         m_pendingSize.second.add(identifier);
 
-    for (Ref cache : m_caches)
+    for (Ref cache : caches.get())
         initializeCacheSize(cache);
 
     for (Ref cache : m_removedCaches.values())
@@ -496,7 +498,7 @@ void CacheStorageManager::removeUnusedCache(WebCore::DOMCacheIdentifier cacheIde
         return;
     }
 
-    for (Ref cache : m_caches) {
+    for (Ref cache : borrow(m_caches).get()) {
         if (cache->identifier() == cacheIdentifier) {
             cache->close();
             return;
@@ -524,7 +526,7 @@ String CacheStorageManager::representationString()
     builder.append("{ \"persistent\": ["_s);
 
     bool isFirst = true;
-    for (auto& cache : m_caches) {
+    for (Ref cache : borrow(m_caches).get()) {
         if (!isFirst)
             builder.append(", "_s);
         isFirst = false;

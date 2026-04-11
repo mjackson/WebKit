@@ -88,7 +88,7 @@ FocusCandidate::FocusCandidate(Element* element, FocusDirection direction)
     isOffscreenAfterScrolling = hasOffscreenRect(*protectedVisibleNode, direction);
 }
 
-static RectsAlignment alignmentForRects(FocusDirection direction, const LayoutRect& curRect, const LayoutRect& targetRect, const LayoutSize& viewSize)
+static RectsAlignment NODELETE alignmentForRects(FocusDirection direction, const LayoutRect& curRect, const LayoutRect& targetRect, const LayoutSize& viewSize)
 {
     // If we found a node in full alignment, but it is too far away, ignore it.
     if (areRectsMoreThanFullScreenApart(direction, curRect, targetRect, viewSize))
@@ -131,7 +131,7 @@ static inline LayoutUnit NODELETE end(FocusDirection direction, const LayoutRect
 // operations.
 // * a = Current focused node's rect.
 // * b = Focus candidate node's rect.
-static bool areRectsFullyAligned(FocusDirection direction, const LayoutRect& a, const LayoutRect& b)
+static bool NODELETE areRectsFullyAligned(FocusDirection direction, const LayoutRect& a, const LayoutRect& b)
 {
     LayoutUnit aStart, bStart, aEnd, bEnd;
 
@@ -203,7 +203,7 @@ static bool areRectsFullyAligned(FocusDirection direction, const LayoutRect& a, 
 // horizontally or vertically.
 // * a = Current focused node's rect.
 // * b = Focus candidate node's rect.
-static bool areRectsPartiallyAligned(FocusDirection direction, const LayoutRect& a, const LayoutRect& b)
+static bool NODELETE areRectsPartiallyAligned(FocusDirection direction, const LayoutRect& a, const LayoutRect& b)
 {
     LayoutUnit aStart  = start(direction, a);
     LayoutUnit bStart  = start(direction, b);
@@ -231,7 +231,7 @@ static bool areRectsPartiallyAligned(FocusDirection direction, const LayoutRect&
             || (bEnd >= aStart && bEnd <= aEnd));
 }
 
-static bool areRectsMoreThanFullScreenApart(FocusDirection direction, const LayoutRect& curRect, const LayoutRect& targetRect, const LayoutSize& viewSize)
+static bool NODELETE areRectsMoreThanFullScreenApart(FocusDirection direction, const LayoutRect& curRect, const LayoutRect& targetRect, const LayoutSize& viewSize)
 {
     ASSERT(isRectInDirection(direction, curRect, targetRect));
 
@@ -251,18 +251,18 @@ static bool areRectsMoreThanFullScreenApart(FocusDirection direction, const Layo
 }
 
 // Return true if rect |a| is below |b|. False otherwise.
-static inline bool below(const LayoutRect& a, const LayoutRect& b)
+static inline bool NODELETE below(const LayoutRect& a, const LayoutRect& b)
 {
     return a.y() > b.maxY();
 }
 
 // Return true if rect |a| is on the right of |b|. False otherwise.
-static inline bool rightOf(const LayoutRect& a, const LayoutRect& b)
+static inline bool NODELETE rightOf(const LayoutRect& a, const LayoutRect& b)
 {
     return a.x() > b.maxX();
 }
 
-static bool isRectInDirection(FocusDirection direction, const LayoutRect& curRect, const LayoutRect& targetRect)
+static bool NODELETE isRectInDirection(FocusDirection direction, const LayoutRect& curRect, const LayoutRect& targetRect)
 {
     switch (direction) {
     case FocusDirection::Left:

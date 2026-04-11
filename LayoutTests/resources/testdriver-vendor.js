@@ -148,8 +148,9 @@ async function dispatchTouchActions(actions, options = { insertPauseAfterPointer
     logDebug(stream);
 
     return new Promise(resolve => testRunner.runUIScript(`(function() {
-        (function() { uiController.sendEventStream('${stream}') })();
-        uiController.uiScriptComplete();
+        uiController.sendEventStream('${stream}', function() {
+            uiController.uiScriptComplete();
+        });
     })();`, resolve));
 }
 
@@ -325,7 +326,7 @@ const SeleniumCharCodeToEventSenderKey = {
     0xE050: { key: 'rightShift', modifier: 'shiftKey' },
     0xE051: { key: 'rightControl', modifier: 'ctrlKey' },
     0xE052: { key: 'rightAlt', modifier: 'altKey' },
-    0xE052: { key: 'rightMeta', modifier: 'metaKey' }, // a.k.a. commandKey
+    0xE053: { key: 'rightMeta', modifier: 'metaKey' }, // a.k.a. commandKey
 };
 
 function convertSeleniumKeyCode(key)

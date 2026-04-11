@@ -112,7 +112,7 @@ private:
 
     bool inHeap() const { return m_heapItemWithBitfields.pointer() && m_heapItemWithBitfields.pointer()->isInHeap(); }
 
-    bool hasValidHeapPosition() const;
+    bool NODELETE hasValidHeapPosition() const;
     void updateHeapIfNeeded(MonotonicTime oldTime);
 
     void heapDecreaseKey();

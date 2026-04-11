@@ -42,9 +42,7 @@ DeviceOrientationClientIOS::DeviceOrientationClientIOS(RefPtr<DeviceOrientationU
 {
 }
 
-DeviceOrientationClientIOS::~DeviceOrientationClientIOS()
-{
-}
+DeviceOrientationClientIOS::~DeviceOrientationClientIOS() = default;
 
 void DeviceOrientationClientIOS::setController(DeviceOrientationController* controller)
 {

@@ -49,9 +49,7 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(SVGResources);
 
-SVGResources::SVGResources()
-{
-}
+SVGResources::SVGResources() = default;
 
 static MemoryCompactLookupOnlyRobinHoodHashSet<AtomString> tagSet(std::span<decltype(SVGNames::aTag)* const> tags)
 {

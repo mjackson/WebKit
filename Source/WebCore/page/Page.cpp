@@ -217,6 +217,7 @@
 #include "WorkerOrWorkletScriptController.h"
 #include <JavaScriptCore/VM.h>
 #include <ranges>
+#include <wtf/Borrow.h>
 #include <wtf/FileSystem.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/SystemTracing.h>
@@ -245,6 +246,10 @@
 
 #if USE(ATSPI)
 #include "AccessibilityRootAtspi.h"
+#endif
+
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+#include "TextEffectController.h"
 #endif
 
 #if ENABLE(WRITING_TOOLS)
@@ -480,6 +485,9 @@ Page::Page(PageConfiguration&& pageConfiguration)
 #if ENABLE(WRITING_TOOLS)
     , m_writingToolsController(makeUniqueRef<WritingToolsController>(*this))
 #endif
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    , m_textEffectController(makeUniqueRef<TextEffectController>(*this))
+#endif
     , m_activeNowPlayingSessionUpdateTimer(*this, &Page::updateActiveNowPlayingSessionNow)
     , m_topDocumentSyncData(DocumentSyncData::create())
 #if HAVE(AUDIT_TOKEN)
@@ -601,6 +609,16 @@ void Page::clearPreviousItemFromAllPages(BackForwardFrameItemIdentifier frameIte
             return;
         }
     }
+}
+
+void Page::willEnterBackForwardCache()
+{
+    destroyRenderTrees();
+
+#if ENABLE(THREADED_ANIMATIONS)
+    if (m_acceleratedTimelinesUpdater)
+        m_acceleratedTimelinesUpdater->clear();
+#endif
 }
 
 uint64_t Page::renderTreeSize() const
@@ -1555,7 +1573,7 @@ void Page::setInteractionRegionsEnabled(bool enable)
 
 const VisibleSelection& Page::selection() const
 {
-    RefPtr focusedOrMainFrame = focusController().focusedOrMainFrame();
+    auto* focusedOrMainFrame = focusController().focusedOrMainFrame();
     if (!focusedOrMainFrame)
         return VisibleSelection::emptySelection();
     return focusedOrMainFrame->selection().selection();
@@ -3106,18 +3124,12 @@ void Page::incrementModelElementCount()
         chrome().client().setHasModelElement(true);
 }
 
-void Page::decrementModelElementCount(unsigned count)
+void Page::decrementModelElementCount()
 {
-    m_modelElementCount -= count;
-    if (!m_modelElementCount) {
+    ASSERT(m_modelElementCount > 0);
+    m_modelElementCount--;
+    if (!m_modelElementCount)
         chrome().client().setHasModelElement(false);
-        return;
-    }
-
-    if (m_modelElementCount < 0) [[unlikely]] {
-        m_modelElementCount = 0;
-        ASSERT_NOT_REACHED();
-    }
 }
 
 #endif
@@ -4351,24 +4363,22 @@ void Page::setUseColorAppearance(bool useDarkAppearance, bool useElevatedUserInt
 bool Page::useDarkAppearance() const
 {
 #if ENABLE(DARK_MODE_CSS)
-    RefPtr localMainFrame = this->localMainFrame();
-
-    // FIXME: If this page is being printed, this function should return false.
-    // Currently remote mainFrame() does not have this information.
-    if (!localMainFrame)
-        return m_useDarkAppearance;
-
-    RefPtr view = localMainFrame->view();
-    if (!view || view->mediaType() != screenAtom())
-        return false;
-
+    // This overrides everything else.
     if (m_useDarkAppearanceOverride)
         return m_useDarkAppearanceOverride.value();
 
-    if (auto* documentLoader = localMainFrame->loader().documentLoader()) {
-        auto colorSchemePreference = documentLoader->colorSchemePreference();
-        if (colorSchemePreference != ColorSchemePreference::NoPreference)
-            return colorSchemePreference == ColorSchemePreference::Dark;
+    if (RefPtr localMainFrame = this->localMainFrame()) {
+        // Printed page should always use light appearance (i.e return false)
+        // FIXME: implement this logic for remote main frames.
+        RefPtr view = localMainFrame->view();
+        if (!view || view->mediaType() != screenAtom())
+            return false;
+
+        if (auto* documentLoader = localMainFrame->loader().documentLoader()) {
+            auto colorSchemePreference = documentLoader->colorSchemePreference();
+            if (colorSchemePreference != ColorSchemePreference::NoPreference)
+                return colorSchemePreference == ColorSchemePreference::Dark;
+        }
     }
 
     return m_useDarkAppearance;
@@ -4863,8 +4873,8 @@ OptionSet<FilterRenderingMode> Page::preferredFilterRenderingModes(const Graphic
         modes.add(FilterRenderingMode::Accelerated);
 #endif
 
-#if USE(SKIA)
-    if (settings().acceleratedCompositingEnabled())
+#if USE(SKIA) && !PLATFORM(WIN) && (!PLATFORM(WPE) || ENABLE(WPE_PLATFORM))
+    if (settings().hardwareAccelerationEnabled())
         modes.add(FilterRenderingMode::Accelerated);
 #endif
 
@@ -4874,7 +4884,7 @@ OptionSet<FilterRenderingMode> Page::preferredFilterRenderingModes(const Graphic
 #if !HAVE(FIX_FOR_RADAR_104392017)
     if (context.renderingMode() == RenderingMode::Accelerated || !context.knownToHaveFloatBasedBacking()) {
 #endif
-        if (settings().graphicsContextFiltersEnabled())
+        if (!context.hasDropShadow() && settings().graphicsContextFiltersEnabled())
             modes.add(FilterRenderingMode::GraphicsContext);
 #if !HAVE(FIX_FOR_RADAR_104392017)
     }
@@ -4965,7 +4975,7 @@ void Page::mainFrameDidChangeToNonInitialEmptyDocument()
 {
     RefPtr localMainFrame = dynamicDowncast<LocalFrame>(m_mainFrame.get());
     ASSERT_UNUSED(localMainFrame, !localMainFrame || !localMainFrame->loader().stateMachine().isDisplayingInitialEmptyDocument());
-    for (auto& userStyleSheet : m_userStyleSheetsPendingInjection)
+    for (auto& userStyleSheet : borrow(m_userStyleSheetsPendingInjection).get())
         injectUserStyleSheet(userStyleSheet);
     m_userStyleSheetsPendingInjection.clear();
 }
@@ -5027,7 +5037,7 @@ ImageOverlayController& Page::imageOverlayController()
 
 Page* Page::serviceWorkerPage(ScriptExecutionContextIdentifier serviceWorkerPageIdentifier)
 {
-    RefPtr serviceWorkerPageDocument = Document::allDocumentsMap().get(serviceWorkerPageIdentifier);
+    auto* serviceWorkerPageDocument = Document::allDocumentsMap().get(serviceWorkerPageIdentifier);
     return serviceWorkerPageDocument ? serviceWorkerPageDocument->page() : nullptr;
 }
 
@@ -6033,7 +6043,7 @@ void Page::addHardwareKeyboardAttachmentObserver(HardwareKeyboardAttachmentObser
 void Page::flushHardwareKeyboardAttachmentObservers()
 {
     bool attached = m_hardwareKeyboardAttached;
-    std::ranges::for_each(m_hardwareKeyboardAttachmentObservers, [attached](auto& observer) {
+    std::ranges::for_each(borrow(m_hardwareKeyboardAttachmentObservers).get(), [attached](auto& observer) {
         observer(attached);
     });
     m_hardwareKeyboardAttachmentObservers.clear();

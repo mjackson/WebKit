@@ -243,7 +243,7 @@ namespace JSC {
     public:
         virtual void emitBytecode(BytecodeGenerator&, RegisterID* destination = nullptr) = 0;
 
-        void setLoc(unsigned firstLine, unsigned lastLine, int startOffset, int lineStartOffset);
+        void NODELETE setLoc(unsigned firstLine, unsigned lastLine, int startOffset, int lineStartOffset);
         unsigned lastLine() const { return m_lastLine; }
 
         StatementNode* next() const { return m_next; }
@@ -729,7 +729,7 @@ namespace JSC {
 
         bool isArrayLiteral() const final { return true; }
 
-        ArgumentListNode* toArgumentList(ParserArena&, int, int) const;
+        ArgumentListNode* NODELETE toArgumentList(ParserArena&, int, int) const;
 
         ElementNode* elements() const { return m_element; }
     private:
@@ -802,7 +802,7 @@ namespace JSC {
         PropertyListNode(const JSTokenLocation&, PropertyNode*);
         PropertyListNode(const JSTokenLocation&, PropertyNode*, PropertyListNode*);
 
-        bool hasStaticallyNamedProperty(const Identifier& propName);
+        bool NODELETE hasStaticallyNamedProperty(const Identifier& propName);
         bool isComputedClassField() const
         {
             return m_node->isComputedClassField();
@@ -811,7 +811,7 @@ namespace JSC {
         {
             return m_node->isInstanceClassField();
         }
-        bool hasInstanceFields() const;
+        bool NODELETE hasInstanceFields() const;
 
         bool isStaticClassField() const
         {
@@ -838,7 +838,7 @@ namespace JSC {
             return m_hasPrivateAccessors;
         }
 
-        static bool shouldCreateLexicalScopeForClass(PropertyListNode*);
+        static bool NODELETE shouldCreateLexicalScopeForClass(PropertyListNode*);
 
         RegisterID* emitBytecode(BytecodeGenerator&, RegisterID*, RegisterID*, Vector<UnlinkedFunctionExecutable::ClassElementDefinition>*, Vector<UnlinkedFunctionExecutable::ClassElementDefinition>*);
 
@@ -1655,9 +1655,9 @@ namespace JSC {
 
         void append(StatementNode*);
 
-        StatementNode* singleStatement() const;
+        StatementNode* NODELETE singleStatement() const;
         StatementNode* firstStatement() const;
-        StatementNode* lastStatement() const;
+        StatementNode* NODELETE lastStatement() const;
 
         bool hasCompletionValue() const;
         bool hasEarlyBreakOrContinue() const;
@@ -1851,10 +1851,11 @@ namespace JSC {
     class ContinueNode final : public StatementNode, public ThrowableExpressionData {
     public:
         ContinueNode(const JSTokenLocation&, const Identifier&);
-        Label* trivialTarget(BytecodeGenerator&);
-        
+        Label* NODELETE trivialTarget(BytecodeGenerator&);
+
     private:
         bool hasCompletionValue() const final { return false; }
+        bool hasEarlyBreakOrContinue() const final { return true; }
         bool isContinue() const final { return true; }
         void emitBytecode(BytecodeGenerator&, RegisterID* = nullptr) final;
 
@@ -1864,10 +1865,11 @@ namespace JSC {
     class BreakNode final : public StatementNode, public ThrowableExpressionData {
     public:
         BreakNode(const JSTokenLocation&, const Identifier&);
-        Label* trivialTarget(BytecodeGenerator&);
-        
+        Label* NODELETE trivialTarget(BytecodeGenerator&);
+
     private:
         bool hasCompletionValue() const final { return false; }
+        bool hasEarlyBreakOrContinue() const final { return true; }
         bool isBreak() const final { return true; }
         void emitBytecode(BytecodeGenerator&, RegisterID* = nullptr) final;
 
@@ -1909,6 +1911,7 @@ namespace JSC {
 
     private:
         bool hasCompletionValue() const final { return m_statement->hasCompletionValue(); }
+        bool hasEarlyBreakOrContinue() const final { return m_statement->hasEarlyBreakOrContinue(); }
         void emitBytecode(BytecodeGenerator&, RegisterID* = nullptr) final;
 
         const Identifier& m_name;
@@ -2291,7 +2294,7 @@ namespace JSC {
         unsigned parameterCount() const { return m_parameterCount; }
         SourceParseMode parseMode() const { return m_parseMode; }
 
-        void setEndPosition(JSTextPosition);
+        void NODELETE setEndPosition(JSTextPosition);
 
         const SourceCode& source() const LIFETIME_BOUND { return m_source; }
         const SourceCode& classSource() const LIFETIME_BOUND { return m_classSource; }

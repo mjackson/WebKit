@@ -58,8 +58,8 @@ messages -> RemoteAudioVideoRendererProxyManager {
     Pause(WebKit::RemoteAudioVideoRendererIdentifier identifier, std::optional<MonotonicTime> hostTime)
     SetRate(WebKit::RemoteAudioVideoRendererIdentifier identifier, double rate)
     Stall(WebKit::RemoteAudioVideoRendererIdentifier identifier)
-    PrepareToSeek(WebKit::RemoteAudioVideoRendererIdentifier identifier)
-    SeekTo(WebKit::RemoteAudioVideoRendererIdentifier identifier, MediaTime seekTime) -> (Expected<MediaTime, WebCore::PlatformMediaError> result)
+    PrepareToSeek(WebKit::RemoteAudioVideoRendererIdentifier identifier, MediaTime seekTime) -> (Expected<MediaTime, WebCore::PlatformMediaError> result)
+    FinishSeek(WebKit::RemoteAudioVideoRendererIdentifier identifier, MediaTime seekTime) -> (GenericPromise::Result result)
 
     SetVolume(WebKit::RemoteAudioVideoRendererIdentifier identifier, float volume)
     SetMuted(WebKit::RemoteAudioVideoRendererIdentifier identifier, bool muted)

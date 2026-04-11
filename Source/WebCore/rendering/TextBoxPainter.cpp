@@ -56,6 +56,7 @@
 #include "StyledMarkedText.h"
 #include "TextPaintStyle.h"
 #include "TextPainter.h"
+#include <numeric>
 #include <ranges>
 
 #if ENABLE(WRITING_TOOLS)
@@ -223,7 +224,7 @@ void TextBoxPainter::paint()
     if (m_paintInfo.paintBehavior.contains(PaintBehavior::ExcludeText))
         return;
 
-    if (m_paintInfo.phase == PaintPhase::Selection && !m_haveSelection)
+    if (m_paintInfo.phase == PaintPhase::Selection && !m_haveSelection && !m_paintInfo.paintBehavior.contains(PaintBehavior::IncludeDocumentMarkers))
         return;
 
     if (m_paintInfo.phase == PaintPhase::EventRegion) {
@@ -250,6 +251,9 @@ void TextBoxPainter::paint()
 
         return;
     }
+
+    if (m_paintInfo.phase == PaintPhase::Selection && m_paintInfo.paintBehavior.contains(PaintBehavior::IncludeDocumentMarkers))
+        paintPlatformDocumentMarkers();
 
     if (m_paintInfo.phase == PaintPhase::Foreground) {
         auto shouldPaintBackgroundFill = [&] {
@@ -632,7 +636,7 @@ void TextBoxPainter::paintBackgroundFillForRange(unsigned startOffset, unsigned 
     context.fillRect(backgroundRect, color);
 }
 
-static bool isTransparent(const StyledMarkedText& markedText)
+static bool NODELETE isTransparent(const StyledMarkedText& markedText)
 {
     switch (markedText.type) {
     case MarkedText::Type::DraggedContent:
@@ -1245,6 +1249,9 @@ static std::optional<MarkedText> NODELETE markedTextForTextDecorationLineGrammar
 
 void TextBoxPainter::paintPlatformDocumentMarkers()
 {
+    if (m_paintInfo.paintBehavior.contains(PaintBehavior::Snapshotting) && !m_paintInfo.paintBehavior.contains(PaintBehavior::IncludeDocumentMarkers))
+        return;
+
     auto markedTexts = MarkedText::collectForDocumentMarkers(m_renderer, m_selectableRange, MarkedText::PaintPhase::Decoration);
     // We want to paint text-decoration-line: spelling-error and grammar-error the same way we natively paint text marked with spelling errors
     auto textDecorationLineSpellingErrorAsMarkedText = markedTextForTextDecorationLineSpellingError(m_renderer);
@@ -1293,7 +1300,7 @@ static void drawWritingToolsUnderline(GraphicsContext& context, const FloatRect&
     auto maxX = rect.maxX();
     auto minY = rect.y();
     auto maxY = rect.maxY();
-    auto midY = (minY + maxY) / 2.0;
+    auto midY = std::midpoint(minY, maxY);
 
     auto frameX = frameSize.width();
     auto frameY = frameSize.height();

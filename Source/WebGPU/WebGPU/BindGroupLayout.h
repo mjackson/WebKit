@@ -103,8 +103,8 @@ public:
     id<MTLArgumentEncoder> computeArgumentEncoder() const { return m_computeArgumentEncoder; }
 
     std::optional<StageMapValue> NODELETE bindingAccessForBindingIndex(uint32_t bindingIndex, ShaderStage renderStage) const;
-    NSUInteger argumentBufferIndexForEntryIndex(uint32_t bindingIndex, ShaderStage renderStage) const;
-    std::optional<uint32_t> bufferSizeIndexForEntryIndex(uint32_t bindingIndex, ShaderStage renderStage) const;
+    NSUInteger NODELETE argumentBufferIndexForEntryIndex(uint32_t bindingIndex, ShaderStage renderStage) const;
+    std::optional<uint32_t> NODELETE bufferSizeIndexForEntryIndex(uint32_t bindingIndex, ShaderStage renderStage) const;
 
     static bool NODELETE isPresent(const WGPUBufferBindingLayout&);
     static bool isPresent(const WGPUSamplerBindingLayout&);

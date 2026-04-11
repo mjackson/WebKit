@@ -32,6 +32,7 @@
 #include "WebTransport.h"
 #include "WebTransportSendGroup.h"
 #include "WebTransportSendOptions.h"
+#include "WebTransportSession.h"
 
 namespace WebCore {
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,11 +27,14 @@
 
 DECLARE_SYSTEM_HEADER
 
-#include <ImageIO/ImageIOBase.h> 
+#include <ImageIO/CGImageSource.h>
+#include <ImageIO/ImageIOBase.h>
 
 #if USE(APPLE_INTERNAL_SDK)
+
 #include <ImageIO/CGImageSourcePrivate.h>
-#endif
+
+#else
 
 IMAGEIO_EXTERN const CFStringRef kCGImageSourceShouldPreferRGB32;
 IMAGEIO_EXTERN const CFStringRef kCGImageSourceSkipMetadata;
@@ -46,4 +49,8 @@ OSStatus CGImageSourceSetAllowableTypes(CFArrayRef allowableTypes);
 IMAGEIO_EXTERN OSStatus CGImageSourceDisableHardwareDecoding();
 IMAGEIO_EXTERN OSStatus CGImageSourceEnableRestrictedDecoding();
 
+IMAGEIO_EXTERN uint16_t CGImageGetContentAverageLightLevelNits(CGImageRef);
+
 WTF_EXTERN_C_END
+
+#endif

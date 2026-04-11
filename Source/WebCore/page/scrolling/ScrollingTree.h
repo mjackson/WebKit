@@ -125,7 +125,6 @@ public:
     bool commitTreeStateInternal(std::unique_ptr<ScrollingStateTree>&&, std::optional<LayerHostingContextIdentifier>) WTF_REQUIRES_LOCK(m_treeLock);
 
     WEBCORE_EXPORT virtual void applyLayerPositions();
-    WEBCORE_EXPORT void applyLayerPositionsAfterCommit();
 
     virtual Ref<ScrollingTreeNode> createScrollingTreeNode(ScrollingNodeType, ScrollingNodeID) = 0;
     
@@ -150,8 +149,6 @@ public:
 
     // Delegated scrolling/zooming has caused the viewport to change, so update viewport-constrained layers
     WEBCORE_EXPORT void mainFrameViewportChangedViaDelegatedScrolling(const FloatPoint& scrollPosition, const WebCore::FloatRect& layoutViewport, double scale);
-
-    void setNeedsApplyLayerPositionsAfterCommit() { m_needsApplyLayerPositionsAfterCommit = true; }
 
     void notifyRelatedNodesAfterScrollPositionChange(ScrollingTreeScrollingNode& changedNode);
 
@@ -401,7 +398,6 @@ private:
     bool m_overlayScrollbarsEnabled { false };
     bool m_asyncFrameOrOverflowScrollingEnabled { false };
     bool m_wheelEventGesturesBecomeNonBlocking { false };
-    bool m_needsApplyLayerPositionsAfterCommit { false };
     bool m_inCommitTreeState { false };
 };
 

@@ -104,9 +104,7 @@ void JSLazyEventListener::checkValidityForEventTarget(EventTarget& eventTarget)
 }
 #endif
 
-JSLazyEventListener::~JSLazyEventListener()
-{
-}
+JSLazyEventListener::~JSLazyEventListener() = default;
 
 JSObject* JSLazyEventListener::initializeJSFunction(ScriptExecutionContext& executionContext) const
 {

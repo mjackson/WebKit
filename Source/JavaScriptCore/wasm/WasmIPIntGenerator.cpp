@@ -114,7 +114,7 @@ namespace JSC { namespace Wasm {
 
 using ErrorType = String;
 using PartialResult = Expected<void, ErrorType>;
-using UnexpectedResult = Unexpected<ErrorType>;
+using UnexpectedResult = std::unexpected<ErrorType>;
 struct Value { };
 
 // ControlBlock
@@ -139,28 +139,28 @@ struct IPIntControlType {
         , m_stackSize(stackSize)
     { }
 
-    static bool isIf(const IPIntControlType& control) { return control.blockType() == BlockType::If; }
-    static bool isElse(const IPIntControlType& control) { return control.blockType() == BlockType::Else; }
-    static bool isTry(const IPIntControlType& control) { return control.blockType() == BlockType::Try; }
-    static bool isTryTable(const IPIntControlType& control) { return control.blockType() == BlockType::TryTable; }
-    static bool isAnyCatch(const IPIntControlType& control) { return control.blockType() == BlockType::Catch; }
-    static bool isTopLevel(const IPIntControlType& control) { return control.blockType() == BlockType::TopLevel; }
-    static bool isLoop(const IPIntControlType& control) { return control.blockType() == BlockType::Loop; }
-    static bool isBlock(const IPIntControlType& control) { return control.blockType() == BlockType::Block; }
-    static bool isCatch(const IPIntControlType& control)
+    static bool NODELETE isIf(const IPIntControlType& control) { return control.blockType() == BlockType::If; }
+    static bool NODELETE isElse(const IPIntControlType& control) { return control.blockType() == BlockType::Else; }
+    static bool NODELETE isTry(const IPIntControlType& control) { return control.blockType() == BlockType::Try; }
+    static bool NODELETE isTryTable(const IPIntControlType& control) { return control.blockType() == BlockType::TryTable; }
+    static bool NODELETE isAnyCatch(const IPIntControlType& control) { return control.blockType() == BlockType::Catch; }
+    static bool NODELETE isTopLevel(const IPIntControlType& control) { return control.blockType() == BlockType::TopLevel; }
+    static bool NODELETE isLoop(const IPIntControlType& control) { return control.blockType() == BlockType::Loop; }
+    static bool NODELETE isBlock(const IPIntControlType& control) { return control.blockType() == BlockType::Block; }
+    static bool NODELETE isCatch(const IPIntControlType& control)
     {
         if (control.blockType() != BlockType::Catch)
             return false;
         return control.catchKind() == CatchKind::Catch;
     }
 
-    void dump(PrintStream&) const
+    void NODELETE dump(PrintStream&) const
     { }
 
-    BlockType blockType() const { return m_blockType; }
-    CatchKind catchKind() const { return m_catchKind; }
-    const BlockSignature& signature() const { return m_signature; }
-    unsigned stackSize() const { return m_stackSize; }
+    BlockType NODELETE blockType() const { return m_blockType; }
+    CatchKind NODELETE catchKind() const { return m_catchKind; }
+    const BlockSignature& NODELETE signature() const { return m_signature; }
+    unsigned NODELETE stackSize() const { return m_stackSize; }
 
     Type branchTargetType(unsigned i) const
     {
@@ -222,7 +222,7 @@ public:
     using CatchHandler = FunctionParser<IPIntGenerator>::CatchHandler;
     using ArgumentList = FunctionParser<IPIntGenerator>::ArgumentList;
 
-    static ExpressionType emptyExpression() { return { }; };
+    static ExpressionType NODELETE emptyExpression() { return { }; };
     [[nodiscard]] PartialResult addDrop(ExpressionType);
 
     template <typename ...Args>
@@ -244,19 +244,19 @@ public:
 
     // SIMD
 
-    bool usesSIMD() { return m_usesSIMD; }
-    void notifyFunctionUsesSIMD() { ASSERT(Options::useWasmSIMD()); m_usesSIMD = true; }
-    [[nodiscard]] PartialResult addSIMDLoad(ExpressionType, uint32_t, ExpressionType&);
-    [[nodiscard]] PartialResult addSIMDStore(ExpressionType, ExpressionType, uint32_t);
+    bool NODELETE usesSIMD() { return m_usesSIMD; }
+    void NODELETE notifyFunctionUsesSIMD() { ASSERT(Options::useWasmSIMD()); m_usesSIMD = true; }
+    [[nodiscard]] PartialResult addSIMDLoad(ExpressionType, uint32_t, ExpressionType&, uint8_t);
+    [[nodiscard]] PartialResult addSIMDStore(ExpressionType, ExpressionType, uint32_t, uint8_t);
     [[nodiscard]] PartialResult addSIMDSplat(SIMDLane, ExpressionType, ExpressionType&);
     [[nodiscard]] PartialResult addSIMDShuffle(v128_t, ExpressionType, ExpressionType, ExpressionType&);
     [[nodiscard]] PartialResult addSIMDShift(SIMDLaneOperation, SIMDInfo, ExpressionType, ExpressionType, ExpressionType&);
     [[nodiscard]] PartialResult addSIMDExtmul(SIMDLaneOperation, SIMDInfo, ExpressionType, ExpressionType, ExpressionType&);
-    [[nodiscard]] PartialResult addSIMDLoadSplat(SIMDLaneOperation, ExpressionType, uint32_t, ExpressionType&);
-    [[nodiscard]] PartialResult addSIMDLoadLane(SIMDLaneOperation, ExpressionType, ExpressionType, uint32_t, uint8_t, ExpressionType&);
-    [[nodiscard]] PartialResult addSIMDStoreLane(SIMDLaneOperation, ExpressionType, ExpressionType, uint32_t, uint8_t);
-    [[nodiscard]] PartialResult addSIMDLoadExtend(SIMDLaneOperation, ExpressionType, uint32_t, ExpressionType&);
-    [[nodiscard]] PartialResult addSIMDLoadPad(SIMDLaneOperation, ExpressionType, uint32_t, ExpressionType&);
+    [[nodiscard]] PartialResult addSIMDLoadSplat(SIMDLaneOperation, ExpressionType, uint32_t, ExpressionType&, uint8_t);
+    [[nodiscard]] PartialResult addSIMDLoadLane(SIMDLaneOperation, ExpressionType, ExpressionType, uint32_t, uint8_t, ExpressionType&, uint8_t);
+    [[nodiscard]] PartialResult addSIMDStoreLane(SIMDLaneOperation, ExpressionType, ExpressionType, uint32_t, uint8_t, uint8_t);
+    [[nodiscard]] PartialResult addSIMDLoadExtend(SIMDLaneOperation, ExpressionType, uint32_t, ExpressionType&, uint8_t);
+    [[nodiscard]] PartialResult addSIMDLoadPad(SIMDLaneOperation, ExpressionType, uint32_t, ExpressionType&, uint8_t);
 
     ExpressionType addSIMDConstant(v128_t);
 
@@ -275,9 +275,9 @@ public:
 
     // References
 
-    [[nodiscard]] PartialResult addRefIsNull(ExpressionType, ExpressionType&);
+    [[nodiscard]] PartialResult NODELETE addRefIsNull(ExpressionType, ExpressionType&);
     [[nodiscard]] PartialResult addRefFunc(FunctionSpaceIndex, ExpressionType&);
-    [[nodiscard]] PartialResult addRefAsNonNull(ExpressionType, ExpressionType&);
+    [[nodiscard]] PartialResult NODELETE addRefAsNonNull(ExpressionType, ExpressionType&);
     [[nodiscard]] PartialResult addRefEq(ExpressionType, ExpressionType, ExpressionType&);
 
     // Tables
@@ -295,7 +295,7 @@ public:
 
     [[nodiscard]] PartialResult getLocal(uint32_t index, ExpressionType&);
     [[nodiscard]] PartialResult setLocal(uint32_t, ExpressionType);
-    [[nodiscard]] PartialResult teeLocal(uint32_t, ExpressionType, ExpressionType& result);
+    [[nodiscard]] PartialResult NODELETE teeLocal(uint32_t, ExpressionType, ExpressionType& result);
 
     // Globals
 
@@ -304,24 +304,24 @@ public:
 
     // Memory
 
-    [[nodiscard]] PartialResult load(LoadOpType, ExpressionType, ExpressionType&, uint64_t);
-    [[nodiscard]] PartialResult store(StoreOpType, ExpressionType, ExpressionType, uint64_t);
-    [[nodiscard]] PartialResult addGrowMemory(ExpressionType, ExpressionType&);
-    [[nodiscard]] PartialResult addCurrentMemory(ExpressionType&);
-    [[nodiscard]] PartialResult addMemoryFill(ExpressionType, ExpressionType, ExpressionType);
-    [[nodiscard]] PartialResult addMemoryCopy(ExpressionType, ExpressionType, ExpressionType);
-    [[nodiscard]] PartialResult addMemoryInit(unsigned, ExpressionType, ExpressionType, ExpressionType);
+    [[nodiscard]] PartialResult load(LoadOpType, ExpressionType, ExpressionType&, uint64_t, uint8_t);
+    [[nodiscard]] PartialResult store(StoreOpType, ExpressionType, ExpressionType, uint64_t, uint8_t);
+    [[nodiscard]] PartialResult addGrowMemory(ExpressionType, ExpressionType&, uint8_t);
+    [[nodiscard]] PartialResult addCurrentMemory(ExpressionType&, uint8_t);
+    [[nodiscard]] PartialResult addMemoryFill(ExpressionType, ExpressionType, ExpressionType, uint8_t);
+    [[nodiscard]] PartialResult addMemoryCopy(ExpressionType, ExpressionType, ExpressionType, uint8_t, uint8_t);
+    [[nodiscard]] PartialResult addMemoryInit(unsigned, ExpressionType, ExpressionType, ExpressionType, uint8_t);
     [[nodiscard]] PartialResult addDataDrop(unsigned);
 
     // Atomics
 
-    [[nodiscard]] PartialResult atomicLoad(ExtAtomicOpType, Type, ExpressionType, ExpressionType&, uint32_t);
-    [[nodiscard]] PartialResult atomicStore(ExtAtomicOpType, Type, ExpressionType, ExpressionType, uint32_t);
-    [[nodiscard]] PartialResult atomicBinaryRMW(ExtAtomicOpType, Type, ExpressionType, ExpressionType, ExpressionType&, uint32_t);
-    [[nodiscard]] PartialResult atomicCompareExchange(ExtAtomicOpType, Type, ExpressionType, ExpressionType, ExpressionType, ExpressionType&, uint32_t);
+    [[nodiscard]] PartialResult atomicLoad(ExtAtomicOpType, Type, ExpressionType, ExpressionType&, uint32_t, uint8_t);
+    [[nodiscard]] PartialResult atomicStore(ExtAtomicOpType, Type, ExpressionType, ExpressionType, uint32_t, uint8_t);
+    [[nodiscard]] PartialResult atomicBinaryRMW(ExtAtomicOpType, Type, ExpressionType, ExpressionType, ExpressionType&, uint32_t, uint8_t);
+    [[nodiscard]] PartialResult atomicCompareExchange(ExtAtomicOpType, Type, ExpressionType, ExpressionType, ExpressionType, ExpressionType&, uint32_t, uint8_t);
 
-    [[nodiscard]] PartialResult atomicWait(ExtAtomicOpType, ExpressionType, ExpressionType, ExpressionType, ExpressionType&, uint32_t);
-    [[nodiscard]] PartialResult atomicNotify(ExtAtomicOpType, ExpressionType, ExpressionType, ExpressionType&, uint32_t);
+    [[nodiscard]] PartialResult atomicWait(ExtAtomicOpType, ExpressionType, ExpressionType, ExpressionType, ExpressionType&, uint32_t, uint8_t);
+    [[nodiscard]] PartialResult atomicNotify(ExtAtomicOpType, ExpressionType, ExpressionType, ExpressionType&, uint32_t, uint8_t);
     [[nodiscard]] PartialResult atomicFence(ExtAtomicOpType, uint8_t);
 
     // Saturated truncation
@@ -333,20 +333,20 @@ public:
     [[nodiscard]] PartialResult addRefI31(ExpressionType, ExpressionType&);
     [[nodiscard]] PartialResult addI31GetS(ExpressionType, ExpressionType&);
     [[nodiscard]] PartialResult addI31GetU(ExpressionType, ExpressionType&);
-    [[nodiscard]] PartialResult addArrayNew(uint32_t, ExpressionType, ExpressionType, ExpressionType&);
-    [[nodiscard]] PartialResult addArrayNewDefault(uint32_t, ExpressionType, ExpressionType&);
-    [[nodiscard]] PartialResult addArrayNewData(uint32_t, uint32_t, ExpressionType, ExpressionType, ExpressionType&);
-    [[nodiscard]] PartialResult addArrayNewElem(uint32_t, uint32_t, ExpressionType, ExpressionType, ExpressionType&);
-    [[nodiscard]] PartialResult addArrayNewFixed(uint32_t, ArgumentList&, ExpressionType&);
-    [[nodiscard]] PartialResult addArrayGet(ExtGCOpType, uint32_t, ExpressionType, ExpressionType, ExpressionType&);
-    [[nodiscard]] PartialResult addArraySet(uint32_t, ExpressionType, ExpressionType, ExpressionType);
+    [[nodiscard]] PartialResult addArrayNew(TypeSignatureIndex, ExpressionType, ExpressionType, ExpressionType&);
+    [[nodiscard]] PartialResult addArrayNewDefault(TypeSignatureIndex, ExpressionType, ExpressionType&);
+    [[nodiscard]] PartialResult addArrayNewData(TypeSignatureIndex, uint32_t, ExpressionType, ExpressionType, ExpressionType&);
+    [[nodiscard]] PartialResult addArrayNewElem(TypeSignatureIndex, uint32_t, ExpressionType, ExpressionType, ExpressionType&);
+    [[nodiscard]] PartialResult addArrayNewFixed(TypeSignatureIndex, ArgumentList&, ExpressionType&);
+    [[nodiscard]] PartialResult addArrayGet(ExtGCOpType, TypeSignatureIndex, ExpressionType, ExpressionType, ExpressionType&);
+    [[nodiscard]] PartialResult addArraySet(TypeSignatureIndex, ExpressionType, ExpressionType, ExpressionType);
     [[nodiscard]] PartialResult addArrayLen(ExpressionType, ExpressionType&);
-    [[nodiscard]] PartialResult addArrayFill(uint32_t, ExpressionType, ExpressionType, ExpressionType, ExpressionType);
-    [[nodiscard]] PartialResult addArrayCopy(uint32_t, ExpressionType, ExpressionType, uint32_t, ExpressionType, ExpressionType, ExpressionType);
-    [[nodiscard]] PartialResult addArrayInitElem(uint32_t, ExpressionType, ExpressionType, uint32_t, ExpressionType, ExpressionType);
-    [[nodiscard]] PartialResult addArrayInitData(uint32_t, ExpressionType, ExpressionType, uint32_t, ExpressionType, ExpressionType);
-    [[nodiscard]] PartialResult addStructNew(uint32_t, ArgumentList&, ExpressionType&);
-    [[nodiscard]] PartialResult addStructNewDefault(uint32_t, ExpressionType&);
+    [[nodiscard]] PartialResult addArrayFill(TypeSignatureIndex, ExpressionType, ExpressionType, ExpressionType, ExpressionType);
+    [[nodiscard]] PartialResult addArrayCopy(TypeSignatureIndex, ExpressionType, ExpressionType, TypeSignatureIndex, ExpressionType, ExpressionType, ExpressionType);
+    [[nodiscard]] PartialResult addArrayInitElem(TypeSignatureIndex, ExpressionType, ExpressionType, uint32_t, ExpressionType, ExpressionType);
+    [[nodiscard]] PartialResult addArrayInitData(TypeSignatureIndex, ExpressionType, ExpressionType, uint32_t, ExpressionType, ExpressionType);
+    [[nodiscard]] PartialResult addStructNew(TypeSignatureIndex, ArgumentList&, ExpressionType&);
+    [[nodiscard]] PartialResult addStructNewDefault(TypeSignatureIndex, ExpressionType&);
     [[nodiscard]] PartialResult addStructGet(ExtGCOpType, ExpressionType, const StructType&, const RTT&, uint32_t, ExpressionType&);
     [[nodiscard]] PartialResult addStructSet(ExpressionType, const StructType&, const RTT&, uint32_t, ExpressionType);
     [[nodiscard]] PartialResult addRefTest(ExpressionType, bool, int32_t, bool, ExpressionType&);
@@ -519,33 +519,33 @@ public:
     [[nodiscard]] PartialResult endTopLevel(const Stack&);
 
     // Fused comparison stubs (TODO: make use of these for better codegen)
-    [[nodiscard]] PartialResult addFusedBranchCompare(OpType, ControlType&, ExpressionType, const Stack&) { RELEASE_ASSERT_NOT_REACHED(); }
-    [[nodiscard]] PartialResult addFusedBranchCompare(OpType, ControlType&, ExpressionType, ExpressionType, const Stack&) { RELEASE_ASSERT_NOT_REACHED(); }
-    [[nodiscard]] PartialResult addFusedIfCompare(OpType, ExpressionType, BlockSignature&&, Stack&, ControlType&, Stack&) { RELEASE_ASSERT_NOT_REACHED(); }
-    [[nodiscard]] PartialResult addFusedIfCompare(OpType, ExpressionType, ExpressionType, BlockSignature&&, Stack&, ControlType&, Stack&) { RELEASE_ASSERT_NOT_REACHED(); }
+    [[nodiscard]] PartialResult NODELETE addFusedBranchCompare(OpType, ControlType&, ExpressionType, const Stack&) { RELEASE_ASSERT_NOT_REACHED(); }
+    [[nodiscard]] PartialResult NODELETE addFusedBranchCompare(OpType, ControlType&, ExpressionType, ExpressionType, const Stack&) { RELEASE_ASSERT_NOT_REACHED(); }
+    [[nodiscard]] PartialResult NODELETE addFusedIfCompare(OpType, ExpressionType, BlockSignature&&, Stack&, ControlType&, Stack&) { RELEASE_ASSERT_NOT_REACHED(); }
+    [[nodiscard]] PartialResult NODELETE addFusedIfCompare(OpType, ExpressionType, ExpressionType, BlockSignature&&, Stack&, ControlType&, Stack&) { RELEASE_ASSERT_NOT_REACHED(); }
 
     // Calls
 
     [[nodiscard]] PartialResult addCall(unsigned, FunctionSpaceIndex, const TypeDefinition&, ArgumentList&, ResultList&, CallType = CallType::Call);
-    [[nodiscard]] PartialResult addCallIndirect(unsigned, unsigned, const TypeDefinition&, ArgumentList&, ResultList&, CallType = CallType::Call);
+    [[nodiscard]] PartialResult addCallIndirect(unsigned, unsigned, const TypeDefinition&, const RTT&, ArgumentList&, ResultList&, CallType = CallType::Call);
     [[nodiscard]] PartialResult addCallRef(unsigned, const TypeDefinition&, ArgumentList&, ResultList&, CallType = CallType::Call);
     [[nodiscard]] PartialResult addUnreachable();
     [[nodiscard]] PartialResult addCrash();
 
-    void setParser(FunctionParser<IPIntGenerator>* parser) { m_parser = parser; };
-    size_t getCurrentInstructionLength()
+    void NODELETE setParser(FunctionParser<IPIntGenerator>* parser) { m_parser = parser; };
+    size_t NODELETE getCurrentInstructionLength()
     {
         return m_parser->offset() - m_parser->currentOpcodeStartingOffset();
     }
     void addCallCommonData(const FunctionSignature&, const CallInformation&);
     void addTailCallCommonData(const FunctionSignature&, const CallInformation&);
-    void didFinishParsingLocals()
+    void NODELETE didFinishParsingLocals()
     {
         m_metadata->m_bytecodeOffset = m_parser->offset();
     }
-    void didPopValueFromStack(ExpressionType, ASCIILiteral) { }
-    void willParseOpcode() { }
-    void willParseExtendedOpcode() { }
+    void NODELETE didPopValueFromStack(ExpressionType, ASCIILiteral) { }
+    void NODELETE willParseOpcode() { }
+    void NODELETE willParseExtendedOpcode() { }
     void didParseOpcode()
     {
         if (!m_parser->unreachableBlocks()) {
@@ -617,7 +617,7 @@ public:
         return m_cachedCallInformation;
     }
 
-    static constexpr bool tierSupportsSIMD() { return true; }
+    static constexpr bool NODELETE tierSupportsSIMD() { return true; }
     static constexpr bool validateFunctionBodySize = true;
 
 private:
@@ -659,9 +659,9 @@ private:
     // all jumps that go to the top level and return
     Vector<IPIntLocation> m_jumpLocationsAwaitingEnd;
 
-    inline uint32_t curPC() { return m_parser->currentOpcodeStartingOffset() - m_metadata->m_bytecodeOffset; }
-    inline uint32_t nextPC() { return m_parser->offset() - m_metadata->m_bytecodeOffset; }
-    inline uint32_t curMC() { return m_metadata->m_metadata.size(); }
+    inline uint32_t NODELETE curPC() { return m_parser->currentOpcodeStartingOffset() - m_metadata->m_bytecodeOffset; }
+    inline uint32_t NODELETE nextPC() { return m_parser->offset() - m_metadata->m_bytecodeOffset; }
+    inline uint32_t NODELETE curMC() { return m_metadata->m_metadata.size(); }
 
     CallInformation m_cachedCallInformation { };
     const FunctionSignature* m_cachedSignature { nullptr };
@@ -703,16 +703,18 @@ Value IPIntGenerator::addConstant(Type type, uint64_t value)
 
 // SIMD
 
-[[nodiscard]] PartialResult IPIntGenerator::addSIMDLoad(ExpressionType, uint32_t offset, ExpressionType&)
+[[nodiscard]] PartialResult IPIntGenerator::addSIMDLoad(ExpressionType, uint32_t offset, ExpressionType&, uint8_t memoryIndex)
 {
     changeStackSize(0); // Pop address, push v128 value (net change = 0)
+    m_metadata->addMemoryIndex(memoryIndex);
     m_metadata->addLEB128ConstantInt32AndLength(offset, getCurrentInstructionLength());
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addSIMDStore(ExpressionType, ExpressionType, uint32_t offset)
+[[nodiscard]] PartialResult IPIntGenerator::addSIMDStore(ExpressionType, ExpressionType, uint32_t offset, uint8_t memoryIndex)
 {
     changeStackSize(-2); // Pop address and v128 value
+    m_metadata->addMemoryIndex(memoryIndex);
     m_metadata->addLEB128ConstantInt32AndLength(offset, getCurrentInstructionLength());
     return { };
 }
@@ -744,33 +746,35 @@ Value IPIntGenerator::addConstant(Type type, uint64_t value)
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addSIMDLoadSplat(SIMDLaneOperation, ExpressionType pointer, uint32_t offset, ExpressionType& result)
+[[nodiscard]] PartialResult IPIntGenerator::addSIMDLoadSplat(SIMDLaneOperation, ExpressionType pointer, uint32_t offset, ExpressionType& result, uint8_t memoryIndex)
 {
-    return addSIMDLoad(pointer, offset, result);
+    return addSIMDLoad(pointer, offset, result, memoryIndex);
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addSIMDLoadLane(SIMDLaneOperation, ExpressionType, ExpressionType, uint32_t offset, uint8_t, ExpressionType&)
+[[nodiscard]] PartialResult IPIntGenerator::addSIMDLoadLane(SIMDLaneOperation, ExpressionType, ExpressionType, uint32_t offset, uint8_t, ExpressionType&, uint8_t memoryIndex)
 {
     changeStackSize(-1);
+    m_metadata->addMemoryIndex(memoryIndex);
     m_metadata->addLEB128ConstantInt32AndLength(offset, getCurrentInstructionLength());
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addSIMDStoreLane(SIMDLaneOperation, ExpressionType, ExpressionType, uint32_t offset, uint8_t)
+[[nodiscard]] PartialResult IPIntGenerator::addSIMDStoreLane(SIMDLaneOperation, ExpressionType, ExpressionType, uint32_t offset, uint8_t, uint8_t memoryIndex)
 {
     changeStackSize(-2);
+    m_metadata->addMemoryIndex(memoryIndex);
     m_metadata->addLEB128ConstantInt32AndLength(offset, getCurrentInstructionLength());
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addSIMDLoadExtend(SIMDLaneOperation, ExpressionType pointer, uint32_t offset, ExpressionType& result)
+[[nodiscard]] PartialResult IPIntGenerator::addSIMDLoadExtend(SIMDLaneOperation, ExpressionType pointer, uint32_t offset, ExpressionType& result, uint8_t memoryIndex)
 {
-    return addSIMDLoad(pointer, offset, result);
+    return addSIMDLoad(pointer, offset, result, memoryIndex);
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addSIMDLoadPad(SIMDLaneOperation, ExpressionType pointer, uint32_t offset, ExpressionType& result)
+[[nodiscard]] PartialResult IPIntGenerator::addSIMDLoadPad(SIMDLaneOperation, ExpressionType pointer, uint32_t offset, ExpressionType& result, uint8_t memoryIndex)
 {
-    return addSIMDLoad(pointer, offset, result);
+    return addSIMDLoad(pointer, offset, result, memoryIndex);
 }
 
 IPIntGenerator::ExpressionType IPIntGenerator::addSIMDConstant(v128_t)
@@ -1083,19 +1087,21 @@ IPIntGenerator::ExpressionType IPIntGenerator::addSIMDConstant(v128_t)
 
 // Loads and Stores
 
-[[nodiscard]] PartialResult IPIntGenerator::load(LoadOpType, ExpressionType, ExpressionType&, uint64_t offset)
+[[nodiscard]] PartialResult IPIntGenerator::load(LoadOpType, ExpressionType, ExpressionType&, uint64_t offset, uint8_t memoryIndex)
 {
-    if (m_info.theOnlyMemory().isMemory64())
+    m_metadata->addMemoryIndex(memoryIndex);
+    if (m_info.memory(memoryIndex).isMemory64())
         m_metadata->addLEB128ConstantInt64AndLength(offset, getCurrentInstructionLength());
     else
         m_metadata->addLEB128ConstantInt32AndLength(static_cast<uint32_t>(offset), getCurrentInstructionLength());
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::store(StoreOpType, ExpressionType, ExpressionType, uint64_t offset)
+[[nodiscard]] PartialResult IPIntGenerator::store(StoreOpType, ExpressionType, ExpressionType, uint64_t offset, uint8_t memoryIndex)
 {
     changeStackSize(-2);
-    if (m_info.theOnlyMemory().isMemory64())
+    m_metadata->addMemoryIndex(memoryIndex);
+    if (m_info.memory(memoryIndex).isMemory64())
         m_metadata->addLEB128ConstantInt64AndLength(offset, getCurrentInstructionLength());
     else
         m_metadata->addLEB128ConstantInt32AndLength(static_cast<uint32_t>(offset), getCurrentInstructionLength());
@@ -1104,34 +1110,40 @@ IPIntGenerator::ExpressionType IPIntGenerator::addSIMDConstant(v128_t)
 
 // Memories
 
-[[nodiscard]] PartialResult IPIntGenerator::addGrowMemory(ExpressionType, ExpressionType&)
+[[nodiscard]] PartialResult IPIntGenerator::addGrowMemory(ExpressionType, ExpressionType&, uint8_t memoryIndex)
 {
+    m_metadata->addMemoryIndex(memoryIndex);
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addCurrentMemory(ExpressionType&)
+[[nodiscard]] PartialResult IPIntGenerator::addCurrentMemory(ExpressionType&, uint8_t memoryIndex)
 {
     changeStackSize(1);
+    m_metadata->addMemoryIndex(memoryIndex);
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addMemoryFill(ExpressionType, ExpressionType, ExpressionType)
+[[nodiscard]] PartialResult IPIntGenerator::addMemoryFill(ExpressionType, ExpressionType, ExpressionType, uint8_t memoryIndex)
 {
     changeStackSize(-3);
+    m_metadata->addMemoryIndex(memoryIndex);
     m_metadata->addLength(getCurrentInstructionLength());
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addMemoryCopy(ExpressionType, ExpressionType, ExpressionType)
+[[nodiscard]] PartialResult IPIntGenerator::addMemoryCopy(ExpressionType, ExpressionType, ExpressionType, uint8_t dstMemoryIndex, uint8_t srcMemoryIndex)
 {
     changeStackSize(-3);
+    m_metadata->addMemoryIndex(dstMemoryIndex);
+    m_metadata->addMemoryIndex(srcMemoryIndex);
     m_metadata->addLength(getCurrentInstructionLength());
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addMemoryInit(unsigned dataIndex, ExpressionType, ExpressionType, ExpressionType)
+[[nodiscard]] PartialResult IPIntGenerator::addMemoryInit(unsigned dataIndex, ExpressionType, ExpressionType, ExpressionType, uint8_t memoryIndex)
 {
     changeStackSize(-3);
+    m_metadata->addMemoryIndex(memoryIndex);
     m_metadata->addLEB128ConstantInt32AndLength(dataIndex, getCurrentInstructionLength());
     return { };
 }
@@ -1144,43 +1156,49 @@ IPIntGenerator::ExpressionType IPIntGenerator::addSIMDConstant(v128_t)
 
 // Atomics
 
-[[nodiscard]] PartialResult IPIntGenerator::atomicLoad(ExtAtomicOpType, Type, ExpressionType, ExpressionType&, uint32_t offset)
+[[nodiscard]] PartialResult IPIntGenerator::atomicLoad(ExtAtomicOpType, Type, ExpressionType, ExpressionType&, uint32_t offset, uint8_t memoryIndex)
 {
+    m_metadata->addMemoryIndex(memoryIndex);
     m_metadata->addLEB128ConstantInt32AndLength(offset, getCurrentInstructionLength());
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::atomicStore(ExtAtomicOpType, Type, ExpressionType, ExpressionType, uint32_t offset)
+[[nodiscard]] PartialResult IPIntGenerator::atomicStore(ExtAtomicOpType, Type, ExpressionType, ExpressionType, uint32_t offset, uint8_t memoryIndex)
 {
     changeStackSize(-2);
+    m_metadata->addMemoryIndex(memoryIndex);
     m_metadata->addLEB128ConstantInt32AndLength(offset, getCurrentInstructionLength());
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::atomicBinaryRMW(ExtAtomicOpType, Type, ExpressionType, ExpressionType, ExpressionType&, uint32_t offset)
+[[nodiscard]] PartialResult IPIntGenerator::atomicBinaryRMW(ExtAtomicOpType, Type, ExpressionType, ExpressionType, ExpressionType&, uint32_t offset, uint8_t memoryIndex)
 {
     changeStackSize(-1);
+    m_metadata->addMemoryIndex(memoryIndex);
     m_metadata->addLEB128ConstantInt32AndLength(offset, getCurrentInstructionLength());
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::atomicCompareExchange(ExtAtomicOpType, Type, ExpressionType, ExpressionType, ExpressionType, ExpressionType&, uint32_t offset)
+[[nodiscard]] PartialResult IPIntGenerator::atomicCompareExchange(ExtAtomicOpType, Type, ExpressionType, ExpressionType, ExpressionType, ExpressionType&, uint32_t offset, uint8_t memoryIndex)
 {
     changeStackSize(-2);
+    m_metadata->addMemoryIndex(memoryIndex);
     m_metadata->addLEB128ConstantInt32AndLength(offset, getCurrentInstructionLength());
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::atomicWait(ExtAtomicOpType, ExpressionType, ExpressionType, ExpressionType, ExpressionType&, uint32_t offset)
+[[nodiscard]] PartialResult IPIntGenerator::atomicWait(ExtAtomicOpType, ExpressionType, ExpressionType, ExpressionType, ExpressionType&, uint32_t offset, uint8_t memoryIndex)
 {
     changeStackSize(-2);
+    m_metadata->addMemoryIndex(memoryIndex);
     m_metadata->addLEB128ConstantInt32AndLength(offset, getCurrentInstructionLength());
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::atomicNotify(ExtAtomicOpType, ExpressionType, ExpressionType, ExpressionType&, uint32_t offset)
+[[nodiscard]] PartialResult IPIntGenerator::atomicNotify(ExtAtomicOpType, ExpressionType, ExpressionType, ExpressionType&, uint32_t offset, uint8_t memoryIndex)
 {
     changeStackSize(-1);
+    m_metadata->addMemoryIndex(memoryIndex);
     m_metadata->addLEB128ConstantInt32AndLength(offset, getCurrentInstructionLength());
     return { };
 }
@@ -1211,20 +1229,20 @@ IPIntGenerator::ExpressionType IPIntGenerator::addSIMDConstant(v128_t)
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addArrayNew(uint32_t index, ExpressionType, ExpressionType, ExpressionType&)
+[[nodiscard]] PartialResult IPIntGenerator::addArrayNew(TypeSignatureIndex index, ExpressionType, ExpressionType, ExpressionType&)
 {
     m_metadata->appendMetadata<IPInt::ArrayNewMetadata>({
-        index,
+        index.rawIndex(),
         static_cast<uint8_t>(getCurrentInstructionLength())
     });
     changeStackSize(-1);
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addArrayNewData(uint32_t index, uint32_t dataSegmentIndex, ExpressionType, ExpressionType, ExpressionType&)
+[[nodiscard]] PartialResult IPIntGenerator::addArrayNewData(TypeSignatureIndex index, uint32_t dataSegmentIndex, ExpressionType, ExpressionType, ExpressionType&)
 {
     m_metadata->appendMetadata<IPInt::ArrayNewDataMetadata>({
-        index,
+        index.rawIndex(),
         dataSegmentIndex,
         static_cast<uint8_t>(getCurrentInstructionLength())
     });
@@ -1232,10 +1250,10 @@ IPIntGenerator::ExpressionType IPIntGenerator::addSIMDConstant(v128_t)
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addArrayNewElem(uint32_t index, uint32_t elemSegmentIndex, ExpressionType, ExpressionType, ExpressionType&)
+[[nodiscard]] PartialResult IPIntGenerator::addArrayNewElem(TypeSignatureIndex index, uint32_t elemSegmentIndex, ExpressionType, ExpressionType, ExpressionType&)
 {
     m_metadata->appendMetadata<IPInt::ArrayNewElemMetadata>({
-        index,
+        index.rawIndex(),
         elemSegmentIndex,
         static_cast<uint8_t>(getCurrentInstructionLength())
     });
@@ -1243,10 +1261,10 @@ IPIntGenerator::ExpressionType IPIntGenerator::addSIMDConstant(v128_t)
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addArrayNewFixed(uint32_t index, ArgumentList& args, ExpressionType&)
+[[nodiscard]] PartialResult IPIntGenerator::addArrayNewFixed(TypeSignatureIndex index, ArgumentList& args, ExpressionType&)
 {
     m_metadata->appendMetadata<IPInt::ArrayNewFixedMetadata>({
-        index,
+        index.rawIndex(),
         static_cast<uint32_t>(args.size()),
         static_cast<uint8_t>(getCurrentInstructionLength())
     });
@@ -1254,29 +1272,29 @@ IPIntGenerator::ExpressionType IPIntGenerator::addSIMDConstant(v128_t)
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addArrayNewDefault(uint32_t index, ExpressionType, ExpressionType&)
+[[nodiscard]] PartialResult IPIntGenerator::addArrayNewDefault(TypeSignatureIndex index, ExpressionType, ExpressionType&)
 {
     m_metadata->appendMetadata<IPInt::ArrayNewMetadata>({
-        index,
+        index.rawIndex(),
         static_cast<uint8_t>(getCurrentInstructionLength())
     });
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addArrayGet(ExtGCOpType, uint32_t index, ExpressionType, ExpressionType, ExpressionType&)
+[[nodiscard]] PartialResult IPIntGenerator::addArrayGet(ExtGCOpType, TypeSignatureIndex index, ExpressionType, ExpressionType, ExpressionType&)
 {
     m_metadata->appendMetadata<IPInt::ArrayGetSetMetadata>({
-        index,
+        index.rawIndex(),
         static_cast<uint8_t>(getCurrentInstructionLength())
     });
     changeStackSize(-1);
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addArraySet(uint32_t index, ExpressionType, ExpressionType, ExpressionType)
+[[nodiscard]] PartialResult IPIntGenerator::addArraySet(TypeSignatureIndex index, ExpressionType, ExpressionType, ExpressionType)
 {
     m_metadata->appendMetadata<IPInt::ArrayGetSetMetadata>({
-        index,
+        index.rawIndex(),
         static_cast<uint8_t>(getCurrentInstructionLength())
     });
     changeStackSize(-3);
@@ -1289,21 +1307,21 @@ IPIntGenerator::ExpressionType IPIntGenerator::addSIMDConstant(v128_t)
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addArrayFill(uint32_t, ExpressionType, ExpressionType, ExpressionType, ExpressionType)
+[[nodiscard]] PartialResult IPIntGenerator::addArrayFill(TypeSignatureIndex, ExpressionType, ExpressionType, ExpressionType, ExpressionType)
 {
     changeStackSize(-4);
     m_metadata->addLength(getCurrentInstructionLength());
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addArrayCopy(uint32_t, ExpressionType, ExpressionType, uint32_t, ExpressionType, ExpressionType, ExpressionType)
+[[nodiscard]] PartialResult IPIntGenerator::addArrayCopy(TypeSignatureIndex, ExpressionType, ExpressionType, TypeSignatureIndex, ExpressionType, ExpressionType, ExpressionType)
 {
     changeStackSize(-5);
     m_metadata->addLength(getCurrentInstructionLength());
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addArrayInitElem(uint32_t, ExpressionType, ExpressionType, uint32_t elemSegmentIndex, ExpressionType, ExpressionType)
+[[nodiscard]] PartialResult IPIntGenerator::addArrayInitElem(TypeSignatureIndex, ExpressionType, ExpressionType, uint32_t elemSegmentIndex, ExpressionType, ExpressionType)
 {
     changeStackSize(-4);
     m_metadata->appendMetadata<IPInt::ArrayInitDataMetadata>({
@@ -1313,7 +1331,7 @@ IPIntGenerator::ExpressionType IPIntGenerator::addSIMDConstant(v128_t)
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addArrayInitData(uint32_t, ExpressionType, ExpressionType, uint32_t dataSegmentIndex, ExpressionType, ExpressionType)
+[[nodiscard]] PartialResult IPIntGenerator::addArrayInitData(TypeSignatureIndex, ExpressionType, ExpressionType, uint32_t dataSegmentIndex, ExpressionType, ExpressionType)
 {
     changeStackSize(-4);
     m_metadata->appendMetadata<IPInt::ArrayInitDataMetadata>({
@@ -1323,11 +1341,11 @@ IPIntGenerator::ExpressionType IPIntGenerator::addSIMDConstant(v128_t)
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addStructNew(uint32_t index, ArgumentList&, ExpressionType&)
+[[nodiscard]] PartialResult IPIntGenerator::addStructNew(TypeSignatureIndex index, ArgumentList&, ExpressionType&)
 {
-    const StructType& type = *m_info.typeSignatures[index]->expand().as<StructType>();
+    const StructType& type = *m_info.expandedTypeSignature(index).as<StructType>();
     m_metadata->appendMetadata<IPInt::StructNewMetadata>({
-        index,
+        index.rawIndex(),
         static_cast<uint16_t>(type.fieldCount()),
         static_cast<uint8_t>(getCurrentInstructionLength())
     });
@@ -1335,10 +1353,10 @@ IPIntGenerator::ExpressionType IPIntGenerator::addSIMDConstant(v128_t)
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addStructNewDefault(uint32_t index, ExpressionType&)
+[[nodiscard]] PartialResult IPIntGenerator::addStructNewDefault(TypeSignatureIndex index, ExpressionType&)
 {
     m_metadata->appendMetadata<IPInt::StructNewDefaultMetadata>({
-        index,
+        index.rawIndex(),
         static_cast<uint8_t>(getCurrentInstructionLength())
     });
     changeStackSize(1);
@@ -3068,9 +3086,9 @@ void IPIntGenerator::addTailCallCommonData(const FunctionSignature&, const CallI
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addCallIndirect(unsigned callProfileIndex, unsigned tableIndex, const TypeDefinition& originalSignature, ArgumentList&, ResultList& results, CallType callType)
+[[nodiscard]] PartialResult IPIntGenerator::addCallIndirect(unsigned callProfileIndex, unsigned tableIndex, const TypeDefinition& expandedSignature, const RTT& rtt, ArgumentList&, ResultList& results, CallType callType)
 {
-    const FunctionSignature& signature = *originalSignature.expand().as<FunctionSignature>();
+    const FunctionSignature& signature = *expandedSignature.as<FunctionSignature>();
     const CallInformation& callConvention = cachedCallInformationFor(signature);
     m_metadata->addCallTarget(callProfileIndex, { });
 
@@ -3087,7 +3105,7 @@ void IPIntGenerator::addTailCallCommonData(const FunctionSignature&, const CallI
             .length = safeCast<uint8_t>(getCurrentInstructionLength()),
             .callProfileIndex = callProfileIndex,
             .tableIndex = tableIndex,
-            .rtt = m_metadata->addSignature(originalSignature),
+            .rtt = &rtt,
             .callerStackArgSize = static_cast<int32_t>(m_argumentAndResultsStackSize),
             .argumentBytecode = { }
         };
@@ -3105,7 +3123,7 @@ void IPIntGenerator::addTailCallCommonData(const FunctionSignature&, const CallI
         .length = safeCast<uint8_t>(getCurrentInstructionLength()),
         .callProfileIndex = callProfileIndex,
         .tableIndex = tableIndex,
-        .rtt = m_metadata->addSignature(originalSignature),
+        .rtt = &rtt,
         .signature = {
             frameSize,
             static_cast<uint16_t>(signature.returnCount() > signature.argumentCount() ? signature.returnCount() - signature.argumentCount() : 0),
@@ -3119,9 +3137,9 @@ void IPIntGenerator::addTailCallCommonData(const FunctionSignature&, const CallI
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addCallRef(unsigned callProfileIndex, const TypeDefinition& originalSignature, ArgumentList&, ResultList& results, CallType callType)
+[[nodiscard]] PartialResult IPIntGenerator::addCallRef(unsigned callProfileIndex, const TypeDefinition& expandedSignature, ArgumentList&, ResultList& results, CallType callType)
 {
-    const FunctionSignature& signature = *originalSignature.expand().as<FunctionSignature>();
+    const FunctionSignature& signature = *expandedSignature.as<FunctionSignature>();
     const CallInformation& callConvention = cachedCallInformationFor(signature);
     m_metadata->addCallTarget(callProfileIndex, { });
 

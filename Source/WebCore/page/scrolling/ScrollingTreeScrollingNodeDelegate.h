@@ -29,7 +29,7 @@
 
 #include <WebCore/RubberbandingState.h>
 #include <WebCore/ScrollingTreeScrollingNode.h>
-
+#include <wtf/EnumSet.h>
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {
@@ -44,7 +44,8 @@ public:
     Ref<const ScrollingTreeScrollingNode> scrollingNode() const { return m_scrollingNode; }
 
     virtual bool startAnimatedScrollToPosition(FloatPoint) = 0;
-    virtual void stopAnimatedScroll() = 0;
+
+    virtual void stopAnimatedScroll(EnumSet<AnimatedScrollType>) = 0;
 
     virtual void serviceScrollAnimation(MonotonicTime) = 0;
 

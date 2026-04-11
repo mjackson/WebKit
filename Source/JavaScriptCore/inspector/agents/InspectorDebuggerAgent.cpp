@@ -79,7 +79,7 @@ static bool isWebKitInjectedScript(const String& sourceURL)
     return sourceURL.startsWith("__InjectedScript_"_s) && sourceURL.endsWith(".js"_s);
 }
 
-static JSC::Debugger::BlackboxRange blackboxRange(const JSC::Debugger::Script& script)
+static JSC::Debugger::BlackboxRange NODELETE blackboxRange(const JSC::Debugger::Script& script)
 {
     return {
         { OrdinalNumber::fromZeroBasedInt(script.startLine), OrdinalNumber::fromZeroBasedInt(script.startColumn) },
@@ -658,17 +658,17 @@ Protocol::ErrorStringOr<void> InspectorDebuggerAgent::removeBreakpoint(const Pro
     return { };
 }
 
-static String functionName(JSC::NativeExecutable& nativeExecutable)
+static String NODELETE functionName(JSC::NativeExecutable& nativeExecutable)
 {
     return nativeExecutable.name();
 }
 
-static String functionName(JSC::FunctionExecutable& functionExecutable)
+static String NODELETE functionName(JSC::FunctionExecutable& functionExecutable)
 {
     return functionExecutable.ecmaName().string();
 }
 
-static String functionName(JSC::CodeBlock& codeBlock)
+static String NODELETE functionName(JSC::CodeBlock& codeBlock)
 {
     if (auto* functionExecutable = JSC::jsDynamicCast<JSC::FunctionExecutable*>(codeBlock.ownerExecutable()))
         return functionName(*functionExecutable);
@@ -676,7 +676,7 @@ static String functionName(JSC::CodeBlock& codeBlock)
     return nullString();
 }
 
-static String functionName(JSC::CallFrame* callFrame)
+static String NODELETE functionName(JSC::CallFrame* callFrame)
 {
     if (callFrame->isNativeCalleeFrame())
         return nullString();
@@ -751,7 +751,7 @@ struct ReplacedThunk {
 };
 
 static Lock s_replacedThunksLock;
-static Vector<Box<ReplacedThunk>>& replacedThunks() WTF_REQUIRES_LOCK(s_replacedThunksLock)
+static Vector<Box<ReplacedThunk>>& NODELETE replacedThunks() WTF_REQUIRES_LOCK(s_replacedThunksLock)
 {
     ASSERT(s_replacedThunksLock.isHeld());
     static NeverDestroyed<Vector<Box<ReplacedThunk>>> replacedThunks;
@@ -1591,7 +1591,7 @@ JSC::JSObject* InspectorDebuggerAgent::debuggerScopeExtensionObject(JSC::Debugge
     if (injectedScript.hasNoValue())
         return JSC::Debugger::Client::debuggerScopeExtensionObject(debugger, globalObject, debuggerCallFrame);
 
-    auto* debuggerGlobalObject = debuggerCallFrame.scope(globalObject->vm())->globalObject();
+    auto* debuggerGlobalObject = debuggerCallFrame.scope(globalObject->vm())->realm();
     auto callFrame = toJS(debuggerGlobalObject, debuggerGlobalObject, JavaScriptCallFrame::create(debuggerCallFrame).ptr());
     return injectedScript.createCommandLineAPIObject(callFrame);
 }
@@ -1691,7 +1691,7 @@ void InspectorDebuggerAgent::didPause(JSC::JSGlobalObject* globalObject, JSC::De
     ASSERT(!m_pausedGlobalObject);
     m_pausedGlobalObject = globalObject;
 
-    auto* debuggerGlobalObject = debuggerCallFrame.scope(globalObject->vm())->globalObject();
+    auto* debuggerGlobalObject = debuggerCallFrame.scope(globalObject->vm())->realm();
     m_currentCallStack = { m_pausedGlobalObject->vm(), toJS(debuggerGlobalObject, debuggerGlobalObject, JavaScriptCallFrame::create(debuggerCallFrame).ptr()) };
 
     auto injectedScript = injectedScriptManager().injectedScriptFor(m_pausedGlobalObject);

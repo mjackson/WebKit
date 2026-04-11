@@ -456,6 +456,7 @@ std::tuple<GRefPtr<GstCaps>, StreamType, FloatSize> AppendPipeline::parseDemuxer
 void AppendPipeline::appsinkCapsChanged(Track& track)
 {
     ASSERT(isMainThread());
+    GST_TRACE_OBJECT(pipeline(), "Processing caps-changed notification");
 
     // Consume any pending samples with the previous caps.
     consumeAppsinksAvailableSamples();
@@ -463,6 +464,7 @@ void AppendPipeline::appsinkCapsChanged(Track& track)
     GRefPtr<GstPad> pad = adoptGRef(gst_element_get_static_pad(track.appsink.get(), "sink"));
     GRefPtr<GstCaps> caps = adoptGRef(gst_pad_get_current_caps(pad.get()));
 
+    GST_DEBUG_OBJECT(pipeline(), "Caps changed to %" GST_PTR_FORMAT, caps.get());
     if (!caps)
         return;
 
@@ -489,7 +491,7 @@ void AppendPipeline::appsinkCapsChanged(Track& track)
         track.ongoingChangeType = false;
     }
 
-    if (track.caps != caps)
+    if (!gst_caps_is_equal(track.caps.get(), caps.get()))
         track.caps = WTF::move(caps);
 }
 
@@ -520,13 +522,6 @@ void AppendPipeline::appsinkNewSample(const Track& track, GRefPtr<GstSample>&& s
     }
 
     auto mediaSample = MediaSampleGStreamer::create(WTF::move(sample), track.presentationSize, track.trackId);
-
-    GST_TRACE_OBJECT(pipeline(), "append: trackId=%" PRIu64 " PTS=%s DTS=%s DUR=%s presentationSize=%.0fx%.0f",
-        mediaSample->trackID(),
-        mediaSample->presentationTime().toString().utf8().data(),
-        mediaSample->decodeTime().toString().utf8().data(),
-        mediaSample->duration().toString().utf8().data(),
-        mediaSample->presentationSize().width(), mediaSample->presentationSize().height());
 
     // Hack, rework when GStreamer >= 1.16 becomes a requirement:
     // We're not applying edit lists. GStreamer < 1.16 doesn't emit the correct segments to do so.
@@ -1183,6 +1178,9 @@ bool AppendPipeline::recycleTrackForPad(GstPad* demuxerSrcPad)
 
     matchingTrack->demuxerSrcPad = demuxerSrcPad;
 
+    // Get the caps before stopping the parser and sink, since setting the state to GST_STATE_NULL clears sticky events.
+    GRefPtr<GstCaps> matchingTrackCaps = adoptGRef(gst_pad_get_current_caps(matchingTrack->entryPad.get()));
+
     // The https://gitlab.freedesktop.org/gstreamer/gstreamer/-/merge_requests/4535 merge request in qtdemux is causing EOS on
     // a "to be removed" stream before the no-more-pads message is triggered. That message makes AppendPipeline realize that
     // the stream is actually going to be removed. AppendPipeline may therefore be trying to reuse a former EOSed parser and
@@ -1193,7 +1191,6 @@ bool AppendPipeline::recycleTrackForPad(GstPad* demuxerSrcPad)
         gst_element_set_state(matchingTrack->parser.get(), GST_STATE_NULL);
     gst_element_set_state(matchingTrack->appsink.get(), GST_STATE_NULL);
 
-    GRefPtr<GstCaps> matchingTrackCaps = adoptGRef(gst_pad_get_current_caps(matchingTrack->entryPad.get()));
     if (!matchingTrack->isLinked() && !matchingTrack->ongoingChangeType && (!matchingTrackCaps || gst_caps_can_intersect(parsedCaps.get(), matchingTrackCaps.get())))
         linkPadWithTrack(demuxerSrcPad, *matchingTrack);
     else {
@@ -1214,7 +1211,7 @@ bool AppendPipeline::recycleTrackForPad(GstPad* demuxerSrcPad)
             matchingTrack->caps = WTF::move(parsedCaps);
             matchingTrack->presentationSize = presentationSize;
         } else
-            GST_DEBUG_OBJECT(pipeline(), "%" PRIu64 " track pads match, nothing to re-link", matchingTrack->trackId);
+            GST_DEBUG_OBJECT(pipeline(), "track %" PRIu64 " pads match, nothing to re-link", matchingTrack->trackId);
 
     }
 

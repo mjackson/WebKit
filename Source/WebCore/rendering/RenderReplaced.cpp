@@ -55,10 +55,13 @@
 #include "RenderLayoutState.h"
 #include "RenderObjectInlines.h"
 #include "RenderStyle+GettersInlines.h"
+#include "RenderStyle+SettersInlines.h"
 #include "RenderTheme.h"
 #include "RenderVideo.h"
 #include "RenderView.h"
 #include "RenderedDocumentMarker.h"
+#include "SVGResources.h"
+#include "SVGResourcesCache.h"
 #include "Settings.h"
 #include "StyleComputedStyle+InitialInlines.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
@@ -264,7 +267,9 @@ void RenderReplaced::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
     LayoutPoint adjustedPaintOffset = paintOffset + location();
 
     if (paintInfo.phase == PaintPhase::EventRegion) {
-        if (isRenderOrLegacyRenderSVGRoot() && !isSkippedContentRoot(*this))
+        auto* resources = SVGResourcesCache::cachedResourcesForRenderer(*this);
+        bool svgRootHasChildrenOrFilters = isRenderOrLegacyRenderSVGRoot() && (firstChild() || (resources && resources->filter()) || svgFilterResourceFromStyle());
+        if (svgRootHasChildrenOrFilters && !isSkippedContentRoot(*this))
             paintReplaced(paintInfo, adjustedPaintOffset);
         else if (visibleToHitTesting()) {
             auto borderRect = LayoutRect(adjustedPaintOffset, size());
@@ -434,6 +439,7 @@ bool RenderReplaced::setNeedsLayoutIfNeededAfterIntrinsicSizeChange()
     // If the actual area occupied by the image has changed and it is not constrained by style then a layout is required.
     bool imageSizeIsConstrained = style().logicalWidth().isSpecified() && style().logicalHeight().isSpecified()
         && !style().logicalMinWidth().isIntrinsic() && !style().logicalMaxWidth().isIntrinsic()
+        && !style().logicalMinHeight().isIntrinsic() && !style().logicalMaxHeight().isIntrinsic()
         && !hasAutoHeightOrContainingBlockWithAutoHeight(UpdatePercentageHeightDescendants::No);
 
     // FIXME: We only need to recompute the containing block's preferred size
@@ -672,26 +678,14 @@ void RenderReplaced::computeAspectRatioAdjustedIntrinsicLogicalWidths(LayoutUnit
     auto computedAspectRatio = computeIntrinsicAspectRatio();
     auto computedIntrinsicLogicalWidth = minLogicalWidth;
 
-    auto resolveHeightForAspectRatio = [&](auto& length, bool canResolvePercentage) -> std::optional<LayoutUnit> {
-        if (auto fixedHeight = length.tryFixed())
-            return LayoutUnit { fixedHeight->resolveZoom(style.usedZoomForLength()) };
+    if (auto fixedLogicalHeight = style.logicalHeight().tryFixed())
+        computedIntrinsicLogicalWidth = fixedLogicalHeight->resolveZoom(style.usedZoomForLength()) * computedAspectRatio;
 
-        if (length.isPercentOrCalculated() && canResolvePercentage)
-            return computePercentageLogicalHeight(length, UpdatePercentageHeightDescendants::No);
-        return std::nullopt;
-    };
+    if (auto fixedLogicalMaxHeight = style.logicalMaxHeight().tryFixed())
+        computedIntrinsicLogicalWidth = std::min(computedIntrinsicLogicalWidth, LayoutUnit { fixedLogicalMaxHeight->resolveZoom(style.usedZoomForLength()) * computedAspectRatio });
 
-    // Resolve height and apply aspect ratio if available
-    if (auto resolvedLogicalHeight = resolveHeightForAspectRatio(style.logicalHeight(), hasReplacedLogicalHeight()))
-        computedIntrinsicLogicalWidth = *resolvedLogicalHeight * computedAspectRatio;
-
-    // Apply max-height constraint
-    if (auto resolvedLogicalMaxHeight = resolveHeightForAspectRatio(style.logicalMaxHeight(), !replacedMaxLogicalHeightComputesAsNone()))
-        computedIntrinsicLogicalWidth = std::min(computedIntrinsicLogicalWidth, LayoutUnit { *resolvedLogicalMaxHeight * computedAspectRatio });
-
-    // Apply min-height constraint
-    if (auto resolvedLogicalMinHeight = resolveHeightForAspectRatio(style.logicalMinHeight(), !replacedMinLogicalHeightComputesAsNone()))
-        computedIntrinsicLogicalWidth = std::max(computedIntrinsicLogicalWidth, LayoutUnit { *resolvedLogicalMinHeight * computedAspectRatio });
+    if (auto fixedLogicalMinHeight = style.logicalMinHeight().tryFixed())
+        computedIntrinsicLogicalWidth = std::max(computedIntrinsicLogicalWidth, LayoutUnit { fixedLogicalMinHeight->resolveZoom(style.usedZoomForLength()) * computedAspectRatio });
 
     minLogicalWidth = computedIntrinsicLogicalWidth;
     maxLogicalWidth = minLogicalWidth;
@@ -1053,7 +1047,7 @@ void RenderReplaced::layoutShadowContent(const LayoutSize& oldSize)
         renderBox.mutableStyle().setHeight(Style::PreferredSize::Fixed { newSize.height() / usedZoom.value });
         renderBox.mutableStyle().setWidth(Style::PreferredSize::Fixed { newSize.width() / usedZoom.value });
 
-        renderBox.setNeedsLayout(MarkOnlyThis);
+        renderBox.setNeedsLayout(MarkingBehavior::MarkOnlyThis);
         renderBox.layout();
     }
 
@@ -1363,8 +1357,7 @@ LayoutUnit RenderReplaced::computeReplacedLogicalHeightUsingGeneric(const SizeTy
             return percentageOrCalculated(calculatedLogicalHeight);
         },
         [&](const CSS::Keyword::FitContent&) -> LayoutUnit {
-            auto [transferredMinLogicalHeight, transferredMaxLogicalHeight] = computeMinMaxLogicalHeightFromAspectRatio();
-            return std::clamp(content(), transferredMinLogicalHeight, transferredMaxLogicalHeight);
+            return content();
         },
         [&](const CSS::Keyword::Stretch&) -> LayoutUnit {
             // stretch with indefinite containing block falls back to intrinsic height for replaced elements.
@@ -1373,12 +1366,10 @@ LayoutUnit RenderReplaced::computeReplacedLogicalHeightUsingGeneric(const SizeTy
             return intrinsicLogicalHeight();
         },
         [&](const CSS::Keyword::MinContent&) -> LayoutUnit {
-            auto [transferredMinLogicalHeight, transferredMaxLogicalHeight] = computeMinMaxLogicalHeightFromAspectRatio();
-            return std::clamp(content(), transferredMinLogicalHeight, transferredMaxLogicalHeight);
+            return content();
         },
         [&](const CSS::Keyword::MaxContent&) -> LayoutUnit {
-            auto [transferredMinLogicalHeight, transferredMaxLogicalHeight] = computeMinMaxLogicalHeightFromAspectRatio();
-            return std::clamp(content(), transferredMinLogicalHeight, transferredMaxLogicalHeight);
+            return content();
         },
         [&](const CSS::Keyword::Intrinsic&) -> LayoutUnit {
             return intrinsicLogicalHeight();

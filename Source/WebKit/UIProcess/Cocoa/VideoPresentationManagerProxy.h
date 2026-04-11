@@ -230,7 +230,7 @@ private:
 
     RetainPtr<WKLayerHostView> createLayerHostViewWithID(PlaybackSessionContextIdentifier, const WebCore::HostingContext&, const WebCore::FloatSize& initialSize, float hostingScaleFactor);
 
-#if USE(EXTENSIONKIT)
+#if HAVE(VISIBILITY_PROPAGATION_VIEW)
     void setVisibilityPropagationViewForLayerHostView(UIView *, WKLayerHostView *);
 #endif
 

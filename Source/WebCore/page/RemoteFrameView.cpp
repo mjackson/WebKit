@@ -26,7 +26,12 @@
 #include "config.h"
 #include "RemoteFrameView.h"
 
+#include "AXObjectCache.h"
+#include "Chrome.h"
+#include "ChromeClient.h"
+#include "DocumentPage.h"
 #include "GraphicsContext.h"
+#include "Page.h"
 #include "RemoteFrame.h"
 #include "RemoteFrameClient.h"
 #include <wtf/TZoneMallocInlines.h>
@@ -49,8 +54,16 @@ void RemoteFrameView::setFrameRect(const IntRect& newRect)
 {
     IntRect oldRect = frameRect();
     setFrameRectWithoutSync(newRect);
-    if (newRect != oldRect)
+    if (newRect != oldRect) {
         m_frame->client().frameRectDidChange(newRect);
+
+#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+        if (AXObjectCache::accessibilityEnabled()) {
+            if (RefPtr page = m_frame->page())
+                page->chrome().client().scheduleAccessibilityFrameGeometryUpdate();
+        }
+#endif
+    }
 }
 
 LayoutRect RemoteFrameView::layoutViewportRect() const

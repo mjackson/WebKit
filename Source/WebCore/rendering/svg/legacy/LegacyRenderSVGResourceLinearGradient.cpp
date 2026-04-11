@@ -20,6 +20,7 @@
 
 #include "config.h"
 #include "LegacyRenderSVGResourceLinearGradient.h"
+#include "LegacyRenderSVGResourceGradientInlines.h"
 
 #include "LegacyRenderSVGResourceLinearGradientInlines.h"
 #include <wtf/TZoneMallocInlines.h>

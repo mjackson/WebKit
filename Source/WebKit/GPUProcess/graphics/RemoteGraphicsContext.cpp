@@ -507,14 +507,14 @@ void RemoteGraphicsContext::drawPath(const Path& path)
     context().drawPath(path);
 }
 
-void RemoteGraphicsContext::drawFocusRingPath(const Path& path, float outlineWidth, const Color& color)
+void RemoteGraphicsContext::drawFocusRingPath(const Path& path, float outlineWidth, const Color& color, float zoomFactor)
 {
-    context().drawFocusRing(path, outlineWidth, color);
+    context().drawFocusRing(path, outlineWidth, color, zoomFactor);
 }
 
-void RemoteGraphicsContext::drawFocusRingRects(const Vector<FloatRect>& rects, float outlineOffset, float outlineWidth, const Color& color)
+void RemoteGraphicsContext::drawFocusRingRects(const Vector<FloatRect>& rects, float outlineWidth, const Color& color, float zoomFactor)
 {
-    context().drawFocusRing(rects, outlineOffset, outlineWidth, color);
+    context().drawFocusRing(rects, outlineWidth, color, zoomFactor);
 }
 
 void RemoteGraphicsContext::fillRect(const FloatRect& rect, GraphicsContext::RequiresClipToRect requiresClipToRect)

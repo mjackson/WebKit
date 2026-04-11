@@ -57,7 +57,7 @@ struct Blur {
 
     IntOutsets calculateOutsets(ZoomFactor) const;
 
-    bool operator==(const Blur&) const = default;
+    bool NODELETE operator==(const Blur&) const = default;
 };
 using BlurFunction = FunctionNotation<CSSValueBlur, Blur>;
 DEFINE_TYPE_WRAPPER_GET(Blur, value);

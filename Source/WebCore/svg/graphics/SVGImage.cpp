@@ -28,7 +28,6 @@
 #include "config.h"
 #include "SVGImage.h"
 
-#include "CacheStorageProvider.h"
 #include "Chrome.h"
 #include "CommonVM.h"
 #include "ContainerNodeInlines.h"
@@ -155,10 +154,10 @@ IntSize SVGImage::containerSize() const
 
     // If a container size is available it has precedence.
     auto computeContainerSize = [&]() -> IntSize {
-        if (CheckedPtr renderer = dynamicDowncast<LegacyRenderSVGRoot>(rootElement->renderer()))
+        if (auto* renderer = dynamicDowncast<LegacyRenderSVGRoot>(rootElement->renderer()))
             return renderer->containerSize();
 
-        if (CheckedPtr renderer = dynamicDowncast<RenderSVGRoot>(rootElement->renderer()))
+        if (auto* renderer = dynamicDowncast<RenderSVGRoot>(rootElement->renderer()))
             return renderer->containerSize();
 
         return { };

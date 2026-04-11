@@ -357,7 +357,7 @@ unsigned Code::jsHash() const
 
 void Code::setNumEntrypoints(unsigned numEntrypoints)
 {
-    m_prologueGenerators = { numEntrypoints, m_defaultPrologueGenerator.copyRef() };
+    m_prologueGenerators = { FillWith { }, numEntrypoints, m_defaultPrologueGenerator.copyRef() };
 }
 
 bool Code::usesSIMD() const

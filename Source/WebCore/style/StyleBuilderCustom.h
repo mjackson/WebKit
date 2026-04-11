@@ -144,6 +144,7 @@ inline OffsetDistance forwardInheritedValue(const OffsetDistance& value) { auto 
 inline OffsetPath forwardInheritedValue(const OffsetPath& value) { auto copy = value; return copy; }
 inline OffsetPosition forwardInheritedValue(const OffsetPosition& value) { auto copy = value; return copy; }
 inline OffsetRotate forwardInheritedValue(const OffsetRotate& value) { auto copy = value; return copy; }
+inline OutlineOffset forwardInheritedValue(const OutlineOffset& value) { auto copy = value; return copy; }
 inline OverflowClipMargin forwardInheritedValue(const OverflowClipMargin& value) { auto copy = value; return copy; }
 inline Position forwardInheritedValue(const Position& value) { auto copy = value; return copy; }
 inline PositionAnchor forwardInheritedValue(const PositionAnchor& value) { auto copy = value; return copy; }
@@ -566,8 +567,8 @@ inline void BuilderCustom::applyInitialFontFamily(BuilderState& builderState)
             builderState.setFontDescriptionFontSize(Style::fontSizeForKeyword(sizeIdentifier, false, builderState.document()));
     }
 
-    if (!initialDesc.firstFamily().isEmpty())
-        builderState.setFontDescriptionFamilies(FontFamilies { initialDesc.families(), fontDescription.isSpecifiedFont() });
+    if (!initialDesc.firstFamily().name.isEmpty())
+        builderState.setFontDescriptionFamilies(FontFamilies { initialDesc.families(), fontDescription.hasAuthorSpecifiedNonGenericPrimaryFont() });
 }
 
 inline void BuilderCustom::applyInheritFontFamily(BuilderState& builderState)

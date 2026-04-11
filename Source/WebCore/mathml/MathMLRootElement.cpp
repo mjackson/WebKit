@@ -29,7 +29,10 @@
 
 #if ENABLE(MATHML)
 
+#include "ContainerNodeInlines.h"
 #include "RenderMathMLRoot.h"
+#include "RenderObjectInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {

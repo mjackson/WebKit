@@ -332,11 +332,11 @@ void ColorInputType::updateColorSwatch()
 HTMLElement* ColorInputType::shadowColorSwatch() const
 {
     ASSERT(element());
-    RefPtr shadow = element()->userAgentShadowRoot();
+    auto* shadow = element()->userAgentShadowRoot();
     if (!shadow)
         return nullptr;
 
-    RefPtr wrapper = shadow->firstChild();
+    auto* wrapper = shadow->firstChild();
     return wrapper ? downcast<HTMLElement>(wrapper->firstChild()) : nullptr;
 }
 
@@ -358,7 +358,7 @@ std::optional<FrameIdentifier> ColorInputType::rootFrameID() const
 bool ColorInputType::supportsAlpha() const
 {
     ASSERT(element());
-    return protect(element())->alpha();
+    return element()->alpha();
 }
 
 Vector<Color> ColorInputType::suggestedColors() const

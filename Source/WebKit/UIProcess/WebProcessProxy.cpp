@@ -574,7 +574,7 @@ void WebProcessProxy::getLaunchOptions(ProcessLauncher::LaunchOptions& launchOpt
 
     AuxiliaryProcessProxy::getLaunchOptions(launchOptions);
 
-    if (WebKit::isInspectorProcessPool(protect(processPool())))
+    if (WebKit::isInspectorProcessPool(processPool()))
         launchOptions.extraInitializationData.add<HashTranslatorASCIILiteral>("inspector-process"_s, "1"_s);
 
     launchOptions.nonValidInjectedCodeAllowed = shouldAllowNonValidInjectedCode();
@@ -738,7 +738,7 @@ void WebProcessProxy::shutDown()
     shutDownProcess();
 
 #if ENABLE(WEBASSEMBLY_DEBUGGER) && ENABLE(REMOTE_INSPECTOR)
-    if (JSC::Options::enableWasmDebugger()) [[unlikely]]
+    if (m_wasmDebuggerDebuggable)
         destroyWasmDebuggerTarget();
 #endif
 
@@ -914,12 +914,14 @@ void WebProcessProxy::removeWebPage(WebPageProxy& webPage, EndsUsingDataStore en
     WEBPROCESSPROXY_RELEASE_LOG(Process, "removeWebPage: webPage=%p, pageProxyID=%" PRIu64 ", webPageID=%" PRIu64, &webPage, webPage.identifier().toUInt64(), webPage.webPageIDInMainFrameProcess().toUInt64());
     RefPtr removedPage = m_pageMap.take(webPage.identifier()).get();
     ASSERT_UNUSED(removedPage, removedPage == &webPage);
+
+    // reportProcessDisassociatedWithPageIfNecessary gets page from globalPageMap() for operation,
+    // so it must be invoked before removal.
+    reportProcessDisassociatedWithPageIfNecessary(webPage.identifier());
     removedPage = globalPageMap().take(webPage.identifier()).get();
     ASSERT_UNUSED(removedPage, removedPage == &webPage);
 
     logger().setEnabled(this, isAlwaysOnLoggingAllowed());
-
-    reportProcessDisassociatedWithPageIfNecessary(webPage.identifier());
 
     if (endsUsingDataStore == EndsUsingDataStore::Yes)
         protect(processPool())->pageEndUsingWebsiteDataStore(webPage, protect(webPage.websiteDataStore()));
@@ -933,6 +935,13 @@ void WebProcessProxy::removeWebPage(WebPageProxy& webPage, EndsUsingDataStore en
 
 #if ENABLE(MEDIA_STREAM)
     UserMediaProcessManager::singleton().revokeSandboxExtensionsIfNeeded(protect(*this));
+#endif
+
+#if ENABLE(WEBASSEMBLY_DEBUGGER) && ENABLE(REMOTE_INSPECTOR)
+    // Refresh the WASM debugger listing for this process since it lost a page.
+    // remoteInspectorInformationDidChange() does not cover this case — on a process
+    // swap it only updates the new process, and on page close it does not fire at all.
+    updateWasmDebuggerTarget();
 #endif
 
     maybeShutDown();
@@ -1628,7 +1637,7 @@ bool WebProcessProxy::canBeAddedToWebProcessCache() const
         return false;
     }
 
-    if (WebKit::isInspectorProcessPool(protect(processPool())))
+    if (WebKit::isInspectorProcessPool(processPool()))
         return false;
 
     return true;
@@ -1659,7 +1668,7 @@ bool WebProcessProxy::canTerminateAuxiliaryProcess()
         || !m_provisionalPages.isEmptyIgnoringNullReferences()
         || m_isInProcessCache
         || m_shutdownPreventingScopeCounter.value()) {
-        WEBPROCESSPROXY_RELEASE_LOG(Process, "canTerminateAuxiliaryProcess: returns false (pageCount=%u, remotePageCount=%u, provisionalPageCount=%u, suspendedPageCount=%u, m_isInProcessCache=%d, m_shutdownPreventingScopeCounter=%lu)", m_pageMap.size(), m_remotePages.computeSize(), m_provisionalPages.computeSize(), m_suspendedPages.computeSize(), m_isInProcessCache, m_shutdownPreventingScopeCounter.value());
+        WEBPROCESSPROXY_RELEASE_LOG(Process, "canTerminateAuxiliaryProcess: returns false (pageCount=%u, remotePageCount=%u, provisionalPageCount=%u, suspendedPageCount=%u, m_isInProcessCache=%d, m_shutdownPreventingScopeCounter=%zu)", m_pageMap.size(), m_remotePages.computeSize(), m_provisionalPages.computeSize(), m_suspendedPages.computeSize(), m_isInProcessCache, m_shutdownPreventingScopeCounter.value());
         return false;
     }
 
@@ -3053,7 +3062,7 @@ void WebProcessProxy::registerServiceWorkerClients(CompletionHandler<void()>&& c
 {
     sendWithAsyncReply(Messages::WebProcess::RegisterServiceWorkerClients { }, [weakThis = WeakPtr { *this }, completionHandler = WTF::move(completionHandler)](bool result) mutable {
         {
-            RefPtr protectedThis = weakThis.get();
+            auto* protectedThis = weakThis.get();
             if (result && protectedThis)
                 protectedThis->m_hasRegisteredServiceWorkerClients = true;
         }
@@ -3259,6 +3268,12 @@ void WebProcessProxy::sendWasmDebuggerResponse(const String& response)
     }
 
     debuggable->sendResponseToFrontend(response);
+}
+
+void WebProcessProxy::updateWasmDebuggerTarget()
+{
+    if (RefPtr debuggable = m_wasmDebuggerDebuggable)
+        debuggable->update();
 }
 
 #endif // ENABLE(WEBASSEMBLY_DEBUGGER) && ENABLE(REMOTE_INSPECTOR)

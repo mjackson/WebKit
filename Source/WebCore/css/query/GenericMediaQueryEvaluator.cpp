@@ -52,7 +52,7 @@ static std::optional<LayoutUnit> computeLength(const CSSValue* value, const CSST
 }
 
 template<typename T>
-bool compare(ComparisonOperator op, T left, T right)
+bool NODELETE compare(ComparisonOperator op, T left, T right)
 {
     switch (op) {
     case ComparisonOperator::LessThan:

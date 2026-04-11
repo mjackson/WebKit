@@ -68,6 +68,7 @@
 #include <JavaScriptCore/BuiltinNames.h>
 #include <JavaScriptCore/Debugger.h>
 #include <JavaScriptCore/Heap.h>
+#include <JavaScriptCore/HeapCellInlines.h>
 #include <JavaScriptCore/ImportMap.h>
 #include <JavaScriptCore/InitializeThreading.h>
 #include <JavaScriptCore/JSFunction.h>

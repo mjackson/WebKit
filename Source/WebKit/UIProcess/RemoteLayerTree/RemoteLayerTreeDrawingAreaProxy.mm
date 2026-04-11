@@ -405,9 +405,14 @@ void RemoteLayerTreeDrawingAreaProxy::commitLayerTree(IPC::Connection& connectio
     WeakPtr weakThis { *this };
 
     for (auto& transaction : bundle.transactions) {
-        commitLayerTreeTransaction(connection, CheckedRef { transaction.first }.get(), transaction.second, bundle.mainFrameData, bundle.pageData, bundle.transactionID);
+        commitLayerTreeTransaction(connection, CheckedRef { transaction.first }.get(), transaction.second,  transaction.first.remoteContextHostedIdentifier() ? std::nullopt : bundle.mainFrameData, bundle.pageData, bundle.transactionID);
         if (!weakThis)
             return;
+    }
+
+    {
+        CheckedRef scrollingCoordinatorProxy = *page->scrollingCoordinatorProxy();
+        scrollingCoordinatorProxy->establishLayerTreeScrollingRelations(connection);
     }
 
     for (auto& callbackID : bundle.pageData.callbackIDs) {
@@ -421,13 +426,15 @@ void RemoteLayerTreeDrawingAreaProxy::commitLayerTree(IPC::Connection& connectio
     if (!sendRights.isEmpty())
         [CATransaction addCommitHandler:^{ sendRights.clear(); } forPhase:kCATransactionPhasePostCommit];
 
-    auto duration = MonotonicTime::now() - bundle.startTime;
-    if (duration.value() > (1.0 / displayNominalFramesPerSecond().value_or(FullSpeedFramesPerSecond)))
-        WTFEmitSignpost(this, WebKitPerformance, "slowFrame");
-    m_frameDurations.append(duration);
+    if (RefPtr page = this->page(); page && page->isViewVisible()) {
+        auto duration = MonotonicTime::now() - bundle.startTime;
+        if (duration.value() > (1.0 / displayNominalFramesPerSecond().value_or(FullSpeedFramesPerSecond)))
+            WTFEmitSignpost(this, WebKitPerformance, "slowFrame");
+        m_frameDurations.append(duration);
 
-    if (m_frameDurations.size() > kSlowFrameIndicatorWidth)
-        m_frameDurations.removeFirst();
+        if (m_frameDurations.size() > kSlowFrameIndicatorWidth)
+            m_frameDurations.removeFirst();
+    }
 
     {
         ProcessState& state = processStateForConnection(connection);
@@ -449,9 +456,9 @@ void RemoteLayerTreeDrawingAreaProxy::commitLayerTree(IPC::Connection& connectio
 WebCore::TrackingType RemoteLayerTreeDrawingAreaProxy::eventTrackingTypeForPoint(WebCore::EventTrackingRegions::EventType eventType, IntPoint location)
 {
     FloatPoint localLocation = location;
-    if (auto* eventRegion = eventRegionForPoint(remoteLayerTreeHost().rootLayer(), localLocation))
-        return eventRegion->eventTrackingTypeForPoint(eventType, roundedIntPoint(localLocation));
-    return WebCore::TrackingType::NotTracking;
+    return eventRegionForPoint(remoteLayerTreeHost().rootLayer(), localLocation).transform([eventType, &localLocation](const WebCore::EventRegion& eventRegion) {
+        return eventRegion.eventTrackingTypeForPoint(eventType, roundedIntPoint(localLocation));
+    }).value_or(WebCore::TrackingType::NotTracking);
 }
 #endif
 
@@ -558,7 +565,7 @@ static const float indicatorInset = 10;
 FloatPoint RemoteLayerTreeDrawingAreaProxy::indicatorLocation() const
 {
     FloatPoint tiledMapLocation;
-    RefPtr page = this->page();
+    auto* page = this->page();
     if (!page)
         return { };
 

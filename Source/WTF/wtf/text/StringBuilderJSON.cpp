@@ -12,8 +12,6 @@
 #include "config.h"
 #include <wtf/text/StringBuilderJSON.h>
 
-#include <wtf/text/EscapedFormsForJSON.h>
-#include <wtf/text/ParsingUtilities.h>
 #include <wtf/text/WTFString.h>
 
 namespace WTF {

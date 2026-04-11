@@ -59,6 +59,7 @@
 #include "LocalFrame.h"
 #include "LocalFrameInlines.h"
 #include "SecurityOrigin.h"
+#include "Settings.h"
 #include "WindowOrWorkerGlobalScopeIndexedDatabase.h"
 #include <JavaScriptCore/HeapInlines.h>
 #include <JavaScriptCore/InjectedScript.h>
@@ -548,7 +549,7 @@ static Inspector::Protocol::ErrorStringOr<RefPtr<IDBFactory>> IDBFactoryFromDocu
 
     RefPtr idbFactory = WindowOrWorkerGlobalScopeIndexedDatabase::indexedDB(*window);
     if (!idbFactory)
-        makeUnexpected("Missing IndexedDB factory of window for given document"_s);
+        return makeUnexpected("Missing IndexedDB factory of window for given document"_s);
     
     return { WTF::move(idbFactory) };
 }

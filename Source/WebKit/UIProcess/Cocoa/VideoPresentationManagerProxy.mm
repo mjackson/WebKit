@@ -84,7 +84,7 @@
 
 @interface WKLayerHostView : CocoaView
 @property (nonatomic, assign) uint32_t contextID;
-#if USE(EXTENSIONKIT)
+#if HAVE(VISIBILITY_PROPAGATION_VIEW)
 @property (nonatomic, strong) CocoaView *visibilityPropagationView;
 #endif
 @end
@@ -93,10 +93,12 @@
 #if PLATFORM(IOS_FAMILY)
     WeakObjCPtr<UIWindow> _window;
 #endif
-#if USE(EXTENSIONKIT)
+#if HAVE(VISIBILITY_PROPAGATION_VIEW)
     RetainPtr<CocoaView> _visibilityPropagationView;
+#if USE(EXTENSIONKIT)
 @public
     RetainPtr<BELayerHierarchyHostingView> _hostingView;
+#endif
 #endif
 }
 
@@ -140,7 +142,7 @@
 }
 #endif
 
-#if USE(EXTENSIONKIT)
+#if HAVE(VISIBILITY_PROPAGATION_VIEW)
 - (CocoaView *)visibilityPropagationView
 {
     return _visibilityPropagationView.get();
@@ -152,7 +154,7 @@
     _visibilityPropagationView = visibilityPropagationView;
     [self addSubview:_visibilityPropagationView.get()];
 }
-#endif // USE(EXTENSIONKIT)
+#endif // HAVE(VISIBILITY_PROPAGATION_VIEW)
 
 @end
 
@@ -423,7 +425,7 @@ void VideoPresentationModelContext::returnVideoContentLayer()
 void VideoPresentationModelContext::returnVideoView()
 {
     ALWAYS_LOG_IF_POSSIBLE(LOGIDENTIFIER);
-    if (RefPtr manager = m_manager.get())
+    if (auto* manager = m_manager.get())
         manager->returnVideoView(m_contextId);
 }
 
@@ -940,7 +942,7 @@ RetainPtr<WKLayerHostView> VideoPresentationManagerProxy::createLayerHostViewWit
     return view;
 }
 
-#if USE(EXTENSIONKIT)
+#if HAVE(VISIBILITY_PROPAGATION_VIEW)
 void VideoPresentationManagerProxy::setVisibilityPropagationViewForLayerHostView(UIView *visibilityPropagationView, WKLayerHostView *layerHostView)
 {
     if (RefPtr page = m_page.get()) {
@@ -1105,7 +1107,7 @@ void VideoPresentationManagerProxy::setupFullscreenWithID(PlaybackSessionContext
 #endif
 
     RetainPtr view = interface->layerHostView() ? RetainPtr { static_cast<WKLayerHostView*>(interface->layerHostView()) } : createLayerHostViewWithID(contextId, hostingContext, initialSize, hostingDeviceScaleFactor);
-#if USE(EXTENSIONKIT)
+#if HAVE(VISIBILITY_PROPAGATION_VIEW)
     RefPtr pageClient = page->pageClient();
     if (RetainPtr visibilityPropagationView = pageClient ? pageClient->createVisibilityPropagationView() : nil)
         setVisibilityPropagationViewForLayerHostView(visibilityPropagationView.get(), view.get());
@@ -1543,7 +1545,7 @@ void VideoPresentationManagerProxy::didCleanupFullscreen(PlaybackSessionContextI
 
     auto [model, interface] = ensureModelAndInterface(contextId);
 
-#if USE(EXTENSIONKIT)
+#if HAVE(VISIBILITY_PROPAGATION_VIEW)
     if (RetainPtr layerHostView = dynamic_objc_cast<WKLayerHostView>(interface->layerHostView()))
         setVisibilityPropagationViewForLayerHostView(nil, layerHostView.get());
 #endif

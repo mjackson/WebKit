@@ -357,7 +357,7 @@ Ref<SourceBufferPrivate::ComputeSeekPromise> SourceBufferPrivateRemote::computeS
     });
 }
 
-void SourceBufferPrivateRemote::seekToTime(const MediaTime& time)
+void SourceBufferPrivateRemote::reenqueueMediaForTime(const MediaTime& time)
 {
     ASSERT_NOT_REACHED();
 }

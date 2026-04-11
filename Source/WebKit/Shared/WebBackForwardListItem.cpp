@@ -206,7 +206,7 @@ String WebBackForwardListItem::loggingString()
 
 void WebBackForwardListItem::updateFrameID(FrameIdentifier oldFrameID, FrameIdentifier newFrameID)
 {
-    if (RefPtr frameItem = m_mainFrameItem->childItemForFrameID(oldFrameID))
+    if (auto* frameItem = m_mainFrameItem->childItemForFrameID(oldFrameID))
         frameItem->updateFrameID(newFrameID);
     if (m_navigatedFrameID && *m_navigatedFrameID == oldFrameID)
         m_navigatedFrameID = newFrameID;

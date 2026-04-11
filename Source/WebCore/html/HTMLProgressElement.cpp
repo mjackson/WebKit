@@ -23,9 +23,12 @@
 #include "HTMLProgressElement.h"
 
 #include "AXObjectCache.h"
+#include "ContainerNodeInlines.h"
+#include "ElementInlines.h"
 #include "HTMLDivElement.h"
 #include "HTMLNames.h"
 #include "HTMLParserIdioms.h"
+#include "NodeDocument.h"
 #include "PseudoClassChangeInvalidation.h"
 #include "RenderProgress.h"
 #include "RenderStyle+GettersInlines.h"
@@ -157,7 +160,7 @@ void HTMLProgressElement::appendShadowTreeForAutoAppearance(ShadowRoot& root)
     ScriptDisallowedScope::EventAllowedScope innerScope { innerElement };
     innerElement->setUserAgentPart(UserAgentParts::webkitProgressInnerElement());
     innerElement->setInlineStyleProperty(CSSPropertyAppearance, "inherit"_s);
-    innerElement->setInlineStyleProperty(CSSPropertyDisplay, "-internal-auto-base(inline-block, none) !important"_s);
+    innerElement->setInlineStyleProperty(CSSPropertyDisplay, "-internal-auto-base(inline-block, none)"_s, IsImportant::Yes);
     ScriptDisallowedScope::EventAllowedScope rootScope { root };
     root.appendChild(innerElement);
 
@@ -183,7 +186,7 @@ void HTMLProgressElement::appendShadowTreeForBaseAppearance(ShadowRoot& root)
     ScriptDisallowedScope::EventAllowedScope trackScope { trackElement };
     trackElement->setUserAgentPart(UserAgentParts::sliderTrack());
     trackElement->setInlineStyleProperty(CSSPropertyAppearance, "inherit"_s);
-    trackElement->setInlineStyleProperty(CSSPropertyDisplay, "-internal-auto-base(none, inline-block) !important"_s);
+    trackElement->setInlineStyleProperty(CSSPropertyDisplay, "-internal-auto-base(none, inline-block)"_s, IsImportant::Yes);
     ScriptDisallowedScope::EventAllowedScope rootScope { root };
     root.appendChild(trackElement);
 

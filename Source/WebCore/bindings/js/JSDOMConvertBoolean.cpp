@@ -25,6 +25,7 @@
 
 #include "config.h"
 #include "JSDOMConvertBoolean.h"
+#include <JavaScriptCore/JSCellInlines.h>
 
 #include <JavaScriptCore/JSCJSValueCellInlines.h>
 

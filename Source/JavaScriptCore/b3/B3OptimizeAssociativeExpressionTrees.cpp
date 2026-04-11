@@ -60,7 +60,7 @@ private:
     static constexpr bool verbose { false };
 };
 
-int64_t OptimizeAssociativeExpressionTrees::neutralElement(Opcode op)
+int64_t NODELETE OptimizeAssociativeExpressionTrees::neutralElement(Opcode op)
 {
     switch (op) {
     case Add:
@@ -76,7 +76,7 @@ int64_t OptimizeAssociativeExpressionTrees::neutralElement(Opcode op)
     }
 }
 
-bool OptimizeAssociativeExpressionTrees::isAbsorbingElement(Opcode op, int64_t constant)
+bool NODELETE OptimizeAssociativeExpressionTrees::isAbsorbingElement(Opcode op, int64_t constant)
 {
     switch (op) {
     case Add:
@@ -92,7 +92,7 @@ bool OptimizeAssociativeExpressionTrees::isAbsorbingElement(Opcode op, int64_t c
     }
 }
 
-void OptimizeAssociativeExpressionTrees::combineConstants(Opcode op, int64_t& const1, int64_t const2)
+void NODELETE OptimizeAssociativeExpressionTrees::combineConstants(Opcode op, int64_t& const1, int64_t const2)
 {
     switch (op) {
     case Add:
@@ -249,7 +249,7 @@ bool OptimizeAssociativeExpressionTrees::run()
 
     m_proc.resetValueOwners();
 
-    Vector<unsigned> useCounts(m_proc.values().size(), 0); // Mapping from Value::m_index to use counts.
+    Vector<unsigned> useCounts(FillWith { }, m_proc.values().size(), 0); // Mapping from Value::m_index to use counts.
     UncheckedKeyHashSet<Value*> expressionTreeRoots;
     UncheckedKeyHashSet<BasicBlock*> rootOwners;
 

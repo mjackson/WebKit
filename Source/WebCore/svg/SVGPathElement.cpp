@@ -212,7 +212,7 @@ unsigned SVGPathElement::getPathSegAtLength(float length) const
 
 FloatRect SVGPathElement::getBBox(StyleUpdateStrategy styleUpdateStrategy)
 {
-    if (styleUpdateStrategy == AllowStyleUpdate)
+    if (styleUpdateStrategy == StyleUpdateStrategy::Allow)
         protect(document())->updateLayoutIgnorePendingStylesheets({ LayoutOptions::TreatContentVisibilityHiddenAsVisible, LayoutOptions::TreatContentVisibilityAutoAsVisible }, this);
 
     // FIXME: Eventually we should support getBBox for detached elements.

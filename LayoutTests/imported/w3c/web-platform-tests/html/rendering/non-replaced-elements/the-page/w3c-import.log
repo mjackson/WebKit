@@ -64,6 +64,8 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/the-page/body-margin-2k.html
 /LayoutTests/imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/the-page/body-margin-2l-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/the-page/body-margin-2l.html
+/LayoutTests/imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/the-page/body-margin-3a.html
+/LayoutTests/imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/the-page/body-margin-3b.html
 /LayoutTests/imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/the-page/body_link.xhtml
 /LayoutTests/imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/the-page/body_text_00ffff-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/the-page/body_text_00ffff-ref.html

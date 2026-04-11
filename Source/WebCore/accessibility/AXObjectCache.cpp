@@ -29,6 +29,7 @@
 #include "config.h"
 #include "AXObjectCache.h"
 
+#include "AccessibilityNodeObjectInlines.h"
 #include "AXAttributeCacheScope.h"
 #include "AXComputedObjectAttributeCache.h"
 #include "AXIsolatedObject.h"
@@ -59,6 +60,7 @@
 #include "AccessibilityTableColumn.h"
 #include "AccessibilityTableHeaderContainer.h"
 #include "AriaNotifyOptions.h"
+#include "BorderShape.h"
 #include "CaretRectComputation.h"
 #include "Chrome.h"
 #include "ChromeClient.h"
@@ -66,6 +68,7 @@
 #include "CustomElementDefaultARIA.h"
 #include "DeprecatedGlobalSettings.h"
 #include "DocumentPage.h"
+#include "DocumentView.h"
 #include "EditingInlines.h"
 #include "Editor.h"
 #include "ElementAncestorIteratorInlines.h"
@@ -107,6 +110,8 @@
 #include "RemoteFrame.h"
 #include "RemoteFrameView.h"
 #include "RenderAttachment.h"
+#include "RenderBox.h"
+#include "RenderElementStyleInlines.h"
 #include "RenderImage.h"
 #include "RenderInline.h"
 #include "RenderLayer.h"
@@ -126,6 +131,7 @@
 #include "SVGElement.h"
 #include "ScriptDisallowedScope.h"
 #include "ScrollView.h"
+#include "SelectPopoverElement.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "TextBoundaries.h"
@@ -133,6 +139,7 @@
 #include "TextIterator.h"
 #include "TypedElementDescendantIteratorInlines.h"
 #include <utility>
+#include <wtf/Borrow.h>
 #include <wtf/DataLog.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/SetForScope.h>
@@ -164,7 +171,7 @@ static bool isSecureFieldOrContainedBySecureField(AccessibilityObject& object)
 
 #endif // PLATFORM(COCOA)
 
-static bool rendererNeedsDeferredUpdate(const RenderObject& renderer)
+static bool NODELETE rendererNeedsDeferredUpdate(const RenderObject& renderer)
 {
     AX_ASSERT(!renderer.beingDestroyed());
     auto& document = renderer.document();
@@ -209,7 +216,7 @@ void AccessibilityReplacedText::postTextStateChangeNotification(AXObjectCache* c
         cache->postTextStateChangeNotification(node.get(), type, text, position);
 }
 
-std::atomic<bool> AXObjectCache::gAccessibilityEnabled = false;
+std::atomic<AccessibilityMode> AXObjectCache::gAccessibilityMode { AccessibilityMode::Off };
 bool AXObjectCache::gAccessibilityEnhancedUserInterfaceEnabled = false;
 std::atomic<bool> AXObjectCache::gForceDeferredSpellChecking = false;
 std::atomic<bool> AXObjectCache::gAccessibilityTextStitchingEnabled = false;
@@ -219,6 +226,147 @@ std::atomic<bool> AXObjectCache::gForceInitialFrameCaching = false;
 std::atomic<bool> AXObjectCache::gAccessibilityDOMIdentifiersEnabled = false;
 std::atomic<bool> AXObjectCache::gShouldRepostNotificationsForTests = false;
 #endif
+
+static AXObjectCache::SyncModeToOtherProcessesCallback& syncModeToOtherProcessesCallback()
+{
+    static NeverDestroyed<AXObjectCache::SyncModeToOtherProcessesCallback> callback;
+    return callback.get();
+}
+
+void AXObjectCache::setSyncModeToOtherProcessesCallback(SyncModeToOtherProcessesCallback&& callback)
+{
+    syncModeToOtherProcessesCallback() = WTF::move(callback);
+}
+
+std::optional<AccessibilityMode> resolveAccessibilityModeTransition(AccessibilityMode current, AccessibilityMode requested)
+{
+#if !ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    if (requested == AccessibilityMode::AXThread)
+        requested = AccessibilityMode::MainThread;
+#endif
+
+    if (current == requested)
+        return std::nullopt;
+
+    if (isAccessibilityModeOff(current)) {
+        if (requested == AccessibilityMode::MainThread || requested == AccessibilityMode::AXThread)
+            return requested;
+        return std::nullopt;
+    }
+
+    bool isOffRequested = isAccessibilityModeOff(requested);
+    if (current == AccessibilityMode::MainThread) {
+        if (requested == AccessibilityMode::AXThread)
+            return requested;
+        if (isOffRequested)
+            return AccessibilityMode::OffWasMainThread;
+        return std::nullopt;
+    }
+
+    if (current == AccessibilityMode::AXThread && isOffRequested)
+        return AccessibilityMode::OffWasAXThread;
+
+    // Default to disallowing the transition.
+    return std::nullopt;
+}
+
+enum class ShouldSyncToOtherProcesses : bool { No, Yes };
+static std::optional<AccessibilityMode> attemptModeTransition(AccessibilityMode requestedMode, ShouldSyncToOtherProcesses shouldSyncToOtherProcesses = ShouldSyncToOtherProcesses::Yes)
+{
+    std::optional resolvedMode = resolveAccessibilityModeTransition(AXObjectCache::accessibilityMode(), requestedMode);
+    if (!resolvedMode)
+        return std::nullopt;
+
+    AXObjectCache::gAccessibilityMode.store(*resolvedMode, std::memory_order_relaxed);
+
+    if (shouldSyncToOtherProcesses == ShouldSyncToOtherProcesses::Yes) {
+        if (auto& callback = syncModeToOtherProcessesCallback())
+            callback(*resolvedMode);
+    }
+    return resolvedMode;
+}
+
+std::optional<AccessibilityMode> AXObjectCache::attemptMainThreadModeTransition()
+{
+    return attemptModeTransition(AccessibilityMode::MainThread);
+}
+
+void AXObjectCache::disableAccessibilityForTesting()
+{
+    if (isAccessibilityModeOff(accessibilityMode()))
+        return;
+
+    // See comment for this function in the header to understand
+    // why we don't sync this mode change outside this process.
+    [[maybe_unused]] std::optional newMode = attemptModeTransition(AccessibilityMode::Off, ShouldSyncToOtherProcesses::No);
+    // Assuming proper context (i.e. this is a test client), the transition should
+    // always be successful. Anything else indicates a programming error.
+    AX_ASSERT(newMode);
+    AX_ASSERT(isAccessibilityModeOff(*newMode));
+}
+
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+std::optional<AccessibilityMode> AXObjectCache::transitionToAXThreadModeIfNeeded(ForceAXThreadMode forceAXThread)
+{
+    if (accessibilityMode() == AccessibilityMode::AXThread)
+        return std::nullopt;
+
+    if (platformAXThreadSupport(forceAXThread) == PlatformAXThreadSupport::NotSupported)
+        return std::nullopt;
+
+    if (forceAXThread == ForceAXThreadMode::No
+        && !DeprecatedGlobalSettings::isAccessibilityIsolatedTreeEnabled())
+        return std::nullopt;
+
+    // At this point we *must* be on the main-thread (our mode was not AXThread and
+    // thus the accessibility thread should not have been started). This is important
+    // because we call several functions that must be run on the main-thread, like
+    // attemptModeTransition which can initiate IPC (and sending IPC is main-thread only)
+    // and iterating over the AXObjectCaches in this process.
+    AX_ASSERT(isMainThread());
+
+    // Set mode before building all the isolated trees so any code
+    // triggered during tree building that checks the mode sees AXThread.
+    // Don't sync yet — we need to confirm the secondary thread starts
+    // successfully before notifying other processes.
+    auto previousMode = accessibilityMode();
+    std::optional newMode = attemptModeTransition(AccessibilityMode::AXThread, ShouldSyncToOtherProcesses::No);
+    if (!newMode || *newMode != AccessibilityMode::AXThread) {
+        // The mode change wasn't successful — do not start the secondary thread
+        // or build any isolated trees.
+        //
+        // We should either fail the transition outright (std::nullopt), or successfully
+        // transition to AXThread mode. Nothing else is expected.
+        AX_ASSERT(!newMode);
+        return newMode;
+    }
+
+    // Initialize the role map before the accessibility thread starts so that
+    // it's safe for both threads to use (the only thing that needs to be
+    // thread-safe about it is initialization since it's not modified after
+    // creation and is never destroyed).
+    Accessibility::initializeRoleMap();
+
+    if (platformStartSecondaryThread() == DidStartThread::No && !clientIsInTestMode()) {
+        // Failed to start the secondary thread. Revert to the previous mode.
+        // In test contexts, failing to start the real AX thread is expected
+        // because the test runner uses its own fake AX thread.
+        gAccessibilityMode.store(previousMode, std::memory_order_relaxed);
+        return std::nullopt;
+    }
+
+    // The transition succeeded — now sync the mode to other processes.
+    if (auto& callback = syncModeToOtherProcessesCallback())
+        callback(*newMode);
+
+    // Build isolated trees for all existing AXObjectCaches.
+    forEachAXObjectCache([](AXObjectCache& cache) {
+        cache.getOrCreateIsolatedTree();
+    });
+
+    return newMode;
+}
+#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
 bool AXObjectCache::accessibilityEnhancedUserInterfaceEnabled()
 {
@@ -327,6 +475,7 @@ AXObjectCache::~AXObjectCache()
         object->detach(AccessibilityDetachmentType::CacheDestroyed);
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    m_buildIsolatedTreeTimer.stop();
     m_selectedTextRangeTimer.stop();
     m_updateTreeSnapshotTimer.stop();
 
@@ -573,7 +722,7 @@ AccessibilityObject* AXObjectCache::focusedObjectForPage(const Page* page)
 
     AX_ASSERT(isMainThread());
 
-    if (!gAccessibilityEnabled)
+    if (!accessibilityEnabled())
         return nullptr;
 
     // get the focused node in the page
@@ -604,7 +753,7 @@ AccessibilityObject* AXObjectCache::focusedObjectForLocalFrame()
 {
     AX_ASSERT(isMainThread());
 
-    if (!gAccessibilityEnabled)
+    if (!accessibilityEnabled())
         return nullptr;
 
     RefPtr document = this->document();
@@ -720,7 +869,7 @@ Ref<AccessibilityRenderObject> AXObjectCache::createObjectFromRenderer(RenderObj
         return AccessibilityMathMLElement::create(AXID::generate(), renderer, *this, isAnonymousOperator);
 #endif
 
-    if (RefPtr select = dynamicDowncast<HTMLSelectElement>(node); select && select->usesMenuList())
+    if (RefPtr select = dynamicDowncast<HTMLSelectElement>(node); select && select->usesMenuList() && !select->usesBaseAppearancePicker())
         return AccessibilityMenuList::create(AXID::generate(), renderer, *this);
 
     // Progress indicator.
@@ -846,7 +995,7 @@ AccessibilityObject* AXObjectCache::getOrCreateSlow(Node& node, IsPartOfRelation
         if (!select)
             return nullptr;
         RefPtr<AccessibilityObject> object;
-        if (select->usesMenuList()) {
+        if (select->usesMenuList() && !select->usesBaseAppearancePicker()) {
             if (!optionElement || !select->renderer())
                 return nullptr;
             object = AccessibilityMenuListOption::create(AXID::generate(), *optionElement, *this);
@@ -947,7 +1096,8 @@ RefPtr<AXIsolatedTree> AXObjectCache::getOrCreateIsolatedTree()
         if (tree->treeID() == treeID())
             return tree;
 
-        // The tree belongs to a different document (navigation occurred). Remove the old tree and create a new one.
+        // The tree belongs to a different document (navigation occurred).
+        // Remove the old tree and create a new one.
         AXIsolatedTree::removeTreeForFrameID(m_frameID);
         tree = nullptr;
     }
@@ -957,18 +1107,22 @@ RefPtr<AXIsolatedTree> AXObjectCache::getOrCreateIsolatedTree()
     // Schedule a paint to cache the rects for the objects in this new isolated tree.
     scheduleObjectRegionsUpdate(true /* scheduleImmediately */);
 
-    // This method can be called as the result of a client request. Since creating the isolated tree can take long,
-    // especially for large documents, for real clients we build a temporary "empty" isolated tree consisting only of the ScrollView and the WebArea objects.
-    // Then we schedule building the entire isolated tree on a Timer.
-    // For test clients, LayoutTests or XCTests, build the whole isolated tree.
-    if (!clientIsInTestMode()) [[likely]] {
+    if (clientIsInTestMode()) [[unlikely]] {
+        // For test clients (LayoutTests / XCTests) build the whole isolated tree synchronously.
+        // This is necessary because tests assume that APIs like accessibleElementById can
+        // immediately retrieve any object. In the future, we may want to consider finding a way
+        // to remove this test-specific path (maybe by making tests wait for the isolated tree
+        // to be built via a new accessibility test harness?)
+        tree = AXIsolatedTree::create(*this);
+    } else {
+        // This method can be called as the result of a client request. Since creating the
+        // isolated tree can take long, especially for large documents, for real clients we
+        // build a temporary "empty" isolated tree consisting only of the ScrollView and the
+        // WebArea objects. Then we schedule building the entire isolated tree on a Timer.
         tree = AXIsolatedTree::createEmpty(*this);
         if (!m_buildIsolatedTreeTimer.isActive())
             m_buildIsolatedTreeTimer.startOneShot(0_s);
-    } else
-        tree = AXIsolatedTree::create(*this);
-
-    initializeAXThreadIfNeeded();
+    }
 
     return tree;
 }
@@ -995,15 +1149,22 @@ void AXObjectCache::setIsolatedTree(Ref<AXIsolatedTree> tree)
 
 AXCoreObject* AXObjectCache::rootObjectForFrame(LocalFrame& frame)
 {
-    if (!gAccessibilityEnabled)
+    if (!accessibilityEnabled())
         return nullptr;
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     if (isIsolatedTreeEnabled()) {
+        // FIXME: getOrCreateIsolatedTree() asserts isMainThread(), and it seems
+        // expected this function (rootObjectForFrame) can be called on and off
+        // the main-thread based on the !isMainThread() branch below. We should
+        // reconcile this.
         RefPtr tree = getOrCreateIsolatedTree();
         if (!isMainThread()) {
-            tree->applyPendingChanges();
-            return tree->rootNode();
+            if (tree) {
+                tree->applyPendingChanges();
+                return tree->rootNode();
+            }
+            return nullptr;
         }
     }
 #endif
@@ -1026,18 +1187,18 @@ void AXObjectCache::setFrameInheritedState(LocalFrame& frame, const InheritedFra
     scrollView->setInheritedFrameState(state);
 }
 
-void AXObjectCache::setFrameGeometry(LocalFrame& frame, const FrameGeometry& geometry)
+void AXObjectCache::setFrameGeometry(LocalFrame& frame, const AXFrameGeometry& geometry)
 {
     UNUSED_PARAM(frame);
     m_frameGeometry = geometry;
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     if (RefPtr tree = AXIsolatedTree::treeForFrameID(m_frameID))
-        tree->setFrameGeometry(FrameGeometry { geometry });
+        tree->setFrameGeometry(AXFrameGeometry { geometry });
 #endif
 }
 
-const std::optional<FrameGeometry>& AXObjectCache::getAndUpdateFrameGeometry()
+const std::optional<AXFrameGeometry>& AXObjectCache::getAndUpdateFrameGeometry()
 {
     if (RefPtr page = document()->page())
         page->chrome().client().requestFrameScreenPosition(frameID());
@@ -1045,17 +1206,6 @@ const std::optional<FrameGeometry>& AXObjectCache::getAndUpdateFrameGeometry()
     return frameGeometry();
 }
 
-#endif
-
-#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-void AXObjectCache::buildIsolatedTreeIfNeeded()
-{
-    if (!gAccessibilityEnabled)
-        return;
-
-    if (isIsolatedTreeEnabled())
-        getOrCreateIsolatedTree();
-}
 #endif
 
 AccessibilityObject* AXObjectCache::create(AccessibilityRole role)
@@ -1470,6 +1620,17 @@ void AXObjectCache::handleChildrenChanged(AccessibilityObject& object)
 
     object.recomputeIsIgnored();
 
+    if (auto* optionElement = dynamicDowncast<HTMLOptionElement>(object.node()); optionElement && optionElement->belongsToBaseAppearancePicker()) {
+        // When a base-appearance select option's children change, its text descendants may need to
+        // change their is-ignored state. Text is only exposed when the option has complex content
+        // (non-text descendants like buttons or links), so adding or removing such elements
+        // toggles can change whether text nodes are ignored.
+        Accessibility::enumerateDescendantsIncludingIgnored<AXCoreObject>(object, /* includeSelf */ false, [] (auto& descendant) {
+            if (descendant.isStaticText())
+                downcast<AccessibilityObject>(descendant).recomputeIsIgnored();
+        });
+    }
+
     // Go up the existing ancestors chain and fire the appropriate notifications.
     bool shouldUpdateParent = true;
     bool foundTableCaption = false;
@@ -1687,9 +1848,7 @@ void AXObjectCache::childrenChanged(RenderObject& renderer, RenderObject* change
         // not always true for anonymous renderers, hence this branch.
         //
         // This behavior comes from a bug on a real webpage that I unfortunately couldn't figure out how to distill
-        // into a layout test. The key seems to be anonymous continuation renderers destroyed and recreated as part
-        // of a call to Node::insertBefore(). dynamic-inline-continuation.html gets close to reproducing the issue,
-        // following many of the same codepaths, but unfortunately will still pass even without this branch.
+        // into a layout test.
         childrenChanged(getIncludingAncestors(renderer));
     } else
         childrenChanged(get(renderer));
@@ -2234,8 +2393,14 @@ void AXObjectCache::onSelectedOptionChanged(Element& element)
 
 void AXObjectCache::onSelectedOptionChanged(HTMLSelectElement& select, int optionIndex)
 {
-    if (RefPtr axMenuList = dynamicDowncast<AccessibilityMenuList>(get(select)))
+    if (RefPtr axMenuList = dynamicDowncast<AccessibilityMenuList>(get(select))) {
         axMenuList->didUpdateActiveOption(optionIndex);
+        return;
+    }
+
+    // Base-appearance selects don't use AccessibilityMenuList (which normally handles this),
+    // so post the value change notification directly.
+    deferMenuListValueChange(&select);
 }
 
 void AXObjectCache::onSlottedContentChange(const HTMLSlotElement& slot)
@@ -5037,7 +5202,7 @@ void AXObjectCache::performDeferredCacheUpdate(ForceLayout forceLayout)
     m_deferredTextFormControlValue.clear();
 
     AXLOGDeferredCollection("AttributeChange"_s, m_deferredAttributeChange);
-    for (const auto& attributeChange : m_deferredAttributeChange) {
+    for (const auto& attributeChange : borrow(m_deferredAttributeChange).get()) {
         handleAttributeChange(attributeChange.element.get(), attributeChange.attrName, attributeChange.oldValue, attributeChange.newValue);
         if (attributeChange.attrName == idAttr)
             markRelationsDirty();
@@ -5149,6 +5314,31 @@ void AXObjectCache::performDeferredCacheUpdate(ForceLayout forceLayout)
 
 void AXObjectCache::handleDeferredPopoverToggle(AccessibilityObject& axPopover)
 {
+    if (RefPtr popoverElement = dynamicDowncast<SelectPopoverElement>(axPopover.element())) {
+        // When a base-appearance select's popover toggles, post ExpandedChanged on the
+        // select element itself, since the popover is opened programmatically (not
+        // via popovertarget/commandfor) so controllers() would be empty.
+        if (RefPtr selectElement = popoverElement->selectElement()) {
+            if (RefPtr axSelect = get(selectElement.get()))
+                postNotification(axSelect.get(), document(), AXNotification::ExpandedChanged);
+
+            bool isOpening = popoverElement->isPopoverShowing();
+            if (isOpening) {
+                RefPtr option = selectElement->selectedOption();
+                if (option && (selectElement->focused() || option->focused())) {
+                    // This notification isn't strictly necessary, as when handling press() via the
+                    // accessibility API, the DOM will naturally move focus to the selected option.
+                    // However, in practice, I've found a notification here to make VoiceOver's focus
+                    // movement significantly more snappy and consistent.
+                    if (RefPtr axOption = getOrCreate(*option))
+                        postNotification(axOption.get(), document(), AXNotification::FocusedUIElementChanged);
+                }
+            }
+        }
+
+        return;
+    }
+
     // There may be multiple elements with popovertarget or commandfor attributes that point at this popover.
     for (const auto& invoker : axPopover.controllers())
         postNotification(&downcast<AccessibilityObject>(invoker.get()), document(), AXNotification::ExpandedChanged);
@@ -5290,6 +5480,16 @@ void AXObjectCache::updateIsolatedTree(const Vector<std::pair<Ref<AccessibilityO
         case AXNotification::ExpandedChanged:
             tree->queueNodeUpdate(notification.first->objectID(), { AXProperty::IsExpanded });
             break;
+        case AXNotification::FocusedUIElementChanged: {
+            // If we're going to inform ATs that the focus has changed, use the handling
+            // of this notification to ensure the isolated tree has the latest focused node.
+            // This is especially important for ATs like VoiceOver who immediately respond
+            // to this notification with a request for the currenly focused object. If we
+            // serve stale data in this scenario, VoiceOver will never move its cursor.
+            RefPtr focus = focusedObjectForLocalFrame();
+            tree->setFocusedNodeID(focus ? std::optional { focus->objectID() } : std::nullopt);
+            break;
+        }
         case AXNotification::ExtendedDescriptionChanged:
             tree->queueNodeUpdate(notification.first->objectID(), { { AXProperty::AccessibilityText, AXProperty::ExtendedDescription } });
             break;
@@ -5466,6 +5666,7 @@ void AXObjectCache::startUpdateTreeSnapshotTimer()
 void AXObjectCache::onPaint(const RenderObject& renderer, IntRect&& paintRect) const
 {
     if (std::optional axID = getAXID(const_cast<RenderObject&>(renderer))) {
+        auto paintRectOrigin = paintRect.location();
         bool cachedNewRect = m_geometryManager->cacheRectIfNeeded(*axID, WTF::move(paintRect));
 
         if (cachedNewRect) {
@@ -5473,10 +5674,51 @@ void AXObjectCache::onPaint(const RenderObject& renderer, IntRect&& paintRect) c
             if (RefPtr imageMap = renderImage ? renderImage->imageMap() : nullptr) {
                 // <area> elements have no renderers and thus will never be painted themselves.
                 // If the image was repainted in a new location, the associated area elements
-                // probably need new rects cached too.
+                // probably need new rects and paths cached too.
                 for (Ref area : descendantsOfType<HTMLAreaElement>(*imageMap)) {
-                    if (RefPtr areaObject = get(area.get()))
-                        std::ignore = m_geometryManager->cacheRectIfNeeded(areaObject->objectID(), snappedIntRect(LayoutRect(areaObject->relativeFrame())));
+                    if (RefPtr areaObject = get(area.get())) {
+                        bool areaCachedNewRect = m_geometryManager->cacheRectIfNeeded(areaObject->objectID(), snappedIntRect(LayoutRect(areaObject->relativeFrame())));
+                        if (areaCachedNewRect)
+                            m_geometryManager->cachePathForID(areaObject->objectID(), WTF::makeUnique<Path>(areaObject->elementPath()));
+                    }
+                }
+            }
+
+            // FIXME: SVG shapes (RenderSVGShape / LegacyRenderSVGShape) never trigger
+            // AccessibilityRegionContext::takeBounds, so this onPaint is never called for
+            // them and their paths aren't cached in the geometry manager. This means
+            // AXIsolatedObject::elementPath() returns empty for SVG in isolated tree mode.
+
+            // Some assistive technologies (e.g. VoiceOver) use the path to draw their cursor.
+            // Inflating the path a bit makes the cursor look better.
+            static constexpr unsigned shapePathInflationPx = 4;
+
+            // Recompute the element path when the rect changes for border-radius or
+            // clip-path boxes. Multi-line inlines compute their path on-demand from
+            // text runs (see AXIsolatedObject::elementPath).
+            if (auto* renderBox = dynamicDowncast<RenderBox>(renderer)) {
+                if (renderBox->hasClipPath()) {
+                    WTF::switchOn(renderBox->style().clipPath(),
+                        [&](const Style::BasicShapePath& clipPath) {
+                            auto borderRect = renderBox->borderBoxRect();
+                            borderRect.inflate(shapePathInflationPx);
+                            auto referenceBox = FloatRect(WTF::move(borderRect));
+                            auto path = Style::path(clipPath.shape(), referenceBox, renderBox->style().usedZoomForLength());
+                            path.transform(AffineTransform().translate(paintRectOrigin.x(), paintRectOrigin.y()));
+                            m_geometryManager->cachePathForID(*axID, WTF::makeUnique<Path>(WTF::move(path)));
+                        },
+                        [](const auto&) { }
+                    );
+                } else if (renderBox->style().border().hasBorderRadius()) {
+                    auto borderRect = renderBox->borderBoxRect();
+                    borderRect.inflate(shapePathInflationPx);
+                    auto borderShape = BorderShape::shapeForBorderRect(renderBox->style(), WTF::move(borderRect));
+                    auto path = borderShape.pathForOuterShape(renderer.document().deviceScaleFactor());
+                    // borderBoxRect() is in local coordinates starting at (0, 0). Use the paint
+                    // rect's origin to position the path, since it's already gone through
+                    // contentsToRootView and matches the relativeFrame coordinate system.
+                    path.transform(AffineTransform().translate(paintRectOrigin.x(), paintRectOrigin.y()));
+                    m_geometryManager->cachePathForID(*axID, WTF::makeUnique<Path>(WTF::move(path)));
                 }
             }
         }
@@ -5637,7 +5879,25 @@ AXTreeData AXObjectCache::treeData(std::optional<OptionSet<AXStreamOptions>> add
     TextStream stream(TextStream::LineMode::MultipleLine);
 
     stream << "\nAXObjectTree:\n";
+    stream << "Loading progress: " << m_loadingProgress << "\n";
+
     RefPtr document = this->document();
+    if (document) {
+        if (RefPtr liveFocus = focusedObjectForPage(document->page()))
+            stream << "Focused object: ID=" << liveFocus->objectID().loggingString() << " role=" << liveFocus->rolePlatformString() << "\n";
+        else
+            stream << "Focused object: none\n";
+    }
+
+    stream << "Page activity state: " << m_pageActivityState << "\n";
+
+    if (RefPtr modalElement = m_currentModalElement.get()) {
+        if (RefPtr modalObject = get(modalElement.get()))
+            stream << "Current modal element: ID=" << modalObject->objectID().loggingString() << " role=" << modalObject->rolePlatformString() << "\n";
+        else
+            stream << "Current modal element: <" << modalElement->tagName() << "> (no AX object)\n";
+    }
+
     if (RefPtr root = document ? get(document->view()) : nullptr) {
         OptionSet<AXStreamOptions> options = { AXStreamOptions::ObjectID, AXStreamOptions::ParentID, AXStreamOptions::Role };
         if (additionalOptions)
@@ -5645,6 +5905,7 @@ AXTreeData AXObjectCache::treeData(std::optional<OptionSet<AXStreamOptions>> add
         streamSubtree(stream, *root, options);
     } else
         stream << "No root!";
+
     data.liveTree = stream.release();
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
@@ -5660,6 +5921,18 @@ AXTreeData AXObjectCache::treeData(std::optional<OptionSet<AXStreamOptions>> add
         stream << "\nAXIsolatedTree:\n";
 
         RefPtr tree = getOrCreateIsolatedTree();
+        if (tree) {
+            stream << "Loading progress: " << tree->loadingProgress() << ", isEmptyContentTree: " << (tree->isEmptyContentTree() ? "yes" : "no") << ", nodeMapSize: " << tree->nodeMapSize() << "\n";
+            if (auto focusID = tree->unsafeFocusedNodeID())
+                stream << "Focused object: ID=" << focusID->loggingString() << "\n";
+            else
+                stream << "Focused object: none\n";
+
+            stream << "Page activity state: " << tree->pageActivityState() << "\n";
+            if (RefPtr replacingTree = tree->replacingTreeForLogging())
+                stream << "Has m_replacingTree (isEmptyContentTree=" << (replacingTree->isEmptyContentTree() ? "yes" : "no") << ", nodeMapSize=" << replacingTree->nodeMapSize() << ")\n";
+        }
+
         if (RefPtr root = tree ? tree->rootNode() : nullptr) {
             OptionSet<AXStreamOptions> options = { AXStreamOptions::ObjectID, AXStreamOptions::ParentID, AXStreamOptions::Role };
             if (additionalOptions)
@@ -6012,7 +6285,7 @@ void AXObjectCache::updateRelationsForTree(ContainerNode& rootNode)
 
         if (RefPtr shadowRoot = element->shadowRoot(); shadowRoot && shadowRoot->mode() != ShadowRootMode::UserAgent)
             updateRelationsForTree(*shadowRoot);
-        if (RefPtr frameOwnerElement = dynamicDowncast<HTMLFrameOwnerElement>(element.get())) {
+        if (auto* frameOwnerElement = dynamicDowncast<HTMLFrameOwnerElement>(element.get())) {
             if (RefPtr document = frameOwnerElement->contentDocument())
                 updateRelationsForTree(*document);
         }

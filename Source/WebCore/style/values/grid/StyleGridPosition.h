@@ -32,6 +32,7 @@
 
 #pragma once
 
+#include <WebCore/StyleCustomIdent.h>
 #include <WebCore/StyleGridPositionSide.h>
 #include <WebCore/StylePrimitiveNumeric.h>
 #include <WebCore/StyleValueTypes.h>
@@ -45,7 +46,7 @@ struct GridPositionExplicit {
     using Position = Integer<>;
 
     Position position { 1 };
-    CustomIdentifier name { nullAtom() };
+    CustomIdent name { nullAtom() };
 
     template<typename... F> decltype(auto) switchOn(F&&... f) const
     {
@@ -64,7 +65,7 @@ struct GridPositionSpan {
     using Position = Integer<CSS::Range{1,CSS::Range::infinity}>;
 
     Position position { 1 };
-    CustomIdentifier name { nullAtom() };
+    CustomIdent name { nullAtom() };
 
     template<typename... F> decltype(auto) switchOn(F&&... f) const
     {
@@ -90,7 +91,7 @@ struct GridPosition {
     GridPosition(CSS::Keyword::Auto) { }
     WEBCORE_EXPORT GridPosition(Explicit&&);
     WEBCORE_EXPORT GridPosition(Span&&);
-    GridPosition(CustomIdentifier&&);
+    GridPosition(CustomIdent&&);
 
     bool isAuto() const { return m_type == GridPositionType::Auto; }
     bool isExplicit() const { return m_type == GridPositionType::Explicit; }
@@ -141,7 +142,7 @@ private:
 
     GridPositionType m_type { GridPositionType::Auto };
     int m_integerPosition { 1 };
-    CustomIdentifier m_namedGridLine;
+    CustomIdent m_namedGridLine;
 };
 
 // MARK: - Conversion

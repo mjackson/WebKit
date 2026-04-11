@@ -107,13 +107,13 @@ enum Conversion : uint8_t {
 };
 } // namespace Array
 
-IndexingType toIndexingShape(Array::Type);
+IndexingType NODELETE toIndexingShape(Array::Type);
 
-TypedArrayType toTypedArrayType(Array::Type);
-Array::Type toArrayType(TypedArrayType);
-Array::Type refineTypedArrayType(Array::Type, TypedArrayType);
+TypedArrayType NODELETE toTypedArrayType(Array::Type);
+Array::Type NODELETE toArrayType(TypedArrayType);
+Array::Type NODELETE refineTypedArrayType(Array::Type, TypedArrayType);
 
-bool permitsBoundsCheckLowering(Array::Type);
+bool NODELETE permitsBoundsCheckLowering(Array::Type);
 
 class ArrayMode {
 public:

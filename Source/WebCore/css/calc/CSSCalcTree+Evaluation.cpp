@@ -35,6 +35,7 @@
 #include "CSSUnevaluatedCalc.h"
 #include "RenderStyle.h"
 #include "StyleBuilderState.h"
+#include "StyleCustomIdent.h"
 
 namespace WebCore {
 namespace CSSCalc {
@@ -211,13 +212,26 @@ std::optional<double> evaluate(const IndirectNode<Random>& root, const Evaluatio
 
     auto randomBaseValue = WTF::switchOn(root->sharing,
         [&](const Random::SharingOptions& sharingOptions) -> std::optional<double> {
-            if (!sharingOptions.elementShared.has_value() && !options.conversionData->styleBuilderState()->element())
+            CheckedPtr builderState = options.conversionData->styleBuilderState();
+
+            if (sharingOptions.elementScoped.has_value() && !builderState->element())
                 return { };
 
-            return protect(options.conversionData->styleBuilderState())->lookupCSSRandomBaseValue(
-                sharingOptions.identifier,
-                sharingOptions.elementShared
+            return WTF::switchOn(sharingOptions.identifier,
+                [&](const Random::SharingOptions::Auto& autoValue) {
+                    return builderState->lookupCSSRandomBaseValue(
+                        autoValue,
+                        sharingOptions.elementScoped
+                    );
+                },
+                [&](const CSS::CustomIdent& customIdent) {
+                    return builderState->lookupCSSRandomBaseValue(
+                        Style::toStyle(customIdent, *builderState),
+                        sharingOptions.elementScoped
+                    );
+                }
             );
+
         },
         [&](const Random::SharingFixed& sharingFixed) -> std::optional<double> {
             return WTF::switchOn(sharingFixed.value,
@@ -263,9 +277,9 @@ std::optional<double> evaluate(const IndirectNode<AnchorSize>& anchorSize, const
     CheckedPtr builderState = options.conversionData->styleBuilderState();
 
     std::optional<Style::ScopedName> anchorSizeScopedName;
-    if (!anchorSize->elementName.isNull()) {
+    if (anchorSize->elementName) {
         anchorSizeScopedName = Style::ScopedName {
-            .name = anchorSize->elementName,
+            .name = Style::toStyle(*anchorSize->elementName, *builderState).value,
             .scopeOrdinal = builderState->styleScopeOrdinal()
         };
     }
@@ -305,9 +319,9 @@ std::optional<double> evaluateWithoutFallback(const Anchor& anchor, const Evalua
     );
 
     std::optional<Style::ScopedName> anchorScopedName;
-    if (!anchor.elementName.isNull()) {
+    if (anchor.elementName) {
         anchorScopedName = Style::ScopedName {
-            .name = anchor.elementName,
+            .name = Style::toStyle(*anchor.elementName, *builderState).value,
             .scopeOrdinal = builderState->styleScopeOrdinal()
         };
     }

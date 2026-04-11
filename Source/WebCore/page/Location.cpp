@@ -45,6 +45,7 @@
 #include <wtf/URL.h>
 #include <wtf/text/MakeString.h>
 #include <wtf/text/StringToIntegerConversion.h>
+#include "LocalFrameInlines.h"
 
 namespace WebCore {
 

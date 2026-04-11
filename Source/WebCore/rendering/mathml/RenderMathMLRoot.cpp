@@ -32,6 +32,7 @@
 #if ENABLE(MATHML)
 
 #include "FontCache.h"
+#include "FontCascadeInlines.h"
 #include "GraphicsContext.h"
 #include "MathMLNames.h"
 #include "MathMLRootElement.h"

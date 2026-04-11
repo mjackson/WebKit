@@ -140,7 +140,14 @@ void WebPage::platformInitializeAccessibility(ShouldInitializeNSAccessibility sh
     // Get the pid for the starting process.
     pid_t pid = legacyPresentingApplicationPID();
     createMockAccessibilityElement(pid);
-    if (corePage()->localMainFrame())
+
+    if (shouldInitializeNSAccessibility == ShouldInitializeNSAccessibility::No) {
+        // The accessibility server hasn't been initialized yet. Defer sending
+        // the remote token until WebProcess::initializeAccessibility completes,
+        // otherwise the UI process will have a remote element that can't resolve.
+        m_needsAccessibilityTokenTransfer = true;
+        RELEASE_LOG(Process, "WebPage::platformInitializeAccessibility deferring token transfer for pageID=%" PRIu64, identifier().toUInt64());
+    } else if (corePage()->localMainFrame())
         accessibilityTransferRemoteToken(accessibilityRemoteTokenData());
 
     // Close Mach connection to Launch Services.
@@ -165,6 +172,18 @@ void WebPage::platformReinitializeAccessibilityToken()
     if (!frame)
         return;
     accessibilityTransferRemoteToken(accessibilityRemoteTokenData());
+}
+
+void WebPage::sendAccessibilityTokenIfNeeded()
+{
+    if (!m_needsAccessibilityTokenTransfer)
+        return;
+    m_needsAccessibilityTokenTransfer = false;
+
+    if (corePage()->localMainFrame()) {
+        RELEASE_LOG(Process, "WebPage::sendAccessibilityTokenIfNeeded sending deferred token for pageID=%" PRIu64, identifier().toUInt64());
+        accessibilityTransferRemoteToken(accessibilityRemoteTokenData());
+    }
 }
 
 RetainPtr<NSData> WebPage::accessibilityRemoteTokenData() const
@@ -879,13 +898,13 @@ std::optional<WebCore::SimpleRange> WebPage::lookupTextAtLocation(FrameIdentifie
 
 void WebPage::immediateActionDidUpdate()
 {
-    if (RefPtr localMainFrame = corePage()->localMainFrame())
+    if (auto* localMainFrame = corePage()->localMainFrame())
         localMainFrame->eventHandler().setImmediateActionStage(ImmediateActionStage::ActionUpdated);
 }
 
 void WebPage::immediateActionDidCancel()
 {
-    RefPtr localMainFrame = corePage()->localMainFrame();
+    auto* localMainFrame = corePage()->localMainFrame();
     if (!localMainFrame)
         return;
     ImmediateActionStage lastStage = localMainFrame->eventHandler().immediateActionStage();
@@ -897,7 +916,7 @@ void WebPage::immediateActionDidCancel()
 
 void WebPage::immediateActionDidComplete()
 {
-    if (RefPtr localMainFrame = corePage()->localMainFrame())
+    if (auto* localMainFrame = corePage()->localMainFrame())
         localMainFrame->eventHandler().setImmediateActionStage(ImmediateActionStage::ActionCompleted);
 }
 

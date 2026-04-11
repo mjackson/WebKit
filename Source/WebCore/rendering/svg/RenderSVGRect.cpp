@@ -28,6 +28,7 @@
 
 #include "config.h"
 #include "RenderSVGRect.h"
+#include "RenderObjectNode.h"
 
 #include "RenderSVGShapeInlines.h"
 #include "RenderStyle+GettersInlines.h"
@@ -68,12 +69,8 @@ void RenderSVGRect::updateShapeFromElement()
     FloatSize boundingBoxSize(lengthContext.valueForLength(style->width(), usedZoom, SVGLengthMode::Width), lengthContext.valueForLength(style->height(), usedZoom, SVGLengthMode::Height));
 
     // Spec: "A negative value is illegal. A value of zero disables rendering of the element."
-    if (boundingBoxSize.isEmpty()) {
-        // We set this for getBBox().
-        m_fillBoundingBox = FloatRect(FloatPoint(lengthContext.valueForLength(style->x(), Style::ZoomNeeded { }, SVGLengthMode::Width),
-            lengthContext.valueForLength(style->y(), Style::ZoomNeeded { }, SVGLengthMode::Height)), boundingBoxSize);
+    if (boundingBoxSize.isEmpty())
         return;
-    }
 
     if (lengthContext.valueForLength(style->rx(), Style::ZoomNeeded { }, SVGLengthMode::Width) > 0
         || lengthContext.valueForLength(style->ry(), Style::ZoomNeeded { }, SVGLengthMode::Height) > 0)

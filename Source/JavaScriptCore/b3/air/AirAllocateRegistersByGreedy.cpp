@@ -61,13 +61,19 @@ static_assert(unspillableCost > fastTmpSpillCost);
 static_assert(unspillableCost > maxSpillableSpillCost);
 
 // Phase constants used for the PhaseInsertionSet. Ensures that the fixup and spill/fill instructions
-// inserted in a particular gap ends up in the correct order.
-static constexpr unsigned spillStore = 0;
-static constexpr unsigned splitMoveTo = 1;
-static constexpr unsigned splitMoveFrom = 2;
-static constexpr unsigned spillLoad = 3;
+// inserted in a particular gap end up in the correct order.
+// "MoveTo" = value flows toward the original tmp (or its spill slot).
+// "MoveFrom" = value flows away from the original tmp (or its spill slot).
+enum InsertionPhase : unsigned {
+    SpillMoveTo,
+    ClobberMoveTo,
+    IntraBlockMoveTo,
+    IntraBlockMoveFrom,
+    ClobberMoveFrom,
+    SpillMoveFrom,
+};
 
-static bool verbose() { return Options::airGreedyRegAllocVerbose(); }
+static bool NODELETE verbose() { return Options::airGreedyRegAllocVerbose(); }
 
 // Terminology / core data-structures:
 //
@@ -150,7 +156,7 @@ class LiveRange {
 public:
     LiveRange() = default;
 
-    inline void validate()
+    inline void NODELETE validate()
     {
 #if ASSERT_ENABLED
         size_t size = 0;
@@ -193,17 +199,17 @@ public:
         validate();
     }
 
-    const Deque<Interval>& intervals() const
+    const Deque<Interval>& NODELETE intervals() const
     {
         return m_intervals;
     }
 
-    size_t size() const
+    size_t NODELETE size() const
     {
         return m_size;
     }
 
-    bool overlaps(LiveRange& other)
+    bool NODELETE overlaps(LiveRange& other)
     {
         auto otherIter = other.intervals().begin();
         auto otherEnd = other.intervals().end();
@@ -346,7 +352,7 @@ private:
     static constexpr size_t tmpIndexShift = rangeSizeShift - tmpIndexBits;
     static_assert(!tmpIndexShift);
 
-    inline void packPriority(uint64_t val, size_t numBits, size_t shift, bool reverse)
+    inline void NODELETE packPriority(uint64_t val, size_t numBits, size_t shift, bool reverse)
     {
         const uint64_t mask = (1ull << numBits) - 1;
         val &= mask;
@@ -372,9 +378,9 @@ public:
         packPriority(tmp.tmpIndex(), tmpIndexBits, tmpIndexShift, true);
     }
 
-    Tmp tmp() { return m_tmp; }
+    Tmp NODELETE tmp() { return m_tmp; }
 
-    Stage stage() const
+    Stage NODELETE stage() const
     {
         const uint64_t mask = (1 << stageBits) - 1;
         uint64_t stageReversed = m_priority >> stageShift;
@@ -387,7 +393,7 @@ public:
         out.print("<", m_tmp, ", ", WTF::RawHex(m_priority), ">");
     }
 
-    static bool isHigherPriority(const TmpPriority& left, const TmpPriority& right)
+    static bool NODELETE isHigherPriority(const TmpPriority& left, const TmpPriority& right)
     {
         return left.m_priority > right.m_priority;
     }
@@ -417,7 +423,7 @@ public:
             , tmp(pair.second)
         { }
 
-        bool operator<(const AllocatedInterval& other) const
+        bool NODELETE operator<(const AllocatedInterval& other) const
         {
             return this->interval.end() < other.interval.end();
         }
@@ -449,7 +455,7 @@ public:
             m_allocations.erase(interval);
     }
 
-    bool hasConflict(LiveRange& range, Width width)
+    bool NODELETE hasConflict(LiveRange& range, Width width)
     {
         for (auto interval : range.intervals()) {
             if (m_allocations.hasOverlap(interval))
@@ -469,8 +475,7 @@ public:
     //
     // func is allowed to modify this RegisterRange, e.g. by calling evict().
     // func must not modify 'range' for the duration of this forEachConflict invocation.
-    template<typename Func>
-    void forEachConflict(const LiveRange& range, Width width, const Func& func)
+    void forEachConflict(const LiveRange& range, Width width, const Invocable<IterationStatus(AllocatedInterval&)> auto& func)
     {
         auto status = forEachConflictImpl(m_allocations, range, func);
         if (width > Width64) [[unlikely]] {
@@ -479,7 +484,7 @@ public:
         }
     }
 
-    bool isEmpty() const
+    bool NODELETE isEmpty() const
     {
         return m_allocations.isEmpty() && m_allocationsHigh64.isEmpty();
     }
@@ -504,8 +509,7 @@ public:
     }
 
 private:
-    template<typename Func>
-    static IterationStatus forEachConflictImpl(AllocatedIntervalSet& allocatedSet, const LiveRange& range, const Func& func)
+    static IterationStatus forEachConflictImpl(AllocatedIntervalSet& allocatedSet, const LiveRange& range, const Invocable<IterationStatus(AllocatedInterval&)> auto& func)
     {
         for (auto interval : range.intervals()) {
             while (true) {
@@ -528,6 +532,99 @@ private:
     AllocatedIntervalSet m_allocationsHigh64; // Tracks clobbers to vector registers that preserve lower 64-bits
 };
 
+// Per-Tmp list of coalescable partners and their move costs.
+// Mutable until sort() is called, after which it is binary searchable.
+class Coalescables {
+public:
+    void add(Tmp tmp, float moveCost)
+    {
+        ASSERT(!m_isSorted);
+        ASSERT(m_entries.isEmpty() || m_entries.last().tmp.bank() == tmp.bank());
+        for (auto& entry : m_entries) {
+            if (entry.tmp == tmp) {
+                entry.moveCost += moveCost;
+                return;
+            }
+        }
+        m_entries.append({ tmp, moveCost });
+    }
+
+    void remove(Tmp target)
+    {
+        ASSERT(!m_isSorted);
+        for (size_t i = 0; i < m_entries.size(); i++) {
+            if (m_entries[i].tmp == target) {
+                m_entries[i] = m_entries.last();
+                m_entries.shrink(m_entries.size() - 1);
+                return;
+            }
+        }
+        ASSERT_NOT_REACHED();
+    }
+
+    void removeAllMatching(const Invocable<bool(Tmp)> auto& predicate)
+    {
+        ASSERT(!m_isSorted);
+        for (size_t i = 0; i < m_entries.size(); ) {
+            if (predicate(m_entries[i].tmp)) {
+                m_entries[i] = m_entries.last();
+                m_entries.shrink(m_entries.size() - 1);
+            } else
+                i++;
+        }
+    }
+
+    template<Bank bank>
+    void sort()
+    {
+        ASSERT(!m_isSorted);
+        std::ranges::sort(m_entries, [](const auto& a, const auto& b) {
+            return a.tmp.tmpIndex(bank) < b.tmp.tmpIndex(bank);
+        });
+#if ASSERT_ENABLED
+        m_isSorted = true;
+#endif
+    }
+
+    template<Bank bank>
+    bool contains(Tmp target) const
+    {
+        ASSERT(m_isSorted);
+        auto it = std::ranges::lower_bound(m_entries, target,
+            [](const auto& a, const auto& b) {
+                return a.tmpIndex(bank) < b.tmpIndex(bank);
+            },
+            &Entry::tmp);
+        return it != m_entries.end() && it->tmp == target;
+    }
+
+    size_t size() const { return m_entries.size(); }
+    bool isEmpty() const { return m_entries.isEmpty(); }
+    auto begin() const { return m_entries.begin(); }
+    auto end() const { return m_entries.end(); }
+
+    void dump(PrintStream& out) const
+    {
+        out.print(listDump(m_entries));
+    }
+
+private:
+    struct Entry {
+        Tmp tmp;
+        float moveCost;
+
+        void dump(PrintStream& out) const
+        {
+            out.print("(", tmp, ", ", moveCost, ")");
+        }
+    };
+
+    Vector<Entry> m_entries;
+#if ASSERT_ENABLED
+    bool m_isSorted { false };
+#endif
+};
+
 // Auxiliary register allocator data per Tmp.
 struct TmpData {
     // When an unspillable or fastTmp is coalesced with another tmp, we don't want the spillCost of the
@@ -538,21 +635,11 @@ struct TmpData {
         Unspillable,
     };
 
-    struct CoalescableWith {
-        void dump(PrintStream& out) const
-        {
-            out.print("(", tmp, ", ", moveCost, ")");
-        }
-
-        Tmp tmp;
-        float moveCost; // The frequency-adjusted number of moves between TmpData's tmp and CoalescableWith.tmp
-    };
-
     void dump(PrintStream& out) const
     {
         out.print("{stage = ", stage, " liveRange = ", liveRange, ", preferredReg = ", preferredReg,
-            ", coalescables = ", listDump(coalescables), ", useDefCost = ", useDefCost, ", spillability = ", spillability,
-            ", assigned = ", assigned, ", spillSlot = ", pointerDump(spillSlot), ", splitMetadataIndex = ", splitMetadataIndex, "}");
+            ", coalescables = ", coalescables, ", useDefCost = ", useDefCost, ", spillability = ", spillability,
+            ", assigned = ", assigned, ", spillSlotTableIndex = ", spillSlotTableIndex, ", splitAroundClobbersMetadataIndex = ", splitAroundClobbersMetadataIndex, "}");
     }
 
     float spillCost()
@@ -577,20 +664,18 @@ struct TmpData {
         return std::min(cost, maxSpillableSpillCost);
     }
 
-    void validate()
+    void NODELETE validate()
     {
-        ASSERT(!(spillSlot && assigned));
         ASSERT(!!assigned == (stage == Stage::Assigned));
         ASSERT(liveRange.intervals().isEmpty() == !liveRange.size());
-        ASSERT_IMPLIES(spillSlot, stage == Stage::Spilled);
         ASSERT_IMPLIES(stage == Stage::Spilled, spillCost() != unspillableCost);
     }
 
     LiveRange liveRange;
-    Vector<CoalescableWith> coalescables;
-    StackSlot* spillSlot { nullptr };
+    Coalescables coalescables;
     float useDefCost { 0.0f };
-    uint32_t splitMetadataIndex : 31 { 0 };
+    uint32_t spillSlotTableIndex { 0 };
+    uint32_t splitAroundClobbersMetadataIndex : 31 { 0 };
     uint32_t hasColdUse : 1 { 0 };
     Stage stage { Stage::New };
     Spillability spillability { Spillability::Spillable };
@@ -610,7 +695,12 @@ public:
         }
     }
 
-    const List& useDefs() { return m_instPoints; }
+    const List& NODELETE useDefs() const { return m_instPoints; }
+
+    void dump(PrintStream& out) const
+    {
+        out.print(listDump(m_instPoints));
+    }
 
 private:
     List m_instPoints;
@@ -663,6 +753,7 @@ public:
         , m_map(code)
         , m_useDefLists()
         , m_splitMetadata(1) // Sacrifice index 0.
+        , m_spillSlotTable(FillWith { }, 1, nullptr) // Sacrifice index 0.
         , m_regRanges(Reg::maxIndex() + 1)
         , m_insertionSets(code.size())
         , m_useCounts(m_code)
@@ -736,6 +827,7 @@ public:
             out.println("    ", tmp, ": ", m_map[tmp], " useWidth=", m_tmpWidth.useWidth(tmp));
         });
         out.println("Splits:\n", listDump(m_splitMetadata, "\n"));
+        out.println("SpillSlotTable: ", pointerListDump(m_spillSlotTable));
         out.println("Stats (GP):", m_stats[GP]);
         out.println("Stats (FP):", m_stats[FP]);
     }
@@ -754,7 +846,7 @@ private:
         });
     }
 
-    bool shouldSpillEverything()
+    bool NODELETE shouldSpillEverything()
     {
         if (!Options::airGreedyRegAllocSpillsEverything())
             return false;
@@ -778,7 +870,7 @@ private:
         ASSERT(m_allAllowedRegisters == m_code.mutableRegs().toScalarRegisterSet());
     }
 
-    void buildIndices()
+    void NODELETE buildIndices()
     {
         Point headPosition = 0;
         Point tailPosition = 0;
@@ -806,51 +898,55 @@ private:
         return block;
     }
 
-    Point positionOfHead(BasicBlock* block) const
+    Point NODELETE positionOfHead(BasicBlock* block) const
     {
-        return m_blockToHeadPoint[block];
+        Point point = m_blockToHeadPoint[block];
+        ASSERT(pointAtOffset(point, PointOffsets::Pre) == point);
+        return point;
     }
 
-    Point positionOfTail(BasicBlock* block)
+    Point NODELETE positionOfTail(BasicBlock* block)
     {
-        return positionOfHead(block) + block->size() * PointOffsets::PointsPerInst - 1;
+        Point point = positionOfHead(block) + block->size() * PointOffsets::PointsPerInst - 1;
+        ASSERT(pointAtOffset(point, PointOffsets::Post) == point);
+        return point;
     }
 
-    static size_t instIndex(Point positionOfHead, Point point)
+    static size_t NODELETE instIndex(Point positionOfHead, Point point)
     {
         return (point - positionOfHead) / PointOffsets::PointsPerInst;
     }
 
-    static Point pointAtOffset(Point point, PointOffsets offset)
+    static Point NODELETE pointAtOffset(Point point, PointOffsets offset)
     {
         static_assert(!(PointOffsets::PointsPerInst & (PointOffsets::PointsPerInst - 1)));
         return (point & ~(PointOffsets::PointsPerInst - 1)) + offset;
     }
 
-    static Point positionOfEarly(Point positionOfHead, unsigned instIndex)
+    static Point NODELETE positionOfEarly(Point positionOfHead, unsigned instIndex)
     {
         ASSERT(!(positionOfHead % PointOffsets::PointsPerInst));
         return positionOfHead + instIndex * PointOffsets::PointsPerInst + PointOffsets::Early;
     }
 
-    static Point positionOfLate(Point positionOfHead, unsigned instIndex)
+    static Point NODELETE positionOfLate(Point positionOfHead, unsigned instIndex)
     {
         ASSERT(!(positionOfHead % PointOffsets::PointsPerInst));
         return positionOfHead + instIndex * PointOffsets::PointsPerInst + PointOffsets::Late;
     }
 
-    static Point positionOfEarly(Interval interval)
+    static Point NODELETE positionOfEarly(Interval interval)
     {
         return pointAtOffset(interval.begin(), PointOffsets::Early);
     }
 
-    static Interval earlyInterval(Point positionOfEarly)
+    static Interval NODELETE earlyInterval(Point positionOfEarly)
     {
         ASSERT((positionOfEarly % PointOffsets::PointsPerInst) == PointOffsets::Early);
         return Interval(positionOfEarly);
     }
 
-    static Interval lateInterval(Point positionOfEarly)
+    static Interval NODELETE lateInterval(Point positionOfEarly)
     {
         ASSERT((positionOfEarly % PointOffsets::PointsPerInst) == PointOffsets::Early);
         return Interval(positionOfEarly + (PointOffsets::Late - PointOffsets::Early));
@@ -894,30 +990,45 @@ private:
         return Interval();
     }
 
-    Reg assignedReg(Tmp tmp)
+    template<Bank bank>
+    bool isConstDef(Tmp tmp)
+    {
+        return m_useCounts.isConstDef<bank>(AbsoluteTmpMapper<bank>::absoluteIndex(tmp));
+    }
+
+    Reg NODELETE assignedReg(Tmp tmp)
     {
         return m_map[tmp].assigned;
     }
 
     // Returns the stack slot a Tmp should use if spilled. Otherwise, returns nullptr.
     template<Bank bank>
-    StackSlot* spillSlot(Tmp tmp)
+    StackSlot* NODELETE spillSlot(Tmp tmp)
     {
         TmpData& tmpData = m_map.get<bank>(tmp);
         if (tmpData.stage == Stage::Spilled) {
-            ASSERT(tmpData.spillSlot);
-            return tmpData.spillSlot;
+            StackSlot* slot = m_spillSlotTable[tmpData.spillSlotTableIndex];
+            ASSERT(slot);
+            return slot;
         }
         return nullptr;
     }
 
-    StackSlot* spillSlot(Tmp tmp)
+    StackSlot* NODELETE spillSlot(Tmp tmp)
     {
         ASSERT(tmp.isGP() || tmp.isFP());
         return tmp.isGP() ? spillSlot<GP>(tmp) : spillSlot<FP>(tmp);
     }
 
-    float adjustedBlockFrequency(BasicBlock* block)
+    void ensureSpillSlotTableEntry(TmpData& tmpData)
+    {
+        if (tmpData.spillSlotTableIndex)
+            return;
+        m_spillSlotTable.append(nullptr);
+        tmpData.spillSlotTableIndex = m_spillSlotTable.size() - 1;
+    }
+
+    float NODELETE adjustedBlockFrequency(BasicBlock* block)
     {
         float freq = block->frequency();
         if (!m_fastBlocks.saw(block)) [[unlikely]]
@@ -926,7 +1037,7 @@ private:
     }
 
     template<Bank bank>
-    Width widthForConflicts(Tmp tmp)
+    Width NODELETE widthForConflicts(Tmp tmp)
     {
         if constexpr (bank == GP)
             return Width64;
@@ -969,8 +1080,16 @@ private:
                         if (m_code.isPinned(aReg)) {
                             // It's okay if both Tmps were coalesced to the same pinned register.
                             TmpData& regData = m_map[Tmp(aReg)];
-                            if (regData.coalescables.containsIf([a](auto& with) { return with.tmp == a; })
-                                && regData.coalescables.containsIf([b](auto& with) { return with.tmp == b; }))
+                            bool foundA = false, foundB = false;
+                            for (auto& with : regData.coalescables) {
+                                if (with.tmp == a)
+                                    foundA = true;
+                                else if (with.tmp == b)
+                                    foundB = true;
+                                if (foundA && foundB)
+                                    break;
+                            }
+                            if (foundA && foundB)
                                 continue;
                         }
                         fail(block, a, b);
@@ -1014,7 +1133,7 @@ private:
         }
 
         // addMaybeCoalescable is used during the first pass to collect all potentially
-        // coalescables pairs. i.e. pairs of Tmps 'a' and 'b' such that there exists a
+        // coalescable pairs. i.e. pairs of Tmps 'a' and 'b' such that there exists a
         // 'Move a, b' instruction. These pairs will be pruned after liveness analysis
         // based on conflicting defs. We do this rather than simply requiring that the
         // LiveRanges of coalescable tmps do not overlap so that we can handle Tmp copies, e.g.:
@@ -1028,15 +1147,9 @@ private:
         auto addMaybeCoalescable = [&](Tmp a, Tmp b, BasicBlock* block) {
             if (a == b)
                 return;
-            TmpData& tmpData = m_map[a];
             float freq = adjustedBlockFrequency(block);
-            for (auto& with : tmpData.coalescables) {
-                if (with.tmp == b) {
-                    with.moveCost += freq;
-                    return;
-                }
-            }
-            tmpData.coalescables.append({ b, freq });
+            m_map[a].coalescables.add(b, freq);
+            m_map[b].coalescables.add(a, freq);
         };
 
         auto coalescableMoveSrc = [&](Inst& inst) {
@@ -1065,17 +1178,15 @@ private:
         // that these pairs are not coalescable.
         auto pruneCoalescable = [&](Inst& inst, Tmp def, Point point) {
             TmpData& defData = m_map[def];
-            if (!defData.coalescables.size())
+            if (defData.coalescables.isEmpty())
                 return;
             Tmp movSrc = coalescableMoveSrc(inst);
             dataLogLnIf(verbose(), "Checking affinity ", inst, " def=", def, " movSrc=", movSrc);
-            defData.coalescables.removeAllMatching([&](TmpData::CoalescableWith& with) {
-                ASSERT(with.tmp != def);
-                if (with.tmp != movSrc && isLiveAt(with.tmp, point)) {
-                    dataLogLnIf(verbose(), "Pruning affinity ", def, " ", with.tmp);
-                    m_map[with.tmp].coalescables.removeAllMatching([def](TmpData::CoalescableWith& with) {
-                        return with.tmp == def;
-                    });
+            defData.coalescables.removeAllMatching([&](Tmp tmp) {
+                ASSERT(tmp != def);
+                if (tmp != movSrc && isLiveAt(tmp, point)) {
+                    dataLogLnIf(verbose(), "Pruning affinity ", def, " ", tmp);
+                    m_map[tmp].coalescables.remove(def);
                     return true;
                 }
                 return false;
@@ -1120,7 +1231,6 @@ private:
                     }
                     ASSERT(inst.args[0].isTmp() && inst.args[1].isTmp());
                     addMaybeCoalescable(inst.args[0].tmp(), inst.args[1].tmp(), block);
-                    addMaybeCoalescable(inst.args[1].tmp(), inst.args[0].tmp(), block);
                 }
             }
         }
@@ -1272,17 +1382,6 @@ private:
         });
     }
 
-    // Binary search a sorted coalescables vector to check if 'target' is coalescable.
-    template<Bank bank>
-    static bool isInCoalescables(Tmp tmp, const Vector<TmpData::CoalescableWith>& coalescables)
-    {
-        auto it = std::lower_bound(coalescables.begin(), coalescables.end(), tmp,
-            [](const auto& edge, Tmp t) {
-                return edge.tmp.tmpIndex(bank) < t.tmpIndex(bank);
-            });
-        return it != coalescables.end() && it->tmp == tmp;
-    }
-
     // Maps intervals to lists of Tmps live during that interval.
     //
     // Example: Tmp A live [0,10), Tmp B live [5,15):
@@ -1409,34 +1508,34 @@ private:
         static constexpr uint32_t isIndexBit = 1u << 31;
         static constexpr uint32_t indexMask = isIndexBit - 1;
 
-        static bool isSingleton(EncodedTmpList idx) { return !(idx.m_value & isIndexBit); }
+        static bool NODELETE isSingleton(EncodedTmpList idx) { return !(idx.m_value & isIndexBit); }
 
-        static EncodedTmpList encodeSingleton(Tmp tmp)
+        static EncodedTmpList NODELETE encodeSingleton(Tmp tmp)
         {
             unsigned tIdx = tmp.tmpIndex();
             ASSERT(tIdx < isIndexBit);
             return { tIdx };
         }
 
-        static Tmp decodeSingleton(EncodedTmpList encoded)
+        static Tmp NODELETE decodeSingleton(EncodedTmpList encoded)
         {
             ASSERT(isSingleton(encoded));
             return Tmp::tmpForIndex(bank, encoded.m_value);
         }
 
-        static EncodedTmpList encodeIndex(size_t index)
+        static EncodedTmpList NODELETE encodeIndex(size_t index)
         {
             ASSERT(index <= indexMask);
             return { isIndexBit | static_cast<uint32_t>(index) };
         }
 
-        static unsigned decodeIndex(EncodedTmpList encoded)
+        static unsigned NODELETE decodeIndex(EncodedTmpList encoded)
         {
             ASSERT(!isSingleton(encoded));
             return encoded.m_value & indexMask;
         }
 
-        const TmpList& decodeTmpList(EncodedTmpList encodedList) const
+        const TmpList& NODELETE decodeTmpList(EncodedTmpList encodedList) const
         {
             if (isSingleton(encodedList)) [[likely]] {
                 m_singletonScratch[0] = decodeSingleton(encodedList);
@@ -1544,9 +1643,9 @@ private:
             other.m_members.clear();
         }
 
-        const Vector<Tmp>& members() const { return m_members; }
-        size_t size() const { return m_members.size(); }
-        bool isEmpty() const { return m_members.isEmpty(); }
+        const Vector<Tmp>& NODELETE members() const { return m_members; }
+        size_t NODELETE size() const { return m_members.size(); }
+        bool NODELETE isEmpty() const { return m_members.isEmpty(); }
         LiveRange buildLiveRange() const { return m_liveness.buildLiveRange(); }
 
         using TmpList = typename LivenessMap<bank>::TmpList;
@@ -1583,7 +1682,7 @@ private:
     template<Bank bank>
     void coalesceSingletons(Tmp tmp0, Tmp tmp1, Vector<AffinityGroup<bank>>& groups, TmpGroupMap<bank>& tmpToGroup)
     {
-        ASSERT(isInCoalescables<bank>(tmp1, m_map.get<bank>(tmp0).coalescables) && isInCoalescables<bank>(tmp0, m_map.get<bank>(tmp1).coalescables));
+        ASSERT(m_map.get<bank>(tmp0).coalescables.template contains<bank>(tmp1) && m_map.get<bank>(tmp1).coalescables.template contains<bank>(tmp0));
         auto newIndex = groups.size();
         groups.constructAndAppend(tmp0, m_map.get<bank>(tmp0).liveRange, tmp1, m_map.get<bank>(tmp1).liveRange);
         tmpToGroup[tmp0] = newIndex;
@@ -1604,7 +1703,7 @@ private:
                 return IterationStatus::Done;
             }
             for (Tmp member : tmpList) {
-                if (!isInCoalescables<bank>(member, singletonData.coalescables)) {
+                if (!singletonData.coalescables.contains<bank>(member)) {
                     conflict = true;
                     return IterationStatus::Done;
                 }
@@ -1629,13 +1728,13 @@ private:
         bool conflict = false;
         AffinityGroup<bank>::forEachPairwiseOverlap(group0, group1, [&](const auto& tmpListA, const auto& tmpListB) {
             for (Tmp tmpA : tmpListA) {
-                const auto& coalescables = m_map.get<bank>(tmpA).coalescables;
+                const Coalescables& coalescables = m_map.get<bank>(tmpA).coalescables;
                 if (tmpListB.size() > coalescables.size()) {
                     conflict = true; // Pigeonhole principle
                     return IterationStatus::Done;
                 }
                 for (Tmp tmpB : tmpListB) {
-                    if (!isInCoalescables<bank>(tmpB, coalescables)) {
+                    if (!coalescables.contains<bank>(tmpB)) {
                         conflict = true;
                         return IterationStatus::Done;
                     }
@@ -1681,7 +1780,6 @@ private:
         };
         Vector<Move> moves;
 
-        // Sort coalescables by Tmp index for binary search in isInCoalescables.
         m_code.forEachTmp<bank>([&](Tmp tmp) {
             ASSERT(!tmp.isReg());
             TmpData& data = m_map.get<bank>(tmp);
@@ -1689,9 +1787,8 @@ private:
                 ASSERT(assignedReg(tmp) && m_code.isPinned(assignedReg(tmp)));
                 return; // Already coalesced with a pinned register
             }
-            std::ranges::sort(data.coalescables, [](const auto& a, const auto& b) {
-                return a.tmp.tmpIndex(bank) < b.tmp.tmpIndex(bank);
-            });
+            // Sort coalescables for binary search in Coalescables::contains.
+            data.coalescables.sort<bank>();
             for (auto& with : data.coalescables) {
                 if (tmp.tmpIndex(bank) < with.tmp.tmpIndex(bank))
                     moves.append({ tmp, with.tmp, with.moveCost });
@@ -1814,8 +1911,7 @@ private:
             bool hasColdUse = false;
             for (Tmp member : group.members()) {
                 m_stats[bank].numGroupTmpsCoalesced++;
-                auto memberIdx = AbsoluteTmpMapper<bank>::absoluteIndex(member);
-                if (m_useCounts.isConstDef<bank>(memberIdx))
+                if (isConstDef<bank>(member))
                     m_stats[bank].numGroupConstDefMerged++;
                 TmpData& memberData = m_map.get<bank>(member);
                 useWidth = std::max(useWidth, m_tmpWidth.useWidth(member));
@@ -1934,16 +2030,17 @@ private:
         });
     }
 
-    // newTmp creates and returns a new tmp that can hold the values of 'from'.
+    // addTmpImpl creates and returns a new tmp that can hold the values of 'from'.
     // Note that all TmpData references invalidated since it may expand/realloc the TmpData map.
-    Tmp newTmp(Tmp from, float useDefCost, Interval interval)
+    Tmp addTmpImpl(Tmp from, float useDefCost, Interval interval)
     {
         Tmp tmp = m_code.newTmp(from.bank());
         m_tmpWidth.setWidths(tmp, m_tmpWidth.useWidth(from), m_tmpWidth.defWidth(from));
 
         m_map.append(tmp, TmpData());
         TmpData& tmpData = m_map[tmp];
-        tmpData.liveRange.prepend(interval);
+        if (interval)
+            tmpData.liveRange.prepend(interval);
         tmpData.useDefCost = useDefCost;
         tmpData.validate();
         return tmp;
@@ -1951,12 +2048,24 @@ private:
 
     Tmp addSpillTmpWithInterval(Tmp spilledTmp, Interval interval)
     {
-        Tmp tmp = newTmp(spilledTmp, 0, interval);
-        m_map[tmp].spillability = TmpData::Spillability::Unspillable;
-        dataLogLnIf(verbose(), "New spill for ", spilledTmp, " tmp: ", tmp, ": ", m_map[tmp]);
-        setStageAndEnqueue(tmp, m_map[tmp], Stage::Unspillable);
+        Tmp tmp = addTmpImpl(spilledTmp, 0, interval);
+        TmpData& tmpData = m_map[tmp];
+        tmpData.spillability = TmpData::Spillability::Unspillable;
+        dataLogLnIf(verbose(), "New spill for ", spilledTmp, " tmp: ", tmp, ": ", tmpData);
+        setStageAndEnqueue(tmp, tmpData, Stage::Unspillable);
         m_stats[tmp.bank()].numSpillTmps++;
         return tmp;
+    }
+
+    Tmp addSplitTmp(Tmp originalTmp, float useDefCost, Interval interval)
+    {
+        Tmp splitTmp = addTmpImpl(originalTmp, useDefCost, interval);
+        // All tmps split from originalTmp share the spill slot to avoid moving between spill slots
+        // unnecessarily if parts of the original live-range spill.
+        TmpData& originalData = m_map[originalTmp];
+        ensureSpillSlotTableEntry(originalData);
+        m_map[splitTmp].spillSlotTableIndex = originalData.spillSlotTableIndex;
+        return splitTmp;
     }
 
     void setStageAndEnqueue(Tmp tmp, TmpData& tmpData, Stage stage)
@@ -1982,7 +2091,7 @@ private:
                 rangeSizeOrStart = interval.begin();
             }
         }
-        m_queue.enqueue({ tmp, stage, rangeSizeOrStart, tmpData.preferredReg || tmpData.coalescables.size(), !isLocal });
+        m_queue.enqueue({ tmp, stage, rangeSizeOrStart, tmpData.preferredReg || !tmpData.coalescables.isEmpty(), !isLocal });
         dataLogLnIf(verbose(), "Enqueued (", stage, ") ", tmp);
     }
 
@@ -2034,6 +2143,8 @@ private:
                 case Stage::Spill:
                     doStageSpill<bank>(tmp, tmpData);
                     continue;
+                case Stage::Replaced:
+                    continue; // Split tmp no longer needed; skip stale queue entry.
                 default:
                     dataLogLn("Invalid stage tmp = ", tmp, " tmpData = ", tmpData);
                     // Tmps in these stages should not have been enqueued.
@@ -2236,6 +2347,13 @@ private:
         tmpData.validate();
     }
 
+    bool isLiveRangeBlockLocal(const LiveRange& liveRange)
+    {
+        BasicBlock* startBlock = findBlockContainingPoint(liveRange.intervals().first().begin());
+        Point last = liveRange.intervals().last().end() - 1;
+        return last <= positionOfTail(startBlock);
+    }
+
     template<Bank bank>
     bool trySplit(Tmp tmp, TmpData& tmpData)
     {
@@ -2248,7 +2366,7 @@ private:
     template<Bank bank>
     bool trySplitAroundClobbers(Tmp tmp, TmpData& tmpData)
     {
-        if (tmpData.splitMetadataIndex)
+        if (tmpData.splitAroundClobbersMetadataIndex)
             return false; // Already split around clobbers
         if (tmpData.liveRange.size() < splitMinRangeSize)
             return false; // Not enough instructions to be worthwhile
@@ -2260,16 +2378,19 @@ private:
             });
             return result;
         };
+        ASSERT(tmpData.spillCost() != unspillableCost); // Should have evicted.
 
         Reg bestSplitReg;
-        float minSplitCost = unspillableCost;
+        constexpr float invalidSplitCost = std::numeric_limits<float>::infinity();
+        const float splitMultiplier = Options::airGreedyRegAllocSplitMultiplier();
+        const float splitCostLimit = splitMultiplier > 0.0 ? tmpData.useDefCost / splitMultiplier : invalidSplitCost;
+        float minSplitCost = splitCostLimit;
         Width width = widthForConflicts<bank>(tmp);
         for (Reg r : m_allowedRegistersInPriorityOrder[bank]) {
             float splitCost = 0.0f;
             m_regRanges[r].forEachConflict(tmpData.liveRange, width,
                 [&](auto& conflict) -> IterationStatus {
                     if (conflict.tmp.isReg() && conflict.interval.distance() == 1) {
-                        // Block freq * rare block penalty
                         BasicBlock* block = findBlockContainingPoint(conflict.interval.begin());
                         unsigned instIndex = this->instIndex(positionOfHead(block), conflict.interval.begin());
                         Inst& inst = block->at(instIndex);
@@ -2278,15 +2399,17 @@ private:
                             // can't split the tmp around this clobber.
                             // FIXME: could allow uses, but then we'd have to make split tmp conflict with any
                             // spill tmps used by this instruction, so unclear if that's better.
-                            splitCost = unspillableCost;
+                            splitCost = invalidSplitCost;
                             return IterationStatus::Done;
                         }
                         // Times 2 for 'MOV tmp, gapTmp' and 'MOV gapTmp, tmp'
                         splitCost += adjustedBlockFrequency(block) * 2;
+                        if (splitCost >= minSplitCost)
+                            return IterationStatus::Done; // Not the best or already over limit, exit early.
                         return IterationStatus::Continue;
                     }
                     // Conflicts with another Tmp already assigned to this register so splitting around the clobbers won't help.
-                    splitCost = unspillableCost;
+                    splitCost = invalidSplitCost;
                     return IterationStatus::Done;
                 });
             if (splitCost < minSplitCost) {
@@ -2294,13 +2417,9 @@ private:
                 bestSplitReg = r;
             }
         }
-        ASSERT(tmpData.spillCost() != unspillableCost); // Should have evicted.
-        if (minSplitCost >= unspillableCost)
-            return false; // Other conflicts exist, so splitting is not productive
-        // Multiplier of 0 means split around clobbers at every opportunity. The higher the multiplier,
-        // the less often the split will be applied (i.e. treats splitting as more costly).
-        if (minSplitCost * Options::airGreedyRegAllocSplitMultiplier() >= tmpData.spillCost())
-            return false; // Better to spill than to split
+        if (minSplitCost >= splitCostLimit)
+            return false; // No register found or better to spill than to split
+        ASSERT(bestSplitReg);
 
         LiveRange holeRange;
         m_regRanges[bestSplitReg].forEachConflict(tmpData.liveRange, width,
@@ -2315,7 +2434,7 @@ private:
             });
 
         tmpData.liveRange = LiveRange::subtract(tmpData.liveRange, holeRange);
-        tmpData.splitMetadataIndex = m_splitMetadata.size();
+        tmpData.splitAroundClobbersMetadataIndex = m_splitMetadata.size();
         setStageAndEnqueue(tmp, tmpData, Stage::TryAllocate);
 
         SplitMetadata metadata(SplitMetadata::Type::AroundClobbers, tmp);
@@ -2335,7 +2454,7 @@ private:
             // rotation of register assignments) but that would trigger an extra liveness
             // analysis (see lowerAfterRegAlloc()), and that's unlikely to be worth it.
             Interval gapInterval = hole | Interval(hole.begin() - 1);
-            Tmp gapTmp = newTmp(tmp, freq, gapInterval);
+            Tmp gapTmp = addSplitTmp(tmp, freq, gapInterval);
             metadata.splits.append({ gapTmp, 0 });
             setStageAndEnqueue(gapTmp, m_map.get<bank>(gapTmp), Stage::TryAllocate);
         }
@@ -2373,8 +2492,7 @@ private:
     // uses or defs the given tmp, up to the end of the basic block.
     // Returns the unprocessed portion of the interval (if interval spans multiple blocks).
     // `cursor` can be used to perform a "sort-merge join" when the caller is making queries over a sorted set of intervals for the same tmp
-    template<typename Func>
-    Interval forEachUseDefWithin(Tmp tmp, Interval interval, size_t& cursor, const Func& func)
+    Interval forEachUseDefWithin(Tmp tmp, Interval interval, size_t& cursor, const Invocable<void(Point, Inst&, BasicBlock&)> auto& func)
     {
         auto& useDefs = m_useDefLists[tmp].useDefs();
 
@@ -2399,7 +2517,7 @@ private:
         Point last = std::min(positionOfTail, end - 1);
 
         do {
-            func(useDefs[i], block->at(instIndex(positionOfHead, useDefs[i])));
+            func(useDefs[i], block->at(instIndex(positionOfHead, useDefs[i])), *block);
             i++;
         } while (i < useDefs.size() && useDefs[i] <= last);
         cursor = i - 1; // i-1 since the next interval may include this final instruction
@@ -2409,19 +2527,16 @@ private:
     template<Bank bank>
     bool trySplitIntraBlock(Tmp tmp, TmpData& tmpData)
     {
-        if (tmpData.splitMetadataIndex)
+        if (tmpData.splitAroundClobbersMetadataIndex)
             return false;
 
-        unsigned tmpIndex = AbsoluteTmpMapper<bank>::absoluteIndex(tmp);
-        if (m_useCounts.isConstDef<bank>(tmpIndex))
+        if (isConstDef<bank>(tmp))
             return false; // Constant will be rematerialized instead
 
         // Don't split an already intra-block tmp. Otherwise, we might recursively try to
         // split a cluster tmp that couldn't be allocated.
-        BasicBlock* startBlock = findBlockContainingPoint(tmpData.liveRange.intervals().first().begin());
-        Point last = tmpData.liveRange.intervals().last().end() - 1;
-        if (last <= positionOfTail(startBlock))
-            return false; // Tmp's live range is already block local
+        if (isLiveRangeBlockLocal(tmpData.liveRange))
+            return false;
 
         ensureUseDefLists();
 
@@ -2442,19 +2557,19 @@ private:
                 tmpPtrs.shrink(0);
                 coldUsePtrs.shrink(0);
 
-                remaining = forEachUseDefWithin(tmp, remaining, cursor, [&](Point point, Inst& inst) {
+                remaining = forEachUseDefWithin(tmp, remaining, cursor, [&](Point point, Inst& inst, BasicBlock&) {
                     inst.forEachTmp([&](Tmp& t, Arg::Role role, Bank, Width) {
-                        if (t == tmp) {
-                            Point early = point + PointOffsets::Early;
-                            Interval timingInterval = intervalForTiming(early, Arg::timing(role));
-                            if (Arg::isColdUse(role))
-                                coldUsePtrs.append({ &t, timingInterval.begin() });
-                            else {
-                                tmpPtrs.append(&t);
-                                if (Arg::isAnyDef(role))
-                                    lastDefPoint = early; // Remember where the fixup store to spill is needed
-                                cluster |= timingInterval;
-                            }
+                        if (t != tmp)
+                            return;
+                        Point early = point + PointOffsets::Early;
+                        Interval timingInterval = intervalForTiming(early, Arg::timing(role));
+                        if (Arg::isColdUse(role))
+                            coldUsePtrs.append({ &t, timingInterval.begin() });
+                        else {
+                            tmpPtrs.append(&t);
+                            if (Arg::isAnyDef(role))
+                                lastDefPoint = early; // Remember where the fixup store to spill is needed
+                            cluster |= timingInterval;
                         }
                     });
                 });
@@ -2462,7 +2577,6 @@ private:
                 if (tmpPtrs.size() > 1) {
                     ASSERT(cluster);
                     if (!metadata) {
-                        m_map.get<bank>(tmp).splitMetadataIndex = m_splitMetadata.size();
                         m_splitMetadata.constructAndAppend(SplitMetadata::Type::IntraBlock, tmp);
                         metadata = &m_splitMetadata.last();
                     }
@@ -2477,7 +2591,7 @@ private:
                         cluster |= Interval(pointAtOffset(lastDefPoint, PointOffsets::Post));
 
                     BasicBlock* block = findBlockContainingPoint(cluster.begin());
-                    Tmp clusterTmp = newTmp(tmp, tmpPtrs.size() * adjustedBlockFrequency(block), cluster);
+                    Tmp clusterTmp = addSplitTmp(tmp, tmpPtrs.size() * adjustedBlockFrequency(block), cluster);
                     TmpData& clusterData = m_map.get<bank>(clusterTmp);
                     m_stats[bank].numSplitIntraBlockClusterTmps++;
                     for (auto& ptr : tmpPtrs)
@@ -2508,7 +2622,7 @@ private:
         return true;
     }
 
-    static unsigned stackSlotMinimumWidth(Width width)
+    static unsigned NODELETE stackSlotMinimumWidth(Width width)
     {
         if (width <= Width32)
             return 4;
@@ -2527,20 +2641,19 @@ private:
         m_stats[tmp.bank()].numSpilledTmps++;
         dataLogLnIf(verbose(), "Spilled ", tmp);
 
-        if (tmpData.splitMetadataIndex) {
-            auto& metadata = m_splitMetadata[tmpData.splitMetadataIndex];
-            if (metadata.type == SplitMetadata::Type::AroundClobbers) {
-                // Splitting didn't prevent originalTmp from spilling after all, so no point assigning
-                // registers or stack slots to the gap tmps for this split.
-                dataLogLnIf(verbose(), "   evicting tmps created during split");
-                ASSERT(metadata.originalTmp == tmp);
-                for (auto& split : metadata.splits) {
-                    Tmp gapTmp = split.tmp;
-                    Reg reg = m_map[gapTmp].assigned;
-                    if (reg)
-                        evict(gapTmp, m_map[gapTmp], reg);
-                    m_map[gapTmp].stage = Stage::Replaced;
-                }
+        if (tmpData.splitAroundClobbersMetadataIndex) {
+            auto& metadata = m_splitMetadata[tmpData.splitAroundClobbersMetadataIndex];
+            ASSERT(metadata.type == SplitMetadata::Type::AroundClobbers);
+            // Splitting didn't prevent originalTmp from spilling after all, so no point assigning
+            // registers or stack slots to the gap tmps for this split.
+            dataLogLnIf(verbose(), "   evicting tmps created during split");
+            ASSERT(metadata.originalTmp == tmp);
+            for (auto& split : metadata.splits) {
+                Tmp gapTmp = split.tmp;
+                Reg reg = m_map[gapTmp].assigned;
+                if (reg)
+                    evict(gapTmp, m_map[gapTmp], reg);
+                m_map[gapTmp].stage = Stage::Replaced;
             }
         }
         // Batch the generation of spill/fill tmps so that we can limit traversals of the code while
@@ -2549,7 +2662,7 @@ private:
         tmpData.validate();
     }
 
-    bool queueContainsOnlySpills()
+    bool NODELETE queueContainsOnlySpills()
     {
         for (auto& elem : m_queue) {
             if (elem.stage() != Stage::Spill)
@@ -2585,28 +2698,16 @@ private:
     {
         m_code.forEachTmp<bank>([&](Tmp tmp) {
             TmpData& tmpData = m_map.get<bank>(tmp);
-            if (tmpData.stage == Stage::Spilled && !tmpData.spillSlot) {
-                if (!tmpData.spillSlot)
-                    tmpData.spillSlot = m_code.addStackSlot(stackSlotMinimumWidth(m_tmpWidth.requiredWidth(tmp)), StackSlotKind::Spill);
-                ASSERT(spillSlot<bank>(tmp));
+            if (tmpData.stage != Stage::Spilled)
+                return;
+
+            ensureSpillSlotTableEntry(tmpData);
+            StackSlot*& slot = m_spillSlotTable[tmpData.spillSlotTableIndex];
+            if (!slot) {
+                slot = m_code.addStackSlot(stackSlotMinimumWidth(m_tmpWidth.requiredWidth(tmp)), StackSlotKind::Spill);
                 m_stats[bank].numSpillStackSlots++;
             }
-            if (tmpData.splitMetadataIndex) {
-                auto& metadata = m_splitMetadata[tmpData.splitMetadataIndex];
-                if (metadata.type == SplitMetadata::Type::IntraBlock) {
-                    // Redirect spilled intra-block cluster tmps to the spill slot of the original tmp.
-                    ASSERT(tmpData.stage == Stage::Spilled && spillSlot<bank>(tmp));
-                    for (auto& split : metadata.splits) {
-                        Tmp clusterTmp = split.tmp;
-                        TmpData& clusterData = m_map.get<bank>(clusterTmp);
-                        if (clusterData.stage == Stage::Spilled) {
-                            if (!clusterData.spillSlot)
-                                clusterData.spillSlot = spillSlot<bank>(tmp);
-                            ASSERT(spillSlot<bank>(clusterTmp) == spillSlot<bank>(tmp));
-                        }
-                    }
-                }
-            }
+            ASSERT(spillSlot<bank>(tmp));
         });
         for (BasicBlock* block : m_code) {
             Point positionOfHead = this->positionOfHead(block);
@@ -2741,7 +2842,7 @@ private:
                     // when there are back-to-back Move spill-spill-scratch instructions (scratch is early-def, late-use).
                     // See https://bugs.webkit.org/show_bug.cgi?id=163548#c2 for more info.
                     // FIXME: reconsider this, https://bugs.webkit.org/show_bug.cgi?id=288122
-                    m_insertionSets[block].insert(instIndex, spillLoad, Nop, inst.origin);
+                    m_insertionSets[block].insert(instIndex, SpillMoveFrom, Nop, inst.origin);
                     continue;
                 }
 
@@ -2779,13 +2880,13 @@ private:
                             if constexpr (bank == GP) {
                                 int64_t value = m_useCounts.constant<bank>(tmpIndex);
                                 if (Arg::isValidImmForm(value) && isValidForm(Move, Arg::Imm, Arg::Tmp)) {
-                                    m_insertionSets[block].insert(instIndex, spillLoad, Move, inst.origin, Arg::imm(value), tmp);
+                                    m_insertionSets[block].insert(instIndex, SpillMoveFrom, Move, inst.origin, Arg::imm(value), tmp);
                                     m_stats[bank].numRematerializeConst++;
                                     dataLogLnIf(verbose(), "Rematerialized (imm) BB", *block, " ", originalTmp, ": ", tmp, " <- ", WTF::RawHex(value));
                                     return true;
                                 }
                                 RELEASE_ASSERT(isValidForm(Move, Arg::BigImm, Arg::Tmp));
-                                m_insertionSets[block].insert(instIndex, spillLoad, Move, inst.origin, Arg::bigImm(value), tmp);
+                                m_insertionSets[block].insert(instIndex, SpillMoveFrom, Move, inst.origin, Arg::bigImm(value), tmp);
                                 m_stats[bank].numRematerializeConst++;
                                 dataLogLnIf(verbose(), "Rematerialized (bigImm) BB", *block, " ", originalTmp, ": ", tmp, " <- ", WTF::RawHex(value));
                                 return true;
@@ -2815,7 +2916,7 @@ private:
                                 }
 
                                 if (imm && isValidForm(constMove, imm.kind(), Arg::Tmp)) {
-                                    m_insertionSets[block].insert(instIndex, spillLoad, constMove, inst.origin, imm, tmp);
+                                    m_insertionSets[block].insert(instIndex, SpillMoveFrom, constMove, inst.origin, imm, tmp);
                                     m_stats[bank].numRematerializeConst++;
                                     dataLogLnIf(verbose(), "Rematerialized (FP) BB", *block, " ", originalTmp, ": ", tmp);
                                     return true;
@@ -2826,7 +2927,7 @@ private:
                         };
 
                         if (!tryRematerialize()) {
-                            m_insertionSets[block].insert(instIndex, spillLoad, move, inst.origin, arg, tmp);
+                            m_insertionSets[block].insert(instIndex, SpillMoveFrom, move, inst.origin, arg, tmp);
                             m_stats[bank].numLoadSpill++;
                         }
                     }
@@ -2840,7 +2941,7 @@ private:
                             dataLogLnIf(verbose(), "Rematerialized BB", *block, " removing def inst: ", inst);
                         } else {
                             ASSERT(!doKillInst);
-                            m_insertionSets[block].insert(instIndex + 1, spillStore, move, inst.origin, tmp, arg);
+                            m_insertionSets[block].insert(instIndex + 1, SpillMoveTo, move, inst.origin, tmp, arg);
                             m_stats[bank].numStoreSpill++;
                         }
                     }
@@ -2895,8 +2996,8 @@ private:
                 if (spilled)
                     arg = Arg::stack(spilled);
                 Opcode move = moveOpcode(gapTmp);
-                m_insertionSets[block].insert(instIndex, splitMoveFrom, move, inst.origin, metadata.originalTmp, arg);
-                m_insertionSets[block].insert(instIndex + 1, splitMoveTo, move, inst.origin, arg, metadata.originalTmp);
+                m_insertionSets[block].insert(instIndex, ClobberMoveFrom, move, inst.origin, metadata.originalTmp, arg);
+                m_insertionSets[block].insert(instIndex + 1, ClobberMoveTo, move, inst.origin, arg, metadata.originalTmp);
                 dataLogLnIf(verbose(), "Inserted Moves around clobber tmp=", metadata.originalTmp, " gapTmp=", gapTmp, " gapReg = ", assignedReg(gapTmp), " block=", *block, " index=", instIndex, " inst = ", inst);
             }
         }
@@ -2921,16 +3022,17 @@ private:
             }
 
             LiveRange& clusterRange = m_map[clusterTmp].liveRange;
-            ASSERT(clusterRange.intervals().size() == 1);
-            const Interval& clusterInterval = clusterRange.intervals().first();
+            // Cluster tmp may have multiple intervals if it was also split around clobbers,
+            // but the first interval will still coincide with the beginning of the cluster.
+            Point clusterBegin = clusterRange.intervals().first().begin();
 
-            BasicBlock* block = findBlockContainingPoint(clusterInterval.begin());
+            BasicBlock* block = findBlockContainingPoint(clusterBegin);
             Point positionOfHead = this->positionOfHead(block);
 
             // trySplitIntraBlock includes the Pre point in the cluster interval iff the original Tmp is live into the cluster.
-            if (pointAtOffset(clusterInterval.begin(), PointOffsets::Pre) == clusterInterval.begin()) {
-                unsigned instIndex = this->instIndex(positionOfHead, clusterInterval.begin());
-                m_insertionSets[block].insert(instIndex, splitMoveFrom, move, block->at(instIndex).origin, Arg::stack(spilled), clusterTmp);
+            if (pointAtOffset(clusterBegin, PointOffsets::Pre) == clusterBegin) {
+                unsigned instIndex = this->instIndex(positionOfHead, clusterBegin);
+                m_insertionSets[block].insert(instIndex, IntraBlockMoveFrom, move, block->at(instIndex).origin, Arg::stack(spilled), clusterTmp);
                 m_stats[bank].numSplitIntraBlockLoad++;
             } else
                 ASSERT(split.lastDefPoint);
@@ -2938,13 +3040,13 @@ private:
             // Need to store back into the original Tmp's spill slot only if the cluster def'ed the Tmp
             if (split.lastDefPoint) {
                 unsigned instIndex = this->instIndex(positionOfHead, split.lastDefPoint);
-                m_insertionSets[block].insert(instIndex + 1, splitMoveTo, move, block->at(instIndex).origin, clusterTmp, Arg::stack(spilled));
+                m_insertionSets[block].insert(instIndex + 1, IntraBlockMoveTo, move, block->at(instIndex).origin, clusterTmp, Arg::stack(spilled));
                 m_stats[bank].numSplitIntraBlockStore++;
             }
         }
     }
 
-    bool mayBeCoalescable(Inst& inst)
+    bool NODELETE mayBeCoalescable(Inst& inst)
     {
         switch (inst.kind.opcode) {
         case Move:
@@ -3035,6 +3137,7 @@ private:
     TmpMap<TmpData> m_map;
     TmpMap<UseDefList> m_useDefLists;
     Vector<SplitMetadata> m_splitMetadata;
+    Vector<StackSlot*> m_spillSlotTable;
     IndexMap<Reg, RegisterRange> m_regRanges;
     GenerationalSet<uint8_t, SaVector> m_visited;
     PriorityQueue<TmpPriority, TmpPriority::isHigherPriority> m_queue;

@@ -76,6 +76,7 @@ public:
 
 #if PLATFORM(IOS_FAMILY)
     WEBCORE_EXPORT void setAnchorRect(const IntRect& anchorRect, UIViewController* presentingViewController = nullptr);
+    WEBCORE_EXPORT void setShouldSuppressPresentation(bool);
     WEBCORE_EXPORT void show();
 #elif PLATFORM(GTK)
     WEBCORE_EXPORT virtual void showRelativeTo(const IntRect&) = 0;
@@ -103,6 +104,7 @@ protected:
     RetainPtr<WebValidationBubbleDelegate> m_popoverDelegate;
     WeakObjCPtr<UIViewController> m_presentingViewController;
     bool m_startingToPresentViewController { false };
+    bool m_shouldSuppressPresentation { false };
 #endif
 };
 

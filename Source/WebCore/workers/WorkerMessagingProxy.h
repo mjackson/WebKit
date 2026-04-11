@@ -96,7 +96,7 @@ private:
     bool askedToTerminate() const final { return m_askedToTerminate; }
 
     void workerGlobalScopeDestroyedInternal();
-    Worker* workerObject() const { return m_workerObject.get(); }
+    Worker* workerObject() const;
 
     // WorkerBadgeProxy
     void setAppBadge(std::optional<uint64_t>) final;

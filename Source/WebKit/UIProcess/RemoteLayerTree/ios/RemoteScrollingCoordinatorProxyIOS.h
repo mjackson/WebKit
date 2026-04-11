@@ -90,7 +90,6 @@ private:
     void scrollingTreeNodeDidEndScroll(WebCore::ScrollingNodeID) override;
 
     void connectStateNodeLayers(WebCore::ScrollingStateTree&, const RemoteLayerTreeHost&) override;
-    void establishLayerTreeScrollingRelations(const RemoteLayerTreeHost&) override;
 
 #if ENABLE(OVERLAY_REGIONS_IN_EVENT_REGION)
     void selectOverlayRegionScrollViewIfNeeded();

@@ -86,12 +86,12 @@ SVGElement* SVGGraphicsElement::nearestViewportElement(const SVGElement* element
 FloatRect SVGGraphicsElement::computeBBox(SVGElement* element, StyleUpdateStrategy styleUpdateStrategy)
 {
     ASSERT(element);
-    if (styleUpdateStrategy == AllowStyleUpdate)
+    if (styleUpdateStrategy == StyleUpdateStrategy::Allow)
         protect(element->document())->updateLayoutIgnorePendingStylesheets({ LayoutOptions::TreatContentVisibilityHiddenAsVisible, LayoutOptions::TreatContentVisibilityAutoAsVisible }, element);
 
     // FIXME: Eventually we should support getBBox for detached elements.
     CheckedPtr renderer = element->renderer();
-    if (!renderer || renderer->isRenderSVGHiddenContainer())
+    if (!renderer || renderer->isRenderSVGHiddenContainer() || renderer->objectBoundingBoxIsEmpty())
         return FloatRect();
 
     return renderer->objectBoundingBox();
@@ -100,7 +100,7 @@ FloatRect SVGGraphicsElement::computeBBox(SVGElement* element, StyleUpdateStrate
 AffineTransform SVGGraphicsElement::computeCTM(SVGElement* element, CTMScope mode, StyleUpdateStrategy styleUpdateStrategy)
 {
     ASSERT(element);
-    if (styleUpdateStrategy == AllowStyleUpdate)
+    if (styleUpdateStrategy == StyleUpdateStrategy::Allow)
         protect(element->document())->updateLayoutIgnorePendingStylesheets({ LayoutOptions::TreatContentVisibilityHiddenAsVisible, LayoutOptions::TreatContentVisibilityAutoAsVisible }, element);
 
     RefPtr stopAtElement = mode == CTMScope::NearestViewportScope ? nearestViewportElement(element) : nullptr;
@@ -172,9 +172,10 @@ AffineTransform SVGGraphicsElement::animatedLocalTransform() const
 {
     // LBSE handles transforms via RenderLayer, no need to handle CSS transforms here.
     if (document().settings().layerBasedSVGEngineEnabled()) {
-        if (m_supplementalTransform)
-            return *m_supplementalTransform * transform().concatenate();
-        return protect(transform())->concatenate();
+        auto concatenatedTransform = protect(transform())->concatenate();
+        if (concatenatedTransform && m_supplementalTransform)
+            return *m_supplementalTransform * *concatenatedTransform;
+        return m_supplementalTransform ? *m_supplementalTransform : concatenatedTransform.value_or(identity);
     }
 
     AffineTransform matrix;
@@ -197,7 +198,7 @@ AffineTransform SVGGraphicsElement::animatedLocalTransform() const
     if (!hasSpecifiedTransform && style && !transform().isEmpty()) {
         auto t = Style::TransformResolver::computeTransformOrigin(*style, renderer->transformReferenceBoxRect()).xy();
         matrix.translate(t);
-        matrix *= transform().concatenate();
+        matrix *= *transform().concatenate();
         matrix.translate(-t.x(), -t.y());
     }
 

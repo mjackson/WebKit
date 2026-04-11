@@ -29,6 +29,7 @@
 
 #include "CSSPropertyNames.h"
 #include "Document.h"
+#include "DocumentPage.h"
 #include "Event.h"
 #include "EventListener.h"
 #include "EventNames.h"
@@ -43,12 +44,12 @@
 #include "SVGElementInlines.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGNames.h"
-#include "SVGParserUtilities.h"
 #include "SVGSVGElement.h"
 #include "SVGURIReference.h"
 #include "SVGUseElement.h"
 #include "SVGVisitedElementTracking.h"
 #include "XLinkNames.h"
+#include <wtf/Borrow.h>
 #include <wtf/MathExtras.h>
 #include <wtf/RobinHoodHashSet.h>
 #include <wtf/StdLibExtras.h>
@@ -113,7 +114,7 @@ bool ConditionEventListener::operator==(const EventListener& listener) const
 void ConditionEventListener::handleEvent(ScriptExecutionContext&, Event&)
 {
     if (RefPtr animation = m_animation.get())
-        animation->addInstanceTime(m_condition->m_beginOrEnd, m_animation->elapsed() + m_condition->m_offset);
+        animation->addInstanceTime(m_condition->m_beginOrEnd, animation->elapsed() + m_condition->m_offset);
 }
 
 SVGSMILElement::Condition::Condition(Type type, BeginOrEnd beginOrEnd, const String& baseID, const AtomString& name, SMILTime offset, int repeats)
@@ -344,23 +345,24 @@ SMILTime SVGSMILElement::parseClockValue(StringView data)
         return SMILTime::indefinite();
 
     double result = 0;
-    bool ok;
     size_t doublePointOne = parse.find(':');
     size_t doublePointTwo = parse.find(':', doublePointOne + 1);
     if (doublePointOne == 2 && doublePointTwo == 5 && parse.length() >= 8) {
-        auto hour = parseInteger<uint8_t>(parse.left(2));
-        auto minute = parseInteger<uint8_t>(parse.substring(3, 2));
-        if (!hour || !minute)
+        auto hours = parseInteger<uint8_t>(parse.left(2));
+        auto minutes = parseInteger<uint8_t>(parse.substring(3, 2));
+        auto seconds = parseNumber(parse.substring(6));
+        if (!hours || !minutes || *minutes > 59 || !seconds || *seconds >= 60)
             return SMILTime::unresolved();
-        result = *hour * 60 * 60 + *minute * 60 + parse.substring(6).toDouble(ok);
-    } else if (doublePointOne == 2 && doublePointTwo == notFound && parse.length() >= 5) { 
-        auto minute = parseInteger<uint8_t>(parse.left(2));
-        if (!minute)
+        result = *hours * 60 * 60 + *minutes * 60 + *seconds;
+    } else if (doublePointOne == 2 && doublePointTwo == notFound && parse.length() >= 5) {
+        auto minutes = parseInteger<uint8_t>(parse.left(2));
+        auto seconds = parseNumber(parse.substring(3));
+        if (!minutes || *minutes > 59 || !seconds || *seconds >= 60)
             return SMILTime::unresolved();
-        result = *minute * 60 + parse.substring(3).toDouble(ok);
+        result = *minutes * 60 + *seconds;
     } else
         return parseOffsetValue(parse);
-    if (!ok || !SMILTime(result).isFinite())
+    if (!SMILTime(result).isFinite())
         return SMILTime::unresolved();
     return result;
 }
@@ -390,15 +392,24 @@ bool SVGSMILElement::parseCondition(StringView value, BeginOrEnd beginOrEnd)
     }
     if (conditionString.isEmpty())
         return false;
-    pos = conditionString.find('.');
-    
+
+    // Find the first dot not preceded by a backslash. Per the SMIL specification,
+    // dots in element IDs can be escaped with a backslash (e.g., "my\.anim.end").
+    size_t dotPosition = 0;
+    while (dotPosition != notFound) {
+        dotPosition = conditionString.find('.', dotPosition);
+        if (dotPosition == notFound || !dotPosition || conditionString[dotPosition - 1] != '\\')
+            break;
+        ++dotPosition;
+    }
+
     StringView baseID;
     StringView nameView;
-    if (pos == notFound)
+    if (dotPosition == notFound)
         nameView = conditionString;
     else {
-        baseID = conditionString.left(pos);
-        nameView = conditionString.substring(pos + 1);
+        baseID = conditionString.left(dotPosition);
+        nameView = conditionString.substring(dotPosition + 1);
     }
     if (nameView.isEmpty())
         return false;
@@ -429,7 +440,12 @@ bool SVGSMILElement::parseCondition(StringView value, BeginOrEnd beginOrEnd)
         nameString = nameView.toAtomString();
     }
     
-    m_conditions.append(Condition(type, beginOrEnd, baseID.toString(), WTF::move(nameString), offset, repeats));
+    // Remove backslash escapes from the element ID (e.g., "my\.anim" → "my.anim").
+    auto resolvedBaseID = baseID.toString();
+    if (resolvedBaseID.contains('\\'))
+        resolvedBaseID = resolvedBaseID.impl()->replace("\\."_s, "."_s);
+
+    m_conditions.append(Condition(type, beginOrEnd, WTF::move(resolvedBaseID), WTF::move(nameString), offset, repeats));
 
     if (type == Condition::EventBase && beginOrEnd == End)
         m_hasEndEventConditions = true;
@@ -567,7 +583,7 @@ void SVGSMILElement::connectConditions()
     if (m_conditionsConnected)
         disconnectConditions();
     m_conditionsConnected = true;
-    for (auto& condition : m_conditions) {
+    for (auto& condition : borrow(m_conditions).get()) {
         if (condition.m_type == Condition::EventBase) {
             ASSERT(!condition.m_syncbase);
             RefPtr eventBase = eventBaseFor(condition);
@@ -596,7 +612,7 @@ void SVGSMILElement::disconnectConditions()
     if (!m_conditionsConnected)
         return;
     m_conditionsConnected = false;
-    for (auto& condition : m_conditions) {
+    for (auto& condition : borrow(m_conditions).get()) {
         if (condition.m_type == Condition::EventBase) {
             ASSERT(!condition.m_syncbase);
             if (!condition.m_eventListener)

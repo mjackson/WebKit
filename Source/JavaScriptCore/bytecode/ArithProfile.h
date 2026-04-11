@@ -152,16 +152,16 @@ public:
     void emitObserveResult(CCallHelpers&, JSValueRegs, GPRReg tempGPR, TagRegistersMode = HaveTagRegisters);
 
     // Sets (Int32Overflow | Int52Overflow | NonNegZeroDouble | NegZeroDouble).
-    bool shouldEmitSetDouble() const;
+    bool NODELETE shouldEmitSetDouble() const;
     void emitSetDouble(CCallHelpers&, GPRReg scratchGPR) const;
 
     void emitSetNonNumeric(CCallHelpers&) const;
-    bool shouldEmitSetNonNumeric() const;
+    bool NODELETE shouldEmitSetNonNumeric() const;
 
-    bool shouldEmitSetHeapBigInt() const;
+    bool NODELETE shouldEmitSetHeapBigInt() const;
     void emitSetHeapBigInt(CCallHelpers&) const;
 
-    bool shouldEmitSetBigInt32() const;
+    bool NODELETE shouldEmitSetBigInt32() const;
 #if USE(BIGINT32)
     void emitSetBigInt32(CCallHelpers&) const;
 #endif

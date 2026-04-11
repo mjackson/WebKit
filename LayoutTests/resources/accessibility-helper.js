@@ -281,6 +281,23 @@ async function waitForFrameGeometryReady() {
     });
 }
 
+// Waits for an iframe's frame geometry to be initialized and for the target
+// element to be accessible. Returns the target element.
+async function waitForIframeAccessibilityReady(iframeContainerID, targetID) {
+    let target;
+    await waitFor(() => {
+        let container = accessibilityController.accessibleElementById(iframeContainerID);
+        if (!container)
+            return false;
+        let scrollView = container.childAtIndex(0);
+        if (!scrollView || !scrollView.isFrameGeometryInitialized)
+            return false;
+        target = accessibilityController.accessibleElementById(targetID);
+        return target;
+    });
+    return target;
+}
+
 async function waitForElementById(id) {
     let element;
     await waitFor(() => {
@@ -288,6 +305,23 @@ async function waitForElementById(id) {
         return element;
     });
     return element;
+}
+
+async function waitUntilIDHasPathWith(id, minimumCount, pathComponent) {
+    await waitFor(() => {
+        var element = accessibilityController.accessibleElementById(id);
+        if (!element)
+            return false;
+        var matches = element.pathDescription.match(new RegExp(pathComponent, "g"));
+        return matches && matches.length >= minimumCount;
+    });
+}
+
+function pathSegmentCountOfID(id, segmentType) {
+    var element = accessibilityController.accessibleElementById(id);
+    if (!element)
+        return 0;
+    return (element.pathDescription.match(new RegExp(segmentType, "g")) || []).length;
 }
 
 // Executes the operation and waits until an accessibility notification of the provided

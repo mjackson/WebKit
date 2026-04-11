@@ -1,3 +1,4 @@
+CommandLineAPIModuleSourceBuiltins.h
 Modules/WebGPU/Implementation/WebGPUAdapterImpl.cpp
 Modules/WebGPU/Implementation/WebGPUBindGroupImpl.cpp
 Modules/WebGPU/Implementation/WebGPUBufferImpl.cpp
@@ -23,6 +24,10 @@ Modules/WebGPU/Implementation/WebGPUXRBindingImpl.cpp
 Modules/WebGPU/Implementation/WebGPUXRSubImageImpl.cpp
 Modules/notifications/NotificationController.h
 Modules/webdatabase/DatabaseThread.h
+ReadableStreamInternalsBuiltins.h
+StreamInternalsBuiltins.h
+TransformStreamInternalsBuiltins.h
+WritableStreamInternalsBuiltins.h
 accessibility/AccessibilityObject.cpp
 bindings/js/GarbageCollectionController.cpp
 bindings/js/JSLocationCustom.cpp

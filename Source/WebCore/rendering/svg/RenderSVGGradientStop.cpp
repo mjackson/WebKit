@@ -19,6 +19,7 @@
 
 #include "config.h"
 #include "RenderSVGGradientStop.h"
+#include "RenderObjectNode.h"
 
 #include "ContainerNodeInlines.h"
 #include "ElementInlines.h"

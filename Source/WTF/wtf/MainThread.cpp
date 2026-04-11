@@ -30,14 +30,9 @@
 #include <wtf/MainThread.h>
 
 #include <mutex>
-#include <wtf/Deque.h>
-#include <wtf/Lock.h>
-#include <wtf/MonotonicTime.h>
-#include <wtf/NeverDestroyed.h>
 #include <wtf/RunLoop.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/Threading.h>
-#include <wtf/WorkQueue.h>
 #include <wtf/threads/BinarySemaphore.h>
 
 namespace WTF {

@@ -100,7 +100,7 @@ RefPtr<PathOperation> ShapePathOperation::blend(const PathOperation* to, const B
 
 std::optional<Path> ShapePathOperation::getPath(const TransformOperationData& data, Style::ZoomFactor zoom) const
 {
-    return MotionPath::computePathForShape(*this, data, zoom);
+    return Style::tryPath(shape(), data, zoom);
 }
 
 // MARK: - BoxPathOperation
@@ -115,9 +115,14 @@ Ref<PathOperation> BoxPathOperation::clone() const
     return adoptRef(*new BoxPathOperation(referenceBox()));
 }
 
-std::optional<Path> BoxPathOperation::getPath(const TransformOperationData& data, Style::ZoomFactor zoom) const
+std::optional<Path> BoxPathOperation::getPath(const TransformOperationData& data, Style::ZoomFactor) const
 {
-    return MotionPath::computePathForBox(*this, data, zoom);
+    if (auto motionPathData = data.motionPathData) {
+        Path path;
+        path.addRoundedRect(motionPathData->offsetRect(), PathRoundedRect::Strategy::PreferBezier);
+        return path;
+    }
+    return std::nullopt;
 }
 
 // MARK: - RayPathOperation
@@ -151,7 +156,7 @@ RefPtr<PathOperation> RayPathOperation::blend(const PathOperation* to, const Ble
 
 std::optional<Path> RayPathOperation::getPath(const TransformOperationData& data, Style::ZoomFactor zoom) const
 {
-    return MotionPath::computePathForRay(*this, data, zoom);
+    return Style::tryPath(*ray(), data, zoom);
 }
 
 } // namespace WebCore

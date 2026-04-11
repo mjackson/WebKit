@@ -161,7 +161,7 @@ void StringPrototype::finishCreation(VM& vm, JSGlobalObject* globalObject)
     JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("at"_s, stringProtoFuncAt, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public, StringPrototypeAtIntrinsic);
     putDirectWithoutTransition(vm, Identifier::fromString(vm, "substring"_s), globalObject->stringProtoSubstringFunction(), static_cast<unsigned>(PropertyAttribute::DontEnum));
     JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("toLowerCase"_s, stringProtoFuncToLowerCase, static_cast<unsigned>(PropertyAttribute::DontEnum), 0, ImplementationVisibility::Public, StringPrototypeToLowerCaseIntrinsic);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("toUpperCase"_s, stringProtoFuncToUpperCase, static_cast<unsigned>(PropertyAttribute::DontEnum), 0, ImplementationVisibility::Public);
+    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("toUpperCase"_s, stringProtoFuncToUpperCase, static_cast<unsigned>(PropertyAttribute::DontEnum), 0, ImplementationVisibility::Public, StringPrototypeToUpperCaseIntrinsic);
     JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("localeCompare"_s, stringProtoFuncLocaleCompare, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public, StringPrototypeLocaleCompareIntrinsic);
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("toLocaleLowerCase"_s, stringProtoFuncToLocaleLowerCase, static_cast<unsigned>(PropertyAttribute::DontEnum), 0, ImplementationVisibility::Public);
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("toLocaleUpperCase"_s, stringProtoFuncToLocaleUpperCase, static_cast<unsigned>(PropertyAttribute::DontEnum), 0, ImplementationVisibility::Public);
@@ -726,7 +726,7 @@ static ALWAYS_INLINE bool splitStringByOneCharacterImpl(Indice& result, StringIm
     return false;
 }
 
-static bool isASCIIIdentifierStart(char16_t ch)
+static bool NODELETE isASCIIIdentifierStart(char16_t ch)
 {
     return isASCIIAlpha(ch) || ch == '_' || ch == '$';
 }
@@ -812,7 +812,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncSplitFast, (JSGlobalObject* globalObject
             for (unsigned i = 0; i < resultSize; ++i) {
                 unsigned end = result[i];
                 JSString* string = nullptr;
-                const bool isPotentiallyIdentifier = start < end && isASCIIIdentifierStart(view->characterAt(start));
+                const bool isPotentiallyIdentifier = start < end && isASCIIIdentifierStart(view->codeUnitAt(start));
                 if (makeAtomStringsArray && isPotentiallyIdentifier) {
                     auto subView = view->substring(start, end - start);
                     auto identifier = subView.is8Bit() ? Identifier::fromString(vm, subView.span8()) : Identifier::fromString(vm, subView.span16());
@@ -1327,7 +1327,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncTrimEnd, (JSGlobalObject* globalObject, 
     return JSValue::encode(trimString<TrimKind::TrimEnd>(globalObject, thisValue));
 }
 
-static inline unsigned clampAndTruncateToUnsigned(double value, unsigned min, unsigned max)
+static inline unsigned NODELETE clampAndTruncateToUnsigned(double value, unsigned min, unsigned max)
 {
     if (value < min)
         return min;
@@ -1996,33 +1996,35 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncRepeat, (JSGlobalObject* globalObject, C
     if (repeatCount == 1)
         return JSValue::encode(thisString);
 
-    auto view = thisString->view(globalObject);
-    RETURN_IF_EXCEPTION(scope, { });
-
-    if (stringLength == 1) {
-        // For a string which length is single, instead of creating ropes,
-        // allocating a sequential buffer and fill with the repeated string for efficiency.
-        char16_t character = view[0];
-        scope.release();
-        if (isLatin1(character))
-            return JSValue::encode(repeatCharacter(globalObject, static_cast<Latin1Character>(character), repeatCount));
-        return JSValue::encode(repeatCharacter(globalObject, character, repeatCount));
-    }
-
     auto checkedResultLength = checkedProduct<unsigned>(stringLength, static_cast<unsigned>(repeatCount));
     if (checkedResultLength.hasOverflowed() || static_cast<unsigned>(checkedResultLength) > JSString::MaxLength) [[unlikely]]
         return JSValue::encode(throwOutOfMemoryError(globalObject, scope));
-
-    // Even if the string length is not single, if the resulting string length is small,
-    // allocating a sequential buffer and fill with the repeated string for efficiency.
     unsigned resultLength = checkedResultLength;
+
     constexpr unsigned maxStringLength = 8;
     constexpr unsigned maxResultLength = 1024;
-    if (stringLength <= maxStringLength && resultLength <= maxResultLength) {
-        scope.release();
-        if (view->is8Bit())
-            return JSValue::encode(repeatString<Latin1Character>(globalObject, view, repeatCount));
-        return JSValue::encode(repeatString<char16_t>(globalObject, view, repeatCount));
+    if (stringLength <= maxStringLength) {
+        auto view = thisString->view(globalObject);
+        RETURN_IF_EXCEPTION(scope, { });
+
+        if (stringLength == 1) {
+            // For a string which length is single, instead of creating ropes,
+            // allocating a sequential buffer and fill with the repeated string for efficiency.
+            char16_t character = view[0];
+            scope.release();
+            if (isLatin1(character))
+                return JSValue::encode(repeatCharacter(globalObject, static_cast<Latin1Character>(character), repeatCount));
+            return JSValue::encode(repeatCharacter(globalObject, character, repeatCount));
+        }
+
+        // Even if the string length is not single, if the resulting string length is small,
+        // allocating a sequential buffer and fill with the repeated string for efficiency.
+        if (resultLength <= maxResultLength) {
+            scope.release();
+            if (view->is8Bit())
+                return JSValue::encode(repeatString<Latin1Character>(globalObject, view, repeatCount));
+            return JSValue::encode(repeatString<char16_t>(globalObject, view, repeatCount));
+        }
     }
 
     RELEASE_AND_RETURN(scope, JSValue::encode(repeatRope(globalObject, thisString, repeatCount)));

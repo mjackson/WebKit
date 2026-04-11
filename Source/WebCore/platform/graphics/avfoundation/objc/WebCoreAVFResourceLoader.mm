@@ -327,9 +327,7 @@ WebCoreAVFResourceLoader::WebCoreAVFResourceLoader(MediaPlayerPrivateAVFoundatio
 {
 }
 
-WebCoreAVFResourceLoader::~WebCoreAVFResourceLoader()
-{
-}
+WebCoreAVFResourceLoader::~WebCoreAVFResourceLoader() = default;
 
 void WebCoreAVFResourceLoader::startLoading()
 {

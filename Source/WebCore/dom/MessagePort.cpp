@@ -216,7 +216,7 @@ void MessagePort::messageAvailable()
     if (!context || context->activeDOMObjectsAreSuspended())
         return;
 
-    context->processMessageWithMessagePortsSoon([pendingActivity = makePendingActivity(*this)] { });
+    context->processMessageForPortSoon(m_identifier, [pendingActivity = makePendingActivity(*this)] { });
 }
 
 void MessagePort::start()
@@ -230,7 +230,7 @@ void MessagePort::start()
         return;
 
     m_started = true;
-    protect(scriptExecutionContext())->processMessageWithMessagePortsSoon([pendingActivity = makePendingActivity(*this)] { });
+    protect(scriptExecutionContext())->processMessageForPortSoon(m_identifier, [pendingActivity = makePendingActivity(*this)] { });
 }
 
 void MessagePort::close()

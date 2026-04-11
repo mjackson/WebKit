@@ -518,7 +518,7 @@ bool MIMETypeRegistry::isSupportedImageMIMETypeForEncoding(const String& mimeTyp
     return threadGlobalDataSingleton().mimeTypeRegistryThreadGlobalData().supportedImageMIMETypesForEncoding().contains(mimeType);
 }
 
-bool MIMETypeRegistry::isSupportedJavaScriptMIMEType(const String& mimeType)
+bool MIMETypeRegistry::isSupportedJavaScriptMIMEType(StringView mimeType)
 {
     return supportedJavaScriptMIMETypes.contains(mimeType);
 }
@@ -765,6 +765,42 @@ String MIMETypeRegistry::appendFileExtensionIfNecessary(const String& filename, 
         return filename;
 
     return makeString(filename, '.', preferredExtension);
+}
+
+String MIMETypeRegistry::correctExtensionForMIMEType(const String& suggestedFilename, const String& mimeType)
+{
+    if (suggestedFilename.isEmpty() || mimeType.isEmpty()
+        || mimeType == defaultMIMEType() || mimeType == "text/plain"_s)
+        return suggestedFilename;
+
+    auto preferredExtension = preferredExtensionForMIMEType(mimeType);
+    if (preferredExtension.isEmpty())
+        return suggestedFilename;
+
+    auto dotPosition = suggestedFilename.reverseFind('.');
+    if (dotPosition == notFound)
+        return makeString(suggestedFilename, '.', preferredExtension);
+
+    auto currentExtension = suggestedFilename.substring(dotPosition + 1);
+    if (!equalIgnoringASCIICase(mimeTypeForExtension(currentExtension), mimeType))
+        return makeString(suggestedFilename.left(dotPosition), '.', preferredExtension);
+
+    // Only strip the middle extension if it belongs to a different major MIME type to preserve compound extensions (e.g. ".tar.gz").
+    auto basePart = suggestedFilename.left(dotPosition);
+    auto secondDotPosition = basePart.reverseFind('.');
+    if (secondDotPosition == notFound)
+        return suggestedFilename;
+
+    auto middleMIMEType = mimeTypeForExtension(basePart.substring(secondDotPosition + 1));
+    if (!middleMIMEType.isEmpty()) {
+        auto slashPosition = mimeType.find('/');
+        auto middleSlashPosition = middleMIMEType.find('/');
+        if (slashPosition != notFound && middleSlashPosition != notFound
+            && mimeType.left(slashPosition) != middleMIMEType.left(middleSlashPosition))
+            return makeString(basePart.left(secondDotPosition), '.', preferredExtension);
+    }
+
+    return suggestedFilename;
 }
 
 static inline String trimmedExtension(const String& extension)

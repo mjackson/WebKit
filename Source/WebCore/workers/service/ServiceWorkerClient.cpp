@@ -53,9 +53,7 @@ ServiceWorkerClient::ServiceWorkerClient(ServiceWorkerGlobalScope& context, Serv
 {
 }
 
-ServiceWorkerClient::~ServiceWorkerClient()
-{
-}
+ServiceWorkerClient::~ServiceWorkerClient() = default;
 
 const URL& ServiceWorkerClient::url() const
 {

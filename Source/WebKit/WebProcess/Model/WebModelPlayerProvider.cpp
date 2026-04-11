@@ -34,17 +34,6 @@
 #include <WebCore/Settings.h>
 #include <wtf/TZoneMallocInlines.h>
 
-#if ENABLE(ARKIT_INLINE_PREVIEW_MAC)
-#include "ARKitInlinePreviewModelPlayerMac.h"
-#endif
-
-#if ENABLE(ARKIT_INLINE_PREVIEW_IOS)
-#include "ARKitInlinePreviewModelPlayerIOS.h"
-#endif
-
-#if HAVE(SCENEKIT)
-#include <WebCore/SceneKitModelPlayer.h>
-#endif
 
 #if ENABLE(MODEL_PROCESS)
 #include "ModelProcessModelPlayer.h"
@@ -72,26 +61,14 @@ WebModelPlayerProvider::~WebModelPlayerProvider() = default;
 RefPtr<WebCore::ModelPlayer> WebModelPlayerProvider::createModelPlayer(WebCore::ModelPlayerClient& client)
 {
     Ref page = m_page.get();
-    UNUSED_PARAM(page);
 #if ENABLE(MODEL_PROCESS)
     if (page->corePage() && page->corePage()->settings().modelProcessEnabled())
         return WebProcess::singleton().modelProcessModelPlayerManager().createModelProcessModelPlayer(page, client);
-#endif
-#if ENABLE(GPU_PROCESS_MODEL)
+#elif ENABLE(GPU_PROCESS_MODEL)
     if (page->corePage() && page->corePage()->settings().modelElementEnabled())
         return WebModelPlayer::create(*page->corePage(), client);
-#endif
-
-#if ENABLE(ARKIT_INLINE_PREVIEW_MAC)
-    if (page->useARKitForModel())
-        return ARKitInlinePreviewModelPlayerMac::create(page, client);
-#endif
-#if HAVE(SCENEKIT)
-    if (page->useSceneKitForModel())
-        return WebCore::SceneKitModelPlayer::create(client);
-#endif
-#if ENABLE(ARKIT_INLINE_PREVIEW_IOS)
-    return ARKitInlinePreviewModelPlayerIOS::create(page, client);
+#else
+    UNUSED_PARAM(page);
 #endif
 
     UNUSED_PARAM(client);

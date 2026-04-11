@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -122,7 +122,7 @@ static void appendImageSourceOption(CFMutableDictionaryRef options, const IntSiz
     CFDictionarySetValue(options, kCGImageSourceThumbnailMaxPixelSize, maxDimensionNumber.get());
 }
 
-static void NODELETE appendImageSourceOption(CFMutableDictionaryRef options, ShouldDecodeToHDR shouldDecodeToHDR)
+static void appendImageSourceOption(CFMutableDictionaryRef options, ShouldDecodeToHDR shouldDecodeToHDR)
 {
 #if HAVE(SUPPORT_HDR_DISPLAY_APIS)
     if (shouldDecodeToHDR == ShouldDecodeToHDR::Yes)

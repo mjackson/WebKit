@@ -226,8 +226,8 @@ private:
     [[nodiscard]] Result<void> introduceFunction(const AST::Identifier&, const Type*);
     [[nodiscard]] Result<void> convertValue(const SourceSpan&, const Type*, std::optional<ConstantValue>&);
 
-    void evaluated(Evaluation);
-    void inferred(const Type*);
+    void NODELETE evaluated(Evaluation);
+    void NODELETE inferred(const Type*);
     [[nodiscard]] bool unify(const Type*, const Type*);
 
     [[nodiscard]] Result<void> binaryExpression(const SourceSpan&, AST::Expression*, AST::BinaryOperation, AST::Expression&, AST::Expression&);
@@ -236,7 +236,7 @@ private:
     [[nodiscard]] Result<void> allocateSimpleConstructor(ASCIILiteral, TargetConstructor, const Validator&, Arguments&&...);
     [[nodiscard]] Result<void> allocateTextureStorageConstructor(ASCIILiteral, Types::TextureStorage::Kind);
 
-    bool isModuleScope() const;
+    bool NODELETE isModuleScope() const;
 
     [[nodiscard]] Result<AccessMode> accessMode(AST::Expression&);
     [[nodiscard]] Result<TexelFormat> texelFormat(AST::Expression&);

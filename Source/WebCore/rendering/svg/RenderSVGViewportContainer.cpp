@@ -35,6 +35,7 @@
 #include "SVGSVGElement.h"
 #include "SVGViewSpec.h"
 #include <wtf/TZoneMallocInlines.h>
+#include "RenderObjectNode.h"
 
 namespace WebCore {
 
@@ -100,7 +101,15 @@ bool RenderSVGViewportContainer::needsHasSVGTransformFlags() const
     if (isOutermostSVGViewportContainer()) {
         if (useSVGSVGElement->useCurrentView())
             return true;
-        return !useSVGSVGElement->currentTranslateValue().isZero() || useSVGSVGElement->renderer()->style().usedZoom() != 1;
+        if (!useSVGSVGElement->currentTranslateValue().isZero() || useSVGSVGElement->renderer()->style().usedZoom() != 1)
+            return true;
+        // Need transform flags when the SVG root has a non-zero content box location
+        // (e.g., due to border or padding), so that the content box offset is propagated
+        // through the transform painting chain to transformed descendants.
+        // Use m_owningSVGRoot instead of parent() since this may be called during
+        // initializeStyle() before the renderer is attached to the tree.
+        if (m_owningSVGRoot)
+            return !m_owningSVGRoot->contentBoxLocation().isZero();
     }
 
     return false;

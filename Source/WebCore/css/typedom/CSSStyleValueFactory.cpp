@@ -39,11 +39,12 @@
 #include "CSSKeywordValue.h"
 #include "CSSNumericFactory.h"
 #include "CSSParser.h"
-#include "CSSPendingSubstitutionValue.h"
 #include "CSSPropertyParser.h"
 #include "CSSSerializationContext.h"
+#include "CSSShorthandSubstitutionValue.h"
 #include "CSSStyleImageValue.h"
 #include "CSSStyleValue.h"
+#include "CSSSubstitutionValue.h"
 #include "CSSTextShadowPropertyValue.h"
 #include "CSSTokenizer.h"
 #include "CSSTransformListValue.h"
@@ -54,7 +55,6 @@
 #include "CSSValueList.h"
 #include "CSSValuePool.h"
 #include "CSSVariableData.h"
-#include "CSSVariableReferenceValue.h"
 #include "ExceptionOr.h"
 #include "RenderStyle.h"
 #include "ScriptWrappableInlines.h"
@@ -78,7 +78,7 @@ RefPtr<CSSStyleValue> CSSStyleValueFactory::constructStyleValueForShorthandSeria
     CSSTokenizer tokenizer(serialization);
     if (serialization.contains("var("_s))
         return CSSUnparsedValue::create(tokenizer.tokenRange());
-    return CSSStyleValue::create(CSSVariableReferenceValue::create(tokenizer.tokenRange(), { document }));
+    return CSSStyleValue::create(CSSSubstitutionValue::create(tokenizer.tokenRange(), { }, { document }));
 }
 
 ExceptionOr<RefPtr<CSSValue>> CSSStyleValueFactory::extractCSSValue(Document& document, const CSSPropertyID& propertyID, const String& cssText)
@@ -289,20 +289,22 @@ ExceptionOr<Ref<CSSStyleValue>> CSSStyleValueFactory::reifyValue(Document& docum
         default:
             break;
         }
+    } else if (auto* customIdentValue = dynamicDowncast<CSSCustomIdentValue>(cssValue)) {
+        return upcast<CSSStyleValue>(CSSKeywordValue::rectifyKeywordish(customIdentValue->cssText(CSS::defaultSerializationContext())));
     } else if (auto* imageValue = dynamicDowncast<CSSImageValue>(cssValue))
         return Ref<CSSStyleValue> { CSSStyleImageValue::create(const_cast<CSSImageValue&>(*imageValue), document) };
-    else if (auto* referenceValue = dynamicDowncast<CSSVariableReferenceValue>(cssValue)) {
+    else if (auto* referenceValue = dynamicDowncast<CSSSubstitutionValue>(cssValue)) {
         return Ref<CSSStyleValue> { CSSUnparsedValue::create(referenceValue->data().tokenRange()) };
-    } else if (auto* substitutionValue = dynamicDowncast<CSSPendingSubstitutionValue>(cssValue)) {
+    } else if (auto* substitutionValue = dynamicDowncast<CSSShorthandSubstitutionValue>(cssValue)) {
         return Ref<CSSStyleValue> { CSSUnparsedValue::create(substitutionValue->shorthandValue().data().tokenRange()) };
     } else if (auto* customPropertyValue = dynamicDowncast<CSSCustomPropertyValue>(cssValue)) {
         // FIXME: remove CSSStyleValue::create(WTF::move(cssValue)), add reification control flow
         return WTF::switchOn(customPropertyValue->value(),
-            [&](const Ref<CSSVariableReferenceValue>& value) {
+            [&](const Ref<CSSSubstitutionValue>& value) {
                 return reifyValue(document, value, propertyID);
             },
             [&](const Ref<CSSVariableData>& value) {
-                return reifyValue(document, CSSVariableReferenceValue::create(value.copyRef()), propertyID);
+                return reifyValue(document, CSSSubstitutionValue::create(value.copyRef()), propertyID);
             },
             [&](const CSSWideKeyword&) {
                 return ExceptionOr<Ref<CSSStyleValue>> { CSSStyleValue::create(Ref(const_cast<CSSValue&>(cssValue))) };

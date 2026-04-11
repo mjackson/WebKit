@@ -73,6 +73,7 @@ public:
     bool shouldPresentPopovers() const { return boolTestRunnerFeatureValue("shouldPresentPopovers"); }
     bool shouldShowSpellCheckingDots() const { return boolTestRunnerFeatureValue("spellCheckingDots"); }
     bool shouldShowTouches() const { return boolTestRunnerFeatureValue("shouldShowTouches"); }
+    bool shouldShowCursor() const { return boolTestRunnerFeatureValue("shouldShowCursor"); }
     bool shouldShowWindow() const { return boolTestRunnerFeatureValue("shouldShowWindow"); }
     bool textInteractionEnabled() const { return boolTestRunnerFeatureValue("textInteractionEnabled"); }
     bool useCharacterSelectionGranularity() const { return boolTestRunnerFeatureValue("useCharacterSelectionGranularity"); }

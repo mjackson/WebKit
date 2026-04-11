@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -305,15 +305,6 @@ public:
 #elif PLATFORM(WPE)
         m_syntheticClickType = static_cast<WebCore::SyntheticClickType>(webEvent.syntheticClickType());
 #endif
-        m_modifierFlags = 0;
-        if (webEvent.shiftKey())
-            m_modifierFlags |= static_cast<unsigned>(WebEventModifier::ShiftKey);
-        if (webEvent.controlKey())
-            m_modifierFlags |= static_cast<unsigned>(WebEventModifier::ControlKey);
-        if (webEvent.altKey())
-            m_modifierFlags |= static_cast<unsigned>(WebEventModifier::AltKey);
-        if (webEvent.metaKey())
-            m_modifierFlags |= static_cast<unsigned>(WebEventModifier::MetaKey);
 
         m_pointerId = webEvent.pointerId();
         m_pointerType = webEvent.pointerType();

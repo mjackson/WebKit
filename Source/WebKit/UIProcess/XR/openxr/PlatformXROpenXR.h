@@ -60,7 +60,7 @@ public:
     void endSessionIfExists(WebPageProxy&) override;
 
     void scheduleAnimationFrame(WebPageProxy&, std::optional<PlatformXR::RequestData>&&, PlatformXR::Device::RequestFrameCallback&& onFrameUpdateCallback) override;
-    void submitFrame(WebPageProxy&, Vector<XRDeviceLayer>&&) override;
+    void submitFrame(WebPageProxy&, Vector<PlatformXR::DeviceLayer>&&) override;
 
 #if ENABLE(WEBXR_HIT_TEST)
     void requestHitTestSource(WebPageProxy&, const PlatformXR::HitTestOptions&, CompletionHandler<void(WebCore::ExceptionOr<PlatformXR::HitTestSource>)>&&) override;
@@ -104,7 +104,7 @@ private:
 #endif
     PlatformXR::FrameData populateFrameData(Box<RenderState>);
     void beginFrame(Box<RenderState>);
-    void endFrame(Box<RenderState>, Vector<XRDeviceLayer>&&);
+    void endFrame(Box<RenderState>, Vector<PlatformXR::DeviceLayer>&&);
     void renderLoop(Box<RenderState>);
     XrEnvironmentBlendMode blendModeForSessionMode(Box<RenderState>) const;
 

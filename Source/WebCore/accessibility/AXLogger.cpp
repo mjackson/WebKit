@@ -1127,9 +1127,6 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
     case AXProperty::OuterHTML:
         stream << "OuterHTML";
         break;
-    case AXProperty::Path:
-        stream << "Path";
-        break;
     case AXProperty::PlaceholderValue:
         stream << "PlaceholderValue";
         break;

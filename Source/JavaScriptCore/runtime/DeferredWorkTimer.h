@@ -59,7 +59,7 @@ public:
         inline static Ref<TicketData> create(WorkType, JSObject* scriptExecutionOwner, Vector<JSCell*>&& dependencies);
 
         WorkType type() const { return m_type; }
-        inline VM& vm();
+        inline VM& NODELETE vm();
         JSObject* target();
         bool isTargetObject();
         inline const FixedVector<JSCell*>& dependencies(bool mayBeCancelled = false);
@@ -86,9 +86,9 @@ public:
     JS_EXPORT_PRIVATE Ticket addPendingWork(WorkType, VM&, JSObject* target, Vector<JSCell*>&& dependencies);
     void cancelPendingWork(VM&);
 
-    JS_EXPORT_PRIVATE bool hasAnyPendingWork() const;
-    JS_EXPORT_PRIVATE bool hasImminentlyScheduledWork() const;
-    bool hasPendingWork(Ticket);
+    JS_EXPORT_PRIVATE bool NODELETE hasAnyPendingWork() const;
+    JS_EXPORT_PRIVATE bool NODELETE hasImminentlyScheduledWork() const;
+    bool NODELETE hasPendingWork(Ticket);
     bool hasDependencyInPendingWork(Ticket, JSCell* dependency);
     bool cancelPendingWork(Ticket);
     void cancelPendingWorkSafe(JSGlobalObject*);

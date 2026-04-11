@@ -866,13 +866,13 @@ public:
                 VALIDATE(value->type() == Int64, ("At ", *value)); // returns struct pointer
                 break;
             case WasmRefCast:
-                VALIDATE(value->numChildren() == 1, ("At ", *value));
+                VALIDATE(value->numChildren() == 1 || value->numChildren() == 2, ("At ", *value));
                 VALIDATE(value->child(0)->type() == Int64, ("At ", *value)); // reference input
                 VALIDATE(value->type() == Int64, ("At ", *value)); // returns reference
                 break;
             case WasmRefTest:
                 VALIDATE(!value->kind().hasExtraBits(), ("At ", *value));
-                VALIDATE(value->numChildren() == 1, ("At ", *value));
+                VALIDATE(value->numChildren() == 1 || value->numChildren() == 2, ("At ", *value));
                 VALIDATE(value->child(0)->type() == Int64, ("At ", *value)); // reference input
                 VALIDATE(value->type() == Int32, ("At ", *value)); // returns boolean
                 break;

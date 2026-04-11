@@ -28,12 +28,14 @@
 
 #include "CommonAtomStrings.h"
 #include "Editing.h"
+#include "EditingInlines.h"
 #include "ElementInlines.h"
 #include "HTMLBRElement.h"
 #include "HTMLDivElement.h"
 #include "HTMLNames.h"
 #include "NodeRenderStyle.h"
 #include "NodeTraversal.h"
+#include "PositionInlines.h"
 #include "RenderListItem.h"
 #include "Text.h"
 

@@ -31,34 +31,28 @@
 #include "config.h"
 #include "CSSGridLineNamesValue.h"
 
-#include "CSSMarkup.h"
 #include <wtf/text/StringBuilder.h>
 
 namespace WebCore {
 
-String CSSGridLineNamesValue::customCSSText(const CSS::SerializationContext&) const
-{
-    StringBuilder result;
-    result.append('[');
-    bool first = true;
-    for (auto& name : m_names) {
-        if (!std::exchange(first, false))
-            result.append(' ');
-        serializeIdentifier(name, result);
-    }
-    result.append(']');
-    return result.toString();
-}
-
-CSSGridLineNamesValue::CSSGridLineNamesValue(std::span<const String> names)
+CSSGridLineNamesValue::CSSGridLineNamesValue(SpaceSeparatedVector<CSS::CustomIdent>&& names)
     : CSSValue(ClassType::GridLineNames)
-    , m_names(names.begin(), names.end())
+    , m_names(WTF::move(names))
 {
 }
 
-Ref<CSSGridLineNamesValue> CSSGridLineNamesValue::create(std::span<const String> names)
+Ref<CSSGridLineNamesValue> CSSGridLineNamesValue::create(SpaceSeparatedVector<CSS::CustomIdent>&& names)
 {
-    return adoptRef(*new CSSGridLineNamesValue(names));
+    return adoptRef(*new CSSGridLineNamesValue(WTF::move(names)));
+}
+
+String CSSGridLineNamesValue::customCSSText(const CSS::SerializationContext& context) const
+{
+    StringBuilder builder;
+    builder.append('[');
+    CSS::serializationForCSS(builder, context, m_names);
+    builder.append(']');
+    return builder.toString();
 }
 
 } // namespace WebCore

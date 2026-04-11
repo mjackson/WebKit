@@ -156,9 +156,7 @@ RegLiveness::RegLiveness(Code& code)
         }
 }
 
-RegLiveness::~RegLiveness()
-{
-}
+RegLiveness::~RegLiveness() = default;
 
 RegLiveness::LocalCalcForUnifiedTmpLiveness::LocalCalcForUnifiedTmpLiveness(UnifiedTmpLiveness& liveness, BasicBlock* block)
     : LocalCalcBase(block)

@@ -619,7 +619,7 @@ private:
 
     bool shouldClearContentSecurityPolicyForResponse(const ResourceResponse&) const;
 
-    bool isMultipartReplacingLoad() const;
+    bool NODELETE isMultipartReplacingLoad() const;
     bool isPostOrRedirectAfterPost(const ResourceRequest&, const ResourceResponse&);
 
     bool tryLoadingSubstituteData();

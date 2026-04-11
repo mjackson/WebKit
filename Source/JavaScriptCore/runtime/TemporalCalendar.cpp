@@ -436,12 +436,12 @@ ISO8601::PlainDate TemporalCalendar::isoDateAdd(JSGlobalObject* globalObject, co
     return result;
 }
 
-static ISO8601::Duration dateDuration(double y, double m, double w, double d)
+static ISO8601::Duration NODELETE dateDuration(double y, double m, double w, double d)
 {
     return ISO8601::Duration { y, m, w, d, 0, 0, 0, 0, 0, 0 };
 }
 
-static bool isoDateSurpasses(int32_t sign, double y1, double m1, double d1, const ISO8601::PlainDate& isoDate2)
+static bool NODELETE isoDateSurpasses(int32_t sign, double y1, double m1, double d1, const ISO8601::PlainDate& isoDate2)
 {
     if (y1 != isoDate2.year()) {
         if (sign * (y1 - isoDate2.year()) > 0)

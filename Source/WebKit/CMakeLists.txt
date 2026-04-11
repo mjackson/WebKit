@@ -969,6 +969,13 @@ add_custom_command(
     VERBATIM
 )
 
+# These files are very large and exhaust virtual memory on 32-bit ARM.
+if (WTF_CPU_ARM AND NOT CMAKE_CROSSCOMPILING)
+    set(GeneratedSerializers_COMPILE_OPTIONS -O0 -DRELEASE_WITHOUT_OPTIMIZATIONS=ON)
+    set_source_files_properties(${WebKit_DERIVED_SOURCES_DIR}/GeneratedSerializers.cpp PROPERTIES COMPILE_OPTIONS "${GeneratedSerializers_COMPILE_OPTIONS}")
+    set_source_files_properties(${WebKit_DERIVED_SOURCES_DIR}/WebKitPlatformGeneratedSerializers.cpp PROPERTIES COMPILE_OPTIONS "${GeneratedSerializers_COMPILE_OPTIONS}")
+endif ()
+
 set(WebKit_JSON_RPC_PROTOCOL_GENERATOR_SCRIPTS
     ${PROTOCOL_GENERATOR_SCRIPTS_DIR}/generate-inspector-protocol-bindings.py
     ${PROTOCOL_GENERATOR_SCRIPTS_DIR}/codegen/cpp_generator.py

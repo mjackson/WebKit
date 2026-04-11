@@ -701,6 +701,10 @@ void run(const TestConfig* config)
     RUN(testSelectFold(42));
     RUN(testSelectFold(43));
     RUN(testSelectInvert());
+    RUN(testSelectInt32WithZeroElse());
+    RUN(testSelectInt64WithZeroElse());
+    RUN(testSelectInt32ImmWithZeroElse());
+    RUN(testSelectTestWithZeroElse());
     RUN(testCheckSelect());
     RUN(testCheckSelectCheckSelect());
     RUN(testCheckSelectAndCSE());
@@ -819,6 +823,14 @@ void run(const TestConfig* config)
     RUN(testReduceStrengthDivFloatByFour());
     RUN(testReduceStrengthDivDoubleByNegTwo());
     RUN(testReduceStrengthDivFloatByNegTwo());
+    RUN(testReduceStrengthBelowEqualZeroInt32());
+    RUN(testReduceStrengthBelowEqualZeroInt64());
+    RUN(testReduceStrengthBelowOneInt32());
+    RUN(testReduceStrengthBelowOneInt64());
+    RUN(testReduceStrengthAboveEqualOneInt32());
+    RUN(testReduceStrengthAboveEqualOneInt64());
+    RUN(testReduceStrengthAboveZeroInt32());
+    RUN(testReduceStrengthAboveZeroInt64());
     RUN(testAddShl32());
     RUN(testAddShl64());
     RUN(testAddShl65());
@@ -1119,6 +1131,13 @@ void run(const TestConfig* config)
     if (isARM64()) {
         RUN(testTernarySubInstructionSelection(Identity, Int64, Air::Sub64));
         RUN(testTernarySubInstructionSelection(Trunc, Int32, Air::Sub32));
+        RUN(testVectorTransposeEven());
+        RUN(testVectorTransposeOdd());
+        RUN(testVectorSwizzleBinaryToUnzipOdd());
+        RUN(testVectorSwizzleBinaryToEXT());
+        RUN(testVectorSwizzleBinaryCanonical());
+        RUN(testVectorSwizzleComposition());
+        RUN(testVectorSwizzleCompositionMultiUse());
     }
 
     RUN(testReportUsedRegistersLateUseFollowedByEarlyDefDoesNotMarkUseAsDead());
@@ -1144,8 +1163,6 @@ void run(const TestConfig* config)
         RUN(testVectorFmulByElementDouble());
         RUN(testVectorXorRotateRight64());
         RUN(testVectorXor3());
-        RUN(testVectorTransposeEven());
-        RUN(testVectorTransposeOdd());
         RUN(testVectorShlImmediate());
         RUN(testVectorShrImmediate());
         RUN(testVectorUnzipEven());
@@ -1155,17 +1172,12 @@ void run(const TestConfig* config)
         RUN(testVectorReverse());
         RUN(testVectorShlByOne());
         RUN(testVectorSwizzleToUnzipEven());
-        RUN(testVectorSwizzleBinaryToUnzipOdd());
-        RUN(testVectorSwizzleBinaryCanonical());
         RUN(testVectorSwizzleUnaryCanonical());
         RUN(testVectorExtractPair());
-        RUN(testVectorSwizzleBinaryToEXT());
         RUN(testVectorSwizzleUnaryToEXT());
         RUN(testVectorCanonicalSameInputFolding());
         RUN(testVectorSwizzleToDupElement());
-        RUN(testVectorSwizzleComposition());
         RUN(testVectorSwizzleUnaryComposition());
-        RUN(testVectorSwizzleCompositionMultiUse());
         RUN(testMulHigh32());
         RUN(testMulHigh64());
         RUN(testUMulHigh32());
@@ -1193,6 +1205,7 @@ void run(const TestConfig* config)
                             task = tasks.takeFirst();
                         }
 
+                        B3_TEST_ARENA_LIFETIME
                         task->run();
                     }
                 }));

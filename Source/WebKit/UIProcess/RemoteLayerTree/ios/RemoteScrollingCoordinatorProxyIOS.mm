@@ -66,8 +66,6 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(RemoteScrollingCoordinatorProxyIOS);
 
 using namespace WebCore;
 
-#define MESSAGE_CHECK(assertion) MESSAGE_CHECK_BASE(assertion, webPageProxy().legacyMainFrameProcess().connection())
-
 RemoteScrollingCoordinatorProxyIOS::RemoteScrollingCoordinatorProxyIOS(WebPageProxy& webPageProxy)
     : RemoteScrollingCoordinatorProxy(webPageProxy)
 {
@@ -634,50 +632,6 @@ void RemoteScrollingCoordinatorProxyIOS::scrollingTreeNodeDidEndScroll(Scrolling
 
     m_uiState.removeNodeWithActiveUserScroll(nodeID);
     sendUIStateChangedIfNecessary();
-}
-
-void RemoteScrollingCoordinatorProxyIOS::establishLayerTreeScrollingRelations(const RemoteLayerTreeHost& remoteLayerTreeHost)
-{
-    for (auto layerID : m_layersWithScrollingRelations) {
-        if (RefPtr layerNode = remoteLayerTreeHost.nodeForID(layerID)) {
-            layerNode->setActingScrollContainerID(std::nullopt);
-            layerNode->setStationaryScrollContainerIDs({ });
-        }
-    }
-    m_layersWithScrollingRelations.clear();
-
-    // Usually a scroll view scrolls its descendant layers. In some positioning cases it also controls non-descendants, or doesn't control a descendant.
-    // To do overlap hit testing correctly we tell layers about such relations.
-
-    for (auto& positionedNode : scrollingTree().activePositionedNodes()) {
-        Vector<PlatformLayerIdentifier> stationaryScrollContainerIDs;
-
-        for (auto overflowNodeID : positionedNode->relatedOverflowScrollingNodes()) {
-            RefPtr node = scrollingTree().nodeForID(overflowNodeID);
-            RefPtr overflowNode = dynamicDowncast<ScrollingTreeOverflowScrollingNode>(node.get());
-            MESSAGE_CHECK(overflowNode);
-            RetainPtr scrollContainerLayer = static_cast<CALayer*>(overflowNode->scrollContainerLayer());
-            auto layerID = RemoteLayerTreeNode::layerID(scrollContainerLayer.get());
-            MESSAGE_CHECK(layerID);
-            stationaryScrollContainerIDs.append(*layerID);
-        }
-
-        if (RefPtr layerNode = RemoteLayerTreeNode::forCALayer(protect(positionedNode->layer()))) {
-            layerNode->setStationaryScrollContainerIDs(WTF::move(stationaryScrollContainerIDs));
-            m_layersWithScrollingRelations.add(layerNode->layerID());
-        }
-    }
-
-    for (auto& scrollProxyNode : scrollingTree().activeOverflowScrollProxyNodes()) {
-        RefPtr node = scrollingTree().nodeForID(scrollProxyNode->overflowScrollingNodeID());
-        RefPtr overflowNode = dynamicDowncast<ScrollingTreeOverflowScrollingNode>(node.get());
-        MESSAGE_CHECK(overflowNode);
-
-        if (RefPtr layerNode = RemoteLayerTreeNode::forCALayer(protect(scrollProxyNode->layer()))) {
-            layerNode->setActingScrollContainerID(RemoteLayerTreeNode::layerID(protect(static_cast<CALayer*>(overflowNode->scrollContainerLayer()))));
-            m_layersWithScrollingRelations.add(layerNode->layerID());
-        }
-    }
 }
 
 void RemoteScrollingCoordinatorProxyIOS::adjustTargetContentOffsetForSnapping(CGSize maxScrollOffsets, CGPoint velocity, CGFloat topInset, CGPoint currentContentOffset, CGPoint* targetContentOffset)

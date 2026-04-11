@@ -199,9 +199,7 @@ PlatformCAAnimationCocoa::PlatformCAAnimationCocoa(PlatformAnimationRef animatio
     m_animation = caAnimation;
 }
 
-PlatformCAAnimationCocoa::~PlatformCAAnimationCocoa()
-{
-}
+PlatformCAAnimationCocoa::~PlatformCAAnimationCocoa() = default;
 
 Ref<PlatformCAAnimation> PlatformCAAnimationCocoa::copy() const
 {

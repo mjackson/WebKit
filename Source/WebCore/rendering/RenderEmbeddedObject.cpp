@@ -415,7 +415,7 @@ bool RenderEmbeddedObject::isInUnavailablePluginIndicator(const FloatPoint& poin
 
 bool RenderEmbeddedObject::isInUnavailablePluginIndicator(const MouseEvent& event) const
 {
-    return isInUnavailablePluginIndicator(absoluteToLocal(event.absoluteLocation(), UseTransforms));
+    return isInUnavailablePluginIndicator(absoluteToLocal(event.absoluteLocation(), MapCoordinatesMode::UseTransforms));
 }
 
 void RenderEmbeddedObject::handleUnavailablePluginIndicatorEvent(Event* event)
@@ -459,11 +459,11 @@ CursorDirective RenderEmbeddedObject::getCursor(const LayoutPoint& point, Cursor
 {
     if (isPluginUnavailable() && shouldUnavailablePluginMessageBeButton(page(), m_pluginUnavailabilityReason) && isInUnavailablePluginIndicator(point)) {
         cursor = handCursor();
-        return SetCursor;
+        return CursorDirective::SetCursor;
     }
     if (widget() && widget()->isPluginViewBase()) {
         // A plug-in is responsible for setting the cursor when the pointer is over it.
-        return DoNotSetCursor;
+        return CursorDirective::DoNotSetCursor;
     }
     return RenderWidget::getCursor(point, cursor);
 }

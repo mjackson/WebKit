@@ -49,11 +49,19 @@ class StreamingPlan;
 
 class StreamingCompiler final : public StreamingParserClient, public ThreadSafeRefCounted<StreamingCompiler> {
 public:
-    JS_EXPORT_PRIVATE static Ref<StreamingCompiler> create(VM&, CompilerMode, JSGlobalObject*, JSPromise*, JSObject* importObject, std::optional<WebAssemblyCompileOptions>&&, const SourceCode&);
+    JS_EXPORT_PRIVATE static Ref<StreamingCompiler> create(VM&, CompilerMode, JSGlobalObject*, JSPromise*, JSObject* importObject, std::optional<WebAssemblyCompileOptions>&&, const SourceCode&, String wasmSourceURL = { });
 
     JS_EXPORT_PRIVATE ~StreamingCompiler();
 
-    void addBytes(std::span<const uint8_t> bytes) { m_parser.addBytes(bytes); }
+    void addBytes(std::span<const uint8_t> bytes)
+    {
+#if ENABLE(WEBASSEMBLY_DEBUGGER)
+        // Accumulate source bytes for the debugger — the streaming path has no single source vector and discards bytes as it's done with them.
+        if (Options::enableWasmDebugger()) [[unlikely]]
+            m_info->debugInfo->source.append(bytes);
+#endif
+        m_parser.addBytes(bytes);
+    }
     JS_EXPORT_PRIVATE void finalize(JSGlobalObject*);
     JS_EXPORT_PRIVATE void fail(JSGlobalObject*, JSValue);
     JS_EXPORT_PRIVATE void cancel();
@@ -61,7 +69,7 @@ public:
     void didCompileFunction(StreamingPlan&);
 
 private:
-    JS_EXPORT_PRIVATE StreamingCompiler(VM&, CompilerMode, JSGlobalObject*, JSPromise*, JSObject* importObject, std::optional<WebAssemblyCompileOptions>&&, const SourceCode&);
+    JS_EXPORT_PRIVATE StreamingCompiler(VM&, CompilerMode, JSGlobalObject*, JSPromise*, JSObject* importObject, std::optional<WebAssemblyCompileOptions>&&, const SourceCode&, String wasmSourceURL);
 
     bool didReceiveFunctionData(FunctionCodeIndex, const FunctionData&) final;
     void didFinishParsing() final;

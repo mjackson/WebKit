@@ -130,14 +130,25 @@ MediaPlayerPrivateWebM::MediaPlayerPrivateWebM(MediaPlayer& player)
 #endif
 }
 
-// Destructor runs on main thread (DestructionThread::Main). At this point all running-queue
-// work has drained, so accessing running-queue-guarded members is safe at runtime even though
-// the static analyzer cannot prove it.
 MediaPlayerPrivateWebM::~MediaPlayerPrivateWebM() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
 {
     ALWAYS_LOG(LOGIDENTIFIER);
 
-    cancelPendingSeek();
+    // cancelPendingSeek() requires being on m_runningQueue because disconnecting a
+    // NativePromiseRequest requires being on the queue the callback was registered on.
+    // Move the seek request out and dispatch to that queue.
+    m_runningQueue->dispatch([seekRequest = std::exchange(m_rendererSeekRequest, NativePromiseRequest::create())]() mutable {
+        if (seekRequest->hasCallback())
+            seekRequest->disconnect();
+    });
+
+    // clearTracks() and cancelLoad() access running-queue-guarded members on the main thread.
+    // This is safe because the destructor runs only after the ref count reaches zero. Any
+    // running-queue lambda that captures weakThis must successfully lock it to a strong Ref
+    // before accessing those members; locking requires the ref count to be non-zero, which
+    // is impossible at this point. Therefore no running-queue code can concurrently access
+    // those members, and the static-analysis annotation is the only thing suppressed here.
+    m_waitForTimeBufferedPromise.reset();
 
     clearTracks();
 
@@ -609,49 +620,41 @@ void MediaPlayerPrivateWebM::seekInternal()
         protectedThis->m_lastSeekTime = seekTime;
         protectedThis->cancelPendingSeek();
         protectedThis->m_seeking = true;
-        protectedThis->m_renderer->prepareToSeek();
-
+        protectedThis->m_renderer->stall();
         protectedThis->waitForTimeBuffered(seekTime)->whenSettled(protectedThis->m_runningQueue, [weakThis, seekTime](auto&& result) {
             RefPtr protectedThis = weakThis.get();
             if (!result || !protectedThis)
-                return; // seek cancelled.
+                return MediaTimePromise::createAndReject(PlatformMediaError::Cancelled); // seek cancelled.
+            return protectedThis->m_renderer->prepareToSeek(seekTime);
+        })->whenSettled(protectedThis->m_runningQueue, [weakThis, seekTime](auto&& result) {
+            RefPtr protectedThis = weakThis.get();
+            if (!result || !protectedThis)
+                return;
+            if (!result->isIndefinite()) {
+                protectedThis->completeSeek(*result);
+                return;
+            }
+            protectedThis->reenqueueMediaForTime(seekTime);
+            protectedThis->m_renderer->finishSeek(seekTime)->whenSettled(protectedThis->m_runningQueue, [weakThis, seekTime](auto&& result) {
+                RefPtr protectedThis = weakThis.get();
+                if (!protectedThis)
+                    return;
+                protect(protectedThis->m_rendererSeekRequest)->complete();
 
-            return protectedThis->startSeek(seekTime);
+                if (!result)
+                    return;
+                protectedThis->completeSeek(seekTime);
+            })->track(protectedThis->m_rendererSeekRequest);
         });
     });
 }
 
-void MediaPlayerPrivateWebM::cancelPendingSeek() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
-{
-    if (m_rendererSeekRequest->hasCallback())
-        m_rendererSeekRequest->disconnect();
-    if (auto promise = std::exchange(m_waitForTimeBufferedPromise, std::nullopt))
-        promise->reject();
-}
-
-void MediaPlayerPrivateWebM::startSeek(const MediaTime& seekTime)
+void MediaPlayerPrivateWebM::cancelPendingSeek()
 {
     assertIsCurrent(runningQueue());
-    ALWAYS_LOG(LOGIDENTIFIER, seekTime);
-    m_renderer->seekTo(seekTime)->whenSettled(m_runningQueue, [weakThis = ThreadSafeWeakPtr { *this }, seekTime](auto&& result) {
-        if (!result && result.error() != PlatformMediaError::RequiresFlushToResume)
-            return; // cancelled.
-
-        RefPtr protectedThis = weakThis.get();
-        if (!protectedThis)
-            return;
-
-        protectedThis->m_rendererSeekRequest->complete();
-
-        if (!result) {
-            ASSERT(result.error() == PlatformMediaError::RequiresFlushToResume);
-            protectedThis->flush();
-            protectedThis->reenqueueMediaForTime(seekTime);
-            // Try seeking again.
-            return protectedThis->startSeek(seekTime);
-        }
-        protectedThis->completeSeek(*result);
-    })->track(m_rendererSeekRequest.get());
+    if (m_rendererSeekRequest->hasCallback())
+        protect(m_rendererSeekRequest)->disconnect();
+    m_waitForTimeBufferedPromise.reset();
 }
 
 void MediaPlayerPrivateWebM::completeSeek(const MediaTime& seekedTime)
@@ -1208,7 +1211,7 @@ void MediaPlayerPrivateWebM::reenqueueMediaForTime(const MediaTime& time)
     for (auto& trackBufferPair : m_trackBufferMap) {
         TrackBuffer& trackBuffer = trackBufferPair.second;
         auto trackId = trackBufferPair.first;
-        reenqueueMediaForTime(trackBuffer, trackId, time, NeedsFlush::No);
+        reenqueueMediaForTime(trackBuffer, trackId, time);
     }
 }
 

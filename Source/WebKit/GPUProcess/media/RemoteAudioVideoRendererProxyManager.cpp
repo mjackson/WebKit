@@ -34,6 +34,8 @@
 #include "LayerHostingContext.h"
 #include "Logging.h"
 #include "RemoteAudioVideoRendererProxyManagerMessages.h"
+#include "RemoteCDMFactoryProxy.h"
+#include "RemoteCDMInstanceProxy.h"
 #include "RemoteLegacyCDMFactoryProxy.h"
 #include "RemoteLegacyCDMSessionProxy.h"
 #include "RemoteVideoFrameObjectHeap.h"
@@ -373,21 +375,30 @@ void RemoteAudioVideoRendererProxyManager::stall(RemoteAudioVideoRendererIdentif
         renderer->stall();
 }
 
-void RemoteAudioVideoRendererProxyManager::prepareToSeek(RemoteAudioVideoRendererIdentifier identifier)
-{
-    if (RefPtr renderer = rendererFor(identifier))
-        renderer->prepareToSeek();
-}
-
-void RemoteAudioVideoRendererProxyManager::seekTo(RemoteAudioVideoRendererIdentifier identifier, const MediaTime& time, CompletionHandler<void(WebCore::MediaTimePromise::Result&&)>&& completionHandler)
+void RemoteAudioVideoRendererProxyManager::prepareToSeek(RemoteAudioVideoRendererIdentifier identifier, const MediaTime& seekTime, CompletionHandler<void(WebCore::MediaTimePromise::Result&&)>&& completionHandler)
 {
     RefPtr renderer = rendererFor(identifier);
     if (!renderer) {
         completionHandler(makeUnexpected(PlatformMediaError::NotSupportedError));
         return;
     }
-    renderer->seekTo(time)->whenSettled(RunLoop::mainSingleton(), [protectedThis = Ref { *this }, identifier, completionHandler = WTF::move(completionHandler)](auto&& result) mutable {
-        protectedThis->m_gpuConnectionToWebProcess.get()->connection().send(Messages::AudioVideoRendererRemoteMessageReceiver::StateUpdate(protectedThis->stateFor(identifier)), identifier);
+    renderer->prepareToSeek(seekTime)->whenSettled(RunLoop::mainSingleton(), [weakThis = WeakPtr { *this }, identifier, completionHandler = WTF::move(completionHandler)](auto&& result) mutable {
+        if (RefPtr protectedThis = weakThis.get(); protectedThis && protectedThis->m_renderers.contains(identifier))
+            protectedThis->m_gpuConnectionToWebProcess.get()->connection().send(Messages::AudioVideoRendererRemoteMessageReceiver::StateUpdate(protectedThis->stateFor(identifier)), identifier);
+        completionHandler(WTF::move(result));
+    });
+}
+
+void RemoteAudioVideoRendererProxyManager::finishSeek(RemoteAudioVideoRendererIdentifier identifier, const MediaTime& time, CompletionHandler<void(GenericPromise::Result&&)>&& completionHandler)
+{
+    RefPtr renderer = rendererFor(identifier);
+    if (!renderer) {
+        completionHandler(makeUnexpected(GenericPromise::RejectValueType { }));
+        return;
+    }
+    renderer->finishSeek(time)->whenSettled(RunLoop::mainSingleton(), [weakThis = WeakPtr { *this }, identifier, completionHandler = WTF::move(completionHandler)](auto&& result) mutable {
+        if (RefPtr protectedThis = weakThis.get(); protectedThis && protectedThis->m_renderers.contains(identifier))
+            protectedThis->m_gpuConnectionToWebProcess.get()->connection().send(Messages::AudioVideoRendererRemoteMessageReceiver::StateUpdate(protectedThis->stateFor(identifier)), identifier);
         completionHandler(WTF::move(result));
     });
 }
@@ -558,7 +569,6 @@ RemoteAudioVideoRendererState RemoteAudioVideoRendererProxyManager::stateFor(Rem
     return {
         .currentTime = renderer->currentTime(),
         .paused = renderer->paused(),
-        .seeking = renderer->seeking(),
         .timeIsProgressing = renderer->timeIsProgressing(),
         .effectiveRate = renderer->effectiveRate(),
         .videoPlaybackQualityMetrics = renderer->videoPlaybackQualityMetrics()
@@ -636,7 +646,7 @@ void RemoteAudioVideoRendererProxyManager::setLegacyCDMSession(RemoteAudioVideoR
         renderer->setCDMSession(nullptr);
         return;
     }
-    if (RefPtr cdmSession = protect(m_gpuConnectionToWebProcess.get()->legacyCdmFactoryProxy())->getSession(*instanceId))
+    if (RefPtr cdmSession = m_gpuConnectionToWebProcess.get()->legacyCdmFactoryProxy().getSession(*instanceId))
         renderer->setCDMSession(protect(cdmSession->session()).get());
     else
         ALWAYS_LOG(LOGIDENTIFIER, "Unable to find LegacyCDMSession: ", instanceId->loggingString());

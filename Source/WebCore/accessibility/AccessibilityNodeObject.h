@@ -61,7 +61,7 @@ public:
     bool isOrderedList() const final;
     bool isDescriptionList() const final;
     bool isMultiSelectable() const override;
-    bool isNativeImage() const;
+    bool NODELETE isNativeImage() const;
     bool isNativeTextControl() const final;
     bool isSecureField() const final;
     bool isSearchField() const final;
@@ -229,7 +229,7 @@ public:
 
     LayoutRect elementRect() const override;
     Path elementPath() const override;
-    bool supportsPath() const override { return isImageMapLink(); }
+    bool supportsPath() const override;
 
     bool isLabelContainingOnlyStaticText() const;
     bool isNativeLabel() const override;

@@ -67,7 +67,8 @@
             "RetainPtr",
             "HashCountedSet",
             "FixedVector",
-            "Box"
+            "Box",
+            "RectEdges",
         ];
         if (window.testRunner && !testRunner.haveSecureCodingRequest) {
             containerTypes.push("IPC::CoreIPCRetainPtr");
@@ -124,6 +125,7 @@
             "short",
             "float",
             "bool",
+            "std::monostate",
             "std::nullptr_t",
             "uint32_t",
             "int32_t",
@@ -162,7 +164,8 @@
         // add IPC metadata in a *.serialization.in file instead.
         let result = [
             "CTFontDescriptorOptions",
-            "MachSendRight"
+            "MachSendRight",
+            "GenericPromise::Result", // Added to hide the implementation details that simulate an Expected<void, void>
         ];
         if (window.testRunner) {
             if (testRunner.isMac) {

@@ -197,9 +197,9 @@ Node::NeedsPostConnectionSteps SVGImageElement::insertionSteps(InsertionType ins
     return result;
 }
 
-const AtomString& SVGImageElement::imageSourceURL() const
+String SVGImageElement::imageSourceURL() const
 {
-    return getAttribute(SVGNames::hrefAttr, XLinkNames::hrefAttr);
+    return href();
 }
 
 void SVGImageElement::setCrossOrigin(const AtomString& value)

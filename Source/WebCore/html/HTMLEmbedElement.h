@@ -33,6 +33,8 @@ public:
     static Ref<HTMLEmbedElement> create(Document&);
     static Ref<HTMLEmbedElement> create(const QualifiedName&, Document&);
 
+    bool isExposed() const;
+
 private:
     HTMLEmbedElement(const QualifiedName&, Document&);
 
@@ -42,7 +44,7 @@ private:
     bool rendererIsNeeded(const RenderStyle&) final;
 
     bool NODELETE isURLAttribute(const Attribute&) const final;
-    const AtomString& imageSourceURL() const final;
+    String imageSourceURL() const final;
 
     bool isInteractiveContent() const final { return true; }
 

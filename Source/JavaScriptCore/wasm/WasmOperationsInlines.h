@@ -183,7 +183,7 @@ inline JSValue arrayNewFixed(JSWebAssemblyInstance* instance, WebAssemblyGCStruc
 template<typename T>
 EncodedJSValue createArrayFromDataSegment(JSWebAssemblyInstance* instance, WebAssemblyGCStructure* structure, size_t arraySize, unsigned dataSegmentIndex, unsigned offset)
 {
-    JSGlobalObject* globalObject = instance->globalObject();
+    JSGlobalObject* globalObject = instance->realm();
     VM& vm = globalObject->vm();
     auto* array = JSWebAssemblyArray::tryCreate(vm, structure, arraySize);
     if (!array) [[unlikely]]
@@ -295,7 +295,7 @@ inline EncodedJSValue arrayNewElem(JSWebAssemblyInstance* instance, uint32_t typ
 inline void arrayGet(JSWebAssemblyInstance* instance, uint32_t typeIndex, EncodedJSValue arrayValue, uint32_t index, IPInt::IPIntStackEntry* result)
 {
     ASSERT_UNUSED(instance, typeIndex < instance->module().moduleInformation().typeCount());
-    const Wasm::TypeDefinition& arraySignature = instance->module().moduleInformation().typeSignatures[typeIndex]->expand();
+    const Wasm::TypeDefinition& arraySignature = instance->module().moduleInformation().expandedTypeSignature(Wasm::TypeSignatureIndex(typeIndex));
     ASSERT_UNUSED(arraySignature, arraySignature.is<ArrayType>());
 
     JSValue arrayRef = JSValue::decode(arrayValue);
@@ -311,7 +311,7 @@ inline void arrayGet(JSWebAssemblyInstance* instance, uint32_t typeIndex, Encode
 inline void arraySet(JSWebAssemblyInstance* instance, uint32_t typeIndex, EncodedJSValue arrayValue, uint32_t index, IPInt::IPIntStackEntry* value)
 {
     ASSERT_UNUSED(instance, typeIndex < instance->module().moduleInformation().typeCount());
-    const Wasm::TypeDefinition& arraySignature = instance->module().moduleInformation().typeSignatures[typeIndex]->expand();
+    const Wasm::TypeDefinition& arraySignature = instance->module().moduleInformation().expandedTypeSignature(Wasm::TypeSignatureIndex(typeIndex));
     ASSERT(arraySignature.is<ArrayType>());
 
     JSValue arrayRef = JSValue::decode(arrayValue);
@@ -463,7 +463,7 @@ inline bool arrayInitData(JSWebAssemblyInstance* instance, EncodedJSValue dst, u
 // structNew() expects the `arguments` array (when used) to be in reverse order
 inline JSValue structNew(JSWebAssemblyInstance* instance, WebAssemblyGCStructure* structure, bool useDefault, IPInt::IPIntStackEntry* arguments)
 {
-    JSGlobalObject* globalObject = instance->globalObject();
+    JSGlobalObject* globalObject = instance->realm();
     VM& vm = globalObject->vm();
 
     ASSERT(structure->typeDefinition().is<StructType>());
@@ -656,12 +656,12 @@ inline int32_t tableSize(JSWebAssemblyInstance* instance, unsigned tableIndex)
     return instance->table(tableIndex)->length();
 }
 
-inline int32_t growMemory(JSWebAssemblyInstance* instance, int32_t delta)
+inline int32_t growMemory(JSWebAssemblyInstance* instance, int32_t delta, uint8_t memoryIndex)
 {
     if (delta < 0)
         return -1;
 
-    auto grown = instance->memory()->memory().grow(instance->vm(), PageCount(delta));
+    auto grown = instance->memory(memoryIndex)->memory().grow(instance->vm(), PageCount(delta));
     if (!grown) {
         switch (grown.error()) {
         case GrowFailReason::InvalidDelta:
@@ -677,16 +677,21 @@ inline int32_t growMemory(JSWebAssemblyInstance* instance, int32_t delta)
     return grown.value().pageCount();
 }
 
-inline bool memoryInit(JSWebAssemblyInstance* instance, unsigned dataSegmentIndex, uint64_t dstAddress, uint32_t srcAddress, uint32_t length)
+inline int64_t memorySize(JSWebAssemblyInstance* instance, uint8_t memoryIndex)
 {
-    ASSERT(dataSegmentIndex < instance->module().moduleInformation().dataSegmentsCount());
-    return instance->memoryInit(dstAddress, srcAddress, length, dataSegmentIndex);
+    return instance->memory(memoryIndex)->memory().size();
 }
 
-inline bool memoryFill(JSWebAssemblyInstance* instance, uint32_t dstAddress, uint32_t targetValue, uint32_t count)
+inline bool memoryInit(JSWebAssemblyInstance* instance, unsigned dataSegmentIndex, uint64_t dstAddress, uint32_t srcAddress, uint32_t length, uint8_t memoryIndex)
 {
-    auto* base = std::bit_cast<uint8_t*>(instance->cachedMemory());
-    uint64_t size = instance->cachedMemorySize();
+    ASSERT(dataSegmentIndex < instance->module().moduleInformation().dataSegmentsCount());
+    return instance->memoryInit(dstAddress, srcAddress, length, dataSegmentIndex, memoryIndex);
+}
+
+inline bool memoryFill(JSWebAssemblyInstance* instance, uint32_t dstAddress, uint32_t targetValue, uint32_t count, uint8_t memoryIndex)
+{
+    auto* base = std::bit_cast<uint8_t*>(instance->memory(memoryIndex)->basePointer());
+    uint64_t size = instance->memory(memoryIndex)->memory().size();
 
     uint64_t lastDstAddress = static_cast<uint64_t>(dstAddress) + count;
     if (lastDstAddress > size)
@@ -696,22 +701,24 @@ inline bool memoryFill(JSWebAssemblyInstance* instance, uint32_t dstAddress, uin
     return true;
 }
 
-inline bool memoryCopy(JSWebAssemblyInstance* instance, uint32_t dstAddress, uint32_t srcAddress, uint32_t count)
+inline bool memoryCopy(JSWebAssemblyInstance* instance, uint32_t dstAddress, uint32_t srcAddress, uint32_t count, uint8_t dstMemoryIndex, uint8_t srcMemoryIndex)
 {
-    auto* base = std::bit_cast<uint8_t*>(instance->cachedMemory());
-    uint64_t size = instance->cachedMemorySize();
+    auto* dstBase = std::bit_cast<uint8_t*>(instance->memory(dstMemoryIndex)->basePointer());
+    uint64_t dstSize = instance->memory(dstMemoryIndex)->memory().size();
+    auto* srcBase = std::bit_cast<uint8_t*>(instance->memory(srcMemoryIndex)->basePointer());
+    uint64_t srcSize = instance->memory(srcMemoryIndex)->memory().size();
 
     uint64_t lastDstAddress = static_cast<uint64_t>(dstAddress) + count;
     uint64_t lastSrcAddress = static_cast<uint64_t>(srcAddress) + count;
 
-    if (lastDstAddress > size || lastSrcAddress > size)
+    if (lastDstAddress > dstSize || lastSrcAddress > srcSize)
         return false;
 
     if (!count)
         return true;
 
     // Source and destination areas might overlap, so using memmove.
-    memmove(base + dstAddress, base + srcAddress, count);
+    memmoveSpan(std::span(dstBase + dstAddress, count), std::span(srcBase + srcAddress, count));
     return true;
 }
 
@@ -747,62 +754,62 @@ static inline int32_t waitImpl(VM& vm, ValueType* pointer, ValueType expectedVal
     return -1;
 }
 
-inline int32_t memoryAtomicWait32(JSWebAssemblyInstance* instance, uint64_t offsetInMemory, int32_t value, int64_t timeoutInNanoseconds)
+inline int32_t memoryAtomicWait32(JSWebAssemblyInstance* instance, uint64_t offsetInMemory, int32_t value, int64_t timeoutInNanoseconds, uint8_t memoryIndex)
 {
     VM& vm = instance->vm();
     if (offsetInMemory & (0x4 - 1))
         return -1;
-    if (!instance->memory())
+    if (memoryIndex >= instance->moduleInformation().memoryCount())
         return -1;
-    if (offsetInMemory >= instance->memory()->memory().size())
+    if (offsetInMemory >= instance->memory(memoryIndex)->memory().size())
         return -1;
-    if (instance->memory()->sharingMode() != MemorySharingMode::Shared)
+    if (instance->memory(memoryIndex)->sharingMode() != MemorySharingMode::Shared)
         return -1;
     if (!vm.m_typedArrayController->isAtomicsWaitAllowedOnCurrentThread())
         return -1;
-    int32_t* pointer = std::bit_cast<int32_t*>(std::bit_cast<uint8_t*>(instance->memory()->basePointer()) + offsetInMemory);
+    int32_t* pointer = std::bit_cast<int32_t*>(std::bit_cast<uint8_t*>(instance->memory(memoryIndex)->basePointer()) + offsetInMemory);
     return waitImpl<int32_t>(vm, pointer, value, timeoutInNanoseconds);
 }
 
-inline int32_t memoryAtomicWait32(JSWebAssemblyInstance* instance, unsigned base, unsigned offset, int32_t value, int64_t timeoutInNanoseconds)
+inline int32_t memoryAtomicWait32(JSWebAssemblyInstance* instance, unsigned base, unsigned offset, int32_t value, int64_t timeoutInNanoseconds, uint8_t memoryIndex)
 {
-    return memoryAtomicWait32(instance, static_cast<uint64_t>(base) + offset, value, timeoutInNanoseconds);
+    return memoryAtomicWait32(instance, static_cast<uint64_t>(base) + offset, value, timeoutInNanoseconds, memoryIndex);
 }
 
-inline int32_t memoryAtomicWait64(JSWebAssemblyInstance* instance, uint64_t offsetInMemory, int64_t value, int64_t timeoutInNanoseconds)
+inline int32_t memoryAtomicWait64(JSWebAssemblyInstance* instance, uint64_t offsetInMemory, int64_t value, int64_t timeoutInNanoseconds, uint8_t memoryIndex)
 {
     VM& vm = instance->vm();
     if (offsetInMemory & (0x8 - 1))
         return -1;
-    if (!instance->memory())
+    if (memoryIndex >= instance->moduleInformation().memoryCount())
         return -1;
-    if (offsetInMemory >= instance->memory()->memory().size())
+    if (offsetInMemory >= instance->memory(memoryIndex)->memory().size())
         return -1;
-    if (instance->memory()->sharingMode() != MemorySharingMode::Shared)
+    if (instance->memory(memoryIndex)->sharingMode() != MemorySharingMode::Shared)
         return -1;
     if (!vm.m_typedArrayController->isAtomicsWaitAllowedOnCurrentThread())
         return -1;
-    int64_t* pointer = std::bit_cast<int64_t*>(std::bit_cast<uint8_t*>(instance->memory()->basePointer()) + offsetInMemory);
+    int64_t* pointer = std::bit_cast<int64_t*>(std::bit_cast<uint8_t*>(instance->memory(memoryIndex)->basePointer()) + offsetInMemory);
     return waitImpl<int64_t>(vm, pointer, value, timeoutInNanoseconds);
 }
 
-inline int32_t memoryAtomicWait64(JSWebAssemblyInstance* instance, unsigned base, unsigned offset, int64_t value, int64_t timeoutInNanoseconds)
+inline int32_t memoryAtomicWait64(JSWebAssemblyInstance* instance, unsigned base, unsigned offset, int64_t value, int64_t timeoutInNanoseconds, uint8_t memoryIndex)
 {
-    return memoryAtomicWait64(instance, static_cast<uint64_t>(base) + offset, value, timeoutInNanoseconds);
+    return memoryAtomicWait64(instance, static_cast<uint64_t>(base) + offset, value, timeoutInNanoseconds, memoryIndex);
 }
 
-inline int32_t memoryAtomicNotify(JSWebAssemblyInstance* instance, unsigned base, unsigned offset, int32_t countValue)
+inline int32_t memoryAtomicNotify(JSWebAssemblyInstance* instance, unsigned base, unsigned offset, int32_t countValue, uint8_t memoryIndex)
 {
     uint64_t offsetInMemory = static_cast<uint64_t>(base) + offset;
     if (offsetInMemory & (0x4 - 1))
         return -1;
-    if (!instance->memory())
+    if (memoryIndex >= instance->moduleInformation().memoryCount())
         return -1;
-    if (offsetInMemory >= instance->memory()->memory().size())
+    if (offsetInMemory >= instance->memory(memoryIndex)->memory().size())
         return -1;
-    if (instance->memory()->sharingMode() != MemorySharingMode::Shared)
+    if (instance->memory(memoryIndex)->sharingMode() != MemorySharingMode::Shared)
         return 0;
-    uint8_t* pointer = std::bit_cast<uint8_t*>(instance->memory()->basePointer()) + offsetInMemory;
+    uint8_t* pointer = std::bit_cast<uint8_t*>(instance->memory(memoryIndex)->basePointer()) + offsetInMemory;
     unsigned count = UINT_MAX;
     if (countValue >= 0)
         count = static_cast<unsigned>(countValue);
@@ -812,7 +819,7 @@ inline int32_t memoryAtomicNotify(JSWebAssemblyInstance* instance, unsigned base
 
 inline void* throwWasmToJSException(CallFrame* callFrame, Wasm::ExceptionType type, JSWebAssemblyInstance* instance)
 {
-    JSGlobalObject* globalObject = instance->globalObject();
+    JSGlobalObject* globalObject = instance->realm();
 
     // Do not retrieve VM& from CallFrame since CallFrame's callee is not a JSCell.
     VM& vm = globalObject->vm();

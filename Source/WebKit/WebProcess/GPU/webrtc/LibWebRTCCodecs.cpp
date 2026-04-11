@@ -236,11 +236,7 @@ void LibWebRTCCodecs::initializeIfNeeded()
     static std::once_flag doInitializationOnce;
     std::call_once(doInitializationOnce, [] {
         callOnMainRunLoopAndWait([] {
-#if HAVE(AUDIT_TOKEN)
-            protect(WebProcess::singleton().ensureGPUProcessConnection())->auditToken();
-#else
-            WebProcess::singleton().ensureGPUProcessConnection();
-#endif
+            protect(WebProcess::singleton().ensureGPUProcessConnection())->waitForDidInitialize();
         });
     });
 }

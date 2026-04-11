@@ -27,6 +27,7 @@
 #include "LayoutState.h"
 
 #include "BlockFormattingState.h"
+#include "Document.h"
 #include "InlineContentCache.h"
 #include "LayoutBox.h"
 #include "LayoutBoxGeometry.h"

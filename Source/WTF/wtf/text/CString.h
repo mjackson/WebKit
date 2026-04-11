@@ -102,7 +102,7 @@ public:
 
     bool isHashTableDeletedValue() const { return m_buffer.isHashTableDeletedValue(); }
 
-    WTF_EXPORT_PRIVATE unsigned hash() const;
+    WTF_EXPORT_PRIVATE unsigned NODELETE hash() const;
 
 private:
     void copyBufferIfNeeded();

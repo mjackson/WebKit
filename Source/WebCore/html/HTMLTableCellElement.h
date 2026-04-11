@@ -47,12 +47,11 @@ public:
 
     WEBCORE_EXPORT int NODELETE cellIndex() const;
     WEBCORE_EXPORT unsigned colSpan() const;
-    unsigned rowSpan() const;
-    WEBCORE_EXPORT unsigned rowSpanForBindings() const;
+    WEBCORE_EXPORT unsigned rowSpan() const;
 
     void setCellIndex(int);
     WEBCORE_EXPORT void setColSpan(unsigned);
-    WEBCORE_EXPORT void setRowSpanForBindings(unsigned);
+    WEBCORE_EXPORT void setRowSpan(unsigned);
 
     String NODELETE abbr() const;
     String NODELETE axis() const;

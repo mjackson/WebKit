@@ -29,16 +29,19 @@
 
 #include "ContextDestructionObserverInlines.h"
 #include "EventLoop.h"
+#include "JSDOMConvertBufferSource.h"
 #include "JSDOMPromise.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSReadableStreamReadResult.h"
-#include "JSValueInWrappedObject.h"
+#include "JSValueInWrappedObjectInlines.h"
 #include "ReadableByteStreamController.h"
 #include "ReadableStream.h"
 #include "ReadableStreamBYOBReader.h"
 #include "ReadableStreamBYOBRequest.h"
 #include "ReadableStreamDefaultReader.h"
 #include "ScriptExecutionContextInlines.h"
+#include <JavaScriptCore/JSGlobalObjectInlines.h>
+#include <JavaScriptCore/MarkedVector.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
 
 namespace WebCore {
@@ -78,13 +81,11 @@ public:
     JSC::JSValue NODELETE reason2() { return m_branch2Reason.getValue(); }
     void setReason1(JSDOMGlobalObject& globalObject, const JSC::JSCell* owner, JSC::JSValue value)
     {
-        Ref vm = globalObject.vm();
-        m_branch1Reason.set(vm, owner, value);
+        m_branch1Reason.set(globalObject, owner, value);
     }
     void setReason2(JSDOMGlobalObject& globalObject, const JSC::JSCell* owner, JSC::JSValue value)
     {
-        Ref vm = globalObject.vm();
-        m_branch2Reason.set(vm, owner, value);
+        m_branch2Reason.set(globalObject, owner, value);
     }
     void visit(JSC::AbstractSlotVisitor& visitor) final
     {

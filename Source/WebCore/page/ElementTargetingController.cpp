@@ -619,12 +619,12 @@ static String searchableTextForTarget(Element& target)
     size_t longestLength = 0;
     TextIterator iterator { makeRangeSelectingNodeContents(target), { TextIteratorBehavior::EmitsTextsWithoutTranscoding } };
     for (; !iterator.atEnd(); iterator.advance()) {
-        auto text = iterator.copyableText().text().toString().trim(isASCIIWhitespace);
+        auto text = iterator.copyableText().text().trim(isASCIIWhitespace);
         if (text.length() <= longestLength)
             continue;
 
         longestLength = text.length();
-        longestText = WTF::move(text);
+        longestText = text.toString();
     }
 
     auto documentElements = collectDocumentElementsFromChildFrames(target);

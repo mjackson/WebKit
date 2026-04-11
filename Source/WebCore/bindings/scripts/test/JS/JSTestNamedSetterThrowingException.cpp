@@ -40,6 +40,7 @@
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
+#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -127,6 +128,11 @@ JSTestNamedSetterThrowingException::JSTestNamedSetterThrowingException(Structure
 }
 
 static_assert(!std::is_base_of<ActiveDOMObject, TestNamedSetterThrowingException>::value, "Interface is not marked as [ActiveDOMObject] even though implementation class subclasses ActiveDOMObject.");
+
+JSC::Structure* JSTestNamedSetterThrowingException::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
+{
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::MayHaveIndexedAccessors);
+}
 
 JSObject* JSTestNamedSetterThrowingException::createPrototype(VM& vm, JSDOMGlobalObject& globalObject)
 {
@@ -347,7 +353,7 @@ JSC_DEFINE_CUSTOM_GETTER(jsTestNamedSetterThrowingExceptionConstructor, (JSGloba
     auto* prototype = jsDynamicCast<JSTestNamedSetterThrowingExceptionPrototype*>(JSValue::decode(thisValue));
     if (!prototype) [[unlikely]]
         return throwVMTypeError(lexicalGlobalObject, throwScope);
-    return JSValue::encode(JSTestNamedSetterThrowingException::getConstructor(vm, prototype->globalObject()));
+    return JSValue::encode(JSTestNamedSetterThrowingException::getConstructor(vm, prototype->realm()));
 }
 
 JSC::GCClient::IsoSubspace* JSTestNamedSetterThrowingException::subspaceForImpl(JSC::VM& vm)

@@ -591,7 +591,7 @@ void NetworkStorageSession::deleteAllCookiesModifiedSince(WallTime timestamp, Co
     }
 }
 
-void NetworkStorageSession::deleteCookiesForHostnames(const Vector<String>& hostnames, IncludeHttpOnlyCookies includeHttpOnlyCookies, ScriptWrittenCookiesOnly, CompletionHandler<void()>&& completionHandler)
+void NetworkStorageSession::deleteCookiesForHostnames(std::span<const String> hostnames, IncludeHttpOnlyCookies includeHttpOnlyCookies, ScriptWrittenCookiesOnly, CompletionHandler<void()>&& completionHandler)
 {
     SoupCookieJar* cookieJar = cookieStorage();
     for (const auto& hostname : hostnames) {

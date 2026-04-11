@@ -38,6 +38,7 @@
 #endif
 #include "relative-pointer-unstable-v1-client-protocol.h"
 #include <gio/gio.h>
+#include <wtf/Borrow.h>
 #include <wtf/Deque.h>
 #include <wtf/FastMalloc.h>
 #include <wtf/MonotonicTime.h>
@@ -443,7 +444,7 @@ PresentationFeedbackStatistics::PresentationFeedbackStatistics(unsigned historyS
 
 PresentationFeedbackStatistics::~PresentationFeedbackStatistics()
 {
-    for (auto [presentationFeedback, frameStartTime] : m_pendingFeedbacks)
+    for (auto [presentationFeedback, frameStartTime] : borrow(m_pendingFeedbacks).get())
         wp_presentation_feedback_destroy(presentationFeedback);
 }
 

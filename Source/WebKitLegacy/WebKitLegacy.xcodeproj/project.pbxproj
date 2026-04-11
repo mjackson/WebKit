@@ -645,6 +645,7 @@
 		DD7AF5D1298C53160059E87E /* xcfilelist-copy.py in Headers */ = {isa = PBXBuildFile; fileRef = DD7AF5D0298C52FC0059E87E /* xcfilelist-copy.py */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD89682009AA87240097E7F0 /* WebElementDictionary.h in Headers */ = {isa = PBXBuildFile; fileRef = DD89681E09AA87240097E7F0 /* WebElementDictionary.h */; };
 		DD89682109AA87240097E7F0 /* WebElementDictionary.mm in Sources */ = {isa = PBXBuildFile; fileRef = DD89681F09AA87240097E7F0 /* WebElementDictionary.mm */; };
+		DDE748852F7B43B5008013AB /* WorkAround173516139.h in Headers */ = {isa = PBXBuildFile; fileRef = DDE748842F7B43A6008013AB /* WorkAround173516139.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		E13E782C1E5A7365001849D1 /* WebCreateFragmentInternal.h in Headers */ = {isa = PBXBuildFile; fileRef = E13E782B1E5A7365001849D1 /* WebCreateFragmentInternal.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		E15663190FB61C1F00C199CA /* WebDownload.mm in Sources */ = {isa = PBXBuildFile; fileRef = E15663180FB61C1F00C199CA /* WebDownload.mm */; };
 		E4AEF97C1C0DF4BC00B01727 /* WebResourceLoadScheduler.h in Headers */ = {isa = PBXBuildFile; fileRef = E4AEF97A1C0DF4BC00B01727 /* WebResourceLoadScheduler.h */; };
@@ -677,6 +678,20 @@
 			);
 			runOncePerArchitecture = 0;
 			script = "exec \"${SCRIPT_INPUT_FILE_0}\"\n";
+		};
+		DDE748862F7B43BF008013AB /* PBXBuildRule */ = {
+			isa = PBXBuildRule;
+			compilerSpec = com.apple.compilers.proxy.script;
+			filePatterns = "*/WorkAround173516139.h";
+			fileType = pattern.proxy;
+			inputFiles = (
+				"$(WK_HEADERS_VFS_FILE)",
+			);
+			isEditable = 1;
+			outputFiles = (
+				"$(HEADER_OUTPUT_DIR)/$(INPUT_FILE_NAME)",
+			);
+			script = "cp \"${INPUT_FILE_PATH}\" \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 		};
 /* End PBXBuildRule section */
 
@@ -1475,6 +1490,7 @@
 		DD7AF5D0298C52FC0059E87E /* xcfilelist-copy.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; name = "xcfilelist-copy.py"; path = "scripts/xcfilelist-copy.py"; sourceTree = "<group>"; };
 		DD89681E09AA87240097E7F0 /* WebElementDictionary.h */ = {isa = PBXFileReference; fileEncoding = 4; indentWidth = 4; lastKnownFileType = sourcecode.c.h; path = WebElementDictionary.h; sourceTree = "<group>"; tabWidth = 8; usesTabs = 0; };
 		DD89681F09AA87240097E7F0 /* WebElementDictionary.mm */ = {isa = PBXFileReference; fileEncoding = 4; indentWidth = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = WebElementDictionary.mm; sourceTree = "<group>"; tabWidth = 8; usesTabs = 0; };
+		DDE748842F7B43A6008013AB /* WorkAround173516139.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WorkAround173516139.h; sourceTree = "<group>"; };
 		DDF74CA627EED8500011F633 /* migrate-header-rule */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; name = "migrate-header-rule"; path = "scripts/migrate-header-rule"; sourceTree = "<group>"; };
 		E13E782B1E5A7365001849D1 /* WebCreateFragmentInternal.h */ = {isa = PBXFileReference; explicitFileType = sourcecode.cpp.h; fileEncoding = 4; path = WebCreateFragmentInternal.h; sourceTree = "<group>"; };
 		E15663180FB61C1F00C199CA /* WebDownload.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = WebDownload.mm; sourceTree = "<group>"; };
@@ -1845,6 +1861,7 @@
 			children = (
 				84E2901126FC3D99005139F2 /* WebKitLegacy.modulemap */,
 				84E2901226FC3DA4005139F2 /* WebKitLegacy.private.modulemap */,
+				DDE748842F7B43A6008013AB /* WorkAround173516139.h */,
 			);
 			path = Modules;
 			sourceTree = "<group>";
@@ -3110,6 +3127,7 @@
 				A10C1D761820300E0036883A /* WebVisiblePosition.h in Headers */,
 				A10C1D781820300E0036883A /* WebVisiblePositionInternal.h in Headers */,
 				1AC7176F1A26568A002E3115 /* WebVisitedLinkStore.h in Headers */,
+				DDE748852F7B43B5008013AB /* WorkAround173516139.h in Headers */,
 				DD7AF5D1298C53160059E87E /* xcfilelist-copy.py in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -3138,6 +3156,7 @@
 				DD00C28C2A37905800CBB4D9 /* Work around rdar://109484516 */,
 			);
 			buildRules = (
+				DDE748862F7B43BF008013AB /* PBXBuildRule */,
 				535E08C322545B4C00DF00CA /* PBXBuildRule */,
 			);
 			dependencies = (
@@ -3310,7 +3329,7 @@
 				"$(SRCROOT)/scripts/generate-unified-sources.sh",
 				"$(SRCROOT)/Sources.txt",
 				"$(SRCROOT)/SourcesCocoa.txt",
-				"$(WTF_BUILD_SCRIPTS_DIR)/generate-unified-source-bundles.rb",
+				"$(WTF_BUILD_SCRIPTS_DIR)/generate-unified-source-bundles.py",
 			);
 			outputFileListPaths = (
 				"$(SRCROOT)/UnifiedSources-output.xcfilelist",

@@ -149,7 +149,7 @@ inline LayoutUnit RenderTable::outerBorderTop() const
 {
     if (writingMode().isHorizontal())
         return writingMode().isBlockTopToBottom() ? outerBorderBefore() : outerBorderAfter();
-    return writingMode().isInlineTopToBottom() ? outerBorderStart() : borderEnd();
+    return writingMode().isInlineTopToBottom() ? outerBorderStart() : outerBorderEnd();
 }
 
 } // namespace WebCore

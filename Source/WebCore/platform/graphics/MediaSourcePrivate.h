@@ -105,7 +105,8 @@ public:
     void clearLiveSeekableRange();
 
     Ref<MediaTimePromise> waitForTarget(const SeekTarget&);
-    void seekToTime(const MediaTime&);
+    Ref<GenericPromise> reenqueueMediaForTime(const MediaTime&);
+    bool isReenqueuePending() const { return m_reenqueuePending; }
 
     virtual void setTimeFudgeFactor(const MediaTime& fudgeFactor) { m_timeFudgeFactor = fudgeFactor; }
     MediaTime timeFudgeFactor() const { return m_timeFudgeFactor; }
@@ -158,6 +159,7 @@ private:
     HashMap<SourceBufferPrivate*, TracksType> m_tracksTypes WTF_GUARDED_BY_CAPABILITY(m_dispatcher.get());
     std::atomic<TracksType> m_tracksCombinedTypes;
     const ThreadSafeWeakPtr<MediaSourcePrivateClient> m_client;
+    std::atomic<bool> m_reenqueuePending { false };
 };
 
 String convertEnumerationToString(MediaSourcePrivate::AddStatus);

@@ -38,7 +38,7 @@ class FunctionDispatcherQueue final : public MessageReceiveQueue {
 public:
     FunctionDispatcherQueue(FunctionDispatcher& dispatcher, MessageReceiver& receiver)
         : m_dispatcher(dispatcher)
-        , m_receiver(receiver)
+        , m_receiver(receiver, EnableWeakPtrThreadingAssertions::No) // FIXME: Re-enable threading assertions when possible.
     {
     }
     ~FunctionDispatcherQueue() final = default;

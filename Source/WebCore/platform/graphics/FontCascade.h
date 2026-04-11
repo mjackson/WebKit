@@ -27,6 +27,7 @@
 #include <WebCore/Font.h>
 #include <WebCore/FontCascadeDescription.h>
 #include <WebCore/FontCascadeEnums.h>
+#include <WebCore/GlyphBuffer.h>
 #include <optional>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/WeakPtr.h>
@@ -122,7 +123,6 @@ public:
     WEBCORE_EXPORT float width(StringView) const;
     float widthForTextUsingSimplifiedMeasuring(StringView text, TextDirection = TextDirection::LTR) const;
     WEBCORE_EXPORT float widthForSimpleTextWithFixedPitch(StringView text, bool whitespaceIsCollapsed) const;
-    float widthForCharacterInRun(const TextRun&, unsigned) const;
 
     std::unique_ptr<TextLayout, TextLayoutDeleter> createLayout(RenderText&, float xPos, bool collapseWhiteSpace) const;
     inline float widthOfSpaceString() const; // Defined in FontCascadeInlines.h
@@ -146,9 +146,9 @@ public:
     bool enableKerning() const { return m_enableKerning; }
     bool requiresShaping() const { return m_requiresShaping; }
 
-    const AtomString& firstFamily() const LIFETIME_BOUND { return m_fontDescription.firstFamily(); }
+    const FontFamily& firstFamily() const LIFETIME_BOUND { return m_fontDescription.firstFamily(); }
     unsigned familyCount() const { return m_fontDescription.familyCount(); }
-    const AtomString& familyAt(unsigned i) const LIFETIME_BOUND { return m_fontDescription.familyAt(i); }
+    const FontFamily& familyAt(unsigned i) const LIFETIME_BOUND { return m_fontDescription.familyAt(i); }
 
     // A std::nullopt return value indicates "font-style: normal".
     std::optional<FontSelectionValue> fontStyleSlope() const { return m_fontDescription.fontStyleSlope(); }
@@ -165,12 +165,11 @@ public:
 
     int emphasisMarkAscent(const AtomString&) const;
     int emphasisMarkDescent(const AtomString&) const;
-    int emphasisMarkHeight(const AtomString&) const;
     float floatEmphasisMarkHeight(const AtomString&) const;
 
     inline const Font& primaryFont() const; // Defined in FontCascadeInlines.h
     inline const FontRanges& fallbackRangesAt(unsigned) const; // Defined in FontCascadeInlines.h
-    WEBCORE_EXPORT GlyphData glyphDataForCharacter(char32_t, bool mirror, FontVariant = AutoVariant, std::optional<ResolvedEmojiPolicy> = std::nullopt) const;
+    WEBCORE_EXPORT GlyphData glyphDataForCharacter(char32_t, bool mirror, FontVariant = FontVariant::Auto, std::optional<ResolvedEmojiPolicy> = std::nullopt) const;
     bool canUseSimplifiedTextMeasuring(char32_t, FontVariant, bool whitespaceIsCollapsed, const Font&) const;
 
     RefPtr<const Font> fontForCombiningCharacterSequence(StringView) const;
@@ -203,6 +202,7 @@ public:
     static constexpr float syntheticObliqueAngle() { return 14; }
 
     RefPtr<const DisplayList::DisplayList> displayListForTextRun(GraphicsContext&, const TextRun&, unsigned from = 0, std::optional<unsigned> to = { }, CustomFontNotReadyAction = CustomFontNotReadyAction::DoNotPaintIfFontNotReady) const;
+    RefPtr<const DisplayList::DisplayList> displayListForGlyphBuffer(GraphicsContext&, const GlyphBuffer&, CustomFontNotReadyAction) const;
 
     unsigned generation() const { return m_generation; }
 

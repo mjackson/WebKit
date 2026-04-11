@@ -93,7 +93,7 @@ void RegExpConstructor::finishCreation(VM& vm, RegExpPrototype* regExpPrototype)
 
     putDirectWithoutTransition(vm, vm.propertyNames->prototype, regExpPrototype, PropertyAttribute::DontEnum | PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly);
 
-    JSGlobalObject* globalObject = regExpPrototype->globalObject();
+    JSGlobalObject* globalObject = regExpPrototype->realm();
 
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("escape"_s, regExpConstructorEscape, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Public);
 
@@ -110,19 +110,19 @@ JSC_DEFINE_HOST_FUNCTION(regExpConstructorEscape, (JSGlobalObject* globalObject,
     if (!value.isString()) [[unlikely]]
         return throwVMTypeError(globalObject, scope, "RegExp.escape requires a string"_s);
 
-    auto string = asString(value)->value(globalObject);
+    auto view = asString(value)->view(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
 
     StringBuilder builder(OverflowPolicy::RecordOverflow);
-    builder.reserveCapacity(string->length());
+    builder.reserveCapacity(view->length());
 
-    for (unsigned i = 0; i < string->length() && !builder.hasOverflowed();) {
+    for (unsigned i = 0; i < view->length() && !builder.hasOverflowed();) {
         char32_t codePoint;
-        if (string->is8Bit())
-            codePoint = string->span8()[i++];
+        if (view->is8Bit())
+            codePoint = view->span8()[i++];
         else {
-            auto characters = string->span16();
-            U16_NEXT(characters, i, string->length(), codePoint);
+            auto characters = view->span16();
+            U16_NEXT(characters, i, view->length(), codePoint);
         }
 
         if (builder.isEmpty() && isASCIIAlphanumeric(codePoint)) {
@@ -275,7 +275,7 @@ JSC_DEFINE_CUSTOM_SETTER(setRegExpConstructorMultiline, (JSGlobalObject* globalO
     return true;
 }
 
-static inline bool areLegacyFeaturesEnabled(JSGlobalObject* globalObject, JSValue newTarget)
+static inline bool NODELETE areLegacyFeaturesEnabled(JSGlobalObject* globalObject, JSValue newTarget)
 {
     if (!newTarget)
         return true;

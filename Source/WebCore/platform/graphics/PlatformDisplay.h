@@ -121,7 +121,7 @@ public:
 protected:
     explicit PlatformDisplay(Ref<GLDisplay>&&);
 
-    Ref<GLDisplay> m_eglDisplay;
+    const Ref<GLDisplay> m_eglDisplay;
     std::unique_ptr<GLContext> m_sharingGLContext;
 
 #if ENABLE(WEBGL) && !PLATFORM(WIN)

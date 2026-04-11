@@ -30,9 +30,7 @@
 
 namespace WebCore {
 
-ImageFrame::ImageFrame()
-{
-}
+ImageFrame::ImageFrame() = default;
 
 ImageFrame::ImageFrame(Ref<NativeImage>&& nativeImage)
 {
@@ -54,25 +52,8 @@ const ImageFrame& ImageFrame::defaultFrame()
     return sharedInstance;
 }
 
-ImageFrame& ImageFrame::operator=(const ImageFrame& other)
-{
-    if (this == &other)
-        return *this;
-
-    m_decodingStatus = other.m_decodingStatus;
-
-    m_size = other.m_size;
-    m_densityCorrectedSize = other.m_densityCorrectedSize;
-    m_subsamplingLevel = other.m_subsamplingLevel;
-
-    m_orientation = other.m_orientation;
-    m_duration = other.m_duration;
-    m_hasAlpha = other.m_hasAlpha;
-
-    m_source = other.m_source;
-    m_hdrSource = other.m_hdrSource;
-    return *this;
-}
+ImageFrame::ImageFrame(const ImageFrame&) = default;
+ImageFrame& ImageFrame::operator=(const ImageFrame&) = default;
 
 void ImageFrame::setDecodingStatus(DecodingStatus decodingStatus)
 {

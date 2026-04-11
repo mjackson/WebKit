@@ -83,7 +83,7 @@ FloatPoint SVGLengthContext::resolvePoint(const SVGElement* context, SVGUnitType
         return FloatPoint(x.value(lengthContext), y.value(lengthContext));
     }
 
-    // FIXME: valueAsPercentage() won't be correct for eg. cm units. They need to be resolved in user space and then be considered in objectBoundingBox space.
+    // FIXME: valueAsPercentage() won't be correct for relative units (e.g. em, ex). They need to be resolved in user space and then be considered in objectBoundingBox space.
     return FloatPoint(x.valueAsPercentage(), y.valueAsPercentage());
 }
 
@@ -95,7 +95,7 @@ float SVGLengthContext::resolveLength(const SVGElement* context, SVGUnitTypes::S
         return x.value(lengthContext);
     }
 
-    // FIXME: valueAsPercentage() won't be correct for eg. cm units. They need to be resolved in user space and then be considered in objectBoundingBox space.
+    // FIXME: valueAsPercentage() won't be correct for relative units (e.g. em, ex). They need to be resolved in user space and then be considered in objectBoundingBox space.
     return x.valueAsPercentage();
 }
 
@@ -341,7 +341,7 @@ static inline const RenderStyle* NODELETE renderStyleForLengthResolving(const SV
     return nullptr;
 }
 
-static inline const RenderStyle* rootRenderStyleForLengthResolving(const SVGElement* svgElement)
+static inline const RenderStyle* NODELETE rootRenderStyleForLengthResolving(const SVGElement* svgElement)
 {
     if (!svgElement)
         return nullptr;

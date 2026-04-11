@@ -116,18 +116,18 @@ public:
     WEBCORE_EXPORT Location& location();
     virtual void setLocation(LocalDOMWindow& activeWindow, const URL& completedURL, NavigationHistoryBehavior, SetLocationLocking = SetLocationLocking::LockHistoryBasedOnGestureState, CanNavigateState = CanNavigateState::Unchecked) = 0;
 
-    bool closed() const;
+    bool NODELETE closed() const;
     WEBCORE_EXPORT void close();
     void close(Document&);
     virtual void closePage() = 0;
 
-    FrameConsoleClient* console() const;
+    FrameConsoleClient* NODELETE console() const;
 
     WindowProxy* opener() const;
     WEBCORE_EXPORT Document* NODELETE documentIfLocal();
 
-    WindowProxy* top() const;
-    WindowProxy* parent() const;
+    WindowProxy* NODELETE top() const;
+    WindowProxy* NODELETE parent() const;
     unsigned length() const;
     void focus(LocalDOMWindow& incumbentWindow);
     void blur();

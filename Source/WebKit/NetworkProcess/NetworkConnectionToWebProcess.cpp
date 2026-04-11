@@ -93,6 +93,7 @@
 #include <WebCore/SecurityOriginData.h>
 #include <WebCore/SecurityPolicy.h>
 #include <optional>
+#include <wtf/Borrow.h>
 #include <wtf/HashSet.h>
 #include <wtf/LogInitialization.h>
 
@@ -1488,7 +1489,7 @@ void NetworkConnectionToWebProcess::stopTrackingResourceLoad(WebCore::ResourceLo
 
 void NetworkConnectionToWebProcess::stopAllNetworkActivityTracking()
 {
-    for (auto& activityTracker : m_networkActivityTrackers)
+    for (auto& activityTracker : borrow(m_networkActivityTrackers).get())
         activityTracker.networkActivity.complete(NetworkActivityTracker::CompletionCode::Cancel);
 
     m_networkActivityTrackers.clear();
@@ -1497,7 +1498,7 @@ void NetworkConnectionToWebProcess::stopAllNetworkActivityTracking()
 
 void NetworkConnectionToWebProcess::stopAllNetworkActivityTrackingForPage(PageIdentifier pageID, NetworkActivityTracker::CompletionCode rootCompletionCode)
 {
-    for (auto& activityTracker : m_networkActivityTrackers) {
+    for (auto& activityTracker : borrow(m_networkActivityTrackers).get()) {
         if (activityTracker.pageID == pageID) {
             auto code = activityTracker.isRootActivity ? rootCompletionCode : NetworkActivityTracker::CompletionCode::Cancel;
             activityTracker.networkActivity.complete(code);

@@ -138,7 +138,7 @@ float ComputedStyleProperties::specifiedFontSize() const
 
 inline FontFamilies ComputedStyleProperties::fontFamily() const
 {
-    return { fontDescription().families(), fontDescription().isSpecifiedFont() };
+    return { fontDescription().families(), fontDescription().hasAuthorSpecifiedNonGenericPrimaryFont() };
 }
 
 inline FontPalette ComputedStyleProperties::fontPalette() const
@@ -204,7 +204,7 @@ inline FontSynthesisLonghandValue ComputedStyleProperties::fontSynthesisSmallCap
     return fontDescription().fontSynthesisSmallCaps();
 }
 
-inline FontSynthesisLonghandValue ComputedStyleProperties::fontSynthesisStyle() const
+inline FontSynthesisStyleLonghandValue ComputedStyleProperties::fontSynthesisStyle() const
 {
     return fontDescription().fontSynthesisStyle();
 }

@@ -28,6 +28,7 @@
 #include "StreamTransferUtilities.h"
 
 #include "JSDOMException.h"
+#include "JSDOMPromiseDeferred.h"
 #include "MessagePort.h"
 #include "ReadableStream.h"
 #include "ReadableStreamSource.h"
@@ -35,6 +36,7 @@
 #include "StructuredSerializeOptions.h"
 #include "WritableStream.h"
 #include "WritableStreamSink.h"
+#include <JavaScriptCore/JSString.h>
 #include <JavaScriptCore/ObjectConstructor.h>
 
 namespace WebCore {

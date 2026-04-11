@@ -672,6 +672,8 @@ void EventSenderProxy::mouseMoveTo(double x, double y, WKStringRef pointerType, 
     m_position.x = newMousePosition.x;
     m_position.y = newMousePosition.y;
 
+    m_testController->mainWebView()->setCursorOverlayPosition(x, y);
+
     RetainPtr webView = m_testController->mainWebView()->platformView();
 
     // Always target drags at the WKWebView to allow for drag-scrolling outside the view.

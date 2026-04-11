@@ -21,11 +21,11 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreRenderer, _version: 11) && compiler(>=6.2)
+#if ENABLE_GPU_PROCESS_MODEL && canImport(RealityCoreTextureProcessing, _version: 19)
 
 import QuartzCore
-@_weakLinked import USDKit
-@_weakLinked @_spi(UsdLoaderAPI) import _USDKit_RealityKit
+import USDKit
+@_spi(UsdLoaderAPI) import _USDKit_RealityKit
 @_spi(RealityCoreRendererAPI) @_spi(Private) import RealityKit
 import simd
 
@@ -45,8 +45,10 @@ class Renderer {
         // swift-format-ignore: NeverForceUnwrap
         renderer!.renderTargetDescriptor
     }
+
     var pose: _Proto_Pose_v1
-    var modelDistance: Float = 1.0
+    private static let cameraDistance: Float = 0.5
+    var fovY: Float = 60 * .pi / 180
     var clearColor: MTLClearColor = .init(red: 1, green: 1, blue: 1, alpha: 1)
     let memoryOwner: task_id_token_t
 
@@ -58,17 +60,16 @@ class Renderer {
 
         self.device = device
         self.commandQueue = commandQueue
-        self.pose = .init(translation: [0, 0, 1], rotation: .init(ix: 0, iy: 0, iz: 0, r: 1))
+        self.pose = .init(
+            translation: [0, 0, Self.cameraDistance],
+            rotation: .init(ix: 0, iy: 0, iz: 0, r: 1)
+        )
         self.memoryOwner = memoryOwner
     }
 
     func createMaterialCompiler(colorPixelFormat: MTLPixelFormat, rasterSampleCount: Int, colorSpace: CGColorSpace? = nil) async throws {
-        #if canImport(RealityCoreRenderer, _version: 12)
         var configuration = _Proto_LowLevelRenderContextStandaloneConfiguration_v1(device: device)
         configuration.memoryOwner = self.memoryOwner
-        #else
-        var configuration = _Proto_LowLevelRenderContextStandaloneConfiguration_v1(device: device)
-        #endif
         configuration.residencySetBehavior = _Proto_LowLevelRenderContextStandaloneConfiguration_v1.ResidencySetBehavior.disable
         let renderContext = try await _Proto_makeLowLevelRenderContextStandalone_v1(configuration: configuration)
 
@@ -86,11 +87,21 @@ class Renderer {
         self.renderer = renderer
     }
 
+    func newCommandBuffer() -> any MTLCommandBuffer {
+        guard let renderCommandBuffer = commandQueue.makeCommandBuffer() else {
+            fatalError("Failed to make command buffer")
+        }
+
+        return renderCommandBuffer
+    }
+
     func render(
         meshInstances: _Proto_LowLevelMeshInstanceArray_v1,
-        texture: any MTLTexture
+        texture: any MTLTexture,
+        commandBuffer: any MTLCommandBuffer
     ) throws {
         guard let renderer else {
+            commandBuffer.commit()
             return
         }
 
@@ -98,10 +109,10 @@ class Renderer {
 
         let aspect = Float(texture.width) / Float(texture.height)
         let projection = _Proto_LowLevelRenderer_v1.Camera.Projection.perspective(
-            fovYRadians: 90 * .pi / 180,
+            fovYRadians: fovY,
             aspectRatio: aspect,
-            nearZ: modelDistance * 0.01,
-            farZ: modelDistance * 100,
+            nearZ: Self.cameraDistance * 0.01,
+            farZ: Self.cameraDistance * 100,
             reverseZ: true
         )
 
@@ -111,20 +122,13 @@ class Renderer {
         renderer.output.color = .init(texture: texture)
         renderer.meshInstances = meshInstances
 
-        guard let renderCommandBuffer = commandQueue.makeCommandBuffer() else {
-            fatalError("Failed to make command buffer")
-        }
-        renderCommandBuffer.label = "Render Camera"
-        try renderer.render(for: renderCommandBuffer)
-        renderCommandBuffer.commit()
+        commandBuffer.label = "Render Camera"
+        try renderer.render(for: commandBuffer)
+        commandBuffer.commit()
     }
 
-    internal func setCameraDistance(_ distance: Float) {
-        modelDistance = distance
-        pose = .init(
-            translation: [0, 0, distance],
-            rotation: simd_quatf(angle: 0, axis: [0, 0, 1]),
-        )
+    internal func setFOV(_ fovYRadians: Float) {
+        fovY = fovYRadians
     }
 
     internal func setBackgroundColor(_ color: simd_float3) {

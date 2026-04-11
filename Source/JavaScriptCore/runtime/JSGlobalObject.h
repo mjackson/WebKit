@@ -87,6 +87,7 @@ class GeneratorPrototype;
 class GetterSetter;
 class ImportMap;
 class IntlCollator;
+class IntlDateTimeFormat;
 class IntlNumberFormat;
 class JSArrayBuffer;
 class JSCallee;
@@ -273,6 +274,9 @@ public:
     WriteBarrier<StringConstructor> m_stringConstructor;
 
     LazyProperty<JSGlobalObject, IntlCollator> m_defaultCollator;
+    LazyProperty<JSGlobalObject, IntlDateTimeFormat> m_defaultDateTimeFormat;
+    LazyProperty<JSGlobalObject, IntlDateTimeFormat> m_defaultDateFormat;
+    LazyProperty<JSGlobalObject, IntlDateTimeFormat> m_defaultTimeFormat;
     LazyProperty<JSGlobalObject, IntlNumberFormat> m_defaultNumberFormat;
     LazyProperty<JSGlobalObject, Structure> m_collatorStructure;
     LazyProperty<JSGlobalObject, Structure> m_displayNamesStructure;
@@ -575,9 +579,9 @@ public:
     void installObjectPropertyChangeAdaptiveWatchpoint(const ObjectPropertyCondition&, InlineWatchpointSet&);
     void installChainedWatchpoint(InlineWatchpointSet& from, InlineWatchpointSet& to);
 
-    inline std::unique_ptr<ObjectAdaptiveStructureWatchpoint>& typedArrayConstructorSpeciesAbsenceWatchpoint(TypedArrayType);
-    inline std::unique_ptr<ObjectAdaptiveStructureWatchpoint>& typedArrayPrototypeSymbolIteratorAbsenceWatchpoint(TypedArrayType);
-    inline std::unique_ptr<ObjectPropertyChangeAdaptiveWatchpoint<InlineWatchpointSet>>& typedArrayPrototypeConstructorWatchpoint(TypedArrayType);
+    inline std::unique_ptr<ObjectAdaptiveStructureWatchpoint>& NODELETE typedArrayConstructorSpeciesAbsenceWatchpoint(TypedArrayType);
+    inline std::unique_ptr<ObjectAdaptiveStructureWatchpoint>& NODELETE typedArrayPrototypeSymbolIteratorAbsenceWatchpoint(TypedArrayType);
+    inline std::unique_ptr<ObjectPropertyChangeAdaptiveWatchpoint<InlineWatchpointSet>>& NODELETE typedArrayPrototypeConstructorWatchpoint(TypedArrayType);
 
     void addWeakTicket(DeferredWorkTimer::Ticket);
     void clearWeakTickets();
@@ -715,7 +719,7 @@ public:
 #endif
 
     bool hasDebugger() const { return m_debugger; }
-    bool hasInteractiveDebugger() const;
+    bool NODELETE hasInteractiveDebugger() const;
     const RuntimeFlags& runtimeFlags() const LIFETIME_BOUND { return m_runtimeFlags; }
 
 #if ENABLE(DFG_JIT)
@@ -759,7 +763,7 @@ public:
 
     JSScope* globalScopeExtension() LIFETIME_BOUND { return m_globalScopeExtension.get(); }
     void setGlobalScopeExtension(JSScope*);
-    void clearGlobalScopeExtension();
+    void NODELETE clearGlobalScopeExtension();
 
     JSCallee* globalCallee() LIFETIME_BOUND { return m_globalCallee.get(); }
     JSCallee* evalCallee() LIFETIME_BOUND { return m_evalCallee.get(); }
@@ -780,6 +784,9 @@ public:
     JSIteratorConstructor* iteratorConstructor() const LIFETIME_BOUND { return m_iteratorConstructor.get(); }
 
     IntlCollator* defaultCollator() const LIFETIME_BOUND { return m_defaultCollator.get(this); }
+    IntlDateTimeFormat* defaultDateTimeFormat() const LIFETIME_BOUND { return m_defaultDateTimeFormat.get(this); }
+    IntlDateTimeFormat* defaultDateFormat() const LIFETIME_BOUND { return m_defaultDateFormat.get(this); }
+    IntlDateTimeFormat* defaultTimeFormat() const LIFETIME_BOUND { return m_defaultTimeFormat.get(this); }
     IntlNumberFormat* defaultNumberFormat() const LIFETIME_BOUND { return m_defaultNumberFormat.get(this); }
 
     NullGetterFunction* nullGetterFunction() const LIFETIME_BOUND { return m_nullGetterFunction.get(); }
@@ -1041,7 +1048,7 @@ public:
     JS_EXPORT_PRIVATE void setInspectable(bool);
     JS_EXPORT_PRIVATE bool inspectable() const;
 
-    void setIsITML();
+    void NODELETE setIsITML();
 
     RegExpGlobalData& regExpGlobalData() LIFETIME_BOUND { return m_regExpGlobalData; }
     static constexpr ptrdiff_t regExpGlobalDataOffset() { return OBJECT_OFFSETOF(JSGlobalObject, m_regExpGlobalData); }
@@ -1068,7 +1075,7 @@ public:
 
 #if ENABLE(REMOTE_INSPECTOR)
     // FIXME: <http://webkit.org/b/246237> Local inspection should be controlled by `inspectable` API.
-    Inspector::JSGlobalObjectInspectorController& inspectorController() const;
+    Inspector::JSGlobalObjectInspectorController& NODELETE inspectorController() const;
     JSGlobalObjectDebuggable& inspectorDebuggable() { return *m_inspectorDebuggable; }
 #endif
 
@@ -1077,8 +1084,8 @@ public:
     static constexpr ptrdiff_t globalLexicalBindingEpochOffset() { return OBJECT_OFFSETOF(JSGlobalObject, m_globalLexicalBindingEpoch); }
     unsigned* addressOfGlobalLexicalBindingEpoch() LIFETIME_BOUND { return &m_globalLexicalBindingEpoch; }
 
-    JS_EXPORT_PRIVATE void setConsoleClient(WeakPtr<ConsoleClient>&&);
-    JS_EXPORT_PRIVATE CheckedPtr<ConsoleClient> consoleClient() const;
+    JS_EXPORT_PRIVATE void NODELETE setConsoleClient(WeakPtr<ConsoleClient>&&);
+    JS_EXPORT_PRIVATE CheckedPtr<ConsoleClient> NODELETE consoleClient() const;
 
     void setName(const String&);
     const String& name() const LIFETIME_BOUND { return m_name; }
@@ -1089,7 +1096,7 @@ public:
     inline void setUnhandledRejectionCallback(VM&, JSObject*);
     JSObject* unhandledRejectionCallback() const LIFETIME_BOUND { return m_unhandledRejectionCallback.get(); }
 
-    static void reportUncaughtExceptionAtEventLoop(JSGlobalObject*, Exception*);
+    static void NODELETE reportUncaughtExceptionAtEventLoop(JSGlobalObject*, Exception*);
     static JSObject* currentScriptExecutionOwner(JSGlobalObject* global) { return global; }
     static ScriptExecutionStatus scriptExecutionStatus(JSGlobalObject*, JSObject*) { return ScriptExecutionStatus::Running; }
     static void reportViolationForUnsafeEval(JSGlobalObject*, const String&) { }
@@ -1295,7 +1302,7 @@ protected:
 private:
     friend class LLIntOffsetsExtractor;
 
-    static const GlobalObjectMethodTable* baseGlobalObjectMethodTable();
+    static const GlobalObjectMethodTable* NODELETE baseGlobalObjectMethodTable();
 
     void notifyArrayBufferDetachingSlow();
     void fireWatchpointAndMakeAllArrayStructuresSlowPut(VM&);
@@ -1323,7 +1330,7 @@ private:
 
 inline JSObject* JSScope::globalThis()
 { 
-    return globalObject()->globalThis();
+    return realm()->globalThis();
 }
 
 inline JSObject* JSGlobalObject::globalThis() const

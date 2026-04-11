@@ -1,0 +1,83 @@
+<script src="../../../inspector/resources/inspector-test.js"></script>
+<script>
+let iframe;
+
+function addCrossOriginIFrame() {
+    let crossOriginHost = location.hostname === "localhost" ? "127.0.0.1" : "localhost";
+    iframe = document.createElement("iframe");
+    iframe.src = `http://${crossOriginHost}:8000/site-isolation/inspector/debugger/resources/debugger-frame.html`;
+    document.body.appendChild(iframe);
+}
+
+function removeCrossOriginIFrame() {
+    iframe.remove();
+}
+
+function test() {
+    let suite = InspectorTest.createAsyncSuite("SiteIsolation.Debugger.ScriptParsed");
+
+    suite.addTestCase({
+        name: "SiteIsolation.Debugger.ScriptParsed.FrameTargetCreated",
+        description: "Adding a cross-origin iframe should create a frame target with a DebuggerAgent.",
+        async test() {
+            let whenTargetAddedPromise = WI.targetManager.awaitEvent(WI.TargetManager.Event.TargetAdded);
+            InspectorTest.evaluateInPage("addCrossOriginIFrame()");
+            let event = await whenTargetAddedPromise;
+            let target = event.data.target;
+
+            InspectorTest.assert(target instanceof WI.FrameTarget);
+            InspectorTest.expectEqual(target.type, WI.TargetType.Frame, "Added target should have Frame type.");
+            InspectorTest.expectNotNull(target.DebuggerAgent, "Cross-origin frame target should have a DebuggerAgent.");
+        }
+    });
+
+    suite.addTestCase({
+        name: "SiteIsolation.Debugger.ScriptParsed.FrameTargetHasScripts",
+        description: "Frame target should receive scriptParsed events for its scripts.",
+        async test() {
+            let frameTargets = WI.targets.filter((t) => t instanceof WI.FrameTarget);
+            let crossOriginTarget = frameTargets[frameTargets.length - 1];
+
+            // Wait for scripts to be parsed in the frame target.
+            let targetData = WI.debuggerManager.dataForTarget(crossOriginTarget);
+            let maxAttempts = 20;
+            for (let i = 0; i < maxAttempts && !targetData.scripts.length; i++)
+                await new Promise((resolve) => setTimeout(resolve, 100));
+
+            InspectorTest.expectGreaterThan(targetData.scripts.length, 0, "Frame target should have at least one parsed script.");
+
+            let hasFrameScript = targetData.scripts.some((script) => script.url && script.url.includes("debugger-frame-script.js"));
+            InspectorTest.expectThat(hasFrameScript, "Frame target should have the debugger-frame-script.js script.");
+        }
+    });
+
+    suite.addTestCase({
+        name: "SiteIsolation.Debugger.ScriptParsed.ScriptsIsolatedFromMainTarget",
+        description: "Main target should not have the frame target's scripts.",
+        async test() {
+            let mainTargetData = WI.debuggerManager.dataForTarget(WI.pageTarget);
+            let hasFrameScript = mainTargetData.scripts.some((script) => script.url && script.url.includes("debugger-frame-script.js"));
+            InspectorTest.expectFalse(hasFrameScript, "Main target should not have the debugger-frame-script.js script.");
+        }
+    });
+
+    suite.addTestCase({
+        name: "SiteIsolation.Debugger.ScriptParsed.RemoveIframe",
+        description: "Removing the cross-origin iframe should remove the frame target.",
+        async test() {
+            let whenTargetRemovedPromise = WI.targetManager.awaitEvent(WI.TargetManager.Event.TargetRemoved);
+            InspectorTest.evaluateInPage("removeCrossOriginIFrame()");
+            let event = await whenTargetRemovedPromise;
+            let target = event.data.target;
+
+            InspectorTest.expectEqual(target.type, WI.TargetType.Frame, "Removed target should have Frame type.");
+        }
+    });
+
+    suite.runTestCasesAndFinish();
+}
+</script>
+
+<body onload="runTest()">
+<p>Test that a frame target receives Debugger.scriptParsed events and scripts are isolated from the main target.</p>
+</body>

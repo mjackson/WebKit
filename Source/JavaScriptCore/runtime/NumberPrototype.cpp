@@ -89,7 +89,7 @@ void NumberPrototype::finishCreation(VM& vm, JSGlobalObject* globalObject)
 
 // ------------------------------ Functions ---------------------------
 
-static ALWAYS_INLINE bool toThisNumber(JSValue thisValue, double& x)
+static ALWAYS_INLINE bool NODELETE toThisNumber(JSValue thisValue, double& x)
 {
     if (thisValue.isInt32()) {
         x = thisValue.asInt32();
@@ -129,7 +129,7 @@ static ALWAYS_INLINE EncodedJSValue throwVMToThisNumberError(JSGlobalObject* glo
 // fo any number of digits an IEEE number may require to represent.
 typedef char RadixBuffer[2180];
 
-static inline char* int52ToStringWithRadix(char* startOfResultString, int64_t int52Value, unsigned radix)
+static inline char* NODELETE int52ToStringWithRadix(char* startOfResultString, int64_t int52Value, unsigned radix)
 {
     bool negative = false;
     uint64_t positiveNumber = int52Value;
@@ -375,7 +375,7 @@ String toStringWithRadix(double doubleValue, int32_t radix)
 {
     ASSERT(2 <= radix && radix <= 36);
 
-    int32_t integerValue = static_cast<int32_t>(doubleValue);
+    int32_t integerValue = truncateDoubleToInt32(doubleValue);
     if (integerValue == doubleValue)
         return toStringWithRadixInternal(integerValue, radix);
 
@@ -560,7 +560,7 @@ static ALWAYS_INLINE JSString* numberToStringInternal(VM& vm, double doubleValue
 {
     ASSERT(!(radix < 2 || radix > 36));
 
-    int32_t integerValue = static_cast<int32_t>(doubleValue);
+    int32_t integerValue = truncateDoubleToInt32(doubleValue);
     if (integerValue == doubleValue)
         return int32ToStringInternal(vm, integerValue, radix);
 

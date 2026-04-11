@@ -43,10 +43,9 @@ class ElementBox : public Box {
 public:
     ElementBox(ElementAttributes&&, RenderStyle&&, std::unique_ptr<RenderStyle>&& firstLineStyle = nullptr, EnumSet<BaseTypeFlag> = { ElementBoxFlag });
 
-    enum class ListMarkerAttribute : uint8_t {
+    enum class ListMarkerAttribute : bool {
         Image,
         Outside,
-        ShouldCollapseAnonymousBlockParent,
     };
     ElementBox(ElementAttributes&&, EnumSet<ListMarkerAttribute>, RenderStyle&&, std::unique_ptr<RenderStyle>&& firstLineStyle = nullptr);
 
@@ -95,7 +94,6 @@ public:
 
     bool isListMarkerImage() const { return m_replacedData && m_replacedData->listMarkerAttributes.contains(ListMarkerAttribute::Image); }
     bool isListMarkerOutside() const { return m_replacedData && m_replacedData->listMarkerAttributes.contains(ListMarkerAttribute::Outside); }
-    bool shouldCollapseAnonymousBlockParentForListMarker() const { return m_replacedData && m_replacedData->listMarkerAttributes.contains(ListMarkerAttribute::ShouldCollapseAnonymousBlockParent); }
 
     // FIXME: This is temporary until after list marker content is accessible by IFC (webkit.org/b/294342)
     void setListMarkerLayoutBounds(std::pair<float, float> layoutBounds) { m_replacedData->layoutBounds = layoutBounds; }

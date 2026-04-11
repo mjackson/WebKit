@@ -3682,11 +3682,11 @@ NSString* Texture::errorValidatingImageCopyTexture(const WGPUImageCopyTexture& i
 {
     // https://gpuweb.github.io/gpuweb/#abstract-opdef-validating-gpuimagecopytexture
 
-    uint32_t blockWidth = Texture::texelBlockWidth(protect(fromAPI(imageCopyTexture.texture))->format());
+    uint32_t blockWidth = Texture::texelBlockWidth(fromAPI(imageCopyTexture.texture).format());
 
-    uint32_t blockHeight = Texture::texelBlockHeight(protect(fromAPI(imageCopyTexture.texture))->format());
+    uint32_t blockHeight = Texture::texelBlockHeight(fromAPI(imageCopyTexture.texture).format());
 
-    if (!protect(fromAPI(imageCopyTexture.texture))->isValid())
+    if (!fromAPI(imageCopyTexture.texture).isValid())
         return @"imageCopyTexture is not valid";
 
     if (imageCopyTexture.mipLevel >= fromAPI(imageCopyTexture.texture).mipLevelCount())
@@ -3698,8 +3698,8 @@ NSString* Texture::errorValidatingImageCopyTexture(const WGPUImageCopyTexture& i
     if (imageCopyTexture.origin.y % blockHeight)
         return [NSString stringWithFormat:@"imageCopyTexture.origin.y(%u) is not a multiple of the texture blockHeight(%u)", imageCopyTexture.origin.y, blockHeight];
 
-    if (Texture::isDepthOrStencilFormat(protect(fromAPI(imageCopyTexture.texture))->format())
-        || protect(fromAPI(imageCopyTexture.texture))->sampleCount() > 1) {
+    if (Texture::isDepthOrStencilFormat(fromAPI(imageCopyTexture.texture).format())
+        || fromAPI(imageCopyTexture.texture).sampleCount() > 1) {
         auto subresourceSize = imageCopyTextureSubresourceSize(imageCopyTexture);
         if (subresourceSize.width != copySize.width
             || (copySize.height > 1 && subresourceSize.height != copySize.height))
@@ -3982,9 +3982,9 @@ NSString* Texture::errorValidatingTextureCopyRange(const WGPUImageCopyTexture& i
 {
     // https://gpuweb.github.io/gpuweb/#validating-texture-copy-range
 
-    auto blockWidth = Texture::texelBlockWidth(protect(fromAPI(imageCopyTexture.texture))->format());
+    auto blockWidth = Texture::texelBlockWidth(fromAPI(imageCopyTexture.texture).format());
 
-    auto blockHeight = Texture::texelBlockHeight(protect(fromAPI(imageCopyTexture.texture))->format());
+    auto blockHeight = Texture::texelBlockHeight(fromAPI(imageCopyTexture.texture).format());
 
     auto subresourceSize = imageCopyTextureSubresourceSize(imageCopyTexture);
 

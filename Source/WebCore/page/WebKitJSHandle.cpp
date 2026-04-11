@@ -88,7 +88,7 @@ JSC::JSObject* WebKitJSHandle::objectForIdentifier(JSHandleIdentifier identifier
     return it->value.strongReference.get();
 }
 
-static Markable<FrameIdentifier> windowFrameIdentifier(JSC::JSObject* object)
+static Markable<FrameIdentifier> NODELETE windowFrameIdentifier(JSC::JSObject* object)
 {
     if (auto* window = jsDynamicCast<WebCore::JSWindowProxy*>(object)) {
         if (auto* frame = window->wrapped().frame())
@@ -103,7 +103,7 @@ WebKitJSHandle::WebKitJSHandle(JSC::JSObject* object)
 {
     auto addResult = handleMap().ensure(m_identifier, [&] {
         return JSHandleData {
-            JSC::Strong<JSC::JSObject> { object->globalObject()->vm(), object },
+            JSC::Strong<JSC::JSObject> { object->vm(), object },
             0 // Immediately incremented.
         };
     });

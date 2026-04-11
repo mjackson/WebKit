@@ -34,6 +34,7 @@
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/EdenGCActivityCallback.h>
 #include <JavaScriptCore/FullGCActivityCallback.h>
+#include <JavaScriptCore/HeapCellInlines.h>
 #include <JavaScriptCore/HeapInlines.h>
 #include <JavaScriptCore/MachineStackMarker.h>
 #include <JavaScriptCore/VM.h>

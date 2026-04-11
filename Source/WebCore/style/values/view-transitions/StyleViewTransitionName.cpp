@@ -35,22 +35,23 @@ namespace Style {
 
 auto CSSValueConversion<ViewTransitionName>::operator()(BuilderState& state, const CSSValue& value) -> ViewTransitionName
 {
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-    if (!primitiveValue)
-        return CSS::Keyword::None { };
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
+        switch (primitiveValue->valueID()) {
+        case CSSValueNone:
+            return CSS::Keyword::None { };
+        case CSSValueAuto:
+            return { CSS::Keyword::Auto { }, state.styleScopeOrdinal() };
+        case CSSValueMatchElement:
+            return { CSS::Keyword::MatchElement { }, state.styleScopeOrdinal() };
+        default:
+            break;
+        }
 
-    switch (primitiveValue->valueID()) {
-    case CSSValueNone:
+        state.setCurrentPropertyInvalidAtComputedValueTime();
         return CSS::Keyword::None { };
-    case CSSValueAuto:
-        return { CSS::Keyword::Auto { }, state.styleScopeOrdinal() };
-    case CSSValueMatchElement:
-        return { CSS::Keyword::MatchElement { }, state.styleScopeOrdinal() };
-    default:
-        break;
     }
 
-    return { CustomIdentifier { AtomString { primitiveValue->stringValue() } }, state.styleScopeOrdinal() };
+    return { toStyleFromCSSValue<CustomIdent>(state, value), state.styleScopeOrdinal() };
 }
 
 } // namespace Style

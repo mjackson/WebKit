@@ -168,7 +168,7 @@ void WebFullScreenManager::videoControlsManagerDidChange()
         return;
     }
 
-    RefPtr currentPlaybackControlsElement = dynamicDowncast<WebCore::HTMLVideoElement>(protect(m_page->playbackSessionManager())->currentPlaybackControlsElement());
+    RefPtr currentPlaybackControlsElement = dynamicDowncast<WebCore::HTMLVideoElement>(m_page->playbackSessionManager().currentPlaybackControlsElement());
     if (!currentPlaybackControlsElement) {
         setPIPStandbyElement(nullptr);
         return;
@@ -317,7 +317,7 @@ void WebFullScreenManager::enterFullScreenForElement(Element& element, HTMLMedia
         return;
     }
 
-    if (RefPtr currentPlaybackControlsElement = protect(m_page->playbackSessionManager())->currentPlaybackControlsElement())
+    if (RefPtr currentPlaybackControlsElement = m_page->playbackSessionManager().currentPlaybackControlsElement())
         currentPlaybackControlsElement->prepareForVideoFullscreenStandby();
 #endif
 
@@ -439,7 +439,9 @@ void WebFullScreenManager::performEnterFullScreen()
     }
 #endif // ENABLE(QUICKLOOK_FULLSCREEN)
 
+#if ENABLE(VIDEO)
     FullScreenMediaDetails mediaDetails;
+#endif
 #if ENABLE(QUICKLOOK_FULLSCREEN)
     if (m_pendingImageMediaDetails) {
         mediaDetails = WTF::move(*m_pendingImageMediaDetails);
@@ -597,7 +599,7 @@ void WebFullScreenManager::didEnterFullScreen(CompletionHandler<bool(bool)>&& co
     }
 
 #if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
-    RefPtr currentPlaybackControlsElement = protect(m_page->playbackSessionManager())->currentPlaybackControlsElement();
+    RefPtr currentPlaybackControlsElement = m_page->playbackSessionManager().currentPlaybackControlsElement();
     setPIPStandbyElement(dynamicDowncast<WebCore::HTMLVideoElement>(currentPlaybackControlsElement.get()));
 #endif
 

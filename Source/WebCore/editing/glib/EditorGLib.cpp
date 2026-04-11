@@ -75,7 +75,7 @@ void Editor::platformPasteFont()
 {
 }
 
-static const AtomString& elementURL(Element& element)
+static String elementURL(Element& element)
 {
     if (is<HTMLImageElement>(element) || is<HTMLInputElement>(element))
         return element.attributeWithoutSynchronization(HTMLNames::srcAttr);
@@ -83,7 +83,7 @@ static const AtomString& elementURL(Element& element)
         return element.attributeWithoutSynchronization(XLinkNames::hrefAttr);
     if (is<HTMLEmbedElement>(element) || is<HTMLObjectElement>(element))
         return element.imageSourceURL();
-    return nullAtom();
+    return nullString();
 }
 
 static bool getImageForElement(Element& element, RefPtr<Image>& image)

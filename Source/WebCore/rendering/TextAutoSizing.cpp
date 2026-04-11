@@ -107,7 +107,7 @@ static unsigned computeFontHash(const FontCascade& font)
 {
     // FIXME: Would be better to hash the family name rather than hashing a hash of the family name. Also, should this use FontCascadeDescription::familyNameHash?
     return computeHash(
-        ASCIICaseInsensitiveHash::hash(font.fontDescription().firstFamily()),
+        ASCIICaseInsensitiveHash::hash(font.fontDescription().firstFamily().name),
         font.fontDescription().specifiedSize()
     );
 }

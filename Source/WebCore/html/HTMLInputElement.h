@@ -201,7 +201,7 @@ public:
 
     // Checks if the specified string would be a valid value.
     // We should not call this for types with no string value such as CHECKBOX and RADIO.
-    bool isValidValue(const String&) const;
+    bool isValidValue(StringView) const;
     bool hasDirtyValue() const { return !m_valueIfDirty.isNull(); }
 
     String placeholder() const;
@@ -341,7 +341,7 @@ public:
 
     void capsLockStateMayHaveChanged();
 
-    bool shouldTruncateText(const RenderStyle&) const;
+    bool NODELETE shouldTruncateText(const RenderStyle&) const;
 
     String resultForDialogSubmit() const final;
 
@@ -399,7 +399,7 @@ private:
 
     void resignStrongPasswordAppearance();
 
-    bool canHaveSelection() const;
+    bool NODELETE canHaveSelection() const;
     bool canStartSelection() const final;
 
     bool accessKeyAction(bool sendMouseEvents) final;

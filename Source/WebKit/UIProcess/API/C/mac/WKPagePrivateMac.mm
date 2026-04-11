@@ -106,12 +106,12 @@
 
 - (NSURL *)unreachableURL
 {
-    return [NSURL _web_URLWithWTFString:protect(*_page)->pageLoadState().unreachableURL()];
+    return [NSURL _web_URLWithWTFString:(*_page).pageLoadState().unreachableURL()];
 }
 
 - (SecTrustRef)serverTrust
 {
-    return protect(*_page)->pageLoadState().certificateInfo().trust().get();
+    return (*_page).pageLoadState().certificateInfo().trust().get();
 }
 
 @end
@@ -155,6 +155,11 @@ WKWebView *WKPageGetWebView(WKPageRef page)
 bool WKPageIsPlayingVideoInPictureInPicture(WKPageRef pageRef)
 {
     return protect(WebKit::toImpl(pageRef))->isPlayingVideoInPictureInPicture();
+}
+
+bool WKPageIsPlayingVideoInEnhancedFullscreen(WKPageRef pageRef)
+{
+    return WKPageIsPlayingVideoInPictureInPicture(pageRef);
 }
 #endif
 

@@ -114,10 +114,10 @@ public:
     bool operator==(const Option&) const;
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
-    ASCIILiteral name() const { return g_constMetaData[m_id].name; }
-    ASCIILiteral description() const { return g_constMetaData[m_id].description; }
-    Options::Type type() const { return g_constMetaData[m_id].type; }
-    Options::Availability availability() const { return g_constMetaData[m_id].availability; }
+    ASCIILiteral NODELETE name() const { return g_constMetaData[m_id].name; }
+    ASCIILiteral NODELETE description() const { return g_constMetaData[m_id].description; }
+    Options::Type NODELETE type() const { return g_constMetaData[m_id].type; }
+    Options::Availability NODELETE availability() const { return g_constMetaData[m_id].availability; }
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
     Option(Options::ID id, void* addressOfValue)
@@ -169,7 +169,7 @@ static const Option defaultFor(Options::ID id)
     return Option(id, addressOfDefault);
 }
 
-inline static void* addressOfOption(Options::ID id)
+inline static void* NODELETE addressOfOption(Options::ID id)
 {
     auto offset = g_constMetaData[id].offsetOfOption;
     return reinterpret_cast<uint8_t*>(&g_jscConfig.options) + offset;
@@ -182,18 +182,18 @@ static const Option optionFor(Options::ID id)
     return Option(id, addressOfOption(id));
 }
 
-inline static bool hasMetadata()
+inline static bool NODELETE hasMetadata()
 {
     return !!g_metadata.get();
 }
 
-inline static bool wasOverridden(Options::ID id)
+inline static bool NODELETE wasOverridden(Options::ID id)
 {
     ASSERT(id < NumberOfOptions);
     return g_optionWasOverridden->get(id);
 }
 
-inline static void setWasOverridden(Options::ID id)
+inline static void NODELETE setWasOverridden(Options::ID id)
 {
     ASSERT(id < NumberOfOptions);
     g_optionWasOverridden->set(id);
@@ -318,7 +318,7 @@ std::optional<OptionsStorage::OSLogType> parse(const char* string)
 }
 
 #if PLATFORM(COCOA)
-static os_log_type_t asDarwinOSLogType(OSLogType type)
+static os_log_type_t NODELETE asDarwinOSLogType(OSLogType type)
 {
     switch (type) {
     case OSLogType::None:
@@ -655,7 +655,7 @@ void Options::setAllJITCodeValidations(bool value)
     Options::useJITAsserts() = value;
 }
 
-static inline void disableAllWasmJITOptions()
+static inline void NODELETE disableAllWasmJITOptions()
 {
 #if ENABLE(WEBASSEMBLY)
     // This really only makes sense if could use wasm, otherwise we should not override this.
@@ -671,7 +671,7 @@ static inline void disableAllWasmJITOptions()
     Options::dumpOMGDisassembly() = false;
 }
 
-static inline void disableAllWasmOptions()
+static inline void NODELETE disableAllWasmOptions()
 {
     disableAllWasmJITOptions();
 
@@ -689,7 +689,7 @@ static inline void disableAllWasmOptions()
     Options::useWasmTailCalls() = false;
 }
 
-static inline void disableAllJITOptions()
+static inline void NODELETE disableAllJITOptions()
 {
 #if ENABLE(WEBASSEMBLY)
     // This really only makes sense if could use wasm, otherwise we should not override this.
@@ -718,7 +718,7 @@ static inline void disableAllJITOptions()
 }
 
 #if OS(DARWIN)
-static void disableAllSignalHandlerBasedOptions()
+static void NODELETE disableAllSignalHandlerBasedOptions()
 {
     Options::usePollingTraps() = true;
     Options::useSharedArrayBuffer() = false;
@@ -1142,7 +1142,7 @@ void Options::finalize()
     OptionsHelper::releaseMetadata();
 }
 
-static bool isSeparator(char c)
+static bool NODELETE isSeparator(char c)
 {
     return isUnicodeCompatibleASCIIWhitespace(c) || (c == ',');
 }
@@ -1525,10 +1525,10 @@ SUPPRESS_ASAN bool canUseJITCage()
     return JSC_JIT_CAGE_VERSION() && !ASAN_ENABLED && WTF::processHasEntitlement("com.apple.private.verified-jit"_s);
 }
 #else
-bool canUseJITCage() { return false; }
+bool NODELETE canUseJITCage() { return false; }
 #endif
 
-bool canUseWasm()
+bool NODELETE canUseWasm()
 {
 #if ENABLE(WEBASSEMBLY) && !PLATFORM(WATCHOS)
     return true;
@@ -1537,7 +1537,7 @@ bool canUseWasm()
 #endif
 }
 
-bool hasCapacityToUseLargeGigacage()
+bool NODELETE hasCapacityToUseLargeGigacage()
 {
     // Gigacage::hasCapacityToUseLargeGigacage is determined based on EFFECTIVE_ADDRESS_WIDTH.
     // If we have enough address range to potentially use a large gigacage,

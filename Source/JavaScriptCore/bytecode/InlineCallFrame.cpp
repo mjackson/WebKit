@@ -55,6 +55,11 @@ CString InlineCallFrame::inferredName() const
     return jsCast<FunctionExecutable*>(baselineCodeBlock->ownerExecutable())->ecmaName().utf8();
 }
 
+String InlineCallFrame::inferredNameWithHash() const
+{
+    return makeString(inferredName(), "#"_s, hash());
+}
+
 void InlineCallFrame::dumpBriefFunctionInformation(PrintStream& out) const
 {
     out.print(inferredName(), "#", hash());

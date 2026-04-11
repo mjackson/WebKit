@@ -145,11 +145,13 @@
     (allow network-outbound
         (literal "/private/var/run/syslog")))
 
+#if !PLATFORM(IOS_SIMULATOR)
 #if ENABLE(NOTIFY_BLOCKING)
 (with-filter (require-not (notify-blocking))
     (allow-notifyd))
 #else
 (allow-notifyd)
+#endif
 #endif
 
 (managed-configuration-read-public)
@@ -421,6 +423,7 @@
 (when (not (defined? 'process-codesigning*))
     (allow process-info-codesignature (target self)))
 
+#if !PLATFORM(IOS_SIMULATOR)
 (allow mach-bootstrap
     (apply-message-filter
         (deny mach-message-send NO_REPORT)
@@ -432,6 +435,7 @@
 #endif
         (with-filter (require-not (webcontent-process-launched))
             (allow mach-message-send (mach-bootstrap-message-numbers)))))
+#endif
 
 (deny syscall-mach (with telemetry))
 (allow syscall-mach

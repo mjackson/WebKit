@@ -42,6 +42,7 @@
 #include "DNS.h"
 #include "DeprecatedGlobalSettings.h"
 #include "DocumentInlines.h"
+#include "DocumentPage.h"
 #include "DocumentParser.h"
 #include "DocumentPrefetcher.h"
 #include "DocumentQuirks.h"
@@ -55,6 +56,7 @@
 #include "EventNames.h"
 #include "ExtensionStyleSheets.h"
 #include "FormSubmission.h"
+#include "FrameDestructionObserverInlines.h"
 #include "FrameInlines.h"
 #include "FrameLoader.h"
 #include "FrameTree.h"
@@ -141,7 +143,7 @@
 
 #define PAGE_ID (m_frame && m_frame->pageID() ? m_frame->pageID()->toUInt64() : 0)
 #define FRAME_ID (m_frame ? m_frame->frameID().toUInt64() : 0)
-#define IS_MAIN_FRAME (m_frame ? m_frame->isMainFrame() : false)
+#define IS_MAIN_FRAME (m_frame && m_frame->isMainFrame())
 #define DOCUMENTLOADER_RELEASE_LOG(fmt, ...) RELEASE_LOG(Network, "%p - [pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] DocumentLoader::" fmt, this, PAGE_ID, FRAME_ID, IS_MAIN_FRAME, ##__VA_ARGS__)
 #define DOCUMENTLOADER_RELEASE_LOG_FORWARDABLE(fmt, ...) RELEASE_LOG_FORWARDABLE(Network, fmt, PAGE_ID, FRAME_ID, IS_MAIN_FRAME, ##__VA_ARGS__)
 
@@ -271,12 +273,8 @@ void DocumentLoader::setRequest(ResourceRequest&& req)
     ASSERT(!m_committed);
 
     m_request = WTF::move(req);
-    if (shouldNotifyAboutProvisionalURLChange) {
-        // Logging for <rdar://problem/54830233>.
-        if (!frameLoader()->provisionalDocumentLoader())
-            DOCUMENTLOADER_RELEASE_LOG("DocumentLoader::setRequest: With no provisional document loader");
+    if (shouldNotifyAboutProvisionalURLChange)
         protect(frameLoader()->client())->dispatchDidChangeProvisionalURL();
-    }
 }
 
 void DocumentLoader::setMainDocumentError(const ResourceError& error)
@@ -2167,7 +2165,7 @@ void DocumentLoader::startLoadingMainResource()
 
 #if ENABLE(CONTENT_FILTERING)
     // Always filter in WK1
-    contentFilterInDocumentLoader() = frame && frame->view() && protect(frame->view())->platformWidget();
+    contentFilterInDocumentLoader() = frame && frame->view() && frame->view()->platformWidget();
     if (contentFilterInDocumentLoader())
         m_contentFilter = !m_substituteData.isValid() ? ContentFilter::create(*this) : nullptr;
 #endif
@@ -2383,7 +2381,7 @@ void DocumentLoader::cancelMainResourceLoad(const ResourceError& resourceError, 
 
     clearMainResource();
 
-    mainReceivedError(error);
+    mainReceivedError(error, loadWillContinueInAnotherProcess);
 }
 
 void DocumentLoader::willContinueMainResourceLoadAfterRedirect(const ResourceRequest& newRequest)

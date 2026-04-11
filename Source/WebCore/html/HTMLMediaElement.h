@@ -291,6 +291,7 @@ public:
     void setDefaultPlaybackRate(double) override;
     WEBCORE_EXPORT double playbackRate() const override;
     void setPlaybackRate(double) override;
+    double reportedPlaybackRate() const { return m_reportedPlaybackRate; }
     WEBCORE_EXPORT bool NODELETE preservesPitch() const;
     WEBCORE_EXPORT void setPreservesPitch(bool);
 
@@ -529,7 +530,7 @@ public:
 
 #if ENABLE(FULLSCREEN_API)
     void documentFullscreenChanged(bool isChildOfElementFullscreen);
-    WEBCORE_EXPORT bool isChildOfElementFullscreen() const;
+    WEBCORE_EXPORT bool NODELETE isChildOfElementFullscreen() const;
 #endif
 
     bool hasClosedCaptions() const override;
@@ -1007,7 +1008,7 @@ private:
     bool pausedForUserInteraction() const;
     bool couldPlayIfEnoughData() const;
     void dispatchPlayPauseEventsIfNeedsQuirks();
-    Expected<void, MediaPlaybackDenialReason> canTransitionFromAutoplayToPlay() const;
+    Expected<void, MediaPlaybackDenialExplanation> canTransitionFromAutoplayToPlay() const;
 
     void setAutoplayEventPlaybackState(AutoplayEventPlaybackState);
     void userDidInterfereWithAutoplay();

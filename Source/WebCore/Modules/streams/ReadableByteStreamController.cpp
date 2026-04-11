@@ -35,6 +35,7 @@
 #include "JSDOMPromiseDeferred.h"
 #include "JSReadableByteStreamController.h"
 #include "JSReadableStreamReadResult.h"
+#include "JSValueInWrappedObjectInlines.h"
 #include "ReadableStream.h"
 #include "ReadableStreamBYOBReader.h"
 #include "ReadableStreamBYOBRequest.h"
@@ -83,7 +84,7 @@ ReadableByteStreamController::ReadableByteStreamController(JSDOMGlobalObject& gl
         m_cancelAlgorithm = WTF::move(cancelAlgorithm);
     }
 
-    m_underlyingSource.set(globalObject.vm(), &globalObject, underlyingSource);
+    m_underlyingSource.set(globalObject, &globalObject, underlyingSource);
 
     m_pullAlgorithmWrapper =  [](auto& globalObject, auto& controller) {
         return getAlgorithmPromise(globalObject, controller.m_pullAlgorithm, controller.m_underlyingSource.getValue(), controller);
@@ -811,9 +812,8 @@ void ReadableByteStreamController::fillReadRequestFromQueue(JSDOMGlobalObject& g
 
 void ReadableByteStreamController::storeError(JSDOMGlobalObject& globalObject, JSC::JSValue error)
 {
-    Ref vm = globalObject.vm();
     auto thisValue = toJS(&globalObject, &globalObject, *this);
-    m_storedError.set(vm.get(), thisValue.getObject(), error);
+    m_storedError.set(globalObject, thisValue.getObject(), error);
 }
 
 JSC::JSValue ReadableByteStreamController::storedError() const
@@ -1021,6 +1021,9 @@ void ReadableByteStreamController::visitDirectChildrenInGCThread(Visitor& visito
     if (m_cancelAlgorithm)
         SUPPRESS_UNCOUNTED_ARG m_cancelAlgorithm->visitJSFunctionInGCThread(visitor);
 }
+
+template void ReadableByteStreamController::visitDirectChildrenInGCThread(JSC::AbstractSlotVisitor&);
+template void ReadableByteStreamController::visitDirectChildrenInGCThread(JSC::SlotVisitor&);
 
 template<typename Visitor>
 void ReadableByteStreamController::visitAdditionalChildrenInGCThread(Visitor& visitor)

@@ -79,26 +79,31 @@ void RemoteMesh::setLabel(String&& label)
     m_backing->setLabel(WTF::move(label));
 }
 
-void RemoteMesh::update(const WebModel::UpdateMeshDescriptor& descriptor, CompletionHandler<void(bool)>&& completionHandler)
+void RemoteMesh::update(Vector<WebModel::UpdateMeshDescriptor>&& descriptor, CompletionHandler<void(bool)>&& completionHandler)
 {
-    m_backing->update(descriptor);
+    m_backing->update(WTF::move(descriptor));
     completionHandler(true);
 }
 
-void RemoteMesh::render()
+void RemoteMesh::render(uint32_t textureIndex, CompletionHandler<void(bool)>&& completionHandler)
 {
-    m_backing->render();
+    Ref workQueue = m_gpu->workQueue();
+    m_backing->render(textureIndex, [workQueue = WTF::move(workQueue), completionHandler = WTF::move(completionHandler)] (bool result) mutable {
+        protect(workQueue)->dispatch([result, completionHandler = WTF::move(completionHandler)] mutable {
+            completionHandler(result);
+        });
+    });
 }
 
-void RemoteMesh::updateTexture(const WebModel::UpdateTextureDescriptor& descriptor, CompletionHandler<void(bool)>&& completionHandler)
+void RemoteMesh::updateTexture(Vector<WebModel::UpdateTextureDescriptor>&& descriptor, CompletionHandler<void(bool)>&& completionHandler)
 {
-    m_backing->updateTexture(descriptor);
+    m_backing->updateTexture(WTF::move(descriptor));
     completionHandler(true);
 }
 
-void RemoteMesh::updateMaterial(const WebModel::UpdateMaterialDescriptor& descriptor, CompletionHandler<void(bool)>&& completionHandler)
+void RemoteMesh::updateMaterial(Vector<WebModel::UpdateMaterialDescriptor>&& descriptor, CompletionHandler<void(bool)>&& completionHandler)
 {
-    m_backing->updateMaterial(descriptor);
+    m_backing->updateMaterial(WTF::move(descriptor));
     completionHandler(true);
 }
 
@@ -107,9 +112,9 @@ void RemoteMesh::updateTransform(const WebModel::Float4x4& transform)
     m_backing->setEntityTransform(transform);
 }
 
-void RemoteMesh::setCameraDistance(float distance)
+void RemoteMesh::setFOV(float fovY)
 {
-    m_backing->setCameraDistance(distance);
+    m_backing->setFOV(fovY);
 }
 
 void RemoteMesh::setBackgroundColor(const WebModel::Float3& color)

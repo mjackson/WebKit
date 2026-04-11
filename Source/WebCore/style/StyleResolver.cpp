@@ -440,6 +440,9 @@ std::unique_ptr<RenderStyle> Resolver::styleForKeyframe(Element& element, const 
     builder.state().setIsBuildingKeyframeStyle();
     builder.applyAllProperties();
 
+    if (state.style()->usesViewportUnits())
+        element.document().setHasStyleWithViewportUnits();
+
     Adjuster adjuster(document(), *state.parentStyle(), nullptr, !pseudoElementIdentifier ? &element : nullptr);
     adjuster.adjust(*state.style());
 
@@ -643,7 +646,7 @@ std::unique_ptr<RenderStyle> Resolver::defaultStyleForElement(const Element* ele
     auto style = RenderStyle::createPtrWithRegisteredInitialValues(document().customPropertyRegistry());
 
     FontCascadeDescription fontDescription;
-    fontDescription.setOneFamily(standardFamily);
+    fontDescription.setOneFamily(WebCore::FontFamily { standardFamily, FontFamilyKind::Generic });
     fontDescription.setKeywordSizeFromIdentifier(CSSValueMedium);
 
     auto size = fontSizeForKeyword(CSSValueMedium, false, document());
@@ -753,7 +756,7 @@ void Resolver::applyMatchedProperties(State& state, const MatchResult& matchResu
     // High priority properties may affect resolution of other properties (they are mostly font related).
     builder.applyHighPriorityProperties();
 
-    if (cacheResult && !cacheResult->entry.isUsableAfterHighPriorityProperties(style)) {
+    if (hasUsableEntry && !cacheResult->entry.isUsableAfterHighPriorityProperties(style)) {
         // High-priority properties may affect resolution of other properties. Kick out the existing cache entry and try again.
         m_matchedDeclarationsCache.remove(cacheHash);
         applyMatchedProperties(state, matchResult, PropertyCascade::normalProperties());
@@ -772,8 +775,8 @@ void Resolver::applyMatchedProperties(State& state, const MatchResult& matchResu
 void Resolver::setGlobalStateAfterApplyingProperties(const BuilderState& builderState)
 {
     // FIXME: This stuff should be somewhere else.
-    for (auto& contentAttribute : builderState.registeredContentAttributes())
-        ruleSets().mutableFeatures().registerContentAttribute(contentAttribute);
+    for (auto& attribute : builderState.registeredSubstitutionAttributes())
+        ruleSets().mutableFeatures().registerSubstitutionAttribute(attribute);
     if (builderState.style().usesViewportUnits())
         document().setHasStyleWithViewportUnits();
 }

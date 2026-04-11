@@ -25,6 +25,7 @@
 
 #include "config.h"
 #include "BlockFormattingQuirks.h"
+#include "LayoutBoxInlines.h"
 
 #include "BlockFormattingContext.h"
 #include "BlockFormattingGeometry.h"

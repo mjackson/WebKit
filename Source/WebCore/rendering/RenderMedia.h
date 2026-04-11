@@ -31,6 +31,8 @@
 
 namespace WebCore {
 
+class HTMLMediaElement;
+
 class RenderMedia : public RenderImage {
     WTF_MAKE_TZONE_ALLOCATED(RenderMedia);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderMedia);

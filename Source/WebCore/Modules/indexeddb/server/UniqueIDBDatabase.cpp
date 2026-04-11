@@ -1424,7 +1424,7 @@ void UniqueIDBDatabase::activateTransactionInBackingStore(UniqueIDBDatabaseTrans
     transaction.didActivateInBackingStore(error);
 }
 
-template<typename T> bool scopesOverlap(const T& aScopes, const Vector<IDBObjectStoreIdentifier>& bScopes)
+template<typename T> bool NODELETE scopesOverlap(const T& aScopes, const Vector<IDBObjectStoreIdentifier>& bScopes)
 {
     for (auto scope : bScopes) {
         if (aScopes.contains(scope))

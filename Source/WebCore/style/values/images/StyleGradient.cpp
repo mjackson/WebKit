@@ -669,7 +669,7 @@ template<typename Position> static inline FloatPoint computeEndPoint(const Posit
 }
 
 // Compute the endpoints so that a gradient of the given angle covers a box of the given size.
-static std::pair<FloatPoint, FloatPoint> endPointsFromAngle(float angleDeg, const FloatSize& size)
+static std::pair<FloatPoint, FloatPoint> NODELETE endPointsFromAngle(float angleDeg, const FloatSize& size)
 {
     angleDeg = toPositiveAngle(angleDeg);
 
@@ -719,7 +719,7 @@ static std::pair<FloatPoint, FloatPoint> endPointsFromAngle(float angleDeg, cons
     return { FloatPoint(halfWidth - endX, halfHeight + endY), FloatPoint(halfWidth + endX, halfHeight - endY) };
 }
 
-static std::pair<FloatPoint, FloatPoint> endPointsFromAngleForPrefixedVariants(float angleDeg, const FloatSize& size)
+static std::pair<FloatPoint, FloatPoint> NODELETE endPointsFromAngleForPrefixedVariants(float angleDeg, const FloatSize& size)
 {
     // Prefixed gradients use "polar coordinate" angles, rather than "bearing" angles.
     return endPointsFromAngle(90 - angleDeg, size);

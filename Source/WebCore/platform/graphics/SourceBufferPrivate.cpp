@@ -283,7 +283,7 @@ Ref<SourceBufferPrivate::ComputeSeekPromise> SourceBufferPrivate::computeSeekTim
     });
 }
 
-void SourceBufferPrivate::seekToTime(const MediaTime& time)
+void SourceBufferPrivate::reenqueueMediaForTime(const MediaTime& time)
 {
     assertIsCurrent(m_dispatcher.get());
 
@@ -296,6 +296,13 @@ void SourceBufferPrivate::seekToTime(const MediaTime& time)
     }
 
     computeEvictionData();
+}
+
+bool SourceBufferPrivate::isReenqueuePending() const
+{
+    if (RefPtr mediaSource = m_mediaSource.get())
+        return mediaSource->isReenqueuePending();
+    return false;
 }
 
 void SourceBufferPrivate::clearTrackBuffers(bool shouldReportToClient)
@@ -408,7 +415,7 @@ void SourceBufferPrivate::provideMediaData(TrackID trackID)
 
 void SourceBufferPrivate::provideMediaData(TrackBuffer& trackBuffer, TrackID trackID)
 {
-    if (trackBuffer.needsReenqueueing() || isSeeking())
+    if (trackBuffer.needsReenqueueing() || isReenqueuePending())
         return;
     RefPtr client = this->client();
     if (!client)
@@ -1687,7 +1694,7 @@ void SourceBufferPrivate::attach()
 
             // When a MediaSource is re-attached part of the loading the media resources algorithm (https://html.spec.whatwg.org/multipage/media.html#loading-the-media-resourceas)
             // the playback position is to be set back to 0.
-            protectedThis->seekToTime(MediaTime::zeroTime());
+            protectedThis->reenqueueMediaForTime(MediaTime::zeroTime());
         });
     });
 }

@@ -23,9 +23,10 @@
 #include "CSSImportRule.h"
 
 #include "CSSLayerBlockRule.h"
-#include "CSSMarkup.h"
 #include "CSSSerializationContext.h"
 #include "CSSStyleSheet.h"
+#include "CSSURL.h"
+#include "CSSValueTypes.h"
 #include "CachedCSSStyleSheet.h"
 #include "MediaList.h"
 #include "MediaQueryParser.h"
@@ -75,10 +76,11 @@ String CSSImportRule::supportsText() const
     return m_importRule->supportsText();
 }
 
-String CSSImportRule::cssTextInternal(const String& urlString) const
+String CSSImportRule::cssTextInternal(const String& urlString, const CSS::SerializationContext& context) const
 {
     StringBuilder builder;
-    builder.append("@import "_s, serializeURL(urlString));
+    builder.append("@import "_s);
+    CSS::serializationForCSS(builder, context, CSS::URL { .specified = urlString, .resolved = { }, .modifiers = { } });
 
     if (auto layerName = this->layerName(); !layerName.isNull()) {
         if (layerName.isEmpty())
@@ -102,7 +104,7 @@ String CSSImportRule::cssTextInternal(const String& urlString) const
 
 String CSSImportRule::cssText() const
 {
-    return cssTextInternal(m_importRule->href());
+    return cssTextInternal(m_importRule->href(), CSS::defaultSerializationContext());
 }
 
 String CSSImportRule::cssText(const CSS::SerializationContext& context) const
@@ -110,12 +112,12 @@ String CSSImportRule::cssText(const CSS::SerializationContext& context) const
     if (RefPtr sheet = styleSheet()) {
         auto urlString = context.replacementURLStringsForCSSStyleSheet.get(*sheet);
         if (!urlString.isEmpty())
-            return cssTextInternal(urlString);
+            return cssTextInternal(urlString, context);
     }
 
     auto urlString = m_importRule->href();
     auto replacementURLString = context.replacementURLStrings.get(urlString);
-    return replacementURLString.isEmpty() ? cssTextInternal(urlString) : cssTextInternal(replacementURLString);
+    return cssTextInternal(replacementURLString.isEmpty() ? urlString : replacementURLString, context);
 }
 
 CSSStyleSheet* CSSImportRule::styleSheet() const

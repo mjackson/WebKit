@@ -68,7 +68,7 @@ enum class RTCRtpTransceiverDirection;
 
 RTCRtpParameters toRTCRtpParameters(const webrtc::RtpParameters&);
 void updateRTCRtpSendParameters(const RTCRtpSendParameters&, webrtc::RtpParameters&, webrtc::MediaType);
-RTCRtpSendParameters toRTCRtpSendParameters(const webrtc::RtpParameters&);
+RTCRtpSendParameters toRTCRtpSendParameters(const webrtc::RtpParameters&, bool isAudio);
 webrtc::RtpParameters fromRTCRtpSendParameters(const RTCRtpSendParameters&, const webrtc::RtpParameters& currentParameters);
 
 RTCRtpTransceiverDirection toRTCRtpTransceiverDirection(webrtc::RtpTransceiverDirection);

@@ -46,7 +46,7 @@
 #include "CoreAudioCaptureSource.h"
 #include "DisplayCaptureSourceCocoa.h"
 #include "MockAudioCaptureUnit.h"
-#include "MockRealtimeVideoSourceMac.h"
+#include "MockRealtimeVideoSourceCocoa.h"
 #endif
 
 #if PLATFORM(IOS_FAMILY)

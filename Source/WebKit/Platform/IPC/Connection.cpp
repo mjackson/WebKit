@@ -35,6 +35,7 @@
 #include "WorkQueueMessageReceiver.h"
 #include <memory>
 #include <wtf/ArgumentCoder.h>
+#include <wtf/Borrow.h>
 #include <wtf/HashCountedSet.h>
 #include <wtf/HashSet.h>
 #include <wtf/Lock.h>
@@ -523,10 +524,10 @@ void Connection::invalidate()
     assertIsCurrent(dispatcher());
     m_client = nullptr;
     m_outgoingMessageQueueIsGrowingLargeCallback = nullptr;
-    [this] {
+    {
         Locker locker { m_incomingMessagesLock };
-        return WTF::move(m_syncState);
-    }();
+        m_syncState = nullptr;
+    }
 
     cancelAsyncReplyHandlers();
 
@@ -595,7 +596,7 @@ Error Connection::sendMessageImpl(UniqueRef<Encoder>&& encoder, OptionSet<SendOp
 #if ENABLE(IPC_TESTING_API)
     if (isMainRunLoop()) {
         bool hasDeadObservers = false;
-        for (auto& observerWeakPtr : m_messageObservers) {
+        for (WeakPtr observerWeakPtr : borrow(m_messageObservers).get()) {
             if (RefPtr observer = observerWeakPtr.get())
                 observer->willSendMessage(encoder.get(), sendOptions);
             else
@@ -909,21 +910,26 @@ auto Connection::sendSyncMessage(SyncRequestID syncRequestID, UniqueRef<Encoder>
     }
 #endif
 
+    auto cleanup = makeScopeExit([&] {
+#if ENABLE(CORE_IPC_SIGNPOSTS)
+        if (signpostIdentifier) [[unlikely]]
+            WTFEndSignpost(signpostIdentifier, IPCConnection);
+#endif
+        popPendingSyncRequestID(syncRequestID);
+    });
+
     // Since sync IPC is blocking the current thread, make sure we use the same priority for the IPC sending thread
     // as the current thread.
-    sendMessageImpl(WTF::move(encoder), sendOptions, Thread::currentThreadQOS());
+    auto sendError = sendMessageImpl(WTF::move(encoder), sendOptions, Thread::currentThreadQOS());
+    if (sendError != Error::NoError) {
+        didFailToSendSyncMessage(sendError);
+        return makeUnexpected(sendError);
+    }
 
     // Then wait for a reply. Waiting for a reply could involve dispatching incoming sync messages, so
     // keep an extra reference to the connection here in case it's invalidated.
     Ref<Connection> protect(*this);
     auto replyOrError = waitForSyncReply(syncRequestID, messageName, timeout, sendSyncOptions);
-
-#if ENABLE(CORE_IPC_SIGNPOSTS)
-    if (signpostIdentifier) [[unlikely]]
-        WTFEndSignpost(signpostIdentifier, IPCConnection);
-#endif
-
-    popPendingSyncRequestID(syncRequestID);
 
     if (!replyOrError.has_value()) {
         if (replyOrError.error() == Error::NoError)
@@ -1012,16 +1018,18 @@ void Connection::processIncomingSyncReply(UniqueRef<Decoder> decoder)
 
             pendingSyncReply.replyDecoder = decoder.moveToUniquePtr();
 
-            // Keep track of the last message (that returns true for shouldDispatchMessageWhenWaitingForSyncReply())
-            // we've received before this sync reply. This is to make sure that we dispatch all messages up to this
-            // one, before the sync reply, to maintain ordering.
-            pendingSyncReply.identifierOfLastMessageToDispatchBeforeSyncReply = protect(m_syncState)->identifierOfLastMessageToDispatchWhileWaitingForSyncReply();
+            {
+                Locker incomingMessagesLocker { m_incomingMessagesLock };
+                if (RefPtr syncState = m_syncState) {
+                    // Keep track of the last message (that returns true for shouldDispatchMessageWhenWaitingForSyncReply())
+                    // we've received before this sync reply. This is to make sure that we dispatch all messages up to this
+                    // one, before the sync reply, to maintain ordering.
+                    pendingSyncReply.identifierOfLastMessageToDispatchBeforeSyncReply = syncState->identifierOfLastMessageToDispatchWhileWaitingForSyncReply();
 
-            // We got a reply to the last send message, wake up the client run loop so it can be processed.
-            if (i == m_pendingSyncReplies.size()) {
-                Locker locker { m_incomingMessagesLock };
-                if (RefPtr syncState = m_syncState)
-                    syncState->wakeUpClientRunLoop();
+                    // We got a reply to the last send message, wake up the client run loop so it can be processed.
+                    if (i == m_pendingSyncReplies.size())
+                        syncState->wakeUpClientRunLoop();
+                }
             }
             return;
         }
@@ -1399,7 +1407,7 @@ void Connection::dispatchMessage(Decoder& decoder)
 #if ENABLE(IPC_TESTING_API)
     if (isMainRunLoop()) {
         bool hasDeadObservers = false;
-        for (auto& observerWeakPtr : m_messageObservers) {
+        for (WeakPtr observerWeakPtr : borrow(m_messageObservers).get()) {
             if (RefPtr observer = observerWeakPtr.get())
                 observer->didReceiveMessage(decoder);
             else

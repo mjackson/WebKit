@@ -38,6 +38,7 @@
 #include "OffscreenCanvas.h"
 #include "ReadableStream.h"
 #include "SVGImageElement.h"
+#include <JavaScriptCore/HeapCellInlines.h>
 #include <wtf/Scope.h>
 #include <wtf/Seconds.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -293,7 +294,6 @@ void MediaStreamTrackProcessor::Source::doCancel(JSC::JSValue)
     m_isCancelled = true;
     Ref { m_processor.get() }->stopObserving();
 }
-
 
 Ref<MediaStreamTrackProcessor::TrackObserverWrapper> MediaStreamTrackProcessor::TrackObserverWrapper::create(ScriptExecutionContext& context, MediaStreamTrackProcessor& processor, MediaStreamTrackHandle& handle)
 {

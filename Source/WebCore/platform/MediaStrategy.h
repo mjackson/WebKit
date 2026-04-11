@@ -62,7 +62,7 @@ public:
 #if ENABLE(VIDEO)
     virtual RefPtr<AudioVideoRenderer> createAudioVideoRenderer(WTF::LoggerHelper*, HTMLMediaElementIdentifier, MediaPlayerIdentifier) const;
     bool NODELETE hasRemoteRendererFor(MediaPlayerMediaEngineIdentifier) const;
-    void NODELETE enableRemoteRenderer(MediaPlayerMediaEngineIdentifier, bool);
+    void enableRemoteRenderer(MediaPlayerMediaEngineIdentifier, bool);
 #endif
     virtual std::unique_ptr<NowPlayingManager> createNowPlayingManager() const;
     void resetMediaEngines();
@@ -76,6 +76,7 @@ public:
 #if ENABLE(VIDEO)
     virtual void nativeImageFromVideoFrame(const VideoFrame&, CompletionHandler<void(std::optional<RefPtr<NativeImage>>&&)>&&);
     virtual bool canDecodeExtendedType(PlatformMediaDecodingType, const ContentType&) { return false; }
+    virtual void ensureCodecsSupportChecksInitialized() { }
 #endif
 
     virtual bool enableWebMMediaPlayer() const { return true; }

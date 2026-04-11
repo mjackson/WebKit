@@ -39,6 +39,7 @@
 #include "ServiceWorkerClient.h"
 #include "ServiceWorkerGlobalScope.h"
 #include "ServiceWorkerRegistration.h"
+#include <JavaScriptCore/HeapCellInlines.h>
 #include <wtf/ProcessID.h>
 
 namespace WebCore {

@@ -108,7 +108,7 @@ public:
     bool isInfinity() const { return std::isinf(m_value); }
     bool isFinite() const { return std::isfinite(m_value); }
 
-    explicit constexpr operator bool() const { return !!m_value; }
+    explicit constexpr NODELETE operator bool() const { return !!m_value; }
     
     constexpr Seconds NODELETE operator+(Seconds other) const
     {

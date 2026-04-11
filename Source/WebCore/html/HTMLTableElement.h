@@ -45,10 +45,10 @@ public:
     WEBCORE_EXPORT RefPtr<HTMLTableCaptionElement> NODELETE caption() const;
     WEBCORE_EXPORT ExceptionOr<void> setCaption(RefPtr<HTMLTableCaptionElement>&&);
 
-    WEBCORE_EXPORT RefPtr<HTMLTableSectionElement> tHead() const;
+    WEBCORE_EXPORT RefPtr<HTMLTableSectionElement> NODELETE tHead() const;
     WEBCORE_EXPORT ExceptionOr<void> setTHead(RefPtr<HTMLTableSectionElement>&&);
 
-    WEBCORE_EXPORT RefPtr<HTMLTableSectionElement> tFoot() const;
+    WEBCORE_EXPORT RefPtr<HTMLTableSectionElement> NODELETE tFoot() const;
     WEBCORE_EXPORT ExceptionOr<void> setTFoot(RefPtr<HTMLTableSectionElement>&&);
 
     WEBCORE_EXPORT Ref<HTMLTableSectionElement> createTHead();
@@ -90,7 +90,7 @@ private:
 
     Ref<MutableStyleProperties> createSharedCellStyle() const;
 
-    HTMLTableSectionElement* lastBody() const;
+    HTMLTableSectionElement* NODELETE lastBody() const;
 
     bool m_borderAttr { false }; // Sets a precise border width and creates an outset border for the table and for its cells.
     bool m_frameAttr { false }; // Implies a thin border width if no border is set and then a certain set of solid/hidden borders based off the value.

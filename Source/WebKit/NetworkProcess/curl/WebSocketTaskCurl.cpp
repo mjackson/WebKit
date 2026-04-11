@@ -27,6 +27,7 @@
 #include "WebSocketTaskCurl.h"
 
 #include "NetworkProcess.h"
+#include <wtf/Borrow.h>
 #include "NetworkSessionCurl.h"
 #include "NetworkSocketChannel.h"
 #include <WebCore/AuthenticationChallenge.h>
@@ -358,7 +359,7 @@ std::optional<String> WebSocketTask::receiveFrames(Function<void(WebCore::WebSoc
             m_continuousFrameData.append(frame.payload);
 
             if (frame.final) {
-                callback(m_continuousFrameOpCode, m_continuousFrameData.span());
+                callback(m_continuousFrameOpCode, borrow(m_continuousFrameData)->span());
                 m_hasContinuousFrame = false;
                 m_continuousFrameData.clear();
             }

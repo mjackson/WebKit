@@ -144,6 +144,7 @@ const TestFeatures& TestOptions::defaults()
             { "TabsToLinks", false },
             { "TextAutosizingEnabled", false },
             { "TextAutosizingUsesIdempotentMode", false },
+            { "TextEffectsEnabled", false },
 #if ENABLE(UNIFIED_PDF)
             { "UnifiedPDFEnabled", unifiedPDFEnabledValue },
 #endif
@@ -195,6 +196,7 @@ const TestFeatures& TestOptions::defaults()
             { "shouldHandleRunOpenPanel", true },
             { "shouldAcceptImmersiveEnvironmentRequests", false },
             { "shouldPresentPopovers", true },
+            { "shouldShowCursor", false },
             { "shouldShowTouches", false },
             { "shouldShowWindow", false },
             { "spellCheckingDots", false },
@@ -276,6 +278,7 @@ const std::unordered_map<std::string, TestHeaderKeyType>& TestOptions::keyTypeMa
         { "shouldHandleRunOpenPanel", TestHeaderKeyType::BoolTestRunner },
         { "shouldAcceptImmersiveEnvironmentRequests", TestHeaderKeyType::BoolTestRunner },
         { "shouldPresentPopovers", TestHeaderKeyType::BoolTestRunner },
+        { "shouldShowCursor", TestHeaderKeyType::BoolTestRunner },
         { "shouldShowTouches", TestHeaderKeyType::BoolTestRunner },
         { "shouldShowWindow", TestHeaderKeyType::BoolTestRunner },
         { "spellCheckingDots", TestHeaderKeyType::BoolTestRunner },

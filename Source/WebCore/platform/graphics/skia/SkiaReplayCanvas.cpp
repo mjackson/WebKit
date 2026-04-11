@@ -30,11 +30,7 @@
 #include "GLContext.h"
 #include "GLFence.h"
 #include "PlatformDisplay.h"
-
-WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
-#include <skia/gpu/ganesh/GrBackendSurface.h>
-#include <skia/gpu/ganesh/SkImageGanesh.h>
-WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
+#include "SkiaUtilities.h"
 
 namespace WebCore {
 
@@ -84,12 +80,7 @@ sk_sp<SkImage> SkiaReplayCanvas::waitForRenderingCompletionAndRewrapImageIfNeede
     if (image->isValid(grContext->asRecorder()))
         return nullptr;
 
-    // FIXME: Add error reporting mechanism, a failure from GetBackendTextureFromImage() should be visible / reported.
-    GrBackendTexture backendTexture;
-    if (!SkImages::GetBackendTextureFromImage(image, &backendTexture, false))
-        return nullptr;
-
-    return SkImages::BorrowTextureFrom(grContext, backendTexture, kTopLeft_GrSurfaceOrigin, image->colorType(), image->alphaType(), image->refColorSpace());
+    return SkiaUtilities::rewrapImageForContext(grContext, *image);
 }
 
 void SkiaReplayCanvas::invokeDrawFunctionWithImage(const SkImage* image, Function<void(const SkImage*)>&& drawFunction)

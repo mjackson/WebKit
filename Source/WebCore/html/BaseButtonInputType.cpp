@@ -35,6 +35,7 @@
 #include "AXObjectCache.h"
 #include "HTMLInputElement.h"
 #include "HTMLNames.h"
+#include "NodeDocument.h"
 #include "RenderButton.h"
 #include <wtf/TZoneMallocInlines.h>
 

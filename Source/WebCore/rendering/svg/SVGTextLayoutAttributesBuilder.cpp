@@ -24,6 +24,7 @@
 
 #include "RenderChildIterator.h"
 #include "RenderSVGInline.h"
+#include "RenderStyle+GettersInlines.h"
 #include "RenderSVGInlineText.h"
 #include "RenderSVGText.h"
 #include "SVGTextPositioningElement.h"
@@ -86,6 +87,8 @@ static inline void NODELETE processRenderSVGInlineText(const RenderSVGInlineText
     auto length = string.length();
     if (text.style().whiteSpaceCollapse() == WhiteSpaceCollapse::Preserve) {
         atCharacter += length;
+        if (length)
+            lastCharacterWasSpace = string[length - 1] == ' ';
         return;
     }
 

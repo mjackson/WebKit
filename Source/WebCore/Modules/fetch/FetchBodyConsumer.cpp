@@ -38,6 +38,7 @@
 #include "HTTPParsers.h"
 #include "JSBlob.h"
 #include "JSDOMConvertInterface.h"
+#include "JSDOMConvertStrings.h"
 #include "JSDOMFormData.h"
 #include "JSDOMPromiseDeferred.h"
 #include "TextResourceDecoder.h"

@@ -186,17 +186,17 @@ GStreamerInternalAudioDecoder::GStreamerInternalAudioDecoder(const String& codec
         m_inputCaps = adoptGRef(gst_caps_new_empty_simple("application/ogg"));
     } else if (codecName.startsWith("pcm-"_s)) {
         auto components = codecName.split('-');
-        auto pcmFormat = components[1].convertToASCIILowercase();
+        auto& pcmFormat = components[1];
         GstAudioFormat gstPcmFormat = GST_AUDIO_FORMAT_UNKNOWN;
-        if (pcmFormat == "u8"_s)
+        if (equalLettersIgnoringASCIICase(pcmFormat, "u8"_s))
             gstPcmFormat = GST_AUDIO_FORMAT_U8;
-        else if (pcmFormat == "s16"_s)
+        else if (equalLettersIgnoringASCIICase(pcmFormat, "s16"_s))
             gstPcmFormat = GST_AUDIO_FORMAT_S16;
-        else if (pcmFormat == "s24"_s)
+        else if (equalLettersIgnoringASCIICase(pcmFormat, "s24"_s))
             gstPcmFormat = GST_AUDIO_FORMAT_S24;
-        else if (pcmFormat == "s32"_s)
+        else if (equalLettersIgnoringASCIICase(pcmFormat, "s32"_s))
             gstPcmFormat = GST_AUDIO_FORMAT_S32;
-        else if (pcmFormat == "f32"_s)
+        else if (equalLettersIgnoringASCIICase(pcmFormat, "f32"_s))
             gstPcmFormat = GST_AUDIO_FORMAT_F32;
         else {
             GST_WARNING("Invalid LPCM codec format: %s", pcmFormat.ascii().data());

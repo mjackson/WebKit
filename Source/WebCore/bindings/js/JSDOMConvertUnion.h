@@ -203,8 +203,12 @@ template<typename... T> struct Converter<IDLUnion<T...>> : DefaultConverter<IDLU
         //     2. If types includes object, then return the IDL value that is a reference to the object V.
         constexpr bool hasArrayBufferType = brigand::any<TypeList, IsIDLArrayBuffer<brigand::_1>>::value;
         if constexpr (hasArrayBufferType || hasObjectType) {
-            RefPtr arrayBuffer = (brigand::any<TypeList, IsIDLArrayBufferAllowShared<brigand::_1>>::value) ? JSC::JSArrayBuffer::toWrappedAllowShared(vm, value) : JSC::JSArrayBuffer::toWrapped(vm, value);
+            RefPtr arrayBuffer = (brigand::any<TypeList, IsIDLArrayBufferAllowShared<brigand::_1>>::value) ? JSC::JSArrayBuffer::toWrappedAllowSharedAndResizable(vm, value) : JSC::JSArrayBuffer::toWrappedAllowResizable(vm, value);
             if (arrayBuffer) {
+                if (arrayBuffer->isResizableOrGrowableShared()) {
+                    throwTypeError(&lexicalGlobalObject, scope, "ArrayBuffer cannot be resizable"_s);
+                    return functor(ConversionResultException());
+                }
                 if constexpr (hasArrayBufferType) {
                     return functor(arrayBuffer.releaseNonNull());
                 } else if constexpr (hasObjectType) {
@@ -216,8 +220,12 @@ template<typename... T> struct Converter<IDLUnion<T...>> : DefaultConverter<IDLU
 
         constexpr bool hasArrayBufferViewType = brigand::any<TypeList, IsIDLArrayBufferView<brigand::_1>>::value;
         if constexpr (hasArrayBufferViewType || hasObjectType) {
-            RefPtr arrayBufferView = (brigand::any<TypeList, IsIDLArrayBufferViewAllowShared<brigand::_1>>::value) ? JSC::JSArrayBufferView::toWrappedAllowShared(vm, value) : JSC::JSArrayBufferView::toWrapped(vm, value);
+            RefPtr arrayBufferView = (brigand::any<TypeList, IsIDLArrayBufferViewAllowShared<brigand::_1>>::value) ? JSC::JSArrayBufferView::toWrappedAllowSharedAndResizable(vm, value) : JSC::JSArrayBufferView::toWrappedAllowResizable(vm, value);
             if (arrayBufferView) {
+                if (arrayBufferView->isResizableOrGrowableShared()) {
+                    throwTypeError(&lexicalGlobalObject, scope, "ArrayBufferView cannot be resizable"_s);
+                    return functor(ConversionResultException());
+                }
                 if constexpr (hasArrayBufferViewType) {
                     return functor(arrayBufferView.releaseNonNull());
                 } else if constexpr (hasObjectType) {
@@ -238,8 +246,12 @@ template<typename... T> struct Converter<IDLUnion<T...>> : DefaultConverter<IDLU
         //     2. If types includes object, then return the IDL value that is a reference to the object V.
         constexpr bool hasDataViewType = brigand::any<TypeList, std::is_same<IDLDataView, brigand::_1>>::value;
         if constexpr (hasDataViewType || hasObjectType) {
-            RefPtr dataView = JSC::JSDataView::toWrapped(vm, value);
+            RefPtr dataView = JSC::JSDataView::toWrappedAllowResizable(vm, value);
             if (dataView) {
+                if (dataView->isResizableOrGrowableShared()) {
+                    throwTypeError(&lexicalGlobalObject, scope, "DataView cannot be resizable"_s);
+                    return functor(ConversionResultException());
+                }
                 if constexpr (hasDataViewType) {
                     return functor(dataView.releaseNonNull());
                 } else if constexpr (hasObjectType) {
@@ -262,10 +274,15 @@ template<typename... T> struct Converter<IDLUnion<T...>> : DefaultConverter<IDLU
 
                 using WrapperType = typename Converter<Type>::WrapperType;
 
-                RefPtr castedValue = (brigand::any<TypeList, IsIDLTypedArrayAllowShared<brigand::_1>>::value) ? WrapperType::toWrappedAllowShared(vm, value) : WrapperType::toWrapped(vm, value);
+                RefPtr castedValue = (brigand::any<TypeList, IsIDLTypedArrayAllowShared<brigand::_1>>::value) ? WrapperType::toWrappedAllowSharedAndResizable(vm, value) : WrapperType::toWrappedAllowResizable(vm, value);
                 if (!castedValue)
                     return;
 
+                if (castedValue->isResizableOrGrowableShared()) {
+                    throwTypeError(&lexicalGlobalObject, scope, "TypedArray cannot be resizable"_s);
+                    returnValue = functor(ConversionResultException());
+                    return;
+                }
                 returnValue = functor(ConversionResult<Type> { castedValue.releaseNonNull() });
             });
 

@@ -174,6 +174,9 @@ Ref<NetworkProcess> NetworkProcess::create(AuxiliaryProcessInitializationParamet
 
 NetworkProcess::NetworkProcess(AuxiliaryProcessInitializationParameters&& parameters)
     : m_downloadManager(*this)
+#if HAVE(LSDATABASECONTEXT)
+    , m_launchServicesDatabaseObserver(LaunchServicesDatabaseObserver::create())
+#endif
 #if ENABLE(CONTENT_EXTENSIONS)
     , m_networkContentRuleListManager(*this)
 #endif
@@ -190,9 +193,6 @@ NetworkProcess::NetworkProcess(AuxiliaryProcessInitializationParameters&& parame
     addSupplementWithoutRefCountedCheck<WebCookieManager>();
 #if ENABLE(LEGACY_CUSTOM_PROTOCOL_MANAGER)
     addSupplementWithoutRefCountedCheck<LegacyCustomProtocolManager>();
-#endif
-#if HAVE(LSDATABASECONTEXT)
-    addSupplement<LaunchServicesDatabaseObserver>();
 #endif
 #if PLATFORM(COCOA) && ENABLE(LEGACY_CUSTOM_PROTOCOL_MANAGER)
     LegacyCustomProtocolManager::networkProcessCreated(*this);
@@ -388,6 +388,10 @@ void NetworkProcess::initializeConnection(IPC::Connection* connection)
 
     for (auto& supplement : m_supplements.values())
         supplement->initializeConnection(connection);
+
+#if HAVE(LSDATABASECONTEXT)
+    m_launchServicesDatabaseObserver->initializeConnection(connection);
+#endif
 }
 
 void NetworkProcess::createNetworkConnectionToWebProcess(ProcessIdentifier identifier, PAL::SessionID sessionID, NetworkProcessConnectionParameters&& parameters, CompletionHandler<void(std::optional<IPC::Connection::Handle>&&, HTTPCookieAcceptPolicy)>&& completionHandler)
@@ -423,12 +427,15 @@ void NetworkProcess::createNetworkConnectionToWebProcess(ProcessIdentifier ident
     m_pagesWithRelaxedThirdPartyCookieBlocking.addAll(parameters.pagesWithRelaxedThirdPartyCookieBlocking);
 
     if (CheckedPtr session = networkSession(sessionID)) {
-        Vector<WebCore::RegistrableDomain> allowedSites;
+        std::optional<HashSet<WebCore::RegistrableDomain>> allowedSites = HashSet<WebCore::RegistrableDomain> { };
         auto iter = m_allowedFirstPartiesForCookies.find(identifier);
-        if (iter != m_allowedFirstPartiesForCookies.end())
-            allowedSites = copyToVector(iter->value.second);
-
-        session->storageManager().startReceivingMessageFromConnection(connection->connection(), allowedSites, connection->sharedPreferencesForWebProcessValue());
+        if (iter != m_allowedFirstPartiesForCookies.end()) {
+            if (iter->value.first == LoadedWebArchive::Yes)
+                allowedSites = std::nullopt; // All sites.
+            else
+                allowedSites = iter->value.second;
+        }
+        session->storageManager().startReceivingMessageFromConnection(connection->connection(), WTF::move(allowedSites), connection->sharedPreferencesForWebProcessValue());
     }
 }
 
@@ -444,22 +451,25 @@ void NetworkProcess::addAllowedFirstPartyForCookies(WebCore::ProcessIdentifier p
     if (!HashSet<WebCore::RegistrableDomain>::isValidValue(firstPartyForCookies))
         return completionHandler();
 
-    auto& pair = m_allowedFirstPartiesForCookies.ensure(processIdentifier, [] {
+    auto& [currentLoadedWebArchive, currentDomains] = m_allowedFirstPartiesForCookies.ensure(processIdentifier, [] {
         return std::make_pair(LoadedWebArchive::No, HashSet<RegistrableDomain> { });
     }).iterator->value;
 
-    auto addResult = pair.second.add(WTF::move(firstPartyForCookies));
-    if (addResult.isNewEntry) {
+    auto updateConnectionAllowedSitesForStorage = [&](auto& allowedSites) {
         auto iter = m_webProcessConnections.find(processIdentifier);
-        if (iter != m_webProcessConnections.end()) {
-            forEachNetworkSession([connection = iter->value->connection().uniqueID(), site = Vector<WebCore::RegistrableDomain> { *addResult.iterator }](auto& session) {
-                session.storageManager().addAllowedSitesForConnection(connection, site);
-            });
-        }
-    }
-
-    if (loadedWebArchive == LoadedWebArchive::Yes)
-        pair.first = LoadedWebArchive::Yes;
+        if (iter == m_webProcessConnections.end())
+            return;
+        forEachNetworkSession([connection = iter->value->connection().uniqueID(), allowedSites](auto& session) mutable {
+            auto allowedSitesCopy { allowedSites };
+            session.storageManager().updateAllowedSitesForConnection(connection, WTF::move(allowedSitesCopy));
+        });
+    };
+    auto addResult = currentDomains.add(WTF::move(firstPartyForCookies));
+    if (currentLoadedWebArchive == LoadedWebArchive::No && loadedWebArchive == LoadedWebArchive::Yes) {
+        currentLoadedWebArchive = LoadedWebArchive::Yes;
+        updateConnectionAllowedSitesForStorage(std::nullopt); // All sites.
+    } else if (currentLoadedWebArchive == LoadedWebArchive::No && addResult.isNewEntry)
+        updateConnectionAllowedSitesForStorage(currentDomains);
 
     completionHandler();
 }
@@ -1206,7 +1216,7 @@ void NetworkProcess::hasLocalStorage(PAL::SessionID sessionID, const Registrable
 
 void NetworkProcess::setCacheMaxAgeCapForPrevalentResources(PAL::SessionID sessionID, Seconds seconds, CompletionHandler<void()>&& completionHandler)
 {
-    if (CheckedPtr networkStorageSession = storageSession(sessionID))
+    if (auto* networkStorageSession = storageSession(sessionID))
         networkStorageSession->setCacheMaxAgeCapForPrevalentResources(Seconds { seconds });
     else
         ASSERT_NOT_REACHED();
@@ -1336,7 +1346,7 @@ void NetworkProcess::isResourceLoadStatisticsEphemeral(PAL::SessionID sessionID,
 
 void NetworkProcess::resetCacheMaxAgeCapForPrevalentResources(PAL::SessionID sessionID, CompletionHandler<void()>&& completionHandler)
 {
-    if (CheckedPtr networkStorageSession = storageSession(sessionID))
+    if (auto* networkStorageSession = storageSession(sessionID))
         networkStorageSession->resetCacheMaxAgeCapForPrevalentResources();
     else
         ASSERT_NOT_REACHED();
@@ -2115,7 +2125,7 @@ void NetworkProcess::deleteAndRestrictWebsiteDataForRegistrableDomains(PAL::Sess
 
             for (const auto& host : hostnamesWithCookiesToDeleteAllButHttpOnly)
                 callbackAggregator->m_domains.add(RegistrableDomain::uncheckedCreateFromHost(host));
-            RELEASE_LOG(Storage, "NetworkProcess::deleteAndRestrictWebsiteDataForRegistrableDomains deleted cookies for session %" PRIu64 " - %zu domainsToDeleteAllCookiesFor, %zu domainsToDeleteAllButHttpOnlyCookiesFor, %zu domainsToDeleteAllScriptWrittenStorageFor", sessionID.toUInt64(), hostnamesWithCookiesToDelete.size(), hostnamesWithScriptWrittenCookiesToDelete.size(), hostnamesWithCookiesToDeleteAllButHttpOnly.size());
+            RELEASE_LOG(Storage, "NetworkProcess::deleteAndRestrictWebsiteDataForRegistrableDomains deleted cookies for session %" PRIu64 " - %zu domainsToDeleteAllCookiesFor, %zu domainsToDeleteAllButHttpOnlyCookiesFor, %zu domainsToDeleteAllScriptWrittenStorageFor", sessionID.toUInt64(), hostnamesWithCookiesToDelete.size(), hostnamesWithCookiesToDeleteAllButHttpOnly.size(), hostnamesWithScriptWrittenCookiesToDelete.size());
         }
     }
 

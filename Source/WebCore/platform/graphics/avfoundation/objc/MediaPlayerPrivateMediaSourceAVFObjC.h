@@ -99,10 +99,6 @@ public:
     void setReadyState(MediaPlayer::ReadyState);
     void setNetworkState(MediaPlayer::NetworkState);
 
-    void seekInternal();
-    void startSeek(const MediaTime&);
-    void cancelPendingSeek();
-    void completeSeek(const MediaTime&);
     void NODELETE setLoadingProgresssed(bool);
     void setHasAvailableVideoFrame(bool);
     bool hasAvailableVideoFrame() const override;
@@ -320,9 +316,13 @@ private:
     void timeChanged();
 
     void setLayerRequiresFlush();
-    void flush();
     void flushVideoIfNeeded();
-    void reenqueueMediaForTime(const MediaTime&);
+
+    void seekInternal();
+    void continueSeek(const MediaTime&);
+    void reenqueueMediaForTimeAndFinishSeek(const MediaTime&);
+    void cancelPendingSeek();
+    void completeSeek(const MediaTime&);
 
     // Remote layer support
     WebCore::HostingContext hostingContext() const final;
@@ -345,7 +345,9 @@ private:
     Timer m_seekTimer WTF_GUARDED_BY_CAPABILITY(mainThread);
     bool m_seeking  WTF_GUARDED_BY_CAPABILITY(mainThread) { false };
     std::optional<SeekTarget> m_pendingSeek WTF_GUARDED_BY_CAPABILITY(mainThread);
-    const Ref<NativePromiseRequest> m_rendererSeekRequest WTF_GUARDED_BY_CAPABILITY(mainThread);
+    const Ref<NativePromiseRequest> m_waitForTargetRequest WTF_GUARDED_BY_CAPABILITY(mainThread);
+    const Ref<NativePromiseRequest> m_rendererPrepareSeekRequest WTF_GUARDED_BY_CAPABILITY(mainThread);
+    const Ref<NativePromiseRequest> m_rendererFinishSeekRequest WTF_GUARDED_BY_CAPABILITY(mainThread);
 
 #if ENABLE(LEGACY_ENCRYPTED_MEDIA)
     ThreadSafeWeakPtr<CDMSessionAVContentKeySession> m_session;
@@ -379,6 +381,7 @@ private:
 #endif
 
     bool m_layerRequiresFlush WTF_GUARDED_BY_CAPABILITY(mainThread) { false };
+    bool m_isInFullscreenOrPictureInPicture WTF_GUARDED_BY_CAPABILITY(mainThread) { false };
 #if PLATFORM(IOS_FAMILY)
     bool m_applicationIsActive WTF_GUARDED_BY_CAPABILITY(mainThread) { true };
 #endif

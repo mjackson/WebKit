@@ -22,6 +22,7 @@
 
 #include "config.h"
 #include "RenderSVGForeignObject.h"
+#include "RenderObjectNode.h"
 
 #include "GraphicsContext.h"
 #include "HitTestResult.h"

@@ -316,18 +316,18 @@ static void buildMediaEnginesVector() WTF_REQUIRES_LOCK(mediaEngineVectorLock)
 #if ENABLE(MEDIA_SOURCE)
     bool useMSERemoteRenderer = hasPlatformStrategies() && platformStrategies()->mediaStrategy()->hasRemoteRendererFor(MediaPlayerMediaEngineIdentifier::AVFoundationMSE);
     if (!useMSERemoteRenderer && registerRemoteEngine && platformStrategies()->mediaStrategy()->mockMediaSourceEnabled())
-        registerRemoteEngine(addMediaEngine, MediaPlayerEnums::MediaEngineIdentifier::MockMSE);
+        registerRemoteEngine(addMediaEngine, MediaPlayerEnums::MediaEngineIdentifier::MockMSE, PlatformMediaDecodingType::MediaSource);
 #endif
 
     if (DeprecatedGlobalSettings::isAVFoundationEnabled()) {
         if (registerRemoteEngine)
-            registerRemoteEngine(addMediaEngine, MediaPlayerEnums::MediaEngineIdentifier::AVFoundation);
+            registerRemoteEngine(addMediaEngine, MediaPlayerEnums::MediaEngineIdentifier::AVFoundation, PlatformMediaDecodingType::FileOrHLS);
         else
             MediaPlayerPrivateAVFoundationObjC::registerMediaEngine(addMediaEngine);
 
 #if ENABLE(MEDIA_SOURCE)
         if (registerRemoteEngine && !useMSERemoteRenderer)
-            registerRemoteEngine(addMediaEngine, MediaPlayerEnums::MediaEngineIdentifier::AVFoundationMSE);
+            registerRemoteEngine(addMediaEngine, MediaPlayerEnums::MediaEngineIdentifier::AVFoundationMSE, PlatformMediaDecodingType::MediaSource);
         else
             MediaPlayerPrivateMediaSourceAVFObjC::registerMediaEngine(addMediaEngine);
 #endif
@@ -336,7 +336,7 @@ static void buildMediaEnginesVector() WTF_REQUIRES_LOCK(mediaEngineVectorLock)
         bool useRemoteRenderer = hasPlatformStrategies() && platformStrategies()->mediaStrategy()->hasRemoteRendererFor(MediaPlayerMediaEngineIdentifier::CocoaWebM);
         if (!hasPlatformStrategies() || platformStrategies()->mediaStrategy()->enableWebMMediaPlayer()) {
             if (registerRemoteEngine && !useRemoteRenderer)
-                registerRemoteEngine(addMediaEngine, MediaPlayerEnums::MediaEngineIdentifier::CocoaWebM);
+                registerRemoteEngine(addMediaEngine, MediaPlayerEnums::MediaEngineIdentifier::CocoaWebM, PlatformMediaDecodingType::MediaSource);
             else
                 MediaPlayerPrivateWebM::registerMediaEngine(addMediaEngine);
         }
@@ -368,7 +368,7 @@ static void buildMediaEnginesVector() WTF_REQUIRES_LOCK(mediaEngineVectorLock)
 #if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
     if (!hasPlatformStrategies() || platformStrategies()->mediaStrategy()->wirelessPlaybackMediaPlayerEnabled()) {
         if (registerRemoteEngine && !mockMediaDeviceRouteControllerEnabled())
-            registerRemoteEngine(addMediaEngine, MediaPlayerEnums::MediaEngineIdentifier::WirelessPlayback);
+            registerRemoteEngine(addMediaEngine, MediaPlayerEnums::MediaEngineIdentifier::WirelessPlayback, PlatformMediaDecodingType::FileOrHLS);
         else
             MediaPlayerPrivateWirelessPlayback::registerMediaEngine(addMediaEngine);
     }

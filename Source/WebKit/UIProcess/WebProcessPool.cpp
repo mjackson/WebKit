@@ -113,6 +113,7 @@
 #include <WebCore/Site.h>
 #include <algorithm>
 #include <pal/SessionID.h>
+#include <wtf/Borrow.h>
 #include <wtf/CallbackAggregator.h>
 #include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/MainThread.h>
@@ -214,16 +215,6 @@ static HashSet<String, ASCIICaseInsensitiveHash>& NODELETE globalURLSchemesWithC
     return set;
 }
 
-bool WebProcessPool::globalDelaysWebProcessLaunchDefaultValue()
-{
-#if PLATFORM(IOS_FAMILY)
-    // FIXME: Delayed process launch is currently disabled on iOS for performance reasons (rdar://problem/49074131).
-    return false;
-#else
-    return true;
-#endif
-}
-
 Vector<String> WebProcessPool::urlSchemesWithCustomProtocolHandlers()
 {
     return copyToVector(globalURLSchemesWithCustomProtocolHandlers());
@@ -297,7 +288,7 @@ WebProcessPool::WebProcessPool(API::ProcessPoolConfiguration& configuration)
 
     platformInitialize(needsGlobalStaticInitialization);
 
-#if OS(LINUX)
+#if OS(LINUX) && !OS(ANDROID)
     if (!MemoryPressureMonitor::disabled())
         MemoryPressureMonitor::singleton().start();
 #endif
@@ -452,7 +443,7 @@ void WebProcessPool::fullKeyboardAccessModeChanged(bool fullKeyboardAccessEnable
     sendToAllProcesses(Messages::WebProcess::FullKeyboardAccessModeChanged(fullKeyboardAccessEnabled));
 }
 
-#if OS(LINUX)
+#if OS(LINUX) && !OS(ANDROID)
 void WebProcessPool::sendMemoryPressureEvent(bool isCritical)
 {
     sendToAllProcesses(Messages::AuxiliaryProcess::DidReceiveMemoryPressureEvent(isCritical));
@@ -931,14 +922,6 @@ WebProcessDataStoreParameters WebProcessPool::webProcessDataStoreParameters(WebP
             javaScriptConfigurationDirectoryExtensionHandle = WTF::move(*handle);
     }
 
-#if ENABLE(ARKIT_INLINE_PREVIEW) && !PLATFORM(IOS_FAMILY)
-    auto modelElementCacheDirectory = resolvedDirectories.modelElementCacheDirectory;
-    SandboxExtension::Handle modelElementCacheDirectoryExtensionHandle;
-    if (!modelElementCacheDirectory.isEmpty()) {
-        if (auto handle = SandboxExtension::createHandleWithoutResolvingPath(modelElementCacheDirectory, SandboxExtension::Type::ReadWrite))
-            modelElementCacheDirectoryExtensionHandle = WTF::move(*handle);
-    }
-#endif
 
 #if PLATFORM(IOS_FAMILY) && !USE(EXTENSIONKIT)
     SandboxExtension::Handle containerTemporaryDirectoryExtensionHandle;
@@ -964,10 +947,6 @@ WebProcessDataStoreParameters WebProcessPool::webProcessDataStoreParameters(WebP
         websiteDataStore.thirdPartyCookieBlockingMode(),
         m_domainsWithUserInteraction,
         m_domainsWithCrossPageStorageAccessQuirk,
-#if ENABLE(ARKIT_INLINE_PREVIEW) && !PLATFORM(IOS_FAMILY)
-        WTF::move(modelElementCacheDirectory),
-        WTF::move(modelElementCacheDirectoryExtensionHandle),
-#endif
 #if PLATFORM(IOS_FAMILY) && !USE(EXTENSIONKIT)
         WTF::move(containerTemporaryDirectoryExtensionHandle),
 #endif
@@ -1347,9 +1326,10 @@ Ref<WebPageProxy> WebProcessPool::createWebPage(PageClient& pageClient, Ref<API:
         protect(pageConfiguration->preferences())->setUseUIProcessForBackForwardItemLoading(true);
     RefPtr preferredBrowsingContextGroup = pageConfiguration->preferredBrowsingContextGroup();
     RefPtr preferredFrameProcess = preferredBrowsingContextGroup ? preferredBrowsingContextGroup->processForSite(pageConfiguration->openedSite()) : nullptr;
-    if (auto& openerInfo = pageConfiguration->openerInfo(); openerInfo && siteIsolationEnabled)
+    if (auto& openerInfo = pageConfiguration->openerInfo(); openerInfo && siteIsolationEnabled) {
         process = openerInfo->process.ptr();
-    else if (preferredFrameProcess)
+        pageConfiguration->setProcessInheritedFromOpener(true);
+    } else if (preferredFrameProcess)
         process = preferredFrameProcess->process();
     else if (relatedPage && !relatedPage->isClosed() && relatedPage->hasSameGPUAndNetworkProcessPreferencesAs(pageConfiguration) && !siteIsolationEnabled) {
         // Sharing processes, e.g. when creating the page via window.open().
@@ -2526,7 +2506,7 @@ void WebProcessPool::setDomainsWithCrossPageStorageAccess(HashMap<TopFrameDomain
 {    
     Ref callbackAggregator = CallbackAggregator::create(WTF::move(completionHandler));
 
-    for (Ref process : processes())
+    for (Ref process : borrow(this->processes()).get())
         process->sendWithAsyncReply(Messages::WebProcess::SetDomainsWithCrossPageStorageAccess(domains), [callbackAggregator] { });
 
     for (auto& topDomain : domains.keys())
@@ -2537,7 +2517,7 @@ void WebProcessPool::seedResourceLoadStatisticsForTesting(const RegistrableDomai
 {
     Ref callbackAggregator = CallbackAggregator::create(WTF::move(completionHandler));
 
-    for (Ref process : processes())
+    for (Ref process : borrow(this->processes()).get())
         process->sendWithAsyncReply(Messages::WebProcess::SeedResourceLoadStatisticsForTesting(firstPartyDomain, thirdPartyDomain, shouldScheduleNotification), [callbackAggregator] { });
 }
 
@@ -2545,7 +2525,7 @@ void WebProcessPool::sendResourceLoadStatisticsDataImmediately(CompletionHandler
 {
     auto callbackAggregator = CallbackAggregator::create(WTF::move(completionHandler));
 
-    for (Ref process : processes()) {
+    for (Ref process : borrow(this->processes()).get()) {
         // WebProcess already flushes outstanding stats to NetworkProcess on suspend, so there's no
         // need to resume a suspended process to force another flush.
         if (!process->pageCount() || process->throttler().isSuspended())
@@ -2901,7 +2881,7 @@ void WebProcessPool::memoryPressureStatusChangedForProcess(WebProcessProxy& proc
 void WebProcessPool::updateWebProcessSuspensionDelay()
 {
     WeakHashSet<WebProcessProxy> remainingProcesses;
-    for (Ref process : processes()) {
+    for (Ref process : borrow(processes()).get()) {
         if (process->throttler().isSuspended()) {
             process->updateWebProcessSuspensionDelay();
             continue;

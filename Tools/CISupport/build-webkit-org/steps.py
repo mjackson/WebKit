@@ -747,7 +747,7 @@ class RunJavaScriptCoreTests(TestWithFailureCount, CustomFlagsMixin, ShellMixin)
 
     def __init__(self, *args, **kwargs):
         kwargs['logEnviron'] = False
-        kwargs['timeout'] = 20 * 60 * 60
+        kwargs['timeout'] = 20 * 60
         if 'sigtermTime' not in kwargs:
             kwargs['sigtermTime'] = 10
         super().__init__(*args, **kwargs)
@@ -1076,7 +1076,7 @@ class RunAPITests(TestWithFailureCount, CustomFlagsMixin, ShellMixin):
 
     def __init__(self, *args, **kwargs):
         kwargs['logEnviron'] = False
-        kwargs['timeout'] = 3 * 60 * 60
+        kwargs['timeout'] = 20 * 60
         super().__init__(*args, **kwargs)
 
     def _is_valid_additional_argument(self, argument):
@@ -1101,14 +1101,20 @@ class RunAPITests(TestWithFailureCount, CustomFlagsMixin, ShellMixin):
         if platform in ['gtk', 'wpe']:
             self.command = ['python3', f'Tools/Scripts/run-{platform}-tests',
                             f'--{self.getProperty("configuration")}',
-                            f'--json-output={self.jsonFileName}']
+                            f'--json-output={self.jsonFileName}',
+                            f'--buildbot-master={DNS_NAME}',
+                            f'--builder-name={self.getProperty("buildername")}',
+                            f'--build-number={self.getProperty("buildnumber")}',
+                            f'--buildbot-worker={self.getProperty("workername")}',
+                            f'--report={RESULTS_WEBKIT_URL}',
+                            ]
         else:
             self.appendCustomTestingFlags(platform, self.getProperty('device_model'))
         additionalArguments = self.getProperty("additionalArguments")
         for additionalArgument in additionalArguments or []:
             if self._is_valid_additional_argument(additionalArgument):
                 self.command += [additionalArgument]
-        self.command = self.shell_command(' '.join(self.command) + ' > logs.txt 2>&1 ; ret=$? ; grep "Ran " logs.txt ; exit $ret')
+        self.command = self.shell_command(' '.join(self.command) + ' 2>&1 | python3 Tools/Scripts/filter-test-logs api')
 
         rc = super().run()
 

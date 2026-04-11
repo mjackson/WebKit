@@ -30,8 +30,10 @@
 
 #if ENABLE(MATHML)
 
-#include "MathMLElement.h"
+#include "FontCascadeInlines.h"
 #include "FontInlines.h"
+#include "GlyphPage.h"
+#include "MathMLElement.h"
 #include "MathMLNames.h"
 #include "MathMLTokenElement.h"
 #include "PaintInfo.h"

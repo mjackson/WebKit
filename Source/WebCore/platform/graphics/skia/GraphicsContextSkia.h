@@ -27,7 +27,6 @@
 
 #if USE(SKIA)
 
-#include "GLFence.h"
 #include "GraphicsContext.h"
 #include "SkiaRecordingResult.h"
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
@@ -91,8 +90,8 @@ public:
     void drawDotsForDocumentMarker(const FloatRect&, DocumentMarkerLineStyle) final;
     void drawEllipse(const FloatRect&) final;
 
-    void drawFocusRing(const Path&, float outlineWidth, const Color&) final;
-    void drawFocusRing(const Vector<FloatRect>&, float outlineOffset, float outlineWidth, const Color&) final;
+    void drawFocusRing(const Path&, float outlineWidth, const Color&, float zoomFactor) final;
+    void drawFocusRing(const Vector<FloatRect>&, float outlineWidth, const Color&, float zoomFactor) final;
 
     void save(GraphicsContextState::Purpose = GraphicsContextState::Purpose::SaveRestore) final;
     void restore(GraphicsContextState::Purpose = GraphicsContextState::Purpose::SaveRestore) final;
@@ -123,9 +122,6 @@ public:
     SkPaint createStrokePaint() const;
 
     void drawSkiaText(const sk_sp<SkTextBlob>&, SkScalar, SkScalar, bool, bool);
-
-    static std::unique_ptr<GLFence> createAcceleratedRenderingFence(SkSurface*);
-    static std::unique_ptr<GLFence> createAcceleratedRenderingFence(const sk_sp<SkImage>&, GrDirectContext*);
 
 private:
     enum class ContextMode : bool {

@@ -40,6 +40,7 @@
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/SlotVisitorMacros.h>
+#include <JavaScriptCore/StructureInlines.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -127,6 +128,11 @@ JSTestNamedGetterNoIdentifier::JSTestNamedGetterNoIdentifier(Structure* structur
 }
 
 static_assert(!std::is_base_of<ActiveDOMObject, TestNamedGetterNoIdentifier>::value, "Interface is not marked as [ActiveDOMObject] even though implementation class subclasses ActiveDOMObject.");
+
+JSC::Structure* JSTestNamedGetterNoIdentifier::createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
+{
+    return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::MayHaveIndexedAccessors);
+}
 
 JSObject* JSTestNamedGetterNoIdentifier::createPrototype(VM& vm, JSDOMGlobalObject& globalObject)
 {
@@ -328,7 +334,7 @@ JSC_DEFINE_CUSTOM_GETTER(jsTestNamedGetterNoIdentifierConstructor, (JSGlobalObje
     auto* prototype = jsDynamicCast<JSTestNamedGetterNoIdentifierPrototype*>(JSValue::decode(thisValue));
     if (!prototype) [[unlikely]]
         return throwVMTypeError(lexicalGlobalObject, throwScope);
-    return JSValue::encode(JSTestNamedGetterNoIdentifier::getConstructor(vm, prototype->globalObject()));
+    return JSValue::encode(JSTestNamedGetterNoIdentifier::getConstructor(vm, prototype->realm()));
 }
 
 JSC::GCClient::IsoSubspace* JSTestNamedGetterNoIdentifier::subspaceForImpl(JSC::VM& vm)

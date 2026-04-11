@@ -42,10 +42,10 @@ namespace WebCore {
 
 MediaPlayerEnums::SupportsType SourceBufferParser::isContentTypeSupported(const ContentType& type)
 {
-    MediaPlayerEnums::SupportsType supports = MediaPlayerEnums::SupportsType::IsNotSupported;
-    supports = std::max(supports, SourceBufferParserWebM::isContentTypeSupported(type));
-    supports = std::max(supports, SourceBufferParserAVFObjC::isContentTypeSupported(type));
-    return supports;
+    MediaPlayerEnums::SupportsType supports = SourceBufferParserWebM::isContentTypeSupported(type);
+    if (supports == MediaPlayerEnums::SupportsType::IsSupported)
+        return supports;
+    return std::max(supports, SourceBufferParserAVFObjC::isContentTypeSupported(type));
 }
 
 RefPtr<SourceBufferParser> SourceBufferParser::create(const ContentType& type, const MediaSourceConfiguration& configuration)

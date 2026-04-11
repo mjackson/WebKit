@@ -35,7 +35,6 @@ list(APPEND WTF_PUBLIC_HEADERS
     glib/Application.h
     glib/ChassisType.h
     glib/GMallocString.h
-    glib/GMutexLocker.h
     glib/GRefPtr.h
     glib/GSocketMonitor.h
     glib/GSpanExtras.h

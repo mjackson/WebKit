@@ -55,9 +55,10 @@ static bool gridItemHasMargin(const RenderBox& gridItem, Style::GridTrackSizingD
         return !edge.isKnownZero() && !edge.isAuto();
     };
 
+    auto& itemStyle = gridItem.style();
     if (direction == Style::GridTrackSizingDirection::Columns)
-        return hasMarginEdge(gridItem.style().marginStart()) || hasMarginEdge(gridItem.style().marginEnd());
-    return hasMarginEdge(gridItem.style().marginBefore()) || hasMarginEdge(gridItem.style().marginAfter());
+        return hasMarginEdge(itemStyle.marginStart()) || hasMarginEdge(itemStyle.marginEnd());
+    return hasMarginEdge(itemStyle.marginBefore()) || hasMarginEdge(itemStyle.marginAfter());
 }
 
 LayoutUnit computeMarginLogicalSizeForGridItem(const RenderGrid& grid, Style::GridTrackSizingDirection direction, const RenderBox& gridItem)

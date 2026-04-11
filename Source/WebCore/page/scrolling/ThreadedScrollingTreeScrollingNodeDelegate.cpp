@@ -84,7 +84,7 @@ bool ThreadedScrollingTreeScrollingNodeDelegate::startAnimatedScrollToPosition(F
     return m_scrollController.startAnimatedScrollToDestination(currentOffset, destinationOffset);
 }
 
-void ThreadedScrollingTreeScrollingNodeDelegate::stopAnimatedScroll()
+void ThreadedScrollingTreeScrollingNodeDelegate::stopAnimatedScroll(EnumSet<AnimatedScrollType>)
 {
     m_scrollController.stopAnimatedScroll();
 }

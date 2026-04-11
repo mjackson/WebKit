@@ -149,7 +149,7 @@ public:
     void setLogIdentifier(uint64_t);
 
     Ref<Logger> logger(ScriptExecutionContext&);
-    void NODELETE didLogMessage(const WTFLogChannel&, WTFLogLevel, Vector<JSONLogValue>&&) final;
+    void NODELETE didLogMessage(const WTFLogChannel&, WTFLogLevel, std::optional<WTFLogLocation>, Vector<JSONLogValue>&&) final;
 #endif
 
     virtual bool isManaged() const { return false; }

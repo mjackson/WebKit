@@ -74,7 +74,7 @@ public:
     WEBCORE_EXPORT static bool isSupportedImageMIMETypeForEncoding(const String& mimeType);
 
     // Check to see if a MIME type is suitable for being loaded as a JavaScript or JSON resource.
-    WEBCORE_EXPORT static bool isSupportedJavaScriptMIMEType(const String& mimeType);
+    WEBCORE_EXPORT static bool isSupportedJavaScriptMIMEType(StringView mimeType);
     WEBCORE_EXPORT static bool isSupportedJSONMIMEType(const String& mimeType);
 
     // Check to see if a MIME type is suitable for being loaded as a WebAssembly module.
@@ -140,6 +140,7 @@ public:
     WEBCORE_EXPORT static FixedVector<ASCIILiteral> gltfMIMETypes();
 
     WEBCORE_EXPORT static String appendFileExtensionIfNecessary(const String& filename, const String& mimeType);
+    WEBCORE_EXPORT static String correctExtensionForMIMEType(const String& filename, const String& mimeType);
 
     WEBCORE_EXPORT static String preferredImageMIMETypeForEncoding(const Vector<String>& mimeTypes, const Vector<String>& extensions);
     WEBCORE_EXPORT static bool containsImageMIMETypeForEncoding(const Vector<String>& mimeTypes, const Vector<String>& extensions);

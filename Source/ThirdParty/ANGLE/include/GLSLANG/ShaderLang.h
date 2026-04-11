@@ -26,7 +26,7 @@
 
 // Version number for shader translation API.
 // It is incremented every time the API changes.
-#define ANGLE_SH_VERSION 396
+#define ANGLE_SH_VERSION 407
 
 enum ShShaderSpec
 {
@@ -50,10 +50,6 @@ enum ShShaderOutput
     SH_ESSL_OUTPUT,
 
     // GLSL output only supported in some configurations.
-    SH_GLSL_COMPATIBILITY_OUTPUT,
-    // Note: GL introduced core profiles in 1.5.
-    SH_GLSL_130_OUTPUT,
-    SH_GLSL_140_OUTPUT,
     SH_GLSL_150_CORE_OUTPUT,
     SH_GLSL_330_CORE_OUTPUT,
     SH_GLSL_400_CORE_OUTPUT,
@@ -105,7 +101,7 @@ enum class ShPixelLocalStorageType : uint8_t
 };
 
 // For ANGLE_shader_pixel_local_storage.
-// Used to track the PLS format at each binding index in a shader.
+// Used to track the formats of PLS bindings.
 enum class ShPixelLocalStorageFormat : uint8_t
 {
     NotPLS,  // Indicates that no PLS uniform was declared at the binding index in question.
@@ -115,6 +111,14 @@ enum class ShPixelLocalStorageFormat : uint8_t
     R32F,
     R32I,
     R32UI,
+};
+
+// For ANGLE_shader_pixel_local_storage.
+// Used to track the PLS layout information at each binding index in a shader.
+struct ShPixelLocalStorageLayout
+{
+    ShPixelLocalStorageFormat format = ShPixelLocalStorageFormat::NotPLS;
+    bool noncoherent                 = false;
 };
 
 // For ANGLE_shader_pixel_local_storage_coherent.
@@ -143,6 +147,11 @@ struct ShPixelLocalStorageOptions
 
     // For ANGLE_shader_pixel_local_storage_coherent.
     ShFragmentSynchronizationType fragmentSyncType = ShFragmentSynchronizationType::NotSupported;
+
+    // Apple Silicon doesn't support image memory barriers, and many GL devices don't support
+    // noncoherent framebuffer fetch. On these platforms, we simply ignore the "noncoherent" PLS
+    // qualifier.
+    bool supportsNoncoherent = false;
 
     // ShPixelLocalStorageType::ImageLoadStore only: Can we use rgba8/rgba8i/rgba8ui image formats?
     // Or do we need to manually pack and unpack from r32i/r32ui?
@@ -196,11 +205,8 @@ struct ShCompileOptions
     // This flag works around bug in Intel Mac drivers related to abs(i) where i is an integer.
     uint64_t emulateAbsIntFunction : 1;
 
-    // Enforce the GLSL 1.017 Appendix A section 7 packing restrictions.  This flag only enforces
-    // (and can only enforce) the packing restrictions for uniform variables in both vertex and
-    // fragment shaders. ShCheckVariablesWithinPackingLimits() lets embedders enforce the packing
-    // restrictions for varying variables during program link time.
-    uint64_t enforcePackingRestrictions : 1;
+    // Whether SPV_EXT_demote_to_helper_invocation can be used.
+    uint64_t useDemoteToHelperInvocation : 1;
 
     // This flag ensures all indirect (expression-based) array indexing is clamped to the bounds of
     // the array. This ensures, for example, that you cannot read off the end of a uniform, whether
@@ -379,7 +385,9 @@ struct ShCompileOptions
     // VK_EXT_depth_clip_control is supported, this code is not generated, saving a uniform look up.
     uint64_t addVulkanDepthCorrection : 1;
 
-    uint64_t unused2 : 1;
+    // Validate that the count of uniform blocks is within the GL_MAX_*_UNIFORM_BLOCKS limits. These
+    // limits must be supplied in the BuiltinResources.
+    uint64_t validatePerStageMaxUniformBlocks : 1;
 
     // Ask compiler to generate Vulkan transform feedback emulation support code.
     uint64_t addVulkanXfbEmulationSupportCode : 1;
@@ -402,13 +410,10 @@ struct ShCompileOptions
     // ceil()ed instead.
     uint64_t roundOutputAfterDithering : 1;
 
-    // issuetracker.google.com/274859104 add OpQuantizeToF16 instruction to cast
-    // mediump floating-point values to 16 bit. ARM compiler utilized RelaxedPrecision
-    // to minimize type case and keep a mediump float as 32 bit when assigning it with
-    // a highp floating-point value. It is possible that GLSL shader code is comparing
-    // two meiump values, but ARM compiler is comparing a 32 bit value with a 16 bit value,
-    // causing the comparison to fail.
-    uint64_t castMediumpFloatTo16Bit : 1;
+    // placeholder bit for removed castMediumpFloatTo16Bit option. This is needed because chromium
+    // fuzzer needs the ShCompileOptions memory layout remains unchanged to be able to map the bugs
+    // filed.
+    uint64_t unused3 : 1;
 
     // anglebug.com/42265995: packUnorm4x8 fails on Pixel 4 if it is not passed a highp vec4.
     // TODO(anglebug.com/42265995): This workaround is currently only applied for pixel local
@@ -458,8 +463,10 @@ struct ShCompileOptions
     // Whether to preserve denorm floats in the lexer or convert to zero
     uint64_t preserveDenorms : 1;
 
-    // Whether inactive shader variables from the output.
+    // Whether inactive shader variables should be removed from the output.  For some backends,
+    // inactive fragment outputs should still be retained.
     uint64_t removeInactiveVariables : 1;
+    uint64_t retainInactiveFragmentOutputs : 1;
 
     // Ensure all loops execute side-effects or terminate.
     uint64_t ensureLoopForwardProgress : 1;
@@ -581,6 +588,12 @@ struct ShBuiltInResources
     int MinProgramTexelOffset;
     int MaxProgramTexelOffset;
 
+    // GL_MAX_FRAGMENT_UNIFORM_BLOCKS
+    int MaxFragmentUniformBlocks;
+
+    // GL_MAX_VERTEX_UNIFORM_BLOCKS
+    int MaxVertexUniformBlocks;
+
     // Extension constants.
 
     // Value of GL_MAX_DUAL_SOURCE_DRAW_BUFFERS_EXT for OpenGL ES output context.
@@ -698,6 +711,9 @@ struct ShBuiltInResources
     // maximum point size (higher limit from ALIASED_POINT_SIZE_RANGE)
     float MaxPointSize;
 
+    // GL_MAX_COMPUTE_UNIFORM_BLOCKS
+    int MaxComputeUniformBlocks;
+
     // EXT_geometry_shader constants
     int MaxGeometryUniformComponents;
     int MaxGeometryInputComponents;
@@ -709,6 +725,7 @@ struct ShBuiltInResources
     int MaxGeometryAtomicCounters;
     int MaxGeometryShaderInvocations;
     int MaxGeometryImageUniforms;
+    int MaxGeometryUniformBlocks;
 
     // EXT_tessellation_shader constants
     int MaxTessControlInputComponents;
@@ -719,6 +736,7 @@ struct ShBuiltInResources
     int MaxTessControlImageUniforms;
     int MaxTessControlAtomicCounters;
     int MaxTessControlAtomicCounterBuffers;
+    int MaxTessControlUniformBlocks;
 
     int MaxTessPatchComponents;
     int MaxPatchVertices;
@@ -731,6 +749,7 @@ struct ShBuiltInResources
     int MaxTessEvaluationImageUniforms;
     int MaxTessEvaluationAtomicCounters;
     int MaxTessEvaluationAtomicCounterBuffers;
+    int MaxTessEvaluationUniformBlocks;
 
     // APPLE_clip_distance / EXT_clip_cull_distance / ANGLE_clip_cull_distance constants
     int MaxClipDistances;
@@ -880,7 +899,7 @@ sh::WorkGroupSize GetComputeShaderLocalGroupSize(const ShHandle handle);
 int GetVertexShaderNumViews(const ShHandle handle);
 // Returns the pixel local storage uniform format at each binding index, or "NotPLS" if there is
 // not one.
-const std::vector<ShPixelLocalStorageFormat> *GetPixelLocalStorageFormats(const ShHandle handle);
+const std::vector<ShPixelLocalStorageLayout> *GetPixelLocalStorageLayouts(const ShHandle handle);
 
 // Returns specialization constant usage bits
 uint32_t GetShaderSpecConstUsageBits(const ShHandle handle);
@@ -966,6 +985,7 @@ enum class MetadataFlags
     HasClipDistance,
     // Applicable to fragment shaders
     HasDiscard,
+    HasFragCoord,
     EnablesPerSampleShading,
     HasInputAttachment0,
     // Flag for attachment i is HasInputAttachment0 + i

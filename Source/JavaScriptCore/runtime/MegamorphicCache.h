@@ -281,7 +281,7 @@ public:
     }
 
 private:
-    JS_EXPORT_PRIVATE void clearEntries();
+    JS_EXPORT_PRIVATE void NODELETE clearEntries();
 
     std::array<LoadEntry, loadCachePrimarySize> m_loadCachePrimaryEntries { };
     std::array<LoadEntry, loadCacheSecondarySize> m_loadCacheSecondaryEntries { };

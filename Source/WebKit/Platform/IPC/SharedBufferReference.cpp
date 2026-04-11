@@ -66,6 +66,8 @@ auto SharedBufferReference::serializableBuffer() const -> std::optional<Serializ
     if (!m_size)
         return SerializableBuffer { 0, std::nullopt, std::nullopt };
     auto sharedMemoryBuffer = m_memory ? m_memory : SharedMemory::copyBuffer(Ref { *m_buffer });
+    if (!sharedMemoryBuffer)
+        return std::nullopt;
     return SerializableBuffer { m_size, sharedMemoryBuffer->createHandle(SharedMemory::Protection::ReadOnly), m_ledger };
 }
 #endif

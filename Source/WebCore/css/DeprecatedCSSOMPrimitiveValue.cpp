@@ -28,6 +28,7 @@
 
 #include "CSSColorValue.h"
 #include "CSSCounterValue.h"
+#include "CSSCustomIdentValue.h"
 #include "CSSRectValue.h"
 #include "CSSSerializationContext.h"
 #include "CSSURLValue.h"
@@ -52,6 +53,8 @@ unsigned short DeprecatedCSSOMPrimitiveValue::primitiveType() const
         return CSS_RGBCOLOR;
     if (m_value->isURL())
         return CSS_URI;
+    if (m_value->isCustomIdentValue())
+        return CSS_IDENT;
 
     RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(m_value.get());
     if (!primitiveValue)
@@ -69,7 +72,6 @@ unsigned short DeprecatedCSSOMPrimitiveValue::primitiveType() const
     case CSSUnitType::CSS_HZ:                           return CSS_HZ;
     case CSSUnitType::CSS_IDENT:                        return CSS_IDENT;
     case CSSUnitType::CSS_INTEGER:                      return CSS_NUMBER;
-    case CSSUnitType::CustomIdent:                      return CSS_IDENT;
     case CSSUnitType::CSS_IN:                           return CSS_IN;
     case CSSUnitType::CSS_KHZ:                          return CSS_KHZ;
     case CSSUnitType::CSS_MM:                           return CSS_MM;
@@ -125,20 +127,36 @@ ExceptionOr<float> DeprecatedCSSOMPrimitiveValue::getFloatValue(unsigned short u
 ExceptionOr<String> DeprecatedCSSOMPrimitiveValue::getStringValue() const
 {
     switch (primitiveType()) {
-    case CSS_ATTR:      return downcast<CSSPrimitiveValue>(m_value.get()).stringValue();
-    case CSS_IDENT:     return downcast<CSSPrimitiveValue>(m_value.get()).stringValue();
-    case CSS_STRING:    return downcast<CSSPrimitiveValue>(m_value.get()).stringValue();
-    case CSS_URI:       return downcast<CSSURLValue>(m_value.get()).stringValue();
+    case CSS_ATTR:
+        return downcast<CSSPrimitiveValue>(m_value.get()).stringValue();
+    case CSS_IDENT:
+        if (RefPtr customIdentValue = dynamicDowncast<CSSCustomIdentValue>(m_value))
+            return String { customIdentValue->customIdent().value.string() };
+        return downcast<CSSPrimitiveValue>(m_value.get()).stringValue();
+    case CSS_STRING:
+        return downcast<CSSPrimitiveValue>(m_value.get()).stringValue();
+    case CSS_URI:
+        return downcast<CSSURLValue>(m_value.get()).stringValue();
 
     // All other, including newer types, should raise an exception.
-    default:            return Exception { ExceptionCode::InvalidAccessError };
+    default:
+        return Exception { ExceptionCode::InvalidAccessError };
     }
 }
 
 ExceptionOr<Ref<DeprecatedCSSOMCounter>> DeprecatedCSSOMPrimitiveValue::getCounterValue() const
 {
-    if (RefPtr value = dynamicDowncast<CSSCounterValue>(m_value.get()))
-        return DeprecatedCSSOMCounter::create(value->identifier(), value->separator(), value->counterStyleCSSText());
+    if (RefPtr value = dynamicDowncast<CSSCounterValue>(m_value.get())) {
+        auto counterStyle = WTF::switchOn(value->counterStyle().identifier,
+            [](CSSValueID predefinedKeyword) -> String {
+                return nameLiteralForSerialization(predefinedKeyword);
+            },
+            [](const CSS::CustomIdent& customIdent) -> String {
+                return customIdent.value.string();
+            }
+        );
+        return DeprecatedCSSOMCounter::create(value->identifier().value, value->separator(), WTF::move(counterStyle));
+    }
     return Exception { ExceptionCode::InvalidAccessError };
 }
     

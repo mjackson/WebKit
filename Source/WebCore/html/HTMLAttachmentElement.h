@@ -71,7 +71,7 @@ public:
     void removingSteps(RemovalType, ContainerNode&) final;
 
     String ensureUniqueIdentifier();
-    AttachmentAssociatedElement* associatedElement() const;
+    AttachmentAssociatedElement* NODELETE associatedElement() const;
     AttachmentAssociatedElementType associatedElementType() const;
 
     WEBCORE_EXPORT String NODELETE attachmentTitle() const;

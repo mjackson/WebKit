@@ -44,6 +44,7 @@
 #include "DiagnosticLoggingClient.h"
 #include "DiagnosticLoggingKeys.h"
 #include "DocumentLoader.h"
+#include "FrameInlines.h"
 #include "DocumentQuirks.h"
 #include "DocumentResourceLoader.h"
 #include "DocumentSecurityPolicy.h"
@@ -1040,12 +1041,12 @@ FrameLoaderClient& LocalFrame::loaderClient()
     return loader().client();
 }
 
-void LocalFrame::documentURLForConsoleLog(CompletionHandler<void(const URL&)>&& completionHandler)
+URL LocalFrame::urlForConsoleLog() const
 {
     RefPtr document = this->document();
     if (!document)
-        return completionHandler({ });
-    completionHandler(document->url());
+        return { };
+    return document->url();
 }
 
 String LocalFrame::trackedRepaintRectsAsText() const

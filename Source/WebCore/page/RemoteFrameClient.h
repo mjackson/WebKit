@@ -70,7 +70,6 @@ public:
 #endif
     virtual void focus() = 0;
     virtual void unfocus() = 0;
-    virtual void documentURLForConsoleLog(CompletionHandler<void(const URL&)>&&) = 0;
     virtual void updateScrollingMode(ScrollbarMode scrollingMode) = 0;
     virtual void reportMixedContentViolation(bool blocked, const URL& target) = 0;
     virtual void findFocusableElementDescendingIntoRemoteFrame(FocusDirection, const FocusEventData&, ShouldFocusElement, CompletionHandler<void(FoundElementInRemoteFrame)>&&) = 0;

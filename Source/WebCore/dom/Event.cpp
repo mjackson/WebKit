@@ -57,6 +57,7 @@ ALWAYS_INLINE Event::Event(MonotonicTime createTime, enum EventInterfaceType eve
     , m_defaultHandled { false }
     , m_isDefaultEventHandlerIgnored { false }
     , m_isTrusted { isTrusted == IsTrusted::Yes }
+    , m_isTrustedForBindingsOnly { false }
     , m_isExecutingPassiveEventListener { false }
     , m_currentTargetIsInShadowTree { false }
     , m_isAutofillEvent { false }
@@ -92,6 +93,7 @@ Event::Event(enum EventInterfaceType eventInterface, const AtomString& eventType
 {
     ASSERT(!eventType.isNull());
     m_isConstructedFromInitializer = true;
+    m_isTrustedForBindingsOnly = initializer.trustedForBindingsOnly;
 }
 
 Event::~Event() = default;

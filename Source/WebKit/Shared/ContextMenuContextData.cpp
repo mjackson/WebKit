@@ -30,10 +30,13 @@
 #if ENABLE(CONTEXT_MENUS)
 
 #include "WebEventConversion.h"
+#include <WebCore/ContextMenuContext.h>
 #include <WebCore/GraphicsContext.h>
 #include <WebCore/MouseEvent.h>
 
 namespace WebKit {
+
+using namespace WebCore;
 
 ContextMenuContextData::ContextMenuContextData()
     : m_type(Type::ContextMenu)

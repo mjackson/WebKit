@@ -136,6 +136,7 @@ public:
     OptionSet<AnimationImpact> apply(RenderStyle& targetStyle, const Style::ResolutionContext&, EndpointInclusiveActiveInterval = EndpointInclusiveActiveInterval::No);
     void invalidate();
 
+    void animationBecameReady();
     void animationRelevancyDidChange();
     void transformRelatedPropertyDidChange();
     enum class RecomputationReason : uint8_t { LogicalPropertyChange, Other };
@@ -274,7 +275,6 @@ private:
     // AnimationEffect
     bool isKeyframeEffect() const final { return true; }
     void animationDidTick() final;
-    void animationBecameReady() final;
     void animationDidChangeTimingProperties() final;
     void animationWasCanceled() final;
     void animationSuspensionStateDidChange(bool) final;

@@ -25,27 +25,29 @@
 
 #pragma once
 
-#include "CSSPrimitiveValue.h"
+#include "CSSCustomIdent.h"
+#include "CSSPrimitiveNumericTypes.h"
 #include "CSSValue.h"
 
 namespace WebCore {
 
 class CSSGridLineValue final : public CSSValue {
 public:
-    static Ref<CSSGridLineValue> NODELETE create(RefPtr<CSSPrimitiveValue>&&, RefPtr<CSSPrimitiveValue>&&, RefPtr<CSSPrimitiveValue>&&);
+    static Ref<CSSGridLineValue> NODELETE create(std::optional<CSS::Keyword::Span>, std::optional<CSS::Integer<>>&&, std::optional<CSS::CustomIdent>&&);
 
     String customCSSText(const CSS::SerializationContext&) const;
     bool equals(const CSSGridLineValue& other) const;
 
-    CSSPrimitiveValue* spanValue() const { return m_spanValue.get(); }
-    CSSPrimitiveValue* numericValue() const { return m_numericValue.get(); }
-    CSSPrimitiveValue* gridLineName() const { return m_gridLineName.get(); }
+    std::optional<CSS::Keyword::Span> span() const { return m_span; }
+    const std::optional<CSS::Integer<>>& numeric() const { return m_numeric; }
+    const std::optional<CSS::CustomIdent>& gridLineName() const { return m_gridLineName; }
 
 private:
-    explicit CSSGridLineValue(RefPtr<CSSPrimitiveValue>&&, RefPtr<CSSPrimitiveValue>&&, RefPtr<CSSPrimitiveValue>&&);
-    const RefPtr<CSSPrimitiveValue> m_spanValue;
-    const RefPtr<CSSPrimitiveValue> m_numericValue;
-    const RefPtr<CSSPrimitiveValue> m_gridLineName;
+    explicit CSSGridLineValue(std::optional<CSS::Keyword::Span>, std::optional<CSS::Integer<>>&&, std::optional<CSS::CustomIdent>&&);
+
+    const std::optional<CSS::Keyword::Span> m_span;
+    const std::optional<CSS::Integer<>> m_numeric;
+    const std::optional<CSS::CustomIdent> m_gridLineName;
 };
 
 } // namespace WebCore

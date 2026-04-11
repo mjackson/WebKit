@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2006-2026 Apple Inc. All rights reserved.
  * Copyright (C) 2010 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -154,7 +154,7 @@ void RenderSliderContainer::layout()
     // Force a layout to reset the position of the thumb so the code below doesn't move the thumb to the wrong place.
     // FIXME: Make a custom Render class for the track and move the thumb positioning code there.
     if (track)
-        track->setChildNeedsLayout(MarkOnlyThis);
+        track->setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
 
     RenderFlexibleBox::layout();
 
@@ -256,7 +256,7 @@ void SliderThumbElement::setPositionFromPoint(const LayoutPoint& absolutePoint)
     bool isVertical = hasVerticalAppearance(*input);
     bool isInlineFlipped = thumbRenderer->writingMode().isInlineFlipped() || (isVertical && thumbRenderer->writingMode().isHorizontal());
 
-    auto offset = inputRenderer->absoluteToLocal(absolutePoint, UseTransforms);
+    auto offset = inputRenderer->absoluteToLocal(absolutePoint, MapCoordinatesMode::UseTransforms);
     auto trackBoundingBox = trackRenderer->localToContainerQuad(FloatRect { { }, trackRenderer->size() }, inputRenderer.get()).enclosingBoundingBox();
 
     LayoutUnit trackLength;
@@ -439,9 +439,14 @@ void SliderThumbElement::handleTouchStart(TouchEvent& touchEvent)
     RefPtr<Touch> touch = targetTouches->item(0);
     if (!renderer())
         return;
-    IntRect boundingBox = renderer()->absoluteBoundingBoxRect();
-    // Ignore the touch if it is not really inside the thumb.
-    if (!boundingBox.contains(touch->pageX(), touch->pageY()))
+
+    FloatRect thumbBoundingBox = renderer()->absoluteBoundingBoxRect();
+    // These values were chosen to match UIKit.
+    static constexpr float thumbMinDimension = 48;
+    static constexpr float thumbHitAreaExpansion = 12.5;
+    if (thumbBoundingBox.width() < thumbMinDimension || thumbBoundingBox.height() < thumbMinDimension)
+        thumbBoundingBox.inflate(thumbHitAreaExpansion);
+    if (!thumbBoundingBox.contains(touch->pageX(), touch->pageY()))
         return;
 
     setExclusiveTouchIdentifier(touch->identifier());

@@ -93,7 +93,9 @@ public:
     void stopAnimation(SVGAttributeAnimator& animator) override
     {
         Base::stopAnimation(animator);
-        if (m_animVal)
+        if (!this->isAnimating())
+            m_animVal = nullptr;
+        else if (m_animVal)
             *m_animVal = m_baseVal;
     }
 

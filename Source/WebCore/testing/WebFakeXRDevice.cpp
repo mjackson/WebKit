@@ -33,6 +33,7 @@
 #include "DOMPointReadOnly.h"
 #include "JSDOMPromiseDeferred.h"
 #include "WebFakeXRInputController.h"
+#include <JavaScriptCore/HeapCellInlines.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/MathExtras.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -62,6 +63,11 @@ SimulatedXRDevice::SimulatedXRDevice()
     : m_frameTimer(*this, &SimulatedXRDevice::frameTimerFired)
 {
     m_supportsOrientationTracking = true;
+#if ENABLE(WEBXR_LAYERS)
+    // Same approach as Chromium. From a typical 16 max layer limit we remove the projection layer which is always there
+    // and then we divide by 2 to account for the fact that each layer can be stereo (two views).
+    m_maxRenderLayers = (16 - 1) / 2;
+#endif
 }
 
 SimulatedXRDevice::~SimulatedXRDevice()

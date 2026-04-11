@@ -27,7 +27,6 @@
 #include <wtf/Threading.h>
 #include <wtf/text/ASCIIFastPath.h>
 #include <wtf/text/AtomStringTable.h>
-#include <wtf/text/StringHash.h>
 #include <wtf/text/WTFString.h>
 
 #if USE(WEB_THREAD)
@@ -406,9 +405,8 @@ void AtomStringImpl::remove(AtomStringImpl* string)
     AtomStringTableLocker locker;
     auto& atomStringTable = stringTable();
     auto iterator = atomStringTable.find<AtomStringTableRemovalHashTranslator>(string);
-    ASSERT_WITH_MESSAGE(iterator != atomStringTable.end(), "The string being removed is an atom in the string table of an other thread!");
-    ASSERT(string == iterator->get());
-    atomStringTable.remove(iterator);
+    bool wasRemoved = atomStringTable.remove(iterator);
+    RELEASE_ASSERT(wasRemoved, "The string being removed is an atom in the string table of an other thread!");
 }
 
 RefPtr<AtomStringImpl> AtomStringImpl::lookUpSlowCase(StringImpl& string)

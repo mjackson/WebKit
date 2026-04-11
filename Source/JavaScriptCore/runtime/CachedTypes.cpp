@@ -84,8 +84,8 @@ public:
         friend class Encoder;
 
     public:
-        uint8_t* buffer() const { return m_buffer; }
-        ptrdiff_t offset() const { return m_offset; }
+        uint8_t* NODELETE buffer() const { return m_buffer; }
+        ptrdiff_t NODELETE offset() const { return m_offset; }
 
     private:
         Allocation(uint8_t* buffer, ptrdiff_t offset)
@@ -227,14 +227,14 @@ private:
         }
 
         // FIXME: Port call sites for span() / mutableSpan() and remove.
-        const uint8_t* buffer() const { return m_buffer.span().data(); }
-        uint8_t* buffer() { return m_buffer.mutableSpan().data(); }
+        const uint8_t* NODELETE buffer() const { return m_buffer.span().data(); }
+        uint8_t* NODELETE buffer() { return m_buffer.mutableSpan().data(); }
         size_t size() const { return static_cast<size_t>(m_offset); }
 
         std::span<uint8_t> mutableSpan() LIFETIME_BOUND { return m_buffer.mutableSpan().first(size()); }
         std::span<const uint8_t> span() const LIFETIME_BOUND { return m_buffer.span().first(size()); }
 
-        bool getOffset(const void* address, ptrdiff_t& result) const
+        bool NODELETE getOffset(const void* address, ptrdiff_t& result) const
         {
             auto* addr = static_cast<const uint8_t*>(address);
             auto* bufferStart = buffer();
@@ -245,7 +245,7 @@ private:
             return false;
         }
 
-        void alignEnd()
+        void NODELETE alignEnd()
         {
             ptrdiff_t size = roundUpToMultipleOf(alignof(std::max_align_t), m_offset);
             if (size == m_offset)
@@ -423,20 +423,20 @@ public:
     {
     }
 
-    bool isEmpty() const
+    bool NODELETE isEmpty() const
     {
         return m_offset == s_invalidOffset;
     }
 
 protected:
-    const uint8_t* buffer() const
+    const uint8_t* NODELETE buffer() const
     {
         ASSERT(!isEmpty());
         return std::bit_cast<const uint8_t*>(this) + m_offset;
     }
 
     template<typename T>
-    const T* buffer() const
+    const T* NODELETE buffer() const
     {
         ASSERT(!(std::bit_cast<uintptr_t>(buffer()) % alignof(T)));
         return std::bit_cast<const T*>(buffer());
@@ -540,10 +540,10 @@ public:
         return decode(decoder, unusedIsNewAllocation, std::forward<Args>(args)...);
     }
 
-    const T* operator->() const { return get(); }
+    const T* NODELETE operator->() const { return get(); }
 
 private:
-    const T* get() const
+    const T* NODELETE get() const
     {
         RELEASE_ASSERT(!this->isEmpty());
         return this->template buffer<T>();
@@ -598,7 +598,7 @@ class CachedWriteBarrier : public CachedObject<WriteBarrier<Source>> {
     friend struct CachedWriteBarrierOffsets;
 
 public:
-    bool isEmpty() const { return m_ptr.isEmpty(); }
+    bool NODELETE isEmpty() const { return m_ptr.isEmpty(); }
 
     void encode(Encoder& encoder, const WriteBarrier<Source> src)
     {
@@ -813,8 +813,8 @@ public:
         return m_is8Bit ? create(span8()) : create(span16());
     }
 
-    std::span<const Latin1Character> span8() const LIFETIME_BOUND { return { this->template buffer<Latin1Character>(), m_length }; }
-    std::span<const char16_t> span16() const LIFETIME_BOUND { return { this->template buffer<char16_t>(), m_length }; }
+    std::span<const Latin1Character> NODELETE span8() const LIFETIME_BOUND { return { this->template buffer<Latin1Character>(), m_length }; }
+    std::span<const char16_t> NODELETE span16() const LIFETIME_BOUND { return { this->template buffer<char16_t>(), m_length }; }
 
 private:
     bool m_is8Bit : 1;
@@ -1912,42 +1912,43 @@ public:
     void encode(Encoder&, const UnlinkedFunctionExecutable&);
     UnlinkedFunctionExecutable* decode(Decoder&) const;
 
-    unsigned firstLineOffset() const { return m_firstLineOffset; }
-    unsigned lineCount() const { return m_lineCount; }
-    unsigned unlinkedFunctionStart() const { return m_unlinkedFunctionStart; }
-    unsigned unlinkedBodyStartColumn() const { return m_unlinkedBodyStartColumn; }
-    unsigned unlinkedBodyEndColumn() const { return m_unlinkedBodyEndColumn; }
-    unsigned startOffset() const { return m_startOffset; }
-    unsigned sourceLength() const { return m_sourceLength; }
-    unsigned parametersStartOffset() const { return m_parametersStartOffset; }
-    unsigned unlinkedFunctionEnd() const { return m_unlinkedFunctionEnd; }
-    unsigned parameterCount() const { return m_parameterCount; }
+    unsigned NODELETE firstLineOffset() const { return m_firstLineOffset; }
+    unsigned NODELETE lineCount() const { return m_lineCount; }
+    unsigned NODELETE unlinkedFunctionStart() const { return m_unlinkedFunctionStart; }
+    unsigned NODELETE unlinkedBodyStartColumn() const { return m_unlinkedBodyStartColumn; }
+    unsigned NODELETE unlinkedBodyEndColumn() const { return m_unlinkedBodyEndColumn; }
+    unsigned NODELETE startOffset() const { return m_startOffset; }
+    unsigned NODELETE sourceLength() const { return m_sourceLength; }
+    unsigned NODELETE parametersStartOffset() const { return m_parametersStartOffset; }
+    unsigned NODELETE unlinkedFunctionEnd() const { return m_unlinkedFunctionEnd; }
+    unsigned NODELETE parameterCount() const { return m_parameterCount; }
 
-    CodeFeatures features() const { return m_mutableMetadata.m_features; }
-    LexicallyScopedFeatures lexicallyScopedFeatures() const { return m_mutableMetadata.m_lexicallyScopedFeatures; }
-    SourceParseMode sourceParseMode() const { return static_cast<SourceParseMode>(m_sourceParseMode); }
+    CodeFeatures NODELETE features() const { return m_mutableMetadata.m_features; }
+    LexicallyScopedFeatures NODELETE lexicallyScopedFeatures() const { return m_mutableMetadata.m_lexicallyScopedFeatures; }
+    SourceParseMode NODELETE sourceParseMode() const { return static_cast<SourceParseMode>(m_sourceParseMode); }
 
-    unsigned hasCapturedVariables() const { return m_mutableMetadata.m_hasCapturedVariables; }
-    ImplementationVisibility implementationVisibility() const { return static_cast<ImplementationVisibility>(m_implementationVisibility); }
-    unsigned isBuiltinFunction() const { return m_isBuiltinFunction; }
-    unsigned isBuiltinDefaultClassConstructor() const { return m_isBuiltinDefaultClassConstructor; }
-    unsigned constructAbility() const { return m_constructAbility; }
-    unsigned constructorKind() const { return m_constructorKind; }
-    unsigned functionMode() const { return m_functionMode; }
-    unsigned scriptMode() const { return m_scriptMode; }
-    unsigned superBinding() const { return m_superBinding; }
-    unsigned derivedContextType() const { return m_derivedContextType; }
-    unsigned inlineAttribute() const { return m_inlineAttribute; }
-    unsigned needsClassFieldInitializer() const { return m_needsClassFieldInitializer; }
-    unsigned privateBrandRequirement() const { return m_privateBrandRequirement; }
+    unsigned NODELETE hasCapturedVariables() const { return m_mutableMetadata.m_hasCapturedVariables; }
+    ImplementationVisibility NODELETE implementationVisibility() const { return static_cast<ImplementationVisibility>(m_implementationVisibility); }
+    unsigned NODELETE isBuiltinFunction() const { return m_isBuiltinFunction; }
+    unsigned NODELETE isBuiltinDefaultClassConstructor() const { return m_isBuiltinDefaultClassConstructor; }
+    unsigned NODELETE constructAbility() const { return m_constructAbility; }
+    unsigned NODELETE constructorKind() const { return m_constructorKind; }
+    unsigned NODELETE functionMode() const { return m_functionMode; }
+    unsigned NODELETE scriptMode() const { return m_scriptMode; }
+    unsigned NODELETE superBinding() const { return m_superBinding; }
+    unsigned NODELETE derivedContextType() const { return m_derivedContextType; }
+    unsigned NODELETE evalContextType() const { return m_evalContextType; }
+    unsigned NODELETE inlineAttribute() const { return m_inlineAttribute; }
+    unsigned NODELETE needsClassFieldInitializer() const { return m_needsClassFieldInitializer; }
+    unsigned NODELETE privateBrandRequirement() const { return m_privateBrandRequirement; }
 
     Identifier name(Decoder& decoder) const { return m_name.decode(decoder); }
     Identifier ecmaName(Decoder& decoder) const { return m_ecmaName.decode(decoder); }
 
     UnlinkedFunctionExecutable::RareData* rareData(Decoder& decoder) const { return m_rareData.decode(decoder); }
 
-    const CachedWriteBarrier<CachedFunctionCodeBlock, UnlinkedFunctionCodeBlock>& unlinkedCodeBlockForCall() const { return m_unlinkedCodeBlockForCall; }
-    const CachedWriteBarrier<CachedFunctionCodeBlock, UnlinkedFunctionCodeBlock>& unlinkedCodeBlockForConstruct() const { return m_unlinkedCodeBlockForConstruct; }
+    const CachedWriteBarrier<CachedFunctionCodeBlock, UnlinkedFunctionCodeBlock>& NODELETE unlinkedCodeBlockForCall() const { return m_unlinkedCodeBlockForCall; }
+    const CachedWriteBarrier<CachedFunctionCodeBlock, UnlinkedFunctionCodeBlock>& NODELETE unlinkedCodeBlockForConstruct() const { return m_unlinkedCodeBlockForConstruct; }
 
 private:
     CachedFunctionExecutableMetadata m_mutableMetadata;
@@ -1972,6 +1973,7 @@ private:
     unsigned m_constructorKind : 2;
     unsigned m_functionMode : 2; // FunctionMode
     unsigned m_derivedContextType: 2;
+    unsigned m_evalContextType : 2;
     unsigned m_inlineAttribute : 1;
     unsigned m_needsClassFieldInitializer : 1;
     unsigned m_implementationVisibility : bitWidthOfImplementationVisibility;
@@ -2008,45 +2010,45 @@ public:
 
     JSInstructionStream* instructions(Decoder& decoder) const { return m_instructions.decode(decoder); }
 
-    VirtualRegister thisRegister() const { return m_thisRegister; }
-    VirtualRegister scopeRegister() const { return m_scopeRegister; }
+    VirtualRegister NODELETE thisRegister() const { return m_thisRegister; }
+    VirtualRegister NODELETE scopeRegister() const { return m_scopeRegister; }
 
     RefPtr<StringImpl> sourceURLDirective(Decoder& decoder) const { return m_sourceURLDirective.decode(decoder); }
     RefPtr<StringImpl> sourceMappingURLDirective(Decoder& decoder) const { return m_sourceMappingURLDirective.decode(decoder); }
 
     Ref<UnlinkedMetadataTable> metadata(Decoder& decoder) const { return m_metadata.decode(decoder); }
 
-    unsigned isConstructor() const { return m_isConstructor; }
-    unsigned hasCapturedVariables() const { return m_hasCapturedVariables; }
-    unsigned isBuiltinFunction() const { return m_isBuiltinFunction; }
-    unsigned superBinding() const { return m_superBinding; }
-    unsigned scriptMode() const { return m_scriptMode; }
-    unsigned isArrowFunctionContext() const { return m_isArrowFunctionContext; }
-    unsigned isClassContext() const { return m_isClassContext; }
-    unsigned constructorKind() const { return m_constructorKind; }
-    unsigned derivedContextType() const { return m_derivedContextType; }
-    unsigned evalContextType() const { return m_evalContextType; }
-    unsigned hasTailCalls() const { return m_hasTailCalls; }
-    unsigned hasCheckpoints() const { return m_hasCheckpoints; }
-    unsigned lineCount() const { return m_lineCount; }
-    unsigned endColumn() const { return m_endColumn; }
+    unsigned NODELETE isConstructor() const { return m_isConstructor; }
+    unsigned NODELETE hasCapturedVariables() const { return m_hasCapturedVariables; }
+    unsigned NODELETE isBuiltinFunction() const { return m_isBuiltinFunction; }
+    unsigned NODELETE superBinding() const { return m_superBinding; }
+    unsigned NODELETE scriptMode() const { return m_scriptMode; }
+    unsigned NODELETE isArrowFunctionContext() const { return m_isArrowFunctionContext; }
+    unsigned NODELETE isClassContext() const { return m_isClassContext; }
+    unsigned NODELETE constructorKind() const { return m_constructorKind; }
+    unsigned NODELETE derivedContextType() const { return m_derivedContextType; }
+    unsigned NODELETE evalContextType() const { return m_evalContextType; }
+    unsigned NODELETE hasTailCalls() const { return m_hasTailCalls; }
+    unsigned NODELETE hasCheckpoints() const { return m_hasCheckpoints; }
+    unsigned NODELETE lineCount() const { return m_lineCount; }
+    unsigned NODELETE endColumn() const { return m_endColumn; }
 
-    int numVars() const { return m_numVars; }
-    int numCalleeLocals() const { return m_numCalleeLocals; }
-    int numParameters() const { return m_numParameters; }
+    int NODELETE numVars() const { return m_numVars; }
+    int NODELETE numCalleeLocals() const { return m_numCalleeLocals; }
+    int NODELETE numParameters() const { return m_numParameters; }
 
-    CodeFeatures features() const { return m_features; }
-    LexicallyScopedFeatures lexicallyScopedFeatures() const { return m_lexicallyScopedFeatures; }
-    SourceParseMode parseMode() const { return static_cast<SourceParseMode>(m_parseMode); }
-    OptionSet<CodeGenerationMode> codeGenerationMode() const { return OptionSet<CodeGenerationMode>::fromRaw(m_codeGenerationMode); }
-    unsigned codeType() const { return m_codeType; }
+    CodeFeatures NODELETE features() const { return m_features; }
+    LexicallyScopedFeatures NODELETE lexicallyScopedFeatures() const { return m_lexicallyScopedFeatures; }
+    SourceParseMode NODELETE parseMode() const { return static_cast<SourceParseMode>(m_parseMode); }
+    OptionSet<CodeGenerationMode> NODELETE codeGenerationMode() const { return OptionSet<CodeGenerationMode>::fromRaw(m_codeGenerationMode); }
+    unsigned NODELETE codeType() const { return m_codeType; }
 
     UnlinkedCodeBlock::RareData* rareData(Decoder& decoder) const { return m_rareData.decode(decoder); }
 
-    unsigned numValueProfiles() const { return m_numValueProfiles; }
-    unsigned numArrayProfiles() const { return m_numArrayProfiles; }
-    unsigned numBinaryArithProfiles() const { return m_numBinaryArithProfiles; }
-    unsigned numUnaryArithProfiles() const { return m_numUnaryArithProfiles; }
+    unsigned NODELETE numValueProfiles() const { return m_numValueProfiles; }
+    unsigned NODELETE numArrayProfiles() const { return m_numArrayProfiles; }
+    unsigned NODELETE numBinaryArithProfiles() const { return m_numBinaryArithProfiles; }
+    unsigned NODELETE numUnaryArithProfiles() const { return m_numUnaryArithProfiles; }
 
 private:
     VirtualRegister m_thisRegister;
@@ -2209,7 +2211,7 @@ enum class CachedCodeBlockTag {
     CachedEvalCodeBlockTag,
 };
 
-static CachedCodeBlockTag tagFromSourceCodeType(SourceCodeType type)
+static CachedCodeBlockTag NODELETE tagFromSourceCodeType(SourceCodeType type)
 {
     switch (type) {
     case SourceCodeType::ProgramType:
@@ -2349,6 +2351,7 @@ ALWAYS_INLINE void CachedFunctionExecutable::encode(Encoder& encoder, const Unli
     m_scriptMode = executable.m_scriptMode;
     m_superBinding = executable.m_superBinding;
     m_derivedContextType = executable.m_derivedContextType;
+    m_evalContextType = executable.m_evalContextType;
     m_inlineAttribute = executable.m_inlineAttribute;
     m_needsClassFieldInitializer = executable.m_needsClassFieldInitializer;
     m_implementationVisibility = executable.m_implementationVisibility;
@@ -2394,6 +2397,7 @@ ALWAYS_INLINE UnlinkedFunctionExecutable::UnlinkedFunctionExecutable(Decoder& de
     , m_unlinkedFunctionEnd(cachedExecutable.unlinkedFunctionEnd())
     , m_needsClassFieldInitializer(cachedExecutable.needsClassFieldInitializer())
     , m_parameterCount(cachedExecutable.parameterCount())
+    , m_singletonHasBeenInvalidated(false)
     , m_privateBrandRequirement(cachedExecutable.privateBrandRequirement())
     , m_features(cachedExecutable.features())
     , m_constructorKind(cachedExecutable.constructorKind())
@@ -2403,6 +2407,7 @@ ALWAYS_INLINE UnlinkedFunctionExecutable::UnlinkedFunctionExecutable(Decoder& de
     , m_functionMode(cachedExecutable.functionMode())
     , m_derivedContextType(cachedExecutable.derivedContextType())
     , m_inlineAttribute(cachedExecutable.inlineAttribute())
+    , m_evalContextType(cachedExecutable.evalContextType())
     , m_unlinkedCodeBlockForCall()
     , m_unlinkedCodeBlockForConstruct()
 
@@ -2532,7 +2537,7 @@ protected:
         m_bootSessionUUID.encode(encoder, bootSessionUUIDString());
     }
 
-    CachedCodeBlockTag tag() const { return m_tag; }
+    CachedCodeBlockTag NODELETE tag() const { return m_tag; }
 
     bool isUpToDate(Decoder& decoder) const
     {

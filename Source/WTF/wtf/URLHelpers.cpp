@@ -36,7 +36,6 @@
 #include <unicode/uscript.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/URLParser.h>
-#include <wtf/text/ParsingUtilities.h>
 #include <wtf/text/WTFString.h>
 
 namespace WTF {
@@ -69,7 +68,7 @@ void loadIDNAllowedScriptList()
 
 template<UScriptCode> bool isLookalikeCharacterOfScriptType(char32_t);
 
-template<> bool isLookalikeCharacterOfScriptType<USCRIPT_ARMENIAN>(char32_t codePoint)
+template<> bool NODELETE isLookalikeCharacterOfScriptType<USCRIPT_ARMENIAN>(char32_t codePoint)
 {
     switch (codePoint) {
     case 0x0548: /* ARMENIAN CAPITAL LETTER VO */
@@ -86,7 +85,7 @@ template<> bool isLookalikeCharacterOfScriptType<USCRIPT_ARMENIAN>(char32_t code
     }
 }
 
-template<> bool isLookalikeCharacterOfScriptType<USCRIPT_TAMIL>(char32_t codePoint)
+template<> bool NODELETE isLookalikeCharacterOfScriptType<USCRIPT_TAMIL>(char32_t codePoint)
 {
     switch (codePoint) {
     case 0x0BE6: /* TAMIL DIGIT ZERO */
@@ -96,7 +95,7 @@ template<> bool isLookalikeCharacterOfScriptType<USCRIPT_TAMIL>(char32_t codePoi
     }
 }
 
-template<> bool isLookalikeCharacterOfScriptType<USCRIPT_CANADIAN_ABORIGINAL>(char32_t codePoint)
+template<> bool NODELETE isLookalikeCharacterOfScriptType<USCRIPT_CANADIAN_ABORIGINAL>(char32_t codePoint)
 {
     switch (codePoint) {
     case 0x146D: /* CANADIAN SYLLABICS KI */
@@ -120,7 +119,7 @@ template<> bool isLookalikeCharacterOfScriptType<USCRIPT_CANADIAN_ABORIGINAL>(ch
     }
 }
 
-template<> bool isLookalikeCharacterOfScriptType<USCRIPT_THAI>(char32_t codePoint)
+template<> bool NODELETE isLookalikeCharacterOfScriptType<USCRIPT_THAI>(char32_t codePoint)
 {
     switch (codePoint) {
     case 0x0E01: // THAI CHARACTER KO KAI
@@ -142,7 +141,7 @@ bool isOfScriptType(char32_t codePoint)
     return script == ScriptType;
 }
 
-template<typename CharacterType> inline bool isASCIIDigitOrValidHostCharacter(CharacterType charCode)
+template<typename CharacterType> inline bool NODELETE isASCIIDigitOrValidHostCharacter(CharacterType charCode)
 {
     if (!isASCIIDigitOrPunctuation(charCode))
         return false;
@@ -842,8 +841,8 @@ static String escapeUnsafeCharacters(const String& sourceBuffer)
 
     unsigned i;
     for (i = 0; i < length; ) {
-        char32_t c = sourceBuffer.characterStartingAt(i);
-        if (isLookalikeCharacter(previousCodePoint, sourceBuffer.characterStartingAt(i)))
+        char32_t c = sourceBuffer.codePointAt(i);
+        if (isLookalikeCharacter(previousCodePoint, sourceBuffer.codePointAt(i)))
             break;
         previousCodePoint = c;
         i += U16_LENGTH(c);
@@ -861,7 +860,7 @@ static String escapeUnsafeCharacters(const String& sourceBuffer)
         StringImpl::copyCharacters(outBuffer.mutableSpan(), sourceBuffer.span16().first(i));
 
     for (; i < length; ) {
-        char32_t c = sourceBuffer.characterStartingAt(i);
+        char32_t c = sourceBuffer.codePointAt(i);
         unsigned characterLength = U16_LENGTH(c);
         if (isLookalikeCharacter(previousCodePoint, c)) {
             std::array<uint8_t, 4> utf8Buffer;

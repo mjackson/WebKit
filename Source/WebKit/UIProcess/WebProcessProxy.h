@@ -261,7 +261,7 @@ public:
     static Ref<WebProcessProxy> fromConnection(const IPC::Connection&);
     static WebPageProxy* NODELETE webPage(WebPageProxyIdentifier);
     static WebPageProxy* NODELETE webPage(WebCore::PageIdentifier);
-    static WebPageProxy* audioCapturingWebPage();
+    static WebPageProxy* NODELETE audioCapturingWebPage();
 #if ENABLE(WEBXR)
     static WebPageProxy* webPageWithActiveXRSession();
 #endif
@@ -298,7 +298,7 @@ public:
     bool isStandaloneSharedWorkerProcess() const { return isRunningSharedWorkers() && !pageCount(); }
     bool isRunningWorkers() const { return m_sharedWorkerInformation || m_serviceWorkerInformation; }
 
-    bool isDummyProcessProxy() const;
+    bool NODELETE isDummyProcessProxy() const;
 
     void didCreateWebPageInProcess(WebCore::PageIdentifier);
 
@@ -397,8 +397,9 @@ public:
     bool isBackground() const { return !!m_backgroundToken; }
 
 #if PLATFORM(COCOA)
-    Vector<String> mediaMIMETypes() const;
+    static const Vector<String>& mediaMIMETypes();
     void cacheMediaMIMETypes(const Vector<String>&);
+    void cacheMediaSourceTypeSupported(const String& type, bool isSupported);
 #endif
 
 #if HAVE(DISPLAY_LINK)
@@ -604,6 +605,7 @@ public:
     void NODELETE setWasmDebuggerTargetIndicating(bool);
 
     void sendWasmDebuggerResponse(const String& response);
+    void updateWasmDebuggerTarget();
 #endif
 
 #if ENABLE(IPC_TESTING_API)
@@ -661,7 +663,7 @@ private:
     void initializePreferencesForGPUAndNetworkProcesses(const WebPageProxy&);
 
     void reportProcessDisassociatedWithPageIfNecessary(WebPageProxyIdentifier);
-    bool isAssociatedWithPage(WebPageProxyIdentifier) const;
+    bool NODELETE isAssociatedWithPage(WebPageProxyIdentifier) const;
 
     void platformInitialize();
     void platformDestroy();
@@ -824,7 +826,7 @@ private:
 
     HashMap<String, uint64_t> m_pageURLRetainCountMap;
 
-    Expected<WebCore::Site, SiteState> m_site { Unexpected<SiteState> { SiteState::NotYetSpecified } };
+    Expected<WebCore::Site, SiteState> m_site { std::unexpected<SiteState> { SiteState::NotYetSpecified } };
     std::optional<WebCore::Site> m_sharedProcessMainFrameSite;
     HashSet<WebCore::RegistrableDomain> m_sharedProcessDomains;
     bool m_isInProcessCache { false };

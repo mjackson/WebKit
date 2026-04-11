@@ -68,7 +68,7 @@ static Module::ValidationResult makeValidationResult(IPIntPlan& plan)
 {
     ASSERT(!plan.hasWork());
     if (plan.failed())
-        return Unexpected<String>(plan.errorMessage());
+        return std::unexpected<String>(plan.errorMessage());
     return Module::ValidationResult(Module::create(plan));
 }
 

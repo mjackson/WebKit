@@ -370,7 +370,7 @@ static void logGLDebugMessage(GLenum source, GLenum type, GLuint identifier, GLe
         }
     };
 
-    RELEASE_LOG_WITH_LEVEL(GLContext, logLevel(severity), "%s (%s) [id=%ld]: %s", sourceName(source), typeName(type), identifier, message);
+    RELEASE_LOG_WITH_LEVEL(GLContext, logLevel(severity), "%s (%s) [id=%u]: %s", sourceName(source), typeName(type), identifier, message);
     if (type == GL_DEBUG_TYPE_ERROR_KHR && LOG_CHANNEL(GLContext).level >= WTFLogLevel::Debug) {
         WTF::StringPrintStream backtraceStream;
         WTFReportBacktraceWithPrefixAndPrintStream(backtraceStream, "#");

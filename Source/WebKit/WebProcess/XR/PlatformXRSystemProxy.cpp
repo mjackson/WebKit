@@ -121,18 +121,9 @@ std::optional<PlatformXR::LayerHandle> PlatformXRSystemProxy::createLayerProject
 }
 
 #if USE(OPENXR)
-void PlatformXRSystemProxy::submitFrame(Vector<PlatformXR::Device::Layer>&& layers)
+void PlatformXRSystemProxy::submitFrame(Vector<PlatformXR::DeviceLayer>&& layers)
 {
-    Vector<WebKit::XRDeviceLayer> deviceLayers;
-    for (auto& layer : layers) {
-        deviceLayers.append(WebKit::XRDeviceLayer {
-            .handle = layer.handle,
-            .visible = layer.visible,
-            .views = layer.views,
-            .fenceFD = WTF::move(layer.fenceFD)
-        });
-    }
-    protect(m_page)->send(Messages::PlatformXRSystem::SubmitFrame(WTF::move(deviceLayers)));
+    protect(m_page)->send(Messages::PlatformXRSystem::SubmitFrame(WTF::move(layers)));
 }
 #else
 void PlatformXRSystemProxy::submitFrame()

@@ -22,6 +22,7 @@
 
 #include "config.h"
 #include "LegacyRenderSVGViewportContainer.h"
+#include "LegacyRenderSVGModelObjectInlines.h"
 
 #include "GraphicsContext.h"
 #include "RenderView.h"

@@ -293,7 +293,7 @@ void ParsedStyleSheet::setSourceData(std::unique_ptr<RuleSourceDataList> sourceD
     flattenSourceData(*sourceData, *m_sourceData);
 }
 
-WebCore::CSSRuleSourceData* ParsedStyleSheet::ruleSourceDataAt(unsigned index) const
+WebCore::CSSRuleSourceData* NODELETE ParsedStyleSheet::ruleSourceDataAt(unsigned index) const
 {
     if (!hasSourceData() || index >= m_sourceData->size())
         return nullptr;
@@ -345,7 +345,7 @@ void StyleSheetHandler::startRuleHeader(StyleRuleType type, unsigned offset)
     m_currentRuleDataStack.append(WTF::move(data));
 }
 
-template <typename CharacterType> inline void StyleSheetHandler::setRuleHeaderEnd(std::span<const CharacterType> data)
+template <typename CharacterType> inline void NODELETE StyleSheetHandler::setRuleHeaderEnd(std::span<const CharacterType> data)
 {
     while (data.size() > m_currentRuleDataStack.last()->ruleHeaderRange.start) {
         if (isASCIIWhitespace<CharacterType>(data[data.size() - 1]))
@@ -1134,7 +1134,7 @@ ExceptionOr<void> InspectorStyleSheet::setRuleHeaderText(const InspectorCSSId& i
 
     if (!cssStyleRule
         && sourceData->ruleHeaderRange.start
-        && sheetText.characterAt(sourceData->ruleHeaderRange.start - 1) != ' '
+        && sheetText.codeUnitAt(sourceData->ruleHeaderRange.start - 1) != ' '
         && !correctedHeaderText.startsWith('(')) {
         // @ rules do not include the `@whatever` part of the declaration in their header text range, nor do they
         // include the space between the `@whatever` and the query/name/etc.. However, not all rules must contain a

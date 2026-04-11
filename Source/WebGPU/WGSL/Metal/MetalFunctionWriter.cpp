@@ -237,7 +237,7 @@ private:
     void serializeConstant(const Type*, ConstantValue);
     void serializeBinaryExpression(AST::Expression&, AST::BinaryOperation, AST::Expression&);
     void visitStatements(AST::Statement::List&);
-    bool shouldPackType() const;
+    bool NODELETE shouldPackType() const;
 
     HelperGenerator m_helperGenerator;
     StringBuilder m_body;

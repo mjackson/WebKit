@@ -173,16 +173,16 @@ Expected<std::pair<FourCharCode, std::optional<AudioStreamDescription::PCMFormat
     auto components = codecName.toString().split('-');
     if (components.size() != 2)
         return makeUnexpected(makeString("Invalid LPCM codec string:"_s, codecName));
-    auto pcmFormat = components[1].convertToASCIILowercase();
-    if (pcmFormat == "u8"_s)
+    auto& pcmFormat = components[1];
+    if (equalLettersIgnoringASCIICase(pcmFormat, "u8"_s))
         format = AudioStreamDescription::Uint8;
-    else if (pcmFormat == "s16"_s)
+    else if (equalLettersIgnoringASCIICase(pcmFormat, "s16"_s))
         format = AudioStreamDescription::Int16;
-    else if (pcmFormat == "s24"_s)
+    else if (equalLettersIgnoringASCIICase(pcmFormat, "s24"_s))
         format = AudioStreamDescription::Int24;
-    else if (pcmFormat == "s32"_s)
+    else if (equalLettersIgnoringASCIICase(pcmFormat, "s32"_s))
         format = AudioStreamDescription::Int32;
-    else if (pcmFormat == "f32"_s)
+    else if (equalLettersIgnoringASCIICase(pcmFormat, "f32"_s))
         format = AudioStreamDescription::Float32;
     else
         return makeUnexpected(makeString("Invalid LPCM codec format:"_s, pcmFormat));

@@ -147,6 +147,8 @@ public:
     bool isAutofillEvent() { return m_isAutofillEvent; }
     void setIsAutofillEvent() { m_isAutofillEvent = true; }
 
+    bool isTrustedForBindings() const { return m_isTrusted || m_isTrustedForBindingsOnly; }
+
 protected:
     explicit Event(enum EventInterfaceType, IsTrusted = IsTrusted::No);
     Event(enum EventInterfaceType, const AtomString& type, CanBubble, IsCancelable, IsComposed = IsComposed::No);
@@ -173,6 +175,7 @@ private:
     unsigned m_defaultHandled : 1;
     unsigned m_isDefaultEventHandlerIgnored : 1;
     unsigned m_isTrusted : 1;
+    unsigned m_isTrustedForBindingsOnly : 1;
     unsigned m_isExecutingPassiveEventListener : 1;
     unsigned m_currentTargetIsInShadowTree : 1;
     unsigned m_isAutofillEvent : 1;
@@ -223,7 +226,7 @@ inline void Event::setCancelBubble(bool cancel)
         m_propagationStopped = true;
 }
 
-WTF::TextStream& operator<<(WTF::TextStream&, const Event&);
+WEBCORE_EXPORT WTF::TextStream& operator<<(WTF::TextStream&, const Event&);
 
 } // namespace WebCore
 

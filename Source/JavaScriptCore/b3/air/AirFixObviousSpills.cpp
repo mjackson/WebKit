@@ -334,7 +334,7 @@ private:
             });
     }
     
-    static bool isSpillSlot(const Arg& arg)
+    static bool NODELETE isSpillSlot(const Arg& arg)
     {
         return arg.isStack() && arg.stackSlot()->isSpill();
     }
@@ -355,9 +355,9 @@ private:
             return !!reg;
         }
         
-        friend bool operator==(const RegConst&, const RegConst&) = default;
+        friend bool NODELETE operator==(const RegConst&, const RegConst&) = default;
 
-        bool operator<(const RegConst& other) const
+        bool NODELETE operator<(const RegConst& other) const
         {
             return reg < other.reg || (reg == other.reg && constant < other.constant);
         }
@@ -394,9 +394,9 @@ private:
             return slot && reg;
         }
         
-        friend bool operator==(const RegSlot&, const RegSlot&) = default;
+        friend bool NODELETE operator==(const RegSlot&, const RegSlot&) = default;
 
-        bool operator<(const RegSlot& other) const
+        bool NODELETE operator<(const RegSlot& other) const
         {
             // We ignore `mode` on purpose, see merge() for how we deal with it.
             return slot < other.slot || (slot == other.slot && reg < other.reg);
@@ -439,9 +439,9 @@ private:
             return slot;
         }
         
-        friend bool operator==(const SlotConst&, const SlotConst&) = default;
+        friend bool NODELETE operator==(const SlotConst&, const SlotConst&) = default;
 
-        bool operator<(const SlotConst& other) const
+        bool NODELETE operator<(const SlotConst& other) const
         {
             return slot < other.slot || (slot == other.slot && constant < other.constant);
         }
@@ -491,7 +491,7 @@ private:
             return slotConst.contains(alias);
         }
 
-        const RegConst* getRegConst(Reg reg) const
+        const RegConst* NODELETE getRegConst(Reg reg) const
         {
             for (const RegConst& alias : regConst) {
                 if (alias.reg == reg)
@@ -500,7 +500,7 @@ private:
             return nullptr;
         }
 
-        const RegSlot* getRegSlot(Reg reg) const
+        const RegSlot* NODELETE getRegSlot(Reg reg) const
         {
             for (const RegSlot& alias : regSlot) {
                 if (alias.reg == reg)
@@ -509,7 +509,7 @@ private:
             return nullptr;
         }
 
-        const RegSlot* getRegSlot(StackSlot* slot) const
+        const RegSlot* NODELETE getRegSlot(StackSlot* slot) const
         {
             for (const RegSlot& alias : regSlot) {
                 if (alias.slot == slot)
@@ -518,7 +518,7 @@ private:
             return nullptr;
         }
 
-        const RegSlot* getRegSlot(Reg reg, StackSlot* slot) const
+        const RegSlot* NODELETE getRegSlot(Reg reg, StackSlot* slot) const
         {
             for (const RegSlot& alias : regSlot) {
                 if (alias.reg == reg && alias.slot == slot)
@@ -527,7 +527,7 @@ private:
             return nullptr;
         }
 
-        const SlotConst* getSlotConst(StackSlot* slot) const
+        const SlotConst* NODELETE getSlotConst(StackSlot* slot) const
         {
             for (const SlotConst& alias : slotConst) {
                 if (alias.slot == slot)
@@ -536,7 +536,7 @@ private:
             return nullptr;
         }
 
-        std::optional<int64_t> constantFor(const Arg& arg)
+        std::optional<int64_t> NODELETE constantFor(const Arg& arg)
         {
             if (arg.isReg()) {
                 if (const RegConst* alias = getRegConst(arg.reg()))

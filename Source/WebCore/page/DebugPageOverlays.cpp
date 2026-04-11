@@ -564,7 +564,7 @@ void InteractionRegionOverlay::drawRect(PageOverlay&, GraphicsContext& context, 
                 AffineTransform transform;
 
                 transform.translate(rectInLayerCoordinates.location());
-                if (RefPtr page = m_page)
+                if (auto* page = m_page.get())
                     transform.scale(page->pageScaleFactor());
 
                 existingClip.transform(transform);

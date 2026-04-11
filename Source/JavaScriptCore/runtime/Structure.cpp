@@ -182,6 +182,9 @@ void Structure::validateFlags()
         methodTable.isExtensible != static_cast<MethodTable::IsExtensibleFunctionPtr>(JSObject::isExtensible)
         && methodTable.isExtensible != JSCell::isExtensible;
     RELEASE_ASSERT(overridesIsExtensible == typeInfo().overridesIsExtensible());
+
+    // MasqueradesAsUndefined requires non-null Realm.
+    RELEASE_ASSERT(realm() || !typeInfo().masqueradesAsUndefined());
 }
 #else
 inline void Structure::validateFlags() { }
@@ -201,7 +204,7 @@ Structure::Structure(VM& vm, JSGlobalObject* globalObject, JSValue prototype, co
     , m_inlineCapacity(inlineCapacity)
     , m_bitField(0)
     , m_propertyHash(0)
-    , m_globalObject(globalObject, WriteBarrierEarlyInit)
+    , m_realm(globalObject, WriteBarrierEarlyInit)
     , m_prototype(prototype, WriteBarrierEarlyInit)
     , m_classInfo(classInfo)
     , m_transitionWatchpointSet(IsWatched)
@@ -336,8 +339,8 @@ Structure::Structure(VM& vm, StructureVariant variant, Structure* previous)
     // Copy this bit now, in case previous was being watched.
     setTransitionWatchpointIsLikelyToBeFired(previous->transitionWatchpointIsLikelyToBeFired());
 
-    if (previous->m_globalObject)
-        m_globalObject.set(vm, this, previous->m_globalObject.get());
+    if (previous->m_realm)
+        m_realm.set(vm, this, previous->m_realm.get());
     ASSERT(hasAnyKindOfGetterSetterProperties() || !m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::AccessorOrCustomAccessorOrValue)));
     ASSERT(hasReadOnlyOrGetterSetterPropertiesExcludingProto() || !m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::ReadOnlyOrAccessorOrCustomAccessorOrValue)));
     ASSERT(!this->typeInfo().overridesGetCallData() || m_classInfo->methodTable.getCallData != &JSCell::getCallData);
@@ -726,7 +729,7 @@ Structure* Structure::changeGlobalProxyTargetTransition(VM& vm, Structure* struc
     DeferGC deferGC(vm);
     Structure* transition = Structure::create(vm, structure, &deferred);
 
-    transition->setGlobalObject(vm, globalObject);
+    transition->setRealm(vm, globalObject);
 
     PropertyTable* table = structure->copyPropertyTableForPinning(vm);
     transition->pin(Locker { transition->m_lock }, vm, table);
@@ -1366,7 +1369,7 @@ void Structure::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     
     ConcurrentJSLocker locker(thisObject->m_lock);
     
-    visitor.append(thisObject->m_globalObject);
+    visitor.append(thisObject->m_realm);
     if (!thisObject->isObject()) {
         // We do not need to clear JSPropertyNameEnumerator since it is never cached for non-object Structure.
         // We do not have code clearing JSPropertyNameEnumerator since this function can be called concurrently.
@@ -1390,8 +1393,21 @@ void Structure::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     else if (thisObject->m_propertyTableUnsafe)
         thisObject->m_propertyTableUnsafe.clear();
 
-    if (thisObject->isBrandedStructure())
+    switch (thisObject->variant()) {
+    case StructureVariant::Normal:
+        break;
+    case StructureVariant::Branded:
         BrandedStructure::visitAdditionalChildren(cell, visitor);
+        break;
+    case StructureVariant::WebAssemblyGC:
+#if ENABLE(WEBASSEMBLY)
+        WebAssemblyGCStructure::visitAdditionalChildren(cell, visitor);
+        break;
+#endif
+    default:
+        RELEASE_ASSERT_NOT_REACHED();
+        break;
+    }
 
     // Mark only in non Full collection. In full collection, we handle it as a weak-link.
     if (!(visitor.heap()->collectionScope() == CollectionScope::Full)) {
@@ -1409,7 +1425,7 @@ ALWAYS_INLINE bool Structure::isCheapDuringGC(Visitor& visitor)
     // has any large property names.
     // https://bugs.webkit.org/show_bug.cgi?id=157334
     
-    return (!m_globalObject || visitor.isMarked(m_globalObject.get()))
+    return (!m_realm || visitor.isMarked(m_realm.get()))
         && (hasPolyProto() || !storedPrototypeObject() || visitor.isMarked(storedPrototypeObject()));
 }
 

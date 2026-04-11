@@ -2,7 +2,7 @@
 name: classify-webkit-commit
 description: Use when the user wants to classify a commit or understand what kind of change a commit represents in the WebKit repository.
 user-invocable: true
-allowed-tools: Bash(git-webkit classify:*), Bash(Tools/Scripts/git-webkit classify:*), Bash(git-webkit find:*), Bash(Tools/Scripts/git-webkit find:*)
+allowed-tools: Bash(git-webkit classify:*), Bash(git webkit classify:*), Bash(Tools/Scripts/git-webkit classify:*), Bash(git-webkit find:*), Bash(git webkit find:*), Bash(Tools/Scripts/git-webkit find:*)
 ---
 
 Use `git-webkit classify` to compute the classification of a given commit.

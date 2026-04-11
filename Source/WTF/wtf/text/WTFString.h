@@ -136,8 +136,8 @@ public:
     WTF_EXPORT_PRIVATE Expected<CString, UTF8ConversionError> tryGetUTF8(ConversionMode) const;
     WTF_EXPORT_PRIVATE Expected<CString, UTF8ConversionError> tryGetUTF8() const;
 
-    char16_t characterAt(unsigned index) const;
-    char16_t operator[](unsigned index) const { return characterAt(index); }
+    char16_t codeUnitAt(unsigned index) const;
+    char16_t operator[](unsigned index) const { return codeUnitAt(index); }
 
     WTF_EXPORT_PRIVATE static String NODELETE number(int);
     WTF_EXPORT_PRIVATE static String NODELETE number(unsigned);
@@ -177,7 +177,7 @@ public:
     WTF_EXPORT_PRIVATE Expected<Vector<char16_t>, UTF8ConversionError> charactersWithNullTermination() const;
     WTF_EXPORT_PRIVATE Expected<Vector<char16_t>, UTF8ConversionError> charactersWithoutNullTermination() const;
 
-    WTF_EXPORT_PRIVATE char32_t NODELETE characterStartingAt(unsigned) const;
+    WTF_EXPORT_PRIVATE char32_t NODELETE codePointAt(unsigned) const;
 
     bool contains(char16_t character) const { return find(character) != notFound; }
     bool contains(ASCIILiteral literal) const { return find(literal) != notFound; }
@@ -209,6 +209,7 @@ public:
     [[nodiscard]] WTF_EXPORT_PRIVATE String convertToLowercaseWithoutLocale() const;
     [[nodiscard]] WTF_EXPORT_PRIVATE String convertToLowercaseWithoutLocaleStartingAtFailingIndex8Bit(unsigned) const;
     [[nodiscard]] WTF_EXPORT_PRIVATE String convertToUppercaseWithoutLocale() const;
+    [[nodiscard]] WTF_EXPORT_PRIVATE String convertToUppercaseWithoutLocaleStartingAtFailingIndex8Bit(unsigned failingIndex) const;
     [[nodiscard]] WTF_EXPORT_PRIVATE String convertToLowercaseWithLocale(const AtomString& localeIdentifier) const;
     [[nodiscard]] WTF_EXPORT_PRIVATE String convertToUppercaseWithLocale(const AtomString& localeIdentifier) const;
 
@@ -376,9 +377,6 @@ RetainPtr<NSString> nsStringNilIfNull(const String&);
 
 #endif
 
-WTF_EXPORT_PRIVATE std::strong_ordering codePointCompare(const String&, const String&);
-bool codePointCompareLessThan(const String&, const String&);
-
 // Shared global empty and null string.
 struct StaticString {
     constexpr StaticString(StringImpl::StaticStringImpl* pointer)
@@ -501,7 +499,7 @@ template<> inline std::span<const char16_t> String::span<char16_t>() const LIFET
     return span16();
 }
 
-inline char16_t String::characterAt(unsigned index) const
+inline char16_t String::codeUnitAt(unsigned index) const
 {
     if (!m_impl || index >= m_impl->length())
         return 0;
@@ -583,11 +581,6 @@ inline RetainPtr<NSString> nsStringNilIfNull(const String& string)
 
 #endif
 
-inline bool codePointCompareLessThan(const String& a, const String& b)
-{
-    return codePointCompare(a.impl(), b.impl()) < 0;
-}
-
 template<typename Predicate>
 String String::removeCharacters(const Predicate& findMatch) const
 {
@@ -643,6 +636,5 @@ using WTF::equal;
 using WTF::find;
 using WTF::containsOnly;
 using WTF::reverseFind;
-using WTF::codePointCompareLessThan;
 
 #include <wtf/text/AtomString.h>

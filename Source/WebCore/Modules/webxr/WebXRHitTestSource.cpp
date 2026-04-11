@@ -27,6 +27,7 @@
 #include "WebXRHitTestSource.h"
 
 #include "WebXRSession.h"
+#include "WebXRSpace.h"
 #include <wtf/Ref.h>
 #include <wtf/TZoneMallocInlines.h>
 

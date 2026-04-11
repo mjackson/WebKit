@@ -129,6 +129,7 @@ public:
     static Ref<CSSValue> extractWebkitMaskSourceType(ExtractorState&);
     static Ref<CSSValue> extractColor(ExtractorState&);
     static Ref<CSSValue> extractCaretColor(ExtractorState&);
+    static RefPtr<CSSValue> extractOutlineOffset(ExtractorState&);
 
     // MARK: Shorthands
 
@@ -227,6 +228,7 @@ public:
     static void extractWebkitMaskSourceTypeSerialization(ExtractorState&, StringBuilder&, const CSS::SerializationContext&);
     static void extractColorSerialization(ExtractorState&, StringBuilder&, const CSS::SerializationContext&);
     static void extractCaretColorSerialization(ExtractorState&, StringBuilder&, const CSS::SerializationContext&);
+    static void extractOutlineOffsetSerialization(ExtractorState&, StringBuilder&, const CSS::SerializationContext&);
 
     static void extractAnimationShorthandSerialization(ExtractorState&, StringBuilder&, const CSS::SerializationContext&);
     static void extractAnimationRangeShorthandSerialization(ExtractorState&, StringBuilder&, const CSS::SerializationContext&);
@@ -1368,14 +1370,14 @@ template<CSSPropertyID propertyID, typename List, typename Mapper> void extractC
 
 template<GridTrackSizingDirection direction> Ref<CSSValue> extractGridTemplateValue(ExtractorState& state)
 {
-    auto addValuesForNamedGridLinesAtIndex = [](auto& list, auto& collector, auto i, auto renderEmpty) {
+    auto addValuesForNamedGridLinesAtIndex = [&](auto& list, auto& collector, auto i, auto renderEmpty) {
         if (collector.isEmpty() && !renderEmpty)
             return;
 
-        Vector<String> lineNames;
-        collector.collectLineNamesForIndex(lineNames, i);
+        SpaceSeparatedVector<Style::CustomIdent> lineNames;
+        collector.collectLineNamesForIndex(lineNames.value, i);
         if (!lineNames.isEmpty() || renderEmpty)
-            list.append(CSSGridLineNamesValue::create(lineNames));
+            list.append(CSSGridLineNamesValue::create(toCSS(lineNames, state.style)));
     };
 
     auto& tracks = state.style.gridTemplateList(direction);
@@ -1439,11 +1441,13 @@ template<GridTrackSizingDirection direction> Ref<CSSValue> extractGridTemplateVa
     auto& computedTracks = tracks.list;
 
     auto repeatVisitor = [&](CSSValueListBuilder& list, const RepeatEntry& entry) {
-        if (std::holds_alternative<Vector<String>>(entry)) {
-            const auto& names = std::get<Vector<String>>(entry);
+        if (std::holds_alternative<Vector<Style::CustomIdent>>(entry)) {
+            const auto& names = std::get<Vector<Style::CustomIdent>>(entry);
             if (names.isEmpty() && !isSubgrid)
                 return;
-            list.append(CSSGridLineNamesValue::create(names));
+            list.append(CSSGridLineNamesValue::create(SpaceSeparatedVector<CSS::CustomIdent>::map(names, [&](auto& name) {
+                return toCSS(name, state.style);
+            })));
         } else
             list.append(createCSSValue(state.pool, state.style, std::get<GridTrackSize>(entry)));
     };
@@ -1453,12 +1457,14 @@ template<GridTrackSizingDirection direction> Ref<CSSValue> extractGridTemplateVa
             [&](const GridTrackSize& size) {
                 list.append(createCSSValue(state.pool, state.style, size));
             },
-            [&](const Vector<String>& names) {
+            [&](const Vector<CustomIdent>& names) {
                 // Subgrids don't have track sizes specified, so empty line names sets
                 // need to be serialized, as they are meaningful placeholders.
                 if (names.isEmpty() && !isSubgrid)
                     return;
-                list.append(CSSGridLineNamesValue::create(names));
+                list.append(CSSGridLineNamesValue::create(SpaceSeparatedVector<CSS::CustomIdent>::map(names, [&](auto& name) {
+                    return toCSS(name, state.style);
+                })));
             },
             [&](const GridTrackEntryRepeat& repeat) {
                 CSSValueListBuilder repeatedValues;
@@ -2412,6 +2418,16 @@ inline void ExtractorCustom::extractCaretColorSerialization(ExtractorState& stat
         return;
     }
     extractSerialization<CSSPropertyCaretColor>(state, builder, context);
+}
+
+inline RefPtr<CSSValue> ExtractorCustom::extractOutlineOffset(ExtractorState& state)
+{
+    return createCSSValue(state.pool, state.style, state.style.usedOutlineOffset());
+}
+
+inline void ExtractorCustom::extractOutlineOffsetSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)
+{
+    serializationForCSS(builder, context, state.style, state.style.usedOutlineOffset());
 }
 
 // MARK: - Shorthands

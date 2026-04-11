@@ -237,8 +237,8 @@ bool CanvasBase::shouldAccelerate() const
         return false;
     if (area < scriptExecutionContext->settingsValues().minimumAccelerated2DContextArea)
         return false;
-#if PLATFORM(GTK)
-    if (!scriptExecutionContext->settingsValues().acceleratedCompositingEnabled)
+#if PLATFORM(GTK) || ENABLE(WPE_PLATFORM)
+    if (!scriptExecutionContext->settingsValues().hardwareAccelerationEnabled)
         return false;
 #endif
     return true;

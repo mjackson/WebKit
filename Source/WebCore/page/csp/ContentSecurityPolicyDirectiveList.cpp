@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2011 Google, Inc. All rights reserved.
- * Copyright (C) 2016-2022 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -41,12 +41,12 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ContentSecurityPolicyDirectiveList);
 
-template<typename CharacterType> static bool isDirectiveNameCharacter(CharacterType c)
+template<typename CharacterType> static bool NODELETE isDirectiveNameCharacter(CharacterType c)
 {
     return isASCIIAlphanumeric(c) || c == '-';
 }
 
-template<typename CharacterType> static bool isDirectiveValueCharacter(CharacterType c)
+template<typename CharacterType> static bool NODELETE isDirectiveValueCharacter(CharacterType c)
 {
     return isASCIIWhitespace(c) || (c >= 0x21 && c <= 0x7e); // Whitespace + VCHAR
 }
@@ -742,9 +742,11 @@ void ContentSecurityPolicyDirectiveList::addDirective(ParsedDirective&& directiv
             return;
         }
         setCSPDirective<ContentSecurityPolicySourceListDirective>(WTF::move(directive), m_frameAncestors);
-    } else if (equalIgnoringASCIICase(directive.name, ContentSecurityPolicyDirectiveNames::pluginTypes))
+    } else if (equalIgnoringASCIICase(directive.name, ContentSecurityPolicyDirectiveNames::pluginTypes)) {
+        auto name = directive.name;
         setCSPDirective<ContentSecurityPolicyMediaListDirective>(WTF::move(directive), m_pluginTypes);
-    else if (equalIgnoringASCIICase(directive.name, ContentSecurityPolicyDirectiveNames::prefetchSrc))
+        m_policy->reportDeprecatedDirectiveToConsole(name);
+    } else if (equalIgnoringASCIICase(directive.name, ContentSecurityPolicyDirectiveNames::prefetchSrc))
         setCSPDirective<ContentSecurityPolicySourceListDirective>(WTF::move(directive), m_prefetchSrc);
     else if (equalIgnoringASCIICase(directive.name, ContentSecurityPolicyDirectiveNames::sandbox))
         applySandboxPolicy(WTF::move(directive));

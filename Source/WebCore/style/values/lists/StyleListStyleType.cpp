@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2023 Apple Inc. All rights reserved.
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,9 +27,9 @@
 #include "config.h"
 #include "StyleListStyleType.h"
 
-#include "CSSPrimitiveValue.h"
+#include "CSSPropertyParserConsumer+CounterStyles.h"
+#include "CSSValueKeywords.h"
 #include "StyleBuilderChecking.h"
-#include "StyleValueTypes.h"
 #include <wtf/StdLibExtras.h>
 
 namespace WebCore {
@@ -107,19 +107,22 @@ bool ListStyleType::isSquare() const
 
 auto CSSValueConversion<ListStyleType>::operator()(BuilderState& state, const CSSValue& value) -> ListStyleType
 {
-    RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);
-    if (!primitiveValue)
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
+        if (primitiveValue->isValueID()) {
+            auto valueID = primitiveValue->valueID();
+            if (valueID == CSSValueNone)
+                return CSS::Keyword::None { };
+            return CounterStyle { CustomIdent { nameStringForSerialization(valueID) } };
+        }
+
+        if (primitiveValue->isString())
+            return AtomString { primitiveValue->stringValue() };
+
+        state.setCurrentPropertyInvalidAtComputedValueTime();
         return CSS::Keyword::None { };
-
-    if (primitiveValue->isValueID()) {
-        if (primitiveValue->valueID() == CSSValueNone)
-            return CSS::Keyword::None { };
-        return CounterStyle { { AtomString { primitiveValue->stringValue() } } };
     }
-    if (primitiveValue->isCustomIdent())
-        return CounterStyle { { AtomString { primitiveValue->stringValue() } } };
 
-    return AtomString { primitiveValue->stringValue() };
+    return CounterStyle { toStyleFromCSSValue<CustomIdent>(state, value) };
 }
 
 auto CSSValueCreation<ListStyleType>::operator()(CSSValuePool& pool, const RenderStyle& style, const ListStyleType& value) -> Ref<CSSValue>

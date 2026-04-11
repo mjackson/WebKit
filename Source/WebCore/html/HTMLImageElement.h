@@ -117,7 +117,7 @@ public:
 
     bool canContainRangeEndPoint() const override { return false; }
 
-    const AtomString& imageSourceURL() const override;
+    String imageSourceURL() const override;
     
 #if ENABLE(SERVICE_CONTROLS)
     bool isImageMenuEnabled() const { return m_isImageMenuEnabled; }

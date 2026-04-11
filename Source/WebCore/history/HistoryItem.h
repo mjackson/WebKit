@@ -84,8 +84,6 @@ public:
 
     BackForwardItemIdentifier itemID() const { return m_itemID; }
     BackForwardFrameItemIdentifier frameItemID() const { return m_frameItemID; }
-    const WTF::UUID& uuidIdentifier() const LIFETIME_BOUND { return m_uuidIdentifier; }
-    void setUUIDIdentifier(const WTF::UUID& uuidIdentifier) { m_uuidIdentifier = uuidIdentifier; }
 
     // Resets the HistoryItem to its initial state, as returned by create().
     void reset();
@@ -147,6 +145,9 @@ public:
     void setNavigationAPIStateObject(RefPtr<SerializedScriptValue>&&);
     SerializedScriptValue* navigationAPIStateObject() const { return m_navigationAPIStateObject.get(); }
 
+    const WTF::UUID& navigationAPIKey() const LIFETIME_BOUND { return m_navigationAPIKey; }
+    void setNavigationAPIKey(const WTF::UUID& navigationAPIKey) { m_navigationAPIKey = navigationAPIKey; }
+
     void setItemSequenceNumber(long long number) { m_itemSequenceNumber = number; }
     long long itemSequenceNumber() const { return m_itemSequenceNumber; }
 
@@ -163,7 +164,6 @@ public:
     void setChildItem(Ref<HistoryItem>&&);
     WEBCORE_EXPORT HistoryItem* NODELETE childItemWithTarget(const AtomString&);
     WEBCORE_EXPORT HistoryItem* NODELETE childItemWithFrameID(FrameIdentifier);
-    HistoryItem* NODELETE childItemWithDocumentSequenceNumber(long long number);
     WEBCORE_EXPORT const Vector<Ref<HistoryItem>>& NODELETE children() const LIFETIME_BOUND;
     void clearChildren();
 
@@ -267,9 +267,10 @@ private:
 
     // Support for HTML5 History
     RefPtr<SerializedScriptValue> m_stateObject;
-    
+
     // Navigation API
     RefPtr<SerializedScriptValue> m_navigationAPIStateObject;
+    WTF::UUID m_navigationAPIKey { WTF::UUID::createVersion4() };
 
     // info used to repost form data
     RefPtr<FormData> m_formData;
@@ -292,7 +293,6 @@ private:
 
     BackForwardItemIdentifier m_itemID;
     BackForwardFrameItemIdentifier m_frameItemID;
-    WTF::UUID m_uuidIdentifier;
     std::optional<PolicyContainer> m_policyContainer;
     const Ref<Client> m_client;
 };

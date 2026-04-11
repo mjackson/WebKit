@@ -40,6 +40,7 @@
 #include <WebKit/WKCast.h>
 #include <WebKit/WKRetainPtr.h>
 #include <WebKit/WebKit2_C.h>
+#include <wtf/Compiler.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/Logging.h>
 #include <wtf/Vector.h>
@@ -159,11 +160,23 @@ void InjectedBundle::setUpInjectedBundleClients(WKBundlePageRef page)
 
 InjectedBundlePage* InjectedBundle::page() const
 {
-    // It might be better to have the UI process send over a reference to the main
-    // page instead of just assuming it's the first non-suspended one.
+    // With site isolation, the process may contain RemotePages whose main frames are remote.
+    // Prefer pages with a local main frame, as those are the actual test pages.
     for (auto& page : m_pages) {
-        if (!WKBundlePageIsSuspended(page->page()))
-            return page.get();
+        if (WKBundlePageIsSuspended(page->page()))
+            continue;
+
+        // WKBundleFrameGetJavaScriptContext returns null for remote frames.
+        // FIXME <https://webkit.org/b/311737>: Stop using the deprecated WKBundlePageGetMainFrame.
+        // Possibly provide a convenient way to check whether a WKBundlePageRef has a local main frame.
+        ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+        bool isPageRemote = !WKBundleFrameGetJavaScriptContext(WKBundlePageGetMainFrame(page->page()));
+        ALLOW_DEPRECATED_DECLARATIONS_END
+
+        if (isPageRemote)
+            continue;
+
+        return page.get();
     }
     return m_pages[0].get();
 }

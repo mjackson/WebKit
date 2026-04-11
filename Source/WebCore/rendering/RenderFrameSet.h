@@ -38,8 +38,8 @@ enum class FrameEdge : uint8_t { Left, Right, Top, Bottom };
 
 struct FrameEdgeInfo {
     explicit FrameEdgeInfo(bool preventResize = false, bool allowBorder = true)
-        : m_preventResize(4, preventResize)
-        , m_allowBorder(4, allowBorder)
+        : m_preventResize(FillWith { }, 4, preventResize)
+        , m_allowBorder(FillWith { }, 4, allowBorder)
     {
     }
 

@@ -197,7 +197,7 @@ unsigned JITCodeWithCodeRef::offsetOf(void* pointerIntoCode)
 
 size_t JITCodeWithCodeRef::size()
 {
-    if (RefPtr memory = m_executableMemory)
+    if (auto* memory = m_executableMemory.get())
         return memory->sizeInBytes();
     return 0;
 }

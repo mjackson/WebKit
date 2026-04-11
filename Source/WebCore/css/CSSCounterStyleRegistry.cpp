@@ -26,7 +26,6 @@
 #include "config.h"
 #include "CSSCounterStyleRegistry.h"
 
-#include "CSSCounterStyle.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSValuePair.h"
 #include "StyleListStyleType.h"
@@ -62,13 +61,13 @@ void CSSCounterStyleRegistry::resolveReferencesIfNeeded()
     m_hasUnresolvedReferences = false;
 }
 
-void CSSCounterStyleRegistry::resolveExtendsReference(CSSCounterStyle& counterStyle, CounterStyleMap* map)
+void CSSCounterStyleRegistry::resolveExtendsReference(CSSRegisteredCounterStyle& counterStyle, CounterStyleMap* map)
 {
-    HashSet<CSSCounterStyle*> countersInChain;
+    HashSet<CSSRegisteredCounterStyle*> countersInChain;
     resolveExtendsReference(counterStyle, countersInChain, map);
 }
 
-void CSSCounterStyleRegistry::resolveExtendsReference(CSSCounterStyle& counter, HashSet<CSSCounterStyle*>& countersInChain, CounterStyleMap* map)
+void CSSCounterStyleRegistry::resolveExtendsReference(CSSRegisteredCounterStyle& counter, HashSet<CSSRegisteredCounterStyle*>& countersInChain, CounterStyleMap* map)
 {
     ASSERT(counter.isExtendsSystem() && counter.isExtendsUnresolved());
     if (!(counter.isExtendsSystem() && counter.isExtendsUnresolved()))
@@ -97,7 +96,7 @@ void CSSCounterStyleRegistry::resolveExtendsReference(CSSCounterStyle& counter, 
         counter.extendAndResolve(extendedCounter);
 }
 
-void CSSCounterStyleRegistry::resolveFallbackReference(CSSCounterStyle& counter, CounterStyleMap* map)
+void CSSCounterStyleRegistry::resolveFallbackReference(CSSRegisteredCounterStyle& counter, CounterStyleMap* map)
 {
     counter.setFallbackReference(counterStyle(counter.fallbackName(), map));
 }
@@ -105,15 +104,15 @@ void CSSCounterStyleRegistry::resolveFallbackReference(CSSCounterStyle& counter,
 void CSSCounterStyleRegistry::addCounterStyle(const CSSCounterStyleDescriptors& descriptors)
 {
     m_hasUnresolvedReferences = true;
-    m_authorCounterStyles.set(descriptors.m_name, CSSCounterStyle::create(descriptors, false));
+    m_authorCounterStyles.set(descriptors.m_name, CSSRegisteredCounterStyle::create(descriptors, false));
 }
 
 void CSSCounterStyleRegistry::addUserAgentCounterStyle(const CSSCounterStyleDescriptors& descriptors)
 {
-    userAgentCounterStyles().set(descriptors.m_name, CSSCounterStyle::create(descriptors, true));
+    userAgentCounterStyles().set(descriptors.m_name, CSSRegisteredCounterStyle::create(descriptors, true));
 }
 
-Ref<CSSCounterStyle> CSSCounterStyleRegistry::decimalCounter()
+Ref<CSSRegisteredCounterStyle> CSSCounterStyleRegistry::decimalCounter()
 {
     auto& userAgentCounters = userAgentCounterStyles();
     auto iterator = userAgentCounters.find("decimal"_s);
@@ -124,7 +123,7 @@ Ref<CSSCounterStyle> CSSCounterStyleRegistry::decimalCounter()
 }
 
 // A valid map means that the search begins at the author counter style map, otherwise we skip the search to the UA counter styles.
-Ref<CSSCounterStyle> CSSCounterStyleRegistry::counterStyle(const AtomString& name, CounterStyleMap* map)
+Ref<CSSRegisteredCounterStyle> CSSCounterStyleRegistry::counterStyle(const AtomString& name, CounterStyleMap* map)
 {
     if (name.isEmpty())
         return decimalCounter();
@@ -142,7 +141,7 @@ Ref<CSSCounterStyle> CSSCounterStyleRegistry::counterStyle(const AtomString& nam
     return decimalCounter();
 }
 
-Ref<CSSCounterStyle> CSSCounterStyleRegistry::resolvedCounterStyle(const Style::CounterStyle& style)
+Ref<CSSRegisteredCounterStyle> CSSCounterStyleRegistry::resolvedCounterStyle(const Style::CounterStyle& style)
 {
     resolveReferencesIfNeeded();
     return counterStyle(style.identifier.value, &m_authorCounterStyles);

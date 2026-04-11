@@ -52,13 +52,10 @@
 #endif
 
 #if USE(GBM)
+#include <WebCore/DMABufBuffer.h>
 #include <WebCore/DRMDeviceManager.h>
 #include <WebCore/GBMDevice.h>
 #include <gbm.h>
-
-static constexpr uint64_t s_dmabufInvalidModifier = DRM_FORMAT_MOD_INVALID;
-#else
-static constexpr uint64_t s_dmabufInvalidModifier = ((1ULL << 56) - 1);
 #endif
 
 #if PLATFORM(X11) && USE(GTK4)
@@ -305,23 +302,23 @@ static RefPtr<NativeImage> nativeImageFromGdkTexture(GdkTexture* texture)
 #endif
 
 #if GTK_CHECK_VERSION(4, 13, 4)
-RefPtr<AcceleratedBackingStore::Buffer> AcceleratedBackingStore::BufferDMABuf::create(WebPageProxy& webPage, uint64_t id, uint64_t surfaceID, const IntSize& size, RendererBufferFormat::Usage usage, uint32_t format, Vector<UnixFileDescriptor>&& fds, Vector<uint32_t>&& offsets, Vector<uint32_t>&& strides, uint64_t modifier)
+RefPtr<AcceleratedBackingStore::Buffer> AcceleratedBackingStore::BufferDMABuf::create(WebPageProxy& webPage, uint64_t id, uint64_t surfaceID, RendererBufferFormat::Usage usage, DMABufBufferAttributes&& dmaBufAttributes)
 {
     GRefPtr<GdkDmabufTextureBuilder> builder = adoptGRef(gdk_dmabuf_texture_builder_new());
     gdk_dmabuf_texture_builder_set_display(builder.get(), gtk_widget_get_display(webPage.viewWidget()));
-    gdk_dmabuf_texture_builder_set_width(builder.get(), size.width());
-    gdk_dmabuf_texture_builder_set_height(builder.get(), size.height());
-    gdk_dmabuf_texture_builder_set_fourcc(builder.get(), format);
-    gdk_dmabuf_texture_builder_set_modifier(builder.get(), modifier);
-    auto planeCount = fds.size();
+    gdk_dmabuf_texture_builder_set_width(builder.get(), dmaBufAttributes.size.width());
+    gdk_dmabuf_texture_builder_set_height(builder.get(), dmaBufAttributes.size.height());
+    gdk_dmabuf_texture_builder_set_fourcc(builder.get(), dmaBufAttributes.fourcc.value);
+    gdk_dmabuf_texture_builder_set_modifier(builder.get(), dmaBufAttributes.modifier);
+    auto planeCount = dmaBufAttributes.fds.size();
     gdk_dmabuf_texture_builder_set_n_planes(builder.get(), planeCount);
     for (unsigned i = 0; i < planeCount; ++i) {
-        gdk_dmabuf_texture_builder_set_fd(builder.get(), i, fds[i].value());
-        gdk_dmabuf_texture_builder_set_stride(builder.get(), i, strides[i]);
-        gdk_dmabuf_texture_builder_set_offset(builder.get(), i, offsets[i]);
+        gdk_dmabuf_texture_builder_set_fd(builder.get(), i, dmaBufAttributes.fds[i].value());
+        gdk_dmabuf_texture_builder_set_stride(builder.get(), i, dmaBufAttributes.strides[i]);
+        gdk_dmabuf_texture_builder_set_offset(builder.get(), i, dmaBufAttributes.offsets[i]);
     }
 
-    return adoptRef(*new BufferDMABuf(webPage, id, surfaceID, size, usage, WTF::move(fds), WTF::move(builder)));
+    return adoptRef(*new BufferDMABuf(webPage, id, surfaceID, dmaBufAttributes.size, usage, WTF::move(dmaBufAttributes.fds), WTF::move(builder)));
 }
 
 AcceleratedBackingStore::BufferDMABuf::BufferDMABuf(WebPageProxy& webPage, uint64_t id, uint64_t surfaceID, const IntSize& size, RendererBufferFormat::Usage usage, Vector<UnixFileDescriptor>&& fds, GRefPtr<GdkDmabufTextureBuilder>&& builder)
@@ -369,63 +366,25 @@ void AcceleratedBackingStore::BufferDMABuf::release()
 }
 #endif
 
-RefPtr<AcceleratedBackingStore::Buffer> AcceleratedBackingStore::BufferEGLImage::create(WebPageProxy& webPage, uint64_t id, uint64_t surfaceID, const IntSize& size, RendererBufferFormat::Usage usage, uint32_t format, Vector<UnixFileDescriptor>&& fds, Vector<uint32_t>&& offsets, Vector<uint32_t>&& strides, uint64_t modifier)
+RefPtr<AcceleratedBackingStore::Buffer> AcceleratedBackingStore::BufferEGLImage::create(WebPageProxy& webPage, uint64_t id, uint64_t surfaceID, const IntSize& size, RendererBufferFormat::Usage usage, DMABufBufferAttributes&& dmaBufAttributes)
 {
     auto* glDisplay = Display::singleton().glDisplay();
     if (!glDisplay)
         return nullptr;
 
-    Vector<EGLAttrib> attributes = {
-        EGL_WIDTH, size.width(),
-        EGL_HEIGHT, size.height(),
-        EGL_LINUX_DRM_FOURCC_EXT, static_cast<EGLAttrib>(format)
-    };
-
-#define ADD_PLANE_ATTRIBUTES(planeIndex) { \
-    std::array<EGLAttrib, 6> planeAttributes { \
-        EGL_DMA_BUF_PLANE##planeIndex##_FD_EXT, fds[planeIndex].value(), \
-        EGL_DMA_BUF_PLANE##planeIndex##_OFFSET_EXT, static_cast<EGLAttrib>(offsets[planeIndex]), \
-        EGL_DMA_BUF_PLANE##planeIndex##_PITCH_EXT, static_cast<EGLAttrib>(strides[planeIndex]) \
-    }; \
-    attributes.append(std::span<const EGLAttrib> { planeAttributes }); \
-    if (modifier != s_dmabufInvalidModifier && glDisplay->extensions().EXT_image_dma_buf_import_modifiers) { \
-        std::array<EGLAttrib, 4> modifierAttributes { \
-            EGL_DMA_BUF_PLANE##planeIndex##_MODIFIER_HI_EXT, static_cast<EGLAttrib>(modifier >> 32), \
-            EGL_DMA_BUF_PLANE##planeIndex##_MODIFIER_LO_EXT, static_cast<EGLAttrib>(modifier & 0xffffffff) \
-        }; \
-        attributes.append(std::span<const EGLAttrib> { modifierAttributes }); \
-    } \
-    }
-
-    auto planeCount = fds.size();
-    if (planeCount > 0)
-        ADD_PLANE_ATTRIBUTES(0);
-    if (planeCount > 1)
-        ADD_PLANE_ATTRIBUTES(1);
-    if (planeCount > 2)
-        ADD_PLANE_ATTRIBUTES(2);
-    if (planeCount > 3)
-        ADD_PLANE_ATTRIBUTES(3);
-
-#undef ADD_PLANE_ATTRIBUTES
-
-    attributes.append(EGL_NONE);
-
-    auto* image = glDisplay->createImage(EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attributes);
+    auto* image = DMABufBuffer::createEGLImage(*glDisplay, dmaBufAttributes);
     if (!image) {
         WTFLogAlways("Failed to create EGL image from DMABuf of size %dx%d", size.width(), size.height());
         return nullptr;
     }
 
-    return adoptRef(*new BufferEGLImage(webPage, id, surfaceID, size, usage, format, WTF::move(fds), modifier, image));
+    return adoptRef(*new BufferEGLImage(webPage, id, surfaceID, size, usage, WTF::move(dmaBufAttributes), image));
 }
 
-AcceleratedBackingStore::BufferEGLImage::BufferEGLImage(WebPageProxy& webPage, uint64_t id, uint64_t surfaceID, const IntSize& size, RendererBufferFormat::Usage usage, uint32_t format, Vector<UnixFileDescriptor>&& fds, uint64_t modifier, EGLImage image)
+AcceleratedBackingStore::BufferEGLImage::BufferEGLImage(WebPageProxy& webPage, uint64_t id, uint64_t surfaceID, const IntSize& size, RendererBufferFormat::Usage usage, DMABufBufferAttributes&& dmaBufAttributes, EGLImage image)
     : Buffer(webPage, id, surfaceID, size, usage)
-    , m_fds(WTF::move(fds))
+    , m_dmaBufAttributes(WTF::move(dmaBufAttributes))
     , m_image(image)
-    , m_fourcc(format)
-    , m_modifier(modifier)
 {
 }
 
@@ -494,7 +453,7 @@ void AcceleratedBackingStore::BufferEGLImage::didUpdateContents(Buffer*, const R
 
 RendererBufferDescription AcceleratedBackingStore::BufferEGLImage::description() const
 {
-    return { RendererBufferDescription::Type::DMABuf, m_usage, m_fourcc, m_modifier };
+    return { RendererBufferDescription::Type::DMABuf, m_usage, m_dmaBufAttributes.fourcc.value, m_dmaBufAttributes.modifier };
 }
 
 RefPtr<NativeImage> AcceleratedBackingStore::BufferEGLImage::asNativeImageForTesting() const
@@ -719,29 +678,31 @@ void AcceleratedBackingStore::BufferSHM::release()
     didRelease();
 }
 
-void AcceleratedBackingStore::didCreateDMABufBuffer(uint64_t id, const IntSize& size, uint32_t format, Vector<WTF::UnixFileDescriptor>&& fds, Vector<uint32_t>&& offsets, Vector<uint32_t>&& strides, uint64_t modifier, RendererBufferFormat::Usage usage)
+void AcceleratedBackingStore::didCreateDMABufBuffer(uint64_t id, DMABufBufferAttributes&& dmaBufAttributes, RendererBufferFormat::Usage usage)
 {
     RefPtr webPage = m_webPage.get();
     if (!webPage)
         return;
 
+    auto size = dmaBufAttributes.size;
+
 #if USE(GBM)
     if (!Display::singleton().glDisplayIsSharedWithGtk()) {
-        ASSERT(fds.size() == 1 && strides.size() == 1);
-        if (auto buffer = BufferGBM::create(*webPage, id, m_surfaceID, size, usage, format, WTF::move(fds[0]), strides[0]))
+        ASSERT(dmaBufAttributes.fds.size() == 1 && dmaBufAttributes.strides.size() == 1);
+        if (RefPtr buffer = BufferGBM::create(*webPage, id, m_surfaceID, size, usage, dmaBufAttributes.fourcc.value, WTF::move(dmaBufAttributes.fds[0]), dmaBufAttributes.strides[0]))
             m_buffers.add(id, WTF::move(buffer));
         return;
     }
 #endif
 
 #if GTK_CHECK_VERSION(4, 13, 4)
-    if (auto buffer = BufferDMABuf::create(*webPage, id, m_surfaceID, size, usage, format, WTF::move(fds), WTF::move(offsets), WTF::move(strides), modifier)) {
+    if (RefPtr buffer = BufferDMABuf::create(*webPage, id, m_surfaceID, usage, WTF::move(dmaBufAttributes))) {
         m_buffers.add(id, WTF::move(buffer));
         return;
     }
 #endif
 
-    if (auto buffer = BufferEGLImage::create(*webPage, id, m_surfaceID, size, usage, format, WTF::move(fds), WTF::move(offsets), WTF::move(strides), modifier))
+    if (RefPtr buffer = BufferEGLImage::create(*webPage, id, m_surfaceID, size, usage, WTF::move(dmaBufAttributes)))
         m_buffers.add(id, WTF::move(buffer));
 }
 

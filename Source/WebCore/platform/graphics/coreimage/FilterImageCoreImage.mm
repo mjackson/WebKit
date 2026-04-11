@@ -34,6 +34,7 @@
 #import "Logging.h"
 #import <CoreImage/CIFilterBuiltins.h>
 #import <CoreImage/CoreImage.h>
+#import <wtf/BlockObjCExceptions.h>
 #import <wtf/MathExtras.h>
 #import <wtf/NeverDestroyed.h>
 #import <wtf/SystemTracing.h>

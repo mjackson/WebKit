@@ -86,7 +86,7 @@ GPUDevice::GPUDevice(ScriptExecutionContext* scriptExecutionContext, Ref<WebGPU:
     : ActiveDOMObject { scriptExecutionContext }
     , m_lostPromise(makeUniqueRef<LostPromise>())
     , m_backing(WTF::move(backing))
-    , m_queue(GPUQueue::create(Ref { m_backing->queue() }, this->backing()))
+    , m_queue(GPUQueue::create(m_backing->queue(), this->backing()))
     , m_autoPipelineLayout(createAutoPipelineLayout())
     , m_features(GPUSupportedFeatures::create(m_backing->features()))
     , m_limits(GPUSupportedLimits::create(m_backing->limits()))
@@ -430,7 +430,7 @@ ExceptionOr<Ref<GPUExternalTexture>> GPUDevice::importExternalTexture(GPUExterna
     m_previouslyImportedExternalTexture.first = videoElementRef.ptr();
     m_previouslyImportedExternalTexture.second = externalTexture.ptr();
 
-    videoElementPtr->requestVideoFrameCallback(GPUDeviceVideoFrameRequestCallback::create(externalTexture.get(), *videoElementPtr, *this, RefPtr { scriptExecutionContext() }.get()));
+    videoElementPtr->requestVideoFrameCallback(GPUDeviceVideoFrameRequestCallback::create(externalTexture.get(), *videoElementPtr, *this, protect(scriptExecutionContext()).get()));
     queueTaskKeepingObjectAlive(*this, TaskSource::WebGPU, [videoElementPtr, externalTextureRef = externalTexture](auto& gpuDevice) {
         if (!videoElementPtr)
             return;

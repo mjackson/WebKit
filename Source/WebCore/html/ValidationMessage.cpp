@@ -31,6 +31,7 @@
 
 #include "config.h"
 #include "ValidationMessage.h"
+#include "DocumentPage.h"
 
 #include "ContainerNodeInlines.h"
 #include "CSSPropertyNames.h"

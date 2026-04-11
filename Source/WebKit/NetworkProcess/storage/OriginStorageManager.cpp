@@ -155,7 +155,7 @@ void OriginStorageManager::StorageBucket::connectionClosed(IPC::Connection::Uniq
         manager->connectionClosed(connection);
 }
 
-std::optional<OriginStorageManager::StorageBucket::StorageType> OriginStorageManager::StorageBucket::toStorageType(WebsiteDataType websiteDataType) const
+std::optional<OriginStorageManager::StorageBucket::StorageType> NODELETE OriginStorageManager::StorageBucket::toStorageType(WebsiteDataType websiteDataType) const
 {
     switch (websiteDataType) {
     case WebsiteDataType::FileSystem:

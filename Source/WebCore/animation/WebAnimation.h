@@ -263,9 +263,9 @@ private:
     int m_suspendCount { 0 };
 
     bool m_isSuspended { false };
-    bool m_finishNotificationStepsMicrotaskPending;
-    bool m_isRelevant;
-    bool m_shouldSkipUpdatingFinishedStateWhenResolving;
+    bool m_finishNotificationStepsMicrotaskPending { false };
+    bool m_isRelevant { false };
+    bool m_shouldSkipUpdatingFinishedStateWhenResolving { false };
     bool m_hasScheduledEventsDuringTick { false };
     bool m_autoAlignStartTime { false };
     TimeToRunPendingTask m_timeToRunPendingPlayTask { TimeToRunPendingTask::NotScheduled };

@@ -39,7 +39,7 @@ enum class CTMScope : bool {
     ScreenScope // Used for getScreenCTM()
 };
 
-enum StyleUpdateStrategy { AllowStyleUpdate, DisallowStyleUpdate };
+enum class StyleUpdateStrategy : bool { Disallow, Allow };
 
 class SVGGraphicsElement : public SVGElement, public SVGTests {
     WTF_MAKE_TZONE_ALLOCATED(SVGGraphicsElement);
@@ -48,22 +48,22 @@ public:
     virtual ~SVGGraphicsElement();
 
     Ref<SVGMatrix> getCTMForBindings();
-    AffineTransform getCTM(StyleUpdateStrategy = AllowStyleUpdate);
+    AffineTransform getCTM(StyleUpdateStrategy = StyleUpdateStrategy::Allow);
 
     Ref<SVGMatrix> getScreenCTMForBindings();
-    AffineTransform getScreenCTM(StyleUpdateStrategy = AllowStyleUpdate);
+    AffineTransform getScreenCTM(StyleUpdateStrategy = StyleUpdateStrategy::Allow);
 
     AffineTransform localCoordinateSpaceTransform(CTMScope) const override { return animatedLocalTransform(); }
     AffineTransform animatedLocalTransform() const;
     AffineTransform* ensureSupplementalTransform() override;
     AffineTransform* supplementalTransform() const LIFETIME_BOUND override { return m_supplementalTransform.get(); }
 
-    virtual bool hasTransformRelatedAttributes() const { return !transform().concatenate().isIdentity() || m_supplementalTransform; }
+    virtual bool hasTransformRelatedAttributes() const { return (!transform().isEmpty() && !transform().concatenate()->isIdentity()) || m_supplementalTransform; }
 
     Ref<SVGRect> getBBoxForBindings();
-    virtual FloatRect getBBox(StyleUpdateStrategy = AllowStyleUpdate);
+    virtual FloatRect getBBox(StyleUpdateStrategy = StyleUpdateStrategy::Allow);
 
-    static SVGElement* nearestViewportElement(const SVGElement*);
+    static SVGElement* NODELETE nearestViewportElement(const SVGElement*);
 
     bool shouldIsolateBlending() const { return m_shouldIsolateBlending; }
     void setShouldIsolateBlending(bool isolate) { m_shouldIsolateBlending = isolate; }

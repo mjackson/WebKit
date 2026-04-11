@@ -263,7 +263,7 @@ void NetworkSession::invalidateAndCancel()
     m_dataTaskSet.forEach([] (auto& task) {
         task.invalidateAndCancel();
     });
-    if (RefPtr resourceLoadStatistics = m_resourceLoadStatistics)
+    if (auto* resourceLoadStatistics = m_resourceLoadStatistics.get())
         resourceLoadStatistics->invalidateAndCancel();
     m_isInvalidated = true;
 
@@ -291,7 +291,7 @@ void NetworkSession::setTrackingPreventionEnabled(bool enabled)
 
     RELEASE_LOG(Storage, "%p - NetworkSession::setTrackingPreventionEnabled: sessionID=%" PRIu64 ", enabled=%d", this, m_sessionID.toUInt64(), enabled);
 
-    if (CheckedPtr storageSession = networkStorageSession())
+    if (auto* storageSession = networkStorageSession())
         storageSession->setTrackingPreventionEnabled(enabled);
     if (!enabled) {
         destroyResourceLoadStatistics([] { });

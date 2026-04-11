@@ -100,17 +100,6 @@
 
 namespace JSC {
 
-static inline DirectEvalCodeCache::CacheLookupKey directEvalCacheKey(JSGlobalObject* globalObject, JSString* string, BytecodeIndex bytecodeIndex)
-{
-    if (string->isRope()) {
-        auto rope = string->asRope();
-        if (auto source = rope->tryGetLHS("()"_s))
-            return DirectEvalCodeCache::CacheLookupKey(source, bytecodeIndex, DirectEvalCodeCache::RopeSuffix::FunctionCall);
-        return DirectEvalCodeCache::CacheLookupKey(rope->resolveRope(globalObject).impl(), bytecodeIndex, DirectEvalCodeCache::RopeSuffix::None);
-    }
-    return DirectEvalCodeCache::CacheLookupKey(string->getValueImpl(), bytecodeIndex, DirectEvalCodeCache::RopeSuffix::None);
-}
-
 JSValue eval(CallFrame* callFrame, JSValue thisValue, JSScope* callerScopeChain, CodeBlock* callerBaselineCodeBlock, BytecodeIndex bytecodeIndex, LexicallyScopedFeatures lexicallyScopedFeatures)
 {
     JSGlobalObject* globalObject = callerBaselineCodeBlock->globalObject();
@@ -170,11 +159,12 @@ JSValue eval(CallFrame* callFrame, JSValue thisValue, JSScope* callerScopeChain,
         return { };
     }
 
-    auto cacheKey = directEvalCacheKey(globalObject, programString, bytecodeIndex);
+    auto programStr = programString->value(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
+    auto cacheKey = DirectEvalCodeCache::CacheLookupKey(programStr.data.impl(), bytecodeIndex);
     DirectEvalExecutable* eval = callerBaselineCodeBlock->directEvalCodeCache().get(cacheKey);
     if (!eval) {
-        auto programSource = programString->value(globalObject).data;
+        auto programSource = programStr.data;
         if (SourceProfiler::g_profilerHook) [[unlikely]] {
             SourceTaintedOrigin sourceTaintedOrigin = computeNewSourceTaintedOriginFromStack(vm, callFrame);
             auto source = makeSource(programSource, callerBaselineCodeBlock->source().provider()->sourceOrigin(), sourceTaintedOrigin);
@@ -213,11 +203,7 @@ JSValue eval(CallFrame* callFrame, JSValue thisValue, JSScope* callerScopeChain,
         }
 
         EvalContextType evalContextType;
-        if (callerUnlinkedCodeBlock->parseMode() == SourceParseMode::ClassFieldInitializerMode)
-            evalContextType = EvalContextType::InstanceFieldEvalContext;
-        else if (isFunctionParseMode(callerUnlinkedCodeBlock->parseMode()))
-            evalContextType = EvalContextType::FunctionEvalContext;
-        else if (callerUnlinkedCodeBlock->codeType() == EvalCode)
+        if (isFunctionParseMode(callerUnlinkedCodeBlock->parseMode()) || callerUnlinkedCodeBlock->codeType() == EvalCode)
             evalContextType = callerUnlinkedCodeBlock->evalContextType();
         else
             evalContextType = EvalContextType::None;
@@ -854,7 +840,7 @@ public:
                         m_handler = { wasmHandler, wasmCallee };
                         if (m_handler.m_valid) {
                             if (m_wasmTag == &Wasm::Tag::jsExceptionTag())
-                                m_exception->wrapValueForJSTag(instance->globalObject());
+                                m_exception->wrapValueForJSTag(instance->realm());
                             m_callFrame->setCallSiteIndex(visitor->wasmCallSiteIndex());
                             return IterationStatus::Done;
                         }
@@ -909,7 +895,7 @@ static void sanitizeRemoteFunctionException(VM& vm, JSRemoteFunction* remoteFunc
     ASSERT(exception);
     ASSERT(!vm.isTerminationException(exception));
 
-    JSGlobalObject* globalObject = remoteFunction->globalObject();
+    JSGlobalObject* globalObject = remoteFunction->realm();
     JSValue exceptionValue = exception->value();
     TRY_CLEAR_EXCEPTION(scope, void());
 
@@ -1021,8 +1007,8 @@ JSValue Interpreter::executeProgram(const SourceCode& source, JSGlobalObject*, J
 {
     VM& vm = this->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    JSScope* scope = thisObj->globalObject()->globalScope();
-    JSGlobalObject* globalObject = scope->globalObject();
+    JSScope* scope = thisObj->realm()->globalScope();
+    JSGlobalObject* globalObject = scope->realm();
     JSCallee* globalCallee = globalObject->globalCallee();
 
     VMEntryScope entryScope(vm, globalObject);
@@ -1247,7 +1233,7 @@ JSValue Interpreter::executeBoundCall(VM& vm, JSBoundFunction* function, JSCell*
         combinedArgs.append(args.at(i));
 
     if (combinedArgs.hasOverflowed()) [[unlikely]]
-        return throwStackOverflowError(function->globalObject(), scope);
+        return throwStackOverflowError(function->realm(), scope);
 
     JSObject* targetFunction = function->targetFunction();
     JSValue boundThis = function->boundThis();
@@ -1278,11 +1264,11 @@ ALWAYS_INLINE JSValue Interpreter::executeCallImpl(VM& vm, JSObject* function, c
     if (isJSCall) {
         functionScope = callData.js.scope;
         functionExecutable = callData.js.functionExecutable;
-        globalObject = functionScope->globalObject();
+        globalObject = functionScope->realm();
     } else {
         ASSERT(callData.type == CallData::Type::Native);
         nativeFunction = callData.native.function;
-        globalObject = function->globalObject();
+        globalObject = function->realm();
     }
 
     size_t argsCount = 1 + args.size(); // implicit "this" parameter
@@ -1373,10 +1359,10 @@ JSObject* Interpreter::executeConstruct(JSObject* constructor, const CallData& c
 
     if (isJSConstruct) {
         scope = constructData.js.scope;
-        globalObject = scope->globalObject();
+        globalObject = scope->realm();
     } else {
         ASSERT(constructData.type == CallData::Type::Native);
-        globalObject = constructor->globalObject();
+        globalObject = constructor->realm();
     }
 
     VMEntryScope entryScope(vm, globalObject);
@@ -1477,7 +1463,7 @@ JSValue Interpreter::executeEval(EvalExecutable* eval, JSValue thisValue, JSScop
     ASSERT(!vm.isCollectorBusyOnCurrentThread());
     ASSERT(vm.currentThreadIsHoldingAPILock());
 
-    JSGlobalObject* globalObject = scope->globalObject();
+    JSGlobalObject* globalObject = scope->realm();
     if (!vm.isSafeToRecurseSoft()) [[unlikely]]
         return throwStackOverflowError(globalObject, throwScope);
 
@@ -1521,7 +1507,7 @@ JSValue Interpreter::executeEval(EvalExecutable* eval, JSValue thisValue, JSScop
         auto functionDecls = codeBlock->functionDecls();
         BatchedTransitionOptimizer optimizer(vm, variableObject);
         if (variableObject->next() && !eval->isInStrictContext())
-            variableObject->globalObject()->varInjectionWatchpointSet().fireAll(vm, "Executed eval, fired VarInjection watchpoint");
+            variableObject->realm()->varInjectionWatchpointSet().fireAll(vm, "Executed eval, fired VarInjection watchpoint");
 
         if (!eval->isInStrictContext()) {
             for (auto& ident : variables) {
@@ -1685,8 +1671,8 @@ JSValue Interpreter::executeModuleProgram(JSModuleRecord* record, ModuleProgramE
     ASSERT(!vm.isCollectorBusyOnCurrentThread());
     RELEASE_ASSERT(vm.currentThreadIsHoldingAPILock());
 
-    JSGlobalObject* globalObject = scope->globalObject();
-    VMEntryScope entryScope(vm, scope->globalObject());
+    JSGlobalObject* globalObject = scope->realm();
+    VMEntryScope entryScope(vm, scope->realm());
     if (!vm.isSafeToRecurseSoft()) [[unlikely]]
         return throwStackOverflowError(globalObject, throwScope);
 

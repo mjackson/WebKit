@@ -66,17 +66,6 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(InlineContentCache);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(InlineFormattingContext);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(InlineLayoutResult);
 
-static size_t estimatedDisplayBoxSize(size_t inlineItemSize)
-{
-    if (inlineItemSize == 1) {
-        // Common case of blocks with only one word where we produce 2 boxes (root inline and text box)
-        return 2;
-    }
-    static constexpr size_t maximumEstimatedDisplayBoxSize = 1000; // Let's try not to overwhelm vector's reserveInitialCapacity.
-    // This value represents a simple average derived from typical web page content.
-    return std::min<size_t>(maximumEstimatedDisplayBoxSize, inlineItemSize * 0.6);
-}
-
 static std::optional<InlineItemRange> NODELETE partialRangeForDamage(const InlineItemList& inlineItemList, const InlineDamage& lineDamage)
 {
     auto layoutStartPosition = lineDamage.layoutStartPosition()->inlineItemPosition;
@@ -316,9 +305,6 @@ UniqueRef<InlineLayoutResult> InlineFormattingContext::lineLayout(AbstractLineBu
         handleAfterSideMargin(marginState, layoutResult->displayContent);
         return layoutResult;
     }
-
-    if (!needsLayoutRange.start)
-        layoutResult->displayContent.boxes.reserveInitialCapacity(estimatedDisplayBoxSize(inlineItemList.size()));
 
     auto floatingContext = this->floatingContext();
     auto lineLogicalTop = InlineLayoutUnit { constraints.logicalTop() };

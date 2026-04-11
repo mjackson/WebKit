@@ -23,10 +23,13 @@
 #include "HTMLMeterElement.h"
 
 #include "Attribute.h"
+#include "ContainerNodeInlines.h"
+#include "ElementInlines.h"
 #include "HTMLDivElement.h"
 #include "HTMLNames.h"
 #include "HTMLParserIdioms.h"
 #include "HTMLStyleElement.h"
+#include "NodeDocument.h"
 #include "NodeName.h"
 #include "RenderMeter.h"
 #include "RenderTheme.h"
@@ -218,7 +221,7 @@ void HTMLMeterElement::appendShadowTreeForAutoAppearance(ShadowRoot& root)
     ScriptDisallowedScope::EventAllowedScope innerScope { innerElement };
     innerElement->setIdAttribute("inner"_s);
     innerElement->setUserAgentPart(UserAgentParts::webkitMeterInnerElement());
-    innerElement->setInlineStyleProperty(CSSPropertyDisplay, "-internal-auto-base(inline-block, none) !important"_s);
+    innerElement->setInlineStyleProperty(CSSPropertyDisplay, "-internal-auto-base(inline-block, none)"_s, IsImportant::Yes);
     root.appendChild(innerElement);
 
     Ref barElement = HTMLDivElement::create(document);
@@ -241,7 +244,7 @@ void HTMLMeterElement::appendShadowTreeForBaseAppearance(ShadowRoot& root)
     ScriptDisallowedScope::EventAllowedScope trackScope { trackElement };
     trackElement->setUserAgentPart(UserAgentParts::sliderTrack());
     trackElement->setInlineStyleProperty(CSSPropertyAppearance, "inherit"_s);
-    trackElement->setInlineStyleProperty(CSSPropertyDisplay, "-internal-auto-base(none, inline-block) !important"_s);
+    trackElement->setInlineStyleProperty(CSSPropertyDisplay, "-internal-auto-base(none, inline-block)"_s, IsImportant::Yes);
     ScriptDisallowedScope::EventAllowedScope rootScope { root };
     root.appendChild(trackElement);
 

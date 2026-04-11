@@ -26,8 +26,8 @@
 
 #include "config.h"
 
-#include "Test.h"
-#include "Utilities.h"
+#include "Helpers/Test.h"
+#include "Helpers/Utilities.h"
 #include <ranges>
 #include <wtf/FileHandle.h>
 #include <wtf/FileSystem.h>
@@ -964,6 +964,7 @@ TEST_F(FileSystemTest, isAncestor)
         { { "/a/b/c", "/a/b/c" }, false },
         { { "/a/b/c/x/..", "/a/b/c" }, false },
         { { "/a/b/c/dir1", "/a/b/c/dir2" }, false },
+        { { "/a/b/c", "/a/b/cd" }, false },
         { { "/a/b/c", "/a/b/c/" }, false },
         { { "/a/b/c", "/a/b/c/." }, false },
         { { "a/b/c", "/a/b/c/" }, false },
@@ -988,6 +989,7 @@ TEST_F(FileSystemTest, isAncestor)
         { { u"/a/b/c", u"/a/b/c" }, false },
         { { u"/a/b/c/x/..", u"/a/b/c" }, false },
         { { u"/a/b/c/dir1", u"/a/b/c/dir2" }, false },
+        { { u"/a/b/c", u"/a/b/cd" }, false },
         { { u"/a/b/c", u"/a/b/c/" }, false },
         { { u"/a/b/c", u"/a/b/c/." }, false },
         { { u"a/b/c", u"/a/b/c/" }, false },

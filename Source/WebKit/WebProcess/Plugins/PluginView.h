@@ -145,7 +145,7 @@ public:
 
     WebCore::FloatRect rectForSelectionInRootView(PDFSelection *) const;
     
-    bool isUsingUISideCompositing() const;
+    bool NODELETE isUsingUISideCompositing() const;
 
     void invalidateRect(const WebCore::IntRect&) final;
 

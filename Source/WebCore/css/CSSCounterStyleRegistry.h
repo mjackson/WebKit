@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include "CSSCounterStyle.h"
+#include "CSSRegisteredCounterStyle.h"
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
 #include <wtf/text/AtomStringHash.h>
@@ -39,7 +39,7 @@ struct CounterStyle;
 class StyleRuleCounterStyle;
 enum CSSValueID : uint16_t;
 
-using CounterStyleMap = HashMap<AtomString, Ref<CSSCounterStyle>>;
+using CounterStyleMap = HashMap<AtomString, Ref<CSSRegisteredCounterStyle>>;
 
 DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(CSSCounterStyleRegistry);
 class CSSCounterStyleRegistry {
@@ -47,9 +47,9 @@ class CSSCounterStyleRegistry {
 public:
     CSSCounterStyleRegistry() = default;
 
-    static Ref<CSSCounterStyle> decimalCounter();
+    static Ref<CSSRegisteredCounterStyle> decimalCounter();
 
-    Ref<CSSCounterStyle> resolvedCounterStyle(const Style::CounterStyle&);
+    Ref<CSSRegisteredCounterStyle> resolvedCounterStyle(const Style::CounterStyle&);
     void resolveReferencesIfNeeded();
 
     void addCounterStyle(const CSSCounterStyleDescriptors&);
@@ -66,11 +66,11 @@ private:
     static CounterStyleMap& NODELETE userAgentCounterStyles();
 
     // If no map is passed on, user-agent counter styles map will be used
-    static void resolveFallbackReference(CSSCounterStyle&, CounterStyleMap* = nullptr);
-    static void resolveExtendsReference(CSSCounterStyle&, CounterStyleMap* = nullptr);
-    static void resolveExtendsReference(CSSCounterStyle&, HashSet<CSSCounterStyle*>&, CounterStyleMap* = nullptr);
+    static void resolveFallbackReference(CSSRegisteredCounterStyle&, CounterStyleMap* = nullptr);
+    static void resolveExtendsReference(CSSRegisteredCounterStyle&, CounterStyleMap* = nullptr);
+    static void resolveExtendsReference(CSSRegisteredCounterStyle&, HashSet<CSSRegisteredCounterStyle*>&, CounterStyleMap* = nullptr);
 
-    static Ref<CSSCounterStyle> counterStyle(const AtomString&, CounterStyleMap* = nullptr);
+    static Ref<CSSRegisteredCounterStyle> counterStyle(const AtomString&, CounterStyleMap* = nullptr);
 
     void NODELETE invalidate();
 

@@ -290,7 +290,7 @@ std::optional<double> computeSimilarity(NSString *stringA, NSString *stringB, un
     if (!lengthA || !lengthB)
         return 0;
 
-    Vector<Vector<size_t>> matrix(lengthA + 1, Vector<size_t>(lengthB + 1, 0));
+    Vector<Vector<size_t>> matrix(FillWith { }, lengthA + 1, Vector<size_t>(FillWith { }, lengthB + 1, 0));
 
     for (size_t i = 0; i <= lengthA; i++)
         matrix[i][0] = i;

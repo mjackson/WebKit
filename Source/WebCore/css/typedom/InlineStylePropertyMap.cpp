@@ -125,7 +125,7 @@ bool InlineStylePropertyMap::setProperty(CSSPropertyID propertyID, Ref<CSSValue>
     return !didFailParsing;
 }
 
-bool InlineStylePropertyMap::setCustomProperty(Document&, const AtomString& property, Ref<CSSVariableReferenceValue>&& value)
+bool InlineStylePropertyMap::setCustomProperty(Document&, const AtomString& property, Ref<CSSSubstitutionValue>&& value)
 {
     if (!m_element)
         return false;

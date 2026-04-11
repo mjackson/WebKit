@@ -140,6 +140,16 @@
             }
         }
     },
+    "TestWebKitFaviconDatabase": {
+        "subtests": {
+            "/webkit/WebKitFaviconDatabase/get-favicon": {
+                "expected": {"gtk": {"status": ["FAIL", "PASS"], "bug": "webkit.org/b/310428"}}
+            },
+            "/webkit/WebKitFaviconDatabase/get-page-icons": {
+                "expected": {"gtk": {"status": ["FAIL", "PASS"], "bug": "webkit.org/b/311105"}}
+            }
+        }
+    },
     "TestWebKitWebContext": {
         "subtests": {
             "/webkit/WebKitWebContext/uri-scheme": {
@@ -149,7 +159,7 @@
                 "expected": {"all": {"status": ["PASS", "FAIL"], "bug": "webkit.org/b/281942"}}
             },
             "/webkit/WebKitWebContext/no-web-process-leak": {
-                "expected": {"all": {"status": ["TIMEOUT", "PASS"], "bug": "webkit.org/b/299598"}}
+                "expected": {"all": {"status": ["TIMEOUT", "PASS", "CRASH"], "bug": "webkit.org/b/299598"}}
             }
         }
     },
@@ -222,51 +232,6 @@
             },
             "ComplexTextControllerTest.TotalWidthWithJustification": {
                 "expected": {"gtk": {"status": ["FAIL", "PASS"], "bug":"webkit.org/b/284628"}}
-            },
-            "ImageBufferTests.ImageBufferSubTypeCreateCreatesSubtypes": {
-                "expected": {"all": {"status": ["SKIP"], "bug":"webkit.org/b/286456"}}
-            },
-            "ImageBufferTests.ImageBufferSubPixelDrawing": {
-                "expected": {"all": {"status": ["SKIP"], "bug":"webkit.org/b/286456"}}
-            },
-            "ImageBufferTests/AnyScaleTest.SinkIntoNativeImageWorks/051byteobject01": {
-                "expected": {"all": {"status": ["SKIP"], "bug":"webkit.org/b/286456"}}
-            },
-            "ImageBufferTests/AnyScaleTest.SinkIntoNativeImageWorks/11byteobject01": {
-                "expected": {"all": {"status": ["SKIP"], "bug":"webkit.org/b/286456"}}
-            },
-            "ImageBufferTests/AnyScaleTest.SinkIntoNativeImageWorks/21byteobject01": {
-                "expected": {"all": {"status": ["SKIP"], "bug":"webkit.org/b/286456"}}
-            },
-            "ImageBufferTests/AnyScaleTest.SinkIntoNativeImageWorks/51byteobject01": {
-                "expected": {"all": {"status": ["SKIP"], "bug":"webkit.org/b/286456"}}
-            },
-            "ImageBufferTests/AnyScaleTest.GetPixelBufferDimensionsContainScale/051byteobject01": {
-                "expected": {"all": {"status": ["SKIP"], "bug":"webkit.org/b/286456"}}
-            },
-            "ImageBufferTests/AnyScaleTest.GetPixelBufferDimensionsContainScale/11byteobject01": {
-                "expected": {"all": {"status": ["SKIP"], "bug":"webkit.org/b/286456"}}
-            },
-            "ImageBufferTests/AnyScaleTest.GetPixelBufferDimensionsContainScale/21byteobject01": {
-                "expected": {"all": {"status": ["SKIP"], "bug":"webkit.org/b/286456"}}
-            },
-            "ImageBufferTests/AnyScaleTest.GetPixelBufferDimensionsContainScale/51byteobject01": {
-                "expected": {"all": {"status": ["SKIP"], "bug":"webkit.org/b/286456"}}
-            },
-            "ImageBufferTests/AnyTwoImageBufferOptionsTest.PutPixelBufferAffectsDrawOutput/1byteobject001byteobject01": {
-                "expected": {"all": {"status": ["SKIP"], "bug":"webkit.org/b/286456"}}
-            },
-            "ImageBufferTests/AnyTwoImageBufferOptionsTest.PutPixelBufferAffectsDrawOutput/1byteobject011byteobject00": {
-                "expected": {"all": {"status": ["SKIP"], "bug":"webkit.org/b/286456"}}
-            },
-            "ImageBufferTests/AnyTwoImageBufferOptionsTest.PutPixelBufferAffectsDrawOutput/1byteobject011byteobject01": {
-                "expected": {"all": {"status": ["SKIP"], "bug":"webkit.org/b/286456"}}
-            },
-            "GStreamerTest.gstStructureGetters": {
-                "expected": {"wpe:arm64": {"status": ["FAIL"], "bug": "webkit.org/b/309745"}}
-            },
-            "GStreamerTest.gstStructureJSONSerializing": {
-                "expected": {"wpe:arm64": {"status": ["FAIL"], "bug": "webkit.org/b/309745"}}
             }
         }
     },

@@ -27,7 +27,7 @@
 
 namespace WebCore {
 
-class CSSCounterStyle;
+class CSSRegisteredCounterStyle;
 class CounterNode;
 
 class RenderCounter final : public RenderText {
@@ -51,7 +51,7 @@ private:
     ASCIILiteral renderName() const override;
     String originalText() const override;
 
-    Ref<CSSCounterStyle> counterStyle() const;
+    Ref<CSSRegisteredCounterStyle> counterStyle() const;
 
     Style::Content::Counter m_counter;
     SingleThreadWeakPtr<CounterNode> m_counterNode;

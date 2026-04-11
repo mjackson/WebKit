@@ -34,10 +34,8 @@
 #include "LegacyRenderSVGTransformableContainer.h"
 #include "LocalFrame.h"
 #include "MouseEvent.h"
-#include "PlatformMouseEvent.h"
 #include "RenderObjectInlines.h"
 #include "RenderSVGInline.h"
-#include "RenderSVGText.h"
 #include "RenderSVGTransformableContainer.h"
 #include "ResourceRequest.h"
 #include "SVGElementInlines.h"
@@ -93,6 +91,7 @@ void SVGAElement::attributeChanged(const QualifiedName& name, const AtomString& 
         static MainThreadNeverDestroyed<const AtomString> noReferrer("noreferrer"_s);
         static MainThreadNeverDestroyed<const AtomString> noOpener("noopener"_s);
         static MainThreadNeverDestroyed<const AtomString> opener("opener"_s);
+        m_linkRelations = { };
         SpaceSplitString relValue(newValue, SpaceSplitString::ShouldFoldCase::Yes);
         if (relValue.contains(noReferrer))
             m_linkRelations.add(Relation::NoReferrer);

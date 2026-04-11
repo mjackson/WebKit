@@ -84,7 +84,7 @@ bool DOMCSSNamespace::supports(Document& document, const String& conditionText)
 String DOMCSSNamespace::escape(const String& ident)
 {
     StringBuilder builder;
-    serializeIdentifier(ident, builder);
+    serializeIdentifier(builder, ident);
     return builder.toString();
 }
 

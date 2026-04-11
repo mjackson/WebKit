@@ -73,7 +73,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderTable);
 
 RenderTable::RenderTable(Type type, Element& element, RenderStyle&& style)
     : RenderBlock(type, element, WTF::move(style), { })
-    , m_columnPos(1, 0)
+    , m_columnPos(FillWith { }, 1, 0)
     , m_currentBorder(nullptr)
     , m_collapsedBordersValid(false)
     , m_collapsedEmptyBorderIsPresent(false)
@@ -93,7 +93,7 @@ RenderTable::RenderTable(Type type, Element& element, RenderStyle&& style)
 
 RenderTable::RenderTable(Type type, Document& document, RenderStyle&& style)
     : RenderBlock(type, document, WTF::move(style), { })
-    , m_columnPos(1, 0)
+    , m_columnPos(FillWith { }, 1, 0)
     , m_currentBorder(nullptr)
     , m_collapsedBordersValid(false)
     , m_collapsedEmptyBorderIsPresent(false)
@@ -155,7 +155,7 @@ void RenderTable::styleDidChange(Style::Difference diff, const RenderStyle* oldS
     RenderBlock::styleDidChange(diff, oldStyle);
     propagateStyleToAnonymousChildren(StylePropagationType::AllChildren);
 
-    bool oldFixedTableLayout = oldStyle ? oldStyle->isFixedTableLayout() : false;
+    bool oldFixedTableLayout = oldStyle && oldStyle->isFixedTableLayout();
 
     // In the collapsed border model, there is no cell spacing.
     m_hSpacing = collapseBorders() ? 0 : style().borderHorizontalSpacing().resolveZoom(style().usedZoomForLength());
@@ -560,7 +560,7 @@ void RenderTable::layout()
         updateLogicalWidth();
         if (logicalWidth() != oldLogicalWidth) {
             for (unsigned i = 0; i < m_captions.size(); i++)
-                m_captions[i]->setNeedsLayout(MarkOnlyThis);
+                m_captions[i]->setNeedsLayout(MarkingBehavior::MarkOnlyThis);
         }
         resetLogicalHeightBeforeLayoutIfNeeded();
         // FIXME: The optimisation below doesn't work since the internal table
@@ -583,7 +583,7 @@ void RenderTable::layout()
         for (auto& child : childrenOfType<RenderElement>(*this)) {
             if (CheckedPtr section = dynamicDowncast<RenderTableSection>(child)) {
                 if (m_columnLogicalWidthChanged)
-                    section->setChildNeedsLayout(MarkOnlyThis);
+                    section->setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
                 section->layoutIfNeeded();
                 totalSectionLogicalHeight += section->calcRowLogicalHeight();
                 if (collapsing)
@@ -835,8 +835,6 @@ void RenderTable::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
         if (style().usedContentVisibility() == ContentVisibility::Visible)
             return false;
         // FIXME: Tables can never be skipped content roots. If a table is _inside_ a skipped subtree, we should have bailed out at the skipped root ancestor.
-        // However with continuation (see webkit.org/b/275459) used visibility values does not always get propagated properly and
-        // we may end up here with a dirty (skipped) table.
         if (auto* containingBlock = this->containingBlock(); containingBlock && containingBlock->isAnonymousBlock() && !containingBlock->style().isSkippedRootOrSkippedContent())
             return true;
         return false;
@@ -1762,7 +1760,7 @@ bool RenderTable::nodeAtPoint(const HitTestRequest& request, HitTestResult& resu
 
     // Check our bounds next.
     LayoutRect boundsRect(adjustedLocation, size());
-    if (visibleToHitTesting(request) && (action == HitTestBlockBackground || action == HitTestChildBlockBackground) && locationInContainer.intersects(boundsRect)) {
+    if (visibleToHitTesting(request) && (action == HitTestAction::BlockBackground || action == HitTestAction::ChildBlockBackground) && locationInContainer.intersects(boundsRect)) {
         updateHitTestResult(result, flipForWritingMode(locationInContainer.point() - toLayoutSize(adjustedLocation)));
         if (result.addNodeToListBasedTestResult(protect(nodeForHitTest()).get(), request, locationInContainer, boundsRect) == HitTestProgress::Stop)
             return true;
@@ -1778,10 +1776,10 @@ void RenderTable::markForPaginationRelayoutIfNeeded()
         return;
     
     // When a table moves, we have to dirty all of the sections too.
-    setChildNeedsLayout(MarkOnlyThis);
+    setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
     for (auto& child : childrenOfType<RenderTableSection>(*this)) {
         if (!child.needsLayout())
-            child.setChildNeedsLayout(MarkOnlyThis);
+            child.setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
     }
 }
 

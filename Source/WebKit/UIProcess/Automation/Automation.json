@@ -86,7 +86,9 @@
                 "TargetOutOfBounds",
                 "UnableToLoadExtension",
                 "UnableToUnloadExtension",
-                "NoSuchExtension"
+                "NoSuchExtension",
+                "NoSuchUserContext",
+                "NoSuchScript"
             ]
         },
         {
@@ -959,6 +961,11 @@
             "parameters": [
                 { "name": "message", "type": "string", "description": "A Bidi message sent by the client to WebKit, encoded as a UTF-8 JSON literal." }
             ]
+        },
+        {
+            "name": "emitActiveBidiScriptRealmCreatedEvents",
+            "description": "Emit script.realmCreated events for currently active realms in the automation session.",
+            "condition": "ENABLE(WEBDRIVER_BIDI)"
         }
     ],
     "events": [

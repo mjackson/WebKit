@@ -179,24 +179,14 @@ bool MemoryMappedGPUBuffer::isVivanteSuperTiled() const
 
 bool MemoryMappedGPUBuffer::createDMABufFromGBMBufferObject(struct gbm_bo* bo)
 {
-    Vector<UnixFileDescriptor> fds;
-    Vector<uint32_t> offsets;
-    Vector<uint32_t> strides;
+    auto attributes = DMABufBufferAttributes::fromGBMBufferObject(bo);
+    if (!attributes)
+        return false;
 
-    auto format = gbm_bo_get_format(bo);
-    auto planeCount = gbm_bo_get_plane_count(bo);
-
-    for (int i = 0; i < planeCount; ++i) {
-        if (auto fd = exportGBMBufferObjectAsDMABuf(bo, i))
-            fds.append(WTF::move(fd));
-        else
-            return false;
-        offsets.append(gbm_bo_get_offset(bo, i));
-        strides.append(gbm_bo_get_stride_for_plane(bo, i));
-    }
+    attributes->modifier = m_modifier;
 
     ASSERT(!m_dmaBuf);
-    m_dmaBuf = DMABufBuffer::create(m_size, format, WTF::move(fds), WTF::move(offsets), WTF::move(strides), m_modifier);
+    m_dmaBuf = DMABufBuffer::create(WTF::move(*attributes));
     return true;
 }
 
@@ -256,66 +246,12 @@ EGLImage MemoryMappedGPUBuffer::createEGLImageFromDMABuf()
 {
     ASSERT(m_dmaBuf);
 
-    const auto& attributes = m_dmaBuf->attributes();
-    auto planeCount = attributes.fds.size();
-
-    Vector<EGLAttrib> eglAttributes {
-        EGL_WIDTH, static_cast<EGLAttrib>(m_allocatedSize.width()),
-        EGL_HEIGHT, static_cast<EGLAttrib>(m_allocatedSize.height()),
-        EGL_LINUX_DRM_FOURCC_EXT, static_cast<EGLAttrib>(attributes.fourcc)
-    };
-
-    static constexpr std::array planeAttributeNames = {
-        std::array { EGL_DMA_BUF_PLANE0_FD_EXT, EGL_DMA_BUF_PLANE0_OFFSET_EXT, EGL_DMA_BUF_PLANE0_PITCH_EXT, EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT, EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT },
-        std::array { EGL_DMA_BUF_PLANE1_FD_EXT, EGL_DMA_BUF_PLANE1_OFFSET_EXT, EGL_DMA_BUF_PLANE1_PITCH_EXT, EGL_DMA_BUF_PLANE1_MODIFIER_HI_EXT, EGL_DMA_BUF_PLANE1_MODIFIER_LO_EXT },
-        std::array { EGL_DMA_BUF_PLANE2_FD_EXT, EGL_DMA_BUF_PLANE2_OFFSET_EXT, EGL_DMA_BUF_PLANE2_PITCH_EXT, EGL_DMA_BUF_PLANE2_MODIFIER_HI_EXT, EGL_DMA_BUF_PLANE2_MODIFIER_LO_EXT },
-        std::array { EGL_DMA_BUF_PLANE3_FD_EXT, EGL_DMA_BUF_PLANE3_OFFSET_EXT, EGL_DMA_BUF_PLANE3_PITCH_EXT, EGL_DMA_BUF_PLANE3_MODIFIER_HI_EXT, EGL_DMA_BUF_PLANE3_MODIFIER_LO_EXT },
-    };
-
-    for (size_t i = 0; i < planeCount; ++i) {
-        const auto& names = planeAttributeNames[i];
-        std::array<EGLAttrib, 6> planeAttrs {
-            names[0], static_cast<EGLAttrib>(attributes.fds[i].value()),
-            names[1], static_cast<EGLAttrib>(attributes.offsets[i]),
-            names[2], static_cast<EGLAttrib>(attributes.strides[i])
-        };
-        eglAttributes.append(std::span<const EGLAttrib> { planeAttrs });
-
-        if (m_modifier != DRM_FORMAT_MOD_INVALID) {
-            std::array<EGLAttrib, 4> modifierAttrs {
-                names[3], static_cast<EGLAttrib>(m_modifier >> 32),
-                names[4], static_cast<EGLAttrib>(m_modifier & 0xffffffff)
-            };
-            eglAttributes.append(std::span<const EGLAttrib> { modifierAttrs });
-        }
-    }
-
-    eglAttributes.append(EGL_NONE);
-
     auto& display = WebCore::PlatformDisplay::sharedDisplay();
-    auto eglImage = display.createEGLImage(EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, eglAttributes);
+    auto eglImage = m_dmaBuf->createEGLImage(display.glDisplay());
     if (!eglImage)
         LOG_ERROR("MemoryMappedGPUBuffer::createEGLImageFromDMABuf(), failed to export GBM buffer as EGLImage");
 
     return eglImage;
-}
-
-UnixFileDescriptor MemoryMappedGPUBuffer::exportGBMBufferObjectAsDMABuf(struct gbm_bo* bo, unsigned planeIndex)
-{
-    auto handle = gbm_bo_get_handle_for_plane(bo, planeIndex);
-    if (handle.s32 == -1) {
-        LOG_ERROR("MemoryMappedGPUBuffer::exportGBMBufferObjectAsDMABuf(), failed to obtain gbm handle for plane %u", planeIndex);
-        return { };
-    }
-
-    int fd = 0;
-    int ret = drmPrimeHandleToFD(gbm_device_get_fd(gbm_bo_get_device(bo)), handle.u32, DRM_CLOEXEC | DRM_RDWR, &fd);
-    if (ret < 0) {
-        LOG_ERROR("MemoryMappedGPUBuffer::exportGBMBufferObjectAsDMABuf(), failed to export dma-buf for plane %u", planeIndex);
-        return { };
-    }
-
-    return UnixFileDescriptor { fd, UnixFileDescriptor::Adopt };
 }
 
 void MemoryMappedGPUBuffer::updateContents(AccessScope& scope, const void* srcData, const IntRect& targetRect, unsigned bytesPerLine)

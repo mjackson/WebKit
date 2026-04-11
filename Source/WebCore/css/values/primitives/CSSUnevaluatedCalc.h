@@ -74,7 +74,7 @@ public:
     CSSCalc::Value& calcValue() const { return m_calc; }
     [[nodiscard]] CSSCalc::Value& NODELETE leakRef();
 
-    bool requiresConversionData() const;
+    bool NODELETE requiresConversionData() const;
 
     void serializationForCSS(StringBuilder&, const CSS::SerializationContext&) const;
     void collectComputedStyleDependencies(ComputedStyleDependencies&) const;

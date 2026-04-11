@@ -154,9 +154,11 @@ public:
 
     // This is the default DOM unwrapping. It calls toUnsharedNativeTypedView().
     static inline RefPtr<typename Adaptor::ViewType> toWrapped(VM&, JSValue);
+    static inline RefPtr<typename Adaptor::ViewType> toWrappedAllowResizable(VM&, JSValue);
 
     // [AllowShared] annotation allows accepting TypedArray originated from SharedArrayBuffer.
     static inline RefPtr<typename Adaptor::ViewType> toWrappedAllowShared(VM&, JSValue);
+    static inline RefPtr<typename Adaptor::ViewType> toWrappedAllowSharedAndResizable(VM&, JSValue);
 
     inline void copyFromInt32ShapeArray(size_t offset, JSArray*, size_t objectOffset, size_t length);
     inline void copyFromDoubleShapeArray(size_t offset, JSArray*, size_t objectOffset, size_t length);

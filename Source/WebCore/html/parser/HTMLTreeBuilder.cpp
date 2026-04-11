@@ -218,7 +218,7 @@ public:
     }
 
 private:
-    template<bool characterPredicate(char16_t)> void skipLeading()
+    template<bool characterPredicate(char16_t)> void NODELETE skipLeading()
     {
         ASSERT(!isEmpty());
         while (characterPredicate(m_text[0])) {
@@ -251,7 +251,8 @@ private:
 
 inline bool HTMLTreeBuilder::isParsingTemplateContents() const
 {
-    return m_tree.openElements().hasTemplateInHTMLScope();
+    return m_tree.openElements().containsTemplateElement()
+        && m_tree.openElements().hasTemplateInHTMLScope();
 }
 
 inline bool HTMLTreeBuilder::isParsingFragmentOrTemplateContents() const
@@ -296,9 +297,7 @@ HTMLTreeBuilder::HTMLTreeBuilder(HTMLDocumentParser& parser, DocumentFragment& f
 #endif
 }
 
-HTMLTreeBuilder::FragmentParsingContext::FragmentParsingContext()
-{
-}
+HTMLTreeBuilder::FragmentParsingContext::FragmentParsingContext() = default;
 
 HTMLTreeBuilder::FragmentParsingContext::FragmentParsingContext(DocumentFragment& fragment, Element& contextElement)
     : m_fragment(&fragment)
@@ -346,10 +345,16 @@ void HTMLTreeBuilder::constructTree(AtomHTMLToken&& token)
     else
         processToken(WTF::move(token));
 
-    bool inForeignContent = !m_tree.isEmpty()
-        && !isInHTMLNamespace(adjustedCurrentStackItem())
-        && !HTMLElementStack::isHTMLIntegrationPoint(m_tree.currentStackItem())
-        && !HTMLElementStack::isMathMLTextIntegrationPoint(m_tree.currentStackItem());
+    // Use the adjusted current node for all checks, matching shouldProcessTokenInForeignContent().
+    // When fragment-parsing with only one element on the stack, the adjusted current node is the
+    // context element, not the DocumentFragment.
+    bool inForeignContent = false;
+    if (!m_tree.isEmpty()) {
+        auto& adjustedCurrentNode = adjustedCurrentStackItem();
+        inForeignContent = !isInHTMLNamespace(adjustedCurrentNode)
+            && !HTMLElementStack::isHTMLIntegrationPoint(adjustedCurrentNode)
+            && !HTMLElementStack::isMathMLTextIntegrationPoint(adjustedCurrentNode);
+    }
 
     m_parser->tokenizer().setForceNullCharacterReplacement(m_insertionMode == InsertionMode::Text || inForeignContent);
     m_parser->tokenizer().setShouldAllowCDATA(inForeignContent);
@@ -797,18 +802,11 @@ void HTMLTreeBuilder::processStartTagForInBody(AtomHTMLToken&& token)
         m_tree.insertFormattingElement(WTF::move(token));
         return;
     case TagName::applet:
-    case TagName::embed:
     case TagName::object:
     case TagName::marquee:
         m_tree.reconstructTheActiveFormattingElements();
-        if (token.tagName() == TagName::embed) {
-            m_tree.reconstructTheActiveFormattingElements();
-            m_tree.insertSelfClosingHTMLElement(WTF::move(token));
-        } else {
-            m_tree.reconstructTheActiveFormattingElements();
-            m_tree.insertHTMLElement(WTF::move(token));
-            m_tree.activeFormattingElements().appendMarker();
-        }
+        m_tree.insertHTMLElement(WTF::move(token));
+        m_tree.activeFormattingElements().appendMarker();
         m_framesetOk = false;
         return;
     case TagName::table:
@@ -827,6 +825,7 @@ void HTMLTreeBuilder::processStartTagForInBody(AtomHTMLToken&& token)
         [[fallthrough]];
     case TagName::area:
     case TagName::br:
+    case TagName::embed:
     case TagName::img:
     case TagName::keygen:
     case TagName::wbr:

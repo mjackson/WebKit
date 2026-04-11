@@ -32,6 +32,7 @@
 #include "LayoutInlineTextBox.h"
 #include "RenderBlock.h"
 #include "RenderBlockFlow.h"
+#include "RenderBlockFlowInlines.h"
 #include "RenderButton.h"
 #include "RenderChildIterator.h"
 #include "RenderCombineText.h"
@@ -106,9 +107,7 @@ BoxTreeUpdater::BoxTreeUpdater(RenderBlock& rootRenderer, const Document& docume
 {
 }
 
-BoxTreeUpdater::~BoxTreeUpdater()
-{
-}
+BoxTreeUpdater::~BoxTreeUpdater() = default;
 
 CheckedRef<Layout::ElementBox> BoxTreeUpdater::build()
 {
@@ -199,22 +198,6 @@ void BoxTreeUpdater::adjustStyleIfNeeded(const RenderElement& renderer, RenderSt
         }
 
         if (auto* renderInline = dynamicDowncast<RenderInline>(renderer)) {
-            auto shouldNotRetainBorderPaddingAndMarginStart = renderInline->isContinuation();
-            auto shouldNotRetainBorderPaddingAndMarginEnd = !renderInline->isContinuation() && renderInline->inlineContinuation();
-            // This looks like continuation renderer.
-            if (shouldNotRetainBorderPaddingAndMarginStart) {
-                // This uses `Style::ComputedStyle::initialMarginLeft()` because there is no defined initial value for margin start. However, since all margin edges have the same initial value, this is fine.
-                styleToAdjust.setMarginStart(Style::ComputedStyle::initialMarginLeft());
-                styleToAdjust.resetBorderLeft();
-                styleToAdjust.setPaddingLeft(Style::ComputedStyle::initialPaddingLeft());
-            }
-            if (shouldNotRetainBorderPaddingAndMarginEnd) {
-                // This uses `Style::ComputedStyle::initialMarginRight()` because there is no defined initial value for margin end. However, since all margin edges have the same initial value, this is fine.
-                styleToAdjust.setMarginEnd(Style::ComputedStyle::initialMarginRight());
-                styleToAdjust.resetBorderRight();
-                styleToAdjust.setPaddingRight(Style::ComputedStyle::initialPaddingRight());
-            }
-
             auto isSupportedInlineDisplay = [&] {
                 auto display = styleToAdjust.display();
                 if (display == Style::DisplayType::RubyBase || display == Style::DisplayType::RubyText)
@@ -245,19 +228,6 @@ void BoxTreeUpdater::adjustStyleIfNeeded(const RenderElement& renderer, RenderSt
     adjustStyle(style);
     if (firstLineStyle)
         adjustStyle(*firstLineStyle);
-}
-
-static void updateListMarkerAttributes(const RenderListMarker& listMarkerRenderer, Layout::ElementBox& layoutBox)
-{
-    auto listMarkerAttributes = EnumSet<Layout::ElementBox::ListMarkerAttribute> { };
-    if (listMarkerRenderer.isImage())
-        listMarkerAttributes.add(Layout::ElementBox::ListMarkerAttribute::Image);
-    if (!listMarkerRenderer.isInside())
-        listMarkerAttributes.add(Layout::ElementBox::ListMarkerAttribute::Outside);
-    if (listMarkerRenderer.shouldCollapseAnonymousBlockParent())
-        listMarkerAttributes.add(Layout::ElementBox::ListMarkerAttribute::ShouldCollapseAnonymousBlockParent);
-
-    layoutBox.setListMarkerAttributes(listMarkerAttributes);
 }
 
 UniqueRef<Layout::Box> BoxTreeUpdater::createLayoutBox(RenderObject& renderer)
@@ -314,9 +284,12 @@ UniqueRef<Layout::Box> BoxTreeUpdater::createLayoutBox(RenderObject& renderer)
     adjustStyleIfNeeded(renderElement, style, firstLineStyle.get());
 
     if (CheckedPtr listMarkerRenderer = dynamicDowncast<RenderListMarker>(renderElement)) {
-        auto layoutBox = makeUniqueRef<Layout::ElementBox>(elementAttributes(renderElement), EnumSet<Layout::ElementBox::ListMarkerAttribute> { }, WTF::move(style), WTF::move(firstLineStyle));
-        updateListMarkerAttributes(*listMarkerRenderer, layoutBox.get());
-        return layoutBox;
+        EnumSet<Layout::ElementBox::ListMarkerAttribute> listMarkerAttributes;
+        if (listMarkerRenderer->isImage())
+            listMarkerAttributes.add(Layout::ElementBox::ListMarkerAttribute::Image);
+        if (!listMarkerRenderer->isInside())
+            listMarkerAttributes.add(Layout::ElementBox::ListMarkerAttribute::Outside);
+        return makeUniqueRef<Layout::ElementBox>(elementAttributes(renderElement), listMarkerAttributes, WTF::move(style), WTF::move(firstLineStyle));
     }
 
     return makeUniqueRef<Layout::ElementBox>(elementAttributes(renderElement), WTF::move(style), WTF::move(firstLineStyle));
@@ -392,6 +365,17 @@ static void updateContentCharacteristic(const RenderText& rendererText, Layout::
         contentCharacteristic.add(Layout::InlineTextBox::ContentCharacteristic::CanUseSimplifiedContentMeasuring);
 
     inlineTextBox.setContentCharacteristic(contentCharacteristic);
+}
+
+static void updateListMarkerAttributes(const RenderListMarker& listMarkerRenderer, Layout::ElementBox& layoutBox)
+{
+    auto listMarkerAttributes = EnumSet<Layout::ElementBox::ListMarkerAttribute> { };
+    if (listMarkerRenderer.isImage())
+        listMarkerAttributes.add(Layout::ElementBox::ListMarkerAttribute::Image);
+    if (!listMarkerRenderer.isInside())
+        listMarkerAttributes.add(Layout::ElementBox::ListMarkerAttribute::Outside);
+
+    layoutBox.setListMarkerAttributes(listMarkerAttributes);
 }
 
 void BoxTreeUpdater::updateStyle(const RenderObject& renderer)

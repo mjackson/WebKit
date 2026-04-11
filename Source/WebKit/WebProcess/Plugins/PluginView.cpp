@@ -30,6 +30,7 @@
 
 #include "DocumentEditingContext.h"
 #include "FrameInfoData.h"
+#include "Logging.h"
 #include "PDFPlugin.h"
 #include "UnifiedPDFPlugin.h"
 #include "WebFrame.h"
@@ -49,6 +50,7 @@
 #include <WebCore/DocumentLoader.h>
 #include <WebCore/DocumentPage.h>
 #include <WebCore/DocumentView.h>
+#include <WebCore/Event.h>
 #include <WebCore/EventHandler.h>
 #include <WebCore/EventNames.h>
 #include <WebCore/FocusController.h>
@@ -700,16 +702,21 @@ std::pair<String, String> PluginView::stringsBeforeAndAfterSelection(int charact
     return m_plugin->stringsBeforeAndAfterSelection(characterCount);
 }
 
+// Automation mouse events funnel through as synthetic clicks, except
+// for context menu events, which do not have a clear synthetic analogue.
+static bool shouldForwardToPlugin(const Event& event)
+{
+    auto* mouseEvent = dynamicDowncast<WebCore::MouseEvent>(event);
+    return !mouseEvent || mouseEvent->inputSource() != WebCore::MouseEventInputSource::Automation || event.type() == eventNames().contextmenuEvent;
+}
+
 void PluginView::handleEvent(Event& event)
 {
     if (!m_isInitialized)
         return;
 
-    {
-        RefPtr mouseEvent = dynamicDowncast<WebCore::MouseEvent>(event);
-        if (mouseEvent && mouseEvent->inputSource() == WebCore::MouseEventInputSource::Automation)
-            return;
-    }
+    if (!shouldForwardToPlugin(event))
+        return;
 
     const CheckedPtr currentEvent = WebPage::currentEvent();
     if (!currentEvent)
@@ -742,6 +749,8 @@ void PluginView::handleEvent(Event& event)
 
     if (didHandleEvent)
         event.setDefaultHandled();
+
+    LOG_WITH_STREAM(Plugins, stream << "PluginView::handleEvent() for event: " << event << ", was handled: " << didHandleEvent);
 }
 
 bool PluginView::handleEditingCommand(const String& commandName, const String& argument)

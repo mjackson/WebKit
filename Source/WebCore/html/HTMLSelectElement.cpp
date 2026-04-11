@@ -42,6 +42,7 @@
 #include "ElementChildIteratorInlines.h"
 #include "ElementTraversal.h"
 #include "EventHandler.h"
+#include "EventLoop.h"
 #include "EventNames.h"
 #include "FrameDestructionObserverInlines.h"
 #include "FormController.h"
@@ -70,6 +71,7 @@
 #include "RenderMenuList.h"
 #include "RenderTheme.h"
 #include "ScriptDisallowedScope.h"
+#include "ScrollIntoViewOptions.h"
 #include "SelectFallbackButtonElement.h"
 #include "SelectPopoverElement.h"
 #include "Settings.h"
@@ -214,6 +216,11 @@ HTMLSelectElement* HTMLSelectElement::findOwnerSelect(ContainerNode* startNode, 
     return findOwnerSelect(startNode->parentNode(), excludeOptGroup);
 }
 
+static bool NODELETE hasBaseAppearance(const RenderStyle* style)
+{
+    return style && style->usedAppearance() == StyleAppearance::Base;
+}
+
 void HTMLSelectElement::didRecalcStyle(OptionSet<Style::Change> styleChange)
 {
     // Even though the options didn't necessarily change, we will call setOptionsChangedOnRenderer for its side effect
@@ -228,6 +235,11 @@ void HTMLSelectElement::didRecalcStyle(OptionSet<Style::Change> styleChange)
                 fallbackButton->invalidateStyle();
         }
     }
+
+    bool newIsBaseAppearance = hasBaseAppearance(existingComputedStyle());
+    if (m_wasBaseAppearance && !newIsBaseAppearance && m_popupIsVisible)
+        queuePickerCloseForAppearanceChange();
+    m_wasBaseAppearance = newIsBaseAppearance;
 
     HTMLFormControlElement::didRecalcStyle(styleChange);
 }
@@ -363,36 +375,48 @@ void HTMLSelectElement::hidePickerPopoverElement()
     popover->hidePopover();
 }
 
-static inline auto navigationKeyIdentifiersForWritingMode(const RenderElement* renderer) -> HTMLSelectElement::NavigationKeyIdentifiers
+void HTMLSelectElement::queuePickerCloseForAppearanceChange()
 {
-    bool isHorizontalWritingMode = renderer ? renderer->writingMode().isHorizontal() : true;
-    bool isBlockFlipped = renderer ? renderer->writingMode().isBlockFlipped() : false;
+    protect(protect(document())->eventLoop())->queueTask(TaskSource::DOMManipulation, [weakThis = WeakPtr { *this }] {
+        RefPtr select = weakThis.get();
+        if (!select)
+            return;
+        protect(select->document())->addConsoleMessage(MessageSource::Other, MessageLevel::Warning,
+            "The select element's appearance property changed while its picker was open. The picker has been closed."_s);
+        select->hidePickerPopoverElement();
+    });
+}
 
-    auto next = isHorizontalWritingMode ? "Down"_s : "Right"_s;
-    auto previous = isHorizontalWritingMode ? "Up"_s : "Left"_s;
-    if (isBlockFlipped)
+static inline auto navigationKeyIdentifiersForWritingMode(WritingMode writingMode) -> HTMLSelectElement::NavigationKeyIdentifiers
+{
+    bool isHorizontal = writingMode.isHorizontal();
+
+    auto next = isHorizontal ? "Down"_s : "Right"_s;
+    auto previous = isHorizontal ? "Up"_s : "Left"_s;
+    if (writingMode.isBlockFlipped())
         std::swap(next, previous);
 
-    return { next, previous };
+    return { next, previous, writingMode };
 }
 
 auto HTMLSelectElement::pickerNavigationKeyIdentifiers() const -> NavigationKeyIdentifiers
 {
     RefPtr popover = m_popover;
     CheckedPtr renderer = popover ? popover->renderer() : nullptr;
-    return navigationKeyIdentifiersForWritingMode(renderer);
+    auto writingMode = renderer ? renderer->writingMode() : WritingMode { };
+    return navigationKeyIdentifiersForWritingMode(writingMode);
 }
 
-int HTMLSelectElement::computeNavigationIndex(const String& keyIdentifier, int currentListIndex, NavigationKeyIdentifiers navKeys) const
+int HTMLSelectElement::computeNavigationIndex(const String& keyIdentifier, int currentListIndex, NavigationKeyIdentifiers navigationKeys) const
 {
     // Primary axis (writing-mode aware block direction).
-    if (keyIdentifier == navKeys.next)
+    if (keyIdentifier == navigationKeys.next)
         return nextSelectableListIndex(currentListIndex);
-    if (keyIdentifier == navKeys.previous)
+    if (keyIdentifier == navigationKeys.previous)
         return previousSelectableListIndex(currentListIndex);
 
     // Secondary axis (the other pair of arrow keys, for convenience).
-    bool primaryIsVertical = (navKeys.next == "Down"_s || navKeys.next == "Up"_s);
+    bool primaryIsVertical = (navigationKeys.next == "Down"_s || navigationKeys.next == "Up"_s);
     if (primaryIsVertical) {
         // Primary is Down/Up, secondary is Right/Left.
         if (keyIdentifier == "Right"_s)
@@ -411,10 +435,16 @@ int HTMLSelectElement::computeNavigationIndex(const String& keyIdentifier, int c
         return firstSelectableListIndex();
     if (keyIdentifier == "End"_s)
         return lastSelectableListIndex();
-    if (keyIdentifier == "PageDown"_s)
+    if (keyIdentifier == "PageDown"_s) {
+        if (usesBaseAppearancePicker())
+            return nextSelectableListIndexForPickerPageMove(currentListIndex, SkipDirection::Forwards, navigationKeys.writingMode);
         return nextValidIndex(currentListIndex, SkipDirection::Forwards, 3);
-    if (keyIdentifier == "PageUp"_s)
+    }
+    if (keyIdentifier == "PageUp"_s) {
+        if (usesBaseAppearancePicker())
+            return nextSelectableListIndexForPickerPageMove(currentListIndex, SkipDirection::Backwards, navigationKeys.writingMode);
         return nextValidIndex(currentListIndex, SkipDirection::Backwards, 3);
+    }
 
     return -1;
 }
@@ -553,7 +583,7 @@ bool HTMLSelectElement::isMouseFocusable() const
 RenderPtr<RenderElement> HTMLSelectElement::createElementRenderer(RenderStyle&& style, const RenderTreePosition& position)
 {
     if (usesMenuList()) {
-        if (style.usedAppearance() == StyleAppearance::Base)
+        if (hasBaseAppearance(&style))
             return HTMLElement::createElementRenderer(WTF::move(style), position);
         return createRenderer<RenderMenuList>(*this, WTF::move(style));
     }
@@ -572,6 +602,19 @@ bool HTMLSelectElement::childShouldCreateRenderer(const Node& child) const
         return true;
     if (child.isBeforePseudoElement() || child.isAfterPseudoElement())
         return true;
+    // When the first-child author button has display:contents, its descendant nodes become
+    // rendering children of the select. Allow those through based on the select's own
+    // appearance rather than usesBaseAppearancePicker(), because during render tree updates
+    // the popover may not have its updated style yet (it comes after the button slot in the
+    // composed tree).
+    if (hasBaseAppearance(existingComputedStyle())) {
+        for (auto* ancestor = child.parentElement(); ancestor && ancestor != this; ancestor = ancestor->parentElement()) {
+            if (isFirstElementChildButton(*ancestor))
+                return true;
+            if (!ancestor->hasDisplayContents())
+                break;
+        }
+    }
     if (usesBaseAppearancePicker())
         return true;
     return validationMessageShadowTreeContains(child);
@@ -655,6 +698,37 @@ void HTMLSelectElement::childrenChanged(const ChildChange& change)
     m_lastOnChangeSelection.clear();
 
     HTMLFormControlElement::childrenChanged(change);
+}
+
+// Select the given option as the default if no option is explicitly selected.
+// This maintains m_isSelected incrementally during option insertion so that
+// HTMLOptionElement::finishParsingChildren() can use selectedWithoutUpdate()
+// (O(1)) instead of selected() which triggers O(n) recalcListItems().
+void HTMLSelectElement::selectDefaultOptionIfNeeded(HTMLOptionElement& candidate)
+{
+    // The HTML spec only requires a default selection for single-select elements
+    // with size <= 1 (dropdowns). Listboxes (size > 1) and multiple-select
+    // elements may have no selection.
+    // https://html.spec.whatwg.org/C/#selectedness-setting-algorithm
+    if (multiple() || m_size > 1)
+        return;
+
+    // Walk existing options to check if any is already selected, and whether
+    // the candidate is the first non-disabled option. Once any option is
+    // default-selected, subsequent calls find it and return immediately (O(1)).
+    // Use traverseNextSkippingChildren() since <option> elements cannot nest.
+    for (auto it = descendantsOfType<HTMLOptionElement>(*this).begin(); it; it.traverseNextSkippingChildren()) {
+        if (it->selectedWithoutUpdate())
+            return;
+        if (&*it == &candidate) {
+            candidate.setSelectedState(true);
+            return;
+        }
+        // A non-disabled option before the candidate exists — the candidate
+        // is not the first non-disabled option.
+        if (!protect(*it)->isDisabledFormControl())
+            return;
+    }
 }
 
 void HTMLSelectElement::optionElementChildrenChanged()
@@ -853,6 +927,50 @@ int HTMLSelectElement::nextSelectableListIndexPageAway(int startIndex, SkipDirec
     int edgeIndex = direction == SkipDirection::Forwards ? 0 : items.size() - 1;
     int skipAmount = pageSize + (direction == SkipDirection::Forwards ? startIndex : edgeIndex - startIndex);
     return nextValidIndex(edgeIndex, direction, skipAmount);
+}
+
+int HTMLSelectElement::nextSelectableListIndexForPickerPageMove(int startIndex, SkipDirection direction, WritingMode writingMode) const
+{
+    RefPtr popover = m_popover;
+    if (!popover)
+        return startIndex;
+
+    bool isHorizontal = writingMode.isHorizontal();
+    int pageSize = isHorizontal ? popover->clientHeight() : popover->clientWidth();
+    if (pageSize <= 0)
+        return startIndex;
+
+    auto& items = listItems();
+    int size = items.size();
+    if (startIndex < 0 || startIndex >= size)
+        return startIndex;
+
+    int scrollPos = isHorizontal ? popover->scrollTop() : popover->scrollLeft();
+    bool physicallyForward = (direction == SkipDirection::Forwards) != writingMode.isBlockFlipped();
+    int boundary = physicallyForward ? scrollPos + 2 * pageSize : scrollPos - pageSize;
+
+    int step = direction == SkipDirection::Forwards ? 1 : -1;
+    int lastGoodIndex = startIndex;
+
+    for (int i = startIndex + step; i >= 0 && i < size; i += step) {
+        RefPtr listItem = items[i].get();
+        if (!is<HTMLOptionElement>(*listItem) || listItem->isDisabledFormControl() || !listItem->isFocusable())
+            continue;
+
+        int itemStart = isHorizontal ? listItem->offsetTop() : listItem->offsetLeft();
+        int itemEnd = itemStart + (isHorizontal ? listItem->offsetHeight() : listItem->offsetWidth());
+
+        if (physicallyForward) {
+            if (itemEnd > boundary)
+                break;
+        } else {
+            if (itemStart < boundary)
+                break;
+        }
+        lastGoodIndex = i;
+    }
+
+    return lastGoodIndex;
 }
 
 void HTMLSelectElement::selectAll()
@@ -1151,6 +1269,12 @@ int HTMLSelectElement::selectedIndex() const
     return -1;
 }
 
+HTMLOptionElement* HTMLSelectElement::selectedOption()
+{
+    int index = selectedIndex();
+    return index >= 0 ? item(index) : nullptr;
+}
+
 void HTMLSelectElement::setSelectedIndex(int index)
 {
     selectOption(index, SelectOptionFlag::DeselectOtherOptions);
@@ -1442,6 +1566,23 @@ bool HTMLSelectElement::platformHandleKeydownEvent(KeyboardEvent* event)
 
 #endif
 
+static bool isClickInsidePopover(SelectPopoverElement* popover, Event& event)
+{
+    if (!popover)
+        return false;
+    RefPtr targetNode = dynamicDowncast<Node>(event.target());
+    if (!targetNode)
+        return false;
+    RefPtr select = popover->selectElement();
+    for (RefPtr element = dynamicDowncast<Element>(targetNode); element; element = element->parentElementInComposedTree()) {
+        if (element == popover)
+            return true;
+        if (element == select)
+            return false;
+    }
+    return false;
+}
+
 void HTMLSelectElement::menuListDefaultEventHandler(Event& event)
 {
     ASSERT(renderer());
@@ -1568,24 +1709,13 @@ void HTMLSelectElement::menuListDefaultEventHandler(Event& event)
             event.setDefaultHandled();
             return;
         }
-        ASSERT(usesBaseAppearancePicker() || !m_popupIsVisible);
         if (m_popupIsVisible) {
-            bool clickedInsidePopover = [&] {
-                RefPtr popover = m_popover;
-                if (!popover)
-                    return false;
-                RefPtr targetNode = dynamicDowncast<Node>(event.target());
-                if (!targetNode)
-                    return false;
-                for (RefPtr element = dynamicDowncast<Element>(targetNode); element; element = element->parentElementInComposedTree()) {
-                    if (element == popover)
-                        return true;
-                    if (element == this)
-                        return false;
-                }
-                return false;
-            }();
-            if (!clickedInsidePopover)
+            if (!usesBaseAppearancePicker()) {
+#if !PLATFORM(IOS_FAMILY)
+                hidePopup();
+#endif
+                hidePickerPopoverElement();
+            } else if (!isClickInsidePopover(protect(m_popover), event))
                 hidePickerPopoverElement();
         } else
             openPickerForUserInteraction(false);
@@ -1675,7 +1805,7 @@ void HTMLSelectElement::listBoxDefaultEventHandler(Event& event)
             return;
 
         // Convert to coords relative to the list box if needed.
-        IntPoint localOffset = roundedIntPoint(renderListBox->absoluteToLocal(mouseEvent->absoluteLocation(), UseTransforms));
+        IntPoint localOffset = roundedIntPoint(renderListBox->absoluteToLocal(mouseEvent->absoluteLocation(), MapCoordinatesMode::UseTransforms));
         int listIndex = renderListBox->listIndexAtOffset(toIntSize(localOffset));
         if (listIndex >= 0) {
             if (!isDisabledFormControl()) {
@@ -1698,7 +1828,7 @@ void HTMLSelectElement::listBoxDefaultEventHandler(Event& event)
         if (mouseEvent->button() != MouseButton::Left || !mouseEvent->buttonDown())
             return;
 
-        IntPoint localOffset = roundedIntPoint(renderListBox->absoluteToLocal(mouseEvent->absoluteLocation(), UseTransforms));
+        IntPoint localOffset = roundedIntPoint(renderListBox->absoluteToLocal(mouseEvent->absoluteLocation(), MapCoordinatesMode::UseTransforms));
         int listIndex = renderListBox->listIndexAtOffset(toIntSize(localOffset));
         if (listIndex >= 0) {
             if (!isDisabledFormControl()) {
@@ -1715,15 +1845,25 @@ void HTMLSelectElement::listBoxDefaultEventHandler(Event& event)
                     updateListBoxSelection(true);
                 }
             }
+            if (frame) {
+                frame->eventHandler().setCapturingMouseEventsElement(this);
+                m_isCapturingMouseEvents = true;
+            }
+
             mouseEvent->setDefaultHandled();
         }
-    } else if (event.type() == eventNames.mouseupEvent && mouseEvent && mouseEvent->button() == MouseButton::Left && frame && frame->eventHandler().autoscrollRenderer() != renderer()) {
-        // This click or drag event was not over any of the options.
+    } else if (event.type() == eventNames.mouseupEvent && mouseEvent && mouseEvent->button() == MouseButton::Left && frame) {
+        if (m_isCapturingMouseEvents) {
+            frame->eventHandler().setCapturingMouseEventsElement(nullptr);
+            m_isCapturingMouseEvents = false;
+        }
+        // If this select is autoscrolling, stopAutoscroll() will call
+        // listBoxOnChange() when the autoscroll timer stops,
+        // so avoid calling it here.
+        if (frame->eventHandler().autoscrollRenderer() == renderer())
+            return;
         if (m_lastOnChangeSelection.isEmpty())
             return;
-        // This makes sure we fire dispatchFormControlChangeEvent for a single
-        // click. For drag selection, onChange will fire when the autoscroll
-        // timer stops.
         listBoxOnChange();
     } else if (event.type() == eventNames.keydownEvent) {
         RefPtr keyboardEvent = dynamicDowncast<KeyboardEvent>(event);
@@ -1731,7 +1871,8 @@ void HTMLSelectElement::listBoxDefaultEventHandler(Event& event)
             return;
 
         CheckedPtr renderer = this->renderer();
-        auto [nextKeyIdentifier, previousKeyIdentifier] = navigationKeyIdentifiersForWritingMode(renderer);
+        auto writingMode = renderer ? renderer->writingMode() : WritingMode { };
+        auto navigationKeys = navigationKeyIdentifiersForWritingMode(writingMode);
 
         const String& keyIdentifier = keyboardEvent->keyIdentifier();
 
@@ -1739,27 +1880,27 @@ void HTMLSelectElement::listBoxDefaultEventHandler(Event& event)
         int endIndex = 0;
         if (m_activeSelectionEndIndex < 0) {
             // Initialize the end index
-            if (keyIdentifier == nextKeyIdentifier || keyIdentifier == "PageDown"_s) {
+            if (keyIdentifier == navigationKeys.next || keyIdentifier == "PageDown"_s) {
                 int startIndex = lastSelectedListIndex();
                 handled = true;
-                if (keyIdentifier == nextKeyIdentifier)
+                if (keyIdentifier == navigationKeys.next)
                     endIndex = nextSelectableListIndex(startIndex);
                 else
                     endIndex = nextSelectableListIndexPageAway(startIndex, SkipDirection::Forwards);
-            } else if (keyIdentifier == previousKeyIdentifier || keyIdentifier == "PageUp"_s) {
+            } else if (keyIdentifier == navigationKeys.previous || keyIdentifier == "PageUp"_s) {
                 int startIndex = optionToListIndex(selectedIndex());
                 handled = true;
-                if (keyIdentifier == previousKeyIdentifier)
+                if (keyIdentifier == navigationKeys.previous)
                     endIndex = previousSelectableListIndex(startIndex);
                 else
                     endIndex = nextSelectableListIndexPageAway(startIndex, SkipDirection::Backwards);
             }
         } else {
             // Set the end index based on the current end index.
-            if (keyIdentifier == nextKeyIdentifier) {
+            if (keyIdentifier == navigationKeys.next) {
                 endIndex = nextSelectableListIndex(m_activeSelectionEndIndex);
                 handled = true;
-            } else if (keyIdentifier == previousKeyIdentifier) {
+            } else if (keyIdentifier == navigationKeys.previous) {
                 endIndex = previousSelectableListIndex(m_activeSelectionEndIndex);
                 handled = true;
             } else if (keyIdentifier == "PageDown"_s) {
@@ -1987,7 +2128,7 @@ void HTMLSelectElement::showPopup()
 
     // Compute the top left taking transforms into account, but use
     // the actual width of the element to size the popup.
-    FloatPoint absTopLeft = renderer->localToAbsolute(FloatPoint(), UseTransforms);
+    FloatPoint absTopLeft = renderer->localToAbsolute(FloatPoint(), MapCoordinatesMode::UseTransforms);
     IntRect absBounds = renderer->absoluteBoundingBoxRectIgnoringTransforms();
     absBounds.setLocation(roundedIntPoint(absTopLeft));
     protect(m_popup)->show(absBounds, *frameView, optionToListIndex(selectedIndex())); // May run JS.
@@ -2038,13 +2179,21 @@ void HTMLSelectElement::openPickerForUserInteraction(std::optional<bool> focusVi
         return;
 
     protect(document())->updateStyleIfNeeded();
+
+    // If the appearance changed due to :open (e.g., a rule switching appearance away from
+    // base-select), close the picker.
+    if (!usesBaseAppearancePicker()) {
+        hidePickerPopoverElement();
+        return;
+    }
+
     int listIndex = optionToListIndex(selectedIndex());
     if (listIndex < 0)
         listIndex = firstSelectableListIndex();
     focusOptionAtIndex(listIndex, focusVisible);
 }
 
-void HTMLSelectElement::focusOptionAtIndex(int listIndex, std::optional<bool> focusVisible)
+void HTMLSelectElement::focusOptionAtIndex(int listIndex, std::optional<bool> focusVisible, PickerScrollMode scrollMode)
 {
     if (!usesBaseAppearancePicker())
         return;
@@ -2058,9 +2207,21 @@ void HTMLSelectElement::focusOptionAtIndex(int listIndex, std::optional<bool> fo
         return;
 
     FocusOptions focusOptions;
-    focusOptions.preventScroll = false;
+    focusOptions.preventScroll = true;
     focusOptions.focusVisible = focusVisible;
     option->focus(focusOptions);
+
+    switch (scrollMode) {
+    case PickerScrollMode::Nearest:
+        option->scrollIntoViewIfNeeded();
+        break;
+    case PickerScrollMode::AlignTop:
+        option->scrollIntoView(true);
+        break;
+    case PickerScrollMode::AlignBottom:
+        option->scrollIntoView(false);
+        break;
+    }
 }
 
 ExceptionOr<void> HTMLSelectElement::showPicker()
@@ -2081,7 +2242,17 @@ ExceptionOr<void> HTMLSelectElement::showPicker()
     if (!window || !window->consumeTransientActivation())
         return Exception { ExceptionCode::NotAllowedError, "Select showPicker() requires a user gesture."_s };
 
+    protect(document())->updateStyleIfNeeded();
+    bool openedBaseAppearancePicker = usesBaseAppearancePicker();
     showPickerInternal(); // showPickerInternal() may run JS and cause the renderer to get destroyed.
+
+    // Resolve styles with :open now matching. If the appearance changed (e.g., due to a
+    // :open rule switching appearance away from base-select), close the picker immediately.
+    if (openedBaseAppearancePicker && m_popupIsVisible) {
+        protect(document())->updateStyleIfNeeded();
+        if (!usesBaseAppearancePicker())
+            hidePickerPopoverElement();
+    }
 
     return { };
 }

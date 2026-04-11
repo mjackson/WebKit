@@ -25,6 +25,7 @@
 #pragma once
 
 #include <WebCore/RenderStyleConstants.h>
+#include <WebCore/StyleCustomIdent.h>
 #include <WebCore/StyleGridNamedLinesMap.h>
 #include <WebCore/StyleGridOrderedNamedLinesMap.h>
 #include <WebCore/StyleGridTrackSize.h>
@@ -34,7 +35,7 @@
 namespace WebCore {
 namespace Style {
 
-using RepeatEntry = Variant<GridTrackSize, Vector<String>>;
+using RepeatEntry = Variant<GridTrackSize, Vector<CustomIdent>>;
 using RepeatTrackList = Vector<RepeatEntry>;
 
 struct GridTrackEntryRepeat {
@@ -55,7 +56,7 @@ struct GridTrackEntrySubgrid { bool operator==(const GridTrackEntrySubgrid&) con
 
 using GridTrackEntry = Variant<
     GridTrackSize,
-    Vector<String>,
+    Vector<CustomIdent>,
     GridTrackEntryRepeat,
     GridTrackEntryAutoRepeat,
     GridTrackEntrySubgrid

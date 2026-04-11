@@ -720,6 +720,11 @@ void NavigationScheduler::scheduleLocationChange(Document& initiatingDocument, S
         }
     }
 
+    // The frame's page may have been nulled if the navigate event handler
+    // detached the frame (e.g., iframe.remove() inside intercept handler).
+    if (!m_frame->page())
+        return completionHandler(ScheduleLocationChangeResult::Stopped);
+
     // Handle a location change of a page with no document as a special case.
     // This may happen when a frame changes the location of another frame.
     bool duringLoad = loader && !loader->stateMachine().committedFirstRealDocumentLoad();

@@ -352,9 +352,7 @@ protected:
 
 #if ASSERT_WITH_SECURITY_IMPLICATION_DISABLED
 
-inline LegacyInlineBox::~LegacyInlineBox()
-{
-}
+inline LegacyInlineBox::~LegacyInlineBox() = default;
 
 inline void LegacyInlineBox::assertNotDeleted() const
 {

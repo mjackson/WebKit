@@ -33,6 +33,7 @@ namespace WebCore {
 
 template std::partial_ordering treeOrder<Tree>(const BoundaryPoint&, const BoundaryPoint&);
 template std::partial_ordering treeOrder<ShadowIncludingTree>(const BoundaryPoint&, const BoundaryPoint&);
+template std::partial_ordering treeOrder<ComposedTreeIncludingPseudoElements>(const BoundaryPoint&, const BoundaryPoint&);
 
 std::optional<BoundaryPoint> makeBoundaryPointBeforeNode(Node& node)
 {
@@ -106,6 +107,8 @@ std::partial_ordering treeOrderForTesting(TreeType type, const BoundaryPoint& a,
         return treeOrder<ShadowIncludingTree>(a, b);
     case ComposedTree:
         return treeOrder<ComposedTree>(a, b);
+    case ComposedTreeIncludingPseudoElements:
+        return treeOrder<ComposedTreeIncludingPseudoElements>(a, b);
     }
     ASSERT_NOT_REACHED();
     return std::partial_ordering::unordered;

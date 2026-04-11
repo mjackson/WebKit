@@ -54,7 +54,7 @@ public:
     DisplayLink& displayLink();
     DisplayLink* existingDisplayLink();
 
-    void updateZoomTransactionID();
+    void NODELETE updateZoomTransactionID();
     std::optional<WebCore::PlatformLayerIdentifier> pageScalingLayerID() { return m_pageScalingLayerID.asOptional(); }
     std::optional<WebCore::PlatformLayerIdentifier> pageScrollingLayerID() { return m_pageScrollingLayerID.asOptional(); }
     std::optional<WebCore::PlatformLayerIdentifier> scrolledContentsLayerID() const { return m_scrolledContentsLayerID.asOptional(); }

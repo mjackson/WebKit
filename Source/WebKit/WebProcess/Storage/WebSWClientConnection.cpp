@@ -438,10 +438,10 @@ void WebSWClientConnection::notifyRecordResponseBodyEnd(RetrieveRecordResponseBo
 
 static RefPtr<Page> pageFromScriptExecutionContextIdentifier(ScriptExecutionContextIdentifier clientIdentifier)
 {
-    RefPtr document = Document::allDocumentsMap().get(clientIdentifier);
+    auto* document = Document::allDocumentsMap().get(clientIdentifier);
     if (!document) {
-        RefPtr loader = DocumentLoader::fromScriptExecutionContextIdentifier(clientIdentifier);
-        RefPtr frame = loader ? loader->frame() : nullptr;
+        auto* loader = DocumentLoader::fromScriptExecutionContextIdentifier(clientIdentifier);
+        auto* frame = loader ? loader->frame() : nullptr;
         return frame ? frame->page() : nullptr;
     }
     return document->page();

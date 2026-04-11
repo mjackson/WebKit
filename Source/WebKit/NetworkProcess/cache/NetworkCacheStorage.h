@@ -188,7 +188,7 @@ private:
     void addToRecordFilter(const Key&);
     void deleteFiles(const Key&);
 
-    static bool isHigherPriority(const std::unique_ptr<ReadOperation>&, const std::unique_ptr<ReadOperation>&);
+    static bool NODELETE isHigherPriority(const std::unique_ptr<ReadOperation>&, const std::unique_ptr<ReadOperation>&);
 
     size_t estimateRecordsSize(unsigned recordCount, unsigned blobCount) const;
     uint32_t volumeBlockSize() const;

@@ -144,7 +144,7 @@ void RenderSVGModelObject::boundingRects(Vector<LayoutRect>& rects, const Layout
 
 void RenderSVGModelObject::absoluteQuads(Vector<FloatQuad>& quads, bool* wasFixed) const
 {
-    quads.append(localToAbsoluteQuad(FloatRect { { }, m_layoutRect.size() }, UseTransforms, wasFixed));
+    quads.append(localToAbsoluteQuad(FloatRect { { }, m_layoutRect.size() }, MapCoordinatesMode::UseTransforms, wasFixed));
 }
 
 void RenderSVGModelObject::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
@@ -199,7 +199,7 @@ void RenderSVGModelObject::mapAbsoluteToLocalPoint(OptionSet<MapCoordinatesMode>
     ASSERT(style().position() == PositionType::Static);
 
     if (isTransformed())
-        mode.remove(IsFixed);
+        mode.remove(MapCoordinatesMode::IsFixed);
 
     CheckedPtr container = parent();
     if (!container)
@@ -236,7 +236,7 @@ void RenderSVGModelObject::addFocusRingRects(Vector<LayoutRect>& rects, const La
 
 // FloatRect::intersects does not consider horizontal or vertical lines (because of isEmpty()).
 // So special-case handling of such lines.
-static bool intersectsAllowingEmpty(const FloatRect& r, const FloatRect& other)
+static bool NODELETE intersectsAllowingEmpty(const FloatRect& r, const FloatRect& other)
 {
     if (r.isEmpty() && other.isEmpty())
         return false;
@@ -261,7 +261,7 @@ bool RenderSVGModelObject::checkIntersection(RenderElement* renderer, const Floa
     if (!isGraphicsElement(*renderer))
         return false;
     RefPtr svgElement = downcast<SVGGraphicsElement>(renderer->element());
-    auto ctm = svgElement->getCTM(DisallowStyleUpdate);
+    auto ctm = svgElement->getCTM(StyleUpdateStrategy::Disallow);
     // FIXME: [SVG] checkEnclosure implementation is inconsistent
     // https://bugs.webkit.org/show_bug.cgi?id=262709
     return intersectsAllowingEmpty(rect, ctm.mapRect(renderer->repaintRectInLocalCoordinates(RepaintRectCalculation::Accurate)));
@@ -274,7 +274,7 @@ bool RenderSVGModelObject::checkEnclosure(RenderElement* renderer, const FloatRe
     if (!isGraphicsElement(*renderer))
         return false;
     RefPtr svgElement = downcast<SVGGraphicsElement>(renderer->element());
-    auto ctm = svgElement->getCTM(DisallowStyleUpdate);
+    auto ctm = svgElement->getCTM(StyleUpdateStrategy::Disallow);
     // FIXME: [SVG] checkEnclosure implementation is inconsistent
     // https://bugs.webkit.org/show_bug.cgi?id=262709
     return rect.contains(ctm.mapRect(renderer->repaintRectInLocalCoordinates(RepaintRectCalculation::Accurate)));

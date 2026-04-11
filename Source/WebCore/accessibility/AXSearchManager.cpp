@@ -33,8 +33,9 @@
 #include "AXUtilities.h"
 #include "AccessibilityObject.h"
 #include "FrameDestructionObserverInlines.h"
-#include "Logging.h"
 #include "LocalFrameInlines.h"
+#include "LocalFrameView.h"
+#include "Logging.h"
 #include "TextIterator.h"
 #include <ranges>
 

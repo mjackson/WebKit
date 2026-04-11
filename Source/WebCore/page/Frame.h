@@ -82,7 +82,7 @@ public:
 
     DOMWindow* window() const { return virtualWindow(); }
     FrameTree& tree() const LIFETIME_BOUND { return m_treeNode; }
-    WEBCORE_EXPORT std::optional<uint64_t> indexInFrameTreeSiblings() const;
+    WEBCORE_EXPORT std::optional<uint64_t> NODELETE indexInFrameTreeSiblings() const;
     WEBCORE_EXPORT Vector<uint64_t> pathToFrame() const;
     FrameIdentifier frameID() const { return m_frameID; }
     WEBCORE_EXPORT SecurityOrigin& topOrigin() const;
@@ -122,7 +122,7 @@ public:
     virtual FrameView* virtualView() const = 0;
     virtual void disconnectView() = 0;
     virtual FrameLoaderClient& loaderClient() = 0;
-    virtual void documentURLForConsoleLog(CompletionHandler<void(const URL&)>&&) = 0;
+    virtual URL urlForConsoleLog() const = 0;
 
     virtual String customUserAgent() const = 0;
     virtual String customUserAgentAsSiteSpecificQuirks() const = 0;
@@ -133,7 +133,7 @@ public:
     virtual void updateSandboxFlags(SandboxFlags, NotifyUIProcess);
     virtual void updateReferrerPolicy(ReferrerPolicy) { }
 
-    WEBCORE_EXPORT RenderWidget* ownerRenderer() const; // Renderer for the element that contains this frame.
+    WEBCORE_EXPORT RenderWidget* NODELETE ownerRenderer() const; // Renderer for the element that contains this frame.
 
     WEBCORE_EXPORT void setOwnerPermissionsPolicy(OwnerPermissionsPolicyData&&);
     WEBCORE_EXPORT std::optional<OwnerPermissionsPolicyData> ownerPermissionsPolicy() const;

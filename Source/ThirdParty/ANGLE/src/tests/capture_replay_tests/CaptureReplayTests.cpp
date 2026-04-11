@@ -254,10 +254,13 @@ class CaptureReplayTests
         configParams.depthBits   = traceInfo.configDepthBits;
         configParams.stencilBits = traceInfo.configStencilBits;
 
+        configParams.colorSpace = traceInfo.drawSurfaceColorSpace;
+
         configParams.clientArraysEnabled   = traceInfo.areClientArraysEnabled;
         configParams.bindGeneratesResource = traceInfo.isBindGeneratesResourcesEnabled;
         configParams.webGLCompatibility    = traceInfo.isWebGLCompatibilityEnabled;
         configParams.robustResourceInit    = traceInfo.isRobustResourceInitEnabled;
+        configParams.extensionsEnabled     = traceInfo.areExtensionsEnabled;
 
         mPlatformParams.renderer   = traceInfo.displayPlatformType;
         mPlatformParams.deviceType = traceInfo.displayDeviceType;

@@ -1,4 +1,9 @@
 
 
-PASS invalid tabindex attribute does not make the element focusable
+
+
+
+
+
+FAIL invalid tabindex attribute does not make the element focusable assert_not_equals: <math href=#> should not be focusable got disallowed value Element node <math href="#" data-focusable="false"></math>
 

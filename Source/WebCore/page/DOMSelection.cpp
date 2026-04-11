@@ -37,6 +37,7 @@
 #include "Editing.h"
 #include "FrameSelection.h"
 #include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "NodeDocument.h"
 #include "NodeInlines.h"
 #include "Range.h"

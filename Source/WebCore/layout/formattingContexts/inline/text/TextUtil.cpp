@@ -115,8 +115,7 @@ InlineLayoutUnit TextUtil::width(const InlineTextItem& inlineTextItem, const Fon
 
     if (inlineTextItem.isWhitespace()) {
         CheckedRef inlineTextBox = inlineTextItem.inlineTextBox();
-        auto singleWhiteSpace = from - to == 1 || !TextUtil::shouldPreserveSpacesAndTabs(inlineTextBox);
-        if (singleWhiteSpace)
+        if (!TextUtil::shouldPreserveSpacesAndTabs(inlineTextBox) || (to - from == 1 && inlineTextBox->content()[from] == space))
             return std::max(0.f, singleSpaceWidth(fontCascade, inlineTextBox->canUseSimplifiedContentMeasuring()));
     }
     return width(protect(inlineTextItem.inlineTextBox()), fontCascade, from, to, contentLogicalLeft, useTrailingWhitespaceMeasuringOptimization, spacingState, glyphOverflow);
@@ -708,7 +707,7 @@ template<typename CharacterType>
 static bool canUseSimplifiedTextMeasuringForCharacters(std::span<const CharacterType> characters, const FontCascade& fontCascade, const Font& primaryFont, bool whitespaceIsCollapsed)
 {
     for (auto character : characters) {
-        if (!fontCascade.canUseSimplifiedTextMeasuring(character, AutoVariant, whitespaceIsCollapsed, primaryFont))
+        if (!fontCascade.canUseSimplifiedTextMeasuring(character, FontVariant::Auto, whitespaceIsCollapsed, primaryFont))
             return false;
     }
     return true;
@@ -752,15 +751,11 @@ bool TextUtil::hasPositionDependentContentWidth(StringView textContent)
     return charactersContain<char16_t, tabCharacter>(textContent.span16());
 }
 
-char32_t TextUtil::lastBaseCharacterFromText(StringView string)
+SUPPRESS_NODELETE char32_t TextUtil::lastBaseCharacterFromText(StringView string)
 {
-    if (!string.length())
-        return 0;
-
-    for (size_t characterIndex = string.length(); characterIndex > 0; --characterIndex) {
-        auto character = string.characterAt(characterIndex - 1);
-        if (!isCombiningMark(character))
-            return character;
+    for (auto codePoint : string.codePoints() | std::views::reverse) {
+        if (!isCombiningMark(codePoint))
+            return codePoint;
     }
     return 0;
 }

@@ -33,6 +33,8 @@
 #include "CSSSelectorList.h"
 #include "HTMLNames.h"
 #include "RuleSet.h"
+#include "StyleProperties.h"
+#include "StylePropertiesInlines.h"
 #include "StyleRule.h"
 
 namespace WebCore {
@@ -588,7 +590,7 @@ void RuleFeatureSet::add(const RuleFeatureSet& other)
     idsMatchingAncestorsInRules.addAll(other.idsMatchingAncestorsInRules);
     attributeLowercaseLocalNamesInRules.addAll(other.attributeLowercaseLocalNamesInRules);
     attributeLocalNamesInRules.addAll(other.attributeLocalNamesInRules);
-    contentAttributeNamesInRules.addAll(other.contentAttributeNamesInRules);
+    substitutionAttributeNamesInRules.addAll(other.substitutionAttributeNamesInRules);
 
     auto addMap = [&](auto& map, auto& otherMap) {
         for (auto& keyValuePair : otherMap) {
@@ -621,9 +623,9 @@ void RuleFeatureSet::add(const RuleFeatureSet& other)
     hasStartingStyleRules = hasStartingStyleRules || other.hasStartingStyleRules;
 }
 
-void RuleFeatureSet::registerContentAttribute(const AtomString& attributeName)
+void RuleFeatureSet::registerSubstitutionAttribute(const AtomString& attributeName)
 {
-    contentAttributeNamesInRules.add(attributeName.convertToASCIILowercase());
+    substitutionAttributeNamesInRules.add(attributeName.convertToASCIILowercase());
     attributeLowercaseLocalNamesInRules.add(attributeName);
     attributeLocalNamesInRules.add(attributeName);
 }
@@ -634,7 +636,7 @@ void RuleFeatureSet::clear()
     idsMatchingAncestorsInRules.clear();
     attributeLowercaseLocalNamesInRules.clear();
     attributeLocalNamesInRules.clear();
-    contentAttributeNamesInRules.clear();
+    substitutionAttributeNamesInRules.clear();
     idRules.clear();
     classRules.clear();
     hasPseudoClassRules.clear();

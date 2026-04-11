@@ -27,10 +27,12 @@
 #include "LayoutIntegrationFormattingContextLayout.h"
 
 #include "BlockLayoutState.h"
+#include "FloatingObjects.h"
 #include "InlineLayoutState.h"
 #include "LayoutIntegrationBoxGeometryUpdater.h"
 #include "LayoutIntegrationUtils.h"
 #include "RenderBlock.h"
+#include "RenderBlockFlowInlines.h"
 #include "RenderBoxInlines.h"
 #include "RenderFlexibleBox.h"
 #include "RenderLayoutState.h"
@@ -57,12 +59,12 @@ void layoutWithFormattingContextForBox(const Layout::ElementBox& box, std::optio
 
     if (widthConstraint) {
         renderer->setOverridingBorderBoxLogicalWidth(*widthConstraint);
-        renderer->setNeedsLayout(MarkOnlyThis);
+        renderer->setNeedsLayout(MarkingBehavior::MarkOnlyThis);
     }
 
     if (heightConstraint) {
         renderer->setOverridingBorderBoxLogicalHeight(*heightConstraint);
-        renderer->setNeedsLayout(MarkOnlyThis);
+        renderer->setNeedsLayout(MarkingBehavior::MarkOnlyThis);
     }
 
     renderer->layoutIfNeeded();

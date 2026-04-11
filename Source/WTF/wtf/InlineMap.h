@@ -62,6 +62,7 @@ public:
     using MappedTraits = MappedTraitsArg;
     using Entry = KeyValuePair<KeyType, MappedType>;
     using EntryTraits = KeyValuePairHashTraits<KeyTraits, MappedTraits>;
+    using MappedTakeType = typename MappedTraits::TakeType;
 
     InlineMap()
         : m_size(0)
@@ -79,8 +80,8 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
             for (unsigned i = 0; i < m_size; ++i)
                 std::construct_at(&inlineStorage()[i], WTF::move(other.inlineStorage()[i]));
         } else {
-            m_storage.heapEntries = other.m_storage.heapEntries;
-            other.m_storage.heapEntries = nullptr;
+            m_storage.hashedData.entries = std::exchange(other.m_storage.hashedData.entries, nullptr);
+            m_storage.hashedData.deletedCount = std::exchange(other.m_storage.hashedData.deletedCount, 0);
         }
         other.m_size = 0;
         other.m_capacity = InlineCapacity;
@@ -96,9 +97,10 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
             return;
         }
 
-        m_storage.heapEntries = allocateAndInitializeStorage(m_capacity);
-        Entry* srcEntries = other.m_storage.heapEntries;
-        Entry* destEntries = m_storage.heapEntries;
+        m_storage.hashedData.entries = allocateAndInitializeStorage(m_capacity);
+        m_storage.hashedData.deletedCount = other.m_storage.hashedData.deletedCount;
+        Entry* srcEntries = other.m_storage.hashedData.entries;
+        Entry* destEntries = m_storage.hashedData.entries;
 
         for (unsigned i = 0; i < m_capacity; ++i) {
             if (isEmptyEntry(srcEntries[i]))
@@ -132,20 +134,21 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
     ~InlineMap()
     {
-        if (isInline()) {
+        if (isInline())
             std::destroy_n(inlineStorage(), m_size);
-        } else if (m_storage.heapEntries) {
+        else {
             for (unsigned i = 0; i < m_capacity; ++i) {
-                if (!isEmptyOrDeletedEntry(m_storage.heapEntries[i]))
-                    std::destroy_at(&m_storage.heapEntries[i]);
+                if (!isEmptyOrDeletedEntry(m_storage.hashedData.entries[i]))
+                    std::destroy_at(&m_storage.hashedData.entries[i]);
             }
-            FastMalloc::free(m_storage.heapEntries);
+            FastMalloc::free(m_storage.hashedData.entries);
         }
     }
 
     class ValuesIterator;
 
     class iterator {
+        friend class InlineMap;
         friend class ValuesIterator;
     public:
         iterator() = default;
@@ -242,8 +245,8 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
             transitionToHashed();
         }
 
-        if (m_size * loadFactorDenominator >= m_capacity * loadFactorNumerator) [[unlikely]]
-            grow();
+        if ((m_size + deletedCount()) * loadFactorDenominator >= m_capacity * loadFactorNumerator) [[unlikely]]
+            expand();
 
         Entry* end = entriesEnd();
         Entry* slot = findKeyOrEmptyOrDeleted(key);
@@ -251,6 +254,8 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
             return { iterator { slot, end }, false };
 
         // Slot is either empty or deleted - we can insert here
+        if (isDeletedEntry(*slot))
+            decrementDeletedCount();
         std::construct_at(slot, std::forward<K>(key), std::forward<V>(value));
         ++m_size;
         return { iterator { slot, end }, true };
@@ -291,7 +296,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
         }
 
         Entry* slot = findKeyOrEmpty(key);
-        Entry* end = m_storage.heapEntries + m_capacity;
+        Entry* end = m_storage.hashedData.entries + m_capacity;
         if (isEmptyOrDeletedEntry(*slot))
             return iterator { end, end };
         return iterator { slot, end };
@@ -320,7 +325,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
                     if (i != m_size) {
                         // Move last entry to fill the gap
                         std::construct_at(&entryStorage[i], WTF::move(entryStorage[m_size]));
-                        // Assuming the moved-from entry is trivially destructible
+                        std::destroy_at(&entryStorage[m_size]);
                     }
                     return true;
                 }
@@ -335,8 +340,58 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
         std::destroy_at(slot);
         constructDeletedEntry(*slot);
+        incrementDeletedCount();
         --m_size;
+
+        if (shouldShrink())
+            shrink();
+
         return true;
+    }
+
+    bool remove(iterator it)
+    {
+        if (it == end())
+            return false;
+
+        Entry* slot = it.m_current;
+
+        if (isInline()) {
+            std::destroy_at(slot);
+            --m_size;
+            Entry* lastEntry = &inlineStorage()[m_size];
+            if (slot != lastEntry) {
+                std::construct_at(slot, WTF::move(*lastEntry));
+                std::destroy_at(lastEntry);
+            }
+            return true;
+        }
+
+        std::destroy_at(slot);
+        constructDeletedEntry(*slot);
+        incrementDeletedCount();
+        --m_size;
+
+        if (shouldShrink())
+            shrink();
+
+        return true;
+    }
+
+    template<typename K>
+    MappedTakeType take(const K& key)
+    {
+        return take(find(key));
+    }
+
+    MappedTakeType take(iterator it)
+    {
+        if (it == end())
+            return emptyTakeResult();
+
+        auto result = MappedTraits::take(WTF::move(it->value));
+        remove(it);
+        return result;
     }
 
     iterator begin() LIFETIME_BOUND
@@ -384,26 +439,23 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
     void clear()
     {
-        if (!m_size)
-            return;
-
-        Entry* entryStorage = entries();
-        if (isInline())
-            std::destroy_n(entryStorage, m_size);
-        else {
-            for (unsigned i = 0; i < m_capacity; ++i) {
-                if (isEmptyEntry(entryStorage[i]))
-                    continue;
-                if constexpr (EntryTraits::emptyValueIsZero) {
-                    // If emptyValueIsZero, deleted entries don't have live values and shouldn't be destroyed
-                    if (!isDeletedEntry(entryStorage[i]))
-                        std::destroy_at(&entryStorage[i]);
-                } else
-                    std::destroy_at(&entryStorage[i]);
-                constructEmptyEntry(entryStorage[i]);
+        if (isInline()) {
+            if (m_size) {
+                std::destroy_n(inlineStorage(), m_size);
+                m_size = 0;
             }
+            return;
         }
+
+        // Hashed mode: destroy live entries, free heap, transition to inline
+        Entry* entryStorage = m_storage.hashedData.entries;
+        for (unsigned i = 0; i < m_capacity; ++i) {
+            if (!isEmptyOrDeletedEntry(entryStorage[i]))
+                std::destroy_at(&entryStorage[i]);
+        }
+        FastMalloc::free(entryStorage);
         m_size = 0;
+        m_capacity = InlineCapacity;
     }
 
     ALWAYS_INLINE void swap(InlineMap& other)
@@ -423,7 +475,8 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
         unsigned capacity = roundUpToPowerOfTwo(keyCount * loadFactorDenominator / loadFactorNumerator + 1);
         m_capacity = capacity;
-        m_storage.heapEntries = allocateAndInitializeStorage(capacity);
+        m_storage.hashedData.entries = allocateAndInitializeStorage(capacity);
+        m_storage.hashedData.deletedCount = 0;
     }
 
 private:
@@ -443,12 +496,12 @@ private:
 
     ALWAYS_INLINE Entry* entries()
     {
-        return isInline() ? inlineStorage() : m_storage.heapEntries;
+        return isInline() ? inlineStorage() : m_storage.hashedData.entries;
     }
 
     ALWAYS_INLINE const Entry* entries() const
     {
-        return isInline() ? inlineStorage() : m_storage.heapEntries;
+        return isInline() ? inlineStorage() : m_storage.hashedData.entries;
     }
 
     ALWAYS_INLINE Entry* entriesEnd()
@@ -474,7 +527,7 @@ private:
 
     ALWAYS_INLINE static bool isEmptyKey(const KeyType& key)
     {
-        return isHashTraitsEmptyValue<HashTraits<KeyType>>(key);
+        return isHashTraitsEmptyValue<KeyTraits>(key);
     }
 
     ALWAYS_INLINE static bool isEmptyEntry(const Entry& entry)
@@ -484,7 +537,7 @@ private:
 
     ALWAYS_INLINE static bool isDeletedEntry(const Entry& entry)
     {
-        return HashTraits<KeyType>::isDeletedValue(entry.key);
+        return KeyTraits::isDeletedValue(entry.key);
     }
 
     ALWAYS_INLINE static bool isEmptyOrDeletedEntry(const Entry& entry)
@@ -519,6 +572,46 @@ private:
 
     static constexpr unsigned loadFactorNumerator = 3;
     static constexpr unsigned loadFactorDenominator = 4;
+    static constexpr unsigned minLoadInverse = 6;
+
+    ALWAYS_INLINE static MappedTakeType emptyTakeResult()
+    {
+        if constexpr (requires { MappedTraits::emptyTakeValue(); })
+            return MappedTraits::emptyTakeValue();
+        else
+            return MappedTraits::take(MappedTraits::emptyValue());
+    }
+
+    ALWAYS_INLINE unsigned deletedCount() const
+    {
+        ASSERT(!isInline());
+        return m_storage.hashedData.deletedCount;
+    }
+
+    ALWAYS_INLINE void incrementDeletedCount()
+    {
+        ASSERT(!isInline());
+        ++m_storage.hashedData.deletedCount;
+    }
+
+    ALWAYS_INLINE void decrementDeletedCount()
+    {
+        ASSERT(!isInline());
+        ASSERT(m_storage.hashedData.deletedCount);
+        --m_storage.hashedData.deletedCount;
+    }
+
+    bool shouldShrink() const
+    {
+        ASSERT(!isInline());
+        return m_size * minLoadInverse < m_capacity;
+    }
+
+    bool shouldCompactOnly() const
+    {
+        ASSERT(!isInline());
+        return m_size * minLoadInverse < m_capacity * 2;
+    }
 
     ALWAYS_INLINE static Entry* allocateAndInitializeStorage(unsigned capacity)
     {
@@ -549,7 +642,8 @@ private:
 
         Entry* toFree = wasInline ? nullptr : oldEntries;
         m_capacity = newCapacity;
-        m_storage.heapEntries = newEntries;
+        m_storage.hashedData.entries = newEntries;
+        m_storage.hashedData.deletedCount = 0;
         if (toFree)
             FastMalloc::free(toFree);
     }
@@ -560,10 +654,45 @@ private:
         rehashTo(roundUpToPowerOfTwo(m_size * 2 * loadFactorDenominator / loadFactorNumerator));
     }
 
-    void grow()
+    void expand()
     {
         ASSERT(!isInline());
-        rehashTo(m_capacity * 2);
+        if (shouldCompactOnly())
+            rehashTo(m_capacity);
+        else
+            rehashTo(m_capacity * 2);
+    }
+
+    void shrink()
+    {
+        ASSERT(!isInline());
+        if (m_size <= InlineCapacity) {
+            transitionToInline();
+            return;
+        }
+        rehashTo(m_capacity / 2);
+    }
+
+    void transitionToInline()
+    {
+        ASSERT(!isInline());
+        ASSERT(m_size <= InlineCapacity);
+
+        Entry* oldEntries = m_storage.hashedData.entries;
+        unsigned oldCapacity = m_capacity;
+
+        m_capacity = InlineCapacity;
+
+        unsigned insertIndex = 0;
+        for (unsigned i = 0; i < oldCapacity; ++i) {
+            if (!isEmptyOrDeletedEntry(oldEntries[i])) {
+                std::construct_at(&inlineStorage()[insertIndex], WTF::move(oldEntries[i]));
+                ++insertIndex;
+            }
+        }
+        ASSERT(insertIndex == m_size);
+
+        FastMalloc::free(oldEntries);
     }
 
     template<typename K>
@@ -593,7 +722,7 @@ private:
     Entry* findKeyOrEmpty(const K& key) const
     {
         ASSERT(!isInline());
-        return findKeyOrEmptyInStorage(key, m_storage.heapEntries, m_capacity);
+        return findKeyOrEmptyInStorage(key, m_storage.hashedData.entries, m_capacity);
     }
 
     Entry* findKeyOrEmptyOrDeleted(const KeyType& key) const
@@ -601,7 +730,7 @@ private:
         ASSERT(!isInline());
         ASSERT(isPowerOfTwo(m_capacity));
 
-        Entry* data = m_storage.heapEntries;
+        Entry* data = m_storage.hashedData.entries;
         unsigned hash = HashArg::hash(key);
         unsigned mask = m_capacity - 1;
         unsigned bucket = hash & mask;
@@ -630,8 +759,12 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         struct alignas(Entry) EntryBytes {
             std::byte data[sizeof(Entry)];
         };
+        struct HashedModeData {
+            Entry* entries;
+            unsigned deletedCount;
+        };
         std::array<EntryBytes, InlineCapacity> inlineEntries;
-        Entry* heapEntries;
+        HashedModeData hashedData;
     } m_storage;
 };
 
@@ -647,6 +780,12 @@ public:
     static unsigned capacity(InlineMap<KeyArg, ValueArg, InlineCapacity, HashArg, KeyTraitsArg, MappedTraitsArg>& map)
     {
         return map.m_capacity;
+    }
+
+    template<typename KeyArg, typename ValueArg, unsigned InlineCapacity, typename HashArg, typename KeyTraitsArg, typename MappedTraitsArg>
+    static unsigned deletedCount(InlineMap<KeyArg, ValueArg, InlineCapacity, HashArg, KeyTraitsArg, MappedTraitsArg>& map)
+    {
+        return map.deletedCount();
     }
 };
 

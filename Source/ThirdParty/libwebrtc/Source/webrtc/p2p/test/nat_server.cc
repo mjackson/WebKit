@@ -127,7 +127,7 @@ class NATProxyServerSocket : public AsyncProxyServerSocket {
     BufferInput(false);
     NotifyConnectRequest(this, dest_addr);
     if (remainder) {
-      SignalReadEvent(this);
+      NotifyReadEvent(this);
     }
   }
 };
@@ -234,7 +234,8 @@ void NATServer::OnExternalUDPPacket(AsyncPacketSocket* socket,
 
   // Forward this packet to the internal address.
   // First prepend the address in a quasi-STUN format.
-  Buffer real_buf(packet.payload().size() + kNATEncodedIPv6AddressSize);
+  Buffer real_buf = Buffer::CreateWithCapacity(packet.payload().size() +
+                                               kNATEncodedIPv6AddressSize);
   PackAddressForNAT(packet.source_address(), real_buf);
   // Copy the data part after the address.
   AsyncSocketPacketOptions options;

@@ -218,7 +218,7 @@ void PipelineLayout::makeInvalid()
         m_bindGroupLayouts->clear();
 }
 
-static size_t returnTotalSize(auto& container)
+static size_t NODELETE returnTotalSize(auto& container)
 {
     size_t totalSize = 0;
     for (auto& v : container) {
@@ -244,7 +244,7 @@ size_t PipelineLayout::sizeOfComputeDynamicOffsets() const
     return returnTotalSize(m_computeOffsets);
 }
 
-static std::optional<uint32_t> returnOffsetOfGroup0(auto& v, auto groupIndex)
+static std::optional<uint32_t> NODELETE returnOffsetOfGroup0(auto& v, auto groupIndex)
 {
     if (auto it = v.find(groupIndex); it != v.end())
         return it->value;
@@ -379,5 +379,5 @@ void wgpuPipelineLayoutRelease(WGPUPipelineLayout pipelineLayout)
 
 void wgpuPipelineLayoutSetLabel(WGPUPipelineLayout pipelineLayout, const char* label)
 {
-    protect(WebGPU::fromAPI(pipelineLayout))->setLabel(WebGPU::fromAPI(label));
+    WebGPU::fromAPI(pipelineLayout).setLabel(WebGPU::fromAPI(label));
 }

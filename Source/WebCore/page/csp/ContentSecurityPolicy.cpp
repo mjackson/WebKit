@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2011 Google, Inc. All rights reserved.
- * Copyright (C) 2013-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -36,6 +36,8 @@
 #include "ContentSecurityPolicySource.h"
 #include "ContentSecurityPolicySourceList.h"
 #include "DOMStringList.h"
+#include "DOMWrapperWorld.h"
+#include "DeprecationReportBody.h"
 #include "DocumentLoader.h"
 #include "DocumentPage.h"
 #include "EventNames.h"
@@ -57,6 +59,7 @@
 #include "SubresourceIntegrity.h"
 #include "ViolationReportType.h"
 #include "WorkerGlobalScope.h"
+#include <JavaScriptCore/HeapCellInlines.h>
 #include <JavaScriptCore/JSGlobalObject.h>
 #include <JavaScriptCore/ScriptCallStack.h>
 #include <JavaScriptCore/ScriptCallStackFactory.h>
@@ -600,21 +603,23 @@ bool ContentSecurityPolicy::allowFrameAncestors(const Vector<Ref<SecurityOrigin>
     return allPoliciesAllow(handleViolatedDirective, &ContentSecurityPolicyDirectiveList::violatedDirectiveForFrameAncestorOrigins, ancestorOrigins);
 }
 
-bool ContentSecurityPolicy::allowPluginType(const String& type, const String& typeAttribute, const URL& url, bool overrideContentSecurityPolicy) const
+bool ContentSecurityPolicy::allowPluginType(const String&, const String&, const URL&, bool) const
 {
-    if (m_policies.isEmpty() || overrideContentSecurityPolicy)
-        return true;
-    String sourceURL;
-    TextPosition sourcePosition(OrdinalNumber::beforeFirst(), OrdinalNumber());
-    auto handleViolatedDirective = [checkedThis = CheckedRef { *this }, &sourceURL, &sourcePosition, &url] (const ContentSecurityPolicyDirective& violatedDirective) {
-        String consoleMessage = consoleMessageForViolation(violatedDirective, url, "Refused to load"_s, "its MIME type"_s);
-        checkedThis->reportViolation(violatedDirective, url.string(), consoleMessage, sourceURL, StringView(), sourcePosition);
-    };
-    return allPoliciesAllow(handleViolatedDirective, &ContentSecurityPolicyDirectiveList::violatedDirectiveForPluginType, type, typeAttribute);
+    // The 'plugin-types' directive was removed from the CSP specification and is no longer
+    // enforced. See https://github.com/w3c/webappsec-csp/issues/424
+    return true;
 }
 
 bool ContentSecurityPolicy::allowObjectFromSource(const URL& url, RedirectResponseReceived redirectResponseReceived, const URL& preRedirectURL) const
 {
+    // Report deprecation of 'plugin-types' when an object/embed element is used
+    for (auto& policy : m_policies) {
+        if (policy->hasPluginTypesDirective()) {
+            reportDeprecatedDirective("plugin-types"_s);
+            break;
+        }
+    }
+
     if (m_policies.isEmpty() || LegacySchemeRegistry::schemeShouldBypassContentSecurityPolicy(url.protocol()))
         return true;
     // As per section object-src of the Content Security Policy Level 3 spec., <http://w3c.github.io/webappsec-csp> (Editor's Draft, 29 February 2016),
@@ -1037,6 +1042,26 @@ void ContentSecurityPolicy::reportUnsupportedDirective(const String& name) const
         message = makeString("Unrecognized Content-Security-Policy directive '"_s, name, "'.\n"_s); // FIXME: Why does this include a newline?
 
     logToConsole(message);
+}
+
+void ContentSecurityPolicy::reportDeprecatedDirectiveToConsole(const String& name) const
+{
+    logToConsole(makeString("The Content Security Policy directive '"_s, name, "' has been removed from the specification and is ignored.\n"_s));
+}
+
+void ContentSecurityPolicy::reportDeprecatedDirective(const String& name) const
+{
+    if (m_reportingClient) {
+        auto reportBody = DeprecationReportBody::create(
+            "CSPPluginTypesDirective"_s,
+            WallTime { },
+            makeString("The Content Security Policy directive '"_s, name, "' has been removed from the specification and has no effect."_s),
+            { },
+            std::nullopt,
+            std::nullopt);
+        auto type = reportBody->type();
+        m_reportingClient->notifyReportObservers(Report::create(type, m_protectedURL.string(), WTF::move(reportBody)));
+    }
 }
 
 void ContentSecurityPolicy::reportDirectiveAsSourceExpression(const String& directiveName, StringView sourceExpression) const

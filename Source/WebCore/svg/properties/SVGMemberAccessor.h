@@ -42,6 +42,7 @@ public:
     virtual void detach(const OwnerType&) const { }
     virtual bool isAnimatedProperty() const { return false; }
     virtual bool isAnimatedLength() const { return false; }
+    virtual bool isAnimating(const OwnerType&) const { return false; }
 
     virtual bool matches(const OwnerType&, const SVGProperty&) const { return false; }
     virtual bool matches(const OwnerType&, const SVGAnimatedPropertyBase&) const { return false; }

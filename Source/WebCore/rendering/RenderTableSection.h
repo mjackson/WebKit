@@ -194,7 +194,7 @@ private:
     
     void distributeExtraLogicalHeightToPercentRows(LayoutUnit& extraLogicalHeight, int totalPercent);
     void NODELETE distributeExtraLogicalHeightToAutoRows(LayoutUnit& extraLogicalHeight, unsigned autoRowsCount);
-    void distributeRemainingExtraLogicalHeight(LayoutUnit& extraLogicalHeight);
+    void NODELETE distributeRemainingExtraLogicalHeight(LayoutUnit& extraLogicalHeight);
 
     bool hasOverflowingCell() const;
     void computeOverflowFromCells(unsigned totalRows, unsigned nEffCols);

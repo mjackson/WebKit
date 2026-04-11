@@ -176,8 +176,8 @@ public:
         return maxX > LayoutUnit::nearlyMin() && maxX < LayoutUnit::nearlyMax() && maxY > LayoutUnit::nearlyMin() && maxY < LayoutUnit::nearlyMax();
     }
     
-    bool intersects(const LayoutRect&) const;
-    WEBCORE_EXPORT bool contains(const LayoutRect&) const;
+    bool NODELETE intersects(const LayoutRect&) const;
+    WEBCORE_EXPORT bool NODELETE contains(const LayoutRect&) const;
     bool containsX(const LayoutRect& other) const { return x() <= other.x() && other.maxX() <= maxX(); }
     bool containsY(const LayoutRect& other) const { return y() <= other.y() && other.maxY() <= maxY(); }
 

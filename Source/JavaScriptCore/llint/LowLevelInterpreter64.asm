@@ -943,8 +943,8 @@ end
 
 macro equalNullComparisonOp(opcodeName, opcodeStruct, fn)
     llintOpWithReturn(opcodeName, opcodeStruct, macro (size, get, dispatch, return)
-        get(m_operand, t0)
-        loadq [cfr, t0, 8], t0
+        get(m_operand, t1)
+        loadConstantOrVariable(size, t1, t0)
         btqnz t0, notCellMask, .immediate
         btbnz JSCell::m_flags[t0], MasqueradesAsUndefined, .masqueradesAsUndefined
         move 0, t0
@@ -953,7 +953,7 @@ macro equalNullComparisonOp(opcodeName, opcodeStruct, fn)
         loadStructureWithScratch(t0, t2, t1)
         loadp CodeBlock[cfr], t0
         loadp CodeBlock::m_globalObject[t0], t0
-        cpeq Structure::m_globalObject[t2], t0, t0
+        cpeq Structure::m_realm[t2], t0, t0
         jmp .done
     .immediate:
         andq ~TagUndefined, t0
@@ -1465,7 +1465,7 @@ llintOpWithReturn(op_typeof_is_undefined, OpTypeofIsUndefined, macro (size, get,
     loadStructureWithScratch(t0, t3, t1)
     loadp CodeBlock[cfr], t1
     loadp CodeBlock::m_globalObject[t1], t1
-    cpeq Structure::m_globalObject[t3], t1, t0
+    cpeq Structure::m_realm[t3], t1, t0
     orq ValueFalse, t0
     return(t0)
 end)
@@ -1559,19 +1559,19 @@ end)
 
 
 macro loadInlineOffset(propertyOffsetAsInt, objectAndStorage, value)
-    addp sizeof JSObject - (firstOutOfLineOffset - 2) * 8, objectAndStorage
+    addp sizeof JSObjectWithButterfly - (firstOutOfLineOffset - 2) * 8, objectAndStorage
     loadq (firstOutOfLineOffset - 2) * 8[objectAndStorage, propertyOffsetAsInt, 8], value
 end
 
 
 macro loadPropertyAtVariableOffset(propertyOffsetAsInt, objectAndStorage, value)
     bilt propertyOffsetAsInt, firstOutOfLineOffset, .isInline
-    loadp JSObject::m_butterfly[objectAndStorage], objectAndStorage
+    loadp JSObjectWithButterfly::m_butterfly[objectAndStorage], objectAndStorage
     negi propertyOffsetAsInt
     sxi2q propertyOffsetAsInt, propertyOffsetAsInt
     jmp .ready
 .isInline:
-    addp sizeof JSObject - (firstOutOfLineOffset - 2) * 8, objectAndStorage
+    addp sizeof JSObjectWithButterfly - (firstOutOfLineOffset - 2) * 8, objectAndStorage
 .ready:
     loadq (firstOutOfLineOffset - 2) * 8[objectAndStorage, propertyOffsetAsInt, 8], value
 end
@@ -1579,12 +1579,12 @@ end
 
 macro storePropertyAtVariableOffset(propertyOffsetAsInt, objectAndStorage, value)
     bilt propertyOffsetAsInt, firstOutOfLineOffset, .isInline
-    loadp JSObject::m_butterfly[objectAndStorage], objectAndStorage
+    loadp JSObjectWithButterfly::m_butterfly[objectAndStorage], objectAndStorage
     negi propertyOffsetAsInt
     sxi2q propertyOffsetAsInt, propertyOffsetAsInt
     jmp .ready
 .isInline:
-    addp sizeof JSObject - (firstOutOfLineOffset - 2) * 8, objectAndStorage
+    addp sizeof JSObjectWithButterfly - (firstOutOfLineOffset - 2) * 8, objectAndStorage
 .ready:
     storeq value, (firstOutOfLineOffset - 2) * 8[objectAndStorage, propertyOffsetAsInt, 8]
 end
@@ -1660,7 +1660,7 @@ macro performGetByIDHelper(opcodeStruct, modeMetadataName, valueProfileName, slo
     loadb JSCell::m_indexingTypeAndMisc[t3], t0
     btiz t0, IsArray, slowLabel
     btiz t0, IndexingShapeMask, slowLabel
-    loadCagedJSValue(JSObject::m_butterfly[t3], t0, t1)
+    loadCagedJSValue(JSObjectWithButterfly::m_butterfly[t3], t0, t1)
     loadi -sizeof IndexingHeader + IndexingHeader::u.lengths.publicLength[t0], t0
     bilt t0, 0, slowLabel
     orq numberTag, t0
@@ -1847,7 +1847,7 @@ llintOpWithMetadata(op_get_by_val, OpGetByVal, macro (size, get, dispatch, metad
     # This sign-extension makes the bounds-checking in getByValTypedArray work even on 4GB TypedArray.
     sxi2q t1, t1
 
-    loadCagedJSValue(JSObject::m_butterfly[t0], t3, numberTag)
+    loadCagedJSValue(JSObjectWithButterfly::m_butterfly[t0], t3, numberTag)
     move TagNumber, numberTag
 
     andi IndexingShapeMask, t2
@@ -2034,7 +2034,7 @@ macro putByValOp(opcodeName, opcodeStruct, osrExitPoint)
         get(m_property, t0)
         loadConstantOrVariableInt32(size, t0, t3, .opPutByValSlow)
         sxi2q t3, t3
-        loadCagedJSValue(JSObject::m_butterfly[t1], t0, numberTag)
+        loadCagedJSValue(JSObjectWithButterfly::m_butterfly[t1], t0, numberTag)
         move TagNumber, numberTag
         btinz t2, CopyOnWrite, .opPutByValSlow
         andi IndexingShapeMask, t2
@@ -2145,9 +2145,8 @@ end
 
 macro equalNullJumpOp(opcodeName, opcodeStruct, cellHandler, immediateHandler)
     llintOpWithJump(op_%opcodeName%, opcodeStruct, macro (size, get, jump, dispatch)
-        get(m_value, t0)
-        assertNotConstant(size, t0)
-        loadq [cfr, t0, 8], t0
+        get(m_value, t1)
+        loadConstantOrVariable(size, t1, t0)
         btqnz t0, notCellMask, .immediate
         loadStructureWithScratch(t0, t2, t1)
         cellHandler(t2, JSCell::m_flags[t0], .target)
@@ -2168,7 +2167,7 @@ equalNullJumpOp(jeq_null, OpJeqNull,
         btbz value, MasqueradesAsUndefined, .notMasqueradesAsUndefined
         loadp CodeBlock[cfr], t0
         loadp CodeBlock::m_globalObject[t0], t0
-        bpeq Structure::m_globalObject[structure], t0, target
+        bpeq Structure::m_realm[structure], t0, target
 .notMasqueradesAsUndefined:
     end,
     macro (value, target) bqeq value, ValueNull, target end)
@@ -2179,7 +2178,7 @@ equalNullJumpOp(jneq_null, OpJneqNull,
         btbz value, MasqueradesAsUndefined, target
         loadp CodeBlock[cfr], t0
         loadp CodeBlock::m_globalObject[t0], t0
-        bpneq Structure::m_globalObject[structure], t0, target
+        bpneq Structure::m_realm[structure], t0, target
     end,
     macro (value, target) bqneq value, ValueNull, target end)
 
@@ -3498,11 +3497,11 @@ llintOpWithMetadata(op_enumerator_get_by_val, OpEnumeratorGetByVal, macro (size,
     biaeq t2, t1, .outOfLine
 
     zxi2q t2, t2
-    loadq sizeof JSObject[t0, t2, 8], t2
+    loadq sizeof JSObjectWithButterfly[t0, t2, 8], t2
     jmp .done
 
 .outOfLine:
-    loadp JSObject::m_butterfly[t0], t0
+    loadp JSObjectWithButterfly::m_butterfly[t0], t0
     subi t1, t2
     negi t2
     sxi2q t2, t2
@@ -3551,12 +3550,12 @@ llintOpWithMetadata(op_enumerator_put_by_val, OpEnumeratorPutByVal, macro (size,
     biaeq t2, t1, .outOfLine
 
     zxi2q t2, t2
-    storeq t3, sizeof JSObject[t0, t2, 8]
+    storeq t3, sizeof JSObjectWithButterfly[t0, t2, 8]
     jmp .done
 
 .outOfLine:
     subi t1, t2
-    loadp JSObject::m_butterfly[t0], t1
+    loadp JSObjectWithButterfly::m_butterfly[t0], t1
     negi t2
     sxi2q t2, t2
     storeq t3, constexpr ((offsetInButterfly(firstOutOfLineOffset)) * sizeof(EncodedJSValue))[t1, t2, 8]

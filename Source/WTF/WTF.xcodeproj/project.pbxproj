@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		07AC4F0E2EF5A68600468BCB /* module.modulemap in Headers */ = {isa = PBXBuildFile; fileRef = 07AC4F0D2EF5A62500468BCB /* module.modulemap */; settings = {ATTRIBUTES = (Private, ); }; };
+		07B588172F74609A00E8AF32 /* module.modulemap in Headers */ = {isa = PBXBuildFile; fileRef = 07B588162F74607A00E8AF32 /* module.modulemap */; settings = {ATTRIBUTES = (Private, ); }; };
+		07C913F32F820E86003A09D8 /* OptionCountedSet.h in Headers */ = {isa = PBXBuildFile; fileRef = 07C913F22F820E86003A09D8 /* OptionCountedSet.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		07F5EA6F2EE8A7630085B185 /* generate-tapi-filelist.py in Headers */ = {isa = PBXBuildFile; fileRef = DD28DF2329D368BD00BBB459 /* generate-tapi-filelist.py */; settings = {ATTRIBUTES = (Private, ); }; };
 		07F5EA702EE8A7660085B185 /* GenerateModuleVerifierInputsTask.py in Headers */ = {isa = PBXBuildFile; fileRef = 076382182EE550F300DB47BC /* GenerateModuleVerifierInputsTask.py */; settings = {ATTRIBUTES = (Private, ); }; };
 		07F5EA712EE8A76A0085B185 /* library-modules-verifier.py in Headers */ = {isa = PBXBuildFile; fileRef = 077FEABB2EE007FF0071F92D /* library-modules-verifier.py */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -175,6 +177,7 @@
 		63F9BED42898D96400371416 /* CFPrivSPI.h in Headers */ = {isa = PBXBuildFile; fileRef = 63F9BED32898D96400371416 /* CFPrivSPI.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		70A993FE1AD7151300FA615B /* SymbolRegistry.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 70A993FC1AD7151300FA615B /* SymbolRegistry.cpp */; };
 		70ECA60D1B02426800449739 /* AtomStringImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 70ECA60A1B02426800449739 /* AtomStringImpl.cpp */; };
+		7310722B5EF464F16AAE91D7 /* CanBorrow.h in Headers */ = {isa = PBXBuildFile; fileRef = 41036C754D844912316DC00E /* CanBorrow.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		7A05093F1FB9DCC500B33FB8 /* JSONValues.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7A05093E1FB9DCC500B33FB8 /* JSONValues.cpp */; };
 		7A6EBA3420746C34004F9C44 /* MachSendRight.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7A6EBA3320746C34004F9C44 /* MachSendRight.cpp */; };
 		7AAF9CA42AC4C39100E73DD3 /* PlatformEnableGlib.h in Headers */ = {isa = PBXBuildFile; fileRef = 7AAF9CA32AC4C39100E73DD3 /* PlatformEnableGlib.h */; };
@@ -302,7 +305,6 @@
 		DD3DC86727A4BF8E007E5B61 /* SynchronizedFixedQueue.h in Headers */ = {isa = PBXBuildFile; fileRef = 5597F82C1D94B9970066BC21 /* SynchronizedFixedQueue.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC86827A4BF8E007E5B61 /* OrderMaker.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F9495831C571CC900413A48 /* OrderMaker.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC86927A4BF8E007E5B61 /* BubbleSort.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F4570441BE834410062A629 /* BubbleSort.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		DD3DC86A27A4BF8E007E5B61 /* Unexpected.h in Headers */ = {isa = PBXBuildFile; fileRef = E360C7652127B85C00C90F0E /* Unexpected.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC86B27A4BF8E007E5B61 /* IteratorRange.h in Headers */ = {isa = PBXBuildFile; fileRef = 7CDD7FF9186D2A54007433CD /* IteratorRange.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC86C27A4BF8E007E5B61 /* NumberOfCores.h in Headers */ = {isa = PBXBuildFile; fileRef = A8A472D6151A825B004123FF /* NumberOfCores.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC86D27A4BF8E007E5B61 /* ValueCheck.h in Headers */ = {isa = PBXBuildFile; fileRef = A8A4736F151A825B004123FF /* ValueCheck.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -607,6 +609,7 @@
 		DD725ECA2D8A443E00E72544 /* audit-spi-if-needed.sh in Headers */ = {isa = PBXBuildFile; fileRef = DD725EC92D8A442900E72544 /* audit-spi-if-needed.sh */; settings = {ATTRIBUTES = (Private, ); }; };
 		DDA35E4A29CA9B68006C1018 /* PlatformEnablePlayStation.h in Headers */ = {isa = PBXBuildFile; fileRef = DD4901E127B4748A00D7E50D /* PlatformEnablePlayStation.h */; };
 		DDCAF31D27B1E7C500C45308 /* GenericHashKey.h in Headers */ = {isa = PBXBuildFile; fileRef = E3FD6D6627A1F6AD00935000 /* GenericHashKey.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		DDE7455F2F731DBA008013AB /* generate-unified-source-bundles.py in Headers */ = {isa = PBXBuildFile; fileRef = DDE7455D2F731D80008013AB /* generate-unified-source-bundles.py */; settings = {ATTRIBUTES = (Private, ); }; };
 		DDF306D827C08654006A526F /* CFStringSPI.h in Headers */ = {isa = PBXBuildFile; fileRef = DDF306C127C08654006A526F /* CFStringSPI.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DDF306D927C08654006A526F /* CFRunLoopSPI.h in Headers */ = {isa = PBXBuildFile; fileRef = DDF306C227C08654006A526F /* CFRunLoopSPI.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DDF306DA27C08654006A526F /* CFBundleSPI.h in Headers */ = {isa = PBXBuildFile; fileRef = DDF306C327C08654006A526F /* CFBundleSPI.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -702,7 +705,6 @@
 		DDF307F327C086EA006A526F /* UTF8Conversion.h in Headers */ = {isa = PBXBuildFile; fileRef = A8A47358151A825B004123FF /* UTF8Conversion.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DDF307F427C086EA006A526F /* Collator.h in Headers */ = {isa = PBXBuildFile; fileRef = A8A4734A151A825B004123FF /* Collator.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DDF307F527C0870E006A526F /* config.h in Headers */ = {isa = PBXBuildFile; fileRef = A8A4748B151A8264004123FF /* config.h */; };
-		DDF3080227C08A77006A526F /* generate-unified-source-bundles.rb in Headers */ = {isa = PBXBuildFile; fileRef = DD3DCA0527A4E176007E5B61 /* generate-unified-source-bundles.rb */; settings = {ATTRIBUTES = (Private, ); }; };
 		DDF3080327C08A77006A526F /* GeneratePreferences.rb in Headers */ = {isa = PBXBuildFile; fileRef = DD3DCA0627A4E176007E5B61 /* GeneratePreferences.rb */; settings = {ATTRIBUTES = (Private, ); }; };
 		DDF3082327C44F08006A526F /* filteredbrk.h in Headers */ = {isa = PBXBuildFile; fileRef = DDD8BB3027B347C500C109E0 /* filteredbrk.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DDF3082427C44F08006A526F /* udatpg.h in Headers */ = {isa = PBXBuildFile; fileRef = DDD8BB1727B347C500C109E0 /* udatpg.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -954,6 +956,7 @@
 		EB61EDC72409CCC1001EFE36 /* SystemTracingCocoa.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EB61EDC62409CCC0001EFE36 /* SystemTracingCocoa.cpp */; };
 		EBEE51132D2DF488004FEC23 /* ContinuousApproximateTime.h in Headers */ = {isa = PBXBuildFile; fileRef = EBEE51112D2DF488004FEC23 /* ContinuousApproximateTime.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		EBEE51142D2DF488004FEC23 /* ContinuousApproximateTime.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EBEE51122D2DF488004FEC23 /* ContinuousApproximateTime.cpp */; };
+		F50D171852941FCC9DB3F894 /* Borrow.h in Headers */ = {isa = PBXBuildFile; fileRef = DED4D271AFDD9025027F5497 /* Borrow.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FA0C387B2BEAD56B00583842 /* SmallMap.h in Headers */ = {isa = PBXBuildFile; fileRef = FA0C387A2BEAD56B00583842 /* SmallMap.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FA864D602DA9809F006820D3 /* Variant.h in Headers */ = {isa = PBXBuildFile; fileRef = FA864D5F2DA9809F006820D3 /* Variant.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FAC31B9D2D80083D006CCA20 /* CoroutineUtilities.h in Headers */ = {isa = PBXBuildFile; fileRef = FAC31B9C2D80083D006CCA20 /* CoroutineUtilities.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -965,6 +968,7 @@
 		FE1E2C42224187C600F6B729 /* PlatformRegisters.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FE1E2C41224187C600F6B729 /* PlatformRegisters.cpp */; };
 		FE35D09227DC5ECC009DFA5B /* StackCheck.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FE35D09127DC5ECC009DFA5B /* StackCheck.cpp */; };
 		FE499A6F2CD153B000E34F32 /* OverflowPolicy.h in Headers */ = {isa = PBXBuildFile; fileRef = FE499A6E2CD153B000E34F32 /* OverflowPolicy.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		FE499A712CD153B000E34F32 /* OverflowHandler.h in Headers */ = {isa = PBXBuildFile; fileRef = FE499A702CD153B000E34F32 /* OverflowHandler.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FE6997E129D241630078B9C6 /* ReasonSPI.h in Headers */ = {isa = PBXBuildFile; fileRef = FE6997E029D241630078B9C6 /* ReasonSPI.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FE7ACFEF285DC2F9007FC8E9 /* RawHex.h in Headers */ = {isa = PBXBuildFile; fileRef = FE7ACFEE285DC2F8007FC8E9 /* RawHex.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FE9B8B1A28B1453D0088C6E1 /* CodePtr.h in Headers */ = {isa = PBXBuildFile; fileRef = FE9B8B1928B1453D0088C6E1 /* CodePtr.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -1026,6 +1030,36 @@
 			);
 			runOncePerArchitecture = 0;
 			script = "cp -f \"${INPUT_FILE_PATH}\" \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+		};
+		DDE748582F77554F008013AB /* PBXBuildRule */ = {
+			isa = PBXBuildRule;
+			compilerSpec = com.apple.compilers.proxy.script;
+			filePatterns = "*/module.modulemap";
+			fileType = pattern.proxy;
+			inputFiles = (
+				"$(WK_HEADERS_VFS_FILE)",
+			);
+			isEditable = 1;
+			name = "Workaround for rdar://173516139";
+			outputFiles = (
+				"$(HEADER_OUTPUT_DIR)/$(INPUT_FILE_NAME)",
+			);
+			script = "cp \"${INPUT_FILE_PATH}\" \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+		};
+		DDE7488A2F7B4577008013AB /* PBXBuildRule */ = {
+			isa = PBXBuildRule;
+			compilerSpec = com.apple.compilers.proxy.script;
+			filePatterns = "*/module.modulemap";
+			fileType = pattern.proxy;
+			inputFiles = (
+				"$(WK_HEADERS_VFS_FILE)",
+			);
+			isEditable = 1;
+			name = "Workaround for rdar://173516139";
+			outputFiles = (
+				"$(HEADER_OUTPUT_DIR)/$(INPUT_FILE_NAME)",
+			);
+			script = "cp \"${INPUT_FILE_PATH}\" \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 		};
 		DDF307FB27C08869006A526F /* PBXBuildRule */ = {
 			isa = PBXBuildRule;
@@ -1104,6 +1138,8 @@
 		077CD86B1FD9CFD300828587 /* LoggerHelper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LoggerHelper.h; sourceTree = "<group>"; };
 		077FEABB2EE007FF0071F92D /* library-modules-verifier.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "library-modules-verifier.py"; sourceTree = "<group>"; };
 		07AC4F0D2EF5A62500468BCB /* module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = module.modulemap; sourceTree = "<group>"; };
+		07B588162F74607A00E8AF32 /* module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = module.modulemap; sourceTree = "<group>"; };
+		07C913F22F820E86003A09D8 /* OptionCountedSet.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OptionCountedSet.h; sourceTree = "<group>"; };
 		0F0C03CF29981BEB0064230A /* EmbeddedFixedVector.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = EmbeddedFixedVector.cpp; sourceTree = "<group>"; };
 		0F0C03D7299820EB0064230A /* WeakPtr.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WeakPtr.cpp; sourceTree = "<group>"; };
 		0F0C03E6299828E50064230A /* BloomFilter.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = BloomFilter.cpp; sourceTree = "<group>"; };
@@ -1309,6 +1345,7 @@
 		391BD6BA4D164FD294F9A93D /* StdMap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = StdMap.h; sourceTree = "<group>"; };
 		3A1337A928F915B400F29B73 /* UniqueRefVector.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = UniqueRefVector.h; sourceTree = "<group>"; };
 		3A5BCFA2298768E300E0ABB2 /* RefVector.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RefVector.h; sourceTree = "<group>"; };
+		41036C754D844912316DC00E /* CanBorrow.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CanBorrow.h; sourceTree = "<group>"; };
 		413FE8F51F8D2EAB00F6D7D7 /* CallbackAggregator.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CallbackAggregator.h; sourceTree = "<group>"; };
 		430B47871AAAAC1A001223DA /* StringCommon.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = StringCommon.h; sourceTree = "<group>"; };
 		44235FF62D76448F00F4A6CB /* XPCExtras.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = XPCExtras.h; sourceTree = "<group>"; };
@@ -1721,7 +1758,6 @@
 		DCEE22041CEB9869000C2396 /* BackwardsGraph.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BackwardsGraph.h; sourceTree = "<group>"; };
 		DD284687292442F30009A61D /* UnifiedWebPreferences.yaml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.yaml; path = UnifiedWebPreferences.yaml; sourceTree = "<group>"; };
 		DD28DF2329D368BD00BBB459 /* generate-tapi-filelist.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "generate-tapi-filelist.py"; sourceTree = "<group>"; };
-		DD3DCA0527A4E176007E5B61 /* generate-unified-source-bundles.rb */ = {isa = PBXFileReference; lastKnownFileType = text.script.ruby; path = "generate-unified-source-bundles.rb"; sourceTree = "<group>"; };
 		DD3DCA0627A4E176007E5B61 /* GeneratePreferences.rb */ = {isa = PBXFileReference; lastKnownFileType = text.script.ruby; path = GeneratePreferences.rb; sourceTree = "<group>"; };
 		DD403D5528EB93BE009B4684 /* libbmalloc.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; path = libbmalloc.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		DD4901DF27B4748A00D7E50D /* UniStdExtras.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = UniStdExtras.h; sourceTree = "<group>"; };
@@ -1921,6 +1957,7 @@
 		DDD8BB7A27B347C500C109E0 /* ulistformatter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ulistformatter.h; sourceTree = "<group>"; };
 		DDD8BB7B27B347C500C109E0 /* measfmt.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = measfmt.h; sourceTree = "<group>"; };
 		DDD8BB7C27B347C500C109E0 /* unifilt.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = unifilt.h; sourceTree = "<group>"; };
+		DDE7455D2F731D80008013AB /* generate-unified-source-bundles.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "generate-unified-source-bundles.py"; sourceTree = "<group>"; };
 		DDF306C127C08654006A526F /* CFStringSPI.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CFStringSPI.h; sourceTree = "<group>"; };
 		DDF306C227C08654006A526F /* CFRunLoopSPI.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CFRunLoopSPI.h; sourceTree = "<group>"; };
 		DDF306C327C08654006A526F /* CFBundleSPI.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CFBundleSPI.h; sourceTree = "<group>"; };
@@ -1943,6 +1980,7 @@
 		DDF306D727C08654006A526F /* CodeSignSPI.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CodeSignSPI.h; sourceTree = "<group>"; };
 		DDF3081E27C44EFF006A526F /* libicu.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libicu.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		DDF308DD27C44F84006A526F /* icu.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = icu.xcconfig; sourceTree = "<group>"; };
+		DED4D271AFDD9025027F5497 /* Borrow.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Borrow.h; sourceTree = "<group>"; };
 		DEF7FE5F22581AC800C15129 /* TaggedArrayStoragePtr.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TaggedArrayStoragePtr.h; sourceTree = "<group>"; };
 		DF292D55278F9BC600BB2918 /* ExperimentalFeatureNames.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ExperimentalFeatureNames.h; sourceTree = "<group>"; };
 		DFC610A724FB71B9006254C8 /* CodePointIterator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CodePointIterator.h; sourceTree = "<group>"; };
@@ -1977,7 +2015,6 @@
 		E3538D4D276220880075DA50 /* TrailingArray.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TrailingArray.h; sourceTree = "<group>"; };
 		E35702502C9D4CEC009292DE /* simd128.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = simd128.h; sourceTree = "<group>"; };
 		E360C7642127B85B00C90F0E /* UnalignedAccess.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = UnalignedAccess.h; sourceTree = "<group>"; };
-		E360C7652127B85C00C90F0E /* Unexpected.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Unexpected.h; sourceTree = "<group>"; };
 		E3618AB82AD8C4B900DA7E43 /* ButterflyArray.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ButterflyArray.h; sourceTree = "<group>"; };
 		E361DB512891159B00B2A2B8 /* FastFloat.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = FastFloat.cpp; sourceTree = "<group>"; };
 		E361DB522891159C00B2A2B8 /* FastFloat.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FastFloat.h; sourceTree = "<group>"; };
@@ -2059,6 +2096,7 @@
 		FE35D09127DC5ECC009DFA5B /* StackCheck.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = StackCheck.cpp; sourceTree = "<group>"; };
 		FE3842342325CC80009DD445 /* ResourceUsage.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ResourceUsage.h; sourceTree = "<group>"; };
 		FE499A6E2CD153B000E34F32 /* OverflowPolicy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OverflowPolicy.h; sourceTree = "<group>"; };
+		FE499A702CD153B000E34F32 /* OverflowHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OverflowHandler.h; sourceTree = "<group>"; };
 		FE6997E029D241630078B9C6 /* ReasonSPI.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ReasonSPI.h; sourceTree = "<group>"; };
 		FE7497E4208FFCAA0003565B /* PtrTag.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PtrTag.h; sourceTree = "<group>"; };
 		FE7ACFEE285DC2F8007FC8E9 /* RawHex.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RawHex.h; sourceTree = "<group>"; };
@@ -2342,6 +2380,7 @@
 				0F0C03E6299828E50064230A /* BloomFilter.cpp */,
 				A8A47265151A825A004123FF /* BloomFilter.h */,
 				0FB399B820AF5A580017E213 /* BooleanLattice.h */,
+				DED4D271AFDD9025027F5497 /* Borrow.h */,
 				0F93274A1C17F4B700CF6564 /* Box.h */,
 				0F93274A1C17F4B700CF6566 /* BoxPtr.h */,
 				7C3F72391D78811900674E26 /* Brigand.h */,
@@ -2352,6 +2391,7 @@
 				0FEC3C4F1F323C6800F59B6C /* CagedPtr.h */,
 				0F5F3D681F3FEBA600B115A2 /* CagedUniquePtr.h */,
 				413FE8F51F8D2EAB00F6D7D7 /* CallbackAggregator.h */,
+				41036C754D844912316DC00E /* CanBorrow.h */,
 				46209A27266D543A007F8F4A /* CancellableTask.h */,
 				1470EAF62BD6FB3F00E26254 /* CanMakeWeakPtr.h */,
 				A8A4726A151A825A004123FF /* CheckedArithmetic.h */,
@@ -2580,6 +2620,7 @@
 				83A8AC3D1FABBE94002064AC /* ObjectIdentifier.h */,
 				CD48A87024C8A21600F5800C /* Observer.h */,
 				14F1EB412DDF9BFF009BBD4B /* OptionalOrReference.h */,
+				07C913F22F820E86003A09D8 /* OptionCountedSet.h */,
 				1A4656181C7FC68E00F5920F /* OptionSet.h */,
 				275DFB6B238BDF72001230E2 /* OptionSetHash.h */,
 				0F9495831C571CC900413A48 /* OrderMaker.h */,
@@ -2587,6 +2628,7 @@
 				7CBBA07319BB7FDC00BBF025 /* OSObjectPtr.h */,
 				A8A472DA151A825B004123FF /* OSRandomSource.cpp */,
 				A8A472DB151A825B004123FF /* OSRandomSource.h */,
+				FE499A702CD153B000E34F32 /* OverflowHandler.h */,
 				FE499A6E2CD153B000E34F32 /* OverflowPolicy.h */,
 				E34CD0D022810A020020D299 /* Packed.h */,
 				E36895CB23A445CD008DD4C8 /* PackedRef.h */,
@@ -2783,7 +2825,6 @@
 				FE03831B2ABC04F700A576A2 /* TZoneMalloc.h */,
 				FE03831A2ABC04F700A576A2 /* TZoneMallocInlines.h */,
 				E360C7642127B85B00C90F0E /* UnalignedAccess.h */,
-				E360C7652127B85C00C90F0E /* Unexpected.h */,
 				A8A4735C151A825B004123FF /* UnionFind.h */,
 				0FA6F39420CCACE900A03DCD /* UniqueArray.cpp */,
 				E300E521203D645F00DA79BE /* UniqueArray.h */,
@@ -3007,7 +3048,7 @@
 				DD725EC92D8A442900E72544 /* audit-spi-if-needed.sh */,
 				DDBF3D852EE23C2400F32872 /* check-ccache-compilation-caching.sh */,
 				DD28DF2329D368BD00BBB459 /* generate-tapi-filelist.py */,
-				DD3DCA0527A4E176007E5B61 /* generate-unified-source-bundles.rb */,
+				DDE7455D2F731D80008013AB /* generate-unified-source-bundles.py */,
 				DD3DCA0627A4E176007E5B61 /* GeneratePreferences.rb */,
 			);
 			path = Scripts;
@@ -3025,6 +3066,7 @@
 			isa = PBXGroup;
 			children = (
 				DDD8BAC127B347C400C109E0 /* unicode */,
+				07B588162F74607A00E8AF32 /* module.modulemap */,
 			);
 			path = icu;
 			sourceTree = "<group>";
@@ -3480,6 +3522,7 @@
 				DD3DC97427A4BF8E007E5B61 /* BloomFilter.h in Headers */,
 				468378C62EC2D84200A9257A /* BOMSPI.h in Headers */,
 				DD3DC90E27A4BF8E007E5B61 /* BooleanLattice.h in Headers */,
+				F50D171852941FCC9DB3F894 /* Borrow.h in Headers */,
 				DD3DC91B27A4BF8E007E5B61 /* Box.h in Headers */,
 				DD3DC92927A4BF8E007E5B61 /* BoxPtr.h in Headers */,
 				DD3DC91C27A4BF8E007E5B61 /* Brigand.h in Headers */,
@@ -3492,6 +3535,7 @@
 				DD3DC95427A4BF8E007E5B61 /* CagedPtr.h in Headers */,
 				DD3DC95527A4BF8E007E5B61 /* CagedUniquePtr.h in Headers */,
 				DD3DC8E927A4BF8E007E5B61 /* CallbackAggregator.h in Headers */,
+				7310722B5EF464F16AAE91D7 /* CanBorrow.h in Headers */,
 				DD3DC99B27A4BF8E007E5B61 /* CancellableTask.h in Headers */,
 				1470EAF72BD6FB3F00E26254 /* CanMakeWeakPtr.h in Headers */,
 				DDF306DA27C08654006A526F /* CFBundleSPI.h in Headers */,
@@ -3606,7 +3650,7 @@
 				DD3DC94E27A4BF8E007E5B61 /* FunctionTraits.h in Headers */,
 				DD5697C72DC0511900050321 /* generate-platform-args in Headers */,
 				07F5EA6F2EE8A7630085B185 /* generate-tapi-filelist.py in Headers */,
-				DDF3080227C08A77006A526F /* generate-unified-source-bundles.rb in Headers */,
+				DDE7455F2F731DBA008013AB /* generate-unified-source-bundles.py in Headers */,
 				07F5EA702EE8A7660085B185 /* GenerateModuleVerifierInputsTask.py in Headers */,
 				DDF3080327C08A77006A526F /* GeneratePreferences.rb in Headers */,
 				A400B8FB2F3AB62E009E21AF /* GenerationalSet.h in Headers */,
@@ -3738,6 +3782,7 @@
 				DD3DC88327A4BF8E007E5B61 /* ObjectIdentifier.h in Headers */,
 				DD3DC86027A4BF8E007E5B61 /* Observer.h in Headers */,
 				14F1EB422DDF9BFF009BBD4B /* OptionalOrReference.h in Headers */,
+				07C913F32F820E86003A09D8 /* OptionCountedSet.h in Headers */,
 				DD3DC92E27A4BF8E007E5B61 /* OptionSet.h in Headers */,
 				DD3DC90927A4BF8E007E5B61 /* OptionSetHash.h in Headers */,
 				DD3DC86827A4BF8E007E5B61 /* OrderMaker.h in Headers */,
@@ -3748,6 +3793,7 @@
 				DD3DC87227A4BF8E007E5B61 /* OSObjectPtr.h in Headers */,
 				DD3DC98327A4BF8E007E5B61 /* OSRandomSource.h in Headers */,
 				DDF306E427C08654006A526F /* OSVariantSPI.h in Headers */,
+				FE499A712CD153B000E34F32 /* OverflowHandler.h in Headers */,
 				FE499A6F2CD153B000E34F32 /* OverflowPolicy.h in Headers */,
 				DD3DC86127A4BF8E007E5B61 /* Packed.h in Headers */,
 				DD3DC98D27A4BF8E007E5B61 /* PackedRef.h in Headers */,
@@ -3954,7 +4000,6 @@
 				FE03831D2ABC04F700A576A2 /* TZoneMalloc.h in Headers */,
 				FE03831C2ABC04F700A576A2 /* TZoneMallocInlines.h in Headers */,
 				DD3DC8C927A4BF8E007E5B61 /* UnalignedAccess.h in Headers */,
-				DD3DC86A27A4BF8E007E5B61 /* Unexpected.h in Headers */,
 				46E915222CD2E26C00C437B7 /* UnicodeExtras.h in Headers */,
 				DD28468829248DDA0009A61D /* UnifiedWebPreferences.yaml in Headers */,
 				DD3DC8A627A4BF8E007E5B61 /* UnionFind.h in Headers */,
@@ -4082,6 +4127,7 @@
 				DDF3089B27C44F08006A526F /* measunit.h in Headers */,
 				DDF308D627C44F08006A526F /* measure.h in Headers */,
 				DDF3084527C44F08006A526F /* messagepattern.h in Headers */,
+				07B588172F74609A00E8AF32 /* module.modulemap in Headers */,
 				DDF3085C27C44F08006A526F /* msgfmt.h in Headers */,
 				DDF3086627C44F08006A526F /* normalizer2.h in Headers */,
 				DDF3085427C44F08006A526F /* normlzr.h in Headers */,
@@ -4267,6 +4313,7 @@
 				DDF3081C27C44EFE006A526F /* Frameworks */,
 			);
 			buildRules = (
+				DDE7488A2F7B4577008013AB /* PBXBuildRule */,
 			);
 			dependencies = (
 			);

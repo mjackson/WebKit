@@ -1072,14 +1072,21 @@ Result<AST::VariableQualifier::Ref> Parser<Lexer>::parseVariableQualifier()
 
     AccessMode accessMode;
     if (current().type == TokenType::Comma) {
-        if (addressSpace != AddressSpace::Storage)
-            FAIL("only variables in the <storage> address space may specify an access mode"_s);
-
         consume();
-        PARSE(actualAccessMode, AccessMode);
-        accessMode = actualAccessMode;
+
+        if (current().type == TokenType::Identifier) {
+            if (addressSpace != AddressSpace::Storage)
+                FAIL("only variables in the <storage> address space may specify an access mode"_s);
+
+            PARSE(actualAccessMode, AccessMode);
+            accessMode = actualAccessMode;
+
+            if (current().type == TokenType::Comma)
+                consume();
+        }
     } else
         accessMode = defaultAccessModeForAddressSpace(addressSpace);
+
 
     CONSUME_TYPE(TemplateArgsRight);
     RETURN_ARENA_NODE(VariableQualifier, addressSpace, accessMode);

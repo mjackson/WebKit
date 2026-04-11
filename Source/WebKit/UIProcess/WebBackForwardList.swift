@@ -538,18 +538,13 @@ final class WebBackForwardList {
         for (i, entry) in entries.enumerated() {
             if filterSpecified(filter) && !callFilter(filter, entry) {
                 if let stateCurrentIndex = Optional(fromCxx: backForwardListState.currentIndex) {
-                    if i < stateCurrentIndex && stateCurrentIndex != 0 {
+                    if i <= stateCurrentIndex && stateCurrentIndex != 0 {
                         setOptionalUInt32Value(&backForwardListState.currentIndex, stateCurrentIndex - 1)
                     }
                 }
                 continue
             }
-            backForwardListState.items.append(
-                consuming: WebKit.BackForwardListItemState(
-                    frameState: entry.copyMainFrameStateWithChildren(),
-                    navigatedFrameID: entry.navigatedFrameID()
-                )
-            )
+            appendToBackForwardStateItems(&backForwardListState.items, entry)
         }
 
         if backForwardListState.items.isEmpty() {
@@ -562,14 +557,6 @@ final class WebBackForwardList {
         return backForwardListState
     }
 
-    private func setBackForwardItemIdentifiers(frameState: WebKit.FrameState, itemID: WebCore.BackForwardItemIdentifier) {
-        frameState.itemID = WebCore.MarkableBackForwardItemIdentifier(itemID)
-        frameState.frameItemID = WebCore.MarkableBackForwardFrameItemIdentifier(generateBackForwardFrameItemIdentifier())
-        for child in CxxVectorIterator(vec: frameState.children) {
-            setBackForwardItemIdentifiers(frameState: child.ptr(), itemID: itemID)
-        }
-    }
-
     func restoreFromState(backForwardListState: WebKit.BackForwardListState) {
         guard let page = page.get() else {
             return
@@ -579,10 +566,7 @@ final class WebBackForwardList {
         entries.removeAll()
         entries.reserveCapacity(backForwardListState.items.size())
         for itemState in CxxVectorIterator(vec: backForwardListState.items) {
-            let stateCopy = itemState.frameState.ptr().copy()
-            setBackForwardItemIdentifiers(frameState: stateCopy.ptr(), itemID: generateBackForwardItemIdentifier())
-            let item = WebKit.WebBackForwardListItem.create(consuming: stateCopy, page.identifier(), itemState.navigatedFrameID)
-            entries.append(item.ptr())
+            entries.append(createItemFromState(itemState, page.identifier()).ptr())
         }
 
         currentIndex = Optional(fromCxx: backForwardListState.currentIndex).map({ val in Int(val) })
@@ -702,9 +686,12 @@ final class WebBackForwardList {
         guard let targetItem = itemForID(identifier: itemID) else {
             return nil
         }
-        guard let parentFrameItem = targetItem.mainFrameItem().childItemForFrameID(parentFrameID) else {
-            return nil
-        }
+        // FIXME: After session restore, the back/forward list's frame identifiers don't match
+        // the current WebView's frames because the original identifiers are unavailable.
+        // Fall back to the mainFrameItem if the parentFrameID isn't found.
+        // This only works correctly for direct children of the main frame; nested frames
+        // (e.g., subframe > nestedframe) will get the wrong FrameState.
+        let parentFrameItem = targetItem.mainFrameItem().childItemForFrameID(parentFrameID) ?? targetItem.mainFrameItem()
         guard let childFrameItem = parentFrameItem.childItemAtIndex(childFrameIndex) else {
             return nil
         }

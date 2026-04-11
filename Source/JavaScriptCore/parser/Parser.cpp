@@ -199,9 +199,7 @@ public:
 };
 
 template <typename LexerType>
-Parser<LexerType>::~Parser()
-{
-}
+Parser<LexerType>::~Parser() = default;
 
 void JSToken::dump(PrintStream& out) const
 {
@@ -560,7 +558,7 @@ template <class TreeBuilder> TreeSourceElements Parser<LexerType>::parseGenerato
     info.parametersStartColumn = startColumn;
 
     auto functionExpr = context.createGeneratorFunctionBody(startLocation, info, name);
-    auto statement = context.createExprStatement(startLocation, functionExpr, start, m_lastTokenEndPosition.line);
+    auto statement = context.createExprStatement(startLocation, functionExpr, start, m_lastTokenLocation.line);
     context.appendStatement(sourceElements, statement);
 
     return sourceElements;
@@ -651,7 +649,7 @@ template <class TreeBuilder> TreeSourceElements Parser<LexerType>::parseAsyncFun
     info.parametersStartColumn = startColumn;
 
     auto functionExpr = context.createAsyncFunctionBody(startLocation, info, bodyParseMode, calleeName);
-    auto statement = context.createExprStatement(startLocation, functionExpr, start, m_lastTokenEndPosition.line);
+    auto statement = context.createExprStatement(startLocation, functionExpr, start, m_lastTokenLocation.line);
     context.appendStatement(sourceElements, statement);
 
     return sourceElements;
@@ -707,7 +705,7 @@ template <class TreeBuilder> TreeSourceElements Parser<LexerType>::parseAsyncGen
     info.parametersStartColumn = startColumn;
 
     auto functionExpr = context.createAsyncFunctionBody(startLocation, info, parseMode, calleeName);
-    auto statement = context.createExprStatement(startLocation, functionExpr, start, m_lastTokenEndPosition.line);
+    auto statement = context.createExprStatement(startLocation, functionExpr, start, m_lastTokenLocation.line);
     context.appendStatement(sourceElements, statement);
         
     return sourceElements;
@@ -736,7 +734,7 @@ template <class TreeBuilder> TreeSourceElements Parser<LexerType>::parseSingleFu
     }
 
     if (statement) {
-        context.setEndOffset(statement, m_lastTokenEndPosition.offset);
+        context.setEndOffset(statement, m_lastTokenLocation.endOffset);
         context.appendStatement(sourceElements, statement);
     }
 
@@ -872,7 +870,7 @@ template <class TreeBuilder> TreeStatement Parser<LexerType>::parseStatementList
 
     if (result) {
         if (shouldSetEndOffset)
-            context.setEndOffset(result, m_lastTokenEndPosition.offset);
+            context.setEndOffset(result, m_lastTokenLocation.endOffset);
         if (shouldSetPauseLocation)
             recordPauseLocation(context.breakpointLocation(result));
     }
@@ -1167,13 +1165,13 @@ template <class TreeBuilder> TreeSourceElements Parser<LexerType>::parseArrowFun
     TreeExpression expr = parseAssignmentExpression(context);
     failIfFalse(expr, "Cannot parse the arrow function expression");
     
-    context.setEndOffset(expr, m_lastTokenEndPosition.offset);
+    context.setEndOffset(expr, m_lastTokenLocation.endOffset);
 
     JSTextPosition end = tokenEndPosition();
     
     TreeSourceElements sourceElements = context.createSourceElements();
     TreeStatement body = context.createReturnStatement(location, expr, start, end);
-    context.setEndOffset(body, m_lastTokenEndPosition.offset);
+    context.setEndOffset(body, m_lastTokenLocation.endOffset);
     recordPauseLocation(context.breakpointLocation(body));
     context.appendStatement(sourceElements, body);
 
@@ -1990,7 +1988,7 @@ template <class TreeBuilder> TreeStatement Parser<LexerType>::parseTryStatement(
     tryBlock = parseBlockStatement(context);
     failIfFalse(tryBlock, "Cannot parse the body of try block");
     bool tryBlockContainsReturn = m_parserState.returnStatementCount != returnStatementCountBeforeTryBlock;
-    int lastLine = m_lastTokenEndPosition.line;
+    int lastLine = m_lastTokenLocation.line;
     VariableEnvironment catchEnvironment; 
     DeclarationStacks::FunctionStack functionStack;
     if (consume(CATCH)) {
@@ -2105,7 +2103,7 @@ template <class TreeBuilder> TreeStatement Parser<LexerType>::parseBlockStatemen
         next();
         if (shouldPushLexicalScope)
             std::tie(lexicalEnvironment, functionStack) = popScope(lexicalScope, TreeBuilder::NeedsFreeVariableInfo);
-        TreeStatement result = context.createBlockStatement(location, 0, start, m_lastTokenEndPosition.line, WTF::move(lexicalEnvironment), WTF::move(functionStack));
+        TreeStatement result = context.createBlockStatement(location, 0, start, m_lastTokenLocation.line, WTF::move(lexicalEnvironment), WTF::move(functionStack));
         context.setStartOffset(result, startOffset);
         context.setEndOffset(result, endOffset);
         return result;
@@ -2117,7 +2115,7 @@ template <class TreeBuilder> TreeStatement Parser<LexerType>::parseBlockStatemen
     next();
     if (shouldPushLexicalScope)
         std::tie(lexicalEnvironment, functionStack) = popScope(lexicalScope, TreeBuilder::NeedsFreeVariableInfo);
-    TreeStatement result = context.createBlockStatement(location, subtree, start, m_lastTokenEndPosition.line, WTF::move(lexicalEnvironment), WTF::move(functionStack));
+    TreeStatement result = context.createBlockStatement(location, subtree, start, m_lastTokenLocation.line, WTF::move(lexicalEnvironment), WTF::move(functionStack));
     context.setStartOffset(result, startOffset);
     context.setEndOffset(result, endOffset);
     return result;
@@ -2235,7 +2233,7 @@ template <class TreeBuilder> TreeStatement Parser<LexerType>::parseStatement(Tre
 
     if (result) {
         if (shouldSetEndOffset)
-            context.setEndOffset(result, m_lastTokenEndPosition.offset);
+            context.setEndOffset(result, m_lastTokenLocation.endOffset);
         if (shouldSetPauseLocation)
             recordPauseLocation(context.breakpointLocation(result));
     }
@@ -2272,7 +2270,7 @@ template <class TreeBuilder> TreeStatement Parser<LexerType>::parseFunctionDecla
     TreeSourceElements sourceElements = context.createSourceElements();
     context.appendStatement(sourceElements, function);
     auto [lexicalEnvironment, functionDeclarations] = popScope(blockScope, TreeBuilder::NeedsFreeVariableInfo);
-    return context.createBlockStatement(location, sourceElements, start, m_lastTokenEndPosition.line, WTF::move(lexicalEnvironment), WTF::move(functionDeclarations));
+    return context.createBlockStatement(location, sourceElements, start, m_lastTokenLocation.line, WTF::move(lexicalEnvironment), WTF::move(functionDeclarations));
 }
 
 template <typename LexerType>
@@ -2672,7 +2670,7 @@ template <class TreeBuilder> bool Parser<LexerType>::parseFunctionInfo(TreeBuild
                 next();
                 break;
             }
-            functionInfo.endLine = m_lastTokenEndPosition.line;
+            functionInfo.endLine = m_lastTokenLocation.line;
             return true;
         }
 
@@ -2915,7 +2913,7 @@ template <class TreeBuilder> bool Parser<LexerType>::parseFunctionInfo(TreeBuild
     if (newInfo)
         m_functionCache->add(functionInfo.startOffset, WTF::move(newInfo));
     
-    functionInfo.endLine = m_lastTokenEndPosition.line;
+    functionInfo.endLine = m_lastTokenLocation.line;
     return true;
 }
 
@@ -3452,7 +3450,14 @@ template <class TreeBuilder> TreeSourceElements Parser<LexerType>::parseClassFie
 
         TreeStatement statement;
         if (definition.kind == Kind::StaticInitializationBlock) {
-            restoreLexerState(LexerState { position.offset, static_cast<unsigned>(position.lineStartOffset), static_cast<unsigned>(position.line), static_cast<unsigned>(position.line), hasLineTerminatorBeforeToken });
+            {
+                JSTokenLocation loc;
+                loc.line = position.line;
+                loc.lineStartOffset = position.lineStartOffset;
+                loc.startOffset = position.offset;
+                loc.endOffset = position.offset;
+                restoreLexerState(LexerState { position.offset, static_cast<unsigned>(position.lineStartOffset), loc, static_cast<unsigned>(position.line), hasLineTerminatorBeforeToken, ERRORTOK });
+            }
             JSTokenLocation startLocation(tokenLocation());
             JSTextPosition startPosition = tokenStartPosition();
             unsigned expressionStart = tokenStart();
@@ -3467,7 +3472,7 @@ template <class TreeBuilder> TreeSourceElements Parser<LexerType>::parseClassFie
             TreeExpression expression = context.createFunctionExpr(startLocation, functionInfo);
 
             expression = context.makeStaticBlockFunctionCallNode(startLocation, expression, lastTokenEndPosition(), startPosition, lastTokenEndPosition());
-            statement = context.createExprStatement(startLocation, expression, startPosition, m_lastTokenEndPosition.line);
+            statement = context.createExprStatement(startLocation, expression, startPosition, m_lastTokenLocation.line);
         } else {
             JSTokenLocation location;
             location.line = position.line;
@@ -3476,7 +3481,14 @@ template <class TreeBuilder> TreeSourceElements Parser<LexerType>::parseClassFie
 
             TreeExpression initializer = 0;
             if (auto initializerPosition = definition.initializerPosition) {
-                restoreLexerState(LexerState { initializerPosition->offset, static_cast<unsigned>(initializerPosition->lineStartOffset), static_cast<unsigned>(initializerPosition->line), static_cast<unsigned>(initializerPosition->line), hasLineTerminatorBeforeToken });
+                {
+                    JSTokenLocation loc;
+                    loc.line = initializerPosition->line;
+                    loc.lineStartOffset = initializerPosition->lineStartOffset;
+                    loc.startOffset = initializerPosition->offset;
+                    loc.endOffset = initializerPosition->offset;
+                    restoreLexerState(LexerState { initializerPosition->offset, static_cast<unsigned>(initializerPosition->lineStartOffset), loc, static_cast<unsigned>(initializerPosition->line), hasLineTerminatorBeforeToken, ERRORTOK });
+                }
                 // parseExpression() is more permissive way to parse AssignmentExpression than parseAssignmentExpression() that is used in parseClass().
                 // This is very intentional: we need to fail for `foo = 1, 2` but support reparsing `foo = (1, 2)`, which is tricky because open paren
                 // is skipped (meaning start offset points to `1`) by parsePrimaryExpression().
@@ -3614,7 +3626,7 @@ template <class TreeBuilder> TreeStatement Parser<LexerType>::parseExpressionSta
     failIfFalse(expression, "Cannot parse expression statement");
     if (!autoSemiColon()) [[unlikely]]
         failDueToUnexpectedToken();
-    return context.createExprStatement(location, expression, start, m_lastTokenEndPosition.line);
+    return context.createExprStatement(location, expression, start, m_lastTokenLocation.line);
 }
 
 template <typename LexerType>
@@ -3724,7 +3736,7 @@ template <class TreeBuilder> typename TreeBuilder::ImportSpecifier Parser<LexerT
         // e.g.
         //     * as namespace
         ASSERT(match(TIMES));
-        importedName = &m_vm.propertyNames->timesIdentifier;
+        importedName = &m_vm.propertyNames->starNamespacePrivateName;
         next();
 
         failIfFalse(matchContextualKeyword(m_vm.propertyNames->as), "Expected 'as' before imported binding name");
@@ -4218,7 +4230,7 @@ template <class TreeBuilder> TreeExpression Parser<LexerType>::parseExpression(T
     JSTokenLocation headLocation(tokenLocation());
     TreeExpression node = parseAssignmentExpression(context);
     failIfFalse(node, "Cannot parse expression");
-    context.setEndOffset(node, m_lastTokenEndPosition.offset);
+    context.setEndOffset(node, m_lastTokenLocation.endOffset);
     if (!match(COMMA))
         return node;
     recordPauseLocation(context.breakpointLocation(node));
@@ -4229,7 +4241,7 @@ template <class TreeBuilder> TreeExpression Parser<LexerType>::parseExpression(T
     TreeExpression right = parseAssignmentExpression(context);
     failIfFalse(right, "Cannot parse expression in a comma expression");
     recordPauseLocation(context.breakpointLocation(right));
-    context.setEndOffset(right, m_lastTokenEndPosition.offset);
+    context.setEndOffset(right, m_lastTokenLocation.endOffset);
     typename TreeBuilder::Comma head = context.createCommaExpr(headLocation, node);
     typename TreeBuilder::Comma tail = context.appendToCommaExpr(tailLocation, head, right);
     while (match(COMMA)) {
@@ -4237,11 +4249,11 @@ template <class TreeBuilder> TreeExpression Parser<LexerType>::parseExpression(T
         tailLocation = tokenLocation();
         right = parseAssignmentExpression(context);
         failIfFalse(right, "Cannot parse expression in a comma expression");
-        context.setEndOffset(right, m_lastTokenEndPosition.offset);
+        context.setEndOffset(right, m_lastTokenLocation.endOffset);
         recordPauseLocation(context.breakpointLocation(right));
         tail = context.appendToCommaExpr(tailLocation, tail, right);
     }
-    context.setEndOffset(head, m_lastTokenEndPosition.offset);
+    context.setEndOffset(head, m_lastTokenLocation.endOffset);
     return head;
 }
 
@@ -4498,12 +4510,12 @@ template <class TreeBuilder> TreeExpression Parser<LexerType>::parseConditionalE
         lhs = parseAssignmentExpression(context);
     }
     failIfFalse(lhs, "Cannot parse left hand side of ternary operator");
-    context.setEndOffset(lhs, m_lastTokenEndPosition.offset);
+    context.setEndOffset(lhs, m_lastTokenLocation.endOffset);
     consumeOrFailWithFlags(COLON, TreeBuilder::DontBuildStrings, "Expected ':' in ternary operator");
     
     TreeExpression rhs = parseAssignmentExpression(context);
     failIfFalse(rhs, "Cannot parse right hand side of ternary operator");
-    context.setEndOffset(rhs, m_lastTokenEndPosition.offset);
+    context.setEndOffset(rhs, m_lastTokenLocation.endOffset);
     return context.createConditionalExpr(location, cond, lhs, rhs);
 }
 
@@ -4780,7 +4792,7 @@ namedProperty:
         next();
         TreeExpression elem = parseAssignmentExpression(context);
         failIfFalse(elem, "Cannot parse subject of a spread operation");
-        auto node = context.createObjectSpreadExpression(spreadLocation, elem, start, divot, m_lastTokenEndPosition);
+        auto node = context.createObjectSpreadExpression(spreadLocation, elem, start, divot, lastTokenEndPosition());
         return context.createProperty(node, PropertyNode::Spread, SuperBinding::NotNeeded, ClassElementTag::No);
     }
     default:
@@ -4955,7 +4967,7 @@ template <class TreeBuilder> TreeExpression Parser<LexerType>::parseArrayLiteral
         next();
         auto spreadExpr = parseAssignmentExpression(context);
         failIfFalse(spreadExpr, "Cannot parse subject of a spread operation");
-        elem = context.createSpreadExpression(spreadLocation, spreadExpr, start, divot, m_lastTokenEndPosition);
+        elem = context.createSpreadExpression(spreadLocation, spreadExpr, start, divot, lastTokenEndPosition());
     } else
         elem = parseAssignmentExpression(context);
     failIfFalse(elem, "Cannot parse array literal element");
@@ -4979,7 +4991,7 @@ template <class TreeBuilder> TreeExpression Parser<LexerType>::parseArrayLiteral
             next();
             TreeExpression elem = parseAssignmentExpression(context);
             failIfFalse(elem, "Cannot parse subject of a spread operation");
-            auto spread = context.createSpreadExpression(spreadLocation, elem, start, divot, m_lastTokenEndPosition);
+            auto spread = context.createSpreadExpression(spreadLocation, elem, start, divot, lastTokenEndPosition());
             tail = context.createElementList(tail, elisions, spread);
             continue;
         }
@@ -5132,7 +5144,7 @@ template <class TreeBuilder> TreeExpression Parser<LexerType>::tryParseArguments
     // the clause with token type IDENT.
     if (currentScope()->isStaticBlock()
         || m_parserState.isParsingClassFieldInitializer
-        || currentScope()->evalContextType() == EvalContextType::InstanceFieldEvalContext) [[unlikely]]
+        || closestScopeOwningArguments()->evalContextType() == EvalContextType::InstanceFieldEvalContext) [[unlikely]]
         return 0;
 
     SavePoint argumentsSavePoint = createSavePoint(context);
@@ -5217,8 +5229,8 @@ template <class TreeBuilder> TreeExpression Parser<LexerType>::parsePrimaryExpre
     identifierExpression:
         JSTextPosition start = tokenStartPosition();
         const Identifier* ident = m_token.m_data.ident;
-        if (currentScope()->evalContextType() == EvalContextType::InstanceFieldEvalContext) [[unlikely]]
-            failIfTrue(*ident == m_vm.propertyNames->arguments, "arguments is not valid in this context");
+        if (*ident == m_vm.propertyNames->arguments) [[unlikely]]
+            failIfTrue(closestScopeOwningArguments()->evalContextType() == EvalContextType::InstanceFieldEvalContext, "arguments is not valid in this context");
         JSTokenLocation location(tokenLocation());
         next();
 
@@ -5282,7 +5294,7 @@ template <class TreeBuilder> TreeExpression Parser<LexerType>::parsePrimaryExpre
         JSTextPosition start = tokenStartPosition();
         JSTokenLocation location(tokenLocation());
         next();
-        TreeExpression re = context.createRegExp(location, *pattern, *flags, start);
+        TreeExpression re = context.createRegExp(location, *pattern, *flags, start, m_lexer->isReparsingFunction());
         if (!re) [[unlikely]] {
             Yarr::ErrorCode errorCode = Yarr::checkSyntax(pattern->string(), flags->string());
             regexFail(String::fromLatin1(Yarr::errorMessage(errorCode)));
@@ -5351,7 +5363,7 @@ template <class TreeBuilder> TreeArguments Parser<LexerType>::parseArguments(Tre
 
     handleProductionOrFail2(CLOSEPAREN, ")", "end", "argument list");
     if (hasSpread) {
-        TreeExpression spreadArray = context.createSpreadExpression(location, context.createArray(location, context.createElementList(argList)), argumentsStart, argumentsDivot, m_lastTokenEndPosition);
+        TreeExpression spreadArray = context.createSpreadExpression(location, context.createArray(location, context.createElementList(argList)), argumentsStart, argumentsDivot, lastTokenEndPosition());
         return context.createArguments(context.createArgumentsList(location, spreadArray), initialAssignments != m_parserState.assignmentCount);
     }
 
@@ -5368,7 +5380,7 @@ template <class TreeBuilder> TreeExpression Parser<LexerType>::parseArgument(Tre
         next();
         TreeExpression spreadExpr = parseAssignmentExpression(context);
         propagateError();
-        auto end = m_lastTokenEndPosition;
+        auto end = lastTokenEndPosition();
         type = ArgumentType::Spread;
         return context.createSpreadExpression(spreadLocation, spreadExpr, start, divot, end);
     }

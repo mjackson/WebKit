@@ -30,12 +30,11 @@
 
 #include "PlatformDisplay.h"
 #include "SkiaGPUAtlas.h"
+#include "SkiaUtilities.h"
 #include <wtf/TZoneMallocInlines.h>
 
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
-#include <skia/core/SkColorSpace.h>
 #include <skia/gpu/ganesh/GrDirectContext.h>
-#include <skia/gpu/ganesh/SkImageGanesh.h>
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 
 namespace WebCore {
@@ -62,7 +61,7 @@ std::unique_ptr<SkiaReplayAtlas> SkiaReplayAtlas::create(const SkiaGPUAtlas& gpu
     // The underlying GL texture was created on the main thread context but is
     // shareable via GL context sharing. However, the Skia SkImage wrapper is
     // context-specific and must be rewrapped for each worker's GrDirectContext.
-    auto rewrapped = SkImages::BorrowTextureFrom(grContext, gpuAtlas.backendTexture(), kTopLeft_GrSurfaceOrigin, kRGBA_8888_SkColorType, kPremul_SkAlphaType, SkColorSpace::MakeSRGB());
+    auto rewrapped = SkiaUtilities::borrowBackendTextureAsImage(grContext, gpuAtlas.backendTexture());
     if (!rewrapped)
         return nullptr;
 

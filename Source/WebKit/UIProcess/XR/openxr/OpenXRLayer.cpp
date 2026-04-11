@@ -26,7 +26,6 @@
 #include <EGL/egl.h>
 #endif
 
-#include "XRDeviceLayer.h"
 #include <WebCore/FourCC.h>
 #include <WebCore/GLContext.h>
 #include <WebCore/GLDisplay.h>
@@ -40,6 +39,7 @@
 #endif
 
 #if USE(GBM)
+#include <WebCore/DMABufBuffer.h>
 #include <WebCore/GBMDevice.h>
 #include <WebCore/GBMVersioning.h>
 #include <drm_fourcc.h>
@@ -250,54 +250,15 @@ std::optional<PlatformXR::FrameData::ExternalTexture> OpenXRLayer::exportOpenXRT
         return std::nullopt;
     }
 
-    Vector<UnixFileDescriptor> fds;
-    Vector<uint32_t> offsets;
-    Vector<uint32_t> strides;
-    uint32_t fourcc = gbm_bo_get_format(buffer);
-    uint64_t modifier = gbm_bo_get_modifier(buffer);
-    int planeCount = gbm_bo_get_plane_count(buffer);
-
-    Vector<EGLAttrib> attributes = {
-        EGL_WIDTH, static_cast<EGLAttrib>(gbm_bo_get_width(buffer)),
-        EGL_HEIGHT, static_cast<EGLAttrib>(gbm_bo_get_height(buffer)),
-        EGL_LINUX_DRM_FOURCC_EXT, static_cast<EGLAttrib>(fourcc),
-    };
-
-#define ADD_PLANE_ATTRIBUTES(planeIndex) { \
-    fds.append(UnixFileDescriptor { gbm_bo_get_fd_for_plane(buffer, planeIndex), UnixFileDescriptor::Adopt }); \
-    offsets.append(gbm_bo_get_offset(buffer, planeIndex)); \
-    strides.append(gbm_bo_get_stride_for_plane(buffer, planeIndex)); \
-    std::array<EGLAttrib, 6> planeAttributes { \
-        EGL_DMA_BUF_PLANE##planeIndex##_FD_EXT, fds.last().value(), \
-        EGL_DMA_BUF_PLANE##planeIndex##_OFFSET_EXT, static_cast<EGLAttrib>(offsets.last()), \
-        EGL_DMA_BUF_PLANE##planeIndex##_PITCH_EXT, static_cast<EGLAttrib>(strides.last()) \
-    }; \
-    attributes.append(std::span<const EGLAttrib> { planeAttributes }); \
-    if (modifier != DRM_FORMAT_MOD_INVALID) { \
-        std::array<EGLAttrib, 4> modifierAttributes { \
-            EGL_DMA_BUF_PLANE##planeIndex##_MODIFIER_HI_EXT, static_cast<EGLAttrib>(modifier >> 32), \
-            EGL_DMA_BUF_PLANE##planeIndex##_MODIFIER_LO_EXT, static_cast<EGLAttrib>(modifier & 0xffffffff) \
-        }; \
-        attributes.append(std::span<const EGLAttrib> { modifierAttributes }); \
-    } \
+    auto dmaBufAttributes = WebCore::DMABufBufferAttributes::fromGBMBufferObject(buffer);
+    if (!dmaBufAttributes) {
+        gbm_bo_destroy(buffer);
+        RELEASE_LOG(XR, "Failed to extract DMA-buf attributes from GBM buffer for OpenXR texture");
+        return std::nullopt;
     }
 
-    if (planeCount > 0)
-        ADD_PLANE_ATTRIBUTES(0);
-    if (planeCount > 1)
-        ADD_PLANE_ATTRIBUTES(1);
-    if (planeCount > 2)
-        ADD_PLANE_ATTRIBUTES(2);
-    if (planeCount > 3)
-        ADD_PLANE_ATTRIBUTES(3);
-
-#undef ADD_PLANE_ATTRIBS
-
-    attributes.append(EGL_NONE);
-
-    auto image = display.createImage(EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attributes);
+    auto image = WebCore::DMABufBuffer::createEGLImage(display, *dmaBufAttributes);
     gbm_bo_destroy(buffer);
-
     if (!image) {
         RELEASE_LOG(XR, "Failed to create EGL image from OpenXR texture");
         return std::nullopt;
@@ -320,11 +281,11 @@ std::optional<PlatformXR::FrameData::ExternalTexture> OpenXRLayer::exportOpenXRT
     m_exportedTexturesMap.add(openxrTexture, exportedTexture);
 
     return PlatformXR::FrameData::ExternalTexture {
-        .fds = WTF::move(fds),
-        .strides = WTF::move(strides),
-        .offsets = WTF::move(offsets),
-        .fourcc = fourcc,
-        .modifier = modifier
+        .fds = WTF::move(dmaBufAttributes->fds),
+        .strides = WTF::move(dmaBufAttributes->strides),
+        .offsets = WTF::move(dmaBufAttributes->offsets),
+        .fourcc = dmaBufAttributes->fourcc.value,
+        .modifier = dmaBufAttributes->modifier
     };
 }
 #endif // USE(GBM)
@@ -427,7 +388,7 @@ std::optional<PlatformXR::FrameData::LayerData> OpenXRLayerProjection::startFram
     return layerData;
 }
 
-XrCompositionLayerBaseHeader* OpenXRLayerProjection::endFrame(const XRDeviceLayer& layer, XrSpace space, const Vector<XrView>& frameViews)
+XrCompositionLayerBaseHeader* OpenXRLayerProjection::endFrame(const PlatformXR::DeviceLayer& layer, XrSpace space, const Vector<XrView>& frameViews)
 {
 #if OS(ANDROID) || USE(GBM)
     if (needsBlitTexture()) {

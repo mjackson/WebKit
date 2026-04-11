@@ -32,6 +32,7 @@
 #import "CSSToLengthConversionData.h"
 #import "CaretRectComputation.h"
 #import "ColorBlending.h"
+#import "ColorInterpolation.h"
 #import "DateComponents.h"
 #import "DrawGlyphsRecorder.h"
 #import "FloatRoundedRect.h"
@@ -58,6 +59,7 @@
 #import "RenderStyle+SettersInlines.h"
 #import "RenderText.h"
 #import "Settings.h"
+#import "SpringSolver.h"
 #import "StyleLengthResolution.h"
 #import "StylePrimitiveNumericTypes+Evaluation.h"
 #import "Theme.h"
@@ -94,16 +96,24 @@
 #import <pal/ios/UIKitSoftLink.h>
 #endif
 
+#if USE(APPLE_INTERNAL_SDK)
+#import <WebKitAdditions/RenderThemeCocoaAdditionsBefore.mm>
+#endif
+
 namespace WebCore {
+
+#if !USE(APPLE_INTERNAL_SDK)
+static constexpr auto switchCornerRadiusFraction = 0.f;
+#endif
 
 #if ENABLE(FORM_CONTROL_REFRESH)
 
-static bool formControlRefreshEnabled(const RenderObject& renderer)
+static bool NODELETE formControlRefreshEnabled(const RenderObject& renderer)
 {
     return renderer.settings().formControlRefreshEnabled();
 }
 
-static bool formControlRefreshEnabled(const Element* element)
+static bool NODELETE formControlRefreshEnabled(const Element* element)
 {
     if (!element)
         return false;
@@ -149,7 +159,7 @@ static void drawFocusRingForPathForVectorBasedControls(const RenderObject& box, 
 
     // We pass 0.f as the border thickness because the parameter is not used by
     // the context. It will determine an appropriate value for us.
-    context.drawFocusRing(path, 0.f, focusRingColor);
+    context.drawFocusRing(path, 0.f, focusRingColor, box.style().usedZoom());
 }
 
 #if PLATFORM(MAC)
@@ -200,37 +210,633 @@ static Color colorWithTargetLuminance(Color color, float targetLuminance)
 
 #endif
 
-}
+// MARK: - Switch
 
-#if USE(APPLE_INTERNAL_SDK)
-#import <WebKitAdditions/RenderThemeCocoaAdditionsBefore.mm>
-#else
-
-namespace WebCore {
-
-static constexpr auto logicalSwitchWidth = 51.f;
+constexpr auto logicalSwitchWidth = 51.f;
 #if PLATFORM(IOS_FAMILY)
-static constexpr auto logicalSwitchHeight = 31.f;
+constexpr auto logicalSwitchHeight = 31.f;
 #else
-static constexpr auto logicalSwitchHeight = 18.f;
+constexpr auto logicalSwitchHeight = 18.f;
 #endif
 
-static constexpr FloatSize idealRefreshedSwitchSize = { 64, 28 };
-static constexpr auto logicalRefreshedSwitchWidth = logicalSwitchHeight * (idealRefreshedSwitchSize.width() / idealRefreshedSwitchSize.height());
-
-static bool NODELETE renderThemePaintSwitchThumb(OptionSet<ControlStyle::State>, const RenderElement&, const PaintInfo&, const FloatRect&, const Color&)
+static float easeInOut(float progress)
 {
-    return true;
+    return -2.0f * pow(progress, 3.0f) + 3.0f * pow(progress, 2.0f);
 }
 
-static bool NODELETE renderThemePaintSwitchTrack(OptionSet<ControlStyle::State>, const RenderElement&, const PaintInfo&, const FloatRect&)
+static float switchTrackScale(const FloatSize& size, bool isVertical, float logicalSwitchWidthForMode)
 {
-    return true;
+    auto switchWidth = isVertical ? logicalSwitchHeight : logicalSwitchWidthForMode;
+    auto switchHeight = isVertical ? logicalSwitchWidthForMode : logicalSwitchHeight;
+    return std::min(size.width() / switchWidth, size.height() / switchHeight);
+}
+
+static const FloatRect switchTrackRect(const FloatRect& rect, float scale, bool isVertical, float logicalSwitchWidthForMode)
+{
+    auto logicalHeight = logicalSwitchHeight * scale;
+    auto logicalWidth = logicalSwitchWidthForMode * scale;
+    auto logicalRect = isVertical ? rect.transposedRect() : rect;
+    logicalRect.setY(logicalRect.y() + (logicalRect.height() - logicalHeight) / 2);
+    logicalRect.setSize({ logicalWidth, logicalHeight });
+    return isVertical ? logicalRect.transposedRect() : logicalRect;
+}
+
+static HTMLInputElement& switchElement(const RenderObject& renderer)
+{
+    return downcast<HTMLInputElement>(*renderer.node());
+}
+
+static const FloatRoundedRect switchTrackRoundedRect(const FloatRect& trackRect, bool isVertical, float switchCornerRadiusFraction)
+{
+    auto logicalHeight = isVertical ? trackRect.width() : trackRect.height();
+    auto trackRadius = logicalHeight * switchCornerRadiusFraction;
+    CornerRadii trackRadii(trackRadius, trackRadius);
+    return FloatRoundedRect { trackRect, trackRadii };
+}
+
+static Color switchTrackColor(const RenderObject& renderer)
+{
+    const RenderStyle& style = renderer.style();
+    auto styleColorOptions = renderer.styleColorOptions() | StyleColorOptions::UseSystemAppearance;
+    Ref element = switchElement(renderer);
+
+    auto isOn = element->isSwitchVisuallyOn();
+    auto isHighContrast = Theme::singleton().userPrefersContrast();
+    auto isDark = styleColorOptions.contains(StyleColorOptions::UseDarkAppearance);
+    auto progress = easeInOut(element->switchAnimationVisuallyOnProgress());
+
+    // FIXME: rdar://118163161 UIKit would expose _switchOffColor ideally.
+
+#if PLATFORM(MAC)
+    auto cssColorValueForOnState = CSSValueAppleSystemControlAccent;
+#else
+    auto cssColorValueForOnState = CSSValueAppleSystemGreen;
+#endif
+
+    Color offColor = SRGBA<uint8_t> { 120, 120, 128, 41 }; // alpha of .16f
+    Color offHighContrastColor = SRGBA<uint8_t> { 120, 120, 128, 199 }; // alpha of .78f
+    Color offDarkColor = SRGBA<uint8_t> { 120, 120, 128, 82 }; // alpha of .32f
+    Color offDarkHighContrastColor = SRGBA<uint8_t> { 120, 120, 128, 230 }; // alpha of .90f
+
+#if ENABLE(FORM_CONTROL_REFRESH) && (!PLATFORM(VISION) || ENABLE(AX_ZOOM_ADJUSTMENTS))
+    if (formControlRefreshEnabled(renderer)) {
+#if PLATFORM(MAC)
+        static constexpr auto cssColorValueForOffState = CSSValueAppleSystemQuaternaryLabel;
+#else
+        static constexpr auto cssColorValueForOffState = CSSValueAppleSystemTertiaryLabel;
+#endif
+        const auto modernOffColor = colorCompositedOverCanvasColor(cssColorValueForOffState, styleColorOptions);
+
+        offColor = modernOffColor;
+        offHighContrastColor = modernOffColor;
+        offDarkColor = modernOffColor;
+        offDarkHighContrastColor = modernOffColor;
+    }
+#endif
+
+    auto off = offColor;
+    if (!isDark && isHighContrast)
+        off = offHighContrastColor;
+    else if (isDark && !isHighContrast)
+        off = offDarkColor;
+    else if (isDark && isHighContrast)
+        off = offDarkHighContrastColor;
+
+    auto systemColor = RenderTheme::singleton().systemColor(cssColorValueForOnState, styleColorOptions);
+
+    // FIXME: This Catalyst check has likely always been incorrect, since RenderStyle
+    // can't resolve `auto` accent color on it's own, resulting in no color being
+    // applied by default.
+#if PLATFORM(MACCATALYST)
+    auto useAccentColor = true;
+    UNUSED_VARIABLE(style);
+#else
+    auto useAccentColor = !style.accentColor().isAuto();
+#endif
+
+#if ENABLE(FORM_CONTROL_REFRESH) && (!PLATFORM(VISION) || ENABLE(AX_ZOOM_ADJUSTMENTS))
+    auto isWindowActive = true;
+    auto on = systemColor;
+#if PLATFORM(MAC)
+    const auto states = RenderTheme::singleton().extractControlStyleStatesForRenderer(renderer);
+    isWindowActive = states.contains(ControlStyle::State::WindowActive);
+
+    if (!isWindowActive) {
+        const auto quinary = RenderTheme::singleton().systemColor(CSSValueAppleSystemQuinaryLabel, styleColorOptions);
+        on = blendSourceOver(offColor, quinary);
+    }
+#endif
+    if (useAccentColor && isWindowActive)
+        on = RenderThemeCocoa::singleton().controlTintColorWithContrast(renderer.style(), styleColorOptions);
+#else
+    auto on = useAccentColor ? RenderThemeCocoa::singleton().controlTintColor(renderer.style(), styleColorOptions) : systemColor;
+#endif
+    auto from = !isOn ? on : off;
+    auto to = isOn ? on : off;
+    return interpolateColors({ ColorInterpolationMethod::SRGB { }, AlphaPremultiplication::Unpremultiplied }, from, 1.0f - progress, to, progress);
+}
+
+#if ENABLE(AX_ZOOM_ADJUSTMENTS)
+static void setLogicalWidthForSwitchWithZoomAdjustments(RenderStyle& style, float baseWidth, float usedZoom)
+{
+    style.setLogicalWidth(Style::PreferredSize::Fixed { baseWidth * usedZoom });
+}
+#endif
+
+// MARK: - Switch (non-refreshed)
+
+static void paintSwitchTrackOnOffLabels(OptionSet<ControlStyle::State> states, const RenderObject& renderer, const PaintInfo& paintInfo, const float trackScale, const FloatRect& trackRect)
+{
+    Ref element = switchElement(renderer);
+
+    auto isOn = element->isSwitchVisuallyOn();
+    auto isHighContrast = Theme::singleton().userPrefersContrast();
+    auto isInlineFlipped = states.contains(ControlStyle::State::InlineFlippedWritingMode);
+    auto isVertical = states.contains(ControlStyle::State::VerticalWritingMode);
+    auto isEnabled = states.contains(ControlStyle::State::Enabled);
+
+    auto& context = paintInfo.context();
+    GraphicsContextStateSaver stateSaver(context);
+
+    // FIXME: rdar://118380315 UIKit should expose these ideally as they are based on measurements.
+    constexpr auto onColor = SRGBA<uint8_t> { 236, 250, 240 };
+    constexpr auto onHighContrastColor = SRGBA<uint8_t> { 230, 241, 233 };
+    constexpr auto offColor = SRGBA<uint8_t> { 184, 184, 184 };
+    constexpr auto offHighContrastColor = SRGBA<uint8_t> { 243, 243, 243 };
+
+    Color color = onColor;
+    if (isOn && isHighContrast)
+        color = onHighContrastColor;
+    else if (!isOn && !isHighContrast)
+        color = offColor;
+    else if (!isOn && isHighContrast)
+        color = offHighContrastColor;
+    if (!isEnabled)
+        color = color.colorWithAlphaMultipliedBy(.4f);
+    context.setStrokeColor(color);
+
+    auto logicalTrackRect = isVertical ? trackRect.transposedRect() : trackRect;
+
+    auto labelThickness = 1.f * trackScale;
+    auto labelMargin = 11.f * trackScale;
+    auto labelMarginThin = 7.5f * trackScale;
+    auto labelSide = 10.f * trackScale;
+
+    auto onLabelLogicalLeft = logicalTrackRect.x() + (!isInlineFlipped ? labelMargin : logicalTrackRect.width() - labelMargin - labelThickness);
+    if (isVertical)
+        onLabelLogicalLeft = logicalTrackRect.x() + (!isInlineFlipped ? labelMarginThin : logicalTrackRect.width() - labelSide - labelMarginThin);
+    auto onLabelRect = FloatRect { onLabelLogicalLeft, trackRect.y() + labelMargin, 0, labelSide };
+    if (isVertical) {
+        onLabelRect.setX(trackRect.x() + (trackRect.width() - labelThickness) / 2.f);
+        onLabelRect.setY(onLabelLogicalLeft);
+    }
+    context.setStrokeThickness(labelThickness);
+    context.strokeRect(onLabelRect, labelThickness);
+
+    auto offLabelLogicalLeft = logicalTrackRect.x() + (!isInlineFlipped ? logicalTrackRect.width() - labelSide - labelMarginThin : labelMarginThin);
+    auto offLabelRect = FloatRect { offLabelLogicalLeft, trackRect.y() + labelMargin, labelSide, labelSide };
+    if (isVertical) {
+        offLabelRect.setX(trackRect.x() + labelMargin);
+        offLabelRect.setY(offLabelLogicalLeft);
+    }
+    auto offLabelRadius = 5.f * trackScale;
+    CornerRadii offLabelRadii(offLabelRadius, offLabelRadius);
+    auto offLabelRoundedRect = FloatRoundedRect { offLabelRect, offLabelRadii };
+    Path offLabelPath;
+    offLabelPath.addRoundedRect(offLabelRoundedRect);
+    context.strokePath(offLabelPath);
+}
+
+// MARK: - Switch (LiquidGlass)
+
+#if ENABLE(FORM_CONTROL_REFRESH) && (!PLATFORM(VISION) || ENABLE(AX_ZOOM_ADJUSTMENTS))
+
+static constexpr auto switchDisabledOpacity = 0.5f;
+
+static constexpr FloatSize idealSwitchSize = { 64, 28 };
+static constexpr auto logicalRefreshedSwitchWidth = logicalSwitchHeight * (idealSwitchSize.width() / idealSwitchSize.height());
+
+static float thumbHeightForLogicalTrackHeight(float logicalTrackHeight)
+{
+#if PLATFORM(IOS_FAMILY)
+    return 0.85714285714f * logicalTrackHeight; // ratio of 6:7
+#else
+
+    static constexpr auto largeDefinedSwitchHeight = 28.f;
+    static constexpr auto largeDefinedThumbHeight = 24.f;
+
+    static constexpr auto minimumDefinedSwitchHeight = 16.f;
+    static constexpr auto minimumDefinedThumbHeight = 13.f;
+
+    static constexpr auto maximumDefinedSwitchHeight = 36.f;
+    static constexpr auto maximumDefinedThumbHeight = 30.f;
+
+    static constexpr auto minimumDefinedThumbHeightRatio = minimumDefinedThumbHeight / minimumDefinedSwitchHeight;
+    static constexpr auto largeDefinedThumbHeightRatio = largeDefinedThumbHeight / largeDefinedSwitchHeight;
+    static constexpr auto maximumDefinedThumbHeightRatio = maximumDefinedThumbHeight / maximumDefinedSwitchHeight;
+
+    const auto isTallerThanLargeHeight = logicalTrackHeight > largeDefinedSwitchHeight;
+
+    const auto lowerBound = isTallerThanLargeHeight ? largeDefinedSwitchHeight : minimumDefinedSwitchHeight;
+    const auto upperBound = isTallerThanLargeHeight ? maximumDefinedSwitchHeight : largeDefinedSwitchHeight;
+    const auto clampedHeight = std::clamp(logicalTrackHeight, lowerBound, upperBound);
+    const auto normalizedClampedHeight = (clampedHeight - lowerBound) / (upperBound - lowerBound);
+
+    float thumbToTrackHeightRatio = 1.f;
+    if (isTallerThanLargeHeight)
+        thumbToTrackHeightRatio = largeDefinedThumbHeightRatio + (maximumDefinedThumbHeightRatio - largeDefinedThumbHeightRatio)  * normalizedClampedHeight;
+    else
+        thumbToTrackHeightRatio = minimumDefinedThumbHeightRatio + (largeDefinedThumbHeightRatio - minimumDefinedThumbHeightRatio)  * normalizedClampedHeight;
+
+    return thumbToTrackHeightRatio * logicalTrackHeight;
+#endif
+}
+
+static Path continuousRoundedRectFromRoundedRect(const FloatRoundedRect& roundedRect)
+{
+    // We don't have a way of drawing continuous rounded rects with non-uniform corner radii (nor
+    // do we need to for form controls). Arbitrarily select the top left corner of the rounded rect
+    // to base our continuous rounded rect's radii off of.
+    Path path;
+    const auto cornerRadius = roundedRect.radii().topLeft();
+    path.addContinuousRoundedRect(roundedRect.rect(), cornerRadius.width(), cornerRadius.height());
+    return path;
+}
+
+#if PLATFORM(MAC)
+static void adjustSwitchColorForPressedState(Color& color, OptionSet<StyleColorOptions> styleColorOptions)
+{
+    const auto pressedOverlay = RenderTheme::singleton().systemColor(CSSValueAppleSystemQuaternaryLabel, styleColorOptions);
+    color = blendSourceOver(color, pressedOverlay);
+}
+#endif
+
+static Color liquidGlassSwitchThumbColor(const RenderObject& renderer)
+{
+    Ref element = switchElement(renderer);
+
+    const auto states = RenderTheme::singleton().extractControlStyleStatesForRenderer(renderer);
+    const auto isEnabled = states.contains(ControlStyle::State::Enabled);
+    const auto isDarkMode = renderer.styleColorOptions().contains(StyleColorOptions::UseDarkAppearance);
+
+    Color color = Color::white;
+    if (!isDarkMode)
+        return color;
+
+#if PLATFORM(IOS_FAMILY)
+    return isEnabled ? color : Color::darkGray;
+#else
+    const auto alphaMultiplier = isEnabled ? 0.85f : switchDisabledOpacity;
+    return color.colorWithAlphaMultipliedBy(alphaMultiplier);
+#endif
+}
+
+static void paintLiquidGlassSwitchTrackOnOffLabels(OptionSet<ControlStyle::State> states, const RenderObject& renderer, const PaintInfo& paintInfo, const FloatRect& trackRect)
+{
+    Ref element = switchElement(renderer);
+
+    CheckedRef style = renderer.style();
+    const auto zoomScale = style->usedZoom();
+
+    auto isOn = element->isSwitchVisuallyOn();
+    auto isHighContrast = Theme::singleton().userPrefersContrast();
+    auto isInlineFlipped = states.contains(ControlStyle::State::InlineFlippedWritingMode);
+    auto isVertical = states.contains(ControlStyle::State::VerticalWritingMode);
+    auto isEnabled = states.contains(ControlStyle::State::Enabled);
+
+    auto& context = paintInfo.context();
+    GraphicsContextStateSaver stateSaver(context);
+
+    constexpr auto onColor = SRGBA<uint8_t> { 240, 240, 240 };
+    constexpr auto onHighContrastColor = SRGBA<uint8_t> { 255, 255, 255 };
+    constexpr auto offColor = SRGBA<uint8_t> { 184, 184, 184 };
+    constexpr auto offHighContrastColor = SRGBA<uint8_t> { 135, 135, 135 };
+
+    Color color = onColor;
+    if (isOn && isHighContrast)
+        color = onHighContrastColor;
+    else if (!isOn && !isHighContrast)
+        color = offColor;
+    else if (!isOn && isHighContrast)
+        color = offHighContrastColor;
+    if (!isEnabled)
+        color = color.colorWithAlphaMultipliedBy(switchDisabledOpacity);
+    context.setStrokeColor(color);
+
+    auto logicalTrackRect = isVertical ? trackRect.transposedRect() : trackRect;
+    auto isMediumOrLarger = logicalTrackRect.height() >= 24 * zoomScale;
+
+    // The inset ratio represents how far the center of the label should be inset
+    // from the left of the switch when in horizontal mode, and how far it should be
+    // inset from the top of the switch when in vertical mode.
+    auto insetRatio = 8.f / 40.f;
+    auto insetOnRatio = isInlineFlipped ? 1 - insetRatio : insetRatio;
+    auto insetOffRatio = 1 - insetOnRatio;
+
+    if (isEnabled || isOn) {
+        auto onLabelWidth = (isMediumOrLarger ? 2.5f : 2.f) * zoomScale;
+        auto onLabelHeight = onLabelWidth * 4;
+        auto onLabelRect = FloatRect { trackRect.location(), FloatSize { onLabelWidth, onLabelHeight } };
+
+        if (isVertical) {
+            auto onLabelXOffset = trackRect.width() / 2 - onLabelWidth / 2;
+            auto onLabelYOffset = insetOnRatio * trackRect.height() - onLabelHeight / 2.f;
+            onLabelRect.move(onLabelXOffset, onLabelYOffset);
+        } else {
+            auto onLabelXOffset = insetOnRatio * logicalTrackRect.width() - onLabelWidth / 2.f;
+            auto onLabelYOffset = logicalTrackRect.height() / 2.f - onLabelHeight / 2.f;
+            onLabelRect.move(onLabelXOffset, onLabelYOffset);
+        }
+
+        CornerRadii labelRadii(onLabelWidth / 2.0f);
+        FloatRoundedRect labelOnRoundedRect { onLabelRect, labelRadii };
+        context.fillRoundedRect(labelOnRoundedRect, color);
+    }
+
+    if (isEnabled || !isOn) {
+        auto offLabelRadius = (isMediumOrLarger ? 4.f : 3.f) * zoomScale;
+        auto offLabelRect = FloatRect { trackRect.location(), FloatSize { offLabelRadius * 2, offLabelRadius * 2 } };
+
+        if (isVertical) {
+            auto offLabelXOffset = trackRect.width() / 2 - offLabelRadius;
+            auto offLabelYOffset = insetOffRatio * trackRect.height() - offLabelRadius;
+            offLabelRect.move(offLabelXOffset, offLabelYOffset);
+        } else {
+            auto offLabelXOffset = insetOffRatio * logicalTrackRect.width() - offLabelRadius;
+            auto offLabelYOffset = logicalTrackRect.height() / 2.f - offLabelRadius;
+            offLabelRect.move(offLabelXOffset, offLabelYOffset);
+        }
+
+        Path offPath;
+        offPath.addEllipseInRect(offLabelRect);
+        context.clipPath(offPath);
+
+        auto strokeThickness = (isMediumOrLarger ? 1.5f : 1.75f) * zoomScale;
+        context.setStrokeThickness(strokeThickness * 2);
+        context.strokePath(offPath);
+    }
+}
+
+static bool renderThemePaintLiquidGlassSwitchThumb(OptionSet<ControlStyle::State> states, const RenderElement& renderer, const PaintInfo& paintInfo, const FloatRect& rect, float switchCornerRadiusFraction)
+{
+    Ref element = switchElement(renderer);
+
+    // Values chosen for consistency with UIKit.
+    static auto thumbMoveSpring = SpringSolver(1.0, 438.64908449286042, 31.415926535897931, 0.0);
+
+    auto isOn = element->isSwitchVisuallyOn();
+    auto isInlineFlipped = states.contains(ControlStyle::State::InlineFlippedWritingMode);
+    auto isVertical = states.contains(ControlStyle::State::VerticalWritingMode);
+
+    // Multiply progress by duration as SpringSolver wants a number of seconds.
+    auto isOnProgress = std::clamp(float(thumbMoveSpring.solve(element->switchAnimationVisuallyOnProgress() * RenderTheme::singleton().switchAnimationVisuallyOnDuration().seconds())), 0.0f, 1.0f);
+
+    auto& context = paintInfo.context();
+    GraphicsContextStateSaver stateSaver(context);
+
+#if PLATFORM(MAC)
+    constexpr auto idealThumbWidth = 38;
+#else
+    constexpr auto idealThumbWidth = 36;
+#endif
+    constexpr auto thumbToTrackRatio = idealThumbWidth / idealSwitchSize.width();
+
+    auto trackScale = switchTrackScale(rect.size(), isVertical, logicalRefreshedSwitchWidth);
+    auto trackRect = switchTrackRect(rect, trackScale, isVertical, logicalRefreshedSwitchWidth);
+    auto logicalTrackRect = isVertical ? trackRect.transposedRect() : trackRect;
+
+    auto thumbWidth = (logicalTrackRect.width() * thumbToTrackRatio);
+    auto thumbHeight = thumbHeightForLogicalTrackHeight(logicalTrackRect.height());
+    auto thumbMargin = (logicalTrackRect.height() - thumbHeight) / 2.f;
+
+    auto thumbLogicalLeftAxis = logicalTrackRect.width() - thumbWidth - 2.f * thumbMargin;
+    auto thumbLogicalLeftAxisProgress = thumbLogicalLeftAxis * isOnProgress;
+    auto thumbRadius = std::max(0.f, (logicalTrackRect.height() * switchCornerRadiusFraction) - thumbMargin);
+    CornerRadii thumbRadii(thumbRadius, thumbRadius);
+    auto thumbIsLogicallyLeft = (!isInlineFlipped && !isOn) || (isInlineFlipped && isOn);
+    auto thumbLogicalLeft = thumbIsLogicallyLeft ? logicalTrackRect.x() + thumbMargin + (thumbLogicalLeftAxis - thumbLogicalLeftAxisProgress) : logicalTrackRect.x() + thumbMargin + thumbLogicalLeftAxisProgress;
+    auto thumbRect = FloatRect { thumbLogicalLeft, trackRect.y() + thumbMargin, thumbWidth, thumbHeight };
+    if (isVertical)
+        thumbRect = FloatRect { trackRect.x() + thumbMargin, thumbLogicalLeft, thumbHeight, thumbWidth };
+    FloatRoundedRect thumbRoundedRect(thumbRect, thumbRadii);
+
+    const auto styleColorOptions = renderer.styleColorOptions();
+
+    auto thumbColor = liquidGlassSwitchThumbColor(renderer);
+#if PLATFORM(MAC)
+    if (states.contains(ControlStyle::State::Pressed) && states.contains(ControlStyle::State::Enabled))
+        adjustSwitchColorForPressedState(thumbColor, styleColorOptions);
+#endif
+    auto roundedTrackRect = switchTrackRoundedRect(trackRect, isVertical, switchCornerRadiusFraction);
+
+    Path trackPath = continuousRoundedRectFromRoundedRect(roundedTrackRect);
+    Path thumbPath = continuousRoundedRectFromRoundedRect(thumbRoundedRect);
+    context.clipPath(trackPath);
+
+    CheckedRef style = renderer.style();
+    const auto usedZoom = style->usedZoom();
+
+    context.setFillColor(thumbColor);
+
+    const auto needsIncreasedShadows = !style->accentColor().isAuto()
+        && styleColorOptions.contains(StyleColorOptions::UseDarkAppearance)
+        && style->usedAccentColor(styleColorOptions).luminance() > controlTintLuminanceThreshold;
+
+    auto shadowOpacityMultiplier = 1.f;
+    if (needsIncreasedShadows) {
+        auto shadowProgress = isOn ? isOnProgress : 1 - isOnProgress;
+        shadowOpacityMultiplier += 5 * shadowProgress;
+    }
+
+#if PLATFORM(MAC)
+    context.save();
+
+    context.fillPath(thumbPath);
+    context.clipOut(thumbPath);
+
+    const auto shadowColor = SRGBA<uint8_t> { 0, 0, 0, static_cast<uint8_t>(25.5 * shadowOpacityMultiplier) }; // opacity 0.10f
+
+    context.setDropShadow({ FloatSize { 0, 1 }, 2 * usedZoom, shadowColor, ShadowRadiusMode::Default });
+    context.fillPath(thumbPath);
+
+    context.setDropShadow({ FloatSize { 0, 3 }, 12 * usedZoom, shadowColor, ShadowRadiusMode::Default });
+    context.fillPath(thumbPath);
+
+    context.restore();
+
+    if (Theme::singleton().userPrefersContrast())
+        drawHighContrastOutline(context, thumbPath, renderer.styleColorOptions());
+#else
+    const auto shadowColor = SRGBA<uint8_t> { 0, 0, 0, static_cast<uint8_t>(30.63 * shadowOpacityMultiplier) }; // opacity 0.12f
+    context.setDropShadow({ FloatSize { 0, 2.5 }, 6 * usedZoom, shadowColor, ShadowRadiusMode::Default });
+    context.fillPath(thumbPath);
+
+    // On Mac, we paint the focus ring using the track path.
+    if (states.contains(ControlStyle::State::Focused))
+        drawFocusRingForPathForVectorBasedControls(renderer, paintInfo, thumbRoundedRect.rect(), thumbPath);
+#endif
+
+    return false;
+}
+
+static bool renderThemePaintLiquidGlassSwitchTrack(OptionSet<ControlStyle::State> states, const RenderElement& renderer, const PaintInfo& paintInfo, const FloatRect& rect, float switchCornerRadiusFraction)
+{
+    Ref element = switchElement(renderer);
+
+    auto isEnabled = states.contains(ControlStyle::State::Enabled);
+    auto isVertical = states.contains(ControlStyle::State::VerticalWritingMode);
+
+    auto& context = paintInfo.context();
+    GraphicsContextStateSaver stateSaver(context);
+
+    auto color = switchTrackColor(renderer);
+    const auto styleColorOptions = renderer.styleColorOptions();
+#if PLATFORM(MAC)
+    if (states.contains(ControlStyle::State::Pressed) && isEnabled)
+        adjustSwitchColorForPressedState(color, styleColorOptions);
+#endif
+
+    if (!isEnabled)
+        color = color.colorWithAlphaMultipliedBy(switchDisabledOpacity);
+
+    color = colorCompositedOverCanvasColor(color, styleColorOptions);
+
+    auto trackScale = switchTrackScale(rect.size(), isVertical, logicalRefreshedSwitchWidth);
+    auto trackRect = switchTrackRect(rect, trackScale, isVertical, logicalRefreshedSwitchWidth);
+    auto roundedTrackRect = switchTrackRoundedRect(trackRect, isVertical, switchCornerRadiusFraction);
+
+    Path trackPath = continuousRoundedRectFromRoundedRect(roundedTrackRect);
+    context.setFillColor(color);
+    context.fillPath(trackPath);
+
+#if PLATFORM(MAC)
+    const auto shouldPaintOnOffLabels = Theme::singleton().userPrefersDifferentiationWithoutColor();
+#else
+    const auto shouldPaintOnOffLabels = Theme::singleton().userPrefersOnOffLabels();
+#endif
+
+    if (shouldPaintOnOffLabels)
+        paintLiquidGlassSwitchTrackOnOffLabels(states, renderer, paintInfo, trackRect);
+
+#if PLATFORM(MAC)
+    if (Theme::singleton().userPrefersContrast())
+        drawHighContrastOutline(context, trackPath, styleColorOptions);
+
+    // On macOS, the track color in the on-state and the focus ring color are almost
+    // identical by default. Instead of drawing the focus ring inside the track like
+    // we do during thumb painting on iOS, draw the ring outside the track in order
+    // to keep the ring easily discernible.
+    if (states.contains(ControlStyle::State::Focused))
+        drawFocusRingForPathForVectorBasedControls(renderer, paintInfo, roundedTrackRect.rect(), trackPath);
+#endif
+
+    return false;
+}
+
+#endif
+
+// MARK: - Switch (entry points)
+
+static bool renderThemePaintSwitchThumb(OptionSet<ControlStyle::State> states, const RenderElement& renderer, const PaintInfo& paintInfo, const FloatRect& rect, const Color& outlineColor, float switchCornerRadiusFraction)
+{
+#if ENABLE(FORM_CONTROL_REFRESH) && (!PLATFORM(VISION) || ENABLE(AX_ZOOM_ADJUSTMENTS))
+    if (renderer.document().settings().formControlRefreshEnabled())
+        return renderThemePaintLiquidGlassSwitchThumb(states, renderer, paintInfo, rect, switchCornerRadiusFraction);
+#endif
+
+    Ref element = switchElement(renderer);
+
+    // Values chosen for consistency with UIKit.
+    static auto thumbMoveSpring = SpringSolver(1.0, 438.64908449286042, 31.415926535897931, 0.0);
+    static auto thumbPressSpring = SpringSolver(1.0, 322.27279677026473, 31.2364069556928, 0.0);
+
+    auto isOn = element->isSwitchVisuallyOn();
+    auto isHeld = element->isSwitchHeld();
+    auto isFocused = states.contains(ControlStyle::State::Focused);
+    auto isInlineFlipped = states.contains(ControlStyle::State::InlineFlippedWritingMode);
+    auto isVertical = states.contains(ControlStyle::State::VerticalWritingMode);
+
+    // Multiply progress by duration as SpringSolver wants a number of seconds.
+    auto isOnProgress = std::clamp(float(thumbMoveSpring.solve(element->switchAnimationVisuallyOnProgress() * RenderTheme::singleton().switchAnimationVisuallyOnDuration().seconds())), 0.0f, 1.0f);
+    auto isHeldProgress = std::clamp(float(thumbPressSpring.solve(element->switchAnimationHeldProgress() * RenderTheme::singleton().switchAnimationHeldDuration().seconds())), 0.0f, 1.0f);
+
+    auto& context = paintInfo.context();
+    GraphicsContextStateSaver stateSaver(context);
+
+    constexpr auto thumbColor = Color::white;
+    constexpr auto shadowColor = SRGBA<uint8_t> { 0, 0, 0, 31 }; // alpha of .12f
+
+    auto trackScale = switchTrackScale(rect.size(), isVertical, logicalSwitchWidth);
+    auto trackRect = switchTrackRect(rect, trackScale, isVertical, logicalSwitchWidth);
+    auto logicalTrackRect = isVertical ? trackRect.transposedRect() : trackRect;
+
+    auto thumbMargin = 2.f * trackScale;
+    auto thumbLength = (logicalTrackRect.height() - 2.f * thumbMargin);
+    auto logicalThumbWidth = thumbLength + 4.f * thumbMargin * (isHeld ? isHeldProgress : 1.f - isHeldProgress);
+    auto thumbLogicalLeftAxis = logicalTrackRect.width() - logicalThumbWidth - 2.f * thumbMargin;
+    auto thumbLogicalLeftAxisProgress = thumbLogicalLeftAxis * isOnProgress;
+    auto thumbRadius = std::max(0.f, (logicalTrackRect.height() * switchCornerRadiusFraction) - thumbMargin);
+    CornerRadii thumbRadii(thumbRadius, thumbRadius);
+    auto thumbIsLogicallyLeft = (!isInlineFlipped && !isOn) || (isInlineFlipped && isOn);
+    auto thumbLogicalLeft = thumbIsLogicallyLeft ? logicalTrackRect.x() + thumbMargin + (thumbLogicalLeftAxis - thumbLogicalLeftAxisProgress) : logicalTrackRect.x() + thumbMargin + thumbLogicalLeftAxisProgress;
+    auto thumbRect = FloatRect { thumbLogicalLeft, trackRect.y() + thumbMargin, logicalThumbWidth, thumbLength };
+    if (isVertical)
+        thumbRect = FloatRect { trackRect.x() + thumbMargin, thumbLogicalLeft, thumbLength, logicalThumbWidth };
+    FloatRoundedRect thumbRoundedRect(thumbRect, thumbRadii);
+
+    context.setDropShadow({ FloatSize { 0, 2.5f * trackScale }, 6 * trackScale, shadowColor, ShadowRadiusMode::Default });
+    context.save();
+    context.clipRoundedRect(switchTrackRoundedRect(trackRect, isVertical, switchCornerRadiusFraction));
+    context.fillRoundedRect(thumbRoundedRect, thumbColor);
+    context.restore();
+
+    if (isFocused) {
+        Path outlinePath;
+        outlinePath.addRoundedRect(thumbRoundedRect);
+        // The width argument is ignored in GraphicsContextCG::drawFocusRing().
+        context.drawFocusRing(outlinePath, 0, outlineColor, renderer.style().usedZoom());
+    }
+    return false;
+}
+
+static bool renderThemePaintSwitchTrack(OptionSet<ControlStyle::State> states, const RenderElement& renderer, const PaintInfo& paintInfo, const FloatRect& rect, float switchCornerRadiusFraction)
+{
+#if ENABLE(FORM_CONTROL_REFRESH) && (!PLATFORM(VISION) || ENABLE(AX_ZOOM_ADJUSTMENTS))
+    if (renderer.document().settings().formControlRefreshEnabled())
+        return renderThemePaintLiquidGlassSwitchTrack(states, renderer, paintInfo, rect, switchCornerRadiusFraction);
+#endif
+
+    Ref element = switchElement(renderer);
+
+    auto isEnabled = states.contains(ControlStyle::State::Enabled);
+    auto isHeld = element->isSwitchHeld();
+    auto isVertical = states.contains(ControlStyle::State::VerticalWritingMode);
+
+    auto& context = paintInfo.context();
+    GraphicsContextStateSaver stateSaver(context);
+
+    auto color = switchTrackColor(renderer);
+    if (!isEnabled)
+        color = color.colorWithAlphaMultipliedBy(.4f);
+
+    auto trackScale = switchTrackScale(rect.size(), isVertical, logicalSwitchWidth);
+    auto trackRect = switchTrackRect(rect, trackScale, isVertical, logicalSwitchWidth);
+
+    context.fillRoundedRect(switchTrackRoundedRect(trackRect, isVertical, switchCornerRadiusFraction), color);
+
+    // FIXME: rdar://118072051 macOS uses a different preference for this.
+    if (Theme::singleton().userPrefersOnOffLabels() && !isHeld)
+        paintSwitchTrackOnOffLabels(states, renderer, paintInfo, trackScale, trackRect);
+    return false;
+}
+
+static bool renderThemePaintSwitch(OptionSet<ControlStyle::State> states, const RenderElement& renderer, const PaintInfo& paintInfo, const FloatRect& rect, const Color& outlineColor, float switchCornerRadiusFraction)
+{
+    renderThemePaintSwitchTrack(states, renderer, paintInfo, rect, switchCornerRadiusFraction);
+    return renderThemePaintSwitchThumb(states, renderer, paintInfo, rect, outlineColor, switchCornerRadiusFraction);
 }
 
 } // namespace WebCore
-
-#endif
 
 @interface WebCoreRenderThemeBundle : NSObject
 @end
@@ -929,8 +1535,7 @@ bool RenderThemeCocoa::canCreateControlPartForRendererForVectorBasedControls(con
         || type == StyleAppearance::Checkbox
         || type == StyleAppearance::Radio
         || type == StyleAppearance::ProgressBar
-        || type == StyleAppearance::SwitchThumb
-        || type == StyleAppearance::SwitchTrack
+        || type == StyleAppearance::Switch
         || type == StyleAppearance::SearchFieldCancelButton
         || type == StyleAppearance::SearchFieldResultsButton
         || type == StyleAppearance::SearchFieldResultsDecoration
@@ -1266,7 +1871,7 @@ static constexpr auto searchFieldDecorationWithDropdownEmSizeLTR = 1.5f;
 static constexpr auto searchFieldDecorationWithDropdownEmSizeRTL = 1.7f;
 #endif
 
-static bool searchFieldCanBeCapsule(const RenderElement& box, const FloatRect& rect, float pixelsPerEm, bool supportsResults)
+static bool NODELETE searchFieldCanBeCapsule(const RenderElement& box, const FloatRect& rect, float pixelsPerEm, bool supportsResults)
 {
     // Depending on dimensions and styles, it might not be possible to make the control
     // capsule-shaped in a reasonable manner, or it may look especially strange with a
@@ -1965,7 +2570,7 @@ static PathWithSize spinButtonIndicatorPath(ControlSize controlSize)
     }
 }
 
-static float spinButtonDividerWidthRatioForControlSize(ControlSize controlSize)
+static float NODELETE spinButtonDividerWidthRatioForControlSize(ControlSize controlSize)
 {
     switch (controlSize) {
     case ControlSize::Micro:
@@ -1982,7 +2587,7 @@ static float spinButtonDividerWidthRatioForControlSize(ControlSize controlSize)
     }
 }
 
-static ControlSize spinButtonControlSizeForHeight(float size)
+static ControlSize NODELETE spinButtonControlSizeForHeight(float size)
 {
     if (size < 16)
         return ControlSize::Micro;
@@ -1998,7 +2603,7 @@ static ControlSize spinButtonControlSizeForHeight(float size)
     return ControlSize::ExtraLarge;
 }
 
-static float spinButtonIndicatorWidthRatio(ControlSize controlSize)
+static float NODELETE spinButtonIndicatorWidthRatio(ControlSize controlSize)
 {
     switch (controlSize) {
     case ControlSize::Micro:
@@ -2260,7 +2865,7 @@ bool RenderThemeCocoa::adjustTextFieldStyleForVectorBasedControls(RenderStyle& s
     return true;
 }
 
-static ControlSize listButtonControlSizeForBlockSize(float size)
+static ControlSize NODELETE listButtonControlSizeForBlockSize(float size)
 {
     if (size < 9)
         return ControlSize::Micro;
@@ -2276,7 +2881,7 @@ static ControlSize listButtonControlSizeForBlockSize(float size)
     return ControlSize::ExtraLarge;
 }
 
-static FloatSize listButtonIndicatorSize(ControlSize controlSize)
+static FloatSize NODELETE listButtonIndicatorSize(ControlSize controlSize)
 {
     switch (controlSize) {
     case ControlSize::Micro:
@@ -2292,7 +2897,7 @@ static FloatSize listButtonIndicatorSize(ControlSize controlSize)
 }
 
 #if PLATFORM(MAC)
-static float listButtonCornerRadius(ControlSize controlSize)
+static float NODELETE listButtonCornerRadius(ControlSize controlSize)
 {
     switch (controlSize) {
     case ControlSize::Micro:
@@ -2861,7 +3466,9 @@ bool RenderThemeCocoa::paintMenuListButtonDecorationsForVectorBasedControls(cons
     const auto logicalRect = isHorizontalWritingMode ? rect : rect.transposedRect();
 
     FloatPoint glyphOrigin;
-    glyphOrigin.setY(logicalRect.center().y() - glyphSize.height() / 2.0f);
+    auto glyphInlineSize = isHorizontalWritingMode ? glyphSize.width() : glyphSize.height();
+    auto glyphBlockSize = isHorizontalWritingMode ? glyphSize.height() : glyphSize.width();
+    glyphOrigin.setY(logicalRect.center().y() - glyphBlockSize / 2.0f);
 
     auto glyphPaddingEnd = logicalRect.width();
     auto usedZoom = style->usedZoomForLength();
@@ -2876,7 +3483,7 @@ bool RenderThemeCocoa::paintMenuListButtonDecorationsForVectorBasedControls(cons
     }
 
     if (!style->writingMode().isInlineFlipped())
-        glyphOrigin.setX(logicalRect.maxX() - glyphSize.width() - Style::evaluate<float>(box.style().usedBorderWidthEnd(), Style::ZoomNeeded { }) - glyphPaddingEnd);
+        glyphOrigin.setX(logicalRect.maxX() - glyphInlineSize - Style::evaluate<float>(box.style().usedBorderWidthEnd(), Style::ZoomNeeded { }) - glyphPaddingEnd);
     else
         glyphOrigin.setX(logicalRect.x() + Style::evaluate<float>(box.style().usedBorderWidthEnd(), Style::ZoomNeeded { }) + glyphPaddingEnd);
 
@@ -3917,8 +4524,6 @@ bool RenderThemeCocoa::adjustSwitchStyleForVectorBasedControls(RenderStyle& styl
         style.setLogicalHeight(Style::PreferredSize::Fixed { logicalSwitchHeight * usedZoom });
     }
 
-    adjustSwitchStyleDisplay(style);
-
     return true;
 }
 
@@ -4090,14 +4695,13 @@ bool RenderThemeCocoa::mayNeedBleedAvoidance(const RenderStyle& style) const
     case StyleAppearance::SearchFieldResultsButton:
     case StyleAppearance::SearchFieldResultsDecoration:
     case StyleAppearance::SquareButton:
+    case StyleAppearance::Switch:
     case StyleAppearance::SliderHorizontal:
     case StyleAppearance::SliderThumbHorizontal:
     case StyleAppearance::SliderThumbVertical:
     case StyleAppearance::SliderVertical:
     case StyleAppearance::TextArea:
     case StyleAppearance::TextField:
-    case StyleAppearance::SwitchThumb:
-    case StyleAppearance::SwitchTrack:
         return false;
     default:
         return true;
@@ -4137,7 +4741,6 @@ std::optional<RoundedShape> RenderThemeCocoa::shapeForInteractionRegion(const Re
     case StyleAppearance::SliderThumbVertical:
         return shapeForSliderThumb(box, rect, computePath);
     case StyleAppearance::Switch:
-    case StyleAppearance::SwitchTrack:
         return shapeForSwitchTrack(box, rect, computePath);
     case StyleAppearance::TextField:
         return shapeForTextAreaOrTextField(box, rect, computePath);
@@ -4152,6 +4755,17 @@ FloatSize RenderThemeCocoa::inflateRectForInteractionRegion(const RenderElement&
         const auto cssBorderWidth = box.style().usedZoom();
         rect.inflate(cssBorderWidth);
         return { cssBorderWidth, cssBorderWidth };
+    }
+
+    // These values were chosen to match UIKit.
+    auto appearance = box.style().usedAppearance();
+    if (appearance == StyleAppearance::SliderThumbHorizontal || appearance == StyleAppearance::SliderThumbVertical) {
+        static constexpr float thumbMinDimension = 48;
+        static constexpr float thumbHitAreaExpansion = 12.5;
+        if (rect.width() < thumbMinDimension || rect.height() < thumbMinDimension) {
+            rect.inflate(thumbHitAreaExpansion);
+            return { thumbHitAreaExpansion, thumbHitAreaExpansion };
+        }
     }
 
     return { 0, 0 };
@@ -4701,14 +5315,12 @@ void RenderThemeCocoa::adjustSwitchStyle(RenderStyle& style, const Element* elem
         style.setLogicalHeight(Style::PreferredSize::Fixed { logicalSwitchHeight * style.usedZoom() });
     }
 
-    adjustSwitchStyleDisplay(style);
-
     if (style.outlineStyle() == OutlineStyle::Auto)
         style.setOutlineStyle(OutlineStyle::None);
 #endif
 }
 
-bool RenderThemeCocoa::paintSwitchThumb(const RenderElement& renderer, const PaintInfo& paintInfo, const FloatRect& rect)
+bool RenderThemeCocoa::paintSwitch(const RenderElement& renderer, const PaintInfo& paintInfo, const FloatRect& rect)
 {
 #if PLATFORM(MAC)
     bool useDefaultImplementation = true;
@@ -4717,25 +5329,10 @@ bool RenderThemeCocoa::paintSwitchThumb(const RenderElement& renderer, const Pai
         useDefaultImplementation = false;
 #endif
     if (useDefaultImplementation)
-        return RenderTheme::paintSwitchThumb(renderer, paintInfo, rect);
+        return RenderTheme::paintSwitch(renderer, paintInfo, rect);
 #endif
 
-    return renderThemePaintSwitchThumb(extractControlStyleStatesForRenderer(renderer), renderer, paintInfo, rect, platformFocusRingColor(renderer.styleColorOptions()));
-}
-
-bool RenderThemeCocoa::paintSwitchTrack(const RenderElement& renderer, const PaintInfo& paintInfo, const FloatRect& rect)
-{
-#if PLATFORM(MAC)
-    bool useDefaultImplementation = true;
-#if ENABLE(FORM_CONTROL_REFRESH)
-    if (renderer.settings().formControlRefreshEnabled())
-        useDefaultImplementation = false;
-#endif
-    if (useDefaultImplementation)
-        return RenderTheme::paintSwitchTrack(renderer, paintInfo, rect);
-#endif
-
-    return renderThemePaintSwitchTrack(extractControlStyleStatesForRenderer(renderer), renderer, paintInfo, rect);
+    return renderThemePaintSwitch(extractControlStyleStatesForRenderer(renderer), renderer, paintInfo, rect, platformFocusRingColor(renderer.styleColorOptions()), switchCornerRadiusFraction);
 }
 
 void RenderThemeCocoa::paintPlatformResizer(const RenderLayerModelObject& renderer, GraphicsContext& context, const LayoutRect& resizerCornerRect)

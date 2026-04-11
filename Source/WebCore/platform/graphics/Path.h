@@ -51,11 +51,6 @@ public:
     explicit Path(const Vector<FloatPoint>& points);
     WEBCORE_EXPORT Path(Ref<PathImpl>&&);
 
-    Path(const Path&) = default;
-    Path(Path&&) = default;
-    Path& operator=(const Path&) = default;
-    Path& operator=(Path&&) = default;
-
     WEBCORE_EXPORT bool definitelyEqual(const Path&) const;
 
     void moveTo(const FloatPoint&);

@@ -96,6 +96,7 @@ OBJC_CLASS WKTextSelectionController;
 OBJC_CLASS WKViewLayoutStrategy;
 OBJC_CLASS WKWebView;
 OBJC_CLASS WKWindowVisibilityObserver;
+OBJC_CLASS WKTextEffectManager;
 OBJC_CLASS _WKRemoteObjectRegistry;
 OBJC_CLASS _WKThumbnailView;
 
@@ -140,6 +141,7 @@ struct DataDetectorElementInfo;
 struct ExceptionData;
 struct ShareDataWithParsedURL;
 struct TextAnimationData;
+struct TextEffectData;
 struct TextRecognitionResult;
 
 #if HAVE(TRANSLATION_UI_SERVICES) && ENABLE(CONTEXT_MENUS)
@@ -314,7 +316,7 @@ public:
     bool NODELETE automaticallyAdjustsContentInsets() const;
     void updateContentInsetsIfAutomatic();
     void setObscuredContentInsets(const WebCore::FloatBoxExtent&);
-    WebCore::FloatBoxExtent obscuredContentInsets() const;
+    WebCore::FloatBoxExtent NODELETE obscuredContentInsets() const;
     void flushPendingObscuredContentInsetChanges();
 
     void prepareContentInRect(CGRect);
@@ -606,8 +608,8 @@ public:
     void startWindowDrag();
 
     void startDrag(const WebCore::DragItem&, WebCore::ShareableBitmap::Handle&& image, const std::optional<WebCore::FrameIdentifier>& = std::nullopt);
-    void setFileAndURLTypes(NSString *filename, NSString *extension, NSString *uti, NSString *title, NSString *url, NSString *visibleURL, NSPasteboard *);
-    void setPromisedDataForImage(WebCore::Image&, NSString *filename, NSString *extension, NSString *title, NSString *url, NSString *visibleURL, WebCore::FragmentedSharedBuffer* archiveBuffer, NSString *pasteboardName, NSString *pasteboardOrigin);
+    void setPromisedDataForImage(Ref<WebCore::Image>&&, const String& filename, const String& extension, const String& title, const String& url, const String& visibleURL, RefPtr<WebCore::FragmentedSharedBuffer>&& archiveBuffer, const String& pasteboardName, const String& pasteboardOrigin);
+    void writePromisedImageDragDataToPasteboard(NSPasteboard *);
     void pasteboardChangedOwner(NSPasteboard *);
     void provideDataForPasteboard(NSPasteboard *, NSString *type);
     NSArray *namesOfPromisedFilesDroppedAtDestination(NSURL *dropDestination);
@@ -788,7 +790,7 @@ public:
     bool NODELETE effectiveUserInterfaceLevelIsElevated();
 
     void takeFocus(WebCore::FocusDirection);
-    void clearPromisedDragImage();
+    void clearPromisedImageDragData() { m_promisedImageDragData.reset(); }
 
     void requestDOMPasteAccess(WebCore::DOMPasteAccessCategory, WebCore::DOMPasteRequiresInteraction, const WebCore::IntRect&, const String& originIdentifier, CompletionHandler<void(WebCore::DOMPasteAccessResponse)>&&);
     void handleDOMPasteRequestForCategoryWithResult(WebCore::DOMPasteAccessCategory, WebCore::DOMPasteAccessResponse);
@@ -832,6 +834,11 @@ public:
     void removeTextAnimationForAnimationID(WTF::UUID);
 
     void hideTextAnimationView();
+
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    void addTextEffectForID(NSUUID *, const WebCore::TextEffectData&);
+    void removeTextEffectForID(NSUUID *);
+#endif
 #endif
 
 #if HAVE(INLINE_PREDICTIONS)
@@ -1088,9 +1095,18 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     RetainPtr<NSMutableDictionary> m_remoteAccessibilityFrameCache;
     HashSet<pid_t> m_registeredRemoteAccessibilityPids;
 
-    RefPtr<WebCore::Image> m_promisedImage;
-    String m_promisedFilename;
-    String m_promisedURL;
+    struct PromisedImageDragData {
+        Ref<WebCore::Image> image;
+        String filename;
+        String extension;
+        String title;
+        String url;
+        String visibleURL;
+        String imageUTI;
+        RefPtr<WebCore::FragmentedSharedBuffer> archiveBuffer;
+        String originIdentifier;
+    };
+    std::optional<PromisedImageDragData> m_promisedImageDragData;
 
     CGFloat m_totalHeightOfBanners { 0 };
 
@@ -1103,7 +1119,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
     std::optional<Vector<WebCore::KeypressCommand>> m_collectedKeypressCommands;
     std::optional<NSRange> m_stagedMarkedRange;
-    Vector<CompletionHandler<void()>> m_interpretKeyEventHoldingTank;
+    Vector<Function<void()>> m_interpretKeyEventHoldingTank;
 
     String m_lastStringForCandidateRequest;
     NSInteger m_lastCandidateRequestSequenceNumber;
@@ -1119,6 +1135,9 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 #if ENABLE(WRITING_TOOLS)
     RetainPtr<WKTextAnimationManager> m_textAnimationTypeManager;
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    RetainPtr<WKTextEffectManager> m_textEffectManager;
+#endif
 #endif
 
     WebCore::IntPoint m_lastPageScrollPosition;
@@ -1186,9 +1205,21 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     RetainPtr<WKAppKitGestureController> m_appKitGestureController;
     RetainPtr<WKTextSelectionController> m_textSelectionController;
 #endif
-} SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount);
+} SWIFT_SHARED_REFERENCE(incrementCheckedPtrCountOnWebViewImpl, decrementCheckedPtrCountOnWebViewImpl);
 
 } // namespace WebKit
+
+// FIXME: (rdar://173210238) Use `SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount)` when possible.
+
+inline void incrementCheckedPtrCountOnWebViewImpl(WebKit::WebViewImpl* obj)
+{
+    obj->incrementCheckedPtrCount();
+}
+
+inline void decrementCheckedPtrCountOnWebViewImpl(WebKit::WebViewImpl* obj)
+{
+    obj->decrementCheckedPtrCount();
+}
 
 #endif // PLATFORM(MAC)
 

@@ -114,9 +114,7 @@ private:
     bool m_allowEventLoopTasks;
 };
 
-WorkerDedicatedRunLoop::WorkerDedicatedRunLoop()
-{
-}
+WorkerDedicatedRunLoop::WorkerDedicatedRunLoop() = default;
 
 WorkerDedicatedRunLoop::~WorkerDedicatedRunLoop()
 {
@@ -426,9 +424,7 @@ WorkerDedicatedRunLoop::Task::Task(ScriptExecutionContext::Task&& task, const St
 {
 }
 
-WorkerMainRunLoop::WorkerMainRunLoop()
-{
-}
+WorkerMainRunLoop::WorkerMainRunLoop() = default;
 
 void WorkerMainRunLoop::setGlobalScope(WorkerOrWorkletGlobalScope& globalScope)
 {

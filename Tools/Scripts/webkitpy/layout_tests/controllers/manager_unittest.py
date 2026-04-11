@@ -51,7 +51,7 @@ class ManagerTest(unittest.TestCase):
     def _get_manager(self):
         host = MockHost()
         port = host.port_factory.get('test-mac-leopard')
-        manager = Manager(port, options=MockOptions(test_list=None, http=True, verbose=False), printer=Mock())
+        manager = Manager(port, options=MockOptions(test_list=None, http=True, verbose=False, driver_names=list(port.DEFAULT_SUPPORTED_DRIVERS)), printer=Mock())
         return manager
 
     def test_look_for_new_crash_logs(self):
@@ -121,7 +121,9 @@ passes/text.html                       ['PASS']
 
         manager = self._get_manager()
         device_type = "DEVICE_TYPE"
-        manager._expectations[device_type] = parse_exp(get_test_names(), get_expectations())
+        driver_name = manager._driver_names[0]
+        manager._current_driver_name = driver_name
+        manager._expectations[(driver_name, device_type)] = parse_exp(get_test_names(), get_expectations())
         test_col_width = max(len(test) for test in get_test_names()) + 1
 
         initial_stdout = sys.stdout

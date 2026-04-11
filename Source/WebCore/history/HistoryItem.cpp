@@ -61,7 +61,6 @@ HistoryItem::HistoryItem(Client& client, const String& urlString, const String& 
     , m_displayTitle(alternateTitle)
     , m_itemID(itemID ? *itemID : BackForwardItemIdentifier::generate())
     , m_frameItemID(frameItemID ? *frameItemID : BackForwardFrameItemIdentifier::generate())
-    , m_uuidIdentifier(WTF::UUID::createVersion4Weak())
     , m_client(client)
 {
 }
@@ -83,6 +82,7 @@ HistoryItem::HistoryItem(const HistoryItem& item)
     , m_isTargetItem(item.m_isTargetItem)
     , m_itemSequenceNumber(item.m_itemSequenceNumber)
     , m_documentSequenceNumber(item.m_documentSequenceNumber)
+    , m_navigationAPIKey(item.m_navigationAPIKey)
     , m_formData(item.m_formData ? RefPtr<FormData> { RefPtr { item.m_formData }->copy() } : nullptr)
     , m_formContentType(item.m_formContentType)
 #if PLATFORM(IOS_FAMILY)
@@ -92,7 +92,6 @@ HistoryItem::HistoryItem(const HistoryItem& item)
 #endif
     , m_itemID(item.m_itemID)
     , m_frameItemID(item.m_frameItemID)
-    , m_uuidIdentifier(WTF::UUID::createVersion4Weak())
     , m_client(item.m_client)
 {
 }
@@ -116,17 +115,17 @@ void HistoryItem::reset()
     m_isTargetItem = false;
 
     m_itemSequenceNumber = generateSequenceNumber();
+    m_documentSequenceNumber = generateSequenceNumber();
 
     m_stateObject = nullptr;
+
     m_navigationAPIStateObject = nullptr;
-    m_documentSequenceNumber = generateSequenceNumber();
+    m_navigationAPIKey = WTF::UUID::createVersion4();
 
     m_formData = nullptr;
     m_formContentType = String();
 
     clearChildren();
-
-    m_uuidIdentifier = WTF::UUID::createVersion4Weak();
 }
 
 const String& HistoryItem::urlString() const
@@ -338,16 +337,6 @@ HistoryItem* HistoryItem::childItemWithFrameID(FrameIdentifier frameID)
 {
     for (unsigned i = 0; i < m_children.size(); ++i) {
         if (m_children[i]->frameID() == frameID)
-            return m_children[i].ptr();
-    }
-    return nullptr;
-}
-
-HistoryItem* HistoryItem::childItemWithDocumentSequenceNumber(long long number)
-{
-    unsigned size = m_children.size();
-    for (unsigned i = 0; i < size; ++i) {
-        if (m_children[i]->documentSequenceNumber() == number)
             return m_children[i].ptr();
     }
     return nullptr;

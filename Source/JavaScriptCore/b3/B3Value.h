@@ -314,13 +314,13 @@ public:
 
     // Booleans in B3 are Const32(0) or Const32(1). So this is true if the type is Int32 and the only
     // possible return values are 0 or 1. It's OK for this method to conservatively return false.
-    bool returnsBool() const;
+    bool NODELETE returnsBool() const;
 
     bool isNegativeZero() const;
 
     bool isRounded() const;
 
-    TriState asTriState() const;
+    TriState NODELETE asTriState() const;
     bool isLikeZero() const { return asTriState() == TriState::False; }
     bool isLikeNonZero() const { return asTriState() == TriState::True; }
 
@@ -334,17 +334,17 @@ public:
     // have a non-empty ValueKey. This happens for example with Check operations.
     ValueKey key() const;
     
-    Value* foldIdentity() const;
+    Value* NODELETE foldIdentity() const;
 
     // Makes sure that none of the children are Identity's. If a child points to Identity, this will
     // repoint it at the Identity's child. For simplicity, this will follow arbitrarily long chains
     // of Identity's.
-    bool performSubstitution();
+    bool NODELETE performSubstitution();
     
     // Free values are those whose presence is guaranteed not to hurt code. We consider constants,
     // Identities, and Nops to be free. Constants are free because we hoist them to an optimal place.
     // Identities and Nops are free because we remove them.
-    bool isFree() const;
+    bool NODELETE isFree() const;
 
     // Walk the ancestors of this value (i.e. the graph of things it transitively uses). This
     // either walks phis or not, depending on whether PhiChildren is null. Your callback gets
@@ -454,8 +454,6 @@ protected:
         case WasmAddress:
         case WasmBoundsCheck:
         case WasmStructGet:
-        case WasmRefCast:
-        case WasmRefTest:
         case VectorExtractLane:
         case VectorSplat:
         case VectorNot:
@@ -523,6 +521,8 @@ protected:
         case Store:
         case WasmStructSet:
         case WasmStructNew:
+        case WasmRefCast:
+        case WasmRefTest:
         case VectorReplaceLane:
         case VectorEqual:
         case VectorNotEqual:
@@ -908,7 +908,7 @@ protected:
 private:
     friend class CheckValue; // CheckValue::convertToAdd() modifies m_kind.
 
-    static Type typeFor(Kind, Value* firstChild, Value* secondChild = nullptr);
+    static Type NODELETE typeFor(Kind, Value* firstChild, Value* secondChild = nullptr);
 
     // m_index to m_numChildren are arranged to fit in 64 bits.
 protected:

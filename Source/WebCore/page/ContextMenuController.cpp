@@ -38,6 +38,7 @@
 #include "ContextMenuProvider.h"
 #include "DocumentFragment.h"
 #include "DocumentLoader.h"
+#include "DocumentPage.h"
 #include "DocumentSecurityOrigin.h"
 #include "DocumentView.h"
 #include "Editor.h"
@@ -46,6 +47,7 @@
 #include "Event.h"
 #include "EventHandler.h"
 #include "FormState.h"
+#include "FrameDestructionObserverInlines.h"
 #include "FrameInlines.h"
 #include "FrameLoadRequest.h"
 #include "FrameLoader.h"
@@ -62,6 +64,7 @@
 #include "ImageBuffer.h"
 #include "ImageOverlay.h"
 #include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "LocalFrameLoaderClient.h"
 #include "LocalizedStrings.h"
 #include "MouseEvent.h"
@@ -111,9 +114,7 @@ ContextMenuController::ContextMenuController(Page& page, UniqueRef<ContextMenuCl
 {
 }
 
-ContextMenuController::~ContextMenuController()
-{
-}
+ContextMenuController::~ContextMenuController() = default;
 
 Page& ContextMenuController::page()
 {
@@ -1904,11 +1905,8 @@ void ContextMenuController::checkOrEnableIfNeeded(ContextMenuItem& item) const
         case ContextMenuItemTagProofread:
         case ContextMenuItemTagRewrite:
         case ContextMenuItemTagSummarize:
-            break;
-#if ENABLE(VIDEO)
         case ContextMenuItemCaptionDisplayStyleSubmenu:
             break;
-#endif
     }
 
     item.setChecked(shouldCheck);

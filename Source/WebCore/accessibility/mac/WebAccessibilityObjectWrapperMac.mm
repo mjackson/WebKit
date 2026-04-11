@@ -579,7 +579,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
         [additional addObject:NSAccessibilityMathPostscriptsAttribute];
     }
 
-    // isStaticText() objects already note their support for path in `accessibilityAttributeNames`.
+    // isStaticText() objects already include AXPath in their base attribute set above.
     if (!backingObject->isStaticText() && backingObject->supportsPath())
         [additional addObject:NSAccessibilityPathAttribute];
 
@@ -1096,14 +1096,27 @@ static void WebTransformCGPathToNSBezierPath(void* info, const CGPathElement *el
     case kCGPathElementAddLineToPoint:
         [bezierPath lineToPoint:NSPointFromCGPoint(points[0])];
         break;
+    case kCGPathElementAddQuadCurveToPoint: {
+        // Promote quad curve to cubic. points[0] = control point, points[1] = endpoint.
+        // NSBezierPath has no quad curve method, so convert to cubic:
+        //   cp1 = currentPoint + 2/3 * (quadCP - currentPoint)
+        //   cp2 = endpoint + 2/3 * (quadCP - endpoint)
+        NSPoint currentPoint = [bezierPath currentPoint];
+        CGPoint qp = points[0];
+        CGPoint ep = points[1];
+        NSPoint cp1 = NSMakePoint(currentPoint.x + (2.0 / 3.0) * (qp.x - currentPoint.x), currentPoint.y + (2.0 / 3.0) * (qp.y - currentPoint.y));
+        NSPoint cp2 = NSMakePoint(ep.x + (2.0 / 3.0) * (qp.x - ep.x), ep.y + (2.0 / 3.0) * (qp.y - ep.y));
+        [bezierPath curveToPoint:NSPointFromCGPoint(ep) controlPoint1:cp1 controlPoint2:cp2];
+        break;
+    }
     case kCGPathElementAddCurveToPoint: {
-        [bezierPath curveToPoint:NSPointFromCGPoint(points[0]) controlPoint1:NSPointFromCGPoint(points[1]) controlPoint2:NSPointFromCGPoint(points[2])];
+        // points[0] = cp1, points[1] = cp2, points[2] = endpoint.
+        // curveToPoint: takes the endpoint first, then control points.
+        [bezierPath curveToPoint:NSPointFromCGPoint(points[2]) controlPoint1:NSPointFromCGPoint(points[0]) controlPoint2:NSPointFromCGPoint(points[1])];
         break;
     }
     case kCGPathElementCloseSubpath:
         [bezierPath closePath];
-        break;
-    default:
         break;
     }
 }
@@ -2452,6 +2465,16 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_BEGIN
 {
     AXTRACE(makeString("WebAccessibilityObjectWrapper accessibilityAttributeValue:"_s, String(attributeName)));
 
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    if (AXObjectCache::accessibilityMode() != AccessibilityMode::AXThread) {
+        // A non-ITM client may have enabled accessibility, but a subsequent request
+        // could come from an ITM-capable client (e.g., VoiceOver). Check and transition.
+        ensureOnMainThread([] {
+            std::ignore = AXObjectCache::transitionToAXThreadModeIfNeeded();
+        });
+    }
+#endif
+
     RefPtr<AXCoreObject> backingObject = self.updateObjectBackingStore;
     if (!backingObject) {
         AXLOG(makeString("No backingObject for wrapper "_s, hex(reinterpret_cast<uintptr_t>(self))));
@@ -3023,45 +3046,16 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     Accessibility::performFunctionOnMainThread([protectedSelf = retainPtr(self)] {
         // This needs to be performed in an iteration of the run loop that did not start from an AX call.
         // If it's the same run loop iteration, the menu open notification won't be sent.
-        [protectedSelf performSelector:@selector(_accessibilityShowContextMenu) withObject:nil afterDelay:0.0];
+        [protectedSelf performSelector:@selector(_accessibilityPerformShowMenuAction) withObject:nil afterDelay:0.0];
     });
 }
 
-- (void)_accessibilityShowContextMenu
+- (void)_accessibilityPerformShowMenuAction
 {
-    AXTRACE("WebAccessibilityObjectWrapper _accessibilityShowContextMenu"_s);
     AX_ASSERT(isMainThread());
 
-    RefPtr<AccessibilityObject> backingObject = dynamicDowncast<AccessibilityObject>(self.axBackingObject);
-    if (!backingObject) {
-        AXLOG(makeString("No backingObject for wrapper "_s, hex(reinterpret_cast<uintptr_t>(self))));
-        return;
-    }
-
-    RefPtr page = backingObject->page();
-    if (!page)
-        return;
-
-    IntRect rect = snappedIntRect(backingObject->elementRect());
-    // On WK2, we need to account for the scroll position with regards to root view.
-    // On WK1, we need to convert rect to window space to match mouse clicking.
-    RefPtr frameView = backingObject->documentFrameView();
-    if (frameView) {
-        // Find the appropriate scroll view to convert the coordinates to window space.
-        RefPtr axScrollView = Accessibility::findAncestor(*backingObject, false, [] (const auto& ancestor) {
-            return ancestor.isScrollArea() && ancestor.scrollView();
-        });
-
-        if (RefPtr scrollView = axScrollView ? axScrollView->scrollView() : nullptr) {
-            if (!frameView->platformWidget())
-                rect = scrollView->contentsToRootView(rect);
-            else
-                rect = scrollView->contentsToWindow(rect);
-        }
-    }
-
-    if (RefPtr localMainFrame = page->localMainFrame())
-        page->contextMenuController().showContextMenuAt(*localMainFrame, rect.center());
+    if (RefPtr backingObject = dynamicDowncast<AccessibilityObject>(self.updateObjectBackingStore))
+        backingObject->performShowMenuAction();
 }
 
 - (void)accessibilityScrollToVisible
@@ -3598,6 +3592,11 @@ static id handleUIElementForTextMarkerAttribute(WebAccessibilityObjectWrapper*, 
     RefPtr object = marker.object();
     if (!object)
         return nil;
+
+    if (std::optional<AXID> representativeID = object->stitchedIntoID(); representativeID && *representativeID != object->objectID()) {
+        if (RefPtr representative = AXTextMarker { object->treeID(), *representativeID, 0 }.object())
+            object = WTF::move(representative);
+    }
 
     RetainPtr wrapper = object->wrapper();
     if (!wrapper)

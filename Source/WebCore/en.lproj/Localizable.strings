@@ -662,10 +662,10 @@
 "Finder" = "Finder";
 
 /* Inspector element selection tooltip text for Flexbox containers. */
-"Flex (Inspector Element Selection)" = "Flex";
+"flex (Inspector Element Selection)" = "flex";
 
 /* Inspector element selection tooltip text for items inside a Flexbox Container. */
-"Flex Item (Inspector Element Selection)" = "Flex Item";
+"flex item (Inspector Element Selection)" = "flex item";
 
 /* Font context sub-menu item */
 "Font" = "Font";
@@ -695,10 +695,16 @@
 "Google Safe Browsing" = "Google Safe Browsing";
 
 /* Inspector element selection tooltip text for Grid containers. */
-"Grid (Inspector Element Selection)" = "Grid";
+"grid (Inspector Element Selection)" = "grid";
+
+/* Inspector element selection tooltip text for Grid Lanes containers. */
+"grid lanes (Inspector Element Selection)" = "grid lanes";
 
 /* Inspector element selection tooltip text for items inside a Grid Container. */
-"Grid Item (Inspector Element Selection)" = "Grid Item";
+"grid item (Inspector Element Selection)" = "grid item";
+
+/* Inspector element selection tooltip text for Subgrid containers. */
+"subgrid (Inspector Element Selection)" = "subgrid";
 
 /* Codec Strings */
 "HEVC (Codec String)" = "HEVC";

@@ -71,7 +71,7 @@ public:
         m_characterWidths = CharacterClassWidths::Unknown;
     }
 
-    void combiningSetOp(CharacterClassSetOp setOp)
+    void NODELETE combiningSetOp(CharacterClassSetOp setOp)
     {
         ASSERT(m_setOp == CharacterClassSetOp::Default || m_setOp == setOp);
         m_setOp = setOp;
@@ -424,12 +424,12 @@ public:
         unicodeOpSorted(rhsSortedMatchesUnicode, rhsRangesUnicode);
     }
 
-    bool hasInvertedStrings()
+    bool NODELETE hasInvertedStrings()
     {
         return m_invertedStrings;
     }
 
-    static ALWAYS_INLINE int compareUTF32Strings(const Vector<char32_t>& a, const Vector<char32_t>& b)
+    static ALWAYS_INLINE int NODELETE compareUTF32Strings(const Vector<char32_t>& a, const Vector<char32_t>& b)
     {
         // Longer strings before shorter.
         if (a.size() > b.size())
@@ -477,7 +477,7 @@ public:
         return characterClass;
     }
 
-    void setIsCaseInsensitive(bool ignoreCase)
+    void NODELETE setIsCaseInsensitive(bool ignoreCase)
     {
         m_isCaseInsensitive = ignoreCase;
     }
@@ -1049,17 +1049,17 @@ private:
         return m_characterWidths & CharacterClassWidths::HasNonBMPChars;
     }
 
-    CharacterClassWidths characterWidths()
+    CharacterClassWidths NODELETE characterWidths()
     {
         return m_characterWidths;
     }
 
-    bool anyCharacter()
+    bool NODELETE anyCharacter()
     {
         return m_anyCharacter;
     }
 
-    bool isUnionSetOp() { return m_setOp == CharacterClassSetOp::Default || m_setOp == CharacterClassSetOp::Union; }
+    bool NODELETE isUnionSetOp() { return m_setOp == CharacterClassSetOp::Default || m_setOp == CharacterClassSetOp::Union; }
 
     bool m_isCaseInsensitive : 1;
     bool m_anyCharacter : 1;
@@ -1101,12 +1101,12 @@ class YarrPatternConstructor {
             return &m_alternative->m_terms[m_termIndex];
         }
 
-        bool hasNamedGroup()
+        bool NODELETE hasNamedGroup()
         {
             return !m_namedGroup.isNull();
         }
 
-        const String namedGroup()
+        const String NODELETE namedGroup()
         {
             return m_namedGroup;
         }
@@ -1306,7 +1306,7 @@ public:
         }
     }
 
-    void atomCharacterClassBegin(bool invert = false)
+    void NODELETE atomCharacterClassBegin(bool invert = false)
     {
         m_invertCharacterClass = invert;
 
@@ -1357,7 +1357,7 @@ public:
         m_currentCharacterClassConstructor->atomClassStringDisjunction(utf32Strings);
     }
 
-    void atomCharacterClassSetOp(CharacterClassSetOp setOp)
+    void NODELETE atomCharacterClassSetOp(CharacterClassSetOp setOp)
     {
         m_currentCharacterClassConstructor->combiningSetOp(setOp);
     }
@@ -1731,7 +1731,10 @@ public:
         else {
             if (term.matchDirection() == Forward) {
                 term.quantify(min, min, QuantifierType::FixedCount);
-                m_alternative->m_terms.append(*copyTerm(term, /* filterStartsWithBOL */ false));
+                auto copied = copyTerm(term, /* filterStartsWithBOL */ false);
+                if (!copied) [[unlikely]]
+                    return;
+                m_alternative->m_terms.append(WTF::move(*copied));
                 // NOTE: this term is interesting from an analysis perspective, in that it can be ignored.....
                 m_alternative->lastTerm().quantify((max == quantifyInfinite) ? max : max - min, greedy ? QuantifierType::Greedy : QuantifierType::NonGreedy);
                 if (m_alternative->lastTerm().type == PatternTerm::Type::ParenthesesSubpattern)
@@ -1740,7 +1743,10 @@ public:
                 term.quantify((max == quantifyInfinite) ? max : max - min, greedy ? QuantifierType::Greedy : QuantifierType::NonGreedy);
                 if (term.type == PatternTerm::Type::ParenthesesSubpattern)
                     term.parentheses.isCopy = true;
-                m_alternative->m_terms.append(*copyTerm(term, /* filterStartsWithBOL */ false));
+                auto copied = copyTerm(term, /* filterStartsWithBOL */ false);
+                if (!copied) [[unlikely]]
+                    return;
+                m_alternative->m_terms.append(WTF::move(*copied));
                 m_alternative->lastTerm().quantify(min, min, QuantifierType::FixedCount);
                 if (m_alternative->lastTerm().type == PatternTerm::Type::ParenthesesSubpattern)
                     m_alternative->lastTerm().parentheses.isCopy = false;
@@ -1758,12 +1764,12 @@ public:
         m_alternative = m_alternative->m_parent->addNewAlternative(m_pattern.m_numSubpatterns, parenthesisMatchDirection());
     }
 
-    inline bool abortedDueToError() const
+    inline bool NODELETE abortedDueToError() const
     {
         return hasError(m_error);
     }
 
-    inline ErrorCode abortErrorCode() const
+    inline ErrorCode NODELETE abortErrorCode() const
     {
         return m_error;
     }
@@ -1950,7 +1956,7 @@ public:
     //     matched string alternative, without jumping to backtracking doe to fixup offests.
     //     Instead we fixup the offsets, if needed, at the top of the next alternative's
     //     matching JIT code.
-    void checkForTerminalParentheses()
+    void NODELETE checkForTerminalParentheses()
     {
         // This check is much too crude; should be just checking whether the candidate
         // node contains nested capturing subpatterns, not the whole expression!
@@ -2042,7 +2048,7 @@ public:
         }
     }
 
-    bool containsCapturingTerms(PatternAlternative* alternative, size_t firstTermIndex, size_t endIndex)
+    bool NODELETE containsCapturingTerms(PatternAlternative* alternative, size_t firstTermIndex, size_t endIndex)
     {
         Vector<PatternTerm>& terms = alternative->m_terms;
 
@@ -2425,7 +2431,7 @@ public:
             return;
     }
 
-    ErrorCode error() { return m_error; }
+    ErrorCode NODELETE error() { return m_error; }
 
 private:
     class ParenthesisContext {
@@ -2440,7 +2446,7 @@ private:
             {
             }
 
-            void restore(bool& isModifier, bool& invert, MatchDirection& matchDirection, OptionSet<Flags>& flags)
+            void NODELETE restore(bool& isModifier, bool& invert, MatchDirection& matchDirection, OptionSet<Flags>& flags)
             {
                 isModifier = m_isModifier;
                 invert = m_invert;
@@ -2471,7 +2477,7 @@ private:
             m_isModifier = false;
         }
 
-        void pop()
+        void NODELETE pop()
         {
             ASSERT(m_stackDepth > 0);
 
@@ -2486,17 +2492,17 @@ private:
             }
         }
 
-        void setModifier(bool isMod)
+        void NODELETE setModifier(bool isMod)
         {
             m_isModifier = isMod;
         }
 
-        bool isModifier() const
+        bool NODELETE isModifier() const
         {
             return m_isModifier;
         }
 
-        void setInvert(bool invert)
+        void NODELETE setInvert(bool invert)
         {
             m_invert = invert;
         }
@@ -2516,12 +2522,12 @@ private:
             return m_matchDirection;
         }
 
-        void setFlags(OptionSet<Flags> flags)
+        void NODELETE setFlags(OptionSet<Flags> flags)
         {
             m_flags = flags;
         }
 
-        OptionSet<Flags> flags() const
+        OptionSet<Flags> NODELETE flags() const
         {
             return m_flags;
         }
@@ -2551,27 +2557,27 @@ private:
         m_parenthesisContext.push();
     }
 
-    void popParenthesisContext()
+    void NODELETE popParenthesisContext()
     {
         m_parenthesisContext.pop();
     }
 
-    void setParenthesisInvert(bool invert)
+    void NODELETE setParenthesisInvert(bool invert)
     {
         m_parenthesisContext.setInvert(invert);
     }
 
-    bool parenthesisInvert() const
+    bool NODELETE parenthesisInvert() const
     {
         return m_parenthesisContext.invert();
     }
 
-    void setParenthesisMatchDirection(MatchDirection matchDirection)
+    void NODELETE setParenthesisMatchDirection(MatchDirection matchDirection)
     {
         m_parenthesisContext.setMatchDirection(matchDirection);
     }
 
-    MatchDirection parenthesisMatchDirection() const
+    MatchDirection NODELETE parenthesisMatchDirection() const
     {
         return m_parenthesisContext.matchDirection();
     }

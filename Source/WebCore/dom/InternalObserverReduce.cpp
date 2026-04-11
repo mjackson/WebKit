@@ -33,7 +33,7 @@
 #include "InternalObserver.h"
 #include "JSDOMConvertAny.h"
 #include "JSDOMPromiseDeferred.h"
-#include "JSValueInWrappedObject.h"
+#include "JSValueInWrappedObjectInlines.h"
 #include "Observable.h"
 #include "ReducerCallback.h"
 #include "ScriptExecutionContext.h"
@@ -56,14 +56,14 @@ public:
 private:
     void next(JSC::JSValue value) final
     {
-        if (!m_accumulator) {
-            m_index++;
-            m_accumulator.setWeakly(value);
-            return;
-        }
-
         auto* globalObject = protect(scriptExecutionContext())->globalObject();
         ASSERT(globalObject);
+
+        if (!m_accumulator) {
+            m_index++;
+            m_accumulator.setWeakly(*globalObject, value);
+            return;
+        }
 
         Ref vm = globalObject->vm();
 
@@ -81,7 +81,7 @@ private:
         }
 
         if (result.type() == CallbackResultType::Success)
-            m_accumulator.setWeakly(result.releaseReturnValue());
+            m_accumulator.setWeakly(*globalObject, result.releaseReturnValue());
     }
 
     void error(JSC::JSValue value) final
@@ -113,8 +113,10 @@ private:
         , m_callback(WTF::move(callback))
         , m_promise(WTF::move(promise))
     {
-        if (!initialValue.isUndefined()) [[unlikely]]
-            m_accumulator.setWeakly(initialValue);
+        if (!initialValue.isUndefined()) [[unlikely]] {
+            if (auto* globalObject = context.globalObject())
+                m_accumulator.setWeakly(*globalObject, initialValue);
+        }
     }
 
     uint64_t m_index { 0 };

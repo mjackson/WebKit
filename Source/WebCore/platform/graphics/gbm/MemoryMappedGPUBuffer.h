@@ -119,7 +119,6 @@ private:
 
     struct gbm_bo* allocate(struct gbm_device*, const GLDisplay::BufferFormat&);
     bool createDMABufFromGBMBufferObject(struct gbm_bo*);
-    UnixFileDescriptor exportGBMBufferObjectAsDMABuf(struct gbm_bo*, unsigned planeIndex);
 
     void updateContentsInLinearFormat(const void* srcData, const IntRect& targetRect, unsigned bytesPerLine);
     void updateContentsInVivanteSuperTiledFormat(const void* srcData, const IntRect& targetRect, unsigned bytesPerLine);

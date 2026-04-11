@@ -58,7 +58,7 @@ using NavigationAPIMethodTrackerIdentifier = ObjectIdentifier<NavigationAPIMetho
 struct NavigationAPIMethodTracker : public RefCounted<NavigationAPIMethodTracker> {
     WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(NavigationAPIMethodTracker);
 
-    static Ref<NavigationAPIMethodTracker> create(Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished, JSC::JSValue&& info, RefPtr<SerializedScriptValue>&& serializedState);
+    static Ref<NavigationAPIMethodTracker> create(JSC::JSGlobalObject&, Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished, JSC::JSValue&& info, RefPtr<SerializedScriptValue>&& serializedState);
     ~NavigationAPIMethodTracker();
 
     bool operator==(const NavigationAPIMethodTracker& other) const
@@ -76,7 +76,7 @@ struct NavigationAPIMethodTracker : public RefCounted<NavigationAPIMethodTracker
     Ref<DeferredPromise> finishedPromise;
 
 private:
-    NavigationAPIMethodTracker(Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished, JSC::JSValue&& info, RefPtr<SerializedScriptValue>&& serializedState);
+    NavigationAPIMethodTracker(JSC::JSGlobalObject&, Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished, JSC::JSValue&& info, RefPtr<SerializedScriptValue>&& serializedState);
 
     NavigationAPIMethodTrackerIdentifier identifier;
 };
@@ -132,13 +132,13 @@ public:
 
     void initializeForNewWindow(std::optional<NavigationNavigationType>, LocalDOMWindow* previousWindow);
 
-    Result navigate(const String& url, NavigateOptions&&, Ref<DeferredPromise>&&, Ref<DeferredPromise>&&);
+    Result navigate(JSC::JSGlobalObject&, const String& url, NavigateOptions&&, Ref<DeferredPromise>&&, Ref<DeferredPromise>&&);
 
-    Result reload(ReloadOptions&&, Ref<DeferredPromise>&&, Ref<DeferredPromise>&&);
+    Result reload(JSC::JSGlobalObject&, ReloadOptions&&, Ref<DeferredPromise>&&, Ref<DeferredPromise>&&);
 
-    Result traverseTo(const String& key, Options&&, Ref<DeferredPromise>&&, Ref<DeferredPromise>&&);
-    Result back(Options&&, Ref<DeferredPromise>&&, Ref<DeferredPromise>&&);
-    Result forward(Options&&, Ref<DeferredPromise>&&, Ref<DeferredPromise>&&);
+    Result traverseTo(JSC::JSGlobalObject&, const String& key, Options&&, Ref<DeferredPromise>&&, Ref<DeferredPromise>&&);
+    Result back(JSC::JSGlobalObject&, Options&&, Ref<DeferredPromise>&&, Ref<DeferredPromise>&&);
+    Result forward(JSC::JSGlobalObject&, Options&&, Ref<DeferredPromise>&&, Ref<DeferredPromise>&&);
 
     ExceptionOr<void> updateCurrentEntry(UpdateCurrentEntryOptions&&);
 
@@ -242,14 +242,16 @@ private:
     void derefEventTarget() final { deref(); }
 
     bool hasEntriesAndEventsDisabled() const;
-    Result performTraversal(const String& key, Navigation::Options, Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished);
+    Result performTraversal(JSC::JSGlobalObject&, const String& key, Navigation::Options, Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished);
     ExceptionOr<RefPtr<SerializedScriptValue>> serializeState(JSC::JSValue state);
     DispatchResult innerDispatchNavigateEvent(NavigationNavigationType, Ref<NavigationDestination>&&, const String& downloadRequestFilename, FormState* = nullptr, SerializedScriptValue* classicHistoryAPIState = nullptr, Element* sourceElement = nullptr);
+    void setupInterceptionState(NavigateEvent&, NavigationNavigationType, NavigationDestination&, Document&, SerializedScriptValue* classicHistoryAPIState);
+    std::optional<DispatchResult> handleSameDocumentNavigation(NavigateEvent&, NavigationNavigationType, NavigationAPIMethodTracker*, AbortController&, Document&);
 
     void setActivation(HistoryItem* previousItem, std::optional<NavigationNavigationType>);
 
-    RefPtr<NavigationAPIMethodTracker> maybeSetUpcomingNonTraversalTracker(Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished, JSC::JSValue info, RefPtr<SerializedScriptValue>&&);
-    RefPtr<NavigationAPIMethodTracker> addUpcomingTraverseAPIMethodTracker(Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished, const String& key, JSC::JSValue info);
+    RefPtr<NavigationAPIMethodTracker> maybeSetUpcomingNonTraversalTracker(JSC::JSGlobalObject&, Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished, JSC::JSValue info, RefPtr<SerializedScriptValue>&&);
+    RefPtr<NavigationAPIMethodTracker> addUpcomingTraverseAPIMethodTracker(JSC::JSGlobalObject&, Ref<DeferredPromise>&& committed, Ref<DeferredPromise>&& finished, const String& key, JSC::JSValue info);
     void cleanupAPIMethodTracker(NavigationAPIMethodTracker*) WTF_EXCLUDES_LOCK(m_apiMethodTrackersLock);
     void resolveFinishedPromise(NavigationAPIMethodTracker*);
     void rejectFinishedPromise(NavigationAPIMethodTracker*, const Exception&, JSC::JSValue exceptionObject);

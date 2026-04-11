@@ -78,79 +78,10 @@ static constexpr GLbitfield kWriteAfterAccessMemoryBarriers =
 // immediately submit when the device is idle after calling to flush.
 static constexpr size_t kMinCommandCountToSubmit = 1024;
 
-// For shader uniforms such as gl_DepthRange and the viewport size.
-struct GraphicsDriverUniforms
+constexpr bool useVulkanSecondaryCommandBuffer()
 {
-    // Contain packed 8-bit values for atomic counter buffer offsets.  These offsets are within
-    // Vulkan's minStorageBufferOffsetAlignment limit and are used to support unaligned offsets
-    // allowed in GL.
-    std::array<uint32_t, 2> acbBufferOffsets;
-
-    // .x is near, .y is far
-    std::array<float, 2> depthRange;
-
-    // Used to flip gl_FragCoord.  Packed uvec2
-    uint32_t renderArea;
-
-    // Packed vec4 of snorm8
-    uint32_t flipXY;
-
-    // Only the lower 16 bits used
-    uint32_t dither;
-
-    // Various bits of state:
-    // - Surface rotation
-    // - Advanced blend equation
-    // - Sample count
-    // - Enabled clip planes
-    // - Depth transformation
-    // - layered FBO
-    uint32_t misc;
-};
-static_assert(sizeof(GraphicsDriverUniforms) % (sizeof(uint32_t) * 4) == 0,
-              "GraphicsDriverUniforms should be 16bytes aligned");
-
-// Only used when transform feedback is emulated.
-struct GraphicsDriverUniformsExtended
-{
-    GraphicsDriverUniforms common;
-
-    // Only used with transform feedback emulation
-    std::array<int32_t, 4> xfbBufferOffsets;
-    int32_t xfbVerticesPerInstance;
-
-    int32_t padding[3];
-};
-static_assert(sizeof(GraphicsDriverUniformsExtended) % (sizeof(uint32_t) * 4) == 0,
-              "GraphicsDriverUniformsExtended should be 16bytes aligned");
-// Driver uniforms are updated using push constants and Vulkan spec guarantees universal support for
-// 128 bytes worth of push constants. For maximum compatibility ensure
-// GraphicsDriverUniformsExtended size is within that limit.
-static_assert(sizeof(GraphicsDriverUniformsExtended) <= 128,
-              "Only 128 bytes are guranteed for push constants");
-
-struct ComputeDriverUniforms
-{
-    // Atomic counter buffer offsets with the same layout as in GraphicsDriverUniforms.
-    std::array<uint32_t, 4> acbBufferOffsets;
-};
-
-uint32_t MakeFlipUniform(bool flipX, bool flipY, bool invertViewport)
-{
-    // Create snorm values of either -1 or 1, based on whether flipping is enabled or not
-    // respectively.
-    constexpr uint8_t kSnormOne      = 0x7F;
-    constexpr uint8_t kSnormMinusOne = 0x81;
-
-    // .xy are flips for the fragment stage.
-    uint32_t x = flipX ? kSnormMinusOne : kSnormOne;
-    uint32_t y = flipY ? kSnormMinusOne : kSnormOne;
-
-    // .zw are flips for the vertex stage.
-    uint32_t z = x;
-    uint32_t w = flipY != invertViewport ? kSnormMinusOne : kSnormOne;
-
-    return x | y << 8 | z << 16 | w << 24;
+    return !vk::RenderPassCommandBuffer::ExecutesInline() ||
+           !vk::OutsideRenderPassCommandBuffer::ExecutesInline();
 }
 
 GLenum DefaultGLErrorCode(VkResult result)
@@ -203,7 +134,8 @@ constexpr angle::PackedEnumMap<gl::PrimitiveMode, gl::PrimitiveMode> kPrimitiveT
 }};
 
 constexpr VkBufferUsageFlags kVertexBufferUsage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-constexpr size_t kDynamicVertexDataSize         = 16 * 1024;
+constexpr size_t kDynamicVertexDataSizeLarge    = 128 * 1024;
+constexpr size_t kDynamicVertexDataSizeSmall    = 16 * 1024;
 
 bool CanMultiDrawIndirectUseCmd(ContextVk *contextVk,
                                 VertexArrayVk *vertexArray,
@@ -733,11 +665,6 @@ bool BlendModeSupportsDither(const ContextVk *contextVk, size_t colorIndex)
     return ditheringCompatibleBlendFactors || allowAdditionalBlendFactors;
 }
 
-bool ShouldUseGraphicsDriverUniformsExtended(const vk::ErrorContext *context)
-{
-    return context->getFeatures().emulateTransformFeedback.enabled;
-}
-
 bool IsAnySamplesQuery(gl::QueryType type)
 {
     return type == gl::QueryType::AnySamples || type == gl::QueryType::AnySamplesConservative;
@@ -829,6 +756,7 @@ ContextVk::ContextVk(const gl::State &state, gl::ErrorSet *errorSet, vk::Rendere
       mGraphicsDirtyBitHandlers{},
       mComputeDirtyBitHandlers{},
       mRenderPassCommandBuffer(nullptr),
+      mCurrentPipelineLayout(nullptr),
       mCurrentGraphicsPipeline(nullptr),
       mCurrentGraphicsPipelineShaders(nullptr),
       mCurrentComputePipeline(nullptr),
@@ -841,8 +769,6 @@ ContextVk::ContextVk(const gl::State &state, gl::ErrorSet *errorSet, vk::Rendere
       mCurrentIndexBuffer(nullptr),
       mCurrentIndexBufferOffset(0),
       mCurrentDrawElementsType(gl::DrawElementsType::InvalidEnum),
-      mXfbBaseVertex(0),
-      mXfbVertexCountPerInstance(0),
       mClearColorValue{},
       mClearDepthStencilValue{},
       mClearColorMasks(0),
@@ -861,7 +787,7 @@ ContextVk::ContextVk(const gl::State &state, gl::ErrorSet *errorSet, vk::Rendere
       mRenderPassCommands(nullptr),
       mQueryEventType(GraphicsEventCmdBuf::NotInQueryCmd),
       mPrimaryBufferEventCounter(0),
-      mHasDeferredFlush(false),
+      mHasDeferredRenderPassFlush(false),
       mHasAnyCommandsPendingSubmission(false),
       mIsInColorFramebufferFetchMode(false),
       mAllowRenderPassToReactivate(true),
@@ -870,7 +796,8 @@ ContextVk::ContextVk(const gl::State &state, gl::ErrorSet *errorSet, vk::Rendere
       mEstimatedPendingImageGarbageSize(0),
       mRenderPassCountSinceSubmit(0),
       mShareGroupVk(vk::GetImpl(state.getShareGroup())),
-      mCommandsPendingSubmissionCount(0)
+      mCommandsPendingSubmissionCount(0),
+      mGraphicsDriverUniforms(renderer)
 {
     ANGLE_TRACE_EVENT0("gpu.angle", "ContextVk::ContextVk");
     memset(&mClearColorValue, 0, sizeof(mClearColorValue));
@@ -893,16 +820,16 @@ ContextVk::ContextVk(const gl::State &state, gl::ErrorSet *errorSet, vk::Rendere
     // Note that currently these dirty bits are set every time a new render pass command buffer is
     // begun.  However, using ANGLE's SecondaryCommandBuffer, the Vulkan command buffer (which is
     // the primary command buffer) is not ended, so technically we don't need to rebind these.
-    mNewGraphicsCommandBufferDirtyBits = DirtyBits{
+    mNewRenderPassDirtyBits = DirtyBits{
         DIRTY_BIT_RENDER_PASS,      DIRTY_BIT_COLOR_ACCESS,    DIRTY_BIT_DEPTH_STENCIL_ACCESS,
         DIRTY_BIT_PIPELINE_BINDING, DIRTY_BIT_TEXTURES,        DIRTY_BIT_VERTEX_BUFFERS,
         DIRTY_BIT_INDEX_BUFFER,     DIRTY_BIT_UNIFORM_BUFFERS, DIRTY_BIT_SHADER_RESOURCES,
-        DIRTY_BIT_DESCRIPTOR_SETS,  DIRTY_BIT_DRIVER_UNIFORMS,
+        DIRTY_BIT_DESCRIPTOR_SETS,
     };
     if (getFeatures().supportsTransformFeedbackExtension.enabled ||
         getFeatures().emulateTransformFeedback.enabled)
     {
-        mNewGraphicsCommandBufferDirtyBits.set(DIRTY_BIT_TRANSFORM_FEEDBACK_BUFFERS);
+        mNewRenderPassDirtyBits.set(DIRTY_BIT_TRANSFORM_FEEDBACK_BUFFERS);
     }
 
     mNewComputeCommandBufferDirtyBits =
@@ -973,7 +900,10 @@ ContextVk::ContextVk(const gl::State &state, gl::ErrorSet *errorSet, vk::Rendere
         mDynamicStateDirtyBits.set(DIRTY_BIT_DYNAMIC_FRAGMENT_SHADING_RATE);
     }
 
-    mNewGraphicsCommandBufferDirtyBits |= mDynamicStateDirtyBits;
+    mNewRenderPassDirtyBits |= mDynamicStateDirtyBits;
+
+    // We need to update driver uniform for every new vulkan command buffer.
+    mNewGraphicsCommandBufferDirtyBits = DirtyBits{DIRTY_BIT_DRIVER_UNIFORMS};
 
     mGraphicsDirtyBitHandlers[DIRTY_BIT_MEMORY_BARRIER] =
         &ContextVk::handleDirtyGraphicsMemoryBarrier;
@@ -999,8 +929,6 @@ ContextVk::ContextVk(const gl::State &state, gl::ErrorSet *errorSet, vk::Rendere
             : &ContextVk::handleDirtyGraphicsVertexBuffersVertexInputDynamicStateDisabled;
     mGraphicsDirtyBitHandlers[DIRTY_BIT_INDEX_BUFFER] = &ContextVk::handleDirtyGraphicsIndexBuffer;
     mGraphicsDirtyBitHandlers[DIRTY_BIT_UNIFORMS]     = &ContextVk::handleDirtyGraphicsUniforms;
-    mGraphicsDirtyBitHandlers[DIRTY_BIT_DRIVER_UNIFORMS] =
-        &ContextVk::handleDirtyGraphicsDriverUniforms;
     mGraphicsDirtyBitHandlers[DIRTY_BIT_SHADER_RESOURCES] =
         &ContextVk::handleDirtyGraphicsShaderResources;
     mGraphicsDirtyBitHandlers[DIRTY_BIT_UNIFORM_BUFFERS] =
@@ -1009,17 +937,20 @@ ContextVk::ContextVk(const gl::State &state, gl::ErrorSet *errorSet, vk::Rendere
         &ContextVk::handleDirtyGraphicsFramebufferFetchBarrier;
     mGraphicsDirtyBitHandlers[DIRTY_BIT_BLEND_BARRIER] =
         &ContextVk::handleDirtyGraphicsBlendBarrier;
-    if (getFeatures().supportsTransformFeedbackExtension.enabled)
+
+    mGraphicsDirtyBitHandlers[DIRTY_BIT_DRIVER_UNIFORMS] =
+        &ContextVk::handleDirtyGraphicsDriverUniforms;
+    if (getFeatures().emulateTransformFeedback.enabled)
+    {
+        mGraphicsDirtyBitHandlers[DIRTY_BIT_TRANSFORM_FEEDBACK_BUFFERS] =
+            &ContextVk::handleDirtyGraphicsTransformFeedbackBuffersEmulation;
+    }
+    else
     {
         mGraphicsDirtyBitHandlers[DIRTY_BIT_TRANSFORM_FEEDBACK_BUFFERS] =
             &ContextVk::handleDirtyGraphicsTransformFeedbackBuffersExtension;
         mGraphicsDirtyBitHandlers[DIRTY_BIT_TRANSFORM_FEEDBACK_RESUME] =
             &ContextVk::handleDirtyGraphicsTransformFeedbackResume;
-    }
-    else if (getFeatures().emulateTransformFeedback.enabled)
-    {
-        mGraphicsDirtyBitHandlers[DIRTY_BIT_TRANSFORM_FEEDBACK_BUFFERS] =
-            &ContextVk::handleDirtyGraphicsTransformFeedbackBuffersEmulation;
     }
 
     mGraphicsDirtyBitHandlers[DIRTY_BIT_DESCRIPTOR_SETS] =
@@ -1379,10 +1310,14 @@ angle::Result ContextVk::initialize(const angle::ImageLoadContext &imageLoadCont
                                         pipelineRobustness(), pipelineProtectedAccess());
 
     // Initialize current value/default attribute buffers.
+    const size_t vertexBufferInitSize =
+        (getFeatures().useLargeSizeForDynamicBuffers.enabled && mState.isGLES1())
+            ? kDynamicVertexDataSizeLarge
+            : kDynamicVertexDataSizeSmall;
     for (vk::DynamicBuffer &buffer : mStreamedVertexBuffers)
     {
-        buffer.init(mRenderer, kVertexBufferUsage, vk::kVertexBufferAlignment,
-                    kDynamicVertexDataSize, true);
+        buffer.init(mRenderer, kVertexBufferUsage, vk::kVertexBufferAlignment, vertexBufferInitSize,
+                    true);
     }
 
     // Assign initial command buffers from queue
@@ -1449,6 +1384,16 @@ bool ContextVk::isSingleBufferedWindowCurrent() const
     return (mCurrentWindowSurface != nullptr && mCurrentWindowSurface->isSharedPresentMode());
 }
 
+angle::Result ContextVk::onBindTexImage()
+{
+    // EGL 1.5 spec, 3.6.1: Binding a Surface to a OpenGL ES Texture
+    //     If dpy and surface are the display and surface for the calling thread's
+    //     current context, eglBindTexImage performs an implicit glFlush.
+    //
+    // To ensure the flush doesn't get deferred, explicitly submit any outstanding commands
+    return flushAndSubmitCommands(nullptr, nullptr, QueueSubmitReason::EGLBindTexImage);
+}
+
 bool ContextVk::hasSomethingToFlush() const
 {
     // Don't skip flushes for single-buffered windows with staged updates. It is expected that a
@@ -1502,7 +1447,7 @@ angle::Result ContextVk::flushImpl(const gl::Context *context)
 
     if (hasActiveRenderPass() && !frontBufferRenderingEnabled)
     {
-        mHasDeferredFlush = true;
+        mHasDeferredRenderPassFlush = true;
         return angle::Result::Continue;
     }
 
@@ -1585,10 +1530,27 @@ angle::Result ContextVk::setupDraw(const gl::Context *context,
     VertexArrayVk *vertexArrayVk = getVertexArray();
     if (vertexArrayVk->getStreamingVertexAttribsMask().any())
     {
+        gl::AttributesMask strideDirtyAttribMask;
+
         // All client attribs & any emulated buffered attribs will be updated
-        ANGLE_TRY(vertexArrayVk->updateStreamedAttribs(context, firstVertexOrInvalid,
-                                                       vertexOrIndexCount, instanceCount,
-                                                       indexTypeOrInvalid, indices));
+        ANGLE_TRY(vertexArrayVk->updateStreamedAttribs(
+            context, firstVertexOrInvalid, vertexOrIndexCount, instanceCount, indexTypeOrInvalid,
+            indices, &strideDirtyAttribMask));
+
+        // We may switch between merged attrib and non-merged. If stride changed, and
+        // mGraphicsPipelineDesc is using it, we must update mGraphicsPipelineDesc and
+        // invalidate graphics pipeline.
+        if (strideDirtyAttribMask.any() && !getFeatures().supportsVertexInputDynamicState.enabled &&
+            !getFeatures().useVertexInputBindingStrideDynamicState.enabled)
+        {
+            for (size_t attribIndex : strideDirtyAttribMask)
+            {
+                mGraphicsPipelineDesc->updateVertexInputWithStride(
+                    this, &mGraphicsPipelineTransition, static_cast<uint32_t>(attribIndex),
+                    vertexArrayVk->getCurrentArrayBufferStride(attribIndex));
+            }
+            invalidateCurrentGraphicsPipeline();
+        }
 
         mGraphicsDirtyBits.set(DIRTY_BIT_VERTEX_BUFFERS);
     }
@@ -1606,9 +1568,14 @@ angle::Result ContextVk::setupDraw(const gl::Context *context,
         mState.isTransformFeedbackActiveUnpaused())
     {
         ASSERT(firstVertexOrInvalid != -1);
-        mXfbBaseVertex             = firstVertexOrInvalid;
-        mXfbVertexCountPerInstance = vertexOrIndexCount;
-        invalidateGraphicsDriverUniforms();
+        TransformFeedbackVk *transformFeedbackVk =
+            vk::GetImpl(mState.getCurrentTransformFeedback());
+        std::array<int32_t, 4> &bufferOffsets = mGraphicsDriverUniforms.updateTransformFeedbackData(
+            static_cast<int32_t>(vertexOrIndexCount));
+
+        transformFeedbackVk->getBufferOffsets(this, firstVertexOrInvalid, bufferOffsets.data(),
+                                              bufferOffsets.size());
+        mGraphicsDirtyBits.set(DIRTY_BIT_DRIVER_UNIFORMS);
     }
 
     DirtyBits dirtyBits = mGraphicsDirtyBits & dirtyBitMask;
@@ -2374,7 +2341,7 @@ angle::Result ContextVk::handleDirtyAnySamplePassedQueryEnd(DirtyBits::Iterator 
         // Don't let next render pass end up reactivate and reuse the current render pass, which
         // defeats the purpose of it.
         mAllowRenderPassToReactivate = false;
-        mHasDeferredFlush            = true;
+        mHasDeferredRenderPassFlush  = true;
     }
     return angle::Result::Continue;
 }
@@ -2421,6 +2388,23 @@ angle::Result ContextVk::handleDirtyGraphicsRenderPass(DirtyBits::Iterator *dirt
         ANGLE_TRY(flushDirtyGraphicsRenderPass(dirtyBitsIterator,
                                                dirtyBitMask & ~DirtyBits{DIRTY_BIT_RENDER_PASS},
                                                RenderPassClosureReason::AlreadySpecifiedElsewhere));
+    }
+
+    // If we are using vulkan secondary command buffer, we must push constants for every renderPass.
+    // Or, from vulkan spec: When multiview is enabled, ... push constants must be set before they
+    // are used.
+    if (useVulkanSecondaryCommandBuffer() || drawFramebufferVk->getState().isMultiview())
+    {
+        mGraphicsDriverUniforms.setAllDirtyBits();
+        dirtyBitsIterator->setLaterBit(DIRTY_BIT_DRIVER_UNIFORMS);
+    }
+    else if (mGraphicsDirtyBits[DIRTY_BIT_DRIVER_UNIFORMS])
+    {
+        // If flushDirtyGraphicsRenderPass end up did command buffer submission, it will insert
+        // DIRTY_BIT_DRIVER_UNIFORMS to mGraphicsDirtyBits. But if this is called from dirty bit
+        // handler, we have to copy the DIRTY_BIT_DRIVER_UNIFORMS bit to dirtyBitsIterator so that
+        // it can be processed right now for this draw call.
+        dirtyBitsIterator->setLaterBit(DIRTY_BIT_DRIVER_UNIFORMS);
     }
 
     bool renderPassDescChanged = false;
@@ -3729,9 +3713,6 @@ angle::Result ContextVk::submitCommands(const vk::Semaphore *signalSemaphore,
                                         const vk::SharedExternalFence *externalFence,
                                         QueueSubmitReason reason)
 {
-    // Since we just about to flush, deferred flush is no longer deferred.
-    mHasDeferredFlush = false;
-
     if (kEnableCommandStreamDiagnostics)
     {
         dumpCommandStreamDiagnostics();
@@ -3764,6 +3745,18 @@ angle::Result ContextVk::submitCommands(const vk::Semaphore *signalSemaphore,
     mShareGroupVk->cleanupExcessiveRefCountedEventGarbage();
 
     mComputeDirtyBits |= mNewComputeCommandBufferDirtyBits;
+    mGraphicsDirtyBits |= mNewGraphicsCommandBufferDirtyBits;
+    // Always update all pushConstants for new command buffer
+    mGraphicsDriverUniforms.setAllDirtyBits();
+
+    // If we are using ANGLE's secondary command buffer, and still have un-flushed
+    // renderPass commands, the DIRTY_BIT_DRIVER_UNIFORMS we inserted above won't take effect for
+    // them. We must explicitly add pushConstants in the new primary command buffer before this
+    // renderPass gets flushed.
+    if (!useVulkanSecondaryCommandBuffer() && mRenderPassCommands->started())
+    {
+        mRenderPassCommands->dirtyCurrentDriverUniforms();
+    }
 
     mTotalBufferToImageCopySize       = 0;
     mEstimatedPendingImageGarbageSize = 0;
@@ -4310,11 +4303,13 @@ angle::Result ContextVk::multiDrawElementsInstancedBaseVertexBaseInstance(
         drawcount);
 }
 
-angle::Result ContextVk::optimizeRenderPassForPresent(vk::ImageViewHelper *colorImageView,
-                                                      vk::ImageHelper *colorImage,
-                                                      vk::ImageHelper *colorImageMS,
-                                                      bool isSharedPresentMode,
-                                                      bool *imageResolved)
+angle::Result ContextVk::optimizeRenderPassForPresent(
+    vk::ImageViewHelper *colorImageView,
+    vk::ImageHelper *colorImage,
+    vk::ImageHelper *ancillaryColorImage,
+    PresentImageLayout layout,
+    SurfaceAncillaryColorBehavior ancillaryBehavior,
+    bool *imageResolved)
 {
     // Note: mRenderPassCommandBuffer may be nullptr because the render pass is marked for closure.
     // That doesn't matter and the render pass can continue to be modified.  This function shouldn't
@@ -4342,16 +4337,18 @@ angle::Result ContextVk::optimizeRenderPassForPresent(vk::ImageViewHelper *color
     // Resolve the multisample image
     vk::RenderPassCommandBufferHelper &commandBufferHelper = getStartedRenderPassCommands();
     gl::Rectangle renderArea                               = commandBufferHelper.getRenderArea();
-    const gl::Rectangle fullExtent(0, 0, colorImageMS->getRotatedExtents().width,
-                                   colorImageMS->getRotatedExtents().height);
-    const bool resolveWithRenderPass = colorImageMS->valid() && renderArea == fullExtent;
+    const gl::Rectangle fullExtent(0, 0, ancillaryColorImage->getRotatedExtents().width,
+                                   ancillaryColorImage->getRotatedExtents().height);
+    const bool resolveWithRenderPass = ancillaryColorImage->valid() &&
+                                       ancillaryColorImage->getSamples() > 1 &&
+                                       renderArea == fullExtent;
 
     // Handle transition to PRESENT_SRC automatically as part of the render pass.  If the swapchain
     // image is the target of resolve, but that resolve cannot happen with the render pass, do not
     // apply this optimization; the image has to be moved out of PRESENT_SRC to be resolved after
     // this call.
-    if (getFeatures().supportsPresentation.enabled && !isSharedPresentMode &&
-        (!colorImageMS->valid() || resolveWithRenderPass))
+    if (getFeatures().supportsPresentation.enabled && layout == PresentImageLayout::PresentSrc &&
+        (!ancillaryColorImage->valid() || resolveWithRenderPass))
     {
         ASSERT(colorImage != nullptr);
         mRenderPassCommands->setImageOptimizeForPresent(colorImage);
@@ -4376,10 +4373,7 @@ angle::Result ContextVk::optimizeRenderPassForPresent(vk::ImageViewHelper *color
         onImageRenderPassWrite(gl::LevelIndex(0), 0, 1, VK_IMAGE_ASPECT_COLOR_BIT,
                                vk::ImageAccess::ColorWrite, colorImage);
 
-        // Invalidate the surface.
-        // See comment in WindowSurfaceVk::acquireNextSwapchainImage on why this is not done when
-        // in shared present mode.
-        if (!isSharedPresentMode)
+        if (ancillaryBehavior == SurfaceAncillaryColorBehavior::InvalidateOnPresent)
         {
             commandBufferHelper.invalidateRenderPassColorAttachment(
                 mState, 0, vk::PackedAttachmentIndex(0), fullExtent);
@@ -4886,7 +4880,8 @@ void ContextVk::updateDepthRange(float nearPlane, float farPlane)
     mViewport.minDepth = nearPlane;
     mViewport.maxDepth = farPlane;
 
-    invalidateGraphicsDriverUniforms();
+    mGraphicsDriverUniforms.updateDepthRange(nearPlane, farPlane);
+    mGraphicsDirtyBits.set(DIRTY_BIT_DRIVER_UNIFORMS);
     mGraphicsDirtyBits.set(DIRTY_BIT_DYNAMIC_VIEWPORT);
 }
 
@@ -5077,7 +5072,20 @@ void ContextVk::updateAdvancedBlendEquations(const gl::ProgramExecutable *execut
     // driver uniforms to pass the equation to the shader.
     if (executable->getAdvancedBlendEquations().any())
     {
-        invalidateGraphicsDriverUniforms();
+        uint32_t advancedBlendEquation = 0;
+        if (getFeatures().emulateAdvancedBlendEquations.enabled && mState.isBlendEnabled())
+        {
+            // Pass the advanced blend equation to shader as-is.  If the equation is not one of the
+            // advanced ones, 0 is expected.
+            const gl::BlendStateExt &blendStateExt = mState.getBlendStateExt();
+            if (blendStateExt.getUsesAdvancedBlendEquationMask().test(0))
+            {
+                advancedBlendEquation =
+                    static_cast<uint32_t>(getState().getBlendStateExt().getEquationColorIndexed(0));
+            }
+        }
+        mGraphicsDriverUniforms.updateAdvancedBlendEquation(advancedBlendEquation);
+        mGraphicsDirtyBits.set(DIRTY_BIT_DRIVER_UNIFORMS);
     }
 }
 
@@ -5175,6 +5183,8 @@ void ContextVk::updateDither()
     {
         mGraphicsPipelineDesc->updateEmulatedDitherControl(&mGraphicsPipelineTransition,
                                                            ditherControl);
+        mGraphicsDriverUniforms.updateEmulatedDitherControl(ditherControl);
+        mGraphicsDirtyBits.set(DIRTY_BIT_DRIVER_UNIFORMS);
         invalidateCurrentGraphicsPipeline();
     }
 }
@@ -5594,7 +5604,7 @@ angle::Result ContextVk::syncState(const gl::Context *context,
                 {
                     // This will behave as if user called glFlush, but the actual flush will be
                     // triggered at endRenderPass time.
-                    mHasDeferredFlush = true;
+                    mHasDeferredRenderPassFlush = true;
                 }
 
                 mDepthStencilAttachmentFlags.reset();
@@ -5631,6 +5641,26 @@ angle::Result ContextVk::syncState(const gl::Context *context,
 
                 onDrawFramebufferRenderPassDescChange(drawFramebufferVk, nullptr);
 
+                // Update render area in the driver uniforms. Note that these are only used for
+                // surfaces, which always result in DIRTY_BIT_DRAW_FRAMEBUFFER_BINDING being set
+                // from angle::SubjectMessage::SurfaceChanged. For FBOs we leave them stale since
+                // this dirty bit may not get set for attachment dimension change.
+                if (mState.getDrawFramebuffer()->isDefault() && programExecutable != nullptr &&
+                    programExecutable->hasFragCoord())
+                {
+                    if (mGraphicsDriverUniforms.updateRenderArea(
+                            drawFramebufferVk->getState().getDimensions().width,
+                            drawFramebufferVk->getState().getDimensions().height))
+                    {
+                        mGraphicsDirtyBits.set(DIRTY_BIT_DRIVER_UNIFORMS);
+                    }
+                }
+                if (mGraphicsDriverUniforms.updateflipXY(
+                        mCurrentRotationDrawFramebuffer, isViewportFlipEnabledForDrawFBO(),
+                        drawFramebufferVk->getSamples(), drawFramebufferVk->getLayerCount() > 1))
+                {
+                    mGraphicsDirtyBits.set(DIRTY_BIT_DRIVER_UNIFORMS);
+                }
                 break;
             }
             case gl::state::DIRTY_BIT_RENDERBUFFER_BINDING:
@@ -5683,8 +5713,19 @@ angle::Result ContextVk::syncState(const gl::Context *context,
                         iter.setLaterBit(gl::state::DIRTY_BIT_SAMPLE_SHADING);
                     }
                     mSampleShadingEnabled = programEnablesSampleShading;
-                }
 
+                    if (mState.getDrawFramebuffer()->isDefault() &&
+                        programExecutable->hasFragCoord())
+                    {
+                        if (mGraphicsDriverUniforms.updateRenderArea(
+                                drawFramebufferVk->getState().getDimensions().width,
+                                drawFramebufferVk->getState().getDimensions().height))
+                        {
+                            mGraphicsDirtyBits.set(DIRTY_BIT_DRIVER_UNIFORMS);
+                        }
+                    }
+                }
+                mCurrentPipelineLayout = &vk::GetImpl(programExecutable)->getPipelineLayout();
                 break;
             }
             case gl::state::DIRTY_BIT_SAMPLER_BINDINGS:
@@ -5702,20 +5743,31 @@ angle::Result ContextVk::syncState(const gl::Context *context,
                 // Nothing to do.
                 break;
             case gl::state::DIRTY_BIT_IMAGE_BINDINGS:
-                static_assert(gl::state::DIRTY_BIT_ATOMIC_COUNTER_BUFFER_BINDING >
+                // For invalidateCurrentShaderResources call.
+                static_assert(gl::state::DIRTY_BIT_SHADER_STORAGE_BUFFER_BINDING >
                                   gl::state::DIRTY_BIT_IMAGE_BINDINGS,
                               "Dirty bit order");
-                iter.setLaterBit(gl::state::DIRTY_BIT_ATOMIC_COUNTER_BUFFER_BINDING);
-                break;
-            case gl::state::DIRTY_BIT_SHADER_STORAGE_BUFFER_BINDING:
-                static_assert(gl::state::DIRTY_BIT_ATOMIC_COUNTER_BUFFER_BINDING >
-                                  gl::state::DIRTY_BIT_SHADER_STORAGE_BUFFER_BINDING,
-                              "Dirty bit order");
-                iter.setLaterBit(gl::state::DIRTY_BIT_ATOMIC_COUNTER_BUFFER_BINDING);
+                iter.setLaterBit(gl::state::DIRTY_BIT_SHADER_STORAGE_BUFFER_BINDING);
                 break;
             case gl::state::DIRTY_BIT_ATOMIC_COUNTER_BUFFER_BINDING:
+                // For invalidateCurrentShaderResources call.
+                static_assert(gl::state::DIRTY_BIT_ATOMIC_COUNTER_BUFFER_BINDING <
+                                  gl::state::DIRTY_BIT_SHADER_STORAGE_BUFFER_BINDING,
+                              "Dirty bit order");
+                iter.setLaterBit(gl::state::DIRTY_BIT_SHADER_STORAGE_BUFFER_BINDING);
+
+                if (mState.hasValidAtomicCounterBuffer())
+                {
+                    mGraphicsDriverUniforms.updateAtomicCounterBufferOffset(
+                        mRenderer, mState.getAtomicCounterBufferCount(),
+                        mState.getOffsetBindingPointerAtomicCounterBuffers());
+                    mGraphicsDirtyBits.set(DIRTY_BIT_DRIVER_UNIFORMS);
+                    // atomicCounterBuffers also affects compute
+                    mComputeDirtyBits.set(DIRTY_BIT_DRIVER_UNIFORMS);
+                }
+                break;
+            case gl::state::DIRTY_BIT_SHADER_STORAGE_BUFFER_BINDING:
                 ANGLE_TRY(invalidateCurrentShaderResources(command));
-                invalidateDriverUniforms();
                 break;
             case gl::state::DIRTY_BIT_UNIFORM_BUFFER_BINDINGS:
             {
@@ -5806,11 +5858,15 @@ angle::Result ContextVk::syncState(const gl::Context *context,
                             }
                             else
                             {
-                                invalidateGraphicsDriverUniforms();
+                                const uint32_t transformDepth = !mState.isClipDepthModeZeroToOne();
+                                mGraphicsDriverUniforms.updateTransformDepth(transformDepth);
+                                mGraphicsDirtyBits.set(DIRTY_BIT_DRIVER_UNIFORMS);
                             }
                             break;
                         case gl::state::EXTENDED_DIRTY_BIT_CLIP_DISTANCES:
-                            invalidateGraphicsDriverUniforms();
+                            mGraphicsDriverUniforms.updateEnabledClipDistances(
+                                mState.getEnabledClipDistances().bits());
+                            mGraphicsDirtyBits.set(DIRTY_BIT_DRIVER_UNIFORMS);
                             break;
                         case gl::state::EXTENDED_DIRTY_BIT_DEPTH_CLAMP_ENABLED:
                             // TODO(https://anglebug.com/42266182): Use EDS3
@@ -5942,8 +5998,6 @@ angle::Result ContextVk::onMakeCurrent(const gl::Context *context)
     updateFlipViewportReadFramebuffer(glState);
     updateSurfaceRotationDrawFramebuffer(glState, drawSurface);
     updateSurfaceRotationReadFramebuffer(glState, readSurface);
-
-    invalidateDriverUniforms();
 
     const gl::ProgramExecutable *executable = mState.getProgramExecutable();
     if (executable && executable->hasTransformFeedbackOutput() &&
@@ -6282,12 +6336,24 @@ angle::Result ContextVk::invalidateCurrentShaderUniformBuffers()
 
 void ContextVk::invalidateGraphicsDriverUniforms()
 {
+    // update all pushConstants for future draw calls
+    mGraphicsDriverUniforms.setAllDirtyBits();
     mGraphicsDirtyBits.set(DIRTY_BIT_DRIVER_UNIFORMS);
 }
 
 void ContextVk::invalidateDriverUniforms()
 {
-    mGraphicsDirtyBits.set(DIRTY_BIT_DRIVER_UNIFORMS);
+    if (mRenderPassCommands->started())
+    {
+        // dirty already started renderPass
+        mRenderPassCommands->dirtyCurrentDriverUniforms();
+    }
+    else
+    {
+        // For future new renderPass
+        invalidateGraphicsDriverUniforms();
+    }
+    // For next compute dispatch
     mComputeDirtyBits.set(DIRTY_BIT_DRIVER_UNIFORMS);
 }
 
@@ -6362,9 +6428,6 @@ void ContextVk::onDrawFramebufferRenderPassDescChange(FramebufferVk *framebuffer
         // Otherwise mark the pipeline as dirty.
         invalidateCurrentGraphicsPipeline();
     }
-
-    // Update render area in the driver uniforms.
-    invalidateGraphicsDriverUniforms();
 }
 
 void ContextVk::invalidateCurrentTransformFeedbackBuffers()
@@ -6387,7 +6450,7 @@ void ContextVk::onTransformFeedbackStateChanged()
     }
     else if (getFeatures().emulateTransformFeedback.enabled)
     {
-        invalidateGraphicsDriverUniforms();
+        mGraphicsDirtyBits.set(DIRTY_BIT_DRIVER_UNIFORMS);
         invalidateCurrentTransformFeedbackBuffers();
 
         // Invalidate the graphics pipeline too.  On transform feedback state change, the current
@@ -6766,43 +6829,6 @@ gl::BlendStateExt::ColorMaskStorage::Type ContextVk::getClearColorMasks() const
     return mClearColorMasks;
 }
 
-void ContextVk::writeAtomicCounterBufferDriverUniformOffsets(uint32_t *offsetsOut,
-                                                             size_t offsetsSize)
-{
-    const VkDeviceSize offsetAlignment =
-        mRenderer->getPhysicalDeviceProperties().limits.minStorageBufferOffsetAlignment;
-    size_t atomicCounterBufferCount = mState.getAtomicCounterBufferCount();
-
-    ASSERT(atomicCounterBufferCount <= offsetsSize * 4);
-
-    for (uint32_t bufferIndex = 0; bufferIndex < atomicCounterBufferCount; ++bufferIndex)
-    {
-        uint32_t offsetDiff = 0;
-
-        const gl::OffsetBindingPointer<gl::Buffer> *atomicCounterBuffer =
-            &mState.getIndexedAtomicCounterBuffer(bufferIndex);
-        if (atomicCounterBuffer->get())
-        {
-            VkDeviceSize offset        = atomicCounterBuffer->getOffset();
-            VkDeviceSize alignedOffset = (offset / offsetAlignment) * offsetAlignment;
-
-            // GL requires the atomic counter buffer offset to be aligned with uint.
-            ASSERT((offset - alignedOffset) % sizeof(uint32_t) == 0);
-            offsetDiff = static_cast<uint32_t>((offset - alignedOffset) / sizeof(uint32_t));
-
-            // We expect offsetDiff to fit in an 8-bit value.  The maximum difference is
-            // minStorageBufferOffsetAlignment / 4, where minStorageBufferOffsetAlignment
-            // currently has a maximum value of 256 on any device.
-            ASSERT(offsetDiff < (1 << 8));
-        }
-
-        // The output array is already cleared prior to this call.
-        ASSERT(bufferIndex % 4 != 0 || offsetsOut[bufferIndex / 4] == 0);
-
-        offsetsOut[bufferIndex / 4] |= static_cast<uint8_t>(offsetDiff) << ((bufferIndex % 4) * 8);
-    }
-}
-
 void ContextVk::pauseTransformFeedbackIfActiveUnpaused()
 {
     if (mRenderPassCommands->isTransformFeedbackActiveUnpaused())
@@ -6821,129 +6847,21 @@ void ContextVk::pauseTransformFeedbackIfActiveUnpaused()
 angle::Result ContextVk::handleDirtyGraphicsDriverUniforms(DirtyBits::Iterator *dirtyBitsIterator,
                                                            DirtyBits dirtyBitMask)
 {
-    FramebufferVk *drawFramebufferVk = getDrawFramebuffer();
+    ProgramExecutableVk *executableVk        = vk::GetImpl(mState.getProgramExecutable());
+    const vk::PipelineLayout &pipelineLayout = executableVk->getPipelineLayout();
 
-    static_assert(gl::IMPLEMENTATION_MAX_FRAMEBUFFER_SIZE <= 0xFFFF,
-                  "Not enough bits for render area");
-    static_assert(gl::IMPLEMENTATION_MAX_RENDERBUFFER_SIZE <= 0xFFFF,
-                  "Not enough bits for render area");
-    uint16_t renderAreaWidth, renderAreaHeight;
-    SetBitField(renderAreaWidth, drawFramebufferVk->getState().getDimensions().width);
-    SetBitField(renderAreaHeight, drawFramebufferVk->getState().getDimensions().height);
-    const uint32_t renderArea = renderAreaHeight << 16 | renderAreaWidth;
-
-    bool flipX = false;
-    bool flipY = false;
-    // Y-axis flipping only comes into play with the default framebuffer (i.e. a swapchain
-    // image). For 0-degree rotation, an FBO or pbuffer could be the draw framebuffer, and so we
-    // must check whether flipY should be positive or negative.  All other rotations, will be to
-    // the default framebuffer, and so the value of isViewportFlipEnabledForDrawFBO() is assumed
-    // true; the appropriate flipY value is chosen such that gl_FragCoord is positioned at the
-    // lower-left corner of the window.
-    switch (mCurrentRotationDrawFramebuffer)
-    {
-        case SurfaceRotation::Identity:
-            flipY = isViewportFlipEnabledForDrawFBO();
-            break;
-        case SurfaceRotation::Rotated90Degrees:
-            ASSERT(isViewportFlipEnabledForDrawFBO());
-            break;
-        case SurfaceRotation::Rotated180Degrees:
-            ASSERT(isViewportFlipEnabledForDrawFBO());
-            flipX = true;
-            break;
-        case SurfaceRotation::Rotated270Degrees:
-            ASSERT(isViewportFlipEnabledForDrawFBO());
-            flipX = true;
-            flipY = true;
-            break;
-        default:
-            UNREACHABLE();
-            break;
-    }
-
-    const bool invertViewport = isViewportFlipEnabledForDrawFBO();
-
-    // Create the extended driver uniform, and populate the extended data fields if necessary.
-    GraphicsDriverUniformsExtended driverUniformsExt = {};
-    if (ShouldUseGraphicsDriverUniformsExtended(this))
-    {
-        if (mState.isTransformFeedbackActiveUnpaused())
-        {
-            TransformFeedbackVk *transformFeedbackVk =
-                vk::GetImpl(mState.getCurrentTransformFeedback());
-            transformFeedbackVk->getBufferOffsets(this, mXfbBaseVertex,
-                                                  driverUniformsExt.xfbBufferOffsets.data(),
-                                                  driverUniformsExt.xfbBufferOffsets.size());
-        }
-        driverUniformsExt.xfbVerticesPerInstance = static_cast<int32_t>(mXfbVertexCountPerInstance);
-    }
-
-    // Create the driver uniform object that will be used as push constant argument.
-    GraphicsDriverUniforms *driverUniforms = &driverUniformsExt.common;
-    uint32_t driverUniformSize             = GetDriverUniformSize(this, PipelineType::Graphics);
-
-    const float depthRangeNear = mState.getNearPlane();
-    const float depthRangeFar  = mState.getFarPlane();
-    const uint32_t numSamples  = drawFramebufferVk->getSamples();
-    const uint32_t isLayered   = drawFramebufferVk->getLayerCount() > 1;
-
-    uint32_t advancedBlendEquation = 0;
-    if (getFeatures().emulateAdvancedBlendEquations.enabled && mState.isBlendEnabled())
-    {
-        // Pass the advanced blend equation to shader as-is.  If the equation is not one of the
-        // advanced ones, 0 is expected.
-        const gl::BlendStateExt &blendStateExt = mState.getBlendStateExt();
-        if (blendStateExt.getUsesAdvancedBlendEquationMask().test(0))
-        {
-            advancedBlendEquation =
-                static_cast<uint32_t>(getState().getBlendStateExt().getEquationColorIndexed(0));
-        }
-    }
-
-    const uint32_t swapXY               = IsRotatedAspectRatio(mCurrentRotationDrawFramebuffer);
-    const uint32_t enabledClipDistances = mState.getEnabledClipDistances().bits();
-    const uint32_t transformDepth =
-        getFeatures().supportsDepthClipControl.enabled ? 0 : !mState.isClipDepthModeZeroToOne();
-
-    static_assert(angle::BitMask<uint32_t>(gl::IMPLEMENTATION_MAX_CLIP_DISTANCES) <=
-                      sh::vk::kDriverUniformsMiscEnabledClipPlanesMask,
-                  "Not enough bits for enabled clip planes");
-
-    ASSERT((swapXY & ~sh::vk::kDriverUniformsMiscSwapXYMask) == 0);
-    ASSERT((advancedBlendEquation & ~sh::vk::kDriverUniformsMiscAdvancedBlendEquationMask) == 0);
-    ASSERT((numSamples & ~sh::vk::kDriverUniformsMiscSampleCountMask) == 0);
-    ASSERT((enabledClipDistances & ~sh::vk::kDriverUniformsMiscEnabledClipPlanesMask) == 0);
-    ASSERT((transformDepth & ~sh::vk::kDriverUniformsMiscTransformDepthMask) == 0);
-
-    const uint32_t misc =
-        swapXY | advancedBlendEquation << sh::vk::kDriverUniformsMiscAdvancedBlendEquationOffset |
-        numSamples << sh::vk::kDriverUniformsMiscSampleCountOffset |
-        enabledClipDistances << sh::vk::kDriverUniformsMiscEnabledClipPlanesOffset |
-        transformDepth << sh::vk::kDriverUniformsMiscTransformDepthOffset |
-        isLayered << sh::vk::kDriverUniformsMiscLayeredFramebufferOffset;
-
-    // Copy and flush to the device.
-    *driverUniforms = {
-        {},
-        {depthRangeNear, depthRangeFar},
-        renderArea,
-        MakeFlipUniform(flipX, flipY, invertViewport),
-        mGraphicsPipelineDesc->getEmulatedDitherControl(),
-        misc,
-    };
-
-    if (mState.hasValidAtomicCounterBuffer())
-    {
-        writeAtomicCounterBufferDriverUniformOffsets(driverUniforms->acbBufferOffsets.data(),
-                                                     driverUniforms->acbBufferOffsets.size());
-    }
+    // renderArea must have been up to date for surface drawables
+    ASSERT(!mState.getDrawFramebuffer()->isDefault() ||
+           !mState.getProgramExecutable()->hasFragCoord() ||
+           (getDrawFramebuffer()->getState().getDimensions().width ==
+            (mGraphicsDriverUniforms.getRenderArea() & 0xffff)) &&
+               (getDrawFramebuffer()->getState().getDimensions().height ==
+                ((mGraphicsDriverUniforms.getRenderArea() >> 16) & 0xffff)));
 
     // Update push constant driver uniforms.
-    ProgramExecutableVk *executableVk = vk::GetImpl(mState.getProgramExecutable());
-    mRenderPassCommands->getCommandBuffer().pushConstants(
-        executableVk->getPipelineLayout(), getRenderer()->getSupportedVulkanShaderStageMask(), 0,
-        driverUniformSize, driverUniforms);
+    mGraphicsDriverUniforms.pushConstants(mRenderer, pipelineLayout,
+                                          &mRenderPassCommands->getCommandBuffer());
+
     mPerfCounters.graphicsDriverUniformsUpdated++;
 
     return angle::Result::Continue;
@@ -6953,20 +6871,35 @@ angle::Result ContextVk::handleDirtyComputeDriverUniforms(DirtyBits::Iterator *d
 {
     // Create the driver uniform object that will be used as push constant argument.
     ComputeDriverUniforms driverUniforms = {};
-    uint32_t driverUniformSize           = GetDriverUniformSize(this, PipelineType::Compute);
 
     if (mState.hasValidAtomicCounterBuffer())
     {
-        writeAtomicCounterBufferDriverUniformOffsets(driverUniforms.acbBufferOffsets.data(),
-                                                     driverUniforms.acbBufferOffsets.size());
+        UpdateAtomicCounterBufferOffset(mRenderer, mState.getAtomicCounterBufferCount(),
+                                        mState.getOffsetBindingPointerAtomicCounterBuffers(),
+                                        driverUniforms.acbBufferOffsets);
     }
 
     // Update push constant driver uniforms.
     ProgramExecutableVk *executableVk = vk::GetImpl(mState.getProgramExecutable());
     mOutsideRenderPassCommands->getCommandBuffer().pushConstants(
         executableVk->getPipelineLayout(), getRenderer()->getSupportedVulkanShaderStageMask(), 0,
-        driverUniformSize, &driverUniforms);
+        sizeof(ComputeDriverUniforms), &driverUniforms);
     mPerfCounters.graphicsDriverUniformsUpdated++;
+
+    // Since we just issued pushConstants in outsideRenderPass and renderPassCommands uses different
+    // secondary command buffer, we don't really need to dirty driver uniforms for the next draw
+    // call. But the next new RenderPassCommands and the current already started renderPassCommands
+    // do need to issue full pushConstants to restore driver uniforms.
+    if (mRenderPassCommands->started())
+    {
+        // dirty already started renderPass
+        mRenderPassCommands->dirtyCurrentDriverUniforms();
+    }
+    else
+    {
+        // For future new renderPass
+        invalidateGraphicsDriverUniforms();
+    }
 
     return angle::Result::Continue;
 }
@@ -7616,6 +7549,9 @@ angle::Result ContextVk::flushAndSubmitCommands(const vk::Semaphore *signalSemap
     mHasAnyCommandsPendingSubmission    = false;
     onRenderPassFinished(RenderPassClosureReason::AlreadySpecifiedElsewhere);
 
+    // Since we just about to flush, deferred flush is no longer deferred.
+    mHasDeferredRenderPassFlush = false;
+
     return angle::Result::Continue;
 }
 
@@ -7818,6 +7754,20 @@ angle::Result ContextVk::beginNewRenderPass(
         commandBufferOut));
     mRenderPassCountSinceSubmit++;
 
+    bool pushConstantAlreadyDirty =
+        mGraphicsDirtyBits[DIRTY_BIT_DRIVER_UNIFORMS] && mGraphicsDriverUniforms.isAllDataDirty();
+    // If pushConstant already dirty, we dont need to stash driver uniforms. We could just rely on
+    // DIRTY_BIT_DRIVER_UNIFORMS handler to avoid the extra data copy.
+    if (!pushConstantAlreadyDirty)
+    {
+        // For each renderPass, stash the current graphicsDriverUniforms for possible later usage.
+        // If for whatever reason that we have to submitCommands while still the open renderPass, or
+        // if issued pushConstants in outsideRenderPassCommands (which flushes to primary before
+        // renderPassCommands), we have to issue this stashed driver uniforms.
+        mRenderPassCommands->addCurrentDriverUniforms(mCurrentPipelineLayout,
+                                                      mGraphicsDriverUniforms);
+    }
+
     // By default all render pass should allow to be reactivated.
     mAllowRenderPassToReactivate = true;
 
@@ -7912,7 +7862,7 @@ angle::Result ContextVk::flushCommandsAndEndRenderPassWithoutSubmit(RenderPassCl
     }
 
     // Set dirty bits if render pass was open (and thus will be closed).
-    mGraphicsDirtyBits |= mNewGraphicsCommandBufferDirtyBits;
+    mGraphicsDirtyBits |= mNewRenderPassDirtyBits;
 
     mCurrentTransformFeedbackQueueSerial = QueueSerial();
 
@@ -7987,17 +7937,18 @@ angle::Result ContextVk::flushCommandsAndEndRenderPassWithoutSubmit(RenderPassCl
 
 angle::Result ContextVk::flushCommandsAndEndRenderPass(RenderPassClosureReason reason)
 {
-    // The main reason we have mHasDeferredFlush is not to break render pass just because we want
-    // to issue a flush. So there must be a started RP if it is true. Otherwise we should just
-    // issue a flushAndSubmitCommands immediately instead of set mHasDeferredFlush to true.
-    ASSERT(!mHasDeferredFlush || mRenderPassCommands->started());
+    // The main reason we have mHasDeferredRenderPassFlush is not to break render pass just because
+    // we want to issue a flush. So there must be a started RP if it is true. Otherwise we should
+    // just issue a flushAndSubmitCommands immediately instead of set mHasDeferredRenderPassFlush to
+    // true.
+    ASSERT(!mHasDeferredRenderPassFlush || mRenderPassCommands->started());
 
     ANGLE_TRY(flushCommandsAndEndRenderPassWithoutSubmit(reason));
 
     // In some cases, it is recommended to flush and submit the command buffer to boost performance
     // or avoid too much memory allocation.
     QueueSubmitReason submitReason;
-    if (mHasDeferredFlush)
+    if (mHasDeferredRenderPassFlush)
     {
         // If we have deferred glFlush call in the middle of render pass, perform a flush now.
         submitReason = QueueSubmitReason::DeferredFlush;
@@ -8031,12 +7982,15 @@ angle::Result ContextVk::flushDirtyGraphicsRenderPass(DirtyBits::Iterator *dirty
 
     // Set dirty bits that need processing on new render pass on the dirty bits iterator that's
     // being processed right now.
-    dirtyBitsIterator->setLaterBits(mNewGraphicsCommandBufferDirtyBits & dirtyBitMask);
+    dirtyBitsIterator->setLaterBits(mNewRenderPassDirtyBits & dirtyBitMask);
 
     // Additionally, make sure any dirty bits not included in the mask are left for future
     // processing.  Note that |dirtyBitMask| is removed from |mNewGraphicsCommandBufferDirtyBits|
     // after dirty bits are iterated, so there's no need to mask them out.
-    mGraphicsDirtyBits |= mNewGraphicsCommandBufferDirtyBits;
+    mGraphicsDirtyBits |= mNewRenderPassDirtyBits;
+    // Because dirtyBitMask always contains DIRTY_BIT_DRIVER_UNIFORMS, we don't need to explicitly
+    // add DIRTY_BIT_DRIVER_UNIFORMS to mGraphicsDirtyBits here.
+    ASSERT(dirtyBitMask.test(DIRTY_BIT_DRIVER_UNIFORMS));
 
     ASSERT(mGraphicsPipelineDesc->getSubpass() == 0);
 
@@ -8107,7 +8061,7 @@ angle::Result ContextVk::onSyncObjectInit(vk::SyncHelper *syncHelper, SyncFenceS
     // original context never issued a submission naturally.  Note that this also takes care of
     // contexts that think they issued a submission (through glFlush) but that the submission got
     // deferred.
-    mHasDeferredFlush = true;
+    mHasDeferredRenderPassFlush = true;
 
     return angle::Result::Continue;
 }
@@ -8115,7 +8069,7 @@ angle::Result ContextVk::onSyncObjectInit(vk::SyncHelper *syncHelper, SyncFenceS
 angle::Result ContextVk::flushCommandsAndEndRenderPassIfDeferredSyncInit(
     RenderPassClosureReason reason)
 {
-    if (!mHasDeferredFlush)
+    if (!mHasDeferredRenderPassFlush)
     {
         return angle::Result::Continue;
     }
@@ -8184,24 +8138,6 @@ bool ContextVk::shouldConvertUint8VkIndexType(gl::DrawElementsType glIndexType) 
 {
     return (glIndexType == gl::DrawElementsType::UnsignedByte &&
             !mRenderer->getFeatures().supportsIndexTypeUint8.enabled);
-}
-
-uint32_t GetDriverUniformSize(vk::ErrorContext *context, PipelineType pipelineType)
-{
-    if (pipelineType == PipelineType::Compute)
-    {
-        return sizeof(ComputeDriverUniforms);
-    }
-
-    ASSERT(pipelineType == PipelineType::Graphics);
-    if (ShouldUseGraphicsDriverUniformsExtended(context))
-    {
-        return sizeof(GraphicsDriverUniformsExtended);
-    }
-    else
-    {
-        return sizeof(GraphicsDriverUniforms);
-    }
 }
 
 angle::Result ContextVk::flushAndSubmitOutsideRenderPassCommands(QueueSubmitReason reason)
@@ -9167,8 +9103,9 @@ void ContextVk::restoreAllGraphicsState()
 {
     // Recover states that may have been changed by UtilsVk::depthStencilBlitResolve. We dirty all
     // states except DIRTY_BIT_RENDER_PASS so that render pass could still reused.
-    DirtyBits allDrawStateDirtyBits =
-        mNewGraphicsCommandBufferDirtyBits & ~DirtyBits{DIRTY_BIT_RENDER_PASS};
+    DirtyBits allDrawStateDirtyBits = mNewRenderPassDirtyBits & ~DirtyBits{DIRTY_BIT_RENDER_PASS};
     mGraphicsDirtyBits |= allDrawStateDirtyBits;
+    // update all pushConstants for future draw calls
+    invalidateGraphicsDriverUniforms();
 }
 }  // namespace rx

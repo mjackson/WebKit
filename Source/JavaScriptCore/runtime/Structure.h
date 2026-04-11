@@ -255,7 +255,7 @@ protected:
 private:
     inline void finishCreation(VM&, CreatingEarlyCellTag); // Defined in StructureInlines.h
 
-    void validateFlags();
+    void NODELETE validateFlags();
 
 public:
     StructureID id() const { return StructureID::encode(this); }
@@ -424,11 +424,15 @@ public:
     
     inline bool holesMustForwardToPrototype(JSObject*) const;
         
-    JSGlobalObject* globalObject() const LIFETIME_BOUND { return m_globalObject.get(); }
+    JSGlobalObject* realm() const LIFETIME_BOUND { return m_realm.get(); }
+#if USE(BUN_JSC_ADDITIONS)
+    // Compat alias: upstream renamed Structure::globalObject() -> realm() in 7d4583947a7b.
+    JSGlobalObject* globalObject() const LIFETIME_BOUND { return m_realm.get(); }
+#endif
 
-    // NOTE: This method should only be called during the creation of structures, since the global
-    // object of a structure is presumed to be immutable in a bunch of places.
-    void setGlobalObject(VM&, JSGlobalObject*);
+    // NOTE: This method should only be called during the creation of structures, since the realm
+    // of a structure is presumed to be immutable in a bunch of places.
+    void setRealm(VM&, JSGlobalObject*);
 
     ALWAYS_INLINE bool hasMonoProto() const
     {
@@ -697,10 +701,10 @@ public:
     void setContainsReadOnlyProperties() { setHasReadOnlyOrGetterSetterPropertiesExcludingProto(true); }
     
     void setCachedPropertyNameEnumerator(VM&, JSPropertyNameEnumerator*, StructureChain*);
-    JSPropertyNameEnumerator* cachedPropertyNameEnumerator() const;
-    uintptr_t cachedPropertyNameEnumeratorAndFlag() const;
-    bool canCachePropertyNameEnumerator(VM&) const;
-    bool canAccessPropertiesQuicklyForEnumeration() const;
+    JSPropertyNameEnumerator* NODELETE cachedPropertyNameEnumerator() const;
+    uintptr_t NODELETE cachedPropertyNameEnumeratorAndFlag() const;
+    bool NODELETE canCachePropertyNameEnumerator(VM&) const;
+    bool NODELETE canAccessPropertiesQuicklyForEnumeration() const;
 
     JSCellButterfly* cachedPropertyNames(CachedPropertyNamesKind) const;
     JSCellButterfly* cachedPropertyNamesIgnoringSentinel(CachedPropertyNamesKind) const;
@@ -722,9 +726,9 @@ public:
         return OBJECT_OFFSETOF(Structure, m_prototype);
     }
 
-    static constexpr ptrdiff_t globalObjectOffset()
+    static constexpr ptrdiff_t realmOffset()
     {
-        return OBJECT_OFFSETOF(Structure, m_globalObject);
+        return OBJECT_OFFSETOF(Structure, m_realm);
     }
 
     static constexpr ptrdiff_t classInfoOffset()
@@ -821,7 +825,7 @@ public:
         m_transitionWatchpointSet.add(watchpoint);
     }
     
-    void didTransitionFromThisStructureWithoutFiringWatchpoint() const;
+    void NODELETE didTransitionFromThisStructureWithoutFiringWatchpoint() const;
     void fireStructureTransitionWatchpoint(DeferredStructureTransitionWatchpointFire*) const;
 
     InlineWatchpointSet& transitionWatchpointSet() const
@@ -1065,7 +1069,7 @@ private:
 
     void clearCachedPrototypeChain();
 
-    bool holesMustForwardToPrototypeSlow(JSObject*) const;
+    bool NODELETE holesMustForwardToPrototypeSlow(JSObject*) const;
 
     // These need to be properly aligned at the beginning of the 'Structure'
     // part of the object.
@@ -1089,7 +1093,7 @@ private:
     SeenProperties m_seenProperties;
 
 
-    WriteBarrier<JSGlobalObject> m_globalObject;
+    WriteBarrier<JSGlobalObject> m_realm;
     WriteBarrier<Unknown> m_prototype;
     mutable WriteBarrier<StructureChain> m_cachedPrototypeChain;
 
@@ -1116,5 +1120,28 @@ private:
 
 void dumpTransitionKind(PrintStream&, TransitionKind);
 MAKE_PRINT_ADAPTOR(TransitionKindDump, TransitionKind, dumpTransitionKind);
+
+// Defined here rather than in JSCell.h because it needs Structure to be complete.
+inline const ClassInfo* JSCell::classInfo() const
+{
+    // If the mutator is currently sweeping, then accessing the structure is not safe since the
+    // structure may have been swept already (and we're probably being called from this object's
+    // destructor). This can only be verified for the mutator thread since other threads might be
+    // querying JSCells that are not being swept by the mutator.
+    // validateIsNotSweeping() is out-of-line to avoid pulling vm() into this header.
+    ASSERT(validateIsNotSweeping());
+    return structure()->classInfoForCells();
+}
+
+inline bool JSCell::inherits(const ClassInfo* info) const
+{
+    return classInfo()->isSubClassOf(info);
+}
+
+template<typename Target>
+inline bool JSCell::inherits() const
+{
+    return JSCastingHelpers::inherits<Target>(this);
+}
 
 } // namespace JSC

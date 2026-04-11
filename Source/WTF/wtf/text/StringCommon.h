@@ -458,10 +458,47 @@ bool NODELETE equal(const StringClass& string, std::span<const char8_t> span)
     return Unicode::equal(string.span16(), span);
 }
 
-template<typename CharacterTypeA, typename CharacterTypeB> inline bool NODELETE equalIgnoringASCIICaseWithLength(std::span<const CharacterTypeA> a, std::span<const CharacterTypeB> b, size_t lengthToCheck)
+template<typename CharacterTypeA, typename CharacterTypeB> SUPPRESS_NODELETE inline bool NODELETE equalIgnoringASCIICaseWithLength(std::span<const CharacterTypeA> a, std::span<const CharacterTypeB> b, size_t lengthToCheck)
 {
     ASSERT(a.size() >= lengthToCheck);
     ASSERT(b.size() >= lengthToCheck);
+
+#if CPU(ARM64) || CPU(X86_64)
+    if constexpr (sizeof(CharacterTypeA) == sizeof(CharacterTypeB)) {
+        using UnsignedType = SameSizeUnsignedInteger<CharacterTypeA>;
+        constexpr size_t stride = SIMD::stride<UnsignedType>;
+
+        if (lengthToCheck >= stride) {
+            auto upperA = SIMD::splat<UnsignedType>('A');
+            auto range = SIMD::splat<UnsignedType>(static_cast<UnsignedType>('Z' - 'A'));
+            auto caseBit = SIMD::splat<UnsignedType>(0x20);
+
+            auto toLower = [&](auto vec) ALWAYS_INLINE_LAMBDA {
+                auto offset = SIMD::sub(vec, upperA);
+                auto isUpper = SIMD::lessThanOrEqual(offset, range);
+                return SIMD::bitOr(vec, SIMD::bitAnd(isUpper, caseBit));
+            };
+
+            size_t i = 0;
+            for (; i + stride <= lengthToCheck; i += stride) {
+                auto aVec = SIMD::load(std::bit_cast<const UnsignedType*>(a.data() + i));
+                auto bVec = SIMD::load(std::bit_cast<const UnsignedType*>(b.data() + i));
+                if (SIMD::isNonZero(SIMD::bitNot(SIMD::equal(toLower(aVec), toLower(bVec)))))
+                    return false;
+            }
+
+            if (i < lengthToCheck) {
+                auto aVec = SIMD::load(std::bit_cast<const UnsignedType*>(a.data() + lengthToCheck - stride));
+                auto bVec = SIMD::load(std::bit_cast<const UnsignedType*>(b.data() + lengthToCheck - stride));
+                if (SIMD::isNonZero(SIMD::bitNot(SIMD::equal(toLower(aVec), toLower(bVec)))))
+                    return false;
+            }
+
+            return true;
+        }
+    }
+#endif
+
     for (size_t i = 0; i < lengthToCheck; ++i) {
         if (toASCIILower(a[i]) != toASCIILower(b[i]))
             return false;
@@ -988,10 +1025,41 @@ concept SearchableStringByOneByteCharacter =
 
 template<typename CharacterType, typename OneByteCharacterType>
     requires SearchableStringByOneByteCharacter<CharacterType, OneByteCharacterType>
-inline bool NODELETE equalLettersIgnoringASCIICaseWithLength(std::span<const CharacterType> characters, std::span<const OneByteCharacterType> lowercaseLetters, size_t length)
+SUPPRESS_NODELETE inline bool NODELETE equalLettersIgnoringASCIICaseWithLength(std::span<const CharacterType> characters, std::span<const OneByteCharacterType> lowercaseLetters, size_t length)
 {
     ASSERT(characters.size() >= length);
     ASSERT(lowercaseLetters.size() >= length);
+
+#if CPU(ARM64) || CPU(X86_64)
+    if constexpr (sizeof(CharacterType) == sizeof(OneByteCharacterType)) {
+        using UnsignedType = SameSizeUnsignedInteger<CharacterType>;
+        constexpr size_t stride = SIMD::stride<UnsignedType>;
+
+        if (length >= stride) {
+            auto caseBit = SIMD::splat<UnsignedType>(0x20);
+
+            size_t i = 0;
+            for (; i + stride <= length; i += stride) {
+                auto charVec = SIMD::load(std::bit_cast<const UnsignedType*>(characters.data() + i));
+                auto lowerVec = SIMD::load(std::bit_cast<const UnsignedType*>(lowercaseLetters.data() + i));
+                auto charLowered = SIMD::bitOr(charVec, caseBit);
+                if (SIMD::isNonZero(SIMD::bitNot(SIMD::equal(charLowered, lowerVec))))
+                    return false;
+            }
+
+            if (i < length) {
+                auto charVec = SIMD::load(std::bit_cast<const UnsignedType*>(characters.data() + length - stride));
+                auto lowerVec = SIMD::load(std::bit_cast<const UnsignedType*>(lowercaseLetters.data() + length - stride));
+                auto charLowered = SIMD::bitOr(charVec, caseBit);
+                if (SIMD::isNonZero(SIMD::bitNot(SIMD::equal(charLowered, lowerVec))))
+                    return false;
+            }
+
+            return true;
+        }
+    }
+#endif
+
     for (size_t i = 0; i < length; ++i) {
         if (!isASCIIAlphaCaselessEqual(characters[i], lowercaseLetters[i]))
             return false;

@@ -48,11 +48,20 @@ do { \
     RELEASE_ASSERT_WITH_MESSAGE((char*)(untaggedPtr) - (char*)(untaggedBase) == opcode * width, #name); \
 } while (false);
 
+#define VALIDATE_IPINT_ATOMIC_OPCODE_FROM_BASE(dispatchBase, width, opcode, name) \
+do { \
+    void* base = reinterpret_cast<void*>(dispatchBase); \
+    void* ptr = reinterpret_cast<void*>(ipint_ ## name ## _atomic_validate); \
+    void* untaggedBase = CodePtr<CFunctionPtrTag>::fromTaggedPtr(base).template untaggedPtr<>(); \
+    void* untaggedPtr = CodePtr<CFunctionPtrTag>::fromTaggedPtr(ptr).template untaggedPtr<>(); \
+    RELEASE_ASSERT_WITH_MESSAGE((char*)(untaggedPtr) - (char*)(untaggedBase) == opcode * width, #name); \
+} while (false);
+
 #define VALIDATE_IPINT_OPCODE(opcode, name) VALIDATE_IPINT_OPCODE_FROM_BASE(ipint_unreachable_validate, alignIPInt, opcode, name)
 #define VALIDATE_IPINT_GC_OPCODE(opcode, name) VALIDATE_IPINT_OPCODE_FROM_BASE(ipint_struct_new_validate, alignIPInt, opcode, name)
 #define VALIDATE_IPINT_CONVERSION_OPCODE(opcode, name) VALIDATE_IPINT_OPCODE_FROM_BASE(ipint_i32_trunc_sat_f32_s_validate, alignIPInt, opcode, name)
 #define VALIDATE_IPINT_SIMD_OPCODE(opcode, name) VALIDATE_IPINT_OPCODE_FROM_BASE(ipint_simd_v128_load_mem_validate, alignIPInt, opcode, name)
-#define VALIDATE_IPINT_ATOMIC_OPCODE(opcode, name) VALIDATE_IPINT_OPCODE_FROM_BASE(ipint_memory_atomic_notify_validate, alignIPInt, opcode, name)
+#define VALIDATE_IPINT_ATOMIC_OPCODE(opcode, name) VALIDATE_IPINT_ATOMIC_OPCODE_FROM_BASE(ipint_memory_atomic_notify_atomic_validate, alignAtomicIPInt, opcode, name)
 #define VALIDATE_IPINT_ARGUMINT_OPCODE(opcode, name) VALIDATE_IPINT_OPCODE_FROM_BASE(ipint_argumINT_a0_validate, alignArgumInt, opcode, name)
 #define VALIDATE_IPINT_SLOW_PATH(opcode, name) VALIDATE_IPINT_OPCODE_FROM_BASE(ipint_local_get_slow_path_validate, alignIPInt, opcode, name)
 #define VALIDATE_IPINT_MINT_CALL_OPCODE(opcode, name) VALIDATE_IPINT_OPCODE_FROM_BASE(ipint_mint_a0_validate, alignMInt, opcode, name)
@@ -64,7 +73,7 @@ do { \
     v(ipint_gc_dispatch_base, ipint_struct_new_validate) \
     v(ipint_conversion_dispatch_base, ipint_i32_trunc_sat_f32_s_validate) \
     v(ipint_simd_dispatch_base, ipint_simd_v128_load_mem_validate) \
-    v(ipint_atomic_dispatch_base, ipint_memory_atomic_notify_validate) \
+    v(ipint_atomic_dispatch_base, ipint_memory_atomic_notify_atomic_validate) \
 
 
 void initialize()

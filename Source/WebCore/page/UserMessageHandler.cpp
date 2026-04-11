@@ -32,6 +32,7 @@
 #include "JSDOMPromiseDeferred.h"
 #include "LocalFrame.h"
 #include "SerializedScriptValue.h"
+#include <JavaScriptCore/HeapCellInlines.h>
 #include <JavaScriptCore/JSCJSValue.h>
 
 namespace WebCore {

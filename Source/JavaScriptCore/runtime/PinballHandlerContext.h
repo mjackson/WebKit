@@ -31,6 +31,8 @@
 #include <JavaScriptCore/GPRInfo.h>
 #include <JavaScriptCore/JSPIContext.h>
 
+#include <memory>
+
 namespace JSC {
 
 class EvacuatedStackSlice;
@@ -54,7 +56,7 @@ public:
     JSGlobalObject* globalObject;
     VM* vm;
     JSFunctionWithFields* handler;
-    EvacuatedStackSlice* slice;
+    std::unique_ptr<EvacuatedStackSlice> slice;
     size_t sliceByteSize;
     JSPIContext jspiContext;
     // Callee saves to restore before entering the evacuated code (points into the PinballCompletion held by the handler).

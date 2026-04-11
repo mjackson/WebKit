@@ -42,9 +42,6 @@ struct RubberbandingState {
     MonotonicTime captureTime;
 
     RectEdges<bool> rubberbandingEdges;
-
-    FloatSize stretchScrollForce;
-    FloatSize momentumVelocity;
 };
 
 } // namespace WebCore

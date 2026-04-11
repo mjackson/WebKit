@@ -309,7 +309,7 @@ static ContainerNode::ChildChange makeChildChangeForInsertion(ContainerNode& con
     };
 }
 
-static ContainerNode::ChildChange makeChildChangeForInsertion(ContainerNode& containerNode, NodeVector& children, Node* beforeChild, ContainerNode::ChildChange::Source source, ReplacedAllChildren replacedAllChildren)
+static ContainerNode::ChildChange NODELETE makeChildChangeForInsertion(ContainerNode& containerNode, NodeVector& children, Node* beforeChild, ContainerNode::ChildChange::Source source, ReplacedAllChildren replacedAllChildren)
 {
     using Type = ContainerNode::ChildChange::Type;
     using AffectsElements = ContainerNode::ChildChange::AffectsElements;
@@ -399,23 +399,26 @@ static ALWAYS_INLINE void executeNodeInsertionWithScriptAssertion(ContainerNode&
 
     NodeVector postInsertionNotificationTargets;
     {
-        WidgetHierarchyUpdatesSuspensionScope suspendWidgetHierarchyUpdates;
-        ScriptDisallowedScope::InMainThread scriptDisallowedScope;
-        Style::ChildChangeInvalidation styleInvalidation(containerNode, childChange);
+        ChildListMutationScope mutation(containerNode);
+        {
+            WidgetHierarchyUpdatesSuspensionScope suspendWidgetHierarchyUpdates;
+            ScriptDisallowedScope::InMainThread scriptDisallowedScope;
+            Style::ChildChangeInvalidation styleInvalidation(containerNode, childChange);
 
-        if (containerNode.isShadowRoot() || containerNode.isInShadowTree()) [[unlikely]]
-            containerNode.containingShadowRoot()->resolveSlotsBeforeNodeInsertionOrRemoval();
+            if (containerNode.isShadowRoot() || containerNode.isInShadowTree()) [[unlikely]]
+                containerNode.containingShadowRoot()->resolveSlotsBeforeNodeInsertionOrRemoval();
 
-        for (auto& child : children) {
-            doNodeInsertion(child);
-            ChildListMutationScope(containerNode).childAdded(child);
-            notifyChildNodeInserted(containerNode, child, postInsertionNotificationTargets);
+            for (auto& child : children) {
+                doNodeInsertion(child);
+                mutation.childAdded(child);
+                notifyChildNodeInserted(containerNode, child, postInsertionNotificationTargets);
+            }
         }
-    }
-    ASSERT(postInsertionNotificationTargets.isEmpty() || children[0]->isConnected());
+        ASSERT(postInsertionNotificationTargets.isEmpty() || children[0]->isConnected());
 
-    // FIXME: Move childrenChanged into ScriptDisallowedScope block.
-    containerNode.childrenChanged(childChange);
+        // FIXME: Move childrenChanged into ScriptDisallowedScope block.
+        containerNode.childrenChanged(childChange);
+    }
 
     ASSERT(ScriptDisallowedScope::InMainThread::isEventDispatchAllowedInSubtree(containerNode));
     for (auto& target : postInsertionNotificationTargets)
@@ -519,7 +522,7 @@ ContainerNode::~ContainerNode()
     removeDetachedChildren();
 }
 
-static inline bool isChildTypeAllowed(ContainerNode& newParent, Node& child)
+static inline bool NODELETE isChildTypeAllowed(ContainerNode& newParent, Node& child)
 {
     if (!child.isDocumentFragment())
         return newParent.childTypeAllowed(child.nodeType());
@@ -533,11 +536,11 @@ static inline bool isChildTypeAllowed(ContainerNode& newParent, Node& child)
 
 static bool containsIncludingHostElements(const Node& possibleAncestor, const Node& node)
 {
-    RefPtr<const Node> currentNode = node;
+    const Node* currentNode = &node;
     do {
         if (currentNode == &possibleAncestor)
             return true;
-        RefPtr<const ContainerNode> parent = currentNode->parentNode();
+        const ContainerNode* parent = currentNode->parentNode();
         if (!parent) {
             if (auto* shadowRoot = dynamicDowncast<ShadowRoot>(*currentNode))
                 parent = shadowRoot->host();
@@ -670,7 +673,6 @@ ExceptionOr<void> ContainerNode::insertBefore(Node& newChild, RefPtr<Node>&& ref
 
     InspectorInstrumentation::willInsertDOMNode(protect(document()), *this);
 
-    ChildListMutationScope mutation(*this);
     executeNodeInsertionWithScriptAssertion(*this, targets, next.ptr(), ChildChange::Source::API, ReplacedAllChildren::No, [&](Node& child) {
         child.setTreeScopeRecursively(treeScope());
         insertBeforeCommon(next, child);
@@ -1004,7 +1006,6 @@ ExceptionOr<void> ContainerNode::appendChildWithoutPreInsertionValidityCheck(Nod
 
     InspectorInstrumentation::willInsertDOMNode(protect(document()), *this);
 
-    ChildListMutationScope mutation(*this);
     executeNodeInsertionWithScriptAssertion(*this, targets, nullptr, ChildChange::Source::API, ReplacedAllChildren::No, [&](Node& child) {
         child.setTreeScopeRecursively(treeScope());
         appendChildCommon(child);
@@ -1045,7 +1046,6 @@ ExceptionOr<void> ContainerNode::insertChildrenBeforeWithoutPreInsertionValidity
 
     InspectorInstrumentation::willInsertDOMNode(protect(document()), *this);
 
-    ChildListMutationScope mutation(*this);
     executeNodeInsertionWithScriptAssertion(*this, newChildren, refChild.get(), ChildChange::Source::API, ReplacedAllChildren::No, [&](auto& child) {
         child->setTreeScopeRecursively(treeScope());
         if (refChild)
@@ -1357,7 +1357,6 @@ ExceptionOr<void> ContainerNode::append(FixedVector<NodeOrString>&& vector)
         return checkResult;
 
     Ref protectedThis { *this };
-    ChildListMutationScope mutation(*this);
     if (auto appendResult = insertChildrenBeforeWithoutPreInsertionValidityCheck(WTF::move(newChildren)); appendResult.hasException())
         return appendResult;
 
@@ -1379,7 +1378,6 @@ ExceptionOr<void> ContainerNode::prepend(FixedVector<NodeOrString>&& vector)
         return checkResult;
 
     Ref protectedThis { *this };
-    ChildListMutationScope mutation(*this);
     if (auto appendResult = insertChildrenBeforeWithoutPreInsertionValidityCheck(WTF::move(newChildren), nextChild.get()); appendResult.hasException())
         return appendResult;
 

@@ -112,9 +112,15 @@
             var secondFrame = newFrame.cloneNode(true);
             var thirdFrame = newFrame.cloneNode(true);
 
+            var frameLoads = [
+                new Promise(resolve => newFrame.addEventListener("load", resolve, { once: true })),
+                new Promise(resolve => secondFrame.addEventListener("load", resolve, { once: true })),
+                new Promise(resolve => thirdFrame.addEventListener("load", resolve, { once: true })),
+            ];
             modelContainer.appendChild(newFrame); // Page now has one model elements.
             modelContainer.appendChild(secondFrame); // Page now has two model elements.
             modelContainer.appendChild(thirdFrame); // Page now has three model elements.
+            await Promise.all(frameLoads);
             await scrollAndCheckIfPositionInformationUpdated(true);
 
             await clearModelsInFrame(newFrame); // Page now has two model elements.

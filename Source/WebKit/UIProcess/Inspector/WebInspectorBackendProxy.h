@@ -54,7 +54,7 @@ public:
     void didClose();
     void bringToFront();
     void elementSelectionChanged(bool);
-    void timelineRecordingChanged(bool);
+    void NODELETE timelineRecordingChanged(bool);
     void setDeveloperPreferenceOverride(WebCore::InspectorBackendClient::DeveloperPreference, std::optional<bool>);
 
 #if ENABLE(INSPECTOR_NETWORK_THROTTLING)

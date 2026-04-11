@@ -30,6 +30,7 @@
 #include <WebCore/HitTestResult.h>
 #include <WebCore/LocalFrame.h>
 #include <WebCore/LocalFrameView.h>
+#include <WebCore/MIMETypeRegistry.h>
 #include <WebCore/NavigationAction.h>
 #include <WebCore/Node.h>
 #include <WebCore/RenderImage.h>
@@ -51,7 +52,7 @@ static WebHitTestResultData::ElementType elementTypeFromHitTestResult(const HitT
 
 static RefPtr<WebFrame> webFrameFromHitTestResult(const HitTestResult& hitTestResult)
 {
-    RefPtr coreFrame = hitTestResult.frame();
+    auto* coreFrame = hitTestResult.frame();
     if (!coreFrame)
         return nullptr;
 
@@ -79,7 +80,10 @@ static String imageSuggestedFilenameFromHitTestResult(const HitTestResult& hitTe
     if (!webFrame)
         return nullString();
 
-    return webFrame->suggestedFilenameForResourceWithURL(hitTestResult.absoluteImageURL());
+    auto url = hitTestResult.absoluteImageURL();
+    auto filename = webFrame->suggestedFilenameForResourceWithURL(url);
+    auto mimeType = webFrame->mimeTypeForResourceWithURL(url);
+    return MIMETypeRegistry::correctExtensionForMIMEType(filename, mimeType);
 }
 
 WebHitTestResultData::WebHitTestResultData() = default;
@@ -194,9 +198,7 @@ WebHitTestResultData::WebHitTestResultData(const String& absoluteImageURL, const
         imageSharedMemory = WebCore::SharedMemory::map(WTF::move(*imageHandle), WebCore::SharedMemory::Protection::ReadOnly);
 }
 
-WebHitTestResultData::~WebHitTestResultData()
-{
-}
+WebHitTestResultData::~WebHitTestResultData() = default;
 
 IntRect WebHitTestResultData::elementBoundingBoxInWindowCoordinates(const WebCore::HitTestResult& hitTestResult)
 {

@@ -375,7 +375,7 @@ bool MediaPlayerPrivateMediaFoundation::setAllChannelVolumes(float volume)
     HRESULT hr = audioVolume->GetChannelCount(&channelsCount);
     ASSERT_UNUSED(hr, SUCCEEDED(hr));
 
-    Vector<float> volumes(channelsCount, volume);
+    Vector<float> volumes(FillWith { }, channelsCount, volume);
     return SUCCEEDED(audioVolume->SetAllVolumes(channelsCount, volumes.span().data()));
 }
 

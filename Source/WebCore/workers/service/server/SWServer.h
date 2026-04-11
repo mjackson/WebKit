@@ -344,7 +344,7 @@ private:
     void tryInstallContextData(const std::optional<ProcessIdentifier>&, ServiceWorkerContextData&&);
     void installContextData(const ServiceWorkerContextData&);
 
-    SWServerRegistration* registrationFromServiceWorkerIdentifier(ServiceWorkerIdentifier);
+    SWServerRegistration* NODELETE registrationFromServiceWorkerIdentifier(ServiceWorkerIdentifier);
 
     void performGetOriginsWithRegistrationsCallbacks();
 

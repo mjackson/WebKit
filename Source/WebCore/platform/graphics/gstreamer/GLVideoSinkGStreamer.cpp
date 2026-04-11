@@ -61,6 +61,7 @@ struct _WebKitGLVideoSinkPrivate {
         GST_DEBUG_OBJECT(appSink.get(), "WebKitGLVideoSink finalized.");
     }
 
+    GRefPtr<GstElement> queue;
     GRefPtr<GstElement> appSink;
     WebKitVideoSinkSignalIdentifiers signalIdentifiers;
 };
@@ -130,7 +131,7 @@ static GstPadProbeReturn sinkPadProbeCallback(GstPad*, GstPadProbeInfo* info, gp
     gst_ghost_pad_set_target(GST_GHOST_PAD_CAST(sinkPad.get()), nullptr);
 
     gst_bin_add_many(GST_BIN_CAST(sink.get()), upload, colorconvert, nullptr);
-    gst_element_link_many(upload, colorconvert, priv->appSink.get(), nullptr);
+    gst_element_link_many(upload, colorconvert, priv->queue.get(), nullptr);
     auto target = adoptGRef(gst_element_get_static_pad(upload, "sink"));
 
     GstElement* imxVideoConvert = nullptr;
@@ -168,7 +169,14 @@ static void webKitGLVideoSinkConstructed(GObject* object)
 
     ASSERT(sink->priv->appSink);
     g_object_set(sink->priv->appSink.get(), "enable-last-sample", FALSE, "emit-signals", TRUE, "max-buffers", 1, nullptr);
-    gst_bin_add(GST_BIN_CAST(sink), sink->priv->appSink.get());
+
+    // Decouple upstream from the sink, otherwise the sink QoS would kick-in if the GL upload takes
+    // too long.
+    sink->priv->queue = gst_element_factory_make("queue", nullptr);
+    g_object_set(sink->priv->queue.get(), "max-size-buffers", 5, "max-size-time", static_cast<guint64>(0), "max-size-bytes", 0, nullptr);
+
+    gst_bin_add_many(GST_BIN_CAST(sink), sink->priv->queue.get(), sink->priv->appSink.get(), nullptr);
+    gst_element_link(sink->priv->queue.get(), sink->priv->appSink.get());
 
     GRefPtr<GstCaps> caps = adoptGRef(gst_caps_new_empty());
 
@@ -186,7 +194,7 @@ static void webKitGLVideoSinkConstructed(GObject* object)
     gst_caps_set_features(glCaps.get(), 0, gst_caps_features_new(GST_CAPS_FEATURE_MEMORY_GL_MEMORY, nullptr));
     gst_caps_append(caps.get(), glCaps.leakRef());
 
-    auto sinkPad = adoptGRef(gst_element_get_static_pad(sink->priv->appSink.get(), "sink"));
+    auto sinkPad = adoptGRef(gst_element_get_static_pad(sink->priv->queue.get(), "sink"));
 
     if (!quirkGLCaps) {
         auto upload = makeGStreamerElement("glupload"_s);
@@ -195,7 +203,7 @@ static void webKitGLVideoSinkConstructed(GObject* object)
         RELEASE_ASSERT(colorconvert);
 
         gst_bin_add_many(GST_BIN_CAST(sink), upload, colorconvert, nullptr);
-        gst_element_link_many(upload, colorconvert, sink->priv->appSink.get(), nullptr);
+        gst_element_link_many(upload, colorconvert, sink->priv->queue.get(), nullptr);
         sinkPad = adoptGRef(gst_element_get_static_pad(upload, "sink"));
 
         GstElement* imxVideoConvert = nullptr;

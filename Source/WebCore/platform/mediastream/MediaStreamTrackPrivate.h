@@ -70,7 +70,7 @@ public:
 
     void initialize(MediaStreamTrackPrivate&);
     std::function<void(Function<void()>&&)> getPostTask() { return m_postTask; }
-    RealtimeMediaSource& source() { return m_source.get(); }
+    RealtimeMediaSource& NODELETE source() { return m_source.get(); }
     void start();
     void stop();
     void requestToEnd();

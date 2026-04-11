@@ -1100,10 +1100,15 @@ target_compile_definitions(Skia PRIVATE
     SK_GAMMA_APPLY_TO_A8
 )
 
-# SK_DEBUG enables consistency checks. Most of the time this will not be
-# useful to develop WebKit, but provide a toggle that developers may flip
-# nevertheless to help catch incorrect Skia API uses when desired.
-option(SKIA_DEBUG "Enable internal Skia consistency checks" OFF)
+# SK_DEBUG enables consistency checks. It is enabled by default in Debug
+# builds but provide a toggle that developers may flip in any build type
+# to help catch incorrect Skia API uses when desired.
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(_SKIA_DEBUG_DEFAULT ON)
+else ()
+    set(_SKIA_DEBUG_DEFAULT OFF)
+endif ()
+option(SKIA_DEBUG "Enable internal Skia consistency checks" ${_SKIA_DEBUG_DEFAULT})
 mark_as_advanced(SKIA_DEBUG)
 
 target_compile_definitions(Skia PUBLIC

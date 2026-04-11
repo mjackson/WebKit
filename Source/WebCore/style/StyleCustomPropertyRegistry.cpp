@@ -53,7 +53,7 @@ CustomPropertyRegistry::CustomPropertyRegistry(Scope& scope)
 
 const CSSRegisteredCustomProperty* CustomPropertyRegistry::get(const AtomString& name) const
 {
-    ASSERT(isCustomPropertyName(name));
+    ASSERT(isCustomPropertyName(name) || name == "result"_s);
 
     // API wins.
     // https://drafts.css-houdini.org/css-properties-values-api/#determining-registration

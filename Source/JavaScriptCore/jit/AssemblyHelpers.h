@@ -111,7 +111,7 @@ public:
 #endif
 
 #if ENABLE(WEBASSEMBLY)
-    void prepareWasmCallOperation(GPRReg instanceGPR);
+    void NODELETE prepareWasmCallOperation(GPRReg instanceGPR);
 #endif
 
     void checkStackPointerAlignment()
@@ -1199,6 +1199,28 @@ public:
 #endif
     }
 
+#if USE(JSVALUE64)
+    Jump branchIfTrue(GPRReg gpr)
+    {
+        return branch64(Equal, gpr, TrustedImm64(JSValue::encode(jsBoolean(true))));
+    }
+
+    Jump branchIfNotTrue(GPRReg gpr)
+    {
+        return branch64(NotEqual, gpr, TrustedImm64(JSValue::encode(jsBoolean(true))));
+    }
+
+    Jump branchIfFalse(GPRReg gpr)
+    {
+        return branch64(Equal, gpr, TrustedImm64(JSValue::encode(jsBoolean(false))));
+    }
+
+    Jump branchIfNotFalse(GPRReg gpr)
+    {
+        return branch64(NotEqual, gpr, TrustedImm64(JSValue::encode(jsBoolean(false))));
+    }
+#endif
+
     template<typename T>
     Jump branchStructure(RelationalCondition condition, T leftHandSide, Structure* structure)
     {
@@ -1529,17 +1551,15 @@ public:
     {
         // This moves the checking range (fail if N >= (1 << (52 - 1)) or N < -(1 << (52 - 1))) by subtracting a value.
         // So, valid value region starts with -1 and lower. In unsigned form, which means,
-        // 0x00000000000000000 to 0x000fffffffffffff . So, by shifting 52, we can extract 0x000 part, and we can check whether it is zero.
+        // 0x00000000000000000 to 0x000fffffffffffff. So, by ignoring 52 bits, we can extract 0x000 part, and we can check whether it is zero.
         add64(TrustedImm64(0x0008000000000000ULL), valueGPR, scratchGPR);
-        urshift64(TrustedImm32(52), scratchGPR);
-        return branchTest64(Zero, scratchGPR);
+        return branchTest64(Zero, scratchGPR, TrustedImm64(0xFFF0000000000000ULL));
     }
 
     Jump isNotStrictInt52(GPRReg valueGPR, GPRReg scratchGPR)
     {
         add64(TrustedImm64(0x0008000000000000ULL), valueGPR, scratchGPR);
-        urshift64(TrustedImm32(52), scratchGPR);
-        return branchTest64(NonZero, scratchGPR);
+        return branchTest64(NonZero, scratchGPR, TrustedImm64(0xFFF0000000000000ULL));
     }
 
     // Here are possible arrangements of source, target, scratch:

@@ -115,9 +115,24 @@ public:
     void untrackModule(Module&);
 
     void setPort(uint64_t port) { m_port = port; }
-    bool needToHandleBreakpoints() const;
 
-    JS_EXPORT_PRIVATE bool isConnected() const;
+    // Returns true when a GDB remote client is present at the transport layer — either a TCP
+    // socket has been accepted or an RWI handler has been registered. This is a wire-level check
+    // only: the debugger may not have completed its startup sequence yet.
+    JS_EXPORT_PRIVATE bool NODELETE hasDebugger() const;
+
+    // Non-blocking check: returns true once the debugger has sent its first 'c' (continue).
+    // This is used for test only.
+    bool hasContinued() const { return m_hasContinued.load(std::memory_order_acquire); }
+
+    // True once the debugger has completed its startup exchange ('?' + first qXfer:libraries:read),
+    // which is the point at which we consider the debugger fully ready to handle breakpoints, traps, and new module loads.
+    bool isDebuggerReady() const
+    {
+        bool ready = m_isDebuggerReady.load(std::memory_order_acquire);
+        RELEASE_ASSERT(!ready || hasDebugger());
+        return ready;
+    }
 
     JS_EXPORT_PRIVATE void handlePacket(StringView packet);
 
@@ -127,17 +142,13 @@ public:
         return *m_executionHandler;
     }
 
-    JS_EXPORT_PRIVATE ModuleManager& moduleManager() const
-    {
-        RELEASE_ASSERT(m_moduleManager);
-        return *m_moduleManager;
-    }
+    JS_EXPORT_PRIVATE ModuleManager& moduleManager() const;
 
 private:
     void reset();
 
     void setState(State);
-    JS_EXPORT_PRIVATE bool isState(State) const;
+    JS_EXPORT_PRIVATE bool NODELETE isState(State) const;
 
     bool createAndBindServerSocket();
     void startAcceptThread();
@@ -169,6 +180,8 @@ private:
     friend class ExecutionHandler;
 
     std::atomic<State> m_state { State::Stopped };
+    std::atomic<bool> m_hasContinued { false };
+    std::atomic<bool> m_isDebuggerReady { false };
     uint16_t m_port { defaultPort };
     SocketType m_serverSocket { invalidSocketValue };
     SocketType m_clientSocket { invalidSocketValue };

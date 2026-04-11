@@ -74,8 +74,8 @@ public: // DOM
     void pauseAnimations();
     void unpauseAnimations();
     bool resumePausedAnimationsIfNeeded(const IntRect&);
-    bool animationsPaused() const;
-    bool hasActiveAnimation() const;
+    bool NODELETE animationsPaused() const;
+    bool NODELETE hasActiveAnimation() const;
     float getCurrentTime() const;
     void setCurrentTime(float);
     
@@ -152,7 +152,7 @@ private:
     SVGSVGElement* findRootAnchor(StringView) const;
 
     bool m_useCurrentView { false };
-    Ref<SMILTimeContainer> m_timeContainer;
+    const Ref<SMILTimeContainer> m_timeContainer;
     RefPtr<SVGViewSpec> m_viewSpec;
     RefPtr<SVGViewElement> m_currentViewElement;
     String m_currentViewFragmentIdentifier;

@@ -659,6 +659,105 @@ void testSelectFloatCompareFloatWithAliasing()
     testSelectFloatCompareFloat<EqualOrUnordered>([](float a, float b) -> bool { return a != a || b != b || a == b; });
 }
 
+void testSelectInt32WithZeroElse()
+{
+    // Select(Equal(a, b), x, 0) where both a and b are int32 registers.
+    // On ARM64 this should use csel Wd, Ws, wzr, cc (MoveConditionally32 with ZeroReg elseCase).
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t, int32_t, int32_t>(proc, root);
+    root->appendNewControlValue(
+        proc, Return, Origin(),
+        root->appendNew<Value>(
+            proc, Select, Origin(),
+            root->appendNew<Value>(
+                proc, Equal, Origin(),
+                arguments[0],
+                arguments[1]),
+            arguments[2],
+            root->appendNew<Const32Value>(proc, Origin(), 0)));
+
+    auto code = compileProc(proc);
+    CHECK_EQ(invoke<int32_t>(*code, 1, 1, 42), 42);
+    CHECK_EQ(invoke<int32_t>(*code, 1, 2, 42), 0);
+    CHECK_EQ(invoke<int32_t>(*code, 0, 0, 13), 13);
+    CHECK_EQ(invoke<int32_t>(*code, 5, 6, 99), 0);
+}
+
+void testSelectInt64WithZeroElse()
+{
+    // Select(Equal(a, b), x, 0) where all values are int64.
+    // On ARM64 this should use csel Xd, Xs, xzr, cc (MoveConditionally64 with ZeroReg elseCase).
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int64_t, int64_t, int64_t>(proc, root);
+    root->appendNewControlValue(
+        proc, Return, Origin(),
+        root->appendNew<Value>(
+            proc, Select, Origin(),
+            root->appendNew<Value>(
+                proc, Equal, Origin(),
+                arguments[0],
+                arguments[1]),
+            arguments[2],
+            root->appendNew<Const64Value>(proc, Origin(), 0)));
+
+    auto code = compileProc(proc);
+    CHECK_EQ(invoke<int64_t>(*code, INT64_C(1), INT64_C(1), INT64_C(42)), INT64_C(42));
+    CHECK_EQ(invoke<int64_t>(*code, INT64_C(1), INT64_C(2), INT64_C(42)), INT64_C(0));
+    CHECK_EQ(invoke<int64_t>(*code, INT64_C(0), INT64_C(0), INT64_C(13)), INT64_C(13));
+    CHECK_EQ(invoke<int64_t>(*code, INT64_C(5), INT64_C(6), INT64_C(99)), INT64_C(0));
+}
+
+void testSelectInt32ImmWithZeroElse()
+{
+    // Select(LessThan(a, imm), x, 0) — exercises the RelCond/Tmp/Imm/Tmp/ZeroReg/Tmp form
+    // on ARM64 (MoveConditionally32 with an immediate comparison and ZeroReg elseCase).
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t, int32_t>(proc, root);
+    root->appendNewControlValue(
+        proc, Return, Origin(),
+        root->appendNew<Value>(
+            proc, Select, Origin(),
+            root->appendNew<Value>(
+                proc, LessThan, Origin(),
+                arguments[0],
+                root->appendNew<Const32Value>(proc, Origin(), 42)),
+            arguments[1],
+            root->appendNew<Const32Value>(proc, Origin(), 0)));
+
+    auto code = compileProc(proc);
+    CHECK_EQ(invoke<int32_t>(*code, 10, 99), 99);
+    CHECK_EQ(invoke<int32_t>(*code, 42, 99), 0);
+    CHECK_EQ(invoke<int32_t>(*code, 100, 99), 0);
+}
+
+void testSelectTestWithZeroElse()
+{
+    // Select(a & 0xff, x, 0) — exercises the ResCond/Test form with ZeroReg elseCase.
+    // On ARM64: tst w0, #0xff; csel Wd, Ws, wzr, ne
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    auto arguments = cCallArgumentValues<int32_t, int32_t>(proc, root);
+    root->appendNewControlValue(
+        proc, Return, Origin(),
+        root->appendNew<Value>(
+            proc, Select, Origin(),
+            root->appendNew<Value>(
+                proc, BitAnd, Origin(),
+                arguments[0],
+                root->appendNew<Const32Value>(proc, Origin(), 0xff)),
+            arguments[1],
+            root->appendNew<Const32Value>(proc, Origin(), 0)));
+
+    auto code = compileProc(proc);
+    CHECK_EQ(invoke<int32_t>(*code, 1, 99), 99);
+    CHECK_EQ(invoke<int32_t>(*code, 0x100, 99), 0);
+    CHECK_EQ(invoke<int32_t>(*code, 0, 99), 0);
+    CHECK_EQ(invoke<int32_t>(*code, 0xff, 7), 7);
+}
+
 void testSelectFold(intptr_t value)
 {
     Procedure proc;

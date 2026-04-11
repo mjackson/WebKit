@@ -55,10 +55,7 @@ NetworkSessionCurl::NetworkSessionCurl(NetworkProcess& networkProcess, const Net
     setTrackingPreventionEnabled(parameters.resourceLoadStatisticsParameters.enabled);
 }
 
-NetworkSessionCurl::~NetworkSessionCurl()
-{
-
-}
+NetworkSessionCurl::~NetworkSessionCurl() = default;
 
 void NetworkSessionCurl::clearAlternativeServices(WallTime)
 {

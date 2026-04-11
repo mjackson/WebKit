@@ -193,7 +193,7 @@ bool BitStack::top() const
 // --------
 
 // This function is like Range::pastLastNode, except for the fact that it can climb up out of shadow trees.
-static RefPtr<Node> nextInPreOrderCrossingShadowBoundaries(Node& rangeEndContainer, int rangeEndOffset)
+static RefPtr<Node> NODELETE nextInPreOrderCrossingShadowBoundaries(Node& rangeEndContainer, int rangeEndOffset)
 {
     if (rangeEndOffset >= 0 && !rangeEndContainer.isCharacterDataNode()) {
         if (auto* next = rangeEndContainer.traverseToChildAt(rangeEndOffset))
@@ -437,7 +437,7 @@ static inline Node* NODELETE parentNodeOrShadowHost(TextIteratorBehaviors option
     return node.parentOrShadowHostNode();
 }
 
-static inline bool hasDisplayContents(Node& node)
+static inline bool NODELETE hasDisplayContents(Node& node)
 {
     auto* element = dynamicDowncast<Element>(node);
     return element && element->hasDisplayContents();
@@ -519,7 +519,7 @@ void TextIterator::advance()
         if (!m_handledNode) {
             if (!isRendererAccessible(renderer.get(), m_behaviors)) {
                 m_handledNode = true;
-                m_handledChildren = !hasDisplayContents(*protect(m_currentNode)) && !renderer;
+                m_handledChildren = !hasDisplayContents(*m_currentNode) && !renderer;
             } else {
                 if (isConsideredSkippedContent(dynamicDowncast<RenderBox>(renderer.get()), m_behaviors))
                     m_handledChildren = true;
@@ -903,7 +903,7 @@ bool shouldEmitNewlinesBeforeAndAfterNode(Node& node)
 {
     // Block flow (versus inline flow) is represented by having
     // a newline both before and after the element.
-    CheckedPtr renderer = node.renderer();
+    auto* renderer = node.renderer();
     if (!renderer) {
         if (hasDisplayContents(node))
             return false;
@@ -955,7 +955,7 @@ static bool shouldEmitNewlineAfterNode(Node& node, bool emitsCharactersBetweenAl
     // Don't emit a new line at the end of the document unless we're matching the behavior of VisiblePosition.
     if (emitsCharactersBetweenAllVisiblePositions)
         return true;
-    RefPtr subsequentNode = node;
+    auto* subsequentNode = &node;
     while ((subsequentNode = NodeTraversal::nextSkippingChildren(*subsequentNode))) {
         if (subsequentNode->renderer())
             return true;
@@ -963,7 +963,7 @@ static bool shouldEmitNewlineAfterNode(Node& node, bool emitsCharactersBetweenAl
     return false;
 }
 
-static bool shouldEmitNewlineBeforeNode(Node& node)
+static bool NODELETE shouldEmitNewlineBeforeNode(Node& node)
 {
     return shouldEmitNewlinesBeforeAndAfterNode(node); 
 }
@@ -1461,7 +1461,7 @@ void SimplifiedBackwardsTextIterator::exitNode()
     RefPtr node = m_node;
     if (shouldEmitTabBeforeNode(*node))
         emitCharacter('\t', WTF::move(node), 0, 0);
-    else if (shouldEmitNewlineForNode(node.get(), m_behaviors.contains(TextIteratorBehavior::EmitsOriginalText)) || shouldEmitNewlineBeforeNode(*protect(m_node))) {
+    else if (shouldEmitNewlineForNode(node.get(), m_behaviors.contains(TextIteratorBehavior::EmitsOriginalText)) || shouldEmitNewlineBeforeNode(*m_node)) {
         // The start of this emitted range is wrong. Ensuring correctness would require
         // VisiblePositions and so would be slow. previousBoundary expects this.
         emitCharacter('\n', WTF::move(node), 0, 0);
@@ -1779,7 +1779,7 @@ inline size_t SearchBuffer::append(StringView text)
     return usableLength;
 }
 
-inline bool SearchBuffer::needsMoreContext() const
+inline bool NODELETE SearchBuffer::needsMoreContext() const
 {
     return m_needsMoreContext;
 }
@@ -1813,7 +1813,7 @@ inline bool SearchBuffer::atBreak() const
     return m_atBreak;
 }
 
-inline void SearchBuffer::reachedBreak()
+inline void NODELETE SearchBuffer::reachedBreak()
 {
     m_atBreak = true;
 }

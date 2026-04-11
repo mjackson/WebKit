@@ -47,17 +47,17 @@ XRProjectionLayerImpl::XRProjectionLayerImpl(WebGPUPtr<WGPUXRProjectionLayer>&& 
 
 XRProjectionLayerImpl::~XRProjectionLayerImpl() = default;
 
-uint32_t XRProjectionLayerImpl::textureWidth() const
+uint32_t XRProjectionLayerImpl::colorTextureWidth() const
 {
     return 0;
 }
 
-uint32_t XRProjectionLayerImpl::textureHeight() const
+uint32_t XRProjectionLayerImpl::colorTextureHeight() const
 {
     return 0;
 }
 
-uint32_t XRProjectionLayerImpl::textureArrayLength() const
+uint32_t XRProjectionLayerImpl::colorTextureArrayLength() const
 {
 #if PLATFORM(IOS_FAMILY_SIMULATOR)
     return 1;

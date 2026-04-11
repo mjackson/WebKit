@@ -26,9 +26,9 @@
 
 #pragma once
 
+#include <WebCore/CSSSubstitutionValue.h>
 #include <WebCore/CSSValue.h>
 #include <WebCore/CSSVariableData.h>
-#include <WebCore/CSSVariableReferenceValue.h>
 #include <WebCore/CSSWideKeyword.h>
 
 namespace WebCore {
@@ -38,13 +38,13 @@ class CSSParserToken;
 class CSSCustomPropertyValue final : public CSSValue {
 public:
     using VariantValue = Variant<
-        Ref<CSSVariableReferenceValue>,
+        Ref<CSSSubstitutionValue>,
         Ref<CSSVariableData>,
         CSSWideKeyword
     >;
 
     static Ref<CSSCustomPropertyValue> createEmpty(const AtomString& name);
-    static Ref<CSSCustomPropertyValue> createUnresolved(const AtomString& name, Ref<CSSVariableReferenceValue>&&);
+    static Ref<CSSCustomPropertyValue> createUnresolved(const AtomString& name, Ref<CSSSubstitutionValue>&&);
     static Ref<CSSCustomPropertyValue> createSyntaxAll(const AtomString& name, Ref<CSSVariableData>&&);
     static Ref<CSSCustomPropertyValue> createWithCSSWideKeyword(const AtomString& name, CSSWideKeyword);
 

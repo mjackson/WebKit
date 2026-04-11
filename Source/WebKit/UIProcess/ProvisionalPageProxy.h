@@ -113,6 +113,7 @@ public:
 
     bool isProcessSwappingOnNavigationResponse() const { return m_isProcessSwappingOnNavigationResponse; }
     bool didFailProvisionalLoad() const { return m_didFailProvisionalLoad; }
+    bool hasActiveLoadForNavigation(const API::Navigation&) const;
 
     DrawingAreaProxy* drawingArea() const { return m_drawingArea.get(); }
     RefPtr<DrawingAreaProxy> takeDrawingArea();

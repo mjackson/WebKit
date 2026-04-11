@@ -41,6 +41,7 @@
 #include "IDLTypes.h"
 #include "JSCookieStoreGetOptions.h"
 #include "JSDOMConvertBoolean.h"
+#include "JSDOMConvertEnumeration.h"
 #include "JSDOMConvertInterface.h"
 #include "JSDOMConvertNullable.h"
 #include "JSDOMConvertSequences.h"

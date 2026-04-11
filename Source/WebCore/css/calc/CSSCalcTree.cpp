@@ -67,6 +67,14 @@ WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(Sqrt);
 WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(Sum);
 WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(Tan);
 
+bool isNumeric(const Child& root)
+{
+    return WTF::switchOn(root,
+        []<Numeric T>(const T&) { return true; },
+        [](const auto&) { return false; }
+    );
+}
+
 Child makeNumeric(double value, CSSUnitType unit)
 {
     switch (unit) {
@@ -169,12 +177,52 @@ Child makeNumeric(double value, CSSUnitType unit)
     case CSSUnitType::CSS_STRING:
     case CSSUnitType::CSS_UNKNOWN:
     case CSSUnitType::CSS_VALUE_ID:
-    case CSSUnitType::CustomIdent:
         break;
     }
 
     ASSERT_NOT_REACHED();
     return makeChild(Number { .value = 0 });
+}
+
+Sum add(Child&& a, Child&& b)
+{
+    Vector<Child> sumChildren;
+    sumChildren.append(WTF::move(a));
+    sumChildren.append(WTF::move(b));
+    return Sum { .children = WTF::move(sumChildren) };
+}
+
+Product multiply(Child&& a, Child&& b)
+{
+    Vector<Child> productChildren;
+    productChildren.append(WTF::move(a));
+    productChildren.append(WTF::move(b));
+    return Product { .children = WTF::move(productChildren) };
+}
+
+Sum subtract(Child&& a, Child&& b)
+{
+    return add(WTF::move(a), makeChild(Negate { .a = WTF::move(b) }, getType(b)));
+}
+
+Child makeChildWithValueBasedOn(double value, const Number&)
+{
+    return makeChild(Number { .value = value });
+}
+
+Child makeChildWithValueBasedOn(double value, const Percentage& a)
+{
+    return makeChild(Percentage { .value = value, .hint = a.hint });
+}
+
+Child makeChildWithValueBasedOn(double value, const CanonicalDimension& a)
+{
+    return makeChild(CanonicalDimension { .value = value, .dimension = a.dimension });
+}
+
+Child makeChildWithValueBasedOn(double value, const NonCanonicalDimension& a)
+{
+    return makeChild(NonCanonicalDimension { .value = value, .unit = a.unit });
 }
 
 Type getType(CanonicalDimension::Dimension dimension)
@@ -271,7 +319,7 @@ template<typename Op> static std::optional<Type> getValidatedTypeFor(const Op&, 
     return std::nullopt;
 }
 
-template<typename Op> static std::optional<Type> mergeTypesFor(const Op&, std::optional<Type> a, std::optional<Type> b)
+template<typename Op> static std::optional<Type> NODELETE mergeTypesFor(const Op&, std::optional<Type> a, std::optional<Type> b)
 {
     return mergeTypes<Op::merge>(a, b);
 }

@@ -201,7 +201,7 @@ id<MTLBlitCommandEncoder> CommandEncoder::ensureBlitCommandEncoder()
         finalizeBlitCommandEncoder();
     }
 
-    if (!protect(m_device)->isValid())
+    if (!m_device->isValid())
         return nil;
 
     MTLBlitPassDescriptor *descriptor = [MTLBlitPassDescriptor new];
@@ -221,7 +221,7 @@ void CommandEncoder::finalizeBlitCommandEncoder()
     setExistingEncoder(nil);
 }
 
-static auto timestampWriteIndex(auto writeIndex)
+static auto NODELETE timestampWriteIndex(auto writeIndex)
 {
     return writeIndex == WGPU_QUERY_SET_INDEX_UNDEFINED ? 0 : writeIndex;
 }
@@ -930,7 +930,7 @@ NSString* CommandEncoder::errorValidatingImageCopyBuffer(const WGPUImageCopyBuff
     return nil;
 }
 
-static bool refersToAllAspects(WGPUTextureFormat format, WGPUTextureAspect aspect)
+static bool NODELETE refersToAllAspects(WGPUTextureFormat format, WGPUTextureAspect aspect)
 {
     switch (aspect) {
     case WGPUTextureAspect_All:
@@ -995,7 +995,7 @@ NSString* CommandEncoder::errorValidatingCopyBufferToTexture(const WGPUImageCopy
             return ERROR_STRING(@"source.layout.offset is not a multiple of four for depth stencil format");
     }
 
-    if (NSString* errorString = Texture::errorValidatingLinearTextureData(source.layout, protect(fromAPI(source.buffer))->initialSize(), aspectSpecificFormat, copySize))
+    if (NSString* errorString = Texture::errorValidatingLinearTextureData(source.layout, fromAPI(source.buffer).initialSize(), aspectSpecificFormat, copySize))
         return ERROR_STRING(errorString);
 #undef ERROR_STRING
     return nil;
@@ -1289,7 +1289,7 @@ NSString* CommandEncoder::errorValidatingCopyTextureToBuffer(const WGPUImageCopy
     if (NSString* error = errorValidatingImageCopyBuffer(destination))
         return ERROR_STRING(error);
 
-    if (!(protect(fromAPI(destination.buffer))->usage() & WGPUBufferUsage_CopyDst))
+    if (!(fromAPI(destination.buffer).usage() & WGPUBufferUsage_CopyDst))
         return ERROR_STRING(@"destination buffer usage does not contain CopyDst");
 
     if (NSString* error = Texture::errorValidatingTextureCopyRange(source, copySize))
@@ -1306,7 +1306,7 @@ NSString* CommandEncoder::errorValidatingCopyTextureToBuffer(const WGPUImageCopy
             return ERROR_STRING(@"destination.layout.offset is not a multiple of 4");
     }
 
-    if (NSString* errorString = Texture::errorValidatingLinearTextureData(destination.layout, protect(fromAPI(destination.buffer))->initialSize(), aspectSpecificFormat, copySize))
+    if (NSString* errorString = Texture::errorValidatingLinearTextureData(destination.layout, fromAPI(destination.buffer).initialSize(), aspectSpecificFormat, copySize))
         return ERROR_STRING(errorString);
 #undef ERROR_STRING
     return nil;
@@ -1762,7 +1762,7 @@ void CommandEncoder::copyTextureToBuffer(const WGPUImageCopyTexture& source, con
     }
 }
 
-static bool areCopyCompatible(WGPUTextureFormat format1, WGPUTextureFormat format2)
+static bool NODELETE areCopyCompatible(WGPUTextureFormat format1, WGPUTextureFormat format2)
 {
     // https://gpuweb.github.io/gpuweb/#copy-compatible
 
@@ -1827,7 +1827,7 @@ NSString* CommandEncoder::errorValidatingCopyTextureToTexture(const WGPUImageCop
     if (source.texture == destination.texture) {
         // Mip levels are never ranges.
         if (source.mipLevel == destination.mipLevel) {
-            switch (protect(fromAPI(source.texture))->dimension()) {
+            switch (fromAPI(source.texture).dimension()) {
             case WGPUTextureDimension_1D:
                 return ERROR_STRING(@"can't copy 1D texture to itself");
             case WGPUTextureDimension_2D: {
@@ -2206,7 +2206,7 @@ void CommandEncoder::pushDebugGroup(String&& groupLabel)
     [m_commandBuffer pushDebugGroup:groupLabel.createNSString().get()];
 }
 
-static bool validateResolveQuerySet(const QuerySet& querySet, uint32_t firstQuery, uint32_t queryCount, const Buffer& destination, uint64_t destinationOffset)
+static bool NODELETE validateResolveQuerySet(const QuerySet& querySet, uint32_t firstQuery, uint32_t queryCount, const Buffer& destination, uint64_t destinationOffset)
 {
     if (!querySet.isDestroyed() && !querySet.isValid())
         return false;

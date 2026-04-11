@@ -6,7 +6,7 @@ accessibility/isolated-tree [ Pass ]
 accessibility/content-editable-set-inner-text-generates-axvalue-notification.html [ Failure Pass ]
 accessibility/keyevents-for-actions-mimic-real-key-events.html [ Failure ]
 accessibility/keyevents-posted-for-increment-actions.html [ Failure ]
-accessibility/mac/focus-setting-selection-syncronizing-not-clearing.html [ Failure ]
+accessibility/mac/focus-setting-selection-syncronizing-not-clearing.html [ Crash ]
 # Fails because of (1) stale focus ID for the iFrame and (2) iFrame #2 being ignored.
 accessibility/mac/frame-with-title.html [ Failure ]
 accessibility/mac/pseudo-element-text-markers.html [ Failure ]
@@ -64,7 +64,11 @@ accessibility/textarea-insertion-point-line-number.html [ Failure ]
 
 accessibility/mac/html5-input-number.html [ Timeout ]
 
+# Fails because we don't get paint calls for SVG shapes and thus can't cache a path for them.
+accessibility/mac/bezier-path-curves.html [ Failure ]
+
 # Regressions from ENABLE(ACCESSIBILITY_LOCAL_FRAME).
+accessibility/mac/iframe-position-after-scroll.html [ Failure ]
 accessibility/scroll-to-global-point-main-window.html [ Failure ]
 accessibility/scroll-to-make-visible-iframe-offscreen.html [ Timeout ]
 

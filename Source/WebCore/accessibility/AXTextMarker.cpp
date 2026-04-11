@@ -569,12 +569,10 @@ String AXTextMarkerRange::toString(IncludeListMarkerText includeListMarkerText, 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     if (!isMainThread()) {
         // Traverses from m_start to m_end, collecting all text along the way.
-        auto start = m_start.toTextRunMarker();
-        if (!start.isValid())
+        auto markers = toValidTextRunMarkers();
+        if (!markers)
             return emptyString();
-        auto end = m_end.toTextRunMarker();
-        if (!end.isValid())
-            return emptyString();
+        auto& [start, end] = *markers;
 
         StringBuilder result;
         if (includeListMarkerText == IncludeListMarkerText::Yes)
@@ -1019,16 +1017,25 @@ static FloatRect viewportRelativeFrameFromRuns(Ref<AXIsolatedObject> object, uns
     return viewportRelativeFrameFromRuns(object, offset, runs->totalLength());
 }
 
+std::optional<std::pair<AXTextMarker, AXTextMarker>> AXTextMarkerRange::toValidTextRunMarkers() const
+{
+    auto start = m_start.toTextRunMarker();
+    if (!start.isValid())
+        return std::nullopt;
+    auto end = m_end.toTextRunMarker();
+    if (!end.isValid())
+        return std::nullopt;
+    return { { WTF::move(start), WTF::move(end) } };
+}
+
 FloatRect AXTextMarkerRange::viewportRelativeFrame() const
 {
     AX_ASSERT(!isMainThread());
 
-    auto start = m_start.toTextRunMarker();
-    if (!start.isValid())
+    auto markers = toValidTextRunMarkers();
+    if (!markers)
         return { };
-    auto end = m_end.toTextRunMarker();
-    if (!end.isValid())
-        return { };
+    auto& [start, end] = *markers;
 
     if (*start.objectID() == *end.objectID()) {
         // The range is self-contained.

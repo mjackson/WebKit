@@ -45,10 +45,12 @@
 #include "HistoryController.h"
 #include "LocalDOMWindow.h"
 #include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "LocalFrameLoaderClient.h"
 #include "LocalFrameView.h"
 #include "Logging.h"
 #include "Page.h"
+#include "RemoteFrame.h"
 #include "ScriptDisallowedScope.h"
 #include "SecurityOriginHash.h"
 #include "Settings.h"
@@ -57,6 +59,7 @@
 #include <pal/Logging.h>
 #include <wtf/MemoryPressureHandler.h>
 #include <wtf/NeverDestroyed.h>
+#include <wtf/Scope.h>
 #include <wtf/SetForScope.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/CString.h>
@@ -81,8 +84,13 @@ static inline void logBackForwardCacheFailureDiagnosticMessage(Page* page, const
     logBackForwardCacheFailureDiagnosticMessage(protect(page->diagnosticLoggingClient()), reason);
 }
 
-static bool canCacheFrame(LocalFrame& frame, DiagnosticLoggingClient& diagnosticLoggingClient, unsigned indentLevel)
+static bool canCacheFrame(Frame&, DiagnosticLoggingClient&, unsigned indentLevel);
+static bool canCacheChildFrames(Frame&, DiagnosticLoggingClient&, unsigned indentLevel);
+
+static bool canCacheLocalFrame(LocalFrame& frame, DiagnosticLoggingClient& diagnosticLoggingClient, unsigned indentLevel)
 {
+    UNUSED_PARAM(indentLevel); // Used in PGLOG.
+
     PCLOG("+---"_s);
     Ref frameLoader = frame.loader();
 
@@ -181,14 +189,33 @@ static bool canCacheFrame(LocalFrame& frame, DiagnosticLoggingClient& diagnostic
         isCacheable = false;
     }
 
+    return isCacheable;
+}
+
+static bool canCacheChildFrames(Frame& frame, DiagnosticLoggingClient& diagnosticLoggingClient, unsigned indentLevel)
+{
+    bool isCacheable = true;
+    indentLevel++;
     for (RefPtr child = frame.tree().firstChild(); child; child = child->tree().nextSibling()) {
-        auto* localChild = dynamicDowncast<LocalFrame>(child.get());
-        if (!localChild)
-            continue;
-        if (!canCacheFrame(*localChild, diagnosticLoggingClient, indentLevel + 1))
+        if (!canCacheFrame(*child, diagnosticLoggingClient, indentLevel))
             isCacheable = false;
     }
-    
+    return isCacheable;
+}
+
+static bool canCacheFrame(Frame& frame, DiagnosticLoggingClient& diagnosticLoggingClient, unsigned indentLevel)
+{
+    PCLOG("+---"_s);
+    bool isCacheable = true;
+
+    if (RefPtr localFrame = dynamicDowncast<LocalFrame>(&frame)) {
+        if (!canCacheLocalFrame(*localFrame, diagnosticLoggingClient, indentLevel))
+            isCacheable = false;
+    }
+
+    if (!canCacheChildFrames(frame, diagnosticLoggingClient, indentLevel))
+        isCacheable = false;
+
     PCLOG(isCacheable ? " Frame CAN be cached"_s : " Frame CANNOT be cached"_s);
     PCLOG("+---"_s);
     
@@ -203,12 +230,22 @@ static bool canCachePage(Page& page)
     PCLOG("--------\n Determining if page can be cached:"_s);
 
     CheckedRef diagnosticLoggingClient = page.diagnosticLoggingClient();
-    RefPtr localMainFrame = page.localMainFrame();
-    if (!localMainFrame)
-        return false;
-    bool isCacheable = canCacheFrame(*localMainFrame, diagnosticLoggingClient, indentLevel + 1);
 
-    if (!page.settings().usesBackForwardCache() || page.isResourceCachingDisabledByWebInspector() || page.settings().siteIsolationEnabled()) {
+    RefPtr mainFrame = page.mainFrame();
+    if (!mainFrame)
+        return false;
+
+    bool isCacheable = true;
+
+    auto logResult = makeScopeExit([&] {
+        PCLOG(isCacheable ? " Page CAN be cached\n--------"_s : " Page CANNOT be cached\n--------"_s);
+        diagnosticLoggingClient->logDiagnosticMessageWithResult(DiagnosticLoggingKeys::backForwardCacheKey(), DiagnosticLoggingKeys::canCacheKey(), isCacheable ? DiagnosticLoggingResultPass : DiagnosticLoggingResultFail, ShouldSample::No);
+    });
+
+    if (!canCacheFrame(*mainFrame, diagnosticLoggingClient, indentLevel))
+        isCacheable = false;
+
+    if (!page.settings().usesBackForwardCache() || page.isResourceCachingDisabledByWebInspector()) {
         PCLOG("   -Page settings says b/f cache disabled"_s);
         logBackForwardCacheFailureDiagnosticMessage(diagnosticLoggingClient, DiagnosticLoggingKeys::isDisabledKey());
         isCacheable = false;
@@ -225,6 +262,13 @@ static bool canCachePage(Page& page)
         isCacheable = false;
     }
 #endif
+
+    // In iframe processes with Site Isolation, the main frame is a RemoteFrame.
+    // The checks below (loadType, Clear-Site-Data) are only meaningful for main
+    // frame navigations, not for iframe suspension driven by UIProcess IPC.
+    RefPtr localMainFrame = page.localMainFrame();
+    if (!localMainFrame)
+        return isCacheable;
 
     FrameLoadType loadType = localMainFrame->loader().loadType();
     switch (loadType) {
@@ -292,13 +336,7 @@ static bool canCachePage(Page& page)
             }
         }
     }
-    
-    if (isCacheable)
-        PCLOG(" Page CAN be cached\n--------"_s);
-    else
-        PCLOG(" Page CANNOT be cached\n--------"_s);
 
-    diagnosticLoggingClient->logDiagnosticMessageWithResult(DiagnosticLoggingKeys::backForwardCacheKey(), DiagnosticLoggingKeys::canCacheKey(), isCacheable ? DiagnosticLoggingResultPass : DiagnosticLoggingResultFail, ShouldSample::No);
     return isCacheable;
 }
 
@@ -472,7 +510,7 @@ std::unique_ptr<CachedPage> BackForwardCache::trySuspendPage(Page& page, ForceSu
     // Fire the pagehide event in all frames.
     firePageHideEventRecursively(mainFrame);
 
-    page.destroyRenderTrees();
+    page.willEnterBackForwardCache();
 
     // Stop all loads again before checking if we can still cache the page after firing the pagehide
     // event, since the page may have started ping loads in its pagehide event handler.
@@ -498,6 +536,14 @@ bool BackForwardCache::addIfCacheable(HistoryItem& item, Page* page)
         return false;
 
     if (!page)
+        return false;
+
+    // FIXME (rdar://173799983): Remove this workaround once the UIProcess has a
+    // mechanism to detach RemotePageProxy objects from the BrowsingContextGroup
+    // during in-process (same-origin) navigations. Cross-process suspension
+    // (suspendPage with ForceSuspension::Yes) already handles this via
+    // BrowsingContextGroup exchange in suspendCurrentPageIfPossible.
+    if (page->settings().siteIsolationEnabled())
         return false;
 
     auto cachedPage = trySuspendPage(*page, ForceSuspension::No);

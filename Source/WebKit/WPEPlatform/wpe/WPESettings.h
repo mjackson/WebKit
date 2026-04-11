@@ -258,6 +258,18 @@ typedef enum {
 #define WPE_SETTING_CREATE_VIEWS_WITH_A_TOPLEVEL "/wpe-platform/create-views-with-a-toplevel"
 
 /**
+ * WPE_SETTING_OVERLAY_SCROLLBARS:
+ *
+ * Enables overlay scrollbars. When disabled, scrollbars are always
+ * visible (classic scrollbar mode).
+ *
+ * VariantType: boolean
+ *
+ * Default: true
+ */
+#define WPE_SETTING_OVERLAY_SCROLLBARS "/wpe-platform/overlay-scrollbars"
+
+/**
  * WPESettingsSource:
  * @WPE_SETTINGS_SOURCE_PLATFORM: Set by the platform
  * @WPE_SETTINGS_SOURCE_APPLICATION: Set by the application

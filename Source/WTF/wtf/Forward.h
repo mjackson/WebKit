@@ -77,6 +77,7 @@ class WorkQueue;
 struct AnyThreadsAccessTraits;
 struct ARCEnabled;
 struct FastMalloc;
+struct FillWith { };
 struct MachSendRightAnnotated;
 struct MainThreadAccessTraits;
 template<typename> struct ObjectIdentifierMainThreadAccessTraits;
@@ -116,6 +117,7 @@ template<typename, typename> struct DefaultOSObjectRetainTraits;
 template<typename> struct DefaultRefDerefTraits;
 
 template<typename> class Awaitable;
+template<typename> class Borrow;
 template<typename> class CompactPtr;
 template<typename> class CompletionHandler;
 template<typename, size_t = 0> class Deque;
@@ -235,7 +237,6 @@ namespace std {
 namespace experimental {
 inline namespace fundamentals_v3 {
 template<class, class> class expected;
-template<class> class unexpected;
 }}} // namespace std::experimental::fundamentals_v3
 
 using WTF::SaSegmentedVector;
@@ -248,6 +249,7 @@ using WTF::AtomString;
 using WTF::AtomStringImpl;
 using WTF::AtomicObjectIdentifier;
 using WTF::Awaitable;
+using WTF::Borrow;
 using WTF::BinarySemaphore;
 using WTF::CString;
 using WTF::CompletionHandler;
@@ -256,6 +258,7 @@ using WTF::ConcurrentWorkQueue;
 using WTF::Deque;
 using WTF::EnumSet;
 using WTF::EnumeratedArray;
+using WTF::FillWith;
 using WTF::FixedVector;
 using WTF::Function;
 using WTF::FunctionDispatcher;
@@ -323,7 +326,6 @@ using WTF::WorkQueue;
 using WTF::makeUniqueRef;
 
 template<class T, class E> using Expected = std::experimental::expected<T, E>;
-template<class E> using Unexpected = std::experimental::unexpected<E>;
 
 // Sometimes an inline method simply forwards to another one and does nothing else. If it were
 // just a forward declaration of that method then you would only need a forward declaration of

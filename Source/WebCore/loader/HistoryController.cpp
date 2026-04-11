@@ -30,6 +30,7 @@
 
 #include "config.h"
 #include "HistoryController.h"
+#include "LocalFrameInlines.h"
 
 #include "BackForwardCache.h"
 #include "BackForwardController.h"
@@ -67,7 +68,7 @@ static inline void addVisitedLink(Page& page, const URL& url)
     protect(page.visitedLinkStore())->addVisitedLink(page, computeSharedStringHash(url.string()));
 }
 
-static inline bool canRecordHistoryForFrame(const LocalFrame& frame)
+static inline bool NODELETE canRecordHistoryForFrame(const LocalFrame& frame)
 {
     auto* page = frame.page();
     if (!page)
@@ -1029,12 +1030,12 @@ void HistoryController::updateCurrentItem()
         // property of how this HistoryItem was originally created and is not
         // dependent on the document.
         bool isTargetItem = currentItem->isTargetItem();
-        auto uuidIdentifier = currentItem->uuidIdentifier();
+        auto navigationAPIKey = currentItem->navigationAPIKey();
         bool sameOrigin = SecurityOrigin::create(currentItem->url())->isSameOriginAs(SecurityOrigin::create(documentLoader->url()));
         currentItem->reset();
         initializeItem(*currentItem, documentLoader);
         if (sameOrigin)
-            currentItem->setUUIDIdentifier(uuidIdentifier);
+            currentItem->setNavigationAPIKey(navigationAPIKey);
         currentItem->setIsTargetItem(isTargetItem);
     } else {
         // Even if the final URL didn't change, the form data may have changed.

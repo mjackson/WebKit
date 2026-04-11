@@ -1049,8 +1049,13 @@ static std::optional<InspectorCSSAgent::LayoutFlag> layoutFlagContextType(Render
             return std::nullopt;
         return InspectorCSSAgent::LayoutFlag::Flex;
     }
-    if (is<RenderGrid>(renderer))
+    if (CheckedPtr renderGrid = dynamicDowncast<RenderGrid>(renderer)) {
+        if (renderGrid->isSubgrid())
+            return InspectorCSSAgent::LayoutFlag::Subgrid;
+        if (renderGrid->isMasonry())
+            return InspectorCSSAgent::LayoutFlag::GridLanes;
         return InspectorCSSAgent::LayoutFlag::Grid;
+    }
     return std::nullopt;
 }
 
@@ -1059,6 +1064,8 @@ static bool layoutFlagsContainLayoutContextType(OptionSet<InspectorCSSAgent::Lay
     return layoutFlags.containsAny({
         InspectorCSSAgent::LayoutFlag::Flex,
         InspectorCSSAgent::LayoutFlag::Grid,
+        InspectorCSSAgent::LayoutFlag::Subgrid,
+        InspectorCSSAgent::LayoutFlag::GridLanes,
     });
 }
 
@@ -1140,6 +1147,10 @@ static RefPtr<JSON::ArrayOf<String /* Inspector::Protocol::CSS::LayoutFlag */>> 
         protocolLayoutFlags->addItem(Inspector::Protocol::Helpers::getEnumConstantValue(Inspector::Protocol::CSS::LayoutFlag::Flex));
     if (layoutFlags.contains(InspectorCSSAgent::LayoutFlag::Grid))
         protocolLayoutFlags->addItem(Inspector::Protocol::Helpers::getEnumConstantValue(Inspector::Protocol::CSS::LayoutFlag::Grid));
+    if (layoutFlags.contains(InspectorCSSAgent::LayoutFlag::Subgrid))
+        protocolLayoutFlags->addItem(Inspector::Protocol::Helpers::getEnumConstantValue(Inspector::Protocol::CSS::LayoutFlag::Subgrid));
+    if (layoutFlags.contains(InspectorCSSAgent::LayoutFlag::GridLanes))
+        protocolLayoutFlags->addItem(Inspector::Protocol::Helpers::getEnumConstantValue(Inspector::Protocol::CSS::LayoutFlag::GridLanes));
     if (layoutFlags.contains(InspectorCSSAgent::LayoutFlag::Event))
         protocolLayoutFlags->addItem(Inspector::Protocol::Helpers::getEnumConstantValue(Inspector::Protocol::CSS::LayoutFlag::Event));
     if (layoutFlags.contains(InspectorCSSAgent::LayoutFlag::SlotAssigned))

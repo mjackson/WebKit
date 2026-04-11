@@ -338,7 +338,7 @@ protected:
     static void volumeChangedCallback(MediaPlayerPrivateGStreamer*);
     static void muteChangedCallback(MediaPlayerPrivateGStreamer*);
 
-    void pausedTimerFired();
+    void eosTimerFired();
 
     template <typename TrackPrivateType> void notifyPlayerOfTrack();
 
@@ -601,7 +601,7 @@ private:
     Condition m_drawCondition;
     Lock m_drawLock;
     RunLoop::Timer m_drawTimer WTF_GUARDED_BY_LOCK(m_drawLock);
-    RunLoop::Timer m_pausedTimerHandler;
+    RunLoop::Timer m_eosTimerHandler;
 #if USE(COORDINATED_GRAPHICS)
     RefPtr<CoordinatedPlatformLayerBufferProxy> m_contentsBufferProxy;
 #endif
@@ -701,8 +701,6 @@ private:
 
     RefPtr<GStreamerQuirksManager> m_quirksManagerForTesting;
     HashMap<const GStreamerQuirk*, std::unique_ptr<GStreamerQuirkBase::GStreamerQuirkState>> m_quirkStates;
-
-    MediaTime m_estimatedVideoFrameDuration { MediaTime::zeroTime() };
 
     std::optional<VideoFrameGStreamer::Info> m_videoInfo;
 

@@ -53,9 +53,7 @@ UserMediaProcessManager& UserMediaProcessManager::singleton()
     return manager;
 }
 
-UserMediaProcessManager::UserMediaProcessManager()
-{
-}
+UserMediaProcessManager::UserMediaProcessManager() = default;
 
 #if ENABLE(SANDBOX_EXTENSIONS)
 static bool NODELETE needsAppleCameraService()

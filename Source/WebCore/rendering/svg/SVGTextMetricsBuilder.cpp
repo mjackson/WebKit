@@ -22,6 +22,7 @@
 
 #include "ComplexTextController.h"
 #include "FontCascadeCache.h"
+#include "FontCascadeInlines.h"
 #include "RenderChildIterator.h"
 #include "RenderSVGInline.h"
 #include "RenderSVGInlineText.h"
@@ -188,7 +189,7 @@ std::tuple<unsigned, char16_t> SVGTextMetricsBuilder::measureTextRenderer(Render
 
             // m_canUseSimplifiedTextMeasuring ensures that this does not include surrogate pairs. So we do not need to consider about them.
             for (unsigned i = 0; i < length; ++i) {
-                char16_t currentCharacter = view.characterAt(i);
+                char16_t currentCharacter = view.codeUnitAt(i);
                 ASSERT(!U16_IS_LEAD(currentCharacter));
                 if (currentCharacter == space && !preserveWhiteSpace && (!lastCharacter || lastCharacter == space)) {
                     if (data.processRenderer)

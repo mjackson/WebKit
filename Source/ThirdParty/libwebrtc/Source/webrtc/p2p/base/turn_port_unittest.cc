@@ -59,7 +59,6 @@
 #include "rtc_base/network/received_packet.h"
 #include "rtc_base/socket.h"
 #include "rtc_base/socket_address.h"
-#include "rtc_base/third_party/sigslot/sigslot.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/virtual_socket_server.h"
 #include "system_wrappers/include/metrics.h"
@@ -184,7 +183,7 @@ class TurnPortTestVirtualSocketServer : public VirtualSocketServer {
   using VirtualSocketServer::LookupBinding;
 };
 
-class TestConnectionWrapper : public sigslot::has_slots<> {
+class TestConnectionWrapper {
  public:
   explicit TestConnectionWrapper(Connection* conn) : connection_(conn) {
     conn->SubscribeDestroyed(this, [this](Connection* connection) {
@@ -192,7 +191,7 @@ class TestConnectionWrapper : public sigslot::has_slots<> {
     });
   }
 
-  ~TestConnectionWrapper() override {
+  ~TestConnectionWrapper() {
     if (connection_) {
       connection_->UnsubscribeDestroyed(this);
     }
@@ -211,9 +210,7 @@ class TestConnectionWrapper : public sigslot::has_slots<> {
 
 // Note: This test uses a fake clock with a simulated network round trip
 // (between local port and TURN server) of kSimulatedRtt.
-class TurnPortTest : public ::testing::Test,
-                     public TurnPort::CallbacksForTest,
-                     public sigslot::has_slots<> {
+class TurnPortTest : public ::testing::Test, public TurnPort::CallbacksForTest {
  public:
   TurnPortTest()
       : ss_(new TurnPortTestVirtualSocketServer()),
@@ -368,21 +365,21 @@ class TurnPortTest : public ::testing::Test,
 
   void ConnectSignals() {
     turn_port_->SubscribePortComplete(
-        [this](Port* port) { OnTurnPortComplete(port); });
+        this, [this](Port* port) { OnTurnPortComplete(port); });
     turn_port_->SubscribePortError(
-        [this](Port* port) { OnTurnPortError(port); });
+        this, [this](Port* port) { OnTurnPortError(port); });
     turn_port_->SubscribeCandidateError(
-        [this](Port* port, const IceCandidateErrorEvent& event) {
+        this, [this](Port* port, const IceCandidateErrorEvent& event) {
           OnCandidateError(port, event);
         });
     turn_port_->SubscribeUnknownAddress(
-        [this](PortInterface* port, const SocketAddress& address,
-               ProtocolType proto, IceMessage* stun_msg, const std::string& rf,
-               bool port_muxed) {
+        this, [this](PortInterface* port, const SocketAddress& address,
+                     ProtocolType proto, IceMessage* stun_msg,
+                     const std::string& rf, bool port_muxed) {
           OnTurnUnknownAddress(port, address, proto, stun_msg, rf, port_muxed);
         });
     turn_port_->SubscribePortDestroyed(
-        [this](PortInterface* port) { OnTurnPortDestroyed(port); });
+        this, [this](PortInterface* port) { OnTurnPortDestroyed(port); });
     turn_port_->SetCallbacksForTest(this);
   }
 
@@ -400,7 +397,7 @@ class TurnPortTest : public ::testing::Test,
     udp_port_->SetIceRole(ICEROLE_CONTROLLED);
     udp_port_->SetIceTiebreaker(kTiebreakerDefault);
     udp_port_->SubscribePortComplete(
-        [this](Port* port) { OnUdpPortComplete(port); });
+        this, [this](Port* port) { OnUdpPortComplete(port); });
     udp_port_->SetOption(Socket::OPT_RECV_ECN, 1);
   }
 

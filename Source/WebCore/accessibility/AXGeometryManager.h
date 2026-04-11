@@ -28,6 +28,7 @@
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 #include <WebCore/AXCoreObject.h>
 #include <WebCore/IntRectHash.h>
+#include <WebCore/Path.h>
 #include <wtf/Lock.h>
 #include <wtf/MonotonicTime.h>
 #include <wtf/RefCounted.h>
@@ -64,7 +65,10 @@ public:
     // std::nullopt if there is no cached rect for the given ID (i.e. because it hasn't been cached yet via paint or otherwise, or cannot be painted / cached at all).
     std::optional<IntRect> NODELETE cachedRectForID(AXID);
 
-    void remove(AXID axID) { m_cachedRects.remove(axID); }
+    void cachePathForID(AXID, std::unique_ptr<Path>&&);
+    std::optional<Path> cachedPathForID(AXID);
+
+    void remove(AXID axID);
 
     std::optional<AXID> cachedHitTestResult(const IntPoint& screenPoint);
     void cacheHitTestResult(AXID resultID, const IntPoint& hitPoint);
@@ -85,6 +89,10 @@ private:
     const WeakPtr<AXObjectCache> m_cache;
     HashMap<AXID, IntRect> m_cachedRects;
     Timer m_updateObjectRegionsTimer;
+
+    Lock m_cachedPathsLock;
+    // Accessed by the main-thread for writing, and by the accessibility thread for reading.
+    HashMap<AXID, std::unique_ptr<Path>> m_cachedPaths WTF_GUARDED_BY_LOCK(m_cachedPathsLock);
 
     Lock m_hitTestCacheLock;
     static constexpr size_t HitTestCacheSize = 32;

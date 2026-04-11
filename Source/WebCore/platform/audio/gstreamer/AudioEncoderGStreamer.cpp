@@ -319,17 +319,17 @@ String GStreamerInternalAudioEncoder::initialize(const String& codecName, const 
             g_object_set(m_encoder.get(), "bitrate", static_cast<int>(config.bitRate), nullptr);
     } else if (codecName.startsWith("pcm-"_s)) {
         auto components = codecName.split('-');
-        auto pcmFormat = components[1].convertToASCIILowercase();
+        auto& pcmFormat = components[1];
         GstAudioFormat gstPcmFormat = GST_AUDIO_FORMAT_UNKNOWN;
-        if (pcmFormat == "u8"_s)
+        if (equalLettersIgnoringASCIICase(pcmFormat, "u8"_s))
             gstPcmFormat = GST_AUDIO_FORMAT_U8;
-        else if (pcmFormat == "s16"_s)
+        else if (equalLettersIgnoringASCIICase(pcmFormat, "s16"_s))
             gstPcmFormat = GST_AUDIO_FORMAT_S16;
-        else if (pcmFormat == "s24"_s)
+        else if (equalLettersIgnoringASCIICase(pcmFormat, "s24"_s))
             gstPcmFormat = GST_AUDIO_FORMAT_S24;
-        else if (pcmFormat == "s32"_s)
+        else if (equalLettersIgnoringASCIICase(pcmFormat, "s32"_s))
             gstPcmFormat = GST_AUDIO_FORMAT_S32;
-        else if (pcmFormat == "f32"_s)
+        else if (equalLettersIgnoringASCIICase(pcmFormat, "f32"_s))
             gstPcmFormat = GST_AUDIO_FORMAT_F32;
         else
             return makeString("Invalid LPCM codec format: "_s, pcmFormat);

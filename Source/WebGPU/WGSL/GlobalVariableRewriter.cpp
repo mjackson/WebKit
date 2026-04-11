@@ -68,21 +68,13 @@ public:
     void visit(AST::Expression&) override;
 
 private:
-    struct Global {
-        struct Resource {
-            unsigned group;
-            unsigned binding;
-        };
-
-        std::optional<Resource> resource;
-        AST::Variable* declaration;
-    };
+    using Global = CallGraph::Global;
 
     template<typename Value>
     using IndexMap = HashMap<uint64_t, Value, WTF::IntHash<uint64_t>, WTF::UnsignedWithZeroKeyHashTraits<uint64_t>>;
 
-    using UsedResources = IndexMap<IndexMap<Global*>>;
-    using UsedPrivateGlobals = Vector<Global*>;
+    using UsedResources = IndexMap<IndexMap<const Global*>>;
+    using UsedPrivateGlobals = Vector<const Global*>;
 
     struct UsedGlobals {
         UsedResources resources;
@@ -104,7 +96,7 @@ private:
     std::optional<Error> collectGlobals();
     std::optional<Error> visitEntryPoint(const CallGraph::EntryPoint&);
     void visitCallee(const CallGraph::Callee&);
-    Result<UsedGlobals> determineUsedGlobals(const AST::Function&);
+    Result<UsedGlobals> determineUsedGlobals(const CallGraph::EntryPoint&);
     void collectDynamicOffsetGlobals(const PipelineLayout&);
     void usesOverride(AST::Variable&);
     void validateUsedGlobals(const UsedGlobals&) const;
@@ -1070,7 +1062,7 @@ std::optional<Error> RewriteGlobalVariables::visitEntryPoint(const CallGraph::En
         return std::nullopt;
     }
 
-    auto maybeUsedGlobals = determineUsedGlobals(entryPoint.function);
+    auto maybeUsedGlobals = determineUsedGlobals(entryPoint);
     if (!maybeUsedGlobals) {
         insertDynamicOffsetsBufferIfNeeded(entryPoint.function);
         return maybeUsedGlobals.error();
@@ -1340,15 +1332,17 @@ static BindGroupLayoutEntry::BindingMember bindingMemberForGlobal(auto& global)
     });
 }
 
-auto RewriteGlobalVariables::determineUsedGlobals(const AST::Function& function) -> Result<UsedGlobals>
+auto RewriteGlobalVariables::determineUsedGlobals(const CallGraph::EntryPoint& entryPoint) -> Result<UsedGlobals>
 {
     UsedGlobals usedGlobals;
+    const auto& function = entryPoint.function;
 
     // https://www.w3.org/TR/WGSL/#limits
     constexpr unsigned maximumCombinedPrivateVariablesSize = 8192;
     unsigned maximumCombinedWorkgroupVariablesSize = m_shaderModule.configuration().maximumCombinedWorkgroupVariablesSize;
     Vector<const Type*, 16> workgroupVariables;
     Vector<const Type*, 16> privateVariables;
+
 
     for (const auto& globalName : m_reads) {
         auto it = m_globals.find(globalName);
@@ -1376,12 +1370,9 @@ auto RewriteGlobalVariables::determineUsedGlobals(const AST::Function& function)
 
         auto group = global.resource->group;
         auto binding = global.resource->binding;
-        auto groupResult = usedGlobals.resources.add(group, IndexMap<Global*>());
+        auto groupResult = usedGlobals.resources.add(group, IndexMap<const Global*>());
         auto bindingResult = groupResult.iterator->value.add(binding, &global);
-
-        // FIXME: <rdar://150368198> this check needs to occur during WGSL::staticCheck
-        if (!bindingResult.isNewEntry)
-            return makeUnexpected(Error(makeString("entry point '"_s, m_entryPointInformation->originalName, "' uses variables '"_s, bindingResult.iterator->value->declaration->originalName(), "' and '"_s, variable.originalName(), "', both which use the same resource binding: @group("_s, group, ") @binding("_s, binding, ')'), variable.span()));
+        ASSERT_UNUSED(bindingResult, bindingResult.isNewEntry);
     }
 
     m_shaderModule.addOverrideValidation([span = function.span(), variables = WTF::move(workgroupVariables), maximumCombinedWorkgroupVariablesSize](auto&) -> std::optional<Error> {
@@ -1556,7 +1547,7 @@ Vector<unsigned> RewriteGlobalVariables::insertStructs(const UsedResources& used
             continue;
 
         auto& bindingGlobalMap = groupBinding.value;
-        const IndexMap<Global*>& usedBindings = usedResource->value;
+        const IndexMap<const Global*>& usedBindings = usedResource->value;
 
         Vector<std::pair<unsigned, AST::StructureMember*>> entries;
         unsigned metalId = 0;

@@ -200,6 +200,7 @@
 #include <WebCore/CrossOriginEmbedderPolicy.h>
 #include <WebCore/CrossOriginOpenerPolicy.h>
 #include <WebCore/DOMPasteAccess.h>
+#include <WebCore/DOMWrapperWorld.h>
 #include <WebCore/DataTransfer.h>
 #include <WebCore/DatabaseManager.h>
 #include <WebCore/DeprecatedGlobalSettings.h>
@@ -351,6 +352,7 @@
 #include <algorithm>
 #include <pal/SessionID.h>
 #include <ranges>
+#include <wtf/Borrow.h>
 #include <wtf/CoroutineUtilities.h>
 #include <wtf/ProcessID.h>
 #include <wtf/RunLoop.h>
@@ -460,9 +462,6 @@
 #include <WebCore/NavigatorMediaSession.h>
 #endif
 
-#if ENABLE(ARKIT_INLINE_PREVIEW_IOS)
-#include "ARKitInlinePreviewModelPlayerIOS.h"
-#endif
 
 #if PLATFORM(IOS) || PLATFORM(VISION)
 #include "WebPreferencesDefaultValuesIOS.h"
@@ -732,9 +731,6 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
 #if PLATFORM(COCOA)
 #if HAVE(SANDBOX_STATE_FLAGS)
     auto auditToken = WebProcess::singleton().auditTokenForSelf();
-    auto shouldBlockWebInspector = parameters.store.getBoolValueForKey(WebPreferencesKey::blockWebInspectorInWebContentSandboxKey());
-    if (shouldBlockWebInspector)
-        sandbox_enable_state_flag("BlockWebInspectorInWebContentSandbox", *auditToken);
     auto shouldBlockMobileAsset = parameters.store.getBoolValueForKey(WebPreferencesKey::blockMobileAssetInWebContentSandboxKey());
     if (shouldBlockMobileAsset)
         sandbox_enable_state_flag("BlockMobileAssetInWebContentSandbox", *auditToken);
@@ -1088,8 +1084,17 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
     if (parameters.isEditable)
         setEditable(true);
 
-    if (parameters.accessibilityEnabled)
-        enableAccessibility();
+    inheritAccessibilityMode(parameters.accessibilityMode);
+
+    WebCore::AXObjectCache::setSyncModeToOtherProcessesCallback([weakPage = WeakPtr { *this }](WebCore::AccessibilityMode mode) {
+        if (RefPtr page = weakPage.get())
+            page->send(Messages::WebPageProxy::SetAccessibilityMode(mode));
+    });
+
+#if PLATFORM(MAC)
+    if (WebCore::AXObjectCache::shouldForceAccessibilityEnabled())
+        WebCore::AXObjectCache::enableAccessibility(WebCore::AXObjectCache::ForceAXThreadMode::Yes);
+#endif // PLATFORM(MAC)
 
 #if PLATFORM(MAC)
     setUseFormSemanticContext(parameters.useFormSemanticContext);
@@ -1533,8 +1538,8 @@ WebPage::~WebPage()
     m_sandboxExtensionTracker.invalidate();
 
 #if ENABLE(PDF_PLUGIN)
-    for (Ref pluginView : m_pluginViews)
-        pluginView->webPageDestroyed();
+    for (auto& pluginView : m_pluginViews)
+        pluginView.webPageDestroyed();
 #endif
 
 #if !PLATFORM(IOS_FAMILY)
@@ -1809,7 +1814,7 @@ void WebPage::updateRemotePageAccessibilityInheritedState(WebCore::FrameIdentifi
     cache->setFrameInheritedState(*coreFrame, state);
 }
 
-void WebPage::updateRemotePageAccessibilityScreenPosition(WebCore::FrameIdentifier frameID, const WebCore::FrameGeometry& geometry)
+void WebPage::updateRemotePageAccessibilityScreenPosition(WebCore::FrameIdentifier frameID, const WebCore::AXFrameGeometry& geometry)
 {
     RefPtr frame = WebProcess::singleton().webFrame(frameID);
     RefPtr coreFrame = frame ? frame->coreLocalFrame() : nullptr;
@@ -2056,7 +2061,7 @@ void WebPage::close()
     if (RefPtr activeOpenPanelResultListener = std::exchange(m_activeOpenPanelResultListener, nullptr))
         activeOpenPanelResultListener->disconnectFromPage();
 
-    if (RefPtr activeColorChooser = m_activeColorChooser.get()) {
+    if (auto* activeColorChooser = m_activeColorChooser.get()) {
         activeColorChooser->disconnectFromPage();
         m_activeColorChooser = nullptr;
     }
@@ -2445,7 +2450,7 @@ void WebPage::goToBackForwardItem(GoToBackForwardItemParameters&& parameters)
     m_sandboxExtensionTracker.beginLoad(WTF::move(parameters.sandboxExtensionHandle));
 
     m_lastNavigationWasAppInitiated = parameters.lastNavigationWasAppInitiated;
-    if (RefPtr localMainFrame = corePage()->localMainFrame()) {
+    if (auto* localMainFrame = corePage()->localMainFrame()) {
         if (auto* documentLoader = localMainFrame->loader().documentLoader())
             documentLoader->setLastNavigationWasAppInitiated(parameters.lastNavigationWasAppInitiated);
     }
@@ -2541,7 +2546,7 @@ void WebPage::drawRect(GraphicsContext& graphicsContext, const IntRect& rect)
 
     protect(m_mainFrame->coreLocalFrame()->view())->paint(graphicsContext, rect);
 
-#if PLATFORM(GTK) || PLATFORM(WIN) || PLATFORM(PLAYSTATION)
+#if PLATFORM(GTK) || PLATFORM(WIN) || PLATFORM(PLAYSTATION) || PLATFORM(WPE)
     if (!m_page->settings().acceleratedCompositingEnabled() && m_page->inspectorController().enabled() && m_page->inspectorController().shouldShowOverlay()) {
         graphicsContext.beginTransparencyLayer(1);
         m_page->inspectorController().drawHighlight(graphicsContext);
@@ -2837,15 +2842,25 @@ void WebPage::accessibilitySettingsDidChange()
     protect(corePage())->accessibilitySettingsDidChange();
 }
 
-void WebPage::enableAccessibilityForAllProcesses()
+void WebPage::inheritAccessibilityMode(WebCore::AccessibilityMode mode)
 {
-    send(Messages::WebPageProxy::EnableAccessibilityForAllProcesses());
-}
+    if (WebCore::isAccessibilityModeOff(mode)) {
+        // Accessibility may already be enabled process-wide (e.g. a prior
+        // WebPage in this process received a non-Off mode, or
+        // shouldForceAccessibilityEnabled() triggered enableAccessibility).
+        // Receiving Off for a new page is normal in that case — just no-op.
+        //
+        // In the future, we may add a way to disable accessibility in
+        // production (i.e. the user turns off their AT), in which case
+        // this function will need to change.
+        return;
+    }
 
-void WebPage::enableAccessibility()
-{
-    if (!WebCore::AXObjectCache::accessibilityEnabled())
-        WebCore::AXObjectCache::enableAccessibility();
+    auto forceAXThreadMode = mode == WebCore::AccessibilityMode::AXThread
+        ? WebCore::AXObjectCache::ForceAXThreadMode::Yes
+        : WebCore::AXObjectCache::ForceAXThreadMode::No;
+
+    WebCore::AXObjectCache::enableAccessibility(forceAXThreadMode);
 }
 
 void WebPage::screenPropertiesDidChange(bool affectsStyle)
@@ -3913,18 +3928,19 @@ std::pair<HandleUserInputEventResult, OptionSet<EventHandling>> WebPage::wheelEv
 }
 
 #if PLATFORM(IOS_FAMILY)
-void WebPage::dispatchWheelEventWithoutScrolling(FrameIdentifier frameID, const WebWheelEvent& wheelEvent, CompletionHandler<void(bool)>&& completionHandler)
+void WebPage::dispatchWheelEventWithoutScrolling(FrameIdentifier frameID, const WebWheelEvent& wheelEvent, CompletionHandler<void(bool, std::optional<RemoteUserInputEventData>)>&& completionHandler)
 {
 #if ENABLE(KINETIC_SCROLLING)
-    RefPtr localMainFrame = this->localMainFrame();
-    auto gestureState =  localMainFrame ? localMainFrame->eventHandler().wheelScrollGestureState() : std::nullopt;
+    RefPtr frame = WebProcess::singleton().webFrame(frameID);
+    RefPtr localFrame = frame ? frame->coreLocalFrame() : nullptr;
+    auto gestureState = localFrame ? localFrame->eventHandler().wheelScrollGestureState() : std::nullopt;
     bool isCancelable = !gestureState || gestureState == WheelScrollGestureState::Blocking || wheelEvent.phase() == WebWheelEvent::Phase::Began;
 #else
     bool isCancelable = true;
 #endif
     auto [result, handling] = this->wheelEvent(frameID, wheelEvent, { isCancelable ? WheelEventProcessingSteps::BlockingDOMEventDispatch : WheelEventProcessingSteps::NonBlockingDOMEventDispatch });
     // The caller of dispatchWheelEventWithoutScrolling never cares about DidReceiveEvent being sent back.
-    completionHandler(result.wasHandled() && handling.contains(EventHandling::DefaultPrevented));
+    completionHandler(result.wasHandled() && handling.contains(EventHandling::DefaultPrevented), result.remoteUserInputEventData());
 }
 #endif
 
@@ -4034,7 +4050,16 @@ static Expected<bool, WebCore::RemoteFrameGeometryTransformer> handleTouchEvent(
     if (!localFrame || !localFrame->view())
         return false;
 
-    return localFrame->eventHandler().handleTouchEvent(platform(touchEvent));
+    WeakPtr weakPage = page;
+    if (weakPage)
+        weakPage->pointerCaptureController().resetPointerDownDefaultPrevention();
+
+    auto result = localFrame->eventHandler().handleTouchEvent(platform(touchEvent));
+
+    if (weakPage && !result.value_or(false) && weakPage->pointerCaptureController().wasPointerDownDefaultPrevented())
+        return true;
+
+    return result;
 }
 #endif
 
@@ -4586,6 +4611,11 @@ void WebPage::requestFrameScreenPosition(FrameIdentifier frameID)
 {
     send(Messages::WebPageProxy::RequestFrameScreenPosition(frameID));
 }
+
+void WebPage::scheduleAccessibilityFrameGeometryUpdate()
+{
+    send(Messages::WebPageProxy::ScheduleAccessibilityFrameGeometryUpdate());
+}
 #endif
 
 KeyboardUIMode WebPage::keyboardUIMode()
@@ -5016,8 +5046,8 @@ void WebPage::updatePreferences(const WebPreferencesStore& store)
 #if ENABLE(VIDEO)
     protect(WebProcess::singleton().remoteMediaPlayerManager())->setUseGPUProcess(m_shouldPlayMediaInGPUProcess);
 #if PLATFORM(COCOA)
-    platformStrategies()->mediaStrategy()->enableRemoteRenderer(MediaPlayerMediaEngineIdentifier::CocoaWebM, settings.webMUseRemoteAudioVideoRenderer());
-    platformStrategies()->mediaStrategy()->enableRemoteRenderer(MediaPlayerMediaEngineIdentifier::AVFoundationMSE, settings.mediaSourceUseRemoteAudioVideoRenderer());
+    platformStrategies()->mediaStrategy()->enableRemoteRenderer(MediaPlayerMediaEngineIdentifier::CocoaWebM, settings.mediaContainmentEnabled());
+    platformStrategies()->mediaStrategy()->enableRemoteRenderer(MediaPlayerMediaEngineIdentifier::AVFoundationMSE, settings.mediaContainmentEnabled());
 #endif
 #endif
 #if HAVE(AVASSETREADER)
@@ -5059,13 +5089,6 @@ void WebPage::updatePreferences(const WebPreferencesStore& store)
         adjustSettingsForLockdownMode(settings, &store);
     if (settings.forceLockdownFontParserEnabled())
         settings.setDownloadableBinaryFontTrustedTypes(DownloadableBinaryFontTrustedTypes::SafeFontParser);
-
-#if ENABLE(ARKIT_INLINE_PREVIEW)
-    m_useARKitForModel = store.getBoolValueForKey(WebPreferencesKey::useARKitForModelKey());
-#endif
-#if HAVE(SCENEKIT)
-    m_useSceneKitForModel = store.getBoolValueForKey(WebPreferencesKey::useSceneKitForModelKey());
-#endif
 
     if (settings.developerExtrasEnabled()) {
         settings.setShowMediaStatsContextMenuItemEnabled(true);
@@ -7754,7 +7777,7 @@ void WebPage::didCommitLoad(WebFrame* frame)
     unfreezeLayerTree(LayerTreeFreezeReason::ProcessSwap);
 
 #if ENABLE(IMAGE_ANALYSIS)
-    for (auto& [element, completionHandlers] : m_elementsPendingTextRecognition) {
+    for (auto& [element, completionHandlers] : borrow(m_elementsPendingTextRecognition).get()) {
         for (auto& completionHandler : completionHandlers)
             completionHandler({ });
     }
@@ -7888,6 +7911,10 @@ void WebPage::didCommitLoad(WebFrame* frame)
     m_needsFixedContainerEdgesUpdate = true;
 
     flushDeferredDidReceiveMouseEvent();
+
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    exitImmersive();
+#endif
 
     if (frame && frame->isMainFrame())
         m_networkResourceRequestIdentifiersForPageLoadTiming.clear();
@@ -8102,7 +8129,7 @@ void WebPage::dismissImmersiveElement(CompletionHandler<void()>&& completion)
 void WebPage::exitImmersive() const
 {
     if (RefPtr localTopDocument = this->localTopDocument(); RefPtr protectedImmersive = localTopDocument->immersiveIfExists())
-        protectedImmersive->exitImmersive();
+        protectedImmersive->exitImmersiveIfNeeded();
 }
 
 bool WebPage::allowsImmersiveEnvironments() const
@@ -8153,30 +8180,6 @@ void WebPage::updateWebsitePolicies(WebsitePoliciesData&& websitePolicies)
     setCanIgnoreViewportArgumentsToAvoidExcessiveZoomIfNeeded(m_viewportConfiguration, localMainFrame.get(), shouldIgnoreMetaViewport());
     setCanIgnoreViewportArgumentsToAvoidEnlargedViewIfNeeded(m_viewportConfiguration, localMainFrame.get());
 #endif
-}
-
-unsigned WebPage::extendIncrementalRenderingSuppression()
-{
-    unsigned token = m_maximumRenderingSuppressionToken + 1;
-    while (!HashSet<unsigned>::isValidValue(token) || m_activeRenderingSuppressionTokens.contains(token))
-        token++;
-
-    m_activeRenderingSuppressionTokens.add(token);
-    if (RefPtr localMainFrame = this->localMainFrame())
-        protect(localMainFrame->view())->setVisualUpdatesAllowedByClient(false);
-
-    m_maximumRenderingSuppressionToken = token;
-
-    return token;
-}
-
-void WebPage::stopExtendingIncrementalRenderingSuppression(unsigned token)
-{
-    if (!m_activeRenderingSuppressionTokens.remove(token))
-        return;
-
-    if (RefPtr localMainFrame = this->localMainFrame())
-        protect(localMainFrame->view())->setVisualUpdatesAllowedByClient(!shouldExtendIncrementalRenderingSuppression());
 }
 
 WebCore::ScrollPinningBehavior WebPage::scrollPinningBehavior()
@@ -8261,12 +8264,18 @@ void WebPage::getSamplingProfilerOutput(CompletionHandler<void(const String&)>&&
 
 void WebPage::didChangeScrollOffsetForFrame(LocalFrame& frame)
 {
-    if (!frame.isMainFrame())
-        return;
-
     // If this is called when tearing down a FrameView, the WebCore::Frame's
     // current FrameView will be null.
     if (!frame.view())
+        return;
+
+#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+    // When any frame scrolls, the frame's screenPosition (content-origin-based)
+    // changes and needs to be recomputed for correct accessibility geometry.
+    scheduleAccessibilityFrameGeometryUpdate();
+#endif
+
+    if (!frame.isMainFrame())
         return;
 
     updateMainFrameScrollOffsetPinning();
@@ -8368,6 +8377,8 @@ void WebPage::dispatchDidReachLayoutMilestone(OptionSet<WebCore::LayoutMilestone
         auto drawingAreaRelatedMilestones = milestones & paintMilestones;
         if (drawingAreaRelatedMilestones && drawingArea->addMilestonesToDispatch(drawingAreaRelatedMilestones))
             milestones.remove(drawingAreaRelatedMilestones);
+        if (milestones.isEmpty())
+            return;
     }
     if (milestones.contains(WebCore::LayoutMilestone::DidFirstLayout) && localMainFrameView()) {
         // Ensure we never send DidFirstLayout milestone without updating the intrinsic size.
@@ -9610,17 +9621,6 @@ void WebPage::cancelTextRecognitionForVideoInElementFullScreen()
 }
 #endif // ENABLE(IMAGE_ANALYSIS) && ENABLE(VIDEO)
 
-#if ENABLE(ARKIT_INLINE_PREVIEW_IOS)
-void WebPage::modelInlinePreviewDidLoad(WebCore::PlatformLayerIdentifier layerID)
-{
-    ARKitInlinePreviewModelPlayerIOS::pageLoadedModelInlinePreview(*this, layerID);
-}
-
-void WebPage::modelInlinePreviewDidFailToLoad(WebCore::PlatformLayerIdentifier layerID, const WebCore::ResourceError& error)
-{
-    ARKitInlinePreviewModelPlayerIOS::pageFailedToLoadModelInlinePreview(*this, layerID, error);
-}
-#endif
 
 #if ENABLE(IMAGE_ANALYSIS_ENHANCEMENTS)
 

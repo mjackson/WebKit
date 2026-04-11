@@ -36,6 +36,7 @@
 #include "PlatformXR.h"
 #include "WebGLContextAttributes.h"
 #include "WebGLRenderingContextBase.h"
+#include "WebXRSessionListener.h"
 #include "XRReferenceSpaceType.h"
 #include "XRSessionMode.h"
 #include <wtf/HashSet.h>
@@ -57,7 +58,7 @@ class WebXRSession;
 class SecurityOriginData;
 struct XRSessionInit;
 
-class WebXRSystem final : public RefCounted<WebXRSystem>, public EventTarget, public ActiveDOMObject {
+class WebXRSystem final : public RefCounted<WebXRSystem>, public WebXRSessionListener, public EventTarget, public ActiveDOMObject {
     WTF_MAKE_TZONE_ALLOCATED(WebXRSystem);
 public:
     using IsSessionSupportedPromise = DOMPromiseDeferred<IDLBoolean>;
@@ -79,7 +80,9 @@ public:
     bool hasActiveImmersiveXRDevice() const { return !!m_activeImmersiveDevice.get(); }
 
     RefPtr<WebXRSession> activeImmersiveSession() const;
-    void sessionEnded(WebXRSession&);
+
+    // WebXRSessionListener.
+    void onSessionEnded(const WebXRSession&) override;
 
     // For testing purpouses only.
     WEBCORE_EXPORT void registerSimulatedXRDeviceForTesting(PlatformXR::Device&);

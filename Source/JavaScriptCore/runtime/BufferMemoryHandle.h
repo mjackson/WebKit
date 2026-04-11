@@ -160,8 +160,8 @@ public:
         m_size.store(size, order);
     }
 
-    static size_t fastMappedRedzoneBytes();
-    static size_t fastMappedBytes();
+    static size_t NODELETE fastMappedRedzoneBytes();
+    static size_t NODELETE fastMappedBytes();
 
     static void* nullBasePointer();
 

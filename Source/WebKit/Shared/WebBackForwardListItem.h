@@ -60,7 +60,7 @@ public:
 
     BrowsingContextGroup* browsingContextGroup() const { return m_browsingContextGroup.get(); }
 
-    const FrameState& mainFrameState() const;
+    const FrameState& NODELETE mainFrameState() const;
     Ref<FrameState> copyMainFrameState() const;
     Ref<FrameState> copyMainFrameStateWithChildren() const;
 
@@ -95,7 +95,7 @@ public:
     WebBackForwardListFrameItem* WTF_NONNULL mainFrameItemPtrForSwift() const SWIFT_NAME(mainFrameItem()) { return &mainFrameItem(); }
     WebBackForwardListFrameItem& NODELETE mainFrameItem() const SWIFT_NAME(__mainFrameItemUnsafe());
 
-    void setWasRestoredFromSession();
+    void NODELETE setWasRestoredFromSession();
 
     String loggingString();
 

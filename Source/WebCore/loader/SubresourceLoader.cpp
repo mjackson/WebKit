@@ -57,6 +57,7 @@
 #include <wtf/SystemTracing.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/MakeString.h>
+#include "LocalFrameInlines.h"
 
 #if PLATFORM(IOS_FAMILY)
 #include <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
@@ -124,7 +125,7 @@ SubresourceLoader::SubresourceLoader(LocalFrame& frame, CachedResource& resource
 #endif
 
     m_site = CachedResourceLoader::computeFetchMetadataSite(resource.resourceRequest(), resource.type(), options.mode, frame, frame.isMainFrame() && m_documentLoader && m_documentLoader->isRequestFromClientOrUserInput());
-    ASSERT(!resource.resourceRequest().hasHTTPHeaderField(HTTPHeaderName::SecFetchSite) || resource.resourceRequest().httpHeaderField(HTTPHeaderName::SecFetchSite) == convertEnumerationToString(m_site));
+    ASSERT(!resource.resourceRequest().hasHTTPHeaderField(HTTPHeaderName::SecFetchSite) || resource.resourceRequest().httpHeaderField(HTTPHeaderName::SecFetchSite) == convertEnumerationToString(m_site) || m_site == FetchMetadataSite::None);
 }
 
 SubresourceLoader::~SubresourceLoader()
@@ -671,7 +672,7 @@ Expected<void, String> SubresourceLoader::checkRedirectionCrossOriginAccessContr
     bool isNextRequestCrossOrigin = m_origin && !protect(m_origin)->canRequest(newRequest.url(), OriginAccessPatternsForWebProcess::singleton());
 
     if (isNextRequestCrossOrigin)
-        protect(cachedResource())->setCrossOrigin();
+        cachedResource()->setCrossOrigin();
     bool newCrossOriginFlag = m_resource->isCrossOrigin();
 
     ASSERT(options().mode != FetchOptions::Mode::SameOrigin || !newCrossOriginFlag);

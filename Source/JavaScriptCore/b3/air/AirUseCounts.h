@@ -57,17 +57,17 @@ public:
 
 
         unsigned gpArraySize = AbsoluteTmpMapper<GP>::absoluteIndex(code.numTmps(GP));
-        m_gpNumWarmUsesAndDefs = FixedVector<float>(gpArraySize, 0);
+        m_gpNumWarmUsesAndDefs = FixedVector<float>(FillWith { }, gpArraySize, 0);
         m_gpConstDefs.ensureSize(gpArraySize);
         BitVector gpNonConstDefs = m_gpConstDefs;
-        m_gpConstants = FixedVector<int64_t>(gpArraySize, 0);
+        m_gpConstants = FixedVector<int64_t>(FillWith { }, gpArraySize, 0);
 
         unsigned fpArraySize = AbsoluteTmpMapper<FP>::absoluteIndex(code.numTmps(FP));
-        m_fpNumWarmUsesAndDefs = FixedVector<float>(fpArraySize, 0);
+        m_fpNumWarmUsesAndDefs = FixedVector<float>(FillWith { }, fpArraySize, 0);
         m_fpConstDefs.ensureSize(fpArraySize);
         BitVector fpNonConstDefs = m_fpConstDefs;
-        m_fpConstants = FixedVector<v128_t>(fpArraySize, v128_t { });
-        m_fpConstantWidths = FixedVector<Width>(fpArraySize, Width8);
+        m_fpConstants = FixedVector<v128_t>(FillWith { }, fpArraySize, v128_t { });
+        m_fpConstantWidths = FixedVector<Width>(FillWith { }, fpArraySize, Width8);
 
         auto extractGPConstant = [&](Air::Opcode opcode, const Air::Arg& arg) -> int64_t {
             return opcode == Move32 ? static_cast<int64_t>(static_cast<uint64_t>(static_cast<uint32_t>(static_cast<uint64_t>(arg.value())))) : arg.value();

@@ -32,6 +32,7 @@
 #include "ChromeClient.h"
 #include "ContainerNodeInlines.h"
 #include "Document.h"
+#include "DocumentPage.h"
 #include "DocumentQuirks.h"
 #include "DocumentView.h"
 #include "Element.h"
@@ -46,6 +47,7 @@
 #include "JSDOMPromiseDeferred.h"
 #include "LocalDOMWindow.h"
 #include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "Logging.h"
 #include "NodeInlines.h"
 #include "NodeList.h"
@@ -454,8 +456,8 @@ static Vector<Ref<Document>> documentsToUnfullscreen(Frame& firstFrame)
         if (!document)
             continue;
         documents.append(*document);
-        ASSERT(protect(document->fullscreen())->fullscreenElement());
-        if (!protect(document->fullscreen())->isSimpleFullscreenDocument())
+        ASSERT(document->fullscreen().fullscreenElement());
+        if (!document->fullscreen().isSimpleFullscreenDocument())
             break;
         if (auto* iframe = dynamicDowncast<HTMLIFrameElement>(document->ownerElement()); iframe && iframe->hasIFrameFullscreenFlag())
             break;
@@ -517,7 +519,7 @@ void DocumentFullscreen::exitFullscreen(CompletionHandler<void(ExceptionOr<void>
     bool exitsTopDocument = exitDocuments.containsIf([&](auto& document) {
         return document.ptr() == mainFrameDocument.get();
     });
-    if (!mainFrameDocument || (exitsTopDocument && protect(mainFrameDocument->fullscreen())->isSimpleFullscreenDocument())) {
+    if (!mainFrameDocument || (exitsTopDocument && mainFrameDocument->fullscreen().isSimpleFullscreenDocument())) {
         mode = ExitMode::Resize;
         if (mainFrameDocument)
             exitingDocument = *mainFrameDocument;
@@ -728,7 +730,7 @@ void DocumentFullscreen::fullyExitFullscreen()
     });
 }
 
-static bool hasJSEventListener(Node& node, const AtomString& eventType)
+static bool NODELETE hasJSEventListener(Node& node, const AtomString& eventType)
 {
     for (const auto& listener : node.eventListeners(eventType)) {
         if (listener->callback().type() == EventListener::JSEventListenerType)

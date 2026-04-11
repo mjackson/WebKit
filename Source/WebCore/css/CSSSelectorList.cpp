@@ -194,7 +194,8 @@ static bool forEachSelector(Functor& functor, const CSSSelectorList& selectorLis
 bool CSSSelectorList::hasExplicitNestingParent() const
 {
     auto functor = [](auto* selector) {
-        return selector->hasExplicitNestingParent();
+        return selector->match() == CSSSelector::Match::NestingParent
+            || selector->match() == CSSSelector::Match::ForgivingUnknownNestContaining;
     };
 
     return forEachSelector(functor, *this);

@@ -84,7 +84,7 @@ public:
     void setIndexInSpace(unsigned indexInSpace) { m_indexInSpace = indexInSpace; }
     
     void clearNewlyAllocated() { m_isNewlyAllocated = false; }
-    void flip();
+    void NODELETE flip();
     
     bool isNewlyAllocated() const { return m_isNewlyAllocated; }
     ALWAYS_INLINE bool isMarked() { return m_isMarked.load(std::memory_order_relaxed); }
@@ -95,7 +95,7 @@ public:
     
     bool hasValidCell() const { return m_hasValidCell; }
     
-    bool isEmpty();
+    bool NODELETE isEmpty();
     
     size_t cellSize() const { return m_cellSize; }
 

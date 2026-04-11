@@ -3,7 +3,7 @@
  * Copyright (C) 2004, 2005, 2006, 2007 Rob Buis <buis@kde.org>
  * Copyright (C) Research In Motion Limited 2010. All rights reserved.
  * Copyright (C) 2014 Adobe Systems Incorporated. All rights reserved.
- * Copyright (C) 2018-2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2018-2024 Apple Inc. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -27,7 +27,6 @@
 #include "AffineTransform.h"
 #include "ContainerNodeInlines.h"
 #include "Document.h"
-#include "FloatConversion.h"
 #include "GraphicsContext.h"
 #include "ImageBuffer.h"
 #include "LegacyRenderSVGResourcePattern.h"
@@ -161,32 +160,32 @@ RenderPtr<RenderElement> SVGPatternElement::createElementRenderer(RenderStyle&& 
 
 void SVGPatternElement::collectPatternAttributes(PatternAttributes& attributes) const
 {
-    if (!attributes.hasX() && hasAttribute(SVGNames::xAttr))
+    if (!attributes.hasX() && hasAttributeOrIsAnimatingProperty(SVGNames::xAttr))
         attributes.setX(x());
 
-    if (!attributes.hasY() && hasAttribute(SVGNames::yAttr))
+    if (!attributes.hasY() && hasAttributeOrIsAnimatingProperty(SVGNames::yAttr))
         attributes.setY(y());
 
-    if (!attributes.hasWidth() && hasAttribute(SVGNames::widthAttr))
+    if (!attributes.hasWidth() && hasAttributeOrIsAnimatingProperty(SVGNames::widthAttr))
         attributes.setWidth(width());
 
-    if (!attributes.hasHeight() && hasAttribute(SVGNames::heightAttr))
+    if (!attributes.hasHeight() && hasAttributeOrIsAnimatingProperty(SVGNames::heightAttr))
         attributes.setHeight(height());
 
-    if (!attributes.hasViewBox() && hasAttribute(SVGNames::viewBoxAttr) && hasValidViewBox())
+    if (!attributes.hasViewBox() && hasAttributeOrIsAnimatingProperty(SVGNames::viewBoxAttr) && hasValidViewBox())
         attributes.setViewBox(viewBox());
 
-    if (!attributes.hasPreserveAspectRatio() && hasAttribute(SVGNames::preserveAspectRatioAttr))
+    if (!attributes.hasPreserveAspectRatio() && hasAttributeOrIsAnimatingProperty(SVGNames::preserveAspectRatioAttr))
         attributes.setPreserveAspectRatio(preserveAspectRatio());
 
-    if (!attributes.hasPatternUnits() && hasAttribute(SVGNames::patternUnitsAttr))
+    if (!attributes.hasPatternUnits() && hasAttributeOrIsAnimatingProperty(SVGNames::patternUnitsAttr))
         attributes.setPatternUnits(patternUnits());
 
-    if (!attributes.hasPatternContentUnits() && hasAttribute(SVGNames::patternContentUnitsAttr))
+    if (!attributes.hasPatternContentUnits() && hasAttributeOrIsAnimatingProperty(SVGNames::patternContentUnitsAttr))
         attributes.setPatternContentUnits(patternContentUnits());
 
-    if (!attributes.hasPatternTransform() && hasAttribute(SVGNames::patternTransformAttr))
-        attributes.setPatternTransform(patternTransform().concatenate());
+    if (!attributes.hasPatternTransform() && hasAttributeOrIsAnimatingProperty(SVGNames::patternTransformAttr))
+        attributes.setPatternTransform(patternTransform().concatenate().value_or(identity));
 
     if (!attributes.hasPatternContentElement() && childElementCount())
         attributes.setPatternContentElement(this);
@@ -194,7 +193,7 @@ void SVGPatternElement::collectPatternAttributes(PatternAttributes& attributes) 
 
 AffineTransform SVGPatternElement::localCoordinateSpaceTransform(CTMScope) const
 {
-    return protect(patternTransform())->concatenate();
+    return protect(patternTransform())->concatenate().value_or(identity);
 }
 
 }

@@ -90,30 +90,6 @@ template<Numeric NumericType, PrimitiveKeyword... Ks> struct PrimitiveNumericOrK
     {
     }
 
-    // MARK: Copy/Move Construction/Assignment
-
-    PrimitiveNumericOrKeyword(const PrimitiveNumericOrKeyword& other)
-        : m_data { other.m_data }
-    {
-    }
-
-    PrimitiveNumericOrKeyword(PrimitiveNumericOrKeyword&& other)
-        : m_data { WTF::move(other.m_data) }
-    {
-    }
-
-    PrimitiveNumericOrKeyword& operator=(const PrimitiveNumericOrKeyword& other)
-    {
-        m_data = other.m_data;
-        return *this;
-    }
-
-    PrimitiveNumericOrKeyword& operator=(PrimitiveNumericOrKeyword&& other)
-    {
-        m_data = WTF::move(other.m_data);
-        return *this;
-    }
-
     // MARK: Construction/Assignment from `NumericType`
 
     PrimitiveNumericOrKeyword(const NumericType& other)

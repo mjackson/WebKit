@@ -196,10 +196,9 @@ void MatchedDeclarationsCache::invalidate()
 template<typename Callback>
 void MatchedDeclarationsCache::removeAllMatching(const Callback& matches)
 {
-    for (auto& [key, bucket] : m_entries)
-        bucket.removeAllMatching(matches);
-    m_entries.removeIf([](auto& keyValue) {
-        return !keyValue.value.size();
+    m_entries.removeIf([&](auto& keyValue) {
+        keyValue.value.removeAllMatching(matches);
+        return keyValue.value.isEmpty();
     });
 }
 
