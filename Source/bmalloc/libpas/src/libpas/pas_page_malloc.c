@@ -446,21 +446,40 @@ static void decommit_impl(void* ptr, size_t size,
     PAS_SYSCALL(madvise(ptr, size, MADV_DONTNEED));
     PAS_SYSCALL(madvise(ptr, size, MADV_DONTDUMP));
 #elif PAS_OS(WINDOWS)
-    /* Always MEM_DECOMMIT to release commit charge. The do_mprotect=false caller
-       (pas_expendable_memory) recommits via header-state check before touching
-       payload; the other (pas_thread_local_cache) is Darwin-only.
-       Common case: range is within one MEM_RESERVE region, so a single call works.
-       Fall back to a per-region loop only if it fails (range spans VADs). */
-    if (!VirtualFree(ptr, size, MEM_DECOMMIT)) {
-        size_t totalSeen = 0;
-        void* currentPtr = ptr;
-        while (totalSeen < size) {
-            MEMORY_BASIC_INFORMATION memInfo;
-            VirtualQuery(currentPtr, &memInfo, sizeof(memInfo));
-            PAS_ASSERT(memInfo.RegionSize > 0);
-            PAS_ASSERT(VirtualFree(currentPtr, PAS_MIN(memInfo.RegionSize, size - totalSeen), MEM_DECOMMIT));
-            currentPtr = (void*)((uintptr_t)currentPtr + memInfo.RegionSize);
-            totalSeen += memInfo.RegionSize;
+    if (do_mprotect) {
+        /* MEM_DECOMMIT releases commit charge; pages become inaccessible until
+           recommitted. All do_mprotect=true callers recommit before reuse.
+           Try a single call first; fall back to a per-region loop only if the
+           range spans multiple VADs. */
+        if (!VirtualFree(ptr, size, MEM_DECOMMIT)) {
+            size_t totalSeen = 0;
+            void* currentPtr = ptr;
+            while (totalSeen < size) {
+                MEMORY_BASIC_INFORMATION memInfo;
+                VirtualQuery(currentPtr, &memInfo, sizeof(memInfo));
+                PAS_ASSERT(memInfo.RegionSize > 0);
+                PAS_ASSERT(VirtualFree(currentPtr, PAS_MIN(memInfo.RegionSize, size - totalSeen), MEM_DECOMMIT));
+                currentPtr = (void*)((uintptr_t)currentPtr + memInfo.RegionSize);
+                totalSeen += memInfo.RegionSize;
+            }
+        }
+    } else {
+        /* do_mprotect=false callers (pas_expendable_memory) read payload directly
+           and rely on seeing zeros after decommit, like MADV_FREE. MEM_DECOMMIT
+           would make those reads AV, so use DiscardVirtualMemory which frees
+           physical RAM but keeps pages accessible. This does not release commit
+           charge, but expendable memory is bounded metadata. */
+        if (DiscardVirtualMemory(ptr, size)) {
+            size_t totalSeen = 0;
+            void* currentPtr = ptr;
+            while (totalSeen < size) {
+                MEMORY_BASIC_INFORMATION memInfo;
+                VirtualQuery(currentPtr, &memInfo, sizeof(memInfo));
+                PAS_ASSERT(memInfo.RegionSize > 0);
+                PAS_ASSERT(VirtualAlloc(currentPtr, PAS_MIN(memInfo.RegionSize, size - totalSeen), MEM_RESET, PAGE_READWRITE));
+                currentPtr = (void*)((uintptr_t)currentPtr + memInfo.RegionSize);
+                totalSeen += memInfo.RegionSize;
+            }
         }
     }
 #else
