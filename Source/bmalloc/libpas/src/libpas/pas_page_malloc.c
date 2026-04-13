@@ -443,34 +443,17 @@ static void decommit_impl(void* ptr, size_t size,
     PAS_SYSCALL(madvise(ptr, size, MADV_DONTNEED));
     PAS_SYSCALL(madvise(ptr, size, MADV_DONTDUMP));
 #elif PAS_OS(WINDOWS)
-    // DiscardVirtualMemory returns memory to the OS faster, but fails sometimes on Windows 10
-    // Fall back to VirtualAlloc in those cases
-    DWORD ret = DiscardVirtualMemory(ptr, size);
-    if (ret) {
-        /* Sometimes the returned memInfo.RegionSize < size, and VirtualAlloc can't span regions
-        We loop to make sure we get the full requested range. */
-        size_t totalSeen = 0;
-        void *currentPtr = ptr;
-        while (totalSeen < size) {
-            MEMORY_BASIC_INFORMATION memInfo;
-            VirtualQuery(currentPtr, &memInfo, sizeof(memInfo));
-            PAS_ASSERT(VirtualAlloc(currentPtr, PAS_MIN(memInfo.RegionSize, size - totalSeen), MEM_RESET, PAGE_READWRITE));
-            PAS_ASSERT(memInfo.RegionSize > 0);
-            currentPtr = (void*) ((uintptr_t) currentPtr + memInfo.RegionSize);
-            totalSeen += memInfo.RegionSize;
-        }
-    }
-
-    // We need to decommit the region as well, otherwise commit space will never shrink
-    // However we can't decommit if do_mprotect is false - decommitting is an implicit mprotect
-    if (do_mprotect) {
+    /* Always MEM_DECOMMIT to release commit charge. The do_mprotect=false caller
+       (pas_expendable_memory) recommits via header-state check before touching
+       payload; the other (pas_thread_local_cache) is Darwin-only. */
+    {
         size_t totalSeen = 0;
         void* currentPtr = ptr;
         while (totalSeen < size) {
             MEMORY_BASIC_INFORMATION memInfo;
             VirtualQuery(currentPtr, &memInfo, sizeof(memInfo));
-            PAS_ASSERT(VirtualFree(currentPtr, PAS_MIN(memInfo.RegionSize, size - totalSeen), MEM_DECOMMIT));
             PAS_ASSERT(memInfo.RegionSize > 0);
+            PAS_ASSERT(VirtualFree(currentPtr, PAS_MIN(memInfo.RegionSize, size - totalSeen), MEM_DECOMMIT));
             currentPtr = (void*)((uintptr_t)currentPtr + memInfo.RegionSize);
             totalSeen += memInfo.RegionSize;
         }

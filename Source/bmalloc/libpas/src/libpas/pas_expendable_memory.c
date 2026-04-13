@@ -172,6 +172,26 @@ bool pas_expendable_memory_commit_if_necessary(pas_expendable_memory* header,
     first = (offset - sizeof(pas_expendable_memory_state_version)) / PAS_EXPENDABLE_MEMORY_PAGE_SIZE;
     last = (offset + size - 1) / PAS_EXPENDABLE_MEMORY_PAGE_SIZE;
 
+#if PAS_OS(WINDOWS)
+    /* On Windows decommit_without_mprotect uses MEM_DECOMMIT, so payload pages are
+       inaccessible. header->states[] lives outside payload and tracks which pages
+       were decommitted; recommit them before reading object[-1]. The recommitted
+       pages read as zero, so the existing version-mismatch path triggers below. */
+    {
+        size_t i;
+        for (i = first; i <= last; ++i) {
+            if (pas_expendable_memory_state_get_kind(header->states[i])
+                == PAS_EXPENDABLE_MEMORY_STATE_KIND_DECOMMITTED) {
+                pas_page_malloc_commit_without_mprotect(
+                    (char*)payload + first * PAS_EXPENDABLE_MEMORY_PAGE_SIZE,
+                    (last - first + 1) * PAS_EXPENDABLE_MEMORY_PAGE_SIZE,
+                    pas_may_mmap);
+                break;
+            }
+        }
+    }
+#endif
+
     header_version = ((pas_expendable_memory_state_version*)object)[-1];
     first_state = header->states[first];
     first_kind = pas_expendable_memory_state_get_kind(first_state);
@@ -344,9 +364,9 @@ static PAS_ALWAYS_INLINE bool scavenge_impl(pas_expendable_memory* header,
            memory. So, it might happen after we have already decommitted, or decided to decommit. */
         pas_store_store_fence();
 
-        /* This currently assumes that it's legal to do decommit without later committing. It's not obvious
-           that this is a hard requirement of the algorithm; like perhaps it would be easy to add the necessary
-           commit calls. */
+        /* On POSIX/Darwin this assumes that it's legal to do decommit without later committing
+           (madvise leaves pages accessible). On Windows MEM_DECOMMIT makes pages inaccessible,
+           so commit_if_necessary recommits via header->states before reading payload. */
         if (scavenge_kind != pas_expendable_memory_scavenge_forced_fake) {
             pas_page_malloc_decommit_without_mprotect(
                 (char*)payload + index * PAS_EXPENDABLE_MEMORY_PAGE_SIZE,
