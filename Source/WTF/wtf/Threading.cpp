@@ -55,6 +55,47 @@
 #if BENABLE(LIBPAS)
 #define USE_LIBPAS_THREAD_SUSPEND_LOCK 1
 #include <bmalloc/pas_thread_suspend_lock.h>
+#include <bmalloc/pas_thread_suspender.h>
+#endif
+
+#if BENABLE(LIBPAS) && OS(LINUX)
+namespace WTF {
+
+static pas_embedder_thread_handle pasSuspenderCurrentThread()
+{
+    Thread* thread = Thread::currentMayBeNull();
+    if (thread)
+        thread->ref();
+    return thread;
+}
+
+static bool pasSuspenderBeginSuspend(pas_embedder_thread_handle handle)
+{
+    // The libpas scavenger already holds pas_thread_suspend_lock, which is exactly what
+    // ThreadSuspendLocker wraps under USE(LIBPAS_THREAD_SUSPEND_LOCK).
+    ThreadSuspendLocker locker(AdoptLock);
+    return static_cast<Thread*>(handle)->suspend(locker).has_value();
+}
+
+static void pasSuspenderEndSuspend(pas_embedder_thread_handle handle)
+{
+    ThreadSuspendLocker locker(AdoptLock);
+    static_cast<Thread*>(handle)->resume(locker);
+}
+
+static void pasSuspenderReleaseHandle(pas_embedder_thread_handle handle)
+{
+    static_cast<Thread*>(handle)->deref();
+}
+
+static constexpr pas_thread_suspender s_pasThreadSuspender = {
+    pasSuspenderCurrentThread,
+    pasSuspenderBeginSuspend,
+    pasSuspenderEndSuspend,
+    pasSuspenderReleaseHandle,
+};
+
+} // namespace WTF
 #endif
 #if USE(TZONE_MALLOC)
 #if BUSE(TZONE)
@@ -85,7 +126,8 @@ ThreadSuspendLocker::ThreadSuspendLocker()
 
 ThreadSuspendLocker::~ThreadSuspendLocker()
 {
-    pas_thread_suspend_lock_unlock();
+    if (m_shouldUnlock)
+        pas_thread_suspend_lock_unlock();
 }
 #else
 static Lock globalSuspendLock;
@@ -97,7 +139,8 @@ ThreadSuspendLocker::ThreadSuspendLocker()
 
 ThreadSuspendLocker::~ThreadSuspendLocker()
 {
-    globalSuspendLock.unlock();
+    if (m_shouldUnlock)
+        globalSuspendLock.unlock();
 }
 #endif
 
@@ -506,6 +549,9 @@ void initialize()
 #endif
         initializeDates();
         Thread::initializePlatformThreading();
+#if BENABLE(LIBPAS) && OS(LINUX)
+        pas_install_thread_suspender(&s_pasThreadSuspender);
+#endif
 #if PLATFORM(COCOA)
         initializeLibraryPathDiagnostics();
 #endif

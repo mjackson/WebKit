@@ -105,7 +105,13 @@ class ThreadSuspendLocker {
     WTF_MAKE_NONCOPYABLE(ThreadSuspendLocker);
 public:
     WTF_EXPORT_PRIVATE ThreadSuspendLocker();
+    explicit ThreadSuspendLocker(AdoptLockTag)
+        : m_shouldUnlock(false)
+    {
+    }
     WTF_EXPORT_PRIVATE ~ThreadSuspendLocker();
+private:
+    bool m_shouldUnlock { true };
 };
 
 class WTF_CAPABILITY("is current") Thread : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<Thread>, ThreadLike {

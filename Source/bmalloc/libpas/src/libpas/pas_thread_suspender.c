@@ -42,6 +42,7 @@ void pas_install_thread_suspender(const pas_thread_suspender* suspender)
     PAS_ASSERT(suspender->current_thread);
     PAS_ASSERT(suspender->begin_suspend);
     PAS_ASSERT(suspender->end_suspend);
+    pas_store_store_fence();
     pas_thread_suspender_instance = suspender;
 }
 

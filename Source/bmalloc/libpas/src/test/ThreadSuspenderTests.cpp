@@ -73,7 +73,8 @@ void mockEndSuspend(pas_embedder_thread_handle handle)
 const pas_thread_suspender mockSuspender = {
     mockCurrentThread,
     mockBeginSuspend,
-    mockEndSuspend
+    mockEndSuspend,
+    nullptr
 };
 
 void testInstallAndHandleStorage()
@@ -126,7 +127,8 @@ pas_embedder_thread_handle realCurrentThread()
 const pas_thread_suspender realSuspender = {
     realCurrentThread,
     realBeginSuspend,
-    realEndSuspend
+    realEndSuspend,
+    nullptr
 };
 #endif
 

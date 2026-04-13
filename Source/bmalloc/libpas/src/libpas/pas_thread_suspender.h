@@ -54,6 +54,9 @@ struct pas_thread_suspender {
     pas_embedder_thread_handle (*current_thread)(void);
     bool (*begin_suspend)(pas_embedder_thread_handle);
     void (*end_suspend)(pas_embedder_thread_handle);
+    /* Optional; may be NULL. Called once when the TLC that owns the handle is destroyed,
+       from the owning thread, with no libpas locks held. */
+    void (*release_handle)(pas_embedder_thread_handle);
 };
 typedef struct pas_thread_suspender pas_thread_suspender;
 

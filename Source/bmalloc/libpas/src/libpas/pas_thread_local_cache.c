@@ -136,8 +136,14 @@ static void destroy(pas_thread_local_cache* thread_local_cache, pas_lock_hold_mo
     
     pas_thread_local_cache_shrink(thread_local_cache, pas_lock_is_held);
     pas_thread_local_cache_node_deallocate(thread_local_cache->node);
+    void* embedder_thread_handle = thread_local_cache->embedder_thread_handle;
     deallocate(thread_local_cache);
     pas_heap_lock_unlock_conditionally(heap_lock_hold_mode);
+
+    if (embedder_thread_handle
+        && pas_thread_suspender_instance
+        && pas_thread_suspender_instance->release_handle)
+        pas_thread_suspender_instance->release_handle(embedder_thread_handle);
 }
 
 static void destructor(void* arg)
