@@ -39,22 +39,16 @@ static const bool verbose = false;
 
 int pthread_create(pthread_t* tid, const pthread_attr_t* attr, unsigned (*start)(void *), void* arg)
 {
-    PAS_UNUSED_PARAM(tid);
     PAS_UNUSED_PARAM(attr);
-    PAS_UNUSED_PARAM(arg);
 
-    /* Create thread handle */
     HANDLE hThread;
-
-    /* Thread ID (optional) */
     unsigned threadIdentifier = 0;
 
-    /* Create the thread */
     hThread = (HANDLE)_beginthreadex(
         NULL,
         0,
         start,
-        NULL,
+        arg,
         0,
         &threadIdentifier
     );
@@ -64,6 +58,15 @@ int pthread_create(pthread_t* tid, const pthread_attr_t* attr, unsigned (*start)
             pas_log("Failed to create thread.\n");
         return 1;
     }
+
+    if (tid)
+        *tid = (pthread_t)threadIdentifier;
+
+    /* The only caller (pas_scavenger) immediately detaches, and pthread_detach
+       has no way to recover the HANDLE from a thread ID without racing the
+       thread's exit. Close the handle now; the thread keeps running and the
+       kernel object is freed once the thread exits. */
+    CloseHandle(hThread);
 
     return 0;
 }
@@ -102,7 +105,7 @@ int sched_yield()
 }
 
 /* This is used to wrap the passed void(*)(void) function so it can be passed to InitOnceExecuteOnce */
-BOOL once_init_runner(PINIT_ONCE once_control, PVOID init_routine, PVOID* context)
+static BOOL WINAPI once_init_runner(PINIT_ONCE once_control, PVOID init_routine, PVOID* context)
 {
     PAS_UNUSED_PARAM(once_control);
     PAS_UNUSED_PARAM(context);
@@ -113,12 +116,12 @@ BOOL once_init_runner(PINIT_ONCE once_control, PVOID init_routine, PVOID* contex
 
 int pthread_once(pthread_once_t* once_control, void (*init_routine)(void))
 {
-    int result;
-    result = InitOnceExecuteOnce(*once_control, once_init_runner, init_routine, NULL);
+    BOOL result;
+    result = InitOnceExecuteOnce(once_control, once_init_runner, (PVOID)init_routine, NULL);
     if (verbose && !result)
         pas_log("Failed to run pthread_once.\n");
 
-    return result;
+    return result ? 0 : -1;
 }
 
 /* Thread Local Storage
@@ -137,10 +140,9 @@ int pthread_once(pthread_once_t* once_control, void (*init_routine)(void))
    switch to Thread Local Storage and deal with the extra complexity. */
 int pthread_key_create(pthread_key_t* key, void (*destructor)(void*))
 {
-    PAS_UNUSED_PARAM(key);
     DWORD result = FlsAlloc(destructor);
     PAS_ASSERT(result != FLS_OUT_OF_INDEXES);
-
+    *key = (pthread_key_t)result;
     return 0;
 }
 
