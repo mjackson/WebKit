@@ -105,7 +105,7 @@ int sched_yield()
 }
 
 /* This is used to wrap the passed void(*)(void) function so it can be passed to InitOnceExecuteOnce */
-BOOL once_init_runner(PINIT_ONCE once_control, PVOID init_routine, PVOID* context)
+static BOOL WINAPI once_init_runner(PINIT_ONCE once_control, PVOID init_routine, PVOID* context)
 {
     PAS_UNUSED_PARAM(once_control);
     PAS_UNUSED_PARAM(context);
@@ -116,12 +116,12 @@ BOOL once_init_runner(PINIT_ONCE once_control, PVOID init_routine, PVOID* contex
 
 int pthread_once(pthread_once_t* once_control, void (*init_routine)(void))
 {
-    int result;
-    result = InitOnceExecuteOnce(*once_control, once_init_runner, init_routine, NULL);
+    BOOL result;
+    result = InitOnceExecuteOnce(once_control, once_init_runner, (PVOID)init_routine, NULL);
     if (verbose && !result)
         pas_log("Failed to run pthread_once.\n");
 
-    return result;
+    return result ? 0 : -1;
 }
 
 /* Thread Local Storage
