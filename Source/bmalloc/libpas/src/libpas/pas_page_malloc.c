@@ -379,18 +379,21 @@ static void commit_impl(void* ptr, size_t size, bool do_mprotect, pas_mmap_capab
 #if PAS_OS(LINUX)
     PAS_SYSCALL(madvise(ptr, size, MADV_DODUMP));
 #elif PAS_OS(WINDOWS)
-    /* Sometimes the returned memInfo.RegionSize < size, and VirtualAlloc can't span regions
-       We loop to make sure we get the full requested range. */
-    size_t totalSeen = 0;
-    void *currentPtr = ptr;
-    while (totalSeen < size) {
-        MEMORY_BASIC_INFORMATION memInfo;
-        VirtualQuery(currentPtr, &memInfo, sizeof(memInfo));
-        PAS_ASSERT(memInfo.State != 0x10000);
-        PAS_ASSERT(memInfo.RegionSize > 0);
-        PAS_ASSERT(virtual_alloc_with_retry(currentPtr, PAS_MIN(memInfo.RegionSize, size - totalSeen), MEM_COMMIT, PAGE_READWRITE));
-        currentPtr = (void*) ((uintptr_t) currentPtr + memInfo.RegionSize);
-        totalSeen += memInfo.RegionSize;
+    /* Common case: range is within one MEM_RESERVE region, so a single MEM_COMMIT
+       works (matches POSIX's single madvise). Fall back to a per-region loop only
+       if it fails (range spans VADs, or OOM which the loop retries). */
+    if (!VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE)) {
+        size_t totalSeen = 0;
+        void *currentPtr = ptr;
+        while (totalSeen < size) {
+            MEMORY_BASIC_INFORMATION memInfo;
+            VirtualQuery(currentPtr, &memInfo, sizeof(memInfo));
+            PAS_ASSERT(memInfo.State != 0x10000);
+            PAS_ASSERT(memInfo.RegionSize > 0);
+            PAS_ASSERT(virtual_alloc_with_retry(currentPtr, PAS_MIN(memInfo.RegionSize, size - totalSeen), MEM_COMMIT, PAGE_READWRITE));
+            currentPtr = (void*) ((uintptr_t) currentPtr + memInfo.RegionSize);
+            totalSeen += memInfo.RegionSize;
+        }
     }
 #elif PAS_PLATFORM(PLAYSTATION)
     // We don't need to call madvise to map page.
@@ -445,8 +448,10 @@ static void decommit_impl(void* ptr, size_t size,
 #elif PAS_OS(WINDOWS)
     /* Always MEM_DECOMMIT to release commit charge. The do_mprotect=false caller
        (pas_expendable_memory) recommits via header-state check before touching
-       payload; the other (pas_thread_local_cache) is Darwin-only. */
-    {
+       payload; the other (pas_thread_local_cache) is Darwin-only.
+       Common case: range is within one MEM_RESERVE region, so a single call works.
+       Fall back to a per-region loop only if it fails (range spans VADs). */
+    if (!VirtualFree(ptr, size, MEM_DECOMMIT)) {
         size_t totalSeen = 0;
         void* currentPtr = ptr;
         while (totalSeen < size) {
