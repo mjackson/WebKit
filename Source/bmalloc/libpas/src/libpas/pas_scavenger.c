@@ -438,8 +438,10 @@ bool pas_scavenger_try_install_foreign_work_callback(
     pthread_mutex_lock(&data->foreign_work.lock);
 
     int slot = data->foreign_work.next_open_descriptor;
-    if (slot >= PAS_SCAVENGER_MAX_FOREIGN_WORK_DESCRIPTORS)
+    if (slot >= PAS_SCAVENGER_MAX_FOREIGN_WORK_DESCRIPTORS) {
+        pthread_mutex_unlock(&data->foreign_work.lock);
         return false;
+    }
 
     double requested_period_ms = pow(2.0, period_log2_ms);
     uint32_t requested_ticks = (uint32_t)(requested_period_ms / pas_scavenger_period_in_milliseconds);

@@ -315,6 +315,7 @@ void pas_probabilistic_guard_malloc_deallocate(void* mem)
      * If so deallocate the space for metadata as well
      */
     value->free_status = true;
+    pas_ptr_hash_map_entry saved_entry = *entry;
     pas_ptr_hash_map_entry* old_entry = &pgm_metadata_vector[pgm_metadata_index];
     if (old_entry->key) {
         pas_pgm_storage* old_pas_pgm_storage = (pas_pgm_storage*)(old_entry->value);
@@ -324,7 +325,7 @@ void pas_probabilistic_guard_malloc_deallocate(void* mem)
         bool removed = pas_ptr_hash_map_remove(&pas_pgm_hash_map, (void*)old_entry->key, NULL, &pas_large_utility_free_heap_allocation_config);
         PAS_ASSERT(removed);
     }
-    pgm_metadata_vector[pgm_metadata_index] = *entry;
+    pgm_metadata_vector[pgm_metadata_index] = saved_entry;
     pgm_metadata_index = (pgm_metadata_index + 1) % MAX_PGM_DEALLOCATED_METADATA_ENTRIES;
 
     if (verbose)

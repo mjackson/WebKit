@@ -585,6 +585,7 @@
 		2C473153277A540F00B62C49 /* pas_large_virtual_range_min_heap.h in Headers */ = {isa = PBXBuildFile; fileRef = 2C473150277A540F00B62C49 /* pas_large_virtual_range_min_heap.h */; };
 		2C473154277A540F00B62C49 /* pas_large_virtual_range.h in Headers */ = {isa = PBXBuildFile; fileRef = 2C473151277A540F00B62C49 /* pas_large_virtual_range.h */; };
 		2C473162277D4C9E00B62C49 /* TLCDecommitTests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2C473161277D4C9E00B62C49 /* TLCDecommitTests.cpp */; };
+		2C4731632BC9A002001750BB /* ThreadSuspenderTests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2C4731642BC9A002001750BB /* ThreadSuspenderTests.cpp */; };
 		2C47316A277D4EA800B62C49 /* pas_committed_pages_vector.c in Sources */ = {isa = PBXBuildFile; fileRef = 2C473164277D4CCC00B62C49 /* pas_committed_pages_vector.c */; };
 		2C481326273F341A006CAB55 /* pas_large_expendable_memory.c in Sources */ = {isa = PBXBuildFile; fileRef = 2C481320273F341A006CAB55 /* pas_large_expendable_memory.c */; };
 		2C481327273F341A006CAB55 /* pas_compact_expendable_memory.c in Sources */ = {isa = PBXBuildFile; fileRef = 2C481321273F341A006CAB55 /* pas_compact_expendable_memory.c */; };
@@ -596,6 +597,8 @@
 		2C734C90277680EF0017BFFE /* MemalignTests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2C734C8F277680EF0017BFFE /* MemalignTests.cpp */; };
 		2C8548B127B48FC5001750BB /* pas_thread_suspend_lock.h in Headers */ = {isa = PBXBuildFile; fileRef = 2C8548AF27B48FC5001750BB /* pas_thread_suspend_lock.h */; };
 		2C8548B227B48FC5001750BB /* pas_thread_suspend_lock.c in Sources */ = {isa = PBXBuildFile; fileRef = 2C8548B027B48FC5001750BB /* pas_thread_suspend_lock.c */; };
+		2C8548B32BC9A001001750BB /* pas_thread_suspender.h in Headers */ = {isa = PBXBuildFile; fileRef = 2C8548B52BC9A001001750BB /* pas_thread_suspender.h */; };
+		2C8548B42BC9A001001750BB /* pas_thread_suspender.c in Sources */ = {isa = PBXBuildFile; fileRef = 2C8548B62BC9A001001750BB /* pas_thread_suspender.c */; };
 		2C85DC4127128F0F00367905 /* pas_try_allocate_intrinsic.h in Headers */ = {isa = PBXBuildFile; fileRef = 2C85DC4027128F0F00367905 /* pas_try_allocate_intrinsic.h */; };
 		2C91E5502718DA9A00D67FF9 /* pas_size_lookup_mode.h in Headers */ = {isa = PBXBuildFile; fileRef = 2C91E54F2718DA9A00D67FF9 /* pas_size_lookup_mode.h */; };
 		2CB9B158278F85EE003A8C1B /* pas_lenient_compact_unsigned_ptr.h in Headers */ = {isa = PBXBuildFile; fileRef = 2CB9B154278F85ED003A8C1B /* pas_lenient_compact_unsigned_ptr.h */; };
@@ -1316,6 +1319,7 @@
 		2C473150277A540F00B62C49 /* pas_large_virtual_range_min_heap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pas_large_virtual_range_min_heap.h; sourceTree = "<group>"; };
 		2C473151277A540F00B62C49 /* pas_large_virtual_range.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pas_large_virtual_range.h; sourceTree = "<group>"; };
 		2C473161277D4C9E00B62C49 /* TLCDecommitTests.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = TLCDecommitTests.cpp; sourceTree = "<group>"; };
+		2C4731642BC9A002001750BB /* ThreadSuspenderTests.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ThreadSuspenderTests.cpp; sourceTree = "<group>"; };
 		2C473163277D4CCC00B62C49 /* pas_decommit_exclusion_range.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pas_decommit_exclusion_range.h; sourceTree = "<group>"; };
 		2C473164277D4CCC00B62C49 /* pas_committed_pages_vector.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pas_committed_pages_vector.c; sourceTree = "<group>"; };
 		2C473165277D4CCC00B62C49 /* pas_committed_pages_vector.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pas_committed_pages_vector.h; sourceTree = "<group>"; };
@@ -1332,6 +1336,8 @@
 		2C734C8F277680EF0017BFFE /* MemalignTests.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = MemalignTests.cpp; sourceTree = "<group>"; };
 		2C8548AF27B48FC5001750BB /* pas_thread_suspend_lock.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pas_thread_suspend_lock.h; sourceTree = "<group>"; };
 		2C8548B027B48FC5001750BB /* pas_thread_suspend_lock.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pas_thread_suspend_lock.c; sourceTree = "<group>"; };
+		2C8548B52BC9A001001750BB /* pas_thread_suspender.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pas_thread_suspender.h; sourceTree = "<group>"; };
+		2C8548B62BC9A001001750BB /* pas_thread_suspender.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pas_thread_suspender.c; sourceTree = "<group>"; };
 		2C85DC4027128F0F00367905 /* pas_try_allocate_intrinsic.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pas_try_allocate_intrinsic.h; sourceTree = "<group>"; };
 		2C91E54F2718DA9A00D67FF9 /* pas_size_lookup_mode.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pas_size_lookup_mode.h; sourceTree = "<group>"; };
 		2CB9B154278F85ED003A8C1B /* pas_lenient_compact_unsigned_ptr.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pas_lenient_compact_unsigned_ptr.h; sourceTree = "<group>"; };
@@ -1477,6 +1483,7 @@
 				0FC681EA210FEDB5003C6A13 /* TestHarness.h */,
 				0F8700B225B0AB29000E1ABF /* ThingyAndUtilityHeapAllocationTests.cpp */,
 				2C473161277D4C9E00B62C49 /* TLCDecommitTests.cpp */,
+				2C4731642BC9A002001750BB /* ThreadSuspenderTests.cpp */,
 				0F8700DE25B14C68000E1ABF /* TSDTests.cpp */,
 				0F53181222C9609D003F7B6A /* UtilsTests.cpp */,
 				2C16DADF279E07290042E919 /* ViewCacheTests.cpp */,
@@ -1993,6 +2000,8 @@
 				0F7F51BD23159EC0007552AE /* pas_thread_local_cache_node.h */,
 				2C8548B027B48FC5001750BB /* pas_thread_suspend_lock.c */,
 				2C8548AF27B48FC5001750BB /* pas_thread_suspend_lock.h */,
+				2C8548B62BC9A001001750BB /* pas_thread_suspender.c */,
+				2C8548B52BC9A001001750BB /* pas_thread_suspender.h */,
 				0F6D547123C573E000F40DBB /* pas_tiny_large_map_entry.h */,
 				0F31A66923E8E594002C0CA3 /* pas_tree_direction.h */,
 				0F8A800C25CF64C900790B4A /* pas_tri_state.h */,
@@ -2462,6 +2471,7 @@
 				0F148723269F5FCA006887A9 /* pas_thread_local_cache_layout_node_kind.h in Headers */,
 				0F7F51BF23159EC0007552AE /* pas_thread_local_cache_node.h in Headers */,
 				2C8548B127B48FC5001750BB /* pas_thread_suspend_lock.h in Headers */,
+				2C8548B32BC9A001001750BB /* pas_thread_suspender.h in Headers */,
 				0F6D547923C573E100F40DBB /* pas_tiny_large_map_entry.h in Headers */,
 				0F31A66A23E8E594002C0CA3 /* pas_tree_direction.h in Headers */,
 				0F8A800D25CF64C900790B4A /* pas_tri_state.h in Headers */,
@@ -2772,6 +2782,7 @@
 				0FC681ED21127A19003C6A13 /* TestHarness.cpp in Sources */,
 				0F8700C225B0B26A000E1ABF /* ThingyAndUtilityHeapAllocationTests.cpp in Sources */,
 				2C473162277D4C9E00B62C49 /* TLCDecommitTests.cpp in Sources */,
+				2C4731632BC9A002001750BB /* ThreadSuspenderTests.cpp in Sources */,
 				0F8700F525B14C8B000E1ABF /* TSDTests.cpp in Sources */,
 				0F53181322C9609D003F7B6A /* UtilsTests.cpp in Sources */,
 				2C16DAE0279E07290042E919 /* ViewCacheTests.cpp in Sources */,
@@ -2932,6 +2943,7 @@
 				0FA5E4562492D5BA00CE962A /* pas_thread_local_cache_layout_node.c in Sources */,
 				0F7F51BE23159EC0007552AE /* pas_thread_local_cache_node.c in Sources */,
 				2C8548B227B48FC5001750BB /* pas_thread_suspend_lock.c in Sources */,
+				2C8548B42BC9A001001750BB /* pas_thread_suspender.c in Sources */,
 				0FE7EDD722960142004F4166 /* pas_utility_heap.c in Sources */,
 				0FE7EDBB22960142004F4166 /* pas_utility_heap_config.c in Sources */,
 				0FE7EDD822960142004F4166 /* pas_utils.c in Sources */,
@@ -3044,7 +3056,7 @@
 		0F443B3C23416A7C00BE50D1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CODE_SIGN_STYLE = Automatic;
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
@@ -3065,7 +3077,7 @@
 		0F443B3D23416A7C00BE50D1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CODE_SIGN_STYLE = Automatic;
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
@@ -3085,7 +3097,7 @@
 		0F443B4C2341761500BE50D1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CLANG_ENABLE_MODULES = NO;
 				CLANG_ENABLE_MODULE_DEBUGGING = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -3108,7 +3120,7 @@
 		0F443B4D2341761500BE50D1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CLANG_ENABLE_MODULES = NO;
 				CLANG_ENABLE_MODULE_DEBUGGING = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -3130,7 +3142,7 @@
 		0F8A803925EECBAF00790B4A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CLANG_ENABLE_MODULES = NO;
 				CLANG_ENABLE_MODULE_DEBUGGING = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -3153,7 +3165,7 @@
 		0F8A803A25EECBAF00790B4A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CLANG_ENABLE_MODULES = NO;
 				CLANG_ENABLE_MODULE_DEBUGGING = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -3175,7 +3187,7 @@
 		0F8A809525F6A44F00790B4A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CLANG_ENABLE_MODULES = NO;
 				CLANG_ENABLE_MODULE_DEBUGGING = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -3198,7 +3210,7 @@
 		0F8A809625F6A44F00790B4A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CLANG_ENABLE_MODULES = NO;
 				CLANG_ENABLE_MODULE_DEBUGGING = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -3220,7 +3232,7 @@
 		0F8A80C025F6A48700790B4A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CODE_SIGN_STYLE = Automatic;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -3229,7 +3241,7 @@
 		0F8A80C125F6A48700790B4A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CODE_SIGN_STYLE = Automatic;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -3238,7 +3250,7 @@
 		0F8A80DF25F6A6E700790B4A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CODE_SIGN_STYLE = Automatic;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -3247,7 +3259,7 @@
 		0F8A80E025F6A6E700790B4A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CODE_SIGN_STYLE = Automatic;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -3256,7 +3268,7 @@
 		0FBAE681248EC1C000311E6F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CLANG_ENABLE_MODULES = NO;
 				CLANG_ENABLE_MODULE_DEBUGGING = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -3274,7 +3286,7 @@
 		0FBAE682248EC1C000311E6F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CLANG_ENABLE_MODULES = NO;
 				CLANG_ENABLE_MODULE_DEBUGGING = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -3290,7 +3302,7 @@
 		0FC681E0210FAC4B003C6A13 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CLANG_ENABLE_MODULES = NO;
 				CLANG_ENABLE_MODULE_DEBUGGING = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -3308,7 +3320,7 @@
 		0FC681E1210FAC4B003C6A13 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CLANG_ENABLE_MODULES = NO;
 				CLANG_ENABLE_MODULE_DEBUGGING = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -3324,7 +3336,7 @@
 		0FDEA5DB2295FC8E0085E340 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CLANG_ENABLE_MODULES = NO;
 				CLANG_ENABLE_MODULE_DEBUGGING = NO;
 				CLANG_WARN_ASSIGN_ENUM = YES;
@@ -3362,7 +3374,7 @@
 		0FDEA5DC2295FC8E0085E340 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CLANG_ENABLE_MODULES = NO;
 				CLANG_ENABLE_MODULE_DEBUGGING = NO;
 				CLANG_WARN_ASSIGN_ENUM = YES;
@@ -3399,7 +3411,7 @@
 		0FF08F5222A86C9A00386575 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CLANG_ENABLE_MODULES = NO;
 				CLANG_ENABLE_MODULE_DEBUGGING = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -3422,7 +3434,7 @@
 		0FF08F5322A86C9A00386575 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CLANG_ENABLE_MODULES = NO;
 				CLANG_ENABLE_MODULE_DEBUGGING = NO;
 				CODE_SIGN_STYLE = Automatic;

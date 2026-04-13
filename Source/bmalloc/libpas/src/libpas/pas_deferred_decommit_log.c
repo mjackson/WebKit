@@ -222,7 +222,8 @@ static void decommit_all(pas_deferred_decommit_log* log,
             PAS_ASSERT(!pas_virtual_range_overlaps(range, next_range));
             PAS_ASSERT(next_range.begin >= range.end);
             
-            if (next_range.begin != range.end)
+            if (next_range.begin != range.end
+                || next_range.mmap_capability != range.mmap_capability)
                 break;
 
             range.end = next_range.end;

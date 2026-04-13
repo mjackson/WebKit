@@ -1109,6 +1109,44 @@ void addLargeFreeHeapTests()
                  },
                  1));
 
+    // Regression: fast_write_cursor must preserve max-heap invariant when the
+    // root shrinks. Tree {A=100@1000, B=400@2000(root), C=200@3000}; allocating
+    // 350 from B leaves a 50-byte root with 100/200 children, which previously
+    // hid C from the next 150-byte request.
+    ADD_TEST(testFastLargeFreeHeap(
+                 {
+                     Action::deallocate(1000, 100),
+                     Action::deallocate(3000, 200),
+                     Action::deallocate(2000, 400),
+                     Action::allocate(350, alignSimple(1), 2000),
+                     Action::allocate(150, alignSimple(1), 3000)
+                 },
+                 {
+                     Free(1000, 1100),
+                     Free(2350, 2400),
+                     Free(3150, 3200)
+                 },
+                 1));
+
+    // Regression: fast_merge must preserve max-heap invariant when a leaf
+    // grows past its parent. Tree {X=100@1000, P=1000@3000(root), L=200@5000};
+    // freeing [5200,8200) coalesces into leaf L, growing it to 3200 under a
+    // 1000-byte root, which previously hid L from the next 2000-byte request.
+    ADD_TEST(testFastLargeFreeHeap(
+                 {
+                     Action::deallocate(1000, 100),
+                     Action::deallocate(3000, 1000),
+                     Action::deallocate(5000, 200),
+                     Action::deallocate(5200, 3000),
+                     Action::allocate(2000, alignSimple(1), 5000)
+                 },
+                 {
+                     Free(1000, 1100),
+                     Free(3000, 4000),
+                     Free(7000, 8200)
+                 },
+                 1));
+
     ADD_TEST(testBootstrapHeap({ }, { }, 1));
     ADD_TEST(testBootstrapHeap(
                  {

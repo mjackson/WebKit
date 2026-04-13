@@ -481,7 +481,9 @@ bool Thread::signal(int signalNumber)
 
 auto Thread::suspend(const ThreadSuspendLocker&) -> Expected<void, PlatformSuspendError>
 {
-    RELEASE_ASSERT_WITH_MESSAGE(this != &Thread::currentSingleton(), "We do not support suspending the current thread itself.");
+    // currentMayBeNull, not currentSingleton: the libpas scavenger calls this while holding
+    // the heap lock, and currentSingleton would lazy-allocate a Thread for it.
+    RELEASE_ASSERT_WITH_MESSAGE(this != Thread::currentMayBeNull(), "We do not support suspending the current thread itself.");
 #if OS(DARWIN)
     kern_return_t result = thread_suspend(m_platformThread);
     if (result != KERN_SUCCESS)
