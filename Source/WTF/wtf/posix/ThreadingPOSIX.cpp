@@ -100,7 +100,7 @@ public:
 
     void wait()
     {
-        sem_wait(&m_platformSemaphore);
+        while (sem_wait(&m_platformSemaphore) == -1 && errno == EINTR) { }
     }
 
     void post()
