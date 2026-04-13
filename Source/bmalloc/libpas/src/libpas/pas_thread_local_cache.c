@@ -61,8 +61,10 @@ PAS_BEGIN_EXTERN_C;
 #if PAS_HAVE_THREAD_KEYWORD
 #if PAS_OS(WINDOWS)
 __declspec(thread) void* pas_thread_local_cache_pointer = NULL;
+__declspec(thread) bool pas_thread_local_cache_is_exiting = false;
 #else
 __thread void* pas_thread_local_cache_pointer = NULL;
+__thread bool pas_thread_local_cache_is_exiting = false;
 #endif
 #endif
 
@@ -151,16 +153,16 @@ static void destructor(void* arg)
         pas_log("[%d] Destructor call for TLS %p\n", getpid(), thread_local_cache);
 
 #if !PAS_OS(DARWIN)
-    /* If pthread_self_is_exiting_np does not exist, we set PAS_THREAD_LOCAL_CACHE_DESTROYED in the TLS so that
-       subsequent calls of pas_thread_local_cache_try_get() can detect whether TLS is destroyed. Since
-       PAS_THREAD_LOCAL_CACHE_DESTROYED is a non-null value, pthread will call this destructor again (up to
-       PTHREAD_DESTRUCTOR_ITERATIONS times). Each time it does, it will clear the TLS entry. Hence, we need to re-set
-       PAS_THREAD_LOCAL_CACHE_DESTROYED in the TLS each time to continue to indicate that destroy() has already been called once. */
-    pas_thread_local_cache_set_impl((pas_thread_local_cache*)PAS_THREAD_LOCAL_CACHE_DESTROYED);
+    /* Mark the thread as exiting so can_set() returns false and no new TLC is created,
+       and clear the TLC pointer to NULL so any alloc/dealloc that runs during destroy()
+       or in later thread_local destructors (which on Windows run after FLS callbacks)
+       takes the safe slow path instead of dereferencing a poisoned pointer. */
+    pas_thread_local_cache_is_exiting = true;
+    pas_thread_local_cache_set_impl(NULL);
     PAS_ASSERT(!pas_thread_local_cache_can_set());
 #endif
 
-    if (((uintptr_t)thread_local_cache) != PAS_THREAD_LOCAL_CACHE_DESTROYED)
+    if (thread_local_cache && ((uintptr_t)thread_local_cache) != PAS_THREAD_LOCAL_CACHE_DESTROYED)
         destroy(thread_local_cache, pas_lock_is_not_held);
     else {
         if (verbose)

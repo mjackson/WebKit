@@ -91,8 +91,10 @@ PAS_API extern pas_fast_tls pas_thread_local_cache_fast_tls;
 #if PAS_HAVE_THREAD_KEYWORD
 #if PAS_OS(WINDOWS)
 PAS_API extern __declspec(thread) void* pas_thread_local_cache_pointer;
+PAS_API extern __declspec(thread) bool pas_thread_local_cache_is_exiting;
 #else
 PAS_API extern __thread void* pas_thread_local_cache_pointer;
+PAS_API extern __thread bool pas_thread_local_cache_is_exiting;
 #endif
 #define PAS_THREAD_LOCAL_KEY pas_thread_local_cache_pointer
 #endif
@@ -117,7 +119,7 @@ static inline bool pas_thread_local_cache_can_set(void)
 #if PAS_OS(DARWIN)
     return !pthread_self_is_exiting_np() && !pas_msl_is_enabled();
 #else
-    return ((uintptr_t)pas_thread_local_cache_try_get_impl()) != PAS_THREAD_LOCAL_CACHE_DESTROYED;
+    return !pas_thread_local_cache_is_exiting;
 #endif
 }
 

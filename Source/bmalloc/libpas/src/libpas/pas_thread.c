@@ -140,14 +140,9 @@ int pthread_once(pthread_once_t* once_control, void (*init_routine)(void))
    switch to Thread Local Storage and deal with the extra complexity. */
 int pthread_key_create(pthread_key_t* key, void (*destructor)(void*))
 {
-    PAS_UNUSED_PARAM(key);
-    /* FIXME: storing *key = result makes the FLS destructor fire on thread exit,
-       which crashes in pas_thread_local_cache destroy() on Windows (path never
-       exercised). Until that's fixed, leave *key unset so FlsSetValue fails
-       silently and the destructor never runs. This leaks the TLC per dead thread. */
     DWORD result = FlsAlloc(destructor);
     PAS_ASSERT(result != FLS_OUT_OF_INDEXES);
-
+    *key = (pthread_key_t)result;
     return 0;
 }
 
