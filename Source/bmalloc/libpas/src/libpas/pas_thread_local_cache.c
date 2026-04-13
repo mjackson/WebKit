@@ -159,6 +159,24 @@ static void destructor(void* arg)
     if (verbose)
         pas_log("[%d] Destructor call for TLS %p\n", getpid(), thread_local_cache);
 
+#if PAS_OS(WINDOWS)
+    /* ExitProcess terminates all other threads before running FLS callbacks for
+       the calling thread. If the scavenger held pas_heap_lock when it was killed,
+       destroy() spins forever on the orphaned spinlock. Skip teardown during
+       process shutdown; the address space is about to go away. */
+    {
+        typedef BOOLEAN (NTAPI *RtlDllShutdownInProgressPtr)(void);
+        static RtlDllShutdownInProgressPtr shutdown_in_progress;
+        if (!shutdown_in_progress) {
+            HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+            if (ntdll)
+                shutdown_in_progress = (RtlDllShutdownInProgressPtr)(void*)GetProcAddress(ntdll, "RtlDllShutdownInProgress");
+        }
+        if (shutdown_in_progress && shutdown_in_progress())
+            return;
+    }
+#endif
+
 #if !PAS_OS(DARWIN)
     /* Mark the thread as exiting so can_set() returns false and no new TLC is created,
        and clear the TLC pointer to NULL so any alloc/dealloc that runs during destroy()
