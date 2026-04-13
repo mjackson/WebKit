@@ -42,6 +42,7 @@
 #include "pas_thread_local_cache_layout.h"
 #include "pas_thread_local_cache_node.h"
 #include "pas_thread_suspend_lock.h"
+#include "pas_thread_suspender.h"
 #include "pas_zero_memory.h"
 #if !PAS_OS(WINDOWS)
 #include <unistd.h>
@@ -251,6 +252,8 @@ pas_thread_local_cache* pas_thread_local_cache_create(void)
         dump_thread_diagnostics(pthread_self());
     }
     thread_local_cache->thread = pthread_self();
+    thread_local_cache->embedder_thread_handle =
+        pas_thread_suspender_instance ? pas_thread_suspender_instance->current_thread() : NULL;
 
     pas_compiler_fence();
     thread_local_cache->allocator_index_upper_bound = allocator_index_upper_bound;
@@ -354,7 +357,8 @@ pas_local_allocator_result pas_thread_local_cache_get_local_allocator_slow(
         new_thread_local_cache->node = thread_local_cache->node;
     
         new_thread_local_cache->thread = thread_local_cache->thread;
-    
+        new_thread_local_cache->embedder_thread_handle = thread_local_cache->embedder_thread_handle;
+
         new_thread_local_cache->allocator_index_upper_bound =
             thread_local_cache->allocator_index_upper_bound;
 
@@ -806,6 +810,7 @@ void pas_thread_local_cache_flush_deallocation_log_direct(pas_thread_local_cache
 typedef struct scavenger_thread_suspend_data {
     bool did_suspend;
     bool is_scavenger_itself;
+    bool used_embedder;
 #if PAS_OS(DARWIN)
     mach_port_t mach_thread;
 #endif
@@ -816,66 +821,113 @@ static scavenger_thread_suspend_data scavenger_thread_suspend_data_create(void)
     scavenger_thread_suspend_data thread_suspend_data;
     thread_suspend_data.did_suspend = false;
     thread_suspend_data.is_scavenger_itself = false;
+    thread_suspend_data.used_embedder = false;
     return thread_suspend_data;
 }
 
+static PAS_ALWAYS_INLINE bool should_use_embedder_suspender(pas_thread_local_cache* cache)
+{
 #if PAS_OS(DARWIN)
+#if PAS_ENABLE_TESTING
+    if (pas_thread_suspender_override_native)
+        return pas_thread_suspender_instance && cache->embedder_thread_handle;
+#endif
+    PAS_UNUSED_PARAM(cache);
+    return false;
+#else
+    return pas_thread_suspender_instance && cache->embedder_thread_handle;
+#endif
+}
+
+static PAS_ALWAYS_INLINE bool can_force_stop_allocators(pas_thread_local_cache* cache)
+{
+#if PAS_OS(DARWIN)
+    PAS_UNUSED_PARAM(cache);
+    return true;
+#else
+    return pas_thread_suspender_instance && cache->embedder_thread_handle;
+#endif
+}
 
 static void suspend(pas_thread_local_cache* cache, scavenger_thread_suspend_data* thread_suspend_data)
 {
     static const bool verbose = false;
-
     pthread_t thread;
-    kern_return_t result;
 
     if (thread_suspend_data->did_suspend)
         return;
 
     thread_suspend_data->did_suspend = true;
-    
+
     if (verbose)
         pas_log("Suspending TLC %p with thread %p.\n", cache, cache->thread);
 
     thread = cache->thread;
     PAS_ASSERT(thread);
-    
+
     thread_suspend_data->is_scavenger_itself = thread == pthread_self();
     if (thread_suspend_data->is_scavenger_itself)
         return;
 
-    thread_suspend_data->mach_thread = pthread_mach_thread_np(thread);
-    result = thread_suspend(thread_suspend_data->mach_thread);
-    
     /* Fun fact: it's impossible for us to try to suspend a thread that has exited, since
        thread exit for any thread with a TLC needs to grab the heap lock and we hold the
        heap lock. */
 
-    if (result != KERN_SUCCESS) {
-        pas_log("[%d] Failed to suspend pthread %p (mach thread %d) associated with TLC %p: %d\n",
-                getpid(), thread, thread_suspend_data->mach_thread, cache, result);
-        dump_thread_diagnostics(thread);
-        PAS_ASSERT(result == KERN_SUCCESS);
+    if (should_use_embedder_suspender(cache)) {
+        thread_suspend_data->used_embedder = true;
+        PAS_ASSERT(pas_thread_suspender_instance);
+        PAS_ASSERT(cache->embedder_thread_handle);
+        if (!pas_thread_suspender_instance->begin_suspend(cache->embedder_thread_handle)) {
+            pas_log("[%d] embedder failed to suspend thread %p for TLC %p\n",
+                    getpid(), thread, cache);
+            PAS_ASSERT_NOT_REACHED();
+        }
+        return;
     }
+
+#if PAS_OS(DARWIN)
+    {
+        kern_return_t result;
+        thread_suspend_data->mach_thread = pthread_mach_thread_np(thread);
+        result = thread_suspend(thread_suspend_data->mach_thread);
+        if (result != KERN_SUCCESS) {
+            pas_log("[%d] Failed to suspend pthread %p (mach thread %d) associated with TLC %p: %d\n",
+                    getpid(), thread, thread_suspend_data->mach_thread, cache, result);
+            dump_thread_diagnostics(thread);
+            PAS_ASSERT(result == KERN_SUCCESS);
+        }
+    }
+#else
+    PAS_ASSERT_NOT_REACHED();
+#endif
 }
 
 static void resume(pas_thread_local_cache* cache, scavenger_thread_suspend_data* thread_suspend_data)
 {
     static const bool verbose = false;
-    
-    kern_return_t result;
 
     if (verbose)
         pas_log("Resuming TLC %p with thread %p.\n", cache, cache->thread);
-    
+
     if (thread_suspend_data->is_scavenger_itself)
         return;
 
-    result = thread_resume(thread_suspend_data->mach_thread);
-    
-    PAS_ASSERT(result == KERN_SUCCESS);
-}
+    if (thread_suspend_data->used_embedder) {
+        pas_thread_suspender_instance->end_suspend(cache->embedder_thread_handle);
+        return;
+    }
 
+#if PAS_OS(DARWIN)
+    {
+        kern_return_t result;
+        result = thread_resume(thread_suspend_data->mach_thread);
+        PAS_ASSERT(result == KERN_SUCCESS);
+    }
+#else
+    PAS_UNUSED_PARAM(cache);
+    PAS_ASSERT_NOT_REACHED();
 #endif
+}
 
 static void decommit_allocator_range(pas_thread_local_cache* cache,
                                      pas_thread_local_cache_layout_segment* begin_segment,
@@ -885,7 +937,7 @@ static void decommit_allocator_range(pas_thread_local_cache* cache,
                                      pas_thread_local_cache_layout_segment* end_segment,
                                      uintptr_t end_node_index)
 {
-#if PAS_OS(DARWIN)
+#if PAS_OS(DARWIN) || PAS_OS(LINUX)
     static const bool verbose = false;
     
     uintptr_t begin_page_index;
@@ -937,7 +989,7 @@ static void decommit_allocator_range(pas_thread_local_cache* cache,
                     pas_range_size(decommit_range),
                     &pas_large_utility_free_heap_allocation_config));
     }
-#else /* PAS_OS(DARWIN) -> so !PAS_OS(DARWIN) */
+#else /* -> so !(PAS_OS(DARWIN) || PAS_OS(LINUX)) */
     PAS_UNUSED_PARAM(cache);
     PAS_UNUSED_PARAM(begin_segment);
     PAS_UNUSED_PARAM(begin_node_index);
@@ -945,7 +997,7 @@ static void decommit_allocator_range(pas_thread_local_cache* cache,
     PAS_UNUSED_PARAM(end_of_possible_decommit);
     PAS_UNUSED_PARAM(end_segment);
     PAS_UNUSED_PARAM(end_node_index);
-#endif /* PAS_OS(DARWIN) -> so end of !PAS_OS(DARWIN) */
+#endif /* -> so end of !(PAS_OS(DARWIN) || PAS_OS(LINUX)) */
 }
 
 static void stop_allocator(pas_thread_local_cache* cache,
@@ -1011,14 +1063,19 @@ static void stop_allocator(pas_thread_local_cache* cache,
         return;
     }
 
-#if PAS_OS(DARWIN)
+    if (!can_force_stop_allocators(cache)) {
+        PAS_UNUSED_PARAM(thread_suspend_data);
+        *result = true;
+        return;
+    }
+
     if (verbose)
         pas_log("Need to suspend for allocator %p\n", scavenger_data);
 
     suspend(cache, thread_suspend_data);
 
     PAS_ASSERT(thread_suspend_data->did_suspend);
-                
+
     if (scavenger_data->is_in_use) {
         *result = true;
         return;
@@ -1033,9 +1090,6 @@ static void stop_allocator(pas_thread_local_cache* cache,
     if (!pas_local_allocator_scavenger_data_stop(
             scavenger_data, pas_lock_lock_mode_try_lock, pas_lock_is_held))
         *result = true;
-#else
-    PAS_UNUSED_PARAM(thread_suspend_data);
-#endif
 }
 
 bool pas_thread_local_cache_for_all(pas_allocator_scavenge_action allocator_action,
@@ -1170,10 +1224,8 @@ bool pas_thread_local_cache_for_all(pas_allocator_scavenge_action allocator_acti
                     stop_allocator(cache, allocator_action, allocator_index, scavenger_data, &result, &thread_suspend_data);
             }
             
-#if PAS_OS(DARWIN)
             if (thread_suspend_data.did_suspend)
                 resume(cache, &thread_suspend_data);
-#endif
 
             if (thread_local_cache_decommit_action == pas_thread_local_cache_decommit_if_possible_action) {
                 uintptr_t begin_page_index =

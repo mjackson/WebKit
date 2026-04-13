@@ -74,7 +74,8 @@ struct pas_thread_local_cache {
     unsigned* pages_committed; /* This is a bitvector, protected by the scavenger lock. */
     
     pthread_t thread;
-    
+    void* embedder_thread_handle;
+
     bool should_stop_some;
     
     unsigned allocator_index_upper_bound;
