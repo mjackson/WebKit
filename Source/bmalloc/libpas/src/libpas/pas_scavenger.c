@@ -264,7 +264,8 @@ static void* scavenger_thread_main(void* arg)
                                                 pas_lock_is_not_held);
 
         thread_local_cache_decommit_action = pas_thread_local_cache_decommit_no_action;
-        if ((pas_scavenger_tick_count % PAS_THREAD_LOCAL_CACHE_DECOMMIT_PERIOD_COUNT) == 0) {
+        if ((pas_scavenger_tick_count % PAS_THREAD_LOCAL_CACHE_DECOMMIT_PERIOD_COUNT) == 0
+            || pas_scavenger_current_state == pas_scavenger_state_deep_sleep) {
             if (verbose)
                 pas_log("Attempt to decommit unused TLC\n");
             thread_local_cache_decommit_action = pas_thread_local_cache_decommit_if_possible_action;
