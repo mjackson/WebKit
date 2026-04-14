@@ -164,17 +164,8 @@ static void destructor(void* arg)
        the calling thread. If the scavenger held pas_heap_lock when it was killed,
        destroy() spins forever on the orphaned spinlock. Skip teardown during
        process shutdown; the address space is about to go away. */
-    {
-        typedef BOOLEAN (NTAPI *RtlDllShutdownInProgressPtr)(void);
-        static RtlDllShutdownInProgressPtr shutdown_in_progress;
-        if (!shutdown_in_progress) {
-            HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
-            if (ntdll)
-                shutdown_in_progress = (RtlDllShutdownInProgressPtr)(void*)GetProcAddress(ntdll, "RtlDllShutdownInProgress");
-        }
-        if (shutdown_in_progress && shutdown_in_progress())
-            return;
-    }
+    if (RtlDllShutdownInProgress())
+        return;
 #endif
 
 #if !PAS_OS(DARWIN)
