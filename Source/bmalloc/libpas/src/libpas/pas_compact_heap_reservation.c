@@ -44,7 +44,7 @@ uintptr_t pas_compact_heap_reservation_base = 0;
 size_t pas_compact_heap_reservation_available_size = 0;
 size_t pas_compact_heap_reservation_bump = 0;
 
-#if PAS_PLATFORM(PLAYSTATION)
+#if PAS_PLATFORM(PLAYSTATION) || PAS_OS(WINDOWS)
 uintptr_t pas_compact_heap_reservation_committed = 0;
 #endif
 
@@ -69,6 +69,15 @@ pas_aligned_allocation_result pas_compact_heap_reservation_try_allocate(size_t s
         pas_zero_memory(&page_result, sizeof(pas_aligned_allocation_result));
 
         page_result.result = memory_extra_vss_reserve(pas_compact_heap_reservation_size, pas_page_malloc_alignment());
+        PAS_ASSERT(page_result.result);
+#elif PAS_OS(WINDOWS)
+        /* pas_page_malloc has no reserve-only verb on Windows, so the generic
+           path commits the full 128 MB up front even though only a few MB past
+           the bump pointer is ever touched. Reserve and commit on demand below,
+           same as PlayStation. */
+        pas_zero_memory(&page_result, sizeof(pas_aligned_allocation_result));
+
+        page_result.result = VirtualAlloc(NULL, pas_compact_heap_reservation_size, MEM_RESERVE, PAGE_READWRITE);
         PAS_ASSERT(page_result.result);
 #else
         page_result = pas_page_malloc_try_allocate_without_deallocating_padding(
@@ -99,7 +108,7 @@ pas_aligned_allocation_result pas_compact_heap_reservation_try_allocate(size_t s
 
     pas_compact_heap_reservation_bump = allocation_end - pas_compact_heap_reservation_base;
 
-#if PAS_PLATFORM(PLAYSTATION)
+#if PAS_PLATFORM(PLAYSTATION) || PAS_OS(WINDOWS)
     if (pas_compact_heap_reservation_committed < allocation_end && size > 0) {
         uintptr_t need_commit_start;
         uintptr_t need_commit_end;
@@ -119,7 +128,11 @@ pas_aligned_allocation_result pas_compact_heap_reservation_try_allocate(size_t s
 
         PAS_ASSERT(need_commit_start < need_commit_end);
 
+#if PAS_OS(WINDOWS)
+        success = !!VirtualAlloc((void*)need_commit_start, need_commit_end - need_commit_start, MEM_COMMIT, PAGE_READWRITE);
+#else
         success = memory_extra_vss_commit((void*)need_commit_start, need_commit_end - need_commit_start, true, -1);
+#endif
         PAS_ASSERT(success);
 
         pas_compact_heap_reservation_committed = need_commit_end;
