@@ -25,6 +25,7 @@
 
 #include "config.h"
 
+#include <atomic>
 #include <wtf/Threading.h>
 #include <wtf/Vector.h>
 #include <wtf/threads/BinarySemaphore.h>
@@ -119,6 +120,55 @@ TEST(WTF_Thread, ThreadSafetyAnalysisAssertIsCurrentWorks)
         holder.thread->waitForCompletion();
     for (auto& holder : holders)
         EXPECT_EQ(2u, holder.result);
+}
+
+// Regression test for the libpas scavenger's thread-suspension contract:
+// Thread::suspend must guarantee the target is actually stopped by the time it
+// returns. On Windows this requires an explicit GetThreadContext sync after
+// SuspendThread (which is otherwise asynchronous on multi-core systems). A
+// non-synchronous Thread::suspend would let the libpas scavenger decommit TLC
+// pages while the mutator is still writing to them. The test observes a
+// volatile counter that a busy-looping target thread increments; while
+// suspended, the counter must not advance.
+TEST(WTF_Thread, SuspendIsSynchronous)
+{
+    std::atomic<uint64_t> counter { 0 };
+    std::atomic<bool> stop { false };
+    BinarySemaphore workerStarted;
+
+    RefPtr<Thread> worker = Thread::create("Thread::suspend sync test"_s, [&] {
+        workerStarted.signal();
+        while (!stop.load(std::memory_order_relaxed))
+            counter.fetch_add(1, std::memory_order_relaxed);
+    });
+    ASSERT_TRUE(worker);
+    workerStarted.wait();
+
+    constexpr int iterations = 50;
+    constexpr int observeSpin = 200'000;
+    int offenses = 0;
+
+    for (int i = 0; i < iterations; ++i) {
+        ThreadSuspendLocker locker;
+        auto suspendResult = worker->suspend(locker);
+        ASSERT_TRUE(suspendResult.has_value());
+
+        uint64_t before = counter.load(std::memory_order_relaxed);
+        // Busy-loop to give a non-synchronous suspend time to leak.
+        for (volatile int spin = 0; spin < observeSpin; ++spin) { }
+        uint64_t after = counter.load(std::memory_order_relaxed);
+
+        worker->resume(locker);
+
+        if (before != after)
+            ++offenses;
+    }
+
+    stop.store(true, std::memory_order_relaxed);
+    worker->waitForCompletion();
+
+    EXPECT_EQ(0, offenses) << "Target thread advanced during " << offenses
+        << " of " << iterations << " suspend windows -- Thread::suspend is not synchronous";
 }
 
 } // namespace TestWebKitAPI
