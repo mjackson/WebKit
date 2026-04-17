@@ -1375,10 +1375,21 @@ private:
 
 #if USE(BUN_JSC_ADDITIONS)
 public:
-    // When > 0, internal microtasks for already-settled promises are run
-    // synchronously instead of being queued. Used by Bun's require(esm) to
-    // load+link+evaluate a module graph without yielding to user microtasks.
-    unsigned m_synchronousModuleLoadingDepth { 0 };
+    struct SynchronousModuleTask {
+        InternalMicrotask task;
+        uint8_t payload;
+        JSValue arg0;
+        JSValue arg1;
+        JSValue arg2;
+    };
+    // While non-null, internal-microtask reactions for already-settled promises
+    // are appended here instead of the global microtask queue.
+    // JSModuleLoader::loadModuleSync points this at a stack-allocated vector and
+    // drains it in a loop so require(esm) can load+link+evaluate without
+    // yielding to user microtasks and without the O(module-count) C++ recursion
+    // that direct re-entry into runInternalMicrotask would cause. The JSValues
+    // live on the C stack, so conservative stack scanning keeps them rooted.
+    Vector<SynchronousModuleTask>* m_synchronousModuleQueue { nullptr };
 private:
 #endif
 

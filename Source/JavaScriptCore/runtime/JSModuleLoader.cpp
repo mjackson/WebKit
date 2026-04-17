@@ -30,6 +30,7 @@
 #include "BuiltinNames.h"
 #include "GlobalObjectMethodTable.h"
 #include "JSCInlines.h"
+#include "JSMicrotask.h"
 #include "JSModuleNamespaceObject.h"
 #include "JSModuleRecord.h"
 #include "JSPromise.h"
@@ -1008,14 +1009,41 @@ JSValue JSModuleLoader::ModuleReferrer::toJSValue() const
 }
 
 #if USE(BUN_JSC_ADDITIONS)
+void JSModuleLoader::drainSynchronousModuleQueue(JSGlobalObject* globalObject)
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+    auto* queue = vm.m_synchronousModuleQueue;
+    ASSERT(queue);
+    // FIFO drain. Tasks may append while we iterate, so index by position and
+    // never shrink mid-loop. Clear afterwards so the next caller starts fresh.
+    size_t i = 0;
+    while (i < queue->size()) {
+        auto t = (*queue)[i++];
+        std::array<const JSValue, maxMicrotaskArguments> args { { t.arg0, t.arg1, t.arg2, jsUndefined() } };
+        runInternalMicrotask(globalObject, vm, t.task, t.payload, args);
+        RETURN_IF_EXCEPTION(scope, void());
+    }
+    queue->shrink(0);
+}
+
 JSPromise* JSModuleLoader::loadModuleSync(JSGlobalObject* globalObject, const Identifier& moduleName, JSValue parameters, JSValue scriptFetcher)
 {
     VM& vm = globalObject->vm();
-    vm.m_synchronousModuleLoadingDepth++;
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    Vector<VM::SynchronousModuleTask> queue;
+    auto* previousQueue = vm.m_synchronousModuleQueue;
+    vm.m_synchronousModuleQueue = &queue;
     auto cleanup = WTF::makeScopeExit([&] {
-        vm.m_synchronousModuleLoadingDepth--;
+        vm.m_synchronousModuleQueue = previousQueue;
     });
-    return loadModule(globalObject, moduleName, parameters, scriptFetcher, /* evaluate */ true, /* dynamic */ false, /* useImportMap */ false);
+
+    JSPromise* result = loadModule(globalObject, moduleName, parameters, scriptFetcher, /* evaluate */ true, /* dynamic */ false, /* useImportMap */ false);
+    RETURN_IF_EXCEPTION(scope, result);
+
+    drainSynchronousModuleQueue(globalObject);
+    return result;
 }
 
 extern "C" __attribute__((weak)) EncodedJSValue Bun__analyzeTranspiledModule(JSGlobalObject* globalObject, const Identifier& moduleKey, const SourceCode& sourceCode, JSPromise* promise)

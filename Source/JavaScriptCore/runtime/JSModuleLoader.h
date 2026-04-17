@@ -181,6 +181,7 @@ public:
         m_resolutionFailures.clear();
     }
     JS_EXPORT_PRIVATE JSPromise* loadModuleSync(JSGlobalObject*, const Identifier& moduleName, JSValue parameters, JSValue scriptFetcher);
+    JS_EXPORT_PRIVATE static void drainSynchronousModuleQueue(JSGlobalObject*);
 #endif
 
 private:

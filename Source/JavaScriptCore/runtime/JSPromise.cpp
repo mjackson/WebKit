@@ -375,10 +375,9 @@ void JSPromise::performPromiseThenWithInternalMicrotask(VM& vm, JSGlobalObject* 
         if (!isHandled())
             globalObject->globalObjectMethodTable()->promiseRejectionTracker(globalObject, this, JSPromiseRejectionOperation::Handle);
 #if USE(BUN_JSC_ADDITIONS)
-        if (vm.m_synchronousModuleLoadingDepth) [[unlikely]] {
+        if (vm.m_synchronousModuleQueue) [[unlikely]] {
             markAsHandled();
-            std::array<const JSValue, maxMicrotaskArguments> args { { promise, reactionsOrResult, context, jsUndefined() } };
-            runInternalMicrotask(globalObject, vm, task, static_cast<uint8_t>(Status::Rejected), args);
+            vm.m_synchronousModuleQueue->append({ task, static_cast<uint8_t>(Status::Rejected), promise, reactionsOrResult, context });
             break;
         }
 #endif
@@ -388,9 +387,8 @@ void JSPromise::performPromiseThenWithInternalMicrotask(VM& vm, JSGlobalObject* 
     }
     case JSPromise::Status::Fulfilled: {
 #if USE(BUN_JSC_ADDITIONS)
-        if (vm.m_synchronousModuleLoadingDepth) [[unlikely]] {
-            std::array<const JSValue, maxMicrotaskArguments> args { { promise, reactionsOrResult, context, jsUndefined() } };
-            runInternalMicrotask(globalObject, vm, task, static_cast<uint8_t>(Status::Fulfilled), args);
+        if (vm.m_synchronousModuleQueue) [[unlikely]] {
+            vm.m_synchronousModuleQueue->append({ task, static_cast<uint8_t>(Status::Fulfilled), promise, reactionsOrResult, context });
             break;
         }
 #endif
@@ -684,9 +682,8 @@ void JSPromise::triggerPromiseReactions(VM& vm, JSGlobalObject* globalObject, St
             handler = arg;
             arg = context;
 #if USE(BUN_JSC_ADDITIONS)
-            if (vm.m_synchronousModuleLoadingDepth) [[unlikely]] {
-                std::array<const JSValue, maxMicrotaskArguments> args { { promise, handler, arg, jsUndefined() } };
-                runInternalMicrotask(globalObject, vm, task, static_cast<uint8_t>(status), args);
+            if (vm.m_synchronousModuleQueue) [[unlikely]] {
+                vm.m_synchronousModuleQueue->append({ task, static_cast<uint8_t>(status), promise, handler, arg });
                 return;
             }
 #endif
