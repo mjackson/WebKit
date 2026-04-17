@@ -919,6 +919,11 @@ writeH("OpcodeGenerated") {
     outp.puts ""
     outp.puts "#if ENABLE(B3_JIT)"
 
+    outp.puts "#include \"AirInstInlines.h\""
+    outp.puts "#include \"B3ProcedureInlines.h\""
+    outp.puts "#include \"CCallHelpers.h\""
+    outp.puts "#include \"wtf/PrintStream.h\""
+
     outp.puts "#pragma push_macro(\"RotateLeft32\")"
     outp.puts "#pragma push_macro(\"RotateLeft64\")"
     outp.puts "#pragma push_macro(\"RotateRight32\")"
@@ -934,10 +939,6 @@ writeH("OpcodeGenerated") {
     outp.puts "#undef LoadFence"
     outp.puts "#undef MemoryFence"
 
-    outp.puts "#include \"AirInstInlines.h\""
-    outp.puts "#include \"B3ProcedureInlines.h\""
-    outp.puts "#include \"CCallHelpers.h\""
-    outp.puts "#include \"wtf/PrintStream.h\""
     outp.puts "namespace WTF {"
     outp.puts "using namespace JSC::B3::Air;"
     outp.puts "void printInternal(PrintStream& out, Opcode opcode)"

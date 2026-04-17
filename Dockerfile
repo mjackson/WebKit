@@ -25,6 +25,13 @@ ARG ENABLE_SANITIZERS
 # Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Ubuntu 20.04 is EOL; its package archive moved to old-releases.
+RUN sed -i \
+      -e 's|http://archive.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \
+      -e 's|http://security.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' \
+      -e 's|http://ports.ubuntu.com/ubuntu-ports|http://old-releases.ubuntu.com/ubuntu|g' \
+      /etc/apt/sources.list
+
 # Install basic build dependencies
 RUN apt-get update && apt-get install -y \
     wget \
