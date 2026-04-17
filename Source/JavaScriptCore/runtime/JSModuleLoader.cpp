@@ -351,6 +351,13 @@ static auto getFetchType(JSValue parameters, ScriptFetchParameters::Type fallbac
     return fallback;
 }
 
+static RefPtr<ScriptFetchParameters> fetchParametersFromValue(JSValue parameters, ScriptFetchParameters::Type fallback = ScriptFetchParameters::Type::JavaScript)
+{
+    if (auto* jsParameters = jsDynamicCast<JSScriptFetchParameters*>(parameters))
+        return const_cast<ScriptFetchParameters*>(&jsParameters->parameters());
+    return ScriptFetchParameters::create(fallback);
+}
+
 JSPromise* JSModuleLoader::loadModule(JSGlobalObject* globalObject, const Identifier& specifier, JSValue parameters, JSValue scriptFetcher, bool evaluate, bool dynamic, bool useImportMap)
 {
     VM& vm = globalObject->vm();
@@ -375,7 +382,7 @@ JSPromise* JSModuleLoader::loadModule(JSGlobalObject* globalObject, const Identi
         RETURN_IF_EXCEPTION(scope, nullptr);
     }
 
-    AbstractModuleRecord::ModuleRequest request { specifier, ScriptFetchParameters::create(type) };
+    AbstractModuleRecord::ModuleRequest request { specifier, fetchParametersFromValue(parameters, type) };
     auto* context = ModuleLoadingContext::create(vm, request, scriptFetcher, evaluate, dynamic, useImportMap);
 
     JSPromise* intermediatePromise = JSPromise::create(vm, globalObject->promiseStructure());

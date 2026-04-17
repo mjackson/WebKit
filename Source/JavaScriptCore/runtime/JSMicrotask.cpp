@@ -984,7 +984,7 @@ static void moduleLoadTopSettled(JSGlobalObject* globalObject, VM& vm, ThrowScop
 
         JSPromise* statePromise = JSPromise::create(vm, globalObject->promiseStructure());
         statePromise->markAsHandled();
-        AbstractModuleRecord::ModuleRequest request { specifier, ScriptFetchParameters::create(type) };
+        AbstractModuleRecord::ModuleRequest request { specifier, context->moduleRequest().m_attributes };
         ModuleLoaderPayload* modulePayload;
         JSPromise* loadPromise;
 
